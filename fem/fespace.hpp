@@ -941,6 +941,8 @@ protected:
    const IntegrationRule *int_rule[Geometry::NumGeom];
    int *element_offsets; // scalar offsets; size = number of elements + 1
 
+   char qs_name[32];
+
    // protected functions
 
    // Assuming mesh and order are set, construct the members: int_rule,
@@ -976,6 +978,9 @@ public:
    /// Write the QuadratureSpace to the stream @a out.
    void Save(std::ostream &out) const;
 
+   /// Returns a name that can be used to reconstruct the QuadratureSpace
+   const char *Name() const { return qs_name; }
+
    /** @brief Factory method: return a newly allocated QuadratureSpace
        according to the given basis name.
        @param[in] name The basis name to generate a QuadratureSpace for
@@ -984,12 +989,11 @@ public:
 
    | QSpace Basis Name | Notes |
    | :------: | :---: |
-   | QF_Default_[ORDER]_[VDIM] | Default quadrature type |
+   | QF_Default_[ORDER] | Default quadrature type |
 
    | Tag | Description |
    | :------: | :--------: |
    | [ORDER]  | Approximation order of the elements (P0, P1, P2, ...) |
-   | [VDIM]   | Number of components at each quadrature point |
    */
    static QuadratureSpace *New(const char* name, Mesh* mesh);
 };

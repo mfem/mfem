@@ -3601,6 +3601,8 @@ void QuadratureSpace::Construct()
       offset += int_rule[geom]->GetNPoints();
    }
    element_offsets[num_elem] = size = offset;
+
+   snprintf(qs_name, 32, "QF_Default_%d", order);
 }
 
 QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
@@ -3638,8 +3640,7 @@ QuadratureSpace *QuadratureSpace::New(const char* name, Mesh* mesh)
    QuadratureSpace* qspace = nullptr;
    if (!strncmp(name, "QF_Default_", 11))
    {
-      // FIXME: The vdim is also accessible here but not needed until the QFunc
-      // is constructed - should this logic be adjusted somehow?
+      // Note that the VDIM is not used here because it is part of the QuadratureFunction
       qspace = new QuadratureSpace(mesh, atoi(name + 11));
    }
    else
