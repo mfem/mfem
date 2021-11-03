@@ -43,21 +43,21 @@ using namespace mfem;
 class UserMonitor : public PetscSolverMonitor
 {
 private:
-   ParBilinearForm *_a;
-   ParLinearForm *_b;
+   ParBilinearForm *a;
+   ParLinearForm *b;
 
 public:
-   UserMonitor(ParBilinearForm *a, ParLinearForm *b)
-      : PetscSolverMonitor(true,false), _a(a), _b(b) {}
+   UserMonitor(ParBilinearForm *a_, ParLinearForm *b_)
+      : PetscSolverMonitor(true,false), a(a_), b(b_) {}
 
    void MonitorSolution(PetscInt it, PetscReal norm, const Vector &X)
    {
       // we plot the first 5 iterates
       if (!it || it > 5) { return; }
-      ParFiniteElementSpace *fespace = _a->ParFESpace();
+      ParFiniteElementSpace *fespace = a->ParFESpace();
       ParMesh *mesh = fespace->GetParMesh();
-      ParGridFunction _x(fespace);
-      _a->RecoverFEMSolution(X, *_b, _x);
+      ParGridFunction x(fespace);
+      a->RecoverFEMSolution(X, *b, x);
 
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -68,7 +68,7 @@ public:
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << _x
+      sol_sock << "solution\n" << *mesh << x
                << "window_title 'Iteration no " << it << "'" << flush;
    }
 };

@@ -96,25 +96,25 @@ public:
    void SetDeviceInvalid() const      { flags &= ~VALID_DEVICE; }
    inline bool IsAliasForSync() const { return base && (flags & ALIAS); }
 
-   inline void MakeAliasForSync(const Memory<double> &_base, int _offset,
-                                int _size, bool _usedev)
+   inline void MakeAliasForSync(const Memory<double> &base_, int offset_,
+                                int size_, bool usedev_)
    {
       MFEM_VERIFY(!IsAliasForSync(),"Already alias");
-      base = (Memory<double>*)&_base;
+      base = (Memory<double>*)&base_;
       read = true;
       write = false;
-      usedev = _usedev;
-      MakeAlias(_base,_offset,_size);
+      usedev = usedev_;
+      MakeAlias(base_,offset_,size_);
    }
-   inline void MakeAliasForSync(Memory<double> &_base, int _offset, int _size,
-                                bool _read, bool _write, bool _usedev)
+   inline void MakeAliasForSync(Memory<double> &base_, int offset_, int size_,
+                                bool read_, bool write_, bool usedev_)
    {
       MFEM_VERIFY(!IsAliasForSync(),"Already alias");
-      base = (Memory<double>*)&_base;
-      read = _read;
-      write = _write;
-      usedev = _usedev;
-      MakeAlias(_base,_offset,_size);
+      base = (Memory<double>*)&base_;
+      read = read_;
+      write = write_;
+      usedev = usedev_;
+      MakeAlias(base_,offset_,size_);
    }
    inline void SyncBase()
    {
@@ -183,9 +183,9 @@ public:
    /** @brief Creates vector with given global size, partitioning of the
        columns, and data.
 
-       The data must be allocated and destroyed outside. If @a _data is NULL, a
+       The data must be allocated and destroyed outside. If @a data_ is NULL, a
        dummy vector without a valid data array will be created. */
-   PetscParVector(MPI_Comm comm, PetscInt glob_size, PetscScalar *_data,
+   PetscParVector(MPI_Comm comm, PetscInt glob_size, PetscScalar *data_,
                   PetscInt *col);
 
    /// Creates vector compatible with @a y
@@ -193,9 +193,9 @@ public:
 
    /** @brief Creates a PetscParVector from a Vector
        @param[in] comm  MPI communicator on which the new object lives
-       @param[in] _x    The mfem Vector (data is not shared)
-       @param[in] copy  Whether to copy the data in _x or not */
-   PetscParVector(MPI_Comm comm, const Vector &_x, bool copy = false);
+       @param[in] x_    The mfem Vector (data is not shared)
+       @param[in] copy  Whether to copy the data in x_ or not */
+   PetscParVector(MPI_Comm comm, const Vector &x_, bool copy = false);
 
    /** @brief Creates vector compatible with the Operator (i.e. in the domain
        of) @a op or its adjoint. */
@@ -571,10 +571,10 @@ public:
       TIME_DEPENDENT
    };
 
-   PetscBCHandler(Type _type = ZERO) :
-      bctype(_type), setup(false), eval_t(0.0),
+   PetscBCHandler(Type type_ = ZERO) :
+      bctype(type_), setup(false), eval_t(0.0),
       eval_t_cached(std::numeric_limits<double>::min()) {}
-   PetscBCHandler(Array<int>& ess_tdof_list, Type _type = ZERO);
+   PetscBCHandler(Array<int>& ess_tdof_list, Type type_ = ZERO);
 
    virtual ~PetscBCHandler() {}
 
@@ -582,7 +582,7 @@ public:
    Type GetType() const { return bctype; }
 
    /// Sets the type of boundary conditions
-   void SetType(enum Type _type) { bctype = _type; setup = false; }
+   void SetType(enum Type type_) { bctype = type_; setup = false; }
 
    /// Boundary conditions evaluation
    /** In the result vector, @a g, only values at the essential dofs need to be
@@ -634,8 +634,8 @@ class PetscPreconditionerFactory
 private:
    std::string name;
 public:
-   PetscPreconditionerFactory(const std::string &_name = "MFEM Factory")
-      : name(_name) { }
+   PetscPreconditionerFactory(const std::string &name_ = "MFEM Factory")
+      : name(name_) { }
    const char* GetName() { return name.c_str(); }
    virtual Solver *NewPreconditioner(const OperatorHandle& oh) = 0;
    virtual ~PetscPreconditionerFactory() {}

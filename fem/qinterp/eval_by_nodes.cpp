@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "quadinterpolator.hpp"
-#include "quadinterpolator_dispatch.hpp"
-#include "quadinterpolator_eval.hpp"
+#include "../quadinterpolator.hpp"
+#include "dispatch.hpp"
+#include "eval.hpp"
 
 namespace mfem
 {

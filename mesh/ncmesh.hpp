@@ -68,7 +68,11 @@ struct CoarseFineTransformations
                            Table &coarse_to_fine,
                            Array<int> &coarse_to_ref_type,
                            Table &ref_type_to_matrix,
-                           Array<Geometry::Type> &ref_type_to_geom) const;
+                           Array<Geometry::Type> &ref_type_to_geom,
+                           bool get_coarse_to_fine_only = false) const;
+
+   void GetCoarseToFineMap(const Mesh &fine_mesh,
+                           Table &coarse_to_fine) const;
 
    void Clear();
    bool IsInitialized() const;
@@ -169,7 +173,8 @@ public:
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
 
-      MeshId(int index = -1, int element = -1, int local = -1, int geom = -1)
+      MeshId() = default;
+      MeshId(int index, int element, int local, int geom = -1)
          : index(index), element(element), local(local), geom(geom) {}
    };
 

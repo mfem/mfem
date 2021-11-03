@@ -139,7 +139,7 @@ bool HiopOptimizationProblem::eval_Jac_cons(const long long &n,
                                             const long long &num_cons,
                                             const long long *idx_cons,
                                             const double *x, bool new_x,
-                                            double **Jac)
+                                            double *Jac)
 {
    MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
    MFEM_ASSERT(m == m_total, "Constraint size mismatch.");
@@ -157,7 +157,8 @@ bool HiopOptimizationProblem::eval_Jac_cons(const long long &n,
       MFEM_ASSERT(idx_cons[c] < m_total, "Constraint index is out of bounds.");
       for (int j = 0; j < ntdofs_loc; j++)
       {
-         Jac[c][j] = constr_grads(idx_cons[c], j);
+         // The matrix is stored by rows.
+         Jac[c * ntdofs_loc + j] = constr_grads(idx_cons[c], j);
       }
    }
 
@@ -169,11 +170,11 @@ bool HiopOptimizationProblem::get_vecdistrib_info(long long global_n,
 {
 #ifdef MFEM_USE_MPI
    int nranks;
-   MPI_Comm_size(comm_, &nranks);
+   MPI_Comm_size(comm, &nranks);
 
    long long *sizes = new long long[nranks];
    MPI_Allgather(&ntdofs_loc, 1, MPI_LONG_LONG_INT, sizes, 1,
-                 MPI_LONG_LONG_INT, comm_);
+                 MPI_LONG_LONG_INT, comm);
    cols[0] = 0;
    for (int r = 1; r <= nranks; r++)
    {
@@ -249,7 +250,7 @@ HiopNlpOptimizer::HiopNlpOptimizer() : OptimizationSolver(), hiop_problem(NULL)
 {
 #ifdef MFEM_USE_MPI
    // Set in case a serial driver uses a parallel MFEM build.
-   comm_ = MPI_COMM_WORLD;
+   comm = MPI_COMM_WORLD;
    int initialized, nret = MPI_Initialized(&initialized);
    MFEM_ASSERT(MPI_SUCCESS == nret, "Failure in calling MPI_Initialized!");
    if (!initialized)
@@ -261,8 +262,8 @@ HiopNlpOptimizer::HiopNlpOptimizer() : OptimizationSolver(), hiop_problem(NULL)
 }
 
 #ifdef MFEM_USE_MPI
-HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm)
-   : OptimizationSolver(_comm), hiop_problem(NULL), comm_(_comm) { }
+HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm comm_)
+   : OptimizationSolver(comm_), hiop_problem(NULL), comm(comm_) { }
 #endif
 
 HiopNlpOptimizer::~HiopNlpOptimizer()
@@ -278,7 +279,7 @@ void HiopNlpOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
    if (hiop_problem) { delete hiop_problem; }
 
 #ifdef MFEM_USE_MPI
-   hiop_problem = new HiopOptimizationProblem(comm_, *problem);
+   hiop_problem = new HiopOptimizationProblem(comm, *problem);
 #else
    hiop_problem = new HiopOptimizationProblem(*problem);
 #endif

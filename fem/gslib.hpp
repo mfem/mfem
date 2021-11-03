@@ -17,11 +17,13 @@
 
 #ifdef MFEM_USE_GSLIB
 
+namespace gslib
+{
 struct comm;
 struct findpts_data_2;
 struct findpts_data_3;
-struct array;
 struct crystal;
+}
 
 namespace mfem
 {
@@ -50,10 +52,10 @@ public:
 protected:
    Mesh *mesh, *meshsplit;
    IntegrationRule *ir_simplex;    // IntegrationRule to split quads/hex -> simplex
-   struct findpts_data_2 *fdata2D; // gslib's internal data
-   struct findpts_data_3 *fdata3D; // gslib's internal data
-   struct crystal *cr;             // gslib's internal data
-   struct comm *gsl_comm;          // gslib's internal data
+   struct gslib::findpts_data_2 *fdata2D; // gslib's internal data
+   struct gslib::findpts_data_3 *fdata3D; // gslib's internal data
+   struct gslib::crystal *cr;             // gslib's internal data
+   struct gslib::comm *gsl_comm;          // gslib's internal data
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
@@ -85,7 +87,7 @@ public:
    FindPointsGSLIB();
 
 #ifdef MFEM_USE_MPI
-   FindPointsGSLIB(MPI_Comm _comm);
+   FindPointsGSLIB(MPI_Comm comm_);
 #endif
 
    virtual ~FindPointsGSLIB();
@@ -199,7 +201,7 @@ public:
       overset(true) { }
 
 #ifdef MFEM_USE_MPI
-   OversetFindPointsGSLIB(MPI_Comm _comm) : FindPointsGSLIB(_comm),
+   OversetFindPointsGSLIB(MPI_Comm comm_) : FindPointsGSLIB(comm_),
       overset(true) { }
 #endif
 

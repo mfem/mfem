@@ -4321,7 +4321,7 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
    if (!transforms.embeddings.Size())
    {
       transforms.Clear();
-      transforms.embeddings.SetSize(leaf_elements.Size());
+      transforms.embeddings.SetSize(NElements);
 
       std::string ref_path;
       ref_path.reserve(100);
@@ -4455,7 +4455,8 @@ struct RefType
 void CoarseFineTransformations::GetCoarseToFineMap(
    const mfem::Mesh &fine_mesh, Table &coarse_to_fine,
    Array<int> &coarse_to_ref_type, Table &ref_type_to_matrix,
-   Array<mfem::Geometry::Type> &ref_type_to_geom) const
+   Array<mfem::Geometry::Type> &ref_type_to_geom,
+   bool get_coarse_to_fine_only) const
 {
    const int fine_ne = embeddings.Size();
    int coarse_ne = -1;
@@ -4494,6 +4495,11 @@ void CoarseFineTransformations::GetCoarseToFineMap(
    {
       coarse_to_fine.GetJ()[i] = cf_j[i].two;
    }
+
+   if (get_coarse_to_fine_only) { return; }
+   MFEM_VERIFY(fine_mesh.GetLastOperation() != Mesh::Operation::DEREFINE,
+               "GetCoarseToFineMap is not fully supported for derefined meshes."
+               " Set 'get_coarse_to_fine_only=true'.")
 
    using internal::RefType;
    using std::map;
@@ -4534,6 +4540,18 @@ void CoarseFineTransformations::GetCoarseToFineMap(
       }
    }
    ref_type_to_matrix.ShiftUpI();
+}
+
+void CoarseFineTransformations::GetCoarseToFineMap(const Mesh &fine_mesh,
+                                                   Table &coarse_to_fine) const
+{
+   Array<int> coarse_to_ref_type;
+   Table ref_type_to_matrix;
+   Array<mfem::Geometry::Type> ref_type_to_geom;
+   bool get_coarse_to_fine_only = true;
+   GetCoarseToFineMap(fine_mesh, coarse_to_fine, coarse_to_ref_type,
+                      ref_type_to_matrix, ref_type_to_geom,
+                      get_coarse_to_fine_only);
 }
 
 void NCMesh::ClearTransforms()

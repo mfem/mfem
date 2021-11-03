@@ -61,7 +61,7 @@ public:
    B two;
    C three;
 
-   Triple() { }
+   Triple() = default;
 
    Triple(const A &one, const B &two, const C &three)
       : one(one), two(two), three(three) { }

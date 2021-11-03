@@ -194,18 +194,18 @@ public:
        of the highest-dimensional FiniteElement%s defined by the collection. */
    int GetOrder() const { return base_p; }
 
-protected:
-   const int base_p; ///< Order as returned by GetOrder().
-
-   FiniteElementCollection() : base_p(0) {}
-   FiniteElementCollection(int p) : base_p(p) {}
-
    /// Instantiate a new collection of the same type with a different order.
    /** Generally, the order parameter @a p is NOT the same as the parameter @a p
        used by some of the constructors of derived classes. Instead, this @a p
        represents the order of the new FE collection as it will be returned by
        its GetOrder() method. */
    virtual FiniteElementCollection *Clone(int p) const;
+
+protected:
+   const int base_p; ///< Order as returned by GetOrder().
+
+   FiniteElementCollection() : base_p(0) {}
+   FiniteElementCollection(int p) : base_p(p) {}
 
    void InitVarOrder(int p) const;
 
@@ -246,11 +246,10 @@ public:
    /// Variable order version of GetDofMap
    const int *GetDofMap(Geometry::Type GeomType, int p) const;
 
-   virtual ~H1_FECollection();
-
-protected:
    FiniteElementCollection* Clone(int p) const
    { return new H1_FECollection(p, dim, b_type); }
+
+   virtual ~H1_FECollection();
 };
 
 /** @brief Arbitrary order H1-conforming (continuous) finite elements with
@@ -329,11 +328,10 @@ public:
 
    int GetBasisType() const { return b_type; }
 
-   virtual ~L2_FECollection();
-
-protected:
    FiniteElementCollection* Clone(int p) const
    { return new L2_FECollection(p, dim, b_type, m_type); }
+
+   virtual ~L2_FECollection();
 };
 
 /// Declare an alternative name for L2_FECollection = DG_FECollection
@@ -343,6 +341,8 @@ typedef L2_FECollection DG_FECollection;
 class RT_FECollection : public FiniteElementCollection
 {
 protected:
+   int dim;
+   int cb_type; // closed BasisType
    int ob_type; // open BasisType
    char rt_name[32];
    FiniteElement *RT_Elements[Geometry::NumGeom];
@@ -381,6 +381,12 @@ public:
    virtual int GetContType() const { return NORMAL; }
    FiniteElementCollection *GetTraceCollection() const;
 
+   int GetClosedBasisType() const { return cb_type; }
+   int GetOpenBasisType() const { return ob_type; }
+
+   FiniteElementCollection* Clone(int p) const
+   { return new RT_FECollection(p, dim, cb_type, ob_type); }
+
    virtual ~RT_FECollection();
 };
 
@@ -410,6 +416,9 @@ public:
 class ND_FECollection : public FiniteElementCollection
 {
 protected:
+   int dim;
+   int cb_type; // closed BasisType
+   int ob_type; // open BasisType
    char nd_name[32];
    FiniteElement *ND_Elements[Geometry::NumGeom];
    int ND_dof[Geometry::NumGeom];
@@ -432,6 +441,12 @@ public:
    virtual const char *Name() const { return nd_name; }
    virtual int GetContType() const { return TANGENTIAL; }
    FiniteElementCollection *GetTraceCollection() const;
+
+   int GetClosedBasisType() const { return cb_type; }
+   int GetOpenBasisType() const { return ob_type; }
+
+   FiniteElementCollection* Clone(int p) const
+   { return new ND_FECollection(p, dim, cb_type, ob_type); }
 
    virtual ~ND_FECollection();
 };
@@ -1096,10 +1111,10 @@ public:
    Local_FECollection(const char *fe_name);
 
    virtual const FiniteElement *FiniteElementForGeometry(
-      Geometry::Type _GeomType) const
-   { return (GeomType == _GeomType) ? Local_Element : NULL; }
-   virtual int DofForGeometry(Geometry::Type _GeomType) const
-   { return (GeomType == _GeomType) ? Local_Element->GetDof() : 0; }
+      Geometry::Type GeomType_) const
+   { return (GeomType == GeomType_) ? Local_Element : NULL; }
+   virtual int DofForGeometry(Geometry::Type GeomType_) const
+   { return (GeomType == GeomType_) ? Local_Element->GetDof() : 0; }
    virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
                                              int Or) const
    { return NULL; }

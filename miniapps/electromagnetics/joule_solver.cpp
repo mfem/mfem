@@ -820,8 +820,8 @@ void MagneticDiffusionEOperator::GetJouleHeating(ParGridFunction &E_gf,
    w_gf.ProjectCoefficient(w_coeff);
 }
 
-void MagneticDiffusionEOperator::SetTime(const double _t)
-{ t = _t; }
+void MagneticDiffusionEOperator::SetTime(const double t_)
+{ t = t_; }
 
 MagneticDiffusionEOperator::~MagneticDiffusionEOperator()
 {

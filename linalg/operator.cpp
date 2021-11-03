@@ -33,7 +33,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    else
    {
       // B points to same data as b
-      B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
+      B.MakeRef(b, 0, b.Size());
    }
    if (!IsIdentityProlongation(Pi))
    {
@@ -44,7 +44,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    else
    {
       // X points to same data as x
-      X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+      X.MakeRef(x, 0, x.Size());
    }
 }
 
@@ -403,10 +403,10 @@ TripleProductOperator::~TripleProductOperator()
 
 
 ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
-                                         bool _own_A,
-                                         DiagonalPolicy _diag_policy)
-   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A),
-     diag_policy(_diag_policy)
+                                         bool own_A_,
+                                         DiagonalPolicy diag_policy_)
+   : Operator(A->Height(), A->Width()), A(A), own_A(own_A_),
+     diag_policy(diag_policy_)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
@@ -527,8 +527,8 @@ RectangularConstrainedOperator::RectangularConstrainedOperator(
    Operator *A,
    const Array<int> &trial_list,
    const Array<int> &test_list,
-   bool _own_A)
-   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
+   bool own_A_)
+   : Operator(A->Height(), A->Width()), A(A), own_A(own_A_)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
@@ -628,7 +628,10 @@ double PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
                                               int numSteps, double tolerance, int seed)
 {
    v1.SetSize(v0.Size());
-   v0.Randomize(seed);
+   if (seed != 0)
+   {
+      v0.Randomize(seed);
+   }
 
    double eigenvalue = 1.0;
 

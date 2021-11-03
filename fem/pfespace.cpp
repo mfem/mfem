@@ -100,6 +100,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
    P = NULL;
    Pconf = NULL;
+   nonconf_P = false;
    Rconf = NULL;
    R_transpose = NULL;
    R = NULL;
@@ -514,7 +515,7 @@ const FiniteElement *ParFiniteElementSpace::GetFE(int i) const
    else { return FiniteElementSpace::GetFE(i); }
 }
 
-const Operator *ParFiniteElementSpace::GetFaceRestriction(
+const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
    ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
 {
    const bool is_dg_space = IsDGSpace();
@@ -528,7 +529,7 @@ const Operator *ParFiniteElementSpace::GetFaceRestriction(
    }
    else
    {
-      Operator* res;
+      FaceRestriction *res;
       if (is_dg_space)
       {
          res = new ParL2FaceRestriction(*this, e_ordering, type, m);
@@ -2884,19 +2885,10 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
    HypreParMatrix* R;
    R = new HypreParMatrix(MyComm, dof_offsets[nrk], old_dof_offsets[nrk],
-                          dof_offsets, old_dof_offsets, diag, offd, cmap);
+                          dof_offsets, old_dof_offsets, diag, offd, cmap,
+                          true);
 
-#ifndef HYPRE_BIGINT
-   diag->LoseData();
-   offd->LoseData();
-#else
-   diag->SetDataOwner(false);
-   offd->SetDataOwner(false);
-#endif
-   delete diag;
-   delete offd;
-
-   R->SetOwnerFlags(3, 3, 1);
+   R->SetOwnerFlags(R->OwnsDiag(), R->OwnsOffd(), 1);
 
    return R;
 }
@@ -2924,6 +2916,46 @@ void ParFiniteElementSpace::Destroy()
    face_nbr_ldof.Clear();
    face_nbr_glob_dof_map.DeleteAll();
    send_face_nbr_ldof.Clear();
+}
+
+void ParFiniteElementSpace::CopyProlongationAndRestriction(
+   const FiniteElementSpace &fes, const Array<int> *perm)
+{
+   const ParFiniteElementSpace *pfes
+      = dynamic_cast<const ParFiniteElementSpace*>(&fes);
+   MFEM_VERIFY(pfes != NULL, "");
+   MFEM_VERIFY(P == NULL, "");
+   MFEM_VERIFY(R == NULL, "");
+
+   SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
+   if (perm)
+   {
+      int n = perm->Size();
+      perm_mat = new SparseMatrix(n, n);
+      for (int i=0; i<n; ++i)
+      {
+         double s;
+         int j = DecodeDof((*perm)[i], s);
+         perm_mat->Set(i, j, s);
+      }
+      perm_mat->Finalize();
+      perm_mat_tr = Transpose(*perm_mat);
+   }
+
+   if (pfes->P != NULL)
+   {
+      if (perm) { P = pfes->P->LeftDiagMult(*perm_mat); }
+      else { P = new HypreParMatrix(*pfes->P); }
+      nonconf_P = true;
+   }
+   if (pfes->R != NULL)
+   {
+      if (perm) { R = Mult(*pfes->R, *perm_mat_tr); }
+      else { R = new SparseMatrix(*pfes->R); }
+   }
+
+   delete perm_mat;
+   delete perm_mat_tr;
 }
 
 void ParFiniteElementSpace::GetTrueTransferOperator(

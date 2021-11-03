@@ -297,9 +297,6 @@ protected: // implementation
 
    virtual void Update();
 
-   virtual int GetNumGhostElements() const { return NGhostElements; }
-   virtual int GetNumGhostVertices() const { return NGhostVertices; }
-
    /// Return the processor number for a global element number.
    int Partition(long index, long total_elements) const
    { return index * NRanks / total_elements; }

@@ -22,9 +22,9 @@
 //               mpirun -np 4 nurbs_ex1p -m ../../data/square-disc-nurbs.mesh -o -1
 //               mpirun -np 4 nurbs_ex1p -m ../../data/disc-nurbs.mesh -o -1
 //               mpirun -np 4 nurbs_ex1p -m ../../data/pipe-nurbs.mesh -o -1
-//               mpirun -np 4 nurbs_ex1p -m square-nurbs.mesh -o 2 -no-ibp
-//               mpirun -np 4 nurbs_ex1p -m cube-nurbs.mesh -o 2 -no-ibp
-//               mpirun -np 4 nurbs_ex1p -m pipe-nurbs-2d.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m ../../data/square-nurbs.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m ../../data/cube-nurbs.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
 
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem

@@ -102,6 +102,25 @@ public:
    void JacToPerfJac(int GeomType, const DenseMatrix &J,
                      DenseMatrix &PJ) const;
 
+   /// Returns true if the given @a geom is of tensor-product type (i.e. if geom
+   /// is a segment, quadrilateral, or hexahedron), returns false otherwise.
+   static bool IsTensorProduct(Type geom)
+   { return geom == SEGMENT || geom == SQUARE || geom == CUBE; }
+
+   /// Returns the Geometry::Type corresponding to a tensor-product of the
+   /// given dimension.
+   static Type TensorProductGeometry(int dim)
+   {
+      switch (dim)
+      {
+         case 0: return POINT;
+         case 1: return SEGMENT;
+         case 2: return SQUARE;
+         case 3: return CUBE;
+         default: MFEM_ABORT("Invalid dimension."); return INVALID;
+      }
+   }
+
    /// Return the number of boundary "faces" of a given Geometry::Type.
    int NumBdr(int GeomType) { return NumBdrArray[GeomType]; }
 };

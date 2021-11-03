@@ -147,42 +147,64 @@ public:
 };
 
 
-/** @brief Transfer data between a coarse mesh and an embedded refined mesh
-    using L2 projection. */
+/** @brief Transfer data in L2 and H1 finite element spaces between a coarse
+    mesh and an embedded refined mesh using L2 projection. */
 /** The forward, coarse-to-fine, transfer uses L2 projection. The backward,
-    fine-to-coarse, transfer is defined locally (on a coarse element) as
-    B = (F^t M_f F)^{-1} F^t M_f, where F is the forward transfer matrix, and
-    M_f is the mass matrix on the union of all fine elements comprising the
-    coarse element. Note that the backward transfer operator, B, is a left
-    inverse of the forward transfer operator, F, i.e. B F = I. Both F and B are
-    defined in physical space and, generally, vary between different mesh
-    elements.
+    fine-to-coarse, transfer is defined as B = (F^t M_f F)^{-1} F^t M_f, where F
+    is the forward transfer matrix, and M_f is the mass matrix on the coarse
+    element. For L2 spaces, M_f is the mass matrix on the union of all fine
+    elements comprising the coarse element. For H1 spaces, M_f is a diagonal
+    (lumped) mass matrix computed through row-summation. Note that the backward
+    transfer operator, B, is a left inverse of the forward transfer operator, F,
+    i.e. B F = I. Both F and B are defined in physical space and, generally for
+    L2 spaces, vary between different mesh elements.
 
-    This class currently only fully supports L2 finite element spaces and fine
-    meshes that are a uniform refinement of the coarse mesh. Generally, the
-    coarse and fine FE spaces can have different orders, however, in order for
-    the backward operator to be well-defined, the number of the fine dofs (in a
-    coarse element) should not be smaller than the number of coarse dofs.
-
-    If used on H1 finite element spaces, the transfer will be performed locally,
-    and the value of shared (interface) degrees of freedom will be determined by
-    the value of the last transfer to be performed (according to the element
-    numbering in the finite element space). As a consequence, the mass
-    conservation properties for this operator from the L2 case do not carry over
-    to H1 spaces. */
+    This class supports H1 and L2 finite element spaces. Fine meshes are a
+    uniform refinement of the coarse mesh, usually created through
+    Mesh::MakeRefined. Generally, the coarse and fine FE spaces can have
+    different orders, however, in order for the backward operator to be
+    well-defined, the number of fine dofs (in a coarse element) should not be
+    smaller than the number of coarse dofs. */
 class L2ProjectionGridTransfer : public GridTransfer
 {
 protected:
-   /** Class representing projection operator between a high-order L2 finite
-       element space on a coarse mesh, and a low-order L2 finite element space
-       on a refined mesh (LOR). We assume that the low-order space, fes_lor,
-       lives on a mesh obtained by refining the mesh of the high-order space,
-       fes_ho. */
+   /** Abstract class representing projection operator between a high-order
+       finite element space on a coarse mesh, and a low-order finite element
+       space on a refined mesh (LOR). We assume that the low-order space,
+       fes_lor, lives on a mesh obtained by refining the mesh of the high-order
+       space, fes_ho. */
    class L2Projection : public Operator
    {
-      const FiniteElementSpace &fes_ho;
-      const FiniteElementSpace &fes_lor;
+   public:
+      virtual void Prolongate(const Vector& x, Vector& y) const = 0;
+      virtual void ProlongateTranspose(const Vector& x, Vector& y) const = 0;
+      /// Sets relative tolerance and absolute tolerance in preconditioned
+      /// conjugate gradient solver. Only used for H1 spaces.
+      virtual void SetRelTol(double p_rtol_) = 0;
+      virtual void SetAbsTol(double p_atol_) = 0;
+   protected:
+      const FiniteElementSpace& fes_ho;
+      const FiniteElementSpace& fes_lor;
 
+      Table ho2lor;
+
+      L2Projection(const FiniteElementSpace& fes_ho_,
+                   const FiniteElementSpace& fes_lor_);
+
+      void BuildHo2Lor(int nel_ho, int nel_lor,
+                       const CoarseFineTransformations& cf_tr);
+
+      void ElemMixedMass(Geometry::Type geom, const FiniteElement& fe_ho,
+                         const FiniteElement& fe_lor, ElementTransformation* el_tr,
+                         IntegrationPointTransformation& ip_tr,
+                         DenseMatrix& M_mixed_el) const;
+   };
+
+   /** Class for projection operator between a L2 high-order finite element
+       space on a coarse mesh, and a L2 low-order finite element space on a
+       refined mesh (LOR). */
+   class L2ProjectionL2Space : public L2Projection
+   {
       // The restriction and prolongation operators are represented as dense
       // elementwise matrices (of potentially different sizes, because of mixed
       // meshes or p-refinement). The matrix entries are stored in the R and P
@@ -191,22 +213,101 @@ protected:
       mutable Array<double> R, P;
       Array<int> offsets;
 
-      Table ho2lor;
    public:
-      L2Projection(const FiniteElementSpace &fes_ho_,
-                   const FiniteElementSpace &fes_lor_);
-      /// Perform the L2 projection onto the LOR space
-      virtual void Mult(const Vector &x, Vector &y) const;
-      /// Perform the transpose of L2 projection onto the LOR space, useful for
-      /// transferring dual fields.
-      virtual void MultTranspose(const Vector &x, Vector &y) const;
-      /// Perform the mass conservative left-inverse prolongation operation.
-      /// This functionality is also provided as an Operator by L2Prolongation.
-      void Prolongate(const Vector &x, Vector &y) const;
-      /// Perform the transpose of the mass conservative left-inverse
-      /// prolongation operation, useful for transferring dual fields.
-      void ProlongateTranspose(const Vector &x, Vector &y) const;
-      virtual ~L2Projection() { }
+      L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
+                          const FiniteElementSpace& fes_lor_);
+      /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
+      /// with a higher order L2 finite element space, to <tt>y</tt>, primal
+      /// field coefficients defined on a refined mesh with a low order L2
+      /// finite element space. Refined mesh should be a uniform refinement of
+      /// the coarse mesh. Coefficients are computed through minimization of L2
+      /// error between the fields.
+      virtual void Mult(const Vector& x, Vector& y) const;
+      /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh
+      /// with a low order L2 finite element space, to <tt>y</tt>, dual field
+      /// coefficients defined on a coarse mesh with a higher order L2 finite
+      /// element space. Refined mesh should be a uniform refinement of the
+      /// coarse mesh. Coefficients are computed through minimization of L2
+      /// error between the primal fields. Note, if the <tt>x</tt>-coefficients
+      /// come from ProlongateTranspose, then mass is conserved.
+      virtual void MultTranspose(const Vector& x, Vector& y) const;
+      /// Maps <tt>x</tt>, primal field coefficients defined on a refined mesh
+      /// with a low order L2 finite element space, to <tt>y</tt>, primal field
+      /// coefficients defined on a coarse mesh with a higher order L2 finite
+      /// element space. Refined mesh should be a uniform refinement of the
+      /// coarse mesh. Coefficients are computed from the mass conservative
+      /// left-inverse prolongation operation. This functionality is also
+      /// provided as an Operator by L2Prolongation.
+      virtual void Prolongate(const Vector& x, Vector& y) const;
+      /// Maps <tt>x</tt>, dual field coefficients defined on a coarse mesh with
+      /// a higher order L2 finite element space, to <tt>y</tt>, dual field
+      /// coefficients defined on a refined mesh with a low order L2 finite
+      /// element space. Refined mesh should be a uniform refinement of the
+      /// coarse mesh. Coefficients are computed from the transpose of the mass
+      /// conservative left-inverse prolongation operation. This functionality
+      /// is also provided as an Operator by L2Prolongation.
+      virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
+      virtual void SetRelTol(double p_rtol_) {}
+      virtual void SetAbsTol(double p_atol_) {}
+   };
+
+   /** Class for projection operator between a H1 high-order finite element
+       space on a coarse mesh, and a H1 low-order finite element space on a
+       refined mesh (LOR). */
+   class L2ProjectionH1Space : public L2Projection
+   {
+      // The restriction operator is represented as a SparseMatrix R. The
+      // prolongation operator is a dense matrix computed as the inverse of (R^T
+      // M_L R), and hence, is not stored.
+      SparseMatrix R;
+      // Used to compute P = (RTxM_LH)^(-1) M_LH^T
+      SparseMatrix M_LH;
+      SparseMatrix* RTxM_LH;
+      CGSolver pcg;
+      DSmoother Ds;
+
+   public:
+      L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
+                          const FiniteElementSpace& fes_lor_);
+      virtual ~L2ProjectionH1Space();
+      /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
+      /// with a higher order H1 finite element space, to <tt>y</tt>, primal
+      /// field coefficients defined on a refined mesh with a low order H1
+      /// finite element space. Refined mesh should be a uniform refinement of
+      /// the coarse mesh. Coefficients are computed through minimization of L2
+      /// error between the fields.
+      virtual void Mult(const Vector& x, Vector& y) const;
+      /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh
+      /// with a low order H1 finite element space, to <tt>y</tt>, dual field
+      /// coefficients defined on a coarse mesh with a higher order H1 finite
+      /// element space. Refined mesh should be a uniform refinement of the
+      /// coarse mesh. Coefficients are computed through minimization of L2
+      /// error between the primal fields. Note, if the <tt>x</tt>-coefficients
+      /// come from ProlongateTranspose, then mass is conserved.
+      virtual void MultTranspose(const Vector& x, Vector& y) const;
+      /// Maps <tt>x</tt>, primal field coefficients defined on a refined mesh
+      /// with a low order H1 finite element space, to <tt>y</tt>, primal field
+      /// coefficients defined on a coarse mesh with a higher order H1 finite
+      /// element space. Refined mesh should be a uniform refinement of the
+      /// coarse mesh. Coefficients are computed from the mass conservative
+      /// left-inverse prolongation operation. This functionality is also
+      /// provided as an Operator by L2Prolongation.
+      virtual void Prolongate(const Vector& x, Vector& y) const;
+      /// Maps <tt>x</tt>, dual field coefficients defined on a coarse mesh with
+      /// a higher order H1 finite element space, to <tt>y</tt>, dual field
+      /// coefficients defined on a refined mesh with a low order H1 finite
+      /// element space. Refined mesh should be a uniform refinement of the
+      /// coarse mesh. Coefficients are computed from the transpose of the mass
+      /// conservative left-inverse prolongation operation. This functionality
+      /// is also provided as an Operator by L2Prolongation.
+      virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
+      virtual void SetRelTol(double p_rtol_);
+      virtual void SetAbsTol(double p_atol_);
+   private:
+      /// Computes sparsity pattern and initializes R matrix. Based on
+      /// BilinearForm::AllocMat() except maps between HO elements and LOR
+      /// elements.
+      void AllocR();
    };
 
    /** Mass-conservative prolongation operator going in the opposite direction
@@ -231,17 +332,22 @@ protected:
 
    L2Projection   *F; ///< Forward, coarse-to-fine, operator
    L2Prolongation *B; ///< Backward, fine-to-coarse, operator
+   bool force_l2_space;
 
 public:
-   L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes,
-                            FiniteElementSpace &fine_fes)
-      : GridTransfer(coarse_fes, fine_fes),
-        F(NULL), B(NULL)
+   L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
+                            FiniteElementSpace &fine_fes_,
+                            bool force_l2_space_ = false)
+      : GridTransfer(coarse_fes_, fine_fes_),
+        F(NULL), B(NULL), force_l2_space(force_l2_space_)
    { }
+   virtual ~L2ProjectionGridTransfer();
 
    virtual const Operator &ForwardOperator();
 
    virtual const Operator &BackwardOperator();
+private:
+   void BuildF();
 };
 
 /// Matrix-free transfer operator between finite element spaces
@@ -253,25 +359,25 @@ private:
 public:
    /// Constructs a transfer operator from \p lFESpace to \p hFESpace.
    /** No matrices are assembled, only the action to a vector is being computed.
-       If both spaces' FE collection pointers are pointing to the same collection
-       we assume that the grid was refined while keeping the order constant. If
-       the FE collections are different, it is assumed that both spaces have are
-       using the same mesh. If the first element of the high-order space is a
-       `TensorBasisElement`, the optimized tensor-product transfers are used. If
-       not, the general transfers used. */
+       If both spaces' FE collection pointers are pointing to the same
+       collection we assume that the grid was refined while keeping the order
+       constant. If the FE collections are different, it is assumed that both
+       spaces have are using the same mesh. If the first element of the
+       high-order space is a `TensorBasisElement`, the optimized tensor-product
+       transfers are used. If not, the general transfers used. */
    TransferOperator(const FiniteElementSpace& lFESpace,
                     const FiniteElementSpace& hFESpace);
 
    /// Destructor
    virtual ~TransferOperator();
 
-   /// @brief Interpolation or prolongation of a vector \p x corresponding to the
-   /// coarse space to the vector \p y corresponding to the fine space.
+   /// @brief Interpolation or prolongation of a vector \p x corresponding to
+   /// the coarse space to the vector \p y corresponding to the fine space.
    virtual void Mult(const Vector& x, Vector& y) const override;
 
    /// Restriction by applying the transpose of the Mult method.
-   /** The vector \p x corresponding to the fine space is restricted to the vector
-       \p y corresponding to the coarse space. */
+   /** The vector \p x corresponding to the fine space is restricted to the
+       vector \p y corresponding to the coarse space. */
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
@@ -294,18 +400,18 @@ public:
    /// Destructor
    virtual ~PRefinementTransferOperator();
 
-   /// @brief Interpolation or prolongation of a vector \p x corresponding to the
-   /// coarse space to the vector \p y corresponding to the fine space.
+   /// @brief Interpolation or prolongation of a vector \p x corresponding to
+   /// the coarse space to the vector \p y corresponding to the fine space.
    virtual void Mult(const Vector& x, Vector& y) const override;
 
    /// Restriction by applying the transpose of the Mult method.
-   /** The vector \p x corresponding to the fine space is restricted to the vector
-   \p y corresponding to the coarse space. */
+   /** The vector \p x corresponding to the fine space is restricted to the
+   vector \p y corresponding to the coarse space. */
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
-/// @brief Matrix-free transfer operator between finite element spaces on the same
-/// mesh exploiting the tensor product structure of the finite elements
+/// @brief Matrix-free transfer operator between finite element spaces on the
+/// same mesh exploiting the tensor product structure of the finite elements
 class TensorProductPRefinementTransferOperator : public Operator
 {
 private:
@@ -324,11 +430,11 @@ private:
    mutable Vector localH;
 
 public:
-   /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace which
-   /// have different FE collections.
+   /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace
+   /// which have different FE collections.
    /** No matrices are assembled, only the action to a vector is being computed.
-   The underlying finite elements need to be of the type `TensorBasisElement`. It
-   is also assumed that all the elements in the spaces are of the same type. */
+   The underlying finite elements need to be of type `TensorBasisElement`. It is
+   also assumed that all the elements in the spaces are of the same type. */
    TensorProductPRefinementTransferOperator(
       const FiniteElementSpace& lFESpace_,
       const FiniteElementSpace& hFESpace_);
@@ -336,19 +442,19 @@ public:
    /// Destructor
    virtual ~TensorProductPRefinementTransferOperator();
 
-   /// @brief Interpolation or prolongation of a vector \p x corresponding to the
-   /// coarse space to the vector \p y corresponding to the fine space.
+   /// @brief Interpolation or prolongation of a vector \p x corresponding to
+   /// the coarse space to the vector \p y corresponding to the fine space.
    virtual void Mult(const Vector& x, Vector& y) const override;
 
    /// Restriction by applying the transpose of the Mult method.
-   /** The vector \p x corresponding to the fine space is restricted to the vector
-   \p y corresponding to the coarse space. */
+   /** The vector \p x corresponding to the fine space is restricted to the
+   vector \p y corresponding to the coarse space. */
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
 #ifdef MFEM_USE_MPI
-/// @brief Matrix-free transfer operator between finite element spaces working on
-/// true degrees of freedom
+/// @brief Matrix-free transfer operator between finite element spaces working
+/// on true degrees of freedom
 class TrueTransferOperator : public Operator
 {
 private:
@@ -359,7 +465,7 @@ private:
    mutable Vector tmpH;
 
 public:
-   /// @brief Constructs a transfer operator working on true degrees of freedom from
+   /// @brief Constructs a transfer operator working on true degrees of freedom
    /// from \p lFESpace to \p hFESpace
    TrueTransferOperator(const ParFiniteElementSpace& lFESpace_,
                         const ParFiniteElementSpace& hFESpace_);
@@ -367,10 +473,10 @@ public:
    /// Destructor
    ~TrueTransferOperator();
 
-   /// @brief Interpolation or prolongation of a true dof vector \p x to a true dof
-   /// vector \p y.
-   /** The true dof vector \p x corresponding to the coarse space is restricted to
-       the true dof vector \p y corresponding to the fine space. */
+   /// @brief Interpolation or prolongation of a true dof vector \p x to a true
+   /// dof vector \p y.
+   /** The true dof vector \p x corresponding to the coarse space is restricted
+       to the true dof vector \p y corresponding to the fine space. */
    virtual void Mult(const Vector& x, Vector& y) const override;
 
    /// Restriction by applying the transpose of the Mult method.

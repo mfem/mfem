@@ -21,10 +21,6 @@ namespace mfem
 class FiniteElementSpace;
 enum class ElementDofOrdering;
 
-/** An enum type to specify if only e1 value is requested (SingleValued) or both
-    e1 and e2 (DoubleValued). */
-enum class L2FaceValues : bool {SingleValued, DoubleValued};
-
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetElementRestriction(). */
@@ -104,10 +100,75 @@ public:
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
 };
 
-/// Operator that extracts Face degrees of freedom.
+/** An enum type to specify if only e1 value is requested (SingleValued) or both
+    e1 and e2 (DoubleValued). */
+enum class L2FaceValues : bool {SingleValued, DoubleValued};
+
+/** @brief Base class for operators that extracts Face degrees of freedom.
+
+    In order to compute quantities on the faces of a mesh, it is often useful to
+    extract the degrees of freedom on the faces of the elements. This class
+    provides an interface for such operations.
+
+    If the FiniteElementSpace is ordered by Ordering::byVDIM, then the expected
+    format for the L-vector is (vdim x ndofs), otherwise if Ordering::byNODES
+    the expected format is (ndofs x vdim), where ndofs is the total number of
+    degrees of freedom.
+    Since FiniteElementSpace can either be continuous or discontinuous, the
+    degrees of freedom on a face can either be single valued or double valued,
+    this is what we refer to as the multiplicity and is represented by the
+    L2FaceValues enum type.
+    The format of the output face E-vector of degrees of freedom is
+    (face_dofs x vdim x multiplicity x nfaces), where face_dofs is the number of
+    degrees of freedom on each face, and nfaces the number of faces of the
+    requested FaceType (see FiniteElementSpace::GetNFbyType).
+
+    @note Objects of this type are typically created and owned by
+    FiniteElementSpace objects, see FiniteElementSpace::GetFaceRestriction(). */
+class FaceRestriction : public Operator
+{
+public:
+   FaceRestriction(): Operator() { }
+
+   FaceRestriction(int h, int w): Operator(h, w) { }
+
+   virtual ~FaceRestriction() { }
+
+   /** @brief Extract the face degrees of freedom from @a x into @a y.
+
+       @param[in]  x The L-vector of degrees of freedom.
+       @param[out] y The degrees of freedom on the face, corresponding to a face
+                     E-vector.
+   */
+   void Mult(const Vector &x, Vector &y) const override = 0;
+
+   /** @brief Add the face degrees of freedom @a x to the element degrees of
+       freedom @a y.
+
+       @param[in]     x The face degrees of freedom on the face.
+       @param[in,out] y The L-vector of degrees of freedom to which we add the
+                        face degrees of freedom.
+   */
+   virtual void AddMultTranspose(const Vector &x, Vector &y) const = 0;
+
+   /** @brief Set the face degrees of freedom in the element degrees of freedom
+       @a y to the values given in @a x.
+
+       @param[in]     x The face degrees of freedom on the face.
+       @param[in,out] y The L-vector of degrees of freedom to which we add the
+                        face degrees of freedom.
+   */
+   void MultTranspose(const Vector &x, Vector &y) const override
+   {
+      y = 0.0;
+      AddMultTranspose(x, y);
+   }
+};
+
+/// Operator that extracts Face degrees of freedom for H1 FiniteElementSpaces.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class H1FaceRestriction : public Operator
+class H1FaceRestriction : public FaceRestriction
 {
 protected:
    const FiniteElementSpace &fes;
@@ -122,16 +183,42 @@ protected:
    Array<int> gather_indices;
 
 public:
-   H1FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
-                     const FaceType);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+   /** @brief Constructor for a H1FaceRestriction.
+
+       @param[in] fes The FiniteElementSpace on which this H1FaceRestriction
+                      operates.
+       @param[in] ordering The requested output ordering of the
+                           H1FaceRestriction, either Native or Lexicographic.
+       @param[in] type The requested type of faces on which this operator
+                       extracts the degrees of freedom, either Interior or
+                       Boundary.
+   */
+   H1FaceRestriction(const FiniteElementSpace& fes,
+                     const ElementDofOrdering ordering,
+                     const FaceType type);
+
+   /** @brief Extract the face degrees of freedom from @a x into @a y.
+
+       @param[in]  x The L-vector of degrees of freedom.
+       @param[out] y The degrees of freedom on the face, corresponding to a face
+                     E-vector.
+   */
+   void Mult(const Vector &x, Vector &y) const override;
+
+   /** @brief Add the face degrees of freedom @a x to the element degrees of
+       freedom @a y.
+
+       @param[in]     x The face degrees of freedom on the face.
+       @param[in,out] y The L-vector of degrees of freedom to which we add the
+                        face degrees of freedom.
+   */
+   void AddMultTranspose(const Vector &x, Vector &y) const override;
 };
 
-/// Operator that extracts Face degrees of freedom.
+/// Operator that extracts Face degrees of freedom on L2 FiniteElementSpaces.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class L2FaceRestriction : public Operator
+class L2FaceRestriction : public FaceRestriction
 {
 protected:
    const FiniteElementSpace &fes;
@@ -154,19 +241,38 @@ protected:
                      const L2FaceValues m = L2FaceValues::DoubleValued);
 
 public:
-   L2FaceRestriction(const FiniteElementSpace&, const ElementDofOrdering,
+   L2FaceRestriction(const FiniteElementSpace&,
+                     const ElementDofOrdering,
                      const FaceType,
                      const L2FaceValues m = L2FaceValues::DoubleValued);
-   virtual void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+
+   /** @brief Extract the face degrees of freedom from @a x into @a y.
+
+       @param[in]  x The L-vector of degrees of freedom.
+       @param[out] y The degrees of freedom on the face, corresponding to a face
+                     E-vector.
+   */
+   void Mult(const Vector &x, Vector &y) const override;
+
+   /** @brief Add the face degrees of freedom @a x to the element degrees of
+       freedom @a y.
+
+       @param[in]     x The face degrees of freedom on the face.
+       @param[in,out] y The L-vector of degrees of freedom to which we add the
+                        face degrees of freedom.
+   */
+   void AddMultTranspose(const Vector &x, Vector &y) const override;
+
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this L2FaceRestriction. */
    virtual void FillI(SparseMatrix &mat, const bool keep_nbr_block = false) const;
+
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction, and the values of ea_data. */
    virtual void FillJAndData(const Vector &ea_data,
                              SparseMatrix &mat,
                              const bool keep_nbr_block = false) const;
+
    /// This methods adds the DG face matrices to the element matrices.
    void AddFaceMatricesToElementMatrices(Vector &fea_data,
                                          Vector &ea_data) const;

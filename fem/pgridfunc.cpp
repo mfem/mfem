@@ -275,8 +275,8 @@ const
       if (fes_vdim > 1)
       {
          int s = dofs.Size()/fes_vdim;
-         Array<int> _dofs(&dofs[(vdim-1)*s], s);
-         face_nbr_data.GetSubVector(_dofs, LocVec);
+         Array<int> dofs_(&dofs[(vdim-1)*s], s);
+         face_nbr_data.GetSubVector(dofs_, LocVec);
          DofVal.SetSize(s);
       }
       else

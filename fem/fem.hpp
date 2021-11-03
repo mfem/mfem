@@ -42,6 +42,7 @@
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
 #include "ceed/algebraic.hpp"
+#include "lor.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -61,6 +62,11 @@
 
 #ifdef MFEM_USE_ADIOS2
 #include "adios2datacollection.hpp"
+#endif
+
+#ifdef MFEM_USE_FMS
+#include "fmsconvert.hpp"
+#include "fmsdatacollection.hpp"
 #endif
 
 #endif
