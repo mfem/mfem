@@ -26,7 +26,7 @@ constexpr int SEED = 0x100001b3;
 
 struct LORBench
 {
-   const int p, q, n, nx, ny, nz, dim = 3;
+   const int p, c, q, n, nx, ny, nz, dim = 3;
    const bool check_x, check_y, check_z, checked;
    Mesh mesh;
    H1_FECollection fec;
@@ -41,8 +41,9 @@ struct LORBench
    const int dofs;
    double mdof;
 
-   LORBench(int p, int c):
+   LORBench(int p, int side):
       p(p),
+      c(side),
       q(2*p + 2),
       n((assert(c>=p),c/p)),
       nx(n + (p*(n+1)*p*n*p*n < c*c*c ?1:0)),
@@ -66,6 +67,7 @@ struct LORBench
       dofs(fes_ho.GetVSize()),
       mdof(0.0)
    {
+      //dbg("MakeCartesian3D(%d,%d,%d)",nx,ny,nz);
       a_lo.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
       a_ho.AddDomainIntegrator(new DiffusionIntegrator);
       a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -75,7 +77,7 @@ struct LORBench
 
    bool SanityChecks()
    {
-      if (dofs > 100*1024) { return true; }
+      //if (dofs > 100*1024) { return true; }
 
       constexpr double EPS = 1e-15;
 
@@ -83,7 +85,7 @@ struct LORBench
       tic();
       a_lo = 0.0; // have to flush these results
       a_lo.Assemble();
-      //dbg("Standard LOR time = %f",toc());
+      dbg("Standard LOR time = %f",toc());
       a_lo.FormSystemMatrix(ess_dofs, A_lo);
       A_lo.As<SparseMatrix>()->HostReadWriteI();
       A_lo.As<SparseMatrix>()->HostReadWriteJ();
@@ -94,35 +96,29 @@ struct LORBench
       y.Randomize(SEED);
       a_lo.Finalize();
       const double dot_lo = A_lo.As<SparseMatrix>()->InnerProduct(x,y);
-      //dbg("    dot_lo:%.15e",dot_lo);
-      //dbg("A_lo:"); A_lo.As<SparseMatrix>()->PrintMatlab();
 
       tic();
       AssembleBatchedLOR(a_lo, fes_ho, ess_dofs, A_batched);
       A_batched.As<SparseMatrix>()->HostReadWriteI();
       A_batched.As<SparseMatrix>()->HostReadWriteJ();
       A_batched.As<SparseMatrix>()->HostReadWriteData();
-      //dbg(" Batched LOR time = %f",toc());
+      dbg(" Batched LOR time = %f",toc());
       const double dot_batch = A_batched.As<SparseMatrix>()->InnerProduct(x,y);
-      //dbg(" dot_batch:%.15e",dot_batch);
       assert(almost_equal(dot_lo,dot_batch));
       A_batched.As<SparseMatrix>()->Add(-1.0, *A_lo.As<SparseMatrix>());
       const double max_norm = A_batched.As<SparseMatrix>()->MaxNorm();
-      //dbg("A_batched:"); A_batched.As<SparseMatrix>()->PrintMatlab();
 
       if (max_norm > EPS) { return false; }
 
       tic();
       AssembleBatchedLOR_GPU(a_lo, fes_ho, ess_dofs, A_deviced);
-      //dbg(" Batched GPU time = %f",toc());
+      dbg(" Batched GPU time = %f",toc());
       A_deviced.As<SparseMatrix>()->HostReadWriteI();
       A_deviced.As<SparseMatrix>()->HostReadWriteJ();
       A_deviced.As<SparseMatrix>()->HostReadWriteData();
       const double dot_device = A_deviced.As<SparseMatrix>()->InnerProduct(x,y);
-      //dbg("dot_device:%.15e",dot_device);
       A_deviced.As<SparseMatrix>()->Add(-1.0, *A_lo.As<SparseMatrix>());
       const double max_norm_GPU = A_deviced.As<SparseMatrix>()->MaxNorm();
-      //dbg("A_deviced:"); A_deviced.As<SparseMatrix>()->PrintMatlab();
       assert(almost_equal(dot_lo,dot_device));
 
       return max_norm_GPU < EPS;
@@ -177,7 +173,7 @@ struct LORBench
 #define P_ORDERS bm::CreateDenseRange(1,4,1)
 
 // The different sides of the mesh
-#define N_SIDES bm::CreateDenseRange(4,64,1)
+#define N_SIDES bm::CreateDenseRange(4,64,4)
 #define MAX_NDOFS 2*1024*1024
 
 /// Kernels definitions and registrations
