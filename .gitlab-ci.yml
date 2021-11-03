@@ -29,36 +29,34 @@ stages:
 
 variables:
   CUSTOM_CI_BUILDS_DIR: "/usr/workspace/mfem/gitlab-runner"
+  USER_CI_TOP_DIR: "${CUSTOM_CI_BUILDS_DIR}/${GITLAB_USER_LOGIN}"
+  SHARED_REPOS_DIR: "${USER_CI_TOP_DIR}/repos"
+  AUTOTEST_ROOT: "${SHARED_REPOS_DIR}"
+  # MFEM_DATA_DIR is setup in '.gitlab/configs/setup-build-and-test.yml' and
+  # used in '.gitlab/configs/<machine>-config.yml':
+  MFEM_DATA_DIR: "${SHARED_REPOS_DIR}/mfem-data"
 
 # Trigger subpipelines:
 quartz-build-and-test:
   stage: sub-pipelines
-  variables:
-    _AUTOTEST: $AUTOTEST
   trigger:
     include: .gitlab/quartz-build-and-test.yml
     strategy: depend
 
 quartz-baseline:
   stage: sub-pipelines
-  variables:
-    _AUTOTEST: $AUTOTEST
   trigger:
     include: .gitlab/quartz-baseline.yml
     strategy: depend
 
 lassen-build-and-test:
   stage: sub-pipelines
-  variables:
-    _AUTOTEST: $AUTOTEST
   trigger:
     include: .gitlab/lassen-build-and-test.yml
     strategy: depend
 
 corona-build-and-test:
   stage: sub-pipelines
-  variables:
-    _AUTOTEST: $AUTOTEST
   trigger:
     include: .gitlab/corona-build-and-test.yml
     strategy: depend
