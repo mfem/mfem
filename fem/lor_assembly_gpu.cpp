@@ -59,8 +59,6 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 
    // Compute geometric factors at quadrature points
    Array<double> Q_(nel_ho*pow(order,dim)*nv*ddm2);
-   auto Q = Reshape(Q_.Write(), ddm2, 2,2,2, pow(order,dim), nel_ho);
-
    {
       IntegrationRules irs(0, Quadrature1D::GaussLobatto);
       const IntegrationRule &ir = irs.Get(mesh_lor.GetElementGeometry(0), 1);
@@ -90,6 +88,8 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 
       const auto J = Reshape(geom->J.Read(), 2,2,2,3,3,nel_lor);
       const auto W = Reshape(ir.GetWeights().Read(), 2,2,2);
+
+      auto Q = Reshape(Q_.Write(), ddm2, 2,2,2, pow(order,dim), nel_ho);
 
       MFEM_FORALL_3D(iel_lor, nel_lor, 2, 2, 2,
       {
@@ -138,28 +138,27 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
       });
    }
 
-   Vector V_(nnz_per_el);
-   auto V = Reshape(V_.ReadWrite(), nnz_per_row, ndof_per_el);
-
-   Array<int> col_ptr_;
-   col_ptr_.SetSize(A_mat.Height());
+   constexpr int GRID = 256;
+   const int A_height = A_mat.Height();
+   Array<int> col_ptr_grid_arrays(A_height*GRID);
+   auto col_ptr_base = col_ptr_grid_arrays.Write();
 
    const auto I = A_mat.ReadI();
    const auto J = A_mat.ReadJ();
    auto A = A_mat.ReadWriteData();
 
    const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
-   auto col_ptr = Reshape(col_ptr_.Write(), A_mat.Height());
+   const auto Q = Reshape(Q_.Read(), ddm2, 2,2,2, pow(order,dim), nel_ho);
 
-   MFEM_FORALL_3D(iel_ho, nel_ho, order, order, order,
+   MFEM_FORALL_3D_GRID(iel_ho, nel_ho, 1, 1, 1, GRID,
    {
-      double grad_A_[sz_grad_A];
-      double grad_B_[sz_grad_B];
-      double local_mat_[sz_local_mat];
+      MFEM_SHARED double V_[nnz_per_el];
+      DeviceTensor<2> V(V_, nnz_per_row, ndof_per_el);
 
-      DeviceTensor<2> local_mat(local_mat_, 8, 8);
-      DeviceTensor<6> grad_A(grad_A_, 3, 3, 2, 2, 2, 2);
-      DeviceTensor<7> grad_B(grad_B_, 3, 3, 2, 2, 2, 2, 2);
+      // Assemble a sparse matrix over the macro-element by looping over each
+      // subelement.
+      //
+      // V(j,i) stores the jth nonzero in the ith row of the sparse matrix.
 
       for (int i=0; i<nnz_per_row; ++i)
       {
@@ -168,16 +167,36 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
             V(i,j) = 0.0;
          }
       }
+      MFEM_SYNC_THREAD;
 
       // Loop over sub-elements
-      MFEM_FOREACH_THREAD(kz,z,order)
+      //MFEM_FOREACH_THREAD(kz,z,order)
+      for (int kz=0; kz<order; ++kz)
       {
-         MFEM_FOREACH_THREAD(ky,y,order)
+         //MFEM_FOREACH_THREAD(ky,y,order)
+         for (int ky=0; ky<order; ++ky)
          {
-            MFEM_FOREACH_THREAD(kx,x,order)
+            //MFEM_FOREACH_THREAD(kx,x,order)
+            for (int kx=0; kx<order; ++kx)
             {
+               double grad_A_[sz_grad_A];
+               double grad_B_[sz_grad_B];
+               double local_mat_[sz_local_mat];
+               DeviceTensor<2> local_mat(local_mat_, 8, 8);
+               DeviceTensor<6> grad_A(grad_A_, 3, 3, 2, 2, 2, 2);
+               DeviceTensor<7> grad_B(grad_B_, 3, 3, 2, 2, 2, 2, 2);
+
                double k = kx + ky*order + kz*order*order;
-               for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
+               // local_mat is the local (dense) stiffness matrix
+               for (int i=0; i<8; ++i)
+               {
+                  for (int j=0; j<8; ++j)
+                  {
+                     local_mat(i,j) = 0.0;
+                  }
+               }
+               // Intermediate quantities (see e.g. Mora and Demkowicz for
+               // notation).
                for (int i=0; i<sz_grad_A; ++i) { grad_A[i] = 0.0; }
                for (int i=0; i<sz_grad_B; ++i) { grad_B[i] = 0.0; }
 
@@ -322,6 +341,8 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
          }
       }
 
+      DeviceTensor<1,int> col_ptr(col_ptr_base + A_height*MFEM_BLOCK_ID(x), A_height);
+
       // Place the macro-element sparse matrix into the global sparse matrix.
       for (int ii_el=0; ii_el<ndof_per_el; ++ii_el)
       {
@@ -333,7 +354,7 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
          // Set column pointer to avoid searching in the row
          for (int j = I[ii], end = I[ii+1]; j < end; j++)
          {
-            col_ptr[J[j]] = j;
+            col_ptr(J[j]) = j;
          }
 
          const int jx_begin = (ix > 0) ? ix - 1 : 0;
@@ -354,7 +375,8 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                   const int jj_el = jx + jy*nd1d + jz*nd1d*nd1d;
                   const int jj = el_dof_lex(jj_el, iel_ho);
                   const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
-                  A[col_ptr[jj]] += V(jj_off, ii_el);
+                  const int col_ptr_jj = col_ptr(jj);
+                  AtomicAdd(A[col_ptr_jj], V(jj_off, ii_el));
                }
             }
          }
@@ -398,12 +420,10 @@ void AssembleBatchedLOR_GPU(BilinearForm &form_lor,
    {
       switch (order)
       {
-         //case 1: Assemble3DBatchedLOR_GPU<1>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-         case 2: Assemble3DBatchedLOR_GPU<2>(mesh_lor, mesh_ho, fes_ho, *A_mat);
-            break;
-         case 3: Assemble3DBatchedLOR_GPU<3>(mesh_lor, mesh_ho, fes_ho, *A_mat);
-            break;
-         //case 4: Assemble3DBatchedLOR_GPU<4>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 1: Assemble3DBatchedLOR_GPU<1>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 2: Assemble3DBatchedLOR_GPU<2>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 3: Assemble3DBatchedLOR_GPU<3>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 4: Assemble3DBatchedLOR_GPU<4>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
          default: MFEM_ABORT("Kernel not ready!");
       }
    }
