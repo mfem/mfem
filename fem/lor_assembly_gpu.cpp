@@ -139,9 +139,9 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    }
 
    constexpr int GRID = 256;
-   const int A_height = A_mat.Height();
-   Array<int> col_ptr_grid_arrays(A_height*GRID);
-   auto col_ptr_base = col_ptr_grid_arrays.Write();
+   //const int A_height = A_mat.Height();
+   //Array<int> col_ptr_grid_arrays(A_height*GRID);
+   //auto col_ptr_base = col_ptr_grid_arrays.Write();
 
    const auto I = A_mat.ReadI();
    const auto J = A_mat.ReadJ();
@@ -344,8 +344,8 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
       }
       MFEM_SYNC_THREAD;
 
-      DeviceTensor<1,int> col_ptr(col_ptr_base + A_height*MFEM_BLOCK_ID(x),
-                                  A_height);
+      /*DeviceTensor<1,int> col_ptr(col_ptr_base + A_height*MFEM_BLOCK_ID(x),
+                                  A_height);*/
 
       const int tidx = MFEM_THREAD_ID(x);
       const int tidy = MFEM_THREAD_ID(y);
@@ -368,10 +368,10 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
             const int ii = el_dof_lex(ii_el, iel_ho);
 
             // Set column pointer to avoid searching in the row
-            for (int j = I[ii], end = I[ii+1]; j < end; j++)
+            /*for (int j = I[ii], end = I[ii+1]; j < end; j++)
             {
                col_ptr(J[j]) = j;
-            }
+            }*/
 
             const int jx_begin = (ix > 0) ? ix - 1 : 0;
             const int jx_end = (ix < order) ? ix + 1 : order;
@@ -388,11 +388,18 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                {
                   for (int jx=jx_begin; jx<=jx_end; ++jx)
                   {
+                     const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
+                     const double Vji = V(jj_off, ix, iy, iz);
+
                      const int jj_el = jx + jy*nd1d + jz*nd1d*nd1d;
                      const int jj = el_dof_lex(jj_el, iel_ho);
-                     const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
-                     const int col_ptr_jj = col_ptr(jj);
-                     const double Vji = V(jj_off, ix, iy, iz);
+                     int col_ptr_jj = -1;
+                     // Row search to get col_ptr_jj
+                     for (int j = I[ii], end = I[ii+1]; j < end; j++)
+                     {
+                        if (J[j]==jj) { col_ptr_jj = j; break; }
+                     }
+                     //assert(col_ptr_jj>=0);
                      if ((ix == 0 && jx == 0) || (ix == order && jx == order) ||
                          (iy == 0 && jy == 0) || (iy == order && jy == order) ||
                          (iz == 0 && jz == 0) || (iz == order && jz == order))
