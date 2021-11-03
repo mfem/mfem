@@ -181,7 +181,7 @@ inline int NvtxSyncPop(void)  // Enforce Kernel Synchronization
                                       PUSH2, impossible, PUSH2, PUSH1, PUSH0, PUSH1, ))
 #define NvtxPush(...) PUSH_CHOOSE(__VA_ARGS__)(__VA_ARGS__)
 
-#define EKS false // Enforce Kernel Synchronization
+#define EKS true // Enforce Kernel Synchronization
 #define NvtxPop(...) ((EKS)?NvtxSyncPop():nvtxRangePop())
 
 #else // MFEM_USE_CUDA

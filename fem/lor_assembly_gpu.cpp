@@ -33,13 +33,12 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    const int nel_lor = mesh_lor.GetNE();
    const int ndof = fes_ho.GetVSize();
 
-   NvtxPush(IJA Copy, HotPink);
+   NvtxPush(IJACopy, HotPink);
    const auto I = A_mat.ReadI();
    const auto J = A_mat.ReadJ();
    auto A = A_mat.ReadWriteData();
-   NvtxPop();
+   NvtxPop(IJACopy);
 
-   static bool ini = true;
    static constexpr int dim = 3;
    static constexpr int nv = 8;
    static constexpr int ddm2 = (dim*(dim+1))/2;
@@ -52,479 +51,435 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    static constexpr int sz_local_mat = 8*8;
 
    // Set up element to dof mapping (in lexicographic ordering)
-   static Array<int> dof_glob2loc_;
-   static Array<int> dof_glob2loc_offsets_;
-   static Array<int> el_dof_lex_;
-   if (ini)
+   static Array<int> dof_glob2loc_(2*ndof_per_el*nel_ho);
+   static Array<int> dof_glob2loc_offsets_(ndof+1);
+   static Array<int> el_dof_lex_(ndof_per_el*nel_ho);
+
+   NvtxPush(BlockMapping, Olive);
+   Array<int> dofs;
+   const Array<int> &lex_map =
+      dynamic_cast<const NodalFiniteElement&>
+      (*fes_ho.GetFE(0)).GetLexicographicOrdering();
+   dof_glob2loc_offsets_ = 0;
+   for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
    {
-      dof_glob2loc_.SetSize(2*ndof_per_el*nel_ho);
-      dof_glob2loc_offsets_.SetSize(ndof+1);
-      el_dof_lex_.SetSize(ndof_per_el*nel_ho);
+      fes_ho.GetElementDofs(iel_ho, dofs);
+      for (int i=0; i<ndof_per_el; ++i)
+      {
+         const int dof = dofs[lex_map[i]];
+         el_dof_lex_[i + iel_ho*ndof_per_el] = dof;
+         dof_glob2loc_offsets_[dof+1] += 2;
+      }
    }
-
-   if (ini)
+   dof_glob2loc_offsets_.PartialSum();
+   // Sanity check
+   MFEM_VERIFY(dof_glob2loc_offsets_[ndof] == dof_glob2loc_.Size(), "");
+   Array<int> dof_ptr(ndof);
+   for (int i=0; i<ndof; ++i) { dof_ptr[i] = dof_glob2loc_offsets_[i]; }
+   for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
    {
-      NvtxPush(Set up element to dof mapping, Olive);
-      Array<int> dofs;
-      const Array<int> &lex_map =
-         dynamic_cast<const NodalFiniteElement&>
-         (*fes_ho.GetFE(0)).GetLexicographicOrdering();
-      dof_glob2loc_offsets_ = 0;
-
-      for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
+      fes_ho.GetElementDofs(iel_ho, dofs);
+      for (int i=0; i<ndof_per_el; ++i)
       {
-         fes_ho.GetElementDofs(iel_ho, dofs);
-         for (int i=0; i<ndof_per_el; ++i)
-         {
-            const int dof = dofs[lex_map[i]];
-            el_dof_lex_[i + iel_ho*ndof_per_el] = dof;
-            dof_glob2loc_offsets_[dof+1] += 2;
-         }
+         const int dof = dofs[lex_map[i]];
+         dof_glob2loc_[dof_ptr[dof]++] = iel_ho;
+         dof_glob2loc_[dof_ptr[dof]++] = i;
       }
-
-      dof_glob2loc_offsets_.PartialSum();
-      // Sanity check
-      MFEM_VERIFY(dof_glob2loc_offsets_[ndof] == dof_glob2loc_.Size(), "");
-
-      Array<int> dof_ptr(ndof);
-      for (int i=0; i<ndof; ++i) { dof_ptr[i] = dof_glob2loc_offsets_[i]; }
-      for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
-      {
-         fes_ho.GetElementDofs(iel_ho, dofs);
-         for (int i=0; i<ndof_per_el; ++i)
-         {
-            const int dof = dofs[lex_map[i]];
-            dof_glob2loc_[dof_ptr[dof]++] = iel_ho;
-            dof_glob2loc_[dof_ptr[dof]++] = i;
-         }
-      }
-      NvtxPop();
    }
+   NvtxPop(BlockMapping);
 
-   NvtxPush(DOF Copy, Coral);
+   NvtxPush(DOFCopy, Coral);
    const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
    const auto dof_glob2loc = dof_glob2loc_.Read();
    const auto K = dof_glob2loc_offsets_.Read();
-   NvtxPop();
+   NvtxPop(DOFCopy);
 
-   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const IntegrationRule &ir = irs.Get(mesh_lor.GetElementGeometry(0), 1);
-
-   if (ini)
+   NvtxPush(GetVertices, IndianRed);
+   Array<double> Q_(nel_ho*pow(order,dim)*nv*ddm2);
+   Vector el_vert_(dim*nv*nel_lor);
+   for (int iel_lor=0; iel_lor<nel_lor; ++iel_lor)
    {
-      dbg("order:%d nel_lor:%d nel_ho:%d nq:%d ddm2:%d A_mat.Height():%d",
-          order, nel_lor, nel_ho, ir.Size(), ddm2, A_mat.Height());
-   }
-
-   // Compute geometric factors at quadrature points
-   static Array<double> Q_;
-   static Array<int> lor2ho_, lor2ref_;
-   static Vector el_vert_;
-   if (ini)
-   {
-      NvtxPush(Embeddings, IndianRed);
-      Q_.SetSize(nel_ho*pow(order,dim)*nv*ddm2);
-
-      lor2ho_.SetSize(nel_lor);
-      lor2ref_.SetSize(nel_lor);
-      const CoarseFineTransformations &cf_tr = mesh_lor.GetRefinementTransforms();
-      for (int iel_lor=0; iel_lor<nel_lor; ++iel_lor)
+      Array<int> v;
+      mesh_lor.GetElementVertices(iel_lor, v);
+      for (int iv=0; iv<nv; ++iv)
       {
-         lor2ho_[iel_lor] = cf_tr.embeddings[iel_lor].parent;
-         lor2ref_[iel_lor] = cf_tr.embeddings[iel_lor].matrix;
-      }
-
-      el_vert_.SetSize(dim*nv*nel_lor);
-      el_vert_.UseDevice(true);
-      for (int iel_lor=0; iel_lor<nel_lor; ++iel_lor)
-      {
-         Array<int> v;
-         mesh_lor.GetElementVertices(iel_lor, v);
-         for (int iv=0; iv<nv; ++iv)
+         const double *vc = mesh_lor.GetVertex(v[iv]);
+         for (int d=0; d<dim; ++d)
          {
-            const double *vc = mesh_lor.GetVertex(v[iv]);
-            for (int d=0; d<dim; ++d)
-            {
-               el_vert_[d + iv*dim + iel_lor*nv*dim] = vc[d];
-            }
+            el_vert_[d + iv*dim + iel_lor*nv*dim] = vc[d];
          }
       }
-      NvtxPop();
    }
+   NvtxPop(GetVertices);
 
-   const auto lor2ho = lor2ho_.Read();
-   const auto lor2ref = lor2ref_.Read();
    const auto el_vert = Reshape(el_vert_.Read(), dim, nv, nel_lor);
-   const auto Q = Reshape(Q_.Write(), ddm2, 2,2,2, pow(order,dim), nel_ho);
+   const auto Q = Reshape(Q_.Write(), ddm2, 2,2,2, order,order,order, nel_ho);
 
+   NvtxPush(Assembly, SeaGreen);
+   MFEM_FORALL_3D(iel_ho, nel_ho, order, order, order,
    {
-      NvtxPush(Assembly, SeaGreen);
-
-      // nel_lor = (order)^d nel_ho
-      assert(nel_lor == pow(order,dim)*nel_ho);
-
-      MFEM_FORALL_3D(e_ho, nel_ho, order, order, order,
+      // Compute geometric factors at quadrature points
+      MFEM_FOREACH_THREAD(kz,z,order)
       {
-         MFEM_FOREACH_THREAD(kz,z,order)
+         MFEM_FOREACH_THREAD(ky,y,order)
          {
-            MFEM_FOREACH_THREAD(ky,y,order)
+            MFEM_FOREACH_THREAD(kx,x,order)
             {
-               MFEM_FOREACH_THREAD(kx,x,order)
+               const int k = kx + order * (ky + order * kz);
+               constexpr int order_d = order*order*order;
+               const int iel_lor = order_d*iel_ho + k;
+
+               const double *v0 = &el_vert(0, 0, iel_lor);
+               const double *v1 = &el_vert(0, 1, iel_lor);
+               const double *v2 = &el_vert(0, 2, iel_lor);
+               const double *v3 = &el_vert(0, 3, iel_lor);
+               const double *v4 = &el_vert(0, 4, iel_lor);
+               const double *v5 = &el_vert(0, 5, iel_lor);
+               const double *v6 = &el_vert(0, 6, iel_lor);
+               const double *v7 = &el_vert(0, 7, iel_lor);
+
+               for (int iqz=0; iqz<2; ++iqz)
                {
-                  const int ie = kx + order * (ky + order * kz);
-                  constexpr int order_d = order*order*order;
-                  const int iel_lor = order_d*e_ho + ie;
-
-                  const int iel_ho = lor2ho[iel_lor];
-                  const int iref = lor2ref[iel_lor];
-
-                  const double *v0 = &el_vert(0, 0, iel_lor);
-                  const double *v1 = &el_vert(0, 1, iel_lor);
-                  const double *v2 = &el_vert(0, 2, iel_lor);
-                  const double *v3 = &el_vert(0, 3, iel_lor);
-                  const double *v4 = &el_vert(0, 4, iel_lor);
-                  const double *v5 = &el_vert(0, 5, iel_lor);
-                  const double *v6 = &el_vert(0, 6, iel_lor);
-                  const double *v7 = &el_vert(0, 7, iel_lor);
-
-                  for (int iqz=0; iqz<2; ++iqz)
+                  for (int iqy=0; iqy<2; ++iqy)
                   {
-                     for (int iqy=0; iqy<2; ++iqy)
+                     for (int iqx=0; iqx<2; ++iqx)
                      {
-                        for (int iqx=0; iqx<2; ++iqx)
-                        {
-                           const double x = iqx;
-                           const double y = iqy;
-                           const double z = iqz;
-                           const double w = 1.0/8.0;
+                        const double x = iqx;
+                        const double y = iqy;
+                        const double z = iqz;
+                        const double w = 1.0/8.0;
 
-                           // c: (1-x)(1-y)(1-z)v0[c] + x (1-y)(1-z)v1[c] + x y (1-z)v2[c] + (1-x) y (1-z)v3[c]
-                           //  + (1-x)(1-y) z   v4[c] + x (1-y) z   v5[c] + x y z    v6[c] + (1-x) y z    v7[c]
-                           const double J11 = -(1-y)*(1-z)*v0[0]
-                           + (1-y)*(1-z)*v1[0] + y*(1-z)*v2[0] - y*(1-z)*v3[0]
-                           - (1-y)*z*v4[0] + (1-y)*z*v5[0] + y*z*v6[0] - y*z*v7[0];
+                        // c: (1-x)(1-y)(1-z)v0[c] + x (1-y)(1-z)v1[c] + x y (1-z)v2[c] + (1-x) y (1-z)v3[c]
+                        //  + (1-x)(1-y) z   v4[c] + x (1-y) z   v5[c] + x y z    v6[c] + (1-x) y z    v7[c]
+                        const double J11 = -(1-y)*(1-z)*v0[0]
+                        + (1-y)*(1-z)*v1[0] + y*(1-z)*v2[0] - y*(1-z)*v3[0]
+                        - (1-y)*z*v4[0] + (1-y)*z*v5[0] + y*z*v6[0] - y*z*v7[0];
 
-                           const double J12 = -(1-x)*(1-z)*v0[0]
-                           - x*(1-z)*v1[0] + x*(1-z)*v2[0] + (1-x)*(1-z)*v3[0]
-                           - (1-x)*z*v4[0] - x*z*v5[0] + x*z*v6[0] + (1-x)*z*v7[0];
+                        const double J12 = -(1-x)*(1-z)*v0[0]
+                        - x*(1-z)*v1[0] + x*(1-z)*v2[0] + (1-x)*(1-z)*v3[0]
+                        - (1-x)*z*v4[0] - x*z*v5[0] + x*z*v6[0] + (1-x)*z*v7[0];
 
-                           const double J13 = -(1-x)*(1-y)*v0[0] - x*(1-y)*v1[0]
-                           - x*y*v2[0] - (1-x)*y*v3[0] + (1-x)*(1-y)*v4[0]
-                           + x*(1-y)*v5[0] + x*y*v6[0] + (1-x)*y*v7[0];
+                        const double J13 = -(1-x)*(1-y)*v0[0] - x*(1-y)*v1[0]
+                        - x*y*v2[0] - (1-x)*y*v3[0] + (1-x)*(1-y)*v4[0]
+                        + x*(1-y)*v5[0] + x*y*v6[0] + (1-x)*y*v7[0];
 
-                           const double J21 = -(1-y)*(1-z)*v0[1] + (1-y)*(1-z)*v1[1]
-                           + y*(1-z)*v2[1] - y*(1-z)*v3[1] - (1-y)*z*v4[1]
-                           + (1-y)*z*v5[1] + y*z*v6[1] - y*z*v7[1];
+                        const double J21 = -(1-y)*(1-z)*v0[1] + (1-y)*(1-z)*v1[1]
+                        + y*(1-z)*v2[1] - y*(1-z)*v3[1] - (1-y)*z*v4[1]
+                        + (1-y)*z*v5[1] + y*z*v6[1] - y*z*v7[1];
 
-                           const double J22 = -(1-x)*(1-z)*v0[1] - x*(1-z)*v1[1]
-                           + x*(1-z)*v2[1] + (1-x)*(1-z)*v3[1]- (1-x)*z*v4[1] -
-                           x*z*v5[1] + x*z*v6[1] + (1-x)*z*v7[1];
+                        const double J22 = -(1-x)*(1-z)*v0[1] - x*(1-z)*v1[1]
+                        + x*(1-z)*v2[1] + (1-x)*(1-z)*v3[1]- (1-x)*z*v4[1] -
+                        x*z*v5[1] + x*z*v6[1] + (1-x)*z*v7[1];
 
-                           const double J23 = -(1-x)*(1-y)*v0[1] - x*(1-y)*v1[1]
-                           - x*y*v2[1] - (1-x)*y*v3[1] + (1-x)*(1-y)*v4[1]
-                           + x*(1-y)*v5[1] + x*y*v6[1] + (1-x)*y*v7[1];
+                        const double J23 = -(1-x)*(1-y)*v0[1] - x*(1-y)*v1[1]
+                        - x*y*v2[1] - (1-x)*y*v3[1] + (1-x)*(1-y)*v4[1]
+                        + x*(1-y)*v5[1] + x*y*v6[1] + (1-x)*y*v7[1];
 
-                           const double J31 = -(1-y)*(1-z)*v0[2] + (1-y)*(1-z)*v1[2]
-                           + y*(1-z)*v2[2] - y*(1-z)*v3[2]- (1-y)*z*v4[2] +
-                           (1-y)*z*v5[2] + y*z*v6[2] - y*z*v7[2];
+                        const double J31 = -(1-y)*(1-z)*v0[2] + (1-y)*(1-z)*v1[2]
+                        + y*(1-z)*v2[2] - y*(1-z)*v3[2]- (1-y)*z*v4[2] +
+                        (1-y)*z*v5[2] + y*z*v6[2] - y*z*v7[2];
 
-                           const double J32 = -(1-x)*(1-z)*v0[2] - x*(1-z)*v1[2]
-                           + x*(1-z)*v2[2] + (1-x)*(1-z)*v3[2] - (1-x)*z*v4[2]
-                           - x*z*v5[2] + x*z*v6[2] + (1-x)*z*v7[2];
+                        const double J32 = -(1-x)*(1-z)*v0[2] - x*(1-z)*v1[2]
+                        + x*(1-z)*v2[2] + (1-x)*(1-z)*v3[2] - (1-x)*z*v4[2]
+                        - x*z*v5[2] + x*z*v6[2] + (1-x)*z*v7[2];
 
-                           const double J33 = -(1-x)*(1-y)*v0[2] - x*(1-y)*v1[2]
-                           - x*y*v2[2] - (1-x)*y*v3[2] + (1-x)*(1-y)*v4[2]
-                           + x*(1-y)*v5[2] + x*y*v6[2] + (1-x)*y*v7[2];
+                        const double J33 = -(1-x)*(1-y)*v0[2] - x*(1-y)*v1[2]
+                        - x*y*v2[2] - (1-x)*y*v3[2] + (1-x)*(1-y)*v4[2]
+                        + x*(1-y)*v5[2] + x*y*v6[2] + (1-x)*y*v7[2];
 
-                           const double detJ = J11 * (J22 * J33 - J32 * J23) -
-                           J21 * (J12 * J33 - J32 * J13) +
-                           J31 * (J12 * J23 - J22 * J13);
-                           const double w_detJ = w/detJ;
-                           // adj(J)
-                           const double A11 = (J22 * J33) - (J23 * J32);
-                           const double A12 = (J32 * J13) - (J12 * J33);
-                           const double A13 = (J12 * J23) - (J22 * J13);
-                           const double A21 = (J31 * J23) - (J21 * J33);
-                           const double A22 = (J11 * J33) - (J13 * J31);
-                           const double A23 = (J21 * J13) - (J11 * J23);
-                           const double A31 = (J21 * J32) - (J31 * J22);
-                           const double A32 = (J31 * J12) - (J11 * J32);
-                           const double A33 = (J11 * J22) - (J12 * J21);
+                        const double detJ = J11 * (J22 * J33 - J32 * J23) -
+                        J21 * (J12 * J33 - J32 * J13) +
+                        J31 * (J12 * J23 - J22 * J13);
+                        const double w_detJ = w/detJ;
+                        // adj(J)
+                        const double A11 = (J22 * J33) - (J23 * J32);
+                        const double A12 = (J32 * J13) - (J12 * J33);
+                        const double A13 = (J12 * J23) - (J22 * J13);
+                        const double A21 = (J31 * J23) - (J21 * J33);
+                        const double A22 = (J11 * J33) - (J13 * J31);
+                        const double A23 = (J21 * J13) - (J11 * J23);
+                        const double A31 = (J21 * J32) - (J31 * J22);
+                        const double A32 = (J31 * J12) - (J11 * J32);
+                        const double A33 = (J11 * J22) - (J12 * J21);
 
-                           // Put these in the opposite order...
-                           Q(0,iqz,iqy,iqx,iref,iel_ho) = w_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
-                           Q(1,iqz,iqy,iqx,iref,iel_ho) = w_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
-                           Q(2,iqz,iqy,iqx,iref,iel_ho) = w_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
-                           Q(3,iqz,iqy,iqx,iref,iel_ho) = w_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
-                           Q(4,iqz,iqy,iqx,iref,iel_ho) = w_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
-                           Q(5,iqz,iqy,iqx,iref,iel_ho) = w_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
-                        }
+                        // Put these in the opposite order...
+                        Q(0,iqz,iqy,iqx,kz,ky,kx,
+                          iel_ho) = w_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
+                        Q(1,iqz,iqy,iqx,kz,ky,kx,
+                          iel_ho) = w_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
+                        Q(2,iqz,iqy,iqx,kz,ky,kx,
+                          iel_ho) = w_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
+                        Q(3,iqz,iqy,iqx,kz,ky,kx,
+                          iel_ho) = w_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
+                        Q(4,iqz,iqy,iqx,kz,ky,kx,
+                          iel_ho) = w_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
+                        Q(5,iqz,iqy,iqx,kz,ky,kx,
+                          iel_ho) = w_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
                      }
                   }
                }
             }
          }
-         MFEM_SYNC_THREAD;
+      }
+      MFEM_SYNC_THREAD;
 
-         // nnz_per_el = nnz_per_row(=27) * (order+1) * (order+1) * (order+1);
-         MFEM_SHARED double V_[nnz_per_el];
-         DeviceTensor<4> V(V_, nnz_per_row, nd1d, nd1d, nd1d);
+      // nnz_per_el = nnz_per_row(=27) * (order+1) * (order+1) * (order+1);
+      MFEM_SHARED double V_[nnz_per_el];
+      DeviceTensor<4> V(V_, nnz_per_row, nd1d, nd1d, nd1d);
 
-         // Assemble a sparse matrix over the macro-element by looping over each
-         // subelement.
-         //
-         // V(j,i) stores the jth nonzero in the ith row of the sparse matrix.
-         for (int j=0; j<nnz_per_row; ++j)
-         {
-            MFEM_FOREACH_THREAD(iz,z,nd1d)
-            {
-               MFEM_FOREACH_THREAD(iy,y,nd1d)
-               {
-                  MFEM_FOREACH_THREAD(ix,x,nd1d)
-                  {
-                     V(j,ix,iy,iz) = 0.0;
-                  }
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         // Loop over sub-elements
-         MFEM_FOREACH_THREAD(kz,z,order)
-         {
-            MFEM_FOREACH_THREAD(ky,y,order)
-            {
-               MFEM_FOREACH_THREAD(kx,x,order)
-               {
-                  double grad_A_[sz_grad_A];
-                  double grad_B_[sz_grad_B];
-                  double local_mat_[sz_local_mat];
-                  DeviceTensor<2> local_mat(local_mat_, 8, 8);
-                  DeviceTensor<6> grad_A(grad_A_, 3, 3, 2, 2, 2, 2);
-                  DeviceTensor<7> grad_B(grad_B_, 3, 3, 2, 2, 2, 2, 2);
-
-                  const int k = kx + ky*order + kz*order*order;
-                  // local_mat is the local (dense) stiffness matrix
-                  for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
-                  // Intermediate quantities (see e.g. Mora and Demkowicz for
-                  // notation).
-                  for (int i=0; i<sz_grad_A; ++i) { grad_A[i] = 0.0; }
-                  for (int i=0; i<sz_grad_B; ++i) { grad_B[i] = 0.0; }
-
-                  MFEM_UNROLL(2)
-                  for (int iqx=0; iqx<2; ++iqx)
-                  {
-                     MFEM_UNROLL(2)
-                     for (int jz=0; jz<2; ++jz)
-                     {
-                        // Note loop starts at iz=jz here, taking advantage of
-                        // symmetries.
-                        MFEM_UNROLL(2)
-                        for (int iz=jz; iz<2; ++iz)
-                        {
-                           MFEM_UNROLL(2)
-                           for (int iqy=0; iqy<2; ++iqy)
-                           {
-                              MFEM_UNROLL(2)
-                              for (int iqz=0; iqz<2; ++iqz)
-                              {
-                                 const double biz = (iz == iqz) ? 1.0 : 0.0;
-                                 const double giz = (iz == 0) ? -1.0 : 1.0;
-
-                                 const double bjz = (jz == iqz) ? 1.0 : 0.0;
-                                 const double gjz = (jz == 0) ? -1.0 : 1.0;
-
-                                 const double J11 = Q(0,iqz,iqy,iqx,k,e_ho);
-                                 const double J21 = Q(1,iqz,iqy,iqx,k,e_ho);
-                                 const double J31 = Q(2,iqz,iqy,iqx,k,e_ho);
-                                 const double J12 = J21;
-                                 const double J22 = Q(3,iqz,iqy,iqx,k,e_ho);
-                                 const double J32 = Q(4,iqz,iqy,iqx,k,e_ho);
-                                 const double J13 = J31;
-                                 const double J23 = J32;
-                                 const double J33 = Q(5,iqz,iqy,iqx,k,e_ho);
-
-                                 grad_A(0,0,iqy,iz,jz,iqx) += J11*biz*bjz;
-                                 grad_A(1,0,iqy,iz,jz,iqx) += J21*biz*bjz;
-                                 grad_A(2,0,iqy,iz,jz,iqx) += J31*giz*bjz;
-                                 grad_A(0,1,iqy,iz,jz,iqx) += J12*biz*bjz;
-                                 grad_A(1,1,iqy,iz,jz,iqx) += J22*biz*bjz;
-                                 grad_A(2,1,iqy,iz,jz,iqx) += J32*giz*bjz;
-                                 grad_A(0,2,iqy,iz,jz,iqx) += J13*biz*gjz;
-                                 grad_A(1,2,iqy,iz,jz,iqx) += J23*biz*gjz;
-                                 grad_A(2,2,iqy,iz,jz,iqx) += J33*giz*gjz;
-                              }
-                              MFEM_UNROLL(2)
-                              for (int jy=0; jy<2; ++jy)
-                              {
-                                 MFEM_UNROLL(2)
-                                 for (int iy=0; iy<2; ++iy)
-                                 {
-                                    const double biy = (iy == iqy) ? 1.0 : 0.0;
-                                    const double giy = (iy == 0) ? -1.0 : 1.0;
-
-                                    const double bjy = (jy == iqy) ? 1.0 : 0.0;
-                                    const double gjy = (jy == 0) ? -1.0 : 1.0;
-
-                                    grad_B(0,0,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(0,0,iqy,iz,jz,iqx);
-                                    grad_B(1,0,iy,jy,iz,jz,iqx) += giy*bjy*grad_A(1,0,iqy,iz,jz,iqx);
-                                    grad_B(2,0,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(2,0,iqy,iz,jz,iqx);
-                                    grad_B(0,1,iy,jy,iz,jz,iqx) += biy*gjy*grad_A(0,1,iqy,iz,jz,iqx);
-                                    grad_B(1,1,iy,jy,iz,jz,iqx) += giy*gjy*grad_A(1,1,iqy,iz,jz,iqx);
-                                    grad_B(2,1,iy,jy,iz,jz,iqx) += biy*gjy*grad_A(2,1,iqy,iz,jz,iqx);
-                                    grad_B(0,2,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(0,2,iqy,iz,jz,iqx);
-                                    grad_B(1,2,iy,jy,iz,jz,iqx) += giy*bjy*grad_A(1,2,iqy,iz,jz,iqx);
-                                    grad_B(2,2,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(2,2,iqy,iz,jz,iqx);
-                                 }
-                              }
-                           }
-                           MFEM_UNROLL(2)
-                           for (int jy=0; jy<2; ++jy)
-                           {
-                              MFEM_UNROLL(2)
-                              for (int jx=0; jx<2; ++jx)
-                              {
-                                 MFEM_UNROLL(2)
-                                 for (int iy=0; iy<2; ++iy)
-                                 {
-                                    MFEM_UNROLL(2)
-                                    for (int ix=0; ix<2; ++ix)
-                                    {
-                                       const double bix = (ix == iqx) ? 1.0 : 0.0;
-                                       const double gix = (ix == 0) ? -1.0 : 1.0;
-
-                                       const double bjx = (jx == iqx) ? 1.0 : 0.0;
-                                       const double gjx = (jx == 0) ? -1.0 : 1.0;
-
-                                       int ii_loc = ix + 2*iy + 4*iz;
-                                       int jj_loc = jx + 2*jy + 4*jz;
-
-                                       // Only store the lower-triangular part of
-                                       // the matrix (by symmetry).
-                                       if (jj_loc > ii_loc) { continue; }
-
-                                       double val = 0.0;
-                                       val += gix*gjx*grad_B(0,0,iy,jy,iz,jz,iqx);
-                                       val += bix*gjx*grad_B(1,0,iy,jy,iz,jz,iqx);
-                                       val += bix*gjx*grad_B(2,0,iy,jy,iz,jz,iqx);
-                                       val += gix*bjx*grad_B(0,1,iy,jy,iz,jz,iqx);
-                                       val += bix*bjx*grad_B(1,1,iy,jy,iz,jz,iqx);
-                                       val += bix*bjx*grad_B(2,1,iy,jy,iz,jz,iqx);
-                                       val += gix*bjx*grad_B(0,2,iy,jy,iz,jz,iqx);
-                                       val += bix*bjx*grad_B(2,2,iy,jy,iz,jz,iqx);
-                                       val += bix*bjx*grad_B(1,2,iy,jy,iz,jz,iqx);
-
-                                       local_mat(ii_loc, jj_loc) += val;
-                                    }
-                                 }
-                              }
-                           }
-                        }
-                     }
-                  }
-                  // Assemble the local matrix into the macro-element sparse matrix
-                  // in a format similar to coordinate format. The (I,J) arrays
-                  // are implicit (not stored explicitly).
-                  for (int ii_loc=0; ii_loc<8; ++ii_loc)
-                  {
-                     const int ix = ii_loc%2;
-                     const int iy = (ii_loc/2)%2;
-                     const int iz = ii_loc/2/2;
-
-                     for (int jj_loc=0; jj_loc<8; ++jj_loc)
-                     {
-                        const int jx = jj_loc%2;
-                        const int jy = (jj_loc/2)%2;
-                        const int jz = jj_loc/2/2;
-                        const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
-
-                        if (jj_loc <= ii_loc)
-                        {
-                           AtomicAdd(V(jj_off, ix+kx, iy+ky, iz+kz), local_mat(ii_loc, jj_loc));
-                        }
-                        else
-                        {
-                           AtomicAdd(V(jj_off, ix+kx, iy+ky, iz+kz), local_mat(jj_loc, ii_loc));
-                        }
-                     }
-                  }
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         // Place the macro-element sparse matrix into the global sparse matrix.
+      // Assemble a sparse matrix over the macro-element by looping over each
+      // subelement.
+      //
+      // V(j,i) stores the jth nonzero in the ith row of the sparse matrix.
+      for (int j=0; j<nnz_per_row; ++j)
+      {
          MFEM_FOREACH_THREAD(iz,z,nd1d)
          {
             MFEM_FOREACH_THREAD(iy,y,nd1d)
             {
                MFEM_FOREACH_THREAD(ix,x,nd1d)
                {
-                  double col_ptr[nnz_per_row]; // 27
+                  V(j,ix,iy,iz) = 0.0;
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
 
-                  const int ii_el = ix + nd1d*(iy + nd1d*iz);
-                  const int ii = el_dof_lex(ii_el, e_ho);
+      // Loop over sub-elements
+      MFEM_FOREACH_THREAD(kz,z,order)
+      {
+         MFEM_FOREACH_THREAD(ky,y,order)
+         {
+            MFEM_FOREACH_THREAD(kx,x,order)
+            {
+               double grad_A_[sz_grad_A];
+               double grad_B_[sz_grad_B];
+               double local_mat_[sz_local_mat];
+               DeviceTensor<2> local_mat(local_mat_, 8, 8);
+               DeviceTensor<6> grad_A(grad_A_, 3, 3, 2, 2, 2, 2);
+               DeviceTensor<7> grad_B(grad_B_, 3, 3, 2, 2, 2, 2, 2);
 
-                  // Set column pointer to avoid searching in the row
-                  for (int j = I[ii], end = I[ii+1]; j < end; j++)
+               //const int k = kx + ky*order + kz*order*order;
+               // local_mat is the local (dense) stiffness matrix
+               for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
+               // Intermediate quantities (see e.g. Mora and Demkowicz for
+               // notation).
+               for (int i=0; i<sz_grad_A; ++i) { grad_A[i] = 0.0; }
+               for (int i=0; i<sz_grad_B; ++i) { grad_B[i] = 0.0; }
+
+               MFEM_UNROLL(2)
+               for (int iqx=0; iqx<2; ++iqx)
+               {
+                  MFEM_UNROLL(2)
+                  for (int jz=0; jz<2; ++jz)
                   {
-                     const int jj = J[j];
-                     int jj_el = -1;
-                     for (int k = K[jj], k_end = K[jj+1]; k < k_end; k += 2)
+                     // Note loop starts at iz=jz here, taking advantage of
+                     // symmetries.
+                     MFEM_UNROLL(2)
+                     for (int iz=jz; iz<2; ++iz)
                      {
-                        if (dof_glob2loc[k] == e_ho)
+                        MFEM_UNROLL(2)
+                        for (int iqy=0; iqy<2; ++iqy)
                         {
-                           jj_el = dof_glob2loc[k+1];
-                           break;
+                           MFEM_UNROLL(2)
+                           for (int iqz=0; iqz<2; ++iqz)
+                           {
+                              const double biz = (iz == iqz) ? 1.0 : 0.0;
+                              const double giz = (iz == 0) ? -1.0 : 1.0;
+
+                              const double bjz = (jz == iqz) ? 1.0 : 0.0;
+                              const double gjz = (jz == 0) ? -1.0 : 1.0;
+
+                              const double J11 = Q(0,iqz,iqy,iqx,kz,ky,kx,iel_ho);
+                              const double J21 = Q(1,iqz,iqy,iqx,kz,ky,kx,iel_ho);
+                              const double J31 = Q(2,iqz,iqy,iqx,kz,ky,kx,iel_ho);
+                              const double J12 = J21;
+                              const double J22 = Q(3,iqz,iqy,iqx,kz,ky,kx,iel_ho);
+                              const double J32 = Q(4,iqz,iqy,iqx,kz,ky,kx,iel_ho);
+                              const double J13 = J31;
+                              const double J23 = J32;
+                              const double J33 = Q(5,iqz,iqy,iqx,kz,ky,kx,iel_ho);
+
+                              grad_A(0,0,iqy,iz,jz,iqx) += J11*biz*bjz;
+                              grad_A(1,0,iqy,iz,jz,iqx) += J21*biz*bjz;
+                              grad_A(2,0,iqy,iz,jz,iqx) += J31*giz*bjz;
+                              grad_A(0,1,iqy,iz,jz,iqx) += J12*biz*bjz;
+                              grad_A(1,1,iqy,iz,jz,iqx) += J22*biz*bjz;
+                              grad_A(2,1,iqy,iz,jz,iqx) += J32*giz*bjz;
+                              grad_A(0,2,iqy,iz,jz,iqx) += J13*biz*gjz;
+                              grad_A(1,2,iqy,iz,jz,iqx) += J23*biz*gjz;
+                              grad_A(2,2,iqy,iz,jz,iqx) += J33*giz*gjz;
+                           }
+                           MFEM_UNROLL(2)
+                           for (int jy=0; jy<2; ++jy)
+                           {
+                              MFEM_UNROLL(2)
+                              for (int iy=0; iy<2; ++iy)
+                              {
+                                 const double biy = (iy == iqy) ? 1.0 : 0.0;
+                                 const double giy = (iy == 0) ? -1.0 : 1.0;
+
+                                 const double bjy = (jy == iqy) ? 1.0 : 0.0;
+                                 const double gjy = (jy == 0) ? -1.0 : 1.0;
+
+                                 grad_B(0,0,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(0,0,iqy,iz,jz,iqx);
+                                 grad_B(1,0,iy,jy,iz,jz,iqx) += giy*bjy*grad_A(1,0,iqy,iz,jz,iqx);
+                                 grad_B(2,0,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(2,0,iqy,iz,jz,iqx);
+                                 grad_B(0,1,iy,jy,iz,jz,iqx) += biy*gjy*grad_A(0,1,iqy,iz,jz,iqx);
+                                 grad_B(1,1,iy,jy,iz,jz,iqx) += giy*gjy*grad_A(1,1,iqy,iz,jz,iqx);
+                                 grad_B(2,1,iy,jy,iz,jz,iqx) += biy*gjy*grad_A(2,1,iqy,iz,jz,iqx);
+                                 grad_B(0,2,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(0,2,iqy,iz,jz,iqx);
+                                 grad_B(1,2,iy,jy,iz,jz,iqx) += giy*bjy*grad_A(1,2,iqy,iz,jz,iqx);
+                                 grad_B(2,2,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(2,2,iqy,iz,jz,iqx);
+                              }
+                           }
+                        }
+                        MFEM_UNROLL(2)
+                        for (int jy=0; jy<2; ++jy)
+                        {
+                           MFEM_UNROLL(2)
+                           for (int jx=0; jx<2; ++jx)
+                           {
+                              MFEM_UNROLL(2)
+                              for (int iy=0; iy<2; ++iy)
+                              {
+                                 MFEM_UNROLL(2)
+                                 for (int ix=0; ix<2; ++ix)
+                                 {
+                                    const double bix = (ix == iqx) ? 1.0 : 0.0;
+                                    const double gix = (ix == 0) ? -1.0 : 1.0;
+
+                                    const double bjx = (jx == iqx) ? 1.0 : 0.0;
+                                    const double gjx = (jx == 0) ? -1.0 : 1.0;
+
+                                    int ii_loc = ix + 2*iy + 4*iz;
+                                    int jj_loc = jx + 2*jy + 4*jz;
+
+                                    // Only store the lower-triangular part of
+                                    // the matrix (by symmetry).
+                                    if (jj_loc > ii_loc) { continue; }
+
+                                    double val = 0.0;
+                                    val += gix*gjx*grad_B(0,0,iy,jy,iz,jz,iqx);
+                                    val += bix*gjx*grad_B(1,0,iy,jy,iz,jz,iqx);
+                                    val += bix*gjx*grad_B(2,0,iy,jy,iz,jz,iqx);
+                                    val += gix*bjx*grad_B(0,1,iy,jy,iz,jz,iqx);
+                                    val += bix*bjx*grad_B(1,1,iy,jy,iz,jz,iqx);
+                                    val += bix*bjx*grad_B(2,1,iy,jy,iz,jz,iqx);
+                                    val += gix*bjx*grad_B(0,2,iy,jy,iz,jz,iqx);
+                                    val += bix*bjx*grad_B(2,2,iy,jy,iz,jz,iqx);
+                                    val += bix*bjx*grad_B(1,2,iy,jy,iz,jz,iqx);
+
+                                    local_mat(ii_loc, jj_loc) += val;
+                                 }
+                              }
+                           }
                         }
                      }
-                     if (jj_el < 0) { continue; }
-                     const int jx = jj_el%nd1d;
-                     const int jy = (jj_el/nd1d)%nd1d;
-                     const int jz = jj_el/nd1d/nd1d;
-                     const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
-                     col_ptr[jj_off] = j;
                   }
+               }
+               // Assemble the local matrix into the macro-element sparse matrix
+               // in a format similar to coordinate format. The (I,J) arrays
+               // are implicit (not stored explicitly).
+               for (int ii_loc=0; ii_loc<8; ++ii_loc)
+               {
+                  const int ix = ii_loc%2;
+                  const int iy = (ii_loc/2)%2;
+                  const int iz = ii_loc/2/2;
 
-                  const int jx_begin = (ix > 0) ? ix - 1 : 0;
-                  const int jx_end = (ix < order) ? ix + 1 : order;
-
-                  const int jy_begin = (iy > 0) ? iy - 1 : 0;
-                  const int jy_end = (iy < order) ? iy + 1 : order;
-
-                  const int jz_begin = (iz > 0) ? iz - 1 : 0;
-                  const int jz_end = (iz < order) ? iz + 1 : order;
-
-                  for (int jz=jz_begin; jz<=jz_end; ++jz)
+                  for (int jj_loc=0; jj_loc<8; ++jj_loc)
                   {
-                     for (int jy=jy_begin; jy<=jy_end; ++jy)
+                     const int jx = jj_loc%2;
+                     const int jy = (jj_loc/2)%2;
+                     const int jz = jj_loc/2/2;
+                     const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
+
+                     if (jj_loc <= ii_loc)
                      {
-                        for (int jx=jx_begin; jx<=jx_end; ++jx)
+                        AtomicAdd(V(jj_off, ix+kx, iy+ky, iz+kz), local_mat(ii_loc, jj_loc));
+                     }
+                     else
+                     {
+                        AtomicAdd(V(jj_off, ix+kx, iy+ky, iz+kz), local_mat(jj_loc, ii_loc));
+                     }
+                  }
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Place the macro-element sparse matrix into the global sparse matrix.
+      MFEM_FOREACH_THREAD(iz,z,nd1d)
+      {
+         MFEM_FOREACH_THREAD(iy,y,nd1d)
+         {
+            MFEM_FOREACH_THREAD(ix,x,nd1d)
+            {
+               double col_ptr[nnz_per_row]; // 27
+
+               const int ii_el = ix + nd1d*(iy + nd1d*iz);
+               const int ii = el_dof_lex(ii_el, iel_ho);
+
+               // Set column pointer to avoid searching in the row
+               for (int j = I[ii], end = I[ii+1]; j < end; j++)
+               {
+                  const int jj = J[j];
+                  int jj_el = -1;
+                  for (int k = K[jj], k_end = K[jj+1]; k < k_end; k += 2)
+                  {
+                     if (dof_glob2loc[k] == iel_ho)
+                     {
+                        jj_el = dof_glob2loc[k+1];
+                        break;
+                     }
+                  }
+                  if (jj_el < 0) { continue; }
+                  const int jx = jj_el%nd1d;
+                  const int jy = (jj_el/nd1d)%nd1d;
+                  const int jz = jj_el/nd1d/nd1d;
+                  const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
+                  col_ptr[jj_off] = j;
+               }
+
+               const int jx_begin = (ix > 0) ? ix - 1 : 0;
+               const int jx_end = (ix < order) ? ix + 1 : order;
+
+               const int jy_begin = (iy > 0) ? iy - 1 : 0;
+               const int jy_end = (iy < order) ? iy + 1 : order;
+
+               const int jz_begin = (iz > 0) ? iz - 1 : 0;
+               const int jz_end = (iz < order) ? iz + 1 : order;
+
+               for (int jz=jz_begin; jz<=jz_end; ++jz)
+               {
+                  for (int jy=jy_begin; jy<=jy_end; ++jy)
+                  {
+                     for (int jx=jx_begin; jx<=jx_end; ++jx)
+                     {
+                        const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
+                        const double Vji = V(jj_off, ix, iy, iz);
+                        const int col_ptr_jj = col_ptr[jj_off];
+                        if ((ix == 0 && jx == 0) || (ix == order && jx == order) ||
+                            (iy == 0 && jy == 0) || (iy == order && jy == order) ||
+                            (iz == 0 && jz == 0) || (iz == order && jz == order))
                         {
-                           const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
-                           const double Vji = V(jj_off, ix, iy, iz);
-                           const int col_ptr_jj = col_ptr[jj_off];
-                           if ((ix == 0 && jx == 0) || (ix == order && jx == order) ||
-                               (iy == 0 && jy == 0) || (iy == order && jy == order) ||
-                               (iz == 0 && jz == 0) || (iz == order && jz == order))
-                           {
-                              AtomicAdd(A[col_ptr_jj], Vji);
-                           }
-                           else
-                           {
-                              A[col_ptr_jj] += Vji;
-                           }
+                           AtomicAdd(A[col_ptr_jj], Vji);
+                        }
+                        else
+                        {
+                           A[col_ptr_jj] += Vji;
                         }
                      }
                   }
                }
             }
          }
-         MFEM_SYNC_THREAD;
-      });
-      NvtxPop();
-   }
-   ini = false;
+      }
+      MFEM_SYNC_THREAD;
+   });
+   NvtxPop(Assembly);
    NvtxPop(Assemble3DBatchedLOR_GPU_Kernels);
 }
 
@@ -546,50 +501,42 @@ void AssembleBatchedLOR_GPU(BilinearForm &form_lor,
 
    // the sparsity pattern is defined from the map: element->dof
    const Table &elem_dof = form_lor.FESpace()->GetElementToDofTable();
-   {
-      NvtxPush(Sparsity, PaleTurquoise);
-      Table dof_dof;
 
-      Table dof_elem;
-      {
-         NvtxPush(Transpose, LightGoldenrod);
-         Transpose(elem_dof, dof_elem, ndofs);
-         NvtxPop(Transpose);
-      }
+   NvtxPush(Sparsity, PaleTurquoise);
+   Table dof_dof, dof_elem;
 
-      {
-         NvtxPush(Mult, LightGoldenrod);
-         mfem::Mult(dof_elem, elem_dof, dof_dof);
-         NvtxPop();
-      }
+   NvtxPush(Transpose, LightGoldenrod);
+   Transpose(elem_dof, dof_elem, ndofs);
+   NvtxPop(Transpose);
 
-      NvtxPush(SortRows, LightGoldenrod);
-      dof_dof.SortRows();
-      int *I = dof_dof.GetI();
-      int *J = dof_dof.GetJ();
-      NvtxPop();
+   NvtxPush(Mult, LightGoldenrod);
+   mfem::Mult(dof_elem, elem_dof, dof_dof);
+   NvtxPop();
 
-      NvtxPush(A_Allocate, Cyan);
-      double *data = Memory<double>(I[ndofs]);
-      NvtxPop();
+   NvtxPush(SortRows, LightGoldenrod);
+   dof_dof.SortRows();
+   int *I = dof_dof.GetI();
+   int *J = dof_dof.GetJ();
+   NvtxPop();
 
-      {
-         NvtxPush(newSparseMatrix, PeachPuff);
-         A_mat = new SparseMatrix(I,J,data,ndofs,ndofs,true,true,true);
-         NvtxPop();
-      }
-      {
-         NvtxPush(A=0.0, Peru);
-         *A_mat = 0.0;
-         NvtxPop();
-      }
+   NvtxPush(A_Allocate, Cyan);
+   double *data = Memory<double>(I[ndofs]);
+   NvtxPop();
 
-      NvtxPush(LoseData, PaleTurquoise);
-      dof_dof.LoseData();
-      NvtxPop();
+   NvtxPush(newSparseMatrix, PeachPuff);
+   A_mat = new SparseMatrix(I,J,data,ndofs,ndofs,true,true,true);
+   NvtxPop();
 
-      NvtxPop(Sparsity);
-   }
+   NvtxPush(A=0.0, Peru);
+   *A_mat = 0.0;
+   NvtxPop();
+
+   NvtxPush(LoseData, PaleTurquoise);
+   dof_dof.LoseData();
+   NvtxPop();
+
+   NvtxPop(Sparsity);
+
 
    if (dim == 2) { MFEM_ABORT("Unsuported!"); }
    else if (dim == 3)
