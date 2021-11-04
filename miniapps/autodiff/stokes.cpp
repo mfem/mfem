@@ -101,6 +101,12 @@ void StokesSolver::FSolve()
     nf->Mult(sol,rhs);
     rhs.Neg();
 
+    {
+        double rhsnorm=mfem::InnerProduct(pmesh->GetComm(),rhs,rhs);
+        if(pmesh->GetMyRank()==0){
+            std::cout<<"|rhs|="<<std::sqrt(rhsnorm)<<std::endl;
+        }
+    }
 
     delete smfem.blPr;
     delete smfem.invA;
@@ -125,17 +131,19 @@ void StokesSolver::FSolve()
     mfem::HypreParMatrix* A10elim=A10->EliminateCols(ess_tdofv); A10->EliminateRows(ess_tdofp);
 
     //form mass matrix
-    /*
+
     {
         mfem::ConstantCoefficient one(1.0);
         mfem::ParBilinearForm* bf=new mfem::ParBilinearForm(pfes);
-        bf->SetAssemblyLevel(AssemblyLevel::FULL);
+        //bf->SetAssemblyLevel(AssemblyLevel::FULL);
         bf->AddDomainIntegrator(new mfem::MassIntegrator(one));
+        //bf->AddDomainIntegrator(new mfem::MassIntegrator(*GetBrinkmanPenal()));
         bf->Assemble();
+        bf->Finalize();
         smfem.M=bf->ParallelAssemble();
         delete bf;
     }
-    */
+
 
     //copy BC to RHS
 
@@ -147,6 +155,7 @@ void StokesSolver::FSolve()
 
     Md = new HypreParVector(pmesh->GetComm(), A00->GetGlobalNumRows(), A00->GetRowStarts());
     A00->GetDiag(*Md);
+    Md->operator *=(9);
     MinvBt = A10->Transpose();
     MinvBt->InvScaleRows(*Md);
     smfem.S = ParMult(A10, MinvBt);
@@ -157,11 +166,19 @@ void StokesSolver::FSolve()
     bamg->SetElasticityOptions(vfes);
     bamg->SetPrintLevel(print_level);
     smfem.invA = bamg;
+
     bamg = new HypreBoomerAMG(*smfem.S);
     bamg->SetPrintLevel(print_level);
     smfem.invS = bamg;
 
-    //smfem.invS = new HypreBoomerAMG(*smfem.M);
+
+/*
+    bamg = new HypreBoomerAMG(*smfem.M);
+    bamg->SetPrintLevel(print_level);
+    smfem.invS = bamg;
+*/
+
+
 
     smfem.block_trueOffsets.SetSize(3);
     smfem.block_trueOffsets[0]=0;
@@ -184,6 +201,10 @@ void StokesSolver::FSolve()
 
 
     psol.Mult(rhs, tmv);
+
+    if(pmesh->GetMyRank()==0){
+        std::cout<<"Num. steps="<<psol.GetNumIterations()<<" conv. norm="<<psol.GetFinalNorm()<<std::endl;
+    }
 
     mfem::Vector zv(pmesh->Dimension()); zv=0.0;
     mfem::VectorConstantCoefficient zz(zv);

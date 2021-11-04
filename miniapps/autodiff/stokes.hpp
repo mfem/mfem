@@ -10,7 +10,7 @@ namespace mfem {
 namespace PointwiseTrans
 {
 
-/*  Standrd "Heaviside" projection in topology optimization with threhold eta
+/*  Standrd "Heaviside" projection in topology optimization with threshold eta
  * and steepness of the projection beta.
  * */
 inline
@@ -672,8 +672,9 @@ public:
     double Eval(ElementTransformation &T, const IntegrationPoint &ip)
     {
         double rhop=PointwiseTrans::HProject(gfc.Eval(T,ip),eta,beta);
-        return lambda*PointwiseTrans::FluidInterpolation(rhop,q);
-        //return 1.0-gfc.Eval(T,ip);
+        //return lambda*PointwiseTrans::FluidInterpolation(rhop,q);
+        //return lambda*(1.0-gfc.Eval(T,ip));
+        return lambda*(1.0-rhop);
 
     }
 
@@ -685,8 +686,9 @@ public:
         double rhop=PointwiseTrans::HProject(rhoo,eta,beta);
         double g1=lambda*PointwiseTrans::GradFluidInterpolation(rhop,q);
         double g2=PointwiseTrans::HGrad(rhoo,eta,beta);
-        return g1*g2;
-        //return -1.0;
+        //return g1*g2;
+        //return -lambda*1.0;
+        return -lambda*g2;
     }
 
     void SetGridFunction(mfem::GridFunction* gf)
@@ -1625,6 +1627,7 @@ public:
         delete smfem.invA;
         delete smfem.invS;
         delete smfem.S;
+        delete smfem.M;
     }
 
 
@@ -2004,6 +2007,193 @@ private:
 
 };
 
+
+class PVolumeQoIIntegrator:public NonlinearFormIntegrator
+{
+public:
+    PVolumeQoIIntegrator(double eta_, double beta_, int iorder_=4)
+    {
+        eta=eta_;
+        beta=beta_;
+        iorder=iorder_;
+    }
+
+    virtual
+    ~PVolumeQoIIntegrator()
+    {
+
+    }
+
+    virtual
+    double GetElementEnergy(const mfem::FiniteElement &el,
+                            mfem::ElementTransformation &trans,
+                            const mfem::Vector &elfun) override
+    {
+        double energy=0.0;
+        const int ndof = el.GetDof();
+        const int ndim = el.GetDim();
+
+        const mfem::IntegrationRule *ir = NULL;
+        int order = iorder * trans.OrderGrad(&el) - 1; // correct order?
+        ir = &mfem::IntRules.Get(el.GetGeomType(), order);
+
+        mfem::Vector shapef(ndof);
+        double w;
+        double tval;
+        for (int i = 0; i < ir -> GetNPoints(); i++)
+        {
+            const mfem::IntegrationPoint &ip = ir->IntPoint(i);
+            trans.SetIntPoint(&ip);
+            el.CalcShape(ip,shapef);
+            tval=shapef*elfun;
+            //trim the density for high-order fields
+            if(tval>1.0){tval=1.0;}
+            else if(tval<0.0){tval=0.0;}
+            w= mfem::PointwiseTrans::HProject(tval,eta,beta);
+            w= ip.weight * trans.Weight() * w;
+            energy = energy + w;
+        }
+        return energy;
+    }
+
+    virtual
+    void AssembleElementVector(const mfem::FiniteElement & el,
+                                       mfem::ElementTransformation & trans,
+                                       const mfem::Vector & elfun,
+                                       mfem::Vector & elvect) override
+    {
+
+        const int ndof = el.GetDof();
+
+        const mfem::IntegrationRule *ir = NULL;
+        int order = iorder * trans.OrderGrad(&el) - 1; // correct order?
+        ir = &mfem::IntRules.Get(el.GetGeomType(), order);
+
+        elvect.SetSize(ndof);
+        elvect=0.0;
+
+        mfem::Vector shapef(ndof);
+        double w;
+        double tval;
+        for (int i = 0; i < ir -> GetNPoints(); i++)
+        {
+            const mfem::IntegrationPoint &ip = ir->IntPoint(i);
+            trans.SetIntPoint(&ip);
+            el.CalcShape(ip,shapef);
+            tval=shapef*elfun;
+            //trim the density for high-order fields
+            if(tval>1.0){tval=1.0;}
+            else if(tval<0.0){tval=0.0;}
+
+            w= mfem::PointwiseTrans::HGrad(tval,eta,beta);
+            w= ip.weight * trans.Weight() * w;
+            elvect.Add(w,shapef);
+        }
+
+    }
+
+    virtual void AssembleElementGrad(const mfem::FiniteElement & el,
+                                      mfem::ElementTransformation & trans,
+                                      const mfem::Vector & elfun,
+                                      mfem::DenseMatrix & elmat) override
+     {
+         const int ndof = el.GetDof();
+
+         const mfem::IntegrationRule *ir = NULL;
+         int order = iorder * trans.OrderGrad(&el) - 1; // correct order?
+         ir = &mfem::IntRules.Get(el.GetGeomType(), order);
+
+         elmat.SetSize(ndof);
+         elmat=0.0;
+
+         mfem::Vector shapef(ndof);
+         double w;
+         double tval;
+         for (int i = 0; i < ir -> GetNPoints(); i++)
+         {
+             const mfem::IntegrationPoint &ip = ir->IntPoint(i);
+             trans.SetIntPoint(&ip);
+             el.CalcShape(ip,shapef);
+             tval=shapef*elfun;
+             //trim the density for high-order fields
+             if(tval>1.0){tval=1.0;}
+             else if(tval<0.0){tval=0.0;}
+             w=mfem::PointwiseTrans::HHess(tval,eta,beta);
+             w= ip.weight * trans.Weight() * w;
+             AddMult_a_VVt(w, shapef, elmat);
+         }
+
+    }
+
+
+private:
+    double eta;
+    double beta;
+    int iorder;
+
+};
+
+
+//computes the volume of a projected field
+class PVolumeQoI
+{
+public:
+    PVolumeQoI(mfem::ParFiniteElementSpace* fes_)
+    {
+        fes=fes_;
+        nf=nullptr;
+        SetProjection(0.5,8.0);
+    }
+
+    ~PVolumeQoI()
+    {
+        delete nf;
+    }
+
+    void SetProjection(double eta_,double beta_)
+    {
+        eta=eta_;
+        beta=beta_;
+        delete nf;
+        nf=nullptr;
+    }
+
+    void Update()
+    {
+        delete nf;
+        nf=nullptr;
+        fes->Update();
+    }
+
+    /// Input: true design vector
+    double Eval(mfem::Vector& design_)
+    {
+        Alloc();
+        return nf->GetEnergy(design_);
+    }
+
+    void Grad(mfem::Vector& design_,mfem::Vector& grad)
+    {
+        Alloc();
+        nf->Mult(design_,grad);
+    }
+
+private:
+    double eta;
+    double beta;
+    mfem::ParNonlinearForm* nf;
+    mfem::ParFiniteElementSpace* fes;
+
+    void Alloc()
+    {
+        if(nf==nullptr)
+        {
+            nf=new mfem::ParNonlinearForm(fes);
+            nf->AddDomainIntegrator(new mfem::PVolumeQoIIntegrator(eta,beta));
+        }
+    }
+};
+
 class VolumeQoI
 {
 public:
@@ -2011,7 +2201,6 @@ public:
     {
         solver=solver_;
         dfes=solver->GetDesignFES();
-        lf=new mfem::ParLinearForm(dfes);
         //compute the total volume
         mfem::ParGridFunction gfone(dfes);
         gfone.ProjectCoefficient(one);
@@ -2028,6 +2217,20 @@ public:
         delete lf;
     }
 
+    void Update()
+    {
+        delete lf;
+        dfes=solver->GetDesignFES();
+        //compute the total volume
+        mfem::ParGridFunction gfone(dfes);
+        gfone.ProjectCoefficient(one);
+        lf=new mfem::ParLinearForm(dfes);
+        lf->AddDomainIntegrator(new  mfem::DomainLFIntegrator(one, dfes->GetElementOrder(0)));
+        lf->Assemble();
+        tot_vol=(*lf)(gfone);
+        tot_vol=tot_vol;
+    }
+
     double Eval()
     {
         mfem::ParGridFunction& dens=solver->GetDesign();
@@ -2038,7 +2241,7 @@ public:
         MPI_Comm_rank(pmesh->GetComm(),&rank);
         if(rank==0)
         {
-            std::cout<<"current vol="<<cur_vol<<" total vol"<<tot_vol<<" %="<<cur_vol/tot_vol<<std::endl;
+            std::cout<<"current vol="<<cur_vol<<" total vol="<<tot_vol<<" %="<<cur_vol/tot_vol<<std::endl;
         }
 
         return cur_vol/(tot_vol*vol)-1.0;
@@ -2931,6 +3134,22 @@ public:
         delete lf;
     }
 
+    //This method should be called after mesh refinement/de-refinement
+    void Update()
+    {
+        delete nf;
+        delete lf;
+
+        nf=new mfem::ParNonlinearForm(solver->GetVelocityFES());
+        intg=new PowerDissipationIntegrator(solver->GetViscosity(),solver->GetTargetBrinkmanPenal());
+        nf->AddDomainIntegrator(intg);
+
+        bntg=new BrinkmanPowerDissipation(solver->GetVelocity(),
+                                          *(solver->GetTargetBrinkmanPenal()));
+        lf=new ParNonlinearForm(solver->GetDesignFES());
+        lf->AddDomainIntegrator(bntg);
+    }
+
     double Eval()
     {
         mfem::BlockVector& sol=solver->GetSol();
@@ -3085,18 +3304,177 @@ private:
 };
 
 
+class FilterSolver
+{
+public:
+
+    FilterSolver(double r_, mfem::ParMesh* pmesh_, mfem::ParFiniteElementSpace* dfes_,int order_=2):dfes(dfes_)
+    {
+        r=r_;
+        order=order_;
+        pmesh=pmesh_;
+        int dim=pmesh->Dimension();
+        sfec=new mfem::H1_FECollection(order, dim);
+        sfes=new mfem::ParFiniteElementSpace(pmesh,sfec,1);
+
+
+        double dr=r/(2.0*sqrt(3.0));
+        mfem::ConstantCoefficient dc(dr*dr);
+
+        mfem::ParBilinearForm* bf=new mfem::ParBilinearForm(sfes);
+        bf->AddDomainIntegrator(new mfem::MassIntegrator());
+        bf->AddDomainIntegrator(new DiffusionIntegrator(dc));
+        bf->Assemble();
+        bf->Finalize();
+        K=bf->ParallelAssemble();
+        delete bf;
+
+        //allocate the CG solver and the preconditioner
+        prec=new mfem::HypreBoomerAMG(*K);
+        pcg=new mfem::CGSolver(pmesh->GetComm());
+        pcg->SetOperator(*K);
+        pcg->SetPreconditioner(*prec);
+
+
+        mfem::ParMixedBilinearForm* mf=new mfem::ParMixedBilinearForm(dfes,sfes);
+        mf->AddDomainIntegrator(new mfem::MassIntegrator());
+        mf->Assemble();
+        mf->Finalize();
+        S=mf->ParallelAssemble();
+        delete mf;
+
+        SetSolver();
+
+    }
+
+    mfem::ParFiniteElementSpace* GetFilterFES(){return sfes;}
+
+
+    virtual
+    ~FilterSolver()
+    {
+        delete pcg;
+        delete prec;
+        delete K;
+        delete S;
+        delete sfes;
+        delete sfec;
+    }
+
+    void Update()
+    {
+        delete pcg;
+        delete prec;
+        delete K;
+        delete S;
+
+        sfes->Update();
+        dfes->Update();
+        int dim=pmesh->Dimension();
+
+
+        double dr=r/(2.0*sqrt(3.0));
+        mfem::ConstantCoefficient dc(dr*dr);
+
+        mfem::ParBilinearForm* bf=new mfem::ParBilinearForm(sfes);
+        bf->AddDomainIntegrator(new mfem::MassIntegrator());
+        bf->AddDomainIntegrator(new DiffusionIntegrator(dc));
+        bf->Assemble();
+        bf->Finalize();
+        K=bf->ParallelAssemble();
+        delete bf;
+
+        //allocate the CG solver and the preconditioner
+        prec=new mfem::HypreBoomerAMG(*K);
+        pcg=new mfem::CGSolver(pmesh->GetComm());
+        pcg->SetOperator(*K);
+        pcg->SetPreconditioner(*prec);
+
+        mfem::ParMixedBilinearForm* mf=new mfem::ParMixedBilinearForm(dfes,sfes);
+        mf->AddDomainIntegrator(new mfem::MassIntegrator());
+        mf->Assemble();
+        mf->Finalize();
+        S=mf->ParallelAssemble();
+        delete mf;
+
+    }
+
+    virtual
+    void Mult(const Vector &x, Vector &y)
+    {
+        y=0.0;
+        tmpv.SetSize(y.Size());
+
+        pcg->SetAbsTol(atol);
+        pcg->SetRelTol(rtol);
+        pcg->SetMaxIter(max_iter);
+        pcg->SetPrintLevel(prt_level);
+        S->Mult(x,tmpv);
+        pcg->Mult(tmpv,y);
+    }
+
+    virtual
+    void MultTranspose(const Vector &x, Vector &y)
+    {
+        y=0.0;
+        tmpv.SetSize(x.Size());
+        pcg->SetAbsTol(atol);
+        pcg->SetRelTol(rtol);
+        pcg->SetMaxIter(max_iter);
+        pcg->SetPrintLevel(prt_level);
+        pcg->Mult(x,tmpv);
+        S->MultTranspose(tmpv,y);
+    }
+
+    void SetSolver(double rtol_=1e-8, double atol_=1e-12,int miter_=1000, int prt_level_=1)
+    {
+        rtol=rtol_;
+        atol=atol_;
+        max_iter=miter_;
+        prt_level=prt_level_;
+    }
+
+
+private:
+    mfem::HypreParMatrix* S;
+    mfem::HypreParMatrix* K;
+    mfem::Solver* prec;
+    mfem::CGSolver* pcg;
+
+    mfem::FiniteElementCollection* sfec;
+    mfem::ParFiniteElementSpace* sfes;
+
+    mfem::Vector tmpv;
+
+    double r;
+    int order;
+
+    mfem::ParMesh* pmesh;
+
+    mfem::ParFiniteElementSpace* dfes;
+
+    double atol;
+    double rtol;
+    int max_iter;
+    int prt_level;
+
+};
+
+
 class MassSolver:public mfem::Solver
 {
-private:
+public:
     MassSolver(mfem::ParFiniteElementSpace* fes_):fes(fes_),mcoeff(1.0)
     {
         bf=new mfem::ParBilinearForm(fes);
         bf->AddDomainIntegrator(new mfem::MassIntegrator(mcoeff));
-        bf->SetAssemblyLevel(mfem::AssemblyLevel::FULL);
+        //bf->SetAssemblyLevel(mfem::AssemblyLevel::FULL);
         bf->Assemble();
+        bf->Finalize();
         M=bf->ParallelAssemble();
         prec=new mfem::HypreBoomerAMG(*M);
         pcg=new mfem::CGSolver(fes->GetComm());
+        pcg->SetOperator(*M);
         pcg->SetPreconditioner(*prec);
         SetSolver();
         pcg->SetAbsTol(atol);
@@ -3108,6 +3486,7 @@ private:
     virtual
     ~MassSolver()
     {
+        delete M;
         delete pcg;
         delete prec;
         delete bf;
@@ -3121,6 +3500,12 @@ private:
         pcg->SetMaxIter(max_iter);
         pcg->SetPrintLevel(prt_level);
         pcg->Mult(x,y);
+    }
+
+    virtual
+    void SetOperator(const Operator &op)
+    {
+
     }
 
     void SetSolver(double rtol_=1e-8, double atol_=1e-12,int miter_=1000, int prt_level_=1)
@@ -3145,6 +3530,7 @@ private:
         M=bf->ParallelAssemble();
         prec=new mfem::HypreBoomerAMG(*M);
         pcg=new mfem::CGSolver(fes->GetComm());
+        pcg->SetOperator(*M);
         pcg->SetPreconditioner(*prec);
         pcg->SetAbsTol(atol);
         pcg->SetRelTol(rtol);
@@ -3152,7 +3538,7 @@ private:
         pcg->SetPrintLevel(prt_level);
     }
 
-public:
+private:
     mfem::ParFiniteElementSpace *fes;
     mfem::ConstantCoefficient mcoeff;
     mfem::ParBilinearForm* bf;

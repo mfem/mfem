@@ -61,7 +61,7 @@ double charfunc02(const mfem::Vector &x)
 
 double charfunc(const mfem::Vector &x)
 {
-	return charfunc02(x)+charfunc01(x)
+        return charfunc02(x)+charfunc01(x);
 }
 
 
@@ -278,6 +278,7 @@ int main(int argc, char *argv[])
 
 
        mfem::VelocityIntQoI pdqoi(solver,3);
+
        double qoi=pdqoi.Eval();
        if(myrank==0){std::cout<<"QoI="<<qoi<<std::endl;}
 

@@ -11,7 +11,8 @@
 
 list(APPEND SEQADIFF_COMMON_SOURCES
         stokes.cpp
-	advdiff.cpp)
+	advdiff.cpp
+	elasticity.cpp)
 
 list(APPEND SEQADIFF_COMMON_HEADERS
         fdual.hpp
@@ -20,7 +21,8 @@ list(APPEND SEQADIFF_COMMON_HEADERS
 	adnonlininteg.hpp
 	admfem.hpp
 	stokes.hpp
-	advdiff.hpp)
+	advdiff.hpp
+	elasticity.hpp)
 
 
 
@@ -89,6 +91,10 @@ add_mfem_miniapp(stokes_uni
 
 add_mfem_miniapp(tst
 	MAIN tst.cpp
+	LIBRARIES mfem)
+
+add_mfem_miniapp(filter_test
+	MAIN filter_test.cpp
 	LIBRARIES mfem)
 
 
