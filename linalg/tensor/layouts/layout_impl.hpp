@@ -150,14 +150,11 @@ struct StaticELayoutSize<StaticSize, StaticSize, Sizes...>
    }
 };
 
-template <int Rank>
-class DynamicLayout;
-
 template <int N, int Rank>
 struct DynamicBlockLayoutSize
 {
-   MFEM_HOST_DEVICE inline
-   static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
+   template <typename Layout> MFEM_HOST_DEVICE inline
+   static int eval(int size0, int size1, const Layout &layout)
    {
       return layout.template Size<N-2>();
    }
@@ -166,8 +163,8 @@ struct DynamicBlockLayoutSize
 template <int Rank>
 struct DynamicBlockLayoutSize<0, Rank>
 {
-   MFEM_HOST_DEVICE inline
-   static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
+   template <typename Layout> MFEM_HOST_DEVICE inline
+   static int eval(int size0, int size1, const Layout &layout)
    {
       return size0;
    }
@@ -176,8 +173,8 @@ struct DynamicBlockLayoutSize<0, Rank>
 template <int Rank>
 struct DynamicBlockLayoutSize<1, Rank>
 {
-   MFEM_HOST_DEVICE inline
-   static int eval(int size0, int size1, const DynamicLayout<Rank-2> &layout)
+   template <typename Layout> MFEM_HOST_DEVICE inline
+   static int eval(int size0, int size1, const Layout &layout)
    {
       return size1;
    }
@@ -186,9 +183,9 @@ struct DynamicBlockLayoutSize<1, Rank>
 template <int N, int Rank>
 struct Dynamic3dThreadLayoutSize
 {
-   MFEM_HOST_DEVICE inline
+   template <typename Layout> MFEM_HOST_DEVICE inline
    static int eval(int size0, int size1, int size2,
-                   const DynamicLayout<Rank-3> &layout)
+                   const Layout &layout)
    {
       return layout.template Size<N-3>();
    }
@@ -197,9 +194,9 @@ struct Dynamic3dThreadLayoutSize
 template <int Rank>
 struct Dynamic3dThreadLayoutSize<0, Rank>
 {
-   MFEM_HOST_DEVICE inline
+   template <typename Layout> MFEM_HOST_DEVICE inline
    static int eval(int size0, int size1, int size2,
-                   const DynamicLayout<Rank-3> &layout)
+                   const Layout &layout)
    {
       return size0;
    }
@@ -208,9 +205,9 @@ struct Dynamic3dThreadLayoutSize<0, Rank>
 template <int Rank>
 struct Dynamic3dThreadLayoutSize<1, Rank>
 {
-   MFEM_HOST_DEVICE inline
+   template <typename Layout> MFEM_HOST_DEVICE inline
    static int eval(int size0, int size1, int size2,
-                   const DynamicLayout<Rank-3> &layout)
+                   const Layout &layout)
    {
       return size1;
    }
@@ -219,9 +216,9 @@ struct Dynamic3dThreadLayoutSize<1, Rank>
 template <int Rank>
 struct Dynamic3dThreadLayoutSize<2, Rank>
 {
-   MFEM_HOST_DEVICE inline
+   template <typename Layout> MFEM_HOST_DEVICE inline
    static int eval(int size0, int size1, int size2,
-                   const DynamicLayout<Rank-3> &layout)
+                   const Layout &layout)
    {
       return size2;
    }
