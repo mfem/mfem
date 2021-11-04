@@ -1614,11 +1614,11 @@ static void SmemPADiffusionApply3D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(dy,y,D1D)
+      MFEM_FOREACH_THREAD(dz,z,D1D)
       {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            MFEM_FOREACH_THREAD(dz,z,D1D)
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double u = 0.0, v = 0.0;
                MFEM_UNROLL(MD1)
@@ -1641,11 +1641,11 @@ static void SmemPADiffusionApply3D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      MFEM_FOREACH_THREAD(dz,z,D1D)
       {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            MFEM_FOREACH_THREAD(dz,z,D1D)
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double u = 0.0, v = 0.0, w = 0.0;
                MFEM_UNROLL(MD1)
@@ -1669,11 +1669,11 @@ static void SmemPADiffusionApply3D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double u = 0.0, v = 0.0, w = 0.0;
                MFEM_UNROLL(MD1)
@@ -1726,11 +1726,11 @@ static void SmemPADiffusionApply3D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            MFEM_FOREACH_THREAD(dx,x,D1D)
             {
                double u = 0.0, v = 0.0, w = 0.0;
                MFEM_UNROLL(MQ1)
@@ -1753,11 +1753,11 @@ static void SmemPADiffusionApply3D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(dy,y,D1D)
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            MFEM_FOREACH_THREAD(dx,x,D1D)
             {
                double u = 0.0, v = 0.0, w = 0.0;
                MFEM_UNROLL(Q1D)
@@ -1780,11 +1780,11 @@ static void SmemPADiffusionApply3D(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(dy,y,D1D)
+      MFEM_FOREACH_THREAD(dz,z,D1D)
       {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
+         MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            MFEM_FOREACH_THREAD(dz,z,D1D)
+            MFEM_FOREACH_THREAD(dx,x,D1D)
             {
                double u = 0.0, v = 0.0, w = 0.0;
                MFEM_UNROLL(MQ1)
