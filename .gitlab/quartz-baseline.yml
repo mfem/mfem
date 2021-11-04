@@ -56,6 +56,7 @@ report_baseline:
   extends: [.on_quartz]
   stage: baseline_report
   script:
+    - echo ${MACHINE_NAME}
     - echo ${AUTOTEST}
     - echo ${AUTOTEST_COMMIT}
     - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"

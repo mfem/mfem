@@ -12,8 +12,9 @@
 # Jobs report
 .report_job_success:
   script:
-    # DEBUG
-    - export
+    - echo ${MACHINE_NAME}
+    - echo ${AUTOTEST}
+    - echo ${AUTOTEST_COMMIT}
     - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
     - cd ${AUTOTEST_ROOT}
     - |
@@ -46,8 +47,9 @@
 
 .report_job_failure:
   script:
-    # DEBUG
-    - export
+    - echo ${MACHINE_NAME}
+    - echo ${AUTOTEST}
+    - echo ${AUTOTEST_COMMIT}
     - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
     - cd ${AUTOTEST_ROOT}
     - |
