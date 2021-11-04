@@ -227,12 +227,6 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
 
 HypreParVector& HypreParVector::operator=(HypreParVector &&y)
 {
-#ifdef MFEM_DEBUG
-   if (size != y.Size())
-   {
-      mfem_error("HypreParVector::operator=");
-   }
-#endif
    // If the argument vector owns its data, then the calling vector will as well
    WrapHypreParVector(static_cast<hypre_ParVector*>(y), y.own_ParVector);
    // Either way the argument vector will no longer own its data

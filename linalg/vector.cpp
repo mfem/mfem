@@ -58,6 +58,7 @@ Vector::Vector(Vector &&v) : data(std::move(v.data)), size(v.size)
 {
    data.SetHostPtrOwner(v.data.OwnsHostPtr());
    v.data.Reset();
+   v.size = 0;
 }
 
 void Vector::Load(std::istream **in, int np, int *dim)
@@ -158,6 +159,7 @@ Vector &Vector::operator=(Vector &&v)
    size = v.size;
    data.SetHostPtrOwner(v.data.OwnsHostPtr());
    v.data.Reset();
+   v.size = 0;
    return *this;
 }
 
