@@ -374,57 +374,36 @@ constexpr bool is_dynamic_matrix = is_dynamic_matrix_v<Tensor>::value;
     ```
     Allows to write algorithms which are agnostic of the input type Tensor.
 */
-template <typename Tensor, typename Enable = void>
+template <typename Tensor>
 struct get_tensor_result_type;
 
-template <typename MyTensor>
-struct get_tensor_result_type<MyTensor,
-                              std::enable_if_t<
-                                 is_static_tensor<MyTensor>>>
+template <typename Container, typename Layout>
+struct get_tensor_result_type<Tensor<Container,Layout>>
 {
-   using T = typename MyTensor::T;
+   using T = get_container_type<Container>;
 
    template <int... Dims>
-   using Layout = typename get_layout_result_type<typename MyTensor::layout>
+   using ResLayout = typename get_layout_result_type<Layout>
                      ::template type<Dims...>;
 
    template <int... Dims>
-   using Container = StaticContainer<T,get_layout_capacity<Layout<Dims...>>>;
+   using ResContainer = StaticContainer<T,get_layout_capacity<ResLayout<Dims...>>>;
 
    template <int... Dims>
-   using type = Tensor<Container<Dims...>, Layout<Dims...>>;
-
-   template <int... Dims>
-   using static_type = type<Dims...>;
+   using type = Tensor<ResContainer<Dims...>, ResLayout<Dims...>>;
 };
 
-template <typename MyTensor>
-struct get_tensor_result_type<MyTensor,
-                              std::enable_if_t<
-                                 is_dynamic_tensor<MyTensor>>>
-{
-   using T = typename MyTensor::T;
-
-   template <int Rank>
-   using Layout = typename get_layout_result_type<typename MyTensor::layout>
-                     ::template type<Rank>;
-
-   template <int Rank>
-   using Container = StaticContainer<T, get_layout_capacity< Layout<Rank> > >;
-
-   template <int Rank>
-   using type = Tensor<Container<Rank>, Layout<Rank>>;
-
-   template <template <int> class Tensor, int... Sizes>
-   using static_tensor_wrap = Tensor< sizeof...(Sizes) >;
-
-   template <int... Dims>
-   using static_type = static_tensor_wrap<type,Dims...>;
-};
 
 template <typename Tensor, int... Dims>
 using StaticResultTensor = typename get_tensor_result_type<Tensor>
-                              ::template static_type<Dims...>;
+                              ::template type<Dims...>;
+
+/// get_result_tensor
+// template <typename Container, typename Layout>
+// struct get_result_tensor_t
+// {
+//    using type = Tensor
+// };
 
 } // namespace mfem
 
