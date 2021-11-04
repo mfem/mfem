@@ -194,6 +194,8 @@ public:
    HypreParVector& operator= (double d);
    /// Define '=' for hypre vectors.
    HypreParVector& operator= (const HypreParVector &y);
+   /// Move assignment
+   HypreParVector& operator= (HypreParVector &&y);
 
    using Vector::Read;
 

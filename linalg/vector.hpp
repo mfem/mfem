@@ -72,6 +72,9 @@ public:
    /// Copy constructor. Allocates a new data array and copies the data.
    Vector(const Vector &);
 
+   /// Move constructor. "Steals" data from its argument.
+   Vector(Vector&& v);
+
    /// @brief Creates vector of size s.
    /// @warning Entries are not initialized to zero!
    explicit Vector(int s);
@@ -277,6 +280,9 @@ public:
    /** @note Defining this method overwrites the implicitly defined copy
        assignment operator. */
    Vector &operator=(const Vector &v);
+
+   /// Move assignment
+   Vector &operator=(Vector&& v);
 
    /// Redefine '=' for vector = constant.
    Vector &operator=(double value);
