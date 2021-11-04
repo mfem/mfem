@@ -245,11 +245,6 @@ void BilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi,
    domain_integs_marker.Append(&elem_marker);
 }
 
-void BilinearForm::AddTraceElementIntegrator(BilinearFormIntegrator * bfi)
-{
-   trace_elem_integs.Append(bfi);
-}
-
 void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
 {
    boundary_integs.Append (bfi);
@@ -482,64 +477,6 @@ void BilinearForm::Assemble(int skip_zeros)
                hybridization->AssembleMatrix(i, *elmat_p);
             }
          }
-      }
-   }
-
-   if (trace_elem_integs.Size())
-   {
-      for (int i = 0; i < fes -> GetNE(); i++)
-      {
-         int elem_attr = fes->GetMesh()->GetAttribute(i);
-         doftrans = fes->GetElementVDofs(i, vdofs);
-         if (element_matrices)
-         {
-            elmat_p = &(*element_matrices)(i);
-         }
-         else
-         {
-            elmat.SetSize(0);
-            for (int k = 0; k < trace_elem_integs.Size(); k++)
-            {
-               // const FiniteElement &fe = *fes->GetFE(i);
-               // gather face elements
-               Array<int> faces, ori;
-               mesh->GetElementFaces(i,faces,ori);
-               Array<const FiniteElement *> fce;
-               Array<ElementTransformation *> ftrans;
-
-               for (int f = 0; f<faces.Size(); f++)
-               {
-                  int iface = faces[f];
-                  fce.Append(fes->GetFaceElement(iface));
-                  ftrans.Append(mesh->GetFaceTransformation(iface));
-
-               }
-               // trace_elem_integs[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
-               // trace_elem_integs[k]->AssembleTraceElementMatrix(fce, ftrans, elemmat);
-               if (elmat.Size() == 0)
-               {
-                  elmat = elemmat;
-               }
-               else
-               {
-                  elmat += elemmat;
-               }
-            }
-            if (elmat.Size() == 0)
-            {
-               continue;
-            }
-            else
-            {
-               elmat_p = &elmat;
-            }
-            if (doftrans)
-            {
-               doftrans->TransformDual(elmat);
-            }
-            elmat_p = &elmat;
-         }
-         mat->AddSubMatrix(vdofs, vdofs, *elmat_p, skip_zeros);
       }
    }
 
@@ -1351,11 +1288,6 @@ void MixedBilinearForm::GetBlocks(Array2D<SparseMatrix *> &blocks) const
 void MixedBilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
 {
    domain_integs.Append (bfi);
-}
-
-void MixedBilinearForm::AddTraceElementIntegrator (BilinearFormIntegrator * bfi)
-{
-   trace_elem_integs.Append (bfi);
 }
 
 void MixedBilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)

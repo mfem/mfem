@@ -25,6 +25,11 @@ class BlockBilinearForm : public Matrix
 {
 
 protected:
+
+   int nblocks;
+   Array<int> dof_offsets;
+   Array<int> tdof_offsets;
+
    /// Sparse matrix \f$ M \f$ to be associated with the form. Owned.
    SparseMatrix *mat;
 
@@ -55,8 +60,8 @@ protected:
 
    DenseTensor *element_matrices; ///< Owned.
 
-   SparseMatrix * P = nullptr; // Block Prolongation
-   SparseMatrix * R = nullptr; // Block Restriction
+   BlockMatrix * P = nullptr; // Block Prolongation
+   BlockMatrix * R = nullptr; // Block Restriction
 
    /** This data member allows one to specify what should be done to the
     diagonal matrix entries and corresponding RHS values upon elimination of

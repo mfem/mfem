@@ -671,9 +671,6 @@ protected:
    /// Domain integrators.
    Array<BilinearFormIntegrator*> domain_integs;
 
-   /// Trace element (skeleton) integrators (DPG)
-   Array<BilinearFormIntegrator*> trace_elem_integs;
-
    /// Boundary integrators.
    Array<BilinearFormIntegrator*> boundary_integs;
    Array<Array<int>*> boundary_integs_marker; ///< Entries are not owned.

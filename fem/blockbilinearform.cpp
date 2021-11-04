@@ -18,11 +18,19 @@ BlockBilinearForm::BlockBilinearForm(Array<FiniteElementSpace *> & fespaces_) :
    Matrix(0), fespaces(fespaces_)
 {
    height = 0;
-   int nblocks = fespaces.Size();
+   nblocks = fespaces.Size();
+   dof_offsets.SetSize(nblocks+1);
+   tdof_offsets.SetSize(nblocks+1);
+   dof_offsets[0] = 0;
+   tdof_offsets[0] = 0;
    for (int i =0; i<nblocks; i++)
    {
-      height += fespaces[i]->GetVSize();
+      dof_offsets[i+1] = fespaces[i]->GetVSize();
+      tdof_offsets[i+1] = fespaces[i]->GetTrueVSize();
    }
+   dof_offsets.PartialSum();
+   tdof_offsets.PartialSum();
+   height = dof_offsets[nblocks];
    width = height;
    mat = mat_e = NULL;
    extern_bfs = 0;
@@ -39,32 +47,15 @@ void BlockBilinearForm::AllocMat()
 
 void BlockBilinearForm::BuildProlongation()
 {
-   int nblocks = fespaces.Size();
-   Array<int> offsets_i(nblocks+1);
-   Array<int> offsets_j(nblocks+1);
-   offsets_i[0] = 0;
-   offsets_j[0] = 0;
-   for (int i = 0; i<nblocks; i++)
-   {
-      const SparseMatrix *P_ = fespaces[i]->GetConformingProlongation();
-      offsets_i[i+1] = P_->Height();
-      offsets_j[i+1] = P_->Width();
-   }
-   offsets_i.PartialSum();
-   offsets_j.PartialSum();
-   BlockMatrix  BlockP(offsets_i, offsets_j);
-   BlockMatrix  BlockR(offsets_j, offsets_i);
+   P = new BlockMatrix(dof_offsets, tdof_offsets);
+   R = new BlockMatrix(tdof_offsets, dof_offsets);
    for (int i = 0; i<nblocks; i++)
    {
       const SparseMatrix *P_ = fespaces[i]->GetConformingProlongation();
       const SparseMatrix *R_ = fespaces[i]->GetRestrictionMatrix();
-      BlockP.SetBlock(i,i,const_cast<SparseMatrix*>(P_));
-      BlockR.SetBlock(i,i,const_cast<SparseMatrix*>(R_));
+      P->SetBlock(i,i,const_cast<SparseMatrix*>(P_));
+      R->SetBlock(i,i,const_cast<SparseMatrix*>(R_));
    }
-
-   P = BlockP.CreateMonolithic();
-   R = BlockR.CreateMonolithic();
-
 }
 
 void BlockBilinearForm::ConformingAssemble()
@@ -74,7 +65,9 @@ void BlockBilinearForm::ConformingAssemble()
 
    if (!P) { BuildProlongation(); }
 
-   SparseMatrix *Pt = Transpose(*P);
+   SparseMatrix * Pm = P->CreateMonolithic();
+
+   SparseMatrix *Pt = Transpose(*Pm);
 
    SparseMatrix *PtA = mfem::Mult(*Pt, *mat);
    delete mat;
@@ -85,15 +78,15 @@ void BlockBilinearForm::ConformingAssemble()
       mat_e = PtAe;
    }
    delete Pt;
-   mat = mfem::Mult(*PtA, *P);
+   mat = mfem::Mult(*PtA, *Pm);
    delete PtA;
    if (mat_e)
    {
-      SparseMatrix *PtAeP = mfem::Mult(*mat_e, *P);
+      SparseMatrix *PtAeP = mfem::Mult(*mat_e, *Pm);
       delete mat_e;
       mat_e = PtAeP;
    }
-
+   delete Pm;
    height = mat->Height();
    width = mat->Width();
 }
@@ -129,6 +122,11 @@ void BlockBilinearForm::Finalize(int skip_zeros)
 void BlockBilinearForm::AddDomainIntegrator(BlockBilinearFormIntegrator *bfi)
 {
    domain_integs.Append(bfi);
+}
+
+void BilinearForm::AddTraceElementIntegrator(BilinearFormIntegrator * bfi)
+{
+   trace_elem_integs.Append(bfi);
 }
 
 /// Assembles the form i.e. sums over all domain integrators.
@@ -230,7 +228,68 @@ void BlockBilinearForm::Assemble(int skip_zeros)
          mat->AddSubMatrix(vdofs,vdofs,*elmat_p, skip_zeros);
       }
    }
+
+   if (trace_integs.Size())
+   {
+      //    for (int i = 0; i < fes -> GetNE(); i++)
+      //    {
+      //       int elem_attr = fes->GetMesh()->GetAttribute(i);
+      //       doftrans = fes->GetElementVDofs(i, vdofs);
+      //       if (element_matrices)
+      //       {
+      //          elmat_p = &(*element_matrices)(i);
+      //       }
+      //       else
+      //       {
+      //          elmat.SetSize(0);
+      //          for (int k = 0; k < trace_integs.Size(); k++)
+      //          {
+      //             // const FiniteElement &fe = *fes->GetFE(i);
+      //             // gather face elements
+      //             Array<int> faces, ori;
+      //             mesh->GetElementFaces(i,faces,ori);
+      //             Array<const FiniteElement *> fce;
+      //             Array<ElementTransformation *> ftrans;
+
+      //             for (int f = 0; f<faces.Size(); f++)
+      //             {
+      //                int iface = faces[f];
+      //                fce.Append(fes->GetFaceElement(iface));
+      //                ftrans.Append(mesh->GetFaceTransformation(iface));
+
+      //             }
+      //             // trace_elem_integs[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
+      //             // trace_elem_integs[k]->AssembleTraceElementMatrix(fce, ftrans, elemmat);
+      //             if (elmat.Size() == 0)
+      //             {
+      //                elmat = elemmat;
+      //             }
+      //             else
+      //             {
+      //                elmat += elemmat;
+      //             }
+      //          }
+      //          if (elmat.Size() == 0)
+      //          {
+      //             continue;
+      //          }
+      //          else
+      //          {
+      //             elmat_p = &elmat;
+      //          }
+      //          if (doftrans)
+      //          {
+      //             doftrans->TransformDual(elmat);
+      //          }
+      //          elmat_p = &elmat;
+      //       }
+      //       mat->AddSubMatrix(vdofs, vdofs, *elmat_p, skip_zeros);
+      //    }
+   }
+
 }
+
+
 
 void BlockBilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                          Vector &x,
@@ -499,13 +558,17 @@ BlockBilinearForm::~BlockBilinearForm()
    delete mat;
    delete element_matrices;
 
-   if (!extern_bfs)
+   for (int k=0; k < domain_integs.Size(); k++)
    {
-      int k;
-      for (k=0; k < domain_integs.Size(); k++) { delete domain_integs[k]; }
+      delete domain_integs[k];
    }
+   for (int k=0; k < trace_integs.Size(); k++)
+   {
+      delete trace_integs[k];
+   }
+   delete P;
+   delete R;
 }
-
 
 
 
