@@ -179,9 +179,14 @@ then
     else
         # data_dir is specified, so we need to link its content into the
         # project parent dir.
-        if [[ -e "../data" && ! -L "../data" ]]; then
-          echo "Error: '../data' already exists and it's NOT a link"
-          exit 1
+        if [[ -e "../data" ]]; then
+            if [[ -L "../data" ]]; then
+                echo "'../data' link already exists. Deleting."
+                rm "../data"
+            else
+                echo "Error: '../data' already exists and it's NOT a link"
+                exit 1
+            fi
         fi
         ln -sf "${data_dir}" "../data"
     fi
