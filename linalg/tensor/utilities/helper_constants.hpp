@@ -24,8 +24,12 @@ static constexpr int Error = -1;
 /// The arbitrary maximum dynamic dimension size for stack allocated tensors.
 static constexpr int DynamicMaxSize = 16;
 
-/// Compile time constant indicating if the code being compiled is for device.
 #if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__))
+#define MFEM_DEVICE_COMPILE
+#endif
+
+/// Compile time constant indicating if the code being compiled is for device.
+#if MFEM_DEVICE_COMPILE
 static constexpr bool is_device = true;
 #else
 static constexpr bool is_device = false;
