@@ -45,7 +45,10 @@ protected:
    int extern_bfs;
 
    /// Set of Domain Integrators to be applied.
-   Array<BlockBilinearFormIntegrator*> domain_integs;
+   Array<BlockBilinearFormIntegrator * > domain_integs;
+
+   /// Trace integrators.
+   Array<BlockBilinearFormIntegrator * > trace_integs;
 
    DenseMatrix elemmat;
    Array<int>  vdofs;
@@ -132,6 +135,9 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BlockBilinearFormIntegrator *bfi);
+
+   /// Adds new Trace Integrator. Assumes ownership of @a bfi.
+   void AddTraceIntegrator(BlockBilinearFormIntegrator *bfi);
 
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
    void operator=(const double a)

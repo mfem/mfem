@@ -251,6 +251,10 @@ void BlockBilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       B.SetSize(P->Width());
       P->MultTranspose(b, B);
       X.SetSize(R->Height());
+
+      mfem::out << "R height, width  = " << R->Height() <<" x "<< R->Width() <<
+                std::endl;
+
       R->Mult(x, X);
       EliminateVDofsInRHS(ess_tdof_list, X, B);
       if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }

@@ -97,6 +97,9 @@ protected:
    /// 1 - include attribute
    Array<Array<int>*>             domain_integs_marker;
 
+   /// Trace element (skeleton) integrators (DPG)
+   Array<BilinearFormIntegrator*> trace_elem_integs;
+
    /// Set of Boundary Integrators to be applied.
    Array<BilinearFormIntegrator*> boundary_integs;
    Array<Array<int>*> boundary_integs_marker; ///< Entries are not owned.
@@ -343,6 +346,12 @@ public:
    /// the @a elem_attr_marker.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi,
                             Array<int> &elem_marker);
+
+   /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
+
+        This type of integrator assembles terms over all faces of an element using
+        the faces FE */
+   void AddTraceElementIntegrator(BilinearFormIntegrator *bfi);
 
    /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
@@ -662,6 +671,9 @@ protected:
    /// Domain integrators.
    Array<BilinearFormIntegrator*> domain_integs;
 
+   /// Trace element (skeleton) integrators (DPG)
+   Array<BilinearFormIntegrator*> trace_elem_integs;
+
    /// Boundary integrators.
    Array<BilinearFormIntegrator*> boundary_integs;
    Array<Array<int>*> boundary_integs_marker; ///< Entries are not owned.
@@ -750,6 +762,12 @@ public:
    /// Adds a boundary integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
                                Array<int> &bdr_marker);
+
+   /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
+
+        This type of integrator assembles terms over all faces of an element using
+        the faces trial and test FE */
+   void AddTraceElementIntegrator(BilinearFormIntegrator *bfi);
 
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 

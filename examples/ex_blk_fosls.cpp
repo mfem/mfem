@@ -66,8 +66,40 @@ int main(int argc, char *argv[])
    cout << "H1 fespace = " << fespace0.GetVSize() << endl;
    cout << "RT fespace = " << fespace1.GetVSize() << endl;
 
-   cout << "height = " << a.Height() << endl;
-   cout << "width = " << a.Width() << endl;
+   FiniteElementCollection *fec2 = new RT_Trace_FECollection(order-1, dim);
+   FiniteElementSpace RT_trace_fes(&mesh, fec2);
+   cout << "RT trace = " << RT_trace_fes.GetVSize() << endl;
+
+   for (int i = 0; i<mesh.GetNE(); i++)
+   {
+      // const FiniteElement * fe = fespace1.GetFE(i);
+      // fespace1.GetTraceElement()
+      Array<int> faces, ori;
+      mesh.GetElementEdges(i, faces, ori);
+      for (int f = 0; f<faces.Size(); f++)
+      {
+         const FiniteElement * fe_trace = RT_trace_fes.GetFaceElement(faces[f]);
+         cout << fe_trace->GetDof() << endl;
+         Array<int> face_dofs;
+         RT_trace_fes.GetFaceDofs(faces[f],face_dofs);
+         cout << "face dofs = " << endl;
+         face_dofs.Print();
+      }
+
+      // cout << fe->GetGeomType() << endl;
+      Array<int> vdofs;
+      RT_trace_fes.GetElementVDofs(i, vdofs);
+      cout << "trace dofs = " << endl;
+      vdofs.Print();
+      fespace1.GetElementVDofs(i, vdofs);
+      cout << "elem dofs = " << endl;
+      vdofs.Print();
+      cin.get();
+   }
+
+
+
+
    ConstantCoefficient one(1.0);
    ConstantCoefficient negone(-1.0);
 
