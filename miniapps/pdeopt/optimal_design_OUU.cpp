@@ -99,7 +99,7 @@ double damage_function(const Vector & x, double x1, double y1)
     double r = sqrt(r1*r1 + r2*r2);
     if (r <= 0.1)
     {
-        return 1e-3;
+        return 1e-1;
     }
     else
     {
@@ -151,6 +151,7 @@ int main(int argc, char *argv[])
    double tol = 1e-6;
    double K_max = 0.9;
    double K_min = 1e-3;
+   int batch_size = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -161,6 +162,8 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&step_length, "-sl", "--step-length",
                   "Step length for gradient descent.");
+   args.AddOption(&batch_size, "-bs", "--batch-size",
+                  "batch size for stochastic gradient descent.");               
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
    args.AddOption(&mass_fraction, "-mf", "--mass-fraction",
@@ -235,11 +238,11 @@ int main(int argc, char *argv[])
    Vector B, C, X;
 
    // 9. Define the gradient function
-   GridFunction grad(&control_fes);
-   grad = 0.0;
+   // GridFunction grad(&control_fes);
+   // grad = 0.0;
 
    // 10. Define some tools for later
-   ConstantCoefficient zero(1.0);
+   ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
    GridFunction onegf(&control_fes);
    onegf = 1.0;
@@ -262,42 +265,70 @@ int main(int argc, char *argv[])
 
    RandomFunctionCoefficient damage_coeff(damage_function);
 
+   GridFunction avg_grad(&control_fes);
+   Array<GridFunction * > gradients;
+
+   double adaptive_batch_size = batch_size;
+   double theta = 2.5;
    // 12. Perform projected gradient descent
    for (int k = 1; k <= max_it; k++)
    {
+      cout << "Step = " << k << endl;
+      cout << "batch_size = " << adaptive_batch_size << endl;
+      avg_grad = 0.0;
     //   step_length *= sqrt(k+1/k);
-      damage_coeff.resample();
-
-      // A. Form state equation
-      BilinearForm a(&state_fes);
-      GridFunctionCoefficient diffusion_coeff(&K);
-      ProductCoefficient damaged_diffusion_coeff(diffusion_coeff,damage_coeff);
-      a.AddDomainIntegrator(new DiffusionIntegrator(damaged_diffusion_coeff));
-      a.Assemble();
-      a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
-
-      // B. Solve state equation
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
-
-      // C. Recover state variable
-      a.RecoverFEMSolution(X, b, u);
-
-      // D. Send the solution by socket to a GLVis server.
-      if (visualization)
+      for (int ib = 0; ib<adaptive_batch_size; ib++)
       {
-         sout_u << "solution\n" << mesh << u
-                << "window_title 'State u'" << flush;
-      }
+         damage_coeff.resample();
+         // A. Form state equation
+         BilinearForm a(&state_fes);
+         GridFunctionCoefficient diffusion_coeff(&K);
+         ProductCoefficient damaged_diffusion_coeff(diffusion_coeff,damage_coeff);
+         a.AddDomainIntegrator(new DiffusionIntegrator(damaged_diffusion_coeff));
+         a.Assemble();
+         a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
 
-      // H. Constuct gradient function (i.e., |\nabla u|^2)
-      GradientGridFunctionCoefficient grad_u(&u);
-      InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
-      grad.ProjectCoefficient(norm2_grad_u);
+         // B. Solve state equation
+         GSSmoother M((SparseMatrix&)(*A));
+         PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
+
+         // C. Recover state variable
+         a.RecoverFEMSolution(X, b, u);
+
+         if (visualization)
+         {
+            sout_u << "solution\n" << mesh << u
+                   << "window_title 'State u'" << flush;
+         }
+
+         // H. Constuct gradient function (i.e., |\nabla u|^2)
+         GradientGridFunctionCoefficient grad_u(&u);
+         InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
+         GridFunction * grad = new GridFunction(&control_fes);
+         grad->ProjectCoefficient(norm2_grad_u);
+         gradients.Append(grad);
+         avg_grad += *grad;
+      }
+      // D. Send the solution by socket to a GLVis server.
+
+      avg_grad /= (double)adaptive_batch_size;
+
+      double variance = 0.;
+      for (int ib = 0; ib<adaptive_batch_size; ib++)
+      {
+         *gradients[ib] -= avg_grad; 
+         variance += pow(gradients[ib]->ComputeL2Error(zero),2);
+         delete gradients[ib];
+      }
+      gradients.DeleteAll();
+      gradients.SetSize(0);
+
+      variance /= (adaptive_batch_size * (adaptive_batch_size - 1));
 
       // J. Update control.
-      grad *= step_length/sqrt(k);
-      K += grad;
+      // avg_grad *= step_length/sqrt(k);
+      avg_grad *= step_length;
+      K += avg_grad;
 
       // K. Project onto constraint set (optimality criteria)
       double mass = vol_form(K);
@@ -331,8 +362,8 @@ int main(int argc, char *argv[])
       }
 
       // I. Compute norm of update.
-      GridFunctionCoefficient tmp(&K_old);
-      double norm = K.ComputeL2Error(tmp)/step_length;
+      K_old -= K;
+      double norm = K_old.ComputeL2Error(zero)/step_length;
       K_old = K;
       double compliance = b(u);
 
@@ -345,11 +376,24 @@ int main(int argc, char *argv[])
          break;
       }
 
-    if (visualization)
-    {
-        sout_K << "solution\n" << mesh << K
-            << "window_title 'Control K'" << flush;
-    }
+      if (visualization)
+      {
+         sout_K << "solution\n" << mesh << K
+               << "window_title 'Control K'" << flush;
+      }
+
+
+      
+
+      double ratio = sqrt(variance) / norm ;
+
+      MFEM_VERIFY(IsFinite(ratio), "ratio not finite");
+
+      if (ratio > theta)
+      {
+         adaptive_batch_size = (int)(min(ratio / theta,2.) * adaptive_batch_size); 
+      }
+
 
    }
 
