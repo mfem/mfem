@@ -34,7 +34,8 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
                                        BilinearForm &a_to,
                                        GetIntegratorsFn get_integrators,
                                        GetMarkersFn get_markers,
-                                       AddIntegratorMarkersFn add_integrator,
+                                       AddIntegratorMarkersFn add_integrator_marker,
+                                       AddIntegratorFn add_integrator,
                                        const IntegrationRule *ir)
 {
    Array<BilinearFormIntegrator*> *integrators = (a_from.*get_integrators)();
@@ -42,7 +43,14 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
 
    for (int i=0; i<integrators->Size(); ++i)
    {
-      (a_to.*add_integrator)((*integrators)[i], *(*markers[i]));
+      if (*markers[i])
+      {
+         (a_to.*add_integrator_marker)((*integrators)[i], *(*markers[i]));
+      }
+      else
+      {
+         (a_to.*add_integrator)((*integrators)[i]);
+      }
       ir_map[(*integrators)[i]] = ((*integrators)[i])->GetIntegrationRule();
       if (ir) { ((*integrators)[i])->SetIntegrationRule(*ir); }
    }
@@ -92,13 +100,29 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
    int dim = mesh_lor.Dimension();
    const CoarseFineTransformations &cf_tr = mesh_lor.GetRefinementTransforms();
 
+   using GeomRef = std::pair<Geometry::Type, int>;
+   std::map<GeomRef, int> point_matrices_offsets;
    perm_.SetSize(fes_lor.GetVSize());
 
    Array<int> vdof_ho, vdof_lor;
    for (int ilor=0; ilor<mesh_lor.GetNE(); ++ilor)
    {
       int iho = cf_tr.embeddings[ilor].parent;
+      int p = fes_ho.GetOrder(iho);
       int lor_index = cf_tr.embeddings[ilor].matrix;
+      // We use the point matrix index to identify the local LOR element index
+      // within the high-order coarse element.
+      //
+      // In variable-order spaces, the point matrices for each order are
+      // concatenated sequentially, so for the given element order, we need to
+      // find the offset that will give us the point matrix index relative to
+      // the current element order only.
+      GeomRef id(mesh_lor.GetElementBaseGeometry(ilor), p);
+      if (point_matrices_offsets.find(id) == point_matrices_offsets.end())
+      {
+         point_matrices_offsets[id] = lor_index;
+      }
+      lor_index -= point_matrices_offsets[id];
 
       fes_ho.GetElementVDofs(iho, vdof_ho);
       fes_lor.GetElementVDofs(ilor, vdof_lor);
@@ -109,7 +133,6 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
          continue;
       }
 
-      int p = fes_ho.GetOrder(iho);
       int p1 = p+1;
       int ndof_per_dim = (dim == 2) ? p*p1 : type == ND ? p*p1*p1 : p*p*p1;
 
@@ -181,7 +204,7 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
 void LORBase::ConstructDofPermutation() const
 {
    FESpaceType type = GetFESpaceType();
-   if (type == H1 || type == L2 || nonconforming)
+   if (type == H1 || type == L2)
    {
       // H1 and L2: no permutation necessary, return identity
       perm.SetSize(fes->GetTrueVSize());
@@ -226,10 +249,10 @@ const Array<int> &LORBase::GetDofPermutation() const
    return perm;
 }
 
-bool LORBase::RequiresDofPermutation() const
+bool LORBase::HasSameDofNumbering() const
 {
    FESpaceType type = GetFESpaceType();
-   return (type == H1 || type == L2 || nonconforming) ? false : true;
+   return type == H1 || type == L2;
 }
 
 const OperatorHandle &LORBase::GetAssembledSystem() const
@@ -238,7 +261,7 @@ const OperatorHandle &LORBase::GetAssembledSystem() const
    return A;
 }
 
-void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
+void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
 {
    a->UseExternalIntegrators();
    AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
@@ -247,40 +270,23 @@ void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
                   &BilinearForm::AddInteriorFaceIntegrator, ir_face);
    AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBBFI,
                             &BilinearForm::GetBBFI_Marker,
+                            &BilinearForm::AddBoundaryIntegrator,
                             &BilinearForm::AddBoundaryIntegrator, ir_face);
    AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBFBFI,
                             &BilinearForm::GetBFBFI_Marker,
+                            &BilinearForm::AddBdrFaceIntegrator,
                             &BilinearForm::AddBdrFaceIntegrator, ir_face);
    a->Assemble();
-   if (RequiresDofPermutation())
-   {
-      const Array<int> &p = GetDofPermutation();
-      // Form inverse permutation: given high-order dof i, pi[i] is corresp. LO
-      Array<int> pi(p.Size());
-      for (int i=0; i<p.Size(); ++i)
-      {
-         pi[absdof(p[i])] = i;
-      }
-      Array<int> ess_dofs_perm(ess_dofs.Size());
-      for (int i=0; i<ess_dofs.Size(); ++i)
-      {
-         ess_dofs_perm[i] = pi[ess_dofs[i]];
-      }
-      a->FormSystemMatrix(ess_dofs_perm, A);
-   }
-   else
-   {
-      a->FormSystemMatrix(ess_dofs, A);
-   }
+   a->FormSystemMatrix(ess_dofs, A);
    ResetIntegrationRules(&BilinearForm::GetDBFI);
    ResetIntegrationRules(&BilinearForm::GetFBFI);
    ResetIntegrationRules(&BilinearForm::GetBBFI);
    ResetIntegrationRules(&BilinearForm::GetBFBFI);
 }
 
-void LORBase::SetupNonconforming()
+void LORBase::SetupProlongationAndRestriction()
 {
-   if (RequiresDofPermutation())
+   if (!HasSameDofNumbering())
    {
       Array<int> p;
       ConstructLocalDofPermutation(p);
@@ -290,7 +296,6 @@ void LORBase::SetupNonconforming()
    {
       fes->CopyProlongationAndRestriction(fes_ho, NULL);
    }
-   nonconforming = true;
 }
 
 template <typename FEC>
@@ -373,7 +378,6 @@ LORDiscretization::LORDiscretization(BilinearForm &a_ho_,
                                      int ref_type)
    : LORDiscretization(*a_ho_.FESpace(), ref_type)
 {
-   a = new BilinearForm(fes);
    AssembleSystem(a_ho_, ess_tdof_list);
 }
 
@@ -382,21 +386,30 @@ LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
 {
    CheckBasisType(fes_ho);
 
-   // TODO: support variable-order spaces
-   MFEM_VERIFY(!fes_ho.IsVariableOrder(),
-               "Cannot construct LOR operators on variable-order spaces");
-
-   int order = fes_ho.GetMaxElementOrder();
-   if (GetFESpaceType() == L2) { ++order; }
-
    Mesh &mesh_ho = *fes_ho.GetMesh();
-   mesh = new Mesh(Mesh::MakeRefined(mesh_ho, order, ref_type));
+   // For H1, ND and RT spaces, use refinement = element order, for DG spaces,
+   // use refinement = element order + 1 (since LOR is p = 0 in this case).
+   int increment = (GetFESpaceType() == L2) ? 1 : 0;
+   Array<int> refinements(mesh_ho.GetNE());
+   for (int i=0; i<refinements.Size(); ++i)
+   {
+      refinements[i] = fes_ho.GetOrder(i) + increment;
+   }
+   mesh = new Mesh(Mesh::MakeRefined(mesh_ho, refinements, ref_type));
 
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    fes = new FiniteElementSpace(mesh, fec);
-   if (fes_ho.Nonconforming()) { SetupNonconforming(); }
+   SetupProlongationAndRestriction();
 
    A.SetType(Operator::MFEM_SPARSEMAT);
+}
+
+void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
+                                       const Array<int> &ess_dofs)
+{
+   delete a;
+   a = new BilinearForm(&GetFESpace());
+   AssembleSystem_(a_ho, ess_dofs);
 }
 
 SparseMatrix &LORDiscretization::GetAssembledMatrix() const
@@ -412,7 +425,6 @@ ParLORDiscretization::ParLORDiscretization(ParBilinearForm &a_ho_,
                                            int ref_type)
    : ParLORDiscretization(*a_ho_.ParFESpace(), ref_type)
 {
-   a = new ParBilinearForm(static_cast<ParFiniteElementSpace*>(fes));
    AssembleSystem(a_ho_, ess_tdof_list);
 }
 
@@ -420,7 +432,7 @@ ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
                                            int ref_type) : LORBase(fes_ho)
 {
    if (fes_ho.GetMyRank() == 0) { CheckBasisType(fes_ho); }
-   // TODO: support variable-order spaces
+   // TODO: support variable-order spaces in parallel
    MFEM_VERIFY(!fes_ho.IsVariableOrder(),
                "Cannot construct LOR operators on variable-order spaces");
 
@@ -434,9 +446,17 @@ ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
    fes = pfes;
-   if (fes_ho.Nonconforming()) { SetupNonconforming(); }
+   SetupProlongationAndRestriction();
 
    A.SetType(Operator::Hypre_ParCSR);
+}
+
+void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
+                                          const Array<int> &ess_dofs)
+{
+   delete a;
+   a = new ParBilinearForm(&GetParFESpace());
+   AssembleSystem_(a_ho, ess_dofs);
 }
 
 HypreParMatrix &ParLORDiscretization::GetAssembledMatrix() const

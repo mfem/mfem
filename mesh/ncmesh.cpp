@@ -612,7 +612,7 @@ int NCMesh::NewSegment(int n0, int n1, int attr, int vattr1, int vattr2)
    // get (degenerate) faces and assign face attributes
    int v0 = el.node[0], v1 = el.node[1];
    faces.Get(v0, v0, v0, v0)->attribute = vattr1;
-   faces.Get(v1, v1, v1 ,v1)->attribute = vattr2;
+   faces.Get(v1, v1, v1, v1)->attribute = vattr2;
 
    return new_id;
 }
@@ -1865,8 +1865,12 @@ void NCMesh::InitDerefTransforms()
    transforms.embeddings.SetSize(nfine);
    for (int i = 0; i < nfine; i++)
    {
-      transforms.embeddings[i].parent = -1;
-      transforms.embeddings[i].matrix = 0;
+      Embedding &emb = transforms.embeddings[i];
+      emb.parent = -1;
+      emb.matrix = 0;
+      Element &el = elements[leaf_elements[i]];
+      emb.geom = el.Geom();
+      emb.ghost = IsGhost(el);
    }
 }
 
@@ -1879,7 +1883,7 @@ void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
       Element &ch = elements[prn.child[i]];
       if (ch.index >= 0)
       {
-         int code = (prn.ref_type << 8) | (i << 4) | prn.geom;
+         int code = (prn.ref_type << 4) | i;
          transforms.embeddings[ch.index].matrix = code;
          fine_coarse[ch.index] = parent;
       }
@@ -4291,6 +4295,8 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
       Embedding &emb = transforms.embeddings[el.index];
       emb.parent = coarse_index;
       emb.matrix = matrix - 1;
+      emb.geom = el.Geom();
+      emb.ghost = IsGhost(el);
    }
    else
    {
@@ -4378,15 +4384,14 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
       // assign numbers to the different matrices used
       for (int i = 0; i < transforms.embeddings.Size(); i++)
       {
-         int code = transforms.embeddings[i].matrix;
+         Embedding &emb = transforms.embeddings[i];
+         int code = emb.matrix; // see SetDerefMatrixCodes()
          if (code)
          {
-            int geom = code & 0xf; // see SetDerefMatrixCodes()
-            int ref_type_child = code >> 4;
+            int &matrix = mat_no[emb.geom][code];
+            if (!matrix) { matrix = mat_no[emb.geom].size(); }
 
-            int &matrix = mat_no[geom][ref_type_child];
-            if (!matrix) { matrix = mat_no[geom].size(); }
-            transforms.embeddings[i].matrix = matrix - 1;
+            emb.matrix = matrix - 1;
          }
       }
 
@@ -4421,136 +4426,26 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
    return transforms;
 }
 
-namespace internal
+void CoarseFineTransformations::MakeCoarseToFineTable(Table &coarse_to_fine,
+                                                      bool want_ghosts) const
 {
+   Array<Connection> conn;
+   conn.Reserve(embeddings.Size());
 
-// Used in CoarseFineTransformations::GetCoarseToFineMap() below.
-struct RefType
-{
-   Geometry::Type geom;
-   int num_children;
-   const Pair<int,int> *children;
-
-   RefType(Geometry::Type g, int n, const Pair<int,int> *c)
-      : geom(g), num_children(n), children(c) { }
-
-   bool operator<(const RefType &other) const
+   int max_parent = -1;
+   for (int i = 0; i < embeddings.Size(); i++)
    {
-      if (geom < other.geom) { return true; }
-      if (geom > other.geom) { return false; }
-      if (num_children < other.num_children) { return true; }
-      if (num_children > other.num_children) { return false; }
-      for (int i = 0; i < num_children; i++)
+      const Embedding &emb = embeddings[i];
+      if ((emb.parent >= 0) &&
+          (!emb.ghost || want_ghosts))
       {
-         if (children[i].one < other.children[i].one) { return true; }
-         if (children[i].one > other.children[i].one) { return false; }
-      }
-      return false; // everything is equal
-   }
-};
-
-} // namespace internal
-
-void CoarseFineTransformations::GetCoarseToFineMap(
-   const mfem::Mesh &fine_mesh, Table &coarse_to_fine,
-   Array<int> &coarse_to_ref_type, Table &ref_type_to_matrix,
-   Array<mfem::Geometry::Type> &ref_type_to_geom,
-   bool get_coarse_to_fine_only) const
-{
-   const int fine_ne = embeddings.Size();
-   int coarse_ne = -1;
-   for (int i = 0; i < fine_ne; i++)
-   {
-      coarse_ne = std::max(coarse_ne, embeddings[i].parent);
-   }
-   coarse_ne++;
-
-   coarse_to_ref_type.SetSize(coarse_ne);
-   coarse_to_fine.SetDims(coarse_ne, fine_ne);
-
-   Array<int> cf_i(coarse_to_fine.GetI(), coarse_ne+1);
-   Array<Pair<int,int> > cf_j(fine_ne);
-   cf_i = 0;
-   for (int i = 0; i < fine_ne; i++)
-   {
-      cf_i[embeddings[i].parent+1]++;
-   }
-   cf_i.PartialSum();
-   MFEM_ASSERT(cf_i.Last() == cf_j.Size(), "internal error");
-   for (int i = 0; i < fine_ne; i++)
-   {
-      const Embedding &e = embeddings[i];
-      cf_j[cf_i[e.parent]].one = e.matrix; // used as sort key below
-      cf_j[cf_i[e.parent]].two = i;
-      cf_i[e.parent]++;
-   }
-   std::copy_backward(cf_i.begin(), cf_i.end()-1, cf_i.end());
-   cf_i[0] = 0;
-   for (int i = 0; i < coarse_ne; i++)
-   {
-      std::sort(&cf_j[cf_i[i]], cf_j.GetData() + cf_i[i+1]);
-   }
-   for (int i = 0; i < fine_ne; i++)
-   {
-      coarse_to_fine.GetJ()[i] = cf_j[i].two;
-   }
-
-   if (get_coarse_to_fine_only) { return; }
-   MFEM_VERIFY(fine_mesh.GetLastOperation() != Mesh::Operation::DEREFINE,
-               "GetCoarseToFineMap is not fully supported for derefined meshes."
-               " Set 'get_coarse_to_fine_only=true'.")
-
-   using internal::RefType;
-   using std::map;
-   using std::pair;
-
-   map<RefType,int> ref_type_map;
-   for (int i = 0; i < coarse_ne; i++)
-   {
-      const int num_children = cf_i[i+1]-cf_i[i];
-      MFEM_ASSERT(num_children > 0, "");
-      const int fine_el = cf_j[cf_i[i]].two;
-      // Assuming the coarse and the fine elements have the same geometry:
-      const Geometry::Type geom = fine_mesh.GetElementBaseGeometry(fine_el);
-      const RefType ref_type(geom, num_children, &cf_j[cf_i[i]]);
-      pair<map<RefType,int>::iterator,bool> res =
-         ref_type_map.insert(
-            pair<const RefType,int>(ref_type, (int)ref_type_map.size()));
-      coarse_to_ref_type[i] = res.first->second;
-   }
-
-   ref_type_to_matrix.MakeI((int)ref_type_map.size());
-   ref_type_to_geom.SetSize((int)ref_type_map.size());
-   for (map<RefType,int>::iterator it = ref_type_map.begin();
-        it != ref_type_map.end(); ++it)
-   {
-      ref_type_to_matrix.AddColumnsInRow(it->second, it->first.num_children);
-      ref_type_to_geom[it->second] = it->first.geom;
-   }
-
-   ref_type_to_matrix.MakeJ();
-   for (map<RefType,int>::iterator it = ref_type_map.begin();
-        it != ref_type_map.end(); ++it)
-   {
-      const RefType &rt = it->first;
-      for (int j = 0; j < rt.num_children; j++)
-      {
-         ref_type_to_matrix.AddConnection(it->second, rt.children[j].one);
+         conn.Append(Connection(emb.parent, i));
+         max_parent = std::max(emb.parent, max_parent);
       }
    }
-   ref_type_to_matrix.ShiftUpI();
-}
 
-void CoarseFineTransformations::GetCoarseToFineMap(const Mesh &fine_mesh,
-                                                   Table &coarse_to_fine) const
-{
-   Array<int> coarse_to_ref_type;
-   Table ref_type_to_matrix;
-   Array<mfem::Geometry::Type> ref_type_to_geom;
-   bool get_coarse_to_fine_only = true;
-   GetCoarseToFineMap(fine_mesh, coarse_to_fine, coarse_to_ref_type,
-                      ref_type_to_matrix, ref_type_to_geom,
-                      get_coarse_to_fine_only);
+   conn.Sort(); // NOTE: unique is not necessary
+   coarse_to_fine.MakeFromList(max_parent+1, conn);
 }
 
 void NCMesh::ClearTransforms()
@@ -4580,7 +4475,7 @@ bool CoarseFineTransformations::IsInitialized() const
 
 void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b)
 {
-   for (int g=0; g<Geometry::NumGeom; ++g)
+   for (int g = 0; g < Geometry::NumGeom; ++g)
    {
       a.point_matrices[g].Swap(b.point_matrices[g]);
    }

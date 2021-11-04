@@ -4003,11 +4003,6 @@ TEST_CASE("3D Bilinear Weak Curl Integrators",
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
-      if (type == Element::TETRAHEDRON)
-      {
-         mesh.ReorientTetMesh();
-      }
-
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
          ND_FECollection    fec_nd(order, dim);
@@ -4466,11 +4461,6 @@ TEST_CASE("3D Bilinear Weak Curl Cross Integrators",
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
-
-      if (type == Element::TETRAHEDRON)
-      {
-         mesh.ReorientTetMesh();
-      }
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -5320,14 +5310,8 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::HEXAHEDRON; type++)
    {
-      type++;
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
-
-      if (type == Element::TETRAHEDRON)
-      {
-         mesh.ReorientTetMesh();
-      }
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -5434,11 +5418,6 @@ TEST_CASE("3D Bilinear Mixed Curl Curl Integrators",
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
-
-      if (type == Element::TETRAHEDRON)
-      {
-         mesh.ReorientTetMesh();
-      }
 
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
@@ -5597,11 +5576,6 @@ TEST_CASE("3D Bilinear Mixed Cross Curl Curl Integrators",
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
-      if (type == Element::TETRAHEDRON)
-      {
-         mesh.ReorientTetMesh();
-      }
-
       SECTION("Operators on ND for element type " + std::to_string(type))
       {
          ND_FECollection    fec_nd(order, dim);
@@ -5673,11 +5647,6 @@ TEST_CASE("3D Bilinear Mixed Cross Grad Curl Integrators",
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
-
-      if (type == Element::TETRAHEDRON)
-      {
-         mesh.ReorientTetMesh();
-      }
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
