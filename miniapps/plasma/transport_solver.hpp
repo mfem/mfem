@@ -2871,13 +2871,15 @@ private:
 
      CG2DG *cg2dg_ = NULL;
      HypreParMatrix *CG2DGmat_ = NULL;
-     HypreBoomerAMG *D_amg_ = NULL;
+     Solver *D_amg_ = NULL;
+     ParLORDiscretization *D_lor_ = NULL;
      HypreSmoother *D_smoother_ = NULL;
      HypreParMatrix *D_cg_ = NULL;
 
      Array<int> cg_ess_tdof_list;
 
      bool use_lor_cg = false;
+     bool use_air_cg = true;
 
       int term_flag_;
       int vis_flag_;

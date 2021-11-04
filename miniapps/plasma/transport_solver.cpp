@@ -3029,11 +3029,23 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 	  // Set up the preconditioner in CG space
 	  if (use_lor_cg)
 	    {
-	      //ParLORDiscretization lor(*blf_[i], ess_dofs);
+	      delete D_lor_;
+	      D_lor_ = new ParLORDiscretization(*cgblf_[i], cg_ess_tdof_list);
+	      D_amg_ = new LORSolver<HypreBoomerAMG>(*D_lor_);
 	    }
 	  else
 	    {
-	      D_amg_ = new HypreBoomerAMG(*D_cg_);
+	      if (use_air_cg)
+		{
+		  MFEM_VERIFY(cgblf_[i], "");
+		  const int block_size = cgblf_[i]->ParFESpace()->GetFE(0)->GetDof();
+		  D_amg_ = new AIR_prec(block_size);
+		  D_amg_->SetOperator(*D_cg_);
+		}
+	      else
+		{
+		  D_amg_ = new HypreBoomerAMG(*D_cg_);
+		}
 	    }
 
 	  D_smoother_ = new HypreSmoother(*Dmat, HypreSmoother::Jacobi);
