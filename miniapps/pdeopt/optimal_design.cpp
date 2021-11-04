@@ -11,13 +11,14 @@
 // Description:  This examples solves the following PDE-constrained
 //               optimization problem:
 //
-//         min J(f) = (f,u)
+//         max J(K) = (f,u)
 //
 //         subject to   - div( K\nabla u ) = f    in \Omega
 //                                       u = 0    on \partial\Omega
-//         and            \int K dx <= V vol(\Omega)
-//         and            a <= f(x) <= b
+//         and            \int_\Omega K dx <= V vol(\Omega)
+//         and            a <= K(x) <= b
 //
+//   Joachim Peterson 1999 for proof
 
 #include "mfem.hpp"
 #include <memory>
@@ -46,7 +47,7 @@ using namespace mfem;
  *  
  *    \partial_u L = 0        (2)
  * 
- *  delivers the adjoint equation (same as the state ewqn)
+ *  delivers the adjoint equation (same as the state eqn)
  * 
  *    (\nabla p, \nabla v) = (f,v)  for all v in H^1_0(\Omega)
  *    
@@ -245,7 +246,7 @@ int main(int argc, char *argv[])
       grad *= step_length;
       K += grad;
 
-      // K. Project onto constraint set
+      // K. Project onto constraint set (optimality criteria)
       double mass = vol_form(K);
       while ( true )
       {
