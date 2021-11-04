@@ -19,17 +19,29 @@
 namespace mfem
 {
 
+template <int BatchSize, int... Sizes>
+class SizedDynamic1dThreadLayout;
+
 template <int Rank, int BatchSize>
-class Dynamic1dThreadLayout
+using Dynamic1dThreadLayout = instantiate<SizedDynamic1dThreadLayout,
+                                          append<
+                                             int_list<BatchSize>,
+                                             int_repeat<Dynamic,Rank> > >;
+
+template <int BatchSize, int FirstSize, int... Sizes>
+class SizedDynamic1dThreadLayout<BatchSize,FirstSize,Sizes...>
 {
 private:
    const int size0;
-   DynamicLayout<Rank-1> layout;
+   SizedDynamicLayout<Sizes...> layout;
 public:
-   template <typename... Sizes> MFEM_HOST_DEVICE inline
-   Dynamic1dThreadLayout(int size0, Sizes... sizes)
+   template <typename... Ss> MFEM_HOST_DEVICE inline
+   SizedDynamic1dThreadLayout(int size0, Ss... sizes)
    : size0(size0), layout(sizes...)
    {
+      MFEM_ASSERT_KERNEL(
+         FirstSize==Dynamic || FirstSize==size0,
+         "Compilation time and runtime sizes must be the same.");
       MFEM_ASSERT_KERNEL(
          size0<MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
@@ -39,10 +51,11 @@ public:
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
-   Dynamic1dThreadLayout(const Layout &rhs)
+   SizedDynamic1dThreadLayout(const Layout &rhs)
    : size0(rhs.template Size<0>()),
      layout(rhs.template Get<0>(0))
    {
+      constexpr int Rank = sizeof...(Sizes) + 1;
       static_assert(
          Rank-1 == get_layout_rank<Layout>,
          "Can't copy-construct a layout of different rank.");
@@ -54,7 +67,7 @@ public:
       MFEM_ASSERT_KERNEL(
          idx0==MFEM_THREAD_ID(x),
          "The first index must be equal to the x thread index"
-         " when using Dynamic1dThreadLayout. Use shared memory"
+         " when using SizedDynamic1dThreadLayout. Use shared memory"
          " to access values stored in a different thread.");
       return layout.index(idx...);
    }
@@ -62,6 +75,7 @@ public:
    template <int N> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
+      constexpr int Rank = sizeof...(Sizes) + 1;
       static_assert(
          N>=0 && N<Rank,
          "Accessed size is higher than the rank of the Tensor.");
@@ -69,16 +83,19 @@ public:
    }
 };
 
-template <int BatchSize>
-class Dynamic1dThreadLayout<1,BatchSize>
+template <int BatchSize, int FirstSize>
+class SizedDynamic1dThreadLayout<BatchSize, FirstSize>
 {
 private:
    const int size0;
 public:
    MFEM_HOST_DEVICE inline
-   Dynamic1dThreadLayout(int size0)
+   SizedDynamic1dThreadLayout(int size0)
    : size0(size0)
    {
+      MFEM_ASSERT_KERNEL(
+         FirstSize==Dynamic || FirstSize==size0,
+         "Compilation time and runtime sizes must be the same.");
       MFEM_ASSERT_KERNEL(
          size0<MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
@@ -88,7 +105,7 @@ public:
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
-   Dynamic1dThreadLayout(const Layout &rhs)
+   SizedDynamic1dThreadLayout(const Layout &rhs)
    : size0(rhs.template Size<0>())
    {
       static_assert(
@@ -102,7 +119,7 @@ public:
       MFEM_ASSERT_KERNEL(
          idx==MFEM_THREAD_ID(x),
          "The first index must be equal to the x thread index"
-         " when using Dynamic1dThreadLayout. Use shared memory"
+         " when using SizedDynamic1dThreadLayout. Use shared memory"
          " to access values stored in a different thread.");
       return 0;
    }
@@ -118,67 +135,80 @@ public:
 };
 
 // get_layout_rank
-template <int Rank, int BatchSize>
-struct get_layout_rank_v<Dynamic1dThreadLayout<Rank, BatchSize>>
+template <int BatchSize, int... Sizes>
+struct get_layout_rank_v<SizedDynamic1dThreadLayout<BatchSize,Sizes...>>
 {
-   static constexpr int value = Rank;
+   static constexpr int value = sizeof...(Sizes);
 };
 
 // is_dynamic_layout
-template <int Rank, int BatchSize>
-struct is_dynamic_layout_v<Dynamic1dThreadLayout<Rank,BatchSize>>
+template <int BatchSize, int... Sizes>
+struct is_dynamic_layout_v<SizedDynamic1dThreadLayout<BatchSize,Sizes...>>
 {
    static constexpr bool value = true;
 };
 
 // is_1d_threaded_layout
-template <int Rank, int BatchSize>
-struct is_1d_threaded_layout_v<Dynamic1dThreadLayout<Rank,BatchSize>>
+template <int BatchSize, int... Sizes>
+struct is_1d_threaded_layout_v<SizedDynamic1dThreadLayout<BatchSize,Sizes...>>
 {
    static constexpr bool value = true;
 };
 
 // is_serial_layout_dim
-template <int Rank, int BatchSize>
-struct is_serial_layout_dim_v<Dynamic1dThreadLayout<Rank,BatchSize>, 0>
+template <int BatchSize, int... Sizes>
+struct is_serial_layout_dim_v<SizedDynamic1dThreadLayout<BatchSize,Sizes...>, 0>
 {
    static constexpr bool value = false;
 };
 
 // is_threaded_layout_dim
-template <int Rank, int BatchSize>
-struct is_threaded_layout_dim_v<Dynamic1dThreadLayout<Rank,BatchSize>, 0>
+template <int BatchSize, int... Sizes>
+struct is_threaded_layout_dim_v<SizedDynamic1dThreadLayout<BatchSize,Sizes...>, 0>
 {
    static constexpr bool value = true;
 };
 
 // get_layout_size
-template <int N, int Rank, int BatchSize>
-struct get_layout_size_v<N, Dynamic1dThreadLayout<Rank, BatchSize>>
+template <int N, int BatchSize, int... Sizes>
+struct get_layout_size_v<N, SizedDynamic1dThreadLayout<BatchSize,Sizes...>>
 {
-   static constexpr int value = Dynamic;
+   static constexpr int value = get_value<N,Sizes...>;
 };
 
 // get_layout_sizes
-template <int Rank, int BatchSize>
-struct get_layout_sizes_t<Dynamic1dThreadLayout<Rank,BatchSize>>
+template <int BatchSize, int... Sizes>
+struct get_layout_sizes_t<SizedDynamic1dThreadLayout<BatchSize,Sizes...>>
 {
-   using type = int_repeat<Dynamic,Rank>;
+   using type = int_list<Sizes...>;
+};
+
+// get_layout_capacity
+template <int BatchSize, int First, int... Rest>
+struct get_layout_capacity_v<SizedDynamic1dThreadLayout<BatchSize,First,Rest...>>
+{
+   static constexpr int value = get_layout_capacity<SizedDynamicLayout<Rest...>>;
+};
+
+template <int BatchSize, int First>
+struct get_layout_capacity_v<SizedDynamic1dThreadLayout<BatchSize,First>>
+{
+   static constexpr int value = 1;
 };
 
 // get_layout_batch_size
-template <int Rank, int BatchSize>
-struct get_layout_batch_size_v<Dynamic1dThreadLayout<Rank, BatchSize>>
+template <int BatchSize, int... Sizes>
+struct get_layout_batch_size_v<SizedDynamic1dThreadLayout<BatchSize,Sizes...>>
 {
    static constexpr int value = BatchSize;
 };
 
 // get_layout_result_type
-template <int Rank, int BatchSize>
-struct get_layout_result_type<Dynamic1dThreadLayout<Rank,BatchSize>>
+template <int BatchSize, int... Sizes>
+struct get_layout_result_type<SizedDynamic1dThreadLayout<BatchSize,Sizes...>>
 {
-   template <int myRank>
-   using type = Dynamic1dThreadLayout<myRank,BatchSize>;
+   template <int... mySizes>
+   using type = SizedDynamic1dThreadLayout<BatchSize,mySizes...>;
 };
 
 } // namespace mfem
