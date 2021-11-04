@@ -54,6 +54,12 @@ Vector::Vector(const Vector &v)
    UseDevice(v.UseDevice());
 }
 
+Vector::Vector(Vector &&v) : data(std::move(v.data)), size(v.size)
+{
+   data.SetHostPtrOwner(v.data.OwnsHostPtr());
+   v.data.Reset();
+}
+
 void Vector::Load(std::istream **in, int np, int *dim)
 {
    int i, j, s;
@@ -143,6 +149,15 @@ Vector &Vector::operator=(const Vector &v)
    data.CopyFrom(v.data, v.Size());
    v.UseDevice(vuse);
 #endif
+   return *this;
+}
+
+Vector &Vector::operator=(Vector &&v)
+{
+   data = std::move(v.data);
+   size = v.size;
+   data.SetHostPtrOwner(v.data.OwnsHostPtr());
+   v.data.Reset();
    return *this;
 }
 
