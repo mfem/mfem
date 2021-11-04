@@ -137,6 +137,9 @@ HypreParVector::HypreParVector(const HypreParVector &y) : Vector()
 #endif
    hypre_ParVectorSetDataOwner(x,1);
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),1);
+   // Deep copy the local data
+   hypre_SeqVectorCopy(hypre_ParVectorLocalVector(y.x),
+                       hypre_ParVectorLocalVector(x));
    _SetDataAndSize_();
    own_ParVector = 1;
 }

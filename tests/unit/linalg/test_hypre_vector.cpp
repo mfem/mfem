@@ -114,13 +114,15 @@ TEST_CASE("HypreParVector Move Constructor", "[Parallel], [HypreParVector]")
    REQUIRE(v1_move.GetData() == v1_data);
 
    // The local subvectors should be the same
-   // Would expect the copy created with the HypreParVec copy ctor
-   // to be the same as well, but this is apparently not the case.
    Vector v1_base_move(v1_move);
    for (int i = 0; i < v1_base_move.Size(); i++)
    {
       REQUIRE((v1_base_move(i) - v1_base_copy(i)) == MFEM_Approx(0.0));
    }
+
+   // The full HypreParVectors should also be the same
+   v1_copy -= v1_move;
+   REQUIRE(InnerProduct(v1_copy, v1_copy) == MFEM_Approx(0.0));
 }
 
 TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
@@ -160,13 +162,15 @@ TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
    REQUIRE(v1_move.GetData() == v1_data);
 
    // The local subvectors should be the same
-   // Would expect the copy created with the HypreParVec copy ctor
-   // to be the same as well, but this is apparently not the case.
    Vector v1_base_move(v1_move);
    for (int i = 0; i < v1_base_move.Size(); i++)
    {
       REQUIRE((v1_base_move(i) - v1_base_copy(i)) == MFEM_Approx(0.0));
    }
+
+   // The full HypreParVectors should also be the same
+   v1_copy -= v1_move;
+   REQUIRE(InnerProduct(v1_copy, v1_copy) == MFEM_Approx(0.0));
 }
 
 #endif // MFEM_USE_MPI
