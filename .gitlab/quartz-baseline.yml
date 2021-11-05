@@ -89,7 +89,7 @@ report_baseline:
         printf "%s\n" "" "Pipeline URL:" "$CI_PIPELINE_URL" \
           >> ${rundir}/pipeline.txt
         msg="GitLab CI log for ${BASELINE_TEST} on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
-        if [[ "$AUTOTEST_COMMIT" == "YES" ]]; then
+        if [[ "$AUTOTEST_COMMIT" != "NO" ]]; then
           git pull && \
           git add ${rundir} && \
           git commit -m "${msg}" && \

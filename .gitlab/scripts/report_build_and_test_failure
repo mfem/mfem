@@ -28,7 +28,7 @@ msg="GitLab CI log for build-and-test on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
 # Create 'autotest-email.html' to indicate failure:
 cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
 
-if [[ "$AUTOTEST_COMMIT" == "YES" ]]; then
+if [[ "$AUTOTEST_COMMIT" != "NO" ]]; then
   git pull && \
   git add ${rundir} && \
   git commit -m "${msg}" && \
