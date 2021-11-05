@@ -24,7 +24,7 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               !is_threaded_tensor_dim<Tensor, N>,
+               is_serial_tensor_dim<Tensor, N>,
             bool> = true
          >
 MFEM_HOST_DEVICE inline
@@ -101,7 +101,10 @@ MFEM_HOST_DEVICE inline
 void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
                   Lambda &&func, Idx... idx)
 {
-   // TODO assert lhs.template Size<N>() == rhs.template Size<N>()
+   MFEM_ASSERT_KERNEL(
+      lhs.template Size<N>() == rhs.template Size<N>(),
+      "lhs and rhs have different Size" << N <<
+      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
    for (int i = 0; i < lhs.template Size<N>(); i++)
    {
       func(i,idx...);
@@ -127,7 +130,10 @@ MFEM_HOST_DEVICE inline
 void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
                   Lambda &&func, Idx... idx)
 {
-   // TODO assert lhs.template Size<N>() == rhs.template Size<N>()
+   MFEM_ASSERT_KERNEL(
+      lhs.template Size<N>() == rhs.template Size<N>(),
+      "lhs and rhs have different Size" << N <<
+      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
    MFEM_FOREACH_THREAD(i,x,lhs.template Size<N>())
    {
       func(i,idx...);
@@ -153,7 +159,10 @@ MFEM_HOST_DEVICE inline
 void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
                   Lambda &&func, Idx... idx)
 {
-   // TODO assert lhs.template Size<N>() == rhs.template Size<N>()
+   MFEM_ASSERT_KERNEL(
+      lhs.template Size<N>() == rhs.template Size<N>(),
+      "lhs and rhs have different Size" << N <<
+      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
    MFEM_FOREACH_THREAD(i,y,lhs.template Size<N>())
    {
       func(i,idx...);
@@ -179,7 +188,10 @@ MFEM_HOST_DEVICE inline
 void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
                   Lambda &&func, Idx... idx)
 {
-   // TODO assert lhs.template Size<N>() == rhs.template Size<N>()
+   MFEM_ASSERT_KERNEL(
+      lhs.template Size<N>() == rhs.template Size<N>(),
+      "lhs and rhs have different Size" << N <<
+      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
    MFEM_FOREACH_THREAD(i,z,lhs.template Size<N>())
    {
       func(i,idx...);
