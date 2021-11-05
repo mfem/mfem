@@ -52,32 +52,36 @@ variables:
 # Trigger subpipelines:
 quartz-build-and-test:
   stage: sub-pipelines
-  inherit:
-    variables: true
+  variables:
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
     include: .gitlab/quartz-build-and-test.yml
     strategy: depend
 
 quartz-baseline:
   stage: sub-pipelines
-  inherit:
-    variables: true
+  variables:
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
     include: .gitlab/quartz-baseline.yml
     strategy: depend
 
 lassen-build-and-test:
   stage: sub-pipelines
-  inherit:
-    variables: true
+  variables:
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
     include: .gitlab/lassen-build-and-test.yml
     strategy: depend
 
 corona-build-and-test:
   stage: sub-pipelines
-  inherit:
-    variables: true
+  variables:
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
     include: .gitlab/corona-build-and-test.yml
     strategy: depend
