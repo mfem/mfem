@@ -30,6 +30,22 @@ class Tensor;
  * types. The following traits allow to analyze tensors at compilation.
 */
 
+/// is_tensor
+template <typename NotATensor>
+struct is_tensor_v
+{
+   static constexpr bool value = false;
+};
+
+template <typename C, typename L>
+struct is_tensor_v<Tensor<C,L>>
+{
+   static constexpr bool value = true;
+};
+
+template <typename Tensor>
+constexpr bool is_tensor = is_tensor_v<Tensor>::value;
+
 /// get_tensor_rank
 /** Trait to get the rank of a tensor at compilation.
     ex: `constexpr int Rank = get_tensor_rank<Tensor>;'
