@@ -1977,12 +1977,14 @@ void DGAdvectionDiffusionTDO::Update()
 }
 
 DGTransportTDO::TransportPrec::TransportPrec(const Array<int> &offsets,
-                                             const TransPrecParams &p)
+                                             const TransPrecParams &p,
+                                             DGTransportTDO::CombinedOp &combOp)
    : BlockDiagonalPreconditioner(offsets),
      diag_prec_(5),
 #ifdef MFEM_USE_SUPERLU
      slu_mat_(5),
 #endif
+     comb_op_(combOp),
      p_(p)
 {
    diag_prec_ = NULL;
@@ -2036,7 +2038,7 @@ void DGTransportTDO::TransportPrec::SetOperator(const Operator &op)
             {
                if (i == 1) // IonDensity
                {
-                  diag_prec_[i] = combOp_->GetIonDensityPreconditoner();
+                  diag_prec_[i] = comb_op_.GetIonDensityPreconditoner();
                }
                else
                {
@@ -2226,7 +2228,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
          bcs, coefs, offsets_,
          Di_perp, Xi_perp, Xe_perp,
          term_flags, vis_flags, op_flag, logging),
-     newton_op_prec_(offsets, tol.prec),
+     newton_op_prec_(offsets, tol.prec, op_),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
      B3Coef_(const_cast<VectorCoefficient&>

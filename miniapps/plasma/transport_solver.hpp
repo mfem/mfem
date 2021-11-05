@@ -3640,16 +3640,14 @@ private:
 #ifdef MFEM_USE_SUPERLU
       Array<SuperLURowLocMatrix*> slu_mat_;
 #endif
-      DGTransportTDO::CombinedOp * combOp_;
+      DGTransportTDO::CombinedOp & comb_op_;
 
       TransPrecParams p_;
 
    public:
-      TransportPrec(const Array<int> &offsets, const TransPrecParams &p);
+      TransportPrec(const Array<int> &offsets, const TransPrecParams &p,
+                    CombinedOp &combOp);
       ~TransportPrec();
-
-      virtual void SetCombinedOperator(DGTransportTDO::CombinedOp &combOp)
-      { combOp_ = &combOp; }
 
       virtual void SetOperator(const Operator &op);
    };
