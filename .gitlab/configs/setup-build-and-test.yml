@@ -25,6 +25,8 @@ setup:
     # Setup MFEM_DATA_DIR=${SHARED_REPOS_DIR}/mfem-data, see '.gitlab-ci.yml'
     # and '.gitlab/configs/<machine>-config.yml'
     #
+    - echo "AUTOTEST = ${AUTOTEST}"
+    - echo "AUTOTEST_COMMIT = ${AUTOTEST_COMMIT}"
     - echo "SHARED_REPOS_DIR ${SHARED_REPOS_DIR}"
     - mkdir -p ${SHARED_REPOS_DIR} && cd ${SHARED_REPOS_DIR}
     - command -v flock || echo "Required command 'flock' not found"

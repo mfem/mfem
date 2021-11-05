@@ -26,6 +26,8 @@ setup_baseline:
     #
     # Setup ${BUILD_ROOT}/tpls and ${BUILD_ROOT}/tests:
     #
+    - echo "AUTOTEST = ${AUTOTEST}"
+    - echo "AUTOTEST_COMMIT = ${AUTOTEST_COMMIT}"
     - echo "BUILD_ROOT ${BUILD_ROOT}"
     - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
     - if [ ! -d "tpls" ]; then git clone ${TPLS_REPO}; fi
