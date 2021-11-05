@@ -25,7 +25,7 @@ auto SquaredNorm(const Tensor& t)
    using Scalar = get_tensor_type<Tensor>;
    Scalar norm = 0;
    ForallDims<Tensor>::Apply(t, [&](auto... idx){
-      Scalar& val = t(idx...);
+      const Scalar& val = t(idx...);
       norm += val*val;
    });
    return norm;
