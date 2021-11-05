@@ -25,7 +25,7 @@ printf "%s\n" "The 'build-and-test' jobs on ${MACHINE_NAME} were SUCCESSFUL." \
 
 msg="GitLab CI log for build-and-test on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
 
-if [[ "$AUTOTEST_COMMIT" == "YES" ]]; then
+if [[ "$AUTOTEST_COMMIT" != "NO" ]]; then
   git pull && \
   git add ${rundir} && \
   git commit -m "${msg}" && \
