@@ -2718,7 +2718,22 @@ struct TransPrecParams
    int log_lvl;
 };
 
-class TransportPrec;
+class TransportPrec : public BlockDiagonalPreconditioner
+{
+private:
+   Array<Operator*> diag_prec_;
+#ifdef MFEM_USE_SUPERLU
+   Array<SuperLURowLocMatrix*> slu_mat_;
+#endif
+
+   TransPrecParams p_;
+
+public:
+   TransportPrec(const Array<int> &offsets, const TransPrecParams &p);
+   ~TransportPrec();
+
+   virtual void SetOperator(const Operator &op);
+};
 
 struct SolverParams
 {
@@ -2806,7 +2821,7 @@ private:
 
    Array<int> &offsets_;
 
-   TransportPrec *newton_op_prec_;
+   TransportPrec newton_op_prec_;
    GMRESSolver   newton_op_solver_;
    NewtonSolver  newton_solver_;
 
@@ -2925,7 +2940,7 @@ private:
 
       virtual void DisplayToGLVis() = 0;
 
-     DiscontPSCPreconditioner *dg_precond_ = NULL;
+      DiscontPSCPreconditioner *dg_precond_ = NULL;
    };
 
    class TransportOp : public NLOperator
@@ -3616,10 +3631,10 @@ private:
       inline MatrixCoefficient * GetnXeCoef()
       { return op_[4]->GetDiffusionMatrixCoef(); }
 
-     inline Solver* GetIonDensityPreconditoner()
-     { 
-       return op_[1]->dg_precond_; 
-     }
+      inline Solver* GetIonDensityPreconditoner() const
+      {
+         return op_[1]->dg_precond_;
+      }
 
       void Update();
 
@@ -3700,25 +3715,6 @@ public:
    virtual void ImplicitSolve(const double dt, const Vector &y, Vector &k);
 
    void Update();
-};
-
-class TransportPrec : public BlockDiagonalPreconditioner
-{
-private:
-   Array<Operator*> diag_prec_;
-#ifdef MFEM_USE_SUPERLU
-   Array<SuperLURowLocMatrix*> slu_mat_;
-#endif
-
-   TransPrecParams p_;
-
-  DGTransportTDO::CombinedOp *combo_;
-
-public:
-  TransportPrec(const Array<int> &offsets, const TransPrecParams &p, DGTransportTDO::CombinedOp *op);
-   ~TransportPrec();
-
-   virtual void SetOperator(const Operator &op);
 };
 
 class MultiSpeciesDiffusion;

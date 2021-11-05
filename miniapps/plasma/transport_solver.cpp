@@ -1977,15 +1977,13 @@ void DGAdvectionDiffusionTDO::Update()
 }
 
 TransportPrec::TransportPrec(const Array<int> &offsets,
-                             const TransPrecParams &p,
-			     DGTransportTDO::CombinedOp *op)
+                             const TransPrecParams &p)
    : BlockDiagonalPreconditioner(offsets),
      diag_prec_(5),
 #ifdef MFEM_USE_SUPERLU
      slu_mat_(5),
 #endif
-     p_(p),
-     combo_(op)
+     p_(p)
 {
    diag_prec_ = NULL;
 #ifdef MFEM_USE_SUPERLU
@@ -2009,6 +2007,9 @@ void TransportPrec::SetOperator(const Operator &op)
    height = width = op.Height();
 
    const BlockOperator *blk_op = dynamic_cast<const BlockOperator*>(&op);
+
+   const DGTransportTDO::CombinedOp &combOp =
+      dynamic_cast<const DGTransportTDO::CombinedOp&>(op);
 
    if (blk_op)
    {
@@ -2071,7 +2072,8 @@ void TransportPrec::SetOperator(const Operator &op)
    }
 }
 
-CG2DG::CG2DG(const ParFiniteElementSpace &fes_dg_, const Array<int> &cg_ess_tdof_list)
+CG2DG::CG2DG(const ParFiniteElementSpace &fes_dg_,
+             const Array<int> &cg_ess_tdof_list)
    : Operator(fes_dg_.GetTrueVSize()),
      fes_dg(fes_dg_),
      fec_cg(fes_dg.GetOrder(0), fes_dg.GetParMesh()->Dimension()),
@@ -2222,13 +2224,14 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
      yGF_(yGF),
      kGF_(kGF),
      offsets_(offsets),
+     newton_op_prec_(offsets, tol.prec),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm()),
      tol_(tol),
-     op_(mpi, dg, plasma, eqn_weights, vfes, h1_fes, yGF, kGF, bcs, coefs, offsets_,
+     op_(mpi, dg, plasma, eqn_weights, vfes, h1_fes, yGF, kGF,
+         bcs, coefs, offsets_,
          Di_perp, Xi_perp, Xe_perp,
          term_flags, vis_flags, op_flag, logging),
-     newton_op_prec_(new TransportPrec(offsets, tol.prec, &op_)),
      B3Coef_(const_cast<VectorCoefficient&>
              (*coefs(5).GetVectorCoefficient
               (CommonCoefs::MAGNETIC_FIELD_COEF))),
@@ -2246,7 +2249,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
    newton_op_solver_.SetAbsTol(tol_.lin_abs_tol);
    newton_op_solver_.SetMaxIter(tol_.lin_max_iter);
    newton_op_solver_.SetPrintLevel(tol_.lin_log_lvl);
-   newton_op_solver_.SetPreconditioner(*newton_op_prec_);
+   newton_op_solver_.SetPreconditioner(newton_op_prec_);
 
    newton_solver_.iterative_mode = false;
    newton_solver_.SetSolver(newton_op_solver_);
