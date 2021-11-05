@@ -2718,23 +2718,6 @@ struct TransPrecParams
    int log_lvl;
 };
 
-class TransportPrec : public BlockDiagonalPreconditioner
-{
-private:
-   Array<Operator*> diag_prec_;
-#ifdef MFEM_USE_SUPERLU
-   Array<SuperLURowLocMatrix*> slu_mat_;
-#endif
-
-   TransPrecParams p_;
-
-public:
-   TransportPrec(const Array<int> &offsets, const TransPrecParams &p);
-   ~TransportPrec();
-
-   virtual void SetOperator(const Operator &op);
-};
-
 struct SolverParams
 {
    // Linear solver tolerances
@@ -2807,7 +2790,7 @@ struct DiscontPSCPreconditioner : Solver
 */
 class DGTransportTDO : public TimeDependentOperator
 {
-   friend class TransportPrec;
+   // friend class TransportPrec;
 private:
    const MPI_Session & mpi_;
    int logging_;
@@ -2820,10 +2803,6 @@ private:
    ParGridFunctionArray  &kGF_;
 
    Array<int> &offsets_;
-
-   TransportPrec newton_op_prec_;
-   GMRESSolver   newton_op_solver_;
-   NewtonSolver  newton_solver_;
 
    SolverParams tol_;
 
@@ -3654,7 +3633,32 @@ private:
       void DisplayToGLVis();
    };
 
+   class TransportPrec : public BlockDiagonalPreconditioner
+   {
+   private:
+      Array<Operator*> diag_prec_;
+#ifdef MFEM_USE_SUPERLU
+      Array<SuperLURowLocMatrix*> slu_mat_;
+#endif
+      DGTransportTDO::CombinedOp * combOp_;
+
+      TransPrecParams p_;
+
+   public:
+      TransportPrec(const Array<int> &offsets, const TransPrecParams &p);
+      ~TransportPrec();
+
+      virtual void SetCombinedOperator(DGTransportTDO::CombinedOp &combOp)
+      { combOp_ = &combOp; }
+
+      virtual void SetOperator(const Operator &op);
+   };
+
    CombinedOp op_;
+
+   TransportPrec newton_op_prec_;
+   GMRESSolver   newton_op_solver_;
+   NewtonSolver  newton_solver_;
 
    VectorCoefficient & B3Coef_;
    VectorXYCoefficient BxyCoef_;

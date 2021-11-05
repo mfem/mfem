@@ -1976,8 +1976,8 @@ void DGAdvectionDiffusionTDO::Update()
    X_.SetSize(fes_->GetTrueVSize());
 }
 
-TransportPrec::TransportPrec(const Array<int> &offsets,
-                             const TransPrecParams &p)
+DGTransportTDO::TransportPrec::TransportPrec(const Array<int> &offsets,
+                                             const TransPrecParams &p)
    : BlockDiagonalPreconditioner(offsets),
      diag_prec_(5),
 #ifdef MFEM_USE_SUPERLU
@@ -1991,7 +1991,7 @@ TransportPrec::TransportPrec(const Array<int> &offsets,
 #endif
 }
 
-TransportPrec::~TransportPrec()
+DGTransportTDO::TransportPrec::~TransportPrec()
 {
    for (int i=0; i<diag_prec_.Size(); i++)
    {
@@ -2002,14 +2002,11 @@ TransportPrec::~TransportPrec()
    }
 }
 
-void TransportPrec::SetOperator(const Operator &op)
+void DGTransportTDO::TransportPrec::SetOperator(const Operator &op)
 {
    height = width = op.Height();
 
    const BlockOperator *blk_op = dynamic_cast<const BlockOperator*>(&op);
-
-   const DGTransportTDO::CombinedOp &combOp =
-      dynamic_cast<const DGTransportTDO::CombinedOp&>(op);
 
    if (blk_op)
    {
@@ -2039,7 +2036,7 @@ void TransportPrec::SetOperator(const Operator &op)
             {
                if (i == 1) // IonDensity
                {
-                  diag_prec_[i] = combOp.GetIonDensityPreconditoner();
+                  diag_prec_[i] = combOp_->GetIonDensityPreconditoner();
                }
                else
                {
@@ -2224,14 +2221,14 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
      yGF_(yGF),
      kGF_(kGF),
      offsets_(offsets),
-     newton_op_prec_(offsets, tol.prec),
-     newton_op_solver_(fes.GetComm()),
-     newton_solver_(fes.GetComm()),
      tol_(tol),
      op_(mpi, dg, plasma, eqn_weights, vfes, h1_fes, yGF, kGF,
          bcs, coefs, offsets_,
          Di_perp, Xi_perp, Xe_perp,
          term_flags, vis_flags, op_flag, logging),
+     newton_op_prec_(offsets, tol.prec),
+     newton_op_solver_(fes.GetComm()),
+     newton_solver_(fes.GetComm()),
      B3Coef_(const_cast<VectorCoefficient&>
              (*coefs(5).GetVectorCoefficient
               (CommonCoefs::MAGNETIC_FIELD_COEF))),
