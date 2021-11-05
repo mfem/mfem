@@ -26,6 +26,8 @@ setup_baseline:
     #
     # Setup ${BUILD_ROOT}/tpls and ${BUILD_ROOT}/tests:
     #
+    - echo "MACHINE_NAME = ${MACHINE_NAME}"
+    - echo "REBASELINE = ${REBASELINE}"
     - echo "AUTOTEST = ${AUTOTEST}"
     - echo "AUTOTEST_COMMIT = ${AUTOTEST_COMMIT}"
     - echo "BUILD_ROOT ${BUILD_ROOT}"

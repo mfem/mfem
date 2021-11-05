@@ -25,6 +25,7 @@ setup:
     # Setup MFEM_DATA_DIR=${SHARED_REPOS_DIR}/mfem-data, see '.gitlab-ci.yml'
     # and '.gitlab/configs/<machine>-config.yml'
     #
+    - echo "MACHINE_NAME = ${MACHINE_NAME}"
     - echo "AUTOTEST = ${AUTOTEST}"
     - echo "AUTOTEST_COMMIT = ${AUTOTEST_COMMIT}"
     - echo "SHARED_REPOS_DIR ${SHARED_REPOS_DIR}"
