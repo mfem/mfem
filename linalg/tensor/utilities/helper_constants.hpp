@@ -29,7 +29,7 @@ static constexpr int DynamicMaxSize = 16;
 #endif
 
 /// Compile time constant indicating if the code being compiled is for device.
-#if MFEM_DEVICE_COMPILE
+#ifdef MFEM_DEVICE_COMPILE
 static constexpr bool is_device = true;
 #else
 static constexpr bool is_device = false;
