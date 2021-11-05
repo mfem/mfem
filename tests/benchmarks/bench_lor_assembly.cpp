@@ -36,7 +36,7 @@ struct LORBench
    IntegrationRules irs;
    const IntegrationRule &ir_el;
    FiniteElementSpace &fes_lo;
-   BilinearForm a_ho, a_lo;
+   BilinearForm a_ho, a_lo, a_fa;
    GridFunction x;
    const int dofs;
    double mdof;
@@ -63,12 +63,15 @@ struct LORBench
       fes_lo(lor_disc.GetFESpace()),
       a_ho(&fes_ho),
       a_lo(&fes_lo),
+      a_fa(&fes_lo),
       x(&mfes),
       dofs(fes_ho.GetVSize()),
       mdof(0.0)
    {
       //dbg("MakeCartesian3D(%d,%d,%d)",nx,ny,nz);
       a_lo.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
+      a_fa.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
+      a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
       a_ho.AddDomainIntegrator(new DiffusionIntegrator);
       a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       SetupRandomMesh();
@@ -89,7 +92,7 @@ struct LORBench
       tic();
       a_lo.Assemble();
       MFEM_DEVICE_SYNC;
-      dbg("Standard LOR time = %f",toc());
+      dbg("Legacy LOR time = %f",toc());
       a_lo.FormSystemMatrix(ess_dofs, A_lo);
       A_lo.As<SparseMatrix>()->HostReadWriteI();
       A_lo.As<SparseMatrix>()->HostReadWriteJ();
@@ -145,7 +148,7 @@ struct LORBench
       x -= rdm;
    }
 
-   void Standard()
+   void Legacy()
    {
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
@@ -172,6 +175,16 @@ struct LORBench
       tic_toc.Start();
       OperatorHandle A_deviced;
       AssembleBatchedLOR_GPU(a_lo, fes_ho, ess_dofs, A_deviced);
+      tic_toc.Stop();
+      MFEM_DEVICE_SYNC;
+      mdof += 1e-6 * dofs;
+   }
+
+   void FA()
+   {
+      MFEM_DEVICE_SYNC;
+      tic_toc.Start();
+      a_fa.Assemble();
       tic_toc.Stop();
       MFEM_DEVICE_SYNC;
       mdof += 1e-6 * dofs;
@@ -206,9 +219,10 @@ BENCHMARK(LOR_##Type)\
             -> Unit(bm::kMillisecond);
 
 Bench_LOR(SanityChecks)
-Bench_LOR(Standard)
+Bench_LOR(Legacy)
 Bench_LOR(Batched)
 Bench_LOR(Deviced)
+Bench_LOR(FA)
 
 /**
  * @brief main entry point
