@@ -9,8 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "restriction.hpp"
 #include "lor_assembly.hpp"
-//#include "../linalg/dtensor.hpp"
+
+#include "../linalg/dtensor.hpp"
 #include "../general/forall.hpp"
 
 #define MFEM_DEBUG_COLOR 226
@@ -24,6 +26,13 @@ namespace mfem
 
 template <int order> static
 void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
+                              const int *map,
+                              Array<int> &dof_glob2loc_,
+                              Array<int> &dof_glob2loc_offsets_,
+                              Array<int> &el_dof_lex_,
+                              Vector &Q_,
+                              Vector &el_vert_,
+                              Vector &Xe,
                               Mesh &mesh_ho,
                               FiniteElementSpace &fes_ho,
                               SparseMatrix &A_mat)
@@ -31,13 +40,8 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    NvtxPush(Assemble3DBatchedLOR_GPU_Kernels, LightCoral);
    const int nel_ho = mesh_ho.GetNE();
    const int nel_lor = mesh_lor.GetNE();
-   const int ndof = fes_ho.GetVSize();
-
-   NvtxPush(IJACopy, HotPink);
-   const auto I = A_mat.ReadI();
-   const auto J = A_mat.ReadJ();
-   auto A = A_mat.ReadWriteData();
-   NvtxPop(IJACopy);
+   //const int ndof = fes_ho.GetVSize();
+   //dbg("nel_ho:%d nel_lor:%d",nel_ho,nel_lor);
 
    static constexpr int dim = 3;
    static constexpr int nv = 8;
@@ -50,74 +54,29 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    static constexpr int sz_grad_B = sz_grad_A*2;
    static constexpr int sz_local_mat = 8*8;
 
-   // Set up element to dof mapping (in lexicographic ordering)
-   Array<int> dof_glob2loc_(2*ndof_per_el*nel_ho);
-   Array<int> dof_glob2loc_offsets_(ndof+1);
-   Array<int> el_dof_lex_(ndof_per_el*nel_ho);
-
-   NvtxPush(BlockMapping, Olive);
-   Array<int> dofs;
-   const Array<int> &lex_map =
-      dynamic_cast<const NodalFiniteElement&>
-      (*fes_ho.GetFE(0)).GetLexicographicOrdering();
-   dof_glob2loc_offsets_ = 0;
-   for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
-   {
-      fes_ho.GetElementDofs(iel_ho, dofs);
-      for (int i=0; i<ndof_per_el; ++i)
-      {
-         const int dof = dofs[lex_map[i]];
-         el_dof_lex_[i + iel_ho*ndof_per_el] = dof;
-         dof_glob2loc_offsets_[dof+1] += 2;
-      }
-   }
-   dof_glob2loc_offsets_.PartialSum();
-   // Sanity check
-   MFEM_VERIFY(dof_glob2loc_offsets_[ndof] == dof_glob2loc_.Size(), "");
-   Array<int> dof_ptr(ndof);
-   for (int i=0; i<ndof; ++i) { dof_ptr[i] = dof_glob2loc_offsets_[i]; }
-   for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
-   {
-      fes_ho.GetElementDofs(iel_ho, dofs);
-      for (int i=0; i<ndof_per_el; ++i)
-      {
-         const int dof = dofs[lex_map[i]];
-         dof_glob2loc_[dof_ptr[dof]++] = iel_ho;
-         dof_glob2loc_[dof_ptr[dof]++] = i;
-      }
-   }
-   NvtxPop(BlockMapping);
-
    NvtxPush(DOFCopy, Coral);
    const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
    const auto dof_glob2loc = dof_glob2loc_.Read();
    const auto K = dof_glob2loc_offsets_.Read();
    NvtxPop(DOFCopy);
 
-   NvtxPush(GetVertices, IndianRed);
-   Array<double> Q_(nel_ho*pow(order,dim)*nv*ddm2);
-   Vector el_vert_(dim*nv*nel_lor);
-   for (int iel_lor=0; iel_lor<nel_lor; ++iel_lor)
-   {
-      Array<int> v;
-      mesh_lor.GetElementVertices(iel_lor, v);
-      for (int iv=0; iv<nv; ++iv)
-      {
-         const double *vc = mesh_lor.GetVertex(v[iv]);
-         for (int d=0; d<dim; ++d)
-         {
-            el_vert_[d + iv*dim + iel_lor*nv*dim] = vc[d];
-         }
-      }
-   }
-   NvtxPop(GetVertices);
+   NvtxPush(IJACopy, HotPink);
+   const auto I = A_mat.ReadI();
+   const auto J = A_mat.ReadJ();
+   auto A = A_mat.ReadWriteData();
+   NvtxPop(IJACopy);
 
+   //const auto MAP = Reshape(map, nd1d,nd1d,nd1d, nel_lor);
+   //assert(3*8*nel_lor == Xe.Size());
+   //const auto XE = Reshape(Xe.Read(), 8, 3, nel_lor);
    const auto el_vert = Reshape(el_vert_.Read(), dim, nv, nel_lor);
    const auto Q = Reshape(Q_.Write(), ddm2, 2,2,2, order,order,order, nel_ho);
 
+   //const auto MAP = Reshape(map, D1D,D1D,D1D, NE);
    NvtxPush(Assembly, SeaGreen);
    MFEM_FORALL_3D(iel_ho, nel_ho, order, order, order,
    {
+      //dbg("iel_ho:%d/%d",iel_ho,nel_ho-1);
       // Compute geometric factors at quadrature points
       MFEM_FOREACH_THREAD(kz,z,order)
       {
@@ -128,15 +87,43 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                const int k = kx + order * (ky + order * kz);
                constexpr int order_d = order*order*order;
                const int iel_lor = order_d*iel_ho + k;
+               //dbg("iel_lor:%d/%d",iel_lor,nel_ho-1);
 
+               //const int gid = MAP(kx, ky, kz, iel_lor);
+               //const int idx = gid >= 0 ? gid : -1 - gid;
+
+               //const int e = iel_lor;
                const double *v0 = &el_vert(0, 0, iel_lor);
+               //dbg("v0:%.8e %.8e %.8e",v0[0],v0[1],v0[2]);
+               //dbg("x0:%.8e %.8e %.8e",XE(0,0,e),XE(0,1,e),XE(0,2,e));
+
                const double *v1 = &el_vert(0, 1, iel_lor);
+               //dbg("v1:%.8e %.8e %.8e",v1[0],v1[1],v1[2]);
+               //dbg("x1:%.8e %.8e %.8e",XE(1,0,e),XE(1,1,e),XE(1,2,e));
+
                const double *v2 = &el_vert(0, 2, iel_lor);
+               //dbg("v2:%.8e %.8e %.8e",v2[0],v2[1],v2[2]);
+               //dbg("x2:%.8e %.8e %.8e",XE(2,0,e),XE(2,1,e),XE(2,2,e));
+
                const double *v3 = &el_vert(0, 3, iel_lor);
+               //dbg("v3:%.8e %.8e %.8e",v3[0],v3[1],v3[2]);
+               //dbg("x3:%.8e %.8e %.8e",XE(3,0,e),XE(3,1,e),XE(3,2,e));
+
                const double *v4 = &el_vert(0, 4, iel_lor);
+               //dbg("v4:%.8e %.8e %.8e",v4[0],v4[1],v4[2]);
+               //dbg("x4:%.8e %.8e %.8e",XE(4,0,e),XE(4,1,e),XE(4,2,e));
+
                const double *v5 = &el_vert(0, 5, iel_lor);
+               //dbg("v5:%.8e %.8e %.8e",v5[0],v5[1],v5[2]);
+               //dbg("x5:%.8e %.8e %.8e",XE(5,0,e),XE(5,1,e),XE(5,2,e));
+
                const double *v6 = &el_vert(0, 6, iel_lor);
+               //dbg("v6:%.8e %.8e %.8e",v6[0],v6[1],v6[2]);
+               //dbg("x6:%.8e %.8e %.8e",XE(6,0,e),XE(6,1,e),XE(6,2,e));
+
                const double *v7 = &el_vert(0, 7, iel_lor);
+               //dbg("v7:%.8e %.8e %.8e",v7[0],v7[1],v7[2]);
+               //dbg("x7:%.8e %.8e %.8e",XE(7,0,e),XE(7,1,e),XE(7,2,e));
 
                MFEM_UNROLL(2)
                for (int iqz=0; iqz<2; ++iqz)
@@ -151,6 +138,9 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                         const double y = iqy;
                         const double z = iqz;
                         const double w = 1.0/8.0;
+
+                        //const double x0 = XE(0,e);
+                        //dbg("x0:%f v0[0]:%f",x0,v0[0]);
 
                         // c: (1-x)(1-y)(1-z)v0[c] + x (1-y)(1-z)v1[c] + x y (1-z)v2[c] + (1-x) y (1-z)v3[c]
                         //  + (1-x)(1-y) z   v4[c] + x (1-y) z   v5[c] + x y z    v6[c] + (1-x) y z    v7[c]
@@ -225,6 +215,7 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
          }
       }
       MFEM_SYNC_THREAD;
+      //dbg("Quit"); assert(false);
 
       // nnz_per_el = nnz_per_row(=27) * (order+1) * (order+1) * (order+1);
       MFEM_SHARED double V_[nnz_per_el];
@@ -240,6 +231,7 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
          {
             MFEM_FOREACH_THREAD(ix,x,nd1d)
             {
+               MFEM_UNROLL(27)
                for (int j=0; j<nnz_per_row; ++j)
                {
                   V(j,ix,iy,iz) = 0.0;
@@ -247,7 +239,6 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
             }
          }
       }
-
       MFEM_SYNC_THREAD;
 
       // Loop over sub-elements
@@ -386,6 +377,7 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                // Assemble the local matrix into the macro-element sparse matrix
                // in a format similar to coordinate format. The (I,J) arrays
                // are implicit (not stored explicitly).
+               MFEM_UNROLL(8)
                for (int ii_loc=0; ii_loc<8; ++ii_loc)
                {
                   const int ix = ii_loc%2;
@@ -489,76 +481,192 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 
 void AssembleBatchedLOR_GPU(BilinearForm &form_lor,
                             FiniteElementSpace &fes_ho,
-                            const Array<int> &ess_dofs, OperatorHandle &A)
+                            const Array<int> &ess_dofs,
+                            OperatorHandle &Ah)
 {
-   NvtxPush(AssembleBatchedLOR_GPU, LawnGreen);
-   MFEM_VERIFY(UsesTensorBasis(fes_ho),
-               "Batched LOR assembly requires tensor basis");
-
-   SparseMatrix *A_mat = nullptr;
-
    Mesh &mesh_lor = *form_lor.FESpace()->GetMesh();
    Mesh &mesh_ho = *fes_ho.GetMesh();
    const int dim = mesh_ho.Dimension();
    const int order = fes_ho.GetMaxElementOrder();
    const int ndofs = fes_ho.GetTrueVSize();
 
-   // the sparsity pattern is defined from the map: element->dof
-   const Table &elem_dof = form_lor.FESpace()->GetElementToDofTable();
+   const int nel_ho = mesh_ho.GetNE();
+   const int nel_lor = mesh_lor.GetNE();
+   const int ndof = fes_ho.GetVSize();
+   constexpr int nv = 8;
+   const int ddm2 = (dim*(dim+1))/2;
+   const int nd1d = order + 1;
+   const int ndof_per_el = nd1d*nd1d*nd1d;
 
-   NvtxPush(Sparsity, PaleTurquoise);
-   Table dof_dof, dof_elem;
+   const bool has_to_init = Ah.Ptr() == nullptr;
+   SparseMatrix *A_mat = Ah.As<SparseMatrix>();
 
-   NvtxPush(Transpose, LightGoldenrod);
-   Transpose(elem_dof, dof_elem, ndofs);
-   NvtxPop(Transpose);
+   Vector Xe;
+   const int *map = nullptr;
 
-   NvtxPush(Mult, LightGoldenrod);
-   mfem::Mult(dof_elem, elem_dof, dof_dof);
-   NvtxPop();
+   static Array<int> *dof_glob2loc_ = nullptr;//(2*ndof_per_el*nel_ho);
+   static Array<int> *dof_glob2loc_offsets_ = nullptr;//(ndof+1);
+   static Array<int> *el_dof_lex_ = nullptr;//(ndof_per_el*nel_ho);
+   static Vector *Q_ = nullptr;//(nel_ho*pow(order,dim)*nv*ddm2);
+   static Vector *el_vert_ = nullptr;//(dim*nv*nel_lor);
 
-   NvtxPush(SortRows, LightGoldenrod);
-   dof_dof.SortRows();
-   int *I = dof_dof.GetI();
-   int *J = dof_dof.GetJ();
-   NvtxPop();
+   if (has_to_init)
+   {
+      dof_glob2loc_ = new Array<int>(2*ndof_per_el*nel_ho);
+      dof_glob2loc_offsets_ = new Array<int>(ndof+1);
+      el_dof_lex_ = new Array<int>(ndof_per_el*nel_ho);
+      Q_ = new Vector(nel_ho*pow(order,dim)*nv*ddm2);
+      el_vert_ = new Vector(dim*nv*nel_lor);
 
-   NvtxPush(A_Allocate, Cyan);
-   double *data = Memory<double>(I[ndofs]);
-   NvtxPop();
+      mesh_lor.EnsureNodes();
+      const GridFunction *nodes = mesh_lor.GetNodes();
+      assert(nodes);
+      const FiniteElementSpace *nfes = nodes->FESpace();
+      constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      //dbg("nfes NVDofs:%d",nfes->GetNVDofs());
+      const Operator *ERop = nfes->GetElementRestriction(ordering);
+      const ElementRestriction* ER = dynamic_cast<const ElementRestriction*>(ERop);
+      map = ER ? ER->GatherMap().Read() : nullptr;
+      assert(map);
 
-   NvtxPush(newSparseMatrix, PeachPuff);
-   A_mat = new SparseMatrix(I,J,data,ndofs,ndofs,true,true,true);
-   NvtxPop();
+      const GridFunction *X = mesh_lor.GetNodes();
+      //dbg("X:%d",X->Size()); X->Print();
+      Xe.SetSize(ER->Height());
+      ER->Mult(*X,Xe);
+      //dbg("Xe:%d",Xe.Size()); Xe.Print();
 
-   NvtxPush(A=0.0, Peru);
-   *A_mat = 0.0;
-   NvtxPop();
+      NvtxPush(AssembleBatchedLOR_GPU, LawnGreen);
+      MFEM_VERIFY(UsesTensorBasis(fes_ho),
+                  "Batched LOR assembly requires tensor basis");
 
-   NvtxPush(LoseData, PaleTurquoise);
-   dof_dof.LoseData();
-   NvtxPop();
+      // the sparsity pattern is defined from the map: element->dof
+      const Table &elem_dof = form_lor.FESpace()->GetElementToDofTable();
 
-   NvtxPop(Sparsity);
+      NvtxPush(Sparsity, PaleTurquoise);
+      Table dof_dof, dof_elem;
 
+      NvtxPush(Transpose, LightGoldenrod);
+      Transpose(elem_dof, dof_elem, ndofs);
+      NvtxPop(Transpose);
+
+      NvtxPush(Mult, LightGoldenrod);
+      mfem::Mult(dof_elem, elem_dof, dof_dof);
+      NvtxPop();
+
+      NvtxPush(SortRows, LightGoldenrod);
+      dof_dof.SortRows();
+      int *I = dof_dof.GetI();
+      int *J = dof_dof.GetJ();
+      NvtxPop();
+
+      NvtxPush(A_Allocate, Cyan);
+      double *data = Memory<double>(I[ndofs]);
+      NvtxPop();
+
+      NvtxPush(newSparseMatrix, PeachPuff);
+      A_mat = new SparseMatrix(I,J,data,ndofs,ndofs,true,true,true);
+      NvtxPop();
+
+      NvtxPush(Ah=0.0, Peru);
+      *A_mat = 0.0;
+      NvtxPop();
+
+      NvtxPush(LoseData, PaleTurquoise);
+      dof_dof.LoseData();
+      NvtxPop();
+
+      {
+         NvtxPush(BlockMapping, Olive);
+         Array<int> dofs;
+         const Array<int> &lex_map =
+            dynamic_cast<const NodalFiniteElement&>
+            (*fes_ho.GetFE(0)).GetLexicographicOrdering();
+         *dof_glob2loc_offsets_ = 0;
+         for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
+         {
+            fes_ho.GetElementDofs(iel_ho, dofs);
+            for (int i=0; i<ndof_per_el; ++i)
+            {
+               const int dof = dofs[lex_map[i]];
+               (*el_dof_lex_)[i + iel_ho*ndof_per_el] = dof;
+               (*dof_glob2loc_offsets_)[dof+1] += 2;
+            }
+         }
+         dof_glob2loc_offsets_->PartialSum();
+         // Sanity check
+         MFEM_VERIFY((*dof_glob2loc_offsets_)[ndof] == dof_glob2loc_->Size(), "");
+         Array<int> dof_ptr(ndof);
+         for (int i=0; i<ndof; ++i) { dof_ptr[i] = (*dof_glob2loc_offsets_)[i]; }
+         for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
+         {
+            fes_ho.GetElementDofs(iel_ho, dofs);
+            for (int i=0; i<ndof_per_el; ++i)
+            {
+               const int dof = dofs[lex_map[i]];
+               (*dof_glob2loc_)[dof_ptr[dof]++] = iel_ho;
+               (*dof_glob2loc_)[dof_ptr[dof]++] = i;
+            }
+         }
+         NvtxPop(BlockMapping);
+      }
+      {
+         NvtxPush(GetVertices, IndianRed);
+         for (int iel_lor=0; iel_lor<nel_lor; ++iel_lor)
+         {
+            Array<int> v;
+            mesh_lor.GetElementVertices(iel_lor, v);
+            for (int iv=0; iv<nv; ++iv)
+            {
+               const double *vc = mesh_lor.GetVertex(v[iv]);
+               for (int d=0; d<dim; ++d)
+               {
+                  (*el_vert_)[d + iv*dim + iel_lor*nv*dim] = vc[d];
+               }
+            }
+         }
+         NvtxPop(GetVertices);
+      }
+      NvtxPop(Sparsity);
+   }
+
+
+   void (*Kernel)(Mesh &mesh_lor,
+                  const int *map,
+                  Array<int> &dof_glob2loc_,
+                  Array<int> &dof_glob2loc_offsets_,
+                  Array<int> &el_dof_lex_,
+                  Vector &Q_,
+                  Vector &el_vert_,
+                  Vector &Xe,
+                  Mesh &mesh_ho,
+                  FiniteElementSpace &fes_ho,
+                  SparseMatrix &A_mat) = nullptr;
 
    if (dim == 2) { MFEM_ABORT("Unsuported!"); }
    else if (dim == 3)
    {
       switch (order)
       {
-         case 1: Assemble3DBatchedLOR_GPU<1>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-         case 2: Assemble3DBatchedLOR_GPU<2>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-         case 3: Assemble3DBatchedLOR_GPU<3>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-         case 4: Assemble3DBatchedLOR_GPU<4>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 1: Kernel = Assemble3DBatchedLOR_GPU<1>; break;
+         case 2: Kernel = Assemble3DBatchedLOR_GPU<2>; break;
+         case 3: Kernel = Assemble3DBatchedLOR_GPU<3>; break;
+         case 4: Kernel = Assemble3DBatchedLOR_GPU<4>; break;
          default: MFEM_ABORT("Kernel not ready!");
       }
    }
 
+   Kernel(mesh_lor,map,
+          *dof_glob2loc_,
+          *dof_glob2loc_offsets_,
+          *el_dof_lex_,
+          *Q_,
+          *el_vert_,
+          Xe,mesh_ho,fes_ho,*A_mat);
+
    {
       NvtxPush(Diag=0.0, DarkGoldenrod);
-      auto I_d = A_mat->ReadI();
-      auto J_d = A_mat->ReadJ();
+      const auto I_d = A_mat->ReadI();
+      const auto J_d = A_mat->ReadJ();
       auto A_d = A_mat->ReadWriteData();
       const int n_ess_dofs = ess_dofs.Size();
 
@@ -575,8 +683,9 @@ void AssembleBatchedLOR_GPU(BilinearForm &form_lor,
       NvtxPop();
    }
 
-   A.Reset(A_mat); // A now owns A_mat
+   if (has_to_init) { Ah.Reset(A_mat); } // A now owns A_mat
    NvtxPop(AssembleBatchedLOR_GPU);
+   //dbg("Quit"); assert(false);
 }
 
 } // namespace mfem
