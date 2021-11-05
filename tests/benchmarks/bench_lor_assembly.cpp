@@ -36,7 +36,7 @@ struct LORBench
    IntegrationRules irs;
    const IntegrationRule &ir_el;
    FiniteElementSpace &fes_lo;
-   BilinearForm a_ho, a_lo, a_fa;
+   BilinearForm a_ho, a_legacy, a_full;
    GridFunction x;
    const int dofs;
    double mdof;
@@ -62,16 +62,18 @@ struct LORBench
       ir_el(irs.Get(Geometry::Type::CUBE, 1)),
       fes_lo(lor_disc.GetFESpace()),
       a_ho(&fes_ho),
-      a_lo(&fes_lo),
-      a_fa(&fes_lo),
+      a_legacy(&fes_lo),
+      a_full(&fes_lo),
       x(&mfes),
       dofs(fes_ho.GetVSize()),
       mdof(0.0)
    {
       //dbg("MakeCartesian3D(%d,%d,%d)",nx,ny,nz);
-      a_lo.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
-      a_fa.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
-      a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+      a_legacy.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
+
+      a_full.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
+      a_full.SetAssemblyLevel(AssemblyLevel::FULL);
+
       a_ho.AddDomainIntegrator(new DiffusionIntegrator);
       a_ho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       SetupRandomMesh();
@@ -80,59 +82,69 @@ struct LORBench
 
    bool SanityChecks()
    {
-      //if (dofs > 100*1024) { return true; }
-
       constexpr double EPS = 1e-15;
 
-      OperatorHandle A_lo, A_batched, A_deviced;
-
-      MFEM_DEVICE_SYNC;
-      a_lo = 0.0; // have to flush these results
-      MFEM_DEVICE_SYNC;
-      tic();
-      a_lo.Assemble();
-      MFEM_DEVICE_SYNC;
-      dbg("Legacy LOR time = %f",toc());
-      a_lo.FormSystemMatrix(ess_dofs, A_lo);
-      A_lo.As<SparseMatrix>()->HostReadWriteI();
-      A_lo.As<SparseMatrix>()->HostReadWriteJ();
-      A_lo.As<SparseMatrix>()->HostReadWriteData();
-
-      Vector x(A_lo->Width()), y(A_lo->Height());
+      Vector x(dofs), y(dofs);
       x.Randomize(SEED);
       y.Randomize(SEED);
-      a_lo.Finalize();
-      const double dot_lo = A_lo.As<SparseMatrix>()->InnerProduct(x,y);
+
+      OperatorHandle A_legacy, A_full, A_batched, A_deviced;
+
+      a_legacy = 0.0; // have to flush these results
+      MFEM_DEVICE_SYNC;
+      tic();
+      a_legacy.Assemble();
+      MFEM_DEVICE_SYNC;
+      dbg(" Legacy time = %f",toc());
+      a_legacy.FormSystemMatrix(ess_dofs, A_legacy);
+      a_legacy.Finalize();
+      A_legacy.As<SparseMatrix>()->HostReadWriteI();
+      A_legacy.As<SparseMatrix>()->HostReadWriteJ();
+      A_legacy.As<SparseMatrix>()->HostReadWriteData();
+      const double dot_lo = A_legacy.As<SparseMatrix>()->InnerProduct(x,y);
 
       MFEM_DEVICE_SYNC;
       tic();
-      AssembleBatchedLOR(a_lo, fes_ho, ess_dofs, A_batched);
+      a_full.Assemble();
       MFEM_DEVICE_SYNC;
-      dbg(" Batched LOR time = %f",toc());
+      dbg("   Full time = %f",toc());
+      a_full.FormSystemMatrix(ess_dofs, A_full);
+      a_full.SpMat().HostReadWriteI();
+      a_full.SpMat().HostReadWriteJ();
+      a_full.SpMat().HostReadWriteData();
+      const double dot_full = a_full.SpMat().InnerProduct(x,y);
+      assert(almost_equal(dot_lo, dot_full));
+      a_full.SpMat().Add(-1.0, *A_legacy.As<SparseMatrix>());
+      const double max_norm_full = a_full.SpMat().MaxNorm();
+      if (max_norm_full > EPS) { return false; }
+
+      MFEM_DEVICE_SYNC;
+      tic();
+      AssembleBatchedLOR(a_legacy, fes_ho, ess_dofs, A_batched);
+      MFEM_DEVICE_SYNC;
+      dbg("Batched time = %f",toc());
       A_batched.As<SparseMatrix>()->HostReadWriteI();
       A_batched.As<SparseMatrix>()->HostReadWriteJ();
       A_batched.As<SparseMatrix>()->HostReadWriteData();
       const double dot_batch = A_batched.As<SparseMatrix>()->InnerProduct(x,y);
       assert(almost_equal(dot_lo,dot_batch));
-      A_batched.As<SparseMatrix>()->Add(-1.0, *A_lo.As<SparseMatrix>());
-      const double max_norm = A_batched.As<SparseMatrix>()->MaxNorm();
-
-      if (max_norm > EPS) { return false; }
+      A_batched.As<SparseMatrix>()->Add(-1.0, *A_legacy.As<SparseMatrix>());
+      const double max_norm_batched = A_batched.As<SparseMatrix>()->MaxNorm();
+      if (max_norm_batched > EPS) { return false; }
 
       MFEM_DEVICE_SYNC;
       tic();
-      AssembleBatchedLOR_GPU(a_lo, fes_ho, ess_dofs, A_deviced);
+      AssembleBatchedLOR_GPU(a_legacy, fes_ho, ess_dofs, A_deviced);
       MFEM_DEVICE_SYNC;
-      dbg(" Batched GPU time = %f",toc());
+      dbg("Deviced time = %f",toc());
       A_deviced.As<SparseMatrix>()->HostReadWriteI();
       A_deviced.As<SparseMatrix>()->HostReadWriteJ();
       A_deviced.As<SparseMatrix>()->HostReadWriteData();
       const double dot_device = A_deviced.As<SparseMatrix>()->InnerProduct(x,y);
-      A_deviced.As<SparseMatrix>()->Add(-1.0, *A_lo.As<SparseMatrix>());
-      const double max_norm_GPU = A_deviced.As<SparseMatrix>()->MaxNorm();
+      A_deviced.As<SparseMatrix>()->Add(-1.0, *A_legacy.As<SparseMatrix>());
+      const double max_norm_deviced = A_deviced.As<SparseMatrix>()->MaxNorm();
       assert(almost_equal(dot_lo,dot_device));
-
-      return max_norm_GPU < EPS;
+      return max_norm_deviced < EPS;
    }
 
    void SetupRandomMesh() noexcept
@@ -152,7 +164,17 @@ struct LORBench
    {
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      a_lo.Assemble();
+      a_legacy.Assemble();
+      tic_toc.Stop();
+      MFEM_DEVICE_SYNC;
+      mdof += 1e-6 * dofs;
+   }
+
+   void Full()
+   {
+      MFEM_DEVICE_SYNC;
+      tic_toc.Start();
+      a_full.Assemble();
       tic_toc.Stop();
       MFEM_DEVICE_SYNC;
       mdof += 1e-6 * dofs;
@@ -163,7 +185,7 @@ struct LORBench
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
       OperatorHandle A_batched;
-      AssembleBatchedLOR(a_lo, fes_ho, ess_dofs, A_batched);
+      AssembleBatchedLOR(a_legacy, fes_ho, ess_dofs, A_batched);
       tic_toc.Stop();
       MFEM_DEVICE_SYNC;
       mdof += 1e-6 * dofs;
@@ -174,17 +196,7 @@ struct LORBench
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
       OperatorHandle A_deviced;
-      AssembleBatchedLOR_GPU(a_lo, fes_ho, ess_dofs, A_deviced);
-      tic_toc.Stop();
-      MFEM_DEVICE_SYNC;
-      mdof += 1e-6 * dofs;
-   }
-
-   void FA()
-   {
-      MFEM_DEVICE_SYNC;
-      tic_toc.Start();
-      a_fa.Assemble();
+      AssembleBatchedLOR_GPU(a_legacy, fes_ho, ess_dofs, A_deviced);
       tic_toc.Stop();
       MFEM_DEVICE_SYNC;
       mdof += 1e-6 * dofs;
@@ -222,11 +234,11 @@ Bench_LOR(SanityChecks)
 Bench_LOR(Legacy)
 Bench_LOR(Batched)
 Bench_LOR(Deviced)
-Bench_LOR(FA)
+Bench_LOR(Full)
 
 /**
  * @brief main entry point
- * --benchmark_filter=LorAssembly/4/16
+ * --benchmark_filter=Batched/4/16
  * --benchmark_context=device=cuda
  */
 int main(int argc, char *argv[])
