@@ -14,6 +14,7 @@
 
 #include "../tensor_traits.hpp"
 #include "../utilities/foreach.hpp"
+#include "../utilities/get_layout.hpp"
 
 namespace mfem
 {
