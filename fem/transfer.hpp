@@ -194,10 +194,12 @@ protected:
       void BuildHo2Lor(int nel_ho, int nel_lor,
                        const CoarseFineTransformations& cf_tr);
 
-      void ElemMixedMass(Geometry::Type geom, const FiniteElement& fe_ho,
-                         const FiniteElement& fe_lor, ElementTransformation* el_tr,
-                         IntegrationPointTransformation& ip_tr,
-                         DenseMatrix& M_mixed_el) const;
+      void ElemMixedMass(Geometry::Type geom, const FiniteElement &fe_ho,
+                         const FiniteElement& fe_lor,
+                         ElementTransformation &el_tr_lor,
+                         ElementTransformation &el_tr_ho,
+                         IntegrationPointTransformation &ip_tr,
+                         Coefficient *coeff, DenseMatrix &M_mixed_el) const;
    };
 
    /** Class for projection operator between a L2 high-order finite element
@@ -215,7 +217,9 @@ protected:
 
    public:
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
-                          const FiniteElementSpace& fes_lor_);
+                          const FiniteElementSpace& fes_lor_,
+                          Coefficient *coeff_ho = nullptr,
+                          Coefficient *coeff_lor = nullptr);
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order L2 finite element space, to <tt>y</tt>, primal
       /// field coefficients defined on a refined mesh with a low order L2
@@ -268,7 +272,9 @@ protected:
 
    public:
       L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
-                          const FiniteElementSpace& fes_lor_);
+                          const FiniteElementSpace& fes_lor_,
+                          Coefficient *coeff_ho,
+                          Coefficient *coeff_lor);
       virtual ~L2ProjectionH1Space();
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
@@ -332,15 +338,40 @@ protected:
 
    L2Projection   *F; ///< Forward, coarse-to-fine, operator
    L2Prolongation *B; ///< Backward, fine-to-coarse, operator
+   Coefficient *coeff_ho;
+   Coefficient *coeff_lor;
    bool force_l2_space;
 
 public:
-   L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
-                            FiniteElementSpace &fine_fes_,
+   L2ProjectionGridTransfer(FiniteElementSpace &fes_ho,
+                            FiniteElementSpace &fes_lor,
                             bool force_l2_space_ = false)
-      : GridTransfer(coarse_fes_, fine_fes_),
-        F(NULL), B(NULL), force_l2_space(force_l2_space_)
+      : GridTransfer(fes_ho, fes_lor),
+        F(nullptr),
+        B(nullptr),
+        coeff_ho(nullptr),
+        coeff_lor(nullptr),
+        force_l2_space(force_l2_space_)
    { }
+
+   L2ProjectionGridTransfer(FiniteElementSpace &fes_ho,
+                            FiniteElementSpace &fes_lor,
+                            Coefficient &coeff_ho_,
+                            Coefficient &coeff_lor_,
+                            bool force_l2_space_ = false)
+      : GridTransfer(fes_ho, fes_lor),
+        F(NULL),
+        B(NULL),
+        coeff_ho(&coeff_ho_),
+        coeff_lor(&coeff_lor_),
+        force_l2_space(force_l2_space_)
+   { }
+
+   void SetWeightedProjectionCoefficinets(Coefficient &coeff_ho_,
+                                          Coefficient &coeff_lor);
+
+   void SetUnweightedProjection();
+
    virtual ~L2ProjectionGridTransfer();
 
    virtual const Operator &ForwardOperator();
@@ -348,6 +379,8 @@ public:
    virtual const Operator &BackwardOperator();
 private:
    void BuildF();
+
+   void SetCoefficients(Coefficient *coeff_ho_, Coefficient *coeff_lor_);
 };
 
 /// Matrix-free transfer operator between finite element spaces

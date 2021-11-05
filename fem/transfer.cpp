@@ -256,12 +256,12 @@ void L2ProjectionGridTransfer::L2Projection::BuildHo2Lor(
 }
 
 void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
-   Geometry::Type geom, const FiniteElement& fe_ho,
-   const FiniteElement& fe_lor, ElementTransformation* el_tr,
-   IntegrationPointTransformation& ip_tr,
-   DenseMatrix& M_mixed_el) const
+   Geometry::Type geom, const FiniteElement &fe_ho,
+   const FiniteElement& fe_lor, ElementTransformation &el_tr_lor,
+   ElementTransformation &el_tr_ho, IntegrationPointTransformation &ip_tr,
+   Coefficient *coeff, DenseMatrix &M_mixed_el) const
 {
-   int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
+   int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr_lor.OrderW();
    const IntegrationRule* ir = &IntRules.Get(geom, order);
    M_mixed_el = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -273,17 +273,22 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
       fe_lor.CalcShape(ip_lor, shape_lor);
       Vector shape_ho(fe_ho.GetDof());
       fe_ho.CalcShape(ip_ho, shape_ho);
-      el_tr->SetIntPoint(&ip_lor);
+      el_tr_lor.SetIntPoint(&ip_lor);
+      // Evaluate the coefficient. If it is a GridFunction coefficient, it
+      // should be defined on the high-order space, so we must use the
+      // high-order transformation and integration point
+      double coeff_val = coeff ? coeff->Eval(el_tr_ho, ip_ho) : 1.0;
       // For now we use the geometry information from the LOR space, which means
       // we won't be mass conservative if the mesh is curved
-      double w = el_tr->Weight() * ip_lor.weight;
+      double w = el_tr_lor.Weight() * ip_lor.weight * coeff_val;
       shape_lor *= w;
       AddMultVWt(shape_lor, shape_ho, M_mixed_el);
    }
 }
 
 L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
-   const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_)
+   const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
+   Coefficient *coeff_ho, Coefficient *coeff_lor)
    : L2Projection(fes_ho_, fes_lor_)
 {
    Mesh *mesh_ho = fes_ho.GetMesh();
@@ -321,9 +326,14 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
    R.SetSize(offsets[nel_ho]);
    // P will contain the corresponding prolongation operator
    P.SetSize(offsets[nel_ho]);
+   // Rhat contains the unweighted R operator
+   if (coeff_ho != nullptr) { Rhat.SetSize(offsets[nel_ho]); }
 
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation &emb_tr = ip_tr.Transf;
+
+   MassIntegrator *mi;
+   mi = coeff_lor ? new MassIntegrator(*coeff_lor) : new MassIntegrator;
 
    for (int iho = 0; iho < nel_ho; ++iho)
    {
@@ -337,6 +347,8 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
       int ndof_ho = fe_ho.GetDof();
       int ndof_lor = fe_lor.GetDof();
 
+      ElementTransformation &el_tr_ho = *fes_ho.GetElementTransformation(iho);
+
       emb_tr.SetIdentityTransformation(geom);
       const DenseTensor &pmats = cf_tr.point_matrices[geom];
 
@@ -346,7 +358,6 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
       DenseMatrix Minv_lor(ndof_lor*nref, ndof_lor*nref);
       DenseMatrix M_mixed(ndof_lor*nref, ndof_ho);
 
-      MassIntegrator mi;
       DenseMatrix M_lor_el(ndof_lor, ndof_lor);
       DenseMatrixInverse Minv_lor_el(&M_lor_el);
       DenseMatrix M_lor(ndof_lor*nref, ndof_lor*nref);
@@ -363,8 +374,8 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
       {
          // Assemble the low-order refined mass matrix and invert locally
          int ilor = lor_els[iref];
-         ElementTransformation *el_tr = fes_lor.GetElementTransformation(ilor);
-         mi.AssembleElementMatrix(fe_lor, *el_tr, M_lor_el);
+         ElementTransformation &el_tr_lor = *fes_lor.GetElementTransformation(ilor);
+         mi->AssembleElementMatrix(fe_lor, el_tr_lor, M_lor_el);
          M_lor.CopyMN(M_lor_el, iref*ndof_lor, iref*ndof_lor);
          Minv_lor_el.Factor();
          Minv_lor_el.GetInverseMatrix(M_lor_el);
@@ -379,7 +390,8 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
          // within the coarse high-order element in reference space
          emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
-         ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, M_mixed_el);
+         ElemMixedMass(geom, fe_ho, fe_lor, el_tr_lor, el_tr_ho, ip_tr, coeff_ho,
+                       M_mixed_el);
 
          M_mixed.CopyMN(M_mixed_el, iref*ndof_lor, 0);
       }
@@ -390,6 +402,8 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space(
       RtMlorR_inv.Factor();
       RtMlorR_inv.Mult(RtMlor, P_iho);
    }
+
+   delete mi;
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::Mult(
@@ -528,11 +542,14 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
 }
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
-   const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_)
+   const FiniteElementSpace& fes_ho_,
+   const FiniteElementSpace& fes_lor_,
+   Coefficient *coeff_ho,
+   Coefficient *coeff_lor)
    : L2Projection(fes_ho_, fes_lor_)
 {
-   Mesh* mesh_ho = fes_ho.GetMesh();
-   Mesh* mesh_lor = fes_lor.GetMesh();
+   Mesh *mesh_ho = fes_ho.GetMesh();
+   Mesh *mesh_lor = fes_lor.GetMesh();
    int nel_ho = mesh_ho->GetNE();
    int nel_lor = mesh_lor->GetNE();
    int ndof_lor = fes_lor.GetNDofs();
@@ -579,17 +596,19 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       for (int iref = 0; iref < nref; ++iref)
       {
          int ilor = lor_els[iref];
-         ElementTransformation* el_tr = fes_lor.GetElementTransformation(ilor);
+         ElementTransformation &el_tr = *fes_lor.GetElementTransformation(ilor);
 
-         int order = 2 * fe_lor.GetOrder() + el_tr->OrderW();
-         const IntegrationRule* ir = &IntRules.Get(geom, order);
+         int order = 2*fe_lor.GetOrder() + el_tr.OrderW();
+         const IntegrationRule &ir = IntRules.Get(geom, order);
          ML_el = 0.0;
-         for (int i = 0; i < ir->GetNPoints(); ++i)
+         for (int i = 0; i < ir.GetNPoints(); ++i)
          {
-            const IntegrationPoint& ip_lor = ir->IntPoint(i);
+            const IntegrationPoint& ip_lor = ir.IntPoint(i);
             fe_lor.CalcShape(ip_lor, shape_lor);
-            el_tr->SetIntPoint(&ip_lor);
-            ML_el += (shape_lor *= (el_tr->Weight() * ip_lor.weight));
+            el_tr.SetIntPoint(&ip_lor);
+            double coeff_val = coeff_lor ? coeff_lor->Eval(el_tr, ip_lor) : 1.0;
+            shape_lor *= el_tr.Weight() * ip_lor.weight * coeff_val;
+            ML_el += shape_lor;
          }
          fes_lor.GetElementDofs(ilor, dofs_lor);
          ML_inv.AddElementVector(dofs_lor, ML_el);
@@ -610,7 +629,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
                        R.Height(), R.Width(), false, true, true);
 
    IntegrationPointTransformation ip_tr;
-   IsoparametricTransformation& emb_tr = ip_tr.Transf;
+   IsoparametricTransformation &emb_tr = ip_tr.Transf;
 
    // Compute M_LH and R
    for (int iho = 0; iho < nel_ho; ++iho)
@@ -620,11 +639,13 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       int nref = ho2lor.RowSize(iho);
 
       Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
-      const FiniteElement& fe_ho = *fes_ho.GetFE(iho);
-      const FiniteElement& fe_lor = *fes_lor.GetFE(lor_els[0]);
+      const FiniteElement &fe_ho = *fes_ho.GetFE(iho);
+      const FiniteElement &fe_lor = *fes_lor.GetFE(lor_els[0]);
+
+      ElementTransformation &el_tr_ho = *fes_ho.GetElementTransformation(iho);
 
       emb_tr.SetIdentityTransformation(geom);
-      const DenseTensor& pmats = cf_tr.point_matrices[geom];
+      const DenseTensor &pmats = cf_tr.point_matrices[geom];
 
       int nedof_ho = fe_ho.GetDof();
       int nedof_lor = fe_lor.GetDof();
@@ -634,13 +655,14 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       for (int iref = 0; iref < nref; ++iref)
       {
          int ilor = lor_els[iref];
-         ElementTransformation* el_tr = fes_lor.GetElementTransformation(ilor);
+         ElementTransformation &el_tr_lor = *fes_lor.GetElementTransformation(ilor);
 
          // Create the transformation that embeds the fine low-order element
          // within the coarse high-order element in reference space
          emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
-         ElemMixedMass(geom, fe_ho, fe_lor, el_tr, ip_tr, M_LH_el);
+         ElemMixedMass(geom, fe_ho, fe_lor, el_tr_lor, el_tr_ho, ip_tr, coeff_ho,
+                       M_LH_el);
 
          Array<int> dofs_lor(nedof_lor);
          fes_lor.GetElementDofs(ilor, dofs_lor);
@@ -664,7 +686,6 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    // initial values for relative and absolute tolerance
    SetRelTol(1e-13);
    SetAbsTol(1e-13);
-   Ds = DSmoother(*RTxM_LH);
    pcg.SetPreconditioner(Ds);
    pcg.SetOperator(*RTxM_LH);
 }
@@ -863,6 +884,34 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
    dof_lor_dof_ho.LoseData();
 }
 
+void L2ProjectionGridTransfer::SetCoefficients(
+   Coefficient *coeff_ho_, Coefficient *coeff_lor_)
+{
+   coeff_ho = coeff_ho_;
+   coeff_lor = coeff_lor_;
+   if (F)
+   {
+      delete F;
+      BuildF();
+   }
+   if (B)
+   {
+      delete B;
+      B = new L2Prolongation(*F);
+   }
+}
+
+void L2ProjectionGridTransfer::SetWeightedProjectionCoefficinets(
+   Coefficient &coeff_ho_, Coefficient &coeff_lor_)
+{
+   SetCoefficients(&coeff_ho_, &coeff_lor_);
+}
+
+void L2ProjectionGridTransfer::SetUnweightedProjection()
+{
+   SetCoefficients(nullptr, nullptr);
+}
+
 L2ProjectionGridTransfer::~L2ProjectionGridTransfer()
 {
    delete F;
@@ -890,11 +939,11 @@ void L2ProjectionGridTransfer::BuildF()
    if (!force_l2_space &&
        dom_fes.FEColl()->GetContType() == FiniteElementCollection::CONTINUOUS)
    {
-      F = new L2ProjectionH1Space(dom_fes, ran_fes);
+      F = new L2ProjectionH1Space(dom_fes, ran_fes, coeff_ho, coeff_lor);
    }
    else
    {
-      F = new L2ProjectionL2Space(dom_fes, ran_fes);
+      F = new L2ProjectionL2Space(dom_fes, ran_fes, coeff_ho, coeff_lor);
    }
 }
 
