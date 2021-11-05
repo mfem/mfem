@@ -24,13 +24,34 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               is_serial_tensor_dim<Tensor, N>,
+               is_serial_tensor_dim<Tensor, N> &&
+               get_tensor_size<N, Tensor> == Dynamic,
             bool> = true
          >
 MFEM_HOST_DEVICE inline
 void Foreach(const Tensor &t, Lambda &&func, Idx... idx)
 {
    for (int i = 0; i < t.template Size<N>(); i++)
+   {
+      func(i,idx...);
+   }
+}
+
+template <int N,
+            typename Tensor,
+            typename Lambda,
+            typename... Idx,
+            std::enable_if_t<
+               is_serial_tensor_dim<Tensor, N> &&
+               get_tensor_size<N, Tensor> != Dynamic,
+            bool> = true
+         >
+MFEM_HOST_DEVICE inline
+void Foreach(const Tensor &t, Lambda &&func, Idx... idx)
+{
+   constexpr int size = get_tensor_size<N, Tensor>;
+   MFEM_UNROLL(size)
+   for (int i = 0; i < size; i++)
    {
       func(i,idx...);
    }
@@ -93,8 +114,10 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               (is_serial_tensor_dim<TensorLHS, N> &&
-                is_serial_tensor_dim<TensorRHS, N>),
+               is_serial_tensor_dim<TensorLHS, N> &&
+               is_serial_tensor_dim<TensorRHS, N> &&
+               get_tensor_size<N, TensorLHS> == Dynamic &&
+               get_tensor_size<N, TensorRHS> == Dynamic,
             bool> = true
          >
 MFEM_HOST_DEVICE inline
@@ -106,6 +129,93 @@ void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
       "lhs and rhs have different Size" << N <<
       ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
    for (int i = 0; i < lhs.template Size<N>(); i++)
+   {
+      func(i,idx...);
+   }
+}
+
+template <int N,
+            typename TensorLHS,
+            typename TensorRHS,
+            typename Lambda,
+            typename... Idx,
+            std::enable_if_t<
+               is_serial_tensor_dim<TensorLHS, N> &&
+               is_serial_tensor_dim<TensorRHS, N> &&
+               get_tensor_size<N, TensorLHS> != Dynamic &&
+               get_tensor_size<N, TensorRHS> == Dynamic,
+            bool> = true
+         >
+MFEM_HOST_DEVICE inline
+void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
+                  Lambda &&func, Idx... idx)
+{
+   MFEM_ASSERT_KERNEL(
+      lhs.template Size<N>() == rhs.template Size<N>(),
+      "lhs and rhs have different Size" << N <<
+      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
+   constexpr int size = get_tensor_size<N, TensorLHS>;
+   MFEM_UNROLL(size)
+   for (int i = 0; i < size; i++)
+   {
+      func(i,idx...);
+   }
+}
+
+template <int N,
+            typename TensorLHS,
+            typename TensorRHS,
+            typename Lambda,
+            typename... Idx,
+            std::enable_if_t<
+               is_serial_tensor_dim<TensorLHS, N> &&
+               is_serial_tensor_dim<TensorRHS, N> &&
+               get_tensor_size<N, TensorLHS> == Dynamic &&
+               get_tensor_size<N, TensorRHS> != Dynamic,
+            bool> = true
+         >
+MFEM_HOST_DEVICE inline
+void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
+                  Lambda &&func, Idx... idx)
+{
+   MFEM_ASSERT_KERNEL(
+      lhs.template Size<N>() == rhs.template Size<N>(),
+      "lhs and rhs have different Size" << N <<
+      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
+   constexpr int size = get_tensor_size<N, TensorRHS>;
+   MFEM_UNROLL(size)
+   for (int i = 0; i < size; i++)
+   {
+      func(i,idx...);
+   }
+}
+
+template <int N,
+            typename TensorLHS,
+            typename TensorRHS,
+            typename Lambda,
+            typename... Idx,
+            std::enable_if_t<
+               is_serial_tensor_dim<TensorLHS, N> &&
+               is_serial_tensor_dim<TensorRHS, N> &&
+               get_tensor_size<N, TensorLHS> != Dynamic &&
+               get_tensor_size<N, TensorRHS> != Dynamic,
+            bool> = true
+         >
+MFEM_HOST_DEVICE inline
+void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
+                  Lambda &&func, Idx... idx)
+{
+   MFEM_ASSERT_KERNEL(
+      lhs.template Size<N>() == rhs.template Size<N>(),
+      "lhs and rhs have different Size" << N <<
+      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
+   static_assert(
+      get_tensor_size<N, TensorLHS> == get_tensor_size<N, TensorRHS>,
+      "lhs and rhs have different Size");
+   constexpr int size = get_tensor_size<N, TensorLHS>;
+   MFEM_UNROLL(size)
+   for (int i = 0; i < size; i++)
    {
       func(i,idx...);
    }
