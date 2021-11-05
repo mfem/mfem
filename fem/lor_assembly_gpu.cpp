@@ -51,9 +51,9 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    static constexpr int sz_local_mat = 8*8;
 
    // Set up element to dof mapping (in lexicographic ordering)
-   static Array<int> dof_glob2loc_(2*ndof_per_el*nel_ho);
-   static Array<int> dof_glob2loc_offsets_(ndof+1);
-   static Array<int> el_dof_lex_(ndof_per_el*nel_ho);
+   Array<int> dof_glob2loc_(2*ndof_per_el*nel_ho);
+   Array<int> dof_glob2loc_offsets_(ndof+1);
+   Array<int> el_dof_lex_(ndof_per_el*nel_ho);
 
    NvtxPush(BlockMapping, Olive);
    Array<int> dofs;
@@ -138,10 +138,13 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                const double *v6 = &el_vert(0, 6, iel_lor);
                const double *v7 = &el_vert(0, 7, iel_lor);
 
+               MFEM_UNROLL(2)
                for (int iqz=0; iqz<2; ++iqz)
                {
+                  MFEM_UNROLL(2)
                   for (int iqy=0; iqy<2; ++iqy)
                   {
+                     MFEM_UNROLL(2)
                      for (int iqx=0; iqx<2; ++iqx)
                      {
                         const double x = iqx;
@@ -231,19 +234,20 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
       // subelement.
       //
       // V(j,i) stores the jth nonzero in the ith row of the sparse matrix.
-      for (int j=0; j<nnz_per_row; ++j)
+      MFEM_FOREACH_THREAD(iz,z,nd1d)
       {
-         MFEM_FOREACH_THREAD(iz,z,nd1d)
+         MFEM_FOREACH_THREAD(iy,y,nd1d)
          {
-            MFEM_FOREACH_THREAD(iy,y,nd1d)
+            MFEM_FOREACH_THREAD(ix,x,nd1d)
             {
-               MFEM_FOREACH_THREAD(ix,x,nd1d)
+               for (int j=0; j<nnz_per_row; ++j)
                {
                   V(j,ix,iy,iz) = 0.0;
                }
             }
          }
       }
+
       MFEM_SYNC_THREAD;
 
       // Loop over sub-elements
