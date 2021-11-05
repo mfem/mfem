@@ -119,7 +119,7 @@ struct get_layout_capacity_v<
 
 // get_layout_result_type
 template <int... Sizes>
-struct get_layout_result_type<StaticELayout<Sizes...>>
+struct get_layout_result_type_t<StaticELayout<Sizes...>>
 {
    template <int... Dims>
    using type = StaticLayout<Dims...>;

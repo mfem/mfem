@@ -219,7 +219,7 @@ struct get_layout_capacity_v<Static1dThreadLayout<BatchSize, DimX, Dims...>>
 
 // get_layout_result_type
 template <int BatchSize, int... Sizes>
-struct get_layout_result_type<Static1dThreadLayout<BatchSize,Sizes...>>
+struct get_layout_result_type_t<Static1dThreadLayout<BatchSize,Sizes...>>
 {
    template <int... Dims>
    using type = Static1dThreadLayout<BatchSize,Dims...>;

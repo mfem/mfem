@@ -118,7 +118,7 @@ struct get_layout_capacity_v<SizedDynamicLayout<Size>>
 
 // get_layout_result_type
 template <int... Sizes>
-struct get_layout_result_type<SizedDynamicLayout<Sizes...>>
+struct get_layout_result_type_t<SizedDynamicLayout<Sizes...>>
 {
    template <int... mySizes>
    using type = SizedDynamicLayout<mySizes...>;

@@ -332,7 +332,7 @@ struct get_layout_capacity_v<Static2dThreadLayout<BatchSize, DimX, DimY, Dims...
 
 // get_layout_result_type
 template <int BatchSize, int... Sizes>
-struct get_layout_result_type<Static2dThreadLayout<BatchSize,Sizes...>>
+struct get_layout_result_type_t<Static2dThreadLayout<BatchSize,Sizes...>>
 {
    template <int... Dims>
    using type = Static2dThreadLayout<BatchSize,Dims...>;

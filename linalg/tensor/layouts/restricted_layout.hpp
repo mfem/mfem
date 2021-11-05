@@ -369,9 +369,11 @@ struct get_layout_capacity_v<RestrictedLayout<N,Layout>>
 
 // get_layout_result_type
 template <int N, typename Layout>
-struct get_layout_result_type< RestrictedLayout<N,Layout> >
-: public get_restricted_layout_result_type<Layout>
-{ };
+struct get_layout_result_type_t< RestrictedLayout<N,Layout> >
+{
+   template <int... Sizes>
+   using type = get_layout_result_type<Layout,Sizes...>;
+};
 
 } // namespace mfem
 

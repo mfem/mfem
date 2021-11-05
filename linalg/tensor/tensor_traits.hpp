@@ -390,8 +390,7 @@ struct get_result_tensor_t<Tensor<Container,Layout>>
 {
    using T = get_container_type<Container>;
    template <int... Sizes>
-   using unsized_layout = typename get_layout_result_type<Layout>
-                          ::template type<Sizes...>;
+   using unsized_layout = get_layout_result_type<Layout,Sizes...>;
    using sizes = get_layout_sizes<Layout>;
    using layout = instantiate<unsized_layout,sizes>;
    using container = StaticContainer<T,get_layout_capacity<layout>>;
@@ -404,8 +403,7 @@ struct get_result_tensor_t<Tensor<Container,Layout>,Sizes...>
 {
    using T = get_container_type<Container>;
    template <int... Dims>
-   using unsized_layout = typename get_layout_result_type<Layout>
-                          ::template type<Dims...>;
+   using unsized_layout = get_layout_result_type<Layout,Dims...>;
    using layout = unsized_layout<Sizes...>;
    using container = StaticContainer<T,get_layout_capacity<layout>>;
    using type = Tensor<container, layout>;

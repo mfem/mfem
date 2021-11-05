@@ -399,10 +399,10 @@ struct get_layout_batch_size_v<SizedDynamic3dThreadLayout<BatchSize,Sizes...>>
 
 // get_layout_result_type
 template <int BatchSize, int... Sizes>
-struct get_layout_result_type<SizedDynamic3dThreadLayout<BatchSize,Sizes...>>
+struct get_layout_result_type_t<SizedDynamic3dThreadLayout<BatchSize,Sizes...>>
 {
-   template <int myRank>
-   using type = SizedDynamic3dThreadLayout<myRank,BatchSize>;
+   template <int... mySizes>
+   using type = SizedDynamic3dThreadLayout<BatchSize,mySizes...>;
 };
 
 } // namespace mfem

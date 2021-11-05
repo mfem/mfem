@@ -124,7 +124,7 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
-   constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_G[basis_size];
    auto Gt = basis.GetGt(s_G);
 
@@ -144,7 +144,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
    constexpr int Rank = get_tensor_rank<Dofs>;
    constexpr int Comp = Rank-1;
-   constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
    MFEM_SHARED double s_G[basis_size];
@@ -172,7 +172,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
    constexpr int Rank = get_tensor_rank<Dofs>;
    constexpr int Comp = Rank-1;
-   constexpr int basis_size = get_basis_capacity<Trans<Grad<Basis>>>;
+   constexpr int basis_size = get_basis_capacity<Basis>;
    MFEM_SHARED double s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
    MFEM_SHARED double s_G[basis_size];

@@ -106,7 +106,7 @@ struct get_layout_capacity_v<StaticLayout<Sizes...>>
 
 // get_layout_result_type
 template <int... Sizes>
-struct get_layout_result_type<StaticLayout<Sizes...>>
+struct get_layout_result_type_t<StaticLayout<Sizes...>>
 {
    template <int... Dims>
    using type = StaticLayout<Dims...>;

@@ -205,7 +205,7 @@ struct get_layout_batch_size_v<SizedDynamic1dThreadLayout<BatchSize,Sizes...>>
 
 // get_layout_result_type
 template <int BatchSize, int... Sizes>
-struct get_layout_result_type<SizedDynamic1dThreadLayout<BatchSize,Sizes...>>
+struct get_layout_result_type_t<SizedDynamic1dThreadLayout<BatchSize,Sizes...>>
 {
    template <int... mySizes>
    using type = SizedDynamic1dThreadLayout<BatchSize,mySizes...>;

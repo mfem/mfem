@@ -145,41 +145,17 @@ constexpr int get_layout_batch_size = get_layout_batch_size_v<Layout>::value;
 
 // get_layout_capacity
 template <typename Layout>
-struct get_layout_capacity_v
-{
-   static constexpr int rank = get_layout_rank<Layout>;
-   static constexpr int value = pow(DynamicMaxSize, rank);
-};
+struct get_layout_capacity_v;
 
 template <typename Layout>
 constexpr int get_layout_capacity = get_layout_capacity_v<Layout>::value;
 
 // get_layout_result_type
-template <typename Layout>
-struct get_layout_result_type;
+template <typename Layout, int... Sizes>
+struct get_layout_result_type_t;
 
-template <typename Layout, typename Enable = void>
-struct get_restricted_layout_result_type;
-
-template <typename Layout>
-struct get_restricted_layout_result_type<
-   Layout,
-   std::enable_if_t< is_static_layout<Layout> >
->
-{
-   template <int... Sizes>
-   using type = typename get_layout_result_type<Layout>::template type<Sizes...>;
-};
-
-template <typename Layout>
-struct get_restricted_layout_result_type<
-   Layout,
-   std::enable_if_t<is_dynamic_layout<Layout> >
->
-{
-   template <int Rank>
-   using type = typename get_layout_result_type<Layout>::template type<Rank>;
-};
+template <typename Layout, int... Sizes>
+using get_layout_result_type = typename get_layout_result_type_t<Layout>::template type<Sizes...>;
 
 } // namespace mfem
 
