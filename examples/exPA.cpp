@@ -30,9 +30,6 @@
 //               We recommend viewing examples 1 and 9 before viewing this
 //               example.
 
-// ./ex14 -pa -m ../data/inline-hex.mesh  --lob -i 2 -k -1 -s -0 -b 0 --noint --bdy -r 1 -o 1 &> ex14out.log
-
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -47,8 +44,6 @@
 #include "../fem/gridfunc.hpp"
 #include "../fem/fespace.hpp"
 #include "../general/forall.hpp"
-
-//#include </usr/local/include/gperftools/profiler.h>  
 
 using namespace std;
 using namespace mfem;
@@ -65,16 +60,15 @@ int main(int argc, char *argv[])
    std::setprecision(18);
 
    // 1. Parse command-line options.
-   //const char *mesh_file = "../data/inline-hex.mesh";
-   const char *mesh_file = "../data/inline-quad.mesh"; 
-   int ref_levels = 2;
-   int order = 6;
+   const char *mesh_file = "../data/star.mesh";
+   int ref_levels = -1;
+   int order = 1;
    double sigma = -1.0;
    double kappa = -1.0;
-   double beta = 1;
+   double beta = 1.0;
    double eta = 0.0;
-   bool visualization = 1;
    bool pa = true;
+   bool visualization = 1;
    bool set_bc = true;
    bool lob = true;
 
@@ -99,8 +93,7 @@ int main(int argc, char *argv[])
                   "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
    args.AddOption(&beta, "-b", "--beta",
-                  " bleh ."
-                  " See the documentation of class DGDiffusionIntegrator.");
+                  "DEBUG PARAM");
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
@@ -130,7 +123,7 @@ int main(int argc, char *argv[])
    {
       kappa = (order+1)*(order+1);
    }
-   //args.PrintOptions(cout);
+   args.PrintOptions(cout);
 
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
    // 2. Read the mesh from the given mesh file. We can handle triangular,
@@ -383,6 +376,11 @@ int main(int argc, char *argv[])
          }
 */
 
+         yout += 1000.0;
+         yout -= 1000.0;
+
+         youtfull += 1000.0;
+         youtfull -= 1000.0;
 
 
          std::cout << " %{ " << std::endl;
@@ -426,7 +424,7 @@ int main(int argc, char *argv[])
       std::cout << "               ||ydiff|| = " << errnorm << std::endl;
       std::cout << "----------------------------------" << std::endl;
       std::cout << " %} " << std::endl;
-      //exit(0);
+      exit(0);
    }
 
    int print_iter = 3;

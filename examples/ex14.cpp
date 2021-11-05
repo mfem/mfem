@@ -45,7 +45,9 @@ int main(int argc, char *argv[])
    int order = 1;
    double sigma = -1.0;
    double kappa = -1.0;
+   double beta = 1.0;
    double eta = 0.0;
+   bool pa = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -55,12 +57,16 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) >= 0.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&sigma, "-s", "--sigma",
                   "One of the three DG penalty parameters, typically +1/-1."
                   " See the documentation of class DGDiffusionIntegrator.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
+   args.AddOption(&beta, "-b", "--beta",
+                  "DEBUG PARAM");
    args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -104,7 +110,7 @@ int main(int argc, char *argv[])
 
    // 4. Define a finite element space on the mesh. Here we use discontinuous
    //    finite elements of the specified order >= 0.
-   FiniteElementCollection *fec = new DG_FECollection(order, dim);
+   FiniteElementCollection *fec = new DG_FECollection(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of unknowns: " << fespace->GetVSize() << endl;
 
@@ -131,29 +137,63 @@ int main(int argc, char *argv[])
    //    extract the corresponding sparse matrix A.
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   if (eta > 0)
+   if (pa)
+   {
+      a->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a->SetFaceRestrictionDerivatives(1);
+      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(sigma, kappa, beta));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
+   }
+   else if (eta > 0)
    {
       a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(*fespace, eta));
       a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(*fespace, eta));
    }
+   else
+   {
+      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa, beta));
+   }
+
    a->Assemble();
    a->Finalize();
-   const SparseMatrix &A = a->SpMat();
 
 #ifndef MFEM_USE_SUITESPARSE
    // 8. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //    solve the system Ax=b with PCG in the symmetric case, and GMRES in the
    //    non-symmetric one.
-   GSSmoother M(A);
-   if (sigma == -1.0)
+   // todo- reset these to defaults?
+   int print_iter = 3;
+   int max_num_iter = 2;
+   double rtol = 1.0e-12;
+   double atol = 1.0e-14;
+   if(pa)
    {
-      PCG(A, M, *b, x, 1, 500, 1e-12, 0.0);
+      Array<int> ess_tdof_list;
+      if (mesh->bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         ess_bdr = 1;
+         fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+
+      OperatorPtr A;
+      Vector B, X;
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+      OperatorJacobiSmoother M(*a, ess_tdof_list);
+      PCG(*A, M, B, X, print_iter, max_num_iter, rtol, atol );
+   }
+   else if (sigma == -1.0)
+   {
+      const SparseMatrix &A = a->SpMat();
+      GSSmoother M(A);
+      PCG(A, M, *b, x, print_iter, max_num_iter, rtol, atol);   
    }
    else
    {
-      GMRES(A, M, *b, x, 1, 500, 10, 1e-12, 0.0);
+      const SparseMatrix &A = a->SpMat();
+      GSSmoother M(A);
+      GMRES(A, M, *b, x, print_iter, max_num_iter, 10, rtol, atol);
    }
 #else
    // 8. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
