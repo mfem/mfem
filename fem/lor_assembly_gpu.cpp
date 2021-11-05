@@ -31,7 +31,6 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                               Array<int> &dof_glob2loc_offsets_,
                               Array<int> &el_dof_lex_,
                               Vector &Q_,
-                              Vector &el_vert_,
                               Vector &Xe,
                               Mesh &mesh_ho,
                               FiniteElementSpace &fes_ho,
@@ -40,11 +39,10 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    NvtxPush(Assemble3DBatchedLOR_GPU_Kernels, LightCoral);
    const int nel_ho = mesh_ho.GetNE();
    const int nel_lor = mesh_lor.GetNE();
-   //const int ndof = fes_ho.GetVSize();
+   const int ndof = fes_ho.GetVSize();
    //dbg("nel_ho:%d nel_lor:%d",nel_ho,nel_lor);
 
    static constexpr int dim = 3;
-   static constexpr int nv = 8;
    static constexpr int ddm2 = (dim*(dim+1))/2;
    static constexpr int nd1d = order + 1;
    static constexpr int ndof_per_el = nd1d*nd1d*nd1d;
@@ -69,8 +67,9 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    //const auto MAP = Reshape(map, nd1d,nd1d,nd1d, nel_lor);
    //assert(3*8*nel_lor == Xe.Size());
    //const auto XE = Reshape(Xe.Read(), 8, 3, nel_lor);
-   const auto el_vert = Reshape(el_vert_.Read(), dim, nv, nel_lor);
    const auto Q = Reshape(Q_.Write(), ddm2, 2,2,2, order,order,order, nel_ho);
+
+   const auto X = mesh_lor.GetNodes()->Read();
 
    //const auto MAP = Reshape(map, D1D,D1D,D1D, NE);
    NvtxPush(Assembly, SeaGreen);
@@ -84,46 +83,52 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
          {
             MFEM_FOREACH_THREAD(kx,x,order)
             {
-               const int k = kx + order * (ky + order * kz);
-               constexpr int order_d = order*order*order;
-               const int iel_lor = order_d*iel_ho + k;
                //dbg("iel_lor:%d/%d",iel_lor,nel_ho-1);
 
                //const int gid = MAP(kx, ky, kz, iel_lor);
                //const int idx = gid >= 0 ? gid : -1 - gid;
 
-               //const int e = iel_lor;
-               const double *v0 = &el_vert(0, 0, iel_lor);
-               //dbg("v0:%.8e %.8e %.8e",v0[0],v0[1],v0[2]);
-               //dbg("x0:%.8e %.8e %.8e",XE(0,0,e),XE(0,1,e),XE(0,2,e));
+               int v_i0 = kx + nd1d*(ky + nd1d*kz);
+               int v_i1 = kx + 1 + nd1d*(ky + nd1d*kz);
+               int v_i2 = kx + 1 + nd1d*(ky + 1 + nd1d*kz);
+               int v_i3 = kx + nd1d*(ky + 1 + nd1d*kz);
 
-               const double *v1 = &el_vert(0, 1, iel_lor);
-               //dbg("v1:%.8e %.8e %.8e",v1[0],v1[1],v1[2]);
-               //dbg("x1:%.8e %.8e %.8e",XE(1,0,e),XE(1,1,e),XE(1,2,e));
+               int v_i4 = kx + nd1d*(ky + nd1d*(kz + 1));
+               int v_i5 = kx + 1 + nd1d*(ky + nd1d*(kz + 1));
+               int v_i6 = kx + 1 + nd1d*(ky + 1 + nd1d*(kz + 1));
+               int v_i7 = kx + nd1d*(ky + 1 + nd1d*(kz + 1));
 
-               const double *v2 = &el_vert(0, 2, iel_lor);
-               //dbg("v2:%.8e %.8e %.8e",v2[0],v2[1],v2[2]);
-               //dbg("x2:%.8e %.8e %.8e",XE(2,0,e),XE(2,1,e),XE(2,2,e));
+               const double v_0_x = X[el_dof_lex(v_i0, iel_ho)];
+               const double v_0_y = X[ndof + el_dof_lex(v_i0, iel_ho)];
+               const double v_0_z = X[2*ndof + el_dof_lex(v_i0, iel_ho)];
 
-               const double *v3 = &el_vert(0, 3, iel_lor);
-               //dbg("v3:%.8e %.8e %.8e",v3[0],v3[1],v3[2]);
-               //dbg("x3:%.8e %.8e %.8e",XE(3,0,e),XE(3,1,e),XE(3,2,e));
+               const double v_1_x = X[el_dof_lex(v_i1, iel_ho)];
+               const double v_1_y = X[ndof + el_dof_lex(v_i1, iel_ho)];
+               const double v_1_z = X[2*ndof + el_dof_lex(v_i1, iel_ho)];
 
-               const double *v4 = &el_vert(0, 4, iel_lor);
-               //dbg("v4:%.8e %.8e %.8e",v4[0],v4[1],v4[2]);
-               //dbg("x4:%.8e %.8e %.8e",XE(4,0,e),XE(4,1,e),XE(4,2,e));
+               const double v_2_x = X[el_dof_lex(v_i2, iel_ho)];
+               const double v_2_y = X[ndof + el_dof_lex(v_i2, iel_ho)];
+               const double v_2_z = X[2*ndof + el_dof_lex(v_i2, iel_ho)];
 
-               const double *v5 = &el_vert(0, 5, iel_lor);
-               //dbg("v5:%.8e %.8e %.8e",v5[0],v5[1],v5[2]);
-               //dbg("x5:%.8e %.8e %.8e",XE(5,0,e),XE(5,1,e),XE(5,2,e));
+               const double v_3_x = X[el_dof_lex(v_i3, iel_ho)];
+               const double v_3_y = X[ndof + el_dof_lex(v_i3, iel_ho)];
+               const double v_3_z = X[2*ndof + el_dof_lex(v_i3, iel_ho)];
 
-               const double *v6 = &el_vert(0, 6, iel_lor);
-               //dbg("v6:%.8e %.8e %.8e",v6[0],v6[1],v6[2]);
-               //dbg("x6:%.8e %.8e %.8e",XE(6,0,e),XE(6,1,e),XE(6,2,e));
+               const double v_4_x = X[el_dof_lex(v_i4, iel_ho)];
+               const double v_4_y = X[ndof + el_dof_lex(v_i4, iel_ho)];
+               const double v_4_z = X[2*ndof + el_dof_lex(v_i4, iel_ho)];
 
-               const double *v7 = &el_vert(0, 7, iel_lor);
-               //dbg("v7:%.8e %.8e %.8e",v7[0],v7[1],v7[2]);
-               //dbg("x7:%.8e %.8e %.8e",XE(7,0,e),XE(7,1,e),XE(7,2,e));
+               const double v_5_x = X[el_dof_lex(v_i5, iel_ho)];
+               const double v_5_y = X[ndof + el_dof_lex(v_i5, iel_ho)];
+               const double v_5_z = X[2*ndof + el_dof_lex(v_i5, iel_ho)];
+
+               const double v_6_x = X[el_dof_lex(v_i6, iel_ho)];
+               const double v_6_y = X[ndof + el_dof_lex(v_i6, iel_ho)];
+               const double v_6_z = X[2*ndof + el_dof_lex(v_i6, iel_ho)];
+
+               const double v_7_x = X[el_dof_lex(v_i7, iel_ho)];
+               const double v_7_y = X[ndof + el_dof_lex(v_i7, iel_ho)];
+               const double v_7_z = X[2*ndof + el_dof_lex(v_i7, iel_ho)];
 
                MFEM_UNROLL(2)
                for (int iqz=0; iqz<2; ++iqz)
@@ -144,41 +149,41 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 
                         // c: (1-x)(1-y)(1-z)v0[c] + x (1-y)(1-z)v1[c] + x y (1-z)v2[c] + (1-x) y (1-z)v3[c]
                         //  + (1-x)(1-y) z   v4[c] + x (1-y) z   v5[c] + x y z    v6[c] + (1-x) y z    v7[c]
-                        const double J11 = -(1-y)*(1-z)*v0[0]
-                        + (1-y)*(1-z)*v1[0] + y*(1-z)*v2[0] - y*(1-z)*v3[0]
-                        - (1-y)*z*v4[0] + (1-y)*z*v5[0] + y*z*v6[0] - y*z*v7[0];
+                        const double J11 = -(1-y)*(1-z)*v_0_x
+                        + (1-y)*(1-z)*v_1_x + y*(1-z)*v_2_x - y*(1-z)*v_3_x
+                        - (1-y)*z*v_4_x + (1-y)*z*v_5_x + y*z*v_6_x - y*z*v_7_x;
 
-                        const double J12 = -(1-x)*(1-z)*v0[0]
-                        - x*(1-z)*v1[0] + x*(1-z)*v2[0] + (1-x)*(1-z)*v3[0]
-                        - (1-x)*z*v4[0] - x*z*v5[0] + x*z*v6[0] + (1-x)*z*v7[0];
+                        const double J12 = -(1-x)*(1-z)*v_0_x
+                        - x*(1-z)*v_1_x + x*(1-z)*v_2_x + (1-x)*(1-z)*v_3_x
+                        - (1-x)*z*v_4_x - x*z*v_5_x + x*z*v_6_x + (1-x)*z*v_7_x;
 
-                        const double J13 = -(1-x)*(1-y)*v0[0] - x*(1-y)*v1[0]
-                        - x*y*v2[0] - (1-x)*y*v3[0] + (1-x)*(1-y)*v4[0]
-                        + x*(1-y)*v5[0] + x*y*v6[0] + (1-x)*y*v7[0];
+                        const double J13 = -(1-x)*(1-y)*v_0_x - x*(1-y)*v_1_x
+                        - x*y*v_2_x - (1-x)*y*v_3_x + (1-x)*(1-y)*v_4_x
+                        + x*(1-y)*v_5_x + x*y*v_6_x + (1-x)*y*v_7_x;
 
-                        const double J21 = -(1-y)*(1-z)*v0[1] + (1-y)*(1-z)*v1[1]
-                        + y*(1-z)*v2[1] - y*(1-z)*v3[1] - (1-y)*z*v4[1]
-                        + (1-y)*z*v5[1] + y*z*v6[1] - y*z*v7[1];
+                        const double J21 = -(1-y)*(1-z)*v_0_y + (1-y)*(1-z)*v_1_y
+                        + y*(1-z)*v_2_y - y*(1-z)*v_3_y - (1-y)*z*v_4_y
+                        + (1-y)*z*v_5_y + y*z*v_6_y - y*z*v_7_y;
 
-                        const double J22 = -(1-x)*(1-z)*v0[1] - x*(1-z)*v1[1]
-                        + x*(1-z)*v2[1] + (1-x)*(1-z)*v3[1]- (1-x)*z*v4[1] -
-                        x*z*v5[1] + x*z*v6[1] + (1-x)*z*v7[1];
+                        const double J22 = -(1-x)*(1-z)*v_0_y - x*(1-z)*v_1_y
+                        + x*(1-z)*v_2_y + (1-x)*(1-z)*v_3_y- (1-x)*z*v_4_y -
+                        x*z*v_5_y + x*z*v_6_y + (1-x)*z*v_7_y;
 
-                        const double J23 = -(1-x)*(1-y)*v0[1] - x*(1-y)*v1[1]
-                        - x*y*v2[1] - (1-x)*y*v3[1] + (1-x)*(1-y)*v4[1]
-                        + x*(1-y)*v5[1] + x*y*v6[1] + (1-x)*y*v7[1];
+                        const double J23 = -(1-x)*(1-y)*v_0_y - x*(1-y)*v_1_y
+                        - x*y*v_2_y - (1-x)*y*v_3_y + (1-x)*(1-y)*v_4_y
+                        + x*(1-y)*v_5_y + x*y*v_6_y + (1-x)*y*v_7_y;
 
-                        const double J31 = -(1-y)*(1-z)*v0[2] + (1-y)*(1-z)*v1[2]
-                        + y*(1-z)*v2[2] - y*(1-z)*v3[2]- (1-y)*z*v4[2] +
-                        (1-y)*z*v5[2] + y*z*v6[2] - y*z*v7[2];
+                        const double J31 = -(1-y)*(1-z)*v_0_z + (1-y)*(1-z)*v_1_z
+                        + y*(1-z)*v_2_z - y*(1-z)*v_3_z- (1-y)*z*v_4_z +
+                        (1-y)*z*v_5_z + y*z*v_6_z - y*z*v_7_z;
 
-                        const double J32 = -(1-x)*(1-z)*v0[2] - x*(1-z)*v1[2]
-                        + x*(1-z)*v2[2] + (1-x)*(1-z)*v3[2] - (1-x)*z*v4[2]
-                        - x*z*v5[2] + x*z*v6[2] + (1-x)*z*v7[2];
+                        const double J32 = -(1-x)*(1-z)*v_0_z - x*(1-z)*v_1_z
+                        + x*(1-z)*v_2_z + (1-x)*(1-z)*v_3_z - (1-x)*z*v_4_z
+                        - x*z*v_5_z + x*z*v_6_z + (1-x)*z*v_7_z;
 
-                        const double J33 = -(1-x)*(1-y)*v0[2] - x*(1-y)*v1[2]
-                        - x*y*v2[2] - (1-x)*y*v3[2] + (1-x)*(1-y)*v4[2]
-                        + x*(1-y)*v5[2] + x*y*v6[2] + (1-x)*y*v7[2];
+                        const double J33 = -(1-x)*(1-y)*v_0_z - x*(1-y)*v_1_z
+                        - x*y*v_2_z - (1-x)*y*v_3_z + (1-x)*(1-y)*v_4_z
+                        + x*(1-y)*v_5_z + x*y*v_6_z + (1-x)*y*v_7_z;
 
                         const double detJ = J11 * (J22 * J33 - J32 * J23) -
                         J21 * (J12 * J33 - J32 * J13) +
@@ -508,7 +513,6 @@ void AssembleBatchedLOR_GPU(BilinearForm &form_lor,
    static Array<int> *dof_glob2loc_offsets_ = nullptr;//(ndof+1);
    static Array<int> *el_dof_lex_ = nullptr;//(ndof_per_el*nel_ho);
    static Vector *Q_ = nullptr;//(nel_ho*pow(order,dim)*nv*ddm2);
-   static Vector *el_vert_ = nullptr;//(dim*nv*nel_lor);
 
    if (has_to_init)
    {
@@ -516,9 +520,9 @@ void AssembleBatchedLOR_GPU(BilinearForm &form_lor,
       dof_glob2loc_offsets_ = new Array<int>(ndof+1);
       el_dof_lex_ = new Array<int>(ndof_per_el*nel_ho);
       Q_ = new Vector(nel_ho*pow(order,dim)*nv*ddm2);
-      el_vert_ = new Vector(dim*nv*nel_lor);
 
-      mesh_lor.EnsureNodes();
+      // mesh_lor.EnsureNodes();
+      mesh_lor.SetCurvature(1, false, -1, Ordering::byNODES);
       const GridFunction *nodes = mesh_lor.GetNodes();
       assert(nodes);
       const FiniteElementSpace *nfes = nodes->FESpace();
@@ -609,23 +613,6 @@ void AssembleBatchedLOR_GPU(BilinearForm &form_lor,
          }
          NvtxPop(BlockMapping);
       }
-      {
-         NvtxPush(GetVertices, IndianRed);
-         for (int iel_lor=0; iel_lor<nel_lor; ++iel_lor)
-         {
-            Array<int> v;
-            mesh_lor.GetElementVertices(iel_lor, v);
-            for (int iv=0; iv<nv; ++iv)
-            {
-               const double *vc = mesh_lor.GetVertex(v[iv]);
-               for (int d=0; d<dim; ++d)
-               {
-                  (*el_vert_)[d + iv*dim + iel_lor*nv*dim] = vc[d];
-               }
-            }
-         }
-         NvtxPop(GetVertices);
-      }
       NvtxPop(Sparsity);
    }
 
@@ -636,7 +623,6 @@ void AssembleBatchedLOR_GPU(BilinearForm &form_lor,
                   Array<int> &dof_glob2loc_offsets_,
                   Array<int> &el_dof_lex_,
                   Vector &Q_,
-                  Vector &el_vert_,
                   Vector &Xe,
                   Mesh &mesh_ho,
                   FiniteElementSpace &fes_ho,
@@ -660,7 +646,6 @@ void AssembleBatchedLOR_GPU(BilinearForm &form_lor,
           *dof_glob2loc_offsets_,
           *el_dof_lex_,
           *Q_,
-          *el_vert_,
           Xe,mesh_ho,fes_ho,*A_mat);
 
    {
