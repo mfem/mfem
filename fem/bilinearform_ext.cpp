@@ -437,15 +437,6 @@ timings[tid++] = std::chrono::system_clock::now();
 #endif
    }
 
-   Vector yint(y);
-   yint = 0.0;
-   Vector ybdy(yint);
-
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
-
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
@@ -502,44 +493,6 @@ timings[tid++] = std::chrono::system_clock::now();
 timelines[tid] = __LINE__;
 timings[tid++] = std::chrono::system_clock::now();
 #endif
-/*
-   Vector yold(y);
-   y = 0.0;
-   y += yint;
-   y += ybdy;
-*/
-
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
-
-   /*
-   std::cout << "       begin y" << std::endl;
-   yold.Print(std::cout,1);
-   //std::cout << "       faceBdrX" << std::endl;
-   //faceBdrX.Print(std::cout,1);
-   std::cout << "       faceBdrY" << std::endl;
-   faceBdrY.Print(std::cout,1);
-   //std::cout << "       faceIntX" << std::endl;
-   //faceIntX.Print(std::cout,1);
-   std::cout << "       faceIntY" << std::endl;
-   faceIntY.Print(std::cout,1);
-   std::cout << "       yint" << std::endl;
-   yint.Print(std::cout,1);
-   std::cout << "       ybdy" << std::endl;
-   ybdy.Print(std::cout,1);
-   std::cout << "       end y" << std::endl;
-   y.Print(std::cout,1);
-   */
- 
-
-#if timings_on > 0 
-timelines[tid] = __LINE__;
-timings[tid++] = std::chrono::system_clock::now();
-#endif
-
-
 
 #if timings_on > 0 
    double total = 0;

@@ -3064,6 +3064,8 @@ const IntegrationRule &DGTraceIntegrator::GetRule(
 const IntegrationRule &DGDiffusionIntegrator::GetRule(
    Geometry::Type geom, int order, FaceElementTransformations &T)
 {
+   //std::cout << __LINE__ << " " << __FILE__ << std::endl;
+   //exit(1);
    int transelemW =  T.Elem1->OrderW(); // what should this be?
    int int_order = transelemW + 2*order;
    //int int_order = 2*order;
@@ -3180,10 +3182,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       {
          wq = ni * nor;
       }
-
-// t2w 0.2377649511 ipw 0.5 nor_norm2 0.5257335004 w 2.102917178 wq 0.5257335004
-// t2w 0.2377646005 ipw 0.5 nor_norm2 0.52573253 w 0.250000585 wq 0.52573253
-
+/*
       std::cout << std::setprecision(10) <<
       //" t2w " << Trans.Elem1->Weight() <<
       " ipw " << ip.weight <<
@@ -3192,6 +3191,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       " w " << w <<
       //" wq " << wq <<
       std::endl;
+      */
 
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in

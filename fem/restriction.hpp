@@ -301,25 +301,6 @@ protected:
    const int num_values_per_point; // 2 for values and their derivatives, more for second derivatices, etc.
                                    // higher derivatives not yet implemented
    const int num_faces_per_element;
-    
-   Vector Bf;
-   Vector Gf;
-   Array<int> scatter_indices;
-   Array<int> scatter_indices_nor;
-   Array<int> scatter_indices_tan1;
-   Array<int> scatter_indices_tan2;
-   Array<int> scatter_indices_neighbor;
-   Array<int> scatter_indices_neighbor_nor;
-   Array<int> scatter_indices_neighbor_tan1;
-   Array<int> scatter_indices_neighbor_tan2;
-   Array<int> offsets;
-   Array<int> offsets_nor;
-   Array<int> offsets_tan1;
-   Array<int> offsets_tan2;
-   Array<int> gather_indices;
-   Array<int> gather_indices_nor;
-   Array<int> gather_indices_tan1;
-   Array<int> gather_indices_tan2;
 
    Array<int> map_elements_to_faces;
    Array<int> map_elements_to_sides;

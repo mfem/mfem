@@ -1,5 +1,5 @@
 
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -177,29 +177,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
 
          double w = 0.0;
          double wq = 0.0;
-         /*
-         const IntegrationRule *ir = IntRule;
-         if (ir == NULL)
-         {
-            // a simple choice for the integration order; is this OK?
-            int order;
-            if (int_type_match)
-            {
-               order = 2*std::max(el1.GetOrder(), el2.GetOrder());
-            }
-            else
-            {
-               order = 2*el1.GetOrder();
-            }
-            ir = &IntRules.Get(Trans.GetGeometryType(), order);
-         }
-         else
-         {
-            std::cout << "ir is sometimes defined?" << std::endl;
-//            std::cout << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
-            //exit(1);
-         }
-         */
 
 #ifdef MFEM_DEBUG
    std::cout << "% " << __LINE__ << " in " << __FUNCTION__ << " in " << __FILE__ << std::endl;
@@ -216,8 +193,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
             Trans.SetAllIntPoints(&ip);
 
 #ifdef MFEM_DEBUG
-            // these factors aren't right
-            // op1 op2 op3,... ?
 
             std::cout << "% f2ev( " << 0 << "," << f_ind << ") =  " << f2ev(0,f_ind)  << std::endl;
             std::cout << "% detJ( " << p << "," << f_ind << ") =  " << detJ(p,f_ind)  << std::endl;
@@ -254,33 +229,24 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
 
 #ifdef MFEM_DEBUG
             std::cout << "% nor.Norml2() " <<  nor.Norml2() << std::endl;
-            std::cout << "% nor_norm " <<  nor_norm  << std::endl;
             std::cout << "% nor2 " <<  nor2  << std::endl;
-            std::cout << "% h " <<  h << std::endl;
+            std::cout << "% h1 " <<  h1 << std::endl;
 #endif
 
             if (bdy_type_match)
             {
-/*
-               std::cout << "% f2ev( " << 0 << "," << f_ind << ") =  " << f2ev(0,f_ind)  << std::endl;
-               std::cout << "% detJ( " << p << "," << f_ind << ") =  " << detJ(p,f_ind)  << std::endl;
-               std::cout << "% Trans.Elem1->Weight() " <<  Trans.Elem1->Weight()  << std::endl;
-               std::cout << "% Trans.Elem1->Jacobian().Det() " <<  Trans.Elem1->Jacobian().Det()  << std::endl;
-               std::cout << "% ip.weight " <<  ip.weight  << std::endl;
-
-               std::cout << "% facedetJ/detJ = "  << detJ(p,f_ind)/Trans.Elem1->Jacobian().Det()  << std::endl;
-*/
                double t2w = Trans.Elem1->Weight();
                double ipw = ip.weight;
                w = ipw*detJ(p,f_ind);
-               wq = ipw/t2w*nor2;
+               wq = ipw*nor2;///t2w*nor2;
 
+/*
                std::cout << 
                " ipw " << ipw <<
                " detJ(" << p << "," << f_ind << ") " << detJ(p,f_ind) << 
                " w " <<  w  << 
                std::endl;
-
+*/
                op1(p,0,0,f_ind) =  beta*w;///detJ(p,f_ind);
                op1(p,1,0,f_ind) = -beta*w;///detJ(p,f_ind);
                op1(p,0,1,f_ind) =  0.0;///detJ(p,f_ind);
@@ -301,7 +267,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                double t2w = Trans.Elem2->Weight();
                double ipw = ip.weight;
                w = ipw/2.0*detJ(p,f_ind);
-               wq = ipw/t2w/2.0*nor2;
+               wq = ipw/2.0*nor2;//ipw/t2w/2.0*nor2;
 
                op1(p,0,0,f_ind) =  beta*w;
                op1(p,1,0,f_ind) = -beta*w;
@@ -311,8 +277,8 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type
                op2(p,1,f_ind) =  sigma*w;
                op2(p,0,f_ind) = -sigma*w;
 
-               op3(p,0,f_ind) = -kappa*w*nor2;
-               op3(p,1,f_ind) = kappa*w*nor2;
+               op3(p,0,f_ind) = kappa*wq;//*nor2;
+               op3(p,1,f_ind) = kappa*wq;//*nor2;
             }
          }
          f_ind++;
@@ -517,11 +483,6 @@ void PADGDiffusionApply2D(const int NF,
          }
       }
    });
-
-
-   std::cout << " PA y" << std::endl;
-   _y.Print(std::cout,1);
-   std::cout << " end PA y" << std::endl;
 
 #ifdef MFEM_DEBUG
    std::cout << " PA y" << std::endl;
