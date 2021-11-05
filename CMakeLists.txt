@@ -252,6 +252,11 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   endif()
   find_package(OpenMP REQUIRED)
   set(OPENMP_LIBRARIES ${OpenMP_CXX_LIBRARIES})
+  if(APPLE)
+    # On macOS, the compiler needs additional help to find the <omp.h> header.
+    # See issue #2642 for more information.
+    include_directories(${OpenMP_CXX_INCLUDE_DIRS})
+  endif(APPLE)
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)
