@@ -25,19 +25,6 @@ variables:
 # are sure to retrieve it.
   ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
 
-# Defines the default choice for updating the saved baseline results. By default
-# the baseline can only be updated from the master branch. This variable offers
-# the option to manually ask for rebaselining from another branch if necessary.
-  REBASELINE: "NO"
-  AUTOTEST: "NO"
-  # AUTOTEST_COMMIT: used only when AUTOTEST is set to YES.
-  # * If AUTOTEST_COMMIT is set to YES (default), reporting jobs will commit
-  #   their files to the MFEM/autotest repo.
-  # * If AUTOTEST_COMMIT is set to NO, reporting jobs will NOT commit their
-  #   files to the MFEM/autotest repo. Instead they will just show the contents
-  #   of the report files and remove them.
-  AUTOTEST_COMMIT: "YES"
-
 # Git repositories used in the pipeline
   TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
   TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
