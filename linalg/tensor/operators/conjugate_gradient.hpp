@@ -13,10 +13,38 @@
 #define MFEM_TENSOR_CG
 
 #include "../../../general/forall.hpp"
-#include "matrix_multiplication.hpp"
+#include "../tensor_traits.hpp"
+#include "scalar_multiplication.hpp"
+#include "addition.hpp"
 
 namespace mfem
 {
+
+// get_cg_result_type
+template <typename T>
+struct get_cg_result_type_t;
+
+template <typename T>
+using get_cg_result_type = typename get_cg_result_type_t<T>::type;
+
+template <typename C, typename L>
+struct get_cg_result_type_t<Tensor<C,L>>
+{
+   using type = ResultTensor<Tensor<C,L>>;
+};
+
+// get_cg_value_type
+template <typename T>
+struct get_cg_value_type_t;
+
+template <typename T>
+using get_cg_value_type = typename get_cg_value_type_t<T>::type;
+
+template <typename C, typename L>
+struct get_cg_value_type_t<Tensor<C,L>>
+{
+   using type = get_tensor_value_type<Tensor<C,L>>;
+};
 
 template<typename Matrix, typename Rhs, typename Preconditioner>
 MFEM_HOST_DEVICE
@@ -24,19 +52,18 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
                         const Preconditioner& P, int& iters,
                         double& tol_error)
 {
-   using Scalar = get_matrix_type<Rhs>;
-   using RealScalar = Scalar;
+   using Scalar = get_cg_value_type<Rhs>;
    using Index = int;
+   using Result = get_cg_result_type<Rhs>;
    
-   RealScalar tol = tol_error;
+   Scalar tol = tol_error;
    Index maxIters = iters;
 
-   auto layout = GetLayout(rhs);
-   StaticResultTensor<Rhs,decltype(layout)> x(layout);
-   StaticResultTensor<Rhs,decltype(layout)> residual(rhs);
+   Result x(rhs);
+   Result residual(rhs);
    residual -= A * x; //initial residual
-  
-   RealScalar rhsNorm2 = SquaredNorm(rhs);
+
+   Scalar rhsNorm2 = SquaredNorm(rhs);
    if(rhsNorm2 == 0) 
    {
       x = 0;
@@ -44,25 +71,23 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       tol_error = 0;
       return x;
    }
-   const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
-   RealScalar threshold = max(RealScalar(tol*tol*rhsNorm2),considerAsZero);
-   RealScalar residualNorm2 = SquaredNorm(residual);
+   const Scalar considerAsZero = (std::numeric_limits<Scalar>::min)();
+   Scalar threshold = std::max(Scalar(tol*tol*rhsNorm2),considerAsZero);
+   Scalar residualNorm2 = SquaredNorm(residual);
    if (residualNorm2 < threshold)
    {
       iters = 0;
       tol_error = sqrt(residualNorm2 / rhsNorm2);
       return x;
    }
-  
-   StaticResultTensor<Rhs,NRows> p(n_rows);
-   p = P * residual;      // initial search direction
-  
-   StaticResultTensor<Rhs,NCols> z(n_cols), tmp(n_cols);
-   RealScalar absNew = Dot(residual,p);  // the square of the absolute value of r scaled by invM
+
+   auto p = P * residual;      // initial search direction
+
+   Scalar absNew = Dot(residual,p);  // the square of the absolute value of r scaled by invM
    Index i = 0;
    while(i < maxIters)
    {
-      tmp = A * p;                    // the bottleneck of the algorithm
+      auto tmp = A * p;                    // the bottleneck of the algorithm
 
       Scalar alpha = absNew / Dot(p,tmp);         // the amount we travel on dir
       x += alpha * p;                             // update solution
@@ -71,11 +96,11 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       residualNorm2 = SquaredNorm(residual);
       if(residualNorm2 < threshold) return x;
       
-      z = P * residual;                // approximately solve for "A z = residual"
+      auto z = P * residual;                // approximately solve for "A z = residual"
 
-      RealScalar absOld = absNew;
+      Scalar absOld = absNew;
       absNew = Dot(residual,z);     // update the absolute value of r
-      RealScalar beta = absNew / absOld;          // calculate the Gram-Schmidt value used to create the new search direction
+      Scalar beta = absNew / absOld;          // calculate the Gram-Schmidt value used to create the new search direction
       p = z + beta * p;                           // update search direction
       i++;
    }
