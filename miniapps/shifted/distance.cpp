@@ -67,20 +67,25 @@
 //     mpirun -np 4 distance -m ./corners.mesh -p 0 -rs 3 -t 200.0
 //
 //   Problem 1: zero level set: circle / sphere at the center of the mesh
-//     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 1
+//     mpirun -np 4 distance -m ../../data/inline-quad.mesh   -rs 3 -o 2 -t 1.0 -p 1
 //     mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 2 -o 2 -p 1 -s 1
 //
 //   Problem 2: zero level set: perturbed sine
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh -rs 3 -o 2 -t 1.0 -p 2
+//     mpirun -np 4 distance -m ../../data/amr-quad.mesh    -rs 3 -o 2 -t 1.0 -p 2
 //
 //   Problem 3: level set: Gyroid
 //      mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
-//      mpirun -np 4 distance -m ../../data/periodic-cube.mesh -rs 3 -o 2 -t 1.0 -p 3
+//      mpirun -np 4 distance -m ../../data/periodic-cube.mesh   -rs 3 -o 2 -t 1.0 -p 3
+//
+//   Problem 4: level set: Union of doughnut and swiss cheese shapes
+//      mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 3 -o 2 -t 1.0 -p 4
 
 #include <fstream>
 #include <iostream>
-#include "dist_solver.hpp"
 #include "../common/mfem-common.hpp"
+#include "dist_solver.hpp"
+#include "sbm_aux.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -195,7 +200,8 @@ int main(int argc, char *argv[])
                   "0: Point source\n\t"
                   "1: Circle / sphere level set in 2D / 3D\n\t"
                   "2: 2D sine-looking level set\n\t"
-                  "3: Gyroid level set in 2D or 3D");
+                  "3: Gyroid level set in 2D or 3D\n\t"
+                  "4: Combo of a doughnut and swiss cheese shapes in 3D.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
@@ -234,7 +240,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   Coefficient *ls_coeff;
+   Coefficient *ls_coeff = nullptr;
    int smooth_steps;
    if (problem == 0)
    {
@@ -251,11 +257,17 @@ int main(int argc, char *argv[])
       ls_coeff = new FunctionCoefficient(sine_ls);
       smooth_steps = 0;
    }
-   else
+   else if (problem == 3)
    {
       ls_coeff = new FunctionCoefficient(Gyroid);
       smooth_steps = 0;
    }
+   else if (problem == 4)
+   {
+      ls_coeff = new FunctionCoefficient(doughnut_cheese);
+      smooth_steps = 0;
+   }
+   else { MFEM_ABORT("Unrecognized -problem option."); }
 
    const double dx = AvgElementSize(pmesh);
    DistanceSolver *dist_solver = NULL;
@@ -287,13 +299,12 @@ int main(int argc, char *argv[])
    // Smooth-out Gibbs oscillations from the input level set. The smoothing
    // parameter here is specified to be mesh dependent with length scale dx.
    ParGridFunction filt_gf(&pfes_s);
-   PDEFilter *filter = new PDEFilter(pmesh, 1.0 * dx);
    if (problem != 0)
    {
-      filter->Filter(*ls_coeff, filt_gf);
+      PDEFilter filter(pmesh, 1.0 * dx);
+      filter.Filter(*ls_coeff, filt_gf);
    }
    else { filt_gf.ProjectCoefficient(*ls_coeff); }
-   delete filter;
    delete ls_coeff;
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
@@ -336,10 +347,12 @@ int main(int argc, char *argv[])
    dacol.Save();
 
    ConstantCoefficient zero(0.0);
-   const double d_norm  = distance_s.ComputeL2Error(zero);
+   const double s_norm  = distance_s.ComputeL2Error(zero),
+                v_norm  = distance_v.ComputeL2Error(zero);
    if (myid == 0)
    {
-      cout << fixed << setprecision(10) << "Norm: " << d_norm << std::endl;
+      cout << fixed << setprecision(10) << "Norms: "
+           << s_norm << " " << v_norm << std::endl;
    }
 
    delete dist_solver;
