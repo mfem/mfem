@@ -326,6 +326,15 @@ struct is_3d_threaded_layout_v<RestrictedLayout<N,Layout>>
    static constexpr bool value = is_3d_threaded_layout<Layout>;
 };
 
+// is_serial_layout_dim
+template <int N, int R, typename Layout>
+struct is_serial_layout_dim_v<RestrictedLayout<R,Layout>, N>
+{
+   static constexpr bool value = N<R?
+                                 is_serial_layout_dim<Layout,N>:
+                                 is_serial_layout_dim<Layout,N+1>;
+};
+
 // is_threaded_layout_dim
 template <int N, int R, typename Layout>
 struct is_threaded_layout_dim_v<RestrictedLayout<R,Layout>, N>
