@@ -34,7 +34,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
    auto G = basis.GetG(s_G);
 
    constexpr int D = get_basis_dofs<Basis>;
-   ResultTensor<Basis,D> u(u_e); // TODO: Add a diff dim of 1?
+   BasisResultTensor<Basis,D> u(u_e); // TODO: Add a diff dim of 1?
    return G * u;
 }
 

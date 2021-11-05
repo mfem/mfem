@@ -36,7 +36,7 @@ auto operator*(const Basis &basis, const Dofs &u)
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    // double Bqx[D1D], Bqy[D1D];
-   ResultTensor<Basis,Q1D,Q1D> Bu;
+   BasisResultTensor<Basis,Q1D,Q1D> Bu;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -82,7 +82,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    // double Bdx[Q1D], Bdy[Q1D];
-   ResultTensor<Basis,D1D,D1D> Btu;
+   BasisResultTensor<Basis,D1D,D1D> Btu;
    // Load u into shared memory
    MFEM_SHARED double shared_mem[Q1D*Q1D];
    StaticPointerDTensor<Q1D,Q1D> s_u(shared_mem);
@@ -140,7 +140,7 @@ auto operator*(const Basis &basis, const Dofs &u)
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    double Bqx[D1D];//, Bqy[D1D], Bqz[D1D];
-   ResultTensor<Basis,Q1D,Q1D,Q1D> Bu;
+   BasisResultTensor<Basis,Q1D,Q1D,Q1D> Bu;
    MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -194,7 +194,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    double Bdx[Q1D];//, Bdy[Q1D], Bdz[Q1D];
-   ResultTensor<Basis,D1D,D1D,D1D> Btu;
+   BasisResultTensor<Basis,D1D,D1D,D1D> Btu;
    // Load u into shared memory
    MFEM_SHARED double shared_mem[Q1D*Q1D*Q1D];
    StaticPointerDTensor<Q1D,Q1D,Q1D> s_u(shared_mem);

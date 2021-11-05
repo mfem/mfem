@@ -364,46 +364,52 @@ template <typename Tensor>
 constexpr bool is_dynamic_matrix = is_dynamic_matrix_v<Tensor>::value;
 
 
-/// get_tensor_result_type
-/** Return a tensor type with static sizing (even for dynamic layouts)
-    compatible with the result of an operator on the Tensor type.
+/// get_result_tensor
+/** Return a tensor type with the given Sizes, or sized as the given Tensor if
+    no sizes are provided. This is used to abstract the tensor result type of an
+    unknown input tensor type, i.e. Allows to write algorithms which are
+    agnostic of the input type Tensor.
     ex:
     ```
-    using Tensor = DynamicTensor<4>;
-    StaticResultTensor<Tensor,Dynamic,Dynamic> u;// the type is DynamicTensor<2>
+    using ResTensor = get_result_tensor<Tensor>;
+    using SizedResTensor = get_result_tensor<Tensor,Size0,Size1>;
     ```
-    Allows to write algorithms which are agnostic of the input type Tensor.
 */
-template <typename Tensor>
-struct get_tensor_result_type;
+template <typename NotATensor, int... Sizes>
+struct get_result_tensor_t;
 
-template <typename Container, typename Layout>
-struct get_tensor_result_type<Tensor<Container,Layout>>
-{
-   using T = get_container_type<Container>;
-
-   template <int... Dims>
-   using ResLayout = typename get_layout_result_type<Layout>
-                     ::template type<Dims...>;
-
-   template <int... Dims>
-   using ResContainer = StaticContainer<T,get_layout_capacity<ResLayout<Dims...>>>;
-
-   template <int... Dims>
-   using type = Tensor<ResContainer<Dims...>, ResLayout<Dims...>>;
-};
-
+template <typename Tensor, int... Sizes>
+using get_result_tensor = typename get_result_tensor_t<Tensor,Sizes...>::type;
 
 template <typename Tensor, int... Dims>
-using StaticResultTensor = typename get_tensor_result_type<Tensor>
-                              ::template type<Dims...>;
+using ResultTensor = get_result_tensor<Tensor,Dims...>;
 
-/// get_result_tensor
-// template <typename Container, typename Layout>
-// struct get_result_tensor_t
-// {
-//    using type = Tensor
-// };
+// Sizes deduced
+template <typename Container, typename Layout>
+struct get_result_tensor_t<Tensor<Container,Layout>>
+{
+   using T = get_container_type<Container>;
+   template <int... Sizes>
+   using unsized_layout = typename get_layout_result_type<Layout>
+                          ::template type<Sizes...>;
+   using sizes = get_layout_sizes<Layout>;
+   using layout = instantiate<unsized_layout,sizes>;
+   using container = StaticContainer<T,get_layout_capacity<layout>>;
+   using type = Tensor<container, layout>;
+};
+
+// Sizes given
+template <typename Container, typename Layout, int... Sizes>
+struct get_result_tensor_t<Tensor<Container,Layout>,Sizes...>
+{
+   using T = get_container_type<Container>;
+   template <int... Dims>
+   using unsized_layout = typename get_layout_result_type<Layout>
+                          ::template type<Dims...>;
+   using layout = unsized_layout<Sizes...>;
+   using container = StaticContainer<T,get_layout_capacity<layout>>;
+   using type = Tensor<container, layout>;
+};
 
 } // namespace mfem
 

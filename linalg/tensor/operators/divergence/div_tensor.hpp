@@ -35,7 +35,7 @@ auto operator*(const Div<Basis> &basis, const Dofs &u_e)
    auto G = basis.GetG(s_G);
 
    constexpr int D = get_basis_dofs<Basis>;
-   ResultTensor<Basis,D> u_x(u_e);
+   BasisResultTensor<Basis,D> u_x(u_e);
 
    return ContractX(G,u_x);
 }
@@ -62,7 +62,7 @@ auto operator*(const Div<Basis> &basis, const Dofs &u_e)
    auto u_y = Get<VDim>(1, u_e);
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
-   ResultTensor<Basis,Q,Q> divu_q(Q_r,Q_r);
+   BasisResultTensor<Basis,Q,Q> divu_q(Q_r,Q_r);
 
    auto Gu_x = ContractX(G,u_x);
    auto BGu_x = ContractY(B,Gu_x);
@@ -98,7 +98,7 @@ auto operator*(const Div<Basis> &basis, const Dofs &u_e)
    auto u_z = Get<VDim>(2, u_e);
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
-   ResultTensor<Basis,Q,Q,Q> divu_q(Q_r,Q_r,Q_r);
+   BasisResultTensor<Basis,Q,Q,Q> divu_q(Q_r,Q_r,Q_r);
 
    auto Gu_x = ContractX(G,u_x);
    auto BGu_x = ContractY(B,Gu_x);
@@ -133,7 +133,7 @@ auto operator*(const Trans<Div<Basis>> &basis, const Dofs &u)
    auto Gt = basis.GetGt(s_G);
 
    constexpr int D = get_basis_dofs<Basis>;
-   ResultTensor<Basis,D> v = ContractX(Gt,u);
+   BasisResultTensor<Basis,D> v = ContractX(Gt,u);
    return v;
 }
 
@@ -160,7 +160,7 @@ auto operator*(const Trans<Div<Basis>> &basis, const Dofs &u)
    auto Bu_y = ContractY(Gt,u);
    div_u += ContractX(Bt,Bu_y);
 
-   ResultTensor<Basis,D,D> v(div_u);
+   BasisResultTensor<Basis,D,D> v(div_u);
    return v;
 }
 
@@ -192,7 +192,7 @@ auto operator*(const Trans<Div<Basis>> &basis, const Dofs &u)
    auto BGu_z = ContractY(Bt,Gu_z);
    div_u += ContractX(Bt,BGu_z);
 
-   ResultTensor<Basis,D,D> v(div_u);
+   BasisResultTensor<Basis,D,D> v(div_u);
    return v;
 }
 

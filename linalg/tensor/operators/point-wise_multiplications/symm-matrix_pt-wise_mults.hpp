@@ -36,7 +36,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
    constexpr int Dim_c = get_tensor_size<1,Tensor>;
    const int Q_r = u.template Size<0>();
    const int Dim_r = u.template Size<1>();
-   StaticResultTensor<Tensor,Q_c,Dim_c> Du(Q_r,Dim_r);
+   ResultTensor<Tensor,Q_c,Dim_c> Du(Q_r,Dim_r);
    constexpr int CompDim = get_tensor_rank<Tensor> - 1;
    ForallDims<Tensor,CompDim-1>::Apply(u, [&](auto... q)
    {
@@ -69,7 +69,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
 {
    constexpr int Q_c = get_tensor_size<0,Tensor>;
    const int Q_r = u.template Size<0>();
-   StaticResultTensor<Tensor,Q_c> Du(Q_r);
+   ResultTensor<Tensor,Q_c> Du(Q_r);
    ForallDims<Tensor>::Apply(u, [&](auto... q)
    {
       Du(q...) = D(q...,0)*u(q...);
@@ -95,7 +95,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
    const int Q1_r = u.template Size<0>();
    const int Q2_r = u.template Size<1>();
    const int Dim_r = u.template Size<2>();
-   StaticResultTensor<Tensor,Q1_c,Q2_c,Dim_c> Du(Q1_r,Q2_r,Dim_r);
+   ResultTensor<Tensor,Q1_c,Q2_c,Dim_c> Du(Q1_r,Q2_r,Dim_r);
    constexpr int CompDim = get_tensor_rank<Tensor> - 1;
    ForallDims<Tensor,CompDim-1>::Apply(u, [&](auto... q)
    {
@@ -131,7 +131,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
    const int Q2_r = u.template Size<1>();
    const int Q3_r = u.template Size<2>();
    const int Dim_r = u.template Size<3>();
-   StaticResultTensor<Tensor,Q1_c,Q2_c,Q3_c,Dim_c> Du(Q1_r,Q2_r,Q3_r,Dim_r);
+   ResultTensor<Tensor,Q1_c,Q2_c,Q3_c,Dim_c> Du(Q1_r,Q2_r,Q3_r,Dim_r);
    constexpr int CompDim = get_tensor_rank<Tensor> - 1;
    ForallDims<Tensor,CompDim-1>::Apply(u, [&](auto... q)
    {
@@ -178,7 +178,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
    const int QY_r = u.template Size<QuadsY>();
    const int Dim_r = u.template Size<CompDim>();
    const int VD_r = u.template Size<VDim>();
-   StaticResultTensor<Tensor,QX_c,QY_c,Dim_c,VD_c> Du(QX_r,QY_r,Dim_r,VD_r);
+   ResultTensor<Tensor,QX_c,QY_c,Dim_c,VD_c> Du(QX_r,QY_r,Dim_r,VD_r);
    Foreach<QuadsX>(u, [&](int qx)
    {
       Foreach<QuadsY>(u, [&](int qy)
@@ -225,7 +225,7 @@ auto operator*(const DiagonalSymmTensor &D, const Tensor &u)
    const int QZ_r = u.template Size<QuadsZ>();
    const int Dim_r = u.template Size<CompDim>();
    const int VD_r = u.template Size<VDim>();
-   StaticResultTensor<Tensor,QX_c,QY_c,QZ_c,Dim_c,VD_c> Du(QX_r,QY_r,QZ_r,Dim_r,VD_r);
+   ResultTensor<Tensor,QX_c,QY_c,QZ_c,Dim_c,VD_c> Du(QX_r,QY_r,QZ_r,Dim_r,VD_r);
    Foreach<QuadsX>(u, [&](int qx)
    {
       Foreach<QuadsY>(u, [&](int qy)

@@ -36,7 +36,7 @@ auto operator*(const Basis &basis, const Dofs &u_e)
    auto B = basis.GetB(s_B);
 
    constexpr int D = get_basis_dofs<Basis>;
-   ResultTensor<Basis,D> u(u_e);
+   BasisResultTensor<Basis,D> u(u_e);
    return ContractX(B,u);
 }
 
@@ -56,7 +56,7 @@ auto operator*(const Basis &basis, const Dofs &u_e)
    auto B = basis.GetB(s_B);
 
    constexpr int D = get_basis_dofs<Basis>;
-   ResultTensor<Basis,D,D> u(u_e);
+   BasisResultTensor<Basis,D,D> u(u_e);
    auto Bu = ContractX(B,u);
    return ContractY(B,Bu);
 }
@@ -77,7 +77,7 @@ auto operator*(const Basis &basis, const Dofs &u_e)
    auto B = basis.GetB(s_B);
 
    constexpr int D = get_basis_dofs<Basis>;
-   ResultTensor<Basis,D,D,D> u(u_e);
+   BasisResultTensor<Basis,D,D,D> u(u_e);
    auto Bu = ContractX(B,u);
    auto BBu = ContractY(B,Bu);
    return ContractZ(B,BBu);

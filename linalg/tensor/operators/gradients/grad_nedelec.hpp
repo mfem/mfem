@@ -35,7 +35,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
    auto G_c = basis.GetCloseG(s_G_c);
 
    constexpr int D_c = get_close_basis_dofs<Basis>;
-   ResultTensor<Basis,D_c> u_x(u_e.x);
+   BasisResultTensor<Basis,D_c> u_x(u_e.x);
 
    return ContractX(G_c,u_x);
 }
@@ -63,13 +63,13 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 
    constexpr int D_o = get_open_basis_dofs<Basis>;
    constexpr int D_c = get_close_basis_dofs<Basis>;
-   ResultTensor<Basis,D_c,D_o> u_x(u_e.x);
-   ResultTensor<Basis,D_o,D_c> u_y(u_e.y);
+   BasisResultTensor<Basis,D_c,D_o> u_x(u_e.x);
+   BasisResultTensor<Basis,D_o,D_c> u_y(u_e.y);
    constexpr int Dim = 2;
    constexpr int VDim = 2;
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
-   ResultTensor<Basis,Q,Q,Dim,VDim> Gu_q(Q_r,Q_r,Dim,VDim);
+   BasisResultTensor<Basis,Q,Q,Dim,VDim> Gu_q(Q_r,Q_r,Dim,VDim);
 
    constexpr int Comp = 2;
    constexpr int VDimDim = 3;
@@ -115,14 +115,14 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u_e)
 
    constexpr int D_o = get_open_basis_dofs<Basis>;
    constexpr int D_c = get_close_basis_dofs<Basis>;
-   ResultTensor<Basis,D_c,D_o,D_o> u_x(u_e.x);
-   ResultTensor<Basis,D_o,D_c,D_o> u_y(u_e.y);
-   ResultTensor<Basis,D_o,D_o,D_c> u_z(u_e.z);
+   BasisResultTensor<Basis,D_c,D_o,D_o> u_x(u_e.x);
+   BasisResultTensor<Basis,D_o,D_c,D_o> u_y(u_e.y);
+   BasisResultTensor<Basis,D_o,D_o,D_c> u_z(u_e.z);
    constexpr int Dim = 3;
    constexpr int VDim = 3;
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
-   ResultTensor<Basis,Q,Q,Q,Dim,VDim> Gu_q(Q_r,Q_r,Q_r,Dim,VDim);
+   BasisResultTensor<Basis,Q,Q,Q,Dim,VDim> Gu_q(Q_r,Q_r,Q_r,Dim,VDim);
 
    constexpr int Comp = 2;
    constexpr int VDimDim = 3;
@@ -183,7 +183,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    auto Gt_c = basis.GetCloseGt(s_G_c);
 
    constexpr int D_c = get_close_basis_dofs<Basis>;
-   NedelecElementDofs<ResultTensor<Basis,D_c>> v = { ContractX(Gt_c,u) };
+   NedelecElementDofs<BasisResultTensor<Basis,D_c>> v = { ContractX(Gt_c,u) };
    return v;
 }
 
@@ -224,8 +224,8 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    auto Gu_qy = ContractX(Gt_o,Bu_y);
    Gu_qy += ContractX(Bt_o,Gu_y);
 
-   NedelecElementDofs<ResultTensor<Basis,D_c,D_o>,
-                      ResultTensor<Basis,D_o,D_c>> v = { Gu_qx, Gu_qy };
+   NedelecElementDofs<BasisResultTensor<Basis,D_c,D_o>,
+                      BasisResultTensor<Basis,D_o,D_c>> v = { Gu_qx, Gu_qy };
    return v;
 }
 
@@ -284,9 +284,9 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    Gu_qz += ContractX(Bt_o,BGu_z);
    Gu_qz += ContractX(Bt_o,GBu_z);
 
-   NedelecElementDofs<ResultTensor<Basis,D_c,D_o,D_o>,
-                      ResultTensor<Basis,D_o,D_c,D_o>,
-                      ResultTensor<Basis,D_o,D_o,D_c>> v = { Gu_qx, Gu_qy, Gu_qz };
+   NedelecElementDofs<BasisResultTensor<Basis,D_c,D_o,D_o>,
+                      BasisResultTensor<Basis,D_o,D_c,D_o>,
+                      BasisResultTensor<Basis,D_o,D_o,D_c>> v = { Gu_qx, Gu_qy, Gu_qz };
    return v;
 }
 

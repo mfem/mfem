@@ -33,7 +33,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
 
-   ResultTensor<Basis,Q,VD> v(Q_r,VD);
+   BasisResultTensor<Basis,Q,VD> v(Q_r,VD);
    Foreach<VDim>(u,[&](int vd)
    {
       Get<VDim>(vd, v) = basis * Get<VDim>(vd, u);
@@ -58,7 +58,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
 
-   ResultTensor<Basis,Q,Q,Dim,VD> v(Q_r,Q_r,Dim,VD);
+   BasisResultTensor<Basis,Q,Q,Dim,VD> v(Q_r,Q_r,Dim,VD);
    Foreach<VDim>(u,[&](int vd)
    {
       Get<VDim+1>(vd, v) = basis * Get<VDim>(vd, u);
@@ -83,7 +83,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    constexpr int Q = get_basis_quads<Basis>;
    const int Q_r = basis.GetQuads();
 
-   ResultTensor<Basis,Q,Q,Q,Dim,VD> v(Q_r,Q_r,Q_r,Dim,VD);
+   BasisResultTensor<Basis,Q,Q,Q,Dim,VD> v(Q_r,Q_r,Q_r,Dim,VD);
    Foreach<VDim>(u,[&](int vd)
    {
       Get<VDim+1>(vd, v) = basis * Get<VDim>(vd, u);
@@ -107,7 +107,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    constexpr int D = get_basis_dofs<Basis>;
    const int D_r = basis.GetDofs();
 
-   ResultTensor<Basis,D,VD> v(D_r,VD);
+   BasisResultTensor<Basis,D,VD> v(D_r,VD);
    Foreach<VDim>(u,[&](int vd)
    {
       Get<VDim>(vd, v) = basis * Get<VDim>(vd, u);
@@ -131,7 +131,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    constexpr int D = get_basis_dofs<Basis>;
    const int D_r = basis.GetDofs();
 
-   ResultTensor<Basis,D,D,VD> v(D_r,D_r,VD);
+   BasisResultTensor<Basis,D,D,VD> v(D_r,D_r,VD);
    Foreach<VDim>(u,[&](int vd)
    {
       Get<VDim-1>(vd, v) = basis * Get<VDim>(vd, u);
@@ -155,7 +155,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    constexpr int D = get_basis_dofs<Basis>;
    const int D_r = basis.GetDofs();
 
-   ResultTensor<Basis,D,D,D,VD> v(D_r,D_r,D_r,VD);
+   BasisResultTensor<Basis,D,D,D,VD> v(D_r,D_r,D_r,VD);
    Foreach<VDim>(u,[&](int vd)
    {
       Get<VDim-1>(vd, v) = basis * Get<VDim>(vd, u);

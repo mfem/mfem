@@ -468,8 +468,8 @@ struct basis_result_tensor<Trans<Grad<Basis>>>
 };
 
 template <typename Basis, int... Sizes>
-using ResultTensor = typename basis_result_tensor<Basis>
-                        ::template type<Sizes...>;
+using BasisResultTensor = typename basis_result_tensor<Basis>
+                             ::template type<Sizes...>;
 
 } // mfem namespace
 

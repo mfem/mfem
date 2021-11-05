@@ -34,7 +34,7 @@ auto operator*(const Basis &basis, const Dofs &u_e)
    auto B = basis.GetB(s_B);
 
    constexpr int D = get_basis_dofs<Basis>;
-   ResultTensor<Basis,D> u(u_e);
+   BasisResultTensor<Basis,D> u(u_e);
    // return B * u;
    return ContractX(B,u); // ?
 }

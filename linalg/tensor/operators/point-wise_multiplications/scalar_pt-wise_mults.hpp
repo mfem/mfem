@@ -33,7 +33,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
 {
    constexpr int Q_c = get_tensor_size<0,Tensor>;
    const int Q_r = u.template Size<0>();
-   StaticResultTensor<Tensor,Q_c> Du(Q_r);
+   ResultTensor<Tensor,Q_c> Du(Q_r);
    ForallDims<Tensor>::Apply(u, [&](auto... q)
    {
       Du(q...) = D(q...) * u(q...);
@@ -57,7 +57,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    constexpr int Q2_c = get_tensor_size<1,Tensor>;
    const int Q1_r = u.template Size<0>();
    const int Q2_r = u.template Size<1>();
-   StaticResultTensor<Tensor,Q1_c,Q2_c> Du(Q1_r,Q2_r);
+   ResultTensor<Tensor,Q1_c,Q2_c> Du(Q1_r,Q2_r);
    ForallDims<Tensor>::Apply(u, [&](auto... q)
    {
       Du(q...) = D(q...) * u(q...);
@@ -83,7 +83,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    const int Q1_r = u.template Size<0>();
    const int Q2_r = u.template Size<1>();
    const int Q3_r = u.template Size<2>();
-   StaticResultTensor<Tensor,Q1_c,Q2_c,Q3_c> Du(Q1_r,Q2_r,Q3_r);
+   ResultTensor<Tensor,Q1_c,Q2_c,Q3_c> Du(Q1_r,Q2_r,Q3_r);
    ForallDims<Tensor>::Apply(u, [&](auto... q)
    {
       Du(q...) = D(q...) * u(q...);
@@ -109,7 +109,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    constexpr int VD_c = get_tensor_size<VDim,Tensor>;
    const int Q_r = u.template Size<Quads>();
    const int VD_r = u.template Size<VDim>();
-   StaticResultTensor<Tensor,Q_c,VD_c> Du(Q_r,VD_r);
+   ResultTensor<Tensor,Q_c,VD_c> Du(Q_r,VD_r);
    Foreach<Quads>(u, [&](int q)
    {
       auto d = D(q);
@@ -141,7 +141,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    const int QX_r = u.template Size<QuadsX>();
    const int QY_r = u.template Size<QuadsY>();
    const int VD_r = u.template Size<VDim>();
-   StaticResultTensor<Tensor,QX_c,QY_c,VD_c> Du(QX_r,QY_r,VD_r);
+   ResultTensor<Tensor,QX_c,QY_c,VD_c> Du(QX_r,QY_r,VD_r);
    Foreach<QuadsX>(u, [&](int qx)
    {
       Foreach<QuadsY>(u, [&](int qy)
@@ -179,7 +179,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    const int QY_r = u.template Size<QuadsY>();
    const int QZ_r = u.template Size<QuadsZ>();
    const int VD_r = u.template Size<VDim>();
-   StaticResultTensor<Tensor,QX_c,QY_c,QZ_c,VD_c> Du(QX_r,QY_r,QZ_r,VD_r);
+   ResultTensor<Tensor,QX_c,QY_c,QZ_c,VD_c> Du(QX_r,QY_r,QZ_r,VD_r);
    Foreach<QuadsX>(u, [&](int qx)
    {
       Foreach<QuadsY>(u, [&](int qy)
