@@ -71,8 +71,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       tol_error = 0;
       return x;
    }
-   const Scalar considerAsZero = (std::numeric_limits<Scalar>::min)();
-   Scalar threshold = std::max(Scalar(tol*tol*rhsNorm2),considerAsZero);
+   Scalar threshold = tol*tol*rhsNorm2;
    Scalar residualNorm2 = SquaredNorm(residual);
    if (residualNorm2 < threshold)
    {
