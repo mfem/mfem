@@ -66,7 +66,10 @@ public:
    MFEM_HOST_DEVICE
    Tensor(const Tensor &rhs): Container(rhs), Layout(rhs) { }
 
-   template <typename OtherTensor> MFEM_HOST_DEVICE
+   template <typename OtherTensor,
+             std::enable_if_t<
+               is_tensor<OtherTensor>,
+               bool> = true > MFEM_HOST_DEVICE
    Tensor(const OtherTensor &rhs): Container(), Layout(rhs)
    {
       ForallDims<Tensor>::ApplyBinOp(*this, rhs, [&](auto... idx)
@@ -105,7 +108,10 @@ public:
    }
 
    /// operator=, compatible with other types of Tensors
-   template <typename OtherTensor> MFEM_HOST_DEVICE inline
+   template <typename OtherTensor,
+             std::enable_if_t<
+               is_tensor<OtherTensor>,
+               bool> = true > MFEM_HOST_DEVICE inline
    Tensor<Container,Layout>& operator=(const OtherTensor &rhs)
    {
       ForallDims<Tensor>::ApplyBinOp(*this, rhs, [&](auto... idx)
@@ -116,7 +122,10 @@ public:
    }
 
    /// operator+=, compatible with other types of Tensors
-   template <typename OtherTensor> MFEM_HOST_DEVICE inline
+   template <typename OtherTensor,
+             std::enable_if_t<
+               is_tensor<OtherTensor>,
+               bool> = true > MFEM_HOST_DEVICE inline
    Tensor<Container,Layout>& operator+=(const OtherTensor &rhs)
    {
       ForallDims<Tensor>::ApplyBinOp(*this, rhs, [&](auto... idx)
@@ -127,7 +136,10 @@ public:
    }
 
    /// operator-=, compatible with other types of Tensors
-   template <typename OtherTensor> MFEM_HOST_DEVICE inline
+   template <typename OtherTensor,
+             std::enable_if_t<
+               is_tensor<OtherTensor>,
+               bool> = true > MFEM_HOST_DEVICE inline
    Tensor<Container,Layout>& operator-=(const OtherTensor &rhs)
    {
       ForallDims<Tensor>::ApplyBinOp(*this, rhs, [&](auto... idx)
