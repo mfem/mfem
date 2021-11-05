@@ -2792,7 +2792,7 @@ struct DiscontPSCPreconditioner : Solver
 */
 class DGTransportTDO : public TimeDependentOperator
 {
-  friend class TransportPrec;
+   friend class TransportPrec;
 private:
    const MPI_Session & mpi_;
    int logging_;
@@ -2869,15 +2869,15 @@ private:
       Array<ParBilinearForm*> blf_; // Bilinear Form Objects for Gradients
       Array<ParBilinearForm*> cgblf_; // Bilinear Form Objects for Gradients
 
-     CG2DG *cg2dg_ = NULL;
-     HypreParMatrix *CG2DGmat_ = NULL;
-     HypreBoomerAMG *D_amg_ = NULL;
-     HypreSmoother *D_smoother_ = NULL;
-     HypreParMatrix *D_cg_ = NULL;
+      CG2DG *cg2dg_ = NULL;
+      HypreParMatrix *CG2DGmat_ = NULL;
+      HypreBoomerAMG *D_amg_ = NULL;
+      HypreSmoother *D_smoother_ = NULL;
+      HypreParMatrix *D_cg_ = NULL;
 
-     Array<int> cg_ess_tdof_list;
+      Array<int> cg_ess_tdof_list;
 
-     bool use_lor_cg = false;
+      bool use_lor_cg = false;
 
       int term_flag_;
       int vis_flag_;
@@ -2986,7 +2986,7 @@ private:
                   const PlasmaParams & plasma, int index,
                   const std::string &eqn_name,
                   const std::string &field_name,
-		  ParFiniteElementSpace * h1_fes,
+                  ParFiniteElementSpace * h1_fes,
                   ParGridFunctionArray & yGF,
                   ParGridFunctionArray & kGF,
                   const AdvectionDiffusionBC & bcs,
@@ -3244,7 +3244,7 @@ private:
       IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
                    const PlasmaParams & plasma,
                    ParFiniteElementSpace & vfes,
-		   ParFiniteElementSpace & h1_fes,
+                   ParFiniteElementSpace & h1_fes,
                    ParGridFunctionArray & yGF,
                    ParGridFunctionArray & kGF,
                    const AdvectionDiffusionBC & bcs,
@@ -3582,7 +3582,7 @@ private:
       CombinedOp(const MPI_Session & mpi, const DGParams & dg,
                  const PlasmaParams & plasma, const Vector &eqn_weights,
                  ParFiniteElementSpace & vfes,
-		 ParFiniteElementSpace & h1_fes,
+                 ParFiniteElementSpace & h1_fes,
                  ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
                  const TransportBCs & bcs,
                  const TransportCoefs & coefs,
@@ -3661,7 +3661,7 @@ public:
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &vfes,
                   ParFiniteElementSpace &ffes,
-		  ParFiniteElementSpace &h1_fes,
+                  ParFiniteElementSpace &h1_fes,
                   Array<int> &offsets,
                   ParGridFunctionArray &yGF,
                   ParGridFunctionArray &kGF,
