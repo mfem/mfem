@@ -32,7 +32,7 @@ auto operator*(const Matrix &M, const Vector &u)
 {
    using Scalar = get_tensor_type<Vector>;
    constexpr int NCols = get_tensor_size<1,Matrix>;
-   using Res = StaticResultTensor<Vector,NCols>;
+   using Res = ResultTensor<Vector,NCols>;
    constexpr int Rows = 0;
    constexpr int Cols = 1;
    const int NCols_r = M.template Size<1>();
@@ -40,7 +40,7 @@ auto operator*(const Matrix &M, const Vector &u)
    Foreach<Rows>(M,[&](int row){
       Scalar res = 0;
       Foreach<Cols>(M, [&](int col){
-          res += A(row,col) * u(col);
+          res += M(row,col) * u(col);
       });
       v(row) = res;
    });
