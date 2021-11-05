@@ -2958,7 +2958,7 @@ private:
       std::vector<socketstream*> sout_;
       ParGridFunction coefGF_;
 
-      ParFiniteElementSpace &h1_fes_;
+      ParFiniteElementSpace *h1_fes_;
 
    protected:
       const PlasmaParams &plasma_;

@@ -2521,7 +2521,8 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      cgblf_(5),
      term_flag_(term_flag),
      vis_flag_(vis_flag),
-     dc_(NULL)
+     dc_(NULL),
+     dg_precond_(NULL)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -3085,6 +3086,7 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
    : NLOperator(mpi, dg, index, eqn_name, field_name,
                 yGF, kGF, term_flag, vis_flag, logging, log_prefix),
      coefGF_(yGF[0]->ParFESpace()),
+     h1_fes_(h1_fes),
      plasma_(plasma),
      m_n_(plasma.m_n),
      T_n_(plasma.T_n),
@@ -3106,8 +3108,7 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
      diffusionCoef_(NULL),
      diffusionMatrixCoef_(NULL),
      advectionCoef_(NULL),
-     sourceCoef_(NULL),
-     h1_fes_(*h1_fes)
+     sourceCoef_(NULL)
 {}
 
 DGTransportTDO::TransportOp::~TransportOp()
@@ -3267,13 +3268,16 @@ void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
          }
          blf_[i]->AddDomainIntegrator(new MassIntegrator(*coef));
 
-	 if (cgblf_[i] == NULL)
-	   {
-	     cgblf_[i] = new ParBilinearForm(&h1_fes_);
-	     //cout << "Number of CG dofs " << h1_fes_.GlobalTrueVSize() << endl;
-	     //cout << "Number of DG dofs " << fes_.GlobalTrueVSize() << endl;
-	   }
-	 cgblf_[i]->AddDomainIntegrator(new MassIntegrator(*coef));
+         if (h1_fes_ != NULL )
+         {
+            if (cgblf_[i] == NULL)
+            {
+               cgblf_[i] = new ParBilinearForm(h1_fes_);
+               //cout << "Number of CG dofs " << h1_fes_.GlobalTrueVSize() << endl;
+               //cout << "Number of DG dofs " << fes_.GlobalTrueVSize() << endl;
+            }
+            cgblf_[i]->AddDomainIntegrator(new MassIntegrator(*coef));
+         }
       }
    }
 
@@ -3597,11 +3601,14 @@ DGTransportTDO::TransportOp::SetAnisotropicDiffusionTerm(
                                 dg_.sigma,
                                 dg_.kappa));
 
-   if (cgblf_[index_] == NULL)
+   if (h1_fes_ != NULL)
    {
-      cgblf_[index_] = new ParBilinearForm(&h1_fes_);
+      if (cgblf_[index_] == NULL)
+      {
+         cgblf_[index_] = new ParBilinearForm(h1_fes_);
+      }
+      cgblf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
    }
-   cgblf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
 
    const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
    cout << "Number of anisotropic diffusion Dirichlet BCs " << dbc.Size() << endl;
@@ -3645,7 +3652,10 @@ DGTransportTDO::TransportOp::SetAnisotropicDiffusionTerm(
          *bfbfi_marker_.Last());
    }
 
-   h1_fes_.GetEssentialTrueDofs(ess_bdr, cg_ess_tdof_list);
+   if (h1_fes_ != NULL)
+   {
+      h1_fes_->GetEssentialTrueDofs(ess_bdr, cg_ess_tdof_list);
+   }
 
    const Array<CoefficientByAttr*> & nbc = bcs_.GetNeumannBCs();
    for (int i=0; i<nbc.Size(); i++)
@@ -3751,12 +3761,16 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
 
    // blf_[index_]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef, 1.0, 0.5));
 
-   if (cgblf_[index_] == NULL)
+   if (h1_fes_ != NULL)
    {
-      cgblf_[index_] = new ParBilinearForm(&h1_fes_);
+      if (cgblf_[index_] == NULL)
+      {
+         cgblf_[index_] = new ParBilinearForm(h1_fes_);
+      }
+      cgblf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
+      cgblf_[index_]->AddDomainIntegrator(new ConservativeConvectionIntegrator(
+                                             *dtVCoef));
    }
-   cgblf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
-   cgblf_[index_]->AddDomainIntegrator(new ConservativeConvectionIntegrator(*dtVCoef));
 
    const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
    for (int i=0; i<dbc.Size(); i++)
