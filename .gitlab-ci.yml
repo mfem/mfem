@@ -36,6 +36,19 @@ variables:
   # used in '.gitlab/configs/<machine>-config.yml':
   MFEM_DATA_DIR: "${SHARED_REPOS_DIR}/mfem-data"
 
+# Defines the default choice for updating the saved baseline results. By default
+# the baseline can only be updated from the master branch. This variable offers
+# the option to manually ask for rebaselining from another branch if necessary.
+  REBASELINE: "NO"
+  AUTOTEST: "NO"
+  # AUTOTEST_COMMIT: used only when AUTOTEST is set to YES.
+  # * If AUTOTEST_COMMIT is set to YES (default), reporting jobs will commit
+  #   their files to the MFEM/autotest repo.
+  # * If AUTOTEST_COMMIT is set to NO, reporting jobs will NOT commit their
+  #   files to the MFEM/autotest repo. Instead they will just show the contents
+  #   of the report files and remove them.
+  AUTOTEST_COMMIT: "YES"
+
 # Trigger subpipelines:
 quartz-build-and-test:
   stage: sub-pipelines
