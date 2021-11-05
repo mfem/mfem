@@ -288,42 +288,42 @@ public:
 template <int I, typename Layout>
 struct get_layout_rank_v<RestrictedLayout<I,Layout>>
 {
-   static constexpr int value = get_layout_rank_v<Layout>::value - 1;
+   static constexpr int value = get_layout_rank<Layout> - 1;
 };
 
 // is_dynamic_layout
 template <int N, typename Layout>
 struct is_dynamic_layout_v<RestrictedLayout<N,Layout>>
 {
-   static constexpr bool value = is_dynamic_layout_v<Layout>::value;
+   static constexpr bool value = is_dynamic_layout<Layout>;
 };
 
 // is_static_layout
 template <int N, typename Layout>
 struct is_static_layout_v<RestrictedLayout<N,Layout>>
 {
-   static constexpr bool value = is_static_layout_v<Layout>::value;
+   static constexpr bool value = is_static_layout<Layout>;
 };
 
 // is_serial_layout
 template <int N, typename Layout>
 struct is_serial_layout_v<RestrictedLayout<N,Layout>>
 {
-   static constexpr bool value = is_serial_layout_v<Layout>::value;
+   static constexpr bool value = is_serial_layout<Layout>;
 };
 
 // is_2d_threaded_layout
 template <int N, typename Layout>
 struct is_2d_threaded_layout_v<RestrictedLayout<N,Layout>>
 {
-   static constexpr bool value = is_2d_threaded_layout_v<Layout>::value;
+   static constexpr bool value = is_2d_threaded_layout<Layout>;
 };
 
 // is_3d_threaded_layout
 template <int N, typename Layout>
 struct is_3d_threaded_layout_v<RestrictedLayout<N,Layout>>
 {
-   static constexpr bool value = is_3d_threaded_layout_v<Layout>::value;
+   static constexpr bool value = is_3d_threaded_layout<Layout>;
 };
 
 // is_threaded_layout_dim
@@ -331,36 +331,36 @@ template <int N, int R, typename Layout>
 struct is_threaded_layout_dim_v<RestrictedLayout<R,Layout>, N>
 {
    static constexpr bool value = N<R?
-                                 is_threaded_layout_dim_v<Layout,N>::value:
-                                 is_threaded_layout_dim_v<Layout,N+1>::value;
+                                 is_threaded_layout_dim<Layout,N>:
+                                 is_threaded_layout_dim<Layout,N+1>;
 };
 
 // get_layout_size
 template <int N, int I, typename Layout>
 struct get_layout_size_v<N,RestrictedLayout<I,Layout>>
 {
-   static constexpr int value = get_layout_size_v<N+(N>=I),Layout>::value;
+   static constexpr int value = get_layout_size<N+(N>=I),Layout>;
 };
 
 // get_layout_sizes
 template <int N, typename Layout>
 struct get_layout_sizes_t<RestrictedLayout<N,Layout>>
 {
-   using type = remove< N, typename get_layout_sizes_t<Layout>::type >;
+   using type = remove< N, get_layout_sizes<Layout> >;
 };
 
 // get_layout_batch_size
 template <int N, typename Layout>
 struct get_layout_batch_size_v<RestrictedLayout<N, Layout>>
 {
-   static constexpr int value = get_layout_batch_size_v<Layout>::value;
+   static constexpr int value = get_layout_batch_size<Layout>;
 };
 
 // get_layout_capacity
 template <int N, typename Layout>
 struct get_layout_capacity_v<RestrictedLayout<N,Layout>>
 {
-   static constexpr int capacity = get_layout_capacity_v<Layout>::value;
+   static constexpr int capacity = get_layout_capacity<Layout>;
    static constexpr int sizeN = get_layout_size<N,Layout>;
    static constexpr int value = sizeN != Dynamic ?
                                          ( capacity / sizeN) :
