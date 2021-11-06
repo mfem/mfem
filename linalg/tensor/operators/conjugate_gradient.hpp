@@ -16,21 +16,24 @@
 #include "../tensor_traits.hpp"
 #include "scalar_multiplication.hpp"
 #include "addition.hpp"
+#include "element_operator.hpp"
 
 namespace mfem
 {
 
 // get_cg_result_type
-template <typename T>
+template <typename Matrix, typename T>
 struct get_cg_result_type_t;
 
-template <typename T>
-using get_cg_result_type = typename get_cg_result_type_t<T>::type;
+template <typename Matrix, typename T>
+using get_cg_result_type = typename get_cg_result_type_t<Matrix,T>::type;
 
-template <typename C, typename L>
-struct get_cg_result_type_t<Tensor<C,L>>
+template <typename QData, typename TrialBasis, typename TestBasis,
+          typename C, typename L>
+struct get_cg_result_type_t<ElementOperator<QData,TrialBasis,TestBasis>,Tensor<C,L>>
 {
-   using type = ResultTensor<Tensor<C,L>>;
+   using sizes = get_tensor_sizes<Tensor<C,L>>;
+   using type = instantiate< basis_result_tensor<TrialBasis>::template type, sizes>;
 };
 
 // get_cg_value_type
@@ -54,7 +57,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
 {
    using Scalar = get_cg_value_type<Rhs>;
    using Index = int;
-   using Result = get_cg_result_type<Rhs>;
+   using Result = get_cg_result_type<Matrix,Rhs>;
    
    Scalar tol = tol_error;
    Index maxIters = iters;
