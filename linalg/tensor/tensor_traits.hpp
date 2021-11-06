@@ -278,6 +278,19 @@ struct get_tensor_size_v<N, const Tensor<C,L>>
 template <int N, typename Tensor>
 constexpr int get_tensor_size = get_tensor_size_v<N, Tensor>::value;
 
+// get_tensor_sizes
+template <typename NotATensor>
+struct get_tensor_sizes_t;
+
+template <typename C, typename Layout>
+struct get_tensor_sizes_t<Tensor<C,Layout>>
+{
+   using type = get_layout_sizes<Layout>;
+};
+
+template <typename Tensor>
+using get_tensor_sizes = typename get_tensor_sizes_t<Tensor>::type;
+
 /// get_tensor_batch_size
 /** Return the tensor's batchsize, the batchsize being the number of elements
     treated per block of threads.

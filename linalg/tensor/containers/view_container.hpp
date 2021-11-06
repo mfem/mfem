@@ -106,13 +106,13 @@ struct get_unsized_container<ConstViewContainer<T, Container>>
 template <typename T, typename Container>
 struct is_pointer_container_v<ViewContainer<T,Container>>
 {
-   static constexpr bool value = is_pointer_container_v<Container>::value;
+   static constexpr bool value = is_pointer_container<Container>;
 };
 
 template <typename T, typename Container>
 struct is_pointer_container_v<ConstViewContainer<T,Container>>
 {
-   static constexpr bool value = is_pointer_container_v<Container>::value;
+   static constexpr bool value = is_pointer_container<Container>;
 };
 
 } // namespace mfem
