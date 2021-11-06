@@ -22,6 +22,7 @@ struct QuadratureOperator
    const QData& qdata;
    const Basis& basis;
 
+   MFEM_HOST_DEVICE
    QuadratureOperator(const QData& qdata, const Basis& basis)
    : qdata(qdata), basis(basis)
    { }
@@ -33,6 +34,7 @@ template <typename QData,
              is_qdata<QData> &&
              is_basis<Basis>,
              bool> = true >
+MFEM_HOST_DEVICE
 auto operator*(const QData& qdata, const Basis& basis)
 {
    return QuadratureOperator<QData,Basis>(qdata, basis);
@@ -45,6 +47,7 @@ struct TransposeQuadratureOperator
    const QData& qdata;
    const Basis& basis;
 
+   MFEM_HOST_DEVICE
    TransposeQuadratureOperator(const QData& qdata, const Basis& basis)
    : qdata(qdata), basis(basis)
    { }
@@ -56,6 +59,7 @@ template <typename QData,
              is_qdata<QData> &&
              is_basis<Basis>,
              bool> = true >
+MFEM_HOST_DEVICE
 auto operator*(const Basis& basis, const QData& qdata)
 {
    return TransposeQuadratureOperator<QData,Basis>(qdata, basis);
