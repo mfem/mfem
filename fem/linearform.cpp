@@ -120,8 +120,9 @@ void LinearForm::Assemble()
       {
          if (domain_integs_marker[k] != NULL)
          {
-            MFEM_VERIFY(fes->GetMesh()->attributes.Size() ==
-                        domain_integs_marker[k]->Size(),
+            MFEM_VERIFY(domain_integs_marker[k]->Size() ==
+                        (fes->GetMesh()->attributes.Size() ?
+                         fes->GetMesh()->attributes.Max() : 0),
                         "invalid element marker for domain linear form "
                         "integrator #" << k << ", counting from zero");
          }
