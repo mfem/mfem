@@ -8,13 +8,13 @@
 //    ex31 -m ../../data/star.mesh -sl 5 -r 3 -mf 0.5 -o 5 -max 0.75
 //
 // Description:  This examples solves the following PDE-constrained
-//               optimization problem:
+//               optimization problem for the diffusion coefficient K:
 //
-//         max J(K) = (f,u)
+//         min J(K) = (f,u)
 //
 //         subject to   - div( K\nabla u ) = f    in \Omega
 //                                       u = 0    on \partial\Omega
-//         and            \int_\Omega K dx <= V vol(\Omega)
+//         and            \int_\Omega K dx = V vol(\Omega)
 //         and            a <= K(x) <= b
 //
 
