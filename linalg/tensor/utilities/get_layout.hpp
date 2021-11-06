@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-template <typename Container, typename Layout>
+template <typename Container, typename Layout> MFEM_HOST_DEVICE
 auto GetLayout(const Tensor<Container,Layout>& t)
 {
    return static_cast<const Layout&>(t);

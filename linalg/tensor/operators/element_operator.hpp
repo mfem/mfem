@@ -25,6 +25,7 @@ struct ElementOperator
    const TrialBasis& trial_basis;
    const TestBasis& test_basis;
 
+   MFEM_HOST_DEVICE
    ElementOperator(const QData& qdata,
                       const TrialBasis& trial_basis,
                       const TestBasis& test_basis)
