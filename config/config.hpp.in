@@ -177,6 +177,12 @@
 // library.
 // #define MFEM_USE_SIMMETRIX
 
+// use CoDiPack library for AD
+// #define MFEM_USE_CODIPACK
+
+// use forward mode for automatic differentiation
+// #define MFEM_USE_ADFORWARD
+
 // Enable interface to the MKL CPardiso library.
 // #define MFEM_USE_MKL_CPARDISO
 

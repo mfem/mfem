@@ -172,6 +172,12 @@
 // library.
 #cmakedefine MFEM_USE_SIMMETRIX
 
+// use CoDiPack library for AD
+#cmakedefine MFEM_USE_CODIPACK
+
+// use forward mode for automatic differentiation
+#cmakedefine MFEM_USE_ADFORWARD
+
 // Enable interface to the MKL CPardiso library.
 #cmakedefine MFEM_USE_MKL_CPARDISO
 
