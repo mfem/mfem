@@ -11,6 +11,9 @@
 
 #include "bench.hpp"
 
+#define MFEM_DEBUG_COLOR 226
+#include "general/debug.hpp"
+
 #ifdef MFEM_USE_BENCHMARK
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,7 +38,7 @@ void vdim_vector_function(const Vector&, Vector &y)
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Base class for the LinearForm extension test and the bench
-template<int dim, int vdim, bool gll>
+template<int DIM, int VDIM, bool GLL>
 struct LinExt
 {
    const int problem, N, p, q;
@@ -45,11 +48,14 @@ struct LinExt
    H1_FECollection fec;
    FiniteElementSpace vfes; // vdim finite element space
    FiniteElementSpace *mfes; // mesh finite elemente space
+   QuadratureSpace qspace;
    GridFunction x;
    const Geometry::Type geom_type;
    IntegrationRules IntRulesGLL;
    const IntegrationRule *irGLL;
    const IntegrationRule *ir;
+   const IntegrationRule qir;
+   const GeometricFactors *geom_factors;
    ConstantCoefficient one;
    const int dofs;
    double mdofs;
@@ -60,6 +66,9 @@ struct LinExt
    VectorConstantCoefficient vdim_constant_coeff;
    std::function<void(const Vector&, Vector&)> vector_f{vdim_vector_function};
    VectorFunctionCoefficient vector_function_coeff;
+   QuadratureFunction qfunc, vqfunc;
+   QuadratureFunctionCoefficient *qfc;
+   VectorQuadratureFunctionCoefficient *vqfc;
 
    LinearForm *lf[2];
 
@@ -67,39 +76,93 @@ struct LinExt
       problem(problem),
       N(Device::IsEnabled() ? test?8:32 : test?4:8),
       p(order),
-      q(2*p + (gll?-1:3)),
+      q(2*p + (GLL?-1:3)),
       test(test),
-      type(dim==3 ? Element::HEXAHEDRON : Element::QUADRILATERAL),
-      mesh(dim==3 ?
+      type(DIM==3 ? Element::HEXAHEDRON : Element::QUADRILATERAL),
+      mesh(DIM==3 ?
            Mesh::MakeCartesian3D(N,N,N,type) : Mesh::MakeCartesian2D(N,N,type)),
-      fec(p, dim),
-      vfes(&mesh, &fec, vdim),
-      mfes(new FiniteElementSpace(&mesh, &fec, dim)),
+      fec(p, DIM),
+      vfes(&mesh, &fec, VDIM),
+      mfes(new FiniteElementSpace(&mesh, &fec, DIM)),
+      qspace(&mesh, q),
       x(mfes),
       geom_type(vfes.GetFE(0)->GetGeomType()),
       IntRulesGLL(0, Quadrature1D::GaussLobatto),
       irGLL(&IntRulesGLL.Get(geom_type, q)), // Gauss-Legendre-Lobatto
       ir(&IntRules.Get(geom_type, q)), // Gauss-Legendre
+      qir(GLL?*irGLL:*ir),//qspace.GetElementIntRule(0)),
+      geom_factors(mesh.GetGeometricFactors(qir,GeometricFactors::COORDINATES)),
       one(1.0),
       dofs(vfes.GetTrueVSize()),
       mdofs(0.0),
       one_vec(1),
-      dim_vec(dim),
-      vdim_vec(vdim),
+      dim_vec(DIM),
+      vdim_vec(VDIM),
       constant_coeff((one_vec.Randomize(SEED),one_vec(0))),
       dim_constant_coeff((dim_vec.Randomize(SEED),dim_vec)),
       vdim_constant_coeff((vdim_vec.Randomize(SEED),vdim_vec)),
-      vector_function_coeff(vdim,vector_f),
+      vector_function_coeff(VDIM,vector_f),
+      qfunc(&qspace, 1),
+      vqfunc(&qspace, VDIM),
+      qfc(nullptr),
+      vqfc(nullptr),
       lf{new LinearForm(&vfes), new LinearForm(&vfes)}
    {
-      MFEM_VERIFY(dim==2||dim==3, "Only 2D and 3D tests are supported!");
+      MFEM_VERIFY(DIM==2||DIM==3, "Only 2D and 3D tests are supported!");
       SetupRandomMesh();
+      //SetupQuadratureFunctions();
       SetupLinearForms();
       lf[0]->SetAssemblyLevel(LinearAssemblyLevel::LEGACY);
       lf[1]->SetAssemblyLevel(LinearAssemblyLevel::FULL);
    }
 
-   ~LinExt() { delete lf[0]; delete lf[1]; }
+   void SetupQuadratureFunctions()
+   {
+      const int nqpts = qir.GetNPoints();
+      const int sdim = mesh.SpaceDimension();
+
+      {
+         int nelems = qfunc.Size() / qfunc.GetVDim() / nqpts;
+         for (int e = 0; e < nelems; e++)
+         {
+            for (int q = 0; q < nqpts; q++)
+            {
+               // X has dims NQ x SDIM x NE
+               qfunc((e * nqpts) + q) =
+                  geom_factors->X((e * nqpts * sdim) + /*(nqpts * 2)*/ + q );
+            }
+         }
+      }
+
+      {
+         int nelems = vqfunc.Size() / vqfunc.GetVDim() / nqpts;
+
+         for (int i = 0; i < nelems; i++)
+         {
+            for (int j = 0; j < sdim; j++)
+            {
+               for (int k = 0; k < nqpts; k++)
+               {
+                  // X has dims NQ x SDIM x NE
+                  vqfunc((i * nqpts * sdim) + (k * sdim ) + j) =
+                     geom_factors->X((i * nqpts * sdim) + (j * nqpts) + k);
+               }
+            }
+         }
+      }
+
+      qfc = new QuadratureFunctionCoefficient(qfunc);
+      vqfc = new VectorQuadratureFunctionCoefficient(vqfunc);
+      vqfc->SetComponent(0,VDIM);
+   }
+
+   ~LinExt()
+   {
+      delete lf[0];
+      delete lf[1];
+      delete qfc;
+      delete vqfc;
+   }
 
    void SetupRandomMesh() noexcept
    {
@@ -128,7 +191,7 @@ struct LinExt
          {
             DomainLFIntegrator *dlfi;
             dlfi = new DomainLFIntegrator(constant_coeff);
-            dlfi->SetIntRule(gll?irGLL:ir);
+            dlfi->SetIntRule(GLL?irGLL:ir);
             lf[i]->AddDomainIntegrator(dlfi);
          }
          else if (problem==2) // VectorDomainLFIntegrator
@@ -142,21 +205,28 @@ struct LinExt
             {
                vdlfi = new VectorDomainLFIntegrator(vdim_constant_coeff);
             }
-            vdlfi->SetIntRule(gll?irGLL:ir);
+            vdlfi->SetIntRule(GLL?irGLL:ir);
             lf[i]->AddDomainIntegrator(vdlfi);
          }
          else if (problem==3) // DomainLFGradIntegrator
          {
             DomainLFGradIntegrator *dlfgi;
             dlfgi = new DomainLFGradIntegrator(dim_constant_coeff);
-            dlfgi->SetIntRule(gll?irGLL:ir);
+            dlfgi->SetIntRule(GLL?irGLL:ir);
             lf[i]->AddDomainIntegrator(dlfgi);
          }
          else if (problem==4) // VectorDomainLFGradIntegrator
          {
-            VectorDomainLFGradIntegrator *vdlfgi;
-            vdlfgi = new VectorDomainLFGradIntegrator(vdim_constant_coeff);
-            vdlfgi->SetIntRule(gll?irGLL:ir);
+            LinearFormIntegrator *vdlfgi;
+            /*if (test)
+            {
+               vdlfgi = new VectorQuadratureLFIntegrator(*vqfc, nullptr);
+            }
+            else*/
+            {
+               vdlfgi = new VectorDomainLFGradIntegrator(vdim_constant_coeff);
+            }
+            vdlfgi->SetIntRule(GLL?irGLL:ir);
             lf[i]->AddDomainIntegrator(vdlfgi);
          }
          else { MFEM_ABORT("Problem not specified!"); }
@@ -181,6 +251,7 @@ struct Test: public LinExt<dim,vdim,gll>
       const double dtd = (*lf[1]) * (*lf[1]);
       const double rtr = (*lf[0]) * (*lf[0]);
       const bool almost_eq = almost_equal(dtd,rtr);
+      if (!almost_eq) { dbg("%.15e %.15e",dtd,rtr); }
       MFEM_VERIFY(almost_eq, "almost_equal test error!");
       MFEM_DEVICE_SYNC;
       this->mdofs += this->MDofs();

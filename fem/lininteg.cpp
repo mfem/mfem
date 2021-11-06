@@ -352,14 +352,11 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
       Q.Eval(Qvec, Tr, ip);
       Qvec *= ip.weight * Tr.Weight();
 
-      for (int k = 0; k < vdim; k++)
+      for (int k = 0; k < vdim/sdim; k++)
       {
-         for (int d=0; d < sdim; ++d) { part_x(d) = Qvec(k); }
+         for (int d=0; d < sdim; ++d) { part_x(d) = Qvec(k*sdim+d); }
          dshape.Mult(part_x, pelvect);
-         for (int s = 0; s < dof; ++s)
-         {
-            elvect(s+k*dof) += pelvect(s);
-         }
+         for (int s = 0; s < dof; ++s) { elvect(s+k*dof) += pelvect(s); }
       }
    }
 }
