@@ -1103,7 +1103,7 @@ static void PAMassApply(const int dim,
          case 0x078: return SmemPAMassApply3D<7,8>(NE,B,Bt,D,X,Y);
          case 0x089: return SmemPAMassApply3D<8,9>(NE,B,Bt,D,X,Y);
          case 0x09A: return SmemPAMassApply3D<9,10>(NE,B,Bt,D,X,Y);
-            
+
          default:   break; //return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
    }
