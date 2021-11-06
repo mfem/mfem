@@ -66,7 +66,7 @@ using DynamicDTensor = DynamicTensor<Rank,double,MaxSize>;
     These tensors have the propriety to be thread private on GPU.
    */
 template <typename T, int... Sizes>
-using StaticTensor = Tensor<StaticContainer<T, Sizes...>,
+using StaticTensor = Tensor<StaticContainer<T, prod(Sizes...)>,
                             StaticLayout<Sizes...> >;
 
 /// Helper type for StaticTensor with double
