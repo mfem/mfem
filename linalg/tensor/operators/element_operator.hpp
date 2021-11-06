@@ -33,6 +33,7 @@ struct ElementOperator
 };
 
 template <typename QData, typename TrialBasis, typename TestBasis>
+MFEM_HOST_DEVICE
 auto operator*(const TestBasis& test_basis,
                const QuadratureOperator<QData,TrialBasis>& q_op)
 {
@@ -40,6 +41,7 @@ auto operator*(const TestBasis& test_basis,
 }
 
 template <typename QData, typename TrialBasis, typename TestBasis>
+MFEM_HOST_DEVICE
 auto operator*(const TransposeQuadratureOperator<QData,TestBasis>& q_op,
                const TrialBasis& trial_basis)
 {
@@ -47,6 +49,7 @@ auto operator*(const TransposeQuadratureOperator<QData,TestBasis>& q_op,
 }
 
 template <typename QData, typename TrialBasis, typename TestBasis, typename Dofs>
+MFEM_HOST_DEVICE
 auto operator*(const ElementOperator<QData,TrialBasis,TestBasis>& op,
                const Dofs& u)
 {
