@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
    RandomFunctionCoefficient damage_coeff(damage_function);
 
    GridFunction avg_grad(&control_fes);
-   Array<GridFunction * > gradients;
+   // Array<GridFunction * > gradients;    <---------- (-)
 
    double adaptive_batch_size = batch_size;
    double theta = 2.5;
@@ -276,6 +276,8 @@ int main(int argc, char *argv[])
       cout << "Step = " << k << endl;
       cout << "batch_size = " << adaptive_batch_size << endl;
       avg_grad = 0.0;
+      double grad_norm = 0.;
+
     //   step_length *= sqrt(k+1/k);
       for (int ib = 0; ib<adaptive_batch_size; ib++)
       {
@@ -306,24 +308,29 @@ int main(int argc, char *argv[])
          InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
          GridFunction * grad = new GridFunction(&control_fes);
          grad->ProjectCoefficient(norm2_grad_u);
-         gradients.Append(grad);
+         // gradients.Append(grad);    <----------- (-)
          avg_grad += *grad;
+         grad_norm += pow(grad->ComputeL2Error(zero),2);   // <------- (+)
       }
       // D. Send the solution by socket to a GLVis server.
-
+      grad_norm /= (double)adaptive_batch_size;  // <---------- (+)
       avg_grad /= (double)adaptive_batch_size;
 
-      double variance = 0.;
-      for (int ib = 0; ib<adaptive_batch_size; ib++)
-      {
-         *gradients[ib] -= avg_grad; 
-         variance += pow(gradients[ib]->ComputeL2Error(zero),2);
-         delete gradients[ib];
-      }
-      gradients.DeleteAll();
-      gradients.SetSize(0);
 
-      variance /= (adaptive_batch_size * (adaptive_batch_size - 1));
+      double avg_grad_norm = pow(avg_grad.ComputeL2Error(zero),2);
+
+      // double variance = 0.;
+      // for (int ib = 0; ib<adaptive_batch_size; ib++)
+      // {
+      //    *gradients[ib] -= avg_grad; 
+      //    variance += pow(gradients[ib]->ComputeL2Error(zero),2);
+      //    delete gradients[ib];
+      // }
+      // gradients.DeleteAll();
+      // gradients.SetSize(0);
+      // variance /= (adaptive_batch_size * (adaptive_batch_size - 1));
+
+      double variance = (grad_norm - avg_grad_norm)/(adaptive_batch_size - 1);   // <--------(+)
 
       // J. Update control.
       // avg_grad *= step_length/sqrt(k);
@@ -382,8 +389,6 @@ int main(int argc, char *argv[])
                << "window_title 'Control K'" << flush;
       }
 
-
-      
 
       double ratio = sqrt(variance) / norm ;
 
