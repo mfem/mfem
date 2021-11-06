@@ -474,7 +474,7 @@ public:
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
 
-   /// Adds new Domain Integrator.
+   /// Adds new Domain Integrator, restricted to specific attributes.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag,
                             Array<int> &elem_attr_marker);
