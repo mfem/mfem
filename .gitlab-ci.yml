@@ -29,12 +29,34 @@ stages:
 
 variables:
   CUSTOM_CI_BUILDS_DIR: "/usr/workspace/mfem/gitlab-runner"
+  USER_CI_TOP_DIR: "${CUSTOM_CI_BUILDS_DIR}/${GITLAB_USER_LOGIN}"
+  SHARED_REPOS_DIR: "${USER_CI_TOP_DIR}/repos"
+  AUTOTEST_ROOT: "${SHARED_REPOS_DIR}"
+  # MFEM_DATA_DIR is setup in '.gitlab/configs/setup-build-and-test.yml' and
+  # used in '.gitlab/configs/<machine>-config.yml':
+  MFEM_DATA_DIR: "${SHARED_REPOS_DIR}/mfem-data"
+
+# Defines the default choice for updating the saved baseline results. By default
+# the baseline can only be updated from the master branch. This variable offers
+# the option to manually ask for rebaselining from another branch if necessary.
+  REBASELINE: "NO"
+  AUTOTEST: "NO"
+  # AUTOTEST_COMMIT: used only when AUTOTEST is set to YES.
+  # * If AUTOTEST_COMMIT is NOT set to NO, reporting jobs will commit their
+  #   files to the MFEM/autotest repo.
+  # * If AUTOTEST_COMMIT is set to NO, reporting jobs will NOT commit their
+  #   files to the MFEM/autotest repo. Instead they will just show the contents
+  #   of the report files and remove them.
+  AUTOTEST_COMMIT: "YES"
 
 # Trigger subpipelines:
 quartz-build-and-test:
   stage: sub-pipelines
   variables:
-    _AUTOTEST: $AUTOTEST
+    # Explicitly pass down values that we want to be able to set when triggering
+    # pipelines manually or using scheduling
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
     include: .gitlab/quartz-build-and-test.yml
     strategy: depend
@@ -42,7 +64,11 @@ quartz-build-and-test:
 quartz-baseline:
   stage: sub-pipelines
   variables:
-    _AUTOTEST: $AUTOTEST
+    # Explicitly pass down values that we want to be able to set when triggering
+    # pipelines manually or using scheduling
+    REBASELINE: "${REBASELINE}"
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
     include: .gitlab/quartz-baseline.yml
     strategy: depend
@@ -50,7 +76,10 @@ quartz-baseline:
 lassen-build-and-test:
   stage: sub-pipelines
   variables:
-    _AUTOTEST: $AUTOTEST
+    # Explicitly pass down values that we want to be able to set when triggering
+    # pipelines manually or using scheduling
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
     include: .gitlab/lassen-build-and-test.yml
     strategy: depend
@@ -58,7 +87,10 @@ lassen-build-and-test:
 corona-build-and-test:
   stage: sub-pipelines
   variables:
-    _AUTOTEST: $AUTOTEST
+    # Explicitly pass down values that we want to be able to set when triggering
+    # pipelines manually or using scheduling
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
     include: .gitlab/corona-build-and-test.yml
     strategy: depend

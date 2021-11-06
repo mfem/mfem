@@ -13,18 +13,30 @@
 
 echo "Can only run if all the ${MACHINE_NAME} jobs passed"
 
-cd ${AUTOTEST_ROOT}/autotest && git pull
+cd ${AUTOTEST_ROOT}/autotest || \
+  { echo "Invalid 'autotest' dir: ${AUTOTEST_ROOT}/autotest"; exit 1; }
 mkdir -p ${MACHINE_NAME}
 
 rundir="${MACHINE_NAME}/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
 rundir=$(${CI_PROJECT_DIR}/.gitlab/scripts/safe_create_rundir $rundir)
 
-echo "The ${MACHINE_NAME} jobs were successful" > ${rundir}/gitlab.out
-echo "See the pipeline here -> $CI_PIPELINE_URL" >> ${rundir}/gitlab.err
+printf "%s\n" "The 'build-and-test' jobs on ${MACHINE_NAME} were SUCCESSFUL." \
+  "Pipeline URL:" "$CI_PIPELINE_URL" > ${rundir}/gitlab.out
 
 msg="GitLab CI log for build-and-test on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
 
-git pull
-git add ${rundir}
-git commit -am "${msg}"
-git push origin master
+if [[ "$AUTOTEST_COMMIT" != "NO" ]]; then
+  git pull && \
+  git add ${rundir} && \
+  git commit -m "${msg}" && \
+  git push origin master
+else
+  for file in ${rundir}/*; do
+    echo "------------------------------"
+    echo "Content of '$file'"
+    echo "******************************"
+    cat $file
+    echo "******************************"
+  done
+  rm -rf ${rundir} || true
+fi
