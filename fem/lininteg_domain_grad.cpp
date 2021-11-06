@@ -402,10 +402,10 @@ void DomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
       const Vector& qvec = vcQ->GetVec();
       coeff = qvec;
    }
-   else if (VectorQuadratureFunctionCoefficient *vqQ =
+   else if (VectorQuadratureFunctionCoefficient *vqfQ =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(&Q))
    {
-      const QuadratureFunction &qfun = vqQ->GetQuadFunction();
+      const QuadratureFunction &qfun = vqfQ->GetQuadFunction();
       MFEM_VERIFY(qfun.Size() == NE*NQ,
                   "Incompatible QuadratureFunction dimension \n");
       MFEM_VERIFY(ir == &qfun.GetSpace()->GetElementIntRule(0),
