@@ -79,12 +79,12 @@ jobs:
 
     # MFEM build and test
     - name: build-mfem
-      uses: mfem/github-actions/build-mfem@v2.0
+      uses: mfem/github-actions/build-mfem@v2.0-tweak
       with:
         os: ${{ runner.os }}
-        target: optim
+        target: opt
         codecov: NO
-        mpi: parallel
+        mpi: par
         build-system: make
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
