@@ -38,6 +38,7 @@ struct LORBench
    FiniteElementSpace &fes_lo;
    BilinearForm a_partial, a_legacy, a_full;
    OperatorHandle A_deviced;
+   SparseMatrix *A_full;
    GridFunction x;
    const int dofs;
    double mdof;
@@ -65,6 +66,8 @@ struct LORBench
       a_partial(&fes_ho),
       a_legacy(&fes_lo),
       a_full(&fes_lo),
+      A_deviced(),
+      A_full(nullptr),
       x(&mfes),
       dofs(fes_ho.GetVSize()),
       mdof(0.0)
@@ -234,7 +237,8 @@ struct LORBench
       a_full.Assemble();
       tic_toc.Stop();
       MFEM_DEVICE_SYNC;
-      delete a_full.LoseMat();
+      A_full = &a_full.SpMat();
+      delete a_full.LoseMat(); // force not reuse the sparse matrix memory
       mdof += 1e-6 * dofs;
    }
 
@@ -256,6 +260,7 @@ struct LORBench
       AssembleBatchedLOR_GPU(a_legacy, fes_ho, ess_dofs, A_deviced);
       tic_toc.Stop();
       MFEM_DEVICE_SYNC;
+      A_deviced.Clear(); // forcing initialization phase
       mdof += 1e-6 * dofs;
    }
 
@@ -297,6 +302,7 @@ Benchmark(Deviced)
 /**
  * @brief main entry point
  * --benchmark_filter=Batched/4/16
+ * --benchmark_filter=\(Batched\|Deviced\|Full\)/4/16
  * --benchmark_context=device=cuda
  */
 int main(int argc, char *argv[])
