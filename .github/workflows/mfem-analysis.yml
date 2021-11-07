@@ -79,7 +79,7 @@ jobs:
 
     # MFEM build and test
     - name: build-mfem
-      uses: mfem/github-actions/build-mfem@v2.0-tweak
+      uses: mfem/github-actions/build-mfem@v2.0
       with:
         os: ${{ runner.os }}
         target: opt
