@@ -19,7 +19,23 @@ namespace mfem
 
 struct Identity { };
 
-template <typename Tensor>
+template <typename Tensor,
+          std::enable_if_t<
+             is_tensor<Tensor> &&
+             !std::is_same<Tensor, ResultTensor<Tensor>>,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Identity &I, const Tensor &u)
+{
+   using Result = get_identity_result_type<Tensor>;
+   return Result(u);
+}
+
+template <typename Tensor,
+          std::enable_if_t<
+             is_tensor<Tensor> &&
+             std::is_same<Tensor, ResultTensor<Tensor>>,
+             bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Identity &I, const Tensor &u)
 {
