@@ -59,7 +59,7 @@ public:
          1 == get_layout_rank<Layout>,
          "Can't copy-construct a layout of different rank.");
       MFEM_ASSERT_KERNEL(
-         rhs.template size<0>() == DimX,
+         rhs.template Size<0>() == DimX,
          "Layouts sizes don't match.");
    }
 
@@ -123,7 +123,7 @@ public:
          1 == get_layout_rank<Layout>,
          "Can't copy-construct a layout of different rank.");
       MFEM_ASSERT_KERNEL(
-         rhs.template size<0>() == DimX,
+         rhs.template Size<0>() == DimX,
          "Layouts sizes don't match.");
    }
 
