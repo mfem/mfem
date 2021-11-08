@@ -22,19 +22,19 @@ struct Identity { };
 template <typename Tensor,
           std::enable_if_t<
              is_tensor<Tensor> &&
-             !std::is_same<Tensor, ResultTensor<Tensor>>,
+             !std::is_same<Tensor, ResultTensor<Tensor>>::value,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Identity &I, const Tensor &u)
 {
-   using Result = get_identity_result_type<Tensor>;
+   using Result = ResultTensor<Tensor>;
    return Result(u);
 }
 
 template <typename Tensor,
           std::enable_if_t<
              is_tensor<Tensor> &&
-             std::is_same<Tensor, ResultTensor<Tensor>>,
+             std::is_same<Tensor, ResultTensor<Tensor>>::value,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto operator*(const Identity &I, const Tensor &u)
