@@ -144,8 +144,7 @@ HypreParVector::HypreParVector(const HypreParVector &y) : Vector()
    own_ParVector = 1;
 }
 
-HypreParVector::HypreParVector(HypreParVector &&y) : HypreParVector(
-      static_cast<HYPRE_ParVector>(y))
+HypreParVector::HypreParVector(HypreParVector &&y)
 {
    *this = std::move(y);
 }
