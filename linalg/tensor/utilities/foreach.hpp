@@ -126,8 +126,8 @@ void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
 {
    MFEM_ASSERT_KERNEL(
       lhs.template Size<N>() == rhs.template Size<N>(),
-      "lhs and rhs have different Size" << N <<
-      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
+      "lhs and rhs have different Size");// << N <<
+      // ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
    for (int i = 0; i < lhs.template Size<N>(); i++)
    {
       func(i,idx...);
@@ -152,8 +152,8 @@ void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
 {
    MFEM_ASSERT_KERNEL(
       lhs.template Size<N>() == rhs.template Size<N>(),
-      "lhs and rhs have different Size" << N <<
-      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
+      "lhs and rhs have different Size");// << N <<
+      // ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
    constexpr int size = get_tensor_size<N, TensorLHS>;
    MFEM_UNROLL(size)
    for (int i = 0; i < size; i++)
@@ -180,8 +180,8 @@ void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
 {
    MFEM_ASSERT_KERNEL(
       lhs.template Size<N>() == rhs.template Size<N>(),
-      "lhs and rhs have different Size" << N <<
-      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
+      "lhs and rhs have different Size");// << N <<
+      // ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
    constexpr int size = get_tensor_size<N, TensorRHS>;
    MFEM_UNROLL(size)
    for (int i = 0; i < size; i++)
@@ -208,8 +208,8 @@ void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
 {
    MFEM_ASSERT_KERNEL(
       lhs.template Size<N>() == rhs.template Size<N>(),
-      "lhs and rhs have different Size" << N <<
-      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
+      "lhs and rhs have different Size");// << N <<
+      // ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
    static_assert(
       get_tensor_size<N, TensorLHS> == get_tensor_size<N, TensorRHS>,
       "lhs and rhs have different Size");
@@ -242,8 +242,8 @@ void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
 {
    MFEM_ASSERT_KERNEL(
       lhs.template Size<N>() == rhs.template Size<N>(),
-      "lhs and rhs have different Size" << N <<
-      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
+      "lhs and rhs have different Size");// << N <<
+      // ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
    MFEM_FOREACH_THREAD(i,x,lhs.template Size<N>())
    {
       func(i,idx...);
@@ -271,8 +271,8 @@ void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
 {
    MFEM_ASSERT_KERNEL(
       lhs.template Size<N>() == rhs.template Size<N>(),
-      "lhs and rhs have different Size" << N <<
-      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
+      "lhs and rhs have different Size");// << N <<
+      // ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
    MFEM_FOREACH_THREAD(i,y,lhs.template Size<N>())
    {
       func(i,idx...);
@@ -300,8 +300,8 @@ void ForeachBinOp(const TensorLHS &lhs, const TensorRHS &rhs,
 {
    MFEM_ASSERT_KERNEL(
       lhs.template Size<N>() == rhs.template Size<N>(),
-      "lhs and rhs have different Size" << N <<
-      ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
+      "lhs and rhs have different Size");// << N <<
+      // ", lhs=" << lhs.template Size<N>() << ", rhs=" << rhs.template Size<N>());
    MFEM_FOREACH_THREAD(i,z,lhs.template Size<N>())
    {
       func(i,idx...);
