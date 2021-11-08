@@ -67,6 +67,9 @@ Version 4.3.1 (development)
 - Added initial TMOP-based capabilities for surface fitting and tangential
   relaxation in the mesh-optimizer and pmesh-optimizer miniapps.
 
+- Added ParMesh Adjaceny Set (adjset) creation support to the Conduit Mesh
+  Blueprint MFEM wrapper functions in ConduitDataCollection.
+
 
 Version 4.3, released on July 29, 2021
 ======================================
