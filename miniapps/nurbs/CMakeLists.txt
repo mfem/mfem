@@ -107,13 +107,7 @@ add_mfem_miniapp(twocubes
   MAIN twocubes.cpp
   LIBRARIES mfem)
 
-configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/refinetwosquares.ref
-               ${PROJECT_BINARY_DIR}/miniapps/nurbs/refinetwosquares.ref
-               COPYONLY)
 
-configure_file(${PROJECT_SOURCE_DIR}/miniapps/nurbs/refinetwocubes.ref
-               ${PROJECT_BINARY_DIR}/miniapps/nurbs/refinetwocubes.ref
-               COPYONLY)
 
 
 add_test(NAME twosquares_meshes
