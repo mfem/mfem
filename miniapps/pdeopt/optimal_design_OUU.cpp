@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
    double tol = 1e-6;
    double K_max = 0.9;
    double K_min = 1e-3;
-   int batch_size = 1;
+   int batch_size = 5;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
    RandomFunctionCoefficient damage_coeff(damage_function);
 
    GridFunction avg_grad(&control_fes);
-   // Array<GridFunction * > gradients;    <---------- (-)
+   Array<GridFunction * > gradients;    // <---------- (-)
 
    double adaptive_batch_size = batch_size;
    double theta = 2.5;
@@ -308,29 +308,29 @@ int main(int argc, char *argv[])
          InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
          GridFunction * grad = new GridFunction(&control_fes);
          grad->ProjectCoefficient(norm2_grad_u);
-         // gradients.Append(grad);    <----------- (-)
+         gradients.Append(grad);    // <----------- (-)
          avg_grad += *grad;
-         grad_norm += pow(grad->ComputeL2Error(zero),2);   // <------- (+)
+         // grad_norm += pow(grad->ComputeL2Error(zero),2);   // <------- (+)
       }
       // D. Send the solution by socket to a GLVis server.
-      grad_norm /= (double)adaptive_batch_size;  // <---------- (+)
+      // grad_norm /= (double)adaptive_batch_size;  // <---------- (+)
       avg_grad /= (double)adaptive_batch_size;
 
 
       double avg_grad_norm = pow(avg_grad.ComputeL2Error(zero),2);
 
-      // double variance = 0.;
-      // for (int ib = 0; ib<adaptive_batch_size; ib++)
-      // {
-      //    *gradients[ib] -= avg_grad; 
-      //    variance += pow(gradients[ib]->ComputeL2Error(zero),2);
-      //    delete gradients[ib];
-      // }
-      // gradients.DeleteAll();
-      // gradients.SetSize(0);
-      // variance /= (adaptive_batch_size * (adaptive_batch_size - 1));
+      double variance = 0.;
+      for (int ib = 0; ib<adaptive_batch_size; ib++)
+      {
+         *gradients[ib] -= avg_grad; 
+         variance += pow(gradients[ib]->ComputeL2Error(zero),2);
+         delete gradients[ib];
+      }
+      gradients.DeleteAll();
+      gradients.SetSize(0);
+      variance /= (adaptive_batch_size * (adaptive_batch_size - 1));
 
-      double variance = (grad_norm - avg_grad_norm)/(adaptive_batch_size - 1);   // <--------(+)
+      // double variance = (grad_norm - avg_grad_norm)/(adaptive_batch_size - 1);   // <--------(+)
 
       // J. Update control.
       // avg_grad *= step_length/sqrt(k);
@@ -396,7 +396,7 @@ int main(int argc, char *argv[])
 
       if (ratio > theta)
       {
-         adaptive_batch_size = (int)(min(ratio / theta,2.) * adaptive_batch_size); 
+         adaptive_batch_size = (int)(pow(ratio / theta,2.) * adaptive_batch_size); 
       }
 
 

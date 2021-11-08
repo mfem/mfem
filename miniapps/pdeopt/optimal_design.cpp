@@ -11,7 +11,7 @@
 // Description:  This examples solves the following PDE-constrained
 //               optimization problem:
 //
-//         max J(K) = (f,u)
+//         min J(K) = (f,u)
 //
 //         subject to   - div( K\nabla u ) = f    in \Omega
 //                                       u = 0    on \partial\Omega
