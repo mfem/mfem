@@ -18,11 +18,11 @@ namespace mfem
 {
 
 /// A view Container
-template <typename T, typename Container>
+template <typename Container>
 class ViewContainer
 {
 private:
-   // using T = get_container_type<Container>;
+   using T = get_container_type<Container>;
    Container &data;
 
 public:
@@ -43,11 +43,11 @@ public:
 };
 
 /// A view Container
-template <typename T, typename Container>
+template <typename Container>
 class ConstViewContainer
 {
 private:
-   // using T = get_container_type<Container>;
+   using T = get_container_type<Container>;
    const Container &data;
 
 public:
@@ -62,55 +62,55 @@ public:
 };
 
 // get_container_type
-template <typename T, typename Container>
-struct get_container_type_t<ViewContainer<T,Container>>
+template <typename Container>
+struct get_container_type_t<ViewContainer<Container>>
 {
-   using type = T;
+   using type = get_container_type<Container>;
 };
 
-template <typename T, typename Container>
-struct get_container_type_t<ConstViewContainer<T,Container>>
+template <typename Container>
+struct get_container_type_t<ConstViewContainer<Container>>
 {
-   using type = T;
+   using type = get_container_type<Container>;
 };
 
 // get_container_sizes
-template <typename T, typename Container>
-struct get_container_sizes_t<ViewContainer<T, Container>>
+template <typename Container>
+struct get_container_sizes_t<ViewContainer<Container>>
 {
    using type = typename get_container_sizes_t<Container>::type;
 };
 
-template <typename T, typename Container>
-struct get_container_sizes_t<ConstViewContainer<T, Container>>
+template <typename Container>
+struct get_container_sizes_t<ConstViewContainer<Container>>
 {
    using type = typename get_container_sizes_t<Container>::type;
 };
 
 // get_unsized_container
-template <typename T, typename Container>
-struct get_unsized_container<ViewContainer<T, Container>>
+template <typename Container>
+struct get_unsized_container<ViewContainer<Container>>
 {
    template <int... Sizes>
    using type = typename get_unsized_container<Container>::template type<Sizes...>;
 };
 
-template <typename T, typename Container>
-struct get_unsized_container<ConstViewContainer<T, Container>>
+template <typename Container>
+struct get_unsized_container<ConstViewContainer<Container>>
 {
    template <int... Sizes>
    using type = typename get_unsized_container<Container>::template type<Sizes...>;
 };
 
 // is_pointer_container
-template <typename T, typename Container>
-struct is_pointer_container_v<ViewContainer<T,Container>>
+template <typename Container>
+struct is_pointer_container_v<ViewContainer<Container>>
 {
    static constexpr bool value = is_pointer_container<Container>;
 };
 
-template <typename T, typename Container>
-struct is_pointer_container_v<ConstViewContainer<T,Container>>
+template <typename Container>
+struct is_pointer_container_v<ConstViewContainer<Container>>
 {
    static constexpr bool value = is_pointer_container<Container>;
 };

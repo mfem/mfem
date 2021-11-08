@@ -28,8 +28,7 @@ auto Get(int idx, Tensor<Container,Layout> &t)
 {
    static_assert(Dim>=0 && Dim<get_layout_rank<Layout>,
       "Cannot access this dimension with Get");
-   using T = get_container_type<Container>;
-   using C = ViewContainer<T,Container>;
+   using C = ViewContainer<Container>;
    using L = RestrictedLayout<Dim,Layout>;
    using RestrictedTensor = Tensor<C,L>;
    C data(t);
@@ -43,8 +42,7 @@ auto Get(int idx, const Tensor<Container,Layout> &t)
 {
    static_assert(Dim>=0 && Dim<get_layout_rank<Layout>,
       "Cannot access this dimension with Get");
-   using T = get_container_type<Container>;
-   using C = ConstViewContainer<T,Container>;
+   using C = ConstViewContainer<Container>;
    using L = RestrictedLayout<Dim,Layout>;
    using RestrictedTensor = Tensor<C,L>;
    C data(t);
