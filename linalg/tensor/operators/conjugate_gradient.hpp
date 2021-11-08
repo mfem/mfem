@@ -58,7 +58,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    using Scalar = get_cg_value_type<Rhs>;
    using Index = int;
    using Result = get_cg_result_type<Matrix,Rhs>;
-   
+
    Scalar tol = tol_error;
    Index maxIters = iters;
 
@@ -97,7 +97,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       
       residualNorm2 = SquaredNorm(residual);
       if(residualNorm2 < threshold) return x;
-      
+
       auto z = P * residual;                // approximately solve for "A z = residual"
 
       Scalar absOld = absNew;

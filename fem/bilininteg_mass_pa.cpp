@@ -1222,14 +1222,14 @@ template <int Dim,
           int Dofs = Dynamic,
           int Quads = Dynamic,
           int BatchSize = 1>
-static void ApplyMassInverse(const int ne,
-                             const Array<double> &b,
-                             const Array<double> &bt,
-                             const Vector &d,
-                             const Vector &x,
-                             Vector &y,
-                             const int dofs = Dofs,
-                             const int quads = Quads)
+static void ApplyDGMassInverse(const int ne,
+                               const Array<double> &b,
+                               const Array<double> &bt,
+                               const Vector &d,
+                               const Vector &x,
+                               Vector &y,
+                               const int dofs = Dofs,
+                               const int quads = Quads)
 {
    // config_static_device_tensor_is<
    // ThreadTensor<Dim>::template static_type
@@ -1370,23 +1370,23 @@ static void PAMassApply(const int dim,
          // case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,Bt,D,X,Y);
          // case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,Bt,D,X,Y);
          // default:   return PAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
-         case 0x22: return ApplyMass<2,0,true,2,2,16>(NE,B,Bt,D,X,Y);
-         case 0x24: return ApplyMass<2,0,true,2,4,16>(NE,B,Bt,D,X,Y);
-         case 0x33: return ApplyMass<2,0,true,3,3,16>(NE,B,Bt,D,X,Y);
-         case 0x34: return ApplyMass<2,0,true,3,4,16>(NE,B,Bt,D,X,Y);
-         case 0x35: return ApplyMass<2,0,true,3,5,16>(NE,B,Bt,D,X,Y);
-         case 0x36: return ApplyMass<2,0,true,3,6,16>(NE,B,Bt,D,X,Y);
-         case 0x44: return ApplyMass<2,0,true,4,4,8>(NE,B,Bt,D,X,Y);
-         case 0x46: return ApplyMass<2,0,true,4,6,8>(NE,B,Bt,D,X,Y);
-         case 0x48: return ApplyMass<2,0,true,4,8,4>(NE,B,Bt,D,X,Y);
-         case 0x55: return ApplyMass<2,0,true,5,5,8>(NE,B,Bt,D,X,Y);
-         case 0x57: return ApplyMass<2,0,true,5,7,8>(NE,B,Bt,D,X,Y);
-         case 0x58: return ApplyMass<2,0,true,5,8,2>(NE,B,Bt,D,X,Y);
-         case 0x66: return ApplyMass<2,0,true,6,6,4>(NE,B,Bt,D,X,Y);
-         case 0x77: return ApplyMass<2,0,true,7,7,4>(NE,B,Bt,D,X,Y);
-         case 0x88: return ApplyMass<2,0,true,8,8,2>(NE,B,Bt,D,X,Y);
-         case 0x99: return ApplyMass<2,0,true,9,9,2>(NE,B,Bt,D,X,Y);
-         default:   return ApplyMassInverse<2,0,true>(NE,B,Bt,D,X,Y,D1D,Q1D);
+         case 0x22: return ApplyDGMassInverse<2,0,true,2,2,16>(NE,B,Bt,D,X,Y);
+         case 0x24: return ApplyDGMassInverse<2,0,true,2,4,16>(NE,B,Bt,D,X,Y);
+         case 0x33: return ApplyDGMassInverse<2,0,true,3,3,16>(NE,B,Bt,D,X,Y);
+         case 0x34: return ApplyDGMassInverse<2,0,true,3,4,16>(NE,B,Bt,D,X,Y);
+         case 0x35: return ApplyDGMassInverse<2,0,true,3,5,16>(NE,B,Bt,D,X,Y);
+         case 0x36: return ApplyDGMassInverse<2,0,true,3,6,16>(NE,B,Bt,D,X,Y);
+         case 0x44: return ApplyDGMassInverse<2,0,true,4,4,8>(NE,B,Bt,D,X,Y);
+         case 0x46: return ApplyDGMassInverse<2,0,true,4,6,8>(NE,B,Bt,D,X,Y);
+         case 0x48: return ApplyDGMassInverse<2,0,true,4,8,4>(NE,B,Bt,D,X,Y);
+         case 0x55: return ApplyDGMassInverse<2,0,true,5,5,8>(NE,B,Bt,D,X,Y);
+         case 0x57: return ApplyDGMassInverse<2,0,true,5,7,8>(NE,B,Bt,D,X,Y);
+         case 0x58: return ApplyDGMassInverse<2,0,true,5,8,2>(NE,B,Bt,D,X,Y);
+         case 0x66: return ApplyDGMassInverse<2,0,true,6,6,4>(NE,B,Bt,D,X,Y);
+         case 0x77: return ApplyDGMassInverse<2,0,true,7,7,4>(NE,B,Bt,D,X,Y);
+         case 0x88: return ApplyDGMassInverse<2,0,true,8,8,2>(NE,B,Bt,D,X,Y);
+         case 0x99: return ApplyDGMassInverse<2,0,true,9,9,2>(NE,B,Bt,D,X,Y);
+         default:   return ApplyDGMassInverse<2,0,true>(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
    }
    else if (dim == 3)
