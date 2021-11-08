@@ -141,7 +141,7 @@ public:
        allocated in the memory location HYPRE_MEMORY_DEVICE. */
    HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, double *data_,
                   HYPRE_BigInt *col, bool is_device_ptr = false);
-   /// Creates vector compatible with y containing a deep copy of the local data
+   /// Creates a deep copy of @a y
    HypreParVector(const HypreParVector &y);
    /// Move constructor for HypreParVector. "Steals" data from its argument.
    HypreParVector(HypreParVector&& other);

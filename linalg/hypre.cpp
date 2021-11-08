@@ -147,10 +147,7 @@ HypreParVector::HypreParVector(const HypreParVector &y) : Vector()
 HypreParVector::HypreParVector(HypreParVector &&y) : HypreParVector(
       static_cast<HYPRE_ParVector>(y))
 {
-   // If the argument vector owns its data, then the constructed vector will as well
-   own_ParVector = y.own_ParVector;
-   // Either way, the argument vector will not own its data
-   y.own_ParVector = 0;
+   *this = std::move(y);
 }
 
 HypreParVector::HypreParVector(const HypreParMatrix &A,
@@ -234,6 +231,9 @@ HypreParVector& HypreParVector::operator=(HypreParVector &&y)
    WrapHypreParVector(static_cast<hypre_ParVector*>(y), y.own_ParVector);
    // Either way the argument vector will no longer own its data
    y.own_ParVector = 0;
+   y.x = nullptr;
+   y.data.Reset();
+   y.size = 0;
    return *this;
 }
 

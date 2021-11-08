@@ -17,7 +17,7 @@ namespace mfem
 
 #ifdef MFEM_USE_MPI
 
-namespace detail
+namespace internal
 {
 
 std::vector<HYPRE_BigInt> GenerateColumnPartitioning(const int world_size,
@@ -32,7 +32,7 @@ std::vector<HYPRE_BigInt> GenerateColumnPartitioning(const int world_size,
    else
    {
       col.resize(world_size+1);
-      for (int i=1; i<=world_size; ++i)
+      for (int i=0; i<=world_size; ++i)
       {
          col[i] = i*size_per_rank;
       }
@@ -40,7 +40,7 @@ std::vector<HYPRE_BigInt> GenerateColumnPartitioning(const int world_size,
    return col;
 }
 
-} // namespace detail
+} // namespace internal
 
 TEST_CASE("HypreParVector I/O", "[Parallel], [HypreParVector]")
 {
@@ -54,8 +54,8 @@ TEST_CASE("HypreParVector I/O", "[Parallel], [HypreParVector]")
    int size_per_rank = 2;
 
    HYPRE_BigInt glob_size = world_size*size_per_rank;
-   std::vector<HYPRE_BigInt> col = detail::GenerateColumnPartitioning(world_size,
-                                                                      rank, size_per_rank);
+   std::vector<HYPRE_BigInt> col = internal::GenerateColumnPartitioning(world_size,
+                                                                        rank, size_per_rank);
 
    // Initialize vector and write to files
    HypreParVector v1(MPI_COMM_WORLD, glob_size, col.data());
@@ -86,8 +86,8 @@ TEST_CASE("HypreParVector Move Constructor", "[Parallel], [HypreParVector]")
    int size_per_rank = 2;
 
    HYPRE_BigInt glob_size = world_size*size_per_rank;
-   std::vector<HYPRE_BigInt> col = detail::GenerateColumnPartitioning(world_size,
-                                                                      rank, size_per_rank);
+   std::vector<HYPRE_BigInt> col = internal::GenerateColumnPartitioning(world_size,
+                                                                        rank, size_per_rank);
 
    // Initialize vector
    HypreParVector v1(MPI_COMM_WORLD, glob_size, col.data());
@@ -98,7 +98,6 @@ TEST_CASE("HypreParVector Move Constructor", "[Parallel], [HypreParVector]")
 
    // Make a copy so we can compare it later
    HypreParVector v1_copy(v1);
-   Vector v1_base_copy(v1);
 
    // Also save off the data pointer
    double* v1_data = v1.GetData();
@@ -113,13 +112,6 @@ TEST_CASE("HypreParVector Move Constructor", "[Parallel], [HypreParVector]")
 
    REQUIRE(v1_move.GetData() == v1_data);
 
-   // The local subvectors should be the same
-   Vector v1_base_move(v1_move);
-   for (int i = 0; i < v1_base_move.Size(); i++)
-   {
-      REQUIRE((v1_base_move(i) - v1_base_copy(i)) == MFEM_Approx(0.0));
-   }
-
    // The full HypreParVectors should also be the same
    v1_copy -= v1_move;
    REQUIRE(InnerProduct(v1_copy, v1_copy) == MFEM_Approx(0.0));
@@ -133,8 +125,8 @@ TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
    int size_per_rank = 2;
 
    HYPRE_BigInt glob_size = world_size*size_per_rank;
-   std::vector<HYPRE_BigInt> col = detail::GenerateColumnPartitioning(world_size,
-                                                                      rank, size_per_rank);
+   std::vector<HYPRE_BigInt> col = internal::GenerateColumnPartitioning(world_size,
+                                                                        rank, size_per_rank);
 
    // Initialize vector
    HypreParVector v1(MPI_COMM_WORLD, glob_size, col.data());
@@ -145,7 +137,6 @@ TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
 
    // Make a copy so we can compare it later
    HypreParVector v1_copy(v1);
-   Vector v1_base_copy(v1);
 
    // Also save off the data pointer
    double* v1_data = v1.GetData();
@@ -160,13 +151,6 @@ TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
    REQUIRE(v1_move.GlobalSize() == v1_copy.GlobalSize());
 
    REQUIRE(v1_move.GetData() == v1_data);
-
-   // The local subvectors should be the same
-   Vector v1_base_move(v1_move);
-   for (int i = 0; i < v1_base_move.Size(); i++)
-   {
-      REQUIRE((v1_base_move(i) - v1_base_copy(i)) == MFEM_Approx(0.0));
-   }
 
    // The full HypreParVectors should also be the same
    v1_copy -= v1_move;

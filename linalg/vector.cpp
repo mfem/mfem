@@ -54,11 +54,9 @@ Vector::Vector(const Vector &v)
    UseDevice(v.UseDevice());
 }
 
-Vector::Vector(Vector &&v) : data(std::move(v.data)), size(v.size)
+Vector::Vector(Vector &&v)
 {
-   data.SetHostPtrOwner(v.data.OwnsHostPtr());
-   v.data.Reset();
-   v.size = 0;
+   *this = std::move(v);
 }
 
 void Vector::Load(std::istream **in, int np, int *dim)
