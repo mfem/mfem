@@ -11,18 +11,11 @@
 
 #include "fem.hpp"
 #include "../general/forall.hpp"
-#define FOR_LOOP_UNROLL(N) MFEM_UNROLL(N)
-
-#define MFEM_DEBUG_COLOR 226
-//#include "../general/debug.hpp"
-//#include "../general/nvvp.hpp"
-#define NvtxPush(...)
-#define NvtxPop(...)
 
 namespace mfem
 {
 
-template <int order>
+template <int order, bool USE_SMEM = true>
 void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                               const Array<int> &dof_glob2loc_,
                               const Array<int> &dof_glob2loc_offsets_,
@@ -32,7 +25,6 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                               FiniteElementSpace &fes_ho,
                               SparseMatrix &A_mat)
 {
-   NvtxPush(Assemble3DBatchedLOR_GPU_Kernels, LightCoral);
    const int nel_ho = mesh_ho.GetNE();
    const int ndof = fes_ho.GetVSize();
 
@@ -46,29 +38,40 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    static constexpr int sz_grad_A = 3*3*2*2*2*2;
    static constexpr int sz_grad_B = sz_grad_A*2;
    static constexpr int sz_local_mat = 8*8;
+
+   static constexpr int GRID = USE_SMEM ? 0 : 128;
+   double *GM = nullptr;
+   static Vector *d_buffer = nullptr;
+   if (!USE_SMEM)
+   {
+      if (!d_buffer)
+      {
+         d_buffer = new Vector();
+         d_buffer->UseDevice(true);
+      }
+      d_buffer->SetSize(nnz_per_el*GRID);
+      GM = d_buffer->Write();
+   }
+
    const int n_ess_dofs = ess_dofs.Size();
    MFEM_VERIFY(n_ess_dofs<nel_ho, "n_ess_dofs vs. nel_ho error!");
 
-   NvtxPush(DOFCopy, Coral);
    const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
    const auto dof_glob2loc = dof_glob2loc_.Read();
    const auto K = dof_glob2loc_offsets_.Read();
-   NvtxPop(DOFCopy);
 
-   NvtxPush(IJACopy, HotPink);
    const auto I = A_mat.ReadI();
    const auto J = A_mat.ReadJ();
    auto A = A_mat.ReadWriteData();
-   NvtxPop(IJACopy);
 
    const auto X = mesh_lor.GetNodes()->Read();
 
-   NvtxPush(Assembly, SeaGreen);
-
-   MFEM_FORALL_3D(iel_ho, nel_ho, order, order, order,
+   // avoid too many resources
+   MFEM_FORALL_3D_GRID(iel_ho, nel_ho, order, order, USE_SMEM?order:1, GRID,
    {
-      // nnz_per_el = nnz_per_row(=27) * (order+1) * (order+1) * (order+1);
-      MFEM_SHARED double V_[nnz_per_el];
+      const int bid = MFEM_BLOCK_ID(x);
+      MFEM_SHARED double smem[USE_SMEM ? nnz_per_el : 1];
+      double *V_ = USE_SMEM ? smem : GM + nnz_per_el*bid;
       DeviceTensor<4> V(V_, nnz_per_row, nd1d, nd1d, nd1d);
 
       // Assemble a sparse matrix over the macro-element by looping over each
@@ -80,7 +83,7 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
          {
             MFEM_FOREACH_THREAD(ix,x,nd1d)
             {
-               FOR_LOOP_UNROLL(27)
+               MFEM_UNROLL(27)
                for (int j=0; j<nnz_per_row; ++j)
                {
                   V(j,ix,iy,iz) = 0.0;
@@ -165,13 +168,13 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                const double v7y = X[3*e7 + 1];
                const double v7z = X[3*e7 + 2];
 
-               FOR_LOOP_UNROLL(2)
+               MFEM_UNROLL(2)
                for (int iqz=0; iqz<2; ++iqz)
                {
-                  FOR_LOOP_UNROLL(2)
+                  MFEM_UNROLL(2)
                   for (int iqy=0; iqy<2; ++iqy)
                   {
-                     FOR_LOOP_UNROLL(2)
+                     MFEM_UNROLL(2)
                      for (int iqx=0; iqx<2; ++iqx)
                      {
 
@@ -244,15 +247,15 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                   }
                }
 
-               FOR_LOOP_UNROLL(2)
+               MFEM_UNROLL(2)
                for (int iqx=0; iqx<2; ++iqx)
                {
-                  FOR_LOOP_UNROLL(2)
+                  MFEM_UNROLL(2)
                   for (int jz=0; jz<2; ++jz)
                   {
                      // Note loop starts at iz=jz here, taking advantage of
                      // symmetries.
-                     FOR_LOOP_UNROLL(2)
+                     MFEM_UNROLL(2)
                      for (int iz=jz; iz<2; ++iz)
                      {
                         MFEM_UNROLL(2)
@@ -311,16 +314,16 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                               }
                            }
                         }
-                        FOR_LOOP_UNROLL(2)
+                        MFEM_UNROLL(2)
                         for (int jy=0; jy<2; ++jy)
                         {
-                           FOR_LOOP_UNROLL(2)
+                           MFEM_UNROLL(2)
                            for (int jx=0; jx<2; ++jx)
                            {
-                              FOR_LOOP_UNROLL(2)
+                              MFEM_UNROLL(2)
                               for (int iy=0; iy<2; ++iy)
                               {
-                                 FOR_LOOP_UNROLL(2)
+                                 MFEM_UNROLL(2)
                                  for (int ix=0; ix<2; ++ix)
                                  {
                                     const double bix = (ix == iqx) ? 1.0 : 0.0;
@@ -358,7 +361,7 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                // Assemble the local matrix into the macro-element sparse matrix
                // in a format similar to coordinate format. The (I,J) arrays
                // are implicit (not stored explicitly).
-               FOR_LOOP_UNROLL(8)
+               MFEM_UNROLL(8)
                for (int ii_loc=0; ii_loc<8; ++ii_loc)
                {
                   const int ix = ii_loc%2;
@@ -470,22 +473,31 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
       }
       MFEM_SYNC_THREAD;
    });
-
-   NvtxPop(Assembly);
-   NvtxPop(Assemble3DBatchedLOR_GPU_Kernels);
 }
 
-#define TEMPLATE_LOR_KERNEL(order) \
-template void Assemble3DBatchedLOR_GPU<order>\
+#define LOR_KERNEL_INSTANCE(order,use_smem) \
+template void Assemble3DBatchedLOR_GPU<order,use_smem>\
     (Mesh &,\
      const Array<int> &,const Array<int> &, const Array<int> &,\
      const Array<int> &ess_dofs,\
      Mesh &,\
      FiniteElementSpace &,SparseMatrix &)
 
-TEMPLATE_LOR_KERNEL(1);
-TEMPLATE_LOR_KERNEL(2);
-TEMPLATE_LOR_KERNEL(3);
-TEMPLATE_LOR_KERNEL(4);
+LOR_KERNEL_INSTANCE(1,true);
+LOR_KERNEL_INSTANCE(2,true);
+LOR_KERNEL_INSTANCE(3,true);
+LOR_KERNEL_INSTANCE(4,true);
+LOR_KERNEL_INSTANCE(5,true);
+LOR_KERNEL_INSTANCE(6,false);
+LOR_KERNEL_INSTANCE(7,false);
+LOR_KERNEL_INSTANCE(8,false);
+LOR_KERNEL_INSTANCE(9,false);
+LOR_KERNEL_INSTANCE(10,false);
+LOR_KERNEL_INSTANCE(11,false);
+LOR_KERNEL_INSTANCE(12,false);
+LOR_KERNEL_INSTANCE(13,false);
+LOR_KERNEL_INSTANCE(14,false);
+LOR_KERNEL_INSTANCE(15,false);
+LOR_KERNEL_INSTANCE(16,false);
 
 } // namespace mfem
