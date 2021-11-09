@@ -162,6 +162,10 @@ public:
    void UpdateCoefficient(int attr, Coefficient & coef)
    { pieces[attr] = &coef; }
 
+   /// Remove a single Coefficient for a particular attribute
+   void ZeroCoefficient(int attr)
+   { pieces.erase(attr); }
+
    /// Evaluate the coefficient.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
@@ -491,6 +495,10 @@ public:
 
    /// Replace a single Coefficient for a particular attribute
    void UpdateCoefficient(int attr, VectorCoefficient & coef);
+
+   /// Remove a single VectorCoefficient for a particular attribute
+   void ZeroCoefficient(int attr)
+   { pieces.erase(attr); }
 
    /// Evaluate the coefficient.
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -923,6 +931,10 @@ public:
 
    /// Replace a single coefficient for a particular attribute
    void UpdateCoefficient(int attr, MatrixCoefficient & coef);
+
+   /// Remove a single MatrixCoefficient for a particular attribute
+   void ZeroCoefficient(int attr)
+   { pieces.erase(attr); }
 
    /// Evaluate the coefficient.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
