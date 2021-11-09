@@ -16,9 +16,6 @@
 #include "../linalg/kernels.hpp"
 #include "quadinterpolator.hpp"
 
-#define MFEM_DEBUG_COLOR 157
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 
@@ -403,9 +400,8 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
    const int NE = fes.GetMesh()->GetNE();
    const int NQ = ir->GetNPoints();
 
-   //const int vdim = fes.GetVDim();
    const int dim = el.GetDim();
-   const int vdim = Q.GetVDim();
+   const int qvdim = Q.GetVDim();
 
    Vector coeff;
 
@@ -413,7 +409,6 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
           dynamic_cast<VectorConstantCoefficient*>(&Q))
    {
       coeff = vcQ->GetVec();
-      //dbg("VectorConstantCoefficient");
    }
    else if (QuadratureFunctionCoefficient *qfQ =
                dynamic_cast<QuadratureFunctionCoefficient*>(&Q))
@@ -426,27 +421,24 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
                   " QuadratureFunction appear to be different.\n");
       qfun.Read();
       coeff.MakeRef(const_cast<QuadratureFunction&>(qfun),0);
-      //dbg("QuadratureFunctionCoefficient");
    }
    else if (VectorQuadratureFunctionCoefficient* vqfQ =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(&Q))
    {
       const QuadratureFunction &qFun = vqfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == vdim * NQ * NE,
+      MFEM_VERIFY(qFun.Size() == qvdim * NQ * NE,
                   "Incompatible QuadratureFunction dimension \n");
       MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
       qFun.Read();
       coeff.MakeRef(const_cast<QuadratureFunction &>(qFun),0);
-      //dbg("VectorQuadratureFunctionCoefficient");
    }
    else
    {
-      //dbg("else");
-      Vector Qvec(vdim);
-      coeff.SetSize( vdim * NQ * NE);
-      auto C = Reshape(coeff.HostWrite(), vdim, NQ, NE);
+      Vector Qvec(qvdim);
+      coeff.SetSize(qvdim * NQ * NE);
+      auto C = Reshape(coeff.HostWrite(), qvdim, NQ, NE);
       for (int e = 0; e < NE; ++e)
       {
          ElementTransformation &Tr = *fes.GetElementTransformation(e);
@@ -454,16 +446,13 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
          {
             const IntegrationPoint &ip = ir->IntPoint(q);
             Q.Eval(Qvec, Tr, ip);
-            MFEM_VERIFY(Qvec.Size()==vdim,"");
-            for (int c = 0; c<vdim; ++c)
+            for (int c = 0; c<qvdim; ++c)
             {
                C(c,q,e) = Qvec[c];
             }
          }
       }
    }
-
-   //dbg("coeff.Size:%d", coeff.Size());
 
    const int id = (dim<<8) | (D1D << 4) | Q1D;
 
@@ -515,7 +504,7 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
 
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
-   Ker(vdim,ND,NE,M,B,G,I,J,W,coeff,Y);
+   Ker(qvdim,ND,NE,M,B,G,I,J,W,coeff,Y);
 }
 
 } // namespace mfem

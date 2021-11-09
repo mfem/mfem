@@ -11,9 +11,6 @@
 
 #include "bench.hpp"
 
-#define MFEM_DEBUG_COLOR 226
-#include "general/debug.hpp"
-
 #ifdef MFEM_USE_BENCHMARK
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,14 +45,11 @@ struct LinExt
    H1_FECollection fec;
    FiniteElementSpace vfes; // vdim finite element space
    FiniteElementSpace *mfes; // mesh finite elemente space
-   QuadratureSpace qspace;
    GridFunction x;
    const Geometry::Type geom_type;
    IntegrationRules IntRulesGLL;
    const IntegrationRule *irGLL;
    const IntegrationRule *ir;
-   const IntegrationRule qir;
-   const GeometricFactors *geom_factors;
    ConstantCoefficient one;
    const int dofs;
    double mdofs;
@@ -64,12 +58,10 @@ struct LinExt
    ConstantCoefficient constant_coeff;
    VectorConstantCoefficient dim_constant_coeff;
    VectorConstantCoefficient vdim_constant_coeff;
-   std::function<void(const Vector&, Vector&)> vector_f{vdim_vector_function};
+   std::function<void(const Vector&, Vector&)> vector_f;
    VectorFunctionCoefficient vector_function_coeff;
-   QuadratureFunction qfunc, vqfunc;
-   QuadratureFunctionCoefficient *qfc;
-   VectorQuadratureFunctionCoefficient *vqfc;
 
+   // Two linear forms: first has LEGACY, the second FULL assembly level
    LinearForm *lf[2];
 
    LinExt(int problem, int order, bool test):
@@ -84,84 +76,35 @@ struct LinExt
       fec(p, DIM),
       vfes(&mesh, &fec, VDIM),
       mfes(new FiniteElementSpace(&mesh, &fec, DIM)),
-      qspace(&mesh, q),
       x(mfes),
       geom_type(vfes.GetFE(0)->GetGeomType()),
       IntRulesGLL(0, Quadrature1D::GaussLobatto),
       irGLL(&IntRulesGLL.Get(geom_type, q)), // Gauss-Legendre-Lobatto
       ir(&IntRules.Get(geom_type, q)), // Gauss-Legendre
-      qir(GLL?*irGLL:*ir),//qspace.GetElementIntRule(0)),
-      geom_factors(mesh.GetGeometricFactors(qir,GeometricFactors::COORDINATES)),
       one(1.0),
       dofs(vfes.GetTrueVSize()),
       mdofs(0.0),
       one_vec(1),
       dim_vec(DIM),
       vdim_vec(VDIM),
-      constant_coeff((one_vec.Randomize(SEED),one_vec(0))),
-      dim_constant_coeff((dim_vec.Randomize(SEED),dim_vec)),
-      vdim_constant_coeff((vdim_vec.Randomize(SEED),vdim_vec)),
-      vector_function_coeff(VDIM,vector_f),
-      qfunc(&qspace, 1),
-      vqfunc(&qspace, VDIM),
-      qfc(nullptr),
-      vqfc(nullptr),
+      constant_coeff((one_vec.Randomize(SEED), one_vec(0))),
+      dim_constant_coeff((dim_vec.Randomize(SEED), dim_vec)),
+      vdim_constant_coeff((vdim_vec.Randomize(SEED), vdim_vec)),
+      vector_f(vdim_vector_function),
+      vector_function_coeff(VDIM, vector_f),
       lf{new LinearForm(&vfes), new LinearForm(&vfes)}
    {
       MFEM_VERIFY(DIM==2||DIM==3, "Only 2D and 3D tests are supported!");
       SetupRandomMesh();
-      //SetupQuadratureFunctions();
       SetupLinearForms();
       lf[0]->SetAssemblyLevel(LinearAssemblyLevel::LEGACY);
       lf[1]->SetAssemblyLevel(LinearAssemblyLevel::FULL);
-   }
-
-   void SetupQuadratureFunctions()
-   {
-      const int nqpts = qir.GetNPoints();
-      const int sdim = mesh.SpaceDimension();
-
-      {
-         int nelems = qfunc.Size() / qfunc.GetVDim() / nqpts;
-         for (int e = 0; e < nelems; e++)
-         {
-            for (int q = 0; q < nqpts; q++)
-            {
-               // X has dims NQ x SDIM x NE
-               qfunc((e * nqpts) + q) =
-                  geom_factors->X((e * nqpts * sdim) + /*(nqpts * 2)*/ + q );
-            }
-         }
-      }
-
-      {
-         int nelems = vqfunc.Size() / vqfunc.GetVDim() / nqpts;
-
-         for (int i = 0; i < nelems; i++)
-         {
-            for (int j = 0; j < sdim; j++)
-            {
-               for (int k = 0; k < nqpts; k++)
-               {
-                  // X has dims NQ x SDIM x NE
-                  vqfunc((i * nqpts * sdim) + (k * sdim ) + j) =
-                     geom_factors->X((i * nqpts * sdim) + (j * nqpts) + k);
-               }
-            }
-         }
-      }
-
-      qfc = new QuadratureFunctionCoefficient(qfunc);
-      vqfc = new VectorQuadratureFunctionCoefficient(vqfunc);
-      vqfc->SetComponent(0,VDIM);
    }
 
    ~LinExt()
    {
       delete lf[0];
       delete lf[1];
-      delete qfc;
-      delete vqfc;
    }
 
    void SetupRandomMesh() noexcept
@@ -185,51 +128,42 @@ struct LinExt
 
    void SetupLinearForms() noexcept
    {
+      LinearFormIntegrator *lfi = nullptr;
       for (int i=0; i<2; i++)
       {
-         if (problem==1) // DomainLFIntegrator
+         switch (problem)
          {
-            DomainLFIntegrator *dlfi;
-            dlfi = new DomainLFIntegrator(constant_coeff);
-            dlfi->SetIntRule(GLL?irGLL:ir);
-            lf[i]->AddDomainIntegrator(dlfi);
-         }
-         else if (problem==2) // VectorDomainLFIntegrator
-         {
-            VectorDomainLFIntegrator *vdlfi;
-            if (test)
+            case 1: // DomainLFIntegrator
             {
-               vdlfi = new VectorDomainLFIntegrator(vector_function_coeff);
+               lfi = new DomainLFIntegrator(constant_coeff);
+               break;
             }
-            else
+            case 2: // VectorDomainLFIntegrator
             {
-               vdlfi = new VectorDomainLFIntegrator(vdim_constant_coeff);
+               if (test)
+               {
+                  lfi = new VectorDomainLFIntegrator(vector_function_coeff);
+               }
+               else
+               {
+                  lfi = new VectorDomainLFIntegrator(vdim_constant_coeff);
+               }
+               break;
             }
-            vdlfi->SetIntRule(GLL?irGLL:ir);
-            lf[i]->AddDomainIntegrator(vdlfi);
-         }
-         else if (problem==3) // DomainLFGradIntegrator
-         {
-            DomainLFGradIntegrator *dlfgi;
-            dlfgi = new DomainLFGradIntegrator(dim_constant_coeff);
-            dlfgi->SetIntRule(GLL?irGLL:ir);
-            lf[i]->AddDomainIntegrator(dlfgi);
-         }
-         else if (problem==4) // VectorDomainLFGradIntegrator
-         {
-            LinearFormIntegrator *vdlfgi;
-            /*if (test)
+            case 3: // DomainLFGradIntegrator
             {
-               vdlfgi = new VectorQuadratureLFIntegrator(*vqfc, nullptr);
+               lfi = new DomainLFGradIntegrator(dim_constant_coeff);
+               break;
             }
-            else*/
+            case 4: // VectorDomainLFGradIntegrator
             {
-               vdlfgi = new VectorDomainLFGradIntegrator(vdim_constant_coeff);
+               lfi = new VectorDomainLFGradIntegrator(vdim_constant_coeff);
+               break;
             }
-            vdlfgi->SetIntRule(GLL?irGLL:ir);
-            lf[i]->AddDomainIntegrator(vdlfgi);
+            default: { MFEM_ABORT("Problem not specified!"); }
          }
-         else { MFEM_ABORT("Problem not specified!"); }
+         lfi->SetIntRule(GLL ? irGLL : ir);
+         lf[i]->AddDomainIntegrator(lfi);
       }
    }
 };
@@ -237,12 +171,13 @@ struct LinExt
 ////////////////////////////////////////////////////////////////////////////////
 /// TEST for LinearFormExtension
 template<int dim, int vdim, bool gll>
-struct Test: public LinExt<dim,vdim,gll>
+struct Test: public LinExt<dim, vdim, gll>
 {
-   using LinExt<dim,vdim,gll>::lf;
+   using LinExt<dim, vdim, gll>::lf;
    static constexpr bool testing = true;
 
-   Test(int problem, int order):LinExt<dim,vdim,gll>(problem,order,testing) { }
+   Test(int problem, int order): LinExt<dim, vdim, gll>(problem, order, testing)
+   { }
 
    void benchmark()
    {
@@ -250,8 +185,15 @@ struct Test: public LinExt<dim,vdim,gll>
       lf[1]->Assemble();
       const double dtd = (*lf[1]) * (*lf[1]);
       const double rtr = (*lf[0]) * (*lf[0]);
-      const bool almost_eq = almost_equal(dtd,rtr);
-      if (!almost_eq) { dbg("%.15e %.15e",dtd,rtr); }
+      const bool almost_eq = almost_equal(dtd, rtr, 1e-13);
+      if (!almost_eq)
+      {
+         mfem::err << "Error in problem " << this->problem
+                   << ", order: " << this->p
+                   << ": " << std::setprecision(15)
+                   << dtd << " vs. " << rtr
+                   << std::endl;
+      }
       MFEM_VERIFY(almost_eq, "almost_equal test error!");
       MFEM_DEVICE_SYNC;
       this->mdofs += this->MDofs();
@@ -303,13 +245,14 @@ LinExtTest(4,VectorDomainLFGrad,_3D,VDIM,_GL)
 ////////////////////////////////////////////////////////////////////////////////
 /// BENCH for LinearFormExtension
 template<int dim, int vdim, enum LinearAssemblyLevel lal, bool gll>
-struct Bench: public LinExt<dim,vdim,gll>
+struct Bench: public LinExt<dim, vdim, gll>
 {
    LinearForm &lf;
-   static constexpr bool bench = false;
+   static constexpr bool test = false;
 
-   Bench(int problem, int order): LinExt<dim,vdim,gll>(problem,order,bench),
-      lf(*LinExt<dim,vdim,gll>::lf[lal==LinearAssemblyLevel::LEGACY?0:1]) { }
+   Bench(int problem, int order): LinExt<dim, vdim, gll>(problem, order, test),
+      lf(*LinExt<dim, vdim, gll>::lf[lal==LinearAssemblyLevel::LEGACY?0:1])
+   { }
 
    void benchmark()
    {
@@ -377,17 +320,17 @@ LinExtBench(4,VectorDomainLFGrad,LEGACY,_3D,VDIM,_GL)
 LinExtBench(4,VectorDomainLFGrad,  FULL,_3D,VDIM,_GL)
 
 /** ****************************************************************************
- * @brief main entry point
- * --benchmark_filter=TEST
- * --benchmark_filter=BENCH_FULL
+ * @brief main entry point, some options are for example:
+ * --benchmark_filter=TEST --benchmark_min_time=0.01
+ * --benchmark_filter=BENCH_FULL --benchmark_min_time=0.1
  * --benchmark_context=device=cuda
- */
+ **************************************************************************** */
 int main(int argc, char *argv[])
 {
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);
 
-   // Device setup, cpu by default
+   // Device setup, CPU by default
    std::string device_config = "cpu";
    if (bmi::global_context != nullptr)
    {
