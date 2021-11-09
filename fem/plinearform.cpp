@@ -18,6 +18,17 @@
 namespace mfem
 {
 
+ParLinearForm& ParLinearForm::operator=(ParLinearForm &&other)
+{ 
+   if (this != &other)
+   {
+      LinearForm::operator=(std::move(other));
+      pfes = other.pfes;
+      other.pfes = nullptr;
+   }
+   return *this;
+}
+
 void ParLinearForm::Update(ParFiniteElementSpace *pf)
 {
    if (pf) { pfes = pf; }
