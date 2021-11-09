@@ -140,7 +140,7 @@ public:
    /// Constructs a piecewise coefficient
    explicit PWCoefficient() {}
 
-   /// Construct the coefficient using a arrays describing the pieces
+   /// Construct the coefficient using arrays describing the pieces
    /** \param attr - an array of attribute numbers for each piece
        \param coefs - the corresponding array of Coefficient pointers
        Any missing attributes or NULL coefficient pointers will result in a
@@ -470,7 +470,7 @@ public:
    /// Constructs a piecewise vector coefficient of dimension vd
    explicit PWVectorCoefficient(int vd): VectorCoefficient(vd) {}
 
-   /// Construct the coefficient using an arrays describing the pieces
+   /// Construct the coefficient using arrays describing the pieces
    /** \param vd - dimension of the vector-valued result
        \param attr - an array of attribute numbers for each piece
        \param coefs - the corresponding array of VectorCoefficient pointers
@@ -886,11 +886,11 @@ public:
    explicit PWMatrixCoefficient(int h, int w, bool symm = false)
       : MatrixCoefficient(h, w, symm) {}
 
-   /// Construct the coefficient using an arrays describing the pieces
+   /// Construct the coefficient using arrays describing the pieces
    /** \param dim - size of the square matrix-valued result
        \param attr - an array of attribute numbers for each piece
        \param coefs - the corresponding array of MatrixCoefficient pointers
-       \param symm - true is the result will be symmetric, false otherwise
+       \param symm - true if the result will be symmetric, false otherwise
        Any missing attributes or NULL coefficient pointers will result in a
        zero matrix being returned.
    */
@@ -899,12 +899,12 @@ public:
                        bool symm=false)
       : MatrixCoefficient(dim, symm) { InitMap(attr, coefs); }
 
-   /// Construct the coefficient using an arrays describing the pieces
+   /// Construct the coefficient using arrays describing the pieces
    /** \param h - height of the matrix-valued result
        \param w - width of the matrix-valued result
        \param attr - an array of attribute numbers for each piece
        \param coefs - the corresponding array of MatrixCoefficient pointers
-       \param symm - true is the result will be symmetric, false otherwise
+       \param symm - true if the result will be symmetric, false otherwise
        Any missing attributes or NULL coefficient pointers will result in a
        zero matrix being returned for that attribute.
    */
