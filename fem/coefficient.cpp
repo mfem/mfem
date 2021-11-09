@@ -464,7 +464,6 @@ void PWMatrixCoefficient::AddCoefficient(int attr, MatrixCoefficient & coef)
       MFEM_ASSERT(coef.IsSymmetric(),
                   "PWMatrixCoefficient::AddCoefficient:  "
                   "MatrixCoefficient has incompatible symmetry.");
-
    }
    pieces[attr] = &coef;
 }
