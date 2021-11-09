@@ -6178,6 +6178,9 @@ void ParMesh::Destroy()
       FreeElement(shared_edges[i]);
    }
    shared_edges.DeleteAll();
+
+   delete face_nbr_el_to_face;
+   face_nbr_el_to_face = NULL;
 }
 
 ParMesh::~ParMesh()
