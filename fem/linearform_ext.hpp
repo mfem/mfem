@@ -38,8 +38,8 @@ public:
 
 };
 
-/// Data and methods for partially-assembled linear forms
-class PALinearFormExtension : public LinearFormExtension
+/// Data and methods for fully-assembled linear forms
+class FullLinearFormExtension : public LinearFormExtension
 {
 protected:
    const FiniteElementSpace &fes; // Not owned
@@ -50,7 +50,7 @@ protected:
    const int NE, mesh_attributes_size;
 
 public:
-   PALinearFormExtension(LinearForm*);
+   FullLinearFormExtension(LinearForm*);
 
    void Assemble() override;
 };

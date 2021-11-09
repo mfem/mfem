@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 // Implementation of class LinearForm
+
 #include "fem.hpp"
 
 namespace mfem
@@ -111,7 +112,7 @@ void LinearForm::SetAssemblyLevel(LinearAssemblyLevel assembly_level)
       case LinearAssemblyLevel::LEGACY:
          break;
       case LinearAssemblyLevel::FULL:
-         ext = new PALinearFormExtension(this);
+         ext = new FullLinearFormExtension(this);
          break;
       default:
          mfem_error("Unknown assembly level");

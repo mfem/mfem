@@ -366,9 +366,9 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
    });
 }
 
-void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
-                                              const Vector &mark,
-                                              Vector &b)
+void VectorDomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
+                                                const Vector &mark,
+                                                Vector &b)
 {
    const MemoryType mt = Device::GetDeviceMemoryType();
    Mesh *mesh = fes.GetMesh();

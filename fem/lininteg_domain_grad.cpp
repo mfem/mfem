@@ -358,9 +358,9 @@ void DomainLFGradIntegratorAssemble3D(const int ND,
    });
 }
 
-void DomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
-                                        const Vector &mark,
-                                        Vector &b)
+void DomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
+                                          const Vector &mark,
+                                          Vector &b)
 {
    const MemoryType mt = Device::GetDeviceMemoryType();
    Mesh *mesh = fes.GetMesh();

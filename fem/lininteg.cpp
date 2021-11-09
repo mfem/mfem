@@ -15,13 +15,13 @@
 namespace mfem
 {
 
-void LinearFormIntegrator::AssemblePA(const FiniteElementSpace&,
-                                      const Vector &mark,
-                                      Vector &b)
+void LinearFormIntegrator::AssembleFull(const FiniteElementSpace&,
+                                        const Vector &mark,
+                                        Vector &b)
 {
    MFEM_CONTRACT_VAR(b);
    MFEM_CONTRACT_VAR(mark);
-   mfem_error("LinearFormIntegrator::AssemblePA(...)");
+   mfem_error("LinearFormIntegrator::AssembleFull(...)");
 }
 
 void LinearFormIntegrator::AssembleRHSElementVect(
