@@ -130,7 +130,7 @@ MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools toys 
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
-TEST_SUBDIRS = unit
+TEST_SUBDIRS = unit benchmarks
 TEST_DIRS := $(addprefix tests/,$(TEST_SUBDIRS))
 
 ALL_TEST_DIRS = $(filter-out\
@@ -709,6 +709,7 @@ ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 3.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
 FORMAT_FILES += tests/unit/*.cpp
+FORMAT_FILES += tests/benchmarks/*.?pp
 UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed
 FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
 FORMAT_LIST = $(filter-out general/tinyxml2.cpp,$(wildcard $(FORMAT_FILES)))
