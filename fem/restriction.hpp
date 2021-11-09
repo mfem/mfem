@@ -80,6 +80,8 @@ public:
     * @return the mapping from L dofs to E dofs.
     */
    const Array<int> &GatherMap() const { return gatherMap; }
+   const Array<int> &Indices() const { return indices; }
+   const Array<int> &Offsets() const { return offsets; }
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.

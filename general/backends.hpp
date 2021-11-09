@@ -39,6 +39,7 @@
 #endif
 
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#define MFEM_GLOBAL
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
 #define MFEM_HOST_DEVICE
