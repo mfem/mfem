@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 // Implementation of class LinearForm
-#include "../general/debug.hpp"
 #include "fem.hpp"
 
 namespace mfem

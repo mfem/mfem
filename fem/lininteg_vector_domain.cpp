@@ -13,9 +13,6 @@
 #include "bilininteg.hpp"
 #include "../general/forall.hpp"
 
-#define MFEM_DEBUG_COLOR 118
-#include "../general/debug.hpp"
-
 namespace mfem
 {
 
@@ -31,7 +28,6 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
                                         const Vector &coeff,
                                         double * __restrict y)
 {
-   //dbg("coeff.Size():%d vdim:%d",coeff.Size(),vdim);
    constexpr int DIM = 2;
 
    const bool cst_coeff = coeff.Size() == vdim;

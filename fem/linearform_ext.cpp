@@ -14,9 +14,6 @@
 
 #include "linearform.hpp"
 
-#define MFEM_DEBUG_COLOR 201
-#include "../general/debug.hpp"
-
 #include "../general/forall.hpp"
 
 namespace mfem
@@ -35,7 +32,6 @@ PALinearFormExtension::PALinearFormExtension(LinearForm *lf):
    NE(fes.GetNE()),
    mesh_attributes_size(fes.GetMesh()->attributes.Size())
 {
-   //dbg("NE:%d",NE);
    marks.SetSize(NE);
    marks.UseDevice(true);
 
