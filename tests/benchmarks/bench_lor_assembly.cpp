@@ -326,7 +326,7 @@ struct LORBench
 };
 
 // The different orders the tests can run
-#define P_ORDERS bm::CreateDenseRange(1,4,1)
+#define P_ORDERS bm::CreateDenseRange(1,16,1)
 
 // The different sides of the mesh
 #define N_SIDES bm::CreateDenseRange(4,100,4)

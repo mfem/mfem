@@ -682,18 +682,18 @@ void AssembleBatchedLOR(BilinearForm &form_lor, FiniteElementSpace &fes_ho,
          case 2: Assemble3DBatchedLOR<2>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
          case 3: Assemble3DBatchedLOR<3>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
          case 4: Assemble3DBatchedLOR<4>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-            /*case 5: Assemble3DBatchedLOR<5>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-            case 6: Assemble3DBatchedLOR<6>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-            case 7: Assemble3DBatchedLOR<7>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-            case 8: Assemble3DBatchedLOR<8>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-            case 9: Assemble3DBatchedLOR<9>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-            case 10: Assemble3DBatchedLOR<10>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-            case 11: Assemble3DBatchedLOR<11>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-            case 12: Assemble3DBatchedLOR<12>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-            case 13: Assemble3DBatchedLOR<13>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-            case 14: Assemble3DBatchedLOR<14>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-            case 15: Assemble3DBatchedLOR<15>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
-            case 16: Assemble3DBatchedLOR<16>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;*/
+         case 5: Assemble3DBatchedLOR<5>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 6: Assemble3DBatchedLOR<6>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 7: Assemble3DBatchedLOR<7>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 8: Assemble3DBatchedLOR<8>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 9: Assemble3DBatchedLOR<9>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 10: Assemble3DBatchedLOR<10>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 11: Assemble3DBatchedLOR<11>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 12: Assemble3DBatchedLOR<12>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 13: Assemble3DBatchedLOR<13>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 14: Assemble3DBatchedLOR<14>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 15: Assemble3DBatchedLOR<15>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
+         case 16: Assemble3DBatchedLOR<16>(mesh_lor, mesh_ho, fes_ho, *A_mat); break;
       }
    }
 
