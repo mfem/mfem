@@ -2560,6 +2560,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Tpr->ElementNo = el_id;
       Tpr->ElementType = ElementTransformation::ELEMENT;
       Tpr->Attribute = T.Attribute;
+      Tpr->mesh = T.mesh;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }
    // TODO: computing the coefficients 'coeff1' and 'coeff0' in physical
@@ -2682,6 +2683,7 @@ double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
          Tpr->ElementNo = T.ElementNo;
          Tpr->ElementType = ElementTransformation::ELEMENT;
          Tpr->Attribute = T.Attribute;
+         Tpr->mesh = T.mesh;
          Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
       }
 
@@ -2740,6 +2742,7 @@ double TMOP_Integrator::GetDerefinementElementEnergy(const FiniteElement &el,
       Tpr->ElementNo = T.ElementNo;
       Tpr->ElementType = ElementTransformation::ELEMENT;
       Tpr->Attribute = T.Attribute;
+      Tpr->mesh = T.mesh;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }
 
@@ -2852,6 +2855,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       Tpr->ElementNo = T.ElementNo;
       Tpr->ElementType = ElementTransformation::ELEMENT;
       Tpr->Attribute = T.Attribute;
+      Tpr->mesh = T.mesh;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
       if (exact_action)
       {
@@ -2987,6 +2991,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       Tpr->ElementNo = T.ElementNo;
       Tpr->ElementType = ElementTransformation::ELEMENT;
       Tpr->Attribute = T.Attribute;
+      Tpr->mesh = T.mesh;
       Tpr->GetPointMat().Transpose(PMatI);
    }
 
@@ -3372,6 +3377,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
       Tpr.SetFE(&el);
       Tpr.ElementNo = T.ElementNo;
       Tpr.Attribute = T.Attribute;
+      Tpr.mesh = T.mesh;
       PMatI.UseExternalData(elfun.GetData(), dof, dim);
       Tpr.GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
 
@@ -3469,6 +3475,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
       Tpr.SetFE(&el);
       Tpr.ElementNo = T.ElementNo;
       Tpr.Attribute = T.Attribute;
+      Tpr.mesh = T.mesh;
       PMatI.UseExternalData(elfun.GetData(), dof, dim);
       Tpr.GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
 
