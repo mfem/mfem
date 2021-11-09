@@ -76,7 +76,7 @@ public:
    /** This constructor "steals" the owned data members from the @a other
        ParLinearForm. */
    ParLinearForm(ParLinearForm &&other)
-   : LinearForm(std::move(other)), pfes(other.pfes)
+      : LinearForm(std::move(other)), pfes(other.pfes)
    { other.pfes = nullptr; }
 
    /// Move assignment operator for ParLinearForm

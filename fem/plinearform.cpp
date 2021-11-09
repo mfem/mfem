@@ -19,7 +19,7 @@ namespace mfem
 {
 
 ParLinearForm& ParLinearForm::operator=(ParLinearForm &&other)
-{ 
+{
    if (this != &other)
    {
       LinearForm::operator=(std::move(other));
