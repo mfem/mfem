@@ -40,7 +40,7 @@ void PWCoefficient::InitMap(const Array<int> & attr,
    {
       if (coefs[i] != NULL)
       {
-         AddCoefficient(attr[i], *coefs[i]);
+         UpdateCoefficient(attr[i], *coefs[i]);
       }
    }
 }
@@ -178,15 +178,15 @@ void PWVectorCoefficient::InitMap(const Array<int> & attr,
    {
       if (coefs[i] != NULL)
       {
-         AddCoefficient(attr[i], *coefs[i]);
+         UpdateCoefficient(attr[i], *coefs[i]);
       }
    }
 }
 
-void PWVectorCoefficient::AddCoefficient(int attr, VectorCoefficient & coef)
+void PWVectorCoefficient::UpdateCoefficient(int attr, VectorCoefficient & coef)
 {
    MFEM_VERIFY(coef.GetVDim() == vdim,
-               "PWVectorCoefficient::AddCoefficient:  "
+               "PWVectorCoefficient::UpdateCoefficient:  "
                "VectorCoefficient has incompatible dimension.");
    pieces[attr] = &coef;
 }
@@ -446,23 +446,23 @@ void PWMatrixCoefficient::InitMap(const Array<int> & attr,
    {
       if (coefs[i] != NULL)
       {
-         AddCoefficient(attr[i], *coefs[i]);
+         UpdateCoefficient(attr[i], *coefs[i]);
       }
    }
 }
 
-void PWMatrixCoefficient::AddCoefficient(int attr, MatrixCoefficient & coef)
+void PWMatrixCoefficient::UpdateCoefficient(int attr, MatrixCoefficient & coef)
 {
    MFEM_VERIFY(coef.GetHeight() == height,
-               "PWMatrixCoefficient::AddCoefficient:  "
+               "PWMatrixCoefficient::UpdateCoefficient:  "
                "MatrixCoefficient has incompatible height.");
    MFEM_VERIFY(coef.GetWidth() == width,
-               "PWMatrixCoefficient::AddCoefficient:  "
+               "PWMatrixCoefficient::UpdateCoefficient:  "
                "MatrixCoefficient has incompatible width.");
    if (symmetric)
    {
       MFEM_VERIFY(coef.IsSymmetric(),
-                  "PWMatrixCoefficient::AddCoefficient:  "
+                  "PWMatrixCoefficient::UpdateCoefficient:  "
                   "MatrixCoefficient has incompatible symmetry.");
    }
    pieces[attr] = &coef;
