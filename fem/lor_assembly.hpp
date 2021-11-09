@@ -12,6 +12,7 @@
 #ifndef MFEM_LOR_ASSEMBLY
 #define MFEM_LOR_ASSEMBLY
 
+#include "lor.hpp"
 #include "bilinearform.hpp"
 
 namespace mfem
@@ -20,7 +21,8 @@ namespace mfem
 void AssembleBatchedLOR(BilinearForm &form_lo, FiniteElementSpace &fes_ho,
                         const Array<int> &ess_dofs, OperatorHandle &A);
 
-void AssembleBatchedLOR_GPU(BilinearForm &form_lo, FiniteElementSpace &fes_ho,
+void AssembleBatchedLOR_GPU(LORBase&,
+                            BilinearForm &form_lo, FiniteElementSpace &fes_ho,
                             const Array<int> &ess_dofs, OperatorHandle &A);
 
 } // namespace mfem
