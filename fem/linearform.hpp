@@ -14,7 +14,6 @@
 
 #include "../config/config.hpp"
 #include "lininteg.hpp"
-//#include "bilinearform.hpp"
 #include "linearform_ext.hpp"
 #include "gridfunc.hpp"
 
