@@ -152,6 +152,10 @@ public:
    /// Create a true dof parallel vector on a given ParFiniteElementSpace
    explicit HypreParVector(ParFiniteElementSpace *pfes);
 
+   /// \brief Constructs a  @p HypreParVector *compatible* with the calling vector
+   /// - meaning that it will be the same size and have the same partitioning.
+   HypreParVector CreateCompatibleVector() const;
+
    /// MPI communicator
    MPI_Comm GetComm() const { return x->comm; }
 
