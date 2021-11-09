@@ -62,7 +62,7 @@ void PWCoefficient::SetTime(double t)
 double PWCoefficient::Eval(ElementTransformation &T,
                            const IntegrationPoint &ip)
 {
-   int att = T.Attribute;
+   const int att = T.Attribute;
    std::map<int, Coefficient*>::const_iterator p = pieces.find(att);
    if (p != pieces.end())
    {
@@ -208,7 +208,7 @@ void PWVectorCoefficient::SetTime(double t)
 void PWVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
                                const IntegrationPoint &ip)
 {
-   int att = T.Attribute;
+   const int att = T.Attribute;
    std::map<int, VectorCoefficient*>::const_iterator p = pieces.find(att);
    if (p != pieces.end())
    {
@@ -485,7 +485,7 @@ void PWMatrixCoefficient::SetTime(double t)
 void PWMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                const IntegrationPoint &ip)
 {
-   int att = T.Attribute;
+   const int att = T.Attribute;
    std::map<int, MatrixCoefficient*>::const_iterator p = pieces.find(att);
    if (p != pieces.end())
    {
