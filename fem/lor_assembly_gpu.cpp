@@ -30,7 +30,6 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                               const Array<int> &dof_glob2loc_offsets,
                               const Array<int> &el_dof_lex,
                               const Array<int> &ess_dofs,
-                              Vector &Q_,
                               Mesh &mesh_ho,
                               FiniteElementSpace &fes_ho,
                               SparseMatrix &A_mat);
@@ -148,7 +147,6 @@ void AssembleBatchedLOR_GPU(LORBase &lor_disc,
                   const Array<int> &dof_glob2loc_offsets,
                   const Array<int> &el_dof_lex,
                   const Array<int> &ess_dofs,
-                  Vector &Q_,
                   Mesh &mesh_ho,
                   FiniteElementSpace &fes_ho,
                   SparseMatrix &A_mat) = nullptr;
@@ -172,7 +170,6 @@ void AssembleBatchedLOR_GPU(LORBase &lor_disc,
           R->Offsets(),
           R->GatherMap(),
           ess_dofs,
-          R->GetQ(),
           mesh_ho, fes_ho, *A);
    NvtxPop(KerBatched);
 

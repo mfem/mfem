@@ -28,7 +28,6 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                               const Array<int> &dof_glob2loc_offsets_,
                               const Array<int> &el_dof_lex_,
                               const Array<int> &ess_dofs,
-                              Vector &Q_,
                               Mesh &mesh_ho,
                               FiniteElementSpace &fes_ho,
                               SparseMatrix &A_mat)
@@ -37,6 +36,7 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    const int nel_ho = mesh_ho.GetNE();
    const int ndof = fes_ho.GetVSize();
 
+   static constexpr int nv = 8;
    static constexpr int dim = 3;
    static constexpr int ddm2 = (dim*(dim+1))/2;
    static constexpr int nd1d = order + 1;
@@ -61,7 +61,6 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    auto A = A_mat.ReadWriteData();
    NvtxPop(IJACopy);
 
-   const auto Q = Reshape(Q_.Write(), ddm2, 2,2,2, order,order,order, nel_ho);
    const auto X = mesh_lor.GetNodes()->Read();
 
    NvtxPush(Assembly, SeaGreen);
@@ -98,56 +97,73 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
          {
             MFEM_FOREACH_THREAD(kx,x,order)
             {
-               const int v_i0 = kx + nd1d*(ky + nd1d*kz);
-               const int v_i1 = kx + 1 + nd1d*(ky + nd1d*kz);
-               const int v_i2 = kx + 1 + nd1d*(ky + 1 + nd1d*kz);
-               const int v_i3 = kx + nd1d*(ky + 1 + nd1d*kz);
+               double Q_[ddm2*nv];
+               double grad_A_[sz_grad_A];
+               double grad_B_[sz_grad_B];
+               double local_mat_[sz_local_mat];
 
-               const int v_i4 = kx + nd1d*(ky + nd1d*(kz + 1));
-               const int v_i5 = kx + 1 + nd1d*(ky + nd1d*(kz + 1));
-               const int v_i6 = kx + 1 + nd1d*(ky + 1 + nd1d*(kz + 1));
-               const int v_i7 = kx + nd1d*(ky + 1 + nd1d*(kz + 1));
+               DeviceTensor<4> Q(Q_, ddm2,2,2,2);
+               DeviceTensor<2> local_mat(local_mat_, 8, 8);
+               DeviceTensor<6> grad_A(grad_A_, 3, 3, 2, 2, 2, 2);
+               DeviceTensor<7> grad_B(grad_B_, 3, 3, 2, 2, 2, 2, 2);
 
-               const int e0 = el_dof_lex(v_i0, iel_ho);
-               const int e1 = el_dof_lex(v_i1, iel_ho);
-               const int e2 = el_dof_lex(v_i2, iel_ho);
-               const int e3 = el_dof_lex(v_i3, iel_ho);
-               const int e4 = el_dof_lex(v_i4, iel_ho);
-               const int e5 = el_dof_lex(v_i5, iel_ho);
-               const int e6 = el_dof_lex(v_i6, iel_ho);
-               const int e7 = el_dof_lex(v_i7, iel_ho);
+               // local_mat is the local (dense) stiffness matrix
+               for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
-               const double v_0_x = X[3*e0 + 0];
-               const double v_0_y = X[3*e0 + 1];
-               const double v_0_z = X[3*e0 + 2];
+               // Intermediate quantities
+               // (see e.g. Mora and Demkowicz for notation).
+               for (int i=0; i<sz_grad_A; ++i) { grad_A[i] = 0.0; }
+               for (int i=0; i<sz_grad_B; ++i) { grad_B[i] = 0.0; }
 
-               const double v_1_x = X[3*e1 + 0];
-               const double v_1_y = X[3*e1 + 1];
-               const double v_1_z = X[3*e1 + 2];
+               const int v0 = kx + nd1d*(ky + nd1d*kz);
+               const int v1 = kx + 1 + nd1d*(ky + nd1d*kz);
+               const int v2 = kx + 1 + nd1d*(ky + 1 + nd1d*kz);
+               const int v3 = kx + nd1d*(ky + 1 + nd1d*kz);
+               const int v4 = kx + nd1d*(ky + nd1d*(kz + 1));
+               const int v5 = kx + 1 + nd1d*(ky + nd1d*(kz + 1));
+               const int v6 = kx + 1 + nd1d*(ky + 1 + nd1d*(kz + 1));
+               const int v7 = kx + nd1d*(ky + 1 + nd1d*(kz + 1));
 
-               const double v_2_x = X[3*e2 + 0];
-               const double v_2_y = X[3*e2 + 1];
-               const double v_2_z = X[3*e2 + 2];
+               const int e0 = el_dof_lex(v0, iel_ho);
+               const int e1 = el_dof_lex(v1, iel_ho);
+               const int e2 = el_dof_lex(v2, iel_ho);
+               const int e3 = el_dof_lex(v3, iel_ho);
+               const int e4 = el_dof_lex(v4, iel_ho);
+               const int e5 = el_dof_lex(v5, iel_ho);
+               const int e6 = el_dof_lex(v6, iel_ho);
+               const int e7 = el_dof_lex(v7, iel_ho);
 
-               const double v_3_x = X[3*e3 + 0];
-               const double v_3_y = X[3*e3 + 1];
-               const double v_3_z = X[3*e3 + 2];
+               const double v0x = X[3*e0 + 0];
+               const double v0y = X[3*e0 + 1];
+               const double v0z = X[3*e0 + 2];
 
-               const double v_4_x = X[3*e4 + 0];
-               const double v_4_y = X[3*e4 + 1];
-               const double v_4_z = X[3*e4 + 2];
+               const double v1x = X[3*e1 + 0];
+               const double v1y = X[3*e1 + 1];
+               const double v1z = X[3*e1 + 2];
 
-               const double v_5_x = X[3*e5 + 0];
-               const double v_5_y = X[3*e5 + 1];
-               const double v_5_z = X[3*e5 + 2];
+               const double v2x = X[3*e2 + 0];
+               const double v2y = X[3*e2 + 1];
+               const double v2z = X[3*e2 + 2];
 
-               const double v_6_x = X[3*e6 + 0];
-               const double v_6_y = X[3*e6 + 1];
-               const double v_6_z = X[3*e6 + 2];
+               const double v3x = X[3*e3 + 0];
+               const double v3y = X[3*e3 + 1];
+               const double v3z = X[3*e3 + 2];
 
-               const double v_7_x = X[3*e7 + 0];
-               const double v_7_y = X[3*e7 + 1];
-               const double v_7_z = X[3*e7 + 2];
+               const double v4x = X[3*e4 + 0];
+               const double v4y = X[3*e4 + 1];
+               const double v4z = X[3*e4 + 2];
+
+               const double v5x = X[3*e5 + 0];
+               const double v5y = X[3*e5 + 1];
+               const double v5z = X[3*e5 + 2];
+
+               const double v6x = X[3*e6 + 0];
+               const double v6y = X[3*e6 + 1];
+               const double v6z = X[3*e6 + 2];
+
+               const double v7x = X[3*e7 + 0];
+               const double v7y = X[3*e7 + 1];
+               const double v7z = X[3*e7 + 2];
 
                FOR_LOOP_UNROLL(2)
                for (int iqz=0; iqz<2; ++iqz)
@@ -166,41 +182,41 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 
                         // c: (1-x)(1-y)(1-z)v0[c] + x (1-y)(1-z)v1[c] + x y (1-z)v2[c] + (1-x) y (1-z)v3[c]
                         //  + (1-x)(1-y) z   v4[c] + x (1-y) z   v5[c] + x y z    v6[c] + (1-x) y z    v7[c]
-                        const double J11 = -(1-y)*(1-z)*v_0_x
-                                           + (1-y)*(1-z)*v_1_x + y*(1-z)*v_2_x - y*(1-z)*v_3_x
-                                           - (1-y)*z*v_4_x + (1-y)*z*v_5_x + y*z*v_6_x - y*z*v_7_x;
+                        const double J11 = -(1-y)*(1-z)*v0x
+                                           + (1-y)*(1-z)*v1x + y*(1-z)*v2x - y*(1-z)*v3x
+                                           - (1-y)*z*v4x + (1-y)*z*v5x + y*z*v6x - y*z*v7x;
 
-                        const double J12 = -(1-x)*(1-z)*v_0_x
-                                           - x*(1-z)*v_1_x + x*(1-z)*v_2_x + (1-x)*(1-z)*v_3_x
-                                           - (1-x)*z*v_4_x - x*z*v_5_x + x*z*v_6_x + (1-x)*z*v_7_x;
+                        const double J12 = -(1-x)*(1-z)*v0x
+                                           - x*(1-z)*v1x + x*(1-z)*v2x + (1-x)*(1-z)*v3x
+                                           - (1-x)*z*v4x - x*z*v5x + x*z*v6x + (1-x)*z*v7x;
 
-                        const double J13 = -(1-x)*(1-y)*v_0_x - x*(1-y)*v_1_x
-                                           - x*y*v_2_x - (1-x)*y*v_3_x + (1-x)*(1-y)*v_4_x
-                                           + x*(1-y)*v_5_x + x*y*v_6_x + (1-x)*y*v_7_x;
+                        const double J13 = -(1-x)*(1-y)*v0x - x*(1-y)*v1x
+                                           - x*y*v2x - (1-x)*y*v3x + (1-x)*(1-y)*v4x
+                                           + x*(1-y)*v5x + x*y*v6x + (1-x)*y*v7x;
 
-                        const double J21 = -(1-y)*(1-z)*v_0_y + (1-y)*(1-z)*v_1_y
-                                           + y*(1-z)*v_2_y - y*(1-z)*v_3_y - (1-y)*z*v_4_y
-                                           + (1-y)*z*v_5_y + y*z*v_6_y - y*z*v_7_y;
+                        const double J21 = -(1-y)*(1-z)*v0y + (1-y)*(1-z)*v1y
+                                           + y*(1-z)*v2y - y*(1-z)*v3y - (1-y)*z*v4y
+                                           + (1-y)*z*v5y + y*z*v6y - y*z*v7y;
 
-                        const double J22 = -(1-x)*(1-z)*v_0_y - x*(1-z)*v_1_y
-                                           + x*(1-z)*v_2_y + (1-x)*(1-z)*v_3_y- (1-x)*z*v_4_y -
-                                           x*z*v_5_y + x*z*v_6_y + (1-x)*z*v_7_y;
+                        const double J22 = -(1-x)*(1-z)*v0y - x*(1-z)*v1y
+                                           + x*(1-z)*v2y + (1-x)*(1-z)*v3y- (1-x)*z*v4y -
+                                           x*z*v5y + x*z*v6y + (1-x)*z*v7y;
 
-                        const double J23 = -(1-x)*(1-y)*v_0_y - x*(1-y)*v_1_y
-                                           - x*y*v_2_y - (1-x)*y*v_3_y + (1-x)*(1-y)*v_4_y
-                                           + x*(1-y)*v_5_y + x*y*v_6_y + (1-x)*y*v_7_y;
+                        const double J23 = -(1-x)*(1-y)*v0y - x*(1-y)*v1y
+                                           - x*y*v2y - (1-x)*y*v3y + (1-x)*(1-y)*v4y
+                                           + x*(1-y)*v5y + x*y*v6y + (1-x)*y*v7y;
 
-                        const double J31 = -(1-y)*(1-z)*v_0_z + (1-y)*(1-z)*v_1_z
-                                           + y*(1-z)*v_2_z - y*(1-z)*v_3_z- (1-y)*z*v_4_z +
-                                           (1-y)*z*v_5_z + y*z*v_6_z - y*z*v_7_z;
+                        const double J31 = -(1-y)*(1-z)*v0z + (1-y)*(1-z)*v1z
+                                           + y*(1-z)*v2z - y*(1-z)*v3z- (1-y)*z*v4z +
+                                           (1-y)*z*v5z + y*z*v6z - y*z*v7z;
 
-                        const double J32 = -(1-x)*(1-z)*v_0_z - x*(1-z)*v_1_z
-                                           + x*(1-z)*v_2_z + (1-x)*(1-z)*v_3_z - (1-x)*z*v_4_z
-                                           - x*z*v_5_z + x*z*v_6_z + (1-x)*z*v_7_z;
+                        const double J32 = -(1-x)*(1-z)*v0z - x*(1-z)*v1z
+                                           + x*(1-z)*v2z + (1-x)*(1-z)*v3z - (1-x)*z*v4z
+                                           - x*z*v5z + x*z*v6z + (1-x)*z*v7z;
 
-                        const double J33 = -(1-x)*(1-y)*v_0_z - x*(1-y)*v_1_z
-                                           - x*y*v_2_z - (1-x)*y*v_3_z + (1-x)*(1-y)*v_4_z
-                                           + x*(1-y)*v_5_z + x*y*v_6_z + (1-x)*y*v_7_z;
+                        const double J33 = -(1-x)*(1-y)*v0z - x*(1-y)*v1z
+                                           - x*y*v2z - (1-x)*y*v3z + (1-x)*(1-y)*v4z
+                                           + x*(1-y)*v5z + x*y*v6z + (1-x)*y*v7z;
 
                         const double detJ = J11 * (J22 * J33 - J32 * J23) -
                                             J21 * (J12 * J33 - J32 * J13) +
@@ -218,47 +234,15 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                         const double A32 = (J31 * J12) - (J11 * J32);
                         const double A33 = (J11 * J22) - (J12 * J21);
 
-                        // Put these in the opposite order...
-                        Q(0,iqz,iqy,iqx,kz,ky,kx,iel_ho) =
-                           w_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
-                        Q(1,iqz,iqy,iqx,kz,ky,kx,iel_ho) =
-                           w_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
-                        Q(2,iqz,iqy,iqx,kz,ky,kx,iel_ho) =
-                           w_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
-                        Q(3,iqz,iqy,iqx,kz,ky,kx,iel_ho) =
-                           w_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
-                        Q(4,iqz,iqy,iqx,kz,ky,kx,iel_ho) =
-                           w_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
-                        Q(5,iqz,iqy,iqx,kz,ky,kx,iel_ho) =
-                           w_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+                        Q(0,iqz,iqy,iqx) = w_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
+                        Q(1,iqz,iqy,iqx) = w_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
+                        Q(2,iqz,iqy,iqx) = w_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
+                        Q(3,iqz,iqy,iqx) = w_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
+                        Q(4,iqz,iqy,iqx) = w_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
+                        Q(5,iqz,iqy,iqx) = w_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
                      }
                   }
                }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      // Loop over sub-elements
-      MFEM_FOREACH_THREAD(kz,z,order)
-      {
-         MFEM_FOREACH_THREAD(ky,y,order)
-         {
-            MFEM_FOREACH_THREAD(kx,x,order)
-            {
-               double grad_A_[sz_grad_A];
-               double grad_B_[sz_grad_B];
-               double local_mat_[sz_local_mat];
-               DeviceTensor<2> local_mat(local_mat_, 8, 8);
-               DeviceTensor<6> grad_A(grad_A_, 3, 3, 2, 2, 2, 2);
-               DeviceTensor<7> grad_B(grad_B_, 3, 3, 2, 2, 2, 2, 2);
-
-               // local_mat is the local (dense) stiffness matrix
-               for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
-               // Intermediate quantities
-               // (see e.g. Mora and Demkowicz for notation).
-               for (int i=0; i<sz_grad_A; ++i) { grad_A[i] = 0.0; }
-               for (int i=0; i<sz_grad_B; ++i) { grad_B[i] = 0.0; }
 
                FOR_LOOP_UNROLL(2)
                for (int iqx=0; iqx<2; ++iqx)
@@ -283,15 +267,15 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                               const double bjz = (jz == iqz) ? 1.0 : 0.0;
                               const double gjz = (jz == 0) ? -1.0 : 1.0;
 
-                              const double J11 = Q(0,iqz,iqy,iqx,kz,ky,kx,iel_ho);
-                              const double J21 = Q(1,iqz,iqy,iqx,kz,ky,kx,iel_ho);
-                              const double J31 = Q(2,iqz,iqy,iqx,kz,ky,kx,iel_ho);
+                              const double J11 = Q(0,iqz,iqy,iqx);
+                              const double J21 = Q(1,iqz,iqy,iqx);
+                              const double J31 = Q(2,iqz,iqy,iqx);
                               const double J12 = J21;
-                              const double J22 = Q(3,iqz,iqy,iqx,kz,ky,kx,iel_ho);
-                              const double J32 = Q(4,iqz,iqy,iqx,kz,ky,kx,iel_ho);
+                              const double J22 = Q(3,iqz,iqy,iqx);
+                              const double J32 = Q(4,iqz,iqy,iqx);
                               const double J13 = J31;
                               const double J23 = J32;
-                              const double J33 = Q(5,iqz,iqy,iqx,kz,ky,kx,iel_ho);
+                              const double J33 = Q(5,iqz,iqy,iqx);
 
                               grad_A(0,0,iqy,iz,jz,iqx) += J11*biz*bjz;
                               grad_A(1,0,iqy,iz,jz,iqx) += J21*biz*bjz;
@@ -472,7 +456,7 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
       }
       MFEM_SYNC_THREAD;
 
-      // Diagonal = 0.0
+      // Set essential dofs to 0.0
       const int i = iel_ho;
       if (i<n_ess_dofs)
       {
@@ -496,7 +480,6 @@ template void Assemble3DBatchedLOR_GPU<order>\
     (Mesh &,\
      const Array<int> &,const Array<int> &, const Array<int> &,\
      const Array<int> &ess_dofs,\
-     Vector &,\
      Mesh &,\
      FiniteElementSpace &,SparseMatrix &)
 

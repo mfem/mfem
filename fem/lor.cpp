@@ -617,8 +617,7 @@ LORRestriction::LORRestriction(const FiniteElementSpace &fes_lo,
 
      dof_glob2loc(),
      dof_glob2loc_offsets(),
-     el_dof_lex(),
-     Q()
+     el_dof_lex()
 {
    SetupL2E();
    SetupG2L();
@@ -723,10 +722,6 @@ void LORRestriction::SetupG2L()
    dof_glob2loc.SetSize(2*ndof_per_el*nel_ho);
    dof_glob2loc_offsets.SetSize(ndof+1);
    el_dof_lex.SetSize(ndof_per_el*nel_ho);
-
-   constexpr int nv = 8;
-   const int ddm2 = (dim*(dim+1))/2;
-   Q.SetSize(nel_ho*pow(order,dim)*nv*ddm2);
 
    NvtxPush(BlockMapping, Olive);
    Array<int> dofs;
