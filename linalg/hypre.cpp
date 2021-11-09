@@ -303,6 +303,18 @@ void HypreParVector::Print(const char *fname) const
    hypre_ParVectorPrint(x,fname);
 }
 
+void HypreParVector::Read(MPI_Comm comm, const char *fname)
+{
+   if (own_ParVector)
+   {
+      hypre_ParVectorDestroy(x);
+   }
+   data.Delete();
+   x = hypre_ParVectorRead(comm, fname);
+   own_ParVector = true;
+   _SetDataAndSize_();
+}
+
 HypreParVector::~HypreParVector()
 {
    if (own_ParVector)
