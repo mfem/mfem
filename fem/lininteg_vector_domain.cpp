@@ -46,7 +46,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
                   Reshape(F,vdim,1,1,1):
                   Reshape(F,vdim,Q1D,Q1D,NE);
 
-   auto Y = Reshape(y,ND,vdim);
+   auto Y = Reshape(y,vdim,ND);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
@@ -104,7 +104,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
                for (int qy = 0; qy < Q1D; ++qy) { dd += QD[qy][dx] * Bt[dy][qy]; }
                const int gid = I(dx,dy,e);
                const int idx = gid >= 0 ? gid : -1 - gid;
-               AtomicAdd(Y(idx,c), dd);
+               AtomicAdd(Y(c,idx), dd);
             }
          }
          MFEM_SYNC_THREAD;
@@ -137,7 +137,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
    const auto C = cst_coeff ?
                   Reshape(F,vdim,1,1,1,1) :
                   Reshape(F,vdim,Q1D,Q1D,Q1D,NE);
-   auto Y = Reshape(y,ND,vdim);
+   auto Y = Reshape(y,vdim,ND);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
@@ -244,7 +244,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
                   const double output = u[dx];
                   const int gid = I(dx,dy,dz,e);
                   const int idx = gid >= 0 ? gid : -1 - gid;
-                  AtomicAdd(Y(idx,c), output);
+                  AtomicAdd(Y(c,idx), output);
                }
             }
          }

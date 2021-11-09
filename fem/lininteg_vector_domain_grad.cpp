@@ -50,7 +50,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
                   Reshape(F,DIM,vdim/DIM,1,1,1):
                   Reshape(F,DIM,vdim/DIM,Q1D,Q1D,NE);
 
-   auto Y = Reshape(y,ND,vdim);
+   auto Y = Reshape(y,vdim/DIM,ND);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
@@ -131,7 +131,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
                const double sum = u + v;
                const int gid = I(dx,dy,e);
                const int idx = gid >= 0 ? gid : -1-gid;
-               AtomicAdd(Y(idx,c), sum);
+               AtomicAdd(Y(c,idx), sum);
             }
          }
          MFEM_SYNC_THREAD;
@@ -194,7 +194,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
                   Reshape(F,DIM,vdim/DIM,1,1,1,1):
                   Reshape(F,DIM,vdim/DIM,Q1D,Q1D,Q1D,NE);
 
-   auto Y = Reshape(y,ND,vdim);
+   auto Y = Reshape(y,vdim/DIM,ND);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
@@ -361,7 +361,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
                   const double sum = u[dz] + v[dz] + w[dz];
                   const int gid = I(dx,dy,dz,e);
                   const int idx = gid >= 0 ? gid : -1-gid;
-                  AtomicAdd(Y(idx,c), sum);
+                  AtomicAdd(Y(c,idx), sum);
                }
             }
          }
@@ -432,7 +432,7 @@ void VectorDomainLFGradIntegrator::AssemblePA(const FiniteElementSpace &fes,
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(&Q))
    {
       const QuadratureFunction &qFun = vqfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == dim * NQ * NE,
+      MFEM_VERIFY(qFun.Size() == vdim * NQ * NE,
                   "Incompatible QuadratureFunction dimension \n");
       MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
                   "IntegrationRule used within integrator and in"
