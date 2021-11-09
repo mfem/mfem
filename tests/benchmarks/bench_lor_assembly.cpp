@@ -82,6 +82,9 @@ struct LORBench
       a_partial.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
       SetupRandomMesh();
+      // Make sure that SetCurvature is called on the LOR mesh
+      fes_lo.GetMesh()->EnsureNodes();
+
       tic_toc.Clear();
    }
 
@@ -106,7 +109,7 @@ struct LORBench
       x.Randomize(SEED);
       y.Randomize(SEED);
 
-      OperatorHandle A_legacy, A_full, A_batched;
+      OperatorHandle A_legacy, A_full, A_batched, A_deviced;
 
       a_legacy = 0.0; // have to flush these results
       MFEM_DEVICE_SYNC;
@@ -176,17 +179,29 @@ struct LORBench
       sol_sock << std::flush;
    }
 
+   void Test()
+   {
+      MFEM_DEVICE_SYNC;
+      tic();
+      AssembleBatchedLOR_GPU(a_legacy, fes_ho, ess_dofs, A_deviced);
+      MFEM_DEVICE_SYNC;
+      dbg(" Deviced time = %f",toc());
+      A_deviced.Clear(); // forcing initialization phase
+      dbg("Exiting!");
+      std::exit(0);
+   }
+
    void Dump()
    {
       OperatorHandle Ah;
 
+      MFEM_DEVICE_SYNC;
+      tic();
       a_legacy.Assemble();
       MFEM_DEVICE_SYNC;
       dbg(" Legacy time = %f",toc());
       a_legacy.FormSystemMatrix(ess_dofs, Ah);
       a_legacy.Finalize();
-      MFEM_DEVICE_SYNC;
-      dbg("Deviced time = %f",toc());
       Ah.As<SparseMatrix>()->HostReadWriteI();
       Ah.As<SparseMatrix>()->HostReadWriteJ();
       Ah.As<SparseMatrix>()->HostReadWriteData();
@@ -225,8 +240,8 @@ struct LORBench
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
       a_legacy.Assemble();
-      tic_toc.Stop();
       MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
       mdof += 1e-6 * dofs;
    }
 
@@ -235,10 +250,25 @@ struct LORBench
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
       a_full.Assemble();
-      tic_toc.Stop();
       MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
       A_full = &a_full.SpMat();
       delete a_full.LoseMat(); // force not reuse the sparse matrix memory
+      mdof += 1e-6 * dofs;
+   }
+
+   void AllFull()
+   {
+      LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
+      FiniteElementSpace fes_lo(lor_disc.GetFESpace());
+      BilinearForm bf_full(&fes_lo);
+      bf_full.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
+      bf_full.SetAssemblyLevel(AssemblyLevel::FULL);
+      MFEM_DEVICE_SYNC;
+      tic_toc.Start();
+      bf_full.Assemble();
+      MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
       mdof += 1e-6 * dofs;
    }
 
@@ -248,8 +278,24 @@ struct LORBench
       tic_toc.Start();
       OperatorHandle A_batched;
       AssembleBatchedLOR(a_legacy, fes_ho, ess_dofs, A_batched);
-      tic_toc.Stop();
       MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
+      mdof += 1e-6 * dofs;
+   }
+
+   void AllBatched()
+   {
+      LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
+      FiniteElementSpace fes_lo(lor_disc.GetFESpace());
+      BilinearForm a_legacy(&fes_lo);
+      a_legacy.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
+      a_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
+      MFEM_DEVICE_SYNC;
+      tic_toc.Start();
+      OperatorHandle A_batched;
+      AssembleBatchedLOR(a_legacy, fes_ho, ess_dofs, A_batched);
+      MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
       mdof += 1e-6 * dofs;
    }
 
@@ -257,10 +303,27 @@ struct LORBench
    {
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
+      //OperatorHandle A_deviced;
       AssembleBatchedLOR_GPU(a_legacy, fes_ho, ess_dofs, A_deviced);
-      tic_toc.Stop();
       MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
       A_deviced.Clear(); // forcing initialization phase
+      mdof += 1e-6 * dofs;
+   }
+
+   void AllDeviced()
+   {
+      LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
+      FiniteElementSpace fes_lo(lor_disc.GetFESpace());
+      BilinearForm a_legacy(&fes_lo);
+      a_legacy.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
+      a_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
+      MFEM_DEVICE_SYNC;
+      tic_toc.Start();
+      OperatorHandle A_deviced;
+      AssembleBatchedLOR_GPU(a_legacy, fes_ho, ess_dofs, A_deviced);
+      MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
       mdof += 1e-6 * dofs;
    }
 
@@ -271,7 +334,7 @@ struct LORBench
 #define P_ORDERS bm::CreateDenseRange(1,4,1)
 
 // The different sides of the mesh
-#define N_SIDES bm::CreateDenseRange(4,64,4)
+#define N_SIDES bm::CreateDenseRange(4,100,4)
 #define MAX_NDOFS 2*1024*1024
 
 /// Kernels definitions and registrations
@@ -284,7 +347,7 @@ static void Name(bm::State &state){\
    while (state.KeepRunning()) { lor.Name(); }\
    bm::Counter::Flags flags = bm::Counter::kIsIterationInvariantRate;\
    state.counters["Dofs/s"] = bm::Counter(lor.dofs, flags);\
-   state.counters["MDof/s"] = bm::Counter(lor.Mdofs());\
+   state.counters["Only_Assemble_(MDof/s)"] = bm::Counter(lor.Mdofs());\
    state.counters["dofs"] = bm::Counter(lor.dofs);\
    state.counters["p"] = bm::Counter(p);\
 }\
@@ -293,11 +356,17 @@ BENCHMARK(Name)\
             -> Unit(bm::kMillisecond);
 
 Benchmark(SanityChecks)
+
 Benchmark(Legacy)
 Benchmark(Full)
 Benchmark(Batched)
 Benchmark(Deviced)
+
+Benchmark(AllFull)
+Benchmark(AllBatched)
+Benchmark(AllDeviced)
 //Benchmark(Dump)
+//Benchmark(Test)
 
 /**
  * @brief main entry point

@@ -10,9 +10,9 @@
 // CONTRIBUTING.md for details.
 
 #include "fem.hpp"
-#include "../mesh/mesh.hpp"
-#include "../linalg/vector.hpp"
-#include "../general/array.hpp"
+//#include "../mesh/mesh.hpp"
+//#include "../linalg/vector.hpp"
+//#include "../general/array.hpp"
 #include "../general/forall.hpp"
 
 #define MFEM_DEBUG_COLOR 226
@@ -31,18 +31,15 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                               Array<int> &dof_glob2loc_offsets_,
                               Array<int> &el_dof_lex_,
                               Vector &Q_,
-                              //Vector &el_vert_,
                               Mesh &mesh_ho,
                               FiniteElementSpace &fes_ho,
                               SparseMatrix &A_mat)
 {
    NvtxPush(Assemble3DBatchedLOR_GPU_Kernels, LightCoral);
    const int nel_ho = mesh_ho.GetNE();
-   //const int nel_lor = mesh_lor.GetNE();
    const int ndof = fes_ho.GetVSize();
 
    static constexpr int dim = 3;
-   //static constexpr int nv = 8;
    static constexpr int ddm2 = (dim*(dim+1))/2;
    static constexpr int nd1d = order + 1;
    static constexpr int ndof_per_el = nd1d*nd1d*nd1d;
@@ -64,7 +61,6 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    auto A = A_mat.ReadWriteData();
    NvtxPop(IJACopy);
 
-   //const auto el_vert = Reshape(el_vert_.Read(), dim, nv, nel_lor);
    const auto Q = Reshape(Q_.Write(), ddm2, 2,2,2, order,order,order, nel_ho);
    const auto X = mesh_lor.GetNodes()->Read();
 
@@ -76,6 +72,25 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
       MFEM_SHARED double V_[nnz_per_el];
       DeviceTensor<4> V(V_, nnz_per_row, nd1d, nd1d, nd1d);
 
+      // Assemble a sparse matrix over the macro-element by looping over each
+      // subelement.
+      // V(j,i) stores the jth nonzero in the ith row of the sparse matrix.
+      MFEM_FOREACH_THREAD(iz,z,nd1d)
+      {
+         MFEM_FOREACH_THREAD(iy,y,nd1d)
+         {
+            MFEM_FOREACH_THREAD(ix,x,nd1d)
+            {
+               FOR_LOOP_UNROLL(27)
+               for (int j=0; j<nnz_per_row; ++j)
+               {
+                  V(j,ix,iy,iz) = 0.0;
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
       // Compute geometric factors at quadrature points
       MFEM_FOREACH_THREAD(kz,z,order)
       {
@@ -83,21 +98,6 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
          {
             MFEM_FOREACH_THREAD(kx,x,order)
             {
-               /*
-                              const int k = kx + order * (ky + order * kz);
-                              constexpr int order_d = order*order*order;
-                              const int iel_lor = order_d*iel_ho + k;
-
-                              const double *v0 = &el_vert(0, 0, iel_lor);
-                              const double *v1 = &el_vert(0, 1, iel_lor);
-                              const double *v2 = &el_vert(0, 2, iel_lor);
-                              const double *v3 = &el_vert(0, 3, iel_lor);
-                              const double *v4 = &el_vert(0, 4, iel_lor);
-                              const double *v5 = &el_vert(0, 5, iel_lor);
-                              const double *v6 = &el_vert(0, 6, iel_lor);
-                              const double *v7 = &el_vert(0, 7, iel_lor);
-                                                             */
-
                const int v_i0 = kx + nd1d*(ky + nd1d*kz);
                const int v_i1 = kx + 1 + nd1d*(ky + nd1d*kz);
                const int v_i2 = kx + 1 + nd1d*(ky + 1 + nd1d*kz);
@@ -108,37 +108,46 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                const int v_i6 = kx + 1 + nd1d*(ky + 1 + nd1d*(kz + 1));
                const int v_i7 = kx + nd1d*(ky + 1 + nd1d*(kz + 1));
 
-               const double v_0_x = X[el_dof_lex(v_i0, iel_ho)];
-               const double v_0_y = X[ndof + el_dof_lex(v_i0, iel_ho)];
-               const double v_0_z = X[2*ndof + el_dof_lex(v_i0, iel_ho)];
+               const int e0 = el_dof_lex(v_i0, iel_ho);
+               const int e1 = el_dof_lex(v_i1, iel_ho);
+               const int e2 = el_dof_lex(v_i2, iel_ho);
+               const int e3 = el_dof_lex(v_i3, iel_ho);
+               const int e4 = el_dof_lex(v_i4, iel_ho);
+               const int e5 = el_dof_lex(v_i5, iel_ho);
+               const int e6 = el_dof_lex(v_i6, iel_ho);
+               const int e7 = el_dof_lex(v_i7, iel_ho);
 
-               const double v_1_x = X[el_dof_lex(v_i1, iel_ho)];
-               const double v_1_y = X[ndof + el_dof_lex(v_i1, iel_ho)];
-               const double v_1_z = X[2*ndof + el_dof_lex(v_i1, iel_ho)];
+               const double v_0_x = X[3*e0 + 0];
+               const double v_0_y = X[3*e0 + 1];
+               const double v_0_z = X[3*e0 + 2];
 
-               const double v_2_x = X[el_dof_lex(v_i2, iel_ho)];
-               const double v_2_y = X[ndof + el_dof_lex(v_i2, iel_ho)];
-               const double v_2_z = X[2*ndof + el_dof_lex(v_i2, iel_ho)];
+               const double v_1_x = X[3*e1 + 0];
+               const double v_1_y = X[3*e1 + 1];
+               const double v_1_z = X[3*e1 + 2];
 
-               const double v_3_x = X[el_dof_lex(v_i3, iel_ho)];
-               const double v_3_y = X[ndof + el_dof_lex(v_i3, iel_ho)];
-               const double v_3_z = X[2*ndof + el_dof_lex(v_i3, iel_ho)];
+               const double v_2_x = X[3*e2 + 0];
+               const double v_2_y = X[3*e2 + 1];
+               const double v_2_z = X[3*e2 + 2];
 
-               const double v_4_x = X[el_dof_lex(v_i4, iel_ho)];
-               const double v_4_y = X[ndof + el_dof_lex(v_i4, iel_ho)];
-               const double v_4_z = X[2*ndof + el_dof_lex(v_i4, iel_ho)];
+               const double v_3_x = X[3*e3 + 0];
+               const double v_3_y = X[3*e3 + 1];
+               const double v_3_z = X[3*e3 + 2];
 
-               const double v_5_x = X[el_dof_lex(v_i5, iel_ho)];
-               const double v_5_y = X[ndof + el_dof_lex(v_i5, iel_ho)];
-               const double v_5_z = X[2*ndof + el_dof_lex(v_i5, iel_ho)];
+               const double v_4_x = X[3*e4 + 0];
+               const double v_4_y = X[3*e4 + 1];
+               const double v_4_z = X[3*e4 + 2];
 
-               const double v_6_x = X[el_dof_lex(v_i6, iel_ho)];
-               const double v_6_y = X[ndof + el_dof_lex(v_i6, iel_ho)];
-               const double v_6_z = X[2*ndof + el_dof_lex(v_i6, iel_ho)];
+               const double v_5_x = X[3*e5 + 0];
+               const double v_5_y = X[3*e5 + 1];
+               const double v_5_z = X[3*e5 + 2];
 
-               const double v_7_x = X[el_dof_lex(v_i7, iel_ho)];
-               const double v_7_y = X[ndof + el_dof_lex(v_i7, iel_ho)];
-               const double v_7_z = X[2*ndof + el_dof_lex(v_i7, iel_ho)];
+               const double v_6_x = X[3*e6 + 0];
+               const double v_6_y = X[3*e6 + 1];
+               const double v_6_z = X[3*e6 + 2];
+
+               const double v_7_x = X[3*e7 + 0];
+               const double v_7_y = X[3*e7 + 1];
+               const double v_7_z = X[3*e7 + 2];
 
                FOR_LOOP_UNROLL(2)
                for (int iqz=0; iqz<2; ++iqz)
@@ -158,84 +167,46 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
                         // c: (1-x)(1-y)(1-z)v0[c] + x (1-y)(1-z)v1[c] + x y (1-z)v2[c] + (1-x) y (1-z)v3[c]
                         //  + (1-x)(1-y) z   v4[c] + x (1-y) z   v5[c] + x y z    v6[c] + (1-x) y z    v7[c]
                         const double J11 = -(1-y)*(1-z)*v_0_x
-                        + (1-y)*(1-z)*v_1_x + y*(1-z)*v_2_x - y*(1-z)*v_3_x
-                        - (1-y)*z*v_4_x + (1-y)*z*v_5_x + y*z*v_6_x - y*z*v_7_x;
+                                           + (1-y)*(1-z)*v_1_x + y*(1-z)*v_2_x - y*(1-z)*v_3_x
+                                           - (1-y)*z*v_4_x + (1-y)*z*v_5_x + y*z*v_6_x - y*z*v_7_x;
 
                         const double J12 = -(1-x)*(1-z)*v_0_x
-                        - x*(1-z)*v_1_x + x*(1-z)*v_2_x + (1-x)*(1-z)*v_3_x
-                        - (1-x)*z*v_4_x - x*z*v_5_x + x*z*v_6_x + (1-x)*z*v_7_x;
+                                           - x*(1-z)*v_1_x + x*(1-z)*v_2_x + (1-x)*(1-z)*v_3_x
+                                           - (1-x)*z*v_4_x - x*z*v_5_x + x*z*v_6_x + (1-x)*z*v_7_x;
 
                         const double J13 = -(1-x)*(1-y)*v_0_x - x*(1-y)*v_1_x
-                        - x*y*v_2_x - (1-x)*y*v_3_x + (1-x)*(1-y)*v_4_x
-                        + x*(1-y)*v_5_x + x*y*v_6_x + (1-x)*y*v_7_x;
+                                           - x*y*v_2_x - (1-x)*y*v_3_x + (1-x)*(1-y)*v_4_x
+                                           + x*(1-y)*v_5_x + x*y*v_6_x + (1-x)*y*v_7_x;
 
                         const double J21 = -(1-y)*(1-z)*v_0_y + (1-y)*(1-z)*v_1_y
-                        + y*(1-z)*v_2_y - y*(1-z)*v_3_y - (1-y)*z*v_4_y
-                        + (1-y)*z*v_5_y + y*z*v_6_y - y*z*v_7_y;
+                                           + y*(1-z)*v_2_y - y*(1-z)*v_3_y - (1-y)*z*v_4_y
+                                           + (1-y)*z*v_5_y + y*z*v_6_y - y*z*v_7_y;
 
                         const double J22 = -(1-x)*(1-z)*v_0_y - x*(1-z)*v_1_y
-                        + x*(1-z)*v_2_y + (1-x)*(1-z)*v_3_y- (1-x)*z*v_4_y -
-                        x*z*v_5_y + x*z*v_6_y + (1-x)*z*v_7_y;
+                                           + x*(1-z)*v_2_y + (1-x)*(1-z)*v_3_y- (1-x)*z*v_4_y -
+                                           x*z*v_5_y + x*z*v_6_y + (1-x)*z*v_7_y;
 
                         const double J23 = -(1-x)*(1-y)*v_0_y - x*(1-y)*v_1_y
-                        - x*y*v_2_y - (1-x)*y*v_3_y + (1-x)*(1-y)*v_4_y
-                        + x*(1-y)*v_5_y + x*y*v_6_y + (1-x)*y*v_7_y;
+                                           - x*y*v_2_y - (1-x)*y*v_3_y + (1-x)*(1-y)*v_4_y
+                                           + x*(1-y)*v_5_y + x*y*v_6_y + (1-x)*y*v_7_y;
 
                         const double J31 = -(1-y)*(1-z)*v_0_z + (1-y)*(1-z)*v_1_z
-                        + y*(1-z)*v_2_z - y*(1-z)*v_3_z- (1-y)*z*v_4_z +
-                        (1-y)*z*v_5_z + y*z*v_6_z - y*z*v_7_z;
+                                           + y*(1-z)*v_2_z - y*(1-z)*v_3_z- (1-y)*z*v_4_z +
+                                           (1-y)*z*v_5_z + y*z*v_6_z - y*z*v_7_z;
 
                         const double J32 = -(1-x)*(1-z)*v_0_z - x*(1-z)*v_1_z
-                        + x*(1-z)*v_2_z + (1-x)*(1-z)*v_3_z - (1-x)*z*v_4_z
-                        - x*z*v_5_z + x*z*v_6_z + (1-x)*z*v_7_z;
+                                           + x*(1-z)*v_2_z + (1-x)*(1-z)*v_3_z - (1-x)*z*v_4_z
+                                           - x*z*v_5_z + x*z*v_6_z + (1-x)*z*v_7_z;
 
                         const double J33 = -(1-x)*(1-y)*v_0_z - x*(1-y)*v_1_z
-                        - x*y*v_2_z - (1-x)*y*v_3_z + (1-x)*(1-y)*v_4_z
-                        + x*(1-y)*v_5_z + x*y*v_6_z + (1-x)*y*v_7_z;
-                        /*
-                        const double J11 =
-                        -(1-y)*(1-z)*v0[0] + (1-y)*(1-z)*v1[0] + y*(1-z)*v2[0] - y*
-                        (1-z)*v3[0]
-                        - (1-y)*z*v4[0] + (1-y)*z*v5[0] + y*z*v6[0] - y*z*v7[0];
-                        const double J12
-                        = -(1-x)*(1-z)*v0[0] - x*(1-z)*v1[0] + x*(1-z)*v2[0] + (1-x)*
-                        (1-z)*v3[0]
-                        - (1-x)*z*v4[0] - x*z*v5[0] + x*z*v6[0] + (1-x)*z*v7[0];
-                        const double J13
-                        = -(1-x)*(1-y)*v0[0] - x*(1-y)*v1[0] - x*y*v2[0] -
-                        (1-x)*y*v3[0]
-                        + (1-x)*(1-y)*v4[0] + x*(1-y)*v5[0] + x*y*v6[0] + (1-x)*y*v7[0];
+                                           - x*y*v_2_z - (1-x)*y*v_3_z + (1-x)*(1-y)*v_4_z
+                                           + x*(1-y)*v_5_z + x*y*v_6_z + (1-x)*y*v_7_z;
 
-                        const double J21
-                        = -(1-y)*(1-z)*v0[1] + (1-y)*(1-z)*v1[1] + y*(1-z)*v2[1] - y*
-                        (1-z)*v3[1]
-                        - (1-y)*z*v4[1] + (1-y)*z*v5[1] + y*z*v6[1] - y*z*v7[1];
-                        const double J22
-                        = -(1-x)*(1-z)*v0[1] - x*(1-z)*v1[1] + x*(1-z)*v2[1] + (1-x)*
-                        (1-z)*v3[1]
-                        - (1-x)*z*v4[1] - x*z*v5[1] + x*z*v6[1] + (1-x)*z*v7[1];
-                        const double J23
-                        = -(1-x)*(1-y)*v0[1] - x*(1-y)*v1[1] - x*y*v2[1] -
-                        (1-x)*y*v3[1]
-                        + (1-x)*(1-y)*v4[1] + x*(1-y)*v5[1] + x*y*v6[1] + (1-x)*y*v7[1];
-
-                        const double J31
-                        = -(1-y)*(1-z)*v0[2] + (1-y)*(1-z)*v1[2] + y*(1-z)*v2[2] - y*
-                        (1-z)*v3[2]
-                        - (1-y)*z*v4[2] + (1-y)*z*v5[2] + y*z*v6[2] - y*z*v7[2];
-                        const double J32
-                        = -(1-x)*(1-z)*v0[2] - x*(1-z)*v1[2] + x*(1-z)*v2[2] + (1-x)*
-                        (1-z)*v3[2]
-                        - (1-x)*z*v4[2] - x*z*v5[2] + x*z*v6[2] + (1-x)*z*v7[2];
-                        const double J33
-                        = -(1-x)*(1-y)*v0[2] - x*(1-y)*v1[2] - x*y*v2[2] -
-                        (1-x)*y*v3[2]
-                        + (1-x)*(1-y)*v4[2] + x*(1-y)*v5[2] + x*y*v6[2] + (1-x)*y*v7[2];
-                        */
                         const double detJ = J11 * (J22 * J33 - J32 * J23) -
-                        J21 * (J12 * J33 - J32 * J13) +
-                        J31 * (J12 * J23 - J22 * J13);
+                                            J21 * (J12 * J33 - J32 * J13) +
+                                            J31 * (J12 * J23 - J22 * J13);
                         const double w_detJ = w/detJ;
+
                         // adj(J)
                         const double A11 = (J22 * J33) - (J23 * J32);
                         const double A12 = (J32 * J13) - (J12 * J33);
@@ -249,39 +220,19 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 
                         // Put these in the opposite order...
                         Q(0,iqz,iqy,iqx,kz,ky,kx,iel_ho) =
-                        w_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
+                           w_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
                         Q(1,iqz,iqy,iqx,kz,ky,kx,iel_ho) =
-                        w_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
+                           w_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
                         Q(2,iqz,iqy,iqx,kz,ky,kx,iel_ho) =
-                        w_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
+                           w_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
                         Q(3,iqz,iqy,iqx,kz,ky,kx,iel_ho) =
-                        w_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
+                           w_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
                         Q(4,iqz,iqy,iqx,kz,ky,kx,iel_ho) =
-                        w_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
+                           w_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
                         Q(5,iqz,iqy,iqx,kz,ky,kx,iel_ho) =
-                        w_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+                           w_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
                      }
                   }
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      // Assemble a sparse matrix over the macro-element by looping over each
-      // subelement.
-      //
-      // V(j,i) stores the jth nonzero in the ith row of the sparse matrix.
-      MFEM_FOREACH_THREAD(iz,z,nd1d)
-      {
-         MFEM_FOREACH_THREAD(iy,y,nd1d)
-         {
-            MFEM_FOREACH_THREAD(ix,x,nd1d)
-            {
-               FOR_LOOP_UNROLL(27)
-               for (int j=0; j<nnz_per_row; ++j)
-               {
-                  V(j,ix,iy,iz) = 0.0;
                }
             }
          }
