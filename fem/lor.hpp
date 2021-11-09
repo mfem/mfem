@@ -301,7 +301,6 @@ class LORRestriction : public Operator
    Array<int> dof_glob2loc;
    Array<int> dof_glob2loc_offsets;
    Array<int> el_dof_lex;
-   mutable Vector Q;
 
 public:
    LORRestriction(const FiniteElementSpace &fes_lo,
@@ -316,7 +315,6 @@ public:
    const Array<int> &GatherMap() const { return el_dof_lex; }
    const Array<int> &Indices() const { return dof_glob2loc; }
    const Array<int> &Offsets() const { return dof_glob2loc_offsets; }
-   Vector &GetQ() const { return Q; }
 
    // Device lambda cannot have private or protected access
 public:
