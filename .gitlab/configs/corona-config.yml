@@ -26,16 +26,19 @@ variables:
     - if: '$CI_COMMIT_BRANCH =~ /_cnone/ || $ON_CORONA != "ON"'
       when: never
     # Don’t run autotest update if...
-    - if: '$CI_JOB_NAME =~ /report/ && $_AUTOTEST != "YES"'
+    - if: '$CI_JOB_NAME =~ /report/ && $AUTOTEST != "YES"'
       when: never
     # Report success on success status
-    - if: '$CI_JOB_NAME =~ /report_job_success/ && $_AUTOTEST == "YES"'
+    - if: '$CI_JOB_NAME =~ /report_job_success/ && $AUTOTEST == "YES"'
       when: on_success
     # Report failure on failure status
-    - if: '$CI_JOB_NAME =~ /report_job_failure/ && $_AUTOTEST == "YES"'
+    - if: '$CI_JOB_NAME =~ /report_job_failure/ && $AUTOTEST == "YES"'
       when: on_failure
     # Always release resource
     - if: '$CI_JOB_NAME =~ /release_resource/'
+      when: always
+    # Always cleanup
+    - if: '$CI_JOB_NAME =~ /cleanup/'
       when: always
     # Default is to run if previous stage succeeded
     - when: on_success
@@ -46,9 +49,11 @@ variables:
   extends: [.on_corona]
   stage: build_and_test
   script:
+    # THREADS is used by 'tests/gitlab/build_and_test', run below
     - export THREADS=12
     - echo ${ALLOC_NAME}
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - echo ${JOBID}
-    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) -t 15 -N 1 tests/gitlab/build_and_test --spec "${SPEC}" --build-root "${BUILD_ROOT}" --data
-
+    - echo ${MFEM_DATA_DIR}
+    - echo ${SPEC}
+    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) -t 15 -N 1 tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data
