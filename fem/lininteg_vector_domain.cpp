@@ -249,9 +249,9 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
    });
 }
 
-void VectorDomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
-                                          const Vector &mark,
-                                          Vector &b)
+void VectorDomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
+                                            const Vector &mark,
+                                            Vector &b)
 {
    Mesh *mesh = fes.GetMesh();
    const int vdim = fes.GetVDim();

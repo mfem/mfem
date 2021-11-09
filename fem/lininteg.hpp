@@ -27,10 +27,10 @@ protected:
    LinearFormIntegrator(const IntegrationRule *ir = NULL) { IntRule = ir; }
 
 public:
-   /// Method defining partial assembly
-   virtual void AssemblePA(const FiniteElementSpace &fes,
-                           const Vector &mark,
-                           Vector &b);
+   /// Method defining full assembly
+   virtual void AssembleFull(const FiniteElementSpace &fes,
+                             const Vector &mark,
+                             Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element vector, elvect. */
@@ -104,7 +104,6 @@ class DomainLFIntegrator : public DeltaLFIntegrator
    Vector shape;
    Coefficient &Q;
    int oa, ob;
-
 public:
    /// Constructs a domain integrator with a given Coefficient
    DomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0)
@@ -116,9 +115,9 @@ public:
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
       : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
 
-   virtual void AssemblePA(const FiniteElementSpace &fes,
-                           const Vector &mark,
-                           Vector &b);
+   virtual void AssembleFull(const FiniteElementSpace &fes,
+                             const Vector &mark,
+                             Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -146,9 +145,9 @@ public:
    DomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual void AssemblePA(const FiniteElementSpace &fes,
-                           const Vector &mark,
-                           Vector &b);
+   virtual void AssembleFull(const FiniteElementSpace &fes,
+                             const Vector &mark,
+                             Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -237,9 +236,9 @@ public:
    VectorDomainLFIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual void AssemblePA(const FiniteElementSpace &fes,
-                           const Vector &mark,
-                           Vector &b);
+   virtual void AssembleFull(const FiniteElementSpace &fes,
+                             const Vector &mark,
+                             Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -268,9 +267,9 @@ public:
    VectorDomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual void AssemblePA(const FiniteElementSpace &fes,
-                           const Vector &mark,
-                           Vector &b) override;
+   virtual void AssembleFull(const FiniteElementSpace &fes,
+                             const Vector &mark,
+                             Vector &b) override;
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */

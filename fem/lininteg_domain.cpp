@@ -241,9 +241,9 @@ void DomainLFIntegratorAssemble3D(const int NE,
    });
 }
 
-void DomainLFIntegrator::AssemblePA(const FiniteElementSpace &fes,
-                                    const Vector &mark,
-                                    Vector &b)
+void DomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
+                                      const Vector &mark,
+                                      Vector &b)
 {
    const MemoryType mt = Device::GetDeviceMemoryType();
    Mesh *mesh = fes.GetMesh();

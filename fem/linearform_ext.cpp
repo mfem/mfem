@@ -23,7 +23,7 @@ LinearFormExtension::LinearFormExtension(LinearForm *lf) : lf(lf) { }
 
 LinearFormExtension::~LinearFormExtension() { }
 
-PALinearFormExtension::PALinearFormExtension(LinearForm *lf):
+FullLinearFormExtension::FullLinearFormExtension(LinearForm *lf):
    LinearFormExtension(lf),
    fes(*lf->FESpace()),
    mesh(*fes.GetMesh()),
@@ -42,7 +42,7 @@ PALinearFormExtension::PALinearFormExtension(LinearForm *lf):
    for (int i=0; i<NE; i++) { attributes[i] = fes.GetMesh()->GetAttribute(i); }
 }
 
-void PALinearFormExtension::Assemble()
+void FullLinearFormExtension::Assemble()
 {
 
    lf->Vector::operator=(0.0);
@@ -78,9 +78,8 @@ void PALinearFormExtension::Assemble()
          if (no_dimk || elem_attr_eq_1) { mark[i] = 1.0; }
       });
 
-      domain_integs[k]->AssemblePA(fes, marks, *lf);
+      domain_integs[k]->AssembleFull(fes, marks, *lf);
    }
-   //assert(false);
 }
 
 } // namespace mfem
