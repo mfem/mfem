@@ -37,7 +37,7 @@ struct LORBench
    const IntegrationRule &ir_el;
    FiniteElementSpace &fes_lo;
    BilinearForm a_partial, a_legacy, a_full;
-   OperatorHandle A_deviced;
+   OperatorHandle A_batched, A_deviced;
    SparseMatrix *A_full;
    GridFunction x;
    const int dofs;
@@ -155,7 +155,7 @@ struct LORBench
 
       MFEM_DEVICE_SYNC;
       tic();
-      AssembleBatchedLOR_GPU(a_legacy, fes_ho, ess_dofs, A_deviced);
+      AssembleBatchedLOR_GPU(lor_disc, a_legacy, fes_ho, ess_dofs, A_deviced);
       MFEM_DEVICE_SYNC;
       dbg("Deviced time = %f",toc());
       A_deviced.As<SparseMatrix>()->HostReadWriteI();
@@ -183,7 +183,7 @@ struct LORBench
    {
       MFEM_DEVICE_SYNC;
       tic();
-      AssembleBatchedLOR_GPU(a_legacy, fes_ho, ess_dofs, A_deviced);
+      AssembleBatchedLOR_GPU(lor_disc, a_legacy, fes_ho, ess_dofs, A_deviced);
       MFEM_DEVICE_SYNC;
       dbg(" Deviced time = %f",toc());
       A_deviced.Clear(); // forcing initialization phase
@@ -235,7 +235,7 @@ struct LORBench
       std::exit(0);
    }
 
-   void Legacy()
+   void KerLegacy()
    {
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
@@ -245,15 +245,33 @@ struct LORBench
       mdof += 1e-6 * dofs;
    }
 
-   void Full()
+   void KerFull()
    {
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
       a_full.Assemble();
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
-      A_full = &a_full.SpMat();
-      delete a_full.LoseMat(); // force not reuse the sparse matrix memory
+      mdof += 1e-6 * dofs;
+   }
+
+   void KerBatched()
+   {
+      MFEM_DEVICE_SYNC;
+      tic_toc.Start();
+      AssembleBatchedLOR(a_legacy, fes_ho, ess_dofs, A_batched);
+      MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
+      mdof += 1e-6 * dofs;
+   }
+
+   void KerDeviced()
+   {
+      MFEM_DEVICE_SYNC;
+      tic_toc.Start();
+      AssembleBatchedLOR_GPU(lor_disc, a_legacy, fes_ho, ess_dofs, A_deviced);
+      MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
       mdof += 1e-6 * dofs;
    }
 
@@ -267,17 +285,6 @@ struct LORBench
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
       bf_full.Assemble();
-      MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
-      mdof += 1e-6 * dofs;
-   }
-
-   void Batched()
-   {
-      MFEM_DEVICE_SYNC;
-      tic_toc.Start();
-      OperatorHandle A_batched;
-      AssembleBatchedLOR(a_legacy, fes_ho, ess_dofs, A_batched);
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
       mdof += 1e-6 * dofs;
@@ -299,18 +306,6 @@ struct LORBench
       mdof += 1e-6 * dofs;
    }
 
-   void Deviced()
-   {
-      MFEM_DEVICE_SYNC;
-      tic_toc.Start();
-      //OperatorHandle A_deviced;
-      AssembleBatchedLOR_GPU(a_legacy, fes_ho, ess_dofs, A_deviced);
-      MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
-      A_deviced.Clear(); // forcing initialization phase
-      mdof += 1e-6 * dofs;
-   }
-
    void AllDeviced()
    {
       LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
@@ -321,7 +316,7 @@ struct LORBench
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
       OperatorHandle A_deviced;
-      AssembleBatchedLOR_GPU(a_legacy, fes_ho, ess_dofs, A_deviced);
+      AssembleBatchedLOR_GPU(lor_disc, a_legacy, fes_ho, ess_dofs, A_deviced);
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
       mdof += 1e-6 * dofs;
@@ -346,8 +341,8 @@ static void Name(bm::State &state){\
    if (lor.dofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
    while (state.KeepRunning()) { lor.Name(); }\
    bm::Counter::Flags flags = bm::Counter::kIsIterationInvariantRate;\
-   state.counters["Dofs/s"] = bm::Counter(lor.dofs, flags);\
-   state.counters["Only_Assemble_(MDof/s)"] = bm::Counter(lor.Mdofs());\
+   state.counters["Ker_(Dofs/s)"] = bm::Counter(lor.dofs, flags);\
+   state.counters["All_(MDof/s)"] = bm::Counter(lor.Mdofs());\
    state.counters["dofs"] = bm::Counter(lor.dofs);\
    state.counters["p"] = bm::Counter(p);\
 }\
@@ -357,16 +352,17 @@ BENCHMARK(Name)\
 
 Benchmark(SanityChecks)
 
-Benchmark(Legacy)
-Benchmark(Full)
-Benchmark(Batched)
-Benchmark(Deviced)
+Benchmark(KerLegacy)
+Benchmark(KerFull)
+Benchmark(KerBatched)
+Benchmark(KerDeviced)
 
 Benchmark(AllFull)
 Benchmark(AllBatched)
 Benchmark(AllDeviced)
+
 //Benchmark(Dump)
-//Benchmark(Test)
+Benchmark(Test)
 
 /**
  * @brief main entry point

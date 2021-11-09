@@ -10,26 +10,24 @@
 // CONTRIBUTING.md for details.
 
 #include "fem.hpp"
-//#include "../mesh/mesh.hpp"
-//#include "../linalg/vector.hpp"
-//#include "../general/array.hpp"
 #include "../general/forall.hpp"
+#define FOR_LOOP_UNROLL(N) MFEM_UNROLL(N)
 
 #define MFEM_DEBUG_COLOR 226
 //#include "../general/debug.hpp"
 //#include "../general/nvvp.hpp"
 #define NvtxPush(...)
 #define NvtxPop(...)
-#define FOR_LOOP_UNROLL(N) MFEM_UNROLL(N)
 
 namespace mfem
 {
 
 template <int order>
 void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
-                              Array<int> &dof_glob2loc_,
-                              Array<int> &dof_glob2loc_offsets_,
-                              Array<int> &el_dof_lex_,
+                              const Array<int> &dof_glob2loc_,
+                              const Array<int> &dof_glob2loc_offsets_,
+                              const Array<int> &el_dof_lex_,
+                              const Array<int> &ess_dofs,
                               Vector &Q_,
                               Mesh &mesh_ho,
                               FiniteElementSpace &fes_ho,
@@ -48,6 +46,8 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
    static constexpr int sz_grad_A = 3*3*2*2*2*2;
    static constexpr int sz_grad_B = sz_grad_A*2;
    static constexpr int sz_local_mat = 8*8;
+   const int n_ess_dofs = ess_dofs.Size();
+   MFEM_VERIFY(n_ess_dofs<nel_ho, "n_ess_dofs vs. nel_ho error!");
 
    NvtxPush(DOFCopy, Coral);
    const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
@@ -471,6 +471,20 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
          }
       }
       MFEM_SYNC_THREAD;
+
+      // Diagonal = 0.0
+      const int i = iel_ho;
+      if (i<n_ess_dofs)
+      {
+         for (int j=I[i]; j<I[i+1]; ++j)
+         {
+            if (J[j] != i)
+            {
+               A[j] = 0.0;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
    });
 
    NvtxPop(Assembly);
@@ -479,7 +493,9 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 
 #define TEMPLATE_LOR_KERNEL(order) \
 template void Assemble3DBatchedLOR_GPU<order>\
-    (Mesh &,Array<int> &,Array<int> &, Array<int> &, \
+    (Mesh &,\
+     const Array<int> &,const Array<int> &, const Array<int> &,\
+     const Array<int> &ess_dofs,\
      Vector &,\
      Mesh &,\
      FiniteElementSpace &,SparseMatrix &)

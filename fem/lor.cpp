@@ -11,9 +11,13 @@
 
 #include "lor.hpp"
 #include "lor_assembly.hpp"
+#include "restriction.hpp"
 #include "pbilinearform.hpp"
 
 #include "../mfem-performance.hpp"
+
+#include "../general/forall.hpp"
+#include "../general/nvvp.hpp"
 
 namespace mfem
 {
@@ -274,6 +278,15 @@ const OperatorHandle &LORBase::GetAssembledSystem() const
 {
    MFEM_VERIFY(a != nullptr && A.Ptr() != nullptr, "No LOR system assembled");
    return A;
+}
+
+const Operator *LORBase::GetLORRestriction() const
+{
+   if (R_lor.Ptr() == NULL)
+   {
+      R_lor.Reset(new LORRestriction(*fes, fes_ho));
+   }
+   return R_lor.Ptr();
 }
 
 void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
@@ -586,5 +599,340 @@ ParFiniteElementSpace &ParLORDiscretization::GetParFESpace() const
 }
 
 #endif
+
+LORRestriction::LORRestriction(const FiniteElementSpace &fes_lo,
+                               const FiniteElementSpace &fes_ho)
+   : fes(fes_lo),
+     fes_ho(fes_ho),
+     ne(fes.GetNE()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes.GetNDofs()),
+     dof(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
+     nedofs(ne*dof),
+
+     offsets(ndofs+1),
+     indices(ne*dof),
+     gatherMap(ne*dof),
+
+     dof_glob2loc(),
+     dof_glob2loc_offsets(),
+     el_dof_lex(),
+     Q()
+{
+   SetupL2E();
+   SetupG2L();
+
+   NvtxPush(EnsureNodes,Chocolate);
+   // nodes will be ordered byVDIM but won't use SetCurvature each time
+   fes.GetMesh()->EnsureNodes();
+   NvtxPop();
+}
+
+void LORRestriction::Mult(const Vector &x, Vector &y) const { assert(false); }
+void LORRestriction::MultTranspose(const Vector &x, Vector &y) const { assert(false); }
+
+void LORRestriction::SetupL2E()
+{
+   NvtxPush(Setup,Chocolate);
+
+   NvtxPush(Ini,LightBlue);
+   MFEM_VERIFY(ne>0, "ne==0 not supported");
+
+   const FiniteElement *fe = fes.GetFE(0);
+   const TensorBasisElement* el =
+      dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_VERIFY(el, "!TensorBasisElement");
+
+   const Array<int> &fe_dof_map = el->GetDofMap();
+   MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
+   NvtxPop(Ini);
+
+   const Table& e2dTable = fes.GetElementToDofTable();
+   const int* elementMap = e2dTable.GetJ();
+
+   auto d_offsets = offsets.Write();
+   const int NDOFS = ndofs;
+   NvtxPush(Flush,DarkSalmon);
+   MFEM_FORALL(i, NDOFS+1, d_offsets[i] = 0;);
+   NvtxPop(Flush);
+
+   NvtxPush(offsets,IndianRed);
+   const Memory<int> &J = e2dTable.GetJMemory();
+   const MemoryClass mc = Device::GetDeviceMemoryClass();
+   const int *d_elementMap = J.Read(mc, J.Capacity());
+   const int DOF = dof;
+   MFEM_FORALL(e, ne,
+   {
+      for (int d = 0; d < DOF; ++d)
+      {
+         const int sgid = d_elementMap[DOF*e + d];  // signed
+         const int gid = (sgid >= 0) ? sgid : -1 - sgid;
+         AtomicAdd(d_offsets[gid+1], 1);
+      }
+   });
+   NvtxPop(offsets);
+
+   NvtxPush(Aggregate,Moccasin);
+   // Aggregate to find offsets for each global dof
+   offsets.HostReadWrite();
+   for (int i = 1; i <= ndofs; ++i) { offsets[i] += offsets[i - 1]; }
+   NvtxPop(Aggregate);
+
+   NvtxPush(Fill,DarkOrange);
+   // For each global dof, fill in all local nodes that point to it
+   auto d_gather = gatherMap.Write();
+   auto d_indices = indices.Write();
+   auto drw_offsets = offsets.ReadWrite();
+   const auto dof_map_mem = fe_dof_map.GetMemory();
+   const auto d_dof_map = fe_dof_map.GetMemory().Read(mc,dof_map_mem.Capacity());
+   MFEM_FORALL(e, ne,
+   {
+      for (int d = 0; d < DOF; ++d)
+      {
+         const int sdid = d_dof_map[d];  // signed
+         const int did = d;
+         const int sgid = d_elementMap[DOF*e + did];  // signed
+         const int gid = (sgid >= 0) ? sgid : -1-sgid;
+         const int lid = DOF*e + d;
+         const bool plus = (sgid >= 0 && sdid >= 0) || (sgid < 0 && sdid < 0);
+         d_gather[lid] = plus ? gid : -1-gid;
+         d_indices[AtomicAdd(d_offsets[gid], 1)] = plus ? lid : -1-lid;
+      }
+   });
+   NvtxPop(Fill);
+
+   NvtxPush(Shift,YellowGreen);
+   offsets.HostReadWrite();
+   for (int i = ndofs; i > 0; --i) { offsets[i] = offsets[i - 1]; }
+   offsets[0] = 0;
+   NvtxPop(Shift);
+
+   NvtxPop(Setup);
+}
+
+void LORRestriction::SetupG2L()
+{
+   const int ndof = fes_ho.GetVSize();
+   const int nel_ho = fes_ho.GetMesh()->GetNE();
+   const int order = fes_ho.GetMaxElementOrder();
+   const int dim = fes_ho.GetMesh()->Dimension();
+   const int nd1d = order + 1;
+   const int ndof_per_el = nd1d*nd1d*nd1d;
+
+   dof_glob2loc.SetSize(2*ndof_per_el*nel_ho);
+   dof_glob2loc_offsets.SetSize(ndof+1);
+   el_dof_lex.SetSize(ndof_per_el*nel_ho);
+
+   constexpr int nv = 8;
+   const int ddm2 = (dim*(dim+1))/2;
+   Q.SetSize(nel_ho*pow(order,dim)*nv*ddm2);
+
+   NvtxPush(BlockMapping, Olive);
+   Array<int> dofs;
+
+   const Array<int> &lex_map =
+      dynamic_cast<const NodalFiniteElement&>
+      (*fes_ho.GetFE(0)).GetLexicographicOrdering();
+
+   dof_glob2loc_offsets = 0;
+
+   for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
+   {
+      fes_ho.GetElementDofs(iel_ho, dofs);
+      for (int i=0; i<ndof_per_el; ++i)
+      {
+         const int dof = dofs[lex_map[i]];
+         el_dof_lex[i + iel_ho*ndof_per_el] = dof;
+         dof_glob2loc_offsets[dof+1] += 2;
+      }
+   }
+
+   dof_glob2loc_offsets.PartialSum();
+
+   // Sanity check
+   MFEM_VERIFY(dof_glob2loc_offsets[ndof] == dof_glob2loc.Size(), "");
+
+   Array<int> dof_ptr(ndof);
+
+   for (int i=0; i<ndof; ++i) { dof_ptr[i] = dof_glob2loc_offsets[i]; }
+
+   for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
+   {
+      fes_ho.GetElementDofs(iel_ho, dofs);
+      for (int i=0; i<ndof_per_el; ++i)
+      {
+         const int dof = dofs[lex_map[i]];
+         dof_glob2loc[dof_ptr[dof]++] = iel_ho;
+         dof_glob2loc[dof_ptr[dof]++] = i;
+      }
+   }
+   NvtxPop(BlockMapping);
+}
+
+static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
+                                      const int *nbr_elts, const int nbrNbElts)
+{
+   // Find the minimal element index found in both my_elts[] and nbr_elts[]
+   int min_el = INT_MAX;
+   for (int i = 0; i < nbElts; i++)
+   {
+      const int e_i = my_elts[i];
+      if (e_i >= min_el) { continue; }
+      for (int j = 0; j < nbrNbElts; j++)
+      {
+         if (e_i==nbr_elts[j])
+         {
+            min_el = e_i; // we already know e_i < min_el
+            break;
+         }
+      }
+   }
+   return min_el;
+}
+
+int LORRestriction::FillI(SparseMatrix &mat) const
+{
+   static constexpr int Max = 16;
+   const int all_dofs = ndofs;
+   const int vd = vdim;
+   const int elt_dofs = dof;
+   auto I = mat.ReadWriteI();
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_gatherMap = gatherMap.Read();
+   MFEM_FORALL(i_L, vd*all_dofs+1, { I[i_L] = 0; });
+   MFEM_FORALL(e, ne,
+   {
+      for (int i = 0; i < elt_dofs; i++)
+      {
+         int i_elts[Max];
+         const int i_E = e*elt_dofs + i;
+         const int i_L = d_gatherMap[i_E];
+         const int i_offset = d_offsets[i_L];
+         const int i_nextOffset = d_offsets[i_L+1];
+         const int i_nbElts = i_nextOffset - i_offset;
+         for (int e_i = 0; e_i < i_nbElts; ++e_i)
+         {
+            const int i_E = d_indices[i_offset+e_i];
+            i_elts[e_i] = i_E/elt_dofs;
+         }
+         for (int j = 0; j < elt_dofs; j++)
+         {
+            const int j_E = e*elt_dofs + j;
+            const int j_L = d_gatherMap[j_E];
+            const int j_offset = d_offsets[j_L];
+            const int j_nextOffset = d_offsets[j_L+1];
+            const int j_nbElts = j_nextOffset - j_offset;
+            if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
+            {
+               AtomicAdd(I[i_L],1);
+            }
+            else // assembly required
+            {
+               int j_elts[Max];
+               for (int e_j = 0; e_j < j_nbElts; ++e_j)
+               {
+                  const int j_E = d_indices[j_offset+e_j];
+                  const int elt = j_E/elt_dofs;
+                  j_elts[e_j] = elt;
+               }
+               const int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
+               if (e == min_e) // add the nnz only once
+               {
+                  AtomicAdd(I[i_L],1);
+               }
+            }
+         }
+      }
+   });
+   // We need to sum the entries of I, we do it on CPU as it is very sequential.
+   auto h_I = mat.HostReadWriteI();
+   const int nTdofs = vd*all_dofs;
+   int sum = 0;
+   for (int i = 0; i < nTdofs; i++)
+   {
+      const int nnz = h_I[i];
+      h_I[i] = sum;
+      sum+=nnz;
+   }
+   h_I[nTdofs] = sum;
+   // We return the number of nnz
+   return h_I[nTdofs];
+}
+
+void LORRestriction::FillJAndZeroData(SparseMatrix &mat) const
+{
+   NvtxPush(J,Chartreuse);
+   static constexpr int Max = 8;
+   const int all_dofs = ndofs;
+   const int vd = fes.GetVDim();
+   const int elt_dofs = fes.GetFE(0)->GetDof();
+   auto I = mat.ReadWriteI();
+   auto J = mat.WriteJ();
+   auto Data = mat.WriteData();
+   const int NE = fes.GetNE();
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_gatherMap = gatherMap.Read();
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int i = 0; i < elt_dofs; i++)
+      {
+         int i_elts[Max];
+         const int i_E = e*elt_dofs + i;
+         const int i_L = d_gatherMap[i_E];
+         const int i_offset = d_offsets[i_L];
+         const int i_nextOffset = d_offsets[i_L+1];
+         const int i_nbElts = i_nextOffset - i_offset;
+         for (int e_i = 0; e_i < i_nbElts; ++e_i)
+         {
+            const int i_E = d_indices[i_offset+e_i];
+            i_elts[e_i] = i_E/elt_dofs;
+         }
+         for (int j = 0; j < elt_dofs; j++)
+         {
+            const int j_E = e*elt_dofs + j;
+            const int j_L = d_gatherMap[j_E];
+            const int j_offset = d_offsets[j_L];
+            const int j_nextOffset = d_offsets[j_L+1];
+            const int j_nbElts = j_nextOffset - j_offset;
+            if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
+            {
+               const int nnz = AtomicAdd(I[i_L],1);
+               J[nnz] = j_L;
+               Data[nnz] = 0.0;
+            }
+            else // assembly required
+            {
+               int j_elts[Max];
+               for (int e_j = 0; e_j < j_nbElts; ++e_j)
+               {
+                  const int j_E = d_indices[j_offset+e_j];
+                  const int elt = j_E/elt_dofs;
+                  j_elts[e_j] = elt;
+               }
+               const int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
+               if (e == min_e) // add the nnz only once
+               {
+                  const int nnz = AtomicAdd(I[i_L],1);
+                  J[nnz] = j_L;
+                  Data[nnz] = 0.0;
+               }
+            }
+         }
+      }
+   });
+   NvtxPop(J);
+   NvtxPush(Shift,LightCyan);
+   // We need to shift again the entries of I, we do it on CPU as it is very
+   // sequential.
+   auto h_I = mat.HostReadWriteI();
+   const int size = vd*all_dofs;
+   for (int i = 0; i < size; i++) { h_I[size-i] = h_I[size-(i+1)]; }
+   h_I[0] = 0;
+   NvtxPop(Shift);
+}
 
 } // namespace mfem
