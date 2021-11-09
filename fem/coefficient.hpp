@@ -153,13 +153,13 @@ public:
    /// Set the time for time dependent coefficients
    virtual void SetTime(double t);
 
-   /// Update the coefficients with new arrays
+   /// Replace a set of coefficients
    void UpdateCoefficients(const Array<int> & attr,
                            const Array<Coefficient*> & coefs)
    { InitMap(attr, coefs); }
 
-   /// Add a single Coefficient for a particular attribute
-   void AddCoefficient(int attr, Coefficient & coef)
+   /// Replace a single Coefficient for a particular attribute
+   void UpdateCoefficient(int attr, Coefficient & coef)
    { pieces[attr] = &coef; }
 
    /// Evaluate the coefficient.
@@ -484,13 +484,13 @@ public:
    /// Set the time for time dependent coefficients
    virtual void SetTime(double t);
 
-   /// Update the coefficients with new arrays
+   /// Replace a set of coefficients
    void UpdateCoefficients(const Array<int> & attr,
                            const Array<VectorCoefficient*> & coefs)
    { InitMap(attr, coefs); }
 
-   /// Add a single coefficient for a particular attribute
-   void AddCoefficient(int attr, VectorCoefficient & coef);
+   /// Replace a single Coefficient for a particular attribute
+   void UpdateCoefficient(int attr, VectorCoefficient & coef);
 
    /// Evaluate the coefficient.
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -916,13 +916,13 @@ public:
    /// Set the time for time dependent coefficients
    virtual void SetTime(double t);
 
-   /// Update the coefficients with new arrays
+   /// Replace a set of coefficients
    void UpdateCoefficients(const Array<int> & attr,
                            const Array<MatrixCoefficient*> & coefs)
    { InitMap(attr, coefs); }
 
-   /// Add a single coefficient for a particular attribute
-   void AddCoefficient(int attr, MatrixCoefficient & coef);
+   /// Replace a single coefficient for a particular attribute
+   void UpdateCoefficient(int attr, MatrixCoefficient & coef);
 
    /// Evaluate the coefficient.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
