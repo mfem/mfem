@@ -50,8 +50,15 @@ double EvalW_077(const double *Jpt)
    return 0.5*(I2b*I2b + 1./(I2b*I2b) - 2.);
 }
 
+static MFEM_HOST_DEVICE inline
+double EvalW_080(const double *Jpt, double gamma)
+{
+   return (1.0 - gamma) * EvalW_002(Jpt) + gamma * EvalW_077(Jpt);
+}
+
 MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
                            const double metric_normal,
+                           const double metric_param,
                            const int mid,
                            const int NE,
                            const DenseTensor &j_,
@@ -64,7 +71,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77,
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77 || mid == 80,
                "2D metric not yet implemented!");
 
    constexpr int DIM = 2;
@@ -125,7 +132,8 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
             mid ==  1 ? EvalW_001(Jpt) :
             mid ==  2 ? EvalW_002(Jpt) :
             mid ==  7 ? EvalW_007(Jpt) :
-            mid == 77 ? EvalW_077(Jpt) : 0.0;
+            mid == 77 ? EvalW_077(Jpt) :
+            mid == 80 ? EvalW_080(Jpt, metric_param) : 0.0;
 
             E(qx,qy,e) = weight * EvalW;
          }
@@ -141,7 +149,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const double m = metric_normal;
+   const double mn = metric_normal;
    const DenseTensor &J = PA.Jtr;
    const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
@@ -149,7 +157,10 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
    const Vector &O = PA.O;
    Vector &E = PA.E;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,m,M,N,J,W,B,G,X,O,E);
+   double mp = 0.0;
+   if (auto m = dynamic_cast<TMOP_Metric_080 *>(metric)) { mp = m->GetGamma(); }
+
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,mp,M,N,J,W,B,G,X,O,E);
 }
 
 } // namespace mfem

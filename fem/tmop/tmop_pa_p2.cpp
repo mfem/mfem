@@ -58,8 +58,24 @@ void EvalP_077(const double *Jpt, double *P)
    kernels::Set(2,2, 0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2(), P);
 }
 
+static MFEM_HOST_DEVICE inline
+void EvalP_080(const double *Jpt, double gamma, double *P)
+{
+   // p_80 = (1-gamma) p_2 + gamma p_77.
+
+   double dI1b[4], dI2[4], dI2b[4];
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt).
+                                     dI1b(dI1b).dI2(dI2).dI2b(dI2b));
+
+   kernels::Set(2,2, (1.0 - gamma) * 1./2., ie.Get_dI1b(), P);
+
+   const double I2 = ie.Get_I2();
+   kernels::Add(2,2, gamma * 0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2(), P);
+}
+
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
                            const double metric_normal,
+                           const double metric_param,
                            const int mid,
                            const int NE,
                            const DenseTensor &j_,
@@ -71,7 +87,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77,
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77 || mid == 80,
                "Metric not yet implemented!");
 
    constexpr int DIM = 2;
@@ -132,6 +148,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
             if (mid ==  2) { EvalP_002(Jpt, P); }
             if (mid ==  7) { EvalP_007(Jpt, P); }
             if (mid == 77) { EvalP_077(Jpt, P); }
+            if (mid == 80) { EvalP_080(Jpt, metric_param, P); }
             for (int i = 0; i < 4; i++) { P[i] *= weight; }
 
             // PMatO += DS . P^t += DSh . (Jrt . P^t)
@@ -160,7 +177,10 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_2D,id,mn,M,N,J,W,B,G,X,Y);
+   double mp = 0.0;
+   if (auto m = dynamic_cast<TMOP_Metric_080 *>(metric)) { mp = m->GetGamma(); }
+
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_2D,id,mn,mp,M,N,J,W,B,G,X,Y);
 }
 
 } // namespace mfem
