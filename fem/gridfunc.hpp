@@ -944,6 +944,48 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
 Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
                   int order, int dim);
 
+
+
+class PatchLeastSquaresCoefficient : public Coefficient
+{
+private:
+   int dim;
+   Mesh * mesh = nullptr;
+   FiniteElementSpace * fes = nullptr;
+   GridFunction * u = nullptr;
+   int order;
+   Array<int> elems;
+   Vector xmax, xmin;
+   Vector coefficients;
+   void Setup();
+
+public:
+   PatchLeastSquaresCoefficient(GridFunction * u_, int order_,
+                                const Array<int> & elems_)
+      : u(u_), order(order_), elems(elems_)
+   {
+      fes = u->FESpace();
+      mesh = fes->GetMesh();
+      dim = mesh->Dimension();
+      Setup();
+   }
+
+   using Coefficient::Eval;
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      double x[3];
+      Vector transip(x, 3);
+      T.Transform(ip, transip);
+      Vector p(coefficients.Size());
+      p = LegendreND(transip, xmax, xmin, order, dim);
+      return coefficients*p;
+   }
+
+};
+
+
+
 /// A ``true'' ZZ error estimator which uses face-based patches
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,

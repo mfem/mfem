@@ -4269,6 +4269,105 @@ Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
    return poly;
 }
 
+
+void PatchLeastSquaresCoefficient::Setup()
+{
+   int num_elems = elems.Size();
+   int num_basis_functions = pow(order+1,dim);
+   DenseMatrix A(num_basis_functions);
+   Array<double> b(num_basis_functions);
+   A = 0.0;
+   b = 0.0;
+
+   // Compute bounding box
+   xmax.SetSize(dim);
+   xmin.SetSize(dim);
+
+   for (int d = 0; d < dim; d++)
+   {
+      xmin(d) = infinity();
+      xmax(d) = -infinity();
+   }
+
+   for (int i = 0; i < num_elems; i++)
+   {
+      int ielem = elems[i];
+      const IntegrationRule *irule = &(IntRules.Get(mesh->GetElementGeometry(ielem),
+                                                    order));
+      ElementTransformation * trans = fes->GetElementTransformation(ielem);
+      for (int k = 0; k < irule->GetNPoints(); k++)
+      {
+         const IntegrationPoint ip = irule->IntPoint(k);
+         double tmp[3];
+         Vector transip(tmp, 3);
+         trans->Transform(ip, transip);
+         for (int d = 0; d < dim; d++) { xmax(d) = max(xmax(d), transip(d)); }
+         for (int d = 0; d < dim; d++) { xmin(d) = min(xmin(d), transip(d)); }
+      }
+   }
+
+   // Compute the normal equations for the least-squares problem
+   for (int i = 0; i < num_elems; i++)
+   {
+      int iel = elems[i];
+      const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(iel),
+                                                 order));
+      int num_integration_pts = ir->GetNPoints();
+      Array<int> udofs;
+      DofTransformation * udoftrans = fes->GetElementVDofs(iel, udofs);
+      Vector ul;
+      u->GetValues(iel, *ir, ul);
+      if (udoftrans) { udoftrans->InvTransformPrimal(ul); }
+      ElementTransformation * trans = fes->GetElementTransformation(iel);
+
+      for (int k = 0; k < num_integration_pts; k++)
+      {
+         const IntegrationPoint ip = ir->IntPoint(k);
+         double tmp[3];
+         Vector transip(tmp, 3);
+         trans->Transform(ip, transip);
+
+         Vector p(num_basis_functions);
+         p = LegendreND(transip, xmax, xmin, order, dim);
+         AddMultVVt(p, A);
+
+         for (int l = 0; l < num_basis_functions; l++)
+         {
+            b[l] += p(l) * ul(k);
+         }
+      }
+   }
+   // 2.D. Shift spectrum of A with to avoid conditioning issues.
+   for (int i = 0; i < num_basis_functions; i++)
+   {
+      // A(i,i) += tichonov_coeff;
+      A(i,i) += 1e-10;
+   }
+   // 2.E. Solve for polynomial coefficients
+   Array<int> ipiv(num_basis_functions);
+   LUFactors lu(A.Data(), ipiv);
+   double TOL = 1e-9;
+   if (!lu.Factor(num_basis_functions,TOL))
+   {
+      // Singular matrix
+      mfem::out << "NewZZErrorEstimator: Matrix A is singular.\t"
+                << "Consider increasing tichonov_coeff." << endl;
+      for (int i = 0; i < num_basis_functions; i++)
+      {
+         A(i,i) += 1e-8;
+      }
+      lu.Factor(num_basis_functions,TOL);
+   }
+   lu.Solve(num_basis_functions, 1, b);
+
+   coefficients.SetSize(b.Size());
+   for (int i = 0; i < b.Size(); i++)
+   {
+      coefficients(i) = b[i];
+   }
+}
+
+
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,
                            GridFunction &flux,
@@ -4388,8 +4487,9 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                                                     flux_order));
          int num_integration_pts = ir->GetNPoints();
 
-         udoftrans = ufes->GetElementVDofs(i, udofs);
-         fdoftrans = ffes->GetElementVDofs(i, fdofs);
+         udoftrans = ufes->GetElementVDofs(i, udofs); // <---------
+         fdoftrans = ffes->GetElementVDofs(i,
+                                           fdofs); // <--------- are these probably wrong??
          nfdofs += fdofs.Size();
 
          ufes->GetElementVDofs(ielem, udofs);
