@@ -44,7 +44,7 @@ struct LinExt
    Mesh mesh;
    H1_FECollection fec;
    FiniteElementSpace vfes; // vdim finite element space
-   FiniteElementSpace *mfes; // mesh finite elemente space
+   FiniteElementSpace mfes; // mesh finite elemente space
    GridFunction x;
    const Geometry::Type geom_type;
    IntegrationRules IntRulesGLL;
@@ -75,8 +75,8 @@ struct LinExt
            Mesh::MakeCartesian3D(N,N,N,type) : Mesh::MakeCartesian2D(N,N,type)),
       fec(p, DIM),
       vfes(&mesh, &fec, VDIM),
-      mfes(new FiniteElementSpace(&mesh, &fec, DIM)),
-      x(mfes),
+      mfes(&mesh, &fec, DIM),
+      x(&mfes),
       geom_type(vfes.GetFE(0)->GetGeomType()),
       IntRulesGLL(0, Quadrature1D::GaussLobatto),
       irGLL(&IntRulesGLL.Get(geom_type, q)), // Gauss-Legendre-Lobatto
@@ -109,11 +109,11 @@ struct LinExt
 
    void SetupRandomMesh() noexcept
    {
-      mesh.SetNodalFESpace(mfes);
+      mesh.SetNodalFESpace(&mfes);
       mesh.SetNodalGridFunction(&x);
       const double jitter = 1./(M_PI*M_PI);
       const double h0 = mesh.GetElementSize(0);
-      GridFunction rdm(mfes);
+      GridFunction rdm(&mfes);
       rdm.Randomize(SEED);
       rdm -= 0.5; // Shift to random values in [-0.5,0.5]
       rdm *= jitter * h0; // Scale the random values to be of same order
