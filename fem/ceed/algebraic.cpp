@@ -143,7 +143,7 @@ Solver *BuildSmootherFromCeed(ConstrainedOperator &op, bool chebyshev)
    if (chebyshev)
    {
       const int cheb_order = 3;
-      out = new OperatorChebyshevSmoother(&op, t_diag, ess_tdofs, cheb_order);
+      out = new OperatorChebyshevSmoother(op, t_diag, ess_tdofs, cheb_order);
    }
    else
    {

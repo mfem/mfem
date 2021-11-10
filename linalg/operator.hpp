@@ -242,7 +242,10 @@ public:
    void FormDiscreteOperator(Operator* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
-   void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
+   void PrintMatlab(std::ostream & out, int n, int m = 0) const;
+
+   /// Prints operator in Matlab format.
+   virtual void PrintMatlab(std::ostream & out) const;
 
    /// Virtual destructor.
    virtual ~Operator() { }

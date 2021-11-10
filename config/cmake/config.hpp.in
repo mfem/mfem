@@ -119,6 +119,9 @@
 // Enable the use of SIMD in the high performance templated classes
 #cmakedefine MFEM_USE_SIMD
 
+// Enable MFEM functionality based on the FMS library
+#cmakedefine MFEM_USE_FMS
+
 // Enable MFEM functionality based on Conduit
 #cmakedefine MFEM_USE_CONDUIT
 
@@ -171,5 +174,8 @@
 
 // Enable interface to the MKL CPardiso library.
 #cmakedefine MFEM_USE_MKL_CPARDISO
+
+// Enable MFEM functionality based on the Google Benchmark library.
+#cmakedefine MFEM_USE_BENCHMARK
 
 #endif // MFEM_CONFIG_HEADER

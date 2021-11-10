@@ -1,0 +1,49 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# GitLab pipelines configurations for the Lassen machine at LLNL
+variables:
+  MACHINE_NAME: lassen
+
+.on_lassen:
+  tags:
+    - shell
+    - lassen
+  rules:
+    - if: '$CI_COMMIT_BRANCH =~ /_lnone/ || $ON_LASSEN == "OFF"' #run except if ...
+      when: never
+    # Don't run autotest update if...
+    - if: '$CI_JOB_NAME =~ /report/ && $AUTOTEST != "YES"'
+      when: never
+    # Report success on success status
+    - if: '$CI_JOB_NAME =~ /report_job_success/ && $AUTOTEST == "YES"'
+      when: on_success
+    # Report failure on failure status
+    - if: '$CI_JOB_NAME =~ /report_job_failure/ && $AUTOTEST == "YES"'
+      when: on_failure
+    # Always cleanup
+    - if: '$CI_JOB_NAME =~ /cleanup/'
+      when: always
+    - when: on_success
+
+# Lassen uses a different job scheduler (spectrum lsf) that does not allow
+# pre-allocation the same way slurm does.  We use pdebug queue on lassen
+# to speed-up the allocation.  However this would not be scalable to
+# multiple builds.
+.build_and_test_on_lassen:
+  extends: [.on_lassen]
+  stage: build_and_test
+  script:
+    - echo ${MFEM_DATA_DIR}
+    - echo ${SPEC}
+    # Next script uses 'THREADS': leaving it empty --> it uses 'make all -j'
+    - lalloc 1 -W 30 -q pdebug tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data
+  needs: [setup]

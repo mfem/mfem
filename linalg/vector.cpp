@@ -768,6 +768,7 @@ void Vector::Randomize(int seed)
    // srand(seed++);
    srand((unsigned)seed);
 
+   HostWrite();
    for (int i = 0; i < size; i++)
    {
       data[i] = std::abs(rand()/max);
