@@ -770,11 +770,12 @@ int main(int argc, char *argv[])
    Vector resy(face_restr->Height());
    const int face_dofs = dim==2? order + 1 : (order+1)*(order+1);
    const int nf = test_fes.GetNFbyType(FaceType::Interior);
-   auto tx = Reshape(resx.HostRead(),face_dofs,2,nf);
-   auto ty = Reshape(resy.HostRead(),face_dofs,2,nf);
 
    face_restr->Mult(fx,resx);
    face_restr->Mult(fy,resy);
+
+   const auto tx = Reshape(resx.HostReadWrite(),face_dofs,2,nf);
+   const auto ty = Reshape(resy.HostReadWrite(),face_dofs,2,nf);
 
    if (mpi.WorldRank()!=0)
    {
