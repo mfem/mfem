@@ -41,7 +41,7 @@ void mesher(int opatch0, int opatch1)
    const char *msh_filename = "twocubes";
    double offset = 0.0;
    bool uniformknots = false;
-   
+
 
    int order = 1;
 
@@ -58,7 +58,7 @@ void mesher(int opatch0, int opatch1)
 
 
    // Define points
-   switch(opatch0)
+   switch (opatch0)
    {
       case 1:
          patch0(0,0,0,0) = 0;
@@ -254,7 +254,7 @@ void mesher(int opatch0, int opatch1)
 
 
 
-   switch(opatch1)
+   switch (opatch1)
    {
       case 1:
          patch1(0,0,0,0) += 0;
@@ -410,7 +410,7 @@ void mesher(int opatch0, int opatch1)
    mesh_file.append(msh_filename);
    mesh_file.append(to_string(opatch0));
    mesh_file.append(to_string(opatch1));
-   
+
 
    mesh_file.append(".mesh");
    ofstream output(mesh_file.c_str());
@@ -422,7 +422,7 @@ void mesher(int opatch0, int opatch1)
    output<< "dimension"<<endl;
    output<< "3" <<endl;
    output<< endl;
-   
+
 
 
    // Elements
@@ -432,17 +432,17 @@ void mesher(int opatch0, int opatch1)
 
    // Patch 1 flipped around z-axis: does not work1
 
-   switch(opatch0)
+   switch (opatch0)
    {
       case 1: // Original
          output<<"1 5 0 1 4 3 6 7 10 9"<<endl;
          break;
 
-      case 2: 
+      case 2:
          output<<"1 5 3 0 1 4 9 6 7 10 "<<endl;
          break;
 
-      case 3: 
+      case 3:
          output<<"1 5 4 3 0 1 10 9 6 7"<<endl;
          break;
 
@@ -453,21 +453,21 @@ void mesher(int opatch0, int opatch1)
    }
 
 
-   switch(opatch1)
+   switch (opatch1)
    {
-      case 1: 
+      case 1:
          output<<"1 5 1 2 5 4 7 8 11 10"<<endl;
          break;
-      case 2: 
+      case 2:
          output<<"1 5 4 1 2 5 10 7 8 11"<<endl;
          break;
 
       case 3:
-         output<<"1 5 5 4 1 2 11 10 7 8"<<endl; 
+         output<<"1 5 5 4 1 2 11 10 7 8"<<endl;
          break;
 
-      case 4: 
-         output<<"1 5 2 5 4 1 8 11 10 7"<<endl; 
+      case 4:
+         output<<"1 5 2 5 4 1 8 11 10 7"<<endl;
          break;
    }
 
@@ -530,7 +530,7 @@ void mesher(int opatch0, int opatch1)
    cout << "=========================================================="<< endl;
    Mesh *mesh = new Mesh(mesh_file.c_str(), 1, 1);
    mesh->PrintInfo();
-  
+
    // Close
    delete mesh;
 

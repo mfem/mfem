@@ -161,7 +161,8 @@ public:
    inline       double &operator()(int i, int j, int k, int l);
    inline const double &operator()(int i, int j, int k, int l) const;
 
-   static void Get2DRotationMatrix(double angle, DenseMatrix &T);  // --> could be moved to ??
+   static void Get2DRotationMatrix(double angle,
+                                   DenseMatrix &T);  // --> could be moved to ??
    static void Get3DRotationMatrix(double n[], double angle, double r,
                                    DenseMatrix &T); // --> could be moved to ??
    void FlipDirection(int dir);
@@ -246,7 +247,7 @@ protected:
 
    void CheckPatches();
    void CheckBdrPatches();
-   // Checks the direction of the knotvectors in the patch based on 
+   // Checks the direction of the knotvectors in the patch based on
    // the patch orientation.
    void CheckKVDirection(int p, Array <int> &kvdir);
 
@@ -590,7 +591,8 @@ inline const KnotVector *NURBSExtension::KnotVecRed(int edge) const
    return knotVectorsRed[KnotIndRed(edge)];
 }
 
-inline const KnotVector *NURBSExtension::KnotVecRed(int edge, int oedge, int *okv)
+inline const KnotVector *NURBSExtension::KnotVecRed(int edge, int oedge,
+                                                    int *okv)
 const
 {
    int kv = edge_to_knot[edge];

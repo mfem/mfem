@@ -544,7 +544,7 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
    s = 0;
    int i = 0;
    for (int j = 0; j < kv.Size(); j++)
-   { 
+   {
       //((knot(i)-kv[j]) < 1e-5)
       // if (knot(i) == kv[j])
       // Check is now suitable for doubles
@@ -708,7 +708,9 @@ NURBSPatch::NURBSPatch(int kv_dim, int dim_)
 {
    kv.SetSize(kv_dim);
    for (int i = 0; i < kv.Size(); i++)
+   {
       kv[i] = new KnotVector(1,2);
+   }
 
    init(dim_);
    projected = false;
@@ -1656,8 +1658,10 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      patchTopo(new Mesh(*orig.patchTopo)),
      own_topo(true),
      edge_to_knot(orig.edge_to_knot),
-     knotVectorsRed(orig.knotVectorsRed.Size()), // knotVectors are copied in the body
-     knotVectorsExt(orig.knotVectorsExt.Size()), // knotVectors are copied in the body
+     knotVectorsRed(
+        orig.knotVectorsRed.Size()), // knotVectors are copied in the body
+     knotVectorsExt(
+        orig.knotVectorsExt.Size()), // knotVectors are copied in the body
      weights(orig.weights),
      d_to_d(orig.d_to_d),
      master(orig.master),
@@ -2572,7 +2576,7 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
    // -1: direction is flipped
    //  1: direction is not  flipped
 
-     
+
    if (Dimension() == 2)
    {
       for (int i = 0; i < edges.Size(); i++)
@@ -2594,7 +2598,7 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
          {
             kvdir[1] = 1;
          }
-      
+
          if (edgevert[0] == patchvert[2]  && edgevert[1] == patchvert[1])
          {
             kvdir[1] = -1;
@@ -2623,7 +2627,7 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
          {
             kvdir[1] = 1;
          }
-      
+
          if (edgevert[0] == patchvert[2]  && edgevert[1] == patchvert[1])
          {
             kvdir[1] = -1;
@@ -2634,14 +2638,14 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
          {
             kvdir[2] = 1;
          }
-      
+
          if (edgevert[0] == patchvert[4]  && edgevert[1] == patchvert[0])
          {
             kvdir[2] = -1;
          }
       }
    }
-   
+
 
    // Verify that all knotvectors have been given a direction.
    for (int i = 0; i < kvdir.Size(); i++)
@@ -2673,7 +2677,7 @@ void NURBSExtension::KVRed2Ext()
    }
 
 
-   // Create extended set of knotvectors based on direction of the element. 
+   // Create extended set of knotvectors based on direction of the element.
    for (int p = 0; p < GetNP(); p++)
    {
       CheckKVDirection(p, kvdir);
@@ -2682,7 +2686,7 @@ void NURBSExtension::KVRed2Ext()
       for (int i = 0; i < Dimension(); i++)
       {
          knotVectorsExt[Dimension()*p+i]   = new KnotVector(*(KnotVecRed(edges[e[i]])));
-         if (kvdir[i] == -1){knotVectorsExt[Dimension()*p+i]->Flip();}
+         if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
       }
    }
 }
@@ -2716,8 +2720,8 @@ void NURBSExtension::UpdateKVRed()
 
       CheckKVDirection(p, kvdir);
 
-      for ( int i = 0; i < Dimension(); i++)      
-      {  
+      for ( int i = 0; i < Dimension(); i++)
+      {
          // Check if difference between knotvector arrays
          if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
          KnotVecRed(edges[e[i]])->Difference(*(knotVectorsExt[Dimension()*p+i]), diff);
@@ -2729,16 +2733,18 @@ void NURBSExtension::UpdateKVRed()
             // Check if knotvector is allready updated. If update twice, something is wrong
             if (ifupdated[KnotIndRed(edges[e[i]])] == 1)
             {
-               mfem::out << "KnotVectorRed[i] was Updated and is updated again. Knotvectors problably not equal." << endl;
+               mfem::out <<
+                         "KnotVectorRed[i] was Updated and is updated again. Knotvectors problably not equal."
+                         << endl;
                mfem_error("NURBSExtension::UpdateKVRed()");
             }
-            
+
             // Update reduced set of knotvectors
             *(KnotVecRed(edges[e[i]])) = *(knotVectorsExt[Dimension()*p+i]);
-            
+
             // Give correct direction to knotvector. Reduced knotvectors are always not rotated.
-            if (kvdir[i] == -1){KnotVecRed(edges[e[i]])->Flip();}
-            
+            if (kvdir[i] == -1) {KnotVecRed(edges[e[i]])->Flip();}
+
             ifupdated[KnotIndRed(edges[e[i]])] = 1;
          }
       }
@@ -2775,17 +2781,18 @@ void NURBSExtension::CheckKVRedKVExt()
 
       CheckKVDirection(p, kvdir);
 
-      for ( int i = 0; i < Dimension(); i++)      
-      {  
+      for ( int i = 0; i < Dimension(); i++)
+      {
          if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
          KnotVecRed(edges[e[i]])->Difference(*(knotVectorsExt[Dimension()*p+i]), diff);
          if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
 
          if (diff.Size() > 0)
          {
-            mfem::out << "\nKnotvector of extended array " << i << " of patch " << p; 
-            mfem::out << " does not agree with knotvector of reduced array " << KnotIndRed(edges[e[i]]) << "\n";
-            
+            mfem::out << "\nKnotvector of extended array " << i << " of patch " << p;
+            mfem::out << " does not agree with knotvector of reduced array " << KnotIndRed(
+                         edges[e[i]]) << "\n";
+
             PrintKnotvectors();
 
             mfem_error("NURBSExtension::CheckKVRedKVExt()");
@@ -3762,10 +3769,10 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
       {
          pkvc[i] = new KnotVector(*(pkv[i]));
 
-         if(kvdir[i] == -1)
+         if (kvdir[i] == -1)
          {
             copy = *(pkvc[i]);
-            for(int j = 0; j < (pkvc[i])->Size(); j++)
+            for (int j = 0; j < (pkvc[i])->Size(); j++)
             {
                (*(pkvc[i]))[j] = 1 - copy[copy.Size()-1-j];
             }
@@ -3813,10 +3820,10 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
       {
          pkvc[i] = new Vector(*(pkv[i]));
 
-         if(kvdir[i] == -1)
+         if (kvdir[i] == -1)
          {
             copy = *(pkvc[i]);
-            for(int j = 0; j < (pkvc[i])->Size(); j++)
+            for (int j = 0; j < (pkvc[i])->Size(); j++)
             {
                (*(pkvc[i]))[j] = 1 - copy[copy.Size()-1-j];
             }
@@ -4356,7 +4363,7 @@ void NURBSPatchMap::GetPatchKnotVectors(int p, const KnotVector *kv[])
       kv[1] = Ext->knotVectorsExt[Ext->Dimension()*p + 1];
    }
    else
-   {  
+   {
       Ext->patchTopo->GetElementFaces(p, faces, oface);
       kv[0] = Ext->knotVectorsExt[Ext->Dimension()*p];
       kv[1] = Ext->knotVectorsExt[Ext->Dimension()*p + 1];

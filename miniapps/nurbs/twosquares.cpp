@@ -63,7 +63,7 @@ void mesher(int opatch0, int opatch1)
    KnotVector *kv0 = PowerStretchKnotVector(order, ncp, 1.5);
    KnotVector *kv1 = PowerStretchKnotVector(order, ncp, 1.5);
    KnotVector *kv2 = PowerStretchKnotVector(order, ncp, 1.5);
-  
+
 
 
    KnotVector *kv_o1 = UniformKnotVector(1, 2);
@@ -77,7 +77,7 @@ void mesher(int opatch0, int opatch1)
 
    // Define points
 
-   switch(opatch0)
+   switch (opatch0)
    {
       case 1:
          // Define points
@@ -160,7 +160,7 @@ void mesher(int opatch0, int opatch1)
    patch1(1,1,0) = offset+boxwidth;
    patch1(1,1,1) = offset;
 
-   switch(opatch1)
+   switch (opatch1)
    {
       case 1:
          // Define points
@@ -229,7 +229,7 @@ void mesher(int opatch0, int opatch1)
 
    mesh_file.append(to_string(opatch0));
    mesh_file.append(to_string(opatch1));
-   
+
 
    mesh_file.append(".mesh");
    ofstream output(mesh_file.c_str());
@@ -243,7 +243,7 @@ void mesher(int opatch0, int opatch1)
    output<< "dimension"<<endl;
    output<< "2" <<endl;
    output<< endl;
-   
+
 
 
    // Elements
@@ -251,27 +251,27 @@ void mesher(int opatch0, int opatch1)
    output<<"elements"<<endl;
    output<<"2"<<endl;
 
-   switch(opatch0)
+   switch (opatch0)
    {
       case 1:
-         output<<"1 3 0 1 4 3"<<endl; 
+         output<<"1 3 0 1 4 3"<<endl;
          break;
       case 2:
-         output<<"1 3 3 0 1 4"<<endl; 
+         output<<"1 3 3 0 1 4"<<endl;
 
          break;
       case 3:
-         output<<"1 3 4 3 0 1"<<endl;  
+         output<<"1 3 4 3 0 1"<<endl;
          break;
       case 4:
-         output<<"1 3 1 4 3 0"<<endl;   
+         output<<"1 3 1 4 3 0"<<endl;
          break;
    }
 
 
-   switch(opatch1)
+   switch (opatch1)
    {
-      case 1: 
+      case 1:
          output<<"1 3 1 2 5 4"<<endl;
          break;
       case 2:
