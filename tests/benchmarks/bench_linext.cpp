@@ -11,7 +11,8 @@
 
 #include "bench.hpp"
 
-#ifdef MFEM_USE_BENCHMARK
+namespace mfem
+{
 
 ////////////////////////////////////////////////////////////////////////////////
 constexpr int _2D = 2;
@@ -319,6 +320,8 @@ LinExtBench(4,VectorDomainLFGrad,  FULL,_2D,VDIM,_GL)
 LinExtBench(4,VectorDomainLFGrad,LEGACY,_3D,VDIM,_GL)
 LinExtBench(4,VectorDomainLFGrad,  FULL,_3D,VDIM,_GL)
 
+} // namespace mfem
+
 /** ****************************************************************************
  * @brief main entry point, some options are for example:
  * --benchmark_filter=TEST --benchmark_min_time=0.01
@@ -327,6 +330,7 @@ LinExtBench(4,VectorDomainLFGrad,  FULL,_3D,VDIM,_GL)
  **************************************************************************** */
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_BENCHMARK
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);
 
@@ -346,7 +350,9 @@ int main(int argc, char *argv[])
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
    bm::RunSpecifiedBenchmarks(&CR);
+#else
+   bm::Benchmarks::Run();
+#endif // MFEM_USE_BENCHMARK
    return 0;
 }
 
-#endif // MFEM_USE_BENCHMARK

@@ -76,14 +76,17 @@ static void Base_Virtuals_Derived_not_inlined(benchmark::State& state)
 }
 MFEM_VIRTUALS_BENCHMARK(Base_Virtuals_Derived_not_inlined);
 
+#endif // MFEM_USE_BENCHMARK
+
 // --benchmark_filter=all
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_BENCHMARK
    mfem::Reporter mfem_reporter;
    ::benchmark::Initialize(&argc, argv);
    if (::benchmark::ReportUnrecognizedArguments(argc, argv)) { return 1; }
    ::benchmark::RunSpecifiedBenchmarks(&mfem_reporter);
    return 0;
+#endif // MFEM_USE_BENCHMARK
 }
 
-#endif // MFEM_USE_BENCHMARK

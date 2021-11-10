@@ -39,7 +39,7 @@ all: $(TESTS)
 
 # Rules for building the TESTS
 
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+%: $(SRC)%.cpp bench.hpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 # Rules for compiling miniapp dependencies

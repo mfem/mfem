@@ -11,7 +11,8 @@
 
 #include "bench.hpp"
 
-#ifdef MFEM_USE_BENCHMARK
+namespace mfem
+{
 
 /*
   This benchmark contains the implementation of the CEED's bake-off problems:
@@ -187,6 +188,8 @@ BakeOff_Kernel(5,Diffusion,1,true)
 /// BK6: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
 BakeOff_Kernel(6,VectorDiffusion,3,true)
 
+} // namespace mfem
+
 /**
  * @brief main entry point
  * --benchmark_filter=BK1/6
@@ -194,6 +197,7 @@ BakeOff_Kernel(6,VectorDiffusion,3,true)
  */
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_BENCHMARK
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);
 
@@ -213,7 +217,8 @@ int main(int argc, char *argv[])
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
    bm::RunSpecifiedBenchmarks(&CR);
+#else
+   bm::Benchmarks::Run();
+#endif // MFEM_USE_BENCHMARK
    return 0;
 }
-
-#endif // MFEM_USE_BENCHMARK

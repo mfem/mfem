@@ -47,7 +47,7 @@ protected:
    const Array<LinearFormIntegrator*> &domain_integs;
    const Array<Array<int>*> &domain_integs_marker;
    Vector marks, attributes;
-   const int NE, mesh_attributes_size;
+   const int ne, mesh_attributes_size;
 
 public:
    FullLinearFormExtension(LinearForm*);
