@@ -4265,7 +4265,6 @@ Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
          }
       }
    }
-
    return poly;
 }
 
@@ -4274,11 +4273,11 @@ void PatchLeastSquaresCoefficient::Setup()
 {
    int num_elems = elems.Size();
    int num_basis_functions = pow(order+1,dim);
+
    DenseMatrix A(num_basis_functions);
    Array<double> b(num_basis_functions);
    A = 0.0;
    b = 0.0;
-
    // Compute bounding box
    xmax.SetSize(dim);
    xmin.SetSize(dim);
@@ -4289,11 +4288,12 @@ void PatchLeastSquaresCoefficient::Setup()
       xmax(d) = -infinity();
    }
 
+   IntegrationRules lobatto_intrules(0, Quadrature1D::GaussLobatto);
    for (int i = 0; i < num_elems; i++)
    {
       int ielem = elems[i];
-      const IntegrationRule *irule = &(IntRules.Get(mesh->GetElementGeometry(ielem),
-                                                    order));
+      const IntegrationRule *irule = &(lobatto_intrules.Get(mesh->GetElementGeometry(
+                                                               ielem), order));
       ElementTransformation * trans = fes->GetElementTransformation(ielem);
       for (int k = 0; k < irule->GetNPoints(); k++)
       {
@@ -4326,7 +4326,6 @@ void PatchLeastSquaresCoefficient::Setup()
          double tmp[3];
          Vector transip(tmp, 3);
          trans->Transform(ip, transip);
-
          Vector p(num_basis_functions);
          p = LegendreND(transip, xmax, xmin, order, dim);
          AddMultVVt(p, A);
@@ -4350,7 +4349,7 @@ void PatchLeastSquaresCoefficient::Setup()
    if (!lu.Factor(num_basis_functions,TOL))
    {
       // Singular matrix
-      mfem::out << "NewZZErrorEstimator: Matrix A is singular.\t"
+      mfem::out << "Matrix A is singular.\t"
                 << "Consider increasing tichonov_coeff." << endl;
       for (int i = 0; i < num_basis_functions; i++)
       {

@@ -962,17 +962,16 @@ private:
 public:
    PatchLeastSquaresCoefficient(GridFunction * u_, int order_,
                                 const Array<int> & elems_)
-      : u(u_), order(order_), elems(elems_)
+      : Coefficient(), u(u_), order(order_), elems(elems_)
    {
+      mfem::out << "order = " << order << std::endl;
       fes = u->FESpace();
       mesh = fes->GetMesh();
       dim = mesh->Dimension();
       Setup();
    }
 
-   using Coefficient::Eval;
-
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       double x[3];
       Vector transip(x, 3);
@@ -981,7 +980,6 @@ public:
       p = LegendreND(transip, xmax, xmin, order, dim);
       return coefficients*p;
    }
-
 };
 
 
