@@ -29,17 +29,20 @@ FullLinearFormExtension::FullLinearFormExtension(LinearForm *lf):
    mesh(*fes.GetMesh()),
    domain_integs(*lf->GetDLFI()),
    domain_integs_marker(*lf->GetDLFIM()), // element attribute marker
-   NE(fes.GetNE()),
+   ne(fes.GetNE()),
    mesh_attributes_size(fes.GetMesh()->attributes.Size())
 {
-   marks.SetSize(NE);
+   marks.SetSize(ne);
    marks.UseDevice(true);
 
-   attributes.SetSize(NE);
+   attributes.SetSize(ne);
    attributes.UseDevice(true);
 
    // Fill the attributes vector on host
-   for (int i=0; i<NE; i++) { attributes[i] = fes.GetMesh()->GetAttribute(i); }
+   for (int i = 0; i < ne; ++i)
+   {
+      attributes[i] = fes.GetMesh()->GetAttribute(i);
+   }
 }
 
 void FullLinearFormExtension::Assemble()
@@ -65,17 +68,18 @@ void FullLinearFormExtension::Assemble()
 
       marks = 0.0;
 
+      const int NE = ne;
       const Array<int> *dimks = domain_integs_marker[k];
       const bool no_dimk =  dimks == nullptr;
-      const auto dimk = no_dimk ? nullptr : dimks->Read();
-      const auto attr = attributes.Read();
-      auto mark = marks.ReadWrite();
+      const auto dimk_r = no_dimk ? nullptr : dimks->Read();
+      const auto attr_r = attributes.Read();
+      auto mark_rw = marks.ReadWrite();
 
       MFEM_FORALL(i, NE,
       {
-         const int elem_attr = attr[i];
-         const bool elem_attr_eq_1 = no_dimk ? false : dimk[elem_attr-1] == 1;
-         if (no_dimk || elem_attr_eq_1) { mark[i] = 1.0; }
+         const int elem_attr = attr_r[i];
+         const bool elem_attr_eq_1 = no_dimk ? false : dimk_r[elem_attr-1] == 1;
+         if (no_dimk || elem_attr_eq_1) { mark_rw[i] = 1.0; }
       });
 
       domain_integs[k]->AssembleFull(fes, marks, *lf);

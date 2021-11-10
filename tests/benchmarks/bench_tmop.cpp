@@ -11,12 +11,13 @@
 
 #include "bench.hpp"
 
-#ifdef MFEM_USE_BENCHMARK
-
 #include "fem/tmop.hpp"
 #include <cassert>
 #include <memory>
 #include <cmath>
+
+namespace mfem
+{
 
 struct TMOP
 {
@@ -116,6 +117,7 @@ struct TMOP
 // !P_EQ_Q: 0x23, 0x34, 0x45, 0x56
 #define P_EQ_Q {false,true}
 
+#ifdef MFEM_USE_BENCHMARK
 /**
  * @brief The Kernel bm::Fixture struct
  */
@@ -164,6 +166,10 @@ BENCHMARK_TMOP(AddMultGradPA)
 BENCHMARK_TMOP(GetLocalStateEnergyPA)
 BENCHMARK_TMOP(AssembleGradDiagonalPA)
 
+#endif // MFEM_USE_BENCHMARK
+
+} // namespace mfem
+
 /**
  * @brief main entry point
  * --benchmark_filter=AddMultPA/4
@@ -171,6 +177,7 @@ BENCHMARK_TMOP(AssembleGradDiagonalPA)
  */
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_BENCHMARK
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);
 
@@ -190,7 +197,8 @@ int main(int argc, char *argv[])
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
    bm::RunSpecifiedBenchmarks(&CR);
+#else
+   bm::Benchmarks::Run();
+#endif // MFEM_USE_BENCHMARK
    return 0;
 }
-
-#endif // MFEM_USE_BENCHMARK

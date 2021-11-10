@@ -211,15 +211,18 @@ static void Base_Virtuals_Derived_not_inlined(benchmark::State& state)
 }
 MFEM_VECTOR_BENCHMARK(Base_Virtuals_Derived_not_inlined);
 
+#endif // MFEM_USE_BENCHMARK
+
 // --benchmark_filter=all
 // --benchmark_filter=Vector_PE_MFEM
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_BENCHMARK
    mfem::Reporter mfem_reporter;
    ::benchmark::Initialize(&argc, argv);
    if (::benchmark::ReportUnrecognizedArguments(argc, argv)) { return 1; }
    ::benchmark::RunSpecifiedBenchmarks(&mfem_reporter);
+#endif // MFEM_USE_BENCHMARK
    return 0;
 }
 
-#endif // MFEM_USE_BENCHMARK
