@@ -2919,7 +2919,7 @@ private:
 
       virtual void DisplayToGLVis() = 0;
 
-      DiscontPSCPreconditioner *dg_precond_ = NULL;
+      Solver *dg_precond_ = NULL;
    };
 
    class TransportOp : public NLOperator

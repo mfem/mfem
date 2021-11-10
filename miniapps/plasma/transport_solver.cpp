@@ -2557,6 +2557,10 @@ DGTransportTDO::NLOperator::~NLOperator()
    {
       delete blf_[i];
    }
+   for (int i=0; i<cgblf_.Size(); i++)
+   {
+      delete cgblf_[i];
+   }
 
    for (int i=0; i<dbfi_m_.size(); i++)
    {
@@ -2998,49 +3002,57 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 
       if (index_ == 1 && i == 1)  // IonDensity diagonal term
       {
-         // Construct CG space operator and preconditioner
-         ParFiniteElementSpace *fes_dg = blf_[i]->ParFESpace();
-         delete cg2dg_;
-         delete D_amg_;
-         delete D_smoother_;
-         // Note that dg_precond_ should not be deleted here,
-         // as it becomes diag_prec_[i] for IonDensity, which
-         // gets deleted elsewhere.
-
-         cg2dg_ = new CG2DG(*fes_dg, cg_ess_tdof_list);
-         delete CG2DGmat_;
-
-         const bool algebraic = false;
-         if (algebraic) // Algebraic version
+         if (cgblf_[i])
          {
-            CG2DGmat_ = cg2dg_->ParallelAssemble();
-            D_cg_ = RAP(Dmat, CG2DGmat_);
-            D_cg_->EliminateZeroRows();
-         }
-         else // CG discretization version
-         {
-            MFEM_VERIFY(cgblf_[i], "");
-            cgblf_[i]->Update(); // Clears the matrix so we start from 0 again
-            cgblf_[i]->Assemble(0);
-            cgblf_[i]->Finalize(0);
+            // Construct CG space operator and preconditioner
+            ParFiniteElementSpace *fes_dg = blf_[i]->ParFESpace();
+            delete cg2dg_;
+            delete D_amg_;
+            delete D_smoother_;
+            // Note that dg_precond_ should not be deleted here,
+            // as it becomes diag_prec_[i] for IonDensity, which
+            // gets deleted elsewhere.
 
-            OperatorPtr A_cg;
-            cgblf_[i]->FormSystemMatrix(cg_ess_tdof_list, A_cg);
-            D_cg_ = A_cg.As<HypreParMatrix>();
-         }
+            cg2dg_ = new CG2DG(*fes_dg, cg_ess_tdof_list);
+            delete CG2DGmat_;
 
-         // Set up the preconditioner in CG space
-         if (use_lor_cg)
-         {
-            //ParLORDiscretization lor(*blf_[i], ess_dofs);
+            const bool algebraic = false;
+            if (algebraic) // Algebraic version
+            {
+               CG2DGmat_ = cg2dg_->ParallelAssemble();
+               D_cg_ = RAP(Dmat, CG2DGmat_);
+               D_cg_->EliminateZeroRows();
+            }
+            else // CG discretization version
+            {
+               MFEM_VERIFY(cgblf_[i], "");
+               cgblf_[i]->Update(); // Clears the matrix so we start from 0 again
+               cgblf_[i]->Assemble(0);
+               cgblf_[i]->Finalize(0);
+
+               OperatorPtr A_cg;
+               cgblf_[i]->FormSystemMatrix(cg_ess_tdof_list, A_cg);
+               D_cg_ = A_cg.As<HypreParMatrix>();
+            }
+
+            // Set up the preconditioner in CG space
+            if (use_lor_cg)
+            {
+               //ParLORDiscretization lor(*blf_[i], ess_dofs);
+            }
+            else
+            {
+               D_amg_ = new HypreBoomerAMG(*D_cg_);
+            }
+
+            D_smoother_ = new HypreSmoother(*Dmat, HypreSmoother::Jacobi);
+            dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_amg_, *D_smoother_);
          }
          else
          {
-            D_amg_ = new HypreBoomerAMG(*D_cg_);
+            // The operator is just a DG mass matrix so return a simple precond
+            dg_precond_ = new HypreDiagScale(*Dmat);
          }
-
-         D_smoother_ = new HypreSmoother(*Dmat, HypreSmoother::Jacobi);
-         dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_amg_, *D_smoother_);
       }
 
       return D;
