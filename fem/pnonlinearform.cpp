@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 #ifdef MFEM_USE_MPI
 
 #include "fem.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -49,6 +50,7 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (fnfi.Size())
    {
+      MFEM_VERIFY(!NonlinearForm::ext, "Not implemented (extensions + faces");
       // Terms over shared interior faces in parallel.
       ParFiniteElementSpace *pfes = ParFESpace();
       ParMesh *pmesh = pfes->GetParMesh();
@@ -86,15 +88,17 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    P->MultTranspose(aux2, y);
 
-   y.HostReadWrite();
-   for (int i = 0; i < ess_tdof_list.Size(); i++)
-   {
-      y(ess_tdof_list[i]) = 0.0;
-   }
+   const int N = ess_tdof_list.Size();
+   const auto idx = ess_tdof_list.Read();
+   auto Y = y.ReadWrite();
+   MFEM_FORALL(i, N, Y[idx[i]] = 0.0; );
 }
 
 const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 {
+   MFEM_VERIFY(NonlinearForm::ext == nullptr,
+               "this method is not supported yet with partial assembly");
+
    NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
    return *Grad;
@@ -102,6 +106,8 @@ const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
 
 Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 {
+   if (NonlinearForm::ext) { return NonlinearForm::GetGradient(x); }
+
    ParFiniteElementSpace *pfes = ParFESpace();
 
    pGrad.Clear();
@@ -120,6 +126,7 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
       MFEM_ABORT("TODO: assemble contributions from shared face terms");
    }
 
+   // RAP the local gradient dA.
    // TODO - construct Dof_TrueDof_Matrix directly in the pGrad format
    Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
    pGrad.MakePtAP(dA, Ph);
@@ -200,27 +207,40 @@ void ParBlockNonlinearForm::SetEssentialBC(const
 
    BlockNonlinearForm::SetEssentialBC(bdr_attr_is_ess, nullarray);
 
-   for (int s=0; s<fes.Size(); ++s)
+   for (int s = 0; s < fes.Size(); ++s)
    {
       if (rhs[s])
       {
-         ParFiniteElementSpace *pfes = ParFESpace(s);
-         for (int i=0; i < ess_vdofs[s]->Size(); ++i)
-         {
-            int tdof = pfes->GetLocalTDofNumber((*(ess_vdofs[s]))[i]);
-            if (tdof >= 0)
-            {
-               (*rhs[s])(tdof) = 0.0;
-            }
-         }
+         rhs[s]->SetSubVector(*ess_tdofs[s], 0.0);
       }
    }
 }
 
+double ParBlockNonlinearForm::GetEnergy(const Vector &x) const
+{
+   // xs_true is not modified, so const_cast is okay
+   xs_true.Update(const_cast<Vector &>(x), block_trueOffsets);
+   xs.Update(block_offsets);
+
+   for (int s = 0; s < fes.Size(); ++s)
+   {
+      fes[s]->GetProlongationMatrix()->Mult(xs_true.GetBlock(s), xs.GetBlock(s));
+   }
+
+   double enloc = BlockNonlinearForm::GetEnergyBlocked(xs);
+   double englo = 0.0;
+
+   MPI_Allreduce(&enloc, &englo, 1, MPI_DOUBLE, MPI_SUM,
+                 ParFESpace(0)->GetComm());
+
+   return englo;
+}
+
 void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
-   xs_true.Update(x.GetData(), block_trueOffsets);
-   ys_true.Update(y.GetData(), block_trueOffsets);
+   // xs_true is not modified, so const_cast is okay
+   xs_true.Update(const_cast<Vector &>(x), block_trueOffsets);
+   ys_true.Update(y, block_trueOffsets);
    xs.Update(block_offsets);
    ys.Update(block_offsets);
 
@@ -241,14 +261,20 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
    {
       fes[s]->GetProlongationMatrix()->MultTranspose(
          ys.GetBlock(s), ys_true.GetBlock(s));
+
+      ys_true.GetBlock(s).SetSubVector(*ess_tdofs[s], 0.0);
    }
+
+   ys_true.SyncFromBlocks();
+   y.SyncMemory(ys_true);
 }
 
 /// Return the local gradient matrix for the given true-dof vector x
 const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
    const Vector &x) const
 {
-   xs_true.Update(x.GetData(), block_trueOffsets);
+   // xs_true is not modified, so const_cast is okay
+   xs_true.Update(const_cast<Vector &>(x), block_trueOffsets);
    xs.Update(block_offsets);
 
    for (int s=0; s<fes.Size(); ++s)
@@ -257,8 +283,19 @@ const BlockOperator & ParBlockNonlinearForm::GetLocalGradient(
          xs_true.GetBlock(s), xs.GetBlock(s));
    }
 
-   BlockNonlinearForm::GetGradientBlocked(xs); // (re)assemble Grad with b.c.
+   // (re)assemble Grad without b.c. into 'Grads'
+   BlockNonlinearForm::ComputeGradientBlocked(xs);
 
+   delete BlockGrad;
+   BlockGrad = new BlockOperator(block_offsets);
+
+   for (int i = 0; i < fes.Size(); ++i)
+   {
+      for (int j = 0; j < fes.Size(); ++j)
+      {
+         BlockGrad->SetBlock(i, j, Grads(i, j));
+      }
+   }
    return *BlockGrad;
 }
 
@@ -314,6 +351,9 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
                                    pfes[s1]->GetDofOffsets(), Grads(s1,s1));
             Ph.ConvertFrom(pfes[s1]->Dof_TrueDof_Matrix());
             phBlockGrad(s1,s1)->MakePtAP(dA, Ph);
+
+            OperatorHandle Ae;
+            Ae.EliminateRowsCols(*phBlockGrad(s1,s1), *ess_tdofs[s1]);
          }
          else
          {
@@ -327,6 +367,9 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
             Ph.ConvertFrom(pfes[s2]->Dof_TrueDof_Matrix());
 
             phBlockGrad(s1,s2)->MakeRAP(Rh, dA, Ph);
+
+            phBlockGrad(s1,s2)->EliminateRows(*ess_tdofs[s1]);
+            phBlockGrad(s1,s2)->EliminateCols(*ess_tdofs[s2]);
          }
 
          pBlockGrad->SetBlock(s1, s2, phBlockGrad(s1,s2)->Ptr());

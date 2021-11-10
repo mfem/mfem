@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -13,25 +13,25 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(tesla
     MAIN tesla.cpp
     tesla_solver.cpp
-    tesla_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    EXTRA_HEADERS tesla_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
 
   add_mfem_miniapp(volta
     MAIN volta.cpp
     volta_solver.cpp
-    volta_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+    EXTRA_HEADERS volta_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
 
  add_mfem_miniapp(joule
    MAIN joule.cpp
    joule_solver.cpp
-   joule_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+   EXTRA_HEADERS joule_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
    LIBRARIES mfem mfem-common)
 
  add_mfem_miniapp(maxwell
    MAIN maxwell.cpp
    maxwell_solver.cpp
-   maxwell_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+   EXTRA_HEADERS maxwell_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
    LIBRARIES mfem mfem-common)
 
   # Add the corresponding tests to the "test" target

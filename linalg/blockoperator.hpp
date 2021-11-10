@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -50,6 +50,12 @@ public:
     *  data contained in offsets.
     */
    BlockOperator(const Array<int> & row_offsets, const Array<int> & col_offsets);
+
+   /// Copy assignment is not supported
+   BlockOperator &operator=(const BlockOperator &) = delete;
+
+   /// Move assignment is not supported
+   BlockOperator &operator=(BlockOperator &&) = delete;
 
    //! Add block op in the block-entry (iblock, iblock).
    /**
@@ -283,4 +289,5 @@ private:
 };
 
 }
+
 #endif /* MFEM_BLOCKOPERATOR */

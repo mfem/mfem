@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -35,7 +35,7 @@ public:
        - When the dimensions of the associated TimeDependentOperator change.
        - When a time stepping sequence has to be restarted.
        - To change the associated TimeDependentOperator. */
-   virtual void Init(TimeDependentOperator &f);
+   virtual void Init(TimeDependentOperator &f_);
 
    /** @brief Perform a time step from time @a t [in] to time @a t [out] based
        on the requested step size @a dt [in]. */
@@ -119,7 +119,7 @@ private:
    Vector dxdt;
 
 public:
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 };
@@ -137,9 +137,9 @@ private:
    Vector dxdt, x1;
 
 public:
-   RK2Solver(const double _a = 2./3.) : a(_a) { }
+   RK2Solver(const double a_ = 2./3.) : a(a_) { }
 
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 };
@@ -152,7 +152,7 @@ private:
    Vector y, k;
 
 public:
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 };
@@ -165,7 +165,7 @@ private:
    Vector y, k, z;
 
 public:
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 };
@@ -188,10 +188,10 @@ private:
    Vector y, *k;
 
 public:
-   ExplicitRKSolver(int _s, const double *_a, const double *_b,
-                    const double *_c);
+   ExplicitRKSolver(int s_, const double *a_, const double *b_,
+                    const double *c_);
 
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 
@@ -234,9 +234,9 @@ private:
    ODESolver *RKsolver;
 
 public:
-   AdamsBashforthSolver(int _s, const double *_a);
+   AdamsBashforthSolver(int s_, const double *a_);
 
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 
@@ -315,9 +315,9 @@ private:
    ODESolver *RKsolver;
 
 public:
-   AdamsMoultonSolver(int _s, const double *_a);
+   AdamsMoultonSolver(int s_, const double *a_);
 
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 
@@ -392,7 +392,7 @@ protected:
    Vector k;
 
 public:
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 };
@@ -405,7 +405,7 @@ protected:
    Vector k;
 
 public:
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 };
@@ -426,7 +426,7 @@ protected:
 public:
    SDIRK23Solver(int gamma_opt = 1);
 
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 };
@@ -440,7 +440,7 @@ protected:
    Vector k, y, z;
 
 public:
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 };
@@ -454,14 +454,56 @@ protected:
    Vector k, y;
 
 public:
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 };
 
 
+/** Two stage, explicit singly diagonal implicit Runge-Kutta (ESDIRK) method
+    of order 2. A-stable. */
+class TrapezoidalRuleSolver : public ODESolver
+{
+protected:
+   Vector k, y;
+
+public:
+   virtual void Init(TimeDependentOperator &f_);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+
+/** Three stage, explicit singly diagonal implicit Runge-Kutta (ESDIRK) method
+    of order 2. L-stable. */
+class ESDIRK32Solver : public ODESolver
+{
+protected:
+   Vector k, y, z;
+
+public:
+   virtual void Init(TimeDependentOperator &f_);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+
+/** Three stage, explicit singly diagonal implicit Runge-Kutta (ESDIRK) method
+    of order 3. A-stable. */
+class ESDIRK33Solver : public ODESolver
+{
+protected:
+   Vector k, y, z;
+
+public:
+   virtual void Init(TimeDependentOperator &f_);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+
 /// Generalized-alpha ODE solver from "A generalized-α method for integrating
-/// the filtered Navier–Stokes equations with a stabilized finite element
+/// the filtered Navier-Stokes equations with a stabilized finite element
 /// method" by K.E. Jansen, C.H. Whiting and G.M. Hulbert.
 class GeneralizedAlphaSolver : public ODESolver
 {
@@ -476,7 +518,7 @@ public:
 
    GeneralizedAlphaSolver(double rho = 1.0) { SetRhoInf(rho); };
 
-   void Init(TimeDependentOperator &_f) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, double &t, double &dt) override;
 
@@ -677,7 +719,7 @@ public:
 
    void PrintProperties(std::ostream &out = mfem::out);
 
-   void Init(SecondOrderTimeDependentOperator &_f) override;
+   void Init(SecondOrderTimeDependentOperator &f_) override;
 
    void Step(Vector &x, Vector &dxdt, double &t, double &dt) override;
 };
@@ -727,7 +769,7 @@ public:
 
    void PrintProperties(std::ostream &out = mfem::out);
 
-   void Init(SecondOrderTimeDependentOperator &_f) override;
+   void Init(SecondOrderTimeDependentOperator &f_) override;
 
    void Step(Vector &x, Vector &dxdt, double &t, double &dt) override;
 

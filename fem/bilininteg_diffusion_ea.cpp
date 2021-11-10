@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,6 +22,7 @@ static void EADiffusionAssemble1D(const int NE,
                                   const Array<double> &g,
                                   const Vector &padata,
                                   Vector &eadata,
+                                  const bool add,
                                   const int d1d = 0,
                                   const int q1d = 0)
 {
@@ -53,7 +54,14 @@ static void EADiffusionAssemble1D(const int NE,
             {
                val += r_Gj[k1] * D(k1, e) * r_Gi[k1];
             }
-            A(i1, j1, e) += val;
+            if (add)
+            {
+               A(i1, j1, e) += val;
+            }
+            else
+            {
+               A(i1, j1, e) = val;
+            }
          }
       }
    });
@@ -65,6 +73,7 @@ static void EADiffusionAssemble2D(const int NE,
                                   const Array<double> &g,
                                   const Vector &padata,
                                   Vector &eadata,
+                                  const bool add,
                                   const int d1d = 0,
                                   const int q1d = 0)
 {
@@ -120,7 +129,14 @@ static void EADiffusionAssemble2D(const int NE,
                                + gbi * D11 * gbj;
                      }
                   }
-                  A(i1, i2, j1, j2, e) += val;
+                  if (add)
+                  {
+                     A(i1, i2, j1, j2, e) += val;
+                  }
+                  else
+                  {
+                     A(i1, i2, j1, j2, e) = val;
+                  }
                }
             }
          }
@@ -130,10 +146,11 @@ static void EADiffusionAssemble2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EADiffusionAssemble3D(const int NE,
-                                  const Array<double> &g,
                                   const Array<double> &b,
+                                  const Array<double> &g,
                                   const Vector &padata,
                                   Vector &eadata,
+                                  const bool add,
                                   const int d1d = 0,
                                   const int q1d = 0)
 {
@@ -208,7 +225,14 @@ static void EADiffusionAssemble3D(const int NE,
                               }
                            }
                         }
-                        A(i1, i2, i3, j1, j2, j3, e) += val;
+                        if (add)
+                        {
+                           A(i1, i2, i3, j1, j2, j3, e) += val;
+                        }
+                        else
+                        {
+                           A(i1, i2, i3, j1, j2, j3, e) = val;
+                        }
                      }
                   }
                }
@@ -219,7 +243,8 @@ static void EADiffusionAssemble3D(const int NE,
 }
 
 void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
-                                     Vector &ea_data)
+                                     Vector &ea_data,
+                                     const bool add)
 {
    AssemblePA(fes);
    const int ne = fes.GetMesh()->GetNE();
@@ -229,44 +254,47 @@ void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x22: return EADiffusionAssemble1D<2,2>(ne,B,G,pa_data,ea_data);
-         case 0x33: return EADiffusionAssemble1D<3,3>(ne,B,G,pa_data,ea_data);
-         case 0x44: return EADiffusionAssemble1D<4,4>(ne,B,G,pa_data,ea_data);
-         case 0x55: return EADiffusionAssemble1D<5,5>(ne,B,G,pa_data,ea_data);
-         case 0x66: return EADiffusionAssemble1D<6,6>(ne,B,G,pa_data,ea_data);
-         case 0x77: return EADiffusionAssemble1D<7,7>(ne,B,G,pa_data,ea_data);
-         case 0x88: return EADiffusionAssemble1D<8,8>(ne,B,G,pa_data,ea_data);
-         case 0x99: return EADiffusionAssemble1D<9,9>(ne,B,G,pa_data,ea_data);
-         default:   return EADiffusionAssemble1D(ne,B,G,pa_data,ea_data,dofs1D,quad1D);
+         case 0x22: return EADiffusionAssemble1D<2,2>(ne,B,G,pa_data,ea_data,add);
+         case 0x33: return EADiffusionAssemble1D<3,3>(ne,B,G,pa_data,ea_data,add);
+         case 0x44: return EADiffusionAssemble1D<4,4>(ne,B,G,pa_data,ea_data,add);
+         case 0x55: return EADiffusionAssemble1D<5,5>(ne,B,G,pa_data,ea_data,add);
+         case 0x66: return EADiffusionAssemble1D<6,6>(ne,B,G,pa_data,ea_data,add);
+         case 0x77: return EADiffusionAssemble1D<7,7>(ne,B,G,pa_data,ea_data,add);
+         case 0x88: return EADiffusionAssemble1D<8,8>(ne,B,G,pa_data,ea_data,add);
+         case 0x99: return EADiffusionAssemble1D<9,9>(ne,B,G,pa_data,ea_data,add);
+         default:   return EADiffusionAssemble1D(ne,B,G,pa_data,ea_data,add,
+                                                    dofs1D,quad1D);
       }
    }
    else if (dim == 2)
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x22: return EADiffusionAssemble2D<2,2>(ne,B,G,pa_data,ea_data);
-         case 0x33: return EADiffusionAssemble2D<3,3>(ne,B,G,pa_data,ea_data);
-         case 0x44: return EADiffusionAssemble2D<4,4>(ne,B,G,pa_data,ea_data);
-         case 0x55: return EADiffusionAssemble2D<5,5>(ne,B,G,pa_data,ea_data);
-         case 0x66: return EADiffusionAssemble2D<6,6>(ne,B,G,pa_data,ea_data);
-         case 0x77: return EADiffusionAssemble2D<7,7>(ne,B,G,pa_data,ea_data);
-         case 0x88: return EADiffusionAssemble2D<8,8>(ne,B,G,pa_data,ea_data);
-         case 0x99: return EADiffusionAssemble2D<9,9>(ne,B,G,pa_data,ea_data);
-         default:   return EADiffusionAssemble2D(ne,B,G,pa_data,ea_data,dofs1D,quad1D);
+         case 0x22: return EADiffusionAssemble2D<2,2>(ne,B,G,pa_data,ea_data,add);
+         case 0x33: return EADiffusionAssemble2D<3,3>(ne,B,G,pa_data,ea_data,add);
+         case 0x44: return EADiffusionAssemble2D<4,4>(ne,B,G,pa_data,ea_data,add);
+         case 0x55: return EADiffusionAssemble2D<5,5>(ne,B,G,pa_data,ea_data,add);
+         case 0x66: return EADiffusionAssemble2D<6,6>(ne,B,G,pa_data,ea_data,add);
+         case 0x77: return EADiffusionAssemble2D<7,7>(ne,B,G,pa_data,ea_data,add);
+         case 0x88: return EADiffusionAssemble2D<8,8>(ne,B,G,pa_data,ea_data,add);
+         case 0x99: return EADiffusionAssemble2D<9,9>(ne,B,G,pa_data,ea_data,add);
+         default:   return EADiffusionAssemble2D(ne,B,G,pa_data,ea_data,add,
+                                                    dofs1D,quad1D);
       }
    }
    else if (dim == 3)
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x23: return EADiffusionAssemble3D<2,3>(ne,B,G,pa_data,ea_data);
-         case 0x34: return EADiffusionAssemble3D<3,4>(ne,B,G,pa_data,ea_data);
-         case 0x45: return EADiffusionAssemble3D<4,5>(ne,B,G,pa_data,ea_data);
-         case 0x56: return EADiffusionAssemble3D<5,6>(ne,B,G,pa_data,ea_data);
-         case 0x67: return EADiffusionAssemble3D<6,7>(ne,B,G,pa_data,ea_data);
-         case 0x78: return EADiffusionAssemble3D<7,8>(ne,B,G,pa_data,ea_data);
-         case 0x89: return EADiffusionAssemble3D<8,9>(ne,B,G,pa_data,ea_data);
-         default:   return EADiffusionAssemble3D(ne,B,G,pa_data,ea_data,dofs1D,quad1D);
+         case 0x23: return EADiffusionAssemble3D<2,3>(ne,B,G,pa_data,ea_data,add);
+         case 0x34: return EADiffusionAssemble3D<3,4>(ne,B,G,pa_data,ea_data,add);
+         case 0x45: return EADiffusionAssemble3D<4,5>(ne,B,G,pa_data,ea_data,add);
+         case 0x56: return EADiffusionAssemble3D<5,6>(ne,B,G,pa_data,ea_data,add);
+         case 0x67: return EADiffusionAssemble3D<6,7>(ne,B,G,pa_data,ea_data,add);
+         case 0x78: return EADiffusionAssemble3D<7,8>(ne,B,G,pa_data,ea_data,add);
+         case 0x89: return EADiffusionAssemble3D<8,9>(ne,B,G,pa_data,ea_data,add);
+         default:   return EADiffusionAssemble3D(ne,B,G,pa_data,ea_data,add,
+                                                    dofs1D,quad1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");

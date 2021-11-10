@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,7 +33,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    else
    {
       // B points to same data as b
-      B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
+      B.MakeRef(b, 0, b.Size());
    }
    if (!IsIdentityProlongation(Pi))
    {
@@ -44,7 +44,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    else
    {
       // X points to same data as x
-      X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+      X.MakeRef(x, 0, x.Size());
    }
 }
 
@@ -208,6 +208,11 @@ void Operator::PrintMatlab(std::ostream & out, int n, int m) const
       }
       x(i) = 0.0;
    }
+}
+
+void Operator::PrintMatlab(std::ostream &out) const
+{
+   PrintMatlab(out, width, height);
 }
 
 
@@ -403,8 +408,10 @@ TripleProductOperator::~TripleProductOperator()
 
 
 ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
-                                         bool _own_A)
-   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
+                                         bool own_A_,
+                                         DiagonalPolicy diag_policy_)
+   : Operator(A->Height(), A->Width()), A(A), own_A(own_A_),
+     diag_policy(diag_policy_)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
@@ -414,6 +421,37 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    // typically z and w are large vectors, so store them on the device
    z.SetSize(height, mem_type); z.UseDevice(true);
    w.SetSize(height, mem_type); w.UseDevice(true);
+}
+
+void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
+{
+   A->AssembleDiagonal(diag);
+
+   if (diag_policy == DIAG_KEEP) { return; }
+
+   const int csz = constraint_list.Size();
+   auto d_diag = diag.ReadWrite();
+   auto idx = constraint_list.Read();
+   switch (diag_policy)
+   {
+      case DIAG_ONE:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_diag[id] = 1.0;
+         });
+         break;
+      case DIAG_ZERO:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_diag[id] = 0.0;
+         });
+         break;
+      default:
+         MFEM_ABORT("unknown diagonal policy");
+         break;
+   }
 }
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
@@ -464,19 +502,38 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of y
    auto d_y = y.ReadWrite();
-   MFEM_FORALL(i, csz,
+   switch (diag_policy)
    {
-      const int id = idx[i];
-      d_y[id] = d_x[id];
-   });
+      case DIAG_ONE:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_y[id] = d_x[id];
+         });
+         break;
+      case DIAG_ZERO:
+         MFEM_FORALL(i, csz,
+         {
+            const int id = idx[i];
+            d_y[id] = 0.0;
+         });
+         break;
+      case DIAG_KEEP:
+         // Needs action of the operator diagonal on vector
+         mfem_error("ConstrainedOperator::Mult #1");
+         break;
+      default:
+         mfem_error("ConstrainedOperator::Mult #2");
+         break;
+   }
 }
 
 RectangularConstrainedOperator::RectangularConstrainedOperator(
    Operator *A,
    const Array<int> &trial_list,
    const Array<int> &test_list,
-   bool _own_A)
-   : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
+   bool own_A_)
+   : Operator(A->Height(), A->Width()), A(A), own_A(own_A_)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
@@ -576,7 +633,10 @@ double PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
                                               int numSteps, double tolerance, int seed)
 {
    v1.SetSize(v0.Size());
-   v0.Randomize(seed);
+   if (seed != 0)
+   {
+      v0.Randomize(seed);
+   }
 
    double eigenvalue = 1.0;
 

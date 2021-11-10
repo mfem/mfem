@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -275,8 +275,8 @@ const
       if (fes_vdim > 1)
       {
          int s = dofs.Size()/fes_vdim;
-         Array<int> _dofs(&dofs[(vdim-1)*s], s);
-         face_nbr_data.GetSubVector(_dofs, LocVec);
+         Array<int> dofs_(&dofs[(vdim-1)*s], s);
+         face_nbr_data.GetSubVector(dofs_, LocVec);
          DofVal.SetSize(s);
       }
       else
@@ -325,9 +325,14 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
-      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs);
+      DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
+                                                                  dofs);
       Vector loc_data;
       face_nbr_data.GetSubVector(dofs, loc_data);
+      if (doftrans)
+      {
+         doftrans->InvTransformPrimal(loc_data);
+      }
       const FiniteElement *FElem = pfes->GetFaceNbrFE(nbr_el_no);
       int dof = FElem->GetDof();
       if (FElem->GetRangeType() == FiniteElement::SCALAR)
@@ -437,12 +442,17 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 
    Array<int> vdofs;
-   pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs);
+   DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
+                                                               vdofs);
    const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
 
    int dof = fe->GetDof();
    Vector loc_data;
    face_nbr_data.GetSubVector(vdofs, loc_data);
+   if (doftrans)
+   {
+      doftrans->InvTransformPrimal(loc_data);
+   }
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       Vector shape(dof);
@@ -468,6 +478,46 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
       fe->CalcVShape(T, vshape);
       val.SetSize(spaceDim);
       vshape.MultTranspose(loc_data, val);
+   }
+}
+
+void ParGridFunction::GetDerivative(int comp, int der_comp,
+                                    ParGridFunction &der)
+{
+   Array<int> overlap;
+   AccumulateAndCountDerivativeValues(comp, der_comp, der, overlap);
+
+   // Count the zones globally.
+   GroupCommunicator &gcomm = der.ParFESpace()->GroupComm();
+   gcomm.Reduce<int>(overlap, GroupCommunicator::Sum);
+   gcomm.Bcast(overlap);
+
+   // Accumulate for all dofs.
+   gcomm.Reduce<double>(der.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast<double>(der.HostReadWrite());
+
+   for (int i = 0; i < overlap.Size(); i++)
+   {
+      der(i) /= overlap[i];
+   }
+}
+
+void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
+{
+   int ne = fes->GetNE();
+   if (el >= ne)
+   {
+      MFEM_ASSERT(face_nbr_data.Size() > 0,
+                  "ParGridFunction::GetElementDofValues: ExchangeFaceNbrData "
+                  "must be called before accessing face neighbor elements.");
+      // Face neighbor element
+      Array<int> dof_idx;
+      pfes->GetFaceNbrElementVDofs(el - ne, dof_idx);
+      face_nbr_data.GetSubVector(dof_idx, dof_vals);
+   }
+   else
+   {
+      GridFunction::GetElementDofValues(el, dof_vals);
    }
 }
 
@@ -655,6 +705,170 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 #endif
 }
 
+double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
+                                               Coefficient *ell_coeff,
+                                               JumpScaling jump_scaling,
+                                               const IntegrationRule *irs[]) const
+{
+   const_cast<ParGridFunction *>(this)->ExchangeFaceNbrData();
+
+   int fdof, intorder, k;
+   ElementTransformation *transf;
+   Vector shape, el_dofs, err_val, ell_coeff_val;
+   Array<int> vdofs;
+   IntegrationPoint eip;
+   double error = 0.0;
+
+   ParMesh *mesh = pfes->GetParMesh();
+
+   std::map<int,int> local_to_shared;
+   for (int i = 0; i < mesh->GetNSharedFaces(); ++i)
+   {
+      int i_local = mesh->GetSharedFace(i);
+      local_to_shared[i_local] = i;
+   }
+
+   for (int i = 0; i < mesh->GetNumFaces(); i++)
+   {
+      double shared_face_factor = 1.0;
+      bool shared_face = false;
+      int iel1, iel2, info1, info2;
+      mesh->GetFaceElements(i, &iel1, &iel2);
+      mesh->GetFaceInfos(i, &info1, &info2);
+
+      double h = mesh->GetElementSize(iel1);
+      intorder = fes->GetFE(iel1)->GetOrder();
+
+      FaceElementTransformations *face_elem_transf;
+      const FiniteElement *fe1, *fe2;
+      if (info2 >= 0 && iel2 < 0)
+      {
+         int ishared = local_to_shared[i];
+         face_elem_transf = mesh->GetSharedFaceTransformations(ishared);
+         iel2 = face_elem_transf->Elem2No - mesh->GetNE();
+         fe2 = pfes->GetFaceNbrFE(iel2);
+         if ( (k = fe2->GetOrder()) > intorder )
+         {
+            intorder = k;
+         }
+         shared_face = true;
+         shared_face_factor = 0.5;
+         h = std::min(h, mesh->GetFaceNbrElementSize(iel2));
+      }
+      else
+      {
+         if (iel2 >= 0)
+         {
+            fe2 = pfes->GetFE(iel2);
+            if ( (k = fe2->GetOrder()) > intorder )
+            {
+               intorder = k;
+            }
+            h = std::min(h, mesh->GetElementSize(iel2));
+         }
+         else
+         {
+            fe2 = NULL;
+         }
+         face_elem_transf = mesh->GetFaceElementTransformations(i);
+      }
+      int p = intorder;
+
+      intorder = 2 * intorder;  // <-------------
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[face_elem_transf->GetGeometryType()];
+      }
+      else
+      {
+         ir = &(IntRules.Get(face_elem_transf->GetGeometryType(), intorder));
+      }
+      err_val.SetSize(ir->GetNPoints());
+      ell_coeff_val.SetSize(ir->GetNPoints());
+      // side 1
+      transf = face_elem_transf->Elem1;
+      fe1 = fes->GetFE(iel1);
+      fdof = fe1->GetDof();
+      fes->GetElementVDofs(iel1, vdofs);
+      shape.SetSize(fdof);
+      el_dofs.SetSize(fdof);
+      for (k = 0; k < fdof; k++)
+         if (vdofs[k] >= 0)
+         {
+            el_dofs(k) =   (*this)(vdofs[k]);
+         }
+         else
+         {
+            el_dofs(k) = - (*this)(-1-vdofs[k]);
+         }
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         face_elem_transf->Loc1.Transform(ir->IntPoint(j), eip);
+         fe1->CalcShape(eip, shape);
+         transf->SetIntPoint(&eip);
+         ell_coeff_val(j) = ell_coeff->Eval(*transf, eip);
+         err_val(j) = exsol->Eval(*transf, eip) - (shape * el_dofs);
+      }
+      if (fe2 != NULL)
+      {
+         // side 2
+         transf = face_elem_transf->Elem2;
+         fdof = fe2->GetDof();
+         shape.SetSize(fdof);
+         el_dofs.SetSize(fdof);
+         if (shared_face)
+         {
+            pfes->GetFaceNbrElementVDofs(iel2, vdofs);
+            for (k = 0; k < fdof; k++)
+               if (vdofs[k] >= 0)
+               {
+                  el_dofs(k) = face_nbr_data[vdofs[k]];
+               }
+               else
+               {
+                  el_dofs(k) = - face_nbr_data[-1-vdofs[k]];
+               }
+         }
+         else
+         {
+            pfes->GetElementVDofs(iel2, vdofs);
+            for (k = 0; k < fdof; k++)
+               if (vdofs[k] >= 0)
+               {
+                  el_dofs(k) = (*this)(vdofs[k]);
+               }
+               else
+               {
+                  el_dofs(k) = - (*this)(-1 - vdofs[k]);
+               }
+         }
+         for (int j = 0; j < ir->GetNPoints(); j++)
+         {
+            face_elem_transf->Loc2.Transform(ir->IntPoint(j), eip);
+            fe2->CalcShape(eip, shape);
+            transf->SetIntPoint(&eip);
+            ell_coeff_val(j) += ell_coeff->Eval(*transf, eip);
+            ell_coeff_val(j) *= 0.5;
+            err_val(j) -= (exsol->Eval(*transf, eip) - (shape * el_dofs));
+         }
+      }
+      transf = face_elem_transf;
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         transf->SetIntPoint(&ip);
+         double nu = jump_scaling.Eval(h, p);
+         error += shared_face_factor*(ip.weight * nu * ell_coeff_val(j) *
+                                      transf->Weight() *
+                                      err_val(j) * err_val(j));
+      }
+   }
+
+   error = (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return GlobalLpNorm(2.0, error, pfes->GetComm());
+}
+
 void ParGridFunction::Save(std::ostream &out) const
 {
    double *data_  = const_cast<double*>(HostRead());
@@ -669,6 +883,28 @@ void ParGridFunction::Save(std::ostream &out) const
    {
       if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
    }
+}
+
+void ParGridFunction::Save(const char *fname, int precision) const
+{
+   int rank = pfes->GetMyRank();
+   ostringstream fname_with_suffix;
+   fname_with_suffix << fname << "." << setfill('0') << setw(6) << rank;
+   ofstream ofs(fname_with_suffix.str().c_str());
+   ofs.precision(precision);
+   Save(ofs);
+}
+
+void ParGridFunction::SaveAsOne(const char *fname, int precision) const
+{
+   ofstream ofs;
+   int rank = pfes->GetMyRank();
+   if (rank == 0)
+   {
+      ofs.open(fname);
+      ofs.precision(precision);
+   }
+   SaveAsOne(ofs);
 }
 
 #ifdef MFEM_USE_ADIOS2
@@ -691,7 +927,7 @@ void ParGridFunction::Save(adios2stream &out,
 }
 #endif
 
-void ParGridFunction::SaveAsOne(std::ostream &out)
+void ParGridFunction::SaveAsOne(std::ostream &out) const
 {
    int i, p;
 
@@ -860,7 +1096,6 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
    return glob_norm;
 }
 
-
 void ParGridFunction::ComputeFlux(
    BilinearFormIntegrator &blfi,
    GridFunction &flux, bool wcoef, int subdomain)
@@ -933,6 +1168,9 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
 
    if (xfes->GetNE())
    {
+      MFEM_VERIFY(smooth_flux_fes.GetFE(0) != NULL,
+                  "Could not obtain FE of smooth flux space.");
+
       if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
       {
          VectorMassIntegrator *vmass = new VectorMassIntegrator;
@@ -1001,6 +1239,6 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    return pow(glob_error, 1.0/norm_p);
 }
 
-}
+} // namespace mfem
 
 #endif // MFEM_USE_MPI

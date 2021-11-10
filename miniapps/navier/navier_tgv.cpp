@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// 3d Taylor-Green vortex benchmark example at Re=1600
+// 3D Taylor-Green vortex benchmark example at Re=1600
 // Unsteady flow of a decaying vortex is computed and compared against a known,
 // analytical solution.
 
@@ -263,24 +263,23 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh *orig_mesh = new Mesh("../../data/periodic-cube.mesh");
-   Mesh *mesh = new Mesh(orig_mesh,
-                         ctx.element_subdivisions,
-                         BasisType::ClosedUniform);
-   delete orig_mesh;
+   Mesh orig_mesh("../../data/periodic-cube.mesh");
+   Mesh mesh = Mesh::MakeRefined(orig_mesh, ctx.element_subdivisions,
+                                 BasisType::ClosedUniform);
+   orig_mesh.Clear();
 
-   mesh->EnsureNodes();
-   GridFunction *nodes = mesh->GetNodes();
+   mesh.EnsureNodes();
+   GridFunction *nodes = mesh.GetNodes();
    *nodes *= M_PI;
 
-   int nel = mesh->GetNE();
+   int nel = mesh.GetNE();
    if (mpi.Root())
    {
       mfem::out << "Number of elements: " << nel << std::endl;
    }
 
-   auto *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
@@ -328,7 +327,7 @@ int main(int argc, char *argv[])
    double ke = kin_energy.ComputeKineticEnergy(*u_gf);
 
    std::string fname = "tgv_out_p_" + std::to_string(ctx.order) + ".txt";
-   FILE *f;
+   FILE *f = NULL;
 
    if (mpi.Root())
    {

@@ -5,7 +5,7 @@
                       | | | | | ||  _||  __/| | | | | |
                       |_| |_| |_||_|   \___||_| |_| |_|
 
-                               http://mfem.org
+                               https://mfem.org
 
 MFEM is a modular parallel C++ library for finite element methods. Its goal is
 to enable high-performance scalable finite element discretization research and
@@ -16,8 +16,8 @@ supercomputers.
 
 * Copyright and licensing information can be found in files LICENSE and NOTICE.
 
-* The best starting point for new users interested in MFEM's features is the
-  interactive documentation in examples/README.html.
+* The best starting point for new users interested in MFEM's features is to
+  review the examples and miniapps at https://mfem.org/examples.
 
 * Developers interested in contributing to the library, should read the
   instructions and documentation in the CONTRIBUTING.md file.
@@ -49,17 +49,17 @@ library. Nonlinear solvers (the Newton method), eigensolvers (LOBPCG), and
 several explicit and implicit Runge-Kutta time integrators are also available.
 
 MFEM supports MPI-based parallelism throughout the library, and can readily be
-used as a scalable unstructured finite element problem generator. As of version
-4.0, MFEM offers initial support for GPU acceleration, and programming models,
-such as CUDA, OCCA, RAJA and OpenMP. MFEM-based applications require minimal
-changes to switch from a serial to a high-performing MPI-parallel version of the
-code, where they can take advantage of the integrated linear solvers from the
-hypre library.  Comprehensive support for other external packages, e.g. PETSc
-and SUNDIALS is also included, giving access to many additional linear and
-nonlinear solvers, preconditioners, time integrators, etc.
+used as a scalable unstructured finite element problem generator. Starting with
+version 4.0, MFEM offers support for GPU acceleration, and programming models,
+such as CUDA, HIP, OCCA, RAJA and OpenMP. MFEM-based applications require
+minimal changes to switch from a serial to a highly-performant MPI-parallel
+version of the code, where they can take advantage of the integrated linear
+solvers from the hypre library. Comprehensive support for other external
+packages, e.g. PETSc, SUNDIALS and libCEED is also included, giving access to
+additional linear and nonlinear solvers, preconditioners, time integrators, etc.
 
 For examples of using MFEM, see the examples/ and miniapps/ directories, as well
-as the OpenGL visualization tool GLVis which is available at http://glvis.org.
+as the OpenGL visualization tool GLVis which is available at https://glvis.org.
 
 MFEM is distributed under the terms of the BSD-3 license. All new contributions
 must be made under this license. See LICENSE and NOTICE for details.

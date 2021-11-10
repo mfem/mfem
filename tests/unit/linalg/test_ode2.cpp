@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include <cmath>
 
 using namespace mfem;
@@ -191,92 +191,107 @@ TEST_CASE("Second order ODE methods",
    SECTION("Newmark")
    {
       std::cout <<"\nTesting NewmarkSolver" << std::endl;
-      REQUIRE(check.order(new NewmarkSolver) + tol > 2.0 );
+      double conv_rate = check.order(new NewmarkSolver);
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("LinearAcceleration")
    {
       std::cout <<"\nLinearAccelerationSolver" << std::endl;
-      REQUIRE(check.order(new LinearAccelerationSolver) + tol > 2.0 );
+      double conv_rate = check.order(new LinearAccelerationSolver);
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("CentralDifference")
    {
       std::cout <<"\nTesting CentralDifference" << std::endl;
-      REQUIRE(check.order(new CentralDifferenceSolver) + tol > 2.0 );
+      double conv_rate = check.order(new CentralDifferenceSolver);
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("FoxGoodwin")
    {
       std::cout <<"\nTesting FoxGoodwin" << std::endl;
-      REQUIRE(check.order(new FoxGoodwinSolver) + tol > 4.0 );
+      double conv_rate = check.order(new FoxGoodwinSolver);
+      REQUIRE(conv_rate + tol > 4.0);
    }
 
    // Generalized-alpha based solvers
    SECTION("GeneralizedAlpha(0.0)")
    {
       std::cout <<"\nTesting GeneralizedAlpha(0.0)" << std::endl;
-      REQUIRE(check.order(new GeneralizedAlpha2Solver(0.0)) + tol > 2.0 );
+      double conv_rate = check.order(new GeneralizedAlpha2Solver(0.0));
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(0.5)")
    {
       std::cout <<"\nTesting GeneralizedAlpha(0.5)" << std::endl;
-      REQUIRE(check.order(new GeneralizedAlpha2Solver(0.5)) + tol > 2.0 );
+      double conv_rate = check.order(new GeneralizedAlpha2Solver(0.5));
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(0.5) - restart")
    {
       std::cout <<"\nTesting GeneralizedAlpha(0.5) - restart" << std::endl;
-      REQUIRE(check.order(new GeneralizedAlpha2Solver(0.5),true) + tol > 2.0 );
+      double conv_rate = check.order(new GeneralizedAlpha2Solver(0.5),true);
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("GeneralizedAlpha(1.0)")
    {
       std::cout <<"\nTesting GeneralizedAlpha(1.0)" << std::endl;
-      REQUIRE(check.order(new GeneralizedAlpha2Solver(1.0)) + tol > 2.0 );
+      double conv_rate = check.order(new GeneralizedAlpha2Solver(1.0));
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
 
    SECTION("AverageAcceleration")
    {
       std::cout <<"\nTesting AverageAcceleration" << std::endl;
-      REQUIRE(check.order(new AverageAccelerationSolver) + tol > 2.0 );
+      double conv_rate = check.order(new AverageAccelerationSolver);
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(2/3)")
    {
       std::cout <<"\nTesting HHTAlpha(2/3)" << std::endl;
-      REQUIRE(check.order(new HHTAlphaSolver(2.0/3.0)) + tol > 2.0 );
+      double conv_rate = check.order(new HHTAlphaSolver(2.0/3.0));
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(0.75)")
    {
       std::cout <<"\nTesting HHTAlpha(0.75)" << std::endl;
-      REQUIRE(check.order(new HHTAlphaSolver(0.75)) + tol > 2.0 );
+      double conv_rate = check.order(new HHTAlphaSolver(0.75));
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("HHTAlpha(1.0)")
    {
       std::cout <<"\nTesting HHTAlpha(1.0)" << std::endl;
-      REQUIRE(check.order(new HHTAlphaSolver(1.0)) + tol > 2.0 );
+      double conv_rate = check.order(new HHTAlphaSolver(1.0));
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(0.0)")
    {
       std::cout <<"\nTesting WBZAlpha(0.0)" << std::endl;
-      REQUIRE(check.order(new WBZAlphaSolver(0.0)) + tol > 2.0 );
+      double conv_rate = check.order(new WBZAlphaSolver(0.0));
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(0.5)")
    {
       std::cout <<"\nTesting WBZAlpha(0.5)" << std::endl;
-      REQUIRE(check.order(new WBZAlphaSolver(0.5)) + tol > 2.0 );
+      double conv_rate = check.order(new WBZAlphaSolver(0.5));
+      REQUIRE(conv_rate + tol > 2.0);
    }
 
    SECTION("WBZAlpha(1.0)")
    {
       std::cout <<"\nTesting WBZAlpha(1.0)" << std::endl;
-      REQUIRE(check.order(new WBZAlphaSolver(1.0)) + tol > 2.0 );
+      double conv_rate = check.order(new WBZAlphaSolver(1.0));
+      REQUIRE(conv_rate + tol > 2.0);
    }
 }

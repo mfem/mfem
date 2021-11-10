@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,6 +17,7 @@
 
 #include <cerrno>      // errno
 #include <sstream>
+#include <regex>
 
 #ifndef _WIN32
 #include <sys/stat.h>  // mkdir
@@ -481,7 +482,7 @@ void VisItDataCollection::SaveRootFile()
    std::string root_name = prefix_path + name + "_" +
                            to_padded_string(cycle, pad_digits_cycle) +
                            ".mfem_root";
-   std::ofstream root_file(root_name.c_str());
+   std::ofstream root_file(root_name);
    root_file << GetVisItRootString();
    if (!root_file)
    {
@@ -547,7 +548,7 @@ void VisItDataCollection::Load(int cycle_)
 
 void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 {
-   std::ifstream root_file(root_name.c_str());
+   std::ifstream root_file(root_name);
    std::stringstream buffer;
    buffer << root_file.rdbuf();
    if (!buffer)
@@ -563,6 +564,8 @@ void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 
 void VisItDataCollection::LoadMesh()
 {
+   // GetMeshFileName() uses 'serial', so we need to set it in advance.
+   serial = (format == SERIAL_FORMAT);
    std::string mesh_fname = GetMeshFileName();
    named_ifgzstream file(mesh_fname);
    // TODO: in parallel, check for errors on all processors
@@ -762,7 +765,8 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
    : DataCollection(collection_name, mesh_),
      levels_of_detail(1),
      pv_data_format(VTKFormat::BINARY),
-     high_order_output(false)
+     high_order_output(false),
+     restart_mode(false)
 {
 #ifdef MFEM_USE_ZLIB
    compression = -1; // default zlib compression level, equivalent to 6
@@ -840,24 +844,82 @@ void ParaViewDataCollection::Save()
    }
    // the directory is created
 
-   // create pvd file if needed
+   // create pvd file if needed. If we are not in restart mode, a new pvd file
+   // is always created. In restart mode, we keep any previously defined
+   // timestep values as long as they are less than the currently defined time.
+
    if (myid == 0 && !pvd_stream.is_open())
    {
       std::string dpath=GenerateCollectionPath();
       std::string pvdname=dpath+"/"+GeneratePVDFileName();
-      pvd_stream.open(pvdname.c_str(),std::ios::out);
-      // initialize the file
-      pvd_stream << "<?xml version=\"1.0\"?>\n";
-      pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"";
-      pvd_stream << " byte_order=\"" << VTKByteOrder() << "\">\n";
-      pvd_stream << "<Collection>" << std::endl;
+
+      bool write_header = true;
+      std::ifstream pvd_in;
+      if (restart_mode && (pvd_in.open(pvdname,std::ios::binary),pvd_in.good()))
+      {
+         // PVD file exists and restart mode enabled: preserve existing time
+         // steps less than the current time.
+         std::fstream::pos_type pos_begin = pvd_in.tellg();
+         std::fstream::pos_type pos_end = pos_begin;
+
+         std::regex regexp("timestep=\"([^[:space:]]+)\".*file=\"Cycle(\\d+)");
+         std::smatch match;
+
+         std::string line;
+         while (getline(pvd_in,line))
+         {
+            if (regex_search(line,match,regexp))
+            {
+               MFEM_ASSERT(match.size() == 3, "Unable to parse DataSet");
+               double tvalue = std::stod(match[1]);
+               if (tvalue >= GetTime()) { break; }
+               int cvalue = std::stoi(match[2]);
+               MFEM_VERIFY(cvalue < GetCycle(), "Cycle " << GetCycle() <<
+                           " is too small for restart mode: trying to overwrite"
+                           " existing data.");
+               pos_end = pvd_in.tellg();
+            }
+         }
+         // Since pvd_in is opened in binary mode, count will store the number
+         // of bytes from the beginning of the file until the desired insertion
+         // point (in text mode on Windows this is not the case).
+         size_t count = pos_end - pos_begin;
+         if (count != 0)
+         {
+            write_header = false;
+            std::vector<char> buf(count);
+            // Read the contents of the PVD file, from the beginning to the
+            // insertion point.
+            pvd_in.clear();
+            pvd_in.seekg(pos_begin);
+            pvd_in.read(buf.data(), count);
+            pvd_in.close();
+            // Open the PVD file in truncate mode to delete the previous
+            // contents. Open in binary mode to write the data buffer without
+            // converting \r\n to \r\r\n on Windows.
+            pvd_stream.open(pvdname,std::ios::out|std::ios::trunc|std::ios::binary);
+            pvd_stream.write(buf.data(), count);
+            // Close and reopen the file in text mode, appending to the end.
+            pvd_stream.close();
+            pvd_stream.open(pvdname,std::ios::in|std::ios::out|std::ios::ate);
+         }
+      }
+      if (write_header)
+      {
+         // Initialize new pvd file.
+         pvd_stream.open(pvdname,std::ios::out|std::ios::trunc);
+         pvd_stream << "<?xml version=\"1.0\"?>\n";
+         pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"";
+         pvd_stream << " byte_order=\"" << VTKByteOrder() << "\">\n";
+         pvd_stream << "<Collection>" << std::endl;
+      }
    }
 
    // define the vtu file
    {
       std::string fname = GenerateCollectionPath()+"/"+GenerateVTUPath()+"/"
                           +GenerateVTUFileName();
-      std::fstream out(fname.c_str(), std::ios::out);
+      std::fstream out(fname, std::ios::out);
       out.precision(precision);
       SaveDataVTU(out,levels_of_detail);
       out.close();
@@ -868,7 +930,7 @@ void ParaViewDataCollection::Save()
    {
       std::string fname = GenerateCollectionPath()+"/"+GeneratePVTUPath()+"/"
                           +GeneratePVTUFileName();
-      std::fstream out(fname.c_str(), std::ios::out);
+      std::fstream out(fname, std::ios::out);
 
       out << "<?xml version=\"1.0\"?>\n";
       out << "<VTKFile type=\"PUnstructuredGrid\"";
@@ -906,7 +968,7 @@ void ParaViewDataCollection::Save()
 
       // CELL DATA
       out << "<PCellData>\n";
-      out << "\t<PDataArray type=\"Int32\" Name=\"" << "material"
+      out << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
           << "\" NumberOfComponents=\"1\""
           << " format=\"" << GetDataFormatString() << "\"/>\n";
       out << "</PCellData>\n";
@@ -926,6 +988,7 @@ void ParaViewDataCollection::Save()
       pvd_stream << "<DataSet timestep=\"" << GetTime();  // GetCycle();
       pvd_stream << "\" group=\"\" part=\"" << 0 << "\" file=\"";
       pvd_stream << fname << "\"/>\n";
+      pvd_stream.flush();
       std::fstream::pos_type pos = pvd_stream.tellp();
       pvd_stream << "</Collection>\n";
       pvd_stream << "</VTKFile>" << std::endl;
@@ -999,7 +1062,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          {
             if (pv_data_format == VTKFormat::ASCII)
             {
-               out << val(j) << '\n';
+               out << ZeroSubnormal(val(j)) << '\n';
             }
             else if (pv_data_format == VTKFormat::BINARY)
             {
@@ -1032,7 +1095,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
             {
                if (pv_data_format == VTKFormat::ASCII)
                {
-                  out << vval(ii,jj) << ' ';
+                  out << ZeroSubnormal(vval(ii,jj)) << ' ';
                }
                else if (pv_data_format == VTKFormat::BINARY)
                {
@@ -1087,6 +1150,11 @@ void ParaViewDataCollection::SetCompression(bool compression_)
    {
       SetCompressionLevel(-1);
    }
+}
+
+void ParaViewDataCollection::UseRestartMode(bool restart_mode_)
+{
+   restart_mode = restart_mode_;
 }
 
 const char *ParaViewDataCollection::GetDataFormatString() const

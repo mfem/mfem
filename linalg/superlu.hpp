@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,12 +32,16 @@ unsigned int sqrti(const unsigned int & a);
 namespace superlu
 {
 // Copy selected enumerations from SuperLU
-typedef enum {NOROWPERM, LargeDiag, MY_PERMR}                 RowPerm;
+#ifdef MFEM_USE_SUPERLU5
+typedef enum {NOROWPERM, LargeDiag, MY_PERMR}                       RowPerm;
+#else
+typedef enum {NOROWPERM, LargeDiag_MC64, LargeDiag_HWPM, MY_PERMR}  RowPerm;
+#endif
 typedef enum {NATURAL, MMD_ATA, MMD_AT_PLUS_A, COLAMD,
               METIS_AT_PLUS_A, PARMETIS, ZOLTAN, MY_PERMC
-             }    ColPerm;
-typedef enum {NOTRANS, TRANS, CONJ}                           Trans;
-typedef enum {NOREFINE, SLU_SINGLE=1, SLU_DOUBLE, SLU_EXTRA}  IterRefine;
+             }          ColPerm;
+typedef enum {NOTRANS, TRANS, CONJ}                                 Trans;
+typedef enum {NOREFINE, SLU_SINGLE=1, SLU_DOUBLE, SLU_EXTRA}        IterRefine;
 }
 
 class SuperLURowLocMatrix : public Operator
@@ -68,9 +72,12 @@ public:
 
    void * InternalData() const { return rowLocPtr_; }
 
+   HYPRE_BigInt GetGlobalNumColumns() const { return num_global_cols; }
+
 private:
    MPI_Comm   comm_;
    void     * rowLocPtr_;
+   HYPRE_BigInt num_global_cols;
 
 }; // mfem::SuperLURowLocMatrix
 

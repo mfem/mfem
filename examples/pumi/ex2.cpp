@@ -69,6 +69,10 @@
 #include <gmi_mesh.h>
 #include <crv.h>
 
+#ifndef MFEM_USE_PUMI
+#error This example requires that MFEM is built with MFEM_USE_PUMI=YES
+#endif
+
 using namespace std;
 using namespace mfem;
 

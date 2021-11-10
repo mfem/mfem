@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,12 +39,12 @@ public:
 
    /// Constants for the classes derived from Element.
    enum Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL,
-               TETRAHEDRON, HEXAHEDRON, WEDGE
+               TETRAHEDRON, HEXAHEDRON, WEDGE, PYRAMID
              };
 
    /// Default element constructor.
    explicit Element(Geometry::Type bg = Geometry::POINT)
-   { attribute = -1; base_geom = bg; }
+   { attribute = 1; base_geom = bg; }
 
    /// Returns element's type
    virtual Type GetType() const = 0;

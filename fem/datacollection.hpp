@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -382,6 +382,10 @@ public:
    int Error() const { return error; }
    /// Reset the error state
    void ResetError(int err = NO_ERROR) { error = err; }
+
+#ifdef MFEM_USE_MPI
+   friend class ParMesh;
+#endif
 };
 
 
@@ -393,8 +397,8 @@ public:
    int num_components;
    int lod;
    VisItFieldInfo() { association = ""; num_components = 0; lod = 1;}
-   VisItFieldInfo(std::string _association, int _num_components, int _lod = 1)
-   { association = _association; num_components = _num_components; lod =_lod;}
+   VisItFieldInfo(std::string association_, int num_components_, int lod_ = 1)
+   { association = association_; num_components = num_components_; lod =lod_;}
 };
 
 /// Data collection with VisIt I/O routines
@@ -484,6 +488,7 @@ private:
    std::fstream pvd_stream;
    VTKFormat pv_data_format;
    bool high_order_output;
+   bool restart_mode;
 
 protected:
    void SaveDataVTU(std::ostream &out, int ref);
@@ -540,6 +545,11 @@ public:
    /// Sets whether or not to output the data as high-order elements (false
    /// by default). Reading high-order data requires ParaView 5.5 or later.
    void SetHighOrderOutput(bool high_order_output_);
+
+   /// Enable or disable restart mode. If restart is enabled, new writes will
+   /// preserve timestep metadata for any solutions prior to the currently
+   /// defined time.
+   void UseRestartMode(bool restart_mode_);
 
    /// Load the collection - not implemented in the ParaView writer
    virtual void Load(int cycle_ = 0) override;

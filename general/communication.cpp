@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -331,6 +331,15 @@ void GroupTopology::Copy(GroupTopology& copy) const
    groupmaster_lproc.Copy(copy.groupmaster_lproc);
    lproc_proc.Copy(copy.lproc_proc);
    group_mgroup.Copy(copy.group_mgroup);
+}
+
+void GroupTopology::Swap(GroupTopology &other)
+{
+   mfem::Swap(MyComm, other.MyComm);
+   mfem::Swap(group_lproc, other.group_lproc);
+   mfem::Swap(groupmaster_lproc, other.groupmaster_lproc);
+   mfem::Swap(lproc_proc, other.lproc_proc);
+   mfem::Swap(group_mgroup, other.group_mgroup);
 }
 
 // Initialize the static mpi_type for the specializations of MPITypeMap:
@@ -826,7 +835,7 @@ void GroupCommunicator::BcastBegin(T *ldata, int layout) const
       }
    }
 
-   comm_lock = 1; // 1 - locked fot Bcast
+   comm_lock = 1; // 1 - locked for Bcast
    num_requests = request_counter;
 }
 

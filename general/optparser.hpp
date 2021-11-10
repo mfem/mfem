@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -45,10 +45,10 @@ private:
 
       Option() = default;
 
-      Option(OptionType _type, void *_var_ptr, const char *_short_name,
-             const char *_long_name, const char *_description, bool req)
-         : type(_type), var_ptr(_var_ptr), short_name(_short_name),
-           long_name(_long_name), description(_description), required(req) { }
+      Option(OptionType type_, void *var_ptr_, const char *short_name_,
+             const char *long_name_, const char *description_, bool req)
+         : type(type_), var_ptr(var_ptr_), short_name(short_name_),
+           long_name(long_name_), description(description_), required(req) { }
    };
 
    int argc;
@@ -69,9 +69,9 @@ private:
 
 public:
 
-   /// Construct a command line option parser with '_argc' and '_argv'.
-   OptionsParser(int _argc, char *_argv[])
-      : argc(_argc), argv(_argv)
+   /// Construct a command line option parser with 'argc_' and 'argv_'.
+   OptionsParser(int argc_, char *argv_[])
+      : argc(argc_), argv(argv_)
    {
       error_type = error_idx = 0;
    }
@@ -140,6 +140,11 @@ public:
        command line to have a corresponding AddOption. In particular, this
        function cannot be used for partial parsing. */
    void Parse();
+
+   /// Parse the command line options, and exit with an error if the options
+   /// cannot be parsed successfully. The selected options are printed to the
+   /// given stream (defaulting to mfem::out).
+   void ParseCheck(std::ostream &out = mfem::out);
 
    /// Return true if the command line options were parsed successfully.
    bool Good() const { return (error_type == 0); }

@@ -42,6 +42,10 @@
 #include <gmi_mesh.h>
 #include <crv.h>
 
+#ifndef MFEM_USE_PUMI
+#error This example requires that MFEM is built with MFEM_USE_PUMI=YES
+#endif
+
 using namespace std;
 using namespace mfem;
 
@@ -186,7 +190,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 1)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -249,7 +253,7 @@ int main(int argc, char *argv[])
 
    for (int Itr = 0; Itr < max_iter; Itr++)
    {
-      HYPRE_Int global_dofs = fespace->GlobalTrueVSize();
+      HYPRE_BigInt global_dofs = fespace->GlobalTrueVSize();
       if (myid == 1)
       {
          cout << "\nAMR iteration " << Itr << endl;

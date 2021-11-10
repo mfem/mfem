@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
@@ -23,7 +23,8 @@ TEST_CASE("Quadrature Function Coefficients",
    int order_h1 = 2, n = 4, dim = 3;
    double tol = 1e-14;
 
-   Mesh mesh(n, n, n, Element::HEXAHEDRON, false, 1.0, 1.0, 1.0);
+   Mesh mesh = Mesh::MakeCartesian3D(
+                  n, n, n, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
    mesh.SetCurvature(order_h1);
 
    int intOrder = 2 * order_h1 + 1;
@@ -159,4 +160,3 @@ TEST_CASE("Quadrature Function Coefficients",
 }
 
 } // namespace qf_coeff
-

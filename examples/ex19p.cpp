@@ -8,6 +8,7 @@
 //    mpirun -np 2 ex19p -m ../data/beam-hex.mesh
 //    mpirun -np 2 ex19p -m ../data/beam-tet.mesh
 //    mpirun -np 2 ex19p -m ../data/beam-wedge.mesh
+//    mpirun -np 2 ex19p -m ../data/beam-quad-amr.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
 //               elasticity problem of the form 0 = H(x), where H is an
@@ -195,11 +196,15 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 int main(int argc, char *argv[])
 {
+#ifdef HYPRE_USING_CUDA
+   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this example\n"
+        << "is NOT supported with the CUDA version of hypre.\n\n";
+   return 255;
+#endif
+
    // 1. Initialize MPI
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Session mpi;
+   const int myid = mpi.WorldRank();
 
    // 2. Parse command-line options
    const char *mesh_file = "../data/beam-tet.mesh";
@@ -239,7 +244,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -287,8 +291,8 @@ int main(int argc, char *argv[])
    spaces[0] = &R_space;
    spaces[1] = &W_space;
 
-   HYPRE_Int glob_R_size = R_space.GlobalTrueVSize();
-   HYPRE_Int glob_W_size = W_space.GlobalTrueVSize();
+   HYPRE_BigInt glob_R_size = R_space.GlobalTrueVSize();
+   HYPRE_BigInt glob_W_size = W_space.GlobalTrueVSize();
 
    // 8. Define the Dirichlet conditions (set to boundary attribute 1 and 2)
    Array<Array<int> *> ess_bdr(2);
@@ -399,8 +403,6 @@ int main(int argc, char *argv[])
    // 19. Free the used memory
    delete pmesh;
 
-   MPI_Finalize();
-
    return 0;
 }
 
@@ -442,15 +444,19 @@ JacobianPreconditioner::JacobianPreconditioner(Array<ParFiniteElementSpace *>
 void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 {
    // Extract the blocks from the input and output vectors
-   Vector disp_in(k.GetData() + block_trueOffsets[0],
-                  block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_in(k.GetData() + block_trueOffsets[1],
-                  block_trueOffsets[2]-block_trueOffsets[1]);
-
-   Vector disp_out(y.GetData() + block_trueOffsets[0],
+   Vector disp_in;
+   disp_in.MakeRef(const_cast<Vector&>(k), block_trueOffsets[0],
                    block_trueOffsets[1]-block_trueOffsets[0]);
-   Vector pres_out(y.GetData() + block_trueOffsets[1],
+   Vector pres_in;
+   pres_in.MakeRef(const_cast<Vector&>(k), block_trueOffsets[1],
                    block_trueOffsets[2]-block_trueOffsets[1]);
+
+   Vector disp_out;
+   disp_out.MakeRef(y, block_trueOffsets[0],
+                    block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_out;
+   pres_out.MakeRef(y, block_trueOffsets[1],
+                    block_trueOffsets[2]-block_trueOffsets[1]);
 
    Vector temp(block_trueOffsets[1]-block_trueOffsets[0]);
    Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
@@ -463,6 +469,9 @@ void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
    subtract(disp_in, temp, temp2);
 
    stiff_pcg->Mult(temp2, disp_out);
+
+   disp_out.SyncAliasMemory(y);
+   pres_out.SyncAliasMemory(y);
 }
 
 void JacobianPreconditioner::SetOperator(const Operator &op)
@@ -474,7 +483,14 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
    {
       HypreBoomerAMG *stiff_prec_amg = new HypreBoomerAMG();
       stiff_prec_amg->SetPrintLevel(0);
-      stiff_prec_amg->SetElasticityOptions(spaces[0]);
+
+      if (!spaces[0]->GetParMesh()->Nonconforming())
+      {
+#ifndef HYPRE_USING_CUDA
+         // Not available yet when hypre is built with CUDA
+         stiff_prec_amg->SetElasticityOptions(spaces[0]);
+#endif
+      }
 
       stiff_prec = stiff_prec_amg;
 

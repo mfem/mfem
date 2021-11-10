@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -74,10 +74,12 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(),row_offsets);
-   xblock.Update(x.GetData(),col_offsets);
+   x.Read();
+   y.Write(); y = 0.0;
 
-   y = 0.0;
+   xblock.Update(const_cast<Vector&>(x),col_offsets);
+   yblock.Update(y,row_offsets);
+
    for (int iRow=0; iRow < nRowBlocks; ++iRow)
    {
       tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
@@ -90,6 +92,11 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
          }
       }
    }
+
+   for (int iRow=0; iRow < nRowBlocks; ++iRow)
+   {
+      yblock.GetBlock(iRow).SyncAliasMemory(y);
+   }
 }
 
 // Action of the transpose operator
@@ -98,10 +105,11 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
-   y = 0.0;
+   x.Read();
+   y.Write(); y = 0.0;
 
-   xblock.Update(x.GetData(),row_offsets);
-   yblock.Update(y.GetData(),col_offsets);
+   xblock.Update(const_cast<Vector&>(x),row_offsets);
+   yblock.Update(y,col_offsets);
 
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
@@ -116,6 +124,10 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
       }
    }
 
+   for (int iRow=0; iRow < nColBlocks; ++iRow)
+   {
+      yblock.GetBlock(iRow).SyncAliasMemory(y);
+   }
 }
 
 BlockOperator::~BlockOperator()
@@ -140,7 +152,6 @@ BlockDiagonalPreconditioner::BlockDiagonalPreconditioner(
    nBlocks(offsets_.Size() - 1),
    offsets(0),
    op(nBlocks)
-
 {
    op = static_cast<Operator *>(NULL);
    offsets.MakeRef(offsets_);
@@ -165,8 +176,11 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(), offsets);
-   xblock.Update(x.GetData(), offsets);
+   x.Read();
+   y.Write(); y = 0.0;
+
+   xblock.Update(const_cast<Vector&>(x),offsets);
+   yblock.Update(y,offsets);
 
    for (int i=0; i<nBlocks; ++i)
    {
@@ -179,6 +193,11 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
    }
+
+   for (int i=0; i<nBlocks; ++i)
+   {
+      yblock.GetBlock(i).SyncAliasMemory(y);
+   }
 }
 
 // Action of the transpose operator
@@ -188,8 +207,11 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(), offsets);
-   xblock.Update(x.GetData(), offsets);
+   x.Read();
+   y.Write(); y = 0.0;
+
+   xblock.Update(const_cast<Vector&>(x),offsets);
+   yblock.Update(y,offsets);
 
    for (int i=0; i<nBlocks; ++i)
    {
@@ -201,6 +223,11 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
       {
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
+   }
+
+   for (int i=0; i<nBlocks; ++i)
+   {
+      yblock.GetBlock(i).SyncAliasMemory(y);
    }
 }
 
