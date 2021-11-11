@@ -206,7 +206,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    auto d_offsets = gather_offsets.Read();
    auto d_indices = gather_indices.Read();
    auto d_x = Reshape(x_interp.Read(), nface_dofs, vd, nf);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
    MFEM_FORALL(i, ndofs,
    {
       const int offset = d_offsets[i];
@@ -1099,7 +1099,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    if ( m==L2FaceValues::DoubleValued )
    {
       auto d_x = Reshape(x_interp.Read(), nface_dofs, vd, 2, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
@@ -1123,7 +1123,7 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    else // Single valued
    {
       auto d_x = Reshape(x_interp.Read(), nface_dofs, vd, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
