@@ -58,12 +58,12 @@ using namespace mfem;
  *                = \partial_K L
  *                = (|\nabla u|^2, \cdot)
  * 
- * We update the control f_k with projected gradient descent via
+ * We update the control K_k with projected gradient descent via
  * 
  *  K_{k+1} = P_2 ( P_1 ( K_k - \gamma |\nabla u|^2 ) )
  * 
  * where P_1 is the projection operator enforcing (K,1) <= V, P_2 is the
- * projection operator enforcing a <= u(x) <= b, and \gamma is a specified
+ * projection operator enforcing a <= K(x) <= b, and \gamma is a specified
  * step length.
  * 
  */
@@ -251,8 +251,10 @@ int main(int argc, char *argv[])
       while ( true )
       {
          // Project to \int K = mass_fraction * vol
-         double scale = mass_fraction * domain_volume / mass;
-         K *= scale;
+         // double scale = mass_fraction * domain_volume / mass;
+         // K *= scale;
+         double delta_K = mass_fraction - ( mass / domain_volume );
+         K += delta_K;
 
          // Project to [K_min,K_max]
          for (int i = 0; i < K.Size(); i++)
@@ -271,7 +273,7 @@ int main(int argc, char *argv[])
          }
 
          mass = vol_form(K);
-         if ( abs( mass / domain_volume - mass_fraction ) < 1e-4 )
+         if ( abs( mass / domain_volume - mass_fraction ) < 1e-6 )
          {
             break;
          }

@@ -342,8 +342,10 @@ int main(int argc, char *argv[])
       while ( true )
       {
          // Project to \int K = mass_fraction * vol
-         double scale = mass_fraction * domain_volume / mass;
-         K *= scale;
+         // double scale = mass_fraction * domain_volume / mass;
+         // K *= scale;
+         double delta_K = mass_fraction - ( mass / domain_volume );
+         K += delta_K;
 
          // Project to [K_min,K_max]
          for (int i = 0; i < K.Size(); i++)
