@@ -2872,7 +2872,7 @@ private:
 
       Array<int> cg_ess_tdof_list;
 
-      bool use_lor_cg = false;
+      bool use_lor_cg = true;
       bool use_air_cg = true;
 
       int term_flag_;
