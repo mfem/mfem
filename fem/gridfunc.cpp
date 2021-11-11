@@ -4311,7 +4311,7 @@ void PatchLeastSquaresCoefficient::Setup()
    {
       int iel = elems[i];
       const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(iel),
-                                                 order));
+                                                 2*order+3));
       int num_integration_pts = ir->GetNPoints();
       Array<int> udofs;
       DofTransformation * udoftrans = fes->GetElementVDofs(iel, udofs);

@@ -964,7 +964,6 @@ public:
                                 const Array<int> & elems_)
       : Coefficient(), u(u_), order(order_), elems(elems_)
    {
-      mfem::out << "order = " << order << std::endl;
       fes = u->FESpace();
       mesh = fes->GetMesh();
       dim = mesh->Dimension();
