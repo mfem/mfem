@@ -188,11 +188,11 @@ protected:
    Array<int> unused;
 
    // hash functions (NOTE: the constants are arbitrary)
-   inline int Hash(int p1, int p2) const
-   { return (984120265*p1 + 125965121*p2) & mask; }
+   inline int Hash(size_t p1, size_t p2) const
+   { return (984120265ul*p1 + 125965121ul*p2) & mask; }
 
-   inline int Hash(int p1, int p2, int p3) const
-   { return (984120265*p1 + 125965121*p2 + 495698413*p3) & mask; }
+   inline int Hash(size_t p1, size_t p2, size_t p3) const
+   { return (984120265ul*p1 + 125965121ul*p2 + 495698413ul*p3) & mask; }
 
    // Delete() and Reparent() use one of these:
    inline int Hash(const Hashed2& item) const
