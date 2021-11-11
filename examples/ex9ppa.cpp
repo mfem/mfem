@@ -709,6 +709,77 @@ int main(int argc, char *argv[])
    //    pmesh.RandomRefinement(0.6, false, 1, 4);
    // }
    pmesh.ExchangeFaceNbrData();
+
+   if (mpi.Root())
+   {
+      std::cout << "Serial face counts:"<< std::endl;
+      const int n_conf_faces = mesh.ComputeNumberOfFacesByType(
+                                 Mesh::FaceLocation::Local,
+                                 Mesh::FaceConformity::Conforming);
+
+      const int n_ncslave_faces = mesh.ComputeNumberOfFacesByType(
+                                 Mesh::FaceLocation::Local,
+                                 Mesh::FaceConformity::NonConformingSlave);
+
+      const int n_ncmaster_faces = mesh.ComputeNumberOfFacesByType(
+                                 Mesh::FaceLocation::Local,
+                                 Mesh::FaceConformity::NonConformingMaster);
+
+      const int n_bd_faces = mesh.ComputeNumberOfFacesByType(
+                                 Mesh::FaceLocation::Boundary,
+                                 Mesh::FaceConformity::NA);
+
+      std::cout << "The number of conforming faces is: " << n_conf_faces << std::endl;
+      std::cout << "The number of non-conforming slave faces is: " << n_ncslave_faces << std::endl;
+      std::cout << "The number of non-conforming master faces is: " << n_ncmaster_faces << std::endl;
+      std::cout << "The number of boundary faces is: " << n_bd_faces << std::endl;
+   }
+   MPI_Barrier(MPI_COMM_WORLD);
+   if (mpi.Root())
+      std::cout << std::endl << "Parallel local face counts:"<< std::endl;
+   {
+      const int n_conf_faces = pmesh.ComputeNumberOfFacesByType(
+                                 Mesh::FaceLocation::Local,
+                                 Mesh::FaceConformity::Conforming);
+
+      const int n_ncslave_faces = pmesh.ComputeNumberOfFacesByType(
+                                 Mesh::FaceLocation::Local,
+                                 Mesh::FaceConformity::NonConformingSlave);
+
+      const int n_ncmaster_faces = pmesh.ComputeNumberOfFacesByType(
+                                 Mesh::FaceLocation::Local,
+                                 Mesh::FaceConformity::NonConformingMaster);
+
+      const int n_bd_faces = pmesh.ComputeNumberOfFacesByType(
+                                 Mesh::FaceLocation::Boundary,
+                                 Mesh::FaceConformity::NA);
+
+      std::cout << "The number of local conforming faces on rank " << mpi.WorldRank() << " is: " << n_conf_faces << std::endl;
+      std::cout << "The number of local non-conforming slave faces on rank " << mpi.WorldRank() << " is: " << n_ncslave_faces << std::endl;
+      std::cout << "The number of local non-conforming master faces on rank " << mpi.WorldRank() << " is: " << n_ncmaster_faces << std::endl;
+      std::cout << "The number of boundary faces on rank " << mpi.WorldRank() << " is: " << n_bd_faces << std::endl;
+   }
+   MPI_Barrier(MPI_COMM_WORLD);
+   if (mpi.Root())
+      std::cout << std::endl << "Parallel shared face counts:"<< std::endl;
+   {
+      const int n_conf_faces = pmesh.ComputeNumberOfFacesByType(
+                                 Mesh::FaceLocation::Shared,
+                                 Mesh::FaceConformity::Conforming);
+
+      const int n_ncslave_faces = pmesh.ComputeNumberOfFacesByType(
+                                 Mesh::FaceLocation::Shared,
+                                 Mesh::FaceConformity::NonConformingSlave);
+
+      const int n_ncmaster_faces = pmesh.ComputeNumberOfFacesByType(
+                                 Mesh::FaceLocation::Shared,
+                                 Mesh::FaceConformity::NonConformingMaster);
+
+      std::cout << "The number of shared conforming faces on rank " << mpi.WorldRank() << " is: " << n_conf_faces << std::endl;
+      std::cout << "The number of shared non-conforming slave faces on rank " << mpi.WorldRank() << " is: " << n_ncslave_faces << std::endl;
+      std::cout << "The number of shared non-conforming master faces on rank " << mpi.WorldRank() << " is: " << n_ncmaster_faces << std::endl;
+   }
+
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    // H1_FECollection fec(order, dim);
    FiniteElementSpace serial_fes(&mesh, &fec);

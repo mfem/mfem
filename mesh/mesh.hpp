@@ -1416,6 +1416,28 @@ public:
        by Mesh::GetFaceElements and Mesh::GetFaceInfos. */
    FaceInformation GetFaceInformation(int f) const;
 
+   /// Compute the number of faces with the prescribed location and conformity,
+   /// NA means ANY except NA.
+   int ComputeNumberOfFacesByType(FaceLocation location,
+                                  FaceConformity conformity)
+   {
+      int nf = 0;
+      for (int f = 0; f < GetNumFacesWithGhost(); ++f)
+      {
+         FaceInformation face = GetFaceInformation(f);
+         if ( ( face.location != FaceLocation::NA &&
+                ( location == FaceLocation::NA ||
+                  face.location == location ) ) &&
+              ( face.conformity != FaceConformity::NA &&
+                ( conformity == FaceConformity::NA ||
+                  face.conformity == conformity ) ) )
+         {
+            nf++;
+         }
+      }
+      return nf;
+   }
+
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
