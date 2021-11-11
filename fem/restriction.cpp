@@ -1947,7 +1947,7 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
    if ( m==L2FaceValues::DoubleValued )
    {
       auto d_x = Reshape(x_interp.Read(), nface_dofs, vd, 2, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
@@ -1971,7 +1971,7 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
    else // Single valued
    {
       auto d_x = Reshape(x_interp.Read(), nface_dofs, vd, nf);
-      auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
       MFEM_FORALL(i, ndofs,
       {
          const int offset = d_offsets[i];
