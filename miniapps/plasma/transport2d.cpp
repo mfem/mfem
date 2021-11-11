@@ -713,14 +713,17 @@ class VectorRelativeErrorMeasure : public ODERelativeErrorMeasure
 {
 private:
    Vector w_;
+   Vector m_;
    Array<ODERelativeErrorMeasure*> msr_;
 
    int size_;
    Vector u_, e_;
 
 public:
-   VectorRelativeErrorMeasure(MPI_Comm comm, Vector & weights)
+   VectorRelativeErrorMeasure(MPI_Comm comm, Vector & weights,
+                              Vector & magnitudes)
       : w_(weights),
+        m_(magnitudes),
         msr_(w_.Size()),
         size_(0),
         u_(NULL, 0),
@@ -731,7 +734,7 @@ public:
       {
          if (w_[i] != 0.0)
          {
-            msr_[i] = new ParMaxAbsRelDiffMeasure(comm, 1.0);
+            msr_[i] = new ParMaxAbsRelDiffMeasure(comm, m_[i]);
          }
       }
    }
@@ -927,11 +930,14 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace &fespace,
                       ParFiniteElementSpace &vfespace,
+                      ParFiniteElementSpace &ffespace,
                       ParGridFunctionArray & gf, Array<Coefficient*> &coef,
                       Vector &weights,
                       int p, double tol, bool visualization = false);
 
 void InitialCondition(const Vector &x, Vector &y);
+
+void record_cmd_line(int argc, char *argv[]);
 
 int main(int argc, char *argv[])
 {
@@ -939,13 +945,15 @@ int main(int argc, char *argv[])
    MPI_Session mpi(argc, argv);
    if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
 
+   if (mpi.Root()) { record_cmd_line(argc, argv); }
+
    SolverParams ttol;
-   ttol.lin_abs_tol = 0.0;
-   ttol.lin_rel_tol = 1e-12;
+   ttol.lin_abs_tol = 1e-10;
+   ttol.lin_rel_tol = 1e-8;
    ttol.lin_max_iter = 1000;
    ttol.lin_log_lvl = 3;
 
-   ttol.newt_abs_tol = 1e-6;
+   ttol.newt_abs_tol = 1e-8;
    ttol.newt_rel_tol = 1e-6;
    ttol.newt_max_iter = 10;
    ttol.newt_log_lvl = 1;
@@ -1027,6 +1035,7 @@ int main(int argc, char *argv[])
    Vector eqn_weights;
    Vector amr_weights;
    Vector ode_weights;
+   Vector field_mags;
 
    int precision = 8;
    cout.precision(precision);
@@ -1048,6 +1057,8 @@ int main(int argc, char *argv[])
                   "Set the logging level.");
    args.AddOption(&op_flag, "-op", "--operator-test",
                   "Bitmask for disabling operators.");
+   args.AddOption(&field_mags, "-fld-m","--field-magnitudes",
+                  "Expected field magnitudes.");
    args.AddOption(&eqn_weights, "-eqn-w","--equation-weights",
                   "Normalization factors for balancing the coupled equations.");
    args.AddOption(&prob_, "-p", "--problem",
@@ -1236,6 +1247,16 @@ int main(int argc, char *argv[])
    */
    imex = ode_solver_type < 10;
 
+   if (field_mags.Size() != 5)
+   {
+      field_mags.SetSize(5);
+      field_mags[     NEUTRAL_DENSITY] = 1e15; // n_n ~ 1e15
+      field_mags[         ION_DENSITY] = 1e19; // n_i ~ 1e19
+      field_mags[   ION_PARA_VELOCITY] = 1e3;  // v_i ~ 1e3
+      field_mags[     ION_TEMPERATURE] = 1e1;  // T_i ~ 1e1
+      field_mags[ELECTRON_TEMPERATURE] = 1e2;  // T_e ~ 1e2
+   }
+
    if (eqn_weights.Size() != 5)
    {
       eqn_weights.SetSize(5);
@@ -1256,8 +1277,6 @@ int main(int argc, char *argv[])
    {
       ode_weights.SetSize(5);
       ode_weights = 1.0;
-      // ode_weights[0] = 1e-8;
-      // ode_weights[4] = 1e-10;
    }
 
    if (term_flags.Size() != 5)
@@ -1463,8 +1482,19 @@ int main(int argc, char *argv[])
       // Finite element space for a scalar (thermodynamic quantity)
       ParFiniteElementSpace err_fes(&pmesh, &fec_l2_o0);
 
-      AdaptInitialMesh(mpi, pmesh, err_fes, fes, vfes, coef_gf, coef,
+      AdaptInitialMesh(mpi, pmesh, err_fes, fes, vfes, ffes, coef_gf, coef,
                        amr_weights, 2, tol_init, visualization);
+
+      u.SetSpace(&ffes);
+      for (int k = 0; k <= num_equations; k++)
+      {
+         offsets[k] = k * fes.GetNDofs();
+      }
+      neu_density.MakeRef(&fes, u, offsets[0]);
+      ion_density.MakeRef(&fes, u, offsets[1]);
+      para_velocity.MakeRef(&fes, u, offsets[2]);
+      ion_energy.MakeRef(&fes, u, offsets[3]);
+      elec_energy.MakeRef(&fes, u, offsets[4]);
    }
    ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
    ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
@@ -1525,7 +1555,8 @@ int main(int argc, char *argv[])
 
    para_velocity = 0.0;
 
-   VectorRelativeErrorMeasure ode_diff_msr(MPI_COMM_WORLD, ode_weights);
+   VectorRelativeErrorMeasure ode_diff_msr(MPI_COMM_WORLD,
+                                           ode_weights, field_mags);
 
    Coefficient *psiCoef = NULL;
    VectorCoefficient *nxGradPsiCoef = NULL;
@@ -1629,11 +1660,45 @@ int main(int argc, char *argv[])
    ion_energy.ProjectCoefficient(Ti0Coef);
    elec_energy.ProjectCoefficient(Te0Coef);
    */
+   for (int i=0; i<5; i++)
+   {
+      ics[i]->SetTime(t_init);
+   }
    neu_density.ProjectCoefficient(*ics[0]);
    ion_density.ProjectCoefficient(*ics[1]);
    para_velocity.ProjectCoefficient(*ics[2]);
    ion_energy.ProjectCoefficient(*ics[3]);
    elec_energy.ProjectCoefficient(*ics[4]);
+
+   ofstream ofserr;
+
+   if (strncmp(es_file,"",1) != 0)
+   {
+      if (mpi.Root())
+      {
+         ofserr.open("transport2d_err.out");
+         ofserr << t_init;
+      }
+      for (int i=0; i<5; i++)
+      {
+         Coefficient * es = ess[i];
+         if (es != NULL)
+         {
+            double nrm = yGF[i]->ComputeL2Error(zeroCoef);
+            es->SetTime(t_init);
+            double err = yGF[i]->ComputeL2Error(*es);
+            if (mpi.Root())
+            {
+               ofserr << '\t' << nrm << '\t' << err;
+            }
+         }
+         else
+         {
+            if (mpi.Root()) { ofserr << '\t' << -1.0; }
+         }
+      }
+      if (mpi.Root()) { ofserr << endl << flush; }
+   }
 
    if (mpi.Root())
    {
@@ -1837,7 +1902,8 @@ int main(int argc, char *argv[])
    }
    */
 
-   DGTransportTDO oper(mpi, dg, plasma, ttol, eqn_weights, fes, vfes, ffes, fes_h1,
+   DGTransportTDO oper(mpi, dg, plasma, ttol, eqn_weights,
+                       fes, vfes, ffes, fes_h1,
                        offsets, yGF, kGF,
                        bcs, eqnCoefs, Di_perp, Xi_perp, Xe_perp,
                        term_flags, vis_flags, imex, op_flag, logging);
@@ -1981,12 +2047,6 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
-   ofstream ofserr;
-   if (strncmp(es_file,"",1) != 0 && mpi.Root())
-   {
-      ofserr.open("transport2d_err.out");
-   }
-
    socketstream eout;
    vector<socketstream> sout(5);
    char vishost[] = "localhost";
@@ -2051,16 +2111,7 @@ int main(int argc, char *argv[])
                double err = yGF[i]->ComputeL2Error(*es);
                if (mpi.Root())
                {
-                  if (nrm > 0.0)
-                  {
-                     // cout << "\t" << i << "\t" << err/nrm << endl;
-                     ofserr << '\t' << err / nrm;
-                  }
-                  else
-                  {
-                     // cout << "\t" << i << "\t" << err << endl;
-                     ofserr << '\t' << err;
-                  }
+                  ofserr << '\t' << nrm << '\t' << err;
                }
             }
             else
@@ -2382,6 +2433,33 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+void record_cmd_line(int argc, char *argv[])
+{
+   ofstream ofs("transport2d_cmd.txt");
+
+   for (int i=0; i<argc; i++)
+   {
+      ofs << argv[i] << " ";
+      if (strcmp(argv[i], "-amr-weights"        ) == 0 ||
+          strcmp(argv[i], "-amr-w"              ) == 0 ||
+          strcmp(argv[i], "-equation-weights"   ) == 0 ||
+          strcmp(argv[i], "-eqn-w"              ) == 0 ||
+          strcmp(argv[i], "-field-magnitudes"   ) == 0 ||
+          strcmp(argv[i], "-fld-m"              ) == 0 ||
+          strcmp(argv[i], "-ode-weights"        ) == 0 ||
+          strcmp(argv[i], "-ode-w"              ) == 0 ||
+          strcmp(argv[i], "-equation-term-flags") == 0 ||
+          strcmp(argv[i], "-term-flags"         ) == 0 ||
+          strcmp(argv[i], "-visualization-flags") == 0 ||
+          strcmp(argv[i], "-vis-flags"          ) == 0)
+      {
+         ofs << "'" << argv[++i] << "' ";
+      }
+   }
+   ofs << endl << flush;
+   ofs.close();
+}
+
 void ErrorEstRange(ErrorEstimator & est, double &min_err, double &max_err)
 {
    const Vector & errors = est.GetLocalErrors();
@@ -2403,6 +2481,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace &fespace,
                       ParFiniteElementSpace &vfespace,
+                      ParFiniteElementSpace &ffespace,
                       ParGridFunctionArray & gf, Array<Coefficient*> &coef,
                       Vector &weights,
                       int p, double tol, bool visualization)
@@ -2493,6 +2572,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
       err_fespace.Update();
       fespace.Update();
       vfespace.Update();
+      ffespace.Update();
       gf.Update();
 
       // 22. Load balance the mesh, and update the space and solution. Currently
@@ -2506,6 +2586,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
          err_fespace.Update();
          fespace.Update();
          vfespace.Update();
+         ffespace.Update();
          gf.Update();
       }
    }
@@ -2712,6 +2793,54 @@ public:
    {
       T.Transform(ip, x_);
       return a_ + b_ * (*sinFunc)(n_, x_);
+   }
+};
+
+/** Coefficient which returns a * sin(kx * (x - c)^2 + w t) + b */
+class SinXSqr1D: public Coefficient
+{
+private:
+   double a_, b_, c_, kx_, w_;
+
+   mutable Vector x_;
+
+public:
+   SinXSqr1D(double a, double b, double c, double kx, double w)
+      : a_(a), b_(b), c_(c), kx_(kx), w_(w), x_(3) {}
+
+   virtual void SetTime(double t)
+   { cout << "SinXSqr1D::SetTime(" << t << ")" << endl; Coefficient::SetTime(t); }
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * sin(kx_ * pow(x_[0] - c_, 2) + w_ * time) + b_;
+   }
+};
+
+/** Coefficient which returns MMS source corresponding to
+    a * sin(kx * (x - c)^2 + w t) + b */
+class SinXSqr1DMMS: public Coefficient
+{
+private:
+   double a_, b_, c_, kx_, w_, m_, n_, d_;
+
+   mutable Vector x_;
+
+public:
+   SinXSqr1DMMS(double a, double b, double c, double kx, double w,
+                double m, double n, double d)
+      : a_(a), b_(b), c_(c), kx_(kx), w_(w), m_(m), n_(n), d_(d), x_(3) {}
+
+   virtual void SetTime(double t)
+   { cout << "SinXSqr1DMMS::SetTime(" << t << ")" << endl; Coefficient::SetTime(t); }
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      double p = kx_ * pow(x_[0] - c_, 2) + w_ * time;
+      return a_ * (pow(2.0 * kx_ * (x_[0] - c_), 2) * d_ * sin(p) +
+                   cos(p) * (4.0 * kx_ * m_ * n_ * (x_[0] - c_) * (a_ * sin(p) + b_)
+                             - 2.0 * kx_ * d_ + m_ * n_ * w_));
    }
 };
 
@@ -3023,6 +3152,18 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       int n;
       input >> a >> b >> n;
       coef_idx = sCoefs.Append(new SinPhi(a, b, n));
+   }
+   else if (name == "SinXSqr1D")
+   {
+      double a, b, c, kx, w;
+      input >> a >> b >> c >> kx >> w;
+      coef_idx = sCoefs.Append(new SinXSqr1D(a, b, c, kx, w));
+   }
+   else if (name == "SinXSqr1DMMS")
+   {
+      double a, b, c, kx, w, m, n, d;
+      input >> a >> b >> c >> kx >> w >> m >> n >> d;
+      coef_idx = sCoefs.Append(new SinXSqr1DMMS(a, b, c, kx, w, m, n, d));
    }
    else if (name == "Gaussian1D")
    {

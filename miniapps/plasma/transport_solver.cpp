@@ -1976,16 +1976,16 @@ void DGAdvectionDiffusionTDO::Update()
    X_.SetSize(fes_->GetTrueVSize());
 }
 
-TransportPrec::TransportPrec(const Array<int> &offsets,
-                             const TransPrecParams &p,
-			     DGTransportTDO::CombinedOp *op)
+DGTransportTDO::TransportPrec::TransportPrec(const Array<int> &offsets,
+                                             const TransPrecParams &p,
+                                             DGTransportTDO::CombinedOp &combOp)
    : BlockDiagonalPreconditioner(offsets),
      diag_prec_(5),
 #ifdef MFEM_USE_SUPERLU
      slu_mat_(5),
 #endif
-     p_(p),
-     combo_(op)
+     comb_op_(combOp),
+     p_(p)
 {
    diag_prec_ = NULL;
 #ifdef MFEM_USE_SUPERLU
@@ -1993,7 +1993,7 @@ TransportPrec::TransportPrec(const Array<int> &offsets,
 #endif
 }
 
-TransportPrec::~TransportPrec()
+DGTransportTDO::TransportPrec::~TransportPrec()
 {
    for (int i=0; i<diag_prec_.Size(); i++)
    {
@@ -2004,7 +2004,7 @@ TransportPrec::~TransportPrec()
    }
 }
 
-void TransportPrec::SetOperator(const Operator &op)
+void DGTransportTDO::TransportPrec::SetOperator(const Operator &op)
 {
    height = width = op.Height();
 
@@ -2036,22 +2036,22 @@ void TransportPrec::SetOperator(const Operator &op)
             else
 #endif
             {
-	      if (i == 1) // IonDensity
-		{
-		  diag_prec_[i] = combo_->GetIonDensityPreconditoner();
-		}
-	      else
-		{
-	      //cout << "Using HypreBoomerAMG for block " << i << endl;
-               HypreBoomerAMG * amg =
-                  new HypreBoomerAMG(const_cast<HypreParMatrix&>(M));
-               amg->SetPrintLevel(p_.log_lvl);
-               diag_prec_[i] = amg;
+               if (i == 1) // IonDensity
+               {
+                  diag_prec_[i] = comb_op_.GetIonDensityPreconditoner();
+               }
+               else
+               {
+                  //cout << "Using HypreBoomerAMG for block " << i << endl;
+                  HypreBoomerAMG * amg =
+                     new HypreBoomerAMG(const_cast<HypreParMatrix&>(M));
+                  amg->SetPrintLevel(p_.log_lvl);
+                  diag_prec_[i] = amg;
 
-	       //HypreSmoother * smth = new HypreSmoother(const_cast<HypreParMatrix&>(M));
-               //diag_prec_[i] = smth;
-               //diag_prec_[i] = new IdentityOperator(M.NumRows());
-		}
+                  //HypreSmoother * smth = new HypreSmoother(const_cast<HypreParMatrix&>(M));
+                  //diag_prec_[i] = smth;
+                  //diag_prec_[i] = new IdentityOperator(M.NumRows());
+               }
             }
             /*
                  if (i == 0)
@@ -2071,7 +2071,8 @@ void TransportPrec::SetOperator(const Operator &op)
    }
 }
 
-CG2DG::CG2DG(const ParFiniteElementSpace &fes_dg_, const Array<int> &cg_ess_tdof_list)
+CG2DG::CG2DG(const ParFiniteElementSpace &fes_dg_,
+             const Array<int> &cg_ess_tdof_list)
    : Operator(fes_dg_.GetTrueVSize()),
      fes_dg(fes_dg_),
      fec_cg(fes_dg.GetOrder(0), fes_dg.GetParMesh()->Dimension()),
@@ -2115,9 +2116,9 @@ CG2DG::CG2DG(const ParFiniteElementSpace &fes_dg_, const Array<int> &cg_ess_tdof
    Vector column_scaling(ndof_cg);
    column_scaling = 1.0;
    for (auto it = cg_ess_tdof_list.begin(); it != cg_ess_tdof_list.end(); ++it)
-     {
-       column_scaling(*it) = 0.0;
-     }
+   {
+      column_scaling(*it) = 0.0;
+   }
 
    mat.ScaleColumns(column_scaling);
 
@@ -2222,13 +2223,14 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
      yGF_(yGF),
      kGF_(kGF),
      offsets_(offsets),
-     newton_op_solver_(fes.GetComm()),
-     newton_solver_(fes.GetComm()),
      tol_(tol),
-     op_(mpi, dg, plasma, eqn_weights, vfes, h1_fes, yGF, kGF, bcs, coefs, offsets_,
+     op_(mpi, dg, plasma, eqn_weights, vfes, h1_fes, yGF, kGF,
+         bcs, coefs, offsets_,
          Di_perp, Xi_perp, Xe_perp,
          term_flags, vis_flags, op_flag, logging),
-     newton_op_prec_(new TransportPrec(offsets, tol.prec, &op_)),
+     newton_op_prec_(offsets, tol.prec, op_),
+     newton_op_solver_(fes.GetComm()),
+     newton_solver_(fes.GetComm()),
      B3Coef_(const_cast<VectorCoefficient&>
              (*coefs(5).GetVectorCoefficient
               (CommonCoefs::MAGNETIC_FIELD_COEF))),
@@ -2246,7 +2248,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
    newton_op_solver_.SetAbsTol(tol_.lin_abs_tol);
    newton_op_solver_.SetMaxIter(tol_.lin_max_iter);
    newton_op_solver_.SetPrintLevel(tol_.lin_log_lvl);
-   newton_op_solver_.SetPreconditioner(*newton_op_prec_);
+   newton_op_solver_.SetPreconditioner(newton_op_prec_);
 
    newton_solver_.iterative_mode = false;
    newton_solver_.SetSolver(newton_op_solver_);
@@ -2518,7 +2520,8 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      cgblf_(5),
      term_flag_(term_flag),
      vis_flag_(vis_flag),
-     dc_(NULL)
+     dc_(NULL),
+     dg_precond_(NULL)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -2553,6 +2556,10 @@ DGTransportTDO::NLOperator::~NLOperator()
    for (int i=0; i<blf_.Size(); i++)
    {
       delete blf_[i];
+   }
+   for (int i=0; i<cgblf_.Size(); i++)
+   {
+      delete cgblf_[i];
    }
 
    for (int i=0; i<dbfi_m_.size(); i++)
@@ -2965,7 +2972,7 @@ void DGTransportTDO::NLOperator::Update()
       }
       if (cgblf_[i] != NULL)
       {
-	cgblf_[i]->Update();
+         cgblf_[i]->Update();
       }
    }
 
@@ -2985,7 +2992,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 
    if ( blf_[i] != NULL)
    {
-     //cout << "Non-null gradient block " << i << endl;
+      //cout << "Non-null gradient block " << i << endl;
       blf_[i]->Update(); // Clears the matrix so we start from 0 again
       blf_[i]->Assemble(0);
       blf_[i]->Finalize(0);
@@ -2994,63 +3001,71 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
       Operator * D = Dmat;
 
       if (index_ == 1 && i == 1)  // IonDensity diagonal term
-	{
-	  // Construct CG space operator and preconditioner
-	  ParFiniteElementSpace *fes_dg = blf_[i]->ParFESpace();
-	  delete cg2dg_;
-	  delete D_amg_;
-	  delete D_smoother_;
-	  // Note that dg_precond_ should not be deleted here,
-	  // as it becomes diag_prec_[i] for IonDensity, which
-	  // gets deleted elsewhere.
+      {
+         if (cgblf_[i])
+         {
+            // Construct CG space operator and preconditioner
+            ParFiniteElementSpace *fes_dg = blf_[i]->ParFESpace();
+            delete cg2dg_;
+            delete D_amg_;
+            delete D_smoother_;
+            // Note that dg_precond_ should not be deleted here,
+            // as it becomes diag_prec_[i] for IonDensity, which
+            // gets deleted elsewhere.
 
-	  cg2dg_ = new CG2DG(*fes_dg, cg_ess_tdof_list);
-	  delete CG2DGmat_;
+            cg2dg_ = new CG2DG(*fes_dg, cg_ess_tdof_list);
+            delete CG2DGmat_;
 
-	  const bool algebraic = false;
-	  if (algebraic) // Algebraic version
-	    {
-	      CG2DGmat_ = cg2dg_->ParallelAssemble();
-	      D_cg_ = RAP(Dmat, CG2DGmat_);
-	      D_cg_->EliminateZeroRows();
-	    }
-	  else // CG discretization version
-	    {
-	      MFEM_VERIFY(cgblf_[i], "");
-	      cgblf_[i]->Update(); // Clears the matrix so we start from 0 again
-	      cgblf_[i]->Assemble(0);
-	      cgblf_[i]->Finalize(0);
+            const bool algebraic = false;
+            if (algebraic) // Algebraic version
+            {
+               CG2DGmat_ = cg2dg_->ParallelAssemble();
+               D_cg_ = RAP(Dmat, CG2DGmat_);
+               D_cg_->EliminateZeroRows();
+            }
+            else // CG discretization version
+            {
+               MFEM_VERIFY(cgblf_[i], "");
+               cgblf_[i]->Update(); // Clears the matrix so we start from 0 again
+               cgblf_[i]->Assemble(0);
+               cgblf_[i]->Finalize(0);
 
-	      OperatorPtr A_cg;
-	      cgblf_[i]->FormSystemMatrix(cg_ess_tdof_list, A_cg);
-	      D_cg_ = A_cg.As<HypreParMatrix>();
-	    }
+               OperatorPtr A_cg;
+               cgblf_[i]->FormSystemMatrix(cg_ess_tdof_list, A_cg);
+               D_cg_ = A_cg.As<HypreParMatrix>();
+            }
 
-	  // Set up the preconditioner in CG space
-	  if (use_lor_cg)
-	    {
-	      delete D_lor_;
-	      D_lor_ = new ParLORDiscretization(*cgblf_[i], cg_ess_tdof_list);
-	      D_amg_ = new LORSolver<HypreBoomerAMG>(*D_lor_);
-	    }
-	  else
-	    {
-	      if (use_air_cg)
-		{
-		  MFEM_VERIFY(cgblf_[i], "");
-		  const int block_size = cgblf_[i]->ParFESpace()->GetFE(0)->GetDof();
-		  D_amg_ = new AIR_prec(block_size);
-		  D_amg_->SetOperator(*D_cg_);
-		}
-	      else
-		{
-		  D_amg_ = new HypreBoomerAMG(*D_cg_);
-		}
-	    }
+            // Set up the preconditioner in CG space
+            if (use_lor_cg)
+            {
+               delete D_lor_;
+               D_lor_ = new ParLORDiscretization(*cgblf_[i], cg_ess_tdof_list);
+               D_amg_ = new LORSolver<HypreBoomerAMG>(*D_lor_);
+            }
+            else
+            {
+               if (use_air_cg)
+               {
+                  MFEM_VERIFY(cgblf_[i], "");
+                  const int block_size = cgblf_[i]->ParFESpace()->GetFE(0)->GetDof();
+                  D_amg_ = new AIR_prec(block_size);
+                  D_amg_->SetOperator(*D_cg_);
+               }
+               else
+               {
+                  D_amg_ = new HypreBoomerAMG(*D_cg_);
+               }
+            }
 
-	  D_smoother_ = new HypreSmoother(*Dmat, HypreSmoother::Jacobi);
-	  dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_amg_, *D_smoother_);
-	}
+            D_smoother_ = new HypreSmoother(*Dmat, HypreSmoother::Jacobi);
+            dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_amg_, *D_smoother_);
+         }
+         else
+         {
+            // The operator is just a DG mass matrix so return a simple precond
+            dg_precond_ = new HypreDiagScale(*Dmat);
+         }
+      }
 
       return D;
    }
@@ -3081,7 +3096,7 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
                                          const PlasmaParams & plasma, int index,
                                          const std::string &eqn_name,
                                          const std::string &field_name,
-					 ParFiniteElementSpace * h1_fes,
+                                         ParFiniteElementSpace * h1_fes,
                                          ParGridFunctionArray & yGF,
                                          ParGridFunctionArray & kGF,
                                          const AdvectionDiffusionBC & bcs,
@@ -3094,6 +3109,7 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
    : NLOperator(mpi, dg, index, eqn_name, field_name,
                 yGF, kGF, term_flag, vis_flag, logging, log_prefix),
      coefGF_(yGF[0]->ParFESpace()),
+     h1_fes_(h1_fes),
      plasma_(plasma),
      m_n_(plasma.m_n),
      T_n_(plasma.T_n),
@@ -3115,8 +3131,7 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
      diffusionCoef_(NULL),
      diffusionMatrixCoef_(NULL),
      advectionCoef_(NULL),
-     sourceCoef_(NULL),
-     h1_fes_(*h1_fes)
+     sourceCoef_(NULL)
 {}
 
 DGTransportTDO::TransportOp::~TransportOp()
@@ -3276,13 +3291,16 @@ void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
          }
          blf_[i]->AddDomainIntegrator(new MassIntegrator(*coef));
 
-	 if (cgblf_[i] == NULL)
-	   {
-	     cgblf_[i] = new ParBilinearForm(&h1_fes_);
-	     //cout << "Number of CG dofs " << h1_fes_.GlobalTrueVSize() << endl;
-	     //cout << "Number of DG dofs " << fes_.GlobalTrueVSize() << endl;
-	   }
-	 cgblf_[i]->AddDomainIntegrator(new MassIntegrator(*coef));
+         if (h1_fes_ != NULL )
+         {
+            if (cgblf_[i] == NULL)
+            {
+               cgblf_[i] = new ParBilinearForm(h1_fes_);
+               //cout << "Number of CG dofs " << h1_fes_.GlobalTrueVSize() << endl;
+               //cout << "Number of DG dofs " << fes_.GlobalTrueVSize() << endl;
+            }
+            cgblf_[i]->AddDomainIntegrator(new MassIntegrator(*coef));
+         }
       }
    }
 
@@ -3606,11 +3624,14 @@ DGTransportTDO::TransportOp::SetAnisotropicDiffusionTerm(
                                 dg_.sigma,
                                 dg_.kappa));
 
-   if (cgblf_[index_] == NULL)
+   if (h1_fes_ != NULL)
    {
-      cgblf_[index_] = new ParBilinearForm(&h1_fes_);
+      if (cgblf_[index_] == NULL)
+      {
+         cgblf_[index_] = new ParBilinearForm(h1_fes_);
+      }
+      cgblf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
    }
-   cgblf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
 
    const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
    cout << "Number of anisotropic diffusion Dirichlet BCs " << dbc.Size() << endl;
@@ -3619,11 +3640,12 @@ DGTransportTDO::TransportOp::SetAnisotropicDiffusionTerm(
 
    for (int i=0; i<dbc.Size(); i++)
    {
-     cout << "Using anisotropic diffusion Dirichlet BC attr " << dbc[i]->attr << endl;
-     for (int j=0; j<dbc[i]->attr.Size(); ++j)
-       {
-	 ess_bdr[dbc[i]->attr[j] - 1] = 1;
-       }
+      cout << "Using anisotropic diffusion Dirichlet BC attr " << dbc[i]->attr <<
+           endl;
+      for (int j=0; j<dbc[i]->attr.Size(); ++j)
+      {
+         ess_bdr[dbc[i]->attr[j] - 1] = 1;
+      }
 
       bfbfi_marker_.Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
@@ -3653,7 +3675,10 @@ DGTransportTDO::TransportOp::SetAnisotropicDiffusionTerm(
          *bfbfi_marker_.Last());
    }
 
-   h1_fes_.GetEssentialTrueDofs(ess_bdr, cg_ess_tdof_list);
+   if (h1_fes_ != NULL)
+   {
+      h1_fes_->GetEssentialTrueDofs(ess_bdr, cg_ess_tdof_list);
+   }
 
    const Array<CoefficientByAttr*> & nbc = bcs_.GetNeumannBCs();
    for (int i=0; i<nbc.Size(); i++)
@@ -3759,12 +3784,16 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
 
    // blf_[index_]->AddBdrFaceIntegrator(new DGTraceIntegrator(*dtVCoef, 1.0, 0.5));
 
-   if (cgblf_[index_] == NULL)
+   if (h1_fes_ != NULL)
    {
-      cgblf_[index_] = new ParBilinearForm(&h1_fes_);
+      if (cgblf_[index_] == NULL)
+      {
+         cgblf_[index_] = new ParBilinearForm(h1_fes_);
+      }
+      cgblf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
+      cgblf_[index_]->AddDomainIntegrator(new ConservativeConvectionIntegrator(
+                                             *dtVCoef));
    }
-   cgblf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
-   cgblf_[index_]->AddDomainIntegrator(new ConservativeConvectionIntegrator(*dtVCoef));
 
    const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
    for (int i=0; i<dbc.Size(); i++)
@@ -4225,7 +4254,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 1) & 1)
    {
-     op_[1] = new IonDensityOp(mpi, dg, plasma, vfes, h1_fes, yGF, kGF,
+      op_[1] = new IonDensityOp(mpi, dg, plasma, vfes, h1_fes, yGF, kGF,
                                 bcs[1], bcs.GetCoupledBCs(),
                                 coefs[1], *B3Coef, DiPerp,
                                 term_flags[1], vis_flags[1],
@@ -4469,7 +4498,7 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
          Operator * gradIJ = op_[i]->GetGradientBlock(j);
          if (gradIJ)
          {
-	   //cout << "Grad has block " << i << ", " << j << endl;
+            //cout << "Grad has block " << i << ", " << j << endl;
             grad_->SetBlock(i, j, gradIJ, wgts_[i]);
          }
       }
@@ -4550,7 +4579,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
                                                    int vis_flag,
                                                    int logging,
                                                    const string & log_prefix)
-  : TransportOp(mpi, dg, plasma, 0, "Neutral Density", "Neutral Density", NULL,
+   : TransportOp(mpi, dg, plasma, 0, "Neutral Density", "Neutral Density", NULL,
                  yGF, kGF, bcs, cbcs, coefs, B3Coef, term_flag, vis_flag,
                  logging, log_prefix),
      vnCoef_(v_n_),
@@ -4791,7 +4820,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
                                            int term_flag, int vis_flag,
                                            int logging,
                                            const string & log_prefix)
-  : TransportOp(mpi, dg, plasma, 1, "Ion Density", "Ion Density", &h1_fes,
+   : TransportOp(mpi, dg, plasma, 1, "Ion Density", "Ion Density", &h1_fes,
                  yGF, kGF, bcs, cbcs, coefs, B3Coef, term_flag, vis_flag,
                  logging, log_prefix),
      izCoef_(TeCoef_),
@@ -5330,7 +5359,8 @@ IonStaticPressureOp(const MPI_Session & mpi,
                     int term_flag, int vis_flag,
                     int logging,
                     const string & log_prefix)
-  : TransportOp(mpi, dg, plasma, 3, "Ion Static Pressure", "Ion Temperature", NULL,
+   : TransportOp(mpi, dg, plasma, 3, "Ion Static Pressure", "Ion Temperature",
+                 NULL,
                  yGF, kGF, bcs, cbcs, coefs, B3Coef, term_flag, vis_flag,
                  logging, log_prefix),
      ChiPerpConst_(ChiPerp),
@@ -5694,7 +5724,7 @@ DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
                                  const string & field_name,
                                  int term_flag, int vis_flag, int logging,
                                  const string & log_prefix)
-  : TransportOp(mpi, dg, plasma, index, eqn_name, field_name, NULL, yGF, kGF,
+   : TransportOp(mpi, dg, plasma, index, eqn_name, field_name, NULL, yGF, kGF,
                  bcs, cbcs, coefs, B3Coef, term_flag, vis_flag,
                  logging, log_prefix)
 {
