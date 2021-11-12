@@ -104,6 +104,7 @@ int main(int argc, char *argv[])
    double tol = 1e-4;
    double K_max = 0.9;
    double K_min = 1e-3;
+   int alg = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -125,6 +126,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&alg, "-alg", "--algorithm",
+                  "Optimization algorithm: 0 - Gradient Descent (default), 1 - Subgradient, 2 - Mirror descent (KL-divergence).");
    args.Parse();
    if (!args.Good())
    {
@@ -132,6 +135,22 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   ostringstream file_name;
+   if (alg == 1)
+   {
+      file_name << "conv_order" << order << "_Subgrad" << ".csv";
+   }
+   else if (alg == 2)
+   {
+      file_name << "conv_order" << order << "_KL" << ".csv";
+   }
+   else
+   {
+      file_name << "conv_order" << order << "_GD" << ".csv";
+   }
+   ofstream conv(file_name.str().c_str());
+   conv << "Step,    Compliance,    Mass Fraction" << endl;
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
@@ -153,6 +172,7 @@ int main(int argc, char *argv[])
    //    adjoint variable p, and the control variable f.
    H1_FECollection state_fec(order, dim);
    // L2_FECollection control_fec(order, dim);
+   // H1_FECollection control_fec(order-1, dim, BasisType::Positive);
    L2_FECollection control_fec(order-1, dim, BasisType::Positive);
    FiniteElementSpace state_fes(&mesh, &state_fec);
    FiniteElementSpace control_fes(&mesh, &control_fec);
@@ -242,11 +262,38 @@ int main(int argc, char *argv[])
       // H. Constuct gradient function (i.e., -|\nabla u|^2)
       GradientGridFunctionCoefficient grad_u(&u);
       InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
-      grad.ProjectCoefficient(norm2_grad_u);
+      // grad.ProjectCoefficient(norm2_grad_u);
+
+      LinearForm d(&control_fes);
+      d.AddDomainIntegrator(new DomainLFIntegrator(norm2_grad_u));
+      d.Assemble();
+      BilinearForm L2proj(&control_fes);
+      InverseIntegrator * m = new InverseIntegrator(new MassIntegrator());
+      L2proj.AddDomainIntegrator(m);
+      L2proj.Assemble();
+      Array<int> empty_list;
+      OperatorPtr invM;
+      L2proj.FormSystemMatrix(empty_list,invM);   
+      invM->Mult(d,grad);
 
       // J. Update control.
-      grad *= step_length;
-      K += grad;
+      if (alg == 1)
+      {
+         grad *= step_length/sqrt(k);
+         K += grad;
+      }
+      else if (alg == 2)
+      {
+         for (int i = 0; i < K.Size(); i++)
+         {
+            K[i] *= exp(step_length*grad[i]);
+         }
+      }
+      else
+      {
+         grad *= step_length;
+         K += grad;
+      }
 
       // K. Project onto constraint set.
       // Uses Dykstra's projection algorithm.
@@ -298,6 +345,10 @@ int main(int argc, char *argv[])
       // I. Compute norm of update.
       GridFunctionCoefficient tmp(&K_old);
       double norm = K.ComputeL2Error(tmp)/step_length;
+      if (alg == 2)
+      {
+         norm *= sqrt(k);
+      }
       K_old = K;
       double compliance = b(u);
 
@@ -305,6 +356,7 @@ int main(int argc, char *argv[])
       mfem::out << "norm of reduced gradient = " << norm << endl;
       mfem::out << "compliance = " << compliance << endl;
       mfem::out << "mass_fraction = " << vol_form(K) / domain_volume << endl;
+      conv << k << ", " << compliance << ", " << mass_fraction << endl;
       if (norm < tol)
       {
          break;
