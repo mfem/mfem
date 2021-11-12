@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
       Vector B, X;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
       tic_toc.Stop();
-      cout << "Legacy CG steup time: " << tic_toc.RealTime() << std::endl;
+      cout << "Legacy CG setup time: " << tic_toc.RealTime() << std::endl;
 
       cout << "Size of linear system: " << A->Height() << endl;
 
