@@ -2698,7 +2698,6 @@ void NURBSExtension::UpdateKVRed()
 {
    Array<int> edges, orient, ifupdated, kvdir;
    Vector diff;
-   ifupdated = 0;
    Array<int>e(Dimension());
 
    if (Dimension() == 2)
@@ -2715,6 +2714,7 @@ void NURBSExtension::UpdateKVRed()
    }
 
    ifupdated.SetSize(NumOfKnotVectors);
+   ifupdated = 0;
 
 
    for (int p = 0; p < GetNP(); p++)
