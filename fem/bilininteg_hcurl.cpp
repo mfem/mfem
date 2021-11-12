@@ -4432,6 +4432,7 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
                                           const Vector &x,
                                           Vector &y)
 {
+#ifdef MFEM_DEVICE_COMPILE
    MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
 
@@ -4641,6 +4642,9 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
          }
       } // qz
    }); // end of element loop
+#else
+   MFEM_ABORT("This kernel should only be used on GPU.");
+#endif
 }
 
 void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
