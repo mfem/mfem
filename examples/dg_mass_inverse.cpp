@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
       tic_toc.Clear();
       tic_toc.Start();
       BilinearForm a(&fespace);
-      if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       a.AddDomainIntegrator(new MassIntegrator(one));
       a.Assemble();
 
