@@ -9,13 +9,6 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# TPLS_DIR is used in .gitlab/scripts/baseline to provide the tpls location
-# when call the runtest script in MFEM test repo.
-# Note: the value must be consistent with what setup_baseline does.
-variables:
-  TPLS_DIR: ${BUILD_ROOT}/tpls
-  AUTOTEST_ROOT: ${CI_BUILDS_DIR}/MFEM_${MACHINE_NAME}_baseline
-
 # The setup_baseline job doesn't rely on MFEM git repo. It prepares a
 # pipeline-wide working directory downloading/updating external repos.
 # TODO:
@@ -30,13 +23,50 @@ setup_baseline:
   variables:
     GIT_STRATEGY: none
   script:
+    #
+    # Setup ${BUILD_ROOT}/tpls and ${BUILD_ROOT}/tests:
+    #
+    - echo "MACHINE_NAME = ${MACHINE_NAME}"
+    - echo "REBASELINE = ${REBASELINE}"
+    - echo "AUTOTEST = ${AUTOTEST}"
+    - echo "AUTOTEST_COMMIT = ${AUTOTEST_COMMIT}"
     - echo "BUILD_ROOT ${BUILD_ROOT}"
     - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
     - if [ ! -d "tpls" ]; then git clone ${TPLS_REPO}; fi
     - if [ ! -d "tests" ]; then git clone ${TESTS_REPO}; fi
     - cd tpls && git pull && cd ..
     - cd tests && git pull origin && cd ..
+    #
+    # Setup ${AUTOTEST_ROOT}/autotest:
+    #
     - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
     - mkdir -p ${AUTOTEST_ROOT} && cd ${AUTOTEST_ROOT}
-    - if [ ! -d "autotest" ]; then git clone ${AUTOTEST_REPO}; fi
-    - cd autotest && git pull && cd ..
+    - command -v flock || echo "Required command 'flock' not found"
+    - |
+      (
+        date
+        echo "Waiting to aquire lock on '$PWD/autotest.lock' ..."
+        # try to get an excusive lock on fd 9 (autotest.lock) repeating the try
+        # every 5 seconds; simply using no timeout, i.e. 'flock 9', causes the
+        # command to hang indefinitely sometimes, so we use the timeout & retry
+        # as a workaround; we may want to add a counter for the number of
+        # retries to interrupt a potential infinite loop
+        while ! flock -w 5 9; do
+          true
+        done
+        echo "Aquired lock on '$PWD/autotest.lock'"
+        date
+        # clone/update the autotest repo while holding the file lock on
+        # 'autotest.lock'
+        err=0
+        if [[ ! -d "autotest" ]]; then
+          git clone ${AUTOTEST_REPO}
+        else
+          cd autotest && git pull && cd ..
+        fi || err=1
+        # sleep for a period to allow NFS to propagate the above changes;
+        # clearly, there is no guarantee that other NFS clients will see the
+        # changes even after the timeout
+        sleep 10
+        exit $err
+      ) 9> autotest.lock

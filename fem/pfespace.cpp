@@ -3209,8 +3209,11 @@ void ParFiniteElementSpace::CopyProlongationAndRestriction(
    SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
    if (perm)
    {
+      // Note: although n and fes.GetVSize() are typically equal, in
+      // variable-order spaces they may differ, since nonconforming edges/faces
+      // my have fictitious DOFs.
       int n = perm->Size();
-      perm_mat = new SparseMatrix(n, n);
+      perm_mat = new SparseMatrix(n, fes.GetVSize());
       for (int i=0; i<n; ++i)
       {
          double s;
@@ -3227,10 +3230,25 @@ void ParFiniteElementSpace::CopyProlongationAndRestriction(
       else { P = new HypreParMatrix(*pfes->P); }
       nonconf_P = true;
    }
+   else if (perm != NULL)
+   {
+      HYPRE_BigInt glob_nrows = GlobalVSize();
+      HYPRE_BigInt glob_ncols = GlobalTrueVSize();
+      HYPRE_BigInt *col_starts = GetTrueDofOffsets();
+      HYPRE_BigInt *row_starts = GetDofOffsets();
+      P = new HypreParMatrix(MyComm, glob_nrows, glob_ncols, row_starts,
+                             col_starts, perm_mat);
+      nonconf_P = true;
+   }
    if (pfes->R != NULL)
    {
       if (perm) { R = Mult(*pfes->R, *perm_mat_tr); }
       else { R = new SparseMatrix(*pfes->R); }
+   }
+   else if (perm != NULL)
+   {
+      R = perm_mat_tr;
+      perm_mat_tr = NULL;
    }
 
    delete perm_mat;

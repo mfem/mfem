@@ -3735,8 +3735,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          elements[new_e] = new Segment(new_v, vert[1], attr);
          vert[1] = new_v;
 
-         CoarseFineTr.embeddings[i] = Embedding(i, 1);
-         CoarseFineTr.embeddings[new_e] = Embedding(i, 2);
+         CoarseFineTr.embeddings[i] = Embedding(i, Geometry::SEGMENT, 1);
+         CoarseFineTr.embeddings[new_e] = Embedding(i, Geometry::SEGMENT, 2);
       }
 
       static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
