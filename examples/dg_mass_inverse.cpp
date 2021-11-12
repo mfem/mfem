@@ -139,8 +139,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = 2;
    int order = 1;
-   bool static_cond = false;
-   bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
    bool legacy = false;
@@ -153,15 +151,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
    args.AddOption(&legacy, "-l", "--legacy", "-n",
                   "--new-alg",
                   "Use legacy.");
@@ -208,6 +199,7 @@ int main(int argc, char *argv[])
 
    if (legacy)
    {
+      cout << "Building Old CG " << std::endl;
       tic_toc.Clear();
       tic_toc.Start();
       BilinearForm a(&fespace);
@@ -238,6 +230,7 @@ int main(int argc, char *argv[])
    else
    {
       // Setup
+      cout << "Building New CG " << std::endl;
       tic_toc.Clear();
       tic_toc.Start();
       DGMassInverse new_op(fespace,one);
