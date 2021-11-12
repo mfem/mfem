@@ -1783,10 +1783,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
 
    knotVectorsExt.SetSize(GetNP()*Dimension());
    KVRed2Ext();
-   mfem::out << "In NURBSExtension::NURBSExtension(std::istream &input)" << endl;
-   mfem::out << "UpdateKVRed()" << endl;
    UpdateKVRed();
-   mfem::out << endl;
 
    SetOrdersFromKnotVectors();
 
@@ -2736,8 +2733,6 @@ void NURBSExtension::UpdateKVRed()
             // Check if knotvector is allready updated. If update twice, something is wrong
             if (ifupdated[KnotIndRed(edges[e[i]])] == 1)
             {
-               mfem::out << endl << endl <<"Patch " << p << " dimension " << i << endl;
-               PrintKnotvectors();
                mfem::out <<
                          "KnotVectorRed[i] was updated and is updated again. Knotvectors problably not equal."
                          << endl;
@@ -3615,10 +3610,7 @@ void NURBSExtension::SetKnotsFromPatches()
       }
    }
 
-   mfem::out << "In NURBSExtension::SetKnotsFromPatches()" << endl;
-   mfem::out << "UpdateKVRed()" << endl;
    UpdateKVRed();
-   mfem::out << endl;
 
    SetOrdersFromKnotVectors();
 
