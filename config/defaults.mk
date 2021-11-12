@@ -59,6 +59,9 @@ HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
 HIP_XCOMPILER =
 HIP_XLINKER   = -Wl,
 
+# Flags for generating dependencies.
+DEP_FLAGS = -MM -MT
+
 ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = crv
@@ -86,6 +89,9 @@ else
    BUILD_RPATH = $(XLINKER)-undefined,dynamic_lookup
    INSTALL_SOFLAGS = $(subst $1 ,,$(call MAKE_SOFLAGS,$(MFEM_LIB_DIR)))
    INSTALL_RPATH = $(XLINKER)-undefined,dynamic_lookup
+   # Silence unused command line argument warnings when generating dependencies
+   # with mpicxx and clang
+   DEP_FLAGS := -Wno-unused-command-line-argument $(DEP_FLAGS)
 endif
 
 # Set CXXFLAGS to overwrite the default selection of DEBUG_FLAGS/OPTIM_FLAGS
