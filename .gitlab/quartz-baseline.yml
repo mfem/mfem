@@ -117,7 +117,8 @@ baselinepublish_mfem_quartz:
   extends: [.on_quartz]
   stage: baseline_publish
   rules:
-    - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
+    # - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
+    - if: '$REBASELINE == "YES"'
       when: manual
   script:
     - echo ${BUILD_ROOT}
