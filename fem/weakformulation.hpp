@@ -56,7 +56,7 @@ protected:
    /// Set of Domain Integrators to be applied. Forming matrix B
    BilinearFormIntegrator * domain_bf_integ = nullptr;
 
-   /// Trace integrators. Forming Matrix \hat{B}
+   /// Trace integrators. Forming Matrix Bhat
    BilinearFormIntegrator * trace_integ = nullptr;
 
    /// Set of Test Space (broken) Integrators to be applied. Forming matrix G
