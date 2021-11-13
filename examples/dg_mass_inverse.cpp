@@ -182,12 +182,6 @@ int main(int argc, char *argv[])
         << fespace.GetTrueVSize() << endl;
 
    Array<int> ess_tdof_list;
-   if (mesh.bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
 
    LinearForm b(&fespace);
    ConstantCoefficient one(1.0);
