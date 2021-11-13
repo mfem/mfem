@@ -150,6 +150,12 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
+   virtual void AssembleTraceFaceMatrix(int elem,
+                                        const FiniteElement &trial_face_fe,
+                                        const FiniteElement &test_fe,
+                                        FaceElementTransformations &Trans,
+                                        DenseMatrix &elmat);
+
    /** Abstract method used for assembling TraceFaceIntegrators in a
        MixedBilinearForm. */
    virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
@@ -3122,6 +3128,19 @@ public:
                                    DenseMatrix &elmat);
 };
 
+class TraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector face_shape, shape;
+public:
+   TraceIntegrator() { }
+   void AssembleTraceFaceMatrix(int elem,
+                                const FiniteElement &trial_face_fe,
+                                const FiniteElement &test_fe,
+                                FaceElementTransformations &Trans,
+                                DenseMatrix &elmat);
+};
+
 /** Integrator for the form: < v, [w.n] > over all faces (the interface) where
     the trial variable v is defined on the interface and the test variable w is
     in an H(div)-conforming space. */
@@ -3140,6 +3159,8 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 };
+
+
 
 /** Abstract class to serve as a base for local interpolators to be used in the
     DiscreteLinearOperator class. */

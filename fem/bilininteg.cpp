@@ -144,6 +144,14 @@ void BilinearFormIntegrator::AssembleFaceMatrix (
                "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleTraceFaceMatrix(int elem,
+                                                     const FiniteElement &trial_face_fe,  const FiniteElement &test_fe,
+                                                     FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleTraceFaceMatrix(...)\n"
+               "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssembleFaceMatrix(
    const FiniteElement &trial_face_fe, const FiniteElement &test_fe1,
    const FiniteElement &test_fe2, FaceElementTransformations &Trans,
@@ -3718,6 +3726,75 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
             {
                elmat(ndof1+i, j) += shape2_n(i) * face_shape(j);
             }
+      }
+   }
+}
+
+void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
+                                              const FiniteElement &trial_face_fe, const FiniteElement &test_fe,
+                                              FaceElementTransformations & Trans,
+                                              DenseMatrix &elmat)
+{
+   int i, j, face_ndof, ndof;
+   int order;
+
+   double w;
+
+   face_ndof = trial_face_fe.GetDof();
+   ndof = test_fe.GetDof();
+
+   face_shape.SetSize(face_ndof);
+   shape.SetSize(ndof);
+
+   elmat.SetSize(ndof, face_ndof);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      order = test_fe.GetOrder();
+      order += trial_face_fe.GetOrder();
+      if (trial_face_fe.GetMapType() == FiniteElement::VALUE)
+      {
+         order += Trans.OrderW();
+      }
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   int iel = Trans.Elem1->ElementNo;
+   if (iel != elem)
+   {
+      MFEM_VERIFY(elem == Trans.Elem2->ElementNo, "Elem != Trans.Elem2->ElementNo");
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+
+      const IntegrationPoint &eip = (iel == elem) ?
+                                    Trans.GetElement1IntPoint():
+                                    Trans.GetElement2IntPoint();
+
+      // Trace finite element shape function
+      trial_face_fe.CalcShape(ip, face_shape);
+      // Side 1 finite element shape function
+      test_fe.CalcShape(eip, shape);
+      w = ip.weight;
+      if (trial_face_fe.GetMapType() == FiniteElement::VALUE)
+      {
+         w *= Trans.Weight();
+      }
+      face_shape *= w;
+      for (i = 0; i < ndof; i++)
+      {
+         for (j = 0; j < face_ndof; j++)
+         {
+            elmat(i, j) += shape(i) * face_shape(j);
+         }
       }
    }
 }
