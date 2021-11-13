@@ -3771,23 +3771,16 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
 
-
       // Set the integration point in the face and the neighboring elements
       Trans.SetAllIntPoints(&ip);
-
-      const IntegrationPoint &eip = (iel == elem) ?
-                                    Trans.GetElement1IntPoint():
-                                    Trans.GetElement2IntPoint();
-
       // Trace finite element shape function
-      trial_face_fe.CalcShape(ip, face_shape);
-      // Side 1 finite element shape function
-      test_fe.CalcShape(eip, shape);
-      w = ip.weight;
-      if (trial_face_fe.GetMapType() == FiniteElement::VALUE)
-      {
-         w *= Trans.Weight();
-      }
+      trial_face_fe.CalcPhysShape(Trans,face_shape);
+
+      // Finite element shape function
+      ElementTransformation * eltrans = (iel == elem) ? Trans.Elem1 : Trans.Elem2;
+      test_fe.CalcPhysShape(*eltrans, shape);
+
+      w = Trans.Weight()*ip.weight;
       face_shape *= w;
       for (i = 0; i < ndof; i++)
       {

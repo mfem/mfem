@@ -157,12 +157,12 @@ void NormalEquationsWeakFormulation::Assemble(int skip_zeros)
       test_integ->AssembleElementMatrix(test_fe, *eltrans,G);
       int h = G.Height();
 
-      // Element B
+      // Element Matrix B
       domain_bf_integ->AssembleElementMatrix2(fe,test_fe,*eltrans,B);
       MFEM_VERIFY(B.Height() == h, "Check B height");
       int w = B.Width();
 
-      // Element Bhat
+      // Element Matrix Bhat
       Array<int> faces, ori;
       if (dim == 2)
       {
@@ -181,7 +181,6 @@ void NormalEquationsWeakFormulation::Assemble(int skip_zeros)
          const FiniteElement & fe = *trace_fes->GetFaceElement(j);
          Bhat[j] = new DenseMatrix();
          trace_integ->AssembleTraceFaceMatrix(i,fe,test_fe,*ftr,*Bhat[j]);
-         Bhat[j]->PrintMatlab();
          w += Bhat[j]->Width();
       }
 
