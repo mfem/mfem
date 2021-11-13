@@ -500,7 +500,7 @@ hpc:
 deps:
 	rm -f $(BLD)deps.mk
 	for i in $(RELSRC_FILES:.cpp=); do \
-	   $(DEP_CXX) $(MFEM_BUILD_FLAGS) -MM -MT $(BLD)$${i}.o $(SRC)$${i}.cpp\
+	   $(DEP_CXX) $(MFEM_BUILD_FLAGS) $(DEP_FLAGS) $(BLD)$${i}.o $(SRC)$${i}.cpp\
 	      >> $(BLD)deps.mk; done
 
 check: lib
