@@ -32,7 +32,7 @@ auto operator*(const Scalar &a, const Tensor &u)
    Res v(GetLayout(u));
    ForallDims<Tensor>::ApplyBinOp(u, v, [&](auto... idx)
    {
-      v(idx...) = a * v(idx...);
+      v(idx...) = a * u(idx...);
    });
    return v;
 }
