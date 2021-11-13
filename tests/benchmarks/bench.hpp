@@ -14,10 +14,25 @@
 
 #include "mfem.hpp"
 
-#include <functional>
-#include <unordered_map>
-
 using namespace mfem;
+
+#ifdef MFEM_USE_BENCHMARK
+#include "benchmark/benchmark.h"
+namespace bm = benchmark;
+namespace bmi = benchmark::internal;
+
+#define BENCHMARK(func) \
+static bm::Benchmark *Bench_##func = bm::Benchmarks::Add(#func,func)
+
+namespace benchmark
+{
+namespace internal
+{
+extern std::map<std::string, std::string> *global_context;
+}
+}
+
+#endif // MFEM_USE_BENCHMARK
 
 namespace mfem
 {
@@ -33,125 +48,6 @@ almost_equal(T x, T y, T tolerance = 1e-14)
    if (std::abs(min_abs)==0.0) { return neg < eps; }
    return (neg/std::max(min, min_abs)) < tolerance;
 }
-
-} // namespace mfem
-
-#ifdef MFEM_USE_BENCHMARK
-#include "benchmark/benchmark.h"
-namespace bm = benchmark;
-namespace bmi = benchmark::internal;
-#else
-namespace benchmark
-{
-
-enum kTime { kNanosecond, kMicrosecond, kMillisecond, kSecond };
-
-/// State mockup
-struct State
-{
-   const int *min_max;
-   State(const int *range): min_max(range) { }
-
-   int loop = 0;
-   int range(int i) { return 1; }
-   bool KeepRunning() { return loop++ < 1; }
-   std::map<std::string, int> counters;
-};
-
-/// Counter mockup
-struct Counter
-{
-   enum Flags
-   {
-      kDefaults = 0,
-      kIsRate = 1 << 0,
-      kIsIterationInvariant = 2 << 0,
-      kIsIterationInvariantRate = kIsRate | kIsIterationInvariant
-   };
-   Counter(...) { }
-   inline operator int const() const { return 0; }
-   inline operator int() { return 0; }
-};
-
-// One benchmark
-class Benchmark
-{
-   int range[2] = {0, 0};
-   const char* name;
-   std::function<void(benchmark::State&)> func;
-public:
-
-   Benchmark(const char* name,
-             std::function<void(benchmark::State&)> func):
-      name(name),
-      func(func) {}
-
-   Benchmark *ArgsProduct(...) { return this; }
-
-   Benchmark *DenseRange(int min, int max)
-   {
-      range[0] = min;
-      range[1] = max;
-      return this;
-   }
-   Benchmark *Unit(...) { return this; }
-   void Run()
-   {
-      State state(range);
-      for (int i = range[0]; i <= range[1]; i++) { func(state); }
-   }
-};
-
-// All benchmarks
-class Benchmarks
-{
-   std::unordered_map<const char*, Benchmark*> benchmarks;
-
-   static Benchmarks benchmarks_singleton;
-   static Benchmarks &Get() { return benchmarks_singleton; }
-
-public:
-   static Benchmark *Add(const char* name,
-                         std::function<void(benchmark::State&)> func)
-   {
-      Get().benchmarks[name] = new Benchmark(name, func);
-      return Get().benchmarks[name];
-   }
-   static int Run()
-   {
-      for (const auto &benchmark : Get().benchmarks)
-      {
-         std::cout << benchmark.first << std::endl;
-         benchmark.second->Run();
-      }
-      return 0;
-   }
-};
-
-Benchmarks Benchmarks::benchmarks_singleton;
-
-} // namespace benchmark
-
-#endif // MFEM_USE_BENCHMARK
-
-namespace bm = benchmark;
-
-#define BENCHMARK(func) \
-static bm::Benchmark *Bench_##func = bm::Benchmarks::Add(#func,func)
-
-
-#ifdef MFEM_USE_BENCHMARK
-namespace benchmark
-{
-namespace internal
-{
-extern std::map<std::string, std::string> *global_context;
-}
-}
-#endif // MFEM_USE_BENCHMARK
-
-namespace mfem
-{
 
 constexpr std::size_t KB = (1<<10);
 
