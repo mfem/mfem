@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       a.AddDomainIntegrator(new MassIntegrator(one));
       a.Assemble();
-
+      cout << "Form Linear System " << std::endl;
       OperatorPtr A;
       Vector B, X;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
