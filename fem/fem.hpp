@@ -48,6 +48,7 @@
 #include "multigrid.hpp"
 #include "ceed/algebraic.hpp"
 #include "lor.hpp"
+#include "weakformulation.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
