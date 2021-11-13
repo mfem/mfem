@@ -117,7 +117,7 @@ void DomainLFGradIntegrator::AssembleDeltaElementVect(
    int spaceDim = Trans.GetSpaceDim();
 
    dshape.SetSize(dof, spaceDim);
-   fe.CalcDShape(Trans.GetIntPoint(), dshape);
+   fe.CalcPhysDShape(Trans, dshape);
 
    vec_delta->EvalDelta(Qvec, Trans, Trans.GetIntPoint());
 
