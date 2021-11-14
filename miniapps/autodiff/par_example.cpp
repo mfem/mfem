@@ -13,25 +13,24 @@
 //
 // Compile with: make par_example
 //
-// Sample runs:
-//   mpirun -np 2 paradiff -m ../data/beam-quad.mesh -pp 3.8
-//   mpirun -np 2 paradiff -m ../data/beam-tri.mesh  -pp 7.2
-//   mpirun -np 2 paradiff -m ../data/beam-hex.mesh
-//   mpirun -np 2 paradiff -m ../data/beam-tet.mesh
-//   mpirun -np 2 paradiff -m ../data/beam-wedge.mesh
+// Sample runs:  mpirun -np 2 par_example -m ../data/beam-quad.mesh -pp 3.8
+//               mpirun -np 2 par_example -m ../data/beam-tri.mesh  -pp 7.2
+//               mpirun -np 2 par_example -m ../data/beam-hex.mesh
+//               mpirun -np 2 par_example -m ../data/beam-tet.mesh
+//               mpirun -np 2 par_example -m ../data/beam-wedge.mesh
 //
-// Description:  This examples solves a quasi-static nonlinear
-//               p-Laplacian problem with zero Dirichlet boundary
-//               conditions applied on all defined boundaries
+// Description:  This examples solves a quasi-static nonlinear p-Laplacian
+//               problem with zero Dirichlet boundary conditions applied on all
+//               defined boundaries
 //
-//           The example demonstrates the use of nonlinear operators combined
-//           with automatic differentiation (AD). The definitions of the
-//           integrators are written in the example.hpp.  Selecting integrator=0
-//           will use the manually implemented integrator.  Selecting
-//           integrator=1,2 will utilize one of the AD integrators.
+//               The example demonstrates the use of nonlinear operators
+//               combined with automatic differentiation (AD). The integrators
+//               are defined in example.hpp. Selecting integrator = 0 will use
+//               the manually implemented integrator. Selecting integrator = 1
+//               or 2 will utilize one of the AD integrators.
 //
-//        We recommend viewing examples 1 and 19, before playing with this
-//        example.
+//               We recommend viewing examples 1 and 19, before viewing this
+//               example.
 
 #include "example.hpp"
 
@@ -39,18 +38,17 @@ using namespace mfem;
 
 enum IntegratorType
 {
-  HandCodedIntegrator=0,
-  ADJacobianIntegrator=1,
-  ADHessianIntegrator=2
+  HandCodedIntegrator  = 0,
+  ADJacobianIntegrator = 1,
+  ADHessianIntegrator  = 2
 };
 
 /// Non-linear solver for the p-Laplacian problem.
 class ParNLSolverPLaplacian
 {
 public:
-   /// Constructor Input: imesh - FE mesh, finite element space,
-   /// power for the p-Laplacian, external load (source, input),
-   /// regularization parameter
+   /// Constructor Input: imesh - FE mesh, finite element space, power for the
+   /// p-Laplacian, external load (source, input), regularization parameter
    ParNLSolverPLaplacian(MPI_Comm comm, ParMesh& imesh,
                          ParFiniteElementSpace& ifespace,
                          double powerp=2,
@@ -159,8 +157,8 @@ public:
       print_level=plev;
    }
 
-   /// The state vector is used as initial condition for the NR solver.
-   /// On return the statev holds the solution to the problem.
+   /// The state vector is used as initial condition for the NR solver. On
+   /// return the statev holds the solution to the problem.
    void Solve(Vector& statev)
    {
       if (nlform==nullptr)
@@ -201,21 +199,21 @@ private:
       }
       else if (integ==IntegratorType::ADJacobianIntegrator)
       {
-         // The template integrator is based on automatic differentiation.
-         // For ADJacobianIntegrator the residual (vector function) at an
+         // The template integrator is based on automatic differentiation. For
+         // ADJacobianIntegrator the residual (vector function) at an
          // integration point is implemented as a functor by MyResidualFunctor.
          // The vector function has a return size of four(4), four state
          // arguments, and three(3) parameters. MyResidualFunctor is a template
-         // argument to the actual template class performing the
-         // differentiation - in this case, QVectorFuncAutoDiff.
-         // The derivatives are used in the integration loop in the integrator pLaplaceAD.
+         // argument to the actual template class performing the differentiation
+         // - in this case, QVectorFuncAutoDiff. The derivatives are used in the
+         // integration loop in the integrator pLaplaceAD.
          nlform->AddDomainIntegrator(new pLaplaceAD<mfem::QVectorFuncAutoDiff<MyResidualFunctor,4,4,3>>(*plap_power,*plap_epsilon,*plap_input));
       }
       else if (integ==IntegratorType::ADHessianIntegrator)
       {
-         // The main difference from the previous case is that the user has
-         // to implement only a functional evaluation at an integration point.
-         // The implementation is in MyEnergyFunctor, which takes four state
+         // The main difference from the previous case is that the user has to
+         // implement only a functional evaluation at an integration point. The
+         // implementation is in MyEnergyFunctor, which takes four state
          // arguments and three parameters. The residual vector is the first
          // derivative of the energy/functional with respect to the state
          // variables, and the Hessian is the second derivative. Automatic
@@ -304,12 +302,14 @@ int main(int argc, char *argv[])
    double newton_abs_tol = 1e-6;
    int newton_iter = 10;
    int print_level = 0;
-   double pp = 2.0;
+
+   double pp = 2.0; // p-Laplacian power
+
    IntegratorType integrator = IntegratorType::ADHessianIntegrator;
    int int_integrator = integrator;
-   // ADHessianIntegrator = 2 - use AD for Residual and Hessian
+   // HandCodedIntegrator  = 0 - do not use AD (hand coded)
    // ADJacobianIntegrator = 1 - use AD for Hessian only
-   // HandCodedIntegrator = 0 - do not use AD (hand coded
+   // ADHessianIntegrator  = 2 - use AD for Residual and Hessian
 
    const char* cali_config = "runtime-report";
 
@@ -379,7 +379,7 @@ int main(int argc, char *argv[])
    mgr.add(cali_config);
    mgr.start();
 #endif
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   // 3. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral and hexahedral meshes
    //    with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -417,8 +417,8 @@ int main(int argc, char *argv[])
    }
 
    // 8. Define the solution vector x as a parallel finite element grid function
-   //     corresponding to fespace. Initialize x with initial guess of zero,
-   //     which satisfies the boundary conditions.
+   //    corresponding to fespace. Initialize x with initial guess of zero,
+   //    which satisfies the boundary conditions.
    ParGridFunction x(&fespace);
    x = 0.0;
    HypreParVector *sv = x.GetTrueDofs();
@@ -460,7 +460,6 @@ int main(int argc, char *argv[])
    dacol->SetTime(2.0);
    dacol->SetCycle(2);
    dacol->Save();
-
 
    // 12. Continue with powers higher than 2
    for (int i = 3; i < pp; i++)

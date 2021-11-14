@@ -40,32 +40,30 @@ typedef TAutoDiffDenseMatrix<ADFloatType> ADMatrixType;
 #endif
 }
 
-/// The class provides an evaluation of the Jacobian of a
-/// templated vector function provided in the constructor.
-/// The Jacobian is evaluated with the help of automatic
-/// differentiation (AD)
-/// https://en.wikipedia.org/wiki/Automatic_differentiation.
-/// The template parameters specify the size of the return
-/// vector (vector_size), the size of the input vector
-/// (state_size), and the size of the parameters supplied
-/// to the function.
+/// The class provides an evaluation of the Jacobian of a templated vector
+/// function provided in the constructor. The Jacobian is evaluated with the
+/// help of automatic differentiation (AD). The template parameters specify the
+/// size of the return vector (vector_size), the size of the input vector
+/// (state_size), and the size of the parameters supplied to the function.
 template<int vector_size=1, int state_size=1, int param_size=0>
 class VectorFuncAutoDiff
 {
 public:
-    /// F_ is user implemented function to be differentiated by VectorFuncAutoDiff.
-    /// The signature of the function is:
-    /// F_(mfem::Vector& parameters, ad::ADVectorType& state_vector, ad::ADVectorType& result).
-    /// The parameters vector should have size param_size. The state_vector should have size
-    /// state_size, and the result vector should have size vector_size. All size parameters are
-    /// teplate parameters in VectorFuncAutoDiff.
+    /// F_ is user implemented function to be differentiated by
+    /// VectorFuncAutoDiff. The signature of the function is: F_(mfem::Vector&
+    /// parameters, ad::ADVectorType& state_vector, ad::ADVectorType& result).
+    /// The parameters vector should have size param_size. The state_vector
+    /// should have size state_size, and the result vector should have size
+    /// vector_size. All size parameters are teplate parameters in
+    /// VectorFuncAutoDiff.
     VectorFuncAutoDiff(std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F_)
     {
             F=F_;
     }
 
-    /// Evaluates the Jacobian of the vector function F_ for a set of parameters (vparam) and
-    /// state vector vstate. The Jacobian (jac) has dimensions [vector_size x state_size].
+    /// Evaluates the Jacobian of the vector function F_ for a set of parameters
+    /// (vparam) and state vector vstate. The Jacobian (jac) has dimensions
+    /// [vector_size x state_size].
     void Jacobian(mfem::Vector &vparam, mfem::Vector &vstate, mfem::DenseMatrix &jac)
     {
 #ifdef MFEM_USE_ADFORWARD
@@ -125,18 +123,15 @@ private:
     std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F;
 }; // VectorFuncAutoDiff
 
-/// The class provides an evaluation of the Jacobian of a templated
-/// vector function provided as a functor TFunctor.  The Jacobian is
-/// evaluated with the help of automatic differentiation (AD)
-/// https://en.wikipedia.org/wiki/Automatic_differentiation.
-/// The template parameters specify the size of the return
-/// vector (vector_size), the size of the input vector (state_size),
-/// and the size of the parameters supplied to the function.
-/// The TFunctor functor is a template class with parameters [Float data type],
-/// [Vector type for the additional parameters],
-/// [Vector type for the state vector and the return residual].
-/// The integer template parameters are the same ones
-/// passed to QVectorFuncAutoDiff.
+/// The class provides an evaluation of the Jacobian of a templated vector
+/// function provided as a functor TFunctor. The Jacobian is evaluated with the
+/// help of automatic differentiation (AD). The template parameters specify the
+/// size of the return vector (vector_size), the size of the input vector
+/// (state_size), and the size of the parameters supplied to the function. The
+/// TFunctor functor is a template class with parameters [Float data type],
+/// [Vector type for the additional parameters], [Vector type for the state
+/// vector and the return residual]. The integer template parameters are the
+/// same ones passed to QVectorFuncAutoDiff.
 template<template<typename, typename, typename, int, int, int> class TFunctor
          , int vector_size=1, int state_size=1, int param_size=0>
 class QVectorFuncAutoDiff
@@ -149,8 +144,8 @@ public:
         rf(vparam,uu,rr);
     }
 
-    /// Returns the gradient of TFunctor(...) in the dense matrix jac.
-    /// The dimensions of jac are vector_size x state_size, where state_size is the
+    /// Returns the gradient of TFunctor(...) in the dense matrix jac. The
+    /// dimensions of jac are vector_size x state_size, where state_size is the
     /// length of vector uu.
     void Jacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
@@ -219,28 +214,23 @@ private:
 
 };
 
-/// The class provides an evaluation of the first derivatives
-/// and the Hessian of a templated scalar function provided as
-///  a functor TFunctor. Both the first and the second derivatives
-/// are evaluated with the help of automatic differentiation (AD)
-/// https://en.wikipedia.org/wiki/Automatic_differentiation.
-/// The template parameters specify the size of the input
-/// vector (state_size) and the size of the parameters
-/// supplied to the function. The TFunctor functor is a template
-/// class with parameters [Float data type],
-/// [Vector type for the additional parameters],
-/// [Vector type for the state vector and the return residual].
-/// The integer template parameters are the same ones passed
-/// to QFunctionAutoDiff.
+/// The class provides an evaluation of the first derivatives and the Hessian of
+/// a templated scalar function provided as a functor TFunctor. Both the first
+/// and the second derivatives are evaluated with the help of automatic
+/// differentiation (AD). The template parameters specify the size of the input
+/// vector (state_size) and the size of the parameters supplied to the
+/// function. The TFunctor functor is a template class with parameters [Float
+/// data type], [Vector type for the additional parameters], [Vector type for
+/// the state vector and the return residual].  The integer template parameters
+/// are the same ones passed to QFunctionAutoDiff.
 template<template<typename, typename, typename, int, int> class TFunctor
          , int state_size=1, int param_size=0>
 class QFunctionAutoDiff
 {
 public:
 
-    /// Evaluates a function for arguments vparam and uu.
-    /// The evaluation is based on the operator() in the
-    /// user provided functor TFunctor.
+    /// Evaluates a function for arguments vparam and uu. The evaluation is
+    /// based on the operator() in the user provided functor TFunctor.
     double Eval(const mfem::Vector &vparam, mfem::Vector &uu)
     {
         return rf(vparam,uu);
@@ -252,9 +242,8 @@ public:
         Grad(vparam,uu,rr);
     }
 
-    /// Returns the first derivative of TFunctor(...) with
-    /// respect to the active arguments proved in vector uu.
-    /// The length of rr is the same as for uu.
+    /// Returns the first derivative of TFunctor(...) with respect to the active
+    /// arguments proved in vector uu. The length of rr is the same as for uu.
     void Grad(const mfem::Vector &vparam, mfem::Vector &uu, mfem::Vector &rr)
     {
 
@@ -277,7 +266,6 @@ public:
                 aduu[ii].setGradient(0.0);
             }
         }
-
 #else
         {
             ad::ADVectorType aduu(state_size);
@@ -315,26 +303,26 @@ public:
 #ifdef MFEM_USE_ADFORWARD
     // use forward-forward mode
     typedef codi::RealForwardGen<double>    ADFType;
-    typedef TAutoDiffVector<ADFType>              ADFVector;
-    typedef TAutoDiffDenseMatrix<ADFType>         ADFDenseMatrix;
+    typedef TAutoDiffVector<ADFType>        ADFVector;
+    typedef TAutoDiffDenseMatrix<ADFType>   ADFDenseMatrix;
 
     typedef codi::RealForwardGen<ADFType>   ADSType;
-    typedef TAutoDiffVector<ADSType>              ADSVector;
-    typedef TAutoDiffDenseMatrix<ADSType>         ADSDenseMatrix;
+    typedef TAutoDiffVector<ADSType>        ADSVector;
+    typedef TAutoDiffDenseMatrix<ADSType>   ADSDenseMatrix;
 #else
     //use mixed forward and reverse mode
-    typedef codi::RealForwardGen<double> ADFType;
-    typedef TAutoDiffVector<ADFType>           ADFVector;
-    typedef TAutoDiffDenseMatrix<ADFType>      ADFDenseMatrix;
+    typedef codi::RealForwardGen<double>    ADFType;
+    typedef TAutoDiffVector<ADFType>        ADFVector;
+    typedef TAutoDiffDenseMatrix<ADFType>   ADFDenseMatrix;
 
     typedef codi::RealReverseGen<ADFType>   ADSType;
-    typedef TAutoDiffVector<ADSType>              ADSVector;
-    typedef TAutoDiffDenseMatrix<ADSType>         ADSDenseMatrix;
+    typedef TAutoDiffVector<ADSType>        ADSVector;
+    typedef TAutoDiffDenseMatrix<ADSType>   ADSDenseMatrix;
 #endif
 
 
-    /// Returns the Hessian of TFunctor(...) in the dense matrix jac.
-    /// The dimensions of jac are state_size x state_size, where state_size is the
+    /// Returns the Hessian of TFunctor(...) in the dense matrix jac. The
+    /// dimensions of jac are state_size x state_size, where state_size is the
     /// length of vector uu.
     void Hessian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
@@ -436,32 +424,30 @@ typedef TAutoDiffVector<ADFloatType> ADVectorType;
 typedef TAutoDiffDenseMatrix<ADFloatType> ADMatrixType;
 }
 
-/// The class provides an evaluation of the Jacobian of a
-/// templated vector function provided in the constructor.
-/// The Jacobian is evaluated with the help of automatic
-/// differentiation (AD)
-/// https://en.wikipedia.org/wiki/Automatic_differentiation.
-/// The template parameters specify the size of the return
-/// vector (vector_size), the size of the input vector
-/// (state_size), and the size of the parameters supplied
-/// to the function.
+/// The class provides an evaluation of the Jacobian of a templated vector
+/// function provided in the constructor. The Jacobian is evaluated with the
+/// help of automatic differentiation (AD). The template parameters specify the
+/// size of the return vector (vector_size), the size of the input vector
+/// (state_size), and the size of the parameters supplied to the function.
 template<int vector_size=1, int state_size=1, int param_size=0>
 class VectorFuncAutoDiff
 {
 public:
-    /// F_ is user implemented function to be differentiated by VectorFuncAutoDiff.
-    /// The signature of the function is:
-    /// F_(mfem::Vector& parameters, ad::ADVectroType& state_vector, ad::ADVectorType& result).
-    /// The parameters vector should have size param_size. The state_vector should have size
-    /// state_size, and the result vector should have size vector_size. All size parameters are
-    /// teplate parameters in VectorFuncAutoDiff.
+    /// F_ is user implemented function to be differentiated by
+    /// VectorFuncAutoDiff. The signature of the function is: F_(mfem::Vector&
+    /// parameters, ad::ADVectroType& state_vector, ad::ADVectorType& result).
+    /// The parameters vector should have size param_size. The state_vector
+    /// should have size state_size, and the result vector should have size
+    /// vector_size. All size parameters are teplate parameters in
+    /// VectorFuncAutoDiff.
     VectorFuncAutoDiff(std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F_)
     {
             F=F_;
     }
 
-    /// Evaluates the Jacobian of the vector function F_ for a set of parameters (vparam) and
-    /// state vector uu. The Jacobian (jac) has dimensions [vector_size x state_size].
+    /// Evaluates the Jacobian of the vector function F_ for a set of parameters
+    /// (vparam) and state vector uu. The Jacobian (jac) has dimensions
+    /// [vector_size x state_size].
     void Jacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
         jac.SetSize(vector_size, state_size);
@@ -488,17 +474,14 @@ private:
 
 };
 
-
-/// The class provides an evaluation of the Jacobian of a templated
-/// vector function provided as a functor TFunctor.  The Jacobian is
-/// evaluated with the help of automatic differentiation (AD)
-/// https://en.wikipedia.org/wiki/Automatic_differentiation.
-/// The template parameters specify the size of the return
-/// vector (vector_size), the size of the input vector (state_size),
-/// and the size of the parameters supplied to the function.
-/// The TFunctor functor is a template class with parameters [Float data type],
-/// [Vector type for the additional parameters],
-/// [Vector type for the state vector and the return residual].
+/// The class provides an evaluation of the Jacobian of a templated vector
+/// function provided as a functor TFunctor. The Jacobian is evaluated with the
+/// help of automatic differentiation (AD). The template parameters specify the
+/// size of the return vector (vector_size), the size of the input vector
+/// (state_size), and the size of the parameters supplied to the function. The
+/// TFunctor functor is a template class with parameters [Float data type],
+/// [Vector type for the additional parameters], [Vector type for the state
+/// vector and the return residual].
 /// The integer template parameters are the same ones
 /// passed to QVectorFuncAutoDiff. \n
 /// Example: f={sin(a*x*y), cos(b*x*y*z), x*x+y*x} \n
@@ -535,16 +518,16 @@ private:
 
 public:
     /// Returns a vector valued function rr for supplied passive arguments
-    /// vparam and active arguments uu. The evaluation is based on the
-    /// user supplied TFunctor template class.
+    /// vparam and active arguments uu. The evaluation is based on the user
+    /// supplied TFunctor template class.
     void VectorFunc(const Vector &vparam, Vector &uu, Vector &rr)
     {
        func(vparam, uu, rr);
     }
 
     /// Returns the gradient of TFunctor(...) residual in the dense matrix jac.
-    /// The dimensions of jac are vector_size x state_size, where state_size is the
-    /// length of vector uu.
+    /// The dimensions of jac are vector_size x state_size, where state_size is
+    /// the length of vector uu.
     void Jacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
         // use native AD package
@@ -583,37 +566,29 @@ private:
 
 };
 
-/// The class provides an evaluation of the first derivatives
-/// and the Hessian of a templated scalar function provided as
-///  a functor TFunctor. Both the first and the second derivatives
-/// are evaluated with the help of automatic differentiation (AD)
-/// https://en.wikipedia.org/wiki/Automatic_differentiation.
-/// The template parameters specify the size of the input
-/// vector (state_size) and the size of the parameters
-/// supplied to the function. The TFunctor functor is a template
-/// class with parameters [Float data type],
-/// [Vector type for the additional parameters],
-/// [Vector type for the state vector and the return residual].
-/// The integer template parameters are the same ones passed
-/// to QFunctionAutoDiff.
-/// The class duplicates Grad and Hessian, i.e., VectorFunc
-/// calls Grad, and Jacobian calls Hessian. The main reason
-/// is to provide the same interface as the QVectorFuncAutoDiff
-/// class used to differentiate vector functions. Such
-/// compatibility allows users to start implementation of their
-/// problem based only on some energy or a weak form. The
-/// gradients, computed with Grad/VectorFunc, of the function
-///  will contribute to the FE residual. Computed with
-/// Hessian/Jacobian, the Hessian will contribute to the
-/// tangent matrix in Newton's iterations. Once the implementation
-///  is complete and tested, the users can start improving the
-/// performance by replacing Grad/VectorFunc with a hand-coded
-/// version. The gradient is a vector function and can be
-/// differentiated with the functionality implemented in
-/// QVectorFuncAutoDiff. Thus, the user can directly employ
-/// AD for computing the contributions to the global tangent
-/// matrix. The main code will not require changes as the
-/// names Grad/VectorFunc and Hessian/Jacobian are mirrored.
+/// The class provides an evaluation of the first derivatives and the Hessian of
+/// a templated scalar function provided as a functor TFunctor. Both the first
+/// and the second derivatives are evaluated with the help of automatic
+/// differentiation (AD). The template parameters specify the size of the input
+/// vector (state_size) and the size of the parameters supplied to the
+/// function. The TFunctor functor is a template class with parameters [Float
+/// data type], [Vector type for the additional parameters], [Vector type for
+/// the state vector and the return residual].  The integer template parameters
+/// are the same ones passed to QFunctionAutoDiff. The class duplicates Grad and
+/// Hessian, i.e., VectorFunc calls Grad, and Jacobian calls Hessian. The main
+/// reason is to provide the same interface as the QVectorFuncAutoDiff class
+/// used to differentiate vector functions. Such compatibility allows users to
+/// start implementation of their problem based only on some energy or a weak
+/// form. The gradients, computed with Grad/VectorFunc, of the function will
+/// contribute to the FE residual. Computed with Hessian/Jacobian, the Hessian
+/// will contribute to the tangent matrix in Newton's iterations. Once the
+/// implementation is complete and tested, the users can start improving the
+/// performance by replacing Grad/VectorFunc with a hand-coded version. The
+/// gradient is a vector function and can be differentiated with the
+/// functionality implemented in QVectorFuncAutoDiff. Thus, the user can
+/// directly employ AD for computing the contributions to the global tangent
+/// matrix. The main code will not require changes as the names Grad/VectorFunc
+/// and Hessian/Jacobian are mirrored.
 template<template<typename, typename, typename, int, int> class TFunctor
          , int state_size=1, int param_size=0>
 class QFunctionAutoDiff
@@ -633,9 +608,8 @@ private:
     typedef TAutoDiffDenseMatrix<ADSType> ADSDenseMatrix;
 
 public:
-    /// Evaluates a function for arguments vparam and uu.
-    /// The evaluation is based on the operator() in the
-    /// user provided functor TFunctor.
+    /// Evaluates a function for arguments vparam and uu. The evaluation is
+    /// based on the operator() in the user provided functor TFunctor.
     double Eval(const Vector &vparam, Vector &uu)
     {
         return tf(vparam,uu);
@@ -647,9 +621,8 @@ public:
         Grad(vparam,uu,rr);
     }
 
-    /// Returns the first derivative of TFunctor(...) with
-    /// respect to the active arguments proved in vector uu.
-    /// The length of rr is the same as for uu.
+    /// Returns the first derivative of TFunctor(...) with respect to the active
+    /// arguments proved in vector uu. The length of rr is the same as for uu.
     void Grad(const Vector &vparam, Vector &uu, Vector &rr)
     {
         int n = uu.Size();
@@ -671,8 +644,8 @@ public:
         Hessian(vparam,uu,jac);
     }
 
-    /// Returns the Hessian of TFunctor(...) in the dense matrix jac.
-    /// The dimensions of jac are state_size x state_size, where state_size is the
+    /// Returns the Hessian of TFunctor(...) in the dense matrix jac. The
+    /// dimensions of jac are state_size x state_size, where state_size is the
     /// length of vector uu.
     void Hessian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
@@ -709,6 +682,9 @@ private:
     TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> sf;
 
 };
+
 } // end namespace mfem
+
 #endif // NATIVE
+
 #endif // ADMFEM_HPP
