@@ -1010,11 +1010,16 @@ CommonCoefs::CommonCoefs()
    vCoefNames_[MAGNETIC_FIELD_COEF] = "magnetic_field_coef";
 }
 
-TransportCoefFactory::TransportCoefFactory(ParGridFunctionArray & pgfa)
+TransportCoefFactory::TransportCoefFactory(
+   const std::vector<std::string> & names,
+   ParGridFunctionArray & pgfa)
 {
+   MFEM_VERIFY(names.size() == pgfa.Size(),
+               "TransportCoefFactory constructor: "
+               "Size mismatch in input arguments.");
    for (int i=0; i<pgfa.Size(); i++)
    {
-      this->AddExternalGridFunction(*pgfa[i]);
+      this->AddExternalGridFunction(names[i], *pgfa[i]);
    }
 }
 

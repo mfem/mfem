@@ -772,7 +772,8 @@ class TransportCoefFactory : public common::CoefFactory
 {
 public:
    TransportCoefFactory() {}
-   TransportCoefFactory(ParGridFunctionArray & pgfa);
+   TransportCoefFactory(const std::vector<std::string> & names,
+                        ParGridFunctionArray & pgfa);
 
    Coefficient * GetScalarCoef(std::string &name, std::istream &input);
    VectorCoefficient * GetVectorCoef(std::string &name, std::istream &input);

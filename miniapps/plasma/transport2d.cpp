@@ -497,8 +497,9 @@ class Transport2DCoefFactory : public TransportCoefFactory
 {
 public:
    Transport2DCoefFactory() {}
-   Transport2DCoefFactory(ParGridFunctionArray & pgfa)
-      : TransportCoefFactory(pgfa) {}
+   Transport2DCoefFactory(const std::vector<std::string> & names,
+                          ParGridFunctionArray & pgfa)
+      : TransportCoefFactory(names, pgfa) {}
 
    Coefficient * GetScalarCoef(std::string &name, std::istream &input);
    VectorCoefficient * GetVectorCoef(std::string &name, std::istream &input);
@@ -1426,7 +1427,14 @@ int main(int argc, char *argv[])
    }
    kGF.SetOwner(true);
 
-   Transport2DCoefFactory coefFact(yGF);
+   std::vector<std::string> field_names(5);
+   field_names[0] = "neutral_density";
+   field_names[1] = "ion_density";
+   field_names[2] = "ion_para_velocity";
+   field_names[3] = "ion_temperature";
+   field_names[4] = "electron_temperature";
+
+   Transport2DCoefFactory coefFact(field_names, yGF);
 
    if (mpi.Root())
    {

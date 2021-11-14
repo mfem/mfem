@@ -162,43 +162,45 @@ Coefficient * CoefFactory::GetScalarCoef(std::string &name,
    }
    else if (name == "FunctionCoefficient")
    {
-      int type, index;
-      input >> type >> index;
+      int type;
+      string func_name;
+      input >> type >> func_name;
       MFEM_VERIFY(type >=0 && type <= 1,
                   "Invalid Function type read by CoefFactory");
       if (type == 0)
       {
-         MFEM_VERIFY(index >=0 && index < ext_sfn.Size(),
-                     "Invalid Function index read by CoefFactory");
+         MFEM_VERIFY(ext_sfn.find(func_name) != ext_sfn.end(),
+                     "Invalid Function name read by CoefFactory");
       }
       else
       {
-         MFEM_VERIFY(index >=0 && index < ext_stfn.Size(),
-                     "Invalid Time dependent Function index "
+         MFEM_VERIFY(ext_stfn.find(func_name) != ext_stfn.end(),
+                     "Invalid Time dependent Function name "
                      "read by CoefFactory");
       }
       coef_idx = sCoefs.Append((type == 0) ?
-                               new FunctionCoefficient(ext_sfn[index]) :
-                               new FunctionCoefficient(ext_stfn[index]));
+                               new FunctionCoefficient(ext_sfn[func_name]) :
+                               new FunctionCoefficient(ext_stfn[func_name]));
    }
    else if (name == "GridFunctionCoefficient")
    {
-      int index, comp;
-      input >> index >> comp;
-      MFEM_VERIFY(index >=0 && index < ext_gf.Size(),
-                  "Invalid GridFunction index read by CoefFactory");
-      coef_idx = sCoefs.Append(new GridFunctionCoefficient(ext_gf[index],
+      string gf_name;
+      int comp;
+      input >> gf_name >> comp;
+      MFEM_VERIFY(ext_gf.find(gf_name) != ext_gf.end(),
+                  "Invalid GridFunction name read by CoefFactory");
+      coef_idx = sCoefs.Append(new GridFunctionCoefficient(ext_gf[gf_name],
                                                            comp));
    }
    else if (name == "DivergenceGridFunctionCoefficient")
    {
-      int index;
-      input >> index;
-      MFEM_VERIFY(index >=0 && index < ext_gf.Size(),
-                  "Invalid GridFunction index for "
+      string gf_name;
+      input >> gf_name;
+      MFEM_VERIFY(ext_gf.find(gf_name) != ext_gf.end(),
+                  "Invalid GridFunction name for "
                   "DivergenceGridFunctionCoefficient read by CoefFactory");
       coef_idx = sCoefs.Append(
-                    new DivergenceGridFunctionCoefficient(ext_gf[index]));
+                    new DivergenceGridFunctionCoefficient(ext_gf[gf_name]));
    }
    else if (name == "DeltaCofficient")
    {
@@ -268,24 +270,26 @@ VectorCoefficient * CoefFactory::GetVectorCoef(std::string &name,
    }
    else if (name == "VectorFunctionCoefficient")
    {
-      int dim, type, index;
-      input >> dim >> type >> index;
+      int dim, type;
+      string func_name;
+
+      input >> dim >> type >> func_name;
       MFEM_VERIFY(type >=0 && type <= 1,
                   "Invalid Function type read by VecCoefFactory");
       if (type == 0)
       {
-         MFEM_VERIFY(index >=0 && index < ext_vfn.Size(),
-                     "Invalid Vector Function index read by CoefFactory");
+         MFEM_VERIFY(ext_vfn.find(func_name) != ext_vfn.end(),
+                     "Invalid Vector Function name read by CoefFactory");
       }
       else
       {
-         MFEM_VERIFY(index >=0 && index < ext_vtfn.Size(),
-                     "Invalid Time dependent Vector Function index "
+         MFEM_VERIFY(ext_vtfn.find(func_name) != ext_vtfn.end(),
+                     "Invalid Time dependent Vector Function name "
                      "read by CoefFactory");
       }
       coef_idx = vCoefs.Append((type==0) ?
-                               new VectorFunctionCoefficient(dim, ext_vfn[index]) :
-                               new VectorFunctionCoefficient(dim, ext_vtfn[index]));
+                               new VectorFunctionCoefficient(dim, ext_vfn[func_name]) :
+                               new VectorFunctionCoefficient(dim, ext_vtfn[func_name]));
    }
    else if (name == "VectorArrayCoefficient")
    {
@@ -304,29 +308,29 @@ VectorCoefficient * CoefFactory::GetVectorCoef(std::string &name,
    }
    else if (name == "VectorGridFunctionCoefficient")
    {
-      int index;
-      input >> index;
-      MFEM_VERIFY(index >=0 && index < ext_gf.Size(),
-                  "Invalid GridFunction index read by CoefFactory");
-      coef_idx = vCoefs.Append(new VectorGridFunctionCoefficient(ext_gf[index]));
+      string gf_name;
+      input >> gf_name;
+      MFEM_VERIFY(ext_gf.find(gf_name) != ext_gf.end(),
+                  "Invalid GridFunction name read by CoefFactory");
+      coef_idx = vCoefs.Append(new VectorGridFunctionCoefficient(ext_gf[gf_name]));
    }
    else if (name == "GradientGridFunctionCoefficient")
    {
-      int index;
-      input >> index;
-      MFEM_VERIFY(index >=0 && index < ext_gf.Size(),
-                  "Invalid GridFunction index for "
+      string gf_name;
+      input >> gf_name;
+      MFEM_VERIFY(ext_gf.find(gf_name) != ext_gf.end(),
+                  "Invalid GridFunction name for "
                   "GradientGridFunctionCoefficient read by CoefFactory");
-      coef_idx = vCoefs.Append(new GradientGridFunctionCoefficient(ext_gf[index]));
+      coef_idx = vCoefs.Append(new GradientGridFunctionCoefficient(ext_gf[gf_name]));
    }
    else if (name == "CurlGridFunctionCoefficient")
    {
-      int index;
-      input >> index;
-      MFEM_VERIFY(index >=0 && index < ext_gf.Size(),
-                  "Invalid GridFunction index for "
+      string gf_name;
+      input >> gf_name;
+      MFEM_VERIFY(ext_gf.find(gf_name) != ext_gf.end(),
+                  "Invalid GridFunction name for "
                   "CurlGridFunctionCoefficient read by CoefFactory");
-      coef_idx = vCoefs.Append(new CurlGridFunctionCoefficient(ext_gf[index]));
+      coef_idx = vCoefs.Append(new CurlGridFunctionCoefficient(ext_gf[gf_name]));
    }
    else if (name == "VectorDeltaCofficient")
    {
@@ -396,22 +400,23 @@ MatrixCoefficient * CoefFactory::GetMatrixCoef(std::string &name,
                   "Invalid Function type read by MatCoefFactory");
       if (type < 2)
       {
-         int dim, index;
-         input >> dim >> index;
+         int dim;
+         string func_name;
+         input >> dim >> func_name;
          if (type == 0)
          {
-            MFEM_VERIFY(index >=0 && index < ext_mfn.Size(),
-                        "Invalid Matrix Function index read by MatCoefFactory");
+            MFEM_VERIFY(ext_mfn.find(func_name) != ext_mfn.end(),
+                        "Invalid Matrix Function name read by MatCoefFactory");
          }
          else
          {
-            MFEM_VERIFY(index >=0 && index < ext_mtfn.Size(),
-                        "Invalid Time dependent Matrix Function index "
+            MFEM_VERIFY(ext_mtfn.find(func_name) != ext_mtfn.end(),
+                        "Invalid Time dependent Matrix Function name "
                         "read by MatCoefFactory");
          }
          coef_idx = mCoefs.Append((type==0) ?
-                                  new MatrixFunctionCoefficient(dim, ext_mfn[index]) :
-                                  new MatrixFunctionCoefficient(dim, ext_mtfn[index]));
+                                  new MatrixFunctionCoefficient(dim, ext_mfn[func_name]) :
+                                  new MatrixFunctionCoefficient(dim, ext_mtfn[func_name]));
       }
       else
       {
