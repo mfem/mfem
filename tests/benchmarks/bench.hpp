@@ -21,9 +21,6 @@ using namespace mfem;
 namespace bm = benchmark;
 namespace bmi = benchmark::internal;
 
-#define BENCHMARK(func) \
-static bm::Benchmark *Bench_##func = bm::Benchmarks::Add(#func,func)
-
 namespace benchmark
 {
 namespace internal

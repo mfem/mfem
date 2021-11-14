@@ -351,8 +351,6 @@ int main(int argc, char *argv[])
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
    bm::RunSpecifiedBenchmarks(&CR);
-
-   bm::Benchmarks::Run();
    return 0;
 }
 
