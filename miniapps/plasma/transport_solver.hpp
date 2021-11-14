@@ -1002,6 +1002,37 @@ public:
    }
 };
 
+class StateVariableConstantCoef : public StateVariableCoef
+{
+private:
+   ConstantCoefficient c_;
+
+public:
+   StateVariableConstantCoef(double c)
+      : c_(c)
+   {}
+
+   StateVariableConstantCoef(const StateVariableConstantCoef &other)
+      : c_(other.c_)
+   {}
+
+   virtual StateVariableConstantCoef * Clone() const
+   {
+      return new StateVariableConstantCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   virtual double Eval_Func(ElementTransformation &T,
+                            const IntegrationPoint &ip)
+   {
+      return c_.Eval(T, ip);
+   }
+};
+
 class StateVariableGridFunctionCoef : public StateVariableCoef
 {
 private:
