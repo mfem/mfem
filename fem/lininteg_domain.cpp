@@ -307,7 +307,7 @@ void DomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
       }
    }
 
-   const int id = (dim<<8) |(D1D << 4) | Q1D;
+   const int id = (dim<<8) | (D1D << 4) | Q1D;
 
    void (*Ker)(const int NE,
                const double *marks,
