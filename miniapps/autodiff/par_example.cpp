@@ -44,11 +44,11 @@ enum IntegratorType
   ADHessianIntegrator=2
 };
 
-///Non-linear solver for the p-Laplacian problem.
+/// Non-linear solver for the p-Laplacian problem.
 class ParNLSolverPLaplacian
 {
 public:
-   ///Constructor Input: imesh - FE mesh, finite element space,
+   /// Constructor Input: imesh - FE mesh, finite element space,
    /// power for the p-Laplacian, external load (source, input),
    /// regularization parameter
    ParNLSolverPLaplacian(MPI_Comm comm, ParMesh& imesh,
@@ -59,26 +59,25 @@ public:
    {
       lcomm = comm;
 
-      //default parameters for
-      //the Newton solver
+      // default parameters for the Newton solver
       newton_rtol = 1e-4;
       newton_atol = 1e-8;
       newton_iter = 10;
 
-      //linear solver
+      // linear solver
       linear_rtol = 1e-7;
       linear_atol = 1e-15;
       linear_iter = 500;
 
       print_level = 0;
 
-      //set the mesh
+      // set the mesh
       mesh=&imesh;
 
-      //set the fespace
+      // set the fespace
       fespace=&ifespace;
 
-      //set the parameters
+      // set the parameters
       plap_epsilon=new ConstantCoefficient(regularizationp);
       plap_power=new ConstantCoefficient(powerp);
       if (load==nullptr)
@@ -97,7 +96,7 @@ public:
       gmres=nullptr;
       prec=nullptr;
 
-      //set the default integrator
+      // set the default integrator
       integ=IntegratorType::HandCodedIntegrator;
    }
 
@@ -112,27 +111,27 @@ public:
       delete plap_power;
    }
 
-   ///Set the integrator.
-   /// 0 - hand coded, 1 - AD based (compute only Heassian by AD),
+   /// Set the integrator.
+   /// 0 - hand coded, 1 - AD based (compute only Hessian by AD),
    /// 2 - AD based (compute residual and Hessian by AD)
    void SetIntegrator(IntegratorType intr)
    {
       integ=intr;
    }
 
-   //set relative tolerance for the Newton solver
+   // set relative tolerance for the Newton solver
    void SetNRRTol(double rtol)
    {
       newton_rtol=rtol;
    }
 
-   //set absolute tolerance for the Newton solver
+   // set absolute tolerance for the Newton solver
    void SetNRATol(double atol)
    {
       newton_atol=atol;
    }
 
-   //set max iterations for the NR solver
+   // set max iterations for the NR solver
    void SetMaxNRIter(int miter)
    {
       newton_iter=miter;
@@ -148,19 +147,19 @@ public:
       linear_atol=atol;
    }
 
-   //set max iterations for the linear solver
+   // set max iterations for the linear solver
    void SetMaxLSIter(int miter)
    {
       linear_iter=miter;
    }
 
-   //set the print level
+   // set the print level
    void SetPrintLevel(int plev)
    {
       print_level=plev;
    }
 
-   ///The state vector is used as initial condition for the NR solver.
+   /// The state vector is used as initial condition for the NR solver.
    /// On return the statev holds the solution to the problem.
    void Solve(Vector& statev)
    {
@@ -168,16 +167,16 @@ public:
       {
          AllocSolvers();
       }
-      Vector b; //RHS is zero
+      Vector b; // RHS is zero
       nsolver->Mult(b, statev);
    }
 
-   ///Compute the energy
+   /// Compute the energy
    double GetEnergy(Vector& statev)
    {
       if (nlform==nullptr)
       {
-         //allocate the solvers
+         // allocate the solvers
          AllocSolvers();
       }
       return nlform->GetEnergy(statev);
@@ -257,13 +256,13 @@ private:
 
    int print_level;
 
-   //power of the p-laplacian
+   // power of the p-laplacian
    Coefficient* plap_power;
-   //regularization parammeter
+   // regularization parameter
    Coefficient* plap_epsilon;
-   //load(input) paramater
+   // load(input) parameter
    Coefficient* plap_input;
-   //flag indicating the ownership of plap_input
+   // flag indicating the ownership of plap_input
    bool input_ownership;
 
    MPI_Comm lcomm;

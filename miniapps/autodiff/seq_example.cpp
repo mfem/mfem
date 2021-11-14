@@ -44,12 +44,12 @@ enum IntegratorType
   ADHessianIntegrator=2
 };
 
-///Non-linear solver for the p-Laplacian problem.
+/// Non-linear solver for the p-Laplacian problem.
 class NLSolverPLaplacian
 {
 public:
 
-   ///Constructor Input: imesh - FE mesh, finite element space,
+   /// Constructor Input: imesh - FE mesh, finite element space,
    /// power for the p-Laplacian, external load (source, input),
    /// regularization parameter
    NLSolverPLaplacian(Mesh& imesh, FiniteElementSpace& ifespace,
@@ -57,26 +57,25 @@ public:
                       Coefficient* load=nullptr,
                       double regularizationp=1e-7)
    {
-      //default parameters for
-      //the Newton solver
+      // default parameters for the Newton solver
       newton_rtol = 1e-4;
       newton_atol = 1e-8;
       newton_iter = 10;
 
-      //linear solver
+      // linear solver
       linear_rtol = 1e-7;
       linear_atol = 1e-15;
       linear_iter = 500;
 
       print_level = 0;
 
-      //set the mesh
+      // set the mesh
       mesh=&imesh;
 
-      //set the fespace
+      // set the fespace
       fespace=&ifespace;
 
-      //set the parameters
+      // set the parameters
       plap_epsilon=new ConstantCoefficient(regularizationp);
       plap_power=new ConstantCoefficient(powerp);
       if (load==nullptr)
@@ -90,14 +89,14 @@ public:
          input_ownership=false;
       }
 
-      //set the nonlinear form
+      // set the nonlinear form
       nlform=nullptr;
       lsolver=nullptr;
       prec=nullptr;
       nsolver=nullptr;
 
-      //set the default integrator
-      integ=IntegratorType::HandCodedIntegrator; //hand coded
+      // set the default integrator
+      integ=IntegratorType::HandCodedIntegrator; // hand coded
 
    }
 
@@ -112,26 +111,26 @@ public:
       delete plap_power;
    }
 
-   ///Set the integrator.
+   /// Set the integrator.
    void SetIntegrator(IntegratorType intr)
    {
       integ=intr;
    }
 
 
-   //set relative tolerance for the Newton solver
+   // set relative tolerance for the Newton solver
    void SetNRRTol(double rtol)
    {
       newton_rtol=rtol;
    }
 
-   //set absolute tolerance for the Newton solver
+   // set absolute tolerance for the Newton solver
    void SetNRATol(double atol)
    {
       newton_atol=atol;
    }
 
-   //set max iterations for the NR solver
+   // set max iterations for the NR solver
    void SetMaxNRIter(int miter)
    {
       newton_iter=miter;
@@ -147,19 +146,19 @@ public:
       linear_atol=atol;
    }
 
-   //set max iterations for the linear solver
+   // set max iterations for the linear solver
    void SetMaxLSIter(int miter)
    {
       linear_iter=miter;
    }
 
-   //set the print level
+   // set the print level
    void SetPrintLevel(int plev)
    {
       print_level=plev;
    }
 
-   ///The state vector is used as initial condition for the NR solver.
+   /// The state vector is used as initial condition for the NR solver.
    /// On return the statev holds the solution to the problem.
    void Solve(Vector& statev)
    {
@@ -167,16 +166,16 @@ public:
       {
          AllocSolvers();
       }
-      Vector b; //RHS is zero
+      Vector b; // RHS is zero
       nsolver->Mult(b, statev);
    }
 
-   ///Compute the energy
+   /// Compute the energy
    double GetEnergy(Vector& statev)
    {
       if (nlform==nullptr)
       {
-         //allocate the solvers
+         // allocate the solvers
          AllocSolvers();
       }
       return nlform->GetEnergy(statev);
@@ -235,7 +234,7 @@ private:
       prec = new GSSmoother();
 #endif
 
-      //allocate the linear solver
+      // allocate the linear solver
       lsolver=new CGSolver();
       lsolver->SetRelTol(linear_rtol);
       lsolver->SetAbsTol(linear_atol);
@@ -243,7 +242,7 @@ private:
       lsolver->SetPrintLevel(print_level);
       lsolver->SetPreconditioner(*prec);
 
-      //allocate the NR solver
+      // allocate the NR solver
       nsolver = new NewtonSolver();
       nsolver->iterative_mode = true;
       nsolver->SetSolver(*lsolver);
@@ -265,25 +264,25 @@ private:
    int print_level;
 
 
-   //reference to the mesh
+   // reference to the mesh
    Mesh* mesh;
-   //reference to the fespace
+   // reference to the fespace
    FiniteElementSpace *fespace;
 
-   //nonlinear form for the p-laplacian
+   // nonlinear form for the p-laplacian
    NonlinearForm *nlform;
-   CGSolver *lsolver; //linear solver
-   Solver *prec; //preconditioner for the linear solver
-   NewtonSolver *nsolver; //NR solver
+   CGSolver *lsolver; // linear solver
+   Solver *prec; // preconditioner for the linear solver
+   NewtonSolver *nsolver; // NR solver
    IntegratorType integ;
 
-   //power of the p-laplacian
+   // power of the p-laplacian
    Coefficient* plap_power;
-   //regularization parammeter
+   // regularization parameter
    Coefficient* plap_epsilon;
-   //load(input) paramater
+   // load(input) parameter
    Coefficient* plap_input;
-   //flag indicating the ownership of plap_input
+   // flag indicating the ownership of plap_input
    bool input_ownership;
 };
 
@@ -301,7 +300,7 @@ int main(int argc, char *argv[])
    int newton_iter = 10;
    int print_level = 0;
 
-   double pp = 2.0; // p-Lapalacian power
+   double pp = 2.0; // p-Laplacian power
 
    IntegratorType integrator = IntegratorType::ADHessianIntegrator;
    int int_integrator = integrator;

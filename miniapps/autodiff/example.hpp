@@ -21,7 +21,7 @@
 namespace mfem
 {
 
-///Example: Implementation of the residual evaluation
+/// Example: Implementation of the residual evaluation
 /// for p-Laplacian problem. The residual is
 /// evaluated at the integration points for PDE parameters
 /// vparam and state fields (derivatives with respect to x,y,z
@@ -31,7 +31,7 @@ template<typename TDataType, typename TParamVector, typename TStateVector,
 class MyResidualFunctor
 {
 public:
-   ///The operator returns the first derivative of the energy with respect
+   /// The operator returns the first derivative of the energy with respect
    /// to all state variables. These are set in vector uu and consist of the
    /// derivatives with respect to x,y,z and the primal field. The derivative
    /// is stored in vector rr with length equal to the length of vector uu.
@@ -42,10 +42,10 @@ public:
       double ee = vparam[1];
       double ff = vparam[2];
 
-      //The vector rr holds the gradients of the following expression:
-      //(u_x^2+u_y^2+u_z^2+\varepsilon^2)^(p/2)-f.u,
-      //where u_x,u_y,u_z are the gradients of the scalar field u.
-      //The state vector is defined as uu=[u_x,u_y,u_z,u].
+      // The vector rr holds the gradients of the following expression:
+      // (u_x^2+u_y^2+u_z^2+\varepsilon^2)^(p/2)-f.u,
+      // where u_x,u_y,u_z are the gradients of the scalar field u.
+      // The state vector is defined as uu=[u_x,u_y,u_z,u].
 
       TDataType norm2 = uu[0] * uu[0] + uu[1] * uu[1] + uu[2] * uu[2];
       TDataType tvar = pow(ee * ee + norm2, (pp - 2.0) / 2.0);
@@ -57,11 +57,11 @@ public:
    }
 };
 
-///Defines template class (functor) for evaluating the energy
+/// Defines template class (functor) for evaluating the energy
 /// of the p-Laplacian problem. The input parameters vparam are:
 /// vparam[0] - the p-Laplacian power, vparam[1] small value
-/// ensuring exsitance of an unique solution, and vparam[2] -
-/// the distributed extenal input to the PDE.
+/// ensuring exciting of an unique solution, and vparam[2] -
+/// the distributed external input to the PDE.
 /// The template parameter TDataType will be replaced by the compiler
 /// with the appropriate AD type for automatic differentiation.
 /// The TParamVector represents the vector type used for the
@@ -74,7 +74,7 @@ template<typename TDataType, typename TParamVector, typename TStateVector
 class MyEnergyFunctor
 {
 public:
-   ///Returns the energy of a  p-Laplacian for state field input
+   /// Returns the energy of a  p-Laplacian for state field input
    /// provided in vector uu and parameters provided in vector
    /// vparam.
    TDataType operator()(TParamVector &vparam, TStateVector &uu)
@@ -94,7 +94,7 @@ public:
 };
 
 
-///Implements integrator for a p-Laplacian problem.
+/// Implements integrator for a p-Laplacian problem.
 /// The integrator is based on a class QFunction utilized for
 /// evaluating the energy, the first derivative (residual) and
 /// the Hessian of the energy (the Jacobian of the residual).
@@ -129,7 +129,7 @@ public:
    }
 
    pLaplaceAD(Coefficient &pp_) : pp(&pp_), coeff(nullptr), load(nullptr) {
-      vparam.SetSize(3);	   
+      vparam.SetSize(3);
       vparam[0] = 2.0;  // default power
       vparam[1] = 1e-8; // default epsilon
       vparam[2] = 1.0;  // default load
@@ -139,7 +139,7 @@ public:
    pLaplaceAD(Coefficient &pp_, Coefficient &q, Coefficient &ld_)
       : pp(&pp_), coeff(&q), load(&ld_)
    {
-      vparam.SetSize(3);	   
+      vparam.SetSize(3);
       vparam[0] = 2.0;  // default power
       vparam[1] = 1e-8; // default epsilon
       vparam[2] = 1.0;  // default load
@@ -149,7 +149,7 @@ public:
 
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &trans,
-                                   const Vector &elfun) 
+                                   const Vector &elfun)
    {
       double energy = 0.0;
       const int ndof = el.GetDof();
@@ -224,7 +224,7 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &trans,
                                       const Vector &elfun,
-                                      Vector &elvect) 
+                                      Vector &elvect)
    {
 MFEM_PERF_BEGIN("AssembleElementVector");
       const int ndof = el.GetDof();
@@ -294,7 +294,7 @@ MFEM_PERF_END("AssembleElementVector");
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &trans,
                                     const Vector &elfun,
-                                    DenseMatrix &elmat) 
+                                    DenseMatrix &elmat)
    {
 MFEM_PERF_BEGIN("AssembleElementGrad");
       const int ndof = el.GetDof();
@@ -368,7 +368,7 @@ private:
 
 };
 
-///Implements hand-coded integrator for a p-Laplacian problem.
+/// Implements hand-coded integrator for a p-Laplacian problem.
 /// Utilized as alternative for the  pLaplaceAD class based on
 /// automatic differentiation.
 class pLaplace : public NonlinearFormIntegrator
@@ -396,7 +396,7 @@ public:
 
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &trans,
-                                   const Vector &elfun) 
+                                   const Vector &elfun)
    {
       double energy = 0.0;
       const int ndof = el.GetDof();
@@ -461,7 +461,7 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &trans,
                                       const Vector &elfun,
-                                      Vector &elvect) 
+                                      Vector &elvect)
    {
 
 MFEM_PERF_BEGIN("AssembleElementVector");
@@ -518,7 +518,7 @@ MFEM_PERF_BEGIN("AssembleElementVector");
          {
             eee = coeff->Eval(trans, ip);
          }
-         //compute (norm of the gradient)^2 + epsilon^2
+         // compute (norm of the gradient)^2 + epsilon^2
          aa = nrgrad * nrgrad + eee * eee;
          aa = std::pow(aa, (ppp - 2.0) / 2.0);
          dshape_xyz.Mult(grad, lvec);
@@ -536,7 +536,7 @@ MFEM_PERF_END("AssembleElementVector");
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &trans,
                                     const Vector &elfun,
-                                    DenseMatrix &elmat) 
+                                    DenseMatrix &elmat)
    {
 MFEM_PERF_BEGIN("AssembleElementGrad");
       const int ndof = el.GetDof();
@@ -577,21 +577,21 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
          // dshape_xyz should be divided by detJ for obtaining the real value
          // grad is not scaled so far,i.e., grad=grad/detJ
 
-         //set the power
+         // set the power
          if (pp != nullptr)
          {
             ppp = pp->Eval(trans, ip);
          }
-         //set the coefficient ensuring positiveness of the tangent matrix
+         // set the coefficient ensuring positiveness of the tangent matrix
          if (coeff != nullptr)
          {
             eee = coeff->Eval(trans, ip);
          }
 
-         //calculate the gradient
+         // calculate the gradient
          dshape_xyz.MultTranspose(elfun, grad);
          nrgrad = grad.Norml2() / detJ;
-	 //(u_x^2+u_y^2+u_z^2+\varepsilon^2)
+         // (u_x^2+u_y^2+u_z^2+\varepsilon^2)
          aa0 = nrgrad * nrgrad + eee * eee;
          aa1 = std::pow(aa0, (ppp - 2.0) / 2.0);
          aa0 = (ppp - 2.0) * std::pow(aa0, (ppp - 4.0) / 2.0);
@@ -610,7 +610,7 @@ MFEM_PERF_END("AssembleElementGrad");
 /// element. The template argument should be equal to the size of
 /// the residual vector (element vector), i.e., the user should
 /// specify the size to match the exact vector size for the
-///  considered order of the shape functions.
+/// considered order of the shape functions.
 
 template<int sizeres=10>
 class pLaplaceSL : public NonlinearFormIntegrator
@@ -638,7 +638,7 @@ public:
 
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &trans,
-                                   const Vector &elfun) 
+                                   const Vector &elfun)
    {
       double energy = 0.0;
       const int ndof = el.GetDof();
@@ -703,7 +703,7 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &trans,
                                       const Vector &elfun,
-                                      Vector &elvect) 
+                                      Vector &elvect)
    {
 MFEM_PERF_BEGIN("AssembleElementVector");
       const int ndof = el.GetDof();
@@ -777,7 +777,7 @@ MFEM_PERF_END("AssembleElementVector");
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &trans,
                                     const Vector &elfun,
-                                    DenseMatrix &elmat) 
+                                    DenseMatrix &elmat)
    {
 MFEM_PERF_BEGIN("AssembleElementGrad");
       const int ndof = el.GetDof();
@@ -827,19 +827,19 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
              // dshape_xyz should be divided by detJ for obtaining the real value
              // grad is not scaled so far,i.e., grad=grad/detJ
 
-             //set the power
+             // set the power
              if (pp != nullptr)
              {
                 ppp = pp->Eval(trans, ip);
              }
-             //set the coefficient ensuring positiveness of the tangent matrix
+             // set the coefficient ensuring positiveness of the tangent matrix
              if (coeff != nullptr)
              {
                 eee = coeff->Eval(trans, ip);
              }
 
              grad=0.0;
-             //calculate the gradient
+             // calculate the gradient
              for(int i=0;i<spaceDim;i++){
              for(int j=0;j<ndof;j++){
                 grad[i]= grad[i]+ dshape_xyz(j,i)*uu[j];
@@ -864,7 +864,7 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
       };
 
       mfem::Vector bla(elfun);
-      //calculate the gradient - only for a fixed ndof
+      // calculate the gradient - only for a fixed ndof
       mfem::VectorFuncAutoDiff<sizeres,sizeres,3> fdr(resfun);
       fdr.Jacobian(param, bla, elmat);
 MFEM_PERF_END("AssembleElementGrad");
