@@ -22,4 +22,3 @@ mfem_find_package(CODIPACK CODIPACK CODIPACK_DIR
   "lib" ""
   "Paths to headers required by CODIPACK."
   "Libraries required by CODIPACK.")
-
