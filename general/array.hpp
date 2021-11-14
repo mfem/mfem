@@ -70,6 +70,10 @@ public:
    explicit inline Array(int asize)
       : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
 
+   /// Creates array of @a asize elements with a given MemoryType
+   inline Array(int asize, MemoryType mt)
+      : size(asize) { asize > 0 ? data.New(asize, mt) : data.Reset(mt); }
+
    /** @brief Creates array using an existing c-array of asize elements;
        allocsize is set to -asize to indicate that the data will not
        be deleted. */
