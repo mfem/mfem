@@ -823,23 +823,45 @@ public:
       }
    }
 
+   /// Implementation of the coefficient function
    virtual double Eval_Func(ElementTransformation &T,
                             const IntegrationPoint &ip) { return 0.0; }
 
+   /// Implementation of the genderalized derivative of the function
+   virtual double Eval_dFunc(FieldType deriv,
+                             ElementTransformation &T,
+                             const IntegrationPoint &ip) { return 0.0; }
+
+   /// The following can be overridden for efficiency when appropriate
    virtual double Eval_dNn(ElementTransformation &T,
-                           const IntegrationPoint &ip) { return 0.0; }
+                           const IntegrationPoint &ip)
+   {
+      return this->Eval_dFunc(NEUTRAL_DENSITY, T, ip);
+   }
 
    virtual double Eval_dNi(ElementTransformation &T,
-                           const IntegrationPoint &ip) { return 0.0; }
+                           const IntegrationPoint &ip)
+   {
+      return this->Eval_dFunc(ION_DENSITY, T, ip);
+   }
 
    virtual double Eval_dVi(ElementTransformation &T,
-                           const IntegrationPoint &ip) { return 0.0; }
+                           const IntegrationPoint &ip)
+   {
+      return this->Eval_dFunc(ION_PARA_VELOCITY, T, ip);
+   }
 
    virtual double Eval_dTi(ElementTransformation &T,
-                           const IntegrationPoint &ip) { return 0.0; }
+                           const IntegrationPoint &ip)
+   {
+      return this->Eval_dFunc(ION_TEMPERATURE, T, ip);
+   }
 
    virtual double Eval_dTe(ElementTransformation &T,
-                           const IntegrationPoint &ip) { return 0.0; }
+                           const IntegrationPoint &ip)
+   {
+      return this->Eval_dFunc(ELECTRON_TEMPERATURE, T, ip);
+   }
 
 protected:
    StateVariableCoef(FieldType deriv = INVALID) : StateVariableFunc(deriv) {}
