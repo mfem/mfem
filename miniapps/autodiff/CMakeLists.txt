@@ -9,16 +9,13 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-list(APPEND SEQADIFF_COMMON_SOURCES
-	)
+list(APPEND SEQADIFF_COMMON_SOURCES)
 
 list(APPEND SEQADIFF_COMMON_HEADERS
         fdual.hpp
 	tadvector.hpp
 	taddensemat.hpp
 	admfem.hpp)
-
-
 
 convert_filenames_to_full_paths(SEQADIFF_COMMON_SOURCES)
 convert_filenames_to_full_paths(SEQADIFF_COMMON_HEADERS)
@@ -39,10 +36,8 @@ add_mfem_miniapp(seqtest
 
 if(MFEM_USE_MPI)
 
-list(APPEND PARADIFF_COMMON_SOURCES
-	)
-list(APPEND PARADIFF_COMMON_HEADERS
-	)
+list(APPEND PARADIFF_COMMON_SOURCES)
+list(APPEND PARADIFF_COMMON_HEADERS)
 
 convert_filenames_to_full_paths(PARADIFF_COMMON_SOURCES)
 convert_filenames_to_full_paths(PARADIFF_COMMON_HEADERS)

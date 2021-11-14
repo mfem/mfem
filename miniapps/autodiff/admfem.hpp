@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef ADMFEM_HPP 
+#ifndef ADMFEM_HPP
 #define ADMFEM_HPP
 
 #include "mfem.hpp"
@@ -123,7 +123,7 @@ public:
     }
 private:
     std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F;
-}; //VectorFuncAutoDiff
+}; // VectorFuncAutoDiff
 
 /// The class provides an evaluation of the Jacobian of a templated
 /// vector function provided as a functor TFunctor.  The Jacobian is
@@ -176,7 +176,7 @@ public:
                 aduu[ii].setGradient(0.0);
             }
         }
-#else //end MFEM_USE_ADFORWARD
+#else // end MFEM_USE_ADFORWARD
         // use reverse mode
         jac.SetSize(vector_size, state_size);
         jac = 0.0;
@@ -209,7 +209,7 @@ public:
 #endif
     }
 private:
-   
+
 
     TFunctor<ad::ADFloatType, const Vector, ad::ADVectorType,
                 vector_size, state_size, param_size> tf;
@@ -367,7 +367,7 @@ public:
             }
         }
 #else
-        //use mixed forward and reverse mode
+        // use mixed forward and reverse mode
         jac.SetSize(state_size);
         jac=0.0;
         {
@@ -411,20 +411,20 @@ public:
 #endif
     }
 private:
-    TFunctor<double, const mfem::Vector, 
-	    mfem::Vector, state_size, param_size> rf;
+    TFunctor<double, const mfem::Vector,
+            mfem::Vector, state_size, param_size> rf;
 
     TFunctor<ad::ADFloatType, const mfem::Vector,
-	    ad::ADVectorType, state_size, param_size> tf;
+            ad::ADVectorType, state_size, param_size> tf;
 
-    TFunctor<ADSType, const mfem::Vector, ADSVector, 
-	    state_size, param_size> sf;
+    TFunctor<ADSType, const mfem::Vector, ADSVector,
+            state_size, param_size> sf;
 };
 
 }
-#else //end MFEM_USE_CODIPACK
+#else // end MFEM_USE_CODIPACK
 
-//USE NATIVE IMPLEMENTATION
+// USE NATIVE IMPLEMENTATION
 namespace mfem {
 
 namespace ad {
@@ -454,7 +454,7 @@ public:
     /// F_(mfem::Vector& parameters, ad::ADVectroType& state_vector, ad::ADVectorType& result).
     /// The parameters vector should have size param_size. The state_vector should have size
     /// state_size, and the result vector should have size vector_size. All size parameters are
-    /// teplate parameters in VectorFuncAutoDiff. 	
+    /// teplate parameters in VectorFuncAutoDiff.
     VectorFuncAutoDiff(std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F_)
     {
             F=F_;
@@ -467,7 +467,7 @@ public:
         jac.SetSize(vector_size, state_size);
         jac = 0.0;
         {
-           ad::ADVectorType aduu(uu); //all dual numbers are initialized to zero
+           ad::ADVectorType aduu(uu); // all dual numbers are initialized to zero
            ad::ADVectorType rr(vector_size);
 
            for (int ii = 0; ii < state_size; ii++)
@@ -502,9 +502,9 @@ private:
 /// The integer template parameters are the same ones
 /// passed to QVectorFuncAutoDiff. \n
 /// Example: f={sin(a*x*y), cos(b*x*y*z), x*x+y*x} \n
-/// The vector function has vector_size=3, and state_size=3, i.e., it has 
-/// three arguments [x,y,z]. The parameters [a,b] size is 2. 
-/// The functor class will have the following form 
+/// The vector function has vector_size=3, and state_size=3, i.e., it has
+/// three arguments [x,y,z]. The parameters [a,b] size is 2.
+/// The functor class will have the following form
 /// \code{.cpp}
 /// template<typename TDataType, typename TParamVector, typename TStateVector,
 ///         int residual_size, int state_size, int param_size>
@@ -514,7 +514,7 @@ private:
 /// {
 ///    auto a=vparam[0];
 ///    auto b=vparam[1];
-///    rr[0]=sin(a*uu[0]*uu[1]);     
+///    rr[0]=sin(a*uu[0]*uu[1]);
 ///    rr[1]=cos(b*uu[0]*uu[1]*uu[2]);
 ///    rr[2]=uu[0]*uu[0]+uu[0]*uu[1];
 /// }
@@ -547,11 +547,11 @@ public:
     /// length of vector uu.
     void Jacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
     {
-        //use native AD package
+        // use native AD package
         jac.SetSize(vector_size, state_size);
         jac = 0.0;
         {
-           ADFVector aduu(uu); //all dual numbers are initialized to zero
+           ADFVector aduu(uu); // all dual numbers are initialized to zero
            ADFVector rr(vector_size);
 
            for (int ii = 0; ii < state_size; ii++)
@@ -629,12 +629,12 @@ private:
     typedef ad::FDualNumber<ADFType> ADSType;
     /// Vector type for AD-numbers (second derivatives)
     typedef TAutoDiffVector<ADSType> ADSVector;
-    /// Vector type fpr AD-numbers (second derivatives)
+    /// Vector type for AD-numbers (second derivatives)
     typedef TAutoDiffDenseMatrix<ADSType> ADSDenseMatrix;
 
 public:
     /// Evaluates a function for arguments vparam and uu.
-    /// The evaluatin is based on the operator() in the
+    /// The evaluation is based on the operator() in the
     /// user provided functor TFunctor.
     double Eval(const Vector &vparam, Vector &uu)
     {
@@ -709,7 +709,6 @@ private:
     TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> sf;
 
 };
-}//end namespace mfem
+} // end namespace mfem
 #endif // NATIVE
 #endif // ADMFEM_HPP
-

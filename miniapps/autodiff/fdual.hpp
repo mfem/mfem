@@ -32,7 +32,7 @@ namespace ad
  of a large set of functions replicating the functionality of the standard
  math library, i.e., sin, cos, exp, log, ...
 
-New functions (non-member) can be eaily added to the class. Example:
+New functions (non-member) can be equally added to the class. Example:
 \code{.cpp}
 template<typename tbase>
 inline FDualNumber<tbase> cos(const FDualNumber<tbase> &f)
@@ -57,7 +57,7 @@ private:
    tbase du;
 
 public:
-   /// Standard contructor - both values are set to zero.
+   /// Standard constructor - both values are set to zero.
    FDualNumber() : pr(0), du(0) {}
 
    /// The constructor utilized in nested definition of dual numbers.
