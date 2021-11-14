@@ -19,33 +19,37 @@ namespace mfem
 {
 namespace ad
 {
-/** The FDualNumber template class provides forward
-  <a href="https://en.wikipedia.org/wiki/Automatic_differentiation">automatic differentiation</a>
-   implementation based on dual numbers. The derivative of an arbitrary
- function double f(double a)  can be obtained by replacing the double
- type for the return value and the argument a  with FDualNumber<double>, i.e.,
- FDualNumber<double> f(FDualNumber<double> a). The derivative is evaluated automatically
- by calling the function r=f(a). The value of the function is stored in r.pr
- and the derivative in r.du. These can be extracted by the corresponding
-  methods real()/prim() and dual(). Internally, the function f can be
- composed of standard functions predefined for FDualNumber type. These consist
- of a large set of functions replicating the functionality of the standard
- math library, i.e., sin, cos, exp, log, ...
+/** The FDualNumber template class provides forward automatic differentiation
+    (see https://en.wikipedia.org/wiki/Automatic_differentiation) implementation
+    based on dual numbers.
 
-New functions (non-member) can be equally added to the class. Example:
-\code{.cpp}
-template<typename tbase>
-inline FDualNumber<tbase> cos(const FDualNumber<tbase> &f)
-{
-   return FDualNumber<tbase>(cos(f.real()), -f.dual() * sin(f.real()));
-}
-\endcode
-The real part of the return value consists of the standard real value
- of the function, i.e., cos(f.real()).
 
-The dual part of the return value consists of the first derivative of
- the function with respect to the real part of the argument -sin(f.reaf)
- multiplied with the dual part of the argument f.dual().
+    The derivative of an arbitrary function double f(double a) can be obtained
+    by replacing the double type for the return value and the argument a with
+    FDualNumber<double>, i.e., FDualNumber<double> f(FDualNumber<double> a). The
+    derivative is evaluated automatically by calling the function r=f(a). The
+    value of the function is stored in r.pr and the derivative in r.du. These
+    can be extracted by the corresponding methods real()/prim() and dual().
+
+    Internally, the function f can be composed of standard functions predefined
+    for FDualNumber type. These consist of a large set of functions replicating
+    the functionality of the standard math library, i.e., sin, cos, exp, log,
+    etc. New functions (non-member) can be equally added to the class. Example:
+
+       \code{.cpp}
+       template<typename tbase>
+       inline FDualNumber<tbase> cos(const FDualNumber<tbase> &f)
+       {
+          return FDualNumber<tbase>(cos(f.real()), -f.dual() * sin(f.real()));
+       }
+       \endcode
+
+    The real part of the return value consists of the standard real value of the
+    function, i.e., cos(f.real()).
+
+    The dual part of the return value consists of the first derivative of the
+    function with respect to the real part of the argument -sin(f.reaf)
+    multiplied with the dual part of the argument f.dual().
 */
 template<typename tbase>
 class FDualNumber
@@ -60,24 +64,26 @@ public:
    /// Standard constructor - both values are set to zero.
    FDualNumber() : pr(0), du(0) {}
 
-   /// The constructor utilized in nested definition of dual numbers.
-   /// It is used for second and higher order derivatives.
+   /// The constructor utilized in nested definition of dual numbers. It is
+   /// used for second and higher order derivatives.
    template<class fltyp,
             class = typename std::enable_if<std::is_arithmetic<fltyp>::value>::type>
    FDualNumber(fltyp &f) : pr(f), du(0)
    {}
 
-   /// The constructor utilized in nested definition of dual numbers.
-   /// It is used for second and higher order derivatives.
+   /// The constructor utilized in nested definition of dual numbers. It is
+   /// used for second and higher order derivatives.
    template<class fltyp,
             class = typename std::enable_if<std::is_arithmetic<fltyp>::value>::type>
    FDualNumber(const fltyp &f) : pr(f), du(0)
    {}
 
-   /// Standard constructor with user supplied input for both parts of the dual number.
+   /// Standard constructor with user supplied input for both parts of the dual
+   /// number.
    FDualNumber(tbase &pr_, tbase &du_) : pr(pr_), du(du_) {}
 
-   /// Standard constructor with user supplied input for both parts of the dual number.
+   /// Standard constructor with user supplied input for both parts of the dual
+   /// number.
    FDualNumber(const tbase &pr_, const tbase &du_) : pr(pr_), du(du_) {}
 
    /// Standard constructor with user supplied dual number.

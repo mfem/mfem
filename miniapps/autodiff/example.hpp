@@ -21,20 +21,19 @@
 namespace mfem
 {
 
-/// Example: Implementation of the residual evaluation
-/// for p-Laplacian problem. The residual is
-/// evaluated at the integration points for PDE parameters
-/// vparam and state fields (derivatives with respect to x,y,z
-/// and primal field) stored in vector uu.
+/// Example: Implementation of the residual evaluation for p-Laplacian
+/// problem. The residual is evaluated at the integration points for PDE
+/// parameters vparam and state fields (derivatives with respect to x,y,z and
+/// primal field) stored in vector uu.
 template<typename TDataType, typename TParamVector, typename TStateVector,
          int residual_size, int state_size, int param_size>
 class MyResidualFunctor
 {
 public:
-   /// The operator returns the first derivative of the energy with respect
-   /// to all state variables. These are set in vector uu and consist of the
-   /// derivatives with respect to x,y,z and the primal field. The derivative
-   /// is stored in vector rr with length equal to the length of vector uu.
+   /// The operator returns the first derivative of the energy with respect to
+   /// all state variables. These are set in vector uu and consist of the
+   /// derivatives with respect to x,y,z and the primal field. The derivative is
+   /// stored in vector rr with length equal to the length of vector uu.
    void operator()(TParamVector &vparam, TStateVector &uu, TStateVector &rr)
    {
       MFEM_ASSERT(residual_size==4,"PLaplacianResidual residual_size should be equal to 4!");
@@ -57,26 +56,23 @@ public:
    }
 };
 
-/// Defines template class (functor) for evaluating the energy
-/// of the p-Laplacian problem. The input parameters vparam are:
-/// vparam[0] - the p-Laplacian power, vparam[1] small value
-/// ensuring exciting of an unique solution, and vparam[2] -
-/// the distributed external input to the PDE.
-/// The template parameter TDataType will be replaced by the compiler
-/// with the appropriate AD type for automatic differentiation.
-/// The TParamVector represents the vector type used for the
-/// parameter vector, and TStateVector the vector type used for the
-/// state vector. The template parameters state_size and param_size
-/// provide information for the size of the state and the parameters
-/// vectors.
+/// Defines template class (functor) for evaluating the energy of the
+/// p-Laplacian problem. The input parameters vparam are: vparam[0] - the
+/// p-Laplacian power, vparam[1] small value ensuring exciting of an unique
+/// solution, and vparam[2] - the distributed external input to the PDE. The
+/// template parameter TDataType will be replaced by the compiler with the
+/// appropriate AD type for automatic differentiation. The TParamVector
+/// represents the vector type used for the parameter vector, and TStateVector
+/// the vector type used for the state vector. The template parameters
+/// state_size and param_size provide information for the size of the state and
+/// the parameters vectors.
 template<typename TDataType, typename TParamVector, typename TStateVector
          , int state_size, int param_size>
 class MyEnergyFunctor
 {
 public:
-   /// Returns the energy of a  p-Laplacian for state field input
-   /// provided in vector uu and parameters provided in vector
-   /// vparam.
+   /// Returns the energy of a p-Laplacian for state field input provided in
+   /// vector uu and parameters provided in vector vparam.
    TDataType operator()(TParamVector &vparam, TStateVector &uu)
    {
       MFEM_ASSERT(state_size==4,"MyEnergyFunctor state_size should be equal to 4!");
@@ -94,16 +90,14 @@ public:
 };
 
 
-/// Implements integrator for a p-Laplacian problem.
-/// The integrator is based on a class QFunction utilized for
-/// evaluating the energy, the first derivative (residual) and
-/// the Hessian of the energy (the Jacobian of the residual).
-/// The template parameter CQVectAutoDiff represents the
-/// automatically differentiated energy or residual
-/// implemented by the user.
+/// Implements integrator for a p-Laplacian problem. The integrator is based on
+/// a class QFunction utilized for evaluating the energy, the first derivative
+/// (residual) and the Hessian of the energy (the Jacobian of the residual).
+/// The template parameter CQVectAutoDiff represents the automatically
+/// differentiated energy or residual implemented by the user.
 /// CQVectAutoDiff::VectorFunc(Vector parameters, Vector state,Vector residual)
-///  evaluates the residual at an integration point.
-/// CQVectAutoDiff::Jacobian(Vector parameters, Vector state, Matrix  hessian)
+/// evaluates the residual at an integration point.
+/// CQVectAutoDiff::Jacobian(Vector parameters, Vector state, Matrix hessian)
 /// evaluates the Hessian of the energy(the Jacobian of the residual).
 template<class CQVectAutoDiff>
 class pLaplaceAD : public NonlinearFormIntegrator
@@ -240,8 +234,8 @@ MFEM_PERF_BEGIN("AssembleElementVector");
       elvect.SetSize(ndof);
       elvect = 0.0;
 
-      DenseMatrix B(ndof, 4); //[diff_x,diff_y,diff_z, shape]
-      Vector uu(4);           //[diff_x,diff_y,diff_z,u]
+      DenseMatrix B(ndof, 4); // [diff_x,diff_y,diff_z, shape]
+      Vector uu(4);           // [diff_x,diff_y,diff_z,u]
       Vector du(4);
       B = 0.0;
       uu = 0.0;
@@ -311,7 +305,7 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
 
       DenseMatrix B(ndof, 4); // [diff_x,diff_y,diff_z, shape]
       DenseMatrix A(ndof, 4);
-      Vector uu(4);     // [diff_x,diff_y,diff_z,u]
+      Vector uu(4); // [diff_x,diff_y,diff_z,u]
       DenseMatrix duu(4, 4);
       B = 0.0;
       uu = 0.0;
@@ -368,9 +362,8 @@ private:
 
 };
 
-/// Implements hand-coded integrator for a p-Laplacian problem.
-/// Utilized as alternative for the  pLaplaceAD class based on
-/// automatic differentiation.
+/// Implements hand-coded integrator for a p-Laplacian problem. Utilized as
+/// alternative for the pLaplaceAD class based on automatic differentiation.
 class pLaplace : public NonlinearFormIntegrator
 {
 protected:
@@ -463,7 +456,6 @@ public:
                                       const Vector &elfun,
                                       Vector &elvect)
    {
-
 MFEM_PERF_BEGIN("AssembleElementVector");
       const int ndof = el.GetDof();
       const int ndim = el.GetDim();
@@ -605,11 +597,10 @@ MFEM_PERF_END("AssembleElementGrad");
    }
 };
 
-/// Implements AD enabled integrator for a p-Laplacian problem.
-/// The tangent matrix is computed using the residual of the
-/// element. The template argument should be equal to the size of
-/// the residual vector (element vector), i.e., the user should
-/// specify the size to match the exact vector size for the
+/// Implements AD enabled integrator for a p-Laplacian problem. The tangent
+/// matrix is computed using the residual of the element. The template argument
+/// should be equal to the size of the residual vector (element vector), i.e.,
+/// the user should specify the size to match the exact vector size for the
 /// considered order of the shape functions.
 
 template<int sizeres=10>
@@ -799,9 +790,8 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
 
       mfem::Vector param(3); param=0.0;
 
-      // Computes the residual at an integration point.
-      // The implementation is a copy of the integration loop
-      // in AssembleElementVector.
+      // Computes the residual at an integration point. The implementation is a
+      // copy of the integration loop in AssembleElementVector.
       auto resfun = [&](mfem::Vector& vparam, mfem::ad::ADVectorType& uu, mfem::ad::ADVectorType& vres){
 
          vres.SetSize(uu.Size()); vres=0.0;
@@ -869,8 +859,8 @@ MFEM_PERF_BEGIN("AssembleElementGrad");
       fdr.Jacobian(param, bla, elmat);
 MFEM_PERF_END("AssembleElementGrad");
    }
-
 };
 
 } // namespace mfem
+
 #endif

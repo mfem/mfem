@@ -25,18 +25,17 @@
 namespace mfem
 {
 /// Templated vector data type.
-/** The main goal of the TAutoDiffVector class is to serve as a data
-  container for representing vectors in classes, methods, and
-  functions utilized with automatic differentiation (AD). The
-  functionality/interface is copied from the standard MFEM dense
-  vector mfem::Vector.  The basic idea is to utilize the templated
-  vector class in combination with AD during the development phase.
-  The AD parts can be replaced with optimized code once the initial
-  development of the application is complete.  The common interface
-  between TAutoDiffVector and Vector will ease the transition from AD to
-  hand-optimized code as it does not require a change in the
-  interface or the code structure. TAutoDiffVector is intended to be
-  utilized for dense serial vectors. */
+/** The main goal of the TAutoDiffVector class is to serve as a data container
+    for representing vectors in classes, methods, and functions utilized with
+    automatic differentiation (AD). The functionality/interface is copied from
+    the standard MFEM dense vector mfem::Vector. The basic idea is to utilize
+    the templated vector class in combination with AD during the development
+    phase. The AD parts can be replaced with optimized code once the initial
+    development of the application is complete. The common interface between
+    TAutoDiffVector and Vector will ease the transition from AD to
+    hand-optimized code as it does not require a change in the interface or the
+    code structure. TAutoDiffVector is intended to be utilized for dense serial
+    vectors. */
 template<typename dtype>
 class TAutoDiffVector
 {
@@ -359,7 +358,7 @@ public:
 
    /// Copy assignment.
    /** @note Defining this method overwrites the implicitly defined copy
-       assignemnt operator. */
+       assignment operator. */
    TAutoDiffVector<dtype> &operator=(const TAutoDiffVector<dtype> &v)
    {
       SetSize(v.Size());
@@ -637,9 +636,9 @@ public:
    /// Returns the l2 norm of the vector.
    dtype Norml2() const
    {
-      // Scale entries of Vector on the fly, using algorithms from
-      // std::hypot() and LAPACK's drm2. This scaling ensures that the
-      // argument of each call to std::pow is <= 1 to avoid overflow.
+      // Scale entries of Vector on the fly, using algorithms from std::hypot()
+      // and LAPACK's drm2. This scaling ensures that the argument of each call
+      // to std::pow is <= 1 to avoid overflow.
       if (0 == size)
       {
          return 0.0;
