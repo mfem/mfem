@@ -107,6 +107,13 @@ struct get_diagonal_symmetric_tensor_values_rank_v<DiagonalSymmetricTensor<DRank
 template <typename Tensor>
 constexpr int get_diagonal_symmetric_tensor_values_rank = get_diagonal_symmetric_tensor_values_rank_v<Tensor>::value;
 
+// get_tensor_size
+template <int N, int DRank, int SRank, typename C, typename Layout>
+struct get_tensor_size_v<N,DiagonalSymmetricTensor<DRank, SRank, C, Layout>>
+{
+   static constexpr int value = get_layout_size<N, Layout>;
+};
+
 } // namespace mfem
 
 #endif // MFEM_DIAG_SYMM_TENSOR
