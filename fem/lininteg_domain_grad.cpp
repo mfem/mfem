@@ -55,27 +55,16 @@ void DomainLFGradIntegratorAssemble2D(const int ND,
       const double cst_val1 = C(1,0,0,0);
 
       MFEM_SHARED double sBG[2][D1D*Q1D];
+      const DeviceMatrix Bt(sBG[0],D1D,Q1D);
+      const DeviceMatrix Gt(sBG[1],D1D,Q1D);
+
       MFEM_SHARED double sm0[2][Q1D*Q1D];
+      const DeviceMatrix QQ0(sm0[0],Q1D,Q1D);
+      const DeviceMatrix QQ1(sm0[1],Q1D,Q1D);
+
       MFEM_SHARED double sm1[2][Q1D*Q1D];
-
-      double (*Bt)[Q1D] = (double (*)[Q1D]) sBG[0];
-      double (*Gt)[Q1D] = (double (*)[Q1D]) sBG[1];
-
-      double (*QQ0)[Q1D] = (double (*)[Q1D]) sm0[0];
-      double (*QQ1)[Q1D] = (double (*)[Q1D]) sm0[1];
-
-      double (*DQ0)[Q1D] = (double (*)[Q1D]) sm1[0];
-      double (*DQ1)[Q1D] = (double (*)[Q1D]) sm1[1];
-
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            Bt[dy][qx] = B(qx,dy);
-            Gt[dy][qx] = G(qx,dy);
-         }
-      }
-      MFEM_SYNC_THREAD;
+      const DeviceMatrix DQ0(sm1[0],D1D,Q1D);
+      const DeviceMatrix DQ1(sm1[1],D1D,Q1D);
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -91,74 +80,16 @@ void DomainLFGradIntegratorAssemble2D(const int ND,
             const double weight = W(qx,qy);
             const double u = cst_coeff ? cst_val0 : C(0,qx,qy,e);
             const double v = cst_coeff ? cst_val1 : C(1,qx,qy,e);
-            QQ0[qy][qx] = Jinv[0]*u + Jinv[2]*v;
-            QQ1[qy][qx] = Jinv[1]*u + Jinv[3]*v;
-            QQ0[qy][qx] *= weight * detJ;
-            QQ1[qy][qx] *= weight * detJ;
+            QQ0(qy,qx) = Jinv[0]*u + Jinv[2]*v;
+            QQ1(qy,qx) = Jinv[1]*u + Jinv[3]*v;
+            QQ0(qy,qx) *= weight * detJ;
+            QQ1(qy,qx) *= weight * detJ;
          }
       }
       MFEM_SYNC_THREAD;
-
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double u = 0.0, v = 0.0;
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               u += Gt[dx][qx] * QQ0[qy][qx];
-               v += Bt[dx][qx] * QQ1[qy][qx];
-            }
-            DQ0[dx][qy] = u;
-            DQ1[dx][qy] = v;
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double u = 0.0, v = 0.0;
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               u += DQ0[dx][qy] * Bt[dy][qy];
-               v += DQ1[dx][qy] * Gt[dy][qy];
-            }
-            const double sum = u + v;
-            const int gid = I(dx,dy,e);
-            const int idx = gid >= 0 ? gid : -1-gid;
-            AtomicAdd(Y(idx), sum);
-         }
-      }
-      MFEM_SYNC_THREAD;
+      kernels::internal::LoadBGt(D1D,Q1D,B,G,Bt,Gt);
+      kernels::internal::Atomic2DGradTranspose(D1D,Q1D,Bt,Gt,QQ0,QQ1,DQ0,DQ1,I,Y,e);
    });
-}
-
-// Half of B and G are stored in shared to get B, Bt, G and Gt.
-// Indices computation for SmemPADiffusionApply3D.
-static MFEM_HOST_DEVICE inline int qi(const int q, const int d, const int Q)
-{
-   return (q<=d) ? q : Q-1-q;
-}
-
-static MFEM_HOST_DEVICE inline int dj(const int q, const int d, const int D)
-{
-   return (q<=d) ? d : D-1-d;
-}
-
-static MFEM_HOST_DEVICE inline int qk(const int q, const int d, const int Q)
-{
-   return (q<=d) ? Q-1-q : q;
-}
-
-static MFEM_HOST_DEVICE inline int dl(const int q, const int d, const int D)
-{
-   return (q<=d) ? D-1-d : d;
-}
-
-static MFEM_HOST_DEVICE inline double sign(const int q, const int d)
-{
-   return (q<=d) ? -1.0 : 1.0;
 }
 
 template<int D1D, int Q1D> static
@@ -197,20 +128,23 @@ void DomainLFGradIntegratorAssemble3D(const int ND,
       const double cst_val2 = C(2,0,0,0,0);
 
       MFEM_SHARED double sBG[2][Q1D*D1D];
-      double (*Bt)[Q1D] = (double (*)[Q1D]) sBG[0];
-      double (*Gt)[Q1D] = (double (*)[Q1D]) sBG[1];
+      const DeviceMatrix Bt(sBG[0],D1D,Q1D);
+      const DeviceMatrix Gt(sBG[1],D1D,Q1D);
+      kernels::internal::LoadBGt(D1D,Q1D,B,G,Bt,Gt);
 
       MFEM_SHARED double sm0[3][Q1D*Q1D*Q1D];
+      const DeviceCube QQ0(sm0[0],Q1D,Q1D,Q1D);
+      const DeviceCube QQ1(sm0[1],Q1D,Q1D,Q1D);
+      const DeviceCube QQ2(sm0[2],Q1D,Q1D,Q1D);
+
       MFEM_SHARED double sm1[3][Q1D*Q1D*Q1D];
-      double (*QQQ0)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+0);
-      double (*QQQ1)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+1);
-      double (*QQQ2)[Q1D][Q1D] = (double (*)[Q1D][Q1D]) (sm0+2);
-      double (*QQD0)[Q1D][D1D] = (double (*)[Q1D][D1D]) (sm1+0);
-      double (*QQD1)[Q1D][D1D] = (double (*)[Q1D][D1D]) (sm1+1);
-      double (*QQD2)[Q1D][D1D] = (double (*)[Q1D][D1D]) (sm1+2);
-      double (*QDD0)[D1D][D1D] = (double (*)[D1D][D1D]) (sm0+0);
-      double (*QDD1)[D1D][D1D] = (double (*)[D1D][D1D]) (sm0+1);
-      double (*QDD2)[D1D][D1D] = (double (*)[D1D][D1D]) (sm0+2);
+      const DeviceCube QD0(sm1[0],Q1D,Q1D,D1D);
+      const DeviceCube QD1(sm1[1],Q1D,Q1D,D1D);
+      const DeviceCube QD2(sm1[2],Q1D,Q1D,D1D);
+
+      const DeviceCube DD0(sm0[0],Q1D,D1D,D1D);
+      const DeviceCube DD1(sm0[1],Q1D,D1D,D1D);
+      const DeviceCube DD2(sm0[2],Q1D,D1D,D1D);
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -232,129 +166,22 @@ void DomainLFGradIntegratorAssemble3D(const int ND,
                const double u = cst_coeff ? cst_val0 : C(0,qx,qy,qz,e);
                const double v = cst_coeff ? cst_val1 : C(1,qx,qy,qz,e);
                const double w = cst_coeff ? cst_val2 : C(2,qx,qy,qz,e);
-               QQQ0[qz][qy][qx] = Jinv[0]*u + Jinv[3]*v + Jinv[6]*w;
-               QQQ1[qz][qy][qx] = Jinv[1]*u + Jinv[4]*v + Jinv[7]*w;
-               QQQ2[qz][qy][qx] = Jinv[2]*u + Jinv[5]*v + Jinv[8]*w;
-               QQQ0[qz][qy][qx] *= weight * detJ;
-               QQQ1[qz][qy][qx] *= weight * detJ;
-               QQQ2[qz][qy][qx] *= weight * detJ;
+               QQ0(qz,qy,qx) = Jinv[0]*u + Jinv[3]*v + Jinv[6]*w;
+               QQ1(qz,qy,qx) = Jinv[1]*u + Jinv[4]*v + Jinv[7]*w;
+               QQ2(qz,qy,qx) = Jinv[2]*u + Jinv[5]*v + Jinv[8]*w;
+               QQ0(qz,qy,qx) *= weight * detJ;
+               QQ1(qz,qy,qx) *= weight * detJ;
+               QQ2(qz,qy,qx) *= weight * detJ;
             }
          }
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(d,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(q,x,Q1D)
-         {
-            const int i = qi(q,d,Q1D);
-            const int j = dj(q,d,D1D);
-            const int k = qk(q,d,Q1D);
-            const int l = dl(q,d,D1D);
-            Bt[j][i] = B(q,d);
-            Gt[l][k] = G(q,d) * sign(q,d);
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double u[Q1D], v[Q1D], w[Q1D];
-            MFEM_UNROLL(Q1D)
-            for (int qz = 0; qz < Q1D; ++qz) { u[qz] = v[qz] = w[qz] = 0.0; }
-            MFEM_UNROLL(Q1D)
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               const int i = qi(qx,dx,Q1D);
-               const int j = dj(qx,dx,D1D);
-               const int k = qk(qx,dx,Q1D);
-               const int l = dl(qx,dx,D1D);
-               const double s = sign(qx,dx);
-               MFEM_UNROLL(Q1D)
-               for (int qz = 0; qz < Q1D; ++qz)
-               {
-                  u[qz] += QQQ0[qz][qy][qx] * Gt[l][k] * s;
-                  v[qz] += QQQ1[qz][qy][qx] * Bt[j][i];
-                  w[qz] += QQQ2[qz][qy][qx] * Bt[j][i];
-               }
-            }
-            MFEM_UNROLL(Q1D)
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               QQD0[qz][qy][dx] = u[qz];
-               QQD1[qz][qy][dx] = v[qz];
-               QQD2[qz][qy][dx] = w[qz];
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double u[Q1D], v[Q1D], w[Q1D];
-            MFEM_UNROLL(Q1D)
-            for (int qz = 0; qz < Q1D; ++qz) { u[qz] = v[qz] = w[qz] = 0.0; }
-            MFEM_UNROLL(Q1D)
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               const int i = qi(qy,dy,Q1D);
-               const int j = dj(qy,dy,D1D);
-               const int k = qk(qy,dy,Q1D);
-               const int l = dl(qy,dy,D1D);
-               const double s = sign(qy,dy);
-               MFEM_UNROLL(Q1D)
-               for (int qz = 0; qz < Q1D; ++qz)
-               {
-                  u[qz] += QQD0[qz][qy][dx] * Bt[j][i];
-                  v[qz] += QQD1[qz][qy][dx] * Gt[l][k] * s;
-                  w[qz] += QQD2[qz][qy][dx] * Bt[j][i];
-               }
-            }
-            MFEM_UNROLL(Q1D)
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               QDD0[qz][dy][dx] = u[qz];
-               QDD1[qz][dy][dx] = v[qz];
-               QDD2[qz][dy][dx] = w[qz];
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double u[D1D], v[D1D], w[D1D];
-            MFEM_UNROLL(D1D)
-            for (int dz = 0; dz < D1D; ++dz) { u[dz] = v[dz] = w[dz] = 0.0; }
-            MFEM_UNROLL(Q1D)
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               MFEM_UNROLL(D1D)
-               for (int dz = 0; dz < D1D; ++dz)
-               {
-                  const int i = qi(qz,dz,Q1D);
-                  const int j = dj(qz,dz,D1D);
-                  const int k = qk(qz,dz,Q1D);
-                  const int l = dl(qz,dz,D1D);
-                  const double s = sign(qz,dz);
-                  u[dz] += QDD0[qz][dy][dx] * Bt[j][i];
-                  v[dz] += QDD1[qz][dy][dx] * Bt[j][i];
-                  w[dz] += QDD2[qz][dy][dx] * Gt[l][k] * s;
-               }
-            }
-            MFEM_UNROLL(D1D)
-            for (int dz = 0; dz < D1D; ++dz)
-            {
-               const double sum = u[dz] + v[dz] + w[dz];
-               const int gid = I(dx,dy,dz,e);
-               const int idx = gid >= 0 ? gid : -1-gid;
-               AtomicAdd(Y(idx), sum);
-            }
-         }
-      }
+      kernels::internal::Atomic3DGrad(D1D,Q1D,Bt,Gt,
+                                      QQ0,QQ1,QQ2,
+                                      QD0,QD1,QD2,
+                                      DD0,DD1,DD2,
+                                      I,Y,e);
    });
 }
 
