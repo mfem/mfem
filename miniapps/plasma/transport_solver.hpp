@@ -778,6 +778,10 @@ public:
    TransportCoefFactory(const std::vector<std::string> & names,
                         ParGridFunctionArray & pgfa);
 
+   using common::CoefFactory::GetScalarCoef;
+   using common::CoefFactory::GetVectorCoef;
+   using common::CoefFactory::GetMatrixCoef;
+
    Coefficient * GetScalarCoef(std::string &name, std::istream &input);
    VectorCoefficient * GetVectorCoef(std::string &name, std::istream &input);
 };
@@ -1337,12 +1341,8 @@ class ApproxIonizationRate : public StateVariableCoef
 {
 private:
    Coefficient *TeCoef_;
-   // GridFunction *Te_;
-
-   // StateVariable derivType_;
 
 public:
-   // ApproxIonizationRate(GridFunction &Te) : Te_(&Te) {}
    ApproxIonizationRate(Coefficient &TeCoef)
       : TeCoef_(&TeCoef) {}
 
@@ -1429,14 +1429,23 @@ public:
 class NeutralDiffusionCoef : public StateVariableCoef
 {
 private:
-   ProductCoefficient * ne_;
-   Coefficient        * vn_;
-   StateVariableCoef  * iz_;
+   Coefficient       * ne_;
+   Coefficient       * vn_;
+   Coefficient       * iz_;
+
+   StateVariableCoef * ne_sv_;
+   StateVariableCoef * vn_sv_;
+   StateVariableCoef * iz_sv_;
 
 public:
-   NeutralDiffusionCoef(ProductCoefficient &neCoef, Coefficient &vnCoef,
-                        StateVariableCoef &izCoef)
-      : ne_(&neCoef), vn_(&vnCoef), iz_(&izCoef) {}
+   NeutralDiffusionCoef(Coefficient &neCoef, Coefficient &vnCoef,
+                        Coefficient &izCoef)
+      : ne_(&neCoef), vn_(&vnCoef), iz_(&izCoef)
+   {
+      ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
+      vn_sv_ = dynamic_cast<StateVariableCoef*>(vn_);
+      iz_sv_ = dynamic_cast<StateVariableCoef*>(iz_);
+   }
 
    NeutralDiffusionCoef(const NeutralDiffusionCoef &other)
    {
@@ -1444,6 +1453,10 @@ public:
       ne_ = other.ne_;
       vn_ = other.vn_;
       iz_ = other.iz_;
+
+      ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
+      vn_sv_ = dynamic_cast<StateVariableCoef*>(vn_);
+      iz_sv_ = dynamic_cast<StateVariableCoef*>(iz_);
    }
 
    virtual NeutralDiffusionCoef * Clone() const
@@ -1453,8 +1466,11 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID || deriv == ION_DENSITY ||
-              deriv == ELECTRON_TEMPERATURE);
+      bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
+      bool dvn = (vn_sv_) ? vn_sv_->NonTrivialValue(deriv) : false;
+      bool diz = (iz_sv_) ? iz_sv_->NonTrivialValue(deriv) : false;
+
+      return (deriv == INVALID || dne || dvn || diz);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -1467,30 +1483,39 @@ public:
       return vn * vn / (3.0 * ne * iz);
    }
 
-   double Eval_dNi(ElementTransformation &T,
-                   const IntegrationPoint &ip)
+   double Eval_dFunc(FieldType deriv,
+                     ElementTransformation &T,
+                     const IntegrationPoint &ip)
    {
+      bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
+      bool dvn = (vn_sv_) ? vn_sv_->NonTrivialValue(deriv) : false;
+      bool diz = (iz_sv_) ? iz_sv_->NonTrivialValue(deriv) : false;
+
+      if (!dne && !dvn && !diz)
+      {
+         return 0.0;
+      }
+
       double ne = ne_->Eval(T, ip);
       double vn = vn_->Eval(T, ip);
       double iz = iz_->Eval(T, ip);
 
-      double dNe_dNi = ne_->GetAConst();
+      if (ne_sv_) { ne_sv_->SetDerivType(deriv); }
+      if (vn_sv_) { vn_sv_->SetDerivType(deriv); }
+      if (iz_sv_) { iz_sv_->SetDerivType(deriv); }
 
-      return -vn * vn * dNe_dNi / (3.0 * ne * ne * iz);
+      double dne_df = (ne_sv_) ? ne_sv_->Eval(T, ip) : 0.0;
+      double dvn_df = (vn_sv_) ? vn_sv_->Eval(T, ip) : 0.0;
+      double diz_df = (iz_sv_) ? iz_sv_->Eval(T, ip) : 0.0;
+
+      if (ne_sv_) { ne_sv_->SetDerivType(INVALID); }
+      if (vn_sv_) { vn_sv_->SetDerivType(INVALID); }
+      if (iz_sv_) { iz_sv_->SetDerivType(INVALID); }
+
+      // vn * vn / (3.0 * ne * iz);
+      return (2.0 * dvn_df - vn * (dne_df / ne + diz_df / iz ))
+             * vn / (3.0 * ne * iz);
    }
-
-   double Eval_dTe(ElementTransformation &T,
-                   const IntegrationPoint &ip)
-   {
-      double ne = ne_->Eval(T, ip);
-      double vn = vn_->Eval(T, ip);
-      double iz = iz_->Eval_Func(T, ip);
-
-      double diz_dTe = iz_->Eval_dTe(T, ip);
-
-      return -vn * vn * diz_dTe / (3.0 * ne * iz * iz);
-   }
-
 };
 
 class IonDiffusionCoef : public StateVariableMatCoef
@@ -1597,40 +1622,51 @@ public:
    }
 };
 
-class IonSourceCoef : public StateVariableCoef
+class IonizationSourceCoef : public StateVariableCoef
 {
 private:
-   ProductCoefficient * ne_;
+   Coefficient        * ne_;
    Coefficient        * nn_;
-   StateVariableCoef  * iz_;
+   Coefficient        * iz_;
+
+   StateVariableCoef  * ne_sv_;
+   StateVariableCoef  * iz_sv_;
 
    double nn0_;
-   double s_;
 
 public:
-   IonSourceCoef(ProductCoefficient &neCoef, Coefficient &nnCoef,
-                 StateVariableCoef &izCoef, double s = 1.0)
-      : ne_(&neCoef), nn_(&nnCoef), iz_(&izCoef), nn0_(1e10), s_(s) {}
+   IonizationSourceCoef(Coefficient &neCoef, Coefficient &nnCoef,
+                        Coefficient &izCoef,
+                        double nn0 = 1e10)
+      : ne_(&neCoef), nn_(&nnCoef), iz_(&izCoef), nn0_(nn0)
+   {
+      ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
+      iz_sv_ = dynamic_cast<StateVariableCoef*>(iz_);
+   }
 
-   IonSourceCoef(const IonSourceCoef &other)
+   IonizationSourceCoef(const IonizationSourceCoef &other)
    {
       derivType_ = other.derivType_;
       ne_  = other.ne_;
       nn_  = other.nn_;
       iz_  = other.iz_;
       nn0_ = other.nn0_;
-      s_   = other.s_;
+
+      ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
+      iz_sv_ = dynamic_cast<StateVariableCoef*>(iz_);
    }
 
-   virtual IonSourceCoef * Clone() const
+   virtual IonizationSourceCoef * Clone() const
    {
-      return new IonSourceCoef(*this);
+      return new IonizationSourceCoef(*this);
    }
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID || deriv == NEUTRAL_DENSITY ||
-              deriv == ION_DENSITY || deriv == ELECTRON_TEMPERATURE);
+      bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
+      bool diz = (iz_sv_) ? iz_sv_->NonTrivialValue(deriv) : false;
+
+      return (deriv == INVALID || deriv == NEUTRAL_DENSITY || dne || diz);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -1642,112 +1678,131 @@ public:
       double ne = ne_->Eval(T, ip);
       double iz = iz_->Eval(T, ip);
 
-      return s_ * ne * (nn - nn0_) * iz;
+      return ne * nn * iz;
    }
 
-   double Eval_dNn(ElementTransformation &T,
-                   const IntegrationPoint &ip)
+   double Eval_dFunc(FieldType deriv, ElementTransformation &T,
+                     const IntegrationPoint &ip)
    {
+      bool dnn = (deriv == NEUTRAL_DENSITY);
+      bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
+      bool diz = (iz_sv_) ? iz_sv_->NonTrivialValue(deriv) : false;
+
+      if (!dnn && !dne && !diz)
+      {
+         return 0.0;
+      }
+
       double nn = nn_->Eval(T, ip);
       if (nn < nn0_) { return 0.0; }
 
       double ne = ne_->Eval(T, ip);
       double iz = iz_->Eval(T, ip);
 
-      return s_ * ne * iz;
-   }
+      if (ne_sv_) { ne_sv_->SetDerivType(deriv); }
+      if (iz_sv_) { iz_sv_->SetDerivType(deriv); }
 
-   double Eval_dNi(ElementTransformation &T,
-                   const IntegrationPoint &ip)
-   {
-      double nn = nn_->Eval(T, ip);
-      if (nn < nn0_) { return 0.0; }
+      double dnn_df = (deriv == NEUTRAL_DENSITY) ? 1.0 : 0.0;
+      double dne_df = (ne_sv_) ? ne_sv_->Eval(T, ip) : 0.0;
+      double diz_df = (iz_sv_) ? iz_sv_->Eval(T, ip) : 0.0;
 
-      double iz = iz_->Eval(T, ip);
+      if (ne_sv_) { ne_sv_->SetDerivType(INVALID); }
+      if (iz_sv_) { iz_sv_->SetDerivType(INVALID); }
 
-      double dNe_dNi = ne_->GetAConst();
-
-      return s_ * dNe_dNi * (nn - nn0_) * iz;
-   }
-
-   double Eval_dTe(ElementTransformation &T,
-                   const IntegrationPoint &ip)
-   {
-      double nn = nn_->Eval(T, ip);
-      if (nn < nn0_) { return 0.0; }
-
-      double ne = ne_->Eval(T, ip);
-
-      double diz_dTe = iz_->Eval_dTe(T, ip);
-
-      return s_ * ne * (nn - nn0_) * diz_dTe;
+      //  s_ * ne * nn * iz;
+      return dne_df * nn * iz + ne * dnn_df * iz + ne * nn * diz_df;
    }
 };
 
-class IonSinkCoef : public StateVariableCoef
+class RecombinationSinkCoef : public StateVariableCoef
 {
 private:
-   ProductCoefficient * ne_;
+   Coefficient        * ne_;
    Coefficient        * ni_;
-   StateVariableCoef  * rc_;
+   Coefficient        * rc_;
 
-   double s_;
+   StateVariableCoef  * ne_sv_;
+   StateVariableCoef  * rc_sv_;
+
+   double ni0_;
 
 public:
-   IonSinkCoef(ProductCoefficient &neCoef, Coefficient &niCoef,
-               StateVariableCoef &rcCoef, double s = 1.0)
-      : ne_(&neCoef), ni_(&niCoef), rc_(&rcCoef), s_(s) {}
+   RecombinationSinkCoef(Coefficient &neCoef, Coefficient &niCoef,
+                         Coefficient &rcCoef, double ni0 = 1e10)
+      : ne_(&neCoef), ni_(&niCoef), rc_(&rcCoef), ni0_(ni0)
+   {
+      ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
+      rc_sv_ = dynamic_cast<StateVariableCoef*>(rc_);
+   }
 
-   IonSinkCoef(const IonSinkCoef &other)
+   RecombinationSinkCoef(const RecombinationSinkCoef &other)
    {
       derivType_ = other.derivType_;
       ne_ = other.ne_;
       ni_ = other.ni_;
       rc_ = other.rc_;
-      s_  = other.s_;
+
+      ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
+      rc_sv_ = dynamic_cast<StateVariableCoef*>(rc_);
    }
 
-   virtual IonSinkCoef * Clone() const
+   virtual RecombinationSinkCoef * Clone() const
    {
-      return new IonSinkCoef(*this);
+      return new RecombinationSinkCoef(*this);
    }
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
+      bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
+      bool drc = (rc_sv_) ? rc_sv_->NonTrivialValue(deriv) : false;
+
       return (deriv == INVALID ||
-              deriv == ION_DENSITY || deriv == ELECTRON_TEMPERATURE);
+              deriv == ION_DENSITY || dne || drc);
    }
 
    double Eval_Func(ElementTransformation &T,
                     const IntegrationPoint &ip)
    {
-      double ne = ne_->Eval(T, ip);
       double ni = ni_->Eval(T, ip);
+      if (ni < ni0_) { return 0.0; }
+
+      double ne = ne_->Eval(T, ip);
       double rc = rc_->Eval(T, ip);
 
-      return s_ * ne * ni * rc;
+      return ne * ni * rc;
    }
 
-   double Eval_dNi(ElementTransformation &T,
-                   const IntegrationPoint &ip)
+   double Eval_dFunc(FieldType deriv,
+                     ElementTransformation &T,
+                     const IntegrationPoint &ip)
    {
+      bool dni = (deriv == ION_DENSITY);
+      bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
+      bool drc = (rc_sv_) ? rc_sv_->NonTrivialValue(deriv) : false;
+
+      if (!dni && !dne && !drc)
+      {
+         return 0.0;
+      }
+
       double ni = ni_->Eval(T, ip);
+      if (ni < ni0_) { return 0.0; }
+
+      double ne = ne_->Eval(T, ip);
       double rc = rc_->Eval(T, ip);
 
-      double dNe_dNi = ne_->GetAConst();
+      if (ne_sv_) { ne_sv_->SetDerivType(deriv); }
+      if (rc_sv_) { rc_sv_->SetDerivType(deriv); }
 
-      return 2.0 * s_ * dNe_dNi * ni * rc;
-   }
+      double dni_df = (deriv == ION_DENSITY) ? 1.0 : 0.0;
+      double dne_df = (ne_sv_) ? ne_sv_->Eval(T, ip) : 0.0;
+      double drc_df = (rc_sv_) ? rc_sv_->Eval(T, ip) : 0.0;
 
-   double Eval_dTe(ElementTransformation &T,
-                   const IntegrationPoint &ip)
-   {
-      double ne = ne_->Eval(T, ip);
-      double ni = ni_->Eval(T, ip);
+      if (ne_sv_) { ne_sv_->SetDerivType(INVALID); }
+      if (rc_sv_) { rc_sv_->SetDerivType(INVALID); }
 
-      double drc_dTe = rc_->Eval_dTe(T, ip);
-
-      return s_ * ne * ni * drc_dTe;
+      /// ne * ni * rc
+      return dne_df * ni * rc + ne * dni_df * rc + ne * ni * drc_df;
    }
 };
 
