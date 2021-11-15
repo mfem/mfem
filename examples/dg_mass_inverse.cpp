@@ -140,8 +140,7 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 1;
    const char *device_config = "cpu";
-   bool visualization = true;
-   bool legacy = false;
+   // bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -153,9 +152,6 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&legacy, "-l", "--legacy", "-n",
-                  "--new-alg",
-                  "Use legacy.");
    args.Parse();
    if (!args.Good())
    {
@@ -188,75 +184,99 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
 
-   GridFunction x(&fespace);
-   x = 0.0;
+   GridFunction x_ref(&fespace);
+   x_ref = 0.0;
 
-   if (legacy)
-   {
-      cout << "Building Old CG " << std::endl;
-      tic_toc.Clear();
-      tic_toc.Start();
-      BilinearForm a(&fespace);
-      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a.AddDomainIntegrator(new MassIntegrator(one));
-      a.Assemble();
-      cout << "Form Linear System " << std::endl;
-      OperatorPtr A;
-      Vector B, X;
-      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-      tic_toc.Stop();
-      cout << "Legacy CG setup time: " << tic_toc.RealTime() << std::endl;
+   /// Legacy CG
+   cout << std::endl << "Building Old CG " << std::endl;
+   tic_toc.Clear();
+   tic_toc.Start();
+   BilinearForm a(&fespace);
+   a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   a.AddDomainIntegrator(new MassIntegrator(one));
+   a.Assemble();
+   cout << "Form Linear System " << std::endl;
+   OperatorPtr A;
+   Vector B, X;
+   a.FormLinearSystem(ess_tdof_list, x_ref, b, A, X, B);
+   tic_toc.Stop();
+   const double old_cg_setup = tic_toc.RealTime();
+   cout << "Legacy CG setup time: " << old_cg_setup << std::endl;
 
-      cout << "Size of linear system: " << A->Height() << endl;
+   cout << "Size of linear system: " << A->Height() << endl;
 
-      const int print_level = 1;
-      const int max_iter = 400;
-      const double rtol = 1e-12;
-      const double atol = 0.0;
-      tic_toc.Clear();
-      tic_toc.Start();
-      CG(*A, B, X, print_level, max_iter, rtol, atol);
-      tic_toc.Stop();
-      cout << "Legacy CG computation time: " << tic_toc.RealTime() << std::endl;
-      // 12. Recover the solution as a finite element grid function.
-      a.RecoverFEMSolution(X, b, x);
-   }
-   else
-   {
-      // Setup
-      cout << "Building New CG " << std::endl;
-      tic_toc.Clear();
-      tic_toc.Start();
-      DGMassInverse new_op(fespace,one);
-      tic_toc.Stop();
-      cout << "New CG setup time: " << tic_toc.RealTime() << std::endl;
-      // Compute
-      tic_toc.Clear();
-      tic_toc.Start();
-      new_op.Mult(b,x);
-      tic_toc.Stop();
-      cout << "New CG computation time: " << tic_toc.RealTime() << std::endl;
-   }
+   const int print_level = 1;
+   const int max_iter = 400;
+   const double rtol = 1e-12;
+   const double atol = 0.0;
+   tic_toc.Clear();
+   tic_toc.Start();
+   CG(*A, B, X, print_level, max_iter, rtol, atol);
+   tic_toc.Stop();
+   const double old_cg_compute = tic_toc.RealTime();
+   cout << "Legacy CG computation time: " << old_cg_compute << std::endl;
+   // 12. Recover the solution as a finite element grid function.
+   a.RecoverFEMSolution(X, b, x_ref);
 
 
-   // 13. Save the refined mesh and the solution. This output can be viewed later
-   //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
-   sol_ofs.precision(8);
-   x.Save(sol_ofs);
+   GridFunction x_test(&fespace);
+   x_test = 0.0;
 
-   // 14. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << flush;
-   }
+   /// New CG
+   // Setup
+   cout << std::endl << "Building New CG " << std::endl;
+   tic_toc.Clear();
+   tic_toc.Start();
+   DGMassInverse new_op(fespace,one);
+   tic_toc.Stop();
+   const double new_cg_setup = tic_toc.RealTime();
+   cout << "New CG setup time: " << new_cg_setup << std::endl;
+   // Compute
+   tic_toc.Clear();
+   tic_toc.Start();
+   new_op.Mult(b,x_test);
+   tic_toc.Stop();
+   const double new_cg_compute = tic_toc.RealTime();
+   cout << "New CG computation time: " << new_cg_compute << std::endl;
+
+   GridFunction diff(&fespace);
+   diff = x_ref;
+   diff -= x_test;
+
+   cout << std::endl << "==Error==" << std::endl;
+   cout << "Error norm: " << diff.Norml2() << "s." << std::endl;
+   cout << "==Setup==" << std::endl;
+   cout << "Legacy CG setup time: " << old_cg_setup << "s." << std::endl;
+   cout << "New CG setup time: " << new_cg_setup << "s." << std::endl;
+   cout << "CG setup diff: " << new_cg_setup - old_cg_setup << "s." << std::endl;
+   cout << "CG setup speedup: " << old_cg_setup / new_cg_setup << "x." <<
+        std::endl;
+   cout << "==Compute==" << std::endl;
+   cout << "Legacy CG computation time: " << old_cg_compute << "s." << std::endl;
+   cout << "New CG computation time: " << new_cg_compute << "s." << std::endl;
+   cout << "CG compute diff: " << new_cg_compute - old_cg_compute << "s." <<
+        std::endl;
+   cout << "CG compute speedup: " << old_cg_compute / new_cg_compute << "x." <<
+        std::endl;
+
+   // // 13. Save the refined mesh and the solution. This output can be viewed later
+   // //     using GLVis: "glvis -m refined.mesh -g sol.gf".
+   // ofstream mesh_ofs("refined.mesh");
+   // mesh_ofs.precision(8);
+   // mesh.Print(mesh_ofs);
+   // ofstream sol_ofs("sol.gf");
+   // sol_ofs.precision(8);
+   // x_ref.Save(sol_ofs);
+
+   // // 14. Send the solution by socket to a GLVis server.
+   // if (visualization)
+   // {
+   //    char vishost[] = "localhost";
+   //    int  visport   = 19916;
+   //    socketstream sol_sock(vishost, visport);
+   //    sol_sock.precision(8);
+   //    sol_sock << "solution\n" << mesh << x << flush;
+   // }
 
    return 0;
 }
