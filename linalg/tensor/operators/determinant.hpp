@@ -21,7 +21,7 @@ namespace mfem
 template <typename Tensor,
           std::enable_if_t<
              is_dynamic_matrix<Tensor> &&
-             !is_threaded_tensor_dim<Tensor,0>,
+             !is_threaded_tensor_dim<0,Tensor>,
           bool> = true>
 MFEM_HOST_DEVICE inline
 auto Determinant(const Tensor &J)
@@ -59,7 +59,7 @@ auto Determinant(const Tensor &J)
 template <typename Tensor,
           std::enable_if_t<
              is_dynamic_matrix<Tensor> &&
-             is_threaded_tensor_dim<Tensor,0>,
+             is_threaded_tensor_dim<0,Tensor>,
           bool> = true>
 MFEM_HOST_DEVICE inline
 auto Determinant(const Tensor &J)
@@ -92,7 +92,7 @@ template <typename Tensor,
              get_tensor_rank<Tensor> == 2 &&
              get_tensor_size<0,Tensor> == get_tensor_size<1,Tensor> &&
              (get_tensor_size<0,Tensor> > 1) &&
-             !is_threaded_tensor_dim<Tensor,0>,
+             !is_threaded_tensor_dim<0,Tensor>,
           bool> = true>
 MFEM_HOST_DEVICE inline
 auto Determinant(const Tensor &J)
@@ -120,7 +120,7 @@ template <typename Tensor,
              get_tensor_rank<Tensor> == 2 &&
              get_tensor_size<0,Tensor> == get_tensor_size<1,Tensor> &&
              (get_tensor_size<0,Tensor> > 3) &&
-             is_threaded_tensor_dim<Tensor,0>,
+             is_threaded_tensor_dim<0,Tensor>,
           bool> = true>
 MFEM_HOST_DEVICE inline
 auto Determinant(const Tensor &J)
@@ -139,7 +139,7 @@ auto Determinant(const Tensor &J)
 template <typename Tensor,
           std::enable_if_t<
              is_static_matrix<3,3,Tensor> &&
-             !is_threaded_tensor_dim<Tensor,0>,
+             !is_threaded_tensor_dim<0,Tensor>,
           bool> = true>
 MFEM_HOST_DEVICE inline
 auto Determinant(const Tensor &J)
@@ -152,7 +152,7 @@ auto Determinant(const Tensor &J)
 template <typename Tensor,
           std::enable_if_t<
              is_static_matrix<2,2,Tensor> &&
-             !is_threaded_tensor_dim<Tensor,0>,
+             !is_threaded_tensor_dim<0,Tensor>,
           bool> = true>
 MFEM_HOST_DEVICE inline
 auto Determinant(const Tensor &J)
