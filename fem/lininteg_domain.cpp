@@ -20,13 +20,14 @@ namespace mfem
 
 template<int D1D, int Q1D> static
 void DomainLFIntegratorAssemble2D(const int NE,
+                                  const int ND,
                                   const double *marks,
                                   const double *d2q,
                                   const int *idx,
                                   const double *jacobians,
                                   const double *weights,
                                   const Vector &coeff,
-                                  double* __restrict Y)
+                                  double* __restrict y)
 {
    constexpr int DIM = 2;
 
@@ -40,6 +41,8 @@ void DomainLFIntegratorAssemble2D(const int NE,
    const auto I = Reshape(idx, D1D,D1D, NE);
    const auto C = cst_coeff ? Reshape(F,1,1,1):Reshape(F,Q1D,Q1D,NE);
 
+   auto Y = Reshape(y,1,ND);
+
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
       if (M(e) < 1.0) { return; }
@@ -52,8 +55,9 @@ void DomainLFIntegratorAssemble2D(const int NE,
       const DeviceMatrix QQ(sQQ,Q1D,Q1D);
       const DeviceMatrix QD(sQD,Q1D,D1D);
 
-      const double cst_val = C(0,0,0);
+      kernels::internal::LoadB(D1D,Q1D,b,B);
 
+      const double cst_val = C(0,0,0);
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -69,20 +73,20 @@ void DomainLFIntegratorAssemble2D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::internal::LoadB(D1D,Q1D,b,B);
-      kernels::internal::Atomic2DEvalTranspose(D1D,Q1D,B,QQ,QD,I,Y,e);
+      kernels::internal::Atomic2DEvalTranspose(D1D,Q1D,B,QQ,QD,I,Y,0,e);
    });
 }
 
 template<int D1D, int Q1D> static
 void DomainLFIntegratorAssemble3D(const int NE,
+                                  const int ND,
                                   const double *marks,
                                   const double *d2q,
                                   const int *idx,
                                   const double *jacobians,
                                   const double *weights,
                                   const Vector &coeff,
-                                  double* __restrict Y)
+                                  double* __restrict y)
 {
    const bool constant_coeff = coeff.Size() == 1;
 
@@ -94,22 +98,23 @@ void DomainLFIntegratorAssemble3D(const int NE,
    const auto I = Reshape(idx, D1D,D1D,D1D, NE);
    const auto C = constant_coeff ? Reshape(F,1,1,1,1):Reshape(F,Q1D,Q1D,Q1D,NE);
 
+   auto Y = Reshape(y,1,ND);
+
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, 1,
    {
-      const double mark = M(e);
-      assert(mark > 0.0);
-      if (mark < 1.0) return;
+      if (M(e) < 1.0) return;
 
       double u[Q1D];
-      const double constant_val = C(0,0,0,0);
 
-      MFEM_SHARED double s_B[Q1D*D1D];
-      MFEM_SHARED double s_q[Q1D*Q1D*Q1D];
+      MFEM_SHARED double sB[Q1D*D1D];
+      MFEM_SHARED double sq[Q1D*Q1D*Q1D];
 
-      const DeviceMatrix B(s_B,Q1D,D1D);
-      const DeviceCube Q(s_q,Q1D,Q1D,Q1D);
+      const DeviceMatrix B(sB,Q1D,D1D);
+      const DeviceCube Q(sq,Q1D,Q1D,Q1D);
 
       kernels::internal::LoadB(D1D,Q1D,b,B);
+
+      const double constant_val = C(0,0,0,0);
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -133,7 +138,7 @@ void DomainLFIntegratorAssemble3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::internal::Atomic3DEvalTranspose(D1D,Q1D,u,B,Q,I,Y,e);
+      kernels::internal::Atomic3DEvalTranspose(D1D,Q1D,u,B,Q,I,Y,0,e);
    });
 }
 
@@ -141,8 +146,8 @@ void DomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
                                       const Vector &mark,
                                       Vector &b)
 {
-   const MemoryType mt = Device::GetDeviceMemoryType();
    Mesh *mesh = fes.GetMesh();
+   const int vdim = fes.GetVDim(); assert(vdim==1);
    const int dim = mesh->Dimension();
 
    const FiniteElement &el = *fes.GetFE(0);
@@ -151,6 +156,7 @@ void DomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
    const IntegrationRule *ir =
       IntRule ? IntRule : &IntRules.Get(geom_type, qorder);
    const int flags = GeometricFactors::JACOBIANS;
+   const MemoryType mt = Device::GetDeviceMemoryType();
    const GeometricFactors *geom = mesh->GetGeometricFactors(*ir, flags, mt);
    const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -167,6 +173,7 @@ void DomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
 
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
+   const int ND = fes.GetNDofs();
    const int NE = fes.GetMesh()->GetNE();
    const int NQ = ir->GetNPoints();
 
@@ -181,7 +188,7 @@ void DomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
                dynamic_cast<QuadratureFunctionCoefficient*>(&Q))
    {
       const QuadratureFunction &qfun = cQ->GetQuadFunction();
-      MFEM_VERIFY(qfun.Size() == NE*NQ,
+      MFEM_VERIFY(qfun.Size() == vdim*NE*NQ,
                   "Incompatible QuadratureFunction dimension \n");
       MFEM_VERIFY(ir == &qfun.GetSpace()->GetElementIntRule(0),
                   "IntegrationRule used within integrator and in"
@@ -206,6 +213,7 @@ void DomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
    const int id = (dim<<8) | (D1D << 4) | Q1D;
 
    void (*Ker)(const int NE,
+               const int ND,
                const double *marks,
                const double *d2q,
                const int *idx,
@@ -250,7 +258,7 @@ void DomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
 
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
-   Ker(NE,M,B,I,J,W,coeff,Y);
+   Ker(NE,ND,M,B,I,J,W,coeff,Y);
 }
 
 } // namespace mfem
