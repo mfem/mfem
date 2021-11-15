@@ -56,7 +56,7 @@ using namespace mfem;
  *  D_K J = D_K L = \partial_u L \partial_K u + \partial_p L \partial_K p
  *                + \partial_K L
  *                = \partial_K L
- *                = (|\nabla u|^2, \cdot)
+ *                = (-|\nabla u|^2, \cdot)
  * 
  * We update the control K_k with projected gradient descent via
  * 
@@ -175,6 +175,8 @@ int main(int argc, char *argv[])
    GridFunction p(&state_fes);
    GridFunction K(&control_fes);
    GridFunction K_old(&control_fes);
+   GridFunction p_Dykstra(&control_fes); // For Dykstra's projection algorithm
+   GridFunction q_Dykstra(&control_fes); // For Dykstra's projection algorithm
    u = 0.0;
    p = 0.0;
    K = 1.0;
@@ -192,7 +194,7 @@ int main(int argc, char *argv[])
    grad = 0.0;
 
    // 10. Define some tools for later
-   ConstantCoefficient zero(1.0);
+   ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
    GridFunction onegf(&control_fes);
    onegf = 1.0;
@@ -225,7 +227,7 @@ int main(int argc, char *argv[])
 
       // B. Solve state equation
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
+      PCG(*A, M, B, X, 0, 800, 1e-12, 0.0);
 
       // C. Recover state variable
       a.RecoverFEMSolution(X, b, u);
@@ -237,7 +239,7 @@ int main(int argc, char *argv[])
                 << "window_title 'State u'" << flush;
       }
 
-      // H. Constuct gradient function (i.e., |\nabla u|^2)
+      // H. Constuct gradient function (i.e., -|\nabla u|^2)
       GradientGridFunctionCoefficient grad_u(&u);
       InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
       grad.ProjectCoefficient(norm2_grad_u);
@@ -246,17 +248,28 @@ int main(int argc, char *argv[])
       grad *= step_length;
       K += grad;
 
-      // K. Project onto constraint set (optimality criteria)
-      double mass = vol_form(K);
+      // K. Project onto constraint set.
+      // Uses Dykstra's projection algorithm.
+      p_Dykstra = 0.0;
+      q_Dykstra = 0.0;
       while ( true )
       {
-         // Project to \int K = mass_fraction * vol
-         // double scale = mass_fraction * domain_volume / mass;
-         // K *= scale;
-         double delta_K = mass_fraction - ( mass / domain_volume );
-         K += delta_K;
+         // STEP 1: Project K+p onto { K : \int K <= mass_fraction * vol }.
+         p_Dykstra += K;
+         K = p_Dykstra;
+         double mass = vol_form(K);
+         double tmp1 = mass_fraction - ( mass / domain_volume );
+         if (tmp1 < 0)
+         {
+            K += tmp1;
+         }
 
-         // Project to [K_min,K_max]
+         // STEP 2: Update p.
+         p_Dykstra -= K;
+
+         // STEP 3: Project K+q onto { K : K(x) \in [K_min,K_max] }.
+         q_Dykstra += K;
+         K = q_Dykstra;
          for (int i = 0; i < K.Size(); i++)
          {
             if (K[i] > K_max) 
@@ -272,8 +285,11 @@ int main(int argc, char *argv[])
             }
          }
 
+         // STEP 4: Update q.
+         q_Dykstra -= K;
+
          mass = vol_form(K);
-         if ( abs( mass / domain_volume - mass_fraction ) < 1e-6 )
+         if ( ( mass / domain_volume - mass_fraction ) > -1e-3 )
          {
             break;
          }
