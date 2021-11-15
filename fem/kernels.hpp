@@ -49,6 +49,7 @@ MFEM_HOST_DEVICE inline void LoadB(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
+/// Load B1d matrice into shared memory
 MFEM_HOST_DEVICE inline void LoadB(const int D1D, const int Q1D,
                                    const ConstDeviceMatrix &b,
                                    const DeviceMatrix &B)
@@ -134,6 +135,29 @@ MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
          {
             Bt(q,d) = b(q,d);
             Gt(q,d) = g(q,d);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Load Bt1d & Gt1d matrices into shared memory w/o MAX
+MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
+                                     const ConstDeviceMatrix &b,
+                                     const ConstDeviceMatrix &g,
+                                     const DeviceMatrix &Bt,
+                                     const DeviceMatrix &Gt)
+{
+   const int tidz = MFEM_THREAD_ID(z);
+
+   if (tidz == 0)
+   {
+      MFEM_FOREACH_THREAD(d,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(q,x,Q1D)
+         {
+            Bt(d,q) = b(q,d);
+            Gt(d,q) = g(q,d);
          }
       }
    }
@@ -648,8 +672,8 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// Atomic 2D Transposed Gradient, 1/2
-MFEM_HOST_DEVICE inline void AtomicGradYt(const int D1D, const int Q1D,
+/// Atomic 2D Transposed Evaluation, 1/2
+MFEM_HOST_DEVICE inline void AtomicEvalYt(const int D1D, const int Q1D,
                                           const DeviceMatrix &B,
                                           const DeviceMatrix &QQ,
                                           const DeviceMatrix &QD)
@@ -666,8 +690,8 @@ MFEM_HOST_DEVICE inline void AtomicGradYt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// Atomic 2D Transposed Gradient, 2/2
-MFEM_HOST_DEVICE inline void AtomicGradXt(const int D1D, const int Q1D,
+/// Atomic 2D Transposed Evaluation, 2/2
+MFEM_HOST_DEVICE inline void AtomicEvalXt(const int D1D, const int Q1D,
                                           const DeviceMatrix &B,
                                           const DeviceMatrix &Q,
                                           const DeviceTensor<3,const int> &I,
@@ -689,7 +713,7 @@ MFEM_HOST_DEVICE inline void AtomicGradXt(const int D1D, const int Q1D,
 }
 
 MFEM_HOST_DEVICE inline
-void Atomic2DGradTranspose(const int D1D, const int Q1D,
+void Atomic2DEvalTranspose(const int D1D, const int Q1D,
                            const DeviceMatrix &B,
                            const DeviceMatrix &QQ,
                            const DeviceMatrix &QD,
@@ -697,8 +721,79 @@ void Atomic2DGradTranspose(const int D1D, const int Q1D,
                            double *Y,
                            const int e)
 {
-   kernels::internal::AtomicGradYt(D1D,Q1D,B,QQ,QD);
-   kernels::internal::AtomicGradXt(D1D,Q1D,B,QD,I,Y,e);
+   kernels::internal::AtomicEvalYt(D1D,Q1D,B,QQ,QD);
+   kernels::internal::AtomicEvalXt(D1D,Q1D,B,QD,I,Y,e);
+}
+
+/// Atomic 2D Transposed Gradient, 1/2
+MFEM_HOST_DEVICE inline void AtomicGradYt(const int D1D, const int Q1D,
+                                          const DeviceMatrix &Bt,
+                                          const DeviceMatrix &Gt,
+                                          const DeviceMatrix &QQ0,
+                                          const DeviceMatrix &QQ1,
+                                          const DeviceMatrix &DQ0,
+                                          const DeviceMatrix &DQ1)
+{
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double u = 0.0, v = 0.0;
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            u += Gt(dx,qx) * QQ0(qy,qx);
+            v += Bt(dx,qx) * QQ1(qy,qx);
+         }
+         DQ0(dx,qy) = u;
+         DQ1(dx,qy) = v;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Atomic 2D Transposed Gradient, 2/2
+MFEM_HOST_DEVICE inline void AtomicGradXt(const int D1D, const int Q1D,
+                                          const DeviceMatrix &Bt,
+                                          const DeviceMatrix &Gt,
+                                          const DeviceMatrix &DQ0,
+                                          const DeviceMatrix &DQ1,
+                                          const DeviceTensor<3,const int> &I,
+                                          const DeviceVector &Y,
+                                          const int e)
+{
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double u = 0.0, v = 0.0;
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            u += DQ0(dx,qy) * Bt(dy,qy);
+            v += DQ1(dx,qy) * Gt(dy,qy);
+         }
+         const double sum = u + v;
+         const int gid = I(dx,dy,e);
+         const int idx = gid >= 0 ? gid : -1-gid;
+         AtomicAdd(Y(idx), sum);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+MFEM_HOST_DEVICE inline
+void Atomic2DGradTranspose(const int D1D, const int Q1D,
+                           const DeviceMatrix &Bt,
+                           const DeviceMatrix &Gt,
+                           const DeviceMatrix &QQ0,
+                           const DeviceMatrix &QQ1,
+                           const DeviceMatrix &DQ0,
+                           const DeviceMatrix &DQ1,
+                           const DeviceTensor<3,const int> &I,
+                           const DeviceVector &Y,
+                           const int e)
+{
+   kernels::internal::AtomicGradYt(D1D,Q1D,Bt,Gt,QQ0,QQ1,DQ0,DQ1);
+   kernels::internal::AtomicGradXt(D1D,Q1D,Bt,Gt,DQ0,DQ1,I,Y,e);
 }
 
 /// Load 3D scalar input vector into shared memory
@@ -1616,8 +1711,8 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
    }
 }
 
-/// Atomic 3D Transposed Gradient, 1/3
-MFEM_HOST_DEVICE inline void AtomicGradZt(const int D1D, const int Q1D,
+/// Atomic 3D Transposed Evaluation, 1/3
+MFEM_HOST_DEVICE inline void AtomicEvalZt(const int D1D, const int Q1D,
                                           double *u,
                                           const DeviceMatrix &B,
                                           const DeviceCube &Q)
@@ -1626,24 +1721,24 @@ MFEM_HOST_DEVICE inline void AtomicGradZt(const int D1D, const int Q1D,
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
-         MFEM_UNROLL(D1D)
+         //MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
-         MFEM_UNROLL(Q1D)
+         //MFEM_UNROLL(Q1D)
          for (int qz = 0; qz < Q1D; ++qz)
          {
             const double ZYX = Q(qz,qy,qx);
-            MFEM_UNROLL(D1D)
+            //MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz) { u[dz] += ZYX * B(qz,dz); }
          }
-         MFEM_UNROLL(D1D)
+         //MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; ++dz) { Q(dz,qy,qx) = u[dz]; }
       }
    }
    MFEM_SYNC_THREAD;
 }
 
-/// Atomic 3D Transposed Gradient, 2/3
-MFEM_HOST_DEVICE inline void AtomicGradYt(const int D1D, const int Q1D,
+/// Atomic 3D Transposed Evaluation, 2/3
+MFEM_HOST_DEVICE inline void AtomicEvalYt(const int D1D, const int Q1D,
                                           double *u,
                                           const DeviceMatrix &B,
                                           const DeviceCube &Q)
@@ -1652,24 +1747,24 @@ MFEM_HOST_DEVICE inline void AtomicGradYt(const int D1D, const int Q1D,
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         MFEM_UNROLL(D1D)
+         //MFEM_UNROLL(D1D)
          for (int dy = 0; dy < D1D; ++dy) { u[dy] = 0.0; }
-         MFEM_UNROLL(Q1D)
+         //MFEM_UNROLL(Q1D)
          for (int qy = 0; qy < Q1D; ++qy)
          {
             const double zYX = Q(dz,qy,qx);
-            MFEM_UNROLL(D1D)
+            //MFEM_UNROLL(D1D)
             for (int dy = 0; dy < D1D; ++dy) { u[dy] += zYX * B(qy,dy); }
          }
-         MFEM_UNROLL(D1D)
+         //MFEM_UNROLL(D1D)
          for (int dy = 0; dy < D1D; ++dy) { Q(dz,dy,qx) = u[dy]; }
       }
    }
    MFEM_SYNC_THREAD;
 }
 
-/// Atomic 3D Transposed Gradient, 3/3
-MFEM_HOST_DEVICE inline void AtomicGradXt(const int D1D, const int Q1D,
+/// Atomic 3D Transposed Evaluation, 3/3
+MFEM_HOST_DEVICE inline void AtomicEvalXt(const int D1D, const int Q1D,
                                           double *u,
                                           const DeviceMatrix &B,
                                           const DeviceCube &Q,
@@ -1681,16 +1776,16 @@ MFEM_HOST_DEVICE inline void AtomicGradXt(const int D1D, const int Q1D,
    {
       MFEM_FOREACH_THREAD(dy,x,D1D)
       {
-         MFEM_UNROLL(D1D)
+         //MFEM_UNROLL(D1D)
          for (int dx = 0; dx < D1D; ++dx) { u[dx] = 0.0; }
-         MFEM_UNROLL(Q1D)
+         //MFEM_UNROLL(Q1D)
          for (int qx = 0; qx < Q1D; ++qx)
          {
             const double zyX = Q(dz,dy,qx);
-            MFEM_UNROLL(D1D)
+            //MFEM_UNROLL(D1D)
             for (int dx = 0; dx < D1D; ++dx) { u[dx] += zyX * B(qx,dx); }
          }
-         MFEM_UNROLL(D1D)
+         //MFEM_UNROLL(D1D)
          for (int dx = 0; dx < D1D; ++dx)
          {
             const double output = u[dx];
@@ -1704,7 +1799,7 @@ MFEM_HOST_DEVICE inline void AtomicGradXt(const int D1D, const int Q1D,
 }
 
 MFEM_HOST_DEVICE inline
-void Atomic3DGradTranspose(const int D1D,
+void Atomic3DEvalTranspose(const int D1D,
                            const int Q1D,
                            double *u,
                            const DeviceMatrix &B,
@@ -1713,9 +1808,175 @@ void Atomic3DGradTranspose(const int D1D,
                            double *Y,
                            const int e)
 {
-   kernels::internal::AtomicGradZt(D1D,Q1D,u,B,Q);
-   kernels::internal::AtomicGradYt(D1D,Q1D,u,B,Q);
-   kernels::internal::AtomicGradXt(D1D,Q1D,u,B,Q,I,Y,e);
+   kernels::internal::AtomicEvalZt(D1D,Q1D,u,B,Q);
+   kernels::internal::AtomicEvalYt(D1D,Q1D,u,B,Q);
+   kernels::internal::AtomicEvalXt(D1D,Q1D,u,B,Q,I,Y,e);
+}
+
+// Half of B and G are stored in shared to get B, Bt, G and Gt.
+// Indices computation for SmemPADiffusionApply3D.
+static MFEM_HOST_DEVICE inline int qi(const int q, const int d, const int Q)
+{
+   return (q<=d) ? q : Q-1-q;
+}
+
+static MFEM_HOST_DEVICE inline int dj(const int q, const int d, const int D)
+{
+   return (q<=d) ? d : D-1-d;
+}
+
+static MFEM_HOST_DEVICE inline int qk(const int q, const int d, const int Q)
+{
+   return (q<=d) ? Q-1-q : q;
+}
+
+static MFEM_HOST_DEVICE inline int dl(const int q, const int d, const int D)
+{
+   return (q<=d) ? D-1-d : d;
+}
+
+static MFEM_HOST_DEVICE inline double sign(const int q, const int d)
+{
+   return (q<=d) ? -1.0 : 1.0;
+}
+
+/// Atomic 3D Transposed Gradient, 1/3
+MFEM_HOST_DEVICE inline void AtomicGradZt(const int D1D, const int Q1D,
+                                          const DeviceMatrix &Bt,
+                                          const DeviceMatrix &Gt,
+                                          const DeviceCube &QQQ0,
+                                          const DeviceCube &QQQ1,
+                                          const DeviceCube &QQQ2,
+                                          const DeviceCube &QQD0,
+                                          const DeviceCube &QQD1,
+                                          const DeviceCube &QQD2)
+{
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u = 0.0, v = 0.0, w = 0.0;
+            //MFEM_UNROLL(MQ1)
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const int i = qi(qx,dx,Q1D);
+               const int j = dj(qx,dx,D1D);
+               const int k = qk(qx,dx,Q1D);
+               const int l = dl(qx,dx,D1D);
+               const double s = sign(qx,dx);
+               u += QQQ0(qz,qy,qx) * Gt(l,k) * s;
+               v += QQQ1(qz,qy,qx) * Bt(j,i);
+               w += QQQ2(qz,qy,qx) * Bt(j,i);
+            }
+            QQD0(qz,qy,dx) = u;
+            QQD1(qz,qy,dx) = v;
+            QQD2(qz,qy,dx) = w;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Atomic 3D Transposed Gradient, 2/3
+MFEM_HOST_DEVICE inline void AtomicGradYt(const int D1D, const int Q1D,
+                                          const DeviceMatrix &Bt,
+                                          const DeviceMatrix &Gt,
+                                          const DeviceCube &QQD0,
+                                          const DeviceCube &QQD1,
+                                          const DeviceCube &QQD2,
+                                          const DeviceCube &QDD0,
+                                          const DeviceCube &QDD1,
+                                          const DeviceCube &QDD2)
+{
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u = 0.0, v = 0.0, w = 0.0;
+            //MFEM_UNROLL(Q1D)
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const int i = qi(qy,dy,Q1D);
+               const int j = dj(qy,dy,D1D);
+               const int k = qk(qy,dy,Q1D);
+               const int l = dl(qy,dy,D1D);
+               const double s = sign(qy,dy);
+               u += QQD0(qz,qy,dx) * Bt(j,i);
+               v += QQD1(qz,qy,dx) * Gt(l,k) * s;
+               w += QQD2(qz,qy,dx) * Bt(j,i);
+            }
+            QDD0(qz,dy,dx) = u;
+            QDD1(qz,dy,dx) = v;
+            QDD2(qz,dy,dx) = w;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Atomic 3D Transposed Gradient, 3/3
+MFEM_HOST_DEVICE inline void AtomicGradXt(const int D1D, const int Q1D,
+                                          const DeviceMatrix &Bt,
+                                          const DeviceMatrix &Gt,
+                                          const DeviceCube &QDD0,
+                                          const DeviceCube &QDD1,
+                                          const DeviceCube &QDD2,
+                                          const DeviceTensor<4,const int> &I,
+                                          const DeviceVector &Y,
+                                          const int e)
+{
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u = 0.0, v = 0.0, w = 0.0;
+            //MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const int i = qi(qz,dz,Q1D);
+               const int j = dj(qz,dz,D1D);
+               const int k = qk(qz,dz,Q1D);
+               const int l = dl(qz,dz,D1D);
+               const double s = sign(qz,dz);
+               u += QDD0(qz,dy,dx) * Bt(j,i);
+               v += QDD1(qz,dy,dx) * Bt(j,i);
+               w += QDD2(qz,dy,dx) * Gt(l,k) * s;
+            }
+            const double sum = u + v + w;
+            const int gid = I(dx,dy,dz,e);
+            const int idx = gid >= 0 ? gid : -1-gid;
+            AtomicAdd(Y(idx), sum);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+MFEM_HOST_DEVICE inline void Atomic3DGrad(const int D1D, const int Q1D,
+                                          const DeviceMatrix &Bt,
+                                          const DeviceMatrix &Gt,
+                                          const DeviceCube &QQ0,
+                                          const DeviceCube &QQ1,
+                                          const DeviceCube &QQ2,
+                                          const DeviceCube &QD0,
+                                          const DeviceCube &QD1,
+                                          const DeviceCube &QD2,
+                                          const DeviceCube &DD0,
+                                          const DeviceCube &DD1,
+                                          const DeviceCube &DD2,
+                                          const DeviceTensor<4,const int> &I,
+                                          const DeviceVector &Y,
+                                          const int e)
+{
+   kernels::internal::AtomicGradZt(D1D,Q1D,Bt,Gt,QQ0,QQ1,QQ2,QD0,QD1,QD2);
+   kernels::internal::AtomicGradYt(D1D,Q1D,Bt,Gt,QD0,QD1,QD2,DD0,DD1,DD2);
+   kernels::internal::AtomicGradXt(D1D,Q1D,Bt,Gt,DD0,DD1,DD2,I,Y,e);
 }
 
 } // namespace kernels::internal
