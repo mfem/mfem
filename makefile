@@ -130,7 +130,7 @@ MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools toys 
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
-TEST_SUBDIRS = unit benchmarks
+TEST_SUBDIRS = unit
 TEST_DIRS := $(addprefix tests/,$(TEST_SUBDIRS))
 
 ALL_TEST_DIRS = $(filter-out\
