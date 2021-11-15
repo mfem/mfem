@@ -57,17 +57,17 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
 {
    using Scalar = get_cg_value_type<Rhs>;
    using Index = int;
-   using Result = get_cg_result_type<Matrix,Rhs>;
+   using Vector = get_cg_result_type<Matrix,Rhs>;
 
    Scalar tol = tol_error;
    Index maxIters = iters;
 
-   Result x(rhs);
-   Result residual(rhs);
+   Vector x(rhs);
+   Vector residual(rhs);
    residual -= A * x; //initial residual
 
    Scalar rhsNorm2 = SquaredNorm(rhs);
-   if(rhsNorm2 == 0) 
+   if(rhsNorm2 == 0)
    {
       x = 0;
       iters = 0;
@@ -83,13 +83,13 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       return x;
    }
 
-   auto p = residual; //P * residual;      // initial search direction
+   Vector p = residual; //P * residual;      // initial search direction
 
    Scalar absNew = Dot(residual,p);  // the square of the absolute value of r scaled by invM
    Index i = 0;
    while(i < maxIters)
    {
-      auto tmp = A * p;                    // the bottleneck of the algorithm
+      Vector tmp = A * p;                    // the bottleneck of the algorithm
 
       Scalar alpha = absNew / Dot(p,tmp);         // the amount we travel on dir
       x += alpha * p;                             // update solution
@@ -98,7 +98,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       residualNorm2 = SquaredNorm(residual);
       if(residualNorm2 < threshold) return x;
 
-      auto z = P * residual;                // approximately solve for "A z = residual"
+      Vector z = residual; // P * residual;                // approximately solve for "A z = residual"
 
       Scalar absOld = absNew;
       absNew = Dot(residual,z);     // update the absolute value of r
