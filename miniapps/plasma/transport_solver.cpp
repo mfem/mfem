@@ -1042,6 +1042,42 @@ TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 
       coef_idx = sCoefs.Append(new SoundSpeedCoef(mi, *TiCoef, *TeCoef));
    }
+   else if (name == "ApproxIonizationRate")
+   {
+      Coefficient * TeCoef = this->GetScalarCoef(input);
+
+      coef_idx = sCoefs.Append(new ApproxIonizationRate(*TeCoef));
+   }
+   else if (name == "ApproxRecombinationRate")
+   {
+      Coefficient * TeCoef = this->GetScalarCoef(input);
+
+      coef_idx = sCoefs.Append(new ApproxRecombinationRate(*TeCoef));
+   }
+   else if (name == "IonizationSourceCoef")
+   {
+      Coefficient * neCoef = this->GetScalarCoef(input);
+      Coefficient * nnCoef = this->GetScalarCoef(input);
+      Coefficient * izCoef = this->GetScalarCoef(input);
+
+      double nn0 = 1e10;
+      input >> nn0;
+
+      coef_idx = sCoefs.Append(new IonizationSourceCoef(*neCoef, *nnCoef,
+                                                        *izCoef, nn0));
+   }
+   else if (name == "RecombinationSinkCoef")
+   {
+      Coefficient * neCoef = this->GetScalarCoef(input);
+      Coefficient * niCoef = this->GetScalarCoef(input);
+      Coefficient * rcCoef = this->GetScalarCoef(input);
+
+      double ni0 = 1e10;
+      input >> ni0;
+
+      coef_idx = sCoefs.Append(new RecombinationSinkCoef(*neCoef, *niCoef,
+                                                         *rcCoef, ni0));
+   }
    else
    {
       return CoefFactory::GetScalarCoef(name, input);
