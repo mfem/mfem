@@ -34,7 +34,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    constexpr int Q_c = get_tensor_size<0,Tensor>;
    const int Q_r = u.template Size<0>();
    ResultTensor<Tensor,Q_c> Du(Q_r);
-   ForallDims<Tensor>::Apply(u, [&](auto... q)
+   ForallDims<Tensor>::ApplyBinOp(u, D, [&](auto... q)
    {
       Du(q...) = D(q...) * u(q...);
    });
@@ -58,7 +58,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    const int Q1_r = u.template Size<0>();
    const int Q2_r = u.template Size<1>();
    ResultTensor<Tensor,Q1_c,Q2_c> Du(Q1_r,Q2_r);
-   ForallDims<Tensor>::Apply(u, [&](auto... q)
+   ForallDims<Tensor>::ApplyBinOp(u, D, [&](auto... q)
    {
       Du(q...) = D(q...) * u(q...);
    });
@@ -84,7 +84,7 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    const int Q2_r = u.template Size<1>();
    const int Q3_r = u.template Size<2>();
    ResultTensor<Tensor,Q1_c,Q2_c,Q3_c> Du(Q1_r,Q2_r,Q3_r);
-   ForallDims<Tensor>::Apply(u, [&](auto... q)
+   ForallDims<Tensor>::ApplyBinOp(u, Du, [&](auto... q)
    {
       Du(q...) = D(q...) * u(q...);
    });
@@ -110,10 +110,10 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    const int Q_r = u.template Size<Quads>();
    const int VD_r = u.template Size<VDim>();
    ResultTensor<Tensor,Q_c,VD_c> Du(Q_r,VD_r);
-   Foreach<Quads>(u, [&](int q)
+   ForeachBinOp<Quads>(u, D, [&](int q)
    {
       auto d = D(q);
-      Foreach<VDim>(u, [&](int vd){
+      ForeachBinOp<VDim>(u, Du, [&](int vd){
          Du(q,vd) = d * u(q,vd);
       });
    });
@@ -142,12 +142,12 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    const int QY_r = u.template Size<QuadsY>();
    const int VD_r = u.template Size<VDim>();
    ResultTensor<Tensor,QX_c,QY_c,VD_c> Du(QX_r,QY_r,VD_r);
-   Foreach<QuadsX>(u, [&](int qx)
+   ForeachBinOp<QuadsX>(u, D, [&](int qx)
    {
-      Foreach<QuadsY>(u, [&](int qy)
+      ForeachBinOp<QuadsY>(u, D, [&](int qy)
       {
          auto d = D(qx,qy);
-         Foreach<VDim>(u, [&](int vd){
+         ForeachBinOp<VDim>(u, Du, [&](int vd){
             Du(qx,qy,vd) = d * u(qx,qy,vd);
          });
       });
@@ -180,14 +180,14 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    const int QZ_r = u.template Size<QuadsZ>();
    const int VD_r = u.template Size<VDim>();
    ResultTensor<Tensor,QX_c,QY_c,QZ_c,VD_c> Du(QX_r,QY_r,QZ_r,VD_r);
-   Foreach<QuadsX>(u, [&](int qx)
+   ForeachBinOp<QuadsX>(u, D, [&](int qx)
    {
-      Foreach<QuadsY>(u, [&](int qy)
+      ForeachBinOp<QuadsY>(u, D, [&](int qy)
       {
-         Foreach<QuadsZ>(u, [&](int qz)
+         ForeachBinOp<QuadsZ>(u, D, [&](int qz)
          {
             auto d = D(qx,qy,qz);
-            Foreach<VDim>(u, [&](int vd){
+            ForeachBinOp<VDim>(u, Du, [&](int vd){
                Du(qx,qy,qz,vd) = d * u(qx,qy,qz,vd);
             });
          });

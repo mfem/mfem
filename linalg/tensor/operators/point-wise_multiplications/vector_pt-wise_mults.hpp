@@ -36,10 +36,10 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    constexpr int Q_c = get_tensor_size<QuadsX,Tensor>;
    const int Q_r = u.template Size<QuadsX>();
    ResultTensor<Tensor,Q_c> Du(Q_r);
-   Foreach<QuadsX>(u, [&](int qx)
+   Foreach<QuadsX>(Du, [&](int qx) // TODO use BinOp
    {
       double res = 0.0;
-      Foreach<CompDim>(u, [&](int d)
+      ForeachBinOp<CompDim>(u, D, [&](int d)
       {
          res += D(qx,d) * u(qx,d);
       });
@@ -68,12 +68,12 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    const int QX_r = u.template Size<QuadsX>();
    const int QY_r = u.template Size<QuadsY>();
    ResultTensor<Tensor,QX_c,QY_c> Du(QX_r,QY_r);
-   Foreach<QuadsX>(u, [&](int qx)
+   Foreach<QuadsX>(Du, [&](int qx)
    {
-      Foreach<QuadsY>(u, [&](int qy)
+      Foreach<QuadsY>(Du, [&](int qy)
       {
          double res = 0.0;
-         Foreach<CompDim>(u, [&](int d)
+         ForeachBinOp<CompDim>(u, D, [&](int d)
          {
             res += D(qx,qy,d) * u(qx,qy,d);
          });
@@ -106,14 +106,14 @@ auto operator*(const DiagonalTensor &D, const Tensor &u)
    const int QY_r = u.template Size<QuadsY>();
    const int QZ_r = u.template Size<QuadsZ>();
    ResultTensor<Tensor,QX_c,QY_c,QZ_c> Du(QX_r,QY_r,QZ_r);
-   Foreach<QuadsX>(u, [&](int qx)
+   Foreach<QuadsX>(Du, [&](int qx)
    {
-      Foreach<QuadsY>(u, [&](int qy)
+      Foreach<QuadsY>(Du, [&](int qy)
       {
-         Foreach<QuadsZ>(u, [&](int qz)
+         Foreach<QuadsZ>(Du, [&](int qz)
          {
             double res = 0.0;
-            Foreach<CompDim>(u, [&](int d)
+            ForeachBinOp<CompDim>(u, D, [&](int d)
             {
                res += D(qx,qy,qz,d) * u(qx,qy,qz,d);
             });
