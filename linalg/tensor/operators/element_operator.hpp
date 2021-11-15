@@ -21,9 +21,9 @@ namespace mfem
 template <typename QData, typename TrialBasis, typename TestBasis>
 struct ElementOperator
 {
-   const QData& qdata;
-   const TrialBasis& trial_basis;
-   const TestBasis& test_basis;
+   const QData qdata;
+   const TrialBasis trial_basis;
+   const TestBasis test_basis;
 
    MFEM_HOST_DEVICE
    ElementOperator(const QData& qdata,

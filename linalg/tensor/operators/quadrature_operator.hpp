@@ -19,8 +19,8 @@ namespace mfem
 template <typename QData, typename Basis>
 struct QuadratureOperator
 {
-   const QData& qdata;
-   const Basis& basis;
+   const QData qdata;
+   const Basis basis;
 
    MFEM_HOST_DEVICE
    QuadratureOperator(const QData& qdata, const Basis& basis)
@@ -44,8 +44,8 @@ auto operator*(const QData& qdata, const Basis& basis)
 template <typename QData, typename Basis>
 struct TransposeQuadratureOperator
 {
-   const QData& qdata;
-   const Basis& basis;
+   const QData qdata;
+   const Basis basis;
 
    MFEM_HOST_DEVICE
    TransposeQuadratureOperator(const QData& qdata, const Basis& basis)
