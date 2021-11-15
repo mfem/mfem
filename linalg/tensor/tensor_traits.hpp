@@ -238,20 +238,32 @@ constexpr bool is_3d_threaded_tensor = is_3d_threaded_tensor_v<Tensor>::value;
 /// is_serial_tensor_dim
 /** Return true if the tensor's layout dimension N is not threaded.
 */
-template <typename Tensor, int N>
-constexpr bool is_serial_tensor_dim = is_serial_layout_dim<
-                                         typename Tensor::layout,
-                                         N
-                                      >;
+template <int N, typename NotATensor>
+struct is_serial_tensor_dim_v;
+
+template <int N, typename C, typename Layout>
+struct is_serial_tensor_dim_v<N,Tensor<C, Layout>>
+{
+   static constexpr bool value = is_serial_layout_dim<Layout,N>;
+};
+
+template <int N, typename Tensor>
+constexpr bool is_serial_tensor_dim = is_serial_tensor_dim_v<N,Tensor>::value;
 
 /// is_threaded_tensor_dim
 /** Return true if the tensor's layout dimension N is threaded.
 */
-template <typename Tensor, int N>
-constexpr bool is_threaded_tensor_dim = is_threaded_layout_dim<
-                                           typename Tensor::layout,
-                                           N
-                                        >;
+template <int N, typename NotATensor>
+struct is_threaded_tensor_dim_v;
+
+template <int N, typename C, typename Layout>
+struct is_threaded_tensor_dim_v<N,Tensor<C, Layout>>
+{
+   static constexpr bool value = is_threaded_layout_dim<Layout,N>;
+};
+
+template <int N, typename Tensor>
+constexpr bool is_threaded_tensor_dim = is_threaded_tensor_dim_v<N,Tensor>::value;
 
 /// get_tensor_size
 /** Return the compilation time size of the dimension N, returns Dynamic for

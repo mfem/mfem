@@ -114,6 +114,20 @@ struct get_tensor_size_v<N,DiagonalTensor<DRank, VRank, C, Layout>>
    static constexpr int value = get_layout_size<N, Layout>;
 };
 
+// is_serial_tensor_dim
+template <int N, int DRank, int VRank, typename C, typename Layout>
+struct is_serial_tensor_dim_v<N,DiagonalTensor<DRank, VRank, C, Layout>>
+{
+   static constexpr bool value = is_serial_layout_dim<Layout,N>;
+};
+
+// is_threaded_tensor_dim
+template <int N, int DRank, int VRank, typename C, typename Layout>
+struct is_threaded_tensor_dim_v<N,DiagonalTensor<DRank, VRank, C, Layout>>
+{
+   static constexpr bool value = is_threaded_layout_dim<Layout,N>;
+};
+
 } // namespace mfem
 
 #endif // MFEM_DIAG_TENSOR

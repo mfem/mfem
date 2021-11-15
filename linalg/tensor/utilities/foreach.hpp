@@ -24,7 +24,7 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               is_serial_tensor_dim<Tensor, N> &&
+               is_serial_tensor_dim<N, Tensor> &&
                get_tensor_size<N, Tensor> == Dynamic,
             bool> = true
          >
@@ -42,7 +42,7 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               is_serial_tensor_dim<Tensor, N> &&
+               is_serial_tensor_dim<N, Tensor> &&
                get_tensor_size<N, Tensor> != Dynamic,
             bool> = true
          >
@@ -62,7 +62,7 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               is_threaded_tensor_dim<Tensor, N> && N==0,
+               is_threaded_tensor_dim<N, Tensor> && N==0,
             bool> = true
          >
 MFEM_HOST_DEVICE inline
@@ -79,7 +79,7 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               is_threaded_tensor_dim<Tensor, N> && N==1,
+               is_threaded_tensor_dim<N, Tensor> && N==1,
             bool> = true
          >
 MFEM_HOST_DEVICE inline
@@ -96,7 +96,7 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               is_threaded_tensor_dim<Tensor, N> && N==2,
+               is_threaded_tensor_dim<N, Tensor> && N==2,
             bool> = true
          >
 MFEM_HOST_DEVICE inline
@@ -114,8 +114,8 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               is_serial_tensor_dim<TensorLHS, N> &&
-               is_serial_tensor_dim<TensorRHS, N> &&
+               is_serial_tensor_dim<N, TensorLHS> &&
+               is_serial_tensor_dim<N, TensorRHS> &&
                get_tensor_size<N, TensorLHS> == Dynamic &&
                get_tensor_size<N, TensorRHS> == Dynamic,
             bool> = true
@@ -140,8 +140,8 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               is_serial_tensor_dim<TensorLHS, N> &&
-               is_serial_tensor_dim<TensorRHS, N> &&
+               is_serial_tensor_dim<N, TensorLHS> &&
+               is_serial_tensor_dim<N, TensorRHS> &&
                get_tensor_size<N, TensorLHS> != Dynamic &&
                get_tensor_size<N, TensorRHS> == Dynamic,
             bool> = true
@@ -168,8 +168,8 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               is_serial_tensor_dim<TensorLHS, N> &&
-               is_serial_tensor_dim<TensorRHS, N> &&
+               is_serial_tensor_dim<N, TensorLHS> &&
+               is_serial_tensor_dim<N, TensorRHS> &&
                get_tensor_size<N, TensorLHS> == Dynamic &&
                get_tensor_size<N, TensorRHS> != Dynamic,
             bool> = true
@@ -196,8 +196,8 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               is_serial_tensor_dim<TensorLHS, N> &&
-               is_serial_tensor_dim<TensorRHS, N> &&
+               is_serial_tensor_dim<N, TensorLHS> &&
+               is_serial_tensor_dim<N, TensorRHS> &&
                get_tensor_size<N, TensorLHS> != Dynamic &&
                get_tensor_size<N, TensorRHS> != Dynamic,
             bool> = true
@@ -227,12 +227,12 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-            ((is_threaded_tensor_dim<TensorLHS, N> &&
+            ((is_threaded_tensor_dim<N, TensorLHS> &&
               has_pointer_container<TensorRHS>) ||
              (has_pointer_container<TensorLHS> &&
-              is_threaded_tensor_dim<TensorRHS, N>) ||
-             (is_threaded_tensor_dim<TensorLHS, N> &&
-              is_threaded_tensor_dim<TensorRHS, N>)) &&
+              is_threaded_tensor_dim<N, TensorRHS>) ||
+             (is_threaded_tensor_dim<N, TensorLHS> &&
+              is_threaded_tensor_dim<N, TensorRHS>)) &&
             (N==0),
             bool> = true
          >
@@ -256,12 +256,12 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               ((is_threaded_tensor_dim<TensorLHS, N> &&
+               ((is_threaded_tensor_dim<N, TensorLHS> &&
                  has_pointer_container<TensorRHS>) ||
                 (has_pointer_container<TensorLHS> &&
-                 is_threaded_tensor_dim<TensorRHS, N>) ||
-                (is_threaded_tensor_dim<TensorLHS, N> &&
-                 is_threaded_tensor_dim<TensorRHS, N>)) &&
+                 is_threaded_tensor_dim<N, TensorRHS>) ||
+                (is_threaded_tensor_dim<N, TensorLHS> &&
+                 is_threaded_tensor_dim<N, TensorRHS>)) &&
                (N==1),
             bool> = true
          >
@@ -285,12 +285,12 @@ template <int N,
             typename Lambda,
             typename... Idx,
             std::enable_if_t<
-               ((is_threaded_tensor_dim<TensorLHS, N> &&
+               ((is_threaded_tensor_dim<N, TensorLHS> &&
                  has_pointer_container<TensorRHS>) ||
                 (has_pointer_container<TensorLHS> &&
-                 is_threaded_tensor_dim<TensorRHS, N>) ||
-                (is_threaded_tensor_dim<TensorLHS, N> &&
-                 is_threaded_tensor_dim<TensorRHS, N>)) &&
+                 is_threaded_tensor_dim<N, TensorRHS>) ||
+                (is_threaded_tensor_dim<N, TensorLHS> &&
+                 is_threaded_tensor_dim<N, TensorRHS>)) &&
                (N==2),
             bool> = true
          >
