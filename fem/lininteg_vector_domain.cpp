@@ -12,6 +12,8 @@
 #include "fem.hpp"
 #include "bilininteg.hpp"
 #include "../general/forall.hpp"
+#include "../fem/kernels.hpp"
+#include "../linalg/kernels.hpp"
 
 namespace mfem
 {
@@ -34,7 +36,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
-   const auto B = Reshape(d2q, Q1D,D1D);
+   const auto b = Reshape(d2q, Q1D,D1D);
    const auto J = Reshape(jacobians, Q1D,Q1D,DIM,DIM,NE);
    const auto W = Reshape(weights, Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D, NE);
@@ -48,20 +50,15 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
    {
       if (M(e) < 1.0) return;
 
-      MFEM_SHARED double Bt[D1D][Q1D];
-      MFEM_SHARED double sm0[Q1D*Q1D];
-      MFEM_SHARED double sm1[Q1D*Q1D];
-      double (*QQ)[Q1D] = (double (*)[Q1D]) (sm0);
-      double (*QD)[D1D] = (double (*)[D1D]) (sm1);
+      MFEM_SHARED double sB[D1D*Q1D];
+      MFEM_SHARED double sQQ[Q1D*Q1D];
+      MFEM_SHARED double sQD[Q1D*D1D];
 
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            Bt[dy][qx] = B(qx,dy);
-         }
-      }
-      MFEM_SYNC_THREAD;
+      const DeviceMatrix B(sB,Q1D,D1D);
+      const DeviceMatrix QQ(sQQ,Q1D,Q1D);
+      const DeviceMatrix QD(sQD,Q1D,D1D);
+
+      kernels::internal::LoadB(D1D,Q1D,b,B);
 
       for (int c = 0; c < vdim; ++ c)
       {
@@ -70,40 +67,19 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               const double J11 = J(qx,qy,0,0,e);
-               const double J21 = J(qx,qy,1,0,e);
-               const double J12 = J(qx,qy,0,1,e);
-               const double J22 = J(qx,qy,1,1,e);
-               const double detJ = (J11*J22)-(J21*J12);
+               double Jloc[4];
+               Jloc[0] = J(qx,qy,0,0,e);
+               Jloc[1] = J(qx,qy,1,0,e);
+               Jloc[2] = J(qx,qy,0,1,e);
+               Jloc[3] = J(qx,qy,1,1,e);
+               const double detJ = kernels::Det<2>(Jloc);
                const double coeff_val = cst_coeff ? cst_val : C(c,qx,qy,e);
-               QQ[qy][qx] = W(qx,qy) * coeff_val * detJ;
+               QQ(qy,qx) = W(qx,qy) * coeff_val * detJ;
 
             }
          }
          MFEM_SYNC_THREAD;
-
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               double dq = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx) { dq += QQ[qy][qx] * Bt[dx][qx]; }
-               QD[qy][dx] = dq;
-            }
-         }
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
-            {
-               double dd = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy) { dd += QD[qy][dx] * Bt[dy][qy]; }
-               const int gid = I(dx,dy,e);
-               const int idx = gid >= 0 ? gid : -1 - gid;
-               AtomicAdd(Y(c,idx), dd);
-            }
-         }
-         MFEM_SYNC_THREAD;
+         kernels::internal::Atomic2DEvalTranspose(D1D,Q1D,B,QQ,QD,I,Y,c,e);
       }
    });
 }
@@ -126,7 +102,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
-   const auto B = Reshape(d2q, Q1D,D1D);
+   const auto b = Reshape(d2q, Q1D,D1D);
    const auto J = Reshape(jacobians, Q1D,Q1D,Q1D,DIM,DIM,NE);
    const auto W = Reshape(weights, Q1D,Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D,D1D, NE);
@@ -135,116 +111,46 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
                   Reshape(F,vdim,Q1D,Q1D,Q1D,NE);
    auto Y = Reshape(y,vdim,ND);
 
-   MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
       if (M(e) < 1.0) return;
 
       double u[Q1D];
-      MFEM_SHARED double s_B[Q1D][D1D];
-      MFEM_SHARED double s_q[Q1D][Q1D][Q1D];
 
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            s_B[qx][dy] = B(qx,dy);
-         }
-      }
-      MFEM_SYNC_THREAD;
+      MFEM_SHARED double sB[Q1D*D1D];
+      MFEM_SHARED double sq[Q1D*Q1D*Q1D];
+
+      const DeviceMatrix B(sB,Q1D,D1D);
+      const DeviceCube Q(sq,Q1D,Q1D,Q1D);
+
+      kernels::internal::LoadB(D1D,Q1D,b,B);
 
       for (int c = 0; c < vdim; ++ c)
       {
          const double cst_val = C(c,0,0,0,0);
+
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  const double J11 = J(qx,qy,qz,0,0,e);
-                  const double J21 = J(qx,qy,qz,1,0,e);
-                  const double J31 = J(qx,qy,qz,2,0,e);
-                  const double J12 = J(qx,qy,qz,0,1,e);
-                  const double J22 = J(qx,qy,qz,1,1,e);
-                  const double J32 = J(qx,qy,qz,2,1,e);
-                  const double J13 = J(qx,qy,qz,0,2,e);
-                  const double J23 = J(qx,qy,qz,1,2,e);
-                  const double J33 = J(qx,qy,qz,2,2,e);
-                  const double detJ = J11 * (J22 * J33 - J32 * J23) -
-                                      J21 * (J12 * J33 - J32 * J13) +
-                                      J31 * (J12 * J23 - J22 * J13);
+                  double Jloc[9];
+                  for (int col = 0; col < 3; col++)
+                  {
+                     for (int row = 0; row < 3; row++)
+                     {
+                        Jloc[row+3*col] = J(qx,qy,qz,row,col,e);
+                     }
+                  }
+                  const double detJ = kernels::Det<3>(Jloc);
                   const double coeff_val = cst_coeff ? cst_val : C(c,qx,qy,qz,e);
-                  s_q[qz][qy][qx] = W(qx,qy,qz) * coeff_val * detJ;
+                  Q(qz,qy,qx) = W(qx,qy,qz) * coeff_val * detJ;
                }
             }
          }
          MFEM_SYNC_THREAD;
-
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               // Zt projection
-               MFEM_UNROLL(D1D)
-               for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
-               MFEM_UNROLL(Q1D)
-               for (int qz = 0; qz < Q1D; ++qz)
-               {
-                  const double ZYX = s_q[qz][qy][qx];
-                  MFEM_UNROLL(D1D)
-                  for (int dz = 0; dz < D1D; ++dz) { u[dz] += ZYX * s_B[qz][dz]; }
-               }
-               MFEM_UNROLL(D1D)
-               for (int dz = 0; dz < D1D; ++dz) { s_q[dz][qy][qx] = u[dz]; }
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         // Yt projection
-         MFEM_FOREACH_THREAD(dz,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               MFEM_UNROLL(D1D)
-               for (int dy = 0; dy < D1D; ++dy) { u[dy] = 0.0; }
-               MFEM_UNROLL(Q1D)
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  const double zYX = s_q[dz][qy][qx];
-                  MFEM_UNROLL(D1D)
-                  for (int dy = 0; dy < D1D; ++dy) { u[dy] += zYX * s_B[qy][dy]; }
-               }
-               MFEM_UNROLL(D1D)
-               for (int dy = 0; dy < D1D; ++dy) { s_q[dz][dy][qx] = u[dy]; }
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         // Xt projection & save output
-         MFEM_FOREACH_THREAD(dz,y,D1D)
-         {
-            MFEM_FOREACH_THREAD(dy,x,D1D)
-            {
-               MFEM_UNROLL(D1D)
-               for (int dx = 0; dx < D1D; ++dx) { u[dx] = 0.0; }
-               MFEM_UNROLL(Q1D)
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  const double zyX = s_q[dz][dy][qx];
-                  MFEM_UNROLL(D1D)
-                  for (int dx = 0; dx < D1D; ++dx) { u[dx] += zyX * s_B[qx][dx]; }
-               }
-               MFEM_UNROLL(D1D)
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  const double output = u[dx];
-                  const int gid = I(dx,dy,dz,e);
-                  const int idx = gid >= 0 ? gid : -1 - gid;
-                  AtomicAdd(Y(c,idx), output);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
+         kernels::internal::Atomic3DEvalTranspose(D1D,Q1D,u,B,Q,I,Y,c,e);
       }
    });
 }
@@ -305,16 +211,16 @@ void VectorDomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
    }
    else
    {
+      Vector Qvec(vdim);
       coeff.SetSize(vdim * NQ * NE);
       auto C = Reshape(coeff.HostWrite(), vdim, NQ, NE);
-      Vector Qvec(vdim);
       for (int e = 0; e < NE; ++e)
       {
          ElementTransformation& T = *fes.GetElementTransformation(e);
          for (int q = 0; q < NQ; ++q)
          {
             Q.Eval(Qvec, T, ir->IntPoint(q));
-            for (int i=0; i<vdim; ++i) { C(i,q,e) = Qvec[i]; }
+            for (int c=0; c<vdim; ++c) { C(c,q,e) = Qvec[c]; }
          }
       }
    }

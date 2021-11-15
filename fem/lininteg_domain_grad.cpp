@@ -45,7 +45,7 @@ void DomainLFGradIntegratorAssemble2D(const int ND,
                   Reshape(F,DIM,1,1,1) :
                   Reshape(F,DIM,Q1D,Q1D,NE);
 
-   auto Y = Reshape(y,ND);
+   auto Y = Reshape(y,1,ND);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
@@ -88,7 +88,9 @@ void DomainLFGradIntegratorAssemble2D(const int ND,
       }
       MFEM_SYNC_THREAD;
       kernels::internal::LoadBGt(D1D,Q1D,B,G,Bt,Gt);
-      kernels::internal::Atomic2DGradTranspose(D1D,Q1D,Bt,Gt,QQ0,QQ1,DQ0,DQ1,I,Y,e);
+      kernels::internal::Atomic2DGradTranspose(D1D,Q1D,Bt,Gt,
+                                               QQ0,QQ1,DQ0,DQ1,
+                                               I,Y,0,e);
    });
 }
 
@@ -117,15 +119,12 @@ void DomainLFGradIntegratorAssemble3D(const int ND,
    const auto I = Reshape(idx, D1D,D1D,D1D, NE);
    const auto C = cst_coeff ?
                   Reshape(F,DIM,1,1,1,1) : Reshape(F,DIM,Q1D,Q1D,Q1D,NE);
-   auto Y = Reshape(y,ND);
 
-   MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
+   auto Y = Reshape(y,1,ND);
+
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
       if (M(e) < 1.0) { return; }
-
-      const double cst_val0 = C(0,0,0,0,0);
-      const double cst_val1 = C(1,0,0,0,0);
-      const double cst_val2 = C(2,0,0,0,0);
 
       MFEM_SHARED double sBG[2][Q1D*D1D];
       const DeviceMatrix Bt(sBG[0],D1D,Q1D);
@@ -145,6 +144,10 @@ void DomainLFGradIntegratorAssemble3D(const int ND,
       const DeviceCube DD0(sm0[0],Q1D,D1D,D1D);
       const DeviceCube DD1(sm0[1],Q1D,D1D,D1D);
       const DeviceCube DD2(sm0[2],Q1D,D1D,D1D);
+
+      const double cst_val0 = C(0,0,0,0,0);
+      const double cst_val1 = C(1,0,0,0,0);
+      const double cst_val2 = C(2,0,0,0,0);
 
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -181,7 +184,7 @@ void DomainLFGradIntegratorAssemble3D(const int ND,
                                       QQ0,QQ1,QQ2,
                                       QD0,QD1,QD2,
                                       DD0,DD1,DD2,
-                                      I,Y,e);
+                                      I,Y,0,e);
    });
 }
 
@@ -189,9 +192,9 @@ void DomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
                                           const Vector &mark,
                                           Vector &b)
 {
-   const MemoryType mt = Device::GetDeviceMemoryType();
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
+   const MemoryType mt = Device::GetDeviceMemoryType();
 
    const FiniteElement &el = *fes.GetFE(0);
    const Geometry::Type geom_type = el.GetGeomType();
@@ -226,8 +229,7 @@ void DomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
    if (VectorConstantCoefficient *vcQ =
           dynamic_cast<VectorConstantCoefficient*>(&Q))
    {
-      const Vector& qvec = vcQ->GetVec();
-      coeff = qvec;
+      coeff = vcQ->GetVec();
    }
    else if (VectorQuadratureFunctionCoefficient *vqfQ =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(&Q))
@@ -243,7 +245,6 @@ void DomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
    }
    else
    {
-      // vector_function_coeff
       Vector Qvec(qvdim);
       coeff.SetSize(qvdim * NQ * NE);
       auto C = Reshape(coeff.HostWrite(), qvdim, NQ, NE);
