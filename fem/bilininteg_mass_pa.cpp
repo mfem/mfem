@@ -91,7 +91,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       }
    }
-   mfem::out << "Lauching Setup kernels." << std::endl;
    if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
    if (dim==2)
    {
@@ -157,7 +156,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       });
    }
-   mfem::out << "Finished Setup kernels." << std::endl;
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
