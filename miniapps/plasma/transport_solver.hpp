@@ -3013,7 +3013,9 @@ private:
       StateVariableCoef &viCoef_;
       StateVariableCoef &TiCoef_;
       StateVariableCoef &TeCoef_;
-      ProductCoefficient neCoef_;
+
+      StateVariableConstantCoef ziCoef_;
+      StateVariableProductCoef  neCoef_;
 
       StateVariableGridFunctionCoef &dTe0Coef_;
 
