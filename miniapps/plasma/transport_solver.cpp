@@ -3904,28 +3904,41 @@ void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef
    */
 }
 
-void DGTransportTDO::TransportOp::SetSourceTerm(Coefficient &SCoef)
+void DGTransportTDO::TransportOp::SetSourceTerm(Coefficient &SCoef, double s)
 {
    if ( mpi_.Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding source term" << endl;
    }
 
-   sourceCoef_ = &SCoef;
+   if (s == 1.0)
+   {
+      sourceCoef_ = &SCoef;
+   }
+   else
+   {
+      Coefficient * coef = new ProductCoefficient(s, SCoef);
+      sCoefs_.Append(coef);
+      sourceCoef_ = coef;
+   }
 
-   dlfi_.Append(new DomainLFIntegrator(SCoef));
+   dlfi_.Append(new DomainLFIntegrator(*sourceCoef_));
+
+   StateVariableCoef *SVCoef = dynamic_cast<StateVariableCoef*>(&SCoef);
+   if (SVCoef)
+   {
+      this->SetSourceTermGradient(*SVCoef, s);
+   }
 }
 
-void DGTransportTDO::TransportOp::SetSourceTerm(StateVariableCoef &SCoef)
+void DGTransportTDO::TransportOp::SetSourceTermGradient(
+   StateVariableCoef &SCoef,
+   double s)
 {
    if ( mpi_.Root() && logging_ > 0)
    {
-      cout << eqn_name_ << ": Adding source term" << endl;
+      cout << eqn_name_ << ": Adding source term to gradient" << endl;
    }
-
-   sourceCoef_ = &SCoef;
-
-   dlfi_.Append(new DomainLFIntegrator(SCoef));
 
    for (int i=0; i<5; i++)
    {
@@ -3939,7 +3952,16 @@ void DGTransportTDO::TransportOp::SetSourceTerm(StateVariableCoef &SCoef)
                  << "in the gradient" << endl;
          }
 
-         StateVariableCoef * coef = SCoef.Clone();
+         StateVariableCoef * coef = NULL;
+         if (s == 1.0)
+         {
+            coef = SCoef.Clone();
+         }
+         else
+         {
+            StateVariableConstantCoef sCoef(s);
+            coef = new StateVariableProductCoef(sCoef, SCoef);
+         }
          coef->SetDerivType((FieldType)i);
          ProductCoefficient * dtdSCoef = new ProductCoefficient(-dt_, *coef);
          negdtSCoefs_.Append(dtdSCoef);
@@ -4579,14 +4601,22 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
      vnCoef_(v_n_),
      izCoef_(TeCoef_),
      rcCoef_(TeCoef_),
-     DnCoef_(neCoef_, vnCoef_, izCoef_),
+     DDefCoef_(neCoef_, vnCoef_, izCoef_),
      DCoef_((eqncoefs_(NDCoefs::DIFFUSION_COEF) != NULL)
             ? const_cast<Coefficient&>
             (*eqncoefs_(NDCoefs::DIFFUSION_COEF))
-            : DnCoef_),
+            : DDefCoef_),
      ViCoef_(viCoef_, B3Coef_),
-     SrcCoef_(neCoef_, niCoef_, rcCoef_,  1.0),
-     SizCoef_(neCoef_, nnCoef_, izCoef_, -1.0),
+     SrcDefCoef_(neCoef_, niCoef_, rcCoef_),
+     SizDefCoef_(neCoef_, nnCoef_, izCoef_),
+     SrcCoef_((eqncoefs_(CCoefs::RECOMBINATION_SINK_COEF) != NULL)
+              ? const_cast<Coefficient&>
+              (*eqncoefs_(CCoefs::RECOMBINATION_SINK_COEF))
+              : SrcDefCoef_),
+     SizCoef_((eqncoefs_(CCoefs::IONIZATION_SOURCE_COEF) != NULL)
+              ? const_cast<Coefficient&>
+              (*eqncoefs_(CCoefs::IONIZATION_SOURCE_COEF))
+              : SizDefCoef_),
      DGF_(NULL),
      SrcGF_(NULL),
      SizGF_(NULL),
@@ -4618,18 +4648,18 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    {
       // Diffusion term: -Div(D_n Grad n_n)
       SetDiffusionTerm((eqncoefs_(NDCoefs::DIFFUSION_COEF) != NULL)
-                       ? dynamic_cast<StateVariableCoef&>(DCoef_) : DnCoef_);
+                       ? dynamic_cast<StateVariableCoef&>(DCoef_) : DDefCoef_);
    }
 
    if (this->CheckTermFlag(RECOMBINATION_SOURCE_TERM))
    {
       // Source term: Src
-      SetSourceTerm(SrcCoef_);
+      SetSourceTerm(SrcCoef_, 1.0);
    }
    if (this->CheckTermFlag(IONIZATION_SINK_TERM))
    {
       // Source term: -Siz
-      SetSourceTerm(SizCoef_);
+      SetSourceTerm(SizCoef_, -1.0);
    }
    if (this->CheckTermFlag(SOURCE_TERM) &&
        eqncoefs_(NDCoefs::SOURCE_COEF) != NULL)
@@ -4831,8 +4861,16 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      DCoef_(DParaCoefPtr_,
             DPerpCoefPtr_, B3Coef_),
      ViCoef_(viCoef_, B3Coef_),
-     SizCoef_(neCoef_, nnCoef_, izCoef_,  1.0),
-     SrcCoef_(neCoef_, niCoef_, rcCoef_, -1.0),
+     SizDefCoef_(neCoef_, nnCoef_, izCoef_),
+     SrcDefCoef_(neCoef_, niCoef_, rcCoef_),
+     SizCoef_((eqncoefs_(CCoefs::IONIZATION_SOURCE_COEF) != NULL)
+              ? const_cast<Coefficient&>
+              (*eqncoefs_(CCoefs::IONIZATION_SOURCE_COEF))
+              : SizDefCoef_),
+     SrcCoef_((eqncoefs_(CCoefs::RECOMBINATION_SINK_COEF) != NULL)
+              ? const_cast<Coefficient&>
+              (*eqncoefs_(CCoefs::RECOMBINATION_SINK_COEF))
+              : SrcDefCoef_),
      DParaGF_(NULL),
      DPerpGF_(NULL),
      AGF_(NULL),
@@ -4893,12 +4931,12 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    if (this->CheckTermFlag(IONIZATION_SOURCE_TERM))
    {
       // Source term: Siz
-      SetSourceTerm(SizCoef_);
+      SetSourceTerm(SizCoef_, 1.0);
    }
    if (this->CheckTermFlag(RECOMBINATION_SINK_TERM))
    {
       // Source term: -Src
-      SetSourceTerm(SrcCoef_);
+      SetSourceTerm(SrcCoef_, -1.0);
    }
 
    if (this->CheckTermFlag(SOURCE_TERM) &&

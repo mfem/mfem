@@ -640,6 +640,9 @@ public:
 class CommonCoefs : public EqnCoefficients
 {
 public:
+   enum sCoefNames {IONIZATION_SOURCE_COEF, RECOMBINATION_SINK_COEF,
+                    NUM_SCALAR_COEFS
+                   };
    enum vCoefNames {MAGNETIC_FIELD_COEF = 0, NUM_VECTOR_COEFS};
 
    CommonCoefs();
@@ -3090,8 +3093,8 @@ private:
        */
       void SetAdvectionTerm(StateVariableVecCoef &VCoef/*, bool bc = false*/);
 
-      void SetSourceTerm(Coefficient &SCoef);
-      void SetSourceTerm(StateVariableCoef &SCoef);
+      void SetSourceTerm(Coefficient &SCoef, double s = 1.0);
+      void SetSourceTermGradient(StateVariableCoef &SCoef, double s = 1.0);
       void SetBdrSourceTerm(StateVariableCoef &SCoef,
                             StateVariableVecCoef &VCoef);
 
@@ -3173,13 +3176,16 @@ private:
       ApproxIonizationRate      izCoef_;
       ApproxRecombinationRate   rcCoef_;
 
-      NeutralDiffusionCoef      DnCoef_;
+      NeutralDiffusionCoef      DDefCoef_; // Default diffusion coef
       StateVariableStandardCoef DCoef_;
 
       IonAdvectionCoef          ViCoef_;
 
-      IonSinkCoef               SrcCoef_;
-      IonSourceCoef             SizCoef_;
+      RecombinationSinkCoef     SrcDefCoef_; // Default recomb coef
+      IonizationSourceCoef      SizDefCoef_; // Default ionization coef
+
+      Coefficient & SrcCoef_;
+      Coefficient & SizCoef_;
 
       ParGridFunction * DGF_;
       ParGridFunction * SrcGF_;
@@ -3280,8 +3286,11 @@ private:
 
       IonAdvectionCoef        ViCoef_;
 
-      IonSourceCoef           SizCoef_;
-      IonSinkCoef             SrcCoef_;
+      IonizationSourceCoef    SizDefCoef_;
+      RecombinationSinkCoef   SrcDefCoef_;
+
+      Coefficient & SizCoef_;
+      Coefficient & SrcCoef_;
 
       ParGridFunction * DParaGF_;
       ParGridFunction * DPerpGF_;
@@ -3375,7 +3384,7 @@ private:
 
       ApproxIonizationRate     izCoef_;
 
-      IonSourceCoef           SizCoef_;
+      IonizationSourceCoef    SizCoef_;
       ProductCoefficient   negSizCoef_;
 
       ProductCoefficient nnizCoef_;
