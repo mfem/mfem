@@ -41,6 +41,7 @@ void NormalEquationsWeakFormulation::Init()
 void NormalEquationsWeakFormulation::AllocMat()
 {
    mat = new SparseMatrix(height);
+   y = new Vector(height);
 }
 
 void NormalEquationsWeakFormulation::Finalize(int skip_zeros)
@@ -72,9 +73,9 @@ void NormalEquationsWeakFormulation::SetTraceElementBFIntegrator(
 
 /// Adds new Domain LF Integrator. Assumes ownership of @a bfi.
 void NormalEquationsWeakFormulation::SetDomainLFIntegrator(
-   LinearFormIntegrator *bfi)
+   LinearFormIntegrator *lfi)
 {
-   domain_lf_integs = bfi;
+   domain_lf_integ = lfi;
 }
 
 void NormalEquationsWeakFormulation::BuildProlongation()
@@ -128,8 +129,8 @@ void NormalEquationsWeakFormulation::ConformingAssemble()
 void NormalEquationsWeakFormulation::Assemble(int skip_zeros)
 {
    ElementTransformation *eltrans;
-   DofTransformation * doftrans_j, *doftrans_k;
-   DenseMatrix elmat, *elmat_p;
+   // DofTransformation * doftrans_j, *doftrans_k;
+   // DenseMatrix elmat, *elmat_p;
    Array<const FiniteElement *> fe(nblocks);
    Array<int> vdofs_j, vdofs_k;
    Array<int> offsetvdofs_j;
@@ -142,12 +143,11 @@ void NormalEquationsWeakFormulation::Assemble(int skip_zeros)
 
    // loop through the elements
    int dim = mesh->Dimension();
-   DenseMatrix B, G;
-   Array<DenseMatrix *> Bhat;
+   DenseMatrix Bf, G;
+   Array<DenseMatrix *> Bh;
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
       // get element matrices associated with the domain_integrator
-      elmat.SetSize(0);
       eltrans = mesh->GetElementTransformation(i);
       const FiniteElement & fe = *fes->GetFE(i);
       int order = test_fecol->GetOrder();
@@ -158,9 +158,9 @@ void NormalEquationsWeakFormulation::Assemble(int skip_zeros)
       int h = G.Height();
 
       // Element Matrix B
-      domain_bf_integ->AssembleElementMatrix2(fe,test_fe,*eltrans,B);
-      MFEM_VERIFY(B.Height() == h, "Check B height");
-      int w = B.Width();
+      domain_bf_integ->AssembleElementMatrix2(fe,test_fe,*eltrans,Bf);
+      MFEM_VERIFY(Bf.Height() == h, "Check Bf height");
+      int w = Bf.Width();
 
       // Element Matrix Bhat
       Array<int> faces, ori;
@@ -173,284 +173,194 @@ void NormalEquationsWeakFormulation::Assemble(int skip_zeros)
          mesh->GetElementFaces(i,faces,ori);
       }
       int numfaces = faces.Size();
-      Bhat.SetSize(numfaces);
+      Bh.SetSize(numfaces);
       for (int j = 0; j < numfaces; j++)
       {
          int iface = faces[j];
          FaceElementTransformations * ftr = mesh->GetFaceElementTransformations(iface);
          const FiniteElement & fe = *trace_fes->GetFaceElement(j);
-         Bhat[j] = new DenseMatrix();
-         trace_integ->AssembleTraceFaceMatrix(i,fe,test_fe,*ftr,*Bhat[j]);
-         w += Bhat[j]->Width();
+         Bh[j] = new DenseMatrix();
+         trace_integ->AssembleTraceFaceMatrix(i,fe,test_fe,*ftr,*Bh[j]);
+         w += Bh[j]->Width();
       }
 
-      // Size of Global B;
-      DenseMatrix BG(h,w);
-      BG.SetSubMatrix(0,0,B);
-      int jbeg = B.Width();
+      // Size of BG;
+      DenseMatrix B(h,w);
+      B.SetSubMatrix(0,0,Bf);
+      int jbeg = Bf.Width();
       // stack the matrices into [B,Bhat]
       for (int k = 0; k<numfaces; k++)
       {
-         BG.SetSubMatrix(0,jbeg,*Bhat[k]);
-         jbeg+=Bhat[k]->Width();
+         B.SetSubMatrix(0,jbeg,*Bh[k]);
+         jbeg+=Bh[k]->Width();
       }
+
 
       // TODO
       // (1) Integrate Linear form l
-      // (2) Form Normal Equations B^T G^-1 B, B^T G^-1 l
-      // (3) Assemble Matrix and load vector
+      Vector l;
+      domain_lf_integ->AssembleRHSElementVect(test_fe,*eltrans,l);
 
+
+      // (2) Form Normal Equations B^T G^-1 B, B^T G^-1 l
+      // A = B^T Ginv B
+      DenseMatrix A;
+      RAP(G,B,A);
+
+      // b = B^T Ginv l
+      Vector b(A.Height());
+      Vector Gl(G.Height());
+      G.Mult(l,Gl);
+
+      B.MultTranspose(Gl,b);
+
+      // (3) Assemble Matrix and load vector
+      for (int j = 0; j<nblocks; j++)
+      {
+         Array<int> elem_dofs;
+         DofTransformation * dtrans = fespaces[j]->GetElementVDofs(i,elem_dofs);
+         if (dtrans)
+         {
+            mfem::out<< "DofTrans is not null" << std::endl;
+            mfem::out<< "j = " << j << std::endl;
+         }
+         elementblockoffsets[j+1] = elem_dofs.Size();
+      }
+      elementblockoffsets.PartialSum();
+
+      vdofs.SetSize(0);
+      for (int j = 0; j<nblocks; j++)
+      {
+         fespaces[j]->GetElementVDofs(i, vdofs_j);
+         int jbeg = elementblockoffsets[j];
+         int jend = elementblockoffsets[j+1]-1;
+         int offset_j = dof_offsets[j];
+         offsetvdofs_j.SetSize(vdofs_j.Size());
+         for (int l = 0; l<vdofs_j.Size(); l++)
+         {
+            offsetvdofs_j[l] = vdofs_j[l]<0 ? -offset_j + vdofs_j[l]
+                               :  offset_j + vdofs_j[l];
+         }
+         vdofs.Append(offsetvdofs_j);
+      }
+      mat->AddSubMatrix(vdofs,vdofs,A, skip_zeros);
+      y->AddElementVector(vdofs,b);
    }
+
+   // mat->Finalize();
+   // mfem::out << "mat = " ; mat->PrintMatlab();
+
+   // mfem::out << " y = " ; y->Print();
 
 }
 
 
+void NormalEquationsWeakFormulation::FormLinearSystem(const Array<int>
+                                                      &ess_tdof_list,
+                                                      Vector &x,
+                                                      OperatorHandle &A, Vector &X,
+                                                      Vector &B, int copy_interior)
+{
+   FormSystemMatrix(ess_tdof_list, A);
 
-// void NormalEquationsWeakFormulation::FormLinearSystem(const Array<int> &ess_tdof_list,
-//                                          Vector &x,
-//                                          Vector &b, OperatorHandle &A, Vector &X,
-//                                          Vector &B, int copy_interior)
-// {
-//    FormSystemMatrix(ess_tdof_list, A);
+   if (!P)
+   {
+      EliminateVDofsInRHS(ess_tdof_list, x, *y);
+      X.MakeRef(x, 0, x.Size());
+      B.MakeRef(*y, 0, y->Size());
+      if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+   }
+   else // non conforming space
+   {
+      B.SetSize(P->Width());
+      P->MultTranspose(*y, B);
+      X.SetSize(R->Height());
 
-//    if (!P)
-//    {
-//       EliminateVDofsInRHS(ess_tdof_list, x, b);
-//       X.MakeRef(x, 0, x.Size());
-//       B.MakeRef(b, 0, b.Size());
-//       if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
-//    }
-//    else // non conforming space
-//    {
-//       B.SetSize(P->Width());
-//       P->MultTranspose(b, B);
-//       X.SetSize(R->Height());
+      R->Mult(x, X);
+      EliminateVDofsInRHS(ess_tdof_list, X, B);
+      if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+   }
+}
 
-//       mfem::out << "R height, width  = " << R->Height() <<" x "<< R->Width() <<
-//                 std::endl;
+void NormalEquationsWeakFormulation::FormSystemMatrix(const Array<int>
+                                                      &ess_tdof_list,
+                                                      OperatorHandle &A)
+{
+   if (!mat_e)
+   {
+      const SparseMatrix *P_ = fespaces[0]->GetConformingProlongation();
+      if (P_) { ConformingAssemble(); }
+      EliminateVDofs(ess_tdof_list, diag_policy);
+      const int remove_zeros = 0;
+      Finalize(remove_zeros);
+   }
+   A.Reset(mat, false);
+}
 
-//       R->Mult(x, X);
-//       EliminateVDofsInRHS(ess_tdof_list, X, B);
-//       if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
-//    }
-
-// }
-
-// void NormalEquationsWeakFormulation::FormSystemMatrix(const Array<int> &ess_tdof_list,
-//                                          OperatorHandle &A)
-// {
-//    if (!mat_e)
-//    {
-//       const SparseMatrix *P_ = fespaces[0]->GetConformingProlongation();
-//       if (P_) { ConformingAssemble(); }
-//       EliminateVDofs(ess_tdof_list, diag_policy);
-//       const int remove_zeros = 0;
-//       Finalize(remove_zeros);
-//    }
-//    A.Reset(mat, false);
-// }
-
-// void NormalEquationsWeakFormulation::RecoverFEMSolution(const Vector &X, const Vector &b,
-//                                            Vector &x)
-// {
-//    if (!P)
-//    {
-//       x.SyncMemory(X);
-//    }
-//    else
-//    {
-//       // Apply conforming prolongation
-//       x.SetSize(P->Height());
-//       P->Mult(X, x);
-//    }
-// }
+void NormalEquationsWeakFormulation::EliminateVDofsInRHS(
+   const Array<int> &vdofs, const Vector &x, Vector &b)
+{
+   mat_e->AddMult(x, b, -1.);
+   mat->PartMult(vdofs, x, b);
+}
 
 
-// void NormalEquationsWeakFormulation::ComputeElementMatrices()
-// {
-//    MFEM_ABORT("NormalEquationsWeakFormulation::ComputeElementMatrices:not implemented yet")
-// }
+void NormalEquationsWeakFormulation::EliminateVDofs(const Array<int> &vdofs,
+                                                    Operator::DiagonalPolicy dpolicy)
+{
+   if (mat_e == NULL)
+   {
+      mat_e = new SparseMatrix(height);
+   }
 
-// void NormalEquationsWeakFormulation::ComputeElementMatrix(int i, DenseMatrix &elmat)
-// {
-//    if (element_matrices)
-//    {
-//       elmat.SetSize(element_matrices->SizeI(), element_matrices->SizeJ());
-//       elmat = element_matrices->GetData(i);
-//       return;
-//    }
+   // mat -> EliminateCols(vdofs, *mat_e,)
 
-//    int nblocks = fespaces.Size();
-//    Array<const FiniteElement *> fe(nblocks);
-//    ElementTransformation *eltrans;
-
-//    elmat.SetSize(0);
-//    if (domain_integs.Size())
-//    {
-//       for (int j = 0; j<nblocks; j++)
-//       {
-//          fe[j] = fespaces[j]->GetFE(i);
-//       }
-//       eltrans = fespaces[0]->GetElementTransformation(i);
-//       domain_integs[0]->AssembleElementMatrix(fe, *eltrans, elmat);
-//       for (int k = 1; k < domain_integs.Size(); k++)
-//       {
-//          domain_integs[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
-//          elmat += elemmat;
-//       }
-//    }
-//    else
-//    {
-//       int matsize = 0;
-//       for (int j = 0; j<nblocks; j++)
-//       {
-//          matsize += fespaces[j]->GetFE(i)->GetDof();
-//       }
-//       elmat.SetSize(matsize);
-//       elmat = 0.0;
-//    }
-// }
-
-// void NormalEquationsWeakFormulation::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-//                                              const Vector &sol, Vector &rhs,
-//                                              DiagonalPolicy dpolicy)
-// {
-//    MFEM_ABORT("NormalEquationsWeakFormulation::EliminateEssentialBC: not implemented yet");
-// }
-
-// void NormalEquationsWeakFormulation::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-//                                              DiagonalPolicy dpolicy)
-// {
-//    MFEM_ABORT("NormalEquationsWeakFormulation::EliminateEssentialBC: not implemented yet");
-// }
-
-// void NormalEquationsWeakFormulation::EliminateEssentialBCDiag (const Array<int>
-//                                                   &bdr_attr_is_ess,
-//                                                   double value)
-// {
-//    MFEM_ABORT("NormalEquationsWeakFormulation::EliminateEssentialBCDiag: not implemented yet");
-// }
-
-// void NormalEquationsWeakFormulation::EliminateVDofs(const Array<int> &vdofs,
-//                                        const Vector &sol, Vector &rhs,
-//                                        DiagonalPolicy dpolicy)
-// {
-//    vdofs.HostRead();
-//    for (int i = 0; i < vdofs.Size(); i++)
-//    {
-//       int vdof = vdofs[i];
-//       if ( vdof >= 0 )
-//       {
-//          mat -> EliminateRowCol (vdof, sol(vdof), rhs, dpolicy);
-//       }
-//       else
-//       {
-//          mat -> EliminateRowCol (-1-vdof, sol(-1-vdof), rhs, dpolicy);
-//       }
-//    }
-// }
-
-// void NormalEquationsWeakFormulation::EliminateVDofs(const Array<int> &vdofs,
-//                                        DiagonalPolicy dpolicy)
-// {
-//    if (mat_e == NULL)
-//    {
-//       mat_e = new SparseMatrix(height);
-//    }
-
-//    // mat -> EliminateCols(vdofs, *mat_e,)
-
-//    for (int i = 0; i < vdofs.Size(); i++)
-//    {
-//       int vdof = vdofs[i];
-//       if ( vdof >= 0 )
-//       {
-//          mat -> EliminateRowCol (vdof, *mat_e, dpolicy);
-//       }
-//       else
-//       {
-//          mat -> EliminateRowCol (-1-vdof, *mat_e, dpolicy);
-//       }
-//    }
-// }
-
-// void NormalEquationsWeakFormulation::EliminateEssentialBCFromDofs(
-//    const Array<int> &ess_dofs, const Vector &sol, Vector &rhs,
-//    DiagonalPolicy dpolicy)
-// {
-//    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
-//    MFEM_ASSERT(sol.Size() == height, "incorrect sol Vector size");
-//    MFEM_ASSERT(rhs.Size() == height, "incorrect rhs Vector size");
-
-//    for (int i = 0; i < ess_dofs.Size(); i++)
-//    {
-//       if (ess_dofs[i] < 0)
-//       {
-//          mat -> EliminateRowCol (i, sol(i), rhs, dpolicy);
-//       }
-//    }
-// }
-
-// void NormalEquationsWeakFormulation::EliminateEssentialBCFromDofs (const Array<int>
-//                                                       &ess_dofs,
-//                                                       DiagonalPolicy dpolicy)
-// {
-//    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
-
-//    for (int i = 0; i < ess_dofs.Size(); i++)
-//    {
-//       if (ess_dofs[i] < 0)
-//       {
-//          mat -> EliminateRowCol (i, dpolicy);
-//       }
-//    }
-// }
-
-// void NormalEquationsWeakFormulation::EliminateEssentialBCFromDofsDiag (
-//    const Array<int> &ess_dofs,
-//    double value)
-// {
-//    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
-
-//    for (int i = 0; i < ess_dofs.Size(); i++)
-//    {
-//       if (ess_dofs[i] < 0)
-//       {
-//          mat -> EliminateRowColDiag (i, value);
-//       }
-//    }
-// }
-
-// void NormalEquationsWeakFormulation::EliminateVDofsInRHS(
-//    const Array<int> &vdofs, const Vector &x, Vector &b)
-// {
-//    mat_e->AddMult(x, b, -1.);
-//    mat->PartMult(vdofs, x, b);
-// }
+   for (int i = 0; i < vdofs.Size(); i++)
+   {
+      int vdof = vdofs[i];
+      if ( vdof >= 0 )
+      {
+         mat -> EliminateRowCol (vdof, *mat_e, dpolicy);
+      }
+      else
+      {
+         mat -> EliminateRowCol (-1-vdof, *mat_e, dpolicy);
+      }
+   }
+}
 
 
-
-// NormalEquationsWeakFormulation::~NormalEquationsWeakFormulation()
-// {
-//    delete mat_e;
-//    delete mat;
-//    delete element_matrices;
-
-//    for (int k=0; k < domain_integs.Size(); k++)
-//    {
-//       delete domain_integs[k];
-//    }
-//    for (int k=0; k < trace_integs.Size(); k++)
-//    {
-//       delete trace_integs[k];
-//    }
-//    delete P;
-//    delete R;
-// }
+void NormalEquationsWeakFormulation::RecoverFEMSolution(const Vector &X,
+                                                        Vector &x)
+{
+   if (!P)
+   {
+      x.SyncMemory(X);
+   }
+   else
+   {
+      // Apply conforming prolongation
+      x.SetSize(P->Height());
+      P->Mult(X, x);
+   }
+}
 
 NormalEquationsWeakFormulation::~NormalEquationsWeakFormulation()
 {
+   // delete mat_e;
+   // delete mat;
+   // delete element_matrices;
 
+   // for (int k=0; k < domain_integs.Size(); k++)
+   // {
+   //    delete domain_integs[k];
+   // }
+   // for (int k=0; k < trace_integs.Size(); k++)
+   // {
+   //    delete trace_integs[k];
+   // }
+   // delete P;
+   // delete R;
 }
 
 

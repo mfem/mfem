@@ -3013,6 +3013,14 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
    }
 }
 
+void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & PtAP)
+{
+   DenseMatrix PtA(P.Width(),A.Width());
+   MultAtB(P,A,PtA);
+   PtAP.SetSize(PtA.Height(), P.Width());
+   Mult(PtA,P, PtAP);
+}
+
 
 bool LUFactors::Factor(int m, double TOL)
 {
