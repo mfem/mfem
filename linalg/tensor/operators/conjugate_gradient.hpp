@@ -83,7 +83,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       return x;
    }
 
-   auto p = P * residual;      // initial search direction
+   auto p = residual; //P * residual;      // initial search direction
 
    Scalar absNew = Dot(residual,p);  // the square of the absolute value of r scaled by invM
    Index i = 0;
