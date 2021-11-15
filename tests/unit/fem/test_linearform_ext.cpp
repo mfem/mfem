@@ -11,7 +11,7 @@
 
 #include "unit_tests.hpp"
 
-#include "tests/unit/fem/test_linearform_ext.hpp"
+#include "fem/test_linearform_ext.hpp"
 
 using namespace mfem;
 using namespace linearform_ext_tests;
