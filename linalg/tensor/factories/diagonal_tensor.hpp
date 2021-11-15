@@ -128,6 +128,13 @@ struct is_threaded_tensor_dim_v<N,DiagonalTensor<DRank, VRank, C, Layout>>
    static constexpr bool value = is_threaded_layout_dim<Layout,N>;
 };
 
+// has_pointer_container
+template <int DRank, int VRank, typename C, typename L>
+struct has_pointer_container_v<DiagonalTensor<DRank,VRank,C,L>>
+{
+   static constexpr bool value = is_pointer_container<C>;
+};
+
 } // namespace mfem
 
 #endif // MFEM_DIAG_TENSOR
