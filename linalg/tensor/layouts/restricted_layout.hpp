@@ -77,7 +77,8 @@ public:
    template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      return layout.template Size<(M<1?M:M+1)>();
+      constexpr int Dim = M<1?M:M+1;
+      return layout.template Size<Dim>();
    }
 };
 
@@ -106,7 +107,8 @@ public:
    template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      return layout.template Size<(M<2?M:M+1)>();
+      constexpr int Dim = M<2?M:M+1;
+      return layout.template Size<Dim>();
    }
 };
 
@@ -135,7 +137,8 @@ public:
    template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      return layout.template Size<(M<3?M:M+1)>();
+      constexpr int Dim = M<3?M:M+1;
+      return layout.template Size<Dim>();
    }
 };
 
@@ -164,7 +167,8 @@ public:
    template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      return layout.template Size<(M<4?M:M+1)>();
+      constexpr int Dim = M<4?M:M+1;
+      return layout.template Size<Dim>();
    }
 };
 
@@ -193,7 +197,8 @@ public:
    template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      return layout.template Size<(M<5?M:M+1)>();
+      constexpr int Dim = M<5?M:M+1;
+      return layout.template Size<Dim>();
    }
 };
 
@@ -222,7 +227,8 @@ public:
    template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      return layout.template Size<(M<6?M:M+1)>();
+      constexpr int Dim = M<6?M:M+1;
+      return layout.template Size<Dim>();
    }
 };
 
@@ -251,7 +257,8 @@ public:
    template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      return layout.template Size<(M<7?M:M+1)>();
+      constexpr int Dim = M<7?M:M+1;
+      return layout.template Size<Dim>();
    }
 };
 
@@ -280,7 +287,8 @@ public:
    template <int M> MFEM_HOST_DEVICE inline
    constexpr int Size() const
    {
-      return layout.template Size<(M<8?M:M+1)>();
+      constexpr int Dim = M<8?M:M+1;
+      return layout.template Size<Dim>();
    }
 };
 
