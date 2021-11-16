@@ -22,7 +22,9 @@ namespace mfem
 template <typename RHS,
           typename LHS,
           std::enable_if_t<
-             get_tensor_rank<RHS> == get_tensor_rank<LHS>,
+             get_tensor_rank<RHS> == get_tensor_rank<LHS> &&
+             is_serial_tensor<RHS> &&
+             is_serial_tensor<LHS>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto Dot(const LHS &lhs, const RHS &rhs)
@@ -31,6 +33,24 @@ auto Dot(const LHS &lhs, const RHS &rhs)
    Scalar res = 0;
    ForallDims<RHS>::ApplyBinOp(lhs, rhs, [&](auto... idx){
       res += lhs(idx...)*rhs(idx...);
+   });
+   return res;
+}
+
+template <typename RHS,
+          typename LHS,
+          std::enable_if_t<
+             get_tensor_rank<RHS> == get_tensor_rank<LHS> &&
+             (!is_serial_tensor<RHS> ||
+              !is_serial_tensor<LHS>),
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto Dot(const LHS &lhs, const RHS &rhs)
+{
+   using Scalar = get_tensor_type<RHS>;
+   MFEM_SHARED Scalar res = 0;
+   ForallDims<RHS>::ApplyBinOp(lhs, rhs, [&](auto... idx){
+      AtomicAdd(&res, lhs(idx...)*rhs(idx...) );
    });
    return res;
 }
