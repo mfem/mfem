@@ -48,10 +48,10 @@ public:
          SecondSize==Dynamic || SecondSize==size1,
          "Compilation time and runtime sizes must be the same.");
       MFEM_ASSERT_KERNEL(
-         size0<MFEM_THREAD_SIZE(x),
+         size0<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
       MFEM_ASSERT_KERNEL(
-         size1<MFEM_THREAD_SIZE(y),
+         size1<=MFEM_THREAD_SIZE(y),
          "The second dimension exceeds the number of y threads.");
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
@@ -111,7 +111,7 @@ public:
          FirstSize==Dynamic || FirstSize==size0,
          "Compilation time and runtime sizes must be the same.");
       MFEM_ASSERT_KERNEL(
-         size0<MFEM_THREAD_SIZE(x),
+         size0<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
@@ -166,10 +166,10 @@ public:
          SecondSize==Dynamic || SecondSize==size1,
          "Compilation time and runtime sizes must be the same.");
       MFEM_ASSERT_KERNEL(
-         size0<MFEM_THREAD_SIZE(x),
+         size0<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
       MFEM_ASSERT_KERNEL(
-         size1<MFEM_THREAD_SIZE(y),
+         size1<=MFEM_THREAD_SIZE(y),
          "The second dimension exceeds the number of y threads.");
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),

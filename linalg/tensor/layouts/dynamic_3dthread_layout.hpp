@@ -51,13 +51,13 @@ public:
          ThirdSize==Dynamic || ThirdSize==size2,
          "Compilation time and runtime sizes must be the same.");
       MFEM_ASSERT_KERNEL(
-         size0<MFEM_THREAD_SIZE(x),
+         size0<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
       MFEM_ASSERT_KERNEL(
-         size1<MFEM_THREAD_SIZE(y),
+         size1<=MFEM_THREAD_SIZE(y),
          "The second dimension exceeds the number of y threads.");
       MFEM_ASSERT_KERNEL(
-         size2<MFEM_THREAD_SIZE(z),
+         size2<=MFEM_THREAD_SIZE(z),
          "The third dimension exceeds the number of z threads.");
    }
 
@@ -121,7 +121,7 @@ public:
          FirstSize==Dynamic || FirstSize==size0,
          "Compilation time and runtime sizes must be the same.");
       MFEM_ASSERT_KERNEL(
-         size0<MFEM_THREAD_SIZE(x),
+         size0<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
    }
 
@@ -174,10 +174,10 @@ public:
          SecondSize==Dynamic || SecondSize==size1,
          "Compilation time and runtime sizes must be the same.");
       MFEM_ASSERT_KERNEL(
-         size0<MFEM_THREAD_SIZE(x),
+         size0<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
       MFEM_ASSERT_KERNEL(
-         size1<MFEM_THREAD_SIZE(y),
+         size1<=MFEM_THREAD_SIZE(y),
          "The second dimension exceeds the number of y threads.");
    }
 
@@ -239,13 +239,13 @@ public:
          ThirdSize==Dynamic || ThirdSize==size2,
          "Compilation time and runtime sizes must be the same.");
       MFEM_ASSERT_KERNEL(
-         size0<MFEM_THREAD_SIZE(x),
+         size0<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
       MFEM_ASSERT_KERNEL(
-         size1<MFEM_THREAD_SIZE(y),
+         size1<=MFEM_THREAD_SIZE(y),
          "The second dimension exceeds the number of y threads.");
       MFEM_ASSERT_KERNEL(
-         size2<MFEM_THREAD_SIZE(z),
+         size2<=MFEM_THREAD_SIZE(z),
          "The third dimension exceeds the number of z threads.");
    }
 

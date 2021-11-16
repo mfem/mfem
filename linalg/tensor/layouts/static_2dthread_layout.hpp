@@ -31,7 +31,7 @@ public:
    Static2dThreadLayout()
    {
       MFEM_ASSERT_KERNEL(
-         DimX<MFEM_THREAD_SIZE(x),
+         DimX<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
@@ -45,7 +45,7 @@ public:
          size0==DimX,
          "The runtime first dimension is different to the compilation one.");
       MFEM_ASSERT_KERNEL(
-         DimX<MFEM_THREAD_SIZE(x),
+         DimX<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
@@ -92,10 +92,10 @@ public:
    Static2dThreadLayout()
    {
       MFEM_ASSERT_KERNEL(
-         DimX<MFEM_THREAD_SIZE(x),
+         DimX<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
       MFEM_ASSERT_KERNEL(
-         DimY<MFEM_THREAD_SIZE(y),
+         DimY<=MFEM_THREAD_SIZE(y),
          "The second dimension exceeds the number of y threads.");
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
@@ -109,13 +109,13 @@ public:
          size0==DimX,
          "The runtime first dimension is different to the compilation one.");
       MFEM_ASSERT_KERNEL(
-         DimX<MFEM_THREAD_SIZE(x),
+         DimX<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
       MFEM_ASSERT_KERNEL(
          size1==DimY,
          "The runtime second dimension is different to the compilation one.");
       MFEM_ASSERT_KERNEL(
-         DimY<MFEM_THREAD_SIZE(y),
+         DimY<=MFEM_THREAD_SIZE(y),
          "The second dimension exceeds the number of y threads.");
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
@@ -172,10 +172,10 @@ public:
    Static2dThreadLayout()
    {
       MFEM_ASSERT_KERNEL(
-         DimX<MFEM_THREAD_SIZE(x),
+         DimX<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
       MFEM_ASSERT_KERNEL(
-         DimY<MFEM_THREAD_SIZE(y),
+         DimY<=MFEM_THREAD_SIZE(y),
          "The second dimension exceeds the number of y threads.");
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
@@ -190,13 +190,13 @@ public:
          size0==DimX,
          "The runtime first dimension is different to the compilation one.");
       MFEM_ASSERT_KERNEL(
-         DimX<MFEM_THREAD_SIZE(x),
+         DimX<=MFEM_THREAD_SIZE(x),
          "The first dimension exceeds the number of x threads.");
       MFEM_ASSERT_KERNEL(
          size1==DimY,
          "The runtime second dimension is different to the compilation one.");
       MFEM_ASSERT_KERNEL(
-         DimY<MFEM_THREAD_SIZE(y),
+         DimY<=MFEM_THREAD_SIZE(y),
          "The second dimension exceeds the number of y threads.");
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),

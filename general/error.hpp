@@ -168,10 +168,13 @@ __device__ void abort_msg(T & msg)
 #define MFEM_ABORT_KERNEL(msg)                              \
    {                                                        \
       printf(                                               \
-         "Error in thread (%d[%d]x%d[%d]x%d[%d],%d)\n%s\n", \
-         MFEM_THREAD_ID(x),MFEM_THREAD_SIZE(x),             \
-         MFEM_THREAD_ID(y),MFEM_THREAD_SIZE(y),             \
-         MFEM_THREAD_ID(z),MFEM_THREAD_SIZE(z),             \
+         "Error in thread (%dx%dx%d[%dx%dx%d],%d)\n%s\n",   \
+         MFEM_THREAD_ID(x),                                 \
+         MFEM_THREAD_ID(y),                                 \
+         MFEM_THREAD_ID(z),                                 \
+         MFEM_THREAD_SIZE(x),                               \
+         MFEM_THREAD_SIZE(y),                               \
+         MFEM_THREAD_SIZE(z),                               \
          MFEM_BLOCK_ID(x),msg);                             \
       asm("trap;");                                         \
    }
