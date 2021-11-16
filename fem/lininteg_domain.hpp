@@ -108,11 +108,29 @@ inline void Launch(const Kernel_f &kernel,
    kernel(vdim,byVDIM,ND,NE,d1d,q1d,M,B,G,I,J,W,coeff,Y);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-template<typename T> static MFEM_HOST_DEVICE inline
-T *alloc(T* &mem, size_t size, T* base = 0) noexcept
+/** @brief Create a scratch memory on the device. */
+template<bool USE_SMEM, int GRID>
+static double *ScratchMem(const int sm_size)
 {
-   return (base = mem, mem += size, base);
+   static Memory<double> data;
+   static int size = 0;
+
+   double *gmem = nullptr;
+
+   if (!USE_SMEM)
+   {
+      if (sm_size == size) { /* nothing to do */ }
+      else if (sm_size <= data.Capacity()) { size = sm_size; }
+      else // sm_size > size
+      {
+         data.Delete();
+         data.New(sm_size*GRID, Device::GetDeviceMemoryType());
+         size = sm_size;
+      }
+      data.UseDevice(true);
+      gmem = data.Write(Device::GetDeviceMemoryClass(), size*GRID);
+   }
+   return gmem;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,18 +170,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
    const int sm_size = 2*q1d*(d1d+q1d);
 
    const int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = nullptr;
-   static Vector *d_buffer = nullptr;
-   if (!USE_SMEM)
-   {
-      if (!d_buffer)
-      {
-         d_buffer = new Vector;
-         d_buffer->UseDevice(true);
-      }
-      d_buffer->SetSize(sm_size*GRID);
-      gmem = d_buffer->Write();
-   }
+   double *gmem = ScratchMem<USE_SMEM,GRID>(sm_size);
 
    MFEM_FORALL_3D_GRID(e, NE, q1d,q1d,1, GRID,
    {
@@ -173,9 +180,9 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
       const int sm_SIZE = 2*Q1D*(D1D+Q1D);
       MFEM_SHARED double SMEM[USE_SMEM ? sm_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
-      const DeviceMatrix Bt(alloc(sm,q1d*d1d),q1d,d1d);
-      const DeviceMatrix QQ(alloc(sm,q1d*q1d),q1d,q1d);
-      const DeviceMatrix QD(alloc(sm,q1d*d1d),q1d,d1d);
+      const DeviceMatrix Bt(DeviceMemAlloc(sm,q1d*d1d),q1d,d1d);
+      const DeviceMatrix QQ(DeviceMemAlloc(sm,q1d*q1d),q1d,q1d);
+      const DeviceMatrix QD(DeviceMemAlloc(sm,q1d*d1d),q1d,d1d);
 
       kernels::internal::LoadB(d1d,q1d,B,Bt);
 
@@ -262,8 +269,8 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
       const int sm_SIZE = Q1D*D1D + Q1D*Q1D*Q1D;
       MFEM_SHARED double SMEM[USE_SMEM ? sm_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
-      const DeviceCube Q(alloc(sm,q1d*q1d*q1d),q1d,q1d,q1d);
-      const DeviceMatrix Bt(alloc(sm,q1d*d1d),q1d,d1d);
+      const DeviceCube Q(DeviceMemAlloc(sm,q1d*q1d*q1d),q1d,q1d,q1d);
+      const DeviceMatrix Bt(DeviceMemAlloc(sm,q1d*d1d),q1d,d1d);
       kernels::internal::LoadB(d1d,q1d,B,Bt);
 
       for (int c = 0; c < vdim; ++c)
