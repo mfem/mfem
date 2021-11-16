@@ -14,7 +14,6 @@
 
 #include "../config/config.hpp"
 #include "../linalg/dtensor.hpp"
-#include "../general/forall.hpp" // MFEM_UNROLL
 
 namespace mfem
 {
@@ -1732,16 +1731,12 @@ MFEM_HOST_DEVICE inline void Atomic3DEvalZt(const int D1D, const int Q1D,
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
-         //MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
-         //MFEM_UNROLL(Q1D)
          for (int qz = 0; qz < Q1D; ++qz)
          {
             const double ZYX = Q(qz,qy,qx);
-            //MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz) { u[dz] += ZYX * B(qz,dz); }
          }
-         //MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; ++dz) { Q(dz,qy,qx) = u[dz]; }
       }
    }
@@ -1758,16 +1753,12 @@ MFEM_HOST_DEVICE inline void Atomic3DEvalYt(const int D1D, const int Q1D,
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         //MFEM_UNROLL(D1D)
          for (int dy = 0; dy < D1D; ++dy) { u[dy] = 0.0; }
-         //MFEM_UNROLL(Q1D)
          for (int qy = 0; qy < Q1D; ++qy)
          {
             const double zYX = Q(dz,qy,qx);
-            //MFEM_UNROLL(D1D)
             for (int dy = 0; dy < D1D; ++dy) { u[dy] += zYX * B(qy,dy); }
          }
-         //MFEM_UNROLL(D1D)
          for (int dy = 0; dy < D1D; ++dy) { Q(dz,dy,qx) = u[dy]; }
       }
    }
@@ -1789,16 +1780,12 @@ MFEM_HOST_DEVICE inline void Atomic3DEvalXt(const int D1D, const int Q1D,
    {
       MFEM_FOREACH_THREAD(dy,x,D1D)
       {
-         //MFEM_UNROLL(D1D)
          for (int dx = 0; dx < D1D; ++dx) { u[dx] = 0.0; }
-         //MFEM_UNROLL(Q1D)
          for (int qx = 0; qx < Q1D; ++qx)
          {
             const double zyX = Q(dz,dy,qx);
-            //MFEM_UNROLL(D1D)
             for (int dx = 0; dx < D1D; ++dx) { u[dx] += zyX * B(qx,dx); }
          }
-         //MFEM_UNROLL(D1D)
          for (int dx = 0; dx < D1D; ++dx)
          {
             const double val = u[dx];
@@ -1874,7 +1861,6 @@ MFEM_HOST_DEVICE inline void AtomicGradZt(const int D1D, const int Q1D,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u = 0.0, v = 0.0, w = 0.0;
-            //MFEM_UNROLL(MQ1)
             for (int qx = 0; qx < Q1D; ++qx)
             {
                const int i = qi(qx,dx,Q1D);
@@ -1913,7 +1899,6 @@ MFEM_HOST_DEVICE inline void AtomicGradYt(const int D1D, const int Q1D,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u = 0.0, v = 0.0, w = 0.0;
-            //MFEM_UNROLL(Q1D)
             for (int qy = 0; qy < Q1D; ++qy)
             {
                const int i = qi(qy,dy,Q1D);
@@ -1954,7 +1939,6 @@ MFEM_HOST_DEVICE inline void AtomicGradXt(const int D1D, const int Q1D,
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
             double u = 0.0, v = 0.0, w = 0.0;
-            //MFEM_UNROLL(MQ1)
             for (int qz = 0; qz < Q1D; ++qz)
             {
                const int i = qi(qz,dz,Q1D);
