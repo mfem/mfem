@@ -52,6 +52,16 @@ const int prism_deref_table[7][6 + 5] =
 
 // child ordering tables
 
+const char tri_sfc_child_order[6][4] =
+{
+   {0,2,3,1}, {0,1,3,2}, {1,0,3,2}, {1,2,3,0}, {2,1,3,0}, {2,0,3,1}
+};
+
+const char tri_sfc_child_state[6][4] =
+{
+   {1,0,1,0}, {0,1,0,1}, {3,2,3,2}, {2,3,2,3}, {5,4,5,4}, {4,5,4,5}
+};
+
 const char quad_hilbert_child_order[8][4] =
 {
    {0,1,2,3}, {0,3,2,1}, {1,2,3,0}, {1,0,3,2},

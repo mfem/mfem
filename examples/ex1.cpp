@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int ref_levels = 2, seed = 1;
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -83,6 +84,9 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--ref-levels",
+                  "Number of refinement levels");
+   args.AddOption(&seed, "-s", "--seed", "Random seed");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -115,19 +119,36 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
+   // Reorder mesh
+   /*Array<int> ordering;
+   mesh.GetGeckoElementOrdering(ordering);
+   mesh.ReorderElements(ordering);*/
+
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+   mesh.EnsureNCMesh(true);
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+      srand(seed);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh.UniformRefinement();
+         //mesh.UniformRefinement();
+         mesh.RandomRefinement(0.5, true);
       }
    }
+   delete mesh.ncmesh;
+   mesh.ncmesh = NULL;
 
+   // Reorder mesh
+   if (order)
+   {
+      Array<int> ordering;
+      mesh.GetHilbertElementOrdering(ordering);
+      mesh.ReorderElements(ordering);
+   }
+
+#if 0
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -236,7 +257,23 @@ int main(int argc, char *argv[])
    }
 
    // 12. Recover the solution as a finite element grid function.
-   a.RecoverFEMSolution(X, b, x);
+   a->RecoverFEMSolution(X, *b, x);
+#else
+
+   FiniteElementCollection *fec = new L2_FECollection(0, dim);
+   bool delete_fec = true;
+
+   FiniteElementSpace fespace(&mesh, fec);
+
+   GridFunction x(&fespace);
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      //x(i) = i;
+      x(i) = i * 9 / mesh.GetNE();
+   }
+
+   (void) algebraic_ceed;
+#endif
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".

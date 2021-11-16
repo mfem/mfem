@@ -4638,12 +4638,10 @@ void ParMesh::Print(std::ostream &out) const
    }
    else
    {
-      s2l_face = &nc_shared_faces;
       if (Dim >= 2)
       {
          // get a list of all shared non-ghost faces
-         const NCMesh::NCList& sfaces =
-            (Dim == 3) ? pncmesh->GetSharedFaces() : pncmesh->GetSharedEdges();
+         const NCMesh::NCList& sfaces = pncmesh->GetSharedList(Dim-1);
          const int nfaces = GetNumFaces();
          for (int i = 0; i < sfaces.conforming.Size(); i++)
          {
@@ -4662,6 +4660,7 @@ void ParMesh::Print(std::ostream &out) const
             if (index < nfaces) { nc_shared_faces.Append(index); }
          }
       }
+      s2l_face = &nc_shared_faces;
    }
 
    out << "MFEM mesh v1.0\n";
