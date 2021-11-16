@@ -38,45 +38,54 @@ struct Refinement
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
 
    Refinement() = default;
-
    Refinement(int index, int type = 7) : index(index), ref_type(type) {}
 };
+
 
 /// Defines the position of a fine element within a coarse element.
 struct Embedding
 {
-   /// %Element index in the coarse mesh.
+   /// Coarse %Element index in the coarse mesh.
    int parent;
-   /** @brief Index into the DenseTensor corresponding to the parent
-       Geometry::Type stored in CoarseFineTransformations::point_matrices. */
-   int matrix;
+
+   /** The (geom, matrix) pair determines the sub-element transformation for the
+       fine element: CoarseFineTransformations::point_matrices[geom](matrix) is
+       the point matrix of the region within the coarse element reference domain.*/
+   unsigned geom : 4;
+   unsigned matrix : 27;
+
+   /// For internal use: 0 if regular fine element, 1 if parallel ghost element.
+   unsigned ghost : 1;
 
    Embedding() = default;
-
-   Embedding(int elem, int matrix = 0) : parent(elem), matrix(matrix) {}
+   Embedding(int elem, Geometry::Type geom, int matrix = 0, bool ghost = false)
+      : parent(elem), geom(geom), matrix(matrix), ghost(ghost) {}
 };
+
 
 /// Defines the coarse-fine transformations of all fine elements.
 struct CoarseFineTransformations
 {
-   /// Matrices for IsoparametricTransformation organized by Geometry::Type
-   DenseTensor point_matrices[Geometry::NumGeom];
    /// Fine element positions in their parents.
    Array<Embedding> embeddings;
 
-   void GetCoarseToFineMap(const Mesh &fine_mesh,
-                           Table &coarse_to_fine,
-                           Array<int> &coarse_to_ref_type,
-                           Table &ref_type_to_matrix,
-                           Array<Geometry::Type> &ref_type_to_geom,
-                           bool get_coarse_to_fine_only = false) const;
+   /** A "dictionary" of matrices for IsoparametricTransformation. Use
+       Embedding::{geom,matrix} to access a fine element point matrix. */
+   DenseTensor point_matrices[Geometry::NumGeom];
 
-   void GetCoarseToFineMap(const Mesh &fine_mesh,
-                           Table &coarse_to_fine) const;
+   /** Invert the 'embeddings' array: create a Table with coarse elements as
+       rows and fine elements as columns. If 'want_ghosts' is false, parallel
+       ghost fine elements are not included in the table. */
+   void MakeCoarseToFineTable(Table &coarse_to_fine,
+                              bool want_ghosts = false) const;
 
    void Clear();
    bool IsInitialized() const;
    long MemoryUsage() const;
+
+   MFEM_DEPRECATED
+   void GetCoarseToFineMap(const Mesh &fine_mesh, Table &coarse_to_fine) const
+   { MakeCoarseToFineTable(coarse_to_fine, true); (void) fine_mesh; }
 };
 
 void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b);
