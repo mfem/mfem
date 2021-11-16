@@ -38,11 +38,11 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
                                             const double *jacobians,
                                             const double *weights,
                                             const Vector &coeff,
-                                            double* __restrict y)
+                                            double *y)
 {
    constexpr int DIM = 2;
-   const int cdim = vdim == 1 ? DIM : vdim;
 
+   const int cdim = vdim == 1 ? DIM : vdim;
    const bool cst_coeff = coeff.Size() == cdim;
 
    const auto F = coeff.Read();
@@ -56,10 +56,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
                   Reshape(F,DIM,cdim/DIM,1,1,1):
                   Reshape(F,DIM,cdim/DIM,Q1D,Q1D,NE);
 
-   auto Y = Reshape(y,
-                    byVDIM ? vdim : ND,
-                    byVDIM ? ND : vdim);
-
+   auto Y = Reshape(y, byVDIM ? vdim : ND, byVDIM ? ND : vdim);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
@@ -68,6 +65,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
       MFEM_SHARED double sBG[2][D1D*Q1D];
       const DeviceMatrix Bt(sBG[0],D1D,Q1D);
       const DeviceMatrix Gt(sBG[1],D1D,Q1D);
+      kernels::internal::LoadBGt(D1D,Q1D,B,G,Bt,Gt);
 
       MFEM_SHARED double sm0[2][Q1D*Q1D];
       const DeviceMatrix QQ0(sm0[0],Q1D,Q1D);
@@ -103,7 +101,6 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::LoadBGt(D1D,Q1D,B,G,Bt,Gt);
          kernels::internal::Atomic2DGradTranspose(D1D,Q1D,Bt,Gt,
                                                   QQ0,QQ1,DQ0,DQ1,
                                                   I,Y,c,e,byVDIM);
@@ -123,11 +120,11 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
                                             const double *jacobians,
                                             const double *weights,
                                             const Vector &coeff,
-                                            double* __restrict y)
+                                            double *y)
 {
    constexpr int DIM = 3;
-   const int cdim = vdim == 1 ? DIM : vdim;
 
+   const int cdim = vdim == 1 ? DIM : vdim;
    const bool cst_coeff = coeff.Size() == cdim;
 
    const auto F = coeff.Read();
@@ -141,9 +138,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
                   Reshape(F,DIM,cdim/DIM,1,1,1,1):
                   Reshape(F,DIM,cdim/DIM,Q1D,Q1D,Q1D,NE);
 
-   auto Y = Reshape(y,
-                    byVDIM ? vdim : ND,
-                    byVDIM ? ND : vdim);
+   auto Y = Reshape(y, byVDIM ? vdim : ND, byVDIM ? ND : vdim);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {

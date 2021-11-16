@@ -48,7 +48,7 @@ void LinearFormExtTest::Run()
    AssembleBoth();
    const double fxf = lf_full*lf_full;
    const double lxl = lf_legacy*lf_legacy;
-   // Test also the diffs to verify the orderings
+   // Test also the difference to verify the orderings
    lf_legacy -= lf_full;
    REQUIRE(0.0 == MFEM_Approx(lf_legacy*lf_legacy));
    REQUIRE(fxf == MFEM_Approx(lxl));
@@ -60,7 +60,7 @@ void LinearFormExtTest::Run()
 
 TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
 {
-   const auto N = GENERATE(3,4);
+   const auto N = GENERATE(3,4,5);
    const auto p = GENERATE(1,2,3);
    const auto dim = GENERATE(2,3);
    const auto gll = GENERATE(false,true); // q=p+2, q=p+1
@@ -76,7 +76,7 @@ TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
 
    SECTION("Vector")
    {
-      const auto vdim = 7;
+      const auto vdim = GENERATE(2,7);
       const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
       const auto problem = GENERATE(LinearFormExtTest::VectorDomainLF,
                                     LinearFormExtTest::VectorDomainLFGrad);
