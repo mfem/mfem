@@ -100,13 +100,11 @@ int main(int argc, char *argv[])
    bool visualization = true;
    double step_length = 1.0;
    double mass_fraction = 0.5;
-   double compliance_max = 0.1;
    int max_it = 1e3;
-   double tol = 1e-3;
+   double tol = 1e-4;
    double K_max = 0.9;
    double K_min = 1e-3;
    int alg = 0;
-   int prob = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -121,20 +119,15 @@ int main(int argc, char *argv[])
                   "Maximum number of gradient descent iterations.");
    args.AddOption(&mass_fraction, "-mf", "--mass-fraction",
                   "Mass fraction for diffusion coefficient.");
-   args.AddOption(&compliance_max, "-cmax", "--compliance-max",
-                  "Maximum of compliance.");
-   args.AddOption(&K_max, "-Kmax", "--K-max",
+   args.AddOption(&K_max, "-max", "--K-max",
                   "Maximum of diffusion diffusion coefficient.");
-   args.AddOption(&K_min, "-Kmin", "--K-min",
+   args.AddOption(&K_min, "-min", "--K-min",
                   "Minimum of diffusion diffusion coefficient.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&alg, "-alg", "--algorithm",
                   "Optimization algorithm: 0 - Gradient Descent (default), 1 - Subgradient, 2 - Mirror descent (KL-divergence).");
-   args.AddOption(&prob, "-p", "--problem",
-                  "Optimization problem: 0 - Compliance Minimization, 1 - Mass Minimization.");
-
    args.Parse();
    if (!args.Good())
    {
@@ -242,24 +235,7 @@ int main(int argc, char *argv[])
       sout_K.precision(8);
    }
 
-   // Project initial K onto constraint set.
-   for (int i = 0; i < K.Size(); i++)
-   {
-      if (K[i] > K_max) 
-      {
-          K[i] = K_max;
-      }
-      else if (K[i] < K_min)
-      {
-          K[i] = K_min;
-      }
-      else
-      { // do nothing
-      }
-   }
-
    // 12. Perform projected gradient descent
-   double lambda = 0.0;
    for (int k = 1; k < max_it; k++)
    {
       // A. Form state equation
@@ -286,96 +262,101 @@ int main(int argc, char *argv[])
       // H. Constuct gradient function (i.e., -|\nabla u|^2)
       GradientGridFunctionCoefficient grad_u(&u);
       InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
-      // grad.ProjectCoefficient(norm2_grad_u);
+      grad.ProjectCoefficient(norm2_grad_u);
 
-      LinearForm d(&control_fes);
-      d.AddDomainIntegrator(new DomainLFIntegrator(norm2_grad_u));
-      d.Assemble();
-      BilinearForm L2proj(&control_fes);
-      InverseIntegrator * m = new InverseIntegrator(new MassIntegrator());
-      L2proj.AddDomainIntegrator(m);
-      L2proj.Assemble();
-      Array<int> empty_list;
-      OperatorPtr invM;
-      L2proj.FormSystemMatrix(empty_list,invM);   
-      invM->Mult(d,grad);
-      
-      grad *= -1.0;
-      if (prob == 0)
-      {
-        grad += lambda;
-      }
-      else
-      {
-          grad *= lambda;
-          grad += 1.0 / domain_volume;
-      }
+      // LinearForm d(&control_fes);
+      // d.AddDomainIntegrator(new DomainLFIntegrator(norm2_grad_u));
+      // d.Assemble();
+      // BilinearForm L2proj(&control_fes);
+      // InverseIntegrator * m = new InverseIntegrator(new MassIntegrator());
+      // L2proj.AddDomainIntegrator(m);
+      // L2proj.Assemble();
+      // Array<int> empty_list;
+      // OperatorPtr invM;
+      // L2proj.FormSystemMatrix(empty_list,invM);   
+      // invM->Mult(d,grad);
 
       // J. Update control.
       if (alg == 1)
       {
          grad *= step_length/sqrt(k);
-         K -= grad;
+         K += grad;
       }
       else if (alg == 2)
       {
          for (int i = 0; i < K.Size(); i++)
          {
-            K[i] *= exp(-step_length*grad[i]);
+            K[i] *= exp(step_length*grad[i]);
          }
       }
-      else 
+      else
       {
          grad *= step_length;
-         K -= grad;
+         K += grad;
       }
-
-      double grad_lambda;
-      double compliance = b(u);
-      double mass = vol_form(K);
-      if (prob == 0)
-      {
-         grad_lambda = ( mass / domain_volume ) - mass_fraction;
-      }
-      else
-      {
-         grad_lambda = compliance - compliance_max;
-      }
-      
-      lambda += step_length*grad_lambda;
 
       // K. Project onto constraint set.
-      for (int i = 0; i < K.Size(); i++)
+      // Uses Dykstra's projection algorithm.
+      p_Dykstra = 0.0;
+      q_Dykstra = 0.0;
+      while ( true )
       {
-      if (K[i] > K_max) 
-      {
-          K[i] = K_max;
-      }
-      else if (K[i] < K_min)
-      {
-          K[i] = K_min;
-      }
-      else
-      { // do nothing
-      }
+         // STEP 1: Project K+p onto { K : \int K <= mass_fraction * vol }.
+         p_Dykstra += K;
+         K = p_Dykstra;
+         double mass = vol_form(K);
+         double tmp1 = mass_fraction - ( mass / domain_volume );
+         if (tmp1 < 0)
+         {
+            K += tmp1;
+         }
+
+         // STEP 2: Update p.
+         p_Dykstra -= K;
+
+         // STEP 3: Project K+q onto { K : K(x) \in [K_min,K_max] }.
+         q_Dykstra += K;
+         K = q_Dykstra;
+         for (int i = 0; i < K.Size(); i++)
+         {
+            if (K[i] > K_max) 
+            {
+               K[i] = K_max;
+            }
+            else if (K[i] < K_min)
+            {
+               K[i] = K_min;
+            }
+            else
+            { // do nothing
+            }
+         }
+
+         // STEP 4: Update q.
+         q_Dykstra -= K;
+
+         mass = vol_form(K);
+         if ( ( mass / domain_volume - mass_fraction ) > -1e-3 )
+         {
+            break;
+         }
       }
 
       // I. Compute norm of update.
       GridFunctionCoefficient tmp(&K_old);
       double norm = K.ComputeL2Error(tmp)/step_length;
-      norm = sqrt(norm*norm + grad_lambda*grad_lambda);
       if (alg == 1)
       {
          norm *= sqrt(k);
       }
       K_old = K;
+      double compliance = b(u);
 
       // L. Exit if norm of grad is small enough.
       mfem::out << "norm of reduced gradient = " << norm << endl;
       mfem::out << "compliance = " << compliance << endl;
-      mfem::out << "mass_fraction = " << mass / domain_volume << endl;
-      mfem::out << "lambda = " << lambda << endl;
-      conv << k << ", " << compliance << ", " << (mass / domain_volume) << endl;
+      mfem::out << "mass_fraction = " << vol_form(K) / domain_volume << endl;
+      conv << k << ", " << compliance << ", " << mass_fraction << endl;
       if (norm < tol)
       {
          break;

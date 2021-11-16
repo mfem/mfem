@@ -30,7 +30,7 @@ MassFraction_KL = df_KL.iloc[1:, 1].to_numpy()
 
 fig1,(ax1) = plt.subplots(1, 1)
 ax1.plot(steps_GD,Compliance_GD,'-k',lw=1.5,markersize = 9.0, alpha=.7, label=r'GD: Fixed Stepsize')
-ax1.plot(steps_Subgrad,Compliance_Subgrad,'-r',lw=1.5,markersize = 9.0, alpha=.7, label=r'GD: Decaying Stepsize')
+# ax1.plot(steps_Subgrad,Compliance_Subgrad,'-r',lw=1.5,markersize = 9.0, alpha=.7, label=r'GD: Decaying Stepsize')
 ax1.plot(steps_KL,Compliance_KL,'-g',lw=1.5,markersize = 9.0, alpha=.7, label=r'Mirror Descent (KL-Divergence)')
 ax1.set_ylabel(r"Compliance")
 ax1.set_xlabel(r"Design Update")
