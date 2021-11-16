@@ -12,7 +12,7 @@
 #ifndef MFEM_TENSOR_MAT_MULT
 #define MFEM_TENSOR_MAT_MULT
 
-#include "../../../general/forall.hpp"
+#include "../../../general/backends.hpp"
 #include "../tensor_traits.hpp"
 #include "../utilities/foreach.hpp"
 
