@@ -49,7 +49,7 @@ inline const IntegrationRule*GetIntegrationRule(const FiniteElementSpace &fes,
    const int qorder = GetIrOrder(fe.GetOrder());
    const Geometry::Type geom_type = fe.GetGeomType();
    return IntRule ? IntRule : &IntRules.Get(geom_type, qorder);
-};
+}
 
 inline int GetKernelId(const FiniteElementSpace &fes,
                        const IntegrationRule *ir)
