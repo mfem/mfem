@@ -28,8 +28,8 @@ void LinearFormExtTest::Description() { MFEM_ABORT("Should use the virtuals!"); 
 /// TEST for LinearFormExtension
 struct Test: public LinearFormExtTest
 {
-   Test(int N, int dim, int vdim, bool gll, int problem, int order):
-      LinearFormExtTest(N, dim, vdim, gll,
+   Test(int N, int dim, int vdim, int ordering, bool gll, int problem, int order):
+      LinearFormExtTest(N, dim, vdim, ordering, gll,
                         problem, order,
                         true) { }
 
@@ -58,7 +58,7 @@ constexpr int VDIM = 24;
 #define LinExtTest(Problem,dim,vdim,gll)\
 static void TEST_##Problem##dim##gll(bm::State &state){\
    const int p = state.range(0);\
-   Test ker(4, dim,vdim,gll,LinearFormExtTest::Problem,p);\
+   Test ker(4, dim,vdim,Ordering::byVDIM,gll,LinearFormExtTest::Problem,p);\
    while(state.KeepRunning()) { ker.Run(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(),bm::Counter::kIsRate);}\
 BENCHMARK(TEST_##Problem##dim##gll)->DenseRange(1,6)->Unit(bm::kMillisecond);
@@ -101,9 +101,9 @@ LinExtTest(VectorDomainLFGrad,_3D,VDIM,_GL)
 template<enum LinearAssemblyLevel LAL>
 struct Bench: public LinearFormExtTest
 {
-   Bench(int dim, int vdim, bool gll, int problem, int p):
+   Bench(int dim, int vdim, int ordering, bool gll, int problem, int p):
       LinearFormExtTest(Device::IsEnabled()?24:4,
-                        dim, vdim, gll,
+                        dim, vdim, ordering, gll,
                         problem, p,
                         false)
    { }
@@ -123,7 +123,7 @@ struct Bench: public LinearFormExtTest
 #define LinExtBench(Problem,lal,dim,vdim,gll)\
 static void BENCH_##lal##_##Problem##dim##gll(bm::State &state){\
    const int p = state.range(0);\
-   Bench<LinearAssemblyLevel::lal> ker(dim,vdim,gll,LinearFormExtTest::Problem, p);\
+   Bench<LinearAssemblyLevel::lal> ker(dim,vdim,Ordering::byVDIM,gll,LinearFormExtTest::Problem, p);\
    while (state.KeepRunning()) { ker.Run(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
 BENCHMARK(BENCH_##lal##_##Problem##dim##gll)->DenseRange(1,6)->Unit(bm::kMicrosecond);
