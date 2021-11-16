@@ -42,6 +42,7 @@ void NormalEquationsWeakFormulation::AllocMat()
 {
    mat = new SparseMatrix(height);
    y = new Vector(height);
+   *y = 0.;
 }
 
 void NormalEquationsWeakFormulation::Finalize(int skip_zeros)
@@ -178,9 +179,9 @@ void NormalEquationsWeakFormulation::Assemble(int skip_zeros)
       {
          int iface = faces[j];
          FaceElementTransformations * ftr = mesh->GetFaceElementTransformations(iface);
-         const FiniteElement & fe = *trace_fes->GetFaceElement(j);
+         const FiniteElement & tfe = *trace_fes->GetFaceElement(iface);
          Bh[j] = new DenseMatrix();
-         trace_integ->AssembleTraceFaceMatrix(i,fe,test_fe,*ftr,*Bh[j]);
+         trace_integ->AssembleTraceFaceMatrix(i,tfe,test_fe,*ftr,*Bh[j]);
          w += Bh[j]->Width();
       }
 
@@ -229,28 +230,39 @@ void NormalEquationsWeakFormulation::Assemble(int skip_zeros)
       elementblockoffsets.PartialSum();
 
       vdofs.SetSize(0);
-      for (int j = 0; j<nblocks; j++)
+
+      // field dofs;
+      fespaces[0]->GetElementVDofs(i, vdofs_j);
+      int offset_j = dof_offsets[0];
+      offsetvdofs_j.SetSize(vdofs_j.Size());
+      for (int l = 0; l<vdofs_j.Size(); l++)
       {
-         fespaces[j]->GetElementVDofs(i, vdofs_j);
-         int jbeg = elementblockoffsets[j];
-         int jend = elementblockoffsets[j+1]-1;
-         int offset_j = dof_offsets[j];
-         offsetvdofs_j.SetSize(vdofs_j.Size());
-         for (int l = 0; l<vdofs_j.Size(); l++)
-         {
-            offsetvdofs_j[l] = vdofs_j[l]<0 ? -offset_j + vdofs_j[l]
-                               :  offset_j + vdofs_j[l];
-         }
-         vdofs.Append(offsetvdofs_j);
+         offsetvdofs_j[l] = vdofs_j[l]<0 ? -offset_j + vdofs_j[l]
+                            :  offset_j + vdofs_j[l];
       }
+      vdofs.Append(offsetvdofs_j);
+
+
+      // trace dofs;
+      offset_j = dof_offsets[1];
+      Array<int> face_vdofs;
+      for (int j = 0; j < numfaces; j++)
+      {
+         int iface = faces[j];
+         fespaces[1]->GetFaceVDofs(iface, vdofs_j);
+         face_vdofs.Append(vdofs_j);
+      }
+      offsetvdofs_j.SetSize(face_vdofs.Size());
+      for (int l = 0; l<face_vdofs.Size(); l++)
+      {
+         offsetvdofs_j[l] = face_vdofs[l]<0 ? -offset_j + face_vdofs[l]
+                            :  offset_j + face_vdofs[l];
+      }
+      vdofs.Append(offsetvdofs_j);
+
       mat->AddSubMatrix(vdofs,vdofs,A, skip_zeros);
       y->AddElementVector(vdofs,b);
    }
-
-   // mat->Finalize();
-   // mfem::out << "mat = " ; mat->PrintMatlab();
-
-   // mfem::out << " y = " ; y->Print();
 
 }
 

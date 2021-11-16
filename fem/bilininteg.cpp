@@ -3767,6 +3767,8 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
       MFEM_VERIFY(elem == Trans.Elem2->ElementNo, "Elem != Trans.Elem2->ElementNo");
    }
 
+   double scale = 1.0;
+   if (iel != elem) { scale = -1.; }
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
@@ -3786,7 +3788,7 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
       {
          for (j = 0; j < face_ndof; j++)
          {
-            elmat(i, j) += shape(i) * face_shape(j);
+            elmat(i, j) += scale * shape(i) * face_shape(j);
          }
       }
    }

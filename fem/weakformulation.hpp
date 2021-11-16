@@ -185,10 +185,10 @@ public:
        - DIAG_ONE  (Set the diagonal values to one)
        - DIAG_KEEP (Keep the diagonal values)
    */
-   // void SetDiagonalPolicy(Operator::DiagonalPolicy policy)
-   // {
-   // diag_policy = policy;
-   // }
+   void SetDiagonalPolicy(Operator::DiagonalPolicy policy)
+   {
+      diag_policy = policy;
+   }
 
    /// Destroys bilinear form.
    ~NormalEquationsWeakFormulation();
