@@ -3040,7 +3040,16 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
             {
                delete D_lor_;
                D_lor_ = new ParLORDiscretization(*cgblf_[i], cg_ess_tdof_list);
-               D_amg_ = new LORSolver<HypreBoomerAMG>(*D_lor_);
+               if (use_air_cg)
+               {
+                  MFEM_VERIFY(cgblf_[i], "");
+                  const int block_size = cgblf_[i]->ParFESpace()->GetFE(0)->GetDof();
+                  D_amg_ = new LORSolver<AIR_prec>(*D_lor_, block_size);
+               }
+               else
+               {
+                  D_amg_ = new LORSolver<HypreBoomerAMG>(*D_lor_);
+               }
             }
             else
             {
