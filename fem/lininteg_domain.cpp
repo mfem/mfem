@@ -73,7 +73,7 @@ void DomainLFIntegratorAssemble2D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::internal::Atomic2DEvalTranspose(D1D,Q1D,B,QQ,QD,I,Y,0,e);
+      kernels::internal::Atomic2DEvalTranspose(D1D,Q1D,B,QQ,QD,I,Y,0,e,true);
    });
 }
 
@@ -138,7 +138,7 @@ void DomainLFIntegratorAssemble3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::internal::Atomic3DEvalTranspose(D1D,Q1D,u,B,Q,I,Y,0,e);
+      kernels::internal::Atomic3DEvalTranspose(D1D,Q1D,u,B,Q,I,Y,0,e,true);
    });
 }
 

@@ -27,10 +27,10 @@ struct LinearFormExtTest
       DomainLF = 1,
       DomainLFGrad = 2,
       VectorDomainLF = 3,
-      VectorDomainLFGrad =4
+      VectorDomainLFGrad = 4
    };
 
-   const int dim, vdim;
+   const int dim, vdim, ordering;
    const bool gll, test;
    const int problem, N, p, q;
    const Element::Type type;
@@ -43,7 +43,6 @@ struct LinearFormExtTest
    IntegrationRules IntRulesGLL;
    const IntegrationRule *irGLL;
    const IntegrationRule *ir;
-   ConstantCoefficient one;
 
    Vector one_vec, dim_vec, vdim_vec;
    ConstantCoefficient constant_coeff;
@@ -63,11 +62,13 @@ struct LinearFormExtTest
    const int dofs;
    double mdofs;
 
-   LinearFormExtTest(int N, int dim, int VDIM, bool gll,
+   LinearFormExtTest(int N, int dim, int vdim, int ordering,
+                     bool gll,
                      int problem, int order,
                      bool test):
       dim(dim),
-      vdim(VDIM),
+      vdim(vdim),
+      ordering(ordering),
       gll(gll),
       test(test),
       problem(problem),
@@ -81,25 +82,24 @@ struct LinearFormExtTest
            Mesh::MakeCartesian2D(N,N,type):
            Mesh::MakeCartesian3D(N,N,N,type)),
       fec(p, dim),
-      vfes(&mesh, &fec, vdim),
+      vfes(&mesh, &fec, vdim, ordering),
       mfes(&mesh, &fec, dim),
       x(&mfes),
       geom_type(vfes.GetFE(0)->GetGeomType()),
       IntRulesGLL(0, Quadrature1D::GaussLobatto),
       irGLL(&IntRulesGLL.Get(geom_type, q)),
       ir(&IntRules.Get(geom_type, q)),
-      one(1.0),
       one_vec(1),
       dim_vec(dim),
       vdim_vec(vdim),
-      constant_coeff((one_vec.Randomize(SEED), one_vec(0))),
+      constant_coeff(M_PI),
       dim_constant_coeff((dim_vec.Randomize(SEED), dim_vec)),
       vdim_constant_coeff((vdim_vec.Randomize(SEED), vdim_vec)),
       vector_f(vdim_vector_function),
       vector_function_coeff(vdim, vector_f),
       lf_full(&vfes),
       lf_legacy(&vfes),
-      dofs(vfes.GetTrueVSize()),
+      dofs(vfes.GetVSize()),
       mdofs(0.0)
    {
       SetupRandomMesh();
