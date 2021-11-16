@@ -20,6 +20,7 @@ namespace mfem
 
 template<int D1D, int Q1D> static
 void VectorDomainLFIntegratorAssemble2D(const int vdim,
+                                        const bool byVDIM,
                                         const int ND,
                                         const int NE,
                                         const double *marks,
@@ -44,7 +45,9 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
                   Reshape(F,vdim,1,1,1):
                   Reshape(F,vdim,Q1D,Q1D,NE);
 
-   auto Y = Reshape(y,vdim,ND);
+   auto Y = Reshape(y,
+                    byVDIM ? vdim : ND,
+                    byVDIM ? ND : vdim);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
@@ -60,7 +63,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
 
       kernels::internal::LoadB(D1D,Q1D,b,B);
 
-      for (int c = 0; c < vdim; ++ c)
+      for (int c = 0; c < vdim; ++c)
       {
          const double cst_val = C(c,0,0,0);
          MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -79,13 +82,14 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Atomic2DEvalTranspose(D1D,Q1D,B,QQ,QD,I,Y,c,e);
+         kernels::internal::Atomic2DEvalTranspose(D1D,Q1D,B,QQ,QD,I,Y,c,e,byVDIM);
       }
    });
 }
 
 template<int D1D, int Q1D> static
 void VectorDomainLFIntegratorAssemble3D(const int vdim,
+                                        const bool byVDIM,
                                         const int ND,
                                         const int NE,
                                         const double *marks,
@@ -109,7 +113,10 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
    const auto C = cst_coeff ?
                   Reshape(F,vdim,1,1,1,1) :
                   Reshape(F,vdim,Q1D,Q1D,Q1D,NE);
-   auto Y = Reshape(y,vdim,ND);
+
+   auto Y = Reshape(y,
+                    byVDIM ? vdim : ND,
+                    byVDIM ? ND : vdim);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
@@ -125,10 +132,9 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
 
       kernels::internal::LoadB(D1D,Q1D,b,B);
 
-      for (int c = 0; c < vdim; ++ c)
+      for (int c = 0; c < vdim; ++c)
       {
          const double cst_val = C(c,0,0,0,0);
-
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -150,7 +156,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Atomic3DEvalTranspose(D1D,Q1D,u,B,Q,I,Y,c,e);
+         kernels::internal::Atomic3DEvalTranspose(D1D,Q1D,u,B,Q,I,Y,c,e,byVDIM);
       }
    });
 }
@@ -162,6 +168,7 @@ void VectorDomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
    Mesh *mesh = fes.GetMesh();
    const int vdim = fes.GetVDim();
    const int dim = mesh->Dimension();
+   const bool byVDIM = fes.GetOrdering() == Ordering::byVDIM;
 
    const FiniteElement &el = *fes.GetFE(0);
    const Geometry::Type geom_type = el.GetGeomType();
@@ -228,6 +235,7 @@ void VectorDomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
    const int id = (dim<<8) | (D1D << 4) | Q1D;
 
    void (*Ker)(const int vdim,
+               const bool byVDIM,
                const int ND,
                const int NE,
                const double *marks,
@@ -273,7 +281,7 @@ void VectorDomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
       case 0x378: Ker=VectorDomainLFIntegratorAssemble3D<7,8>; break; // 6
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
-   Ker(vdim,ND,NE,M,B,I,J,W,coeff,Y);
+   Ker(vdim,byVDIM,ND,NE,M,B,I,J,W,coeff,Y);
 }
 
 } // namespace mfem

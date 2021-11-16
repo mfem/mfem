@@ -20,6 +20,7 @@ namespace mfem
 
 template<int D1D, int Q1D> static
 void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
+                                            const bool byVDIM,
                                             const int ND,
                                             const int NE,
                                             const double *marks,
@@ -46,7 +47,10 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
                   Reshape(F,DIM,vdim/DIM,1,1,1):
                   Reshape(F,DIM,vdim/DIM,Q1D,Q1D,NE);
 
-   auto Y = Reshape(y,vdim/DIM,ND);
+   auto Y = Reshape(y,
+                    byVDIM ? vdim : ND,
+                    byVDIM ? ND : vdim);
+
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
@@ -93,13 +97,14 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
          kernels::internal::LoadBGt(D1D,Q1D,B,G,Bt,Gt);
          kernels::internal::Atomic2DGradTranspose(D1D,Q1D,Bt,Gt,
                                                   QQ0,QQ1,DQ0,DQ1,
-                                                  I,Y,c,e);
+                                                  I,Y,c,e,byVDIM);
       }
    });
 }
 
 template<int D1D, int Q1D> static
 void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
+                                            const bool byVDIM,
                                             const int ND,
                                             const int NE,
                                             const double *marks,
@@ -126,7 +131,9 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
                   Reshape(F,DIM,vdim/DIM,1,1,1,1):
                   Reshape(F,DIM,vdim/DIM,Q1D,Q1D,Q1D,NE);
 
-   auto Y = Reshape(y,vdim/DIM,ND);
+   auto Y = Reshape(y,
+                    byVDIM ? vdim : ND,
+                    byVDIM ? ND : vdim);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
@@ -151,7 +158,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
       const DeviceCube DD1(sm0[1],Q1D,D1D,D1D);
       const DeviceCube DD2(sm0[2],Q1D,D1D,D1D);
 
-      for (int c = 0; c < vdim/DIM; ++ c)
+      for (int c = 0; c < vdim/DIM; ++c)
       {
          const double cst_val_0 = C(0,c,0,0,0,0);
          const double cst_val_1 = C(1,c,0,0,0,0);
@@ -187,12 +194,11 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-
          kernels::internal::Atomic3DGrad(D1D,Q1D,Bt,Gt,
                                          QQ0,QQ1,QQ2,
                                          QD0,QD1,QD2,
                                          DD0,DD1,DD2,
-                                         I,Y,c,e);
+                                         I,Y,c,e,byVDIM);
       }
    });
 }
@@ -205,6 +211,7 @@ void VectorDomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
    const int vdim = fes.GetVDim();
    const int dim = mesh->Dimension();
    const MemoryType mt = Device::GetDeviceMemoryType();
+   const bool byVDIM = fes.GetOrdering() == Ordering::byVDIM;
 
    const FiniteElement &el = *fes.GetFE(0);
    const Geometry::Type geom_type = el.GetGeomType();
@@ -283,6 +290,7 @@ void VectorDomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
    const int id = (dim<<8) | (D1D << 4) | Q1D;
 
    void (*Ker)(const int vdim,
+               const bool byVDIM,
                const int ND,
                const int NE,
                const double *marks,
@@ -330,7 +338,7 @@ void VectorDomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
 
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
-   Ker(vdim,ND,NE,M,B,G,I,J,W,coeff,Y);
+   Ker(vdim,byVDIM,ND,NE,M,B,G,I,J,W,coeff,Y);
 }
 
 } // namespace mfem

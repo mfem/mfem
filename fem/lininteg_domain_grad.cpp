@@ -90,7 +90,7 @@ void DomainLFGradIntegratorAssemble2D(const int ND,
       kernels::internal::LoadBGt(D1D,Q1D,B,G,Bt,Gt);
       kernels::internal::Atomic2DGradTranspose(D1D,Q1D,Bt,Gt,
                                                QQ0,QQ1,DQ0,DQ1,
-                                               I,Y,0,e);
+                                               I,Y,0,e,true);
    });
 }
 
@@ -184,7 +184,7 @@ void DomainLFGradIntegratorAssemble3D(const int ND,
                                       QQ0,QQ1,QQ2,
                                       QD0,QD1,QD2,
                                       DD0,DD1,DD2,
-                                      I,Y,0,e);
+                                      I,Y,0,e,true);
    });
 }
 
