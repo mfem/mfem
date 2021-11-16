@@ -35,7 +35,6 @@ public:
 
    /// Assemble at the level given for the LinearFormExtension subclass
    virtual void Assemble() = 0;
-
 };
 
 /// Data and methods for fully-assembled linear forms
