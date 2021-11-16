@@ -26,13 +26,87 @@ namespace internal
 namespace linearform_extension
 {
 
+using Kernel_f = void (*)(const int vdim,
+                          const bool byVDIM,
+                          const int ND,
+                          const int NE,
+                          const double *marks,
+                          const double *b,
+                          const double *g,
+                          const int *idx,
+                          const double *jacobians,
+                          const double *weights,
+                          const Vector &coeff,
+                          double *output);
+
+using GetOrder_f = std::function<int(int)>;
+
+inline const IntegrationRule*GetIntegrationRule(const FiniteElementSpace &fes,
+                                                const IntegrationRule *IntRule,
+                                                GetOrder_f &GetIrOrder)
+{
+   const FiniteElement &fe = *fes.GetFE(0);
+   const int qorder = GetIrOrder(fe.GetOrder());
+   const Geometry::Type geom_type = fe.GetGeomType();
+   return IntRule ? IntRule : &IntRules.Get(geom_type, qorder);
+};
+
+inline int GetKernelId(const FiniteElementSpace &fes,
+                       const IntegrationRule *ir)
+{
+   Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+   const FiniteElement &el = *fes.GetFE(0);
+   const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   const int D1D = maps.ndof;
+   const int Q1D = maps.nqpt;
+   const int id = (dim << 8) | (D1D << 4) | Q1D;
+   return id;
+}
+
+inline void Launch(const Kernel_f &kernel,
+                   const FiniteElementSpace &fes,
+                   const IntegrationRule *ir,
+                   const Vector &coeff,
+                   const Vector &mark,
+                   Vector &y)
+{
+   Mesh *mesh = fes.GetMesh();
+   const int vdim = fes.GetVDim();
+   const bool byVDIM = fes.GetOrdering() == Ordering::byVDIM;
+
+   const FiniteElement &el = *fes.GetFE(0);
+   const int flags = GeometricFactors::JACOBIANS;
+   const MemoryType mt = Device::GetDeviceMemoryType();
+   const GeometricFactors *geom = mesh->GetGeometricFactors(*ir, flags, mt);
+   const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *ERop = fes.GetElementRestriction(ordering);
+   const ElementRestriction* ER = dynamic_cast<const ElementRestriction*>(ERop);
+   MFEM_ASSERT(ER, "Not supported!");
+
+   const double *M = mark.Read();
+   const double *B = maps.B.Read();
+   const double *G = maps.G.Read();
+   const int *I = ER->GatherMap().Read();
+   const double *J = geom->J.Read();
+   const double *W = ir->GetWeights().Read();
+   double *Y = y.ReadWrite();
+
+   const int ND = fes.GetNDofs();
+   const int NE = fes.GetMesh()->GetNE();
+
+   kernel(vdim,byVDIM,ND,NE,M,B,G,I,J,W,coeff,Y);
+}
+
 template<int D1D, int Q1D> static
 void VectorDomainLFIntegratorAssemble2D(const int vdim,
                                         const bool byVDIM,
                                         const int ND,
                                         const int NE,
                                         const double *marks,
-                                        const double *d2q,
+                                        const double *b,
+                                        const double */*g*/, // unused
                                         const int *idx,
                                         const double *jacobians,
                                         const double *weights,
@@ -45,7 +119,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
-   const auto b = Reshape(d2q, Q1D,D1D);
+   const auto B = Reshape(b, Q1D,D1D);
    const auto J = Reshape(jacobians, Q1D,Q1D,DIM,DIM,NE);
    const auto W = Reshape(weights, Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D, NE);
@@ -53,23 +127,20 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
                   Reshape(F,vdim,1,1,1):
                   Reshape(F,vdim,Q1D,Q1D,NE);
 
-   auto Y = Reshape(y,
-                    byVDIM ? vdim : ND,
-                    byVDIM ? ND : vdim);
+   auto Y = Reshape(y, byVDIM ? vdim : ND, byVDIM ? ND : vdim);
 
    MFEM_FORALL_2D(e, NE, Q1D,Q1D,1,
    {
       if (M(e) < 1.0) return;
 
       MFEM_SHARED double sB[D1D*Q1D];
+      const DeviceMatrix Bt(sB,Q1D,D1D);
+      kernels::internal::LoadB(D1D,Q1D,B,Bt);
+
       MFEM_SHARED double sQQ[Q1D*Q1D];
       MFEM_SHARED double sQD[Q1D*D1D];
-
-      const DeviceMatrix B(sB,Q1D,D1D);
       const DeviceMatrix QQ(sQQ,Q1D,Q1D);
       const DeviceMatrix QD(sQD,Q1D,D1D);
-
-      kernels::internal::LoadB(D1D,Q1D,b,B);
 
       for (int c = 0; c < vdim; ++c)
       {
@@ -90,7 +161,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Atomic2DEvalTranspose(D1D,Q1D,B,QQ,QD,I,Y,c,e,byVDIM);
+         kernels::internal::Atomic2DEvalTranspose(D1D,Q1D,Bt,QQ,QD,I,Y,c,e,byVDIM);
       }
    });
 }
@@ -101,7 +172,8 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
                                         const int ND,
                                         const int NE,
                                         const double *marks,
-                                        const double *d2q,
+                                        const double *b,
+                                        const double */*g*/, // unused
                                         const int *idx,
                                         const double *jacobians,
                                         const double *weights,
@@ -114,7 +186,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
-   const auto b = Reshape(d2q, Q1D,D1D);
+   const auto B = Reshape(b, Q1D,D1D);
    const auto J = Reshape(jacobians, Q1D,Q1D,Q1D,DIM,DIM,NE);
    const auto W = Reshape(weights, Q1D,Q1D,Q1D);
    const auto I = Reshape(idx, D1D,D1D,D1D, NE);
@@ -122,9 +194,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
                   Reshape(F,vdim,1,1,1,1) :
                   Reshape(F,vdim,Q1D,Q1D,Q1D,NE);
 
-   auto Y = Reshape(y,
-                    byVDIM ? vdim : ND,
-                    byVDIM ? ND : vdim);
+   auto Y = Reshape(y, byVDIM ? vdim : ND, byVDIM ? ND : vdim);
 
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
    {
@@ -133,12 +203,11 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
       double u[Q1D];
 
       MFEM_SHARED double sB[Q1D*D1D];
+      const DeviceMatrix Bt(sB,Q1D,D1D);
+      kernels::internal::LoadB(D1D,Q1D,B,Bt);
+
       MFEM_SHARED double sq[Q1D*Q1D*Q1D];
-
-      const DeviceMatrix B(sB,Q1D,D1D);
       const DeviceCube Q(sq,Q1D,Q1D,Q1D);
-
-      kernels::internal::LoadB(D1D,Q1D,b,B);
 
       for (int c = 0; c < vdim; ++c)
       {
@@ -164,7 +233,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Atomic3DEvalTranspose(D1D,Q1D,u,B,Q,I,Y,c,e,byVDIM);
+         kernels::internal::Atomic3DEvalTranspose(D1D,Q1D,u,Bt,Q,I,Y,c,e,byVDIM);
       }
    });
 }
