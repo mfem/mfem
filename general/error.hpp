@@ -167,13 +167,12 @@ __device__ void abort_msg(T & msg)
 #if defined(__CUDA_ARCH__)
 #define MFEM_ABORT_KERNEL(msg)                              \
    {                                                        \
-      printf("Error in thread (%d[%d]x%d[%d]x%d[%d],%d)\n", \
+      printf(                                               \
+         "Error in thread (%d[%d]x%d[%d]x%d[%d],%d)\n%s\n", \
          MFEM_THREAD_ID(x),MFEM_THREAD_SIZE(x),             \
          MFEM_THREAD_ID(y),MFEM_THREAD_SIZE(y),             \
          MFEM_THREAD_ID(z),MFEM_THREAD_SIZE(z),             \
-         MFEM_BLOCK_ID(x));                                 \
-      printf(msg);                                          \
-      printf("\n");                                         \
+         MFEM_BLOCK_ID(x),msg);                             \
       asm("trap;");                                         \
    }
 #elif defined(MFEM_USE_HIP)
