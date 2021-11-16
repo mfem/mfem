@@ -91,4 +91,10 @@ MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
 #endif
 }
 
+template<typename T> MFEM_HOST_DEVICE static
+inline T *DeviceMemAlloc(T* &mem, size_t size, T* base = 0) noexcept
+{
+   return (base = mem, mem += size, base);
+}
+
 #endif // MFEM_BACKENDS_HPP

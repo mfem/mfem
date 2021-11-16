@@ -61,7 +61,7 @@ void LinearFormExtTest::Run()
 TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
 {
    const auto N = GENERATE(3,4);
-   const auto p = GENERATE(1,2,3,6); // limitations 2D:11, 3D:6
+   const auto p = GENERATE(1,2,3,6); // limitations: 2D:11, 3D:6
    const auto dim = GENERATE(2,3);
    const auto gll = GENERATE(false,true); // q=p+2, q=p+1
 
@@ -69,17 +69,17 @@ TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
    {
       const auto vdim = 1;
       const auto ordering = Ordering::byNODES;
-      const auto problem = GENERATE(LinearFormExtTest::DomainLF/*,
-                                    LinearFormExtTest::DomainLFGrad*/);
+      const auto problem = GENERATE(LinearFormExtTest::DomainLF,
+                                    LinearFormExtTest::DomainLFGrad);
       LinearFormExtTest(N, dim, vdim, ordering, gll, problem, p, true).Run();
    }
 
    SECTION("Vector")
    {
-      const auto vdim = GENERATE(7);
+      const auto vdim = GENERATE(2,7);
       const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
-      const auto problem = GENERATE(LinearFormExtTest::VectorDomainLF/*,
-                                       LinearFormExtTest::VectorDomainLFGrad*/);
+      const auto problem = GENERATE(LinearFormExtTest::VectorDomainLF,
+                                    LinearFormExtTest::VectorDomainLFGrad);
       LinearFormExtTest(N, dim, vdim, ordering, gll, problem, p, true).Run();
    }
 
