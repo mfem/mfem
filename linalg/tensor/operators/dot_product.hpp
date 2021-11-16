@@ -50,7 +50,8 @@ auto Dot(const LHS &lhs, const RHS &rhs)
    using Scalar = get_tensor_type<RHS>;
    MFEM_SHARED Scalar res = 0;
    ForallDims<RHS>::ApplyBinOp(lhs, rhs, [&](auto... idx){
-      AtomicAdd(&res, lhs(idx...)*rhs(idx...) );
+      const Scalar val = lhs(idx...)*rhs(idx...);
+      AtomicAdd(&res, val);
    });
    return res;
 }
