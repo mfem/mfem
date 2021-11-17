@@ -44,6 +44,7 @@ struct LinearFormExtTest
    const IntegrationRule *irGLL;
    const IntegrationRule *ir;
 
+   Array<int> elem_marker;
    Vector one_vec, dim_vec, vdim_vec;
    ConstantCoefficient constant_coeff;
    VectorConstantCoefficient dim_constant_coeff;
@@ -89,6 +90,7 @@ struct LinearFormExtTest
       IntRulesGLL(0, Quadrature1D::GaussLobatto),
       irGLL(&IntRulesGLL.Get(geom_type, q)),
       ir(&IntRules.Get(geom_type, q)),
+      elem_marker(),
       one_vec(1),
       dim_vec(dim),
       vdim_vec(vdim),
@@ -102,6 +104,7 @@ struct LinearFormExtTest
       dofs(vfes.GetVSize()),
       mdofs(0.0)
    {
+      SetupMarkers();
       SetupRandomMesh();
 
       LinearFormIntegrator *integ_full = nullptr;
@@ -147,8 +150,10 @@ struct LinearFormExtTest
       integ_full->SetIntRule(gll ? irGLL : ir);
       integ_legacy->SetIntRule(gll ? irGLL : ir);
 
-      lf_full.AddDomainIntegrator(integ_full);
-      lf_legacy.AddDomainIntegrator(integ_legacy);
+      MFEM_VERIFY(mesh.attributes.Size() == elem_marker.Size(),
+                  "Markers attributes error!");
+      lf_full.AddDomainIntegrator(integ_full, elem_marker);
+      lf_legacy.AddDomainIntegrator(integ_legacy, elem_marker);
 
       lf_full.SetAssemblyLevel(LinearAssemblyLevel::FULL);
       lf_legacy.SetAssemblyLevel(LinearAssemblyLevel::LEGACY);
@@ -175,6 +180,41 @@ struct LinearFormExtTest
       rdm -= 0.5; // Shift to random values in [-0.5,0.5]
       rdm *= jitter * h0; // Scale the random values to be of same order
       x -= rdm;
+   }
+
+   void SetupMarkers()
+   {
+      // Initial mesh from MakeCartesian has attributes size of 1
+      MFEM_VERIFY(mesh.attributes.Size() == 1, "Initial attributes error!");
+
+      // Add attributes for interior/exterior domain
+      const double radius = sqrt(dim)/2.0;
+      Vector center(dim), diff(dim);
+      center = 0.5;
+      Array<int> vertices;
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         Element *el = mesh.GetElement(e);
+         el->GetVertices(vertices);
+         bool interior = true;
+         for (int j = 0; j < vertices.Size(); j++)
+         {
+            const Vector coord(mesh.GetVertex(vertices[j]), dim);
+            subtract(coord, center, diff);
+            const double norm = diff.Norml2();
+            MFEM_VERIFY(norm >= 0.0 && norm <= radius,"");
+            if (norm > 0.5) { interior = false; break; }
+         }
+         mesh.SetAttribute(e, interior ? 2 : 1);
+      }
+      mesh.SetAttributes();
+
+      // Marked mesh should now have two attributes
+      MFEM_VERIFY(mesh.attributes.Size() == 2, "Marked attributes error!");
+
+      elem_marker.SetSize(2);
+      elem_marker[0] = 0; // ignore exterior
+      elem_marker[1] = 1; // include interior
    }
 
    double SumMdofs() const { return mdofs; }

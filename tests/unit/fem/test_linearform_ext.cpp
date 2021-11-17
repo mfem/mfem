@@ -44,13 +44,15 @@ void LinearFormExtTest::Description()
 void LinearFormExtTest::Run()
 {
    Description();
+
    AssembleBoth();
-   const double fxf = lf_full*lf_full;
-   const double lxl = lf_legacy*lf_legacy;
-   // Test also the difference to verify the orderings
-   lf_legacy -= lf_full;
-   REQUIRE(0.0 == MFEM_Approx(lf_legacy*lf_legacy));
-   REQUIRE(fxf == MFEM_Approx(lxl));
+
+   // Test the difference to verify the orderings
+   Vector difference = lf_legacy;
+   difference -= lf_full;
+   REQUIRE(0.0 == MFEM_Approx(difference.Normlinf()));
+
+   REQUIRE(lf_full*lf_full == MFEM_Approx(lf_legacy*lf_legacy));
 }
 
 } // namespace linearform_ext_tests
@@ -59,7 +61,7 @@ void LinearFormExtTest::Run()
 
 TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
 {
-   const auto N = GENERATE(3,4);
+   const auto N = GENERATE(3,4,8);
    const auto p = GENERATE(1,3,6); // limitations: 2D:11, 3D:6
    const auto dim = GENERATE(2,3);
    const auto gll = GENERATE(false,true); // q=p+2, q=p+1
@@ -81,6 +83,5 @@ TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
                                     LinearFormExtTest::VectorDomainLFGrad);
       LinearFormExtTest(N, dim, vdim, ordering, gll, problem, p, true).Run();
    }
-
 } // test case
 

@@ -27,17 +27,11 @@ FullLinearFormExtension::FullLinearFormExtension(LinearForm *lf):
    const int ne = lf->FESpace()->GetNE();
    const Mesh &mesh = *lf->FESpace()->GetMesh();
 
-   marks.SetSize(ne);
-   marks.UseDevice(true);
-
+   markers.SetSize(ne);
    attributes.SetSize(ne);
-   attributes.UseDevice(true);
 
-   // Fill the attributes vector on the host
-   for (int i = 0; i < ne; ++i)
-   {
-      attributes[i] = mesh.GetAttribute(i);
-   }
+   // Fill the attributes on the host
+   for (int i = 0; i < ne; ++i) { attributes[i] = mesh.GetAttribute(i); }
 }
 
 void FullLinearFormExtension::Assemble()
@@ -59,30 +53,33 @@ void FullLinearFormExtension::Assemble()
 
    for (int k = 0; k < domain_integs.Size(); ++k)
    {
-      if (domain_integs_marker[k] != nullptr)
+      // get the markers for this integrator
+      const Array<int> *domain_integs_marker_k = domain_integs_marker[k];
+
+      if (domain_integs_marker_k != nullptr)
       {
-         MFEM_VERIFY(mesh_attributes_size == domain_integs_marker[k]->Size(),
+         // Element attribute marker should be of length mesh->attributes
+         MFEM_VERIFY(mesh_attributes_size == domain_integs_marker_k->Size(),
                      "invalid element marker for domain linear form "
                      "integrator #" << k << ", counting from zero");
       }
 
-      marks = 0.0;
+      // check if there are markers for this integrator
+      const bool has_markers_k = domain_integs_marker_k != nullptr;
 
-      const int NE = fes.GetNE();
-      const Array<int> *dimks = domain_integs_marker[k];
-      const bool no_dimk =  dimks == nullptr;
-      const auto dimk_r = no_dimk ? nullptr : dimks->Read();
-      const auto attr_r = attributes.Read();
-      auto mark_rw = marks.ReadWrite();
-
-      MFEM_FORALL(i, NE,
+      // if there are no markers, just use the whole linear form (1)
+      if (!has_markers_k) { markers = 1; }
+      else
       {
-         const int elem_attr = attr_r[i];
-         const bool elem_attr_eq_1 = no_dimk ? false : dimk_r[elem_attr-1] == 1;
-         if (no_dimk || elem_attr_eq_1) { mark_rw[i] = 1.0; }
-      });
+         // otherwise, scan the attributes to set the markers to 0 or 1
+         const int NE = fes.GetNE();
+         const auto attr = attributes.Read();
+         const auto dimk = domain_integs_marker_k->Read();
+         auto markers_w = markers.Write();
+         MFEM_FORALL(e, NE, markers_w[e] = dimk[attr[e]-1] == 1;);
+      }
 
-      domain_integs[k]->AssembleFull(fes, marks, *lf);
+      domain_integs[k]->AssembleFull(fes, markers, *lf);
    }
 }
 

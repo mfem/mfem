@@ -34,7 +34,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
                                             const int NE,
                                             const int d,
                                             const int q,
-                                            const double *marks,
+                                            const int *markers,
                                             const double *b,
                                             const double *g,
                                             const int *idx,
@@ -50,7 +50,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
    const bool cst_coeff = coeff.Size() == cdim;
 
    const auto F = coeff.Read();
-   const auto M = Reshape(marks, NE);
+   const auto M = Reshape(markers, NE);
    const auto B = Reshape(b, q,d);
    const auto G = Reshape(g, q,d);
    const auto J = Reshape(jacobians, q,q, DIM,DIM, NE);
@@ -68,7 +68,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
-      if (M(e) < 1.0) { return; }
+      if (M(e) == 0) { return; }
 
       const int bid = MFEM_BLOCK_ID(x);
       constexpr int SM_SIZE = 2*D*Q + 4*Q*Q;
@@ -126,7 +126,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
                                             const int NE,
                                             const int d,
                                             const int q,
-                                            const double *marks,
+                                            const int *markers,
                                             const double *b,
                                             const double *g,
                                             const int *idx,
@@ -142,7 +142,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
    const bool cst_coeff = coeff.Size() == cdim;
 
    const auto F = coeff.Read();
-   const auto M = Reshape(marks, NE);
+   const auto M = Reshape(markers, NE);
    const auto B = Reshape(b, q,d);
    const auto G = Reshape(g, q,d);
    const auto J = Reshape(jacobians, q,q,q, DIM,DIM, NE);
@@ -161,7 +161,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
-      if (M(e) < 1.0) { return; }
+      if (M(e) == 0) { return; }
 
       const int bid = MFEM_BLOCK_ID(x);
       constexpr int SM_SIZE = 2*Q*D + 6*Q*Q*Q;

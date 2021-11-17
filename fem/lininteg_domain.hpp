@@ -33,7 +33,7 @@ using Kernel_f = void (*)(const int vdim,
                           const int NE,
                           const int d,
                           const int q,
-                          const double *marks,
+                          const int *markers,
                           const double *b,
                           const double *g,
                           const int *idx,
@@ -74,7 +74,7 @@ inline void Launch(const Kernel_f &kernel,
                    const FiniteElementSpace &fes,
                    const IntegrationRule *ir,
                    const Vector &coeff,
-                   const Vector &mark,
+                   const Array<int> &markers,
                    Vector &y)
 {
    Mesh *mesh = fes.GetMesh();
@@ -91,7 +91,7 @@ inline void Launch(const Kernel_f &kernel,
    const ElementRestriction* ER = dynamic_cast<const ElementRestriction*>(ERop);
    MFEM_ASSERT(ER, "Not supported!");
 
-   const double *M = mark.Read();
+   const int *M = markers.Read();
    const double *B = maps.B.Read();
    const double *G = maps.G.Read();
    const double *J = geom->J.Read();
@@ -116,7 +116,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
                                         const int NE,
                                         const int d,
                                         const int q,
-                                        const double *marks,
+                                        const int *markers,
                                         const double *b,
                                         const double */*g*/, // unused
                                         const int *idx,
@@ -131,7 +131,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
    const bool cst_coeff = coeff.Size() == vdim;
 
    const auto F = coeff.Read();
-   const auto M = Reshape(marks, NE);
+   const auto M = Reshape(markers, NE);
    const auto B = Reshape(b, q,d);
    const auto J = Reshape(jacobians, q,q, DIM,DIM, NE);
    const auto W = Reshape(weights, q,q);
@@ -146,7 +146,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
-      if (M(e) < 1.0) return;
+      if (M(e) == 0) { return; }
 
       const int bid = MFEM_BLOCK_ID(x);
       constexpr int SM_SIZE = 2*Q*(D+Q);
@@ -190,7 +190,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
                                         const int NE,
                                         const int d,
                                         const int q,
-                                        const double *marks,
+                                        const int *markers,
                                         const double *b,
                                         const double */*g*/, // unused
                                         const int *idx,
@@ -205,7 +205,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
    const bool cst_coeff = coeff.Size() == vdim;
 
    const auto F = coeff.Read();
-   const auto M = Reshape(marks, NE);
+   const auto M = Reshape(markers, NE);
    const auto B = Reshape(b, q,d);
    const auto J = Reshape(jacobians, q,q,q, DIM,DIM, NE);
    const auto W = Reshape(weights, q,q,q);
@@ -223,7 +223,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
-      if (M(e) < 1.0) return;
+      if (M(e) == 0) { return; }
 
       double u[Q>0?Q:32];
 

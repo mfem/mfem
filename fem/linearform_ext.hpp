@@ -44,7 +44,7 @@ class FullLinearFormExtension : public LinearFormExtension
 {
 private:
    // Attribute of all mesh elements.
-   Vector attributes, marks;
+   Array<int> attributes, markers;
 
 public:
    FullLinearFormExtension(LinearForm *lf);
