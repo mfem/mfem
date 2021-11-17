@@ -19,6 +19,7 @@
 namespace mfem
 {
 
+/// Serial version
 template <typename RHS,
           typename LHS,
           std::enable_if_t<
@@ -30,13 +31,17 @@ MFEM_HOST_DEVICE inline
 auto Dot(const LHS &lhs, const RHS &rhs)
 {
    using Scalar = get_tensor_type<RHS>;
+
    Scalar res = 0;
+
    ForallDims<RHS>::ApplyBinOp(lhs, rhs, [&](auto... idx){
       res += lhs(idx...)*rhs(idx...);
    });
+
    return res;
 }
 
+/// Threaded version
 template <typename RHS,
           typename LHS,
           std::enable_if_t<
@@ -48,18 +53,21 @@ MFEM_HOST_DEVICE inline
 auto Dot(const LHS &lhs, const RHS &rhs)
 {
    using Scalar = get_tensor_type<RHS>;
+
    MFEM_SHARED Scalar res;
    if (MFEM_THREAD_ID(x)==0 && MFEM_THREAD_ID(y)==0 && MFEM_THREAD_ID(z)==0)
    {
       res = 0.0;
    }
    MFEM_SYNC_THREAD;
+
    Scalar loc_res = 0.0;
    ForallDims<RHS>::ApplyBinOp(lhs, rhs, [&](auto... idx){
       loc_res += lhs(idx...)*rhs(idx...);
    });
    AtomicAdd(res, loc_res);
    MFEM_SYNC_THREAD;
+
    return res;
 }
 

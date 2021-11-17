@@ -19,6 +19,7 @@
 namespace mfem
 {
 
+/// Serial version
 template <typename Tensor,
           std::enable_if_t<
              is_serial_tensor<Tensor>,
@@ -27,14 +28,18 @@ MFEM_HOST_DEVICE inline
 auto SquaredNorm(const Tensor& t)
 {
    using Scalar = get_tensor_type<Tensor>;
+
    Scalar norm = 0;
+
    ForallDims<Tensor>::Apply(t, [&](auto... idx){
       const Scalar& val = t(idx...);
       norm += val*val;
    });
+
    return norm;
 }
 
+/// Threaded version
 template <typename Tensor,
           std::enable_if_t<
              !is_serial_tensor<Tensor>,
@@ -43,6 +48,7 @@ MFEM_HOST_DEVICE inline
 auto SquaredNorm(const Tensor& t)
 {
    using Scalar = get_tensor_type<Tensor>;
+
    MFEM_SHARED Scalar res;
    if (MFEM_THREAD_ID(x)==0 && MFEM_THREAD_ID(y)==0 && MFEM_THREAD_ID(z)==0)
    {
@@ -50,12 +56,14 @@ auto SquaredNorm(const Tensor& t)
    }
    MFEM_SYNC_THREAD;
    Scalar norm = 0;
+
    ForallDims<Tensor>::Apply(t, [&](auto... idx){
       const Scalar& val = t(idx...);
       norm += val*val;
    });
    AtomicAdd(res, norm);
    MFEM_SYNC_THREAD;
+
    return res;
 }
 
