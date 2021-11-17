@@ -94,9 +94,16 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       Scalar alpha = absNew / Dot(p,tmp);         // the amount we travel on dir
       x += alpha * p;                             // update solution
       residual -= alpha * tmp;                    // update residual
-      
+
       residualNorm2 = SquaredNorm(residual);
-      if(residualNorm2 < threshold) return x;
+      if(residualNorm2 < threshold)
+      {
+         if (MFEM_THREAD_ID(x)==0 && MFEM_THREAD_ID(y)==0 && MFEM_THREAD_ID(z)==0)
+         {
+            printf("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),i);
+         }
+         return x;
+      }
 
       Vector z = residual; // P * residual;                // approximately solve for "A z = residual"
 
@@ -108,6 +115,10 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    }
    tol_error = sqrt(residualNorm2 / rhsNorm2);
    iters = i;
+   if (MFEM_THREAD_ID(x)==0 && MFEM_THREAD_ID(y)==0 && MFEM_THREAD_ID(z)==0)
+   {
+      printf("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),i);
+   }
    return x;
 }
 
