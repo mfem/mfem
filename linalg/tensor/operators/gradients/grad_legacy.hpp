@@ -59,7 +59,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    }
    MFEM_SYNC_THREAD;
    // X Contraction
-   StaticPointerDTensor<D1D,D1D,Q1D,2> DDQ(sm1);
+   StaticPointerDTensor<Q1D,D1D,D1D,2> QDD(sm1);
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -81,14 +81,14 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
          MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; ++dz)
          {
-            DDQ(qx,dy,dz,0) = u[dz];
-            DDQ(qx,dy,dz,1) = v[dz];
+            QDD(qx,dy,dz,0) = u[dz];
+            QDD(qx,dy,dz,1) = v[dz];
          }
       }
    }
    MFEM_SYNC_THREAD;
    // Y Contraction
-   StaticPointerDTensor<D1D,Q1D,Q1D,Dim> DQQ(sm0);
+   StaticPointerDTensor<Q1D,Q1D,D1D,Dim> QQD(sm0);
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -102,24 +102,23 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; dz++)
             {
-               u[dz] += DDQ(qx,dy,dz,1) * B(dy,qy);
-               v[dz] += DDQ(qx,dy,dz,0) * G(dy,qy);
-               w[dz] += DDQ(qx,dy,dz,0) * B(dy,qy);
+               u[dz] += QDD(qx,dy,dz,1) * B(dy,qy);
+               v[dz] += QDD(qx,dy,dz,0) * G(dy,qy);
+               w[dz] += QDD(qx,dy,dz,0) * B(dy,qy);
             }
          }
          MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; dz++)
          {
-            DQQ(qx,qy,dz,0) = u[dz];
-            DQQ(qx,qy,dz,1) = v[dz];
-            DQQ(qx,qy,dz,2) = w[dz];
+            QQD(qx,qy,dz,0) = u[dz];
+            QQD(qx,qy,dz,1) = v[dz];
+            QQD(qx,qy,dz,2) = w[dz];
          }
       }
    }
    MFEM_SYNC_THREAD;
    // Z Contraction
-   constexpr int batchsize = 1;
-   Static2dThreadDTensor<batchsize,Q1D,Q1D,Q1D,Dim> QQQ;
+   BasisResultTensor<Basis,Q1D,Q1D,Q1D,Dim> QQQ;
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -133,9 +132,9 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; qz++)
             {
-               u[qz] += DQQ(qx,qy,dz,0) * B(dz,qz);
-               v[qz] += DQQ(qx,qy,dz,1) * B(dz,qz);
-               w[qz] += DQQ(qx,qy,dz,2) * G(dz,qz);
+               u[qz] += QQD(qx,qy,dz,0) * B(dz,qz);
+               v[qz] += QQD(qx,qy,dz,1) * B(dz,qz);
+               w[qz] += QQD(qx,qy,dz,2) * G(dz,qz);
             }
          }
          MFEM_UNROLL(Q1D)
@@ -193,7 +192,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    }
    MFEM_SYNC_THREAD;
    // X Contraction
-   StaticPointerDTensor<Q1D,Q1D,D1D,Dim> QQD(sm1);
+   StaticPointerDTensor<D1D,Q1D,Q1D,Dim> DQQ(sm1);
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -215,15 +214,15 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
          MFEM_UNROLL(Q1D)
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            QQD(dx,qy,qz,0) = u[qz];
-            QQD(dx,qy,qz,1) = v[qz];
-            QQD(dx,qy,qz,2) = w[qz];
+            DQQ(dx,qy,qz,0) = u[qz];
+            DQQ(dx,qy,qz,1) = v[qz];
+            DQQ(dx,qy,qz,2) = w[qz];
          }
       }
    }
    MFEM_SYNC_THREAD;
    // Y Contraction
-   StaticPointerDTensor<Q1D,D1D,D1D,Dim> QDD(sm0);
+   StaticPointerDTensor<D1D,D1D,Q1D,Dim> DDQ(sm0);
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -237,24 +236,23 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               u[qz] += QQD(dx,qy,qz,0) * Bt(qy,dy);
-               v[qz] += QQD(dx,qy,qz,1) * Gt(qy,dy);
-               w[qz] += QQD(dx,qy,qz,2) * Bt(qy,dy);
+               u[qz] += DQQ(dx,qy,qz,0) * Bt(qy,dy);
+               v[qz] += DQQ(dx,qy,qz,1) * Gt(qy,dy);
+               w[qz] += DQQ(dx,qy,qz,2) * Bt(qy,dy);
             }
          }
          MFEM_UNROLL(Q1D)
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            QDD(dx,dy,qz,0) = u[qz];
-            QDD(dx,dy,qz,1) = v[qz];
-            QDD(dx,dy,qz,2) = w[qz];
+            DDQ(dx,dy,qz,0) = u[qz];
+            DDQ(dx,dy,qz,1) = v[qz];
+            DDQ(dx,dy,qz,2) = w[qz];
          }
       }
    }
    MFEM_SYNC_THREAD;
    // Z Contraction
-   constexpr int batchsize = 1;
-   Static2dThreadDTensor<batchsize,D1D,D1D,D1D> y;
+   BasisResultTensor<Basis,D1D,D1D,D1D> y;
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -268,9 +266,9 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz)
             {
-               u[dz] += QDD(dx,dy,qz,0) * Bt(qz,dz);
-               v[dz] += QDD(dx,dy,qz,1) * Bt(qz,dz);
-               w[dz] += QDD(dx,dy,qz,2) * Gt(qz,dz);
+               u[dz] += DDQ(dx,dy,qz,0) * Bt(qz,dz);
+               v[dz] += DDQ(dx,dy,qz,1) * Bt(qz,dz);
+               w[dz] += DDQ(dx,dy,qz,2) * Gt(qz,dz);
             }
          }
          MFEM_UNROLL(D1D)
