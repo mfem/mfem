@@ -175,7 +175,6 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
                const double detJ = DetJ(x,y,e);
                const double coeff_val = cst_coeff ? cst_val : C(c,x,y,e);
                QQ(y,x) = W(x,y) * coeff_val * detJ;
-
             }
          }
          MFEM_SYNC_THREAD;
