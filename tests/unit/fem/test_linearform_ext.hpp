@@ -36,19 +36,18 @@ struct LinearFormExtTest
    const Element::Type type;
    Mesh mesh;
    H1_FECollection fec;
-   FiniteElementSpace vfes;
-   FiniteElementSpace mfes;
+   FiniteElementSpace vfes, mfes;
    GridFunction x;
    const Geometry::Type geom_type;
    IntegrationRules IntRulesGLL;
-   const IntegrationRule *irGLL;
-   const IntegrationRule *ir;
+   const IntegrationRule *irGLL, *ir;
 
    Array<int> elem_marker;
-   Vector one_vec, dim_vec, vdim_vec;
+   Vector one_vec, dim_vec, vdim_vec, vdim_dim_vec;
    ConstantCoefficient constant_coeff;
    VectorConstantCoefficient dim_constant_coeff;
    VectorConstantCoefficient vdim_constant_coeff;
+   VectorConstantCoefficient vdim_dim_constant_coeff;
    std::function<void(const Vector&, Vector&)>
    vdim_vector_function = [&](const Vector&, Vector &y)
    {
@@ -56,7 +55,7 @@ struct LinearFormExtTest
       y.Randomize(SEED);
    };
    std::function<void(const Vector&, Vector&)> vector_f;
-   VectorFunctionCoefficient vector_function_coeff;
+   VectorFunctionCoefficient vdim_function_coeff;
 
    LinearForm lf_full, lf_legacy;
 
@@ -94,11 +93,13 @@ struct LinearFormExtTest
       one_vec(1),
       dim_vec(dim),
       vdim_vec(vdim),
+      vdim_dim_vec(vdim*dim),
       constant_coeff(M_PI),
       dim_constant_coeff((dim_vec.Randomize(SEED), dim_vec)),
       vdim_constant_coeff((vdim_vec.Randomize(SEED), vdim_vec)),
+      vdim_dim_constant_coeff((vdim_dim_vec.Randomize(SEED), vdim_dim_vec)),
       vector_f(vdim_vector_function),
-      vector_function_coeff(vdim, vector_f),
+      vdim_function_coeff(vdim, vector_f),
       lf_full(&vfes),
       lf_legacy(&vfes),
       dofs(vfes.GetVSize()),
@@ -128,8 +129,8 @@ struct LinearFormExtTest
          {
             if (test)
             {
-               integ_full = new VectorDomainLFIntegrator(vector_function_coeff);
-               integ_legacy = new VectorDomainLFIntegrator(vector_function_coeff);
+               integ_full = new VectorDomainLFIntegrator(vdim_function_coeff);
+               integ_legacy = new VectorDomainLFIntegrator(vdim_function_coeff);
             }
             else // !test => bench, we don't want to spend time building coeff
             {
@@ -140,8 +141,8 @@ struct LinearFormExtTest
          }
          case VectorDomainLFGrad:
          {
-            integ_full = new VectorDomainLFGradIntegrator(vdim_constant_coeff);
-            integ_legacy = new VectorDomainLFGradIntegrator(vdim_constant_coeff);
+            integ_full = new VectorDomainLFGradIntegrator(vdim_dim_constant_coeff);
+            integ_legacy = new VectorDomainLFGradIntegrator(vdim_dim_constant_coeff);
             break;
          }
          default: { MFEM_ABORT("Unknown Problem!"); }

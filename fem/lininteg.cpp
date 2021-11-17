@@ -328,7 +328,7 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
 
    dshape.SetSize(dof,sdim);
 
-   elvect.SetSize(dof*vdim);
+   elvect.SetSize(dof*(vdim/sdim));
    elvect = 0.0;
 
    const IntegrationRule *ir = IntRule;

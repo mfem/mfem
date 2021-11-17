@@ -46,8 +46,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
    constexpr int DIM = 2;
    constexpr bool USE_SMEM = D > 0 && Q > 0;
 
-   const int cdim = vdim == 1 ? DIM : vdim;
-   const bool cst_coeff = coeff.Size() == cdim;
+   const bool cst_coeff = coeff.Size() == vdim*DIM;
 
    const auto F = coeff.Read();
    const auto M = Reshape(markers, NE);
@@ -57,8 +56,8 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
    const auto W = Reshape(weights, q,q);
    const auto I = Reshape(idx, d,d, NE);
    const auto C = cst_coeff ?
-                  Reshape(F,DIM,cdim/DIM,1,1,1):
-                  Reshape(F,DIM,cdim/DIM,q,q,NE);
+                  Reshape(F,DIM,vdim,1,1,1):
+                  Reshape(F,DIM,vdim,q,q,NE);
 
    auto Y = Reshape(y, byVDIM ? vdim : ND, byVDIM ? ND : vdim);
 
@@ -86,7 +85,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
       const DeviceMatrix DQ0(DeviceMemAlloc(sm,d*q), d,q);
       const DeviceMatrix DQ1(DeviceMemAlloc(sm,d*q), d,q);
 
-      for (int c = 0; c < cdim/DIM; ++c)
+      for (int c = 0; c < vdim; ++c)
       {
          const double cst_val0 = C(0,c,0,0,0);
          const double cst_val1 = C(1,c,0,0,0);
@@ -138,8 +137,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
    constexpr int DIM = 3;
    constexpr bool USE_SMEM = D > 0 && Q > 0;
 
-   const int cdim = vdim == 1 ? DIM : vdim;
-   const bool cst_coeff = coeff.Size() == cdim;
+   const bool cst_coeff = coeff.Size() == vdim*DIM;
 
    const auto F = coeff.Read();
    const auto M = Reshape(markers, NE);
@@ -149,8 +147,8 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
    const auto W = Reshape(weights, q,q,q);
    const auto I = Reshape(idx, d,d,d, NE);
    const auto C = cst_coeff ?
-                  Reshape(F,DIM,cdim/DIM,1,1,1,1):
-                  Reshape(F,DIM,cdim/DIM,q,q,q,NE);
+                  Reshape(F,DIM,vdim,1,1,1,1):
+                  Reshape(F,DIM,vdim,q,q,q,NE);
 
    auto Y = Reshape(y, byVDIM ? vdim : ND, byVDIM ? ND : vdim);
 
@@ -185,7 +183,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
       const DeviceCube DD1(QQ1,q,d,d);
       const DeviceCube DD2(QQ2,q,d,d);
 
-      for (int c = 0; c < cdim/DIM; ++c)
+      for (int c = 0; c < vdim; ++c)
       {
          const double cst_val_0 = C(0,c,0,0,0,0);
          const double cst_val_1 = C(1,c,0,0,0,0);
