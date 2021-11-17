@@ -74,7 +74,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    {
       x = 0;
       iters = 0;
-      one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),0);
+      // one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),0);
       tol_error = 0;
       return x;
    }
@@ -84,7 +84,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    if (residualNorm2 < threshold)
    {
       iters = 0;
-      one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),0);
+      // one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),0);
       tol_error = sqrt(residualNorm2 / rhsNorm2);
       return x;
    }
@@ -98,7 +98,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    while(i < maxIters)
    {
       Vector tmp = A * p;                    // the bottleneck of the algorithm
-      one_print("\n||Ap|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(tmp));
+      // one_print("\n||Ap|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(tmp));
 
       Scalar alpha = absNew / Dot(p,tmp);         // the amount we travel on dir
       // one_print("  alpha %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), alpha);
@@ -111,7 +111,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       // one_print("  residualNorm2 %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), residualNorm2);
       if(residualNorm2 < threshold)
       {
-         one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),i);
+         // one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),i);
          return x;
       }
 
@@ -127,7 +127,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    }
    tol_error = sqrt(residualNorm2 / rhsNorm2);
    iters = i;
-   one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),i);
+   // one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),i);
    return x;
 }
 
