@@ -1,4 +1,4 @@
-//                                Solution of distributed control problem
+//                                Solution of optimal design problem
 //
 // Compile with: make ex31
 //
@@ -14,8 +14,8 @@
 //
 //         subject to   - div( K\nabla u ) = f    in \Omega
 //                                       u = 0    on \partial\Omega
-//         and            \int_\Omega K dx = V vol(\Omega)
-//         and            a <= K(x) <= b
+//         and            \int_\Omega K dx = V
+//         and            K_min <= K(x) <= K_max
 //
 
 #include "mfem.hpp"
@@ -28,11 +28,11 @@ using namespace mfem;
 
 /** The Lagrangian for this problem is
  *
- *    L(u,K,p,lambda) = (f,u) - (K \nabla u, \nabla p) + (f,p) - ( V - (K,1) ) lambda
+ *    L(u,K,p,\lambda) = (f,u) - (K \nabla u, \nabla p) + (f,p) - ( V - (K,1) ) \lambda
  *
  *      u, p \in H^1_0
  *      K \in L^1 \cap L^\infty
- *      lambda \in \mathbb{R}
+ *      \lambda \in \mathbb{R}
  *
  *  Note that
  *
@@ -53,9 +53,9 @@ using namespace mfem;
  *  and at the solutions u=p of (1) and (2), respectively,
  *
  *  D_K J = D_K L = \partial_u L \partial_K u + \partial_p L \partial_K p
- *                 + \partial_lambda L \partial_K lambda + \partial_K L
+ *                 + \partial_\lambda L \partial_K \lambda + \partial_K L
  *                = \partial_K L
- *                = (lambda - |\nabla u|^2, \cdot)
+ *                = (\lambda - |\nabla u|^2, \cdot)
  *
  * Likewise,
  *
@@ -63,11 +63,11 @@ using namespace mfem;
  *
  * We update the control f_k with the projected gradient method
  *
- *    K_{k+1} = P( K_k - \gamma (lambda_k - |\nabla u_k|^2) )
- *    lambda_{k+1} = lambda_k + \gamma ((K_k,1) - V)
+ *    K_{k+1} = P( K_k - \gamma (\lambda_k - |\nabla u_k|^2) )
+ *    \lambda_{k+1} = \lambda_k + \gamma ((K_k,1) - V)
  *
- * where P is the projection operator enforcing a <= K(x) <= b and
- * \gamma is a specified step length.
+ * where P is the projection operator enforcing K_min <= K(x) <= K_max
+ * and \gamma is a specified step length.
  *
  */
 
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
    }
 
    // 12. Perform projected gradient descent
-   double lambda = 0.01;
+   double lambda = 0.0;
    for (int k = 1; k <= max_it; k++)
    {
       // A. Compute mass
