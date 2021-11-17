@@ -19,7 +19,7 @@ namespace mfem
 using namespace internal::linearform_extension;
 
 void VectorDomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
-                                                const Vector &mark,
+                                                const Vector &marks,
                                                 Vector &y)
 {
    const int vdim = fes.GetVDim();
@@ -29,6 +29,7 @@ void VectorDomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
    Vector coeff;
    const int NQ = ir->GetNPoints();
    const int NE = fes.GetMesh()->GetNE();
+   const int NS = fes.GetMesh()->SpaceDimension();
 
    if (VectorConstantCoefficient *vcQ =
           dynamic_cast<VectorConstantCoefficient*>(&Q))
@@ -51,7 +52,7 @@ void VectorDomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(&Q))
    {
       const QuadratureFunction &qFun = vqfQ->GetQuadFunction();
-      MFEM_VERIFY(qFun.Size() == vdim * NQ * NE,
+      MFEM_VERIFY(qFun.Size() == vdim * NS * NQ * NE,
                   "Incompatible QuadratureFunction dimension \n");
       MFEM_VERIFY(ir == &qFun.GetSpace()->GetElementIntRule(0),
                   "IntegrationRule used within integrator and in"
@@ -109,7 +110,7 @@ void VectorDomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
       case 0x356: ker=VectorDomainLFGradIntegratorAssemble3D<5,6>; break;
    }
    MFEM_VERIFY(ker, "Unexpected kernel error!");
-   Launch(ker,fes,ir,coeff,mark,y);
+   Launch(ker,fes,ir,coeff,marks,y);
 }
 
 } // namespace mfem

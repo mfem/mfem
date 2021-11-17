@@ -29,7 +29,7 @@ protected:
 public:
    /// Method defining full assembly
    virtual void AssembleFull(const FiniteElementSpace &fes,
-                             const Vector &mark,
+                             const Vector &marks,
                              Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
@@ -116,7 +116,7 @@ public:
       : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
 
    virtual void AssembleFull(const FiniteElementSpace &fes,
-                             const Vector &mark,
+                             const Vector &marks,
                              Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
@@ -146,7 +146,7 @@ public:
       : DeltaLFIntegrator(QF), Q(QF) { }
 
    virtual void AssembleFull(const FiniteElementSpace &fes,
-                             const Vector &mark,
+                             const Vector &marks,
                              Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
@@ -237,7 +237,7 @@ public:
       : DeltaLFIntegrator(QF), Q(QF) { }
 
    virtual void AssembleFull(const FiniteElementSpace &fes,
-                             const Vector &mark,
+                             const Vector &marks,
                              Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
@@ -268,7 +268,7 @@ public:
       : DeltaLFIntegrator(QF), Q(QF) { }
 
    virtual void AssembleFull(const FiniteElementSpace &fes,
-                             const Vector &mark,
+                             const Vector &marks,
                              Vector &b) override;
 
    /** Given a particular Finite Element and a transformation (Tr)
