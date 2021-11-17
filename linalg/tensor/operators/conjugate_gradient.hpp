@@ -63,11 +63,11 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    Index maxIters = iters;
 
    Vector x(rhs);
-   one_print("\n  ||x|| %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(x));
+   // one_print("\n  ||x|| %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(x));
    Vector residual(rhs);
-   one_print("  ||residual|| %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(residual));
+   // one_print("  ||residual|| %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(residual));
    residual -= A * x; //initial residual
-   one_print("||Ax|| %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(residual));
+   // one_print("||Ax|| %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(residual));
 
    Scalar rhsNorm2 = SquaredNorm(rhs);
    if(rhsNorm2 == 0)
@@ -80,7 +80,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    }
    Scalar threshold = tol*tol*rhsNorm2;
    Scalar residualNorm2 = SquaredNorm(residual);
-   one_print("  residualNorm2 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), residualNorm2);
+   // one_print("  residualNorm2 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), residualNorm2);
    if (residualNorm2 < threshold)
    {
       iters = 0;
@@ -90,25 +90,25 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    }
 
    Vector p = residual; //P * residual;      // initial search direction
-   one_print("  ||p|| %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(p));
+   // one_print("  ||p|| %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(p));
 
    Scalar absNew = Dot(residual,p);  // the square of the absolute value of r scaled by invM
    Index i = 0;
-   one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
+   // one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
    while(i < maxIters)
    {
       Vector tmp = A * p;                    // the bottleneck of the algorithm
       one_print("\n||Ap|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(tmp));
 
       Scalar alpha = absNew / Dot(p,tmp);         // the amount we travel on dir
-      one_print("  alpha %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), alpha);
+      // one_print("  alpha %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), alpha);
       x += alpha * p;                             // update solution
-      one_print("  ||p|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(p));
-      one_print("  ||x|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(x));
+      // one_print("  ||p|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(p));
+      // one_print("  ||x|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(x));
       residual -= alpha * tmp;                    // update residual
 
       residualNorm2 = SquaredNorm(residual);
-      one_print("  residualNorm2 %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), residualNorm2);
+      // one_print("  residualNorm2 %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), residualNorm2);
       if(residualNorm2 < threshold)
       {
          one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),i);
@@ -116,14 +116,14 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       }
 
       Vector z = residual; // P * residual;                // approximately solve for "A z = residual"
-      one_print("  ||z|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(z));
+      // one_print("  ||z|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(z));
 
       Scalar absOld = absNew;
       absNew = Dot(residual,z);     // update the absolute value of r
       Scalar beta = absNew / absOld;          // calculate the Gram-Schmidt value used to create the new search direction
       p = z + beta * p;                           // update search direction
       i++;
-      one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
+      // one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
    }
    tol_error = sqrt(residualNorm2 / rhsNorm2);
    iters = i;
