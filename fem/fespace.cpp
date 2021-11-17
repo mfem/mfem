@@ -1719,9 +1719,9 @@ void FiniteElementSpace::RefinementOperator
                }
             }
 
-            lP.MultTranspose(subX, subY);
-            doftrans->TransformPrimal(subY);
-            y.AddElementVector(c_vdofs, subY);
+            lP.MultTranspose(subX, subYt);
+            doftrans->TransformPrimal(subYt);
+            y.AddElementVector(c_vdofs, subYt);
          }
 
          if (vdoftrans)
