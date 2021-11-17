@@ -79,42 +79,36 @@ void VectorDomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
    const int id = GetKernelId(fes,ir);
    const int dim = fes.GetMesh()->Dimension();
 
-   switch (id) // orders 1~6
+   if (dim==2) { ker = VectorDomainLFGradIntegratorAssemble2D; }
+   if (dim==3) { ker = VectorDomainLFGradIntegratorAssemble3D; }
+
+   switch (id)
    {
-      // 2D kernels, p=q
+      // 2D kernels, q=p+1
       case 0x222: ker=VectorDomainLFGradIntegratorAssemble2D<2,2>; break;
       case 0x233: ker=VectorDomainLFGradIntegratorAssemble2D<3,3>; break;
       case 0x244: ker=VectorDomainLFGradIntegratorAssemble2D<4,4>; break;
       case 0x255: ker=VectorDomainLFGradIntegratorAssemble2D<5,5>; break;
 
-      // 2D kernels
+      // 2D kernels, q=p+2
       case 0x223: ker=VectorDomainLFGradIntegratorAssemble2D<2,3>; break;
       case 0x234: ker=VectorDomainLFGradIntegratorAssemble2D<3,4>; break;
       case 0x245: ker=VectorDomainLFGradIntegratorAssemble2D<4,5>; break;
       case 0x256: ker=VectorDomainLFGradIntegratorAssemble2D<5,6>; break;
 
-      // 3D kernels, p=q
+      // 3D kernels, q=p+1
       case 0x322: ker=VectorDomainLFGradIntegratorAssemble3D<2,2>; break;
       case 0x333: ker=VectorDomainLFGradIntegratorAssemble3D<3,3>; break;
       case 0x344: ker=VectorDomainLFGradIntegratorAssemble3D<4,4>; break;
       case 0x355: ker=VectorDomainLFGradIntegratorAssemble3D<5,5>; break;
 
-      // 3D kernels
+      // 3D kernels, q=p+2
       case 0x323: ker=VectorDomainLFGradIntegratorAssemble3D<2,3>; break;
       case 0x334: ker=VectorDomainLFGradIntegratorAssemble3D<3,4>; break;
       case 0x345: ker=VectorDomainLFGradIntegratorAssemble3D<4,5>; break;
       case 0x356: ker=VectorDomainLFGradIntegratorAssemble3D<5,6>; break;
-
-      default:
-      {
-         if (dim==2) { ker = VectorDomainLFGradIntegratorAssemble2D<>; }
-         if (dim==3) { ker = VectorDomainLFGradIntegratorAssemble3D<>; }
-         if (!ker)
-         {
-            MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
-         }
-      }
    }
+   MFEM_VERIFY(ker, "Unexpected kernel error!");
    Launch(ker,fes,ir,coeff,mark,y);
 }
 

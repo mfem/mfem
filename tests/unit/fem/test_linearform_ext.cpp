@@ -38,7 +38,6 @@ void LinearFormExtTest::Description()
              << " "<< vdim << "-"
              << (scalar?"Scalar":"Vector")
              << (grad?"Grad":"")
-             //<< (gll ? ", GLL" : ", GL")
              << std::endl;
 }
 
@@ -61,7 +60,7 @@ void LinearFormExtTest::Run()
 TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
 {
    const auto N = GENERATE(3,4);
-   const auto p = GENERATE(1,2,3,6); // limitations: 2D:11, 3D:6
+   const auto p = GENERATE(1,3,6); // limitations: 2D:11, 3D:6
    const auto dim = GENERATE(2,3);
    const auto gll = GENERATE(false,true); // q=p+2, q=p+1
 

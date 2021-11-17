@@ -66,42 +66,36 @@ void VectorDomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
    const int id = GetKernelId(fes,ir);
    const int dim = fes.GetMesh()->Dimension();
 
-   switch (id) // orders 1~6
+   if (dim==2) { ker = VectorDomainLFIntegratorAssemble2D<>; }
+   if (dim==3) { ker = VectorDomainLFIntegratorAssemble3D<>; }
+
+   switch (id)
    {
-      // 2D kernels, p=q
+      // 2D kernels, q=p+1
       case 0x222: ker=VectorDomainLFIntegratorAssemble2D<2,2>; break;
       case 0x233: ker=VectorDomainLFIntegratorAssemble2D<3,3>; break;
       case 0x244: ker=VectorDomainLFIntegratorAssemble2D<4,4>; break;
       case 0x255: ker=VectorDomainLFIntegratorAssemble2D<5,5>; break;
 
-      // 2D kernels
+      // 2D kernels, q=p+2
       case 0x223: ker=VectorDomainLFIntegratorAssemble2D<2,3>; break;
       case 0x234: ker=VectorDomainLFIntegratorAssemble2D<3,4>; break;
       case 0x245: ker=VectorDomainLFIntegratorAssemble2D<4,5>; break;
       case 0x256: ker=VectorDomainLFIntegratorAssemble2D<5,6>; break;
 
-      // 3D kernels, p=q
+      // 3D kernels, q=p+1
       case 0x322: ker=VectorDomainLFIntegratorAssemble3D<2,2>; break;
       case 0x333: ker=VectorDomainLFIntegratorAssemble3D<3,3>; break;
       case 0x344: ker=VectorDomainLFIntegratorAssemble3D<4,4>; break;
       case 0x355: ker=VectorDomainLFIntegratorAssemble3D<5,5>; break;
 
-      // 3D kernels
+      // 3D kernels, q=p+2
       case 0x323: ker=VectorDomainLFIntegratorAssemble3D<2,3>; break;
       case 0x334: ker=VectorDomainLFIntegratorAssemble3D<3,4>; break;
       case 0x345: ker=VectorDomainLFIntegratorAssemble3D<4,5>; break;
       case 0x356: ker=VectorDomainLFIntegratorAssemble3D<5,6>; break;
-
-      default:
-      {
-         if (dim==2) { ker = VectorDomainLFIntegratorAssemble2D<>; }
-         if (dim==3) { ker = VectorDomainLFIntegratorAssemble3D<>; }
-         if (!ker)
-         {
-            MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
-         }
-      }
    }
+   MFEM_VERIFY(ker, "Unexpected kernel error!");
    Launch(ker,fes,ir,coeff,mark,y);
 }
 

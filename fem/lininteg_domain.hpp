@@ -31,8 +31,8 @@ using Kernel_f = void (*)(const int vdim,
                           const bool byVDIM,
                           const int ND,
                           const int NE,
-                          const int d1d,
-                          const int q1d,
+                          const int d,
+                          const int q,
                           const double *marks,
                           const double *b,
                           const double *g,
@@ -63,9 +63,9 @@ inline int GetKernelId(const FiniteElementSpace &fes,
    const int dim = mesh->Dimension();
    const FiniteElement &el = *fes.GetFE(0);
    const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
-   const int D1D = maps.ndof;
-   const int Q1D = maps.nqpt;
-   const int id = (dim << 8) | (D1D << 4) | Q1D;
+   const int d = maps.ndof;
+   const int q = maps.nqpt;
+   const int id = (dim << 8) | (d << 4) | q;
    return id;
 }
 
@@ -82,7 +82,7 @@ inline void Launch(const Kernel_f &kernel,
    const bool byVDIM = fes.GetOrdering() == Ordering::byVDIM;
 
    const FiniteElement &el = *fes.GetFE(0);
-   const int flags = GeometricFactors::JACOBIANS;
+   constexpr int flags = GeometricFactors::JACOBIANS;
    const MemoryType mt = Device::GetDeviceMemoryType();
    const GeometricFactors *geom = mesh->GetGeometricFactors(*ir, flags, mt);
    const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
@@ -94,53 +94,28 @@ inline void Launch(const Kernel_f &kernel,
    const double *M = mark.Read();
    const double *B = maps.B.Read();
    const double *G = maps.G.Read();
-   const int *I = ER->GatherMap().Read();
    const double *J = geom->J.Read();
+   const int *I = ER->GatherMap().Read();
    const double *W = ir->GetWeights().Read();
    double *Y = y.ReadWrite();
 
    const int ND = fes.GetNDofs();
    const int NE = fes.GetMesh()->GetNE();
 
-   const int d1d = maps.ndof;
-   const int q1d = maps.nqpt;
+   const int d = maps.ndof;
+   const int q = maps.nqpt;
 
-   kernel(vdim,byVDIM,ND,NE,d1d,q1d,M,B,G,I,J,W,coeff,Y);
-}
-
-/** @brief Create a scratch memory on the device. */
-template<bool USE_SMEM, int GRID>
-static double *ScratchMem(const int sm_size)
-{
-   static Memory<double> data;
-   static int size = 0;
-
-   double *gmem = nullptr;
-
-   if (!USE_SMEM)
-   {
-      if (sm_size == size) { /* nothing to do */ }
-      else if (sm_size <= data.Capacity()) { size = sm_size; }
-      else // sm_size > size
-      {
-         data.Delete();
-         data.New(sm_size*GRID, Device::GetDeviceMemoryType());
-         size = sm_size;
-      }
-      data.UseDevice(true);
-      gmem = data.Write(Device::GetDeviceMemoryClass(), size*GRID);
-   }
-   return gmem;
+   kernel(vdim, byVDIM, ND, NE, d, q, M, B, G, I, J, W, coeff, Y);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-template<int D1D=0, int Q1D=0> static
+template<int D=0, int Q=0> static
 void VectorDomainLFIntegratorAssemble2D(const int vdim,
                                         const bool byVDIM,
                                         const int ND,
                                         const int NE,
-                                        const int d1d,
-                                        const int q1d,
+                                        const int d,
+                                        const int q,
                                         const double *marks,
                                         const double *b,
                                         const double */*g*/, // unused
@@ -151,72 +126,69 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
                                         double *y)
 {
    constexpr int DIM = 2;
-   constexpr bool USE_SMEM = D1D > 0 && Q1D > 0;
+   const bool USE_SMEM = D > 0 && Q > 0;
 
    const bool cst_coeff = coeff.Size() == vdim;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
-   const auto B = Reshape(b, q1d,d1d);
-   const auto J = Reshape(jacobians, q1d,q1d,DIM,DIM,NE);
-   const auto W = Reshape(weights, q1d,q1d);
-   const auto I = Reshape(idx, d1d,d1d, NE);
-   const auto C = cst_coeff ?
-                  Reshape(F,vdim,1,1,1):
-                  Reshape(F,vdim,q1d,q1d,NE);
+   const auto B = Reshape(b, q,d);
+   const auto J = Reshape(jacobians, q,q, DIM,DIM, NE);
+   const auto W = Reshape(weights, q,q);
+   const auto I = Reshape(idx, d,d, NE);
+   const auto C = cst_coeff ? Reshape(F,vdim,1,1,1) : Reshape(F,vdim,q,q,NE);
 
    auto Y = Reshape(y, byVDIM ? vdim : ND, byVDIM ? ND : vdim);
 
-   const int sm_size = 2*q1d*(d1d+q1d);
+   const int sm_size = 2*q*(d+q);
+   constexpr int GRID = USE_SMEM ? 0 : 128;
+   double *gmem = ScratchMem<GRID>(sm_size);
 
-   const int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = ScratchMem<USE_SMEM,GRID>(sm_size);
-
-   MFEM_FORALL_3D_GRID(e, NE, q1d,q1d,1, GRID,
+   MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
       if (M(e) < 1.0) return;
 
       const int bid = MFEM_BLOCK_ID(x);
-      const int sm_SIZE = 2*Q1D*(D1D+Q1D);
+      const int sm_SIZE = 2*Q*(D+Q);
       MFEM_SHARED double SMEM[USE_SMEM ? sm_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
-      const DeviceMatrix Bt(DeviceMemAlloc(sm,q1d*d1d),q1d,d1d);
-      const DeviceMatrix QQ(DeviceMemAlloc(sm,q1d*q1d),q1d,q1d);
-      const DeviceMatrix QD(DeviceMemAlloc(sm,q1d*d1d),q1d,d1d);
+      const DeviceMatrix Bt(DeviceMemAlloc(sm,q*d), q,d);
+      const DeviceMatrix QQ(DeviceMemAlloc(sm,q*q), q,q);
+      const DeviceMatrix QD(DeviceMemAlloc(sm,q*d), q,d);
 
-      kernels::internal::LoadB(d1d,q1d,B,Bt);
+      kernels::internal::LoadB(d,q,B,Bt);
 
       for (int c = 0; c < vdim; ++c)
       {
          const double cst_val = C(c,0,0,0);
-         MFEM_FOREACH_THREAD(qx,x,q1d)
+         MFEM_FOREACH_THREAD(x,x,q)
          {
-            MFEM_FOREACH_THREAD(qy,y,q1d)
+            MFEM_FOREACH_THREAD(y,y,q)
             {
                double Jloc[4];
-               Jloc[0] = J(qx,qy,0,0,e);
-               Jloc[1] = J(qx,qy,1,0,e);
-               Jloc[2] = J(qx,qy,0,1,e);
-               Jloc[3] = J(qx,qy,1,1,e);
+               Jloc[0] = J(x,y,0,0,e);
+               Jloc[1] = J(x,y,1,0,e);
+               Jloc[2] = J(x,y,0,1,e);
+               Jloc[3] = J(x,y,1,1,e);
                const double detJ = kernels::Det<2>(Jloc);
-               const double coeff_val = cst_coeff ? cst_val : C(c,qx,qy,e);
-               QQ(qy,qx) = W(qx,qy) * coeff_val * detJ;
+               const double coeff_val = cst_coeff ? cst_val : C(c,x,y,e);
+               QQ(y,x) = W(x,y) * coeff_val * detJ;
 
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Atomic2DEvalTranspose(d1d,q1d,Bt,QQ,QD,I,Y,c,e,byVDIM);
+         kernels::internal::Atomic2DEvalTranspose(d,q,Bt,QQ,QD,I,Y,c,e,byVDIM);
       }
    });
 }
 
-template<int D1D=0, int Q1D=0> static
+template<int D=0, int Q=0> static
 void VectorDomainLFIntegratorAssemble3D(const int vdim,
                                         const bool byVDIM,
                                         const int ND,
                                         const int NE,
-                                        const int d1d,
-                                        const int q1d,
+                                        const int d,
+                                        const int q,
                                         const double *marks,
                                         const double *b,
                                         const double */*g*/, // unused
@@ -227,77 +199,66 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
                                         double *y)
 {
    constexpr int DIM = 3;
-   constexpr bool USE_SMEM = D1D > 0 && Q1D > 0;
+   const bool USE_SMEM = D > 0 && Q > 0;
 
    const bool cst_coeff = coeff.Size() == vdim;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
-   const auto B = Reshape(b, q1d,d1d);
-   const auto J = Reshape(jacobians, q1d,q1d,q1d,DIM,DIM,NE);
-   const auto W = Reshape(weights, q1d,q1d,q1d);
-   const auto I = Reshape(idx, d1d,d1d,d1d, NE);
+   const auto B = Reshape(b, q,d);
+   const auto J = Reshape(jacobians, q,q,q, DIM,DIM, NE);
+   const auto W = Reshape(weights, q,q,q);
+   const auto I = Reshape(idx, d,d,d, NE);
    const auto C = cst_coeff ?
                   Reshape(F,vdim,1,1,1,1) :
-                  Reshape(F,vdim,q1d,q1d,q1d,NE);
+                  Reshape(F,vdim,q,q,q,NE);
 
    auto Y = Reshape(y, byVDIM ? vdim : ND, byVDIM ? ND : vdim);
 
-   const int sm_size = q1d*d1d + q1d*q1d*q1d;
-
+   const int sm_size = q*d + q*q*q;
    const int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = nullptr;
-   static Vector *d_buffer = nullptr;
-   if (!USE_SMEM)
-   {
-      if (!d_buffer)
-      {
-         d_buffer = new Vector;
-         d_buffer->UseDevice(true);
-      }
-      d_buffer->SetSize(sm_size*GRID);
-      gmem = d_buffer->Write();
-   }
+   double *gmem = ScratchMem<GRID>(sm_size);
+   MFEM_VERIFY(q < 32, "Unsupported quadrature order!");
 
-   MFEM_FORALL_3D_GRID(e, NE, q1d,q1d,1, GRID,
+   MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
       if (M(e) < 1.0) return;
 
-      double u[Q1D>0?Q1D:32];
+      double u[Q>0?Q:32];
 
       const int bid = MFEM_BLOCK_ID(x);
-      const int sm_SIZE = Q1D*D1D + Q1D*Q1D*Q1D;
+      const int sm_SIZE = Q*D + Q*Q*Q;
       MFEM_SHARED double SMEM[USE_SMEM ? sm_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
-      const DeviceCube Q(DeviceMemAlloc(sm,q1d*q1d*q1d),q1d,q1d,q1d);
-      const DeviceMatrix Bt(DeviceMemAlloc(sm,q1d*d1d),q1d,d1d);
-      kernels::internal::LoadB(d1d,q1d,B,Bt);
+      const DeviceCube QQQ(DeviceMemAlloc(sm,q*q*q), q,q,q);
+      const DeviceMatrix Bt(DeviceMemAlloc(sm,q*d), q,d);
+      kernels::internal::LoadB(d,q,B,Bt);
 
       for (int c = 0; c < vdim; ++c)
       {
          const double cst_val = C(c,0,0,0,0);
-         MFEM_FOREACH_THREAD(qx,x,q1d)
+         MFEM_FOREACH_THREAD(x,x,q)
          {
-            MFEM_FOREACH_THREAD(qy,y,q1d)
+            MFEM_FOREACH_THREAD(y,y,q)
             {
-               for (int qz = 0; qz < q1d; ++qz)
+               for (int z = 0; z < q; ++z)
                {
                   double Jloc[9];
-                  for (int col = 0; col < 3; col++)
+                  for (int j = 0; j < 3; j++)
                   {
-                     for (int row = 0; row < 3; row++)
+                     for (int i = 0; i < 3; i++)
                      {
-                        Jloc[row+3*col] = J(qx,qy,qz,row,col,e);
+                        Jloc[i+3*j] = J(x,y,z,i,j,e);
                      }
                   }
                   const double detJ = kernels::Det<3>(Jloc);
-                  const double coeff_val = cst_coeff ? cst_val : C(c,qx,qy,qz,e);
-                  Q(qz,qy,qx) = W(qx,qy,qz) * coeff_val * detJ;
+                  const double coeff_val = cst_coeff ? cst_val : C(c,x,y,z,e);
+                  QQQ(z,y,x) = W(x,y,z) * coeff_val * detJ;
                }
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Atomic3DEvalTranspose(d1d,q1d,u,Bt,Q,I,Y,c,e,byVDIM);
+         kernels::internal::Atomic3DEvalTranspose(d,q,u,Bt,QQQ,I,Y,c,e,byVDIM);
       }
    });
 }

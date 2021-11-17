@@ -27,13 +27,13 @@ namespace linearform_extension
 {
 
 ////////////////////////////////////////////////////////////////////////////////
-template<int D1D=0, int Q1D=0> static
+template<int D=0, int Q=0> static
 void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
                                             const bool byVDIM,
                                             const int ND,
                                             const int NE,
-                                            const int d1d,
-                                            const int q1d,
+                                            const int d,
+                                            const int q,
                                             const double *marks,
                                             const double *b,
                                             const double *g,
@@ -44,99 +44,87 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
                                             double *y)
 {
    constexpr int DIM = 2;
-   constexpr bool USE_SMEM = D1D > 0 && Q1D > 0;
+   const bool USE_SMEM = D > 0 && Q > 0;
 
    const int cdim = vdim == 1 ? DIM : vdim;
    const bool cst_coeff = coeff.Size() == cdim;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
-   const auto B = Reshape(b, q1d,d1d);
-   const auto G = Reshape(g, q1d,d1d);
-   const auto J = Reshape(jacobians, q1d,q1d,DIM,DIM,NE);
-   const auto W = Reshape(weights, q1d,q1d);
-   const auto I = Reshape(idx, d1d,d1d, NE);
+   const auto B = Reshape(b, q,d);
+   const auto G = Reshape(g, q,d);
+   const auto J = Reshape(jacobians, q,q, DIM,DIM, NE);
+   const auto W = Reshape(weights, q,q);
+   const auto I = Reshape(idx, d,d, NE);
    const auto C = cst_coeff ?
                   Reshape(F,DIM,cdim/DIM,1,1,1):
-                  Reshape(F,DIM,cdim/DIM,q1d,q1d,NE);
+                  Reshape(F,DIM,cdim/DIM,q,q,NE);
 
    auto Y = Reshape(y, byVDIM ? vdim : ND, byVDIM ? ND : vdim);
 
-   const int sm_size = 2*d1d*q1d + 4*q1d*q1d;
-
+   const int sm_size = 2*d*q + 4*q*q;
    const int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = nullptr;
-   static Vector *d_buffer = nullptr;
-   if (!USE_SMEM)
-   {
-      if (!d_buffer)
-      {
-         d_buffer = new Vector;
-         d_buffer->UseDevice(true);
-      }
-      d_buffer->SetSize(sm_size*GRID);
-      gmem = d_buffer->Write();
-   }
+   double *gmem = ScratchMem<GRID>(sm_size);
 
-   MFEM_FORALL_3D_GRID(e, NE, q1d,q1d,1, GRID,
+   MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
       if (M(e) < 1.0) { return; }
 
       const int bid = MFEM_BLOCK_ID(x);
-      const int sm_SIZE = 2*D1D*Q1D + 4*Q1D*Q1D;
+      const int sm_SIZE = 2*D*Q + 4*Q*Q;
       MFEM_SHARED double SMEM[USE_SMEM ? sm_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
 
-      const DeviceMatrix Bt(DeviceMemAlloc(sm,q1d*d1d),d1d,q1d);
-      const DeviceMatrix Gt(DeviceMemAlloc(sm,q1d*d1d),d1d,q1d);
-      kernels::internal::LoadBGt(d1d,q1d,B,G,Bt,Gt);
+      const DeviceMatrix Bt(DeviceMemAlloc(sm,q*d), d,q);
+      const DeviceMatrix Gt(DeviceMemAlloc(sm,q*d), d,q);
+      kernels::internal::LoadBGt(d,q,B,G,Bt,Gt);
 
-      const DeviceMatrix QQ0(DeviceMemAlloc(sm,q1d*q1d),q1d,q1d);
-      const DeviceMatrix QQ1(DeviceMemAlloc(sm,q1d*q1d),q1d,q1d);
+      const DeviceMatrix QQ0(DeviceMemAlloc(sm,q*q), q,q);
+      const DeviceMatrix QQ1(DeviceMemAlloc(sm,q*q), q,q);
 
-      const DeviceMatrix DQ0(DeviceMemAlloc(sm,d1d*q1d),d1d,q1d);
-      const DeviceMatrix DQ1(DeviceMemAlloc(sm,d1d*q1d),d1d,q1d);
+      const DeviceMatrix DQ0(DeviceMemAlloc(sm,d*q), d,q);
+      const DeviceMatrix DQ1(DeviceMemAlloc(sm,d*q), d,q);
 
       for (int c = 0; c < cdim/DIM; ++c)
       {
          const double cst_val0 = C(0,c,0,0,0);
          const double cst_val1 = C(1,c,0,0,0);
 
-         MFEM_FOREACH_THREAD(qx,x,q1d)
+         MFEM_FOREACH_THREAD(x,x,q)
          {
-            MFEM_FOREACH_THREAD(qy,y,q1d)
+            MFEM_FOREACH_THREAD(y,y,q)
             {
-               double Jloc[4],Jinv[4];
-               Jloc[0] = J(qx,qy,0,0,e);
-               Jloc[1] = J(qx,qy,1,0,e);
-               Jloc[2] = J(qx,qy,0,1,e);
-               Jloc[3] = J(qx,qy,1,1,e);
+               double Jloc[4], Jinv[4];
+               Jloc[0] = J(x,y,0,0,e);
+               Jloc[1] = J(x,y,1,0,e);
+               Jloc[2] = J(x,y,0,1,e);
+               Jloc[3] = J(x,y,1,1,e);
                const double detJ = kernels::Det<2>(Jloc);
                kernels::CalcInverse<2>(Jloc, Jinv);
-               const double weight = W(qx,qy);
-               const double u = cst_coeff ? cst_val0 : C(0,c,qx,qy,e);
-               const double v = cst_coeff ? cst_val1 : C(1,c,qx,qy,e);
-               QQ0(qy,qx) = Jinv[0]*u + Jinv[2]*v;
-               QQ1(qy,qx) = Jinv[1]*u + Jinv[3]*v;
-               QQ0(qy,qx) *= weight * detJ;
-               QQ1(qy,qx) *= weight * detJ;
+               const double weight = W(x,y);
+               const double u = cst_coeff ? cst_val0 : C(0,c,x,y,e);
+               const double v = cst_coeff ? cst_val1 : C(1,c,x,y,e);
+               QQ0(y,x) = Jinv[0]*u + Jinv[2]*v;
+               QQ1(y,x) = Jinv[1]*u + Jinv[3]*v;
+               QQ0(y,x) *= weight * detJ;
+               QQ1(y,x) *= weight * detJ;
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Atomic2DGradTranspose(d1d,q1d,Bt,Gt,
+         kernels::internal::Atomic2DGradTranspose(d,q,Bt,Gt,
                                                   QQ0,QQ1,DQ0,DQ1,
                                                   I,Y,c,e,byVDIM);
       }
    });
 }
 
-template<int D1D=0, int Q1D=0> static
+template<int D=0, int Q=0> static
 void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
                                             const bool byVDIM,
                                             const int ND,
                                             const int NE,
-                                            const int d1d,
-                                            const int q1d,
+                                            const int d,
+                                            const int q,
                                             const double *marks,
                                             const double *b,
                                             const double *g,
@@ -147,64 +135,53 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
                                             double *y)
 {
    constexpr int DIM = 3;
-   constexpr bool USE_SMEM = D1D > 0 && Q1D > 0;
+   const bool USE_SMEM = D > 0 && Q > 0;
 
    const int cdim = vdim == 1 ? DIM : vdim;
    const bool cst_coeff = coeff.Size() == cdim;
 
    const auto F = coeff.Read();
    const auto M = Reshape(marks, NE);
-   const auto B = Reshape(b, q1d,d1d);
-   const auto G = Reshape(g, q1d,d1d);
-   const auto J = Reshape(jacobians, q1d,q1d,q1d,DIM,DIM,NE);
-   const auto W = Reshape(weights, q1d,q1d,q1d);
-   const auto I = Reshape(idx, d1d,d1d,d1d, NE);
+   const auto B = Reshape(b, q,d);
+   const auto G = Reshape(g, q,d);
+   const auto J = Reshape(jacobians, q,q,q, DIM,DIM, NE);
+   const auto W = Reshape(weights, q,q,q);
+   const auto I = Reshape(idx, d,d,d, NE);
    const auto C = cst_coeff ?
                   Reshape(F,DIM,cdim/DIM,1,1,1,1):
-                  Reshape(F,DIM,cdim/DIM,q1d,q1d,q1d,NE);
+                  Reshape(F,DIM,cdim/DIM,q,q,q,NE);
 
    auto Y = Reshape(y, byVDIM ? vdim : ND, byVDIM ? ND : vdim);
 
-   const int sm_size = 2*q1d*d1d + 6*q1d*q1d*q1d;
+   const int sm_size = 2*q*d + 6*q*q*q;
 
    const int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = nullptr;
-   static Vector *d_buffer = nullptr;
-   if (!USE_SMEM)
-   {
-      if (!d_buffer)
-      {
-         d_buffer = new Vector;
-         d_buffer->UseDevice(true);
-      }
-      d_buffer->SetSize(sm_size*GRID);
-      gmem = d_buffer->Write();
-   }
+   double *gmem = ScratchMem<GRID>(sm_size);
 
-   MFEM_FORALL_3D_GRID(e, NE, q1d,q1d,1, GRID,
+   MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
       if (M(e) < 1.0) { return; }
 
       const int bid = MFEM_BLOCK_ID(x);
-      const int sm_SIZE = 2*Q1D*D1D + 6*Q1D*Q1D*Q1D;
+      const int sm_SIZE = 2*Q*D + 6*Q*Q*Q;
       MFEM_SHARED double SMEM[USE_SMEM ? sm_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
 
-      const DeviceMatrix Bt(DeviceMemAlloc(sm,q1d*d1d),d1d,q1d);
-      const DeviceMatrix Gt(DeviceMemAlloc(sm,q1d*d1d),d1d,q1d);
-      kernels::internal::LoadBGt(d1d,q1d,B,G,Bt,Gt);
+      const DeviceMatrix Bt(DeviceMemAlloc(sm,q*d), d,q);
+      const DeviceMatrix Gt(DeviceMemAlloc(sm,q*d), d,q);
+      kernels::internal::LoadBGt(d,q,B,G,Bt,Gt);
 
-      const DeviceCube QQ0(DeviceMemAlloc(sm,q1d*q1d*q1d),q1d,q1d,q1d);
-      const DeviceCube QQ1(DeviceMemAlloc(sm,q1d*q1d*q1d),q1d,q1d,q1d);
-      const DeviceCube QQ2(DeviceMemAlloc(sm,q1d*q1d*q1d),q1d,q1d,q1d);
+      const DeviceCube QQ0(DeviceMemAlloc(sm,q*q*q), q,q,q);
+      const DeviceCube QQ1(DeviceMemAlloc(sm,q*q*q), q,q,q);
+      const DeviceCube QQ2(DeviceMemAlloc(sm,q*q*q), q,q,q);
 
-      const DeviceCube QD0(DeviceMemAlloc(sm,q1d*q1d*q1d),q1d,q1d,d1d);
-      const DeviceCube QD1(DeviceMemAlloc(sm,q1d*q1d*q1d),q1d,q1d,d1d);
-      const DeviceCube QD2(DeviceMemAlloc(sm,q1d*q1d*q1d),q1d,q1d,d1d);
+      const DeviceCube QD0(DeviceMemAlloc(sm,q*q*q), q,q,d);
+      const DeviceCube QD1(DeviceMemAlloc(sm,q*q*q), q,q,d);
+      const DeviceCube QD2(DeviceMemAlloc(sm,q*q*q), q,q,d);
 
-      const DeviceCube DD0(QQ0,q1d,d1d,d1d);
-      const DeviceCube DD1(QQ1,q1d,d1d,d1d);
-      const DeviceCube DD2(QQ2,q1d,d1d,d1d);
+      const DeviceCube DD0(QQ0,q,d,d);
+      const DeviceCube DD1(QQ1,q,d,d);
+      const DeviceCube DD2(QQ2,q,d,d);
 
       for (int c = 0; c < cdim/DIM; ++c)
       {
@@ -212,37 +189,37 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
          const double cst_val_1 = C(1,c,0,0,0,0);
          const double cst_val_2 = C(2,c,0,0,0,0);
 
-         MFEM_FOREACH_THREAD(qx,x,q1d)
+         MFEM_FOREACH_THREAD(x,x,q)
          {
-            MFEM_FOREACH_THREAD(qy,y,q1d)
+            MFEM_FOREACH_THREAD(y,y,q)
             {
-               for (int qz = 0; qz < q1d; ++qz)
+               for (int z = 0; z < q; ++z)
                {
-                  double Jloc[9],Jinv[9];
-                  for (int col = 0; col < 3; col++)
+                  double Jloc[9], Jinv[9];
+                  for (int j = 0; j < 3; j++)
                   {
-                     for (int row = 0; row < 3; row++)
+                     for (int i = 0; i < 3; i++)
                      {
-                        Jloc[row+3*col] = J(qx,qy,qz,row,col,e);
+                        Jloc[i+3*j] = J(x,y,z,i,j,e);
                      }
                   }
                   const double detJ = kernels::Det<3>(Jloc);
                   kernels::CalcInverse<3>(Jloc, Jinv);
-                  const double weight = W(qx,qy,qz);
-                  const double u = cst_coeff ? cst_val_0 : C(0,c,qx,qy,qz,e);
-                  const double v = cst_coeff ? cst_val_1 : C(1,c,qx,qy,qz,e);
-                  const double w = cst_coeff ? cst_val_2 : C(2,c,qx,qy,qz,e);
-                  QQ0(qz,qy,qx) = Jinv[0]*u + Jinv[3]*v + Jinv[6]*w;
-                  QQ1(qz,qy,qx) = Jinv[1]*u + Jinv[4]*v + Jinv[7]*w;
-                  QQ2(qz,qy,qx) = Jinv[2]*u + Jinv[5]*v + Jinv[8]*w;
-                  QQ0(qz,qy,qx) *= weight * detJ;
-                  QQ1(qz,qy,qx) *= weight * detJ;
-                  QQ2(qz,qy,qx) *= weight * detJ;
+                  const double weight = W(x,y,z);
+                  const double u = cst_coeff ? cst_val_0 : C(0,c,x,y,z,e);
+                  const double v = cst_coeff ? cst_val_1 : C(1,c,x,y,z,e);
+                  const double w = cst_coeff ? cst_val_2 : C(2,c,x,y,z,e);
+                  QQ0(z,y,x) = Jinv[0]*u + Jinv[3]*v + Jinv[6]*w;
+                  QQ1(z,y,x) = Jinv[1]*u + Jinv[4]*v + Jinv[7]*w;
+                  QQ2(z,y,x) = Jinv[2]*u + Jinv[5]*v + Jinv[8]*w;
+                  QQ0(z,y,x) *= weight * detJ;
+                  QQ1(z,y,x) *= weight * detJ;
+                  QQ2(z,y,x) *= weight * detJ;
                }
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Atomic3DGrad(d1d,q1d,Bt,Gt,
+         kernels::internal::Atomic3DGrad(d,q,Bt,Gt,
                                          QQ0,QQ1,QQ2,
                                          QD0,QD1,QD2,
                                          DD0,DD1,DD2,
