@@ -55,7 +55,7 @@ auto operator*(const Basis &basis, const Dofs &u)
    }
    MFEM_SYNC_THREAD;
    // X Contraction
-   StaticPointerDTensor<D1D,D1D,Q1D> DDQ(sm1);
+   StaticPointerDTensor<Q1D,D1D,D1D> DDQ(sm1);
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -84,7 +84,7 @@ auto operator*(const Basis &basis, const Dofs &u)
    }
    MFEM_SYNC_THREAD;
    // Y Contraction
-   StaticPointerDTensor<D1D,Q1D,Q1D> DQQ(sm0);
+   StaticPointerDTensor<Q1D,Q1D,D1D> DQQ(sm0);
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -113,8 +113,7 @@ auto operator*(const Basis &basis, const Dofs &u)
    }
    MFEM_SYNC_THREAD;
    // Z Contraction
-   constexpr int batchsize = 1;
-   Static2dThreadDTensor<batchsize,Q1D,Q1D,Q1D> QQQ;
+   ResultTensor<Dofs,Q1D,Q1D,Q1D> QQQ;
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -179,7 +178,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
       }
    }
    // X Contraction
-   StaticPointerDTensor<Q1D,Q1D,D1D> QQD(sm1);
+   StaticPointerDTensor<D1D,Q1D,Q1D> QQD(sm1);
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -208,7 +207,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    }
    MFEM_SYNC_THREAD;
    // Y Contraction
-   StaticPointerDTensor<Q1D,D1D,D1D> QDD(sm0);
+   StaticPointerDTensor<D1D,D1D,Q1D> QDD(sm0);
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -237,8 +236,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    }
    MFEM_SYNC_THREAD;
    // Z Contraction
-   constexpr int batchsize = 1;
-   Static2dThreadDTensor<batchsize,D1D,D1D,D1D> y;
+   ResultTensor<Dofs,D1D,D1D,D1D> y;
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
