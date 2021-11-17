@@ -63,13 +63,13 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    Index maxIters = iters;
 
    Vector x(rhs);
-   Scalar xNorm = SquaredNorm(x);
+   // Scalar xNorm = SquaredNorm(x);
    // one_print("  xNorm %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), xNorm);
    Vector residual(rhs);
-   Scalar residualNorm1 = SquaredNorm(residual);
+   // Scalar residualNorm1 = SquaredNorm(residual);
    // one_print("  residualNorm1 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), residualNorm1);
    residual -= A * x; //initial residual
-   Scalar residualNorm15 = SquaredNorm(residual);
+   // Scalar residualNorm15 = SquaredNorm(residual);
    // one_print("  residualNorm15 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), residualNorm15);
 
    Scalar rhsNorm2 = SquaredNorm(rhs);
@@ -93,7 +93,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    }
 
    Vector p = residual; //P * residual;      // initial search direction
-   Scalar pNorm1 = SquaredNorm(p);
+   // Scalar pNorm1 = SquaredNorm(p);
    // one_print("  pNorm1 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), pNorm1);
 
    Scalar absNew = Dot(residual,p);  // the square of the absolute value of r scaled by invM
@@ -102,15 +102,15 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    while(i < maxIters)
    {
       Vector tmp = A * p;                    // the bottleneck of the algorithm
-      Scalar tmpNorm = SquaredNorm(tmp);
+      // Scalar tmpNorm = SquaredNorm(tmp);
       // one_print("  tmpNorm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), tmpNorm);
 
       Scalar alpha = absNew / Dot(p,tmp);         // the amount we travel on dir
       // one_print("  alpha %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), alpha);
       x += alpha * p;                             // update solution
-      Scalar pNorm2 = SquaredNorm(p);
+      // Scalar pNorm2 = SquaredNorm(p);
       // one_print("  pNorm2 %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), pNorm2);
-      xNorm = SquaredNorm(x);
+      // xNorm = SquaredNorm(x);
       // one_print("  xNorm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), xNorm);
       residual -= alpha * tmp;                    // update residual
 
@@ -123,7 +123,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       }
 
       Vector z = residual; // P * residual;                // approximately solve for "A z = residual"
-      Scalar zNorm = SquaredNorm(z);
+      // Scalar zNorm = SquaredNorm(z);
       // one_print("  zNorm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), zNorm);
 
       Scalar absOld = absNew;
