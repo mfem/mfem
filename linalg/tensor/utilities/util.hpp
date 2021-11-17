@@ -70,7 +70,7 @@ struct IfThenElse_t<false, TrueType, FalseType>
 template <bool Cond, typename TrueType, typename FalseType>
 using IfThenElse = typename IfThenElse_t<Cond,TrueType,FalseType>::type;
 
-template <typename... Args>
+template <typename... Args> MFEM_HOST_DEVICE
 void one_print(const char* msg, Args... vals)
 {
 #ifdef MFEM_DEVICE_COMPILE
