@@ -98,10 +98,7 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       residualNorm2 = SquaredNorm(residual);
       if(residualNorm2 < threshold)
       {
-         if (MFEM_THREAD_ID(x)==0 && MFEM_THREAD_ID(y)==0 && MFEM_THREAD_ID(z)==0)
-         {
-            printf("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),i);
-         }
+         one_print("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),i);
          return x;
       }
 
@@ -109,16 +106,14 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
 
       Scalar absOld = absNew;
       absNew = Dot(residual,z);     // update the absolute value of r
+      one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
       Scalar beta = absNew / absOld;          // calculate the Gram-Schmidt value used to create the new search direction
       p = z + beta * p;                           // update search direction
       i++;
    }
    tol_error = sqrt(residualNorm2 / rhsNorm2);
    iters = i;
-   if (MFEM_THREAD_ID(x)==0 && MFEM_THREAD_ID(y)==0 && MFEM_THREAD_ID(z)==0)
-   {
-      printf("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),i);
-   }
+   one_print("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),i);
    return x;
 }
 
