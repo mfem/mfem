@@ -1428,11 +1428,11 @@ int main(int argc, char *argv[])
    kGF.SetOwner(true);
 
    std::vector<std::string> field_names(5);
-   field_names[0] = "neutral_density";
-   field_names[1] = "ion_density";
-   field_names[2] = "ion_para_velocity";
-   field_names[3] = "ion_temperature";
-   field_names[4] = "electron_temperature";
+   field_names[0] = "neutral_density_gf";
+   field_names[1] = "ion_density_gf";
+   field_names[2] = "ion_para_velocity_gf";
+   field_names[3] = "ion_temperature_gf";
+   field_names[4] = "electron_temperature_gf";
 
    Transport2DCoefFactory coefFact(field_names, yGF);
 

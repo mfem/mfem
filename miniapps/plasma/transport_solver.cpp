@@ -1005,8 +1005,11 @@ ElectronStaticPressureCoefs::ElectronStaticPressureCoefs()
 }
 
 CommonCoefs::CommonCoefs()
-   : EqnCoefficients(0, vCoefNames::NUM_VECTOR_COEFS)
+   : EqnCoefficients(sCoefNames::NUM_SCALAR_COEFS, vCoefNames::NUM_VECTOR_COEFS)
 {
+   sCoefNames_[IONIZATION_COEF]    = "ionization_coef";
+   sCoefNames_[RECOMBINATION_COEF] = "recombination_coef";
+
    vCoefNames_[MAGNETIC_FIELD_COEF] = "magnetic_field_coef";
 }
 
@@ -1027,7 +1030,54 @@ Coefficient *
 TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 {
    int coef_idx = -1;
-   if (name == "SoundSpeedCoef")
+   if (name == "StateVariableConstantCoef")
+   {
+      double c;
+      input >> c;
+      coef_idx = sCoefs.Append(new StateVariableConstantCoef(c));
+   }
+   else if (name == "StateVariableGridFunctionCoef")
+   {
+      int ft;
+      string gf_name;
+      input >> ft >> gf_name;
+      MFEM_VERIFY(ext_gf.find(gf_name) != ext_gf.end(), "TransportCoefFactory: "
+                  "GridFunction named \"" << gf_name << "\" not found amongst "
+                  "external GridFunctions.");
+      coef_idx = sCoefs.Append(new StateVariableGridFunctionCoef(ext_gf[gf_name],
+                                                                 (FieldType)ft));
+   }
+   else if (name == "StateVariableSumCoef")
+   {
+      Coefficient * ACoef = this->GetScalarCoef(input);
+      Coefficient * BCoef = this->GetScalarCoef(input);
+
+      StateVariableCoef * A = dynamic_cast<StateVariableCoef*>(ACoef);
+      StateVariableCoef * B = dynamic_cast<StateVariableCoef*>(BCoef);
+
+      MFEM_VERIFY(A != NULL, "TransportCoefFactory: first argument to "
+                  "StateVariableSumCoef is not a StateVariableCoef.");
+      MFEM_VERIFY(B != NULL, "TransportCoefFactory: second argument to "
+                  "StateVariableSumCoef is not a StateVariableCoef.");
+
+      coef_idx = sCoefs.Append(new StateVariableSumCoef(*A, *B));
+   }
+   else if (name == "StateVariableProductCoef")
+   {
+      Coefficient * ACoef = this->GetScalarCoef(input);
+      Coefficient * BCoef = this->GetScalarCoef(input);
+
+      StateVariableCoef * A = dynamic_cast<StateVariableCoef*>(ACoef);
+      StateVariableCoef * B = dynamic_cast<StateVariableCoef*>(BCoef);
+
+      MFEM_VERIFY(A != NULL, "TransportCoefFactory: first argument to "
+                  "StateVariableProductCoef is not a StateVariableCoef.");
+      MFEM_VERIFY(B != NULL, "TransportCoefFactory: second argument to "
+                  "StateVariableProductCoef is not a StateVariableCoef.");
+
+      coef_idx = sCoefs.Append(new StateVariableProductCoef(*A, *B));
+   }
+   else if (name == "SoundSpeedCoef")
    {
       double mi;
       input >> mi;
@@ -4645,13 +4695,13 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
      ViCoef_(viCoef_, B3Coef_),
      SrcDefCoef_(neCoef_, niCoef_, rcCoef_),
      SizDefCoef_(neCoef_, nnCoef_, izCoef_),
-     SrcCoef_((eqncoefs_(CCoefs::RECOMBINATION_SINK_COEF) != NULL)
+     SrcCoef_((eqncoefs_(CCoefs::RECOMBINATION_COEF) != NULL)
               ? const_cast<Coefficient&>
-              (*eqncoefs_(CCoefs::RECOMBINATION_SINK_COEF))
+              (*eqncoefs_(CCoefs::RECOMBINATION_COEF))
               : SrcDefCoef_),
-     SizCoef_((eqncoefs_(CCoefs::IONIZATION_SOURCE_COEF) != NULL)
+     SizCoef_((eqncoefs_(CCoefs::IONIZATION_COEF) != NULL)
               ? const_cast<Coefficient&>
-              (*eqncoefs_(CCoefs::IONIZATION_SOURCE_COEF))
+              (*eqncoefs_(CCoefs::IONIZATION_COEF))
               : SizDefCoef_),
      DGF_(NULL),
      SrcGF_(NULL),
@@ -4676,6 +4726,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
       // Set default visualization fields
       vis_flag_ = (logging_ > 1) ? 1023 : this->GetDefaultVisFlag();
    }
+   cout << "NeutralDensityOp term flag " << term_flag_ << endl;
 
    // Time derivative term: dn_n / dt
    SetTimeDerivativeTerm(nnCoef_);
@@ -4689,11 +4740,21 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
 
    if (this->CheckTermFlag(RECOMBINATION_SOURCE_TERM))
    {
+      if ( mpi_.Root() && logging_ > 0)
+      {
+         cout << eqn_name_ << ": Adding recombination source term" << endl;
+         cout << eqncoefs_(CCoefs::RECOMBINATION_COEF) << endl;
+      }
       // Source term: Src
       SetSourceTerm(SrcCoef_, 1.0);
    }
    if (this->CheckTermFlag(IONIZATION_SINK_TERM))
    {
+      if ( mpi_.Root() && logging_ > 0)
+      {
+         cout << eqn_name_ << ": Adding ionization sink term" << endl;
+         cout << eqncoefs_(CCoefs::IONIZATION_COEF) << endl;
+      }
       // Source term: -Siz
       SetSourceTerm(SizCoef_, -1.0);
    }
@@ -4899,13 +4960,13 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      ViCoef_(viCoef_, B3Coef_),
      SizDefCoef_(neCoef_, nnCoef_, izCoef_),
      SrcDefCoef_(neCoef_, niCoef_, rcCoef_),
-     SizCoef_((eqncoefs_(CCoefs::IONIZATION_SOURCE_COEF) != NULL)
+     SizCoef_((eqncoefs_(CCoefs::IONIZATION_COEF) != NULL)
               ? const_cast<Coefficient&>
-              (*eqncoefs_(CCoefs::IONIZATION_SOURCE_COEF))
+              (*eqncoefs_(CCoefs::IONIZATION_COEF))
               : SizDefCoef_),
-     SrcCoef_((eqncoefs_(CCoefs::RECOMBINATION_SINK_COEF) != NULL)
+     SrcCoef_((eqncoefs_(CCoefs::RECOMBINATION_COEF) != NULL)
               ? const_cast<Coefficient&>
-              (*eqncoefs_(CCoefs::RECOMBINATION_SINK_COEF))
+              (*eqncoefs_(CCoefs::RECOMBINATION_COEF))
               : SrcDefCoef_),
      DParaGF_(NULL),
      DPerpGF_(NULL),

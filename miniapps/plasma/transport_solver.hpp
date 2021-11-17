@@ -640,7 +640,7 @@ public:
 class CommonCoefs : public EqnCoefficients
 {
 public:
-   enum sCoefNames {IONIZATION_SOURCE_COEF, RECOMBINATION_SINK_COEF,
+   enum sCoefNames {IONIZATION_COEF = 0, RECOMBINATION_COEF,
                     NUM_SCALAR_COEFS
                    };
    enum vCoefNames {MAGNETIC_FIELD_COEF = 0, NUM_VECTOR_COEFS};
