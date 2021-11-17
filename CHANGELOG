@@ -70,6 +70,13 @@ Version 4.3.1 (development)
 - Added ParMesh Adjaceny Set (adjset) creation support to the Conduit Mesh
   Blueprint MFEM wrapper functions in ConduitDataCollection.
 
+- Added full assembly / device support for the LinearForm integrators:
+  * DomainLF: L(v) := (f, v)
+  * VectorDomainLF: L(v) := ((f1,...,fn), (v1,...,vn))
+  * DomainLFGrad: L(v) := (f,grad v)
+  * VectorDomainLFGrad:  L(v) := ((f1,...,fn), grad(v1,...,vn))
+  It can be enabled by setting the linear assembly level to
+  'LinearAssemblyLevel::FULL' with the 'LinearForm::SetAssemblyLevel' method.
 
 Version 4.3, released on July 29, 2021
 ======================================
