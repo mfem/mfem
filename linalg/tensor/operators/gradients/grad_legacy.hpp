@@ -30,19 +30,20 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto operator*(const Grad<Basis> &basis, const Dofs &u)
 {
+   using Scalar = get_tensor_value_type<Dofs>;
    constexpr int Dim = 3;
    constexpr int basis_size = get_basis_capacity<Basis>;
-   MFEM_SHARED double s_B[basis_size];
+   MFEM_SHARED Scalar s_B[basis_size];
    auto B = basis.GetB(s_B);
-   MFEM_SHARED double s_G[basis_size];
+   MFEM_SHARED Scalar s_G[basis_size];
    auto G = basis.GetG(s_G);
 
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    constexpr int MaxDQ = (Q1D > D1D) ? Q1D : D1D;
    // shared memory for temporary/intermediary result tensors.
-   MFEM_SHARED double sm0[Dim*MaxDQ*MaxDQ*MaxDQ];
-   MFEM_SHARED double sm1[Dim*MaxDQ*MaxDQ*MaxDQ];
+   MFEM_SHARED Scalar sm0[Dim*MaxDQ*MaxDQ*MaxDQ];
+   MFEM_SHARED Scalar sm1[Dim*MaxDQ*MaxDQ*MaxDQ];
 
    // Load dofs in shared memory
    StaticPointerDTensor<D1D,D1D,D1D> X(sm0);
@@ -64,18 +65,20 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         double u[D1D], v[D1D];
+         Scalar u[D1D], v[D1D];
          MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; dz++) { u[dz] = v[dz] = 0.0; }
          MFEM_UNROLL(D1D)
          for (int dx = 0; dx < D1D; ++dx)
          {
+            const Scalar b = B(dx,qx);
+            const Scalar g = G(dx,qx);
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz)
             {
-               const double coords = X(dx,dy,dz);
-               u[dz] += coords * B(dx,qx);
-               v[dz] += coords * G(dx,qx);
+               const Scalar coords = X(dx,dy,dz);
+               u[dz] += coords * b;
+               v[dz] += coords * g;
             }
          }
          MFEM_UNROLL(D1D)
@@ -93,18 +96,20 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         double u[D1D], v[D1D], w[D1D];
+         Scalar u[D1D], v[D1D], w[D1D];
          MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; dz++) { u[dz] = v[dz] = w[dz] = 0.0; }
          MFEM_UNROLL(D1D)
          for (int dy = 0; dy < D1D; ++dy)
          {
+            const Scalar b = B(dy,qy);
+            const Scalar g = G(dy,qy);
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; dz++)
             {
-               u[dz] += QDD(qx,dy,dz,1) * B(dy,qy);
-               v[dz] += QDD(qx,dy,dz,0) * G(dy,qy);
-               w[dz] += QDD(qx,dy,dz,0) * B(dy,qy);
+               u[dz] += QDD(qx,dy,dz,1) * b;
+               v[dz] += QDD(qx,dy,dz,0) * g;
+               w[dz] += QDD(qx,dy,dz,0) * b;
             }
          }
          MFEM_UNROLL(D1D)
@@ -123,7 +128,7 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         double u[Q1D], v[Q1D], w[Q1D];
+         Scalar u[Q1D], v[Q1D], w[Q1D];
          MFEM_UNROLL(Q1D)
          for (int qz = 0; qz < Q1D; qz++) { u[qz] = v[qz] = w[qz] = 0.0; }
          MFEM_UNROLL(D1D)
@@ -132,9 +137,11 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; qz++)
             {
-               u[qz] += QQD(qx,qy,dz,0) * B(dz,qz);
-               v[qz] += QQD(qx,qy,dz,1) * B(dz,qz);
-               w[qz] += QQD(qx,qy,dz,2) * G(dz,qz);
+               const Scalar b = B(dz,qz);
+               const Scalar g = G(dz,qz);
+               u[qz] += QQD(qx,qy,dz,0) * b;
+               v[qz] += QQD(qx,qy,dz,1) * b;
+               w[qz] += QQD(qx,qy,dz,2) * g;
             }
          }
          MFEM_UNROLL(Q1D)
@@ -159,19 +166,20 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
 {
+   using Scalar = get_tensor_value_type<Dofs>;
    constexpr int Dim = 3;
    constexpr int basis_size = get_basis_capacity<Basis>;
-   MFEM_SHARED double s_B[basis_size];
+   MFEM_SHARED Scalar s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
-   MFEM_SHARED double s_G[basis_size];
+   MFEM_SHARED Scalar s_G[basis_size];
    auto Gt = basis.GetGt(s_G);
 
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    constexpr int MaxDQ = (Q1D > D1D) ? Q1D : D1D;
    // shared memory for temporary/intermediary result tensors.
-   MFEM_SHARED double sm0[Dim*MaxDQ*MaxDQ*MaxDQ];
-   MFEM_SHARED double sm1[Dim*MaxDQ*MaxDQ*MaxDQ];
+   MFEM_SHARED Scalar sm0[Dim*MaxDQ*MaxDQ*MaxDQ];
+   MFEM_SHARED Scalar sm1[Dim*MaxDQ*MaxDQ*MaxDQ];
 
    // Load dofs in shared memory
    StaticPointerDTensor<Q1D,Q1D,Q1D,Dim> QQQ(sm0);
@@ -197,18 +205,20 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         double u[Q1D], v[Q1D], w[Q1D];
+         Scalar u[Q1D], v[Q1D], w[Q1D];
          MFEM_UNROLL(Q1D)
          for (int qz = 0; qz < Q1D; ++qz) { u[qz] = v[qz] = w[qz] = 0.0; }
          MFEM_UNROLL(Q1D)
          for (int qx = 0; qx < Q1D; ++qx)
          {
+            const Scalar bt = Bt(qx,dx);
+            const Scalar gt = Gt(qx,dx);
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               u[qz] += QQQ(qx,qy,qz,0) * Gt(qx,dx);
-               v[qz] += QQQ(qx,qy,qz,1) * Bt(qx,dx);
-               w[qz] += QQQ(qx,qy,qz,2) * Bt(qx,dx);
+               u[qz] += QQQ(qx,qy,qz,0) * gt;
+               v[qz] += QQQ(qx,qy,qz,1) * bt;
+               w[qz] += QQQ(qx,qy,qz,2) * bt;
             }
          }
          MFEM_UNROLL(Q1D)
@@ -227,18 +237,20 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         double u[Q1D], v[Q1D], w[Q1D];
+         Scalar u[Q1D], v[Q1D], w[Q1D];
          MFEM_UNROLL(Q1D)
          for (int qz = 0; qz < Q1D; ++qz) { u[qz] = v[qz] = w[qz] = 0.0; }
          MFEM_UNROLL(Q1D)
          for (int qy = 0; qy < Q1D; ++qy)
          {
+            const Scalar bt = Bt(qy,dy);
+            const Scalar gt = Gt(qy,dy);
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               u[qz] += DQQ(dx,qy,qz,0) * Bt(qy,dy);
-               v[qz] += DQQ(dx,qy,qz,1) * Gt(qy,dy);
-               w[qz] += DQQ(dx,qy,qz,2) * Bt(qy,dy);
+               u[qz] += DQQ(dx,qy,qz,0) * bt;
+               v[qz] += DQQ(dx,qy,qz,1) * gt;
+               w[qz] += DQQ(dx,qy,qz,2) * bt;
             }
          }
          MFEM_UNROLL(Q1D)
@@ -257,7 +269,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         double u[D1D], v[D1D], w[D1D];
+         Scalar u[D1D], v[D1D], w[D1D];
          MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; ++dz) { u[dz] = v[dz] = w[dz] = 0.0; }
          MFEM_UNROLL(Q1D)
@@ -266,9 +278,11 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz)
             {
-               u[dz] += DDQ(dx,dy,qz,0) * Bt(qz,dz);
-               v[dz] += DDQ(dx,dy,qz,1) * Bt(qz,dz);
-               w[dz] += DDQ(dx,dy,qz,2) * Gt(qz,dz);
+               const Scalar bt = Bt(qz,dz);
+               const Scalar gt = Gt(qz,dz);
+               u[dz] += DDQ(dx,dy,qz,0) * bt;
+               v[dz] += DDQ(dx,dy,qz,1) * bt;
+               w[dz] += DDQ(dx,dy,qz,2) * gt;
             }
          }
          MFEM_UNROLL(D1D)
@@ -278,6 +292,7 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
          }
       }
    }
+   MFEM_SYNC_THREAD;
    return y;
 }
 
