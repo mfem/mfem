@@ -4,8 +4,7 @@
 //
 // Sample runs:
 //    ex31 -r 3
-//    ex31 -m ../../data/star.mesh -r 3
-//    ex31 -m ../../data/star.mesh -sl 5 -r 3 -mf 0.5 -o 5 -max 0.75
+//    ex31 -m ../data/star.mesh -r 3 -mf 0.5 -tol 1e-3 -o 3
 //
 // Description:  This examples solves the following PDE-constrained
 //               optimization problem for the diffusion coefficient K:
@@ -89,7 +88,7 @@ double load(const Vector & x)
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/inline-quad.mesh";
+   const char *mesh_file = "../data/inline-quad.mesh";
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
