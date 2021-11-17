@@ -24,9 +24,6 @@ static void ApplyDGMassInverse(const int ne,
                                const int dofs = Dofs,
                                const int quads = Quads)
 {
-   // config_static_device_tensor_is<
-   // ThreadTensor<Dim>::template static_type
-   // > static_tensor;
    auto config  = MakeConfig(quads,
                              config_dim_is<Dim>(),
                              config_is_tensor<IsTensor>(),
@@ -174,8 +171,9 @@ int main(int argc, char *argv[])
 
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fespace(&mesh, &fec);
+   const int n_dofs = fespace.GetTrueVSize();
    cout << "Number of finite element unknowns: "
-        << fespace.GetTrueVSize() << endl;
+        << n_dofs << endl;
 
    Array<int> ess_tdof_list;
 
@@ -187,33 +185,38 @@ int main(int argc, char *argv[])
    /// Legacy CG
    GridFunction x_ref(&fespace);
    x_ref = 0.0;
-   cout << std::endl << "Building Old CG " << std::endl;
+   cout << std::endl << "Building PA with cpu CG " << std::endl;
    tic_toc.Clear();
    tic_toc.Start();
    BilinearForm a(&fespace);
    a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    a.AddDomainIntegrator(new MassIntegrator(one));
    a.Assemble();
-   cout << "Form Linear System " << std::endl;
+   cout << "  Form Linear System " << std::endl;
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x_ref, b, A, X, B);
    tic_toc.Stop();
    const double old_cg_setup = tic_toc.RealTime();
-   cout << "Legacy CG setup time: " << old_cg_setup << std::endl;
+   cout << "  Legacy CG setup time: " << old_cg_setup << std::endl;
 
-   cout << "Size of linear system: " << A->Height() << endl;
+   cout << "  Size of linear system: " << A->Height() << endl;
 
-   const int print_level = 1;
-   const int max_iter = 400;
-   const double rtol = 1e-12;
-   const double atol = 0.0;
+   CGSolver cg;
+   cg.SetPrintLevel(1);
+   cg.SetMaxIter(400);
+   cg.SetRelTol(sqrt(1e-12));
+   cg.SetAbsTol(sqrt(0.0));
+   cg.SetOperator(*A);
    tic_toc.Clear();
    tic_toc.Start();
-   CG(*A, B, X, print_level, max_iter, rtol, atol);
+   cg.Mult(B, X);
    tic_toc.Stop();
+   const int num_iter = cg.GetNumIterations();
    const double old_cg_compute = tic_toc.RealTime();
-   cout << "Legacy CG computation time: " << old_cg_compute << std::endl;
+   cout << "  Legacy CG computation time: " << old_cg_compute << std::endl;
+   const double old_mdofs = n_dofs * num_iter / old_cg_compute;
+   cout << "  Legacy CG MDofs/s: " << old_mdofs/1e6 << " MDofs/s"<< std::endl;
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x_ref);
 
@@ -221,20 +224,22 @@ int main(int argc, char *argv[])
    GridFunction x_test(&fespace);
    x_test = 0.0;
    // Setup
-   cout << std::endl << "Building New CG " << std::endl;
+   cout << std::endl << "Building PA with gpu CG " << std::endl;
    tic_toc.Clear();
    tic_toc.Start();
    DGMassInverse new_op(fespace,one);
    tic_toc.Stop();
    const double new_cg_setup = tic_toc.RealTime();
-   cout << "New CG setup time: " << new_cg_setup << std::endl;
+   cout << "  New CG setup time: " << new_cg_setup << std::endl;
    // Compute
    tic_toc.Clear();
    tic_toc.Start();
    new_op.Mult(b,x_test);
    tic_toc.Stop();
    const double new_cg_compute = tic_toc.RealTime();
-   cout << "New CG computation time: " << new_cg_compute << std::endl;
+   cout << "  New CG computation time: " << new_cg_compute << std::endl;
+   const double new_mdofs = n_dofs * num_iter / new_cg_compute;
+   cout << "  New CG MDofs/s: " << new_mdofs/1e6 << " MDofs/s"<< std::endl;
 
    GridFunction diff(&fespace);
    diff = x_ref;
@@ -253,8 +258,11 @@ int main(int argc, char *argv[])
    cout << "New CG computation time: " << new_cg_compute << "s." << std::endl;
    cout << "CG compute diff: " << new_cg_compute - old_cg_compute << "s." <<
         std::endl;
-   cout << "CG compute speedup: " << old_cg_compute / new_cg_compute << "x." <<
+   cout << std::endl;
+   cout << "  CG compute speedup: " << old_cg_compute / new_cg_compute << "x." <<
         std::endl;
+   cout << "  Legacy CG MDofs/s: " << old_mdofs/1e6 << " MDofs/s"<< std::endl;
+   cout << "  New CG MDofs/s: " << new_mdofs/1e6 << " MDofs/s"<< std::endl;
 
    // // 13. Save the refined mesh and the solution. This output can be viewed later
    // //     using GLVis: "glvis -m refined.mesh -g sol.gf".
