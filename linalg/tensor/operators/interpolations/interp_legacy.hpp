@@ -30,16 +30,17 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto operator*(const Basis &basis, const Dofs &u)
 {
+   using Scalar = get_tensor_value_type<Dofs>;
    constexpr int basis_size = get_basis_capacity<Basis>;
-   MFEM_SHARED double s_B[basis_size];
+   MFEM_SHARED Scalar s_B[basis_size];
    auto B = basis.GetB(s_B);
 
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    constexpr int MaxDQ = (Q1D > D1D) ? Q1D : D1D;
    // shared memory for temporary/intermediary result tensors.
-   MFEM_SHARED double sm0[MaxDQ*MaxDQ*MaxDQ];
-   MFEM_SHARED double sm1[MaxDQ*MaxDQ*MaxDQ];
+   MFEM_SHARED Scalar sm0[MaxDQ*MaxDQ*MaxDQ];
+   MFEM_SHARED Scalar sm1[MaxDQ*MaxDQ*MaxDQ];
    // Load dofs in shared memory
    StaticPointerDTensor<D1D,D1D,D1D> X(sm0);
    MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -60,7 +61,7 @@ auto operator*(const Basis &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         double u[D1D];
+         Scalar u[D1D];
          MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; dz++)
          {
@@ -69,10 +70,11 @@ auto operator*(const Basis &basis, const Dofs &u)
          MFEM_UNROLL(D1D)
          for (int dx = 0; dx < D1D; ++dx)
          {
+            const Scalar b = B(dx,qx);
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz)
             {
-               u[dz] += X(dx,dy,dz) * B(dx,qx);
+               u[dz] += X(dx,dy,dz) * b;
             }
          }
          MFEM_UNROLL(D1D)
@@ -89,7 +91,7 @@ auto operator*(const Basis &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         double u[D1D];
+         Scalar u[D1D];
          MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; dz++)
          {
@@ -98,10 +100,11 @@ auto operator*(const Basis &basis, const Dofs &u)
          MFEM_UNROLL(D1D)
          for (int dy = 0; dy < D1D; ++dy)
          {
+            const Scalar b = B(dy,qy);
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; dz++)
             {
-               u[dz] += QDD(qx,dy,dz) * B(dy,qy);
+               u[dz] += QDD(qx,dy,dz) * b;
             }
          }
          MFEM_UNROLL(D1D)
@@ -118,7 +121,7 @@ auto operator*(const Basis &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
-         double u[Q1D];
+         Scalar u[Q1D];
          MFEM_UNROLL(Q1D)
          for (int qz = 0; qz < Q1D; qz++)
          {
@@ -154,16 +157,17 @@ template <typename Basis,
 MFEM_HOST_DEVICE inline
 auto operator*(const Trans<Basis> &basis, const Dofs &u)
 {
+   using Scalar = get_tensor_value_type<Dofs>;
    constexpr int basis_size = get_basis_capacity<Basis>;
-   MFEM_SHARED double s_B[basis_size];
+   MFEM_SHARED Scalar s_B[basis_size];
    auto Bt = basis.GetBt(s_B);
 
    constexpr int D1D = get_basis_dofs<Basis>;
    constexpr int Q1D = get_basis_quads<Basis>;
    constexpr int MaxDQ = (Q1D > D1D) ? Q1D : D1D;
    // shared memory for temporary/intermediary result tensors.
-   MFEM_SHARED double sm0[MaxDQ*MaxDQ*MaxDQ];
-   MFEM_SHARED double sm1[MaxDQ*MaxDQ*MaxDQ];
+   MFEM_SHARED Scalar sm0[MaxDQ*MaxDQ*MaxDQ];
+   MFEM_SHARED Scalar sm1[MaxDQ*MaxDQ*MaxDQ];
    // Load dofs in shared memory
    StaticPointerDTensor<Q1D,Q1D,Q1D> QQQ(sm0);
    MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -183,7 +187,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         double u[Q1D];
+         Scalar u[Q1D];
          MFEM_UNROLL(Q1D)
          for (int qz = 0; qz < Q1D; ++qz)
          {
@@ -192,10 +196,11 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
          MFEM_UNROLL(Q1D)
          for (int qx = 0; qx < Q1D; ++qx)
          {
+            const Scalar bt = Bt(qx,dx);
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               u[qz] += QQQ(qx,qy,qz) * Bt(qx,dx);
+               u[qz] += QQQ(qx,qy,qz) * bt;
             }
          }
          MFEM_UNROLL(Q1D)
@@ -212,7 +217,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         double u[Q1D];
+         Scalar u[Q1D];
          MFEM_UNROLL(Q1D)
          for (int qz = 0; qz < Q1D; ++qz)
          {
@@ -221,10 +226,11 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
          MFEM_UNROLL(Q1D)
          for (int qy = 0; qy < Q1D; ++qy)
          {
+            const Scalar bt = Bt(qy,dy);
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               u[qz] += DQQ(dx,qy,qz) * Bt(qy,dy);
+               u[qz] += DQQ(dx,qy,qz) * bt;
             }
          }
          MFEM_UNROLL(Q1D)
@@ -241,7 +247,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
-         double u[D1D];
+         Scalar u[D1D];
          MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; ++dz)
          {
