@@ -755,4 +755,9 @@ install(EXPORT ${PROJECT_NAME_UC}Targets
 # define install rules for 'config.mk' and 'test.mk'
 #-------------------------------------------------------------------------------
 
-mfem_export_mk_files()
+##### SERAC EDIT DO NOT CHECK INTO MFEM MASTER
+# This fails due to overriding hdf5 related variables to work with hdf5's cmake build system
+# which is now the default in Spack
+# TODO: Negotiate with MFEM either this not hard failing or option to turn this off
+#mfem_export_mk_files()
+##### END SERAC EDIT
