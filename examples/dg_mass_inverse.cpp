@@ -184,10 +184,9 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
 
+   /// Legacy CG
    GridFunction x_ref(&fespace);
    x_ref = 0.0;
-
-   /// Legacy CG
    cout << std::endl << "Building Old CG " << std::endl;
    tic_toc.Clear();
    tic_toc.Start();
@@ -218,11 +217,9 @@ int main(int argc, char *argv[])
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x_ref);
 
-
+   /// New CG
    GridFunction x_test(&fespace);
    x_test = 0.0;
-
-   /// New CG
    // Setup
    cout << std::endl << "Building New CG " << std::endl;
    tic_toc.Clear();
@@ -244,7 +241,7 @@ int main(int argc, char *argv[])
    diff -= x_test;
 
    cout << std::endl << "==Error==" << std::endl;
-   cout << "Error norm: " << diff.Norml2() << "s." << std::endl;
+   cout << "Error norm: " << diff.Norml2() << "." << std::endl;
    cout << "==Setup==" << std::endl;
    cout << "Legacy CG setup time: " << old_cg_setup << "s." << std::endl;
    cout << "New CG setup time: " << new_cg_setup << "s." << std::endl;
