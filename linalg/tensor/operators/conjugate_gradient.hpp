@@ -63,77 +63,71 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    Index maxIters = iters;
 
    Vector x(rhs);
-   // Scalar xNorm = SquaredNorm(x);
-   // one_print("  xNorm %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), xNorm);
+   one_print("\n  ||x|| %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(x));
    Vector residual(rhs);
-   // Scalar residualNorm1 = SquaredNorm(residual);
-   // one_print("  residualNorm1 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), residualNorm1);
+   one_print("  ||residual|| %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(residual));
    residual -= A * x; //initial residual
-   one_print("  normAx %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(residual));
+   one_print("||Ax|| %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(residual));
 
    Scalar rhsNorm2 = SquaredNorm(rhs);
    if(rhsNorm2 == 0)
    {
       x = 0;
       iters = 0;
-      // one_print("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),0);
+      one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),0);
       tol_error = 0;
       return x;
    }
    Scalar threshold = tol*tol*rhsNorm2;
    Scalar residualNorm2 = SquaredNorm(residual);
-   // one_print("  residualNorm2 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), residualNorm2);
+   one_print("  residualNorm2 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), residualNorm2);
    if (residualNorm2 < threshold)
    {
       iters = 0;
-      // one_print("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),0);
+      one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),0);
       tol_error = sqrt(residualNorm2 / rhsNorm2);
       return x;
    }
 
    Vector p = residual; //P * residual;      // initial search direction
-   // Scalar pNorm1 = SquaredNorm(p);
-   // one_print("  pNorm1 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), pNorm1);
+   one_print("  ||p|| %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), SquaredNorm(p));
 
    Scalar absNew = Dot(residual,p);  // the square of the absolute value of r scaled by invM
    Index i = 0;
-   // one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
+   one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
    while(i < maxIters)
    {
       Vector tmp = A * p;                    // the bottleneck of the algorithm
-      one_print("  normAp %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(tmp));
+      one_print("\n||Ap|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(tmp));
 
       Scalar alpha = absNew / Dot(p,tmp);         // the amount we travel on dir
-      // one_print("  alpha %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), alpha);
+      one_print("  alpha %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), alpha);
       x += alpha * p;                             // update solution
-      // Scalar pNorm2 = SquaredNorm(p);
-      // one_print("  pNorm2 %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), pNorm2);
-      // xNorm = SquaredNorm(x);
-      // one_print("  xNorm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), xNorm);
+      one_print("  ||p|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(p));
+      one_print("  ||x|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(x));
       residual -= alpha * tmp;                    // update residual
 
       residualNorm2 = SquaredNorm(residual);
-      // one_print("  residualNorm2 %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), residualNorm2);
+      one_print("  residualNorm2 %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), residualNorm2);
       if(residualNorm2 < threshold)
       {
-         // one_print("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),i);
+         one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),i);
          return x;
       }
 
       Vector z = residual; // P * residual;                // approximately solve for "A z = residual"
-      // Scalar zNorm = SquaredNorm(z);
-      // one_print("  zNorm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), zNorm);
+      one_print("  ||z|| %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), SquaredNorm(z));
 
       Scalar absOld = absNew;
       absNew = Dot(residual,z);     // update the absolute value of r
       Scalar beta = absNew / absOld;          // calculate the Gram-Schmidt value used to create the new search direction
       p = z + beta * p;                           // update search direction
       i++;
-      // one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
+      one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
    }
    tol_error = sqrt(residualNorm2 / rhsNorm2);
    iters = i;
-   // one_print("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),i);
+   one_print("==> Number of iterations for element %d: %d\n\n",MFEM_BLOCK_ID(x),i);
    return x;
 }
 
