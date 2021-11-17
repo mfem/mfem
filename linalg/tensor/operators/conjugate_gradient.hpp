@@ -94,20 +94,26 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       Scalar alpha = absNew / Dot(p,tmp);         // the amount we travel on dir
       x += alpha * p;                             // update solution
       residual -= alpha * tmp;                    // update residual
-      
+
       residualNorm2 = SquaredNorm(residual);
-      if(residualNorm2 < threshold) return x;
+      if(residualNorm2 < threshold)
+      {
+         one_print("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),i);
+         return x;
+      }
 
       Vector z = residual; // P * residual;                // approximately solve for "A z = residual"
 
       Scalar absOld = absNew;
       absNew = Dot(residual,z);     // update the absolute value of r
+      one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
       Scalar beta = absNew / absOld;          // calculate the Gram-Schmidt value used to create the new search direction
       p = z + beta * p;                           // update search direction
       i++;
    }
    tol_error = sqrt(residualNorm2 / rhsNorm2);
    iters = i;
+   one_print("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),i);
    return x;
 }
 

@@ -70,6 +70,19 @@ struct IfThenElse_t<false, TrueType, FalseType>
 template <bool Cond, typename TrueType, typename FalseType>
 using IfThenElse = typename IfThenElse_t<Cond,TrueType,FalseType>::type;
 
+template <typename... Args> MFEM_HOST_DEVICE
+void one_print(const char* msg, Args... vals)
+{
+#ifdef MFEM_DEVICE_COMPILE
+   if (MFEM_THREAD_ID(x)==0 && MFEM_THREAD_ID(y)==0 && MFEM_THREAD_ID(z)==0)
+   {
+      printf(msg,vals...);
+   }
+#else
+   printf(msg,vals...);
+#endif
+}
+
 } // mfem namespace
 
 #endif // MFEM_TENSOR_UTIL

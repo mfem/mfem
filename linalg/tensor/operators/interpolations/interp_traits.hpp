@@ -67,7 +67,7 @@ struct get_interp_algo_v<Basis, Dofs,
        is_device)
    > >
 {
-   static constexpr InterpAlgo value = InterpAlgo::Legacy;
+   static constexpr InterpAlgo value = InterpAlgo::Tensor;
 };
 
 // Nedelec

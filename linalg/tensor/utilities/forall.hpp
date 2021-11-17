@@ -29,7 +29,8 @@ namespace mfem
    ForallWrap<3>(true,N,                                                       \
                  [=] MFEM_DEVICE (int i) mutable {__VA_ARGS__},                \
                  [&] MFEM_LAMBDA (int i) {__VA_ARGS__},                        \
-                 Xthreads, Ythreads, Zthreads)
+                 Xthreads, Ythreads, Zthreads);                                \
+   MFEM_DEVICE_SYNC;
 
 } // namespace mfem
 

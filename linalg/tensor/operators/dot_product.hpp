@@ -12,7 +12,7 @@
 #ifndef MFEM_TENSOR_MAT_MULT
 #define MFEM_TENSOR_MAT_MULT
 
-#include "../../../general/forall.hpp"
+#include "../../../general/backends.hpp"
 #include "../tensor_traits.hpp"
 #include "../utilities/foreach.hpp"
 
@@ -22,7 +22,9 @@ namespace mfem
 template <typename RHS,
           typename LHS,
           std::enable_if_t<
-             get_tensor_rank<RHS> == get_tensor_rank<LHS>,
+             get_tensor_rank<RHS> == get_tensor_rank<LHS> &&
+             is_serial_tensor<RHS> &&
+             is_serial_tensor<LHS>,
              bool> = true >
 MFEM_HOST_DEVICE inline
 auto Dot(const LHS &lhs, const RHS &rhs)
@@ -32,6 +34,32 @@ auto Dot(const LHS &lhs, const RHS &rhs)
    ForallDims<RHS>::ApplyBinOp(lhs, rhs, [&](auto... idx){
       res += lhs(idx...)*rhs(idx...);
    });
+   return res;
+}
+
+template <typename RHS,
+          typename LHS,
+          std::enable_if_t<
+             get_tensor_rank<RHS> == get_tensor_rank<LHS> &&
+             (!is_serial_tensor<RHS> ||
+              !is_serial_tensor<LHS>),
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto Dot(const LHS &lhs, const RHS &rhs)
+{
+   using Scalar = get_tensor_type<RHS>;
+   MFEM_SHARED Scalar res;
+   if (MFEM_THREAD_ID(x)==0 && MFEM_THREAD_ID(y)==0 && MFEM_THREAD_ID(z)==0)
+   {
+      res = 0.0;
+   }
+   MFEM_SYNC_THREAD;
+   Scalar loc_res = 0.0;
+   ForallDims<RHS>::ApplyBinOp(lhs, rhs, [&](auto... idx){
+      loc_res += lhs(idx...)*rhs(idx...);
+   });
+   AtomicAdd(res, loc_res);
+   MFEM_SYNC_THREAD;
    return res;
 }
 
