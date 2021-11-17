@@ -858,6 +858,8 @@ inline double &SparseMatrix::SearchRow(const int row, const int col)
    }
    else
    {
+HostReadWriteI();
+HostReadWriteJ();
       int *Ip = I+row, *Jp = J;
       for (int k = Ip[0], end = Ip[1]; k < end; k++)
       {

@@ -2107,6 +2107,8 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
    }
    else
    {
+HostReadWriteI();
+HostReadWriteJ();
       for (int j = I[rc]; j < I[rc+1]; j++)
       {
          const int col = J[j];

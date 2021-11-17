@@ -263,12 +263,15 @@ void recover_bdr_partitioning(const Mesh* mesh, const Array<int>& partitioning,
 int main (int argc, char *argv[])
 {
    int np = 0;
+   int visport = 19916;
    const char *mesh_file = "../../data/beam-hex.mesh";
    bool refine = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to visualize.");
+   args.AddOption(&visport, "-p", "--listen-port",
+                  "Specify the port number on which to accept connections (default 19916).");
    args.AddOption(&np, "-np", "--num-proc",
                   "Load mesh from multiple processors.");
    args.AddOption(&refine, "-ref", "--refinement", "-no-ref", "--no-refinement",
@@ -1009,7 +1012,6 @@ int main (int argc, char *argv[])
          }
 
          char vishost[] = "localhost";
-         int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
          if (sol_sock.is_open())
          {
@@ -1126,7 +1128,6 @@ int main (int argc, char *argv[])
          FunctionCoefficient coeff(f);
          level.ProjectCoefficient(coeff);
          char vishost[] = "localhost";
-         int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
          if (sol_sock.is_open())
          {
