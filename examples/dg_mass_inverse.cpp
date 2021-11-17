@@ -34,6 +34,7 @@ static void ApplyDGMassInverse(const int ne,
    auto Y       = MakeDoFs<Dofs,VDim>(config, dofs, y.ReadWrite(), ne);
    MFEM_FORALL_CONFIG(config, e, ne,
    {
+      // TODO DofBuffer
       auto op = transpose(B) * D(e) * B;
       Identity P;
       int iter = 400;
@@ -215,7 +216,7 @@ int main(int argc, char *argv[])
    const int num_iter = cg.GetNumIterations();
    const double old_cg_compute = tic_toc.RealTime();
    cout << "  Legacy CG computation time: " << old_cg_compute << std::endl;
-   const double old_mdofs = n_dofs * num_iter / old_cg_compute;
+   const double old_mdofs = n_dofs/1e6 * num_iter / old_cg_compute;
    cout << "  Legacy CG MDofs/s: " << old_mdofs/1e6 << " MDofs/s"<< std::endl;
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x_ref);
@@ -238,31 +239,31 @@ int main(int argc, char *argv[])
    tic_toc.Stop();
    const double new_cg_compute = tic_toc.RealTime();
    cout << "  New CG computation time: " << new_cg_compute << std::endl;
-   const double new_mdofs = n_dofs * num_iter / new_cg_compute;
-   cout << "  New CG MDofs/s: " << new_mdofs/1e6 << " MDofs/s"<< std::endl;
+   const double new_mdofs = n_dofs/1e6 * num_iter / new_cg_compute;
+   cout << "  New CG MDofs/s: " << new_mdofs << " MDofs/s"<< std::endl;
 
    GridFunction diff(&fespace);
    diff = x_ref;
    diff -= x_test;
 
-   cout << std::endl << "==Error==" << std::endl;
+   cout << std::endl << "== Error ==" << std::endl;
    cout << "Error norm: " << diff.Norml2() << "." << std::endl;
-   cout << "==Setup==" << std::endl;
+   cout << "== Setup ==" << std::endl;
    cout << "Legacy CG setup time: " << old_cg_setup << "s." << std::endl;
    cout << "New CG setup time: " << new_cg_setup << "s." << std::endl;
    cout << "CG setup diff: " << new_cg_setup - old_cg_setup << "s." << std::endl;
    cout << "CG setup speedup: " << old_cg_setup / new_cg_setup << "x." <<
         std::endl;
-   cout << "==Compute==" << std::endl;
+   cout << "== Compute ==" << std::endl;
    cout << "Legacy CG computation time: " << old_cg_compute << "s." << std::endl;
    cout << "New CG computation time: " << new_cg_compute << "s." << std::endl;
    cout << "CG compute diff: " << new_cg_compute - old_cg_compute << "s." <<
         std::endl;
    cout << std::endl;
+   cout << "  Legacy CG MDofs/s: " << old_mdofs << " MDofs/s"<< std::endl;
+   cout << "  New CG MDofs/s: " << new_mdofs << " MDofs/s"<< std::endl;
    cout << "  CG compute speedup: " << old_cg_compute / new_cg_compute << "x." <<
         std::endl;
-   cout << "  Legacy CG MDofs/s: " << old_mdofs/1e6 << " MDofs/s"<< std::endl;
-   cout << "  New CG MDofs/s: " << new_mdofs/1e6 << " MDofs/s"<< std::endl;
 
    // // 13. Save the refined mesh and the solution. This output can be viewed later
    // //     using GLVis: "glvis -m refined.mesh -g sol.gf".
