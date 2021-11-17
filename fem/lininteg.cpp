@@ -16,11 +16,11 @@ namespace mfem
 {
 
 void LinearFormIntegrator::AssembleFull(const FiniteElementSpace&,
-                                        const Vector &mark,
+                                        const Array<int> &markers,
                                         Vector &b)
 {
    MFEM_CONTRACT_VAR(b);
-   MFEM_CONTRACT_VAR(mark);
+   MFEM_CONTRACT_VAR(markers);
    mfem_error("LinearFormIntegrator::AssembleFull(...)");
 }
 

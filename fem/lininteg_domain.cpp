@@ -18,7 +18,7 @@ namespace mfem
 using namespace internal::linearform_extension;
 
 void DomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
-                                      const Vector &marks,
+                                      const Array<int> &markers,
                                       Vector &y)
 {
    const int vdim = fes.GetVDim();
@@ -98,7 +98,7 @@ void DomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
       case 0x367: ker=VectorDomainLFIntegratorAssemble3D<6,7>; break;
    }
    MFEM_VERIFY(ker, "Unexpected kernel error!");
-   Launch(ker,fes,ir,coeff,marks,y);
+   Launch(ker,fes,ir,coeff,markers,y);
 }
 
 } // namespace mfem
