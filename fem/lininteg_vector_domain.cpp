@@ -23,7 +23,7 @@ void VectorDomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
 {
    const int vdim = fes.GetVDim();
    GetOrder_f gof = [](const int el_order) { return 2.0 * el_order; };
-   const IntegrationRule *ir = GetIntegrationRule(fes, IntRule, gof);
+   const IntegrationRule *ir = GetIntRuleFromOrder(fes, IntRule, gof);
 
    Vector coeff;
    const int NQ = ir->GetNPoints();
@@ -62,7 +62,7 @@ void VectorDomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
       }
    }
 
-   Kernel_f ker = nullptr;
+   LinearFormExtensionKernel_f ker = nullptr;
    const int id = GetKernelId(fes,ir);
    const int dim = fes.GetMesh()->Dimension();
 

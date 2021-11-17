@@ -39,6 +39,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
                                             const double *g,
                                             const int *idx,
                                             const double *jacobians,
+                                            const double *detJ,
                                             const double *weights,
                                             const Vector &coeff,
                                             double *y)
@@ -53,6 +54,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
    const auto B = Reshape(b, q,d);
    const auto G = Reshape(g, q,d);
    const auto J = Reshape(jacobians, q,q, DIM,DIM, NE);
+   const auto DetJ = Reshape(detJ, q,q, NE);
    const auto W = Reshape(weights, q,q);
    const auto I = Reshape(idx, d,d, NE);
    const auto C = cst_coeff ?
@@ -67,7 +69,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
-      if (M(e) == 0) { return; }
+      if (M(e) == 0) { /* ignore */ return; }
 
       const int bid = MFEM_BLOCK_ID(x);
       constexpr int SM_SIZE = 2*D*Q + 4*Q*Q;
@@ -99,7 +101,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
                Jloc[1] = J(x,y,1,0,e);
                Jloc[2] = J(x,y,0,1,e);
                Jloc[3] = J(x,y,1,1,e);
-               const double detJ = kernels::Det<2>(Jloc);
+               const double detJ = DetJ(x,y,e);
                kernels::CalcInverse<2>(Jloc, Jinv);
                const double weight = W(x,y);
                const double u = cst_coeff ? cst_val0 : C(0,c,x,y,e);
@@ -130,6 +132,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
                                             const double *g,
                                             const int *idx,
                                             const double *jacobians,
+                                            const double *detJ,
                                             const double *weights,
                                             const Vector &coeff,
                                             double *y)
@@ -144,6 +147,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
    const auto B = Reshape(b, q,d);
    const auto G = Reshape(g, q,d);
    const auto J = Reshape(jacobians, q,q,q, DIM,DIM, NE);
+   const auto DetJ = Reshape(detJ, q,q,q, NE);
    const auto W = Reshape(weights, q,q,q);
    const auto I = Reshape(idx, d,d,d, NE);
    const auto C = cst_coeff ?
@@ -159,7 +163,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
-      if (M(e) == 0) { return; }
+      if (M(e) == 0) { /* ignore */ return; }
 
       const int bid = MFEM_BLOCK_ID(x);
       constexpr int SM_SIZE = 2*Q*D + 6*Q*Q*Q;
@@ -203,7 +207,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
                         Jloc[i+3*j] = J(x,y,z,i,j,e);
                      }
                   }
-                  const double detJ = kernels::Det<3>(Jloc);
+                  const double detJ = DetJ(x,y,z,e);
                   kernels::CalcInverse<3>(Jloc, Jinv);
                   const double weight = W(x,y,z);
                   const double u = cst_coeff ? cst_val_0 : C(0,c,x,y,z,e);

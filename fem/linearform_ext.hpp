@@ -12,10 +12,7 @@
 #ifndef MFEM_LINEARFORM_EXT
 #define MFEM_LINEARFORM_EXT
 
-#include "../config/config.hpp"
-#include "fespace.hpp"
-#include "lininteg.hpp"
-#include "../general/device.hpp"
+#include "../general/array.hpp"
 
 namespace mfem
 {
@@ -31,7 +28,7 @@ protected:
    LinearForm *lf;
 
 public:
-   LinearFormExtension(LinearForm *lf);
+   LinearFormExtension(LinearForm *lf): lf(lf) { }
 
    virtual ~LinearFormExtension() { }
 
@@ -43,12 +40,17 @@ public:
 class FullLinearFormExtension : public LinearFormExtension
 {
 private:
-   // Attribute of all mesh elements.
-   Array<int> attributes, markers;
+   /// Attributes of all mesh elements.
+   Array<int> attributes;
+
+   /// Temporary markers for device kernels.
+   Array<int> markers;
 
 public:
    FullLinearFormExtension(LinearForm *lf);
 
+   /// Full assembly of the linear form, compatible with device execution.
+   /// Only integrators added with AddDomainIntegrator are supported.
    void Assemble() override;
 };
 

@@ -24,7 +24,7 @@ void DomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
 {
    MFEM_VERIFY(fes.GetVDim()==1, "vdim != 1");
    GetOrder_f gof = [](const int el_order) { return 2.0 * el_order; };
-   const IntegrationRule *ir = GetIntegrationRule(fes, IntRule, gof);
+   const IntegrationRule *ir = GetIntRuleFromOrder(fes, IntRule, gof);
 
    Vector coeff;
    const int NQ = ir->GetNPoints();
@@ -70,9 +70,9 @@ void DomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
    const int id = GetKernelId(fes,ir);
    const int dim = fes.GetMesh()->Dimension();
 
-   Kernel_f ker = nullptr;
-   if (dim==2) { ker = VectorDomainLFGradIntegratorAssemble2D; }
-   if (dim==3) { ker = VectorDomainLFGradIntegratorAssemble3D; }
+   LinearFormExtensionKernel_f ker = nullptr;
+   if (dim==2) { ker=VectorDomainLFGradIntegratorAssemble2D; }
+   if (dim==3) { ker=VectorDomainLFGradIntegratorAssemble3D; }
 
    switch (id)
    {
