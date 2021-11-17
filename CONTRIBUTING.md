@@ -137,6 +137,7 @@ The MFEM source code has the following structure:
   │   ├── tools
   │   └── toys
   └── tests
+      ├── benchmarks
       ├── convergence
       ├── gitlab
       ├── mem_manager
