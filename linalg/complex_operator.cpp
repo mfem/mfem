@@ -1016,7 +1016,6 @@ void ComplexMUMPSSolver::Mult(const Vector &x, Vector &y) const
 {
    int n = x.Size()/2;
    double * datax = x.GetData();
-   double * datay = y.GetData();
    Vector ximag;
    if (conv == ComplexOperator::Convention::BLOCK_SYMMETRIC)
    {
