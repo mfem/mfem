@@ -44,7 +44,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
                                             double *y)
 {
    constexpr int DIM = 2;
-   const bool USE_SMEM = D > 0 && Q > 0;
+   constexpr bool USE_SMEM = D > 0 && Q > 0;
 
    const int cdim = vdim == 1 ? DIM : vdim;
    const bool cst_coeff = coeff.Size() == cdim;
@@ -71,8 +71,9 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
       if (M(e) < 1.0) { return; }
 
       const int bid = MFEM_BLOCK_ID(x);
-      const int sm_SIZE = 2*D*Q + 4*Q*Q;
-      MFEM_SHARED double SMEM[USE_SMEM ? sm_SIZE : 1];
+      constexpr int SM_SIZE = 2*D*Q + 4*Q*Q;
+      constexpr bool USE_SMEM = D > 0 && Q > 0;
+      MFEM_SHARED double SMEM[USE_SMEM ? SM_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
 
       const DeviceMatrix Bt(DeviceMemAlloc(sm,q*d), d,q);
@@ -135,7 +136,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
                                             double *y)
 {
    constexpr int DIM = 3;
-   const bool USE_SMEM = D > 0 && Q > 0;
+   constexpr bool USE_SMEM = D > 0 && Q > 0;
 
    const int cdim = vdim == 1 ? DIM : vdim;
    const bool cst_coeff = coeff.Size() == cdim;
@@ -163,8 +164,9 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
       if (M(e) < 1.0) { return; }
 
       const int bid = MFEM_BLOCK_ID(x);
-      const int sm_SIZE = 2*Q*D + 6*Q*Q*Q;
-      MFEM_SHARED double SMEM[USE_SMEM ? sm_SIZE : 1];
+      constexpr int SM_SIZE = 2*Q*D + 6*Q*Q*Q;
+      constexpr bool USE_SMEM = D > 0 && Q > 0;
+      MFEM_SHARED double SMEM[USE_SMEM ? SM_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
 
       const DeviceMatrix Bt(DeviceMemAlloc(sm,q*d), d,q);

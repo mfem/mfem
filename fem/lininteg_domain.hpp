@@ -126,7 +126,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
                                         double *y)
 {
    constexpr int DIM = 2;
-   const bool USE_SMEM = D > 0 && Q > 0;
+   constexpr bool USE_SMEM = D > 0 && Q > 0;
 
    const bool cst_coeff = coeff.Size() == vdim;
 
@@ -149,8 +149,9 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
       if (M(e) < 1.0) return;
 
       const int bid = MFEM_BLOCK_ID(x);
-      const int sm_SIZE = 2*Q*(D+Q);
-      MFEM_SHARED double SMEM[USE_SMEM ? sm_SIZE : 1];
+      constexpr int SM_SIZE = 2*Q*(D+Q);
+      constexpr bool USE_SMEM = D > 0 && Q > 0;
+      MFEM_SHARED double SMEM[USE_SMEM ? SM_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
       const DeviceMatrix Bt(DeviceMemAlloc(sm,q*d), q,d);
       const DeviceMatrix QQ(DeviceMemAlloc(sm,q*q), q,q);
@@ -199,7 +200,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
                                         double *y)
 {
    constexpr int DIM = 3;
-   const bool USE_SMEM = D > 0 && Q > 0;
+   constexpr bool USE_SMEM = D > 0 && Q > 0;
 
    const bool cst_coeff = coeff.Size() == vdim;
 
@@ -227,8 +228,9 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
       double u[Q>0?Q:32];
 
       const int bid = MFEM_BLOCK_ID(x);
-      const int sm_SIZE = Q*D + Q*Q*Q;
-      MFEM_SHARED double SMEM[USE_SMEM ? sm_SIZE : 1];
+      constexpr int SM_SIZE = Q*D + Q*Q*Q;
+      constexpr bool USE_SMEM = D > 0 && Q > 0;
+      MFEM_SHARED double SMEM[USE_SMEM ? SM_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
       const DeviceCube QQQ(DeviceMemAlloc(sm,q*q*q), q,q,q);
       const DeviceMatrix Bt(DeviceMemAlloc(sm,q*d), q,d);
