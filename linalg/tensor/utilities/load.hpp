@@ -28,6 +28,7 @@ void load_with_2dthreads(const double *values, int nx, int ny, Matrix &mat)
          mat(x,y) = values[x+nx*y];
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 } // mfem namespace
