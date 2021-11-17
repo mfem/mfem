@@ -56,9 +56,9 @@ using namespace mfem;
  *                 + \partial_lambda L \partial_K lambda + \partial_K L
  *                = \partial_K L
  *                = (lambda - |\nabla u|^2, \cdot)
- * 
+ *
  * Likewise,
- * 
+ *
  *    D_K J = (K,1) - V
  *
  * We update the control f_k with the projected gradient method
@@ -214,16 +214,17 @@ int main(int argc, char *argv[])
    // Project initial K onto constraint set.
    for (int i = 0; i < K.Size(); i++)
    {
-      if (K[i] > K_max) 
+      if (K[i] > K_max)
       {
-          K[i] = K_max;
+         K[i] = K_max;
       }
       else if (K[i] < K_min)
       {
-          K[i] = K_min;
+         K[i] = K_min;
       }
       else
-      { // do nothing
+      {
+         // do nothing
       }
    }
 
@@ -272,7 +273,7 @@ int main(int argc, char *argv[])
       // H. Project K onto constraint set.
       for (int i = 0; i < K.Size(); i++)
       {
-         if (K[i] > K_max) 
+         if (K[i] > K_max)
          {
             K[i] = K_max;
          }
@@ -281,7 +282,8 @@ int main(int argc, char *argv[])
             K[i] = K_min;
          }
          else
-         { // do nothing
+         {
+            // do nothing
          }
       }
 
@@ -305,11 +307,11 @@ int main(int argc, char *argv[])
          break;
       }
 
-    if (visualization)
-    {
-        sout_K << "solution\n" << mesh << K
-            << "window_title 'Control K'" << flush;
-    }
+      if (visualization)
+      {
+         sout_K << "solution\n" << mesh << K
+                << "window_title 'Control K'" << flush;
+      }
 
    }
 
