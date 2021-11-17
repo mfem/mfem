@@ -169,9 +169,9 @@ int main(int argc, char *argv[])
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    LinearForm b(&fespace);
-   if (pa) { b.SetAssemblyLevel(LinearAssemblyLevel::FULL); }
    ConstantCoefficient one(1.0);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   if (Device::IsEnabled()) { b.SetAssemblyLevel(LinearAssemblyLevel::FULL); }
    b.Assemble();
 
    // 8. Define the solution vector x as a finite element grid function
