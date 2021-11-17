@@ -181,6 +181,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
          }
       }
    }
+   MFEM_SYNC_THREAD;
    // X Contraction
    StaticPointerDTensor<D1D,Q1D,Q1D> DQQ(sm1);
    MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -269,6 +270,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
          }
       }
    }
+   MFEM_SYNC_THREAD;
    return y;
 }
 
