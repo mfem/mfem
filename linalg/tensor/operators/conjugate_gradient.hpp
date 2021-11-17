@@ -63,39 +63,59 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
    Index maxIters = iters;
 
    Vector x(rhs);
+   Scalar xNorm = SquaredNorm(x);
+   one_print("  xNorm %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), xNorm);
    Vector residual(rhs);
+   Scalar residualNorm1 = SquaredNorm(residual);
+   one_print("  residualNorm1 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), residualNorm1);
    residual -= A * x; //initial residual
+   Scalar residualNorm15 = SquaredNorm(residual);
+   one_print("  residualNorm15 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), residualNorm15);
 
    Scalar rhsNorm2 = SquaredNorm(rhs);
    if(rhsNorm2 == 0)
    {
       x = 0;
       iters = 0;
+      one_print("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),0);
       tol_error = 0;
       return x;
    }
    Scalar threshold = tol*tol*rhsNorm2;
    Scalar residualNorm2 = SquaredNorm(residual);
+   one_print("  residualNorm2 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), residualNorm2);
    if (residualNorm2 < threshold)
    {
       iters = 0;
+      one_print("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),0);
       tol_error = sqrt(residualNorm2 / rhsNorm2);
       return x;
    }
 
    Vector p = residual; //P * residual;      // initial search direction
+   Scalar pNorm1 = SquaredNorm(p);
+   one_print("  pNorm1 %d of element %d: %e\n", 0, MFEM_BLOCK_ID(x), pNorm1);
 
    Scalar absNew = Dot(residual,p);  // the square of the absolute value of r scaled by invM
    Index i = 0;
+   one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
    while(i < maxIters)
    {
       Vector tmp = A * p;                    // the bottleneck of the algorithm
+      Scalar tmpNorm = SquaredNorm(tmp);
+      one_print("  tmpNorm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), tmpNorm);
 
       Scalar alpha = absNew / Dot(p,tmp);         // the amount we travel on dir
+      one_print("  alpha %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), alpha);
       x += alpha * p;                             // update solution
+      Scalar pNorm2 = SquaredNorm(p);
+      one_print("  pNorm2 %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), pNorm2);
+      xNorm = SquaredNorm(x);
+      one_print("  xNorm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), xNorm);
       residual -= alpha * tmp;                    // update residual
 
       residualNorm2 = SquaredNorm(residual);
+      one_print("  residualNorm2 %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), residualNorm2);
       if(residualNorm2 < threshold)
       {
          one_print("Number of iterations for element %d: %d\n",MFEM_BLOCK_ID(x),i);
@@ -103,13 +123,15 @@ auto conjugate_gradient(const Matrix& A, const Rhs& rhs,
       }
 
       Vector z = residual; // P * residual;                // approximately solve for "A z = residual"
+      Scalar zNorm = SquaredNorm(z);
+      one_print("  zNorm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), zNorm);
 
       Scalar absOld = absNew;
       absNew = Dot(residual,z);     // update the absolute value of r
-      one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
       Scalar beta = absNew / absOld;          // calculate the Gram-Schmidt value used to create the new search direction
       p = z + beta * p;                           // update search direction
       i++;
+      one_print("  Residual norm %d of element %d: %e\n", i, MFEM_BLOCK_ID(x), absNew);
    }
    tol_error = sqrt(residualNorm2 / rhsNorm2);
    iters = i;
