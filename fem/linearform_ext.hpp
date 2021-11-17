@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef LINEARFORM_EXT_HPP
-#define LINEARFORM_EXT_HPP
+#ifndef MFEM_LINEARFORM_EXT
+#define MFEM_LINEARFORM_EXT
 
 #include "../config/config.hpp"
 #include "fespace.hpp"
@@ -21,17 +21,19 @@ namespace mfem
 {
 
 class LinearForm;
+class FullLinearFormExtension;
 
-/// Class extending the LinearForm class.
-///
+/// Class extending the LinearForm class to support different AssemblyLevels.
 class LinearFormExtension
 {
 protected:
-   LinearForm *lf; ///< Not owned
+   /// Linear form from which this extension depends. Not owned.
+   LinearForm *lf;
 
 public:
-   LinearFormExtension(LinearForm*);
-   virtual ~LinearFormExtension();
+   LinearFormExtension(LinearForm *lf);
+
+   virtual ~LinearFormExtension() { }
 
    /// Assemble at the level given for the LinearFormExtension subclass
    virtual void Assemble() = 0;
@@ -40,20 +42,16 @@ public:
 /// Data and methods for fully-assembled linear forms
 class FullLinearFormExtension : public LinearFormExtension
 {
-protected:
-   const FiniteElementSpace &fes; // Not owned
-   const Mesh &mesh;
-   const Array<LinearFormIntegrator*> &domain_integs;
-   const Array<Array<int>*> &domain_integs_marker;
-   Vector marks, attributes;
-   const int ne, mesh_attributes_size;
+private:
+   // Attribute of all mesh elements.
+   Vector attributes, marks;
 
 public:
-   FullLinearFormExtension(LinearForm*);
+   FullLinearFormExtension(LinearForm *lf);
 
    void Assemble() override;
 };
 
 } // namespace mfem
 
-#endif // LINEARFORM_EXT_HPP
+#endif // MFEM_LINEARFORM_EXT

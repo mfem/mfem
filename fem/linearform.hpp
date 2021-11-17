@@ -20,10 +20,11 @@
 namespace mfem
 {
 
+/** @brief Enumeration defining the assembly level for linear form classes
+ *  derived from Vector. */
 enum class LinearAssemblyLevel
 {
-   /// In the case of a LinearForm LEGACY corresponds to a fully assembled
-   /// form, i.e. a global vector in MFEM.
+   /// Legacy assembled form, i.e. a global vector in MFEM format.
    /// This assembly level is ALWAYS performed on the host.
    LEGACY = 0,
    /// Fully assembled form, i.e. a global vector in MFEM format.
@@ -34,15 +35,16 @@ enum class LinearAssemblyLevel
 /// Vector with associated FE space and LinearFormIntegrators.
 class LinearForm : public Vector
 {
+   friend LinearFormExtension;
+
 protected:
    /// FE space on which the LinearForm lives. Not owned.
    FiniteElementSpace *fes;
 
-   /// The assembly level of the form (full, partial, etc.)
+   /// The assembly level of the form (legacy or full)
    LinearAssemblyLevel assembly;
 
-   /** @brief Extension for supporting Full Assembly (FA), Element Assembly (EA),
-       Partial Assembly (PA), or Matrix Free assembly (MF). */
+   /** @brief Extension for supporting different assembly levels. */
    LinearFormExtension *ext;
 
    /** @brief Indicates the LinearFormIntegrator%s stored in #domain_integs,

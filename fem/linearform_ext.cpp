@@ -19,43 +19,43 @@
 namespace mfem
 {
 
-LinearFormExtension::LinearFormExtension(LinearForm *lf) : lf(lf) { }
-
-LinearFormExtension::~LinearFormExtension() { }
+LinearFormExtension::LinearFormExtension(LinearForm *lf): lf(lf) { }
 
 FullLinearFormExtension::FullLinearFormExtension(LinearForm *lf):
-   LinearFormExtension(lf),
-   fes(*lf->FESpace()),
-   mesh(*fes.GetMesh()),
-   domain_integs(*lf->GetDLFI()),
-   domain_integs_marker(*lf->GetDLFIM()), // element attribute marker
-   ne(fes.GetNE()),
-   mesh_attributes_size(fes.GetMesh()->attributes.Size())
+   LinearFormExtension(lf)
 {
+   const int ne = lf->FESpace()->GetNE();
+   const Mesh &mesh = *lf->FESpace()->GetMesh();
+
    marks.SetSize(ne);
    marks.UseDevice(true);
 
    attributes.SetSize(ne);
    attributes.UseDevice(true);
 
-   // Fill the attributes vector on host
+   // Fill the attributes vector on the host
    for (int i = 0; i < ne; ++i)
    {
-      attributes[i] = fes.GetMesh()->GetAttribute(i);
+      attributes[i] = mesh.GetAttribute(i);
    }
 }
 
 void FullLinearFormExtension::Assemble()
 {
-
+   // This operation is executed on device
    lf->Vector::operator=(0.0);
 
-   MFEM_VERIFY(lf->GetBLFI()->Size() == 0 &&
-               lf->GetDLFI_Delta()->Size() == 0 &&
-               lf->GetBLFI()->Size() == 0 &&
-               lf->GetIFLFI()->Size() == 0 &&
-               lf->GetFLFI()->Size() == 0,
-               "integrators are not supported yet");
+   // Filter out the unhandled integrators
+   MFEM_VERIFY(lf->GetBLFI()->Size() == 0 && // Boundary
+               lf->GetDLFI_Delta()->Size() == 0 && // Delta coefficients
+               lf->GetIFLFI()->Size() == 0 && // Internal faces
+               lf->GetFLFI()->Size() == 0, // Boundary faces
+               "Unsupported integrators!");
+
+   const FiniteElementSpace &fes = *lf->FESpace();
+   const Array<LinearFormIntegrator*> &domain_integs = *lf->GetDLFI();
+   const Array<Array<int>*> &domain_integs_marker = *lf->GetDLFIM();
+   const int mesh_attributes_size = fes.GetMesh()->attributes.Size();
 
    for (int k = 0; k < domain_integs.Size(); ++k)
    {
@@ -68,7 +68,7 @@ void FullLinearFormExtension::Assemble()
 
       marks = 0.0;
 
-      const int NE = ne;
+      const int NE = fes.GetNE();
       const Array<int> *dimks = domain_integs_marker[k];
       const bool no_dimk =  dimks == nullptr;
       const auto dimk_r = no_dimk ? nullptr : dimks->Read();
