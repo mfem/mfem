@@ -79,8 +79,15 @@ TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
    {
       const auto vdim = GENERATE(2,7);
       const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
-      const auto problem = GENERATE(LinearFormExtTest::VectorDomainLF,
-                                    LinearFormExtTest::VectorDomainLFGrad);
+      const auto problem = GENERATE(LinearFormExtTest::VectorDomainLF);
+      LinearFormExtTest(N, dim, vdim, ordering, gll, problem, p, true).Run();
+   }
+
+   SECTION("VectorGrad")
+   {
+      const auto vdim = GENERATE(6);
+      const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
+      const auto problem = GENERATE(LinearFormExtTest::VectorDomainLFGrad);
       LinearFormExtTest(N, dim, vdim, ordering, gll, problem, p, true).Run();
    }
 } // test case
