@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
    double volume_fraction = 0.5;
    int max_it = 1e3;
    double tol = 1e-2;
-   double K_max = 0.9;
+   double K_max = 1.0;
    double K_min = 1e-3;
 
    OptionsParser args(argc, argv);
@@ -267,6 +267,9 @@ int main(int argc, char *argv[])
       for (int i = 0; i < K.Size(); i++)
       {
          K[i] *= exp(-step_length_K*grad[i]);
+         // K[i] = log(K[i]/(1.0 - K[i]));
+         // K[i] = -step_length_K*grad[i]*pow(k,1.0/3.0);
+         // K[i] = 1.0/(1.0 + exp(-K[i]));
       }
 
       // H. Project K onto constraint set.
@@ -301,10 +304,10 @@ int main(int argc, char *argv[])
       mfem::out << "compliance = " << compliance << endl;
       mfem::out << "volume_fraction = " << mass / domain_volume << endl;
       mfem::out << "lambda = " << lambda << endl;
-      if (norm < tol)
-      {
-         break;
-      }
+      // if (norm < tol)
+      // {
+      //    break;
+      // }
 
       if (visualization)
       {
