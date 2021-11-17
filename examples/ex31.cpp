@@ -28,10 +28,11 @@ using namespace mfem;
 
 /** The Lagrangian for this problem is
  *
- *    L(u,K,p) = (f,u) - (K \nabla u, \nabla p) + (f,p)
+ *    L(u,K,p,lambda) = (f,u) - (K \nabla u, \nabla p) + (f,p) - ( V - (K,1) ) lambda
  *
- *      u, p \in H^1_0(\Omega)
- *      K \in L^\infty(\Omega)
+ *      u, p \in H^1_0
+ *      K \in L^1 \cap L^\infty
+ *      lambda \in \mathbb{R}
  *
  *  Note that
  *
@@ -39,7 +40,7 @@ using namespace mfem;
  *
  *  delivers the state equation
  *
- *    (\nabla u, \nabla v) = (f,v)  for all v in H^1_0(\Omega)
+ *    (\nabla u, \nabla v) = (f,v)  for all v in H^1_0
  *
  *  and
  *
@@ -47,22 +48,26 @@ using namespace mfem;
  *
  *  delivers the adjoint equation (same as the state eqn)
  *
- *    (\nabla p, \nabla v) = (f,v)  for all v in H^1_0(\Omega)
+ *    (\nabla p, \nabla v) = (f,v)  for all v in H^1_0
  *
  *  and at the solutions u=p of (1) and (2), respectively,
  *
  *  D_K J = D_K L = \partial_u L \partial_K u + \partial_p L \partial_K p
- *                + \partial_K L
+ *                 + \partial_lambda L \partial_K lambda + \partial_K L
  *                = \partial_K L
- *                = (|\nabla u|^2, \cdot)
+ *                = (lambda - |\nabla u|^2, \cdot)
+ * 
+ * Likewise,
+ * 
+ *    D_K J = (K,1) - V
  *
- * We update the control f_k with projected gradient descent via
+ * We update the control f_k with the projected gradient method
  *
- *  K_{k+1} = P_2 ( P_1 ( K_k - \gamma |\nabla u|^2 ) )
+ *    K_{k+1} = P( K_k - \gamma (lambda_k - |\nabla u_k|^2) )
+ *    lambda_{k+1} = lambda_k + \gamma ((K_k,1) - V)
  *
- * where P_1 is the projection operator enforcing (K,1) <= V, P_2 is the
- * projection operator enforcing a <= u(x) <= b, and \gamma is a specified
- * step length.
+ * where P is the projection operator enforcing a <= K(x) <= b and
+ * \gamma is a specified step length.
  *
  */
 
@@ -88,10 +93,11 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
-   double step_length = 1.0;
-   double mass_fraction = 0.5;
+   double step_length_K = 1.0;
+   double step_length_lambda = 0.1;
+   double volume_fraction = 0.5;
    int max_it = 1e3;
-   double tol = 1e-4;
+   double tol = 1e-2;
    double K_max = 0.9;
    double K_min = 1e-3;
 
@@ -102,19 +108,24 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
-   args.AddOption(&step_length, "-sl", "--step-length",
-                  "Step length for gradient descent.");
+   args.AddOption(&step_length_K, "-sl1", "--step-length-K",
+                  "Step length for gradient descent (K).");
+   args.AddOption(&step_length_lambda, "-sl2", "--step-length-lambda",
+                  "Step length for gradient ascent (lambda).");
+   args.AddOption(&tol, "-tol", "--tolerance",
+                  "Convergence tolerance.");
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
-   args.AddOption(&mass_fraction, "-mf", "--mass-fraction",
-                  "Mass fraction for diffusion coefficient.");
-   args.AddOption(&K_max, "-max", "--K-max",
+   args.AddOption(&volume_fraction, "-vf", "--volume-fraction",
+                  "Volume fraction for diffusion coefficient.");
+   args.AddOption(&K_max, "-Kmax", "--K-max",
                   "Maximum of diffusion diffusion coefficient.");
-   args.AddOption(&K_min, "-min", "--K-min",
+   args.AddOption(&K_min, "-Kmin", "--K-min",
                   "Minimum of diffusion diffusion coefficient.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -159,29 +170,27 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list;
    state_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 7. Set the initial guess for f and the boundary conditions for u and p.
+   // 7. Set the initial guess for K and the boundary conditions for u.
    GridFunction u(&state_fes);
-   GridFunction p(&state_fes);
    GridFunction K(&control_fes);
    GridFunction K_old(&control_fes);
    u = 0.0;
-   p = 0.0;
    K = 1.0;
-   K_old = 0.0;
+   K_old = K;
 
-   // 8. Set up the linear form b(.) for the state and adjoint equations.
+   // 8. Set up the linear form b(.) for the state equation.
    LinearForm b(&state_fes);
    b.AddDomainIntegrator(new DomainLFIntegrator(f));
    b.Assemble();
    OperatorPtr A;
-   Vector B, C, X;
+   Vector B, X;
 
    // 9. Define the gradient function
    GridFunction grad(&control_fes);
    grad = 0.0;
 
    // 10. Define some tools for later
-   ConstantCoefficient zero(1.0);
+   ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
    GridFunction onegf(&control_fes);
    onegf = 1.0;
@@ -202,91 +211,105 @@ int main(int argc, char *argv[])
       sout_K.precision(8);
    }
 
-   // 12. Perform projected gradient descent
-   for (int k = 1; k < max_it; k++)
+   // Project initial K onto constraint set.
+   for (int i = 0; i < K.Size(); i++)
    {
-      // A. Form state equation
+      if (K[i] > K_max) 
+      {
+          K[i] = K_max;
+      }
+      else if (K[i] < K_min)
+      {
+          K[i] = K_min;
+      }
+      else
+      { // do nothing
+      }
+   }
+
+   // 12. Perform projected gradient descent
+   double lambda = 0.01;
+   for (int k = 1; k <= max_it; k++)
+   {
+      // A. Compute mass
+      double mass = vol_form(K);
+
+      // B. Form state equation
       BilinearForm a(&state_fes);
       GridFunctionCoefficient diffusion_coeff(&K);
       a.AddDomainIntegrator(new DiffusionIntegrator(diffusion_coeff));
       a.Assemble();
       a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
 
-      // B. Solve state equation
+      // C. Solve state equation
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 0, 200, 1e-12, 0.0);
+      PCG(*A, M, B, X, 0, 800, 1e-12, 0.0);
 
-      // C. Recover state variable
+      // D. Recover state variable
       a.RecoverFEMSolution(X, b, u);
+      double compliance = b(u);
 
-      // D. Send the solution by socket to a GLVis server.
+      // E. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          sout_u << "solution\n" << mesh << u
                 << "window_title 'State u'" << flush;
       }
 
-      // H. Constuct gradient function (i.e., |\nabla u|^2)
+      // F. Constuct gradient function (i.e., lambda - |\nabla u|^2)
       GradientGridFunctionCoefficient grad_u(&u);
       InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
       grad.ProjectCoefficient(norm2_grad_u);
+      grad *= -1.0;
+      grad += lambda;
 
-      // J. Update control.
-      grad *= step_length;
-      K += grad;
-
-      // K. Project onto constraint set (optimality criteria)
-      double mass = vol_form(K);
-      while ( true )
+      // G. Update K.
+      for (int i = 0; i < K.Size(); i++)
       {
-         // Project to \int K = mass_fraction * vol
-         double scale = mass_fraction * domain_volume / mass;
-         K *= scale;
+         K[i] *= exp(-step_length_K*grad[i]);
+      }
 
-         // Project to [K_min,K_max]
-         for (int i = 0; i < K.Size(); i++)
+      // H. Project K onto constraint set.
+      for (int i = 0; i < K.Size(); i++)
+      {
+         if (K[i] > K_max) 
          {
-            if (K[i] > K_max)
-            {
-               K[i] = K_max;
-            }
-            else if (K[i] < K_min)
-            {
-               K[i] = K_min;
-            }
-            else
-            {
-               // do nothing
-            }
+            K[i] = K_max;
          }
-
-         mass = vol_form(K);
-         if ( abs( mass / domain_volume - mass_fraction ) < 1e-4 )
+         else if (K[i] < K_min)
          {
-            break;
+            K[i] = K_min;
+         }
+         else
+         { // do nothing
          }
       }
 
-      // I. Compute norm of update.
-      GridFunctionCoefficient tmp(&K_old);
-      double norm = K.ComputeL2Error(tmp)/step_length;
-      K_old = K;
-      double compliance = b(u);
+      // I. Update lambda.
+      double grad_lambda = ( mass / domain_volume ) - volume_fraction;
+      lambda += step_length_lambda*grad_lambda;
 
-      // L. Exit if norm of grad is small enough.
+      // J. Compute norm of update.
+      K_old -= K;
+      double norm = K_old.ComputeL2Error(zero)/step_length_K;
+      norm = sqrt(norm*norm + grad_lambda*grad_lambda);
+      K_old = K;
+
+      // K. Print and exit if norm of grad is small enough.
       mfem::out << "norm of reduced gradient = " << norm << endl;
       mfem::out << "compliance = " << compliance << endl;
-      mfem::out << "mass_fraction = " << vol_form(K) / domain_volume << endl;
+      mfem::out << "volume_fraction = " << mass / domain_volume << endl;
+      mfem::out << "lambda = " << lambda << endl;
       if (norm < tol)
       {
          break;
       }
 
-      if (visualization)
-      {
-         sout_K << "solution\n" << mesh << K
-                << "window_title 'Control K'" << flush;
-      }
+    if (visualization)
+    {
+        sout_K << "solution\n" << mesh << K
+            << "window_title 'Control K'" << flush;
+    }
 
    }
 
