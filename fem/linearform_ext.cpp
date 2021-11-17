@@ -9,17 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Implementations of classes FABilinearFormExtension, EABilinearFormExtension,
-// PABilinearFormExtension and MFBilinearFormExtension.
-
 #include "linearform.hpp"
-
 #include "../general/forall.hpp"
+
+// Implementations of FullLinearFormExtension.
 
 namespace mfem
 {
-
-LinearFormExtension::LinearFormExtension(LinearForm *lf): lf(lf) { }
 
 FullLinearFormExtension::FullLinearFormExtension(LinearForm *lf):
    LinearFormExtension(lf)
@@ -39,33 +35,44 @@ void FullLinearFormExtension::Assemble()
    // This operation is executed on device
    lf->Vector::operator=(0.0);
 
-   // Filter out the unhandled integrators
-   MFEM_VERIFY(lf->GetBLFI()->Size() == 0 && // Boundary
-               lf->GetDLFI_Delta()->Size() == 0 && // Delta coefficients
-               lf->GetIFLFI()->Size() == 0 && // Internal faces
-               lf->GetFLFI()->Size() == 0, // Boundary faces
-               "Unsupported integrators!");
+   // Filter out the unsupported integrators
+   MFEM_VERIFY(lf->GetBLFI()->Size() == 0,
+               "Integrators added with AddBoundaryIntegrator() "
+               "are not supported!");
+
+   MFEM_VERIFY(lf->GetDLFI_Delta()->Size() == 0, ""
+               "Integrators added with AddDomainIntegrator() which are "
+               "DeltaLFIntegrators with delta coefficients "
+               "are not supported!");
+
+   MFEM_VERIFY(lf->GetIFLFI()->Size() == 0,
+               "Integrators added with AddInteriorFaceIntegrator() "
+               "are not supported!");
+
+   MFEM_VERIFY(lf->GetFLFI()->Size() == 0,
+               "Integrators added with AddBdrFaceIntegrator() "
+               " are not supported!");
 
    const FiniteElementSpace &fes = *lf->FESpace();
-   const Array<LinearFormIntegrator*> &domain_integs = *lf->GetDLFI();
    const Array<Array<int>*> &domain_integs_marker = *lf->GetDLFIM();
    const int mesh_attributes_size = fes.GetMesh()->attributes.Size();
+   const Array<LinearFormIntegrator*> &domain_integs = *lf->GetDLFI();
 
    for (int k = 0; k < domain_integs.Size(); ++k)
    {
-      // get the markers for this integrator
+      // Get the markers for this integrator
       const Array<int> *domain_integs_marker_k = domain_integs_marker[k];
 
-      if (domain_integs_marker_k != nullptr)
+      // check if there are markers for this integrator
+      const bool has_markers_k = domain_integs_marker_k != nullptr;
+
+      if (has_markers_k)
       {
          // Element attribute marker should be of length mesh->attributes
          MFEM_VERIFY(mesh_attributes_size == domain_integs_marker_k->Size(),
                      "invalid element marker for domain linear form "
                      "integrator #" << k << ", counting from zero");
       }
-
-      // check if there are markers for this integrator
-      const bool has_markers_k = domain_integs_marker_k != nullptr;
 
       // if there are no markers, just use the whole linear form (1)
       if (!has_markers_k) { markers = 1; }

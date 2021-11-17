@@ -24,20 +24,20 @@ namespace linearform_ext_tests
 
 void LinearFormExtTest::Description()
 {
-   const bool scalar = problem==LinearFormExtTest::DomainLF ||
-                       problem==LinearFormExtTest::DomainLFGrad;
-   if (scalar) { assert(vdim==1); }
-   const bool grad = problem==LinearFormExtTest::DomainLFGrad ||
-                     problem==LinearFormExtTest::VectorDomainLFGrad;
+   const bool scalar = problem == LinearFormExtTest::DomainLF ||
+                       problem == LinearFormExtTest::DomainLFGrad;
+   if (scalar) { MFEM_VERIFY(vdim == 1, "VDIM should be 1"); }
+   const bool grad = problem == LinearFormExtTest::DomainLFGrad ||
+                     problem == LinearFormExtTest::VectorDomainLFGrad;
 
    mfem::out << "[LinearFormExt]"
              << " p=" << p
              << " q=" << q
-             << (ordering==Ordering::byNODES?" byNODES":" byVDIM ")
+             << (ordering==Ordering::byNODES ? " byNODES" : " byVDIM ")
              << " "<< dim << "D"
              << " "<< vdim << "-"
-             << (scalar?"Scalar":"Vector")
-             << (grad?"Grad":"")
+             << (scalar ? "Scalar" : "Vector")
+             << (grad ? "Grad" : "")
              << std::endl;
 }
 
@@ -50,9 +50,9 @@ void LinearFormExtTest::Run()
    // Test the difference to verify the orderings
    Vector difference = lf_legacy;
    difference -= lf_full;
-   REQUIRE(0.0 == MFEM_Approx(difference.Normlinf()));
+   REQUIRE(0.0 == MFEM_Approx(difference * difference));
 
-   REQUIRE(lf_full*lf_full == MFEM_Approx(lf_legacy*lf_legacy));
+   REQUIRE(lf_full * lf_full == MFEM_Approx(lf_legacy * lf_legacy));
 }
 
 } // namespace linearform_ext_tests
@@ -61,7 +61,7 @@ void LinearFormExtTest::Run()
 
 TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
 {
-   const auto N = GENERATE(3,4,8);
+   const auto N = GENERATE(3,4);
    const auto p = GENERATE(1,3,6); // limitations: 2D:11, 3D:6
    const auto dim = GENERATE(2,3);
    const auto gll = GENERATE(false,true); // q=p+2, q=p+1
@@ -77,17 +77,10 @@ TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
 
    SECTION("Vector")
    {
-      const auto vdim = GENERATE(2,7);
+      const auto vdim = GENERATE(1,5);
       const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
-      const auto problem = GENERATE(LinearFormExtTest::VectorDomainLF);
-      LinearFormExtTest(N, dim, vdim, ordering, gll, problem, p, true).Run();
-   }
-
-   SECTION("VectorGrad")
-   {
-      const auto vdim = GENERATE(6);
-      const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
-      const auto problem = GENERATE(LinearFormExtTest::VectorDomainLFGrad);
+      const auto problem = GENERATE(LinearFormExtTest::VectorDomainLF,
+                                    LinearFormExtTest::VectorDomainLFGrad);
       LinearFormExtTest(N, dim, vdim, ordering, gll, problem, p, true).Run();
    }
 } // test case

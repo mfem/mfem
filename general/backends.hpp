@@ -91,6 +91,7 @@ MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
 #endif
 }
 
+/// Helper function  to return and increment a given pointer with the given size
 template<typename T> MFEM_HOST_DEVICE static
 inline T *DeviceMemAlloc(T* &mem, size_t size) noexcept
 {
