@@ -27,7 +27,7 @@ private:
 
 public:
    template <typename... Dims> MFEM_HOST_DEVICE
-   constexpr StaticELayout(int arg0, Dims... args)
+   StaticELayout(int arg0, Dims... args)
    : last_size(GetLast(arg0, args...))
    {
       static_assert(sizeof...(Dims)==sizeof...(Sizes),
@@ -56,7 +56,7 @@ public:
    // }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
-   constexpr int index(Idx... idx) const
+   int index(Idx... idx) const
    {
       static_assert(
          sizeof...(Sizes)+1==sizeof...(Idx),
