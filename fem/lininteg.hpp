@@ -254,7 +254,7 @@ public:
 };
 
 /** Class for domain integrator L(v) := (f, grad v), where
-    f=(f1,...,fn) and v=(v1,...,vn). */
+    f=(f1x,f1y,f1z,...,fnx,fny,fnz) and v=(v1,...,vn). */
 class VectorDomainLFGradIntegrator : public DeltaLFIntegrator
 {
 private:
