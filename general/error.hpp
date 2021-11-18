@@ -165,39 +165,34 @@ __device__ void abort_msg(T & msg)
 
 // Abort inside a device kernel
 #if defined(__CUDA_ARCH__)
-#define MFEM_ABORT_KERNEL(msg)                              \
+#define MFEM_ABORT_KERNEL(...)                              \
    {                                                        \
-      printf(                                               \
-         "Error in thread (%dx%dx%d[%dx%dx%d],%d)\n%s\n",   \
-         MFEM_THREAD_ID(x),                                 \
-         MFEM_THREAD_ID(y),                                 \
-         MFEM_THREAD_ID(z),                                 \
-         MFEM_THREAD_SIZE(x),                               \
-         MFEM_THREAD_SIZE(y),                               \
-         MFEM_THREAD_SIZE(z),                               \
-         MFEM_BLOCK_ID(x),msg);                             \
+      printf(__VA_ARGS__);                                  \
       asm("trap;");                                         \
    }
-#elif defined(MFEM_USE_HIP)
-#define MFEM_ABORT_KERNEL(msg) \
+#elif defined(__HIP_DEVICE_COMPILE__)
+#define MFEM_ABORT_KERNEL(...) \
    {                           \
-      abort_msg(msg);          \
+      printf(__VA_ARGS__);     \
+      abort_msg("");           \
    }
 #else
-#define MFEM_ABORT_KERNEL(msg) MFEM_ABORT(msg)
+#define MFEM_ABORT_KERNEL(...)       \
+   printf(__VA_ARGS__);              \
+   MFEM_ABORT("")
 #endif
 
-#define MFEM_VERIFY_KERNEL(x,msg) \
-   if (!(x))                      \
-   {                              \
-      MFEM_ABORT_KERNEL(msg)      \
-   }                              \
+#define MFEM_VERIFY_KERNEL(x,...)    \
+   if (!(x))                         \
+   {                                 \
+      MFEM_ABORT_KERNEL(__VA_ARGS__) \
+   }                                 \
 
 #ifdef MFEM_DEBUG
-#define MFEM_ASSERT_KERNEL(x,msg) \
-   if (!(x))                      \
-   {                              \
-      MFEM_ABORT_KERNEL(msg)      \
+#define MFEM_ASSERT_KERNEL(x,...)    \
+   if (!(x))                         \
+   {                                 \
+      MFEM_ABORT_KERNEL(__VA_ARGS__) \
    }
 #else
 #define MFEM_ASSERT_KERNEL(x,msg)
