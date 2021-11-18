@@ -29,7 +29,7 @@ struct DynamicLayoutIndex
    {
       MFEM_ASSERT_KERNEL(
          first<sizes[N-1],
-         "Trying to access out of boundary.");
+         "Index greater than the dynamic size.");
       return first + sizes[N - 1] * DynamicLayoutIndex<Dim,N+1>::eval(sizes, args...);
    }
 };
@@ -43,7 +43,7 @@ struct DynamicLayoutIndex<Dim, Dim>
    {
       MFEM_ASSERT_KERNEL(
          first<sizes[Dim-1],
-         "Trying to access out of boundary.");
+         "Index greater than the dynamic size.");
       return first;
    }
 };
@@ -94,7 +94,7 @@ struct StaticIndex
       constexpr int size = get_value<Cpt-1,Dims...>;
       MFEM_ASSERT_KERNEL(
          first<size,
-         "Trying to access out of boundary.");
+         "Index greater than the static size.");
       return first + size * StaticIndex<Cpt+1, rank, Dims...>::eval(args...);
    }
 };
@@ -105,6 +105,10 @@ struct StaticIndex<rank,rank,Dims...>
    MFEM_HOST_DEVICE inline
    static int eval(int first)
    {
+      constexpr int size = get_value<rank-1,Dims...>;
+      MFEM_ASSERT_KERNEL(
+         size==Dynamic || first<size,
+         "Index greater than the static size.");
       return first;
    }
 };
@@ -125,7 +129,7 @@ struct StaticELayoutIndex
    template <typename... Idx> MFEM_HOST_DEVICE inline
    static int eval(Idx... args)
    {
-      return StaticIndex<1,sizeof...(Dims)+1,Dims...>::eval(args...);
+      return StaticIndex<1,sizeof...(Dims)+1,Dims...,Dynamic>::eval(args...);
    }
 };
 

@@ -43,7 +43,6 @@ auto operator*(const Basis &basis, const Dofs &u_e)
    MFEM_SHARED Scalar sm1[MaxDQ*MaxDQ*MaxDQ];
    // Load dofs in shared memory
    StaticPointerDTensor<D1D,D1D,D1D> X(sm0);
-   MFEM_SYNC_THREAD;
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
       MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -171,7 +170,6 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u_q)
    MFEM_SHARED Scalar sm1[MaxDQ*MaxDQ*MaxDQ];
    // Load dofs in shared memory
    StaticPointerDTensor<Q1D,Q1D,Q1D> QQQ(sm0);
-   MFEM_SYNC_THREAD;
    MFEM_FOREACH_THREAD(qy,y,Q1D)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
