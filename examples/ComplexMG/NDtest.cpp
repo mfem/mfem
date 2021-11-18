@@ -104,26 +104,71 @@ int main(int argc, char *argv[])
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
-   FiniteElementCollection *fec = new ND_FECollection(order, dim);
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+   // FiniteElementCollection *fec = new ND_FECollection(order, dim);
+   // ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
    std::vector<ParFiniteElementSpace * > fespaces(href+1);
+   std::vector<FiniteElementCollection * > fecs(href+1);
    std::vector<ParMesh * > ParMeshes(href+1);
    std::vector<HypreParMatrix*>  P(href);
+   // for (int i = 0; i < href; i++)
+   // {
+   //    ParMeshes[i] = new ParMesh(*pmesh);
+   //    fespaces[i]  = new ParFiniteElementSpace(*fespace, *ParMeshes[i]);
+   //    pmesh->UniformRefinement();
+   //    // Update fespace
+   //    fespace->Update();
+   //    OperatorHandle Tr(Operator::Hypre_ParCSR);
+   //    fespace->GetTrueTransferOperator(*fespaces[i], Tr);
+   //    Tr.SetOperatorOwner(false);
+   //    Tr.Get(P[i]);
+   // }
+
+   // fecs[0]  = new ND_FECollection(order, dim);
+   fecs[0]  = new ND_FECollection(order, dim);
+   fespaces[0]  = new ParFiniteElementSpace(pmesh, fecs[0]);
+   VectorFunctionCoefficient Eex(sdim, E_exact);
+   ParGridFunction gf0(fespaces[0]);
+   gf0.ProjectCoefficient(Eex);
+
+   // cout << "order = " << order << endl;
+   Operator *Tr;
    for (int i = 0; i < href; i++)
    {
-      ParMeshes[i] = new ParMesh(*pmesh);
-      fespaces[i]  = new ParFiniteElementSpace(*fespace, *ParMeshes[i]);
-      pmesh->UniformRefinement();
-      // Update fespace
-      fespace->Update();
-      OperatorHandle Tr(Operator::Hypre_ParCSR);
-      fespace->GetTrueTransferOperator(*fespaces[i], Tr);
-      Tr.SetOperatorOwner(false);
-      Tr.Get(P[i]);
+      int new_order = std::pow(2,i+1); 
+      // cout << "new order = " << new_order << endl;
+      fecs[i+1] = new ND_FECollection(std::pow(2,i+1),dim);
+      fespaces[i+1]  = new ParFiniteElementSpace(pmesh,fecs[i+1]);
+      // cout << "test 0" << endl;
+      
+      Tr = new TrueTransferOperator(*fespaces[i], *fespaces[i+1]);
+      // cout << "test 1" << endl;
    }
-   fespaces[href] = new ParFiniteElementSpace(*fespace);
 
+   ParGridFunction gf1(fespaces[1]);
+
+   Tr->Mult(gf0,gf1);
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *pmesh << gf0 << flush;
+      socketstream sol_sock1(vishost, visport);
+      sol_sock1 << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock1.precision(8);
+      sol_sock1 << "solution\n" << *pmesh << gf1 << flush;
+   }
+
+
+   return 0;
+
+   // fespaces[pref] = new ParFiniteElementSpace(*fespace);
+   FiniteElementCollection *fec = fecs[href];
+   ParFiniteElementSpace *fespace = fespaces[href];
 
 
    HYPRE_BigInt size = fespace->GlobalTrueVSize();
@@ -169,8 +214,8 @@ int main(int argc, char *argv[])
             << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
    }
 
-   // ParFiniteElementSpace *prec_fespace = fespace;
-   // HypreAMS M(*A.As<HypreParMatrix>(), prec_fespace);
+   ParFiniteElementSpace *prec_fespace = fespace;
+   HypreAMS M(*A.As<HypreParMatrix>(), prec_fespace);
 
 
    {
