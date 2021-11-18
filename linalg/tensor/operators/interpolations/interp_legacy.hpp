@@ -28,7 +28,7 @@ template <typename Basis,
              get_tensor_rank<Dofs> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Basis &basis, const Dofs &u)
+auto operator*(const Basis &basis, const Dofs &u_e)
 {
    using Scalar = get_tensor_value_type<Dofs>;
    constexpr int basis_size = get_basis_capacity<Basis>;
@@ -50,7 +50,7 @@ auto operator*(const Basis &basis, const Dofs &u)
          MFEM_UNROLL(D1D)
          for (int dz = 0; dz < D1D; ++dz)
          {
-            X(dx,dy,dz) = u(dx,dy,dz);
+            X(dx,dy,dz) = u_e(dx,dy,dz);
          }
       }
    }
@@ -155,7 +155,7 @@ template <typename Basis,
              get_tensor_rank<Dofs> == 3,
              bool> = true >
 MFEM_HOST_DEVICE inline
-auto operator*(const Trans<Basis> &basis, const Dofs &u)
+auto operator*(const Trans<Basis> &basis, const Dofs &u_q)
 {
    using Scalar = get_tensor_value_type<Dofs>;
    constexpr int basis_size = get_basis_capacity<Basis>;
@@ -177,7 +177,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u)
          MFEM_UNROLL(Q1D)
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            QQQ(qx,qy,qz) = u(qx,qy,qz);
+            QQQ(qx,qy,qz) = u_q(qx,qy,qz);
          }
       }
    }
