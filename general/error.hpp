@@ -195,7 +195,7 @@ __device__ void abort_msg(T & msg)
       MFEM_ABORT_KERNEL(__VA_ARGS__) \
    }
 #else
-#define MFEM_ASSERT_KERNEL(x,msg)
+#define MFEM_ASSERT_KERNEL(x,...)
 #endif
 
 #endif
