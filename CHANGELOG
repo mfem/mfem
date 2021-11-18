@@ -74,7 +74,7 @@ Version 4.3.1 (development)
   * DomainLF: L(v) := (f, v)
   * VectorDomainLF: L(v) := ((f1,...,fn), (v1,...,vn))
   * DomainLFGrad: L(v) := (f,grad v)
-  * VectorDomainLFGrad:  L(v) := ((f1,...,fn), grad(v1,...,vn))
+  * VectorDomainLFGrad:  L(v) := ((f1x,f1y,f1z,...,fnx,fny,fnz),grad(v1,...,vn))
   It can be enabled by setting the linear assembly level to
   'LinearAssemblyLevel::FULL' with the 'LinearForm::SetAssemblyLevel' method.
 
