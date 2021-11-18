@@ -105,10 +105,12 @@ struct StaticIndex<rank,rank,Dims...>
    MFEM_HOST_DEVICE inline
    static int eval(int first)
    {
+#ifdef MFEM_DEBUG
       constexpr int size = get_value<rank-1,Dims...>;
       MFEM_ASSERT_KERNEL(
          size==Dynamic || first<size,
          "Index (%d) greater than the static size (%d).\n", first, size);
+#endif
       return first;
    }
 };
