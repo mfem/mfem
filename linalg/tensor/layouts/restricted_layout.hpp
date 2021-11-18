@@ -36,7 +36,7 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<0>(),
-         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         "The RestrictedLayout index (%d) is out of bounds (%d).\n",
          i, layout.template Size<0>());
    }
 
@@ -66,7 +66,7 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<1>(),
-         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         "The RestrictedLayout index (%d) is out of bounds (%d).\n",
          i, layout.template Size<1>());
    }
 
@@ -97,7 +97,7 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<2>(),
-         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         "The RestrictedLayout index (%d) is out of bounds (%d).\n",
          i, layout.template Size<2>());
    }
 
@@ -128,7 +128,7 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<3>(),
-         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         "The RestrictedLayout index (%d) is out of bounds (%d).\n",
          i, layout.template Size<3>());
    }
 
@@ -159,7 +159,7 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<4>(),
-         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         "The RestrictedLayout index (%d) is out of bounds (%d).\n",
          i, layout.template Size<4>());
    }
 
@@ -190,7 +190,7 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<5>(),
-         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         "The RestrictedLayout index (%d) is out of bounds (%d).\n",
          i, layout.template Size<5>());
    }
 
@@ -221,7 +221,7 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<6>(),
-         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         "The RestrictedLayout index (%d) is out of bounds (%d).\n",
          i, layout.template Size<6>());
    }
 
@@ -252,7 +252,7 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<7>(),
-         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         "The RestrictedLayout index (%d) is out of bounds (%d).\n",
          i, layout.template Size<7>());
    }
 
@@ -283,7 +283,7 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<8>(),
-         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         "The RestrictedLayout index (%d) is out of bounds (%d).\n",
          i, layout.template Size<8>());
    }
 

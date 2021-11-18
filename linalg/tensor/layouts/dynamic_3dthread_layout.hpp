@@ -43,27 +43,27 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          FirstSize==Dynamic || FirstSize==size0,
-         "Compilation time (%d) and runtime sizes (%d) must be the same.",
+         "Compilation time (%d) and runtime sizes (%d) must be the same.\n",
          FirstSize, size0);
       MFEM_ASSERT_KERNEL(
          SecondSize==Dynamic || SecondSize==size1,
-         "Compilation time (%d) and runtime sizes (%d) must be the same.",
+         "Compilation time (%d) and runtime sizes (%d) must be the same.\n",
          SecondSize, size1);
       MFEM_ASSERT_KERNEL(
          ThirdSize==Dynamic || ThirdSize==size2,
-         "Compilation time (%d) and runtime sizes (%d) must be the same.",
+         "Compilation time (%d) and runtime sizes (%d) must be the same.\n",
          ThirdSize, size2);
       MFEM_ASSERT_KERNEL(
          size0<=MFEM_THREAD_SIZE(x),
-         "The first dimension (%d) exceeds the number of x threads (%d).",
+         "The first dimension (%d) exceeds the number of x threads (%d).\n",
          size0, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          size1<=MFEM_THREAD_SIZE(y),
-         "The second dimension (%d) exceeds the number of y threads (%d).",
+         "The second dimension (%d) exceeds the number of y threads (%d).\n",
          size1, MFEM_THREAD_SIZE(y));
       MFEM_ASSERT_KERNEL(
          size2<=MFEM_THREAD_SIZE(z),
-         "The third dimension (%d) exceeds the number of z threads (%d).",
+         "The third dimension (%d) exceeds the number of z threads (%d).\n",
          size2, MFEM_THREAD_SIZE(z));
    }
 
@@ -87,19 +87,19 @@ public:
          idx0==MFEM_THREAD_ID(x),
          "The first index (%d) must be equal to the x thread index (%d)"
          " when using SizedDynamic3dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.",
+         " to access values stored in a different thread.\n",
          idx0, MFEM_THREAD_ID(x));
       MFEM_ASSERT_KERNEL(
          idx1==MFEM_THREAD_ID(y),
          "The second index (%d) must be equal to the y thread index (%d)"
          " when using SizedDynamic3dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.",
+         " to access values stored in a different thread.\n",
          idx1, MFEM_THREAD_ID(y));
       MFEM_ASSERT_KERNEL(
          idx2==MFEM_THREAD_ID(z),
          "The third index (%d) must be equal to the z thread index (%d)"
          " when using SizedDynamic3dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.",
+         " to access values stored in a different thread.\n",
          idx2, MFEM_THREAD_ID(z));
       return layout.index(idx...);
    }
@@ -128,11 +128,11 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          FirstSize==Dynamic || FirstSize==size0,
-         "Compilation time (%d) and runtime sizes (%d) must be the same.",
+         "Compilation time (%d) and runtime sizes (%d) must be the same.\n",
          FirstSize, size0);
       MFEM_ASSERT_KERNEL(
          size0<=MFEM_THREAD_SIZE(x),
-         "The first dimension (%d) exceeds the number of x threads (%d).",
+         "The first dimension (%d) exceeds the number of x threads (%d).\n",
          size0, MFEM_THREAD_SIZE(x));
    }
 
@@ -152,7 +152,7 @@ public:
          idx==MFEM_THREAD_ID(x),
          "The first index (%d) must be equal to the x thread index (%d)"
          " when using SizedDynamic3dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.",
+         " to access values stored in a different thread.\n",
          idx, MFEM_THREAD_ID(x));
       return 0;
    }
@@ -181,19 +181,19 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          FirstSize==Dynamic || FirstSize==size0,
-         "Compilation time (%d) and runtime sizes (%d) must be the same.",
+         "Compilation time (%d) and runtime sizes (%d) must be the same.\n",
          FirstSize, size0);
       MFEM_ASSERT_KERNEL(
          SecondSize==Dynamic || SecondSize==size1,
-         "Compilation time (%d) and runtime sizes (%d) must be the same.",
+         "Compilation time (%d) and runtime sizes (%d) must be the same.\n",
          SecondSize, size1);
       MFEM_ASSERT_KERNEL(
          size0<=MFEM_THREAD_SIZE(x),
-         "The first dimension (%d) exceeds the number of x threads (%d).",
+         "The first dimension (%d) exceeds the number of x threads (%d).\n",
          size0, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          size1<=MFEM_THREAD_SIZE(y),
-         "The second dimension (%d) exceeds the number of y threads (%d).",
+         "The second dimension (%d) exceeds the number of y threads (%d).\n",
          size1, MFEM_THREAD_SIZE(y));
    }
 
@@ -214,13 +214,13 @@ public:
          idx0==MFEM_THREAD_ID(x),
          "The first index (%d) must be equal to the x thread index (%d)"
          " when using SizedDynamic3dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.",
+         " to access values stored in a different thread.\n",
          idx0, MFEM_THREAD_ID(x));
       MFEM_ASSERT_KERNEL(
          idx1==MFEM_THREAD_ID(y),
          "The second index (%d) must be equal to the y thread index (%d)"
          " when using SizedDynamic3dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.",
+         " to access values stored in a different thread.\n",
          idx1, MFEM_THREAD_ID(y));
       return 0;
    }
@@ -249,27 +249,27 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          FirstSize==Dynamic || FirstSize==size0,
-         "Compilation time (%d) and runtime sizes (%d) must be the same.",
+         "Compilation time (%d) and runtime sizes (%d) must be the same.\n",
          FirstSize, size0);
       MFEM_ASSERT_KERNEL(
          SecondSize==Dynamic || SecondSize==size1,
-         "Compilation time (%d) and runtime sizes (%d) must be the same.",
+         "Compilation time (%d) and runtime sizes (%d) must be the same.\n",
          SecondSize, size1);
       MFEM_ASSERT_KERNEL(
          ThirdSize==Dynamic || ThirdSize==size2,
-         "Compilation time (%d) and runtime sizes (%d) must be the same.",
+         "Compilation time (%d) and runtime sizes (%d) must be the same.\n",
          ThirdSize, size2);
       MFEM_ASSERT_KERNEL(
          size0<=MFEM_THREAD_SIZE(x),
-         "The first dimension (%d) exceeds the number of x threads (%d).",
+         "The first dimension (%d) exceeds the number of x threads (%d).\n",
          size0, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          size1<=MFEM_THREAD_SIZE(y),
-         "The second dimension (%d) exceeds the number of y threads (%d).",
+         "The second dimension (%d) exceeds the number of y threads (%d).\n",
          size1, MFEM_THREAD_SIZE(y));
       MFEM_ASSERT_KERNEL(
          size2<=MFEM_THREAD_SIZE(z),
-         "The third dimension (%d) exceeds the number of z threads (%d).",
+         "The third dimension (%d) exceeds the number of z threads (%d).\n",
          size2, MFEM_THREAD_SIZE(z));
    }
 
@@ -291,19 +291,19 @@ public:
          idx0==MFEM_THREAD_ID(x),
          "The first index (%d) must be equal to the x thread index (%d)"
          " when using SizedDynamic3dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.",
+         " to access values stored in a different thread.\n",
          idx0, MFEM_THREAD_ID(x));
       MFEM_ASSERT_KERNEL(
          idx1==MFEM_THREAD_ID(y),
          "The second index (%d) must be equal to the y thread index (%d)"
          " when using SizedDynamic3dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.",
+         " to access values stored in a different thread.\n",
          idx1, MFEM_THREAD_ID(y));
       MFEM_ASSERT_KERNEL(
          idx2==MFEM_THREAD_ID(z),
          "The third index (%d) must be equal to the z thread index (%d)"
          " when using SizedDynamic3dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.",
+         " to access values stored in a different thread.\n",
          idx2, MFEM_THREAD_ID(z));
       return 0;
    }

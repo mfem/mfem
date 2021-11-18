@@ -32,11 +32,11 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          DimX<=MFEM_THREAD_SIZE(x),
-         "The first dimension (%d) exceeds the number of x threads (%d).",
+         "The first dimension (%d) exceeds the number of x threads (%d).\n",
          DimX, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
-         "The batchsize (%d) is not equal to the number of z threads (%d).",
+         "The batchsize (%d) is not equal to the number of z threads (%d).\n",
          BatchSize, MFEM_THREAD_SIZE(z));
    }
 
@@ -45,15 +45,15 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          size0==DimX,
-         "The runtime first dimension (%d) is different to the compilation one (%d).",
+         "The runtime first dimension (%d) is different to the compilation one (%d).\n",
          size0, DimX);
       MFEM_ASSERT_KERNEL(
          DimX<=MFEM_THREAD_SIZE(x),
-         "The first dimension (%d) exceeds the number of x threads (%d).",
+         "The first dimension (%d) exceeds the number of x threads (%d).\n",
          DimX, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
-         "The batchsize (%d) is not equal to the number of z threads (%d).",
+         "The batchsize (%d) is not equal to the number of z threads (%d).\n",
          BatchSize, MFEM_THREAD_SIZE(z));
    }
 
@@ -65,7 +65,7 @@ public:
          "Can't copy-construct a layout of different rank.");
       MFEM_ASSERT_KERNEL(
          rhs.template Size<0>() == DimX,
-         "Layouts sizes don't match %d != %d.",
+         "Layouts sizes don't match %d != %d.\n",
          DimX, rhs.template Size<0>());
    }
 
@@ -76,7 +76,7 @@ public:
          idx0==MFEM_THREAD_ID(x),
          "The first index (%d) must be equal to the x thread index (%d)"
          " when using SizedStatic1dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.",
+         " to access values stored in a different thread.\n",
          idx0, MFEM_THREAD_ID(x));
       return 0;
    }
@@ -102,11 +102,11 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          DimX<=MFEM_THREAD_SIZE(x),
-         "The first dimension (%d) exceeds the number of x threads (%d).",
+         "The first dimension (%d) exceeds the number of x threads (%d).\n",
          DimX, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
-         "The batchsize (%d) is not equal to the number of z threads (%d).",
+         "The batchsize (%d) is not equal to the number of z threads (%d).\n",
          BatchSize, MFEM_THREAD_SIZE(z));
    }
 
@@ -116,15 +116,15 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          size0==DimX,
-         "The runtime first dimension (%d) is different to the compilation one (%d).",
+         "The runtime first dimension (%d) is different to the compilation one (%d).\n",
          size0, DimX);
       MFEM_ASSERT_KERNEL(
          DimX<=MFEM_THREAD_SIZE(x),
-         "The first dimension (%d) exceeds the number of x threads (%d).",
+         "The first dimension (%d) exceeds the number of x threads (%d).\n",
          DimX, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
-         "The batchsize (%d) is not equal to the number of z threads (%d).",
+         "The batchsize (%d) is not equal to the number of z threads (%d).\n",
          BatchSize, MFEM_THREAD_SIZE(z));
    }
 
@@ -136,7 +136,7 @@ public:
          "Can't copy-construct a layout of different rank.");
       MFEM_ASSERT_KERNEL(
          rhs.template Size<0>() == DimX,
-         "Layouts sizes don't match %d != %d.",
+         "Layouts sizes don't match %d != %d.\n",
          DimX, rhs.template Size<0>());
    }
 
@@ -147,7 +147,7 @@ public:
          idx0==MFEM_THREAD_ID(x),
          "The first index (%d) must be equal to the x thread index (%d)"
          " when using SizedStatic1dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.",
+         " to access values stored in a different thread.\n",
          idx0, MFEM_THREAD_ID(x));
       return layout.index(idx...);
    }

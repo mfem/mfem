@@ -61,6 +61,10 @@ public:
       static_assert(
          sizeof...(Sizes)+1==sizeof...(Idx),
          "Wrong number of arguments.");
+      MFEM_ASSERT_KERNEL(
+         GetLast(idx...) < last_size,
+         "Last index (%d) is out of bound (%d).\n",
+         GetLast(idx...), last_size);
       return StaticELayoutIndex<Sizes...>::eval(idx...);
    }
 
