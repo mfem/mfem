@@ -913,7 +913,11 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
    else if (lFESpace_.GetMesh()->GetNE() > 0
             && hFESpace_.GetMesh()->GetNE() > 0
             && dynamic_cast<const TensorBasisElement*>(lFESpace_.GetFE(0))
-            && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetFE(0)))
+            && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetFE(0))
+            && (hFESpace_.FEColl()->GetContType() ==
+                mfem::FiniteElementCollection::CONTINUOUS ||
+                hFESpace_.FEColl()->GetContType() ==
+                mfem::FiniteElementCollection::DISCONTINUOUS))
    {
       opr = new TensorProductPRefinementTransferOperator(lFESpace_, hFESpace_);
    }
@@ -1101,7 +1105,8 @@ TensorProductPRefinementTransferOperator(
    // must be sorted in lexicographical order
    for (int i = 0; i < ir.GetNPoints(); ++i)
    {
-      irLex.IntPoint(i) = ir.IntPoint(hdofmap[i]);
+      int j = hdofmap[i] >=0 ? hdofmap[i] : -1 - hdofmap[i];
+      irLex.IntPoint(i) = ir.IntPoint(j);
    }
 
    NE = lFESpace.GetNE();
