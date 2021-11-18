@@ -16,12 +16,12 @@ namespace mfem
 {
 
 /// Compute the product of a list of values
-template <typename T>
+template <typename T> MFEM_HOST_DEVICE
 constexpr T prod(T first) {
    return first;
 }
 
-template <typename T, typename... D>
+template <typename T, typename... D> MFEM_HOST_DEVICE
 constexpr T prod(T first, D... rest) {
    return first*prod(rest...);
 }
