@@ -41,13 +41,16 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          FirstSize==Dynamic || FirstSize==size0,
-         "Compilation time and runtime sizes must be the same.");
+         "Compilation time (%d) and runtime sizes (%d) must be the same.",
+         FirstSize, size0);
       MFEM_ASSERT_KERNEL(
          size0<=MFEM_THREAD_SIZE(x),
-         "The first dimension exceeds the number of x threads.");
+         "The first dimension (%d) exceeds the number of x threads (%d).",
+         size0, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
-         "The batchsize is not equal to the number of z threads.");
+         "The batchsize (%d) is not equal to the number of z threads (%d).",
+         BatchSize, MFEM_THREAD_SIZE(z));
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
@@ -66,9 +69,10 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          idx0==MFEM_THREAD_ID(x),
-         "The first index must be equal to the x thread index"
+         "The first index (%d) must be equal to the x thread index (%d)"
          " when using SizedDynamic1dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.");
+         " to access values stored in a different thread.",
+         idx0, MFEM_THREAD_ID(x));
       return layout.index(idx...);
    }
 
@@ -95,13 +99,16 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          FirstSize==Dynamic || FirstSize==size0,
-         "Compilation time and runtime sizes must be the same.");
+         "Compilation time (%d) and runtime sizes (%d) must be the same.",
+         FirstSize, size0);
       MFEM_ASSERT_KERNEL(
          size0<=MFEM_THREAD_SIZE(x),
-         "The first dimension exceeds the number of x threads.");
+         "The first dimension (%d) exceeds the number of x threads (%d).",
+         size0, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
-         "The batchsize is not equal to the number of z threads.");
+         "The batchsize (%d) is not equal to the number of z threads (%d).",
+         BatchSize, MFEM_THREAD_SIZE(z));
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
@@ -118,9 +125,10 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          idx==MFEM_THREAD_ID(x),
-         "The first index must be equal to the x thread index"
+         "The first index (%d) must be equal to the x thread index (%d)"
          " when using SizedDynamic1dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.");
+         " to access values stored in a different thread.",
+         idx0, MFEM_THREAD_ID(x));
       return 0;
    }
 

@@ -36,7 +36,8 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<0>(),
-         "The RestrictedLayout is out of bounds.");
+         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         i, layout.template Size<0>());
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -65,7 +66,8 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<1>(),
-         "The RestrictedLayout is out of bounds.");
+         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         i, layout.template Size<1>());
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -95,7 +97,8 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<2>(),
-         "The RestrictedLayout is out of bounds.");
+         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         i, layout.template Size<2>());
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -125,7 +128,8 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<3>(),
-         "The RestrictedLayout is out of bounds.");
+         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         i, layout.template Size<3>());
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -155,7 +159,8 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<4>(),
-         "The RestrictedLayout is out of bounds.");
+         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         i, layout.template Size<4>());
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -185,7 +190,8 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<5>(),
-         "The RestrictedLayout is out of bounds.");
+         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         i, layout.template Size<5>());
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -215,7 +221,8 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<6>(),
-         "The RestrictedLayout is out of bounds.");
+         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         i, layout.template Size<6>());
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -245,7 +252,8 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<7>(),
-         "The RestrictedLayout is out of bounds.");
+         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         i, layout.template Size<7>());
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -275,7 +283,8 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          i<layout.template Size<8>(),
-         "The RestrictedLayout is out of bounds.");
+         "The RestrictedLayout index (%d) is out of bounds (%d).",
+         i, layout.template Size<8>());
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline

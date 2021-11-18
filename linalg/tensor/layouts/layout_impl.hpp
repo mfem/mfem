@@ -29,7 +29,7 @@ struct DynamicLayoutIndex
    {
       MFEM_ASSERT_KERNEL(
          first<sizes[N-1],
-         "Index greater than the dynamic size.");
+         "Index (%d) greater than the dynamic size (%d).", first, sizes[N-1]);
       return first + sizes[N - 1] * DynamicLayoutIndex<Dim,N+1>::eval(sizes, args...);
    }
 };
@@ -43,7 +43,7 @@ struct DynamicLayoutIndex<Dim, Dim>
    {
       MFEM_ASSERT_KERNEL(
          first<sizes[Dim-1],
-         "Index greater than the dynamic size.");
+         "Index (%d) greater than the dynamic size (%d).", first, sizes[Dim-1]);
       return first;
    }
 };
@@ -94,7 +94,7 @@ struct StaticIndex
       constexpr int size = get_value<Cpt-1,Dims...>;
       MFEM_ASSERT_KERNEL(
          first<size,
-         "Index greater than the static size.");
+         "Index (%d) greater than the static size (%d).", first, size);
       return first + size * StaticIndex<Cpt+1, rank, Dims...>::eval(args...);
    }
 };
@@ -108,7 +108,7 @@ struct StaticIndex<rank,rank,Dims...>
       constexpr int size = get_value<rank-1,Dims...>;
       MFEM_ASSERT_KERNEL(
          size==Dynamic || first<size,
-         "Index greater than the static size.");
+         "Index (%d) greater than the static size (%d).", first, size);
       return first;
    }
 };

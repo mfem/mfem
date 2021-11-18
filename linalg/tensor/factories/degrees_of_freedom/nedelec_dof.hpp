@@ -126,7 +126,8 @@ private:
    {
       MFEM_ASSERT_KERNEL(
          e<ne,
-         "Element index is superior to the number of elements. ");
+         "Element index (%d) is superior to the number of elements (%d). ",
+         e, ne);
       constexpr int dim = Dim;
       const int comp_size = dofs_close * dofs_open * dofs_open;
       const int elem_size = dim * comp_size;
@@ -184,7 +185,8 @@ private:
    {
       MFEM_ASSERT_KERNEL(
          e<ne,
-         "Element index is superior to the number of elements. ");
+         "Element index (%d) is superior to the number of elements (%d). ",
+         e, ne);
       constexpr int dim = Dim;
       const int comp_size = dofs_close * dofs_open;
       const int elem_size = dim * comp_size;
@@ -237,7 +239,8 @@ private:
    {
       MFEM_ASSERT_KERNEL(
          e<ne,
-         "Element index is superior to the number of elements. ");
+         "Element index (%d) is superior to the number of elements (%d). ",
+         e, ne);
       constexpr int dim = Dim;
       const int comp_size = dofs_close;
       const int elem_size = dim * comp_size;

@@ -32,10 +32,12 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          DimX<=MFEM_THREAD_SIZE(x),
-         "The first dimension exceeds the number of x threads.");
+         "The first dimension (%d) exceeds the number of x threads (%d).",
+         DimX, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
-         "The batchsize is not equal to the number of z threads.");
+         "The batchsize (%d) is not equal to the number of z threads (%d).",
+         BatchSize, MFEM_THREAD_SIZE(z));
    }
 
    MFEM_HOST_DEVICE inline
@@ -43,13 +45,16 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          size0==DimX,
-         "The runtime first dimension is different to the compilation one.");
+         "The runtime first dimension (%d) is different to the compilation one (%d).",
+         size0, DimX);
       MFEM_ASSERT_KERNEL(
          DimX<=MFEM_THREAD_SIZE(x),
-         "The first dimension exceeds the number of x threads.");
+         "The first dimension (%d) exceeds the number of x threads (%d).",
+         DimX, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
-         "The batchsize is not equal to the number of z threads.");
+         "The batchsize (%d) is not equal to the number of z threads (%d).",
+         BatchSize, MFEM_THREAD_SIZE(z));
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
@@ -60,7 +65,8 @@ public:
          "Can't copy-construct a layout of different rank.");
       MFEM_ASSERT_KERNEL(
          rhs.template Size<0>() == DimX,
-         "Layouts sizes don't match.");
+         "Layouts sizes don't match %d != %d.",
+         DimX, rhs.template Size<0>());
    }
 
    MFEM_HOST_DEVICE inline
@@ -68,9 +74,10 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          idx0==MFEM_THREAD_ID(x),
-         "The first index must be equal to the x thread index"
-         " when using Static2dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.");
+         "The first index (%d) must be equal to the x thread index (%d)"
+         " when using SizedStatic2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.",
+         idx0, MFEM_THREAD_ID(x));
       return 0;
    }
 
@@ -93,13 +100,16 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          DimX<=MFEM_THREAD_SIZE(x),
-         "The first dimension exceeds the number of x threads.");
+         "The first dimension (%d) exceeds the number of x threads (%d).",
+         DimX, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          DimY<=MFEM_THREAD_SIZE(y),
-         "The second dimension exceeds the number of y threads.");
+         "The second dimension (%d) exceeds the number of y threads (%d).",
+         DimY, MFEM_THREAD_SIZE(y));
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
-         "The batchsize is not equal to the number of z threads.");
+         "The batchsize (%d) is not equal to the number of z threads (%d).",
+         BatchSize, MFEM_THREAD_SIZE(z));
    }
 
    MFEM_HOST_DEVICE inline
@@ -107,19 +117,24 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          size0==DimX,
-         "The runtime first dimension is different to the compilation one.");
+         "The runtime first dimension (%d) is different to the compilation one (%d).",
+         size0, DimX);
       MFEM_ASSERT_KERNEL(
          DimX<=MFEM_THREAD_SIZE(x),
-         "The first dimension exceeds the number of x threads.");
+         "The first dimension (%d) exceeds the number of x threads (%d).",
+         DimX, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          size1==DimY,
-         "The runtime second dimension is different to the compilation one.");
+         "The runtime second dimension (%d) is different to the compilation one (%d).",
+         size1, DimY);
       MFEM_ASSERT_KERNEL(
          DimY<=MFEM_THREAD_SIZE(y),
-         "The second dimension exceeds the number of y threads.");
+         "The second dimension (%d) exceeds the number of y threads (%d).",
+         DimY, MFEM_THREAD_SIZE(y));
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
-         "The batchsize is not equal to the number of z threads.");
+         "The batchsize (%d) is not equal to the number of z threads (%d).",
+         BatchSize, MFEM_THREAD_SIZE(z));
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
@@ -130,10 +145,12 @@ public:
          "Can't copy-construct a layout of different rank.");
       MFEM_ASSERT_KERNEL(
          rhs.template Size<0>() == DimX,
-         "Layouts sizes don't match.");
+         "Layouts sizes don't match %d != %d.",
+         DimX, rhs.template Size<0>());
       MFEM_ASSERT_KERNEL(
          rhs.template Size<1>() == DimY,
-         "Layouts sizes don't match.");
+         "Layouts sizes don't match %d != %d.",
+         DimY, rhs.template Size<1>());
    }
 
    MFEM_HOST_DEVICE inline
@@ -141,14 +158,16 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          idx0==MFEM_THREAD_ID(x),
-         "The first index must be equal to the x thread index"
-         " when using Static2dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.");
+         "The first index (%d) must be equal to the x thread index (%d)"
+         " when using SizedStatic2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.",
+         idx0, MFEM_THREAD_ID(x));
       MFEM_ASSERT_KERNEL(
          idx1==MFEM_THREAD_ID(y),
-         "The second index must be equal to the y thread index"
-         " when using Static2dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.");
+         "The second index (%d) must be equal to the y thread index (%d)"
+         " when using SizedStatic2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.",
+         idx1, MFEM_THREAD_ID(y));
       return 0;
    }
 
@@ -173,13 +192,16 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          DimX<=MFEM_THREAD_SIZE(x),
-         "The first dimension exceeds the number of x threads.");
+         "The first dimension (%d) exceeds the number of x threads (%d).",
+         DimX, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          DimY<=MFEM_THREAD_SIZE(y),
-         "The second dimension exceeds the number of y threads.");
+         "The second dimension (%d) exceeds the number of y threads (%d).",
+         DimY, MFEM_THREAD_SIZE(y));
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
-         "The batchsize is not equal to the number of z threads.");
+         "The batchsize (%d) is not equal to the number of z threads (%d).",
+         BatchSize, MFEM_THREAD_SIZE(z));
    }
 
    template <typename... Sizes> MFEM_HOST_DEVICE inline
@@ -188,19 +210,24 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          size0==DimX,
-         "The runtime first dimension is different to the compilation one.");
+         "The runtime first dimension (%d) is different to the compilation one (%d).",
+         size0, DimX);
       MFEM_ASSERT_KERNEL(
          DimX<=MFEM_THREAD_SIZE(x),
-         "The first dimension exceeds the number of x threads.");
+         "The first dimension (%d) exceeds the number of x threads (%d).",
+         DimX, MFEM_THREAD_SIZE(x));
       MFEM_ASSERT_KERNEL(
          size1==DimY,
-         "The runtime second dimension is different to the compilation one.");
+         "The runtime second dimension (%d) is different to the compilation one (%d).",
+         size1, DimY);
       MFEM_ASSERT_KERNEL(
          DimY<=MFEM_THREAD_SIZE(y),
-         "The second dimension exceeds the number of y threads.");
+         "The second dimension (%d) exceeds the number of y threads (%d).",
+         DimY, MFEM_THREAD_SIZE(y));
       MFEM_ASSERT_KERNEL(
          BatchSize==MFEM_THREAD_SIZE(z),
-         "The batchsize is not equal to the number of z threads.");
+         "The batchsize (%d) is not equal to the number of z threads (%d).",
+         BatchSize, MFEM_THREAD_SIZE(z));
    }
 
    template <typename Layout> MFEM_HOST_DEVICE
@@ -211,10 +238,12 @@ public:
          "Can't copy-construct a layout of different rank.");
       MFEM_ASSERT_KERNEL(
          rhs.template Size<0>() == DimX,
-         "Layouts sizes don't match.");
+         "Layouts sizes don't match %d != %d.",
+         DimX, rhs.template Size<0>());
       MFEM_ASSERT_KERNEL(
          rhs.template Size<1>() == DimY,
-         "Layouts sizes don't match.");
+         "Layouts sizes don't match %d != %d.",
+         DimY, rhs.template Size<1>());
    }
 
    template <typename... Idx> MFEM_HOST_DEVICE inline
@@ -222,14 +251,16 @@ public:
    {
       MFEM_ASSERT_KERNEL(
          idx0==MFEM_THREAD_ID(x),
-         "The first index must be equal to the x thread index"
-         " when using Static2dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.");
+         "The first index (%d) must be equal to the x thread index (%d)"
+         " when using SizedStatic2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.",
+         idx0, MFEM_THREAD_ID(x));
       MFEM_ASSERT_KERNEL(
          idx1==MFEM_THREAD_ID(y),
-         "The second index must be equal to the y thread index"
-         " when using Static2dThreadLayout. Use shared memory"
-         " to access values stored in a different thread.");
+         "The second index (%d) must be equal to the y thread index (%d)"
+         " when using SizedStatic2dThreadLayout. Use shared memory"
+         " to access values stored in a different thread.",
+         idx1, MFEM_THREAD_ID(y));
       return layout.index(idx...);
    }
 
