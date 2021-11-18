@@ -71,8 +71,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
          MFEM_UNROLL(D1D)
          for (int dx = 0; dx < D1D; ++dx)
          {
-            const Scalar b = B(dx,qx);
-            const Scalar g = G(dx,qx);
+            const Scalar b = B(qx,dx);
+            const Scalar g = G(qx,dx);
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz)
             {
@@ -102,8 +102,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
          MFEM_UNROLL(D1D)
          for (int dy = 0; dy < D1D; ++dy)
          {
-            const Scalar b = B(dy,qy);
-            const Scalar g = G(dy,qy);
+            const Scalar b = B(qy,dy);
+            const Scalar g = G(qy,dy);
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; dz++)
             {
@@ -137,8 +137,8 @@ auto operator*(const Grad<Basis> &basis, const Dofs &u)
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; qz++)
             {
-               const Scalar b = B(dz,qz);
-               const Scalar g = G(dz,qz);
+               const Scalar b = B(qz,dz);
+               const Scalar g = G(qz,dz);
                u[qz] += QQD(qx,qy,dz,0) * b;
                v[qz] += QQD(qx,qy,dz,1) * b;
                w[qz] += QQD(qx,qy,dz,2) * g;
@@ -211,8 +211,8 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
          MFEM_UNROLL(Q1D)
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const Scalar bt = Bt(qx,dx);
-            const Scalar gt = Gt(qx,dx);
+            const Scalar bt = Bt(dx,qx);
+            const Scalar gt = Gt(dx,qx);
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
@@ -243,8 +243,8 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
          MFEM_UNROLL(Q1D)
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            const Scalar bt = Bt(qy,dy);
-            const Scalar gt = Gt(qy,dy);
+            const Scalar bt = Bt(dy,qy);
+            const Scalar gt = Gt(dy,qy);
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
@@ -278,8 +278,8 @@ auto operator*(const Trans<Grad<Basis>> &basis, const Dofs &u)
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz)
             {
-               const Scalar bt = Bt(qz,dz);
-               const Scalar gt = Gt(qz,dz);
+               const Scalar bt = Bt(dz,qz);
+               const Scalar gt = Gt(dz,qz);
                u[dz] += DDQ(dx,dy,qz,0) * bt;
                v[dz] += DDQ(dx,dy,qz,1) * bt;
                w[dz] += DDQ(dx,dy,qz,2) * gt;
