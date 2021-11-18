@@ -147,10 +147,16 @@ int main(int argc, char *argv[])
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   // ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
+   ifstream mesh_ifs(
+      MakeParFilename("../miniapps/meshing/mesh-explorer.mesh.",
+                      myid));
+   ParMesh pmesh(MPI_COMM_WORLD, mesh_ifs, /* refine: */ false);
+   dim = pmesh.Dimension();
+   pmesh.PrintInfo(cout);
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 0;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();

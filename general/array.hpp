@@ -76,8 +76,8 @@ public:
 
    /** @brief Creates array using an externally allocated pointer @a data_ to
        @a asize elements. The data pointer will not be deleted by Array. */
-   inline Array(T *data_, int asize)
-   { data.Wrap(data_, asize, false); size = asize; }
+   inline Array(T *data_, int asize, bool own_data = false)
+   { data.Wrap(data_, asize, own_data); size = asize; }
 
    /// Copy constructor: deep copy from @a src
    /** This method supports source arrays using any MemoryType. */
@@ -205,7 +205,7 @@ public:
    inline void Copy(Array &copy) const;
 
    /// Make this Array a reference to a pointer.
-   inline void MakeRef(T *, int);
+   inline void MakeRef(T *data_, int size_, bool own_data = false);
 
    /// Make this Array a reference to 'master'.
    inline void MakeRef(const Array &master);
@@ -868,11 +868,11 @@ inline void Array<T>::Copy(Array &copy) const
 }
 
 template <class T>
-inline void Array<T>::MakeRef(T *p, int s)
+inline void Array<T>::MakeRef(T *data_, int size_, bool own_data)
 {
    data.Delete();
-   data.Wrap(p, s, false);
-   size = s;
+   data.Wrap(data_, size_, own_data);
+   size = size_;
 }
 
 template <class T>
