@@ -9,7 +9,6 @@ void E_exact(const Vector &x, Vector &f)
    f = 0.0;
    double kappa = 3.14;
    f(0) = sin(kappa * x(0));
-   // f = 1.;
 }
 
 int main(int argc, char *argv[])
