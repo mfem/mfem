@@ -356,10 +356,10 @@ int main(int argc, char *argv[])
          // K[i] -= step_length_K*grad[i]/log(k+1);
          // K[i] -= step_length_K*grad[i]/sqrt(k);
          // K[i] -= step_length_K*grad[i];
-         K[i] *= exp(-step_length_K*grad[i]);
-         // K[i] = log(K[i]/(1.0 - K[i]));
-         // K[i] = -step_length_K*grad[i]*pow(k,1.0/3.0);
-         // K[i] = 1.0/(1.0 + exp(-K[i]));
+         // K[i] *= exp(-step_length_K*grad[i]);
+         K[i] = log(K[i]/(1.0 - K[i]));
+         K[i] -= step_length_K*grad[i];
+         K[i] = 1.0/(1.0 + exp(-K[i]));
       }
 
       // I. Project K onto constraint set.
