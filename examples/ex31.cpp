@@ -72,7 +72,7 @@ using namespace mfem;
 
 class DykstraProjection
 {
-   protected:
+protected:
    int max_its = 10;
    double domain_volume;
    double volume_fraction = 0.5;
@@ -86,7 +86,7 @@ class DykstraProjection
    {
       for (int i = 0; i < K.Size(); i++)
       {
-         if (K[i] > K_max) 
+         if (K[i] > K_max)
          {
             K[i] = K_max;
          }
@@ -95,12 +95,13 @@ class DykstraProjection
             K[i] = K_min;
          }
          else
-         { // do nothing
+         {
+            // do nothing
          }
       }
    }
 
-   public:
+public:
    DykstraProjection(LinearForm &vol_form_, FiniteElementSpace &control_fes)
    {
       vol_form = &vol_form_;
@@ -135,7 +136,7 @@ class DykstraProjection
          // STEP 1: Project K+p onto { K : \int K <= volume_fraction * vol }.
          *p += K;
          if (misfit > 1e-1)
-         {            
+         {
             K = *p;
             K -= misfit;
          }
