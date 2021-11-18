@@ -43,12 +43,20 @@ public:
    MFEM_HOST_DEVICE
    const T& operator[](int i) const
    {
+      MFEM_ASSERT_KERNEL(
+         i<prod(Dims...),
+         "Trying to access index %d in StaticContainer of capacity %d).",
+         i, prod(Dims...));
       return data[ i ];
    }
 
    MFEM_HOST_DEVICE
    T& operator[](int i)
    {
+      MFEM_ASSERT_KERNEL(
+         i<prod(Dims...),
+         "Trying to access index %d in StaticContainer of capacity %d).",
+         i, prod(Dims...));
       return data[ i ];
    }
 };
