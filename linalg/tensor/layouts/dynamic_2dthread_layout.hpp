@@ -145,7 +145,7 @@ public:
          "The first index (%d) must be equal to the x thread index (%d)"
          " when using SizedDynamic2dThreadLayout. Use shared memory"
          " to access values stored in a different thread.",
-         idx0, MFEM_THREAD_ID(x));
+         idx, MFEM_THREAD_ID(x));
       return 0;
    }
 
