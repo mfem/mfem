@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -92,7 +92,7 @@ void mfem_backtrace(int mode, int depth)
    int err = unw_getcontext(&uc);
    err = err ? err : unw_init_local(&cursor, &uc);
 
-   Array<unw_word_t> addrs;
+   Array<unw_word_t> addrs(MemoryType::HOST);
    while (unw_step(&cursor) > 0 && addrs.Size() != depth)
    {
       err = err ? err : unw_get_proc_name(&cursor, name, UNW_NAME_LEN, &offp);

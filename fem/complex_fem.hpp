@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -238,7 +238,7 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::LEGACYFULL (default)
+       - AssemblyLevel::LEGACY (default)
        - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT
@@ -433,7 +433,7 @@ protected:
    ParLinearForm * plfr;
    ParLinearForm * plfi;
 
-   HYPRE_Int * tdof_offsets;
+   HYPRE_BigInt * tdof_offsets;
 
 public:
 
@@ -576,7 +576,7 @@ public:
    /// Set the desired assembly level.
    /** Valid choices are:
 
-       - AssemblyLevel::LEGACYFULL (default)
+       - AssemblyLevel::LEGACY (default)
        - AssemblyLevel::FULL
        - AssemblyLevel::PARTIAL
        - AssemblyLevel::ELEMENT

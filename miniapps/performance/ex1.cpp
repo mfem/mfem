@@ -199,16 +199,16 @@ int main(int argc, char *argv[])
 
    // Create the LOR mesh and finite element space. In the settings of this
    // example, we can transfer between HO and LOR with the identity operator.
-   Mesh *mesh_lor = NULL;
+   Mesh mesh_lor;
    FiniteElementCollection *fec_lor = NULL;
    FiniteElementSpace *fespace_lor = NULL;
    if (pc_choice == LOR)
    {
       int basis_lor = basis;
       if (basis == BasisType::Positive) { basis_lor=BasisType::ClosedUniform; }
-      mesh_lor = new Mesh(mesh, order, basis_lor);
+      mesh_lor = Mesh::MakeRefined(*mesh, order, basis_lor);
       fec_lor = new H1_FECollection(1, dim);
-      fespace_lor = new FiniteElementSpace(mesh_lor, fec_lor);
+      fespace_lor = new FiniteElementSpace(&mesh_lor, fec_lor);
    }
 
    // 6. Check if the optimized version matches the given space
@@ -396,7 +396,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fespace_lor;
    delete fec_lor;
-   delete mesh_lor;
    if (order > 0) { delete fec; }
    delete mesh;
 

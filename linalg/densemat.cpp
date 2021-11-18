@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -70,10 +70,7 @@ namespace mfem
 
 using namespace std;
 
-DenseMatrix::DenseMatrix() : Matrix(0)
-{
-   data.Reset();
-}
+DenseMatrix::DenseMatrix() : Matrix(0) { }
 
 DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
 {
@@ -84,10 +81,6 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
       data.New(hw);
       std::memcpy(data, m.data, sizeof(double)*hw);
    }
-   else
-   {
-      data.Reset();
-   }
 }
 
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
@@ -97,10 +90,6 @@ DenseMatrix::DenseMatrix(int s) : Matrix(s)
    {
       data.New(s*s);
       *this = 0.0; // init with zeroes
-   }
-   else
-   {
-      data.Reset();
    }
 }
 
@@ -113,10 +102,6 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    {
       data.New(capacity);
       *this = 0.0; // init with zeroes
-   }
-   else
-   {
-      data.Reset();
    }
 }
 
@@ -136,10 +121,6 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
             (*this)(i,j) = mat(j,i);
          }
       }
-   }
-   else
-   {
-      data.Reset();
    }
 }
 
@@ -587,11 +568,7 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
 
 DenseMatrix &DenseMatrix::operator+=(const double *m)
 {
-   const int hw = Height()*Width();
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] += m[i];
-   }
+   kernels::Add(Height(), Width(), m, (double*)data);
    return *this;
 }
 
@@ -695,7 +672,7 @@ void DenseMatrix::Invert()
       piv[c] = i;
       for (j = 0; j < n; j++)
       {
-         Swap<double>((*this)(c, j), (*this)(i, j));
+         mfem::Swap<double>((*this)(c, j), (*this)(i, j));
       }
 
       a = (*this)(c, c) = 1.0 / (*this)(c, c);
@@ -738,7 +715,7 @@ void DenseMatrix::Invert()
       j = piv[c];
       for (i = 0; i < n; i++)
       {
-         Swap<double>((*this)(i, c), (*this)(i, j));
+         mfem::Swap<double>((*this)(i, c), (*this)(i, j));
       }
    }
 #endif
@@ -1918,6 +1895,13 @@ void DenseMatrix::TestInversion()
              << ", cond_F = " << FNorm()*copy.FNorm() << endl;
 }
 
+void DenseMatrix::Swap(DenseMatrix &other)
+{
+   mfem::Swap(width, other.width);
+   mfem::Swap(height, other.height);
+   mfem::Swap(data, other.data);
+}
+
 DenseMatrix::~DenseMatrix()
 {
    data.Delete();
@@ -1934,12 +1918,7 @@ void Add(const DenseMatrix &A, const DenseMatrix &B,
 void Add(double alpha, const double *A,
          double beta,  const double *B, DenseMatrix &C)
 {
-   const int m = C.Height()*C.Width();
-   double *C_data = C.GetData();
-   for (int i = 0; i < m; i++)
-   {
-      C_data[i] = alpha*A[i] + beta*B[i];
-   }
+   kernels::Add(C.Height(), C.Width(), alpha, A, beta, B, C.Data());
 }
 
 void Add(double alpha, const DenseMatrix &A,
@@ -2892,7 +2871,7 @@ bool LUFactors::Factor(int m, double TOL)
             // swap rows i and piv in both L and U parts
             for (int j = 0; j < m; j++)
             {
-               Swap<double>(data[i+j*m], data[piv+j*m]);
+               mfem::Swap<double>(data[i+j*m], data[piv+j*m]);
             }
          }
       }
@@ -2968,7 +2947,7 @@ void LUFactors::Mult(int m, int n, double *X) const
       // X <- P^{-1} X
       for (int i = m-1; i >= 0; i--)
       {
-         Swap<double>(x[i], x[ipiv[i]-ipiv_base]);
+         mfem::Swap<double>(x[i], x[ipiv[i]-ipiv_base]);
       }
       x += m;
    }
@@ -2984,7 +2963,7 @@ void LUFactors::LSolve(int m, int n, double *X) const
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-         Swap<double>(x[i], x[ipiv[i]-ipiv_base]);
+         mfem::Swap<double>(x[i], x[ipiv[i]-ipiv_base]);
       }
       // X <- L^{-1} X
       for (int j = 0; j < m; j++)
@@ -3081,7 +3060,7 @@ void LUFactors::RightSolve(int m, int n, double *X) const
    {
       for (int i = m-1; i >= 0; --i)
       {
-         Swap<double>(x[i*n], x[(ipiv[i]-ipiv_base)*n]);
+         mfem::Swap<double>(x[i*n], x[(ipiv[i]-ipiv_base)*n]);
       }
       ++x;
    }
@@ -3508,6 +3487,13 @@ DenseTensor &DenseTensor::operator=(double c)
    {
       tdata[i] = c;
    }
+   return *this;
+}
+
+DenseTensor &DenseTensor::operator=(const DenseTensor &other)
+{
+   DenseTensor new_tensor(other);
+   Swap(new_tensor);
    return *this;
 }
 

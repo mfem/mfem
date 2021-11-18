@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,10 +17,7 @@
 namespace mfem
 {
 
-DenseSymmetricMatrix::DenseSymmetricMatrix() : Matrix(0)
-{
-   data.Reset();
-}
+DenseSymmetricMatrix::DenseSymmetricMatrix() : Matrix(0) { }
 
 DenseSymmetricMatrix::DenseSymmetricMatrix(int s) : Matrix(s)
 {
@@ -29,10 +26,6 @@ DenseSymmetricMatrix::DenseSymmetricMatrix(int s) : Matrix(s)
    {
       data.New((s*(s+1))/2);
       *this = 0.0; // init with zeroes
-   }
-   else
-   {
-      data.Reset();
    }
 }
 

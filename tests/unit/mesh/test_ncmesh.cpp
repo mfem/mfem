@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,8 +26,10 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
    SECTION("Quad mesh")
    {
       int ne = 2;
-      Mesh mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-      Mesh nc_mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      Mesh nc_mesh = Mesh::MakeCartesian2D(
+                        ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
       nc_mesh.EnsureNCMesh();
 
       mesh.UniformRefinement();
@@ -69,8 +71,10 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
    SECTION("Hexa mesh")
    {
       int ne = 2;
-      Mesh mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
-      Mesh nc_mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+      Mesh nc_mesh = Mesh::MakeCartesian3D(
+                        ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
       nc_mesh.EnsureNCMesh();
 
       mesh.UniformRefinement();
@@ -125,8 +129,10 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
    SECTION("Quad pmesh")
    {
       int ne = 2;
-      Mesh mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-      Mesh nc_mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      Mesh nc_mesh = Mesh::MakeCartesian2D(
+                        ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
       nc_mesh.EnsureNCMesh();
 
       mesh.UniformRefinement();
@@ -181,8 +187,10 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
    SECTION("Hexa pmesh")
    {
       int ne = 2;
-      Mesh mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
-      Mesh nc_mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+      Mesh nc_mesh = Mesh::MakeCartesian3D(
+                        ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
       nc_mesh.EnsureNCMesh();
 
       mesh.UniformRefinement();
