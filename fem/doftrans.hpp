@@ -102,6 +102,10 @@ public:
    virtual void TransformDual(double *v) const = 0;
    virtual void TransformDual(Vector &v) const;
 
+   /** Inverse Transform dual DoFs */
+   virtual void InvTransformDual(double *v) const = 0;
+   virtual void InvTransformDual(Vector &v) const;
+
    /** Transform a matrix of dual DoFs entries as computed by a
        BilinearFormIntegrator before summing into a BilinearForm object. */
    virtual void TransformDual(DenseMatrix &V) const;
@@ -183,10 +187,12 @@ public:
    using DofTransformation::TransformPrimal;
    using DofTransformation::InvTransformPrimal;
    using DofTransformation::TransformDual;
+   using DofTransformation::InvTransformDual;
 
    void TransformPrimal(double *v) const;
    void InvTransformPrimal(double *v) const;
    void TransformDual(double *v) const;
+   void InvTransformDual(double *v) const;
 };
 
 /** Abstract base class for high-order Nedelec spaces on elements with
@@ -235,6 +241,8 @@ public:
    void InvTransformPrimal(double *v) const;
 
    void TransformDual(double *v) const;
+
+   void InvTransformDual(double *v) const;
 };
 
 /// DoF transformation implementation for the Nedelec basis on tetrahedra
@@ -246,12 +254,15 @@ public:
    using DofTransformation::TransformPrimal;
    using DofTransformation::InvTransformPrimal;
    using DofTransformation::TransformDual;
+   using DofTransformation::InvTransformDual;
 
    void TransformPrimal(double *v) const;
 
    void InvTransformPrimal(double *v) const;
 
    void TransformDual(double *v) const;
+
+   void InvTransformDual(double *v) const;
 };
 
 /// DoF transformation implementation for the Nedelec basis on wedge elements
@@ -264,12 +275,16 @@ public:
    using DofTransformation::TransformPrimal;
    using DofTransformation::InvTransformPrimal;
    using DofTransformation::TransformDual;
+   using DofTransformation::InvTransformDual;
 
    void TransformPrimal(double *v) const;
 
    void InvTransformPrimal(double *v) const;
 
    void TransformDual(double *v) const;
+
+   void InvTransformDual(double *v) const;
+
 };
 
 } // namespace mfem
