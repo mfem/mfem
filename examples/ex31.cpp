@@ -70,6 +70,98 @@ using namespace mfem;
  *
  */
 
+class DykstraProjection
+{
+   protected:
+   int max_its = 10;
+   double domain_volume;
+   double volume_fraction = 0.5;
+   double K_max = 1.0;
+   double K_min = 1e-3;
+   GridFunction *p;
+   GridFunction *q;
+   LinearForm *vol_form;
+
+   void ApplyBoundConstraint(GridFunction &K)
+   {
+      for (int i = 0; i < K.Size(); i++)
+      {
+         if (K[i] > K_max) 
+         {
+            K[i] = K_max;
+         }
+         else if (K[i] < K_min)
+         {
+            K[i] = K_min;
+         }
+         else
+         { // do nothing
+         }
+      }
+   }
+
+   public:
+   DykstraProjection(LinearForm &vol_form_, FiniteElementSpace &control_fes)
+   {
+      vol_form = &vol_form_;
+      GridFunction onegf(&control_fes);
+      onegf = 1.0;
+      domain_volume = (*vol_form)(onegf);
+      p = new GridFunction(&control_fes);
+      q = new GridFunction(&control_fes);
+   }
+
+   void SetVolumeFraction(double volume_fraction_)
+   {
+      volume_fraction = volume_fraction_;
+   }
+
+   void SetKBounds(double K_min_, double K_max_)
+   {
+      K_min = K_min_;
+      K_max = K_max_;
+   }
+
+   double Eval(GridFunction &K)
+   {
+      // Project onto intersection of two constraint sets.
+      // Uses Dykstra's projection algorithm.
+      *p = 0.0;
+      *q = 0.0;
+      double volume = (*vol_form)(K);
+      double misfit = ( volume / domain_volume ) - volume_fraction;
+      for (int k = 0; k < max_its; k++)
+      {
+         // STEP 1: Project K+p onto { K : \int K <= volume_fraction * vol }.
+         *p += K;
+         if (misfit > 1e-1)
+         {            
+            K = *p;
+            K -= misfit;
+         }
+         else if (k > 0)
+         {
+            break;
+         }
+
+         // STEP 2: Update p.
+         *p -= K;
+
+         // STEP 3: Project K+q onto { K : K(x) \in [K_min,K_max] }.
+         *q += K;
+         K = *q;
+         ApplyBoundConstraint(K);
+
+         // STEP 4: Update q.
+         *q -= K;
+
+         volume = (*vol_form)(K);
+         misfit = ( volume / domain_volume ) - volume_fraction;
+      }
+      return misfit;
+   }
+};
+
 double load(const Vector & x)
 {
    double x1 = x(0);
@@ -93,7 +185,7 @@ int main(int argc, char *argv[])
    int order = 2;
    bool visualization = true;
    double step_length_K = 1.0;
-   double step_length_lambda = 0.1;
+   double step_length_lambda = 1.0;
    double volume_fraction = 0.5;
    int max_it = 1e3;
    double tol = 1e-2;
@@ -210,29 +302,18 @@ int main(int argc, char *argv[])
       sout_K.precision(8);
    }
 
-   // Project initial K onto constraint set.
-   for (int i = 0; i < K.Size(); i++)
-   {
-      if (K[i] > K_max)
-      {
-         K[i] = K_max;
-      }
-      else if (K[i] < K_min)
-      {
-         K[i] = K_min;
-      }
-      else
-      {
-         // do nothing
-      }
-   }
+   // 12. Project initial K onto constraint set.
+   DykstraProjection Projector(vol_form, control_fes);
+   Projector.SetVolumeFraction(volume_fraction);
+   Projector.SetKBounds(K_min,K_max);
+   Projector.Eval(K);
 
-   // 12. Perform projected gradient descent
+   // 13. Optimize.
    double lambda = 0.0;
    for (int k = 1; k <= max_it; k++)
    {
-      // A. Compute mass
-      double mass = vol_form(K);
+      // A. Compute volume
+      double volume = vol_form(K);
 
       // B. Form state equation
       BilinearForm a(&state_fes);
@@ -249,65 +330,63 @@ int main(int argc, char *argv[])
       a.RecoverFEMSolution(X, b, u);
       double compliance = b(u);
 
-      // E. Send the solution by socket to a GLVis server.
+      // E. Use relative tolerance
+      if (k == 1)
+      {
+         tol *= compliance + 1e-6;
+      }
+
+      // F. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          sout_u << "solution\n" << mesh << u
                 << "window_title 'State u'" << flush;
       }
 
-      // F. Constuct gradient function (i.e., lambda - |\nabla u|^2)
+      // G. Constuct gradient function (i.e., lambda - |\nabla u|^2)
       GradientGridFunctionCoefficient grad_u(&u);
       InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
       grad.ProjectCoefficient(norm2_grad_u);
       grad *= -1.0;
       grad += lambda;
 
-      // G. Update K.
+      // H. Update K.
       for (int i = 0; i < K.Size(); i++)
       {
+         // K[i] -= step_length_K*grad[i]/log(k+1);
+         // K[i] -= step_length_K*grad[i]/sqrt(k);
+         // K[i] -= step_length_K*grad[i];
          K[i] *= exp(-step_length_K*grad[i]);
          // K[i] = log(K[i]/(1.0 - K[i]));
          // K[i] = -step_length_K*grad[i]*pow(k,1.0/3.0);
          // K[i] = 1.0/(1.0 + exp(-K[i]));
       }
 
-      // H. Project K onto constraint set.
-      for (int i = 0; i < K.Size(); i++)
-      {
-         if (K[i] > K_max)
-         {
-            K[i] = K_max;
-         }
-         else if (K[i] < K_min)
-         {
-            K[i] = K_min;
-         }
-         else
-         {
-            // do nothing
-         }
-      }
+      // I. Project K onto constraint set.
+      double grad_lambda = Projector.Eval(K);
+      cout << "grad_lambda = " << grad_lambda << endl;
 
-      // I. Update lambda.
-      double grad_lambda = ( mass / domain_volume ) - volume_fraction;
+      // J. Update lambda.
       lambda += step_length_lambda*grad_lambda;
+      lambda = max(0.0, lambda);
 
-      // J. Compute norm of update.
+      // K. Compute norm of update.
       K_old -= K;
+      // double norm = K_old.ComputeL2Error(zero)/step_length_K*log(k+1);
+      // double norm = K_old.ComputeL2Error(zero)/step_length_K*sqrt(k);
       double norm = K_old.ComputeL2Error(zero)/step_length_K;
       norm = sqrt(norm*norm + grad_lambda*grad_lambda);
       K_old = K;
 
-      // K. Print and exit if norm of grad is small enough.
+      // L. Print and exit if norm of grad is small enough.
       mfem::out << "norm of reduced gradient = " << norm << endl;
       mfem::out << "compliance = " << compliance << endl;
-      mfem::out << "volume_fraction = " << mass / domain_volume << endl;
+      mfem::out << "volume_fraction = " << volume / domain_volume << endl;
       mfem::out << "lambda = " << lambda << endl;
-      // if (norm < tol)
-      // {
-      //    break;
-      // }
+      if (norm < tol)
+      {
+         break;
+      }
 
       if (visualization)
       {
