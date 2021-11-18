@@ -182,6 +182,13 @@ auto MakeNedelecBasis(Config &config,
 ///////////////////////
 // Nedelec Basis Traits
 
+// is_basis
+template <int OpenDofs, int CloseDofs, typename Config>
+struct is_basis_v<NedelecBasis<OpenDofs,CloseDofs,Config>>
+{
+   static constexpr bool value = true;
+};
+
 // is_nedelec_basis
 template <typename Basis>
 struct is_nedelec_basis_v
