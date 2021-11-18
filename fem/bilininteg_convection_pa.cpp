@@ -798,7 +798,7 @@ static void ApplyConvection(const int ne,
    auto Y       = MakeDoFs<Dofs,VDim>(config, dofs, y.ReadWrite(), ne);
    MFEM_FORALL_CONFIG(config, e, ne,
    {
-      Y(e) += transpose(B) * ( D(e) * ( grad(B) * X(e) ) );
+      Y(e) += transpose(B) * D(e) * grad(B) * X(e);
    });
 }
 
