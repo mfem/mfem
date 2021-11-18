@@ -70,7 +70,7 @@ auto operator*(const Basis &basis, const Dofs &u_e)
          MFEM_UNROLL(D1D)
          for (int dx = 0; dx < D1D; ++dx)
          {
-            const Scalar b = B(dx,qx);
+            const Scalar b = B(qx,dx);
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz)
             {
@@ -100,7 +100,7 @@ auto operator*(const Basis &basis, const Dofs &u_e)
          MFEM_UNROLL(D1D)
          for (int dy = 0; dy < D1D; ++dy)
          {
-            const Scalar b = B(dy,qy);
+            const Scalar b = B(qy,dy);
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; dz++)
             {
@@ -133,7 +133,7 @@ auto operator*(const Basis &basis, const Dofs &u_e)
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; qz++)
             {
-               u[qz] += QQD(qx,qy,dz) * B(dz,qz);
+               u[qz] += QQD(qx,qy,dz) * B(qz,dz);
             }
          }
          MFEM_UNROLL(Q1D)
@@ -197,7 +197,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u_q)
          MFEM_UNROLL(Q1D)
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const Scalar bt = Bt(qx,dx);
+            const Scalar bt = Bt(dx,qx);
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
@@ -227,7 +227,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u_q)
          MFEM_UNROLL(Q1D)
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            const Scalar bt = Bt(qy,dy);
+            const Scalar bt = Bt(dy,qy);
             MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
@@ -260,7 +260,7 @@ auto operator*(const Trans<Basis> &basis, const Dofs &u_q)
             MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz)
             {
-               u[dz] += DDQ(dx,dy,qz) * Bt(qz,dz);
+               u[dz] += DDQ(dx,dy,qz) * Bt(dz,qz);
             }
          }
          MFEM_UNROLL(D1D)
