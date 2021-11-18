@@ -301,6 +301,12 @@ struct is_nedelec_dof_v<NedelecDegreesOfFreedom<Dim>>
    static constexpr bool value = true;
 };
 
+template <typename... DofTensors>
+struct is_nedelec_dof_v<NedelecElementDofs<DofTensors...>>
+{
+   static constexpr bool value = true;
+};
+
 template <typename Dofs>
 constexpr bool is_nedelec_dof = is_nedelec_dof_v<Dofs>::value;
 

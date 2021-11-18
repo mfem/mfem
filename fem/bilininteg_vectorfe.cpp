@@ -197,7 +197,7 @@ void ApplyPAHdivMass(const int dofs,
                                   ne);
    MFEM_FORALL_CONFIG(config, e, ne,
    {
-      Y(e) += transpose(B) * ( D(e) * ( B * X(e) ) );
+      Y(e) += transpose(B) * D(e) * B * X(e);
    });
 }
 

@@ -74,7 +74,9 @@ struct get_interp_algo_v<Basis, Dofs,
 template <typename Basis, typename Dofs>
 struct get_interp_algo_v<Basis, Dofs,
    std::enable_if_t<
-      is_nedelec_basis<Basis>
+      is_nedelec_basis<Basis> &&
+      (is_nedelec_dof<Dofs> ||
+       get_basis_dim<Basis> == get_tensor_rank<Dofs>-1)
    > >
 {
    static constexpr InterpAlgo value = InterpAlgo::Nedelec;
