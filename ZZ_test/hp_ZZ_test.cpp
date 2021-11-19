@@ -20,20 +20,39 @@ const char* keys = "Rjlmc*******";
 
 bool ContainsVertex(Mesh *mesh, int elem, const Vertex& vert) // different name?
 {
-   Array<int> v;
-   mesh->GetElementVertices(elem, v);
-   for (int j = 0; j < v.Size(); j++)
+   IsoparametricTransformation Tr;
+   mesh->GetElementTransformation(elem, &Tr);
+   IntegrationPoint reference_pt;
+   Vector physical_pt(3);
+   for (int i = 0; i < 2; i++)
    {
-      double* vertex = mesh->GetVertex(v[j]);
-      double dist = 0.0;
-      for (int l = 0; l < 2; l++) // Euclidean distance in x-y plane
+      for (int j = 0; j < 2; j++)
       {
-         double d = vert(l) - vertex[l];
-         dist += d*d;
+         reference_pt.Set((float)i, (float)j, 0.0, 0.0);
+         Tr.Transform(reference_pt, physical_pt);
+         double dist = 0.0;
+         for (int l = 0; l < 2; l++)
+         {
+            double d = physical_pt(l) - vert(l);
+            dist += d*d;
+         }
+         if (dist == 0) { return true; }
       }
-      if (dist == 0) { return true; }
    }
    return false;
+   // mesh->GetElementVertices(elem, v);
+   // for (int j = 0; j < v.Size(); j++)
+   // {
+   //    double* vertex = mesh->GetVertex(v[j]);
+   //    double dist = 0.0;
+   //    for (int l = 0; l < 2; l++) // Euclidean distance in x-y plane
+   //    {
+   //       double d = vert(l) - vertex[l];
+   //       dist += d*d;
+   //    }
+   //    if (dist == 0) { return true; }
+   // }
+   // return false;
 }
 
 GridFunction* ProlongToMaxOrder(const GridFunction *x)
@@ -96,7 +115,7 @@ int main(int argc, char *argv[])
    bool visualization = false;
    int which_estimator = 0;
    double angle = 7.0*M_PI/4.0;
-//    double angle = 3.0*M_PI/2.0;
+   // double angle = 3.0*M_PI/2.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&problem, "-p", "--problem",
@@ -105,6 +124,7 @@ int main(int argc, char *argv[])
                   "Initial mesh finite element order (polynomial degree).");
    args.AddOption(&ref_threshold, "-rt", "--ref-threshold",
                   "Refine elements with error larger than threshold * max_error.");
+   args.AddOption(&angle, "-a", "--angle", "Angle of the reentrant corner.");
    args.AddOption(&nc_limit, "-nc", "--nc-limit",
                   "Set maximum difference of refinement levels of adjacent elements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -145,10 +165,11 @@ int main(int argc, char *argv[])
       double y = nodes[2*i+1];
       double theta = atan2(y, x);
       if (theta < 0) { theta += 2.0*M_PI; }
-      double delta_theta = theta/(3.0*M_PI/2.0) * angle;
+      double delta_theta = theta * (angle - 3.0*M_PI/2.0) / (3.0*M_PI/2.0);
       nodes[2*i] = x*cos(delta_theta) - y*sin(delta_theta);
       nodes[2*i+1] = x*sin(delta_theta) + y*cos(delta_theta);
    }
+   mesh.SetNodes(nodes);
 
    dim = mesh.Dimension();
    mesh.EnsureNCMesh();
