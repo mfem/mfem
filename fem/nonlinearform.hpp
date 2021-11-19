@@ -36,14 +36,19 @@ protected:
    FiniteElementSpace *fes; // not owned
 
    /// Set of Domain Integrators to be assembled (added).
-   Array<NonlinearFormIntegrator*> dnfi; // owned
+   Array<NonlinearFormIntegrator*> domain_integs; // owned
+   /// Element attribute marker (should be of length mesh->attributes)
+   /// Includes all by default.
+   /// 0 - ignore attribute
+   /// 1 - include attribute
+   Array<Array<int>*>             domain_integs_marker; // not owned
 
    /// Set of interior face Integrators to be assembled (added).
-   Array<NonlinearFormIntegrator*> fnfi; // owned
+   Array<NonlinearFormIntegrator*> interior_face_integs; // owned
 
    /// Set of boundary face Integrators to be assembled (added).
-   Array<NonlinearFormIntegrator*> bfnfi; // owned
-   Array<Array<int>*>              bfnfi_marker; // not owned
+   Array<NonlinearFormIntegrator*> boundary_face_integs; // owned
+   Array<Array<int>*>              boundary_face_integs_marker; // not owned
 
    mutable SparseMatrix *Grad, *cGrad; // owned
    /// Gradient Operator when not assembled as a matrix.
@@ -120,37 +125,44 @@ public:
    FiniteElementSpace *FESpace() { return fes; }
    const FiniteElementSpace *FESpace() const { return fes; }
 
-   /// Adds new Domain Integrator.
-   void AddDomainIntegrator(NonlinearFormIntegrator *nlfi)
-   { dnfi.Append(nlfi); }
+   /** @brief Adds new domain integrator.
+       @note Assumes ownership of @a nlfi. */
+   void AddDomainIntegrator(NonlinearFormIntegrator *nlfi);
+
+   /** @brief Adds new domain integrator restricted to certain elements
+       specified by the @a elem_marker.
+       @note Assumes ownership of @a nlfi. The array @a elem_marker is stored
+       internally as a pointer to the given Array<int> object. */
+   void AddDomainIntegrator(NonlinearFormIntegrator *nlfi,
+                            Array<int> &elem_marker);
 
    /// Access all integrators added with AddDomainIntegrator().
-   Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
-   const Array<NonlinearFormIntegrator*> *GetDNFI() const { return &dnfi; }
+   Array<NonlinearFormIntegrator*> *GetDNFI() { return &domain_integs; }
+   const Array<NonlinearFormIntegrator*> *GetDNFI() const { return &domain_integs; }
 
    /// Adds new Interior Face Integrator.
-   void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
-   { fnfi.Append(nlfi); }
+   void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi);
 
    /** @brief Access all interior face integrators added with
        AddInteriorFaceIntegrator(). */
    const Array<NonlinearFormIntegrator*> &GetInteriorFaceIntegrators() const
-   { return fnfi; }
+   { return interior_face_integs; }
 
-   /// Adds new Boundary Face Integrator.
-   void AddBdrFaceIntegrator(NonlinearFormIntegrator *nlfi)
-   { bfnfi.Append(nlfi); bfnfi_marker.Append(NULL); }
+   /** @brief Adds new boundary face integrator.    
+       @note Assumes ownership of @a nlfi. */
+   void AddBdrFaceIntegrator(NonlinearFormIntegrator *nlfi);
 
-   /** @brief Adds new Boundary Face Integrator, restricted to specific boundary
-       attributes. */
-   void AddBdrFaceIntegrator(NonlinearFormIntegrator *nfi,
-                             Array<int> &bdr_marker)
-   { bfnfi.Append(nfi); bfnfi_marker.Append(&bdr_marker); }
+   /** @brief Adds new boundary face integrator restricted to specific boundary
+       attributes by the @a bdr_marker.
+       @note Assumes ownership of @a nlfi. The array @a bdr_marker is stored
+       internally as a pointer to the given Array<int> object. */
+   void AddBdrFaceIntegrator(NonlinearFormIntegrator *nlfi,
+                             Array<int> &bdr_marker);
 
    /** @brief Access all boundary face integrators added with
        AddBdrFaceIntegrator(). */
    const Array<NonlinearFormIntegrator*> &GetBdrFaceIntegrators() const
-   { return bfnfi; }
+   { return boundary_face_integs; }
 
    /// Specify essential boundary conditions.
    /** This method calls FiniteElementSpace::GetEssentialTrueDofs() and stores
@@ -240,14 +252,14 @@ protected:
    Array<FiniteElementSpace*> fes;
 
    /// Set of Domain Integrators to be assembled (added).
-   Array<BlockNonlinearFormIntegrator*> dnfi;
+   Array<BlockNonlinearFormIntegrator*> domain_integs;
 
    /// Set of interior face Integrators to be assembled (added).
-   Array<BlockNonlinearFormIntegrator*> fnfi;
+   Array<BlockNonlinearFormIntegrator*> interior_face_integs;
 
    /// Set of Boundary Face Integrators to be assembled (added).
-   Array<BlockNonlinearFormIntegrator*> bfnfi;
-   Array<Array<int>*>           bfnfi_marker;
+   Array<BlockNonlinearFormIntegrator*> boundary_face_integs;
+   Array<Array<int>*>           boundary_face_integs_marker;
 
    /** Auxiliary block-vectors for wrapping input and output vectors or holding
        GridFunction-like block-vector data (e.g. in parallel). */
@@ -312,15 +324,15 @@ public:
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BlockNonlinearFormIntegrator *nlfi)
-   { dnfi.Append(nlfi); }
+   { domain_integs.Append(nlfi); }
 
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
-   { fnfi.Append(nlfi); }
+   { interior_face_integs.Append(nlfi); }
 
    /// Adds new Boundary Face Integrator.
    void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
-   { bfnfi.Append(nlfi); bfnfi_marker.Append(NULL); }
+   { boundary_face_integs.Append(nlfi); boundary_face_integs_marker.Append(NULL); }
 
    /** @brief Adds new Boundary Face Integrator, restricted to specific boundary
        attributes. */
