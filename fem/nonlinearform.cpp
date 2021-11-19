@@ -263,9 +263,9 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
             x.GetSubVector(vdofs, el_x);
             fe1 = fes->GetFE(tr->Elem1No);
             fe2 = fes->GetFE(tr->Elem2No);
-            for (int k = 0; k < fnfi.Size(); k++)
+            for (int k = 0; k < interior_face_integs.Size(); k++)
             {
-               energy += fnfi[k]->GetFaceEnergy(*fe1, *fe2, *tr, el_x);
+               energy += interior_face_integs[k]->GetFaceEnergy(*fe1, *fe2, *tr, el_x);
             }
          }
       }
@@ -280,14 +280,14 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < bfnfi.Size(); k++)
+      for (int k = 0; k < boundary_face_integs.Size(); k++)
       {
-         if (bfnfi_marker[k] == NULL)
+         if (boundary_face_integs_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *bfnfi_marker[k];
+         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
@@ -313,12 +313,12 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
             // but we can't dereference a NULL pointer, and we don't want to
             // actually make a fake element.
             fe2 = fe1;
-            for (int k = 0; k < bfnfi.Size(); k++)
+            for (int k = 0; k < boundary_face_integs.Size(); k++)
             {
-               if (bfnfi_marker[k] &&
-                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+               if (boundary_face_integs_marker[k] &&
+                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               energy += bfnfi[k]->GetFaceEnergy(*fe1, *fe2, *tr, el_x);
+               energy += boundary_face_integs[k]->GetFaceEnergy(*fe1, *fe2, *tr, el_x);
             }
          }
       }
