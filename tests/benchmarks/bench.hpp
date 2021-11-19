@@ -13,12 +13,11 @@
 #define MFEM_TESTS_BENCH_HPP
 
 #include "mfem.hpp"
+using namespace mfem;
 
 #ifdef MFEM_USE_BENCHMARK
 
 #include "benchmark/benchmark.h"
-
-using namespace mfem;
 namespace bm = benchmark;
 namespace bmi = benchmark::internal;
 
@@ -65,6 +64,15 @@ public:
                    << std::endl;
       }
    }
+};
+
+struct NoReporter : public ::benchmark::BenchmarkReporter
+{
+   explicit NoReporter() {}
+   bool ReportContext(const Context &) { return true; }
+   void ReportRuns(const std::vector<Run> &) { }
+   operator NoReporter*() { return this; }
+   //void Finalize() {}
 };
 
 } // namespace mfem
