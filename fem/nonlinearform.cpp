@@ -21,72 +21,77 @@ NonlinearForm::NonlinearForm(NonlinearForm &&other)
      sequence(other.fes->GetSequence()), P(other.fes->GetProlongationMatrix()),
      cP(dynamic_cast<const SparseMatrix*>(P))
 {
+   // We swap stored integrators and markers with the moved nonlinear form
+   mfem::Swap(domain_integs, other.domain_integs);
+   mfem::Swap(domain_integs_marker, other.domain_integs_marker);
+   mfem::Swap(interior_face_integs, other.interior_face_integs);
+   mfem::Swap(boundary_face_integs, other.boundary_face_integs);
+   mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
+
+   /// Leave the moved nonlinear form in a state as if it was just constructed
+   /// with fes
+   other.ext = nullptr;
    other.cGrad = nullptr;
    other.Grad = nullptr;
-   domain_integs.SetSize(other.domain_integs.Size());
-   for (int i = 0; i <  domain_integs.Size(); i++)
-   {
-      domain_integs[i] = other.domain_integs[i];
-      other.domain_integs[i] = nullptr;
-   }
-
-   interior_face_integs.SetSize(other.interior_face_integs.Size());
-   for (int i = 0; i <  interior_face_integs.Size(); i++)
-   {
-      interior_face_integs[i] = other.interior_face_integs[i];
-      other.interior_face_integs[i] = nullptr;
-   }
-
-   boundary_face_integs.SetSize(other.boundary_face_integs.Size());
-   boundary_face_integs_marker.SetSize(other.boundary_face_integs_marker.Size());
-   for (int i = 0; i <  boundary_face_integs.Size(); i++)
-   {
-      boundary_face_integs[i] = other.boundary_face_integs[i];
-      other.boundary_face_integs[i] = nullptr;
-      boundary_face_integs_marker[i] = other.boundary_face_integs_marker[i];
-   }
-   other.ext = nullptr;
+   other.assembly = AssemblyLevel::LEGACY;
 }
 
 NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
 {
    if (this != &other)
    {
-      Operator::operator=(std::move(other));
+      /// Cleanup current nonlinear form first
       delete cGrad;
       delete Grad;
-      for (int i = 0; i <  domain_integs.Size(); i++) { delete  domain_integs[i]; }
-      for (int i = 0; i <  interior_face_integs.Size(); i++) { delete  interior_face_integs[i]; }
+      for (int i = 0; i < domain_integs.Size(); i++) { delete domain_integs[i]; }
+      for (int i = 0; i < interior_face_integs.Size(); i++) { delete interior_face_integs[i]; }
       for (int i = 0; i < boundary_face_integs.Size(); i++) { delete boundary_face_integs[i]; }
       delete ext;
+
+      /// Null out all our integs and set size of their arrays to zero
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         domain_integs[k] = nullptr;
+      }
+      domain_integs.SetSize(0);
+      for (int k = 0; k < boundary_face_integs.Size(); k++)
+      {
+         boundary_face_integs[k] = nullptr;
+      }
+      boundary_face_integs.SetSize(0);
+      for (int k = 0; k < interior_face_integs.Size(); k++)
+      {
+         interior_face_integs[k] = nullptr;
+      }
+      interior_face_integs.SetSize(0);
+
+      /// Null out all our markers and set size of their arrays to zero
+      for (int k = 0; k < domain_integs_marker.Size(); ++k)
+      {
+         domain_integs_marker[k] = nullptr;
+      }
+      domain_integs_marker.SetSize(0);
+      for (int k = 0; k < boundary_face_integs_marker.Size(); ++k)
+      {
+         boundary_face_integs_marker[k] = nullptr;
+      }
+      boundary_face_integs_marker.SetSize(0);
+
+      /// Now steal data from other nonlinear form leaving it in a state as if
+      /// it was just constructed with fes
+      Operator::operator=(std::move(other));
 
       Grad = other.Grad;
       other.Grad = nullptr;
       cGrad = other.cGrad;
       other.cGrad = nullptr;
 
-      domain_integs.SetSize(other.domain_integs.Size());
-      for (int i = 0; i <  domain_integs.Size(); i++)
-      {
-         domain_integs[i] = other.domain_integs[i];
-         other.domain_integs[i] = nullptr;
-      }
-
-      interior_face_integs.SetSize(other.interior_face_integs.Size());
-      for (int i = 0; i <  interior_face_integs.Size(); i++)
-      {
-         interior_face_integs[i] = other.interior_face_integs[i];
-         other.interior_face_integs[i] = nullptr;
-      }
-
-      boundary_face_integs.SetSize(other.boundary_face_integs.Size());
-      boundary_face_integs_marker.SetSize(other.boundary_face_integs_marker.Size());
-      for (int i = 0; i <  boundary_face_integs.Size(); i++)
-      {
-         boundary_face_integs[i] = other.boundary_face_integs[i];
-         other.boundary_face_integs[i] = nullptr;
-         boundary_face_integs_marker[i] = other.boundary_face_integs_marker[i];
-      }
+      // Swap our empty integ and marker arrays with the moved nonlinear form
+      mfem::Swap(domain_integs, other.domain_integs);
+      mfem::Swap(domain_integs_marker, other.domain_integs_marker);
+      mfem::Swap(interior_face_integs, other.interior_face_integs);
+      mfem::Swap(boundary_face_integs, other.boundary_face_integs);
+      mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
 
       ext = other.ext;
       other.ext = nullptr;
