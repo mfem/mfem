@@ -30,18 +30,13 @@
 //
 // Device sample runs:
 //               mpirun -np 4 ex1p -pa -d cuda
-//               mpirun -np 4 ex1p -fa -d cuda
 //               mpirun -np 4 ex1p -pa -d occa-cuda
 //               mpirun -np 4 ex1p -pa -d raja-omp
 //               mpirun -np 4 ex1p -pa -d ceed-cpu
 //               mpirun -np 4 ex1p -pa -d ceed-cpu -o 4 -a
-//               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/square-mixed.mesh
-//               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/fichera-mixed.mesh
 //             * mpirun -np 4 ex1p -pa -d ceed-cuda
 //             * mpirun -np 4 ex1p -pa -d ceed-hip
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
-//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/square-mixed.mesh
-//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/fichera-mixed.mesh
 //               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
 // Description:  This example code demonstrates the use of MFEM to define a
@@ -68,18 +63,16 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI and HYPRE.
-   Mpi::Init();
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
-   Hypre::Init();
+   // 1. Initialize MPI.
+   MPI_Session mpi;
+   int num_procs = mpi.WorldSize();
+   int myid = mpi.WorldRank();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   bool fa = false;
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
@@ -94,8 +87,6 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
-                  "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
 #ifdef MFEM_USE_CEED
@@ -147,10 +138,16 @@ int main(int argc, char *argv[])
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   // ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
+   ifstream mesh_ifs(
+      MakeParFilename("../miniapps/meshing/mesh-explorer.mesh.",
+                      myid));
+   ParMesh pmesh(MPI_COMM_WORLD, mesh_ifs, /* refine: */ false);
+   dim = pmesh.Dimension();
+   pmesh.PrintInfo(cout);
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 0;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();
@@ -219,14 +216,6 @@ int main(int argc, char *argv[])
    //     Diffusion domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   if (fa)
-   {
-      a.SetAssemblyLevel(AssemblyLevel::FULL);
-      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
-      // when Device::IsEnabled() returns true). This makes the results
-      // bit-for-bit deterministic at the cost of somewhat longer run time.
-      a.EnableSparseMatrixSorting(Device::IsEnabled());
-   }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear
