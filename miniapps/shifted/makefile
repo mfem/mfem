@@ -25,8 +25,10 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SHIFTED_COMMON_SRC = dist_solver.cpp sbm_solver.cpp marking.cpp
-SHIFTED_COMMON_OBJ = $(SHIFTED_COMMON_SRC:.cpp=.o)
+DIFFUSION_SRC = diffusion.cpp dist_solver.cpp sbm_solver.cpp marking.cpp
+DIFFUSION_OBJ = $(DIFFUSION_SRC:.cpp=.o)
+DISTANCE_SRC = distance.cpp dist_solver.cpp
+DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
 
 PAR_MINIAPPS = distance diffusion
 
@@ -51,13 +53,16 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 %: %.cpp
 %.o: %.cpp
 
-%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+%.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
-%: %.o $(SHIFTED_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(COMMON_LIB) $(MFEM_LIBS)
-
 all: $(MINIAPPS)
+
+distance: sbm_aux.hpp $(DISTANCE_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DISTANCE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+diffusion: sbm_aux.hpp $(DIFFUSION_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DIFFUSION_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:

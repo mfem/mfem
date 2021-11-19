@@ -481,6 +481,27 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 }
 
+void ParGridFunction::GetDerivative(int comp, int der_comp,
+                                    ParGridFunction &der)
+{
+   Array<int> overlap;
+   AccumulateAndCountDerivativeValues(comp, der_comp, der, overlap);
+
+   // Count the zones globally.
+   GroupCommunicator &gcomm = der.ParFESpace()->GroupComm();
+   gcomm.Reduce<int>(overlap, GroupCommunicator::Sum);
+   gcomm.Bcast(overlap);
+
+   // Accumulate for all dofs.
+   gcomm.Reduce<double>(der.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast<double>(der.HostReadWrite());
+
+   for (int i = 0; i < overlap.Size(); i++)
+   {
+      der(i) /= overlap[i];
+   }
+}
+
 void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
 {
    int ne = fes->GetNE();
