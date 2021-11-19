@@ -148,7 +148,7 @@ public:
    const Array<NonlinearFormIntegrator*> &GetInteriorFaceIntegrators() const
    { return interior_face_integs; }
 
-   /** @brief Adds new boundary face integrator.    
+   /** @brief Adds new boundary face integrator.
        @note Assumes ownership of @a nlfi. */
    void AddBdrFaceIntegrator(NonlinearFormIntegrator *nlfi);
 

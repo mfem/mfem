@@ -198,8 +198,10 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
    if (ext)
    {
-      MFEM_VERIFY(!interior_face_integs.Size(), "Interior faces terms not yet implemented!");
-      MFEM_VERIFY(!boundary_face_integs.Size(), "Boundary face terms not yet implemented!");
+      MFEM_VERIFY(!interior_face_integs.Size(),
+                  "Interior faces terms not yet implemented!");
+      MFEM_VERIFY(!boundary_face_integs.Size(),
+                  "Boundary face terms not yet implemented!");
       return ext->GetGridFunctionEnergy(x);
    }
 
@@ -783,7 +785,7 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
          for (int k = 0; k < domain_integs.Size(); ++k)
          {
             domain_integs[k]->AssembleElementVector(fe, *T,
-                                           el_x_const, el_y);
+                                                    el_x_const, el_y);
 
             for (int s=0; s<fes.Size(); ++s)
             {
