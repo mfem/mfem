@@ -25,15 +25,126 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    fes = f;
    extern_lfs = 1;
 
-   // Copy the pointers to the integrators
+   // Copy the pointers to the integrators and markers
    domain_integs = lf->domain_integs;
+   domain_integs_marker = lf->domain_integs_marker;
 
    domain_delta_integs = lf->domain_delta_integs;
 
    boundary_integs = lf->boundary_integs;
+   boundary_integs_marker = lf->boundary_integs_marker;
 
    boundary_face_integs = lf->boundary_face_integs;
    boundary_face_integs_marker = lf->boundary_face_integs_marker;
+
+   interior_face_integs = lf->interior_face_integs;
+}
+
+LinearForm::LinearForm(LinearForm &&other)
+   : Vector(other.Size()), fes(other.fes), extern_lfs(other.extern_lfs)
+{
+   // Linear forms are stored on the device
+   UseDevice(true);
+
+   // We swap stored integrators and markers with the moved LinearForm
+   mfem::Swap(domain_integs, other.domain_integs);
+   mfem::Swap(domain_integs_marker, other.domain_integs_marker);
+   mfem::Swap(domain_delta_integs, other.domain_delta_integs);
+   mfem::Swap(boundary_integs, other.boundary_integs);
+   mfem::Swap(boundary_integs_marker, other.boundary_integs_marker);
+   mfem::Swap(boundary_face_integs, other.boundary_face_integs);
+   mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
+   mfem::Swap(interior_face_integs, other.interior_face_integs);
+
+   other.fes = nullptr;
+
+   // moved LinearForm now set to owns its integrators, though none are stored
+   // since we swapped our newly constructed empty Arrays with its Arrays
+   other.extern_lfs = 0;
+}
+
+LinearForm& LinearForm::operator=(LinearForm &&other)
+{
+   if (this != &other)
+   {
+      /// If we own our integrators, delete them
+      if (extern_lfs == 0)
+      {
+         for (int k = 0; k < domain_delta_integs.Size(); k++)
+         { delete domain_delta_integs[k]; }
+         for (int k = 0; k < domain_integs.Size(); k++) { delete domain_integs[k]; }
+         for (int k = 0; k < boundary_integs.Size(); k++) { delete boundary_integs[k]; }
+         for (int k = 0; k < boundary_face_integs.Size(); k++)
+         { delete boundary_face_integs[k]; }
+         for (int k = 0; k < interior_face_integs.Size(); k++)
+         { delete interior_face_integs[k]; }
+      }
+
+      /// Null out all integs
+      for (int k = 0; k < domain_delta_integs.Size(); k++)
+      {
+         domain_delta_integs[k] = nullptr;
+      }
+      domain_delta_integs.SetSize(0);
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         domain_integs[k] = nullptr;
+      }
+      domain_integs.SetSize(0);
+      for (int k = 0; k < boundary_integs.Size(); k++)
+      {
+         boundary_integs[k] = nullptr;
+      }
+      boundary_integs.SetSize(0);
+      for (int k = 0; k < boundary_face_integs.Size(); k++)
+      {
+         boundary_face_integs[k] = nullptr;
+      }
+      boundary_face_integs.SetSize(0);
+      for (int k = 0; k < interior_face_integs.Size(); k++)
+      {
+         interior_face_integs[k] = nullptr;
+      }
+      interior_face_integs.SetSize(0);
+
+      /// Null out all markers
+      for (int k = 0; k < domain_integs_marker.Size(); ++k)
+      {
+         domain_integs_marker[k] = nullptr;
+      }
+      domain_integs_marker.SetSize(0);
+      for (int k = 0; k < boundary_integs_marker.Size(); ++k)
+      {
+         boundary_integs_marker[k] = nullptr;
+      }
+      boundary_integs_marker.SetSize(0);
+      for (int k = 0; k < boundary_face_integs_marker.Size(); ++k)
+      {
+         boundary_face_integs_marker[k] = nullptr;
+      }
+      boundary_face_integs_marker.SetSize(0);
+
+      Vector::operator=(std::move(other));
+
+      // swap stored integrators and markers with the moved LinearForm
+      mfem::Swap(domain_integs, other.domain_integs);
+      mfem::Swap(domain_integs_marker, other.domain_integs_marker);
+      mfem::Swap(domain_delta_integs, other.domain_delta_integs);
+      mfem::Swap(boundary_integs, other.boundary_integs);
+      mfem::Swap(boundary_integs_marker, other.boundary_integs_marker);
+      mfem::Swap(boundary_face_integs, other.boundary_face_integs);
+      mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
+      mfem::Swap(interior_face_integs, other.interior_face_integs);
+
+      fes = other.fes;
+      other.fes = nullptr;
+
+      extern_lfs = other.extern_lfs;
+      // moved LinearForm now set to owns its integrators, though none are stored
+      // since we swapped our empty Arrays with its Arrays
+      other.extern_lfs = 0;
+   }
+   return *this;
 }
 
 void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)

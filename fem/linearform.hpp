@@ -67,10 +67,6 @@ protected:
    /// Force (re)computation of delta locations.
    void ResetDeltaLocations() { domain_delta_integs_elem_id.SetSize(0); }
 
-private:
-   /// Copy construction is not supported; body is undefined.
-   LinearForm(const LinearForm &);
-
 public:
    /// Creates linear form associated with FE space @a *f.
    /** The pointer @a f is not owned by the newly constructed object. */
@@ -100,6 +96,9 @@ public:
    LinearForm(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
    { fes = f; extern_lfs = 0; }
 
+   /// Explicitly prohibit copy construction of LinearForm
+   LinearForm(const LinearForm &other) = delete;
+
    /// Copy assignment. Only the data of the base class Vector is copied.
    /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
        have the same size.
@@ -108,6 +107,16 @@ public:
        assignment operator. */
    LinearForm &operator=(const LinearForm &rhs)
    { return operator=((const Vector &)rhs); }
+
+   /// Move constructor for LinearForm.
+   /** This constructor "steals" the owned data members from the @a other
+       LinearForm. */
+   LinearForm(LinearForm &&other);
+
+   /// Move assignment operator for LinearForm
+   /** This assignment first frees all owned data, then "steals" the owned data
+       members from the @a other LinearForm. */
+   LinearForm& operator=(LinearForm &&other);
 
    /// (DEPRECATED) Return the FE space associated with the LinearForm.
    /** @deprecated Use FESpace() instead. */
