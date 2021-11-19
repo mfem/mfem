@@ -236,7 +236,8 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
          if (doftrans) {doftrans->InvTransformPrimal(el_x); }
          for (int k = 0; k < domain_integs.Size(); k++)
          {
-            if ( domain_integs_marker[k] == nullptr || (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+            if (domain_integs_marker[k] == nullptr ||
+                (*(domain_integs_marker[k]))[elem_attr-1] == 1)
             {
                energy += domain_integs[k]->GetElementEnergy(*fe, *T, el_x);
             }
@@ -325,7 +326,8 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
          if (doftrans) {doftrans->InvTransformPrimal(el_x); }
          for (int k = 0; k < domain_integs.Size(); k++)
          {
-            if (domain_integs_marker[k] == nullptr || (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+            if (domain_integs_marker[k] == nullptr ||
+                (*(domain_integs_marker[k]))[elem_attr-1] == 1)
             {
                domain_integs[k]->AssembleElementVector(*fe, *T, el_x, el_y);
                if (doftrans) {doftrans->TransformDual(el_y); }
@@ -487,7 +489,8 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
          if (doftrans) {doftrans->InvTransformPrimal(el_x); }
          for (int k = 0; k < domain_integs.Size(); k++)
          {
-            if (domain_integs_marker[k] == nullptr || (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+            if (domain_integs_marker[k] == nullptr ||
+                (*(domain_integs_marker[k]))[elem_attr-1] == 1)
             {
                domain_integs[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
                if (doftrans) { doftrans->TransformDual(elmat); }
