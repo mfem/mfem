@@ -81,6 +81,7 @@ NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
       /// it was just constructed with fes
       Operator::operator=(std::move(other));
 
+      other.assembly = AssemblyLevel::LEGACY;
       Grad = other.Grad;
       other.Grad = nullptr;
       cGrad = other.cGrad;
