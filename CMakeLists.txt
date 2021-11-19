@@ -252,6 +252,11 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   endif()
   find_package(OpenMP REQUIRED)
   set(OPENMP_LIBRARIES ${OpenMP_CXX_LIBRARIES})
+  if(APPLE)
+    # On macOS, the compiler needs additional help to find the <omp.h> header.
+    # See issue #2642 for more information.
+    include_directories(${OpenMP_CXX_INCLUDE_DIRS})
+  endif(APPLE)
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)
@@ -576,7 +581,11 @@ add_custom_target(${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 # Create a target for all examples and, optionally, enable it.
 set(MFEM_ALL_EXAMPLES_TARGET_NAME examples)
 add_mfem_target(${MFEM_ALL_EXAMPLES_TARGET_NAME} ${MFEM_ENABLE_EXAMPLES})
-add_subdirectory(examples EXCLUDE_FROM_ALL)
+if (MFEM_ENABLE_EXAMPLES)
+  add_subdirectory(examples) #install examples if enabled
+else()
+  add_subdirectory(examples EXCLUDE_FROM_ALL)
+endif()
 
 # Create a target for all miniapps and, optionally, enable it.
 set(MFEM_ALL_MINIAPPS_TARGET_NAME miniapps)
