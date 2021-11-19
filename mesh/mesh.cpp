@@ -20,6 +20,7 @@
 #include "../general/tic_toc.hpp"
 #include "../general/gecko.hpp"
 #include "../general/kdtree.hpp"
+#include "../general/sets.hpp"
 #include "../fem/quadinterpolator.hpp"
 
 #include <iostream>
