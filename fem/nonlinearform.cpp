@@ -209,19 +209,35 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
    Vector el_x;
    const FiniteElement *fe;
    ElementTransformation *T;
+   Mesh *mesh = fes->GetMesh();
    double energy = 0.0;
 
    if (domain_integs.Size())
    {
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         if (domain_integs_marker[k] != nullptr)
+         {
+            MFEM_VERIFY(mesh->attributes.Size() ==
+                        domain_integs_marker[k]->Size(),
+                        "invalid element marker for domain integrator #"
+                        << k << ", counting from zero");
+         }
+      }
+
       for (int i = 0; i < fes->GetNE(); i++)
       {
+         int elem_attr = mesh->GetAttribute(i);
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          x.GetSubVector(vdofs, el_x);
          for (int k = 0; k < domain_integs.Size(); k++)
          {
-            energy += domain_integs[k]->GetElementEnergy(*fe, *T, el_x);
+            if ( domain_integs_marker[k] == nullptr || (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+            {
+               energy += domain_integs[k]->GetElementEnergy(*fe, *T, el_x);
+            }
          }
       }
    }
@@ -285,16 +301,31 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (domain_integs.Size())
    {
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         if (domain_integs_marker[k] != nullptr)
+         {
+            MFEM_VERIFY(mesh->attributes.Size() ==
+                        domain_integs_marker[k]->Size(),
+                        "invalid element marker for domain integrator #"
+                        << k << ", counting from zero");
+         }
+      }
+
       for (int i = 0; i < fes->GetNE(); i++)
       {
+         int elem_attr = mesh->GetAttribute(i);
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          px.GetSubVector(vdofs, el_x);
          for (int k = 0; k < domain_integs.Size(); k++)
          {
-            domain_integs[k]->AssembleElementVector(*fe, *T, el_x, el_y);
-            py.AddElementVector(vdofs, el_y);
+            if ( domain_integs_marker[k] == nullptr || (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+            {
+               domain_integs[k]->AssembleElementVector(*fe, *T, el_x, el_y);
+               py.AddElementVector(vdofs, el_y);
+            }
          }
       }
    }
@@ -429,17 +460,32 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 
    if (domain_integs.Size())
    {
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         if (domain_integs_marker[k] != nullptr)
+         {
+            MFEM_VERIFY(mesh->attributes.Size() ==
+                        domain_integs_marker[k]->Size(),
+                        "invalid element marker for domain integrator #"
+                        << k << ", counting from zero");
+         }
+      }
+
       for (int i = 0; i < fes->GetNE(); i++)
       {
+         int elem_attr = fes->GetMesh()->GetAttribute(i);
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          px.GetSubVector(vdofs, el_x);
          for (int k = 0; k < domain_integs.Size(); k++)
          {
-            domain_integs[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
-            Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
-            // Grad->AddSubMatrix(vdofs, vdofs, elmat, 1);
+            if ( domain_integs_marker[k] == nullptr || (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+            {
+               domain_integs[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
+               Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
+               // Grad->AddSubMatrix(vdofs, vdofs, elmat, 1);
+            }
          }
       }
    }
@@ -576,8 +622,8 @@ NonlinearForm::~NonlinearForm()
 {
    delete cGrad;
    delete Grad;
-   for (int i = 0; i <  domain_integs.Size(); i++) { delete  domain_integs[i]; }
-   for (int i = 0; i <  interior_face_integs.Size(); i++) { delete  interior_face_integs[i]; }
+   for (int i = 0; i < domain_integs.Size(); i++) { delete domain_integs[i]; }
+   for (int i = 0; i < interior_face_integs.Size(); i++) { delete interior_face_integs[i]; }
    for (int i = 0; i < boundary_face_integs.Size(); i++) { delete boundary_face_integs[i]; }
    delete ext;
 }
