@@ -9,11 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_COLD_PLASMA_DIELECTRIC_SOLVER
-#define MFEM_COLD_PLASMA_DIELECTRIC_SOLVER
+#ifndef MFEM_COLD_PLASMA_DIELECTRIC_EB_SOLVER
+#define MFEM_COLD_PLASMA_DIELECTRIC_EB_SOLVER
 
+#include "../common/fem_extras.hpp"
 #include "../common/pfem_extras.hpp"
 #include "plasma.hpp"
+#include "stix_bcs.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -23,6 +25,7 @@
 namespace mfem
 {
 
+using common::L2_FESpace;
 using common::H1_ParFESpace;
 using common::ND_ParFESpace;
 using common::RT_ParFESpace;
@@ -33,121 +36,39 @@ using common::ParDiscreteCurlOperator;
 namespace plasma
 {
 
-// Solver options
-struct SolverOptions
-{
-   int maxIter;
-   int kDim;
-   int printLvl;
-   double relTol;
-
-   // Euclid Options
-   int euLvl;
-};
-
-struct AttributeArrays
-{
-   Array<int> attr;
-   Array<int> attr_marker;
-
-};
-
-struct ComplexCoefficientByAttr : public AttributeArrays
-{
-   Coefficient * real;
-   Coefficient * imag;
-};
-
-struct ComplexVectorCoefficientByAttr : public AttributeArrays
-{
-   VectorCoefficient * real;
-   VectorCoefficient * imag;
-};
-
-// Used for combining scalar coefficients
-double prodFunc(double a, double b);
-
-class StixBCs
-{
-public:
-   enum BCType {DIRICHLET_BC, NEUMANN_BC, SHEATH_BC};
-
-private:
-   Array<ComplexVectorCoefficientByAttr*>  dbc; // Dirichlet BC data
-   Array<ComplexVectorCoefficientByAttr*>  nbc; // Neumann BC data
-   Array<ComplexCoefficientByAttr*> sbc; // Sheath BC data
-
-   mutable Array<int>  hbc_attr; // Homogeneous Neumann BC boundary attributes
-   Array<int>  dbc_attr; // Dirichlet BC boundary attributes
-
-   std::set<int> bc_attr;
-   const Array<int> & bdr_attr;
-
-public:
-   StixBCs(const Array<int> & bdr)
-      : bdr_attr(bdr) {}
-
-   ~StixBCs();
-
-   static const char * GetBCTypeName(BCType bctype);
-
-   // Enforce u = val on boundaries with attributes in bdr
-   void AddDirichletBC(const Array<int> & bdr,
-                       VectorCoefficient &real_val,
-                       VectorCoefficient &imag_val);
-
-   // Enforce du/dn = val on boundaries with attributes in bdr
-   void AddNeumannBC(const Array<int> & bdr,
-                     VectorCoefficient &real_val,
-                     VectorCoefficient &imag_val);
-
-   // Model a non-linear plasma sheath on boundaries with attributes in bdr
-   void AddSheathBC(const Array<int> & bdr,
-                    Coefficient &real_imped,
-                    Coefficient &imag_imped);
-
-   const Array<ComplexVectorCoefficientByAttr*> & GetDirichletBCs() const
-   { return dbc; }
-   const Array<ComplexVectorCoefficientByAttr*> & GetNeumannBCs() const
-   { return nbc; }
-   const Array<ComplexCoefficientByAttr*> & GetSheathBCs() const { return sbc; }
-
-   const Array<int> & GetHomogeneousNeumannBDR() const;
-   const Array<int> & GetDirichletBDR() const { return dbc_attr; }
-};
-
+/*
 /// Coefficient which returns func(kr*x)*exp(-ki*x) where kr and ki are vectors
 class ComplexPhaseCoefficient : public Coefficient
 {
 private:
-   double(*func_)(double);
-   VectorCoefficient * kr_;
-   VectorCoefficient * ki_;
-   mutable Vector krVec_;
-   mutable Vector kiVec_;
+ double(*func_)(double);
+ VectorCoefficient * kr_;
+ VectorCoefficient * ki_;
+ mutable Vector krVec_;
+ mutable Vector kiVec_;
 
 public:
-   ComplexPhaseCoefficient(Vector & kr, Vector & ki, double(&func)(double))
-      : func_(&func), kr_(NULL), ki_(NULL), krVec_(kr), kiVec_(ki) {}
+ ComplexPhaseCoefficient(Vector & kr, Vector & ki, double(&func)(double))
+    : func_(&func), kr_(NULL), ki_(NULL), krVec_(kr), kiVec_(ki) {}
 
-   ComplexPhaseCoefficient(VectorCoefficient & kr, VectorCoefficient & ki,
-                           double(&func)(double))
-      : func_(&func), kr_(&kr), ki_(&ki),
-        krVec_(kr.GetVDim()), kiVec_(ki.GetVDim()) {}
+ ComplexPhaseCoefficient(VectorCoefficient & kr, VectorCoefficient & ki,
+                         double(&func)(double))
+    : func_(&func), kr_(&kr), ki_(&ki),
+      krVec_(kr.GetVDim()), kiVec_(ki.GetVDim()) {}
 
-   double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
-   {
-      double x[3];
-      Vector transip(x, 3); transip = 0.0;
-      T.Transform(ip, transip);
-      if (kr_) { kr_->Eval(krVec_, T, ip); }
-      if (ki_) { ki_->Eval(kiVec_, T, ip); }
-      transip.SetSize(krVec_.Size());
-      return (*func_)(krVec_ * transip)*exp(-(kiVec_ * transip));
-   }
+ double Eval(ElementTransformation &T,
+             const IntegrationPoint &ip)
+ {
+    double x[3];
+    Vector transip(x, 3); transip = 0.0;
+    T.Transform(ip, transip);
+    if (kr_) { kr_->Eval(krVec_, T, ip); }
+    if (ki_) { ki_->Eval(kiVec_, T, ip); }
+    transip.SetSize(krVec_.Size());
+    return (*func_)(krVec_ * transip)*exp(-(kiVec_ * transip));
+ }
 };
-
+*/
 class ElectricEnergyDensityCoef : public Coefficient
 {
 public:
@@ -278,7 +199,7 @@ private:
 };
 
 /// Cold Plasma Dielectric Solver
-class CPDSolver
+class CPDSolverEB
 {
 public:
 
@@ -298,30 +219,46 @@ public:
       FGMRES      =  2,
       MINRES      =  3,
       SUPERLU     =  4,
-      STRUMPACK   =  5
+      STRUMPACK   =  5,
+      DMUMPS      =  6,
+      ZMUMPS      =  7
    };
 
-   CPDSolver(ParMesh & pmesh, int order, double omega,
-             CPDSolver::SolverType s, SolverOptions & sOpts,
-             CPDSolver::PrecondType p,
-             ComplexOperator::Convention conv,
-             VectorCoefficient & BCoef,
-             MatrixCoefficient & epsReCoef,
-             MatrixCoefficient & epsImCoef,
-             MatrixCoefficient & epsAbsCoef,
-             Coefficient & muInvCoef,
-             Coefficient * etaInvCoef,
-             VectorCoefficient * kReCoef,
-             VectorCoefficient * kImCoef,
-             Array<int> & abcs,
-             Array<ComplexVectorCoefficientByAttr> & dbcs,
-             Array<ComplexVectorCoefficientByAttr> & nbcs,
-             Array<ComplexCoefficientByAttr> & sbcs,
-             void (*j_r_src)(const Vector&, Vector&),
-             void (*j_i_src)(const Vector&, Vector&),
-             bool vis_u = false,
-             bool pa = false);
-   ~CPDSolver();
+   // Solver options
+   struct SolverOptions
+   {
+      int maxIter;
+      int kDim;
+      int printLvl;
+      double relTol;
+
+      // Euclid Options
+      int euLvl;
+   };
+
+   CPDSolverEB(ParMesh & pmesh, int order, double omega,
+               CPDSolverEB::SolverType s, SolverOptions & sOpts,
+               CPDSolverEB::PrecondType p,
+               ComplexOperator::Convention conv,
+               VectorCoefficient & BCoef,
+               MatrixCoefficient & epsReCoef,
+               MatrixCoefficient & epsImCoef,
+               MatrixCoefficient & epsAbsCoef,
+               Coefficient & muInvCoef,
+               Coefficient * etaInvCoef,
+               VectorCoefficient * kReCoef,
+               VectorCoefficient * kImCoef,
+               Array<int> & abcs,
+               StixBCs & stixBCs,
+               // Array<ComplexVectorCoefficientByAttr> & dbcs,
+               // Array<ComplexVectorCoefficientByAttr> & nbcs,
+               // Array<ComplexCoefficientByAttr> & sbcs,
+               void (*j_r_src)(const Vector&, Vector&),
+               void (*j_i_src)(const Vector&, Vector&),
+               bool vis_u = false,
+               bool cyl = false,
+               bool pa = false);
+   ~CPDSolverEB();
 
    HYPRE_Int GetProblemSize();
 
@@ -333,8 +270,8 @@ public:
 
    void Solve();
 
-   double GetError(const VectorCoefficient & EReCoef,
-                   const VectorCoefficient & EImCoef) const;
+   double GetEFieldError(const VectorCoefficient & EReCoef,
+                         const VectorCoefficient & EImCoef) const;
 
    void GetErrorEstimates(Vector & errors);
 
@@ -463,8 +400,16 @@ private:
    void computeB(const ParComplexGridFunction & e,
                  ParComplexGridFunction & b);
 
+   void computeH(const ParComplexGridFunction & b,
+                 ParComplexGridFunction & h);
+
    void computeD(const ParComplexGridFunction & e,
                  ParComplexGridFunction & d);
+
+   void prepareVectorVisField(const ParComplexGridFunction &u,
+                              ComplexGridFunction &v);
+
+   void prepareVisFields();
 
    int myid_;
    int num_procs_;
@@ -490,6 +435,8 @@ private:
    L2_ParFESpace * L2FESpace_;
    L2_ParFESpace * L2FESpace2p_;
    L2_ParFESpace * L2VFESpace_;
+   L2_FESpace * L2FESpace3D_;
+   L2_FESpace * L2VFESpace3D_;
    ParFiniteElementSpace * HCurlFESpace_;
    ParFiniteElementSpace * HDivFESpace_;
    ParFiniteElementSpace * HDivFESpace2p_;
@@ -515,14 +462,19 @@ private:
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
-   ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
-   ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
-   ParComplexGridFunction * j_v_; // Complex current density (L2^d)
+   ComplexGridFunction * e_v_; // Complex electric field (L2^d)
+   ComplexGridFunction * b_v_; // Complex electric flux (L2^d)
+   ComplexGridFunction * d_v_; // Complex electric flux (L2^d)
+   ComplexGridFunction * j_v_; // Complex current density (L2^d)
    ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
+   GridFunction           * b_hat_v_; // Unit vector along B (L2^d)
    ParGridFunction        * u_;   // Energy density (L2)
    ParGridFunction        * uE_;  // Electric Energy density (L2)
    ParGridFunction        * uB_;  // Magnetic Energy density (L2)
    ParComplexGridFunction * S_;  // Poynting Vector (HDiv)
+   ComplexGridFunction * StixS_; // Stix S Coefficient (L2)
+   ComplexGridFunction * StixD_; // Stix D Coefficient (L2)
+   ComplexGridFunction * StixP_; // Stix P Coefficient (L2)
 
    VectorCoefficient * BCoef_;        // B Field Vector
    MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient
@@ -532,6 +484,13 @@ private:
    Coefficient       * etaInvCoef_;   // Admittance Coefficient
    VectorCoefficient * kReCoef_;        // Wave Vector
    VectorCoefficient * kImCoef_;        // Wave Vector
+
+   Coefficient * SReCoef_; // Stix S Coefficient
+   Coefficient * SImCoef_; // Stix S Coefficient
+   Coefficient * DReCoef_; // Stix D Coefficient
+   Coefficient * DImCoef_; // Stix D Coefficient
+   Coefficient * PReCoef_; // Stix P Coefficient
+   Coefficient * PImCoef_; // Stix P Coefficient
 
    Coefficient * omegaCoef_;     // omega expressed as a Coefficient
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
@@ -582,13 +541,17 @@ private:
    // Array of 0's and 1's marking the location of absorbing surfaces
    Array<int> abc_bdr_marker_;
 
-   Array<ComplexVectorCoefficientByAttr> * dbcs_;
+   const Array<ComplexVectorCoefficientByAttr*> & dbcs_;
    Array<int> ess_bdr_;
    Array<int> ess_bdr_tdofs_;
    Array<int> non_k_bdr_;
 
-   Array<ComplexVectorCoefficientByAttr> * nbcs_; // Surface current BCs
-   Array<ComplexVectorCoefficientByAttr> * nkbcs_; // Neumann BCs (-i*omega*K)
+   const Array<ComplexVectorCoefficientByAttr*> & nbcs_; // Surface current BCs
+   Array<ComplexVectorCoefficientByAttr*> nkbcs_; // Neumann BCs (-i*omega*K)
+
+   const Array<ComplexCoefficientByAttr*> & sbcs_; // Sheath BCs
+
+   Array<VectorCoefficient*> vCoefs_;
 
    VisItDataCollection * visit_dc_;
 
@@ -601,4 +564,4 @@ private:
 
 #endif // MFEM_USE_MPI
 
-#endif // MFEM_COLD_PLASMA_DIELECTRIC_SOLVER
+#endif // MFEM_COLD_PLASMA_DIELECTRIC_EB_SOLVER
