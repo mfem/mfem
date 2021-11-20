@@ -4048,12 +4048,23 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
    return std::sqrt(total_error);
 }
 
-Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
-                  int order, int dim)
+Vector LegendreND(const Vector &x_in, const Vector &xmax, const Vector &xmin,
+                  int order, int dim, double angle, const Vector *center)
 {
    MFEM_VERIFY(order >= 0, "order cannot be negative");
    MFEM_VERIFY(dim >= 1, "dim must be positive");
    MFEM_VERIFY(dim <= 3, "dim cannot be greater than 3");
+
+   Vector x(dim);
+   x = x_in;
+   if (angle != 0.0 && dim == 2)
+   {
+      x -= *center;
+      Vector tmp(dim);
+      tmp = x;
+      x[0] = tmp[0]*cos(angle) - tmp[1]*sin(angle);
+      x[1] = tmp[0]*sin(angle) + tmp[1]*cos(angle);
+   }
 
    // Map x to [0, 1] to use CalcLegendre since it uses shifted Legendre Polynomials.
    double x1 = (x(0) - xmin(0))/(xmax(0)-xmin(0)), x2, x3;
@@ -4109,44 +4120,82 @@ Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
    return poly;
 }
 
-void MinimalBoundingBox(Array<int> patch,         // input
+void BoundingBox(Array<int> patch,         // input
                         FiniteElementSpace *ufes, // input
                         int order,                // input
-                        double &angle,             // output
-                        Vector &xmin,              // output
-                        Vector &xmax)              // output
+                        Vector &xmin,             // output
+                        Vector &xmax,             // output
+                        double &angle,            // output
+                        Vector &center,           // output
+                        int iface)             // input (optional)
 {
    Mesh *mesh = ufes->GetMesh();
    int dim = mesh->Dimension();
-   ElementTransformation *Transf;
+   int num_elems = patch.Size();
+   IsoparametricTransformation Tr;
 
-   double angle_tmp = 0.0;
    xmax = -std::numeric_limits<double>::max();
    xmin = std::numeric_limits<double>::max();
-   Vector xmax_tmp = xmax;
-   Vector xmin_tmp = xmin;
+   angle = 0.0;
+   center = 0.0;
+   bool rotate = (iface != -1 && dim == 2);
+   // bool rotate = false;
 
-   int num_elems = patch.Size();
+   // Compute angle
+   if (rotate)
+   {
+      IntegrationPoint reference_pt;
+      mesh->GetFaceTransformation(iface, &Tr);
+      Vector physical_pt(2);
+      Vector physical_diff(2);
+      physical_diff = 0.0;
+      for (int i = 0; i < 2; i++)
+      {
+         reference_pt.Set1w((float)i, 0.0);
+         Tr.Transform(reference_pt, physical_pt);
+         center += physical_pt;
+         physical_pt *= pow(-1.0,i);
+         physical_diff += physical_pt;
+      }
+      center /= 2.0;
+      angle = atan2(physical_diff(1),physical_diff(0));
+      // Array<int> iverts;
+      // mesh->GetFaceVertices(iface,iverts);
+      // cout << "iface = " << iface << endl;
+      // cout << "vertices = (" << iverts[0] << "," << iverts[1] << ")" << endl;
+      // cout << "angle = " << angle << endl;
+      // center.Print();
+   }
+
    for (int i = 0; i < num_elems; i++)
    {
       int ielem = patch[i];
       const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem),
                                                    order));
-      Transf = ufes->GetElementTransformation(ielem);
+      ufes->GetElementTransformation(ielem, &Tr);
       for (int k = 0; k < ir->GetNPoints(); k++)
       {
          const IntegrationPoint ip = ir->IntPoint(k);
-         double tmp[3];
-         Vector transip(tmp, 3);
-         Transf->Transform(ip, transip);
-         for (int d = 0; d < dim; d++) { xmax_tmp(d) = max(xmax_tmp(d), transip(d)); }
-         for (int d = 0; d < dim; d++) { xmin_tmp(d) = min(xmin_tmp(d), transip(d)); }
+         Vector transip(dim);
+         Tr.Transform(ip, transip);
+         if (rotate)
+         {
+            transip -= center;
+            Vector tmp(dim);
+            tmp = transip;
+            transip[0] = tmp[0]*cos(-angle) - tmp[1]*sin(-angle);
+            transip[1] = tmp[0]*sin(-angle) + tmp[1]*cos(-angle);
+
+            for (int d = 0; d < dim; d++) { xmax(d) = max(xmax(d), transip(d)); }
+            for (int d = 0; d < dim; d++) { xmin(d) = min(xmin(d), transip(d)); }
+         }
+         else
+         {
+            for (int d = 0; d < dim; d++) { xmax(d) = max(xmax(d), transip(d)); }
+            for (int d = 0; d < dim; d++) { xmin(d) = min(xmin(d), transip(d)); }
+         }
       }
    }
-
-   xmax = xmax_tmp;
-   xmin = xmin_tmp;
-   angle = angle_tmp;
 }
 
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
@@ -4177,9 +4226,10 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    Array<int> counters(nfe);
    counters = 0;
 
-   double angle = 0.0;
    Vector xmax(dim);
    Vector xmin(dim);
+   double angle = 0.0;
+   Vector center(dim);
 
    // Compute the number of subdomains
    int nsd = 1;
@@ -4240,8 +4290,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
       // 2.B. Estimate the smallest bounding box around the face patch
       //      (this is used in 2.C.ii. to define a global polynomial basis)
-      MinimalBoundingBox(neighbor_elems, ufes, flux_order,
-                         angle, xmin, xmax);
+      BoundingBox(neighbor_elems, ufes, flux_order,
+                         xmin, xmax, angle, center, iface);
       // xmin.Print();
       // xmax.Print();
       // cout << "angle = " << angle << endl;
@@ -4288,7 +4338,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             Transf->Transform(ip, transip);
 
             Vector p(num_basis_functions);
-            p = LegendreND(transip, xmax, xmin, patch_order, dim);
+            p = LegendreND(transip, xmax, xmin, patch_order, dim, angle, &center);
             AddMultVVt(p, A);
 
             for (int l = 0; l < num_basis_functions; l++)
@@ -4329,7 +4379,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       auto global_poly_tmp = [=] (const Vector &x, Vector &f)
       {
          Vector p(num_basis_functions);
-         p = LegendreND(x, xmax, xmin, patch_order, dim);
+         p = LegendreND(x, xmax, xmin, patch_order, dim, angle, &center);
          f = 0.0;
          for (int i = 0; i < num_basis_functions; i++)
          {
