@@ -213,6 +213,29 @@ public:
         ee=0.0;
     }
 
+    // returns matrix 9x9
+    virtual
+    void EvalTangent(DenseMatrix &mm, Vector& gradu, ElementTransformation &T, const IntegrationPoint &ip)
+    {
+        mm.SetSize(9);
+        mm=0.0;
+    }
+
+    // returns vector of length 9
+    virtual
+    void EvalResidual(Vector &rr, Vector& gradu, ElementTransformation &T, const IntegrationPoint &ip)
+    {
+        rr.SetSize(9);
+        rr=0.0;
+    }
+
+    // returns the energy for displacements' gradients gradu
+    virtual
+    double EvalEnergy(Vector& gradu, ElementTransformation &T, const IntegrationPoint &ip)
+    {
+        return 0.0;
+    }
+
 };
 
 
@@ -244,6 +267,30 @@ public:
     {
         E=&E_;
         nu=&nu_;
+
+        disp=nullptr;
+        tmpm.SetSize(3);
+    }
+
+    LinIsoElasticityCoefficient(LinIsoElasticityCoefficient& co):lE(co.lE),lnu(co.lnu)
+    {
+        if(&(co.lE)==co.E)
+        {
+            E=&lE;
+        }
+        else
+        {
+            E=co.E;//external coefficient
+        }
+
+        if(&(co.lnu)==co.nu)
+        {
+            nu=&lnu;
+        }
+        else
+        {
+            nu=co.nu;//external coefficient
+        }
 
         disp=nullptr;
         tmpm.SetSize(3);
@@ -282,6 +329,18 @@ public:
         return 0.0;
     }
 
+    //returns vector of length 9
+    virtual
+    void EvalResidual(Vector &rr, Vector& gradu, ElementTransformation &T, const IntegrationPoint &ip);
+
+    //returns matrix 9x9
+    virtual
+    void EvalTangent(DenseMatrix &mm, Vector& gradu, ElementTransformation &T, const IntegrationPoint &ip);
+
+    virtual
+    double EvalEnergy(Vector& gradu, ElementTransformation &T, const IntegrationPoint &ip);
+
+
 private:
     mfem::ConstantCoefficient lE;
     mfem::ConstantCoefficient lnu;
@@ -295,7 +354,10 @@ private:
     mfem::DenseMatrix tmpg;
 
     void Eval(double EE,double nnu,double* CC);
+    void EvalRes(double EE, double nnu, double* gradu, double* res);
 };
+
+
 
 class NLElasticityIntegrator:public NonlinearFormIntegrator
 {
@@ -305,29 +367,32 @@ public:
         elco=nullptr;
     }
 
+    NLElasticityIntegrator(mfem::BasicElasticityCoefficient& coeff)
+    {
+        elco=&coeff;
+    }
+
+    NLElasticityIntegrator(mfem::BasicElasticityCoefficient* coeff)
+    {
+        elco=coeff;
+    }
+
     void SetElasticityCoefficient(mfem::BasicElasticityCoefficient& coeff)
     {
         elco=&coeff;
     }
 
     virtual
-    double GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
-    {
-
-    }
+    double GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun);
 
     virtual
-    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun, Vector &elvect)
-    {
-
-    }
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                               const Vector &elfun, Vector &elvect);
 
     virtual
-    void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun, DenseMatrix &elmat)
-    {
-
-    }
-
+    void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                             const Vector &elfun, DenseMatrix &elmat);
 
 private:
 
@@ -356,7 +421,7 @@ public:
     /// Solves the adjoint with the provided rhs.
     void ASolve(mfem::Vector& rhs);
 
-    /// Return adj*d(residual(sol))/d(design). The dimension
+    /// Return adj*d(residual(sol))/d(design). The length
     /// of the vector grad is the save as the dimension of the
     /// true design vector.
     void GradD(mfem::Vector& grad);
@@ -366,6 +431,12 @@ public:
 
     /// Adds displacement BC in direction 0(x),1(y),2(z), or 4(all).
     void AddDispBC(int id, int dir, mfem::Coefficient& val);
+
+    /// Set the values of the volumetric force.
+    void SetVolForce(double fx,double fy, double fz);
+
+    /// Associates coefficient to the volumetrix force.
+    void SetVolForce(mfem::VectorCoefficient& ff);
 
     /// Returns the displacements.
     mfem::ParGridFunction& GetDisplacements()
@@ -381,15 +452,19 @@ public:
         return adisp;
     }
 
+    /// Add material to the solver. The solver owns the data.
+    void AddMaterial(BasicElasticityCoefficient* nmat){
+        if(nf!=nullptr)
+        {
+            delete nf; nf=nullptr;
+        }
+        materials.push_back(nmat);
+    }
+
 
 
 private:
     mfem::ParMesh* pmesh;
-
-    mfem::ParFiniteElementSpace* vfes;
-    mfem::FiniteElementCollection* vfec;
-
-    mfem::ParNonlinearForm* nf;
 
     //solution true vector
     mfem::Vector sol;
@@ -397,6 +472,13 @@ private:
     mfem::Vector adj;
     //RHS
     mfem::Vector rhs;
+
+    /// Volumetric force created by the solver.
+    mfem::VectorConstantCoefficient* lvforce;
+    /// Volumetric force coefficient can point to the
+    /// one created by the solver or to external vector
+    /// coefficient.
+    mfem::VectorCoefficient* volforce;
 
     // boundary conditions for x,y, and z directions
     std::map<int, mfem::ConstantCoefficient> bcx;
@@ -429,6 +511,13 @@ private:
 
     mfem::HypreBoomerAMG *prec; //preconditioner
     mfem::CGSolver *ls;  //linear solver
+    mfem::NewtonSolver *ns;
+
+    mfem::ParNonlinearForm *nf;
+    mfem::ParFiniteElementSpace* vfes;
+    mfem::FiniteElementCollection* vfec;
+
+    std::vector<mfem::BasicElasticityCoefficient*> materials;
 
 };
 

@@ -172,7 +172,7 @@ public:
 
            dh.UseExternalData(bsu.GetData()+dof_u,dof_u,dim);
            el[0]->CalcPhysDShape(Tr,dh);
-           if(dim=2){
+           if(dim==2){
                sh.SetDataAndSize(bsu.GetData()+3*dof_u,dof_u);
                sh=0.0;
            }
@@ -284,7 +284,7 @@ public:
            dh.UseExternalData(bsu.GetData()+dof_u,dof_u,dim);
            el[0]->CalcPhysDShape(Tr,dh);
 
-           if(dim=2){
+           if(dim==2){
                sh.SetDataAndSize(bsu.GetData()+3*dof_u,dof_u);
                sh=0.0;
            }

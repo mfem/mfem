@@ -38,6 +38,19 @@ public:
     }
 };
 
+template<typename TDataType, typename TParamVector, typename TStateVector,
+         int residual_size, int state_size, int param_size>
+class ExampleResidual
+{
+public:
+    void operator ()(TParamVector& vparam, TStateVector& uu, TStateVector& rr)
+    {
+        rr[0]=sin(uu[0]+uu[1]+uu[2]);
+        rr[1]=cos(uu[1]+uu[2]+uu[3]);
+        rr[2]=tan(uu[2]+uu[3]+uu[4]+uu[5]);
+    }
+
+};
 
 
 int main(int argc, char *argv[])
@@ -134,6 +147,20 @@ MFEM_PERF_BEGIN("QJacobian1");
 MFEM_PERF_END("QJacobian1");
     std::cout<<"LambdaAutoDiff 01"<<std::endl;
     hh1.Print(std::cout);
+
+
+    {
+        mfem::QVectorFuncAutoDiff<ExampleResidual,3,6,0> erdf;
+        mfem::DenseMatrix vhh(3,6);
+        mfem::Vector uu(6);
+        mfem::Vector pu;
+        uu=1.0;
+        erdf.QJacobian(pu,uu,vhh);
+        std::cout<<"Last example"<<std::endl;
+        vhh.Print(std::cout);
+
+    }
+
 
 #ifdef MFEM_USE_CALIPER
     mgr.flush();

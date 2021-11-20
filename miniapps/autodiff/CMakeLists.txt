@@ -97,5 +97,9 @@ add_mfem_miniapp(filter_test
 	MAIN filter_test.cpp
 	LIBRARIES mfem)
 
+add_mfem_miniapp(elast_test
+        MAIN elast_test.cpp
+        LIBRARIES mfem)
+
 
 endif ()
