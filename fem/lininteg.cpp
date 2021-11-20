@@ -652,6 +652,62 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+void VectorFEBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
+   int dim = el.GetDim();
+   int vdim = el.GetVDim();
+   DenseMatrix vshape(dof, vdim);
+   Vector f_loc(3);
+   Vector f_hat(2);
+
+   MFEM_VERIFY(vdim == 2, "VectorFEBoundaryTangentialLFIntegrator "
+               "must be called with vector basis functions of dimension 2.");
+
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      el.CalcVShape(ip, vshape);
+
+      Tr.SetIntPoint(&ip);
+      f.Eval(f_loc, Tr, ip);
+
+      if (dim == 2)
+      {
+         Tr.Jacobian().MultTranspose(f_loc, f_hat);
+      }
+      else if (dim == 1)
+      {
+         const DenseMatrix & InvJ = Tr.InverseJacobian();
+         f_hat(0) = InvJ(0,0) * f_loc(0) + InvJ(0,1) * f_loc(1);
+         f_hat(1) = f_loc(2);
+      }
+      else
+      {
+         f_hat(0) = f_loc(1);
+         f_hat(1) = f_loc(2);
+      }
+
+      // Swap<double>(f_hat(0), f_hat(1));
+      // f_hat(0) = -f_hat(0);
+      f_hat *= ip.weight * Tr.Weight();
+
+      vshape.AddMult(f_hat, elvect);
+   }
+}
+
 void BoundaryFlowIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
