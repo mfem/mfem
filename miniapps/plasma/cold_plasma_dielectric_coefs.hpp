@@ -637,6 +637,38 @@ public:
 
 };
 
+class VectorR2DCoef : public VectorCoefficient
+{
+private:
+   VectorCoefficient & coef_;
+   ParMesh & pmesh_;
+public:
+   VectorR2DCoef(VectorCoefficient & coef, ParMesh & pmesh)
+      : VectorCoefficient(coef.GetVDim()), coef_(coef), pmesh_(pmesh) {}
+
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      int e = T.ElementNo;
+      ElementTransformation * pT = pmesh_.GetElementTransformation(e);
+      pT->SetIntPoint(&ip);
+      /*
+      {
+      Vector x3(3);
+      T.Transform(ip, x3);
+
+      Vector x2(2);
+      pT->Transform(ip, x2);
+
+      std::cout << "Element e: " << e << ", ip " << ip.x << " " << ip.y << " " << ip.z << std::endl;
+      std::cout << x3[0] << '\t' << x3[1] << '\t' << x3[2] << '\n';
+      std::cout << x2[0] << '\t' << x2[1] << '\n';
+           }
+           */
+      coef_.Eval(v, *pT, ip);
+   }
+};
+
 } // namespace plasma
 
 } // namespace mfem
