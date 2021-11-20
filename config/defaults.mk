@@ -18,6 +18,9 @@
 # Some choices below are based on the OS type:
 NOTMAC := $(subst Darwin,,$(shell uname -s))
 
+ETAGS_BIN = $(shell command -v etags 2> /dev/null)
+EGREP_BIN = $(shell command -v egrep 2> /dev/null)
+
 CXX = g++
 MPICXX = mpicxx
 
@@ -56,9 +59,12 @@ HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
 HIP_XCOMPILER =
 HIP_XLINKER   = -Wl,
 
+# Flags for generating dependencies.
+DEP_FLAGS = -MM -MT
+
 ifneq ($(NOTMAC),)
    AR      = ar
-   ARFLAGS = cruv
+   ARFLAGS = crv
    RANLIB  = ranlib
    PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = so
@@ -70,7 +76,7 @@ ifneq ($(NOTMAC),)
 else
    # Silence "has no symbols" warnings on Mac OS X
    AR      = ar
-   ARFLAGS = Scruv
+   ARFLAGS = Scrv
    RANLIB  = ranlib -no_warning_for_no_symbols
    PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = dylib
@@ -83,6 +89,9 @@ else
    BUILD_RPATH = $(XLINKER)-undefined,dynamic_lookup
    INSTALL_SOFLAGS = $(subst $1 ,,$(call MAKE_SOFLAGS,$(MFEM_LIB_DIR)))
    INSTALL_RPATH = $(XLINKER)-undefined,dynamic_lookup
+   # Silence unused command line argument warnings when generating dependencies
+   # with mpicxx and clang
+   DEP_FLAGS := -Wno-unused-command-line-argument $(DEP_FLAGS)
 endif
 
 # Set CXXFLAGS to overwrite the default selection of DEBUG_FLAGS/OPTIM_FLAGS
@@ -133,6 +142,7 @@ MFEM_USE_PETSC         = NO
 MFEM_USE_SLEPC         = NO
 MFEM_USE_MPFR          = NO
 MFEM_USE_SIDRE         = NO
+MFEM_USE_FMS           = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
 MFEM_USE_HIOP          = NO
@@ -152,6 +162,8 @@ MFEM_USE_CODIAPCK      = NO
 MFEM_USE_EIGEN         = NO
 MFEM_USE_ADFORWARD     = NO
 MFEM_USE_MKL_CPARDISO  = NO
+MFEM_USE_BENCHMARK     = NO
+MFEM_USE_PARELAG       = NO
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
@@ -176,6 +188,10 @@ LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
 HYPRE_DIR = @MFEM_DIR@/../hypre/src/hypre
 HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
+ifeq (YES,$(MFEM_USE_CUDA))
+   # This is only necessary when hypre is built with cuda:
+   HYPRE_LIB += -lcusparse -lcurand
+endif
 
 # METIS library configuration
 ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
@@ -290,9 +306,23 @@ STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
 
 # Ginkgo library configuration (currently not needed)
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
+GINKGO_BUILD_TYPE=Release
+ifeq ($(MFEM_USE_GINKGO),YES)
+   BASE_FLAGS = -std=c++14
+endif
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
-GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_DIR)/lib -L$(GINKGO_DIR)/lib -lginkgo\
- -lginkgo_omp -lginkgo_cuda -lginkgo_reference
+GINKGO_LIB_DIR = $(sort $(dir $(wildcard $(GINKGO_DIR)/lib*/libginkgo*.a  $(GINKGO_DIR)/lib*/libginkgo*.so $(GINKGO_DIR)/lib*/libginkgo*.dylib $(GINKGO_DIR)/lib*/libginkgo*.dll)))
+ALL_GINKGO_LIBS_DEBUG = $(notdir $(basename $(wildcard $(GINKGO_DIR)/lib*/libginkgo*d.a  $(GINKGO_DIR)/lib*/libginkgo*d.so $(GINKGO_DIR)/lib*/libginkgo*d.dylib $(GINKGO_DIR)/lib*/libginkgo*d.dll)))
+ALL_GINKGO_LIBS = $(notdir $(basename $(wildcard $(GINKGO_DIR)/lib*/libginkgo*.a  $(GINKGO_DIR)/lib*/libginkgo*.so $(GINKGO_DIR)/lib*/libginkgo*.dylib $(GINKGO_DIR)/lib*/libginkgo*.dll)))
+ALL_GINKGO_LIBS_RELEASE = $(filter-out $(ALL_GINKGO_LIBS_DEBUG),$(ALL_GINKGO_LIBS))
+GINKGO_LINK = $(subst libginkgo,-lginkgo,$(ALL_GINKGO_LIBS_RELEASE))
+ifeq ($(GINKGO_BUILD_TYPE),Debug)
+  ifneq (,$(ALL_GINKGO_LIBS_DEBUG))
+    GINKGO_LINK = $(subst libginkgo,-lginkgo,$(ALL_GINKGO_LIBS_DEBUG))
+  endif
+else
+endif
+GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LIB_DIR) -L$(GINKGO_LIB_DIR) $(GINKGO_LINK)
 
 # AmgX library configuration
 AMGX_DIR = @MFEM_DIR@/../amgx
@@ -344,6 +374,11 @@ endif
 # MPFR library configuration
 MPFR_OPT =
 MPFR_LIB = -lmpfr
+
+# FMS and required libraries configuration
+FMS_DIR = $(MFEM_DIR)/../fms
+FMS_OPT = -I$(FMS_DIR)/include
+FMS_LIB = -Wl,-rpath,$(FMS_DIR)/lib -L$(FMS_DIR)/lib -lfms
 
 # Conduit and required libraries configuration
 CONDUIT_DIR = @MFEM_DIR@/../conduit
@@ -427,6 +462,11 @@ CALIPER_DIR = @MFEM_DIR@/../caliper
 CALIPER_OPT = -I$(CALIPER_DIR)/include
 CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib64 -L$(CALIPER_DIR)/lib64 -lcaliper
 
+# BENCHMARK library configuration
+BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark
+BENCHMARK_OPT = -I$(BENCHMARK_DIR)/include
+BENCHMARK_LIB = -L$(BENCHMARK_DIR)/lib -lbenchmark -lpthread
+
 # libCEED library configuration
 CEED_DIR ?= @MFEM_DIR@/../libCEED
 CEED_OPT = -I$(CEED_DIR)/include
@@ -456,6 +496,11 @@ MKL_CPARDISO_OPT = -I$(MKL_CPARDISO_DIR)/include
 MKL_CPARDISO_LIB = $(XLINKER)-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
    -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
    -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+
+# PARELAG library configuration
+PARELAG_DIR = @MFEM_DIR@/../parelag
+PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
+PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 
 # If YES, enable some informational messages
 VERBOSE = NO

@@ -94,7 +94,7 @@ protected:
    static size_t bufferSize;
    static void *dBuffer;
    mutable bool initBuffers{false};
-#if CUDA_VERSION > 10010 || CUDA_VERSION == 10010
+#if CUDA_VERSION >= 10010
    mutable cusparseSpMatDescr_t matA_descr;
    mutable cusparseDnVecDescr_t vecX_descr;
    mutable cusparseDnVecDescr_t vecY_descr;
@@ -574,7 +574,7 @@ public:
    void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Prints matrix in matlab format.
-   void PrintMatlab(std::ostream &out = mfem::out) const;
+   virtual void PrintMatlab(std::ostream &out = mfem::out) const;
 
    /// Prints matrix in Matrix Market sparse format.
    void PrintMM(std::ostream &out = mfem::out) const;

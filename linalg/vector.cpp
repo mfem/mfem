@@ -39,17 +39,12 @@ namespace mfem
 Vector::Vector(const Vector &v)
 {
    const int s = v.Size();
+   size = s;
    if (s > 0)
    {
       MFEM_ASSERT(!v.data.Empty(), "invalid source vector");
-      size = s;
       data.New(s, v.data.GetMemoryType());
       data.CopyFrom(v.data, s);
-   }
-   else
-   {
-      size = 0;
-      data.Reset();
    }
    UseDevice(v.UseDevice());
 }
@@ -773,6 +768,7 @@ void Vector::Randomize(int seed)
    // srand(seed++);
    srand((unsigned)seed);
 
+   HostWrite();
    for (int i = 0; i < size; i++)
    {
       data[i] = std::abs(rand()/max);

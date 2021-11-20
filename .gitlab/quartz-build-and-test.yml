@@ -9,46 +9,24 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# GitLab pipelines configurations for the Quartz machine at LLNL
-
-.on_quartz:
-  tags:
-    - shell
-    - quartz
-  rules:
-    - if: '$CI_COMMIT_BRANCH =~ /_qnone/ || $ON_QUARTZ == "OFF"' #run except if ...
-      when: never
-    - if: '$CI_JOB_NAME =~ /release_resources/'
-      when: always
-    - when: on_success
+stages:
+  - setup
+  - allocate_resource
+  - build_and_test
+  - release_resource_and_report
 
 # Allocate
-q_allocate_resources:
+allocate_resource:
   variables:
     GIT_STRATEGY: none
   extends: .on_quartz
-  stage: q_allocate_resources
+  stage: allocate_resource
   script:
+    - echo ${ALLOC_NAME}
     - salloc --exclusive --nodes=1 --partition=pdebug --time=30 --no-shell --job-name=${ALLOC_NAME}
   timeout: 6h
 
-# Release
-q_release_resources:
-  variables:
-    GIT_STRATEGY: none
-  extends: .on_quartz
-  stage: q_release_resources
-  script:
-    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
-    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
-
-# Spack helped builds
-# Generic quartz build job, extending build script
-.build_and_test_on_quartz:
-  extends: [.build_toss_3_x86_64_ib_script, .on_quartz]
-  stage: q_build_and_test
-
-# Build MFEM
+# GitLab jobs for the Quartz machine at LLNL
 debug_ser_gcc_4_9_3:
   variables:
     SPEC: "%gcc@4.9.3 +debug~mpi"
@@ -89,11 +67,33 @@ opt_par_gcc_6_1_0_pumi:
     SPEC: "%gcc@6.1.0 +pumi"
   extends: .build_and_test_on_quartz
 
-# Baseline
-baselinecheck_mfem_intel_quartz:
-  extends: [.baselinecheck_mfem, .on_quartz]
-  needs: [setup]
+# Release
+release_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_quartz
+  stage: release_resource_and_report
+  script:
+    - echo ${ALLOC_NAME}
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - echo ${JOBID}
+    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
 
-baselinepublish_mfem_quartz:
-  extends: [.on_quartz, .rebaseline_mfem]
-  needs: [baselinecheck_mfem_intel_quartz]
+# Jobs report
+report_job_success:
+  stage: release_resource_and_report
+  extends:
+    - .on_quartz
+    - .report_job_success
+
+report_job_failure:
+  stage: release_resource_and_report
+  extends:
+    - .on_quartz
+    - .report_job_failure
+
+include:
+  - local: .gitlab/configs/common.yml
+  - local: .gitlab/configs/quartz-config.yml
+  - local: .gitlab/configs/setup-build-and-test.yml
+  - local: .gitlab/configs/report-build-and-test.yml

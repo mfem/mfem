@@ -25,6 +25,9 @@ namespace mfem
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
@@ -42,11 +45,11 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
-                                    GeometricFactors::JACOBIANS);
+                                    GeometricFactors::JACOBIANS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
+   pa_data.SetSize(ne*nq, mt);
    Vector coeff;
    if (Q == nullptr)
    {
@@ -1200,8 +1203,10 @@ static void PAMassApply(const int dim,
    {
       switch (id)
       {
+         case 0x22: return SmemPAMassApply3D<2,2>(NE,B,Bt,D,X,Y);
          case 0x23: return SmemPAMassApply3D<2,3>(NE,B,Bt,D,X,Y);
          case 0x24: return SmemPAMassApply3D<2,4>(NE,B,Bt,D,X,Y);
+         case 0x26: return SmemPAMassApply3D<2,6>(NE,B,Bt,D,X,Y);
          case 0x34: return SmemPAMassApply3D<3,4>(NE,B,Bt,D,X,Y);
          case 0x35: return SmemPAMassApply3D<3,5>(NE,B,Bt,D,X,Y);
          case 0x36: return SmemPAMassApply3D<3,6>(NE,B,Bt,D,X,Y);

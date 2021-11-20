@@ -35,6 +35,10 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el1,
+                                       const FiniteElement &el2,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
 
    virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
    const IntegrationRule* GetIntRule() { return IntRule; }
@@ -166,6 +170,8 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 /// Class for boundary integration \f$ L(v) = (g \cdot n, v) \f$
@@ -424,7 +430,10 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
+
 
 /** Boundary linear integrator for imposing non-zero Dirichlet boundary
     conditions, to be used in conjunction with DGDiffusionIntegrator.
@@ -463,6 +472,8 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 
@@ -506,6 +517,8 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 /** Class for domain integration of L(v) := (f, v), where

@@ -66,8 +66,9 @@ protected:
 
 public:
 
-   /// Default constructor for Vector. Sets size = 0 and data = NULL.
-   Vector() { data.Reset(); size = 0; }
+   /** Default constructor for Vector. Sets size = 0, and calls Memory::Reset on
+       data through Memory<double>'s default constructor. */
+   Vector(): size(0) { }
 
    /// Copy constructor. Allocates a new data array and copies the data.
    Vector(const Vector &);
@@ -81,6 +82,11 @@ public:
        with SetData(). */
    Vector(double *data_, int size_)
    { data.Wrap(data_, size_, false); size = size_; }
+
+   /** @brief Create a Vector referencing a sub-vector of the Vector @a base
+       starting at the given offset, @a base_offset, and size @a size_. */
+   Vector(Vector &base, int base_offset, int size_)
+      : data(base.data, base_offset, size_), size(size_) { }
 
    /// Create a Vector of size @a size_ using MemoryType @a mt.
    Vector(int size_, MemoryType mt)
@@ -159,6 +165,11 @@ public:
    /// Reset the Vector to use the given external Memory @a mem and size @a s.
    /** If @a own_mem is false, the Vector will not own any of the pointers of
        @a mem.
+
+       Note that when @a own_mem is true, the @a mem object can be destroyed
+       immediately by the caller but `mem.Delete()` should NOT be called since
+       the Vector object takes ownership of all pointers owned by @a mem.
+
        @sa NewDataAndSize(). */
    inline void NewMemoryAndSize(const Memory<double> &mem, int s, bool own_mem);
 
@@ -224,10 +235,10 @@ public:
    const Memory<double> &GetMemory() const { return data; }
 
    /// Update the memory location of the vector to match @a v.
-   void SyncMemory(const Vector &v) { GetMemory().Sync(v.GetMemory()); }
+   void SyncMemory(const Vector &v) const { GetMemory().Sync(v.GetMemory()); }
 
    /// Update the alias memory location of the vector to match @a v.
-   void SyncAliasMemory(const Vector &v)
+   void SyncAliasMemory(const Vector &v) const
    { GetMemory().SyncAlias(v.GetMemory(),Size()); }
 
    /// Read the Vector data (host pointer) ownership flag.
@@ -493,15 +504,11 @@ inline int CheckFinite(const double *v, const int n)
 
 inline Vector::Vector(int s)
 {
+   MFEM_ASSERT(s>=0,"Unexpected negative size.");
+   size = s;
    if (s > 0)
    {
-      size = s;
       data.New(s);
-   }
-   else
-   {
-      size = 0;
-      data.Reset();
    }
 }
 
@@ -559,8 +566,14 @@ inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
 {
    data.Delete();
    size = s;
-   data = mem;
-   if (!own_mem) { data.ClearOwnerFlags(); }
+   if (own_mem)
+   {
+      data = mem;
+   }
+   else
+   {
+      data.MakeAlias(mem, 0, s);
+   }
 }
 
 inline void Vector::MakeRef(Vector &base, int offset, int s)

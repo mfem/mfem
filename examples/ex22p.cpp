@@ -13,6 +13,8 @@
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 1
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 2
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 1 -p 2 -pa
+//               mpirun -np 4 ex22p -m ../data/inline-wedge.mesh -o 1
+//               mpirun -np 4 ex22p -m ../data/inline-pyramid.mesh -o 1
 //               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0
 //
 // Device sample runs:

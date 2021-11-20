@@ -78,7 +78,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    else if (pfes)
    {
       pfess = new ParFiniteElementSpace(pfes->GetParMesh(), pfes->FEColl(), 1);
-      oper  = new ParAdvectorCGOper(nodes0, u, *pfess, al);
+      oper  = new ParAdvectorCGOper(nodes0, u, *pfess, al, opt_mt);
    }
 #endif
    MFEM_VERIFY(oper != NULL,
@@ -231,18 +231,27 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 ParAdvectorCGOper::ParAdvectorCGOper(const Vector &x_start,
                                      GridFunction &vel,
                                      ParFiniteElementSpace &pfes,
-                                     AssemblyLevel al)
+                                     AssemblyLevel al,
+                                     MemoryType mt)
    : TimeDependentOperator(pfes.GetVSize()),
      x0(x_start), x_now(*pfes.GetMesh()->GetNodes()),
      u(vel), u_coeff(&u), M(&pfes), K(&pfes), al(al)
 {
    ConvectionIntegrator *Kinteg = new ConvectionIntegrator(u_coeff);
+   if (al == AssemblyLevel::PARTIAL)
+   {
+      Kinteg->SetPAMemoryType(mt);
+   }
    K.AddDomainIntegrator(Kinteg);
    K.SetAssemblyLevel(al);
    K.Assemble(0);
    K.Finalize(0);
 
    MassIntegrator *Minteg = new MassIntegrator;
+   if (al == AssemblyLevel::PARTIAL)
+   {
+      Minteg->SetPAMemoryType(mt);
+   }
    M.AddDomainIntegrator(Minteg);
    M.SetAssemblyLevel(al);
    M.Assemble(0);
@@ -374,7 +383,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 
    // Get the local prolongation of the solution vector.
-   Vector x_out_loc(fes->GetVSize());
+   Vector x_out_loc(fes->GetVSize(),
+                    (temp_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : temp_mt);
    if (serial)
    {
       const SparseMatrix *cP = fes->GetConformingProlongation();
@@ -397,6 +407,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    {
       // Needed for the line search below. The untangling metrics see this
       // reference to detect deteriorations.
+      MFEM_VERIFY(min_det_ptr != NULL, " Initial mesh was valid, but"
+                  " intermediate mesh is invalid. Contact TMOP Developers.");
       *min_det_ptr = untangle_factor * min_detT_in;
    }
 
@@ -566,7 +578,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
          {
-            ti->UpdateAfterMeshChange(x_loc);
+            ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *pfesc);
             UpdateDiscreteTC(*ti, x_loc);
          }
@@ -576,7 +588,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
             for (int j = 0; j < ati.Size(); j++)
             {
-               ati[j]->UpdateAfterMeshChange(x_loc);
+               ati[j]->UpdateAfterMeshPositionChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *pfesc);
                UpdateDiscreteTC(*ati[j], x_loc);
             }
@@ -603,7 +615,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
          if (ti)
          {
-            ti->UpdateAfterMeshChange(x_loc);
+            ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *fesc);
             UpdateDiscreteTC(*ti, x_loc);
          }
@@ -613,7 +625,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
             for (int j = 0; j < ati.Size(); j++)
             {
-               ati[j]->UpdateAfterMeshChange(x_loc);
+               ati[j]->UpdateAfterMeshPositionChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *fesc);
                UpdateDiscreteTC(*ati[j], x_loc);
             }
