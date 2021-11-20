@@ -4109,6 +4109,46 @@ Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
    return poly;
 }
 
+void MinimalBoundingBox(Array<int> patch,         // input
+                        FiniteElementSpace *ufes, // input
+                        int order,                // input
+                        double &angle,             // output
+                        Vector &xmin,              // output
+                        Vector &xmax)              // output
+{
+   Mesh *mesh = ufes->GetMesh();
+   int dim = mesh->Dimension();
+   ElementTransformation *Transf;
+
+   double angle_tmp = 0.0;
+   xmax = -std::numeric_limits<double>::max();
+   xmin = std::numeric_limits<double>::max();
+   Vector xmax_tmp = xmax;
+   Vector xmin_tmp = xmin;
+
+   int num_elems = patch.Size();
+   for (int i = 0; i < num_elems; i++)
+   {
+      int ielem = patch[i];
+      const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem),
+                                                   order));
+      Transf = ufes->GetElementTransformation(ielem);
+      for (int k = 0; k < ir->GetNPoints(); k++)
+      {
+         const IntegrationPoint ip = ir->IntPoint(k);
+         double tmp[3];
+         Vector transip(tmp, 3);
+         Transf->Transform(ip, transip);
+         for (int d = 0; d < dim; d++) { xmax_tmp(d) = max(xmax_tmp(d), transip(d)); }
+         for (int d = 0; d < dim; d++) { xmin_tmp(d) = min(xmin_tmp(d), transip(d)); }
+      }
+   }
+
+   xmax = xmax_tmp;
+   xmin = xmin_tmp;
+   angle = angle_tmp;
+}
+
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,
                            GridFunction &flux,
@@ -4136,6 +4176,10 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    error_estimates = 0.0;
    Array<int> counters(nfe);
    counters = 0;
+
+   double angle = 0.0;
+   Vector xmax(dim);
+   Vector xmin(dim);
 
    // Compute the number of subdomains
    int nsd = 1;
@@ -4180,8 +4224,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       DofTransformation *udoftrans;
       DofTransformation *fdoftrans;
       int patch_order = 0;
-      Vector xmax(dim);
-      Vector xmin(dim);
 
       // 2.A. Compute polynomial order of patch (for hp FEM)
       for (int i = 0; i < num_neighbor_elems; i++)
@@ -4198,24 +4240,11 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
       // 2.B. Estimate the smallest bounding box around the face patch
       //      (this is used in 2.C.ii. to define a global polynomial basis)
-      xmax = -std::numeric_limits<double>::max();
-      xmin = std::numeric_limits<double>::max();
-      for (int i = 0; i < num_neighbor_elems; i++)
-      {
-         int ielem = neighbor_elems[i];
-         const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem),
-                                                    flux_order));
-         Transf = ufes->GetElementTransformation(ielem);
-         for (int k = 0; k < ir->GetNPoints(); k++)
-         {
-            const IntegrationPoint ip = ir->IntPoint(k);
-            double tmp[3];
-            Vector transip(tmp, 3);
-            Transf->Transform(ip, transip);
-            for (int d = 0; d < dim; d++) { xmax(d) = max(xmax(d), transip(d)); }
-            for (int d = 0; d < dim; d++) { xmin(d) = min(xmin(d), transip(d)); }
-         }
-      }
+      MinimalBoundingBox(neighbor_elems, ufes, flux_order,
+                         angle, xmin, xmax);
+      // xmin.Print();
+      // xmax.Print();
+      // cout << "angle = " << angle << endl;
 
       // 2.C. Compute the normal equations for the least-squares problem
       // 2.C.i. Evaluate the discrete flux at all integration points in all
