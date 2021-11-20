@@ -49,6 +49,7 @@
 #include "ceed/algebraic.hpp"
 #include "lor.hpp"
 #include "weakformulation.hpp"
+#include "normal_equations.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

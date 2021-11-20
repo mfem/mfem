@@ -215,6 +215,12 @@ void NormalEquationsWeakFormulation::Assemble(int skip_zeros)
 
       B.MultTranspose(Gl,b);
 
+
+      // mfem::out << "G size = " << G.Height() << " x " << G.Width() << std::endl;
+      // mfem::out << "B size = " << B.Height() << " x " << B.Width() << std::endl;
+      // mfem::out << "A size = " << A.Height() << " x " << A.Width() << std::endl;
+
+
       // (3) Assemble Matrix and load vector
       for (int j = 0; j<nblocks; j++)
       {
@@ -259,6 +265,10 @@ void NormalEquationsWeakFormulation::Assemble(int skip_zeros)
                             :  offset_j + face_vdofs[l];
       }
       vdofs.Append(offsetvdofs_j);
+
+      // A.PrintMatlab(mfem::out);
+      // vdofs.Print();
+      // std::cin.get();
 
       mat->AddSubMatrix(vdofs,vdofs,A, skip_zeros);
       y->AddElementVector(vdofs,b);

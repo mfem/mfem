@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_WEAKFORMULATION
-#define MFEM_WEAKFORMULATION
+#ifndef MFEM_NORMALEQUATIONS
+#define MFEM_NORMALEQUATIONS
 
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
@@ -22,7 +22,7 @@ namespace mfem
     Normal Equations) */
 // First implementation for 1 Domain FE space and 1 trace FE space
 // Example DPG primal Poisson
-class NormalEquationsWeakFormulation
+class NormalEquations
 {
 
 protected:
@@ -91,9 +91,9 @@ private:
 public:
 
    /// Creates bilinear form associated with FE spaces @a *fespaces.
-   NormalEquationsWeakFormulation(Array<FiniteElementSpace* > & fes_,
-                                  Array<FiniteElementSpace* > & trace_fes_,
-                                  Array<FiniteElementCollection *> & fecol_)
+   NormalEquations(Array<FiniteElementSpace* > & fes_,
+                   Array<FiniteElementSpace* > & trace_fes_,
+                   Array<FiniteElementCollection *> & fecol_)
       : domain_fes(fes_), trace_fes(trace_fes_), test_fecols(fecol_)
    {
       nblocks = domain_fes.Size() + trace_fes.Size();
@@ -103,7 +103,7 @@ public:
       Init();
    }
 
-   // Get the size of the bilinear form of the NormalEquationsWeakFormulation
+   // Get the size of the bilinear form of the NormalEquations
    int Size() const { return height; }
 
    // Pre-allocate the internal SparseMatrix before assembly.
@@ -197,7 +197,7 @@ public:
    }
 
    /// Destroys bilinear form.
-   ~NormalEquationsWeakFormulation();
+   ~NormalEquations();
 
 };
 

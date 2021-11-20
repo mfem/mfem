@@ -43,6 +43,9 @@ int main(int argc, char *argv[])
    RT_Trace_FECollection trace_fec(order-1, mesh.Dimension());
    FiniteElementSpace trace_fes(&mesh, &trace_fec);
 
+   cout << "Number of RT trace unknowns: " << trace_fes.GetTrueVSize() << endl;
+
+
    int dim = mesh.Dimension();
    int test_order = order;
    if (dim == 2 && (order%2 == 0 || (mesh.MeshGenerator() & 2 && order > 1)))
@@ -50,7 +53,7 @@ int main(int argc, char *argv[])
       test_order++;
    }
 
-   L2_FECollection test_fec(test_order,mesh.Dimension());
+   H1_FECollection test_fec(test_order,mesh.Dimension());
 
    NormalEquationsWeakFormulation a(&H1fes,&trace_fes,&test_fec);
    ConstantCoefficient one(1.0);
@@ -80,7 +83,7 @@ int main(int argc, char *argv[])
    Vector X,B;
    OperatorPtr A;
 
-   int size = H1fes.GetTrueVSize() + trace_fes.GetTrueVSize();
+   int size = H1fes.GetVSize() + trace_fes.GetVSize();
 
    Vector x(size);
    x = 0.0;
@@ -93,7 +96,7 @@ int main(int argc, char *argv[])
    CGSolver cg;
 
 
-   cg.SetRelTol(1e-12);
+   cg.SetRelTol(1e-6);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(3);
    cg.SetPreconditioner(M);
