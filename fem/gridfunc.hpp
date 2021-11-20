@@ -929,13 +929,13 @@ Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
 
 /// Defines the a bounding box for the face patches used by NewZZErorrEstimator
 void BoundingBox(Array<int> patch,                // input
-                        FiniteElementSpace *ufes, // input
-                        int order,                // input
-                        Vector &xmin,             // output
-                        Vector &xmax,             // output
-                        double &angle,            // output
-                        Vector &center,           // output
-                        int iface=-1);            // input (optional)
+                 FiniteElementSpace *ufes, // input
+                 int order,                // input
+                 Vector &xmin,             // output
+                 Vector &xmax,             // output
+                 double &angle,            // output
+                 Vector &center,           // output
+                 int iface=-1);            // input (optional)
 
 /// A ``true'' ZZ error estimator which uses face-based patches
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,

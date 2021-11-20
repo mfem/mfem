@@ -4121,13 +4121,13 @@ Vector LegendreND(const Vector &x_in, const Vector &xmax, const Vector &xmin,
 }
 
 void BoundingBox(Array<int> patch,         // input
-                        FiniteElementSpace *ufes, // input
-                        int order,                // input
-                        Vector &xmin,             // output
-                        Vector &xmax,             // output
-                        double &angle,            // output
-                        Vector &center,           // output
-                        int iface)             // input (optional)
+                 FiniteElementSpace *ufes, // input
+                 int order,                // input
+                 Vector &xmin,             // output
+                 Vector &xmax,             // output
+                 double &angle,            // output
+                 Vector &center,           // output
+                 int iface)             // input (optional)
 {
    Mesh *mesh = ufes->GetMesh();
    int dim = mesh->Dimension();
@@ -4159,19 +4159,13 @@ void BoundingBox(Array<int> patch,         // input
       }
       center /= 2.0;
       angle = atan2(physical_diff(1),physical_diff(0));
-      // Array<int> iverts;
-      // mesh->GetFaceVertices(iface,iverts);
-      // cout << "iface = " << iface << endl;
-      // cout << "vertices = (" << iverts[0] << "," << iverts[1] << ")" << endl;
-      // cout << "angle = " << angle << endl;
-      // center.Print();
    }
 
    for (int i = 0; i < num_elems; i++)
    {
       int ielem = patch[i];
       const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem),
-                                                   order));
+                                                 order));
       ufes->GetElementTransformation(ielem, &Tr);
       for (int k = 0; k < ir->GetNPoints(); k++)
       {
@@ -4291,10 +4285,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       // 2.B. Estimate the smallest bounding box around the face patch
       //      (this is used in 2.C.ii. to define a global polynomial basis)
       BoundingBox(neighbor_elems, ufes, flux_order,
-                         xmin, xmax, angle, center, iface);
-      // xmin.Print();
-      // xmax.Print();
-      // cout << "angle = " << angle << endl;
+                  xmin, xmax, angle, center, iface);
 
       // 2.C. Compute the normal equations for the least-squares problem
       // 2.C.i. Evaluate the discrete flux at all integration points in all
