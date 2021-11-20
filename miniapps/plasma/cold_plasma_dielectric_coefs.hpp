@@ -69,7 +69,8 @@ inline double nu_ei(double charge, double coul_log, double mass,
 inline double nu_art(double x)
 {
    // return (3e11*exp(-x/0.1));
-   return (1e9*exp(-(x-0.65)/0.04));
+   // return (1e9*exp(-(x-0.65)/0.04));
+   return (1e14*exp(-x/0.1));
 }
 
 void StixCoefs_cold_plasma(Vector &V, double omega, double Bmag,
@@ -544,7 +545,7 @@ private:
    Type type_;
    Vector p_;
 
-   const int np_[6] = {1, 7, 9, 7, 7, 8};
+   const int np_[6] = {1, 7, 9, 7, 7, 7};
 
    mutable Vector x_;
 
@@ -558,7 +559,7 @@ public:
 class BFieldProfile : public VectorCoefficient
 {
 public:
-   enum Type {CONSTANT, B_P};
+   enum Type {CONSTANT, B_P, B_TOPDOWN, B_P_KOHNO};
 
 private:
    Type type_;
@@ -566,8 +567,9 @@ private:
    bool unit_;
 
 
-   const int np_[2] = {3, 7};
+   const int np_[4] = {3, 7, 6, 8};
 
+   mutable Vector x3_;
    mutable Vector x_;
 
 public:

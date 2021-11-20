@@ -1191,11 +1191,10 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double lambda_n = p_[2]; // Damping length
          double nu = p_[3]; // Strength of decline
          Vector x0(&p_[4], 3);
-         int ind = (int)rint(p_[7]);
 
          x_ -= x0;
-         //double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
-         return (pmax - pmin) * pow(cosh(pow((x_[ind] / lambda_n), nu)), -1.0) + pmin;
+         double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+         return (pmax - pmin) * pow(cosh(pow((rho / lambda_n), nu)), -1.0) + pmin;
       }
       break;
       default:
@@ -1204,7 +1203,8 @@ double PlasmaProfile::Eval(ElementTransformation &T,
 }
 
 BFieldProfile::BFieldProfile(Type type, const Vector & params, bool unit)
-   : VectorCoefficient(3), type_(type), p_(params), x_(3), unit_(unit)
+   : VectorCoefficient(3), type_(type), p_(params), unit_(unit),
+     x3_(3), x_(x3_.GetData(), 3)
 {
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
@@ -1217,9 +1217,126 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
    V.SetSize(3);
    if (type_ != CONSTANT)
    {
+      x3_ = 0.0;
       T.Transform(ip, x_);
    }
    switch (type_)
+   {
+      case CONSTANT:
+         if (unit_)
+         {
+            double bmag = pow( pow(p_[0], 2) + pow(p_[1], 2) + pow(p_[2], 2), 0.5);
+            V[0] = p_[0] / bmag;
+            V[1] = p_[1] / bmag;
+            V[2] = p_[2] / bmag;
+         }
+         else
+         {
+            V[0] = p_[0];
+            V[1] = p_[1];
+            V[2] = p_[2];
+         }
+         break;
+      case B_P:
+      {
+         double bp_abs = p_[0];
+         double a = p_[1];
+         double b = p_[2];
+         Vector x0(&p_[3], 3);
+         double bz = p_[6];
+
+         x3_ -= x0;
+         double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
+         double bp = bp_abs * sin(3 * sqrt(r));
+         bz *= 1.0/(0.68 + x_[0]);
+         double theta = atan2(x_[1], x_[0]);
+
+         if (unit_)
+         {
+            double bmag = pow( pow(bp, 2) + pow(bz, 2), 0.5);
+            V[0] = -bp * sin(theta) / bmag;
+            V[1] = bp * cos(theta) / bmag;
+            V[2] = bz / bmag;
+         }
+         else
+         {
+            V[0] = -bp * sin(theta);
+            V[1] = bp * cos(theta);
+            V[2] = bz;
+         }
+      }
+      break;
+      case B_TOPDOWN:
+      {
+         double bp_val = p_[0];
+         double a = p_[1];
+         double b = p_[2];
+         Vector x0(&p_[3], 3);
+
+         x3_ -= x0;
+         double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
+         double theta = atan2(x_[1], x_[0]);
+
+         if (unit_)
+         {
+            double bmag = pow( pow(bp_val, 2), 0.5);
+            V[0] = -bp_val * sin(theta) / bmag;
+            V[1] = bp_val * cos(theta) / bmag;
+            V[2] = 0 / bmag;
+         }
+         else
+         {
+            V[0] = -bp_val * sin(theta);
+            V[1] = bp_val * cos(theta);
+            V[2] = 0;
+         }
+      }
+      break;
+      case B_P_KOHNO:
+      {
+         double rmin = p_[0]; // Minor radius
+         double rmaj = p_[1]; // Major radius
+         double q0 = p_[2]; // Safety factor on magnetic axis
+         double qa = p_[3]; // Edge safety factor
+         Vector x0(&p_[4], 3); // Magnetic field axis
+         double bz0 = p_[7]; // B toroidal
+
+         x3_ -= x0;
+         double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+         double bp_coef = ((bz0 / rmaj) * pow(rmin, 2.0)) / (pow(rmin,
+                                                                 2.0)*q0 + (qa - q0)*pow(rho, 2.0));
+
+         if (unit_)
+         {
+            double bmag = pow( pow(bp_coef * x_[1], 2) + pow(-bp_coef * x_[0], 2) + pow(bz0,
+                                                                                        2), 0.5);
+            V[0] = bp_coef * x_[1] / bmag;
+            V[1] = -bp_coef * x_[0] / bmag;
+            V[2] = bz0 / bmag;
+         }
+         else
+         {
+            V[0] = bp_coef * x_[1];
+            V[1] = -bp_coef * x_[0];
+            V[2] = bz0;
+         }
+      }
+      break;
+      default:
+         if (unit_)
+         {
+            V[0] = 0.0;
+            V[1] = 0.0;
+            V[2] = 1.0;
+         }
+         else
+         {
+            V[0] = 0.0;
+            V[1] = 0.0;
+            V[2] = 5.4;
+         }
+   }
+   /*
    {
       case CONSTANT:
          if (unit_)
@@ -1279,6 +1396,7 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             V[2] = 5.4;
          }
    }
+   */
 }
 
 ComplexPhaseCoefficient::ComplexPhaseCoefficient(
@@ -1297,7 +1415,7 @@ ComplexPhaseCoefficient::ComplexPhaseCoefficient(
    {
       MFEM_ASSERT(kRe->GetVDim() == kIm->GetVDim(),
                   "Wave vector dimension mismatch in "
-                  "ComplexPhaseVectorCoefficient");
+                  "ComplexPhaseCoefficient");
    }
 
    xk_  = 0.0;
