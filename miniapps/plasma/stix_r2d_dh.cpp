@@ -171,6 +171,10 @@ void j_src_i(const Vector &x, Vector &j)
    }
 }
 
+Mesh * SkewMesh(int nx, int ny, double lx, double ly, double skew_angle);
+Mesh * ChevronMesh(int nx, int ny, double lx, double ly, double skew_angle);
+Mesh * BowTieMesh(int nx, int ny, double lx, double ly, double skew_angle);
+
 // Electric Field Boundary Condition: The following function returns zero but
 // any function could be used.
 void e_bc_r(const Vector &x, Vector &E);
@@ -449,6 +453,11 @@ int main(int argc, char *argv[])
 
    // Parse command-line options.
    const char *mesh_file = "ellipse_origin_h0pt0625_o3.mesh";
+
+   Vector skew_mesh;
+   Vector chev_mesh;
+   Vector bowt_mesh;
+
    double hz = 1.0;
    int ser_ref_levels = 0;
    int order = 1;
@@ -479,8 +488,10 @@ int main(int argc, char *argv[])
 
    PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
+   BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
+   Vector bpp;
    int nuprof = 0;
 
    Array<int> abcs; // Absorbing BC attributes
@@ -503,7 +514,7 @@ int main(int argc, char *argv[])
 
    int num_elements = 10;
 
-   SolverOptions solOpts;
+   CPDSolverDH::SolverOptions solOpts;
    solOpts.maxIter = 1000;
    solOpts.kDim = 50;
    solOpts.printLvl = 1;
@@ -511,7 +522,6 @@ int main(int argc, char *argv[])
    solOpts.euLvl = 1;
 
    bool logo = false;
-   bool per_y = false;
    bool cyl = false;
    bool check_eps_inv = false;
    bool pa = false;
@@ -522,9 +532,12 @@ int main(int argc, char *argv[])
                   "--no-print-logo", "Print logo and exit.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&per_y, "-per-y", "--periodic-in-y", "-no-per-y",
-                  "--not-periodic-in-y",
-                  "The input mesh is periodic in the y-direction.");
+   args.AddOption(&skew_mesh, "-sm", "--skew-mesh",
+                  "Nx, Ny, Lx, Ly, Skew Angle.");
+   args.AddOption(&chev_mesh, "-cm", "--chevron-mesh",
+                  "Nx, Ny, Lx, Ly, Skew Angle.");
+   args.AddOption(&bowt_mesh, "-bm", "--bowtie-mesh",
+                  "Nx, Ny, Lx, Ly, Skew Angle.");
    args.AddOption(&cyl, "-cyl", "--cylindrical-coords", "-cart",
                   "--cartesian-coords",
                   "Cartesian (x, y, z) coordinates or "
@@ -549,6 +562,14 @@ int main(int argc, char *argv[])
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
+   args.AddOption((int*)&bpt, "-bp", "--Bfield-profile",
+                  "BField Profile Type: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&bpp, "-bpp", "--Bfield-profile-params",
+                  "BField Profile Parameters:\n"
+                  "  B_P: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center, Bz, placeholder.");
    args.AddOption((int*)&tpt, "-tp", "--temperature-profile",
                   "Temperature Profile Type: \n"
                   "0 - Constant, 1 - Constant Gradient, "
@@ -890,7 +911,37 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 
-   Mesh * mesh = new Mesh(mesh_file, 1, 1);
+   Mesh * mesh = NULL;
+   if (skew_mesh.Size() == 5)
+   {
+      int nx = (int)rint(skew_mesh[0]);
+      int ny = (int)rint(skew_mesh[1]);
+      mesh = SkewMesh(nx, ny, skew_mesh[2], skew_mesh[3], skew_mesh[4]);
+   }
+   else if (chev_mesh.Size() == 5)
+   {
+      int nx = (int)rint(chev_mesh[0]);
+      int ny = (int)rint(chev_mesh[1]);
+      mesh = ChevronMesh(nx, ny, chev_mesh[2], chev_mesh[3], chev_mesh[4]);
+   }
+   else if (bowt_mesh.Size() == 5)
+   {
+      int nx = (int)rint(bowt_mesh[0]);
+      int ny = (int)rint(bowt_mesh[1]);
+      mesh = BowTieMesh(nx, ny, bowt_mesh[2], bowt_mesh[3], bowt_mesh[4]);
+   }
+   else
+   {
+      mesh = new Mesh(mesh_file, 1, 1);
+   }
+
+   if (mpi.Root())
+   {
+      cout << "Created mesh object with element attributes: ";
+      mesh->attributes.Print(cout);
+      cout << "and boundary attributes: ";
+      mesh->bdr_attributes.Print(cout);
+   }
 
    {
       Vector bb_min(2), bb_max(2);
@@ -941,7 +992,7 @@ int main(int argc, char *argv[])
    {
       cout << "Starting initialization." << endl;
    }
-
+   /*
    double Bmag = BVec.Norml2();
    Vector BUnitVec(3);
    BUnitVec(0) = BVec(0)/Bmag;
@@ -950,6 +1001,9 @@ int main(int argc, char *argv[])
 
    VectorConstantCoefficient BCoef(BVec);
    VectorConstantCoefficient BUnitCoef(BUnitVec);
+   */
+   BFieldProfile BCoef(bpt, bpp, false);
+   BFieldProfile BUnitCoef(bpt, bpp, true);
 
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    ND_R2D_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
@@ -1110,13 +1164,13 @@ int main(int argc, char *argv[])
       {
          kVec.SetSize(6);
          kVec = 0.0;
-
-         if (per_y)
-         {
-            kVec[1] = kr[1];
-            kVec[4] = ki[1];
-         }
-
+         /*
+              if (per_y)
+              {
+                 kVec[1] = kr[1];
+                 kVec[4] = ki[1];
+              }
+         */
          kVec[2] = kr[2];
          kVec[5] = ki[2];
 
@@ -1133,26 +1187,23 @@ int main(int argc, char *argv[])
    }
    else
    {
-      if (phase_shift)
+      if (kVec.Size() >= 3)
       {
-         if (kVec.Size() >= 3)
-         {
-            kReVec.SetDataAndSize(&kVec[0], 3);
-         }
-         else
-         {
-            kReVec.SetSize(3);
-            kReVec = 0.0;
-         }
-         if (kVec.Size() >= 6)
-         {
-            kImVec.SetDataAndSize(&kVec[3], 3);
-         }
-         else
-         {
-            kImVec.SetSize(3);
-            kImVec = 0.0;
-         }
+         kReVec.SetDataAndSize(&kVec[0], 3);
+      }
+      else
+      {
+         kReVec.SetSize(3);
+         kReVec = 0.0;
+      }
+      if (kVec.Size() >= 6)
+      {
+         kImVec.SetDataAndSize(&kVec[3], 3);
+      }
+      else
+      {
+         kImVec.SetSize(3);
+         kImVec = 0.0;
       }
    }
 
@@ -1694,7 +1745,11 @@ void record_cmd_line(int argc, char *argv[])
    for (int i=0; i<argc; i++)
    {
       ofs << argv[i] << " ";
-      if (strcmp(argv[i], "-dpp"    ) == 0 ||
+      if (strcmp(argv[i], "-bm"     ) == 0 ||
+          strcmp(argv[i], "-cm"     ) == 0 ||
+          strcmp(argv[i], "-sm"     ) == 0 ||
+          strcmp(argv[i], "-bpp"    ) == 0 ||
+          strcmp(argv[i], "-dpp"    ) == 0 ||
           strcmp(argv[i], "-tpp"    ) == 0 ||
           strcmp(argv[i], "-B"      ) == 0 ||
           strcmp(argv[i], "-k-vec"  ) == 0 ||
@@ -1867,6 +1922,163 @@ void slab_current_source_i(const Vector &x, Vector &j)
          { j *= 0.5 * (1.0 + sin(M_PI*((2.0 * (x[1] - y0) + dy)/dy - 0.5))); }
       }
    }
+}
+
+Mesh * SkewMesh(int nx, int ny, double lx, double ly, double skew_angle)
+{
+   // cout << "Skew Mesh: " << nx << " " << ny << " " << lx << " " << ly << " " << skew_angle << endl;
+   Mesh mesh(2, (nx + 1) * (ny + 1), nx * ny, 2 * ny, 2);
+
+   double hx = lx / nx;
+   double hy = ly / ny;
+   double hxy = hx * tan(skew_angle * M_PI / 180.0);
+
+   std::vector<int> v2v((nx + 1) * (ny + 1));
+
+   int k = 0;
+   for (int i=0; i<=nx; i++)
+   {
+      for (int j=0; j<=ny; j++)
+      {
+         mesh.AddVertex(hx * i, hy * j + hxy * i);
+         v2v[k] = k;
+         k++;
+      }
+      v2v[k-1] = v2v[k-ny-1];
+   }
+
+   int v0, v1, v2, v3;
+   for (int i=0; i<nx; i++)
+   {
+      for (int j=0; j<ny; j++)
+      {
+         v0 = (ny + 1) * i + j;
+         v1 = (ny + 1) * (i + 1) + j;
+         v2 = (ny + 1) * (i + 1) + (j + 1);
+         v3 = (ny + 1) * i + (j + 1);
+         mesh.AddQuad(v0, v1, v2, v3);
+      }
+   }
+
+   for (int j=0; j<ny; j++)
+   {
+      v0 = (ny - j);
+      v1 = ny - 1 - j;
+      mesh.AddBdrSegment(v0, v1, 1);
+      v0 = (ny + 1) * nx + j;
+      v1 = (ny + 1) * nx + (j + 1);
+      mesh.AddBdrSegment(v0, v1, 2);
+   }
+
+   mesh.FinalizeMesh();
+
+   Mesh * per_mesh = new Mesh(Mesh::MakePeriodic(mesh, v2v));
+
+   return per_mesh;
+}
+
+Mesh * ChevronMesh(int nx, int ny, double lx, double ly, double skew_angle)
+{
+   Mesh mesh(2, (nx + 1) * (ny + 1), nx * ny, 2 * ny, 2);
+
+   double hx = lx / nx;
+   double hy = ly / ny;
+   double hxy = hx * tan(skew_angle * M_PI / 180.0);
+
+   std::vector<int> v2v((nx + 1) * (ny + 1));
+
+   int k = 0;
+   for (int i=0; i<=nx; i++)
+   {
+      for (int j=0; j<=ny; j++)
+      {
+         mesh.AddVertex(hx * i, hy * j + hxy * (i % 2 - 0.5));
+         v2v[k] = k;
+         k++;
+      }
+      v2v[k-1] = v2v[k-ny-1];
+   }
+
+   int v0, v1, v2, v3;
+   for (int i=0; i<nx; i++)
+   {
+      for (int j=0; j<ny; j++)
+      {
+         v0 = (ny + 1) * i + j;
+         v1 = (ny + 1) * (i + 1) + j;
+         v2 = (ny + 1) * (i + 1) + (j + 1);
+         v3 = (ny + 1) * i + (j + 1);
+         mesh.AddQuad(v0, v1, v2, v3);
+      }
+   }
+
+   for (int j=0; j<ny; j++)
+   {
+      v0 = (ny - j);
+      v1 = ny - 1 - j;
+      mesh.AddBdrSegment(v0, v1, 1);
+      v0 = (ny + 1) * nx + j;
+      v1 = (ny + 1) * nx + (j + 1);
+      mesh.AddBdrSegment(v0, v1, 2);
+   }
+
+   mesh.FinalizeMesh();
+
+   Mesh * per_mesh = new Mesh(Mesh::MakePeriodic(mesh, v2v));
+
+   return per_mesh;
+}
+
+Mesh * BowTieMesh(int nx, int ny, double lx, double ly, double skew_angle)
+{
+   Mesh mesh(2, (nx + 1) * (ny + 1), nx * ny, 2 * ny, 2);
+
+   double hx = lx / nx;
+   double hy = ly / ny;
+   double hxy = hx * tan(skew_angle * M_PI / 180.0);
+
+   std::vector<int> v2v((nx + 1) * (ny + 1));
+
+   int k = 0;
+   for (int i=0; i<=nx; i++)
+   {
+      for (int j=0; j<=ny; j++)
+      {
+         mesh.AddVertex(hx * i, hy * j + hxy * (i % 2 - 0.5) * (2.0 * (j % 2) - 1.0));
+         v2v[k] = k;
+         k++;
+      }
+      v2v[k-1] = v2v[k-ny-1];
+   }
+
+   int v0, v1, v2, v3;
+   for (int i=0; i<nx; i++)
+   {
+      for (int j=0; j<ny; j++)
+      {
+         v0 = (ny + 1) * i + j;
+         v1 = (ny + 1) * (i + 1) + j;
+         v2 = (ny + 1) * (i + 1) + (j + 1);
+         v3 = (ny + 1) * i + (j + 1);
+         mesh.AddQuad(v0, v1, v2, v3);
+      }
+   }
+
+   for (int j=0; j<ny; j++)
+   {
+      v0 = (ny - j);
+      v1 = ny - 1 - j;
+      mesh.AddBdrSegment(v0, v1, 1);
+      v0 = (ny + 1) * nx + j;
+      v1 = (ny + 1) * nx + (j + 1);
+      mesh.AddBdrSegment(v0, v1, 2);
+   }
+
+   mesh.FinalizeMesh();
+
+   Mesh * per_mesh = new Mesh(Mesh::MakePeriodic(mesh, v2v));
+
+   return per_mesh;
 }
 
 void e_bc_r(const Vector &x, Vector &E)
