@@ -407,7 +407,7 @@ private:
 
 public:
    VectorFEBoundaryTangentialLFIntegrator(VectorCoefficient &QG,
-                                       int a = 2, int b = 0)
+                                          int a = 2, int b = 0)
       : f(QG), oa(a), ob(b) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
