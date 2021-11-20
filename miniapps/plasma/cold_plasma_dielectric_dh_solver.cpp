@@ -574,7 +574,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    : myid_(0),
      num_procs_(1),
      order_(order),
-     logging_(1),
+     logging_(2),
      sol_(sol),
      solOpts_(sOpts),
      prec_(prec),
@@ -589,6 +589,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      L2VFESpace_(NULL),
      L2FESpace3D_(NULL),
      L2VFESpace3D_(NULL),
+     HCurlFESpace3D_(NULL),
      H1FESpace_(NULL),
      HCurlFESpace_(NULL),
      HDivFESpace_(NULL),
@@ -627,11 +628,13 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      e_t_(NULL),
      e_b_v_(NULL),
      h_v_(NULL),
+     h_tilde_(NULL),
      e_v_(NULL),
      d_v_(NULL),
      phi_v_(NULL),
      rectPot_v_(NULL),
      j_v_(NULL),
+     div_d_(NULL),
      b_hat_(NULL),
      b_hat_v_(NULL),
      // u_(NULL),
@@ -938,14 +941,14 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    if (pa_) { a1_->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    if (!cylSymm_)
    {
-      a1_->AddDomainIntegrator(new CurlCurlIntegrator(*epsInvReCoef_),
-                               new CurlCurlIntegrator(*epsInvImCoef_));
+      a1_->AddDomainIntegrator(new MixedCurlCurlIntegrator(*epsInvReCoef_),
+                               new MixedCurlCurlIntegrator(*epsInvImCoef_));
       a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);
    }
    else
    {
-      a1_->AddDomainIntegrator(new CurlCurlIntegrator(cylStiffnessReCoef_),
-                               new CurlCurlIntegrator(cylStiffnessImCoef_));
+      a1_->AddDomainIntegrator(new MixedCurlCurlIntegrator(cylStiffnessReCoef_),
+                               new MixedCurlCurlIntegrator(cylStiffnessImCoef_));
       a1_->AddDomainIntegrator(new VectorFEMassIntegrator(cylMassCoef_), NULL);
    }
    if (kReCoef_ || kImCoef_)
@@ -1250,9 +1253,11 @@ CPDSolverDH::~CPDSolverDH()
    // if (j_v_ != j_) { delete j_v_; }
    // if (phi_v_ != phi_) {delete phi_v_;}
    delete h_v_;
+   delete h_tilde_;
    delete e_v_;
    delete d_v_;
    delete j_v_;
+   delete div_d_;
    delete phi_v_;
    delete e_b_v_;
    delete b_hat_;
@@ -1314,8 +1319,11 @@ CPDSolverDH::~CPDSolverDH()
    // delete weakCurlMuInv_;
 
    delete L2FESpace_;
+   delete L2FESpace3D_;
    delete L2FESpace2p_;
    delete L2VFESpace_;
+   delete L2VFESpace3D_;
+   delete HCurlFESpace3D_;
    delete H1FESpace_;
    delete HCurlFESpace_;
    delete HDivFESpace_;
@@ -1609,6 +1617,7 @@ CPDSolverDH::Update()
    if (e_t_) { e_t_->Update(); }
    if (e_b_v_) { e_b_v_->Update(); }
    if (h_v_) { h_v_->Update(); }
+   if (h_tilde_) { h_tilde_->Update(); }
    if (e_v_) { e_v_->Update(); }
    if (d_v_) { d_v_->Update(); }
    if (j_v_) { j_v_->Update(); }
@@ -1720,14 +1729,23 @@ CPDSolverDH::Solve()
             attr_marker[dbcs_[i]->attr[j] - 1] = 1;
          }
 
-         ComplexPhaseVectorCoefficient re_h_dbc(kReCoef_, kImCoef_,
-                                                dbcs_[i]->real,
-                                                dbcs_[i]->imag, true, true);
-         ComplexPhaseVectorCoefficient im_h_dbc(kReCoef_, kImCoef_,
-                                                dbcs_[i]->real,
-                                                dbcs_[i]->imag, false, true);
+         bool dbc_phase = true;
+         if (dbc_phase)
+         {
+            ComplexPhaseVectorCoefficient re_h_dbc(kReCoef_, kImCoef_,
+                                                   dbcs_[i]->real,
+                                                   dbcs_[i]->imag, true, true);
+            ComplexPhaseVectorCoefficient im_h_dbc(kReCoef_, kImCoef_,
+                                                   dbcs_[i]->real,
+                                                   dbcs_[i]->imag, false, true);
 
-         h_->ProjectCoefficient(re_h_dbc, im_h_dbc);
+            h_->ProjectBdrCoefficientTangent(re_h_dbc, im_h_dbc, attr_marker);
+         }
+         else
+         {
+            h_->ProjectBdrCoefficientTangent(*dbcs_[i]->real, *dbcs_[i]->imag,
+                                             attr_marker);
+         }
       }
       if (logging_ > 1)
       {
@@ -1952,20 +1970,21 @@ void CPDSolverDH::computeD(const ParComplexGridFunction & h,
                            const ParComplexGridFunction & j,
                            ParComplexGridFunction & d)
 {
+   // D = -J / (-i omega) = -i J / omega
    d.real().Set( 1.0 / omega_, j.imag());
    d.imag().Set(-1.0 / omega_, j.real());
 
-   // D = Curl(H) / (-i omega) = i Curl(H) / omega
+   // D += Curl(H) / (-i omega) = i Curl(H) / omega
    curl_->AddMult(h.imag(), d.real(),-1.0 / omega_);
    curl_->AddMult(h.real(), d.imag(), 1.0 / omega_);
 
    if (kReCoef_ || kImCoef_)
    {
-      // D = i k x H / (-i omega) = -k x H / omega
+      // D += i k x H / (-i omega) = -k x H / omega
       kReCross_->AddMult(h.real(), d.real(), -1.0 / omega_);
       kReCross_->AddMult(h.imag(), d.imag(), -1.0 / omega_);
 
-      kImCross_->AddMult(h.imag(), d.real(), -1.0 / omega_);
+      kImCross_->AddMult(h.imag(), d.real(),  1.0 / omega_);
       kImCross_->AddMult(h.real(), d.imag(), -1.0 / omega_);
    }
 
@@ -2127,6 +2146,50 @@ void CPDSolverDH::prepareVisFields()
    prepareVectorVisField(*e_, *e_v_);
    prepareVectorVisField(*d_, *d_v_);
 
+   if (h_tilde_)
+   {
+      VectorGridFunctionCoefficient u_r(&h_->real());
+      VectorGridFunctionCoefficient u_i(&h_->imag());
+
+      VectorR2DCoef u_r_3D(u_r, *pmesh_);
+      VectorR2DCoef u_i_3D(u_i, *pmesh_);
+
+      h_tilde_->ProjectCoefficient(u_r_3D, u_i_3D);
+   }
+   {
+      VectorGridFunctionCoefficient d_r(&d_->real());
+      VectorGridFunctionCoefficient d_i(&d_->real());
+
+      DivergenceGridFunctionCoefficient div_d_r(&d_->real());
+      DivergenceGridFunctionCoefficient div_d_i(&d_->imag());
+
+      VectorR2DCoef dReCoef(d_r, *pmesh_);
+      VectorR2DCoef dImCoef(d_i, *pmesh_);
+
+      Vector ZeroVec(3); ZeroVec = 0.0;
+      VectorConstantCoefficient ZeroCoef(ZeroVec);
+      VectorCoefficient * kReCoef = (kReCoef_) ? kReCoef_ : &ZeroCoef;
+      VectorCoefficient * kImCoef = (kImCoef_) ? kImCoef_ : &ZeroCoef;
+
+      InnerProductCoefficient krdr(*kReCoef, dReCoef);
+      InnerProductCoefficient krdi(*kReCoef, dImCoef);
+      InnerProductCoefficient kidr(*kImCoef, dReCoef);
+      InnerProductCoefficient kidi(*kImCoef, dImCoef);
+
+      SumCoefficient ikd_r(krdi, kidr, -1.0, -1.0);
+      SumCoefficient ikd_i(krdr, kidi,  1.0, -1.0);
+
+      SumCoefficient div_d_r_3D(div_d_r, ikd_r);
+      SumCoefficient div_d_i_3D(div_d_i, ikd_i);
+
+      ComplexPhaseCoefficient ddk_r(kReCoef_, kImCoef_, &div_d_r_3D, &div_d_i_3D,
+                                    true, false);
+      ComplexPhaseCoefficient ddk_i(kReCoef_, kImCoef_, &div_d_r_3D, &div_d_i_3D,
+                                    false, false);
+
+      div_d_->ProjectCoefficient(ddk_r, ddk_i);
+   }
+
    if (BCoef_)
    {
       // VectorGridFunctionCoefficient b_hat(b_hat_);
@@ -2150,13 +2213,24 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    if (L2FESpace3D_ == NULL)
    {
-      L2FESpace3D_  = new L2_FESpace(visit_dc_->GetMesh(),order_,3);
+      L2FESpace3D_  = new L2_FESpace(visit_dc_->GetMesh(),order_-1,3);
    }
    if (L2VFESpace3D_ == NULL)
    {
-      L2VFESpace3D_  = new L2_FESpace(visit_dc_->GetMesh(),order_,3,3);
+      L2VFESpace3D_  = new L2_FESpace(visit_dc_->GetMesh(),order_-1,3,3);
    }
-
+   if (HCurlFESpace3D_ == NULL)
+   {
+      HCurlFESpace3D_  = new ND_FESpace(visit_dc_->GetMesh(),order_,3);
+   }
+   if (h_tilde_ == NULL)
+   {
+      h_tilde_ = new ComplexGridFunction(HCurlFESpace3D_);
+   }
+   if (div_d_ == NULL)
+   {
+      div_d_ = new ComplexGridFunction(L2FESpace3D_);
+   }
    // cout << "Num elements: " << visit_dc_->GetMesh()->GetNE() << endl;
    // cout << "Num L2 dofs: " << L2FESpace3D_->GetVSize() << endl;
    // cout << "Num L2V dofs: " << L2VFESpace3D_->GetVSize() << endl;
@@ -2165,18 +2239,24 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
    StixD_ = new ComplexGridFunction(L2FESpace3D_);
    StixP_ = new ComplexGridFunction(L2FESpace3D_);
 
-   h_v_ = new ComplexGridFunction(L2VFESpace3D_);
+   h_v_ = new ComplexGridFunction(HCurlFESpace3D_);
    e_v_ = new ComplexGridFunction(L2VFESpace3D_);
    d_v_ = new ComplexGridFunction(L2VFESpace3D_);
 
    visit_dc.RegisterField("Re_H", &h_v_->real());
    visit_dc.RegisterField("Im_H", &h_v_->imag());
 
+   visit_dc.RegisterField("Re_H~", &h_tilde_->real());
+   visit_dc.RegisterField("Im_H~", &h_tilde_->imag());
+
    visit_dc.RegisterField("Re_E", &e_v_->real());
    visit_dc.RegisterField("Im_E", &e_v_->imag());
 
    visit_dc.RegisterField("Re_D", &d_v_->real());
    visit_dc.RegisterField("Im_D", &d_v_->imag());
+
+   visit_dc.RegisterField("Re_DivD", &div_d_->real());
+   visit_dc.RegisterField("Im_DivD", &div_d_->imag());
 
    /*
    visit_dc.RegisterField("Re_H", &h_->real());
@@ -2262,33 +2342,7 @@ CPDSolverDH::WriteVisItFields(int it)
       if (myid_ == 0) { cout << "Writing VisIt files ..." << flush; }
 
       prepareVisFields();
-      /*
-      cout << "Preparing E viz" << endl;
-      VectorGridFunctionCoefficient e_r(&e_->real());
-      VectorGridFunctionCoefficient e_i(&e_->imag());
-      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
-      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *sinkx_);
 
-      VectorR2DCoef erCoef3D(erCoef, *pmesh_);
-      VectorR2DCoef eiCoef3D(eiCoef, *pmesh_);
-
-      e_v_->ProjectCoefficient(erCoef3D, eiCoef3D);
-      */
-      /*
-      if ( j_ )
-      {
-         j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
-      }
-      */
-      /*
-      if ( u_ )
-      {
-         u_->ProjectCoefficient(uCoef_);
-         uE_->ProjectCoefficient(uECoef_);
-         uB_->ProjectCoefficient(uBCoef_);
-         S_->ProjectCoefficient(SrCoef_, SiCoef_);
-      }
-      */
       if ( StixS_ )
       {
          StixS_->ProjectCoefficient(*SReCoef_, *SImCoef_);
@@ -2760,8 +2814,12 @@ CPDSolverDH::DisplayAnimationToGLVis()
    {
       VectorGridFunctionCoefficient e_r(&e_->real());
       VectorGridFunctionCoefficient e_i(&e_->imag());
-      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
-      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *sinkx_);
+      // VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
+      // VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *sinkx_);
+      ComplexPhaseVectorCoefficient erCoef(kReCoef_, kImCoef_, &e_r, &e_i,
+                                           true, false);
+      ComplexPhaseVectorCoefficient eiCoef(kReCoef_, kImCoef_, &e_r, &e_i,
+                                           false, false);
 
       e_v_->ProjectCoefficient(erCoef, eiCoef);
    }

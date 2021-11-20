@@ -14,8 +14,8 @@
 
 #include "../common/fem_extras.hpp"
 #include "../common/pfem_extras.hpp"
-#include "cold_plasma_dielectric_solver.hpp"
 #include "plasma.hpp"
+#include "stix_bcs.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -25,6 +25,7 @@
 namespace mfem
 {
 
+using common::ND_FESpace;
 using common::L2_FESpace;
 using common::H1_ParFESpace;
 using common::ND_ParFESpace;
@@ -304,25 +305,6 @@ public:
                                DenseMatrix &elmat);
 };
 
-class VectorR2DCoef : public VectorCoefficient
-{
-private:
-   VectorCoefficient & coef_;
-   ParMesh & pmesh_;
-public:
-   VectorR2DCoef(VectorCoefficient & coef, ParMesh & pmesh)
-      : VectorCoefficient(coef.GetVDim()), coef_(coef), pmesh_(pmesh) {}
-
-   void Eval(Vector &v, ElementTransformation &T,
-             const IntegrationPoint &ip)
-   {
-      int e = T.ElementNo;
-      ElementTransformation * pT = pmesh_.GetElementTransformation(e);
-      pT->SetIntPoint(&ip);
-      coef_.Eval(v, *pT, ip);
-   }
-};
-
 /// Cold Plasma Dielectric Solver
 class CPDSolverDH
 {
@@ -349,6 +331,18 @@ public:
       ZMUMPS      =  7
    };
 
+   // Solver options
+   struct SolverOptions
+   {
+      int maxIter;
+      int kDim;
+      int printLvl;
+      double relTol;
+
+      // Euclid Options
+      int euLvl;
+   };
+
    CPDSolverDH(ParMesh & pmesh, int order, double omega,
                CPDSolverDH::SolverType s, SolverOptions & sOpts,
                CPDSolverDH::PrecondType p,
@@ -363,9 +357,6 @@ public:
                VectorCoefficient * kImCoef,
                Array<int> & abcs,
                StixBCs & stixBCs,
-               // Array<ComplexVectorCoefficientByAttr*> & dbcs,
-               // Array<ComplexVectorCoefficientByAttr*> & nbcs,
-               // Array<ComplexCoefficientByAttr*> & sbcs,
                void (*j_r_src)(const Vector&, Vector&),
                void (*j_i_src)(const Vector&, Vector&),
                bool vis_u = false,
@@ -725,6 +716,9 @@ private:
    void computeE(const ParComplexGridFunction & d,
                  ParComplexGridFunction & e);
 
+   void computeB(const ParComplexGridFunction & h,
+                 ParComplexGridFunction & b);
+
    void prepareVectorVisField(const ParComplexGridFunction &u,
                               ComplexGridFunction &v);
 
@@ -747,8 +741,6 @@ private:
 
    double omega_;
 
-   // double solNorm_;
-
    ParMesh * pmesh_;
 
    L2_ParFESpace * L2FESpace_;
@@ -756,6 +748,7 @@ private:
    L2_ParFESpace * L2VFESpace_;
    L2_FESpace * L2FESpace3D_;
    L2_FESpace * L2VFESpace3D_;
+   ND_FESpace * HCurlFESpace3D_;
    H1_ParFESpace * H1FESpace_;
    ParFiniteElementSpace * HCurlFESpace_;
    ParFiniteElementSpace * HDivFESpace_;
@@ -803,11 +796,13 @@ private:
    ParGridFunction        * e_t_; // Time dependent Electric field
    ComplexGridFunction    * e_b_v_; // Complex parallel electric field (L2)
    ComplexGridFunction    * h_v_; // Complex magnetic field (L2^d)
+   ComplexGridFunction    * h_tilde_; // Complex magnetic field (HCurl3D)
    ComplexGridFunction    * e_v_; // Complex electric field (L2^d)
    ComplexGridFunction    * d_v_; // Complex electric flux (L2^d)
    ComplexGridFunction    * phi_v_; // Complex sheath potential (L2)
    ComplexGridFunction    * rectPot_v_; // Complex rectified potential (L2)
    ComplexGridFunction    * j_v_; // Complex current density (L2^d)
+   ComplexGridFunction    * div_d_; // Complex charge density (L2)
    ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
    GridFunction           * b_hat_v_; // Unit vector along B (L2^d)
    // ParGridFunction        * u_;   // Energy density (L2)
