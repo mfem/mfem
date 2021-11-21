@@ -23,7 +23,7 @@ using namespace mfem;
 // corresponding grid function coefficient (could be scalar, vector, grad, div,
 // or curl grid function coefficients). Then, this grid function coefficient is
 // projected onto fes_refined, and compared with the result of projecting
-// coeff_2. onto fes_refined.
+// coeff_2 onto fes_refined.
 //
 // If coeff_1 can be represented exactly in fes, then these two projections
 // should be identical.
