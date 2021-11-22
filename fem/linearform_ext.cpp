@@ -20,20 +20,12 @@ namespace mfem
 FullLinearFormExtension::FullLinearFormExtension(LinearForm *lf):
    LinearFormExtension(lf)
 {
-   const int ne = lf->FESpace()->GetNE();
-   const Mesh &mesh = *lf->FESpace()->GetMesh();
-
-   markers.SetSize(ne);
-   attributes.SetSize(ne);
-
-   // Fill the attributes on the host
-   for (int i = 0; i < ne; ++i) { attributes[i] = mesh.GetAttribute(i); }
+   Update();
 }
 
 void FullLinearFormExtension::Assemble()
 {
-   // This operation is executed on device
-   lf->Vector::operator=(0.0);
+   MFEM_VERIFY(lf->Size() == lf->FESpace()->GetVSize(), "");
 
    // Filter out the unsupported integrators
    MFEM_VERIFY(lf->GetBLFI()->Size() == 0,
@@ -74,20 +66,39 @@ void FullLinearFormExtension::Assemble()
                      "integrator #" << k << ", counting from zero");
       }
 
+      const int NE = fes.GetNE();
+      auto markers_w = markers.Write();
+
       // if there are no markers, just use the whole linear form (1)
-      if (!has_markers_k) { markers = 1; }
+      if (!has_markers_k)
+      {
+         // done this way as operator= for array are still done on the host
+         MFEM_FORALL(e, NE, markers_w[e] = 1;);
+      }
       else
       {
          // otherwise, scan the attributes to set the markers to 0 or 1
-         const int NE = fes.GetNE();
          const auto attr = attributes.Read();
          const auto dimk = domain_integs_marker_k->Read();
-         auto markers_w = markers.Write();
          MFEM_FORALL(e, NE, markers_w[e] = dimk[attr[e]-1] == 1;);
       }
 
       domain_integs[k]->AssembleFull(fes, markers, *lf);
    }
+}
+
+void FullLinearFormExtension::Update()
+{
+   MFEM_VERIFY(lf->Size() == lf->FESpace()->GetVSize(), "");
+
+   const int ne = lf->FESpace()->GetNE();
+   const Mesh &mesh = *lf->FESpace()->GetMesh();
+
+   markers.SetSize(ne);
+
+   // Gather the attributes on the host from all the elements
+   attributes.SetSize(ne);
+   for (int i = 0; i < ne; ++i) { attributes[i] = mesh.GetAttribute(i); }
 }
 
 } // namespace mfem

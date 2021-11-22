@@ -212,11 +212,10 @@ public:
        updated, e.g. after its associated Mesh object has been refined.
 
        @note This method does not perform assembly. */
-   void Update() { SetSize(fes->GetVSize()); ResetDeltaLocations(); }
+   void Update();
 
    /// Associate a new FE space, @a *f, with this object and Update() it. */
-   void Update(FiniteElementSpace *f)
-   { fes = f; SetSize(f->GetVSize()); ResetDeltaLocations(); }
+   void Update(FiniteElementSpace *f);
 
    /** @brief Associate a new FE space, @a *f, with this object and use the data
        of @a v, offset by @a v_offset, to initialize this object's Vector::data.

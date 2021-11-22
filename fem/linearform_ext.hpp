@@ -32,8 +32,14 @@ public:
 
    virtual ~LinearFormExtension() { }
 
-   /// Assemble at the level given for the LinearFormExtension subclass
+   /// Updates the linear form extension
+   virtual void Update() = 0;
+
+   /// Assemble at the level given for the linear form extension
    virtual void Assemble() = 0;
+
+   /// Assembles delta functions of the linear form extension
+   virtual void AssembleDelta() = 0;
 };
 
 /// Data and methods for fully-assembled linear forms
@@ -49,9 +55,15 @@ private:
 public:
    FullLinearFormExtension(LinearForm *lf);
 
-   /// Full assembly of the linear form, compatible with device execution.
+   /// Fully assembles the linear form, compatible with device execution.
    /// Only integrators added with AddDomainIntegrator are supported.
    void Assemble() override;
+
+   /// Fully assembles the delta functions of the linear form.
+   /// Not yet supported.
+   void AssembleDelta() override { MFEM_ABORT("Not yet supported!"); }
+
+   void Update() override;
 };
 
 } // namespace mfem
