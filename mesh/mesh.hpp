@@ -2475,6 +2475,10 @@ public:
    // part (i.e. all 'dimension'-1 entities) but only the boundary elements.
    Array<int> entity_to_vertex[Geometry::NumGeom];
 
+   // Store the refinement flags for tetraheral elements. If all tets have zero
+   // refinement flags then this array is empty, i.e. has size 0.
+   Array<int> tet_refine_flags;
+
    // "By-type" element/boundary ordering: ordered by Geometry::Type and within
    // each Geometry::Type 'geom' ordered as in 'entity_to_vertex[geom]'.
 
@@ -2546,12 +2550,12 @@ public:
    // each shared entity.
    Table group__shared_entity_to_vertex[Geometry::NumGeom];
 
-   // Write the MeshPart to a stream using the format "MFEM mesh v1.2".
+   // Write the MeshPart to a stream using the parallel format "MFEM mesh v1.2".
    void Print(std::ostream &out) const;
 };
 
 
-// TODO: doocumentation
+// TODO: documentation
 class MeshPartitioner
 {
 protected:
@@ -2564,11 +2568,11 @@ protected:
    Table vertex_to_element;
 
 public:
-   // TODO: doocumentation
+   // TODO: documentation
    MeshPartitioner(Mesh &mesh_, int num_parts_, int *partitioning_ = NULL,
                    int part_method = 1);
 
-   // TODO: doocumentation
+   // TODO: documentation
    void ExtractPart(int part_id, MeshPart &mesh_part) const;
 
    // Destructor
