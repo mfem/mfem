@@ -121,6 +121,12 @@ void LinearForm::SetAssemblyLevel(LinearAssemblyLevel assembly_level)
 
 void LinearForm::Assemble()
 {
+   Vector::operator=(0.0);
+
+   // The above operation is executed on device because of UseDevice().
+   // The first use of AddElementVector() below will move it back to host
+   // because both 'vdofs' and 'elemvect' are on host.
+
    if (ext) { return ext->Assemble(); }
 
    Array<int> vdofs;
@@ -129,12 +135,6 @@ void LinearForm::Assemble()
    Vector elemvect;
 
    int i;
-
-   Vector::operator=(0.0);
-
-   // The above operation is executed on device because of UseDevice().
-   // The first use of AddElementVector() below will move it back to host
-   // because both 'vdofs' and 'elemvect' are on host.
 
    if (domain_integs.Size())
    {
@@ -296,6 +296,18 @@ void LinearForm::Assemble()
    }
 }
 
+void LinearForm::Update()
+{
+   SetSize(fes->GetVSize()); ResetDeltaLocations();
+   if (ext) { ext->Update(); }
+}
+
+void LinearForm::Update(FiniteElementSpace *f)
+{
+   fes = f;
+   Update();
+}
+
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
@@ -303,6 +315,7 @@ void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
    v.UseDevice(true);
    this->Vector::MakeRef(v, v_offset, fes->GetVSize());
    ResetDeltaLocations();
+   if (ext) { ext->Update(); }
 }
 
 void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
@@ -313,6 +326,8 @@ void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
 void LinearForm::AssembleDelta()
 {
    if (domain_delta_integs.Size() == 0) { return; }
+
+   if (ext) { return ext->AssembleDelta(); }
 
    if (!HaveDeltaLocations())
    {
