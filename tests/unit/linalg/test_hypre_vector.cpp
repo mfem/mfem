@@ -109,6 +109,8 @@ TEST_CASE("HypreParVector Move Constructor", "[Parallel], [HypreParVector]")
    REQUIRE(v1_move.GetOwnership() == 1);
    REQUIRE(v1_move.Size() == v1_copy.Size());
    REQUIRE(v1_move.GlobalSize() == v1_copy.GlobalSize());
+   REQUIRE(v1.Size() == 0);
+   REQUIRE(v1.GetData() == nullptr);
 
    REQUIRE(v1_move.GetData() == v1_data);
 
@@ -149,6 +151,8 @@ TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
    REQUIRE(v1_move.GetOwnership() == 1);
    REQUIRE(v1_move.Size() == v1_copy.Size());
    REQUIRE(v1_move.GlobalSize() == v1_copy.GlobalSize());
+   REQUIRE(v1.Size() == 0);
+   REQUIRE(v1.GetData() == nullptr);
 
    REQUIRE(v1_move.GetData() == v1_data);
 
