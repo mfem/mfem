@@ -2823,6 +2823,43 @@ double GridFunction::ComputeL2Error(
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
+double GridFunction::ComputeElementGradError(int i, VectorCoefficient *exgrad,
+                                             const IntegrationRule *irs[]) const
+{
+   double error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *Tr;
+   Array<int> dofs;
+   Vector grad;
+   int intorder;
+   int dim = fes->GetMesh()->SpaceDimension();
+   Vector vec(dim);
+
+   fe = fes->GetFE(i);
+   Tr = fes->GetElementTransformation(i);
+   intorder = 2*fe->GetOrder() + 3; // <--------
+   const IntegrationRule *ir;
+   if (irs)
+   {
+      ir = irs[fe->GetGeomType()];
+   }
+   else
+   {
+      ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+   }
+   fes->GetElementDofs(i, dofs);
+   for (int j = 0; j < ir->GetNPoints(); j++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(j);
+      Tr->SetIntPoint(&ip);
+      GetGradient(*Tr,grad);
+      exgrad->Eval(vec,*Tr,ip);
+      vec-=grad;
+      error += ip.weight * Tr->Weight() * (vec * vec);
+   }
+   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+}
+
 double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
                                       const IntegrationRule *irs[]) const
 {
@@ -3346,7 +3383,7 @@ void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
    errors = 0.0;
    for (int i = 0; i < fes->GetNE(); i++)
    {
-      errors[i] = ComputeElementLpError(i, p, exsol, weight, irs);
+      errors[i] = GridFunction::ComputeElementLpError(i, p, exsol, weight, irs);
    }
 }
 
@@ -4057,7 +4094,10 @@ Vector LegendreND(const Vector &x_in, const Vector &xmax, const Vector &xmin,
 
    Vector x(dim);
    x = x_in;
-   if (angle != 0.0 && dim == 2)
+   // bool rotate = (iface == -1 && dim == 2);
+   // bool rotate = false;
+   bool rotate = true;
+   if (rotate)
    {
       x -= *center;
       Vector tmp(dim);
@@ -4127,7 +4167,7 @@ void BoundingBox(Array<int> patch,         // input
                  Vector &xmax,             // output
                  double &angle,            // output
                  Vector &center,           // output
-                 int iface)             // input (optional)
+                 int iface)                // input (optional)
 {
    Mesh *mesh = ufes->GetMesh();
    int dim = mesh->Dimension();
@@ -4138,8 +4178,9 @@ void BoundingBox(Array<int> patch,         // input
    xmin = std::numeric_limits<double>::max();
    angle = 0.0;
    center = 0.0;
-   bool rotate = (iface != -1 && dim == 2);
+   bool rotate = (mesh->GetElementType(patch[0]) == Element::QUADRILATERAL);
    // bool rotate = false;
+   // bool rotate = true;
 
    // Compute angle
    if (rotate)
@@ -4159,6 +4200,7 @@ void BoundingBox(Array<int> patch,         // input
       }
       center /= 2.0;
       angle = atan2(physical_diff(1),physical_diff(0));
+      // if (angle < 0) { angle += 2.0*M_PI; }
    }
 
    for (int i = 0; i < num_elems; i++)
@@ -4439,8 +4481,24 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             break;
          }
       }
+
+      // // 3. Compute error contributions from the face.
+      // double element_error = 0.0;
+      // double patch_error = 0.0;
+      // for (int i = 0; i < num_neighbor_elems; i++)
+      // {
+      //    int ielem = neighbor_elems[i];
+      //    element_error = u.ComputeElementGradError(ielem, &global_poly);
+      //    patch_error += element_error;
+      //    error_estimates(ielem) += element_error;
+      //    counters[ielem] += 1;
+      //    // Only compute for the primary element if at a slave face or a master face
+      //    if (type != 0) { break; }
+      // }
+
       total_error += patch_error;
    }
+
 
 #ifdef MFEM_USE_MPI
    auto pfes = dynamic_cast<ParFiniteElementSpace*>(ufes);

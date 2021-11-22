@@ -409,18 +409,18 @@ int main(int argc, char *argv[])
             else
             {
                p_refinements.Append(i);
-            //    // Also refine face-neighbors up to this order
-            //    int elem_p = fespace.GetElementOrder(i);
-            //    const int* row = table.GetRow(i);
-            //    int row_size = table.RowSize(i);
-            //    for (int j = 0; j < row_size; j++)
-            //    {
-            //       int neig_p = fespace.GetElementOrder(row[j]);
-            //       if (neig_p <= elem_p)
-            //       {
-            //          p_refinements.Append(row[j]);
-            //       }
-            //    }
+               // Also refine face-neighbors up to this order
+               int elem_p = fespace.GetElementOrder(i);
+               const int* row = table.GetRow(i);
+               int row_size = table.RowSize(i);
+               for (int j = 0; j < row_size; j++)
+               {
+                  int neig_p = fespace.GetElementOrder(row[j]);
+                  if (neig_p <= elem_p)
+                  {
+                     p_refinements.Append(row[j]);
+                  }
+               }
             }
          }
       }
@@ -481,10 +481,11 @@ void lshape_exgrad(const Vector &p, double omega, Vector &grad)
 {
    double alpha = M_PI / omega;
    double x = p(0), y = p(1);
+   double r = sqrt(x*x + y*y);
    double t = atan2(y, x);
    if (t < 0) { t += 2*M_PI; }
    double talpha = t*alpha;
-   double ralpha = pow(x*x + y*y, alpha);
+   double ralpha = pow(r, 2*alpha);
    grad(0) = alpha*x*sin(talpha)/(ralpha) - alpha*y*cos(talpha)/(ralpha);
    grad(1) = alpha*y*sin(talpha)/(ralpha) + alpha*x*cos(talpha)/(ralpha);
 }
