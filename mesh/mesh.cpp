@@ -13615,6 +13615,7 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    {
       mesh_part.entity_to_vertex[g].SetSize(0); // can reuse Array allocation
    }
+   mesh_part.tet_refine_flags.SetSize(0);
    mesh_part.element_map.SetSize(0); // 0 or 'num_elements', if needed
    mesh_part.boundary_map.SetSize(0); // 0 or 'num_bdr_elements', if needed
    mesh_part.attributes.SetSize(num_elems);
@@ -13634,6 +13635,7 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    //   set later); vertex ids are global at this point - they will be mapped to
    //   local ids later
    // - 'mesh_part.attributes'
+   // - 'mesh_part.tet_refine_flags' if needed
    int geom_marker = 0, num_geom = 0;
    for (int i = 0; i < num_elems; i++)
    {
@@ -13647,12 +13649,37 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
                   << Geometry::Name[geom]);
       mesh_part.entity_to_vertex[geom].Append(v, nv);
       mesh_part.attributes[i] = elem->GetAttribute();
+      if (geom == Geometry::TETRAHEDRON)
+      {
+         // Create 'mesh_part.tet_refine_flags' but only if we find at least one
+         // non-zero flag in a tetrahedron.
+         const Tetrahedron *tet = static_cast<const Tetrahedron*>(elem);
+         const int ref_flag = tet->GetRefinementFlag();
+         if (mesh_part.tet_refine_flags.Size() == 0)
+         {
+            if (ref_flag)
+            {
+               // This is the first time we encounter non-zero 'ref_flag'
+               const int num_tets = mesh_part.entity_to_vertex[geom].Size()/nv;
+               mesh_part.tet_refine_flags.SetSize(num_tets, 0);
+               mesh_part.tet_refine_flags.Last() = ref_flag;
+            }
+         }
+         else
+         {
+            mesh_part.tet_refine_flags.Append(ref_flag);
+         }
+      }
       if ((geom_marker & (1 << geom)) == 0)
       {
          geom_marker |= (1 << geom);
          num_geom++;
       }
    }
+   MFEM_ASSERT(mesh_part.tet_refine_flags.Size() == 0 ||
+               mesh_part.tet_refine_flags.Size() ==
+               mesh_part.entity_to_vertex[Geometry::TETRAHEDRON].Size()/4,
+               "internal error");
    // Initialize 'mesh_part.element_map' if needed
    if (num_geom > 1)
    {
@@ -13971,6 +13998,39 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
          const int group_id     = shared_faces[sf].two;
          const int geom         = mesh.GetFaceGeometry(glob_face_id);
          mesh.GetFaceVertices(glob_face_id, vertex_ids);
+         // Rotate shared triangles that have an adjacent tetrahedron with a
+         // nonzero refinement flag.
+         // See also ParMesh::BuildSharedFaceElems.
+         if (geom == Geometry::TRIANGLE)
+         {
+            int glob_el_id[2];
+            mesh.GetFaceElements(glob_face_id, &glob_el_id[0], &glob_el_id[1]);
+            int side = 0;
+            const Element *el = mesh.GetElement(glob_el_id[0]);
+            const Tetrahedron *tet = nullptr;
+            if (el->GetGeometryType() == Geometry::TETRAHEDRON)
+            {
+               tet = static_cast<const Tetrahedron*>(el);
+            }
+            else
+            {
+               side = 1;
+               el = mesh.GetElement(glob_el_id[1]);
+               if (el->GetGeometryType() == Geometry::TETRAHEDRON)
+               {
+                  tet = static_cast<const Tetrahedron*>(el);
+               }
+            }
+            if (tet && tet->GetRefinementFlag())
+            {
+               // mark the shared face for refinement by reorienting
+               // it according to the refinement flag in the tetrahedron
+               // to which this shared face belongs to.
+               int info[2];
+               mesh.GetFaceInfos(glob_face_id, &info[0], &info[1]);
+               tet->GetMarkedFace(info[side]/64, &vertex_ids[0]);
+            }
+         }
          for (int i = 0; i < vertex_ids.Size(); i++)
          {
             const int glob_id = vertex_ids[i];

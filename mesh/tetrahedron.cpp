@@ -53,7 +53,7 @@ void Tetrahedron::Init(int ind1, int ind2, int ind3, int ind4, int attr,
 }
 
 void Tetrahedron::ParseRefinementFlag(int refinement_edges[2], int &type,
-                                      int &flag)
+                                      int &flag) const
 {
    int i, f = refinement_flag;
 
@@ -134,9 +134,10 @@ void Tetrahedron::CreateRefinementFlag(int refinement_edges[2], int type,
    refinement_flag |= refinement_edges[0];
 }
 
-void Tetrahedron::GetMarkedFace(const int face, int *fv)
+void Tetrahedron::GetMarkedFace(const int face, int *fv) const
 {
-   int re[2], type, flag, *tv = this->indices;
+   int re[2], type, flag;
+   const int *tv = this->indices;
    ParseRefinementFlag(re, type, flag);
    switch (face)
    {
