@@ -29,6 +29,7 @@
 #include <iostream>
 #include <array>
 #include <map>
+#include <memory>
 
 namespace mfem
 {
@@ -2446,6 +2447,19 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
 // this class alone.
 class MeshPart
 {
+protected:
+   struct Entity { int geom; int num_verts; const int *verts; };
+   struct EntityHelper
+   {
+      const Array<int> (&entity_to_vertex)[Geometry::NumGeom];
+      int dim, num_entities;
+      int geom_offsets[Geometry::NumGeom+1];
+
+      EntityHelper(int dim_,
+                   const Array<int> (&entity_to_vertex_)[Geometry::NumGeom]);
+      Entity FindEntity(int bytype_entity_id);
+   };
+
 public:
    // Reference space dimension of the elements
    int dimension;
@@ -2483,9 +2497,10 @@ public:
    // each Geometry::Type 'geom' ordered as in 'entity_to_vertex[geom]'.
 
    // Optional re-ordering of the elements that will be used by (Par)Mesh
-   // objects constructed from this MeshPart. This array maps "by-type" element
-   // ids to desired/"natural" element ids:
-   //    "natural" element id = element_map["by-type" element id]
+   // objects constructed from this MeshPart. This array maps "natural" element
+   // ids (used by the Mesh/ParMesh objects) to "by-type" element ids (see
+   // above):
+   //    "by-type" element id = element_map["natural" element id]
    // The size of the array is either 'num_elements' or 0 when no re-ordering is
    // needed (then "by-type" id == "natural" id).
    Array<int> element_map;
@@ -2509,8 +2524,20 @@ public:
    // array uses Ordering::byVDIM: "X0,Y0,Z0, X1,Y1,Z1, ...".
    Array<double> vertex_coordinates;
 
-   // TODO
-   // Add data members for the nodes.
+   // Optional serial Mesh object constructed on demand using the method
+   // GetMesh(). One use case for it is when one wants to construct FE spaces
+   // and GridFunction%s on the MeshPart for saving or MPI communication.
+   std::unique_ptr<Mesh> mesh;
+
+   // Nodal FE space defined on 'mesh' used by the GridFunction 'nodes'. Uses
+   // the FE collection from the global nodal FE space.
+   std::unique_ptr<FiniteElementSpace> nodal_fes;
+
+   // 'nodes': pointer to a GridFunction describing the physical location of the
+   // MeshPart. Used for describing high-order and periodic meshes. This
+   // GridFunction is defined on the FE space 'nodal_fes' which, in turn, is
+   // defined on the Mesh 'mesh'.
+   std::unique_ptr<GridFunction> nodes;
 
    // Connectivity to other MeshPart objects
    // --------------------------------------
@@ -2552,6 +2579,13 @@ public:
 
    // Write the MeshPart to a stream using the parallel format "MFEM mesh v1.2".
    void Print(std::ostream &out) const;
+
+   // Construct a serrial Mesh object from the MeshPart. The nodes of 'mesh' are
+   // NOT initialized by this method, however, the nodal FE space and nodal
+   // GridFunction can be created and then attached to the 'mesh'. The Mesh is
+   // constructed only if 'mesh' is empty, otherwise the method simply returns
+   // the object held by 'mesh'.
+   Mesh &GetMesh();
 };
 
 
@@ -2574,6 +2608,17 @@ public:
 
    // TODO: documentation
    void ExtractPart(int part_id, MeshPart &mesh_part) const;
+
+   // TODO: documentation
+   std::unique_ptr<FiniteElementSpace>
+   ExtractFESpace(MeshPart &mesh_part,
+                  const FiniteElementSpace &global_fespace) const;
+
+   // TODO: documentation
+   std::unique_ptr<GridFunction>
+   ExtractGridFunction(MeshPart &mesh_part,
+                       const GridFunction &global_gf,
+                       FiniteElementSpace &local_fespace) const;
 
    // Destructor
    ~MeshPartitioner();

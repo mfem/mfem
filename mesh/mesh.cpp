@@ -13258,6 +13258,34 @@ void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J,
 }
 
 
+MeshPart::EntityHelper::EntityHelper(
+   int dim_, const Array<int> (&entity_to_vertex_)[Geometry::NumGeom])
+   : entity_to_vertex(entity_to_vertex_),
+     dim(dim_)
+{
+   int geom_offset = 0;
+   for (int g = Geometry::DimStart[dim]; g < Geometry::DimStart[dim+1]; g++)
+   {
+      geom_offsets[g] = geom_offset;
+      geom_offset += entity_to_vertex[g].Size()/Geometry::NumVerts[g];
+   }
+   geom_offsets[Geometry::DimStart[dim+1]] = geom_offset;
+   num_entities = geom_offset;
+}
+
+MeshPart::Entity MeshPart::EntityHelper::FindEntity(int bytype_entity_id)
+{
+   // Find the 'geom' that corresponds to 'bytype_entity_id'
+   int geom = Geometry::DimStart[dim];
+   while (geom_offsets[geom+1] <= bytype_entity_id) { geom++; }
+   MFEM_ASSERT(geom < Geometry::NumGeom, "internal error");
+   MFEM_ASSERT(Geometry::Dimension[geom] == dim, "internal error");
+   const int nv = Geometry::NumVerts[geom];
+   const int geom_elem_id = bytype_entity_id - geom_offsets[geom];
+   const int *v = &entity_to_vertex[geom][nv*geom_elem_id];
+   return { geom, nv, v };
+}
+
 void MeshPart::Print(std::ostream &out) const
 {
    out << "MFEM mesh v1.2\n";
@@ -13279,138 +13307,53 @@ void MeshPart::Print(std::ostream &out) const
    out << "\ndimension\n" << dim;
 
    out << "\n\nelements\n" << num_elements << '\n';
-   if (element_map.Size() == 0)
    {
-      int elem_id = 0;
-      for (int g = Geometry::DimStart[dim]; g < Geometry::DimStart[dim+1]; g++)
-      {
-         const int nv = Geometry::NumVerts[g];
-         const Array<int> &entity_vert = entity_to_vertex[g];
-         for (int i = 0; i < entity_vert.Size(); i += nv)
-         {
-            out << attributes[elem_id++] << ' ' << g;
-            for (int j = 0; j < nv; j++)
-            {
-               out << ' ' << entity_vert[i+j];
-            }
-            out << '\n';
-         }
-      }
-      MFEM_ASSERT(elem_id == num_elements, "invalid MeshPart state");
-   }
-   else
-   {
-      MFEM_ASSERT(element_map.Size() == num_elements, "invalid MeshPart state");
-      // Construct 'nat_to_bytype' -- the inverse of 'element_map'.
-      Array<int> nat_to_bytype(num_elements);
-      MFEM_DEBUG_DO(nat_to_bytype = -1);
-      for (int bytype_elem_id = 0; bytype_elem_id < num_elements;
-           bytype_elem_id++)
-      {
-         const int nat_elem_id = element_map[bytype_elem_id];
-         MFEM_ASSERT(nat_to_bytype[nat_elem_id] == -1,
-                     "invalid 'element_map' array");
-         nat_to_bytype[nat_elem_id] = bytype_elem_id;
-      }
-      int geom_offsets[Geometry::NumGeom+1];
-      int geom_offset = 0;
-      for (int g = Geometry::DimStart[dim]; g < Geometry::DimStart[dim+1]; g++)
-      {
-         geom_offsets[g] = geom_offset;
-         geom_offset += entity_to_vertex[g].Size()/Geometry::NumVerts[g];
-      }
-      geom_offsets[Geometry::DimStart[dim+1]] = geom_offset;
-      MFEM_ASSERT(geom_offset == num_elements, "invalid MeshPart state");
+      const bool have_element_map = (element_map.Size() == num_elements);
+      MFEM_ASSERT(have_element_map || element_map.Size() == 0,
+                  "invalid MeshPart state");
+      EntityHelper elem_helper(dim, entity_to_vertex);
+      MFEM_ASSERT(elem_helper.num_entities == num_elements,
+                  "invalid MeshPart state");
       for (int nat_elem_id = 0; nat_elem_id < num_elements; nat_elem_id++)
       {
-         const int bytype_elem_id = nat_to_bytype[nat_elem_id];
-         // Find the 'geom' that corresponds to 'bytype_elem_id'
-         int geom = Geometry::DimStart[dim];
-         while (geom_offsets[geom+1] <= bytype_elem_id) { geom++; }
-         MFEM_ASSERT(geom < Geometry::NumGeom, "internal error");
-         MFEM_ASSERT(Geometry::Dimension[geom] == dim, "internal error");
-         const int nv = Geometry::NumVerts[geom];
-         const int geom_elem_id = bytype_elem_id - geom_offsets[geom];
-         const int *v = &entity_to_vertex[geom][nv*geom_elem_id];
+         const int bytype_elem_id = have_element_map ?
+                                    element_map[nat_elem_id] : nat_elem_id;
+         const Entity ent = elem_helper.FindEntity(bytype_elem_id);
          // Print the element
-         out << attributes[nat_elem_id] << ' ' << geom;
-         for (int i = 0; i < nv; i++)
+         out << attributes[nat_elem_id] << ' ' << ent.geom;
+         for (int i = 0; i < ent.num_verts; i++)
          {
-            out << ' ' << v[i];
+            out << ' ' << ent.verts[i];
          }
          out << '\n';
       }
    }
 
    out << "\nboundary\n" << num_bdr_elements << '\n';
-   // TODO: it should be possible to handle the printing of the elements and the
-   // boundary with one function.
-   if (boundary_map.Size() == 0)
    {
-      int bdr_elem_id = 0;
-      for (int g = Geometry::DimStart[dim-1]; g < Geometry::DimStart[dim]; g++)
-      {
-         const int nv = Geometry::NumVerts[g];
-         const Array<int> &entity_vert = entity_to_vertex[g];
-         for (int i = 0; i < entity_vert.Size(); i += nv)
-         {
-            out << bdr_attributes[bdr_elem_id++] << ' ' << g;
-            for (int j = 0; j < nv; j++)
-            {
-               out << ' ' << entity_vert[i+j];
-            }
-            out << '\n';
-         }
-      }
-      MFEM_ASSERT(bdr_elem_id == num_bdr_elements, "invalid MeshPart state");
-   }
-   else
-   {
-      MFEM_ASSERT(boundary_map.Size() == num_bdr_elements,
+      const bool have_boundary_map = (boundary_map.Size() == num_bdr_elements);
+      MFEM_ASSERT(have_boundary_map || boundary_map.Size() == 0,
                   "invalid MeshPart state");
-      // Construct 'nat_to_bytype' -- the inverse of 'boundary_map'.
-      Array<int> nat_to_bytype(num_bdr_elements);
-      MFEM_DEBUG_DO(nat_to_bytype = -1);
-      for (int bytype_bdr_id = 0; bytype_bdr_id < num_bdr_elements;
-           bytype_bdr_id++)
-      {
-         const int nat_bdr_id = boundary_map[bytype_bdr_id];
-         MFEM_ASSERT(nat_to_bytype[nat_bdr_id] == -1,
-                     "invalid 'boundary_map' array");
-         nat_to_bytype[nat_bdr_id] = bytype_bdr_id;
-      }
-      int geom_offsets[Geometry::NumGeom+1];
-      int geom_offset = 0;
-      for (int g = Geometry::DimStart[dim-1]; g < Geometry::DimStart[dim]; g++)
-      {
-         geom_offsets[g] = geom_offset;
-         geom_offset += entity_to_vertex[g].Size()/Geometry::NumVerts[g];
-      }
-      geom_offsets[Geometry::DimStart[dim]] = geom_offset;
-      MFEM_ASSERT(geom_offset == num_bdr_elements, "invalid MeshPart state");
+      EntityHelper bdr_helper(dim-1, entity_to_vertex);
+      MFEM_ASSERT(bdr_helper.num_entities == num_bdr_elements,
+                  "invalid MeshPart state");
       for (int nat_bdr_id = 0; nat_bdr_id < num_bdr_elements; nat_bdr_id++)
       {
-         const int bytype_bdr_id = nat_to_bytype[nat_bdr_id];
-         // Find the 'geom' that corresponds to 'bytype_bdr_id'
-         int geom = Geometry::DimStart[dim-1];
-         while (geom_offsets[geom+1] <= bytype_bdr_id) { geom++; }
-         MFEM_ASSERT(geom < Geometry::NumGeom, "internal error");
-         MFEM_ASSERT(Geometry::Dimension[geom] == dim-1, "internal error");
-         const int nv = Geometry::NumVerts[geom];
-         const int geom_bdr_id = bytype_bdr_id - geom_offsets[geom];
-         const int *v = &entity_to_vertex[geom][nv*geom_bdr_id];
+         const int bytype_bdr_id = have_boundary_map ?
+                                   boundary_map[nat_bdr_id] : nat_bdr_id;
+         const Entity ent = bdr_helper.FindEntity(bytype_bdr_id);
          // Print the boundary element
-         out << bdr_attributes[nat_bdr_id] << ' ' << geom;
-         for (int i = 0; i < nv; i++)
+         out << bdr_attributes[nat_bdr_id] << ' ' << ent.geom;
+         for (int i = 0; i < ent.num_verts; i++)
          {
-            out << ' ' << v[i];
+            out << ' ' << ent.verts[i];
          }
          out << '\n';
       }
    }
 
    out << "\nvertices\n" << num_vertices << '\n';
-   // if (Nodes == NULL)
+   if (!nodes)
    {
       const int sdim = space_dimension;
       out << sdim << '\n';
@@ -13424,11 +13367,11 @@ void MeshPart::Print(std::ostream &out) const
          out << '\n';
       }
    }
-   // else
-   // {
-   //    out << "\nnodes\n";
-   //    Nodes->Save(out);
-   // }
+   else
+   {
+      out << "\nnodes\n";
+      nodes->Save(out);
+   }
 
    out << "\nmfem_serial_mesh_end\n";
 
@@ -13523,6 +13466,88 @@ void MeshPart::Print(std::ostream &out) const
    out << "\nmfem_mesh_end" << endl;
 }
 
+Mesh &MeshPart::GetMesh()
+{
+   if (mesh) { return *mesh; }
+
+   mesh.reset(new Mesh(dimension,
+                       num_vertices,
+                       num_elements,
+                       num_bdr_elements,
+                       space_dimension));
+
+   // Add elements
+   {
+      const bool have_element_map = (element_map.Size() == num_elements);
+      MFEM_ASSERT(have_element_map || element_map.Size() == 0,
+                  "invalid MeshPart state");
+      EntityHelper elem_helper(dimension, entity_to_vertex);
+      MFEM_ASSERT(elem_helper.num_entities == num_elements,
+                  "invalid MeshPart state");
+      const bool have_tet_refine_flags = (tet_refine_flags.Size() > 0);
+      for (int nat_elem_id = 0; nat_elem_id < num_elements; nat_elem_id++)
+      {
+         const int bytype_elem_id = have_element_map ?
+                                    element_map[nat_elem_id] : nat_elem_id;
+         const Entity ent = elem_helper.FindEntity(bytype_elem_id);
+         Element *el = mesh->NewElement(ent.geom);
+         el->SetVertices(ent.verts);
+         el->SetAttribute(attributes[nat_elem_id]);
+         if (ent.geom == Geometry::TETRAHEDRON && have_tet_refine_flags)
+         {
+            constexpr int geom_tet = Geometry::TETRAHEDRON;
+            const int tet_id = (ent.verts - entity_to_vertex[geom_tet])/4;
+            const int ref_flag = tet_refine_flags[tet_id];
+            static_cast<Tetrahedron*>(el)->SetRefinementFlag(ref_flag);
+         }
+         mesh->AddElement(el);
+      }
+   }
+
+   // Add boundary elements
+   {
+      const bool have_boundary_map = (boundary_map.Size() == num_bdr_elements);
+      MFEM_ASSERT(have_boundary_map || boundary_map.Size() == 0,
+                  "invalid MeshPart state");
+      EntityHelper bdr_helper(dimension-1, entity_to_vertex);
+      MFEM_ASSERT(bdr_helper.num_entities == num_bdr_elements,
+                  "invalid MeshPart state");
+      for (int nat_bdr_id = 0; nat_bdr_id < num_bdr_elements; nat_bdr_id++)
+      {
+         const int bytype_bdr_id = have_boundary_map ?
+                                   boundary_map[nat_bdr_id] : nat_bdr_id;
+         const Entity ent = bdr_helper.FindEntity(bytype_bdr_id);
+         Element *bdr = mesh->NewElement(ent.geom);
+         bdr->SetVertices(ent.verts);
+         bdr->SetAttribute(bdr_attributes[nat_bdr_id]);
+         mesh->AddBdrElement(bdr);
+      }
+   }
+
+   // Add vertices
+   if (vertex_coordinates.Size() == space_dimension*num_vertices)
+   {
+      MFEM_ASSERT(!nodes, "invalid MeshPart state");
+      for (int vert_id = 0; vert_id < num_vertices; vert_id++)
+      {
+         mesh->AddVertex(vertex_coordinates + space_dimension*vert_id);
+      }
+   }
+   else
+   {
+      MFEM_ASSERT(vertex_coordinates.Size() == 0, "invalid MeshPart state");
+      for (int vert_id = 0; vert_id < num_vertices; vert_id++)
+      {
+         mesh->AddVertex(0., 0., 0.);
+      }
+      // 'mesh.Nodes' cannot be set here -- they can be set later, if needed
+   }
+
+   mesh->FinalizeTopology(/* generate_bdr: */ false);
+
+   return *mesh;
+}
+
 
 MeshPartitioner::MeshPartitioner(Mesh &mesh_,
                                  int num_parts_,
@@ -13601,9 +13626,9 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    const int dim = mesh.Dimension();
    const int sdim = mesh.SpaceDimension();
    const int num_elems = part_to_element.RowSize(part_id);
-   const int *elem_list = part_to_element.GetRow(part_id);
+   const int *elem_list = part_to_element.GetRow(part_id); // sorted
    const int num_bdr_elems = part_to_boundary.RowSize(part_id);
-   const int *bdr_elem_list = part_to_boundary.GetRow(part_id);
+   const int *bdr_elem_list = part_to_boundary.GetRow(part_id); // sorted
 
    // Initialize 'mesh_part'
    mesh_part.dimension = dim;
@@ -13629,6 +13654,9 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    {
       mesh_part.group__shared_entity_to_vertex[g].Clear();
    }
+   mesh_part.nodes.reset(nullptr);
+   mesh_part.nodal_fes.reset(nullptr);
+   mesh_part.mesh.reset(nullptr);
 
    // Initialize:
    // - 'mesh_part.entity_to_vertex' for the elements (boundary elements are
@@ -13694,7 +13722,7 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
       for (int i = 0; i < num_elems; i++)
       {
          const int geom = mesh.GetElementGeometry(elem_list[i]);
-         mesh_part.element_map[offsets[geom]++] = i;
+         mesh_part.element_map[i] = offsets[geom]++;
       }
    }
 
@@ -13735,7 +13763,7 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
       for (int i = 0; i < num_bdr_elems; i++)
       {
          const int geom = mesh.GetBdrElementGeometry(bdr_elem_list[i]);
-         mesh_part.boundary_map[offsets[geom]++] = i;
+         mesh_part.boundary_map[i] = offsets[geom]++;
       }
    }
 
@@ -13758,10 +13786,24 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    }
    vertex_loc_to_glob.Sort();
 
-   // Initialize:
-   // - 'mesh_part.num_vertices'
-   // - 'mesh_part.vertex_coordinates', if needed
+   // Initialize 'mesh_part.num_vertices'
    mesh_part.num_vertices = vertex_loc_to_glob.Size();
+
+   // Update the vertex ids in the arrays 'mesh_part.entity_to_vertex' from
+   // global to local.
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      Array<int> &vert_array = mesh_part.entity_to_vertex[g];
+      for (int i = 0; i < vert_array.Size(); i++)
+      {
+         const int glob_id = vert_array[i];
+         const int loc_id = vertex_loc_to_glob.FindSorted(glob_id);
+         MFEM_ASSERT(loc_id >= 0, "internal error: global vertex id not found");
+         vert_array[i] = loc_id;
+      }
+   }
+
+   // Initialize one of 'mesh_part.vertex_coordinates' or 'mesh_part.nodes'
    if (!mesh.GetNodes())
    {
       MFEM_VERIFY(numeric_limits<int>::max()/sdim >= vertex_loc_to_glob.Size(),
@@ -13779,21 +13821,17 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    }
    else
    {
-      MFEM_ABORT("meshes with nodes are not implemented yet");
-   }
+      const GridFunction &glob_nodes = *mesh.GetNodes();
+      mesh_part.nodal_fes = ExtractFESpace(mesh_part, *glob_nodes.FESpace());
+      // Initialized 'mesh_part.mesh'.
+      // Note: the nodes of 'mesh_part.mesh' are not set.
 
-   // Update the vertex ids in the arrays 'mesh_part.entity_to_vertex' from
-   // global to local.
-   for (int g = 0; g < Geometry::NumGeom; g++)
-   {
-      Array<int> &vert_array = mesh_part.entity_to_vertex[g];
-      for (int i = 0; i < vert_array.Size(); i++)
-      {
-         const int glob_id = vert_array[i];
-         const int loc_id = vertex_loc_to_glob.FindSorted(glob_id);
-         MFEM_ASSERT(loc_id >= 0, "internal error: global vertex id not found");
-         vert_array[i] = loc_id;
-      }
+      mesh_part.nodes = ExtractGridFunction(mesh_part, glob_nodes,
+                                            *mesh_part.nodal_fes);
+
+      // Attach the 'mesh_part.nodes' to the 'mesh_part.mesh'.
+      mesh_part.mesh->NewNodes(*mesh_part.nodes, /* make_owner: */ false);
+      // Note: the vertices of 'mesh_part.mesh' are not set.
    }
 
    // Begin constructing the "neighbor" groups, i.e. the groups that contain
@@ -14044,6 +14082,46 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
       group__shared_tria_to_vertex.ShiftUpI();
       group__shared_quad_to_vertex.ShiftUpI();
    }
+}
+
+std::unique_ptr<FiniteElementSpace>
+MeshPartitioner::ExtractFESpace(MeshPart &mesh_part,
+                                const FiniteElementSpace &global_fespace) const
+{
+   mesh_part.GetMesh(); // initialize 'mesh_part.mesh'
+   // Note: the nodes of 'mesh_part.mesh' are not set.
+
+   return std::unique_ptr<FiniteElementSpace>(
+             new FiniteElementSpace(mesh_part.mesh.get(),
+                                    global_fespace.FEColl(),
+                                    global_fespace.GetVDim(),
+                                    global_fespace.GetOrdering()));
+}
+
+std::unique_ptr<GridFunction>
+MeshPartitioner::ExtractGridFunction(MeshPart &mesh_part,
+                                     const GridFunction &global_gf,
+                                     FiniteElementSpace &local_fespace) const
+{
+   std::unique_ptr<GridFunction> local_gf(new GridFunction(&local_fespace));
+
+   // Transfer data from 'global_gf' to 'local_gf'.
+   Array<int> gvdofs, lvdofs;
+   Vector loc_vals;
+   const int part_id = mesh_part.my_part_id;
+   const int num_elems = part_to_element.RowSize(part_id);
+   const int *elem_list = part_to_element.GetRow(part_id); // sorted
+   for (int loc_elem_id = 0; loc_elem_id < num_elems; loc_elem_id++)
+   {
+      const int glob_elem_id = elem_list[loc_elem_id];
+      auto glob_dt = global_gf.FESpace()->GetElementVDofs(glob_elem_id, gvdofs);
+      global_gf.GetSubVector(gvdofs, loc_vals);
+      if (glob_dt) { glob_dt->InvTransformPrimal(loc_vals); }
+      auto local_dt = local_fespace.GetElementVDofs(loc_elem_id, lvdofs);
+      if (local_dt) { local_dt->TransformPrimal(loc_vals); }
+      local_gf->SetSubVector(lvdofs, loc_vals);
+   }
+   return local_gf;
 }
 
 MeshPartitioner::~MeshPartitioner()
