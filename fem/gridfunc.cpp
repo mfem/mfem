@@ -4424,77 +4424,78 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       };
       VectorFunctionCoefficient global_poly(sdim, global_poly_tmp);
 
-      // 3. Compute error contributions from the face.
-      // 3.A. Locally project/interpolate global polynomial onto the patch
-      int flux_offset= 0;
-      Vector patch_flux_vector(nfdofs);
-      Array<int> vdofs;
-      for (int i = 0; i < num_neighbor_elems; i++)
-      {
-         int ielem = neighbor_elems[i];
-         ffes->GetElementVDofs(ielem, fdofs);
-         DofTransformation * doftrans = NULL;
-         doftrans = ffes->GetElementVDofs(ielem, vdofs);
-         Vector flux_temp_vector(patch_flux_vector.GetData()+flux_offset, fdofs.Size());
-         ffes->GetFE(ielem)->Project(global_poly, *ffes->GetElementTransformation(ielem),
-                                     flux_temp_vector);
-         if (doftrans)
-         {
-            doftrans->TransformPrimal(flux_temp_vector);
-         }
-         flux_offset += fdofs.Size();
-         // Only project for the primary element if at a slave face or a master face
-         if (type != 0)
-         {
-            break;
-         }
-      }
-
-      // 3.B. Loop through each element, compute distance between the
-      //      projected flux and the discrete flux, and accumulate
-      //      the (squared) local errors
-      flux_offset = 0;
-      double element_error = 0.0;
-      double patch_error = 0.0;
-      for (int i = 0; i < num_neighbor_elems; i++)
-      {
-         int ielem = neighbor_elems[i];
-         ufes->GetElementVDofs(ielem, udofs);
-         ffes->GetElementVDofs(ielem, fdofs);
-
-         u.GetSubVector(udofs, ul);
-         Transf = ufes->GetElementTransformation(ielem);
-         blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
-                                 *ffes->GetFE(ielem), fl, with_coeff);
-
-         Vector flux_temp_vector(patch_flux_vector.GetData()+flux_offset, fdofs.Size());
-         flux_offset += fdofs.Size();
-         fl -= flux_temp_vector;
-         element_error = blfi.ComputeFluxEnergy(*ffes->GetFE(ielem), *Transf, fl,
-                                                NULL);
-         patch_error += element_error;
-         error_estimates(ielem) += element_error;
-         counters[ielem] += 1;
-         // Only compute for the primary element if at a slave face or a master face
-         if (type != 0)
-         {
-            break;
-         }
-      }
-
       // // 3. Compute error contributions from the face.
+      // // 3.A. Locally project/interpolate global polynomial onto the patch
+      // int flux_offset= 0;
+      // Vector patch_flux_vector(nfdofs);
+      // Array<int> vdofs;
+      // for (int i = 0; i < num_neighbor_elems; i++)
+      // {
+      //    int ielem = neighbor_elems[i];
+      //    ffes->GetElementVDofs(ielem, fdofs);
+      //    DofTransformation * doftrans = NULL;
+      //    doftrans = ffes->GetElementVDofs(ielem, vdofs);
+      //    Vector flux_temp_vector(patch_flux_vector.GetData()+flux_offset, fdofs.Size());
+      //    ffes->GetFE(ielem)->Project(global_poly, *ffes->GetElementTransformation(ielem),
+      //                                flux_temp_vector);
+      //    if (doftrans)
+      //    {
+      //       doftrans->TransformPrimal(flux_temp_vector);
+      //    }
+      //    flux_offset += fdofs.Size();
+      //    // Only project for the primary element if at a slave face or a master face
+      //    if (type != 0)
+      //    {
+      //       break;
+      //    }
+      // }
+
+      // // 3.B. Loop through each element, compute distance between the
+      // //      projected flux and the discrete flux, and accumulate
+      // //      the (squared) local errors
+      // flux_offset = 0;
       // double element_error = 0.0;
       // double patch_error = 0.0;
       // for (int i = 0; i < num_neighbor_elems; i++)
       // {
       //    int ielem = neighbor_elems[i];
-      //    element_error = u.ComputeElementGradError(ielem, &global_poly);
+      //    ufes->GetElementVDofs(ielem, udofs);
+      //    ffes->GetElementVDofs(ielem, fdofs);
+
+      //    u.GetSubVector(udofs, ul);
+      //    Transf = ufes->GetElementTransformation(ielem);
+      //    blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
+      //                            *ffes->GetFE(ielem), fl, with_coeff);
+
+      //    Vector flux_temp_vector(patch_flux_vector.GetData()+flux_offset, fdofs.Size());
+      //    flux_offset += fdofs.Size();
+      //    fl -= flux_temp_vector;
+      //    element_error = blfi.ComputeFluxEnergy(*ffes->GetFE(ielem), *Transf, fl,
+      //                                           NULL);
       //    patch_error += element_error;
       //    error_estimates(ielem) += element_error;
       //    counters[ielem] += 1;
       //    // Only compute for the primary element if at a slave face or a master face
-      //    if (type != 0) { break; }
+      //    if (type != 0)
+      //    {
+      //       break;
+      //    }
       // }
+
+      // 3. Compute error contributions from the face.
+      double element_error = 0.0;
+      double patch_error = 0.0;
+      for (int i = 0; i < num_neighbor_elems; i++)
+      {
+         int ielem = neighbor_elems[i];
+         element_error = u.ComputeElementGradError(ielem, &global_poly);
+         element_error *= element_error;
+         patch_error += element_error;
+         error_estimates(ielem) += element_error;
+         counters[ielem] += 1;
+         // Only compute for the primary element if at a slave face or a master face
+         if (type != 0) { break; }
+      }
 
       total_error += patch_error;
    }
