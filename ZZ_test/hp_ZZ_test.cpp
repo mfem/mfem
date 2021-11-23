@@ -485,9 +485,9 @@ void lshape_exgrad(const Vector &p, double omega, Vector &grad)
    double t = atan2(y, x);
    if (t < 0) { t += 2*M_PI; }
    double talpha = t*alpha;
-   double ralpha = pow(r, 2*alpha);
-   grad(0) = alpha*x*sin(talpha)/(ralpha) - alpha*y*cos(talpha)/(ralpha);
-   grad(1) = alpha*y*sin(talpha)/(ralpha) + alpha*x*cos(talpha)/(ralpha);
+   double ralpha = pow(r, alpha - 2.0);
+   grad(0) = alpha*ralpha*(x*sin(talpha) - y*cos(talpha));
+   grad(1) = alpha*ralpha*(y*sin(talpha) + x*cos(talpha));
 }
 
 double lshape_laplace(const Vector &p)
