@@ -38,13 +38,16 @@ int main(int argc, char *argv[])
    //    high-order Lagrange finite elements of the given order.
    H1_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace H1fes(&mesh, &fec);
-   cout << "Number of unknowns: " << H1fes.GetTrueVSize() << endl;
+   cout << "Number of H1 unknowns: " << H1fes.GetTrueVSize() << endl;
 
    RT_Trace_FECollection trace_fec(order-1, mesh.Dimension());
-   FiniteElementSpace trace_fes(&mesh, &trace_fec);
+   FiniteElementSpace RTtrace_fes(&mesh, &trace_fec);
 
-   cout << "Number of RT trace unknowns: " << trace_fes.GetTrueVSize() << endl;
 
+
+
+
+   cout << "Number of RT trace unknowns: " << RTtrace_fes.GetTrueVSize() << endl;
 
    int dim = mesh.Dimension();
    int test_order = order;
@@ -55,21 +58,31 @@ int main(int argc, char *argv[])
 
    H1_FECollection test_fec(test_order,mesh.Dimension());
 
-   NormalEquationsWeakFormulation a(&H1fes,&trace_fes,&test_fec);
+   Array<FiniteElementSpace *> domain_fes; domain_fes.Append(&H1fes);
+   Array<FiniteElementSpace *> trace_fes; trace_fes.Append(&RTtrace_fes);
+   Array<FiniteElementCollection * > test_fecols; test_fecols.Append(&test_fec);
+
+   NormalEquations * a = new NormalEquations(domain_fes,trace_fes,test_fecols);
+
+
+
+
    ConstantCoefficient one(1.0);
-   a.SetDomainBFIntegrator(new DiffusionIntegrator(one));
+   a->AddDomainBFIntegrator(new DiffusionIntegrator(one),0,0);
+   a->AddTraceElementBFIntegrator(new TraceIntegrator,0,0);
+
    BilinearFormIntegrator * diffusion = new DiffusionIntegrator(one);
    BilinearFormIntegrator * mass = new MassIntegrator(one);
-   SumIntegrator * suminteg = new SumIntegrator();
-   suminteg->AddIntegrator(diffusion);
-   suminteg->AddIntegrator(mass);
-   InverseIntegrator * Ginv = new InverseIntegrator(suminteg);
-   a.SetTestIntegrator(Ginv);
-   a.SetTraceElementBFIntegrator(new TraceIntegrator);
+   // SumIntegrator * suminteg = new SumIntegrator();
+   // suminteg->AddIntegrator(diffusion);
+   // suminteg->AddIntegrator(mass);
+   // a->AddTestIntegrator(suminteg,0,0);
+   a->AddTestIntegrator(diffusion,0,0);
+   a->AddTestIntegrator(mass,0,0);
 
-   a.SetDomainLFIntegrator(new DomainLFIntegrator(one));
-   // a.SetDiagonalPolicy(mfem::Operator::DIAG_ZERO);
-   a.Assemble();
+   a->AddDomainLFIntegrator(new DomainLFIntegrator(one),0);
+   a->Assemble();
+
 
 
    Array<int> ess_tdof_list;
@@ -83,12 +96,12 @@ int main(int argc, char *argv[])
    Vector X,B;
    OperatorPtr A;
 
-   int size = H1fes.GetVSize() + trace_fes.GetVSize();
+   int size = H1fes.GetVSize() + RTtrace_fes.GetVSize();
 
    Vector x(size);
    x = 0.0;
 
-   a.FormLinearSystem(ess_tdof_list,x,A,X,B);
+   a->FormLinearSystem(ess_tdof_list,x,A,X,B);
 
 
 
@@ -106,11 +119,58 @@ int main(int argc, char *argv[])
 
    // SparseMatrix & As = (SparseMatrix&)(*A);
 
-   a.RecoverFEMSolution(X,x);
+   a->RecoverFEMSolution(X,x);
 
    GridFunction u_gf;
    double *data = x.GetData();
    u_gf.MakeRef(&H1fes,data);
+
+   GridFunction s_gf;
+   s_gf.MakeRef(&RTtrace_fes,&data[H1fes.GetVSize()]);
+
+
+
+   RT_FECollection RTfec(order-1, mesh.Dimension());
+   FiniteElementSpace RTfes(&mesh, &RTfec);
+
+   GridFunction sigma_gf(&RTfes);
+   sigma_gf = 0.0;
+   for (int i = 0; i<mesh.GetNE(); i++)
+   {
+      Array<int> strace_dofs;
+      Array<int> trace_dofs;
+      Vector dofs;
+      RTtrace_fes.GetElementDofs(i,trace_dofs);
+      strace_dofs.SetSize(trace_dofs.Size());
+      // shift dofs;
+      for (int j = 0; j< trace_dofs.Size(); j++)
+      {
+         int offset = trace_dofs[j] < 0 ? -H1fes.GetVSize() : H1fes.GetVSize();
+         strace_dofs[j] = offset + trace_dofs[j];
+      }
+      x.GetSubVector(strace_dofs, dofs);
+      sigma_gf.SetSubVector(trace_dofs,dofs);
+
+   }
+
+
+
+
+
+   ParaViewDataCollection paraview_dc("DPG_example", &mesh);
+   paraview_dc.SetPrefixPath("ParaView");
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetTime(0.0); // set the time
+   paraview_dc.RegisterField("field",&u_gf);
+   paraview_dc.RegisterField("flux",&sigma_gf);
+   // paraview_dc.RegisterField("flux",&s_gf);
+   paraview_dc.Save();
+
+
+
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -119,6 +179,12 @@ int main(int argc, char *argv[])
    solu_sock << "solution\n" << mesh << u_gf <<
              "window_title 'Numerical u' "
              << flush;
+
+   socketstream soltrace_sock(vishost, visport);
+   soltrace_sock.precision(8);
+   soltrace_sock << "solution\n" << mesh << sigma_gf <<
+                 "window_title 'Flux sigma_n' "
+                 << flush;
 
 
 
