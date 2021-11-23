@@ -993,7 +993,7 @@ void NSENLFIntegrator::AssembleElementGrad(
       Mult(dshape, trans.AdjugateJacobian(), dshapex);
 
       vec2 *= 0.0*w_non; 
-      cout << "check" << endl;
+      std::cout << "check" << std::endl;
       dshape.Mult(vec2, vec3); // (u^n \cdot grad u^{n+1})
       MultVWt(shape, vec3, elmat_comp); // (u^n \cdot grad u^{n+1},v)
       Mult_a_AAt(w, dshapex, pelmat_comp);
