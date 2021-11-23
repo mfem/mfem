@@ -2525,6 +2525,55 @@ void DivDivIntegrator::AssembleElementMatrix(
    }
 }
 
+void DivDivIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   int tr_nd = trial_fe.GetDof();
+   int te_nd = test_fe.GetDof();
+   double c;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector divshape(tr_nd);
+   Vector te_divshape(te_nd);
+#else
+   divshape.SetSize(tr_nd);
+   te_divshape.SetSize(te_nd);
+#endif
+   elmat.SetSize(te_nd,tr_nd);
+
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order = 2 * max(test_fe.GetOrder(),
+                          trial_fe.GetOrder()) - 2; // <--- OK for RTk
+      ir = &IntRules.Get(test_fe.GetGeomType(), order);
+   }
+
+   elmat = 0.0;
+
+   for (int i = 0; i < ir -> GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      trial_fe.CalcDivShape(ip,divshape);
+      test_fe.CalcDivShape(ip,te_divshape);
+
+      Trans.SetIntPoint (&ip);
+      c = ip.weight / Trans.Weight();
+
+      if (Q)
+      {
+         c *= Q -> Eval (Trans, ip);
+      }
+
+      te_divshape *= c;
+      AddMultVWt(te_divshape, divshape, elmat);
+   }
+}
 
 void VectorDiffusionIntegrator::AssembleElementMatrix(
    const FiniteElement &el,
@@ -3731,7 +3780,8 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
 }
 
 void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
-                                              const FiniteElement &trial_face_fe, const FiniteElement &test_fe,
+                                              const FiniteElement &trial_face_fe,
+                                              const FiniteElement &test_fe,
                                               FaceElementTransformations & Trans,
                                               DenseMatrix &elmat)
 {
@@ -3789,6 +3839,72 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
          for (j = 0; j < face_ndof; j++)
          {
             elmat(i, j) += scale * shape(i) * face_shape(j);
+         }
+      }
+   }
+}
+
+void NormalTraceIntegrator::AssembleTraceFaceMatrix(int elem,
+                                                    const FiniteElement &trial_face_fe,
+                                                    const FiniteElement &test_fe,
+                                                    FaceElementTransformations &Trans,
+                                                    DenseMatrix &elmat)
+{
+   int i, j, face_ndof, ndof, dim;
+   int order;
+
+   MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::VALUE, "");
+
+   face_ndof = trial_face_fe.GetDof();
+   ndof = test_fe.GetDof();
+   dim = test_fe.GetDim();
+
+   face_shape.SetSize(face_ndof);
+   normal.SetSize(dim);
+   shape.SetSize(ndof,dim);
+   shape_n.SetSize(ndof);
+
+   elmat.SetSize(ndof, face_ndof);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      order = test_fe.GetOrder();
+      order += trial_face_fe.GetOrder();
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   int iel = Trans.Elem1->ElementNo;
+   if (iel != elem)
+   {
+      MFEM_VERIFY(elem == Trans.Elem2->ElementNo, "Elem != Trans.Elem2->ElementNo");
+   }
+
+   double scale = 1.0;
+   if (iel != elem) { scale = -1.; }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      Trans.SetAllIntPoints(&ip);
+
+      // Trace finite element shape function
+      trial_face_fe.CalcPhysShape(Trans, face_shape);
+
+      CalcOrtho(Trans.Jacobian(),normal);
+
+      ElementTransformation * ftrans = (iel == elem) ? Trans.Elem1 : Trans.Elem2;
+      test_fe.CalcPhysVShape(*ftrans, shape);
+
+      shape.Mult(normal, shape_n);
+
+      face_shape *= Trans.Weight()*ip.weight;
+      for (i = 0; i < ndof; i++)
+      {
+         for (j = 0; j < face_ndof; j++)
+         {
+            elmat(i, j) += scale * shape_n(i) * face_shape(j);
          }
       }
    }

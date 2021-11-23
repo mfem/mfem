@@ -2617,7 +2617,7 @@ protected:
 
 private:
 #ifndef MFEM_THREAD_SAFE
-   Vector divshape;
+   Vector divshape, te_divshape;
 #endif
 
    // PA extension
@@ -2634,6 +2634,10 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
 };
 
 /** Integrator for
@@ -3158,6 +3162,21 @@ public:
                                    const FiniteElement &test_fe2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+};
+
+class NormalTraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector face_shape, normal, shape_n;
+   DenseMatrix shape;
+
+public:
+   NormalTraceIntegrator() { }
+   virtual void AssembleTraceFaceMatrix(int ielem,
+                                        const FiniteElement &trial_face_fe,
+                                        const FiniteElement &test_fe,
+                                        FaceElementTransformations &Trans,
+                                        DenseMatrix &elmat);
 };
 
 
