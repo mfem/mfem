@@ -984,7 +984,7 @@ void NSENLFIntegrator::AssembleElementGrad(
       el.CalcShape(ip, shape);
       el.CalcDShape(ip, dshape);
 
-      double w = trans.weight()
+      double w = trans.Weight();
       w = Q ? Q->Eval(trans, ip) * ip.weight / w : ip.weight / w;
       const double w_non = ip.weight;
 
