@@ -984,7 +984,8 @@ void NSENLFIntegrator::AssembleElementGrad(
       el.CalcShape(ip, shape);
       el.CalcDShape(ip, dshape);
 
-      const double w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
+      double w = trans.weight()
+      w = Q ? Q->Eval(trans, ip) * ip.weight / w : ip.weight / w;
       const double w_non = ip.weight;
 
       EF.MultTranspose(shape, vec1); // u^n
@@ -993,7 +994,7 @@ void NSENLFIntegrator::AssembleElementGrad(
       Mult(dshape, trans.AdjugateJacobian(), dshapex);
 
       vec2 *= 0.0*w_non; 
-      std::cout << "check" << std::endl;
+      std::cout << "check1" << std::endl;
       dshape.Mult(vec2, vec3); // (u^n \cdot grad u^{n+1})
       MultVWt(shape, vec3, elmat_comp); // (u^n \cdot grad u^{n+1},v)
       Mult_a_AAt(w, dshapex, pelmat_comp);
