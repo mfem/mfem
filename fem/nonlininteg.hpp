@@ -451,6 +451,28 @@ public:
                                     DenseMatrix &elmat);
 };
 
+
+/** This class is used to assemble the first block of the Navier-Stokes stokes equation
+ * using the convective form of the nonlinear term arising in the Navier-Stokes equations \f \nu (\nabla u, \nabla v) + $(u \cdot \nabla v, w )\f$ */
+class NSENLFIntegrator :
+   public VectorConvectionNLFIntegrator
+{
+private:
+   Coefficient *Q{};
+   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp, pelmat_comp;
+   Vector shape;
+
+public:
+   NSENLFIntegrator(Coefficient &q): Q(&q) { }
+
+   NSENLFIntegrator() = default;
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &trans,
+                                    const Vector &elfun,
+                                    DenseMatrix &elmat);
+};
+
 }
 
 #endif

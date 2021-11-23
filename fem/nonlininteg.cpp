@@ -952,4 +952,57 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
    }
 }
 
+void NSENLFIntegrator::AssembleElementGrad(
+   const FiniteElement &el,
+   ElementTransformation &trans,
+   const Vector &elfun,
+   DenseMatrix &elmat)
+{
+   const int nd = el.GetDof();
+   const int dim = el.GetDim();
+
+   shape.SetSize(nd);
+   dshape.SetSize(nd, dim);
+   dshapex.SetSize(nd, dim);
+   elmat.SetSize(nd * dim);
+   pelmat_comp.SetSize(nd);
+   elmat_comp.SetSize(nd);
+   gradEF.SetSize(dim);
+
+   EF.UseExternalData(elfun.GetData(), nd, dim);
+
+   Vector vec1(dim), vec2(dim), vec3(nd);
+
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      trans.SetIntPoint(&ip);
+
+      el.CalcShape(ip, shape);
+      el.CalcDShape(ip, dshape);
+
+      const double w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
+      const double w_non = ip.weight;
+
+      EF.MultTranspose(shape, vec1); // u^n
+
+      trans.AdjugateJacobian().Mult(vec1, vec2);
+      Mult(dshape, Trans.AdjugateJacobian(), dshapex);
+
+      vec2 *= w_non;
+      dshape.Mult(vec2, vec3); // (u^n \cdot grad u^{n+1})
+      MultVWt(shape, vec3, elmat_comp); // (u^n \cdot grad u^{n+1},v)
+      Mult_a_AAt(w, dshapex, pelmat_comp);
+
+      for (int i = 0; i < dim; i++)
+      {
+         elmat.AddMatrix(elmat_comp, i * nd, i * nd);
+         elmat.AddMatrix(pelmat_comp, i * nd, i * nd);
+      }
+   }
+}
+
 }
