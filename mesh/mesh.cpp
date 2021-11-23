@@ -13260,8 +13260,8 @@ void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J,
 
 MeshPart::EntityHelper::EntityHelper(
    int dim_, const Array<int> (&entity_to_vertex_)[Geometry::NumGeom])
-   : entity_to_vertex(entity_to_vertex_),
-     dim(dim_)
+   : dim(dim_),
+     entity_to_vertex(entity_to_vertex_)
 {
    int geom_offset = 0;
    for (int g = Geometry::DimStart[dim]; g < Geometry::DimStart[dim+1]; g++)
