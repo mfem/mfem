@@ -179,7 +179,6 @@ void NormalEquations::Assemble(int skip_zeros)
    Array<int> faces, ori;
 
    // DofTransformation * doftrans_j, *doftrans_k;
-   // DenseMatrix elmat, *elmat_p;
    Array<int> vdofs_j, vdofs_k;
    Array<int> offsetvdofs_j;
    Array<int> elementblockoffsets(nblocks+1);
@@ -198,8 +197,6 @@ void NormalEquations::Assemble(int skip_zeros)
    // loop through elements
    for (int iel = 0; iel < mesh -> GetNE(); iel++)
    {
-      // mfem::out << " element no = " << iel << std:: endl;
-      // element trasformation
       eltrans = mesh->GetElementTransformation(iel);
 
       if (dim == 2)
@@ -237,10 +234,6 @@ void NormalEquations::Assemble(int skip_zeros)
       test_offs.PartialSum();
       domain_offs.PartialSum();
       trace_offs.PartialSum();
-
-      // test_offs.Print();
-      // domain_offs.Print();
-      // trace_offs.Print();
 
 
       BlkG.SetSize(test_offs.Last()); BlkG = 0.0;
@@ -304,8 +297,6 @@ void NormalEquations::Assemble(int skip_zeros)
                }
             }
             BlkG.SetSubMatrix(test_offs[j], test_offs[i], G);
-            // TODO
-            // need to accumulate and store block G appropriately
          } // end of 2nd loop though test spaces
 
          // Field (domain) integrators
@@ -317,16 +308,15 @@ void NormalEquations::Assemble(int skip_zeros)
             Bf.SetSize(0);
             for (int k = 0; k < domain_integs(i,j)->Size(); k++)
             {
-               // mfem::out << "domain: " << "i, j, k = " << i <<", " << j <<", " << k << std::endl;
                (*domain_integs(i,j))[k]->AssembleElementMatrix2(fe,test_fe,*eltrans,ElemBf);
-            }
-            if (Bf.Size() == 0)
-            {
-               Bf = ElemBf;
-            }
-            else
-            {
-               Bf += ElemBf;
+               if (Bf.Size() == 0)
+               {
+                  Bf = ElemBf;
+               }
+               else
+               {
+                  Bf += ElemBf;
+               }
             }
             BlkB.SetSubMatrix(test_offs[j], domain_offs[i], Bf);
          } // end of loop through domain trial spaces
@@ -337,7 +327,6 @@ void NormalEquations::Assemble(int skip_zeros)
          {
             if (!trace_integs(i,j)) { continue; }
             ElemBh.SetSize(test_offs[j+1] - test_offs[j], trace_offs[i+1] - trace_offs[i]);
-            // std::cin.get();
             Array<DenseMatrix * > Baux(numfaces);
             for (int ie = 0; ie < numfaces; ie++)
             {
@@ -360,12 +349,8 @@ void NormalEquations::Assemble(int skip_zeros)
                   {
                      *Baux[ie] += aux;
                   }
-                  // mfem::out << "Baux size = " << Baux[ie]->Height()
-                  // << " x " << Baux[ie]->Width() << std::endl;
-
                }
             }
-            // mfem::out << "ElemBh size = " << ElemBh.Height() << " x " << ElemBh.Width() << std::endl;
             ElemBh.SetSubMatrix(0,0,*Baux[0]);
             int jbeg = Baux[0]->Width();
             for (int ie = 1; ie < numfaces; ie++)
@@ -377,17 +362,12 @@ void NormalEquations::Assemble(int skip_zeros)
             {
                delete Baux[ie];
             }
-
-            // mfem::out << "Block B size = " << BlkB.Height() << " x " << BlkB.Width() << std::endl;
-            // mfem::out << "Block B size = " << BlkB.Height() << " x " << BlkB.Width() << std::endl;
             BlkB.SetSubMatrix(test_offs[j], domain_offs.Last()+trace_offs[i], ElemBh);
-            // std::cin.get();
          }  // end of loop through trace trial spaces
       } // end of loop through test spaces
 
 
-
-      // Form Normal Equations B^T G^-1 B, B^T G^-1 l
+      // Form Normal Equations B^T G^-1 B = B^T G^-1 l
       DenseMatrix A;
       G.Invert();
 
@@ -399,63 +379,47 @@ void NormalEquations::Assemble(int skip_zeros)
       BlkB.MultTranspose(Gl,b);
 
 
-      // mfem::out << "G size = " << G.Height() << " x " << G.Width() << std::endl;
-      // mfem::out << "B size = " << B.Height() << " x " << B.Width() << std::endl;
-      // mfem::out << "A size = " << A.Height() << " x " << A.Width() << std::endl;
-
-
-      for (int j = 0; j<nblocks; j++)
-      {
-         Array<int> elem_dofs;
-         DofTransformation * dtrans = fespaces[j]->GetElementVDofs(iel,elem_dofs);
-         if (dtrans)
-         {
-            mfem::out<< "DofTrans is not null" << std::endl;
-            mfem::out<< "j = " << j << std::endl;
-         }
-         elementblockoffsets[j+1] = elem_dofs.Size();
-      }
-      elementblockoffsets.PartialSum();
 
       vdofs.SetSize(0);
-
       // field dofs;
-      fespaces[0]->GetElementVDofs(iel, vdofs_j);
-      int offset_j = dof_offsets[0];
-      offsetvdofs_j.SetSize(vdofs_j.Size());
-      for (int l = 0; l<vdofs_j.Size(); l++)
+      for (int j = 0; j<domain_fes.Size(); j++)
       {
-         offsetvdofs_j[l] = vdofs_j[l]<0 ? -offset_j + vdofs_j[l]
-                            :  offset_j + vdofs_j[l];
+         DofTransformation * doftrans = domain_fes[j]->GetElementVDofs(iel, vdofs_j);
+         if (doftrans)
+         {
+            MFEM_ABORT("NormalEquations::Assemble(): doftrans not implemented yet")
+         }
+         int offset_j = dof_offsets[j];
+         offsetvdofs_j.SetSize(vdofs_j.Size());
+         for (int l = 0; l<vdofs_j.Size(); l++)
+         {
+            offsetvdofs_j[l] = vdofs_j[l]<0 ? -offset_j + vdofs_j[l]
+                               :  offset_j + vdofs_j[l];
+         }
+         vdofs.Append(offsetvdofs_j);
       }
-      vdofs.Append(offsetvdofs_j);
-
       // trace dofs;
-      offset_j = dof_offsets[1];
-      Array<int> face_vdofs;
-      for (int j = 0; j < numfaces; j++)
+      for (int j = domain_fes.Size(); j<fespaces.Size(); j++)
       {
-         int iface = faces[j];
-         fespaces[1]->GetFaceVDofs(iface, vdofs_j);
-         face_vdofs.Append(vdofs_j);
+         int offset_j = dof_offsets[j];
+         Array<int> face_vdofs;
+         for (int k = 0; k < numfaces; k++)
+         {
+            int iface = faces[k];
+            fespaces[j]->GetFaceVDofs(iface, vdofs_j);
+            face_vdofs.Append(vdofs_j);
+         }
+         offsetvdofs_j.SetSize(face_vdofs.Size());
+         for (int l = 0; l<face_vdofs.Size(); l++)
+         {
+            offsetvdofs_j[l] = face_vdofs[l]<0 ? -offset_j + face_vdofs[l]
+                               :  offset_j + face_vdofs[l];
+         }
+         vdofs.Append(offsetvdofs_j);
       }
-      offsetvdofs_j.SetSize(face_vdofs.Size());
-      for (int l = 0; l<face_vdofs.Size(); l++)
-      {
-         offsetvdofs_j[l] = face_vdofs[l]<0 ? -offset_j + face_vdofs[l]
-                            :  offset_j + face_vdofs[l];
-      }
-      vdofs.Append(offsetvdofs_j);
-
-      // A.PrintMatlab(mfem::out);
-      // vdofs.Print();
-
-      // std::cin.get();
 
       mat->AddSubMatrix(vdofs,vdofs,A, skip_zeros);
-      // std::cin.get();
       y->AddElementVector(vdofs,b);
-      // std::cin.get();
 
    } // end of loop through elements
 
