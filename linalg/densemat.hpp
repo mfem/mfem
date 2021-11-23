@@ -525,6 +525,7 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 
 /// C = A ⊗ B
 void KronProd(const DenseMatrix & A, const DenseMatrix & B, DenseMatrix & C);
+void KronProd2(const DenseMatrix & A, const DenseMatrix & B, DenseMatrix & C);
 
 /// z = (A ⊗ B) r  = vec(B R A^T), where R := vec^-1 (r)
 void KronMult(const DenseMatrix &A, const DenseMatrix &B, const Vector &r,

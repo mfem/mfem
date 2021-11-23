@@ -178,7 +178,14 @@ const double &DenseMatrix::Elem(int i, int j) const
 
 void DenseMatrix::Mult(const double *x, double *y) const
 {
-   kernels::Mult(height, width, Data(), x, y);
+   const double *data = Read();
+   const int h = height;
+   const int w = width;
+
+   MFEM_FORALL(i, 1,
+   {
+      kernels::Mult(h, w, data, x, y);
+   });
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
@@ -186,7 +193,9 @@ void DenseMatrix::Mult(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   Mult((const double *)x, (double *)y);
+   const double *dx = x.Read();
+   double *dy = y.ReadWrite();
+   Mult(dx, dy);
 }
 
 double DenseMatrix::operator *(const DenseMatrix &m) const
@@ -2007,7 +2016,7 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
                b.Width() == c.Height(), "incompatible dimensions");
 
-#ifdef MFEM_USE_LAPACK
+#if defined(MFEM_USE_LAPACK) && !defined(MFEM_USE_CUDA) && !defined(MFEM_USE_HIP)
    static char transa = 'N', transb = 'N';
    static double alpha = 1.0, beta = 0.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
@@ -2018,10 +2027,13 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    const int ah = a.Height();
    const int aw = a.Width();
    const int bw = b.Width();
-   double *ad = a.Data();
-   const double *bd = b.Data();
-   const double *cd = c.Data();
-   kernels::Mult(ah,aw,bw,bd,cd,ad);
+   double *ad = a.ReadWrite();
+   const double *bd = b.Read();
+   const double *cd = c.Read();
+   MFEM_FORALL(i, 1,
+   {
+      kernels::Mult(ah, aw, bw, bd, cd, ad);
+   });
 #endif
 }
 
@@ -2871,20 +2883,51 @@ void KronProd(const DenseMatrix & A, const DenseMatrix & B, DenseMatrix & C)
    const int bw = B.Width();
 
    C.SetSize(ah*bh,aw*bw);
-   const double * ad = A.Data();
-   const double * bd = B.Data();
-   double * cd = C.Data();
+   const double * ad = A.Read();
+   const double * bd = B.Read();
+   double * cd = C.ReadWrite();
 
-   for (int ja = 0; ja<aw; ++ja)
-      for (int jb = 0; jb<bw; ++jb)
-         for (int ia = 0; ia<ah; ++ia)
-            for (int ib = 0; ib<bh; ++ib)
-               cd[bh*ia + ib + ah*bh*(bw*ja + jb)]
-                  = ad[ia + ja * ah] * bd[ib + jb*bh];
+   MFEM_FORALL(i, 1,
+   {
+      for (int ja = 0; ja<aw; ++ja)
+         for (int jb = 0; jb<bw; ++jb)
+            for (int ia = 0; ia<ah; ++ia)
+               for (int ib = 0; ib<bh; ++ib)
+                  cd[bh*ia + ib + ah*bh*(bw*ja + jb)]
+                     = ad[ia + ja * ah] * bd[ib + jb*bh];
+   });
 }
 
+#if 0 // this is a finer level parallel KronProd
+void KronProd2(const DenseMatrix & A, const DenseMatrix & B, DenseMatrix & C)
+{
+   const int ah = A.Height();
+   const int aw = A.Width();
+   const int bh = B.Height();
+   const int bw = B.Width();
+   const int ch = ah * bh;
+   const int cw = aw * bw;
+
+   C.SetSize(ch, cw);
+   const double *ad = A.Read();
+   const double *bd = B.Read();
+   double *cd = C.ReadWrite();
+
+   MFEM_FORALL(i, ch * cw,
+   {
+      const int jc = i / ch;
+      const int ic = i - jc * ch;
+      const int ja = jc / bw;
+      const int jb = jc - ja * bw;
+      const int ia = ic / bh;
+      const int ib = ic - ia * bh;
+      cd[jc * ch + ic] = ad[ja * ah + ia] * bd[jb * bh + ib];
+   });
+}
+#endif
+
 void KronMult(const DenseMatrix &A, const DenseMatrix &B, const Vector &r,
-              Vector & z)
+              Vector &z)
 {
    const int nA = A.Height();
    const int mA = A.Width();
@@ -2893,11 +2936,22 @@ void KronMult(const DenseMatrix &A, const DenseMatrix &B, const Vector &r,
    const int nr = r.Size();
    MFEM_VERIFY(nr == mA*mB, "Wrong size of Vector r");
    z.SetSize(nA*nB);
+#if !defined(MFEM_USE_CUDA)
    DenseMatrix R(r.GetData(),mB,mA);
    DenseMatrix X(nB,mA);
    DenseMatrix Y(z.GetData(),nB,nA);
    Mult(B,R,X);
    MultABt(X,A,Y);
+#else
+   const double *ad = A.Read();
+   const double *bd = B.Read();
+   const double *rd = r.Read();
+   double *zd = z.Write();
+   MFEM_FORALL(i, 1,
+   {
+      kernels::KronMult(nA, mA, ad, nB, mB, bd, rd, zd);
+   });
+#endif
 }
 
 void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &R,
@@ -2932,6 +2986,7 @@ void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &C,
    MFEM_VERIFY(nr == mA*mB*mC, "Wrong size of Vector r");
    z.SetSize(nA*nB*nC);
 
+#if !defined(MFEM_USE_CUDA)
    double * dataR = r.GetData();
    DenseMatrix R(dataR,mC,mA*mB);
    DenseMatrix X(nC,mA*mB);
@@ -2940,6 +2995,17 @@ void KronMult(const DenseMatrix &A, const DenseMatrix &B, const DenseMatrix &C,
    DenseMatrix Z(z.GetData(),mA*mB,nC);
    KronMult(A,B,X,Z);
    Z.Transpose();
+#else
+   const double *ad = A.Read();
+   const double *bd = B.Read();
+   const double *cd = C.Read();
+   const double *rd = r.Read();
+   double *zd = z.Write();
+   MFEM_FORALL(i, 1,
+   {
+      kernels::KronMult(nA, mA, ad, nB, mB, bd, nC, mC, cd, rd, zd);
+   });
+#endif
 }
 
 void KronMult(const Array<DenseMatrix *> & A, const Vector & r, Vector & z)

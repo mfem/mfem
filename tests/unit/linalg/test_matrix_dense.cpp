@@ -12,6 +12,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 #include "linalg/dtensor.hpp"
+#include "nvToolsExt.h"
+#include "nvToolsExtCudaRt.h"
 
 using namespace mfem;
 
@@ -240,7 +242,7 @@ TEST_CASE("DenseMatrix A*B^T methods",
 }
 
 TEST_CASE("KronMult methods",
-          "[DenseMatrix]")
+          "[DenseMatrix], [CUDA]")
 {
    double tol = 1e-12;
    int nA = 3, mA = 4;
@@ -262,27 +264,39 @@ TEST_CASE("KronMult methods",
 
    DenseMatrix AB;
    KronProd(A,B,AB);
+   AB.HostRead();
 
    // (A ⊗ B) r
    SECTION("KronMultABr")
    {
-      Vector r(mA*mB); r.Randomize();
+      nvtxRangePush("KronMultABr");
+      Vector r(mA*mB);
       MFEM_VERIFY(r.Size() == AB.Width(), "Check r size");
+
+      r.HostReadWrite();
+      r.Randomize();
+
       Vector z0(AB.Height());
       AB.Mult(r,z0);
-
+      //z0.HostRead();
       Vector z1;
       KronMult(A,B,r,z1);
       MFEM_VERIFY(z0.Size() == z1.Size(), "Check z1 size");
       z0-=z1;
       REQUIRE(z0.Norml2() < tol);
+      nvtxRangePop();
    }
+
+
    // (A ⊗ B) R
    SECTION("KronMultABR")
    {
+      nvtxRangePush("KronMultABR");
       int nR = mA*mB;
       int mR = 7;
       DenseMatrix R(nR, mR);
+      R.HostReadWrite();
+
       for (int i = 0; i<nR; i++)
          for (int j = 0; j<mR; j++)
          {
@@ -300,13 +314,19 @@ TEST_CASE("KronMult methods",
 
       REQUIRE(Z0.MaxMaxNorm() < tol);
 
+      nvtxRangePop();
    }
 
    // (A ⊗ B ⊗ C) r
    SECTION("KronMultABCr")
    {
+      nvtxRangePush("KronMultABCr");
+
       int nC = 7, mC = 2;
       DenseMatrix C(nC, mC);
+
+      C.HostReadWrite();
+
       for (int i = 0; i<nC; i++)
          for (int j = 0; j<mC; j++)
          {
@@ -315,7 +335,11 @@ TEST_CASE("KronMult methods",
 
       DenseMatrix ABC;
       KronProd(AB,C,ABC);
-      Vector r(mA*mB*mC); r.Randomize();
+
+      Vector r(mA*mB*mC);
+      r.HostReadWrite();
+      r.Randomize();
+
       MFEM_VERIFY(r.Size() == ABC.Width(), "Check r size");
       Vector z0(nA*nB*nC);
       ABC.Mult(r,z0);
@@ -325,6 +349,8 @@ TEST_CASE("KronMult methods",
       MFEM_VERIFY(z0.Size() == z1.Size(), "Check z1 size");
       z0-=z1;
       REQUIRE(z0.Norml2() < tol);
+
+      nvtxRangePop();
    }
 }
 

@@ -160,7 +160,7 @@ double Norml2(const int size, const T *data)
     data of the input and output vectors. */
 template<typename TA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
-void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
+void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
 {
    if (width == 0)
    {
@@ -170,7 +170,8 @@ void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
       }
       return;
    }
-   TA *d_col = data;
+
+   TA *d_col = (TA *) data;
    TX x_col = x[0];
    for (int row = 0; row < height; row++)
    {
@@ -185,6 +186,52 @@ void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
          y[row] += x_col*d_col[row];
       }
       d_col += height;
+   }
+}
+
+template<typename TA, typename TB, typename TR, typename TZ>
+MFEM_HOST_DEVICE inline
+void KronMult(const int ah, const int aw, const TA *ad, const int bh, const int bw, const TB *bd, TR *r, TZ *z)
+{
+   for (int i = 0; i < bh; i++)
+   {
+      for (int l = 0; l < ah; l++)
+      {
+         TZ t1 = 0.0;
+         for (int j = 0; j < bw; j++)
+         {
+            const TB t2 = bd[i + j * bh];
+            for (int k = 0; k < aw; k++)
+            {
+               t1 += t2 * r[j + k * bw] * ad[l + k * ah];
+            }
+         }
+         z[i + l * bh] = t1;
+      }
+   }
+}
+
+template<typename TA, typename TB, typename TC, typename TR, typename TZ>
+MFEM_HOST_DEVICE inline
+void KronMult(const int ah, const int aw, const TA *ad, const int bh, const int bw, const TB *bd, const int ch, const int cw, const TC *cd, TR *r, TZ *z)
+{
+   for (int i = 0; i < ch; i++)
+   {
+      for (int l = 0; l < ah * bh; l++)
+      {
+         TZ t1 = 0.0;
+         for (int j = 0; j < cw; j++)
+         {
+            const TB t2 = cd[i + j * ch];
+            for (int k = 0; k < aw * bw; k++)
+            {
+               const TA ta = ad[(l / bh) + (k / bw) * ah];
+               const TB tb = bd[(l % bh) + (k % bw) * bh];
+               t1 += t2 * r[j + k * cw] * ta * tb;
+            }
+         }
+         z[i + l * ch] = t1;
+      }
    }
 }
 
