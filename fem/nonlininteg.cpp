@@ -990,7 +990,7 @@ void NSENLFIntegrator::AssembleElementGrad(
       EF.MultTranspose(shape, vec1); // u^n
 
       trans.AdjugateJacobian().Mult(vec1, vec2);
-      Mult(dshape, Trans.AdjugateJacobian(), dshapex);
+      Mult(dshape, trans.AdjugateJacobian(), dshapex);
 
       vec2 *= w_non;
       dshape.Mult(vec2, vec3); // (u^n \cdot grad u^{n+1})
