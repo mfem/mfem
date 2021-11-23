@@ -68,8 +68,7 @@ private:
    /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
 
-   /// The matrix P (interpolation from true dof to dof). Owned.
-   mutable HypreParMatrix *P;
+ 
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
    mutable Operator *Pconf;
 
@@ -78,8 +77,7 @@ private:
        nonconforming meshes. */
    bool nonconf_P;
 
-   /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
-   mutable SparseMatrix *R;
+
    /// Optimized action-only restriction operator for conforming meshes. Owned.
    mutable Operator *Rconf;
    /** Transpose of R or Rconf. For conforming mesh, this is a matrix-free
@@ -203,7 +201,11 @@ private:
    /// perm indicates that no permutation is required.
    virtual void CopyProlongationAndRestriction(const FiniteElementSpace &fes,
                                                const Array<int> *perm);
-
+protected:
+  /// The matrix P (interpolation from true dof to dof). Owned.
+   mutable HypreParMatrix *P;
+   /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
+   mutable SparseMatrix *R;
 public:
    // Face-neighbor data
    // Number of face-neighbor dofs
