@@ -2451,9 +2451,10 @@ protected:
    struct Entity { int geom; int num_verts; const int *verts; };
    struct EntityHelper
    {
-      const Array<int> (&entity_to_vertex)[Geometry::NumGeom];
       int dim, num_entities;
       int geom_offsets[Geometry::NumGeom+1];
+      typedef const Array<int> entity_to_vertex_type[Geometry::NumGeom];
+      entity_to_vertex_type &entity_to_vertex;
 
       EntityHelper(int dim_,
                    const Array<int> (&entity_to_vertex_)[Geometry::NumGeom]);
