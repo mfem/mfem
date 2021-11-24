@@ -56,6 +56,7 @@ list(APPEND ALL_EXE_SRCS
   exEuler_GD_ellipse.cpp
   exEllipse.cpp
   exEllipse_GD.cpp
+  exLevelset.cpp
   )
 
 if (MFEM_USE_MPI)
