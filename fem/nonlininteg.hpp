@@ -473,6 +473,28 @@ public:
                                     DenseMatrix &elmat);
 };
 
+
+/** This class is used to assemble the first block of the Navier-Stokes stokes equation
+ * using the skew-symmetric form of the nonlinear term arising in the Navier-Stokes equations \f \nu (\nabla u, \nabla v) + $.5*(u \cdot \nabla v, w ) - .5*(u \cdot \nabla w, v )\f$ */
+class SkewSymmetricNSENLFIntegrator :
+   public VectorConvectionNLFIntegrator
+{
+private:
+   Coefficient *Q{};
+   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp, pelmat_comp;
+   Vector shape;
+
+public:
+   SkewSymmetricNSENLFIntegrator(Coefficient &q): Q(&q) { }
+
+   SkewSymmetricNSENLFIntegrator() = default;
+
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &trans,
+                                    const Vector &elfun,
+                                    DenseMatrix &elmat);
+};
+
 }
 
 #endif
