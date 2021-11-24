@@ -309,102 +309,15 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
                             &BilinearForm::GetBFBFI_Marker,
                             &BilinearForm::AddBdrFaceIntegrator,
                             &BilinearForm::AddBdrFaceIntegrator, ir_face);
-   // if (supports_batched_assembly)
-   // {
-   //    AssembleBatchedLOR(*a, fes_ho, ess_dofs, A);
-   // }
-   // else
-   // {
-
-   mesh->SetCurvature(1, false, -1, Ordering::byNODES);
-
-   tic();
-   a->Assemble();
-   mfem::out << "Standard LOR assembly time = " << toc() << '\n';
-   a->FormSystemMatrix(ess_dofs, A);
-
-   OperatorHandle A_batched;
-   tic();
-   AssembleBatchedLOR(*a, fes_ho, ess_dofs, A_batched);
-   mfem::out << "Batched LOR assembly time  = " << toc() << '\n';
-
-   const int mesh_p = 1;
-   const int sol_p = 1;
-   const int ir_order = 1;
-
-   BilinearForm a_tmp(fes);
-   a_tmp.UsePrecomputedSparsity();
-
-   tic();
-   if (mesh->Dimension() == 3)
+   if (supports_batched_assembly)
    {
-      const Geometry::Type geom = Geometry::CUBE;
-      // Static mesh type
-      using mesh_fe_t = H1_FiniteElement<geom,mesh_p>;
-      using mesh_fes_t = H1_FiniteElementSpace<mesh_fe_t>;
-      using mesh_t = TMesh<mesh_fes_t>;
-
-      // Static solution finite element space type
-      using sol_fe_t =  H1_FiniteElement<geom,sol_p>;
-      using sol_fes_t =  H1_FiniteElementSpace<sol_fe_t>;
-
-      // Static quadrature, coefficient and integrator types
-      using int_rule_t = TIntegrationRule<geom,ir_order>;
-      using coeff_t = TConstantCoefficient<>;
-      using integ_t = TIntegrator<coeff_t,TDiffusionKernel>;
-
-      // Static bilinear form type, combining the above types
-      using HPCBilinearForm = TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t>;
-
-      HPCBilinearForm a_hpc(integ_t(coeff_t(1.0)), *fes);
-      a_hpc.AssembleBilinearForm(a_tmp); // full matrix assembly
+      AssembleBatchedLOR(*this, *a, fes_ho, ess_dofs, A);
    }
    else
    {
-      const Geometry::Type geom = Geometry::SQUARE;
-      // Static mesh type
-      using mesh_fe_t = H1_FiniteElement<geom,mesh_p>;
-      using mesh_fes_t = H1_FiniteElementSpace<mesh_fe_t>;
-      using mesh_t = TMesh<mesh_fes_t>;
-
-      // Static solution finite element space type
-      using sol_fe_t =  H1_FiniteElement<geom,sol_p>;
-      using sol_fes_t =  H1_FiniteElementSpace<sol_fe_t>;
-
-      // Static quadrature, coefficient and integrator types
-      using int_rule_t = TIntegrationRule<geom,ir_order>;
-      using coeff_t = TConstantCoefficient<>;
-      using integ_t = TIntegrator<coeff_t,TDiffusionKernel>;
-
-      // Static bilinear form type, combining the above types
-      using HPCBilinearForm = TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t>;
-
-      HPCBilinearForm a_hpc(integ_t(coeff_t(1.0)), *fes);
-      a_hpc.AssembleBilinearForm(a_tmp); // full matrix assembly
+      a->Assemble();
+      a->FormSystemMatrix(ess_dofs, A);
    }
-   a_tmp.Finalize();
-   mfem::out << "HPC LOR assembly time      = " << toc() << '\n';
-
-   SparseMatrix A_hpc;
-   a_tmp.FormSystemMatrix(ess_dofs, A_hpc);
-
-   // Print out the matrices to disk if they're small
-   if (A->Height() <= 2000)
-   {
-      std::ofstream f1("A1.txt"), f2("A2.txt"), f3("A3.txt");
-      A.As<SparseMatrix>()->PrintMatlab(f1);
-      A_batched.As<SparseMatrix>()->PrintMatlab(f2);
-      A_hpc.PrintMatlab(f3);
-   }
-
-   A_hpc.Add(-1.0, *A.As<SparseMatrix>());
-   A_batched.As<SparseMatrix>()->Add(-1.0, *A.As<SparseMatrix>());
-
-   mfem::out << "Templated assembly difference: " << A_hpc.MaxNorm() << '\n';
-   mfem::out << "Batched assembly difference:   "
-             << A_batched.As<SparseMatrix>()->MaxNorm() << '\n';
-   std::exit(0);
-
    ResetIntegrationRules(&BilinearForm::GetDBFI);
    ResetIntegrationRules(&BilinearForm::GetFBFI);
    ResetIntegrationRules(&BilinearForm::GetBBFI);
