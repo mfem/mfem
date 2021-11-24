@@ -14,6 +14,7 @@
 
 #include "lor.hpp"
 #include "bilinearform.hpp"
+#include "pbilinearform.hpp"
 
 namespace mfem
 {

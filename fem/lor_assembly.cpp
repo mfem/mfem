@@ -128,4 +128,22 @@ void AssembleBatchedLOR(LORBase &lor_disc,
    if (has_to_init) { Ah.Reset(A); } // A now owns A_mat
 }
 
+#ifdef MFEM_USE_MPI
+
+void ParAssembleBatchedLOR(ParLORDiscretization &lor_disc,
+                           ParBilinearForm &form_lor,
+                           ParFiniteElementSpace &fes_ho,
+                           const Array<int> &ess_dofs,
+                           OperatorHandle &Ah)
+{
+   OperatorHandle A_local;
+   AssembleBatchedLOR(lor_disc, form_lor, fes_ho, ess_dofs, A_local);
+
+   HypreParMatrix dA(fes_ho.GetComm(), fes_ho.GlobalVSize(),
+                     fes_ho.GetDofOffsets(), A_local.As<SparseMatrix>());
+   Ah.Reset(RAP(&dA, fes_ho.Dof_TrueDof_Matrix()));
+}
+
+#endif
+
 } // namespace mfem
