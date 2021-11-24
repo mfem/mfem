@@ -891,7 +891,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
        print_options.first_and_last)
    {
       const auto arf = pow (betanom/nom0, 0.5/final_iter);
-      mfem::out << "Average reduction factor: " << arf << '\n';
+      mfem::out << "Average reduction factor = " << arf << '\n';
    }
    if (print_options.errors && !converged)
    {
@@ -1277,7 +1277,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          {
             mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                       << "   Iteration : " << setw(3) << j
-                      << "  ||r|| = " << resid << endl;
+                      << "  || r || = " << resid << endl;
          }
          Monitor(j, resid, r, x, resid <= final_norm);
 
@@ -1336,7 +1336,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                 << "   Iteration : " << setw(3) << j-1
-                << "  ||r|| = " << resid << endl;
+                << "  || r || = " << resid << endl;
    }
    if (print_options.summary || (print_options.errors && !converged))
    {
