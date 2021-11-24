@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
    Mesh mesh(mesh_file);
-   mesh.UniformRefinement();
+   // mesh.UniformRefinement();
 
    RT_FECollection fec(order-1, mesh.Dimension());
    FiniteElementSpace RTfes(&mesh, &fec);
@@ -49,10 +49,6 @@ int main(int argc, char *argv[])
 
    H1_Trace_FECollection trace_fec(order, mesh.Dimension());
    FiniteElementSpace H1trace_fes(&mesh, &trace_fec);
-
-   
-
-
 
    cout << "Number of H1 trace unknowns: " << H1trace_fes.GetTrueVSize() << endl;
 
@@ -62,6 +58,9 @@ int main(int argc, char *argv[])
    {
       test_order++;
    }
+
+   test_order++;
+   cout << "test_order = " << test_order << endl;
 
    cout << "order = " << order << endl;
    cout << "test_order = " << test_order << endl;
@@ -145,7 +144,6 @@ int main(int argc, char *argv[])
                  << flush;
 
 }
-
 
 
 // The exact solution (for non-surface meshes)

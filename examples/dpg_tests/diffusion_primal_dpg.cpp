@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
    Mesh mesh(mesh_file);
-   mesh.UniformRefinement();
+   // mesh.UniformRefinement();
 
    // 3. Define a finite element space on the mesh. Here we use H1 continuous
    //    high-order Lagrange finite elements of the given order.
@@ -55,6 +55,10 @@ int main(int argc, char *argv[])
    {
       test_order++;
    }
+
+   test_order++;
+   cout << "test_order = " << test_order << endl;
+
 
    H1_FECollection test_fec(test_order,mesh.Dimension());
 

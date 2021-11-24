@@ -369,16 +369,15 @@ void NormalEquations::Assemble(int skip_zeros)
 
       // Form Normal Equations B^T G^-1 B = B^T G^-1 l
       DenseMatrix A;
-      G.Invert();
+      BlkG.Invert();
 
-      RAP(G,BlkB,A);
+
+      RAP(BlkG,BlkB,A);
       // b = B^T Ginv l
       Vector b(A.Height());
-      Vector Gl(G.Height());
-      G.Mult(elvect,Gl);
+      Vector Gl(BlkG.Height());
+      BlkG.Mult(blockvec,Gl);
       BlkB.MultTranspose(Gl,b);
-
-
 
       vdofs.SetSize(0);
       // field dofs;
@@ -422,6 +421,7 @@ void NormalEquations::Assemble(int skip_zeros)
       y->AddElementVector(vdofs,b);
 
    } // end of loop through elements
+
 
 }
 
