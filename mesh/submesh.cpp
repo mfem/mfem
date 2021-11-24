@@ -17,29 +17,29 @@ using namespace mfem;
 
 struct UniqueIndexGenerator
 {
-   int counter = 0;
-   std::unordered_map<int,int> idx;
+  int counter = 0;
+  std::unordered_map<int,int> idx;
 
-   int Get(int i, bool &new_index)
-   {
-      auto f = idx.find(i);
-      if (f == idx.end())
-      {
-         idx[i] = counter;
-         new_index = true;
-         return counter++;
-      }
-      else
-      {
-         new_index = false;
-         return (*f).second;
-      }
-   }
+  int Get(int i, bool &new_index)
+  {
+    auto f = idx.find(i);
+    if (f == idx.end())
+    {
+      idx[i] = counter;
+      new_index = true;
+      return counter++;
+    }
+    else
+    {
+      new_index = false;
+      return (*f).second;
+    }
+  }
 };
 
 bool is_submesh(const Mesh *m)
 {
-   return dynamic_cast<const SubMesh*>(m) != nullptr;
+  return dynamic_cast<const SubMesh*>(m) != nullptr;
 }
 
 bool element_in_subdomain(Element &el, Array<int>& attributes)
@@ -55,7 +55,7 @@ bool element_in_subdomain(Element &el, Array<int>& attributes)
 }
 
 SubMesh::SubMesh(Mesh &parent, From from,
-                 Array<int> attributes) : parent_(parent), from_(from), attributes_(attributes)
+    Array<int> attributes) : parent_(parent), from_(from), attributes_(attributes)
 {
   if (from == From::Domain)
   {
@@ -131,37 +131,21 @@ SubMesh::SubMesh(Mesh &parent, From from,
   // Finalize topology and generate boundary elements.
   FinalizeTopology(true);
 
-  const GridFunction *parent_nodes = parent.GetNodes();
+  // If the parent Mesh has nodes and therefore is defined on a higher order
+  // geometry, we define this SubMesh as a curved Mesh and transfer the
+  // GridFunction from the parent Mesh to the SubMesh.
+  GridFunction *parent_nodes = parent.GetNodes();
   if (parent_nodes)
   {
     const FiniteElementSpace *parent_fes = parent_nodes->FESpace();
+  
     SetCurvature(
 	parent_fes->FEColl()->GetOrder(),
 	parent_fes->IsDGSpace(),
 	spaceDim,
 	parent_fes->GetOrdering());
 
-    const FiniteElementSpace *submesh_fes = GetNodalFESpace();
-    GridFunction *submesh_nodes = GetNodes();
-
-    Array<int> parent_vdofs;
-    Array<int> submesh_vdofs;
-    Vector vec;
-
-    for (int i = 0; i < this->GetNE(); i++)
-    {
-      submesh_fes->GetElementVDofs(i, submesh_vdofs);
-      if (from == From::Domain)
-      {
-	parent_fes->GetElementVDofs(parent_element_ids_[i], parent_vdofs);
-      }
-      else if (from == From::Boundary)
-      {
-	parent_fes->GetBdrElementVDofs(parent_element_ids_[i], parent_vdofs);
-      }
-      parent_nodes->GetSubVector(parent_vdofs, vec);
-      submesh_nodes->SetSubVector(submesh_vdofs, vec);
-    }
+    Transfer(*parent.GetNodes(), *GetNodes());
   }
 
   Finalize();
@@ -170,38 +154,47 @@ SubMesh::SubMesh(Mesh &parent, From from,
 SubMesh::~SubMesh() {}
 
 SubMesh SubMesh::CreateFromDomain(Mesh &parent,
-                                  Array<int> domain_attributes)
+    Array<int> domain_attributes)
 {
-   return SubMesh(parent, From::Domain, domain_attributes);
+  return SubMesh(parent, From::Domain, domain_attributes);
 }
 
 
 SubMesh SubMesh::CreateFromBoundary(Mesh &parent,
-                                    Array<int> boundary_attributes)
+    Array<int> boundary_attributes)
 {
-   return SubMesh(parent, From::Boundary, boundary_attributes);
+  return SubMesh(parent, From::Boundary, boundary_attributes);
 }
 
 void SubMesh::Transfer(GridFunction &src, GridFunction &dst)
 {
-   Array<int> src_vdofs;
-   Array<int> dst_vdofs;
-   Vector vec;
+  Array<int> src_vdofs;
+  Array<int> dst_vdofs;
+  Vector vec;
 
-   // Determine which GridFunction is defined on the SubMesh
-   if (is_submesh(src.FESpace()->GetMesh()))
-   {
-      // SubMesh to Mesh transfer
-      SubMesh *src_mesh = static_cast<SubMesh *>(src.FESpace()->GetMesh());
+  // Determine which GridFunction is defined on the SubMesh
+  if (is_submesh(src.FESpace()->GetMesh()))
+  {
+    // SubMesh to Mesh transfer
+    SubMesh *src_mesh = static_cast<SubMesh *>(src.FESpace()->GetMesh());
+    Mesh *dst_mesh = dst.FESpace()->GetMesh();
 
-      MFEM_ASSERT(src_mesh->GetParent() == dst.FESpace()->GetMesh(),
-                  "The Meshes of the specified GridFunction are not related in a SubMesh -> Mesh relationship.");
+    MFEM_ASSERT(src_mesh->GetParent() == dst.FESpace()->GetMesh(),
+	"The Meshes of the specified GridFunction are not related in a SubMesh -> Mesh relationship.");
 
-      auto parent_element_ids = src_mesh->GetParentElementIDMap();
+    auto &parent_element_ids = src_mesh->GetParentElementIDMap();
 
-      for (int i = 0; i < src_mesh->GetNE(); i++)
+    IntegrationPointTransformation Tr;
+    DenseMatrix vals, vals_transpose;
+    for (int i = 0; i < src_mesh->GetNE(); i++)
+    {
+      src.FESpace()->GetElementVDofs(i, src_vdofs);
+      if (src.FESpace()->IsDGSpace() && src_mesh->GetFrom() == From::Boundary)
       {
-	src.FESpace()->GetElementVDofs(i, src_vdofs);
+	MFEM_ABORT("Transferring from a surface SubMesh to a volume Mesh using L2 spaces is not implemented.");
+      }
+      else
+      {
 	if (src_mesh->GetFrom() == SubMesh::From::Domain) {
 	  dst.FESpace()->GetElementVDofs(parent_element_ids[i], dst_vdofs);
 	}
@@ -211,32 +204,63 @@ void SubMesh::Transfer(GridFunction &src, GridFunction &dst)
 	src.GetSubVector(src_vdofs, vec);
 	dst.SetSubVector(dst_vdofs, vec);
       }
-   }
-   else if (is_submesh(dst.FESpace()->GetMesh()))
-   {
-      // Mesh to SubMesh transfer
-      SubMesh *dst_mesh = static_cast<SubMesh *>(dst.FESpace()->GetMesh());
+    }
+  }
+  else if (is_submesh(dst.FESpace()->GetMesh()))
+  {
+    // Mesh to SubMesh transfer
+    Mesh *src_mesh = src.FESpace()->GetMesh();
+    SubMesh *dst_mesh = static_cast<SubMesh *>(dst.FESpace()->GetMesh());
 
-      MFEM_ASSERT(dst_mesh->GetParent() == src.FESpace()->GetMesh(),
-                  "The Meshes of the specified GridFunction are not related in a Mesh -> SubMesh relationship.");
+    MFEM_ASSERT(dst_mesh->GetParent() == src_mesh,
+	"The Meshes of the specified GridFunction are not related in a Mesh -> SubMesh relationship.");
 
-      auto parent_element_ids = dst_mesh->GetParentElementIDMap();
+    auto &parent_element_ids = dst_mesh->GetParentElementIDMap();
 
-      for (int i = 0; i < dst_mesh->GetNE(); i++)
+    IntegrationPointTransformation Tr;
+    DenseMatrix vals, vals_transpose;
+    for (int i = 0; i < dst_mesh->GetNE(); i++)
+    {
+      dst.FESpace()->GetElementVDofs(i, dst_vdofs);
+      if (src.FESpace()->IsDGSpace() && dst_mesh->GetFrom() == From::Boundary)
       {
-	 if (dst_mesh->GetFrom() == SubMesh::From::Domain) {
-	   src.FESpace()->GetElementVDofs(parent_element_ids[i], src_vdofs);
-	 }
-	 else if (dst_mesh->GetFrom() == SubMesh::From::Boundary) {
-	   src.FESpace()->GetBdrElementVDofs(parent_element_ids[i], src_vdofs);
-	 }
-         dst.FESpace()->GetElementVDofs(i, dst_vdofs);
-         src.GetSubVector(src_vdofs, vec);
-         dst.SetSubVector(dst_vdofs, vec);
+	const FiniteElement *el = dst.FESpace()->GetFE(i);
+	MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(el),
+	    "Destination FESpace must use nodal Finite Elements.");
+
+	int face_info, parent_volel_id;
+	src_mesh->GetBdrElementAdjacentElement(parent_element_ids[i], parent_volel_id, face_info);
+	src_mesh->GetLocalFaceTransformation(
+	    src_mesh->GetBdrElementType(parent_element_ids[i]),
+	    src_mesh->GetElementType(parent_volel_id),
+	    Tr.Transf,
+	    face_info);
+
+	IntegrationRule src_el_ir(el->GetDof());
+	Tr.Transf.ElementNo = parent_volel_id;
+	Tr.Transf.ElementType = ElementTransformation::ELEMENT;
+	Tr.Transform(el->GetNodes(), src_el_ir);
+  
+	src.GetVectorValues(Tr.Transf, src_el_ir, vals);
+	// vals_transpose = vals^T
+	vals_transpose.Transpose(vals);
+	dst.SetSubVector(dst_vdofs, vals_transpose.GetData());
       }
-   }
-   else
-   {
-      MFEM_ABORT("Trying to do a transfer between GridFunctions but none of them is defined on a SubMesh");
-   }
+      else
+      {
+	if (dst_mesh->GetFrom() == SubMesh::From::Domain) {
+	  src.FESpace()->GetElementVDofs(parent_element_ids[i], src_vdofs);
+	}
+	else if (dst_mesh->GetFrom() == SubMesh::From::Boundary) {
+	  src.FESpace()->GetBdrElementVDofs(parent_element_ids[i], src_vdofs);
+	}
+	src.GetSubVector(src_vdofs, vec);
+	dst.SetSubVector(dst_vdofs, vec);
+      }
+    }
+  }
+  else
+  {
+    MFEM_ABORT("Trying to do a transfer between GridFunctions but none of them is defined on a SubMesh");
+  }
 }

@@ -30,7 +30,7 @@ FiniteElementCollection* create_fec(FECType fectype, int p, int dim)
       return new H1_FECollection(p, dim);
       break;
     case L2:
-      return new L2_FECollection(p, dim);
+      return new L2_FECollection(p, dim, BasisType::GaussLobatto);
       break;
   }
 
@@ -99,32 +99,43 @@ void test_2d(int dim, Element::Type element_type, FECType fectype, int polynomia
    subdomain_attributes[0] = 2;
 
    SubMesh submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
-   FiniteElementSpace sub_fes(&submesh, fec);
+   FiniteElementCollection *sub_fec = create_fec(fectype, polynomial_order, submesh.Dimension());
+   FiniteElementSpace sub_fes(&submesh, sub_fec);
 
    GridFunction sub_gf(&sub_fes);
    sub_gf = 0.0;
 
-   double l2err = 1e12;
+
    if (transfer_type == ParentToSub)
    {
      parent_gf.ProjectCoefficient(coeff);
      SubMesh::Transfer(parent_gf, sub_gf);
-     l2err = sub_gf.ComputeL2Error(coeff);
-     REQUIRE(l2err < 1e-2);
-   } else if (transfer_type == SubToParent)
+
+     GridFunction sub_ex_gf(&sub_fes);
+     sub_ex_gf.ProjectCoefficient(coeff);
+
+     sub_gf -= sub_ex_gf;
+     REQUIRE(sub_gf.Norml2() < 1e-10);
+   } 
+   else if (transfer_type == SubToParent)
    {
+     parent_gf.ProjectCoefficient(coeff);
+
      sub_gf.ProjectCoefficient(coeff);
      SubMesh::Transfer(sub_gf, parent_gf);
-     l2err = parent_gf.ComputeL2Error(coeff);
-     REQUIRE(l2err < 0.6);
-   }
+     
+     GridFunction parent_ex_gf(&parent_fes);
+     parent_ex_gf.ProjectCoefficient(coeff);
 
+     parent_gf -= parent_ex_gf;
+     REQUIRE(parent_gf.Norml2() < 1e-10);
+   }
 }
 
 void test_3d(int dim, Element::Type element_type, FECType fectype, int polynomial_order, int mesh_polynomial_order, TransferType transfer_type)
 {
    double Hy = 1.0;
-   Mesh mesh = Mesh::MakeCartesian3D(5, 5, 5, Element::HEXAHEDRON, 1.0, Hy, 1.0, false);
+   Mesh mesh = Mesh::MakeCartesian3D(5, 5, 5, element_type, 1.0, Hy, 1.0, false);
 
    for (int i = 0; i < mesh.GetNBE(); i++)
    {
@@ -186,60 +197,90 @@ void test_3d(int dim, Element::Type element_type, FECType fectype, int polynomia
    subdomain_attributes[0] = 2;
 
    SubMesh submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
-   FiniteElementSpace sub_fes(&submesh, fec);
+   FiniteElementCollection *sub_fec = create_fec(fectype, polynomial_order, submesh.Dimension());
+   FiniteElementSpace sub_fes(&submesh, sub_fec);
 
    GridFunction sub_gf(&sub_fes);
    sub_gf = 0.0;
 
-   double l2err = 1e12;
    if (transfer_type == ParentToSub)
    {
      parent_gf.ProjectCoefficient(coeff);
      SubMesh::Transfer(parent_gf, sub_gf);
-     l2err = sub_gf.ComputeL2Error(coeff);
-     REQUIRE(l2err < 1e-2);
-   } else if (transfer_type == SubToParent)
+
+     GridFunction sub_ex_gf(&sub_fes);
+     sub_ex_gf.ProjectCoefficient(coeff);
+
+     REQUIRE(sub_gf.Norml2() != 0.0);
+
+     std::ofstream submesh_ofs("test_sub.mesh");
+     submesh_ofs.precision(8);
+     submesh.Print(submesh_ofs);
+     std::ofstream subsol_ofs("test_sub.gf");
+     subsol_ofs.precision(8);
+     sub_gf.Save(subsol_ofs);
+     std::ofstream mesh_ofs("test_parent.mesh");
+     mesh_ofs.precision(8);
+     mesh.Print(mesh_ofs);
+     std::ofstream sol_ofs("test_parent.gf");
+     sol_ofs.precision(8);
+     parent_gf.Save(sol_ofs);
+
+     sub_gf -= sub_ex_gf;
+     REQUIRE(sub_gf.Norml2() < 1e-10);
+   } 
+   else if (transfer_type == SubToParent)
    {
+     // parent_gf.ProjectCoefficient(coeff);
+
      sub_gf.ProjectCoefficient(coeff);
      SubMesh::Transfer(sub_gf, parent_gf);
-     l2err = parent_gf.ComputeL2Error(coeff);
-     REQUIRE(l2err < 0.6);
+     
+     GridFunction parent_ex_gf(&parent_fes);
+     parent_ex_gf.ProjectCoefficient(coeff);
+
+     REQUIRE(parent_gf.Norml2() != 0.0);
+
+     std::ofstream submesh_ofs("test_sub.mesh");
+     submesh_ofs.precision(8);
+     submesh.Print(submesh_ofs);
+     std::ofstream subsol_ofs("test_sub.gf");
+     subsol_ofs.precision(8);
+     sub_gf.Save(subsol_ofs);
+     std::ofstream mesh_ofs("test_parent.mesh");
+     mesh_ofs.precision(8);
+     mesh.Print(mesh_ofs);
+     std::ofstream sol_ofs("test_parent.gf");
+     sol_ofs.precision(8);
+     parent_gf.Save(sol_ofs);
+
+     parent_gf -= parent_ex_gf;
+     REQUIRE(parent_gf.Norml2() < 1e-10);
    }
-
-   // char vishost[] = "orchid";
-   // int  visport   = 19916;
-
-   // socketstream meshsock(vishost, visport);
-   // meshsock.precision(8);
-   // meshsock << "solution\n" << mesh << parent_gf << flush;
-   // meshsock << "keys mrRjn" << flush;
-
-   // socketstream submeshsock(vishost, visport);
-   // submeshsock.precision(8);
-   // submeshsock << "solution\n" << submesh << sub_gf << flush;
-   // submeshsock << "keys mrRjn" << flush;
 }
 
 TEST_CASE("GENERATE TEST", "[SubMesh]")
 {
-  auto fectype = GENERATE(FECType::H1, FECType::L2);
-  auto polynomial_order = GENERATE(1, 4);
-  auto mesh_polynomial_order = GENERATE(1, 2);
-  auto transfer_type = GENERATE(TransferType::ParentToSub, TransferType::SubToParent);
+  // auto fectype = GENERATE(FECType::H1, FECType::L2);
+  auto fectype = GENERATE(FECType::L2);
+  int polynomial_order = 4;
+  int mesh_polynomial_order = 2;
+  // auto transfer_type = GENERATE(TransferType::ParentToSub, TransferType::SubToParent);
+  auto transfer_type = GENERATE(TransferType::SubToParent);
   const char separator = ' ';
 
-  SECTION("2D") {
-    int dim = 2;
-    auto element = GENERATE(Element::QUADRILATERAL, Element::TRIANGLE);
-    out << std::setw(2) << std::setfill(separator) << dim;
-    out << std::setw(2) << std::setfill(separator) << mesh_polynomial_order;
-    out << std::setw(14) << std::setfill(separator) << element_str[element];
-    out << std::setw(3) << std::setfill(separator) << fectype_str[fectype];
-    out << std::setw(2) << std::setfill(separator) << polynomial_order;
-    out << std::setw(12) << std::setfill(separator) << transfer_str[transfer_type];
-    out << std::endl;
-    test_2d(dim, element, fectype, polynomial_order, mesh_polynomial_order, transfer_type);
-  }
+  // SECTION("2D") {
+  //   int dim = 2;
+  //   auto element = GENERATE(Element::QUADRILATERAL, Element::TRIANGLE);
+  //   out << std::setw(2) << std::setfill(separator) << dim;
+  //   out << std::setw(2) << std::setfill(separator) << mesh_polynomial_order;
+  //   out << std::setw(14) << std::setfill(separator) << element_str[element];
+  //   out << std::setw(3) << std::setfill(separator) << fectype_str[fectype];
+  //   out << std::setw(2) << std::setfill(separator) << polynomial_order;
+  //   out << std::setw(12) << std::setfill(separator) << transfer_str[transfer_type];
+  //   out << std::endl;
+  //   test_2d(dim, element, fectype, polynomial_order, mesh_polynomial_order, transfer_type);
+  // }
 
   SECTION("3D") {
     int dim = 3;
