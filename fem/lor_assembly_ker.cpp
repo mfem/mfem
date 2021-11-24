@@ -16,14 +16,14 @@ namespace mfem
 {
 
 template <int order, bool USE_SMEM = true>
-void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
-                              const Array<int> &dof_glob2loc_,
-                              const Array<int> &dof_glob2loc_offsets_,
-                              const Array<int> &el_dof_lex_,
-                              const Array<int> &ess_dofs,
-                              Mesh &mesh_ho,
-                              FiniteElementSpace &fes_ho,
-                              SparseMatrix &A_mat)
+void Assemble3DBatchedLOR(Mesh &mesh_lor,
+                          const Array<int> &dof_glob2loc_,
+                          const Array<int> &dof_glob2loc_offsets_,
+                          const Array<int> &el_dof_lex_,
+                          const Array<int> &ess_dofs,
+                          Mesh &mesh_ho,
+                          FiniteElementSpace &fes_ho,
+                          SparseMatrix &A_mat)
 {
    const int nel_ho = mesh_ho.GetNE();
    const int ndof = fes_ho.GetVSize();
@@ -476,7 +476,7 @@ void Assemble3DBatchedLOR_GPU(Mesh &mesh_lor,
 }
 
 #define LOR_KERNEL_INSTANCE(order,use_smem) \
-template void Assemble3DBatchedLOR_GPU<order,use_smem>\
+template void Assemble3DBatchedLOR<order,use_smem>\
     (Mesh &,\
      const Array<int> &,const Array<int> &, const Array<int> &,\
      const Array<int> &ess_dofs,\
