@@ -1150,7 +1150,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    converged = false;
 
 finish:
-   if (print_options.iterations || print_options.first_and_last)
+   if ((print_options.iterations && converged) || print_options.first_and_last)
    {
       mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                 << "   Iteration : " << setw(3) << final_iter
