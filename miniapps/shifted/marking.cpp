@@ -14,26 +14,42 @@
 namespace mfem
 {
 
-void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker) const
+void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,
+                                     Array<int> &elem_marker)
 {
    elem_marker.SetSize(pmesh.GetNE() + pmesh.GetNSharedFaces());
-   elem_marker = SBElementType::INSIDE;
+   if (!initial_marking_done) { elem_marker = SBElementType::INSIDE; }
+   else { level_set_index += 1; }
 
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
+
+   // This tolerance is relevant for points that are exactly on the zero LS.
+   const double eps = 1e-10;
+   auto outside_of_domain = [&](double value)
+   {
+      if (include_cut_cell)
+      {
+         // Points on the zero LS are considered outside the domain.
+         return (value - eps < 0.0);
+      }
+      else
+      {
+         // Points on the zero LS are considered inside the domain.
+         return (value + eps < 0.0);
+      }
+   };
 
    Vector vals;
    // Check elements on the current MPI rank
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
-      ElementTransformation *Tr = pmesh.GetElementTransformation(i);
-      const IntegrationRule &ir =
-         IntRulesLo.Get(pmesh.GetElementBaseGeometry(i), 4*Tr->OrderJ());
+      const IntegrationRule &ir = pfes_sltn->GetFE(i)->GetNodes();
       ls_func.GetValues(i, ir, vals);
 
       int count = 0;
       for (int j = 0; j < ir.GetNPoints(); j++)
       {
-         if (vals(j) <= 0.) { count++; }
+         if (outside_of_domain(vals(j))) { count++; }
       }
 
       if (count == ir.GetNPoints()) // completely outside
@@ -42,7 +58,9 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker) const
       }
       else if (count > 0) // partially outside
       {
-         elem_marker[i] = SBElementType::CUT;
+         MFEM_VERIFY(elem_marker[i] <= SBElementType::OUTSIDE,
+                     " One element cut by multiple level-sets.");
+         elem_marker[i] = SBElementType::CUT + level_set_index;
       }
    }
 
@@ -57,8 +75,7 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker) const
       ElementTransformation *eltr =
          pmesh.GetFaceNbrElementTransformation(Elem2NbrNo);
       const IntegrationRule &ir =
-         IntRulesLo.Get(pmesh.GetElementBaseGeometry(0),
-                        4*eltr->OrderJ());
+         IntRulesLo.Get(pmesh.GetElementBaseGeometry(0), 4*eltr->OrderJ());
 
       const int nip = ir.GetNPoints();
       vals.SetSize(nip);
@@ -66,19 +83,24 @@ void ShiftedFaceMarker::MarkElements(Array<int> &elem_marker) const
       for (int j = 0; j < nip; j++)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
-         vals[j] = ls_func.GetValue(tr->Elem2No, ip);
-         if (vals[j] <= 0.) { count++; }
+         vals(j) = ls_func.GetValue(tr->Elem2No, ip);
+         if (outside_of_domain(vals(j))) { count++; }
       }
 
       if (count == ir.GetNPoints()) // completely outside
       {
+         MFEM_VERIFY(elem_marker[i] != SBElementType::OUTSIDE,
+                     "An element cannot be excluded by more than 1 level-set.");
          elem_marker[i] = SBElementType::OUTSIDE;
       }
       else if (count > 0) // partially outside
       {
-         elem_marker[i] = SBElementType::CUT;
+         MFEM_VERIFY(elem_marker[i] <= SBElementType::OUTSIDE,
+                     "An element cannot be cut by multiple level-sets.");
+         elem_marker[i] = SBElementType::CUT + level_set_index;
       }
    }
+   initial_marking_done = true;
 }
 
 void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
@@ -102,27 +124,27 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
       {
          int te1 = elem_marker[tr->Elem1No], te2 = elem_marker[tr->Elem2No];
          if (!include_cut_cell &&
-             te1 == ShiftedFaceMarker::CUT && te2 == ShiftedFaceMarker::INSIDE)
+             te1 >= ShiftedFaceMarker::CUT && te2 == ShiftedFaceMarker::INSIDE)
          {
-            pfes_sltn.GetFaceDofs(f, dofs);
+            pfes_sltn->GetFaceDofs(f, dofs);
             sface_dof_list.Append(dofs);
          }
          if (!include_cut_cell &&
-             te1 == ShiftedFaceMarker::INSIDE && te2 == ShiftedFaceMarker::CUT)
+             te1 == ShiftedFaceMarker::INSIDE && te2 >= ShiftedFaceMarker::CUT)
          {
-            pfes_sltn.GetFaceDofs(f, dofs);
+            pfes_sltn->GetFaceDofs(f, dofs);
             sface_dof_list.Append(dofs);
          }
          if (include_cut_cell &&
-             te1 == SBElementType::CUT && te2 == SBElementType::OUTSIDE)
+             te1 >= SBElementType::CUT && te2 == SBElementType::OUTSIDE)
          {
-            pfes_sltn.GetFaceDofs(f, dofs);
+            pfes_sltn->GetFaceDofs(f, dofs);
             sface_dof_list.Append(dofs);
          }
          if (include_cut_cell &&
-             te1 == SBElementType::OUTSIDE && te2 == SBElementType::CUT)
+             te1 == SBElementType::OUTSIDE && te2 >= SBElementType::CUT)
          {
-            pfes_sltn.GetFaceDofs(f, dofs);
+            pfes_sltn->GetFaceDofs(f, dofs);
             sface_dof_list.Append(dofs);
          }
       }
@@ -136,9 +158,9 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
          FaceElementTransformations *tr = pmesh.GetBdrFaceTransformations(i);
          if (tr != NULL)
          {
-            if (elem_marker[tr->Elem1No] == SBElementType::CUT)
+            if (elem_marker[tr->Elem1No] >= SBElementType::CUT)
             {
-               pfes_sltn.GetFaceDofs(pmesh.GetBdrFace(i), dofs);
+               pfes_sltn->GetFaceDofs(pmesh.GetBdrFace(i), dofs);
                sface_dof_list.Append(dofs);
             }
          }
@@ -158,15 +180,15 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
          // Add if the element on this MPI rank is completely inside the domain
          // and the element on other MPI rank is not.
          if (!include_cut_cell &&
-             te2 == ShiftedFaceMarker::CUT && te1 == ShiftedFaceMarker::INSIDE)
+             te2 >= ShiftedFaceMarker::CUT && te1 == ShiftedFaceMarker::INSIDE)
          {
-            pfes_sltn.GetFaceDofs(faceno, dofs);
+            pfes_sltn->GetFaceDofs(faceno, dofs);
             sface_dof_list.Append(dofs);
          }
          if (include_cut_cell &&
-             te2 == SBElementType::OUTSIDE && te1 == SBElementType::CUT)
+             te2 == SBElementType::OUTSIDE && te1 >= SBElementType::CUT)
          {
-            pfes_sltn.GetFaceDofs(faceno, dofs);
+            pfes_sltn->GetFaceDofs(faceno, dofs);
             sface_dof_list.Append(dofs);
          }
       }
@@ -198,7 +220,7 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
          FaceElementTransformations *tr = pmesh.GetBdrFaceTransformations(i);
          if (tr != NULL)
          {
-            if (elem_marker[tr->Elem1No] == SBElementType::CUT)
+            if (elem_marker[tr->Elem1No] >= SBElementType::CUT)
             {
                pmesh.SetBdrAttribute(i, pmesh_bdr_attr_max+1);
                sbm_at_true_boundary = true;
@@ -225,7 +247,7 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
       }
    }
    Array<int> ess_vdofs_bdr;
-   pfes_sltn.GetEssentialVDofs(ess_bdr, ess_vdofs_bdr);
+   pfes_sltn->GetEssentialVDofs(ess_bdr, ess_vdofs_bdr);
 
    // Get all dofs associated with elements outside the domain or intersected by
    // the boundary.
@@ -235,9 +257,9 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
    {
       if (!include_cut_cell &&
           (elem_marker[e] == SBElementType::OUTSIDE ||
-           elem_marker[e] == SBElementType::CUT))
+           elem_marker[e] >= SBElementType::CUT))
       {
-         pfes_sltn.GetElementVDofs(e, dofs);
+         pfes_sltn->GetElementVDofs(e, dofs);
          for (int i = 0; i < dofs.Size(); i++)
          {
             ess_vdofs[dofs[i]] = -1;
@@ -246,7 +268,7 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
       if (include_cut_cell &&
           elem_marker[e] == SBElementType::OUTSIDE)
       {
-         pfes_sltn.GetElementVDofs(e, dofs);
+         pfes_sltn->GetElementVDofs(e, dofs);
          for (int i = 0; i < dofs.Size(); i++)
          {
             ess_vdofs[dofs[i]] = -1;
@@ -271,13 +293,13 @@ void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
 
    // Synchronize
    for (int i = 0; i < ess_vdofs.Size() ; i++) { ess_vdofs[i] += 1; }
-   pfes_sltn.Synchronize(ess_vdofs);
+   pfes_sltn->Synchronize(ess_vdofs);
    for (int i = 0; i < ess_vdofs.Size() ; i++) { ess_vdofs[i] -= 1; }
 
    // Convert to tdofs
    Array<int> ess_tdofs;
-   pfes_sltn.GetRestrictionMatrix()->BooleanMult(ess_vdofs, ess_tdofs);
-   pfes_sltn.MarkerToList(ess_tdofs, ess_tdof_list);
+   pfes_sltn->GetRestrictionMatrix()->BooleanMult(ess_vdofs, ess_tdofs);
+   pfes_sltn->MarkerToList(ess_tdofs, ess_tdof_list);
 }
 
 void ShiftedFaceMarker::ListShiftedFaceDofs2(const Array<int> &elem_marker,
@@ -288,14 +310,14 @@ void ShiftedFaceMarker::ListShiftedFaceDofs2(const Array<int> &elem_marker,
    L2_FECollection mat_coll(0, pmesh.Dimension());
    ParFiniteElementSpace mat_fes(&pmesh, &mat_coll);
    ParGridFunction mat(&mat_fes);
-   ParGridFunction marker_gf(&pfes_sltn);
+   ParGridFunction marker_gf(pfes_sltn);
    for (int i = 0; i < pmesh.GetNE(); i++)
    {
       // 0 is inside, 1 is outside.
       mat(i) = 0.0;
       if (elem_marker[i] == SBElementType::OUTSIDE)
       { mat(i) = 1.0; }
-      if (elem_marker[i] == SBElementType::CUT && include_cut_cell == false)
+      if (elem_marker[i] >= SBElementType::CUT && include_cut_cell == false)
       { mat(i) = 1.0; }
    }
 
@@ -319,9 +341,9 @@ void ShiftedFaceMarker::ListShiftedFaceDofs2(const Array<int> &elem_marker,
          FaceElementTransformations *tr = pmesh.GetBdrFaceTransformations(i);
          if (tr != NULL)
          {
-            if (elem_marker[tr->Elem1No] == SBElementType::CUT)
+            if (elem_marker[tr->Elem1No] >= SBElementType::CUT)
             {
-               pfes_sltn.GetFaceDofs(pmesh.GetBdrFace(i), dofs);
+               pfes_sltn->GetFaceDofs(pmesh.GetBdrFace(i), dofs);
                sface_dof_list.Append(dofs);
             }
          }

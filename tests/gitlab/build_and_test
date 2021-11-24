@@ -22,13 +22,13 @@ function usage()
   echo ""
   echo "Syntax:"
   echo "> ${script_name} --spec \"spack spec\" [--deps-only] [--data]"
-  echo "                 [--build-root /path/to/build/resource]"
+  echo "                 [--data-dir=/path/to/mfem/data]"
   echo ""
   echo "> ${script_name} --build-only [--data]"
-  echo "                 [--build-root /path/to/build/resource]"
+  echo "                 [--data-dir=/path/to/mfem/data]"
   echo ""
   echo "> ${script_name} --test-only [--data]"
-  echo "                 [--build-root /path/to/build/resource]"
+  echo "                 [--data-dir=/path/to/mfem/data]"
   echo ""
   echo "Options:"
   echo " --spec"
@@ -53,24 +53,20 @@ function usage()
   echo "    data directory is not present in the parent of the mfem root directory."
   echo "    Note: default behavior is to run data tests if data dir is present."
   echo ""
-  echo " --build-root=/path/to/build/resource"
-  echo "    The script will use this directory to find the external resource"
-  echo "    needed, e.g. the data directory. Defaults to the parent location"
-  echo "    of the MFEM clone."
+  echo " --data-dir=/path/to/mfem/data"
+  echo "    Path to a clone of the MFEM/data repo: https://github.com/mfem/data"
+  echo "    The default path is: '../data'."
   echo ""
 }
 
-hostname="$(hostname)"
 project_dir="$(pwd)"
 
 mode=""
-build_root=""
 spec=""
+data_dir=""
 with_data=false
 
 sys_type=${SYS_TYPE:-""}
-py_env_path=${PYTHON_ENVIRONMENT_PATH:-""}
-ci_context=${CI:-""}
 
 threads=${THREADS:-""}
 
@@ -93,8 +89,8 @@ do
             with_data=true
             shift # past argument
             ;;
-        --build-root)
-            build_root="$2"
+        --data-dir)
+            data_dir="$2"
             shift # past argument
             shift # past value
             ;;
@@ -134,14 +130,16 @@ then
     # otherwise.
     if [[ -d "/dev/shm" && "${mode}" != "--deps-only" ]]
     then
-        prefix="/dev/shm/${hostname}/${CI_PIPELINE_ID:-"NONE"}_${RANDOM}"
+        prefix="/dev/shm/${USER}_${CI_PIPELINE_ID:-"NONE"}_${RANDOM}"
         mkdir -p ${prefix}
-        echo ${spec} > spec.txt
+        # clean up ${prefix} at exit:
+        trap 'rm -rf "${prefix}"' EXIT
         prefix_opt="--prefix=${prefix}"
     fi
+    echo ${spec} > spec.txt
 
     echo "Fetching uberenv."
-    tests/gitlab/get_mfem_uberenv || ( echo "Error fetching Uberenv" && exit 1 );
+    tests/gitlab/get_mfem_uberenv || { echo "Error fetching Uberenv"; exit 1; }
 
     echo "Removing existing configuration"
     make distclean
@@ -172,20 +170,35 @@ then
         exit 1
     fi
 
-    # Build and Data Directories
-    if [[ -z ${build_root} ]]
+    # Setup the MFEM/data repository directory
+    # Some additional unit tests are enabled when '../data' is present
+    if [[ -z "${data_dir}" ]]
     then
-        # By default, build_root is the project parent dir.
-        build_root="${project_dir}/.."
+        # By default, data_dir is ../data.
+        data_dir="../data"
     else
-        # build_root is specified, so we need to link its content into the
+        # data_dir is specified, so we need to link its content into the
         # project parent dir.
-        ln -sf ${build_root}/data ${project_dir}/../
+        if [[ -e "../data" ]]; then
+            if [[ -L "../data" ]]; then
+                echo "'../data' link already exists. Deleting."
+                rm "../data"
+            else
+                echo "Error: '../data' already exists and it's NOT a link"
+                exit 1
+            fi
+        fi
+        ln -sf "${data_dir}" "../data"
+    fi
+    # The PUMI examples expect the PUMI datafiles to be in 'data/pumi'
+    if [[ -d "../data/pumi" ]]; then
+        ln -sf "../../data/pumi" "data"
     fi
 
-    if [[ "$with_data" == "true" && ! -d ${build_root}/data ]]
+    if [[ "$with_data" == "true" && ! -d "../data" ]]
     then
-        echo "ERROR: ${build_root}/data not found while asking for --data".
+        echo "ERROR: '$data_dir' is not a directory while asking for --data"
+        exit 1
     fi
 fi
 
@@ -194,8 +207,14 @@ if [[ "${mode}" != "--deps-only" ]]
 then
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo "~ Project Dir: ${project_dir}"
-    echo "~ Build Root: ${build_root}"
+    echo "~ Data Dir: ${data_dir}"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo "~~~~~ MFEM configuration"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+    make info
 
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo "~~~~~ Building MFEM"
