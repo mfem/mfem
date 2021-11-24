@@ -952,7 +952,7 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
    }
 }
 
-void NSENLFIntegrator::AssembleElementGrad(
+void ConvectiveNSENLFIntegrator::AssembleElementGrad(
    const FiniteElement &el,
    ElementTransformation &trans,
    const Vector &elfun,
@@ -993,8 +993,7 @@ void NSENLFIntegrator::AssembleElementGrad(
       trans.AdjugateJacobian().Mult(vec1, vec2);
       Mult(dshape, trans.AdjugateJacobian(), dshapex);
 
-      vec2 *= 0.0*w_non; 
-      std::cout << "check1" << std::endl;
+      vec2 *= w_non;
       dshape.Mult(vec2, vec3); // (u^n \cdot grad u^{n+1})
       MultVWt(shape, vec3, elmat_comp); // (u^n \cdot grad u^{n+1},v)
       Mult_a_AAt(w, dshapex, pelmat_comp);

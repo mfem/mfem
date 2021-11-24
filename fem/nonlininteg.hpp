@@ -454,7 +454,7 @@ public:
 
 /** This class is used to assemble the first block of the Navier-Stokes stokes equation
  * using the convective form of the nonlinear term arising in the Navier-Stokes equations \f \nu (\nabla u, \nabla v) + $(u \cdot \nabla v, w )\f$ */
-class NSENLFIntegrator :
+class ConvectiveNSENLFIntegrator :
    public VectorConvectionNLFIntegrator
 {
 private:
@@ -463,9 +463,9 @@ private:
    Vector shape;
 
 public:
-   NSENLFIntegrator(Coefficient &q): Q(&q) { }
+   ConvectiveNSENLFIntegrator(Coefficient &q): Q(&q) { }
 
-   NSENLFIntegrator() = default;
+   ConvectiveNSENLFIntegrator() = default;
 
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &trans,
