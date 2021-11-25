@@ -560,7 +560,8 @@ public:
    }
 
    template<typename vtype1, typename vtype2>
-   friend void subtract(const vtype1 &x, const vtype2 &y, TAutoDiffVector<dtype> &z)
+   friend void subtract(const vtype1 &x, const vtype2 &y,
+                        TAutoDiffVector<dtype> &z)
    {
       MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                   "incompatible Vectors!");
