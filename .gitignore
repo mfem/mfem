@@ -228,6 +228,9 @@ miniapps/mtop/SeqHeat*
 miniapps/autodiff/paradiff
 miniapps/autodiff/seqadiff
 miniapps/autodiff/seqtest
+miniapps/autodiff/par_example
+miniapps/autodiff/seq_example
+miniapps/autodiff/seq_test
 miniapps/autodiff/Example
 
 miniapps/navier/navier_mms
