@@ -225,6 +225,11 @@ miniapps/mtop/ParHeat*
 miniapps/mtop/seqheat
 miniapps/mtop/SeqHeat*
 
+miniapps/autodiff/paradiff
+miniapps/autodiff/seqadiff
+miniapps/autodiff/seqtest
+miniapps/autodiff/Example
+
 miniapps/navier/navier_mms
 miniapps/navier/navier_kovasznay
 miniapps/navier/navier_kovasznay_vs
