@@ -288,7 +288,8 @@ public:
       }
    }
 
-   void MultTranspose(const TAutoDiffVector<dtype> &x, TAutoDiffVector<dtype> &y) const
+   void MultTranspose(const TAutoDiffVector<dtype> &x,
+                      TAutoDiffVector<dtype> &y) const
    {
       MFEM_ASSERT(height == x.Size() && width == y.Size(),
                   "incompatible dimensions");
@@ -435,7 +436,8 @@ public:
 };
 
 template<typename dtype>
-void CalcAdjugate(const TAutoDiffDenseMatrix<dtype> &a, TAutoDiffDenseMatrix<dtype> &adja)
+void CalcAdjugate(const TAutoDiffDenseMatrix<dtype> &a,
+                  TAutoDiffDenseMatrix<dtype> &adja)
 {
 #ifdef MFEM_DEBUG
    if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)

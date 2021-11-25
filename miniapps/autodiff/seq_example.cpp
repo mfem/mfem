@@ -38,9 +38,9 @@ using namespace mfem;
 
 enum IntegratorType
 {
-  HandCodedIntegrator  = 0,
-  ADJacobianIntegrator = 1,
-  ADHessianIntegrator  = 2
+   HandCodedIntegrator  = 0,
+   ADJacobianIntegrator = 1,
+   ADHessianIntegrator  = 2
 };
 
 /// Non-linear solver for the p-Laplacian problem.
@@ -198,7 +198,8 @@ private:
       if (integ==IntegratorType::HandCodedIntegrator)
       {
          // standard hand coded integrator
-         nlform->AddDomainIntegrator(new pLaplace(*plap_power,*plap_epsilon,*plap_input));
+         nlform->AddDomainIntegrator(new pLaplace(*plap_power,*plap_epsilon,
+                                                  *plap_input));
       }
       else if (integ==IntegratorType::ADJacobianIntegrator)
       {
@@ -210,7 +211,9 @@ private:
          // actual template class performing the differentiation - in this case,
          // QVectorFuncAutoDiff. The derivatives are used in the integration
          // loop in the integrator pLaplaceAD.
-         nlform->AddDomainIntegrator(new pLaplaceAD<mfem::QVectorFuncAutoDiff<MyResidualFunctor,4,4,3>>(*plap_power,*plap_epsilon,*plap_input));
+         nlform->AddDomainIntegrator(new
+                                     pLaplaceAD<mfem::QVectorFuncAutoDiff<MyResidualFunctor,4,4,3>>(*plap_power,
+                                           *plap_epsilon,*plap_input));
       }
       else // IntegratorType::ADHessianIntegrator
       {
@@ -221,7 +224,9 @@ private:
          // the energy/functional with respect to the state variables, and the
          // Hessian is the second derivative. Automatic differentiation is used
          // for evaluating both of them.
-         nlform->AddDomainIntegrator(new pLaplaceAD<mfem::QFunctionAutoDiff<MyEnergyFunctor,4,3>>(*plap_power,*plap_epsilon,*plap_input));
+         nlform->AddDomainIntegrator(new
+                                     pLaplaceAD<mfem::QFunctionAutoDiff<MyEnergyFunctor,4,3>>(*plap_power,
+                                           *plap_epsilon,*plap_input));
       }
 
       nlform->SetEssentialBC(ess_bdr);
