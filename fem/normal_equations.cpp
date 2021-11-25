@@ -22,7 +22,7 @@ void NormalEquations::Init()
    {
       for (int j = 0; j < domain_integs.NumCols(); j++)
       {
-         domain_integs(i,j) = nullptr;
+         domain_integs(i,j) = new Array<BilinearFormIntegrator * >();
       }
    }
    trace_integs.SetSize(trace_fes.Size(), test_fecols.Size());
@@ -30,7 +30,7 @@ void NormalEquations::Init()
    {
       for (int j = 0; j < trace_integs.NumCols(); j++)
       {
-         trace_integs(i,j) = nullptr;
+         trace_integs(i,j) = new Array<BilinearFormIntegrator * >();
       }
    }
    test_integs.SetSize(test_fecols.Size(), test_fecols.Size());
@@ -38,14 +38,14 @@ void NormalEquations::Init()
    {
       for (int j = 0; j < test_integs.NumCols(); j++)
       {
-         test_integs(i,j) = nullptr;
+         test_integs(i,j) = new Array<BilinearFormIntegrator * >();
       }
    }
 
    domain_lf_integs.SetSize(test_fecols.Size());
    for (int j = 0; j < domain_lf_integs.Size(); j++)
    {
-      domain_lf_integs[j] = nullptr;
+      domain_lf_integs[j] = new Array<LinearFormIntegrator * >();
    }
 
    dof_offsets.SetSize(nblocks+1);
@@ -85,10 +85,6 @@ void NormalEquations::Finalize(int skip_zeros)
 void NormalEquations::AddDomainBFIntegrator(
    BilinearFormIntegrator *bfi, int trial_fes, int test_fes)
 {
-   if (!domain_integs(trial_fes,test_fes))
-   {
-      domain_integs(trial_fes,test_fes) = new Array<BilinearFormIntegrator * >();
-   }
    domain_integs(trial_fes,test_fes)->Append(bfi);
 }
 
@@ -96,10 +92,6 @@ void NormalEquations::AddDomainBFIntegrator(
 void NormalEquations::AddTestIntegrator
 (BilinearFormIntegrator *bfi, int test_fes0, int test_fes1)
 {
-   if (!test_integs(test_fes0,test_fes1))
-   {
-      test_integs(test_fes0,test_fes1) = new Array<BilinearFormIntegrator * >();
-   }
    test_integs(test_fes0,test_fes1)->Append(bfi);
 }
 
@@ -107,10 +99,6 @@ void NormalEquations::AddTestIntegrator
 void NormalEquations::AddTraceElementBFIntegrator(
    BilinearFormIntegrator * bfi, int trial_fes, int test_fes)
 {
-   if (!trace_integs(trial_fes,test_fes))
-   {
-      trace_integs(trial_fes,test_fes) = new Array<BilinearFormIntegrator * >();
-   }
    trace_integs(trial_fes,test_fes)->Append(bfi);
 }
 
@@ -118,10 +106,6 @@ void NormalEquations::AddTraceElementBFIntegrator(
 void NormalEquations::AddDomainLFIntegrator(
    LinearFormIntegrator *lfi, int test_fes)
 {
-   if (!domain_lf_integs[test_fes])
-   {
-      domain_lf_integs[test_fes] = new Array<LinearFormIntegrator * >();
-   }
    domain_lf_integs[test_fes]->Append(lfi);
 }
 
@@ -197,7 +181,6 @@ void NormalEquations::Assemble(int skip_zeros)
    // loop through elements
    for (int iel = 0; iel < mesh -> GetNE(); iel++)
    {
-      eltrans = mesh->GetElementTransformation(iel);
 
       if (dim == 2)
       {
@@ -213,6 +196,7 @@ void NormalEquations::Assemble(int skip_zeros)
       Array<int> domain_offs(domain_fes.Size()+1); domain_offs[0] = 0;
       Array<int> trace_offs(trace_fes.Size()+1); trace_offs = 0;
 
+      eltrans = mesh->GetElementTransformation(iel);
       for (int j = 0; j < test_fecols.Size(); j++)
       {
          // assuming uniform order
@@ -222,7 +206,8 @@ void NormalEquations::Assemble(int skip_zeros)
       }
       for (int j = 0; j < domain_fes.Size(); j++)
       {
-         domain_offs[j+1] = domain_fes[j]->GetFE(iel)->GetDof();
+         domain_offs[j+1] = domain_fes[j]->GetVDim() * domain_fes[j]->GetFE(
+                               iel)->GetDof();
       }
       for (int j = 0; j < trace_fes.Size(); j++)
       {
@@ -235,7 +220,6 @@ void NormalEquations::Assemble(int skip_zeros)
       domain_offs.PartialSum();
       trace_offs.PartialSum();
 
-
       BlkG.SetSize(test_offs.Last()); BlkG = 0.0;
       blockvec.SetSize(test_offs.Last()); blockvec = 0.0;
       BlkB.SetSize(test_offs.Last(),domain_offs.Last()+trace_offs.Last()); BlkB = 0.0;
@@ -245,15 +229,17 @@ void NormalEquations::Assemble(int skip_zeros)
       for (int j = 0; j < test_fecols.Size(); j++)
       {
          int order = test_fecols[j]->GetOrder();
+
+         eltrans = mesh->GetElementTransformation(iel);
          const FiniteElement & test_fe =
             *test_fecols[j]->GetFE(eltrans->GetGeometryType(), order);
 
          // RHS vector
-         if (!domain_lf_integs[j]) { continue; }
          elvec.SetSize(0);
          for (int k = 0; k < domain_lf_integs[j]->Size(); k++)
          {
-            (*domain_lf_integs[j])[k]->AssembleRHSElementVect(test_fe,*eltrans,elvect);
+            (*domain_lf_integs[j])[k]->AssembleRHSElementVect(test_fe,
+                                                              *eltrans,elvect);
             if (elvec.Size() == 0)
             {
                elvec = elvect;
@@ -270,11 +256,11 @@ void NormalEquations::Assemble(int skip_zeros)
          for (int i = 0; i < test_fecols.Size(); i++)
          {
             int order = test_fecols[i]->GetOrder();
+            eltrans = mesh->GetElementTransformation(iel);
             const FiniteElement & test_fe_i =
                *test_fecols[i]->GetFE(eltrans->GetGeometryType(), order);
 
             // loop though test_integ for this combination
-            if (!test_integs(i,j)) { continue; }
             G.SetSize(0);
             for (int k = 0; k < test_integs(i,j)->Size(); k++)
             {
@@ -304,8 +290,8 @@ void NormalEquations::Assemble(int skip_zeros)
          {
             const FiniteElement & fe = *domain_fes[i]->GetFE(iel);
             // loop though domain_integs
-            if (!domain_integs(i,j)) { continue; }
             Bf.SetSize(0);
+            eltrans = mesh->GetElementTransformation(iel);
             for (int k = 0; k < domain_integs(i,j)->Size(); k++)
             {
                (*domain_integs(i,j))[k]->AssembleElementMatrix2(fe,test_fe,*eltrans,ElemBf);
@@ -325,7 +311,6 @@ void NormalEquations::Assemble(int skip_zeros)
          // Trace integrators
          for (int i = 0; i < trace_fes.Size(); i++)
          {
-            if (!trace_integs(i,j)) { continue; }
             ElemBh.SetSize(test_offs[j+1] - test_offs[j], trace_offs[i+1] - trace_offs[i]);
             Array<DenseMatrix * > Baux(numfaces);
             for (int ie = 0; ie < numfaces; ie++)
@@ -371,7 +356,6 @@ void NormalEquations::Assemble(int skip_zeros)
       DenseMatrix A;
       BlkG.Invert();
 
-
       RAP(BlkG,BlkB,A);
       // b = B^T Ginv l
       Vector b(A.Height());
@@ -397,6 +381,7 @@ void NormalEquations::Assemble(int skip_zeros)
          }
          vdofs.Append(offsetvdofs_j);
       }
+
       // trace dofs;
       for (int j = domain_fes.Size(); j<fespaces.Size(); j++)
       {
