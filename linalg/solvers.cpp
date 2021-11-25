@@ -2042,7 +2042,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    norm0 = norm = Norm(r);
    if (print_options.first_and_last && !print_options.iterations)
    {
-      mfem::out << "Newton iteration " << setw(2) << 0
+      mfem::out << "LBFGS iteration " << setw(2) << 0
                 << " : ||r|| = " << norm << "...\n";
    }
    norm_goal = std::max(rel_tol*norm, abs_tol);
