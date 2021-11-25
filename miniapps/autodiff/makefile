@@ -76,4 +76,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf SeqHeat* ParHeat*
+	@rm -rf Example* 
