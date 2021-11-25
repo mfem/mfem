@@ -508,13 +508,15 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (min_detT_out > 0.0)
       {
          *min_det_ptr = 0.0;
-         if (print_options.summary)
+         if (print_options.summary || print_options.iterations ||
+             print_options.first_and_last)
          { mfem::out << "The mesh has been untangled at the used points!\n"; }
       }
       else { *min_det_ptr = untangle_factor * min_detT_out; }
    }
 
-   if (print_options.summary)
+   if (print_options.summary || print_options.iterations ||
+       print_options.first_and_last)
    {
       if (untangling)
       {

@@ -1212,7 +1212,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "   Pass : " << setw(2) << 1
                 << "   Iteration : " << setw(3) << 0
-                << "  ||r|| = " << beta
+                << "  || r || = " << beta
                 << (print_options.first_and_last ? " ...\n" : "\n");
    }
 
