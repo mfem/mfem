@@ -64,8 +64,8 @@ int main(int argc, char *argv[])
 #endif
    // Caliper instrumentation
    MFEM_PERF_FUNCTION;
-   const char* cali_config = "runtime-report";
 #ifdef MFEM_USE_CALIPER
+   const char* cali_config = "runtime-report";
    mgr.add(cali_config);
    mgr.start();
 #endif
