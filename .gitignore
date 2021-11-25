@@ -231,7 +231,7 @@ miniapps/autodiff/seqtest
 miniapps/autodiff/par_example
 miniapps/autodiff/seq_example
 miniapps/autodiff/seq_test
-miniapps/autodiff/Example*
+miniapps/autodiff/Exampl*
 
 miniapps/navier/navier_mms
 miniapps/navier/navier_kovasznay
