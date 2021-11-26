@@ -12,6 +12,8 @@
 #include "transport_solver.hpp"
 #include "../../general/text.hpp"
 
+#include "schwarz.hpp"
+
 #ifdef MFEM_USE_MPI
 
 using namespace std;
@@ -2196,6 +2198,37 @@ void DiscontPSCPreconditioner::Mult(const Vector &b, Vector &x) const
 
 void DiscontPSCPreconditioner::SetOperator(const Operator &op) { }
 
+MultiplicativePreconditioner::MultiplicativePreconditioner(const Solver &P1_,
+							   const Solver &P2_)
+  : Solver(P1_.Height()),
+    P1(P1_),
+    P2(P2_),
+    r(P1_.Height()),
+    v(P1_.Height())
+{
+}
+
+void MultiplicativePreconditioner::Mult(const Vector &b, Vector &x) const
+{
+  // Precondition by P1: x = Pb
+  P1.Mult(b, x);
+
+  // Compute residual r = Ax - b = APb - b
+  A->Mult(x, r);
+  r -= b;
+
+  // Precondition by P2: v = Pr
+  P2.Mult(r, v);
+
+  // Now v approximates the error e = A^{-1} r = x - A^{-1} b
+  x -= v;
+}
+
+void MultiplicativePreconditioner::SetOperator(const Operator &op)
+{
+  A = &op;
+}
+
 DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
                                const PlasmaParams &plasma,
                                const SolverParams & tol,
@@ -3067,7 +3100,21 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
             }
 
             D_smoother_ = new HypreSmoother(*Dmat, HypreSmoother::Jacobi);
-            dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_amg_, *D_smoother_);
+	    if (use_schwarz)
+	      {
+		D_schwarz_ = new SchwarzSmoother(cgblf_[i]->ParFESpace()->GetParMesh(),
+						 0, cgblf_[i]->ParFESpace(), D_cg_);  // TODO: delete this
+
+		// TODO: does the order of D_amg_, D_schwarz_ matter?
+		D_mult_ = new MultiplicativePreconditioner(*D_amg_, *D_schwarz_);  // TODO: delete this
+		//D_mult_ = new MultiplicativePreconditioner(*D_schwarz_, *D_amg_);  // TODO: delete this
+
+		dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_mult_, *D_smoother_);
+	      }
+	    else
+	      {
+		dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_amg_, *D_smoother_);
+	      }
          }
          else
          {

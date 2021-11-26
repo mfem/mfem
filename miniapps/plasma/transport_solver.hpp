@@ -2758,7 +2758,7 @@ struct DiscontPSCPreconditioner : Solver
    const CG2DG &cg2dg;
    const Solver &cg_solver;
    const Solver &smoother;
-   SparseMatrix Z;
+  //SparseMatrix Z; // TODO: is this used?
 
    mutable Vector x_z, b_cg, x_cg;
    mutable Vector x_sm;
@@ -2766,6 +2766,21 @@ struct DiscontPSCPreconditioner : Solver
    DiscontPSCPreconditioner(const CG2DG &cg2dg_,
                             const Solver &cg_solver_,
                             const Solver &smoother_);
+   virtual void Mult(const Vector &b, Vector &x) const;
+   virtual void SetOperator(const Operator &op);
+};
+
+struct MultiplicativePreconditioner : Solver
+{
+   const Operator *A;
+   const Solver &P1;
+   const Solver &P2;
+
+   mutable Vector r, v;
+
+   MultiplicativePreconditioner(const Solver &P1_,
+				const Solver &P2_);
+
    virtual void Mult(const Vector &b, Vector &x) const;
    virtual void SetOperator(const Operator &op);
 };
@@ -2870,10 +2885,14 @@ private:
       HypreSmoother *D_smoother_ = NULL;
       HypreParMatrix *D_cg_ = NULL;
 
+     Solver *D_mult_ = NULL;
+     Solver *D_schwarz_ = NULL;
+
       Array<int> cg_ess_tdof_list;
 
       bool use_lor_cg = true;
       bool use_air_cg = true;
+      bool use_schwarz = true;
 
       int term_flag_;
       int vis_flag_;
