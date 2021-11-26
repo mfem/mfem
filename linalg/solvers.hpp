@@ -120,8 +120,9 @@ protected:
    IterativeSolverMonitor *monitor = nullptr;
 
    /** @name Reporting
-      These options control the internal reporting behavior into ::mfem::out
-      and ::mfem::err of the iterative solvers. */
+       These options control the internal reporting behavior into ::mfem::out
+       and ::mfem::err of the iterative solvers.
+    */
    ///@{
 
    /** @brief Legacy print level definition, which is left for compatibility
@@ -146,17 +147,27 @@ protected:
    /** @name Convergence
        @brief Termination criteria for the iterative solvers.
 
-       @a X denotes the space in which the norm is measured, whose choice
-       depends on the specific iterative solver. */
+       @details While the convergence criterion is solver specific, most of the
+       provided iterative solvers use one of the following criterions
+
+       \f$ ||r||_X \leq tol_{rel}||r_0||_X \f$,
+
+       \f$ ||r||_X \leq tol_{abs} \f$,
+
+       \f$ ||r||_X \leq \max\{ tol_{abs}, tol_{rel} ||r_0||_X \} \f$,
+
+       where X denotes the space in which the norm is measured. The choice of
+       X depends on the specific iterative solver.
+      */
    ///@{
 
    /// Limit for the number of iterations the solver is allowed to do
    int max_iter;
 
-   /// Convergence criterion: \f$ ||r||_X \leq rel_{tol}||r_0||_X \f$
+   /// Relative tolerance.
    double rel_tol;
 
-   /// Convergence criterion: \f$ ||r||_X \leq abs_{tol} \f$
+   /// Absolute tolerance.
    double abs_tol;
 
    ///@}
