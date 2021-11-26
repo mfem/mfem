@@ -163,6 +163,9 @@ public:
 
    ~OperatorJacobiSmoother() {}
 
+   /// Replace diagonal entries with their absolute values.
+   void SetPositiveDiagonal(bool pos_diag = true) { use_abs_diag = pos_diag; }
+
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
@@ -184,6 +187,9 @@ private:
    const double damping;
    const Array<int> *ess_tdof_list; // not owned; may be NULL
    mutable Vector residual;
+   /// Uses absolute values of the diagonal entries.
+   bool use_abs_diag = false;
+
 
    const Operator *oper; // not owned
 
