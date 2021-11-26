@@ -25,10 +25,16 @@ namespace mfem
 
 using namespace std;
 
-namespace detail
+// At the time of writing this setting the print level by integer has been
+// marked legacy. However, to ensure a reasonable level of backwards
+// compatibility, the integer-based legacy print level is synchronized with
+// the new class-based approach, requiring some legacy code to be used
+// internally. Therefore the warning of using legacy is silenced in parts
+// of this file.
+namespace internal
 {
-MFEM_DISABLE_WARNING_PUSH
-MFEM_DISABLE_WARNING_DEPRECATED
+MFEM_DISABLE_WARNING_PUSH;
+MFEM_DISABLE_WARNING_DEPRECATED;
 }
 
 IterativeSolver::IterativeSolver()
@@ -56,9 +62,9 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 }
 #endif
 
-namespace detail
+namespace internal
 {
-MFEM_DISABLE_WARNING_POP
+MFEM_DISABLE_WARNING_POP;
 }
 
 double IterativeSolver::Dot(const Vector &x, const Vector &y) const
@@ -77,10 +83,10 @@ double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 #endif
 }
 
-namespace detail
+namespace internal
 {
-MFEM_DISABLE_WARNING_PUSH
-MFEM_DISABLE_WARNING_DEPRECATED
+MFEM_DISABLE_WARNING_PUSH;
+MFEM_DISABLE_WARNING_DEPRECATED;
 }
 
 void IterativeSolver::SetPrintLevel(int print_lvl)
@@ -136,9 +142,9 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
 #endif
 }
 
-namespace detail
+namespace internal
 {
-MFEM_DISABLE_WARNING_POP
+MFEM_DISABLE_WARNING_POP;
 }
 
 IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
