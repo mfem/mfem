@@ -25,9 +25,16 @@ namespace mfem
 
 using namespace std;
 
+// Silence the depracation warning for 'IterativeSolver::print_level'.
+MFEM_DISABLE_WARNING_PUSH
+MFEM_DISABLE_WARNING_DEPRECATED
+// Stop Doxygen from treating the above macros as part of the next definition.
+namespace internal { }
+
 IterativeSolver::IterativeSolver()
    : Solver(0, true)
 {
+   MFEM_DISABLE_WARNING_POP;
    oper = NULL;
    prec = NULL;
    max_iter = 10;
@@ -35,30 +42,29 @@ IterativeSolver::IterativeSolver()
 #ifdef MFEM_USE_MPI
    dot_prod_type = 0;
 #endif
-   // Silence the depracation warning for 'print_level'.
-   MFEM_DISABLE_WARNING_PUSH;
-   MFEM_DISABLE_WARNING_DEPRECATED;
-   print_level = -1;
-   MFEM_DISABLE_WARNING_POP;
 }
 
 #ifdef MFEM_USE_MPI
+
+// Silence the depracation warning for 'IterativeSolver::print_level'.
+MFEM_DISABLE_WARNING_PUSH
+MFEM_DISABLE_WARNING_DEPRECATED
+// Stop Doxygen from treating the above macros as part of the next definition.
+namespace internal { }
+
 IterativeSolver::IterativeSolver(MPI_Comm comm_)
    : Solver(0, true)
 {
+   MFEM_DISABLE_WARNING_POP;
    oper = NULL;
    prec = NULL;
    max_iter = 10;
    rel_tol = abs_tol = 0.0;
    dot_prod_type = 1;
    comm = comm_;
-   // Silence the depracation warning for 'print_level'.
-   MFEM_DISABLE_WARNING_PUSH;
-   MFEM_DISABLE_WARNING_DEPRECATED;
-   print_level = -1;
-   MFEM_DISABLE_WARNING_POP;
 }
-#endif
+
+#endif // MFEM_USE_MPI
 
 double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
