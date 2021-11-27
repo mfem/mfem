@@ -19,14 +19,20 @@
 //  (σ , ∇ τ) - < σ̂, τ  >           = (f,τ)   ∀ τ ∈ H^1(Ω)
 //            û = 0        on ∂Ω 
 
+// or equivalently 
+// u ∈ L^2(Ω), σ_x ∈ L^2(Ω), σ_y ∈ L^2(Ω) 
+// û ∈ H^1/2, σ̂ ∈ H^-1/2  
+// -(u , ∇⋅v) + < û, v⋅n> - ((1,0)σ_x , v) - ((0,1) σ_y , v) = 0,      ∀ v ∈ H(div,Ω)      
+//  ((1,0) σ_x , ∇ τ) + ((0,1) σ_y, ∇ \tau)  - < σ̂, τ  >     = (f,τ)   ∀ τ ∈ H^1(Ω)
+//            û = 0        on ∂Ω 
 
 
-// ----------------------------------------------------------------------
-// |   |     u     |     σ      |     û      |    σ̂    |  RHS    |
-// ----------------------------------------------------------------------
-// | v | -(u,∇⋅v)  |  -(σ,v)    |  < û, v⋅n> |         |    0    |
-// |   |           |                         |         |
-// | τ |           |  (σ,∇ τ)   |            | -<σ̂,τ>  |  (f,τ)  |  
+// ----------------------------------------------------------------------------------
+// |   |     u     |     σ_x        |      σ_y        |     û      |    σ̂    |  RHS    |
+// ----------------------------------------------------------------------------------
+// | v | -(u,∇⋅v)  |  -((1,0)σ_x,v) |   -((0,1)σ_y,v) |  < û, v⋅n> |         |    0    |
+// |   |           |                |                 |            |         |
+// | τ |           | ((1,0)σ_x,∇ τ) |   ((0,1)σ_y,∇τ) |            | -<σ̂,τ>  |  (f,τ)  |  
 
 // where (v,τ) ∈  H(div,Ω) × H^1(Ω) 
 
@@ -36,6 +42,7 @@
 
 using namespace std;
 using namespace mfem;
+
 
 int main(int argc, char *argv[])
 {
@@ -61,21 +68,21 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 3. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
-   //    the same code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-
 
    // Define spaces
    // L2 space for u
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *u_fes = new FiniteElementSpace(&mesh,u_fec);
 
-   // Vector L2 space for σ 
-   FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
-   FiniteElementSpace *sigma_fes = new FiniteElementSpace(&mesh,sigma_fec,dim); 
+   // L2 space for σ_x 
+   FiniteElementCollection *sigma_x_fec = new L2_FECollection(order-1,dim);
+   FiniteElementSpace *sigma_x_fes = new FiniteElementSpace(&mesh,sigma_x_fec); 
+
+   // L2 space for σ_y 
+   FiniteElementCollection *sigma_y_fec = new L2_FECollection(order-1,dim);
+   FiniteElementSpace *sigma_y_fes = new FiniteElementSpace(&mesh,sigma_y_fec); 
 
    // H^1/2 space for û 
    FiniteElementCollection * hatu_fec = new H1_Trace_FECollection(order,dim);
@@ -86,7 +93,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace *hatsigma_fes = new FiniteElementSpace(&mesh,hatsigma_fec);
 
    // testspace fe collections
-   int test_order = order + 2;
+   int test_order = order+1;
    FiniteElementCollection * v_fec = new RT_FECollection(test_order-1, dim);
    FiniteElementCollection * tau_fec = new H1_FECollection(test_order, dim);
 
@@ -94,11 +101,15 @@ int main(int argc, char *argv[])
    // Coefficients
    ConstantCoefficient one(1.0);
    ConstantCoefficient negone(-1.0);
-   Vector negone_v(dim); negone_v = -1.0;
-   Vector one_v(dim); one_v = 1.0;
+   Vector negone_x_v(dim); negone_x_v = 0.0; negone_x_v(0) = -1.;
+   Vector negone_y_v(dim); negone_y_v = 0.0; negone_y_v(1) = -1.;
+   Vector one_x_v(dim); one_x_v = 0.0; one_x_v(0) = 1.0;
+   Vector one_y_v(dim); one_y_v = 0.0; one_y_v(1) = 1.0;
 
-   VectorConstantCoefficient one_vec(one_v);
-   VectorConstantCoefficient negone_vec(negone_v);
+   VectorConstantCoefficient negone_x(negone_x_v);
+   VectorConstantCoefficient negone_y(negone_y_v);
+   VectorConstantCoefficient one_x(one_x_v);
+   VectorConstantCoefficient one_y(one_y_v);
 
 
    // Normal equation weak formulation
@@ -107,7 +118,8 @@ int main(int argc, char *argv[])
    Array<FiniteElementCollection * > test_fec; 
 
    domain_fes.Append(u_fes);
-   domain_fes.Append(sigma_fes);
+   domain_fes.Append(sigma_x_fes);
+   domain_fes.Append(sigma_y_fes);
 
    trace_fes.Append(hatu_fes);
    trace_fes.Append(hatsigma_fes);
@@ -121,11 +133,21 @@ int main(int argc, char *argv[])
    a->AddDomainBFIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
 
    // -(σ,v) 
-   TransposeIntegrator * mass = new TransposeIntegrator(new VectorFEMassIntegrator(negone));
-   a->AddDomainBFIntegrator(mass, 1, 0);
+
+   // -((1,0)σ_x,v) 
+   a->AddDomainBFIntegrator(new MixedVectorProductIntegrator(negone_x), 1, 0);
+
+   // -((0,1)σ_y,v)
+   a->AddDomainBFIntegrator(new MixedVectorProductIntegrator(negone_y), 2, 0);
+
 
    // (σ,∇ τ)
-   a->AddDomainBFIntegrator(new MixedScalarWeakDivergenceIntegrator(negone_vec),1,1);
+
+   //  ((1,0)σ_x,∇τ)    
+   a->AddDomainBFIntegrator(new MixedScalarWeakDivergenceIntegrator(negone_x),1,1);
+
+   // ((0,1)σ_y,∇τ) 
+   a->AddDomainBFIntegrator(new MixedScalarWeakDivergenceIntegrator(negone_y),2,1);
 
    //  < û, v⋅n>
    a->AddTraceElementBFIntegrator(new NormalTraceIntegrator,0,0);
@@ -142,15 +164,20 @@ int main(int argc, char *argv[])
 
 
    // RHS
+   ConstantCoefficient zero(0.0);
+   Vector zero_v(dim); zero_v = 0.0;
+   // VectorConstantCoefficient zero_vec(zero_v);
+   // a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(zero_vec),0);
    a->AddDomainLFIntegrator(new DomainLFIntegrator(one),1);
 
    a->Assemble();
 
 
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr;
    if (mesh.bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr.SetSize(mesh.bdr_attributes.Max());
       ess_bdr = 1;
       hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -158,25 +185,38 @@ int main(int argc, char *argv[])
    // shift the ess_tdofs
    for (int i = 0; i < ess_tdof_list.Size(); i++)
    {
-      ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_fes->GetTrueVSize();
+      ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_x_fes->GetTrueVSize()
+                                                + sigma_y_fes->GetTrueVSize();
    }
 
    Vector X,B;
    OperatorPtr A;
 
-   int size = u_fes->GetTrueVSize() + sigma_fes->GetVSize() 
+   int size = u_fes->GetTrueVSize() + sigma_x_fes->GetVSize() + sigma_y_fes->GetVSize() 
             + hatu_fes->GetVSize() + hatsigma_fes->GetVSize();
+
 
    Vector x(size);
    x = 0.0;
 
+   ess_tdof_list.SetSize(0);
    a->FormLinearSystem(ess_tdof_list,x,A,X,B);
+
+   cout << "B = " ;B.Print();
+   B.Print();
+
+   SparseMatrix & As = (SparseMatrix&)(*A);
+
+   As.SortColumnIndices();
+   As.Threshold(0.0);
+
+   // As.PrintMatlab();
+
+   // B.Print();
 
 
    GSSmoother M((SparseMatrix&)(*A));
    CGSolver cg;
-
-
 
 
    cg.SetRelTol(1e-12);
@@ -187,6 +227,8 @@ int main(int argc, char *argv[])
    cg.Mult(B, X);
 
 
+   X.Print();
+
    a->RecoverFEMSolution(X,x);
 
 
@@ -194,6 +236,11 @@ int main(int argc, char *argv[])
    double *data = x.GetData();
    u_gf.MakeRef(u_fes,data);
 
+   GridFunction sx_gf;
+   sx_gf.MakeRef(sigma_x_fes,&data[u_fes->GetTrueVSize()]);
+
+   GridFunction sy_gf;
+   sy_gf.MakeRef(sigma_y_fes,&data[u_fes->GetTrueVSize()+sigma_x_fes->GetTrueVSize()]);
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -203,6 +250,19 @@ int main(int argc, char *argv[])
              "window_title 'Numerical u' "
              << flush;
 
+   socketstream solsx_sock(vishost, visport);
+   solsx_sock.precision(8);
+   solsx_sock << "solution\n" << mesh << sx_gf <<
+             "window_title 'Numerical s_x' "
+             << flush;
+
+   socketstream solsy_sock(vishost, visport);
+   solsy_sock.precision(8);
+   solsy_sock << "solution\n" << mesh << sy_gf <<
+             "window_title 'Numerical s_y' "
+             << flush;            
+
+
    // delete a;
    delete tau_fec;
    delete v_fec;
@@ -210,8 +270,8 @@ int main(int argc, char *argv[])
    delete hatsigma_fec;
    delete hatu_fes;
    delete hatu_fec;
-   delete sigma_fec;
-   delete sigma_fes;
+   delete sigma_x_fec;
+   delete sigma_y_fes;
    delete u_fec;
    delete u_fes;
 

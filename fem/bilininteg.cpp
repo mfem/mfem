@@ -3765,7 +3765,7 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
       for (i = 0; i < ndof1; i++)
          for (j = 0; j < face_ndof; j++)
          {
-            elmat(i, j) -= shape1_n(i) * face_shape(j);
+            elmat(i, j) += shape1_n(i) * face_shape(j);
          }
       if (ndof2)
       {
@@ -3773,7 +3773,7 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
          for (i = 0; i < ndof2; i++)
             for (j = 0; j < face_ndof; j++)
             {
-               elmat(ndof1+i, j) += shape2_n(i) * face_shape(j);
+               elmat(ndof1+i, j) -= shape2_n(i) * face_shape(j);
             }
       }
    }

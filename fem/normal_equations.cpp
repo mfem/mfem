@@ -357,7 +357,6 @@ void NormalEquations::Assemble(int skip_zeros)
       BlkG.Invert();
 
       RAP(BlkG,BlkB,A);
-      // b = B^T Ginv l
       Vector b(A.Height());
       Vector Gl(BlkG.Height());
       BlkG.Mult(blockvec,Gl);
@@ -404,10 +403,7 @@ void NormalEquations::Assemble(int skip_zeros)
 
       mat->AddSubMatrix(vdofs,vdofs,A, skip_zeros);
       y->AddElementVector(vdofs,b);
-
    } // end of loop through elements
-
-
 }
 
 
