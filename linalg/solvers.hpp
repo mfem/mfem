@@ -190,7 +190,6 @@ private:
    /// Uses absolute values of the diagonal entries.
    bool use_abs_diag = false;
 
-
    const Operator *oper; // not owned
 
    // To preserve the original behavior, some constructors set this flag to
