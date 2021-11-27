@@ -25,18 +25,6 @@ namespace mfem
 
 using namespace std;
 
-// At the time of writing this setting the print level by integer has been
-// marked legacy. However, to ensure a reasonable level of backwards
-// compatibility, the integer-based legacy print level is synchronized with
-// the new class-based approach, requiring some legacy code to be used
-// internally. Therefore the warning of using legacy is silenced in parts
-// of this file.
-namespace internal
-{
-MFEM_DISABLE_WARNING_PUSH;
-MFEM_DISABLE_WARNING_DEPRECATED;
-}
-
 IterativeSolver::IterativeSolver()
    : Solver(0, true)
 {
@@ -47,6 +35,11 @@ IterativeSolver::IterativeSolver()
 #ifdef MFEM_USE_MPI
    dot_prod_type = 0;
 #endif
+   // Silence the depracation warning for 'print_level'.
+   MFEM_DISABLE_WARNING_PUSH;
+   MFEM_DISABLE_WARNING_DEPRECATED;
+   print_level = -1;
+   MFEM_DISABLE_WARNING_POP;
 }
 
 #ifdef MFEM_USE_MPI
@@ -59,13 +52,13 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
    rel_tol = abs_tol = 0.0;
    dot_prod_type = 1;
    comm = comm_;
+   // Silence the depracation warning for 'print_level'.
+   MFEM_DISABLE_WARNING_PUSH;
+   MFEM_DISABLE_WARNING_DEPRECATED;
+   print_level = -1;
+   MFEM_DISABLE_WARNING_POP;
 }
 #endif
-
-namespace internal
-{
-MFEM_DISABLE_WARNING_POP;
-}
 
 double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
@@ -83,38 +76,28 @@ double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 #endif
 }
 
-namespace internal
-{
-MFEM_DISABLE_WARNING_PUSH;
-MFEM_DISABLE_WARNING_DEPRECATED;
-}
-
 void IterativeSolver::SetPrintLevel(int print_lvl)
 {
    print_options = FromLegacyPrintLevel(print_lvl);
+   int print_level_ = print_lvl;
 
-#ifndef MFEM_USE_MPI
-   print_level = print_lvl;
-#else
-   if (dot_prod_type == 0)
-   {
-      print_level = print_lvl;
-   }
-   else
+#ifdef MFEM_USE_MPI
+   if (dot_prod_type != 0)
    {
       int rank;
       MPI_Comm_rank(comm, &rank);
-      if (rank == 0)
+      if (rank != 0) // Suppress output.
       {
-         print_level = print_lvl;
-      }
-      else // Suppress output.
-      {
-         print_level = -1;
+         print_level_ = -1;
          print_options = PrintLevel().None();
       }
    }
 #endif
+   // Silence the depracation warning for 'print_level'.
+   MFEM_DISABLE_WARNING_PUSH;
+   MFEM_DISABLE_WARNING_DEPRECATED;
+   print_level = print_level_;
+   MFEM_DISABLE_WARNING_POP;
 }
 
 void IterativeSolver::SetPrintLevel(PrintLevel options)
@@ -123,28 +106,23 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
 
    int derived_print_level = GuessLegacyPrintLevel(options);
 
-#ifndef MFEM_USE_MPI
-   print_level = derived_print_level;
-#else
-   if (dot_prod_type == 0)
-   {
-      print_level = derived_print_level;
-   }
-   else
+#ifdef MFEM_USE_MPI
+   if (dot_prod_type != 0)
    {
       int rank;
       MPI_Comm_rank(comm, &rank);
-      if (rank == 0)
+      if (rank != 0)
       {
-         print_level = derived_print_level;
+         derived_print_level = -1;
+         print_options = PrintLevel().None();
       }
    }
 #endif
-}
-
-namespace internal
-{
-MFEM_DISABLE_WARNING_POP;
+   // Silence the depracation warning for 'print_level'.
+   MFEM_DISABLE_WARNING_PUSH;
+   MFEM_DISABLE_WARNING_DEPRECATED;
+   print_level = derived_print_level;
+   MFEM_DISABLE_WARNING_POP;
 }
 
 IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
@@ -174,9 +152,10 @@ IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
 #ifdef MFEM_USE_MPI
          if (rank == 0)
 #endif
+         {
             MFEM_WARNING("Unknown print level " << print_level <<
                          ". Defaulting to level 0.");
-
+         }
          return PrintLevel().Errors().Warnings();
    }
 }

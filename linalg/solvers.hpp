@@ -119,14 +119,12 @@ protected:
    Solver *prec;
    IterativeSolverMonitor *monitor = nullptr;
 
-   /** @name Reporting
-       These options control the internal reporting behavior into ::mfem::out
-       and ::mfem::err of the iterative solvers.
-    */
+   /// @name Reporting (protected attributes and member functions)
    ///@{
 
-   /** @brief Legacy print level definition, which is left for compatibility
-       with custom iterative solvers. #print_options should be used instead. */
+   /** @brief (DEPRECATED) Legacy print level definition, which is left for
+       compatibility with custom iterative solvers.
+       @deprecated #print_options should be used instead. */
    MFEM_DEPRECATED int print_level = -1;
 
    /** @brief Output behavior for the iterative solver.
@@ -140,25 +138,11 @@ protected:
    PrintLevel FromLegacyPrintLevel(int);
 
    /// @brief Use some heuristics to guess a legacy print level corresponding to
-   /// the given @a PrintLevel.
+   /// the given PrintLevel.
    static int GuessLegacyPrintLevel(PrintLevel);
    ///@}
 
-   /** @name Convergence
-       @brief Termination criteria for the iterative solvers.
-
-       @details While the convergence criterion is solver specific, most of the
-       provided iterative solvers use one of the following criterions
-
-       \f$ ||r||_X \leq tol_{rel}||r_0||_X \f$,
-
-       \f$ ||r||_X \leq tol_{abs} \f$,
-
-       \f$ ||r||_X \leq \max\{ tol_{abs}, tol_{rel} ||r_0||_X \} \f$,
-
-       where X denotes the space in which the norm is measured. The choice of
-       X depends on the specific iterative solver.
-      */
+   /// @name Convergence (protected attributes)
    ///@{
 
    /// Limit for the number of iterations the solver is allowed to do
@@ -172,7 +156,7 @@ protected:
 
    ///@}
 
-   /// @name Solver statistics
+   /// @name Solver statistics (protected attributes)
    ///@{
 
    mutable int final_iter;
@@ -193,14 +177,31 @@ public:
    IterativeSolver(MPI_Comm comm_);
 #endif
 
-   /// @name Convergence
+   /** @name Convergence
+       @brief Termination criteria for the iterative solvers.
+
+       @details While the convergence criterion is solver specific, most of the
+       provided iterative solvers use one of the following criteria
+
+       \f$ ||r||_X \leq tol_{rel}||r_0||_X \f$,
+
+       \f$ ||r||_X \leq tol_{abs} \f$,
+
+       \f$ ||r||_X \leq \max\{ tol_{abs}, tol_{rel} ||r_0||_X \} \f$,
+
+       where X denotes the space in which the norm is measured. The choice of
+       X depends on the specific iterative solver.
+      */
    ///@{
    void SetRelTol(double rtol) { rel_tol = rtol; }
    void SetAbsTol(double atol) { abs_tol = atol; }
    void SetMaxIter(int max_it) { max_iter = max_it; }
    ///@}
 
-   /// @name Reporting
+   /** @name Reporting
+       These options control the internal reporting behavior into ::mfem::out
+       and ::mfem::err of the iterative solvers.
+    */
    ///@{
 
    /// @brief Legacy method to set the level of verbosity of the solver output.
