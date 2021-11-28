@@ -3894,8 +3894,8 @@ void NormalTraceIntegrator::AssembleTraceFaceMatrix(int elem,
 
       CalcOrtho(Trans.Jacobian(),normal);
 
-      ElementTransformation * ftrans = (iel == elem) ? Trans.Elem1 : Trans.Elem2;
-      test_fe.CalcPhysVShape(*ftrans, shape);
+      ElementTransformation * etrans = (iel == elem) ? Trans.Elem1 : Trans.Elem2;
+      test_fe.CalcPhysVShape(*etrans, shape);
 
       shape.Mult(normal, shape_n);
 

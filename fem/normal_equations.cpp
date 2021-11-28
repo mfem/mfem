@@ -155,7 +155,6 @@ void NormalEquations::ConformingAssemble()
    width = mat->Width();
 }
 
-
 /// Assembles the form i.e. sums over all domain integrators.
 void NormalEquations::Assemble(int skip_zeros)
 {
@@ -163,10 +162,8 @@ void NormalEquations::Assemble(int skip_zeros)
    Array<int> faces, ori;
 
    // DofTransformation * doftrans_j, *doftrans_k;
-   Array<int> vdofs_j, vdofs_k;
+   Array<int> vdofs_j;
    Array<int> offsetvdofs_j;
-   Array<int> elementblockoffsets(nblocks+1);
-   elementblockoffsets[0] = 0;
    if (mat == NULL)
    {
       AllocMat();
@@ -181,12 +178,15 @@ void NormalEquations::Assemble(int skip_zeros)
    // loop through elements
    for (int iel = 0; iel < mesh -> GetNE(); iel++)
    {
-
+      if (dim == 1)
+      {
+         mesh->GetElementVertices(iel, faces);
+      }
       if (dim == 2)
       {
          mesh->GetElementEdges(iel, faces, ori);
       }
-      else if (dim == 3)
+      else //dim = 3
       {
          mesh->GetElementFaces(iel,faces,ori);
       }
@@ -223,7 +223,6 @@ void NormalEquations::Assemble(int skip_zeros)
       BlkG.SetSize(test_offs.Last()); BlkG = 0.0;
       blockvec.SetSize(test_offs.Last()); blockvec = 0.0;
       BlkB.SetSize(test_offs.Last(),domain_offs.Last()+trace_offs.Last()); BlkB = 0.0;
-
 
       // loop through test fe spaces
       for (int j = 0; j < test_fecols.Size(); j++)
@@ -309,9 +308,11 @@ void NormalEquations::Assemble(int skip_zeros)
 
 
          // Trace integrators
+         // TODO: this can be cleaned-up
          for (int i = 0; i < trace_fes.Size(); i++)
          {
             ElemBh.SetSize(test_offs[j+1] - test_offs[j], trace_offs[i+1] - trace_offs[i]);
+            ElemBh = 0.0;
             Array<DenseMatrix * > Baux(numfaces);
             for (int ie = 0; ie < numfaces; ie++)
             {

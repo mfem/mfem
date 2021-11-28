@@ -56,13 +56,10 @@ double fexact(const Vector & x)
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/inline-quad.mesh";
    int order = 1;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -80,7 +77,10 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh mesh(mesh_file, 1, 1);
+
+   Mesh mesh = Mesh::MakeCartesian2D(1,1,mfem::Element::QUADRILATERAL);
+
+
    int dim = mesh.Dimension();
 
 
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace *hatsigma_fes = new FiniteElementSpace(&mesh,hatsigma_fec);
 
    // testspace fe collections
-   int test_order = order+1;
+   int test_order = order;
    FiniteElementCollection * v_fec = new RT_FECollection(test_order-1, dim);
    FiniteElementSpace *v_fes = new FiniteElementSpace(&mesh,v_fec);
 
@@ -235,6 +235,7 @@ int main(int argc, char *argv[])
    B0.SetBlock(0,0,&A00);
    B0.SetBlock(0,1,&A01);
    B0.SetBlock(0,2,&A02);
+   B0.SetBlock(0,3,&A03);
    B0.SetBlock(1,1,&A11);
    B0.SetBlock(1,2,&A12);
    B0.SetBlock(1,4,&A14);
@@ -248,22 +249,20 @@ int main(int argc, char *argv[])
    SparseMatrix * G = G0.CreateMonolithic();
 
 
-   // cout << "B size = " << B->Height() << " x " << B->Width() << endl;
-   // cout << "G size = " << G->Height() << " x " << G->Width() << endl;
 
    Vector b(v_fes->GetTrueVSize() + tau_fes->GetTrueVSize());
    b = 0.;
    b.SetVector(*b1,v_fes->GetTrueVSize());
-   // cout << "b size = " << b.Size() << endl;
 
    SparseMatrix * A = RAP(*B, *G, *B);
 
+
    Vector L(b.Size());
    G->Mult(b,L);
+
    Vector BtGl(B->Width());
    B->MultTranspose(L,BtGl);
    
-
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
    if (mesh.bdr_attributes.Size())
@@ -280,7 +279,6 @@ int main(int argc, char *argv[])
                                                 + sigma_y_fes->GetTrueVSize();
    }
 
-
    Vector X(BtGl.Size());
    X = 0.0;
 
@@ -289,7 +287,6 @@ int main(int argc, char *argv[])
       int j = ess_tdof_list[i];
       A->EliminateRowCol(j,X[j],BtGl);
    }
-
 
    CGSolver cg;
    GSSmoother M(*A);

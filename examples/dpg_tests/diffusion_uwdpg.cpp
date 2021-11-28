@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace *hatsigma_fes = new FiniteElementSpace(&mesh,hatsigma_fec);
 
    // testspace fe collections
-   int test_order = order+1;
+   int test_order = order+3;
    FiniteElementCollection * v_fec = new RT_FECollection(test_order-1, dim);
    FiniteElementCollection * tau_fec = new H1_FECollection(test_order, dim);
 
@@ -199,25 +199,11 @@ int main(int argc, char *argv[])
    Vector x(size);
    x = 0.0;
 
-   ess_tdof_list.SetSize(0);
+   // ess_tdof_list.SetSize(0);
    a->FormLinearSystem(ess_tdof_list,x,A,X,B);
-
-   cout << "B = " ;B.Print();
-   B.Print();
-
-   SparseMatrix & As = (SparseMatrix&)(*A);
-
-   As.SortColumnIndices();
-   As.Threshold(0.0);
-
-   // As.PrintMatlab();
-
-   // B.Print();
-
 
    GSSmoother M((SparseMatrix&)(*A));
    CGSolver cg;
-
 
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
@@ -225,9 +211,6 @@ int main(int argc, char *argv[])
    cg.SetPreconditioner(M);
    cg.SetOperator(*A);
    cg.Mult(B, X);
-
-
-   X.Print();
 
    a->RecoverFEMSolution(X,x);
 
