@@ -31,7 +31,7 @@ struct LORBench
    Mesh mesh;
    H1_FECollection fec;
    FiniteElementSpace mfes, fes_ho;
-   Array<int> ess_dofs;
+   Array<int> ess_bdr,ess_dofs;
    LORDiscretization lor_disc;
    IntegrationRules irs;
    const IntegrationRule &ir_el;
@@ -59,6 +59,7 @@ struct LORBench
       fec(p, dim, BasisType::GaussLobatto),
       mfes(&mesh, &fec, dim),
       fes_ho(&mesh, &fec),
+      ess_bdr(mesh.bdr_attributes.Max()),
       lor_disc(fes_ho, BasisType::GaussLobatto),
       irs(0, Quadrature1D::GaussLobatto),
       ir_el(irs.Get(Geometry::Type::CUBE, 1)),
@@ -72,6 +73,7 @@ struct LORBench
       dofs(fes_ho.GetVSize()),
       mdof(0.0)
    {
+      dbg("p:%d side:%d dofs:%d",p,side,dofs);
       a_legacy.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
       a_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
 
@@ -193,14 +195,16 @@ struct LORBench
 
    void Dump()
    {
+      ess_bdr = 1;
+      Array<int> ess_tdof_list;
+      fes_lo.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
       OperatorHandle Ah;
 
       MFEM_DEVICE_SYNC;
-      tic();
       a_legacy.Assemble();
       MFEM_DEVICE_SYNC;
-      dbg(" Legacy time = %f",toc());
-      a_legacy.FormSystemMatrix(ess_dofs, Ah);
+      a_legacy.FormSystemMatrix(ess_tdof_list, Ah);
       a_legacy.Finalize();
       Ah.As<SparseMatrix>()->HostReadWriteI();
       Ah.As<SparseMatrix>()->HostReadWriteJ();
@@ -326,10 +330,10 @@ struct LORBench
 };
 
 // The different orders the tests can run
-#define P_ORDERS bm::CreateDenseRange(1,16,1)
+#define P_ORDERS bm::CreateDenseRange(1,8,1)
 
 // The different sides of the mesh
-#define N_SIDES bm::CreateDenseRange(4,100,4)
+#define N_SIDES bm::CreateDenseRange(4,20,1)
 #define MAX_NDOFS 2*1024*1024
 
 /// Kernels definitions and registrations
@@ -347,7 +351,7 @@ static void Name(bm::State &state){\
    state.counters["p"] = bm::Counter(p);\
 }\
 BENCHMARK(Name)\
-            -> ArgsProduct( {P_ORDERS,N_SIDES})\
+            -> ArgsProduct({P_ORDERS,N_SIDES})\
             -> Unit(bm::kMillisecond);
 
 Benchmark(SanityChecks)
@@ -361,7 +365,7 @@ Benchmark(AllFull)
 Benchmark(AllBatched)
 Benchmark(AllDeviced)
 
-//Benchmark(Dump)
+Benchmark(Dump)
 Benchmark(Test)
 
 /**
