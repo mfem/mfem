@@ -175,8 +175,9 @@ protected:
    // Copy{From,To}, {ReadWrite,Read,Write}.
 
 public:
-   /// Default constructor: no initialization.
-   Memory() { }
+   /** Default constructor, sets the host pointer to nullptr and the metadata to
+       meaningful default values. */
+   Memory() { Reset(); }
 
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
