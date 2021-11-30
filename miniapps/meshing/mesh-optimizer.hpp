@@ -382,7 +382,7 @@ double surface_level_set(const Vector &x)
    //1 is circle
    //2 is squircle with power
    double power = 4.0;
-   const int type = 3;
+   const int type = 2;
 
    const int dim = x.Size();
    if (type == 0)
@@ -407,44 +407,40 @@ double surface_level_set(const Vector &x)
    }
    else if (type == 2) //squircle
    {
-       if (dim == 2)
-       {
-          const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-          const double r = sqrt(xc*xc + yc*yc);
-          const double r2 = pow(xc/1.0, power) + pow(yc/1.0, power);
-          return r2 - pow(0.1, power);
+      if (dim == 2)
+      {
+         const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         const double r2 = pow(xc/1.0, power) + pow(yc/1.0, power);
+         return r2 - pow(0.1, power);
 
-          return r-0.1; // circle of radius 0.1
-       }
-       else
-       {
-          MFEM_ABORT(" type 2 in 2D only right now")
-       }
+         return r-0.1; // circle of radius 0.1
+      }
+      else
+      {
+         MFEM_ABORT(" type 2 in 2D only right now")
+      }
    }
    else if (type == 3) //butterfly
    {
-       if (dim == 2)
-       {
-          const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-          const double r = sqrt(xc*xc + yc*yc);
-          double theta = atan2(yc, xc);
-          if (theta < 0) { theta += 2.0*M_PI; }
+      if (dim == 2)
+      {
+         const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         double theta = atan2(yc, xc);
+         if (theta < 0) { theta += 2.0*M_PI; }
 
-          //std::cout << xc << " " << yc << " " << theta << endl;
-          return r - (1./80.)*(12.0 - sin(theta) -2.0*cos(4.0*theta));
-          return (1./20.)*(12 - sin(theta) + 2*sin(3*theta) -sin(7*theta)
-                           +3*cos(2*theta)-2*cos(4*theta));
-       }
-       else
-       {
-          MFEM_ABORT(" type 2 in 2D only right now")
-       }
+         //std::cout << xc << " " << yc << " " << theta << endl;
+         return r - (1./80.)*(12.0 - sin(theta) -2.0*cos(4.0*theta));
+         return (1./20.)*(12 - sin(theta) + 2*sin(3*theta) -sin(7*theta)
+                          +3*cos(2*theta)-2*cos(4*theta));
+      }
+      else
+      {
+         MFEM_ABORT(" type 2 in 2D only right now")
+      }
    }
-   else
-   {
-       return 0.0;
-   }
-
+   return 0.0;
 }
 
 int material_id(int el_id, const GridFunction &g)

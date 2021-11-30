@@ -1364,8 +1364,8 @@ protected:
    AdaptivityEvaluator *sigma_eval;  // Not owned.
    double sigma_normal;
    bool sigma_bg;
-   AdaptivityEvaluator *sigma_eval_bg_grad, *sigma_eval_bg_grad_grad;
-   GridFunction *sigma_grad, *sigma_grad_grad;
+   AdaptivityEvaluator *sigma_eval_bg_grad, *sigma_eval_bg_hess;
+   GridFunction *sigma_grad, *sigma_hess;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -1558,7 +1558,7 @@ public:
         sigma(NULL), sigma_bar(NULL), sigma_marker(NULL), coeff_sigma(NULL),
         sigma_eval(NULL), sigma_normal(1.0),
         sigma_bg(false), sigma_grad(NULL), sigma_eval_bg_grad(NULL),
-        sigma_grad_grad(NULL), sigma_eval_bg_grad_grad(NULL),
+        sigma_hess(NULL), sigma_eval_bg_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
@@ -1644,19 +1644,20 @@ public:
    void EnableSurfaceFitting(const GridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
-   void EnableSurfaceFittingWithBackgroundMesh(const GridFunction &s0);
 #ifdef MFEM_USE_MPI
    /// Parallel support for surface fitting.
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
-   void EnableSurfaceFittingWithBackgroundMesh(const ParGridFunction &s0,
-                                               AdaptivityEvaluator &ae_grad,
-                                               const ParGridFunction &s0_bg_grad,
-                                               ParGridFunction &s0_grad,
-                                               AdaptivityEvaluator &ae_grad_grad,
-                                               const ParGridFunction &s0_bg_grad_grad,
-                                               ParGridFunction &s0_grad_grad);
+   void EnableSurfaceFittingFromSource(const ParGridFunction &s0_bg,
+                                       ParGridFunction &s0,
+                                       const Array<bool> &smarker,
+                                       Coefficient &coeff,
+                                       AdaptivityEvaluator &ae,
+                                       const ParGridFunction &s0_bg_grad,
+                                       ParGridFunction &s0_grad,
+                                       const ParGridFunction &s0_bg_hess,
+                                       ParGridFunction &s0_hess);
 #endif
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
 

@@ -2347,7 +2347,7 @@ TMOP_Integrator::~TMOP_Integrator()
    delete sigma;
    delete sigma_bar;
    delete sigma_grad;
-   delete sigma_grad_grad;
+   delete sigma_hess;
    for (int i = 0; i < ElemDer.Size(); i++)
    {
       delete ElemDer[i];
@@ -2440,14 +2440,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    (*sigma->FESpace()->GetMesh()->GetNodes(), *sigma);
 }
 
-void TMOP_Integrator::EnableSurfaceFittingWithBackgroundMesh(const GridFunction &s0)
-{
-   sigma_eval->SetSerialMetaInfo(*s0.FESpace()->GetMesh(),
-                                 *s0.FESpace()->FEColl(), 1);
-   sigma_eval->SetInitialField
-   (*s0.FESpace()->GetMesh()->GetNodes(), s0);
-}
-
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                            const Array<bool> &smarker,
@@ -2474,41 +2466,65 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    (*sigma->FESpace()->GetMesh()->GetNodes(), *sigma);
 }
 
-void TMOP_Integrator::EnableSurfaceFittingWithBackgroundMesh(const ParGridFunction &s0,
-                                                             AdaptivityEvaluator &ae_grad,
-                                                             const ParGridFunction &s0_bg_grad,
-                                                             ParGridFunction &s0_grad,
-                                                             AdaptivityEvaluator &ae_grad_grad,
-                                                             const ParGridFunction &s0_bg_grad_grad,
-                                                             ParGridFunction &s0_grad_grad)
+void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
+                                                     &s0_bg,
+                                                     ParGridFunction &s0,
+                                                     const Array<bool> &smarker,
+                                                     Coefficient &coeff,
+                                                     AdaptivityEvaluator &ae,
+                                                     const ParGridFunction &s0_bg_grad,
+                                                     ParGridFunction &s0_grad,
+                                                     const ParGridFunction &s0_bg_hess,
+                                                     ParGridFunction &s0_hess)
 {
+   delete sigma;
+   sigma = new GridFunction(s0);
+   sigma_marker = &smarker;
+   coeff_sigma = &coeff;
+   sigma_eval = &ae;
+
+   // Compute the restricted sigma.
+   delete sigma_bar;
+   sigma_bar = new GridFunction(*sigma);
+   for (int i = 0; i < sigma_marker->Size(); i++)
+   {
+      if ((*sigma_marker)[i] == false) { (*sigma_bar)(i) = 0.0; }
+   }
+
    sigma_bg = true;
-   sigma_eval->SetParMetaInfo(*s0.ParFESpace()->GetParMesh(),
-                              *s0.ParFESpace()->FEColl(), 1);
+   sigma_eval->SetParMetaInfo(*s0_bg.ParFESpace()->GetParMesh(),
+                              *s0_bg.ParFESpace()->FEColl(), 1);
    sigma_eval->SetInitialField
-   (*s0.FESpace()->GetMesh()->GetNodes(), s0);
+   (*s0_bg.FESpace()->GetMesh()->GetNodes(), s0_bg);
 
    // Setup gradient on background mesh
-   sigma_eval_bg_grad = &ae_grad;
+   delete sigma_eval_bg_grad;
+   delete sigma_eval_bg_hess;
+#ifdef MFEM_USE_GSLIB
+   sigma_eval_bg_grad = new InterpolatorFP;
+   sigma_eval_bg_hess = new InterpolatorFP;
+#else
+   MFEM_ABORT("MFEM must be built with GSLIB support for surface fitting "
+              "with a source mesh!");
+#endif
    sigma_eval_bg_grad->SetParMetaInfo(*s0_bg_grad.ParFESpace()->GetParMesh(),
                                       *s0_bg_grad.ParFESpace()->FEColl(),
-                                       s0_bg_grad.ParFESpace()->GetVDim());
+                                      s0_bg_grad.ParFESpace()->GetVDim());
    sigma_eval_bg_grad->SetInitialField
    (*s0_bg_grad.FESpace()->GetMesh()->GetNodes(), s0_bg_grad);
 
    delete sigma_grad;
    sigma_grad = new GridFunction(s0_grad);
 
-   // Setup gradient on background mesh
-   sigma_eval_bg_grad_grad = &ae_grad_grad;
-   sigma_eval_bg_grad_grad->SetParMetaInfo(*s0_bg_grad_grad.ParFESpace()->GetParMesh(),
-                                            *s0_bg_grad_grad.ParFESpace()->FEColl(),
-                                            s0_bg_grad_grad.ParFESpace()->GetVDim());
-   sigma_eval_bg_grad_grad->SetInitialField
-   (*s0_bg_grad_grad.FESpace()->GetMesh()->GetNodes(), s0_bg_grad_grad);
+   // Setup Hessian on background mesh
+   sigma_eval_bg_hess->SetParMetaInfo(*s0_bg_hess.ParFESpace()->GetParMesh(),
+                                      *s0_bg_hess.ParFESpace()->FEColl(),
+                                      s0_bg_hess.ParFESpace()->GetVDim());
+   sigma_eval_bg_hess->SetInitialField
+   (*s0_bg_hess.FESpace()->GetMesh()->GetNodes(), s0_bg_hess);
 
-   delete sigma_grad_grad;
-   sigma_grad_grad = new GridFunction(s0_grad_grad);
+   delete sigma_hess;
+   sigma_hess = new GridFunction(s0_hess);
 }
 #endif
 
@@ -3021,7 +3037,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    targetC->ComputeElementTargets(T.ElementNo, el, ir, elfun, Jtr);
 
    // Limited case.
-   DenseMatrix pos0, grad_grad;
+   DenseMatrix pos0, hess;
    Vector shape, p, p0, d_vals;
    if (coeff0)
    {
@@ -3080,7 +3096,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
          weight_m = weights(q) * lim_normal * coeff0->Eval(*Tpr, ip);
-         lim_func->Eval_d2(p, p0, d_vals(q), grad_grad);
+         lim_func->Eval_d2(p, p0, d_vals(q), hess);
          for (int i = 0; i < dof; i++)
          {
             const double w_shape_i = weight_m * shape(i);
@@ -3091,7 +3107,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                {
                   for (int d2 = 0; d2 < dim; d2++)
                   {
-                     elmat(d1*dof + i, d2*dof + j) += w * grad_grad(d1, d2);
+                     elmat(d1*dof + i, d2*dof + j) += w * hess(d1, d2);
                   }
                }
             }
@@ -3165,14 +3181,14 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
    grad_phys.Mult(zeta_e, grad_ptr);
 
    // Project the gradient of each gradient of zeta in the same space.
-   // The FE coefficients of the second derivatives go in zeta_grad_grad_e.
-   DenseMatrix zeta_grad_grad_e(dof*dim, dim);
-   Mult(grad_phys, zeta_grad_e, zeta_grad_grad_e);
+   // The FE coefficients of the second derivatives go in zeta_hess_e.
+   DenseMatrix zeta_hess_e(dof*dim, dim);
+   Mult(grad_phys, zeta_grad_e, zeta_hess_e);
    // Reshape to be more convenient later (no change in the data).
-   zeta_grad_grad_e.SetSize(dof, dim*dim);
+   zeta_hess_e.SetSize(dof, dim*dim);
 
    Vector zeta_grad_q(dim);
-   DenseMatrix zeta_grad_grad_q(dim, dim);
+   DenseMatrix zeta_hess_q(dim, dim);
 
    for (int q = 0; q < nqp; q++)
    {
@@ -3180,8 +3196,8 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
       el.CalcShape(ip, shape);
 
       zeta_grad_e.MultTranspose(shape, zeta_grad_q);
-      Vector gg_ptr(zeta_grad_grad_q.GetData(), dim*dim);
-      zeta_grad_grad_e.MultTranspose(shape, gg_ptr);
+      Vector gg_ptr(zeta_hess_q.GetData(), dim*dim);
+      zeta_hess_e.MultTranspose(shape, gg_ptr);
 
       const double w = weights(q) * lim_normal * coeff_zeta->Eval(Tpr, ip);
       for (int i = 0; i < dof * dim; i++)
@@ -3194,7 +3210,7 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
                w * ( 2.0 * zeta_grad_q(idim) * shape(idof) *
                      /* */ zeta_grad_q(jdim) * shape(jdof) +
                      2.0 * (zeta_q(q) - zeta0_q(q)) *
-                     zeta_grad_grad_q(idim, jdim) * shape(idof) * shape(jdof));
+                     zeta_hess_q(idim, jdim) * shape(idof) * shape(jdof));
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }
@@ -3224,13 +3240,15 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
    DenseMatrix sigma_grad_e(dof_s, dim);
    Vector grad_ptr(sigma_grad_e.GetData(), dof_s * dim);
    DenseMatrix grad_phys; // This will be (dof x dim, dof).
-   if (sigma_bg) {
-       sigma_grad->FESpace()->GetElementVDofs(el_id, dofs);
-       sigma_grad->GetSubVector(dofs, grad_ptr);
+   if (sigma_bg)
+   {
+      sigma_grad->FESpace()->GetElementVDofs(el_id, dofs);
+      sigma_grad->GetSubVector(dofs, grad_ptr);
    }
-   else {
-       el_s.ProjectGrad(el_s, Tpr, grad_phys);
-       grad_phys.Mult(sigma_e, grad_ptr);
+   else
+   {
+      el_s.ProjectGrad(el_s, Tpr, grad_phys);
+      grad_phys.Mult(sigma_e, grad_ptr);
    }
 
    Vector shape_x(dof_x), shape_s(dof_s);
@@ -3252,7 +3270,7 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
       sigma_grad_s *= 2.0 * sigma_normal * coeff_sigma->Eval(Tpr, ip) * sigma_e(s);
 
       AddMultVWt(shape_x, sigma_grad_s, mat);
-  }
+   }
 }
 
 void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
@@ -3276,32 +3294,36 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    DenseMatrix sigma_grad_e(dof_s, dim);
    Vector grad_ptr(sigma_grad_e.GetData(), dof_s * dim);
    DenseMatrix grad_phys;
-   if (sigma_bg) {
-        sigma_grad->FESpace()->GetElementVDofs(el_id, dofs);
-        sigma_grad->GetSubVector(dofs, grad_ptr);
+   if (sigma_bg)
+   {
+      sigma_grad->FESpace()->GetElementVDofs(el_id, dofs);
+      sigma_grad->GetSubVector(dofs, grad_ptr);
    }
-   else {
-       el_s.ProjectGrad(el_s, Tpr, grad_phys);
-       grad_phys.Mult(sigma_e, grad_ptr);
+   else
+   {
+      el_s.ProjectGrad(el_s, Tpr, grad_phys);
+      grad_phys.Mult(sigma_e, grad_ptr);
    }
 
-   DenseMatrix sigma_grad_grad_e(dof_s, dim*dim);
-   Vector grad_grad_ptr(sigma_grad_grad_e.GetData(), dof_s*dim*dim);
-   if (sigma_bg) {
-       sigma_grad_grad->FESpace()->GetElementVDofs(el_id, dofs);
-       sigma_grad_grad->GetSubVector(dofs, grad_grad_ptr);
+   DenseMatrix sigma_hess_e(dof_s, dim*dim);
+   Vector hess_ptr(sigma_hess_e.GetData(), dof_s*dim*dim);
+   if (sigma_bg)
+   {
+      sigma_hess->FESpace()->GetElementVDofs(el_id, dofs);
+      sigma_hess->GetSubVector(dofs, hess_ptr);
    }
-   else {
-       sigma_grad_grad_e.SetSize(dof_s*dim, dim);
-       Mult(grad_phys, sigma_grad_e, sigma_grad_grad_e);
-       sigma_grad_grad_e.SetSize(dof_s, dim * dim);
+   else
+   {
+      sigma_hess_e.SetSize(dof_s*dim, dim);
+      Mult(grad_phys, sigma_grad_e, sigma_hess_e);
+      sigma_hess_e.SetSize(dof_s, dim * dim);
    }
 
    const IntegrationRule &ir = el_s.GetNodes();
    Vector shape_x(dof_x), shape_s(dof_s);
 
    Vector sigma_grad_s(dim);
-   DenseMatrix sigma_grad_grad_s(dim, dim);
+   DenseMatrix sigma_hess_s(dim, dim);
 
    for (int s = 0; s < dof_s; s++)
    {
@@ -3314,8 +3336,8 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
 
       // These are the sums over k at the dof s (looking at the notes).
       sigma_grad_e.MultTranspose(shape_s, sigma_grad_s);
-      Vector gg_ptr(sigma_grad_grad_s.GetData(), dim * dim);
-      sigma_grad_grad_e.MultTranspose(shape_s, gg_ptr);
+      Vector gg_ptr(sigma_hess_s.GetData(), dim * dim);
+      sigma_hess_e.MultTranspose(shape_s, gg_ptr);
 
       // Loops over the local matrix.
       const double w = sigma_normal * coeff_sigma->Eval(Tpr, ip);
@@ -3328,7 +3350,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
             const double entry =
                w * ( 2.0 * sigma_grad_s(idim) * shape_x(idof) *
                      /* */ sigma_grad_s(jdim) * shape_x(jdof) +
-                     2.0 * sigma_e(s) * sigma_grad_grad_s(idim, jdim) *
+                     2.0 * sigma_e(s) * sigma_hess_s(idim, jdim) *
                      /* */ shape_x(idof) * shape_x(jdof));
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
@@ -3660,8 +3682,8 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x)
 
       if (sigma_bg)
       {
-          sigma_eval_bg_grad->ComputeAtNewPosition(new_x, *sigma_grad);
-          sigma_eval_bg_grad_grad->ComputeAtNewPosition(new_x, *sigma_grad_grad);
+         sigma_eval_bg_grad->ComputeAtNewPosition(new_x, *sigma_grad);
+         sigma_eval_bg_hess->ComputeAtNewPosition(new_x, *sigma_hess);
       }
    }
 }
