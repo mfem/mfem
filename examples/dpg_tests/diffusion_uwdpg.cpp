@@ -19,20 +19,12 @@
 //  (σ , ∇ τ) - < σ̂, τ  >           = (f,τ)   ∀ τ ∈ H^1(Ω)
 //            û = 0        on ∂Ω 
 
-// or equivalently 
-// u ∈ L^2(Ω), σ_x ∈ L^2(Ω), σ_y ∈ L^2(Ω) 
-// û ∈ H^1/2, σ̂ ∈ H^-1/2  
-// -(u , ∇⋅v) + < û, v⋅n> - ((1,0)σ_x , v) - ((0,1) σ_y , v) = 0,      ∀ v ∈ H(div,Ω)      
-//  ((1,0) σ_x , ∇ τ) + ((0,1) σ_y, ∇ \tau)  - < σ̂, τ  >     = (f,τ)   ∀ τ ∈ H^1(Ω)
-//            û = 0        on ∂Ω 
-
-
-// ----------------------------------------------------------------------------------
-// |   |     u     |     σ_x        |      σ_y        |     û      |    σ̂    |  RHS    |
-// ----------------------------------------------------------------------------------
-// | v | -(u,∇⋅v)  |  -((1,0)σ_x,v) |   -((0,1)σ_y,v) |  < û, v⋅n> |         |    0    |
-// |   |           |                |                 |            |         |
-// | τ |           | ((1,0)σ_x,∇ τ) |   ((0,1)σ_y,∇τ) |            | -<σ̂,τ>  |  (f,τ)  |  
+// -------------------------------------------------------------
+// |   |     u     |     σ     |    û      |    σ̂    |  RHS    |
+// -------------------------------------------------------------
+// | v | -(u,∇⋅v)  |  -(σ,v)   | < û, v⋅n> |         |    0    |
+// |   |           |           |           |         |         |
+// | τ |           |  (σ,∇ τ)  |           | -<σ̂,τ>  |  (f,τ)  |  
 
 // where (v,τ) ∈  H(div,Ω) × H^1(Ω) 
 
@@ -49,14 +41,24 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
    int order = 1;
+   int delta_order = 1;
+   int ref = 1;
+   bool adjoint_graph_norm = true;
    bool visualization = true;
+
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) or -1 for"
-                  " isoparametric space.");
+                  "Finite element order (polynomial degree).");
+   args.AddOption(&delta_order, "-do", "--delta_order",
+                  "Order enrichment for DPG test space.");
+   args.AddOption(&ref, "-ref", "--num_refinements",
+                  "Number of uniform refinements");               
+   args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
+                  "-no-graph-norm", "--no-adjoint-graph-norm",
+                  "Enable or disable Adjoint Graph Norm on the test space");               
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -71,18 +73,19 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
+   for (int i = 0; i<ref; i++)
+   {
+      mesh.UniformRefinement();
+   }
+
    // Define spaces
    // L2 space for u
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *u_fes = new FiniteElementSpace(&mesh,u_fec);
 
-   // L2 space for σ_x 
-   FiniteElementCollection *sigma_x_fec = new L2_FECollection(order-1,dim);
-   FiniteElementSpace *sigma_x_fes = new FiniteElementSpace(&mesh,sigma_x_fec); 
-
-   // L2 space for σ_y 
-   FiniteElementCollection *sigma_y_fec = new L2_FECollection(order-1,dim);
-   FiniteElementSpace *sigma_y_fes = new FiniteElementSpace(&mesh,sigma_y_fec); 
+   // Vector L2 space for σ 
+   FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
+   FiniteElementSpace *sigma_fes = new FiniteElementSpace(&mesh,sigma_fec, dim); 
 
    // H^1/2 space for û 
    FiniteElementCollection * hatu_fec = new H1_Trace_FECollection(order,dim);
@@ -93,10 +96,9 @@ int main(int argc, char *argv[])
    FiniteElementSpace *hatsigma_fes = new FiniteElementSpace(&mesh,hatsigma_fec);
 
    // testspace fe collections
-   int test_order = order+3;
+   int test_order = order+delta_order;
    FiniteElementCollection * v_fec = new RT_FECollection(test_order-1, dim);
    FiniteElementCollection * tau_fec = new H1_FECollection(test_order, dim);
-
 
    // Coefficients
    ConstantCoefficient one(1.0);
@@ -111,15 +113,13 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient one_x(one_x_v);
    VectorConstantCoefficient one_y(one_y_v);
 
-
    // Normal equation weak formulation
    Array<FiniteElementSpace * > domain_fes; 
    Array<FiniteElementSpace * > trace_fes; 
    Array<FiniteElementCollection * > test_fec; 
 
    domain_fes.Append(u_fes);
-   domain_fes.Append(sigma_x_fes);
-   domain_fes.Append(sigma_y_fes);
+   domain_fes.Append(sigma_fes);
 
    trace_fes.Append(hatu_fes);
    trace_fes.Append(hatsigma_fes);
@@ -133,43 +133,40 @@ int main(int argc, char *argv[])
    a->AddDomainBFIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
 
    // -(σ,v) 
-
-   // -((1,0)σ_x,v) 
-   a->AddDomainBFIntegrator(new MixedVectorProductIntegrator(negone_x), 1, 0);
-
-   // -((0,1)σ_y,v)
-   a->AddDomainBFIntegrator(new MixedVectorProductIntegrator(negone_y), 2, 0);
-
+   TransposeIntegrator * mass = new TransposeIntegrator(new VectorFEMassIntegrator(negone));
+   a->AddDomainBFIntegrator(mass,1,0);
 
    // (σ,∇ τ)
+   TransposeIntegrator * grad = new TransposeIntegrator(new GradientIntegrator(one));
+   a->AddDomainBFIntegrator(grad,1,1);
 
-   //  ((1,0)σ_x,∇τ)    
-   a->AddDomainBFIntegrator(new MixedScalarWeakDivergenceIntegrator(negone_x),1,1);
-
-   // ((0,1)σ_y,∇τ) 
-   a->AddDomainBFIntegrator(new MixedScalarWeakDivergenceIntegrator(negone_y),2,1);
-
-   //  < û, v⋅n>
+   //  <û,v⋅n>
    a->AddTraceElementBFIntegrator(new NormalTraceIntegrator,0,0);
 
-   // -<σ̂,τ> (sign is included in the variable)
+   // -<σ̂,τ> (sign is included in σ̂)
    a->AddTraceElementBFIntegrator(new TraceIntegrator,1,1);
 
-
-   // test integrators (try mathematician's norm now Hdiv × H1)
+   // test integrators (space-induced norm for H(div) × H1)
+   // (∇⋅v,∇⋅δv)
    a->AddTestIntegrator(new DivDivIntegrator(one),0,0);
+   // (v,δv)
    a->AddTestIntegrator(new VectorFEMassIntegrator(one),0,0);
+   // (∇τ,∇δτ)
    a->AddTestIntegrator(new DiffusionIntegrator(one),1,1);
+   // (τ,δτ)
    a->AddTestIntegrator(new MassIntegrator(one),1,1);
 
+   // additional terms for adjoint graph norm
+   if (adjoint_graph_norm)
+   {
+      // -(∇τ,δv) 
+      a->AddTestIntegrator(new MixedVectorGradientIntegrator(negone),1,0);
+      // -(v,∇δv) 
+      a->AddTestIntegrator(new MixedVectorWeakDivergenceIntegrator(one),0,1);
+   }
 
    // RHS
-   ConstantCoefficient zero(0.0);
-   Vector zero_v(dim); zero_v = 0.0;
-   // VectorConstantCoefficient zero_vec(zero_v);
-   // a->AddDomainLFIntegrator(new VectorFEDomainLFIntegrator(zero_vec),0);
    a->AddDomainLFIntegrator(new DomainLFIntegrator(one),1);
-
    a->Assemble();
 
 
@@ -185,16 +182,14 @@ int main(int argc, char *argv[])
    // shift the ess_tdofs
    for (int i = 0; i < ess_tdof_list.Size(); i++)
    {
-      ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_x_fes->GetTrueVSize()
-                                                + sigma_y_fes->GetTrueVSize();
+      ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_fes->GetTrueVSize();
    }
 
    Vector X,B;
    OperatorPtr A;
 
-   int size = u_fes->GetTrueVSize() + sigma_x_fes->GetVSize() + sigma_y_fes->GetVSize() 
+   int size = u_fes->GetVSize() + sigma_fes->GetVSize()
             + hatu_fes->GetVSize() + hatsigma_fes->GetVSize();
-
 
    Vector x(size);
    x = 0.0;
@@ -214,50 +209,41 @@ int main(int argc, char *argv[])
 
    a->RecoverFEMSolution(X,x);
 
-
    GridFunction u_gf;
    double *data = x.GetData();
    u_gf.MakeRef(u_fes,data);
 
-   GridFunction sx_gf;
-   sx_gf.MakeRef(sigma_x_fes,&data[u_fes->GetTrueVSize()]);
-
-   GridFunction sy_gf;
-   sy_gf.MakeRef(sigma_y_fes,&data[u_fes->GetTrueVSize()+sigma_x_fes->GetTrueVSize()]);
-
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream solu_sock(vishost, visport);
-   solu_sock.precision(8);
-   solu_sock << "solution\n" << mesh << u_gf <<
-             "window_title 'Numerical u' "
-             << flush;
-
-   socketstream solsx_sock(vishost, visport);
-   solsx_sock.precision(8);
-   solsx_sock << "solution\n" << mesh << sx_gf <<
-             "window_title 'Numerical s_x' "
-             << flush;
-
-   socketstream solsy_sock(vishost, visport);
-   solsy_sock.precision(8);
-   solsy_sock << "solution\n" << mesh << sy_gf <<
-             "window_title 'Numerical s_y' "
-             << flush;            
+   GridFunction sigma_gf;
+   sigma_gf.MakeRef(sigma_fes,&data[u_fes->GetVSize()]);
 
 
-   // delete a;
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream solu_sock(vishost, visport);
+      solu_sock.precision(8);
+      solu_sock << "solution\n" << mesh << u_gf <<
+               "window_title 'Numerical u' "
+               << flush;
+
+      socketstream sols_sock(vishost, visport);
+      sols_sock.precision(8);
+      sols_sock << "solution\n" << mesh << sigma_gf <<
+               "window_title 'Numerical flux' "
+               << flush;
+   }
+
+   delete a;
    delete tau_fec;
    delete v_fec;
    delete hatsigma_fes;
    delete hatsigma_fec;
    delete hatu_fes;
    delete hatu_fec;
-   delete sigma_x_fec;
-   delete sigma_y_fes;
+   delete sigma_fec;
    delete u_fec;
    delete u_fes;
-
 
    return 0;
 }
