@@ -63,6 +63,9 @@
 
 #include "lor_mms.hpp"
 
+#define MFEM_DEBUG_COLOR 123
+#include "general/debug.hpp"
+
 using namespace std;
 using namespace mfem;
 
@@ -71,6 +74,8 @@ bool grad_div_problem = false;
 int main(int argc, char *argv[])
 {
    MPI_Session mpi;
+   const int num_procs = mpi.WorldSize();
+   const int myid = mpi.WorldRank();
 
    const char *mesh_file = "../../data/star.mesh";
    int ser_ref_levels = 1, par_ref_levels = 1;
@@ -78,6 +83,7 @@ int main(int argc, char *argv[])
    const char *fe = "h";
    const char *device_config = "cpu";
    bool visualization = true;
+   int config_dev_modulo = 4;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -93,9 +99,14 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&config_dev_modulo, "-dm", "--device-modulo",
+                  "Number of devices available on the node.");
    args.ParseCheck();
 
-   Device device(device_config);
+   const int dev = myid % config_dev_modulo;
+   dbg("[MPI] rank: %d/%d, using device #%d", 1+myid, num_procs, dev);
+
+   Device device(device_config, dev);
    device.Print();
 
    bool H1 = false, ND = false, RT = false, L2 = false;
@@ -142,7 +153,7 @@ int main(int argc, char *argv[])
    if (H1 || L2)
    {
 #warning no MassIntegrator
-      //a.AddDomainIntegrator(new MassIntegrator);
+      a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator);
    }
    else
@@ -185,14 +196,17 @@ int main(int argc, char *argv[])
    unique_ptr<Solver> solv_lor;
    if (H1 || L2)
    {
+      dbg("LORSolver<HypreBoomerAMG>");
       solv_lor.reset(new LORSolver<HypreBoomerAMG>(lor));
    }
    else if (RT && dim == 3)
    {
+      assert(false);
       solv_lor.reset(new LORSolver<HypreADS>(lor, &fes_lor));
    }
    else
    {
+      assert(false);
       solv_lor.reset(new LORSolver<HypreAMS>(lor, &fes_lor));
    }
 
@@ -227,6 +241,16 @@ int main(int argc, char *argv[])
       dc.SetCycle(0);
       dc.SetTime(0.0);
       dc.Save();
+   }
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << x << flush;
    }
 
    return 0;
