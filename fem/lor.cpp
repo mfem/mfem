@@ -19,6 +19,9 @@
 #include "../general/forall.hpp"
 #include "../general/nvvp.hpp"
 
+#define MFEM_DEBUG_COLOR 220
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -289,8 +292,10 @@ const Operator *LORBase::GetLORRestriction() const
    return R_lor.Ptr();
 }
 
-void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
+void LORBase::AssembleSystem_(BilinearForm &a_ho,
+                              const Array<int> &ess_dofs_ho)
 {
+   dbg();
    // By default, we want to use "batched assembly", however this is only
    // supported for certain integrators. We set it to true here, and then when
    // we loop through the integrators, if we encounter unsupported integrators,
@@ -309,15 +314,70 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
                             &BilinearForm::GetBFBFI_Marker,
                             &BilinearForm::AddBdrFaceIntegrator,
                             &BilinearForm::AddBdrFaceIntegrator, ir_face);
+
+   OperatorHandle Ad;
+   Array<int> ess_tdof_list_lo;
+#warning ess_tdof_list_lo
+
    if (supports_batched_assembly)
    {
+      dbg("supports_batched_assembly");
+      fes->GetMesh()->EnsureNodes();
+
+      Array<int> ess_bdr(fes->GetMesh()->bdr_attributes.Max());
+      ess_bdr = 1;
+      fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list_lo);
+
+
+      ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
+#ifdef MFEM_USE_MPI
+      if (pfes_ho)
+      {
+         dbg("=> ParAssembleBatchedLOR");
+         ParAssembleBatchedLOR(*this, *a, fes_ho, ess_tdof_list_lo, Ad);
+      }
+      else
+      {
+         dbg("=> AssembleBatchedLOR");
+         AssembleBatchedLOR(*this, *a, fes_ho, ess_tdof_list_lo, Ad);
+      }
+#else
       AssembleBatchedLOR(*this, *a, fes_ho, ess_dofs, A);
+#endif
    }
-   else
+   //else
    {
+      dbg("NOT supports_batched_assembly");
       a->Assemble();
-      a->FormSystemMatrix(ess_dofs, A);
+      a->FormSystemMatrix(ess_tdof_list_lo, A);
    }
+
+   // Checks
+   {
+      const int dofs = fes_ho.GetVSize();
+      Vector x(dofs), y(dofs);
+      x.Randomize(1);
+      y.Randomize(1);
+
+      A.As<SparseMatrix>()->HostReadWriteI();
+      A.As<SparseMatrix>()->HostReadWriteJ();
+      A.As<SparseMatrix>()->HostReadWriteData();
+      const double dot_legacy = A.As<SparseMatrix>()->InnerProduct(x,y);
+      dbg("dot_legacy: %.8e", dot_legacy);
+
+      Ad.As<SparseMatrix>()->HostReadWriteI();
+      Ad.As<SparseMatrix>()->HostReadWriteJ();
+      Ad.As<SparseMatrix>()->HostReadWriteData();
+      const double dot_device = Ad.As<SparseMatrix>()->InnerProduct(x,y);
+      dbg("dot_device: %.8e", dot_device);
+      dbg("fabs(dot_legacy-dot_device): %.8e", fabs(dot_legacy-dot_device));
+      MFEM_VERIFY(fabs(dot_legacy-dot_device)<1e-15, "dot_device error!");
+      Ad.As<SparseMatrix>()->Add(-1.0, *A.As<SparseMatrix>());
+      const double max_norm_deviced = Ad.As<SparseMatrix>()->MaxNorm();
+      dbg("max_norm_deviced: %.8e", max_norm_deviced);
+      MFEM_VERIFY(max_norm_deviced < 1e-15, "max_norm_deviced");
+   }
+
    ResetIntegrationRules(&BilinearForm::GetDBFI);
    ResetIntegrationRules(&BilinearForm::GetFBFI);
    ResetIntegrationRules(&BilinearForm::GetBBFI);
@@ -448,6 +508,7 @@ LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
 void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
                                        const Array<int> &ess_dofs)
 {
+   dbg();
    delete a;
    a = new BilinearForm(&GetFESpace());
    AssembleSystem_(a_ho, ess_dofs);
@@ -515,14 +576,14 @@ ParFiniteElementSpace &ParLORDiscretization::GetParFESpace() const
 
 LORRestriction::LORRestriction(const FiniteElementSpace &fes_lo,
                                const FiniteElementSpace &fes_ho)
-   : fes(fes_lo),
+   : fes_lo(fes_lo),
      fes_ho(fes_ho),
-     ne(fes.GetNE()),
-     vdim(fes.GetVDim()),
-     byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     ndofs(fes.GetNDofs()),
-     dof(ne > 0 ? fes.GetFE(0)->GetDof() : 0),
-     nedofs(ne*dof),
+
+     ne(fes_lo.GetNE()),
+     vdim(fes_lo.GetVDim()),
+     byvdim(fes_lo.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes_lo.GetNDofs()),
+     dof(ne > 0 ? fes_lo.GetFE(0)->GetDof() : 0),
 
      offsets(ndofs+1),
      indices(ne*dof),
@@ -532,26 +593,26 @@ LORRestriction::LORRestriction(const FiniteElementSpace &fes_lo,
      dof_glob2loc_offsets(),
      el_dof_lex()
 {
-   SetupL2E();
-   SetupG2L();
+   SetupLocalToElement();
+   SetupGlobalToLocal();
 
    NvtxPush(EnsureNodes,Chocolate);
    // nodes will be ordered byVDIM but won't use SetCurvature each time
-   fes.GetMesh()->EnsureNodes();
+   fes_lo.GetMesh()->EnsureNodes();
    NvtxPop();
 }
 
-void LORRestriction::Mult(const Vector &x, Vector &y) const { assert(false); }
-void LORRestriction::MultTranspose(const Vector &x, Vector &y) const { assert(false); }
+void LORRestriction::Mult(const Vector&, Vector&) const { assert(false); }
+void LORRestriction::MultTranspose(const Vector&, Vector&) const { assert(false); }
 
-void LORRestriction::SetupL2E()
+void LORRestriction::SetupLocalToElement()
 {
    NvtxPush(Setup,Chocolate);
 
    NvtxPush(Ini,LightBlue);
    MFEM_VERIFY(ne>0, "ne==0 not supported");
 
-   const FiniteElement *fe = fes.GetFE(0);
+   const FiniteElement *fe = fes_lo.GetFE(0);
    const TensorBasisElement* el =
       dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(el, "!TensorBasisElement");
@@ -560,8 +621,7 @@ void LORRestriction::SetupL2E()
    MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
    NvtxPop(Ini);
 
-   const Table& e2dTable = fes.GetElementToDofTable();
-   const int* elementMap = e2dTable.GetJ();
+   const Table& e2dTable = fes_lo.GetElementToDofTable();
 
    auto d_offsets = offsets.Write();
    const int NDOFS = ndofs;
@@ -609,7 +669,7 @@ void LORRestriction::SetupL2E()
          const int lid = DOF*e + d;
          const bool plus = (sgid >= 0 && sdid >= 0) || (sgid < 0 && sdid < 0);
          d_gather[lid] = plus ? gid : -1-gid;
-         d_indices[AtomicAdd(d_offsets[gid], 1)] = plus ? lid : -1-lid;
+         d_indices[AtomicAdd(drw_offsets[gid], 1)] = plus ? lid : -1-lid;
       }
    });
    NvtxPop(Fill);
@@ -623,12 +683,13 @@ void LORRestriction::SetupL2E()
    NvtxPop(Setup);
 }
 
-void LORRestriction::SetupG2L()
+void LORRestriction::SetupGlobalToLocal()
 {
    const int ndof = fes_ho.GetVSize();
    const int nel_ho = fes_ho.GetMesh()->GetNE();
    const int order = fes_ho.GetMaxElementOrder();
    const int dim = fes_ho.GetMesh()->Dimension();
+   MFEM_VERIFY(dim==3, "Not supported");
    const int nd1d = order + 1;
    const int ndof_per_el = nd1d*nd1d*nd1d;
 
@@ -774,12 +835,12 @@ void LORRestriction::FillJAndZeroData(SparseMatrix &mat) const
    NvtxPush(J,Chartreuse);
    static constexpr int Max = 8;
    const int all_dofs = ndofs;
-   const int vd = fes.GetVDim();
-   const int elt_dofs = fes.GetFE(0)->GetDof();
+   const int vd = fes_lo.GetVDim();
+   const int elt_dofs = fes_lo.GetFE(0)->GetDof();
    auto I = mat.ReadWriteI();
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
-   const int NE = fes.GetNE();
+   const int NE = fes_lo.GetNE();
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_gatherMap = gatherMap.Read();

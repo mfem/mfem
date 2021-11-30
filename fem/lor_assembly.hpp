@@ -19,9 +19,21 @@
 namespace mfem
 {
 
-void AssembleBatchedLOR(LORBase &lor_disc, BilinearForm &form_lo,
-                        FiniteElementSpace &fes_ho, const Array<int> &ess_dofs,
+void AssembleBatchedLOR(LORBase &lor_disc,
+                        BilinearForm &form_lo,
+                        FiniteElementSpace &fes_ho,
+                        const Array<int> &ess_dofs,
                         OperatorHandle &A);
+
+#ifdef MFEM_USE_MPI
+
+void ParAssembleBatchedLOR(LORBase &lor_disc,
+                           BilinearForm &form_lo,
+                           FiniteElementSpace &fes_ho,
+                           const Array<int> &ess_dofs,
+                           OperatorHandle &A);
+
+#endif // MFEM_USE_MPI
 
 } // namespace mfem
 
