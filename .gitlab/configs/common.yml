@@ -18,18 +18,12 @@ variables:
 # the pipeline, preventing any form of concurrency with other pipelines. This
 # also means that the BUILD_ROOT directory will never be cleaned.
 # TODO: add a clean-up mechanism
-  BUILD_ROOT: ${CI_BUILDS_DIR}/MFEM_${MACHINE_NAME}/${CI_PROJECT_NAME}_${CI_COMMIT_REF_SLUG}_${CI_PIPELINE_ID}
+  BUILD_ROOT: ${USER_CI_TOP_DIR}/${CI_PROJECT_NAME}-${MACHINE_NAME}-pipeline-${CI_PIPELINE_ID}
 
 # On LLNL's quartz, there is only one allocation shared among jobs in order to
 # save time and resource. This allocation has to be uniquely named so that we
 # are sure to retrieve it.
   ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
-
-# Defines the default choice for updating the saved baseline results. By default
-# the baseline can only be updated from the master branch. This variable offers
-# the option to manually ask for rebaselining from another branch if necessary.
-  _REBASELINE: "NO"
-  _AUTOTEST: "NO"
 
 # Git repositories used in the pipeline
   TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
@@ -40,5 +34,3 @@ variables:
 # Directory used to place artifacts.
   ARTIFACTS_DIR: artifacts
   SLURM_OVERLAP: 1
-
-
