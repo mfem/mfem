@@ -175,8 +175,9 @@ protected:
    // Copy{From,To}, {ReadWrite,Read,Write}.
 
 public:
-   /// Default constructor: no initialization.
-   Memory() { }
+   /** Default constructor, sets the host pointer to nullptr and the metadata to
+       meaningful default values. */
+   Memory() { Reset(); }
 
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
@@ -368,8 +369,7 @@ public:
        be updated as described above. */
    inline void SetDeviceMemoryType(MemoryType d_mt);
 
-   /** @brief Delete the owned pointers. The Memory is not reset by this method,
-       i.e. it will, generally, not be Empty() after this call. */
+   /** @brief Delete the owned pointers and reset the Memory object. */
    inline void Delete();
 
    /** @brief Delete the device pointer, if owned. If @a copy_to_host is true
@@ -986,6 +986,7 @@ inline void Memory<T>::Delete()
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }
+   Reset(h_mt);
 }
 
 template <typename T>

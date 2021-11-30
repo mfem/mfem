@@ -127,18 +127,19 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    own_ParVector = 1;
 }
 
-HypreParVector::HypreParVector(const HypreParVector &y) : Vector()
+// Call the move constructor on the "compatible" temp vector
+HypreParVector::HypreParVector(const HypreParVector &y) : HypreParVector(
+      y.CreateCompatibleVector())
 {
-   x = hypre_ParVectorCreate(y.x -> comm, y.x -> global_size,
-                             y.x -> partitioning);
-   hypre_ParVectorInitialize(x);
-#if MFEM_HYPRE_VERSION <= 22200
-   hypre_ParVectorSetPartitioningOwner(x,0);
-#endif
-   hypre_ParVectorSetDataOwner(x,1);
-   hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),1);
-   _SetDataAndSize_();
-   own_ParVector = 1;
+   // Deep copy the local data
+   hypre_SeqVectorCopy(hypre_ParVectorLocalVector(y.x),
+                       hypre_ParVectorLocalVector(x));
+}
+
+HypreParVector::HypreParVector(HypreParVector &&y)
+{
+   own_ParVector = 0;
+   *this = std::move(y);
 }
 
 HypreParVector::HypreParVector(const HypreParMatrix &A,
@@ -178,6 +179,23 @@ HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
    own_ParVector = 1;
 }
 
+HypreParVector HypreParVector::CreateCompatibleVector() const
+{
+   HypreParVector result;
+   result.x = hypre_ParVectorCreate(x -> comm, x -> global_size,
+                                    x -> partitioning);
+   hypre_ParVectorInitialize(result.x);
+#if MFEM_HYPRE_VERSION <= 22200
+   hypre_ParVectorSetPartitioningOwner(result.x,0);
+#endif
+   hypre_ParVectorSetDataOwner(result.x,1);
+   hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(result.x),1);
+   result._SetDataAndSize_();
+   result.own_ParVector = 1;
+
+   return result;
+}
+
 void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
 {
    if (own_ParVector) { hypre_ParVectorDestroy(x); }
@@ -213,6 +231,18 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
 #endif
 
    Vector::operator=(y);
+   return *this;
+}
+
+HypreParVector& HypreParVector::operator=(HypreParVector &&y)
+{
+   // If the argument vector owns its data, then the calling vector will as well
+   WrapHypreParVector(static_cast<hypre_ParVector*>(y), y.own_ParVector);
+   // Either way the argument vector will no longer own its data
+   y.own_ParVector = 0;
+   y.x = nullptr;
+   y.data.Reset();
+   y.size = 0;
    return *this;
 }
 
@@ -301,6 +331,18 @@ HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
 void HypreParVector::Print(const char *fname) const
 {
    hypre_ParVectorPrint(x,fname);
+}
+
+void HypreParVector::Read(MPI_Comm comm, const char *fname)
+{
+   if (own_ParVector)
+   {
+      hypre_ParVectorDestroy(x);
+   }
+   data.Delete();
+   x = hypre_ParVectorRead(comm, fname);
+   own_ParVector = true;
+   _SetDataAndSize_();
 }
 
 HypreParVector::~HypreParVector()
@@ -1561,9 +1603,16 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
    }
 
    // Construct cpts_global array on hypre matrix structure
+#if (MFEM_HYPRE_VERSION > 22300) || (MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
+   HYPRE_BigInt cpts_global[2];
+
+   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+                              CF_marker, NULL, cpts_global);
+#else
    HYPRE_BigInt *cpts_global;
    hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
                               CF_marker, NULL, &cpts_global);
+#endif
 
    // Extract submatrix into *submat
 #ifdef hypre_IntArrayData
@@ -1575,7 +1624,9 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
                                         "FF", &submat, threshold);
 #endif
 
+#if (MFEM_HYPRE_VERSION <= 22300) && !(MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
    mfem_hypre_TFree(cpts_global);
+#endif
 #ifdef hypre_IntArrayData
    hypre_IntArrayDestroy(CF_marker);
 #endif
@@ -5701,15 +5752,17 @@ HypreLOBPCG::OperatorMatvec( void *matvec_data,
 
    Operator *Aop = (Operator*)A;
 
-   int width = Aop->Width();
-
    hypre_ParVector * xPar = (hypre_ParVector *)x;
    hypre_ParVector * yPar = (hypre_ParVector *)y;
 
-   Vector xVec(xPar->local_vector->data, width);
-   Vector yVec(yPar->local_vector->data, width);
+   HypreParVector xVec(xPar);
+   HypreParVector yVec(yPar);
 
    Aop->Mult( xVec, yVec );
+
+   // Move data back to hypre's device memory location in case the above Mult
+   // operation moved it to host.
+   yVec.HypreReadWrite();
 
    return 0;
 }
@@ -5726,18 +5779,19 @@ HypreLOBPCG::PrecondSolve(void *solver,
                           void *b,
                           void *x)
 {
-   Solver   *PC = (Solver*)solver;
-   Operator *OP = (Operator*)A;
-
-   int width = OP->Width();
+   Solver *PC = (Solver*)solver;
 
    hypre_ParVector * bPar = (hypre_ParVector *)b;
    hypre_ParVector * xPar = (hypre_ParVector *)x;
 
-   Vector bVec(bPar->local_vector->data, width);
-   Vector xVec(xPar->local_vector->data, width);
+   HypreParVector bVec(bPar);
+   HypreParVector xVec(xPar);
 
    PC->Mult( bVec, xVec );
+
+   // Move data back to hypre's device memory location in case the above Mult
+   // operation moved it to host.
+   xVec.HypreReadWrite();
 
    return 0;
 }
