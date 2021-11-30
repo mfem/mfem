@@ -438,6 +438,10 @@ int main (int argc, char *argv[])
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
+      case 328: metric = new TMOP_Metric_328(0.5); break;
+      case 332: metric = new TMOP_Metric_332(0.5); break;
+      case 333: metric = new TMOP_Metric_333(0.5); break;
+      case 334: metric = new TMOP_Metric_334(0.5); break;
       // case 352: metric = new TMOP_Metric_352(tauval); break;
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
