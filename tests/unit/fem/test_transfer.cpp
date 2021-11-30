@@ -40,7 +40,7 @@ void vectorcoeff(const Vector& x, Vector& y)
 
 TEST_CASE("transfer")
 {
-   for (int vectorspace = 0; vectorspace <= 4; ++vectorspace)
+   for (int vectorspace = 0; vectorspace <= 3; ++vectorspace)
    {
       for (dimension = 2; dimension <= 3; ++dimension)
       {
