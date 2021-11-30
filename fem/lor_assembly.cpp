@@ -60,19 +60,25 @@ void AssembleBatchedLOR(LORBase &lor_disc,
          dbg("Device::IsEnabled()");
 #ifdef MFEM_USE_MPI
          ParBilinearForm *pform_lor = dynamic_cast<ParBilinearForm*>(&form_lor);
-         assert(pform_lor);
-         //ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
-
-         ParFiniteElementSpace &pfes_lo = *pform_lor->ParFESpace();
-         const int width = pfes_lo.GetTrueVSize();
-         const int height = pfes_lo.GetTrueVSize();
-         dbg("HxW: %dx%d",height,width);
-#else
-         FiniteElementSpace &fes_lo = *form_lor.FESpace();
-         const int width = fes_lo.GetVSize();
-         const int height = fes_lo.GetVSize();
+         if (pform_lor)
+         {
+            dbg("Device::IsEnabled() and multiple ranks!");
+            ParFiniteElementSpace &pfes_lo = *pform_lor->ParFESpace();
+            const int width = pfes_lo.GetVSize();
+            const int height = pfes_lo.GetVSize();
+            dbg("HxW: %dx%d",height,width);
+            A = new SparseMatrix(height, width, 0);
+         }
+         else
 #endif
-         A = new SparseMatrix(height, width, 0);
+         {
+            dbg("Device::IsEnabled() but one rank!");
+            FiniteElementSpace &fes_lo = *form_lor.FESpace();
+            const int width = fes_lo.GetVSize();
+            const int height = fes_lo.GetVSize();
+            dbg("HxW: %dx%d",height,width);
+            A = new SparseMatrix(height, width, 0);
+         }
          A->GetMemoryI().New(A->Height()+1, A->GetMemoryI().GetMemoryType());
          const int nnz = R->FillI(*A);
          A->GetMemoryJ().New(nnz, A->GetMemoryJ().GetMemoryType());
@@ -83,7 +89,7 @@ void AssembleBatchedLOR(LORBase &lor_disc,
       {
          dbg("NOT Device::IsEnabled()");
          // the sparsity pattern is defined from the map: element->dof
-         const int ndofs = fes_ho.GetTrueVSize();
+         const int ndofs = fes_ho.GetVSize();
          dbg("ndofs:%d",ndofs);
          const Table &elem_dof = form_lor.FESpace()->GetElementToDofTable();
          Table dof_dof, dof_elem;
@@ -167,7 +173,7 @@ void AssembleBatchedLOR(LORBase &lor_disc,
       }
    });
 
-   A->Finalize();
+   A->Finalize(0);
 
    if (has_to_init) { Ah.Reset(A); } // A now owns A_mat
 }
@@ -181,19 +187,26 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
                            OperatorHandle &Ah)
 {
    dbg();
-   //ParBilinearForm &pform_lor = static_cast<ParBilinearForm&>(form_lor);
    ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
    assert(pfes_ho);
 
-   OperatorHandle A_local;
+   OperatorHandle A, A_local;
    dbg("AssembleBatchedLOR");
    AssembleBatchedLOR(lor_disc, form_lor, fes_ho, ess_dofs, A_local);
+   A_local.As<SparseMatrix>()->HostReadWriteI();
+   A_local.As<SparseMatrix>()->HostReadWriteJ();
+   A_local.As<SparseMatrix>()->HostReadWriteData();
 
-   dbg("HypreParMatrix");
-   HypreParMatrix dA(pfes_ho->GetComm(), pfes_ho->GlobalVSize(),
-                     pfes_ho->GetDofOffsets(), A_local.As<SparseMatrix>());
-   dbg("RAP");
-   Ah.Reset(RAP(&dA, pfes_ho->Dof_TrueDof_Matrix()));
+   MFEM_VERIFY(A_local.As<SparseMatrix>()->Finalized(),
+               "the local matrix must be finalized");
+
+   OperatorHandle dA(Operator::Hypre_ParCSR),
+                  Ph(Operator::Hypre_ParCSR);
+   // construct a parallel block-diagonal matrix 'A' based on 'a'
+   dA.MakeSquareBlockDiag(pfes_ho->GetComm(), pfes_ho->GlobalVSize(),
+                          pfes_ho->GetDofOffsets(), A_local.As<SparseMatrix>());
+   Ph.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
+   Ah.MakePtAP(dA, Ph);
 }
 
 #endif
