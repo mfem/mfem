@@ -2956,7 +2956,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    targetC->ComputeElementTargets(T.ElementNo, el, ir, elfun, Jtr);
 
    // Limited case.
-   DenseMatrix pos0, grad_grad;
+   DenseMatrix pos0, hess;
    Vector shape, p, p0, d_vals;
    if (lim_coeff)
    {
@@ -3015,7 +3015,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
          weight_m = weights(q) * lim_normal * lim_coeff->Eval(*Tpr, ip);
-         lim_func->Eval_d2(p, p0, d_vals(q), grad_grad);
+         lim_func->Eval_d2(p, p0, d_vals(q), hess);
          for (int i = 0; i < dof; i++)
          {
             const double w_shape_i = weight_m * shape(i);
@@ -3026,7 +3026,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                {
                   for (int d2 = 0; d2 < dim; d2++)
                   {
-                     elmat(d1*dof + i, d2*dof + j) += w * grad_grad(d1, d2);
+                     elmat(d1*dof + i, d2*dof + j) += w * hess(d1, d2);
                   }
                }
             }
@@ -3100,14 +3100,14 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
    grad_phys.Mult(adapt_lim_gf_e, grad_ptr);
 
    // Project the gradient of each gradient of adapt_lim_gf in the same space.
-   // The FE coefficients of the second derivatives go in adapt_lim_gf_grad_grad_e.
-   DenseMatrix adapt_lim_gf_grad_grad_e(dof*dim, dim);
-   Mult(grad_phys, adapt_lim_gf_grad_e, adapt_lim_gf_grad_grad_e);
+   // The FE coefficients of the second derivatives go in adapt_lim_gf_hess_e.
+   DenseMatrix adapt_lim_gf_hess_e(dof*dim, dim);
+   Mult(grad_phys, adapt_lim_gf_grad_e, adapt_lim_gf_hess_e);
    // Reshape to be more convenient later (no change in the data).
-   adapt_lim_gf_grad_grad_e.SetSize(dof, dim*dim);
+   adapt_lim_gf_hess_e.SetSize(dof, dim*dim);
 
    Vector adapt_lim_gf_grad_q(dim);
-   DenseMatrix adapt_lim_gf_grad_grad_q(dim, dim);
+   DenseMatrix adapt_lim_gf_hess_q(dim, dim);
 
    for (int q = 0; q < nqp; q++)
    {
@@ -3115,8 +3115,8 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
       el.CalcShape(ip, shape);
 
       adapt_lim_gf_grad_e.MultTranspose(shape, adapt_lim_gf_grad_q);
-      Vector gg_ptr(adapt_lim_gf_grad_grad_q.GetData(), dim*dim);
-      adapt_lim_gf_grad_grad_e.MultTranspose(shape, gg_ptr);
+      Vector gg_ptr(adapt_lim_gf_hess_q.GetData(), dim*dim);
+      adapt_lim_gf_hess_e.MultTranspose(shape, gg_ptr);
 
       const double w = weights(q) * lim_normal * adapt_lim_coeff->Eval(Tpr, ip);
       for (int i = 0; i < dof * dim; i++)
@@ -3129,7 +3129,7 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
                w * ( 2.0 * adapt_lim_gf_grad_q(idim) * shape(idof) *
                      /* */ adapt_lim_gf_grad_q(jdim) * shape(jdof) +
                      2.0 * (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) *
-                     adapt_lim_gf_grad_grad_q(idim, jdim) * shape(idof) * shape(jdof));
+                     adapt_lim_gf_hess_q(idim, jdim) * shape(idof) * shape(jdof));
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }
@@ -3235,18 +3235,18 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    grad_phys.Mult(surf_fit_gf_bar_e, ptr);
 
    // Project the gradient of each gradient of surf_fit_gf in the same space.
-   // The FE coefficients of the second derivatives go in surf_fit_gf_grad_grad_e.
-   DenseMatrix surf_fit_gf_grad_grad_e(dof_s * dim, dim);
-   Mult(grad_phys, surf_fit_gf_grad_e, surf_fit_gf_grad_grad_e);
+   // The FE coefficients of the second derivatives go in surf_fit_gf_hess_e.
+   DenseMatrix surf_fit_gf_hess_e(dof_s * dim, dim);
+   Mult(grad_phys, surf_fit_gf_grad_e, surf_fit_gf_hess_e);
 
    // Project the gradient of each gradient of surf_fit_gf in the same space.
-   // The FE coefficients of the second derivatives go in surf_fit_gf_grad_grad_e.
-   DenseMatrix surf_fit_gf_bar_grad_grad_e(dof_s * dim, dim);
-   Mult(grad_phys, surf_fit_gf_bar_grad_e, surf_fit_gf_bar_grad_grad_e);
+   // The FE coefficients of the second derivatives go in surf_fit_gf_hess_e.
+   DenseMatrix surf_fit_gf_bar_hess_e(dof_s * dim, dim);
+   Mult(grad_phys, surf_fit_gf_bar_grad_e, surf_fit_gf_bar_hess_e);
    // Reshape to be more convenient later (no change in the data).
-   surf_fit_gf_bar_grad_grad_e.SetSize(dof_s, dim * dim);
+   surf_fit_gf_bar_hess_e.SetSize(dof_s, dim * dim);
 
-   DenseMatrix surf_fit_gf_bar_grad_grad_q(dim, dim);
+   DenseMatrix surf_fit_gf_bar_hess_q(dim, dim);
 
    Vector shape_x(dof_x), shape_s(dof_s), surf_fit_gf_bar_grad_q(dim);
    DenseMatrix dshape_s(dof_s, dim);
@@ -3264,8 +3264,8 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       surf_fit_gf_bar_grad_e.MultTranspose(shape_s, surf_fit_gf_bar_grad_q);
 
       // Grad-grad of surf_fit_gf_bar at the current quad point.
-      Vector gg_ptr(surf_fit_gf_bar_grad_grad_q.GetData(), dim * dim);
-      surf_fit_gf_bar_grad_grad_e.MultTranspose(shape_s, gg_ptr);
+      Vector gg_ptr(surf_fit_gf_bar_hess_q.GetData(), dim * dim);
+      surf_fit_gf_bar_hess_e.MultTranspose(shape_s, gg_ptr);
 
       // Loops over the local matrix.
       const double w = 2.0 * surf_fit_normal *
@@ -3279,7 +3279,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
 
             double Di = surf_fit_gf_bar_grad_q(idim),
                    Dj = surf_fit_gf_bar_grad_q(jdim),
-                   DD = surf_fit_gf_bar_grad_grad_q(idim, jdim);
+                   DD = surf_fit_gf_bar_hess_q(idim, jdim);
             for (int s = 0; s < dof_s; s++)
             {
                if ((*surf_fit_marker)[dofs[s]] == false) { continue; }
@@ -3287,7 +3287,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
                Di += surf_fit_gf_grad_e(s, idim) * shape_s(s);
                Dj += surf_fit_gf_grad_e(s, jdim) * shape_s(s);
                DD += surf_fit_gf_grad_e(s, idim) * dshape_s(s, jdim) +
-                     surf_fit_gf_grad_grad_e(dof_s * idim + s, jdim) * shape_s(s) +
+                     surf_fit_gf_hess_e(dof_s * idim + s, jdim) * shape_s(s) +
                      surf_fit_gf_grad_e(s, jdim) * dshape_s(s, idim);
             }
             const double entry = w * (Di * Dj + surf_fit_gf_bar_q(q) * DD) *

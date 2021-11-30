@@ -1149,12 +1149,12 @@ int main (int argc, char *argv[])
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
-      surf_fit_coeff.constant   = 0.0;
+      surf_fit_coeff.constant  = 0.0;
       fin_metric_energy  = a.GetParGridFunctionEnergy(x) /
                            (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;
-      surf_fit_coeff.constant   = surface_fit_const;
+      surf_fit_coeff.constant  = surface_fit_const;
    }
    if (myid == 0)
    {

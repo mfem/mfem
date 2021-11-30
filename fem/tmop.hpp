@@ -1332,7 +1332,7 @@ protected:
    double lim_normal;
 
    // Adaptive limiting.
-   const GridFunction *adapt_lim_gf0;       // Not owned.
+   const GridFunction *adapt_lim_gf0;    // Not owned.
 #ifdef MFEM_USE_MPI
    const ParGridFunction *adapt_lim_pgf0;
 #endif
