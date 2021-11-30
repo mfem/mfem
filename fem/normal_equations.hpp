@@ -148,8 +148,8 @@ public:
 
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
-                                 OperatorHandle &A, Vector &X,
-                                 Vector &B, int copy_interior = 0);
+                         OperatorHandle &A, Vector &X,
+                         Vector &B, int copy_interior = 0);
 
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
@@ -164,7 +164,7 @@ public:
    }
 
    void FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                 OperatorHandle &A);
+                         OperatorHandle &A);
 
    template <typename OpType>
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OpType &A)
