@@ -500,18 +500,45 @@ void NormalEquations::RecoverFEMSolution(const Vector &X,
 
 NormalEquations::~NormalEquations()
 {
-   // delete mat_e;
-   // delete mat;
+   delete mat_e;
+   delete mat;
    // delete element_matrices;
 
-   // for (int k=0; k < domain_integs.Size(); k++)
-   // {
-   //    delete domain_integs[k];
-   // }
-   // for (int k=0; k < trace_integs.Size(); k++)
-   // {
-   //    delete trace_integs[k];
-   // }
+   for (int k = 0; k< domain_integs.NumRows(); k++)
+   {
+      for (int l = 0; l<domain_integs.NumCols(); l++)
+      {
+         for (int i = 0; i<domain_integs(k,l)->Size(); i++)
+         {
+            delete (*domain_integs(k,l))[i];
+         }
+         delete domain_integs(k,l);
+      }
+   }
+
+   for (int k = 0; k< trace_integs.NumRows(); k++)
+   {
+      for (int l = 0; l<trace_integs.NumCols(); l++)
+      {
+         for (int i = 0; i<trace_integs(k,l)->Size(); i++)
+         {
+            delete (*trace_integs(k,l))[i];
+         }
+         delete trace_integs(k,l);
+      }
+   }
+
+   for (int k = 0; k< test_integs.NumRows(); k++)
+   {
+      for (int l = 0; l<test_integs.NumCols(); l++)
+      {
+         for (int i = 0; i<test_integs(k,l)->Size(); i++)
+         {
+            delete (*test_integs(k,l))[i];
+         }
+         delete test_integs(k,l);
+      }
+   }
    // delete P;
    // delete R;
 }

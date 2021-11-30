@@ -147,7 +147,7 @@ public:
    void Assemble(int skip_zeros = 1);
 
 
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                  OperatorHandle &A, Vector &X,
                                  Vector &B, int copy_interior = 0);
 
@@ -163,7 +163,7 @@ public:
       A.MakeRef(*A_ptr);
    }
 
-   virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
+   void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A);
 
    template <typename OpType>
