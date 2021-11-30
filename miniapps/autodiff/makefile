@@ -25,8 +25,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-ADIFF_COMMON_SRC = 
-
+ADIFF_COMMON_SRC =
 ADIFF_COMMON_OBJ = $(ADIFF_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = seq_example seq_test
@@ -77,4 +76,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf SeqHeat* ParHeat*
+	@rm -rf Example* 

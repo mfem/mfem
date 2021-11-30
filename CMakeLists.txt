@@ -374,8 +374,8 @@ endif()
 
 # CoDiPack package
 if (MFEM_USE_CODIPACK)
-	find_package(CODIPACK REQUIRED)
-	# find_package updates CODIPACK_FOUND, CODIPACK_INCLUDE_DIRS, CODIPACK_LIBRARIES
+  find_package(CODIPACK REQUIRED)
+  # find_package updates CODIPACK_FOUND, CODIPACK_INCLUDE_DIRS, CODIPACK_LIBRARIES
 endif()
 
 # OCCA

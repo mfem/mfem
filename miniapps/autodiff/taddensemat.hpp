@@ -19,18 +19,17 @@ namespace mfem
 {
 /// Templated dense matrix data type.
 /** The main goal of the TAutoDiffDenseMatrix class is to serve as a data
-  container for representing dense matrices in classes, methods, and
-  functions utilized with automatic differentiation (AD). The
-  functionality/interface is copied from the standard MFEM dense
-  matrix mfem::DenseMatrix. The basic idea is to utilize the templated
-  vector class in combination with AD during the development phase.
-  The AD parts can be replaced with optimized code once the initial
-  development of the application is complete.  The common interface
-  between TAutoDiffDenseMatrix and DenseMatrix will ease the transition
-  from AD to hand-optimized code as it does not require a change
-  in the interface or the code structure. TAutoDiffDenseMatrix is intended
-  to be utilized for dense serial matrices. The objects can be combined
-  with TAutoDiffVector or standard Vector.*/
+    container for representing dense matrices in classes, methods, and functions
+    utilized with automatic differentiation (AD). The functionality/interface is
+    copied from the standard MFEM dense matrix mfem::DenseMatrix. The basic idea
+    is to utilize the templated vector class in combination with AD during the
+    development phase. The AD parts can be replaced with optimized code once the
+    initial development of the application is complete. The common interface
+    between TAutoDiffDenseMatrix and DenseMatrix will ease the transition from
+    AD to hand-optimized code as it does not require a change in the interface
+    or the code structure. TAutoDiffDenseMatrix is intended to be utilized for
+    dense serial matrices. The objects can be combined with TAutoDiffVector or
+    standard Vector.*/
 template<typename dtype>
 class TAutoDiffDenseMatrix
 {
@@ -54,7 +53,7 @@ public:
    inline int NumCols() const { return width; }
 
    /** Default constructor for TAutoDiffDenseMatrix.
-      Sets data = NULL and height = width = 0. */
+       Sets data = NULL and height = width = 0. */
    TAutoDiffDenseMatrix()
    {
       data = nullptr;
@@ -289,7 +288,8 @@ public:
       }
    }
 
-   void MultTranspose(const TAutoDiffVector<dtype> &x, TAutoDiffVector<dtype> &y) const
+   void MultTranspose(const TAutoDiffVector<dtype> &x,
+                      TAutoDiffVector<dtype> &y) const
    {
       MFEM_ASSERT(height == x.Size() && width == y.Size(),
                   "incompatible dimensions");
@@ -436,7 +436,8 @@ public:
 };
 
 template<typename dtype>
-void CalcAdjugate(const TAutoDiffDenseMatrix<dtype> &a, TAutoDiffDenseMatrix<dtype> &adja)
+void CalcAdjugate(const TAutoDiffDenseMatrix<dtype> &a,
+                  TAutoDiffDenseMatrix<dtype> &adja)
 {
 #ifdef MFEM_DEBUG
    if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)

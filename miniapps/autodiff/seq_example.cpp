@@ -13,25 +13,24 @@
 //
 // Compile with: make seq_example
 //
-// Sample runs:
-//    seqadiff -m ../data/beam-quad.mesh -pp 3.5
-//    seqadiff -m ../data/beam-tri.mesh  -pp 4.6
-//    seqadiff -m ../data/beam-hex.mesh
-//    seqadiff -m ../data/beam-tet.mesh
-//    seqadiff -m ../data/beam-wedge.mesh
+// Sample runs:  seq_example -m ../data/beam-quad.mesh -pp 3.5
+//               seq_example -m ../data/beam-tri.mesh  -pp 4.6
+//               seq_example -m ../data/beam-hex.mesh
+//               seq_example -m ../data/beam-tet.mesh
+//               seq_example -m ../data/beam-wedge.mesh
 //
-// Description:  This examples solves a quasi-static nonlinear
-//               p-Laplacian problem with zero Dirichlet boundary
-//               conditions applied on all defined boundaries
+// Description:  This examples solves a quasi-static nonlinear p-Laplacian
+//               problem with zero Dirichlet boundary conditions applied on all
+//               defined boundaries
 //
-//           The example demonstrates the use of nonlinear operators combined
-//           with automatic differentiation (AD). The definitions of the
-//           integrators are written in the ex71.hpp. Selecting integrator=0
-//           will use the manually implemented integrator. Selecting
-//           integrator=1,2 will utilize one of the AD integrators.
+//               The example demonstrates the use of nonlinear operators
+//               combined with automatic differentiation (AD). The integrators
+//               are defined in example.hpp. Selecting integrator = 0 will use
+//               the manually implemented integrator. Selecting integrator = 1
+//               or 2 will utilize one of the AD integrators.
 //
-//           We recommend viewing examples 1 and 19, before viewing this
-//           example.
+//               We recommend viewing examples 1 and 19, before viewing this
+//               example.
 
 #include "example.hpp"
 
@@ -39,44 +38,41 @@ using namespace mfem;
 
 enum IntegratorType
 {
-  HandCodedIntegrator=0,
-  ADJacobianIntegrator=1,
-  ADHessianIntegrator=2
+   HandCodedIntegrator  = 0,
+   ADJacobianIntegrator = 1,
+   ADHessianIntegrator  = 2
 };
 
-///Non-linear solver for the p-Laplacian problem.
+/// Non-linear solver for the p-Laplacian problem.
 class NLSolverPLaplacian
 {
 public:
-
-   ///Constructor Input: imesh - FE mesh, finite element space,
-   /// power for the p-Laplacian, external load (source, input),
-   /// regularization parameter
+   /// Constructor Input: imesh - FE mesh, finite element space, power for the
+   /// p-Laplacian, external load (source, input), regularization parameter
    NLSolverPLaplacian(Mesh& imesh, FiniteElementSpace& ifespace,
                       double powerp=2,
                       Coefficient* load=nullptr,
                       double regularizationp=1e-7)
    {
-      //default parameters for
-      //the Newton solver
+      // default parameters for the Newton solver
       newton_rtol = 1e-4;
       newton_atol = 1e-8;
       newton_iter = 10;
 
-      //linear solver
+      // linear solver
       linear_rtol = 1e-7;
       linear_atol = 1e-15;
       linear_iter = 500;
 
       print_level = 0;
 
-      //set the mesh
+      // set the mesh
       mesh=&imesh;
 
-      //set the fespace
+      // set the fespace
       fespace=&ifespace;
 
-      //set the parameters
+      // set the parameters
       plap_epsilon=new ConstantCoefficient(regularizationp);
       plap_power=new ConstantCoefficient(powerp);
       if (load==nullptr)
@@ -90,15 +86,14 @@ public:
          input_ownership=false;
       }
 
-      //set the nonlinear form
+      // set the nonlinear form
       nlform=nullptr;
       lsolver=nullptr;
       prec=nullptr;
       nsolver=nullptr;
 
-      //set the default integrator
-      integ=IntegratorType::HandCodedIntegrator; //hand coded
-
+      // set the default integrator
+      integ=IntegratorType::HandCodedIntegrator; // hand coded
    }
 
    ~NLSolverPLaplacian()
@@ -112,26 +107,28 @@ public:
       delete plap_power;
    }
 
-   ///Set the integrator.
+   /// Set the integrator.
+   /// 0 - hand coded, 1 - AD based (compute only Hessian by AD),
+   /// 2 - AD based (compute residual and Hessian by AD)
    void SetIntegrator(IntegratorType intr)
    {
       integ=intr;
    }
 
 
-   //set relative tolerance for the Newton solver
+   // set relative tolerance for the Newton solver
    void SetNRRTol(double rtol)
    {
       newton_rtol=rtol;
    }
 
-   //set absolute tolerance for the Newton solver
+   // set absolute tolerance for the Newton solver
    void SetNRATol(double atol)
    {
       newton_atol=atol;
    }
 
-   //set max iterations for the NR solver
+   // set max iterations for the NR solver
    void SetMaxNRIter(int miter)
    {
       newton_iter=miter;
@@ -147,36 +144,36 @@ public:
       linear_atol=atol;
    }
 
-   //set max iterations for the linear solver
+   // set max iterations for the linear solver
    void SetMaxLSIter(int miter)
    {
       linear_iter=miter;
    }
 
-   //set the print level
+   // set the print level
    void SetPrintLevel(int plev)
    {
       print_level=plev;
    }
 
-   ///The state vector is used as initial condition for the NR solver.
-   /// On return the statev holds the solution to the problem.
+   /// The state vector is used as initial condition for the NR solver. On
+   /// return the statev holds the solution to the problem.
    void Solve(Vector& statev)
    {
       if (nlform==nullptr)
       {
          AllocSolvers();
       }
-      Vector b; //RHS is zero
+      Vector b; // RHS is zero
       nsolver->Mult(b, statev);
    }
 
-   ///Compute the energy
+   /// Compute the energy
    double GetEnergy(Vector& statev)
    {
       if (nlform==nullptr)
       {
-         //allocate the solvers
+         // allocate the solvers
          AllocSolvers();
       }
       return nlform->GetEnergy(statev);
@@ -201,30 +198,35 @@ private:
       if (integ==IntegratorType::HandCodedIntegrator)
       {
          // standard hand coded integrator
-         nlform->AddDomainIntegrator(new pLaplace(*plap_power,*plap_epsilon,*plap_input));
+         nlform->AddDomainIntegrator(new pLaplace(*plap_power,*plap_epsilon,
+                                                  *plap_input));
       }
       else if (integ==IntegratorType::ADJacobianIntegrator)
       {
-         // The template integrator is based on automatic differentiation.
-         // For ADJacobianIntegrator the residual (vector function) at an
-         // integration point is implemented as a functor by MyVFunctor.
-         // The vector function has a return size of four(4), four state
-         // arguments, and three(3) parameters. MyVFunctor is a template
-         // argument to the actual template class performing the
-         // differentiation - in this case, QVectorFuncAutoDiff.
-         // The derivatives are used in the integration loop in the integrator pLaplaceAD.
-         nlform->AddDomainIntegrator(new pLaplaceAD<mfem::QVectorFuncAutoDiff<MyResidualFunctor,4,4,3>>(*plap_power,*plap_epsilon,*plap_input));
+         // The template integrator is based on automatic differentiation. For
+         // ADJacobianIntegrator the residual (vector function) at an
+         // integration point is implemented as a functor by MyVFunctor. The
+         // vector function has a return size of four(4), four state arguments,
+         // and three(3) parameters. MyVFunctor is a template argument to the
+         // actual template class performing the differentiation - in this case,
+         // QVectorFuncAutoDiff. The derivatives are used in the integration
+         // loop in the integrator pLaplaceAD.
+         nlform->AddDomainIntegrator(new
+                                     pLaplaceAD<mfem::QVectorFuncAutoDiff<MyResidualFunctor,4,4,3>>(*plap_power,
+                                           *plap_epsilon,*plap_input));
       }
       else // IntegratorType::ADHessianIntegrator
       {
-         // The main difference from the previous case is that the user has
-         // to implement only a functional evaluation at an integration point.
-         // The implementation is in MyQFunctor, which takes four state
-         // arguments and three parameters. The residual vector is the first
-         // derivative of the energy/functional with respect to the state
-         // variables, and the Hessian is the second derivative. Automatic
-         // differentiation is used for evaluating both of them.
-         nlform->AddDomainIntegrator(new pLaplaceAD<mfem::QFunctionAutoDiff<MyEnergyFunctor,4,3>>(*plap_power,*plap_epsilon,*plap_input));
+         // The main difference from the previous case is that the user has to
+         // implement only a functional evaluation at an integration point. The
+         // implementation is in MyQFunctor, which takes four state arguments
+         // and three parameters. The residual vector is the first derivative of
+         // the energy/functional with respect to the state variables, and the
+         // Hessian is the second derivative. Automatic differentiation is used
+         // for evaluating both of them.
+         nlform->AddDomainIntegrator(new
+                                     pLaplaceAD<mfem::QFunctionAutoDiff<MyEnergyFunctor,4,3>>(*plap_power,
+                                           *plap_epsilon,*plap_input));
       }
 
       nlform->SetEssentialBC(ess_bdr);
@@ -235,7 +237,7 @@ private:
       prec = new GSSmoother();
 #endif
 
-      //allocate the linear solver
+      // allocate the linear solver
       lsolver=new CGSolver();
       lsolver->SetRelTol(linear_rtol);
       lsolver->SetAbsTol(linear_atol);
@@ -243,7 +245,7 @@ private:
       lsolver->SetPrintLevel(print_level);
       lsolver->SetPreconditioner(*prec);
 
-      //allocate the NR solver
+      // allocate the NR solver
       nsolver = new NewtonSolver();
       nsolver->iterative_mode = true;
       nsolver->SetSolver(*lsolver);
@@ -264,30 +266,27 @@ private:
 
    int print_level;
 
-
-   //reference to the mesh
+   // reference to the mesh
    Mesh* mesh;
-   //reference to the fespace
+   // reference to the fespace
    FiniteElementSpace *fespace;
 
-   //nonlinear form for the p-laplacian
+   // nonlinear form for the p-laplacian
    NonlinearForm *nlform;
-   CGSolver *lsolver; //linear solver
-   Solver *prec; //preconditioner for the linear solver
-   NewtonSolver *nsolver; //NR solver
+   CGSolver *lsolver; // linear solver
+   Solver *prec; // preconditioner for the linear solver
+   NewtonSolver *nsolver; // NR solver
    IntegratorType integ;
 
-   //power of the p-laplacian
+   // power of the p-laplacian
    Coefficient* plap_power;
-   //regularization parammeter
+   // regularization parameter
    Coefficient* plap_epsilon;
-   //load(input) paramater
+   // load(input) parameter
    Coefficient* plap_input;
-   //flag indicating the ownership of plap_input
+   // flag indicating the ownership of plap_input
    bool input_ownership;
 };
-
-
 
 int main(int argc, char *argv[])
 {
@@ -301,13 +300,13 @@ int main(int argc, char *argv[])
    int newton_iter = 10;
    int print_level = 0;
 
-   double pp = 2.0; // p-Lapalacian power
+   double pp = 2.0; // p-Laplacian power
 
    IntegratorType integrator = IntegratorType::ADHessianIntegrator;
    int int_integrator = integrator;
-   // ADHessianIntegrator = 2 - use AD for Residual and Hessian
+   // HandCodedIntegrator  = 0 - do not use AD (hand coded)
    // ADJacobianIntegrator = 1 - use AD for Hessian only
-   // HandCodedIntegrator = 0 - do not use AD (hand coded)
+   // ADHessianIntegrator  = 2 - use AD for Residual and Hessian
    StopWatch *timer = new StopWatch();
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -346,7 +345,6 @@ int main(int argc, char *argv[])
                   "-int",
                   "--integrator",
                   "Integrator 0: standard; 1: AD for Hessian; 2: AD for residual and Hessian");
-
    args.Parse();
    if (!args.Good())
    {
@@ -391,7 +389,7 @@ int main(int argc, char *argv[])
    dacol->SetLevelsOfDetail(order);
    dacol->RegisterField("sol", &x);
 
-   // 9. Define the nonlinear PLaplacian solver
+   // 9. Define the nonlinear p-Laplacian solver
    NLSolverPLaplacian* nr;
 
    // 10. Start with linear diffusion - solvable for any initial guess
