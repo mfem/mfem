@@ -3788,8 +3788,6 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
    int i, j, face_ndof, ndof;
    int order;
 
-   double w;
-
    face_ndof = trial_face_fe.GetDof();
    ndof = test_fe.GetDof();
 
@@ -3832,8 +3830,7 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
       ElementTransformation * eltrans = (iel == elem) ? Trans.Elem1 : Trans.Elem2;
       test_fe.CalcPhysShape(*eltrans, shape);
 
-      w = Trans.Weight()*ip.weight;
-      face_shape *= w;
+      face_shape *= Trans.Weight()*ip.weight;
       for (i = 0; i < ndof; i++)
       {
          for (j = 0; j < face_ndof; j++)
@@ -3888,18 +3885,13 @@ void NormalTraceIntegrator::AssembleTraceFaceMatrix(int elem,
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
       Trans.SetAllIntPoints(&ip);
-
-      // Trace finite element shape function
       trial_face_fe.CalcPhysShape(Trans, face_shape);
-
       CalcOrtho(Trans.Jacobian(),normal);
-
       ElementTransformation * etrans = (iel == elem) ? Trans.Elem1 : Trans.Elem2;
-      test_fe.CalcPhysVShape(*etrans, shape);
-
+      test_fe.CalcVShape(*etrans, shape);
       shape.Mult(normal, shape_n);
+      face_shape *= ip.weight;
 
-      face_shape *= Trans.Weight()*ip.weight;
       for (i = 0; i < ndof; i++)
       {
          for (j = 0; j < face_ndof; j++)
