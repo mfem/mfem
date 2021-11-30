@@ -104,6 +104,7 @@ int main(int argc, char *argv[])
    else if (string(fe) == "r") { RT = true; }
    else if (string(fe) == "l") { L2 = true; }
    else { MFEM_ABORT("Bad FE type. Must be 'h', 'n', 'r', or 'l'."); }
+   assert(H1);
 
    if (RT) { grad_div_problem = true; }
    double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
@@ -140,7 +141,8 @@ int main(int argc, char *argv[])
    ParBilinearForm a(&fes);
    if (H1 || L2)
    {
-      a.AddDomainIntegrator(new MassIntegrator);
+#warning no MassIntegrator
+      //a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator);
    }
    else

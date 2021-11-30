@@ -284,15 +284,15 @@ public:
 
 
 /// Create a low-order refined version of a Restriction.
+/// Only used here for the FillI and FillJAndZeroData methods.
 class LORRestriction : public Operator
 {
-   const FiniteElementSpace &fes, &fes_ho;
+   const FiniteElementSpace &fes_lo, &fes_ho;
    const int ne;
    const int vdim;
    const bool byvdim;
    const int ndofs;
    const int dof;
-   const int nedofs;
 
    Array<int> offsets;
    Array<int> indices;
@@ -318,8 +318,8 @@ public:
 
    // Device lambda cannot have private or protected access
 public:
-   void SetupL2E();
-   void SetupG2L();
+   void SetupLocalToElement();
+   void SetupGlobalToLocal();
 };
 
 } // namespace mfem

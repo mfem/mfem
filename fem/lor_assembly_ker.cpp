@@ -12,6 +12,9 @@
 #include "fem.hpp"
 #include "../general/forall.hpp"
 
+#define MFEM_DEBUG_COLOR 187
+#include "../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -20,13 +23,10 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                           const Array<int> &dof_glob2loc_,
                           const Array<int> &dof_glob2loc_offsets_,
                           const Array<int> &el_dof_lex_,
-                          const Array<int> &ess_dofs,
                           Mesh &mesh_ho,
-                          FiniteElementSpace &fes_ho,
                           SparseMatrix &A_mat)
 {
    const int nel_ho = mesh_ho.GetNE();
-   const int ndof = fes_ho.GetVSize();
 
    static constexpr int nv = 8;
    static constexpr int dim = 3;
@@ -53,9 +53,6 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
       GM = d_buffer->Write();
    }
 
-   const int n_ess_dofs = ess_dofs.Size();
-   MFEM_VERIFY(n_ess_dofs<nel_ho, "n_ess_dofs vs. nel_ho error!");
-
    const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
    const auto dof_glob2loc = dof_glob2loc_.Read();
    const auto K = dof_glob2loc_offsets_.Read();
@@ -66,7 +63,7 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
 
    const auto X = mesh_lor.GetNodes()->Read();
 
-   // avoid too many resources
+   // Last GRID dimension is lowered to avoid too many resources
    MFEM_FORALL_3D_GRID(iel_ho, nel_ho, order, order, USE_SMEM?order:1, GRID,
    {
       const int bid = MFEM_BLOCK_ID(x);
@@ -457,31 +454,13 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
             }
          }
       }
-      MFEM_SYNC_THREAD;
-
-      // Set essential dofs to 0.0
-      const int i = iel_ho;
-      if (i<n_ess_dofs)
-      {
-         for (int j=I[i]; j<I[i+1]; ++j)
-         {
-            if (J[j] != i)
-            {
-               A[j] = 0.0;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
    });
 }
 
 #define LOR_KERNEL_INSTANCE(order,use_smem) \
 template void Assemble3DBatchedLOR<order,use_smem>\
-    (Mesh &,\
-     const Array<int> &,const Array<int> &, const Array<int> &,\
-     const Array<int> &ess_dofs,\
-     Mesh &,\
-     FiniteElementSpace &,SparseMatrix &)
+    (Mesh &, const Array<int> &,const Array<int> &, const Array<int> &,\
+     Mesh &, SparseMatrix &)
 
 LOR_KERNEL_INSTANCE(1,true);
 LOR_KERNEL_INSTANCE(2,true);
