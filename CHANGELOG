@@ -10,6 +10,11 @@
 
 Version 4.3.1 (development)
 ===========================
+- Added support for automatic differentiation. Users can select between 
+  native implementation and external library implementation at the 
+  configuration phase. A parallel and two serial examples are implemented
+  in the autodiff miniapp directory.
+
 - Added support for mesh preprocessing to resolve fine scale problem data
   before simulation. This feature uses adaptive mesh refinement to control the
   associated data oscillation error. See the new Example 30/30p.
