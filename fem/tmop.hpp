@@ -1342,7 +1342,7 @@ protected:
 
    // Surface fitting.
    GridFunction *surf_fit_gf,
-                *surf_fit_gf_bar;  // Owned, Updated by surf_fit_eval.
+                *surf_fit_gf_bar;       // Owned, Updated by surf_fit_eval.
    const Array<bool> *surf_fit_marker;  // Not owned.
    Coefficient *surf_fit_coeff;         // Not owned.
    AdaptivityEvaluator *surf_fit_eval;  // Not owned.
