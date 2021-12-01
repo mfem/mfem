@@ -22,6 +22,7 @@ allocate_resource:
   extends: .on_corona
   stage: allocate_resource
   script:
+    - echo ${ALLOC_NAME}
     - salloc --exclusive --nodes=1 --partition=mi60 --time=30 --no-shell --job-name=${ALLOC_NAME}
   timeout: 6h
   needs: [setup]
@@ -40,24 +41,27 @@ release_resource:
   extends: .on_corona
   stage: release_resource_and_report
   script:
+    - echo ${ALLOC_NAME}
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - echo ${JOBID}
     - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
   needs: [rocm_gcc_8.3.1]
 
 # Jobs report
 report_job_success:
-  extends: .on_corona
   stage: release_resource_and_report
-  script:
-    - .gitlab/scripts/report_build_and_test_success
+  extends:
+    - .on_corona
+    - .report_job_success
 
 report_job_failure:
-  extends: .on_corona
   stage: release_resource_and_report
-  script:
-    - .gitlab/scripts/report_build_and_test_failure
+  extends:
+    - .on_corona
+    - .report_job_failure
 
 include:
   - local: .gitlab/configs/common.yml
   - local: .gitlab/configs/corona-config.yml
   - local: .gitlab/configs/setup-build-and-test.yml
+  - local: .gitlab/configs/report-build-and-test.yml
