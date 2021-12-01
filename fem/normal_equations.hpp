@@ -64,11 +64,6 @@ protected:
    /// Set of Test Space (broken) Integrators to be applied. Forming matrix G
    Array2D<Array<BilinearFormIntegrator * > * > test_integs;
 
-   DenseMatrix elemmat;
-   Array<int>  vdofs;
-
-   DenseTensor *element_matrices; ///< Owned.
-
    /// Set of Domain Integrators to be applied.
    Array<Array<LinearFormIntegrator * > * > domain_lf_integs;
 
@@ -86,6 +81,13 @@ protected:
 
    void BuildProlongation();
 
+   bool store_mat;
+
+   // Store G^-1 l and G^-1 B for computing 
+   // element residuals after solution
+   Array<DenseMatrix *> GB;
+   Array<Vector *> Gl;
+
 private:
 
 public:
@@ -93,13 +95,23 @@ public:
    /// Creates bilinear form associated with FE spaces @a *fespaces.
    NormalEquations(Array<FiniteElementSpace* > & fes_,
                    Array<FiniteElementSpace* > & trace_fes_,
-                   Array<FiniteElementCollection *> & fecol_)
-      : domain_fes(fes_), trace_fes(trace_fes_), test_fecols(fecol_)
+                   Array<FiniteElementCollection *> & fecol_, bool store_mat_ = false)
+      : domain_fes(fes_), trace_fes(trace_fes_), test_fecols(fecol_), store_mat(store_mat_)
    {
       nblocks = domain_fes.Size() + trace_fes.Size();
       mesh = domain_fes[0]->GetMesh();
       fespaces.Append(domain_fes);
       fespaces.Append(trace_fes);
+      if (store_mat)
+      {
+         GB.SetSize(mesh->GetNE());
+         Gl.SetSize(mesh->GetNE());
+         for (int i = 0; i<mesh->GetNE(); i++)
+         {
+            GB[i] = new DenseMatrix;
+            Gl[i] = new Vector;
+         }
+      }
       Init();
    }
 
