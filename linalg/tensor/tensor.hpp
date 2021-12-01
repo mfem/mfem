@@ -43,29 +43,49 @@ public:
    using layout = Layout;
 
    /// Default Constructor
+   /** In order to use the Tensor default constructor, both the Container and
+       the Layout need to have a default constructor.
+   */
    MFEM_HOST_DEVICE
    Tensor() : Container(), Layout() { }
 
    /// Main Constructors
+   /** Construct a Tensor by providing the sizes of its different dimensions,
+       both the Container and the Layout need to have similar constructors for
+       this Tensor constructor to be usable.
+   */
    template <typename... Sizes> MFEM_HOST_DEVICE
    Tensor(int size0, Sizes... sizes)
    : Container(size0,sizes...), Layout(size0,sizes...) { }
 
+   /** Construct a Tensor by providing a pointer to its data, and the sizes of
+       its Layout. The Container needs to have a constructor using a pointer for
+       this constructor to be usable.
+   */
    template <typename... Sizes> MFEM_HOST_DEVICE
    Tensor(T* ptr, Sizes... sizes)
    : Container(ptr), Layout(sizes...) { }
 
    /// Utility Constructors
+   /** Construct a tensor based on a Layout, the Container needs to be default
+       constructible. Note: A Tensor is a Layout (through inheritance).
+   */
    MFEM_HOST_DEVICE
    Tensor(Layout index): Container(), Layout(index) { }
 
+   /** Construct a Tensor by providing a Container object and a Layout object.
+   */
    MFEM_HOST_DEVICE
    Tensor(Container data, Layout index): Container(data), Layout(index) { }
 
    /// Copy Constructors
+   /** Copy a Tensor of the same type, the copy is deep or shallow depending on
+       the Container.
+   */
    MFEM_HOST_DEVICE
    Tensor(const Tensor &rhs): Container(rhs), Layout(rhs) { }
 
+   /** Deep copy of a Tensor of a different type. */
    template <typename OtherTensor,
              std::enable_if_t<
                is_tensor<OtherTensor>,
@@ -79,6 +99,9 @@ public:
    }
 
    /// Accessor
+   /** This operator allows to access a value inside a Tensor by providing
+       indices, the number of indices must be equal to the rank of the Tensor.
+   */
    template <typename... Idx> MFEM_HOST_DEVICE inline
    T& operator()(Idx... args)
    {
@@ -88,6 +111,10 @@ public:
    }
 
    /// Const Accessor
+   /** This operator allows to access a const value inside a const Tensor by
+       providing indices, the number of indices must be equal to the rank of the
+       Tensor.
+   */
    template <typename... Idx> MFEM_HOST_DEVICE inline
    const T& operator()(Idx... args) const
    {
