@@ -66,6 +66,8 @@
 #define MFEM_DEBUG_COLOR 123
 #include "general/debug.hpp"
 
+#include "general/nvvp.hpp"
+
 using namespace std;
 using namespace mfem;
 
@@ -120,6 +122,7 @@ int main(int argc, char *argv[])
    if (RT) { grad_div_problem = true; }
    double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
 
+   NvtxPush("Mesh", SeaGreen);
    Mesh serial_mesh(mesh_file, 1, 1);
    int dim = serial_mesh.Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "Spatial dimension must be 2 or 3.");
@@ -127,6 +130,7 @@ int main(int argc, char *argv[])
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    for (int l = 0; l < par_ref_levels; l++) { mesh.UniformRefinement(); }
    serial_mesh.Clear();
+   NvtxPop();
 
    if (mesh.ncmesh && (RT || ND))
    { MFEM_ABORT("LOR AMS and ADS solvers are not supported with AMR meshes."); }
@@ -145,12 +149,11 @@ int main(int argc, char *argv[])
    HYPRE_Int ndofs = fes.GlobalTrueVSize();
    if (mpi.Root()) { cout << "Number of DOFs: " << ndofs << endl; }
 
-   fes.GetMesh()->EnsureNodes();
-
    Array<int> ess_dofs;
    // In DG, boundary conditions are enforced weakly, so no essential DOFs.
    if (!L2) { fes.GetBoundaryTrueDofs(ess_dofs); }
 
+   NvtxPush("a", OliveDrab);
    ParBilinearForm a(&fes);
    if (H1 || L2)
    {
@@ -173,7 +176,9 @@ int main(int argc, char *argv[])
    // TODO: L2 diffusion not implemented with partial assembly
    if (!L2) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.Assemble();
+   NvtxPop();
 
+   NvtxPush("b", LightGoldenrod);
    ParLinearForm b(&fes);
    if (H1 || L2) { b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff)); }
    else { b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_vec_coeff)); }
@@ -183,6 +188,7 @@ int main(int argc, char *argv[])
       b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(u_coeff, -1.0, kappa));
    }
    b.Assemble();
+   NvtxPop();
 
    ParGridFunction x(&fes);
    if (H1 || L2) { x.ProjectCoefficient(u_coeff);}
@@ -190,16 +196,22 @@ int main(int argc, char *argv[])
 
    Vector X, B;
    OperatorHandle A;
+   NvtxPush("a.FormLinearSystem", PeachPuff);
    a.FormLinearSystem(ess_dofs, x, b, A, X, B);
+   NvtxPop();
 
+   NvtxPush("ParLORDiscretization", IndianRed);
    ParLORDiscretization lor(a, ess_dofs);
    ParFiniteElementSpace &fes_lor = lor.GetParFESpace();
+   NvtxPop();
 
    unique_ptr<Solver> solv_lor;
    if (H1 || L2)
    {
       dbg("LORSolver<HypreBoomerAMG>");
+      NvtxPush("LORSolver", PaleTurquoise);
       solv_lor.reset(new LORSolver<HypreBoomerAMG>(lor));
+      NvtxPop();
    }
    else if (RT && dim == 3)
    {
@@ -219,7 +231,9 @@ int main(int argc, char *argv[])
    cg.SetPrintLevel(1);
    cg.SetOperator(*A);
    cg.SetPreconditioner(*solv_lor);
+   NvtxPush("CG", Coral);
    cg.Mult(B, X);
+   NvtxPop();
 
    a.RecoverFEMSolution(X, b, x);
 

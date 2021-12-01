@@ -306,16 +306,6 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
                             &BilinearForm::AddBdrFaceIntegrator,
                             &BilinearForm::AddBdrFaceIntegrator, ir_face);
 
-   const int dofs = fes->GetTrueVSize();
-   Vector x(dofs), y(dofs);
-   x.Randomize(1);
-   y.Randomize(1);
-
-   double dot_device=0.0, dot_legacy=0.0;
-   //OperatorHandle Ad;
-   ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
-   const bool parallel = pfes_ho != nullptr;
-
    if (supports_batched_assembly)
    {
       dbg("supports_batched_assembly");
@@ -332,12 +322,6 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
       {
          dbg("=> SEQUENTIAL AssembleBatchedLOR");
          AssembleBatchedLOR(*this, *a, fes_ho, ess_dofs, A);
-         //AssembleBatchedLOR(*this, *a, fes_ho, ess_dofs, Ad);
-         A.As<SparseMatrix>()->HostReadWriteI();
-         A.As<SparseMatrix>()->HostReadWriteJ();
-         A.As<SparseMatrix>()->HostReadWriteData();
-         dot_device = A.As<SparseMatrix>()->InnerProduct(x,y);
-         dbg("dot_device: %.8e", dot_device);
       }
 #else
       AssembleBatchedLOR(*this, *a, fes_ho, ess_dofs, A);
@@ -348,31 +332,6 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
       dbg("NOT supports_batched_assembly");
       a->Assemble();
       a->FormSystemMatrix(ess_dofs, A);
-
-      if (!parallel) // sequential only
-      {
-         A.As<SparseMatrix>()->HostReadWriteI();
-         A.As<SparseMatrix>()->HostReadWriteJ();
-         A.As<SparseMatrix>()->HostReadWriteData();
-         dot_legacy = A.As<SparseMatrix>()->InnerProduct(x,y);
-         dbg("dot_legacy: %.8e", dot_legacy);
-      }
-      else
-      {
-      }
-   }
-
-   if (false)
-   {
-#warning Ad is A for device
-      dbg("Checks");
-      dbg("fabs(dot_legacy-dot_device): %.8e", fabs(dot_legacy-dot_device));
-      MFEM_VERIFY(fabs(dot_legacy-dot_device)<1e-15, "dot_device error!");
-      /*
-            Ad.As<SparseMatrix>()->Add(-1.0, *A.As<SparseMatrix>());
-            const double max_norm_deviced = Ad.As<SparseMatrix>()->MaxNorm();
-            dbg("max_norm_deviced: %.8e", max_norm_deviced);
-            MFEM_VERIFY(max_norm_deviced < 1e-15, "max_norm_deviced");*/
    }
 
    ResetIntegrationRules(&BilinearForm::GetDBFI);
@@ -533,6 +492,7 @@ ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
                                            int ref_type) : LORBase(fes_ho)
 {
    dbg();
+   NvtxPush("ParLORDiscretization", SpringGreen);
    if (fes_ho.GetMyRank() == 0) { CheckBasisType(fes_ho); }
    // TODO: support variable-order spaces in parallel
    MFEM_VERIFY(!fes_ho.IsVariableOrder(),
@@ -541,16 +501,21 @@ ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
    int order = fes_ho.GetMaxElementOrder();
    if (GetFESpaceType() == L2) { ++order; }
 
+   NvtxPush("MakeRefined", LimeGreen);
    ParMesh &mesh_ho = *fes_ho.GetParMesh();
    ParMesh *pmesh = new ParMesh(ParMesh::MakeRefined(mesh_ho, order, ref_type));
    mesh = pmesh;
+   NvtxPop();
 
+   NvtxPush("P&R", Bisque);
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
    fes = pfes;
    SetupProlongationAndRestriction();
+   NvtxPop();
 
    A.SetType(Operator::Hypre_ParCSR);
+   NvtxPop();
 }
 
 void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
@@ -596,12 +561,14 @@ LORRestriction::LORRestriction(const FiniteElementSpace &fes_lo,
      dof_glob2loc_offsets(),
      el_dof_lex()
 {
+   NvtxPush("LORRestriction", Olive);
    SetupLocalToElement();
    SetupGlobalToLocal();
 
    NvtxPush(EnsureNodes,Chocolate);
    // nodes will be ordered byVDIM but won't use SetCurvature each time
    fes_lo.GetMesh()->EnsureNodes();
+   NvtxPop();
    NvtxPop();
 }
 
