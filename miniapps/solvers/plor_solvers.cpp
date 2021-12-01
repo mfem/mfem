@@ -145,6 +145,8 @@ int main(int argc, char *argv[])
    HYPRE_Int ndofs = fes.GlobalTrueVSize();
    if (mpi.Root()) { cout << "Number of DOFs: " << ndofs << endl; }
 
+   fes.GetMesh()->EnsureNodes();
+
    Array<int> ess_dofs;
    // In DG, boundary conditions are enforced weakly, so no essential DOFs.
    if (!L2) { fes.GetBoundaryTrueDofs(ess_dofs); }
@@ -153,7 +155,7 @@ int main(int argc, char *argv[])
    if (H1 || L2)
    {
 #warning no MassIntegrator
-      a.AddDomainIntegrator(new MassIntegrator);
+      //a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator);
    }
    else
