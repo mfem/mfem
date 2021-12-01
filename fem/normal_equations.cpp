@@ -116,9 +116,19 @@ void NormalEquations::BuildProlongation()
    for (int i = 0; i<nblocks; i++)
    {
       const SparseMatrix *P_ = fespaces[i]->GetConformingProlongation();
-      const SparseMatrix *R_ = fespaces[i]->GetRestrictionMatrix();
-      P->SetBlock(i,i,const_cast<SparseMatrix*>(P_));
-      R->SetBlock(i,i,const_cast<SparseMatrix*>(R_));
+      if (P_)
+      {
+         const SparseMatrix *R_ = fespaces[i]->GetRestrictionMatrix();
+         P->SetBlock(i,i,const_cast<SparseMatrix*>(P_));
+         R->SetBlock(i,i,const_cast<SparseMatrix*>(R_));
+      }
+      else
+      {
+         // TODO improve this by using BlockOperator/BlockMatrix
+         Vector diag(fespaces[i]->GetVSize()); diag = 1.;
+         P->SetBlock(i,i,new SparseMatrix(diag));
+         R->SetBlock(i,i,new SparseMatrix(diag));
+      }
    }
 }
 
@@ -441,8 +451,17 @@ void NormalEquations::FormSystemMatrix(const Array<int>
 {
    if (!mat_e)
    {
-      const SparseMatrix *P_ = fespaces[0]->GetConformingProlongation();
-      if (P_) { ConformingAssemble(); }
+      bool conforming = true;
+      for (int i = 0; i<nblocks; i++)
+      {
+         const SparseMatrix *P_ = fespaces[i]->GetConformingProlongation();
+         if (P_)
+         {
+            conforming = false;
+            break;
+         }
+      }
+      if (!conforming) { ConformingAssemble(); }
       EliminateVDofs(ess_tdof_list, diag_policy);
       const int remove_zeros = 0;
       Finalize(remove_zeros);
@@ -538,6 +557,16 @@ NormalEquations::~NormalEquations()
          }
          delete test_integs(k,l);
       }
+   }
+   for (int i = 0; i<nblocks; i++)
+   {
+      const SparseMatrix *P_ = fespaces[i]->GetConformingProlongation();
+      if (!P_)
+      {
+         delete &P->GetBlock(i,i);
+         delete &R->GetBlock(i,i);
+      }
+
    }
    // delete P;
    // delete R;
