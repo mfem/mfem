@@ -1422,8 +1422,6 @@ int main (int argc, char *argv[])
    }
 
    // Compute the final energy of the functional.
-   const double fin_energy = a.GetParGridFunctionEnergy(x) /
-                             (hradaptivity ? pmesh->GetGlobalNE() : 1);
    double fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
    {
