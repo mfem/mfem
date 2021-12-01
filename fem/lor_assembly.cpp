@@ -32,7 +32,7 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
 void AssembleBatchedLOR(LORBase &lor_disc,
                         BilinearForm &form_lor,
                         FiniteElementSpace &fes_ho,
-                        const Array<int> &ess_dofs_lo,
+                        const Array<int> &ess_dofs,
                         OperatorHandle &Ah)
 {
    Mesh &mesh_lor = *form_lor.FESpace()->GetMesh();
@@ -145,8 +145,8 @@ void AssembleBatchedLOR(LORBase &lor_disc,
           mesh_ho, *A);
 
    // Set essential dofs to 0.0
-   const int n_ess_dofs = ess_dofs_lo.Size();
-   const auto ess_dofs_d = ess_dofs_lo.Read();
+   const int n_ess_dofs = ess_dofs.Size();
+   const auto ess_dofs_d = ess_dofs.Read();
 
    const auto I = A->ReadI();
    const auto J = A->ReadJ();
@@ -173,7 +173,7 @@ void AssembleBatchedLOR(LORBase &lor_disc,
       }
    });
 
-   A->Finalize(0);
+   A->Finalize();
 
    if (has_to_init) { Ah.Reset(A); } // A now owns A_mat
 }
@@ -202,11 +202,12 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
 
    OperatorHandle dA(Operator::Hypre_ParCSR),
                   Ph(Operator::Hypre_ParCSR);
-   // construct a parallel block-diagonal matrix 'A' based on 'a'
+
    dA.MakeSquareBlockDiag(pfes_ho->GetComm(), pfes_ho->GlobalVSize(),
                           pfes_ho->GetDofOffsets(), A_local.As<SparseMatrix>());
    Ph.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
    Ah.MakePtAP(dA, Ph);
+   Ah.As<HypreParMatrix>()->EliminateRowsCols(ess_dofs);
 }
 
 #endif

@@ -105,7 +105,7 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
    {
       const FiniteElement *fe = fes.GetFE(i);
       auto tfe = dynamic_cast<const TensorBasisElement*>(fe);
-      MFEM_ASSERT(tfe != nullptr, "");
+      MFEM_ASSERT(tfe != NULL, "");
       return tfe->GetDofMap();
    };
 
@@ -221,10 +221,8 @@ void LORBase::ConstructDofPermutation() const
    if (type == H1 || type == L2)
    {
       // H1 and L2: no permutation necessary, return identity
-      dof_perm.SetSize(fes->GetVSize());
-      for (int i=0; i<dof_perm.Size(); ++i) { dof_perm[i] = i; }
-      tdof_perm.SetSize(fes->GetTrueVSize());
-      for (int i=0; i<tdof_perm.Size(); ++i) { tdof_perm[i] = i; }
+      perm.SetSize(fes->GetTrueVSize());
+      for (int i=0; i<perm.Size(); ++i) { perm[i] = i; }
       return;
    }
 
@@ -234,11 +232,12 @@ void LORBase::ConstructDofPermutation() const
    ParFiniteElementSpace *pfes_lor = dynamic_cast<ParFiniteElementSpace*>(fes);
    if (pfes_ho && pfes_lor)
    {
-      ConstructLocalDofPermutation(dof_perm);
-      tdof_perm.SetSize(pfes_lor->GetTrueVSize());
-      for (int i=0; i<dof_perm.Size(); ++i)
+      Array<int> l_perm;
+      ConstructLocalDofPermutation(l_perm);
+      perm.SetSize(pfes_lor->GetTrueVSize());
+      for (int i=0; i<l_perm.Size(); ++i)
       {
-         int j = dof_perm[i];
+         int j = l_perm[i];
          int s = j < 0 ? -1 : 1;
          int t_i = pfes_lor->GetLocalTDofNumber(i);
          int t_j = pfes_ho->GetLocalTDofNumber(absdof(j));
@@ -248,27 +247,20 @@ void LORBase::ConstructDofPermutation() const
             MFEM_ABORT("Inconsistent DOF numbering");
          }
          if (t_i < 0) { continue; }
-         tdof_perm[t_i] = s < 0 ? -1 - t_j : t_j;
+         perm[t_i] = s < 0 ? -1 - t_j : t_j;
       }
    }
    else
 #endif
    {
-      ConstructLocalDofPermutation(dof_perm);
-      tdof_perm.MakeRef(dof_perm);
+      ConstructLocalDofPermutation(perm);
    }
 }
 
 const Array<int> &LORBase::GetDofPermutation() const
 {
-   if (dof_perm.Size() == 0) { ConstructDofPermutation(); }
-   return dof_perm;
-}
-
-const Array<int> &LORBase::GetTrueDofPermutation() const
-{
-   if (tdof_perm.Size() == 0) { ConstructDofPermutation(); }
-   return tdof_perm;
+   if (perm.Size() == 0) { ConstructDofPermutation(); }
+   return perm;
 }
 
 bool LORBase::HasSameDofNumbering() const
@@ -279,7 +271,7 @@ bool LORBase::HasSameDofNumbering() const
 
 const OperatorHandle &LORBase::GetAssembledSystem() const
 {
-   MFEM_VERIFY(a != nullptr && A.Ptr() != nullptr, "No LOR system assembled");
+   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
    return A;
 }
 
@@ -292,8 +284,7 @@ const Operator *LORBase::GetLORRestriction() const
    return R_lor.Ptr();
 }
 
-void LORBase::AssembleSystem_(BilinearForm &a_ho,
-                              const Array<int> &ess_dofs_ho)
+void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
 {
    dbg();
    // By default, we want to use "batched assembly", however this is only
@@ -315,31 +306,38 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho,
                             &BilinearForm::AddBdrFaceIntegrator,
                             &BilinearForm::AddBdrFaceIntegrator, ir_face);
 
+   const int dofs = fes->GetTrueVSize();
+   Vector x(dofs), y(dofs);
+   x.Randomize(1);
+   y.Randomize(1);
+
+   double dot_device=0.0, dot_legacy=0.0;
    //OperatorHandle Ad;
-   Array<int> ess_tdof_list_lo;
-#warning ess_tdof_list_lo
+   ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
+   const bool parallel = pfes_ho != nullptr;
 
    if (supports_batched_assembly)
    {
       dbg("supports_batched_assembly");
       fes->GetMesh()->EnsureNodes();
 
-      Array<int> ess_bdr(fes->GetMesh()->bdr_attributes.Max());
-      ess_bdr = 1;
-      fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list_lo);
-
-
       ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
 #ifdef MFEM_USE_MPI
       if (pfes_ho)
       {
          dbg("=> PARALLEL AssembleBatchedLOR");
-         ParAssembleBatchedLOR(*this, *a, fes_ho, ess_tdof_list_lo, A);
+         ParAssembleBatchedLOR(*this, *a, fes_ho, ess_dofs, A);
       }
       else
       {
          dbg("=> SEQUENTIAL AssembleBatchedLOR");
-         AssembleBatchedLOR(*this, *a, fes_ho, ess_tdof_list_lo, A);
+         AssembleBatchedLOR(*this, *a, fes_ho, ess_dofs, A);
+         //AssembleBatchedLOR(*this, *a, fes_ho, ess_dofs, Ad);
+         A.As<SparseMatrix>()->HostReadWriteI();
+         A.As<SparseMatrix>()->HostReadWriteJ();
+         A.As<SparseMatrix>()->HostReadWriteData();
+         dot_device = A.As<SparseMatrix>()->InnerProduct(x,y);
+         dbg("dot_device: %.8e", dot_device);
       }
 #else
       AssembleBatchedLOR(*this, *a, fes_ho, ess_dofs, A);
@@ -349,36 +347,33 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho,
    {
       dbg("NOT supports_batched_assembly");
       a->Assemble();
-      a->FormSystemMatrix(ess_tdof_list_lo, A);
+      a->FormSystemMatrix(ess_dofs, A);
+
+      if (!parallel) // sequential only
+      {
+         A.As<SparseMatrix>()->HostReadWriteI();
+         A.As<SparseMatrix>()->HostReadWriteJ();
+         A.As<SparseMatrix>()->HostReadWriteData();
+         dot_legacy = A.As<SparseMatrix>()->InnerProduct(x,y);
+         dbg("dot_legacy: %.8e", dot_legacy);
+      }
+      else
+      {
+      }
    }
 
-   /*if (true)
+   if (false)
    {
-      #warning Ad is A for device
+#warning Ad is A for device
       dbg("Checks");
-      const int dofs = fes_ho.GetTrueVSize();
-      Vector x(dofs), y(dofs);
-      x.Randomize(1);
-      y.Randomize(1);
-
-      A.As<SparseMatrix>()->HostReadWriteI();
-      A.As<SparseMatrix>()->HostReadWriteJ();
-      A.As<SparseMatrix>()->HostReadWriteData();
-      const double dot_legacy = A.As<SparseMatrix>()->InnerProduct(x,y);
-      dbg("dot_legacy: %.8e", dot_legacy);
-
-      Ad.As<SparseMatrix>()->HostReadWriteI();
-      Ad.As<SparseMatrix>()->HostReadWriteJ();
-      Ad.As<SparseMatrix>()->HostReadWriteData();
-      const double dot_device = Ad.As<SparseMatrix>()->InnerProduct(x,y);
-      dbg("dot_device: %.8e", dot_device);
       dbg("fabs(dot_legacy-dot_device): %.8e", fabs(dot_legacy-dot_device));
       MFEM_VERIFY(fabs(dot_legacy-dot_device)<1e-15, "dot_device error!");
-      Ad.As<SparseMatrix>()->Add(-1.0, *A.As<SparseMatrix>());
-      const double max_norm_deviced = Ad.As<SparseMatrix>()->MaxNorm();
-      dbg("max_norm_deviced: %.8e", max_norm_deviced);
-      MFEM_VERIFY(max_norm_deviced < 1e-15, "max_norm_deviced");
-   }*/
+      /*
+            Ad.As<SparseMatrix>()->Add(-1.0, *A.As<SparseMatrix>());
+            const double max_norm_deviced = Ad.As<SparseMatrix>()->MaxNorm();
+            dbg("max_norm_deviced: %.8e", max_norm_deviced);
+            MFEM_VERIFY(max_norm_deviced < 1e-15, "max_norm_deviced");*/
+   }
 
    ResetIntegrationRules(&BilinearForm::GetDBFI);
    ResetIntegrationRules(&BilinearForm::GetFBFI);
@@ -396,7 +391,7 @@ void LORBase::SetupProlongationAndRestriction()
    }
    else
    {
-      fes->CopyProlongationAndRestriction(fes_ho, nullptr);
+      fes->CopyProlongationAndRestriction(fes_ho, NULL);
    }
 }
 
@@ -461,10 +456,10 @@ LORBase::LORBase(FiniteElementSpace &fes_ho_)
    }
    else
    {
-      ir_el = nullptr;
-      ir_face = nullptr;
+      ir_el = NULL;
+      ir_face = NULL;
    }
-   a = nullptr;
+   a = NULL;
    supports_batched_assembly = true;
 }
 
