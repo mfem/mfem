@@ -67,7 +67,7 @@ void NormalEquations::Init()
    width = height;
 }
 
-// Allocate SparseMatrix and RHS 
+// Allocate SparseMatrix and RHS
 void NormalEquations::AllocMat()
 {
    mat = new SparseMatrix(height);
@@ -268,7 +268,7 @@ void NormalEquations::Assemble(int skip_zeros)
                }
                G.AddSubMatrix(test_offs[j], test_offs[i], Ge);
             }
-         } 
+         }
 
          for (int i = 0; i < domain_fes.Size(); i++)
          {
@@ -279,7 +279,7 @@ void NormalEquations::Assemble(int skip_zeros)
                (*domain_integs(i,j))[k]->AssembleElementMatrix2(fe,test_fe,*eltrans,Be);
                B.AddSubMatrix(test_offs[j], domain_offs[i], Be);
             }
-         } 
+         }
 
          for (int i = 0; i < trace_fes.Size(); i++)
          {
@@ -292,12 +292,13 @@ void NormalEquations::Assemble(int skip_zeros)
                   FaceElementTransformations * ftr = mesh->GetFaceElementTransformations(iface);
                   const FiniteElement & tfe = *trace_fes[i]->GetFaceElement(iface);
                   (*trace_integs(i,j))[k]->AssembleTraceFaceMatrix(iel,tfe,test_fe,*ftr,Be);
-                  B.AddSubMatrix(test_offs[j], domain_offs.Last()+trace_offs[i]+face_dof_offs, Be);
+                  B.AddSubMatrix(test_offs[j], domain_offs.Last()+trace_offs[i]+face_dof_offs,
+                                 Be);
                   face_dof_offs+=Be.Width();
                }
             }
-         }  
-      } 
+         }
+      }
 
       G.Invert();
 
@@ -348,7 +349,7 @@ void NormalEquations::Assemble(int skip_zeros)
 
       mat->AddSubMatrix(vdofs,vdofs,A, skip_zeros);
       y->AddElementVector(vdofs,b);
-   } 
+   }
 }
 
 void NormalEquations::FormLinearSystem(const Array<int>
@@ -506,8 +507,8 @@ NormalEquations::~NormalEquations()
    {
       for (int i = 0; i<mesh->GetNE(); i++)
       {
-        delete  GB[i];
-        delete  Gl[i];
+         delete  GB[i];
+         delete  Gl[i];
       }
    }
 }
