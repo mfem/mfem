@@ -77,18 +77,20 @@ public:
      */
    struct PrintLevel
    {
-      /** @brief If a fatal problem has been detected some context-specific
-          information will be reported */
+      /** @brief If a fatal problem has been detected the failure will be
+          reported to @ref mfem::err. */
       bool errors = false;
       /** @brief If a non-fatal problem has been detected some context-specific
-          information will be reported */
+          information will be reported to @ref mfem::out */
       bool warnings = false;
-      /// Detailed information about each iteration will be reported
+      /** @brief Detailed information about each iteration will be reported to
+          @ref mfem::out */
       bool iterations = false;
       /** @brief A summary of the solver process will be reported after the last
-          iteration */
+          iteration to @ref mfem::out */
       bool summary = false;
-      /// @brief Information about the first and last iteration will be printed
+      /** @brief Information about the first and last iteration will be printed
+          to @ref mfem::out */
       bool first_and_last = false;
 
       /// Initializes the print level to suppress
