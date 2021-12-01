@@ -446,10 +446,14 @@ public:
    /// Determine appropriate scaling for Jacobi iteration
    double GetJacobiScaling() const;
    /** One scaled Jacobi iteration for the system A x = b.
-       x1 = x0 + sc D^{-1} (b - A x0)  where D is the diag of A. */
-   void Jacobi(const Vector &b, const Vector &x0, Vector &x1, double sc) const;
+       x1 = x0 + sc D^{-1} (b - A x0)  where D is the diag of A.
+       Absolute values of D are used when use_abs_diag = true. */
+   void Jacobi(const Vector &b, const Vector &x0, Vector &x1,
+               double sc, bool use_abs_diag = false) const;
 
-   void DiagScale(const Vector &b, Vector &x, double sc = 1.0) const;
+   /// x = sc b / A_ii. When use_abs_diag = true, |A_ii| is used.
+   void DiagScale(const Vector &b, Vector &x,
+                  double sc = 1.0, bool use_abs_diag = false) const;
 
    /** x1 = x0 + sc D^{-1} (b - A x0) where \f$ D_{ii} = \sum_j |A_{ij}| \f$. */
    void Jacobi2(const Vector &b, const Vector &x0, Vector &x1,

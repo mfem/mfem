@@ -1288,13 +1288,16 @@ int main (int argc, char *argv[])
          if (pa)
          {
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-            S_prec = new OperatorJacobiSmoother;
+            auto js = new OperatorJacobiSmoother;
+            js->SetPositiveDiagonal(true);
+            S_prec = js;
          }
          else
          {
-            HypreSmoother *hs = new HypreSmoother;
+            auto hs = new HypreSmoother;
             hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
-                        : HypreSmoother::l1Jacobi, 1);
+                        /* */             : HypreSmoother::l1Jacobi, 1);
+            hs->SetPositiveDiagonal(true);
             S_prec = hs;
          }
          minres->SetPreconditioner(*S_prec);
