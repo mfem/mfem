@@ -17,6 +17,8 @@
 #define MFEM_DEBUG_COLOR 226
 #include "../general/debug.hpp"
 
+#include "../general/nvvp.hpp"
+
 namespace mfem
 {
 
@@ -29,12 +31,12 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
                           Mesh &mesh_ho,
                           SparseMatrix &A_mat);
 
-void AssembleBatchedLOR(LORBase &lor_disc,
-                        BilinearForm &form_lor,
-                        FiniteElementSpace &fes_ho,
-                        const Array<int> &ess_dofs,
-                        OperatorHandle &Ah)
+static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
+                                        BilinearForm &form_lor,
+                                        FiniteElementSpace &fes_ho,
+                                        OperatorHandle &Ah)
 {
+   NvtxPush("AssembleBatchedLORWithoutBC", SkyBlue);
    Mesh &mesh_lor = *form_lor.FESpace()->GetMesh();
    Mesh &mesh_ho = *fes_ho.GetMesh();
    const int dim = mesh_ho.Dimension();
@@ -144,13 +146,29 @@ void AssembleBatchedLOR(LORBase &lor_disc,
           R->GatherMap(),
           mesh_ho, *A);
 
+   A->Finalize();
+
+   if (has_to_init) { Ah.Reset(A); } // A now owns A_mat
+   NvtxPop();
+}
+
+
+void AssembleBatchedLOR(LORBase &lor_disc,
+                        BilinearForm &form_lor,
+                        FiniteElementSpace &fes_ho,
+                        const Array<int> &ess_dofs,
+                        OperatorHandle &Ah)
+{
+   AssembleBatchedLORWithoutBC(lor_disc, form_lor, fes_ho, Ah);
+
    // Set essential dofs to 0.0
+   NvtxPush("BC", LightGoldenrod);
    const int n_ess_dofs = ess_dofs.Size();
    const auto ess_dofs_d = ess_dofs.Read();
 
-   const auto I = A->ReadI();
-   const auto J = A->ReadJ();
-   auto dA = A->ReadWriteData();
+   const auto I = Ah.As<SparseMatrix>()->ReadI();
+   const auto J = Ah.As<SparseMatrix>()->ReadJ();
+   auto dA = Ah.As<SparseMatrix>()->ReadWriteData();
 
    MFEM_FORALL(i, n_ess_dofs,
    {
@@ -172,11 +190,9 @@ void AssembleBatchedLOR(LORBase &lor_disc,
          }
       }
    });
-
-   A->Finalize();
-
-   if (has_to_init) { Ah.Reset(A); } // A now owns A_mat
+   NvtxPop();
 }
+
 
 #ifdef MFEM_USE_MPI
 
@@ -190,24 +206,33 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
    ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
    assert(pfes_ho);
 
-   OperatorHandle A, A_local;
-   dbg("AssembleBatchedLOR");
-   AssembleBatchedLOR(lor_disc, form_lor, fes_ho, ess_dofs, A_local);
-   A_local.As<SparseMatrix>()->HostReadWriteI();
-   A_local.As<SparseMatrix>()->HostReadWriteJ();
-   A_local.As<SparseMatrix>()->HostReadWriteData();
-
+   OperatorHandle A_local;
+   AssembleBatchedLORWithoutBC(lor_disc, form_lor, fes_ho, A_local);
+   //A_local.As<SparseMatrix>()->HostReadWriteI();
+   //A_local.As<SparseMatrix>()->HostReadWriteJ();
+   //A_local.As<SparseMatrix>()->HostReadWriteData();
    MFEM_VERIFY(A_local.As<SparseMatrix>()->Finalized(),
                "the local matrix must be finalized");
 
    OperatorHandle dA(Operator::Hypre_ParCSR),
                   Ph(Operator::Hypre_ParCSR);
 
+   NvtxPush("MakeSquareBlockDiag", LightGoldenrod);
    dA.MakeSquareBlockDiag(pfes_ho->GetComm(), pfes_ho->GlobalVSize(),
                           pfes_ho->GetDofOffsets(), A_local.As<SparseMatrix>());
+   NvtxPop();
+
+   NvtxPush("Dof_TrueDof_Matrix", Firebrick);
    Ph.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
+   NvtxPop();
+
+   NvtxPush("MakePtAP", Orchid);
    Ah.MakePtAP(dA, Ph);
+   NvtxPop();
+
+   NvtxPush("EliminateRowsCols", AliceBlue);
    Ah.As<HypreParMatrix>()->EliminateRowsCols(ess_dofs);
+   NvtxPop();
 }
 
 #endif
