@@ -4319,8 +4319,6 @@ Vector LegendreND(const Vector &x_in, const Vector &xmax, const Vector &xmin,
    return poly;
 }
 
-<<<<<<< HEAD
-
 void PatchLeastSquaresCoefficient::Setup()
 {
    int num_elems = elems.Size();
@@ -4418,16 +4416,14 @@ void PatchLeastSquaresCoefficient::Setup()
    }
 }
 
-
-=======
-   void BoundingBox(Array<int> patch,         // input
-                    FiniteElementSpace *ufes, // input
-                    int order,                // input
-                    Vector &xmin,             // output
-                    Vector &xmax,             // output
-                    double &angle,            // output
-                    Vector &center,           // output
-                    int iface)                // input (optional)
+void BoundingBox(Array<int> patch,         // input
+                 FiniteElementSpace *ufes, // input
+                 int order,                // input
+                 Vector &xmin,             // output
+                 Vector &xmax,             // output
+                 double &angle,            // output
+                 Vector &center,           // output
+                 int iface)                // input (optional)
 {
    Mesh *mesh = ufes->GetMesh();
    int dim = mesh->Dimension();
@@ -4494,7 +4490,6 @@ void PatchLeastSquaresCoefficient::Setup()
    }
 }
 
->>>>>>> zz_test
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,
                            GridFunction &flux,
