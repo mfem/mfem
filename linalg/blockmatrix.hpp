@@ -133,6 +133,16 @@ public:
                                  const double val = 1.) const;
    ///@}
 
+
+   void FindGlobalRow(int iglobal, int & iblock, int & iloc) const
+   {
+      findGlobalRow(iglobal, iblock, iloc);
+   }
+   void FindGlobalCol(int jglobal, int & jblock, int & jloc) const
+   {
+      findGlobalCol(jglobal, jblock, jloc);
+   }
+
    //! Destructor
    virtual ~BlockMatrix();
    //! If owns_blocks the SparseMatrix objects Aij will be deallocated.

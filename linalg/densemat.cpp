@@ -3094,6 +3094,17 @@ void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & PtAP)
    Mult(PtA,P, PtAP);
 }
 
+/// General R^tAP with given R, A and P
+void RtAP(const DenseMatrix &R, const DenseMatrix &A,
+          const DenseMatrix &P, DenseMatrix & RtAP)
+{
+   DenseMatrix RtA(R.Width(),A.Width());
+   MultAtB(R,A,RtA);
+   RtAP.SetSize(RtA.Height(), P.Width());
+   Mult(RtA,P, RtAP);
+}
+
+
 
 bool LUFactors::Factor(int m, double TOL)
 {

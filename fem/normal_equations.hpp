@@ -34,6 +34,7 @@ protected:
 
    /// Sparse matrix \f$ M \f$ to be associated with the bilinear form. Owned.
    SparseMatrix *mat = nullptr;
+   BlockMatrix *blkmat = nullptr;
 
    /// Vector to be associated with the linear form
    Vector * y = nullptr;
@@ -42,6 +43,7 @@ protected:
         from the b.c.  Owned.
        \f$ M + M_e = M_{original} \f$ */
    SparseMatrix *mat_e = nullptr;
+   BlockMatrix *blkmat_e = nullptr;
 
    // Domain FE spaces
    Array<FiniteElementSpace * > domain_fes;
@@ -78,6 +80,7 @@ protected:
    void AllocMat();
 
    void ConformingAssemble();
+   void BlockConformingAssemble();
 
    void BuildProlongation();
 
@@ -124,6 +127,9 @@ public:
 
    ///  Finalizes the matrix initialization.
    void Finalize(int skip_zeros = 1);
+
+   ///  Finalizes the matrix initialization.
+   void BlockFinalize(int skip_zeros = 1);
 
    /// Returns a reference to the sparse matrix:  \f$ M \f$
    SparseMatrix &SpMat()
@@ -193,6 +199,12 @@ public:
                        Operator::DiagonalPolicy dpolicy = Operator::DIAG_ONE);
 
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
+
+   void BlockEliminateVDofs(const Array<int> &vdofs,
+                            Operator::DiagonalPolicy dpolicy = Operator::DIAG_ONE);
+
+   void BlockEliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x,
+                                 Vector &b);
 
 
    void RecoverFEMSolution(const Vector &X,Vector &x);

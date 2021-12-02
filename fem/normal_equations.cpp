@@ -71,6 +71,17 @@ void NormalEquations::Init()
 void NormalEquations::AllocMat()
 {
    mat = new SparseMatrix(height);
+   blkmat = new BlockMatrix(dof_offsets);
+
+   for (int i = 0; i<blkmat->NumRowBlocks(); i++)
+   {
+      int h = dof_offsets[i+1] - dof_offsets[i];
+      for (int j = 0; j<blkmat->NumColBlocks(); j++)
+      {
+         int w = dof_offsets[j+1] - dof_offsets[j];
+         blkmat->SetBlock(i,j,new SparseMatrix(h, w));
+      }
+   }
    y = new Vector(height);
    *y = 0.;
 }
@@ -79,6 +90,31 @@ void NormalEquations::Finalize(int skip_zeros)
 {
    mat->Finalize(skip_zeros);
    if (mat_e) { mat_e->Finalize(skip_zeros); }
+}
+
+void NormalEquations::BlockFinalize(int skip_zeros)
+{
+   if (blkmat)
+   {
+      for (int i = 0; i<nblocks; i++)
+      {
+         for (int j = 0; j<nblocks; j++)
+         {
+            blkmat->GetBlock(i,j).Finalize(skip_zeros);
+         }
+      }
+   }
+
+   if (blkmat_e)
+   {
+      for (int i = 0; i<nblocks; i++)
+      {
+         for (int j = 0; j<nblocks; j++)
+         {
+            blkmat_e->GetBlock(i,j).Finalize(skip_zeros);
+         }
+      }
+   }
 }
 
 /// Adds new Domain BF Integrator. Assumes ownership of @a bfi.
@@ -165,6 +201,36 @@ void NormalEquations::ConformingAssemble()
    width = mat->Width();
 }
 
+
+void NormalEquations::BlockConformingAssemble()
+{
+   BlockFinalize(0);
+   if (!P) { BuildProlongation(); }
+
+   // Pt * mat
+   //! Transpose a BlockMatrix: result = A'
+   BlockMatrix * Pt = Transpose(*P);
+   BlockMatrix * PtA = mfem::Mult(*Pt, *blkmat);
+   delete blkmat;
+   if (blkmat_e)
+   {
+      BlockMatrix *PtAe = mfem::Mult(*Pt, *blkmat_e);
+      delete blkmat_e;
+      blkmat_e = PtAe;
+   }
+   delete Pt;
+   blkmat = mfem::Mult(*PtA, *P);
+
+   if (blkmat_e)
+   {
+      BlockMatrix *PtAeP = mfem::Mult(*blkmat_e, *P);
+      delete blkmat_e;
+      blkmat_e = PtAeP;
+   }
+   height = blkmat->Height();
+   width = blkmat->Width();
+}
+
 /// Assembles the form i.e. sums over all domain integrators.
 void NormalEquations::Assemble(int skip_zeros)
 {
@@ -233,6 +299,7 @@ void NormalEquations::Assemble(int skip_zeros)
       vec.SetSize(test_offs.Last()); vec = 0.0;
       B.SetSize(test_offs.Last(),domain_offs.Last()+trace_offs.Last()); B = 0.0;
 
+
       for (int j = 0; j < test_fecols.Size(); j++)
       {
          int order = test_fecols[j]->GetOrder();
@@ -280,7 +347,6 @@ void NormalEquations::Assemble(int skip_zeros)
                B.AddSubMatrix(test_offs[j], domain_offs[i], Be);
             }
          }
-
          for (int i = 0; i < trace_fes.Size(); i++)
          {
             for (int k = 0; k < trace_integs(i,j)->Size(); k++)
@@ -294,6 +360,7 @@ void NormalEquations::Assemble(int skip_zeros)
                   (*trace_integs(i,j))[k]->AssembleTraceFaceMatrix(iel,tfe,test_fe,*ftr,Be);
                   B.AddSubMatrix(test_offs[j], domain_offs.Last()+trace_offs[i]+face_dof_offs,
                                  Be);
+
                   face_dof_offs+=Be.Width();
                }
             }
@@ -304,6 +371,7 @@ void NormalEquations::Assemble(int skip_zeros)
 
       // Form Normal Equations B^T G^-1 B = B^T G^-1 l
       RAP(G,B,A);
+
       Gvec.SetSize(G.Height());
       G.Mult(vec,Gvec);
       b.SetSize(B.Width());
@@ -348,7 +416,68 @@ void NormalEquations::Assemble(int skip_zeros)
       }
 
       mat->AddSubMatrix(vdofs,vdofs,A, skip_zeros);
+
+      // TODO: assembly of blockvector so that doftrans are taken care of
       y->AddElementVector(vdofs,b);
+
+
+      for (int i = 0; i<fespaces.Size(); i++)
+      {
+         int ibeg, iend;
+         Array<int> vdofs_i;
+         DofTransformation * doftrans_i = nullptr;
+         DofTransformation * doftrans_j = nullptr;
+         if (i<domain_fes.Size())
+         {
+            doftrans_i = domain_fes[i]->GetElementVDofs(iel, vdofs_i);
+            ibeg = domain_offs[i];
+            iend = domain_offs[i+1];
+         }
+         else
+         {
+            Array<int> face_vdofs;
+            for (int k = 0; k < numfaces; k++)
+            {
+               int iface = faces[k];
+               trace_fes[i-domain_fes.Size()]->GetFaceVDofs(iface, face_vdofs);
+               vdofs_i.Append(face_vdofs);
+            }
+            ibeg = domain_offs.Last() + trace_offs[i-domain_fes.Size()];
+            iend = domain_offs.Last() + trace_offs[i+1-domain_fes.Size()];
+         }
+         for (int j = 0; j<fespaces.Size(); j++)
+         {
+            Array<int> vdofs_j;
+            int jbeg, jend;
+            if (j<domain_fes.Size())
+            {
+               doftrans_j = domain_fes[j]->GetElementVDofs(iel, vdofs_j);
+               jbeg = domain_offs[j];
+               jend = domain_offs[j+1];
+            }
+            else
+            {
+               Array<int> face_vdofs;
+               for (int k = 0; k < numfaces; k++)
+               {
+                  int iface = faces[k];
+                  trace_fes[j-domain_fes.Size()]->GetFaceVDofs(iface, face_vdofs);
+                  vdofs_j.Append(face_vdofs);
+               }
+               jbeg = domain_offs.Last() + trace_offs[j-domain_fes.Size()];
+               jend = domain_offs.Last() + trace_offs[j+1-domain_fes.Size()];
+            }
+
+            DenseMatrix Ae;
+            // TODO: DofTransformation in case (doftrans_i or doftrans_j)
+            A.GetSubMatrix(ibeg,iend, jbeg,jend, Ae);
+            if (doftrans_i || doftrans_j)
+            {
+               TransformDual(doftrans_i, doftrans_j, Ae);
+            }
+            blkmat->GetBlock(i,j).AddSubMatrix(vdofs_i,vdofs_j, Ae);
+         }
+      }
    }
 }
 
@@ -359,7 +488,8 @@ void NormalEquations::FormLinearSystem(const Array<int>
                                        Vector &B, int copy_interior)
 {
    FormSystemMatrix(ess_tdof_list, A);
-
+   mat = blkmat->CreateMonolithic();
+   mat_e = blkmat_e->CreateMonolithic();
    if (!P)
    {
       EliminateVDofsInRHS(ess_tdof_list, x, *y);
@@ -395,10 +525,14 @@ void NormalEquations::FormSystemMatrix(const Array<int>
             break;
          }
       }
+      // if (!conforming) { ConformingAssemble(); }
       if (!conforming) { ConformingAssemble(); }
-      EliminateVDofs(ess_tdof_list, diag_policy);
+      if (!conforming) { BlockConformingAssemble(); }
       const int remove_zeros = 0;
+      EliminateVDofs(ess_tdof_list, diag_policy);
+      BlockEliminateVDofs(ess_tdof_list, diag_policy);
       Finalize(remove_zeros);
+      BlockFinalize(remove_zeros);
    }
    A.Reset(mat, false);
 }
@@ -408,6 +542,13 @@ void NormalEquations::EliminateVDofsInRHS(
 {
    mat_e->AddMult(x, b, -1.);
    mat->PartMult(vdofs, x, b);
+}
+
+void NormalEquations::BlockEliminateVDofsInRHS(
+   const Array<int> &vdofs, const Vector &x, Vector &b)
+{
+   // mat_e->AddMult(x, b, -1.);
+   // mat->PartMult(vdofs, x, b);
 }
 
 void NormalEquations::EliminateVDofs(const Array<int> &vdofs,
@@ -420,14 +561,67 @@ void NormalEquations::EliminateVDofs(const Array<int> &vdofs,
 
    for (int i = 0; i < vdofs.Size(); i++)
    {
-      int vdof = vdofs[i];
-      if ( vdof >= 0 )
+      int vdof = (vdofs[i]) >=0 ? vdofs[i] : -1 - vdofs[i];
+      mat -> EliminateRowCol (vdof, *mat_e, dpolicy);
+   }
+}
+
+void NormalEquations::BlockEliminateVDofs(const Array<int> &vdofs,
+                                          Operator::DiagonalPolicy dpolicy)
+{
+   // Alternative elimination of essential dofs using the BlockMatrix
+   if (blkmat_e == NULL)
+   {
+      Array<int> offsets;
+
+      if (P)
       {
-         mat -> EliminateRowCol (vdof, *mat_e, dpolicy);
+         offsets.MakeRef(tdof_offsets);
       }
       else
       {
-         mat -> EliminateRowCol (-1-vdof, *mat_e, dpolicy);
+         offsets.MakeRef(tdof_offsets);
+      }
+      blkmat_e = new BlockMatrix(offsets);
+      for (int i = 0; i<blkmat_e->NumRowBlocks(); i++)
+      {
+         int h = offsets[i+1] - offsets[i];
+         for (int j = 0; j<blkmat_e->NumColBlocks(); j++)
+         {
+            int w = offsets[j+1] - offsets[j];
+            blkmat_e->SetBlock(i,j,new SparseMatrix(h, w));
+         }
+      }
+   }
+
+   std::vector<Array<int>> cols(nblocks);
+
+   for (int k = 0; k < vdofs.Size(); k++)
+   {
+      int vdof = (vdofs[k]) >=0 ? vdofs[k] : -1 - vdofs[k];
+      // find block
+      int iblock, dof;
+      blkmat->FindGlobalRow(vdof,iblock,dof);
+      cols[iblock].Append(dof);
+      // Eliminate cols and rows from (iblock, iblock)
+      // and store in blkmat_e (iblock,iblock)
+      blkmat->GetBlock(iblock,iblock).EliminateRowCol(dof,
+                                                      blkmat_e->GetBlock(iblock,iblock), dpolicy);
+   }
+   // Eliminate col from off diagonal blocks
+   for (int j = 0; j<nblocks; j++)
+   {
+      if (!cols[j].Size()) { continue; }
+      Array<int> colmarker;
+      fespaces[j]->ListToMarker(cols[j],fespaces[j]->GetTrueVSize(),colmarker);
+      for (int i = 0; i<nblocks; i++)
+      {
+         if (i == j) { continue; }
+         blkmat->GetBlock(i,j).EliminateCols(colmarker,blkmat_e->GetBlock(i,j));
+         for (int k = 0; k < cols[j].Size(); k++)
+         {
+            blkmat->GetBlock(i,j).EliminateRow(cols[j][k]);
+         }
       }
    }
 }

@@ -546,6 +546,9 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 /// RAP matrix product (with R=P^T)
 void RAP(const DenseMatrix &A, const DenseMatrix &P, DenseMatrix & PtAP);
 
+/// General R^tAP with given R, A and P
+void RtAP(const DenseMatrix &R, const DenseMatrix &A,
+          const DenseMatrix &P, DenseMatrix & RtAP);
 /** Class that can compute LU factorization of external data and perform various
     operations with the factored data. */
 class LUFactors
