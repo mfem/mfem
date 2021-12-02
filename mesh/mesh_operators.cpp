@@ -157,6 +157,142 @@ int ThresholdDerefiner::ApplyImpl(Mesh &mesh)
 }
 
 
+int CoefficientRefiner::ApplyImpl(Mesh &mesh)
+{
+   int max_it = 1;
+   return PreprocessMesh(mesh, max_it);
+}
+
+int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
+{
+   int rank = 0;
+   MFEM_VERIFY(max_it > 0, "max_it must be strictly positive")
+
+   int dim = mesh.Dimension();
+   L2_FECollection l2fec(order, dim);
+   FiniteElementSpace* l2fes = NULL;
+
+   bool par = false;
+   GridFunction *gf = NULL;
+
+#ifdef MFEM_USE_MPI
+   ParMesh* pmesh = dynamic_cast<ParMesh*>(&mesh);
+   if (pmesh && pmesh->Nonconforming())
+   {
+      par = true;
+      l2fes = new ParFiniteElementSpace(pmesh, &l2fec);
+      gf = new ParGridFunction(static_cast<ParFiniteElementSpace*>(l2fes));
+   }
+#endif
+   if (!par)
+   {
+      l2fes = new FiniteElementSpace(&mesh, &l2fec);
+      gf = new GridFunction(l2fes);
+   }
+
+   // If custom integration rule has not been set,
+   // then use the default integration rule
+   if (!irs)
+   {
+      int order_quad = 2*order + 3;
+      for (int i=0; i < Geometry::NumGeom; ++i)
+      {
+         ir_default[i] = &(IntRules.Get(i, order_quad));
+      }
+      irs = ir_default;
+   }
+
+   for (int i = 0; i < max_it; i++)
+   {
+      // Compute number of elements and L2-norm of f.
+      int NE = mesh.GetNE();
+      int globalNE = 0;
+      double norm_of_coeff = 0.0;
+      if (par)
+      {
+#ifdef MFEM_USE_MPI
+         globalNE = pmesh->GetGlobalNE();
+         norm_of_coeff = ComputeGlobalLpNorm(2.0,*coeff,*pmesh,irs);
+#endif
+      }
+      else
+      {
+         globalNE = NE;
+         norm_of_coeff = ComputeLpNorm(2.0,*coeff,mesh,irs);
+      }
+
+      // Compute average L2-norm of f
+      double av_norm_of_coeff = norm_of_coeff / sqrt(globalNE);
+
+      // Compute element-wise L2-norms of (I - Π) f
+      Vector element_norms_of_fine_scale(NE);
+      gf->SetSpace(l2fes);
+      gf->ProjectCoefficient(*coeff);
+      gf->ComputeElementL2Errors(*coeff,element_norms_of_fine_scale,irs);
+
+      // Define osc_K(f) := || h ⋅ (I - Π) f ||_K and select elements
+      // for refinement based on threshold. Also record relative osc(f).
+      global_osc = 0.0;
+      mesh_refinements.SetSize(0);
+      element_oscs.Destroy();
+      element_oscs.SetSize(NE);
+      element_oscs = 0.0;
+      for (int j = 0; j < NE; j++)
+      {
+         double h = mesh.GetElementSize(j);
+         double element_osc = h * element_norms_of_fine_scale(j);
+         if ( element_osc > threshold * av_norm_of_coeff )
+         {
+            mesh_refinements.Append(j);
+         }
+         element_oscs(j) = element_osc/(norm_of_coeff + 1e-10);
+         global_osc += element_osc*element_osc;
+      }
+#ifdef MFEM_USE_MPI
+      if (par)
+      {
+         MPI_Comm comm = pmesh->GetComm();
+         MPI_Allreduce(MPI_IN_PLACE, &global_osc, 1, MPI_DOUBLE, MPI_SUM, comm);
+         MPI_Comm_rank(comm, &rank);
+      }
+#endif
+      global_osc = sqrt(global_osc)/(norm_of_coeff + 1e-10);
+
+      // Exit if the global threshold or maximum number of elements is reached.
+      if (global_osc < threshold || globalNE > max_elements)
+      {
+         if (global_osc > threshold && globalNE > max_elements && rank == 0 &&
+             print_level)
+         {
+            MFEM_WARNING("Reached maximum number of elements "
+                         "before resolving data to tolerance.");
+         }
+         delete l2fes;
+         delete gf;
+         return STOP;
+      }
+
+      // Refine elements.
+      mesh.GeneralRefinement(mesh_refinements, nonconforming, nc_limit);
+      l2fes->Update(false);
+      gf->Update();
+
+   }
+   delete l2fes;
+   delete gf;
+   return CONTINUE + REFINED;
+
+}
+
+void CoefficientRefiner::Reset()
+{
+   element_oscs.Destroy();
+   global_osc = 0.0;
+   coeff = NULL;
+   irs = NULL;
+}
+
+
 int Rebalancer::ApplyImpl(Mesh &mesh)
 {
 #ifdef MFEM_USE_MPI

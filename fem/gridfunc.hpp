@@ -490,6 +490,10 @@ public:
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
 
+   /// Returns ||grad u_ex - grad u_h||_L2 in element i for H1 or L2 elements
+   virtual double ComputeElementGradError(int i, VectorCoefficient *exgrad,
+                                          const IntegrationRule *irs[] = NULL) const;
+
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
    virtual double ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const;
@@ -942,7 +946,17 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
 
 /// Defines the global polynomial space used by NewZZErorrEstimator
 Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
-                  int order, int dim);
+                  int order, int dim, double angle=0.0, const Vector *center=NULL);
+
+/// Defines the a bounding box for the face patches used by NewZZErorrEstimator
+void BoundingBox(Array<int> patch,                // input
+                 FiniteElementSpace *ufes, // input
+                 int order,                // input
+                 Vector &xmin,             // output
+                 Vector &xmax,             // output
+                 double &angle,            // output
+                 Vector &center,           // output
+                 int iface=-1);            // input (optional)
 
 
 
