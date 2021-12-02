@@ -4420,14 +4420,14 @@ void PatchLeastSquaresCoefficient::Setup()
 
 
 =======
-void BoundingBox(Array<int> patch,         // input
-                 FiniteElementSpace *ufes, // input
-                 int order,                // input
-                 Vector &xmin,             // output
-                 Vector &xmax,             // output
-                 double &angle,            // output
-                 Vector &center,           // output
-                 int iface)                // input (optional)
+   void BoundingBox(Array<int> patch,         // input
+                    FiniteElementSpace *ufes, // input
+                    int order,                // input
+                    Vector &xmin,             // output
+                    Vector &xmax,             // output
+                    double &angle,            // output
+                    Vector &center,           // output
+                    int iface)                // input (optional)
 {
    Mesh *mesh = ufes->GetMesh();
    int dim = mesh->Dimension();
