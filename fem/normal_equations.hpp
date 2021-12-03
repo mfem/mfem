@@ -33,17 +33,15 @@ protected:
    Array<int> tdof_offsets;
 
    /// Sparse matrix \f$ M \f$ to be associated with the bilinear form. Owned.
-   SparseMatrix *mat = nullptr;
-   BlockMatrix *blkmat = nullptr;
+   BlockMatrix *mat = nullptr;
 
    /// Vector to be associated with the linear form
-   Vector * y = nullptr;
+   BlockVector * y = nullptr;
 
    /** @brief Sparse Matrix \f$ M_e \f$ used to store the eliminations
         from the b.c.  Owned.
        \f$ M + M_e = M_{original} \f$ */
-   SparseMatrix *mat_e = nullptr;
-   BlockMatrix *blkmat_e = nullptr;
+   BlockMatrix *mat_e = nullptr;
 
    // Domain FE spaces
    Array<FiniteElementSpace * > domain_fes;
@@ -80,7 +78,6 @@ protected:
    void AllocMat();
 
    void ConformingAssemble();
-   void BlockConformingAssemble();
 
    void BuildProlongation();
 
@@ -128,18 +125,15 @@ public:
    ///  Finalizes the matrix initialization.
    void Finalize(int skip_zeros = 1);
 
-   ///  Finalizes the matrix initialization.
-   void BlockFinalize(int skip_zeros = 1);
-
    /// Returns a reference to the sparse matrix:  \f$ M \f$
-   SparseMatrix &SpMat()
+   BlockMatrix &SpMat()
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
 
    /// Returns a reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
-   SparseMatrix &SpMatElim()
+   BlockMatrix &SpMatElim()
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
       return *mat_e;
@@ -199,13 +193,6 @@ public:
                        Operator::DiagonalPolicy dpolicy = Operator::DIAG_ONE);
 
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
-
-   void BlockEliminateVDofs(const Array<int> &vdofs,
-                            Operator::DiagonalPolicy dpolicy = Operator::DIAG_ONE);
-
-   void BlockEliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x,
-                                 Vector &b);
-
 
    void RecoverFEMSolution(const Vector &X,Vector &x);
 
