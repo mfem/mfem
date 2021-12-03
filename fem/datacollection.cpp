@@ -1181,4 +1181,415 @@ const char *ParaViewDataCollection::GetDataTypeString() const
    }
 }
 
+std::istream& operator>>(std::istream& in,
+                        mfem::MFEMDataCollection::MetaInfo& i)
+{
+   std::string  line;
+   ///@TODO error management.
+   if(std::getline(in, line))
+   {
+         std::stringstream linestream(line);
+         linestream >> i.cycle;
+         linestream >> i.t;
+         linestream >> i.Δt;
+   }
+
+   return in;
+}
+
+   //! Constructor to store stuff
+MFEMDataCollection::MFEMDataCollection(const std::string& collection_name,
+                     Mesh& mesh_, bool adaptive_mesh_)
+      : DataCollection(collection_name, &mesh_), adaptive_mesh(adaptive_mesh_)
+   {
+      own_data = false;
+      format = SERIAL_FORMAT;
+   }
+
+#ifdef MFEM_USE_MPI
+   //! Constructor to store stuff
+MFEMDataCollection::MFEMDataCollection(const std::string& collection_name,
+                     ParMesh& mesh_, bool adaptive_mesh_)
+      : DataCollection(collection_name, &mesh_), adaptive_mesh(adaptive_mesh_)
+   {
+      own_data = false;
+      format = PARALLEL_FORMAT;
+      appendRankToFileName = true;
+   }
+#endif
+
+   //! Constructor to load stuff
+MFEMDataCollection::MFEMDataCollection(const std::string& collection_name
+      , Format format_)
+      : DataCollection(collection_name)
+   {
+      format = format_;
+      if(format == PARALLEL_FORMAT)
+      {
+         appendRankToFileName = true;
+         serial = false;
+      }
+      else
+      {
+         serial = true;
+      }
+      own_data = true;
+#ifdef MFEM_USE_MPI
+      m_comm = MPI_COMM_WORLD;
+      MPI_Comm_rank(m_comm, &myid);
+      MPI_Comm_size(m_comm, &num_procs);
+#endif
+   }
+
+void MFEMDataCollection::ResetMetadata()
+{
+   // Clear file.
+   std::ofstream metadata_fs(GetMetafileName(), std::ios::trunc);
+   ///@TODO error management
+   metadata_fs
+      << (adaptive_mesh ? "amr_on" : "amr_off")
+      << std::endl;
+   for(auto [field_name, _] : GetFieldMap())
+   {
+      metadata_fs << field_name << " ";
+   }
+   metadata_fs << std::endl;
+   for(auto [field_name, _] : GetQFieldMap())
+   {
+      metadata_fs << field_name << " ";
+   }
+   metadata_fs << std::endl;
+
+   first_io = true;
+}
+
+
+void MFEMDataCollection::Save()
+{
+   //std::filesystem::path data_folder = CyclePathName(cycle);
+   std::string data_folder = CyclePathName(cycle);
+   // check if the directories are created
+   {
+      int err = create_directory(data_folder, mesh, myid);
+      if (err)
+      {
+            error = WRITE_ERROR;
+            MFEM_WARNING("Error creating directory: " << data_folder);
+            return; // do not even try to write the mesh
+      }
+   }
+
+   // Add metadata
+   if (myid == 0)
+   {
+      std::ofstream metadata_fs(GetMetafileName(),
+                                    std::ios::out | std::ios::app);
+      metadata_fs << GetCycle() << " " << GetTime() << " "
+                     << GetTimeStep() << std::endl;
+   }
+
+   // If the mesh is not adaptive, then we just have to store the mesh once.
+   if(first_io || adaptive_mesh)
+   {
+      first_io = false;
+      //std::filesystem::path mesh_filename_raw;
+      std::string mesh_filename_raw;
+
+      if(!adaptive_mesh)
+      {
+            mesh_filename_raw = prefix_path + DataCollection::GetCollectionName();
+            mesh_filename_raw += "/mesh";
+      }
+      else
+      {
+            mesh_filename_raw =  data_folder + "/mesh";
+      }
+
+      auto mesh_filename = mesh_filename_raw;
+      if (appendRankToFileName)
+      {
+            mesh_filename += "." + to_padded_string(myid, pad_digits_rank);
+      }
+      mfem::ofgzstream mesh_fs(mesh_filename, compression);
+      mesh_fs.precision(precision);
+      if (format == PARALLEL_FORMAT)
+      {
+#ifdef MFEM_USE_MPI
+         ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+         if (pmesh && format == PARALLEL_FORMAT)
+         {
+            pmesh->ParPrint(mesh_fs);
+
+            mfem::ofgzstream mesh_fs_asone(mesh_filename_raw, false);
+            mesh_fs_asone.precision(precision);
+            pmesh->PrintAsOne(mesh_fs_asone); // Not const-correct
+         }
+         else
+         {
+            MFEM_WARNING("Cannot save. Mesh is not a ParMesh." << data_folder);
+         }
+#else
+         MFEM_WARNING("Parallel output format not allowed in serial simulation." << data_folder);
+         error = 3;
+         return;
+#endif
+      }
+      else if(format == SERIAL_FORMAT)
+      {
+         mesh->Print(mesh_fs);
+      }
+      else
+      {
+         error = 4;
+         MFEM_WARNING("Unkown output format: " << data_folder);
+         return;
+      }
+   }
+
+   for (FieldMapIterator it = field_map.begin(); it != field_map.end(); ++it)
+   {
+      auto field_filename = data_folder + "/" + it->first;
+      if (appendRankToFileName)
+      {
+         field_filename += "." + to_padded_string(myid, pad_digits_rank);
+      }
+      mfem::ofgzstream field_file(field_filename, compression);
+
+      field_file.precision(precision);
+      (it->second)->Save(field_file);
+      if (!field_file)
+      {
+         error = WRITE_ERROR;
+         MFEM_WARNING("Error writing field to file: " << it->first);
+      }
+      // Even if there is an error, try saving the other fields
+   }
+
+   for (QFieldMapIterator it = q_field_map.begin(); it != q_field_map.end();
+   ++it)
+   {
+      auto field_filename = data_folder + "/" + it->first;
+      if (appendRankToFileName)
+      {
+         field_filename += "." + to_padded_string(myid, pad_digits_rank);
+      }
+      mfem::ofgzstream field_file(field_filename, compression);
+
+      field_file.precision(precision);
+      (it->second)->Save(field_file);
+      if (!field_file)
+      {
+         error = WRITE_ERROR;
+         MFEM_WARNING("Error writing field to file: " << it->first);
+      }
+   }
+}
+
+
+void MFEMDataCollection::Load(int cycle_)
+{
+   this->cycle = cycle_;
+
+   // std::filesystem::path data_folder = CyclePathName(cycle);
+   // check if the directories are created
+   // if(!std::filesystem::exists(data_folder))
+   // {
+   //    error = READ_ERROR;
+   //    MFEM_WARNING("Unable to find directory: " << data_folder);
+   //    return; // do not even try to read the data
+   // }
+
+   std::string data_folder = CyclePathName(cycle);
+
+   // Clear relevant data.
+   if(own_data && adaptive_mesh && !first_io)
+   {
+      delete this->mesh;
+      this->mesh = nullptr;
+   }
+   field_map.DeleteData(true);
+   q_field_map.DeleteData(true);
+
+   // Load mesh and take ownership
+   // std::filesystem::path mesh_filename;
+   std::string mesh_filename;
+   // If the mesh is not adaptive, then we just have to store the mesh once.
+   if((first_io && own_data) || adaptive_mesh)
+   {
+      own_data = true;
+      if(!adaptive_mesh)
+      {
+            mesh_filename = prefix_path + DataCollection::GetCollectionName();
+            mesh_filename += "/mesh";
+      }
+      else
+      {
+            mesh_filename =  data_folder + "/mesh";
+      }
+
+      if (appendRankToFileName)
+      {
+            mesh_filename += "." + to_padded_string(myid, pad_digits_rank);
+      }
+
+      // if(!std::filesystem::exists(mesh_filename))
+      // {
+      //       error = READ_ERROR;
+      //       MFEM_WARNING("Unable to find mesh: " << mesh_filename);
+      //       return; // do not even try to read the data
+      // }
+
+      mfem::ifgzstream mesh_fs(mesh_filename);
+      if(adaptive_mesh || first_io)
+      {
+            if (format == PARALLEL_FORMAT)
+            {
+#ifdef MFEM_USE_MPI
+               mesh = new ParMesh(MPI_COMM_WORLD, mesh_fs);
+#else
+               error = 3;
+               return;
+#endif
+            }
+            else if(format == SERIAL_FORMAT)
+            {
+               mesh = new Mesh(mesh_fs);
+            }
+            else
+            {
+               error = 4;
+               return;
+            }
+      }
+   }
+   first_io = false;
+
+   // Load grids and take ownership
+   for(auto field_name : field_names_meta)
+   {
+      auto field_filename = data_folder + "/" + field_name;
+      if (appendRankToFileName)
+      {
+            field_filename += "." + to_padded_string(myid, pad_digits_rank);
+      }
+
+      if (format == PARALLEL_FORMAT)
+      {
+#ifdef MFEM_USE_MPI
+            mfem::ifgzstream ifs(field_filename);
+            this->RegisterField(field_name, new ParGridFunction(GetParMesh(), ifs));
+#else
+      error = 5;
+      return;
+#endif
+      }
+      else if(format == SERIAL_FORMAT)
+      {
+            mfem::ifgzstream ifs(field_filename);
+            this->RegisterField(field_name, new GridFunction(mesh, ifs));
+      }
+   }
+
+   for(auto q_field_name : q_field_names_meta)
+   {
+      auto q_field_filename = data_folder + "/" + q_field_name;
+      if (appendRankToFileName)
+      {
+            q_field_filename += "." + to_padded_string(myid, pad_digits_rank);
+      }
+
+      mfem::ifgzstream ifs(q_field_filename);
+      this->RegisterQField(q_field_name, new QuadratureFunction(mesh, ifs));
+   }
+}
+
+
+std::optional<std::vector<MFEMDataCollection::MetaInfo>> MFEMDataCollection::ReloadMetaInfo()
+{
+   std::vector<MetaInfo> metavector;
+   std::ifstream in(GetMetafileName(), std::ios::in);
+
+   field_names_meta.empty();
+   q_field_names_meta.empty();
+
+   std::string line;
+   if(std::getline(in, line))
+   {
+      std::stringstream linestream(line);
+      std::string option_name;
+      ///@TODO refactor
+      while(linestream >> option_name)
+      {
+         if(option_name == "amr_on")
+         {
+            adaptive_mesh = true;
+         }
+         else if(option_name == "amr_off")
+         {
+            adaptive_mesh = false;
+         }
+         else
+         {
+            MFEM_WARNING("WARNING: Unknown option '"
+            << option_name << "' in Metadata file "
+            << GetMetafileName());
+         }
+      }
+   }
+   else
+   {
+      MFEM_WARNING("Corrputed Metadata. Option line missing.");
+      error = 6;
+      return std::nullopt;
+   }
+   if(std::getline(in, line))
+   {
+      std::stringstream linestream(line);
+      std::string field_name;
+      while(linestream >> field_name)
+      {
+            field_names_meta.push_back(field_name);
+      }
+   }
+   else
+   {
+      MFEM_WARNING("Corrputed Metadata. Fields line missing.");
+      error = 7;
+      return std::nullopt;
+   }
+   if(std::getline(in, line))
+   {
+      std::stringstream linestream(line);
+      std::string field_name;
+      while(linestream >> field_name)
+      {
+            q_field_names_meta.push_back(field_name);
+      }
+   }
+   else
+   {
+      MFEM_WARNING("Corrputed Metadata. QFields line missing.");
+      error = 8;
+      return std::nullopt;
+   }
+
+   MetaInfo buffer;
+   while (in >> buffer)
+   {
+      metavector.push_back(buffer);
+   }
+   return metavector;
+}
+
+
+
+std::string MFEMDataCollection::CyclePathName(int cycle) const
+{
+   std::string out = "";
+   out = prefix_path + DataCollection::GetCollectionName();
+   out += "/Cycle" + to_padded_string(cycle,pad_digits_cycle);
+   return out;
+}
+
+
 }  // end namespace MFEM
