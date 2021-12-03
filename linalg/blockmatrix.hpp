@@ -71,6 +71,9 @@ public:
        treated according to that policy. */
    void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
 
+   void EliminateRowCols(Array<int> vdofs, BlockMatrix *Ae,
+                         DiagonalPolicy dpolicy = DIAG_ONE);
+
    //! Symmetric elimination of the marked degree of freedom.
    /**
      @param ess_bc_dofs  marker of the degree of freedom to be eliminated
