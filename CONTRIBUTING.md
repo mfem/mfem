@@ -42,6 +42,7 @@ back to them before issuing pull requests:
   - [New Feature Development](#new-feature-development)
   - [Developer Guidelines](#developer-guidelines)
   - [Pull Requests](#pull-requests)
+  - [MFEM PR Rules](#mfem-pr-rules)
   - [Pull Request Checklist](#pull-request-checklist)
   - [Master/Next Workflow](#masternext-workflow)
   - [Releases](#releases)
@@ -67,8 +68,9 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   with regards to documentation and code styling.
 - Please do not commit large/binary files to the central repository (use a fork
   instead).
-- Pull requests  should be issued toward `mfem:master`. Make sure
-  to check the items off the [Pull Request Checklist](#pull-request-checklist).
+- Pull requests should be issued toward `mfem:master`. Make sure
+  to check the items off the [Pull Request Checklist](#pull-request-checklist) and
+  follow the [MFEM PR Rules](#mfem-pr-rules).
 - When your contribution is fully working and ready to be reviewed, add
   the `ready-for-review` label.
 - PRs are treated similarly to journal submission with an "editor" assigning two
@@ -105,12 +107,14 @@ The MFEM source code has the following structure:
   │   ├── caliper
   │   ├── ginkgo
   │   ├── hiop
+  │   ├── jupyter
   │   ├── petsc
   │   ├── pumi
   │   ├── sundials
   |   └── superlu
   ├── fem
   │   ├── ceed
+  │   ├── fe
   │   ├── qinterp
   │   └── tmop
   ├── general
@@ -119,6 +123,7 @@ The MFEM source code has the following structure:
   ├── mesh
   ├── miniapps
   │   ├── adjoint
+  │   ├── autodiff
   │   ├── common
   │   ├── electromagnetics
   │   ├── gslib
@@ -126,6 +131,7 @@ The MFEM source code has the following structure:
   │   ├── mtop
   │   ├── navier
   │   ├── nurbs
+  │   ├── parelag
   │   ├── performance
   │   ├── shifted
   │   ├── solvers
@@ -323,15 +329,22 @@ Before you can start, you need a GitHub account, here are a few suggestions:
     change the code by default.
 
 - Code specifics
-  - All significant new classes, methods and functions have Doxygen-style
-    documentation in source comments.
+  - All new public, protected, and private classes, methods, data members, and
+    functions have Doxygen-style documentation in source comments.
+  - In addition to arguments and functionality, documentation should include the
+    current limitations of the code, any background information that is
+    implicitly assumed in the implementation, and the ownership and lifetime
+    of data.
   - Consistent code styling is enforced with `make style` in the top-level
     directory. This requires [Artistic Style](http://astyle.sourceforge.net) (we
-    specifically use version 2.05.1). See also the file `config/mfem.astylerc`.
+    specifically use version 3.1). See also the file `config/mfem.astylerc`.
   - Use `mfem::out` and `mfem::err` instead of `std::cout` and `std::cerr` in
     internal library code. (You can use `std` in examples and miniapps.)
   - When manually resolving conflicts during a merge, make sure to mention the
     conflicted files in the commit message.
+  - All significant new features and changes should be documented in CHANGELOG.
+  - New examples and miniapps should have documentation on the MFEM webpage.
+
 
 ### Pull Requests
 
@@ -397,6 +410,83 @@ Before you can start, you need a GitHub account, here are a few suggestions:
 - If triggered, track the status of the LLNL GitLab tests. If failing, ask
   one of the _LLNL developers_ for details.
 
+
+### MFEM PR Rules
+
+The Pull Request (PR) approval process in MFEM is similar to the approval of papers in a peer-reviewed journal. In particular:
+
+1. There is an MFEM board of "editors" that evaluates new PRs and assigns "reviewers" for each PR.
+
+2. The assigned reviewers are responsible to carefully review and test the proposed PR.
+
+3. A PR can be (manually) merged in the *next* branch only if 2 of the assigned reviewers have approved it and it has passed internal testing. This merge can be performed by any of the assigned reviewers or by any of the editors.
+
+4. A PR can be merged in the *master* branch only if it has been tested successfully for a week in *next* and an editor has (optionally) taken a final look. This merge can be performed only by one of the editors.
+
+#### Responsibilities of Editors
+
+The current list of MFEM editors is:
+
+- @v-dobrev (Veselin Dobrev)
+- @tzanio (Tzanio Kolev)
+- @pazner (Will Pazner)
+- @mlstowell (Mark Stowell)
+
+**The responsibilities of the editors are:**
+
+1. To assign appropriate milestone and labels for new PRs, e.g. *bugfix*, *minor*, *api-change*, *high-impact*, etc.
+
+2. To assign at least 2 reviewers for new PRs. An editor can also be a reviewer. The editor, reviewers, and author should be listed as "Assignees" on the GitHub PR page. After assignment, the `in-review` label should be added.
+
+3. To complete the initial PR evaluation and assignments in a timely manner: 1 week from submission.
+
+4. To assist reviewers when they need help with their reviews (but also to stay out of the way when they don't).
+
+5. To remind the reviewers about timely completion of their review.
+
+6. To take a final look and complete the PR merge in *master*. The final look step is optional and shouldn't take more than 3 days.
+
+7. The assignment of bugfixes should be expedited proportional to their importance, e.g. in some cases the editor can assign much shorter review window.
+
+#### Responsibilities of Reviewers
+
+Everyone on the MFEM team can be asked to serve as a reviewer on a PR in their area of expertise.
+
+**The responsibilities of the reviewers are:**
+
+1. To let the editors know if the proposed assignment is not a good match for them.
+
+2. To communicate with the PR author, provide feedback and work with them to resolve issues.
+
+3. To ensure the quality of the PR by making sure that the code adheres to the [Developer Guidelines](#developer-guidelines), e.g. all methods, data members, and functions have documentation, including data ownership and lifetime, new examples/miniapps have a corresponding PR in mfem/web, major features have `CHANGELOG` entries, etc.
+
+3. To seek help from the editors in case of difficulties.
+
+4. To complete the review in a timely manner: 3 weeks from assignment.
+
+5. To test the PR thoroughly before merging in *next*. The PR author is also encouraged to perform testing and inform the reviewers about the results.
+
+6. To monitor the PR impact on the testing in the *next* branch and alert the editors that the PR is ready for merging in *master*.
+
+7. The review of bugfixes should be expedited proportional to their importance. The review window can be much less than three weeks in such cases.
+
+#### Responsibilities of Authors
+
+Authors should clearly indicate when a PR is ready for review (before that the PR should be marked as `Draft` or `[WIP]`).
+
+**The responsibilities of the authors are:**
+
+1. To follow the instructions and PR checklist in the `CONTRIBUTING.md` document in the MFEM repository.
+
+2. To respond to reviewer feedback in a timely manner.
+
+3. Authors are encouraged to perform testing and inform the reviewers about the results.
+
+4. Authors can use the "Reviewers" section of the GitHub PR page to suggest reviewers, but the "Assignees" section will show who the editor has assigned to do the reviews.
+
+5. To indicate when the PR is ready for review by adding the `ready-for-review` label.
+
+
 ### Pull Request Checklist
 
 Before a PR can be merged, it should satisfy the following:
@@ -450,7 +540,9 @@ Before a PR can be merged, it should satisfy the following:
      - [ ] The miniapps go at the end of the page, and are usually listed only under a specific "Application (PDE)" category.
      - [ ] Add a short description of the miniapp in the "Extensive Examples" section of `features.md`.
 - [ ] New capability:
-   - [ ] All significant new classes, methods and functions have Doxygen-style documentation in source comments.
+   - [ ] All new public, protected, and private classes, methods, data members, and functions have full Doxygen-style documentation in source comments. Documentation should include descriptions of member data, function arguments and return values, template parameters, and prerequisites for calling new functions.
+   - [ ] Pointer arguments and return values must specify whether ownership is being transferred or lent with the call.
+   - [ ] Any new functions should include descriptions of their intended use e.g. for internal use only, user-facing, etc., along with references to example code whenever possible/appropriate.
    - [ ] Consider adding new sample runs in existing examples to highlight the new capability.
    - [ ] Consider saving cool simulation pictures with the new capability in the Confluence gallery (LLNL only) or submitting them, via pull request, to the gallery section of the `mfem/web` repo.
    - [ ] If this is a major new feature, consider mentioning it in the short summary inside `README` *(rare)*.
@@ -460,6 +552,7 @@ Before a PR can be merged, it should satisfy the following:
 - [ ] Run the tests in `tests/scripts`.
 - [ ] (LLNL only) After merging:
    - [ ] Update internal tests to include the new features.
+
 
 ### Master/Next Workflow
 
@@ -552,7 +645,9 @@ MFEM uses a `master`/`next`-branch workflow as described below:
     - Update version and shortlinks in `src/index.md` and `src/download.md`.
     -  Use [cloc-1.62.pl](http://cloc.sourceforge.net/) and `ls -lh` to estimate the SLOC and the tarball size in `src/download.md`.
 
+
 ## LLNL Workflow
+
 
 ### Mirroring on Bitbucket
 
@@ -573,16 +668,17 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   - `mfem:gh-next` -- Bleeding-edge development version, may be broken, use at
      your own risk.
 
+
 ### Mirroring on GitLab
 
 - MFEM repository is also mirrored on the LLNL GitLab instance, in a
   semi-automated manner.
 
 - This instance is meant to complete CI testing with tests on Livermore
-  Computing systems. Gitlab pipeline status is reported in the corresponding
+  Computing systems. GitLab pipeline status is reported in the corresponding
   GitHub pull request.
 
-- In Gitlab pipelines, TPLs (dependencies) are built using Spack, driven by Uberenv.
+- In GitLab pipelines, TPLs (dependencies) are built using Spack, driven by Uberenv.
 
 - No change to the MFEM repo can be made on this instance.
 
@@ -595,6 +691,7 @@ In addition, developers can set local git hooks to run some quick checks on
 commit or push, see the [README](config/githooks/README.md) in the `config/githooks`
 directory.
 
+
 ### Linux and Mac smoke tests
 We use GitHub Actions to drive the default tests on the `master` and `next`
 branches. See the `.github/workflows` files and the logs at
@@ -606,6 +703,7 @@ constraint on jobs. Two virtual machines are configured - Mac (OS X) and Linux.
 - Tests on the `master` branch are triggered whenever a PR is issued on this branch.
 - Tests on the `next` branch are currently scheduled to run each night.
 
+
 ### Windows smoke test
 We use Appveyor to test building with the MS Visual C++ compiler in a Windows
 environment, as well as to test the CMake build. See the `.appveyor` file and the
@@ -614,6 +712,7 @@ build logs at
 
 CMake is used to generate the MSVC Project files and drive the build.  A release
 and debug build is performed with a simple run of `ex1` to verify the executable.
+
 
 ### Tests at LLNL
 

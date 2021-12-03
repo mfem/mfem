@@ -90,6 +90,11 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
 
 # Enable languages.
 enable_language(CXX)
+if (MINGW)
+   # MinGW GCC does not expose the functions jn/_jn, yn/_yn (used in Example
+   # 25/25p) unless we use '-std=gnu++11':
+   set(CMAKE_CXX_EXTENSIONS ON)
+endif()
 if (MFEM_USE_CUDA)
    if (MFEM_USE_HIP)
       message(FATAL_ERROR " *** MFEM_USE_HIP cannot be combined with MFEM_USE_CUDA.")
@@ -247,6 +252,11 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   endif()
   find_package(OpenMP REQUIRED)
   set(OPENMP_LIBRARIES ${OpenMP_CXX_LIBRARIES})
+  if(APPLE)
+    # On macOS, the compiler needs additional help to find the <omp.h> header.
+    # See issue #2642 for more information.
+    include_directories(${OpenMP_CXX_INCLUDE_DIRS})
+  endif(APPLE)
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)
@@ -328,11 +338,11 @@ if (MFEM_USE_AMGX)
 endif()
 
 if (MFEM_USE_CONDUIT)
-    find_package(Conduit REQUIRED conduit relay blueprint )
+    find_package(Conduit REQUIRED conduit relay blueprint)
 endif()
 
 if (MFEM_USE_FMS)
-    find_package(FMS REQUIRED fms )
+    find_package(FMS REQUIRED fms)
 endif()
 
 # Axom/Sidre
@@ -379,6 +389,12 @@ if (MFEM_USE_HIOP)
   # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
 endif()
 
+# CoDiPack package
+if (MFEM_USE_CODIPACK)
+  find_package(CODIPACK REQUIRED)
+  # find_package updates CODIPACK_FOUND, CODIPACK_INCLUDE_DIRS, CODIPACK_LIBRARIES
+endif()
+
 # OCCA
 if (MFEM_USE_OCCA)
    find_package(OCCA REQUIRED)
@@ -392,6 +408,11 @@ endif()
 # UMPIRE
 if (MFEM_USE_UMPIRE)
    find_package(UMPIRE REQUIRED)
+endif()
+
+# GOOGLE-BENCHMARK
+if (MFEM_USE_BENCHMARK)
+   find_package(Benchmark REQUIRED)
 endif()
 
 # Caliper
@@ -422,6 +443,11 @@ if (MFEM_USE_MKL_CPARDISO)
   endif()
 endif()
 
+# PARELAG
+if (MFEM_USE_PARELAG)
+   find_package(PARELAG REQUIRED)
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -445,10 +471,10 @@ endif()
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS MPI_CXX OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
+set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
     SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB NETCDF
-    MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2 MOONOLITH
-    CUSPARSE MKL_CPARDISO AMGX CALIPER)
+    MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
+    MOONOLITH CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG MPI_CXX)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -521,13 +547,9 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
-if (CMAKE_VERSION VERSION_GREATER 2.8.11)
-  target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
-else()
-  target_link_libraries(mfem ${TPL_LIBRARIES})
-endif()
+target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
 if (MINGW)
-  target_link_libraries(mfem ws2_32)
+  target_link_libraries(mfem PRIVATE ws2_32)
 endif()
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
@@ -566,15 +588,21 @@ endif()
 set(MFEM_CUSTOM_TARGET_PREFIX CACHE STRING "")
 
 #-------------------------------------------------------------------------------
-# Examples, miniapps, and testing
+# Examples, miniapps, benchmarks and testing
 #-------------------------------------------------------------------------------
 
-# Enable testing if required
+# Enable testing and benchmarks if required
 if (MFEM_ENABLE_TESTING)
   enable_testing()
   set(MFEM_ALL_TESTS_TARGET_NAME tests)
   add_mfem_target(${MFEM_ALL_TESTS_TARGET_NAME} OFF)
   add_subdirectory(tests EXCLUDE_FROM_ALL)
+
+  # Create a target for all benchmarks and, optionally, enable it.
+  set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
+  add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
+                  ${MFEM_ENABLE_GOOGLE_BENCHMARKS})
+  add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
 endif()
 
 # Define a target that all examples and miniapps will depend on.
@@ -584,7 +612,11 @@ add_custom_target(${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 # Create a target for all examples and, optionally, enable it.
 set(MFEM_ALL_EXAMPLES_TARGET_NAME examples)
 add_mfem_target(${MFEM_ALL_EXAMPLES_TARGET_NAME} ${MFEM_ENABLE_EXAMPLES})
-add_subdirectory(examples EXCLUDE_FROM_ALL)
+if (MFEM_ENABLE_EXAMPLES)
+  add_subdirectory(examples) #install examples if enabled
+else()
+  add_subdirectory(examples EXCLUDE_FROM_ALL)
+endif()
 
 # Create a target for all miniapps and, optionally, enable it.
 set(MFEM_ALL_MINIAPPS_TARGET_NAME miniapps)
@@ -594,6 +626,7 @@ add_subdirectory(miniapps EXCLUDE_FROM_ALL)
 # Target to build all executables, i.e. everything.
 add_custom_target(exec)
 add_dependencies(exec
+  ${MFEM_ALL_BENCHMARKS_TARGET_NAME}
   ${MFEM_ALL_EXAMPLES_TARGET_NAME}
   ${MFEM_ALL_MINIAPPS_TARGET_NAME}
   ${MFEM_ALL_TESTS_TARGET_NAME})

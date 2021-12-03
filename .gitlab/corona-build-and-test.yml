@@ -1,0 +1,67 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+stages:
+  - setup
+  - allocate_resource
+  - build_and_test
+  - release_resource_and_report
+
+# Slurm shared allocation
+allocate_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: allocate_resource
+  script:
+    - echo ${ALLOC_NAME}
+    - salloc --exclusive --nodes=1 --partition=mi60 --time=30 --no-shell --job-name=${ALLOC_NAME}
+  timeout: 6h
+  needs: [setup]
+
+# Build and test jobs, simply provide a spec
+rocm_gcc_8.3.1:
+  variables:
+    SPEC: "@develop%gcc@8.3.1+rocm amdgpu_target=gfx906"
+  extends: .build_and_test_on_corona
+  needs: [allocate_resource]
+
+# Release slurm allocation
+release_resource:
+  variables:
+    GIT_STRATEGY: none
+  extends: .on_corona
+  stage: release_resource_and_report
+  script:
+    - echo ${ALLOC_NAME}
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - echo ${JOBID}
+    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
+  needs: [rocm_gcc_8.3.1]
+
+# Jobs report
+report_job_success:
+  stage: release_resource_and_report
+  extends:
+    - .on_corona
+    - .report_job_success
+
+report_job_failure:
+  stage: release_resource_and_report
+  extends:
+    - .on_corona
+    - .report_job_failure
+
+include:
+  - local: .gitlab/configs/common.yml
+  - local: .gitlab/configs/corona-config.yml
+  - local: .gitlab/configs/setup-build-and-test.yml
+  - local: .gitlab/configs/report-build-and-test.yml

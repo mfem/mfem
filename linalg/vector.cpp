@@ -39,19 +39,19 @@ namespace mfem
 Vector::Vector(const Vector &v)
 {
    const int s = v.Size();
+   size = s;
    if (s > 0)
    {
       MFEM_ASSERT(!v.data.Empty(), "invalid source vector");
-      size = s;
       data.New(s, v.data.GetMemoryType());
       data.CopyFrom(v.data, s);
    }
-   else
-   {
-      size = 0;
-      data.Reset();
-   }
    UseDevice(v.UseDevice());
+}
+
+Vector::Vector(Vector &&v)
+{
+   *this = std::move(v);
 }
 
 void Vector::Load(std::istream **in, int np, int *dim)
@@ -143,6 +143,15 @@ Vector &Vector::operator=(const Vector &v)
    data.CopyFrom(v.data, v.Size());
    v.UseDevice(vuse);
 #endif
+   return *this;
+}
+
+Vector &Vector::operator=(Vector &&v)
+{
+   data = std::move(v.data);
+   size = v.size;
+   v.data.Reset();
+   v.size = 0;
    return *this;
 }
 
