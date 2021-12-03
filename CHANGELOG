@@ -10,10 +10,80 @@
 
 Version 4.3.1 (development)
 ===========================
+
 - Added support for parallel non-conforming, non-matching, variational, volumetric
   mesh information transfer using ParMoonolith (https://bitbucket.org/zulianp/par_moonolith).
   With ParMortarAssember fields can be exchanged between arbitrarily distributed and unrelated
   finite element meshes in a variationally consistent way.
+
+- Added support for automatic differentiation. Users can select between
+  native implementation and external library implementation at the
+  configuration phase. A parallel and two serial examples are implemented
+  in the autodiff miniapp directory.
+
+- Added support for mesh preprocessing to resolve fine scale problem data
+  before simulation. This feature uses adaptive mesh refinement to control the
+  associated data oscillation error. See the new Example 30/30p.
+
+- Switched from Artistic Style (astyle) version 2.05.1 to version 3.1 for code
+  formatting. See the "make style" target.
+
+- Split the fem/fe.?pp files into separate files in the new fem/fe/ directory
+  to simplify and clarify the organization of FiniteElement classes.
+
+- Added support for hr-adaptivity using TMOP-based error estimator.
+
+- Coefficient::SetTime now propagates the new time into internally stored
+  Coefficient objects.
+
+- Added initial support for google-benchmarks in the tests/benchmarks directory.
+  It can be enabled with MFEM_USE_BENCHMARK=YES.
+
+- Added Binder (mybinder.org) configuration files for C++ MFEM Jupyter Notebooks
+  with inline GLVis visualization as well as a new examples/jupyter/ directory
+  with a sample notebook based on Example 1. Implementation based on xeus-cling,
+  github.com/jupyter-xeus/xeus-cling + xeus-glvis, github.com/GLVis/xeus-glvis.
+
+- Added 'double' atomicAdd implementation for previous versions of CUDA.
+
+- Adding lowest order Nedelec and Raviart-Thomas basis functions on wedge
+  shaped elements.
+
+- Added initial support for meshes with pyramidal elements, including several
+  pyramidal meshes in the data/ directory and support for the lowest order H1,
+  Nedelec, Raviart-Thomas, and L2 basis functions on pyramids.
+
+- Updated the hypre interface according to changes in hypre-2.22.1. The ADS
+  solver is now fully working on GPUs.
+
+- Tetrahedral meshes no longer need to be reordered to support high order
+  Nedelec basis functions. This will allow future support for Nedelec basis
+  functions on wedges and pyramids which are not amenable to reordering. The
+  ReorientTetMesh method of the Mesh and ParMesh classes has been deprecated.
+
+- Gmsh meshes where all elements have zero physical tag (the default Gmsh
+  output format if no physical groups are defined) are now successfully loaded,
+  and elements are reassigned attribute number 1.
+
+- Added new miniapps that use the ParELAG library, its hybrid smoothers, and the
+  hierarchy of spaces created by the element-based AMG (AMGe) methodology in
+  ParELAG to build multigrid solvers for H(curl) and H(div) forms. See the
+  miniapps/parelag directory for more details.
+
+- Fixed several MinGW build issues on Windows.
+
+- Remove the 'u' flag in the ar command, to update all files in the archive,
+  avoiding file name collisions from different subdirectories.
+
+- Added initial TMOP-based capabilities for surface fitting and tangential
+  relaxation in the mesh-optimizer and pmesh-optimizer miniapps.
+
+- Added ParMesh Adjaceny Set (adjset) creation support to the Conduit Mesh
+  Blueprint MFEM wrapper functions in ConduitDataCollection.
+
+- `HypreParVector` and `Vector` now support move semantics, and the copy
+  constructor for `HypreParVector` now copies the local vector data.
+
 
 Version 4.3, released on July 29, 2021
 ======================================

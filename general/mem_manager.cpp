@@ -33,7 +33,8 @@
 #endif
 
 #ifdef MFEM_USE_UMPIRE
-#include "umpire/Umpire.hpp"
+#include <umpire/Umpire.hpp>
+#include <umpire/strategy/QuickPool.hpp>
 
 // Make sure Umpire is build with CUDA support if MFEM is built with it.
 #if defined(MFEM_USE_CUDA) && !defined(UMPIRE_ENABLE_CUDA)
@@ -535,7 +536,7 @@ public:
    {
       if (!rm.isAllocator(name))
       {
-         allocator = rm.makeAllocator<umpire::strategy::DynamicPool>(
+         allocator = rm.makeAllocator<umpire::strategy::QuickPool>(
                         name, rm.getAllocator(space));
          owns_allocator = true;
       }
@@ -910,7 +911,12 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType h_mt, unsigned flags)
    MFEM_ASSERT(IsHostMemory(h_mt), "invalid h_mt = " << (int)h_mt);
    // MFEM_ASSERT(registered || IsHostMemory(h_mt),"");
    MFEM_ASSERT(!owns_device || owns_internal, "invalid Memory state");
-   MFEM_ASSERT(registered || !(owns_host || owns_device || owns_internal),
+   // If at least one of the 'own_*' flags is true then 'registered' must be
+   // true too. An acceptable exception is the special case when 'h_ptr' is
+   // NULL, and both 'own_device' and 'own_internal' are false -- this case is
+   // an exception only when 'own_host' is true and 'registered' is false.
+   MFEM_ASSERT(registered || !(owns_host || owns_device || owns_internal) ||
+               (!(owns_device || owns_internal) && h_ptr == nullptr),
                "invalid Memory state");
    if (!mm.exists || !registered) { return h_mt; }
    if (alias)

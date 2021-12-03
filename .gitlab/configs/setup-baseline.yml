@@ -1,0 +1,72 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# The setup_baseline job doesn't rely on MFEM git repo. It prepares a
+# pipeline-wide working directory downloading/updating external repos.
+# TODO:
+# updating tests and tpls is not necessary anymore since pipelines are now
+# using unique directories so repo are never shared with another pipeline. This
+# is not memory efficient (we keep a lot of data), hence this reminder.
+setup_baseline:
+  tags:
+    - shell
+    - quartz
+  stage: setup
+  variables:
+    GIT_STRATEGY: none
+  script:
+    #
+    # Setup ${BUILD_ROOT}/tpls and ${BUILD_ROOT}/tests:
+    #
+    - echo "MACHINE_NAME = ${MACHINE_NAME}"
+    - echo "REBASELINE = ${REBASELINE}"
+    - echo "AUTOTEST = ${AUTOTEST}"
+    - echo "AUTOTEST_COMMIT = ${AUTOTEST_COMMIT}"
+    - echo "BUILD_ROOT ${BUILD_ROOT}"
+    - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
+    - if [ ! -d "tpls" ]; then git clone ${TPLS_REPO}; fi
+    - if [ ! -d "tests" ]; then git clone ${TESTS_REPO}; fi
+    - cd tpls && git pull && cd ..
+    - cd tests && git pull origin && cd ..
+    #
+    # Setup ${AUTOTEST_ROOT}/autotest:
+    #
+    - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
+    - mkdir -p ${AUTOTEST_ROOT} && cd ${AUTOTEST_ROOT}
+    - command -v flock || echo "Required command 'flock' not found"
+    - |
+      (
+        date
+        echo "Waiting to aquire lock on '$PWD/autotest.lock' ..."
+        # try to get an excusive lock on fd 9 (autotest.lock) repeating the try
+        # every 5 seconds; simply using no timeout, i.e. 'flock 9', causes the
+        # command to hang indefinitely sometimes, so we use the timeout & retry
+        # as a workaround; we may want to add a counter for the number of
+        # retries to interrupt a potential infinite loop
+        while ! flock -w 5 9; do
+          true
+        done
+        echo "Aquired lock on '$PWD/autotest.lock'"
+        date
+        # clone/update the autotest repo while holding the file lock on
+        # 'autotest.lock'
+        err=0
+        if [[ ! -d "autotest" ]]; then
+          git clone ${AUTOTEST_REPO}
+        else
+          cd autotest && git pull && cd ..
+        fi || err=1
+        # sleep for a period to allow NFS to propagate the above changes;
+        # clearly, there is no guarantee that other NFS clients will see the
+        # changes even after the timeout
+        sleep 10
+        exit $err
+      ) 9> autotest.lock
