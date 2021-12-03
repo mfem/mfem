@@ -35,8 +35,8 @@
 
 
 /**
- * These are the main mathematical operatiosns using a Basis, and Degrees of
- * freedom.
+ * These are the main mathematical operations using a Basis, Degrees of
+ * freedom, and QData.
  * */
 
 /// Basis contractions for the tensors
