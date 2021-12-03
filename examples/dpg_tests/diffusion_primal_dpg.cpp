@@ -69,25 +69,17 @@ int main(int argc, char *argv[])
    NormalEquations * a = new NormalEquations(domain_fes,trace_fes,test_fecols);
 
 
-
-
    ConstantCoefficient one(1.0);
    a->AddDomainBFIntegrator(new DiffusionIntegrator(one),0,0);
    a->AddTraceElementBFIntegrator(new TraceIntegrator,0,0);
 
    BilinearFormIntegrator * diffusion = new DiffusionIntegrator(one);
    BilinearFormIntegrator * mass = new MassIntegrator(one);
-   // SumIntegrator * suminteg = new SumIntegrator();
-   // suminteg->AddIntegrator(diffusion);
-   // suminteg->AddIntegrator(mass);
-   // a->AddTestIntegrator(suminteg,0,0);
    a->AddTestIntegrator(diffusion,0,0);
    a->AddTestIntegrator(mass,0,0);
 
    a->AddDomainLFIntegrator(new DomainLFIntegrator(one),0);
    a->Assemble();
-
-
 
    Array<int> ess_tdof_list;
    if (mesh.bdr_attributes.Size())
@@ -98,30 +90,33 @@ int main(int argc, char *argv[])
    }
 
    Vector X,B;
-   OperatorPtr A;
+   OperatorPtr Ah;
 
    int size = H1fes.GetVSize() + RTtrace_fes.GetVSize();
 
    Vector x(size);
    x = 0.0;
 
-   a->FormLinearSystem(ess_tdof_list,x,A,X,B);
+   a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
 
+   BlockMatrix * A = (BlockMatrix *)(Ah.Ptr());
+   BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
+   M->owns_blocks = 1;
+   for (int i=0; i<A->NumRowBlocks(); i++)
+   {
+      M->SetDiagonalBlock(i,new UMFPackSolver(A->GetBlock(i,i)));
+   }
 
-
-   GSSmoother M((SparseMatrix&)(*A));
    CGSolver cg;
-
-
    cg.SetRelTol(1e-6);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(3);
-   cg.SetPreconditioner(M);
+   cg.SetPreconditioner(*M);
    cg.SetOperator(*A);
    cg.Mult(B, X);
 
+   delete M;
 
-   // SparseMatrix & As = (SparseMatrix&)(*A);
 
    a->RecoverFEMSolution(X,x);
 

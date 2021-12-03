@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int delta_order = 1;
    int ref = 1;
-   bool adjoint_graph_norm = true;
+   bool adjoint_graph_norm = false;
    bool visualization = true;
 
 
@@ -186,7 +186,6 @@ int main(int argc, char *argv[])
    }
 
    Vector X,B;
-   OperatorPtr A;
 
    int size = u_fes->GetVSize() + sigma_fes->GetVSize()
             + hatu_fes->GetVSize() + hatsigma_fes->GetVSize();
@@ -194,18 +193,27 @@ int main(int argc, char *argv[])
    Vector x(size);
    x = 0.0;
 
-   // ess_tdof_list.SetSize(0);
-   a->FormLinearSystem(ess_tdof_list,x,A,X,B);
+   OperatorPtr Ah;
+   a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
 
-   GSSmoother M((SparseMatrix&)(*A));
+   BlockMatrix * A = (BlockMatrix *)(Ah.Ptr());
+
+   BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
+   M->owns_blocks = 1;
+   for (int i=0; i<A->NumRowBlocks(); i++)
+   {
+      M->SetDiagonalBlock(i,new UMFPackSolver(A->GetBlock(i,i)));
+   }
+
    CGSolver cg;
-
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(3);
-   cg.SetPreconditioner(M);
+   cg.SetPreconditioner(*M);
    cg.SetOperator(*A);
    cg.Mult(B, X);
+
+   delete M;
 
    a->RecoverFEMSolution(X,x);
 

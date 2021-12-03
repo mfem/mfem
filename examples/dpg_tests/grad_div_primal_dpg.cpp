@@ -104,21 +104,27 @@ int main(int argc, char *argv[])
    }
 
    Vector X,B;
-   SparseMatrix A;
 
-   a->FormLinearSystem(ess_tdof_list,x,A,X,B);
+   OperatorPtr Ah;
+   a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
 
-   GSSmoother M(A);
+   BlockMatrix * A = (BlockMatrix *)(Ah.Ptr());
+   BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
+   M->owns_blocks = 1;
+   for (int i=0; i<A->NumRowBlocks(); i++)
+   {
+      M->SetDiagonalBlock(i,new UMFPackSolver(A->GetBlock(i,i)));
+   }
+
    CGSolver cg;
-
-
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(3);
-   cg.SetPreconditioner(M);
-   cg.SetOperator(A);
+   cg.SetPreconditioner(*M);
+   cg.SetOperator(*A);
    cg.Mult(B, X);
 
+   delete M;
 
    a->RecoverFEMSolution(X,x);
 
