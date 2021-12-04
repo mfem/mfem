@@ -163,6 +163,8 @@ int main(int argc, char *argv[])
       a->AddTestIntegrator(new MixedVectorGradientIntegrator(negone),1,0);
       // -(v,∇δv) 
       a->AddTestIntegrator(new MixedVectorWeakDivergenceIntegrator(one),0,1);
+      // (v,δv)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(one),0,0);
    }
 
    // RHS
