@@ -136,15 +136,9 @@ public:
                                  const double val = 1.) const;
    ///@}
 
-
-   void FindGlobalRow(int iglobal, int & iblock, int & iloc) const
-   {
-      findGlobalRow(iglobal, iblock, iloc);
-   }
-   void FindGlobalCol(int jglobal, int & jblock, int & jloc) const
-   {
-      findGlobalCol(jglobal, jblock, jloc);
-   }
+   void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
+   void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
+                    const double a=1.0) const;
 
    //! Destructor
    virtual ~BlockMatrix();
