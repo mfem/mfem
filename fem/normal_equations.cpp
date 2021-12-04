@@ -88,27 +88,8 @@ void NormalEquations::AllocMat()
 
 void NormalEquations::Finalize(int skip_zeros)
 {
-   if (mat)
-   {
-      for (int i = 0; i<nblocks; i++)
-      {
-         for (int j = 0; j<nblocks; j++)
-         {
-            mat->GetBlock(i,j).Finalize(skip_zeros);
-         }
-      }
-   }
-
-   if (mat_e)
-   {
-      for (int i = 0; i<nblocks; i++)
-      {
-         for (int j = 0; j<nblocks; j++)
-         {
-            mat_e->GetBlock(i,j).Finalize(skip_zeros);
-         }
-      }
-   }
+   if (mat) { mat->Finalize(skip_zeros); }
+   if (mat_e) { mat_e->Finalize(skip_zeros); }
 }
 
 /// Adds new Domain BF Integrator. Assumes ownership of @a bfi.
@@ -143,6 +124,8 @@ void NormalEquations::BuildProlongation()
 {
    P = new BlockMatrix(dof_offsets, tdof_offsets);
    R = new BlockMatrix(tdof_offsets, dof_offsets);
+   P->owns_blocks = 0;
+   R->owns_blocks = 0;
    for (int i = 0; i<nblocks; i++)
    {
       const SparseMatrix *P_ = fespaces[i]->GetConformingProlongation();
@@ -154,10 +137,12 @@ void NormalEquations::BuildProlongation()
       }
       else
       {
+         // do nothing
+
          // TODO improve this by using BlockOperator/BlockMatrix
-         Vector diag(fespaces[i]->GetVSize()); diag = 1.;
-         P->SetBlock(i,i,new SparseMatrix(diag));
-         R->SetBlock(i,i,new SparseMatrix(diag));
+         // Vector diag(fespaces[i]->GetVSize()); diag = 1.;
+         // P->SetBlock(i,i,new SparseMatrix(diag));
+         // R->SetBlock(i,i,new SparseMatrix(diag));
       }
    }
 }
@@ -169,19 +154,87 @@ void NormalEquations::ConformingAssemble()
 
    BlockMatrix * Pt = Transpose(*P);
    BlockMatrix * PtA = mfem::Mult(*Pt, *mat);
+   mat->owns_blocks = 0;
+   for (int i = 0; i<nblocks; i++)
+   {
+      for (int j = 0; j<nblocks; j++)
+      {
+         SparseMatrix * tmp = &mat->GetBlock(i,j);
+         if (Pt->IsZeroBlock(i,i))
+         {
+            PtA->SetBlock(i,j,tmp);
+         }
+         else
+         {
+            delete tmp;
+         }
+      }
+   }
    delete mat;
    if (mat_e)
    {
       BlockMatrix *PtAe = mfem::Mult(*Pt, *mat_e);
+      mat_e->owns_blocks = 0;
+      for (int i = 0; i<nblocks; i++)
+      {
+         for (int j = 0; j<nblocks; j++)
+         {
+            SparseMatrix * tmp = &mat_e->GetBlock(i,j);
+            if (Pt->IsZeroBlock(i,i))
+            {
+               PtAe->SetBlock(i,j,tmp);
+            }
+            else
+            {
+               delete tmp;
+            }
+         }
+      }
       delete mat_e;
       mat_e = PtAe;
    }
    delete Pt;
+
    mat = mfem::Mult(*PtA, *P);
+
+   PtA->owns_blocks = 0;
+   for (int i = 0; i<nblocks; i++)
+   {
+      for (int j = 0; j<nblocks; j++)
+      {
+         SparseMatrix * tmp = &PtA->GetBlock(j,i);
+         if (P->IsZeroBlock(i,i))
+         {
+            mat->SetBlock(j,i,tmp);
+         }
+         else
+         {
+            delete tmp;
+         }
+      }
+   }
+   delete PtA;
 
    if (mat_e)
    {
       BlockMatrix *PtAeP = mfem::Mult(*mat_e, *P);
+      mat_e->owns_blocks = 0;
+      for (int i = 0; i<nblocks; i++)
+      {
+         for (int j = 0; j<nblocks; j++)
+         {
+            SparseMatrix * tmp = &mat_e->GetBlock(j,i);
+            if (P->IsZeroBlock(i,i))
+            {
+               PtAeP->SetBlock(j,i,tmp);
+            }
+            else
+            {
+               delete tmp;
+            }
+         }
+      }
+
       delete mat_e;
       mat_e = PtAeP;
    }
@@ -460,20 +513,7 @@ void NormalEquations::EliminateVDofsInRHS(
    const Array<int> &vdofs, const Vector &x, Vector &b)
 {
    mat_e->AddMult(x,b,-1.);
-   Array<int> cols;
-   Vector srow;
-   for (int i = 0; i<vdofs.Size(); i++)
-   {
-      int dof = (vdofs[i]>=0) ? vdofs[i] : -1-vdofs[i];
-      mat->GetRow(dof,cols,srow);
-
-      double s=0.0;
-      for (int k = 0; k <cols.Size(); k++)
-      {
-         s += srow[k] * x[cols[k]];
-      }
-      b[dof] = s;
-   }
+   mat->PartMult(vdofs,x,b);
 }
 
 void NormalEquations::EliminateVDofs(const Array<int> &vdofs,
@@ -484,14 +524,8 @@ void NormalEquations::EliminateVDofs(const Array<int> &vdofs,
    {
       Array<int> offsets;
 
-      if (P)
-      {
-         offsets.MakeRef(tdof_offsets);
-      }
-      else
-      {
-         offsets.MakeRef(tdof_offsets);
-      }
+      offsets.MakeRef( (P) ? tdof_offsets : dof_offsets);
+
       mat_e = new BlockMatrix(offsets);
       mat_e->owns_blocks = 1;
       for (int i = 0; i<mat_e->NumRowBlocks(); i++)
@@ -518,6 +552,18 @@ void NormalEquations::RecoverFEMSolution(const Vector &X,
    {
       x.SetSize(P->Height());
       P->Mult(X, x);
+
+      double *data = X.GetData();
+      Vector tmp;
+      for (int i = 0; i<nblocks; i++)
+      {
+         if (P->IsZeroBlock(i,i))
+         {
+            int offset = tdof_offsets[i];
+            tmp.SetDataAndSize(&data[offset],tdof_offsets[i+1]-tdof_offsets[i]);
+            x.SetVector(tmp,offset);
+         }
+      }
    }
 }
 
@@ -551,11 +597,11 @@ NormalEquations::~NormalEquations()
       }
    }
 
-   for (int k = 0; k< test_integs.NumRows(); k++)
+   for (int k = 0; k < test_integs.NumRows(); k++)
    {
-      for (int l = 0; l<test_integs.NumCols(); l++)
+      for (int l = 0; l < test_integs.NumCols(); l++)
       {
-         for (int i = 0; i<test_integs(k,l)->Size(); i++)
+         for (int i = 0; i < test_integs(k,l)->Size(); i++)
          {
             delete (*test_integs(k,l))[i];
          }
@@ -565,15 +611,6 @@ NormalEquations::~NormalEquations()
 
    if (P)
    {
-      for (int i = 0; i<nblocks; i++)
-      {
-         const SparseMatrix *P_ = fespaces[i]->GetConformingProlongation();
-         if (!P_)
-         {
-            delete &P->GetBlock(i,i);
-            delete &R->GetBlock(i,i);
-         }
-      }
       delete P;
       delete R;
    }
