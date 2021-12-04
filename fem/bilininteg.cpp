@@ -1061,7 +1061,7 @@ void DiffusionIntegrator::ComputeElementFlux
 
 double DiffusionIntegrator::ComputeFluxEnergy
 ( const FiniteElement &fluxelem, ElementTransformation &Trans,
-  Vector &flux, Vector* d_energy)
+  Vector &flux, bool with_coef, Vector* d_energy)
 {
    int nd = fluxelem.GetDof();
    int dim = fluxelem.GetDim();
@@ -1107,18 +1107,38 @@ double DiffusionIntegrator::ComputeFluxEnergy
       if (MQ)
       {
          MQ->Eval(M, Trans, ip);
+         if (with_coef) { M.Invert(); }
          energy += w * M.InnerProduct(pointflux, pointflux);
       }
       else if (VQ)
       {
          VQ->Eval(D, Trans, ip);
+         if (with_coef)
+         {
+            Vector Dinv(D.Size());
+            Dinv = 1.0;
+            Dinv /= D;
+            D = Dinv;
+         }
+
          D *= pointflux;
+
          energy += w * (D * pointflux);
       }
       else
       {
          double e = (pointflux * pointflux);
-         if (Q) { e *= Q->Eval(Trans, ip); }
+         if (Q)
+         {
+            if (with_coef)
+            {
+               e /= Q->Eval(Trans, ip);
+            }
+            else
+            {
+               e *= Q->Eval(Trans, ip);
+            }
+         }
          energy += w * e;
       }
 
@@ -1958,7 +1978,8 @@ void CurlCurlIntegrator
 
 double CurlCurlIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
                                              ElementTransformation &Trans,
-                                             Vector &flux, Vector *d_energy)
+                                             Vector &flux, bool with_coef,
+                                             Vector *d_energy)
 {
    int nd = fluxelem.GetDof();
    int dim = fluxelem.GetDim();
@@ -2851,7 +2872,8 @@ void ElasticityIntegrator::ComputeElementFlux(
 
 double ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
                                                ElementTransformation &Trans,
-                                               Vector &flux, Vector *d_energy)
+                                               Vector &flux, bool with_coef,
+                                               Vector *d_energy)
 {
    const int dof = fluxelem.GetDof();
    const int dim = fluxelem.GetDim();
