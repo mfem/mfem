@@ -60,6 +60,17 @@ TEST_CASE("DoF Transformation Classes",
 
          REQUIRE(w.Norml2() < tol * u.Norml2());
       }
+      SECTION("Inverse Dual DoF transformation")
+      {
+         Vector w;
+
+         ut = u; T.TransformDual(ut);
+         w = ut; T.InvTransformDual(w);
+
+         w -= u;
+
+         REQUIRE(w.Norml2() < tol * u.Norml2());
+      }
 
       SECTION("Inner product with linear form f(v)")
       {
@@ -267,6 +278,17 @@ TEST_CASE("VDoF Transformation Class",
 
          REQUIRE(w.Norml2() < tol * v.Norml2());
       }
+      SECTION("Inverse Dual DoF transformation")
+      {
+         Vector w;
+
+         vt = v; T.TransformDual(vt);
+         w = vt; T.InvTransformDual(w);
+
+         w -= v;
+
+         REQUIRE(w.Norml2() < tol * v.Norml2());
+      }
       SECTION("Inner product with linear form f(v)")
       {
          vt = v; T.TransformPrimal(vt);
@@ -302,6 +324,17 @@ TEST_CASE("VDoF Transformation Class",
 
             REQUIRE(w.Norml2() < tol * v.Norml2());
          }
+         SECTION("Inverse Dual DoF transformation")
+         {
+            Vector w;
+
+            vt = v; T.TransformDual(vt);
+            w = vt; T.InvTransformDual(w);
+
+            w -= v;
+
+            REQUIRE(w.Norml2() < tol * v.Norml2());
+         }
          SECTION("Inner product with linear form f(v)")
          {
             vt = v; T.TransformPrimal(vt);
@@ -322,6 +355,17 @@ TEST_CASE("VDoF Transformation Class",
 
             vt = v; T.TransformPrimal(vt);
             w = vt; T.InvTransformPrimal(w);
+
+            w -= v;
+
+            REQUIRE(w.Norml2() < tol * v.Norml2());
+         }
+         SECTION("Inverse Dual DoF transformation")
+         {
+            Vector w;
+
+            vt = v; T.TransformDual(vt);
+            w = vt; T.InvTransformDual(w);
 
             w -= v;
 
