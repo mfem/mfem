@@ -40,7 +40,7 @@ void vectorcoeff(const Vector& x, Vector& y)
 
 TEST_CASE("transfer")
 {
-   for (int vectorspace = 0; vectorspace <= 1; ++vectorspace)
+   for (int vectorspace = 0; vectorspace <= 3; ++vectorspace)
    {
       for (dimension = 2; dimension <= 3; ++dimension)
       {
@@ -52,7 +52,6 @@ TEST_CASE("transfer")
                {
                   for (int geometric = 0; geometric <= 1; ++geometric)
                   {
-
                      int fineOrder = (geometric == 1) ? order : 2 * order;
 
                      std::cout << "Testing transfer:\n"
@@ -83,10 +82,27 @@ TEST_CASE("transfer")
                         }
                         mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
                      }
-                     FiniteElementCollection* c_h1_fec =
-                        new H1_FECollection(order, dimension);
-                     FiniteElementCollection* f_h1_fec = (geometric == 1) ? c_h1_fec : new
-                                                         H1_FECollection(fineOrder, dimension);
+                     FiniteElementCollection* c_h1_fec = nullptr;
+                     FiniteElementCollection* f_h1_fec = nullptr;
+
+                     if (vectorspace < 2)
+                     {
+                        c_h1_fec = new H1_FECollection(order, dimension);
+                        f_h1_fec = (geometric == 1) ? c_h1_fec : new
+                                   H1_FECollection(fineOrder, dimension);
+                     }
+                     else if (vectorspace == 2)
+                     {
+                        c_h1_fec = new ND_FECollection(order+1, dimension);
+                        f_h1_fec = (geometric == 1) ? c_h1_fec : new
+                                   ND_FECollection(fineOrder, dimension);
+                     }
+                     else
+                     {
+                        c_h1_fec = new RT_FECollection(order, dimension);
+                        f_h1_fec = (geometric == 1) ? c_h1_fec : new
+                                   RT_FECollection(fineOrder, dimension);
+                     }
 
                      Mesh fineMesh(mesh);
                      if (geometric)
@@ -101,10 +117,11 @@ TEST_CASE("transfer")
                         spaceDimension = dimension;
                      }
 
-                     FiniteElementSpace* c_h1_fespace = new FiniteElementSpace(&mesh, c_h1_fec,
-                                                                               spaceDimension);
-                     FiniteElementSpace* f_h1_fespace = new FiniteElementSpace(&fineMesh, f_h1_fec,
-                                                                               spaceDimension);
+                     FiniteElementSpace* c_h1_fespace =
+                        new FiniteElementSpace(&mesh, c_h1_fec, spaceDimension);
+                     FiniteElementSpace* f_h1_fespace =
+                        new FiniteElementSpace(&fineMesh, f_h1_fec,spaceDimension);
+
 
                      Operator* referenceOperator = nullptr;
 
