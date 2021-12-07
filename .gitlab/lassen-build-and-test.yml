@@ -21,18 +21,19 @@ opt_mpi_cuda_xl_16_1_1_8:
 
 # Jobs report
 report_job_success:
-  extends: .on_lassen
   stage: report
-  script:
-    - .gitlab/scripts/report_build_and_test_success
+  extends:
+    - .on_lassen
+    - .report_job_success
 
 report_job_failure:
-  extends: .on_lassen
   stage: report
-  script:
-    - .gitlab/scripts/report_build_and_test_failure
+  extends:
+    - .on_lassen
+    - .report_job_failure
 
 include:
   - local: .gitlab/configs/common.yml
   - local: .gitlab/configs/lassen-config.yml
   - local: .gitlab/configs/setup-build-and-test.yml
+  - local: .gitlab/configs/report-build-and-test.yml

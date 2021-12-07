@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/shifted/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/autodiff/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
@@ -25,55 +25,39 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-DIFFUSION_SRC = diffusion.cpp dist_solver.cpp sbm_solver.cpp marking.cpp
-DIFFUSION_OBJ = $(DIFFUSION_SRC:.cpp=.o)
-DISTANCE_SRC = distance.cpp dist_solver.cpp
-DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
+ADIFF_COMMON_SRC =
+ADIFF_COMMON_OBJ = $(ADIFF_COMMON_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion
-
+SEQ_MINIAPPS = seq_example seq_test
+PAR_MINIAPPS = par_example
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
-
-COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
-
-# If MFEM_SHARED is set, add the ../common rpath
-COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all lib-common clean clean-build clean-exec
+.PHONY: all clean clean-build clean-exec
 
-# Remove built-in rule
+# Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
-%.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+%: %.o $(ADIFF_COMMON_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
+%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
-
-distance: sbm_aux.hpp $(DISTANCE_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DISTANCE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
-
-diffusion: sbm_aux.hpp $(DIFFUSION_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DIFFUSION_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
-
-# Rule for building lib-common
-lib-common:
-	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-TEST_NAME := Shifted miniapp
+TEST_NAME := ADIFF miniapp
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
 %-test-seq: %
@@ -88,9 +72,8 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f diffusion.mesh diffusion.gf
-	@rm -rf ParaViewDistance ParaViewDiffusion
+	@rm -rf Example* 
