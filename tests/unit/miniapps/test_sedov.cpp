@@ -16,6 +16,7 @@
 
 #include "unit_tests.hpp"
 #include <unordered_map>
+#include <cstring>
 
 #include "mfem.hpp"
 #include "general/forall.hpp"
@@ -1074,7 +1075,8 @@ public:
 
    void Mult(const Vector &x, Vector &y) const
    {
-      ParGridFunction X;
+      // FIXME: why is 'x' being modified here (through 'X')?
+      Vector X;
       X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
       if (ess_tdofs_count) { X.SetSubVector(ess_tdofs, 0.0); }
       massOperator->Mult(X, y);
@@ -1459,12 +1461,12 @@ void QKernel(const int nzones,
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
                QBody<dim>(nzones, z, nqp, qx + qy * Q1D,
-               gamma, use_viscosity, h0, h1order, cfl, infinity,
-               Jinv,stress,sgrad_v,eig_val_data,eig_vec_data,
-               compr_dir,Jpi,ph_dir,stressJiT,
-               d_weights, d_Jacobians, d_rho0DetJ0w,
-               d_e_quads, d_grad_v_ext, d_Jac0inv,
-               d_dt_est, d_stressJinvT);
+                          gamma, use_viscosity, h0, h1order, cfl, infinity,
+                          Jinv,stress,sgrad_v,eig_val_data,eig_vec_data,
+                          compr_dir,Jpi,ph_dir,stressJiT,
+                          d_weights, d_Jacobians, d_rho0DetJ0w,
+                          d_e_quads, d_grad_v_ext, d_Jac0inv,
+                          d_dt_est, d_stressJinvT);
             }
          }
          MFEM_SYNC_THREAD;
@@ -1492,12 +1494,12 @@ void QKernel(const int nzones,
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
                   QBody<dim>(nzones, z, nqp, qx + Q1D * (qy + qz * Q1D),
-                  gamma, use_viscosity, h0, h1order, cfl, infinity,
-                  Jinv,stress,sgrad_v,eig_val_data,eig_vec_data,
-                  compr_dir,Jpi,ph_dir,stressJiT,
-                  d_weights, d_Jacobians, d_rho0DetJ0w,
-                  d_e_quads, d_grad_v_ext, d_Jac0inv,
-                  d_dt_est, d_stressJinvT);
+                             gamma, use_viscosity, h0, h1order, cfl, infinity,
+                             Jinv,stress,sgrad_v,eig_val_data,eig_vec_data,
+                             compr_dir,Jpi,ph_dir,stressJiT,
+                             d_weights, d_Jacobians, d_rho0DetJ0w,
+                             d_e_quads, d_grad_v_ext, d_Jac0inv,
+                             d_dt_est, d_stressJinvT);
                }
             }
          }
@@ -2201,6 +2203,15 @@ TEST_CASE("Sedov", "[Sedov], [Parallel]")
 #else
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
+#if defined(HYPRE_USING_CUDA) && defined(MFEM_DEBUG)
+   if (!strcmp(MFEM_SEDOV_DEVICE,"debug"))
+   {
+      cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+           << "is NOT supported with the CUDA version of hypre.\n\n";
+      return;
+   }
+#endif
+
    Device device;
    device.Configure(MFEM_SEDOV_DEVICE);
    device.Print();

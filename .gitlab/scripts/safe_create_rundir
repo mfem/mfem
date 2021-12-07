@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# This script takes a seed for a directory name and appends it with a counter
+# incremented until it can create a new directory with it.
+
+# Usage:
+#
+# Expects 1 argument: a string that is use as a seed for the directory name.
+#
+# > rundir="desired_name"
+# > rundir=$(./safe_create_rundir $rundir)
+
+set -o errexit
+set -o nounset
+
+rundir=${1:-""}
+if [[ -z ${rundir} ]]; then
+  >&2 echo "The script expects a string as argument for directory creation."
+  exit 1
+fi
+
+if ! mkdir ${rundir}; then
+  n=1
+  while ! mkdir ${rundir}_${n}
+  do
+    n=$((n+1))
+  done
+  rundir=${rundir}_${n}
+fi
+
+echo $rundir

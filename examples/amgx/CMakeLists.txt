@@ -50,30 +50,32 @@ add_mfem_examples(AMGX_EXAMPLES_SRCS ${PFX} copy_amgx_json_files test_amgx)
 # which builds the examples and runs:
 #   ctest -R amgx
 
-# Command line options for the tests.
-# Example 1/1p:
-set(EX1_TEST_OPTS)
-set(EX1P_TEST_OPTS)
+if (MFEM_ENABLE_TESTING)
+  # Command line options for the tests.
+  # Example 1/1p:
+  set(EX1_TEST_OPTS)
+  set(EX1P_TEST_OPTS)
 
-# Add the tests: one test per source file.
-foreach(SRC_FILE ${AMGX_EXAMPLES_SRCS})
-  get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
-  string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
-  string(TOUPPER ${TEST_NAME} UP_TEST_NAME)
-  set(TEST_NAME ${PFX}${TEST_NAME})
+  # Add the tests: one test per source file.
+  foreach(SRC_FILE ${AMGX_EXAMPLES_SRCS})
+    get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
+    string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
+    string(TOUPPER ${TEST_NAME} UP_TEST_NAME)
+    set(TEST_NAME ${PFX}${TEST_NAME})
 
-  set(THIS_TEST_OPTIONS "-no-vis")
-  list(APPEND THIS_TEST_OPTIONS ${${UP_TEST_NAME}_TEST_OPTS})
-  # message(STATUS "Test ${TEST_NAME} options: ${THIS_TEST_OPTIONS}")
+    set(THIS_TEST_OPTIONS "-no-vis")
+    list(APPEND THIS_TEST_OPTIONS ${${UP_TEST_NAME}_TEST_OPTS})
+    # message(STATUS "Test ${TEST_NAME} options: ${THIS_TEST_OPTIONS}")
 
-  if (NOT (${TEST_NAME} MATCHES ".*p$"))
-    add_test(NAME ${TEST_NAME}_ser
-      COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
-  else()
-    add_test(NAME ${TEST_NAME}_np=${MFEM_MPI_NP}
-      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-      ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
-      ${MPIEXEC_POSTFLAGS})
-  endif()
-endforeach()
+    if (NOT (${TEST_NAME} MATCHES ".*p$"))
+      add_test(NAME ${TEST_NAME}_ser
+        COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
+    else()
+      add_test(NAME ${TEST_NAME}_np=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS}
+        $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
+        ${MPIEXEC_POSTFLAGS})
+    endif()
+  endforeach()
+endif()

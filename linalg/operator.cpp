@@ -33,7 +33,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    else
    {
       // B points to same data as b
-      B.NewMemoryAndSize(b.GetMemory(), b.Size(), false);
+      B.MakeRef(b, 0, b.Size());
    }
    if (!IsIdentityProlongation(Pi))
    {
@@ -44,7 +44,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    else
    {
       // X points to same data as x
-      X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+      X.MakeRef(x, 0, x.Size());
    }
 }
 
@@ -208,6 +208,11 @@ void Operator::PrintMatlab(std::ostream & out, int n, int m) const
       }
       x(i) = 0.0;
    }
+}
+
+void Operator::PrintMatlab(std::ostream &out) const
+{
+   PrintMatlab(out, width, height);
 }
 
 
