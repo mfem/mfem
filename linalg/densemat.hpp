@@ -778,7 +778,6 @@ public:
    DenseTensor()
    {
       nk = 0;
-      tdata.Reset();
    }
 
    DenseTensor(int i, int j, int k)
@@ -811,10 +810,6 @@ public:
       {
          tdata.New(size, other.tdata.GetMemoryType());
          tdata.CopyFrom(other.tdata, size);
-      }
-      else
-      {
-         tdata.Reset();
       }
    }
 

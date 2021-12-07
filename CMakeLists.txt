@@ -252,6 +252,11 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   endif()
   find_package(OpenMP REQUIRED)
   set(OPENMP_LIBRARIES ${OpenMP_CXX_LIBRARIES})
+  if(APPLE)
+    # On macOS, the compiler needs additional help to find the <omp.h> header.
+    # See issue #2642 for more information.
+    include_directories(${OpenMP_CXX_INCLUDE_DIRS})
+  endif(APPLE)
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)
@@ -367,6 +372,12 @@ if (MFEM_USE_HIOP)
   # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
 endif()
 
+# CoDiPack package
+if (MFEM_USE_CODIPACK)
+  find_package(CODIPACK REQUIRED)
+  # find_package updates CODIPACK_FOUND, CODIPACK_INCLUDE_DIRS, CODIPACK_LIBRARIES
+endif()
+
 # OCCA
 if (MFEM_USE_OCCA)
    find_package(OCCA REQUIRED)
@@ -446,7 +457,7 @@ endif()
 set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
     SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB NETCDF
     MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
-    CUSPARSE MKL_CPARDISO AMGX CALIPER BENCHMARK PARELAG MPI_CXX)
+    CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG MPI_CXX)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -576,7 +587,11 @@ add_custom_target(${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 # Create a target for all examples and, optionally, enable it.
 set(MFEM_ALL_EXAMPLES_TARGET_NAME examples)
 add_mfem_target(${MFEM_ALL_EXAMPLES_TARGET_NAME} ${MFEM_ENABLE_EXAMPLES})
-add_subdirectory(examples EXCLUDE_FROM_ALL)
+if (MFEM_ENABLE_EXAMPLES)
+  add_subdirectory(examples) #install examples if enabled
+else()
+  add_subdirectory(examples EXCLUDE_FROM_ALL)
+endif()
 
 # Create a target for all miniapps and, optionally, enable it.
 set(MFEM_ALL_MINIAPPS_TARGET_NAME miniapps)
