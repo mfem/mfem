@@ -1,14 +1,14 @@
-//                       MFEM Example 30 - Parallel Version
+//                                MFEM Example 31
 //
-// Compile with: make ex30p
+// Compile with: make ex31
 //
-// Sample runs:  mpirun -np 4 ex30p -m ../data/hexagon.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/star.mesh
-//               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/fichera.mesh -o 3 -rs 1 -rp 0
-//               mpirun -np 4 ex30p -m ../data/square-disc-nurbs.mesh -o 3
-//               mpirun -np 4 ex30p -m ../data/amr-quad.mesh -o 2 -rs 1
-//               mpirun -np 4 ex30p -m ../data/amr-hex.mesh -rs 1
+// Sample runs:  ex31 -m ../data/inline-segment.mesh -o 2
+//               ex31 -m ../data/hexagon.mesh -o 2
+//               ex31 -m ../data/star.mesh -o 2
+//               ex31 -m ../data/fichera.mesh -o 3 -r 1
+//               ex31 -m ../data/square-disc-nurbs.mesh -o 3
+//               ex31 -m ../data/amr-quad.mesh -o 2 -r 1
+//               ex31 -m ../data/amr-hex.mesh -r 1
 //
 // Description:  This example code solves a simple electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
@@ -44,32 +44,21 @@ int dim;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
-
-   // 2. Parse command-line options.
+   // 1. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
-   int ser_ref_levels = 2;
-   int par_ref_levels = 1;
+   int ref_levels = 2;
    int order = 1;
-   bool ams = true;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
-                  "Number of times to refine the mesh uniformly in parallel.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
-   args.AddOption(&ams, "-ams", "--hypre-ams", "-slu",
-                  "--superlu", "Use AMS or SuperLU solver.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -77,33 +66,22 @@ int main(int argc, char *argv[])
 
    kappa = freq * M_PI;
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   dim = mesh->Dimension();
+   // 2. Read the mesh from the given mesh file.  We can handle triangular,
+   //    quadrilateral, or mixed meshes with the same code.
+   Mesh mesh(mesh_file, 1, 1);
+   dim = mesh.Dimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement (2 by default, or
-   //    specified on the command line with -rs).
-   for (int lev = 0; lev < ser_ref_levels; lev++)
+   // 3. Refine the mesh to increase the resolution. In this example we do
+   //    'ref_levels' of uniform refinement (2 by default, or specified on
+   //    the command line with -r).
+   for (int lev = 0; lev < ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
-   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
-   //    this mesh further in parallel to increase the resolution (1 time by
-   //    default, or specified on the command line with -rp). Once the parallel
-   //    mesh is defined, the serial mesh can be deleted.
-   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
-   for (int lev = 0; lev < par_ref_levels; lev++)
-   {
-      pmesh.UniformRefinement();
-   }
-
-   // 6. Define a parallel finite element space on the parallel mesh. Here we
-   //    use the Nedelec finite elements of the specified order.
+   // 4. Define a finite element space on the mesh. Here we use the Nedelec
+   //    finite elements of the specified order restricted to 1D, 2D, or 3D
+   //    depending on the dimension of the given mesh file.
    FiniteElementCollection *fec = NULL;
    if (dim == 1)
    {
@@ -117,44 +95,44 @@ int main(int argc, char *argv[])
    {
       fec = new ND_FECollection(order, dim);
    }
-   ParFiniteElementSpace fespace(&pmesh, fec);
-   HYPRE_Int size = fespace.GlobalTrueVSize();
-   if (mpi.Root()) { cout << "Number of H(Curl) unknowns: " << size << endl; }
+   FiniteElementSpace fespace(&mesh, fec);
+   int size = fespace.GetTrueVSize();
+   cout << "Number of H(Curl) unknowns: " << size << endl;
 
-   // 7. Determine the list of true (i.e. parallel conforming) essential
-   //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking all the boundary attributes from the mesh as essential
-   //    (Dirichlet) and converting them to a list of true dofs.
+   // 5. Determine the list of true essential boundary dofs. In this example,
+   //    the boundary conditions are defined by marking all the boundary
+   //    attributes from the mesh as essential (Dirichlet) and converting them
+   //    to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (pmesh.bdr_attributes.Size())
+   if (mesh.bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
       ess_bdr = 1;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 8. Set up the parallel linear form b(.) which corresponds to the
-   //    right-hand side of the FEM linear system, which in this case is
-   //    (f,phi_i) where f is given by the function f_exact and phi_i are the
-   //    basis functions in the finite element fespace.
+   // 6. Set up the linear form b(.) which corresponds to the right-hand side
+   //    of the FEM linear system, which in this case is (f,phi_i) where f is
+   //    given by the function f_exact and phi_i are the basis functions in
+   //    the finite element fespace.
    VectorFunctionCoefficient f(3, f_exact);
-   ParLinearForm b(&fespace);
+   LinearForm b(&fespace);
    b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
    b.Assemble();
 
-   // 9. Define the solution vector x as a parallel finite element grid function
+   // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x by projecting the exact
    //    solution. Note that only values from the boundary edges will be used
    //    when eliminating the non-homogeneous boundary condition to modify the
    //    r.h.s. vector b.
-   ParGridFunction sol(&fespace);
+   GridFunction sol(&fespace);
    VectorFunctionCoefficient E(3, E_exact);
    VectorFunctionCoefficient CurlE(3, CurlE_exact);
    sol.ProjectCoefficient(E);
 
-   // 10. Set up the parallel bilinear form corresponding to the EM diffusion
-   //     operator curl muinv curl + sigma I, by adding the curl-curl and the
-   //     mass domain integrators.
+   // 8. Set up the parallel bilinear form corresponding to the EM diffusion
+   //    operator curl muinv curl + sigma I, by adding the curl-curl and the
+   //    mass domain integrators.
    DenseMatrix sigmaMat(3);
    sigmaMat(0,0) = 2.0; sigmaMat(1,1) = 2.0; sigmaMat(2,2) = 2.0;
    sigmaMat(0,2) = 0.0; sigmaMat(2,0) = 0.0;
@@ -163,14 +141,14 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient muinv(1.0);
    MatrixConstantCoefficient sigma(sigmaMat);
-   ParBilinearForm a(&fespace);
+   BilinearForm a(&fespace);
    a.AddDomainIntegrator(new CurlCurlIntegrator(muinv));
    a.AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
 
-   // 11. Assemble the parallel bilinear form and the corresponding linear
-   //     system, applying any necessary transformations such as: parallel
-   //     assembly, eliminating boundary conditions, applying conforming
-   //     constraints for non-conforming AMR, etc.
+   // 9. Assemble the bilinear form and the corresponding linear system,
+   //    applying any necessary transformations such as: eliminating boundary
+   //    conditions, applying conforming constraints for non-conforming AMR,
+   //    etc.
    a.Assemble();
 
    OperatorPtr A;
@@ -178,76 +156,44 @@ int main(int argc, char *argv[])
 
    a.FormLinearSystem(ess_tdof_list, sol, b, A, X, B);
 
-   // 12. Solve the system AX=B using PCG with the AMS preconditioner from hypre
-   if (ams)
-   {
-      if (mpi.Root())
-      {
-         cout << "Size of linear system: "
-              << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
-      }
+   // 10. Solve the system A X = B.
 
-      HypreAMS ams(*A.As<HypreParMatrix>(), &fespace);
-
-      HyprePCG pcg(*A.As<HypreParMatrix>());
-      pcg.SetTol(1e-12);
-      pcg.SetMaxIter(1000);
-      pcg.SetPrintLevel(2);
-      pcg.SetPreconditioner(ams);
-      pcg.Mult(B, X);
-   }
-   else
-#ifdef MFEM_USE_SUPERLU
-   {
-      if (mpi.Root())
-      {
-         cout << "Size of linear system: "
-              << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
-      }
-
-      SuperLURowLocMatrix A_SuperLU(*A.As<HypreParMatrix>());
-      SuperLUSolver AInv(MPI_COMM_WORLD);
-      AInv.SetOperator(A_SuperLU);
-      AInv.Mult(B,X);
-   }
+#ifndef MFEM_USE_SUITESPARSE
+   // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   //     solve the system Ax=b with PCG.
+   GSSmoother M((SparseMatrix&)(*A));
+   PCG(*A, M, B, X, 1, 500, 1e-12, 0.0);
 #else
-   {
-      if (mpi.Root()) { cout << "No solvers available." << endl; }
-      return 1;
-   }
+   // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
+   //     system.
+   UMFPackSolver umf_solver;
+   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   umf_solver.SetOperator(*A);
+   umf_solver.Mult(B, X);
 #endif
 
-   // 13. Recover the parallel grid function corresponding to X. This is the
-   //     local finite element solution on each processor.
+   // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, sol);
 
-   // 14. Compute and print the H(Curl) norm of the error.
+   // 13. Compute and print the H(Curl) norm of the error.
    {
       double err = sol.ComputeHCurlError(&E, &CurlE);
-      if (mpi.Root())
-      {
-         cout << "\n|| E_h - E ||_{H(Curl)} = " << err << '\n' << endl;
-      }
+      cout << "\n|| E_h - E ||_{H(Curl)} = " << err << '\n' << endl;
    }
 
 
-   // 15. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   // 14. Save the refined mesh and the solution. This output can be viewed
+   //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
-
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs("refined.mesh");
       mesh_ofs.precision(8);
-      pmesh.Print(mesh_ofs);
-
-      ofstream sol_ofs(sol_name.str().c_str());
+      mesh.Print(mesh_ofs);
+      ofstream sol_ofs("sol.gf");
       sol_ofs.precision(8);
       sol.Save(sol_ofs);
    }
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -279,15 +225,15 @@ int main(int argc, char *argv[])
          H1_FECollection fec_h1(order, dim);
          L2_FECollection fec_l2(order-1, dim);
 
-         ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
-         ParFiniteElementSpace fes_l2(&pmesh, &fec_l2);
+         FiniteElementSpace fes_h1(&mesh, &fec_h1);
+         FiniteElementSpace fes_l2(&mesh, &fec_l2);
 
-         ParGridFunction xComp(&fes_l2);
-         ParGridFunction yComp(&fes_h1);
-         ParGridFunction zComp(&fes_h1);
+         GridFunction xComp(&fes_l2);
+         GridFunction yComp(&fes_h1);
+         GridFunction zComp(&fes_h1);
 
-         ParGridFunction dyComp(&fes_l2);
-         ParGridFunction dzComp(&fes_l2);
+         GridFunction dyComp(&fes_l2);
+         GridFunction dzComp(&fes_l2);
 
          InnerProductCoefficient xCoef(xVecCoef, solCoef);
          InnerProductCoefficient yCoef(yVecCoef, solCoef);
@@ -297,15 +243,12 @@ int main(int argc, char *argv[])
          yComp.ProjectCoefficient(yCoef);
          zComp.ProjectCoefficient(zCoef);
 
-         x_sock << "parallel " << num_procs << " " << myid << "\n"
-                << "solution\n" << pmesh << xComp << flush
+         x_sock << "solution\n" << mesh << xComp << flush
                 << "window_title 'X component'" << endl;
-         y_sock << "parallel " << num_procs << " " << myid << "\n"
-                << "solution\n" << pmesh << yComp << flush
+         y_sock << "solution\n" << mesh << yComp << flush
                 << "window_geometry 403 0 400 350 "
                 << "window_title 'Y component'" << endl;
-         z_sock << "parallel " << num_procs << " " << myid << "\n"
-                << "solution\n" << pmesh << zComp << flush
+         z_sock << "solution\n" << mesh << zComp << flush
                 << "window_geometry 806 0 400 350 "
                 << "window_title 'Z component'" << endl;
 
@@ -315,12 +258,10 @@ int main(int argc, char *argv[])
          dyComp.ProjectCoefficient(dyCoef);
          dzComp.ProjectCoefficient(dzCoef);
 
-         dy_sock << "parallel " << num_procs << " " << myid << "\n"
-                 << "solution\n" << pmesh << dyComp << flush
+         dy_sock << "solution\n" << mesh << dyComp << flush
                  << "window_geometry 403 375 400 350 "
                  << "window_title 'Y component of Curl'" << endl;
-         dz_sock << "parallel " << num_procs << " " << myid << "\n"
-                 << "solution\n" << pmesh << dzComp << flush
+         dz_sock << "solution\n" << mesh << dzComp << flush
                  << "window_geometry 806 375 400 350 "
                  << "window_title 'Z component of Curl'" << endl;
       }
@@ -345,26 +286,24 @@ int main(int argc, char *argv[])
          RT_FECollection fec_rt(order-1, dim);
          L2_FECollection fec_l2(order-1, dim);
 
-         ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
-         ParFiniteElementSpace fes_nd(&pmesh, &fec_nd);
-         ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
-         ParFiniteElementSpace fes_l2(&pmesh, &fec_l2);
+         FiniteElementSpace fes_h1(&mesh, &fec_h1);
+         FiniteElementSpace fes_nd(&mesh, &fec_nd);
+         FiniteElementSpace fes_rt(&mesh, &fec_rt);
+         FiniteElementSpace fes_l2(&mesh, &fec_l2);
 
-         ParGridFunction xyComp(&fes_nd);
-         ParGridFunction zComp(&fes_h1);
+         GridFunction xyComp(&fes_nd);
+         GridFunction zComp(&fes_h1);
 
-         ParGridFunction dxyComp(&fes_rt);
-         ParGridFunction dzComp(&fes_l2);
+         GridFunction dxyComp(&fes_rt);
+         GridFunction dzComp(&fes_l2);
 
          xyComp.ProjectCoefficient(xyCoef);
          zComp.ProjectCoefficient(zCoef);
 
-         xy_sock << "parallel " << num_procs << " " << myid << "\n";
          xy_sock.precision(8);
-         xy_sock << "solution\n" << pmesh << xyComp
+         xy_sock << "solution\n" << mesh << xyComp
                  << "window_title 'XY components'\n" << flush;
-         z_sock << "parallel " << num_procs << " " << myid << "\n"
-                << "solution\n" << pmesh << zComp << flush
+         z_sock << "solution\n" << mesh << zComp << flush
                 << "window_geometry 403 0 400 350 "
                 << "window_title 'Z component'" << endl;
 
@@ -374,12 +313,10 @@ int main(int argc, char *argv[])
          dxyComp.ProjectCoefficient(dxyCoef);
          dzComp.ProjectCoefficient(dzCoef);
 
-         dxy_sock << "parallel " << num_procs << " " << myid << "\n"
-                  << "solution\n" << pmesh << dxyComp << flush
+         dxy_sock << "solution\n" << mesh << dxyComp << flush
                   << "window_geometry 0 375 400 350 "
                   << "window_title 'XY components of Curl'" << endl;
-         dz_sock << "parallel " << num_procs << " " << myid << "\n"
-                 << "solution\n" << pmesh << dzComp << flush
+         dz_sock << "solution\n" << mesh << dzComp << flush
                  << "window_geometry 403 375 400 350 "
                  << "window_title 'Z component of Curl'" << endl;
       }
@@ -390,24 +327,22 @@ int main(int argc, char *argv[])
 
          RT_FECollection fec_rt(order-1, dim);
 
-         ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
+         FiniteElementSpace fes_rt(&mesh, &fec_rt);
 
-         ParGridFunction dsol(&fes_rt);
+         GridFunction dsol(&fes_rt);
 
          dsol.ProjectCoefficient(dsolCoef);
 
-         sol_sock << "parallel " << num_procs << " " << myid << "\n";
          sol_sock.precision(8);
-         sol_sock << "solution\n" << pmesh << sol
+         sol_sock << "solution\n" << mesh << sol
                   << "window_title 'Solution'" << flush << endl;
-         dsol_sock << "parallel " << num_procs << " " << myid << "\n"
-                   << "solution\n" << pmesh << dsol << flush
+         dsol_sock << "solution\n" << mesh << dsol << flush
                    << "window_geometry 0 375 400 350 "
                    << "window_title 'Curl of solution'" << endl;
       }
    }
 
-   // 17. Free the used memory.
+   // 16. Free the used memory.
    delete fec;
 
    return 0;
