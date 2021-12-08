@@ -13,6 +13,7 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
+#include "fem/linearform.hpp"
 #include "linalg/dtensor.hpp"
 
 #define MFEM_NVTX_COLOR Orange
@@ -853,6 +854,7 @@ struct SolverProblem: public BakeOff
       else { b.AddDomainIntegrator(new DomainLFIntegrator(rhs)); }
       {
          NVTX("b");
+         b.SetAssemblyLevel(LinearAssemblyLevel::FULL);
          b.Assemble();
       }
 
@@ -983,7 +985,7 @@ static void BPS##i##_##Prcd(bm::State &state){\
    const int refinements = state.range(2);\
    const int smoothness = 0;\
    const double eps = 1.0/state.range(1);\
-   const bool rhs_1 = false;\
+   const bool rhs_1 = true;\
    const bool rhs_n = 3;\
    const int order = state.range(0);\
    const int preconditioner = Prcd;\
