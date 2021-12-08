@@ -2689,6 +2689,10 @@ DGTransportTDO::NLOperator::~NLOperator()
    {
       delete bflfi_marker_[i];
    }
+
+   delete D_smoother_;
+   delete D_amg_;
+   delete cg2dg_;
 }
 
 void DGTransportTDO::NLOperator::SetLogging(int logging, const string & prefix)
