@@ -22,20 +22,22 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem)
 
   # Add the corresponding tests to the "test" target
-  add_test(NAME block-solvers-constant
-    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-    ${MPIEXEC_PREFLAGS}
-    $<TARGET_FILE:block-solvers> -r 2
-    ${MPIEXEC_POSTFLAGS})
+  if (MFEM_ENABLE_TESTING)
+    add_test(NAME block-solvers-constant
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:block-solvers> -r 2
+      ${MPIEXEC_POSTFLAGS})
 
-  add_test(NAME block-solvers-anisotropic
-    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-    ${MPIEXEC_PREFLAGS}
-    $<TARGET_FILE:block-solvers> -r 2
-    -m ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.mesh
-    -c ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.coeff
-    -eb ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.brd
-    ${MPIEXEC_POSTFLAGS})
+    add_test(NAME block-solvers-anisotropic
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:block-solvers> -r 2
+      -m ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.mesh
+      -c ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.coeff
+      -eb ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.brd
+      ${MPIEXEC_POSTFLAGS})
+  endif()
 endif()
 
 add_mfem_miniapp(lor_solvers
