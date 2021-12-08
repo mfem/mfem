@@ -17,7 +17,8 @@
 #define MFEM_DEBUG_COLOR 226
 #include "../general/debug.hpp"
 
-#include "../general/nvvp.hpp"
+#define MFEM_NVTX_COLOR DarkOrchid
+#include "../general/nvtx.hpp"
 
 namespace mfem
 {
@@ -36,7 +37,7 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
                                         FiniteElementSpace &fes_ho,
                                         OperatorHandle &Ah)
 {
-   NvtxPush("AssembleBatchedLORWithoutBC", SkyBlue);
+   MFEM_NVTX;
    Mesh &mesh_lor = *form_lor.FESpace()->GetMesh();
    Mesh &mesh_ho = *fes_ho.GetMesh();
    const int dim = mesh_ho.Dimension();
@@ -149,7 +150,6 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
    A->Finalize();
 
    if (has_to_init) { Ah.Reset(A); } // A now owns A_mat
-   NvtxPop();
 }
 
 
@@ -159,10 +159,10 @@ void AssembleBatchedLOR(LORBase &lor_disc,
                         const Array<int> &ess_dofs,
                         OperatorHandle &Ah)
 {
+   MFEM_NVTX;
    AssembleBatchedLORWithoutBC(lor_disc, form_lor, fes_ho, Ah);
 
    // Set essential dofs to 0.0
-   NvtxPush("BC", LightGoldenrod);
    const int n_ess_dofs = ess_dofs.Size();
    const auto ess_dofs_d = ess_dofs.Read();
 
@@ -190,7 +190,6 @@ void AssembleBatchedLOR(LORBase &lor_disc,
          }
       }
    });
-   NvtxPop();
 }
 
 
@@ -203,36 +202,35 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
                            OperatorHandle &Ah)
 {
    dbg();
+   MFEM_NVTX;
    ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
    assert(pfes_ho);
 
    OperatorHandle A_local;
    AssembleBatchedLORWithoutBC(lor_disc, form_lor, fes_ho, A_local);
-   //A_local.As<SparseMatrix>()->HostReadWriteI();
-   //A_local.As<SparseMatrix>()->HostReadWriteJ();
-   //A_local.As<SparseMatrix>()->HostReadWriteData();
    MFEM_VERIFY(A_local.As<SparseMatrix>()->Finalized(),
                "the local matrix must be finalized");
 
    OperatorHandle dA(Operator::Hypre_ParCSR),
                   Ph(Operator::Hypre_ParCSR);
-
-   NvtxPush("MakeSquareBlockDiag", LightGoldenrod);
-   dA.MakeSquareBlockDiag(pfes_ho->GetComm(), pfes_ho->GlobalVSize(),
-                          pfes_ho->GetDofOffsets(), A_local.As<SparseMatrix>());
-   NvtxPop();
-
-   NvtxPush("Dof_TrueDof_Matrix", Firebrick);
+   {
+      NVTX("MakeSquareBlockDiag");
+      dA.MakeSquareBlockDiag(pfes_ho->GetComm(), pfes_ho->GlobalVSize(),
+                             pfes_ho->GetDofOffsets(), A_local.As<SparseMatrix>());
+   }
    Ph.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
-   NvtxPop();
 
-   NvtxPush("MakePtAP", Orchid);
-   Ah.MakePtAP(dA, Ph);
-   NvtxPop();
+   {
+      NVTX("MakePtAP");
+      Ah.MakePtAP(dA, Ph);
+   }
 
-   NvtxPush("EliminateRowsCols", AliceBlue);
-   Ah.As<HypreParMatrix>()->EliminateRowsCols(ess_dofs);
-   NvtxPop();
+   {
+      int a;
+      ( a = 2, a+2);
+      NVTX("EliminateRowsCols");
+      Ah.As<HypreParMatrix>()->EliminateRowsCols(ess_dofs);
+   }
 }
 
 #endif

@@ -66,7 +66,7 @@
 #define MFEM_DEBUG_COLOR 123
 #include "general/debug.hpp"
 
-#include "general/nvvp.hpp"
+#include "general/nvtx.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -84,7 +84,8 @@ int main(int argc, char *argv[])
    int order = 3;
    const char *fe = "h";
    const char *device_config = "cpu";
-   bool visualization = true;
+   bool visualization = false;
+   bool compute_L2_error = false;
    int config_dev_modulo = 4;
 
    OptionsParser args(argc, argv);
@@ -98,6 +99,9 @@ int main(int argc, char *argv[])
                   "FE type. h for H1, n for Hcurl, r for Hdiv, l for L2");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(&compute_L2_error, "-l2", "--compute-L2-error", "-no-l2",
+                  "--no-compute-L2-error",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
@@ -122,7 +126,7 @@ int main(int argc, char *argv[])
    if (RT) { grad_div_problem = true; }
    double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
 
-   NvtxPush("Mesh", SeaGreen);
+   NVTX("Mesh");
    Mesh serial_mesh(mesh_file, 1, 1);
    int dim = serial_mesh.Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "Spatial dimension must be 2 or 3.");
@@ -130,7 +134,6 @@ int main(int argc, char *argv[])
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    for (int l = 0; l < par_ref_levels; l++) { mesh.UniformRefinement(); }
    serial_mesh.Clear();
-   NvtxPop();
 
    if (mesh.ncmesh && (RT || ND))
    { MFEM_ABORT("LOR AMS and ADS solvers are not supported with AMR meshes."); }
@@ -153,7 +156,7 @@ int main(int argc, char *argv[])
    // In DG, boundary conditions are enforced weakly, so no essential DOFs.
    if (!L2) { fes.GetBoundaryTrueDofs(ess_dofs); }
 
-   NvtxPush("a", OliveDrab);
+   NVTX("a");
    ParBilinearForm a(&fes);
    if (H1 || L2)
    {
@@ -176,9 +179,8 @@ int main(int argc, char *argv[])
    // TODO: L2 diffusion not implemented with partial assembly
    if (!L2) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.Assemble();
-   NvtxPop();
 
-   NvtxPush("b", LightGoldenrod);
+   NVTX("b");
    ParLinearForm b(&fes);
    if (H1 || L2) { b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff)); }
    else { b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_vec_coeff)); }
@@ -188,7 +190,6 @@ int main(int argc, char *argv[])
       b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(u_coeff, -1.0, kappa));
    }
    b.Assemble();
-   NvtxPop();
 
    ParGridFunction x(&fes);
    if (H1 || L2) { x.ProjectCoefficient(u_coeff);}
@@ -196,22 +197,19 @@ int main(int argc, char *argv[])
 
    Vector X, B;
    OperatorHandle A;
-   NvtxPush("a.FormLinearSystem", PeachPuff);
+   NVTX("FormLinearSystem");
    a.FormLinearSystem(ess_dofs, x, b, A, X, B);
-   NvtxPop();
 
-   NvtxPush("ParLORDiscretization", IndianRed);
+   NVTX("ParLORDiscretization");
    ParLORDiscretization lor(a, ess_dofs);
    ParFiniteElementSpace &fes_lor = lor.GetParFESpace();
-   NvtxPop();
 
    unique_ptr<Solver> solv_lor;
    if (H1 || L2)
    {
       dbg("LORSolver<HypreBoomerAMG>");
-      NvtxPush("LORSolver", PaleTurquoise);
+      NVTX("LORSolver");
       solv_lor.reset(new LORSolver<HypreBoomerAMG>(lor));
-      NvtxPop();
    }
    else if (RT && dim == 3)
    {
@@ -231,15 +229,19 @@ int main(int argc, char *argv[])
    cg.SetPrintLevel(1);
    cg.SetOperator(*A);
    cg.SetPreconditioner(*solv_lor);
-   NvtxPush("CG", Coral);
-   cg.Mult(B, X);
-   NvtxPop();
+   {
+      NVTX("CG");
+      cg.Mult(B, X);
+   }
 
    a.RecoverFEMSolution(X, b, x);
 
-   double er =
-      (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
-   if (mpi.Root()) { cout << "L2 error: " << er << endl; }
+   if (compute_L2_error)
+   {
+      double er =
+         (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
+      if (mpi.Root()) { cout << "L2 error: " << er << endl; }
+   }
 
    if (visualization)
    {
