@@ -609,13 +609,17 @@ void TransportBCs::ReadBCs(CoefFactory &cf, std::istream &input)
          string buff_str(buffer, length);
 
          istringstream iss(buff_str);
+         delete bcs_[i];
          bcs_[i] = new AdvectionDiffusionBC(bdr_attr_, cf, iss);
 
          delete [] buffer;
       }
       else
       {
-         bcs_[i] = new AdvectionDiffusionBC(bdr_attr_);
+         if (bcs_[i] == NULL)
+         {
+            bcs_[i] = new AdvectionDiffusionBC(bdr_attr_);
+         }
       }
    }
    {
@@ -4053,6 +4057,7 @@ void DGTransportTDO::TransportOp::SetSourceTermGradient(
             coef = new StateVariableProductCoef(sCoef, SCoef);
          }
          coef->SetDerivType((FieldType)i);
+         svscoefs_.Append(coef);
          ProductCoefficient * dtdSCoef = new ProductCoefficient(-dt_, *coef);
          negdtSCoefs_.Append(dtdSCoef);
 
