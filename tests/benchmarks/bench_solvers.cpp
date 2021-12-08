@@ -15,6 +15,9 @@
 
 #include "linalg/dtensor.hpp"
 
+#define MFEM_NVTX_COLOR Orange
+#include "general/nvtx.hpp"
+
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -78,6 +81,7 @@ class LORDiffusion
 {
    ParMesh MakeLORMesh(ParMesh &mesh_ho, int order)
    {
+      MFEM_NVTX;
       ParMesh mesh_lor_tensor =
          ParMesh::MakeRefined(mesh_ho, order, BasisType::GaussLobatto);
       return mesh_lor_tensor;
@@ -100,6 +104,7 @@ public:
       a(&fes),
       irs(0, Quadrature1D::GaussLobatto)
    {
+      MFEM_NVTX;
       // LOR system uses collocated (2-point Gauss-Lobatto) quadrature
       int dim = mesh.Dimension();
       Geometry::Type geom = mesh.GetElementBaseGeometry(0);
@@ -160,6 +165,7 @@ public:
         coeff(coeff_),
         irs(0, Quadrature1D::GaussLegendre)
    {
+      MFEM_NVTX;
       int nlevels = hierarchy.GetNumLevels();
       ConstructCoarseOperatorAndSolver(coarse_solver_config,
                                        hierarchy.GetFESpaceAtLevel(0),
@@ -174,6 +180,7 @@ public:
                               Array<int> &ess_bdr,
                               AssemblyLevel asm_lvl)
    {
+      MFEM_NVTX;
       ParBilinearForm* form = new ParBilinearForm(&fespace);
       form->SetAssemblyLevel(asm_lvl);
 
@@ -197,6 +204,7 @@ public:
    void ConstructOperatorAndSmoother(ParFiniteElementSpace& fespace,
                                      Array<int>& ess_bdr)
    {
+      MFEM_NVTX;
       ConstructBilinearForm(fespace, ess_bdr, AssemblyLevel::PARTIAL);
 
       OperatorPtr opr;
@@ -219,6 +227,7 @@ public:
                                          ParFiniteElementSpace& fespace,
                                          Array<int>& ess_bdr)
    {
+      MFEM_NVTX;
       ConstructBilinearForm(fespace, ess_bdr, GetAssemblyLevel(config));
 
       BilinearForm &a = *bfs.Last();
@@ -836,15 +845,20 @@ struct SolverProblem: public BakeOff
               pmesh.bdr_attributes.Max()),
       cg(MPI_COMM_WORLD)
    {
+      MFEM_NVTX;
       ess_bdr = 1;
       mg_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
       if (rhs_1) { b.AddDomainIntegrator(new DomainLFIntegrator(one)); }
       else { b.AddDomainIntegrator(new DomainLFIntegrator(rhs)); }
-      b.Assemble();
+      {
+         NVTX("b");
+         b.Assemble();
+      }
 
       if (!mg_solver)
       {
+         NVTX("a.Assemble");
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          a.AddDomainIntegrator(new BFI(one, GLL?irGLL:ir));
          a.Assemble();
@@ -862,6 +876,7 @@ struct SolverProblem: public BakeOff
          case Jacobi: { M.reset(new OperatorJacobiSmoother(a,ess_tdof_list)); break;}
          case MGJacobi:
          {
+            NVTX("MGJacobi");
             assert(p == mg_fine_order);
             precond::SolverConfig solver_config;
             solver_config.type = precond::SolverConfig::JACOBI;
@@ -879,6 +894,7 @@ struct SolverProblem: public BakeOff
          }
          case MGFAHypre:
          {
+            NVTX("MGFAHypre");
             assert(p == mg_fine_order);
             precond::SolverConfig solver_config;
             solver_config.type = precond::SolverConfig::FA_HYPRE;
@@ -896,6 +912,7 @@ struct SolverProblem: public BakeOff
          }
          case MGLORHypre:
          {
+            NVTX("MGLORHypre");
             assert(p == mg_fine_order);
             precond::SolverConfig solver_config;
             solver_config.type = precond::SolverConfig::LOR_HYPRE;
@@ -927,6 +944,7 @@ struct SolverProblem: public BakeOff
 
    void benchmark() override
    {
+      MFEM_NVTX;
       MFEM_DEVICE_SYNC;
       sw_solve.Start();
       cg.Mult(B,X);
