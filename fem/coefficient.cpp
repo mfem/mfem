@@ -28,6 +28,52 @@ double PWConstCoefficient::Eval(ElementTransformation & T,
    return (constants(att-1));
 }
 
+void PWCoefficient::InitMap(const Array<int> & attr,
+                            const Array<Coefficient*> & coefs)
+{
+   MFEM_VERIFY(attr.Size() == coefs.Size(),
+               "PWCoefficient:  "
+               "Attribute and coefficient arrays have incompatible "
+               "dimensions.");
+
+   for (int i=0; i<attr.Size(); i++)
+   {
+      if (coefs[i] != NULL)
+      {
+         UpdateCoefficient(attr[i], *coefs[i]);
+      }
+   }
+}
+
+void PWCoefficient::SetTime(double t)
+{
+   Coefficient::SetTime(t);
+
+   std::map<int, Coefficient*>::iterator p = pieces.begin();
+   for (; p != pieces.end(); p++)
+   {
+      if (p->second != NULL)
+      {
+         p->second->SetTime(t);
+      }
+   }
+}
+
+double PWCoefficient::Eval(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+{
+   const int att = T.Attribute;
+   std::map<int, Coefficient*>::const_iterator p = pieces.find(att);
+   if (p != pieces.end())
+   {
+      if ( p->second != NULL)
+      {
+         return p->second->Eval(T, ip);
+      }
+   }
+   return 0.0;
+}
+
 double FunctionCoefficient::Eval(ElementTransformation & T,
                                  const IntegrationPoint & ip)
 {
@@ -118,6 +164,63 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
       T.SetIntPoint(&ip);
       Eval(Mi, T, ip);
    }
+}
+
+void PWVectorCoefficient::InitMap(const Array<int> & attr,
+                                  const Array<VectorCoefficient*> & coefs)
+{
+   MFEM_VERIFY(attr.Size() == coefs.Size(),
+               "PWVectorCoefficient:  "
+               "Attribute and coefficient arrays have incompatible "
+               "dimensions.");
+
+   for (int i=0; i<attr.Size(); i++)
+   {
+      if (coefs[i] != NULL)
+      {
+         UpdateCoefficient(attr[i], *coefs[i]);
+      }
+   }
+}
+
+void PWVectorCoefficient::UpdateCoefficient(int attr, VectorCoefficient & coef)
+{
+   MFEM_VERIFY(coef.GetVDim() == vdim,
+               "PWVectorCoefficient::UpdateCoefficient:  "
+               "VectorCoefficient has incompatible dimension.");
+   pieces[attr] = &coef;
+}
+
+void PWVectorCoefficient::SetTime(double t)
+{
+   VectorCoefficient::SetTime(t);
+
+   std::map<int, VectorCoefficient*>::iterator p = pieces.begin();
+   for (; p != pieces.end(); p++)
+   {
+      if (p->second != NULL)
+      {
+         p->second->SetTime(t);
+      }
+   }
+}
+
+void PWVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
+                               const IntegrationPoint &ip)
+{
+   const int att = T.Attribute;
+   std::map<int, VectorCoefficient*>::const_iterator p = pieces.find(att);
+   if (p != pieces.end())
+   {
+      if ( p->second != NULL)
+      {
+         p->second->Eval(V, T, ip);
+         return;
+      }
+   }
+
+   V.SetSize(vdim);
+   V = 0.0;
 }
 
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -329,6 +432,72 @@ void VectorRestrictedCoefficient::Eval(
       M.SetSize(vdim, ir.GetNPoints());
       M = 0.0;
    }
+}
+
+void PWMatrixCoefficient::InitMap(const Array<int> & attr,
+                                  const Array<MatrixCoefficient*> & coefs)
+{
+   MFEM_VERIFY(attr.Size() == coefs.Size(),
+               "PWMatrixCoefficient:  "
+               "Attribute and coefficient arrays have incompatible "
+               "dimensions.");
+
+   for (int i=0; i<attr.Size(); i++)
+   {
+      if (coefs[i] != NULL)
+      {
+         UpdateCoefficient(attr[i], *coefs[i]);
+      }
+   }
+}
+
+void PWMatrixCoefficient::UpdateCoefficient(int attr, MatrixCoefficient & coef)
+{
+   MFEM_VERIFY(coef.GetHeight() == height,
+               "PWMatrixCoefficient::UpdateCoefficient:  "
+               "MatrixCoefficient has incompatible height.");
+   MFEM_VERIFY(coef.GetWidth() == width,
+               "PWMatrixCoefficient::UpdateCoefficient:  "
+               "MatrixCoefficient has incompatible width.");
+   if (symmetric)
+   {
+      MFEM_VERIFY(coef.IsSymmetric(),
+                  "PWMatrixCoefficient::UpdateCoefficient:  "
+                  "MatrixCoefficient has incompatible symmetry.");
+   }
+   pieces[attr] = &coef;
+}
+
+void PWMatrixCoefficient::SetTime(double t)
+{
+   MatrixCoefficient::SetTime(t);
+
+   std::map<int, MatrixCoefficient*>::iterator p = pieces.begin();
+   for (; p != pieces.end(); p++)
+   {
+      if (p->second != NULL)
+      {
+         p->second->SetTime(t);
+      }
+   }
+}
+
+void PWMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
+                               const IntegrationPoint &ip)
+{
+   const int att = T.Attribute;
+   std::map<int, MatrixCoefficient*>::const_iterator p = pieces.find(att);
+   if (p != pieces.end())
+   {
+      if ( p->second != NULL)
+      {
+         p->second->Eval(K, T, ip);
+         return;
+      }
+   }
+
+   K.SetSize(height, width);
+   K = 0.0;
 }
 
 void MatrixFunctionCoefficient::SetTime(double t)
