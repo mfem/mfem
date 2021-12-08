@@ -123,6 +123,7 @@ The MFEM source code has the following structure:
   ├── mesh
   ├── miniapps
   │   ├── adjoint
+  │   ├── autodiff
   │   ├── common
   │   ├── electromagnetics
   │   ├── gslib

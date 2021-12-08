@@ -66,12 +66,12 @@ those files were generated, otherwise `make all` would just regenerate them.
 
 **NOTE**
 
-The `build_and_test` script behaves slightly differently between CI context and
-elsewhere (depending on environment variable $CI). In CI, and if launched on
-quartz, ruby or corona, the script will build and install dependencies in
+When `build_and_test` needs to build the dependencies, i.e. (a) `--deps-only` is
+used, or (b) none of the `--XXX-only` options is used, then the script behaves
+slightly differently. In case (b), it will build and install dependencies in
 `/dev/shm` for better performance. However, this is only valid if we don’t want
 the installation to persist. Installation will happen locally to the uberenv
-directory if not in CI context.
+directory in case (a), i.e. if `--deps-only` is used.
 
 ### Option #2: Calling uberenv directly
 
