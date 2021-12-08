@@ -19,6 +19,9 @@
 #define MFEM_NVTX_COLOR Orange
 #include "general/nvtx.hpp"
 
+#define MFEM_DEBUG_COLOR 226
+#include "general/debug.hpp"
+
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -52,7 +55,8 @@ enum FinePrecondType
    Jacobi,
    MGJacobi,
    MGFAHypre,
-   MGLORHypre
+   MGLORHypre,
+   MGLORBatch
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +71,7 @@ struct SolverConfig
       JACOBI = 0,
       FA_HYPRE,
       LOR_HYPRE,
+      LOR_BATCH,
       FA_AMGX,
       LOR_AMGX
    };
@@ -256,6 +261,7 @@ public:
          case SolverConfig::FA_HYPRE:
          case SolverConfig::LOR_HYPRE:
          {
+            dbg("[precond] HYPRE");
             HypreBoomerAMG *amg = new HypreBoomerAMG(*A_prec.As<HypreParMatrix>());
             amg->SetPrintLevel(0);
             Vector b(amg->Height());
@@ -264,6 +270,13 @@ public:
             x = 0.0;
             amg->Mult(b, x); // <-- Force setup. Ugly hack.
             coarse_precond.reset(amg);
+            break;
+         }
+         case SolverConfig::LOR_BATCH:
+         {
+            dbg("[precond] LOR BATCH");
+            coarse_precond.reset(new LORSolver<HypreBoomerAMG>(a,ess_dofs));
+            A_prec = A_coarse;
             break;
          }
 #ifdef MFEM_USE_AMGX
@@ -930,6 +943,24 @@ struct SolverProblem: public BakeOff
             DMG->FormFineLinearSystem(x, b, A, X, B);
             break;
          }
+         case MGLORBatch:
+         {
+            NVTX("MGLORBatch");
+            assert(p == mg_fine_order);
+            precond::SolverConfig solver_config;
+            solver_config.type = precond::SolverConfig::LOR_BATCH;
+            solver_config.inner_cg = false;
+            precond::DiffusionMultigrid *DMG =
+               new precond::DiffusionMultigrid(GLL,
+                                               *mg_hierarchy,
+                                               one,
+                                               ess_bdr,
+                                               solver_config);
+            M.reset(DMG);
+            DMG->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
+            DMG->FormFineLinearSystem(x, b, A, X, B);
+            break;
+         }
          default: MFEM_ABORT("Unknown preconditioner");
       }
       MFEM_DEVICE_SYNC;
@@ -1006,6 +1037,7 @@ BakeOff_Solver(3,Diffusion,Jacobi)
 BakeOff_Solver(3,Diffusion,MGJacobi)
 BakeOff_Solver(3,Diffusion,MGFAHypre)
 BakeOff_Solver(3,Diffusion,MGLORHypre)
+BakeOff_Solver(3,Diffusion,MGLORBatch)
 
 } // namespace mfem
 
