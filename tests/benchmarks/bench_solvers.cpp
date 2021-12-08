@@ -34,6 +34,8 @@
 namespace mfem
 {
 
+using LOR_AMG= LORSolver<HypreBoomerAMG>;
+
 ////////////////////////////////////////////////////////////////////////////////
 static MPI_Session *mpi;
 static int config_dev_size = 4;
@@ -53,6 +55,7 @@ enum FinePrecondType
 {
    None = 0,
    Jacobi,
+   LORBatch,
    MGJacobi,
    MGFAHypre,
    MGLORHypre,
@@ -136,6 +139,7 @@ class DiffusionMultigrid : public GeometricMultigrid
       {
          case SolverConfig::JACOBI:
          case SolverConfig::LOR_HYPRE:
+         case SolverConfig::LOR_BATCH:
          case SolverConfig::LOR_AMGX:
             return AssemblyLevel::PARTIAL;
          default: return AssemblyLevel::LEGACYFULL;
@@ -275,8 +279,9 @@ public:
          case SolverConfig::LOR_BATCH:
          {
             dbg("[precond] LOR BATCH");
-            coarse_precond.reset(new LORSolver<HypreBoomerAMG>(a,ess_dofs));
-            A_prec = A_coarse;
+            LOR_AMG *lor_amg = new LOR_AMG(a, ess_dofs);
+            lor_amg->GetSolver().SetPrintLevel(0);
+            coarse_precond.reset(lor_amg);
             break;
          }
 #ifdef MFEM_USE_AMGX
@@ -771,7 +776,7 @@ struct BakeOff
            double epsy, double epsz,
            bool rhs_1, int rhs_n,
            int p, int vdim, bool GLL):
-      mg_solver(preconditioner > Jacobi),
+      mg_solver(preconditioner >= FinePrecondType::MGJacobi),
       num_procs(mpi->WorldSize()),
       myid(mpi->WorldRank()),
       preconditioner(preconditioner),
@@ -884,81 +889,66 @@ struct SolverProblem: public BakeOff
       //// Setup phase
       MFEM_DEVICE_SYNC;
       sw_setup.Start();
+      Coefficient &coeff =
+         rhs_1 ? static_cast<Coefficient&>(one) : static_cast<Coefficient&>(rhs);
+      auto SetMGPrecond = [&](const char *header,
+                              precond::SolverConfig::SolverType type,
+                              const bool inner_cg)
+      {
+         NVTX(header);
+         assert(p == mg_fine_order);
+         precond::SolverConfig solver_config;
+         solver_config.type = type;
+         solver_config.inner_cg = inner_cg;
+         precond::DiffusionMultigrid *DMG =
+            new precond::DiffusionMultigrid(GLL, *mg_hierarchy,
+                                            coeff, ess_bdr, solver_config);
+         M.reset(DMG);
+         DMG->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
+         DMG->FormFineLinearSystem(x, b, A, X, B);
+      };
 
       switch (preconditioner)
       {
-         case None: { break; }
-         case Jacobi: { M.reset(new OperatorJacobiSmoother(a,ess_tdof_list)); break;}
+         case None:
+         {
+            dbg("None");
+            break;
+         }
+         case Jacobi:
+         {
+            dbg("Jacobi");
+            NVTX("Jacobi");
+            M.reset(new OperatorJacobiSmoother(a,ess_tdof_list));
+            break;
+         }
+         case LORBatch:
+         {
+            dbg("LORBatch");
+            NVTX("LORBatch");
+            LOR_AMG *lor_amg = new LOR_AMG(a, ess_tdof_list);
+            lor_amg->GetSolver().SetPrintLevel(0);
+            M.reset(lor_amg);
+            break;
+         }
          case MGJacobi:
          {
-            NVTX("MGJacobi");
-            assert(p == mg_fine_order);
-            precond::SolverConfig solver_config;
-            solver_config.type = precond::SolverConfig::JACOBI;
-            solver_config.inner_cg = true;
-            precond::DiffusionMultigrid *DMG =
-               new precond::DiffusionMultigrid(GLL,
-                                               *mg_hierarchy,
-                                               one,
-                                               ess_bdr,
-                                               solver_config);
-            M.reset(DMG);
-            DMG->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
-            DMG->FormFineLinearSystem(x, b, A, X, B);
+            SetMGPrecond("MGJacobi", precond::SolverConfig::JACOBI, true);
             break;
          }
          case MGFAHypre:
          {
-            NVTX("MGFAHypre");
-            assert(p == mg_fine_order);
-            precond::SolverConfig solver_config;
-            solver_config.type = precond::SolverConfig::FA_HYPRE;
-            solver_config.inner_cg = false;
-            precond::DiffusionMultigrid *DMG =
-               new precond::DiffusionMultigrid(GLL,
-                                               *mg_hierarchy,
-                                               one,
-                                               ess_bdr,
-                                               solver_config);
-            M.reset(DMG);
-            DMG->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
-            DMG->FormFineLinearSystem(x, b, A, X, B);
+            SetMGPrecond("MGFAHypre", precond::SolverConfig::FA_HYPRE, false);
             break;
          }
          case MGLORHypre:
          {
-            NVTX("MGLORHypre");
-            assert(p == mg_fine_order);
-            precond::SolverConfig solver_config;
-            solver_config.type = precond::SolverConfig::LOR_HYPRE;
-            solver_config.inner_cg = false;
-            precond::DiffusionMultigrid *DMG =
-               new precond::DiffusionMultigrid(GLL,
-                                               *mg_hierarchy,
-                                               one,
-                                               ess_bdr,
-                                               solver_config);
-            M.reset(DMG);
-            DMG->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
-            DMG->FormFineLinearSystem(x, b, A, X, B);
+            SetMGPrecond("MGLORHypre", precond::SolverConfig::LOR_HYPRE, false);
             break;
          }
          case MGLORBatch:
          {
-            NVTX("MGLORBatch");
-            assert(p == mg_fine_order);
-            precond::SolverConfig solver_config;
-            solver_config.type = precond::SolverConfig::LOR_BATCH;
-            solver_config.inner_cg = false;
-            precond::DiffusionMultigrid *DMG =
-               new precond::DiffusionMultigrid(GLL,
-                                               *mg_hierarchy,
-                                               one,
-                                               ess_bdr,
-                                               solver_config);
-            M.reset(DMG);
-            DMG->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
-            DMG->FormFineLinearSystem(x, b, A, X, B);
+            SetMGPrecond("MGLORBatch", precond::SolverConfig::LOR_BATCH, false);
             break;
          }
          default: MFEM_ABORT("Unknown preconditioner");
@@ -966,6 +956,7 @@ struct SolverProblem: public BakeOff
       MFEM_DEVICE_SYNC;
       sw_setup.Stop();
 
+      assert(A.Ptr());
       cg.SetOperator(*A);
       cg.SetRelTol(rtol);
       cg.SetMaxIter(max_it);
@@ -1034,6 +1025,7 @@ BENCHMARK(BPS##i##_##Prcd)->ArgsProduct({P_ORDERS,P_EPSILONS,P_REFINEMENTS})->Un
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Solver(3,Diffusion,None)
 BakeOff_Solver(3,Diffusion,Jacobi)
+BakeOff_Solver(3,Diffusion,LORBatch)
 BakeOff_Solver(3,Diffusion,MGJacobi)
 BakeOff_Solver(3,Diffusion,MGFAHypre)
 BakeOff_Solver(3,Diffusion,MGLORHypre)
