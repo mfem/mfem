@@ -124,11 +124,6 @@ void BlockBilinearForm::AddDomainIntegrator(BlockBilinearFormIntegrator *bfi)
    domain_integs.Append(bfi);
 }
 
-void BilinearForm::AddTraceElementIntegrator(BilinearFormIntegrator * bfi)
-{
-   trace_elem_integs.Append(bfi);
-}
-
 /// Assembles the form i.e. sums over all domain integrators.
 void BlockBilinearForm::Assemble(int skip_zeros)
 {
