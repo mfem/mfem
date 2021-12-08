@@ -14,6 +14,7 @@ list(APPEND GINKGO_EXAMPLES_SRCS
   ex1.cpp
   ex1lor.cpp
   ex1lorcoeff.cpp
+  ex1coeff.cpp
 )
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.

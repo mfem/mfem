@@ -449,6 +449,7 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
+   std::cout << "num ess tdof: " << ess_tdof_list.Size() << "\n";
 
    Array<int> ess_pc_tdof_list(ess_tdof_list.Size());
    if (permute)
@@ -535,6 +536,10 @@ int main(int argc, char *argv[])
    OperatorPtr A;
    Vector B, X;
 
+   // TMP MOD HERE! Ensure matrix diagonal is 1 if not PA
+   if (!pa) {
+     a->SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
+   } 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    // 11. Solve the linear system A X = B.
@@ -721,7 +726,7 @@ int main(int argc, char *argv[])
               tic_toc.RealTime() << "\n";
 
          // Use preconditioned CG
-         total_its = pcg_solve(*A, M, B, X, 1, max_iter, 1e-12, 0.0, it_time);
+         total_its = pcg_solve(*A, M, B, X, 0, max_iter, 1e-12, 0.0, it_time);
 //         total_its = gko_fcg_solve(exec, *A, M, B, X, 1, max_iter, 1e-12, 0.0, it_time);
 //         total_its = gko_cg_solve(exec, *A, M, B, X, 1, max_iter, 1e-12, 0.0, it_time);
 //         cudaProfilerStop(); 
@@ -911,6 +916,19 @@ int main(int argc, char *argv[])
       ofstream sol_ofs("sol.gf");
       sol_ofs.precision(8);
       x.Save(sol_ofs);
+      if (!pa) 
+      {
+        ofstream a_ofs_mm("mat-mm.dat");
+        a_ofs_mm.precision(16);
+//        a->SetDiagonalPolicy(mfem::Operator::DIAG_ZERO);
+//        a->FormSystemMatrix(ess_tdof_list, A_sm);
+        SparseMatrix *A_sp = dynamic_cast<SparseMatrix*>(A.Ptr());
+        A_sp->PrintMM(a_ofs_mm);
+
+        ofstream b_vec("b.dat");
+        b_vec.precision(16);
+        B.Print(b_vec, 1);
+      }
    }
 
    if (pc && output_pc)
