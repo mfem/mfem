@@ -69,6 +69,10 @@ protected:
    BilinearForm *a;
    OperatorHandle A;
    mutable Array<int> perm;
+   bool supports_batched_assembly;
+
+   /// The LOR element restriction operator.
+   mutable OperatorHandle R_lor;
 
    /// Constructs the local DOF (ldof) permutation. In parallel this is used as
    /// an intermediate step in computing the DOF permutation (see
@@ -120,6 +124,8 @@ public:
    /// Returns the low-order refined finite element space.
    FiniteElementSpace &GetFESpace() const { return *fes; }
 
+   /// Returns the low-order restriction.
+   const Operator *GetLORRestriction() const;
    ~LORBase();
 };
 
@@ -257,6 +263,46 @@ public:
    const LORBase &GetLOR() const { return *lor; }
 
    ~LORSolver() { if (own_lor) { delete lor; } }
+};
+
+
+/// Create a low-order refined version of a Restriction.
+/// Only used here for the FillI and FillJAndZeroData methods.
+class LORRestriction : public Operator
+{
+   const FiniteElementSpace &fes_lo, &fes_ho;
+   const int ne;
+   const int vdim;
+   const bool byvdim;
+   const int ndofs;
+   const int dof;
+
+   Array<int> offsets;
+   Array<int> indices;
+   Array<int> gatherMap;
+
+   Array<int> dof_glob2loc;
+   Array<int> dof_glob2loc_offsets;
+   Array<int> el_dof_lex;
+
+public:
+   LORRestriction(const FiniteElementSpace &fes_lo,
+                  const FiniteElementSpace &fes_ho);
+
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
+
+   int FillI(SparseMatrix &mat) const;
+   void FillJAndZeroData(SparseMatrix &mat) const;
+
+   const Array<int> &GatherMap() const { return el_dof_lex; }
+   const Array<int> &Indices() const { return dof_glob2loc; }
+   const Array<int> &Offsets() const { return dof_glob2loc_offsets; }
+
+   // Device lambda cannot have private or protected access
+public:
+   void SetupLocalToElement();
+   void SetupGlobalToLocal();
 };
 
 } // namespace mfem

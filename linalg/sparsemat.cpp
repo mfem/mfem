@@ -181,6 +181,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
 {
    if (mat.Finalized())
    {
+      mat.HostReadI();
       const int nnz = mat.I[height];
       if (copy_graph)
       {
@@ -1432,6 +1433,7 @@ int SparseMatrix::NumNonZeroElems() const
 {
    if (A != NULL)  // matrix is finalized
    {
+      HostReadI();
       return I[height];
    }
    else

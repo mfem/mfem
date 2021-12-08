@@ -318,6 +318,7 @@ tests/unit/debug_device_tests
 tests/benchmarks/bench_ceed
 tests/benchmarks/bench_solvers
 tests/benchmarks/bench_linext
+tests/benchmarks/bench_lor_assembly
 tests/benchmarks/bench_tmop
 tests/benchmarks/bench_vector
 tests/benchmarks/bench_virtuals

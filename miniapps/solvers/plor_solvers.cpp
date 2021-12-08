@@ -63,6 +63,11 @@
 
 #include "lor_mms.hpp"
 
+#define MFEM_DEBUG_COLOR 123
+#include "general/debug.hpp"
+
+#include "general/nvtx.hpp"
+
 using namespace std;
 using namespace mfem;
 
@@ -71,13 +76,17 @@ bool grad_div_problem = false;
 int main(int argc, char *argv[])
 {
    MPI_Session mpi;
+   const int num_procs = mpi.WorldSize();
+   const int myid = mpi.WorldRank();
 
    const char *mesh_file = "../../data/star.mesh";
    int ser_ref_levels = 1, par_ref_levels = 1;
    int order = 3;
    const char *fe = "h";
    const char *device_config = "cpu";
-   bool visualization = true;
+   bool visualization = false;
+   bool compute_L2_error = false;
+   int config_dev_modulo = 4;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -91,11 +100,19 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&compute_L2_error, "-l2", "--compute-L2-error", "-no-l2",
+                  "--no-compute-L2-error",
+                  "Enable or disable GLVis visualization.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&config_dev_modulo, "-dm", "--device-modulo",
+                  "Number of devices available on the node.");
    args.ParseCheck();
 
-   Device device(device_config);
+   const int dev = myid % config_dev_modulo;
+   dbg("[MPI] rank: %d/%d, using device #%d", 1+myid, num_procs, dev);
+
+   Device device(device_config, dev);
    device.Print();
 
    bool H1 = false, ND = false, RT = false, L2 = false;
@@ -104,10 +121,12 @@ int main(int argc, char *argv[])
    else if (string(fe) == "r") { RT = true; }
    else if (string(fe) == "l") { L2 = true; }
    else { MFEM_ABORT("Bad FE type. Must be 'h', 'n', 'r', or 'l'."); }
+   assert(H1);
 
    if (RT) { grad_div_problem = true; }
    double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
 
+   NVTX("Mesh");
    Mesh serial_mesh(mesh_file, 1, 1);
    int dim = serial_mesh.Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "Spatial dimension must be 2 or 3.");
@@ -137,10 +156,12 @@ int main(int argc, char *argv[])
    // In DG, boundary conditions are enforced weakly, so no essential DOFs.
    if (!L2) { fes.GetBoundaryTrueDofs(ess_dofs); }
 
+   NVTX("a");
    ParBilinearForm a(&fes);
    if (H1 || L2)
    {
-      a.AddDomainIntegrator(new MassIntegrator);
+#warning no MassIntegrator
+      //a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator);
    }
    else
@@ -159,6 +180,7 @@ int main(int argc, char *argv[])
    if (!L2) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.Assemble();
 
+   NVTX("b");
    ParLinearForm b(&fes);
    if (H1 || L2) { b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff)); }
    else { b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_vec_coeff)); }
@@ -175,22 +197,28 @@ int main(int argc, char *argv[])
 
    Vector X, B;
    OperatorHandle A;
+   NVTX("FormLinearSystem");
    a.FormLinearSystem(ess_dofs, x, b, A, X, B);
 
+   NVTX("ParLORDiscretization");
    ParLORDiscretization lor(a, ess_dofs);
    ParFiniteElementSpace &fes_lor = lor.GetParFESpace();
 
    unique_ptr<Solver> solv_lor;
    if (H1 || L2)
    {
+      dbg("LORSolver<HypreBoomerAMG>");
+      NVTX("LORSolver");
       solv_lor.reset(new LORSolver<HypreBoomerAMG>(lor));
    }
    else if (RT && dim == 3)
    {
+      assert(false);
       solv_lor.reset(new LORSolver<HypreADS>(lor, &fes_lor));
    }
    else
    {
+      assert(false);
       solv_lor.reset(new LORSolver<HypreAMS>(lor, &fes_lor));
    }
 
@@ -201,13 +229,19 @@ int main(int argc, char *argv[])
    cg.SetPrintLevel(1);
    cg.SetOperator(*A);
    cg.SetPreconditioner(*solv_lor);
-   cg.Mult(B, X);
+   {
+      NVTX("CG");
+      cg.Mult(B, X);
+   }
 
    a.RecoverFEMSolution(X, b, x);
 
-   double er =
-      (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
-   if (mpi.Root()) { cout << "L2 error: " << er << endl; }
+   if (compute_L2_error)
+   {
+      double er =
+         (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
+      if (mpi.Root()) { cout << "L2 error: " << er << endl; }
+   }
 
    if (visualization)
    {
@@ -225,6 +259,16 @@ int main(int argc, char *argv[])
       dc.SetCycle(0);
       dc.SetTime(0.0);
       dc.Save();
+   }
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << x << flush;
    }
 
    return 0;

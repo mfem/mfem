@@ -758,6 +758,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
 
    // FIXME:
 #ifdef HYPRE_BIGINT
+   diag->HostReadWriteJ();
    CopyCSR_J(A->diag, diag->GetJ());
 #endif
 
