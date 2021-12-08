@@ -264,7 +264,7 @@ VectorCoefficient * CoefFactory::GetVectorCoef(std::string &name,
    {
       int dim;
       input >> dim;
-      Vector val(dim);
+      Vector val(dim); val = 0.0;
       for (int i=0; i<dim; i++) { input >> val[i]; }
       coef_idx = vCoefs.Append(new VectorConstantCoefficient(val));
    }
