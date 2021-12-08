@@ -18,10 +18,8 @@
 namespace mfem
 {
 
-/** @brief Class representing the whole weak formulation. (Convinient for DPG or
+/** @brief Class representing the whole weak formulation. (Convenient for DPG or
     Normal Equations) */
-// First implementation for 1 Domain FE space and 1 trace FE space
-// Example DPG primal Poisson
 class NormalEquations
 {
 

@@ -57,6 +57,7 @@
 #include "plinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pnonlinearform.hpp"
+#include "pnormal_equations.hpp"
 #endif
 
 #ifdef MFEM_USE_SIDRE
