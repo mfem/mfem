@@ -1744,6 +1744,8 @@ public:
 
       ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
       rc_sv_ = dynamic_cast<StateVariableCoef*>(rc_);
+
+      ni0_ = other.ni0_;
    }
 
    virtual RecombinationSinkCoef * Clone() const
