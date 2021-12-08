@@ -171,6 +171,7 @@ int main(int argc, char *argv[])
    LinearForm b(&fespace);
    ConstantCoefficient one(1.0);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   if (Device::IsEnabled()) { b.SetAssemblyLevel(LinearAssemblyLevel::FULL); }
    b.Assemble();
 
    // 8. Define the solution vector x as a finite element grid function

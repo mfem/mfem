@@ -27,6 +27,11 @@ protected:
    LinearFormIntegrator(const IntegrationRule *ir = NULL) { IntRule = ir; }
 
 public:
+   /// Method defining full assembly
+   virtual void AssembleFull(const FiniteElementSpace &fes,
+                             const Array<int> &markers,
+                             Vector &b);
+
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -110,6 +115,10 @@ public:
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
       : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
 
+   virtual void AssembleFull(const FiniteElementSpace &fes,
+                             const Array<int> &markers,
+                             Vector &b);
+
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -135,6 +144,10 @@ public:
    /// Constructs the domain integrator (Q, grad v)
    DomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
+
+   virtual void AssembleFull(const FiniteElementSpace &fes,
+                             const Array<int> &markers,
+                             Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -223,6 +236,10 @@ public:
    VectorDomainLFIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
+   virtual void AssembleFull(const FiniteElementSpace &fes,
+                             const Array<int> &markers,
+                             Vector &b);
+
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -232,6 +249,37 @@ public:
    virtual void AssembleDeltaElementVect(const FiniteElement &fe,
                                          ElementTransformation &Trans,
                                          Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+/** Class for domain integrator L(v) := (f, grad v), where
+    f=(f1x,f1y,f1z,...,fnx,fny,fnz) and v=(v1,...,vn). */
+class VectorDomainLFGradIntegrator : public DeltaLFIntegrator
+{
+private:
+   Vector shape, Qvec;
+   VectorCoefficient &Q;
+   DenseMatrix dshape;
+
+public:
+   /// Constructs the domain integrator (Q, grad v)
+   VectorDomainLFGradIntegrator(VectorCoefficient &QF)
+      : DeltaLFIntegrator(QF), Q(QF) { }
+
+   virtual void AssembleFull(const FiniteElementSpace &fes,
+                             const Array<int> &markers,
+                             Vector &b) override;
+
+   /** Given a particular Finite Element and a transformation (Tr)
+       computes the element right hand side element vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect) override;
+
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };

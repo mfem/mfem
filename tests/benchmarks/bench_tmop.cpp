@@ -18,6 +18,9 @@
 #include <memory>
 #include <cmath>
 
+namespace mfem
+{
+
 struct TMOP
 {
    const int N, p, q, dim = 3;
@@ -164,6 +167,8 @@ BENCHMARK_TMOP(AddMultGradPA)
 BENCHMARK_TMOP(GetLocalStateEnergyPA)
 BENCHMARK_TMOP(AssembleGradDiagonalPA)
 
+} // namespace mfem
+
 /**
  * @brief main entry point
  * --benchmark_filter=AddMultPA/4
@@ -192,5 +197,9 @@ int main(int argc, char *argv[])
    bm::RunSpecifiedBenchmarks(&CR);
    return 0;
 }
+
+#else // MFEM_USE_BENCHMARK
+
+int main(int, char *[]) { return 0; }
 
 #endif // MFEM_USE_BENCHMARK

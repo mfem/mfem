@@ -197,6 +197,7 @@ int main(int argc, char *argv[])
    ParLinearForm b(&fespace);
    ConstantCoefficient one(1.0);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   if (Device::IsEnabled()) { b.SetAssemblyLevel(LinearAssemblyLevel::FULL); }
    b.Assemble();
 
    // 10. Define the solution vector x as a parallel finite element grid

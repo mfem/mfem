@@ -13,6 +13,9 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
+namespace mfem
+{
+
 /*
   This benchmark contains the implementation of the CEED's bake-off problems:
   high-order kernels/benchmarks designed to test and compare the performance
@@ -187,6 +190,8 @@ BakeOff_Kernel(5,Diffusion,1,true)
 /// BK6: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
 BakeOff_Kernel(6,VectorDiffusion,3,true)
 
+} // namespace mfem
+
 /**
  * @brief main entry point
  * --benchmark_filter=BK1/6
@@ -215,5 +220,9 @@ int main(int argc, char *argv[])
    bm::RunSpecifiedBenchmarks(&CR);
    return 0;
 }
+
+#else // MFEM_USE_BENCHMARK
+
+int main(int, char *[]) { return 0; }
 
 #endif // MFEM_USE_BENCHMARK

@@ -23,6 +23,7 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    UseDevice(true);
 
    fes = f;
+   ext = nullptr;
    extern_lfs = 1;
 
    // Copy the pointers to the integrators
@@ -69,14 +70,14 @@ void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi,
 
 void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi)
 {
-   boundary_integs.Append (lfi);
+   boundary_integs.Append(lfi);
    boundary_integs_marker.Append(NULL); // NULL -> all attributes are active
 }
 
 void LinearForm::AddBoundaryIntegrator (LinearFormIntegrator * lfi,
                                         Array<int> &bdr_attr_marker)
 {
-   boundary_integs.Append (lfi);
+   boundary_integs.Append(lfi);
    boundary_integs_marker.Append(&bdr_attr_marker);
 }
 
@@ -99,20 +100,41 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
    interior_face_integs.Append(lfi);
 }
 
+void LinearForm::SetAssemblyLevel(LinearAssemblyLevel assembly_level)
+{
+   if (ext)
+   {
+      MFEM_ABORT("the assembly level has already been set!");
+   }
+   assembly = assembly_level;
+   switch (assembly)
+   {
+      case LinearAssemblyLevel::LEGACY:
+         break;
+      case LinearAssemblyLevel::FULL:
+         ext = new FullLinearFormExtension(this);
+         break;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+}
+
 void LinearForm::Assemble()
 {
+   Vector::operator=(0.0);
+
+   // The above operation is executed on device because of UseDevice().
+   // The first use of AddElementVector() below will move it back to host
+   // because both 'vdofs' and 'elemvect' are on host.
+
+   if (ext) { return ext->Assemble(); }
+
    Array<int> vdofs;
    ElementTransformation *eltrans;
    DofTransformation *doftrans;
    Vector elemvect;
 
    int i;
-
-   Vector::operator=(0.0);
-
-   // The above operation is executed on device because of UseDevice().
-   // The first use of AddElementVector() below will move it back to host
-   // because both 'vdofs' and 'elemvect' are on host.
 
    if (domain_integs.Size())
    {
@@ -143,7 +165,7 @@ void LinearForm::Assemble()
                {
                   doftrans->TransformDual(elemvect);
                }
-               AddElementVector (vdofs, elemvect);
+               AddElementVector(vdofs, elemvect);
             }
          }
       }
@@ -274,6 +296,18 @@ void LinearForm::Assemble()
    }
 }
 
+void LinearForm::Update()
+{
+   SetSize(fes->GetVSize()); ResetDeltaLocations();
+   if (ext) { ext->Update(); }
+}
+
+void LinearForm::Update(FiniteElementSpace *f)
+{
+   fes = f;
+   Update();
+}
+
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
@@ -281,6 +315,7 @@ void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
    v.UseDevice(true);
    this->Vector::MakeRef(v, v_offset, fes->GetVSize());
    ResetDeltaLocations();
+   if (ext) { ext->Update(); }
 }
 
 void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
@@ -291,6 +326,8 @@ void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
 void LinearForm::AssembleDelta()
 {
    if (domain_delta_integs.Size() == 0) { return; }
+
+   if (ext) { return ext->AssembleDelta(); }
 
    if (!HaveDeltaLocations())
    {
@@ -356,6 +393,8 @@ LinearForm::~LinearForm()
       for (k=0; k < interior_face_integs.Size(); k++)
       { delete interior_face_integs[k]; }
    }
+
+   delete ext;
 }
 
 }
