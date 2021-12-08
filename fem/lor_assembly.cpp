@@ -226,8 +226,6 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
    }
 
    {
-      int a;
-      ( a = 2, a+2);
       NVTX("EliminateRowsCols");
       Ah.As<HypreParMatrix>()->EliminateRowsCols(ess_dofs);
    }

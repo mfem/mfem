@@ -889,8 +889,6 @@ struct SolverProblem: public BakeOff
       //// Setup phase
       MFEM_DEVICE_SYNC;
       sw_setup.Start();
-      Coefficient &coeff =
-         rhs_1 ? static_cast<Coefficient&>(one) : static_cast<Coefficient&>(rhs);
       auto SetMGPrecond = [&](const char *header,
                               precond::SolverConfig::SolverType type,
                               const bool inner_cg)
@@ -902,7 +900,7 @@ struct SolverProblem: public BakeOff
          solver_config.inner_cg = inner_cg;
          precond::DiffusionMultigrid *DMG =
             new precond::DiffusionMultigrid(GLL, *mg_hierarchy,
-                                            coeff, ess_bdr, solver_config);
+                                            one, ess_bdr, solver_config);
          M.reset(DMG);
          DMG->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
          DMG->FormFineLinearSystem(x, b, A, X, B);
