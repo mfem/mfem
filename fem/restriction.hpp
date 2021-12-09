@@ -467,6 +467,14 @@ protected:
     */
    void PermuteAndSetFaceDofsGatherIndices2(const Mesh::FaceInformation &face,
                                             const int face_index);
+
+   void SingleValuedConformingMult(const Vector& x, Vector& y) const;
+
+   void DoubleValuedConformingMult(const Vector& x, Vector& y) const;
+
+   void SingleValuedConformingAddMultTranspose(const Vector& x, Vector& y) const;
+
+   void DoubleValuedConformingAddMultTranspose(const Vector& x, Vector& y) const;
 };
 
 /** This class stores which side is the master non-conforming side and the
@@ -719,6 +727,13 @@ private:
    */
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
+
+protected:
+   void DoubleValuedNonConformingMult(const Vector& x, Vector& y) const;
+
+   void SingleValuedNonConformingTransposeInterpolation(const Vector& x) const;
+
+   void DoubleValuedNonConformingTransposeInterpolation(const Vector& x) const;
 };
 
 /** @brief Return the face map that extracts the degrees of freedom for the
