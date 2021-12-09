@@ -103,15 +103,6 @@ int main(int argc, char *argv[])
    // Coefficients
    ConstantCoefficient one(1.0);
    ConstantCoefficient negone(-1.0);
-   Vector negone_x_v(dim); negone_x_v = 0.0; negone_x_v(0) = -1.;
-   Vector negone_y_v(dim); negone_y_v = 0.0; negone_y_v(1) = -1.;
-   Vector one_x_v(dim); one_x_v = 0.0; one_x_v(0) = 1.0;
-   Vector one_y_v(dim); one_y_v = 0.0; one_y_v(1) = 1.0;
-
-   VectorConstantCoefficient negone_x(negone_x_v);
-   VectorConstantCoefficient negone_y(negone_y_v);
-   VectorConstantCoefficient one_x(one_x_v);
-   VectorConstantCoefficient one_y(one_y_v);
 
    // Normal equation weak formulation
    Array<FiniteElementSpace * > domain_fes; 
