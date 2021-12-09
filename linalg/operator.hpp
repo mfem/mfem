@@ -254,18 +254,20 @@ public:
    /** This enumeration is primarily used with class OperatorHandle. */
    enum Type
    {
-      ANY_TYPE,         ///< ID for the base class Operator, i.e. any type.
-      MFEM_SPARSEMAT,   ///< ID for class SparseMatrix.
-      Hypre_ParCSR,     ///< ID for class HypreParMatrix.
-      PETSC_MATAIJ,     ///< ID for class PetscParMatrix, MATAIJ format.
-      PETSC_MATIS,      ///< ID for class PetscParMatrix, MATIS format.
-      PETSC_MATSHELL,   ///< ID for class PetscParMatrix, MATSHELL format.
-      PETSC_MATNEST,    ///< ID for class PetscParMatrix, MATNEST format.
-      PETSC_MATHYPRE,   ///< ID for class PetscParMatrix, MATHYPRE format.
-      PETSC_MATGENERIC, ///< ID for class PetscParMatrix, unspecified format.
-      Complex_Operator, ///< ID for class ComplexOperator.
+      ANY_TYPE,              ///< ID for the base class Operator, i.e. any type.
+      MFEM_SPARSEMAT,        ///< ID for class SparseMatrix.
+      Hypre_ParCSR,          ///< ID for class HypreParMatrix.
+      PETSC_MATAIJ,          ///< ID for class PetscParMatrix, MATAIJ format.
+      PETSC_MATIS,           ///< ID for class PetscParMatrix, MATIS format.
+      PETSC_MATSHELL,        ///< ID for class PetscParMatrix, MATSHELL format.
+      PETSC_MATNEST,         ///< ID for class PetscParMatrix, MATNEST format.
+      PETSC_MATHYPRE,        ///< ID for class PetscParMatrix, MATHYPRE format.
+      PETSC_MATGENERIC,      ///< ID for class PetscParMatrix, unspecified format.
+      Complex_Operator,      ///< ID for class ComplexOperator.
       MFEM_ComplexSparseMat, ///< ID for class ComplexSparseMatrix.
-      Complex_Hypre_ParCSR   ///< ID for class ComplexHypreParMatrix.
+      Complex_Hypre_ParCSR,   ///< ID for class ComplexHypreParMatrix.
+      MFEM_Block_Matrix,     ///< ID for class BlockMatrix.
+      MFEM_Block_Operator,   ///< ID for the base class BlockOperator.
    };
 
    /// Return the type ID of the Operator class.
