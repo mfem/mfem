@@ -66,7 +66,7 @@ public:
     * element space
     * @return true if there was an intersection and the output can be used.
     */
-   bool Transfer(GridFunction &src_fun, GridFunction &dest_fun);
+   bool Transfer(const GridFunction &src_fun, GridFunction &dest_fun);
 
    /*!
     * @brief transfer a function from source to destination. It requires that
