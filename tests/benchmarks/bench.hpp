@@ -25,9 +25,38 @@ namespace benchmark
 {
 namespace internal
 {
+
 extern std::map<std::string, std::string> *global_context;
-}
-}
+
+template<typename T>
+void FindInContext(const char *context, T &config)
+{
+   const auto found = bmi::global_context->find(context);
+   if (found != bmi::global_context->end()) { config = found->second; }
+};
+
+void FindInContext(const char *context, const char* &config)
+{
+   const auto found = bmi::global_context->find(context);
+   if (found != bmi::global_context->end()) { config = found->second.c_str(); }
+};
+
+void FindInContext(const char *context, bool &config)
+{
+   const auto found = bmi::global_context->find(context);
+   if (found != bmi::global_context->end())
+   { config = !strncmp(found->second.c_str(),"true",4); }
+};
+
+void FindInContext(const char *context, int &config)
+{
+   const auto found = bmi::global_context->find(context);
+   if (found != bmi::global_context->end())
+   { config = std::stoi(found->second.c_str()); }
+};
+
+} // namespace internal
+} // namespace benchmark
 
 #endif // MFEM_USE_BENCHMARK
 

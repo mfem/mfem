@@ -42,8 +42,12 @@ using LOR_AMG= LORSolver<HypreBoomerAMG>;
 static MPI_Session *mpi;
 static int config_dev_size = 4; // default 4 GPU per node
 
+static bool config_use_caliper = false;
+
 static bool config_debug = false;
-static int config_max_iter = 100;
+static int config_max_nic = 4;
+static int config_max_nip = 4;
+static int config_max_nif = 500;
 
 enum MGSpecification
 {
@@ -378,7 +382,7 @@ public:
             dbg("[precond] FA_WAMG %dx%d", A_prec->Height(), A_prec->Width());
             // A_prec is a LEGACY/FULL A_coarse ParHypreMatrix
             wargs_t args(A_prec, diag, ess_dofs,
-                         smoother_order, config_max_iter, print_level);
+                         smoother_order, config_max_nic, print_level);
             coarse_precond.reset(new faWAMG(pfes, Wavelet::HAAR, args));
             break;
          }
@@ -386,10 +390,10 @@ public:
          {
             const int smoother_order = 1;
             Vector diag = *new Vector(pfes.GetTrueVSize());
-            bfs.Last()->AssembleDiagonal(diag);
+            a.AssembleDiagonal(diag);
             dbg("[precond] WAMG %dx%d", A_prec->Height(), A_prec->Width());
             wargs_t args(A_prec, diag, ess_dofs,
-                         smoother_order, config_max_iter, print_level);
+                         smoother_order, config_max_nic, print_level);
             coarse_precond.reset(new WAMG(pfes, Wavelet::HAAR, args));
             break;
          }
@@ -401,7 +405,7 @@ public:
       if (config.inner_cg)
       {
          CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
-         cg->SetMaxIter(config_max_iter);
+         cg->SetMaxIter(config_max_nip);
          cg->SetRelTol(1e-8);
          cg->SetAbsTol(1e-8);
          cg->SetPrintLevel(print_level);
@@ -756,47 +760,6 @@ struct CGMonitor : IterativeSolverMonitor
    }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-/// \brief CGInner solver
-class CGInner : public Solver
-{
-   CGSolver cg;
-   Solver *smoother;
-public:
-   CGInner(): cg(MPI_COMM_WORLD), smoother(nullptr) { dbg(); }
-
-   CGInner(wargs_t args): cg(MPI_COMM_WORLD),
-      smoother(!args.smoother_order ? nullptr :
-               new OperatorChebyshevSmoother(*args.op_h,
-                                             args.diag,
-                                             args.ess_tdof_list,
-                                             args.smoother_order))
-   {
-      dbg();
-      Setup();
-      cg.SetOperator(*args.op_h);
-   }
-
-   virtual void SetOperator(const Operator &op) override
-   {
-      dbg();
-      Setup();
-      cg.SetOperator(op);
-   }
-
-   void Setup()
-   {
-      cg.SetMaxIter(config_max_iter);
-      cg.SetRelTol(1e-8);
-      cg.SetAbsTol(1e-8);
-      cg.iterative_mode = false;
-      if (smoother) { cg.SetPreconditioner(*smoother); }
-      cg.SetPrintLevel(config_debug ? 3: -1);
-   }
-
-   void Mult(const Vector &x, Vector &y) const override { cg.Mult(x,y); }
-};
-
 } // namespace cg
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -814,6 +777,9 @@ struct BakeOff
    const double epsy, epsz;
    const bool rhs_1;
    const int rhs_n;
+
+   StopWatch sw_setup, sw_solve;
+   double t_setup, t_solve;
 
    std::function<ParMesh()> GetCoarseKershawMesh = [&]()
    {
@@ -863,6 +829,8 @@ struct BakeOff
    std::vector<precond::MultigridLevel> *mg_refinements;
    std::function<ParFiniteElementSpaceHierarchy*()> GetFESpaceHierarchy = [&]()
    {
+      MFEM_DEVICE_SYNC;
+      sw_setup.Start();
       // Coarse fec, fes & hierarchy
       const int btype = BasisType::GaussLobatto;
       mg_fe_collections.push_back(new H1_FECollection(mg_coarse_order, dim, btype));
@@ -887,6 +855,8 @@ struct BakeOff
       });
 
       mg_nlevels = pfes_h->GetNumLevels();
+      MFEM_DEVICE_SYNC;
+      sw_setup.Stop();
       return pfes_h;
    };
    ParFiniteElementSpaceHierarchy *mg_hierarchy;
@@ -909,8 +879,6 @@ struct BakeOff
    Vector diag;
 
    int niter = 0;
-   double t_setup, t_solve;
-   StopWatch sw_setup, sw_solve;
 
    BakeOff(int preconditioner, int refinements, int smoothness,
            double epsy, double epsz,
@@ -928,6 +896,8 @@ struct BakeOff
       epsz(epsz),
       rhs_1(rhs_1),
       rhs_n(rhs_n),
+      t_setup((sw_setup.Clear(), 0.0)),
+      t_solve((sw_solve.Clear(), 0.0)),
       pmesh(GetCoarseKershawMesh()),
       mg_nlevels(0), // set in GetFESpaceHierarchy
       mg_fine_order(0), // set in GetMGSelector
@@ -954,14 +924,9 @@ struct BakeOff
       x(&mg_fes),
       a(&mg_fes),
       b(&mg_fes),
-      diag(mg_fes.GetTrueVSize()),
-
-      t_setup(0.0),
-      t_solve(0.0)
+      diag(mg_fes.GetTrueVSize())
    {
       x = 0.0;
-      sw_setup.Clear();
-      sw_solve.Clear();
    }
 
    ~BakeOff() { }
@@ -978,7 +943,7 @@ struct BakeOff
 template<typename BFI, int VDIM = 1, bool GLL = false>
 struct SolverProblem: public BakeOff
 {
-   const int max_it = 500;
+   const int max_it = config_max_nif;
    const double rtol = 1e-8;
    const int print_lvl = config_debug ? 3 : -1;
 
@@ -1018,6 +983,9 @@ struct SolverProblem: public BakeOff
          b.Assemble();
       }
 
+      MFEM_DEVICE_SYNC;
+      sw_setup.Start();
+
       if (!mg_solver)
       {
          dbg("a.Assemble");
@@ -1028,15 +996,12 @@ struct SolverProblem: public BakeOff
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
          a.AssembleDiagonal(diag);
       }
-
       // should be an option
       const int smoother_order = 1;
       wargs_t args {A, diag, ess_tdof_list, smoother_order,
-                    config_max_iter, print_lvl};
+                    config_max_nic, print_lvl};
 
       //// Setup phase
-      MFEM_DEVICE_SYNC;
-      sw_setup.Start();
       auto SetMGPrecond = [&](const char *header,
                               precond::SolverConfig::SolverType type,
                               const bool inner_cg)
@@ -1201,7 +1166,7 @@ BENCHMARK(BPS##i##_##Prcd)\
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Solver(3,Diffusion,None)
 BakeOff_Solver(3,Diffusion,Jacobi)
-//BakeOff_Solver(3,Diffusion,LORBatch)
+BakeOff_Solver(3,Diffusion,LORBatch)
 BakeOff_Solver(3,Diffusion,MGJacobi)
 BakeOff_Solver(3,Diffusion,MGFAHypre)
 BakeOff_Solver(3,Diffusion,MGLORHypre)
@@ -1232,58 +1197,17 @@ int main(int argc, char *argv[])
    // Device setup, cpu by default
    std::string config_device = "cpu";
 
-   bool use_caliper = false;
-
    if (bmi::global_context != nullptr)
    {
-      // looking for 'device' context (--benchmark_context=device=dev)
-      const auto device_context = bmi::global_context->find("device");
-      if (device_context != bmi::global_context->end())
-      {
-         config_device = device_context->second;
-      }
-
-      // looking for 'debug' context (--benchmark_context=debug=true)
-      const auto debug_context = bmi::global_context->find("debug");
-      if (debug_context != bmi::global_context->end())
-      {
-         config_debug = !strncmp(debug_context->second.c_str(),"true",4);
-      }
-
-      // looking for 'max_iter' context (--benchmark_context=max_iter=50)
-      const auto max_iter_context = bmi::global_context->find("max_iter");
-      if (max_iter_context != bmi::global_context->end())
-      {
-         config_max_iter = std::stoi(max_iter_context->second.c_str());
-      }
-
-      // looking for 'mg_spec' context (--benchmark_context=mg_spec="1 2")
-      const auto mg_spec_context = bmi::global_context->find("mg_spec");
-      if (mg_spec_context != bmi::global_context->end())
-      {
-         config_mg_spec = mg_spec_context->second.c_str();
-      }
-
-      // looking for 'mg_select' context (--benchmark_context=mg_select=2)
-      const auto mg_spec_switch = bmi::global_context->find("mg_select");
-      if (mg_spec_switch != bmi::global_context->end())
-      {
-         config_mg_spec_select = std::stoi(mg_spec_switch->second.c_str());
-      }
-
-      // looking for 'caliper' context (--benchmark_context=caliper=true)
-      const auto caliper_context = bmi::global_context->find("caliper");
-      if (caliper_context != bmi::global_context->end())
-      {
-         use_caliper = !strncmp(caliper_context->second.c_str(),"true",4);
-      }
-
-      // looking for 'dev_size' context (--benchmark_context=dev_size=4)
-      const auto dev_size_context = bmi::global_context->find("dev_size");
-      if (dev_size_context != bmi::global_context->end())
-      {
-         config_dev_size = std::stoi(dev_size_context->second.c_str());
-      }
+      bmi::FindInContext("device", config_device); // device=cuda
+      bmi::FindInContext("debug", config_debug); // debug=true
+      bmi::FindInContext("nic", config_max_nic);
+      bmi::FindInContext("nip", config_max_nip);
+      bmi::FindInContext("nif", config_max_nif);
+      bmi::FindInContext("mg_spec", config_mg_spec); // mg_spec="1 2"
+      bmi::FindInContext("mg_select", config_mg_spec_select); // mg_select=2
+      bmi::FindInContext("caliper", config_use_caliper);
+      bmi::FindInContext("dev_size", config_dev_size);
    }
 
    const int mpi_rank = mpi->WorldRank();
@@ -1304,7 +1228,7 @@ int main(int argc, char *argv[])
       caliper.start();
    }
 #else
-   MFEM_CONTRACT_VAR(use_caliper);
+   MFEM_CONTRACT_VAR(config_use_caliper);
 #endif
 
 #ifndef MFEM_USE_MPI
