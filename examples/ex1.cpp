@@ -120,8 +120,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+      const int NE = Device::IsEnabled() ? 1e5 : 50000.;
+      const int ref_levels = (int)floor(log(NE/mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -185,7 +185,10 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   // 'Default' E2E kernel
+   //a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   // Can be E2E, L2L, libCeed, etc.
+   a.AddDomainIntegrator(new MassIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
@@ -198,7 +201,7 @@ int main(int argc, char *argv[])
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   cout << "Size of linear system: " << A->Height() << endl;
+   //cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
    if (!pa)
@@ -224,10 +227,70 @@ int main(int argc, char *argv[])
             ceed::AlgebraicSolver M(a, ess_tdof_list);
             PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
          }
-         else
+         /*else
          {
             OperatorJacobiSmoother M(a, ess_tdof_list);
             PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+         }*/
+         else
+         {
+            const int myid = 0;
+            const int max_it = 50;
+            const int print_lvl = -1;
+            const double rtol = 1e-12;
+
+            CGSolver cg;
+            cg.SetRelTol(rtol);
+            cg.SetOperator(*A);
+
+            // Warm-up CG solve (in case of JIT to avoid timing it)
+            {
+               Vector Y(X);
+               cg.SetMaxIter(2);
+               cg.SetPrintLevel(-1);
+               cg.Mult(B, Y);
+               MFEM_DEVICE_SYNC;
+            }
+
+            // benchmark this problem
+            {
+               tic_toc.Clear();
+               cg.SetMaxIter(max_it);
+               cg.SetPrintLevel(print_lvl);
+               {
+                  tic_toc.Start();
+                  cg.Mult(B, X);
+                  MFEM_DEVICE_SYNC;
+                  tic_toc.Stop();
+               }
+            }
+            // Final norm check
+            const double final_norm = cg.GetFinalNorm();
+            MFEM_VERIFY(final_norm < sqrt(rtol),
+                        "FinalNorm (" << final_norm << ") Error!");
+            // Number of iteration check
+            const int num_iter = cg.GetNumIterations();
+            MFEM_VERIFY(num_iter <= max_it,
+                        "NumIterations (" << num_iter << ") Error!");
+
+            const double rt = tic_toc.RealTime();
+            const double rt_min = rt, rt_max = rt;
+            const int dofs = fespace.GetVSize();
+            const int cg_iter = cg.GetNumIterations();
+            const double mdofs_max = ((1e-6 * dofs) * cg_iter) / rt_max;
+            const double mdofs_min = ((1e-6 * dofs) * cg_iter) / rt_min;
+            if (myid == 0)
+            {
+               mfem::out << "Total CG time:    " << rt_max << " (" << rt_min << ") sec."
+                         << std::endl;
+               mfem::out << "Time per CG step: "
+                         << rt_max / cg_iter << " ("
+                         << rt_min / cg_iter << ") sec." << std::endl;
+               mfem::out << "\033[32m";
+               mfem::out << "\"DOFs/sec\" in CG: " << mdofs_max << " ("
+                         << mdofs_min << ") million.";
+               mfem::out << "\033[m" << std::endl;
+            }
          }
       }
       else

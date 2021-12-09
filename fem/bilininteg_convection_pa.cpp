@@ -768,8 +768,8 @@ void SmemPAConvectionApply3D(const int ne,
 
 void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
-                         Device::GetDeviceMemoryType() : pa_mt;
+   const MemoryType mt = (memory_type == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : memory_type;
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetFE(0);

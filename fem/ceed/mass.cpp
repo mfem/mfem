@@ -48,7 +48,8 @@ struct MassOperatorInfo : public OperatorInfo
 
 PAMassIntegrator::PAMassIntegrator(const mfem::FiniteElementSpace &fes,
                                    const mfem::IntegrationRule &irm,
-                                   mfem::Coefficient *Q)
+                                   mfem::Coefficient *Q,
+                                   mfem::ActionType &action_type)
    : PAIntegrator()
 {
 #ifdef MFEM_USE_CEED
@@ -57,6 +58,7 @@ PAMassIntegrator::PAMassIntegrator(const mfem::FiniteElementSpace &fes,
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
+   action_type = mfem::ActionType::L2L;
 }
 
 MFMassIntegrator::MFMassIntegrator(const mfem::FiniteElementSpace &fes,

@@ -240,7 +240,7 @@ ParAdvectorCGOper::ParAdvectorCGOper(const Vector &x_start,
    ConvectionIntegrator *Kinteg = new ConvectionIntegrator(u_coeff);
    if (al == AssemblyLevel::PARTIAL)
    {
-      Kinteg->SetPAMemoryType(mt);
+      Kinteg->SetMemoryType(mt);
    }
    K.AddDomainIntegrator(Kinteg);
    K.SetAssemblyLevel(al);
@@ -250,7 +250,7 @@ ParAdvectorCGOper::ParAdvectorCGOper(const Vector &x_start,
    MassIntegrator *Minteg = new MassIntegrator;
    if (al == AssemblyLevel::PARTIAL)
    {
-      Minteg->SetPAMemoryType(mt);
+      Minteg->SetMemoryType(mt);
    }
    M.AddDomainIntegrator(Minteg);
    M.SetAssemblyLevel(al);

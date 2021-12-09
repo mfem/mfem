@@ -1,0 +1,82 @@
+\documentclass[tikz]{standalone}
+%\documentclass[preview, border=4mm, convert={density=600,outext=.png}]{standalone}
+\usepackage{pgfplots}
+\pgfplotsset{compat=newest, table/col sep=comma}
+\usepackage{tikzscale}
+\usetikzlibrary{backgrounds}
+\usetikzlibrary{calc}
+
+\newcommand{\DATA}{bp1.org}
+\newcommand{\TITLE}{BP1}
+
+\newcommand{\XMIN}{1e3}
+\newcommand{\XMAX}{4e6}
+
+\newcommand{\YMIN}{0}
+\newcommand{\YMAX}{4}
+
+\usepackage{times}
+\usepackage{bm}
+\usepackage{fontspec}
+\setmainfont{Calibri}
+
+\definecolor{RYB2}{RGB}{31,120,180}   % Dark blue
+\definecolor{RYB4}{RGB}{51,160,44}    % Dark green
+\definecolor{RYB6}{RGB}{227,26,28}    % Dark red
+\definecolor{RYB8}{RGB}{255,127,0}    % Dark orange
+\definecolor{RYB10}{RGB}{160,60,140}  % Dark purple (modified)
+\definecolor{RYB12}{RGB}{177,89,40}   % Dark brown
+
+\definecolor{firebrick}{HTML}{B22222}
+\definecolor{steelblue4}{HTML}{3B77AF}
+
+\pgfplotsset{tick scale binop=\times}
+
+\pgfplotsset{every axis/.append style={
+axis line style={->},
+label style={font=\Large},
+tick label style={font=\large},
+title style={font=\Large\bfseries, text=steelblue4}
+}}
+
+\begin{document}
+\pgfplotscreateplotcyclelist{CycleList}{%
+RYB2!50!black,every mark/.append style={fill=RYB2},mark=*,smooth\\%
+RYB4!50!black,every mark/.append style={fill=RYB4},mark=*,smooth\\%
+RYB6!50!black,every mark/.append style={fill=RYB6},mark=*,smooth\\%
+RYB8!50!black,every mark/.append style={fill=RYB8},mark=*,smooth\\%
+RYB10!50!black,every mark/.append style={fill=RYB10},mark=*,smooth\\%
+RYB12!50!black,every mark/.append style={fill=RYB12},mark=*,smooth\\%
+}
+
+\begin{tikzpicture}[background rectangle/.style={fill=white},
+show background rectangle, scale=4.0]
+\begin{semilogxaxis}[
+    grid=both,
+    major grid style={line width=.1pt,draw=gray!50},
+    minor grid style={line width=.1pt,draw=gray!50},
+    width=4in,
+    xlabel={Degrees of Freedom (DOF)},
+    xlabel style={at={(axis description cs:0.5,-0.05)}},
+    ylabel={GDOF/s},
+    ylabel style={at={(axis description cs:-0.025,0.5)}},
+    cycle list name=CycleList,
+    %legend cell align=left,
+    legend pos=north west,
+    legend entries={$p=1$,$p=2$,$p=3$,$p=4$,$p=5$,$p=6$},
+    title=\TITLE,
+    ymin=\YMIN,
+    ymax=\YMAX,
+    xmin=\XMIN,
+    xmax=\XMAX
+  ]
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==1?$12/1e3:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==2?$12/1e3:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==3?$12/1e3:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==4?$12/1e3:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==5?$12/1e3:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==6?$12/1e3:NaN)};
+
+\end{semilogxaxis}
+\end{tikzpicture}
+\end{document}

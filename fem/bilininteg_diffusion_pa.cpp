@@ -351,8 +351,8 @@ static void PADiffusionSetup(const int dim,
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
-                         Device::GetDeviceMemoryType() : pa_mt;
+   const MemoryType mt = (memory_type == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : memory_type;
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
@@ -365,6 +365,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_VERIFY(!VQ && !MQ && !SMQ,
                   "Only scalar coefficient supported for DiffusionIntegrator"
                   " with libCEED");
+      action_type = ActionType::L2L;
       ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
       return;
    }

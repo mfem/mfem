@@ -42,18 +42,23 @@
 #define MFEM_GLOBAL
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
+#define MFEM_GLOBAL
 #define MFEM_HOST_DEVICE
 // MFEM_DEVICE_SYNC is made available for debugging purposes
 #define MFEM_DEVICE_SYNC
 // MFEM_STREAM_SYNC is used for UVM and MPI GPU-Aware kernels
 #define MFEM_STREAM_SYNC
+#define MFEM_LAUNCH_BOUNDS(...)
+#define MFEM_LAUNCH_KERNEL(Kernel,Grid,Block,Smem,...) Kernel(__VA_ARGS__)
 #endif
 
 #if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
       (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
+#define MFEM_GRID_DIM(k) 1
 #define MFEM_BLOCK_ID(k) 0
+#define MFEM_BLOCK_DIM(k) 1
 #define MFEM_THREAD_ID(k) 0
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)

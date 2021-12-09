@@ -21,6 +21,14 @@
 namespace mfem
 {
 
+// E or L I/O vectors
+enum class ActionType
+{
+   E2E,   ///< E => E kernels
+   L2E,   ///< L => E kernels
+   L2L    ///< L => L kernels
+};
+
 /** @brief This class is used to express the local action of a general nonlinear
     finite element operator. In addition it may provide the capability to
     assemble the local gradient operator and to compute the local energy. */
@@ -32,7 +40,9 @@ protected:
    // CEED extension
    ceed::Operator* ceedOp;
 
-   MemoryType pa_mt = MemoryType::DEFAULT;
+   MemoryType memory_type = MemoryType::DEFAULT;
+
+   ActionType action_type = ActionType::E2E;
 
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
       : IntRule(ir), ceedOp(NULL) { }
@@ -46,8 +56,11 @@ public:
    void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
 
    /// Set the memory type used for GeometricFactors and other large allocations
-   /// in PA extensions.
-   void SetPAMemoryType(MemoryType mt) { pa_mt = mt; }
+   void SetMemoryType(MemoryType mt) { memory_type = mt; }
+   MFEM_DEPRECATED void SetPAMemoryType(MemoryType mt) { memory_type = mt; }
+
+   /// Set the kernel type used in PA extensions.
+   ActionType GetActionType() const { return action_type; }
 
    /// Get the integration rule of the integrator (possibly NULL).
    const IntegrationRule *GetIntegrationRule() const { return IntRule; }

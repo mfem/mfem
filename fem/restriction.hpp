@@ -80,7 +80,16 @@ public:
     * @return the mapping from L dofs to E dofs.
     */
    const Array<int> &GatherMap() const { return gatherMap; }
+
+   /**
+    * @brief Indices
+    * @return the local to global indices.
+    */
    const Array<int> &Indices() const { return indices; }
+   /**
+    * @brief Offsets
+    * @return the offsets for each global dof.
+    */
    const Array<int> &Offsets() const { return offsets; }
 };
 

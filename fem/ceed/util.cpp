@@ -65,6 +65,8 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes)
          itr++;
       }
    }
+#else
+   MFEM_CONTRACT_VAR(fes);
 #endif
 }
 

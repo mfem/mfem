@@ -318,14 +318,31 @@ void PABilinearFormExtension::Assemble()
 void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int integrators_size = integrators.Size();
 
-   const int iSz = integrators.Size();
-   if (elem_restrict && !DeviceCanUseCeed())
+   // Scan the different action types we need to launch
+   bool E2E_actions = false,
+        L2L_actions = false;
+   for (int i = 0; i < integrators_size; ++i)
+   {
+      const ActionType action_type = integrators[i]->GetActionType();
+      E2E_actions |= action_type == ActionType::E2E;
+      L2L_actions |= action_type == ActionType::L2L;
+   }
+
+   // typically this is a large vector, so store on device
+   y.UseDevice(true);
+
+   // If E2E kernels are present, do their computation on local vectors
+   if (E2E_actions && elem_restrict)
    {
       localY = 0.0;
-      for (int i = 0; i < iSz; ++i)
+      for (int i = 0; i < integrators_size; ++i)
       {
-         integrators[i]->AssembleDiagonalPA(localY);
+         if (integrators[i]->GetActionType() == ActionType::E2E)
+         {
+            integrators[i]->AssembleDiagonalPA(localY);
+         }
       }
       const ElementRestriction* H1elem_restrict =
          dynamic_cast<const ElementRestriction*>(elem_restrict);
@@ -340,11 +357,20 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    }
    else
    {
-      y.UseDevice(true); // typically this is a large vector, so store on device
+      // otherwise, initialize the y output
       y = 0.0;
-      for (int i = 0; i < iSz; ++i)
+   }
+
+   // Continue with the computation of the L2L integrators
+   if (L2L_actions || !elem_restrict)
+   {
+      for (int i = 0; i < integrators_size; ++i)
       {
-         integrators[i]->AssembleDiagonalPA(y);
+         const ActionType action = integrators[i]->GetActionType();
+         if (action == ActionType::L2L || !elem_restrict)
+         {
+            integrators[i]->AssembleDiagonalPA(y);
+         }
       }
    }
 }
@@ -383,26 +409,51 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const int integrators_size = integrators.Size();
 
-   const int iSz = integrators.Size();
-   if (DeviceCanUseCeed() || !elem_restrict)
+   // Scan the different action types we need to launch
+   bool E2E_actions = false,
+        L2L_actions = false;
+   for (int i = 0; i < integrators_size; ++i)
    {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         integrators[i]->AddMultPA(x, y);
-      }
+      const ActionType action_type = integrators[i]->GetActionType();
+      E2E_actions |= action_type == ActionType::E2E;
+      L2L_actions |= action_type == ActionType::L2L;
    }
-   else
+
+   // typically this is a large vector, so store on device
+   y.UseDevice(true);
+
+   // If E2E kernels are present, do their computation on local vectors
+   if (E2E_actions && elem_restrict)
    {
       elem_restrict->Mult(x, localX);
       localY = 0.0;
-      for (int i = 0; i < iSz; ++i)
+      for (int i = 0; i < integrators_size; ++i)
       {
-         integrators[i]->AddMultPA(localX, localY);
+         if (integrators[i]->GetActionType() == ActionType::E2E)
+         {
+            integrators[i]->AddMultPA(localX, localY);
+         }
       }
       elem_restrict->MultTranspose(localY, y);
+   }
+   else
+   {
+      // otherwise, initialize the y output
+      y = 0.0;
+   }
+
+   // Continue with the computation of the L2L integrators
+   if (L2L_actions || !elem_restrict)
+   {
+      for (int i = 0; i < integrators_size; ++i)
+      {
+         if (integrators[i]->GetActionType() == ActionType::L2L || !elem_restrict)
+         {
+            integrators[i]->AddMultPA(x, y);
+         }
+      }
    }
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
