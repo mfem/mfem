@@ -76,7 +76,7 @@ public:
     * element space
     * @return true if the transfer was succesfull, fale otherwise.
     */
-   bool Apply(GridFunction &src_fun, GridFunction &dest_fun);
+   bool Apply(const GridFunction &src_fun, GridFunction &dest_fun);
 
    /*!
     * @brief assembles the various components necessary for the transfer.
