@@ -184,6 +184,9 @@ private:
    */
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
+
+protected:
+   void ParDoubleValuedConformingMult(const Vector& x, Vector& y) const;
 };
 
 /// Operator that extracts Face degrees of freedom for NCMesh in parallel.
@@ -299,6 +302,11 @@ private:
    */
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
+
+protected:
+   void ParSingleValuedNonConformingMult(const Vector& x, Vector& y) const;
+
+   void ParDoubleValuedNonConformingMult(const Vector& x, Vector& y) const;
 };
 
 }

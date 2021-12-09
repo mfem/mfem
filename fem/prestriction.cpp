@@ -370,7 +370,8 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    ComputeGatherIndices(ordering, type);
 }
 
-void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
+void ParL2FaceRestriction::ParDoubleValuedConformingMult(
+   const Vector& x, Vector& y) const
 {
    const ParFiniteElementSpace &pfes =
       static_cast<const ParFiniteElementSpace&>(this->fes);
@@ -385,58 +386,50 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    const bool t = byvdim;
    const int threshold = ndofs;
    const int nsdofs = pfes.GetFaceNbrVSize();
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
+                              t?vd:nsdofs, t?nsdofs:vd);
+   auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
+   MFEM_FORALL(i, nfdofs,
+   {
+      const int dof = i % nface_dofs;
+      const int face = i / nface_dofs;
+      const int idx1 = d_indices1[i];
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
+      }
+      const int idx2 = d_indices2[i];
+      for (int c = 0; c < vd; ++c)
+      {
+         if (idx2>-1 && idx2<threshold) // interior face
+         {
+            d_y(dof, c, 1, face) = d_x(t?c:idx2, t?idx2:c);
+         }
+         else if (idx2>=threshold) // shared boundary
+         {
+            d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-threshold),
+                                                t?(idx2-threshold):c);
+         }
+         else // true boundary
+         {
+            d_y(dof, c, 1, face) = 0.0;
+         }
+      }
+   });
+}
 
+void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
+{
    if (m==L2FaceValues::DoubleValued)
    {
-      auto d_indices1 = scatter_indices1.Read();
-      auto d_indices2 = scatter_indices2.Read();
-      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
-                                t?vd:nsdofs, t?nsdofs:vd);
-      auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
-      MFEM_FORALL(i, nfdofs,
-      {
-         const int dof = i % nface_dofs;
-         const int face = i / nface_dofs;
-         const int idx1 = d_indices1[i];
-         for (int c = 0; c < vd; ++c)
-         {
-            d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
-         }
-         const int idx2 = d_indices2[i];
-         for (int c = 0; c < vd; ++c)
-         {
-            if (idx2>-1 && idx2<threshold) // interior face
-            {
-               d_y(dof, c, 1, face) = d_x(t?c:idx2, t?idx2:c);
-            }
-            else if (idx2>=threshold) // shared boundary
-            {
-               d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-threshold),
-                                                 t?(idx2-threshold):c);
-            }
-            else // true boundary
-            {
-               d_y(dof, c, 1, face) = 0.0;
-            }
-         }
-      });
+      ParDoubleValuedConformingMult(x, y);
    }
    else
    {
-      auto d_indices1 = scatter_indices1.Read();
-      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
-      MFEM_FORALL(i, nfdofs,
-      {
-         const int dof = i % nface_dofs;
-         const int face = i / nface_dofs;
-         const int idx1 = d_indices1[i];
-         for (int c = 0; c < vd; ++c)
-         {
-            d_y(dof, c, face) = d_x(t?c:idx1, t?idx1:c);
-         }
-      });
+      SingleValuedConformingMult(x, y);
    }
 }
 
@@ -767,7 +760,87 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    ComputeGatherIndices(ordering, type);
 }
 
-void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
+void ParNCL2FaceRestriction::ParSingleValuedNonConformingMult(
+   const Vector& x, Vector& y) const
+{
+   // Assumes all elements have the same number of dofs
+   const int nface_dofs = face_dofs;
+   const int vd = vdim;
+   const bool t = byvdim;
+   const int threshold = ndofs;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
+   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   auto interpolators = interpolations.GetInterpolators().Read();
+   const int nc_size = interpolations.GetNumInterpolators();
+   auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
+   static constexpr int max_nd = 16*16;
+   MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
+   MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
+   {
+      MFEM_SHARED double dof_values[max_nd];
+      const InterpConfig conf = interp_config_ptr[face];
+      const int master_side = conf.GetNonConformingMasterSide();
+      const int interp_index = conf.GetInterpolatorIndex();
+      const int side = 0;
+      if ( interp_index==InterpConfig::conforming || side!=master_side )
+      {
+         MFEM_FOREACH_THREAD(dof,x,nface_dofs)
+         {
+            const int i = face*nface_dofs + dof;
+            const int idx = d_indices1[i];
+            if (idx>-1 && idx<threshold) // interior face
+            {
+               for (int c = 0; c < vd; ++c)
+               {
+                  d_y(dof, c, face) = d_x(t?c:idx, t?idx:c);
+               }
+            }
+            else // true boundary
+            {
+               for (int c = 0; c < vd; ++c)
+               {
+                  d_y(dof, c, face) = 0.0;
+               }
+            }
+         }
+      }
+      else // Interpolation from coarse to fine
+      {
+         for (int c = 0; c < vd; ++c)
+         {
+            MFEM_FOREACH_THREAD(dof,x,nface_dofs)
+            {
+               const int i = face*nface_dofs + dof;
+               const int idx = d_indices1[i];
+               if (idx>-1 && idx<threshold) // interior face
+               {
+                  dof_values[dof] = d_x(t?c:idx, t?idx:c);
+               }
+               else // true boundary
+               {
+                  dof_values[dof] = 0.0;
+               }
+            }
+            MFEM_SYNC_THREAD;
+            MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
+            {
+               double res = 0.0;
+               for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
+               {
+                  res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
+               }
+               d_y(dof_out, c, face) = res;
+            }
+            MFEM_SYNC_THREAD;
+         }
+      }
+   });
+}
+
+void ParNCL2FaceRestriction::ParDoubleValuedNonConformingMult(
+   const Vector& x, Vector& y) const
 {
    const ParFiniteElementSpace &pfes =
       static_cast<const ParFiniteElementSpace&>(this->fes);
@@ -782,162 +855,53 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    const bool t = byvdim;
    const int threshold = ndofs;
    const int nsdofs = pfes.GetFaceNbrVSize();
-
-   if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
+                              t?vd:nsdofs, t?nsdofs:vd);
+   auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
+   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   auto interpolators = interpolations.GetInterpolators().Read();
+   const int nc_size = interpolations.GetNumInterpolators();
+   auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
+   static constexpr int max_nd = 1024;
+   MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
+   MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
    {
-      auto d_indices1 = scatter_indices1.Read();
-      auto d_indices2 = scatter_indices2.Read();
-      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
-                                t?vd:nsdofs, t?nsdofs:vd);
-      auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
-      auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
-      auto interpolators = interpolations.GetInterpolators().Read();
-      const int nc_size = interpolations.GetNumInterpolators();
-      auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
-      static constexpr int max_nd = 1024;
-      MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
+      MFEM_SHARED double dof_values[max_nd];
+      const InterpConfig conf = interp_config_ptr[face];
+      const int master_side = conf.GetNonConformingMasterSide();
+      const int interp_index = conf.GetInterpolatorIndex();
+      for (int side = 0; side < 2; side++)
       {
-         MFEM_SHARED double dof_values[max_nd];
-         const InterpConfig conf = interp_config_ptr[face];
-         const int master_side = conf.GetNonConformingMasterSide();
-         const int interp_index = conf.GetInterpolatorIndex();
-         for (int side = 0; side < 2; side++)
-         {
-            if ( interp_index==InterpConfig::conforming || side!=master_side )
-            {
-               // No interpolation
-               MFEM_FOREACH_THREAD(dof,x,nface_dofs)
-               {
-                  const int i = face*nface_dofs + dof;
-                  const int idx = side==0 ? d_indices1[i] : d_indices2[i];
-                  if (idx>-1 && idx<threshold) // local interior face
-                  {
-                     for (int c = 0; c < vd; ++c)
-                     {
-                        d_y(dof, c, side, face) = d_x(t?c:idx, t?idx:c);
-                     }
-                  }
-                  else if (idx>=threshold) // shared interior face
-                  {
-                     const int sidx = idx-threshold;
-                     for (int c = 0; c < vd; ++c)
-                     {
-                        d_y(dof, c, side, face) = d_x_shared(t?c:sidx, t?sidx:c);
-                     }
-                  }
-                  else // true boundary
-                  {
-                     for (int c = 0; c < vd; ++c)
-                     {
-                        d_y(dof, c, side, face) = 0.0;
-                     }
-                  }
-               }
-            }
-            else // Interpolation from coarse to fine
-            {
-               for (int c = 0; c < vd; ++c)
-               {
-                  MFEM_FOREACH_THREAD(dof,x,nface_dofs)
-                  {
-                     const int i = face*nface_dofs + dof;
-                     const int idx = side==0 ? d_indices1[i] : d_indices2[i];
-                     if (idx>-1 && idx<threshold) // local interior face
-                     {
-                        dof_values[dof] = d_x(t?c:idx, t?idx:c);
-                     }
-                     else if (idx>=threshold) // shared interior face
-                     {
-                        const int sidx = idx-threshold;
-                        dof_values[dof] = d_x_shared(t?c:sidx, t?sidx:c);
-                     }
-                     else // true boundary
-                     {
-                        dof_values[dof] = 0.0;
-                     }
-                  }
-                  MFEM_SYNC_THREAD;
-                  MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
-                  {
-                     double res = 0.0;
-                     for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
-                     {
-                        res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
-                     }
-                     d_y(dof_out, c, side, face) = res;
-                  }
-                  MFEM_SYNC_THREAD;
-               }
-            }
-         }
-      });
-   }
-   else if ( type==FaceType::Boundary && m==L2FaceValues::DoubleValued )
-   {
-      auto d_indices1 = scatter_indices1.Read();
-      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
-      MFEM_FORALL(i, nfdofs,
-      {
-         const int dof = i % nface_dofs;
-         const int face = i / nface_dofs;
-         const int idx1 = d_indices1[i];
-         for (int c = 0; c < vd; ++c)
-         {
-            d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
-         }
-         for (int c = 0; c < vd; ++c)
-         {
-            d_y(dof, c, 1, face) = 0.0;
-         }
-      });
-   }
-   else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
-   {
-      auto d_indices1 = scatter_indices1.Read();
-      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
-      auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
-      auto interpolators = interpolations.GetInterpolators().Read();
-      const int nc_size = interpolations.GetNumInterpolators();
-      auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
-      static constexpr int max_nd = 16*16;
-      MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
-      {
-         MFEM_SHARED double dof_values[max_nd];
-         const InterpConfig conf = interp_config_ptr[face];
-         const int master_side = conf.GetNonConformingMasterSide();
-         const int interp_index = conf.GetInterpolatorIndex();
-         const int side = 0;
          if ( interp_index==InterpConfig::conforming || side!=master_side )
          {
+            // No interpolation
             MFEM_FOREACH_THREAD(dof,x,nface_dofs)
             {
                const int i = face*nface_dofs + dof;
-               const int idx = d_indices1[i];
-               if (idx>-1 && idx<threshold) // interior face
+               const int idx = side==0 ? d_indices1[i] : d_indices2[i];
+               if (idx>-1 && idx<threshold) // local interior face
                {
                   for (int c = 0; c < vd; ++c)
                   {
-                     d_y(dof, c, face) = d_x(t?c:idx, t?idx:c);
+                     d_y(dof, c, side, face) = d_x(t?c:idx, t?idx:c);
                   }
                }
-               // else if (idx>=threshold) // shared interior face
-               // {
-               //    const int sidx = idx-threshold;
-               //    for (int c = 0; c < vd; ++c)
-               //    {
-               //       d_y(dof, c, face) = d_x_shared(t?c:sidx, t?sidx:c);
-               //    }
-               // }
+               else if (idx>=threshold) // shared interior face
+               {
+                  const int sidx = idx-threshold;
+                  for (int c = 0; c < vd; ++c)
+                  {
+                     d_y(dof, c, side, face) = d_x_shared(t?c:sidx, t?sidx:c);
+                  }
+               }
                else // true boundary
                {
                   for (int c = 0; c < vd; ++c)
                   {
-                     d_y(dof, c, face) = 0.0;
+                     d_y(dof, c, side, face) = 0.0;
                   }
                }
             }
@@ -949,16 +913,16 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                MFEM_FOREACH_THREAD(dof,x,nface_dofs)
                {
                   const int i = face*nface_dofs + dof;
-                  const int idx = d_indices1[i];
-                  if (idx>-1 && idx<threshold) // interior face
+                  const int idx = side==0 ? d_indices1[i] : d_indices2[i];
+                  if (idx>-1 && idx<threshold) // local interior face
                   {
                      dof_values[dof] = d_x(t?c:idx, t?idx:c);
                   }
-                  // else if (idx>=threshold) // shared interior face
-                  // {
-                  //    const int sidx = idx-threshold;
-                  //    dof_values[dof] = d_x_shared(t?c:sidx, t?sidx:c);
-                  // }
+                  else if (idx>=threshold) // shared interior face
+                  {
+                     const int sidx = idx-threshold;
+                     dof_values[dof] = d_x_shared(t?c:sidx, t?sidx:c);
+                  }
                   else // true boundary
                   {
                      dof_values[dof] = 0.0;
@@ -972,28 +936,32 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
                   {
                      res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
                   }
-                  d_y(dof_out, c, face) = res;
+                  d_y(dof_out, c, side, face) = res;
                }
                MFEM_SYNC_THREAD;
             }
          }
-      });
+      }
+   });
+}
+
+void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
+{
+   if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
+   {
+      ParDoubleValuedNonConformingMult(x, y);
+   }
+   else if ( type==FaceType::Boundary && m==L2FaceValues::DoubleValued )
+   {
+      DoubleValuedConformingMult(x, y);
+   }
+   else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
+   {
+      ParSingleValuedNonConformingMult(x, y);
    }
    else if ( type==FaceType::Boundary && m==L2FaceValues::SingleValued )
    {
-      auto d_indices1 = scatter_indices1.Read();
-      auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-      auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
-      MFEM_FORALL(i, nfdofs,
-      {
-         const int dof = i % nface_dofs;
-         const int face = i / nface_dofs;
-         const int idx1 = d_indices1[i];
-         for (int c = 0; c < vd; ++c)
-         {
-            d_y(dof, c, face) = d_x(t?c:idx1, t?idx1:c);
-         }
-      });
+      SingleValuedConformingMult(x, y);
    }
    else
    {
@@ -1003,142 +971,23 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 
 void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 {
-   if (x_interp.Size()==0)
-   {
-      x_interp.SetSize(x.Size());
-   }
-   x_interp = x;
-   // Assumes all elements have the same number of dofs
-   const int nface_dofs = face_dofs;
-   const int vd = vdim;
-   const bool t = byvdim;
    // Interpolation from slave to master face dofs
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
-      auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, 2, nf);
-      auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
-      auto interpolators = interpolations.GetInterpolators().Read();
-      const int nc_size = interpolations.GetNumInterpolators();
-      auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
-      static constexpr int max_nd = 1024;
-      MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
-      {
-         MFEM_SHARED double dof_values[max_nd];
-         const InterpConfig conf = interp_config_ptr[face];
-         const int master_side = conf.GetNonConformingMasterSide();
-         const int interp_index = conf.GetInterpolatorIndex();
-         if ( interp_index!=InterpConfig::conforming )
-         {
-            // Interpolation from fine to coarse
-            for (int c = 0; c < vd; ++c)
-            {
-               MFEM_FOREACH_THREAD(dof,x,nface_dofs)
-               {
-                  dof_values[dof] = d_x(dof, c, master_side, face);
-               }
-               MFEM_SYNC_THREAD;
-               MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
-               {
-                  double res = 0.0;
-                  for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
-                  {
-                     res += d_interp(dof_in, dof_out, interp_index)*dof_values[dof_in];
-                  }
-                  d_x(dof_out, c, master_side, face) = res;
-               }
-               MFEM_SYNC_THREAD;
-            }
-         }
-      });
+      DoubleValuedNonConformingTransposeInterpolation(x);
    }
    else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
    {
-      auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, nf);
-      auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
-      auto interpolators = interpolations.GetInterpolators().Read();
-      const int nc_size = interpolations.GetNumInterpolators();
-      auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
-      static constexpr int max_nd = 1024;
-      MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
-      MFEM_FORALL_3D(face, nf, nface_dofs, 1, 1,
-      {
-         MFEM_SHARED double dof_values[max_nd];
-         const InterpConfig conf = interp_config_ptr[face];
-         const int master_side = conf.GetNonConformingMasterSide();
-         const int interp_index = conf.GetInterpolatorIndex();
-         if ( interp_index!=InterpConfig::conforming && master_side==0 )
-         {
-            // Interpolation from fine to coarse
-            for (int c = 0; c < vd; ++c)
-            {
-               MFEM_FOREACH_THREAD(dof,x,nface_dofs)
-               {
-                  dof_values[dof] = d_x(dof, c, face);
-               }
-               MFEM_SYNC_THREAD;
-               MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
-               {
-                  double res = 0.0;
-                  for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
-                  {
-                     res += d_interp(dof_in, dof_out, interp_index)*dof_values[dof_in];
-                  }
-                  d_x(dof_out, c, face) = res;
-               }
-               MFEM_SYNC_THREAD;
-            }
-         }
-      });
+      SingleValuedNonConformingTransposeInterpolation(x);
    }
 
-   // Gathering of face dofs into element dofs
-   const int dofs = nfdofs;
-   auto d_offsets = gather_offsets.Read();
-   auto d_indices = gather_indices.Read();
    if ( m==L2FaceValues::DoubleValued )
    {
-      auto d_x = Reshape(x_interp.Read(), nface_dofs, vd, 2, nf);
-      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-      MFEM_FORALL(i, ndofs,
-      {
-         const int offset = d_offsets[i];
-         const int next_offset = d_offsets[i + 1];
-         for (int c = 0; c < vd; ++c)
-         {
-            double dof_value = 0;
-            for (int j = offset; j < next_offset; ++j)
-            {
-               int idx_j = d_indices[j];
-               bool isE1 = idx_j < dofs;
-               idx_j = isE1 ? idx_j : idx_j - dofs;
-               dof_value +=  isE1 ?
-               d_x(idx_j % nface_dofs, c, 0, idx_j / nface_dofs)
-               :d_x(idx_j % nface_dofs, c, 1, idx_j / nface_dofs);
-            }
-            d_y(t?c:i,t?i:c) += dof_value;
-         }
-      });
+      DoubleValuedConformingAddMultTranspose(x_interp, y);
    }
    else // Single valued
    {
-      auto d_x = Reshape(x_interp.Read(), nface_dofs, vd, nf);
-      auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
-      MFEM_FORALL(i, ndofs,
-      {
-         const int offset = d_offsets[i];
-         const int next_offset = d_offsets[i + 1];
-         for (int c = 0; c < vd; ++c)
-         {
-            double dof_value = 0;
-            for (int j = offset; j < next_offset; ++j)
-            {
-               int idx_j = d_indices[j];
-               dof_value +=  d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
-            }
-            d_y(t?c:i,t?i:c) += dof_value;
-         }
-      });
+      SingleValuedConformingAddMultTranspose(x_interp, y);
    }
 }
 
