@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
    int order = 1;
    double sigma = -1.0;
    double kappa = -1.0;
-   double beta = 1.0;
+   double beta = 1;
    double eta = 0.0;
    bool pa = false;
    bool visualization = 1;
@@ -65,8 +65,6 @@ int main(int argc, char *argv[])
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the three DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
-   args.AddOption(&beta, "-b", "--beta",
-                  "DEBUG PARAM");
    args.AddOption(&eta, "-e", "--eta", "BR2 penalty parameter.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
