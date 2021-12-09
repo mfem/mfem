@@ -183,6 +183,7 @@ public:
    // used through MFEM_NVTX
    inline void operator()() const noexcept
    {
+      if (!nvtx) { return; }
       event.message.ascii = ascii.c_str();
       nvtxRangePushEx(&event); // push
    }
