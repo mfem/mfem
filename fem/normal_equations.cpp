@@ -65,6 +65,8 @@ void NormalEquations::Init()
    diag_policy = mfem::Operator::DIAG_ONE;
    height = dof_offsets[nblocks];
    width = height;
+
+   initialized = true;
 }
 
 // Allocate SparseMatrix and RHS
@@ -138,11 +140,6 @@ void NormalEquations::BuildProlongation()
       else
       {
          // do nothing
-
-         // TODO improve this by using BlockOperator/BlockMatrix
-         // Vector diag(fespaces[i]->GetVSize()); diag = 1.;
-         // P->SetBlock(i,i,new SparseMatrix(diag));
-         // R->SetBlock(i,i,new SparseMatrix(diag));
       }
    }
 }
@@ -567,61 +564,63 @@ void NormalEquations::RecoverFEMSolution(const Vector &X,
    }
 }
 
+
+void NormalEquations::ReleaseInitMemory()
+{
+   if (initialized)
+   {
+      for (int k = 0; k< domain_integs.NumRows(); k++)
+      {
+         for (int l = 0; l<domain_integs.NumCols(); l++)
+         {
+            for (int i = 0; i<domain_integs(k,l)->Size(); i++)
+            {
+               delete (*domain_integs(k,l))[i];
+            }
+            delete domain_integs(k,l);
+         }
+      }
+      domain_integs.DeleteAll();
+      for (int k = 0; k< trace_integs.NumRows(); k++)
+      {
+         for (int l = 0; l<trace_integs.NumCols(); l++)
+         {
+            for (int i = 0; i<trace_integs(k,l)->Size(); i++)
+            {
+               delete (*trace_integs(k,l))[i];
+            }
+            delete trace_integs(k,l);
+         }
+      }
+      trace_integs.DeleteAll();
+      for (int k = 0; k < test_integs.NumRows(); k++)
+      {
+         for (int l = 0; l < test_integs.NumCols(); l++)
+         {
+            for (int i = 0; i < test_integs(k,l)->Size(); i++)
+            {
+               delete (*test_integs(k,l))[i];
+            }
+            delete test_integs(k,l);
+         }
+      }
+      test_integs.DeleteAll();
+   }
+}
+
+
 NormalEquations::~NormalEquations()
 {
-   delete mat_e;
-   delete mat;
-   delete y;
+   delete mat_e; mat_e = nullptr;
+   delete mat; mat = nullptr;
+   delete y; y = nullptr;
 
-   for (int k = 0; k< domain_integs.NumRows(); k++)
-   {
-      for (int l = 0; l<domain_integs.NumCols(); l++)
-      {
-         for (int i = 0; i<domain_integs(k,l)->Size(); i++)
-         {
-            delete (*domain_integs(k,l))[i];
-         }
-         delete domain_integs(k,l);
-      }
-   }
-
-   for (int k = 0; k< trace_integs.NumRows(); k++)
-   {
-      for (int l = 0; l<trace_integs.NumCols(); l++)
-      {
-         for (int i = 0; i<trace_integs(k,l)->Size(); i++)
-         {
-            delete (*trace_integs(k,l))[i];
-         }
-         delete trace_integs(k,l);
-      }
-   }
-
-   for (int k = 0; k < test_integs.NumRows(); k++)
-   {
-      for (int l = 0; l < test_integs.NumCols(); l++)
-      {
-         for (int i = 0; i < test_integs(k,l)->Size(); i++)
-         {
-            delete (*test_integs(k,l))[i];
-         }
-         delete test_integs(k,l);
-      }
-   }
+   ReleaseInitMemory();
 
    if (P)
    {
       delete P;
       delete R;
-   }
-
-   if (store_mat)
-   {
-      for (int i = 0; i<mesh->GetNE(); i++)
-      {
-         delete  GB[i];
-         delete  Gl[i];
-      }
    }
 }
 

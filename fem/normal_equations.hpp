@@ -24,6 +24,9 @@ class NormalEquations
 {
 
 protected:
+
+   bool initialized = false;
+
    Mesh * mesh = nullptr;
    int height, width;
    int nblocks;
@@ -71,46 +74,46 @@ protected:
    mfem::Operator::DiagonalPolicy diag_policy;
 
    void Init();
+   void ReleaseInitMemory();
 
    // Allocate appropriate SparseMatrix and assign it to mat
    void AllocMat();
 
    void ConformingAssemble();
 
-   void BuildProlongation();
+   virtual void BuildProlongation();
 
-   bool store_mat;
-
-   // Store G^-1 l and G^-1 B for computing
-   // element residuals after solution
-   Array<DenseMatrix *> GB;
-   Array<Vector *> Gl;
 
 private:
 
 public:
 
    /// Creates bilinear form associated with FE spaces @a *fespaces.
+   NormalEquations()
+   {
+      height = 0.;
+      width = 0;
+   }
+
    NormalEquations(Array<FiniteElementSpace* > & fes_,
                    Array<FiniteElementSpace* > & trace_fes_,
-                   Array<FiniteElementCollection *> & fecol_, bool store_mat_ = false)
-      : domain_fes(fes_), trace_fes(trace_fes_), test_fecols(fecol_),
-        store_mat(store_mat_)
+                   Array<FiniteElementCollection *> & fecol_)
    {
+      SetSpaces(fes_,trace_fes_,fecol_);
+   }
+
+   void SetSpaces(Array<FiniteElementSpace* > & fes_,
+                  Array<FiniteElementSpace* > & trace_fes_,
+                  Array<FiniteElementCollection *> & fecol_)
+   {
+      domain_fes = fes_;
+      trace_fes = trace_fes_;
+      test_fecols = fecol_;
       nblocks = domain_fes.Size() + trace_fes.Size();
       mesh = domain_fes[0]->GetMesh();
+      fespaces.SetSize(0);
       fespaces.Append(domain_fes);
       fespaces.Append(trace_fes);
-      if (store_mat)
-      {
-         GB.SetSize(mesh->GetNE());
-         Gl.SetSize(mesh->GetNE());
-         for (int i = 0; i<mesh->GetNE(); i++)
-         {
-            GB[i] = new DenseMatrix;
-            Gl[i] = new Vector;
-         }
-      }
       Init();
    }
 
@@ -158,9 +161,9 @@ public:
    void Assemble(int skip_zeros = 1);
 
 
-   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
-                         OperatorHandle &A, Vector &X,
-                         Vector &B, int copy_interior = 0);
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+                                 OperatorHandle &A, Vector &X,
+                                 Vector &B, int copy_interior = 0);
 
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
@@ -174,8 +177,8 @@ public:
       A.MakeRef(*A_ptr);
    }
 
-   void FormSystemMatrix(const Array<int> &ess_tdof_list,
-                         OperatorHandle &A);
+   virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                 OperatorHandle &A);
 
    template <typename OpType>
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OpType &A)
@@ -192,7 +195,7 @@ public:
 
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
 
-   void RecoverFEMSolution(const Vector &X,Vector &x);
+   virtual void RecoverFEMSolution(const Vector &X,Vector &x);
 
    /// Sets diagonal policy used upon construction of the linear system.
    /** Policies include:
@@ -207,7 +210,7 @@ public:
    }
 
    /// Destroys bilinear form.
-   ~NormalEquations();
+   virtual ~NormalEquations();
 
 };
 
