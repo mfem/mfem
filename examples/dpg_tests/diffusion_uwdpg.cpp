@@ -179,17 +179,20 @@ int main(int argc, char *argv[])
    }
 
    Vector X,B;
-
-   int size = u_fes->GetVSize() + sigma_fes->GetVSize()
-            + hatu_fes->GetVSize() + hatsigma_fes->GetVSize();
-
-   Vector x(size);
+   Array<int> offsets(5);
+   offsets[0] = 0;
+   offsets[1] = u_fes->GetVSize();
+   offsets[2] = sigma_fes->GetVSize();
+   offsets[3] = hatu_fes->GetVSize();
+   offsets[4] = hatsigma_fes->GetVSize();
+   offsets.PartialSum();
+   BlockVector x(offsets);
    x = 0.0;
 
    OperatorPtr Ah;
    a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
 
-   BlockMatrix * A = (BlockMatrix *)(Ah.Ptr());
+   BlockMatrix * A = Ah.As<BlockMatrix>();
 
    BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
    M->owns_blocks = 1;
@@ -211,11 +214,10 @@ int main(int argc, char *argv[])
    a->RecoverFEMSolution(X,x);
 
    GridFunction u_gf;
-   double *data = x.GetData();
-   u_gf.MakeRef(u_fes,data);
+   u_gf.MakeRef(u_fes,x.GetBlock(0));
 
    GridFunction sigma_gf;
-   sigma_gf.MakeRef(sigma_fes,&data[u_fes->GetVSize()]);
+   sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
 
 
    if (visualization)
