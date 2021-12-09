@@ -18,7 +18,6 @@
 namespace mfem
 {
 
-
 void ParNormalEquations::FillEssTdofLists(const Array<int> & ess_tdof_list)
 {
    int j;
@@ -31,12 +30,6 @@ void ParNormalEquations::FillEssTdofLists(const Array<int> & ess_tdof_list)
       }
       ess_tdofs[j]->Append(tdof-tdof_offsets[j]);
    }
-
-   // for (int j = 0; j<ess_tdofs.Size(); j++)
-   // {
-   //    mfem::out << "j = " << j << std::endl;
-   //    ess_tdofs[j]->Print();
-   // }
 }
 
 void ParNormalEquations::Assemble(int skip_zeros)
@@ -66,6 +59,7 @@ void ParNormalEquations::ParallelAssemble(BlockMatrix *m)
             A = new HypreParMatrix(pfes[i]->GetComm(), pfes[i]->GlobalVSize(),
                                    pfes[i]->GetDofOffsets(),&m->GetBlock(i,i));
             PtAP = RAP(A,Pi);
+            delete A;
             p_mat_e->SetBlock(i,i,PtAP->EliminateRowsCols(*ess_tdofs[i]));
          }
          else
@@ -75,6 +69,7 @@ void ParNormalEquations::ParallelAssemble(BlockMatrix *m)
                                    pfes[j]->GlobalVSize(), pfes[i]->GetDofOffsets(),
                                    pfes[j]->GetDofOffsets(), &m->GetBlock(i,j));
             PtAP = RAP(Pi,A,Pj);
+            delete A;
             p_mat_e->SetBlock(i,j,PtAP->EliminateCols(*ess_tdofs[j]));
             PtAP->EliminateRows(*ess_tdofs[i]);
          }
@@ -114,7 +109,6 @@ void ParNormalEquations::FormLinearSystem(const Array<int>
    X.SetSize(R->Height());
    R->Mult(x,X);
 
-
    // eliminate tdof is RHS
    // B -= Ae*X
    Vector tmp(B.Size());
@@ -123,10 +117,10 @@ void ParNormalEquations::FormLinearSystem(const Array<int>
 
    for (int j = 0; j<nblocks; j++)
    {
-      HypreParMatrix *A = (HypreParMatrix *)(&p_mat->GetBlock(j,j));
-      // TODO ... simplify this
+      if (!ess_tdofs[j]->Size()) { continue; }
+      HypreParMatrix *Ah = (HypreParMatrix *)(&p_mat->GetBlock(j,j));
       Vector diag;
-      A->GetDiag(diag);
+      Ah->GetDiag(diag);
       for (int i = 0; i < ess_tdofs[j]->Size(); i++)
       {
          int tdof = (*ess_tdofs[j])[i];
@@ -164,8 +158,16 @@ void ParNormalEquations::RecoverFEMSolution(const Vector &X,
 
 ParNormalEquations::~ParNormalEquations()
 {
-
-
+   delete p_mat_e;
+   p_mat_e = nullptr;
+   delete p_mat;
+   p_mat = nullptr;
+   for (int i = 0; i<nblocks; i++)
+   {
+      delete ess_tdofs[i];
+   }
+   delete P;
+   delete R;
 }
 
 } // namespace mfem
