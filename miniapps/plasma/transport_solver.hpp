@@ -653,7 +653,7 @@ typedef IonDensityCoefs IDCoefs;
 typedef IonMomentumCoefs IMCoefs;
 typedef IonStaticPressureCoefs ISPCoefs;
 typedef ElectronStaticPressureCoefs ESPCoefs;
-typedef CommonCoefs CCoefs;
+typedef CommonCoefs CmnCoefs;
 
 class TransportCoefs
 {
@@ -695,6 +695,36 @@ public:
 
    EqnCoefficients & operator[](int i) { return *eqnCoefs_[i]; }
    const EqnCoefficients & operator[](int i) const { return *eqnCoefs_[i]; }
+
+   NDCoefs & GetNeutralDensityCoefs()
+   { return dynamic_cast<NDCoefs&>(*eqnCoefs_[0]); }
+   const NDCoefs & GetNeutralDensityCoefs() const
+   { return dynamic_cast<const NDCoefs&>(*eqnCoefs_[0]); }
+
+   IDCoefs & GetIonDensityCoefs()
+   { return dynamic_cast<IDCoefs&>(*eqnCoefs_[1]); }
+   const IDCoefs & GetIonDensityCoefs() const
+   { return dynamic_cast<const IDCoefs&>(*eqnCoefs_[1]); }
+
+   IMCoefs & GetIonMomentumCoefs()
+   { return dynamic_cast<IMCoefs&>(*eqnCoefs_[2]); }
+   const IMCoefs & GetIonMomentumCoefs() const
+   { return dynamic_cast<const IMCoefs&>(*eqnCoefs_[2]); }
+
+   ISPCoefs & GetIonStaticPressureCoefs()
+   { return dynamic_cast<ISPCoefs&>(*eqnCoefs_[3]); }
+   const ISPCoefs & GetIonStaticPressureCoefs() const
+   { return dynamic_cast<const ISPCoefs&>(*eqnCoefs_[3]); }
+
+   ESPCoefs & GetElectronStaticPressureCoefs()
+   { return dynamic_cast<ESPCoefs&>(*eqnCoefs_[4]); }
+   const ESPCoefs & GetElectronStaticPressureCoefs() const
+   { return dynamic_cast<const ESPCoefs&>(*eqnCoefs_[4]); }
+
+   CommonCoefs & GetCommonCoefs()
+   { return dynamic_cast<CommonCoefs&>(*eqnCoefs_[5]); }
+   const CommonCoefs & GetCommonCoefs() const
+   { return dynamic_cast<const CommonCoefs&>(*eqnCoefs_[5]); }
 };
 
 class ParGridFunctionArray : public Array<ParGridFunction*>
@@ -3082,7 +3112,7 @@ private:
       const AdvectionDiffusionBC & bcs_;
       const CoupledBCs & cbcs_;
 
-      const EqnCoefficients & eqncoefs_;
+      const CommonCoefs & cmncoefs_;
 
       VectorCoefficient & B3Coef_;
 
@@ -3101,7 +3131,7 @@ private:
                   ParGridFunctionArray & kGF,
                   const AdvectionDiffusionBC & bcs,
                   const CoupledBCs & cbcs,
-                  const EqnCoefficients & coefs,
+                  const CommonCoefs & common_coefs,
                   VectorCoefficient & B3Coef,
                   int term_flag, int vis_flag,
                   int logging,
@@ -3229,6 +3259,8 @@ private:
                      SOURCE_COEF
                     };
 
+      const NeutralDensityCoefs & ndcoefs_;
+
       ConstantCoefficient       vnCoef_;
       ApproxIonizationRate      izCoef_;
       ApproxRecombinationRate   rcCoef_;
@@ -3256,7 +3288,8 @@ private:
                        ParGridFunctionArray & kGF,
                        const AdvectionDiffusionBC & bcs,
                        const CoupledBCs & cbcs,
-                       const EqnCoefficients & coefs,
+                       const NDCoefs & ndcoefs,
+                       const CommonCoefs & cmncoefs,
                        VectorCoefficient & B3Coef,
                        int term_flag,
                        int vis_flag, int logging,
@@ -3333,6 +3366,8 @@ private:
                      SOURCE_COEF
                     };
 
+      const IonDensityCoefs & idcoefs_;
+
       ApproxIonizationRate    izCoef_;
       ApproxRecombinationRate rcCoef_;
 
@@ -3365,7 +3400,8 @@ private:
                    ParGridFunctionArray & kGF,
                    const AdvectionDiffusionBC & bcs,
                    const CoupledBCs & cbcs,
-                   const EqnCoefficients & coefs,
+                   const IDCoefs & idcoefs,
+                   const CommonCoefs & cmncoefs,
                    VectorCoefficient & B3Coef,
                    double DPerp,
                    int term_flag, int vis_flag, int logging,
@@ -3425,6 +3461,8 @@ private:
                      ADVECTION_COEF, GRADP_SOURCE_COEF, SOURCE_COEF
                     };
 
+      const IonMomentumCoefs & imcoefs_;
+
       double DPerpConst_;
       ConstantCoefficient DPerpCoef_;
 
@@ -3460,7 +3498,8 @@ private:
                     ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
                     const AdvectionDiffusionBC & bcs,
                     const CoupledBCs & cbcs,
-                    const EqnCoefficients & coefs,
+                    const IMCoefs & imcoefs,
+                    const CmnCoefs & cmncoefs,
                     VectorCoefficient & B3Coef,
                     // int ion_charge, double ion_mass,
                     double DPerp,
@@ -3519,6 +3558,8 @@ private:
                      SOURCE_COEF = 1
                     };
 
+      const IonStaticPressureCoefs & ispcoefs_;
+
       double ChiPerpConst_;
 
       ApproxIonizationRate     izCoef_;
@@ -3539,7 +3580,8 @@ private:
                           ParGridFunctionArray & kGF,
                           const AdvectionDiffusionBC & bcs,
                           const CoupledBCs & cbcs,
-                          const EqnCoefficients & coefs,
+                          const ISPCoefs & ispcoefs,
+                          const CmnCoefs & cmncoefs,
                           VectorCoefficient & B3Coef,
                           double ChiPerp,
                           int term_flag, int vis_flag, int logging,
@@ -3597,6 +3639,8 @@ private:
                      SOURCE_COEF = 1
                     };
 
+      const ElectronStaticPressureCoefs & espcoefs_;
+
       double ChiPerpConst_;
 
       ApproxIonizationRate     izCoef_;
@@ -3617,7 +3661,8 @@ private:
                                ParGridFunctionArray & kGF,
                                const AdvectionDiffusionBC & bcs,
                                const CoupledBCs & cbcs,
-                               const EqnCoefficients & coefs,
+                               const ESPCoefs & espcoefs,
+                               const CmnCoefs & cmncoefs,
                                VectorCoefficient & B3Coef,
                                double ChiPerp,
                                int term_flag, int vis_flag,
@@ -3646,7 +3691,7 @@ private:
               ParGridFunctionArray & kGF,
               const AdvectionDiffusionBC & bcs,
               const CoupledBCs & cbcs,
-              const EqnCoefficients & coefs,
+              const CommonCoefs & cmncoefs,
               VectorCoefficient & B3Coef,
               int index,
               const std::string &eqn_name,
