@@ -39,20 +39,21 @@ protected:
    // All FE Spaces
    Array<ParFiniteElementSpace * > pfes;
 
+   // ess_tdof list for each space
+   Array<Array<int> *> ess_tdofs;
+
+   // split ess_tdof_list give in global tdof (for all spaces)
+   // to individual lists for each space
+   // (this can be changed i.e., the lists to be given by the user)
+   void FillEssTdofLists(const Array<int> & ess_tdof_list);
+
    // Block operator of HypreParMatrix
    BlockOperator * P = nullptr; // Block Prolongation
    BlockOperator * R = nullptr; // Block Restriction
 
-
    // Block operator of HypreParMatrix
    BlockOperator * p_mat = nullptr;
    BlockOperator * p_mat_e = nullptr;
-
-
-   // void Init();
-
-   // Allocate appropriate SparseMatrix and assign it to mat
-   void pAllocMat();
 
    void BuildProlongation();
 
@@ -60,31 +61,53 @@ private:
 
 public:
 
+   ParNormalEquations() {}
+
    /// Creates bilinear form associated with FE spaces @a *fespaces.
-   ParNormalEquations(Array<FiniteElementSpace* > & fes_,
-                      Array<FiniteElementSpace* > & trace_fes_,
-                      Array<FiniteElementCollection *> & fecol_, bool store_mat_ = false)
-      : NormalEquations(fes_,trace_fes_,fecol_,store_mat_), domain_pfes(fes_),
-        trace_pfes(trace_fes_)
+   ParNormalEquations(Array<ParFiniteElementSpace* > & pfes_,
+                      Array<ParFiniteElementSpace* > & trace_pfes_,
+                      Array<FiniteElementCollection* > & fecol_)
+      : NormalEquations()
    {
+      SetParSpaces(pfes_,trace_pfes_,fecol_);
+   }
+
+   void SetParSpaces(Array<ParFiniteElementSpace* > & pfes_,
+                     Array<ParFiniteElementSpace* > & trace_pfes_,
+                     Array<FiniteElementCollection* > & fecol_)
+   {
+      domain_pfes = pfes_;
+      trace_pfes = trace_pfes_;
+      pfes.SetSize(0);
       pfes.Append(domain_pfes);
       pfes.Append(trace_pfes);
+      ess_tdofs.SetSize(pfes.Size());
+
+      Array<FiniteElementSpace * > domain_sfes(domain_pfes.Size());
+      for (int i = 0; i<domain_sfes.Size(); i++)
+      {
+         domain_sfes[i] = (FiniteElementSpace *)domain_pfes[i];
+         ess_tdofs[i] = new Array<int>();
+      }
+
+      Array<FiniteElementSpace * > trace_sfes(trace_pfes.Size());
+      for (int i = 0; i<trace_sfes.Size(); i++)
+      {
+         trace_sfes[i] = (FiniteElementSpace *)trace_pfes[i];
+         ess_tdofs[i+domain_pfes.Size()] = new Array<int>();
+      }
+
+      SetSpaces(domain_sfes,trace_sfes,fecol_);
    }
+
 
    /// Assembles the form i.e. sums over all domain integrators.
    void Assemble(int skip_zeros = 1);
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
-   BlockOperator *ParallelAssemble() { return ParallelAssemble(mat); }
 
-   /// Returns the eliminated matrix assembled on the true dofs, i.e. P^t A_e P.
-   /** The returned matrix has to be deleted by the caller. */
-   BlockOperator *ParallelAssembleElim() { return ParallelAssemble(mat_e); }
-
-   /// Return the matrix @a m assembled on the true dofs, i.e. P^t A P.
-   /** The returned matrix has to be deleted by the caller. */
-   BlockOperator *ParallelAssemble(BlockMatrix *m);
+   void ParallelAssemble(BlockMatrix *mat);
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                          OperatorHandle &A, Vector &X,
@@ -98,13 +121,8 @@ public:
        vector in x. Use the same arguments as in the FormLinearSystem call. */
    virtual void RecoverFEMSolution(const Vector &X, Vector &x);
 
-   void EliminateVDofs(const Array<int> &vdofs,
-                       Operator::DiagonalPolicy dpolicy = Operator::DIAG_ONE);
-
-   void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x, Vector &b);
-
    /// Destroys bilinear form.
-   ~ParNormalEquations();
+   virtual ~ParNormalEquations();
 
 };
 
