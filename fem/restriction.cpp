@@ -688,48 +688,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
    if (!build) { return; }
    if (nf==0) { return; }
 
-#ifdef MFEM_USE_MPI
-
-   // If the underlying finite element space is parallel, ensure the face
-   // neighbor information is generated.
-   if (const ParFiniteElementSpace *pfes
-       = dynamic_cast<const ParFiniteElementSpace*>(&fes))
-   {
-      pfes->GetParMesh()->ExchangeFaceNbrData();
-   }
-
-#endif
-
-   // If fespace == H1
-   const FiniteElement *fe = fes.GetFE(0);
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
-   MFEM_VERIFY(tfe != NULL &&
-               (tfe->GetBasisType()==BasisType::GaussLobatto ||
-                tfe->GetBasisType()==BasisType::Positive),
-               "Only Gauss-Lobatto and Bernstein basis are supported in "
-               "H1FaceRestriction.");
-
-   // Assuming all finite elements are using Gauss-Lobatto.
-   height = vdim*nf*face_dofs;
-   width = fes.GetVSize();
-   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
-   if (dof_reorder && nf > 0)
-   {
-      for (int f = 0; f < fes.GetNF(); ++f)
-      {
-         const FiniteElement *fe = fes.GetFaceElement(f);
-         const TensorBasisElement* el =
-            dynamic_cast<const TensorBasisElement*>(fe);
-         if (el) { continue; }
-         MFEM_ABORT("Finite element not suitable for lexicographic ordering");
-      }
-      const FiniteElement *fe = fes.GetFaceElement(0);
-      const TensorBasisElement* el =
-         dynamic_cast<const TensorBasisElement*>(fe);
-      const Array<int> &fe_dof_map = el->GetDofMap();
-      MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
-   }
-   // End of verifications
+   CheckFESpace(e_ordering);
 
    ComputeScatterIndicesAndOffsets(e_ordering, type);
 
@@ -788,6 +747,53 @@ void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
          d_y(t?c:i,t?i:c) += dof_value;
       }
    });
+}
+
+void H1FaceRestriction::CheckFESpace(const ElementDofOrdering e_ordering)
+{
+#ifdef MFEM_USE_MPI
+
+   // If the underlying finite element space is parallel, ensure the face
+   // neighbor information is generated.
+   if (const ParFiniteElementSpace *pfes
+       = dynamic_cast<const ParFiniteElementSpace*>(&fes))
+   {
+      pfes->GetParMesh()->ExchangeFaceNbrData();
+   }
+
+#endif
+
+#ifdef MFEM_DEBUG
+   // If fespace == H1
+   const FiniteElement *fe = fes.GetFE(0);
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_VERIFY(tfe != NULL &&
+               (tfe->GetBasisType()==BasisType::GaussLobatto ||
+                tfe->GetBasisType()==BasisType::Positive),
+               "Only Gauss-Lobatto and Bernstein basis are supported in "
+               "H1FaceRestriction.");
+
+   // Assuming all finite elements are using Gauss-Lobatto.
+   height = vdim*nf*face_dofs;
+   width = fes.GetVSize();
+   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   if (dof_reorder && nf > 0)
+   {
+      for (int f = 0; f < fes.GetNF(); ++f)
+      {
+         const FiniteElement *fe = fes.GetFaceElement(f);
+         const TensorBasisElement* el =
+            dynamic_cast<const TensorBasisElement*>(fe);
+         if (el) { continue; }
+         MFEM_ABORT("Finite element not suitable for lexicographic ordering");
+      }
+      const FiniteElement *fe = fes.GetFaceElement(0);
+      const TensorBasisElement* el =
+         dynamic_cast<const TensorBasisElement*>(fe);
+      const Array<int> &fe_dof_map = el->GetDofMap();
+      MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
+   }
+#endif
 }
 
 void H1FaceRestriction::ComputeScatterIndicesAndOffsets(
@@ -1076,37 +1082,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      face_map(face_dofs)
 {
    if (!build) { return; }
-   // If fespace == L2
-   const FiniteElement *fe = fes.GetFE(0);
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
-   MFEM_VERIFY(tfe != NULL &&
-               (tfe->GetBasisType()==BasisType::GaussLobatto ||
-                tfe->GetBasisType()==BasisType::Positive),
-               "Only Gauss-Lobatto and Bernstein basis are supported in "
-               "L2FaceRestriction.");
-   MFEM_VERIFY(fes.GetMesh()->Conforming(),
-               "Non-conforming meshes not yet supported with partial assembly.");
-   if (nf==0) { return; }
-   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*face_dofs;
-   width = fes.GetVSize();
-   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
-   if (!dof_reorder)
-   {
-      MFEM_ABORT("Non-Tensor L2FaceRestriction not yet implemented.");
-   }
-   if (dof_reorder && nf > 0)
-   {
-      for (int f = 0; f < fes.GetNF(); ++f)
-      {
-         const FiniteElement *fe =
-            fes.GetTraceElement(f, fes.GetMesh()->GetFaceBaseGeometry(f));
-         const TensorBasisElement* el =
-            dynamic_cast<const TensorBasisElement*>(fe);
-         if (el) { continue; }
-         MFEM_ABORT("Finite element not suitable for lexicographic ordering");
-      }
-   }
-   // End of verifications
+
+   CheckFESpace(e_ordering);
 
    ComputeScatterIndicesAndOffsets(e_ordering,type);
 
@@ -1360,6 +1337,52 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(const Vector &fea_data,
          }
       });
    }
+}
+
+void L2FaceRestriction::CheckFESpace(const ElementDofOrdering e_ordering)
+{
+#ifdef MFEM_USE_MPI
+
+   // If the underlying finite element space is parallel, ensure the face
+   // neighbor information is generated.
+   if (const ParFiniteElementSpace *pfes
+       = dynamic_cast<const ParFiniteElementSpace*>(&fes))
+   {
+      pfes->GetParMesh()->ExchangeFaceNbrData();
+   }
+
+#endif
+
+#ifdef MFEM_DEBUG
+   // If fespace == L2
+   const FiniteElement *fe = fes.GetFE(0);
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_VERIFY(tfe != NULL &&
+               (tfe->GetBasisType()==BasisType::GaussLobatto ||
+                tfe->GetBasisType()==BasisType::Positive),
+               "Only Gauss-Lobatto and Bernstein basis are supported in "
+               "L2FaceRestriction.");
+   if (nf==0) { return; }
+   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*face_dofs;
+   width = fes.GetVSize();
+   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+   if (!dof_reorder)
+   {
+      MFEM_ABORT("Non-Tensor L2FaceRestriction not yet implemented.");
+   }
+   if (dof_reorder && nf > 0)
+   {
+      for (int f = 0; f < fes.GetNF(); ++f)
+      {
+         const FiniteElement *fe =
+            fes.GetTraceElement(f, fes.GetMesh()->GetFaceBaseGeometry(f));
+         const TensorBasisElement* el =
+            dynamic_cast<const TensorBasisElement*>(fe);
+         if (el) { continue; }
+         MFEM_ABORT("Finite element not suitable for lexicographic ordering");
+      }
+   }
+#endif
 }
 
 void L2FaceRestriction::ComputeScatterIndicesAndOffsets(
@@ -1743,36 +1766,9 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
      interpolations(fes, ordering, type)
 {
    if (!build) { return; }
-   // If fespace == L2
-   const FiniteElement *fe = fes.GetFE(0);
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
-   MFEM_VERIFY(tfe != NULL &&
-               (tfe->GetBasisType()==BasisType::GaussLobatto ||
-                tfe->GetBasisType()==BasisType::Positive),
-               "Only Gauss-Lobatto and Bernstein basis are supported in "
-               "NCL2FaceRestriction.");
-   if (nf==0) { return; }
-   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*face_dofs;
-   width = fes.GetVSize();
-   const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
-   if (!dof_reorder)
-   {
-      MFEM_ABORT("Non-Tensor NCL2FaceRestriction not yet implemented.");
-   }
-   if (dof_reorder && nf > 0)
-   {
-      for (int f = 0; f < fes.GetNF(); ++f)
-      {
-         const FiniteElement *fe =
-            fes.GetTraceElement(f, fes.GetMesh()->GetFaceBaseGeometry(f));
-         const TensorBasisElement* el =
-            dynamic_cast<const TensorBasisElement*>(fe);
-         if (el) { continue; }
-         MFEM_ABORT("Finite element not suitable for lexicographic ordering");
-      }
-   }
-   // End of verifications
    x_interp.UseDevice(true);
+
+   CheckFESpace(ordering);
 
    ComputeScatterIndicesAndOffsets(ordering, type);
 
@@ -1970,23 +1966,29 @@ void NCL2FaceRestriction::DoubleValuedNonConformingTransposeInterpolation(
 
 void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
 {
-   // Interpolation from slave to master face dofs
-   if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
+   if (type==FaceType::Interior)
    {
-      DoubleValuedNonConformingTransposeInterpolation(x);
+      if ( m==L2FaceValues::DoubleValued )
+      {
+         DoubleValuedNonConformingTransposeInterpolation(x);
+         DoubleValuedConformingAddMultTranspose(x_interp, y);
+      }
+      else if ( m==L2FaceValues::SingleValued )
+      {
+         SingleValuedNonConformingTransposeInterpolation(x);
+         SingleValuedConformingAddMultTranspose(x_interp, y);
+      }
    }
-   else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
+   else
    {
-      SingleValuedNonConformingTransposeInterpolation(x);
-   }
-
-   if ( m==L2FaceValues::DoubleValued )
-   {
-      DoubleValuedConformingAddMultTranspose(x_interp, y);
-   }
-   else // Single valued
-   {
-      SingleValuedConformingAddMultTranspose(x_interp, y);
+      if ( m==L2FaceValues::DoubleValued )
+      {
+         DoubleValuedConformingAddMultTranspose(x, y);
+      }
+      else if ( m==L2FaceValues::SingleValued )
+      {
+         SingleValuedConformingAddMultTranspose(x, y);
+      }
    }
 }
 
