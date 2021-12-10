@@ -2986,6 +2986,42 @@ public:
    */
 };
 
+class ExpTime : public Coefficient
+{
+private:
+   double a_;
+   double b_;
+   double w_;
+   double t0_;
+
+public:
+   ExpTime(double a, double b, double w, double t0)
+      : a_(a), b_(b), w_(w), t0_(t0) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      return a_ * exp(w_ * (time - t0_)) + b_;
+   }
+};
+
+class TanhTime : public Coefficient
+{
+private:
+   double a_;
+   double b_;
+   double w_;
+   double t0_;
+
+public:
+   TanhTime(double a, double b, double w, double t0)
+      : a_(a), b_(b), w_(w), t0_(t0) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      return a_ * tanh(w_ * (time - t0_)) + b_;
+   }
+};
+
 class Radius : public Coefficient
 {
 private:
@@ -3206,6 +3242,18 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       double a, b, w, t0;
       input >> a >> b >> w >> t0;
       coef_idx = sCoefs.Append(new SineTime(a, b, w, t0));
+   }
+   else if (name == "ExpTime")
+   {
+      double a, b, w, t0;
+      input >> a >> b >> w >> t0;
+      coef_idx = sCoefs.Append(new ExpTime(a, b, w, t0));
+   }
+   else if (name == "TanhTime")
+   {
+      double a, b, w, t0;
+      input >> a >> b >> w >> t0;
+      coef_idx = sCoefs.Append(new TanhTime(a, b, w, t0));
    }
    else if (name == "AnnularTestSol")
    {
