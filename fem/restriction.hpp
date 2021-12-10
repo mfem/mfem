@@ -432,7 +432,7 @@ private:
 protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
-   /** @brief Verify that H1FaceRestriction is build from an L2 FESpace.
+   /** @brief Verify that L2FaceRestriction is build from an L2 FESpace.
 
        Note: Requires the gather offsets to be computed.
 
