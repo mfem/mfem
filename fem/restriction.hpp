@@ -183,13 +183,19 @@ protected:
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
    Array<int> gather_indices; // gathering indices for each dof
 
-   /** @brief Initialize an H1FaceRestriction.
+   /** @brief Construct an H1FaceRestriction.
 
        @param[in] fes      The FiniteElementSpace on which this operates
-       @param[in] type     Request internal or boundary faces dofs */
+       @param[in] ordering Request a specific element ordering
+       @param[in] type     Request internal or boundary faces dofs
+       @param[in] build    Request the NCL2FaceRestriction to compute the
+                           scatter/gather indices. False should only be used
+                           when inheriting from H1FaceRestriction.
+   */
    H1FaceRestriction(const FiniteElementSpace& fes,
-                     const FaceType type);
-
+                     const ElementDofOrdering ordering,
+                     const FaceType type,
+                     bool build);
 public:
    /** @brief Construct an H1FaceRestriction.
 
@@ -292,9 +298,22 @@ protected:
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
    Array<int> gather_indices; // gathering indices for each dof
 
-   L2FaceRestriction(const FiniteElementSpace&,
-                     const FaceType,
-                     const L2FaceValues m = L2FaceValues::DoubleValued);
+   /** @brief Constructs an L2FaceRestriction.
+
+       @param[in] fes      The FiniteElementSpace on which this operates
+       @param[in] ordering Request a specific ordering
+       @param[in] type     Request internal or boundary faces dofs
+       @param[in] m        Request the face dofs for elem1, or both elem1 and
+                           elem2
+       @param[in] build    Request the NCL2FaceRestriction to compute the
+                           scatter/gather indices. False should only be used
+                           when inheriting from L2FaceRestriction.
+   */
+   L2FaceRestriction(const FiniteElementSpace& fes,
+                     const ElementDofOrdering ordering,
+                     const FaceType type,
+                     const L2FaceValues m,
+                     bool build);
 
 public:
    /** @brief Constructs an L2FaceRestriction.
@@ -619,6 +638,24 @@ class NCL2FaceRestriction : public L2FaceRestriction
 protected:
    InterpolationManager interpolations;
    mutable Vector x_interp;
+
+   /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
+       L2FaceRestriction for non-conforming meshes.
+
+       @param[in] fes      The FiniteElementSpace on which this operates
+       @param[in] ordering Request a specific ordering
+       @param[in] type     Request internal or boundary faces dofs
+       @param[in] m        Request the face dofs for elem1, or both elem1 and
+                           elem2
+       @param[in] build    Request the NCL2FaceRestriction to compute the
+                           scatter/gather indices. False should only be used
+                           when inheriting from NCL2FaceRestriction.
+   */
+   NCL2FaceRestriction(const FiniteElementSpace& fes,
+                       const ElementDofOrdering ordering,
+                       const FaceType type,
+                       const L2FaceValues m,
+                       bool build);
 public:
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
        L2FaceRestriction for non-conforming meshes.
@@ -627,7 +664,8 @@ public:
        @param[in] ordering Request a specific ordering
        @param[in] type     Request internal or boundary faces dofs
        @param[in] m        Request the face dofs for elem1, or both elem1 and
-                           elem2 */
+                           elem2
+   */
    NCL2FaceRestriction(const FiniteElementSpace& fes,
                        const ElementDofOrdering ordering,
                        const FaceType type,

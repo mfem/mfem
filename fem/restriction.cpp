@@ -669,7 +669,9 @@ void GetFaceDofs(const int dim, const int face_id,
 }
 
 H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
-                                     const FaceType type)
+                                     const ElementDofOrdering e_ordering,
+                                     const FaceType type,
+                                     bool build)
    : fes(fes),
      nf(fes.GetNFbyType(type)),
      vdim(fes.GetVDim()),
@@ -683,14 +685,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
      gather_indices(nf*face_dofs),
      face_map(face_dofs)
 {
-
-}
-
-H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
-                                     const ElementDofOrdering e_ordering,
-                                     const FaceType type)
-   : H1FaceRestriction(fes,type)
-{
+   if (!build) { return; }
    if (nf==0) { return; }
 
 #ifdef MFEM_USE_MPI
@@ -740,6 +735,12 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
 
    ComputeGatherIndices(e_ordering,type);
 }
+
+H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
+                                     const ElementDofOrdering e_ordering,
+                                     const FaceType type)
+   : H1FaceRestriction(fes, e_ordering, type, true)
+{ }
 
 void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
@@ -1051,8 +1052,10 @@ int PermuteFaceL2(const int dim, const int face_id1,
 }
 
 L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
+                                     const ElementDofOrdering e_ordering,
                                      const FaceType type,
-                                     const L2FaceValues m)
+                                     const L2FaceValues m,
+                                     bool build)
    : fes(fes),
      nf(fes.GetNFbyType(type)),
      ne(fes.GetNE()),
@@ -1072,14 +1075,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*face_dofs),
      face_map(face_dofs)
 {
-}
-
-L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
-                                     const ElementDofOrdering e_ordering,
-                                     const FaceType type,
-                                     const L2FaceValues m)
-   : L2FaceRestriction(fes, type, m)
-{
+   if (!build) { return; }
    // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
@@ -1117,7 +1113,15 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    ComputeGatherIndices(e_ordering, type);
 }
 
-void L2FaceRestriction::SingleValuedConformingMult(const Vector& x, Vector& y) const
+L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
+                                     const ElementDofOrdering e_ordering,
+                                     const FaceType type,
+                                     const L2FaceValues m)
+   : L2FaceRestriction(fes, e_ordering, type, m, true)
+{ }
+
+void L2FaceRestriction::SingleValuedConformingMult(const Vector& x,
+                                                   Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
@@ -1138,7 +1142,8 @@ void L2FaceRestriction::SingleValuedConformingMult(const Vector& x, Vector& y) c
    });
 }
 
-void L2FaceRestriction::DoubleValuedConformingMult(const Vector& x, Vector& y) const
+void L2FaceRestriction::DoubleValuedConformingMult(const Vector& x,
+                                                   Vector& y) const
 {
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
@@ -1184,7 +1189,6 @@ void L2FaceRestriction::SingleValuedConformingAddMultTranspose(
    const int nface_dofs = face_dofs;
    const int vd = vdim;
    const bool t = byvdim;
-   const int dofs = nfdofs;
    auto d_offsets = gather_offsets.Read();
    auto d_indices = gather_indices.Read();
    auto d_x = Reshape(x.Read(), nface_dofs, vd, nf);
@@ -1733,9 +1737,12 @@ void InterpolationManager::LinearizeInterpolatorMapIntoVector()
 NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                                          const ElementDofOrdering ordering,
                                          const FaceType type,
-                                         const L2FaceValues m)
-   : L2FaceRestriction(fes, type, m), interpolations(fes, ordering, type)
+                                         const L2FaceValues m,
+                                         bool build)
+   : L2FaceRestriction(fes, ordering, type, m, false),
+     interpolations(fes, ordering, type)
 {
+   if (!build) { return; }
    // If fespace == L2
    const FiniteElement *fe = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
@@ -1771,6 +1778,13 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
 
    ComputeGatherIndices(ordering, type);
 }
+
+NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
+                                         const ElementDofOrdering ordering,
+                                         const FaceType type,
+                                         const L2FaceValues m)
+   : NCL2FaceRestriction(fes, ordering, type, m, true)
+{ }
 
 void NCL2FaceRestriction::DoubleValuedNonConformingMult(
    const Vector& x, Vector& y) const
@@ -1865,7 +1879,6 @@ void NCL2FaceRestriction::SingleValuedNonConformingTransposeInterpolation(
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
-   const bool t = byvdim;
    // Interpolation
    auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, nf);
    auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
@@ -1916,7 +1929,6 @@ void NCL2FaceRestriction::DoubleValuedNonConformingTransposeInterpolation(
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
-   const bool t = byvdim;
    // Interpolation
    auto d_x = Reshape(x_interp.ReadWrite(), nface_dofs, vd, 2, nf);
    auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
