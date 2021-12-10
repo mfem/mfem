@@ -883,23 +883,29 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 
 void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 {
-   // Interpolation from slave to master face dofs
-   if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
+   if (type==FaceType::Interior)
    {
-      DoubleValuedNonConformingTransposeInterpolation(x);
+      if ( m==L2FaceValues::DoubleValued )
+      {
+         DoubleValuedNonConformingTransposeInterpolation(x);
+         DoubleValuedConformingAddMultTranspose(x_interp, y);
+      }
+      else // Single Valued
+      {
+         SingleValuedNonConformingTransposeInterpolation(x);
+         SingleValuedConformingAddMultTranspose(x_interp, y);
+      }
    }
-   else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
+   else
    {
-      SingleValuedNonConformingTransposeInterpolation(x);
-   }
-
-   if ( m==L2FaceValues::DoubleValued )
-   {
-      DoubleValuedConformingAddMultTranspose(x_interp, y);
-   }
-   else // Single valued
-   {
-      SingleValuedConformingAddMultTranspose(x_interp, y);
+      if ( m==L2FaceValues::DoubleValued )
+      {
+         DoubleValuedConformingAddMultTranspose(x, y);
+      }
+      else // Single valued
+      {
+         SingleValuedConformingAddMultTranspose(x, y);
+      }
    }
 }
 
