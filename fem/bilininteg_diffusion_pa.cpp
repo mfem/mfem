@@ -9,17 +9,44 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define MFEM_DEBUG_COLOR 87
+#include "../general/debug.hpp"
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "ceed/diffusion.hpp"
+#include <string>
+
+#define MFEM_NVTX_COLOR Olive
+#include "../general/nvtx.hpp"
 
 using namespace std;
 
 namespace mfem
 {
 
+void NDK_PADiffusionAssembleDiagonal(const int dim,
+                                     const int D1D,
+                                     const int Q1D,
+                                     const int NE,
+                                     const bool symm,
+                                     const FiniteElementSpace *fes,
+                                     const DofToQuad *maps,
+                                     const Vector &D,
+                                     Vector &Y);
+
 // PA Diffusion Integrator
+
+void NDK_PADiffusionApply(const int dim,
+                          const int D1D,
+                          const int Q1D,
+                          const int NE,
+                          const Vector &CoG,
+                          const FiniteElementSpace *fes,
+                          const DofToQuad *maps,
+                          const Vector &D,
+                          const Vector &X,
+                          Vector &Y);
 
 // OCCA 2D Assemble kernel
 #ifdef MFEM_USE_OCCA
@@ -349,10 +376,115 @@ static void PADiffusionSetup(const int dim,
    }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+template<typename T> MFEM_HOST_DEVICE inline
+void HouseholderReflect(T *A, const T *v,
+                        const T b, const int m, const int n,
+                        const int row, const int col)
+{
+   for (int j = 0; j < n; j++)
+   {
+      T w = A[0*row + j*col];
+      for (int i = 1; i < m; i++) { w += v[i] * A[i*row + j*col]; }
+      A[0*row + j*col] -= b * w;
+      for (int i = 1; i < m; i++) { A[i*row + j*col] -= b * w * v[i]; }
+   }
+}
+
+template<int Q1D, typename T> MFEM_HOST_DEVICE inline
+void HouseholderApplyQ(T *A, const T *Q, const T *tau,
+                       const int k, const int row, const int col)
+{
+   T v[Q1D];
+   for (int ii=0; ii<k; ii++)
+   {
+      const int i = k-1-ii;
+      for (int j = i+1; j < Q1D; j++) { v[j] = Q[j*k+i]; }
+      // Apply Householder reflector (I - tau v v^T) coG^T
+      HouseholderReflect(&A[i*row], &v[i], tau[i], Q1D-i, Q1D, row, col);
+   }
+}
+
+template<int D1D, int Q1D, typename T> MFEM_HOST_DEVICE inline
+void QRFactorization(T *mat, T *tau)
+{
+   T v[Q1D];
+   DeviceMatrix B(mat, D1D, Q1D);
+   for (int i = 0; i < D1D; i++)
+   {
+      // Calculate Householder vector, magnitude
+      T sigma = 0.0;
+      v[i] = B(i,i);
+      for (int j = i + 1; j < Q1D; j++)
+      {
+         v[j] = B(i,j);
+         sigma += v[j] * v[j];
+      }
+      T norm = std::sqrt(v[i]*v[i] + sigma); // norm of v[i:m]
+      T Rii = -copysign(norm, v[i]);
+      v[i] -= Rii;
+      // norm of v[i:m] after modification above and scaling below
+      //   norm = sqrt(v[i]*v[i] + sigma) / v[i];
+      //   tau = 2 / (norm*norm)
+      tau[i] = 2 * v[i]*v[i] / (v[i]*v[i] + sigma);
+      for (int j=i+1; j<Q1D; j++) { v[j] /= v[i]; }
+      // Apply Householder reflector to lower right panel
+      HouseholderReflect(&mat[i*D1D+i+1], &v[i], tau[i],
+                         Q1D-i, D1D-i-1, D1D, 1);
+      // Save v
+      B(i,i) = Rii;
+      for (int j=i+1; j<Q1D; j++) { B(i,j) = v[j]; }
+   }
+}
+
+template<int D1D, int Q1D>
+void GetCollocatedGrad(const ConstDeviceMatrix &b,
+                       const ConstDeviceMatrix &g,
+                       const DeviceMatrix &CoG)
+{
+   double tau[Q1D];
+   double B1d[Q1D*D1D];
+   double G1d[Q1D*D1D];
+   DeviceMatrix B(B1d, D1D, Q1D);
+   DeviceMatrix G(G1d, D1D, Q1D);
+
+   for (int d = 0; d < D1D; d++)
+   {
+      for (int q = 0; q < Q1D; q++)
+      {
+         B(d,q) = b(q,d);
+         G(d,q) = g(q,d);
+      }
+   }
+   QRFactorization<D1D,Q1D>(B1d, tau);
+   // Apply Rinv, colograd1d = grad1d Rinv
+   for (int i = 0; i < Q1D; i++)
+   {
+      CoG(0,i) = G(0,i)/B(0,0);
+      for (int j = 1; j < D1D; j++)
+      {
+         CoG(j,i) = G(j,i);
+         for (int k = 0; k < j; k++) { CoG(j,i) -= B(j,k)*CoG(k,i); }
+         CoG(j,i) /= B(j,j);
+      }
+      for (int j = D1D; j < Q1D; j++) { CoG(j,i) = 0.0; }
+   }
+   // Apply Qtranspose, colograd = colograd Qtranspose
+   HouseholderApplyQ<Q1D>((double*)CoG, B1d, tau, D1D, 1, Q1D);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt = (memory_type == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : memory_type;
+
+   // If device options allow fast kernels, set the action type to L2L
+   action_type =
+      (Device::FastKernelsEnabled())?
+      ActionType::L2L: // all fast kernel are L2L
+      ActionType::E2E; // default is E2E
+
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
@@ -491,6 +623,40 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       }
    }
+
+   if (Device::FastKernelsEnabled())
+   {
+      NVTX("CoG");
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const int id = (D1D << 4) | Q1D;
+
+      CoG.SetSize(Q1D*Q1D);
+      CoG.UseDevice(true);
+      assert(CoG.UseDevice());
+
+      void (*KoG)(const ConstDeviceMatrix &b,
+                  const ConstDeviceMatrix &g,
+                  const DeviceMatrix &CoG) = nullptr;
+
+      switch (id) // orders 1~8
+      {
+         case 0x23: KoG=GetCollocatedGrad<2,3>; break; // 1
+         case 0x34: KoG=GetCollocatedGrad<3,4>; break; // 2
+         case 0x45: KoG=GetCollocatedGrad<4,5>; break; // 3
+         case 0x56: KoG=GetCollocatedGrad<5,6>; break; // 4
+         case 0x67: KoG=GetCollocatedGrad<6,7>; break; // 5
+         case 0x78: KoG=GetCollocatedGrad<7,8>; break; // 6
+         //case 0x89: KoG=GetCollocatedGrad<8,9>; break; // 7
+         //case 0x9A: KoG=GetCollocatedGrad<9,10>; break; // 8
+         default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
+      }
+
+      KoG(ConstDeviceMatrix(maps->B.HostRead(),Q1D,D1D),
+          ConstDeviceMatrix(maps->G.HostRead(),Q1D,D1D),
+          DeviceMatrix(CoG.HostReadWrite(),Q1D,Q1D));
+   }
+
    pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne, mt);
    PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne, ir->GetWeights(),
                     geom->J, coeff, pa_data);
@@ -870,6 +1036,7 @@ static void SmemPADiffusionDiagonal3D(const int NE,
                   }
                }
             }
+            MFEM_SYNC_THREAD;
          }
       }
    });
@@ -925,6 +1092,11 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    if (DeviceCanUseCeed())
    {
       ceedOp->GetDiagonal(diag);
+   }
+   else if (Device::FastKernelsEnabled())
+   {
+      NDK_PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne, symmetric,
+                                      fespace, maps, pa_data, diag);
    }
    else
    {
@@ -1181,6 +1353,7 @@ static void SmemPADiffusionApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
@@ -1221,6 +1394,7 @@ static void SmemPADiffusionApply2D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
+
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -1546,6 +1720,7 @@ static void SmemPADiffusionApply3D(const int NE,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
+   MFEM_NVTX;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
@@ -1596,6 +1771,7 @@ static void SmemPADiffusionApply3D(const int NE,
             }
          }
       }
+      MFEM_SYNC_THREAD;
       if (MFEM_THREAD_ID(z) == 0)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -1792,6 +1968,7 @@ static void SmemPADiffusionApply3D(const int NE,
             }
          }
       }
+      MFEM_SYNC_THREAD;
    });
 }
 
@@ -1831,8 +2008,11 @@ static void PADiffusionApply(const int dim,
       switch (ID)
       {
          case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
+         case 0x23: return SmemPADiffusionApply2D<2,3,16>(NE,symm,B,G,D,X,Y);
          case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
+         case 0x34: return SmemPADiffusionApply2D<3,4,16>(NE,symm,B,G,D,X,Y);
          case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
+         case 0x45: return SmemPADiffusionApply2D<4,5,8>(NE,symm,B,G,D,X,Y);
          case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
          case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,D,X,Y);
          case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
@@ -1868,6 +2048,12 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
+   }
+   else if (Device::FastKernelsEnabled())
+   {
+      NDK_PADiffusionApply(dim, dofs1D, quad1D, ne, CoG,
+                           fespace, maps,
+                           pa_data, x, y);
    }
    else
    {

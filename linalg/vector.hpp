@@ -17,6 +17,7 @@
 #include "../general/adios2stream.hpp"
 #endif
 #include "../general/globals.hpp"
+#include "../general/backends.hpp"
 #include "../general/mem_manager.hpp"
 #include "../general/device.hpp"
 #ifdef MFEM_USE_SUNDIALS
@@ -63,6 +64,9 @@ protected:
 
    Memory<double> data;
    int size;
+#ifdef MFEM_USE_CUDA
+   curandGenerator_t *curng = nullptr;
+#endif
 
 public:
 
@@ -635,6 +639,13 @@ template<> inline void Swap<Vector>(Vector &a, Vector &b)
 inline Vector::~Vector()
 {
    data.Delete();
+#ifdef MFEM_USE_CUDA
+   if (curng)
+   {
+      curandDestroyGenerator(*curng);
+      delete curng;
+   }
+#endif
 }
 
 inline double DistanceSquared(const double *x, const double *y, const int n)

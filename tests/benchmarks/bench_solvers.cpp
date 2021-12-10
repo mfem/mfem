@@ -13,6 +13,8 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
+#include "general/backends.hpp"
+
 #include "fem/linearform.hpp"
 #include "linalg/dtensor.hpp"
 
@@ -974,6 +976,20 @@ struct SolverProblem: public BakeOff
       MFEM_NVTX;
       ess_bdr = 1;
       mg_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+      {
+         NVTX("EnsureNodes");
+         mg_fes.GetMesh()->EnsureNodes();
+      }
+
+#ifdef MFEM_USE_CUDA
+      {
+         NVTX("Cuda init RNG");
+         curandGenerator_t curng;
+         curandCreateGenerator(&curng, CURAND_RNG_PSEUDO_DEFAULT);
+         curandSetPseudoRandomGeneratorSeed(curng, 0);
+      }
+#endif
 
       if (rhs_1) { b.AddDomainIntegrator(new DomainLFIntegrator(one)); }
       else { b.AddDomainIntegrator(new DomainLFIntegrator(rhs)); }

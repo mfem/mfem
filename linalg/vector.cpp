@@ -15,6 +15,9 @@
 #include "vector.hpp"
 #include "../general/forall.hpp"
 
+#define MFEM_NVTX_COLOR SlateBlue
+#include "../general/nvtx.hpp"
+
 #if defined(MFEM_USE_SUNDIALS)
 #include "sundials.hpp"
 #if defined(MFEM_USE_MPI)
@@ -771,13 +774,12 @@ void Vector::PrintHash(std::ostream &out) const
 
 void Vector::Randomize(int seed)
 {
+   MFEM_NVTX;
+   if (seed == 0) {  seed = (int)time(0); }
+
+#ifndef MFEM_USE_CUDA
    // static unsigned int seed = time(0);
    const double max = (double)(RAND_MAX) + 1.;
-
-   if (seed == 0)
-   {
-      seed = (int)time(0);
-   }
 
    // srand(seed++);
    srand((unsigned)seed);
@@ -787,6 +789,15 @@ void Vector::Randomize(int seed)
    {
       data[i] = std::abs(rand()/max);
    }
+#else
+   if (curng == nullptr)
+   {
+      curng = new curandGenerator_t();
+      curandCreateGenerator(curng, CURAND_RNG_PSEUDO_DEFAULT);
+      curandSetPseudoRandomGeneratorSeed(*curng, (unsigned)seed);
+   }
+   curandGenerateUniformDouble(*curng, Write(), size);
+#endif
 }
 
 double Vector::Norml2() const

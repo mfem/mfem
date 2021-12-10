@@ -1979,7 +1979,7 @@ private:
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, dofs1D, quad1D;
-   Vector pa_data;
+   Vector pa_data, CoG;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:

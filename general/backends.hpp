@@ -18,6 +18,7 @@
 #include <cusparse.h>
 #include <library_types.h>
 #include <cuda_runtime.h>
+#include <curand.h>
 #include <cuda.h>
 #endif
 #include "cuda.hpp"
