@@ -253,6 +253,14 @@ private:
 protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
+   /** @brief Verify that H1FaceRestriction is build from an H1 FESpace.
+
+       Note: Requires the gather offsets to be computed.
+
+       @param[in] ordering The FESpace element ordering.
+   */
+   void CheckFESpace(const ElementDofOrdering ordering);
+
    /** @brief Set the scattering indices of elem1, and increment the offsets for
        the face described by the @a face.
 
@@ -423,6 +431,14 @@ private:
 
 protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
+
+   /** @brief Verify that H1FaceRestriction is build from an L2 FESpace.
+
+       Note: Requires the gather offsets to be computed.
+
+       @param[in] ordering The FESpace element ordering.
+   */
+   void CheckFESpace(const ElementDofOrdering ordering);
 
    /** @brief Set the scattering indices of elem1, and increment the offsets for
        the face described by the @a face. The ordering of the face dofs of elem1
