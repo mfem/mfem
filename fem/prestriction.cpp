@@ -26,9 +26,9 @@ namespace mfem
 ParNCH1FaceRestriction::ParNCH1FaceRestriction(const ParFiniteElementSpace &fes,
                                                ElementDofOrdering ordering,
                                                FaceType type)
-   : H1FaceRestriction(fes,type),
+   : H1FaceRestriction(fes, ordering, type, false),
      type(type),
-     interpolations(fes,ordering,type)
+     interpolations(fes, ordering, type)
 {
    if (nf==0) { return; }
    // If fespace == H1
@@ -328,7 +328,7 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                                            ElementDofOrdering ordering,
                                            FaceType type,
                                            L2FaceValues m)
-   : L2FaceRestriction(fes, type, m)
+   : L2FaceRestriction(fes, ordering, type, m, false)
 {
    if (nf==0) { return; }
    // If fespace == L2
@@ -390,7 +390,7 @@ void ParL2FaceRestriction::ParDoubleValuedConformingMult(
    auto d_indices2 = scatter_indices2.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
-                              t?vd:nsdofs, t?nsdofs:vd);
+                             t?vd:nsdofs, t?nsdofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
    MFEM_FORALL(i, nfdofs,
    {
@@ -411,7 +411,7 @@ void ParL2FaceRestriction::ParDoubleValuedConformingMult(
          else if (idx2>=threshold) // shared boundary
          {
             d_y(dof, c, 1, face) = d_x_shared(t?c:(idx2-threshold),
-                                                t?(idx2-threshold):c);
+                                              t?(idx2-threshold):c);
          }
          else // true boundary
          {
@@ -719,7 +719,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                                                ElementDofOrdering ordering,
                                                FaceType type,
                                                L2FaceValues m)
-   : L2FaceRestriction(fes, type, m), interpolations(fes, ordering, type)
+   : NCL2FaceRestriction(fes, ordering, type, m, false)
 {
    if (nf==0) { return; }
    // If fespace==L2
@@ -859,7 +859,7 @@ void ParNCL2FaceRestriction::ParDoubleValuedNonConformingMult(
    auto d_indices2 = scatter_indices2.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
-                              t?vd:nsdofs, t?nsdofs:vd);
+                             t?vd:nsdofs, t?nsdofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
    auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
    auto interpolators = interpolations.GetInterpolators().Read();
