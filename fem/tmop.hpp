@@ -1082,6 +1082,41 @@ public:
                                               DenseTensor &dJtr) const;
 };
 
+class AutomaticTC : public TargetConstructor
+{
+protected:
+   // Analytic target specification.
+    mutable double detJ_qavg, skew_qavg, ori_qavg, aspr_qavg;
+
+public:
+    AutomaticTC(TargetType ttype) : TargetConstructor(ttype) {
+        uses_phys_coords = true;
+    }
+
+   /** @brief Given an element and quadrature rule, computes ref->target
+       transformation Jacobians for each quadrature point in the element.
+       The physical positions of the element's nodes are given by @a elfun. */
+   virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
+                                      const IntegrationRule &ir,
+                                      const Vector &elfun,
+                                      DenseTensor &Jtr) const;
+
+   virtual void ComputeAllElementTargets(const FiniteElementSpace &fes,
+                                         const IntegrationRule &ir,
+                                         const Vector &xe,
+                                         DenseTensor &Jtr) const;
+
+   virtual void ComputeElementTargetsGradient(const IntegrationRule &ir,
+                                              const Vector &elfun,
+                                              IsoparametricTransformation &Tpr,
+                                              DenseTensor &dJtr) const;
+
+    void SetTargetSize(double detJ) { detJ_qavg = detJ; }
+    void SetTargetSkew(double skew) { skew_qavg = skew; }
+    void SetTargetAspectRatio(double aspr) { aspr_qavg = aspr; }
+    void SetTargetOrientation(double ori) { ori_qavg = ori; }
+};
+
 #ifdef MFEM_USE_MPI
 class ParGridFunction;
 #endif
@@ -1348,6 +1383,7 @@ protected:
    double sigma_normal;
 
    DiscreteAdaptTC *discr_tc;
+   AutomaticTC *auto_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
@@ -1495,6 +1531,8 @@ protected:
       return EnergyIntegrationRule(el);
    }
 
+   void ComputeMeanGeometricParameters(Vector &xe, const FiniteElementSpace &fes);
+
    // Auxiliary PA methods
    void AssembleGradPA_2D(const Vector&) const;
    void AssembleGradPA_3D(const Vector&) const;
@@ -1538,6 +1576,7 @@ public:
         sigma(NULL), sigma_bar(NULL), sigma_marker(NULL), coeff_sigma(NULL),
         sigma_eval(NULL), sigma_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
+        auto_tc(dynamic_cast<AutomaticTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
 
@@ -1556,6 +1595,10 @@ public:
    {
       IntegRules = &irules;
       integ_order = order;
+   }
+
+   void PreProcessAutomaticTCParameters(Vector &xe,  const FiniteElementSpace *fes) {
+       ComputeMeanGeometricParameters(xe, *fes);
    }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
@@ -1687,6 +1730,7 @@ public:
    virtual void AssembleGradDiagonalPA(Vector&) const;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
+   AutomaticTC *GetAutomaticTC() const { return auto_tc; }
 
    /** @brief Computes the normalization factors of the metric and limiting
        integrals using the mesh position given by @a x. */

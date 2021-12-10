@@ -679,6 +679,13 @@ int main(int argc, char *argv[])
          target_c = tc;
          break;
       }
+      case 12:
+      {
+       target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+       AutomaticTC *tc = new AutomaticTC(target_t);
+       target_c = tc;
+       break;
+      }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
    }
    if (target_c == NULL)
@@ -887,6 +894,8 @@ int main(int argc, char *argv[])
       a.AddDomainIntegrator(he_nlf_integ);
    }
 
+   he_nlf_integ->PreProcessAutomaticTCParameters(x, x.FESpace());
+
    if (pa) { a.Setup(); }
 
    // Compute the minimum det(J) of the starting mesh.
@@ -938,6 +947,7 @@ int main(int argc, char *argv[])
       coef_zeta.constant = adapt_lim_const;
       coef_ls.constant   = surface_fit_const;
    }
+
 
    // Visualize the starting mesh and metric values.
    // Note that for combinations of metrics, this only shows the first metric.

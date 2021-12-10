@@ -617,6 +617,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *fesc);
+            ti->ComputeMeanGeometricParameters(x_loc, *fesc);
             UpdateDiscreteTC(*ti, x_loc);
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
