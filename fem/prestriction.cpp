@@ -299,9 +299,11 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
 ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
                                            ElementDofOrdering ordering,
                                            FaceType type,
-                                           L2FaceValues m)
+                                           L2FaceValues m,
+                                           bool build)
    : L2FaceRestriction(fes, ordering, type, m, false)
 {
+   if (!build) { return; }
    if (nf==0) { return; }
 
    CheckFESpace(ordering);
@@ -310,6 +312,13 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
 
    ComputeGatherIndices(ordering, type);
 }
+
+ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
+                                           ElementDofOrdering ordering,
+                                           FaceType type,
+                                           L2FaceValues m)
+   : ParL2FaceRestriction(fes, ordering, type, m, true)
+{ }
 
 void ParL2FaceRestriction::DoubleValuedConformingMult(
    const Vector& x, Vector& y) const
@@ -663,7 +672,9 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
                                                ElementDofOrdering ordering,
                                                FaceType type,
                                                L2FaceValues m)
-   : NCL2FaceRestriction(fes, ordering, type, m, false)
+   : L2FaceRestriction(fes, ordering, type, m, false),
+     NCL2FaceRestriction(fes, ordering, type, m, false),
+     ParL2FaceRestriction(fes, ordering, type, m, false)
 {
    if (nf==0) { return; }
    x_interp.UseDevice(true);

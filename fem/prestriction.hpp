@@ -92,8 +92,25 @@ private:
 /// Operator that extracts Face degrees of freedom in parallel.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class ParL2FaceRestriction : public L2FaceRestriction
+class ParL2FaceRestriction : virtual public L2FaceRestriction
 {
+protected:
+   /** @brief Constructs an ParL2FaceRestriction.
+
+       @param[in] fes      The ParFiniteElementSpace on which this operates
+       @param[in] ordering Request a specific ordering
+       @param[in] type     Request internal or boundary faces dofs
+       @param[in] m        Request the face dofs for elem1, or both elem1 and
+                           elem2
+       @param[in] build    Request the ParL2FaceRestriction to compute the
+                           scatter/gather indices. False should only be used
+                           when inheriting from ParL2FaceRestriction. */
+   ParL2FaceRestriction(const ParFiniteElementSpace& fes,
+                        ElementDofOrdering ordering,
+                        FaceType type,
+                        L2FaceValues m,
+                        bool build);
+
 public:
    /** @brief Constructs an ParL2FaceRestriction.
 
@@ -203,7 +220,8 @@ protected:
 /// Operator that extracts Face degrees of freedom for NCMesh in parallel.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class ParNCL2FaceRestriction : public NCL2FaceRestriction
+class ParNCL2FaceRestriction
+   : public NCL2FaceRestriction, public ParL2FaceRestriction
 {
 public:
    /** @brief Constructs an ParNCL2FaceRestriction.
