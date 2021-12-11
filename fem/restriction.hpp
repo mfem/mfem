@@ -503,12 +503,56 @@ protected:
    void PermuteAndSetFaceDofsGatherIndices2(const Mesh::FaceInformation &face,
                                             const int face_index);
 
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector. Should only be used with conforming faces and when:
+       m == L2FacesValues::SingleValued
+
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     face_dofs x vdim x nf
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
    void SingleValuedConformingMult(const Vector& x, Vector& y) const;
 
-   void DoubleValuedConformingMult(const Vector& x, Vector& y) const;
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector. Should only be used with conforming faces and when:
+       m == L2FacesValues::DoubleValued
 
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     face_dofs x vdim x 2 x nf
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   virtual void DoubleValuedConformingMult(const Vector& x, Vector& y) const;
+
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector. Should only be used with conforming faces and when:
+       m == L2FacesValues::SingleValued
+
+       @param[in]  x The face E-Vector degrees of freedom with the given format:
+                     face_dofs x vdim x nf
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs should be ordered according to the given
+                     ElementDofOrdering
+       @param[in,out] y The L-vector degrees of freedom. */
    void SingleValuedConformingAddMultTranspose(const Vector& x, Vector& y) const;
 
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector. Should only be used with conforming faces and when:
+       m == L2FacesValues::DoubleValued
+
+       @param[in]  x The face E-Vector degrees of freedom with the given format:
+                     face_dofs x vdim x 2 x nf
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs should be ordered according to the given
+                     ElementDofOrdering
+       @param[in,out] y The L-vector degrees of freedom. */
    void DoubleValuedConformingAddMultTranspose(const Vector& x, Vector& y) const;
 };
 
@@ -783,10 +827,35 @@ private:
                              const FaceType type);
 
 protected:
-   void DoubleValuedNonConformingMult(const Vector& x, Vector& y) const;
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector. Should only be used with non-conforming faces and when:
+       L2FaceValues m == L2FaceValues::DoubleValued
 
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     (face_dofs x vdim x 2 x nf),
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   virtual void DoubleValuedNonConformingMult(const Vector& x, Vector& y) const;
+
+   /** @brief Apply a change of basis from fine element basis to coarse element
+       basis for the coarse face dofs. Should only be used when:
+       L2FaceValues m == L2FaceValues::SingleValued
+
+       @param[in] x The dofs vector that needs coarse dofs to be express in term
+                    of the coarse basis, the result is stored in x_interp.
+   */
    void SingleValuedNonConformingTransposeInterpolation(const Vector& x) const;
 
+   /** @brief Apply a change of basis from fine element basis to coarse element
+       basis for the coarse face dofs. Should only be used when:
+       L2FaceValues m == L2FaceValues::DoubleValued
+
+       @param[in] x The dofs vector that needs coarse dofs to be express in term
+                    of the coarse basis, the result is stored in x_interp.
+   */
    void DoubleValuedNonConformingTransposeInterpolation(const Vector& x) const;
 };
 

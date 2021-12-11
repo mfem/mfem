@@ -186,7 +186,18 @@ private:
                              const FaceType type);
 
 protected:
-   void ParDoubleValuedConformingMult(const Vector& x, Vector& y) const;
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector. Should only be used with conforming faces and when:
+       m == L2FacesValues::DoubleValued
+
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     face_dofs x vdim x 2 x nf
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   void DoubleValuedConformingMult(const Vector& x, Vector& y) const override;
 };
 
 /// Operator that extracts Face degrees of freedom for NCMesh in parallel.
@@ -300,9 +311,31 @@ private:
                              const FaceType type);
 
 protected:
-   void ParSingleValuedNonConformingMult(const Vector& x, Vector& y) const;
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector. Should only be used with non-conforming faces and when:
+       L2FaceValues m == L2FaceValues::SingleValued
 
-   void ParDoubleValuedNonConformingMult(const Vector& x, Vector& y) const;
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     (face_dofs x vdim x nf),
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   void SingleValuedNonConformingMult(const Vector& x, Vector& y) const;
+
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector. Should only be used with non-conforming faces and when:
+       L2FaceValues m == L2FaceValues::DoubleValued
+
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     (face_dofs x vdim x 2 x nf),
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   void DoubleValuedNonConformingMult(const Vector& x, Vector& y) const override;
 };
 
 }
