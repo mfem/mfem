@@ -10,27 +10,32 @@ bool is_a_patch(int iv, Array<int> patch_ids);
 
 bool owned(int tdof, int * offs);
 
-SparseMatrix * GetLocalRestriction(const Array<int> & tdof_i, const int * row_start, 
-                                   int num_rows, int num_cols);                              
+SparseMatrix * GetLocalRestriction(const Array<int> & tdof_i,
+                                   const int * row_start,
+                                   int num_rows, int num_cols);
 
-void GetLocal2GlobalMap(const Array<int> & tdof_i, const int * row_start, 
+void GetLocal2GlobalMap(const Array<int> & tdof_i, const int * row_start,
                         int num_rows, int num_cols, Array<int> & l2gmap);
 
-void GetOffdColumnValues(const Array<int> & tdof_i, const Array<int> & tdof_j, SparseMatrix & offd, const int * cmap, 
+void GetOffdColumnValues(const Array<int> & tdof_i, const Array<int> & tdof_j,
+                         SparseMatrix & offd, const int * cmap,
                          const int * row_start, SparseMatrix * PatchMat);
 
-void GetArrayIntersection(const Array<int> & A, const Array<int> & B, Array<int>  & C); 
+void GetArrayIntersection(const Array<int> & A, const Array<int> & B,
+                          Array<int>  & C);
 
 
 
-int GetNumColumns(const int tdof_i, const Array<int> & tdof_j, SparseMatrix & diag,
-SparseMatrix & offd, const int * cmap, const int * row_start);
+int GetNumColumns(const int tdof_i, const Array<int> & tdof_j,
+                  SparseMatrix & diag,
+                  SparseMatrix & offd, const int * cmap, const int * row_start);
 
-void GetColumnValues(int tdof_i,const Array<int> & tdof_j, SparseMatrix & diag ,
-SparseMatrix & offd, const int *cmap, const int * row_start, Array<int> &cols, Array<double> &vals);
+void GetColumnValues(int tdof_i,const Array<int> & tdof_j, SparseMatrix & diag,
+                     SparseMatrix & offd, const int *cmap, const int * row_start, Array<int> &cols,
+                     Array<double> &vals);
 
 
-class VertexPatchInfo 
+class VertexPatchInfo
 {
 private:
    ParMesh * pmesh = nullptr;
@@ -51,7 +56,7 @@ public:
 
 };
 
-class PatchDofInfo 
+class PatchDofInfo
 {
 public:
    MPI_Comm comm = MPI_COMM_WORLD;
@@ -60,7 +65,7 @@ public:
    std::vector<Array<int>> patch_tdofs;
    std::vector<Array<int>> patch_local_tdofs;
    PatchDofInfo(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace);
-   ~PatchDofInfo(){};
+   ~PatchDofInfo() {};
 };
 
 class PatchAssembly
@@ -71,21 +76,24 @@ public:
    std::vector<int>tdof_offsets;
    std::vector<Array<int>> patch_other_tdofs;
    std::vector<Array<int>> patch_owned_other_tdofs;
-   std::vector<Array<int>> l2gmaps; // patch to global maps for the dofs owned by the processor
+   std::vector<Array<int>>
+                        l2gmaps; // patch to global maps for the dofs owned by the processor
    Array<SparseMatrix* > PatchMat;
-   PatchDofInfo *patch_tdof_info=nullptr;   
-   Array<int> host_rank; 
+   PatchDofInfo *patch_tdof_info=nullptr;
+   Array<int> host_rank;
    HypreParMatrix * A = nullptr;
    int get_rank(int tdof);
    // constructor
-   PatchAssembly(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_, HypreParMatrix * A_);
+   PatchAssembly(ParMesh * cpmesh_, int ref_levels_,
+                 ParFiniteElementSpace *fespace_, HypreParMatrix * A_);
    ~PatchAssembly();
 private:
    void compute_trueoffsets();
    ParFiniteElementSpace *fespace=nullptr;
 };
 
-class PatchRestriction  {
+class PatchRestriction
+{
 private:
    MPI_Comm comm;
    int num_procs, myid;
@@ -100,12 +108,13 @@ private:
    int rbuff_size;
 public:
    PatchRestriction(PatchAssembly * P_);
-   void Mult(const Vector & r , Array<BlockVector *> & res);
+   void Mult(const Vector & r, Array<BlockVector *> & res);
    void MultTranspose(const Array<BlockVector *> & sol, Vector & z);
    virtual ~PatchRestriction() {}
 };
 
-class SchwarzSmoother : public Solver {
+class SchwarzSmoother : public Solver
+{
 private:
    MPI_Comm comm;
    int nrpatch;
@@ -114,14 +123,15 @@ private:
    Array<int> host_rank;
 #ifdef MFEM_USE_SUITESPARSE
    Array<UMFPackSolver * > PatchInv;
-#else   
+#else
    Array<GMRESSolver * > PatchInv;
 #endif   /// The linear system matrix
    HypreParMatrix * A;
    PatchAssembly * P;
    PatchRestriction * R= nullptr;
 public:
-   SchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,ParFiniteElementSpace *fespace_, HypreParMatrix * A_);
+   SchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,
+                   ParFiniteElementSpace *fespace_, HypreParMatrix * A_);
    void SetNumSmoothSteps(const int iter) {maxit = iter;}
    void SetDampingParam(const double dump_param) {theta = dump_param;}
    virtual void SetOperator(const Operator &op) {}
