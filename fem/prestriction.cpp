@@ -311,9 +311,12 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    ComputeGatherIndices(ordering, type);
 }
 
-void ParL2FaceRestriction::ParDoubleValuedConformingMult(
+void ParL2FaceRestriction::DoubleValuedConformingMult(
    const Vector& x, Vector& y) const
 {
+   MFEM_ASSERT(
+      m == L2FaceValues::DoubleValued,
+      "This method should be called when m == L2FaceValues::DoubleValued.");
    const ParFiniteElementSpace &pfes =
       static_cast<const ParFiniteElementSpace&>(this->fes);
    ParGridFunction x_gf;
@@ -366,7 +369,7 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
    if (m==L2FaceValues::DoubleValued)
    {
-      ParDoubleValuedConformingMult(x, y);
+      DoubleValuedConformingMult(x, y);
    }
    else
    {
@@ -672,9 +675,12 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    ComputeGatherIndices(ordering, type);
 }
 
-void ParNCL2FaceRestriction::ParSingleValuedNonConformingMult(
+void ParNCL2FaceRestriction::SingleValuedNonConformingMult(
    const Vector& x, Vector& y) const
 {
+   MFEM_ASSERT(
+      m == L2FaceValues::SingleValued,
+      "This method should be called when m == L2FaceValues::SingleValued.");
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
@@ -751,9 +757,12 @@ void ParNCL2FaceRestriction::ParSingleValuedNonConformingMult(
    });
 }
 
-void ParNCL2FaceRestriction::ParDoubleValuedNonConformingMult(
+void ParNCL2FaceRestriction::DoubleValuedNonConformingMult(
    const Vector& x, Vector& y) const
 {
+   MFEM_ASSERT(
+      m == L2FaceValues::DoubleValued,
+      "This method should be called when m == L2FaceValues::DoubleValued.");
    const ParFiniteElementSpace &pfes =
       static_cast<const ParFiniteElementSpace&>(this->fes);
    ParGridFunction x_gf;
@@ -861,7 +870,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
-      ParDoubleValuedNonConformingMult(x, y);
+      DoubleValuedNonConformingMult(x, y);
    }
    else if ( type==FaceType::Boundary && m==L2FaceValues::DoubleValued )
    {
@@ -869,7 +878,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    }
    else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
    {
-      ParSingleValuedNonConformingMult(x, y);
+      SingleValuedNonConformingMult(x, y);
    }
    else if ( type==FaceType::Boundary && m==L2FaceValues::SingleValued )
    {

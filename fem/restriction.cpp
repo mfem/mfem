@@ -1100,6 +1100,9 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
 void L2FaceRestriction::SingleValuedConformingMult(const Vector& x,
                                                    Vector& y) const
 {
+   MFEM_ASSERT(
+      m == L2FaceValues::SingleValued,
+      "This method should be called when m == L2FaceValues::SingleValued.");
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
@@ -1122,6 +1125,9 @@ void L2FaceRestriction::SingleValuedConformingMult(const Vector& x,
 void L2FaceRestriction::DoubleValuedConformingMult(const Vector& x,
                                                    Vector& y) const
 {
+   MFEM_ASSERT(
+      m == L2FaceValues::DoubleValued,
+      "This method should be called when m == L2FaceValues::DoubleValued.");
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
@@ -1867,6 +1873,9 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 void NCL2FaceRestriction::SingleValuedNonConformingTransposeInterpolation(
    const Vector& x) const
 {
+   MFEM_ASSERT(
+      m == L2FaceValues::SingleValued,
+      "This method should be called when m == L2FaceValues::SingleValued.");
    if (x_interp.Size()==0)
    {
       x_interp.SetSize(x.Size());
@@ -1917,6 +1926,9 @@ void NCL2FaceRestriction::SingleValuedNonConformingTransposeInterpolation(
 void NCL2FaceRestriction::DoubleValuedNonConformingTransposeInterpolation(
    const Vector& x) const
 {
+   MFEM_ASSERT(
+      m == L2FaceValues::DoubleValued,
+      "This method should be called when m == L2FaceValues::DoubleValued.");
    if (x_interp.Size()==0)
    {
       x_interp.SetSize(x.Size());
