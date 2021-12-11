@@ -30,7 +30,7 @@ PDEOPT_COMMON_SRC =
 PDEOPT_COMMON_OBJ = $(PDEOPT_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = distributed_control optimal_design optimal_design_OUU optimal_design_OUU_2
-PAR_MINIAPPS = 
+PAR_MINIAPPS = optimal_design_OUUp optimal_design_OUUp2 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else

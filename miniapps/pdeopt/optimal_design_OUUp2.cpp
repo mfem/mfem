@@ -80,14 +80,6 @@ double load(const Vector & x)
    {
       return 0.0;
    }
-   // if (x1 < 0)
-   // {
-   //    return 1.0;
-   // }
-   // else
-   // {
-   //    return 0.0;
-   // }
 }
 
 double damage_function(const Vector & x, double x1, double y1)
@@ -98,7 +90,6 @@ double damage_function(const Vector & x, double x1, double y1)
     if (r <= 0.1)
     {
         return 1e-1;
-      //   return 1.0;
     }
     else
     {
@@ -137,7 +128,6 @@ public:
       rand();
       x1 = std::abs(rand()/max) * (b-a) + a;
       y1 = std::abs(rand()/max) * (b-a) + a;
-      // cout << "x1, y1 = " << x1 << ", " << y1 << endl; 
    }
 };
 
@@ -146,52 +136,52 @@ class PoissonSolver
 {
 private:
    int myid;
-   Mesh * mesh = nullptr;
+   ParMesh * pmesh = nullptr;
    int order = 1;
    Array<int> ess_tdof_list;
-   BilinearForm * a = nullptr;
-   LinearForm *b = nullptr;
+   ParBilinearForm * a = nullptr;
+   ParLinearForm *b = nullptr;
    OperatorPtr A;
    Vector B, C, X;
    RandomFunctionCoefficient * damage_coeff = nullptr;
    FiniteElementCollection * state_fec = nullptr;
-   FiniteElementSpace * state_fes = nullptr;
+   ParFiniteElementSpace * state_fes = nullptr;
    FiniteElementCollection * control_fec = nullptr;
-   FiniteElementSpace * control_fes = nullptr;
-   GridFunction * u = nullptr;
-   GridFunction * p = nullptr;
-   GridFunction * K = nullptr;
-   GridFunction * K_old = nullptr;
-   GridFunction * grad = nullptr;
+   ParFiniteElementSpace * control_fes = nullptr;
+   ParGridFunction * u = nullptr;
+   ParGridFunction * p = nullptr;
+   ParGridFunction * K = nullptr;
+   ParGridFunction * K_old = nullptr;
+   ParGridFunction * grad = nullptr;
    FunctionCoefficient * f = nullptr;
    ConstantCoefficient *zero = nullptr;
    ConstantCoefficient *one = nullptr;
    double norm = 0.;
    double compliance = 0.;
 public:
-   PoissonSolver(int myid_,Mesh * mesh_, int order_, RandomFunctionCoefficient * damage_coeff_) :
-   myid(myid_),mesh(mesh_), order(order_), damage_coeff(damage_coeff_) { }
+   PoissonSolver(int myid_,ParMesh * pmesh_, int order_, RandomFunctionCoefficient * damage_coeff_) :
+   myid(myid_),pmesh(pmesh_), order(order_), damage_coeff(damage_coeff_) { }
 
    void Setup()
    {
-      int dim = mesh->Dimension();
+      int dim = pmesh->Dimension();
       state_fec = new H1_FECollection(order,dim);
-      state_fes = new FiniteElementSpace(mesh,state_fec);
+      state_fes = new ParFiniteElementSpace(pmesh,state_fec);
       control_fec = new L2_FECollection(order-1,dim, BasisType::Positive);
-      control_fes = new FiniteElementSpace(mesh,control_fec);
+      control_fes = new ParFiniteElementSpace(pmesh,control_fec);
       f = new FunctionCoefficient(load);
       zero = new ConstantCoefficient(0.0);
       one = new ConstantCoefficient(1.0);
-      K = new GridFunction(control_fes);     *K = 1.0;
-      K_old = new GridFunction(control_fes); *K_old = 0.0;
-      u = new GridFunction(state_fes); *u = 0.0;
-      p = new GridFunction(state_fes); *p = 0.0;
+      K = new ParGridFunction(control_fes);     *K = 1.0;
+      K_old = new ParGridFunction(control_fes); *K_old = 0.0;
+      u = new ParGridFunction(state_fes); *u = 0.0;
+      p = new ParGridFunction(state_fes); *p = 0.0;
 
-      b = new LinearForm(state_fes);
+      b = new ParLinearForm(state_fes);
       b->AddDomainIntegrator(new DomainLFIntegrator(*f));
       b->Assemble();
 
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       state_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -201,33 +191,41 @@ public:
 
       damage_coeff->resample((int)time(0) + myid);
       delete a;
-      a = new BilinearForm(state_fes);
+      a = new ParBilinearForm(state_fes);
       GridFunctionCoefficient diffusion_coeff(K);
       ProductCoefficient damaged_diffusion_coeff(diffusion_coeff,*damage_coeff);
       a->AddDomainIntegrator(new DiffusionIntegrator(damaged_diffusion_coeff));
       a->Assemble();
       a->FormLinearSystem(ess_tdof_list, *u, *b, A, X, B);
 
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 0, 200, 1e-6, 0.0);
+      HypreBoomerAMG * prec = new HypreBoomerAMG;
+      prec->SetPrintLevel(-1);
+      CGSolver cg(pmesh->GetComm());
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(200);
+      cg.SetPrintLevel(0);
+      cg.SetPreconditioner(*prec);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      delete prec;
       a->RecoverFEMSolution(X, *b, *u);
    }
 
-   const GridFunction * GetGrad()
+   const ParGridFunction * GetGrad()
    {
       delete grad; grad = nullptr;
       GradientGridFunctionCoefficient grad_u(u);
       InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
-      grad = new GridFunction(control_fes);
+      grad = new ParGridFunction(control_fes);
       grad->ProjectCoefficient(norm2_grad_u);
       return grad;
    }
-   const GridFunction * GetStateSol()
+   const ParGridFunction * GetStateSol()
    {
       return u;
    }
 
-   GridFunction * GetDiffusionCoeff()
+   ParGridFunction * GetDiffusionCoeff()
    {
       return K;
    }
@@ -269,12 +267,29 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   int num_procs, myid;
+   int world_size, world_rank;
    MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
-   srand((unsigned) time(NULL) + myid);
+   int n = 2;
+   int row_color = world_rank / n; // Determine color based on row
+   int col_color = world_rank % n; // Determine color based on col
+
+   MPI_Comm row_comm;
+   MPI_Comm_split(MPI_COMM_WORLD, row_color, world_rank, &row_comm);
+   int row_rank, row_size;
+   MPI_Comm_rank(row_comm, &row_rank);
+   MPI_Comm_size(row_comm, &row_size);
+
+   MPI_Comm col_comm;
+   MPI_Comm_split(MPI_COMM_WORLD, col_color, world_rank, &col_comm);
+   int col_rank, col_size;
+   MPI_Comm_rank(col_comm, &col_rank);
+   MPI_Comm_size(col_comm, &col_size);
+
+
+   srand((unsigned) time(NULL) + col_rank);
 
 
    const char *mesh_file = "../../data/inline-quad.mesh";
@@ -314,14 +329,14 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
+      if (world_rank == 0)
       {
          args.PrintUsage(cout);
       }
       MPI_Finalize();
       return 1;
    }
-   if (myid == 0)
+   if (world_rank == 0)
    {
       args.PrintOptions(cout);
    }
@@ -330,20 +345,22 @@ int main(int argc, char *argv[])
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh.UniformRefinement();
    }
+   ParMesh pmesh(row_comm, mesh);
+   mesh.Clear();
+
 
    H1_FECollection state_fec(order, dim);
    L2_FECollection control_fec(order-1, dim, BasisType::Positive);
-   FiniteElementSpace state_fes(&mesh, &state_fec);
-   FiniteElementSpace control_fes(&mesh, &control_fec);
+   ParFiniteElementSpace state_fes(&pmesh, &state_fec);
+   ParFiniteElementSpace control_fes(&pmesh, &control_fec);
 
    int state_size = state_fes.GetTrueVSize();
    int control_size = control_fes.GetTrueVSize();
-   if (myid == 0)
+   if (world_rank == 0)
    {
       cout << "Number of state unknowns: " << state_size << endl;
       cout << "Number of control unknowns: " << control_size << endl;
@@ -353,9 +370,9 @@ int main(int argc, char *argv[])
    // 10. Define some tools for later
    ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
-   GridFunction onegf(&control_fes);
+   ParGridFunction onegf(&control_fes);
    onegf = 1.0;
-   LinearForm vol_form(&control_fes);
+   ParLinearForm vol_form(&control_fes);
    vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
    vol_form.Assemble();
    double domain_volume = vol_form(onegf);
@@ -366,7 +383,7 @@ int main(int argc, char *argv[])
    socketstream sout_u,sout_p,sout_K;
    if (visualization)
    {
-      if (myid == 0)
+      if (col_rank == 0)
       {
          sout_u.open(vishost, visport);
          sout_K.open(vishost, visport);
@@ -375,19 +392,17 @@ int main(int argc, char *argv[])
       }
    }
 
-
-
-   int seed = (int)time(0) + myid;
+   int seed = (int)time(0) + col_rank;
    RandomFunctionCoefficient damage_coeff(damage_function, seed);
-   GridFunction avg_grad(&control_fes);
+   ParGridFunction avg_grad(&control_fes);
 
    int global_adaptive_batch_size = batch_size;
-   int adaptive_batch_size = global_adaptive_batch_size/num_procs;
+   int adaptive_batch_size = global_adaptive_batch_size/col_size;
    // for convinience keep the batch size the same on each proc;
-   global_adaptive_batch_size = num_procs * adaptive_batch_size;
+   global_adaptive_batch_size = col_size * adaptive_batch_size;
    double theta = 2.5;
 
-   PoissonSolver * psolver = new PoissonSolver(myid,&mesh, order, &damage_coeff);
+   PoissonSolver * psolver = new PoissonSolver(col_rank,&pmesh, order, &damage_coeff);
    psolver->Setup();
    for (int k = 1; k <= max_it; k++)
    {
@@ -401,9 +416,10 @@ int main(int argc, char *argv[])
          psolver->Solve();
          if (visualization)
          {
-            if (myid == 0)
+            if (col_rank == 0)
             {
-               sout_u << "solution\n" << mesh << *psolver->GetStateSol()
+               sout_u << "parallel " << row_size << " " << row_rank << "\n";
+               sout_u << "solution\n" << pmesh << *psolver->GetStateSol()
                    << "window_title 'State u'" << flush;
             }
          }
@@ -414,15 +430,17 @@ int main(int argc, char *argv[])
 
       // MPI reduction
       MPI_Allreduce(MPI_IN_PLACE, avg_grad.GetData(), avg_grad.Size(), 
-                    MPI_DOUBLE, MPI_SUM,MPI_COMM_WORLD);
+                    MPI_DOUBLE, MPI_SUM,col_comm);
       MPI_Allreduce(MPI_IN_PLACE, &grad_norm, 1, 
-                    MPI_DOUBLE, MPI_SUM,MPI_COMM_WORLD);      
+                    MPI_DOUBLE, MPI_SUM,col_comm);      
+
 
 
       grad_norm /= (double)global_adaptive_batch_size;  
       avg_grad /= (double)global_adaptive_batch_size;
 
       double avg_grad_norm = pow(avg_grad.ComputeL2Error(zero),2);
+
 
       // cout << "avg_grad_norm = " << avg_grad_norm << endl;
       // cout << "grad_norm = " << grad_norm << endl;
@@ -432,7 +450,7 @@ int main(int argc, char *argv[])
       // J. Update control.
       avg_grad *= step_length;
 
-      GridFunction & K = *psolver->GetDiffusionCoeff();
+      ParGridFunction & K = *psolver->GetDiffusionCoeff();
 
       K += avg_grad;
 
@@ -468,33 +486,46 @@ int main(int argc, char *argv[])
          }
       }
 
+
       // I. Compute norm of update.
       double norm = psolver->ComputeNormAndUpdate(step_length);
       double compliance = psolver->GetCompliance();
 
+
+
       // L. Exit if norm of grad is small enough.
-      if (myid == 0)
+
+      double mass_fraction = vol_form(K);
+
+      if (world_rank == 0)
       {
          mfem::out << "norm of reduced gradient = " << norm << endl;
          mfem::out << "compliance = " << compliance << endl;
-         mfem::out << "mass_fraction = " << vol_form(K) / domain_volume << endl;
+         mfem::out << "mass_fraction = " << mass_fraction / domain_volume << endl;
       }
+
+      // MPI_Finalize();
+      // return 0;
 
       if (norm < tol)
       {
          break;
       }
 
+
       if (visualization)
       {
-         if (myid == 0)
+         if (col_rank == 0)
          {
-            sout_K << "solution\n" << mesh << K
+            sout_K << "parallel " << row_size << " " << row_rank << "\n";
+            sout_K << "solution\n" << pmesh << K
                   << "window_title 'Control K'" << flush;
          }
       }
 
-      if (myid == 0)
+
+
+      if (world_rank == 0)
       {
          cout << "variance " << variance << endl;
          cout << "norm " << norm << endl;
@@ -503,13 +534,15 @@ int main(int argc, char *argv[])
 
       MFEM_VERIFY(IsFinite(ratio), "ratio not finite");
 
+
+
       if (ratio > theta)
       {
          global_adaptive_batch_size = (int)(pow(ratio / theta,2.) * global_adaptive_batch_size); 
       }
-      adaptive_batch_size = global_adaptive_batch_size/num_procs;
+      adaptive_batch_size = global_adaptive_batch_size/col_size;
       // for convinience keep the batch size the same on each proc;
-      global_adaptive_batch_size = num_procs * adaptive_batch_size;
+      global_adaptive_batch_size = col_size * adaptive_batch_size;
    }
 
    delete psolver;
