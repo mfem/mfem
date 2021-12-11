@@ -255,8 +255,6 @@ protected:
 
    /** @brief Verify that H1FaceRestriction is build from an H1 FESpace.
 
-       Note: Requires the gather offsets to be computed.
-
        @param[in] ordering The FESpace element ordering.
    */
    void CheckFESpace(const ElementDofOrdering ordering);
@@ -433,8 +431,6 @@ protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
    /** @brief Verify that L2FaceRestriction is build from an L2 FESpace.
-
-       Note: Requires the gather offsets to be computed.
 
        @param[in] ordering The FESpace element ordering.
    */
