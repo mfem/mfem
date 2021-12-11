@@ -693,7 +693,7 @@ private:
     operator interpolates master (coarse) face degrees of freedom onto the
     slave (fine) face. This allows face integrators to treat non-conforming
     faces just as regular conforming faces. */
-class NCL2FaceRestriction : public L2FaceRestriction
+class NCL2FaceRestriction : virtual public L2FaceRestriction
 {
 protected:
    InterpolationManager interpolations;
