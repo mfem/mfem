@@ -93,7 +93,7 @@ public:
 /// wavelet == HAAR | DAUBECHIES & lowpass
 class WAMG : public Solver
 {
-   const int max_depth = 2;
+   const int max_depth = 32;
    const int max_ndofs = 1024*1024;
    const bool lowpass = true;
    const bool to_bottom = false;
@@ -112,7 +112,7 @@ public:
 class faWAMG : public Solver
 {
    const int max_depth = 32;
-   const int max_ndofs = 128;
+   const int max_ndofs = 16*1024;
    const bool lowpass = true;
    const bool to_bottom = false;
    const bool to_full = true;

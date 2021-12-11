@@ -48,7 +48,7 @@ static bool config_use_caliper = false;
 
 static bool config_debug = false;
 static int config_max_nic = 4;
-static int config_max_nip = 4;
+static int config_max_nip = 7;
 static int config_max_nif = 500;
 
 enum MGSpecification
@@ -1144,14 +1144,11 @@ struct SolverProblem: public BakeOff
 // The different orders the tests can run
 #define P_ORDERS bm::CreateDenseRange(1,6,1)
 
-// The different preconditioners the tests can use
-#define P_PRECONDS {None,Jacobi,MGJacobi,MGFAHypre,MGLORHypre}
-
 // The different epsilons dividers
 #define P_EPSILONS {1,2,3}
 
 // The different refinements
-#define P_REFINEMENTS bm::CreateDenseRange(0,3,1)
+#define P_REFINEMENTS bm::CreateDenseRange(0,4,1)
 
 /// Bake-off Solvers (BPSs)
 /// Smoothness in 0, 1 or 2
@@ -1161,7 +1158,7 @@ struct SolverProblem: public BakeOff
 static void BPS##i##_##Prcd(bm::State &state){\
    const int refinements = state.range(2);\
    const int smoothness = 0;\
-   const double eps = 1.0/state.range(1);\
+   const double eps = std::floor(1.0/state.range(1)*10.0)/10.0;\
    const bool rhs_1 = true;\
    const bool rhs_n = 3;\
    const int order = state.range(0);\
@@ -1173,6 +1170,7 @@ static void BPS##i##_##Prcd(bm::State &state){\
    state.counters["Epsilon"] = bm::Counter(ker.epsy);\
    state.counters["Niters"] = bm::Counter(ker.niter);\
    state.counters["P"] = bm::Counter(order);\
+   state.counters["Ranks"] = bm::Counter(mpi->WorldSize());\
    state.counters["Tsetup"] = bm::Counter(ker.TSetup());\
    state.counters["Tsolve"] = bm::Counter(ker.TSolve(), bm::Counter::kAvgIterations);}\
 BENCHMARK(BPS##i##_##Prcd)\
@@ -1182,12 +1180,12 @@ BENCHMARK(BPS##i##_##Prcd)\
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Solver(3,Diffusion,None)
 BakeOff_Solver(3,Diffusion,Jacobi)
-BakeOff_Solver(3,Diffusion,LORBatch)
+//BakeOff_Solver(3,Diffusion,LORBatch)
+BakeOff_Solver(3,Diffusion,MGInner)
 BakeOff_Solver(3,Diffusion,MGJacobi)
 BakeOff_Solver(3,Diffusion,MGFAHypre)
-BakeOff_Solver(3,Diffusion,MGLORHypre)
-BakeOff_Solver(3,Diffusion,MGLORBatch)
-BakeOff_Solver(3,Diffusion,MGInner)
+//BakeOff_Solver(3,Diffusion,MGLORHypre)
+//BakeOff_Solver(3,Diffusion,MGLORBatch)
 BakeOff_Solver(3,Diffusion,MGWavelets)
 BakeOff_Solver(3,Diffusion,MGFAWavelets)
 BakeOff_Solver(3,Diffusion,MGLEGACYWavelets)

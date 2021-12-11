@@ -156,7 +156,7 @@ void NDK_PADiffApply(const int NE,
                   qt += Dkm * s_Iq[tz][m][j][i];
                }
                //(d, Q1D,Q1D,Q1D, 6, NE);
-               const int ebase = 0 * 6*Q1D*Q1D*Q1D;
+               const int ebase = e * 6*Q1D*Q1D*Q1D;
                const int gbase = i + j*Q1D + k*Q1D*Q1D;
                const double D00 = D[0*Q1D*Q1D*Q1D + gbase + ebase];
                const double D01 = D[1*Q1D*Q1D*Q1D + gbase + ebase];
