@@ -75,8 +75,10 @@ protected:
        visualization purpose in GLVis. */
    mutable int nbInteriorFaces, nbBoundaryFaces;
 
-   int meshgen; // see MeshGenerator()
-   int mesh_geoms; // sum of (1 << geom) for all geom of all dimensions
+   // see MeshGenerator(); global in parallel
+   int meshgen;
+   // sum of (1 << geom) for all geom of all dimensions; local in parallel
+   int mesh_geoms;
 
    // Counter for Mesh transformations: refinement, derefinement, rebalancing.
    // Used for checking during Update operations on objects depending on the
@@ -961,7 +963,7 @@ public:
 
    int AddBdrPoint(int v, int attr = 1);
 
-   void GenerateBoundaryElements();
+   virtual void GenerateBoundaryElements();
    /// Finalize the construction of a triangular Mesh.
    void FinalizeTriMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
