@@ -80,14 +80,6 @@ double load(const Vector & x)
    {
       return 0.0;
    }
-   // if (x1 < 0)
-   // {
-   //    return 1.0;
-   // }
-   // else
-   // {
-   //    return 0.0;
-   // }
 }
 
 double damage_function(const Vector & x, double x1, double y1)
@@ -137,7 +129,6 @@ public:
       rand();
       x1 = std::abs(rand()/max) * (b-a) + a;
       y1 = std::abs(rand()/max) * (b-a) + a;
-      // cout << "x1, y1 = " << x1 << ", " << y1 << endl; 
    }
 };
 
@@ -380,6 +371,8 @@ int main(int argc, char *argv[])
    int seed = (int)time(0) + myid;
    RandomFunctionCoefficient damage_coeff(damage_function, seed);
    GridFunction avg_grad(&control_fes);
+
+   batch_size = max(batch_size,num_procs);
 
    int global_adaptive_batch_size = batch_size;
    int adaptive_batch_size = global_adaptive_batch_size/num_procs;

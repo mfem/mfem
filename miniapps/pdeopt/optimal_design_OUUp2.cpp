@@ -67,6 +67,8 @@ using namespace mfem;
  * 
  */
 
+bool random_seed = true;
+
 double load(const Vector & x)
 {
    double x1 = x(0);
@@ -108,11 +110,7 @@ public:
    RandomFunctionCoefficient(double (*F)(const Vector &, double, double), int seed = 0) 
    : Function(F)
    {
-      srand((unsigned)seed);
-      const double max = (double)(RAND_MAX) + 1.;
-      rand();
-      x1 = std::abs(rand()/max) * (b-a) + a;
-      y1 = std::abs(rand()/max) * (b-a) + a;
+      resample(seed);
    }
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
@@ -188,8 +186,8 @@ public:
 
    void Solve()
    {
-
-      damage_coeff->resample((int)time(0) + myid);
+      int seed = (random_seed) ? (int)time(0) + myid : myid;
+      damage_coeff->resample(seed);
       delete a;
       a = new ParBilinearForm(state_fes);
       GridFunctionCoefficient diffusion_coeff(K);
@@ -209,6 +207,16 @@ public:
       cg.Mult(B, X);
       delete prec;
       a->RecoverFEMSolution(X, *b, *u);
+   }
+
+   ParFiniteElementSpace * GetStateFes()
+   {
+      return state_fes;
+   }
+
+   ParFiniteElementSpace * GetControlFes()
+   {
+      return control_fes;
    }
 
    const ParGridFunction * GetGrad()
@@ -272,27 +280,8 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
-   int n = 2;
-   int row_color = world_rank / n; // Determine color based on row
-   int col_color = world_rank % n; // Determine color based on col
-
-   MPI_Comm row_comm;
-   MPI_Comm_split(MPI_COMM_WORLD, row_color, world_rank, &row_comm);
-   int row_rank, row_size;
-   MPI_Comm_rank(row_comm, &row_rank);
-   MPI_Comm_size(row_comm, &row_size);
-
-   MPI_Comm col_comm;
-   MPI_Comm_split(MPI_COMM_WORLD, col_color, world_rank, &col_comm);
-   int col_rank, col_size;
-   MPI_Comm_rank(col_comm, &col_rank);
-   MPI_Comm_size(col_comm, &col_size);
-
-
-   srand((unsigned) time(NULL) + col_rank);
-
-
    const char *mesh_file = "../../data/inline-quad.mesh";
+   int solver_ranks = 2;
    int ref_levels = 2;
    int order = 2;
    bool visualization = true;
@@ -313,8 +302,10 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&step_length, "-sl", "--step-length",
                   "Step length for gradient descent.");
+   args.AddOption(&solver_ranks, "-sr", "--solver-ranks",
+                  "Number of mpi ranks used by the forward solver");              
    args.AddOption(&batch_size, "-bs", "--batch-size",
-                  "batch size for stochastic gradient descent.");               
+                  "batch size for stochastic gradient descent.");                        
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
    args.AddOption(&mass_fraction, "-mf", "--mass-fraction",
@@ -323,6 +314,9 @@ int main(int argc, char *argv[])
                   "Maximum of diffusion diffusion coefficient.");
    args.AddOption(&K_min, "-min", "--K-min",
                   "Minimum of diffusion diffusion coefficient.");
+   args.AddOption(&random_seed, "-rs", "--random-seed", "-no-rs",
+                  "--no-random-seed",
+                  "Enable or disable GLVis visualization.");                  
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -341,10 +335,39 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   int n = solver_ranks;
+
+   // check partitioning
+   if (world_size%solver_ranks !=0)
+   {
+      if (world_rank == 0)
+      {
+         MFEM_WARNING("Changing partitioning of MPI ranks: Number of ranks in forward solver = 1")
+      }
+      n = 1;
+   }
+
+   int row_color = world_rank / n; // Determine color based on row
+   int col_color = world_rank % n; // Determine color based on col
+
+   MPI_Comm row_comm;
+   MPI_Comm_split(MPI_COMM_WORLD, row_color, world_rank, &row_comm);
+   int row_rank, row_size;
+   MPI_Comm_rank(row_comm, &row_rank);
+   MPI_Comm_size(row_comm, &row_size);
+
+   MPI_Comm col_comm;
+   MPI_Comm_split(MPI_COMM_WORLD, col_color, world_rank, &col_comm);
+   int col_rank, col_size;
+   MPI_Comm_rank(col_comm, &col_rank);
+   MPI_Comm_size(col_comm, &col_size);
+
+   srand((unsigned) time(NULL) + col_rank);
+
+
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh.UniformRefinement();
@@ -352,30 +375,6 @@ int main(int argc, char *argv[])
    ParMesh pmesh(row_comm, mesh);
    mesh.Clear();
 
-
-   H1_FECollection state_fec(order, dim);
-   L2_FECollection control_fec(order-1, dim, BasisType::Positive);
-   ParFiniteElementSpace state_fes(&pmesh, &state_fec);
-   ParFiniteElementSpace control_fes(&pmesh, &control_fec);
-
-   int state_size = state_fes.GetTrueVSize();
-   int control_size = control_fes.GetTrueVSize();
-   if (world_rank == 0)
-   {
-      cout << "Number of state unknowns: " << state_size << endl;
-      cout << "Number of control unknowns: " << control_size << endl;
-   }
-
-   
-   // 10. Define some tools for later
-   ConstantCoefficient zero(0.0);
-   ConstantCoefficient one(1.0);
-   ParGridFunction onegf(&control_fes);
-   onegf = 1.0;
-   ParLinearForm vol_form(&control_fes);
-   vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
-   vol_form.Assemble();
-   double domain_volume = vol_form(onegf);
 
    // 11. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -392,22 +391,52 @@ int main(int argc, char *argv[])
       }
    }
 
-   int seed = (int)time(0) + col_rank;
+   int seed = (random_seed) ? (int)time(0) + col_rank : col_rank;
    RandomFunctionCoefficient damage_coeff(damage_function, seed);
-   ParGridFunction avg_grad(&control_fes);
+   PoissonSolver * psolver = new PoissonSolver(col_rank,&pmesh, order, &damage_coeff);
+   psolver->Setup();
 
+   ParFiniteElementSpace * state_fes = psolver->GetStateFes();
+   ParFiniteElementSpace * control_fes = psolver->GetControlFes();
+
+   int state_size = state_fes->GetTrueVSize();
+   int control_size = control_fes->GetTrueVSize();
+   if (world_rank == 0)
+   {
+      cout << "\nNumber of state unknowns:   " << state_size << endl;
+      cout <<   "Number of control unknowns: " << control_size << endl;
+   }
+
+   
+   // 10. Define some tools for later
+   ConstantCoefficient zero(0.0);
+   ConstantCoefficient one(1.0);
+   ParGridFunction onegf(control_fes);
+   onegf = 1.0;
+   ParLinearForm vol_form(control_fes);
+   vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
+   vol_form.Assemble();
+   double domain_volume = vol_form(onegf);
+
+   ParGridFunction avg_grad(control_fes);
+
+   batch_size = max(batch_size,col_size);
    int global_adaptive_batch_size = batch_size;
    int adaptive_batch_size = global_adaptive_batch_size/col_size;
    // for convinience keep the batch size the same on each proc;
    global_adaptive_batch_size = col_size * adaptive_batch_size;
+
    double theta = 2.5;
 
-   PoissonSolver * psolver = new PoissonSolver(col_rank,&pmesh, order, &damage_coeff);
-   psolver->Setup();
    for (int k = 1; k <= max_it; k++)
    {
-      // cout << "Step = " << k << endl;
-      // cout << "batch_size = " << adaptive_batch_size << endl;
+      if (world_rank == 0)
+      { 
+         mfem::out << "\n------------------------------------\n" << std::endl;
+         mfem::out << "Step number:          " << k << std::endl;
+         mfem::out << "Global batch size:    " << global_adaptive_batch_size << endl;
+      }
+
       avg_grad = 0.0;
       double grad_norm = 0.;
 
@@ -434,16 +463,11 @@ int main(int argc, char *argv[])
       MPI_Allreduce(MPI_IN_PLACE, &grad_norm, 1, 
                     MPI_DOUBLE, MPI_SUM,col_comm);      
 
-
-
       grad_norm /= (double)global_adaptive_batch_size;  
       avg_grad /= (double)global_adaptive_batch_size;
 
       double avg_grad_norm = pow(avg_grad.ComputeL2Error(zero),2);
 
-
-      // cout << "avg_grad_norm = " << avg_grad_norm << endl;
-      // cout << "grad_norm = " << grad_norm << endl;
 
       double variance = (grad_norm - avg_grad_norm)/(global_adaptive_batch_size - 1);  
 
@@ -486,12 +510,9 @@ int main(int argc, char *argv[])
          }
       }
 
-
       // I. Compute norm of update.
       double norm = psolver->ComputeNormAndUpdate(step_length);
       double compliance = psolver->GetCompliance();
-
-
 
       // L. Exit if norm of grad is small enough.
 
@@ -499,19 +520,15 @@ int main(int argc, char *argv[])
 
       if (world_rank == 0)
       {
-         mfem::out << "norm of reduced gradient = " << norm << endl;
-         mfem::out << "compliance = " << compliance << endl;
-         mfem::out << "mass_fraction = " << mass_fraction / domain_volume << endl;
+         mfem::out << "Norm of reduced grad: " << norm << endl;
+         mfem::out << "Compliance:           " << compliance << endl;
+         mfem::out << "Mass fraction:        " << mass_fraction / domain_volume << endl;
       }
-
-      // MPI_Finalize();
-      // return 0;
 
       if (norm < tol)
       {
          break;
       }
-
 
       if (visualization)
       {
@@ -524,16 +541,13 @@ int main(int argc, char *argv[])
       }
 
 
-
       if (world_rank == 0)
       {
-         cout << "variance " << variance << endl;
-         cout << "norm " << norm << endl;
+         cout << "Variance:             " << variance << endl;
       }
       double ratio = sqrt(variance) / norm ;
 
       MFEM_VERIFY(IsFinite(ratio), "ratio not finite");
-
 
 
       if (ratio > theta)
@@ -545,6 +559,10 @@ int main(int argc, char *argv[])
       global_adaptive_batch_size = col_size * adaptive_batch_size;
    }
 
+   if (world_rank == 0)
+   { 
+      mfem::out << "\n------------------------------------\n " << std::endl;
+   }
    delete psolver;
 
    MPI_Finalize();
