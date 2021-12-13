@@ -2711,6 +2711,7 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
    }
    face_nbr_el_to_face->Finalize();
 
+   delete sfaces_tbl;
    if (ret_ftbl)
    {
       return faces_tbl;
@@ -6178,6 +6179,9 @@ void ParMesh::Destroy()
       FreeElement(shared_edges[i]);
    }
    shared_edges.DeleteAll();
+
+   delete face_nbr_el_to_face;
+   face_nbr_el_to_face = NULL;
 }
 
 ParMesh::~ParMesh()
