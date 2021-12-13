@@ -746,8 +746,8 @@ int main(int argc, char *argv[])
    {
       MFEM_VERIFY(pa == false, "PA is not implemented for adaptive limiting");
 
-      FunctionCoefficient adapt_lim_coeff(adapt_lim_fun);
-      adapt_lim_gf0.ProjectCoefficient(adapt_lim_coeff);
+      FunctionCoefficient adapt_lim_gf0_coeff(adapt_lim_fun);
+      adapt_lim_gf0.ProjectCoefficient(adapt_lim_gf0_coeff);
 
       if (adapt_eval == 0) { adapt_lim_eval = new AdvectorCG(al); }
       else if (adapt_eval == 1)
