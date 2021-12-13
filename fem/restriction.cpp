@@ -685,6 +685,8 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
      gather_indices(nf*face_dofs),
      face_map(face_dofs)
 {
+   height = vdim*nf*face_dofs;
+   width = fes.GetVSize();
    if (!build) { return; }
    if (nf==0) { return; }
 
@@ -774,8 +776,6 @@ void H1FaceRestriction::CheckFESpace(const ElementDofOrdering e_ordering)
                "H1FaceRestriction.");
 
    // Assuming all finite elements are using Gauss-Lobatto.
-   height = vdim*nf*face_dofs;
-   width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (dof_reorder && nf > 0)
    {
@@ -1081,6 +1081,8 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
      gather_indices((m==L2FaceValues::DoubleValued? 2 : 1)*nf*face_dofs),
      face_map(face_dofs)
 {
+   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*face_dofs;
+   width = fes.GetVSize();
    if (!build) { return; }
 
    CheckFESpace(e_ordering);
@@ -1369,8 +1371,6 @@ void L2FaceRestriction::CheckFESpace(const ElementDofOrdering e_ordering)
                "Only Gauss-Lobatto and Bernstein basis are supported in "
                "L2FaceRestriction.");
    if (nf==0) { return; }
-   height = (m==L2FaceValues::DoubleValued? 2 : 1)*vdim*nf*face_dofs;
-   width = fes.GetVSize();
    const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
    if (!dof_reorder)
    {
