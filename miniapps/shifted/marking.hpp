@@ -45,6 +45,7 @@ public:
         include_cut_cell(include_cut_cell_) { }
 
    /// Mark all the elements in the mesh using the @a SBElementType
+   /// Assumes the ExchangeFaceNbrData() has been called for pmesh, ls_func.
    void MarkElements(Array<int> &elem_marker) const;
 
    /// List dofs associated with the surrogate boundary.
