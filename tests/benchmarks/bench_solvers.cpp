@@ -1180,7 +1180,7 @@ BENCHMARK(BPS##i##_##Prcd)\
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Solver(3,Diffusion,None)
 BakeOff_Solver(3,Diffusion,Jacobi)
-//BakeOff_Solver(3,Diffusion,LORBatch)
+BakeOff_Solver(3,Diffusion,LORBatch)
 BakeOff_Solver(3,Diffusion,MGInner)
 BakeOff_Solver(3,Diffusion,MGJacobi)
 BakeOff_Solver(3,Diffusion,MGFAHypre)

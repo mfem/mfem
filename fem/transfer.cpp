@@ -1192,10 +1192,10 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
    });
 }
 
+template <int D1D, int Q1D>
 void FastProlongation3D(const int lND,
                         const int hNQ,
                         const int NE,
-                        const int D1D, const int Q1D,
                         const int *lmap,
                         const Vector& x,
                         const int *hmap,
@@ -1217,12 +1217,12 @@ void FastProlongation3D(const int lND,
 
    MFEM_FORALL_3D(be, (NE+NBZ-1)/NBZ, Q1D, Q1D, NBZ,
    {
-      double u[8];
+      double u[Q1D];
       const int tz = MFEM_THREAD_ID(z);
       const int e = be * MFEM_THREAD_SIZE(z) + tz;
 
-      MFEM_SHARED double s_B[8][8];
-      MFEM_SHARED double s_q[NBZ][8][8][8];
+      MFEM_SHARED double s_B[Q1D][D1D];
+      MFEM_SHARED double s_q[NBZ][Q1D][Q1D][Q1D];
 
       // Load input, B & X interpolation
       MFEM_FOREACH_THREAD(dy,y,D1D)
@@ -1545,10 +1545,10 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
    });
 }
 
+template<int D1D, int Q1D>
 void FastRestriction3D(const int lND,
                        const int hNQ,
                        const int NE,
-                       const int D1D, const int Q1D,
                        const int *hmap,
                        const Vector& x,
                        const int *lmap,
@@ -1570,12 +1570,12 @@ void FastRestriction3D(const int lND,
 
    MFEM_FORALL_3D(be, (NE+NBZ-1)/NBZ, Q1D, Q1D, NBZ,
    {
-      double u[8];
+      double u[Q1D];
       const int tz = MFEM_THREAD_ID(z);
       const int e = be * MFEM_THREAD_SIZE(z) + tz;
 
-      MFEM_SHARED double s_B[8][8];
-      MFEM_SHARED double s_q[NBZ][8][8][8];
+      MFEM_SHARED double s_B[Q1D][D1D];
+      MFEM_SHARED double s_q[NBZ][Q1D][Q1D][Q1D];
 
       // Load B
       if (tz == 0)
@@ -1693,17 +1693,38 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
       const Operator *lERop = lFESpace.GetElementRestriction(ordering);
       const ElementRestriction* lER = dynamic_cast<const ElementRestriction*>(lERop);
       assert(lER);
-      const int *lm = lER->GatherMap().Read();
+      const int *lmap = lER->GatherMap().Read();
       assert(lER->GatherMap().Size() == D1D*D1D*D1D*NE);
       // hFESpace map idx
       const int hNQ = hFESpace.GetNDofs();
       const Operator *hERop = elem_restrict_lex_h;
       const ElementRestriction* hER = dynamic_cast<const ElementRestriction*>(hERop);
       assert(hER);
-      const int *hm = hER->GatherMap().Read();
+      const int *hmap = hER->GatherMap().Read();
       assert(hER->GatherMap().Size() == Q1D*Q1D*Q1D*NE);
-      TransferKernels::FastProlongation3D(lND, hNQ,
-                                          NE, D1D, Q1D, lm, x, hm, y, B, mask);
+
+      void (*Ker)(const int lND,
+                  const int hNQ,
+                  const int NE,
+                  const int *lmap,
+                  const Vector& x,
+                  const int *hmap,
+                  Vector& y,
+                  const Array<double>& B,
+                  const Vector& mask);
+
+      const int id = (D1D << 4) | Q1D;
+      switch (id) // orders 1~8
+      {
+         case 0x23: Ker=TransferKernels::FastProlongation3D<2,3>; break; // 1
+         case 0x34: Ker=TransferKernels::FastProlongation3D<3,4>; break; // 2
+         case 0x45: Ker=TransferKernels::FastProlongation3D<4,5>; break; // 3
+         case 0x56: Ker=TransferKernels::FastProlongation3D<5,6>; break; // 4
+         case 0x67: Ker=TransferKernels::FastProlongation3D<6,7>; break; // 5
+         case 0x78: Ker=TransferKernels::FastProlongation3D<7,8>; break; // 6
+         default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
+      }
+      Ker(lND, hNQ, NE, lmap, x, hmap, y, B, mask);
    }
    else
    {
@@ -1743,16 +1764,37 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
       const Operator *lERop = lFESpace.GetElementRestriction(ordering);
       const ElementRestriction* lER = dynamic_cast<const ElementRestriction*>(lERop);
       assert(lER);
-      const int *lm = lER->GatherMap().Read();
+      const int *lmap = lER->GatherMap().Read();
       // hFESpace map idx
       const int hNQ = hFESpace.GetNDofs();
       const Operator *hERop = elem_restrict_lex_h;
       const ElementRestriction* hER = dynamic_cast<const ElementRestriction*>(hERop);
       assert(hER);
-      const int *hm = hER->GatherMap().Read();
+      const int *hmap = hER->GatherMap().Read();
       assert(hER->GatherMap().Size() == Q1D*Q1D*Q1D*NE);
-      TransferKernels::FastRestriction3D(lND, hNQ,
-                                         NE, D1D, Q1D, hm, x, lm, y, Bt, mask);
+
+      void (*Ker)(const int lND,
+                  const int hNQ,
+                  const int NE,
+                  const int *hmap,
+                  const Vector& x,
+                  const int *lmap,
+                  Vector& y,
+                  const Array<double>& Bt,
+                  const Vector& mask) = nullptr;
+
+      const int id = (D1D << 4) | Q1D;
+      switch (id) // orders 1~8
+      {
+         case 0x23: Ker=TransferKernels::FastRestriction3D<2,3>; break; // 1
+         case 0x34: Ker=TransferKernels::FastRestriction3D<3,4>; break; // 2
+         case 0x45: Ker=TransferKernels::FastRestriction3D<4,5>; break; // 3
+         case 0x56: Ker=TransferKernels::FastRestriction3D<5,6>; break; // 4
+         case 0x67: Ker=TransferKernels::FastRestriction3D<6,7>; break; // 5
+         case 0x78: Ker=TransferKernels::FastRestriction3D<7,8>; break; // 6
+         default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
+      }
+      Ker(lND, hNQ, NE, hmap, x, lmap, y, Bt, mask);
    }
    else
    {
