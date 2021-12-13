@@ -558,8 +558,6 @@ PetscParVector::PetscParVector(MPI_Comm comm, const Operator &op,
    else /* Vector intended to be used with Place/ResetMemory calls */
    {
       size = loc;
-      pdata.Reset();
-      data.Reset();
    }
 }
 
@@ -581,8 +579,6 @@ PetscParVector::PetscParVector(const PetscParMatrix &A,
       PetscInt n;
       ierr = VecGetLocalSize(x,&n); PCHKERRQ(x,ierr);
       size = n;
-      pdata.Reset();
-      data.Reset();
    }
    else
    {
