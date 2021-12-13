@@ -85,6 +85,11 @@ void TransformPrimal(const DofTransformation *ran_dof_trans,
    }
 }
 
+void DofTransformation::InvTransformDual(Vector &v) const
+{
+   InvTransformDual(v.GetData());
+}
+
 void TransformDual(const DofTransformation *ran_dof_trans,
                    const DofTransformation *dom_dof_trans,
                    DenseMatrix &elmat)
@@ -195,6 +200,35 @@ void VDofTransformation::TransformDual(double *v) const
    }
 }
 
+void VDofTransformation::InvTransformDual(double *v) const
+{
+   int size = doftrans_->Size();
+
+   if ((Ordering::Type)ordering_ == Ordering::byNODES)
+   {
+      for (int i=0; i<vdim_; i++)
+      {
+         doftrans_->InvTransformDual(&v[i*size]);
+      }
+   }
+   else
+   {
+      Vector vec(size);
+      for (int i=0; i<vdim_; i++)
+      {
+         for (int j=0; j<size; j++)
+         {
+            vec(j) = v[j*vdim_+i];
+         }
+         doftrans_->InvTransformDual(vec);
+         for (int j=0; j<size; j++)
+         {
+            v[j*vdim_+i] = vec(j);
+         }
+      }
+   }
+}
+
 const double ND_DofTransformation::T_data[24] =
 {
    1.0,  0.0,  0.0,  1.0,
@@ -291,6 +325,26 @@ ND_TriDofTransformation::TransformDual(double *v) const
    }
 }
 
+void
+ND_TriDofTransformation::InvTransformDual(double *v) const
+{
+   int nedofs = order; // number of DoFs per edge
+   int nfdofs = order*(order-1); // number of DoFs per face
+
+   double data[2];
+   Vector v2(data, 2);
+
+   // Transform face DoFs
+   for (int f=0; f<1; f++)
+   {
+      for (int i=0; i<nfdofs/2; i++)
+      {
+         v2 = &v[3*nedofs + f*nfdofs + 2*i];
+         T(Fo[f]).MultTranspose(v2, &v[3*nedofs + f*nfdofs + 2*i]);
+      }
+   }
+}
+
 ND_TetDofTransformation::ND_TetDofTransformation(int p)
    : ND_DofTransformation(p*(p + 2)*(p + 3)/2, p)
 {
@@ -351,6 +405,26 @@ ND_TetDofTransformation::TransformDual(double *v) const
       {
          v2 = &v[6*nedofs + f*nfdofs + 2*i];
          TInv(Fo[f]).MultTranspose(v2, &v[6*nedofs + f*nfdofs + 2*i]);
+      }
+   }
+}
+
+void
+ND_TetDofTransformation::InvTransformDual(double *v) const
+{
+   int nedofs = order; // number of DoFs per edge
+   int nfdofs = order*(order-1); // number of DoFs per face
+
+   double data[2];
+   Vector v2(data, 2);
+
+   // Transform face DoFs
+   for (int f=0; f<4; f++)
+   {
+      for (int i=0; i<nfdofs/2; i++)
+      {
+         v2 = &v[6*nedofs + f*nfdofs + 2*i];
+         T(Fo[f]).MultTranspose(v2, &v[6*nedofs + f*nfdofs + 2*i]);
       }
    }
 }

@@ -1709,8 +1709,7 @@ void FiniteElementSpace::RefinementOperator
             fespace->DofsToVDofs(vd, c_vdofs, old_ndofs);
 
             x.GetSubVector(f_vdofs, subX);
-            old_DoFTrans[geom]->InvTransformPrimal(subX);
-
+            doftrans->InvTransformDual(subX);
             for (int p = 0; p < f_dofs.Size(); ++p)
             {
                if (processed[DecodeDof(f_dofs[p])])
@@ -1719,9 +1718,9 @@ void FiniteElementSpace::RefinementOperator
                }
             }
 
-            lP.MultTranspose(subX, subY);
-            doftrans->TransformPrimal(subY);
-            y.AddElementVector(c_vdofs, subY);
+            lP.MultTranspose(subX, subYt);
+            old_DoFTrans[geom]->TransformDual(subYt);
+            y.AddElementVector(c_vdofs, subYt);
          }
 
          if (vdoftrans)
