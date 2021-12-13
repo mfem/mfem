@@ -1040,11 +1040,15 @@ int main(int argc, char *argv[])
          if (pa)
          {
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-            S_prec = new OperatorJacobiSmoother;
+            auto js = new OperatorJacobiSmoother;
+            js->SetPositiveDiagonal(true);
+            S_prec = js;
          }
          else
          {
-            S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
+            auto ds = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
+            ds->SetPositiveDiagonal(true);
+            S_prec = ds;
          }
          minres->SetPreconditioner(*S_prec);
       }

@@ -307,7 +307,14 @@ void OperatorJacobiSmoother::Setup(const Vector &diag)
    const double delta = damping;
    auto D = diag.Read();
    auto DI = dinv.Write();
-   MFEM_FORALL(i, height, DI[i] = delta / D[i]; );
+   MFEM_FORALL(i, height,
+   {
+      if (!(std::abs(D[i]) > 0.0))
+      {
+         MFEM_ABORT_KERNEL("Zero diagonal entry in OperatorJacobiSmoother");
+      }
+      DI[i] = delta / D[i];
+   });
    if (ess_tdof_list && ess_tdof_list->Size() > 0)
    {
       auto I = ess_tdof_list->Read();
@@ -337,7 +344,11 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    auto DI = dinv.Read();
    auto R = residual.Read();
    auto Y = y.ReadWrite();
-   MFEM_FORALL(i, height, Y[i] += DI[i] * R[i]; );
+   MFEM_FORALL(i, height,
+   {
+      if (use_abs_diag) { Y[i] += fabs(DI[i]) * R[i]; }
+      else              { Y[i] += DI[i] * R[i]; }
+   });
 }
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,

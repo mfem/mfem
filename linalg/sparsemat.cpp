@@ -2382,7 +2382,7 @@ double SparseMatrix::GetJacobiScaling() const
 }
 
 void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
-                          double sc) const
+                          double sc, bool use_abs_diag) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
@@ -2403,7 +2403,12 @@ void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
       }
       if (d >= 0 && A[d] != 0.0)
       {
-         x1(i) = sc * (sum / A[d]) + (1.0 - sc) * x0(i);
+         if (!(std::abs(A[d]) > 0.0))
+         {
+            MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::Jacobi");
+         }
+         double diag = (use_abs_diag) ? fabs(A[d]) : A[d];
+         x1(i) = sc * (sum / diag) + (1.0 - sc) * x0(i);
       }
       else
       {
@@ -2412,7 +2417,8 @@ void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
    }
 }
 
-void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
+void SparseMatrix::DiagScale(const Vector &b, Vector &x,
+                             double sc, bool use_abs_diag) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
@@ -2442,7 +2448,8 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
             {
                MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::DiagScale");
             }
-            xp[i] = sc * bp[i] / Ap[j];
+            if (use_abs_diag) { xp[i] = sc * bp[i] / fabs(Ap[j]); }
+            else              { xp[i] = sc * bp[i] / Ap[j]; }
             break;
          }
       }
