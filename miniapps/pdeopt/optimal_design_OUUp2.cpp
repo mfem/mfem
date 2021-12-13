@@ -133,7 +133,6 @@ public:
 class PoissonSolver
 {
 private:
-   int myid;
    ParMesh * pmesh = nullptr;
    int order = 1;
    Array<int> ess_tdof_list;
@@ -157,8 +156,8 @@ private:
    double norm = 0.;
    double compliance = 0.;
 public:
-   PoissonSolver(int myid_,ParMesh * pmesh_, int order_, RandomFunctionCoefficient * damage_coeff_) :
-   myid(myid_),pmesh(pmesh_), order(order_), damage_coeff(damage_coeff_) { }
+   PoissonSolver(ParMesh * pmesh_, int order_, RandomFunctionCoefficient * damage_coeff_) :
+   pmesh(pmesh_), order(order_), damage_coeff(damage_coeff_) { }
 
    void Setup()
    {
@@ -184,9 +183,9 @@ public:
       state_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   void Solve()
+   void Solve(int seed)
    {
-      int seed = (random_seed) ? (int)time(0) + myid : myid;
+      // int seed = (random_seed) ? (int)time(0) + myid : myid;
       damage_coeff->resample(seed);
       delete a;
       a = new ParBilinearForm(state_fes);
@@ -347,6 +346,8 @@ int main(int argc, char *argv[])
       n = 1;
    }
 
+   srand(time(0));
+
    int row_color = world_rank / n; // Determine color based on row
    int col_color = world_rank % n; // Determine color based on col
 
@@ -361,8 +362,6 @@ int main(int argc, char *argv[])
    int col_rank, col_size;
    MPI_Comm_rank(col_comm, &col_rank);
    MPI_Comm_size(col_comm, &col_size);
-
-   srand((unsigned) time(NULL) + col_rank);
 
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
@@ -391,9 +390,10 @@ int main(int argc, char *argv[])
       }
    }
 
-   int seed = (random_seed) ? (int)time(0) + col_rank : col_rank;
+
+   int seed = (random_seed) ? rand()%100 + col_rank : col_rank;
    RandomFunctionCoefficient damage_coeff(damage_function, seed);
-   PoissonSolver * psolver = new PoissonSolver(col_rank,&pmesh, order, &damage_coeff);
+   PoissonSolver * psolver = new PoissonSolver(&pmesh, order, &damage_coeff);
    psolver->Setup();
 
    ParFiniteElementSpace * state_fes = psolver->GetStateFes();
@@ -430,6 +430,7 @@ int main(int argc, char *argv[])
 
    for (int k = 1; k <= max_it; k++)
    {
+
       if (world_rank == 0)
       { 
          mfem::out << "\n------------------------------------\n" << std::endl;
@@ -440,9 +441,16 @@ int main(int argc, char *argv[])
       avg_grad = 0.0;
       double grad_norm = 0.;
 
+      // for(int i = 0; i<10; i++) { //generate 10 random numbers
+      // cout << "The random number is: "<<rand()%100 << endl;
+      // }
+
       for (int ib = 0; ib<adaptive_batch_size; ib++)
       {
-         psolver->Solve();
+
+         int seed = (random_seed) ? rand()%100 + col_rank + ib + 1 : col_rank + ib + 1;
+
+         psolver->Solve(seed);
          if (visualization)
          {
             if (col_rank == 0)
