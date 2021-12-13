@@ -8527,8 +8527,8 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
          elements[new_e] = new Segment(new_v, vert[1], attr);
          vert[1] = new_v;
 
-         CoarseFineTr.embeddings[i] = Embedding(i, 1);
-         CoarseFineTr.embeddings[new_e] = Embedding(i, 2);
+         CoarseFineTr.embeddings[i] = Embedding(i, Geometry::SEGMENT, 1);
+         CoarseFineTr.embeddings[new_e] = Embedding(i, Geometry::SEGMENT, 2);
       }
 
       static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
@@ -9276,7 +9276,7 @@ void Mesh::Bisection(int i, const DSTable &v_to_v,
 
       int coarse = FindCoarseElement(i);
       CoarseFineTr.embeddings[i].parent = coarse;
-      CoarseFineTr.embeddings.Append(Embedding(coarse));
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TRIANGLE));
 
       // 3. edge1 and edge2 may have to be changed for the second triangle.
       if (v[1][0] < v_to_v.NumberOfRows() && v[1][1] < v_to_v.NumberOfRows())
@@ -9396,7 +9396,7 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
 
       int coarse = FindCoarseElement(i);
       CoarseFineTr.embeddings[i].parent = coarse;
-      CoarseFineTr.embeddings.Append(Embedding(coarse));
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TETRAHEDRON));
 
       // 3. Set the bisection flag
       switch (type)
@@ -9534,10 +9534,10 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
 
       // set parent indices
       int coarse = FindCoarseElement(i);
-      CoarseFineTr.embeddings[i] = Embedding(coarse);
-      CoarseFineTr.embeddings.Append(Embedding(coarse));
-      CoarseFineTr.embeddings.Append(Embedding(coarse));
-      CoarseFineTr.embeddings.Append(Embedding(coarse));
+      CoarseFineTr.embeddings[i] = Embedding(coarse, Geometry::TRIANGLE);
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TRIANGLE));
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TRIANGLE));
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TRIANGLE));
 
       NumOfElements += 3;
    }
@@ -9555,7 +9555,7 @@ void Mesh::InitRefinementTransforms()
    for (int i = 0; i < NumOfElements; i++)
    {
       elements[i]->ResetTransform(0);
-      CoarseFineTr.embeddings[i] = Embedding(i);
+      CoarseFineTr.embeddings[i] = Embedding(i, GetElementGeometry(i));
    }
 }
 

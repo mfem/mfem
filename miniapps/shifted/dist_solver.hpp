@@ -229,7 +229,8 @@ class PDEFilter
 {
 public:
    PDEFilter(ParMesh &mesh, double rh, int order = 2,
-             int maxiter=100, double rtol=1e-7, double atol=1e-15, int print_lv=0)
+             int maxiter = 100, double rtol = 1e-12,
+             double atol = 1e-15, int print_lv = 0)
       : rr(rh),
         fecp(order, mesh.Dimension()),
         fesp(&mesh, &fecp, 1),
