@@ -91,6 +91,63 @@ double load(const Vector & x)
    // }
 }
 
+// class SigmoidProjection
+// {
+// protected:
+//    int max_its = 10;
+//    double domain_volume;
+//    double volume_fraction = 0.5;
+//    // double lambda = 0.0;
+//    LinearForm *vol_form;
+//    GridFunction *f;
+//    GridFunction *dfdlambda;
+
+// public:
+//    SigmoidProjection(LinearForm &vol_form_)
+//    {
+//       vol_form = &vol_form_;
+//       FiniteElementSpace * control_fes = vol_form->FESpace();
+//       GridFunction onegf(control_fes);
+//       onegf = 1.0;
+//       domain_volume = (*vol_form)(onegf);
+//       f = new GridFunction(control_fes);
+//       dfdlambda = new GridFunction(control_fes);
+//    }
+
+//    void SetVolumeFraction(double volume_fraction_)
+//    {
+//       volume_fraction = volume_fraction_;
+//    }
+
+//    double Eval(GridFunction &K)
+//    {
+//       // Newton's algorithm to find root of
+//       //    F(\lambda) = \int \sigmoid( \lnit(rho) + \lambda) dx - volume_fraction * vol
+//       double lambda = 0.0;
+//       for (int k = 0; k < max_its; k++)
+//       {
+//          for (int i = 0; i < K.Size(); i++)
+//          {
+//             double tmp = log(K[i]/(1.0 - K[i])) + lambda;
+//             f[i] = 1.0/(1.0 + exp(-tmp)) - volume_fraction;
+//             dfdlambda[i] = exp(-tmp) / (1.0 + exp(-tmp))*(1.0 + exp(-tmp));
+//          }
+//          double F = (*vol_form)(f);
+//          double dfdlambda = (*vol_form)(dfdlambda);
+//          double delta_lambda = -F/dfdlambda;
+//          lambda += delta_lambda;
+//          if (delta_lambda < 1e-3){ break; }
+//       }
+//       for (int i = 0; i < K.Size(); i++)
+//       {
+//          K[i] = log(K[i]/(1.0 - K[i])) + lambda;
+//          K[i] = 1.0/(1.0 + exp(-K[i]));
+//       }
+//       return K;
+//    }
+
+// };
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -101,7 +158,7 @@ int main(int argc, char *argv[])
    double step_length = 1.0;
    double mass_fraction = 0.5;
    int max_it = 1e3;
-   double tol = 1e-4;
+   double tol = 0.0;
    double K_max = 0.9;
    double K_min = 1e-3;
    int alg = 0;
@@ -127,7 +184,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&alg, "-alg", "--algorithm",
-                  "Optimization algorithm: 0 - Gradient Descent (default), 1 - Subgradient, 2 - Mirror descent (KL-divergence).");
+                  "Optimization algorithm: 0 - Gradient Descent (default), 1 - Subgradient, 2 - Mirror descent (KL-divergence), 3 - Mirror descent (binary entropy).");
    args.Parse();
    if (!args.Good())
    {
@@ -145,12 +202,16 @@ int main(int argc, char *argv[])
    {
       file_name << "conv_order" << order << "_KL" << ".csv";
    }
+   else if (alg == 3)
+   {
+      file_name << "conv_order" << order << "_Sigmoid" << ".csv";
+   }
    else
    {
       file_name << "conv_order" << order << "_GD" << ".csv";
    }
    ofstream conv(file_name.str().c_str());
-   conv << "Step,    Compliance,    Mass Fraction" << endl;
+   conv << "Step,    Compliance,    Mass Fraction,    Entropy,    Binary Entropy" << endl;
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
@@ -197,6 +258,7 @@ int main(int argc, char *argv[])
    GridFunction K_old(&control_fes);
    GridFunction p_Dykstra(&control_fes); // For Dykstra's projection algorithm
    GridFunction q_Dykstra(&control_fes); // For Dykstra's projection algorithm
+   GridFunction entropy(&control_fes); // For computing the entropy
    u = 0.0;
    p = 0.0;
    K = 1.0;
@@ -289,6 +351,15 @@ int main(int argc, char *argv[])
             K[i] *= exp(step_length*grad[i]);
          }
       }
+      else if (alg == 3)
+      {
+         for (int i = 0; i < K.Size(); i++)
+         {
+            K[i] = log(K[i]/(1.0 - K[i]));
+            K[i] += step_length*grad[i];
+            K[i] = 1.0/(1.0 + exp(-K[i]));
+         }
+      }
       else
       {
          grad *= step_length;
@@ -306,7 +377,7 @@ int main(int argc, char *argv[])
          K = p_Dykstra;
          double mass = vol_form(K);
          double tmp1 = mass_fraction - ( mass / domain_volume );
-         if (tmp1 < 0)
+         if (abs(tmp1) > 1e-4)
          {
             K += tmp1;
          }
@@ -336,7 +407,8 @@ int main(int argc, char *argv[])
          q_Dykstra -= K;
 
          mass = vol_form(K);
-         if ( ( mass / domain_volume - mass_fraction ) > -1e-3 )
+         if ( abs( mass / domain_volume - mass_fraction ) < 1e-4 )
+         // if ( ( mass / domain_volume - mass_fraction ) > -1e-3 )
          {
             break;
          }
@@ -352,11 +424,26 @@ int main(int argc, char *argv[])
       K_old = K;
       double compliance = b(u);
 
+      entropy = 0.0;
+      for (int i = 0; i < K.Size(); i++)
+      {
+         entropy[i] -= (K[i] - K_min) * log(K[i] - K_min + 1e-6);
+      }
+      double domain_entropy = vol_form(entropy);
+      for (int i = 0; i < K.Size(); i++)
+      {
+         entropy[i] -= (K_max - K[i]) * log(K_max - K[i] + 1e-6);
+      }
+      double binary_entropy = vol_form(entropy);
+      
+
       // L. Exit if norm of grad is small enough.
       mfem::out << "norm of reduced gradient = " << norm << endl;
       mfem::out << "compliance = " << compliance << endl;
       mfem::out << "mass_fraction = " << vol_form(K) / domain_volume << endl;
-      conv << k << ", " << compliance << ", " << mass_fraction << endl;
+      mfem::out << "entropy = " << domain_entropy << endl;
+      mfem::out << "binary entropy = " << binary_entropy << endl;
+      conv << k << ", " << compliance << ", " << mass_fraction << ", " << domain_entropy << ", " << binary_entropy << endl;
       if (norm < tol)
       {
          break;
