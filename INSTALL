@@ -467,6 +467,14 @@ MFEM_USE_HIOP = YES/NO
    Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
    HPC solver for nonlinear optimization problems.
 
+MFEM_USE_CODIPACK = YES/NO
+  Enable automatic differentiation using the CoDiPack library.
+  www.scicomp.uni-kl.de/codi/
+
+MFEM_USE_ADFORWARD = YES/NO
+  Enable forward mode for AD packages. This option is valid
+  only if the AD package supports two modes (backward/forward).
+
 MFEM_USE_CUDA = YES/NO
    Enables support for CUDA devices in MFEM. CUDA is a parallel computing
    platform and programming model for general computing on graphical processing
@@ -703,6 +711,11 @@ The specific libraries and their options are:
   Options: HIOP_OPT, HIOP_LIB.
   Versions: HIOP >= 0.4.6.
 
+- CoDiPack (optiobal), used with MFEM_USE_CODIPACK = YES
+  URL: https://www.scicomp.uni-kl.de/codi/
+  Options: CODIPACK_OPT
+  Versions: 1.9.3
+
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
   built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at
   the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.7 gslib".
@@ -908,6 +921,8 @@ MFEM_USE_MPFR
 MFEM_USE_ZLIB
 MFEM_USE_PUMI
 MFEM_USE_HIOP
+MFEM_USE_CODIPACK
+MFEM_USE_ADFORWARD
 MFEM_USE_CUDA
 MFEM_USE_OCCA
 MFEM_USE_CEED
@@ -967,6 +982,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - POSIXCLOCKS
  - PUMI
  - HIOP
+ - CoDiPack
  - OCCA
  - RAJA
  - UMPIRE
