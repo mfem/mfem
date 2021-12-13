@@ -67,6 +67,8 @@ Version 4.3.1 (development)
 - Added initial TMOP-based capabilities for surface fitting and tangential
   relaxation in the mesh-optimizer and pmesh-optimizer miniapps.
 
+- The HPC versions of ex1 and ex1p (in miniapps/performance) now support
+  runtime selection of either 2D or 3D meshes.
 
 Version 4.3, released on July 29, 2021
 ======================================
