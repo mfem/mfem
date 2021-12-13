@@ -69,6 +69,99 @@ using namespace mfem;
  * 
  */
 
+class DykstraProjection
+{
+protected:
+   int max_its = 10;
+   double domain_volume;
+   double volume_fraction = 0.5;
+   double K_max = 1.0;
+   double K_min = 1e-3;
+   GridFunction *p;
+   GridFunction *q;
+   LinearForm *vol_form;
+
+   void ApplyBoundConstraint(GridFunction &K)
+   {
+      for (int i = 0; i < K.Size(); i++)
+      {
+         if (K[i] > K_max)
+         {
+            K[i] = K_max;
+         }
+         else if (K[i] < K_min)
+         {
+            K[i] = K_min;
+         }
+         else
+         {
+            // do nothing
+         }
+      }
+   }
+
+public:
+   DykstraProjection(LinearForm &vol_form_)
+   {
+      vol_form = &vol_form_;
+      FiniteElementSpace * control_fes = vol_form->FESpace();
+      GridFunction onegf(control_fes);
+      onegf = 1.0;
+      domain_volume = (*vol_form)(onegf);
+      p = new GridFunction(control_fes);
+      q = new GridFunction(control_fes);
+   }
+
+   void SetVolumeFraction(double volume_fraction_)
+   {
+      volume_fraction = volume_fraction_;
+   }
+
+   void SetKBounds(double K_min_, double K_max_)
+   {
+      K_min = K_min_;
+      K_max = K_max_;
+   }
+
+   double Eval(GridFunction &K)
+   {
+      // Project onto intersection of two constraint sets.
+      // Uses Dykstra's projection algorithm.
+      *p = 0.0;
+      *q = 0.0;
+      double misfit = 0.0;
+      for (int k = 0; k < max_its; k++)
+      {
+         // STEP 1: Project K+p onto { K : \int K <= volume_fraction * vol }.
+         *p += K;
+         K = *p;
+         double volume = (*vol_form)(K);
+         misfit = ( volume / domain_volume ) - volume_fraction;
+         if (abs(misfit) > 1e-3)
+         {
+            K -= misfit;
+         }
+         else if (k > 0)
+         {
+            break;
+         }
+
+         // STEP 2: Update p.
+         *p -= K;
+
+         // STEP 3: Project K+q onto { K : K(x) \in [K_min,K_max] }.
+         *q += K;
+         K = *q;
+         ApplyBoundConstraint(K);
+
+         // STEP 4: Update q.
+         *q -= K;
+
+      }
+      return misfit;
+   }
+};
+
 double load(const Vector & x)
 {
    double x1 = x(0);
@@ -146,7 +239,7 @@ int main(int argc, char *argv[])
    int order = 2;
    bool visualization = true;
    double step_length = 1.0;
-   double mass_fraction = 0.5;
+   double volume_fraction = 0.5;
    int max_it = 1e3;
    double tol = 1e-6;
    double K_max = 0.9;
@@ -166,7 +259,7 @@ int main(int argc, char *argv[])
                   "batch size for stochastic gradient descent.");               
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
-   args.AddOption(&mass_fraction, "-mf", "--mass-fraction",
+   args.AddOption(&volume_fraction, "-vf", "--volume-fraction",
                   "Mass fraction for diffusion coefficient.");
    args.AddOption(&K_max, "-max", "--K-max",
                   "Maximum of diffusion diffusion coefficient.");
@@ -263,6 +356,12 @@ int main(int argc, char *argv[])
       sout_K.precision(8);
    }
 
+   // 12. Project initial K onto constraint set.
+   DykstraProjection Projector(vol_form);
+   Projector.SetVolumeFraction(volume_fraction);
+   Projector.SetKBounds(K_min,K_max);
+   Projector.Eval(K);
+
    RandomFunctionCoefficient damage_coeff(damage_function);
 
    GridFunction avg_grad(&control_fes);
@@ -303,7 +402,7 @@ int main(int argc, char *argv[])
                    << "window_title 'State u'" << flush;
          }
 
-         // H. Constuct gradient function (i.e., |\nabla u|^2)
+         // E. Constuct gradient function (i.e., |\nabla u|^2)
          GradientGridFunctionCoefficient grad_u(&u);
          InnerProductCoefficient norm2_grad_u(grad_u,grad_u);
          GridFunction * grad = new GridFunction(&control_fes);
@@ -312,7 +411,7 @@ int main(int argc, char *argv[])
          avg_grad += *grad;
          // grad_norm += pow(grad->ComputeL2Error(zero),2);   // <------- (+)
       }
-      // D. Send the solution by socket to a GLVis server.
+      // F. Send the solution by socket to a GLVis server.
       // grad_norm /= (double)adaptive_batch_size;  // <---------- (+)
       avg_grad /= (double)adaptive_batch_size;
 
@@ -332,43 +431,13 @@ int main(int argc, char *argv[])
 
       // double variance = (grad_norm - avg_grad_norm)/(adaptive_batch_size - 1);   // <--------(+)
 
-      // J. Update control.
+      // G. Update control.
       // avg_grad *= step_length/sqrt(k);
       avg_grad *= step_length;
       K += avg_grad;
 
-      // K. Project onto constraint set (optimality criteria)
-      double mass = vol_form(K);
-      while ( true )
-      {
-         // Project to \int K = mass_fraction * vol
-         // double scale = mass_fraction * domain_volume / mass;
-         // K *= scale;
-         double delta_K = mass_fraction - ( mass / domain_volume );
-         K += delta_K;
-
-         // Project to [K_min,K_max]
-         for (int i = 0; i < K.Size(); i++)
-         {
-            if (K[i] > K_max) 
-            {
-               K[i] = K_max;
-            }
-            else if (K[i] < K_min)
-            {
-               K[i] = K_min;
-            }
-            else
-            { // do nothing
-            }
-         }
-
-         mass = vol_form(K);
-         if ( abs( mass / domain_volume - mass_fraction ) < 1e-4 )
-         {
-            break;
-         }
-      }
+      // H. Project K onto constraint set.
+      Projector.Eval(K);
 
       // I. Compute norm of update.
       K_old -= K;
@@ -379,7 +448,7 @@ int main(int argc, char *argv[])
       // L. Exit if norm of grad is small enough.
       mfem::out << "norm of reduced gradient = " << norm << endl;
       mfem::out << "compliance = " << compliance << endl;
-      mfem::out << "mass_fraction = " << vol_form(K) / domain_volume << endl;
+      mfem::out << "volume_fraction = " << vol_form(K) / domain_volume << endl;
       if (norm < tol)
       {
          break;
