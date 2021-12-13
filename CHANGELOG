@@ -110,6 +110,9 @@ Discretization improvements
 
 - Added support for nonscalar coefficient with VectorDiffusionIntegrator.
 
+- GridFunctionCoefficient (and the related vector, gradient, divergence, and curl classes)
+  now work properly with LORDiscretization and LORSolver.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added support for AMG preconditioners on GPUs based on the hypre library
