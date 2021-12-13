@@ -129,15 +129,16 @@ public:
       // Uses Dykstra's projection algorithm.
       *p = 0.0;
       *q = 0.0;
-      double volume = (*vol_form)(K);
-      double misfit = ( volume / domain_volume ) - volume_fraction;
+      double misfit = 0.0;
       for (int k = 0; k < max_its; k++)
       {
          // STEP 1: Project K+p onto { K : \int K <= volume_fraction * vol }.
          *p += K;
+         K = *p;
+         double volume = (*vol_form)(K);
+         misfit = ( volume / domain_volume ) - volume_fraction;
          if (abs(misfit) > 1e-3)
          {
-            K = *p;
             K -= misfit;
          }
          else if (k > 0)
@@ -156,8 +157,6 @@ public:
          // STEP 4: Update q.
          *q -= K;
 
-         volume = (*vol_form)(K);
-         misfit = ( volume / domain_volume ) - volume_fraction;
       }
       return misfit;
    }
@@ -193,7 +192,7 @@ double damage_function(const Vector & x, double x1, double y1)
     double r = sqrt(r1*r1 + r2*r2);
     if (r <= 0.1)
     {
-        return 1e-3;
+        return 1e-1;
     }
     else
     {
