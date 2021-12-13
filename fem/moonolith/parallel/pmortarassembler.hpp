@@ -18,8 +18,7 @@
 #include "../../fem.hpp"
 #include "../mortarintegrator.hpp"
 
-namespace mfem
-{
+namespace mfem {
 
 /*!
  * @brief This class implements the parallel variational transfer between finite
@@ -37,80 +36,80 @@ namespace mfem
  * interface. See https://doi.org/10.1137/15M1008361 for and in-depth
  * explanation. At this time curved elements are not supported.
  */
-class ParMortarAssembler
-{
+class ParMortarAssembler {
 public:
-   /*!
-    * @brief constructs the object with source and destination spaces
-    * @param source the source space from where we want to transfer the discrete
-    * field
-    * @param destination the source space to where we want to transfer the
-    * discrete field
-    */
-   ParMortarAssembler(const std::shared_ptr<ParFiniteElementSpace> &source,
-                      const std::shared_ptr<ParFiniteElementSpace> &destination);
+  /*!
+   * @brief constructs the object with source and destination spaces
+   * @param source the source space from where we want to transfer the discrete
+   * field
+   * @param destination the source space to where we want to transfer the
+   * discrete field
+   */
+  ParMortarAssembler(const std::shared_ptr<ParFiniteElementSpace> &source,
+                     const std::shared_ptr<ParFiniteElementSpace> &destination);
 
-   ~ParMortarAssembler();
+  ~ParMortarAssembler();
 
-   /*!
-    * @brief assembles the coupling matrix B. B : source -> destination If u is a
-    * coefficient associated with source and v with destination Then v = M^(-1) *
-    * B * u; where M is the mass matrix in destination. Works with
-    * L2_FECollection, H1_FECollection and DG_FECollection (experimental with
-    * RT_FECollection and ND_FECollection).
-    * @param B the assembled coupling operator. B can be passed uninitialized.
-    * @return true if there was an intersection and the operator has been
-    * assembled. False otherwise.
-    */
-   bool Assemble(std::shared_ptr<HypreParMatrix> &B);
+  /*!
+   * @brief assembles the coupling matrix B. B : source -> destination If u is a
+   * coefficient associated with source and v with destination Then v = M^(-1) *
+   * B * u; where M is the mass matrix in destination. Works with
+   * L2_FECollection, H1_FECollection and DG_FECollection (experimental with
+   * RT_FECollection and ND_FECollection).
+   * @param B the assembled coupling operator. B can be passed uninitialized.
+   * @return true if there was an intersection and the operator has been
+   * assembled. False otherwise.
+   */
+  bool Assemble(std::shared_ptr<HypreParMatrix> &B);
 
-   /*!
-    * @brief transfer a function from source to destination. if the transfer is
-    * to be performed multiple times use Assemble or Init/Apply instead
-    * @param src_fun the function associated with the source finite element space
-    * @param[out] dest_fun the function associated with the destination finite
-    * element space
-    * @return true if there was an intersection and the output can be used.
-    */
-   bool Transfer(ParGridFunction &src_fun, ParGridFunction &dest_fun);
+  /*!
+   * @brief transfer a function from source to destination. if the transfer is
+   * to be performed multiple times use Assemble or Update/Apply instead
+   * @param src_fun the function associated with the source finite element space
+   * @param[out] dest_fun the function associated with the destination finite
+   * element space
+   * @return true if there was an intersection and the output can be used.
+   */
+  bool Transfer(const ParGridFunction &src_fun, ParGridFunction &dest_fun);
 
-   /*!
-    * @brief transfer a function from source to destination. It requires that
-    * the Init function is called before
-    * @param src_fun the function associated with the source finite element space
-    * @param[out] dest_fun the function associated with the destination finite
-    * element space
-    * @return true if the transfer was succesfull, fale otherwise.
-    */
-   bool Apply(ParGridFunction &src_fun, ParGridFunction &dest_fun);
+  /*!
+   * @brief transfer a function from source to destination. It requires that
+   * the Update function is called before
+   * @param src_fun the function associated with the source finite element space
+   * @param[out] dest_fun the function associated with the destination finite
+   * element space
+   * @return true if the transfer was succesfull, fale otherwise.
+   */
+  bool Apply(const ParGridFunction &src_fun, ParGridFunction &dest_fun);
 
-   /*!
-    * @brief assembles the various components necessary for the transfer.
-    * To before alling the Apply function. Works with
-    * L2_FECollection, H1_FECollection and DG_FECollection (experimental with
-    * RT_FECollection and ND_FECollection).
-    * @param B the assembled coupling operator. B can be passed uninitialized.
-    * @return true if there was an intersection and the operator has been
-    * assembled. False otherwise.
-    */
-   bool Init();
+  /*!
+   * @brief assembles the various components necessary for the transfer.
+   * To be called before calling the Apply function if the mesh geometry
+   * changed, after previous call. Works with L2_FECollection, H1_FECollection
+   * and DG_FECollection (experimental with RT_FECollection and
+   * ND_FECollection).
+   * @param B the assembled coupling operator. B can be passed uninitialized.
+   * @return true if there was an intersection and the operator has been
+   * assembled. False otherwise.
+   */
+  bool Update();
 
-   /*!
-    * @brief This method must be called before Assemble or Transfer.
-    * It will assemble the operator in all intersections found.
-    * @param integrator the integrator object
-    */
-   void AddMortarIntegrator(const std::shared_ptr<MortarIntegrator> &integrator);
+  /*!
+   * @brief This method must be called before Assemble or Transfer.
+   * It will assemble the operator in all intersections found.
+   * @param integrator the integrator object
+   */
+  void AddMortarIntegrator(const std::shared_ptr<MortarIntegrator> &integrator);
 
-   /*!
-    * @brief Expose process details with verbose output
-    * @param verbose, set to true for verbose output
-    */
-   void SetVerbose(const bool verbose);
+  /*!
+   * @brief Expose process details with verbose output
+   * @param verbose, set to true for verbose output
+   */
+  void SetVerbose(const bool verbose);
 
 private:
-   class Impl;
-   std::unique_ptr<Impl> impl_;
+  class Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 } // namespace mfem

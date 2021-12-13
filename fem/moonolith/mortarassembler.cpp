@@ -25,313 +25,276 @@
 
 using namespace mfem::private_;
 
-namespace mfem
-{
+namespace mfem {
 
-class MortarAssembler::Impl
-{
+class MortarAssembler::Impl {
 public:
-   std::shared_ptr<FiniteElementSpace> source;
-   std::shared_ptr<FiniteElementSpace> destination;
-   std::vector<std::shared_ptr<MortarIntegrator>> integrators;
-   std::shared_ptr<SparseMatrix> coupling_matrix;
-   std::shared_ptr<SparseMatrix> mass_matrix;
-   bool verbose{false};
+  std::shared_ptr<FiniteElementSpace> source;
+  std::shared_ptr<FiniteElementSpace> destination;
+  std::vector<std::shared_ptr<MortarIntegrator>> integrators;
+  std::shared_ptr<SparseMatrix> coupling_matrix;
+  std::shared_ptr<SparseMatrix> mass_matrix;
+  bool verbose{false};
 };
 
 MortarAssembler::~MortarAssembler() = default;
 
 void MortarAssembler::AddMortarIntegrator(
-   const std::shared_ptr<MortarIntegrator> &integrator)
-{
-   impl_->integrators.push_back(integrator);
+    const std::shared_ptr<MortarIntegrator> &integrator) {
+  impl_->integrators.push_back(integrator);
 }
 
-void MortarAssembler::SetVerbose(const bool verbose)
-{
-   impl_->verbose = verbose;
+void MortarAssembler::SetVerbose(const bool verbose) {
+  impl_->verbose = verbose;
 }
 
 template <int Dim>
 void BuildBoxes(const Mesh &mesh,
-                std::vector<::moonolith::AABB<Dim, double>> &element_boxes)
-{
+                std::vector<::moonolith::AABB<Dim, double>> &element_boxes) {
 #ifndef NDEBUG
-   const int dim = mesh.Dimension();
-   assert(dim == Dim);
+  const int dim = mesh.Dimension();
+  assert(dim == Dim);
 #endif
-   element_boxes.resize(mesh.GetNE());
+  element_boxes.resize(mesh.GetNE());
 
-   DenseMatrix pts;
-   for (int i = 0; i < mesh.GetNE(); ++i)
-   {
-      mesh.GetPointMatrix(i, pts);
-      MinCol(pts, &element_boxes[i].min_[0], false);
-      MaxCol(pts, &element_boxes[i].max_[0], false);
-   }
+  DenseMatrix pts;
+  for (int i = 0; i < mesh.GetNE(); ++i) {
+    mesh.GetPointMatrix(i, pts);
+    MinCol(pts, &element_boxes[i].min_[0], false);
+    MaxCol(pts, &element_boxes[i].max_[0], false);
+  }
 }
 
 bool HashGridDetectIntersections(const Mesh &src, const Mesh &dest,
-                                 std::vector<moonolith::Integer> &pairs)
-{
-   const int dim = dest.Dimension();
+                                 std::vector<moonolith::Integer> &pairs) {
+  const int dim = dest.Dimension();
 
-   switch (dim)
-   {
-      case 1:
-      {
-         std::vector<::moonolith::AABB<1, double>> src_boxes, dest_boxes;
-         BuildBoxes(src, src_boxes);
-         BuildBoxes(dest, dest_boxes);
+  switch (dim) {
+  case 1: {
+    std::vector<::moonolith::AABB<1, double>> src_boxes, dest_boxes;
+    BuildBoxes(src, src_boxes);
+    BuildBoxes(dest, dest_boxes);
 
-         ::moonolith::SerialHashGrid<1, double> grid;
-         return grid.detect(src_boxes, dest_boxes, pairs);
-      }
-      case 2:
-      {
-         std::vector<::moonolith::AABB<2, double>> src_boxes, dest_boxes;
-         BuildBoxes(src, src_boxes);
-         BuildBoxes(dest, dest_boxes);
+    ::moonolith::SerialHashGrid<1, double> grid;
+    return grid.detect(src_boxes, dest_boxes, pairs);
+  }
+  case 2: {
+    std::vector<::moonolith::AABB<2, double>> src_boxes, dest_boxes;
+    BuildBoxes(src, src_boxes);
+    BuildBoxes(dest, dest_boxes);
 
-         ::moonolith::SerialHashGrid<2, double> grid;
-         return grid.detect(src_boxes, dest_boxes, pairs);
-      }
-      case 3:
-      {
-         std::vector<::moonolith::AABB<3, double>> src_boxes, dest_boxes;
-         BuildBoxes(src, src_boxes);
-         BuildBoxes(dest, dest_boxes);
+    ::moonolith::SerialHashGrid<2, double> grid;
+    return grid.detect(src_boxes, dest_boxes, pairs);
+  }
+  case 3: {
+    std::vector<::moonolith::AABB<3, double>> src_boxes, dest_boxes;
+    BuildBoxes(src, src_boxes);
+    BuildBoxes(dest, dest_boxes);
 
-         ::moonolith::SerialHashGrid<3, double> grid;
-         return grid.detect(src_boxes, dest_boxes, pairs);
-      }
-      default:
-      {
-         assert(false);
-         return false;
-      }
-   }
+    ::moonolith::SerialHashGrid<3, double> grid;
+    return grid.detect(src_boxes, dest_boxes, pairs);
+  }
+  default: {
+    assert(false);
+    return false;
+  }
+  }
 }
 
 MortarAssembler::MortarAssembler(
-   const std::shared_ptr<FiniteElementSpace> &source,
-   const std::shared_ptr<FiniteElementSpace> &destination)
-   : impl_(new Impl())
-{
-   impl_->source = source;
-   impl_->destination = destination;
+    const std::shared_ptr<FiniteElementSpace> &source,
+    const std::shared_ptr<FiniteElementSpace> &destination)
+    : impl_(new Impl()) {
+  impl_->source = source;
+  impl_->destination = destination;
 }
 
-bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
-{
-   using namespace std;
-   const bool verbose = impl_->verbose;
+bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B) {
+  using namespace std;
+  const bool verbose = impl_->verbose;
 
-   const auto &source_mesh = *impl_->source->GetMesh();
-   const auto &destination_mesh = *impl_->destination->GetMesh();
+  const auto &source_mesh = *impl_->source->GetMesh();
+  const auto &destination_mesh = *impl_->destination->GetMesh();
 
-   int dim = source_mesh.Dimension();
+  int dim = source_mesh.Dimension();
 
-   std::vector<::moonolith::Integer> pairs;
-   if (!HashGridDetectIntersections(source_mesh, destination_mesh, pairs))
-   {
-      return false;
-   }
+  std::vector<::moonolith::Integer> pairs;
+  if (!HashGridDetectIntersections(source_mesh, destination_mesh, pairs)) {
+    return false;
+  }
 
-   std::shared_ptr<Cut> cut = NewCut(dim);
-   if (!cut)
-   {
-      assert(false && "NOT Supported!");
-      return false;
-   }
+  std::shared_ptr<Cut> cut = NewCut(dim);
+  if (!cut) {
+    assert(false && "NOT Supported!");
+    return false;
+  }
 
-   //////////////////////////////////////////////////
-   IntegrationRule source_ir;
-   IntegrationRule destination_ir;
-   //////////////////////////////////////////////////
-   int skip_zeros = 1;
-   B = make_shared<SparseMatrix>(impl_->destination->GetNDofs(),
-                                 impl_->source->GetNDofs());
-   Array<int> source_vdofs, destination_vdofs;
-   DenseMatrix elemmat;
-   DenseMatrix cumulative_elemmat;
-   //////////////////////////////////////////////////
-   double local_element_matrices_sum = 0.0;
+  //////////////////////////////////////////////////
+  IntegrationRule source_ir;
+  IntegrationRule destination_ir;
+  //////////////////////////////////////////////////
+  int skip_zeros = 1;
+  B = make_shared<SparseMatrix>(impl_->destination->GetNDofs(),
+                                impl_->source->GetNDofs());
+  Array<int> source_vdofs, destination_vdofs;
+  DenseMatrix elemmat;
+  DenseMatrix cumulative_elemmat;
+  //////////////////////////////////////////////////
+  double local_element_matrices_sum = 0.0;
 
-   long n_intersections = 0;
-   long n_candidates = 0;
+  long n_intersections = 0;
+  long n_candidates = 0;
 
-   bool intersected = false;
-   for (auto it = begin(pairs); it != end(pairs); /*inside*/)
-   {
-      const int source_index = *it++;
-      const int destination_index = *it++;
+  bool intersected = false;
+  for (auto it = begin(pairs); it != end(pairs); /*inside*/) {
+    const int source_index = *it++;
+    const int destination_index = *it++;
 
-      auto &source_fe = *impl_->source->GetFE(source_index);
-      auto &destination_fe = *impl_->destination->GetFE(destination_index);
+    auto &source_fe = *impl_->source->GetFE(source_index);
+    auto &destination_fe = *impl_->destination->GetFE(destination_index);
 
-      ElementTransformation &destination_Trans =
-         *impl_->destination->GetElementTransformation(destination_index);
-      const int order = source_fe.GetOrder() + destination_fe.GetOrder() +
-                        destination_Trans.OrderW();
+    ElementTransformation &destination_Trans =
+        *impl_->destination->GetElementTransformation(destination_index);
+    const int order = source_fe.GetOrder() + destination_fe.GetOrder() +
+                      destination_Trans.OrderW();
 
-      // Update the quadrature rule in case it changed the order
-      cut->SetIntegrationOrder(order);
+    // Update the quadrature rule in case it changed the order
+    cut->SetIntegrationOrder(order);
 
-      n_candidates++;
+    n_candidates++;
 
-      if (cut->BuildQuadrature(*impl_->source, source_index, *impl_->destination,
-                               destination_index, source_ir, destination_ir))
-      {
-         impl_->source->GetElementVDofs(source_index, source_vdofs);
-         impl_->destination->GetElementVDofs(destination_index, destination_vdofs);
+    if (cut->BuildQuadrature(*impl_->source, source_index, *impl_->destination,
+                             destination_index, source_ir, destination_ir)) {
+      impl_->source->GetElementVDofs(source_index, source_vdofs);
+      impl_->destination->GetElementVDofs(destination_index, destination_vdofs);
 
-         ElementTransformation &source_Trans =
-            *impl_->source->GetElementTransformation(source_index);
+      ElementTransformation &source_Trans =
+          *impl_->source->GetElementTransformation(source_index);
 
-         bool first = true;
-         for (auto i_ptr : impl_->integrators)
-         {
-            if (first)
-            {
-               i_ptr->AssembleElementMatrix(source_fe, source_ir, source_Trans,
-                                            destination_fe, destination_ir,
-                                            destination_Trans, cumulative_elemmat);
-               first = false;
-            }
-            else
-            {
-               i_ptr->AssembleElementMatrix(source_fe, source_ir, source_Trans,
-                                            destination_fe, destination_ir,
-                                            destination_Trans, elemmat);
-               cumulative_elemmat += elemmat;
-            }
-         }
-
-         local_element_matrices_sum += Sum(cumulative_elemmat);
-
-         B->AddSubMatrix(destination_vdofs, source_vdofs, cumulative_elemmat,
-                         skip_zeros);
-         intersected = true;
-         ++n_intersections;
+      bool first = true;
+      for (auto i_ptr : impl_->integrators) {
+        if (first) {
+          i_ptr->AssembleElementMatrix(source_fe, source_ir, source_Trans,
+                                       destination_fe, destination_ir,
+                                       destination_Trans, cumulative_elemmat);
+          first = false;
+        } else {
+          i_ptr->AssembleElementMatrix(source_fe, source_ir, source_Trans,
+                                       destination_fe, destination_ir,
+                                       destination_Trans, elemmat);
+          cumulative_elemmat += elemmat;
+        }
       }
-   }
 
-   if (!intersected)
-   {
+      local_element_matrices_sum += Sum(cumulative_elemmat);
+
+      B->AddSubMatrix(destination_vdofs, source_vdofs, cumulative_elemmat,
+                      skip_zeros);
+      intersected = true;
+      ++n_intersections;
+    }
+  }
+
+  if (!intersected) {
+    return false;
+  }
+
+  B->Finalize();
+
+  if (verbose) {
+    mfem::out << "local_element_matrices_sum: " << local_element_matrices_sum
+              << std::endl;
+    mfem::out << "B in R^(" << B->Height() << " x " << B->Width() << ")"
+              << std::endl;
+
+    mfem::out << "n_intersections: " << n_intersections
+              << ", n_candidates: " << n_candidates << '\n';
+
+    cut->Describe();
+  }
+
+  return true;
+}
+
+bool MortarAssembler::Transfer(const GridFunction &src_fun,
+                               GridFunction &dest_fun) {
+  return Update() && Apply(src_fun, dest_fun);
+}
+
+bool MortarAssembler::Apply(const GridFunction &src_fun,
+                            GridFunction &dest_fun) {
+  if (!impl_->coupling_matrix) {
+    if (!Update()) {
       return false;
-   }
+    }
+  }
 
-   B->Finalize();
+  CGSolver Dinv;
+  Dinv.SetOperator(*impl_->mass_matrix);
+  Dinv.SetRelTol(1e-6);
+  Dinv.SetMaxIter(20);
 
-   if (verbose)
-   {
-      mfem::out << "local_element_matrices_sum: " << local_element_matrices_sum
-                << std::endl;
-      mfem::out << "B in R^(" << B->Height() << " x " << B->Width() << ")"
-                << std::endl;
-
-      mfem::out << "n_intersections: " << n_intersections
-                << ", n_candidates: " << n_candidates << '\n';
-
-      cut->Describe();
-   }
-
-   return true;
+  Vector temp(impl_->coupling_matrix->Height());
+  impl_->coupling_matrix->Mult(src_fun, temp);
+  Dinv.Mult(temp, dest_fun);
+  return true;
 }
 
-bool MortarAssembler::Transfer(GridFunction &src_fun, GridFunction &dest_fun)
-{
-   return Init() && Apply(src_fun, dest_fun);
-}
+bool MortarAssembler::Update() {
+  using namespace std;
+  const bool verbose = impl_->verbose;
 
-bool MortarAssembler::Apply(GridFunction &src_fun, GridFunction &dest_fun)
-{
-   if (!impl_->coupling_matrix)
-   {
-      mfem::err << "Warning calling apply without calling Init() first!\n";
-      if (!Init())
-      {
-         return false;
-      }
-   }
+  StopWatch chrono;
 
-   CGSolver Dinv;
-   Dinv.SetOperator(*impl_->mass_matrix);
-   Dinv.SetRelTol(1e-6);
-   Dinv.SetMaxIter(20);
+  if (verbose) {
+    mfem::out << "\nAssembling coupling operator..." << endl;
+  }
 
-   Vector temp(impl_->coupling_matrix->Height());
-   impl_->coupling_matrix->Mult(src_fun, temp);
-   Dinv.Mult(temp, dest_fun);
-   return true;
-}
+  chrono.Start();
 
-bool MortarAssembler::Init()
-{
-   using namespace std;
-   const bool verbose = impl_->verbose;
+  if (!Assemble(impl_->coupling_matrix)) {
+    return false;
+  }
 
-   StopWatch chrono;
+  chrono.Stop();
+  if (verbose) {
+    mfem::out << "Done. time: ";
+    mfem::out << chrono.RealTime() << " seconds" << endl;
+  }
 
-   if (verbose)
-   {
-      mfem::out << "\nAssembling coupling operator..." << endl;
-   }
+  BilinearForm b_form(impl_->destination.get());
 
-   chrono.Start();
+  bool is_vector_fe = false;
+  for (auto i_ptr : impl_->integrators) {
+    if (i_ptr->is_vector_fe()) {
+      is_vector_fe = true;
+      break;
+    }
+  }
 
-   if (!Assemble(impl_->coupling_matrix))
-   {
-      return false;
-   }
+  if (is_vector_fe) {
+    b_form.AddDomainIntegrator(new VectorFEMassIntegrator());
+  } else {
+    b_form.AddDomainIntegrator(new MassIntegrator());
+  }
 
-   chrono.Stop();
-   if (verbose)
-   {
-      mfem::out << "Done. time: ";
-      mfem::out << chrono.RealTime() << " seconds" << endl;
-   }
+  b_form.Assemble();
+  b_form.Finalize();
 
-   BilinearForm b_form(impl_->destination.get());
+  impl_->mass_matrix = std::shared_ptr<SparseMatrix>(b_form.LoseMat());
 
-   bool is_vector_fe = false;
-   for (auto i_ptr : impl_->integrators)
-   {
-      if (i_ptr->is_vector_fe())
-      {
-         is_vector_fe = true;
-         break;
-      }
-   }
+  if (verbose) {
+    Vector brs(impl_->coupling_matrix->Height());
+    impl_->coupling_matrix->GetRowSums(brs);
 
-   if (is_vector_fe)
-   {
-      b_form.AddDomainIntegrator(new VectorFEMassIntegrator());
-   }
-   else
-   {
-      b_form.AddDomainIntegrator(new MassIntegrator());
-   }
+    Vector drs(impl_->mass_matrix->Height());
+    impl_->mass_matrix->GetRowSums(drs);
 
-   b_form.Assemble();
-   b_form.Finalize();
+    mfem::out << "sum(B): " << brs.Sum() << std::endl;
+    mfem::out << "sum(D): " << drs.Sum() << std::endl;
+  }
 
-   impl_->mass_matrix = std::shared_ptr<SparseMatrix>(b_form.LoseMat());
-
-   if (verbose)
-   {
-      Vector brs(impl_->coupling_matrix->Height());
-      impl_->coupling_matrix->GetRowSums(brs);
-
-      Vector drs(impl_->mass_matrix->Height());
-      impl_->mass_matrix->GetRowSums(drs);
-
-      mfem::out << "sum(B): " << brs.Sum() << std::endl;
-      mfem::out << "sum(D): " << drs.Sum() << std::endl;
-   }
-
-   return true;
+  return true;
 }
 
 } // namespace mfem
