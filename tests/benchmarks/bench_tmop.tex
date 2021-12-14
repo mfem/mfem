@@ -8,8 +8,10 @@
 
 \newcommand{\LEGCY}{bench_tmop_lassen.org}
 \newcommand{\FAST}{bench_tmop_lassen_fast.org}
+\newcommand{\MPIGPU}{bench_tmop_lassen_mpi_4.org}
+\newcommand{\MPICPU}{bench_tmop_lassen_cpu_mpi_20.org}
 
-\newcommand{\DATA}{\FAST}
+\newcommand{\DATA}{\MPICPU}
 
 \usepackage{times}
 \usepackage{bm}
@@ -53,22 +55,24 @@ show background rectangle, scale=1.0]
     minor grid style={line width=.1pt,draw=gray!50},
     width=4in,
     xlabel={Degrees of Freedom (DOF)},
-    ylabel={MDOF/s},
+    ylabel={GDOF/s},
     ylabel style={at={(axis description cs:-0.07,0.5)}},
     cycle list name=CycleList,
     %legend cell align=left,
     legend pos=north west,
-    legend entries={$p=1$,$p=2$,$p=3$,$p=4$},
-    title={TMOP-AddMultGradPA @ Lassen-V100},
-    ymax=800,
+    %legend entries={$p=1$,$p=2$,$p=3$,$p=4$},
+    legend entries={$p=4$ (CPUs), $p=4$ (GPUs)},
+    title={TMOP-AddMultGradPA @ 4x Lassen-V100},
+    ymax=2.5,
     ymin=0,
     xmin=3e3,
-    xmax=4e6
+    xmax=40e6
   ]
-  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==1?$12:NaN)};
-  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==2?$12:NaN)};
-  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==3?$12:NaN)};
-  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==4?$12:NaN)};
+  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==1?$12:NaN)};
+  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==2?$12:NaN)};
+  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==3?$12:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\MPICPU" using ($11):($13==4?$12/1000:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\MPIGPU" using ($11):($13==4?$12/1000:NaN)};
 
 \end{semilogxaxis}
 \end{tikzpicture}

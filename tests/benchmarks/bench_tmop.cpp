@@ -25,6 +25,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 static MPI_Session *mpi = nullptr;
 static int config_dev_size = 4; // default 4 GPU per node
+
+static bool config_d1d_eq_q1d = false;
 static int config_serial_refinements = 0;
 static int config_parallel_refinements = 0;
 static int config_max_number_of_dofs_per_ranks = 2*1024*1024;
@@ -78,9 +80,9 @@ struct TMOP
    Vector xl,xe,ye,de;
    double mdof;
 
-   TMOP(int p, int c, bool p_eq_q = false):
+   TMOP(int p, int c, bool d1d_eq_q1d):
       p(p),
-      q(2*p + (p_eq_q?-1:3)),
+      q(2*p + (d1d_eq_q1d ? 0 : 2)),
       n((assert(c>=p), c/p)),
       nx(n + (p*(n+1)*p*n*p*n < c*c*c ?1:0)),
       ny(n + (p*(n+1)*p*(n+1)*p*n < c*c*c ?1:0)),
@@ -159,10 +161,14 @@ struct TMOP
 
 static void OrderSideArgs(bmi::Benchmark *b)
 {
-   const auto est = [](int c) { return (c+1)*(c+1)*(c+1); };
+   const auto est = [](int c, int p)
+   {
+      const int n = c*p;
+      return (n+1)*(n+1)*(n+1);
+   };
    for (int p = 1; p <= 4; ++p)
    {
-      for (int c = 10; est(c) <= 2*1024*1024; c += 1)
+      for (int c = 10; est(c,p) <= 8*1024*1024; c += 1)
       {
          b->Args({p,c});
       }
@@ -176,8 +182,7 @@ static void OrderSideArgs(bmi::Benchmark *b)
 static void Bench(bm::State &state){\
    const int p = state.range(0);\
    const int c = state.range(1);\
-   const bool p_eq_q = false;\
-   TMOP ker(p, c, p_eq_q);\
+   TMOP ker(p, c, config_d1d_eq_q1d);\
    while (state.KeepRunning()) { ker.Bench(); }\
    const bm::Counter::Flags isRate = bm::Counter::kIsRate;\
    state.counters["MDofs"] = bm::Counter(ker.Mdof(), isRate);\
@@ -190,7 +195,7 @@ BENCHMARK(Bench) \
     -> Unit(bm::kMillisecond);
 
 /// creating/registering
-BENCHMARK_TMOP(AddMultPA)
+//BENCHMARK_TMOP(AddMultPA)
 BENCHMARK_TMOP(AddMultGradPA)
 //BENCHMARK_TMOP(GetLocalStateEnergyPA)
 //BENCHMARK_TMOP(AssembleGradDiagonalPA)
@@ -220,15 +225,16 @@ int main(int argc, char *argv[])
       bmi::FindInContext("ndev", config_dev_size); // ndev=4
       bmi::FindInContext("sref", config_serial_refinements); // sref=1
       bmi::FindInContext("pref", config_parallel_refinements); // pref=1
-      bmi::FindInContext("mdofs", config_max_number_of_dofs_per_ranks);
+      bmi::FindInContext("nmax", config_max_number_of_dofs_per_ranks);
+      bmi::FindInContext("peqq", config_d1d_eq_q1d);
    }
 
-   //const int mpi_rank = mpi->WorldRank();
-   //const int mpi_size = mpi->WorldSize();
-   //const int dev = config_dev_size > 0 ? mpi_rank % config_dev_size : 0;
-   //dbg("[MPI] rank: %d/%d, using device #%d", 1+mpi_rank, mpi_size, dev);
+   const int mpi_rank = mpi->WorldRank();
+   const int mpi_size = mpi->WorldSize();
+   const int dev = config_dev_size > 0 ? mpi_rank % config_dev_size : 0;
+   dbg("[MPI] rank: %d/%d, using device #%d", 1+mpi_rank, mpi_size, dev);
 
-   Device device(config_device.c_str());//, dev);
+   Device device(config_device.c_str(), dev);
    if (mpi->Root()) { device.Print(); }
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
@@ -237,7 +243,11 @@ int main(int argc, char *argv[])
    bm::RunSpecifiedBenchmarks(&CR);
 #else
    if (mpi->Root()) { bm::RunSpecifiedBenchmarks(&CR); }
-   else { bm::RunSpecifiedBenchmarks(NoReporter()); }
+   else
+   {
+      // No display_reporter and file_reporter
+      bm::RunSpecifiedBenchmarks(NoReporter(), NoReporter());
+   }
 #endif
 
    return 0;

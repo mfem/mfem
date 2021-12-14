@@ -150,9 +150,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D_fast,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_SHARED double BG[2][MQ1*MD1];
+      MFEM_SHARED double DDD[3][MD1*MD1*MD1];
       MFEM_SHARED double sm0[9][MQ1*MQ1*MQ1];
       MFEM_SHARED double sm1[9][MQ1*MQ1*MQ1];
-      double (*DDD)[MD1*MD1*MD1] = (double (*)[MD1*MD1*MD1]) sm0;
+
+      //double (*DDD)[MD1*MD1*MD1] = (double (*)[MD1*MD1*MD1]) sm0;
       double (*DDQ)[MD1*MD1*MQ1] = (double (*)[MD1*MD1*MQ1]) sm1;
       double (*DQQ)[MD1*MQ1*MQ1] = (double (*)[MD1*MQ1*MQ1]) sm0;
       double (*QQQ)[MQ1*MQ1*MQ1] = (double (*)[MQ1*MQ1*MQ1]) sm1;
@@ -243,7 +245,6 @@ void TMOP_Integrator::AddMultGradPA_3D(const Vector &R, Vector &C) const
       const ElementRestriction *ER = dynamic_cast<const ElementRestriction*>(ERop);
       MFEM_VERIFY(ER, "Not supported!");
       const int *M = ER->GatherMap().Read();
-
       MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_3D_fast,id,ND,NE,M,B,G,J,H,R,C);
    }
 }
