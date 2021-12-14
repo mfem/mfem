@@ -78,10 +78,8 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
       {
          MFEM_SHARED double dof_values[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
-         const int master_side = conf.GetNonConformingMasterSide();
-         const int interp_index = conf.GetInterpolatorIndex();
          const int side = 0;
-         if ( interp_index==InterpConfig::conforming || side!=master_side )
+         if ( !conf.is_non_conforming || side!=conf.master_side )
          {
             MFEM_FOREACH_THREAD(dof,x,nface_dofs)
             {
@@ -111,7 +109,7 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
                   double res = 0.0;
                   for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                   {
-                     res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
+                     res += d_interp(dof_out, dof_in, conf.index)*dof_values[dof_in];
                   }
                   d_y(dof_out, c, face) = res;
                }
@@ -147,9 +145,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
       {
          MFEM_SHARED double dof_values[max_nd];
          const InterpConfig conf = interp_config_ptr[face];
-         const int master_side = conf.GetNonConformingMasterSide();
-         const int interp_index = conf.GetInterpolatorIndex();
-         if ( interp_index!=InterpConfig::conforming && master_side==0 )
+         if ( conf.is_non_conforming && conf.master_side==0 )
          {
             // Interpolation from fine to coarse
             for (int c = 0; c < vd; ++c)
@@ -164,7 +160,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
                   double res = 0.0;
                   for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                   {
-                     res += d_interp(dof_in, dof_out, interp_index)*dof_values[dof_in];
+                     res += d_interp(dof_in, dof_out, conf.index)*dof_values[dof_in];
                   }
                   d_x(dof_out, c, face) = res;
                }
@@ -710,10 +706,8 @@ void ParNCL2FaceRestriction::SingleValuedNonConformingMult(
    {
       MFEM_SHARED double dof_values[max_nd];
       const InterpConfig conf = interp_config_ptr[face];
-      const int master_side = conf.GetNonConformingMasterSide();
-      const int interp_index = conf.GetInterpolatorIndex();
       const int side = 0;
-      if ( interp_index==InterpConfig::conforming || side!=master_side )
+      if ( !conf.is_non_conforming || side!=conf.master_side )
       {
          MFEM_FOREACH_THREAD(dof,x,nface_dofs)
          {
@@ -758,7 +752,7 @@ void ParNCL2FaceRestriction::SingleValuedNonConformingMult(
                double res = 0.0;
                for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                {
-                  res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
+                  res += d_interp(dof_out, dof_in, conf.index)*dof_values[dof_in];
                }
                d_y(dof_out, c, face) = res;
             }
@@ -803,11 +797,9 @@ void ParNCL2FaceRestriction::DoubleValuedNonConformingMult(
    {
       MFEM_SHARED double dof_values[max_nd];
       const InterpConfig conf = interp_config_ptr[face];
-      const int master_side = conf.GetNonConformingMasterSide();
-      const int interp_index = conf.GetInterpolatorIndex();
       for (int side = 0; side < 2; side++)
       {
-         if ( interp_index==InterpConfig::conforming || side!=master_side )
+         if ( !conf.is_non_conforming || side!=conf.master_side )
          {
             // No interpolation
             MFEM_FOREACH_THREAD(dof,x,nface_dofs)
@@ -866,7 +858,7 @@ void ParNCL2FaceRestriction::DoubleValuedNonConformingMult(
                   double res = 0.0;
                   for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                   {
-                     res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
+                     res += d_interp(dof_out, dof_in, conf.index)*dof_values[dof_in];
                   }
                   d_y(dof_out, c, side, face) = res;
                }

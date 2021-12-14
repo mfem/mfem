@@ -552,41 +552,25 @@ protected:
    void DoubleValuedConformingAddMultTranspose(const Vector& x, Vector& y) const;
 };
 
-/** This class stores which side is the master non-conforming side and the
+/** This struct stores which side is the master non-conforming side and the
     index of the interpolator, see InterpolationManager class below. */
 struct InterpConfig
 {
-   int config;
-   enum { conforming = -1 }; // helper value
+   uint32_t is_non_conforming : 1;
+   uint32_t master_side : 1;
+   uint32_t index : 30;
 
-   // default constructor, shouldn't be used directly.
-   // Note: the default is not `conforming' for compatibility with mfem::Array.
+   // default constructor, create a conforming face with index 0.
    InterpConfig() = default;
 
-   // Non-conforming face, if nc_index is given assumes side==1 (always true
-   // except for ghost faces)
-   InterpConfig(int config) : config(config) { }
-
    // Non-conforming face
-   InterpConfig(int side, int nc_index)
-      : config(side==1?nc_index: -2 - nc_index)
+   InterpConfig(int master_side, int nc_index)
+      : is_non_conforming(1), master_side(master_side), index(nc_index)
    { }
 
    InterpConfig(const InterpConfig&) = default;
 
    InterpConfig &operator=(const InterpConfig &rhs) = default;
-
-   MFEM_HOST_DEVICE
-   int GetNonConformingMasterSide() const
-   {
-      return config<-1? 0 : 1;
-   }
-
-   MFEM_HOST_DEVICE
-   int GetInterpolatorIndex() const
-   {
-      return config<-1? -2-config : config;
-   }
 };
 
 /** @brief This class manages the storage and computation of the interpolations
