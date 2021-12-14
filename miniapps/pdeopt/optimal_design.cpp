@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    double step_length = 1.0;
    double mass_fraction = 0.5;
-   double compliance_max = 0.1;
+   double compliance_max = 0.15;
    int max_it = 1e3;
    double tol = 1e-3;
    double K_max = 0.9;
@@ -322,6 +322,15 @@ int main(int argc, char *argv[])
          for (int i = 0; i < K.Size(); i++)
          {
             K[i] *= exp(-step_length*grad[i]);
+         }
+      }
+      else if (alg == 3)
+      {
+         for (int i = 0; i < K.Size(); i++)
+         {
+            K[i] = log(K[i]/(1.0 - K[i]));
+            K[i] -= step_length*grad[i];
+            K[i] = 1.0/(1.0 + exp(-K[i]));
          }
       }
       else 
