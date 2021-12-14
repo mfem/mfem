@@ -952,12 +952,6 @@ public:
        visualization are counted as interior faces. */
    virtual int GetNFbyType(FaceType type) const;
 
-   /** @brief Return the PointMatrix of NCFace index @a i. */
-   const DenseMatrix* GetNCFacesPtMat(int i) const
-   {
-      return nc_faces_info[i].PointMatrix;
-   }
-
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const { return value; }
 
@@ -1289,6 +1283,7 @@ public:
       int elem_1_local_face, elem_2_local_face; // Elem1 and Elem2 local faces
       int elem_1_orientation, elem_2_orientation; // Elem1 and Elem2 orientations
       int ncface;
+      const DenseMatrix* point_matrix;
 
       /** @brief return true if the face is either an local or shared interior
           face. */

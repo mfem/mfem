@@ -1645,7 +1645,7 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
 {
    MFEM_ASSERT(!face.IsConforming(),
                "Registering face as non-conforming even though it is not.");
-   const DenseMatrix* ptMat = fes.GetMesh()->GetNCFacesPtMat(face.ncface);
+   const DenseMatrix* ptMat = face.point_matrix;
    // In the case of non-conforming slave shared face the master face is elem1.
    const int master_side = face.IsSharedNonConformingSlave() ? 0 : 1;
    const int face_key = (master_side == 0 ? 1000 : 0) +
