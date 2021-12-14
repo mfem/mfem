@@ -19,28 +19,69 @@
 #include <string>
 #include <cmath>
 
+#define MFEM_DEBUG_COLOR 226
+#include "general/debug.hpp"
+
+////////////////////////////////////////////////////////////////////////////////
+static MPI_Session *mpi = nullptr;
+static int config_dev_size = 4; // default 4 GPU per node
+static int config_serial_refinements = 0;
+static int config_parallel_refinements = 0;
+static int config_max_number_of_dofs_per_ranks = 2*1024*1024;
+
+////////////////////////////////////////////////////////////////////////////////
 struct TMOP
 {
    const int p, q, n, nx, ny, nz, dim = 3;
-   const bool check_x, check_y, check_z, checked;
-   Mesh mesh;
+   const bool check_x, check_y, check_z, checked, barriered;
+   std::function<ParMesh*(int)> MakeParCartesian3D =
+      [&](int mpi_world_size)
+   {
+      Mesh serial_mesh =
+         Mesh::MakeCartesian3D(mpi_world_size*nx,
+                               ny,
+                               nz,
+                               Element::HEXAHEDRON);
+
+      for (int i=0; i<config_serial_refinements; i++)
+      { serial_mesh.UniformRefinement(); }
+
+      assert(serial_mesh.GetNE() == mpi_world_size*nx*ny*nz);
+      const bool enough_elements = mpi_world_size < serial_mesh.GetNE();
+      bool global_ok;
+      MPI_Allreduce(&enough_elements, &global_ok,
+                    1, MPI_CXX_BOOL, MPI_LOR, MPI_COMM_WORLD);
+      assert(global_ok);
+
+      int nxyz[3] = {mpi_world_size,1,1};
+      int *partitioning = serial_mesh.CartesianPartitioning(nxyz);
+      ParMesh *coarse_pmesh =
+         new ParMesh(MPI_COMM_WORLD, serial_mesh, partitioning);
+      delete [] partitioning;
+
+      for (int i=0; i<config_parallel_refinements; i++)
+      { coarse_pmesh->UniformRefinement(); }
+
+      return coarse_pmesh;
+   };
+   ParMesh *pmesh;
    TMOP_Metric_302 metric;
    TargetConstructor::TargetType target_t;
    TargetConstructor target_c;
    H1_FECollection fec;
-   FiniteElementSpace fes;
+   ParFiniteElementSpace pfes;
    const Operator *R;
    const IntegrationRule *ir;
    TMOP_Integrator nlfi;
    const int dofs;
-   GridFunction x;
-   Vector de,xe,ye;
+   ParGridFunction x;
+   Vector xl,xe,ye,de;
    double mdof;
 
    TMOP(int p, int c, bool p_eq_q = false):
       p(p),
-      q(2*p + (p_eq_q ? 0 : 2)),
-      n((assert(c>=p),c/p)),
+      q(2*p + (p_eq_q?-1:3)),
+      n((assert(c>=p), c/p)),
       nx(n + (p*(n+1)*p*n*p*n < c*c*c ?1:0)),
       ny(n + (p*(n+1)*p*(n+1)*p*n < c*c*c ?1:0)),
       nz(n),
@@ -48,30 +89,40 @@ struct TMOP
       check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
       check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
       checked((assert(check_x && check_y && check_z), true)),
-      mesh(Mesh::MakeCartesian3D(nx,ny,nz,Element::HEXAHEDRON)),
+      barriered((MPI_Barrier(MPI_COMM_WORLD), true)),
+      pmesh(MakeParCartesian3D(mpi->WorldSize())),
       target_t(TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE),
       target_c(target_t),
       fec(p, dim),
-      fes(&mesh, &fec, dim),
-      R(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),
-      ir(&IntRules.Get(fes.GetFE(0)->GetGeomType(), q)),
+      pfes(pmesh, &fec, dim),
+      R(pfes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),
+      ir(&IntRules.Get(pfes.GetFE(0)->GetGeomType(), q)),
       nlfi(&metric, &target_c),
-      dofs(fes.GetVSize()),
-      x(&fes),
-      de(R->Height(), Device::GetMemoryType()),
+      dofs(pfes.GlobalTrueVSize()),
+      x(&pfes),
+      xl(pfes.GetVSize()),
       xe(R->Height(), Device::GetMemoryType()),
       ye(R->Height(), Device::GetMemoryType()),
+      de(R->Height(), Device::GetMemoryType()),
       mdof(0.0)
    {
-      mesh.SetNodalGridFunction(&x);
+      pmesh->SetNodalGridFunction(&x);
       target_c.SetNodes(x);
+      x.SetTrueVector();
+      x.SetFromTrueVector();
 
-      R->Mult(x, xe);
+      pfes.GetProlongationMatrix()->Mult(x.GetTrueVector(), xl);
+      R->Mult(xl, xe);
       ye = 0.0;
 
       nlfi.SetIntegrationRule(*ir);
-      nlfi.AssemblePA(fes);
-      nlfi.AssembleGradPA(xe,fes);
+      nlfi.AssemblePA(pfes);
+      nlfi.AssembleGradPA(xe, pfes);
+   }
+
+   ~TMOP()
+   {
+      delete pmesh;
    }
 
    void AddMultPA()
@@ -106,17 +157,17 @@ struct TMOP
    double Mdof() const { return mdof; }
 };
 
-// The different orders the tests can run
-#define P_ORDERS bm::CreateDenseRange(1,4,1)
-
-// The different sides of the mesh
-#define N_SIDES bm::CreateDenseRange(10,84,4)
-#define MAX_NUMBER_OF_DOFS 2*1024*1024
-
-// P_EQ_Q selects the D1D & Q1D to use instantiated kernels
-//  P_EQ_Q: 0x22, 0x33, 0x44, 0x55
-// !P_EQ_Q: 0x23, 0x34, 0x45, 0x56
-#define P_EQ_Q {false,true}
+static void OrderSideArgs(bmi::Benchmark *b)
+{
+   const auto est = [](int c) { return (c+1)*(c+1)*(c+1); };
+   for (int p = 1; p <= 4; ++p)
+   {
+      for (int c = 10; est(c) <= 2*1024*1024; c += 1)
+      {
+         b->Args({p,c});
+      }
+   }
+}
 
 /**
   Kernels definitions and registrations
@@ -124,45 +175,71 @@ struct TMOP
 #define BENCHMARK_TMOP(Bench)\
 static void Bench(bm::State &state){\
    const int p = state.range(0);\
-   TMOP ker(p, state.range(1), false);\
-   if (ker.dofs > MAX_NUMBER_OF_DOFS) { state.SkipWithError("MAX_NUMBER_OF_DOFS"); }\
+   const int c = state.range(1);\
+   const bool p_eq_q = false;\
+   TMOP ker(p, c, p_eq_q);\
    while (state.KeepRunning()) { ker.Bench(); }\
-   state.counters["MDofs"] = bm::Counter(ker.Mdof(), bm::Counter::kIsRate);\
+   const bm::Counter::Flags isRate = bm::Counter::kIsRate;\
+   state.counters["MDofs"] = bm::Counter(ker.Mdof(), isRate);\
    state.counters["Dofs"] = bm::Counter(ker.dofs);\
-   state.counters["p"] = bm::Counter(p);}\
- BENCHMARK(Bench)->ArgsProduct({P_ORDERS,N_SIDES})->Unit(bm::kMicrosecond);
+   state.counters["P"] = bm::Counter(p);\
+   state.counters["Ranks"] = bm::Counter(mpi->WorldSize());\
+}\
+BENCHMARK(Bench) \
+    -> Apply(OrderSideArgs) \
+    -> Unit(bm::kMillisecond);
+
 /// creating/registering
 BENCHMARK_TMOP(AddMultPA)
 BENCHMARK_TMOP(AddMultGradPA)
-BENCHMARK_TMOP(GetLocalStateEnergyPA)
-BENCHMARK_TMOP(AssembleGradDiagonalPA)
+//BENCHMARK_TMOP(GetLocalStateEnergyPA)
+//BENCHMARK_TMOP(AssembleGradDiagonalPA)
 
 /**
  * @brief main entry point
  * --benchmark_filter=AddMultPA/4
- * --benchmark_context=device=cuda
+ * --benchmark_context=device=cuda,pref=0
  */
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_MPI
+   mfem::MPI_Session main_mpi(argc, argv);
+   mpi = &main_mpi;
+#endif
+   MPI_Barrier(MPI_COMM_WORLD);
+
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);
 
    // Device setup, cpu by default
-   std::string device_config = "cpu";
+   std::string config_device = "cpu";
+
    if (bmi::global_context != nullptr)
    {
-      const auto device = bmi::global_context->find("device");
-      if (device != bmi::global_context->end())
-      {
-         mfem::out << device->first << " : " << device->second << std::endl;
-         device_config = device->second;
-      }
+      bmi::FindInContext("dev", config_device); // dev=cuda
+      bmi::FindInContext("ndev", config_dev_size); // ndev=4
+      bmi::FindInContext("sref", config_serial_refinements); // sref=1
+      bmi::FindInContext("pref", config_parallel_refinements); // pref=1
+      bmi::FindInContext("mdofs", config_max_number_of_dofs_per_ranks);
    }
-   Device device(device_config.c_str());
-   device.Print();
+
+   //const int mpi_rank = mpi->WorldRank();
+   //const int mpi_size = mpi->WorldSize();
+   //const int dev = config_dev_size > 0 ? mpi_rank % config_dev_size : 0;
+   //dbg("[MPI] rank: %d/%d, using device #%d", 1+mpi_rank, mpi_size, dev);
+
+   Device device(config_device.c_str());//, dev);
+   if (mpi->Root()) { device.Print(); }
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
+
+#ifndef MFEM_USE_MPI
    bm::RunSpecifiedBenchmarks(&CR);
+#else
+   if (mpi->Root()) { bm::RunSpecifiedBenchmarks(&CR); }
+   else { bm::RunSpecifiedBenchmarks(NoReporter()); }
+#endif
+
    return 0;
 }
 
