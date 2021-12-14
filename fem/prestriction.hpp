@@ -92,8 +92,25 @@ private:
 /// Operator that extracts Face degrees of freedom in parallel.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class ParL2FaceRestriction : public L2FaceRestriction
+class ParL2FaceRestriction : virtual public L2FaceRestriction
 {
+protected:
+   /** @brief Constructs an ParL2FaceRestriction.
+
+       @param[in] fes      The ParFiniteElementSpace on which this operates
+       @param[in] ordering Request a specific ordering
+       @param[in] type     Request internal or boundary faces dofs
+       @param[in] m        Request the face dofs for elem1, or both elem1 and
+                           elem2
+       @param[in] build    Request the ParL2FaceRestriction to compute the
+                           scatter/gather indices. False should only be used
+                           when inheriting from ParL2FaceRestriction. */
+   ParL2FaceRestriction(const ParFiniteElementSpace& fes,
+                        ElementDofOrdering ordering,
+                        FaceType type,
+                        L2FaceValues m,
+                        bool build);
+
 public:
    /** @brief Constructs an ParL2FaceRestriction.
 
@@ -184,17 +201,28 @@ private:
    */
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
+
+protected:
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector. Should only be used with conforming faces and when:
+       m == L2FacesValues::DoubleValued
+
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     face_dofs x vdim x 2 x nf
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   void DoubleValuedConformingMult(const Vector& x, Vector& y) const override;
 };
 
 /// Operator that extracts Face degrees of freedom for NCMesh in parallel.
 /** Objects of this type are typically created and owned by FiniteElementSpace
     objects, see FiniteElementSpace::GetFaceRestriction(). */
-class ParNCL2FaceRestriction : public L2FaceRestriction
+class ParNCL2FaceRestriction
+   : public NCL2FaceRestriction, public ParL2FaceRestriction
 {
-protected:
-   InterpolationManager interpolations;
-   mutable Vector x_interp;
-
 public:
    /** @brief Constructs an ParNCL2FaceRestriction.
 
@@ -299,6 +327,33 @@ private:
    */
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
+
+protected:
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector. Should only be used with non-conforming faces and when:
+       L2FaceValues m == L2FaceValues::SingleValued
+
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     (face_dofs x vdim x nf),
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   void SingleValuedNonConformingMult(const Vector& x, Vector& y) const;
+
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector. Should only be used with non-conforming faces and when:
+       L2FaceValues m == L2FaceValues::DoubleValued
+
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     (face_dofs x vdim x 2 x nf),
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   void DoubleValuedNonConformingMult(const Vector& x, Vector& y) const override;
 };
 
 }

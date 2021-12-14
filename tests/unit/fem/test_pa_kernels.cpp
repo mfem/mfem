@@ -429,7 +429,11 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 // Basic unit test for convection
 TEST_CASE("PA Convection", "[PartialAssembly][MFEMData]")
 {
-   // prob: 0: CG, 1: DG continuous coeff, 2: DG discontinuous coeff, 3: Bernstein
+   // prob:
+   // - 0: CG,
+   // - 1: DG continuous coeff,
+   // - 2: DG discontinuous coeff,
+   // - 3: DG Bernstein discontinuous coeff.
    auto prob = GENERATE(0, 1, 2, 3);
    auto order_2d = GENERATE(2, 3, 4);
    auto order_3d = GENERATE(2);
@@ -445,7 +449,7 @@ TEST_CASE("PA Convection", "[PartialAssembly][MFEMData]")
                          refinement_2d);
       test_pa_convection("../../data/star-q3.mesh", order_2d, prob,
                          refinement_2d);
-      test_pa_convection(mfem_data_dir+"/data/gmsh/v22/unstructured_quad.v22.msh",
+      test_pa_convection(mfem_data_dir+"/gmsh/v22/unstructured_quad.v22.msh",
                          order_2d, prob, refinement_2d);
    }
 
@@ -455,7 +459,7 @@ TEST_CASE("PA Convection", "[PartialAssembly][MFEMData]")
                          refinement_3d);
       test_pa_convection("../../data/fichera-q3.mesh", order_3d, prob,
                          refinement_3d);
-      test_pa_convection(mfem_data_dir+"/data/gmsh/v22/unstructured_hex.v22.msh",
+      test_pa_convection(mfem_data_dir+"/gmsh/v22/unstructured_hex.v22.msh",
                          order_3d, prob, refinement_3d);
    }
 
