@@ -1809,9 +1809,11 @@ void NCL2FaceRestriction::DoubleValuedNonConformingMult(
    {
       MFEM_SHARED double dof_values[max_nd];
       const InterpConfig conf = interp_config_ptr[face];
+      const int master_side = conf.master_side;
+      const int interp_index = conf.index;
       for (int side = 0; side < 2; side++)
       {
-         if ( !conf.is_non_conforming || side!=conf.master_side )
+         if ( !conf.is_non_conforming || side!=master_side )
          {
             // No interpolation needed
             MFEM_FOREACH_THREAD(dof,x,nface_dofs)
@@ -1840,7 +1842,7 @@ void NCL2FaceRestriction::DoubleValuedNonConformingMult(
                   double res = 0.0;
                   for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                   {
-                     res += d_interp(dof_out, dof_in, conf.index)*dof_values[dof_in];
+                     res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
                   }
                   d_y(dof_out, c, side, face) = res;
                }
@@ -1894,7 +1896,9 @@ void NCL2FaceRestriction::SingleValuedNonConformingTransposeInterpolation(
    {
       MFEM_SHARED double dof_values[max_nd];
       const InterpConfig conf = interp_config_ptr[face];
-      if ( conf.is_non_conforming && conf.master_side==0 )
+      const int master_side = conf.master_side;
+      const int interp_index = conf.index;
+      if ( conf.is_non_conforming && master_side==0 )
       {
          // Interpolation from fine to coarse
          for (int c = 0; c < vd; ++c)
@@ -1909,7 +1913,7 @@ void NCL2FaceRestriction::SingleValuedNonConformingTransposeInterpolation(
                double res = 0.0;
                for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                {
-                  res += d_interp(dof_in, dof_out, conf.index)*dof_values[dof_in];
+                  res += d_interp(dof_in, dof_out, interp_index)*dof_values[dof_in];
                }
                d_x(dof_out, c, face) = res;
             }
@@ -1945,6 +1949,8 @@ void NCL2FaceRestriction::DoubleValuedNonConformingTransposeInterpolation(
    {
       MFEM_SHARED double dof_values[max_nd];
       const InterpConfig conf = interp_config_ptr[face];
+      const int master_side = conf.master_side;
+      const int interp_index = conf.index;
       if ( conf.is_non_conforming )
       {
          // Interpolation from fine to coarse
@@ -1952,7 +1958,7 @@ void NCL2FaceRestriction::DoubleValuedNonConformingTransposeInterpolation(
          {
             MFEM_FOREACH_THREAD(dof,x,nface_dofs)
             {
-               dof_values[dof] = d_x(dof, c, conf.master_side, face);
+               dof_values[dof] = d_x(dof, c, master_side, face);
             }
             MFEM_SYNC_THREAD;
             MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
@@ -1960,9 +1966,9 @@ void NCL2FaceRestriction::DoubleValuedNonConformingTransposeInterpolation(
                double res = 0.0;
                for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                {
-                  res += d_interp(dof_in, dof_out, conf.index)*dof_values[dof_in];
+                  res += d_interp(dof_in, dof_out, interp_index)*dof_values[dof_in];
                }
-               d_x(dof_out, c, conf.master_side, face) = res;
+               d_x(dof_out, c, master_side, face) = res;
             }
             MFEM_SYNC_THREAD;
          }
