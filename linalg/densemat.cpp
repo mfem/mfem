@@ -1760,8 +1760,8 @@ void DenseMatrix::GetSubMatrix(int ibeg, int iend, DenseMatrix & A)
 void DenseMatrix::GetSubMatrix(int ibeg, int iend, int jbeg, int jend,
                                DenseMatrix & A)
 {
-   int k = iend - ibeg + 1;
-   int l = jend - jbeg + 1;
+   int k = iend - ibeg;
+   int l = jend - jbeg;
    A.SetSize(k,l);
    double * adata = A.Data();
 

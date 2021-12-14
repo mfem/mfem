@@ -359,7 +359,10 @@ public:
    void GetSubMatrix(const Array<int> & idx, DenseMatrix & A);
    void GetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
                      DenseMatrix & A);
+
+   // Get submatrix i,j ∈ [ibeg, iend)
    void GetSubMatrix(int ibeg, int iend, DenseMatrix & A);
+   // Get submatrix i ∈ [ibeg, iend), j ∈ [jbeg, jend)
    void GetSubMatrix(int ibeg, int iend, int jbeg, int jend, DenseMatrix & A);
 
    void SetSubMatrix(const Array<int> & idx, const DenseMatrix & A);
