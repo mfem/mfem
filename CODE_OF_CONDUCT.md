@@ -1,4 +1,4 @@
-# Contributor Covenant Code of Conduct
+# MFEM Code of Conduct
 
 ## Our Pledge
 
