@@ -414,7 +414,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    const bool have_b = (b.Size() == Height());
 
-   static Vector x_out(x.Size());
+   Vector x_out(x.Size());
    bool x_out_ok = false;
    double scale = init_scale;
    if (adaptive_line_search)
@@ -623,7 +623,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    {
       const FiniteElementSpace *fesc = nlf->FESpace();
       const Operator *P = nlf->GetProlongation();
-      static Vector x_loc;
+      Vector x_loc;
       if (P)
       {
          x_loc.SetSize(P->Height());
