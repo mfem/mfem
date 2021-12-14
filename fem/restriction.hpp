@@ -183,13 +183,19 @@ protected:
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
    Array<int> gather_indices; // gathering indices for each dof
 
-   /** @brief Initialize an H1FaceRestriction.
+   /** @brief Construct an H1FaceRestriction.
 
        @param[in] fes      The FiniteElementSpace on which this operates
-       @param[in] type     Request internal or boundary faces dofs */
+       @param[in] ordering Request a specific element ordering
+       @param[in] type     Request internal or boundary faces dofs
+       @param[in] build    Request the NCL2FaceRestriction to compute the
+                           scatter/gather indices. False should only be used
+                           when inheriting from H1FaceRestriction.
+   */
    H1FaceRestriction(const FiniteElementSpace& fes,
-                     const FaceType type);
-
+                     const ElementDofOrdering ordering,
+                     const FaceType type,
+                     bool build);
 public:
    /** @brief Construct an H1FaceRestriction.
 
@@ -247,6 +253,12 @@ private:
 protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
+   /** @brief Verify that H1FaceRestriction is build from an H1 FESpace.
+
+       @param[in] ordering The FESpace element ordering.
+   */
+   void CheckFESpace(const ElementDofOrdering ordering);
+
    /** @brief Set the scattering indices of elem1, and increment the offsets for
        the face described by the @a face.
 
@@ -292,9 +304,22 @@ protected:
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
    Array<int> gather_indices; // gathering indices for each dof
 
-   L2FaceRestriction(const FiniteElementSpace&,
-                     const FaceType,
-                     const L2FaceValues m = L2FaceValues::DoubleValued);
+   /** @brief Constructs an L2FaceRestriction.
+
+       @param[in] fes      The FiniteElementSpace on which this operates
+       @param[in] ordering Request a specific ordering
+       @param[in] type     Request internal or boundary faces dofs
+       @param[in] m        Request the face dofs for elem1, or both elem1 and
+                           elem2
+       @param[in] build    Request the NCL2FaceRestriction to compute the
+                           scatter/gather indices. False should only be used
+                           when inheriting from L2FaceRestriction.
+   */
+   L2FaceRestriction(const FiniteElementSpace& fes,
+                     const ElementDofOrdering ordering,
+                     const FaceType type,
+                     const L2FaceValues m,
+                     bool build);
 
 public:
    /** @brief Constructs an L2FaceRestriction.
@@ -405,6 +430,12 @@ private:
 protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
 
+   /** @brief Verify that L2FaceRestriction is build from an L2 FESpace.
+
+       @param[in] ordering The FESpace element ordering.
+   */
+   void CheckFESpace(const ElementDofOrdering ordering);
+
    /** @brief Set the scattering indices of elem1, and increment the offsets for
        the face described by the @a face. The ordering of the face dofs of elem1
        is lexicographic relative to elem1.
@@ -467,6 +498,58 @@ protected:
     */
    void PermuteAndSetFaceDofsGatherIndices2(const Mesh::FaceInformation &face,
                                             const int face_index);
+
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector. Should only be used with conforming faces and when:
+       m == L2FacesValues::SingleValued
+
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     face_dofs x vdim x nf
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   void SingleValuedConformingMult(const Vector& x, Vector& y) const;
+
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector. Should only be used with conforming faces and when:
+       m == L2FacesValues::DoubleValued
+
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     face_dofs x vdim x 2 x nf
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   virtual void DoubleValuedConformingMult(const Vector& x, Vector& y) const;
+
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector. Should only be used with conforming faces and when:
+       m == L2FacesValues::SingleValued
+
+       @param[in]  x The face E-Vector degrees of freedom with the given format:
+                     face_dofs x vdim x nf
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs should be ordered according to the given
+                     ElementDofOrdering
+       @param[in,out] y The L-vector degrees of freedom. */
+   void SingleValuedConformingAddMultTranspose(const Vector& x, Vector& y) const;
+
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector. Should only be used with conforming faces and when:
+       m == L2FacesValues::DoubleValued
+
+       @param[in]  x The face E-Vector degrees of freedom with the given format:
+                     face_dofs x vdim x 2 x nf
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs should be ordered according to the given
+                     ElementDofOrdering
+       @param[in,out] y The L-vector degrees of freedom. */
+   void DoubleValuedConformingAddMultTranspose(const Vector& x, Vector& y) const;
 };
 
 /** This class stores which side is the master non-conforming side and the
@@ -606,11 +689,29 @@ private:
     operator interpolates master (coarse) face degrees of freedom onto the
     slave (fine) face. This allows face integrators to treat non-conforming
     faces just as regular conforming faces. */
-class NCL2FaceRestriction : public L2FaceRestriction
+class NCL2FaceRestriction : virtual public L2FaceRestriction
 {
 protected:
    InterpolationManager interpolations;
    mutable Vector x_interp;
+
+   /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
+       L2FaceRestriction for non-conforming meshes.
+
+       @param[in] fes      The FiniteElementSpace on which this operates
+       @param[in] ordering Request a specific ordering
+       @param[in] type     Request internal or boundary faces dofs
+       @param[in] m        Request the face dofs for elem1, or both elem1 and
+                           elem2
+       @param[in] build    Request the NCL2FaceRestriction to compute the
+                           scatter/gather indices. False should only be used
+                           when inheriting from NCL2FaceRestriction.
+   */
+   NCL2FaceRestriction(const FiniteElementSpace& fes,
+                       const ElementDofOrdering ordering,
+                       const FaceType type,
+                       const L2FaceValues m,
+                       bool build);
 public:
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
        L2FaceRestriction for non-conforming meshes.
@@ -619,7 +720,8 @@ public:
        @param[in] ordering Request a specific ordering
        @param[in] type     Request internal or boundary faces dofs
        @param[in] m        Request the face dofs for elem1, or both elem1 and
-                           elem2 */
+                           elem2
+   */
    NCL2FaceRestriction(const FiniteElementSpace& fes,
                        const ElementDofOrdering ordering,
                        const FaceType type,
@@ -719,6 +821,38 @@ private:
    */
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
+
+protected:
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+       face E-Vector. Should only be used with non-conforming faces and when:
+       L2FaceValues m == L2FaceValues::DoubleValued
+
+       @param[in]  x The L-vector degrees of freedom.
+       @param[out] y The face E-Vector degrees of freedom with the given format:
+                     (face_dofs x vdim x 2 x nf),
+                     where nf is the number of interior or boundary faces
+                     requested by @a type in the constructor.
+                     The face_dofs are ordered according to the given
+                     ElementDofOrdering. */
+   virtual void DoubleValuedNonConformingMult(const Vector& x, Vector& y) const;
+
+   /** @brief Apply a change of basis from fine element basis to coarse element
+       basis for the coarse face dofs. Should only be used when:
+       L2FaceValues m == L2FaceValues::SingleValued
+
+       @param[in] x The dofs vector that needs coarse dofs to be express in term
+                    of the coarse basis, the result is stored in x_interp.
+   */
+   void SingleValuedNonConformingTransposeInterpolation(const Vector& x) const;
+
+   /** @brief Apply a change of basis from fine element basis to coarse element
+       basis for the coarse face dofs. Should only be used when:
+       L2FaceValues m == L2FaceValues::DoubleValued
+
+       @param[in] x The dofs vector that needs coarse dofs to be express in term
+                    of the coarse basis, the result is stored in x_interp.
+   */
+   void DoubleValuedNonConformingTransposeInterpolation(const Vector& x) const;
 };
 
 /** @brief Return the face map that extracts the degrees of freedom for the

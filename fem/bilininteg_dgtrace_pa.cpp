@@ -192,8 +192,10 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
          }
          else if ( face.IsOfFaceType(type) )
          {
+            const int mask = FaceElementTransformations::HAVE_ELEM1 |
+                             FaceElementTransformations::HAVE_LOC1;
             FaceElementTransformations &T =
-               *fes.GetMesh()->GetFaceElementTransformations(f,5); // Elem1 and Loc1
+               *fes.GetMesh()->GetFaceElementTransformations(f, mask);
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering

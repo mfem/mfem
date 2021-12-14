@@ -1642,8 +1642,8 @@ void NCMesh::DerefineElement(int elem)
          el.node[i] = ch.node[i];
       }
       // Sets faces attributes from childs' faces
-      constexpr int nb_cube_face = 6;
-      for (int i = 0; i < nb_cube_face; i++)
+      constexpr int nb_cube_faces = 6;
+      for (int i = 0; i < nb_cube_faces; i++)
       {
          const int child_local_index = hex_deref_table[ref_type_key]
                                        [i + nb_cube_childs];
@@ -1669,8 +1669,8 @@ void NCMesh::DerefineElement(int elem)
       }
       el.node[6] = el.node[7] = -1;
 
-      constexpr int nb_prism_face = 5;
-      for (int i = 0; i < nb_prism_face; i++)
+      constexpr int nb_prism_faces = 5;
+      for (int i = 0; i < nb_prism_faces; i++)
       {
          const int child_local_index = prism_deref_table[ref_type_key]
                                        [i + nb_prism_childs];
@@ -1705,8 +1705,8 @@ void NCMesh::DerefineElement(int elem)
          Element &ch = elements[child_global_index];
          el.node[i] = ch.node[i];
       }
-      constexpr int nb_square_face = 4;
-      for (int i = 0; i < nb_square_face; i++)
+      constexpr int nb_square_faces = 4;
+      for (int i = 0; i < nb_square_faces; i++)
       {
          const int child_local_index = quad_deref_table[ref_type_key]
                                        [i + nb_square_childs];
