@@ -1132,6 +1132,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
    face.elem_1_local_face =inf1/64;
    face.elem_2_local_face = inf2/64;
    face.ncface = ncface;
+   face.point_matrix = nullptr;
    // The following figures out face.location, face.conformity,
    // face.elem_2_index, and face.elem_2_orientation.
    if (f < GetNumFaces()) // Non-ghost face
@@ -1150,6 +1151,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
             face.conformity = FaceConformity::NonConformingSlave;
             MFEM_ASSERT(inf2%64==0, "unexpected slave face orientation.");
             face.elem_2_orientation = inf2%64;
+            face.point_matrix = nc_faces_info[ncface].PointMatrix;
          }
       }
       else // e2<0
@@ -1186,6 +1188,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
                face.elem_2_index = -1 - e2;
                face.elem_2_orientation = inf2%64;
             }
+            face.point_matrix = nc_faces_info[ncface].PointMatrix;
          }
       }
    }
@@ -1205,6 +1208,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
          face.elem_2_index = -1 - e2;
          face.elem_2_orientation = inf2%64;
       }
+      face.point_matrix = nc_faces_info[ncface].PointMatrix;
    }
    return face;
 }
