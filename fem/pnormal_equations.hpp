@@ -30,14 +30,8 @@ class ParNormalEquations : public NormalEquations
 {
 
 protected:
-   // Domain FE spaces
-   Array<ParFiniteElementSpace * > domain_pfes;
-
-   // Trace FE Spaces
-   Array<ParFiniteElementSpace * > trace_pfes;
-
-   // All FE Spaces
-   Array<ParFiniteElementSpace * > pfes;
+   // Trial FE spaces
+   Array<ParFiniteElementSpace * > trial_pfes;
 
    // ess_tdof list for each space
    Array<Array<int> *> ess_tdofs;
@@ -64,40 +58,27 @@ public:
    ParNormalEquations() {}
 
    /// Creates bilinear form associated with FE spaces @a *fespaces.
-   ParNormalEquations(Array<ParFiniteElementSpace* > & pfes_,
-                      Array<ParFiniteElementSpace* > & trace_pfes_,
+   ParNormalEquations(Array<ParFiniteElementSpace* > & trial_pfes_,
                       Array<FiniteElementCollection* > & fecol_)
       : NormalEquations()
    {
-      SetParSpaces(pfes_,trace_pfes_,fecol_);
+      SetParSpaces(trial_pfes_,fecol_);
    }
 
-   void SetParSpaces(Array<ParFiniteElementSpace* > & pfes_,
-                     Array<ParFiniteElementSpace* > & trace_pfes_,
+   void SetParSpaces(Array<ParFiniteElementSpace* > & trial_pfes_,
                      Array<FiniteElementCollection* > & fecol_)
    {
-      domain_pfes = pfes_;
-      trace_pfes = trace_pfes_;
-      pfes.SetSize(0);
-      pfes.Append(domain_pfes);
-      pfes.Append(trace_pfes);
-      ess_tdofs.SetSize(pfes.Size());
+      trial_pfes = trial_pfes_;
+      ess_tdofs.SetSize(trial_pfes.Size());
 
-      Array<FiniteElementSpace * > domain_sfes(domain_pfes.Size());
-      for (int i = 0; i<domain_sfes.Size(); i++)
+      Array<FiniteElementSpace * > trial_sfes(trial_pfes.Size());
+      for (int i = 0; i<trial_sfes.Size(); i++)
       {
-         domain_sfes[i] = (FiniteElementSpace *)domain_pfes[i];
+         trial_sfes[i] = (FiniteElementSpace *)trial_pfes[i];
          ess_tdofs[i] = new Array<int>();
       }
 
-      Array<FiniteElementSpace * > trace_sfes(trace_pfes.Size());
-      for (int i = 0; i<trace_sfes.Size(); i++)
-      {
-         trace_sfes[i] = (FiniteElementSpace *)trace_pfes[i];
-         ess_tdofs[i+domain_pfes.Size()] = new Array<int>();
-      }
-
-      SetSpaces(domain_sfes,trace_sfes,fecol_);
+      SetSpaces(trial_sfes,fecol_);
    }
 
 

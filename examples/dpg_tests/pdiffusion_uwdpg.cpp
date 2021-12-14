@@ -127,37 +127,35 @@ int main(int argc, char *argv[])
    ConstantCoefficient negone(-1.0);
 
    // Normal equation weak formulation
-   Array<ParFiniteElementSpace * > domain_fes; 
-   Array<ParFiniteElementSpace * > trace_fes; 
+   Array<ParFiniteElementSpace * > trial_fes; 
    Array<FiniteElementCollection * > test_fec; 
 
-   domain_fes.Append(u_fes);
-   domain_fes.Append(sigma_fes);
-
-   trace_fes.Append(hatu_fes);
-   trace_fes.Append(hatsigma_fes);
+   trial_fes.Append(u_fes);
+   trial_fes.Append(sigma_fes);
+   trial_fes.Append(hatu_fes);
+   trial_fes.Append(hatsigma_fes);
 
    test_fec.Append(v_fec);
    test_fec.Append(tau_fec);
 
-   ParNormalEquations * a = new ParNormalEquations(domain_fes,trace_fes,test_fec);
+   ParNormalEquations * a = new ParNormalEquations(trial_fes,test_fec);
 
    //  -(u,∇⋅v)
-   a->AddDomainBFIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
+   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
 
    // -(σ,v) 
    TransposeIntegrator * mass = new TransposeIntegrator(new VectorFEMassIntegrator(negone));
-   a->AddDomainBFIntegrator(mass,1,0);
+   a->AddTrialIntegrator(mass,1,0);
 
    // (σ,∇ τ)
    TransposeIntegrator * grad = new TransposeIntegrator(new GradientIntegrator(one));
-   a->AddDomainBFIntegrator(grad,1,1);
+   a->AddTrialIntegrator(grad,1,1);
 
    //  <û,v⋅n>
-   a->AddTraceElementBFIntegrator(new NormalTraceIntegrator,0,0);
+   a->AddTrialIntegrator(new NormalTraceIntegrator,2,0);
 
    // -<σ̂,τ> (sign is included in σ̂)
-   a->AddTraceElementBFIntegrator(new TraceIntegrator,1,1);
+   a->AddTrialIntegrator(new TraceIntegrator,3,1);
 
    // test integrators (space-induced norm for H(div) × H1)
    // (∇⋅v,∇⋅δv)

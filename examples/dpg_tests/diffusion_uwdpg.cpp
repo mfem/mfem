@@ -73,10 +73,10 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   for (int i = 0; i<ref; i++)
-   {
-      mesh.UniformRefinement();
-   }
+   // for (int i = 0; i<ref; i++)
+   // {
+   //    mesh.UniformRefinement();
+   // }
 
    // Define spaces
    // L2 space for u
@@ -100,42 +100,41 @@ int main(int argc, char *argv[])
    FiniteElementCollection * v_fec = new RT_FECollection(test_order-1, dim);
    FiniteElementCollection * tau_fec = new H1_FECollection(test_order, dim);
 
+
    // Coefficients
    ConstantCoefficient one(1.0);
    ConstantCoefficient negone(-1.0);
 
    // Normal equation weak formulation
-   Array<FiniteElementSpace * > domain_fes; 
-   Array<FiniteElementSpace * > trace_fes; 
+   Array<FiniteElementSpace * > fes; 
    Array<FiniteElementCollection * > test_fec; 
 
-   domain_fes.Append(u_fes);
-   domain_fes.Append(sigma_fes);
-
-   trace_fes.Append(hatu_fes);
-   trace_fes.Append(hatsigma_fes);
+   fes.Append(u_fes);
+   fes.Append(sigma_fes);
+   fes.Append(hatu_fes);
+   fes.Append(hatsigma_fes);
 
    test_fec.Append(v_fec);
    test_fec.Append(tau_fec);
 
-   NormalEquations * a = new NormalEquations(domain_fes,trace_fes,test_fec);
+   NormalEquations * a = new NormalEquations(fes,test_fec);
 
    //  -(u,∇⋅v)
-   a->AddDomainBFIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
+   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
 
    // -(σ,v) 
    TransposeIntegrator * mass = new TransposeIntegrator(new VectorFEMassIntegrator(negone));
-   a->AddDomainBFIntegrator(mass,1,0);
+   a->AddTrialIntegrator(mass,1,0);
 
    // (σ,∇ τ)
    TransposeIntegrator * grad = new TransposeIntegrator(new GradientIntegrator(one));
-   a->AddDomainBFIntegrator(grad,1,1);
+   a->AddTrialIntegrator(grad,1,1);
 
    //  <û,v⋅n>
-   a->AddTraceElementBFIntegrator(new NormalTraceIntegrator,0,0);
+   a->AddTrialIntegrator(new NormalTraceIntegrator,2,0);
 
    // -<σ̂,τ> (sign is included in σ̂)
-   a->AddTraceElementBFIntegrator(new TraceIntegrator,1,1);
+   a->AddTrialIntegrator(new TraceIntegrator,3,1);
 
    // test integrators (space-induced norm for H(div) × H1)
    // (∇⋅v,∇⋅δv)
@@ -160,81 +159,94 @@ int main(int argc, char *argv[])
 
    // RHS
    a->AddDomainLFIntegrator(new DomainLFIntegrator(one),1);
-   a->Assemble();
 
 
-   Array<int> ess_tdof_list;
-   Array<int> ess_bdr;
-   if (mesh.bdr_attributes.Size())
+   for (int i = 0; i<ref; i++)
    {
-      ess_bdr.SetSize(mesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
+      mesh.UniformRefinement();
+      for (int i =0; i<fes.Size(); i++)
+      {
+         fes[i]->Update(false);
+      }
+      a->StoreMatrices(true);
+      a->Update();
+      a->Assemble();
+
+
+
+      Array<int> ess_tdof_list;
+      Array<int> ess_bdr;
+      if (mesh.bdr_attributes.Size())
+      {
+         ess_bdr.SetSize(mesh.bdr_attributes.Max());
+         ess_bdr = 1;
+         hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
 
    // shift the ess_tdofs
-   for (int i = 0; i < ess_tdof_list.Size(); i++)
-   {
-      ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_fes->GetTrueVSize();
-   }
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      {
+         ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_fes->GetTrueVSize();
+      }
 
-   Vector X,B;
-   Array<int> offsets(5);
-   offsets[0] = 0;
-   offsets[1] = u_fes->GetVSize();
-   offsets[2] = sigma_fes->GetVSize();
-   offsets[3] = hatu_fes->GetVSize();
-   offsets[4] = hatsigma_fes->GetVSize();
-   offsets.PartialSum();
-   BlockVector x(offsets);
-   x = 0.0;
+      Vector X,B;
+      Array<int> offsets(5);
+      offsets[0] = 0;
+      offsets[1] = u_fes->GetVSize();
+      offsets[2] = sigma_fes->GetVSize();
+      offsets[3] = hatu_fes->GetVSize();
+      offsets[4] = hatsigma_fes->GetVSize();
+      offsets.PartialSum();
+      BlockVector x(offsets);
+      x = 0.0;
 
-   OperatorPtr Ah;
-   a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
+      OperatorPtr Ah;
+      a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
 
-   BlockMatrix * A = Ah.As<BlockMatrix>();
+      BlockMatrix * A = Ah.As<BlockMatrix>();
 
-   BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
-   M->owns_blocks = 1;
-   for (int i=0; i<A->NumRowBlocks(); i++)
-   {
-      M->SetDiagonalBlock(i,new UMFPackSolver(A->GetBlock(i,i)));
-   }
+      BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
+      M->owns_blocks = 1;
+      for (int i=0; i<A->NumRowBlocks(); i++)
+      {
+         M->SetDiagonalBlock(i,new UMFPackSolver(A->GetBlock(i,i)));
+      }
 
-   CGSolver cg;
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(3);
-   cg.SetPreconditioner(*M);
-   cg.SetOperator(*A);
-   cg.Mult(B, X);
+      CGSolver cg;
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(3);
+      cg.SetPreconditioner(*M);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      delete M;
 
-   delete M;
+      a->RecoverFEMSolution(X,x);
 
-   a->RecoverFEMSolution(X,x);
+      a->ComputeResidual(x);
 
-   GridFunction u_gf;
-   u_gf.MakeRef(u_fes,x.GetBlock(0));
+      GridFunction u_gf;
+      u_gf.MakeRef(u_fes,x.GetBlock(0));
 
-   GridFunction sigma_gf;
-   sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
+      GridFunction sigma_gf;
+      sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
 
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream solu_sock(vishost, visport);
+         solu_sock.precision(8);
+         solu_sock << "solution\n" << mesh << u_gf <<
+                  "window_title 'Numerical u' "
+                  << flush;
 
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream solu_sock(vishost, visport);
-      solu_sock.precision(8);
-      solu_sock << "solution\n" << mesh << u_gf <<
-               "window_title 'Numerical u' "
-               << flush;
-
-      socketstream sols_sock(vishost, visport);
-      sols_sock.precision(8);
-      sols_sock << "solution\n" << mesh << sigma_gf <<
+         socketstream sols_sock(vishost, visport);
+         sols_sock.precision(8);
+         sols_sock << "solution\n" << mesh << sigma_gf <<
                "window_title 'Numerical flux' "
                << flush;
+      }
    }
 
    delete a;

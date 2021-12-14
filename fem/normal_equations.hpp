@@ -33,40 +33,34 @@ protected:
    Array<int> dof_offsets;
    Array<int> tdof_offsets;
 
-   /// Sparse matrix \f$ M \f$ to be associated with the bilinear form. Owned.
+   /// Block matrix \f$ M \f$ to be associated with the Block bilinear form. Owned.
    BlockMatrix *mat = nullptr;
 
-   /// Vector to be associated with the linear form
+   /// BlockVector to be associated with the Block linear form
    BlockVector * y = nullptr;
 
-   /** @brief Sparse Matrix \f$ M_e \f$ used to store the eliminations
+   /** @brief Block Matrix \f$ M_e \f$ used to store the eliminations
         from the b.c.  Owned.
        \f$ M + M_e = M_{original} \f$ */
    BlockMatrix *mat_e = nullptr;
 
-   // Domain FE spaces
-   Array<FiniteElementSpace * > domain_fes;
+   // Trial FE spaces
+   Array<FiniteElementSpace * > trial_fes;
 
-   // Trace FE Spaces
-   Array<FiniteElementSpace * > trace_fes;
-
-   // All FE Spaces
-   Array<FiniteElementSpace * > fespaces;
+   // Flags to determine if a FiniteElementSpace is Trace
+   Array<int> IsTraceFes;
 
    // Test FE Collections (Broken)
    Array<FiniteElementCollection *> test_fecols;
 
-   /// Set of Domain Integrators to be applied. Forming matrix B
-   Array2D<Array<BilinearFormIntegrator * > * > domain_integs;
+   /// Set of Trial Integrators to be applied for matrix B
+   Array2D<Array<BilinearFormIntegrator * > * > trial_integs;
 
-   /// Trace integrators. Forming Matrix Bhat
-   Array2D<Array<BilinearFormIntegrator * > * > trace_integs;
-
-   /// Set of Test Space (broken) Integrators to be applied. Forming matrix G
+   /// Set of Test Space (broken) Integrators to be applied for matrix G
    Array2D<Array<BilinearFormIntegrator * > * > test_integs;
 
-   /// Set of Domain Integrators to be applied.
-   Array<Array<LinearFormIntegrator * > * > domain_lf_integs;
+   /// Set of Liniear Froem Integrators to be applied.
+   Array<Array<LinearFormIntegrator * > * > lfis;
 
    BlockMatrix * P = nullptr; // Block Prolongation
    BlockMatrix * R = nullptr; // Block Restriction
@@ -81,7 +75,16 @@ protected:
 
    void ConformingAssemble();
 
+   void ComputeOffsets();
+
    virtual void BuildProlongation();
+
+   bool store_matrices = false;
+
+   // Store the matrices G ^-1 B  and G^-1 l
+   // for computing the residual
+   Array<DenseMatrix * > GB;
+   Array<Vector * > Gl;
 
 
 private:
@@ -96,24 +99,29 @@ public:
    }
 
    NormalEquations(Array<FiniteElementSpace* > & fes_,
-                   Array<FiniteElementSpace* > & trace_fes_,
                    Array<FiniteElementCollection *> & fecol_)
    {
-      SetSpaces(fes_,trace_fes_,fecol_);
+      SetSpaces(fes_,fecol_);
    }
 
    void SetSpaces(Array<FiniteElementSpace* > & fes_,
-                  Array<FiniteElementSpace* > & trace_fes_,
                   Array<FiniteElementCollection *> & fecol_)
    {
-      domain_fes = fes_;
-      trace_fes = trace_fes_;
+      trial_fes = fes_;
       test_fecols = fecol_;
-      nblocks = domain_fes.Size() + trace_fes.Size();
-      mesh = domain_fes[0]->GetMesh();
-      fespaces.SetSize(0);
-      fespaces.Append(domain_fes);
-      fespaces.Append(trace_fes);
+      nblocks = trial_fes.Size();
+      mesh = trial_fes[0]->GetMesh();
+
+      IsTraceFes.SetSize(nblocks);
+      // Initialize with False
+      IsTraceFes = false;
+      for (int i = 0; i < nblocks; i++)
+      {
+         IsTraceFes[i] =
+            (dynamic_cast<const H1_Trace_FECollection*>(trial_fes[i]->FEColl()) ||
+             dynamic_cast<const ND_Trace_FECollection*>(trial_fes[i]->FEColl()) ||
+             dynamic_cast<const RT_Trace_FECollection*>(trial_fes[i]->FEColl()));
+      }
       Init();
    }
 
@@ -127,39 +135,32 @@ public:
    void Finalize(int skip_zeros = 1);
 
    /// Returns a reference to the sparse matrix:  \f$ M \f$
-   BlockMatrix &SpMat()
+   BlockMatrix &BlockMat()
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
 
    /// Returns a reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
-   BlockMatrix &SpMatElim()
+   BlockMatrix &BlockMatElim()
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
       return *mat_e;
    }
 
-   /// Adds new Domain BF Integrator. Assumes ownership of @a bfi.
-   // void SetDomainBFIntegrator(BilinearFormIntegrator *bfi);
-   void AddDomainBFIntegrator(BilinearFormIntegrator *bfi, int trial_fes,
-                              int test_fes);
+   /// Adds new Trial Integrator. Assumes ownership of @a bfi.
+   void AddTrialIntegrator(BilinearFormIntegrator *bfi, int trial_fes,
+                           int test_fes);
 
-   /// Adds new Domain Test BF Integrator. Assumes ownership of @a bfi.
+   /// Adds new Test Integrator. Assumes ownership of @a bfi.
    void AddTestIntegrator(BilinearFormIntegrator *bfi, int test_fes0,
                           int test_fes1);
-
-   /// Adds new Trace Element Integrator. Assumes ownership of @a bfi.
-   void AddTraceElementBFIntegrator(BilinearFormIntegrator *bfi, int trial_fes,
-                                    int test_fes);
 
    /// Adds new Domain LF Integrator. Assumes ownership of @a bfi.
    void AddDomainLFIntegrator(LinearFormIntegrator *bfi, int test_fes);
 
-
-   /// Assembles the form i.e. sums over all domain integrators.
+   /// Assembles the form i.e. sums over all integrators.
    void Assemble(int skip_zeros = 1);
-
 
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                  OperatorHandle &A, Vector &X,
@@ -208,6 +209,16 @@ public:
    {
       diag_policy = policy;
    }
+
+   void Update();
+
+   void StoreMatrices(bool store_matrices_ = true)
+   {
+      store_matrices = store_matrices_;
+   }
+
+   void ComputeResidual(const BlockVector & x);
+
 
    /// Destroys bilinear form.
    virtual ~NormalEquations();

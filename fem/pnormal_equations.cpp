@@ -56,8 +56,8 @@ void ParNormalEquations::ParallelAssemble(BlockMatrix *m)
          if (i == j)
          {
             // Make block diagonal square hypre matrix
-            A = new HypreParMatrix(pfes[i]->GetComm(), pfes[i]->GlobalVSize(),
-                                   pfes[i]->GetDofOffsets(),&m->GetBlock(i,i));
+            A = new HypreParMatrix(trial_pfes[i]->GetComm(), trial_pfes[i]->GlobalVSize(),
+                                   trial_pfes[i]->GetDofOffsets(),&m->GetBlock(i,i));
             PtAP = RAP(A,Pi);
             delete A;
             p_mat_e->SetBlock(i,i,PtAP->EliminateRowsCols(*ess_tdofs[i]));
@@ -65,9 +65,9 @@ void ParNormalEquations::ParallelAssemble(BlockMatrix *m)
          else
          {
             HypreParMatrix * Pj = (HypreParMatrix*)(&P->GetBlock(j,j));
-            A = new HypreParMatrix(pfes[i]->GetComm(), pfes[i]->GlobalVSize(),
-                                   pfes[j]->GlobalVSize(), pfes[i]->GetDofOffsets(),
-                                   pfes[j]->GetDofOffsets(), &m->GetBlock(i,j));
+            A = new HypreParMatrix(trial_pfes[i]->GetComm(), trial_pfes[i]->GlobalVSize(),
+                                   trial_pfes[j]->GlobalVSize(), trial_pfes[i]->GetDofOffsets(),
+                                   trial_pfes[j]->GetDofOffsets(), &m->GetBlock(i,j));
             PtAP = RAP(Pi,A,Pj);
             delete A;
             p_mat_e->SetBlock(i,j,PtAP->EliminateCols(*ess_tdofs[j]));
@@ -88,9 +88,9 @@ void ParNormalEquations::BuildProlongation()
 
    for (int i = 0; i<nblocks; i++)
    {
-      HypreParMatrix * P_ = pfes[i]->Dof_TrueDof_Matrix();
+      HypreParMatrix * P_ = trial_pfes[i]->Dof_TrueDof_Matrix();
       P->SetBlock(i,i,P_);
-      const SparseMatrix * R_ = pfes[i]->GetRestrictionMatrix();
+      const SparseMatrix * R_ = trial_pfes[i]->GetRestrictionMatrix();
       R->SetBlock(i,i,const_cast<SparseMatrix*>(R_));
    }
 }
