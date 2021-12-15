@@ -2403,11 +2403,7 @@ void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
       }
       if (d >= 0 && A[d] != 0.0)
       {
-         if (!(std::abs(A[d]) > 0.0))
-         {
-            MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::Jacobi");
-         }
-         double diag = (use_abs_diag) ? fabs(A[d]) : A[d];
+         const double diag = (use_abs_diag) ? fabs(A[d]) : A[d];
          x1(i) = sc * (sum / diag) + (1.0 - sc) * x0(i);
       }
       else
@@ -2444,12 +2440,12 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x,
          }
          if (Jp[j] == i)
          {
-            if (!(std::abs(Ap[j]) > 0.0))
+            const double diag = (use_abs_diag) ? fabs(Ap[j]) : Ap[j];
+            if (diag == 0.0)
             {
                MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::DiagScale");
             }
-            if (use_abs_diag) { xp[i] = sc * bp[i] / fabs(Ap[j]); }
-            else              { xp[i] = sc * bp[i] / Ap[j]; }
+            xp[i] = sc * bp[i] / diag;
             break;
          }
       }
