@@ -1,7 +1,10 @@
 //                                MFEM Example 1
 //
-// Compile with: make lshape
+// Compile with: make diffusion_uwdpg
 //
+// sample runs 
+// ./diffusion_uwdpg -m ../lshape2.mesh -o 2 -ref 20 -graph-norm -do 1 -prob 0
+
 //     - Δ u = f, in Ω
 //         u = 0, on ∂Ω
 
