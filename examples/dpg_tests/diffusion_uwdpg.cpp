@@ -1,6 +1,6 @@
 //                                MFEM Example 1
 //
-// Compile with: make poisson_fosls
+// Compile with: make lshape
 //
 //     - Δ u = f, in Ω
 //         u = 0, on ∂Ω
@@ -35,6 +35,33 @@
 using namespace std;
 using namespace mfem;
 
+enum prob_type
+{
+   lshape,   
+   general  
+};
+
+prob_type prob;
+
+
+double exact(const Vector & X)
+{
+   double x = X[0];
+   double y = X[1];
+
+   double r = sqrt(x*x + y*y);
+   double alpha = 2./3.;
+   double theta = atan2(y,x);
+   if (y == 0 && x < 0)
+   {
+      theta += 2.*M_PI;
+   }
+   if (y < 0)
+   {
+      theta += 2.*M_PI;
+   }
+   return pow(r,alpha) * sin(alpha * theta);
+}
 
 int main(int argc, char *argv[])
 {
@@ -45,7 +72,7 @@ int main(int argc, char *argv[])
    int ref = 1;
    bool adjoint_graph_norm = false;
    bool visualization = true;
-
+   int iprob = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -58,7 +85,9 @@ int main(int argc, char *argv[])
                   "Number of uniform refinements");               
    args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
                   "-no-graph-norm", "--no-adjoint-graph-norm",
-                  "Enable or disable Adjoint Graph Norm on the test space");               
+                  "Enable or disable Adjoint Graph Norm on the test space"); 
+   args.AddOption(&iprob, "-prob", "--problem", "Problem case"
+                  " 0: lshape, 1: General");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -70,13 +99,16 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   if (iprob > 1) { iprob = 1; }
+   prob = (prob_type)iprob;
+
+   if (prob == prob_type::lshape)
+   {
+      mesh_file = "lshape2.mesh";
+   }
+
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-
-   // for (int i = 0; i<ref; i++)
-   // {
-   //    mesh.UniformRefinement();
-   // }
 
    // Define spaces
    // L2 space for u
@@ -158,12 +190,25 @@ int main(int argc, char *argv[])
    }
 
    // RHS
-   a->AddDomainLFIntegrator(new DomainLFIntegrator(one),1);
+   if (prob == prob_type::general)
+   {
+      a->AddDomainLFIntegrator(new DomainLFIntegrator(one),1);
+   }
 
+   FunctionCoefficient uex(exact);
+   Array<int> elements_to_refine;
+   GridFunction hatu_gf;
 
    for (int i = 0; i<ref; i++)
    {
-      mesh.UniformRefinement();
+      if (i == 0) 
+      {
+         mesh.UniformRefinement();
+      }
+      else
+      {
+         mesh.GeneralRefinement(elements_to_refine);
+      }
       for (int i =0; i<fes.Size(); i++)
       {
          fes[i]->Update(false);
@@ -199,6 +244,11 @@ int main(int argc, char *argv[])
       offsets.PartialSum();
       BlockVector x(offsets);
       x = 0.0;
+      if (prob == prob_type::lshape)
+      {
+         hatu_gf.MakeRef(hatu_fes,x.GetBlock(2));
+         hatu_gf.ProjectBdrCoefficient(uex,ess_bdr);
+      }
 
       OperatorPtr Ah;
       a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
@@ -222,9 +272,22 @@ int main(int argc, char *argv[])
       delete M;
 
       a->RecoverFEMSolution(X,x);
+      Vector & residuals = a->ComputeResidual(x);
 
-      a->ComputeResidual(x);
+      double residual = residuals.Norml2();
+      cout << "Residual = " << residual << endl;
 
+      elements_to_refine.SetSize(0);
+      double max_resid = residuals.Max();
+      double theta = 0.7;
+      for (int iel = 0; iel<mesh.GetNE(); iel++)
+      {
+         if (residuals[iel] > theta * max_resid)
+         {
+            elements_to_refine.Append(iel);
+         }
+      }
+      
       GridFunction u_gf;
       u_gf.MakeRef(u_fes,x.GetBlock(0));
 
