@@ -2345,9 +2345,10 @@ TMOP_Integrator::~TMOP_Integrator()
    delete lim_func;
    delete zeta;
    delete sigma;
-   delete sigma_bar;
    delete sigma_grad;
    delete sigma_hess;
+   delete sigma_eval_bg_grad;
+   delete sigma_eval_bg_hess;
    for (int i = 0; i < ElemDer.Size(); i++)
    {
       delete ElemDer[i];
@@ -2426,14 +2427,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    coeff_sigma = &coeff;
    sigma_eval = &ae;
 
-   // Compute the restricted sigma.
-   delete sigma_bar;
-   sigma_bar = new GridFunction(*sigma);
-   for (int i = 0; i < sigma_marker->Size(); i++)
-   {
-      if ((*sigma_marker)[i] == false) { (*sigma_bar)(i) = 0.0; }
-   }
-
    sigma_eval->SetSerialMetaInfo(*s0.FESpace()->GetMesh(),
                                  *s0.FESpace()->FEColl(), 1);
    sigma_eval->SetInitialField
@@ -2453,13 +2446,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    sigma_eval = &ae;
 
    // Compute the restricted sigma.
-   delete sigma_bar;
-   sigma_bar = new GridFunction(*sigma);
-   for (int i = 0; i < sigma_marker->Size(); i++)
-   {
-      if ((*sigma_marker)[i] == false) { (*sigma_bar)(i) = 0.0; }
-   }
-
    sigma_eval->SetParMetaInfo(*s0.ParFESpace()->GetParMesh(),
                               *s0.ParFESpace()->FEColl(), 1);
    sigma_eval->SetInitialField
@@ -2483,21 +2469,13 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
    coeff_sigma = &coeff;
    sigma_eval = &ae;
 
-   // Compute the restricted sigma.
-   delete sigma_bar;
-   sigma_bar = new GridFunction(*sigma);
-   for (int i = 0; i < sigma_marker->Size(); i++)
-   {
-      if ((*sigma_marker)[i] == false) { (*sigma_bar)(i) = 0.0; }
-   }
-
    sigma_bg = true;
    sigma_eval->SetParMetaInfo(*s0_bg.ParFESpace()->GetParMesh(),
                               *s0_bg.ParFESpace()->FEColl(), 1);
    sigma_eval->SetInitialField
    (*s0_bg.FESpace()->GetMesh()->GetNodes(), s0_bg);
 
-   // Setup gradient on background mesh
+   // Setup gradient and Hessian on background mesh
    delete sigma_eval_bg_grad;
    delete sigma_eval_bg_hess;
 #ifdef MFEM_USE_GSLIB
@@ -2539,8 +2517,8 @@ void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
       if ((*sigma_marker)[i] == true)
       {
          loc_cnt++;
-         loc_max  = std::max(loc_max, std::abs((*sigma_bar)(i)));
-         loc_sum += std::abs((*sigma_bar)(i));
+         loc_max  = std::max(loc_max, std::abs((*sigma)(i)));
+         loc_sum += std::abs((*sigma)(i));
       }
    }
    err_avg = loc_sum / loc_cnt;
@@ -2658,9 +2636,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       zeta_0->GetValues(el_id, ir, zeta0_q);
    }
 
-   Vector sigma_bar_q;
-   if (surface_fit) { sigma_bar->GetValues(el_id, ir, sigma_bar_q); }
-
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
@@ -2693,15 +2668,28 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          const double diff = zeta_q(i) - zeta0_q(i);
          val += coeff_zeta->Eval(*Tpr, ip) * lim_normal * diff * diff;
       }
-
-      // Contribution from the surface fitting term.
-      if (surface_fit)
-      {
-         val += coeff_sigma->Eval(*Tpr, ip) * sigma_normal *
-                sigma_bar_q(i) * sigma_bar_q(i);
-      }
-
       energy += weight * val;
+   }
+
+   // Contribution from the surface fitting term.
+   if (surface_fit)
+   {
+      const IntegrationRule &ir_s =
+         sigma->FESpace()->GetFE(el_id)->GetNodes();
+      Array<int> dofs;
+      Vector sigma_e;
+      sigma->FESpace()->GetElementDofs(el_id, dofs);
+      sigma->GetSubVector(dofs, sigma_e);
+      for (int s = 0; s < dofs.Size(); s++)
+      {
+         if ((*sigma_marker)[dofs[s]] == true)
+         {
+            const IntegrationPoint &ip_s = ir_s.IntPoint(s);
+            Tpr->SetIntPoint(&ip_s);
+            energy += coeff_sigma->Eval(*Tpr, ip_s) * sigma_normal *
+                      sigma_e(s) * sigma_e(s);
+         }
+      }
    }
 
    delete Tpr;
@@ -3571,7 +3559,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
                                                    double &sigma_energy)
 {
    Array<int> vdofs;
-   Vector x_vals, sigma_bar_q;
+   Vector x_vals;
    const FiniteElementSpace* const fes = x.FESpace();
 
    const int dim = fes->GetMesh()->Dimension();
@@ -3597,8 +3585,6 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
 
       targetC->ComputeElementTargets(i, *fe, ir, x_vals, Jtr);
 
-      if (sigma) { sigma_bar->GetValues(i, ir, sigma_bar_q); }
-
       for (int q = 0; q < nqp; q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
@@ -3612,11 +3598,21 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
 
          metric_energy += weight * metric->EvalW(Jpt);
          lim_energy += weight;
+      }
 
-         // Normalization of the surface fitting term.
-         if (sigma)
+      // Normalization of the surface fitting term.
+      if (sigma)
+      {
+         Array<int> dofs;
+         Vector sigma_e;
+         sigma->FESpace()->GetElementDofs(i, dofs);
+         sigma->GetSubVector(dofs, sigma_e);
+         for (int s = 0; s < dofs.Size(); s++)
          {
-            sigma_energy += weight * sigma_bar_q(q) * sigma_bar_q(q);
+            if ((*sigma_marker)[dofs[s]] == true)
+            {
+               sigma_energy += sigma_e(s) * sigma_e(s);
+            }
          }
       }
    }
@@ -3674,11 +3670,6 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x)
    if (sigma)
    {
       sigma_eval->ComputeAtNewPosition(new_x, *sigma);
-      // Update the restricted sigma.
-      for (int i = 0; i < sigma_marker->Size(); i++)
-      {
-         (*sigma_bar)(i) = ((*sigma_marker)[i] == true) ? (*sigma)(i) : 0.0;
-      }
 
       if (sigma_bg)
       {

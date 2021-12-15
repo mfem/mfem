@@ -32,10 +32,18 @@
 // Compile with: make pmesh-optimizer
 //
 // Sample runs:
-//   mpirun -np 4 tmop_surface -m sqdiscquad.mesh -o 3 -rs 1 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 1 -sni 10 -oi 10 -ae 1 -fix-bnd
-//   mpirun -np 4 tmop_surface -m sqdisc.mesh -o 1 -rs 0 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 20 -sni 10 -oi 3 -ae 1 -fix-bnd -qo 8 -st 1
-//   mpirun -np 4 tmop_surface -m sqdiscquad.mesh -o 4 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 10 -sni 10 -oi 5 -ae 1 -fix-bnd -st 0
-#include "../../mfem.hpp"
+//   Boundary fitting
+//   mpirun -np 4 tmop_surface -m sqdiscquad.mesh -o 2 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 1 -sni 10 -oi 10 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2
+//   mpirun -np 4 tmop_surface -m sqdisc.mesh -o 2 -rs 0 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 20 -sni 10 -oi 3 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2
+//   mpirun -np 4 tmop_surface -m sqdiscquad.mesh -o 4 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 10 -sni 10 -oi 5 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2
+
+//   mpirun -np 4 tmop_surface -m sqdiscquad.mesh -o 2 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e4 -ni 20 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 1 -smtype 2
+
+//  Interface fitting
+//  mpirun -np 4 tmop_surface -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor -sapp 1 -slstype 1
+//  mpirun -np 4 tmop_surface -m square01-tri.mesh -o 2 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor -sapp 1 -slstype 1
+//  mpirun -np 4 tmop_surface -m square01-tri.mesh -o 2 -rs 2 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor -sapp 1 -slstype 3
+#include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
 #include <fstream>
@@ -46,15 +54,15 @@ using namespace std;
 
 int main (int argc, char *argv[])
 {
-   // 0. Initialize MPI.
+   // Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   // 1. Set the method's default parameters.
-   const char *mesh_file = "icf.mesh";
-   int mesh_poly_deg     = 1;
+   // Set the method's default parameters.
+   const char *mesh_file    = "icf.mesh";
+   int mesh_poly_deg        = 1;
    int rs_levels         = 0;
    int rp_levels         = 0;
    double jitter         = 0.0;
@@ -67,16 +75,14 @@ int main (int argc, char *argv[])
    int quad_order        = 8;
    int solver_type       = 0;
    int solver_iter       = 20;
-   int outer_iter       = 20;
-   int surf_solver_iter       = 20;
+   int outer_iter         = 20;
+   int surf_solver_iter   = 20;
    double solver_rtol    = 1e-10;
    int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    int combomet          = 0;
-   bool hradaptivity     = false;
-   int h_metric_id       = -1;
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
@@ -85,10 +91,12 @@ int main (int argc, char *argv[])
    bool exactaction      = false;
    const char *devopt    = "cpu";
    bool pa               = false;
-   int n_hr_iter         = 5;
-   int n_h_iter          = 1;
+   bool surf_bg_mesh     = false;
+   int surf_approach     = 0;
+   int surf_ls_type      = 1;
+   int marking_type      = 1;
 
-   // 2. Parse command-line options.
+   // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -183,12 +191,6 @@ int main (int argc, char *argv[])
                   "0: Use single metric\n\t"
                   "1: Shape + space-dependent size given analytically\n\t"
                   "2: Shape + adapted size given discretely; shared target");
-   args.AddOption(&hradaptivity, "-hr", "--hr-adaptivity", "-no-hr",
-                  "--no-hr-adaptivity",
-                  "Enable hr-adaptivity.");
-   args.AddOption(&h_metric_id, "-hmid", "--h-metric",
-                  "Same options as metric_id. Used to determine refinement"
-                  " type for each element if h-adaptivity is enabled.");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
@@ -209,13 +211,17 @@ int main (int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&n_hr_iter, "-nhr", "--n_hr_iter",
-                  "Number of hr-adaptivity iterations.");
-   args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
-                  "Number of h-adaptivity iterations per r-adaptivity"
-                  "iteration.");
    args.AddOption(&surf_solver_iter, "-sni", "--newton-iters",
                   "Maximum number of Newton iterations.");
+   args.AddOption(&surf_approach, "-sapp", "--surf-approach",
+                  "1 - Use 1 Integrator and balance shape + fitting (DEFAULT),"
+                  "2 - iterate between shape optimization and surface fitting.");
+   args.AddOption(&surf_bg_mesh, "-sbgmesh", "--surf-bg-mesh",
+                  "-no-sbgmesh","--no-surf-bg-mesh", "Use background mesh for surface fitting.");
+   args.AddOption(&surf_ls_type, "-slstype", "--surf-ls-type",
+                  "1 - Circle (DEFAULT), 2 - Squircle, 3 - Butterfly.");
+   args.AddOption(&marking_type, "-smtype", "--surf-marking-type",
+                  "1 - Interface (DEFAULT), 2 - Boundary attribute.");
    args.Parse();
    if (!args.Good())
    {
@@ -223,17 +229,11 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
-   if (h_metric_id < 0) { h_metric_id = metric_id; }
 
-   if (hradaptivity)
-   {
-      MFEM_VERIFY(strcmp(devopt,"cpu")==0, "HR-adaptivity is currently only"
-                  " supported on cpus.");
-   }
    Device device(devopt);
    if (myid == 0) { device.Print();}
 
-   // 3. Initialize and refine the starting mesh.
+   // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++)
    {
@@ -241,24 +241,29 @@ int main (int argc, char *argv[])
    }
    const int dim = mesh->Dimension();
 
-   Mesh *mesh_surf = new Mesh("../../data/inline-quad.mesh", 1, 1, false);
-   for (int lev = 0; lev < 5; lev++) { mesh_surf->UniformRefinement(); }
-
-   if (hradaptivity) { mesh->EnsureNCMesh(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   ParMesh *pmesh_surf = new ParMesh(MPI_COMM_WORLD, *mesh_surf);
-
    delete mesh;
-   delete mesh_surf;
+
    for (int lev = 0; lev < rp_levels; lev++)
    {
       pmesh->UniformRefinement();
    }
 
-   // 4. Define a finite element space on the mesh. Here we use vector finite
-   //    elements which are tensor products of quadratic finite elements. The
-   //    number of components in the vector finite element space is specified by
-   //    the last parameter of the FiniteElementSpace constructor.
+   // Setup background mesh for surface fitting
+   ParMesh *pmesh_surf_fit_bg = NULL;
+   if (surf_bg_mesh)
+   {
+      Mesh *mesh_surf_fit_bg =  new Mesh("../../data/inline-quad.mesh", 1, 1, false);
+      for (int lev = 0; lev < 5; lev++) { mesh_surf_fit_bg->UniformRefinement(); }
+      pmesh_surf_fit_bg = new ParMesh(MPI_COMM_WORLD, *mesh_surf_fit_bg);
+      delete mesh_surf_fit_bg;
+   }
+
+
+   // Define a finite element space on the mesh. Here we use vector finite
+   // elements which are tensor products of quadratic finite elements. The
+   // number of components in the vector finite element space is specified by
+   // the last parameter of the FiniteElementSpace constructor.
    FiniteElementCollection *fec;
    if (mesh_poly_deg <= 0)
    {
@@ -268,9 +273,9 @@ int main (int argc, char *argv[])
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
    ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim);
 
-   // 5. Make the mesh curved based on the above finite element space. This
-   //    means that we define the mesh elements through a fespace-based
-   //    transformation of the reference element.
+   // Make the mesh curved based on the above finite element space. This
+   // means that we define the mesh elements through a fespace-based
+   // transformation of the reference element.
    pmesh->SetNodalFESpace(pfespace);
 
    // 6. Set up an empty right-hand side vector b, which is equivalent to b=0.
@@ -394,12 +399,14 @@ int main (int argc, char *argv[])
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
          return 3;
    }
-   surf_metric = new TMOP_Metric_000;
+   if (surf_approach == 2)
+   {
+      surf_metric = new TMOP_Metric_000;
+   }
 
    TargetConstructor::TargetType target_t;
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
-   HRHessianCoefficient *hr_adapt_coeff = NULL;
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
@@ -435,7 +442,11 @@ int main (int argc, char *argv[])
    target_c->SetNodes(x0);
 
    TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c);
-   TMOP_Integrator *surf_integ = new TMOP_Integrator(surf_metric, target_c);
+   TMOP_Integrator *surf_integ = NULL;
+   if (surf_approach == 2)
+   {
+      surf_integ = new TMOP_Integrator(surf_metric, target_c);
+   }
 
    // Finite differences for computations of derivatives.
    if (fdscheme)
@@ -444,7 +455,10 @@ int main (int argc, char *argv[])
       he_nlf_integ->EnableFiniteDifferences(x);
    }
    he_nlf_integ->SetExactActionFlag(exactaction);
-   surf_integ->SetExactActionFlag(exactaction);
+   if (surf_approach == 2)
+   {
+      surf_integ->SetExactActionFlag(exactaction);
+   }
 
    // Setup the quadrature rules for the TMOP integrator.
    IntegrationRules *irules = NULL;
@@ -458,7 +472,10 @@ int main (int argc, char *argv[])
          return 3;
    }
    he_nlf_integ->SetIntegrationRules(*irules, quad_order);
-   surf_integ->SetIntegrationRules(*irules, quad_order);
+   if (surf_approach == 2)
+   {
+      surf_integ->SetIntegrationRules(*irules, quad_order);
+   }
    if (myid == 0 && dim == 2)
    {
       cout << "Triangle quadrature points: "
@@ -492,60 +509,95 @@ int main (int argc, char *argv[])
    ConstantCoefficient coef_ls(surface_fit_const);
    AdaptivityEvaluator *adapt_surface = NULL;
 
-   pmesh_surf->SetCurvature(mesh_poly_deg);
-   H1_FECollection sigma_source_fec(2*mesh_poly_deg, dim);
-   ParFiniteElementSpace sigma_source_fes(pmesh_surf, &sigma_source_fec);
-   ParGridFunction ls_source_0(&sigma_source_fes);
+   // Background mesh FECollection, FESpace, and GridFunction
+   H1_FECollection *sigma_bg_fec = NULL;
+   ParFiniteElementSpace *sigma_bg_fes = NULL;
+   ParGridFunction *ls_bg_0 = NULL;
+   ParFiniteElementSpace *ls_bg_grad_fes = NULL;
+   ParGridFunction *ls_bg_grad = NULL;
+   ParFiniteElementSpace *sigma_grad_fes = NULL;
+   ParGridFunction *sigma_grad = NULL;
+   ParFiniteElementSpace *ls_bg_hess_fes = NULL;
+   ParGridFunction *ls_bg_hess = NULL;
+   ParFiniteElementSpace *sigma_hess_fes = NULL;
+   ParGridFunction *sigma_hess = NULL;
+   if (surf_bg_mesh)
+   {
+      pmesh_surf_fit_bg->SetCurvature(mesh_poly_deg);
 
-   ParFiniteElementSpace ls_source_grad_fes(pmesh_surf, &sigma_source_fec,
-                                            pmesh_surf->Dimension());
-   ParGridFunction ls_source_grad(&ls_source_grad_fes);
-   ParFiniteElementSpace sigma_grad_fes(pmesh, &sigma_fec, pmesh->Dimension());
-   ParGridFunction sigma_grad(&sigma_grad_fes);
+      sigma_bg_fec = new H1_FECollection(mesh_poly_deg, dim);
+      sigma_bg_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, sigma_bg_fec);
+      ls_bg_0 = new ParGridFunction(sigma_bg_fes);
 
-   int n_hessian_source = pmesh_surf->Dimension()*pmesh_surf->Dimension();
-   ParFiniteElementSpace ls_source_hess_fes(pmesh_surf, &sigma_source_fec,
-                                            n_hessian_source);
-   ParGridFunction ls_source_hess(&ls_source_hess_fes);
-   ParFiniteElementSpace sigma_hess_fes(pmesh, &sigma_fec,
-                                        pmesh->Dimension()*pmesh->Dimension());
-   ParGridFunction sigma_hess(&sigma_hess_fes);
+      ls_bg_grad_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, sigma_bg_fec,
+                                                 pmesh_surf_fit_bg->Dimension());
+      ls_bg_grad = new ParGridFunction(ls_bg_grad_fes);
+      sigma_grad_fes = new ParFiniteElementSpace(pmesh, &sigma_fec,
+                                                 pmesh->Dimension());
+      sigma_grad = new ParGridFunction(sigma_grad_fes);
 
+      int n_hessian_bg = pmesh_surf_fit_bg->Dimension()
+                         *pmesh_surf_fit_bg->Dimension();
+      ls_bg_hess_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, sigma_bg_fec,
+                                                 n_hessian_bg);
+      ls_bg_hess = new ParGridFunction(ls_bg_hess_fes);
+      sigma_hess_fes = new ParFiniteElementSpace(pmesh, &sigma_fec,
+                                                 pmesh->Dimension()*pmesh->Dimension());
+      sigma_hess = new ParGridFunction(sigma_hess_fes);
+   }
 
+   FunctionCoefficient *ls_coeff = NULL;
    if (surface_fit_const > 0.0)
    {
-      MFEM_VERIFY(hradaptivity == false,
-                  "Surface fitting with HR is not implemented yet.");
       MFEM_VERIFY(pa == false,
                   "Surface fitting with PA is not implemented yet.");
 
-      FunctionCoefficient ls_coeff(surface_level_set);
-      ls_0.ProjectCoefficient(ls_coeff);
-      ls_source_0.ProjectCoefficient(ls_coeff);
-
-      //Setup gradient of the background mesh
-      ls_source_grad.ReorderByNodes();
-      for (int d = 0; d < pmesh_surf->Dimension(); d++)
+      if (surf_ls_type == 1) //Circle
       {
-         ParGridFunction ls_source_grad_comp(&sigma_source_fes,
-                                             ls_source_grad.GetData()+d*ls_source_0.Size());
-         ls_source_0.GetDerivative(1, d, ls_source_grad_comp);
+         ls_coeff = new FunctionCoefficient(circle_level_set);
       }
-
-      //Setup Hessian on background mesh
-      ls_source_hess.ReorderByNodes();
-      int id = 0;
-      for (int d = 0; d < pmesh_surf->Dimension(); d++)
+      else if (surf_ls_type == 2) // Squircle
       {
-         for (int idir = 0; idir < pmesh_surf->Dimension(); idir++)
+         ls_coeff = new FunctionCoefficient(squircle_level_set);
+      }
+      else if (surf_ls_type == 3) // Butterfly
+      {
+         ls_coeff = new FunctionCoefficient(butterfly_level_set);
+      }
+      else
+      {
+         MFEM_ABORT("Surface fitting level set type not implemented yet.")
+      }
+      ls_0.ProjectCoefficient(*ls_coeff);
+      if (surf_bg_mesh)
+      {
+         ls_bg_0->ProjectCoefficient(*ls_coeff);
+
+         //Setup gradient of the background mesh
+         ls_bg_grad->ReorderByNodes();
+         for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
          {
-            ParGridFunction ls_source_grad_comp(&sigma_source_fes,
-                                                ls_source_grad.GetData()+d*ls_source_0.Size());
-            ParGridFunction ls_source_hess_comp(&sigma_source_fes,
-                                                ls_source_hess.GetData()+id*ls_source_0.Size());
-            ls_source_grad_comp.GetDerivative(1, idir, ls_source_hess_comp);
-            id++;
+            ParGridFunction ls_bg_grad_comp(sigma_bg_fes,
+                                            ls_bg_grad->GetData()+d*ls_bg_0->Size());
+            ls_bg_0->GetDerivative(1, d, ls_bg_grad_comp);
          }
+
+         //Setup Hessian on background mesh
+         ls_bg_hess->ReorderByNodes();
+         int id = 0;
+         for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
+         {
+            for (int idir = 0; idir < pmesh_surf_fit_bg->Dimension(); idir++)
+            {
+               ParGridFunction ls_bg_grad_comp(sigma_bg_fes,
+                                               ls_bg_grad->GetData()+d*ls_bg_0->Size());
+               ParGridFunction ls_bg_hess_comp(sigma_bg_fes,
+                                               ls_bg_hess->GetData()+id*ls_bg_0->Size());
+               ls_bg_grad_comp.GetDerivative(1, idir, ls_bg_hess_comp);
+               id++;
+            }
+         }
+
       }
 
       for (int i = 0; i < pmesh->GetNE(); i++)
@@ -557,21 +609,40 @@ int main (int argc, char *argv[])
       GridFunctionCoefficient coeff_mat(&mat);
       marker_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
 
-      for (int j = 0; j < marker.Size(); j++)
+      if (marking_type == 1)
       {
-         marker[j] = false;
-      }
-      marker_gf = 0.0;
-      for (int i = 0; i < pmesh->GetNBE(); i++)
-      {
-         const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-         if (attr == 3)
+         for (int j = 0; j < marker.Size(); j++)
          {
-            sigma_fes.GetBdrElementVDofs(i, vdofs);
-            for (int j = 0; j < vdofs.Size(); j++)
+            if (marker_gf(j) > 0.1 && marker_gf(j) < 0.9)
             {
-               marker[vdofs[j]] = true;
-               marker_gf(vdofs[j]) = 1.0;
+               marker[j] = true;
+               marker_gf(j) = 1.0;
+            }
+            else
+            {
+               marker[j] = false;
+               marker_gf(j) = 0.0;
+            }
+         }
+      }
+      else if (marking_type == 2)
+      {
+         for (int j = 0; j < marker.Size(); j++)
+         {
+            marker[j] = false;
+         }
+         marker_gf = 0.0;
+         for (int i = 0; i < pmesh->GetNBE(); i++)
+         {
+            const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+            if (attr == 3)
+            {
+               sigma_fes.GetBdrElementVDofs(i, vdofs);
+               for (int j = 0; j < vdofs.Size(); j++)
+               {
+                  marker[vdofs[j]] = true;
+                  marker_gf(vdofs[j]) = 1.0;
+               }
             }
          }
       }
@@ -590,15 +661,24 @@ int main (int argc, char *argv[])
       }
       else { MFEM_ABORT("Bad interpolation option."); }
 
-      //surf_integ->EnableSurfaceFitting(ls_0, marker, coef_ls, *adapt_surface);
-      surf_integ->EnableSurfaceFittingFromSource(ls_source_0,
-                                                 ls_0,
-                                                 marker, coef_ls, *adapt_surface,
-                                                 ls_source_grad,
-                                                 sigma_grad,
-                                                 ls_source_hess,
-                                                 sigma_hess);
+      TMOP_Integrator *surface_fitting_integrator = surf_approach == 1 ?
+                                                    he_nlf_integ :
+                                                    surf_integ;
 
+      if (!surf_bg_mesh)
+      {
+         surface_fitting_integrator->EnableSurfaceFitting(ls_0, marker, coef_ls,
+                                                          *adapt_surface);
+      }
+      else
+      {
+         surface_fitting_integrator->EnableSurfaceFittingFromSource(*ls_bg_0, ls_0,
+                                                                    marker, coef_ls,
+                                                                    *adapt_surface,
+                                                                    *ls_bg_grad, *sigma_grad,
+                                                                    *ls_bg_hess, *sigma_hess);
+
+      }
 
       if (visualization)
       {
@@ -609,12 +689,15 @@ int main (int argc, char *argv[])
                                 600, 600, 300, 300);
          common::VisualizeField(vis3, "localhost", 19916, marker_gf, "Dofs to Move",
                                 900, 600, 300, 300);
-         common::VisualizeField(vis4, "localhost", 19916, ls_source_0,
-                                "Level Set 0 Source",
-                                300, 600, 300, 300);
-         common::VisualizeField(vis5, "localhost", 19916, ls_source_grad,
-                                "Level Set Gradient",
-                                600, 600, 300, 300);
+         if (surf_bg_mesh)
+         {
+            common::VisualizeField(vis4, "localhost", 19916, *ls_bg_0,
+                                   "Level Set 0 Source",
+                                   300, 600, 300, 300);
+            common::VisualizeField(vis5, "localhost", 19916, *ls_bg_grad,
+                                   "Level Set Gradient",
+                                   600, 600, 300, 300);
+         }
       }
    }
 
@@ -630,10 +713,14 @@ int main (int argc, char *argv[])
    //     metric; one should update those in the code.
    ParNonlinearForm a(pfespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-
    a.AddDomainIntegrator(he_nlf_integ);
-   ParNonlinearForm a_surf(pfespace);
-   a_surf.AddDomainIntegrator(surf_integ);
+
+   ParNonlinearForm *a_surf = NULL;
+   if (surf_approach == 2)
+   {
+      a_surf = new ParNonlinearForm(pfespace);
+      a_surf->AddDomainIntegrator(surf_integ);
+   }
 
    // Compute the minimum det(J) of the starting mesh.
    tauval = infinity();
@@ -676,16 +763,14 @@ int main (int argc, char *argv[])
    }
 
    // For HR tests, the energy is normalized by the number of elements.
-   const double init_energy = a.GetParGridFunctionEnergy(x) /
-                              (hradaptivity ? pmesh->GetGlobalNE() : 1);
+   const double init_energy = a.GetParGridFunctionEnergy(x);
    double init_metric_energy = init_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       coef_zeta.constant = 0.0;
       coef_ls.constant   = 0.0;
-      init_metric_energy = a.GetParGridFunctionEnergy(x) /
-                           (hradaptivity ? pmesh->GetGlobalNE() : 1);
+      init_metric_energy = a.GetParGridFunctionEnergy(x);
       lim_coeff.constant = lim_const;
       coef_zeta.constant = adapt_lim_const;
       coef_ls.constant   = surface_fit_const;
@@ -708,9 +793,16 @@ int main (int argc, char *argv[])
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
+      if (surf_approach == 1)
+      {
+         ess_bdr[2] = 0;
+      }
       a.SetEssentialBC(ess_bdr);
-      ess_bdr[2] = 0.0;
-      a_surf.SetEssentialBC(ess_bdr);
+      if (surf_approach == 2)
+      {
+         ess_bdr[2] = 0.0;
+         a_surf->SetEssentialBC(ess_bdr);
+      }
    }
    else
    {
@@ -822,54 +914,65 @@ int main (int argc, char *argv[])
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    solver.SetOperator(a);
 
-   TMOPNewtonSolver solver_surf(pfespace->GetComm(), ir, solver_type);
-   solver_surf.SetIntegrationRules(*irules, quad_order);
-   if (solver_type == 0)
+   TMOPNewtonSolver *solver_surf = NULL;
+   if (surf_approach == 2)
    {
-      solver_surf.SetPreconditioner(*S);
-   }
-   // For untangling, the solver will update the min det(T) values.
-   if (tauval < 0.0) { solver_surf.SetMinDetPtr(&tauval); }
-   solver_surf.SetMaxIter(surf_solver_iter);
-   solver_surf.SetRelTol(solver_rtol);
-   solver_surf.SetAbsTol(0.0);
-   if (solver_art_type > 0)
-   {
-      solver_surf.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
-   }
-   solver_surf.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-   solver_surf.SetOperator(a_surf);
-
-   for (int j = 0; j < outer_iter; j++)
-   {
-      if (myid == 0)
+      solver_surf = new TMOPNewtonSolver(pfespace->GetComm(), ir, solver_type);
+      solver_surf->SetIntegrationRules(*irules, quad_order);
+      if (solver_type == 0)
       {
-         std::cout << "Outer iteration: " << j << std::endl;
+         solver_surf->SetPreconditioner(*S);
       }
+      // For untangling, the solver will update the min det(T) values.
+      if (tauval < 0.0) { solver_surf->SetMinDetPtr(&tauval); }
+      solver_surf->SetMaxIter(surf_solver_iter);
+      solver_surf->SetRelTol(solver_rtol);
+      solver_surf->SetAbsTol(0.0);
+      if (solver_art_type > 0)
+      {
+         solver_surf->SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+      }
+      solver_surf->SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+      solver_surf->SetOperator(*a_surf);
+   }
+
+   if (surf_approach == 1)
+   {
       solver.Mult(b, x.GetTrueVector());
       x.SetFromTrueVector();
-      solver_surf.Mult(b, x.GetTrueVector());
-      x.SetFromTrueVector();
-      if ( j == 0)
+   }
+   else
+   {
+      for (int j = 0; j < outer_iter; j++)
       {
-         solver.SetAbsTol(solver.GetNormGoal());
-         solver_surf.SetAbsTol(solver_surf.GetNormGoal());
+         if (myid == 0)
+         {
+            cout << "Outer iteration: " << j << std::endl;
+         }
+         solver.Mult(b, x.GetTrueVector());
+         x.SetFromTrueVector();
+         solver_surf->Mult(b, x.GetTrueVector());
+         x.SetFromTrueVector();
+         if ( j == 0)
+         {
+            solver.SetAbsTol(solver.GetNormGoal());
+            solver_surf->SetAbsTol(solver_surf->GetNormGoal());
+         }
+      }
+      solver.SetMaxIter(1*solver_iter);
+      solver.Mult(b, x.GetTrueVector());
+      x.SetFromTrueVector();
+
+      GridFunction *sigma_int = surf_integ->GetSigma();
+      ls_0 = *sigma_int;
+      if (visualization)
+      {
+         socketstream vis1;
+         common::VisualizeField(vis1, "localhost", 19916, ls_0,
+                                "Level Set interpolated on mesh",
+                                300, 600, 300, 300);
       }
    }
-   solver.SetMaxIter(1*solver_iter);
-   solver.Mult(b, x.GetTrueVector());
-   x.SetFromTrueVector();
-
-   GridFunction *sigma_int = surf_integ->GetSigma();
-   ls_0 = *sigma_int;
-   if (visualization)
-   {
-      socketstream vis1;
-      common::VisualizeField(vis1, "localhost", 19916, ls_0,
-                             "Level Set interpolated on mesh",
-                             300, 600, 300, 300);
-   }
-
 
    // 16. Save the  optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
@@ -882,23 +985,21 @@ int main (int argc, char *argv[])
    }
 
    // Compute the final energy of the functional.
-   const double fin_energy = a.GetParGridFunctionEnergy(x) /
-                             (hradaptivity ? pmesh->GetGlobalNE() : 1);
+   const double fin_energy = a.GetParGridFunctionEnergy(x);
    double fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       coef_zeta.constant = 0.0;
       coef_ls.constant   = 0.0;
-      fin_metric_energy  = a.GetParGridFunctionEnergy(x) /
-                           (hradaptivity ? pmesh->GetGlobalNE() : 1);
+      fin_metric_energy  = a.GetParGridFunctionEnergy(x);
       lim_coeff.constant = lim_const;
       coef_zeta.constant = adapt_lim_const;
       coef_ls.constant   = surface_fit_const;
    }
    if (myid == 0)
    {
-      std::cout << std::scientific << std::setprecision(4);
+      cout << std::scientific << std::setprecision(4);
       cout << "Initial strain energy: " << init_energy
            << " = metrics: " << init_metric_energy
            << " + extra terms: " << init_energy - init_metric_energy << endl;
@@ -909,14 +1010,35 @@ int main (int argc, char *argv[])
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
 
-   FunctionCoefficient ls_coeff(surface_level_set);
-   ls_0.ProjectCoefficient(ls_coeff);
-
+   // Visualize the final mesh and metric values.
    if (visualization)
    {
-      socketstream vis1, vis2, vis3, vis4;
-      common::VisualizeField(vis1, "localhost", 19916, ls_0, "Level Set 0 final mesh",
-                             300, 600, 300, 300);
+      char title[] = "Final metric values";
+      vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 600);
+   }
+
+   if (surface_fit_const > 0.0)
+   {
+
+      double err_avg, err_max;
+      he_nlf_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      if (myid == 0)
+      {
+         cout << "Avg fitting error: " << err_avg << std::endl
+              << "Max fitting error: " << err_max << std::endl;
+      }
+
+      ls_0.ProjectCoefficient(*ls_coeff);
+      if (visualization)
+      {
+         socketstream vis1, vis2, vis3;
+         common::VisualizeField(vis1, "localhost", 19916, ls_0, "Level Set 0 final mesh",
+                                300, 600, 300, 300);
+         common::VisualizeField(vis2, "localhost", 19916, mat,
+                                "Materials", 600, 900, 300, 300);
+         common::VisualizeField(vis3, "localhost", 19916, marker_gf,
+                                "Surface dof", 900, 900, 300, 300);
+      }
    }
 
    // 19. Visualize the mesh displacement.
@@ -941,12 +1063,26 @@ int main (int argc, char *argv[])
    }
 
    // 20. Free the used memory.
+   delete solver_surf;
    delete S;
    delete S_prec;
+   delete a_surf;
    delete adapt_surface;
+   delete ls_coeff;
+   delete sigma_hess;
+   delete sigma_hess_fes;
+   delete ls_bg_hess;
+   delete ls_bg_hess_fes;
+   delete sigma_grad;
+   delete sigma_grad_fes;
+   delete ls_bg_grad;
+   delete ls_bg_grad_fes;
+   delete ls_bg_0;
+   delete sigma_bg_fes;
+   delete sigma_bg_fec;
    delete target_c;
-   delete hr_adapt_coeff;
    delete adapt_coeff;
+   delete surf_metric;
    delete metric;
    delete pfespace;
    delete fec;

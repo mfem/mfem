@@ -377,70 +377,101 @@ double adapt_lim_fun(const Vector &x)
 }
 
 // Used for exact surface alignment
-double surface_level_set(const Vector &x)
+double circle_level_set(const Vector &x)
 {
-   //1 is circle
-   //2 is squircle with power
-   double power = 4.0;
-   const int type = 2;
-
    const int dim = x.Size();
-   if (type == 0)
+   if (dim == 2)
    {
-      const double sine = 0.25 * std::sin(4 * M_PI * x(0));
-      return (x(1) >= sine + 0.5) ? 1.0 : -1.0;
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc);
+      return r-0.2; // circle of radius 0.1
    }
-   else if (type == 1)
+   else
    {
-      if (dim == 2)
-      {
-         const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc);
-         return r-0.1; // circle of radius 0.1
-      }
-      else
-      {
-         const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc + zc*zc);
-         return std::tanh(2.0*(r-0.3));
-      }
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc + zc*zc);
+      return std::tanh(2.0*(r-0.3));
    }
-   else if (type == 2) //squircle
-   {
-      if (dim == 2)
-      {
-         const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc);
-         const double r2 = pow(xc/1.0, power) + pow(yc/1.0, power);
-         return r2 - pow(0.1, power);
+}
 
-         return r-0.1; // circle of radius 0.1
-      }
-      else
-      {
-         MFEM_ABORT(" type 2 in 2D only right now")
-      }
-   }
-   else if (type == 3) //butterfly
+double squircle_level_set(const Vector &x)
+{
+   double power = 4.0;
+   const int dim = x.Size();
+   if (dim == 2)
    {
-      if (dim == 2)
-      {
-         const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc);
-         double theta = atan2(yc, xc);
-         if (theta < 0) { theta += 2.0*M_PI; }
-
-         //std::cout << xc << " " << yc << " " << theta << endl;
-         return r - (1./80.)*(12.0 - sin(theta) -2.0*cos(4.0*theta));
-         return (1./20.)*(12 - sin(theta) + 2*sin(3*theta) -sin(7*theta)
-                          +3*cos(2*theta)-2*cos(4*theta));
-      }
-      else
-      {
-         MFEM_ABORT(" type 2 in 2D only right now")
-      }
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc);
+      const double r2 = pow(xc/1.0, power) + pow(yc/1.0, power);
+      return r2 - pow(0.1, power);
    }
-   return 0.0;
+   else
+   {
+      MFEM_ABORT("Squircle level set implemented for only 2D right now.");
+      return 0.0;
+   }
+}
+
+double butterfly_level_set(const Vector &x)
+{
+   const int dim = x.Size();
+   if (dim == 2)
+   {
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc);
+      double theta = atan2(yc, xc);
+      if (theta < 0) { theta += 2.0*M_PI; }
+
+      return r - (1./80.)*(12.0 - sin(theta) -2.0*cos(4.0*theta));
+   }
+   else
+   {
+      MFEM_ABORT("Butterfy level set implemented for only 2D right now.");
+      return 0.0;
+   }
+}
+
+double in_circle(const Vector &x, const Vector &x_center, double radius)
+{
+   Vector x_current = x;
+   x_current -= x_center;
+   double dist = x_current.Norml2();
+   return dist <= radius ? 1.0 : 0.0;
+}
+
+double geometric_primitive(const Vector &x)
+{
+   const double xc = x(0), yc = x(1);
+   // Rectangle
+   if (0.4 <= xc && xc <= 0.6 && 0.3 <= yc && yc <= 0.6) { return 1.0; }
+   // Circle
+   Vector x_circle(x.Size());
+   x_circle(0) = 0.5;
+   x_circle(1) = 0.6;
+   double circle_radius = 0.15;
+   if (in_circle(x, x_circle, circle_radius))
+   {
+      return 1.0;
+   }
+   return -1.0;
+}
+
+double geometric_primitive2(const Vector &x)
+{
+   double power = 2.0;
+   double xc = x(0) - 0.5, yc = x(1) - 0.5;
+   double r = sqrt(xc*xc + yc*yc);
+   double r2 = pow(xc/1.0, power) + pow(yc/1.0, power);
+   double dist1 = r2 - pow(0.2, power);
+
+   power = 2.0;
+   xc = x(0) - 0.5;
+   yc = x(1) - 0.6;
+   r = sqrt(xc*xc + yc*yc);
+   r2 = pow(xc/1.0, power) + pow(yc/1.0, power);
+   double dist2 = r2 - pow(0.2, power);
+
+   return std::min(dist1, dist2);
 }
 
 int material_id(int el_id, const GridFunction &g)

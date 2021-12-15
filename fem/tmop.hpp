@@ -1358,7 +1358,7 @@ protected:
    AdaptivityEvaluator *adapt_eval;  // Not owned.
 
    // Surface fitting.
-   GridFunction *sigma, *sigma_bar;  // Owned. Updated by sigma_eval.
+   GridFunction *sigma;              // Owned. Updated by sigma_eval.
    const Array<bool> *sigma_marker;  // Not owned.
    Coefficient *coeff_sigma;         // Not owned.
    AdaptivityEvaluator *sigma_eval;  // Not owned.
@@ -1555,7 +1555,7 @@ public:
         nodes0(NULL), coeff0(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
-        sigma(NULL), sigma_bar(NULL), sigma_marker(NULL), coeff_sigma(NULL),
+        sigma(NULL), sigma_marker(NULL), coeff_sigma(NULL),
         sigma_eval(NULL), sigma_normal(1.0),
         sigma_bg(false), sigma_grad(NULL), sigma_eval_bg_grad(NULL),
         sigma_hess(NULL), sigma_eval_bg_hess(NULL),
