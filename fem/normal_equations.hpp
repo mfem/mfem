@@ -85,6 +85,7 @@ protected:
    // for computing the residual
    Array<DenseMatrix * > GB;
    Array<Vector * > Gl;
+   Vector residuals;
 
 
 private:
@@ -217,7 +218,7 @@ public:
       store_matrices = store_matrices_;
    }
 
-   void ComputeResidual(const BlockVector & x);
+   Vector & ComputeResidual(const BlockVector & x);
 
 
    /// Destroys bilinear form.

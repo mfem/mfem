@@ -629,74 +629,88 @@ void NormalEquations::Update()
    }
 }
 
-void NormalEquations::ComputeResidual(const BlockVector & x)
+Vector & NormalEquations::ComputeResidual(const BlockVector & x)
 {
-   // int dim = mesh->Dimension();
-   // Array<int> faces, ori;
-   // for (int iel = 0; iel<mesh->GetNE(); iel++)
-   // {
-   //    Array<int> trial_offs(trial_fes.Size()+1); trial_offs = 0;
-   //    for (int j = 0; j < trial_fes.Size(); j++)
-   //    {
-   //       if (IsTraceFes[j])
-   //       {
-   //          for (int ie = 0; ie<faces.Size(); ie++)
-   //          {
-   //             trial_offs[j+1] += trial_fes[j]->GetFaceElement(faces[ie])->GetDof();
-   //          }
-   //       }
-   //       else
-   //       {
-   //          trial_offs[j+1] = trial_fes[j]->GetVDim() * trial_fes[j]->GetFE(
-   //                            iel)->GetDof();
-   //       }
-   //    }
-   //    trial_offs.PartialSum();
+   // Element vector of trial space size
+   Vector u;
+   Array<int> vdofs;
+   Array<int> faces, ori;
+   int dim = mesh->Dimension();
+   residuals.SetSize(mesh->GetNE());
+   // loop through elements
+   for (int iel = 0; iel < mesh -> GetNE(); iel++)
+   {
+      if (dim == 1)
+      {
+         mesh->GetElementVertices(iel, faces);
+      }
+      if (dim == 2)
+      {
+         mesh->GetElementEdges(iel, faces, ori);
+      }
+      else //dim = 3
+      {
+         mesh->GetElementFaces(iel,faces,ori);
+      }
+      int numfaces = faces.Size();
 
-   //    Vector u(GB[iel]->Width());
-   //    double *data = u.GetData();
-   //    if (dim == 1)
-   //    {
-   //       mesh->GetElementVertices(iel, faces);
-   //    }
-   //    if (dim == 2)
-   //    {
-   //       mesh->GetElementEdges(iel, faces, ori);
-   //    }
-   //    else //dim = 3
-   //    {
-   //       mesh->GetElementFaces(iel,faces,ori);
-   //    }
-   //    int numfaces = faces.Size();
+      Array<int> trial_offs(trial_fes.Size()+1); trial_offs = 0;
 
-   //    for (int i = 0; i<trial_fes.Size(); i++)
-   //    {
-   //       Array<int> vdofs;
-   //       DofTransformation * doftrans = nullptr;
-   //       if (IsTraceFes[i])
-   //       {
-   //          Array<int> face_vdofs;
-   //          for (int k = 0; k < numfaces; k++)
-   //          {
-   //             int iface = faces[k];
-   //             trial_fes[i]->GetFaceVDofs(iface, face_vdofs);
-   //             vdofs.Append(face_vdofs);
-   //          }
-   //       }
-   //       else
-   //       {
-   //          doftrans = trial_fes[i]->GetElementVDofs(iel, vdofs);
-   //       }
-   //       Vector vec1;
-   //       vec1.SetDataAndSize(&data[trial_offs[i]],
-   //                trial_offs[i+1]-trial_offs[i]);
-   //       if (doftrans)
-   //       {
-   //          doftrans->InvTransformDual(vec1);
-   //       }
-   //    }
-   // }
+      for (int j = 0; j < trial_fes.Size(); j++)
+      {
+         if (IsTraceFes[j])
+         {
+            for (int ie = 0; ie<faces.Size(); ie++)
+            {
+               trial_offs[j+1] += trial_fes[j]->GetFaceElement(faces[ie])->GetDof();
+            }
+         }
+         else
+         {
+            trial_offs[j+1] = trial_fes[j]->GetVDim() * trial_fes[j]->GetFE(
+                                 iel)->GetDof();
+         }
+      }
+      trial_offs.PartialSum();
 
+      u.SetSize(trial_offs.Last());
+      double * data = u.GetData();
+      DofTransformation * doftrans = nullptr;
+      for (int i = 0; i<trial_fes.Size(); i++)
+      {
+         vdofs.SetSize(0);
+         doftrans = nullptr;
+         if (IsTraceFes[i])
+         {
+            Array<int> face_vdofs;
+            for (int k = 0; k < numfaces; k++)
+            {
+               int iface = faces[k];
+               trial_fes[i]->GetFaceVDofs(iface, face_vdofs);
+               vdofs.Append(face_vdofs);
+            }
+         }
+         else
+         {
+            doftrans = trial_fes[i]->GetElementVDofs(iel, vdofs);
+         }
+         Vector vec1;
+         vec1.SetDataAndSize(&data[trial_offs[i]],
+                             trial_offs[i+1]-trial_offs[i]);
+         x.GetBlock(i).GetSubVector(vdofs,vec1);
+         if (doftrans)
+         {
+            doftrans->InvTransformPrimal(vec1);
+         }
+      } // end of loop through trial spaces
+
+      // residual
+      Vector v(GB[iel]->Height());
+      GB[iel]->Mult(u,v);
+      v -= *Gl[iel];
+      residuals[iel] = v.Norml2();
+   } // end of loop through elements
+   return residuals;
 }
 
 
