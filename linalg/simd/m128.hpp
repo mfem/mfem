@@ -38,6 +38,10 @@ template <> struct AutoSIMD<double,2,16>
       double vec[size];
    };
 
+   AutoSIMD() = default;
+
+   AutoSIMD(const AutoSIMD &) = default;
+
    inline MFEM_ALWAYS_INLINE double &operator[](int i)
    {
       return vec[i];
