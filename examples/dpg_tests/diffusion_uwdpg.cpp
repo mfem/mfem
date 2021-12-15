@@ -199,6 +199,17 @@ int main(int argc, char *argv[])
    Array<int> elements_to_refine;
    GridFunction hatu_gf;
 
+
+   socketstream u_out;
+   socketstream sigma_out;
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      u_out.open(vishost, visport);
+      sigma_out.open(vishost, visport);
+   }
+
    for (int i = 0; i<ref; i++)
    {
       if (i == 0) 
@@ -296,17 +307,13 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream solu_sock(vishost, visport);
-         solu_sock.precision(8);
-         solu_sock << "solution\n" << mesh << u_gf <<
+         u_out.precision(8);
+         u_out << "solution\n" << mesh << u_gf <<
                   "window_title 'Numerical u' "
                   << flush;
 
-         socketstream sols_sock(vishost, visport);
-         sols_sock.precision(8);
-         sols_sock << "solution\n" << mesh << sigma_gf <<
+         sigma_out.precision(8);
+         sigma_out << "solution\n" << mesh << sigma_gf <<
                "window_title 'Numerical flux' "
                << flush;
       }
