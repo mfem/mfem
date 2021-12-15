@@ -818,7 +818,7 @@ int main (int argc, char *argv[])
       MFEM_VERIFY(pa == false,
                   "Surface fitting with PA is not implemented yet.");
 
-      FunctionCoefficient ls_coeff(surface_level_set);
+      FunctionCoefficient ls_coeff(circle_level_set);
       ls_0.ProjectCoefficient(ls_coeff);
 
       for (int i = 0; i < pmesh->GetNE(); i++)
@@ -1156,7 +1156,7 @@ int main (int argc, char *argv[])
    }
    if (myid == 0)
    {
-      std::cout << std::scientific << std::setprecision(4);
+      cout << std::scientific << std::setprecision(4);
       cout << "Initial strain energy: " << init_energy
            << " = metrics: " << init_metric_energy
            << " + extra terms: " << init_energy - init_metric_energy << endl;
@@ -1195,7 +1195,7 @@ int main (int argc, char *argv[])
       he_nlf_integ->GetSurfaceFittingErrors(err_avg, err_max);
       if (myid == 0)
       {
-         std::cout << "Avg fitting error: " << err_avg << std::endl
+         cout << "Avg fitting error: " << err_avg << std::endl
                    << "Max fitting error: " << err_max << std::endl;
       }
    }
