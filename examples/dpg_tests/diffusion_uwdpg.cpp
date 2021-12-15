@@ -1,4 +1,4 @@
-//                                MFEM Example 1
+//                                MFEM Ultraweak DPG example
 //
 // Compile with: make diffusion_uwdpg
 //
