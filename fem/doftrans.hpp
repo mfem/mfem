@@ -243,6 +243,7 @@ public:
    void TransformDual(double *v) const;
 
    void InvTransformDual(double *v) const;
+   using DofTransformation::InvTransformDual;
 };
 
 /// DoF transformation implementation for the Nedelec basis on tetrahedra
