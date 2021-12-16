@@ -25,15 +25,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 static MPI_Session *mpi = nullptr;
 static int config_dev_size = 4; // default 4 GPU per node
-
 static bool config_d1d_eq_q1d = false;
-static int config_max_number_of_dofs_per_ranks = 2*1024*1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct TMOP
 {
    const int mpi_world_size, p, q, n, nx, ny, nz, dim = 3;
    const bool check_x, check_y, check_z, checked;
+   const bool device_is_enabled;
    Mesh smesh;
    int nxyz[3];
    bool set_nxyz;
@@ -64,6 +63,7 @@ struct TMOP
       check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
       check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
       checked((assert(check_x && check_y && check_z), true)),
+      device_is_enabled(Device::IsEnabled()),
       smesh(Mesh::MakeCartesian3D(mpi_world_size*nx,ny,nz,Element::HEXAHEDRON)),
       set_nxyz((nxyz[0]=mpi_world_size, nxyz[1]=1, nxyz[2]=1, true)),
       partitioning(smesh.CartesianPartitioning(nxyz)),
@@ -102,28 +102,28 @@ struct TMOP
    void AddMultPA()
    {
       nlfi.AddMultPA(xe,ye);
-      if (Device::IsEnabled()) { MFEM_DEVICE_SYNC; }
+      if (device_is_enabled) { MFEM_DEVICE_SYNC; }
       mdof += 1e-6 * dofs;
    }
 
    void AddMultGradPA()
    {
       nlfi.AddMultGradPA(xe,ye);
-      if (Device::IsEnabled()) { MFEM_DEVICE_SYNC; }
+      if (device_is_enabled) { MFEM_DEVICE_SYNC; }
       mdof += 1e-6 * dofs;
    }
 
    void GetLocalStateEnergyPA()
    {
       nlfi.GetLocalStateEnergyPA(xe);
-      if (Device::IsEnabled()) { MFEM_DEVICE_SYNC; }
+      if (device_is_enabled) { MFEM_DEVICE_SYNC; }
       mdof += 1e-6 * dofs;
    }
 
    void AssembleGradDiagonalPA()
    {
       nlfi.AssembleGradDiagonalPA(de);
-      if (Device::IsEnabled()) { MFEM_DEVICE_SYNC; }
+      if (device_is_enabled) { MFEM_DEVICE_SYNC; }
       mdof += 1e-6 * dofs;
    }
 
@@ -142,24 +142,25 @@ static void Bench(bm::State &state){\
    const int p = state.range(0);\
    const int c = state.range(1);\
    TMOP ker(p, c, config_d1d_eq_q1d);\
+   if (mpi->WorldSize() > (c*c*c)/(p*p*p)) { state.SkipWithError("MIN_NDOFS"); }\
    if (ker.dofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
    while (state.KeepRunning()) { ker.Bench(); }\
-   const bm::Counter::Flags isRate = bm::Counter::kIsRate;\
-   state.counters["MDofs"] = bm::Counter(ker.Mdof(), isRate);\
-   state.counters["Dofs"] = bm::Counter(ker.dofs);\
-   state.counters["P"] = bm::Counter(p);\
-   state.counters["Ranks"] = bm::Counter(mpi->WorldSize());\
+   const bm::Counter::Flags isRate = bm::Counter::kIsRate; \
+   state.counters["MDofs"] = bm::Counter(ker.Mdof(), isRate); \
+   state.counters["Dofs"] = bm::Counter(ker.dofs); \
+   state.counters["P"] = bm::Counter(p); \
+   state.counters["Ranks"] = bm::Counter(mpi->WorldSize()); \
 }\
-BENCHMARK(Bench) \
-    -> ArgsProduct({P_ORDERS,P_SIDES})\
-    -> Unit(bm::kMillisecond)\
-    -> Iterations(200);
+BENCHMARK(Bench)\
+-> ArgsProduct( {P_ORDERS,P_SIDES})\
+-> Unit(bm::kMillisecond)\
+-> Iterations(100);
 
 /// creating/registering
-BENCHMARK_TMOP(AddMultPA)
+//BENCHMARK_TMOP(AddMultPA)
 BENCHMARK_TMOP(AddMultGradPA)
-BENCHMARK_TMOP(GetLocalStateEnergyPA)
-BENCHMARK_TMOP(AssembleGradDiagonalPA)
+//BENCHMARK_TMOP(GetLocalStateEnergyPA)
+//BENCHMARK_TMOP(AssembleGradDiagonalPA)
 
 /**
  * @brief main entry point
@@ -183,7 +184,6 @@ int main(int argc, char *argv[])
    {
       bmi::FindInContext("dev", config_device); // dev=cuda
       bmi::FindInContext("ndev", config_dev_size); // ndev=4
-      bmi::FindInContext("nmax", config_max_number_of_dofs_per_ranks);
       bmi::FindInContext("peqq", config_d1d_eq_q1d);
    }
 
