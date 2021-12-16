@@ -1711,15 +1711,17 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
                   const int *hmap,
                   Vector& y,
                   const Array<double>& B,
-                  const Vector& mask);
+                  const Vector& mask) = nullptr;
 
       const int id = (D1D << 4) | Q1D;
       switch (id) // orders 1~8
       {
          case 0x23: Ker=TransferKernels::FastProlongation3D<2,3>; break; // 1
          case 0x34: Ker=TransferKernels::FastProlongation3D<3,4>; break; // 2
+         case 0x35: Ker=TransferKernels::FastProlongation3D<3,5>; break;
          case 0x45: Ker=TransferKernels::FastProlongation3D<4,5>; break; // 3
          case 0x56: Ker=TransferKernels::FastProlongation3D<5,6>; break; // 4
+         case 0x57: Ker=TransferKernels::FastProlongation3D<5,7>; break;
          case 0x67: Ker=TransferKernels::FastProlongation3D<6,7>; break; // 5
          case 0x78: Ker=TransferKernels::FastProlongation3D<7,8>; break; // 6
          default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
@@ -1788,8 +1790,10 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
       {
          case 0x23: Ker=TransferKernels::FastRestriction3D<2,3>; break; // 1
          case 0x34: Ker=TransferKernels::FastRestriction3D<3,4>; break; // 2
+         case 0x35: Ker=TransferKernels::FastRestriction3D<3,5>; break;
          case 0x45: Ker=TransferKernels::FastRestriction3D<4,5>; break; // 3
          case 0x56: Ker=TransferKernels::FastRestriction3D<5,6>; break; // 4
+         case 0x57: Ker=TransferKernels::FastRestriction3D<5,7>; break;
          case 0x67: Ker=TransferKernels::FastRestriction3D<6,7>; break; // 5
          case 0x78: Ker=TransferKernels::FastRestriction3D<7,8>; break; // 6
          default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);

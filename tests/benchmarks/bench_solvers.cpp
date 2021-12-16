@@ -98,7 +98,7 @@ struct SolverConfig
    };
    SolverType type = JACOBI;
    const char *amgx_config_file = "amgx/amgx.json";
-   bool inner_cg = false; //<-- use inner CG iteration for coarse solver
+   bool inner_cg = false;
    SolverConfig() = default;
    SolverConfig(SolverType type) : type(type) { }
 };
@@ -771,10 +771,15 @@ namespace ceed
 ////////////////////////////////////////////////////////////////////////////////
 struct BakeOff
 {
-   static constexpr int dim = 3, N = 6;
+   static constexpr int dim = 3;
    const bool mg_solver;
    const int num_procs, myid;
-   const int preconditioner, refinements, smoothness, p, q;
+   const int p, c, q;
+   const int n, nx,ny,nz;
+   const bool check_x, check_y, check_z, checked;
+   const int refinements;
+   const int smoothness;
+   const int preconditioner;
    precond::SolverConfig solver_config;
    const double epsy, epsz;
    const bool rhs_1;
@@ -785,43 +790,26 @@ struct BakeOff
 
    std::function<ParMesh()> GetCoarseKershawMesh = [&]()
    {
-      Mesh serial_mesh;
-      const bool sfc_ordering = true;
-      const bool generate_edges = false;
-
-      if (dim == 3)
-      {
-         serial_mesh = Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON,
-                                             1.0,1.0,1.0,sfc_ordering);
-      }
-      if (dim == 2)
-      {
-         serial_mesh = Mesh::MakeCartesian2D(N,N,Element::QUADRILATERAL,
-                                             generate_edges,1.0,1.0,
-                                             sfc_ordering);
-      }
+      Mesh smesh =
+         Mesh::MakeCartesian3D(num_procs*nx, ny, nz, Element::HEXAHEDRON);
 
       // Set the curvature of the initial mesh
-      if (smoothness > 0) { serial_mesh.SetCurvature(2*smoothness+1); }
+      if (smoothness > 0) { smesh.SetCurvature(2*smoothness+1); }
 
       // Kershaw transformation
       kershaw::Transformation kt(dim, epsy, epsz, smoothness);
-      serial_mesh.Transform(kt);
+      smesh.Transform(kt);
 
-      ParMesh coarse_pmesh(MPI_COMM_WORLD, serial_mesh);
-      serial_mesh.Clear();
+      int nxyz[3] = {num_procs,1,1};
+      int *partitioning = smesh.CartesianPartitioning(nxyz);
+      ParMesh pmesh(MPI_COMM_WORLD, smesh, partitioning);
+      smesh.Clear();
+      delete partitioning;
 
       // perform refinements if requested
-      for (int i=0; i<refinements; i++) { coarse_pmesh.UniformRefinement(); }
+      for (int i=0; i<refinements; i++) { pmesh.UniformRefinement(); }
 
-      const bool ordering_t = false;
-      if (ordering_t)
-      {
-         Array<int> elem_ordering;
-         coarse_pmesh.GetHilbertElementOrdering(elem_ordering);
-         coarse_pmesh.ReorderElements(elem_ordering);
-      }
-      return coarse_pmesh;
+      return pmesh;
    };
 
    ParMesh pmesh;
@@ -882,18 +870,30 @@ struct BakeOff
 
    int niter = 0;
 
-   BakeOff(int preconditioner, int refinements, int smoothness,
+   BakeOff(int preconditioner,
+           int side,
+           int refinements,
+           int smoothness,
            double epsy, double epsz,
            bool rhs_1, int rhs_n,
            int p, int vdim, bool GLL):
       mg_solver(preconditioner >= FinePrecondType::MGJacobi),
       num_procs(mpi->WorldSize()),
       myid(mpi->WorldRank()),
-      preconditioner(preconditioner),
+      p(p),
+      c(side),
+      q(2*p + (GLL?-1:3)),
+      n((assert(c>=p), c/p)),
+      nx(n + (p*(n+1)*p*n*p*n < c*c*c ?1:0)),
+      ny(n + (p*(n+1)*p*(n+1)*p*n < c*c*c ?1:0)),
+      nz(n),
+      check_x(p*nx * p*ny * p*nz <= c*c*c),
+      check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
+      check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
+      checked((assert(check_x && check_y && check_z), true)),
       refinements(refinements),
       smoothness(smoothness),
-      p(p),
-      q(2*p + (GLL?-1:3)),
+      preconditioner(preconditioner),
       epsy(epsy),
       epsz(epsz),
       rhs_1(rhs_1),
@@ -945,8 +945,8 @@ struct BakeOff
 template<typename BFI, int VDIM = 1, bool GLL = false>
 struct SolverProblem: public BakeOff
 {
-   const int max_it = config_max_nif;
    const double rtol = 1e-8;
+   const int max_it = config_max_nif;
    const int print_lvl = config_debug ? 3 : -1;
 
    Array<int> ess_tdof_list;
@@ -958,12 +958,13 @@ struct SolverProblem: public BakeOff
    std::unique_ptr<Solver> M;
 
    SolverProblem(int preconditioner,
+                 int side,
                  int refinements,
                  int smoothness,
                  double epsy, double epsz,
                  bool rhs_1, int rhs_n,
                  int order):
-      BakeOff(preconditioner, refinements, smoothness,
+      BakeOff(preconditioner, side, refinements, smoothness,
               epsy, epsz,
               rhs_1, rhs_n,
               order,
@@ -1141,41 +1142,47 @@ struct SolverProblem: public BakeOff
 
 } // namespace ceed
 
-// The different orders the tests can run
-#define P_ORDERS bm::CreateDenseRange(1,6,1)
-
 // The different epsilons dividers
 #define P_EPSILONS {1,2,3}
 
-// The different refinements
-#define P_REFINEMENTS bm::CreateDenseRange(0,4,1)
+// The different orders the tests can run
+#define P_ORDERS bm::CreateDenseRange(1,6,1)
+
+// The different side sizes
+#define P_SIDES bm::CreateDenseRange(6,100,2)
+
+// Maximum number of dofs
+#define MAX_NDOFS 8*1024*1024
 
 /// Bake-off Solvers (BPSs)
 /// Smoothness in 0, 1 or 2
 /// refinements set from state.range(2)
 /// epsy = epsz, set from state.range(1)
-#define BakeOff_Solver(i,Kernel,Prcd)\
-static void BPS##i##_##Prcd(bm::State &state){\
-   const int refinements = state.range(2);\
-   const int smoothness = 0;\
-   const double eps = std::floor(1.0/state.range(1)*10.0)/10.0;\
-   const bool rhs_1 = true;\
+#define BakeOff_Solver(i,Kernel,Precond)\
+static void BPS##i##_##Precond(bm::State &state){\
    const bool rhs_n = 3;\
-   const int order = state.range(0);\
-   const int preconditioner = Prcd;\
-   ceed::SolverProblem<Kernel##Integrator> ker\
-      (preconditioner, refinements, smoothness, eps,eps, rhs_1,rhs_n, order);\
-   while (state.KeepRunning()) { ker.benchmark(); }\
-   state.counters["Ndofs"] = bm::Counter(ker.dofs);\
-   state.counters["Epsilon"] = bm::Counter(ker.epsy);\
-   state.counters["Niters"] = bm::Counter(ker.niter);\
+   const bool rhs_1 = true;\
+   const int smoothness = 0;\
+   const int refinements = 0;\
+   const int side = state.range(2);\
+   const int order = state.range(1);\
+   const int epsilon = state.range(0);\
+   const double eps = std::floor((1.0/epsilon)*10.0)/10.0;\
+   ceed::SolverProblem<Kernel##Integrator> bps\
+      (Precond, side, refinements, smoothness, eps,eps, rhs_1,rhs_n, order);\
+   if (bps.dofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
+   while (state.KeepRunning()) { bps.benchmark(); }\
+   state.counters["Ndofs"] = bm::Counter(bps.dofs);\
+   state.counters["Epsilon"] = bm::Counter(bps.epsy);\
+   state.counters["Niters"] = bm::Counter(bps.niter);\
    state.counters["P"] = bm::Counter(order);\
    state.counters["Ranks"] = bm::Counter(mpi->WorldSize());\
-   state.counters["Tsetup"] = bm::Counter(ker.TSetup());\
-   state.counters["Tsolve"] = bm::Counter(ker.TSolve(), bm::Counter::kAvgIterations);}\
-BENCHMARK(BPS##i##_##Prcd)\
-    -> ArgsProduct({P_ORDERS,P_EPSILONS,P_REFINEMENTS})\
-    -> Unit(bm::kMillisecond);
+   state.counters["Tsetup"] = bm::Counter(bps.TSetup());\
+   state.counters["Tsolve"] = bm::Counter(bps.TSolve(), bm::Counter::kAvgIterations);}\
+BENCHMARK(BPS##i##_##Precond)\
+    -> ArgsProduct({P_EPSILONS,P_ORDERS,P_SIDES})\
+    -> Unit(bm::kMillisecond)\
+    -> Iterations(10);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Solver(3,Diffusion,None)
@@ -1199,7 +1206,6 @@ BakeOff_Solver(3,Diffusion,MGLEGACYWavelets)
  */
 int main(int argc, char *argv[])
 {
-   MFEM_NVTX;
 #ifdef MFEM_USE_MPI
    mfem::MPI_Session main_mpi(argc, argv);
    mpi = &main_mpi;
@@ -1249,7 +1255,13 @@ int main(int argc, char *argv[])
    bm::RunSpecifiedBenchmarks(&CR);
 #else
    if (mpi->Root()) { bm::RunSpecifiedBenchmarks(&CR); }
-   else { bm::RunSpecifiedBenchmarks(NoReporter()); }
+   else
+   {
+      // No display_reporter and file_reporter
+      bm::BenchmarkReporter *file_reporter = NoReporter();
+      bm::BenchmarkReporter *display_reporter = NoReporter();
+      bm::RunSpecifiedBenchmarks(display_reporter, file_reporter);
+   }
 #endif
 
 #ifdef MFEM_USE_CALIPER
