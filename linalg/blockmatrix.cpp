@@ -139,7 +139,7 @@ double& BlockMatrix::Elem (int i, int j)
    findGlobalRow(i, iblock, iloc);
    findGlobalCol(j, jblock, jloc);
 
-   if (IsZeroBlock(i, j))
+   if (IsZeroBlock(iblock, jblock))
    {
       mfem_error("BlockMatrix::Elem");
    }
@@ -149,18 +149,18 @@ double& BlockMatrix::Elem (int i, int j)
 
 const double& BlockMatrix::Elem (int i, int j) const
 {
+   static const double zero = 0.0;
    int iloc, iblock;
    int jloc, jblock;
 
    findGlobalRow(i, iblock, iloc);
    findGlobalCol(j, jblock, jloc);
 
-   if (IsZeroBlock(i, j))
+   if (IsZeroBlock(iblock, jblock))
    {
-      mfem_error("BlockMatrix::Elem");
+      return zero;
    }
-
-   return Aij(iblock, jblock)->Elem(iloc, jloc);
+   return static_cast<const SparseMatrix *>(Aij(iblock, jblock))->Elem(iloc, jloc);
 }
 
 int BlockMatrix::RowSize(const int i) const
@@ -571,6 +571,8 @@ void BlockMatrix::PrintMatlab(std::ostream & os) const
          os << i+1 << " " << row_ind[j]+1 << " " << row_data[j] << std::endl;
       }
    }
+   // Write a zero entry at (m,n) to make sure MATLAB doesn't shrink the matrix
+   os << row_offsets.Last() << " " << col_offsets.Last () << " 0.0\n";
 
    os.precision(old_prec);
    os.flags(old_fmt);

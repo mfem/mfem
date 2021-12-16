@@ -15,6 +15,13 @@
 namespace mfem
 {
 
+double NonlinearFormIntegrator::GetLocalStateEnergyPA(const Vector &x) const
+{
+   mfem_error ("NonlinearFormIntegrator::GetLocalStateEnergyPA(...)\n"
+               "   is not implemented for this class.");
+   return 0.0;
+}
+
 void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
    mfem_error ("NonlinearFormIntegrator::AssemblePA(...)\n"
@@ -28,9 +35,40 @@ void NonlinearFormIntegrator::AssemblePA(const FiniteElementSpace &,
                "   is not implemented for this class.");
 }
 
+void NonlinearFormIntegrator::AssembleGradPA(const Vector &x,
+                                             const FiniteElementSpace &fes)
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleGradPA(...)\n"
+               "   is not implemented for this class.");
+}
+
 void NonlinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
    mfem_error ("NonlinearFormIntegrator::AddMultPA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultGradPA(const Vector&, Vector&) const
+{
+   mfem_error ("NonlinearFormIntegrator::AddMultGradPA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AssembleGradDiagonalPA(Vector &diag) const
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleGradDiagonalPA(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AssembleMF(const FiniteElementSpace &fes)
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleMF(...)\n"
+               "   is not implemented for this class.");
+}
+
+void NonlinearFormIntegrator::AddMultMF(const Vector &, Vector &) const
+{
+   mfem_error ("NonlinearFormIntegrator::AddMultMF(...)\n"
                "   is not implemented for this class.");
 }
 
@@ -759,12 +797,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    double w;
    Vector vec1(dim), vec2(dim), vec3(nd);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == nullptr)
-   {
-      int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
-      ir = &IntRules.Get(el.GetGeomType(), order);
-   }
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)

@@ -35,10 +35,6 @@ Table::Table(const Table &table)
       I.CopyFrom(table.I, size+1);
       J.CopyFrom(table.J, nnz);
    }
-   else
-   {
-      I.Reset(); J.Reset();
-   }
 }
 
 Table& Table::operator=(const Table &rhs)
@@ -411,12 +407,12 @@ Table::~Table ()
    J.Delete();
 }
 
-void Transpose (const Table &A, Table &At, int _ncols_A)
+void Transpose (const Table &A, Table &At, int ncols_A_)
 {
    const int *i_A     = A.GetI();
    const int *j_A     = A.GetJ();
    const int  nrows_A = A.Size();
-   const int  ncols_A = (_ncols_A < 0) ? A.Width() : _ncols_A;
+   const int  ncols_A = (ncols_A_ < 0) ? A.Width() : ncols_A_;
    const int  nnz_A   = i_A[nrows_A];
 
    At.SetDims (ncols_A, nnz_A);
@@ -458,9 +454,9 @@ Table * Transpose(const Table &A)
    return At;
 }
 
-void Transpose(const Array<int> &A, Table &At, int _ncols_A)
+void Transpose(const Array<int> &A, Table &At, int ncols_A_)
 {
-   At.MakeI((_ncols_A < 0) ? (A.Max() + 1) : _ncols_A);
+   At.MakeI((ncols_A_ < 0) ? (A.Max() + 1) : ncols_A_);
    for (int i = 0; i < A.Size(); i++)
    {
       At.AddAColumnInRow(A[i]);

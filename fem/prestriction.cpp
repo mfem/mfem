@@ -33,6 +33,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    // If fespace == L2
    const ParFiniteElementSpace &pfes =
       static_cast<const ParFiniteElementSpace&>(this->fes);
+
+   // Ensure the face neighbor data is constructed
+   pfes.GetParMesh()->ExchangeFaceNbrData();
+
    const FiniteElement *fe = pfes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tfe != NULL &&
@@ -273,6 +277,7 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    const int vd = vdim;
    const bool t = byvdim;
    const int threshold = ndofs;
+   const int nsdofs = pfes.GetFaceNbrVSize();
 
    if (m==L2FaceValues::DoubleValued)
    {
@@ -280,7 +285,7 @@ void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_indices2 = scatter_indices2.Read();
       auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
       auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
-                                t?vd:ndofs, t?ndofs:vd);
+                                t?vd:nsdofs, t?nsdofs:vd);
       auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
       MFEM_FORALL(i, nfdofs,
       {

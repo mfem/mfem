@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -90,7 +90,7 @@ void test_sparse_matrix(const char* input, int order, const Coeff coeff_type,
    INFO(section);
    Mesh mesh(input, 1, 1);
    mesh.EnsureNodes();
-   mesh.UniformRefinement();
+   if (mesh.GetNE() < 16) { mesh.UniformRefinement(); }
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    int dim = mesh.Dimension();
 

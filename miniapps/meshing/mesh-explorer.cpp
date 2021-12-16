@@ -94,7 +94,8 @@ double f(const Vector &p)
    }
 }
 
-Mesh *read_par_mesh(int np, const char *mesh_prefix)
+Mesh *read_par_mesh(int np, const char *mesh_prefix, Array<int>& partitioning,
+                    Array<int>& bdr_partitioning)
 {
    Mesh *mesh;
    Array<Mesh *> mesh_array;
@@ -116,17 +117,14 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
          return NULL;
       }
       mesh_array[p] = new Mesh(meshin, 1, 0);
-      // set element and boundary attributes to be the processor number + 1
-      if (1)
+      // Assign corresponding processor number to element + boundary partitions
+      for (int i = 0; i < mesh_array[p]->GetNE(); i++)
       {
-         for (int i = 0; i < mesh_array[p]->GetNE(); i++)
-         {
-            mesh_array[p]->GetElement(i)->SetAttribute(p+1);
-         }
-         for (int i = 0; i < mesh_array[p]->GetNBE(); i++)
-         {
-            mesh_array[p]->GetBdrElement(i)->SetAttribute(p+1);
-         }
+         partitioning.Append(p);
+      }
+      for (int i = 0; i < mesh_array[p]->GetNBE(); i++)
+      {
+         bdr_partitioning.Append(p);
       }
    }
    mesh = new Mesh(mesh_array, np);
@@ -141,6 +139,7 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
 }
 
 // Given a 3D mesh, produce a 2D mesh consisting of its boundary elements.
+// We guarantee that the skin preserves the boundary index order.
 Mesh *skin_mesh(Mesh *mesh)
 {
    // Determine mapping from vertex to boundary vertex
@@ -206,7 +205,7 @@ Mesh *skin_mesh(Mesh *mesh)
             bmesh->AddQuad(bv, el->GetAttribute());
             break;
          default:
-            break; /// This should not happen
+            break; // This should not happen
       }
 
    }
@@ -249,6 +248,18 @@ Mesh *skin_mesh(Mesh *mesh)
    return bmesh;
 }
 
+void recover_bdr_partitioning(const Mesh* mesh, const Array<int>& partitioning,
+                              Array<int>& bdr_partitioning)
+{
+   bdr_partitioning.SetSize(mesh->GetNBE());
+   int info, e;
+   for (int be = 0; be < mesh->GetNBE(); be++)
+   {
+      mesh->GetBdrElementAdjacentElement(be, e, info);
+      bdr_partitioning[be] = partitioning[e];
+   }
+}
+
 int main (int argc, char *argv[])
 {
    int np = 0;
@@ -282,13 +293,24 @@ int main (int argc, char *argv[])
 
    Mesh *mesh;
    Mesh *bdr_mesh = NULL;
-   if (np <= 0)
+
+   // Helper to distinguish whether we use a parallel or serial mesh.
+   const bool use_par_mesh = np > 0;
+
+   // Helper for visualizing the partitioning.
+   Array<int> partitioning;
+   Array<int> bdr_partitioning;
+   if (!use_par_mesh)
    {
       mesh = new Mesh(mesh_file, 1, refine);
+      partitioning.SetSize(mesh->GetNE());
+      partitioning = 0;
+      bdr_partitioning.SetSize(mesh->GetNBE());
+      bdr_partitioning = 0;
    }
    else
    {
-      mesh = read_par_mesh(np, mesh_file);
+      mesh = read_par_mesh(np, mesh_file, partitioning, bdr_partitioning);
       if (mesh == NULL)
       {
          return 3;
@@ -345,9 +367,11 @@ int main (int argc, char *argv[])
            "s) Scale\n"
            "t) Transform\n"
            "j) Jitter\n"
-           "v) View\n"
+           "v) View mesh\n"
+           "P) View partitioning\n"
            "m) View materials\n"
            "b) View boundary\n"
+           "B) View boundary partitioning\n"
            "e) View elements\n"
            "h) View element sizes, h\n"
            "k) View element ratios, kappa\n"
@@ -404,9 +428,7 @@ int main (int argc, char *argv[])
                if (ref_factor <= 1 || ref_factor > 32) { break; }
                int ref_type = (sk == 'u') ? BasisType::ClosedUniform :
                               BasisType::GaussLobatto;
-               Mesh *rmesh = new Mesh(mesh, ref_factor, ref_type);
-               delete mesh;
-               mesh = rmesh;
+               *mesh = Mesh::MakeRefined(*mesh, ref_factor, ref_type);
                break;
             }
             case 'l':
@@ -708,10 +730,8 @@ int main (int argc, char *argv[])
 
       // These are most of the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
-          mk == 'k' || mk == 'J' || mk == 'p')
+          mk == 'k' || mk == 'J' || mk == 'p' || mk == 'B' || mk == 'P')
       {
-         Array<int> bdr_part;
-         Array<int> part(mesh->GetNE());
          FiniteElementSpace *bdr_attr_fespace = NULL;
          FiniteElementSpace *attr_fespace =
             new FiniteElementSpace(mesh, attr_fec);
@@ -722,11 +742,19 @@ int main (int argc, char *argv[])
          {
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               part[i] = (attr(i) = mesh->GetAttribute(i)) - 1;
+               attr(i) = mesh->GetAttribute(i);
             }
          }
 
-         if (mk == 'b')
+         if (mk == 'P')
+         {
+            for (int i = 0; i < mesh->GetNE(); i++)
+            {
+               attr(i) = partitioning[i] + 1;
+            }
+         }
+
+         if (mk == 'b' || mk == 'B')
          {
             if (dim == 3)
             {
@@ -734,15 +762,29 @@ int main (int argc, char *argv[])
                bdr_mesh = skin_mesh(mesh);
                bdr_attr_fespace =
                   new FiniteElementSpace(bdr_mesh, bdr_attr_fec);
-               bdr_part.SetSize(bdr_mesh->GetNE());
                bdr_attr.SetSpace(bdr_attr_fespace);
-               for (int i = 0; i < bdr_mesh->GetNE(); i++)
+               if (mk == 'b')
                {
-                  bdr_part[i] = (bdr_attr(i) = bdr_mesh->GetAttribute(i)) - 1;
+                  for (int i = 0; i < bdr_mesh->GetNE(); i++)
+                  {
+                     bdr_attr(i) = bdr_mesh->GetAttribute(i);
+                  }
+               }
+               else if (mk == 'B')
+               {
+                  for (int i = 0; i < bdr_mesh->GetNE(); i++)
+                  {
+                     bdr_attr(i) = bdr_partitioning[i] + 1;
+                  }
+               }
+               else
+               {
+                  MFEM_WARNING("Unimplemented case.");
                }
             }
             else
             {
+               MFEM_WARNING("Unsupported mesh dimension.");
                attr = 1.0;
             }
          }
@@ -768,8 +810,7 @@ int main (int argc, char *argv[])
             cout << "Number of colors: " << attr.Max() + 1 << endl;
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               // part[i] = i; // checkerboard element coloring
-               attr(i) = part[i] = i; // coloring by element number
+               attr(i) = i; // coloring by element number
             }
          }
 
@@ -858,7 +899,6 @@ int main (int argc, char *argv[])
 
          if (mk == 'p')
          {
-            int *partitioning = NULL, np;
             cout << "What type of partitioning?\n"
                  "c) Cartesian\n"
                  "s) Simple 1D split of the element sequence\n"
@@ -887,18 +927,20 @@ int main (int argc, char *argv[])
                      cin >> nxyz[2]; np *= nxyz[2];
                   }
                }
-               partitioning = mesh->CartesianPartitioning(nxyz);
+               partitioning = Array<int>(mesh->CartesianPartitioning(nxyz), mesh->GetNE());
+               recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             else if (pk == 's')
             {
                cout << "Enter number of processors: " << flush;
                cin >> np;
 
-               partitioning = new int[mesh->GetNE()];
+               partitioning.SetSize(mesh->GetNE());
                for (int i = 0; i < mesh->GetNE(); i++)
                {
                   partitioning[i] = i * np / mesh->GetNE();
                }
+               recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             else
             {
@@ -909,7 +951,9 @@ int main (int argc, char *argv[])
                }
                cout << "Enter number of processors: " << flush;
                cin >> np;
-               partitioning = mesh->GeneratePartitioning(np, part_method);
+               partitioning = Array<int>(mesh->GeneratePartitioning(np, part_method),
+                                         mesh->GetNE());
+               recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             if (partitioning)
             {
@@ -960,9 +1004,8 @@ int main (int argc, char *argv[])
 
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               attr(i) = part[i] = partitioning[i];
+               attr(i) = partitioning[i] + 1;
             }
-            delete [] partitioning;
          }
 
          char vishost[] = "localhost";
@@ -986,12 +1029,12 @@ int main (int argc, char *argv[])
                      mesh->Print(sol_sock);
                      for (int i = 0; i < mesh->GetNE(); i++)
                      {
-                        attr(i) = part[i];
+                        attr(i) = partitioning[i];
                      }
                   }
                   else
                   {
-                     mesh->PrintWithPartitioning(part, sol_sock, 1);
+                     mesh->PrintWithPartitioning(partitioning, sol_sock, 1);
                   }
                }
                attr.Save(sol_sock);
@@ -1012,7 +1055,7 @@ int main (int argc, char *argv[])
                {
                   mesh->Print(sol_sock);
                }
-               else if (mk == 'b')
+               else if (mk == 'b' || mk == 'B')
                {
                   bdr_mesh->Print(sol_sock);
                   bdr_attr.Save(sol_sock);
@@ -1028,15 +1071,15 @@ int main (int argc, char *argv[])
                      mesh->Print(sol_sock);
                      for (int i = 0; i < mesh->GetNE(); i++)
                      {
-                        attr(i) = part[i];
+                        attr(i) = partitioning[i];
                      }
                   }
                   else
                   {
-                     mesh->PrintWithPartitioning(part, sol_sock);
+                     mesh->PrintWithPartitioning(partitioning, sol_sock);
                   }
                }
-               if (mk != 'b')
+               if (mk != 'b' && mk != 'B')
                {
                   attr.Save(sol_sock);
                   sol_sock << "maaA";

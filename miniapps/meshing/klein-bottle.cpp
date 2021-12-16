@@ -71,16 +71,15 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh *mesh;
    // The mesh could use quads (default) or triangles
    Element::Type el_type = Element::QUADRILATERAL;
    // Element::Type el_type = Element::TRIANGLE;
-   mesh = new Mesh(nx, ny, el_type, 1, 2*M_PI, 2*M_PI);
+   Mesh mesh = Mesh::MakeCartesian2D(nx, ny, el_type, 1, 2*M_PI, 2*M_PI);
 
-   mesh->SetCurvature(order, true, 3, Ordering::byVDIM);
+   mesh.SetCurvature(order, true, 3, Ordering::byVDIM);
 
    {
-      Array<int> v2v(mesh->GetNV());
+      Array<int> v2v(mesh.GetNV());
       for (int i = 0; i < v2v.Size(); i++)
       {
          v2v[i] = i;
@@ -100,9 +99,9 @@ int main(int argc, char *argv[])
          v2v[v_old] = v2v[v_new];
       }
       // renumber elements
-      for (int i = 0; i < mesh->GetNE(); i++)
+      for (int i = 0; i < mesh.GetNE(); i++)
       {
-         Element *el = mesh->GetElement(i);
+         Element *el = mesh.GetElement(i);
          int *v = el->GetVertices();
          int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++)
@@ -111,9 +110,9 @@ int main(int argc, char *argv[])
          }
       }
       // renumber boundary elements
-      for (int i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         Element *el = mesh->GetBdrElement(i);
+         Element *el = mesh.GetBdrElement(i);
          int *v = el->GetVertices();
          int nv = el->GetNVertices();
          for (int j = 0; j < nv; j++)
@@ -121,24 +120,24 @@ int main(int argc, char *argv[])
             v[j] = v2v[v[j]];
          }
       }
-      mesh->RemoveUnusedVertices();
-      mesh->RemoveInternalBoundaries();
+      mesh.RemoveUnusedVertices();
+      mesh.RemoveInternalBoundaries();
    }
 
    switch (trans_type)
    {
-      case 0: mesh->Transform(figure8_trans); break;
-      case 1: mesh->Transform(bottle_trans); break;
-      case 2: mesh->Transform(bottle2_trans); break;
-      default: mesh->Transform(bottle_trans); break;
+      case 0: mesh.Transform(figure8_trans); break;
+      case 1: mesh.Transform(bottle_trans); break;
+      case 2: mesh.Transform(bottle2_trans); break;
+      default: mesh.Transform(bottle_trans); break;
    }
 
    if (!dg_mesh)
    {
-      mesh->SetCurvature(order, false, 3, Ordering::byVDIM);
+      mesh.SetCurvature(order, false, 3, Ordering::byVDIM);
    }
 
-   GridFunction &nodes = *mesh->GetNodes();
+   GridFunction &nodes = *mesh.GetNodes();
    for (int i = 0; i < nodes.Size(); i++)
    {
       if (std::abs(nodes(i)) < 1e-12)
@@ -149,7 +148,7 @@ int main(int argc, char *argv[])
 
    ofstream ofs(new_mesh_file);
    ofs.precision(8);
-   mesh->Print(ofs);
+   mesh.Print(ofs);
    ofs.close();
 
    if (visualization)
@@ -158,10 +157,9 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "mesh\n" << *mesh << flush;
+      sol_sock << "mesh\n" << mesh << flush;
    }
 
-   delete mesh;
    return 0;
 }
 

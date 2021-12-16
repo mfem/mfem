@@ -34,6 +34,7 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
       case Geometry::CUBE: elem = new Hexahedron; break;
       case Geometry::PRISM: elem = new Wedge; break;
       case Geometry::SQUARE: elem = new Quadrilateral; break;
+      case Geometry::SEGMENT: elem = new Segment; break;
       case Geometry::TRIANGLE: elem = new Triangle; break;
       case Geometry::TETRAHEDRON: elem = new Tetrahedron; break;
       default: MFEM_ABORT("unsupported geometry " << geom);
@@ -61,17 +62,30 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
       }
    }
 
-   // in 2D we pretend to have faces too, so we can use NCMesh::Face::elem[2]
+   // in 1D & 2D we pretend to have faces too, so we can use NCMesh::Face::elem[2]
    if (!nf)
    {
-      for (int i = 0; i < ne; i++)
+      if (ne)
       {
-         // make a degenerate face
-         faces[i][0] = faces[i][1] = edges[i][0];
-         faces[i][2] = faces[i][3] = edges[i][1];
-         nfv[i] = 2;
+         for (int i = 0; i < ne; i++)
+         {
+            // make a degenerate face
+            faces[i][0] = faces[i][1] = edges[i][0];
+            faces[i][2] = faces[i][3] = edges[i][1];
+            nfv[i] = 2;
+         }
+         nf = ne;
       }
-      nf = ne;
+      else
+      {
+         for (int i = 0; i < nv; i++)
+         {
+            // 1D degenerate face
+            faces[i][0] = faces[i][1] = faces[i][2] = faces[i][3] = i;
+            nfv[i] = 1;
+         }
+         nf = nv;
+      }
    }
 
    delete elem;
@@ -80,7 +94,8 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
 
 static void CheckSupportedGeom(Geometry::Type geom)
 {
-   MFEM_VERIFY(geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
+   MFEM_VERIFY(geom == Geometry::SEGMENT ||
+               geom == Geometry::TRIANGLE || geom == Geometry::SQUARE ||
                geom == Geometry::CUBE || geom == Geometry::PRISM ||
                geom == Geometry::TETRAHEDRON,
                "Element type " << geom << " is not supported by NCMesh.");
@@ -147,28 +162,27 @@ NCMesh::NCMesh(const Mesh *mesh)
       const mfem::Element *be = mesh->GetBdrElement(i);
       const int *v = be->GetVertices();
 
-      if (be->GetType() == mfem::Element::QUADRILATERAL)
+      Face* face = NULL;
+      switch (be->GetType())
       {
-         Face* face = faces.Find(v[0], v[1], v[2], v[3]);
-         MFEM_VERIFY(face, "boundary face not found.");
-         face->attribute = be->GetAttribute();
+         case mfem::Element::QUADRILATERAL:
+            face = faces.Find(v[0], v[1], v[2], v[3]);
+            break;
+         case mfem::Element::TRIANGLE:
+            face = faces.Find(v[0], v[1], v[2]);
+            break;
+         case mfem::Element::SEGMENT:
+            face = faces.Find(v[0], v[0], v[1], v[1]);
+            break;
+         case mfem::Element::POINT:
+            face = faces.Find(v[0], v[0], v[0], v[0]);
+            break;
+         default:
+            MFEM_ABORT("Unsupported boundary element geometry.");
       }
-      else if (be->GetType() == mfem::Element::TRIANGLE)
-      {
-         Face* face = faces.Find(v[0], v[1], v[2]);
-         MFEM_VERIFY(face, "boundary face not found.");
-         face->attribute = be->GetAttribute();
-      }
-      else if (be->GetType() == mfem::Element::SEGMENT)
-      {
-         Face* face = faces.Find(v[0], v[0], v[1], v[1]);
-         MFEM_VERIFY(face, "boundary face not found.");
-         face->attribute = be->GetAttribute();
-      }
-      else
-      {
-         MFEM_ABORT("Unsupported boundary element geometry.");
-      }
+
+      MFEM_VERIFY(face, "Boundary face not found.");
+      face->attribute = be->GetAttribute();
    }
 
    // copy top-level vertex coordinates (leave empty if the mesh is curved)
@@ -454,7 +468,7 @@ int NCMesh::NewHexahedron(int n0, int n1, int n2, int n3,
                           int fattr0, int fattr1, int fattr2,
                           int fattr3, int fattr4, int fattr5)
 {
-   // create new unrefined element, initialize nodes
+   // create new element, initialize nodes
    int new_id = AddElement(Element(Geometry::CUBE, attr));
    Element &el = elements[new_id];
 
@@ -484,7 +498,7 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
                      int fattr0, int fattr1,
                      int fattr2, int fattr3, int fattr4)
 {
-   // create new unrefined element, initialize nodes
+   // create new element, initialize nodes
    int new_id = AddElement(Element(Geometry::PRISM, attr));
    Element &el = elements[new_id];
 
@@ -513,7 +527,7 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
 int NCMesh::NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
                            int fattr0, int fattr1, int fattr2, int fattr3)
 {
-   // create new unrefined element, initialize nodes
+   // create new element, initialize nodes
    int new_id = AddElement(Element(Geometry::TETRAHEDRON, attr));
    Element &el = elements[new_id];
 
@@ -540,7 +554,7 @@ int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
                              int attr,
                              int eattr0, int eattr1, int eattr2, int eattr3)
 {
-   // create new unrefined element, initialize nodes
+   // create new element, initialize nodes
    int new_id = AddElement(Element(Geometry::SQUARE, attr));
    Element &el = elements[new_id];
 
@@ -565,9 +579,10 @@ int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
 int NCMesh::NewTriangle(int n0, int n1, int n2,
                         int attr, int eattr0, int eattr1, int eattr2)
 {
-   // create new unrefined element, initialize nodes
+   // create new element, initialize nodes
    int new_id = AddElement(Element(Geometry::TRIANGLE, attr));
    Element &el = elements[new_id];
+
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2;
 
    // get (degenerate) faces and assign face attributes
@@ -583,6 +598,21 @@ int NCMesh::NewTriangle(int n0, int n1, int n2,
    f[0]->attribute = eattr0;
    f[1]->attribute = eattr1;
    f[2]->attribute = eattr2;
+
+   return new_id;
+}
+
+int NCMesh::NewSegment(int n0, int n1, int attr, int vattr1, int vattr2)
+{
+   // create new element, initialize nodes
+   int new_id = AddElement(Element(Geometry::SEGMENT, attr));
+   Element &el = elements[new_id];
+   el.node[0] = n0, el.node[1] = n1;
+
+   // get (degenerate) faces and assign face attributes
+   int v0 = el.node[0], v1 = el.node[1];
+   faces.Get(v0, v0, v0, v0)->attribute = vattr1;
+   faces.Get(v1, v1, v1, v1)->attribute = vattr2;
 
    return new_id;
 }
@@ -1446,6 +1476,14 @@ void NCMesh::RefineElement(int elem, char ref_type)
       child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
       child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
    }
+   else if (el.Geom() == Geometry::SEGMENT)
+   {
+      ref_type = 1; // for consistence
+
+      int mid = nodes.GetId(no[0], no[1]);
+      child[0] = NewSegment(no[0], mid, attr, fa[0], -1);
+      child[1] = NewSegment(mid, no[1], attr, -1, fa[1]);
+   }
    else
    {
       MFEM_ABORT("Unsupported element geometry.");
@@ -1663,6 +1701,15 @@ void NCMesh::DerefineElement(int elem)
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
    }
+   else if (el.Geom() == Geometry::SEGMENT)
+   {
+      for (int i = 0; i < 2; i++)
+      {
+         int ni = elements[child[i]].node[i];
+         el.node[i] = ni;
+         fa[i] = faces.Find(ni, ni, ni, ni)->attribute;
+      }
+   }
    else
    {
       MFEM_ABORT("Unsupported element geometry.");
@@ -1818,8 +1865,12 @@ void NCMesh::InitDerefTransforms()
    transforms.embeddings.SetSize(nfine);
    for (int i = 0; i < nfine; i++)
    {
-      transforms.embeddings[i].parent = -1;
-      transforms.embeddings[i].matrix = 0;
+      Embedding &emb = transforms.embeddings[i];
+      emb.parent = -1;
+      emb.matrix = 0;
+      Element &el = elements[leaf_elements[i]];
+      emb.geom = el.Geom();
+      emb.ghost = IsGhost(el);
    }
 }
 
@@ -1832,7 +1883,7 @@ void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
       Element &ch = elements[prn.child[i]];
       if (ch.index >= 0)
       {
-         int code = (prn.ref_type << 8) | (i << 4) | prn.geom;
+         int code = (prn.ref_type << 4) | i;
          transforms.embeddings[ch.index].matrix = code;
          fine_coarse[ch.index] = parent;
       }
@@ -2236,7 +2287,6 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
    // left uninitialized here; they will be initialized later by the Mesh from
    // Nodes -- here we just make sure mesh.vertices has the correct size.
 
-   mesh.elements.SetSize(NElements);
    mesh.elements.SetSize(0);
 
    mesh.boundary.SetSize(0);
@@ -2291,7 +2341,8 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
                }
                mesh.boundary.Append(tri);
             }
-            else
+            else if (nc_elem.geom == Geometry::SQUARE ||
+                     nc_elem.geom == Geometry::TRIANGLE)
             {
                auto* segment = (Segment*) mesh.NewElement(Geometry::SEGMENT);
                segment->SetAttribute(face->attribute);
@@ -2300,6 +2351,14 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
                   segment->GetVertices()[j] = nodes[node[fv[2*j]]].vert_index;
                }
                mesh.boundary.Append(segment);
+            }
+            else
+            {
+               MFEM_ASSERT(nc_elem.geom == Geometry::SEGMENT, "");
+               auto* point = (Segment*) mesh.NewElement(Geometry::POINT);
+               point->SetAttribute(face->attribute);
+               point->GetVertices()[0] = nodes[node[fv[0]]].vert_index;
+               mesh.boundary.Append(point);
             }
          }
       }
@@ -2312,7 +2371,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
    NEdges = mesh->GetNEdges();
    NFaces = mesh->GetNumFaces();
-
+   if (Dim < 2) { NFaces = 0; }
    // clear Node::edge_index and Face::index
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
@@ -3753,6 +3812,9 @@ void NCMesh::PointMatrix::GetMatrix(DenseMatrix& point_matrix) const
    }
 }
 
+NCMesh::PointMatrix NCMesh::pm_seg_identity(
+   Point(0), Point(1)
+);
 NCMesh::PointMatrix NCMesh::pm_tri_identity(
    Point(0, 0), Point(1, 0), Point(0, 1)
 );
@@ -3775,6 +3837,7 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(Geometry::Type geom)
 {
    switch (geom)
    {
+      case Geometry::SEGMENT:     return pm_seg_identity;
       case Geometry::TRIANGLE:    return pm_tri_identity;
       case Geometry::SQUARE:      return pm_quad_identity;
       case Geometry::TETRAHEDRON: return pm_tet_identity;
@@ -4232,6 +4295,8 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
       Embedding &emb = transforms.embeddings[el.index];
       emb.parent = coarse_index;
       emb.matrix = matrix - 1;
+      emb.geom = el.Geom();
+      emb.ghost = IsGhost(el);
    }
    else
    {
@@ -4261,7 +4326,7 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
    if (!transforms.embeddings.Size())
    {
       transforms.Clear();
-      transforms.embeddings.SetSize(leaf_elements.Size());
+      transforms.embeddings.SetSize(NElements);
 
       std::string ref_path;
       ref_path.reserve(100);
@@ -4319,15 +4384,14 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
       // assign numbers to the different matrices used
       for (int i = 0; i < transforms.embeddings.Size(); i++)
       {
-         int code = transforms.embeddings[i].matrix;
+         Embedding &emb = transforms.embeddings[i];
+         int code = emb.matrix; // see SetDerefMatrixCodes()
          if (code)
          {
-            int geom = code & 0xf; // see SetDerefMatrixCodes()
-            int ref_type_child = code >> 4;
+            int &matrix = mat_no[emb.geom][code];
+            if (!matrix) { matrix = mat_no[emb.geom].size(); }
 
-            int &matrix = mat_no[geom][ref_type_child];
-            if (!matrix) { matrix = mat_no[geom].size(); }
-            transforms.embeddings[i].matrix = matrix - 1;
+            emb.matrix = matrix - 1;
          }
       }
 
@@ -4362,118 +4426,26 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
    return transforms;
 }
 
-namespace internal
+void CoarseFineTransformations::MakeCoarseToFineTable(Table &coarse_to_fine,
+                                                      bool want_ghosts) const
 {
+   Array<Connection> conn;
+   conn.Reserve(embeddings.Size());
 
-// Used in CoarseFineTransformations::GetCoarseToFineMap() below.
-struct RefType
-{
-   Geometry::Type geom;
-   int num_children;
-   const Pair<int,int> *children;
-
-   RefType(Geometry::Type g, int n, const Pair<int,int> *c)
-      : geom(g), num_children(n), children(c) { }
-
-   bool operator<(const RefType &other) const
+   int max_parent = -1;
+   for (int i = 0; i < embeddings.Size(); i++)
    {
-      if (geom < other.geom) { return true; }
-      if (geom > other.geom) { return false; }
-      if (num_children < other.num_children) { return true; }
-      if (num_children > other.num_children) { return false; }
-      for (int i = 0; i < num_children; i++)
+      const Embedding &emb = embeddings[i];
+      if ((emb.parent >= 0) &&
+          (!emb.ghost || want_ghosts))
       {
-         if (children[i].one < other.children[i].one) { return true; }
-         if (children[i].one > other.children[i].one) { return false; }
-      }
-      return false; // everything is equal
-   }
-};
-
-} // namespace internal
-
-void CoarseFineTransformations::GetCoarseToFineMap(
-   const mfem::Mesh &fine_mesh, Table &coarse_to_fine,
-   Array<int> &coarse_to_ref_type, Table &ref_type_to_matrix,
-   Array<mfem::Geometry::Type> &ref_type_to_geom) const
-{
-   const int fine_ne = embeddings.Size();
-   int coarse_ne = -1;
-   for (int i = 0; i < fine_ne; i++)
-   {
-      coarse_ne = std::max(coarse_ne, embeddings[i].parent);
-   }
-   coarse_ne++;
-
-   coarse_to_ref_type.SetSize(coarse_ne);
-   coarse_to_fine.SetDims(coarse_ne, fine_ne);
-
-   Array<int> cf_i(coarse_to_fine.GetI(), coarse_ne+1);
-   Array<Pair<int,int> > cf_j(fine_ne);
-   cf_i = 0;
-   for (int i = 0; i < fine_ne; i++)
-   {
-      cf_i[embeddings[i].parent+1]++;
-   }
-   cf_i.PartialSum();
-   MFEM_ASSERT(cf_i.Last() == cf_j.Size(), "internal error");
-   for (int i = 0; i < fine_ne; i++)
-   {
-      const Embedding &e = embeddings[i];
-      cf_j[cf_i[e.parent]].one = e.matrix; // used as sort key below
-      cf_j[cf_i[e.parent]].two = i;
-      cf_i[e.parent]++;
-   }
-   std::copy_backward(cf_i.begin(), cf_i.end()-1, cf_i.end());
-   cf_i[0] = 0;
-   for (int i = 0; i < coarse_ne; i++)
-   {
-      std::sort(&cf_j[cf_i[i]], cf_j.GetData() + cf_i[i+1]);
-   }
-   for (int i = 0; i < fine_ne; i++)
-   {
-      coarse_to_fine.GetJ()[i] = cf_j[i].two;
-   }
-
-   using internal::RefType;
-   using std::map;
-   using std::pair;
-
-   map<RefType,int> ref_type_map;
-   for (int i = 0; i < coarse_ne; i++)
-   {
-      const int num_children = cf_i[i+1]-cf_i[i];
-      MFEM_ASSERT(num_children > 0, "");
-      const int fine_el = cf_j[cf_i[i]].two;
-      // Assuming the coarse and the fine elements have the same geometry:
-      const Geometry::Type geom = fine_mesh.GetElementBaseGeometry(fine_el);
-      const RefType ref_type(geom, num_children, &cf_j[cf_i[i]]);
-      pair<map<RefType,int>::iterator,bool> res =
-         ref_type_map.insert(
-            pair<const RefType,int>(ref_type, (int)ref_type_map.size()));
-      coarse_to_ref_type[i] = res.first->second;
-   }
-
-   ref_type_to_matrix.MakeI((int)ref_type_map.size());
-   ref_type_to_geom.SetSize((int)ref_type_map.size());
-   for (map<RefType,int>::iterator it = ref_type_map.begin();
-        it != ref_type_map.end(); ++it)
-   {
-      ref_type_to_matrix.AddColumnsInRow(it->second, it->first.num_children);
-      ref_type_to_geom[it->second] = it->first.geom;
-   }
-
-   ref_type_to_matrix.MakeJ();
-   for (map<RefType,int>::iterator it = ref_type_map.begin();
-        it != ref_type_map.end(); ++it)
-   {
-      const RefType &rt = it->first;
-      for (int j = 0; j < rt.num_children; j++)
-      {
-         ref_type_to_matrix.AddConnection(it->second, rt.children[j].one);
+         conn.Append(Connection(emb.parent, i));
+         max_parent = std::max(emb.parent, max_parent);
       }
    }
-   ref_type_to_matrix.ShiftUpI();
+
+   conn.Sort(); // NOTE: unique is not necessary
+   coarse_to_fine.MakeFromList(max_parent+1, conn);
 }
 
 void NCMesh::ClearTransforms()
@@ -4499,6 +4471,15 @@ bool CoarseFineTransformations::IsInitialized() const
       if (point_matrices[i].SizeK()) { return true; }
    }
    return false;
+}
+
+void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b)
+{
+   for (int g = 0; g < Geometry::NumGeom; ++g)
+   {
+      a.point_matrices[g].Swap(b.point_matrices[g]);
+   }
+   Swap(a.embeddings, b.embeddings);
 }
 
 
@@ -5325,6 +5306,12 @@ void NCMesh::LoadBoundary(std::istream &input)
          Face* face = faces.Get(v1, v1, v2, v2);
          face->attribute = attr;
       }
+      else if (geom == Geometry::POINT)
+      {
+         input >> v1;
+         Face* face = faces.Get(v1, v1, v1, v1);
+         face->attribute = attr;
+      }
       else
       {
          MFEM_ABORT("unsupported boundary element geometry: " << geom);
@@ -5384,6 +5371,7 @@ void NCMesh::Print(std::ostream &out) const
 {
    out << "MFEM NC mesh v1.0\n\n"
        "# NCMesh supported geometry types:\n"
+       "# SEGMENT     = 1\n"
        "# TRIANGLE    = 2\n"
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
@@ -5508,12 +5496,13 @@ int NCMesh::CountTopLevelNodes() const
    return ntop;
 }
 
-NCMesh::NCMesh(std::istream &input, int version, int &curved)
+NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    : spaceDim(0), MyRank(0), Iso(true), Legacy(false)
 {
+   is_nc = 1;
    if (version == 1) // old MFEM mesh v1.1 format
    {
-      LoadLegacyFormat(input, curved);
+      LoadLegacyFormat(input, curved, is_nc);
       Legacy = true;
       return;
    }
@@ -5651,6 +5640,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved)
       MFEM_VERIFY(coordinates.Size()/3 >= CountTopLevelNodes(),
                   "Invalid mesh file: not all top-level nodes are covered by "
                   "the 'coordinates' section of the mesh file.");
+      curved = 0;
    }
    else if (ident == "nodes")
    {
@@ -5769,7 +5759,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    InitRootState(root_count);
 }
 
-void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
+void NCMesh::LoadLegacyFormat(std::istream &input, int &curved, int &is_nc)
 {
    MFEM_ASSERT(elements.Size() == 0, "");
    MFEM_ASSERT(nodes.Size() == 0, "");
@@ -5825,9 +5815,16 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
    if (ident == "vertex_parents")
    {
       LoadVertexParents(input);
+      is_nc = 1;
 
       skip_comment_lines(input, '#');
       input >> ident;
+   }
+   else
+   {
+      // no "vertex_parents" section: this file needs to be treated as a
+      // conforming mesh for complete backward compatibility with MFEM 4.2
+      is_nc = 0;
    }
 
    // load element hierarchy
@@ -5847,16 +5844,17 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
    // load vertices
    MFEM_VERIFY(ident == "vertices", "invalid mesh file");
-   input >> count;
+   int nvert;
+   input >> nvert;
    input >> std::ws >> ident;
    if (ident != "nodes")
    {
       spaceDim = atoi(ident.c_str());
 
-      coordinates.SetSize(3*count);
+      coordinates.SetSize(3*nvert);
       coordinates = 0.0;
 
-      for (int i = 0; i < count; i++)
+      for (int i = 0; i < nvert; i++)
       {
          for (int j = 0; j < spaceDim; j++)
          {
@@ -5910,6 +5908,13 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved)
 
    // force file leaf order
    Swap(leaf_elements, file_leaf_elements);
+
+   // make sure Mesh::NVertices is equal to "nvert" from the file (in case of
+   // unused vertices), see also GetMeshComponents
+   if (nvert > vertex_nodeId.Size())
+   {
+      vertex_nodeId.SetSize(nvert, -1);
+   }
 }
 
 void NCMesh::LegacyToNewVertexOrdering(Array<int> &order) const

@@ -125,17 +125,19 @@ TEST_CASE("massdiag")
                    << std::pow(ne, dimension) << " elements." << std::endl;
          for (int order = 1; order < 5; ++order)
          {
-            Mesh * mesh;
+            Mesh mesh;
             if (dimension == 2)
             {
-               mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian2D(
+                         ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
             }
             else
             {
-               mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian3D(
+                         ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
             }
             FiniteElementCollection *h1_fec = new H1_FECollection(order, dimension);
-            FiniteElementSpace h1_fespace(mesh, h1_fec);
+            FiniteElementSpace h1_fespace(&mesh, h1_fec);
             BilinearForm paform(&h1_fespace);
             ConstantCoefficient one(1.0);
             paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -156,7 +158,6 @@ TEST_CASE("massdiag")
             std::cout << "    order: " << order << ", error norm: " << error << std::endl;
             REQUIRE(assembly_diag.Norml2() < 1.e-12);
 
-            delete mesh;
             delete h1_fec;
          }
       }
@@ -174,17 +175,19 @@ TEST_CASE("diffusiondiag")
                    << std::pow(ne, dimension) << " elements." << std::endl;
          for (int order = 1; order < 5; ++order)
          {
-            Mesh * mesh;
+            Mesh mesh;
             if (dimension == 2)
             {
-               mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian2D(
+                         ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
             }
             else
             {
-               mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+               mesh = Mesh::MakeCartesian3D(
+                         ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
             }
             FiniteElementCollection *h1_fec = new H1_FECollection(order, dimension);
-            FiniteElementSpace h1_fespace(mesh, h1_fec);
+            FiniteElementSpace h1_fespace(&mesh, h1_fec);
 
             for (int coeffType = 0; coeffType < 5; ++coeffType)
             {
@@ -263,7 +266,6 @@ TEST_CASE("diffusiondiag")
                delete smcoeff;
             }
 
-            delete mesh;
             delete h1_fec;
          }
       }
@@ -273,18 +275,18 @@ TEST_CASE("diffusiondiag")
 template <typename INTEGRATOR>
 double test_vdiagpa(int dim, int order)
 {
-   Mesh *mesh = nullptr;
+   Mesh mesh;
    if (dim == 2)
    {
-      mesh = new Mesh(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
    }
    else if (dim == 3)
    {
-      mesh = new Mesh(2, 2, 2, Element::HEXAHEDRON, 0, 1.0, 1.0, 1.0);
+      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
    }
 
    H1_FECollection fec(order, dim);
-   FiniteElementSpace fes(mesh, &fec, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim);
 
    BilinearForm form(&fes);
    form.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -303,8 +305,6 @@ double test_vdiagpa(int dim, int order)
    form_full.SpMat().GetDiag(diag_full);
 
    diag_full -= diag;
-
-   delete mesh;
 
    return diag_full.Norml2();
 }
@@ -413,21 +413,23 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
 
                   for (int order = 1; order < 4; ++order)
                   {
-                     Mesh * mesh;
+                     Mesh mesh;
                      if (dimension == 2)
                      {
-                        mesh = new Mesh(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+                        mesh = Mesh::MakeCartesian2D(
+                                  ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
                      }
                      else
                      {
-                        mesh = new Mesh(ne, ne, ne, Element::HEXAHEDRON, 1, 1.0, 1.0, 1.0);
+                        mesh = Mesh::MakeCartesian3D(
+                                  ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
                      }
 
                      FiniteElementCollection* fec = (spaceType == Hcurl) ?
                                                     (FiniteElementCollection*) new ND_FECollection(order, dimension) :
                                                     (FiniteElementCollection*) new RT_FECollection(order, dimension);
 
-                     FiniteElementSpace fespace(mesh, fec);
+                     FiniteElementSpace fespace(&mesh, fec);
                      BilinearForm paform(&fespace);
                      BilinearForm faform(&fespace);
                      paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -460,7 +462,7 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                         {
                            const FiniteElement *fel = fespace.GetFE(0);
                            const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
-                                                                                     *mesh->GetElementTransformation(0));
+                                                                                     *mesh.GetElementTransformation(0));
 
                            if (coeffType >= 4)
                            {
@@ -503,7 +505,6 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                      std::cout << "    order: " << order << ", error norm: " << error << std::endl;
                      REQUIRE(assembly_diag.Norml2() < 1.e-11);
 
-                     delete mesh;
                      delete fec;
                   }
                }  // ne

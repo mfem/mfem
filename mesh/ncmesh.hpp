@@ -38,50 +38,65 @@ struct Refinement
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
 
    Refinement() = default;
-
    Refinement(int index, int type = 7) : index(index), ref_type(type) {}
 };
+
 
 /// Defines the position of a fine element within a coarse element.
 struct Embedding
 {
-   /// %Element index in the coarse mesh.
+   /// Coarse %Element index in the coarse mesh.
    int parent;
-   /** @brief Index into the DenseTensor corresponding to the parent
-       Geometry::Type stored in CoarseFineTransformations::point_matrices. */
-   int matrix;
+
+   /** The (geom, matrix) pair determines the sub-element transformation for the
+       fine element: CoarseFineTransformations::point_matrices[geom](matrix) is
+       the point matrix of the region within the coarse element reference domain.*/
+   unsigned geom : 4;
+   unsigned matrix : 27;
+
+   /// For internal use: 0 if regular fine element, 1 if parallel ghost element.
+   unsigned ghost : 1;
 
    Embedding() = default;
-
-   Embedding(int elem, int matrix = 0) : parent(elem), matrix(matrix) {}
+   Embedding(int elem, Geometry::Type geom, int matrix = 0, bool ghost = false)
+      : parent(elem), geom(geom), matrix(matrix), ghost(ghost) {}
 };
+
 
 /// Defines the coarse-fine transformations of all fine elements.
 struct CoarseFineTransformations
 {
-   /// Matrices for IsoparametricTransformation organized by Geometry::Type
-   DenseTensor point_matrices[Geometry::NumGeom];
    /// Fine element positions in their parents.
    Array<Embedding> embeddings;
 
-   void GetCoarseToFineMap(const Mesh &fine_mesh,
-                           Table &coarse_to_fine,
-                           Array<int> &coarse_to_ref_type,
-                           Table &ref_type_to_matrix,
-                           Array<Geometry::Type> &ref_type_to_geom) const;
+   /** A "dictionary" of matrices for IsoparametricTransformation. Use
+       Embedding::{geom,matrix} to access a fine element point matrix. */
+   DenseTensor point_matrices[Geometry::NumGeom];
+
+   /** Invert the 'embeddings' array: create a Table with coarse elements as
+       rows and fine elements as columns. If 'want_ghosts' is false, parallel
+       ghost fine elements are not included in the table. */
+   void MakeCoarseToFineTable(Table &coarse_to_fine,
+                              bool want_ghosts = false) const;
 
    void Clear();
    bool IsInitialized() const;
    long MemoryUsage() const;
+
+   MFEM_DEPRECATED
+   void GetCoarseToFineMap(const Mesh &fine_mesh, Table &coarse_to_fine) const
+   { MakeCoarseToFineTable(coarse_to_fine, true); (void) fine_mesh; }
 };
+
+void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b);
 
 struct MatrixMap; // for internal use
 
 
-/** \brief A class for non-conforming AMR on higher-order hexahedral, prismatic,
- *  quadrilateral or triangular meshes.
+/** \brief A class for non-conforming AMR. The class is not used directly
+ *  by the user, rather it is an extension of the Mesh class.
  *
- *  The class is used as follows:
+ *  In general, the class is used by MFEM as follows:
  *
  *  1. NCMesh is constructed from elements of an existing Mesh. The elements
  *     are copied and become roots of the refinement hierarchy.
@@ -90,7 +105,8 @@ struct MatrixMap; // for internal use
  *     anisotropic refinements of quads/hexes are supported.
  *
  *  3. A new Mesh is created from NCMesh containing the leaf elements.
- *     This new mesh may have non-conforming (hanging) edges and faces.
+ *     This new Mesh may have non-conforming (hanging) edges and faces and
+ *     is the one seen by the user.
  *
  *  4. FiniteElementSpace asks NCMesh for a list of conforming, master and
  *     slave edges/faces and creates the conforming interpolation matrix P.
@@ -105,8 +121,13 @@ public:
    //// Initialize with elements from an existing 'mesh'.
    explicit NCMesh(const Mesh *mesh);
 
-   /// Load from a stream. The id header is assumed to have been read already.
-   NCMesh(std::istream &input, int version, int &curved);
+   /** Load from a stream. The id header is assumed to have been read already
+       from \param[in] input . \param[in] version is 10 for the v1.0 NC format,
+       or 1 for the legacy v1.1 format. \param[out] curved is set to 1 if the
+       curvature GridFunction follows after mesh data. \param[out] is_nc (again
+       treated as a boolean) is set to 0 if the legacy v1.1 format in fact
+       defines a conforming mesh. See Mesh::Loader for details. */
+   NCMesh(std::istream &input, int version, int &curved, int &is_nc);
 
    /// Deep copy of another instance.
    NCMesh(const NCMesh &other);
@@ -119,6 +140,7 @@ public:
    int GetNVertices() const { return NVertices; }
    int GetNEdges() const { return NEdges; }
    int GetNFaces() const { return NFaces; }
+   virtual int GetNGhostElements() const { return 0; }
 
    /** Perform the given batch of refinements. Please note that in the presence
        of anisotropic splits additional refinements may be necessary to keep
@@ -148,7 +170,6 @@ public:
        derefinements may have to be skipped to preserve mesh consistency. */
    virtual void Derefine(const Array<int> &derefs);
 
-
    // master/slave lists
 
    /// Identifies a vertex/edge/face in both Mesh and NCMesh.
@@ -161,7 +182,8 @@ public:
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
 
-      MeshId(int index = -1, int element = -1, int local = -1, int geom = -1)
+      MeshId() = default;
+      MeshId(int index, int element, int local, int geom = -1)
          : index(index), element(element), local(local), geom(geom) {}
    };
 
@@ -576,6 +598,8 @@ protected: // implementation
    int NewTriangle(int n0, int n1, int n2,
                    int attr, int eattr0, int eattr1, int eattr2);
 
+   int NewSegment(int n0, int n1, int attr, int vattr1, int vattr2);
+
    mfem::Element* NewMeshElement(int geom) const;
 
    int QuadFaceSplitType(int v1, int v2, int v3, int v4, int mid[5]
@@ -790,6 +814,7 @@ protected: // implementation
       void GetMatrix(DenseMatrix& point_matrix) const;
    };
 
+   static PointMatrix pm_seg_identity;
    static PointMatrix pm_tri_identity;
    static PointMatrix pm_quad_identity;
    static PointMatrix pm_tet_identity;
@@ -874,13 +899,12 @@ protected: // implementation
    void LoadCoarseElements(std::istream &input);
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements);
    /// Load the deprecated MFEM mesh v1.1 format for backward compatibility.
-   void LoadLegacyFormat(std::istream &input, int &curved);
+   void LoadLegacyFormat(std::istream &input, int &curved, int &is_nc);
 
 
    // geometry
 
-   /** This holds in one place the constants about the geometries we support
-       (triangles, quads, cubes) */
+   /// This holds in one place the constants about the geometries we support
    struct GeomInfo
    {
       int nv, ne, nf;   // number of: vertices, edges, faces

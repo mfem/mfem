@@ -405,6 +405,8 @@ public:
    double *HostReadWrite()
    { return mfem::ReadWrite(data, Height()*Width(), false); }
 
+   void Swap(DenseMatrix &other);
+
    /// Destroys dense matrix.
    virtual ~DenseMatrix();
 };
@@ -751,7 +753,6 @@ public:
    DenseTensor()
    {
       nk = 0;
-      tdata.Reset();
    }
 
    DenseTensor(int i, int j, int k)
@@ -759,6 +760,20 @@ public:
    {
       nk = k;
       tdata.New(i*j*k);
+   }
+
+   DenseTensor(double *d, int i, int j, int k)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata.Wrap(d, i*j*k, false);
+   }
+
+   DenseTensor(int i, int j, int k, MemoryType mt)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata.New(i*j*k, mt);
    }
 
    /// Copy constructor: deep copy
@@ -771,10 +786,6 @@ public:
          tdata.New(size, other.tdata.GetMemoryType());
          tdata.CopyFrom(other.tdata, size);
       }
-      else
-      {
-         tdata.Reset();
-      }
    }
 
    int SizeI() const { return Mk.Height(); }
@@ -783,9 +794,9 @@ public:
 
    int TotalSize() const { return SizeI()*SizeJ()*SizeK(); }
 
-   void SetSize(int i, int j, int k)
+   void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
    {
-      const MemoryType mt = tdata.GetMemoryType();
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ? tdata.GetMemoryType() : mt_;
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
       nk = k;
@@ -802,6 +813,9 @@ public:
 
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(double c);
+
+   /// Copy assignment operator (performs a deep copy)
+   DenseTensor &operator=(const DenseTensor &other);
 
    DenseMatrix &operator()(int k)
    {
@@ -873,6 +887,13 @@ public:
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
    double *HostReadWrite()
    { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   void Swap(DenseTensor &t)
+   {
+      mfem::Swap(tdata, t.tdata);
+      mfem::Swap(nk, t.nk);
+      Mk.Swap(t.Mk);
+   }
 
    ~DenseTensor() { tdata.Delete(); }
 };

@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
 
    // Create a small 1D mesh with a length of 2. This mesh corresponds with the
    // cvsAdvDiff_ASA_p_non_p example.
-   Mesh *mesh = new Mesh(mx+1, 2.);
+   Mesh mesh = Mesh::MakeCartesian1D(mx+1, 2.);
 
    // Refine the mesh to increase the resolution. In this example we do
    // 'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -255,11 +255,11 @@ int main(int argc, char *argv[])
    // a (piecewise-polynomial) high-order mesh.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh->UniformRefinement();
@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
    H1_FECollection fec(1, pmesh->SpaceDimension());
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
-   HYPRE_Int global_vSize = fes->GlobalTrueVSize();
+   HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << global_vSize << endl;

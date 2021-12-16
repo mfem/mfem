@@ -47,8 +47,8 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
 }
 
 ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version,
-                     int &curved)
-   : NCMesh(input, version, curved)
+                     int &curved, int &is_nc)
+   : NCMesh(input, version, curved, is_nc)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -214,7 +214,7 @@ void ParNCMesh::BuildEdgeList()
    shared_edges.Clear();
    if (Dim < 3) { boundary_faces.SetSize(0); }
 
-   if (!leaf_elements.Size()) { return; }
+   if (Dim < 2 || !leaf_elements.Size()) { return; }
 
    int nedges = NEdges + NGhostEdges;
 
@@ -1336,6 +1336,37 @@ void ParNCMesh::LimitNCLevel(int max_nc_level)
       if (!glob_size) { break; }
 
       Refine(refinements);
+   }
+}
+
+void ParNCMesh::GetFineToCoarsePartitioning(const Array<int> &derefs,
+                                            Array<int> &new_ranks) const
+{
+   new_ranks.SetSize(leaf_elements.Size()-GetNGhostElements());
+   for (int i = 0; i < leaf_elements.Size()-GetNGhostElements(); i++)
+   {
+      new_ranks[i] = elements[leaf_elements[i]].rank;
+   }
+
+   for (int i = 0; i < derefs.Size(); i++)
+   {
+      int row = derefs[i];
+      MFEM_VERIFY(row >= 0 && row < derefinements.Size(),
+                  "invalid derefinement number.");
+
+      const int* fine = derefinements.GetRow(row);
+      int size = derefinements.RowSize(row);
+
+      int coarse_rank = INT_MAX;
+      for (int j = 0; j < size; j++)
+      {
+         int fine_rank = elements[leaf_elements[fine[j]]].rank;
+         coarse_rank = std::min(coarse_rank, fine_rank);
+      }
+      for (int j = 0; j < size; j++)
+      {
+         new_ranks[fine[j]] = coarse_rank;
+      }
    }
 }
 
