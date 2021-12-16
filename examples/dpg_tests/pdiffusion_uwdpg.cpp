@@ -35,6 +35,26 @@
 using namespace std;
 using namespace mfem;
 
+enum prob_type
+{
+   lshape,   
+   general  
+};
+
+prob_type prob;
+
+double exact(const Vector & X)
+{
+   double x = X[0];
+   double y = X[1];
+
+   double r = sqrt(x*x + y*y);
+   double alpha = 2./3.;
+   double theta = atan2(y,x);
+   if (theta < 0) theta += 2*M_PI;
+
+   return pow(r,alpha) * sin(alpha * theta);
+}
 
 int main(int argc, char *argv[])
 {
@@ -49,6 +69,7 @@ int main(int argc, char *argv[])
    int ref = 1;
    bool adjoint_graph_norm = false;
    bool visualization = true;
+   int iprob = 0;
 
 
    OptionsParser args(argc, argv);
@@ -62,7 +83,9 @@ int main(int argc, char *argv[])
                   "Number of uniform refinements");               
    args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
                   "-no-graph-norm", "--no-adjoint-graph-norm",
-                  "Enable or disable Adjoint Graph Norm on the test space");               
+                  "Enable or disable Adjoint Graph Norm on the test space");   
+   args.AddOption(&iprob, "-prob", "--problem", "Problem case"
+                  " 0: lshape, 1: General");                              
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -80,30 +103,29 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   if (iprob > 1) { iprob = 1; }
+   prob = (prob_type)iprob;
+
+   if (prob == prob_type::lshape)
+   {
+      mesh_file = "lshape2.mesh";
+   }
+
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   for (int i = 0; i<ref; i++)
-   {
-      mesh.UniformRefinement();
-   }
+   mesh.UniformRefinement();
+
+   mesh.EnsureNCMesh();
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
+
 
    // Define spaces
    // L2 space for u
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *u_fes = new ParFiniteElementSpace(&pmesh,u_fec);
-
-
-   // HypreParMatrix * op = u_fes->Dof_TrueDof_Matrix();
-   // const SparseMatrix * R = u_fes->GetRestrictionMatrix();
-   // cout << "op->Size = " << op->Height() << endl;
-   // cout << "R->Size = " << op->Height() << endl;
-   // op->PrintMatlab(cout);
-   // R->PrintMatlab(cout);
-
 
    // Vector L2 space for σ 
    FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
@@ -139,6 +161,7 @@ int main(int argc, char *argv[])
    test_fec.Append(tau_fec);
 
    ParNormalEquations * a = new ParNormalEquations(trial_fes,test_fec);
+   a->StoreMatrices(true);
 
    //  -(u,∇⋅v)
    a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
@@ -177,105 +200,163 @@ int main(int argc, char *argv[])
       // (v,δv)
       a->AddTestIntegrator(new VectorFEMassIntegrator(one),0,0);
    }
-
    // RHS
-   a->AddDomainLFIntegrator(new DomainLFIntegrator(one),1);
-   a->Assemble();
-
-
-   Array<int> ess_tdof_list;
-   Array<int> ess_bdr;
-   if (pmesh.bdr_attributes.Size())
+   if (prob == prob_type::general)
    {
-      ess_bdr.SetSize(pmesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      a->AddDomainLFIntegrator(new DomainLFIntegrator(one),1);
    }
 
-   // shift the ess_tdofs
-   for (int i = 0; i < ess_tdof_list.Size(); i++)
-   {
-      ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_fes->GetTrueVSize();
-   }
-
-   Vector X,B;
-
-   Array<int> offsets(5);
-   offsets[0] = 0;
-   offsets[1] = u_fes->GetVSize();
-   offsets[2] = sigma_fes->GetVSize();
-   offsets[3] = hatu_fes->GetVSize();
-   offsets[4] = hatsigma_fes->GetVSize();
-   offsets.PartialSum();
-   BlockVector x(offsets);
-   x = 0.0;
-
-   OperatorPtr Ah;
-   a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
-
-   BlockOperator * A = Ah.As<BlockOperator>();
-
-   BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
-   M->owns_blocks = 1;
-
-   HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
-   HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
-   HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(2,2));
-   amg0->SetPrintLevel(0);
-   amg1->SetPrintLevel(0);
-   amg2->SetPrintLevel(0);
-
-   M->SetDiagonalBlock(0,amg0);
-   M->SetDiagonalBlock(1,amg1);
-   M->SetDiagonalBlock(2,amg2);
-
-   HypreSolver * prec;
-   if (dim == 2)
-   {
-      prec = new HypreAMS((HypreParMatrix &)A->GetBlock(3,3), hatsigma_fes);
-   }
-   else
-   {
-      prec = new HypreADS((HypreParMatrix &)A->GetBlock(3,3), hatsigma_fes);
-   }
-   M->SetDiagonalBlock(3,prec);
-
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(3);
-   cg.SetPreconditioner(*M);
-   cg.SetOperator(*A);
-   cg.Mult(B, X);
-
-   delete M;
-
-   a->RecoverFEMSolution(X,x);
-
-   ParGridFunction u_gf;
-   u_gf.MakeRef(u_fes,x.GetBlock(0));
-
-   ParGridFunction sigma_gf;
-   sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
+   FunctionCoefficient uex(exact);
+   Array<int> elements_to_refine;
+   ParGridFunction hatu_gf;
 
 
+   socketstream u_out;
+   socketstream sigma_out;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream solu_sock(vishost, visport);
-      solu_sock << "parallel " << num_procs << " " << myid << "\n";
-      solu_sock.precision(8);
-      solu_sock << "solution\n" << pmesh << u_gf <<
-               "window_title 'Numerical u' "
-               << flush;
+      u_out.open(vishost, visport);
+      sigma_out.open(vishost, visport);
+   }
 
-      socketstream sols_sock(vishost, visport);
-      sols_sock << "parallel " << num_procs << " " << myid << "\n";
-      sols_sock.precision(8);
-      sols_sock << "solution\n" << pmesh << sigma_gf <<
-               "window_title 'Numerical flux' "
-               << flush;
+
+   for (int i = 0; i<ref; i++)
+   {
+      a->Assemble();
+
+      Array<int> ess_tdof_list;
+      Array<int> ess_bdr;
+      if (pmesh.bdr_attributes.Size())
+      {
+         ess_bdr.SetSize(pmesh.bdr_attributes.Max());
+         ess_bdr = 1;
+         hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+
+      // shift the ess_tdofs
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      {
+         ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_fes->GetTrueVSize();
+      }
+
+
+      Array<int> offsets(5);
+      offsets[0] = 0;
+      offsets[1] = u_fes->GetVSize();
+      offsets[2] = sigma_fes->GetVSize();
+      offsets[3] = hatu_fes->GetVSize();
+      offsets[4] = hatsigma_fes->GetVSize();
+      offsets.PartialSum();
+      BlockVector x(offsets);
+      x = 0.0;
+      if (prob == prob_type::lshape)
+      {
+         hatu_gf.MakeRef(hatu_fes,x.GetBlock(2));
+         hatu_gf.ProjectBdrCoefficient(uex,ess_bdr);
+      }
+
+      Vector X,B;
+      OperatorPtr Ah;
+      a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
+
+      BlockOperator * A = Ah.As<BlockOperator>();
+
+      BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
+      M->owns_blocks = 1;
+
+      HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
+      HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
+      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(2,2));
+      amg0->SetPrintLevel(0);
+      amg1->SetPrintLevel(0);
+      amg2->SetPrintLevel(0);
+
+      M->SetDiagonalBlock(0,amg0);
+      M->SetDiagonalBlock(1,amg1);
+      M->SetDiagonalBlock(2,amg2);
+
+      HypreSolver * prec;
+      if (dim == 2)
+      {
+         prec = new HypreAMS((HypreParMatrix &)A->GetBlock(3,3), hatsigma_fes);
+      }
+      else
+      {
+         prec = new HypreADS((HypreParMatrix &)A->GetBlock(3,3), hatsigma_fes);
+      }
+      M->SetDiagonalBlock(3,prec);
+
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(3);
+      cg.SetPreconditioner(*M);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      delete M;
+
+      a->RecoverFEMSolution(X,x);
+
+      Vector & residuals = a->ComputeResidual(x);
+
+      double residual = residuals.Norml2();
+      
+      double maxresidual = residuals.Max(); 
+      double globalresidual = residual * residual; 
+
+      MPI_Allreduce(MPI_IN_PLACE,&maxresidual,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE,&globalresidual,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+
+      globalresidual = sqrt(globalresidual);
+
+      if (myid == 0)
+      {
+         cout << "Global Residual = " << globalresidual << endl;
+      }
+
+      elements_to_refine.SetSize(0);
+      double theta = 0.7;
+      for (int iel = 0; iel<pmesh.GetNE(); iel++)
+      {
+         if (residuals[iel] > theta * maxresidual)
+         {
+            elements_to_refine.Append(iel);
+         }
+      }
+
+
+      ParGridFunction u_gf;
+      u_gf.MakeRef(u_fes,x.GetBlock(0));
+
+      ParGridFunction sigma_gf;
+      sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
+
+      if (visualization)
+      {
+         u_out << "parallel " << num_procs << " " << myid << "\n";
+         u_out.precision(8);
+         u_out << "solution\n" << pmesh << u_gf <<
+                  "window_title 'Numerical u' "
+                  << flush;
+
+         sigma_out << "parallel " << num_procs << " " << myid << "\n";
+         sigma_out.precision(8);
+         sigma_out << "solution\n" << pmesh << sigma_gf <<
+                  "window_title 'Numerical flux' "
+                  << flush;
+      }
+
+
+      pmesh.GeneralRefinement(elements_to_refine);
+
+      for (int i =0; i<trial_fes.Size(); i++)
+      {
+         trial_fes[i]->Update(false);
+      }
+      a->Update();
+
    }
 
    delete a;

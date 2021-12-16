@@ -156,6 +156,24 @@ void ParNormalEquations::RecoverFEMSolution(const Vector &X,
    P->Mult(X, x);
 }
 
+void ParNormalEquations::Update()
+{
+   NormalEquations::Update();
+   delete p_mat_e;
+   p_mat_e = nullptr;
+   delete p_mat;
+   p_mat = nullptr;
+   for (int i = 0; i<nblocks; i++)
+   {
+      delete ess_tdofs[i];
+      ess_tdofs[i] = new Array<int>();
+   }
+   delete P;
+   P = nullptr;
+   delete R;
+   R = nullptr;
+}
+
 ParNormalEquations::~ParNormalEquations()
 {
    delete p_mat_e;

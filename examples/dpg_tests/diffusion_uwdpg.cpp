@@ -55,14 +55,9 @@ double exact(const Vector & X)
    double r = sqrt(x*x + y*y);
    double alpha = 2./3.;
    double theta = atan2(y,x);
-   if (y == 0 && x < 0)
-   {
-      theta += 2.*M_PI;
-   }
-   if (y < 0)
-   {
-      theta += 2.*M_PI;
-   }
+
+   if (theta < 0) theta += 2*M_PI;
+
    return pow(r,alpha) * sin(alpha * theta);
 }
 
@@ -113,6 +108,8 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
+   mesh.UniformRefinement();
+
    // Define spaces
    // L2 space for u
    FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
@@ -141,18 +138,19 @@ int main(int argc, char *argv[])
    ConstantCoefficient negone(-1.0);
 
    // Normal equation weak formulation
-   Array<FiniteElementSpace * > fes; 
+   Array<FiniteElementSpace * > trial_fes; 
    Array<FiniteElementCollection * > test_fec; 
 
-   fes.Append(u_fes);
-   fes.Append(sigma_fes);
-   fes.Append(hatu_fes);
-   fes.Append(hatsigma_fes);
+   trial_fes.Append(u_fes);
+   trial_fes.Append(sigma_fes);
+   trial_fes.Append(hatu_fes);
+   trial_fes.Append(hatsigma_fes);
 
    test_fec.Append(v_fec);
    test_fec.Append(tau_fec);
 
-   NormalEquations * a = new NormalEquations(fes,test_fec);
+   NormalEquations * a = new NormalEquations(trial_fes,test_fec);
+   a->StoreMatrices(true);
 
    //  -(u,∇⋅v)
    a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
@@ -215,23 +213,7 @@ int main(int argc, char *argv[])
 
    for (int i = 0; i<ref; i++)
    {
-      if (i == 0) 
-      {
-         mesh.UniformRefinement();
-      }
-      else
-      {
-         mesh.GeneralRefinement(elements_to_refine);
-      }
-      for (int i =0; i<fes.Size(); i++)
-      {
-         fes[i]->Update(false);
-      }
-      a->StoreMatrices(true);
-      a->Update();
       a->Assemble();
-
-
 
       Array<int> ess_tdof_list;
       Array<int> ess_bdr;
@@ -248,7 +230,6 @@ int main(int argc, char *argv[])
          ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_fes->GetTrueVSize();
       }
 
-      Vector X,B;
       Array<int> offsets(5);
       offsets[0] = 0;
       offsets[1] = u_fes->GetVSize();
@@ -265,6 +246,7 @@ int main(int argc, char *argv[])
       }
 
       OperatorPtr Ah;
+      Vector X,B;
       a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
 
       BlockMatrix * A = Ah.As<BlockMatrix>();
@@ -320,6 +302,14 @@ int main(int argc, char *argv[])
                "window_title 'Numerical flux' "
                << flush;
       }
+
+      mesh.GeneralRefinement(elements_to_refine);
+      for (int i =0; i<trial_fes.Size(); i++)
+      {
+         trial_fes[i]->Update(false);
+      }
+      a->Update();
+
    }
 
    delete a;

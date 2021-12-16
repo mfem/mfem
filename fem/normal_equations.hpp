@@ -211,11 +211,21 @@ public:
       diag_policy = policy;
    }
 
-   void Update();
+   virtual void Update();
 
    void StoreMatrices(bool store_matrices_ = true)
    {
       store_matrices = store_matrices_;
+      if (GB.Size() == 0)
+      {
+         GB.SetSize(mesh->GetNE());
+         Gl.SetSize(mesh->GetNE());
+         for (int i =0; i<mesh->GetNE(); i++)
+         {
+            GB[i] = nullptr;
+            Gl[i] = nullptr;
+         }
+      }
    }
 
    Vector & ComputeResidual(const BlockVector & x);

@@ -102,8 +102,12 @@ public:
        vector in x. Use the same arguments as in the FormLinearSystem call. */
    virtual void RecoverFEMSolution(const Vector &X, Vector &x);
 
+   virtual void Update();
+
    /// Destroys bilinear form.
    virtual ~ParNormalEquations();
+
+
 
 };
 

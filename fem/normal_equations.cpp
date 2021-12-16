@@ -610,7 +610,6 @@ void NormalEquations::Update()
 
    ComputeOffsets();
 
-   mat = mat_e = NULL;
    diag_policy = mfem::Operator::DIAG_ONE;
    height = dof_offsets[nblocks];
    width = height;
@@ -626,6 +625,11 @@ void NormalEquations::Update()
       }
       GB.SetSize(mesh->GetNE());
       Gl.SetSize(mesh->GetNE());
+      for (int i = 0; i<GB.Size(); i++)
+      {
+         GB[i] = nullptr;
+         Gl[i] = nullptr;
+      }
    }
 }
 
