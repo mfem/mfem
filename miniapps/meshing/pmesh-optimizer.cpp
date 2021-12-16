@@ -581,8 +581,9 @@ int main (int argc, char *argv[])
             {
                for (int d = 0; d < dim; d++)
                {
-                  if (abs(x_c[d] - x(pfespace->DofToVDof(dofs[j],d))) < tolerance) {
-                      nnodes[d]++;
+                  if (abs(x_c[d] - x(pfespace->DofToVDof(dofs[j],d))) < tolerance)
+                  {
+                     nnodes[d]++;
                   }
                }
             }
@@ -591,8 +592,9 @@ int main (int argc, char *argv[])
          be->SetAttribute(4);
          for (int d = 0; d < dim; d++)
          {
-            if (nnodes[d] == dofs.Size()) {
-                be->SetAttribute(d+1);
+            if (nnodes[d] == dofs.Size())
+            {
+               be->SetAttribute(d+1);
             }
          }
       }
@@ -1390,10 +1392,10 @@ int main (int argc, char *argv[])
                 << "ProcessNewState Time :" << processnewstatetime << " "
                 << (processnewstatetime*100/solvertime) <<  endl
                 << "ComputeScale Time    :" << scalefactortime << " "
-                << (scalefactortime*100/solvertime) <<  "  " << endl 
+                << (scalefactortime*100/solvertime) <<  "  " << endl
                 << "Device Tag (0 for gpu, 1 otherwise):" << device_tag << endl
                 << " Final energy: " << fin_energy << endl;
-                
+
 
       std::cout << "run_info: " << std::setprecision(4) << " "
                 << rs_levels << " "
@@ -1405,7 +1407,7 @@ int main (int argc, char *argv[])
                 << NEGlob << " " << NDofs << " "
                 << solver.GetNumIterations() << " "
                 << solver.GetTotalPrecIterations() << " "
-                 << solvertime << " "
+                << solvertime << " "
                 << (vectortime*100/solvertime) << " "
                 << (gradtime*100/solvertime) << " "
                 << (prectime*100/solvertime) << " "
@@ -1421,7 +1423,7 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-//      pmesh->PrintAsOne(mesh_ofs);
+      //      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // Compute the final energy of the functional.

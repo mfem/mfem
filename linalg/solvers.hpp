@@ -587,19 +587,22 @@ protected:
    mutable Array<Vector *> skMV, ykMV;
 
 public:
-   LBFGSSolver() : NewtonSolver() {
-       InitializeStorageVectors();
+   LBFGSSolver() : NewtonSolver()
+   {
+      InitializeStorageVectors();
    }
 
 #ifdef MFEM_USE_MPI
-   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) {
-       InitializeStorageVectors();
+   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_)
+   {
+      InitializeStorageVectors();
    }
 #endif
 
-   void SetHistorySize(int dim) {
-       m = dim;
-       InitializeStorageVectors();
+   void SetHistorySize(int dim)
+   {
+      m = dim;
+      InitializeStorageVectors();
    }
 
    /// Solve the nonlinear system with right-hand side @a b.
@@ -611,25 +614,27 @@ public:
    virtual void SetSolver(Solver &solver)
    { MFEM_WARNING("L-BFGS won't use the given solver."); }
 
-   void DeleteStorageVectors() {
-       for (int i = 0; i < skMV.Size(); i++)
-       {
-           skMV[i]->Destroy();
-           ykMV[i]->Destroy();
-       }
+   void DeleteStorageVectors()
+   {
+      for (int i = 0; i < skMV.Size(); i++)
+      {
+         skMV[i]->Destroy();
+         ykMV[i]->Destroy();
+      }
    }
 
-   void InitializeStorageVectors() {
-       DeleteStorageVectors();
-       skMV.SetSize(m);
-       ykMV.SetSize(m);
-       for (int i = 0; i < m; i++)
-       {
-          skMV[i] = new Vector(width);
-          ykMV[i] = new Vector(width);
-          skMV[i]->UseDevice(true);
-          ykMV[i]->UseDevice(true);
-       }
+   void InitializeStorageVectors()
+   {
+      DeleteStorageVectors();
+      skMV.SetSize(m);
+      ykMV.SetSize(m);
+      for (int i = 0; i < m; i++)
+      {
+         skMV[i] = new Vector(width);
+         ykMV[i] = new Vector(width);
+         skMV[i]->UseDevice(true);
+         ykMV[i]->UseDevice(true);
+      }
    }
 
    virtual ~LBFGSSolver() { DeleteStorageVectors(); }
