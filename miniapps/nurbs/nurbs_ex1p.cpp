@@ -315,43 +315,43 @@ int main(int argc, char *argv[])
          return 4;
       }
    }
-         cout << 317<< endl;
+
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    if (pmesh->bdr_attributes.Size())
-   {                                                    cout << 324<< endl;
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());  cout << 325<< endl;
+   {
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       if (strongBC)
-      {                                                 cout << 326<< endl;
-         ess_bdr = 1;                                   cout << 327<< endl;
+      {
+         ess_bdr = 1;
       }
       else
-      {                                                 cout << 328<< endl;
-         ess_bdr = 0;                                   cout << 329<< endl;
+      {
+         ess_bdr = 0;
       }
       // Remove periodic BCs
       if (NURBSext)
-      {                                                 cout << 330<< endl;
-         Array<int> master = NURBSext->GetMaster();     cout << 331<< endl;
-         Array<int> slave = NURBSext->GetSlave();       cout << 332<< endl;
+      {
+         Array<int> master = NURBSext->GetMaster();
+         Array<int> slave = NURBSext->GetSlave();
          for (int i = 0; i < master.Size(); i++)
-         {                                              cout << 333<< endl;
-            ess_bdr[master[i]-1] = 0;                   cout << 334<< endl;
-            ess_bdr[slave[i]-1] = 0;                    cout << 335<< endl;
+         {
+            ess_bdr[master[i]-1] = 0;
+            ess_bdr[slave[i]-1] = 0;
          }
       }
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);  cout << 336<< endl;
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-         cout << 347<< endl;
+
    // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
-         cout << 353<< endl;
+
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
 
@@ -359,7 +359,7 @@ int main(int argc, char *argv[])
       b->AddBdrFaceIntegrator(
          new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
    b->Assemble();
-         cout << 361<< endl;
+
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -382,23 +382,23 @@ int main(int argc, char *argv[])
    {
       a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa));
    }
-         cout << 384<< endl;
+
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
-         cout << 391<< endl;
+
    HypreParMatrix A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-         cout << 395<< endl;
+
    if (myid == 0)
    {
       cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
    }
-         cout << 400<< endl;
+
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
    HypreSolver *amg = new HypreBoomerAMG(A);
