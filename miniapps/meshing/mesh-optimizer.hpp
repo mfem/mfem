@@ -401,8 +401,7 @@ double squircle_level_set(const Vector &x)
    if (dim == 2)
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc);
-      const double r2 = pow(xc/1.0, power) + pow(yc/1.0, power);
+      const double r2 = pow(xc, power) + pow(yc, power);
       return r2 - pow(0.1, power);
    }
    else
