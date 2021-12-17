@@ -33,14 +33,14 @@
 //
 // Sample runs:
 //   Boundary fitting
-//   mpirun -np 4 tmop_surface -m sqdiscquad.mesh -o 2 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 1 -sni 10 -oi 10 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2
-//   mpirun -np 4 tmop_surface -m sqdisc.mesh -o 2 -rs 0 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 20 -sni 10 -oi 3 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2
-//   mpirun -np 4 tmop_surface -m sqdiscquad.mesh -o 4 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 10 -sni 10 -oi 5 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2
+//   mpirun -np 4 tmop_surface -m ../../data/square-disc-nurbs.mesh -o 2 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 1 -sni 10 -oi 10 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2 -mod-bndr-attr
+//   mpirun -np 4 tmop_surface -m ../../data/square-disc-p2.mesh -o 2 -rs 0 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 20 -sni 10 -oi 3 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2 -mod-bndr-attr
+//   mpirun -np 4 tmop_surface -m ../../data/square-disc-nurbs.mesh -o 4 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 10 -sni 10 -oi 5 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2 -mod-bndr-attr
 
-//   mpirun -np 4 tmop_surface -m sqdiscquad.mesh -o 2 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e4 -ni 20 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 1 -smtype 2
+//   mpirun -np 4 tmop_surface -m ../../data/square-disc-nurbs.mesh -o 2 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e4 -ni 20 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 1 -smtype 2 -mod-bndr-attr
 
 //  Interface fitting
-//  mpirun -np 4 tmop_surface -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor -sapp 1 -slstype 1
+//  mpirun -np 4 tmop_surface -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor -sapp 1 -slstype 1
 //  mpirun -np 4 tmop_surface -m square01-tri.mesh -o 2 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor -sapp 1 -slstype 1
 //  mpirun -np 4 tmop_surface -m square01-tri.mesh -o 2 -rs 2 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor -sapp 1 -slstype 3
 #include "mfem.hpp"
@@ -68,8 +68,6 @@ int main (int argc, char *argv[])
    double jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
-   double lim_const      = 0.0;
-   double adapt_lim_const   = 0.0;
    double surface_fit_const = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
@@ -92,9 +90,10 @@ int main (int argc, char *argv[])
    const char *devopt    = "cpu";
    bool pa               = false;
    bool surf_bg_mesh     = false;
-   int surf_approach     = 0;
+   int surf_approach     = 1;
    int surf_ls_type      = 1;
    int marking_type      = 1;
+   bool mod_bndr_attr    = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -149,9 +148,6 @@ int main (int argc, char *argv[])
                   "3: Ideal shape, initial size\n\t"
                   "4: Given full analytic Jacobian (in physical space)\n\t"
                   "5: Ideal shape, given size (in physical space)");
-   args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
-   args.AddOption(&adapt_lim_const, "-alc", "--adapt-limit-const",
-                  "Adaptive limiting coefficient constant.");
    args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
                   "Surface preservation constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
@@ -222,6 +218,9 @@ int main (int argc, char *argv[])
                   "1 - Circle (DEFAULT), 2 - Squircle, 3 - Butterfly.");
    args.AddOption(&marking_type, "-smtype", "--surf-marking-type",
                   "1 - Interface (DEFAULT), 2 - Boundary attribute.");
+   args.AddOption(&mod_bndr_attr, "-mod-bndr-attr", "--modify-boundary-attribute",
+                  "-fix-bndr-attr", "--fix-boundary-attribute",
+                  "Change boundary attribue based on alignment with Cartesian axes.");
    args.Parse();
    if (!args.Good())
    {
@@ -493,9 +492,76 @@ int main (int argc, char *argv[])
            << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
    }
 
-   ConstantCoefficient lim_coeff(lim_const);
-   ConstantCoefficient coef_zeta(adapt_lim_const);
-   GridFunction zeta_0(&ind_fes);
+   // Modify boundary attribute for surface node movement
+   if (mod_bndr_attr)
+   {
+      for (int i = 0; i < pmesh->GetNBE(); i++)
+      {
+         mfem::Array<int> dofs;
+         pfespace->GetBdrElementDofs(i, dofs);
+         mfem::Vector bdr_xy_data;
+         mfem::Vector dof_xyz(dim);
+         mfem::Vector dof_xyz_compare;
+         mfem::Array<int> xyz_check(dim);
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            for (int d = 0; d < dim; d++)
+            {
+               dof_xyz(d) = x(pfespace->DofToVDof(dofs[j], d));
+            }
+            if (j == 0)
+            {
+               dof_xyz_compare = dof_xyz;
+               xyz_check = 1;
+            }
+            else
+            {
+               for (int d = 0; d < dim; d++)
+               {
+                  if (std::fabs(dof_xyz(d)-dof_xyz_compare(d)) < 1.e-10)
+                  {
+                     xyz_check[d] += 1;
+                  }
+               }
+            }
+         }
+         if (dim == 2)
+         {
+            if (xyz_check[0] == dofs.Size())
+            {
+               pfespace->GetMesh()->SetBdrAttribute(i, 1);
+            }
+            else if (xyz_check[1] == dofs.Size())
+            {
+               pfespace->GetMesh()->SetBdrAttribute(i, 2);
+            }
+            else
+            {
+               pfespace->GetMesh()->SetBdrAttribute(i, 3);
+            }
+         }
+         else if (dim == 3)
+         {
+            if (xyz_check[0] == dofs.Size())
+            {
+               pfespace->GetMesh()->SetBdrAttribute(i, 1);
+            }
+            else if (xyz_check[1] == dofs.Size())
+            {
+               pfespace->GetMesh()->SetBdrAttribute(i, 2);
+            }
+            else if (xyz_check[2] == dofs.Size())
+            {
+               pfespace->GetMesh()->SetBdrAttribute(i, 3);
+            }
+            else
+            {
+               pfespace->GetMesh()->SetBdrAttribute(i, 4);
+            }
+         }
+      }
+      pmesh->SetAttributes();
+   }
 
    // Surface fitting.
    L2_FECollection mat_coll(0, dim);
@@ -765,14 +831,10 @@ int main (int argc, char *argv[])
    // For HR tests, the energy is normalized by the number of elements.
    const double init_energy = a.GetParGridFunctionEnergy(x);
    double init_metric_energy = init_energy;
-   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
+   if (surface_fit_const > 0.0)
    {
-      lim_coeff.constant = 0.0;
-      coef_zeta.constant = 0.0;
       coef_ls.constant   = 0.0;
       init_metric_energy = a.GetParGridFunctionEnergy(x);
-      lim_coeff.constant = lim_const;
-      coef_zeta.constant = adapt_lim_const;
       coef_ls.constant   = surface_fit_const;
    }
 
@@ -987,14 +1049,10 @@ int main (int argc, char *argv[])
    // Compute the final energy of the functional.
    const double fin_energy = a.GetParGridFunctionEnergy(x);
    double fin_metric_energy = fin_energy;
-   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
+   if (surface_fit_const > 0.0)
    {
-      lim_coeff.constant = 0.0;
-      coef_zeta.constant = 0.0;
       coef_ls.constant   = 0.0;
       fin_metric_energy  = a.GetParGridFunctionEnergy(x);
-      lim_coeff.constant = lim_const;
-      coef_zeta.constant = adapt_lim_const;
       coef_ls.constant   = surface_fit_const;
    }
    if (myid == 0)
@@ -1021,7 +1079,14 @@ int main (int argc, char *argv[])
    {
 
       double err_avg, err_max;
-      he_nlf_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      if (surf_approach == 1)
+      {
+         he_nlf_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      }
+      else
+      {
+         surf_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      }
       if (myid == 0)
       {
          cout << "Avg fitting error: " << err_avg << std::endl
