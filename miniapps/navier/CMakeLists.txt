@@ -53,6 +53,12 @@ if (MFEM_USE_MPI)
     MAIN navier_3dfoc.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
+  
+
+  add_mfem_miniapp(navier_turbchan
+    MAIN navier_turbchan.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem)
 
   add_mfem_miniapp(navier_3dbrink
     MAIN navier_3dbrink.cpp
