@@ -370,15 +370,13 @@ void KnotVector::CalcDnShape_(Vector &gradn, int n, int ip, double u) const
          s2 = j;
       }
    }
-   //for (j = 0; j <= p; j++) { gradn[j] *= p; }
 
    temp = p;
    for (int k = 1; k <=n-1; k++) {temp *= (p-k);}
    for (j = 0; j <= p; j++)
    {
       gradn[j] *= temp;
-   } 
-
+   }
 }
 
 // Routine
