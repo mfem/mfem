@@ -52,14 +52,20 @@ public:
    int Size()     const { return knot.Size(); }
 
    /// Count the number of elements
-   void GetElements();
+   void GetElements(bool force = false);
 
    bool isElement(int i) const { return (knot(Order+i) != knot(Order+i+1)); }
 
-   double getKnotLocation(double xi, int ni) const
+   double GetKnotLocation(double xi, int ni) const
    { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
 
-   int findKnotSpan(double u) const;
+   int FindKnotSpan(double u) const;
+
+   void CalcShape_  (Vector &shape, int i, double u) const;
+   void CalcDShape_ (Vector &grad,  int i, double u) const;
+   void CalcDnShape_(Vector &gradn, int n, int i, double u) const;
+   void CalcD2Shape_(Vector &grad2, int i, double u) const
+   { CalcDnShape_(grad2, 2, i, u); }
 
    void CalcShape  (Vector &shape, int i, double xi) const;
    void CalcDShape (Vector &grad,  int i, double xi) const;
@@ -67,8 +73,11 @@ public:
    void CalcD2Shape(Vector &grad2, int i, double xi) const
    { CalcDnShape(grad2, 2, i, xi); }
 
+   void FindMaxima(Array<int> &ks,Vector &xi,Vector &u);
+   void FindInterpolant(Array<Vector*> &x);
+
    void Difference(const KnotVector &kv, Vector &diff) const;
-   void UniformRefinement(Vector &newknots) const;
+   void UniformRefinement(Vector &newknots);
    /** Return a new KnotVector with elevated degree by repeating the endpoints
        of the knot vector. */
    KnotVector *DegreeElevate(int t) const;
@@ -92,6 +101,7 @@ class NURBSPatch
 protected:
    int     ni, nj, nk, Dim;
    double *data; // the layout of data is: (Dim x ni x nj x nk)
+   bool    projected;
 
    Array<KnotVector *> kv;
 
@@ -115,10 +125,13 @@ public:
    NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
               const KnotVector *kv2, int dim_);
    NURBSPatch(Array<const KnotVector *> &kv, int dim_);
+   NURBSPatch(int kv_dim, int dim_);
 
    ~NURBSPatch();
 
    void Print(std::ostream &out) const;
+   void PrintKnotvectors() const;
+   void PrintMesh(const char* mesh_file) const;
 
    void DegreeElevate(int dir, int t);
    void KnotInsert   (int dir, const KnotVector &knot);
@@ -135,6 +148,12 @@ public:
    int GetNKV() const { return kv.Size(); }
    KnotVector *GetKV(int i) { return kv[i]; }
 
+   // B-NET projection functions
+   void SetProjected(bool proj_) {projected = proj_;};
+   bool isProjected() {return projected;};
+   void ApplyProjection();
+   void UndoProjection();
+
    // Standard B-NET access functions
    inline       double &operator()(int i, int j, int l);
    inline const double &operator()(int i, int j, int l) const;
@@ -142,10 +161,13 @@ public:
    inline       double &operator()(int i, int j, int k, int l);
    inline const double &operator()(int i, int j, int k, int l) const;
 
+   static void Get2DRotationMatrix(double angle,
+                                   DenseMatrix &T);  // --> could be moved to ??
    static void Get3DRotationMatrix(double n[], double angle, double r,
-                                   DenseMatrix &T);
+                                   DenseMatrix &T); // --> could be moved to ??
    void FlipDirection(int dir);
    void SwapDirections(int dir1, int dir2);
+   void Rotate2D(double angle);     // --> could be streamlined with 3d option???
    void Rotate3D(double normal[], double angle);
    int MakeUniformDegree(int degree = -1);
    friend NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2);
@@ -186,7 +208,8 @@ protected:
    Mesh *patchTopo;
    int own_topo;
    Array<int> edge_to_knot;
-   Array<KnotVector *> knotVectors;
+   Array<KnotVector *> knotVectorsRed;
+   Array<KnotVector *> knotVectorsExt;
    Vector weights;
 
    // periodic BC info:
@@ -217,13 +240,22 @@ protected:
 
    Array<NURBSPatch *> patches;
 
-   inline int         KnotInd(int edge) const;
-   inline KnotVector *KnotVec(int edge);
-   inline const KnotVector *KnotVec(int edge) const;
-   inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
+   inline int         KnotIndRed(int edge) const;
+   inline KnotVector *KnotVecRed(int edge);
+   inline const KnotVector *KnotVecRed(int edge) const;
+   inline const KnotVector *KnotVecRed(int edge, int oedge, int *okv) const;
 
    void CheckPatches();
    void CheckBdrPatches();
+   // Checks the direction of the knotvectors in the patch based on
+   // the patch orientation.
+   void CheckKVDirection(int p, Array <int> &kvdir);
+
+   void KVRed2Ext();
+   void UpdateKVRed();
+   void CheckKVRedKVExt();
+   void PrintKnotvectors();
+
 
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
    void GetPatchKnotVectors   (int p, Array<const KnotVector *> &kv) const;
@@ -359,8 +391,8 @@ public:
    int GetNTotalDof() const { return NumOfDofs; }
    int GetNDof()      const { return NumOfActiveDofs; }
 
-   // Knotvector read-only access function
-   const KnotVector *GetKnotVector(int i) const { return knotVectors[i]; }
+   // Knotvector read-only access function for reduced set of knotvectors
+   const KnotVector *GetKnotVector(int i) const { return knotVectorsRed[i]; }
 
    // Mesh generation functions
    void GetElementTopo   (Array<Element *> &elements) const;
@@ -543,35 +575,36 @@ inline const double &NURBSPatch::operator()(int i, int j, int k, int l) const
 }
 
 
-inline int NURBSExtension::KnotInd(int edge) const
+inline int NURBSExtension::KnotIndRed(int edge) const
 {
    int kv = edge_to_knot[edge];
    return (kv >= 0) ? kv : (-1-kv);
 }
 
-inline KnotVector *NURBSExtension::KnotVec(int edge)
+inline KnotVector *NURBSExtension::KnotVecRed(int edge)
 {
-   return knotVectors[KnotInd(edge)];
+   return knotVectorsRed[KnotIndRed(edge)];
 }
 
-inline const KnotVector *NURBSExtension::KnotVec(int edge) const
+inline const KnotVector *NURBSExtension::KnotVecRed(int edge) const
 {
-   return knotVectors[KnotInd(edge)];
+   return knotVectorsRed[KnotIndRed(edge)];
 }
 
-inline const KnotVector *NURBSExtension::KnotVec(int edge, int oedge, int *okv)
+inline const KnotVector *NURBSExtension::KnotVecRed(int edge, int oedge,
+                                                    int *okv)
 const
 {
    int kv = edge_to_knot[edge];
    if (kv >= 0)
    {
       *okv = oedge;
-      return knotVectors[kv];
+      return knotVectorsRed[kv];
    }
    else
    {
       *okv = -oedge;
-      return knotVectors[-1-kv];
+      return knotVectorsRed[-1-kv];
    }
 }
 

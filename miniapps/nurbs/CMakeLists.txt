@@ -53,6 +53,10 @@ if (MFEM_ENABLE_TESTING)
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
 endif()
 
+add_test(NAME nurbs_ex1_weak_patch_format_3d_ser
+  COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+  -m ${PROJECT_SOURCE_DIR}/data/beam-hex-nurbs-patch.mesh -o 2 --weak-bc -r 1)
+
 if (MFEM_USE_MPI)
   add_mfem_miniapp(nurbs_ex1p
     MAIN nurbs_ex1p.cpp
@@ -98,3 +102,11 @@ if (MFEM_USE_MPI)
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()
+
+
+
+
+
+
+
+
