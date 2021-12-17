@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
       own_fec = 1;
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh,NURBSext,fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
 
    if (myid == 0)
    {
@@ -314,7 +314,7 @@ int main(int argc, char *argv[])
          return 4;
       }
    }
-
+         cout << 317<< endl;
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
@@ -344,13 +344,13 @@ int main(int argc, char *argv[])
       }
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-
+         cout << 347<< endl;
    // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
-
+         cout << 353<< endl;
    ParLinearForm *b = new ParLinearForm(fespace);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
 
@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
       b->AddBdrFaceIntegrator(
          new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
    b->Assemble();
-
+         cout << 361<< endl;
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -381,23 +381,23 @@ int main(int argc, char *argv[])
    {
       a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa));
    }
-
+         cout << 384<< endl;
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
-
+         cout << 391<< endl;
    HypreParMatrix A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-
+         cout << 395<< endl;
    if (myid == 0)
    {
       cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
    }
-
+         cout << 400<< endl;
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
    HypreSolver *amg = new HypreBoomerAMG(A);
