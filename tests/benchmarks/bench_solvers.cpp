@@ -66,6 +66,7 @@ enum FinePrecondType
 {
    None = 0,
    Jacobi,
+   BoomerAMG,
    LORBatch,
    MGJacobi,
    MGFAHypre,
@@ -76,6 +77,32 @@ enum FinePrecondType
    MGFAWavelets,
    MGLEGACYWavelets
 };
+
+////////////////////////////////////////////////////////////////////////////////
+static void EliminateRowsCols(ParBilinearForm &a,
+                              const Array<int> &ess_tdof_list,
+                              OperatorHandle &A)
+{
+   ParFiniteElementSpace &pfes = *a.ParFESpace();
+   SparseMatrix &mat = a.SpMat();
+   const int remove_zeros = 0;
+   a.Finalize(remove_zeros);
+   OperatorHandle p_mat(Operator::Hypre_ParCSR),
+                  p_mat_e(Operator::Hypre_ParCSR);
+   MFEM_VERIFY(p_mat.Ptr() == NULL && p_mat_e.Ptr() == NULL,
+               "The ParBilinearForm must be updated with Update() before "
+               "re-assembling the ParBilinearForm.");
+   p_mat.Clear();
+   OperatorHandle dA(p_mat.Type()), Ph(p_mat.Type()), hdA;
+   dA.MakeSquareBlockDiag(pfes.GetComm(),
+                          pfes.GlobalVSize(),
+                          pfes.GetDofOffsets(), &mat);
+   Ph.ConvertFrom(pfes.Dof_TrueDof_Matrix());
+   p_mat.MakePtAP(dA, Ph);
+   p_mat_e.EliminateRowsCols(p_mat, ess_tdof_list);
+   A = p_mat;
+   p_mat.SetOperatorOwner(false);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 namespace precond
@@ -291,33 +318,14 @@ public:
       dbg("AssemblyLevel: %s",al_str.c_str());
       BilinearForm &a = *bfs.Last();
       Array<int> &ess_dofs = *essentialTrueDofs.Last();
-      a.FormSystemMatrix(*essentialTrueDofs.Last(), A_coarse);
+      a.FormSystemMatrix(ess_dofs, A_coarse);
 
       ///  FULL => BC NOT DONE !!!
       if (GetCoarseAssemblyLevel(config) == AssemblyLevel::FULL)
       {
-         dbg("FULL => BC NOT DONE, doing NOW !!!");
-         SparseMatrix &mat = a.SpMat();
-         //SparseMatrix &mat_e = a.SpMatElim();
-         assert(A_coarse.Type() == Type::ANY_TYPE);
-         const int remove_zeros = 0;
-         a.Finalize(remove_zeros);
-         OperatorHandle p_mat(Operator::Hypre_ParCSR),
-                        p_mat_e(Operator::Hypre_ParCSR);
-         MFEM_VERIFY(p_mat.Ptr() == NULL && p_mat_e.Ptr() == NULL,
-                     "The ParBilinearForm must be updated with Update() before "
-                     "re-assembling the ParBilinearForm.");
-         //a.ParallelAssemble(p_mat, mat);
-         p_mat.Clear();
-         OperatorHandle dA(p_mat.Type()), Ph(p_mat.Type()), hdA;
-         dA.MakeSquareBlockDiag(pfes.GetComm(),
-                                pfes.GlobalVSize(),
-                                pfes.GetDofOffsets(), &mat);
-         Ph.ConvertFrom(pfes.Dof_TrueDof_Matrix());
-         p_mat.MakePtAP(dA, Ph);
-         p_mat_e.EliminateRowsCols(p_mat, ess_dofs);
-         A_coarse = p_mat;
-         p_mat.SetOperatorOwner(false);
+         ParBilinearForm *par_a = dynamic_cast<ParBilinearForm*>(bfs.Last());
+         MFEM_VERIFY(par_a, "Error!");
+         EliminateRowsCols(*par_a, ess_dofs, A_coarse);
       }
 
       OperatorPtr A_prec;
@@ -1007,12 +1015,28 @@ struct SolverProblem: public BakeOff
       {
          dbg("a.Assemble");
          NVTX("a.Assemble");
-         a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         if (preconditioner == FinePrecondType::BoomerAMG)
+         {
+            a.SetAssemblyLevel(AssemblyLevel::FULL);
+         }
+         else
+         {
+            a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         }
          a.AddDomainIntegrator(new BFI(one, GLL?irGLL:ir));
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-         a.AssembleDiagonal(diag);
+
+         if (preconditioner == FinePrecondType::BoomerAMG)
+         {
+            EliminateRowsCols(a, ess_tdof_list, A);
+         }
+         else
+         {
+            a.AssembleDiagonal(diag);
+         }
       }
+
       // should be an option
       const int smoother_order = 1;
       wargs_t args {A, diag, ess_tdof_list, smoother_order,
@@ -1047,6 +1071,15 @@ struct SolverProblem: public BakeOff
             dbg("Jacobi");
             NVTX("Jacobi");
             M.reset(new OperatorJacobiSmoother(a,ess_tdof_list));
+            break;
+         }
+         case BoomerAMG:
+         {
+            dbg("BoomerAMG");
+            NVTX("BoomerAMG");
+            HypreBoomerAMG *amg = new HypreBoomerAMG(*A.As<HypreParMatrix>());
+            amg->SetPrintLevel(0);
+            M.reset(amg);
             break;
          }
          case LORBatch:
@@ -1149,10 +1182,10 @@ struct SolverProblem: public BakeOff
 #define P_ORDERS bm::CreateDenseRange(1,6,1)
 
 // The different side sizes
-#define P_SIDES bm::CreateDenseRange(6,100,2)
+#define P_SIDES bm::CreateDenseRange(6,200,2)
 
 // Maximum number of dofs
-#define MAX_NDOFS 8*1024*1024
+#define MAX_NDOFS 10*1024*1024
 
 /// Bake-off Solvers (BPSs)
 /// Smoothness in 0, 1 or 2
@@ -1182,11 +1215,12 @@ static void BPS##i##_##Precond(bm::State &state){\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_EPSILONS,P_ORDERS,P_SIDES})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(10);
+    -> Iterations(2);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Solver(3,Diffusion,None)
 BakeOff_Solver(3,Diffusion,Jacobi)
+BakeOff_Solver(3,Diffusion,BoomerAMG)
 BakeOff_Solver(3,Diffusion,LORBatch)
 BakeOff_Solver(3,Diffusion,MGInner)
 BakeOff_Solver(3,Diffusion,MGJacobi)
