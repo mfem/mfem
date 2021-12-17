@@ -120,6 +120,11 @@ template <> struct AutoSIMD<double,8,64>
       return r;
    }
 
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator+() const
+   {
+      return *this;
+   }
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const AutoSIMD &v) const
    {
       AutoSIMD r;
