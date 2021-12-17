@@ -285,6 +285,7 @@ int main(int argc, char *argv[])
       own_fec = 1;
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh,NURBSext,fec);
+   NURBSext = fespace->GetNURBSext();
    HYPRE_BigInt size = fespace->GlobalTrueVSize();
 
    if (myid == 0)
