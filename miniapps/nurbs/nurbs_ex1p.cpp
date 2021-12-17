@@ -321,28 +321,28 @@ int main(int argc, char *argv[])
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    if (pmesh->bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   {                                                    cout << 324<< endl;
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());  cout << 325<< endl;
       if (strongBC)
-      {
-         ess_bdr = 1;
+      {                                                 cout << 326<< endl;
+         ess_bdr = 1;                                   cout << 327<< endl;
       }
       else
-      {
-         ess_bdr = 0;
+      {                                                 cout << 328<< endl;
+         ess_bdr = 0;                                   cout << 329<< endl;
       }
       // Remove periodic BCs
       if (NURBSext)
-      {
-         Array<int> master = NURBSext->GetMaster();
-         Array<int> slave = NURBSext->GetSlave();
+      {                                                 cout << 330<< endl;
+         Array<int> master = NURBSext->GetMaster();     cout << 331<< endl;
+         Array<int> slave = NURBSext->GetSlave();       cout << 332<< endl;
          for (int i = 0; i < master.Size(); i++)
-         {
-            ess_bdr[master[i]-1] = 0;
-            ess_bdr[slave[i]-1] = 0;
+         {                                              cout << 333<< endl;
+            ess_bdr[master[i]-1] = 0;                   cout << 334<< endl;
+            ess_bdr[slave[i]-1] = 0;                    cout << 335<< endl;
          }
       }
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);  cout << 336<< endl;
    }
          cout << 347<< endl;
    // 8. Set up the parallel linear form b(.) which corresponds to the
