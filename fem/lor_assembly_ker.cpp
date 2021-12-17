@@ -19,8 +19,7 @@ namespace mfem
 {
 
 template <int order, bool USE_SMEM = true>
-void Assemble3DBatchedLOR(Mesh &mesh_lor,
-                          const Array<int> &dof_glob2loc_,
+void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                           const Array<int> &dof_glob2loc_offsets_,
                           const Array<int> &el_dof_lex_,
                           Mesh &mesh_ho,
@@ -61,7 +60,8 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
    const auto J = A_mat.ReadJ();
    auto A = A_mat.ReadWriteData();
 
-   const auto X = mesh_lor.GetNodes()->Read();
+   // const auto X = mesh_lor.GetNodes()->Read();
+   const auto X = mesh_ho.GetNodes()->Read();
 
    // Last GRID dimension is lowered to avoid too many resources
    MFEM_FORALL_3D_GRID(iel_ho, nel_ho, order, order, USE_SMEM?order:1, GRID,
@@ -459,7 +459,7 @@ void Assemble3DBatchedLOR(Mesh &mesh_lor,
 
 #define LOR_KERNEL_INSTANCE(order,use_smem) \
 template void Assemble3DBatchedLOR<order,use_smem>\
-    (Mesh &, const Array<int> &,const Array<int> &, const Array<int> &,\
+    (const Array<int> &,const Array<int> &, const Array<int> &,\
      Mesh &, SparseMatrix &)
 
 LOR_KERNEL_INSTANCE(1,true);

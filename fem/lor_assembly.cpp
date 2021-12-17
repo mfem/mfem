@@ -25,8 +25,7 @@ namespace mfem
 
 // Defined in lor_assembly_ker.cpp
 template <int order, bool use_smem = true>
-void Assemble3DBatchedLOR(Mesh &mesh_lor,
-                          const Array<int> &dof_glob2loc,
+void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc,
                           const Array<int> &dof_glob2loc_offsets,
                           const Array<int> &el_dof_lex,
                           Mesh &mesh_ho,
@@ -38,7 +37,6 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
                                         OperatorHandle &Ah)
 {
    MFEM_NVTX;
-   Mesh &mesh_lor = *form_lor.FESpace()->GetMesh();
    Mesh &mesh_ho = *fes_ho.GetMesh();
    const int dim = mesh_ho.Dimension();
    const int order = fes_ho.GetMaxElementOrder();
@@ -49,26 +47,23 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
    SparseMatrix *A = has_to_init ? nullptr : Ah.As<SparseMatrix>();
 
    dbg("GetLORRestriction");
-   const Operator *Rop = lor_disc.GetLORRestriction();
-   dbg("R");
-   const LORRestriction *R = static_cast<const LORRestriction*>(Rop);
+   const LORRestriction *R = lor_disc.GetLORRestriction();
    MFEM_VERIFY(R,"LOR Restriction error!");
 
    if (has_to_init)
    {
       MFEM_VERIFY(UsesTensorBasis(fes_ho),
                   "Batched LOR assembly requires tensor basis");
-      if (Device::IsEnabled())
+      if (Device::IsEnabled() || true)
       {
          dbg("Device::IsEnabled()");
 #ifdef MFEM_USE_MPI
-         ParBilinearForm *pform_lor = dynamic_cast<ParBilinearForm*>(&form_lor);
-         if (pform_lor)
+         ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
+         if (pfes_ho)
          {
             dbg("Device::IsEnabled() and multiple ranks!");
-            ParFiniteElementSpace &pfes_lo = *pform_lor->ParFESpace();
-            const int width = pfes_lo.GetVSize();
-            const int height = pfes_lo.GetVSize();
+            const int width = pfes_ho->GetVSize();
+            const int height = pfes_ho->GetVSize();
             dbg("HxW: %dx%d",height,width);
             A = new SparseMatrix(height, width, 0);
          }
@@ -76,9 +71,8 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
 #endif
          {
             dbg("Device::IsEnabled() but one rank!");
-            FiniteElementSpace &fes_lo = *form_lor.FESpace();
-            const int width = fes_lo.GetVSize();
-            const int height = fes_lo.GetVSize();
+            const int width = fes_ho.GetVSize();
+            const int height = fes_ho.GetVSize();
             dbg("HxW: %dx%d",height,width);
             A = new SparseMatrix(height, width, 0);
          }
@@ -90,6 +84,7 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
       }
       else
       {
+         MFEM_ABORT("");
          dbg("NOT Device::IsEnabled()");
          // the sparsity pattern is defined from the map: element->dof
          const int ndofs = fes_ho.GetVSize();
@@ -109,8 +104,7 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
       }
    }
 
-   void (*Kernel)(Mesh &mesh_lor,
-                  const Array<int> &dof_glob2loc,
+   void (*Kernel)(const Array<int> &dof_glob2loc,
                   const Array<int> &dof_glob2loc_offsets,
                   const Array<int> &el_dof_lex,
                   Mesh &mesh_ho,
@@ -141,8 +135,7 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
       }
    }
 
-   Kernel(mesh_lor,
-          R->Indices(),
+   Kernel(R->Indices(),
           R->Offsets(),
           R->GatherMap(),
           mesh_ho, *A);
