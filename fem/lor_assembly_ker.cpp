@@ -18,6 +18,71 @@
 namespace mfem
 {
 
+void NodalInterpolation3D(const int NE, const int D1D, const int Q1D,
+                          const Vector& localL, Vector& localH,
+                          const Array<double>& B)
+{
+   static constexpr int VDIM = 3;
+   auto x_ = Reshape(localL.Read(), D1D, D1D, D1D, VDIM, NE);
+   auto y_ = Reshape(localH.Write(), VDIM, Q1D, Q1D, Q1D, NE);
+   auto B_ = Reshape(B.Read(), Q1D, D1D);
+
+   localH = 0.0;
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int vd = 0; vd < VDIM; ++vd)
+      {
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            double sol_xy[MAX_Q1D][MAX_Q1D];
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  sol_xy[qy][qx] = 0.0;
+               }
+            }
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               double sol_x[MAX_Q1D];
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  sol_x[qx] = 0;
+               }
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double s = x_(dx, dy, dz, vd, e);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     sol_x[qx] += B_(qx, dx) * s;
+                  }
+               }
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const double wy = B_(qy, dy);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     sol_xy[qy][qx] += wy * sol_x[qx];
+                  }
+               }
+            }
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const double wz = B_(qz, dz);
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     y_(vd, qx, qy, qz, e) += wz * sol_xy[qy][qx];
+                  }
+               }
+            }
+         }
+      }
+   });
+}
+
 template <int order, bool USE_SMEM = true>
 void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                           const Array<int> &dof_glob2loc_offsets_,
@@ -60,8 +125,32 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
    const auto J = A_mat.ReadJ();
    auto A = A_mat.ReadWriteData();
 
-   // const auto X = mesh_lor.GetNodes()->Read();
-   const auto X = mesh_ho.GetNodes()->Read();
+   const GridFunction *nodal_gf = mesh_ho.GetNodes();
+   const FiniteElementSpace *nodal_fes = nodal_gf->FESpace();
+   const Operator *nodal_restriction = nodal_fes->GetElementRestriction(
+                                          ElementDofOrdering::LEXICOGRAPHIC);
+   const int nodal_nd1d = nodal_fes->GetMaxElementOrder() + 1;
+
+   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
+   const IntegrationRule &ir = irs.Get(Geometry::Type::CUBE, 2*nd1d - 3);
+   MFEM_VERIFY(ir.Size() == ndof_per_el, "");
+
+   // Get the map from mesh nodes to LOR vertices
+   const DofToQuad& maps = nodal_fes->GetFE(0)->GetDofToQuad(ir,
+                                                             DofToQuad::TENSOR);
+
+   // Map from nodal E-vector to L-vector
+   Vector nodes_loc(nodal_restriction->Height());
+   nodes_loc.UseDevice(true);
+   nodal_restriction->Mult(*nodal_gf, nodes_loc);
+
+   // Get nodal points at the LOR vertices
+   Vector X_loc(dim*ndof_per_el*nel_ho);
+   X_loc.UseDevice(true);
+
+   // Get the LOR vertex coordinates
+   NodalInterpolation3D(nel_ho, nodal_nd1d, nd1d, nodes_loc, X_loc, maps.B);
+   auto X = X_loc.Read();
 
    // Last GRID dimension is lowered to avoid too many resources
    MFEM_FORALL_3D_GRID(iel_ho, nel_ho, order, order, USE_SMEM?order:1, GRID,
@@ -124,46 +213,46 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                const int v6 = kx + 1 + nd1d*(ky + 1 + nd1d*(kz + 1));
                const int v7 = kx + nd1d*(ky + 1 + nd1d*(kz + 1));
 
-               const int e0 = el_dof_lex(v0, iel_ho);
-               const int e1 = el_dof_lex(v1, iel_ho);
-               const int e2 = el_dof_lex(v2, iel_ho);
-               const int e3 = el_dof_lex(v3, iel_ho);
-               const int e4 = el_dof_lex(v4, iel_ho);
-               const int e5 = el_dof_lex(v5, iel_ho);
-               const int e6 = el_dof_lex(v6, iel_ho);
-               const int e7 = el_dof_lex(v7, iel_ho);
+               const int e0 = dim*(v0 + ndof_per_el*iel_ho);
+               const int e1 = dim*(v1 + ndof_per_el*iel_ho);
+               const int e2 = dim*(v2 + ndof_per_el*iel_ho);
+               const int e3 = dim*(v3 + ndof_per_el*iel_ho);
+               const int e4 = dim*(v4 + ndof_per_el*iel_ho);
+               const int e5 = dim*(v5 + ndof_per_el*iel_ho);
+               const int e6 = dim*(v6 + ndof_per_el*iel_ho);
+               const int e7 = dim*(v7 + ndof_per_el*iel_ho);
 
-               const double v0x = X[3*e0 + 0];
-               const double v0y = X[3*e0 + 1];
-               const double v0z = X[3*e0 + 2];
+               const double v0x = X[e0 + 0];
+               const double v0y = X[e0 + 1];
+               const double v0z = X[e0 + 2];
 
-               const double v1x = X[3*e1 + 0];
-               const double v1y = X[3*e1 + 1];
-               const double v1z = X[3*e1 + 2];
+               const double v1x = X[e1 + 0];
+               const double v1y = X[e1 + 1];
+               const double v1z = X[e1 + 2];
 
-               const double v2x = X[3*e2 + 0];
-               const double v2y = X[3*e2 + 1];
-               const double v2z = X[3*e2 + 2];
+               const double v2x = X[e2 + 0];
+               const double v2y = X[e2 + 1];
+               const double v2z = X[e2 + 2];
 
-               const double v3x = X[3*e3 + 0];
-               const double v3y = X[3*e3 + 1];
-               const double v3z = X[3*e3 + 2];
+               const double v3x = X[e3 + 0];
+               const double v3y = X[e3 + 1];
+               const double v3z = X[e3 + 2];
 
-               const double v4x = X[3*e4 + 0];
-               const double v4y = X[3*e4 + 1];
-               const double v4z = X[3*e4 + 2];
+               const double v4x = X[e4 + 0];
+               const double v4y = X[e4 + 1];
+               const double v4z = X[e4 + 2];
 
-               const double v5x = X[3*e5 + 0];
-               const double v5y = X[3*e5 + 1];
-               const double v5z = X[3*e5 + 2];
+               const double v5x = X[e5 + 0];
+               const double v5y = X[e5 + 1];
+               const double v5z = X[e5 + 2];
 
-               const double v6x = X[3*e6 + 0];
-               const double v6y = X[3*e6 + 1];
-               const double v6z = X[3*e6 + 2];
+               const double v6x = X[e6 + 0];
+               const double v6y = X[e6 + 1];
+               const double v6z = X[e6 + 2];
 
-               const double v7x = X[3*e7 + 0];
-               const double v7y = X[3*e7 + 1];
-               const double v7z = X[3*e7 + 2];
+               const double v7x = X[e7 + 0];
+               const double v7y = X[e7 + 1];
+               const double v7z = X[e7 + 2];
 
                MFEM_UNROLL(2)
                for (int iqz=0; iqz<2; ++iqz)

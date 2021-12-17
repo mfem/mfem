@@ -316,10 +316,7 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
    if (supports_batched_assembly)
    {
       dbg("supports_batched_assembly");
-      // fes->GetMesh()->EnsureNodes();
-      fes_ho.GetMesh()->SetCurvature(fes_ho.GetMaxElementOrder(), false, -1,
-                                     Ordering::byVDIM);
-
+      fes_ho.GetMesh()->EnsureNodes();
       ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
 #ifdef MFEM_USE_MPI
       if (pfes_ho)
