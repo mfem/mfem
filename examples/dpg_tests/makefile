@@ -19,7 +19,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = diffusion_blkfosls diffusion_fosls diffusion_primal_dpg \
-	 grad_div_primal_dpg	block_primal_dpg diffusion_uwdpg 
+	 grad_div_primal_dpg	block_primal_dpg diffusion_uwdpg ejproblem
 PAR_EXAMPLES = pdiffusion_uwdpg
 
 ifeq ($(MFEM_USE_MPI),NO)

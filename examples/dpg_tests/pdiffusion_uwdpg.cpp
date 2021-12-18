@@ -15,18 +15,18 @@
 // 
 // u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim 
 // û ∈ H^1/2, σ̂ ∈ H^-1/2  
-// -(u , ∇⋅v) + < û, v⋅n> - (σ , v) = 0,      ∀ v ∈ H(div,Ω)      
-//  (σ , ∇ τ) - < σ̂, τ  >           = (f,τ)   ∀ τ ∈ H^1(Ω)
+// -(u , ∇⋅τ) + < û, τ⋅n> - (σ , τ) = 0,      ∀ τ ∈ H(div,Ω)      
+//  (σ , ∇ v) - < σ̂, v  >           = (f,v)   ∀ v ∈ H^1(Ω)
 //            û = 0        on ∂Ω 
 
 // -------------------------------------------------------------
 // |   |     u     |     σ     |    û      |    σ̂    |  RHS    |
 // -------------------------------------------------------------
-// | v | -(u,∇⋅v)  |  -(σ,v)   | < û, v⋅n> |         |    0    |
+// | τ | -(u,∇⋅τ)  |  -(σ,τ)   | < û, τ⋅n> |         |    0    |
 // |   |           |           |           |         |         |
-// | τ |           |  (σ,∇ τ)  |           | -<σ̂,τ>  |  (f,τ)  |  
+// | v |           |  (σ,∇ v)  |           | -<σ̂,v>  |  (f,v)  |  
 
-// where (v,τ) ∈  H(div,Ω) × H^1(Ω) 
+// where (τ,v) ∈  H(div,Ω) × H^1(Ω) 
 
 #include "mfem.hpp"
 #include <fstream>
@@ -141,8 +141,8 @@ int main(int argc, char *argv[])
 
    // testspace fe collections
    int test_order = order+delta_order;
-   FiniteElementCollection * v_fec = new RT_FECollection(test_order-1, dim);
-   FiniteElementCollection * tau_fec = new H1_FECollection(test_order, dim);
+   FiniteElementCollection * tau_fec = new RT_FECollection(test_order-1, dim);
+   FiniteElementCollection * v_fec = new H1_FECollection(test_order, dim);
 
    // Coefficients
    ConstantCoefficient one(1.0);
@@ -157,47 +157,47 @@ int main(int argc, char *argv[])
    trial_fes.Append(hatu_fes);
    trial_fes.Append(hatsigma_fes);
 
-   test_fec.Append(v_fec);
    test_fec.Append(tau_fec);
+   test_fec.Append(v_fec);
 
    ParNormalEquations * a = new ParNormalEquations(trial_fes,test_fec);
    a->StoreMatrices(true);
 
-   //  -(u,∇⋅v)
+   //  -(u,∇⋅τ)
    a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),0,0);
 
-   // -(σ,v) 
+   // -(σ,τ) 
    TransposeIntegrator * mass = new TransposeIntegrator(new VectorFEMassIntegrator(negone));
    a->AddTrialIntegrator(mass,1,0);
 
-   // (σ,∇ τ)
+   // (σ,∇ v)
    TransposeIntegrator * grad = new TransposeIntegrator(new GradientIntegrator(one));
    a->AddTrialIntegrator(grad,1,1);
 
-   //  <û,v⋅n>
+   //  <û,τ⋅n>
    a->AddTrialIntegrator(new NormalTraceIntegrator,2,0);
 
-   // -<σ̂,τ> (sign is included in σ̂)
+   // -<σ̂,v> (sign is included in σ̂)
    a->AddTrialIntegrator(new TraceIntegrator,3,1);
 
    // test integrators (space-induced norm for H(div) × H1)
-   // (∇⋅v,∇⋅δv)
+   // (∇⋅τ,∇⋅δτ)
    a->AddTestIntegrator(new DivDivIntegrator(one),0,0);
-   // (v,δv)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(one),0,0);
-   // (∇τ,∇δτ)
-   a->AddTestIntegrator(new DiffusionIntegrator(one),1,1);
    // (τ,δτ)
+   a->AddTestIntegrator(new VectorFEMassIntegrator(one),0,0);
+   // (∇v,∇δv)
+   a->AddTestIntegrator(new DiffusionIntegrator(one),1,1);
+   // (v,δv)
    a->AddTestIntegrator(new MassIntegrator(one),1,1);
 
    // additional terms for adjoint graph norm
    if (adjoint_graph_norm)
    {
-      // -(∇τ,δv) 
+      // -(∇v,δτ) 
       a->AddTestIntegrator(new MixedVectorGradientIntegrator(negone),1,0);
-      // -(v,∇δv) 
+      // -(τ,∇δv) 
       a->AddTestIntegrator(new MixedVectorWeakDivergenceIntegrator(one),0,1);
-      // (v,δv)
+      // (τ,δτ)
       a->AddTestIntegrator(new VectorFEMassIntegrator(one),0,0);
    }
    // RHS
