@@ -574,6 +574,7 @@ public:
    /// Evaluate the coefficient.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// A general vector function coefficient
