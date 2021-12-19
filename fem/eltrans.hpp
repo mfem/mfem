@@ -75,6 +75,12 @@ public:
 
    int Attribute, ElementNo, ElementType;
 
+   /// The Mesh object containing the element.
+   /** If the element transformation belongs to a mesh, this will point to the
+       containing Mesh object. ElementNo will be the number of the element in
+       this Mesh. This will be NULL if the element does not belong to a mesh. */
+   class Mesh *mesh;
+
    ElementTransformation();
 
    /** @brief Force the reevaluation of the Jacobian in the next call. */
