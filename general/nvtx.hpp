@@ -277,7 +277,7 @@ public:
 private:
    inline const char *Strrnchr(const char *s, const unsigned char c, int n)
    {
-      size_t len = strlen(s);
+      size_t len = std::strlen(s);
       char *p = const_cast<char*>(s) + len - 1;
       for (; n; n--,p--,len--)
       {

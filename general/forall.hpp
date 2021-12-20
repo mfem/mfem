@@ -57,6 +57,8 @@ static T *ScratchMem(const int sm_size)
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
 #elif __GNUC__ >= 8
 #define MFEM_UNROLL(N) MFEM_PRAGMA(GCC unroll N)
+#else
+#define MFEM_UNROLL(N)
 #endif
 
 // Implementation of MFEM's "parallel for" (forall) device/host kernel
