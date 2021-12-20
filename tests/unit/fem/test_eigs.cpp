@@ -19,9 +19,13 @@ using namespace mfem_test_fem;
 namespace eigs
 {
 
+#if defined MFEM_USE_LAPACK || defined MFEM_USE_MPI
+
 static double a_ = M_PI;
 static double b_ = M_PI / sqrt(2.0);
 static double c_ = M_PI / 2.0;
+
+#endif
 
 int eigs[21] =
 {
