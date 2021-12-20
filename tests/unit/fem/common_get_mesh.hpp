@@ -38,4 +38,4 @@ enum MeshType
 mfem::Mesh * GetMesh(MeshType type,
                      double lx = 1.0, double ly = 1.0, double lz = 1.0);
 
-};
+}
