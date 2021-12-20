@@ -25,23 +25,9 @@ namespace mfem
 
 using namespace std;
 
-// At the time of writing this, setting the print level by integer has been
-// marked legacy. However, to ensure a reasonable level of backwards
-// compatibility, the integer-based legacy print level is synchronized with
-// the new class-based approach, requiring some legacy code to be used
-// internally. Therefore the warning of using legacy is silenced in parts
-// of this file.
-//
-// Silence the depracation warning for 'IterativeSolver::print_level'.
-MFEM_DISABLE_WARNING_PUSH
-MFEM_DISABLE_WARNING_DEPRECATED
-// Stop Doxygen from treating the above macros as part of the next definition.
-namespace internal { }
-
 IterativeSolver::IterativeSolver()
    : Solver(0, true)
 {
-   MFEM_DISABLE_WARNING_POP;
    oper = NULL;
    prec = NULL;
    max_iter = 10;
@@ -53,16 +39,9 @@ IterativeSolver::IterativeSolver()
 
 #ifdef MFEM_USE_MPI
 
-// Silence the depracation warning for 'IterativeSolver::print_level'.
-MFEM_DISABLE_WARNING_PUSH
-MFEM_DISABLE_WARNING_DEPRECATED
-// Stop Doxygen from treating the above macros as part of the next definition.
-namespace internal { }
-
 IterativeSolver::IterativeSolver(MPI_Comm comm_)
    : Solver(0, true)
 {
-   MFEM_DISABLE_WARNING_POP;
    oper = NULL;
    prec = NULL;
    max_iter = 10;
@@ -106,11 +85,8 @@ void IterativeSolver::SetPrintLevel(int print_lvl)
       }
    }
 #endif
-   // Silence the depracation warning for 'print_level'.
-   MFEM_DISABLE_WARNING_PUSH;
-   MFEM_DISABLE_WARNING_DEPRECATED;
+
    print_level = print_level_;
-   MFEM_DISABLE_WARNING_POP;
 }
 
 void IterativeSolver::SetPrintLevel(PrintLevel options)
@@ -131,11 +107,8 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
       }
    }
 #endif
-   // Silence the depracation warning for 'print_level'.
-   MFEM_DISABLE_WARNING_PUSH;
-   MFEM_DISABLE_WARNING_DEPRECATED;
+
    print_level = derived_print_level;
-   MFEM_DISABLE_WARNING_POP;
 }
 
 IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(

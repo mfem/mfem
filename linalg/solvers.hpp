@@ -127,7 +127,7 @@ protected:
    /** @brief (DEPRECATED) Legacy print level definition, which is left for
        compatibility with custom iterative solvers.
        @deprecated #print_options should be used instead. */
-   MFEM_DEPRECATED int print_level = -1;
+   int print_level = -1;
 
    /** @brief Output behavior for the iterative solver.
 
