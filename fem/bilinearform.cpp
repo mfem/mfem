@@ -1766,8 +1766,13 @@ void MixedBilinearForm::FormRectangularSystemMatrix(
    mat_e = new SparseMatrix(mat->Height(), mat->Width());
    mat->EliminateCols(ess_trial_tdof_marker, *mat_e);
 
+   Array<int> cols;
+   Vector srow;
+
    for (int i=0; i<test_tdof_list.Size(); ++i)
    {
+      mat->GetRow(test_tdof_list[i], cols, srow);
+      mat_e->AddRow(test_tdof_list[i], cols, srow);
       mat->EliminateRow(test_tdof_list[i]);
    }
    mat_e->Finalize();
