@@ -10,6 +10,8 @@
 
 Version 4.3.1 (development)
 ===========================
+- More explicit and consistent formating of the output of iterative solvers
+  with the new IterativeSolver::PrintLevel options. See linalg/solvers.hpp.
 
 - Added support for automatic differentiation. Users can select between native
   implementation and external library implementation during configuration. One
