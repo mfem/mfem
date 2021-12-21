@@ -59,9 +59,12 @@ HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
 HIP_XCOMPILER =
 HIP_XLINKER   = -Wl,
 
+# Flags for generating dependencies.
+DEP_FLAGS = -MM -MT
+
 ifneq ($(NOTMAC),)
    AR      = ar
-   ARFLAGS = cruv
+   ARFLAGS = crv
    RANLIB  = ranlib
    PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = so
@@ -73,7 +76,7 @@ ifneq ($(NOTMAC),)
 else
    # Silence "has no symbols" warnings on Mac OS X
    AR      = ar
-   ARFLAGS = Scruv
+   ARFLAGS = Scrv
    RANLIB  = ranlib -no_warning_for_no_symbols
    PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = dylib
@@ -86,6 +89,9 @@ else
    BUILD_RPATH = $(XLINKER)-undefined,dynamic_lookup
    INSTALL_SOFLAGS = $(subst $1 ,,$(call MAKE_SOFLAGS,$(MFEM_LIB_DIR)))
    INSTALL_RPATH = $(XLINKER)-undefined,dynamic_lookup
+   # Silence unused command line argument warnings when generating dependencies
+   # with mpicxx and clang
+   DEP_FLAGS := -Wno-unused-command-line-argument $(DEP_FLAGS)
 endif
 
 # Set CXXFLAGS to overwrite the default selection of DEBUG_FLAGS/OPTIM_FLAGS
@@ -151,6 +157,10 @@ MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
+MFEM_USE_ADFORWARD     = NO
+MFEM_USE_CODIPACK      = NO
+MFEM_USE_BENCHMARK     = NO
+MFEM_USE_PARELAG       = NO
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
@@ -406,6 +416,11 @@ HIOP_DIR = @MFEM_DIR@/../hiop/install
 HIOP_OPT = -I$(HIOP_DIR)/include
 HIOP_LIB = -L$(HIOP_DIR)/lib -lhiop $(LAPACK_LIB)
 
+# CoDiPack
+CODIPACK_DIR = @MFEM_DIR@/../CoDiPack
+CODIPACK_OPT = -I$(CODIPACK_DIR)
+CODIPACK_LIB =
+
 # GSLIB library
 GSLIB_DIR = @MFEM_DIR@/../gslib/build
 GSLIB_OPT = -I$(GSLIB_DIR)/include
@@ -428,6 +443,11 @@ OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 CALIPER_DIR = @MFEM_DIR@/../caliper
 CALIPER_OPT = -I$(CALIPER_DIR)/include
 CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib64 -L$(CALIPER_DIR)/lib64 -lcaliper
+
+# BENCHMARK library configuration
+BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark
+BENCHMARK_OPT = -I$(BENCHMARK_DIR)/include
+BENCHMARK_LIB = -L$(BENCHMARK_DIR)/lib -lbenchmark -lpthread
 
 # libCEED library configuration
 CEED_DIR ?= @MFEM_DIR@/../libCEED
@@ -458,6 +478,11 @@ MKL_CPARDISO_OPT = -I$(MKL_CPARDISO_DIR)/include
 MKL_CPARDISO_LIB = $(XLINKER)-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
    -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
    -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+
+# PARELAG library configuration
+PARELAG_DIR = @MFEM_DIR@/../parelag
+PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
+PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 
 # If YES, enable some informational messages
 VERBOSE = NO
