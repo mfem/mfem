@@ -37,7 +37,7 @@ double domainLS(const Vector &coord)
    const double radius = 2.0;
    double rv = x*x + y*y + z*z;
    rv = rv > 0.0 ? sqrt(rv) : 0.0;
-   return rv - radius;
+   return radius - rv;
 }
 
 double solution0(const Vector &coord)
@@ -47,7 +47,7 @@ double solution0(const Vector &coord)
                 y = (coord(1)*2.0 - 1.0) * M_PI,
                 z = (coord.Size() > 2) ? (coord(2)*2.0 - 1.0) * M_PI : 0.0;
 
-   if (domainLS(coord) < 0.0)
+   if (domainLS(coord) > 0.0)
    {
       return std::cos(x) * std::sin(y);
    }
@@ -66,35 +66,73 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
-      const double psi = ls_gf.GetValue(T, ip);
-
-      if (psi > 0.0) { V = 0.0; return; }
-
       Vector grad_psi(vdim), n(vdim);
       ls_gf.GetGradient(T, grad_psi);
       const double norm_grad = grad_psi.Norml2();
-      n = grad_psi;
-      if (norm_grad > 0.0) { n /= norm_grad; }
-      V = n;
+      V = grad_psi;
+      if (norm_grad > 0.0) { V /= norm_grad; }
+
+      // Since positive level set values correspond to the known region, we
+      // transport into the opposite direction of the gradient.
+      V *= -1;
    }
 };
 
 class Extrapolator : public TimeDependentOperator
 {
 private:
-   OperatorHandle M, K;
+   Array<bool> &active_zones;
+   ParBilinearForm &M, &K;
    const Vector &b;
    Solver *M_prec;
    CGSolver M_solver;
 
-   mutable Vector z;
-
 public:
-   Extrapolator(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_);
+   Extrapolator(Array<bool> &zones,
+                ParBilinearForm &Mbf, ParBilinearForm &Kbf, const Vector &rhs)
+      : TimeDependentOperator(Mbf.Size()),
+        active_zones(zones),
+        M(Mbf), K(Kbf),
+        b(rhs), M_prec(NULL), M_solver(M.ParFESpace()->GetComm())
+   {
+   }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void Mult(const Vector &x, Vector &dx) const
+   {
+      K.BilinearForm::operator=(0.0);
+      K.Assemble();
 
-   virtual ~Extrapolator();
+      ParFiniteElementSpace &pfes = *M.ParFESpace();
+      const int NE = pfes.GetNE();
+      const int nd = pfes.GetFE(0)->GetDof();
+
+      Vector rhs(x.Size());
+      HypreParMatrix *K_mat = K.ParallelAssemble(&K.SpMat());
+      K_mat->Mult(x, rhs);
+
+      Array<int> dofs(nd);
+      DenseMatrix M_loc(nd);
+      DenseMatrixInverse M_loc_inv(&M_loc);
+      Vector rhs_loc(nd), dx_loc(nd);
+      for (int k = 0; k < NE; k++)
+      {
+         pfes.GetElementDofs(k, dofs);
+
+         if (active_zones[k] == false)
+         {
+            dx.SetSubVector(dofs, 0.0);
+            continue;
+         }
+
+         rhs.GetSubVector(dofs, rhs_loc);
+         M.SpMat().GetSubMatrix(dofs, dofs, M_loc);
+         M_loc_inv.Factor();
+         M_loc_inv.Mult(rhs_loc, dx_loc);
+         dx.SetSubVector(dofs, dx_loc);
+      }
+   }
+
+   ~Extrapolator() { }
 };
 
 
@@ -102,16 +140,16 @@ int main(int argc, char *argv[])
 {
    // Initialize MPI.
    MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
    int myid = mpi.WorldRank();
 
    // Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
    int rs_levels = 2;
-   int order = 1;
+   int order = 2;
    int ode_solver_type = 2;
-   double dt = 0.01;
+   double dt = 0.1;
    bool visualization = true;
+   int vis_steps = 5;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -129,6 +167,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
+                  "Visualize every n-th timestep.");
    args.Parse();
    if (!args.Good())
    {
@@ -139,57 +179,70 @@ int main(int argc, char *argv[])
 
    // Refine the mesh.
    Mesh mesh(mesh_file, 1, 1);
-   const int dim = mesh.Dimension();
    for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
 
    // MPI distribution.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
+   const int dim = pmesh.Dimension(), NE = pmesh.GetNE();
+
 
    FunctionCoefficient ls_coeff(domainLS), u0_coeff(solution0);
 
-   L2_FECollection fec_L2(order, dim);
+   L2_FECollection fec_L2(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace pfes_L2(&pmesh, &fec_L2);
    ParGridFunction u(&pfes_L2);
    u.ProjectCoefficient(u0_coeff);
-   HypreParVector *U = u.GetTrueDofs();
 
    H1_FECollection fec(order, dim);
-   ParFiniteElementSpace pfes(&pmesh, &fec);
-   ParGridFunction level_set(&pfes);
+   ParFiniteElementSpace pfes_H1(&pmesh, &fec);
+   ParGridFunction level_set(&pfes_H1);
    level_set.ProjectCoefficient(ls_coeff);
 
    LevelSetNormalCoeff ls_n_coeff(level_set);
 
    // Mark elements.
-   Array<int> elem_marker;
-   ShiftedFaceMarker marker(pmesh, pfes_L2, true);
+   Array<int> elem_marker, dofs;
+   ShiftedFaceMarker marker(pmesh, pfes_L2, false);
    level_set.ExchangeFaceNbrData();
    marker.MarkElements(level_set, elem_marker);
-   L2_FECollection fec_mark(0, dim);
-   ParFiniteElementSpace pfes_mark(&pmesh, &fec_mark);
-   ParGridFunction gf_mark(&pfes_mark);
-   for (int i = 0; i < gf_mark.Size(); i++) { gf_mark(i) = elem_marker[i]; }
+   ParGridFunction gf_known(u);
+   for (int k = 0; k < NE; k++)
+   {
+      pfes_L2.GetElementDofs(k, dofs);
+      if (elem_marker[k] != ShiftedFaceMarker::INSIDE)
+      { gf_known.SetSubVector(dofs, 0.0); }
+   }
    if (visualization)
    {
       socketstream sol_sock_mark;
       int size = 500;
       char vishost[] = "localhost";
       int  visport   = 19916;
-      common::VisualizeField(sol_sock_mark, vishost, visport, gf_mark,
-                             "Marking", 0, size, size, size,
+      common::VisualizeField(sol_sock_mark, vishost, visport, gf_known,
+                             "Fixed (known) values", 0, size, size, size,
                              "rRjmm********A");
    }
+   u = gf_known;
 
-   ParBilinearForm lhs(&pfes_L2), rhs_bf(&pfes_L2);
-   lhs.AddDomainIntegrator(new MassIntegrator);
+   // The active zones are where we extrapolate (where the PDE is solved).
+   Array<bool> active_zones(NE);
+   for (int k = 0; k < NE; k++)
+   {
+      // Extrapolation is done in zones that are CUT or OUTSIDE.
+      active_zones[k] = (elem_marker[k] == ShiftedFaceMarker::INSIDE) ? false : true;
+   }
+
+   ParBilinearForm lhs_bf(&pfes_L2), rhs_bf(&pfes_L2);
+   lhs_bf.AddDomainIntegrator(new MassIntegrator);
    const double alpha = -1.0;
    rhs_bf.AddDomainIntegrator(new ConvectionIntegrator(ls_n_coeff, alpha));
    auto trace_i = new NonconservativeDGTraceIntegrator(ls_n_coeff, alpha);
    rhs_bf.AddInteriorFaceIntegrator(trace_i);
+   rhs_bf.KeepNbrBlock(true);
 
-   lhs.Assemble();
-   lhs.Finalize();
+   lhs_bf.Assemble();
+   lhs_bf.Finalize();
    rhs_bf.Assemble(0);
    rhs_bf.Finalize(0);
 
@@ -205,31 +258,46 @@ int main(int argc, char *argv[])
       case 2: ode_solver = new RK2Solver(1.0); break;
       case 3: ode_solver = new RK3SSPSolver; break;
       default:
+      {
          if (myid == 0)
-         {
-            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         }
+         { cout << "Unknown ODE solver type: " << ode_solver_type << '\n'; }
          return 3;
+      }
    }
 
-   bool done = true;
-   const double t_final = 1.0;
+   Extrapolator ext(active_zones, lhs_bf, rhs_bf, rhs);
+   ode_solver->Init(ext);
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream sol_sock_u;
+
+   bool done = false;
+   const double t_final = 0.45;
    for (int ti = 0; !done;)
    {
       double dt_real = min(dt, t_final - t);
-      ode_solver->Step(*U, t, dt_real);
+      ode_solver->Step(u, t, dt_real);
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
 
-      if (done)
+      if (done || ti % vis_steps == 0)
       {
-         if (mpi.Root())
+         if (myid == 0)
          {
             cout << "time step: " << ti << ", time: " << t << endl;
          }
 
-         u = *U;
+         if (visualization)
+         {
+            int size = 500;
+
+            common::VisualizeField(sol_sock_u, vishost, visport, u,
+                                   "Solution", size, 0, size, size,
+                                   "rRjmm********A");
+            MPI_Barrier(pmesh.GetComm());
+         }
       }
    }
 
@@ -242,13 +310,7 @@ int main(int argc, char *argv[])
 
       socketstream sol_sock_w;
       common::VisualizeField(sol_sock_w, vishost, visport, level_set,
-                             "Domain Level Set", 0, 0, size, size);
-      MPI_Barrier(pmesh.GetComm());
-
-      socketstream sol_sock_ds;
-      common::VisualizeField(sol_sock_ds, vishost, visport, u,
-                             "Solution", size, 0, size, size,
-                             "rRjmm********A");
+                             "Domain level set", 0, 0, size, size);
       MPI_Barrier(pmesh.GetComm());
    }
 
@@ -259,8 +321,6 @@ int main(int argc, char *argv[])
    dacol.SetTime(1.0);
    dacol.SetCycle(1);
    dacol.Save();
-
-   delete U;
 
    return 0;
 }

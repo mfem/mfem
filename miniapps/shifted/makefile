@@ -32,7 +32,7 @@ DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
 EXTRAPOLATE_SRC = extrapolate.cpp marking.cpp
 EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion
+PAR_MINIAPPS = distance diffusion extrapolate
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS =
