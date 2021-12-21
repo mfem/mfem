@@ -19,10 +19,10 @@ using namespace navier;
 
 struct s_NavierContext
 {
-   int order = 3;
-   double kin_vis = 1;
-   double t_final = 1.5;
-   double dt = 1e-4;
+   int order = 2;
+   double kin_vis = 0.1;
+   double t_final = 5.0;
+   double dt = 5e-4;
 } ctx;
 
 void vel(const Vector &x, double t, Vector &u)
@@ -135,7 +135,7 @@ public:
             {
                 V(0)=0.0;
                 V(1)=0.0;
-                V(2)=1.0;
+                V(2)=10.0;
             }else{
                 vel->GetVectorValue(T,ip,V);
                 V*=-10000.0;
@@ -234,6 +234,7 @@ int main(int argc, char *argv[])
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kin_vis);
    flowsolver.EnablePA(true);
+   flowsolver.EnableNI(true);
 
    // Set the initial condition.
    ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
@@ -285,8 +286,8 @@ int main(int argc, char *argv[])
       }
 
       flowsolver.Step(t, dt, step);
-      //bp.SetVel(flowsolver.GetCurrentVelocity());
-      bp.SetVel(flowsolver.GetProvisionalVelocity());
+      bp.SetVel(flowsolver.GetCurrentVelocity());
+      //bp.SetVel(flowsolver.GetProvisionalVelocity());
       if (step % 10 == 0)
       {
          pvdc.SetCycle(step);
