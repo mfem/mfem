@@ -166,6 +166,20 @@ int main(int argc, char *argv[])
    ShiftedFaceMarker marker(pmesh, level_set, pfes_L2, false);
    level_set.ExchangeFaceNbrData();
    marker.MarkElements(elem_marker);
+   L2_FECollection fec_mark(0, dim);
+   ParFiniteElementSpace pfes_mark(&pmesh, &fec_mark);
+   ParGridFunction gf_mark(&pfes_mark);
+   for (int i = 0; i < gf_mark.Size(); i++) { gf_mark(i) = elem_marker[i]; }
+   if (visualization)
+   {
+      socketstream sol_sock_mark;
+      int size = 500;
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      common::VisualizeField(sol_sock_mark, vishost, visport, gf_mark,
+                             "Marking", 0, size, size, size,
+                             "rRjmm********A");
+   }
 
    ParBilinearForm lhs(&pfes_L2), rhs_bf(&pfes_L2);
    lhs.AddDomainIntegrator(new MassIntegrator);
