@@ -115,6 +115,11 @@ template <> struct AutoSIMD<double,4,32>
       return r;
    }
 
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator+() const
+   {
+      return *this;
+   }
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const AutoSIMD &v) const
    {
       AutoSIMD r;

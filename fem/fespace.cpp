@@ -106,8 +106,11 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
    SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
    if (perm)
    {
+      // Note: although n and fes.GetVSize() are typically equal, in
+      // variable-order spaces they may differ, since nonconforming edges/faces
+      // my have fictitious DOFs.
       int n = perm->Size();
-      perm_mat = new SparseMatrix(n, n);
+      perm_mat = new SparseMatrix(n, fes.GetVSize());
       for (int i=0; i<n; ++i)
       {
          double s;
@@ -124,10 +127,21 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
       else { cP = new SparseMatrix(*fes.GetConformingProlongation()); }
       cP_is_set = true;
    }
+   else if (perm != NULL)
+   {
+      cP = perm_mat;
+      cP_is_set = true;
+      perm_mat = NULL;
+   }
    if (fes.GetConformingRestriction() != NULL)
    {
       if (perm) { cR = Mult(*fes.GetConformingRestriction(), *perm_mat_tr); }
       else { cR = new SparseMatrix(*fes.GetConformingRestriction()); }
+   }
+   else if (perm != NULL)
+   {
+      cR = perm_mat_tr;
+      perm_mat_tr = NULL;
    }
 
    delete perm_mat;
@@ -1695,8 +1709,7 @@ void FiniteElementSpace::RefinementOperator
             fespace->DofsToVDofs(vd, c_vdofs, old_ndofs);
 
             x.GetSubVector(f_vdofs, subX);
-            old_DoFTrans[geom]->InvTransformPrimal(subX);
-
+            doftrans->InvTransformDual(subX);
             for (int p = 0; p < f_dofs.Size(); ++p)
             {
                if (processed[DecodeDof(f_dofs[p])])
@@ -1705,9 +1718,9 @@ void FiniteElementSpace::RefinementOperator
                }
             }
 
-            lP.MultTranspose(subX, subY);
-            doftrans->TransformPrimal(subY);
-            y.AddElementVector(c_vdofs, subY);
+            lP.MultTranspose(subX, subYt);
+            old_DoFTrans[geom]->TransformDual(subYt);
+            y.AddElementVector(c_vdofs, subYt);
          }
 
          if (vdoftrans)
@@ -1722,6 +1735,122 @@ void FiniteElementSpace::RefinementOperator
       }
    }
 }
+
+namespace internal
+{
+
+// Used in GetCoarseToFineMap() below.
+struct RefType
+{
+   Geometry::Type geom;
+   int num_children;
+   const Pair<int,int> *children;
+
+   RefType(Geometry::Type g, int n, const Pair<int,int> *c)
+      : geom(g), num_children(n), children(c) { }
+
+   bool operator<(const RefType &other) const
+   {
+      if (geom < other.geom) { return true; }
+      if (geom > other.geom) { return false; }
+      if (num_children < other.num_children) { return true; }
+      if (num_children > other.num_children) { return false; }
+      for (int i = 0; i < num_children; i++)
+      {
+         if (children[i].one < other.children[i].one) { return true; }
+         if (children[i].one > other.children[i].one) { return false; }
+      }
+      return false; // everything is equal
+   }
+};
+
+void GetCoarseToFineMap(const CoarseFineTransformations &cft,
+                        const mfem::Mesh &fine_mesh,
+                        Table &coarse_to_fine,
+                        Array<int> &coarse_to_ref_type,
+                        Table &ref_type_to_matrix,
+                        Array<Geometry::Type> &ref_type_to_geom)
+{
+   const int fine_ne = cft.embeddings.Size();
+   int coarse_ne = -1;
+   for (int i = 0; i < fine_ne; i++)
+   {
+      coarse_ne = std::max(coarse_ne, cft.embeddings[i].parent);
+   }
+   coarse_ne++;
+
+   coarse_to_ref_type.SetSize(coarse_ne);
+   coarse_to_fine.SetDims(coarse_ne, fine_ne);
+
+   Array<int> cf_i(coarse_to_fine.GetI(), coarse_ne+1);
+   Array<Pair<int,int> > cf_j(fine_ne);
+   cf_i = 0;
+   for (int i = 0; i < fine_ne; i++)
+   {
+      cf_i[cft.embeddings[i].parent+1]++;
+   }
+   cf_i.PartialSum();
+   MFEM_ASSERT(cf_i.Last() == cf_j.Size(), "internal error");
+   for (int i = 0; i < fine_ne; i++)
+   {
+      const Embedding &e = cft.embeddings[i];
+      cf_j[cf_i[e.parent]].one = e.matrix; // used as sort key below
+      cf_j[cf_i[e.parent]].two = i;
+      cf_i[e.parent]++;
+   }
+   std::copy_backward(cf_i.begin(), cf_i.end()-1, cf_i.end());
+   cf_i[0] = 0;
+   for (int i = 0; i < coarse_ne; i++)
+   {
+      std::sort(&cf_j[cf_i[i]], cf_j.GetData() + cf_i[i+1]);
+   }
+   for (int i = 0; i < fine_ne; i++)
+   {
+      coarse_to_fine.GetJ()[i] = cf_j[i].two;
+   }
+
+   using std::map;
+   using std::pair;
+
+   map<RefType,int> ref_type_map;
+   for (int i = 0; i < coarse_ne; i++)
+   {
+      const int num_children = cf_i[i+1]-cf_i[i];
+      MFEM_ASSERT(num_children > 0, "");
+      const int fine_el = cf_j[cf_i[i]].two;
+      // Assuming the coarse and the fine elements have the same geometry:
+      const Geometry::Type geom = fine_mesh.GetElementBaseGeometry(fine_el);
+      const RefType ref_type(geom, num_children, &cf_j[cf_i[i]]);
+      pair<map<RefType,int>::iterator,bool> res =
+         ref_type_map.insert(
+            pair<const RefType,int>(ref_type, (int)ref_type_map.size()));
+      coarse_to_ref_type[i] = res.first->second;
+   }
+
+   ref_type_to_matrix.MakeI((int)ref_type_map.size());
+   ref_type_to_geom.SetSize((int)ref_type_map.size());
+   for (map<RefType,int>::iterator it = ref_type_map.begin();
+        it != ref_type_map.end(); ++it)
+   {
+      ref_type_to_matrix.AddColumnsInRow(it->second, it->first.num_children);
+      ref_type_to_geom[it->second] = it->first.geom;
+   }
+
+   ref_type_to_matrix.MakeJ();
+   for (map<RefType,int>::iterator it = ref_type_map.begin();
+        it != ref_type_map.end(); ++it)
+   {
+      const RefType &rt = it->first;
+      for (int j = 0; j < rt.num_children; j++)
+      {
+         ref_type_to_matrix.AddConnection(it->second, rt.children[j].one);
+      }
+   }
+   ref_type_to_matrix.ShiftUpI();
+}
+
+} // namespace internal
+
 
 /// TODO: Implement DofTransformation support
 FiniteElementSpace::DerefinementOperator::DerefinementOperator(
@@ -1764,8 +1893,9 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
    }
 
    Table ref_type_to_matrix;
-   rtrans.GetCoarseToFineMap(*f_mesh, coarse_to_fine, coarse_to_ref_type,
-                             ref_type_to_matrix, ref_type_to_geom);
+   internal::GetCoarseToFineMap(rtrans, *f_mesh, coarse_to_fine,
+                                coarse_to_ref_type, ref_type_to_matrix,
+                                ref_type_to_geom);
    MFEM_ASSERT(coarse_to_fine.Size() == c_fes->GetNE(), "");
 
    const int total_ref_types = ref_type_to_geom.Size();

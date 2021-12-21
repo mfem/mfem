@@ -141,14 +141,20 @@ public:
        allocated in the memory location HYPRE_MEMORY_DEVICE. */
    HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, double *data_,
                   HYPRE_BigInt *col, bool is_device_ptr = false);
-   /// Creates vector compatible with y
+   /// Creates a deep copy of @a y
    HypreParVector(const HypreParVector &y);
+   /// Move constructor for HypreParVector. "Steals" data from its argument.
+   HypreParVector(HypreParVector&& other);
    /// Creates vector compatible with (i.e. in the domain of) A or A^T
    explicit HypreParVector(const HypreParMatrix &A, int transpose = 0);
    /// Creates vector wrapping y
    explicit HypreParVector(HYPRE_ParVector y);
    /// Create a true dof parallel vector on a given ParFiniteElementSpace
    explicit HypreParVector(ParFiniteElementSpace *pfes);
+
+   /// \brief Constructs a  @p HypreParVector *compatible* with the calling vector
+   /// - meaning that it will be the same size and have the same partitioning.
+   HypreParVector CreateCompatibleVector() const;
 
    /// MPI communicator
    MPI_Comm GetComm() const { return x->comm; }
@@ -192,6 +198,8 @@ public:
    HypreParVector& operator= (double d);
    /// Define '=' for hypre vectors.
    HypreParVector& operator= (const HypreParVector &y);
+   /// Move assignment
+   HypreParVector& operator= (HypreParVector &&y);
 
    using Vector::Read;
 
@@ -251,6 +259,9 @@ public:
 
    /// Prints the locally owned rows in parallel
    void Print(const char *fname) const;
+
+   /// Reads a HypreParVector from files saved with HypreParVector::Print
+   void Read(MPI_Comm comm, const char *fname);
 
    /// Calls hypre's destroy function
    ~HypreParVector();

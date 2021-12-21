@@ -163,9 +163,9 @@ int main(int argc, char *argv[])
 
    // Mark elements.
    Array<int> elem_marker;
-   ShiftedFaceMarker marker(pmesh, level_set, pfes_L2, false);
+   ShiftedFaceMarker marker(pmesh, pfes_L2, true);
    level_set.ExchangeFaceNbrData();
-   marker.MarkElements(elem_marker);
+   marker.MarkElements(level_set, elem_marker);
    L2_FECollection fec_mark(0, dim);
    ParFiniteElementSpace pfes_mark(&pmesh, &fec_mark);
    ParGridFunction gf_mark(&pfes_mark);

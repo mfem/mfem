@@ -10,10 +10,37 @@
 
 Version 4.3.1 (development)
 ===========================
+
+- Added support for automatic differentiation. Users can select between native
+  implementation and external library implementation during configuration. One
+  parallel and two serial examples are implemented in the miniapps/autodiff/
+  directory.
+
+- GridFunctionCoefficient (and the related vector, gradient, divergence, and
+  curl classes) now work properly with LORDiscretization and LORSolver.
+
+- Added support for mesh preprocessing to resolve fine scale problem data
+  before simulation. This feature uses adaptive mesh refinement to control the
+  associated data oscillation error. See the new Example 30/30p.
+
 - Switched from Artistic Style (astyle) version 2.05.1 to version 3.1 for code
   formatting. See the "make style" target.
 
+- Split the fem/fe.?pp files into separate files in the new fem/fe/ directory
+  to simplify and clarify the organization of FiniteElement classes.
+
 - Added support for hr-adaptivity using TMOP-based error estimator.
+
+- Coefficient::SetTime now propagates the new time into internally stored
+  Coefficient objects.
+
+- Added initial support for google-benchmarks in the tests/benchmarks directory.
+  It can be enabled with MFEM_USE_BENCHMARK=YES.
+
+- Added Binder (mybinder.org) configuration files for C++ MFEM Jupyter Notebooks
+  with inline GLVis visualization as well as a new examples/jupyter/ directory
+  with a sample notebook based on Example 1. Implementation based on xeus-cling,
+  github.com/jupyter-xeus/xeus-cling + xeus-glvis, github.com/GLVis/xeus-glvis.
 
 - Added 'double' atomicAdd implementation for previous versions of CUDA.
 
@@ -36,8 +63,27 @@ Version 4.3.1 (development)
   output format if no physical groups are defined) are now successfully loaded,
   and elements are reassigned attribute number 1.
 
+- Added new miniapps that use the ParELAG library, its hybrid smoothers, and the
+  hierarchy of spaces created by the element-based AMG (AMGe) methodology in
+  ParELAG to build multigrid solvers for H(curl) and H(div) forms. See the
+  miniapps/parelag directory for more details.
+
 - Fixed several MinGW build issues on Windows.
 
+- Remove the 'u' flag in the ar command, to update all files in the archive,
+  avoiding file name collisions from different subdirectories.
+
+- Added initial TMOP-based capabilities for surface fitting and tangential
+  relaxation in the mesh-optimizer and pmesh-optimizer miniapps.
+
+- Added ParMesh Adjaceny Set (adjset) creation support to the Conduit Mesh
+  Blueprint MFEM wrapper functions in ConduitDataCollection.
+
+- `HypreParVector` and `Vector` now support move semantics, and the copy
+  constructor for `HypreParVector` now copies the local vector data.
+
+- The HPC versions of ex1 and ex1p (in miniapps/performance) now support
+  runtime selection of either 2D or 3D meshes.
 
 Version 4.3, released on July 29, 2021
 ======================================

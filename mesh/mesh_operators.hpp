@@ -308,6 +308,118 @@ public:
 };
 
 
+/** @brief Refinement operator to control data oscillation.
+
+    This class computes osc_K(f) := || h ⋅ (I - Π) f ||_K  at each element K.
+    Here, Π is the L2-projection and ||⋅||_K is the L2-norm, restricted to the
+    element K. All elements satisfying the inequality
+    \code
+       osc_K(f) > threshold ⋅ ||f|| / sqrt(n_el),
+    \endcode
+    are refined. Here, threshold is a positive parameter, ||⋅|| is the L2-norm
+    over the entire domain Ω, and n_el is the number of elements in the mesh.
+
+    Note that if osc(f) = threshold ⋅ ||f|| / sqrt(n_el) for each K, then
+    \code
+       osc(f) = sqrt(sum_K osc_K^2(f)) = threshold ⋅ ||f||.
+    \endcode
+    This is the reason for the 1/sqrt(n_el) factor.
+*/
+class CoefficientRefiner : public MeshOperator
+{
+protected:
+   bool print_level = false;
+   int nc_limit = 1;
+   int nonconforming = -1;
+   int order;
+   long max_elements = std::numeric_limits<long>::max();
+   double threshold = 1.0e-2;
+   double global_osc = NAN;
+   Array<int> mesh_refinements;
+   Vector element_oscs;
+   Coefficient *coeff = NULL;
+   const IntegrationRule *ir_default[Geometry::NumGeom];
+   const IntegrationRule **irs = NULL;
+
+   /** @brief Apply the operator to the mesh once.
+       @return STOP if a stopping criterion is satisfied or no elements were
+       marked for refinement; REFINED + CONTINUE otherwise. */
+   virtual int ApplyImpl(Mesh &mesh);
+
+public:
+   /// Constructor
+   CoefficientRefiner(Coefficient &coeff_, int order_)
+   {
+      // function f
+      coeff = &coeff_;
+
+      // order of the projection Π
+      order = order_;
+   }
+
+   /** @brief Apply the operator to the mesh max_it times or until tolerance
+    *  achieved.
+       @return STOP if a stopping criterion is satisfied or no elements were
+       marked for refinement; REFINED + CONTINUE otherwise. */
+   virtual int PreprocessMesh(Mesh &mesh, int max_it);
+
+   int PreprocessMesh(Mesh &mesh)
+   {
+      int max_it = 10;
+      return PreprocessMesh(mesh, max_it);
+   }
+
+   /// Set the refinement threshold. The default value is 1.0e-2.
+   void SetThreshold(double threshold_) { threshold = threshold_; }
+
+   /** @brief Set the maximum number of elements stopping criterion: stop when
+       the input mesh has num_elements >= max_elem. The default value is
+       LONG_MAX. */
+   void SetMaxElements(long max_elements_) { max_elements = max_elements_; }
+
+   /// Reset the function f
+   void ResetCoefficient(Coefficient &coeff_)
+   {
+      element_oscs.Destroy();
+      global_osc = NAN;
+      coeff = &coeff_;
+   }
+
+   /// Reset the oscillation order
+   void SetOrder(double order_) { order = order_; }
+
+   /** @brief Set the maximum ratio of refinement levels of adjacent elements
+       (0 = unlimited). The default value is 1, which helps ensure appropriate
+       refinements in pathological situations where the default quadrature
+       order is too low.  */
+   void SetNCLimit(int nc_limit_)
+   {
+      MFEM_ASSERT(nc_limit_ >= 0, "Invalid NC limit");
+      nc_limit = nc_limit_;
+   }
+
+   // Set a custom integration rule
+   void SetIntRule(const IntegrationRule *irs_[]) { irs = irs_; }
+
+   // Set print level
+   void PrintWarnings() { print_level = true; }
+
+   // Return the value of the global relative data oscillation
+   double GetOsc() const { return global_osc; }
+
+   // Return the local relative data oscillation errors
+   const Vector & GetLocalOscs() const
+   {
+      MFEM_ASSERT(element_oscs.Size() > 0,
+                  "Local oscillations have not been computed yet")
+      return element_oscs;
+   }
+
+   /// Reset
+   virtual void Reset();
+};
+
+
 /** @brief ParMesh rebalancing operator.
 
     If the mesh is a parallel mesh, perform rebalancing; otherwise, do nothing.

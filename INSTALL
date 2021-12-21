@@ -459,9 +459,21 @@ MFEM_USE_UMPIRE = YES/NO
    discovery, provision, and management of memory on machines with multiple
    memory devices like NUMA and GPUs.
 
+MFEM_USE_BENCHMARK = YES/NO
+   Enables support for Google Benchmark, a library to support the benchmarking
+   of functions, in the tests/benchmarks directory.
+
 MFEM_USE_HIOP = YES/NO
    Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
    HPC solver for nonlinear optimization problems.
+
+MFEM_USE_CODIPACK = YES/NO
+  Enable automatic differentiation using the CoDiPack library.
+  www.scicomp.uni-kl.de/codi/
+
+MFEM_USE_ADFORWARD = YES/NO
+  Enable forward mode for AD packages. This option is valid
+  only if the AD package supports two modes (backward/forward).
 
 MFEM_USE_CUDA = YES/NO
    Enables support for CUDA devices in MFEM. CUDA is a parallel computing
@@ -522,6 +534,11 @@ MFEM_USE_FMS = YES/NO
    fem/fmsdatacollection.hpp. In addition, this option enables in-memory
    convetion routines between FMS's FmsDataCollection structure and MFEM's
    DataCollection class, see the header file fem/fmsconvert.hpp.
+
+MFEM_USE_PARELAG = YES/NO
+   Enables the miniapps that use the ParELAG library. MFEM does not currently
+   use ParELAG. In fact, ParELAG is dependent on MFEM. Therefore, this option
+   currently only concerns the miniapps.
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
@@ -692,7 +709,12 @@ The specific libraries and their options are:
 - HiOp (optional), used when MFEM_USE_HIOP = YES.
   URL: https://github.com/LLNL/hiop
   Options: HIOP_OPT, HIOP_LIB.
-  Versions: HIOP >= 0.4.
+  Versions: HIOP >= 0.4.6.
+
+- CoDiPack (optiobal), used with MFEM_USE_CODIPACK = YES
+  URL: https://www.scicomp.uni-kl.de/codi/
+  Options: CODIPACK_OPT
+  Versions: 1.9.3
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
   built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at
@@ -730,10 +752,10 @@ The specific libraries and their options are:
   Versions: libCEED >= 0.8.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
-  Beginning with MFEM v4.3, only RAJA v0.13.0+ is supported.
+  Beginning with MFEM v4.3, only RAJA v0.14.0+ is supported.
   URL: https://github.com/LLNL/RAJA
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
-  Versions: RAJA >= 0.13.0.
+  Versions: RAJA >= 0.14.0.
 
 - Caliper (optional), used when MFEM_USE_CALIPER = YES.
   URL: https://github.com/LLNL/Caliper
@@ -744,7 +766,12 @@ The specific libraries and their options are:
   Umpire requires camp when the Umpire version is >= 3.0.0.
   URL: https://github.com/LLNL/Umpire
   Options: UMPIRE_DIR, UMPIRE_OPT, UMPIRE_LIB.
-  Versions: Umpire >= 2.0.0.
+  Versions: Umpire >= 3.0.0.
+
+- Benchmark, used when MFEM_USE_BENCHMARK = YES.
+  URL: https://github.com/google/benchmark
+  Options: BENCHMARK_DIR, BENCHMARK_LIB.
+  Versions: Benchmark >= 1.5.6.
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
@@ -765,6 +792,10 @@ The specific libraries and their options are:
   URL: https://github.com/CEED/FMS
   Options: FMS_OPT, FMS_LIB.
   Versions: FMS >= 0.2.
+
+- ParELAG, used when MFEM_USE_PARELAG = YES.
+  URL: https://github.com/LLNL/parelag
+  Options: PARELAG_DIR, PARELAG_OPT, PARELAG_LIB.
 
 Building with CMake
 ===================
@@ -890,6 +921,8 @@ MFEM_USE_MPFR
 MFEM_USE_ZLIB
 MFEM_USE_PUMI
 MFEM_USE_HIOP
+MFEM_USE_CODIPACK
+MFEM_USE_ADFORWARD
 MFEM_USE_CUDA
 MFEM_USE_OCCA
 MFEM_USE_CEED
@@ -898,6 +931,8 @@ MFEM_USE_UMPIRE
 MFEM_USE_SIDRE
 MFEM_USE_CALIPER
 MFEM_USE_FMS
+MFEM_USE_BENCHMARK
+MFEM_USE_PARELAG
 
 The following options are CMake specific:
 
@@ -947,12 +982,15 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - POSIXCLOCKS
  - PUMI
  - HIOP
+ - CoDiPack
  - OCCA
  - RAJA
  - UMPIRE
  - AXOM - Used when MFEM_USE_SIDRE is enabled
  - CALIPER
  - FMS
+ - BENCHMARK
+ - ParELAG
 
 The following built-in CMake packages are also used:
 
