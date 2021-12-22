@@ -218,15 +218,7 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
       Ah.MakePtAP(dA, Ph);
    }
 
-   // {
-   //    int a;
-   //    ( a = 2, a+2);
-   //    NVTX("EliminateRowsCols");
-   //    Ah.As<HypreParMatrix>()->EliminateRowsCols(ess_dofs);
-   // }
-
    // BCs
-
    HypreParMatrix *A_mat = Ah.As<HypreParMatrix>();
    hypre_ParCSRMatrix *A = *A_mat;
    A_mat->HypreReadWrite();
@@ -234,8 +226,60 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
 
+   HYPRE_Int diag_nrows = hypre_CSRMatrixNumRows(diag);
+   HYPRE_Int offd_ncols = hypre_CSRMatrixNumCols(offd);
+
    const int n_ess_dofs = ess_dofs.Size();
    const auto ess_dofs_d = ess_dofs.Read();
+
+
+   // Start communication to figure out which columns need to be eliminated in
+   // the off-diagonal block
+   hypre_ParCSRCommHandle *comm_handle;
+   HYPRE_Int *int_buf_data, *eliminate_row, *eliminate_col;
+   {
+      eliminate_row = hypre_CTAlloc(HYPRE_Int, diag_nrows, HYPRE_MEMORY_HOST);
+      eliminate_col = hypre_CTAlloc(HYPRE_Int, offd_ncols, HYPRE_MEMORY_HOST);
+
+      // Make sure A has a communication package
+      hypre_ParCSRCommPkg *comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+      if (!comm_pkg)
+      {
+         hypre_MatvecCommPkgCreate(A);
+         comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+      }
+
+      // Which of the local rows are to be eliminated?
+      for (int i = 0; i < diag_nrows; i++)
+      {
+         eliminate_row[i] = 0;
+      }
+
+      ess_dofs.HostRead();
+      for (int i = 0; i < n_ess_dofs; i++)
+      {
+         eliminate_row[ess_dofs[i]] = 1;
+      }
+
+      // Use a matvec communication pattern to find (in eliminate_col) which of
+      // the local offd columns are to be eliminated
+      HYPRE_Int num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
+      int_buf_data = hypre_CTAlloc(HYPRE_Int,
+                                   hypre_ParCSRCommPkgSendMapStart(comm_pkg,
+                                                                   num_sends), HYPRE_MEMORY_HOST);
+      int index = 0;
+      for (int i = 0; i < num_sends; i++)
+      {
+         int start = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i);
+         for (int j = start; j < hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1); j++)
+         {
+            int k = hypre_ParCSRCommPkgSendMapElmt(comm_pkg,j);
+            int_buf_data[index++] = eliminate_row[k];
+         }
+      }
+      comm_handle = hypre_ParCSRCommHandleCreate(
+                       11, comm_pkg, int_buf_data, eliminate_col);
+   }
 
    // Eliminate rows and columns in the diagonal block
    {
@@ -279,80 +323,32 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
       });
    }
 
-   // Figure out which columns need to be eliminated in the off-diagonal block
+   // Wait for MPI communication to finish
    Array<HYPRE_Int> cols_to_eliminate;
    {
-      ess_dofs.HostRead();
-
-      hypre_ParCSRCommHandle *comm_handle;
-      hypre_ParCSRCommPkg *comm_pkg;
-      HYPRE_Int num_sends, *int_buf_data;
-      HYPRE_Int index, start;
-      HYPRE_Int i, j, k;
-
-      HYPRE_Int diag_nrows       = hypre_CSRMatrixNumRows(diag);
-      HYPRE_Int offd_ncols       = hypre_CSRMatrixNumCols(offd);
-
-      HYPRE_Int *eliminate_row = hypre_CTAlloc(HYPRE_Int,  diag_nrows,
-                                               HYPRE_MEMORY_HOST);
-      HYPRE_Int *eliminate_col = hypre_CTAlloc(HYPRE_Int,  offd_ncols,
-                                               HYPRE_MEMORY_HOST);
-
-      /* make sure A has a communication package */
-      comm_pkg = hypre_ParCSRMatrixCommPkg(A);
-      if (!comm_pkg)
-      {
-         hypre_MatvecCommPkgCreate(A);
-         comm_pkg = hypre_ParCSRMatrixCommPkg(A);
-      }
-
-      /* which of the local rows are to be eliminated */
-      for (i = 0; i < diag_nrows; i++)
-      {
-         eliminate_row[i] = 0;
-      }
-      for (i = 0; i < n_ess_dofs; i++)
-      {
-         eliminate_row[ess_dofs[i]] = 1;
-      }
-
-      /* use a Matvec communication pattern to find (in eliminate_col)
-         which of the local offd columns are to be eliminated */
-      num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
-      int_buf_data = hypre_CTAlloc(HYPRE_Int,
-                                   hypre_ParCSRCommPkgSendMapStart(comm_pkg,
-                                                                   num_sends), HYPRE_MEMORY_HOST);
-      index = 0;
-      for (i = 0; i < num_sends; i++)
-      {
-         start = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i);
-         for (j = start; j < hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1); j++)
-         {
-            k = hypre_ParCSRCommPkgSendMapElmt(comm_pkg,j);
-            int_buf_data[index++] = eliminate_row[k];
-         }
-      }
-      comm_handle = hypre_ParCSRCommHandleCreate(11, comm_pkg,
-                                                 int_buf_data, eliminate_col);
       hypre_ParCSRCommHandleDestroy(comm_handle);
 
-      /* set the array cols_to_eliminate */
+      // set the array cols_to_eliminate
       int ncols_to_eliminate = 0;
-      for (i = 0; i < offd_ncols; i++)
+      for (int i = 0; i < offd_ncols; i++)
+      {
          if (eliminate_col[i])
          {
             ncols_to_eliminate++;
          }
+      }
 
       cols_to_eliminate.SetSize(ncols_to_eliminate);
       cols_to_eliminate = 0.0;
 
       ncols_to_eliminate = 0;
-      for (i = 0; i < offd_ncols; i++)
+      for (int i = 0; i < offd_ncols; i++)
+      {
          if (eliminate_col[i])
          {
             cols_to_eliminate[ncols_to_eliminate++] = i;
          }
+      }
 
       hypre_TFree(int_buf_data, HYPRE_MEMORY_HOST);
       hypre_TFree(eliminate_row, HYPRE_MEMORY_HOST);
@@ -367,6 +363,9 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
       const auto I = offd->i;
       const auto J = offd->i;
       auto data = offd->data;
+      // Note: could also try a different stragegy, looping over nnz in the
+      // matrix and then doing a binary search in ncols_to_eliminate to see if
+      // the column should be eliminated.
       MFEM_FORALL(idx, ncols_to_eliminate,
       {
          int j = cols[idx];
