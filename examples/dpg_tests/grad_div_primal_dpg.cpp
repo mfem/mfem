@@ -28,7 +28,7 @@ double freq = 1.0, kappa;
 int main(int argc, char *argv[])
 {
    // 1. Parse command line options
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/star.mesh";
    int order = 1;
 
    OptionsParser args(argc, argv);
@@ -45,12 +45,9 @@ int main(int argc, char *argv[])
 
    RT_FECollection fec(order-1, mesh.Dimension());
    FiniteElementSpace RTfes(&mesh, &fec);
-   cout << "Number of RT unknowns: " << RTfes.GetTrueVSize() << endl;
 
    H1_Trace_FECollection trace_fec(order, mesh.Dimension());
    FiniteElementSpace H1trace_fes(&mesh, &trace_fec);
-
-   cout << "Number of H1 trace unknowns: " << H1trace_fes.GetTrueVSize() << endl;
 
    int dim = mesh.Dimension();
    int test_order = order;
@@ -60,16 +57,15 @@ int main(int argc, char *argv[])
    }
 
    test_order++;
-   cout << "test_order = " << test_order << endl;
-
-   cout << "order = " << order << endl;
-   cout << "test_order = " << test_order << endl;
 
    RT_FECollection test_fec(test_order,mesh.Dimension());
 
-   Array<FiniteElementSpace *> domain_fes; domain_fes.Append(&RTfes);
-   Array<FiniteElementSpace *> trace_fes; trace_fes.Append(&H1trace_fes);
-   Array<FiniteElementCollection * > test_fecols; test_fecols.Append(&test_fec);
+   Array<FiniteElementSpace *> trial_fes; 
+   Array<FiniteElementCollection * > test_fecs; 
+   
+   trial_fes.Append(&RTfes);
+   trial_fes.Append(&H1trace_fes);
+   test_fecs.Append(&test_fec);
 
 
    GridFunction rt_gf(&RTfes);
@@ -83,10 +79,10 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient alpha(1.0);
    ConstantCoefficient beta(1.0);
-   NormalEquations * a = new NormalEquations(domain_fes,trace_fes,test_fecols);
-   a->AddDomainBFIntegrator(new DivDivIntegrator(alpha),0,0);
-   a->AddDomainBFIntegrator(new VectorFEMassIntegrator(beta),0,0);
-   a->AddTraceElementBFIntegrator(new NormalTraceIntegrator,0,0);
+   NormalEquations * a = new NormalEquations(trial_fes,test_fecs);
+   a->AddTrialIntegrator(new DivDivIntegrator(alpha),0,0);
+   a->AddTrialIntegrator(new VectorFEMassIntegrator(beta),0,0);
+   a->AddTrialIntegrator(new NormalTraceIntegrator,1,0);
    a->AddTestIntegrator(new DivDivIntegrator(alpha),0,0);
    a->AddTestIntegrator(new VectorFEMassIntegrator(beta),0,0);
 

@@ -44,66 +44,29 @@ using namespace mfem;
 
 enum prob_type
 {
+   polynomial,
    EJ,   
    general  
 };
 
+enum test_norm_type
+{
+   standard,   
+   adjoint_graph,
+   robust  
+};
+
 prob_type prob;
+test_norm_type test_norm;
 Vector beta;
-double epsilon = 0.5;
+double epsilon;
 // Function returns the solution u, and gradient du and the Laplacian d2u
 void solution(const Vector & x, double & u, Vector & du, double & d2u);
-
-
-double exact_u(const Vector & X)
-{
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
-   return u;
-}
-
-void exact_sigma(const Vector & X, Vector & sigma)
-{
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
-   // σ = ε ∇ u
-   sigma = du;
-   sigma *= epsilon;
-}
-
-double exact_hatu(const Vector & X)
-{
-   return -exact_u(X);
-}
-
-void exact_hatf(const Vector & X, Vector & hatf)
-{
-   Vector sigma;
-   exact_sigma(X,sigma);
-   double u = exact_u(X);
-   hatf.SetSize(X.Size());
-   for (int i = 0; i<hatf.Size(); i++)
-   {
-      hatf[i] = beta[i] * u - sigma[i];
-   }
-}
-
-double f_exact(const Vector & X)
-{
-   // f = - εΔu - ∇⋅(βu)
-   double u, d2u;
-   Vector du;
-   solution(X,u,du,d2u);
-
-   double s = 0;
-   for (int i = 0; i<du.Size(); i++)
-   {
-      s += beta[i] * du[i];
-   }
-   return -epsilon * d2u + s;
-}
+double exact_u(const Vector & X);
+void exact_sigma(const Vector & X, Vector & sigma);
+double exact_hatu(const Vector & X);
+void exact_hatf(const Vector & X, Vector & hatf);
+double f_exact(const Vector & X);
 
 int main(int argc, char *argv[])
 {
@@ -112,9 +75,11 @@ int main(int argc, char *argv[])
    int order = 1;
    int delta_order = 1;
    int ref = 1;
-   bool adjoint_graph_norm = false;
    bool visualization = true;
    int iprob = 0;
+   int itest_norm = 0;
+   double theta = 0.7;
+   epsilon = 1e0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -127,11 +92,14 @@ int main(int argc, char *argv[])
                   "Epsilon coefficient");               
    args.AddOption(&ref, "-ref", "--num_refinements",
                   "Number of uniform refinements");        
+   args.AddOption(&theta, "-theta", "--theta",
+                  "Theta parameter for AMR");                             
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: lshape, 1: General");                         
-   args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
-                  "-no-graph-norm", "--no-adjoint-graph-norm",
-                  "Enable or disable Adjoint Graph Norm on the test space"); 
+                  " 0: lshape, 1: General");           
+   args.AddOption(&itest_norm, "-test-norm", "--test-norm", "Choice of test norm"
+                  " 0: Standard, 1: Adjoint Graph, 2: Robust");       
+   args.AddOption(&beta, "-beta", "--beta",
+                  "Vector Coefficient beta");                                              
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -143,8 +111,9 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   if (iprob > 1) { iprob = 1; }
+   if (iprob > 2) { iprob = 2; }
    prob = (prob_type)iprob;
+   test_norm = (test_norm_type)itest_norm;
 
    if (prob == prob_type::EJ)
    {
@@ -154,9 +123,12 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   beta.SetSize(dim);
-   beta[0] = 1.;
-   beta[1] = 0.;
+   if (beta.Size() == 0)
+   {
+      beta.SetSize(dim);
+      beta[0] = 1.;
+      beta[1] = 0.;
+   }
 
    // Define spaces
    // L2 space for u
@@ -207,9 +179,16 @@ int main(int argc, char *argv[])
    trial_fes.Append(sigma_fes);
    trial_fes.Append(hatu_fes);
    trial_fes.Append(hatf_fes);
-
    test_fec.Append(v_fec);
    test_fec.Append(tau_fec);
+
+
+   FiniteElementCollection *coeff_fec = new L2_FECollection(0,dim);
+   FiniteElementSpace *coeff_fes = new FiniteElementSpace(&mesh,coeff_fec);
+   GridFunction c1_gf, c2_gf;
+   GridFunctionCoefficient c1_coeff(&c1_gf);
+   GridFunctionCoefficient c2_coeff(&c2_gf);
+
 
    NormalEquations * a = new NormalEquations(trial_fes,test_fec);
    a->StoreMatrices(true);
@@ -233,61 +212,110 @@ int main(int argc, char *argv[])
    a->AddTrialIntegrator(new TraceIntegrator,3,0);
 
 
-   //test integrators (space-induced norm for H1 × H(div))
-   // (∇v,∇δv)
-   a->AddTestIntegrator(new DiffusionIntegrator(one),0,0);
-   // (v,δv)
-   a->AddTestIntegrator(new MassIntegrator(one),0,0);
-   // (∇⋅τ,∇⋅δτ)
-   a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
-   // (τ,δτ)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(one),1,1);
-
-   // additional terms for adjoint graph norm
-   if (adjoint_graph_norm)
+   switch (test_norm)
    {
-      //test integrators (Adoint graph norm)
-      // 1/ε^2 (τ,δτ)
-      a->AddTestIntegrator(new VectorFEMassIntegrator(eps2),1,1);
-
-      // 1/ε (∇v, δτ)
-      a->AddTestIntegrator(new MixedVectorGradientIntegrator(eps1),0,1);
-
-      // 1/ε (τ,∇δv) 
-      a->AddTestIntegrator(new MixedVectorWeakDivergenceIntegrator(negeps1),1,0);
-
-      // (β⋅∇v, β⋅∇δv)   
-      a->AddTestIntegrator(new DiffusionIntegrator(bbtcoeff), 0,0);
-      // - (β ⋅ ∇v,∇⋅δτ)  
-      a->AddTestIntegrator(new MixedGradDivIntegrator(betacoeff),0,1);
-
-      // -(β ∇⋅τ ,∇⋅δv)  
-      a->AddTestIntegrator(new MixedDivGradIntegrator(betacoeff),1,0);
-
+      case standard:
+      {   
+         // (∇v,∇δv)
+         a->AddTestIntegrator(new DiffusionIntegrator(one),0,0);
+         // (v,δv)
+         a->AddTestIntegrator(new MassIntegrator(one),0,0);
+         // (∇⋅τ,∇⋅δτ)
+         a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
+         // (τ,δτ)
+         a->AddTestIntegrator(new VectorFEMassIntegrator(one),1,1);
+      }
+      break;
+      case adjoint_graph:
+      {
+         // (∇v,∇δv)
+         a->AddTestIntegrator(new DiffusionIntegrator(one),0,0);
+         // (β⋅∇v, β⋅∇δv)   
+         a->AddTestIntegrator(new DiffusionIntegrator(bbtcoeff), 0,0);
+         // (v,δv)
+         a->AddTestIntegrator(new MassIntegrator(one),0,0);
+         // (∇⋅τ,∇⋅δτ)
+         a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
+         // (τ,δτ)
+         a->AddTestIntegrator(new VectorFEMassIntegrator(one),1,1);
+         // 1/ε^2 (τ,δτ)
+         a->AddTestIntegrator(new VectorFEMassIntegrator(eps2),1,1);
+         // 1/ε (∇v, δτ)
+         a->AddTestIntegrator(new MixedVectorGradientIntegrator(eps1),0,1);
+         // - (β ⋅ ∇v,∇⋅δτ)  
+         a->AddTestIntegrator(new MixedGradDivIntegrator(betacoeff),0,1);
+         // 1/ε (τ,∇δv) 
+         a->AddTestIntegrator(new MixedVectorWeakDivergenceIntegrator(negeps1),1,0);
+         // -(β ∇⋅τ ,∇⋅δv)  
+         a->AddTestIntegrator(new MixedDivGradIntegrator(betacoeff),1,0);
+      }
+      break;
+      default:
+      {
+         c1_gf.SetSpace(coeff_fes);
+         c2_gf.SetSpace(coeff_fes);
+         Array<int> dofs;
+         for (int i =0; i < mesh.GetNE(); i++)
+         {
+            double volume = mesh.GetElementVolume(i);
+            double c1 = min(epsilon/volume, 1.);
+            double c2 = min(1./epsilon, 1./volume);
+            coeff_fes->GetElementDofs(i,dofs);
+            c1_gf.SetSubVector(dofs,c1);
+            c2_gf.SetSubVector(dofs,c2);
+         }
+         // c1 (v,δv)
+         a->AddTestIntegrator(new MassIntegrator(c1_coeff),0,0);
+         // ε (∇v,∇δv)
+         a->AddTestIntegrator(new DiffusionIntegrator(eps),0,0);
+         // (β⋅∇v, β⋅∇δv)   
+         a->AddTestIntegrator(new DiffusionIntegrator(bbtcoeff), 0,0);
+         // c2 (τ,δτ)
+         a->AddTestIntegrator(new VectorFEMassIntegrator(c2_coeff),1,1);
+         // (∇⋅τ,∇⋅δτ)
+         a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
+      }
+      break;
    }
+
 
    FunctionCoefficient f(f_exact);
-   if (prob == prob_type::general)
-   {
+   // if (prob != prob_type::EJ)
+   // {
       a->AddDomainLFIntegrator(new DomainLFIntegrator(f),0);
-   }
+   // }
 
    FunctionCoefficient hatuex(exact_hatu);
    Array<int> elements_to_refine;
    FunctionCoefficient uex(exact_u);
+   VectorFunctionCoefficient sigmaex(dim,exact_sigma);
    GridFunction hatu_gf;
 
-   socketstream uex_out;
+   // socketstream uex_out;
    socketstream u_out;
-   socketstream sigma_out;
+   // socketstream sigma_out;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       u_out.open(vishost, visport);
-      uex_out.open(vishost, visport);
-      sigma_out.open(vishost, visport);
+      // uex_out.open(vishost, visport);
+      // sigma_out.open(vishost, visport);
    }
+
+   double res0 = 0.;
+   double err0 = 0.;
+   int dof0;
+   mfem::out << " Refinement |" 
+             << "    Dofs    |" 
+             << "  L2 Error  |" 
+             << "  Rate  |" 
+             << "  Residual  |" 
+             << "  Rate  |" << endl;
+   mfem::out << " --------------------"      
+             <<  "-------------------"    
+             <<  "-------------------"    
+             <<  "-------------------" << endl;   
 
 
    for (int i = 0; i<ref; i++)
@@ -337,7 +365,7 @@ int main(int argc, char *argv[])
       CGSolver cg;
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
-      cg.SetPrintLevel(3);
+      cg.SetPrintLevel(-1);
       cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
@@ -347,11 +375,10 @@ int main(int argc, char *argv[])
       Vector & residuals = a->ComputeResidual(x);
 
       double residual = residuals.Norml2();
-      cout << "Residual = " << residual << endl;
+      
 
       elements_to_refine.SetSize(0);
       double max_resid = residuals.Max();
-      double theta = 0.7;
       for (int iel = 0; iel<mesh.GetNE(); iel++)
       {
          if (residuals[iel] > theta * max_resid)
@@ -360,31 +387,56 @@ int main(int argc, char *argv[])
          }
       }   
 
-      GridFunction u_gf;
-      u_gf.MakeRef(u_fes,x.GetBlock(0));
-
       GridFunction uex_gf(u_fes);
       uex_gf.ProjectCoefficient(uex);
 
+      GridFunction u_gf;
+      u_gf.MakeRef(u_fes,x.GetBlock(0));
 
       GridFunction sigma_gf;
       sigma_gf.MakeRef(sigma_fes,x.GetBlock(1));
 
+      int dofs = X.Size();
+      double u_err = u_gf.ComputeL2Error(uex);
+      double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
+      double L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
+
+
+      double rate_err = (i) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
+      double rate_res = (i) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
+
+      err0 = L2Error;
+      res0 = residual;
+      dof0 = dofs;
+      mfem::out << std::right << std::setw(11) << i << " | " 
+                << std::setw(10) <<  dof0 << " | " 
+                << std::setprecision(3) 
+                << std::setw(10) << std::scientific <<  err0 << " | " 
+                << std::setprecision(2) 
+                << std::setw(6) << std::fixed << rate_err << " | " 
+                << std::setprecision(3) 
+                << std::setw(10) << std::scientific <<  res0 << " | " 
+                << std::setprecision(2) 
+                << std::setw(6) << std::fixed << rate_res << " | " 
+                << std::resetiosflags(std::ios::showbase)
+                << std::endl;
+
+
       if (visualization)
       {
-         uex_out.precision(8);
-         uex_out << "solution\n" << mesh << uex_gf <<
-                  "window_title 'Exact u' "
-                  << flush;
+         // uex_out.precision(8);
+         // uex_out << "solution\n" << mesh << uex_gf <<
+         //          "window_title 'Exact u' "
+         //          << flush;
          u_out.precision(8);
          u_out << "solution\n" << mesh << u_gf <<
                   "window_title 'Numerical u' "
                   << flush;
 
-         sigma_out.precision(8);
-         sigma_out << "solution\n" << mesh << sigma_gf <<
-               "window_title 'Numerical flux' "
-               << flush;
+         // sigma_out.precision(8);
+         // sigma_out << "solution\n" << mesh << sigma_gf <<
+         //       "window_title 'Numerical flux' "
+         //       << flush;
       }
 
       mesh.GeneralRefinement(elements_to_refine,1,1);
@@ -393,6 +445,23 @@ int main(int argc, char *argv[])
          trial_fes[i]->Update(false);
       }
       a->Update();
+
+      if (test_norm == test_norm_type::robust)
+      {
+         coeff_fes->Update();
+         c1_gf.Update();
+         c2_gf.Update();
+         Array<int> dofs;
+         for (int i = 0; i < mesh.GetNE(); i++)
+         {
+            double volume = mesh.GetElementVolume(i);
+            double c1 = min(epsilon/volume, 1.);
+            double c2 = min(1./epsilon, 1./volume);
+            coeff_fes->GetElementDofs(i,dofs);
+            c1_gf.SetSubVector(dofs,c1);
+            c2_gf.SetSubVector(dofs,c2);
+         }
+      }
 
    }
 
@@ -423,6 +492,17 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
 
    switch(prob)
    {
+      case polynomial:
+      {
+         int n=2;
+         int m=3;
+         u = pow(x,n)*pow(y,m);
+         du[0] = n * pow(x,n-1) * pow(y,m);
+         du[1] = m * pow(x,n) * pow(y,m-1);
+         d2u = n * (n-1) * pow(x,n-2) * pow(y,m)
+             + m * (m-1) * pow(x,n) * pow(y,m-2);
+      }
+      break;
       case EJ:
       {
          double alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
@@ -430,11 +510,27 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
          double r2 = (1. - alpha) / (2.*epsilon);
          double denom = exp(-r2) - exp(-r1);
 
-         double x = X[0];
-         double y = X[1];
 
-         u = (exp(r2 * (x-1.)) - exp(r1 * (x-1.))) * cos(M_PI * y);
-         u/=denom;
+         double g1 = exp(r2*(x-1.));
+         double g1_x = r2*g1;
+         double g1_xx = r2*g1_x;
+         double g2 = exp(r1*(x-1.));
+         double g2_x = r1*g2;
+         double g2_xx = r1*g2_x;
+         double g = g1-g2;
+         double g_x = g1_x - g2_x;
+         double g_xx = g1_xx - g2_xx;
+
+
+         u = g * cos(M_PI * y)/denom;
+         double u_x = g_x * cos(M_PI * y)/denom;
+         double u_xx = g_xx * cos(M_PI * y)/denom;
+         double u_y = -M_PI * g * sin(M_PI*y)/denom;
+         double u_yy = -M_PI * M_PI * u;
+         du[0] = u_x;
+         du[1] = u_y;
+         d2u = u_xx + u_yy;
+
       }
       break;
       default:
@@ -450,4 +546,55 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
       }
       break;
    }
+}
+
+
+double exact_u(const Vector & X)
+{
+   double u, d2u;
+   Vector du;
+   solution(X,u,du,d2u);
+   return u;
+}
+
+void exact_sigma(const Vector & X, Vector & sigma)
+{
+   double u, d2u;
+   Vector du;
+   solution(X,u,du,d2u);
+   // σ = ε ∇ u
+   sigma = du;
+   sigma *= epsilon;
+}
+
+double exact_hatu(const Vector & X)
+{
+   return -exact_u(X);
+}
+
+void exact_hatf(const Vector & X, Vector & hatf)
+{
+   Vector sigma;
+   exact_sigma(X,sigma);
+   double u = exact_u(X);
+   hatf.SetSize(X.Size());
+   for (int i = 0; i<hatf.Size(); i++)
+   {
+      hatf[i] = beta[i] * u - sigma[i];
+   }
+}
+
+double f_exact(const Vector & X)
+{
+   // f = - εΔu + ∇⋅(βu)
+   double u, d2u;
+   Vector du;
+   solution(X,u,du,d2u);
+
+   double s = 0;
+   for (int i = 0; i<du.Size(); i++)
+   {
+      s += beta[i] * du[i];
+   }
+   return -epsilon * d2u + s;
 }

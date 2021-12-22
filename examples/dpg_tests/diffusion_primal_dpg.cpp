@@ -22,7 +22,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command line options
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/star.mesh";
    int order = 1;
 
    OptionsParser args(argc, argv);
@@ -38,16 +38,9 @@ int main(int argc, char *argv[])
    //    high-order Lagrange finite elements of the given order.
    H1_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace H1fes(&mesh, &fec);
-   cout << "Number of H1 unknowns: " << H1fes.GetTrueVSize() << endl;
 
    RT_Trace_FECollection trace_fec(order-1, mesh.Dimension());
    FiniteElementSpace RTtrace_fes(&mesh, &trace_fec);
-
-
-
-
-
-   cout << "Number of RT trace unknowns: " << RTtrace_fes.GetTrueVSize() << endl;
 
    int dim = mesh.Dimension();
    int test_order = order;
@@ -57,21 +50,22 @@ int main(int argc, char *argv[])
    }
 
    test_order++;
-   cout << "test_order = " << test_order << endl;
-
 
    H1_FECollection test_fec(test_order,mesh.Dimension());
 
-   Array<FiniteElementSpace *> domain_fes; domain_fes.Append(&H1fes);
-   Array<FiniteElementSpace *> trace_fes; trace_fes.Append(&RTtrace_fes);
-   Array<FiniteElementCollection * > test_fecols; test_fecols.Append(&test_fec);
+   Array<FiniteElementSpace * > trial_fes; 
+   Array<FiniteElementCollection * > test_fecs; 
 
-   NormalEquations * a = new NormalEquations(domain_fes,trace_fes,test_fecols);
+   trial_fes.Append(&H1fes);
+   trial_fes.Append(&RTtrace_fes);
+   test_fecs.Append(&test_fec);
+
+   NormalEquations * a = new NormalEquations(trial_fes,test_fecs);
 
 
    ConstantCoefficient one(1.0);
-   a->AddDomainBFIntegrator(new DiffusionIntegrator(one),0,0);
-   a->AddTraceElementBFIntegrator(new TraceIntegrator,0,0);
+   a->AddTrialIntegrator(new DiffusionIntegrator(one),0,0);
+   a->AddTrialIntegrator(new TraceIntegrator,1,0);
 
    BilinearFormIntegrator * diffusion = new DiffusionIntegrator(one);
    BilinearFormIntegrator * mass = new MassIntegrator(one);
