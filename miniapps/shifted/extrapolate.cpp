@@ -16,8 +16,8 @@
 // Compile with: make extrapolate
 //
 // Sample runs:
-//     mpirun -np 4 extrapolate -rs 2 -dt 0.001 -o 3
-//
+//     mpirun -np 4 extrapolate -o 3
+//     mpirun -np 4 extrapolate -rs 3 -dt 0.002 -o 2 -p 1
 
 #include <fstream>
 #include <iostream>
@@ -27,29 +27,44 @@
 using namespace std;
 using namespace mfem;
 
+int problem = 0;
+
 double domainLS(const Vector &coord)
 {
-   // [0, 1] to [-pi, pi]
-   const double x = (coord(0)*2.0 - 1.0) * M_PI,
-                y = (coord(1)*2.0 - 1.0) * M_PI,
-                z = (coord.Size() > 2) ? (coord(2)*2.0 - 1.0) * M_PI : 0.0;
-
-   const double radius = 2.0;
-   double rv = x*x + y*y + z*z;
-   rv = rv > 0.0 ? sqrt(rv) : 0.0;
-   return radius - rv;
+   // Map from [0,1] to [-1,1].
+   const int dim = coord.Size();
+   const double x = coord(0)*2.0 - 1.0,
+                y = coord(1)*2.0 - 1.0,
+                z = (dim > 2) ? coord(2)*2.0 - 1.0 : 0.0;
+   switch(problem)
+   {
+      case 0:
+      {
+         // 2d circle.
+         return 0.75 - sqrt(x*x + y*y + 1e-12);
+      }
+      case 1:
+      {
+         // 2d star.
+         return 0.60 - sqrt(x*x + y*y + 1e-12) +
+                0.25 * (y*y*y*y*y + 5.0*x*x*x*x*y - 10.0*x*x*y*y*y) /
+                       pow(x*x + y*y + 1e-12, 2.5);
+      }
+      default: MFEM_ABORT("Bad option for --problem!"); return 0.0;
+   }
 }
 
 double solution0(const Vector &coord)
 {
-   // [0, 1] to [-pi, pi]
-   const double x = (coord(0)*2.0 - 1.0) * M_PI,
-                y = (coord(1)*2.0 - 1.0) * M_PI,
-                z = (coord.Size() > 2) ? (coord(2)*2.0 - 1.0) * M_PI : 0.0;
+   // Map from [0,1] to [-1,1].
+   const int dim = coord.Size();
+   const double x = coord(0)*2.0 - 1.0,
+                y = coord(1)*2.0 - 1.0,
+                z = (dim > 2) ? coord(2)*2.0 - 1.0 : 0.0;
 
    if (domainLS(coord) > 0.0)
    {
-      return std::cos(x) * std::sin(y);
+      return std::cos(M_PI * x) * std::sin(M_PI * y);
    }
    else { return 0.0; }
 }
@@ -165,7 +180,7 @@ int main(int argc, char *argv[])
    int rs_levels = 2;
    int order = 2;
    int ode_solver_type = 2;
-   double dt = 0.1;
+   double dt = 0.005;
    bool visualization = true;
    int vis_steps = 5;
 
@@ -181,6 +196,9 @@ int main(int argc, char *argv[])
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP,\n\t"
                   "            3 - RK3 SSP");
+   args.AddOption(&problem, "-p", "--problem",
+                  "0 - 2D circle,\n\t"
+                  "1 - 2D star");
    args.AddOption(&dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -224,7 +242,8 @@ int main(int argc, char *argv[])
    {
       socketstream sol_sock_w;
       common::VisualizeField(sol_sock_w, vishost, visport, level_set,
-                             "Domain level set", 0, 0, wsize, wsize);
+                             "Domain level set", 0, 0, wsize, wsize,
+                             "rRjmm********A");
       MPI_Barrier(pmesh.GetComm());
    }
    // Setup a VectorCoefficient for n = - grad_ls / |grad_ls|.
@@ -310,7 +329,7 @@ int main(int argc, char *argv[])
    ode_solver->Init(ext);
 
    bool done = false;
-   const double t_final = 0.45;
+   const double t_final = 0.4;
    for (int ti = 0; !done;)
    {
       double dt_real = min(dt, t_final - t);
@@ -329,7 +348,7 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             common::VisualizeField(sock_grad_u_n, vishost, visport, grad_u_n,
-                                   "Solution", 2*wsize, 560, wsize, wsize,
+                                   "Solution", 2*wsize, 570, wsize, wsize,
                                    "rRjmm********A");
             MPI_Barrier(pmesh.GetComm());
          }
@@ -357,7 +376,7 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             common::VisualizeField(sock_u, vishost, visport, u,
-                                   "Solution", wsize, 560, wsize, wsize,
+                                   "Solution", wsize, 570, wsize, wsize,
                                    "rRjmm********A");
             MPI_Barrier(pmesh.GetComm());
          }
