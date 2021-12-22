@@ -71,6 +71,26 @@ public:
 };
 
 
+class TimeDistanceSolver : public DistanceSolver
+{
+public:
+    TimeDistanceSolver()
+    {
+        print_level = 0;
+    }
+
+    virtual
+    ~TimeDistanceSolver()
+    {
+
+    }
+
+    virtual
+    void ComputeScalarDistance(Coefficient& func, ParGridFunction& fdist);
+
+private:
+};
+
 // A. Belyaev et al: "On Variational and PDE-based Distance Function
 // Approximations", Section 7, DOI:10.1111/cgf.12611.
 class PLapDistanceSolver : public DistanceSolver

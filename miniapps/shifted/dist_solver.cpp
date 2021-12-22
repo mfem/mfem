@@ -117,6 +117,283 @@ void DistanceSolver::ComputeVectorDistance(Coefficient &zero_level_set,
    ScalarDistToVector(dist_s, distance);
 }
 
+class SDFTimeIntegrator:public NonlinearFormIntegrator
+{
+public:
+
+    SDFTimeIntegrator(Coefficient& ofunc)
+    {
+        func=&ofunc;
+    }
+
+
+
+    virtual
+    double GetElementEnergy(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun)
+    {
+        return 0.0;
+    }
+
+    virtual
+    void AssembleElementVector(const FiniteElement &el,
+                               ElementTransformation &trans,
+                               const Vector &elfun,
+                               Vector &elvect)
+    {
+        const int ndof = el.GetDof();
+        const int ndim = el.GetDim();
+        const int spaceDim = trans.GetSpaceDim();
+        int order = 2 * el.GetOrder() + trans.OrderGrad(&el);
+        const IntegrationRule &ir(IntRules.Get(el.GetGeomType(), order));
+
+        elvect.SetSize(ndof);
+        elvect = 0.0;
+
+        Vector shapef(ndof);
+        // derivatives in physical space
+        DenseMatrix dshape(ndof, ndim);
+
+        Vector grad(spaceDim);
+
+        double eps=10.0*std::numeric_limits<double>::epsilon();
+        double Sval;
+        double val;
+
+        double w;
+        for (int i = 0; i < ir.GetNPoints(); i++)
+        {
+           const IntegrationPoint &ip = ir.IntPoint(i);
+           trans.SetIntPoint(&ip);
+           w = trans.Weight();
+           w = ip.weight * w;
+
+           val=func->Eval(trans,ip);
+           Sval=val*val+eps*eps;
+           Sval=val/std::sqrt(Sval);
+
+           el.CalcPhysShape(trans,shapef);
+           el.CalcPhysDShape(trans,dshape);
+           dshape.MultTranspose(elfun,grad);
+
+           Sval=Sval*(1.0-std::sqrt(grad*grad));
+
+           elvect.Add(w*Sval,shapef);
+        }
+    }
+
+    virtual
+    void AssembleElementGrad(const FiniteElement &el,
+                             ElementTransformation &trans,
+                             const Vector &elfun,
+                             DenseMatrix &elmat)
+    {
+
+    }
+
+private:
+    mfem::Coefficient* func;
+
+};
+
+class SDFRHSCoefficient: public Coefficient
+{
+public:
+    SDFRHSCoefficient(GridFunction* func0)
+    {
+        func=func0;
+    }
+
+
+    virtual
+    double Eval(ElementTransformation &  	T,
+                const IntegrationPoint &  	ip)
+    {
+        double u=func->GetValue(T,ip);
+        double eps=10.0*std::numeric_limits<double>::epsilon();
+
+        return u/std::sqrt(u*u+eps*eps);
+    }
+
+private:
+    GridFunction* func;//scalar solution field
+};
+
+class SDFVelCoefficient: public VectorCoefficient
+{
+public:
+    SDFVelCoefficient(GridFunction* func0):VectorCoefficient(func0->FESpace()->GetVDim())
+    {
+        func=func0;
+    }
+
+    virtual
+    void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+    {
+        double eps=std::numeric_limits<double>::epsilon();
+        double u=func->GetValue(T,ip);
+        func->GetGradient(T,V);
+        double ng=std::sqrt(V*V);
+        double s=u/std::sqrt(u*u+100*eps*eps);
+        if(ng<10*eps)
+        {
+            V=0.0;
+        }else{
+            V*=(s/ng);
+        }
+    }
+
+private:
+    GridFunction* func;
+};
+
+
+class SDFTimeOperator: public TimeDependentOperator
+{
+public:
+    SDFTimeOperator(Coefficient* func,ParFiniteElementSpace* fes):TimeDependentOperator(fes->GetTrueVSize())
+    {
+        nf=new ParNonlinearForm(fes);
+        nf->AddDomainIntegrator(new SDFTimeIntegrator(*func));
+
+        //form the matrix M
+        ParBilinearForm* bf=new ParBilinearForm(fes);
+        bf->AddDomainIntegrator(new mfem::LumpedIntegrator(new mfem::MassIntegrator()));
+        bf->Assemble();
+        bf->Finalize();
+        M=bf->ParallelAssemble();
+        delete bf;
+
+        //allocate the linear solver
+        prec=new mfem::HypreBoomerAMG(*M);
+        solv=new mfem::CGSolver(fes->GetComm());
+        solv->SetOperator(*M);
+        solv->SetPreconditioner(*prec);
+
+        tmpv.SetSize(fes->GetTrueVSize());
+    }
+
+    /// return the CFL condition cflg for dt=1.0 and the max element size elh.
+    void ComputeCFL(ParGridFunction* gf, double& cflg, double& elh)
+    {
+        ParFiniteElementSpace* pfes=gf->ParFESpace();
+        ParMesh *pmesh = pfes->GetParMesh();
+        int vdim = pfes->GetVDim();
+
+        double cflx = 0.0;
+        double cfly = 0.0;
+        double cflz = 0.0;
+        double cfl=0.0;
+        double cflmax=0.0;
+        elh=0.0;
+        Vector u;
+        DenseMatrix grad;
+
+        for (int e = 0; e < pfes->GetNE(); ++e)
+        {
+           const FiniteElement *fe = pfes->GetFE(e);
+           const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
+                                                    fe->GetOrder());
+           gf->GetGradients(e,ir,grad);
+
+
+           double hmin = pmesh->GetElementSize(e, 1);
+           elh=fmax(elh,hmin);
+           hmin= hmin/(double) pfes->GetElementOrder(0);
+
+           for (int i = 0; i < ir.GetNPoints(); ++i)
+           {
+               cflx = fabs(grad(0,i)/hmin);
+               cfly = fabs(grad(1,i)/hmin);
+               if(vdim == 3)
+               {
+                   cflz = fabs(grad(2,i)/hmin);
+               }
+               cfl= cflx+cfly+cflz;
+               cflmax = fmax(cflmax,cfl);
+           }
+        }
+
+        cflg = 0.0;
+        MPI_Allreduce(&cflmax,
+                      &cflg,
+                      1,
+                      MPI_DOUBLE,
+                      MPI_MAX,
+                      pmesh->GetComm());
+    }
+
+    virtual
+    ~SDFTimeOperator()
+    {
+        delete M;
+        delete solv;
+        delete prec;
+        delete nf;
+
+    }
+
+    virtual
+    void Mult(const Vector& x, Vector& y) const
+    {
+        y=0.0;
+        nf->Mult(x,tmpv);
+        solv->Mult(tmpv,y);
+    }
+
+
+private:
+    mfem::HypreParMatrix* M; //mass matrix
+    ParNonlinearForm* nf; //non-lineat forcing
+    HypreBoomerAMG* prec; //preconditioner for the mass solver
+    CGSolver* solv; //solver for the the mass inversion
+
+    mutable Vector tmpv;
+
+};
+
+
+void TimeDistanceSolver::ComputeScalarDistance(Coefficient &func,
+                                               ParGridFunction &distance)
+{
+    ParFiniteElementSpace &pfes = *distance.ParFESpace();
+
+    SDFTimeOperator *sdftop=new SDFTimeOperator(&func,&pfes);
+    ODESolver *ode_solver = new RK2Solver(1.0);
+
+    double t = 0.0;
+    sdftop->SetTime(t);
+    ode_solver->Init(*sdftop);
+
+    Vector u; u.SetSize(pfes.GetTrueVSize());
+    distance.ProjectCoefficient(func);
+    distance.GetTrueDofs(u);
+
+    double cfl;
+    double elh;
+    sdftop->ComputeCFL(&distance,cfl,elh);
+
+    std::cout<<"cfl="<<cfl<<" dt="<<1.0/cfl<<std::endl;
+
+    double dt=1.0/(10*cfl);
+    int maxti=11*elh/dt; //11 element lengths
+    maxti=1.0/dt;
+    maxti=1000;
+    for(int ti = 0; ti<maxti; ti++)
+    {
+        ode_solver->Step(u,t,dt);
+        if(pfes.GetMyRank()==0)
+        {
+            std::cout<<"t="<<t<<std::endl;
+        }
+    }
+    delete ode_solver;
+    delete sdftop;
+
+    distance.SetFromTrueDofs(u);
+
+}
 
 void HeatDistanceSolver::ComputeScalarDistance(Coefficient &zero_level_set,
                                                ParGridFunction &distance)

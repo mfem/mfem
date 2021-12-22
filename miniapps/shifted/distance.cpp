@@ -289,6 +289,11 @@ int main(int argc, char *argv[])
       auto ds = new PLapDistanceSolver(p, newton_iter);
       dist_solver = ds;
    }
+   else if(solver_type == 2)
+   {
+       auto ds = new TimeDistanceSolver();
+       dist_solver = ds;
+   }
    else { MFEM_ABORT("Wrong solver option."); }
    dist_solver->print_level = 1;
 
@@ -305,7 +310,7 @@ int main(int argc, char *argv[])
       filter.Filter(*ls_coeff, filt_gf);
    }
    else { filt_gf.ProjectCoefficient(*ls_coeff); }
-   delete ls_coeff;
+   //delete ls_coeff;
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
    dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
