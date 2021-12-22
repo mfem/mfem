@@ -218,11 +218,170 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
       Ah.MakePtAP(dA, Ph);
    }
 
+   // {
+   //    int a;
+   //    ( a = 2, a+2);
+   //    NVTX("EliminateRowsCols");
+   //    Ah.As<HypreParMatrix>()->EliminateRowsCols(ess_dofs);
+   // }
+
+   // BCs
+
+   HypreParMatrix *A_mat = Ah.As<HypreParMatrix>();
+   hypre_ParCSRMatrix *A = *A_mat;
+   A_mat->HypreReadWrite();
+
+   hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
+   hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
+
+   const int n_ess_dofs = ess_dofs.Size();
+   const auto ess_dofs_d = ess_dofs.Read();
+
+   // Eliminate rows and columns in the diagonal block
    {
-      int a;
-      ( a = 2, a+2);
-      NVTX("EliminateRowsCols");
-      Ah.As<HypreParMatrix>()->EliminateRowsCols(ess_dofs);
+      const auto I = diag->i;
+      const auto J = diag->j;
+      auto data = diag->data;
+
+      MFEM_FORALL(i, n_ess_dofs,
+      {
+         const int idof = ess_dofs_d[i];
+         for (int j=I[idof]; j<I[idof+1]; ++j)
+         {
+            const int jdof = J[j];
+            if (jdof != idof)
+            {
+               data[j] = 0.0;
+               for (int k=I[jdof]; k<I[jdof+1]; ++k)
+               {
+                  if (J[k] == idof)
+                  {
+                     data[k] = 0.0;
+                     break;
+                  }
+               }
+            }
+         }
+      });
+   }
+
+   // Eliminate rows in the off-diagonal block
+   {
+      const auto I = offd->i;
+      auto data = offd->data;
+      MFEM_FORALL(i, n_ess_dofs,
+      {
+         const int idof = ess_dofs_d[i];
+         for (int j=I[idof]; j<I[idof+1]; ++j)
+         {
+            data[j] = 0.0;
+         }
+      });
+   }
+
+   // Figure out which columns need to be eliminated in the off-diagonal block
+   Array<HYPRE_Int> cols_to_eliminate;
+   {
+      ess_dofs.HostRead();
+
+      hypre_ParCSRCommHandle *comm_handle;
+      hypre_ParCSRCommPkg *comm_pkg;
+      HYPRE_Int num_sends, *int_buf_data;
+      HYPRE_Int index, start;
+      HYPRE_Int i, j, k;
+
+      HYPRE_Int diag_nrows       = hypre_CSRMatrixNumRows(diag);
+      HYPRE_Int offd_ncols       = hypre_CSRMatrixNumCols(offd);
+
+      HYPRE_Int *eliminate_row = hypre_CTAlloc(HYPRE_Int,  diag_nrows,
+                                               HYPRE_MEMORY_HOST);
+      HYPRE_Int *eliminate_col = hypre_CTAlloc(HYPRE_Int,  offd_ncols,
+                                               HYPRE_MEMORY_HOST);
+
+      /* make sure A has a communication package */
+      comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+      if (!comm_pkg)
+      {
+         hypre_MatvecCommPkgCreate(A);
+         comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+      }
+
+      /* which of the local rows are to be eliminated */
+      for (i = 0; i < diag_nrows; i++)
+      {
+         eliminate_row[i] = 0;
+      }
+      for (i = 0; i < n_ess_dofs; i++)
+      {
+         eliminate_row[ess_dofs[i]] = 1;
+      }
+
+      /* use a Matvec communication pattern to find (in eliminate_col)
+         which of the local offd columns are to be eliminated */
+      num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
+      int_buf_data = hypre_CTAlloc(HYPRE_Int,
+                                   hypre_ParCSRCommPkgSendMapStart(comm_pkg,
+                                                                   num_sends), HYPRE_MEMORY_HOST);
+      index = 0;
+      for (i = 0; i < num_sends; i++)
+      {
+         start = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i);
+         for (j = start; j < hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1); j++)
+         {
+            k = hypre_ParCSRCommPkgSendMapElmt(comm_pkg,j);
+            int_buf_data[index++] = eliminate_row[k];
+         }
+      }
+      comm_handle = hypre_ParCSRCommHandleCreate(11, comm_pkg,
+                                                 int_buf_data, eliminate_col);
+      hypre_ParCSRCommHandleDestroy(comm_handle);
+
+      /* set the array cols_to_eliminate */
+      int ncols_to_eliminate = 0;
+      for (i = 0; i < offd_ncols; i++)
+         if (eliminate_col[i])
+         {
+            ncols_to_eliminate++;
+         }
+
+      cols_to_eliminate.SetSize(ncols_to_eliminate);
+      cols_to_eliminate = 0.0;
+
+      ncols_to_eliminate = 0;
+      for (i = 0; i < offd_ncols; i++)
+         if (eliminate_col[i])
+         {
+            cols_to_eliminate[ncols_to_eliminate++] = i;
+         }
+
+      hypre_TFree(int_buf_data, HYPRE_MEMORY_HOST);
+      hypre_TFree(eliminate_row, HYPRE_MEMORY_HOST);
+      hypre_TFree(eliminate_col, HYPRE_MEMORY_HOST);
+   }
+
+   // Eliminate columns in the off-diagonal block
+   {
+      const int ncols_to_eliminate = cols_to_eliminate.Size();
+      const int nrows_offd = hypre_CSRMatrixNumRows(offd);
+      const auto cols = cols_to_eliminate.Read();
+      const auto I = offd->i;
+      const auto J = offd->i;
+      auto data = offd->data;
+      MFEM_FORALL(idx, ncols_to_eliminate,
+      {
+         int j = cols[idx];
+         for (int i=0; i<nrows_offd; ++i)
+         {
+            for (int jj=I[i]; jj<I[i+1]; ++jj)
+            {
+               if (J[jj] == j)
+               {
+                  data[jj] = 0.0;
+                  break;
+               }
+            }
+         }
+      });
    }
 }
 
