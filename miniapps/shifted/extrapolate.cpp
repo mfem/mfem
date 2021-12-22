@@ -17,7 +17,7 @@
 //
 // Sample runs:
 //     mpirun -np 4 extrapolate -o 3
-//     mpirun -np 4 extrapolate -rs 3 -dt 0.002 -o 2 -p 1
+//     mpirun -np 4 extrapolate -rs 3 -o 2 -p 1
 
 #include <fstream>
 #include <iostream>
@@ -168,7 +168,6 @@ public:
    }
 };
 
-
 int main(int argc, char *argv[])
 {
    // Initialize MPI.
@@ -180,7 +179,6 @@ int main(int argc, char *argv[])
    int rs_levels = 2;
    int order = 2;
    int ode_solver_type = 2;
-   double dt = 0.005;
    bool visualization = true;
    int vis_steps = 5;
 
@@ -199,7 +197,6 @@ int main(int argc, char *argv[])
    args.AddOption(&problem, "-p", "--problem",
                   "0 - 2D circle,\n\t"
                   "1 - 2D star");
-   args.AddOption(&dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -308,6 +305,18 @@ int main(int argc, char *argv[])
 
    Vector rhs(pfes_L2.GetVSize());
    rhs = 0.0;
+
+   // Compute a CFL time step.
+   double h_min = std::numeric_limits<double>::infinity();
+   for (int k = 0; k < NE; k++)
+   {
+      h_min = std::min(h_min, pmesh.GetElementSize(k));
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &h_min, 1, MPI_DOUBLE, MPI_MIN,
+                 pfes_L2.GetComm());
+   h_min /= order;
+   // The propagation speed is 1.
+   double dt = 0.25 * h_min / 1.0;
 
    // Time loop
    double t = 0.0;
