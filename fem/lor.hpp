@@ -72,7 +72,7 @@ protected:
    bool supports_batched_assembly;
 
    /// The LOR element restriction operator.
-   mutable OperatorHandle R_lor;
+   mutable class LORRestriction *R_lor;
 
    /// Constructs the local DOF (ldof) permutation. In parallel this is used as
    /// an intermediate step in computing the DOF permutation (see
@@ -125,7 +125,7 @@ public:
    FiniteElementSpace &GetFESpace() const { return *fes; }
 
    /// Returns the low-order restriction.
-   const Operator *GetLORRestriction() const;
+   const LORRestriction *GetLORRestriction() const;
    ~LORBase();
 };
 
@@ -268,9 +268,12 @@ public:
 
 /// Create a low-order refined version of a Restriction.
 /// Only used here for the FillI and FillJAndZeroData methods.
-class LORRestriction : public Operator
+class LORRestriction
 {
-   const FiniteElementSpace &fes_lo, &fes_ho;
+   const FiniteElementSpace &fes_ho;
+   FiniteElementCollection *fec_lo;
+   const Geometry::Type geom;
+   const int ne_ref;
    const int ne;
    const int vdim;
    const bool byvdim;
@@ -285,12 +288,12 @@ class LORRestriction : public Operator
    Array<int> dof_glob2loc_offsets;
    Array<int> el_dof_lex;
 
-public:
-   LORRestriction(const FiniteElementSpace &fes_lo,
-                  const FiniteElementSpace &fes_ho);
+protected:
+   static int GetNRefinedElements(const FiniteElementSpace &fes);
+   static FiniteElementCollection *GetLowOrderFEC(const FiniteElementSpace &fes);
 
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
+public:
+   LORRestriction(const FiniteElementSpace &fes_ho);
 
    int FillI(SparseMatrix &mat) const;
    void FillJAndZeroData(SparseMatrix &mat) const;
@@ -298,6 +301,8 @@ public:
    const Array<int> &GatherMap() const { return el_dof_lex; }
    const Array<int> &Indices() const { return dof_glob2loc; }
    const Array<int> &Offsets() const { return dof_glob2loc_offsets; }
+
+   ~LORRestriction();
 
    // Device lambda cannot have private or protected access
 public:

@@ -38,7 +38,7 @@
 namespace mfem
 {
 
-using LOR_AMG= LORSolver<HypreBoomerAMG>;
+using LOR_AMG = LORSolver<HypreBoomerAMG>;
 
 ////////////////////////////////////////////////////////////////////////////////
 static MPI_Session *mpi;
@@ -367,6 +367,14 @@ public:
             dbg("[precond] LOR BATCH");
             LOR_AMG *lor_amg = new LOR_AMG(a, ess_dofs);
             lor_amg->GetSolver().SetPrintLevel(0);
+            {
+               NVTX("LOR_BATCH Setup");
+               Vector b(lor_amg->Height());
+               Vector x(lor_amg->Height());
+               b = 0.0;
+               x = 0.0;
+               lor_amg->Mult(b, x); // <-- Force setup. Ugly hack.
+            }
             coarse_precond.reset(lor_amg);
             break;
          }
@@ -1153,6 +1161,17 @@ struct SolverProblem: public BakeOff
       cg.SetPrintLevel(print_lvl);
       if (M.get()) { cg.SetPreconditioner(*M); }
       if (config_debug) { cg.SetMonitor(monitor); }
+
+      if (preconditioner == FinePrecondType::BoomerAMG ||
+          preconditioner == FinePrecondType::LORBatch)
+      {
+         MFEM_DEVICE_SYNC;
+         NVTX("First Mult");
+         sw_setup.Start();
+         cg.Mult(B,X);
+         MFEM_DEVICE_SYNC;
+         sw_setup.Stop();
+      }
    }
 
    void benchmark() override
@@ -1215,7 +1234,7 @@ static void BPS##i##_##Precond(bm::State &state){\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_EPSILONS,P_ORDERS,P_SIDES})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(2);
+    -> Iterations(4);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Solver(3,Diffusion,None)

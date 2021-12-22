@@ -25,8 +25,7 @@ namespace mfem
 
 // Defined in lor_assembly_ker.cpp
 template <int order, bool use_smem = true>
-void Assemble3DBatchedLOR(Mesh &mesh_lor,
-                          const Array<int> &dof_glob2loc,
+void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc,
                           const Array<int> &dof_glob2loc_offsets,
                           const Array<int> &el_dof_lex,
                           Mesh &mesh_ho,
@@ -38,7 +37,6 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
                                         OperatorHandle &Ah)
 {
    MFEM_NVTX;
-   Mesh &mesh_lor = *form_lor.FESpace()->GetMesh();
    Mesh &mesh_ho = *fes_ho.GetMesh();
    const int dim = mesh_ho.Dimension();
    const int order = fes_ho.GetMaxElementOrder();
@@ -49,26 +47,24 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
    SparseMatrix *A = has_to_init ? nullptr : Ah.As<SparseMatrix>();
 
    dbg("GetLORRestriction");
-   const Operator *Rop = lor_disc.GetLORRestriction();
-   dbg("R");
-   const LORRestriction *R = static_cast<const LORRestriction*>(Rop);
+   const LORRestriction *R = lor_disc.GetLORRestriction();
    MFEM_VERIFY(R,"LOR Restriction error!");
 
    if (has_to_init)
    {
       MFEM_VERIFY(UsesTensorBasis(fes_ho),
                   "Batched LOR assembly requires tensor basis");
-      if (Device::IsEnabled())
+      if (Device::IsEnabled()||true)
       {
          dbg("Device::IsEnabled()");
 #ifdef MFEM_USE_MPI
-         ParBilinearForm *pform_lor = dynamic_cast<ParBilinearForm*>(&form_lor);
-         if (pform_lor)
+         ParFiniteElementSpace *pfes_ho =
+            dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
+         if (pfes_ho && pfes_ho->GetNRanks() > 1)
          {
             dbg("Device::IsEnabled() and multiple ranks!");
-            ParFiniteElementSpace &pfes_lo = *pform_lor->ParFESpace();
-            const int width = pfes_lo.GetVSize();
-            const int height = pfes_lo.GetVSize();
+            const int width = pfes_ho->GetVSize();
+            const int height = pfes_ho->GetVSize();
             dbg("HxW: %dx%d",height,width);
             A = new SparseMatrix(height, width, 0);
          }
@@ -76,9 +72,8 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
 #endif
          {
             dbg("Device::IsEnabled() but one rank!");
-            FiniteElementSpace &fes_lo = *form_lor.FESpace();
-            const int width = fes_lo.GetVSize();
-            const int height = fes_lo.GetVSize();
+            const int width = fes_ho.GetVSize();
+            const int height = fes_ho.GetVSize();
             dbg("HxW: %dx%d",height,width);
             A = new SparseMatrix(height, width, 0);
          }
@@ -90,6 +85,7 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
       }
       else
       {
+         MFEM_ABORT("");
          dbg("NOT Device::IsEnabled()");
          // the sparsity pattern is defined from the map: element->dof
          const int ndofs = fes_ho.GetVSize();
@@ -109,8 +105,7 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
       }
    }
 
-   void (*Kernel)(Mesh &mesh_lor,
-                  const Array<int> &dof_glob2loc,
+   void (*Kernel)(const Array<int> &dof_glob2loc,
                   const Array<int> &dof_glob2loc_offsets,
                   const Array<int> &el_dof_lex,
                   Mesh &mesh_ho,
@@ -126,7 +121,7 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
          case 3: Kernel = Assemble3DBatchedLOR<3>; break;
          case 4: Kernel = Assemble3DBatchedLOR<4>; break;
          case 5: Kernel = Assemble3DBatchedLOR<5>; break;
-         case 6: Kernel = Assemble3DBatchedLOR<6,false>; break;
+         case 6: Kernel = Assemble3DBatchedLOR<6,false>; break;/*
          case 7: Kernel = Assemble3DBatchedLOR<7,false>; break;
          case 8: Kernel = Assemble3DBatchedLOR<8,false>; break;
          case 9: Kernel = Assemble3DBatchedLOR<9,false>; break;
@@ -136,13 +131,12 @@ static void AssembleBatchedLORWithoutBC(LORBase &lor_disc,
          case 13: Kernel = Assemble3DBatchedLOR<13,false>; break;
          case 14: Kernel = Assemble3DBatchedLOR<14,false>; break;
          case 15: Kernel = Assemble3DBatchedLOR<15,false>; break;
-         case 16: Kernel = Assemble3DBatchedLOR<16,false>; break;
+         case 16: Kernel = Assemble3DBatchedLOR<16,false>; break;*/
          default: MFEM_ABORT("Kernel not ready!");
       }
    }
 
-   Kernel(mesh_lor,
-          R->Indices(),
+   Kernel(R->Indices(),
           R->Offsets(),
           R->GatherMap(),
           mesh_ho, *A);
@@ -203,20 +197,24 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
 {
    dbg();
    MFEM_NVTX;
-   ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
+   ParFiniteElementSpace *pfes_ho =
+      dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
    assert(pfes_ho);
 
-   OperatorHandle A_local;
+   OperatorHandle A_local(Operator::MFEM_SPARSEMAT);
    AssembleBatchedLORWithoutBC(lor_disc, form_lor, fes_ho, A_local);
    MFEM_VERIFY(A_local.As<SparseMatrix>()->Finalized(),
                "the local matrix must be finalized");
 
+   NVTX("Parallel");
    OperatorHandle dA(Operator::Hypre_ParCSR),
                   Ph(Operator::Hypre_ParCSR);
    {
       NVTX("MakeSquareBlockDiag");
-      dA.MakeSquareBlockDiag(pfes_ho->GetComm(), pfes_ho->GlobalVSize(),
-                             pfes_ho->GetDofOffsets(), A_local.As<SparseMatrix>());
+      dA.MakeSquareBlockDiag(pfes_ho->GetComm(),
+                             pfes_ho->GlobalVSize(),
+                             pfes_ho->GetDofOffsets(),
+                             A_local.As<SparseMatrix>());
    }
    Ph.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
 
@@ -225,12 +223,178 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
       Ah.MakePtAP(dA, Ph);
    }
 
-   {
+   /*{
       NVTX("EliminateRowsCols");
       Ah.As<HypreParMatrix>()->EliminateRowsCols(ess_dofs);
+   }*/
+
+   {
+      NVTX("EliminateRowsCols");
+      HypreParMatrix *A_mat = Ah.As<HypreParMatrix>();
+      hypre_ParCSRMatrix *A = *A_mat;
+      A_mat->HypreReadWrite();
+
+      hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
+      hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
+
+      HYPRE_Int diag_nrows = hypre_CSRMatrixNumRows(diag);
+      HYPRE_Int offd_ncols = hypre_CSRMatrixNumCols(offd);
+
+      const int n_ess_dofs = ess_dofs.Size();
+      const auto ess_dofs_d = ess_dofs.Read();
+
+      // Start communication to figure out which columns need to be eliminated in
+      // the off-diagonal block
+      hypre_ParCSRCommHandle *comm_handle;
+      HYPRE_Int *int_buf_data, *eliminate_row, *eliminate_col;
+      {
+         eliminate_row = hypre_CTAlloc(HYPRE_Int, diag_nrows, HYPRE_MEMORY_HOST);
+         eliminate_col = hypre_CTAlloc(HYPRE_Int, offd_ncols, HYPRE_MEMORY_HOST);
+
+         // Make sure A has a communication package
+         hypre_ParCSRCommPkg *comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+         if (!comm_pkg)
+         {
+            hypre_MatvecCommPkgCreate(A);
+            comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+         }
+
+         // Which of the local rows are to be eliminated?
+         for (int i = 0; i < diag_nrows; i++)
+         {
+            eliminate_row[i] = 0;
+         }
+
+         ess_dofs.HostRead();
+         for (int i = 0; i < n_ess_dofs; i++)
+         {
+            eliminate_row[ess_dofs[i]] = 1;
+         }
+
+         // Use a matvec communication pattern to find (in eliminate_col) which of
+         // the local offd columns are to be eliminated
+         HYPRE_Int num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
+         int_buf_data = hypre_CTAlloc(HYPRE_Int,
+                                      hypre_ParCSRCommPkgSendMapStart(comm_pkg,
+                                                                      num_sends), HYPRE_MEMORY_HOST);
+         int index = 0;
+         for (int i = 0; i < num_sends; i++)
+         {
+            int start = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i);
+            for (int j = start; j < hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1); j++)
+            {
+               int k = hypre_ParCSRCommPkgSendMapElmt(comm_pkg,j);
+               int_buf_data[index++] = eliminate_row[k];
+            }
+         }
+         comm_handle = hypre_ParCSRCommHandleCreate(
+                          11, comm_pkg, int_buf_data, eliminate_col);
+      }
+
+      // Eliminate rows and columns in the diagonal block
+      {
+         const auto I = diag->i;
+         const auto J = diag->j;
+         auto data = diag->data;
+
+         MFEM_FORALL(i, n_ess_dofs,
+         {
+            const int idof = ess_dofs_d[i];
+            for (int j=I[idof]; j<I[idof+1]; ++j)
+            {
+               const int jdof = J[j];
+               if (jdof != idof)
+               {
+                  data[j] = 0.0;
+                  for (int k=I[jdof]; k<I[jdof+1]; ++k)
+                  {
+                     if (J[k] == idof)
+                     {
+                        data[k] = 0.0;
+                        break;
+                     }
+                  }
+               }
+            }
+         });
+      }
+
+      // Eliminate rows in the off-diagonal block
+      {
+         const auto I = offd->i;
+         auto data = offd->data;
+         MFEM_FORALL(i, n_ess_dofs,
+         {
+            const int idof = ess_dofs_d[i];
+            for (int j=I[idof]; j<I[idof+1]; ++j)
+            {
+               data[j] = 0.0;
+            }
+         });
+      }
+
+      // Wait for MPI communication to finish
+      Array<HYPRE_Int> cols_to_eliminate;
+      {
+         hypre_ParCSRCommHandleDestroy(comm_handle);
+
+         // set the array cols_to_eliminate
+         int ncols_to_eliminate = 0;
+         for (int i = 0; i < offd_ncols; i++)
+         {
+            if (eliminate_col[i])
+            {
+               ncols_to_eliminate++;
+            }
+         }
+
+         cols_to_eliminate.SetSize(ncols_to_eliminate);
+         cols_to_eliminate = 0.0;
+
+         ncols_to_eliminate = 0;
+         for (int i = 0; i < offd_ncols; i++)
+         {
+            if (eliminate_col[i])
+            {
+               cols_to_eliminate[ncols_to_eliminate++] = i;
+            }
+         }
+
+         hypre_TFree(int_buf_data, HYPRE_MEMORY_HOST);
+         hypre_TFree(eliminate_row, HYPRE_MEMORY_HOST);
+         hypre_TFree(eliminate_col, HYPRE_MEMORY_HOST);
+      }
+
+      // Eliminate columns in the off-diagonal block
+      {
+         const int ncols_to_eliminate = cols_to_eliminate.Size();
+         const int nrows_offd = hypre_CSRMatrixNumRows(offd);
+         const auto cols = cols_to_eliminate.Read();
+         const auto I = offd->i;
+         const auto J = offd->i;
+         auto data = offd->data;
+         // Note: could also try a different stragegy, looping over nnz in the
+         // matrix and then doing a binary search in ncols_to_eliminate to see if
+         // the column should be eliminated.
+         MFEM_FORALL(idx, ncols_to_eliminate,
+         {
+            int j = cols[idx];
+            for (int i=0; i<nrows_offd; ++i)
+            {
+               for (int jj=I[i]; jj<I[i+1]; ++jj)
+               {
+                  if (J[jj] == j)
+                  {
+                     data[jj] = 0.0;
+                     break;
+                  }
+               }
+            }
+         });
+      }
    }
 }
 
-#endif
+#endif // MFEM_USE_MPI
 
 } // namespace mfem

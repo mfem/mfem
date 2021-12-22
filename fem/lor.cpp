@@ -281,13 +281,13 @@ const OperatorHandle &LORBase::GetAssembledSystem() const
    return A;
 }
 
-const Operator *LORBase::GetLORRestriction() const
+const LORRestriction *LORBase::GetLORRestriction() const
 {
-   if (R_lor.Ptr() == NULL)
+   if (R_lor == NULL)
    {
-      R_lor.Reset(new LORRestriction(*fes, fes_ho));
+      R_lor = new LORRestriction(fes_ho);
    }
-   return R_lor.Ptr();
+   return R_lor;
 }
 
 void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
@@ -316,8 +316,7 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
    if (supports_batched_assembly)
    {
       dbg("supports_batched_assembly");
-      fes->GetMesh()->EnsureNodes();
-
+      fes_ho.GetMesh()->EnsureNodes();
       ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
 #ifdef MFEM_USE_MPI
       if (pfes_ho)
@@ -428,6 +427,7 @@ LORBase::LORBase(FiniteElementSpace &fes_ho_)
       ir_face = NULL;
    }
    a = NULL;
+   R_lor = NULL;
    supports_batched_assembly = true;
 }
 
@@ -454,6 +454,7 @@ LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
    MFEM_NVTX;
    CheckBasisType(fes_ho);
 
+#if 0
    Mesh &mesh_ho = *fes_ho.GetMesh();
    // For H1, ND and RT spaces, use refinement = element order, for DG spaces,
    // use refinement = element order + 1 (since LOR is p = 0 in this case).
@@ -468,7 +469,11 @@ LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    fes = new FiniteElementSpace(mesh, fec);
    SetupProlongationAndRestriction();
-
+#else
+   mesh = NULL;
+   fec = NULL;
+   fes = NULL;
+#endif
    A.SetType(Operator::MFEM_SPARSEMAT);
 }
 
@@ -478,7 +483,8 @@ void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
    dbg();
    MFEM_NVTX;
    delete a;
-   a = new BilinearForm(&GetFESpace());
+   // a = new BilinearForm(&GetFESpace());
+   a = new BilinearForm(&fes_ho);
    AssembleSystem_(a_ho, ess_dofs);
 }
 
@@ -511,6 +517,7 @@ ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
    MFEM_VERIFY(!fes_ho.IsVariableOrder(),
                "Cannot construct LOR operators on variable-order spaces");
 
+#if 0
    int order = fes_ho.GetMaxElementOrder();
    if (GetFESpaceType() == L2) { ++order; }
 
@@ -523,6 +530,11 @@ ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
    ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
    fes = pfes;
    SetupProlongationAndRestriction();
+#else
+   mesh = NULL;
+   fec = NULL;
+   fes = NULL;
+#endif
 
    A.SetType(Operator::Hypre_ParCSR);
 }
@@ -533,7 +545,8 @@ void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
    dbg();
    MFEM_NVTX;
    delete a;
-   a = new ParBilinearForm(&GetParFESpace());
+   // a = new ParBilinearForm(&GetParFESpace());
+   a = new ParBilinearForm(&dynamic_cast<ParFiniteElementSpace&>(fes_ho));
    AssembleSystem_(a_ho, ess_dofs);
 }
 
@@ -552,16 +565,29 @@ ParFiniteElementSpace &ParLORDiscretization::GetParFESpace() const
 
 #endif // MFEM_USE_MPI
 
-LORRestriction::LORRestriction(const FiniteElementSpace &fes_lo,
-                               const FiniteElementSpace &fes_ho)
-   : fes_lo(fes_lo),
-     fes_ho(fes_ho),
+int LORRestriction::GetNRefinedElements(const FiniteElementSpace &fes)
+{
+   int ref = fes.GetMaxElementOrder();
+   int dim = fes.GetMesh()->Dimension();
+   return pow(ref, dim);
+}
 
-     ne(fes_lo.GetNE()),
-     vdim(fes_lo.GetVDim()),
-     byvdim(fes_lo.GetOrdering() == Ordering::byVDIM),
-     ndofs(fes_lo.GetNDofs()),
-     dof(ne > 0 ? fes_lo.GetFE(0)->GetDof() : 0),
+FiniteElementCollection *LORRestriction::GetLowOrderFEC(
+   const FiniteElementSpace &fes)
+{
+   return fes.FEColl()->Clone(1);
+}
+
+LORRestriction::LORRestriction(const FiniteElementSpace &fes_ho)
+   : fes_ho(fes_ho),
+     fec_lo(GetLowOrderFEC(fes_ho)),
+     geom(fes_ho.GetMesh()->GetElementGeometry(0)),
+     ne_ref(GetNRefinedElements(fes_ho)),
+     ne(fes_ho.GetNE()*ne_ref),
+     vdim(fes_ho.GetVDim()),
+     byvdim(fes_ho.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes_ho.GetNDofs()),
+     dof(fec_lo->GetFE(geom, 1)->GetDof()),
 
      offsets(ndofs+1),
      indices(ne*dof),
@@ -576,18 +602,13 @@ LORRestriction::LORRestriction(const FiniteElementSpace &fes_lo,
    SetupGlobalToLocal();
 
    NVTX("EnsureNodes");
-   // nodes will be ordered byVDIM but won't use SetCurvature each time
-   fes_lo.GetMesh()->EnsureNodes();
 }
-
-void LORRestriction::Mult(const Vector&, Vector&) const { assert(false); }
-void LORRestriction::MultTranspose(const Vector&, Vector&) const { assert(false); }
 
 void LORRestriction::SetupLocalToElement()
 {
    MFEM_NVTX;
    MFEM_VERIFY(ne>0, "ne==0 not supported");
-   const FiniteElement *fe = fes_lo.GetFE(0);
+   const FiniteElement *fe = fec_lo->GetFE(geom, 1);
    const TensorBasisElement* el =
       dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(el, "!TensorBasisElement");
@@ -595,21 +616,49 @@ void LORRestriction::SetupLocalToElement()
    const Array<int> &fe_dof_map = el->GetDofMap();
    MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
 
-   const Table& e2dTable = fes_lo.GetElementToDofTable();
+   const FiniteElement *fe_ho = fes_ho.GetFE(0);
+   const TensorBasisElement* tel_ho =
+      dynamic_cast<const TensorBasisElement*>(fe_ho);
+   MFEM_VERIFY(tel_ho, "!TensorBasisElement");
+   const Array<int> &fe_dof_map_ho = tel_ho->GetDofMap();
+
+   int order = fes_ho.GetMaxElementOrder();
+   RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, order);
+   Array<int> local_dof_map(dof*ne_ref);
+   for (int ie_lo = 0; ie_lo < ne_ref; ++ie_lo)
+   {
+      for (int i = 0; i < dof; ++i)
+      {
+         int cart_idx = RG.RefGeoms[i + dof*ie_lo]; // local Cartesian index
+         local_dof_map[i + dof*ie_lo] = fe_dof_map_ho[cart_idx];
+      }
+   }
+
+   const Table& e2dTable_ho = fes_ho.GetElementToDofTable();
 
    auto d_offsets = offsets.Write();
    const int NDOFS = ndofs;
+   dbg();
    MFEM_FORALL(i, NDOFS+1, d_offsets[i] = 0;);
 
-   const Memory<int> &J = e2dTable.GetJMemory();
+   const Memory<int> &J = e2dTable_ho.GetJMemory();
    const MemoryClass mc = Device::GetDeviceMemoryClass();
    const int *d_elementMap = J.Read(mc, J.Capacity());
+   const int *d_local_dof_map = local_dof_map.Read();
    const int DOF = dof;
-   MFEM_FORALL(e, ne,
+   const int DOF_ho = fe_ho->GetDof();
+   const int NE = ne;
+   const int NR_REF = ne_ref;
+
+   dbg();
+   MFEM_FORALL(e, NE,
    {
+      const int e_ho = e/NR_REF;
+      const int i_ref = e%NR_REF;
       for (int d = 0; d < DOF; ++d)
       {
-         const int sgid = d_elementMap[DOF*e + d];  // signed
+         const int d_ho = d_local_dof_map[d + i_ref*DOF];
+         const int sgid = d_elementMap[DOF_ho*e_ho + d_ho];  // signed
          const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          AtomicAdd(d_offsets[gid+1], 1);
       }
@@ -625,13 +674,18 @@ void LORRestriction::SetupLocalToElement()
    auto drw_offsets = offsets.ReadWrite();
    const auto dof_map_mem = fe_dof_map.GetMemory();
    const auto d_dof_map = fe_dof_map.GetMemory().Read(mc,dof_map_mem.Capacity());
-   MFEM_FORALL(e, ne,
+
+   dbg();
+   MFEM_FORALL(e, NE,
    {
+      const int e_ho = e/NR_REF;
+      const int i_ref = e%NR_REF;
       for (int d = 0; d < DOF; ++d)
       {
+         int d_ho = d_local_dof_map[d + i_ref*DOF];
          const int sdid = d_dof_map[d];  // signed
-         const int did = d;
-         const int sgid = d_elementMap[DOF*e + did];  // signed
+         // const int did = d;
+         const int sgid = d_elementMap[DOF_ho*e_ho + d_ho];  // signed
          const int gid = (sgid >= 0) ? sgid : -1-sgid;
          const int lid = DOF*e + d;
          const bool plus = (sgid >= 0 && sdid >= 0) || (sgid < 0 && sdid < 0);
@@ -640,6 +694,7 @@ void LORRestriction::SetupLocalToElement()
       }
    });
 
+   dbg();
    offsets.HostReadWrite();
    for (int i = ndofs; i > 0; --i) { offsets[i] = offsets[i - 1]; }
    offsets[0] = 0;
@@ -667,6 +722,10 @@ void LORRestriction::SetupGlobalToLocal()
       (*fes_ho.GetFE(0)).GetLexicographicOrdering();
 
    dof_glob2loc_offsets = 0;
+   const Memory<int> &I = fes_ho.GetElementToDofTable().GetIMemory();
+   const Memory<int> &J = fes_ho.GetElementToDofTable().GetJMemory();
+   I.Read(MemoryClass::HOST, I.Capacity());
+   J.Read(MemoryClass::HOST, J.Capacity());
 
    for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
    {
@@ -797,12 +856,12 @@ void LORRestriction::FillJAndZeroData(SparseMatrix &mat) const
    MFEM_NVTX;
    static constexpr int Max = 8;
    const int all_dofs = ndofs;
-   const int vd = fes_lo.GetVDim();
-   const int elt_dofs = fes_lo.GetFE(0)->GetDof();
+   const int vd = vdim;
+   const int elt_dofs = dof;
    auto I = mat.ReadWriteI();
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
-   const int NE = fes_lo.GetNE();
+   const int NE = ne;
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_gatherMap = gatherMap.Read();
@@ -861,6 +920,11 @@ void LORRestriction::FillJAndZeroData(SparseMatrix &mat) const
    const int size = vd*all_dofs;
    for (int i = 0; i < size; i++) { h_I[size-i] = h_I[size-(i+1)]; }
    h_I[0] = 0;
+}
+
+LORRestriction::~LORRestriction()
+{
+   delete fec_lo;
 }
 
 } // namespace mfem
