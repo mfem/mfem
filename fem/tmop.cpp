@@ -1633,9 +1633,12 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
       {
          const DenseMatrix &Wideal =
             Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
-         const int dim = Wideal.Height(),
+         const int Wdim = Wideal.Height(),
                    ndofs = tspec_fesv->GetFE(e_id)->GetDof(),
                    ntspec_dofs = ndofs*ncomp;
+
+         MFEM_VERIFY(dim == Wdim, "Dimension mismatch in "
+                     "DiscreteAdaptTC::ComputeElementTargets");
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
                 par_vals_c1, par_vals_c2, par_vals_c3;
@@ -3585,8 +3588,9 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
              dof = fe->GetDof(), nsp = ir.GetNPoints();
 
    Array<int> xdofs(dof * dim);
-   DenseMatrix Jpr(dim), dshape(dof, dim), pos(dof, dim);
+   DenseMatrix dshape(dof, dim), pos(dof, dim);
    Vector posV(pos.Data(), dof * dim);
+   Jpr.SetSize(dim);
 
    dx = std::numeric_limits<float>::max();
 
