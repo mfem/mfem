@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
 
    if (ref_levels > 1)
    {
-      ma::Input* uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
+      const ma::Input* uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
 
       if ( geom_order > 1)
       {
@@ -345,9 +345,7 @@ int main(int argc, char *argv[])
       apf::destroyField(ipfield);
 
       // 18. Perform MesAdapt.
-      ma::Input* erinput = ma::configure(pumi_mesh, sizefield);
-      erinput->shouldFixShape = true;
-      erinput->maximumIterations = 2;
+      const ma::Input* erinput = ma::configure(pumi_mesh, sizefield);
       if ( geom_order > 1)
       {
          crv::adapt(erinput);
