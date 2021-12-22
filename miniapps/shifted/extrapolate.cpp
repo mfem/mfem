@@ -120,16 +120,13 @@ private:
    Array<bool> &active_zones;
    ParBilinearForm &M, &K;
    const Vector &b;
-   Solver *M_prec;
-   CGSolver M_solver;
 
 public:
    Extrapolator(Array<bool> &zones,
                 ParBilinearForm &Mbf, ParBilinearForm &Kbf, const Vector &rhs)
       : TimeDependentOperator(Mbf.Size()),
         active_zones(zones),
-        M(Mbf), K(Kbf),
-        b(rhs), M_prec(NULL), M_solver(M.ParFESpace()->GetComm()) { }
+        M(Mbf), K(Kbf), b(rhs) { }
 
    virtual void Mult(const Vector &x, Vector &dx) const
    {
@@ -287,7 +284,8 @@ int main(int argc, char *argv[])
    for (int k = 0; k < NE; k++)
    {
       // Extrapolation is done in zones that are CUT or OUTSIDE.
-      active_zones[k] = (elem_marker[k] == ShiftedFaceMarker::INSIDE) ? false : true;
+      active_zones[k] =
+         (elem_marker[k] == ShiftedFaceMarker::INSIDE) ? false : true;
    }
 
    ParBilinearForm lhs_bf(&pfes_L2), rhs_bf(&pfes_L2);
