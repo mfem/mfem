@@ -837,26 +837,26 @@ void TMOPHRSolver::ParUpdate()
 }
 #endif
 
-void TMOPHRSolver::UpdateNonlinearFormAndBC(Mesh *mesh, NonlinearForm *nlf)
+void TMOPHRSolver::UpdateNonlinearFormAndBC(Mesh *_mesh, NonlinearForm *_nlf)
 {
-   const FiniteElementSpace &fes = *mesh->GetNodalFESpace();
+   const FiniteElementSpace &fes = *_mesh->GetNodalFESpace();
 
    // Update Nonlinear form and Set Essential BC
-   nlf->Update();
+   _nlf->Update();
    const int dim = fes.GetFE(0)->GetDim();
    if (move_bnd == false)
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      Array<int> ess_bdr(_mesh->bdr_attributes.Max());
       ess_bdr = 1;
-      nlf->SetEssentialBC(ess_bdr);
+      _nlf->SetEssentialBC(ess_bdr);
    }
    else
    {
       const int nd  = fes.GetBE(0)->GetDof();
       int n = 0;
-      for (int i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < _mesh->GetNBE(); i++)
       {
-         const int attr = mesh->GetBdrElement(i)->GetAttribute();
+         const int attr = _mesh->GetBdrElement(i)->GetAttribute();
          MFEM_VERIFY(!(dim == 2 && attr == 3),
                      "Boundary attribute 3 must be used only for 3D meshes. "
                      "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
@@ -866,9 +866,9 @@ void TMOPHRSolver::UpdateNonlinearFormAndBC(Mesh *mesh, NonlinearForm *nlf)
       }
       Array<int> ess_vdofs(n), vdofs;
       n = 0;
-      for (int i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < _mesh->GetNBE(); i++)
       {
-         const int attr = mesh->GetBdrElement(i)->GetAttribute();
+         const int attr = _mesh->GetBdrElement(i)->GetAttribute();
          fes.GetBdrElementVDofs(i, vdofs);
          if (attr == 1) // Fix x components.
          {
@@ -891,7 +891,7 @@ void TMOPHRSolver::UpdateNonlinearFormAndBC(Mesh *mesh, NonlinearForm *nlf)
             { ess_vdofs[n++] = vdofs[j]; }
          }
       }
-      nlf->SetEssentialVDofs(ess_vdofs);
+      _nlf->SetEssentialVDofs(ess_vdofs);
    }
 }
 
