@@ -3408,7 +3408,7 @@ void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
    mesh = new_mesh;
 }
 
-void FiniteElementSpace::Save(std::ostream &out) const
+void FiniteElementSpace::Save(std::ostream &sout) const
 {
    int fes_format = 90; // the original format, v0.9
    bool nurbs_unit_weights = false;
@@ -3435,11 +3435,11 @@ void FiniteElementSpace::Save(std::ostream &out) const
       }
    }
 
-   out << (fes_format == 90 ?
-           "FiniteElementSpace\n" : "MFEM FiniteElementSpace v1.0\n")
-       << "FiniteElementCollection: " << fec->Name() << '\n'
-       << "VDim: " << vdim << '\n'
-       << "Ordering: " << ordering << '\n';
+   sout << (fes_format == 90 ?
+            "FiniteElementSpace\n" : "MFEM FiniteElementSpace v1.0\n")
+        << "FiniteElementCollection: " << fec->Name() << '\n'
+        << "VDim: " << vdim << '\n'
+        << "Ordering: " << ordering << '\n';
 
    if (fes_format == 100) // v1.0
    {
@@ -3451,29 +3451,29 @@ void FiniteElementSpace::Save(std::ostream &out) const
       {
          if (NURBSext->GetOrder() != NURBSFECollection::VariableOrder)
          {
-            out << "NURBS_order\n" << NURBSext->GetOrder() << '\n';
+            sout << "NURBS_order\n" << NURBSext->GetOrder() << '\n';
          }
          else
          {
-            out << "NURBS_orders\n";
+            sout << "NURBS_orders\n";
             // 1 = do not write the size, just the entries:
-            NURBSext->GetOrders().Save(out, 1);
+            NURBSext->GetOrders().Save(sout, 1);
          }
          // If periodic BCs are given, write connectivity
          if (NURBSext->GetMaster().Size() != 0 )
          {
-            out <<"NURBS_periodic\n";
-            NURBSext->GetMaster().Save(out);
-            NURBSext->GetSlave().Save(out);
+            sout <<"NURBS_periodic\n";
+            NURBSext->GetMaster().Save(sout);
+            NURBSext->GetSlave().Save(sout);
          }
          // If the weights are not unit, write them to the output:
          if (!nurbs_unit_weights)
          {
-            out << "NURBS_weights\n";
-            NURBSext->GetWeights().Print(out, 1);
+            sout << "NURBS_weights\n";
+            NURBSext->GetWeights().Print(sout, 1);
          }
       }
-      out << "End: MFEM FiniteElementSpace v1.0\n";
+      sout << "End: MFEM FiniteElementSpace v1.0\n";
    }
 }
 
@@ -3625,11 +3625,11 @@ QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
    Construct();
 }
 
-void QuadratureSpace::Save(std::ostream &out) const
+void QuadratureSpace::Save(std::ostream &sout) const
 {
-   out << "QuadratureSpace\n"
-       << "Type: default_quadrature\n"
-       << "Order: " << order << '\n';
+   sout << "QuadratureSpace\n"
+        << "Type: default_quadrature\n"
+        << "Order: " << order << '\n';
 }
 
 } // namespace mfem

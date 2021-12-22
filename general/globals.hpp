@@ -37,15 +37,15 @@ protected:
    void Init();
 
 public:
-   /** @brief Construct an OutStream from the given stream @a out, by using its
+   /** @brief Construct an OutStream from the given stream @a oout, by using its
        `rdbuf()`. */
-   OutStream(std::ostream &out) : std::ostream(NULL) { SetStream(out); }
+   OutStream(std::ostream &oout) : std::ostream(NULL) { SetStream(oout); }
 
    /** @brief Replace the `rdbuf()` and `tie()` of the OutStream with that of
        @a out, enabling output. */
-   void SetStream(std::ostream &out)
+   void SetStream(std::ostream &sout)
    {
-      rdbuf(m_rdbuf = out.rdbuf()); tie(m_tie = out.tie()); Init();
+      rdbuf(m_rdbuf = sout.rdbuf()); tie(m_tie = sout.tie()); Init();
    }
 
    /// Enable output.

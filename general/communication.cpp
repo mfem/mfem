@@ -265,27 +265,27 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
    // debug barrier: MPI_Barrier(MyComm);
 }
 
-void GroupTopology::Save(ostream &out) const
+void GroupTopology::Save(ostream &sout) const
 {
-   out << "\ncommunication_groups\n";
-   out << "number_of_groups " << NGroups() << "\n\n";
+   sout << "\ncommunication_groups\n";
+   sout << "number_of_groups " << NGroups() << "\n\n";
 
-   out << "# number of entities in each group, followed by group ids in group\n";
+   sout << "# number of entities in each group, followed by group ids in group\n";
    for (int group_id = 0; group_id < NGroups(); ++group_id)
    {
       int group_size = GetGroupSize(group_id);
       const int * group_ptr = GetGroup(group_id);
-      out << group_size;
+      sout << group_size;
       for ( int group_member_index = 0; group_member_index < group_size;
             ++group_member_index)
       {
-         out << " " << GetNeighborRank( group_ptr[group_member_index] );
+         sout << " " << GetNeighborRank( group_ptr[group_member_index] );
       }
-      out << "\n";
+      sout << "\n";
    }
 
    // For future use, optional ownership strategy.
-   // out << "# ownership";
+   // sout << "# ownership";
 }
 
 void GroupTopology::Load(istream &in)
@@ -1164,7 +1164,7 @@ void GroupCommunicator::BitOR(OpData<T> opd)
    }
 }
 
-void GroupCommunicator::PrintInfo(std::ostream &out) const
+void GroupCommunicator::PrintInfo(std::ostream &pout) const
 {
    char c = '\0';
    const int tag = 46800;
@@ -1250,36 +1250,36 @@ void GroupCommunicator::PrintInfo(std::ostream &out) const
    }
    else
    {
-      out << "\nGroupCommunicator:\n";
+      pout << "\nGroupCommunicator:\n";
    }
-   out << "Rank " << myid << ":\n"
-       "   mode             = " <<
-       (mode == byGroup ? "byGroup" : "byNeighbor") << "\n"
-       "   number of sends  = " << num_sends <<
-       " (" << mem_sends << " bytes)\n"
-       "   number of recvs  = " << num_recvs <<
-       " (" << mem_recvs << " bytes)\n";
-   out <<
-       "   num groups       = " << group_ldof.Size() << " = " <<
-       num_master_groups << " + " <<
-       group_ldof.Size()-num_master_groups-num_empty_groups << " + " <<
-       num_empty_groups << " (master + slave + empty)\n";
+   pout << "Rank " << myid << ":\n"
+        "   mode             = " <<
+        (mode == byGroup ? "byGroup" : "byNeighbor") << "\n"
+        "   number of sends  = " << num_sends <<
+        " (" << mem_sends << " bytes)\n"
+        "   number of recvs  = " << num_recvs <<
+        " (" << mem_recvs << " bytes)\n";
+   pout <<
+        "   num groups       = " << group_ldof.Size() << " = " <<
+        num_master_groups << " + " <<
+        group_ldof.Size()-num_master_groups-num_empty_groups << " + " <<
+        num_empty_groups << " (master + slave + empty)\n";
    if (mode == byNeighbor)
    {
-      out <<
-          "   num neighbors    = " << nbr_send_groups.Size() << " = " <<
-          num_active_neighbors << " + " <<
-          nbr_send_groups.Size()-num_active_neighbors <<
-          " (active + inactive)\n";
+      pout <<
+           "   num neighbors    = " << nbr_send_groups.Size() << " = " <<
+           num_active_neighbors << " + " <<
+           nbr_send_groups.Size()-num_active_neighbors <<
+           " (active + inactive)\n";
    }
    if (myid != gtopo.NRanks()-1)
    {
-      out << std::flush;
+      pout << std::flush;
       MPI_Send(&c, 1, MPI_CHAR, myid+1, tag, gtopo.GetComm());
    }
    else
    {
-      out << std::endl;
+      pout << std::endl;
    }
    MPI_Barrier(gtopo.GetComm());
 }

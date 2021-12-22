@@ -276,35 +276,35 @@ void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
    // the call mm.Configure(...) in UpdateMemoryTypeAndClass()
 }
 
-void Device::Print(std::ostream &out)
+void Device::Print(std::ostream &pout)
 {
-   out << "Device configuration: ";
+   pout << "Device configuration: ";
    bool add_comma = false;
    for (int i = 0; i < Backend::NUM_BACKENDS; i++)
    {
       if (backends & internal::backend_list[i])
       {
-         if (add_comma) { out << ','; }
+         if (add_comma) { pout << ','; }
          add_comma = true;
-         out << internal::backend_name[i];
+         pout << internal::backend_name[i];
       }
    }
-   out << '\n';
+   pout << '\n';
 #ifdef MFEM_USE_CEED
    if (Allows(Backend::CEED_MASK))
    {
       const char *ceed_backend;
       CeedGetResource(internal::ceed, &ceed_backend);
-      out << "libCEED backend: " << ceed_backend << '\n';
+      pout << "libCEED backend: " << ceed_backend << '\n';
    }
 #endif
-   out << "Memory configuration: "
-       << MemoryTypeName[static_cast<int>(host_mem_type)];
+   pout << "Memory configuration: "
+        << MemoryTypeName[static_cast<int>(host_mem_type)];
    if (Device::Allows(Backend::DEVICE_MASK))
    {
-      out << ',' << MemoryTypeName[static_cast<int>(device_mem_type)];
+      pout << ',' << MemoryTypeName[static_cast<int>(device_mem_type)];
    }
-   out << std::endl;
+   pout << std::endl;
 }
 
 void Device::UpdateMemoryTypeAndClass()
