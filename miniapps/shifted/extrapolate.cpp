@@ -16,7 +16,7 @@
 // Compile with: make extrapolate
 //
 // Sample runs:
-//     mpirun -np 4 extrapolate
+//     mpirun -np 4 extrapolate -rs 2 -dt 0.001 -o 3
 //
 
 #include <fstream>
@@ -54,28 +54,49 @@ double solution0(const Vector &coord)
    else { return 0.0; }
 }
 
-class LevelSetNormalCoeff : public VectorCoefficient
+class LevelSetNormalGradCoeff : public VectorCoefficient
 {
 private:
    const ParGridFunction &ls_gf;
 
 public:
-   LevelSetNormalCoeff(const ParGridFunction &ls) :
+   LevelSetNormalGradCoeff(const ParGridFunction &ls) :
       VectorCoefficient(ls.ParFESpace()->GetMesh()->Dimension()), ls_gf(ls) { }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
-      Vector grad_psi(vdim), n(vdim);
-      ls_gf.GetGradient(T, grad_psi);
-      const double norm_grad = grad_psi.Norml2();
-      V = grad_psi;
+      Vector grad_ls(vdim), n(vdim);
+      ls_gf.GetGradient(T, grad_ls);
+      const double norm_grad = grad_ls.Norml2();
+      V = grad_ls;
       if (norm_grad > 0.0) { V /= norm_grad; }
 
       // Since positive level set values correspond to the known region, we
       // transport into the opposite direction of the gradient.
       V *= -1;
    }
+};
+
+class NormalGradCoeff : public Coefficient
+{
+private:
+   const ParGridFunction &u_gf;
+   LevelSetNormalGradCoeff &n_coeff;
+
+public:
+   NormalGradCoeff(const ParGridFunction &u, LevelSetNormalGradCoeff &n) :
+      u_gf(u), n_coeff(n) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      const int dim = T.GetDimension();
+      Vector n(dim), grad_u(dim);
+      n_coeff.Eval(n, T, ip);
+      u_gf.GetGradient(T, grad_u);
+      return n * grad_u;
+   }
+
 };
 
 class Extrapolator : public TimeDependentOperator
@@ -93,9 +114,7 @@ public:
       : TimeDependentOperator(Mbf.Size()),
         active_zones(zones),
         M(Mbf), K(Kbf),
-        b(rhs), M_prec(NULL), M_solver(M.ParFESpace()->GetComm())
-   {
-   }
+        b(rhs), M_prec(NULL), M_solver(M.ParFESpace()->GetComm()) { }
 
    virtual void Mult(const Vector &x, Vector &dx) const
    {
@@ -109,6 +128,7 @@ public:
       Vector rhs(x.Size());
       HypreParMatrix *K_mat = K.ParallelAssemble(&K.SpMat());
       K_mat->Mult(x, rhs);
+      rhs += b;
 
       Array<int> dofs(nd);
       DenseMatrix M_loc(nd);
@@ -131,8 +151,6 @@ public:
          dx.SetSubVector(dofs, dx_loc);
       }
    }
-
-   ~Extrapolator() { }
 };
 
 
@@ -177,6 +195,10 @@ int main(int argc, char *argv[])
    }
    if (myid == 0) { args.PrintOptions(cout); }
 
+   char vishost[] = "localhost";
+   int  visport   = 19916, wsize = 500;
+   socketstream sock_grad_u_n, sock_u;
+
    // Refine the mesh.
    Mesh mesh(mesh_file, 1, 1);
    for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
@@ -186,7 +208,6 @@ int main(int argc, char *argv[])
    mesh.Clear();
    const int dim = pmesh.Dimension(), NE = pmesh.GetNE();
 
-
    FunctionCoefficient ls_coeff(domainLS), u0_coeff(solution0);
 
    L2_FECollection fec_L2(order, dim, BasisType::GaussLobatto);
@@ -194,36 +215,56 @@ int main(int argc, char *argv[])
    ParGridFunction u(&pfes_L2);
    u.ProjectCoefficient(u0_coeff);
 
+   // Initialize the level set.
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace pfes_H1(&pmesh, &fec);
    ParGridFunction level_set(&pfes_H1);
    level_set.ProjectCoefficient(ls_coeff);
-
-   LevelSetNormalCoeff ls_n_coeff(level_set);
+   if (visualization)
+   {
+      socketstream sol_sock_w;
+      common::VisualizeField(sol_sock_w, vishost, visport, level_set,
+                             "Domain level set", 0, 0, wsize, wsize);
+      MPI_Barrier(pmesh.GetComm());
+   }
+   // Setup a VectorCoefficient for n = - grad_ls / |grad_ls|.
+   // The sign makes it point out of the known region.
+   LevelSetNormalGradCoeff ls_n_coeff(level_set);
 
    // Mark elements.
    Array<int> elem_marker, dofs;
    ShiftedFaceMarker marker(pmesh, pfes_L2, false);
    level_set.ExchangeFaceNbrData();
    marker.MarkElements(level_set, elem_marker);
-   ParGridFunction gf_known(u);
+
+   // Trim to the known values (only elements inside the known region).
+   ParGridFunction u_known(u);
    for (int k = 0; k < NE; k++)
    {
       pfes_L2.GetElementDofs(k, dofs);
       if (elem_marker[k] != ShiftedFaceMarker::INSIDE)
-      { gf_known.SetSubVector(dofs, 0.0); }
+      { u_known.SetSubVector(dofs, 0.0); }
    }
    if (visualization)
    {
-      socketstream sol_sock_mark;
-      int size = 500;
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      common::VisualizeField(sol_sock_mark, vishost, visport, gf_known,
-                             "Fixed (known) values", 0, size, size, size,
+      socketstream sol_socks;
+      common::VisualizeField(sol_socks, vishost, visport, u_known,
+                             "Fixed (known) u values", wsize, 0, wsize, wsize,
                              "rRjmm********A");
    }
-   u = gf_known;
+   u = u_known;
+
+   // Normal derivative function.
+   ParGridFunction grad_u_n(&pfes_L2);
+   NormalGradCoeff grad_u_n_coeff(u, ls_n_coeff);
+   grad_u_n.ProjectCoefficient(grad_u_n_coeff);
+   if (visualization)
+   {
+      socketstream sol_sock;
+      common::VisualizeField(sol_sock, vishost, visport, grad_u_n,
+                             "grad_u n", 2*wsize, 0, wsize, wsize,
+                             "rRjmm********A");
+   }
 
    // The active zones are where we extrapolate (where the PDE is solved).
    Array<bool> active_zones(NE);
@@ -247,7 +288,7 @@ int main(int argc, char *argv[])
    rhs_bf.Finalize(0);
 
    Vector rhs(pfes_L2.GetVSize());
-   rhs_bf.Mult(u, rhs);
+   rhs = 0.0;
 
    // Time loop
    double t = 0.0;
@@ -268,12 +309,36 @@ int main(int argc, char *argv[])
    Extrapolator ext(active_zones, lhs_bf, rhs_bf, rhs);
    ode_solver->Init(ext);
 
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sol_sock_u;
-
    bool done = false;
    const double t_final = 0.45;
+   for (int ti = 0; !done;)
+   {
+      double dt_real = min(dt, t_final - t);
+      ode_solver->Step(grad_u_n, t, dt_real);
+      ti++;
+
+      done = (t >= t_final - 1e-8*dt);
+
+      if (done || ti % vis_steps == 0)
+      {
+         if (myid == 0)
+         {
+            cout << "time step: " << ti << ", time: " << t << endl;
+         }
+
+         if (visualization)
+         {
+            common::VisualizeField(sock_grad_u_n, vishost, visport, grad_u_n,
+                                   "Solution", 2*wsize, 560, wsize, wsize,
+                                   "rRjmm********A");
+            MPI_Barrier(pmesh.GetComm());
+         }
+      }
+   }
+
+   lhs_bf.Mult(grad_u_n, rhs);
+   done = false;
+   t = 0.0;
    for (int ti = 0; !done;)
    {
       double dt_real = min(dt, t_final - t);
@@ -291,27 +356,12 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            int size = 500;
-
-            common::VisualizeField(sol_sock_u, vishost, visport, u,
-                                   "Solution", size, 0, size, size,
+            common::VisualizeField(sock_u, vishost, visport, u,
+                                   "Solution", wsize, 560, wsize, wsize,
                                    "rRjmm********A");
             MPI_Barrier(pmesh.GetComm());
          }
       }
-   }
-
-   // Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      int size = 500;
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-
-      socketstream sol_sock_w;
-      common::VisualizeField(sol_sock_w, vishost, visport, level_set,
-                             "Domain level set", 0, 0, size, size);
-      MPI_Barrier(pmesh.GetComm());
    }
 
    // ParaView output.
