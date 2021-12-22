@@ -544,15 +544,15 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom, int ref)
    }
 }
 
-void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
+void WriteVTKEncodedCompressed(std::ostream &wout, const void *bytes,
                                uint32_t nbytes, int compression_level)
 {
    if (compression_level == 0)
    {
       // First write size of buffer (as uint32_t), encoded with base 64
-      bin_io::WriteBase64(out, &nbytes, sizeof(nbytes));
+      bin_io::WriteBase64(wout, &nbytes, sizeof(nbytes));
       // Then write all the bytes in the buffer, encoded with base 64
-      bin_io::WriteBase64(out, bytes, nbytes);
+      bin_io::WriteBase64(wout, bytes, nbytes);
    }
    else
    {
@@ -570,9 +570,9 @@ void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
       header[1] = nbytes; // uncompressed size
       header[2] = 0; // size of partial block
       header[3] = buf_sz; // compressed size
-      bin_io::WriteBase64(out, header.data(), header.size()*sizeof(uint32_t));
+      bin_io::WriteBase64(wout, header.data(), header.size()*sizeof(uint32_t));
       // Write the compressed data
-      bin_io::WriteBase64(out, buf.data(), buf_sz);
+      bin_io::WriteBase64(wout, buf.data(), buf_sz);
 #else
       MFEM_ABORT("MFEM must be compiled with ZLib support to output "
                  "compressed binary data.")

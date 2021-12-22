@@ -20,32 +20,32 @@ namespace mfem
 {
 
 template <class T>
-void Array<T>::Print(std::ostream &out, int width) const
+void Array<T>::Print(std::ostream &pout, int width) const
 {
    for (int i = 0; i < size; i++)
    {
-      out << data[i];
+      pout << data[i];
       if ( !((i+1) % width) || i+1 == size )
       {
-         out << '\n';
+         pout << '\n';
       }
       else
       {
-         out << " ";
+         pout << " ";
       }
    }
 }
 
 template <class T>
-void Array<T>::Save(std::ostream &out, int fmt) const
+void Array<T>::Save(std::ostream &sout, int fmt) const
 {
    if (fmt == 0)
    {
-      out << size << '\n';
+      sout << size << '\n';
    }
    for (int i = 0; i < size; i++)
    {
-      out << operator[](i) << '\n';
+      sout << operator[](i) << '\n';
    }
 }
 
@@ -152,24 +152,24 @@ void Array2D<T>::Load(const char *filename, int fmt)
 }
 
 template <class T>
-void Array2D<T>::Print(std::ostream &out, int width_)
+void Array2D<T>::Print(std::ostream &pout, int width_)
 {
    int height = this->NumRows();
    int width  = this->NumCols();
 
    for (int i = 0; i < height; i++)
    {
-      out << "[row " << i << "]\n";
+      pout << "[row " << i << "]\n";
       for (int j = 0; j < width; j++)
       {
-         out << (*this)(i,j);
+         pout << (*this)(i,j);
          if ( (j+1) == width_ || (j+1) % width_ == 0 )
          {
-            out << '\n';
+            pout << '\n';
          }
          else
          {
-            out << ' ';
+            pout << ' ';
          }
       }
    }

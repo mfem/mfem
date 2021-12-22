@@ -5188,9 +5188,9 @@ void NCMesh::LimitNCLevel(int max_nc_level)
 
 //// I/O ////////////////////////////////////////////////////////////////////////
 
-int NCMesh::PrintVertexParents(std::ostream *out) const
+int NCMesh::PrintVertexParents(std::ostream *pout) const
 {
-   if (!out)
+   if (!pout)
    {
       // count vertex nodes with parents
       int nv = 0;
@@ -5210,7 +5210,7 @@ int NCMesh::PrintVertexParents(std::ostream *out) const
             MFEM_ASSERT(nodes[node->p1].HasVertex(), "");
             MFEM_ASSERT(nodes[node->p2].HasVertex(), "");
 
-            (*out) << node.index() << " " << node->p1 << " " << node->p2 << "\n";
+            (*pout) << node.index() << " " << node->p1 << " " << node->p2 << "\n";
          }
       }
       return 0;
@@ -5240,7 +5240,7 @@ void NCMesh::LoadVertexParents(std::istream &input)
    }
 }
 
-int NCMesh::PrintBoundary(std::ostream *out) const
+int NCMesh::PrintBoundary(std::ostream *pout) const
 {
    static const int nfv2geom[5] =
    {
@@ -5265,14 +5265,14 @@ int NCMesh::PrintBoundary(std::ostream *out) const
          MFEM_ASSERT(face != NULL, "face not found");
          if (face->Boundary())
          {
-            if (!out) { count++; continue; }
+            if (!pout) { count++; continue; }
 
-            (*out) << face->attribute << " " << nfv2geom[nfv];
+            (*pout) << face->attribute << " " << nfv2geom[nfv];
             for (int j = 0; j < nfv; j++)
             {
-               (*out) << " " << el.node[fv[j*deg]];
+               (*pout) << " " << el.node[fv[j*deg]];
             }
-            (*out) << "\n";
+            (*pout) << "\n";
          }
       }
    }
@@ -5319,21 +5319,21 @@ void NCMesh::LoadBoundary(std::istream &input)
    }
 }
 
-void NCMesh::PrintCoordinates(std::ostream &out) const
+void NCMesh::PrintCoordinates(std::ostream &pout) const
 {
    int nv = coordinates.Size()/3;
-   out << nv << "\n";
+   pout << nv << "\n";
    if (!nv) { return; }
 
-   out << spaceDim << "\n";
+   pout << spaceDim << "\n";
    for (int i = 0; i < nv; i++)
    {
-      out << coordinates[3*i];
+      pout << coordinates[3*i];
       for (int j = 1; j < spaceDim; j++)
       {
-         out << " " << coordinates[3*i + j];
+         pout << " " << coordinates[3*i + j];
       }
-      out << "\n";
+      pout << "\n";
    }
 }
 
@@ -5367,78 +5367,78 @@ bool NCMesh::ZeroRootStates() const
    return true;
 }
 
-void NCMesh::Print(std::ostream &out) const
+void NCMesh::Print(std::ostream &pout) const
 {
-   out << "MFEM NC mesh v1.0\n\n"
-       "# NCMesh supported geometry types:\n"
-       "# SEGMENT     = 1\n"
-       "# TRIANGLE    = 2\n"
-       "# SQUARE      = 3\n"
-       "# TETRAHEDRON = 4\n"
-       "# CUBE        = 5\n"
-       "# PRISM       = 6\n";
+   pout << "MFEM NC mesh v1.0\n\n"
+        "# NCMesh supported geometry types:\n"
+        "# SEGMENT     = 1\n"
+        "# TRIANGLE    = 2\n"
+        "# SQUARE      = 3\n"
+        "# TETRAHEDRON = 4\n"
+        "# CUBE        = 5\n"
+        "# PRISM       = 6\n";
 
-   out << "\ndimension\n" << Dim << "\n";
+   pout << "\ndimension\n" << Dim << "\n";
 
 #ifndef MFEM_USE_MPI
    if (MyRank != 0) // don't print this section in serial: default rank is 0
 #endif
    {
-      out << "\nrank\n" << MyRank << "\n";
+      pout << "\nrank\n" << MyRank << "\n";
    }
 
-   out << "\n# rank attr geom ref_type nodes/children";
-   out << "\nelements\n" << elements.Size() << "\n";
+   pout << "\n# rank attr geom ref_type nodes/children";
+   pout << "\nelements\n" << elements.Size() << "\n";
 
    for (int i = 0; i < elements.Size(); i++)
    {
       const Element &el = elements[i];
-      out << el.rank << " " << el.attribute << " ";
-      if (el.parent == -2) { out << "-1\n"; continue; } // unused element
+      pout << el.rank << " " << el.attribute << " ";
+      if (el.parent == -2) { pout << "-1\n"; continue; } // unused element
 
-      out << int(el.geom) << " " << int(el.ref_type);
+      pout << int(el.geom) << " " << int(el.ref_type);
       for (int j = 0; j < 8 && el.node[j] >= 0; j++)
       {
-         out << " " << el.node[j];
+         pout << " " << el.node[j];
       }
-      out << "\n";
+      pout << "\n";
    }
 
    int nb = PrintBoundary(NULL);
    if (nb)
    {
-      out << "\n# attr geom nodes";
-      out << "\nboundary\n" << nb << "\n";
+      pout << "\n# attr geom nodes";
+      pout << "\nboundary\n" << nb << "\n";
 
-      PrintBoundary(&out);
+      PrintBoundary(&pout);
    }
 
    int nvp = PrintVertexParents(NULL);
    if (nvp)
    {
-      out << "\n# vert_id p1 p2";
-      out << "\nvertex_parents\n" << nvp << "\n";
+      pout << "\n# vert_id p1 p2";
+      pout << "\nvertex_parents\n" << nvp << "\n";
 
-      PrintVertexParents(&out);
+      PrintVertexParents(&pout);
    }
 
    if (!ZeroRootStates()) // root_state section is optional
    {
-      out << "\n# root element orientation";
-      out << "\nroot_state\n" << root_state.Size() << "\n";
+      pout << "\n# root element orientation";
+      pout << "\nroot_state\n" << root_state.Size() << "\n";
 
       for (int i = 0; i < root_state.Size(); i++)
       {
-         out << root_state[i] << "\n";
+         pout << root_state[i] << "\n";
       }
    }
 
    if (coordinates.Size())
    {
-      out << "\n# top-level node coordinates";
-      out << "\ncoordinates\n";
+      pout << "\n# top-level node coordinates";
+      pout << "\ncoordinates\n";
 
-      PrintCoordinates(out);
+      PrintCoordinates(pout);
    }
    else
    {
@@ -6035,7 +6035,7 @@ int NCMesh::PrintMemoryDetail() const
 }
 
 #ifdef MFEM_DEBUG
-void NCMesh::DebugLeafOrder(std::ostream &out) const
+void NCMesh::DebugLeafOrder(std::ostream &pout) const
 {
    tmp_vertex = new TmpVertex[nodes.NumIds()];
    for (int i = 0; i < leaf_elements.Size(); i++)
@@ -6053,29 +6053,29 @@ void NCMesh::DebugLeafOrder(std::ostream &out) const
                count++;
             }
          }
-         out << sum / count << " ";
+         pout << sum / count << " ";
       }
-      out << "\n";
+      pout << "\n";
    }
    delete [] tmp_vertex;
 }
 
-void NCMesh::DebugDump(std::ostream &out) const
+void NCMesh::DebugDump(std::ostream &pout) const
 {
    // dump nodes
    tmp_vertex = new TmpVertex[nodes.NumIds()];
-   out << nodes.Size() << "\n";
+   pout << nodes.Size() << "\n";
    for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
       const double *pos = CalcVertexPos(node.index());
-      out << node.index() << " "
-          << pos[0] << " " << pos[1] << " " << pos[2] << " "
-          << node->p1 << " " << node->p2 << " "
-          << node->vert_index << " " << node->edge_index << " "
-          << 0 << "\n";
+      pout << node.index() << " "
+           << pos[0] << " " << pos[1] << " " << pos[2] << " "
+           << node->p1 << " " << node->p2 << " "
+           << node->vert_index << " " << node->edge_index << " "
+           << 0 << "\n";
    }
    delete [] tmp_vertex;
-   out << "\n";
+   pout << "\n";
 
    // dump elements
    int nleaves = 0;
@@ -6083,25 +6083,25 @@ void NCMesh::DebugDump(std::ostream &out) const
    {
       if (elements[i].IsLeaf()) { nleaves++; }
    }
-   out << nleaves << "\n";
+   pout << nleaves << "\n";
    for (int i = 0; i < elements.Size(); i++)
    {
       const Element &el = elements[i];
       if (el.IsLeaf())
       {
          const GeomInfo& gi = GI[el.Geom()];
-         out << gi.nv << " ";
+         pout << gi.nv << " ";
          for (int j = 0; j < gi.nv; j++)
          {
-            out << el.node[j] << " ";
+            pout << el.node[j] << " ";
          }
-         out << el.attribute << " " << el.rank << " " << i << "\n";
+         pout << el.attribute << " " << el.rank << " " << i << "\n";
       }
    }
-   out << "\n";
+   pout << "\n";
 
    // dump faces
-   out << faces.Size() << "\n";
+   pout << faces.Size() << "\n";
    for (auto face = faces.cbegin(); face != faces.cend(); ++face)
    {
       int elem = face->elem[0];
@@ -6117,13 +6117,13 @@ void NCMesh::DebugDump(std::ostream &out) const
       const int* fv = GI[el.Geom()].faces[lf];
       const int nfv = GI[el.Geom()].nfv[lf];
 
-      out << nfv;
+      pout << nfv;
       for (int i = 0; i < nfv; i++)
       {
-         out << " " << el.node[fv[i]];
+         pout << " " << el.node[fv[i]];
       }
-      //out << " # face " << face.index() << ", index " << face->index << "\n";
-      out << "\n";
+      //pout << " # face " << face.index() << ", index " << face->index << "\n";
+      pout << "\n";
    }
 }
 #endif
