@@ -701,7 +701,7 @@ private:
 public:
    /// Create an operator which is a scalar multiple of A.
    explicit ScaledOperator(const Operator *A, double a)
-     : Operator(A->Height(), A->Width()), A_(*A), a_(a) { }
+      : Operator(A->Height(), A->Width()), A_(*A), a_(a) { }
 
    /// Operator application
    virtual void Mult(const Vector &x, Vector &y) const
