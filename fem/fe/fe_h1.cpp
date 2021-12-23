@@ -970,7 +970,7 @@ H1_WedgeElement::H1_WedgeElement(const int p,
 
    // Interior DoFs
    int m=0;
-   for (int k=1; k<p; k++)
+   for (k=1; k<p; k++)
    {
       int l=0;
       for (int j=1; j<p; j++)
