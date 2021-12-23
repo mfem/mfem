@@ -125,14 +125,14 @@ void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
    {
       double GradErr = gf->ComputeGradError(grad);
       DErrors.Append(GradErr);
-      double en_err =
+      double error =
          sqrt(L2Errors[counter-1]*L2Errors[counter-1]+GradErr*GradErr);
-      EnErrors.Append(en_err);
+      EnErrors.Append(error);
       // Compute the rate of convergence by:
       // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
       double val = (dcounter) ? log(DErrors[dcounter-1]/GradErr)/log(2.0) : 0.0;
       double eval =
-         (dcounter) ? log(EnErrors[dcounter-1]/en_err)/log(2.0) : 0.0;
+         (dcounter) ? log(EnErrors[dcounter-1]/error)/log(2.0) : 0.0;
       DRates.Append(val);
       EnRates.Append(eval);
       CoeffDNorm = GetNorm(gf,nullptr,grad);
@@ -177,14 +177,14 @@ void ConvergenceStudy::AddGf(GridFunction *gf, VectorCoefficient *vector_u,
    }
    if (derivative)
    {
-      double en_err = sqrt(L2Errors[counter-1]*L2Errors[counter-1] + DErr*DErr);
+      double error = sqrt(L2Errors[counter-1]*L2Errors[counter-1] + DErr*DErr);
       DErrors.Append(DErr);
-      EnErrors.Append(en_err);
+      EnErrors.Append(error);
       // Compute the rate of convergence by:
       // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
       double val = (dcounter) ? log(DErrors[dcounter-1]/DErr)/log(2.0) : 0.0;
       double eval =
-         (dcounter) ? log(EnErrors[dcounter-1]/en_err)/log(2.0) : 0.0;
+         (dcounter) ? log(EnErrors[dcounter-1]/error)/log(2.0) : 0.0;
       DRates.Append(val);
       EnRates.Append(eval);
       dcounter++;
