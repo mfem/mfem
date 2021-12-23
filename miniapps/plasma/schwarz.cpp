@@ -266,6 +266,10 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
 
    int size = patch_global_dofs_ids[nrpatch - 1] + 1;
    patch_natural_order_idx.SetSize(size);
+   // TODO: isn't this size too big? Can a map replace this array? In serial it is fine, but it seems to depend on the global number of patches, which may be fine for moderate problem sizes but could get large and hinder scalability.
+   //cout << "DYLAN DBG: patch_natural_order_idx size " << size << ", nrpatch " << nrpatch << ", aux dofs "
+   //<< aux_fespace->GlobalVSize() << endl;
+
    // initialize with -1
    patch_natural_order_idx = -1;
    for (int i = 0; i < nrpatch; i++)
@@ -374,10 +378,340 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
    delete aux_fec;
 }
 
+LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
+   : pmesh(pmesh_), ref_levels(ref_levels_)
+{
+   int dim = pmesh->Dimension();
+   double tol = 1.0e-3;
+
+   // TODO: input linecrd rather than hard-coding it as done here.
+   const int nlines = 33;
+   linecrd.SetSize(nlines);
+   for (int i=0; i<nlines; ++i)
+     {
+       linecrd[i] = ((double) i) / ((double) (nlines - 1));
+     }
+
+   // 1. Define an auxiliary parallel H1 finite element space on the parallel mesh.
+   FiniteElementCollection * aux_fec = new H1_FECollection(1, dim);
+   ParFiniteElementSpace * aux_fespace = new ParFiniteElementSpace(pmesh, aux_fec);
+   int mycdofoffset =
+      aux_fespace->GetMyDofOffset(); // dof offset for the coarse mesh
+
+   // Set map from coarse vertex DOFs to global line patches
+   Array<int> cdofToGlobalLine(aux_fespace->GetNDofs());
+   cdofToGlobalLine = -1;
+   {
+     for (int i=0; i<pmesh->GetNV(); ++i)
+       {
+	 const double y = pmesh->GetVertex(i)[1];
+	 int globalLineIndex = -1;
+	 for (int i=0; i<nlines; ++i)
+	   {
+	     if (fabs(linecrd[i] - y) < tol)
+	       {
+		 MFEM_VERIFY(globalLineIndex == -1, "");
+		 globalLineIndex = i;
+	       }
+	   }
+
+	 Array<int> dofs;
+	 aux_fespace->GetVertexDofs(i, dofs);
+	 MFEM_VERIFY(dofs.Size() == 1, "");
+
+	 cdofToGlobalLine[dofs[0]] = globalLineIndex;
+       }
+   }
+
+   // 2. Store the cDofTrueDof Matrix. Required after the refinements
+   HypreParMatrix *cDofTrueDof = new HypreParMatrix(
+      *aux_fespace->Dof_TrueDof_Matrix());
+
+   MFEM_VERIFY(cDofTrueDof->Height() == cdofToGlobalLine.Size(), "");
+   MFEM_VERIFY(cdofToGlobalLine.Min() == 0, ""); // TODO: in parallel, just check >= 0
+
+   // 3. Perform the refinements (if any) and Get the final Prolongation operator
+   HypreParMatrix *Pr = nullptr;
+   for (int i = 0; i < ref_levels; i++)
+   {
+      const ParFiniteElementSpace cfespace(*aux_fespace);
+      pmesh->UniformRefinement();
+      // Update fespace
+      aux_fespace->Update();
+      OperatorHandle Tr(Operator::Hypre_ParCSR);
+      aux_fespace->GetTrueTransferOperator(cfespace, Tr);
+      Tr.SetOperatorOwner(false);
+      HypreParMatrix *P;
+      Tr.Get(P);
+      if (!Pr)
+      {
+         Pr = P;
+      }
+      else
+      {
+         Pr = ParMult(P, Pr);
+      }
+   }
+   if (Pr) { Pr->Threshold(0.0); }
+
+   // 4. Get the DofTrueDof map on this mesh and convert the prolongation matrix
+   // to correspond to global dof numbering (from true dofs to dofs)
+   HypreParMatrix *DofTrueDof = aux_fespace->Dof_TrueDof_Matrix();
+   HypreParMatrix *A = nullptr;
+   if (Pr)
+   {
+      A = ParMult(DofTrueDof, Pr);
+   }
+   else
+   {
+      // If there is no refinement then the prolongation is the identity
+      A = DofTrueDof;
+   }
+   HypreParMatrix * cDofTrueDofT = cDofTrueDof->Transpose();
+   HypreParMatrix *B = ParMult(A, cDofTrueDofT);
+   delete cDofTrueDofT;
+   // 5. Now we compute the vertices that are owned by the process
+   SparseMatrix cdiag, coffd;
+   cDofTrueDof->GetDiag(cdiag);
+
+   MFEM_VERIFY(cdiag.Height() == cdofToGlobalLine.Size(), "");
+
+   Array<int> cown_vertices;
+   Array<int> cown_vertices_line;
+   std::set<int> touched_lines;
+   int cnv = 0;
+   for (int k = 0; k < cdiag.Height(); k++)
+   {
+      int nz = cdiag.RowSize(k);
+      int i = mycdofoffset + k;
+      if (nz != 0)
+      {
+         cnv++;
+         cown_vertices.SetSize(cnv);
+         cown_vertices[cnv - 1] = i;
+
+         cown_vertices_line.SetSize(cnv);
+         cown_vertices_line[cnv - 1] = cdofToGlobalLine[k];
+	 touched_lines.insert(cdofToGlobalLine[k]);
+      }
+   }
+
+   MPI_Comm comm = pmesh->GetComm();
+   int num_procs, myid;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+
+   // Determine ownership of patches, based on minimum MPI rank touching the line patches.
+   Array<int> owned_lines;
+   {
+     std::vector<int> touchingRank(nlines);
+     //std::vector<int> owningRank(nlines);
+
+     host_rank.SetSize(nlines);
+
+     touchingRank.assign(nlines, num_procs);
+     //owningRank.assign(nlines, num_procs);
+     for (std::set<int>::const_iterator it = touched_lines.begin(); it != touched_lines.end(); ++it)
+       {
+	 touchingRank[*it] = myid;
+       }
+
+     MPI_Allreduce(touchingRank.data(), host_rank.GetData(), nlines, MPI_INT, MPI_MIN, comm);
+
+     mynrpatch = 0;
+     for (int i=0; i<nlines; ++i)
+       {
+	 if (host_rank[i] == myid)
+	   mynrpatch++;
+       }
+
+     owned_lines.SetSize(mynrpatch);
+
+     mynrpatch = 0;
+     for (int i=0; i<nlines; ++i)
+       {
+	 if (host_rank[i] == myid)
+	   {
+	     owned_lines[mynrpatch] = i;
+	     mynrpatch++;
+	   }
+       }
+   }
+
+   // 6. Compute total number of patches
+   //mynrpatch = cown_vertices.Size();
+   mynrpatch = owned_lines.Size();
+   // Compute total number of patches.
+
+   MPI_Allreduce(&mynrpatch, &nrpatch, 1, MPI_INT, MPI_SUM, comm);
+  
+   MFEM_VERIFY(nrpatch == nlines, "");
+
+   //patch_global_dofs_ids.SetSize(nrpatch);
+
+   /*
+   // Create a list of patches identifiers to all procs
+
+   int count[num_procs];
+
+   MPI_Allgather(&mynrpatch, 1, MPI_INT, &count[0], 1, MPI_INT, comm);
+   int displs[num_procs];
+   displs[0] = 0;
+   for (int i = 1; i < num_procs; i++)
+   {
+      displs[i] = displs[i - 1] + count[i - 1];
+   }
+
+   int * cownvert_ptr = nullptr;
+   int * dof_rank_id_ptr = nullptr;
+   Array<int> dof_rank_id;
+   if (cown_vertices.Size() >0)
+   {
+      cownvert_ptr = &cown_vertices[0];
+      dof_rank_id.SetSize(cown_vertices.Size());
+      dof_rank_id = myid;
+      dof_rank_id_ptr = &dof_rank_id[0];
+   }
+   // send also the rank number for each global dof
+   host_rank.SetSize(nrpatch);
+   MPI_Allgatherv(cownvert_ptr, mynrpatch, MPI_INT, &patch_global_dofs_ids[0],
+                  count, displs, MPI_INT, comm);
+   MPI_Allgatherv(dof_rank_id_ptr, mynrpatch, MPI_INT, &host_rank[0], count,
+                  displs, MPI_INT, comm);
+
+   int size = patch_global_dofs_ids[nrpatch - 1] + 1;
+   patch_natural_order_idx.SetSize(size);
+   // TODO: isn't this size too big? Can a map replace this array? In serial it is fine, but it seems to depend on the global number of patches, which may be fine for moderate problem sizes but could get large and hinder scalability.
+   //cout << "DYLAN DBG: patch_natural_order_idx size " << size << ", nrpatch " << nrpatch << ", aux dofs "
+   //<< aux_fespace->GlobalVSize() << endl;
+
+   // initialize with -1
+   patch_natural_order_idx = -1;
+   for (int i = 0; i < nrpatch; i++)
+   {
+      int k = patch_global_dofs_ids[i];
+      patch_natural_order_idx[k] = i;
+   }
+   */
+
+   patch_natural_order_idx.SetSize(nrpatch);
+   for (int i = 0; i < nrpatch; i++)
+     patch_natural_order_idx[i] = i;
+
+   int nvert = pmesh->GetNV();
+   // first find all the contributions of the vertices
+   vert_contr.resize(nvert);
+   SparseMatrix H1pr_diag;
+   B->GetDiag(H1pr_diag);
+   for (int i = 0; i < nvert; i++)
+   {
+      int row = i;
+      int row_size = H1pr_diag.RowSize(row);
+      int *col = H1pr_diag.GetRowColumns(row);
+      for (int j = 0; j < row_size; j++)
+      {
+	const int globalLine = cdofToGlobalLine[col[j]];
+	vert_contr[i].Append(globalLine);
+	/*
+         int jv = col[j] + mycdofoffset;
+         if (is_a_patch(jv, patch_global_dofs_ids))
+         {
+            vert_contr[i].Append(jv);
+         }
+	*/
+      }
+   }
+
+   SparseMatrix H1pr_offd;
+   int *cmap;
+   B->GetOffd(H1pr_offd, cmap);
+   for (int i = 0; i < nvert; i++)
+   {
+      int row = i;
+      int row_size = H1pr_offd.RowSize(row);
+      int *col = H1pr_offd.GetRowColumns(row);
+      for (int j = 0; j < row_size; j++)
+      {
+	const int globalLine = cdofToGlobalLine[col[j]];
+	vert_contr[i].Append(globalLine);
+
+	/*
+         int jv = cmap[col[j]];
+         if (is_a_patch(jv, patch_global_dofs_ids))
+         {
+            vert_contr[i].Append(jv);
+         }
+	*/
+      }
+   }
+
+   Array<int> edge_vertices;
+   int nedge = pmesh->GetNEdges();
+   edge_contr.resize(nedge);
+   for (int ie = 0; ie < nedge; ie++)
+   {
+      pmesh->GetEdgeVertices(ie, edge_vertices);
+      int nv = edge_vertices.Size(); // always 2 but ok
+      // The edge will contribute to the same patches as its vertices
+      for (int iv = 0; iv < nv; iv++)
+      {
+         int ivert = edge_vertices[iv];
+         edge_contr[ie].Append(vert_contr[ivert]);
+      }
+      edge_contr[ie].Sort();
+      edge_contr[ie].Unique();
+   }
+   // -----------------------------------------------------------------------
+   // done with edges. Now the faces
+   // -----------------------------------------------------------------------
+   Array<int> face_vertices;
+   int nface = pmesh->GetNFaces();
+   face_contr.resize(nface);
+   for (int ifc = 0; ifc < nface; ifc++)
+   {
+      pmesh->GetFaceVertices(ifc, face_vertices);
+      int nv = face_vertices.Size();
+      // The face will contribute to the same patches as its vertices
+      for (int iv = 0; iv < nv; iv++)
+      {
+         int ivert = face_vertices[iv];
+         face_contr[ifc].Append(vert_contr[ivert]);
+      }
+      face_contr[ifc].Sort();
+      face_contr[ifc].Unique();
+   }
+   // -----------------------------------------------------------------------
+   // Finally the elements
+   // -----------------------------------------------------------------------
+   Array<int> elem_vertices;
+   int nelem = pmesh->GetNE();
+   elem_contr.resize(nelem);
+   for (int iel = 0; iel < nelem; iel++)
+   {
+      pmesh->GetElementVertices(iel, elem_vertices);
+      int nv = elem_vertices.Size();
+      // The element will contribute to the same patches as its vertices
+      for (int iv = 0; iv < nv; iv++)
+      {
+         int ivert = elem_vertices[iv];
+         elem_contr[iel].Append(vert_contr[ivert]);
+      }
+      elem_contr[iel].Sort();
+      elem_contr[iel].Unique();
+   }
+   if (Pr) { delete A; }
+   delete B;
+   if (Pr) { delete Pr; }
+   delete cDofTrueDof;
+   delete aux_fespace;
+   delete aux_fec;
+}
+
 PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, int ref_levels_,
                            ParFiniteElementSpace *fespace)
 {
-   VertexPatchInfo *patch_nodes = new VertexPatchInfo(pmesh_, ref_levels_);
+  //VertexPatchInfo *patch_nodes = new VertexPatchInfo(pmesh_, ref_levels_);
+   LinePatchInfo *patch_nodes = new LinePatchInfo(pmesh_, ref_levels_);
 
    int num_procs, myid;
    comm = pmesh_->GetComm();
@@ -1095,8 +1429,8 @@ SchwarzSmoother::SchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,
          //std::cout << "SchwarzSmoother using GMRESSolver size " << P->PatchMat[ip]->Height() << " x " << P->PatchMat[ip]->Width() << " sym " << P->PatchMat[ip]->IsSymmetric() << std::endl;
 #endif
          PatchInv[ip]->SetOperator(*P->PatchMat[ip]);
-         CheckSPD(P->PatchMat[ip]);
-         MFEM_VERIFY(P->PatchMat[ip]->IsSymmetric() < 1.0e-12, "");
+         //CheckSPD(P->PatchMat[ip]);
+         //MFEM_VERIFY(P->PatchMat[ip]->IsSymmetric() < 1.0e-12, "");
          PatchInv[ip]->SetRelTol(1e-12);
          PatchInv[ip]->SetMaxIter(100);
          //PatchInv[ip]->SetPrintLevel(1);

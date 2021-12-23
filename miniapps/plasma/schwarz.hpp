@@ -56,6 +56,28 @@ public:
 
 };
 
+class LinePatchInfo
+{
+private:
+   ParMesh * pmesh = nullptr;
+   int ref_levels=0;
+public:
+   int mynrpatch;
+   int nrpatch;
+   std::vector<Array<int>> vert_contr;
+   std::vector<Array<int>> edge_contr;
+   std::vector<Array<int>> face_contr;
+   std::vector<Array<int>> elem_contr;
+   Array<int> host_rank;
+   Array<int> patch_natural_order_idx;
+  //Array<int> patch_global_dofs_ids;
+
+  Vector linecrd;
+
+  LinePatchInfo(ParMesh * pmesh_, int ref_levels_);
+  ~LinePatchInfo() {}
+};
+
 class PatchDofInfo
 {
 public:
