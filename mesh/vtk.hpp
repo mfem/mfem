@@ -13,6 +13,7 @@
 #define MFEM_VTK
 
 #include "../fem/geom.hpp"
+#include "../general/binaryio.hpp"
 
 namespace mfem
 {
@@ -78,7 +79,46 @@ void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
 
 int BarycentricToVTKTriangle(int *b, int ref);
 
+/// Determine the byte order and return either "BigEndian" or "LittleEndian"
 const char *VTKByteOrder();
+
+/// @brief Write either ASCII data to the stream or binary data to the buffer
+/// depending on the given format.
+///
+/// If @a format is VTK::ASCII, write the canonical ASCII representation of
+/// @a val to the output stream. Otherwise, append its raw binary data to the
+/// byte buffer @a buf.
+///
+/// Note that there are specializations for @a uint8_t (to write as a numeric
+/// value rather than a character), and for @a float and @a double values to
+/// use the precision specified by @a format.
+template <typename T>
+void WriteBinaryOrASCII(std::ostream &out, std::vector<char> &buf, const T &val,
+                        const char *suffix, VTKFormat format)
+{
+   if (format == VTKFormat::ASCII) { out << val << suffix; }
+   else { bin_io::AppendBytes(buf, val); }
+}
+
+template <>
+void WriteBinaryOrASCII<uint8_t>(std::ostream &out, std::vector<char> &buf,
+                                 const uint8_t &val, const char *suffix,
+                                 VTKFormat format);
+
+template <>
+void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
+                                const double &val, const char *suffix,
+                                VTKFormat format);
+
+template <>
+void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
+                               const float &val, const char *suffix,
+                               VTKFormat format);
+
+/// @brief Encode in base 64 (and potentially compress) the given data, write it
+/// to the output stream (with a header) and clear the buffer.
+void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
+                                 int compression_level);
 
 } // namespace mfem
 
