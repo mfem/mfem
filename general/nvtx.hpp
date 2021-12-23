@@ -18,6 +18,7 @@
 #define MFEM_NVVP_HPP
 
 #include <string>
+#include <cstring>
 #include <cassert>
 
 #include "globals.hpp"

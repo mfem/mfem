@@ -989,7 +989,8 @@ public:
       ABORT_HYPRE_ERRORS   ///< Abort on hypre errors (default in base class)
    };
 
-protected:
+   //protected:
+public:
    /// The linear system matrix
    const HypreParMatrix *A;
 

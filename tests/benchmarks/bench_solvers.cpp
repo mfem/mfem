@@ -105,6 +105,21 @@ static void EliminateRowsCols(ParBilinearForm &a,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+static HypreBoomerAMG *ForceAMGSetup(HypreBoomerAMG *const amg)
+{
+   NVTX("AMG Setup");
+   amg->SetPrintLevel(0);
+   const int size = amg->Height();
+   Vector b(size), x(size);
+   b.UseDevice(true);
+   x.UseDevice(true);
+   b = 0.0;
+   x = 0.0;
+   amg->Mult(b, x);
+   return amg;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 namespace precond
 {
 
@@ -353,28 +368,14 @@ public:
          {
             dbg("[precond] HYPRE");
             HypreBoomerAMG *amg = new HypreBoomerAMG(*A_prec.As<HypreParMatrix>());
-            amg->SetPrintLevel(0);
-            Vector b(amg->Height());
-            Vector x(amg->Height());
-            b = 0.0;
-            x = 0.0;
-            amg->Mult(b, x); // <-- Force setup. Ugly hack.
-            coarse_precond.reset(amg);
+            coarse_precond.reset(ForceAMGSetup(amg));
             break;
          }
          case SolverConfig::LOR_BATCH:
          {
             dbg("[precond] LOR BATCH");
             LOR_AMG *lor_amg = new LOR_AMG(a, ess_dofs);
-            lor_amg->GetSolver().SetPrintLevel(0);
-            {
-               NVTX("LOR_BATCH Setup");
-               Vector b(lor_amg->Height());
-               Vector x(lor_amg->Height());
-               b = 0.0;
-               x = 0.0;
-               lor_amg->Mult(b, x); // <-- Force setup. Ugly hack.
-            }
+            ForceAMGSetup(&lor_amg->GetSolver());
             coarse_precond.reset(lor_amg);
             break;
          }
@@ -1085,9 +1086,7 @@ struct SolverProblem: public BakeOff
          {
             dbg("BoomerAMG");
             NVTX("BoomerAMG");
-            HypreBoomerAMG *amg = new HypreBoomerAMG(*A.As<HypreParMatrix>());
-            amg->SetPrintLevel(0);
-            M.reset(amg);
+            M.reset(ForceAMGSetup(new HypreBoomerAMG(*A.As<HypreParMatrix>())));
             break;
          }
          case LORBatch:
@@ -1095,7 +1094,7 @@ struct SolverProblem: public BakeOff
             dbg("LORBatch");
             NVTX("LORBatch");
             LOR_AMG *lor_amg = new LOR_AMG(a, ess_tdof_list);
-            lor_amg->GetSolver().SetPrintLevel(0);
+            ForceAMGSetup(&lor_amg->GetSolver());
             M.reset(lor_amg);
             break;
          }
@@ -1161,17 +1160,6 @@ struct SolverProblem: public BakeOff
       cg.SetPrintLevel(print_lvl);
       if (M.get()) { cg.SetPreconditioner(*M); }
       if (config_debug) { cg.SetMonitor(monitor); }
-
-      if (preconditioner == FinePrecondType::BoomerAMG ||
-          preconditioner == FinePrecondType::LORBatch)
-      {
-         MFEM_DEVICE_SYNC;
-         NVTX("First Mult");
-         sw_setup.Start();
-         cg.Mult(B,X);
-         MFEM_DEVICE_SYNC;
-         sw_setup.Stop();
-      }
    }
 
    void benchmark() override
