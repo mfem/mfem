@@ -21,7 +21,7 @@
 #define MFEM_NVTX_COLOR Orange
 #include "general/nvtx.hpp"
 
-#define MFEM_DEBUG_COLOR 226
+#define MFEM_DEBUG_COLOR 227
 #include "general/debug.hpp"
 
 #include "linalg/wamg.hpp"
@@ -38,10 +38,31 @@
 namespace mfem
 {
 
-using LOR_AMG = LORSolver<HypreBoomerAMG>;
+////////////////////////////////////////////////////////////////////////////////
+#ifdef MFEM_USE_MPI
+static MPI_Session *mpi;
+#define mpiRoot mpi->Root()
+#define mpiWorldSize mpi->WorldSize()
+#define mpiWorldRank mpi->WorldRank()
+#else
+typedef int MPI_Session;
+#define mpiRoot true
+#define mpiWorldSize 1
+#define mpiWorldRank 0
+#define GlobalTrueVSize GetVSize
+#define HYPRE_Int int
+#define MPI_COMM_WORLD
+#define ParMesh Mesh
+#define GetParMesh GetMesh
+#define HypreParMatrix SparseMatrix
+#define ParGridFunction GridFunction
+#define ParBilinearForm BilinearForm
+#define ParLinearForm LinearForm
+#define ParFiniteElementSpace FiniteElementSpace
+#define ParFiniteElementSpaceHierarchy FiniteElementSpaceHierarchy
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
-static MPI_Session *mpi;
 static int config_dev_size = 4; // default 4 GPU per node
 
 static bool config_use_caliper = false;
@@ -51,13 +72,18 @@ static int config_max_nic = 4;
 static int config_max_nip = 7;
 static int config_max_nif = 500;
 
+static int config_max_depth = 32;
+static int config_max_ndofs = 1024;
+
+static int config_mg_dump_level = 0;
+
+static const char *config_mg_spec = nullptr;
 enum MGSpecification
 {
    INPUT = 0,
    INCREMENT = 1,
    DIVIDE_BY_2 = 2
 };
-static const char *config_mg_spec = nullptr;
 static int config_mg_spec_select = MGSpecification::DIVIDE_BY_2;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,6 +104,7 @@ enum FinePrecondType
    MGLEGACYWavelets
 };
 
+#ifdef MFEM_USE_MPI
 ////////////////////////////////////////////////////////////////////////////////
 static void EliminateRowsCols(ParBilinearForm &a,
                               const Array<int> &ess_tdof_list,
@@ -118,6 +145,7 @@ static HypreBoomerAMG *ForceAMGSetup(HypreBoomerAMG *const amg)
    amg->Mult(b, x);
    return amg;
 }
+#endif // MFEM_USE_MPI
 
 ////////////////////////////////////////////////////////////////////////////////
 namespace precond
@@ -289,7 +317,6 @@ public:
       Geometry::Type geom = pfes.GetMesh()->GetElementBaseGeometry(0);
       const IntegrationRule &ir = irs.Get(geom, int_order);
       MFEM_VERIFY(ir.Size() == pow(p+2,dim), "Wrong quadrature");
-
       DiffusionIntegrator *integ = new DiffusionIntegrator(coeff, &ir);
       form->AddDomainIntegrator(integ);
       form->Assemble();
@@ -314,9 +341,11 @@ public:
 
       Solver* smoother =
          new OperatorChebyshevSmoother(*opr.Ptr(),  diag,
-                                       *essentialTrueDofs.Last(), 2,
-                                       fespace.GetParMesh()->GetComm());
-
+                                       *essentialTrueDofs.Last(), 2
+#ifdef MFEM_USE_MPI
+                                       ,fespace.GetParMesh()->GetComm()
+#endif // MFEM_USE_MPI
+                                      );
       AddLevel(opr.Ptr(), smoother, true, true);
    }
 
@@ -340,7 +369,9 @@ public:
       {
          ParBilinearForm *par_a = dynamic_cast<ParBilinearForm*>(bfs.Last());
          MFEM_VERIFY(par_a, "Error!");
+#ifdef MFEM_USE_MPI
          EliminateRowsCols(*par_a, ess_dofs, A_coarse);
+#endif // MFEM_USE_MPI
       }
 
       OperatorPtr A_prec;
@@ -366,17 +397,26 @@ public:
          case SolverConfig::FA_HYPRE:
          case SolverConfig::LOR_HYPRE:
          {
+#ifdef MFEM_USE_MPI
             dbg("[precond] HYPRE");
             HypreBoomerAMG *amg = new HypreBoomerAMG(*A_prec.As<HypreParMatrix>());
             coarse_precond.reset(ForceAMGSetup(amg));
+#else
+            assert(false);
+#endif // MFEM_USE_MPI
             break;
          }
          case SolverConfig::LOR_BATCH:
          {
+#ifdef MFEM_USE_MPI
             dbg("[precond] LOR BATCH");
-            LOR_AMG *lor_amg = new LOR_AMG(a, ess_dofs);
+            LORSolver<HypreBoomerAMG> *lor_amg =
+               new LORSolver<HypreBoomerAMG>(a, ess_dofs);
             ForceAMGSetup(&lor_amg->GetSolver());
             coarse_precond.reset(lor_amg);
+#else
+            assert(false);
+#endif // MFEM_USE_MPI
             break;
          }
 #ifdef MFEM_USE_AMGX
@@ -401,7 +441,8 @@ public:
             dbg("[precond] FA_WAMG %dx%d", A_prec->Height(), A_prec->Width());
             // A_prec is a LEGACY/FULL A_coarse ParHypreMatrix
             wargs_t args(A_prec, diag, ess_dofs,
-                         smoother_order, config_max_nic, print_level);
+                         smoother_order, config_max_nic, print_level,
+                         config_max_depth, config_max_ndofs);
             coarse_precond.reset(new faWAMG(pfes, Wavelet::HAAR, args));
             break;
          }
@@ -412,7 +453,8 @@ public:
             a.AssembleDiagonal(diag);
             dbg("[precond] WAMG %dx%d", A_prec->Height(), A_prec->Width());
             wargs_t args(A_prec, diag, ess_dofs,
-                         smoother_order, config_max_nic, print_level);
+                         smoother_order, config_max_nic, print_level,
+                         config_max_depth, config_max_ndofs);
             coarse_precond.reset(new WAMG(pfes, Wavelet::HAAR, args));
             break;
          }
@@ -762,7 +804,11 @@ struct CGMonitor : IterativeSolverMonitor
    void MonitorResidual(int it, double norm, const Vector &r, bool final)
    {
       MFEM_CONTRACT_VAR(norm);
-      if (mpi->Root() && (it == 0 || final))
+      if (
+#ifdef MFEM_USE_MPI
+         mpi->Root() &&
+#endif
+         (it == 0 || final))
       {
          std::string prefix = final ? "Final" : "Initial";
          const double nrm = r*r;
@@ -794,9 +840,7 @@ struct BakeOff
    const int p, c, q;
    const int n, nx,ny,nz;
    const bool check_x, check_y, check_z, checked;
-   const int refinements;
-   const int smoothness;
-   const int preconditioner;
+   const int refinements, smoothness, preconditioner;
    precond::SolverConfig solver_config;
    const double epsy, epsz;
    const bool rhs_1;
@@ -819,7 +863,11 @@ struct BakeOff
 
       int nxyz[3] = {num_procs,1,1};
       int *partitioning = smesh.CartesianPartitioning(nxyz);
+#ifdef MFEM_USE_MPI
       ParMesh pmesh(MPI_COMM_WORLD, smesh, partitioning);
+#else
+      ParMesh pmesh(smesh);
+#endif // MFEM_USE_MPI
       smesh.Clear();
       delete partitioning;
 
@@ -895,8 +943,8 @@ struct BakeOff
            bool rhs_1, int rhs_n,
            int p, int vdim, bool GLL):
       mg_solver(preconditioner >= FinePrecondType::MGJacobi),
-      num_procs(mpi->WorldSize()),
-      myid(mpi->WorldRank()),
+      num_procs(mpiWorldSize),
+      myid(mpiWorldRank),
       p(p),
       c(side),
       q(2*p + (GLL?-1:3)),
@@ -1038,7 +1086,11 @@ struct SolverProblem: public BakeOff
 
          if (preconditioner == FinePrecondType::BoomerAMG)
          {
+#ifdef MFEM_USE_MPI
             EliminateRowsCols(a, ess_tdof_list, A);
+#else
+            assert(false);
+#endif // MFEM_USE_MPI
          }
          else
          {
@@ -1049,14 +1101,15 @@ struct SolverProblem: public BakeOff
       // should be an option
       const int smoother_order = 1;
       wargs_t args {A, diag, ess_tdof_list, smoother_order,
-                    config_max_nic, print_lvl};
+                    config_max_nic, print_lvl,
+                    config_max_depth, config_max_ndofs};
 
       //// Setup phase
       auto SetMGPrecond = [&](const char *header,
                               precond::SolverConfig::SolverType type,
                               const bool inner_cg)
       {
-         NVTX(header);
+         dbg(header);
          assert(p == mg_fine_order);
          solver_config.type = type;
          solver_config.inner_cg = inner_cg;
@@ -1070,32 +1123,31 @@ struct SolverProblem: public BakeOff
 
       switch (preconditioner)
       {
-         case None:
-         {
-            dbg("None");
-            break;
-         }
+         case None: { break; }
          case Jacobi:
          {
-            dbg("Jacobi");
-            NVTX("Jacobi");
             M.reset(new OperatorJacobiSmoother(a,ess_tdof_list));
             break;
          }
          case BoomerAMG:
          {
-            dbg("BoomerAMG");
-            NVTX("BoomerAMG");
+#ifdef MFEM_USE_MPI
             M.reset(ForceAMGSetup(new HypreBoomerAMG(*A.As<HypreParMatrix>())));
+#else
+            assert(false);
+#endif // MFEM_USE_MPI
             break;
          }
          case LORBatch:
          {
-            dbg("LORBatch");
-            NVTX("LORBatch");
-            LOR_AMG *lor_amg = new LOR_AMG(a, ess_tdof_list);
+#ifdef MFEM_USE_MPI
+            LORSolver<HypreBoomerAMG> *lor_amg
+               = new LORSolver<HypreBoomerAMG>(a, ess_tdof_list);
             ForceAMGSetup(&lor_amg->GetSolver());
             M.reset(lor_amg);
+#else
+            assert(false);
+#endif // MFEM_USE_MPI
             break;
          }
          case MGJacobi:
@@ -1189,7 +1241,7 @@ struct SolverProblem: public BakeOff
 #define P_ORDERS bm::CreateDenseRange(1,6,1)
 
 // The different side sizes
-#define P_SIDES bm::CreateDenseRange(6,200,2)
+#define P_SIDES bm::CreateDenseRange(6,100,2)
 
 // Maximum number of dofs
 #define MAX_NDOFS 10*1024*1024
@@ -1216,13 +1268,13 @@ static void BPS##i##_##Precond(bm::State &state){\
    state.counters["Epsilon"] = bm::Counter(bps.epsy);\
    state.counters["Niters"] = bm::Counter(bps.niter);\
    state.counters["P"] = bm::Counter(order);\
-   state.counters["Ranks"] = bm::Counter(mpi->WorldSize());\
+   state.counters["Ranks"] = bm::Counter(mpiWorldSize);\
    state.counters["Tsetup"] = bm::Counter(bps.TSetup());\
    state.counters["Tsolve"] = bm::Counter(bps.TSolve(), bm::Counter::kAvgIterations);}\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_EPSILONS,P_ORDERS,P_SIDES})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(4);
+    -> Iterations(1);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Solver(3,Diffusion,None)
@@ -1270,14 +1322,13 @@ int main(int argc, char *argv[])
       bmi::FindInContext("caliper", config_use_caliper);
       bmi::FindInContext("dev_size", config_dev_size);
    }
-
-   const int mpi_rank = mpi->WorldRank();
-   const int mpi_size = mpi->WorldSize();
+   const int mpi_rank = mpiWorldRank;
+   const int mpi_size = mpiWorldSize;
    const int dev = mpi_rank % config_dev_size;
    dbg("[MPI] rank: %d/%d, using device #%d", 1+mpi_rank, mpi_size, dev);
 
    Device device(config_device.c_str(), dev);
-   if (mpi->Root()) { device.Print(); }
+   if (mpiRoot) { device.Print(); }
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
 

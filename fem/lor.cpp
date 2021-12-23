@@ -317,8 +317,9 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
    {
       dbg("supports_batched_assembly");
       fes_ho.GetMesh()->EnsureNodes();
-      ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
 #ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes_ho =
+         dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
       if (pfes_ho)
       {
          dbg("=> PARALLEL AssembleBatchedLOR");

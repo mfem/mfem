@@ -58,25 +58,26 @@ WaveletRecursiveLevel::~WaveletRecursiveLevel()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-WaveletRecursiveLevelFA::WaveletRecursiveLevelFA(ParFiniteElementSpace &pfes,
-                                                 Wavelet::Type &wavelet,
-                                                 HypreParMatrix *A)
+WaveletRecursiveLevelFA::WaveletRecursiveLevelFA(
+
+#ifndef MFEM_USE_MPI
+   FiniteElementSpace &,
+#else
+   ParFiniteElementSpace &pfes,
+#endif //  MFEM_USE_MPI
+   Wavelet::Type &wavelet,
+   const OperatorHandle &Ah)
 {
    MFEM_NVTX;
-   //assert(Ah.Ptr());
-   //assert(Ah.Type() == Operator::Hypre_ParCSR);
-   //HypreParMatrix *A = Ah.As<HypreParMatrix>();
-   assert(A);
-   dbg("%dx%d", A->Height(), A->Width());
    MFEM_VERIFY((wavelet == Wavelet::HAAR) ||
                (wavelet == Wavelet::DAUBECHIES), "Wavelet argument error!");
 
    switch (wavelet)
    {
       case Wavelet::HAAR:
-         W = new HaarWavelet(A->Height(), true); break;
+         W = new HaarWavelet(Ah->Height(), true); break;
       case Wavelet::DAUBECHIES:
-         W = new DaubechiesWavelet(A->Height(), true); break;
+         W = new DaubechiesWavelet(Ah->Height(), true); break;
       default: assert(false);
    }
    Wt = new TransposeOperator(W); // the prolongator
@@ -85,6 +86,7 @@ WaveletRecursiveLevelFA::WaveletRecursiveLevelFA(ParFiniteElementSpace &pfes,
    M = mfem::Transpose(*W->GetMatrix()); // Prepare for the Rt of mfem::RAP
    tM = W->GetTransposedMatrix();
 
+#ifdef MFEM_USE_MPI
    OperatorHandle H(Operator::Hypre_ParCSR),
                   tH(Operator::Hypre_ParCSR);
 
@@ -95,21 +97,21 @@ WaveletRecursiveLevelFA::WaveletRecursiveLevelFA(ParFiniteElementSpace &pfes,
    int glob_num_rows, glob_num_cols;
    assert(HYPRE_AssumedPartitionCheck());
    Array<HYPRE_BigInt> *offsets[2] = { &row_offsets, &col_offsets };
-   auto CreateRectangularHypreMatrix = [&] (OperatorHandle &Op,
-                                            SparseMatrix *diag)
+
+   auto CreateRectangularHypreMatrix = [&] (OperatorHandle &H,
+                                            SparseMatrix *A)
    {
-      dbg("CreateRectangularHypreMatrix");
-      locals[0] = diag->Height();
-      locals[1] = diag->Width();
+      NVTX("CreateRectangularHypreMatrix");
+      locals[0] = A->Height();
+      locals[1] = A->Width();
       pfes.GetParMesh()->GenerateOffsets(2, locals, offsets);
       glob_num_rows = row_offsets[row_offsets.Size()-1];
       glob_num_cols = col_offsets[col_offsets.Size()-1];
       dbg("glob_num_rows:%d glob_num_cols:%d", glob_num_rows, glob_num_cols);
-      Op.MakeRectangularBlockDiag(pfes.GetComm(),
-                                  glob_num_rows, glob_num_cols,
-                                  row_offsets, col_offsets, diag);
+      H.MakeRectangularBlockDiag(pfes.GetComm(),
+                                 glob_num_rows, glob_num_cols,
+                                 row_offsets, col_offsets, A);
    };
-
 
    CreateRectangularHypreMatrix(H, M);
    H.SetOperatorOwner(false);
@@ -121,13 +123,19 @@ WaveletRecursiveLevelFA::WaveletRecursiveLevelFA(ParFiniteElementSpace &pfes,
    assert(tH.Ptr());
    assert(tH.Is<HypreParMatrix>());
 
+   const HypreParMatrix *A = Ah.As<HypreParMatrix>();
    {
       NVTX("mfem::RAP");
       assert(*H.As<HypreParMatrix>());
       assert(A);
       assert(*tH.As<HypreParMatrix>());
-      MAMt = mfem::RAP(H.As<HypreParMatrix>(), A, tH.As<HypreParMatrix>());
+      MAMt.Reset(mfem::RAP(H.As<HypreParMatrix>(), A, tH.As<HypreParMatrix>()));
    }
+#else
+   assert(false);
+   const SparseMatrix *A = Ah.As<SparseMatrix>();
+   MAMt.Reset(new RAPOperator(*Wt,*A,*Wt), false);
+#endif // MFEM_USE_MPI
 
    MFEM_VERIFY(A->Height() == A->Width(), "A should be square!");
    MFEM_VERIFY(MAMt->Height() == MAMt->Width(), "MAMt should be square!");
@@ -137,7 +145,8 @@ WaveletRecursiveLevelFA::WaveletRecursiveLevelFA(ParFiniteElementSpace &pfes,
 
 OperatorHandle WaveletRecursiveLevelFA::OpHandle()
 {
-   return OperatorHandle(MAMt, false);
+   return MAMt;
+   //return OperatorHandle(MAMt, false);
 }
 
 Operator *WaveletRecursiveLevelFA::Prolongator() { return Wt; }
@@ -146,7 +155,7 @@ WaveletRecursiveLevelFA::~WaveletRecursiveLevelFA()
 {
    delete W;
    delete Wt;
-   delete MAMt;
+   //delete MAMt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,19 +171,24 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 /// \brief WAMGR solver with DIAGONAL
-WAMGRSolver::WAMGRSolver(ParFiniteElementSpace &pfes,
-                         Wavelet::Type wavelet,
-                         const bool lowpass,
-                         int max_levels,
-                         int max_ndofs,
-                         wargs_t args,
-                         const bool to_bottom,
-                         const bool to_full) : Multigrid()
+WAMGRSolver::WAMGRSolver(
+#ifndef MFEM_USE_MPI
+   FiniteElementSpace &fes,
+#else
+   ParFiniteElementSpace &fes,
+#endif // MFEM_USE_MPI
+   Wavelet::Type wavelet,
+   const bool lowpass,
+   wargs_t args,
+   const bool to_full) :
+   Multigrid()
 {
    MFEM_NVTX;
    const int n = args.op_h->Height();
+   const int max_depth = args.max_depth;
+   const int max_ndofs = args.max_ndofs;
    dbg("COARSE WAMGRSolver n:%d, %s wavelets max_levels:%d",
-       n, Wavelet::GetType(wavelet).c_str(),  max_levels);
+       n, Wavelet::GetType(wavelet).c_str(),  max_depth);
 
    Array<Solver*> Smoothers;
    Array<Operator*> Operators;
@@ -184,8 +198,8 @@ WAMGRSolver::WAMGRSolver(ParFiniteElementSpace &pfes,
    int m = (round_up ? (n+(n%2&1)) : (n-(n%2&1))) >> 1;
    dbg("n:%d m:%d",n,m);
 
-   OperatorHandle Op_h;// = args.op_h;
-   Op_h.Reset(args.op_h.Ptr(), false);
+   OperatorHandle Op_h;
+   Op_h.Reset(args.op_h.Ptr(),false);
 
    for (int depth = 1; true; depth+=1)
    {
@@ -199,7 +213,7 @@ WAMGRSolver::WAMGRSolver(ParFiniteElementSpace &pfes,
       else
       {
          assert(lowpass);
-         L = new WaveletRecursiveLevelFA(pfes, wavelet, Op_h.As<HypreParMatrix>());
+         L = new WaveletRecursiveLevelFA(fes, wavelet, Op_h);
       }
       assert(L);
       assert(L->OpHandle().Ptr());
@@ -219,10 +233,16 @@ WAMGRSolver::WAMGRSolver(ParFiniteElementSpace &pfes,
          else
          {
             dbg("Chebyshev smoother");
-            smoother = new OperatorChebyshevSmoother(*Op_h.Ptr(),
-                                                     args.diag,
-                                                     args.ess_tdof_list,
-                                                     args.smoother_order);
+            OperatorChebyshevSmoother *chebyshev_smoother =
+               new OperatorChebyshevSmoother(*Op_h.Ptr(),
+                                             args.diag,
+                                             args.ess_tdof_list,
+                                             args.smoother_order
+#ifdef MFEM_USE_MPI
+                                             ,fes.GetComm()
+#endif // MFEM_USE_MPI
+                                            );
+            smoother = chebyshev_smoother;
          }
       }
       else
@@ -238,10 +258,16 @@ WAMGRSolver::WAMGRSolver(ParFiniteElementSpace &pfes,
          else
          {
             dbg("Chebyshev smoother");
-            smoother = new OperatorChebyshevSmoother(*Op_h.Ptr(),
-                                                     diag,
-                                                     Array<int>(),
-                                                     args.smoother_order);
+            OperatorChebyshevSmoother *chebyshev_smoother =
+               new OperatorChebyshevSmoother(*Op_h.Ptr(),
+                                             diag,
+                                             Array<int>(),
+                                             args.smoother_order
+#ifdef MFEM_USE_MPI
+                                             ,fes.GetComm()
+#endif // MFEM_USE_MPI
+                                            );
+            smoother = chebyshev_smoother;
          }
       }
       Smoothers.Append(smoother);
@@ -253,40 +279,55 @@ WAMGRSolver::WAMGRSolver(ParFiniteElementSpace &pfes,
       OperatorHandle LOp_h;
       LOp_h.Reset(L->OpHandle().Ptr(),false);
       dbg("max_ndofs set to %d", max_ndofs);
-      if (to_bottom)
-      {
-         max_ndofs =  2;
-         dbg("max_ndofs adjusted to %d",max_ndofs);
-      }
-      const bool coarse_enough = m < max_ndofs;
-      const bool reached_max_levels = depth >= max_levels;
+      const bool coarse_enough = m < max_ndofs; // stop when too small
+      const bool reached_max_levels = depth >= max_depth;
       const bool local_coarse_enough_OR_reached_max_levels =
          coarse_enough || reached_max_levels;
       bool coarse_enough_OR_reached_max_levels;
+
+#ifdef MFEM_USE_MPI
       {
          NVTX("MPI_Allreduce");
          MPI_Allreduce(&local_coarse_enough_OR_reached_max_levels,
                        &coarse_enough_OR_reached_max_levels,
                        1, MPI_CXX_BOOL, MPI_LOR, MPI_COMM_WORLD);
       }
+#else
+      coarse_enough_OR_reached_max_levels =
+         local_coarse_enough_OR_reached_max_levels;
+#endif // MFEM_USE_MPI
 
       if (coarse_enough_OR_reached_max_levels)
       {
          NVTX("coarse_enough_OR_reached_max_levels");
-         if (to_bottom)
+         if (to_full)
          {
-            dbg("Coarse Id level 0: %dx%d", LOp_h->Height(), LOp_h->Width());
-            assert(LOp_h->Height() == LOp_h->Width());
-            const int n = LOp_h->Height();
-            LOp_h = OperatorHandle(new IdentityOperator(n),false);
-            Smoothers.Append(new IdentitySolver(n));
+            dbg("Sparse & Full level 0: %dx%d", LOp_h->Height(), LOp_h->Width());
+            CGSolver* wcg =  new CGSolver(
+#ifdef MFEM_USE_MPI
+               MPI_COMM_WORLD
+#endif
+            );
+            wcg->SetMaxIter(args.max_iter);
+            wcg->SetRelTol(1e-8);
+            wcg->SetAbsTol(1e-8);
+            wcg->SetPrintLevel(args.print_level);
+            wcg->SetOperator(*LOp_h);
+            wcg->iterative_mode = false;
+
+            Smoothers.Append(wcg);
             Operators.Append(LOp_h.Ptr());
          }
          else
          {
-            dbg("Coarse solver level 0 (%dx%d)",
-                LOp_h->Height(), LOp_h->Width());
-            CGSolver* wcg = new CGSolver(MPI_COMM_WORLD);
+            const int depth = Prolongators.Size();
+            dbg("Coarse solver level 0 (%dx%d), depth:%d",
+                LOp_h->Height(), LOp_h->Width(), depth);
+            CGSolver *wcg = new CGSolver(
+#ifdef MFEM_USE_MPI
+               MPI_COMM_WORLD
+#endif // MFEM_USE_MPI
+            );
             wcg->SetMaxIter(args.max_iter);
             wcg->SetRelTol(1e-8);
             wcg->SetAbsTol(1e-8);
@@ -299,12 +340,17 @@ WAMGRSolver::WAMGRSolver(ParFiniteElementSpace &pfes,
          }
          break;
       }
+
       Op_h.Reset(LOp_h.Ptr(), false);
       m = (round_up ? (m+(m%2&1)) : (m-(m%2&1))) >> 1;
    }
 
    const int depth = Prolongators.Size();
-   if (args.print_level > 0 && pfes.GetParMesh()->GetMyRank()==0)
+   if (args.print_level > 0
+#ifdef MFEM_USE_MPI
+       && fes.GetParMesh()->GetMyRank()==0
+#endif // MFEM_USE_MPI
+      )
    {
       mfem::out << "[WAMG] " << depth << " levels in hierarchy" << std::endl;
    }
@@ -332,10 +378,14 @@ WAMGRSolver::WAMGRSolver(ParFiniteElementSpace &pfes,
 
 ////////////////////////////////////////////////////////////////////////////////
 /// \brief WAMG solver
-WAMG::WAMG(ParFiniteElementSpace &pfes, Wavelet::Type wavelet, wargs_t args):
-   wavelet_solver(pfes, wavelet, lowpass,
-                  max_depth, max_ndofs,
-                  args, to_bottom, to_full)
+WAMG::WAMG(
+#ifndef MFEM_USE_MPI
+   FiniteElementSpace &fes,
+#else
+   ParFiniteElementSpace &fes,
+#endif // MFEM_USE_MPI
+   Wavelet::Type wavelet, wargs_t args):
+   wavelet_solver(fes, wavelet, lowpass, args, to_full)
 {
    dbg();
 }
@@ -347,19 +397,20 @@ void WAMG::Mult(const Vector &x, Vector &y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 /// \brief faWAMG solver
-faWAMG::faWAMG(ParFiniteElementSpace &pfes, Wavelet::Type wavelet,
-               wargs_t args):
-   wavelet_solver(pfes, wavelet, lowpass,
-                  max_depth, max_ndofs,
-                  args, to_bottom, to_full)
+faWAMG::faWAMG(
+#ifndef MFEM_USE_MPI
+   FiniteElementSpace &fes,
+#else
+   ParFiniteElementSpace &fes,
+#endif // MFEM_USE_MPI
+   Wavelet::Type wavelet,
+   wargs_t args):
+   wavelet_solver(fes, wavelet, lowpass, args, to_full)
 {
    dbg();
 }
 
-void faWAMG::Mult(const Vector &x, Vector &y) const
-{
-   wavelet_solver.Mult(x,y);
-}
+void faWAMG::Mult(const Vector &x, Vector &y) const {wavelet_solver.Mult(x,y);}
 
 } // namespace mfem
 

@@ -24,19 +24,27 @@ struct wargs_t
    Vector &diag;
    Array<int> &ess_tdof_list;
    int smoother_order, max_iter, print_level;
+   const int max_depth, max_ndofs;
+   BilinearForm *a;
 
    wargs_t(const OperatorHandle &op,
            Vector &diag,
            Array<int> &ess_tdof_list,
            int smoother_order,
            int max_iter,
-           int print_level):
+           int print_level,
+           const int max_depth,
+           const int max_ndofs,
+           BilinearForm *a = nullptr):
       op_h(op),
       diag(diag),
       ess_tdof_list(ess_tdof_list),
       smoother_order(smoother_order),
       max_iter(max_iter),
-      print_level(print_level) {}
+      print_level(print_level),
+      max_depth(max_depth),
+      max_ndofs(max_ndofs),
+      a(a) {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,10 +73,15 @@ struct WaveletRecursiveLevelFA: public WaveletLevel
    Wavelet *W;
    Operator *Wt;
    SparseMatrix *M, *tM;
-   HypreParMatrix *MAMt;
-   WaveletRecursiveLevelFA(ParFiniteElementSpace &pfes,
-                           Wavelet::Type &wavelet,
-                           HypreParMatrix *Op_h);
+   OperatorHandle MAMt;
+   WaveletRecursiveLevelFA(
+#ifndef MFEM_USE_MPI
+      FiniteElementSpace&,
+#else
+      ParFiniteElementSpace &pfes,
+#endif // MFEM_USE_MPI
+      Wavelet::Type &wavelet,
+      const OperatorHandle &Op_h);
    ~WaveletRecursiveLevelFA();
    OperatorHandle OpHandle() override;
    Operator *Prolongator() override;
@@ -78,14 +91,16 @@ struct WaveletRecursiveLevelFA: public WaveletLevel
 class WAMGRSolver : public Multigrid
 {
 public:
-   WAMGRSolver(ParFiniteElementSpace &pfes,
-               Wavelet::Type wavelet,
-               const bool lowpass,
-               int max_depth,
-               int max_ndofs,
-               wargs_t args,
-               const bool to_bottom,
-               const bool to_full);
+   WAMGRSolver(
+#ifndef MFEM_USE_MPI
+      FiniteElementSpace &fes,
+#else
+      ParFiniteElementSpace &pfes,
+#endif // MFEM_USE_MPI
+      Wavelet::Type wavelet,
+      const bool lowpass,
+      wargs_t args,
+      const bool to_full);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,14 +108,15 @@ public:
 /// wavelet == HAAR | DAUBECHIES & lowpass
 class WAMG : public Solver
 {
-   const int max_depth = 32;
-   const int max_ndofs = 1024*1024;
    const bool lowpass = true;
-   const bool to_bottom = false;
    const bool to_full = false;
    WAMGRSolver wavelet_solver;
 public:
+#ifndef MFEM_USE_MPI
+   WAMG(FiniteElementSpace &fes, Wavelet::Type wavelet, wargs_t args);
+#else
    WAMG(ParFiniteElementSpace &pfes, Wavelet::Type wavelet, wargs_t args);
+#endif // MFEM_USE_MPI
    void Mult(const Vector&, Vector&) const override;
    void SetOperator(const Operator&) override { assert(false); }
    void AssembleDiagonal(Vector&) const override { assert(false); }
@@ -111,19 +127,19 @@ public:
 /// wavelet == HAAR | DAUBECHIES & lowpass
 class faWAMG : public Solver
 {
-   const int max_depth = 32;
-   const int max_ndofs = 16*1024;
    const bool lowpass = true;
-   const bool to_bottom = false;
    const bool to_full = true;
    WAMGRSolver wavelet_solver;
 public:
+#ifndef MFEM_USE_MPI
+   faWAMG(FiniteElementSpace &fes, Wavelet::Type wavelet, wargs_t args);
+#else
    faWAMG(ParFiniteElementSpace &pfes, Wavelet::Type wavelet, wargs_t args);
+#endif // MFEM_USE_MPI
    void Mult(const Vector&, Vector&) const override;
    void SetOperator(const Operator&) override { assert(false); }
    void AssembleDiagonal(Vector&) const override { assert(false); }
 };
-
 
 } // mfem namespace
 

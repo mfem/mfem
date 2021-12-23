@@ -1230,13 +1230,13 @@ void FastProlongation3D(const int lND,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             if (tz == 0) { s_B[qx][dy] = B_(qx,dy); }
-            //MFEM_UNROLL(D1D)
+            MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
-            //MFEM_UNROLL(D1D)
+            MFEM_UNROLL(D1D)
             for (int dx = 0; dx < D1D; ++dx)
             {
                const double Bx = B_(qx,dx);
-               //MFEM_UNROLL(D1D)
+               MFEM_UNROLL(D1D)
                for (int dz = 0; dz < D1D; ++dz)
                {
                   const int gid = lMAP(dx,dy,dz,e);
@@ -1244,7 +1244,7 @@ void FastProlongation3D(const int lND,
                   u[dz] += X(idx)* Bx;
                }
             }
-            //MFEM_UNROLL(D1D)
+            MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz) { s_q[tz][dz][dy][qx] = u[dz]; }
          }
       }
@@ -1255,16 +1255,16 @@ void FastProlongation3D(const int lND,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            //MFEM_UNROLL(Q1D)
+            MFEM_UNROLL(Q1D)
             for (int qy = 0; qy < Q1D; ++qy) { u[qy] = 0.0; }
-            //MFEM_UNROLL(D1D)
+            MFEM_UNROLL(D1D)
             for (int dy = 0; dy < D1D; ++dy)
             {
                const double zyX = s_q[tz][dz][dy][qx];
-               //MFEM_UNROLL(D1D)
+               MFEM_UNROLL(D1D)
                for (int qy = 0; qy < Q1D; ++qy) { u[qy] += zyX * s_B[qy][dy]; }
             }
-            //MFEM_UNROLL(Q1D)
+            MFEM_UNROLL(Q1D)
             for (int qy = 0; qy < Q1D; ++qy) { s_q[tz][dz][qy][qx] = u[qy]; }
          }
       }
@@ -1276,18 +1276,18 @@ void FastProlongation3D(const int lND,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             // Z interpolation
-            //MFEM_UNROLL(Q1D)
+            MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
-            //MFEM_UNROLL(D1D)
+            MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz)
             {
                const double zYX = s_q[tz][dz][qy][qx];
-               //MFEM_UNROLL(Q1D)
+               MFEM_UNROLL(Q1D)
                for (int qz = 0; qz < Q1D; ++qz) { u[qz] += zYX * s_B[qz][dz]; }
             }
 
             // Q-function
-            //MFEM_UNROLL(Q1D)
+            MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
                const int gid = hMAP(qx,qy,qz,e);
@@ -1305,94 +1305,71 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
                     const Vector& localL, Vector& localH,
                     const Array<double>& B, const Vector& mask)
 {
-   const auto B_ = Reshape(B.Read(), Q1D, D1D);
-   const auto X = Reshape(localL.Read(), D1D, D1D, D1D, NE);
-   const auto M = Reshape(mask.Read(), Q1D, Q1D, Q1D, NE);
-   auto Y = Reshape(localH.ReadWrite(), Q1D, Q1D, Q1D, NE);
+   auto x_ = Reshape(localL.Read(), D1D, D1D, D1D, NE);
+   auto y_ = Reshape(localH.ReadWrite(), Q1D, Q1D, Q1D, NE);
+   auto B_ = Reshape(B.Read(), Q1D, D1D);
+   auto m_ = Reshape(mask.Read(), Q1D, Q1D, Q1D, NE);
 
    localH = 0.0;
 
-   constexpr int NBZ = 1;
-   assert(Q1D<=8);
-
-   MFEM_FORALL_3D(be, (NE+NBZ-1)/NBZ, Q1D, Q1D, NBZ,
+   MFEM_FORALL(e, NE,
    {
-      double u[8];
-      const int tz = MFEM_THREAD_ID(z);
-      const int e = be * MFEM_THREAD_SIZE(z) + tz;
-
-      MFEM_SHARED double s_B[8][8];
-      MFEM_SHARED double s_q[NBZ][8][8][8];
-
-      // Load input, B & X interpolation
-      MFEM_FOREACH_THREAD(dy,y,D1D)
+      for (int dz = 0; dz < D1D; ++dz)
       {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         double sol_xy[MAX_Q1D][MAX_Q1D];
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            if (tz == 0) { s_B[qx][dy] = B_(qx,dy); }
-            //MFEM_UNROLL(D1D)
-            for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
-            //MFEM_UNROLL(D1D)
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               sol_xy[qy][qx] = 0.0;
+            }
+         }
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            double sol_x[MAX_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               sol_x[qx] = 0;
+            }
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double Bx = B_(qx,dx);
-               //MFEM_UNROLL(D1D)
-               for (int dz = 0; dz < D1D; ++dz)
+               const double s = x_(dx, dy, dz, e);
+               for (int qx = 0; qx < Q1D; ++qx)
                {
-                  u[dz] += X(dx,dy,dz,e)* Bx;
+                  sol_x[qx] += B_(qx, dx) * s;
                }
             }
-            //MFEM_UNROLL(D1D)
-            for (int dz = 0; dz < D1D; ++dz) { s_q[tz][dz][dy][qx] = u[dz]; }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy = B_(qy, dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  sol_xy[qy][qx] += wy * sol_x[qx];
+               }
+            }
          }
-      }
-      MFEM_SYNC_THREAD;
-
-      // Y interpolation
-      MFEM_FOREACH_THREAD(dz,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         for (int qz = 0; qz < Q1D; ++qz)
          {
-            //MFEM_UNROLL(Q1D)
-            for (int qy = 0; qy < Q1D; ++qy) { u[qy] = 0.0; }
-            //MFEM_UNROLL(D1D)
-            for (int dy = 0; dy < D1D; ++dy)
+            const double wz = B_(qz, dz);
+            for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double zyX = s_q[tz][dz][dy][qx];
-               //MFEM_UNROLL(D1D)
-               for (int qy = 0; qy < Q1D; ++qy) { u[qy] += zyX * s_B[qy][dy]; }
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  y_(qx, qy, qz, e) += wz * sol_xy[qy][qx];
+               }
             }
-            //MFEM_UNROLL(Q1D)
-            for (int qy = 0; qy < Q1D; ++qy) { s_q[tz][dz][qy][qx] = u[qy]; }
          }
       }
-      MFEM_SYNC_THREAD;
-
-      // Z interpolation & Q-function
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      for (int qz = 0; qz < Q1D; ++qz)
       {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            // Z interpolation
-            // MFEM_UNROLL(Q1D)
-            for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
-            //MFEM_UNROLL(D1D)
-            for (int dz = 0; dz < D1D; ++dz)
+            for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double zYX = s_q[tz][dz][qy][qx];
-               //MFEM_UNROLL(Q1D)
-               for (int qz = 0; qz < Q1D; ++qz) { u[qz] += zYX * s_B[qz][dz]; }
-            }
-
-            // Q-function
-            //MFEM_UNROLL(Q1D)
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               Y(qx, qy, qz, e) = M(qx, qy, qz, e) * u[qz];
+               y_(qx, qy, qz, e) *= m_(qx, qy, qz, e);
             }
          }
       }
-      MFEM_SYNC_THREAD;
    });
 }
 
@@ -1440,108 +1417,61 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
                    const Vector& localH, Vector& localL,
                    const Array<double>& Bt, const Vector& mask)
 {
-   const auto Bt_ = Reshape(Bt.Read(), D1D, Q1D);
-   const auto M = Reshape(mask.Read(), Q1D, Q1D, Q1D, NE);
-   const auto X = Reshape(localH.Read(), Q1D, Q1D, Q1D, NE);
-   auto Y = Reshape(localL.ReadWrite(), D1D, D1D, D1D, NE);
+   auto x_ = Reshape(localH.Read(), Q1D, Q1D, Q1D, NE);
+   auto y_ = Reshape(localL.ReadWrite(), D1D, D1D, D1D, NE);
+   auto Bt_ = Reshape(Bt.Read(), D1D, Q1D);
+   auto m_ = Reshape(mask.Read(), Q1D, Q1D, Q1D, NE);
 
    localL = 0.0;
 
-   constexpr int NBZ = 1;
-   assert(Q1D<=8);
-
-   MFEM_FORALL_3D(be, (NE+NBZ-1)/NBZ, Q1D, Q1D, NBZ,
+   MFEM_FORALL(e, NE,
    {
-      double u[8];
-      const int tz = MFEM_THREAD_ID(z);
-      const int e = be * MFEM_THREAD_SIZE(z) + tz;
-
-      MFEM_SHARED double s_B[8][8];
-      MFEM_SHARED double s_q[NBZ][8][8][8];
-
-      // Load B
-      if (tz == 0)
+      for (int qz = 0; qz < Q1D; ++qz)
       {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
+         double sol_xy[MAX_D1D][MAX_D1D];
+         for (int dy = 0; dy < D1D; ++dy)
          {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
-            {
-               { s_B[qx][dy] = Bt_(dy,qx); }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      // Q-function & Zt projection
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            // Q-function
-            //MFEM_UNROLL(Q1D)
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               s_q[tz][qz][qy][qx] = M(qx, qy, qz, e) * X(qx,qy,qz,e);
-            }
-
-            // Zt projection
-            //MFEM_UNROLL(D1D)
-            for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
-            //MFEM_UNROLL(Q1D)
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               const double ZYX = s_q[tz][qz][qy][qx];
-               //MFEM_UNROLL(D1D)
-               for (int dz = 0; dz < D1D; ++dz) { u[dz] += ZYX * s_B[qz][dz]; }
-            }
-            //MFEM_UNROLL(D1D)
-            for (int dz = 0; dz < D1D; ++dz) { s_q[tz][dz][qy][qx] = u[dz]; }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      // Yt projection
-      MFEM_FOREACH_THREAD(dz,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            //MFEM_UNROLL(D1D)
-            for (int dy = 0; dy < D1D; ++dy) { u[dy] = 0.0; }
-            //MFEM_UNROLL(Q1D)
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               const double zYX = s_q[tz][dz][qy][qx];
-               //MFEM_UNROLL(D1D)
-               for (int dy = 0; dy < D1D; ++dy) { u[dy] += zYX * s_B[qy][dy]; }
-            }
-            //MFEM_UNROLL(D1D)
-            for (int dy = 0; dy < D1D; ++dy) { s_q[tz][dz][dy][qx] = u[dy]; }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      // Xt projection & save output
-      MFEM_FOREACH_THREAD(dz,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dy,x,D1D)
-         {
-            //MFEM_UNROLL(D1D)
-            for (int dx = 0; dx < D1D; ++dx) { u[dx] = 0.0; }
-            //MFEM_UNROLL(Q1D)
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               const double zyX = s_q[tz][dz][dy][qx];
-               //MFEM_UNROLL(D1D)
-               for (int dx = 0; dx < D1D; ++dx) { u[dx] += zyX * s_B[qx][dx]; }
-            }
-            //MFEM_UNROLL(D1D)
             for (int dx = 0; dx < D1D; ++dx)
             {
-               Y(dx,dy,dz,e) += u[dx];
+               sol_xy[dy][dx] = 0;
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            double sol_x[MAX_D1D];
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               sol_x[dx] = 0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double s = m_(qx, qy, qz, e) * x_(qx, qy, qz, e);
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  sol_x[dx] += Bt_(dx, qx) * s;
+               }
+            }
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               const double wy = Bt_(dy, qy);
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  sol_xy[dy][dx] += wy * sol_x[dx];
+               }
+            }
+         }
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            const double wz = Bt_(dz, qz);
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  y_(dx, dy, dz, e) += wz * sol_xy[dy][dx];
+               }
             }
          }
       }
-      MFEM_SYNC_THREAD;
    });
 }
 
@@ -1596,7 +1526,7 @@ void FastRestriction3D(const int lND,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             // Q-function
-            //MFEM_UNROLL(Q1D)
+            MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
                const int gid = hMAP(qx,qy,qz,e);
@@ -1605,16 +1535,16 @@ void FastRestriction3D(const int lND,
             }
 
             // Zt projection
-            //MFEM_UNROLL(D1D)
+            MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
-            //MFEM_UNROLL(Q1D)
+            MFEM_UNROLL(Q1D)
             for (int qz = 0; qz < Q1D; ++qz)
             {
                const double ZYX = s_q[tz][qz][qy][qx];
-               //MFEM_UNROLL(D1D)
+               MFEM_UNROLL(D1D)
                for (int dz = 0; dz < D1D; ++dz) { u[dz] += ZYX * s_B[qz][dz]; }
             }
-            //MFEM_UNROLL(D1D)
+            MFEM_UNROLL(D1D)
             for (int dz = 0; dz < D1D; ++dz) { s_q[tz][dz][qy][qx] = u[dz]; }
          }
       }
@@ -1625,16 +1555,16 @@ void FastRestriction3D(const int lND,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            //MFEM_UNROLL(D1D)
+            MFEM_UNROLL(D1D)
             for (int dy = 0; dy < D1D; ++dy) { u[dy] = 0.0; }
-            //MFEM_UNROLL(Q1D)
+            MFEM_UNROLL(Q1D)
             for (int qy = 0; qy < Q1D; ++qy)
             {
                const double zYX = s_q[tz][dz][qy][qx];
-               //MFEM_UNROLL(D1D)
+               MFEM_UNROLL(D1D)
                for (int dy = 0; dy < D1D; ++dy) { u[dy] += zYX * s_B[qy][dy]; }
             }
-            //MFEM_UNROLL(D1D)
+            MFEM_UNROLL(D1D)
             for (int dy = 0; dy < D1D; ++dy) { s_q[tz][dz][dy][qx] = u[dy]; }
          }
       }
@@ -1645,16 +1575,16 @@ void FastRestriction3D(const int lND,
       {
          MFEM_FOREACH_THREAD(dy,x,D1D)
          {
-            //MFEM_UNROLL(D1D)
+            MFEM_UNROLL(D1D)
             for (int dx = 0; dx < D1D; ++dx) { u[dx] = 0.0; }
-            //MFEM_UNROLL(Q1D)
+            MFEM_UNROLL(Q1D)
             for (int qx = 0; qx < Q1D; ++qx)
             {
                const double zyX = s_q[tz][dz][dy][qx];
-               //MFEM_UNROLL(D1D)
+               MFEM_UNROLL(D1D)
                for (int dx = 0; dx < D1D; ++dx) { u[dx] += zyX * s_B[qx][dx]; }
             }
-            //MFEM_UNROLL(D1D)
+            MFEM_UNROLL(D1D)
             for (int dx = 0; dx < D1D; ++dx)
             {
                const int gid = lMAP(dx,dy,dz,e);
