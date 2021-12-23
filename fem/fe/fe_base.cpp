@@ -1079,12 +1079,11 @@ void VectorFiniteElement::ProjectCurl_ND(
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix curlshape(fe.GetDof(), dim);
    DenseMatrix curlshape_J(fe.GetDof(), dim);
-   DenseMatrix J(dim, dim);
 #else
    curlshape.SetSize(fe.GetDof(), dim);
    curlshape_J.SetSize(fe.GetDof(), dim);
-   J.SetSize(dim, dim);
 #endif
+   DenseMatrix J(dim, dim);
 
    Vector curl_k(fe.GetDof());
 
@@ -1833,15 +1832,15 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d,
    }
 }
 
-void Poly_1D::Basis::EvalIntegrated(const Vector &d_aux, Vector &u) const
+void Poly_1D::Basis::EvalIntegrated(const Vector &_d_aux, Vector &u) const
 {
    MFEM_VERIFY(etype == Integrated,
                "EvalIntegrated is only valid for Integrated basis type");
-   int p = d_aux.Size() - 1;
-   u[0] = -d_aux[0];
+   int p = _d_aux.Size() - 1;
+   u[0] = -_d_aux[0];
    for (int j=1; j<p; ++j)
    {
-      u[j] = u[j-1] - d_aux[j];
+      u[j] = u[j-1] - _d_aux[j];
    }
 }
 
