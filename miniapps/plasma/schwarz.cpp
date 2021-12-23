@@ -711,7 +711,7 @@ PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, int ref_levels_,
                            ParFiniteElementSpace *fespace)
 {
   //VertexPatchInfo *patch_nodes = new VertexPatchInfo(pmesh_, ref_levels_);
-   LinePatchInfo *patch_nodes = new LinePatchInfo(pmesh_, ref_levels_);
+  LinePatchInfo *patch_nodes = new LinePatchInfo(pmesh_, ref_levels_);
 
    int num_procs, myid;
    comm = pmesh_->GetComm();
@@ -1422,17 +1422,17 @@ SchwarzSmoother::SchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,
 #ifdef MFEM_USE_SUITESPARSE
          PatchInv[ip] = new UMFPackSolver;
          PatchInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_AMD;
-         std::cout << "SchwarzSmoother using UMFPackSolver" << std::endl;
+         //std::cout << "SchwarzSmoother using UMFPackSolver" << std::endl;
 #else
          PatchInv[ip] = new GMRESSolver;
          PatchInv[ip]->iterative_mode = false;
          //std::cout << "SchwarzSmoother using GMRESSolver size " << P->PatchMat[ip]->Height() << " x " << P->PatchMat[ip]->Width() << " sym " << P->PatchMat[ip]->IsSymmetric() << std::endl;
+	 PatchInv[ip]->SetRelTol(1e-12);
+         PatchInv[ip]->SetMaxIter(100);
 #endif
          PatchInv[ip]->SetOperator(*P->PatchMat[ip]);
          //CheckSPD(P->PatchMat[ip]);
          //MFEM_VERIFY(P->PatchMat[ip]->IsSymmetric() < 1.0e-12, "");
-         PatchInv[ip]->SetRelTol(1e-12);
-         PatchInv[ip]->SetMaxIter(100);
          //PatchInv[ip]->SetPrintLevel(1);
       }
    }
