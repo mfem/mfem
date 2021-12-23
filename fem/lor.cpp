@@ -23,6 +23,7 @@
 
 #define MFEM_NVTX_COLOR Turquoise
 #include "../general/nvtx.hpp"
+#include <limits.h>
 
 namespace mfem
 {
