@@ -127,7 +127,7 @@ protected:
    /** @brief (DEPRECATED) Legacy print level definition, which is left for
        compatibility with custom iterative solvers.
        @deprecated #print_options should be used instead. */
-   MFEM_DEPRECATED int print_level = -1;
+   int print_level = -1;
 
    /** @brief Output behavior for the iterative solver.
 
@@ -221,7 +221,10 @@ public:
 
        In parallel, only rank 0 produces output.
 
-       @note It is recommended to use @ref SetPrintLevel(PrintLevel) instead. */
+       @note It is recommended to use @ref SetPrintLevel(PrintLevel) instead.
+
+       @note Some derived classes, like KINSolver, redefine this method and use
+       their own set of print level constants. */
    virtual void SetPrintLevel(int print_lvl);
 
    /// @brief Set the level of verbosity of the solver output.
@@ -230,9 +233,12 @@ public:
 
        @note Not all subclasses of IterativeSolver support all possible options.
 
+       @note Some derived classes, like KINSolver, disable this method in favor
+       of SetPrintLevel(int).
+
        @sa PrintLevel for possible options.
    */
-   void SetPrintLevel(PrintLevel);
+   virtual void SetPrintLevel(PrintLevel);
    ///@}
 
    /// @name Solver statistics
