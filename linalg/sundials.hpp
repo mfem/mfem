@@ -833,6 +833,12 @@ public:
    /** @note Only valid in combination with JFNK */
    void SetLSMaxRestarts(int m) { maxlrs = m; }
 
+   /// Set the print level for the KINSetPrintLevel function.
+   virtual void SetPrintLevel(int print_lvl) { print_level = print_lvl; }
+
+   /// This method is not supported and will throw an error.
+   virtual void SetPrintLevel(PrintLevel);
+
    /// Solve the nonlinear system \f$ F(x) = 0 \f$.
    /** This method computes the x_scale and fx_scale vectors and calls the
        other Mult(Vector&, Vector&, Vector&) const method. The x_scale vector
