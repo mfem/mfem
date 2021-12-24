@@ -143,9 +143,9 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
    {
       const int nnz = I[height];
       A.New(nnz);
-      for (int i=0; i<nnz; ++i)
+      for (int ii=0; ii<nnz; ++ii)
       {
-         A[i] = 0.0;
+         A[ii] = 0.0;
       }
    }
 
@@ -559,21 +559,21 @@ void SparseMatrix::GetDiag(Vector & d) const
 
    d.SetSize(height);
 
-   const auto I = this->ReadI();
-   const auto J = this->ReadJ();
-   const auto A = this->ReadData();
+   const auto II = this->ReadI();
+   const auto JJ = this->ReadJ();
+   const auto AA = this->ReadData();
    auto dd = d.Write();
 
    MFEM_FORALL(i, height,
    {
-      const int begin = I[i];
-      const int end = I[i+1];
+      const int begin = II[i];
+      const int end = II[i+1];
       int j;
       for (j = begin; j < end; j++)
       {
-         if (J[j] == i)
+         if (JJ[j] == i)
          {
-            dd[i] = A[j];
+            dd[i] = AA[j];
             break;
          }
       }
@@ -1920,11 +1920,11 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 
    if (Rows == NULL)
    {
-      const auto &I = this->I; // only use const access for I
-      const auto &J = this->J; // only use const access for J
-      for (int j = I[rc]; j < I[rc+1]; j++)
+      const auto &II = this->I; // only use const access for I
+      const auto &JJ = this->J; // only use const access for J
+      for (int j = II[rc]; j < II[rc+1]; j++)
       {
-         const int col = J[j];
+         const int col = JJ[j];
          if (col == rc)
          {
             if (dpolicy == DIAG_ONE)
@@ -1939,13 +1939,13 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
          else
          {
             A[j] = 0.0;
-            for (int k = I[col]; 1; k++)
+            for (int k = II[col]; 1; k++)
             {
-               if (k == I[col+1])
+               if (k == II[col+1])
                {
                   mfem_error("SparseMatrix::EliminateRowCol() #2");
                }
-               else if (J[k] == rc)
+               else if (JJ[k] == rc)
                {
                   A[k] = 0.0;
                   break;
@@ -2561,9 +2561,9 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
    }
 }
 
-void SparseMatrix::Set(const int i, const int j, const double A)
+void SparseMatrix::Set(const int i, const int j, const double a_)
 {
-   double a = A;
+   double a = a_;
    int gi, gj, s, t;
 
    if ((gi=i) < 0) { gi = -1-gi, s = -1; }
@@ -2580,10 +2580,10 @@ void SparseMatrix::Set(const int i, const int j, const double A)
    _Set_(gi, gj, a);
 }
 
-void SparseMatrix::Add(const int i, const int j, const double A)
+void SparseMatrix::Add(const int i, const int j, const double a_)
 {
    int gi, gj, s, t;
-   double a = A;
+   double a = a_;
 
    if ((gi=i) < 0) { gi = -1-gi, s = -1; }
    else { s = 1; }

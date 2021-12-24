@@ -153,11 +153,11 @@ public:
    //! Add a square block op in the block-entry (iblock, iblock).
    /**
     * iblock: The block will be inserted in location (iblock, iblock).
-    * op: the Operator to be inserted.
+    * opt: the Operator to be inserted.
     */
-   void SetDiagonalBlock(int iblock, Operator *op);
+   void SetDiagonalBlock(int iblock, Operator *opt);
    //! This method is present since required by the abstract base class Solver
-   virtual void SetOperator(const Operator &op) { }
+   virtual void SetOperator(const Operator &opt) { }
 
    //! Return the number of blocks
    int NumBlocks() const { return nBlocks; }
@@ -237,17 +237,17 @@ public:
    //! Add block op in the block-entry (iblock, iblock).
    /**
     * @param iblock  The block will be inserted in location (iblock, iblock).
-    * @param op      The Operator to be inserted.
+    * @param opt     The Operator to be inserted.
     */
-   void SetDiagonalBlock(int iblock, Operator *op);
-   //! Add a block op in the block-entry (iblock, jblock).
+   void SetDiagonalBlock(int iblock, Operator *opt);
+   //! Add a block opt in the block-entry (iblock, jblock).
    /**
     * @param iRow, iCol  The block will be inserted in location (iRow, iCol).
-    * @param op          The Operator to be inserted.
+    * @param opt         The Operator to be inserted.
     */
-   void SetBlock(int iRow, int iCol, Operator *op);
+   void SetBlock(int iRow, int iCol, Operator *opt);
    //! This method is present since required by the abstract base class Solver
-   virtual void SetOperator(const Operator &op) { }
+   virtual void SetOperator(const Operator &opt) { }
 
    //! Return the number of blocks
    int NumBlocks() const { return nBlocks; }
