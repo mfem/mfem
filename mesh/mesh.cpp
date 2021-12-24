@@ -4508,10 +4508,10 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
 
          // Rotate the vertices of the hex so that the smallest vertex index is
          // in the first place
-         int irot = find_min(vg, nv_hex);
+         int imin = find_min(vg, nv_hex);
          for (int iv=0; iv<nv_hex; ++iv)
          {
-            int jv = hex_rot[iv + irot*nv_hex];
+            int jv = hex_rot[iv + imin*nv_hex];
             vg[iv] = v[jv];
          }
 
@@ -5845,25 +5845,25 @@ Table *Mesh::GetFaceToElementTable() const
    return face_elem;
 }
 
-void Mesh::GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const
+void Mesh::GetElementFaces(int i, Array<int> &el_faces, Array<int> &ori) const
 {
    MFEM_VERIFY(el_to_face != NULL, "el_to_face not generated");
 
-   el_to_face->GetRow(i, faces);
+   el_to_face->GetRow(i, el_faces);
 
-   int n = faces.Size();
+   int n = el_faces.Size();
    ori.SetSize(n);
 
    for (int j = 0; j < n; j++)
    {
-      if (faces_info[faces[j]].Elem1No == i)
+      if (faces_info[el_faces[j]].Elem1No == i)
       {
-         ori[j] = faces_info[faces[j]].Elem1Inf % 64;
+         ori[j] = faces_info[el_faces[j]].Elem1Inf % 64;
       }
       else
       {
-         MFEM_ASSERT(faces_info[faces[j]].Elem2No == i, "internal error");
-         ori[j] = faces_info[faces[j]].Elem2Inf % 64;
+         MFEM_ASSERT(faces_info[el_faces[j]].Elem2No == i, "internal error");
+         ori[j] = faces_info[el_faces[j]].Elem2Inf % 64;
       }
    }
 }
@@ -8890,14 +8890,14 @@ bool Mesh::DerefineByError(const Vector &elem_error, double threshold,
 }
 
 
-void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
+void Mesh::InitFromNCMesh(const NCMesh &other_ncmesh)
 {
-   Dim = ncmesh.Dimension();
-   spaceDim = ncmesh.SpaceDimension();
+   Dim = other_ncmesh.Dimension();
+   spaceDim = other_ncmesh.SpaceDimension();
 
    DeleteTables();
 
-   ncmesh.GetMeshComponents(*this);
+   other_ncmesh.GetMeshComponents(*this);
 
    NumOfVertices = vertices.Size();
    NumOfElements = elements.Size();
@@ -8926,11 +8926,11 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
    // outside after this method.
 }
 
-Mesh::Mesh(const NCMesh &ncmesh)
+Mesh::Mesh(const NCMesh &other_ncmesh)
 {
    Init();
    InitTables();
-   InitFromNCMesh(ncmesh);
+   InitFromNCMesh(other_ncmesh);
    SetAttributes();
 }
 
@@ -9599,17 +9599,17 @@ const CoarseFineTransformations& Mesh::GetRefinementTransforms()
          mat_no[0] = 1; // identity
 
          // assign matrix indices to element transformations
-         for (int i = 0; i < elements.Size(); i++)
+         for (int j = 0; j < elements.Size(); j++)
          {
             int index = 0;
-            unsigned code = elements[i]->GetTransform();
+            unsigned code = elements[j]->GetTransform();
             if (code)
             {
                int &matrix = mat_no[code];
                if (!matrix) { matrix = mat_no.size(); }
                index = matrix-1;
             }
-            CoarseFineTr.embeddings[i].matrix = index;
+            CoarseFineTr.embeddings[j].matrix = index;
          }
 
          DenseTensor &pmats = CoarseFineTr.point_matrices[geom];
@@ -10761,7 +10761,7 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
 
    int i, j, k, l, s;
 
-   int nv;
+   int nv, nbe;
    const int *ind;
 
    int *vcount = new int[NumOfVertices];
@@ -10795,9 +10795,6 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
    // 2D
    if (Dim == 2)
    {
-      int nv, nbe;
-      int *ind;
-
       Table edge_el;
       Transpose(ElementToEdgeTable(), edge_el);
 
@@ -10955,7 +10952,6 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
       }
 
       // print the boundary information.
-      int k, l, nbe;
       nbe = 0;
       for (i = 0; i < NumOfFaces; i++)
          if ((l = faces_info[i].Elem2No) >= 0)
@@ -11019,7 +11015,6 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
    else if (meshgen == 2) // TrueGrid
    {
       // count the number of the boundary elements.
-      int k, l, nbe;
       nbe = 0;
       for (i = 0; i < NumOfFaces; i++)
          if ((l = faces_info[i].Elem2No) >= 0)
@@ -11654,17 +11649,17 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
    }
    if (pts_found != npts)
    {
-      Array<int> vertices;
+      Array<int> elvertices;
       Table *vtoel = GetVertexToElementTable();
       for (int k = 0; k < npts; k++)
       {
          if (elem_ids[k] != -1) { continue; }
          // Try all vertex-neighbors of element e_idx[k]
          pt.SetData(data+k*spaceDim);
-         GetElementVertices(e_idx[k], vertices);
-         for (int v = 0; v < vertices.Size(); v++)
+         GetElementVertices(e_idx[k], elvertices);
+         for (int v = 0; v < elvertices.Size(); v++)
          {
-            int vv = vertices[v];
+            int vv = elvertices[v];
             int ne = vtoel->RowSize(vv);
             const int* els = vtoel->GetRow(vv);
             for (int e = 0; e < ne; e++)
