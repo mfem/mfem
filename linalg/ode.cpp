@@ -986,10 +986,10 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
    }
 }
 
-void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f)
+void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f_)
 {
-   this->f = &f;
-   mem_type = GetMemoryType(f.GetMemoryClass());
+   this->f = &f_;
+   mem_type = GetMemoryType(f_.GetMemoryClass());
 }
 
 void NewmarkSolver::Init(SecondOrderTimeDependentOperator &f_)
