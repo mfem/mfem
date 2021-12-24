@@ -378,19 +378,97 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
    delete aux_fec;
 }
 
+int SetCoarseVertexLinePatches_xline(ParMesh *pmesh, ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
+{
+  Vector linecrd;
+  double tol = 1.0e-3;
+
+  // TODO: input linecrd rather than hard-coding it as done here.
+  const int nlines = 33;
+  linecrd.SetSize(nlines);
+  for (int i=0; i<nlines; ++i)
+    {
+      linecrd[i] = ((double) i) / ((double) (nlines - 1));
+    }
+
+  for (int i=0; i<pmesh->GetNV(); ++i)
+    {
+      const double y = pmesh->GetVertex(i)[1];
+      int globalLineIndex = -1;
+      for (int j=0; j<nlines; ++j)
+	{
+	  if (fabs(linecrd[j] - y) < tol)
+	    {
+	      MFEM_VERIFY(globalLineIndex == -1, "");
+	      globalLineIndex = j;
+	    }
+	}
+
+      Array<int> dofs;
+      fespace->GetVertexDofs(i, dofs);
+      MFEM_VERIFY(dofs.Size() == 1, "");
+
+      cdofToGlobalLine[dofs[0]] = globalLineIndex;
+    }
+
+  return nlines;
+}
+
+int SetCoarseVertexLinePatches_xy45line(ParMesh *pmesh, ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
+{
+  Vector linecrd;
+  double tol = 1.0e-3;
+
+  // TODO: input linecrd rather than hard-coding it as done here.
+  const int n = 33;
+  const int nlines = (2*n) - 1;
+
+  linecrd.SetSize(n);
+  for (int i=0; i<n; ++i)
+    {
+      linecrd[i] = ((double) i) / ((double) (n-1));
+    }
+
+  for (int i=0; i<pmesh->GetNV(); ++i)
+    {
+      const double x = pmesh->GetVertex(i)[0];
+      const double y = pmesh->GetVertex(i)[1];
+      int globalLineIndex = -1;
+
+      // First, loop over lines y = x - linecrd[i]
+      for (int j=0; j<n; ++j)
+	{
+	  if (fabs(linecrd[j] + y - x) < tol)
+	    {
+	      MFEM_VERIFY(globalLineIndex == -1, "");
+	      globalLineIndex = j;
+	    }
+	}
+
+      // Second, loop over lines y = x + linecrd[i+1]
+      for (int j=0; j<n-1; ++j)
+	{
+	  if (fabs(linecrd[j+1] + x - y) < tol)
+	    {
+	      MFEM_VERIFY(globalLineIndex == -1, "");
+	      globalLineIndex = n + j;
+	    }
+	}
+
+      Array<int> dofs;
+      fespace->GetVertexDofs(i, dofs);
+      MFEM_VERIFY(dofs.Size() == 1, "");
+
+      cdofToGlobalLine[dofs[0]] = globalLineIndex;
+    }
+
+  return nlines;
+}
+
 LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
    : pmesh(pmesh_), ref_levels(ref_levels_)
 {
    int dim = pmesh->Dimension();
-   double tol = 1.0e-3;
-
-   // TODO: input linecrd rather than hard-coding it as done here.
-   const int nlines = 33;
-   linecrd.SetSize(nlines);
-   for (int i=0; i<nlines; ++i)
-     {
-       linecrd[i] = ((double) i) / ((double) (nlines - 1));
-     }
 
    // 1. Define an auxiliary parallel H1 finite element space on the parallel mesh.
    FiniteElementCollection * aux_fec = new H1_FECollection(1, dim);
@@ -401,32 +479,15 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
    // Set map from coarse vertex DOFs to global line patches
    Array<int> cdofToGlobalLine(aux_fespace->GetNDofs());
    cdofToGlobalLine = -1;
-   {
-     for (int i=0; i<pmesh->GetNV(); ++i)
-       {
-	 const double y = pmesh->GetVertex(i)[1];
-	 int globalLineIndex = -1;
-	 for (int i=0; i<nlines; ++i)
-	   {
-	     if (fabs(linecrd[i] - y) < tol)
-	       {
-		 MFEM_VERIFY(globalLineIndex == -1, "");
-		 globalLineIndex = i;
-	       }
-	   }
-
-	 Array<int> dofs;
-	 aux_fespace->GetVertexDofs(i, dofs);
-	 MFEM_VERIFY(dofs.Size() == 1, "");
-
-	 cdofToGlobalLine[dofs[0]] = globalLineIndex;
-       }
-   }
+   //const int nlines = SetCoarseVertexLinePatches_xline(pmesh, aux_fespace, cdofToGlobalLine);
+   const int nlines = SetCoarseVertexLinePatches_xy45line(pmesh, aux_fespace, cdofToGlobalLine);
 
    // 2. Store the cDofTrueDof Matrix. Required after the refinements
    HypreParMatrix *cDofTrueDof = new HypreParMatrix(
       *aux_fespace->Dof_TrueDof_Matrix());
 
+   //cdofToGlobalLine.Print(std::cout);
+   
    MFEM_VERIFY(cDofTrueDof->Height() == cdofToGlobalLine.Size(), "");
    MFEM_VERIFY(cdofToGlobalLine.Min() == 0, ""); // TODO: in parallel, just check >= 0
 

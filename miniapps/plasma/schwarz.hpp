@@ -72,8 +72,6 @@ public:
    Array<int> patch_natural_order_idx;
   //Array<int> patch_global_dofs_ids;
 
-  Vector linecrd;
-
   LinePatchInfo(ParMesh * pmesh_, int ref_levels_);
   ~LinePatchInfo() {}
 };
