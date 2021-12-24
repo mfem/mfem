@@ -58,10 +58,10 @@ ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
    {
       for (int f = 0; f < pfes.GetNF(); ++f)
       {
-         const FiniteElement *fe =
+         const FiniteElement *fef =
             pfes.GetTraceElement(f, pfes.GetMesh()->GetFaceBaseGeometry(f));
          const TensorBasisElement* el =
-            dynamic_cast<const TensorBasisElement*>(fe);
+            dynamic_cast<const TensorBasisElement*>(fef);
          if (el) { continue; }
          mfem_error("Finite element not suitable for lexicographic ordering");
       }

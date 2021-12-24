@@ -659,7 +659,7 @@ void GradientIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
    ElementTransformation &Trans,  DenseMatrix &elmat)
 {
-   int dim = test_fe.GetDim();
+   dim = test_fe.GetDim();
    int trial_dof = trial_fe.GetDof();
    int test_dof = test_fe.GetDof();
    double c;
@@ -726,7 +726,7 @@ void DiffusionIntegrator::AssembleElementMatrix
   DenseMatrix &elmat )
 {
    int nd = el.GetDof();
-   int dim = el.GetDim();
+   dim = el.GetDim();
    int spaceDim = Trans.GetSpaceDim();
    bool square = (dim == spaceDim);
    double w;
@@ -802,7 +802,7 @@ void DiffusionIntegrator::AssembleElementMatrix2(
 {
    int tr_nd = trial_fe.GetDof();
    int te_nd = test_fe.GetDof();
-   int dim = trial_fe.GetDim();
+   dim = trial_fe.GetDim();
    int spaceDim = Trans.GetSpaceDim();
    bool square = (dim == spaceDim);
    double w;
@@ -885,7 +885,7 @@ void DiffusionIntegrator::AssembleElementVector(
    Vector &elvect)
 {
    int nd = el.GetDof();
-   int dim = el.GetDim();
+   dim = el.GetDim();
    int spaceDim = Tr.GetSpaceDim();
    double w;
 
@@ -966,7 +966,7 @@ void DiffusionIntegrator::ComputeElementFlux
 ( const FiniteElement &el, ElementTransformation &Trans,
   Vector &u, const FiniteElement &fluxelem, Vector &flux, bool with_coef )
 {
-   int i, j, nd, dim, spaceDim, fnd;
+   int i, j, nd, spaceDim, fnd;
 
    nd = el.GetDof();
    dim = el.GetDim();
@@ -1038,7 +1038,7 @@ void DiffusionIntegrator::ComputeElementFlux
             else
             {
                VQ->Eval(D, Trans, ip);
-               for (int j=0; j<spaceDim; ++j)
+               for (j=0; j<spaceDim; ++j)
                {
                   pointflux[j] = D[j] * vecdxt[j];
                }
@@ -1064,7 +1064,7 @@ double DiffusionIntegrator::ComputeFluxEnergy
   Vector &flux, Vector* d_energy)
 {
    int nd = fluxelem.GetDof();
-   int dim = fluxelem.GetDim();
+   dim = fluxelem.GetDim();
    int spaceDim = Trans.GetSpaceDim();
 
 #ifdef MFEM_THREAD_SAFE
@@ -1295,7 +1295,7 @@ void ConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
    int nd = el.GetDof();
-   int dim = el.GetDim();
+   dim = el.GetDim();
 
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix dshape, adjJ, Q_ir;
@@ -1864,7 +1864,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
   DenseMatrix &elmat )
 {
    int nd = el.GetDof();
-   int dim = el.GetDim();
+   dim = el.GetDim();
    int dimc = (dim == 3) ? 3 : 1;
    double w;
 
@@ -1961,7 +1961,7 @@ double CurlCurlIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
                                              Vector &flux, Vector *d_energy)
 {
    int nd = fluxelem.GetDof();
-   int dim = fluxelem.GetDim();
+   dim = fluxelem.GetDim();
 
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape;
@@ -2420,7 +2420,7 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   int dim  = trial_fe.GetDim();
+   dim  = trial_fe.GetDim();
    int trial_dof = trial_fe.GetDof();
    int test_dof = test_fe.GetDof();
    double c;
@@ -2523,9 +2523,9 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   const int dim = el.GetDim();
    const int dof = el.GetDof();
-   const int sdim = Trans.GetSpaceDim();
+   dim = el.GetDim();
+   sdim = Trans.GetSpaceDim();
 
    // If vdim is not set, set it to the space dimension;
    vdim = (vdim <= 0) ? sdim : vdim;
@@ -2579,12 +2579,12 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
       else if (MQ)
       {
          MQ->Eval(mcoeff, Trans, ip);
-         for (int i = 0; i < vdim; ++i)
+         for (int ii = 0; ii < vdim; ++ii)
          {
-            for (int j = 0; j < vdim; ++j)
+            for (int jj = 0; jj < vdim; ++jj)
             {
-               Mult_a_AAt(w*mcoeff(i,j), dshapedxt, pelmat);
-               elmat.AddMatrix(pelmat, dof*i, dof*j);
+               Mult_a_AAt(w*mcoeff(ii,jj), dshapedxt, pelmat);
+               elmat.AddMatrix(pelmat, dof*ii, dof*jj);
             }
          }
       }
@@ -2604,9 +2604,9 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr,
    const Vector &elfun, Vector &elvect)
 {
-   const int dim = el.GetDim();
    const int dof = el.GetDof();
-   const int sdim = Tr.GetSpaceDim();
+   dim = el.GetDim();
+   sdim = Tr.GetSpaceDim();
 
    // If vdim is not set, set it to the space dimension;
    vdim = (vdim <= 0) ? sdim : vdim;
@@ -2665,13 +2665,13 @@ void VectorDiffusionIntegrator::AssembleElementVector(
       else if (MQ)
       {
          MQ->Eval(mcoeff, Tr, ip);
-         for (int i = 0; i < vdim; ++i)
+         for (int ii = 0; ii < vdim; ++ii)
          {
-            Vector vec_out(mat_out.GetColumn(i), dof);
-            for (int j = 0; j < vdim; ++j)
+            Vector vec_out(mat_out.GetColumn(ii), dof);
+            for (int jj = 0; jj < vdim; ++jj)
             {
-               pelmat *= w*mcoeff(i,j);
-               const Vector vec_in(mat_in.GetColumn(j), dof);
+               pelmat *= w*mcoeff(ii,jj);
+               const Vector vec_in(mat_in.GetColumn(jj), dof);
                pelmat.Mult(vec_in, vec_out);
             }
          }
@@ -2759,14 +2759,14 @@ void ElasticityIntegrator::AssembleElementMatrix(
                   elmat (dof*d+k, dof*d+l) += (M * w) * pelmat(k, l);
                }
          }
-         for (int i = 0; i < dim; i++)
-            for (int j = 0; j < dim; j++)
+         for (int ii = 0; ii < dim; ii++)
+            for (int jj = 0; jj < dim; jj++)
             {
-               for (int k = 0; k < dof; k++)
-                  for (int l = 0; l < dof; l++)
+               for (int kk = 0; kk < dof; kk++)
+                  for (int ll = 0; ll < dof; ll++)
                   {
-                     elmat(dof*i+k, dof*j+l) +=
-                        (M * w) * gshape(k, j) * gshape(l, i);
+                     elmat(dof*ii+kk, dof*jj+ll) +=
+                        (M * w) * gshape(kk, jj) * gshape(ll, ii);
                   }
             }
       }
@@ -2947,13 +2947,13 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
                                            FaceElementTransformations &Trans,
                                            DenseMatrix &elmat)
 {
-   int dim, ndof1, ndof2;
+   int dim1, ndof1, ndof2;
 
    double un, a, b, w;
 
-   dim = el1.GetDim();
+   dim1 = el1.GetDim();
    ndof1 = el1.GetDof();
-   Vector vu(dim), nor(dim);
+   Vector vu(dim1), nor(dim1);
 
    if (Trans.Elem2No >= 0)
    {
@@ -3004,7 +3004,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
 
       u->Eval(vu, *Trans.Elem1, eip1);
 
-      if (dim == 1)
+      if (dim1 == 1)
       {
          nor(0) = 2*eip1.x - 1.0;
       }

@@ -323,10 +323,11 @@ int GridFunction::VectorDim() const
    const FiniteElement *fe;
    if (!fes->GetNE())
    {
-      const FiniteElementCollection *fec = fes->FEColl();
+      const FiniteElementCollection *fe_coll = fes->FEColl();
       static const Geometry::Type geoms[3] =
       { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fec->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
+      fe = fe_coll->
+           FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
    }
    else
    {
@@ -605,11 +606,11 @@ const
       ET->SetIntPoint(&ip);
       FElem->CalcPhysHessian(*ET, DofHes);
 
-      for (int i = 0; i < size; i++)
+      for (int j = 0; j < size; j++)
       {
          for (int d = 0; d < dof; d++)
          {
-            hess(k,i) += DofHes(d,i) * loc_data[d];
+            hess(k,j) += DofHes(d,j) * loc_data[d];
          }
       }
    }

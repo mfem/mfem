@@ -329,8 +329,8 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          const int i_nbElts = i_nextOffset - i_offset;
          for (int e_i = 0; e_i < i_nbElts; ++e_i)
          {
-            const int i_E = d_indices[i_offset+e_i];
-            i_elts[e_i] = i_E/elt_dofs;
+            const int e_i_E = d_indices[i_offset+e_i];
+            i_elts[e_i] = e_i_E/elt_dofs;
          }
          for (int j = 0; j < elt_dofs; j++)
          {
@@ -348,8 +348,8 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
                int j_elts[Max];
                for (int e_j = 0; e_j < j_nbElts; ++e_j)
                {
-                  const int j_E = d_indices[j_offset+e_j];
-                  const int elt = j_E/elt_dofs;
+                  const int e_j_E = d_indices[j_offset+e_j];
+                  const int elt = e_j_E/elt_dofs;
                   j_elts[e_j] = elt;
                }
                int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
@@ -403,9 +403,9 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          const int i_nbElts = i_nextOffset - i_offset;
          for (int e_i = 0; e_i < i_nbElts; ++e_i)
          {
-            const int i_E = d_indices[i_offset+e_i];
-            i_elts[e_i] = i_E/elt_dofs;
-            i_B[e_i]    = i_E%elt_dofs;
+            const int e_i_E = d_indices[i_offset+e_i];
+            i_elts[e_i] = e_i_E/elt_dofs;
+            i_B[e_i]    = e_i_E%elt_dofs;
          }
          for (int j = 0; j < elt_dofs; j++)
          {
@@ -426,23 +426,23 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
                int j_B[Max];
                for (int e_j = 0; e_j < j_nbElts; ++e_j)
                {
-                  const int j_E = d_indices[j_offset+e_j];
-                  const int elt = j_E/elt_dofs;
+                  const int e_j_E = d_indices[j_offset+e_j];
+                  const int elt = e_j_E/elt_dofs;
                   j_elts[e_j] = elt;
-                  j_B[e_j]    = j_E%elt_dofs;
+                  j_B[e_j]    = e_j_E%elt_dofs;
                }
                int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
                if (e == min_e) // add the nnz only once
                {
                   double val = 0.0;
-                  for (int i = 0; i < i_nbElts; i++)
+                  for (int ii = 0; ii < i_nbElts; ii++)
                   {
-                     const int e_i = i_elts[i];
-                     const int i_Bloc = i_B[i];
-                     for (int j = 0; j < j_nbElts; j++)
+                     const int e_i = i_elts[ii];
+                     const int i_Bloc = i_B[ii];
+                     for (int jj = 0; jj < j_nbElts; jj++)
                      {
-                        const int e_j = j_elts[j];
-                        const int j_Bloc = j_B[j];
+                        const int e_j = j_elts[jj];
+                        const int j_Bloc = j_B[jj];
                         if (e_i == e_j)
                         {
                            val += mat_ea(j_Bloc, i_Bloc, e_i);
@@ -695,8 +695,8 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
 #endif
 
    // If fespace == H1
-   const FiniteElement *fe = fes.GetFE(0);
-   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   const FiniteElement *fe0 = fes.GetFE(0);
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe0);
    MFEM_VERIFY(tfe != NULL &&
                (tfe->GetBasisType()==BasisType::GaussLobatto ||
                 tfe->GetBasisType()==BasisType::Positive),
@@ -725,7 +725,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
       MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
    }
    const TensorBasisElement* el =
-      dynamic_cast<const TensorBasisElement*>(fe);
+      dynamic_cast<const TensorBasisElement*>(fe0);
    const int *dof_map = el->GetDofMap().GetData();
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
@@ -848,11 +848,11 @@ void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
    MFEM_FORALL(i, nfdofs,
    {
       const int idx = d_indices[i];
-      const int dof = i % nd;
+      const int dofi = i % nd;
       const int face = i / nd;
       for (int c = 0; c < vd; ++c)
       {
-         d_y(dof, c, face) = d_x(t?c:idx, t?idx:c);
+         d_y(dofi, c, face) = d_x(t?c:idx, t?idx:c);
       }
    });
 }
@@ -1059,10 +1059,10 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    {
       for (int f = 0; f < fes.GetNF(); ++f)
       {
-         const FiniteElement *fe =
+         const FiniteElement *fef =
             fes.GetTraceElement(f, fes.GetMesh()->GetFaceBaseGeometry(f));
          const TensorBasisElement* el =
-            dynamic_cast<const TensorBasisElement*>(fe);
+            dynamic_cast<const TensorBasisElement*>(fef);
          if (el) { continue; }
          mfem_error("Finite element not suitable for lexicographic ordering");
       }
@@ -1245,17 +1245,17 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_y = Reshape(y.Write(), nd, vd, 2, nf);
       MFEM_FORALL(i, nfdofs,
       {
-         const int dof = i % nd;
+         const int dofi = i % nd;
          const int face = i / nd;
          const int idx1 = d_indices1[i];
          for (int c = 0; c < vd; ++c)
          {
-            d_y(dof, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
+            d_y(dofi, c, 0, face) = d_x(t?c:idx1, t?idx1:c);
          }
          const int idx2 = d_indices2[i];
          for (int c = 0; c < vd; ++c)
          {
-            d_y(dof, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);
+            d_y(dofi, c, 1, face) = idx2==-1 ? 0.0 : d_x(t?c:idx2, t?idx2:c);
          }
       });
    }
@@ -1266,12 +1266,12 @@ void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
       auto d_y = Reshape(y.Write(), nd, vd, nf);
       MFEM_FORALL(i, nfdofs,
       {
-         const int dof = i % nd;
+         const int dofi = i % nd;
          const int face = i / nd;
          const int idx1 = d_indices1[i];
          for (int c = 0; c < vd; ++c)
          {
-            d_y(dof, c, face) = d_x(t?c:idx1, t?idx1:c);
+            d_y(dofi, c, face) = d_x(t?c:idx1, t?idx1:c);
          }
       });
    }
