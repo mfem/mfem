@@ -739,7 +739,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
@@ -785,7 +785,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
    if (Q || DQ || MQ || SMQ)
    {
-      Vector D(DQ ? coeffDim : 0);
+      Vector DM(DQ ? coeffDim : 0);
       DenseMatrix M;
       DenseSymmetricMatrix SM;
 
@@ -832,10 +832,10 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
             }
             else if (DQ)
             {
-               DQ->Eval(D, *tr, ir->IntPoint(p));
+               DQ->Eval(DM, *tr, ir->IntPoint(p));
                for (int i=0; i<coeffDim; ++i)
                {
-                  coeffh(i, p, e) = D[i];
+                  coeffh(i, p, e) = DM[i];
                }
             }
             else

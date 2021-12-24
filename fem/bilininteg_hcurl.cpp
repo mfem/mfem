@@ -934,7 +934,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
@@ -965,8 +965,8 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
    if (Q || DQ || MQ || SMQ)
    {
-      Vector D(DQ ? coeffDim : 0);
-      DenseMatrix M;
+      Vector DM(DQ ? coeffDim : 0);
+      DenseMatrix GM;
       DenseSymmetricMatrix SM;
 
       if (DQ)
@@ -975,7 +975,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
       if (MQ)
       {
-         M.SetSize(dimc);
+         GM.SetSize(dimc);
          MFEM_VERIFY(coeffDim == MQdim, "");
          MFEM_VERIFY(MQ->GetHeight() == dimc && MQ->GetWidth() == dimc, "");
       }
@@ -992,12 +992,12 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
          {
             if (MQ)
             {
-               MQ->Eval(M, *tr, ir->IntPoint(p));
+               MQ->Eval(GM, *tr, ir->IntPoint(p));
 
                for (int i=0; i<dimc; ++i)
                   for (int j=0; j<dimc; ++j)
                   {
-                     coeffh(j+(i*dimc), p, e) = M(i,j);
+                     coeffh(j+(i*dimc), p, e) = GM(i,j);
                   }
 
             }
@@ -1015,10 +1015,10 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
             }
             else if (DQ)
             {
-               DQ->Eval(D, *tr, ir->IntPoint(p));
+               DQ->Eval(DM, *tr, ir->IntPoint(p));
                for (int i=0; i<coeffDim; ++i)
                {
-                  coeffh(i, p, e) = D[i];
+                  coeffh(i, p, e) = DM[i];
                }
             }
             else
