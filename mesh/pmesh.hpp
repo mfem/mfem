@@ -491,6 +491,8 @@ public:
    void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
                         Array<HYPRE_BigInt> *offsets[]) const;
 
+   using Mesh::FaceIsTrueInterior;
+
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
 
