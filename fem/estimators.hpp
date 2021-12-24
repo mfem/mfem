@@ -234,7 +234,7 @@ protected:
    bool own_flux_fes; ///< Ownership flag for flux_space and smooth_flux_space.
 
    /// Initialize with the integrator, solution, and flux finite element spaces.
-   void Init(BilinearFormIntegrator &integ,
+   void Init(BilinearFormIntegrator &integ_,
              ParGridFunction &sol,
              ParFiniteElementSpace *flux_fes,
              ParFiniteElementSpace *smooth_flux_fes)
@@ -242,7 +242,7 @@ protected:
       current_sequence = -1;
       local_norm_p = 1;
       total_error = 0.0;
-      this->integ = &integ;
+      this->integ = &integ_;
       solution = &sol;
       flux_space = flux_fes;
       smooth_flux_space = smooth_flux_fes;
