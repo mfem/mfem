@@ -4038,14 +4038,18 @@ void QuadratureFunction::SaveVTU(std::ostream &out, VTKFormat format,
 
    out << "<PointData>\n";
    out << "<DataArray type=\"" << type_str << "\" Name=\"u\" format=\""
-       << fmt_str << "\">\n";
+       << fmt_str << "\" NumberOfComponents=\"" << vdim << "\">\n";
    for (int i = 0; i < ne; i++)
    {
-      Vector vals;
+      DenseMatrix vals;
       GetElementValues(i, vals);
       for (int j = 0; j < vals.Size(); ++j)
       {
-         WriteBinaryOrASCII(out, buf, vals[j], "\n", format);
+         for (int vd = 0; vd < vdim; ++vd)
+         {
+            WriteBinaryOrASCII(out, buf, vals(vd, j), " ", format);
+         }
+         if (format == VTKFormat::ASCII) { out << '\n'; }
       }
    }
    if (format != VTKFormat::ASCII)
