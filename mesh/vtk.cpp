@@ -625,7 +625,7 @@ void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
    }
    else
    {
-      out << val << suffix;
+      out << ZeroSubnormal(val) << suffix;
    }
 }
 
@@ -636,7 +636,7 @@ void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
 {
    if (format == VTKFormat::BINARY) { bin_io::AppendBytes<double>(buf, val); }
    else if (format == VTKFormat::BINARY32) { bin_io::AppendBytes(buf, val); }
-   else { out << val << suffix; }
+   else { out << ZeroSubnormal(val) << suffix; }
 }
 
 void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
