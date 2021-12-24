@@ -104,8 +104,8 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
    X_ini = false;
 
    // Get the LOR vertex coordinates
-   assert(nodal_nd1d==2);
-   assert(nd1d==order+1);
+   MFEM_VERIFY(nodal_nd1d==2, "nodal_nd1d!=2");
+   MFEM_VERIFY(nd1d==order+1, "nd1d!=order+1");
    NodalInterpolation3D<2,nd1d>(nel_ho, nodes_loc, X_loc, maps.B);
    auto X = X_loc.Read();
 

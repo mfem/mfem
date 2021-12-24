@@ -325,7 +325,7 @@ void NDK_PADiffusionApply(const int dim,
       //case 0x9A: Ker=NDK_PADiffApply<9,10,1,1>; break; // 8
       default: MFEM_ABORT("Unknown kernel 0x" << std::hex << id << std::dec);
    }
-   MFEM_CONTRACT_VAR((NBZ));
+   MFEM_CONTRACT_VAR(NBZ);
    MFEM_LAUNCH_KERNEL(Ker,(NE+NBZ-1)/NBZ,dim3(Q1D,Q1D,NBZ),0,NE,dM,dB,dG,dD,dX,dY);
 }
 
