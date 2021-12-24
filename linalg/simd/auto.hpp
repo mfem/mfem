@@ -117,6 +117,11 @@ struct MFEM_AUTOSIMD_ALIGN__ AutoSIMD
       return r;
    }
 
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator+() const
+   {
+      return *this;
+   }
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const AutoSIMD &v) const
    {
       AutoSIMD r;
