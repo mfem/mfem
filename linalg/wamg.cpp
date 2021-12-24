@@ -123,10 +123,13 @@ WaveletRecursiveLevelFA::WaveletRecursiveLevelFA(FiniteElementSpace &fes,
    const HypreParMatrix *A = Ah.As<HypreParMatrix>();
    {
       NVTX("mfem::RAP");
-      assert(*H.As<HypreParMatrix>());
       assert(A);
+      assert(*H.As<HypreParMatrix>());
       assert(*tH.As<HypreParMatrix>());
-      MAMt.Reset(mfem::RAP(H.As<HypreParMatrix>(), A, tH.As<HypreParMatrix>()));
+      MAMt.Reset(mfem::RAP(H.As<HypreParMatrix>(),
+                           A,
+                           tH.As<HypreParMatrix>()),
+                 false);
    }
 #else
    assert(false);

@@ -65,17 +65,13 @@ typedef int MPI_Session;
 ////////////////////////////////////////////////////////////////////////////////
 static int config_dev_size = 4; // default 4 GPU per node
 
-static bool config_use_caliper = false;
-
 static bool config_debug = false;
-static int config_max_nic = 4;
-static int config_max_nip = 7;
+static int config_max_nic = 2;
+static int config_max_nip = 4;
 static int config_max_nif = 500;
 
 static int config_max_depth = 32;
 static int config_max_ndofs = 1024;
-
-static int config_mg_dump_level = 0;
 
 static const char *config_mg_spec = nullptr;
 enum MGSpecification
@@ -480,7 +476,6 @@ public:
          coarse_solver = coarse_precond;
          assert(coarse_solver != nullptr);
       }
-
       AddLevel(A_coarse.Ptr(), coarse_solver.get(), false, false);
    }
 };
@@ -1039,14 +1034,9 @@ struct SolverProblem: public BakeOff
               pmesh.bdr_attributes.Max()),
       cg(MPI_COMM_WORLD)
    {
-      MFEM_NVTX;
       ess_bdr = 1;
       mg_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
-      {
-         NVTX("EnsureNodes");
-         mg_fes.GetMesh()->EnsureNodes();
-      }
+      mg_fes.GetMesh()->EnsureNodes();
 
 #ifdef MFEM_USE_CUDA
       {
@@ -1060,7 +1050,6 @@ struct SolverProblem: public BakeOff
       if (rhs_1) { b.AddDomainIntegrator(new DomainLFIntegrator(one)); }
       else { b.AddDomainIntegrator(new DomainLFIntegrator(rhs)); }
       {
-         NVTX("b");
          b.SetAssemblyLevel(LinearAssemblyLevel::FULL);
          b.Assemble();
       }
@@ -1070,8 +1059,6 @@ struct SolverProblem: public BakeOff
 
       if (!mg_solver)
       {
-         dbg("a.Assemble");
-         NVTX("a.Assemble");
          if (preconditioner == FinePrecondType::BoomerAMG)
          {
             a.SetAssemblyLevel(AssemblyLevel::FULL);
@@ -1241,7 +1228,7 @@ struct SolverProblem: public BakeOff
 #define P_ORDERS bm::CreateDenseRange(1,6,1)
 
 // The different side sizes
-#define P_SIDES bm::CreateDenseRange(6,100,2)
+#define P_SIDES bm::CreateDenseRange(6,200,2)
 
 // Maximum number of dofs
 #define MAX_NDOFS 10*1024*1024
@@ -1274,7 +1261,7 @@ static void BPS##i##_##Precond(bm::State &state){\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_EPSILONS,P_ORDERS,P_SIDES})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(1);
+    -> Iterations(10);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Solver(3,Diffusion,None)
@@ -1310,6 +1297,8 @@ int main(int argc, char *argv[])
    // Device setup, cpu by default
    std::string config_device = "cpu";
 
+   bool use_caliper = false;
+
    if (bmi::global_context != nullptr)
    {
       bmi::FindInContext("device", config_device); // device=cuda
@@ -1317,9 +1306,13 @@ int main(int argc, char *argv[])
       bmi::FindInContext("nic", config_max_nic);
       bmi::FindInContext("nip", config_max_nip);
       bmi::FindInContext("nif", config_max_nif);
+
+      bmi::FindInContext("max_depth", config_max_depth);
+      bmi::FindInContext("max_ndofs", config_max_ndofs);
+
       bmi::FindInContext("mg_spec", config_mg_spec); // mg_spec="1 2"
       bmi::FindInContext("mg_select", config_mg_spec_select); // mg_select=2
-      bmi::FindInContext("caliper", config_use_caliper);
+      bmi::FindInContext("caliper", use_caliper);
       bmi::FindInContext("dev_size", config_dev_size);
    }
    const int mpi_rank = mpiWorldRank;
@@ -1340,7 +1333,7 @@ int main(int argc, char *argv[])
       caliper.start();
    }
 #else
-   MFEM_CONTRACT_VAR(config_use_caliper);
+   MFEM_CONTRACT_VAR(use_caliper);
 #endif
 
 #ifndef MFEM_USE_MPI
