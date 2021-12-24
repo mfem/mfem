@@ -444,15 +444,19 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (untangling == false && min_detT_out < 0.0)
       {
          // No untangling, and detJ got negative -- no good.
-         if (print_level >= 0)
-         { mfem::out << "Scale = " << scale << " Neg det(J) found.\n"; }
+         if (print_options.iterations)
+         {
+            mfem::out << "Scale = " << scale << " Neg det(J) found.\n";
+         }
          scale *= detJ_factor; continue;
       }
       if (untangling == true && min_detT_out < *min_det_ptr)
       {
          // Untangling, and detJ got even more negative -- no good.
-         if (print_level >= 0)
-         { mfem::out << "Scale = " << scale << " Neg det(J) decreased.\n"; }
+         if (print_options.iterations)
+         {
+            mfem::out << "Scale = " << scale << " Neg det(J) decreased.\n";
+         }
          scale *= detJ_factor; continue;
       }
 
@@ -477,7 +481,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (energy_out > energy_in + 0.2*fabs(energy_in) ||
           std::isnan(energy_out) != 0)
       {
-         if (print_level >= 0)
+         if (print_options.iterations)
          {
             mfem::out << "Scale = " << scale << " Increasing energy: "
                       << energy_in << " --> " << energy_out << '\n';
@@ -492,7 +496,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       if (norm_out > 1.2*norm_in)
       {
-         if (print_level >= 0)
+         if (print_options.iterations)
          {
             mfem::out << "Scale = " << scale << " Norm increased: "
                       << norm_in << " --> " << norm_out << '\n';
@@ -508,13 +512,15 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (min_detT_out > 0.0)
       {
          *min_det_ptr = 0.0;
-         if (print_level >= 0)
+         if (print_options.summary || print_options.iterations ||
+             print_options.first_and_last)
          { mfem::out << "The mesh has been untangled at the used points!\n"; }
       }
       else { *min_det_ptr = untangle_factor * min_detT_out; }
    }
 
-   if (print_level >= 0)
+   if (print_options.summary || print_options.iterations ||
+       print_options.first_and_last)
    {
       if (untangling)
       {

@@ -21,11 +21,84 @@ namespace mfem
 
 using namespace std;
 
+// Given an ElementTransformation and IntegrationPoint in a refined mesh,
+// return the ElementTransformation of the parent coarse element, and set
+// coarse_ip to the location of the original ip within the coarse element.
+ElementTransformation *RefinedToCoarse(
+   Mesh &coarse_mesh, const ElementTransformation &T,
+   const IntegrationPoint &ip, IntegrationPoint &coarse_ip)
+{
+   Mesh &fine_mesh = *T.mesh;
+   // Get the element transformation of the coarse element containing the
+   // fine element.
+   int fine_element = T.ElementNo;
+   const CoarseFineTransformations &cf = fine_mesh.GetRefinementTransforms();
+   int coarse_element = cf.embeddings[fine_element].parent;
+   ElementTransformation *coarse_T = coarse_mesh.GetElementTransformation(
+                                        coarse_element);
+   // Transform the integration point from fine element coordinates to coarse
+   // element coordinates.
+   Geometry::Type geom = T.GetGeometryType();
+   IntegrationPointTransformation fine_to_coarse;
+   IsoparametricTransformation &emb_tr = fine_to_coarse.Transf;
+   emb_tr.SetIdentityTransformation(geom);
+   emb_tr.SetPointMat(cf.point_matrices[geom](cf.embeddings[fine_element].matrix));
+   fine_to_coarse.Transform(ip, coarse_ip);
+   coarse_T->SetIntPoint(&coarse_ip);
+   return coarse_T;
+}
+
 double PWConstCoefficient::Eval(ElementTransformation & T,
                                 const IntegrationPoint & ip)
 {
    int att = T.Attribute;
    return (constants(att-1));
+}
+
+void PWCoefficient::InitMap(const Array<int> & attr,
+                            const Array<Coefficient*> & coefs)
+{
+   MFEM_VERIFY(attr.Size() == coefs.Size(),
+               "PWCoefficient:  "
+               "Attribute and coefficient arrays have incompatible "
+               "dimensions.");
+
+   for (int i=0; i<attr.Size(); i++)
+   {
+      if (coefs[i] != NULL)
+      {
+         UpdateCoefficient(attr[i], *coefs[i]);
+      }
+   }
+}
+
+void PWCoefficient::SetTime(double t)
+{
+   Coefficient::SetTime(t);
+
+   std::map<int, Coefficient*>::iterator p = pieces.begin();
+   for (; p != pieces.end(); p++)
+   {
+      if (p->second != NULL)
+      {
+         p->second->SetTime(t);
+      }
+   }
+}
+
+double PWCoefficient::Eval(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+{
+   const int att = T.Attribute;
+   std::map<int, Coefficient*>::const_iterator p = pieces.find(att);
+   if (p != pieces.end())
+   {
+      if ( p->second != NULL)
+      {
+         return p->second->Eval(T, ip);
+      }
+   }
+   return 0.0;
 }
 
 double FunctionCoefficient::Eval(ElementTransformation & T,
@@ -49,7 +122,17 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
-   return GridF -> GetValue (T, ip, Component);
+   Mesh *gf_mesh = GridF->FESpace()->GetMesh();
+   if (T.mesh == gf_mesh)
+   {
+      return GridF->GetValue(T, ip, Component);
+   }
+   else
+   {
+      IntegrationPoint coarse_ip;
+      ElementTransformation *coarse_T = RefinedToCoarse(*gf_mesh, T, ip, coarse_ip);
+      return GridF->GetValue(*coarse_T, coarse_ip, Component);
+   }
 }
 
 void TransformedCoefficient::SetTime(double t)
@@ -118,6 +201,63 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
       T.SetIntPoint(&ip);
       Eval(Mi, T, ip);
    }
+}
+
+void PWVectorCoefficient::InitMap(const Array<int> & attr,
+                                  const Array<VectorCoefficient*> & coefs)
+{
+   MFEM_VERIFY(attr.Size() == coefs.Size(),
+               "PWVectorCoefficient:  "
+               "Attribute and coefficient arrays have incompatible "
+               "dimensions.");
+
+   for (int i=0; i<attr.Size(); i++)
+   {
+      if (coefs[i] != NULL)
+      {
+         UpdateCoefficient(attr[i], *coefs[i]);
+      }
+   }
+}
+
+void PWVectorCoefficient::UpdateCoefficient(int attr, VectorCoefficient & coef)
+{
+   MFEM_VERIFY(coef.GetVDim() == vdim,
+               "PWVectorCoefficient::UpdateCoefficient:  "
+               "VectorCoefficient has incompatible dimension.");
+   pieces[attr] = &coef;
+}
+
+void PWVectorCoefficient::SetTime(double t)
+{
+   VectorCoefficient::SetTime(t);
+
+   std::map<int, VectorCoefficient*>::iterator p = pieces.begin();
+   for (; p != pieces.end(); p++)
+   {
+      if (p->second != NULL)
+      {
+         p->second->SetTime(t);
+      }
+   }
+}
+
+void PWVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
+                               const IntegrationPoint &ip)
+{
+   const int att = T.Attribute;
+   std::map<int, VectorCoefficient*>::const_iterator p = pieces.find(att);
+   if (p != pieces.end())
+   {
+      if ( p->second != NULL)
+      {
+         p->second->Eval(V, T, ip);
+         return;
+      }
+   }
+
+   V.SetSize(vdim);
+   V = 0.0;
 }
 
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -202,13 +342,30 @@ void VectorGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
-   GridFunc->GetVectorValue(T, ip, V);
+   Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
+   if (T.mesh == gf_mesh)
+   {
+      GridFunc->GetVectorValue(T, ip, V);
+   }
+   else
+   {
+      IntegrationPoint coarse_ip;
+      ElementTransformation *coarse_T = RefinedToCoarse(*gf_mesh, T, ip, coarse_ip);
+      GridFunc->GetVectorValue(*coarse_T, coarse_ip, V);
+   }
 }
 
 void VectorGridFunctionCoefficient::Eval(
    DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
 {
-   GridFunc->GetVectorValues(T, ir, M);
+   if (T.mesh == GridFunc->FESpace()->GetMesh())
+   {
+      GridFunc->GetVectorValues(T, ir, M);
+   }
+   else
+   {
+      VectorCoefficient::Eval(M, T, ir);
+   }
 }
 
 GradientGridFunctionCoefficient::GradientGridFunctionCoefficient (
@@ -228,13 +385,30 @@ void GradientGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 void GradientGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                            const IntegrationPoint &ip)
 {
-   GridFunc->GetGradient(T, V);
+   Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
+   if (T.mesh == gf_mesh)
+   {
+      GridFunc->GetGradient(T, V);
+   }
+   else
+   {
+      IntegrationPoint coarse_ip;
+      ElementTransformation *coarse_T = RefinedToCoarse(*gf_mesh, T, ip, coarse_ip);
+      GridFunc->GetGradient(*coarse_T, V);
+   }
 }
 
 void GradientGridFunctionCoefficient::Eval(
    DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
 {
-   GridFunc->GetGradients(T, ir, M);
+   if (T.mesh == GridFunc->FESpace()->GetMesh())
+   {
+      GridFunc->GetGradients(T, ir, M);
+   }
+   else
+   {
+      VectorCoefficient::Eval(M, T, ir);
+   }
 }
 
 CurlGridFunctionCoefficient::CurlGridFunctionCoefficient(
@@ -260,7 +434,17 @@ void CurlGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                        const IntegrationPoint &ip)
 {
-   GridFunc->GetCurl(T, V);
+   Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
+   if (T.mesh == gf_mesh)
+   {
+      GridFunc->GetCurl(T, V);
+   }
+   else
+   {
+      IntegrationPoint coarse_ip;
+      ElementTransformation *coarse_T = RefinedToCoarse(*gf_mesh, T, ip, coarse_ip);
+      GridFunc->GetCurl(*coarse_T, V);
+   }
 }
 
 DivergenceGridFunctionCoefficient::DivergenceGridFunctionCoefficient (
@@ -272,7 +456,17 @@ DivergenceGridFunctionCoefficient::DivergenceGridFunctionCoefficient (
 double DivergenceGridFunctionCoefficient::Eval(ElementTransformation &T,
                                                const IntegrationPoint &ip)
 {
-   return GridFunc->GetDivergence(T);
+   Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
+   if (T.mesh == gf_mesh)
+   {
+      return GridFunc->GetDivergence(T);
+   }
+   else
+   {
+      IntegrationPoint coarse_ip;
+      ElementTransformation *coarse_T = RefinedToCoarse(*gf_mesh, T, ip, coarse_ip);
+      return GridFunc->GetDivergence(*coarse_T);
+   }
 }
 
 void VectorDeltaCoefficient::SetTime(double t)
@@ -329,6 +523,72 @@ void VectorRestrictedCoefficient::Eval(
       M.SetSize(vdim, ir.GetNPoints());
       M = 0.0;
    }
+}
+
+void PWMatrixCoefficient::InitMap(const Array<int> & attr,
+                                  const Array<MatrixCoefficient*> & coefs)
+{
+   MFEM_VERIFY(attr.Size() == coefs.Size(),
+               "PWMatrixCoefficient:  "
+               "Attribute and coefficient arrays have incompatible "
+               "dimensions.");
+
+   for (int i=0; i<attr.Size(); i++)
+   {
+      if (coefs[i] != NULL)
+      {
+         UpdateCoefficient(attr[i], *coefs[i]);
+      }
+   }
+}
+
+void PWMatrixCoefficient::UpdateCoefficient(int attr, MatrixCoefficient & coef)
+{
+   MFEM_VERIFY(coef.GetHeight() == height,
+               "PWMatrixCoefficient::UpdateCoefficient:  "
+               "MatrixCoefficient has incompatible height.");
+   MFEM_VERIFY(coef.GetWidth() == width,
+               "PWMatrixCoefficient::UpdateCoefficient:  "
+               "MatrixCoefficient has incompatible width.");
+   if (symmetric)
+   {
+      MFEM_VERIFY(coef.IsSymmetric(),
+                  "PWMatrixCoefficient::UpdateCoefficient:  "
+                  "MatrixCoefficient has incompatible symmetry.");
+   }
+   pieces[attr] = &coef;
+}
+
+void PWMatrixCoefficient::SetTime(double t)
+{
+   MatrixCoefficient::SetTime(t);
+
+   std::map<int, MatrixCoefficient*>::iterator p = pieces.begin();
+   for (; p != pieces.end(); p++)
+   {
+      if (p->second != NULL)
+      {
+         p->second->SetTime(t);
+      }
+   }
+}
+
+void PWMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
+                               const IntegrationPoint &ip)
+{
+   const int att = T.Attribute;
+   std::map<int, MatrixCoefficient*>::const_iterator p = pieces.find(att);
+   if (p != pieces.end())
+   {
+      if ( p->second != NULL)
+      {
+         p->second->Eval(K, T, ip);
+         return;
+      }
+   }
+
+   K.SetSize(height, width);
+   K = 0.0;
 }
 
 void MatrixFunctionCoefficient::SetTime(double t)
