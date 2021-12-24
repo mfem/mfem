@@ -115,6 +115,11 @@ template <> struct AutoSIMD<double,2,16>
       return r;
    }
 
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator+() const
+   {
+      return *this;
+   }
+
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const AutoSIMD &v) const
    {
       AutoSIMD r;
@@ -251,4 +256,3 @@ AutoSIMD<double,2,16> operator/(const double &e,
 #endif // __SSE2__
 
 #endif // MFEM_SIMD_M128_HPP
-
