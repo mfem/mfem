@@ -1897,21 +1897,21 @@ const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
 
 FiniteElementCollection *H1_FECollection::GetTraceCollection() const
 {
-   int p = H1_dof[Geometry::SEGMENT] + 1;
-   int dim = -1;
+   int tr_p = H1_dof[Geometry::SEGMENT] + 1;
+   int tr_dim = -1;
    if (!strncmp(h1_name, "H1_", 3))
    {
-      dim = atoi(h1_name + 3);
+      tr_dim = atoi(h1_name + 3);
    }
    else if (!strncmp(h1_name, "H1Pos_", 6))
    {
-      dim = atoi(h1_name + 6);
+      tr_dim = atoi(h1_name + 6);
    }
    else if (!strncmp(h1_name, "H1@", 3))
    {
-      dim = atoi(h1_name + 5);
+      tr_dim = atoi(h1_name + 5);
    }
-   return (dim < 0) ? NULL : new H1_Trace_FECollection(p, dim, b_type);
+   return (dim < 0) ? NULL : new H1_Trace_FECollection(tr_p, tr_dim, b_type);
 }
 
 const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
@@ -2374,7 +2374,7 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
    InitFaces(p, dim, map_type, signs);
 }
 
-void RT_FECollection::InitFaces(const int p, const int dim,
+void RT_FECollection::InitFaces(const int p, const int dim_,
                                 const int map_type,
                                 const bool signs)
 {
@@ -2404,7 +2404,7 @@ void RT_FECollection::InitFaces(const int p, const int dim,
       QuadDofOrd[i] = NULL;
    }
 
-   if (dim == 2)
+   if (dim_ == 2)
    {
       L2_SegmentElement *l2_seg = new L2_SegmentElement(p, ob_type);
       l2_seg->SetMapType(map_type);
@@ -2419,7 +2419,7 @@ void RT_FECollection::InitFaces(const int p, const int dim,
          SegDofOrd[1][i] = signs ? (-1 - (p - i)) : (p - i);
       }
    }
-   else if (dim == 3)
+   else if (dim_ == 3)
    {
       L2_TriangleElement *l2_tri = new L2_TriangleElement(p, ob_type);
       l2_tri->SetMapType(map_type);
@@ -2453,9 +2453,9 @@ void RT_FECollection::InitFaces(const int p, const int dim,
             TriDofOrd[5][o] = -1-(TriDof-((pp2-i)*(pp1-i))/2+j);  // (0,2,1)
             if (!signs)
             {
-               for (int k = 1; k < 6; k += 2)
+               for (int kk = 1; kk < 6; kk += 2)
                {
-                  TriDofOrd[k][o] = -1 - TriDofOrd[k][o];
+                  TriDofOrd[kk][o] = -1 - TriDofOrd[kk][o];
                }
             }
          }
@@ -2529,18 +2529,19 @@ const int *RT_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
 
 FiniteElementCollection *RT_FECollection::GetTraceCollection() const
 {
-   int dim, p;
+   int tr_dim, tr_p;
    if (!strncmp(rt_name, "RT_", 3))
    {
-      dim = atoi(rt_name + 3);
-      p = atoi(rt_name + 7);
+      tr_dim = atoi(rt_name + 3);
+      tr_p = atoi(rt_name + 7);
    }
    else // rt_name = RT@.._.D_P*
    {
-      dim = atoi(rt_name + 6);
-      p = atoi(rt_name + 10);
+      tr_dim = atoi(rt_name + 6);
+      tr_p = atoi(rt_name + 10);
    }
-   return new RT_Trace_FECollection(p, dim, FiniteElement::INTEGRAL, ob_type);
+   return new RT_Trace_FECollection(tr_p, tr_dim, FiniteElement::INTEGRAL,
+                                    ob_type);
 }
 
 RT_FECollection::~RT_FECollection()
@@ -2814,22 +2815,22 @@ const int *ND_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
 
 FiniteElementCollection *ND_FECollection::GetTraceCollection() const
 {
-   int p, dim, cb_type, ob_type;
+   int tr_p, tr_dim, tr_cb_type, tr_ob_type;
 
-   p = ND_dof[Geometry::SEGMENT];
+   tr_p = ND_dof[Geometry::SEGMENT];
    if (nd_name[2] == '_') // ND_
    {
-      dim = atoi(nd_name + 3);
-      cb_type = BasisType::GaussLobatto;
-      ob_type = BasisType::GaussLegendre;
+      tr_dim = atoi(nd_name + 3);
+      tr_cb_type = BasisType::GaussLobatto;
+      tr_ob_type = BasisType::GaussLegendre;
    }
    else // ND@
    {
-      dim = atoi(nd_name + 6);
-      cb_type = BasisType::GetType(nd_name[3]);
-      ob_type = BasisType::GetType(nd_name[4]);
+      tr_dim = atoi(nd_name + 6);
+      tr_cb_type = BasisType::GetType(nd_name[3]);
+      tr_ob_type = BasisType::GetType(nd_name[4]);
    }
-   return new ND_Trace_FECollection(p, dim, cb_type, ob_type);
+   return new ND_Trace_FECollection(tr_p, tr_dim, tr_cb_type, tr_ob_type);
 }
 
 ND_FECollection::~ND_FECollection()

@@ -187,7 +187,7 @@ void DataCollection::SetPrefixPath(const std::string& prefix)
    }
 }
 
-void DataCollection::Load(int cycle)
+void DataCollection::Load(int cycle_)
 {
    MFEM_ABORT("this method is not implemented");
 }
