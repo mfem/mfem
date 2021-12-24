@@ -1610,34 +1610,34 @@ void MemoryManager::RegisterCheck(void *ptr)
    }
 }
 
-int MemoryManager::PrintPtrs(std::ostream &out)
+int MemoryManager::PrintPtrs(std::ostream &pout)
 {
    int n_out = 0;
    for (const auto& n : maps->memories)
    {
       const internal::Memory &mem = n.second;
-      out << "\nkey " << n.first << ", "
-          << "h_ptr " << mem.h_ptr << ", "
-          << "d_ptr " << mem.d_ptr;
+      pout << "\nkey " << n.first << ", "
+           << "h_ptr " << mem.h_ptr << ", "
+           << "d_ptr " << mem.d_ptr;
       n_out++;
    }
-   if (maps->memories.size() > 0) { out << std::endl; }
+   if (maps->memories.size() > 0) { pout << std::endl; }
    return n_out;
 }
 
-int MemoryManager::PrintAliases(std::ostream &out)
+int MemoryManager::PrintAliases(std::ostream &pout)
 {
    int n_out = 0;
    for (const auto& n : maps->aliases)
    {
       const internal::Alias &alias = n.second;
-      out << "\nalias: key " << n.first << ", "
-          << "h_ptr " << alias.mem->h_ptr << ", "
-          << "offset " << alias.offset << ", "
-          << "counter " << alias.counter;
+      pout << "\nalias: key " << n.first << ", "
+           << "h_ptr " << alias.mem->h_ptr << ", "
+           << "offset " << alias.offset << ", "
+           << "counter " << alias.counter;
       n_out++;
    }
-   if (maps->aliases.size() > 0) { out << std::endl; }
+   if (maps->aliases.size() > 0) { pout << std::endl; }
    return n_out;
 }
 

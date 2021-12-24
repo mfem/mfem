@@ -1988,9 +1988,9 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
          {
             if (RebalanceMessage::TestAllSent(send_elems))
             {
-               int err = MPI_Ibarrier(MyComm, &barrier);
+               int mpi_err = MPI_Ibarrier(MyComm, &barrier);
 
-               MFEM_VERIFY(err == MPI_SUCCESS, "");
+               MFEM_VERIFY(mpi_err == MPI_SUCCESS, "");
                MFEM_VERIFY(barrier != MPI_REQUEST_NULL, "");
             }
          }
