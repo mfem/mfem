@@ -29,6 +29,10 @@ using namespace mfem;
 
 int problem = 0;
 
+const char vishost[] = "localhost";
+const int  visport   = 19916;
+const int wsize = 450; // glvis window size.
+
 double domainLS(const Vector &coord)
 {
    // Map from [0,1] to [-1,1].
@@ -189,10 +193,8 @@ class Extrapolator
 private:
 
    void TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
-                 double dt, int vis_x_pos)
+                 double dt, int vis_x_pos, std::string vis_name)
    {
-      char vishost[] = "localhost";
-      int  visport   = 19916, wsize = 500;
       socketstream sock;
 
       const int myid  = sltn.ParFESpace()->GetMyRank();
@@ -215,8 +217,8 @@ private:
             if (visualization)
             {
                common::VisualizeField(sock, vishost, visport, sltn,
-                                      "Solution", vis_x_pos, 570, wsize, wsize,
-                                      "rRjmm********A");
+                                      vis_name.c_str(), vis_x_pos, wsize+50,
+                                      wsize, wsize, "rRjmm********A");
                MPI_Barrier(sltn.ParFESpace()->GetComm());
             }
          }
@@ -238,9 +240,6 @@ public:
       ParMesh &pmesh = *input.ParFESpace()->GetParMesh();
       const int order = input.ParFESpace()->GetOrder(0),
                 dim   = pmesh.Dimension(), NE = pmesh.GetNE();
-
-      char vishost[] = "localhost";
-      int  visport   = 19916, wsize = 500;
 
       // Get a ParGridFunction and mark elements.
       H1_FECollection fec(order, dim);
@@ -297,19 +296,31 @@ public:
       {
          socketstream sock;
          common::VisualizeField(sock, vishost, visport, u,
-                                "Fixed (known) u values", wsize, 0, wsize, wsize,
-                                "rRjmm********A");
+                                "Fixed (known) u values", wsize, 0,
+                                wsize, wsize, "rRjmm********A");
       }
 
       // Normal derivative function.
-      ParGridFunction grad_u_n(&pfes_L2);
-      NormalGradCoeff grad_u_n_coeff(u, ls_n_coeff);
-      grad_u_n.ProjectCoefficient(grad_u_n_coeff);
+      ParGridFunction n_grad_u(&pfes_L2);
+      NormalGradCoeff n_grad_u_coeff(u, ls_n_coeff);
+      n_grad_u.ProjectCoefficient(n_grad_u_coeff);
       if (visualization)
       {
          socketstream sock;
-         common::VisualizeField(sock, vishost, visport, grad_u_n,
-                                "grad_u n", 2*wsize, 0, wsize, wsize,
+         common::VisualizeField(sock, vishost, visport, n_grad_u,
+                                "n.grad(u)", 2*wsize, 0, wsize, wsize,
+                                "rRjmm********A");
+      }
+
+      // 2nd normal derivative function.
+      ParGridFunction n_grad_n_grad_u(&pfes_L2);
+      NormalGradCoeff n_grad_n_grad_u_coeff(n_grad_u, ls_n_coeff);
+      n_grad_n_grad_u.ProjectCoefficient(n_grad_n_grad_u_coeff);
+      if (visualization)
+      {
+         socketstream sock;
+         common::VisualizeField(sock, vishost, visport, n_grad_n_grad_u,
+                                "n.grad(n.grad(u))", 3*wsize, 0, wsize, wsize,
                                 "rRjmm********A");
       }
 
@@ -342,17 +353,21 @@ public:
       // The propagation speed is 1.
       double dt = 0.25 * h_min / 1.0;
 
-      // Time loop
+      // Time loops.
       AdvectionOper adv_oper(active_zones, lhs_bf, rhs_bf, rhs);
       RK2Solver ode_solver(1.0);
       ode_solver.Init(adv_oper);
 
-      // Constant extrapolation of [grad_u.n].
-      TimeLoop(grad_u_n, ode_solver, dt, 2*wsize);
+      // Constant extrapolation of [n.grad(n.grad(u))].
+      TimeLoop(n_grad_n_grad_u, ode_solver, dt, 3*wsize, "n.grad(n.grad(u))");
 
-      // Linear extrapolation of u.
-      lhs_bf.Mult(grad_u_n, rhs);
-      TimeLoop(u, ode_solver, dt, wsize);
+      // Linear extrapolation of [n.grad_u].
+      lhs_bf.Mult(n_grad_n_grad_u, rhs);
+      TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
+
+      // Quadratic extrapolation of u.
+      lhs_bf.Mult(n_grad_u, rhs);
+      TimeLoop(u, ode_solver, dt, wsize, "u");
 
       xtrap.ProjectGridFunction(u);
    }
@@ -401,7 +416,7 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
-   const int dim = pmesh.Dimension(), NE = pmesh.GetNE();
+   const int dim = pmesh.Dimension();
 
    // Input function.
    L2_FECollection fec_L2(order, dim);
