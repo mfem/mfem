@@ -58,15 +58,9 @@ WaveletRecursiveLevel::~WaveletRecursiveLevel()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-WaveletRecursiveLevelFA::WaveletRecursiveLevelFA(
-
-#ifndef MFEM_USE_MPI
-   FiniteElementSpace &,
-#else
-   ParFiniteElementSpace &pfes,
-#endif //  MFEM_USE_MPI
-   Wavelet::Type &wavelet,
-   const OperatorHandle &Ah)
+WaveletRecursiveLevelFA::WaveletRecursiveLevelFA(FiniteElementSpace &fes,
+                                                 Wavelet::Type &wavelet,
+                                                 const OperatorHandle &Ah)
 {
    MFEM_NVTX;
    MFEM_VERIFY((wavelet == Wavelet::HAAR) ||
@@ -87,6 +81,9 @@ WaveletRecursiveLevelFA::WaveletRecursiveLevelFA(
    tM = W->GetTransposedMatrix();
 
 #ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes);
+   assert(pfes);
+
    OperatorHandle H(Operator::Hypre_ParCSR),
                   tH(Operator::Hypre_ParCSR);
 
@@ -104,11 +101,11 @@ WaveletRecursiveLevelFA::WaveletRecursiveLevelFA(
       NVTX("CreateRectangularHypreMatrix");
       locals[0] = A->Height();
       locals[1] = A->Width();
-      pfes.GetParMesh()->GenerateOffsets(2, locals, offsets);
+      pfes->GetParMesh()->GenerateOffsets(2, locals, offsets);
       glob_num_rows = row_offsets[row_offsets.Size()-1];
       glob_num_cols = col_offsets[col_offsets.Size()-1];
       dbg("glob_num_rows:%d glob_num_cols:%d", glob_num_rows, glob_num_cols);
-      H.MakeRectangularBlockDiag(pfes.GetComm(),
+      H.MakeRectangularBlockDiag(pfes->GetComm(),
                                  glob_num_rows, glob_num_cols,
                                  row_offsets, col_offsets, A);
    };
@@ -133,6 +130,7 @@ WaveletRecursiveLevelFA::WaveletRecursiveLevelFA(
    }
 #else
    assert(false);
+   MFEM_CONTRACT_VAR(fes);
    const SparseMatrix *A = Ah.As<SparseMatrix>();
    MAMt.Reset(new RAPOperator(*Wt,*A,*Wt), false);
 #endif // MFEM_USE_MPI
@@ -171,16 +169,11 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 /// \brief WAMGR solver with DIAGONAL
-WAMGRSolver::WAMGRSolver(
-#ifndef MFEM_USE_MPI
-   FiniteElementSpace &fes,
-#else
-   ParFiniteElementSpace &fes,
-#endif // MFEM_USE_MPI
-   Wavelet::Type wavelet,
-   const bool lowpass,
-   wargs_t args,
-   const bool to_full) :
+WAMGRSolver::WAMGRSolver(FiniteElementSpace &fes,
+                         Wavelet::Type wavelet,
+                         const bool lowpass,
+                         wargs_t args,
+                         const bool to_full) :
    Multigrid()
 {
    MFEM_NVTX;
@@ -239,7 +232,7 @@ WAMGRSolver::WAMGRSolver(
                                              args.ess_tdof_list,
                                              args.smoother_order
 #ifdef MFEM_USE_MPI
-                                             ,fes.GetComm()
+                                             ,MPI_COMM_WORLD
 #endif // MFEM_USE_MPI
                                             );
             smoother = chebyshev_smoother;
@@ -264,7 +257,7 @@ WAMGRSolver::WAMGRSolver(
                                              Array<int>(),
                                              args.smoother_order
 #ifdef MFEM_USE_MPI
-                                             ,fes.GetComm()
+                                             ,MPI_COMM_WORLD
 #endif // MFEM_USE_MPI
                                             );
             smoother = chebyshev_smoother;
@@ -346,14 +339,6 @@ WAMGRSolver::WAMGRSolver(
    }
 
    const int depth = Prolongators.Size();
-   if (args.print_level > 0
-#ifdef MFEM_USE_MPI
-       && fes.GetParMesh()->GetMyRank()==0
-#endif // MFEM_USE_MPI
-      )
-   {
-      mfem::out << "[WAMG] " << depth << " levels in hierarchy" << std::endl;
-   }
 
    // Coarse solver
    NVTX("AddLevels");
@@ -378,13 +363,8 @@ WAMGRSolver::WAMGRSolver(
 
 ////////////////////////////////////////////////////////////////////////////////
 /// \brief WAMG solver
-WAMG::WAMG(
-#ifndef MFEM_USE_MPI
-   FiniteElementSpace &fes,
-#else
-   ParFiniteElementSpace &fes,
-#endif // MFEM_USE_MPI
-   Wavelet::Type wavelet, wargs_t args):
+WAMG::WAMG(FiniteElementSpace &fes,
+           Wavelet::Type wavelet, wargs_t args):
    wavelet_solver(fes, wavelet, lowpass, args, to_full)
 {
    dbg();
@@ -397,14 +377,9 @@ void WAMG::Mult(const Vector &x, Vector &y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 /// \brief faWAMG solver
-faWAMG::faWAMG(
-#ifndef MFEM_USE_MPI
-   FiniteElementSpace &fes,
-#else
-   ParFiniteElementSpace &fes,
-#endif // MFEM_USE_MPI
-   Wavelet::Type wavelet,
-   wargs_t args):
+faWAMG::faWAMG(FiniteElementSpace &fes,
+               Wavelet::Type wavelet,
+               wargs_t args):
    wavelet_solver(fes, wavelet, lowpass, args, to_full)
 {
    dbg();

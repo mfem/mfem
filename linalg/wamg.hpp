@@ -74,14 +74,9 @@ struct WaveletRecursiveLevelFA: public WaveletLevel
    Operator *Wt;
    SparseMatrix *M, *tM;
    OperatorHandle MAMt;
-   WaveletRecursiveLevelFA(
-#ifndef MFEM_USE_MPI
-      FiniteElementSpace&,
-#else
-      ParFiniteElementSpace &pfes,
-#endif // MFEM_USE_MPI
-      Wavelet::Type &wavelet,
-      const OperatorHandle &Op_h);
+   WaveletRecursiveLevelFA(FiniteElementSpace&,
+                           Wavelet::Type &wavelet,
+                           const OperatorHandle &Op_h);
    ~WaveletRecursiveLevelFA();
    OperatorHandle OpHandle() override;
    Operator *Prolongator() override;
@@ -91,16 +86,11 @@ struct WaveletRecursiveLevelFA: public WaveletLevel
 class WAMGRSolver : public Multigrid
 {
 public:
-   WAMGRSolver(
-#ifndef MFEM_USE_MPI
-      FiniteElementSpace &fes,
-#else
-      ParFiniteElementSpace &pfes,
-#endif // MFEM_USE_MPI
-      Wavelet::Type wavelet,
-      const bool lowpass,
-      wargs_t args,
-      const bool to_full);
+   WAMGRSolver(FiniteElementSpace &fes,
+               Wavelet::Type wavelet,
+               const bool lowpass,
+               wargs_t args,
+               const bool to_full);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,11 +102,7 @@ class WAMG : public Solver
    const bool to_full = false;
    WAMGRSolver wavelet_solver;
 public:
-#ifndef MFEM_USE_MPI
    WAMG(FiniteElementSpace &fes, Wavelet::Type wavelet, wargs_t args);
-#else
-   WAMG(ParFiniteElementSpace &pfes, Wavelet::Type wavelet, wargs_t args);
-#endif // MFEM_USE_MPI
    void Mult(const Vector&, Vector&) const override;
    void SetOperator(const Operator&) override { assert(false); }
    void AssembleDiagonal(Vector&) const override { assert(false); }
@@ -131,11 +117,7 @@ class faWAMG : public Solver
    const bool to_full = true;
    WAMGRSolver wavelet_solver;
 public:
-#ifndef MFEM_USE_MPI
    faWAMG(FiniteElementSpace &fes, Wavelet::Type wavelet, wargs_t args);
-#else
-   faWAMG(ParFiniteElementSpace &pfes, Wavelet::Type wavelet, wargs_t args);
-#endif // MFEM_USE_MPI
    void Mult(const Vector&, Vector&) const override;
    void SetOperator(const Operator&) override { assert(false); }
    void AssembleDiagonal(Vector&) const override { assert(false); }
