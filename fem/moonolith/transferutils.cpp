@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-namespace private_
+namespace internal
 {
 
 void MaxCol(const DenseMatrix &mat, double *vec, bool include_vec_elements)
@@ -151,6 +151,6 @@ double Sum(const DenseMatrix &mat)
    mat.GetRowSums(rs);
    return rs.Sum();
 }
-} // namespace private_
+} // namespace internal
 
 } // namespace mfem

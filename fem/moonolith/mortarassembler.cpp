@@ -23,12 +23,12 @@
 #include "moonolith_stream_utils.hpp"
 #include "par_moonolith_config.hpp"
 
-using namespace mfem::private_;
+using namespace mfem::internal;
 
 namespace mfem
 {
 
-class MortarAssembler::Impl
+struct MortarAssembler::Impl
 {
 public:
    std::shared_ptr<FiniteElementSpace> source;
