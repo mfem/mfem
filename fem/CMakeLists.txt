@@ -150,8 +150,10 @@ set(HDRS
   fe_coll.hpp
   fem.hpp
   fespace.hpp
+  fespacehierarchy.hpp
   geom.hpp
   gridfunc.hpp
+  gslib.hpp  
   hybridization.hpp
   intrules.hpp
   ceed/algebraic.hpp
@@ -165,9 +167,13 @@ set(HDRS
   ceed/nlconvection.hpp
   ceed/operator.hpp
   ceed/util.hpp
+  kernels.hpp
   linearform.hpp
   linearform_ext.hpp
   lininteg.hpp
+  lininteg_domain.hpp
+  lininteg_domain_grad.hpp
+  lor.hpp
   multigrid.hpp
   nonlinearform.hpp
   nonlinearform_ext.hpp
@@ -178,7 +184,6 @@ set(HDRS
   quadinterpolator.hpp
   quadinterpolator_face.hpp
   restriction.hpp
-  fespacehierarchy.hpp
   staticcond.hpp
   tbilinearform.hpp
   tbilininteg.hpp
@@ -190,11 +195,9 @@ set(HDRS
   tintrules.hpp
   tmop.hpp
   tmop/tmop_pa.hpp
-  tmop_tools.hpp
   tmop_amr.hpp
-  gslib.hpp
+  tmop_tools.hpp
   transfer.hpp
-  lor.hpp
   )
 
 if (MFEM_USE_SIDRE)
