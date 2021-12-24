@@ -44,6 +44,7 @@ int FinalizeTransfer();
  * MPI_Init.
  * @param argc Standard argument passed to the main function.
  * @param argv Standard argument passed to the main function.
+ * @param comm The user defined communicator.
  */
 void InitTransfer(int argc, char *argv[], MPI_Comm comm);
 #endif
