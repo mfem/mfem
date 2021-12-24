@@ -177,7 +177,7 @@ Device::~Device()
    Get().device_mem_class = MemoryClass::HOST;
 }
 
-void Device::Configure(const std::string &device, const int dev)
+void Device::Configure(const std::string &device, const int dev_)
 {
    // If a device was configured via the environment, skip the configuration,
    // and avoid the 'singleton_device' to destroy the mm.
@@ -240,7 +240,7 @@ void Device::Configure(const std::string &device, const int dev)
 #endif
 
    // Perform setup.
-   Get().Setup(dev);
+   Get().Setup(dev_);
 
    // Enable the device
    Enable();

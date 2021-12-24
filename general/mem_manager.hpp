@@ -849,13 +849,14 @@ inline void Memory<T>::New(int size, MemoryType mt)
 }
 
 template <typename T>
-inline void Memory<T>::New(int size, MemoryType h_mt, MemoryType d_mt)
+inline void Memory<T>::New(int size_, MemoryType h_mt_, MemoryType d_mt_)
 {
-   capacity = size;
-   const size_t bytes = size*sizeof(T);
-   this->h_mt = h_mt;
-   T *h_tmp = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
-   h_ptr = (T*)MemoryManager::New_(h_tmp, bytes, h_mt, d_mt, VALID_HOST, flags);
+   capacity = size_;
+   const size_t bytes = size_*sizeof(T);
+   this->h_mt = h_mt_;
+   T *h_tmp = (h_mt_ == MemoryType::HOST) ? NewHOST(size_) : nullptr;
+   h_ptr = (T*)MemoryManager::New_(h_tmp, bytes, h_mt_, d_mt_,
+                                   VALID_HOST, flags);
 }
 
 template <typename T>
