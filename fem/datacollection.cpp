@@ -11,6 +11,7 @@
 
 #include "fem.hpp"
 #include "../mesh/nurbs.hpp"
+#include "../mesh/vtk.hpp"
 #include "../general/binaryio.hpp"
 #include "../general/text.hpp"
 #include "picojson.h"
@@ -1058,20 +1059,20 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &out, int ref)
 }
 
 void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
-                                           const FieldMapIterator& it)
+                                           const FieldMapIterator &it)
 {
    RefinedGeometry *RefG;
    Vector val;
    DenseMatrix vval, pmat;
    std::vector<char> buf;
    int vec_dim = it->second->VectorDim();
+   out << "<DataArray type=\"" << GetDataTypeString()
+       << "\" Name=\"" << it->first;
+   out << "\" NumberOfComponents=\"" << vec_dim << "\""
+       << " format=\"" << GetDataFormatString() << "\" >" << '\n';
    if (vec_dim == 1)
    {
       // scalar data
-      out << "<DataArray type=\"" << GetDataTypeString()
-          << "\" Name=\"" << it->first;
-      out << "\" NumberOfComponents=\"1\" format=\""
-          << GetDataFormatString() << "\" >\n";
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
@@ -1079,51 +1080,23 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &out, int ref_,
          it->second->GetValues(i, RefG->RefPts, val, pmat);
          for (int j = 0; j < val.Size(); j++)
          {
-            if (pv_data_format == VTKFormat::ASCII)
-            {
-               out << ZeroSubnormal(val(j)) << '\n';
-            }
-            else if (pv_data_format == VTKFormat::BINARY)
-            {
-               bin_io::AppendBytes(buf, val(j));
-            }
-            else
-            {
-               bin_io::AppendBytes<float>(buf, float(val(j)));
-            }
+            WriteBinaryOrASCII(out, buf, val(j), "\n", pv_data_format);
          }
       }
    }
    else
    {
       // vector data
-      out << "<DataArray type=\"" << GetDataTypeString()
-          << "\" Name=\"" << it->first;
-      out << "\" NumberOfComponents=\"" << vec_dim << "\""
-          << " format=\"" << GetDataFormatString() << "\" >" << '\n';
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
                    mesh->GetElementBaseGeometry(i), ref_, 1);
-
          it->second->GetVectorValues(i, RefG->RefPts, vval, pmat);
-
          for (int jj = 0; jj < vval.Width(); jj++)
          {
             for (int ii = 0; ii < vval.Height(); ii++)
             {
-               if (pv_data_format == VTKFormat::ASCII)
-               {
-                  out << ZeroSubnormal(vval(ii,jj)) << ' ';
-               }
-               else if (pv_data_format == VTKFormat::BINARY)
-               {
-                  bin_io::AppendBytes(buf, vval(ii,jj));
-               }
-               else
-               {
-                  bin_io::AppendBytes<float>(buf, float(vval(ii,jj)));
-               }
+               WriteBinaryOrASCII(out, buf, vval(ii,jj), " ", pv_data_format);
             }
             if (pv_data_format == VTKFormat::ASCII) { out << '\n'; }
          }
