@@ -160,7 +160,8 @@ int main(int argc, char *argv[])
    ParBilinearForm a(&fes);
    if (H1 || L2)
    {
-#warning no MassIntegrator
+      // #warning no MassIntegrator
+      // all warnings being treated as errors
       //a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator);
    }
