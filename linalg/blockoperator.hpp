@@ -237,7 +237,7 @@ public:
    //! Add block op in the block-entry (iblock, iblock).
    /**
     * @param iblock  The block will be inserted in location (iblock, iblock).
-    * @param op      The Operator to be inserted.
+    * @param opt     The Operator to be inserted.
     */
    void SetDiagonalBlock(int iblock, Operator *opt);
    //! Add a block opt in the block-entry (iblock, jblock).
