@@ -21,6 +21,8 @@ set(SRCS
   bilininteg_dgtrace_ea.cpp
   bilininteg_diffusion_mf.cpp
   bilininteg_diffusion_pa.cpp
+  bilininteg_diffusion_pa_diag_fast.cpp
+  bilininteg_diffusion_pa_fast.cpp
   bilininteg_diffusion_ea.cpp
   bilininteg_divergence.cpp
   bilininteg_hcurl.cpp
@@ -79,6 +81,10 @@ set(SRCS
   lininteg_domain_grad.cpp
   lininteg_vector_domain.cpp
   lininteg_vector_domain_grad.cpp
+  lor.cpp
+  lor_assembly.cpp
+  lor_assembly_ker.cpp
+  lor_assembly_ni3.cpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
@@ -173,6 +179,10 @@ set(HDRS
   linearform.hpp
   linearform_ext.hpp
   lininteg.hpp
+  lininteg_domain.hpp
+  lininteg_domain_grad.hpp
+  lor.hpp
+  lor_assembly.hpp
   multigrid.hpp
   nonlinearform.hpp
   nonlinearform_ext.hpp

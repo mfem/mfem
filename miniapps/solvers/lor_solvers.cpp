@@ -65,9 +65,6 @@
 
 #include "lor_mms.hpp"
 
-#define MFEM_DEBUG_COLOR 195
-#include "general/debug.hpp"
-
 using namespace std;
 using namespace mfem;
 
