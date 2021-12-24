@@ -2175,14 +2175,14 @@ void HypreParMatrix::DropSmallEntries(double tol)
 }
 
 void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
-                                       const HypreParVector &X,
-                                       HypreParVector &B)
+                                       const HypreParVector &x,
+                                       HypreParVector &b)
 {
    Array<HYPRE_Int> rc_sorted;
    get_sorted_rows_cols(rows_cols, rc_sorted);
 
    internal::hypre_ParCSRMatrixEliminateAXB(
-      A, rc_sorted.Size(), rc_sorted.GetData(), X, B);
+      A, rc_sorted.Size(), rc_sorted.GetData(), x, b);
 }
 
 HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
@@ -2228,10 +2228,10 @@ void HypreParMatrix::EliminateRows(const Array<int> &rows)
 
 void HypreParMatrix::EliminateBC(const HypreParMatrix &Ae,
                                  const Array<int> &ess_dof_list,
-                                 const Vector &X, Vector &B) const
+                                 const Vector &x, Vector &b) const
 {
-   // B -= Ae*X
-   Ae.Mult(-1.0, X, 1.0, B);
+   // b -= Ae*x
+   Ae.Mult(-1.0, x, 1.0, b);
 
    // All operations below are local, so we can skip them if ess_dof_list is
    // empty on this processor to avoid potential host <--> device transfers.
@@ -2249,13 +2249,13 @@ void HypreParMatrix::EliminateBC(const HypreParMatrix &Ae,
 #endif
 
    ess_dof_list.HostRead();
-   X.HostRead();
-   B.HostReadWrite();
+   x.HostRead();
+   b.HostReadWrite();
 
    for (int i = 0; i < ess_dof_list.Size(); i++)
    {
       int r = ess_dof_list[i];
-      B(r) = data[I[r]] * X(r);
+      b(r) = data[I[r]] * x(r);
 #ifdef MFEM_DEBUG
       MFEM_ASSERT(I[r] < I[r+1], "empty row found!");
       // Check that in the rows specified by the ess_dof_list, the matrix A has
@@ -4725,17 +4725,17 @@ void HypreBoomerAMG::RecomputeRBMs()
    }
 }
 
-void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
+void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
 {
 #ifdef HYPRE_USING_CUDA
    MFEM_ABORT("this method is not supported in hypre built with CUDA");
 #endif
 
    // Save the finite element space to support multiple calls to SetOperator()
-   this->fespace = fespace;
+   this->fespace = fespace_;
 
    // Make sure the systems AMG options are set
-   int dim = fespace->GetParMesh()->Dimension();
+   int dim = fespace_->GetParMesh()->Dimension();
    SetSystemsOptions(dim);
 
    // Nodal coarsening options (nodal coarsening is required for this solver)
@@ -5472,9 +5472,9 @@ HypreLOBPCG::HypreMultiVector::~HypreMultiVector()
 }
 
 void
-HypreLOBPCG::HypreMultiVector::Randomize(HYPRE_Int seed)
+HypreLOBPCG::HypreMultiVector::Randomize(HYPRE_Int seed_)
 {
-   mv_MultiVectorSetRandom(mv_ptr, seed);
+   mv_MultiVectorSetRandom(mv_ptr, seed_);
 }
 
 HypreParVector &

@@ -49,9 +49,9 @@ BlockOperator::BlockOperator(const Array<int> & row_offsets_,
    col_offsets.MakeRef(col_offsets_);
 }
 
-void BlockOperator::SetDiagonalBlock(int iblock, Operator *op, double c)
+void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, double c)
 {
-   SetBlock(iblock, iblock, op, c);
+   SetBlock(iblock, iblock, opt, c);
 }
 
 void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, double c)
@@ -255,13 +255,13 @@ BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(
 }
 
 void BlockLowerTriangularPreconditioner::SetDiagonalBlock(int iblock,
-                                                          Operator *op)
+                                                          Operator *opt)
 {
-   MFEM_VERIFY(offsets[iblock+1] - offsets[iblock] == op->Height() &&
-               offsets[iblock+1] - offsets[iblock] == op->Width(),
+   MFEM_VERIFY(offsets[iblock+1] - offsets[iblock] == opt->Height() &&
+               offsets[iblock+1] - offsets[iblock] == opt->Width(),
                "incompatible Operator dimensions");
 
-   SetBlock(iblock, iblock, op);
+   SetBlock(iblock, iblock, opt);
 }
 
 void BlockLowerTriangularPreconditioner::SetBlock(int iRow, int iCol,
