@@ -1087,12 +1087,12 @@ void ParMesh::LoadSharedEntities(istream &input)
                case Geometry::TRIANGLE:
                   shared_trias.SetSize(shared_trias.Size()+1);
                   v = shared_trias.Last().v;
-                  for (int i = 0; i < 3; i++) { input >> v[i]; }
+                  for (int ii = 0; ii < 3; ii++) { input >> v[ii]; }
                   break;
                case Geometry::SQUARE:
                   shared_quads.SetSize(shared_quads.Size()+1);
                   v = shared_quads.Last().v;
-                  for (int i = 0; i < 4; i++) { input >> v[i]; }
+                  for (int ii = 0; ii < 4; ii++) { input >> v[ii]; }
                   break;
                default:
                   MFEM_ABORT("invalid shared face geometry: " << geom);
@@ -4647,18 +4647,18 @@ void ParMesh::Print(std::ostream &out) const
          const NCMesh::NCList& sfaces =
             (Dim == 3) ? pncmesh->GetSharedFaces() : pncmesh->GetSharedEdges();
          const int nfaces = GetNumFaces();
-         for (int i = 0; i < sfaces.conforming.Size(); i++)
+         for (i = 0; i < sfaces.conforming.Size(); i++)
          {
             int index = sfaces.conforming[i].index;
             if (index < nfaces) { nc_shared_faces.Append(index); }
          }
-         for (int i = 0; i < sfaces.masters.Size(); i++)
+         for (i = 0; i < sfaces.masters.Size(); i++)
          {
             if (Dim == 2 && WantSkipSharedMaster(sfaces.masters[i])) { continue; }
             int index = sfaces.masters[i].index;
             if (index < nfaces) { nc_shared_faces.Append(index); }
          }
-         for (int i = 0; i < sfaces.slaves.Size(); i++)
+         for (i = 0; i < sfaces.slaves.Size(); i++)
          {
             int index = sfaces.slaves[i].index;
             if (index < nfaces) { nc_shared_faces.Append(index); }
