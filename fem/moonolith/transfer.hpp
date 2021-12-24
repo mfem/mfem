@@ -24,10 +24,27 @@
 namespace mfem
 {
 
+/*!
+ * @brief Initializes the par_moonolith library. It also calls MPI_Init.
+ * @param argc Standard argument passed to the main function.
+ * @param argv Standard argument passed to the main function.
+ */
 void InitTransfer(int argc, char *argv[]);
+
+/*!
+ * @brief Finalize the par_moonolith library.
+ * @return Zero if everything has succeded.
+ */
 int FinalizeTransfer();
 
 #ifdef MFEM_USE_MPI
+/*!
+ * @brief Initializes the transfer library. It does not call MPI_Init, but uses
+ * the communicator defined by the user. This method can be called only after
+ * MPI_Init.
+ * @param argc Standard argument passed to the main function.
+ * @param argv Standard argument passed to the main function.
+ */
 void InitTransfer(int argc, char *argv[], MPI_Comm comm);
 #endif
 

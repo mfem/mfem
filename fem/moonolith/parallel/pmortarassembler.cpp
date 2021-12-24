@@ -26,12 +26,12 @@
 
 #include <memory>
 
-using namespace mfem::private_;
+using namespace mfem::internal;
 
 namespace mfem
 {
 
-class ParMortarAssembler::Impl
+struct ParMortarAssembler::Impl
 {
 public:
    MPI_Comm comm;

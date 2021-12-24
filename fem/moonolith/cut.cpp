@@ -15,7 +15,7 @@
 
 #include "moonolith_build_quadrature.hpp"
 
-using namespace mfem::private_;
+using namespace mfem::internal;
 
 namespace mfem
 {
