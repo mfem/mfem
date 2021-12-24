@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -40,8 +40,6 @@ StaticCondensation::StaticCondensation(FiniteElementSpace *fespace)
 #endif
    S = S_e = NULL;
    symm = false;
-   A_data.Reset();
-   A_ipiv.Reset();
 
    Array<int> vdofs;
    const int NE = fes->GetNE();

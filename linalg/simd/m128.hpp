@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -113,6 +113,11 @@ template <> struct AutoSIMD<double,2,16>
       AutoSIMD r;
       r.m128d = _mm_xor_pd(_mm_set1_pd(-0.0), m128d);
       return r;
+   }
+
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator+() const
+   {
+      return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const AutoSIMD &v) const
@@ -251,4 +256,3 @@ AutoSIMD<double,2,16> operator/(const double &e,
 #endif // __SSE2__
 
 #endif // MFEM_SIMD_M128_HPP
-

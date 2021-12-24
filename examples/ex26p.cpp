@@ -37,7 +37,7 @@ using namespace mfem;
 // all spaces except the coarsest one in the ParFiniteElementSpaceHierarchy.
 // The multigrid uses a PCG solver preconditioned with AMG on the coarsest level
 // and second order Chebyshev accelerated smoothers on the other levels.
-class DiffusionMultigrid : public Multigrid
+class DiffusionMultigrid : public GeometricMultigrid
 {
 private:
    ConstantCoefficient one;
@@ -48,7 +48,7 @@ public:
    // and the array of essential boundaries
    DiffusionMultigrid(ParFiniteElementSpaceHierarchy& fespaces,
                       Array<int>& ess_bdr)
-      : Multigrid(fespaces), one(1.0)
+      : GeometricMultigrid(fespaces), one(1.0)
    {
       ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0), ess_bdr);
 
@@ -115,7 +115,7 @@ private:
       Vector diag(fespace.GetTrueVSize());
       bfs.Last()->AssembleDiagonal(diag);
 
-      Solver* smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag,
+      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag,
                                                        *essentialTrueDofs.Last(), 2, fespace.GetParMesh()->GetComm());
 
       AddLevel(opr.Ptr(), smoother, true, true);
@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
       fespaces->AddOrderRefinedLevel(collections.Last());
    }
 
-   HYPRE_Int size = fespaces->GetFinestFESpace().GlobalTrueVSize();
+   HYPRE_BigInt size = fespaces->GetFinestFESpace().GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;

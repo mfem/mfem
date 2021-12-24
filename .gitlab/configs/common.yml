@@ -1,0 +1,36 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# We define the following GitLab pipeline variables:
+variables:
+
+# The path to the shared resource between all jobs. For example, external
+# repositories like 'tests' and 'tpls' are cloned here. Also, 'tpls' is built
+# once for all targets, so that build happen here. The BUILD_ROOT is unique to
+# the pipeline, preventing any form of concurrency with other pipelines. This
+# also means that the BUILD_ROOT directory will never be cleaned.
+# TODO: add a clean-up mechanism
+  BUILD_ROOT: ${USER_CI_TOP_DIR}/${CI_PROJECT_NAME}-${MACHINE_NAME}-pipeline-${CI_PIPELINE_ID}
+
+# On LLNL's quartz, there is only one allocation shared among jobs in order to
+# save time and resource. This allocation has to be uniquely named so that we
+# are sure to retrieve it.
+  ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
+
+# Git repositories used in the pipeline
+  TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
+  TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
+  AUTOTEST_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/autotest.git
+  MFEM_DATA_REPO: https://github.com/mfem/data.git
+
+# Directory used to place artifacts.
+  ARTIFACTS_DIR: artifacts
+  SLURM_OVERLAP: 1

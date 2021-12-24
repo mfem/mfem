@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,9 +20,7 @@ void BlockVector::SetBlocks()
 {
    for (int i = 0; i < numBlocks; ++i)
    {
-      blocks[i].NewMemoryAndSize(
-         Memory<double>(data, blockOffsets[i], BlockSize(i)),
-         BlockSize(i), true);
+      blocks[i].MakeRef(*this, blockOffsets[i], BlockSize(i));
    }
 }
 
@@ -70,6 +68,16 @@ BlockVector::BlockVector(double *data, const Array<int> & bOffsets):
    numBlocks(bOffsets.Size()-1),
    blockOffsets(bOffsets.GetData())
 {
+   blocks = new Vector[numBlocks];
+   SetBlocks();
+}
+
+BlockVector::BlockVector(Vector &v, const Array<int> &bOffsets)
+   : Vector(),
+     numBlocks(bOffsets.Size()-1),
+     blockOffsets(bOffsets.GetData())
+{
+   MakeRef(v, 0, blockOffsets[numBlocks]);
    blocks = new Vector[numBlocks];
    SetBlocks();
 }
@@ -178,9 +186,23 @@ BlockVector::~BlockVector()
 
 void BlockVector::GetBlockView(int i, Vector & blockView)
 {
-   blockView.NewMemoryAndSize(
-      Memory<double>(data, blockOffsets[i], BlockSize(i)),
-      BlockSize(i), true);
+   blockView.MakeRef(*this, blockOffsets[i], BlockSize(i));
+}
+
+void BlockVector::SyncToBlocks() const
+{
+   for (int i = 0; i < numBlocks; ++i)
+   {
+      blocks[i].SyncMemory(*this);
+   }
+}
+
+void BlockVector::SyncFromBlocks() const
+{
+   for (int i = 0; i < numBlocks; ++i)
+   {
+      blocks[i].SyncAliasMemory(*this);
+   }
 }
 
 }

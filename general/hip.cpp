@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -61,6 +61,21 @@ void* HipMallocManaged(void** dptr, size_t bytes)
    return *dptr;
 }
 
+void* HipMemAllocHostPinned(void** ptr, size_t bytes)
+{
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "HipMemAllocHostPinned(): allocating " << bytes << " bytes ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(hipHostMalloc(ptr, bytes, hipHostMallocDefault));
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "done: " << *ptr << std::endl;
+#endif
+#endif
+   return *ptr;
+}
+
 void* HipMemFree(void *dptr)
 {
 #ifdef MFEM_USE_HIP
@@ -74,6 +89,21 @@ void* HipMemFree(void *dptr)
 #endif
 #endif
    return dptr;
+}
+
+void* HipMemFreeHostPinned(void *ptr)
+{
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "HipMemFreeHostPinned(): deallocating memory @ " << ptr << " ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(hipHostFree(ptr));
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "done." << std::endl;
+#endif
+#endif
+   return ptr;
 }
 
 void* HipMemcpyHtoD(void* dst, const void* src, size_t bytes)
@@ -125,7 +155,7 @@ void* HipMemcpyDtoDAsync(void* dst, const void *src, size_t bytes)
 void* HipMemcpyDtoH(void *dst, const void *src, size_t bytes)
 {
 #ifdef MFEM_USE_HIP
-#ifdef MFEM_TRACK_HPI_MEM
+#ifdef MFEM_TRACK_HIP_MEM
    mfem::out << "HipMemcpyDtoH(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif

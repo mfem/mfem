@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,18 +14,13 @@
 
 // Data types for sparse matrix
 
+#include "../general/backends.hpp"
 #include "../general/mem_alloc.hpp"
 #include "../general/mem_manager.hpp"
 #include "../general/device.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 #include "densemat.hpp"
-
-#ifdef MFEM_USE_CUDA
-#include <cusparse.h>
-#include <library_types.h>
-#include "../general/cuda.hpp"
-#endif
 
 namespace mfem
 {
@@ -95,14 +90,17 @@ protected:
    cusparseStatus_t status;
    static cusparseHandle_t handle;
    cusparseMatDescr_t descr=0;
+   static int SparseMatrixCount;
    static size_t bufferSize;
    static void *dBuffer;
    mutable bool initBuffers{false};
-
-   static int SparseMatrixCount;
+#if CUDA_VERSION >= 10010
    mutable cusparseSpMatDescr_t matA_descr;
    mutable cusparseDnVecDescr_t vecX_descr;
    mutable cusparseDnVecDescr_t vecY_descr;
+#else
+   mutable cusparseMatDescr_t matA_descr;
+#endif
 #endif
 
 public:
@@ -142,14 +140,19 @@ public:
    /// Copy constructor (deep copy).
    /** If @a mat is finalized and @a copy_graph is false, the #I and #J arrays
        will use a shallow copy (copy the pointers only) without transferring
-       ownership. */
-   SparseMatrix(const SparseMatrix &mat, bool copy_graph = true);
+       ownership.
+       If @a mt is MemoryType::PRESERVE the memory type of the resulting
+       SparseMatrix's #I, #J, and #A arrays will be the same as @a mat,
+       otherwise the type will be @a mt for those arrays that are deep
+       copied. */
+   SparseMatrix(const SparseMatrix &mat, bool copy_graph = true,
+                MemoryType mt = MemoryType::PRESERVE);
 
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
    // Runtime option to use cuSPARSE. Only valid when using a CUDA backend.
-   void UseCuSparse(bool _useCuSparse = true) { useCuSparse = _useCuSparse;}
+   void UseCuSparse(bool useCuSparse_ = true) { useCuSparse = useCuSparse_;}
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);
@@ -165,6 +168,10 @@ public:
 
    /// Clear the contents of the SparseMatrix.
    void Clear() { Destroy(); SetEmpty(); }
+
+   /** @brief Clear the CuSparse descriptors.
+       This must be called after releasing the device memory of A. */
+   void ClearCuSparse();
 
    /// Check if the SparseMatrix is empty.
    bool Empty() const { return (A == NULL) && (Rows == NULL); }
@@ -439,10 +446,14 @@ public:
    /// Determine appropriate scaling for Jacobi iteration
    double GetJacobiScaling() const;
    /** One scaled Jacobi iteration for the system A x = b.
-       x1 = x0 + sc D^{-1} (b - A x0)  where D is the diag of A. */
-   void Jacobi(const Vector &b, const Vector &x0, Vector &x1, double sc) const;
+       x1 = x0 + sc D^{-1} (b - A x0)  where D is the diag of A.
+       Absolute values of D are used when use_abs_diag = true. */
+   void Jacobi(const Vector &b, const Vector &x0, Vector &x1,
+               double sc, bool use_abs_diag = false) const;
 
-   void DiagScale(const Vector &b, Vector &x, double sc = 1.0) const;
+   /// x = sc b / A_ii. When use_abs_diag = true, |A_ii| is used.
+   void DiagScale(const Vector &b, Vector &x,
+                  double sc = 1.0, bool use_abs_diag = false) const;
 
    /** x1 = x0 + sc D^{-1} (b - A x0) where \f$ D_{ii} = \sum_j |A_{ij}| \f$. */
    void Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
@@ -519,6 +530,12 @@ public:
    void SetSubMatrixTranspose(const Array<int> &rows, const Array<int> &cols,
                               const DenseMatrix &subm, int skip_zeros = 1);
 
+   /** Insert the DenseMatrix into this SparseMatrix at the specified rows and
+       columns. If \c skip_zeros==0 , all entries from the DenseMatrix are
+       added including zeros. If \c skip_zeros==2 , no zeros are added to the
+       SparseMatrix regardless of their position in the matrix. Otherwise, the
+       default \c skip_zeros behavior is to omit the zero from the SparseMatrix
+       unless it would break the symmetric structure of the SparseMatrix. */
    void AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);
 
@@ -561,7 +578,7 @@ public:
    void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Prints matrix in matlab format.
-   void PrintMatlab(std::ostream &out = mfem::out) const;
+   virtual void PrintMatlab(std::ostream &out = mfem::out) const;
 
    /// Prints matrix in Matrix Market sparse format.
    void PrintMM(std::ostream &out = mfem::out) const;
@@ -615,12 +632,24 @@ public:
    {
       Destroy();
 #ifdef MFEM_USE_CUDA
-      if (handle && SparseMatrixCount==1 && Device::Allows(Backend::CUDA_MASK))
+      if (useCuSparse)
       {
-         cusparseDestroy(handle);
-         CuMemFree(dBuffer);
+         if (SparseMatrixCount==1)
+         {
+            if (handle)
+            {
+               cusparseDestroy(handle);
+               handle = nullptr;
+            }
+            if (dBuffer)
+            {
+               CuMemFree(dBuffer);
+               dBuffer = nullptr;
+               bufferSize = 0;
+            }
+         }
+         SparseMatrixCount--;
       }
-      SparseMatrixCount--;
 #endif
    }
 

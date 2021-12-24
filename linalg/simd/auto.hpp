@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -115,6 +115,11 @@ struct MFEM_AUTOSIMD_ALIGN__ AutoSIMD
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { r[i] = -vec[i]; }
       return r;
+   }
+
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator+() const
+   {
+      return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const AutoSIMD &v) const

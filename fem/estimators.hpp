@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,8 @@
 
 #ifndef MFEM_ERROR_ESTIMATORS
 #define MFEM_ERROR_ESTIMATORS
+
+#include <functional>
 
 #include "../config/config.hpp"
 #include "../linalg/vector.hpp"
@@ -39,6 +41,11 @@ public:
 class ErrorEstimator : public AbstractErrorEstimator
 {
 public:
+   /// Return the total error from the last error estimate.
+   /** @note This method is optional for derived classes to override and the
+       base class implementation simply returns 0. */
+   virtual double GetTotalError() const { return 0.0; }
+
    /// Get a Vector with all element errors.
    virtual const Vector &GetLocalErrors() = 0;
 
@@ -148,8 +155,8 @@ public:
         own_flux_fes(false)
    { }
 
-   /** @brief Consider the coefficient in BilinearFormIntegrator to calculate the
-       fluxes for the error estimator.*/
+   /** @brief Consider the coefficient in BilinearFormIntegrator to calculate
+       the fluxes for the error estimator.*/
    void SetWithCoeff(bool w_coeff = true) { with_coeff = w_coeff; }
 
    /** @brief Enable/disable anisotropic estimates. To enable this option, the
@@ -166,10 +173,10 @@ public:
    void SetFluxAveraging(int fa) { flux_averaging = fa; }
 
    /// Return the total error from the last error estimate.
-   double GetTotalError() const { return total_error; }
+   virtual double GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors()
+   virtual const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
@@ -178,14 +185,14 @@ public:
    /** @brief Get an Array<int> with anisotropic flags for all mesh elements.
        Return an empty array when anisotropic estimates are not available or
        enabled. */
-   virtual const Array<int> &GetAnisotropicFlags()
+   virtual const Array<int> &GetAnisotropicFlags() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return aniso_flags;
    }
 
    /// Reset the error estimator.
-   virtual void Reset() { current_sequence = -1; }
+   virtual void Reset() override { current_sequence = -1; }
 
    /** @brief Destroy a ZienkiewiczZhuEstimator object. Destroys, if owned, the
        FiniteElementSpace, flux_space. */
@@ -292,17 +299,17 @@ public:
    void SetLocalErrorNormP(int p) { local_norm_p = p; }
 
    /// Return the total error from the last error estimate.
-   double GetTotalError() const { return total_error; }
+   virtual double GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors()
+   virtual const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
    /// Reset the error estimator.
-   virtual void Reset() { current_sequence = -1; }
+   virtual void Reset() override { current_sequence = -1; }
 
    /** @brief Destroy a L2ZienkiewiczZhuEstimator object. Destroys, if owned,
        the FiniteElementSpace, flux_space. */
@@ -313,6 +320,7 @@ public:
 };
 
 #endif // MFEM_USE_MPI
+
 
 /** @brief The LpErrorEstimator class compares the solution to a known
     coefficient.
@@ -331,6 +339,8 @@ protected:
    long current_sequence;
    int local_norm_p;
    Vector error_estimates;
+
+   double total_error = 0.0;
 
    Coefficient * coef;
    VectorCoefficient * vcoef;
@@ -383,10 +393,10 @@ public:
    void SetCoef(VectorCoefficient &A) { vcoef = &A; }
 
    /// Reset the error estimator.
-   virtual void Reset() { current_sequence = -1; }
+   virtual void Reset() override { current_sequence = -1; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors()
+   virtual const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
@@ -394,6 +404,178 @@ public:
 
    /// Destructor
    virtual ~LpErrorEstimator() {}
+};
+
+
+/** @brief The KellyErrorEstimator class provides a fast error indication
+    strategy for smooth scalar parallel problems.
+
+    The Kelly error indicator is based on the following papers:
+
+    [1] Kelly, D. W., et al. "A posteriori error analysis and adaptive processes
+    in the finite element method: Part I—Error analysis." International journal
+    for numerical methods in engineering 19.11 (1983): 1593-1619.
+
+    [2] De SR Gago, J. P., et al. "A posteriori error analysis and adaptive
+    processes in the finite element method: Part II—Adaptive mesh refinement."
+    International journal for numerical methods in engineering 19.11 (1983):
+    1621-1656.
+
+    It can be roughly described by:
+        ||∇(u-uₕ)||ₑ ≅ √( C hₑ ∑ₖ (hₖ ∫ |J[∇uₕ]|²) dS )
+    where "e" denotes an element, ||⋅||ₑ the corresponding local norm and k the
+    corresponding faces. u is the analytic solution and uₕ the discretized
+    solution. hₖ and hₑ are factors dependent on the face and element geometry.
+    J is the jump function, i.e. the difference between the limits at each point
+    for each side of the face. A custom method to compute hₖ can be provided. It
+    is also possible to estimate the error only on a subspace by feeding this
+    class an attribute array describing the subspace.
+
+    @note This algorithm is appropriate only for problems with scalar diffusion
+    coefficients (e.g. Poisson problems), because it measures only the flux of
+    the gradient of the discrete solution. The current implementation also does
+    not include the volume term present in Equation 75 of Kelly et al [1].
+    Instead, it includes only the flux term recommended in Equation 82. The
+    current implementation also does not include the constant factor "C". It
+    furthermore assumes that the approximation error at the boundary is small
+    enough, as the implementation ignores boundary faces.
+*/
+class KellyErrorEstimator final : public ErrorEstimator
+{
+public:
+   /// Function type to compute the local coefficient hₑ of an element.
+   using ElementCoefficientFunction =
+      std::function<double(Mesh*, const int)>;
+   /** @brief Function type to compute the local coefficient hₖ of a face. The
+       third argument is true for shared faces and false for local faces. */
+   using FaceCoefficientFunction =
+      std::function<double(Mesh*, const int, const bool)>;
+
+private:
+   int current_sequence = -1;
+
+   Vector error_estimates;
+
+   double total_error = 0.0;
+
+   Array<int> attributes;
+
+   /** @brief A method to compute hₑ on per-element basis.
+
+       This method weights the error approximation on the element level.
+
+       Defaults to hₑ=1.0.
+   */
+   ElementCoefficientFunction compute_element_coefficient;
+
+   /** @brief A method to compute hₖ on per-face basis.
+
+       This method weights the error approximation on the face level. The
+       background here is that classical Kelly error estimator implementations
+       approximate the geometrical characteristic hₖ with the face diameter,
+       which should be also be a possibility in this implementation.
+
+       Defaults to hₖ=diameter/2p.
+   */
+   FaceCoefficientFunction compute_face_coefficient;
+
+   BilinearFormIntegrator* flux_integrator; ///< Not owned.
+   GridFunction* solution;               ///< Not owned.
+
+   FiniteElementSpace*
+   flux_space; /**< @brief Ownership based on own_flux_fes. */
+   bool own_flux_fespace; ///< Ownership flag for flux_space.
+
+#ifdef MFEM_USE_MPI
+   const bool isParallel;
+#endif
+
+   /// Check if the mesh of the solution was modified.
+   bool MeshIsModified()
+   {
+      long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence,
+                  "improper mesh update sequence");
+      return (mesh_sequence > current_sequence);
+   }
+
+   /** @brief Compute the element error estimates.
+
+       Algorithm outline:
+       1. Compute flux field for each element
+       2. Add error contribution from local interior faces
+       3. Add error contribution from shared interior faces
+       4. Finalize by computing hₖ and scale errors.
+   */
+   void ComputeEstimates();
+
+public:
+   /** @brief Construct a new KellyErrorEstimator object for a scalar field.
+       @param di_         The bilinearform to compute the interface flux.
+       @param sol_        The solution field whose error is to be estimated.
+       @param flux_fes_   The finite element space for the interface flux.
+       @param attributes_ The attributes of the subdomain(s) for which the
+                          error should be estimated. An empty array results in
+                          estimating the error over the complete domain.
+   */
+   KellyErrorEstimator(BilinearFormIntegrator& di_, GridFunction& sol_,
+                       FiniteElementSpace& flux_fes_,
+                       const Array<int> &attributes_ = Array<int>());
+
+   /** @brief Construct a new KellyErrorEstimator object for a scalar field.
+       @param di_         The bilinearform to compute the interface flux.
+       @param sol_        The solution field whose error is to be estimated.
+       @param flux_fes_   The finite element space for the interface flux.
+       @param attributes_ The attributes of the subdomain(s) for which the
+                          error should be estimated. An empty array results in
+                          estimating the error over the complete domain.
+   */
+   KellyErrorEstimator(BilinearFormIntegrator& di_, GridFunction& sol_,
+                       FiniteElementSpace* flux_fes_,
+                       const Array<int> &attributes_ = Array<int>());
+
+   ~KellyErrorEstimator();
+
+   /// Get a Vector with all element errors.
+   const Vector& GetLocalErrors() override
+   {
+      if (MeshIsModified())
+      {
+         ComputeEstimates();
+      }
+      return error_estimates;
+   }
+
+   /// Reset the error estimator.
+   void Reset() override { current_sequence = -1; };
+
+   virtual double GetTotalError() const override { return total_error; }
+
+   /** @brief Change the method to compute hₑ on a per-element basis.
+       @param compute_element_coefficient_
+                        A function taking a mesh and an element index to
+                        compute the local hₑ for the element.
+   */
+   void SetElementCoefficientFunction(ElementCoefficientFunction
+                                      compute_element_coefficient_)
+   {
+      compute_element_coefficient = compute_element_coefficient_;
+   }
+
+   /** @brief Change the method to compute hₖ on a per-element basis.
+       @param compute_face_coefficient_
+                        A function taking a mesh and a face index to
+                        compute the local hₖ for the face.
+   */
+   void SetFaceCoefficientFunction(
+      FaceCoefficientFunction
+      compute_face_coefficient_)
+   {
+      compute_face_coefficient = compute_face_coefficient_;
+   }
+
+   /// Change the coefficients back to default as described above.
+   void ResetCoefficientFunctions();
 };
 
 } // namespace mfem
