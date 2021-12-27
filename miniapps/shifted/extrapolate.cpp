@@ -16,8 +16,8 @@
 // Compile with: make extrapolate
 //
 // Sample runs:
-//     mpirun -np 4 extrapolate -o 3
-//     mpirun -np 4 extrapolate -rs 3 -o 2 -p 1
+//     mpirun -np 4 extrapolate -o 3 -et 0 -eo 2
+//     mpirun -np 4 extrapolate -rs 3 -o 2 -p 1 -et 0 -eo 1
 
 #include <fstream>
 #include <iostream>
@@ -66,11 +66,7 @@ double solution0(const Vector &coord)
                 y = coord(1)*2.0 - 1.0,
                 z = (dim > 2) ? coord(2)*2.0 - 1.0 : 0.0;
 
-   if (domainLS(coord) > 0.0)
-   {
-      return std::cos(M_PI * x) * std::sin(M_PI * y);
-   }
-   else { return 0.0; }
+   return std::cos(M_PI * x) * std::sin(M_PI * y);
 }
 
 class LevelSetNormalGradCoeff : public VectorCoefficient
@@ -178,6 +174,27 @@ public:
    }
 };
 
+class DiscreteUpwindLOSolver
+{
+protected:
+   ParFiniteElementSpace &pfes;
+   const SparseMatrix &K;
+   mutable SparseMatrix D;
+
+   Array<int> K_smap;
+   const Vector &M_lumped;
+
+   void ComputeDiscreteUpwindMatrix() const;
+   void ApplyDiscreteUpwindMatrix(ParGridFunction &u, Vector &du) const;
+
+public:
+   DiscreteUpwindLOSolver(ParFiniteElementSpace &space, const SparseMatrix &adv,
+                          const Vector &Mlump);
+
+   virtual void CalcLOSolution(const Vector &u, Vector &du) const;
+   Array<int> &GetKmap() { return K_smap; }
+};
+
 class AdvectionOper : public TimeDependentOperator
 {
 private:
@@ -185,25 +202,54 @@ private:
    ParBilinearForm &M, &K;
    const Vector &b;
 
+   mutable ParBilinearForm M_Lump;
+
 public:
+   // 0 is stanadard HO; 1 is upwind diffusion; 2 is FCT.
+   enum AdvectionMode {HO, LO, FCT} mode = HO;
+
    AdvectionOper(Array<bool> &zones,
                  ParBilinearForm &Mbf, ParBilinearForm &Kbf, const Vector &rhs)
       : TimeDependentOperator(Mbf.Size()),
         active_zones(zones),
-        M(Mbf), K(Kbf), b(rhs) { }
+        M(Mbf), K(Kbf), b(rhs),
+        M_Lump(M.ParFESpace())
+   {
+      M_Lump.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+      M_Lump.Assemble();
+      M_Lump.Finalize();
+   }
 
    virtual void Mult(const Vector &x, Vector &dx) const
    {
       ParFiniteElementSpace &pfes = *M.ParFESpace();
       const int NE = pfes.GetNE();
       const int nd = pfes.GetFE(0)->GetDof();
+      Array<int> dofs(nd);
+
+      if (mode == 1)
+      {
+         Vector lumpedM; M_Lump.SpMat().GetDiag(lumpedM);
+         DiscreteUpwindLOSolver lo_solver(pfes, K.SpMat(), lumpedM);
+         lo_solver.CalcLOSolution(x, dx);
+         for (int k = 0; k < NE; k++)
+         {
+            pfes.GetElementDofs(k, dofs);
+
+            if (active_zones[k] == false)
+            {
+               dx.SetSubVector(dofs, 0.0);
+               continue;
+            }
+         }
+         return;
+      }
 
       Vector rhs(x.Size());
       HypreParMatrix *K_mat = K.ParallelAssemble(&K.SpMat());
       K_mat->Mult(x, rhs);
       rhs += b;
 
-      Array<int> dofs(nd);
       DenseMatrix M_loc(nd);
       DenseMatrixInverse M_loc_inv(&M_loc);
       Vector rhs_loc(nd), dx_loc(nd);
@@ -254,7 +300,7 @@ private:
             if (visualization)
             {
                common::VisualizeField(sock, vishost, visport, sltn,
-                                      vis_name.c_str(), vis_x_pos, wsize+50,
+                                      vis_name.c_str(), vis_x_pos, wsize+60,
                                       wsize, wsize, "rRjmm********A");
                MPI_Barrier(sltn.ParFESpace()->GetComm());
             }
@@ -286,9 +332,12 @@ public:
       ls_gf.ProjectCoefficient(level_set);
       if (visualization)
       {
-         socketstream sock;
-         common::VisualizeField(sock, vishost, visport, ls_gf,
+         socketstream sock1, sock2;
+         common::VisualizeField(sock1, vishost, visport, ls_gf,
                                 "Domain level set", 0, 0, wsize, wsize,
+                                "rRjmm********A");
+         common::VisualizeField(sock2, vishost, visport, input,
+                                "Input u", 0, wsize+60, wsize, wsize,
                                 "rRjmm********A");
          MPI_Barrier(pmesh.GetComm());
       }
@@ -386,7 +435,7 @@ public:
                     pfes_L2.GetComm());
       h_min /= order;
       // The propagation speed is 1.
-      double dt = 0.25 * h_min / 1.0;
+      double dt = 0.02 * h_min / 1.0;
 
       // Time loops.
       Vector rhs(pfes_L2.GetVSize());
@@ -409,10 +458,12 @@ public:
             {
                // Constant extrapolation of [n.grad_u].
                rhs = 0.0;
+               adv_oper.mode = AdvectionOper::HO;
                TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
 
                // Linear extrapolation of u.
                lhs_bf.Mult(n_grad_u, rhs);
+               adv_oper.mode = AdvectionOper::LO;
                TimeLoop(u, ode_solver, dt, wsize, "u - linear Aslam extrap");
                break;
             }
@@ -420,14 +471,17 @@ public:
             {
                // Constant extrapolation of [n.grad(n.grad(u))].
                rhs = 0.0;
+               adv_oper.mode = AdvectionOper::HO;
                TimeLoop(n_grad_n_grad_u, ode_solver, dt, 3*wsize, "n.grad(n.grad(u))");
 
                // Linear extrapolation of [n.grad_u].
                lhs_bf.Mult(n_grad_n_grad_u, rhs);
+               adv_oper.mode = AdvectionOper::HO;
                TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
 
                // Quadratic extrapolation of u.
                lhs_bf.Mult(n_grad_u, rhs);
+               adv_oper.mode = AdvectionOper::LO;
                TimeLoop(u, ode_solver, dt, wsize, "u - quadratic Aslam extrap");
                break;
             }
@@ -453,6 +507,7 @@ public:
                GradComponentCoeff grad_u_0_coeff(u, 0), grad_u_1_coeff(u, 1);
                grad_u_0.ProjectCoefficient(grad_u_0_coeff);
                grad_u_1.ProjectCoefficient(grad_u_1_coeff);
+               adv_oper.mode = AdvectionOper::HO;
                TimeLoop(grad_u_0, ode_solver, dt, 2*wsize, "grad_u_0");
                TimeLoop(grad_u_1, ode_solver, dt, 3*wsize, "grad_u_1");
 
@@ -462,10 +517,11 @@ public:
                rhs_lf.AddDomainIntegrator(new DomainLFIntegrator(grad_u_n));
                rhs_lf.Assemble();
                rhs = rhs_lf;
+               adv_oper.mode = AdvectionOper::LO;
                TimeLoop(u, ode_solver, dt, wsize, "u - linear Bochkov extrap");
                break;
             }
-            case 2:  MFEM_ABORT("Not implemented.");
+            case 2:  MFEM_ABORT("Quadratic Bochkov method is not implemented.");
             default: MFEM_ABORT("Wrong extrapolation order.");
          }
       }
@@ -554,4 +610,89 @@ int main(int argc, char *argv[])
    dacol.Save();
 
    return 0;
+}
+
+DiscreteUpwindLOSolver::DiscreteUpwindLOSolver(ParFiniteElementSpace &space,
+                                               const SparseMatrix &adv,
+                                               const Vector &Mlump)
+   : pfes(space), K(adv), D(adv), K_smap(), M_lumped(Mlump)
+{
+   // Assuming it is finalized.
+   const int *I = K.GetI(), *J = K.GetJ(), n = K.Size();
+   K_smap.SetSize(I[n]);
+   for (int row = 0, j = 0; row < n; row++)
+   {
+      for (int end = I[row+1]; j < end; j++)
+      {
+         int col = J[j];
+         // Find the offset, _j, of the (col,row) entry and store it in smap[j].
+         for (int _j = I[col], _end = I[col+1]; true; _j++)
+         {
+            MFEM_VERIFY(_j != _end, "Can't find the symmetric entry!");
+
+            if (J[_j] == row) { K_smap[j] = _j; break; }
+         }
+      }
+   }
+}
+
+void DiscreteUpwindLOSolver::CalcLOSolution(const Vector &u, Vector &du) const
+{
+   ComputeDiscreteUpwindMatrix();
+   ParGridFunction u_gf(&pfes);
+   u_gf = u;
+
+   ApplyDiscreteUpwindMatrix(u_gf, du);
+
+   const int s = du.Size();
+   for (int i = 0; i < s; i++) { du(i) /= M_lumped(i); }
+}
+
+void DiscreteUpwindLOSolver::ComputeDiscreteUpwindMatrix() const
+{
+   const int *I = K.HostReadI(), *J = K.HostReadJ(), n = K.Size();
+
+   const double *K_data = K.HostReadData();
+
+   double *D_data = D.HostReadWriteData();
+   D.HostReadWriteI(); D.HostReadWriteJ();
+
+   for (int i = 0, k = 0; i < n; i++)
+   {
+      double rowsum = 0.;
+      for (int end = I[i+1]; k < end; k++)
+      {
+         int j = J[k];
+         double kij = K_data[k];
+         double kji = K_data[K_smap[k]];
+         double dij = fmax(fmax(0.0,-kij),-kji);
+         D_data[k] = kij + dij;
+         D_data[K_smap[k]] = kji + dij;
+         if (i != j) { rowsum += dij; }
+      }
+      D(i,i) = K(i,i) - rowsum;
+   }
+}
+
+void DiscreteUpwindLOSolver::ApplyDiscreteUpwindMatrix(ParGridFunction &u,
+                                                       Vector &du) const
+{
+   const int s = u.Size();
+   const int *I = D.HostReadI(), *J = D.HostReadJ();
+   const double *D_data = D.HostReadData();
+
+   u.ExchangeFaceNbrData();
+   const Vector &u_np = u.FaceNbrData();
+
+   for (int i = 0; i < s; i++)
+   {
+      du(i) = 0.0;
+      for (int k = I[i]; k < I[i + 1]; k++)
+      {
+         int j = J[k];
+         double u_j  = (j < s) ? u(j) : u_np[j - s];
+         double d_ij = D_data[k];
+         du(i) += d_ij * u_j;
+      }
+   }
 }
