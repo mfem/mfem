@@ -154,7 +154,8 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 void InitialVelocity(const Vector &x, Vector &v);
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &out_stream, ParMesh *mesh,
+	       ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
@@ -438,10 +439,11 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &out_stream, ParMesh *mesh,
+	       ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
-   if (!out)
+   if (!out_stream)
    {
       return;
    }
@@ -451,25 +453,27 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
    mesh->SwapNodes(nodes, owns_nodes);
 
-   out << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
-   out << "solution\n" << *mesh << *field;
+   out_stream << "parallel " << mesh->GetNRanks()
+	      << " " << mesh->GetMyRank() << "\n";
+   out_stream << "solution\n" << *mesh << *field;
 
    mesh->SwapNodes(nodes, owns_nodes);
 
    if (init_vis)
    {
-      out << "window_size 800 800\n";
-      out << "window_title '" << field_name << "'\n";
+      out_stream << "window_size 800 800\n";
+      out_stream << "window_title '" << field_name << "'\n";
       if (mesh->SpaceDimension() == 2)
       {
-         out << "view 0 0\n"; // view from top
-         out << "keys jl\n";  // turn off perspective and light
+         out_stream << "view 0 0\n"; // view from top
+         out_stream << "keys jl\n";  // turn off perspective and light
       }
-      out << "keys cm\n";         // show colorbar and mesh
-      out << "autoscale value\n"; // update value-range; keep mesh-extents fixed
-      out << "pause\n";
+      out_stream << "keys cm\n";         // show colorbar and mesh
+      // update value-range; keep mesh-extents fixed
+      out_stream << "autoscale value\n";
+      out_stream << "pause\n";
    }
-   out << flush;
+   out_stream << flush;
 }
 
 
