@@ -979,7 +979,7 @@ int main(int argc, char *argv[])
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
-      Array<int> ess_vdofs(n), vdofs;
+      Array<int> ess_vdofs(n);
       n = 0;
       for (int i = 0; i < mesh->GetNBE(); i++)
       {
