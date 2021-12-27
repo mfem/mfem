@@ -326,7 +326,7 @@ int main(int argc, char *argv[])
    //    In addition, compute average mesh size and total volume.
    Vector h0(fespace->GetNDofs());
    h0 = infinity();
-   double volume = 0.0;
+   double mesh_volume = 0.0;
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -338,9 +338,9 @@ int main(int argc, char *argv[])
       {
          h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
-      volume += mesh->GetElementVolume(i);
+      mesh_volume += mesh->GetElementVolume(i);
    }
-   const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
+   const double small_phys_size = pow(mesh_volume, 1.0 / dim) / 100.0;
 
    // 8. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is

@@ -358,9 +358,9 @@ int main (int argc, char *argv[])
       }
       vol_loc += pmesh->GetElementVolume(i);
    }
-   double volume;
-   MPI_Allreduce(&vol_loc, &volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
+   double vol_glb;
+   MPI_Allreduce(&vol_loc, &vol_glb, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   const double small_phys_size = pow(vol_glb, 1.0 / dim) / 100.0;
 
    // 9. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -380,13 +380,15 @@ int main (int argc, char *argv[])
          rdm(pfespace->DofToVDof(i,d)) *= h0(i);
       }
    }
-   Array<int> vdofs;
-   for (int i = 0; i < pfespace->GetNBE(); i++)
    {
-      // Get the vector degrees of freedom in the boundary element.
-      pfespace->GetBdrElementVDofs(i, vdofs);
-      // Set the boundary values to zero.
-      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
+      Array<int> vdofs;
+      for (int i = 0; i < pfespace->GetNBE(); i++)
+      {
+         // Get the vector degrees of freedom in the boundary element.
+         pfespace->GetBdrElementVDofs(i, vdofs);
+         // Set the boundary values to zero.
+         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
+      }
    }
    x -= rdm;
    // Set the perturbation of all nodes from the true nodes.
