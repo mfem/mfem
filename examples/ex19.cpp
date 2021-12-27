@@ -566,7 +566,7 @@ void visualize(ostream &out_stream, Mesh *mesh, GridFunction *deformed_nodes,
       if (mesh->SpaceDimension() == 2)
       {
          out_stream << "view 0 0\n"; // view from top
-	 // turn off perspective and light, +anti-aliasing
+         // turn off perspective and light, +anti-aliasing
          out_stream << "keys jlA\n";
       }
       out_stream << "keys cmA\n"; // show colorbar and mesh, +anti-aliasing

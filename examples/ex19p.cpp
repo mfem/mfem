@@ -186,7 +186,7 @@ public:
 
 // Visualization driver
 void visualize(ostream &out_stream, ParMesh *mesh,
-	       ParGridFunction *deformed_nodes,
+               ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
@@ -619,7 +619,7 @@ RubberOperator::~RubberOperator()
 
 // Inline visualization
 void visualize(ostream &out_stream, ParMesh *mesh,
-	       ParGridFunction *deformed_nodes,
+               ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
    if (!out_stream)
@@ -632,7 +632,8 @@ void visualize(ostream &out_stream, ParMesh *mesh,
 
    mesh->SwapNodes(nodes, owns_nodes);
 
-   out_stream << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
+   out_stream << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() <<
+              "\n";
    out_stream << "solution\n" << *mesh << *field;
 
    mesh->SwapNodes(nodes, owns_nodes);
@@ -644,7 +645,7 @@ void visualize(ostream &out_stream, ParMesh *mesh,
       if (mesh->SpaceDimension() == 2)
       {
          out_stream << "view 0 0\n"; // view from top
-	 // turn off perspective and light, +anti-aliasing
+         // turn off perspective and light, +anti-aliasing
          out_stream << "keys jlA\n";
       }
       out_stream << "keys cmA\n"; // show colorbar and mesh, +anti-aliasing
