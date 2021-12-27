@@ -119,6 +119,23 @@ void PrintIntegral(int myid, ParGridFunction &g, std::string text)
    }
 }
 
+class GradComponentCoeff : public Coefficient
+{
+private:
+   const ParGridFunction &u_gf;
+   int comp;
+
+public:
+   GradComponentCoeff(const ParGridFunction &u, int c) : u_gf(u), comp(c) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      Vector grad_u(T.GetDimension());
+      u_gf.GetGradient(T, grad_u);
+      return grad_u(comp);
+   }
+};
+
 class NormalGradCoeff : public Coefficient
 {
 private:
@@ -126,8 +143,8 @@ private:
    VectorCoefficient &n_coeff;
 
 public:
-   NormalGradCoeff(const ParGridFunction &u, VectorCoefficient &n) :
-      u_gf(u), n_coeff(n) { }
+   NormalGradCoeff(const ParGridFunction &u, VectorCoefficient &n)
+      : u_gf(u), n_coeff(n) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
@@ -137,7 +154,28 @@ public:
       u_gf.GetGradient(T, grad_u);
       return n * grad_u;
    }
+};
 
+class NormalGradComponentCoeff : public Coefficient
+{
+private:
+   const ParGridFunction &du_dx, &du_dy;
+   VectorCoefficient &n_coeff;
+
+public:
+   NormalGradComponentCoeff(const ParGridFunction &dx,
+                            const ParGridFunction &dy, VectorCoefficient &n)
+      : du_dx(dx), du_dy(dy), n_coeff(n) { }
+
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      const int dim = T.GetDimension();
+      Vector n(dim), grad_u(dim);
+      n_coeff.Eval(n, T, ip);
+      grad_u(0) = du_dx.GetValue(T, ip);
+      grad_u(1) = du_dy.GetValue(T, ip);
+      return n * grad_u;
+   }
 };
 
 class AdvectionOper : public TimeDependentOperator
@@ -191,7 +229,6 @@ public:
 class Extrapolator
 {
 private:
-
    void TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
                  double dt, int vis_x_pos, std::string vis_name)
    {
@@ -226,9 +263,10 @@ private:
    }
 
 public:
+   enum XtrapType {ASLAM = 0, BOCHKOV = 1} xtrap_type = ASLAM;
+   int xtrap_order    = 1;
    bool visualization = false;
    int vis_steps      = 5;
-   int extr_order = 1;
 
    Extrapolator() { }
 
@@ -338,9 +376,6 @@ public:
       rhs_bf.Assemble(0);
       rhs_bf.Finalize(0);
 
-      Vector rhs(pfes_L2.GetVSize());
-      rhs = 0.0;
-
       // Compute a CFL time step.
       double h_min = std::numeric_limits<double>::infinity();
       for (int k = 0; k < NE; k++)
@@ -354,20 +389,87 @@ public:
       double dt = 0.25 * h_min / 1.0;
 
       // Time loops.
+      Vector rhs(pfes_L2.GetVSize());
       AdvectionOper adv_oper(active_zones, lhs_bf, rhs_bf, rhs);
       RK2Solver ode_solver(1.0);
       ode_solver.Init(adv_oper);
 
-      // Constant extrapolation of [n.grad(n.grad(u))].
-      TimeLoop(n_grad_n_grad_u, ode_solver, dt, 3*wsize, "n.grad(n.grad(u))");
+      if (xtrap_type == ASLAM)
+      {
+         switch (xtrap_order)
+         {
+            case 0:
+            {
+               // Constant extrapolation of u.
+               rhs = 0.0;
+               TimeLoop(u, ode_solver, dt, wsize, "u - constant extrap");
+               break;
+            }
+            case 1:
+            {
+               // Constant extrapolation of [n.grad_u].
+               rhs = 0.0;
+               TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
 
-      // Linear extrapolation of [n.grad_u].
-      lhs_bf.Mult(n_grad_n_grad_u, rhs);
-      TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
+               // Linear extrapolation of u.
+               lhs_bf.Mult(n_grad_u, rhs);
+               TimeLoop(u, ode_solver, dt, wsize, "u - linear Aslam extrap");
+               break;
+            }
+            case 2:
+            {
+               // Constant extrapolation of [n.grad(n.grad(u))].
+               rhs = 0.0;
+               TimeLoop(n_grad_n_grad_u, ode_solver, dt, 3*wsize, "n.grad(n.grad(u))");
 
-      // Quadratic extrapolation of u.
-      lhs_bf.Mult(n_grad_u, rhs);
-      TimeLoop(u, ode_solver, dt, wsize, "u");
+               // Linear extrapolation of [n.grad_u].
+               lhs_bf.Mult(n_grad_n_grad_u, rhs);
+               TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
+
+               // Quadratic extrapolation of u.
+               lhs_bf.Mult(n_grad_u, rhs);
+               TimeLoop(u, ode_solver, dt, wsize, "u - quadratic Aslam extrap");
+               break;
+            }
+            default: MFEM_ABORT("Wrong extrapolation order.");
+         }
+      }
+      else if (xtrap_type == BOCHKOV)
+      {
+         switch (xtrap_order)
+         {
+            case 0:
+            {
+               // Constant extrapolation of u.
+               rhs = 0.0;
+               TimeLoop(u, ode_solver, dt, wsize, "u - constant extrap");
+               break;
+            }
+            case 1:
+            {
+               // Constant extrapolation of all grad(u) components.
+               rhs = 0.0;
+               ParGridFunction grad_u_0(&pfes_L2), grad_u_1(&pfes_L2);
+               GradComponentCoeff grad_u_0_coeff(u, 0), grad_u_1_coeff(u, 1);
+               grad_u_0.ProjectCoefficient(grad_u_0_coeff);
+               grad_u_1.ProjectCoefficient(grad_u_1_coeff);
+               TimeLoop(grad_u_0, ode_solver, dt, 2*wsize, "grad_u_0");
+               TimeLoop(grad_u_1, ode_solver, dt, 3*wsize, "grad_u_1");
+
+               // Linear extrapolation of u.
+               ParLinearForm rhs_lf(&pfes_L2);
+               NormalGradComponentCoeff grad_u_n(grad_u_0, grad_u_1, ls_n_coeff);
+               rhs_lf.AddDomainIntegrator(new DomainLFIntegrator(grad_u_n));
+               rhs_lf.Assemble();
+               rhs = rhs_lf;
+               TimeLoop(u, ode_solver, dt, wsize, "u - linear Bochkov extrap");
+               break;
+            }
+            case 2:  MFEM_ABORT("Not implemented.");
+            default: MFEM_ABORT("Wrong extrapolation order.");
+         }
+      }
+      else { MFEM_ABORT("Wrong extrapolation type option"); }
 
       xtrap.ProjectGridFunction(u);
    }
@@ -382,6 +484,8 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
    int rs_levels = 2;
+   Extrapolator::XtrapType xtrap_type = Extrapolator::ASLAM;
+   int xtrap_order = 1;
    int order = 2;
    bool visualization = true;
    int vis_steps = 5;
@@ -391,6 +495,10 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption((int*)&xtrap_type, "-et", "--extrap-type",
+                  "Extrapolation type: Aslam (0) or Bochkov (1).");
+   args.AddOption(&xtrap_order, "-eo", "--extrap-order",
+                  "Extrapolation order: 0/1/2 for constant/linear/quadratic.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -427,6 +535,8 @@ int main(int argc, char *argv[])
 
    // Extrapolate.
    Extrapolator xtrap;
+   xtrap.xtrap_type  = xtrap_type;
+   xtrap.xtrap_order = xtrap_order;
    xtrap.visualization = true;
    xtrap.vis_steps = 5;
    FunctionCoefficient ls_coeff(domainLS);
