@@ -155,7 +155,7 @@ void InitialDeformation(const Vector &x, Vector &y);
 void InitialVelocity(const Vector &x, Vector &v);
 
 void visualize(ostream &out_stream, ParMesh *mesh,
-	       ParGridFunction *deformed_nodes,
+               ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
@@ -440,7 +440,7 @@ int main(int argc, char *argv[])
 }
 
 void visualize(ostream &out_stream, ParMesh *mesh,
-	       ParGridFunction *deformed_nodes,
+               ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
    if (!out_stream)
@@ -454,7 +454,7 @@ void visualize(ostream &out_stream, ParMesh *mesh,
    mesh->SwapNodes(nodes, owns_nodes);
 
    out_stream << "parallel " << mesh->GetNRanks()
-	      << " " << mesh->GetMyRank() << "\n";
+              << " " << mesh->GetMyRank() << "\n";
    out_stream << "solution\n" << *mesh << *field;
 
    mesh->SwapNodes(nodes, owns_nodes);

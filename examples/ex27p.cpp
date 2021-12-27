@@ -361,7 +361,7 @@ int main(int argc, char *argv[])
       // Integrate n.Grad(u) + a * u on the Robin boundary and compare to the
       // expected value.
       double error, avg = IntegrateBC(u, rbc_bdr, 1.0, rbc_a_val, rbc_b_val,
-				      error);
+                                      error);
 
       bool hom_rbc = (rbc_b_val == 0.0);
       error /=  hom_rbc ? 1.0 : fabs(rbc_b_val);
