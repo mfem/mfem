@@ -1854,7 +1854,8 @@ public:
    {
       rho.SetSpace(&L2FESpace);
       DenseMatrix Mrho(l2dofs_cnt);
-      Vector rhs(l2dofs_cnt), rho_z(l2dofs_cnt);
+      // Vector rhs(l2dofs_cnt);
+      Vector rho_z(l2dofs_cnt);
       Array<int> dofs(l2dofs_cnt);
       for (int i = 0; i < nzones; i++)
       {
