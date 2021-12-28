@@ -65,9 +65,11 @@ typedef int MPI_Session;
 ////////////////////////////////////////////////////////////////////////////////
 static int config_dev_size = 4; // default 4 GPU per node
 
+static bool config_nxyz = false; // cartesian partitioning in x
+
 static bool config_debug = false;
 static int config_max_nic = 2;
-static int config_max_nip = 4;
+static int config_max_nip = 2;
 static int config_max_nif = 500;
 
 static int config_max_depth = 32;
@@ -90,11 +92,9 @@ enum FinePrecondType
    Jacobi,
    BoomerAMG,
    LORBatch,
+   MGInner,
    MGJacobi,
    MGFAHypre,
-   MGLORHypre,
-   MGLORBatch,
-   MGInner,
    MGWavelets,
    MGFAWavelets,
    MGLEGACYWavelets
@@ -847,7 +847,8 @@ struct BakeOff
    std::function<ParMesh()> GetCoarseKershawMesh = [&]()
    {
       Mesh smesh =
-         Mesh::MakeCartesian3D(num_procs*nx, ny, nz, Element::HEXAHEDRON);
+         Mesh::MakeCartesian3D((config_nxyz?num_procs:1)*nx, ny, nz,
+                               Element::HEXAHEDRON);
 
       // Set the curvature of the initial mesh
       if (smoothness > 0) { smesh.SetCurvature(2*smoothness+1); }
@@ -856,15 +857,17 @@ struct BakeOff
       kershaw::Transformation kt(dim, epsy, epsz, smoothness);
       smesh.Transform(kt);
 
-      int nxyz[3] = {num_procs,1,1};
-      int *partitioning = smesh.CartesianPartitioning(nxyz);
+      auto GetPartitioning = [&]()
+      {
+         int nxyz[3] = {num_procs,1,1};
+         return config_nxyz ? smesh.CartesianPartitioning(nxyz) : nullptr;
+      };
 #ifdef MFEM_USE_MPI
-      ParMesh pmesh(MPI_COMM_WORLD, smesh, partitioning);
+      ParMesh pmesh(MPI_COMM_WORLD, smesh, GetPartitioning());
 #else
       ParMesh pmesh(smesh);
 #endif // MFEM_USE_MPI
       smesh.Clear();
-      delete partitioning;
 
       // perform refinements if requested
       for (int i=0; i<refinements; i++) { pmesh.UniformRefinement(); }
@@ -1147,16 +1150,6 @@ struct SolverProblem: public BakeOff
             SetMGPrecond("MGFAHypre", precond::SolverConfig::FA_HYPRE, false);
             break;
          }
-         case MGLORHypre:
-         {
-            SetMGPrecond("MGLORHypre", precond::SolverConfig::LOR_HYPRE, false);
-            break;
-         }
-         case MGLORBatch:
-         {
-            SetMGPrecond("MGLORBatch", precond::SolverConfig::LOR_BATCH, false);
-            break;
-         }
          case MGInner:
          {
             dbg("MGInner");
@@ -1201,6 +1194,38 @@ struct SolverProblem: public BakeOff
       if (config_debug) { cg.SetMonitor(monitor); }
    }
 
+   ~SolverProblem()
+   {
+      dbg();
+      static bool first = true;
+      if (first && config_debug)
+      {
+         if (auto DMG = dynamic_cast<precond::DiffusionMultigrid*>(M.get()))
+         {
+            dbg("RecoverFEMSolution from DiffusionMultigrid");
+            DMG->RecoverFineFEMSolution(X, b, x);
+         }
+         else
+         {
+            dbg("Standard RecoverFEMSolution");
+            a.RecoverFEMSolution(X, b, x);
+         }
+         GLVis();
+      }
+      first = false;
+   }
+
+   void GLVis()
+   {
+      dbg();
+      int  visport   = 19916;
+      char vishost[] = "localhost";
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << pmesh << x << std::flush;
+   }
+
    void benchmark() override
    {
       MFEM_NVTX;
@@ -1240,7 +1265,7 @@ struct SolverProblem: public BakeOff
 #define BakeOff_Solver(i,Kernel,Precond)\
 static void BPS##i##_##Precond(bm::State &state){\
    const bool rhs_n = 3;\
-   const bool rhs_1 = true;\
+   const bool rhs_1 = false;\
    const int smoothness = 0;\
    const int refinements = 0;\
    const int side = state.range(2);\
@@ -1261,7 +1286,7 @@ static void BPS##i##_##Precond(bm::State &state){\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_EPSILONS,P_ORDERS,P_SIDES})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(10);
+    -> Iterations(2);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 BakeOff_Solver(3,Diffusion,None)
@@ -1271,8 +1296,6 @@ BakeOff_Solver(3,Diffusion,LORBatch)
 BakeOff_Solver(3,Diffusion,MGInner)
 BakeOff_Solver(3,Diffusion,MGJacobi)
 BakeOff_Solver(3,Diffusion,MGFAHypre)
-//BakeOff_Solver(3,Diffusion,MGLORHypre)
-//BakeOff_Solver(3,Diffusion,MGLORBatch)
 BakeOff_Solver(3,Diffusion,MGWavelets)
 BakeOff_Solver(3,Diffusion,MGFAWavelets)
 BakeOff_Solver(3,Diffusion,MGLEGACYWavelets)
@@ -1303,6 +1326,7 @@ int main(int argc, char *argv[])
    {
       bmi::FindInContext("device", config_device); // device=cuda
       bmi::FindInContext("debug", config_debug); // debug=true
+      bmi::FindInContext("nxyz", config_nxyz); // nxyz=true
       bmi::FindInContext("nic", config_max_nic);
       bmi::FindInContext("nip", config_max_nip);
       bmi::FindInContext("nif", config_max_nif);
