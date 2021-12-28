@@ -1633,12 +1633,8 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
       {
          const DenseMatrix &Wideal =
             Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
-         const int Wdim = Wideal.Height(),
-                   ndofs = tspec_fesv->GetFE(e_id)->GetDof(),
+         const int ndofs = tspec_fesv->GetFE(e_id)->GetDof(),
                    ntspec_dofs = ndofs*ncomp;
-
-         MFEM_VERIFY(dim == Wdim, "Dimension mismatch in "
-                     "DiscreteAdaptTC::ComputeElementTargets");
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
                 par_vals_c1, par_vals_c2, par_vals_c3;
