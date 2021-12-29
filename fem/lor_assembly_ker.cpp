@@ -143,7 +143,7 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
          {
             MFEM_FOREACH_THREAD(ix,x,nd1d)
             {
-               MFEM_UNROLL(27)
+               //MFEM_UNROLL(27)
                for (int j=0; j<nnz_per_row; ++j)
                {
                   V(j,ix,iy,iz) = 0.0;
@@ -228,13 +228,13 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                const double v7y = X[e7 + 1];
                const double v7z = X[e7 + 2];
 
-               MFEM_UNROLL(2)
+               //MFEM_UNROLL(2)
                for (int iqz=0; iqz<2; ++iqz)
                {
-                  MFEM_UNROLL(2)
+                  //MFEM_UNROLL(2)
                   for (int iqy=0; iqy<2; ++iqy)
                   {
-                     MFEM_UNROLL(2)
+                     //MFEM_UNROLL(2)
                      for (int iqx=0; iqx<2; ++iqx)
                      {
 
@@ -307,21 +307,21 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                   }
                }
 
-               MFEM_UNROLL(2)
+               //MFEM_UNROLL(2)
                for (int iqx=0; iqx<2; ++iqx)
                {
-                  MFEM_UNROLL(2)
+                  //MFEM_UNROLL(2)
                   for (int jz=0; jz<2; ++jz)
                   {
                      // Note loop starts at iz=jz here, taking advantage of
                      // symmetries.
-                     MFEM_UNROLL(2)
+                     //MFEM_UNROLL(2)
                      for (int iz=jz; iz<2; ++iz)
                      {
-                        MFEM_UNROLL(2)
+                        //MFEM_UNROLL(2)
                         for (int iqy=0; iqy<2; ++iqy)
                         {
-                           MFEM_UNROLL(2)
+                           //MFEM_UNROLL(2)
                            for (int iqz=0; iqz<2; ++iqz)
                            {
                               const double biz = (iz == iqz) ? 1.0 : 0.0;
@@ -350,10 +350,10 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                               grad_A(1,2,iqy,iz,jz,iqx) += J23*biz*gjz;
                               grad_A(2,2,iqy,iz,jz,iqx) += J33*giz*gjz;
                            }
-                           MFEM_UNROLL(2)
+                           //MFEM_UNROLL(2)
                            for (int jy=0; jy<2; ++jy)
                            {
-                              MFEM_UNROLL(2)
+                              //MFEM_UNROLL(2)
                               for (int iy=0; iy<2; ++iy)
                               {
                                  const double biy = (iy == iqy) ? 1.0 : 0.0;
@@ -374,16 +374,16 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                               }
                            }
                         }
-                        MFEM_UNROLL(2)
+                        //MFEM_UNROLL(2)
                         for (int jy=0; jy<2; ++jy)
                         {
-                           MFEM_UNROLL(2)
+                           //MFEM_UNROLL(2)
                            for (int jx=0; jx<2; ++jx)
                            {
-                              MFEM_UNROLL(2)
+                              //MFEM_UNROLL(2)
                               for (int iy=0; iy<2; ++iy)
                               {
-                                 MFEM_UNROLL(2)
+                                 //MFEM_UNROLL(2)
                                  for (int ix=0; ix<2; ++ix)
                                  {
                                     const double bix = (ix == iqx) ? 1.0 : 0.0;
@@ -421,7 +421,7 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                // Assemble the local matrix into the macro-element sparse matrix
                // in a format similar to coordinate format. The (I,J) arrays
                // are implicit (not stored explicitly).
-               MFEM_UNROLL(8)
+               //MFEM_UNROLL(8)
                for (int ii_loc=0; ii_loc<8; ++ii_loc)
                {
                   const int ix = ii_loc%2;
