@@ -70,12 +70,12 @@ show background rectangle, scale=4.0]
     xmin=\XMIN,
     xmax=\XMAX
   ]
-  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==1?$14:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==1?$14:NaN)};
   \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==2?$14:NaN)};
-  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==3?$14:NaN)};
-  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==4?$14:NaN)};
-  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==5?$14:NaN)};
-  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==6?$14:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==3?$14:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==4?$14:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==5?$14:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==6?$14:NaN)};
 \end{semilogxaxis}
 \end{tikzpicture}
 \end{document}

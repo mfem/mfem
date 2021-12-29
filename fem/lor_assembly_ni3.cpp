@@ -21,7 +21,7 @@
 namespace mfem
 {
 
-#define M1D 18
+#define M1D 8
 
 template<int D1D, int Q1D>
 void NodalInterpolation3D(const int NE,
@@ -45,7 +45,8 @@ void NodalInterpolation3D(const int NE,
 
    {
       NVTX("NodalInterpolation3D Kernel");
-      MFEM_FORALL(e, NE,
+      //MFEM_FORALL(e, NE,
+      for (int e=0; e<NE; e++)
       {
          for (int vd = 0; vd < VDIM; ++vd)
          {
@@ -96,7 +97,7 @@ void NodalInterpolation3D(const int NE,
                }
             }
          }
-      });
+      }//);
    }
 }
 

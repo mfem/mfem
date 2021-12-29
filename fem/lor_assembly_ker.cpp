@@ -83,25 +83,13 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
       nodal_fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
 
    // Map from nodal E-vector to L-vector
-   static bool X_ini = true;
-   static Vector nodes_loc;
-   if (X_ini)
-   {
-      NVTX("nodal_restriction->Mult");
-      nodes_loc.SetSize(nodal_restriction->Height());
-      nodes_loc.UseDevice(true);
-      nodal_restriction->Mult(*nodal_gf, nodes_loc);
-   }
+   Vector nodes_loc(nodal_restriction->Height());
+   nodes_loc.UseDevice(true);
+   nodal_restriction->Mult(*nodal_gf, nodes_loc);
 
    // Get nodal points at the LOR vertices
-   static Vector X_loc;
-   if (X_ini)
-   {
-      NVTX("X_loc.SetSize");
-      X_loc.SetSize(dim*ndof_per_el*nel_ho);
-      X_loc.UseDevice(true);
-   }
-   X_ini = false;
+   Vector X_loc(dim*ndof_per_el*nel_ho);
+   X_loc.UseDevice(true);
 
    // Get the LOR vertex coordinates
    MFEM_VERIFY(nd1d==order+1, "nd1d!=order+1");

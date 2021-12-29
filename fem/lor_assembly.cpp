@@ -229,6 +229,7 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
    }*/
 
    {
+      dbg("EliminateRowsCols");
       NVTX("EliminateRowsCols");
       HypreParMatrix *A_mat = Ah.As<HypreParMatrix>();
       hypre_ParCSRMatrix *A = *A_mat;
@@ -239,9 +240,11 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
 
       HYPRE_Int diag_nrows = hypre_CSRMatrixNumRows(diag);
       HYPRE_Int offd_ncols = hypre_CSRMatrixNumCols(offd);
+      dbg("diag_nrows:%d offd_ncols:%d", diag_nrows, offd_ncols);
 
       const int n_ess_dofs = ess_dofs.Size();
       const auto ess_dofs_d = ess_dofs.Read();
+      dbg("n_ess_dofs:%d", n_ess_dofs);
 
       // Start communication to figure out which columns need to be eliminated in
       // the off-diagonal block
@@ -274,9 +277,11 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
          // Use a matvec communication pattern to find (in eliminate_col) which of
          // the local offd columns are to be eliminated
          HYPRE_Int num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
-         int_buf_data = hypre_CTAlloc(HYPRE_Int,
-                                      hypre_ParCSRCommPkgSendMapStart(comm_pkg,
-                                                                      num_sends), HYPRE_MEMORY_HOST);
+         dbg("num_sends:%d", num_sends);
+         int_buf_data =
+            hypre_CTAlloc(HYPRE_Int,
+                          hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends),
+                          HYPRE_MEMORY_HOST);
          int index = 0;
          for (int i = 0; i < num_sends; i++)
          {
@@ -293,6 +298,7 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
 
       // Eliminate rows and columns in the diagonal block
       {
+         dbg("Eliminate rows and columns in the diagonal block");
          const auto I = diag->i;
          const auto J = diag->j;
          auto data = diag->data;
@@ -321,6 +327,7 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
 
       // Eliminate rows in the off-diagonal block
       {
+         dbg("Eliminate rows in the off-diagonal block");
          const auto I = offd->i;
          auto data = offd->data;
          MFEM_FORALL(i, n_ess_dofs,
@@ -336,16 +343,14 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
       // Wait for MPI communication to finish
       Array<HYPRE_Int> cols_to_eliminate;
       {
+         dbg("Wait for MPI communication to finish");
          hypre_ParCSRCommHandleDestroy(comm_handle);
 
          // set the array cols_to_eliminate
          int ncols_to_eliminate = 0;
          for (int i = 0; i < offd_ncols; i++)
          {
-            if (eliminate_col[i])
-            {
-               ncols_to_eliminate++;
-            }
+            if (eliminate_col[i]) { ncols_to_eliminate++; }
          }
 
          cols_to_eliminate.SetSize(ncols_to_eliminate);
@@ -367,18 +372,20 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
 
       // Eliminate columns in the off-diagonal block
       {
+         dbg("Eliminate columns in the off-diagonal block");
          const int ncols_to_eliminate = cols_to_eliminate.Size();
          const int nrows_offd = hypre_CSRMatrixNumRows(offd);
          const auto cols = cols_to_eliminate.Read();
          const auto I = offd->i;
-         const auto J = offd->i;
+         const auto J = offd->j;
          auto data = offd->data;
-         // Note: could also try a different stragegy, looping over nnz in the
+         dbg("ncols_to_eliminate:%d nrows_offd:%d", ncols_to_eliminate, nrows_offd);
+         // Note: could also try a different strategy, looping over nnz in the
          // matrix and then doing a binary search in ncols_to_eliminate to see if
          // the column should be eliminated.
          MFEM_FORALL(idx, ncols_to_eliminate,
          {
-            int j = cols[idx];
+            const int j = cols[idx];
             for (int i=0; i<nrows_offd; ++i)
             {
                for (int jj=I[i]; jj<I[i+1]; ++jj)

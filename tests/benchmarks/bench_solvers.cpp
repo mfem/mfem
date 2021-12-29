@@ -873,6 +873,7 @@ struct BakeOff
 
    std::function<ParMesh()> GetCoarseKershawMesh = [&]()
    {
+      dbg("nx:%d ny:%d nz:%d", nx, ny, nz);
       Mesh smesh =
          Mesh::MakeCartesian3D((config_nxyz?num_procs:1)*nx, ny, nz,
                                Element::HEXAHEDRON);
@@ -1277,7 +1278,7 @@ struct SolverProblem: public BakeOff
 #define P_ORDERS bm::CreateDenseRange(1,6,1)
 
 // The different side sizes
-#define P_SIDES bm::CreateDenseRange(6,180,6)
+#define P_SIDES bm::CreateDenseRange(12,60,6)
 
 // Maximum number of dofs
 #define MAX_NDOFS 8*1024*1024
@@ -1286,9 +1287,9 @@ struct SolverProblem: public BakeOff
 /// Bake-off Solvers (BPSs)
 /// Smoothness in 0, 1 or 2
 /// refinements is not used anymore
-/// side is set from state.range(2)
+/// side is set from state.range(0)
 /// order is set from state.range(1)
-/// epsy = epsz, set from state.range(0)
+/// epsy = epsz, set from state.range(2)
 #define BakeOff_Solver(i,Kernel,Precond)\
 static void BPS##i##_##Precond(bm::State &state){\
    const bool rhs_n = 3;\
@@ -1296,9 +1297,9 @@ static void BPS##i##_##Precond(bm::State &state){\
    const int smoothness = 0;\
    const int refinements = 0;\
    const int nranks = mpiWorldSize;\
-   const int side = state.range(2);\
+   const int side = state.range(0);\
    const int order = state.range(1);\
-   const int epsilon = state.range(0);\
+   const int epsilon = state.range(2);\
    const double eps = std::floor((1.0/epsilon)*10.0)/10.0;\
    ceed::SolverProblem<Kernel##Integrator> bps\
       (Precond, side, refinements, smoothness, eps,eps, rhs_1,rhs_n, order);\
@@ -1312,14 +1313,14 @@ static void BPS##i##_##Precond(bm::State &state){\
    state.counters["Tsetup"] = bm::Counter(bps.TSetup());\
    state.counters["Tsolve"] = bm::Counter(bps.TSolve(), bm::Counter::kAvgIterations);}\
 BENCHMARK(BPS##i##_##Precond)\
-    -> ArgsProduct({P_EPSILONS,P_ORDERS,P_SIDES})\
+    -> ArgsProduct({P_SIDES,P_ORDERS,P_EPSILONS})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(10);
+    -> Iterations(1);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 //BakeOff_Solver(3,Diffusion,None)
 //BakeOff_Solver(3,Diffusion,Jacobi)
-//BakeOff_Solver(3,Diffusion,BoomerAMG)
+BakeOff_Solver(3,Diffusion,BoomerAMG)
 BakeOff_Solver(3,Diffusion,LORBatch)
 BakeOff_Solver(3,Diffusion,MGJacobi)
 BakeOff_Solver(3,Diffusion,MGFAHypre)
