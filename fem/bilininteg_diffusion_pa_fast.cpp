@@ -304,12 +304,12 @@ void NDK_PADiffusionApply(const int dim,
    auto dY = Reshape(y, ND);
 
    void (*Ker)(const int NE,
-               const int* __restrict__ MAP,
-               const double* __restrict__ B,
-               const double* __restrict__ G,
-               const double* __restrict__ D,
-               const double* __restrict__ X,
-               double* __restrict__ Y) = nullptr;
+               const int *MAP,
+               const double *B,
+               const double *G,
+               const double *D,
+               const double *X,
+               double *Y) = nullptr;
 
    int NBZ = 1;
 

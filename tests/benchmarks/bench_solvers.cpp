@@ -1277,10 +1277,12 @@ struct SolverProblem: public BakeOff
 #define P_ORDERS bm::CreateDenseRange(1,6,1)
 
 // The different side sizes
-#define P_SIDES bm::CreateDenseRange(6,420,6)
+#define P_SIDES bm::CreateDenseRange(6,600,6)
 
 // Maximum number of dofs
-#define MAX_NDOFS 64*1024*1024
+//#define MAX_NDOFS 16*1024*1024
+//if (bps.dofs > (nranks*MAX_NDOFS)) {state.SkipWithError("MAX_NDOFS");}
+
 
 /// Bake-off Solvers (BPSs)
 /// Smoothness in 0, 1 or 2
@@ -1301,7 +1303,6 @@ static void BPS##i##_##Precond(bm::State &state){\
    const double eps = std::floor((1.0/epsilon)*10.0)/10.0;\
    ceed::SolverProblem<Kernel##Integrator> bps\
       (Precond, side, refinements, smoothness, eps,eps, rhs_1,rhs_n, order);\
-   if (bps.dofs > (nranks*MAX_NDOFS)) {state.SkipWithError("MAX_NDOFS");}\
    while (state.KeepRunning()) { bps.benchmark(); }\
    state.counters["Ndofs"] = bm::Counter(bps.dofs);\
    state.counters["Epsilon"] = bm::Counter(bps.epsy);\
