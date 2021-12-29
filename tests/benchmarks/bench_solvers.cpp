@@ -63,17 +63,27 @@ typedef int MPI_Session;
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifndef MFEM_USE_CUDA
+using cusparseHandle_t = void*;
+using curandGenerator_t = void*;
+#define cusparseCreate(...)
+#define curandCreateGenerator(...)
+#define curandSetPseudoRandomGeneratorSeed(...)
+#endif // MFEM_USE_CUDA
+
+////////////////////////////////////////////////////////////////////////////////
 static int config_dev_size = 4; // default 4 GPU per node
 
 static bool config_nxyz = false; // cartesian partitioning in x
 
 static bool config_debug = false;
+static int config_smoother_order = 1;
 static int config_max_nic = 2;
-static int config_max_nip = 2;
+static int config_max_nip = 3;
 static int config_max_nif = 500;
 
-static int config_max_depth = 32;
-static int config_max_ndofs = 1024;
+static int config_max_depth = 8;
+static int config_max_ndofs = 2048;
 
 static const char *config_mg_spec = nullptr;
 enum MGSpecification
@@ -82,6 +92,7 @@ enum MGSpecification
    INCREMENT = 1,
    DIVIDE_BY_2 = 2
 };
+
 static int config_mg_spec_select = MGSpecification::DIVIDE_BY_2;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +103,6 @@ enum FinePrecondType
    Jacobi,
    BoomerAMG,
    LORBatch,
-   MGInner,
    MGJacobi,
    MGFAHypre,
    MGWavelets,
@@ -174,7 +184,6 @@ class LORDiffusion
 {
    ParMesh MakeLORMesh(ParMesh &mesh_ho, int order)
    {
-      MFEM_NVTX;
       ParMesh mesh_lor_tensor =
          ParMesh::MakeRefined(mesh_ho, order, BasisType::GaussLobatto);
       return mesh_lor_tensor;
@@ -197,7 +206,6 @@ public:
       a(&fes),
       irs(0, Quadrature1D::GaussLobatto)
    {
-      MFEM_NVTX;
       // LOR system uses collocated (2-point Gauss-Lobatto) quadrature
       int dim = mesh.Dimension();
       Geometry::Type geom = mesh.GetElementBaseGeometry(0);
@@ -225,19 +233,20 @@ class DiffusionMultigrid : public GeometricMultigrid
          case SolverConfig::LOR_HYPRE:
          case SolverConfig::LOR_BATCH:
          case SolverConfig::LOR_AMGX:
-            return AssemblyLevel::PARTIAL;
-
          case SolverConfig::WAMG:
             return AssemblyLevel::PARTIAL;
 
          case SolverConfig::FULL_WAMG:
             return AssemblyLevel::FULL;
 
+         case SolverConfig::FA_HYPRE:
          case SolverConfig::LEGACY_WAMG:
             return AssemblyLevel::LEGACY;
 
-         default: return AssemblyLevel::LEGACY;
+         default:
+            MFEM_ABORT("Unkown Solver Config type!");
       }
+      return AssemblyLevel::LEGACY;
    }
 
    AssemblyLevel GetCoarseAssemblyLevel(SolverConfig config,
@@ -355,7 +364,6 @@ public:
       std::string al_str;
       ConstructBilinearForm(pfes, ess_bdr,
                             GetCoarseAssemblyLevel(config, al_str));
-      dbg("AssemblyLevel: %s",al_str.c_str());
       BilinearForm &a = *bfs.Last();
       Array<int> &ess_dofs = *essentialTrueDofs.Last();
       a.FormSystemMatrix(ess_dofs, A_coarse);
@@ -373,7 +381,6 @@ public:
       OperatorPtr A_prec;
       if (NeedsLOR(config))
       {
-         dbg("NeedsLOR!");
          ParMesh &mesh = *pfes.GetParMesh();
          int order = pfes.GetOrder(0); // <-- Assume uniform p
          lor_diffusion.reset(new LORDiffusion(mesh, order, coeff, ess_dofs));
@@ -381,7 +388,6 @@ public:
       }
       else
       {
-         dbg("A_prec = A_coarse");
          A_prec = A_coarse;
       }
 
@@ -431,7 +437,7 @@ public:
          case SolverConfig::FULL_WAMG:
          case SolverConfig::LEGACY_WAMG:
          {
-            const int smoother_order = 1;
+            const int smoother_order = config_smoother_order;
             Vector diag = *new Vector(pfes.GetTrueVSize());
             a.AssembleDiagonal(diag);
             dbg("[precond] FA_WAMG %dx%d", A_prec->Height(), A_prec->Width());
@@ -444,7 +450,7 @@ public:
          }
          case SolverConfig::WAMG:
          {
-            const int smoother_order = 1;
+            const int smoother_order = config_smoother_order;
             Vector diag = *new Vector(pfes.GetTrueVSize());
             a.AssembleDiagonal(diag);
             dbg("[precond] WAMG %dx%d", A_prec->Height(), A_prec->Width());
@@ -841,6 +847,27 @@ struct BakeOff
    const bool rhs_1;
    const int rhs_n;
 
+   // Init cuSparse before timings, used in Dof_TrueDof_Matrix
+   Nvtx nvtx_cusph = {"cusparseHandle"};
+   std::function<cusparseHandle_t()> InitCuSparse = [&]()
+   {
+      NVTX("InitCuSparse");
+      cusparseCreate(&cusph);
+      return cusph;
+   };
+   cusparseHandle_t cusph;
+
+   // Init cuRandGenerator before timings, used in vector Randomize
+   Nvtx nvtx_curng = {"curandGenerator"};
+   std::function<curandGenerator_t()> InitCuRandNumberGenerator = [&]()
+   {
+      NVTX("InitCuRNG");
+      curandCreateGenerator(&curng, CURAND_RNG_PSEUDO_DEFAULT);
+      curandSetPseudoRandomGeneratorSeed(curng, 0);
+      return curng;
+   };
+   curandGenerator_t curng;
+
    StopWatch sw_setup, sw_solve;
    double t_setup, t_solve;
 
@@ -857,17 +884,19 @@ struct BakeOff
       kershaw::Transformation kt(dim, epsy, epsz, smoothness);
       smesh.Transform(kt);
 
+      int *partitioning;
       auto GetPartitioning = [&]()
       {
          int nxyz[3] = {num_procs,1,1};
          return config_nxyz ? smesh.CartesianPartitioning(nxyz) : nullptr;
       };
 #ifdef MFEM_USE_MPI
-      ParMesh pmesh(MPI_COMM_WORLD, smesh, GetPartitioning());
+      ParMesh pmesh(MPI_COMM_WORLD, smesh, partitioning=GetPartitioning());
 #else
       ParMesh pmesh(smesh);
 #endif // MFEM_USE_MPI
       smesh.Clear();
+      delete partitioning;
 
       // perform refinements if requested
       for (int i=0; i<refinements; i++) { pmesh.UniformRefinement(); }
@@ -876,6 +905,12 @@ struct BakeOff
    };
 
    ParMesh pmesh;
+
+   Nvtx nvtx_fec = {"p_fec"};
+   H1_FECollection p_fec;
+
+   Nvtx nvtx_fes = {"p_fes"};
+   ParFiniteElementSpace p_fes;
 
    int mg_nlevels, mg_fine_order, mg_coarse_order ;
    std::vector<FiniteElementCollection*> mg_fe_collections;
@@ -914,8 +949,7 @@ struct BakeOff
    };
    ParFiniteElementSpaceHierarchy *mg_hierarchy;
 
-   H1_FECollection p_fec;
-   ParFiniteElementSpace p_fes, mg_fes;
+   ParFiniteElementSpace mg_fes;
    ParMesh mg_pmesh;
 
    const Geometry::Type cube_t;
@@ -961,9 +995,13 @@ struct BakeOff
       epsz(epsz),
       rhs_1(rhs_1),
       rhs_n(rhs_n),
+      cusph(InitCuSparse()),
+      curng(InitCuRandNumberGenerator()),
       t_setup((sw_setup.Clear(), 0.0)),
       t_solve((sw_solve.Clear(), 0.0)),
       pmesh(GetCoarseKershawMesh()),
+      p_fec(p, dim, BasisType::GaussLobatto),
+      p_fes(&pmesh, &p_fec, vdim),
       mg_nlevels(0), // set in GetFESpaceHierarchy
       mg_fine_order(0), // set in GetMGSelector
       mg_coarse_order(0), // set in GetMGSelector
@@ -974,8 +1012,6 @@ struct BakeOff
                                             mg_coarse_order) :
                      nullptr),
       mg_hierarchy(mg_solver ? GetFESpaceHierarchy() : nullptr),
-      p_fec(p, dim, BasisType::GaussLobatto),
-      p_fes(&pmesh, &p_fec, vdim),
       mg_fes(mg_solver ? mg_hierarchy->GetFinestFESpace() : p_fes),
       mg_pmesh(mg_solver ? *mg_fes.GetParMesh() : pmesh),
       cube_t(Geometry::CUBE),
@@ -1041,14 +1077,6 @@ struct SolverProblem: public BakeOff
       mg_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       mg_fes.GetMesh()->EnsureNodes();
 
-#ifdef MFEM_USE_CUDA
-      {
-         NVTX("Cuda init RNG");
-         curandGenerator_t curng;
-         curandCreateGenerator(&curng, CURAND_RNG_PSEUDO_DEFAULT);
-         curandSetPseudoRandomGeneratorSeed(curng, 0);
-      }
-#endif
 
       if (rhs_1) { b.AddDomainIntegrator(new DomainLFIntegrator(one)); }
       else { b.AddDomainIntegrator(new DomainLFIntegrator(rhs)); }
@@ -1089,7 +1117,7 @@ struct SolverProblem: public BakeOff
       }
 
       // should be an option
-      const int smoother_order = 1;
+      const int smoother_order = config_smoother_order;
       wargs_t args {A, diag, ess_tdof_list, smoother_order,
                     config_max_nic, print_lvl,
                     config_max_depth, config_max_ndofs};
@@ -1116,6 +1144,7 @@ struct SolverProblem: public BakeOff
          case None: { break; }
          case Jacobi:
          {
+            assert(false);
             M.reset(new OperatorJacobiSmoother(a,ess_tdof_list));
             break;
          }
@@ -1140,21 +1169,16 @@ struct SolverProblem: public BakeOff
 #endif // MFEM_USE_MPI
             break;
          }
-         case MGJacobi:
-         {
-            SetMGPrecond("MGJacobi", precond::SolverConfig::JACOBI, true);
-            break;
-         }
          case MGFAHypre:
          {
             SetMGPrecond("MGFAHypre", precond::SolverConfig::FA_HYPRE, false);
             break;
          }
-         case MGInner:
+         case MGJacobi:
          {
-            dbg("MGInner");
-            NVTX("MGInner");
-            SetMGPrecond("MGInner", precond::SolverConfig::JACOBI, true);
+            dbg("MGJacobi");
+            NVTX("MGJacobi");
+            SetMGPrecond("MGJacobi", precond::SolverConfig::JACOBI, false);
             break;
          }
          case MGFAWavelets:
@@ -1253,52 +1277,54 @@ struct SolverProblem: public BakeOff
 #define P_ORDERS bm::CreateDenseRange(1,6,1)
 
 // The different side sizes
-#define P_SIDES bm::CreateDenseRange(6,200,2)
+#define P_SIDES bm::CreateDenseRange(6,420,6)
 
 // Maximum number of dofs
-#define MAX_NDOFS 10*1024*1024
+#define MAX_NDOFS 16*1024*1024
 
 /// Bake-off Solvers (BPSs)
 /// Smoothness in 0, 1 or 2
-/// refinements set from state.range(2)
-/// epsy = epsz, set from state.range(1)
+/// refinements is not used anymore
+/// side is set from state.range(2)
+/// order is set from state.range(1)
+/// epsy = epsz, set from state.range(0)
 #define BakeOff_Solver(i,Kernel,Precond)\
 static void BPS##i##_##Precond(bm::State &state){\
    const bool rhs_n = 3;\
-   const bool rhs_1 = false;\
+   const bool rhs_1 = true;\
    const int smoothness = 0;\
    const int refinements = 0;\
+   const int nranks = mpiWorldSize;\
    const int side = state.range(2);\
    const int order = state.range(1);\
    const int epsilon = state.range(0);\
    const double eps = std::floor((1.0/epsilon)*10.0)/10.0;\
    ceed::SolverProblem<Kernel##Integrator> bps\
       (Precond, side, refinements, smoothness, eps,eps, rhs_1,rhs_n, order);\
-   if (bps.dofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
+   if (bps.dofs > (nranks*MAX_NDOFS)) {state.SkipWithError("MAX_NDOFS");}\
    while (state.KeepRunning()) { bps.benchmark(); }\
    state.counters["Ndofs"] = bm::Counter(bps.dofs);\
    state.counters["Epsilon"] = bm::Counter(bps.epsy);\
    state.counters["Niters"] = bm::Counter(bps.niter);\
+   state.counters["NRanks"] = bm::Counter(nranks);\
    state.counters["P"] = bm::Counter(order);\
-   state.counters["Ranks"] = bm::Counter(mpiWorldSize);\
    state.counters["Tsetup"] = bm::Counter(bps.TSetup());\
    state.counters["Tsolve"] = bm::Counter(bps.TSolve(), bm::Counter::kAvgIterations);}\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_EPSILONS,P_ORDERS,P_SIDES})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(2);
+    -> Iterations(1);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
-BakeOff_Solver(3,Diffusion,None)
-BakeOff_Solver(3,Diffusion,Jacobi)
-BakeOff_Solver(3,Diffusion,BoomerAMG)
+//BakeOff_Solver(3,Diffusion,None)
+//BakeOff_Solver(3,Diffusion,Jacobi)
+//BakeOff_Solver(3,Diffusion,BoomerAMG)
 BakeOff_Solver(3,Diffusion,LORBatch)
-BakeOff_Solver(3,Diffusion,MGInner)
 BakeOff_Solver(3,Diffusion,MGJacobi)
 BakeOff_Solver(3,Diffusion,MGFAHypre)
 BakeOff_Solver(3,Diffusion,MGWavelets)
 BakeOff_Solver(3,Diffusion,MGFAWavelets)
-BakeOff_Solver(3,Diffusion,MGLEGACYWavelets)
+//BakeOff_Solver(3,Diffusion,MGLEGACYWavelets)
 
 } // namespace mfem
 
@@ -1327,6 +1353,7 @@ int main(int argc, char *argv[])
       bmi::FindInContext("device", config_device); // device=cuda
       bmi::FindInContext("debug", config_debug); // debug=true
       bmi::FindInContext("nxyz", config_nxyz); // nxyz=true
+      bmi::FindInContext("smo", config_smoother_order);
       bmi::FindInContext("nic", config_max_nic);
       bmi::FindInContext("nip", config_max_nip);
       bmi::FindInContext("nif", config_max_nif);

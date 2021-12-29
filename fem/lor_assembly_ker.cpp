@@ -104,9 +104,26 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
    X_ini = false;
 
    // Get the LOR vertex coordinates
-   MFEM_VERIFY(nodal_nd1d==2, "nodal_nd1d!=2");
    MFEM_VERIFY(nd1d==order+1, "nd1d!=order+1");
-   NodalInterpolation3D<2,nd1d>(nel_ho, nodes_loc, X_loc, maps.B);
+   switch (nodal_nd1d)
+   {
+      case 2:
+      {
+         NodalInterpolation3D<2,nd1d>(nel_ho, nodes_loc, X_loc, maps.B);
+         break;
+      }
+      case 4:
+      {
+         NodalInterpolation3D<4,nd1d>(nel_ho, nodes_loc, X_loc, maps.B);
+         break;
+      }
+      case 6:
+      {
+         NodalInterpolation3D<6,nd1d>(nel_ho, nodes_loc, X_loc, maps.B);
+         break;
+      }
+      default: MFEM_ABORT("Unsuported mesh order!");
+   }
    auto X = X_loc.Read();
 
    // Last GRID dimension is lowered to avoid too many resources
