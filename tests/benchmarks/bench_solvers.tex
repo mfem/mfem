@@ -6,7 +6,7 @@
 \usetikzlibrary{backgrounds}
 \usetikzlibrary{calc}
 
-\newcommand{\DATA}{bench_solvers.org}
+\newcommand{\DATA}{bps3_sawmill.org}
 \newcommand{\TITLE}{BPS3-MFEM results}
 
 \newcommand{\XMIN}{1e3}
@@ -56,10 +56,10 @@ show background rectangle, scale=4.0]
     major grid style={line width=.1pt,draw=gray!50},
     minor grid style={line width=.1pt,draw=gray!50},
     width=4in,
-    xlabel={#DOFs},
-    xlabel style={at={(axis description cs:0.5,-0.05)}},
+    xlabel={\#DOFs},
+    xlabel style={at={(axis description cs:0.5,-0.1)}},
     ylabel={Iterations},
-    ylabel style={at={(axis description cs:-0.025,0.5)}},
+    ylabel style={at={(axis description cs:-0.1,0.5)}},
     cycle list name=CycleList,
     %legend cell align=left,
     legend pos=north west,
@@ -70,13 +70,12 @@ show background rectangle, scale=4.0]
     xmin=\XMIN,
     xmax=\XMAX
   ]
-  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==1?$12/1e3:NaN)};
-  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==2?$12/1e3:NaN)};
-  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==3?$12/1e3:NaN)};
-  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==4?$12/1e3:NaN)};
-  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==5?$12/1e3:NaN)};
-  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($11):($13==6?$12/1e3:NaN)};
-
+  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==1?$14:NaN)};
+  \addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==2?$14:NaN)};
+  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==3?$14:NaN)};
+  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==4?$14:NaN)};
+  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==5?$14:NaN)};
+  %\addplot +[raw gnuplot] gnuplot { set datafile separator ','; plot "\DATA" using ($13):($15==6?$14:NaN)};
 \end{semilogxaxis}
 \end{tikzpicture}
 \end{document}

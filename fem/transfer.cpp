@@ -1192,7 +1192,7 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
    });
 }
 
-template <int D1D, int Q1D>
+template <int D1D, int Q1D, int NBZ = 1>
 void FastProlongation3D(const int lND,
                         const int hNQ,
                         const int NE,
@@ -1212,7 +1212,6 @@ void FastProlongation3D(const int lND,
 
    y = 0.0;
 
-   constexpr int NBZ = 1;
    assert(Q1D<=8);
 
    MFEM_FORALL_3D(be, (NE+NBZ-1)/NBZ, Q1D, Q1D, NBZ,
@@ -1475,7 +1474,7 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
    });
 }
 
-template<int D1D, int Q1D>
+template<int D1D, int Q1D, int NBZ = 1>
 void FastRestriction3D(const int lND,
                        const int hNQ,
                        const int NE,
@@ -1495,7 +1494,6 @@ void FastRestriction3D(const int lND,
 
    y = 0.0;
 
-   constexpr int NBZ = 1;
    assert(Q1D<=8);
 
    MFEM_FORALL_3D(be, (NE+NBZ-1)/NBZ, Q1D, Q1D, NBZ,
