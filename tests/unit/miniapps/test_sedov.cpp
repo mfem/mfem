@@ -1849,20 +1849,6 @@ public:
    }
 
    void ResetQuadratureData() const { quad_data_is_current = false; }
-
-   void ComputeDensity(ParGridFunction &rho) const
-   {
-      rho.SetSpace(&L2FESpace);
-      DenseMatrix Mrho(l2dofs_cnt);
-      // Vector rhs(l2dofs_cnt);
-      Vector rho_z(l2dofs_cnt);
-      Array<int> dofs(l2dofs_cnt);
-      for (int i = 0; i < nzones; i++)
-      {
-         L2FESpace.GetElementDofs(i, dofs);
-         rho.SetSubVector(dofs, rho_z);
-      }
-   }
 };
 } // namespace hydrodynamics
 
