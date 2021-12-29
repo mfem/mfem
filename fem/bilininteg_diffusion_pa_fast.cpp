@@ -26,14 +26,14 @@ namespace mfem
 
 ////////////////////////////////////////////////////////////////////////////////
 template<int D1D, int Q1D, int NBZ, int NBK> static
-MFEM_GLOBAL //MFEM_LAUNCH_BOUNDS(Q1D*Q1D*NBZ,NBK)
+MFEM_GLOBAL MFEM_LAUNCH_BOUNDS(Q1D*Q1D*NBZ,NBK)
 void NDK_PADiffApply(const int NE,
-                     const int* __restrict__ MAP,
-                     const double* __restrict__ B,
-                     const double* __restrict__ G,
-                     const double* __restrict__ D,
-                     const double* __restrict__ X,
-                     double* __restrict__ Y)
+                     const int *MAP,
+                     const double *B,
+                     const double *G,
+                     const double *D,
+                     const double *X,
+                     double *Y)
 {
    double r_qt, r_q[Q1D];
    MFEM_SHARED double s_B[D1D][Q1D];

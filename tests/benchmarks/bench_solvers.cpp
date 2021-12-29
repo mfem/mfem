@@ -1280,7 +1280,7 @@ struct SolverProblem: public BakeOff
 #define P_SIDES bm::CreateDenseRange(6,420,6)
 
 // Maximum number of dofs
-#define MAX_NDOFS 16*1024*1024
+#define MAX_NDOFS 64*1024*1024
 
 /// Bake-off Solvers (BPSs)
 /// Smoothness in 0, 1 or 2
@@ -1313,7 +1313,7 @@ static void BPS##i##_##Precond(bm::State &state){\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_EPSILONS,P_ORDERS,P_SIDES})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(1);
+    -> Iterations(10);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 //BakeOff_Solver(3,Diffusion,None)
