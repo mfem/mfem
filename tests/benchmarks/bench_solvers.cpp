@@ -1277,11 +1277,11 @@ struct SolverProblem: public BakeOff
 // The different orders the tests can run
 #define P_ORDERS bm::CreateDenseRange(1,6,1)
 
-// The different side sizes
-#define P_SIDES bm::CreateDenseRange(12,60,6)
+// The different side sizes, 120 max for one rank
+#define P_SIDES bm::CreateDenseRange(12,120,6)
 
 // Maximum number of dofs
-#define MAX_NDOFS 8*1024*1024
+#define MAX_NDOFS 2*1024*1024
 
 
 /// Bake-off Solvers (BPSs)
@@ -1293,7 +1293,7 @@ struct SolverProblem: public BakeOff
 #define BakeOff_Solver(i,Kernel,Precond)\
 static void BPS##i##_##Precond(bm::State &state){\
    const bool rhs_n = 3;\
-   const bool rhs_1 = false;\
+   const bool rhs_1 = true;\
    const int smoothness = 0;\
    const int refinements = 0;\
    const int nranks = mpiWorldSize;\
@@ -1303,8 +1303,8 @@ static void BPS##i##_##Precond(bm::State &state){\
    const double eps = std::floor((1.0/epsilon)*10.0)/10.0;\
    ceed::SolverProblem<Kernel##Integrator> bps\
       (Precond, side, refinements, smoothness, eps,eps, rhs_1,rhs_n, order);\
-   while (state.KeepRunning()) { bps.benchmark(); }\
    if (bps.dofs > (nranks*MAX_NDOFS)) {state.SkipWithError("MAX_NDOFS");}\
+   while (state.KeepRunning()) { bps.benchmark(); }\
    state.counters["Ndofs"] = bm::Counter(bps.dofs);\
    state.counters["Epsilon"] = bm::Counter(bps.epsy);\
    state.counters["Niters"] = bm::Counter(bps.niter);\
@@ -1315,7 +1315,7 @@ static void BPS##i##_##Precond(bm::State &state){\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_SIDES,P_ORDERS,P_EPSILONS})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(1);
+    -> Iterations(10);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 //BakeOff_Solver(3,Diffusion,None)

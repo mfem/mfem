@@ -45,8 +45,7 @@ void NodalInterpolation3D(const int NE,
 
    {
       NVTX("NodalInterpolation3D Kernel");
-      //MFEM_FORALL(e, NE,
-      for (int e=0; e<NE; e++)
+      MFEM_FORALL(e, NE,
       {
          for (int vd = 0; vd < VDIM; ++vd)
          {
@@ -97,7 +96,7 @@ void NodalInterpolation3D(const int NE,
                }
             }
          }
-      }//);
+      });
    }
 }
 
