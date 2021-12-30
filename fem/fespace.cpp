@@ -1540,11 +1540,11 @@ void FiniteElementSpace::RefinementOperator
       old_DoFTrans[i] = NULL;
    }
 
-   const FiniteElementCollection *rfec = fespace->FEColl();
-   if (dynamic_cast<const ND_FECollection*>(rfec))
+   const FiniteElementCollection *fec_ref = fespace->FEColl();
+   if (dynamic_cast<const ND_FECollection*>(fec_ref))
    {
       const FiniteElement * nd_tri =
-         rfec->FiniteElementForGeometry(Geometry::TRIANGLE);
+         fec_ref->FiniteElementForGeometry(Geometry::TRIANGLE);
       if (nd_tri)
       {
          old_DoFTrans[Geometry::TRIANGLE] =
@@ -1552,7 +1552,7 @@ void FiniteElementSpace::RefinementOperator
       }
 
       const FiniteElement * nd_tet =
-         rfec->FiniteElementForGeometry(Geometry::TETRAHEDRON);
+         fec_ref->FiniteElementForGeometry(Geometry::TETRAHEDRON);
       if (nd_tet)
       {
          old_DoFTrans[Geometry::TETRAHEDRON] =
@@ -1564,8 +1564,9 @@ void FiniteElementSpace::RefinementOperator
 void FiniteElementSpace::RefinementOperator
 ::Mult(const Vector &x, Vector &y) const
 {
-   Mesh* rmesh = fespace->GetMesh();
-   const CoarseFineTransformations &rtrans = rmesh->GetRefinementTransforms();
+   Mesh* mesh_ref = fespace->GetMesh();
+   const CoarseFineTransformations &trans_ref =
+      mesh_ref->GetRefinementTransforms();
 
    Array<int> dofs, vdofs, old_dofs, old_vdofs, old_Fo;
 
@@ -1574,10 +1575,10 @@ void FiniteElementSpace::RefinementOperator
 
    Vector subY, subX;
 
-   for (int k = 0; k < rmesh->GetNE(); k++)
+   for (int k = 0; k < mesh_ref->GetNE(); k++)
    {
-      const Embedding &emb = rtrans.embeddings[k];
-      const Geometry::Type geom = rmesh->GetElementBaseGeometry(k);
+      const Embedding &emb = trans_ref.embeddings[k];
+      const Geometry::Type geom = mesh_ref->GetElementBaseGeometry(k);
       const DenseMatrix &lP = localP[geom](emb.matrix);
 
       subY.SetSize(lP.Height());
@@ -1638,8 +1639,9 @@ void FiniteElementSpace::RefinementOperator
 {
    y = 0.0;
 
-   Mesh* rmesh = fespace->GetMesh();
-   const CoarseFineTransformations &rtrans = rmesh->GetRefinementTransforms();
+   Mesh* mesh_ref = fespace->GetMesh();
+   const CoarseFineTransformations &trans_ref =
+      mesh_ref->GetRefinementTransforms();
 
    Array<char> processed(fespace->GetVSize());
    processed = 0;
@@ -1649,12 +1651,12 @@ void FiniteElementSpace::RefinementOperator
    int rvdim = fespace->GetVDim();
    int old_ndofs = width / rvdim;
 
-   Vector subY, subX, subYt, subXt;
+   Vector subY, subX, subYt;
 
-   for (int k = 0; k < rmesh->GetNE(); k++)
+   for (int k = 0; k < mesh_ref->GetNE(); k++)
    {
-      const Embedding &emb = rtrans.embeddings[k];
-      const Geometry::Type geom = rmesh->GetElementBaseGeometry(k);
+      const Embedding &emb = trans_ref.embeddings[k];
+      const Geometry::Type geom = mesh_ref->GetElementBaseGeometry(k);
       const DenseMatrix &lP = localP[geom](emb.matrix);
 
       DofTransformation * doftrans = fespace->GetElementDofs(k, f_dofs);
@@ -2117,10 +2119,10 @@ void FiniteElementSpace::Constructor(Mesh *mesh_, NURBSExtension *NURBSext_,
                                      const FiniteElementCollection *fec_,
                                      int vdim_, int ordering_)
 {
-   this->mesh = mesh_;
-   this->fec = fec_;
-   this->vdim = vdim_;
-   this->ordering = (Ordering::Type) ordering_;
+   mesh = mesh_;
+   fec = fec_;
+   vdim = vdim_;
+   ordering = (Ordering::Type) ordering_;
 
    elem_dof = NULL;
    elem_fos = NULL;
@@ -2140,12 +2142,12 @@ void FiniteElementSpace::Constructor(Mesh *mesh_, NURBSExtension *NURBSext_,
 
       if (NURBSext_ == NULL)
       {
-         this->NURBSext = mesh_->NURBSext;
+         NURBSext = mesh_->NURBSext;
          own_ext = 0;
       }
       else
       {
-         this->NURBSext = NURBSext_;
+         NURBSext = NURBSext_;
          own_ext = 1;
       }
       UpdateNURBS();
@@ -2156,7 +2158,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh_, NURBSExtension *NURBSext_,
    }
    else
    {
-      this->NURBSext = NULL;
+      NURBSext = NULL;
       own_ext = 0;
       Construct();
    }
@@ -3556,7 +3558,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
          {
             MFEM_VERIFY(nurbs_ext, "NURBS_weights: NURBS_orders have to be "
                         "specified before NURBS_weights!");
-            nurbs_ext->GetWeights().Load(input, NURBSext->GetNDof());
+            nurbs_ext->GetWeights().Load(input, nurbs_ext->GetNDof());
          }
          else if (buff == "element_orders")
          {

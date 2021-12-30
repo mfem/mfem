@@ -1059,10 +1059,10 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
    {
       for (int f = 0; f < fes.GetNF(); ++f)
       {
-         const FiniteElement *fef =
+         const FiniteElement *fe_trace =
             fes.GetTraceElement(f, fes.GetMesh()->GetFaceBaseGeometry(f));
          const TensorBasisElement* el =
-            dynamic_cast<const TensorBasisElement*>(fef);
+            dynamic_cast<const TensorBasisElement*>(fe_trace);
          if (el) { continue; }
          mfem_error("Finite element not suitable for lexicographic ordering");
       }

@@ -750,10 +750,10 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       diag_counter = offd_counter = 0;
       for (int i = 0; i < ldof; i++)
       {
-         int ltdofi = GetLocalTDofNumber(i);
-         if (ltdofi >= 0)
+         int ltdof_i = GetLocalTDofNumber(i);
+         if (ltdof_i >= 0)
          {
-            j_diag[diag_counter++] = ltdofi;
+            j_diag[diag_counter++] = ltdof_i;
          }
          else
          {
