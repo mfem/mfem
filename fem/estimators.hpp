@@ -242,7 +242,7 @@ protected:
       current_sequence = -1;
       local_norm_p = 1;
       total_error = 0.0;
-      this->integ = &integ_;
+      integ = &integ_;
       solution = &sol;
       flux_space = flux_fes;
       smooth_flux_space = smooth_flux_fes;

@@ -2258,7 +2258,7 @@ public:
       : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(NULL), MQ(&q) { }
 
    int GetVDim() const { return vdim; }
-   void SetVDim(int vdim_) { this->vdim = vdim_; }
+   void SetVDim(int vdim_) { vdim = vdim_; }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
