@@ -34,6 +34,10 @@ template <> struct AutoSIMD<double,4,32>
       double vec[size];
    };
 
+   AutoSIMD() = default;
+
+   AutoSIMD(const AutoSIMD &) = default;
+
    inline __ATTRS_ai double &operator[](int i) { return vec[i]; }
 
    inline __ATTRS_ai const double &operator[](int i) const { return vec[i]; }
