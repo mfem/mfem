@@ -31,7 +31,7 @@ int problem = 0;
 
 const char vishost[] = "localhost";
 const int  visport   = 19916;
-const int wsize = 450; // glvis window size.
+const int wsize = 350; // glvis window size.
 
 double domainLS(const Vector &coord)
 {
@@ -363,7 +363,7 @@ private:
       socketstream sock;
 
       const int myid  = sltn.ParFESpace()->GetMyRank();
-      const double t_final = 0.4;
+      const double t_final = 0.35;
       bool done = false;
       double t = 0.0;
       for (int ti = 0; !done;)
@@ -453,19 +453,23 @@ public:
       Array<int> dofs;
       L2_FECollection fec_L2(order, dim);
       ParFiniteElementSpace pfes_L2(&pmesh, &fec_L2);
-      ParGridFunction u(&pfes_L2);
+      ParGridFunction u(&pfes_L2), vis_marking(&pfes_L2);
       u.ProjectGridFunction(input);
       for (int k = 0; k < NE; k++)
       {
          pfes_L2.GetElementDofs(k, dofs);
          if (elem_marker[k] != ShiftedFaceMarker::INSIDE)
          { u.SetSubVector(dofs, 0.0); }
+         vis_marking.SetSubVector(dofs, elem_marker[k]);
       }
       if (visualization)
       {
-         socketstream sock;
-         common::VisualizeField(sock, vishost, visport, u,
+         socketstream sock1, sock2;
+         common::VisualizeField(sock1, vishost, visport, u,
                                 "Fixed (known) u values", wsize, 0,
+                                wsize, wsize, "rRjmm********A");
+         common::VisualizeField(sock2, vishost, visport, vis_marking,
+                                "Element markings", 0, 2*wsize+60,
                                 wsize, wsize, "rRjmm********A");
       }
 
@@ -534,7 +538,7 @@ public:
             {
                // Constant extrapolation of u.
                rhs = 0.0;
-               adv_oper.mode = AdvectionOper::FCT;
+               adv_oper.mode = AdvectionOper::LO;
                TimeLoop(u, ode_solver, dt, wsize, "u - constant extrap");
                break;
             }
@@ -580,6 +584,7 @@ public:
             {
                // Constant extrapolation of u.
                rhs = 0.0;
+               adv_oper.mode = AdvectionOper::HO;
                TimeLoop(u, ode_solver, dt, wsize, "u - constant extrap");
                break;
             }
@@ -601,7 +606,7 @@ public:
                rhs_lf.AddDomainIntegrator(new DomainLFIntegrator(grad_u_n));
                rhs_lf.Assemble();
                rhs = rhs_lf;
-               adv_oper.mode = AdvectionOper::LO;
+               adv_oper.mode = AdvectionOper::HO;
                TimeLoop(u, ode_solver, dt, wsize, "u - linear Bochkov extrap");
                break;
             }
@@ -612,6 +617,53 @@ public:
       else { MFEM_ABORT("Wrong extrapolation type option"); }
 
       xtrap.ProjectGridFunction(u);
+   }
+
+   // Errors in cut elements.
+   void ComputeLocalErrors(Coefficient &level_set, const ParGridFunction &exact,
+                           const ParGridFunction &xtrap,
+                           double &error_L1, double &error_L2, double &error_LI)
+   {
+      ParMesh &pmesh = *exact.ParFESpace()->GetParMesh();
+      const int order = exact.ParFESpace()->GetOrder(0),
+                dim   = pmesh.Dimension(), NE = pmesh.GetNE();
+
+      // Get a ParGridFunction and mark elements.
+      H1_FECollection fec(order, dim);
+      ParFiniteElementSpace pfes_H1(&pmesh, &fec);
+      ParGridFunction ls_gf(&pfes_H1);
+      ls_gf.ProjectCoefficient(level_set);
+      // Mark elements.
+      Array<int> elem_marker;
+      ShiftedFaceMarker marker(pmesh, pfes_H1, false);
+      ls_gf.ExchangeFaceNbrData();
+      marker.MarkElements(ls_gf, elem_marker);
+
+      Vector errors_L1(NE), errors_L2(NE), errors_LI(NE);
+      GridFunctionCoefficient exact_coeff(&exact);
+
+      xtrap.ComputeElementL1Errors(exact_coeff, errors_L1);
+      xtrap.ComputeElementL2Errors(exact_coeff, errors_L2);
+      xtrap.ComputeElementMaxErrors(exact_coeff, errors_LI);
+      error_L1 = 0.0, error_L2 = 0.0, error_LI = 0.0;
+      double cut_volume = 0.0;
+      for (int k = 0; k < NE; k++)
+      {
+         if (elem_marker[k] == ShiftedFaceMarker::CUT)
+         {
+            error_L1 += errors_L1(k);
+            error_L2 += errors_L2(k);
+            error_LI = std::max(error_LI, errors_LI(k));
+            cut_volume += pmesh.GetElementVolume(k);
+         }
+      }
+      MPI_Comm comm = pmesh.GetComm();
+      MPI_Allreduce(MPI_IN_PLACE, &error_L1, 1, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &error_L2, 1, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &error_LI, 1, MPI_DOUBLE, MPI_MAX, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &cut_volume, 1, MPI_DOUBLE, MPI_SUM, comm);
+      error_L1 /= cut_volume;
+      error_L2 /= cut_volume;
    }
 };
 
@@ -677,7 +729,7 @@ int main(int argc, char *argv[])
    Extrapolator xtrap;
    xtrap.xtrap_type  = xtrap_type;
    xtrap.xtrap_order = xtrap_order;
-   xtrap.visualization = true;
+   xtrap.visualization = visualization;
    xtrap.vis_steps = 5;
    FunctionCoefficient ls_coeff(domainLS);
    ParGridFunction ux(&pfes_L2);
@@ -688,8 +740,25 @@ int main(int argc, char *argv[])
           err_L2 = ux.ComputeL2Error(u_exact_coeff);
    if (myid == 0)
    {
-      std::cout << "L1 error: " << err_L1 << std::endl
-                << "L2 error: " << err_L2 << std::endl;
+      std::cout << "Global L1 error: " << err_L1 << std::endl
+                << "Global L2 error: " << err_L2 << std::endl;
+   }
+   double loc_error_L1, loc_error_L2, loc_error_LI;
+   xtrap.ComputeLocalErrors(ls_coeff, u, ux,
+                            loc_error_L1, loc_error_L2, loc_error_LI);
+   if (myid == 0)
+   {
+      std::cout << "Local  L1 error: " << loc_error_L1 << std::endl
+                << "Local  L2 error: " << loc_error_L2 << std::endl
+                << "Local  Li error: " << loc_error_LI << std::endl;
+   }
+
+   ConstantCoefficient zero(0.0);
+   double norm = ux.ComputeL1Error(zero);
+   if (myid == 0)
+   {
+      std::cout << setprecision(12) << std::fixed
+                << "norm = " << norm << std::endl;
    }
 
    // ParaView output.
