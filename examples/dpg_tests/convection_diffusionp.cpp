@@ -68,6 +68,11 @@ double exact_hatu(const Vector & X);
 void exact_hatf(const Vector & X, Vector & hatf);
 double f_exact(const Vector & X);
 
+
+void SerialSystem(Mesh & mesh, int order, int delta_order,
+ BlockOperator * Apar, Vector * Xpar, Vector * Bpar);
+
+
 int main(int argc, char *argv[])
 {
    MPI_Session mpi;
@@ -232,7 +237,7 @@ int main(int argc, char *argv[])
       {   
          if (myid == 0)
          {
-            mfem::out << "Test norm: Standard" << endl;
+            mfem::out << "\n Test norm: Standard" << endl;
          }
          // (∇v,∇δv)
          a->AddTestIntegrator(new DiffusionIntegrator(one),0,0);
@@ -248,7 +253,7 @@ int main(int argc, char *argv[])
       {
          if (myid == 0)
          {
-            mfem::out << "Test norm: Adjoint Graph" << endl;
+            mfem::out << "\n Test norm: Adjoint Graph" << endl;
          }
          // (∇v,∇δv)
          a->AddTestIntegrator(new DiffusionIntegrator(one),0,0);
@@ -276,7 +281,7 @@ int main(int argc, char *argv[])
       {
          if (myid == 0)
          {
-            mfem::out << "Test norm: Robust" << endl;
+            mfem::out << "\n Test norm: Robust" << endl;
          }
          c1_gf.SetSpace(coeff_fes);
          c2_gf.SetSpace(coeff_fes);
@@ -351,7 +356,7 @@ int main(int argc, char *argv[])
    }
 
 
-   for (int i = 0; i<ref; i++)
+   for (int i = 0; i<=ref; i++)
    {
       a->Assemble();
 
@@ -412,29 +417,45 @@ int main(int argc, char *argv[])
 
       BlockOperator * A = Ah.As<BlockOperator>();
 
-      BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
-      M->owns_blocks = 1;
-      HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
-      HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
-      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(2,2));
-      amg0->SetPrintLevel(0);
-      amg1->SetPrintLevel(0);
-      amg2->SetPrintLevel(0);
+      // SerialSystem(pmesh,order,delta_order,A,&X,&B);
+      // cin.get();
 
-      M->SetDiagonalBlock(0,amg0);
-      M->SetDiagonalBlock(1,amg1);
-      M->SetDiagonalBlock(2,amg2);
 
-      HypreSolver * prec;
-      if (dim == 2)
-      {
-         prec = new HypreAMS((HypreParMatrix &)A->GetBlock(3,3), hatf_fes);
-      }
-      else
-      {
-         prec = new HypreADS((HypreParMatrix &)A->GetBlock(3,3), hatf_fes);
-      }
-      M->SetDiagonalBlock(3,prec);
+      // cout << "matrix norms = " << endl;
+      // for (int i = 0; i<A->NumRowBlocks(); i++)
+      // {
+      //    for (int j=0; j<A->NumColBlocks(); j++)
+      //    {
+      //       SparseMatrix Diag;
+      //       (dynamic_cast<HypreParMatrix&>(A->GetBlock(i,j))).GetDiag(Diag);
+      //       cout << Diag.MaxNorm() << endl;
+      //    }
+      // }
+      // cout << "matrix norms done  " << endl;
+
+      // BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
+      // M->owns_blocks = 1;
+      // HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
+      // HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
+      // HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(2,2));
+      // amg0->SetPrintLevel(0);
+      // amg1->SetPrintLevel(0);
+      // amg2->SetPrintLevel(0);
+
+      // M->SetDiagonalBlock(0,amg0);
+      // M->SetDiagonalBlock(1,amg1);
+      // M->SetDiagonalBlock(2,amg2);
+
+      // HypreSolver * prec;
+      // if (dim == 2)
+      // {
+      //    prec = new HypreAMS((HypreParMatrix &)A->GetBlock(3,3), hatf_fes);
+      // }
+      // else
+      // {
+      //    prec = new HypreADS((HypreParMatrix &)A->GetBlock(3,3), hatf_fes);
+      // }
+      // M->SetDiagonalBlock(3,prec);
 
 
       // Array2D<HypreParMatrix *> Ahyp(4,4);
@@ -453,11 +474,19 @@ int main(int argc, char *argv[])
       // mumps.SetOperator(*Am);
       // mumps.Mult(B,X);
       
+      BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
+      M->owns_blocks = 1;
+      for (int i=0; i<A->NumRowBlocks(); i++)
+      {
+         MUMPSSolver * mumps = new MUMPSSolver;
+         mumps->SetOperator(A->GetBlock(i,i));
+         M->SetDiagonalBlock(i,mumps);
+      }
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
-      cg.SetMaxIter(20000);
-      cg.SetPrintLevel(-1);
+      cg.SetMaxIter(200000);
+      cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
@@ -546,6 +575,9 @@ int main(int argc, char *argv[])
          //       << flush;
       }
 
+      if (i == ref)
+         break;
+
       pmesh.GeneralRefinement(elements_to_refine,1,1);
       for (int i =0; i<trial_fes.Size(); i++)
       {
@@ -558,15 +590,15 @@ int main(int argc, char *argv[])
          coeff_fes->Update();
          c1_gf.Update();
          c2_gf.Update();
-         Array<int> dofs;
+         Array<int> edofs;
          for (int i = 0; i < mesh.GetNE(); i++)
          {
             double volume = mesh.GetElementVolume(i);
             double c1 = min(epsilon/volume, 1.);
             double c2 = min(1./epsilon, 1./volume);
-            coeff_fes->GetElementDofs(i,dofs);
-            c1_gf.SetSubVector(dofs,c1);
-            c2_gf.SetSubVector(dofs,c2);
+            coeff_fes->GetElementDofs(i,edofs);
+            c1_gf.SetSubVector(edofs,c1);
+            c2_gf.SetSubVector(edofs,c2);
          }
       }
    }
@@ -601,7 +633,7 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
       case polynomial:
       {
          int n=2;
-         int m=3;
+         int m=2;
          u = pow(x,n)*pow(y,m);
          du[0] = n * pow(x,n-1) * pow(y,m);
          du[1] = m * pow(x,n) * pow(y,m-1);
@@ -703,4 +735,189 @@ double f_exact(const Vector & X)
       s += beta[i] * du[i];
    }
    return -epsilon * d2u + s;
+   // return 1.0;
+}
+
+
+void SerialSystem(Mesh & mesh, int order, int delta_order, BlockOperator * Apar, Vector * Xpar, Vector * Bpar)
+{
+   int dim = mesh.Dimension();
+
+   FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
+   FiniteElementSpace *u_fes = new FiniteElementSpace(&mesh,u_fec);
+
+   // Vector L2 space for σ 
+   FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
+   FiniteElementSpace *sigma_fes = new FiniteElementSpace(&mesh,sigma_fec, dim); 
+
+   // H^1/2 space for û 
+   FiniteElementCollection * hatu_fec = new H1_Trace_FECollection(order,dim);
+   FiniteElementSpace *hatu_fes = new FiniteElementSpace(&mesh,hatu_fec);
+
+   // H^-1/2 space for σ̂ 
+   FiniteElementCollection * hatf_fec = new RT_Trace_FECollection(order-1,dim);   
+   FiniteElementSpace *hatf_fes = new FiniteElementSpace(&mesh,hatf_fec);
+
+   // testspace fe collections
+   int test_order = order+delta_order;
+   FiniteElementCollection * v_fec = new H1_FECollection(test_order, dim);
+   FiniteElementCollection * tau_fec = new RT_FECollection(test_order-1, dim);
+
+   // Coefficients
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient negone(-1.0);
+   ConstantCoefficient eps(epsilon);
+   ConstantCoefficient eps1(1./epsilon);
+   ConstantCoefficient negeps1(-1./epsilon);
+   ConstantCoefficient eps2(1/(epsilon*epsilon));
+
+   ConstantCoefficient negeps(-epsilon);
+   VectorConstantCoefficient betacoeff(beta);
+   Vector negbeta = beta;
+   negbeta.Neg();
+
+   DenseMatrix bbt(beta.Size());
+   MultVVt(beta, bbt); 
+   MatrixConstantCoefficient bbtcoeff(bbt);
+
+   VectorConstantCoefficient negbetacoeff(negbeta);
+   // Normal equation weak formulation
+   Array<FiniteElementSpace * > trial_fes; 
+   Array<FiniteElementCollection * > test_fec; 
+
+   trial_fes.Append(u_fes);
+   trial_fes.Append(sigma_fes);
+   trial_fes.Append(hatu_fes);
+   trial_fes.Append(hatf_fes);
+   test_fec.Append(v_fec);
+   test_fec.Append(tau_fec);
+
+
+   NormalEquations * a = new NormalEquations(trial_fes,test_fec);
+   a->StoreMatrices(true);
+
+   //-(βu , ∇v)
+   a->AddTrialIntegrator(new MixedScalarWeakDivergenceIntegrator(betacoeff),0,0);
+   
+   // (σ,∇ v)
+   a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),1,0);
+
+   // (u ,∇⋅τ)
+   a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(negone),0,1);
+
+   // 1/ε (σ,τ)
+   a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(eps1)),1,1);
+
+   //  <û,τ⋅n>
+   a->AddTrialIntegrator(new NormalTraceIntegrator,2,1);
+
+   // <f̂ ,v> 
+   a->AddTrialIntegrator(new TraceIntegrator,3,0);
+
+
+   a->AddTestIntegrator(new DiffusionIntegrator(one),0,0);
+  // (v,δv)
+   a->AddTestIntegrator(new MassIntegrator(one),0,0);
+   // (∇⋅τ,∇⋅δτ)
+   a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
+   // (τ,δτ)
+   a->AddTestIntegrator(new VectorFEMassIntegrator(one),1,1);
+
+   FunctionCoefficient f(f_exact);
+   a->AddDomainLFIntegrator(new DomainLFIntegrator(f),0);
+
+   FunctionCoefficient hatuex(exact_hatu);
+   VectorFunctionCoefficient hatfex(dim,exact_hatf);
+   Array<int> elements_to_refine;
+   FunctionCoefficient uex(exact_u);
+   VectorFunctionCoefficient sigmaex(dim,exact_sigma);
+
+   a->Assemble();
+
+   Array<int> ess_tdof_list_uhat;
+   Array<int> ess_tdof_list_fhat;
+   Array<int> ess_bdr_uhat;
+   Array<int> ess_bdr_fhat;
+   if (mesh.bdr_attributes.Size())
+   {
+      ess_bdr_uhat.SetSize(mesh.bdr_attributes.Max());
+      ess_bdr_fhat.SetSize(mesh.bdr_attributes.Max());
+      ess_bdr_uhat = 1;
+      ess_bdr_fhat = 0;
+      hatu_fes->GetEssentialTrueDofs(ess_bdr_uhat, ess_tdof_list_uhat);
+      hatf_fes->GetEssentialTrueDofs(ess_bdr_fhat, ess_tdof_list_fhat);
+   }
+
+   int n = ess_tdof_list_uhat.Size();
+   int m = ess_tdof_list_fhat.Size();
+   Array<int> ess_tdof_list(n+m);
+   for (int i = 0; i < n; i++)
+   {
+      ess_tdof_list[i] = ess_tdof_list_uhat[i] 
+                        + u_fes->GetTrueVSize() 
+                        + sigma_fes->GetTrueVSize();
+   }
+   for (int i = 0; i < m; i++)
+   {
+      ess_tdof_list[i+n] = ess_tdof_list_fhat[i] 
+                           + u_fes->GetTrueVSize() 
+                           + sigma_fes->GetTrueVSize()
+                           + hatu_fes->GetTrueVSize();
+   }
+
+   Array<int> offsets(5);
+   offsets[0] = 0;
+   offsets[1] = u_fes->GetVSize();
+   offsets[2] = sigma_fes->GetVSize();
+   offsets[3] = hatu_fes->GetVSize();
+   offsets[4] = hatf_fes->GetVSize();
+   offsets.PartialSum();
+
+
+   BlockVector x(offsets);
+   x = 0.0;
+
+   GridFunction hatu_gf;
+   GridFunction hatf_gf;
+
+   hatu_gf.MakeRef(hatu_fes,x.GetBlock(2));
+   hatf_gf.MakeRef(hatf_fes,x.GetBlock(3));
+
+   hatu_gf.ProjectBdrCoefficient(hatuex,ess_bdr_uhat);
+   hatf_gf.ProjectBdrCoefficientNormal(hatfex,ess_bdr_fhat);
+
+   OperatorPtr Ah;
+   Vector X,B;
+   a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
+
+   BlockMatrix * A = Ah.As<BlockMatrix>();
+
+   for (int i = 0; i<A->NumRowBlocks(); i++)
+   {
+      for (int j=0; j<A->NumColBlocks(); j++)
+      {
+         SparseMatrix & Serial = dynamic_cast<SparseMatrix&>(A->GetBlock(i,j));
+      
+         SparseMatrix Diag;
+         (dynamic_cast<HypreParMatrix&>(Apar->GetBlock(i,j))).GetDiag(Diag);
+
+         SparseMatrix * diff = Add(1., Diag, -1., Serial);
+         cout << diff->MaxNorm() << endl;
+      }
+   }
+
+
+   X-=(*Xpar);
+   B-=(*Bpar);
+
+   cout << "Xdiff = " << X.Norml2() << endl;
+   cout << "Bdiff = " << B.Norml2() << endl;
+
+   cout << "bdiff = " << endl;
+   B.Print();
+
+   offsets.Print();
+
+   ess_tdof_list.Print();
+
 }

@@ -369,26 +369,36 @@ void NormalEquations::Assemble(int skip_zeros)
             }
          }
       }
-      G.Invert();
+
+
+      // DenseMatrixInverse Ginv
+      DenseMatrixInverse Ginv(G);
+      Ginv.Factor();
 
       // Form Normal Equations B^T G^-1 B = B^T G^-1 l
-
-      RAP(G,B,A);
-
       Gvec.SetSize(G.Height());
-      G.Mult(vec,Gvec);
       b.SetSize(B.Width());
-      B.MultTranspose(Gvec,b);
+      A.SetSize(B.Width());
 
       if (store_matrices)
       {
          // save G^-1 B and G^-1 l
          GB[iel] = new DenseMatrix(G.Height(),B.Width());
          Gl[iel] = new Vector(G.Height());
-         mfem::Mult(G,B,*GB[iel]);
-         *Gl[iel] = Gvec;
+         Ginv.Mult(B,*GB[iel]);
+         Ginv.Mult(vec,*Gl[iel]);
+         mfem::MultAtB(B,*GB[iel],A);
+         B.MultTranspose(*Gl[iel],b);
       }
-
+      else
+      {
+         DenseMatrix GinvB(G.Height(),B.Width());
+         Vector Ginvl(G.Height());
+         Ginv.Mult(B,GinvB);
+         Ginv.Mult(vec,Ginvl);
+         mfem::MultAtB(B,GinvB,A);
+         B.MultTranspose(Ginvl,b);
+      }
 
       // Assembly
       for (int i = 0; i<trial_fes.Size(); i++)
@@ -471,10 +481,34 @@ void NormalEquations::FormLinearSystem(const Array<int>
    else // non conforming space
    {
       B.SetSize(P->Width());
+
       P->MultTranspose(*y, B);
+      double *data = y->GetData();
+      Vector tmp;
+      for (int i = 0; i<nblocks; i++)
+      {
+         if (P->IsZeroBlock(i,i))
+         {
+            int offset = tdof_offsets[i];
+            tmp.SetDataAndSize(&data[offset],tdof_offsets[i+1]-tdof_offsets[i]);
+            B.SetVector(tmp,offset);
+         }
+      }
+
       X.SetSize(R->Height());
 
       R->Mult(x, X);
+      data = x.GetData();
+      for (int i = 0; i<nblocks; i++)
+      {
+         if (R->IsZeroBlock(i,i))
+         {
+            int offset = tdof_offsets[i];
+            tmp.SetDataAndSize(&data[offset],tdof_offsets[i+1]-tdof_offsets[i]);
+            X.SetVector(tmp,offset);
+         }
+      }
+
       EliminateVDofsInRHS(ess_tdof_list, X, B);
       if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
    }
@@ -546,7 +580,6 @@ void NormalEquations::RecoverFEMSolution(const Vector &X,
    {
       x.SetSize(P->Height());
       P->Mult(X, x);
-
       double *data = X.GetData();
       Vector tmp;
       for (int i = 0; i<nblocks; i++)

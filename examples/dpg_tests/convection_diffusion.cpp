@@ -1,9 +1,9 @@
 //                                MFEM Ultraweak DPG example
 //
-// Compile with: make ejproblem
+// Compile with: make convection_diffusion
 //
 // sample runs 
-// ./ejproblem -m ../../data/inline-quad.mesh -o 2 -ref 20 -graph-norm -do 1
+// ./convection_diffusion -m ../../data/inline-quad.mesh -o 2 -ref 20 -graph-norm -do 1
 
 //     - εΔu + ∇⋅(βu) = f,   in Ω
 //                  u = u_0, on ∂Ω
@@ -217,6 +217,7 @@ int main(int argc, char *argv[])
       case standard:
       {   
          // (∇v,∇δv)
+         mfem::out << "\n Test norm: Standard" << endl;
          a->AddTestIntegrator(new DiffusionIntegrator(one),0,0);
          // (v,δv)
          a->AddTestIntegrator(new MassIntegrator(one),0,0);
@@ -228,6 +229,7 @@ int main(int argc, char *argv[])
       break;
       case adjoint_graph:
       {
+         mfem::out << "\n Test norm: Adjoint Graph" << endl;
          // (∇v,∇δv)
          a->AddTestIntegrator(new DiffusionIntegrator(one),0,0);
          // (β⋅∇v, β⋅∇δv)   
@@ -252,6 +254,7 @@ int main(int argc, char *argv[])
       break;
       default:
       {
+         mfem::out << "\n Test norm: Robust" << endl;
          c1_gf.SetSpace(coeff_fes);
          c2_gf.SetSpace(coeff_fes);
          Array<int> dofs;
@@ -286,10 +289,12 @@ int main(int argc, char *argv[])
    // }
 
    FunctionCoefficient hatuex(exact_hatu);
+   VectorFunctionCoefficient hatfex(dim,exact_hatf);
    Array<int> elements_to_refine;
    FunctionCoefficient uex(exact_u);
    VectorFunctionCoefficient sigmaex(dim,exact_sigma);
    GridFunction hatu_gf;
+   GridFunction hatf_gf;
 
    // socketstream uex_out;
    socketstream u_out;
@@ -318,23 +323,44 @@ int main(int argc, char *argv[])
              <<  "-------------------" << endl;   
 
 
-   for (int i = 0; i<ref; i++)
+   for (int i = 0; i<=ref; i++)
    {
       a->Assemble();
 
-      Array<int> ess_tdof_list;
-      Array<int> ess_bdr;
+      Array<int> ess_tdof_list_uhat;
+      Array<int> ess_tdof_list_fhat;
+      Array<int> ess_bdr_uhat;
+      Array<int> ess_bdr_fhat;
       if (mesh.bdr_attributes.Size())
       {
-         ess_bdr.SetSize(mesh.bdr_attributes.Max());
-         ess_bdr = 1;
-         hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         ess_bdr_uhat.SetSize(mesh.bdr_attributes.Max());
+         ess_bdr_fhat.SetSize(mesh.bdr_attributes.Max());
+         ess_bdr_uhat = 1;
+         ess_bdr_fhat = 0;
+         // ess_bdr_uhat = 0;
+         // ess_bdr_fhat = 1;
+         // ess_bdr_uhat[1] = 1;
+         // ess_bdr_fhat[1] = 0;
+         hatu_fes->GetEssentialTrueDofs(ess_bdr_uhat, ess_tdof_list_uhat);
+         hatf_fes->GetEssentialTrueDofs(ess_bdr_fhat, ess_tdof_list_fhat);
       }
 
       // shift the ess_tdofs
-      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      int n = ess_tdof_list_uhat.Size();
+      int m = ess_tdof_list_fhat.Size();
+      Array<int> ess_tdof_list(n+m);
+      for (int i = 0; i < n; i++)
       {
-         ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_fes->GetTrueVSize();
+         ess_tdof_list[i] = ess_tdof_list_uhat[i] 
+                          + u_fes->GetTrueVSize() 
+                          + sigma_fes->GetTrueVSize();
+      }
+      for (int i = 0; i < m; i++)
+      {
+         ess_tdof_list[i+n] = ess_tdof_list_fhat[i] 
+                            + u_fes->GetTrueVSize() 
+                            + sigma_fes->GetTrueVSize()
+                            + hatu_fes->GetTrueVSize();
       }
 
       Array<int> offsets(5);
@@ -347,7 +373,11 @@ int main(int argc, char *argv[])
       BlockVector x(offsets);
       x = 0.0;
       hatu_gf.MakeRef(hatu_fes,x.GetBlock(2));
-      hatu_gf.ProjectBdrCoefficient(hatuex,ess_bdr);
+
+      hatf_gf.MakeRef(hatf_fes,x.GetBlock(3));
+
+      hatu_gf.ProjectBdrCoefficient(hatuex,ess_bdr_uhat);
+      hatf_gf.ProjectBdrCoefficientNormal(hatfex,ess_bdr_fhat);
 
       OperatorPtr Ah;
       Vector X,B;
@@ -364,8 +394,8 @@ int main(int argc, char *argv[])
 
       CGSolver cg;
       cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
-      cg.SetPrintLevel(-1);
+      cg.SetMaxIter(200000);
+      cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
@@ -375,7 +405,6 @@ int main(int argc, char *argv[])
       Vector & residuals = a->ComputeResidual(x);
 
       double residual = residuals.Norml2();
-      
 
       elements_to_refine.SetSize(0);
       double max_resid = residuals.Max();
@@ -398,7 +427,9 @@ int main(int argc, char *argv[])
 
       int dofs = X.Size();
       double u_err = u_gf.ComputeL2Error(uex);
+      // mfem::out << "u_err = " << u_err << endl;
       double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
+      // mfem::out << "sigma_err = " << sigma_err << endl;
       double L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
 
 
@@ -438,6 +469,9 @@ int main(int argc, char *argv[])
          //       "window_title 'Numerical flux' "
          //       << flush;
       }
+
+      if (i == ref)
+         break;
 
       mesh.GeneralRefinement(elements_to_refine,1,1);
       for (int i =0; i<trial_fes.Size(); i++)
@@ -495,7 +529,7 @@ void solution(const Vector & X, double & u, Vector & du, double & d2u)
       case polynomial:
       {
          int n=2;
-         int m=3;
+         int m=2;
          u = pow(x,n)*pow(y,m);
          du[0] = n * pow(x,n-1) * pow(y,m);
          du[1] = m * pow(x,n) * pow(y,m-1);
