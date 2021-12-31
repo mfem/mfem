@@ -24,7 +24,7 @@ struct wargs_t
    Vector &diag;
    Array<int> &ess_tdof_list;
    int smoother_order, max_iter, print_level;
-   const int max_depth, max_ndofs;
+   const int mg_depth, mg_ndofs;
    BilinearForm *a;
 
    wargs_t(const OperatorHandle &op,
@@ -33,8 +33,8 @@ struct wargs_t
            int smoother_order,
            int max_iter,
            int print_level,
-           const int max_depth,
-           const int max_ndofs,
+           const int mg_depth,
+           const int mg_ndofs,
            BilinearForm *a = nullptr):
       op_h(op),
       diag(diag),
@@ -42,8 +42,8 @@ struct wargs_t
       smoother_order(smoother_order),
       max_iter(max_iter),
       print_level(print_level),
-      max_depth(max_depth),
-      max_ndofs(max_ndofs),
+      mg_depth(mg_depth),
+      mg_ndofs(mg_ndofs),
       a(a) {}
 };
 

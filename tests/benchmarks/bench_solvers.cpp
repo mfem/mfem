@@ -77,13 +77,17 @@ static int config_dev_size = 4; // default 4 GPU per node
 static bool config_nxyz = false; // cartesian partitioning in x
 
 static bool config_debug = false;
-static int config_smoother_order = 1;
+
+static bool config_inner_cg = false;
+
+static int config_smoother_order = 2;
+
 static int config_max_nic = 2;
 static int config_max_nip = 3;
 static int config_max_nif = 500;
 
-static int config_max_depth = 8;
-static int config_max_ndofs = 2048;
+static int config_mg_depth = 8;
+static int config_mg_ndofs = 2048;
 
 static const char *config_mg_spec = nullptr;
 enum MGSpecification
@@ -444,7 +448,7 @@ public:
             // A_prec is a LEGACY/FULL A_coarse ParHypreMatrix
             wargs_t args(A_prec, diag, ess_dofs,
                          smoother_order, config_max_nic, print_level,
-                         config_max_depth, config_max_ndofs);
+                         config_mg_depth, config_mg_ndofs);
             coarse_precond.reset(new faWAMG(pfes, Wavelet::HAAR, args));
             break;
          }
@@ -456,7 +460,7 @@ public:
             dbg("[precond] WAMG %dx%d", A_prec->Height(), A_prec->Width());
             wargs_t args(A_prec, diag, ess_dofs,
                          smoother_order, config_max_nic, print_level,
-                         config_max_depth, config_max_ndofs);
+                         config_mg_depth, config_mg_ndofs);
             coarse_precond.reset(new WAMG(pfes, Wavelet::HAAR, args));
             break;
          }
@@ -579,7 +583,8 @@ std::vector<MultigridLevel> *GetMGSelector(const bool mg_solver,
    {
       switch (config_mg_spec_select)
       {
-         case INPUT: specs = ParseMGSpecification(mg_coarse_order, mg_fine_order); break;
+         case INPUT:
+            specs = ParseMGSpecification(mg_coarse_order, mg_fine_order); break;
          case INCREMENT: specs = WalkMGSpecification(mg_coarse_order, p); break;
          case DIVIDE_BY_2: specs= Div2MGSpecification(mg_coarse_order, p); break;
          default: MFEM_ABORT("Unhandled MG specification");
@@ -885,24 +890,24 @@ struct BakeOff
       kershaw::Transformation kt(dim, epsy, epsz, smoothness);
       smesh.Transform(kt);
 
-      int *partitioning;
+      int *partitioning = nullptr;
+#ifdef MFEM_USE_MPI
       auto GetPartitioning = [&]()
       {
          int nxyz[3] = {num_procs,1,1};
          return config_nxyz ? smesh.CartesianPartitioning(nxyz) : nullptr;
       };
-#ifdef MFEM_USE_MPI
-      ParMesh pmesh(MPI_COMM_WORLD, smesh, partitioning=GetPartitioning());
+      ParMesh mesh(MPI_COMM_WORLD, smesh, partitioning=GetPartitioning());
 #else
-      ParMesh pmesh(smesh);
+      ParMesh mesh(smesh);
 #endif // MFEM_USE_MPI
       smesh.Clear();
       delete partitioning;
 
       // perform refinements if requested
-      for (int i=0; i<refinements; i++) { pmesh.UniformRefinement(); }
+      for (int i=0; i<refinements; i++) { mesh.UniformRefinement(); }
 
-      return pmesh;
+      return mesh;
    };
 
    ParMesh pmesh;
@@ -1121,12 +1126,12 @@ struct SolverProblem: public BakeOff
       const int smoother_order = config_smoother_order;
       wargs_t args {A, diag, ess_tdof_list, smoother_order,
                     config_max_nic, print_lvl,
-                    config_max_depth, config_max_ndofs};
+                    config_mg_depth, config_mg_ndofs};
 
       //// Setup phase
       auto SetMGPrecond = [&](const char *header,
-                              precond::SolverConfig::SolverType type,
-                              const bool inner_cg)
+                              const bool inner_cg,
+                              precond::SolverConfig::SolverType type)
       {
          dbg(header);
          assert(p == mg_fine_order);
@@ -1172,35 +1177,45 @@ struct SolverProblem: public BakeOff
          }
          case MGFAHypre:
          {
-            SetMGPrecond("MGFAHypre", precond::SolverConfig::FA_HYPRE, false);
+            SetMGPrecond("MGFAHypre",
+                         config_inner_cg,
+                         precond::SolverConfig::FA_HYPRE);
             break;
          }
          case MGJacobi:
          {
             dbg("MGJacobi");
             NVTX("MGJacobi");
-            SetMGPrecond("MGJacobi", precond::SolverConfig::JACOBI, false);
+            SetMGPrecond("MGJacobi",
+                         config_inner_cg,
+                         precond::SolverConfig::JACOBI);
             break;
          }
          case MGFAWavelets:
          {
             dbg("MGFAWavelets");
             NVTX("MGFAWavelets");
-            SetMGPrecond("MGFAWavelets", precond::SolverConfig::FULL_WAMG, true);
+            SetMGPrecond("MGFAWavelets",
+                         config_inner_cg,
+                         precond::SolverConfig::FULL_WAMG);
             break;
          }
          case MGLEGACYWavelets:
          {
             dbg("MGLEGACYWavelets");
             NVTX("MGLEGACYWavelets");
-            SetMGPrecond("MGLEGACYWavelets", precond::SolverConfig::LEGACY_WAMG, true);
+            SetMGPrecond("MGLEGACYWavelets",
+                         config_inner_cg,
+                         precond::SolverConfig::LEGACY_WAMG);
             break;
          }
          case MGWavelets:
          {
             dbg("MGWavelets");
             NVTX("MGWavelets");
-            SetMGPrecond("MGWavelets", precond::SolverConfig::WAMG, true);
+            SetMGPrecond("MGWavelets",
+                         config_inner_cg,
+                         precond::SolverConfig::WAMG);
             break;
          }
          default: MFEM_ABORT("Unknown preconditioner");
@@ -1277,7 +1292,8 @@ struct SolverProblem: public BakeOff
 // The different orders the tests can run
 #define P_ORDERS bm::CreateDenseRange(1,6,1)
 
-// The different side sizes, 120 max for one rank
+// The different side sizes
+// 120 max for one rank when generating tex data
 #define P_SIDES bm::CreateDenseRange(12,120,6)
 
 // Maximum number of dofs
@@ -1355,13 +1371,17 @@ int main(int argc, char *argv[])
       bmi::FindInContext("device", config_device); // device=cuda
       bmi::FindInContext("debug", config_debug); // debug=true
       bmi::FindInContext("nxyz", config_nxyz); // nxyz=true
-      bmi::FindInContext("smo", config_smoother_order);
+
+      bmi::FindInContext("inner_cg", config_inner_cg);
+
+      bmi::FindInContext("sm_order", config_smoother_order);
+
       bmi::FindInContext("nic", config_max_nic);
       bmi::FindInContext("nip", config_max_nip);
       bmi::FindInContext("nif", config_max_nif);
 
-      bmi::FindInContext("max_depth", config_max_depth);
-      bmi::FindInContext("max_ndofs", config_max_ndofs);
+      bmi::FindInContext("mg_depth", config_mg_depth);
+      bmi::FindInContext("mg_ndofs", config_mg_ndofs);
 
       bmi::FindInContext("mg_spec", config_mg_spec); // mg_spec="1 2"
       bmi::FindInContext("mg_select", config_mg_spec_select); // mg_select=2
