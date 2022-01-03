@@ -350,9 +350,7 @@ void AdvectionOper::Mult(const Vector &x, Vector &dx) const
    }
 
    Vector rhs(x.Size());
-   HypreParMatrix *K_mat = K.ParallelAssemble(&K.SpMat());
    K_mat->Mult(x, rhs);
-   delete K_mat;
    rhs += b;
 
    DenseMatrix M_loc(nd);
