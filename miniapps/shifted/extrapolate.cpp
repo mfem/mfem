@@ -16,8 +16,12 @@
 // Compile with: make extrapolate
 //
 // Sample runs:
-//     mpirun -np 4 extrapolate -o 3 -et 0 -eo 2
-//     mpirun -np 4 extrapolate -rs 3 -o 2 -p 1 -et 0 -eo 1
+//     mpirun -np 4 extrapolate -m "../../data/inline-segment.mesh" -eo 2 -rs 4
+//     mpirun -np 4 extrapolate -eo 2
+//     mpirun -np 4 extrapolate -rs 3 -p 1 -eo 1
+//     mpirun -np 4 extrapolate -rs 3 -p 1 -et 1 -eo 1
+//     mpirun -np 4 extrapolate -m "../../data/inline-hex.mesh" -eo 1 -rs 1
+//     mpirun -np 4 extrapolate -m "../../data/inline-hex.mesh" -p 1 -eo 1 -rs 1
 
 #include <fstream>
 #include <iostream>
@@ -38,21 +42,23 @@ double domainLS(const Vector &coord)
    // Map from [0,1] to [-1,1].
    const int dim = coord.Size();
    const double x = coord(0)*2.0 - 1.0,
-                y = coord(1)*2.0 - 1.0,
+                y = (dim > 1) ? coord(1)*2.0 - 1.0 : 0.0,
                 z = (dim > 2) ? coord(2)*2.0 - 1.0 : 0.0;
    switch(problem)
    {
       case 0:
       {
-         // 2d circle.
-         return 0.75 - sqrt(x*x + y*y + 1e-12);
+         // Sphere.
+         return 0.75 - sqrt(x*x + y*y + z*z + 1e-12);
       }
       case 1:
       {
-         // 2d star.
-         return 0.60 - sqrt(x*x + y*y + 1e-12) +
+         // Star.
+         MFEM_VERIFY(dim > 1, "Problem 1 is not applicable to 1D.");
+         return 0.60 - sqrt(x*x + y*y + z*z + 1e-12) +
                 0.25 * (y*y*y*y*y + 5.0*x*x*x*x*y - 10.0*x*x*y*y*y) /
-                       pow(x*x + y*y + 1e-12, 2.5);
+                       pow(x*x + y*y + z*z + 1e-12, 2.5) *
+                       std::cos(0.5*M_PI * z / 0.6);
       }
       default: MFEM_ABORT("Bad option for --problem!"); return 0.0;
    }
@@ -63,10 +69,10 @@ double solution0(const Vector &coord)
    // Map from [0,1] to [-1,1].
    const int dim = coord.Size();
    const double x = coord(0)*2.0 - 1.0,
-                y = coord(1)*2.0 - 1.0,
+                y = (dim > 1) ? coord(1)*2.0 - 1.0 : 0.0,
                 z = (dim > 2) ? coord(2)*2.0 - 1.0 : 0.0;
 
-   return std::cos(M_PI * x) * std::sin(M_PI * y);
+   return std::sin(M_PI * x) * std::cos(M_PI * y) * std::cos(M_PI * z);
 }
 
 class LevelSetNormalGradCoeff : public VectorCoefficient
@@ -297,6 +303,7 @@ public:
       Vector rhs(x.Size());
       HypreParMatrix *K_mat = K.ParallelAssemble(&K.SpMat());
       K_mat->Mult(x, rhs);
+      delete K_mat;
       rhs += b;
 
       DenseMatrix M_loc(nd);
@@ -538,7 +545,7 @@ public:
             {
                // Constant extrapolation of u.
                rhs = 0.0;
-               adv_oper.mode = AdvectionOper::LO;
+               adv_oper.mode = AdvectionOper::HO;
                TimeLoop(u, ode_solver, dt, wsize, "u - constant extrap");
                break;
             }
@@ -546,12 +553,12 @@ public:
             {
                // Constant extrapolation of [n.grad_u].
                rhs = 0.0;
-               adv_oper.mode = AdvectionOper::LO;
+               adv_oper.mode = AdvectionOper::HO;
                TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
 
                // Linear sextrapolation of u.
                lhs_bf.Mult(n_grad_u, rhs);
-               adv_oper.mode = AdvectionOper::LO;
+               adv_oper.mode = AdvectionOper::HO;
                TimeLoop(u, ode_solver, dt, wsize, "u - linear Aslam extrap");
                break;
             }
@@ -559,17 +566,17 @@ public:
             {
                // Constant extrapolation of [n.grad(n.grad(u))].
                rhs = 0.0;
-               adv_oper.mode = AdvectionOper::LO;
+               adv_oper.mode = AdvectionOper::HO;
                TimeLoop(n_grad_n_grad_u, ode_solver, dt, 3*wsize, "n.grad(n.grad(u))");
 
                // Linear extrapolation of [n.grad_u].
                lhs_bf.Mult(n_grad_n_grad_u, rhs);
-               adv_oper.mode = AdvectionOper::LO;
+               adv_oper.mode = AdvectionOper::HO;
                TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
 
                // Quadratic extrapolation of u.
                lhs_bf.Mult(n_grad_u, rhs);
-               adv_oper.mode = AdvectionOper::LO;
+               adv_oper.mode = AdvectionOper::HO;
                TimeLoop(u, ode_solver, dt, wsize, "u - quadratic Aslam extrap");
                break;
             }
@@ -753,13 +760,7 @@ int main(int argc, char *argv[])
                 << "Local  Li error: " << loc_error_LI << std::endl;
    }
 
-   ConstantCoefficient zero(0.0);
-   double norm = ux.ComputeL1Error(zero);
-   if (myid == 0)
-   {
-      std::cout << setprecision(12) << std::fixed
-                << "norm = " << norm << std::endl;
-   }
+   PrintNorm(myid, ux, "Solution l1 norm: ");
 
    // ParaView output.
    ParaViewDataCollection dacol("ParaViewExtrapolate", &pmesh);
