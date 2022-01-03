@@ -29,7 +29,7 @@ DIFFUSION_SRC = diffusion.cpp dist_solver.cpp sbm_solver.cpp marking.cpp
 DIFFUSION_OBJ = $(DIFFUSION_SRC:.cpp=.o)
 DISTANCE_SRC = distance.cpp dist_solver.cpp
 DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
-EXTRAPOLATE_SRC = extrapolate.cpp marking.cpp
+EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
 EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
 
 PAR_MINIAPPS = distance diffusion extrapolate
