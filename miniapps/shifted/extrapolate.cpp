@@ -16,10 +16,10 @@
 // Compile with: make extrapolate
 //
 // Sample runs:
-//     mpirun -np 4 extrapolate -m "../../data/inline-segment.mesh" -eo 2 -rs 4
-//     mpirun -np 4 extrapolate -eo 2
-//     mpirun -np 4 extrapolate -rs 3 -p 1 -eo 1
-//     mpirun -np 4 extrapolate -rs 3 -p 1 -et 1 -eo 1
+//     mpirun -np 4 extrapolate -m "../../data/inline-segment.mesh" -rs 6 -eo 2
+//     mpirun -np 4 extrapolate -rs 4 -p 0 -eo 2
+//     mpirun -np 4 extrapolate -rs 4 -p 1 -eo 1
+//     mpirun -np 4 extrapolate -rs 4 -p 1 -et 1 -eo 1
 //     mpirun -np 4 extrapolate -m "../../data/inline-hex.mesh" -eo 1 -rs 1
 //     mpirun -np 4 extrapolate -m "../../data/inline-hex.mesh" -p 1 -eo 1 -rs 1
 
@@ -90,7 +90,6 @@ void PrintIntegral(int myid, ParGridFunction &g, std::string text)
                 << text << norm << std::endl;
    }
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -182,9 +181,12 @@ int main(int argc, char *argv[])
    PrintIntegral(myid, ux, "Solution L1 norm: ");
 
    // ParaView output.
+   ParGridFunction ls_gf(&pfes_L2);
+   ls_gf.ProjectCoefficient(ls_coeff);
    ParaViewDataCollection dacol("ParaViewExtrapolate", &pmesh);
    dacol.SetLevelsOfDetail(order);
-   dacol.RegisterField("extrapolated sltn", &ux);
+   dacol.RegisterField("Level Set Function", &ls_gf);
+   dacol.RegisterField("Extrapolated Solution", &ux);
    dacol.SetTime(1.0);
    dacol.SetCycle(1);
    dacol.Save();
