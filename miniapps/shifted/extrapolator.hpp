@@ -47,6 +47,7 @@ class AdvectionOper : public TimeDependentOperator
 private:
    Array<bool> &active_zones;
    ParBilinearForm &M, &K;
+   HypreParMatrix *K_mat;
    const Vector &b;
    double dt = 0.0;
 
@@ -66,12 +67,15 @@ public:
                  ParBilinearForm &Mbf, ParBilinearForm &Kbf, const Vector &rhs)
       : TimeDependentOperator(Mbf.Size()),
         active_zones(zones),
-        M(Mbf), K(Kbf), b(rhs), M_Lump(M.ParFESpace())
+        M(Mbf), K(Kbf), K_mat(NULL), b(rhs), M_Lump(M.ParFESpace())
    {
+      K_mat = K.ParallelAssemble(&K.SpMat());
       M_Lump.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
       M_Lump.Assemble();
       M_Lump.Finalize();
    }
+
+   ~AdvectionOper() { delete K_mat; }
 
    virtual void Mult(const Vector &x, Vector &dx) const;
 
