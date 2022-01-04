@@ -663,6 +663,76 @@ int main (int argc, char *argv[])
          pmesh->SetAttribute(i, mat(i) + 1);
       }
 
+      mat.ExchangeFaceNbrData();
+      // Switch attribute if all but 1 of the faces of an element will be marked?
+      Array<int> element_attr(pmesh->GetNE());
+      element_attr = 0;
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         Array<int> faces, ori;
+         if (pmesh->Dimension() == 2)
+         {
+            pmesh->GetElementEdges(e, faces, ori);
+         }
+         else
+         {
+            pmesh->GetElementFaces(e, faces, ori);
+         }
+         int inf1, inf2;
+         int elem1, elem2;
+         int diff_attr_count = 0;
+         int attr1;
+         int attr2;
+         attr1 = mat(e);
+         bool bdr_element = false;
+         element_attr[e] = attr1;
+         int target_attr = -1;
+         for (int f = 0; f < faces.Size(); f++)
+         {
+            pmesh->GetFaceElements(faces[f], &elem1, &elem2);
+            if (elem2 >= 0)
+            {
+               attr2 = elem1 == e ? (int)(mat(elem2)) : (int)(mat(elem1));
+               if (attr1 != attr2 && attr1 == 0)
+               {
+                  diff_attr_count += 1;
+                  target_attr = attr2;
+               }
+            }
+            else
+            {
+               pmesh->GetFaceInfos(faces[f], &inf1, &inf2);
+               if (inf2 >= 0)
+               {
+                  Vector dof_vals;
+                  Array<int> dofs;
+                  mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
+                  attr2 = (int)(dof_vals(0));
+                  if (attr1 != attr2 && attr1 == 0)
+                  {
+                     diff_attr_count += 1;
+                     target_attr = attr2;
+                  }
+               }
+               else
+               {
+                  bdr_element = true;
+               }
+            }
+         }
+
+         if (diff_attr_count == faces.Size()-1 && !bdr_element)
+         {
+            element_attr[e] = target_attr;
+         }
+      }
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         mat(e) = element_attr[e];
+         pmesh->SetAttribute(e, element_attr[e]-1);
+      }
+      mat.ExchangeFaceNbrData();
+
       GridFunctionCoefficient coeff_mat(&mat);
       surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
 
@@ -1015,7 +1085,7 @@ int main (int argc, char *argv[])
             solver_surf->SetAbsTol(solver_surf->GetNormGoal());
          }
       }
-      solver.SetMaxIter(1*solver_iter);
+      solver.SetMaxIter(solver_iter);
       solver.Mult(b, x.GetTrueVector());
       x.SetFromTrueVector();
 
