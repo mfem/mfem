@@ -18,7 +18,7 @@
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
 #ifdef MFEM_USE_MPI
-#include <HYPRE_config.h> // HYPRE_USING_CUDA
+#include <HYPRE_config.h> // HYPRE_USING_CUDA || HYPRE_USING_HIP
 #endif
 
 namespace mfem
@@ -938,7 +938,7 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
          // should also be true:
          IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
 #else
-         // When HYPRE_USING_CUDA is defined we always register the 'base' if
+         // When HYPRE_USING_CUDA/HIP is defined we always register the 'base' if
          // the MemoryManager::Exists():
          MemoryManager::Exists()
 #endif

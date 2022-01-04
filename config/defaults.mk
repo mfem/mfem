@@ -191,7 +191,7 @@ ifeq (YES,$(MFEM_USE_CUDA))
 endif
 
 ifeq (YES,$(MFEM_USE_HIP))
-   # This is only necessary when hypre is built with cuda:
+   # This is only necessary when hypre is built with hip:
    HYPRE_LIB += -lrocsparse -lrocrand
 endif
 

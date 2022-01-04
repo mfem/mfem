@@ -48,7 +48,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       hypre_ParCSRMatrix * AparCSR = *Aabs;
 
       int nnzd = AparCSR->diag->num_nonzeros;
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_HIP)
       for (int j = 0; j < nnzd; j++)
       {
          AparCSR->diag->data[j] = fabs(AparCSR->diag->data[j]);
@@ -63,7 +63,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
 #endif
 
       int nnzoffd = AparCSR->offd->num_nonzeros;
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_HIP)
       for (int j = 0; j < nnzoffd; j++)
       {
          AparCSR->offd->data[j] = fabs(AparCSR->offd->data[j]);
