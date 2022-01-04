@@ -190,6 +190,11 @@ ifeq (YES,$(MFEM_USE_CUDA))
    HYPRE_LIB += -lcusparse -lcurand
 endif
 
+ifeq (YES,$(MFEM_USE_HIP))
+   # This is only necessary when hypre is built with cuda:
+   HYPRE_LIB += -lrocsparse -lrocrand
+endif
+
 # METIS library configuration
 ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
    ifeq ($(MFEM_USE_METIS_5),NO)

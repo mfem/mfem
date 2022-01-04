@@ -933,7 +933,7 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    if (!(base.flags & REGISTERED))
    {
       if (
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_HIP)
          // If the following condition is true then MemoryManager::Exists()
          // should also be true:
          IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
