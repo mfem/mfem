@@ -75,7 +75,7 @@ Mesh * GenerateSerialMesh(int ref);
 // alpha*n.Grad(sol) + beta*sol - gamma over the same boundary.
 double IntegrateBC(const ParGridFunction &sol, const Array<int> &bdr_marker,
                    double alpha, double beta, double gamma,
-                   double &err);
+                   double &error);
 
 int main(int argc, char *argv[])
 {
