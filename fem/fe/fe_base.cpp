@@ -1538,7 +1538,7 @@ void VectorFiniteElement::LocalRestriction_ND(
 
 
 Poly_1D::Basis::Basis(const int p, const double *nodes, EvalType etype)
-   : etype(etype), auxiliary_basis(NULL)
+   : etype(etype), auxiliary_basis(NULL), scale_integrated(false)
 {
    switch (etype)
    {
@@ -1843,6 +1843,19 @@ void Poly_1D::Basis::EvalIntegrated(const Vector &d_aux, Vector &u) const
    {
       u[j] = u[j-1] - d_aux[j];
    }
+   if (scale_integrated)
+   {
+      Vector &aux_nodes = auxiliary_basis->x;
+      for (int j=0; j<aux_nodes.Size()-1; ++j)
+      {
+         u[j] *= aux_nodes[j+1] - aux_nodes[j];
+      }
+   }
+}
+
+void Poly_1D::Basis::ScaleIntegrated(bool scale_integrated_)
+{
+   scale_integrated = scale_integrated_;
 }
 
 Poly_1D::Basis::~Basis()
@@ -2379,6 +2392,14 @@ NodalTensorFiniteElement::NodalTensorFiniteElement(const int dims,
    lex_ordering = dof_map;
 }
 
+void NodalTensorFiniteElement::SetMapType(const int map_type)
+{
+   ScalarFiniteElement::SetMapType(map_type);
+   if (basis1d.IsIntegratedType())
+   {
+      basis1d.ScaleIntegrated(map_type == VALUE);
+   }
+}
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
                                                      const int d,

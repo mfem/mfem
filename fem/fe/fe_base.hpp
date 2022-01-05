@@ -657,7 +657,7 @@ public:
    /** @brief Set the FiniteElement::MapType of the element to either VALUE or
        INTEGRAL. Also sets the FiniteElement::DerivType to GRAD if the
        FiniteElement::MapType is VALUE. */
-   void SetMapType(int M)
+   virtual void SetMapType(int M)
    {
       MFEM_VERIFY(M == VALUE || M == INTEGRAL, "unknown MapType");
       map_type = M;
@@ -979,6 +979,7 @@ public:
       // is defined in terms of nodal basis of one degree higher.
       mutable Vector u_aux, d_aux, d2_aux;
       Basis *auxiliary_basis; // Non-NULL only for etype == Integrated
+      bool scale_integrated;
 
    public:
       /// Create a nodal or positive (Bernstein) basis
@@ -990,6 +991,7 @@ public:
       /// partial sum of the corresponding closed basis derivatives. The closed
       /// basis derivatives are given by @a d, and the result is stored in @a i.
       void EvalIntegrated(const Vector &d, Vector &i) const;
+      void ScaleIntegrated(bool scale_integrated_);
       bool IsIntegratedType() const { return etype == Integrated; }
       ~Basis();
    };
@@ -1192,6 +1194,8 @@ public:
              ScalarFiniteElement::GetDofToQuad(ir, mode) :
              ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
    }
+
+   virtual void SetMapType(const int map_type_);
 
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
