@@ -100,7 +100,8 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
    int rs_levels = 2;
-   Extrapolator::XtrapType xtrap_type = Extrapolator::ASLAM;
+   Extrapolator::XtrapType xtrap_type   = Extrapolator::ASLAM;
+   AdvectionOper::AdvectionMode dg_mode = AdvectionOper::HO;
    int xtrap_order = 1;
    int order = 2;
    bool visualization = true;
@@ -113,6 +114,10 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption((int*)&xtrap_type, "-et", "--extrap-type",
                   "Extrapolation type: Aslam (0) or Bochkov (1).");
+   args.AddOption((int*)&dg_mode, "-dg", "--dg-mode",
+                  "DG advection mode: 0 - Standard High-Order,\n\t"
+                  "                   1 - Low-Order Upwind Diffusion,\n\t"
+                  "                   2 - Flux-Corrected Transport.");
    args.AddOption(&xtrap_order, "-eo", "--extrap-order",
                   "Extrapolation order: 0/1/2 for constant/linear/quadratic.");
    args.AddOption(&order, "-o", "--order",
@@ -152,12 +157,16 @@ int main(int argc, char *argv[])
    // Extrapolate.
    Extrapolator xtrap;
    xtrap.xtrap_type    = xtrap_type;
+   xtrap.dg_mode       = dg_mode;
    xtrap.xtrap_order   = xtrap_order;
    xtrap.visualization = visualization;
    xtrap.vis_steps     = vis_steps;
    FunctionCoefficient ls_coeff(domainLS);
    ParGridFunction ux(&pfes_L2);
    xtrap.Extrapolate(ls_coeff, u, ux);
+
+   PrintNorm(myid, ux, "Solution l1 norm: ");
+   PrintIntegral(myid, ux, "Solution L1 norm: ");
 
    GridFunctionCoefficient u_exact_coeff(&u);
    double err_L1 = ux.ComputeL1Error(u_exact_coeff),
@@ -176,9 +185,6 @@ int main(int argc, char *argv[])
                 << "Local  L2 error: " << loc_error_L2 << std::endl
                 << "Local  Li error: " << loc_error_LI << std::endl;
    }
-
-   PrintNorm(myid, ux, "Solution l1 norm: ");
-   PrintIntegral(myid, ux, "Solution L1 norm: ");
 
    // ParaView output.
    ParGridFunction ls_gf(&pfes_L2);
