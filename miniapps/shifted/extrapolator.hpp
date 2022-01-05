@@ -17,6 +17,9 @@
 namespace mfem
 {
 
+class DiscreteUpwindLOSolver;
+class FluxBasedFCT;
+
 class AdvectionOper : public TimeDependentOperator
 {
 private:
@@ -26,22 +29,25 @@ private:
    const Vector &b;
    double dt = 0.0;
 
-   mutable ParBilinearForm M_Lump;
+   DiscreteUpwindLOSolver *lo_solver;
+   FluxBasedFCT *fct_solver;
+   Vector *lumpedM;
 
    void ComputeElementsMinMax(const ParGridFunction &gf,
                               Vector &el_min, Vector &el_max) const;
    void ComputeBounds(const ParFiniteElementSpace &pfes,
                       const Vector &el_min, const Vector &el_max,
                       Vector &dof_min, Vector &dof_max) const;
+   void ZeroOutInactiveZones(Vector &dx);
 
 public:
    // 0 is stanadard HO; 1 is upwind diffusion; 2 is FCT.
-   enum AdvectionMode {HO, LO, FCT} dg_mode = HO;
+   enum AdvectionMode {HO, LO, FCT} adv_mode = HO;
 
    AdvectionOper(Array<bool> &zones, ParBilinearForm &Mbf,
-                 ParBilinearForm &Kbf, const Vector &rhs);
+                 ParBilinearForm &Kbf, const Vector &rhs, AdvectionMode mode);
 
-   ~AdvectionOper() { delete K_mat; }
+   ~AdvectionOper();
 
    virtual void Mult(const Vector &x, Vector &dx) const;
 
@@ -183,7 +189,7 @@ protected:
 class FluxBasedFCT
 {
 public:
-   FluxBasedFCT(ParFiniteElementSpace &space, double delta_t,
+   FluxBasedFCT(ParFiniteElementSpace &space, double &delta_t,
                 const SparseMatrix &adv_mat, const Array<int> &adv_smap,
                 const SparseMatrix &mass_mat)
       : pfes(space), dt(delta_t),
@@ -197,7 +203,7 @@ public:
 
 protected:
    ParFiniteElementSpace &pfes;
-   double dt;
+   double &dt;
 
    const SparseMatrix &K, &M;
    const Array<int> &K_smap;

@@ -23,15 +23,41 @@ const int  visport   = 19916;
 int wsize            = 350; // glvis window size
 
 AdvectionOper::AdvectionOper(Array<bool> &zones, ParBilinearForm &Mbf,
-                             ParBilinearForm &Kbf, const Vector &rhs)
+                             ParBilinearForm &Kbf, const Vector &rhs,
+                             AdvectionMode mode)
    : TimeDependentOperator(Mbf.Size()),
      active_zones(zones),
-     M(Mbf), K(Kbf), K_mat(NULL), b(rhs), M_Lump(M.ParFESpace())
+     M(Mbf), K(Kbf), K_mat(NULL), b(rhs),
+     lo_solver(NULL), fct_solver(NULL), adv_mode(mode)
 {
    K_mat = K.ParallelAssemble(&K.SpMat());
-   M_Lump.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-   M_Lump.Assemble();
-   M_Lump.Finalize();
+
+   if (adv_mode == LO || adv_mode == FCT)
+   {
+      ParBilinearForm M_Lump(M.ParFESpace());
+      lumpedM = new Vector;
+      M_Lump.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+      M_Lump.Assemble();
+      M_Lump.Finalize();
+      M_Lump.SpMat().GetDiag(*lumpedM);
+
+      lo_solver = new DiscreteUpwindLOSolver(*M.ParFESpace(),
+                                             K.SpMat(), *lumpedM);
+
+      if (adv_mode == FCT)
+      {
+         fct_solver = new FluxBasedFCT(*M.ParFESpace(), dt, K.SpMat(),
+                                       lo_solver->GetKmap(), M.SpMat());
+      }
+   }
+}
+
+AdvectionOper::~AdvectionOper()
+{
+   delete lo_solver;
+   delete fct_solver;
+   delete lumpedM;
+   delete K_mat;
 }
 
 void AdvectionOper::Mult(const Vector &x, Vector &dx) const
@@ -41,15 +67,12 @@ void AdvectionOper::Mult(const Vector &x, Vector &dx) const
    const int nd = pfes.GetFE(0)->GetDof(), size = NE * nd;
    Array<int> dofs(nd);
 
-   if (dg_mode == LO)
+   if (adv_mode == LO)
    {
-      Vector lumpedM; M_Lump.SpMat().GetDiag(lumpedM);
-      DiscreteUpwindLOSolver lo_solver(pfes, K.SpMat(), lumpedM);
-      lo_solver.CalcLOSolution(x, b, dx);
+      lo_solver->CalcLOSolution(x, b, dx);
       for (int k = 0; k < NE; k++)
       {
          pfes.GetElementDofs(k, dofs);
-
          if (active_zones[k] == false)
          {
             dx.SetSubVector(dofs, 0.0);
@@ -83,12 +106,10 @@ void AdvectionOper::Mult(const Vector &x, Vector &dx) const
       dx.SetSubVector(dofs, dx_loc);
    }
 
-   if (dg_mode == FCT)
+   if (adv_mode == FCT)
    {
       Vector dx_LO(size);
-      Vector lumpedM; M_Lump.SpMat().GetDiag(lumpedM);
-      DiscreteUpwindLOSolver lo_solver(pfes, K.SpMat(), lumpedM);
-      lo_solver.CalcLOSolution(x, b, dx_LO);
+      lo_solver->CalcLOSolution(x, b, dx_LO);
 
       Vector dx_HO(dx);
 
@@ -99,10 +120,8 @@ void AdvectionOper::Mult(const Vector &x, Vector &dx) const
       x_gf.ExchangeFaceNbrData();
       ComputeElementsMinMax(x_gf, el_min, el_max);
       ComputeBounds(pfes, el_min, el_max, x_min, x_max);
-      FluxBasedFCT fct_solver(pfes, dt, K.SpMat(),
-                              lo_solver.GetKmap(), M.SpMat());
-      fct_solver.CalcFCTSolution(x_gf, lumpedM, dx_HO, dx_LO,
-                                 x_min, x_max, dx);
+      fct_solver->CalcFCTSolution(x_gf, *lumpedM, dx_HO, dx_LO,
+                                  x_min, x_max, dx);
 
       for (int k = 0; k < NE; k++)
       {
@@ -306,8 +325,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
 
    // Time loops.
    Vector rhs(pfes_L2.GetVSize());
-   AdvectionOper adv_oper(active_zones, lhs_bf, rhs_bf, rhs);
-   adv_oper.dg_mode = dg_mode;
+   AdvectionOper adv_oper(active_zones, lhs_bf, rhs_bf, rhs, dg_mode);
    RK2Solver ode_solver(1.0);
    ode_solver.Init(adv_oper);
    adv_oper.SetDt(dt);
@@ -498,15 +516,15 @@ DiscreteUpwindLOSolver::DiscreteUpwindLOSolver(ParFiniteElementSpace &space,
          }
       }
    }
+
+   ComputeDiscreteUpwindMatrix();
 }
 
 void DiscreteUpwindLOSolver::CalcLOSolution(const Vector &u, const Vector &rhs,
                                             Vector &du) const
 {
-   ComputeDiscreteUpwindMatrix();
    ParGridFunction u_gf(&pfes);
    u_gf = u;
-
    ApplyDiscreteUpwindMatrix(u_gf, du);
 
    const int s = du.Size();
