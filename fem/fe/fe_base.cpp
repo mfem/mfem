@@ -1832,15 +1832,15 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d,
    }
 }
 
-void Poly_1D::Basis::EvalIntegrated(const Vector &_d_aux, Vector &u) const
+void Poly_1D::Basis::EvalIntegrated(const Vector &d_aux_, Vector &u) const
 {
    MFEM_VERIFY(etype == Integrated,
                "EvalIntegrated is only valid for Integrated basis type");
-   int p = _d_aux.Size() - 1;
-   u[0] = -_d_aux[0];
+   int p = d_aux_.Size() - 1;
+   u[0] = -d_aux_[0];
    for (int j=1; j<p; ++j)
    {
-      u[j] = u[j-1] - _d_aux[j];
+      u[j] = u[j-1] - d_aux_[j];
    }
 }
 
