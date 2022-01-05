@@ -17,31 +17,6 @@
 namespace mfem
 {
 
-class Extrapolator
-{
-public:
-   enum XtrapType {ASLAM = 0, BOCHKOV = 1} xtrap_type = ASLAM;
-   int xtrap_order    = 1;
-   bool visualization = false;
-   int vis_steps      = 5;
-
-   Extrapolator() { }
-
-   // The known values taken from elements where level_set > 0, and extrapolated
-   // to all other elements. The known values are not changed.
-   void Extrapolate(Coefficient &level_set, const ParGridFunction &input,
-                    ParGridFunction &xtrap);
-
-   // Errors in cut elements, given an exact solution.
-   void ComputeLocalErrors(Coefficient &level_set, const ParGridFunction &exact,
-                           const ParGridFunction &xtrap,
-                           double &err_L1, double &err_L2, double &err_LI);
-
-private:
-   void TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
-                 double dt, int vis_x_pos, std::string vis_name);
-};
-
 class AdvectionOper : public TimeDependentOperator
 {
 private:
@@ -63,23 +38,40 @@ public:
    // 0 is stanadard HO; 1 is upwind diffusion; 2 is FCT.
    enum AdvectionMode {HO, LO, FCT} dg_mode = HO;
 
-   AdvectionOper(Array<bool> &zones,
-                 ParBilinearForm &Mbf, ParBilinearForm &Kbf, const Vector &rhs)
-      : TimeDependentOperator(Mbf.Size()),
-        active_zones(zones),
-        M(Mbf), K(Kbf), K_mat(NULL), b(rhs), M_Lump(M.ParFESpace())
-   {
-      K_mat = K.ParallelAssemble(&K.SpMat());
-      M_Lump.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-      M_Lump.Assemble();
-      M_Lump.Finalize();
-   }
+   AdvectionOper(Array<bool> &zones, ParBilinearForm &Mbf,
+                 ParBilinearForm &Kbf, const Vector &rhs);
 
    ~AdvectionOper() { delete K_mat; }
 
    virtual void Mult(const Vector &x, Vector &dx) const;
 
    void SetDt(double delta_t) { dt = delta_t; }
+};
+
+class Extrapolator
+{
+public:
+   enum XtrapType {ASLAM, BOCHKOV} xtrap_type = ASLAM;
+   AdvectionOper::AdvectionMode dg_mode = AdvectionOper::HO;
+   int xtrap_order    = 1;
+   bool visualization = false;
+   int vis_steps      = 5;
+
+   Extrapolator() { }
+
+   // The known values taken from elements where level_set > 0, and extrapolated
+   // to all other elements. The known values are not changed.
+   void Extrapolate(Coefficient &level_set, const ParGridFunction &input,
+                    ParGridFunction &xtrap);
+
+   // Errors in cut elements, given an exact solution.
+   void ComputeLocalErrors(Coefficient &level_set, const ParGridFunction &exact,
+                           const ParGridFunction &xtrap,
+                           double &err_L1, double &err_L2, double &err_LI);
+
+private:
+   void TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
+                 double dt, int vis_x_pos, std::string vis_name);
 };
 
 class LevelSetNormalGradCoeff : public VectorCoefficient

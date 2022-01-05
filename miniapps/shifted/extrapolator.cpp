@@ -22,306 +22,16 @@ const char vishost[] = "localhost";
 const int  visport   = 19916;
 int wsize            = 350; // glvis window size
 
-void Extrapolator::Extrapolate(Coefficient &level_set,
-                               const ParGridFunction &input,
-                               ParGridFunction &xtrap)
+AdvectionOper::AdvectionOper(Array<bool> &zones, ParBilinearForm &Mbf,
+                             ParBilinearForm &Kbf, const Vector &rhs)
+   : TimeDependentOperator(Mbf.Size()),
+     active_zones(zones),
+     M(Mbf), K(Kbf), K_mat(NULL), b(rhs), M_Lump(M.ParFESpace())
 {
-   ParMesh &pmesh = *input.ParFESpace()->GetParMesh();
-   const int order = input.ParFESpace()->GetOrder(0),
-             dim   = pmesh.Dimension(), NE = pmesh.GetNE();
-
-   // Get a ParGridFunction and mark elements.
-   H1_FECollection fec(order, dim);
-   ParFiniteElementSpace pfes_H1(&pmesh, &fec);
-   ParGridFunction ls_gf(&pfes_H1);
-   ls_gf.ProjectCoefficient(level_set);
-   if (visualization)
-   {
-      socketstream sock1, sock2;
-      common::VisualizeField(sock1, vishost, visport, ls_gf,
-                             "Domain level set", 0, 0, wsize, wsize,
-                             "rRjmm********A");
-      common::VisualizeField(sock2, vishost, visport, input,
-                             "Input u", 0, wsize+60, wsize, wsize,
-                             "rRjmm********A");
-      MPI_Barrier(pmesh.GetComm());
-   }
-   // Mark elements.
-   Array<int> elem_marker;
-   ShiftedFaceMarker marker(pmesh, pfes_H1, false);
-   ls_gf.ExchangeFaceNbrData();
-   marker.MarkElements(ls_gf, elem_marker);
-
-   // The active zones are where we extrapolate (where the PDE is solved).
-   Array<bool> active_zones(NE);
-   for (int k = 0; k < NE; k++)
-   {
-      // Extrapolation is done in zones that are CUT or OUTSIDE.
-      active_zones[k] =
-         (elem_marker[k] == ShiftedFaceMarker::INSIDE) ? false : true;
-   }
-
-   // Setup a VectorCoefficient for n = - grad_ls / |grad_ls|.
-   // The sign makes it point out of the known region.
-   // The coefficient must be continuous to have well-defined transport.
-   LevelSetNormalGradCoeff ls_n_coeff_L2(ls_gf);
-   ParFiniteElementSpace pfes_H1_vec(&pmesh, &fec, dim);
-   ParGridFunction lsn_gf(&pfes_H1_vec);
-   ls_gf.ExchangeFaceNbrData();
-   lsn_gf.ProjectDiscCoefficient(ls_n_coeff_L2, GridFunction::ARITHMETIC);
-   VectorGridFunctionCoefficient ls_n_coeff(&lsn_gf);
-
-   // Initial solution.
-   // Trim to the known values (only elements inside the known region).
-   Array<int> dofs;
-   L2_FECollection fec_L2(order, dim);
-   ParFiniteElementSpace pfes_L2(&pmesh, &fec_L2);
-   ParGridFunction u(&pfes_L2), vis_marking(&pfes_L2);
-   u.ProjectGridFunction(input);
-   for (int k = 0; k < NE; k++)
-   {
-      pfes_L2.GetElementDofs(k, dofs);
-      if (elem_marker[k] != ShiftedFaceMarker::INSIDE)
-      { u.SetSubVector(dofs, 0.0); }
-      vis_marking.SetSubVector(dofs, elem_marker[k]);
-   }
-   if (visualization)
-   {
-      socketstream sock1, sock2;
-      common::VisualizeField(sock1, vishost, visport, u,
-                             "Fixed (known) u values", wsize, 0,
-                             wsize, wsize, "rRjmm********A");
-      common::VisualizeField(sock2, vishost, visport, vis_marking,
-                             "Element markings", 0, 2*wsize+60,
-                             wsize, wsize, "rRjmm********A");
-   }
-
-   // Normal derivative function.
-   ParGridFunction n_grad_u(&pfes_L2);
-   NormalGradCoeff n_grad_u_coeff(u, ls_n_coeff);
-   n_grad_u.ProjectCoefficient(n_grad_u_coeff);
-   if (visualization && xtrap_order >= 1)
-   {
-      socketstream sock;
-      common::VisualizeField(sock, vishost, visport, n_grad_u,
-                             "n.grad(u)", 2*wsize, 0, wsize, wsize,
-                             "rRjmm********A");
-   }
-
-   // 2nd normal derivative function.
-   ParGridFunction n_grad_n_grad_u(&pfes_L2);
-   NormalGradCoeff n_grad_n_grad_u_coeff(n_grad_u, ls_n_coeff);
-   n_grad_n_grad_u.ProjectCoefficient(n_grad_n_grad_u_coeff);
-   if (visualization && xtrap_order == 2)
-   {
-      socketstream sock;
-      common::VisualizeField(sock, vishost, visport, n_grad_n_grad_u,
-                             "n.grad(n.grad(u))", 3*wsize, 0, wsize, wsize,
-                             "rRjmm********A");
-   }
-
-   ParBilinearForm lhs_bf(&pfes_L2), rhs_bf(&pfes_L2);
-   lhs_bf.AddDomainIntegrator(new MassIntegrator);
-   const double alpha = -1.0;
-   rhs_bf.AddDomainIntegrator(new ConvectionIntegrator(ls_n_coeff, alpha));
-   auto trace_i = new NonconservativeDGTraceIntegrator(ls_n_coeff, alpha);
-   rhs_bf.AddInteriorFaceIntegrator(trace_i);
-   rhs_bf.KeepNbrBlock(true);
-
-   ls_gf.ExchangeFaceNbrData();
-   lhs_bf.Assemble();
-   lhs_bf.Finalize();
-   rhs_bf.Assemble(0);
-   rhs_bf.Finalize(0);
-
-   // Compute a CFL time step.
-   double h_min = std::numeric_limits<double>::infinity();
-   for (int k = 0; k < NE; k++)
-   {
-      h_min = std::min(h_min, pmesh.GetElementSize(k));
-   }
-   MPI_Allreduce(MPI_IN_PLACE, &h_min, 1, MPI_DOUBLE, MPI_MIN,
-                 pfes_L2.GetComm());
-   h_min /= order;
-   // The propagation speed is 1.
-   double dt = 0.05 * h_min / 1.0;
-
-   // Time loops.
-   Vector rhs(pfes_L2.GetVSize());
-   AdvectionOper adv_oper(active_zones, lhs_bf, rhs_bf, rhs);
-   RK2Solver ode_solver(1.0);
-   ode_solver.Init(adv_oper);
-   adv_oper.SetDt(dt);
-
-   if (xtrap_type == ASLAM)
-   {
-      switch (xtrap_order)
-      {
-         case 0:
-         {
-            // Constant extrapolation of u.
-            rhs = 0.0;
-            adv_oper.dg_mode = AdvectionOper::HO;
-            TimeLoop(u, ode_solver, dt, wsize, "u - constant extrap");
-            break;
-         }
-         case 1:
-         {
-            // Constant extrapolation of [n.grad_u].
-            rhs = 0.0;
-            adv_oper.dg_mode = AdvectionOper::HO;
-            TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
-
-            // Linear sextrapolation of u.
-            lhs_bf.Mult(n_grad_u, rhs);
-            adv_oper.dg_mode = AdvectionOper::HO;
-            TimeLoop(u, ode_solver, dt, wsize, "u - linear Aslam extrap");
-            break;
-         }
-         case 2:
-         {
-            // Constant extrapolation of [n.grad(n.grad(u))].
-            rhs = 0.0;
-            adv_oper.dg_mode = AdvectionOper::HO;
-            TimeLoop(n_grad_n_grad_u, ode_solver, dt, 3*wsize, "n.grad(n.grad(u))");
-
-            // Linear extrapolation of [n.grad_u].
-            lhs_bf.Mult(n_grad_n_grad_u, rhs);
-            adv_oper.dg_mode = AdvectionOper::HO;
-            TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
-
-            // Quadratic extrapolation of u.
-            lhs_bf.Mult(n_grad_u, rhs);
-            adv_oper.dg_mode = AdvectionOper::HO;
-            TimeLoop(u, ode_solver, dt, wsize, "u - quadratic Aslam extrap");
-            break;
-         }
-         default: MFEM_ABORT("Wrong extrapolation order.");
-      }
-   }
-   else if (xtrap_type == BOCHKOV)
-   {
-      switch (xtrap_order)
-      {
-         case 0:
-         {
-            // Constant extrapolation of u.
-            rhs = 0.0;
-            adv_oper.dg_mode = AdvectionOper::HO;
-            TimeLoop(u, ode_solver, dt, wsize, "u - constant extrap");
-            break;
-         }
-         case 1:
-         {
-            // Constant extrapolation of all grad(u) components.
-            rhs = 0.0;
-            ParGridFunction grad_u_0(&pfes_L2), grad_u_1(&pfes_L2);
-            GradComponentCoeff grad_u_0_coeff(u, 0), grad_u_1_coeff(u, 1);
-            grad_u_0.ProjectCoefficient(grad_u_0_coeff);
-            grad_u_1.ProjectCoefficient(grad_u_1_coeff);
-            adv_oper.dg_mode = AdvectionOper::HO;
-            TimeLoop(grad_u_0, ode_solver, dt, 2*wsize, "grad_u_0");
-            TimeLoop(grad_u_1, ode_solver, dt, 3*wsize, "grad_u_1");
-
-            // Linear extrapolation of u.
-            ParLinearForm rhs_lf(&pfes_L2);
-            NormalGradComponentCoeff grad_u_n(grad_u_0, grad_u_1, ls_n_coeff);
-            rhs_lf.AddDomainIntegrator(new DomainLFIntegrator(grad_u_n));
-            rhs_lf.Assemble();
-            rhs = rhs_lf;
-            adv_oper.dg_mode = AdvectionOper::HO;
-            TimeLoop(u, ode_solver, dt, wsize, "u - linear Bochkov extrap");
-            break;
-         }
-         case 2:  MFEM_ABORT("Quadratic Bochkov method is not implemented.");
-         default: MFEM_ABORT("Wrong extrapolation order.");
-      }
-   }
-   else { MFEM_ABORT("Wrong extrapolation type option"); }
-
-   xtrap.ProjectGridFunction(u);
-}
-
-// Errors in cut elements.
-void Extrapolator::ComputeLocalErrors(Coefficient &level_set,
-                                      const ParGridFunction &exact,
-                                      const ParGridFunction &xtrap,
-                                      double &err_L1, double &err_L2,
-                                      double &err_LI)
-{
-   ParMesh &pmesh = *exact.ParFESpace()->GetParMesh();
-   const int order = exact.ParFESpace()->GetOrder(0),
-             dim   = pmesh.Dimension(), NE = pmesh.GetNE();
-
-   // Get a ParGridFunction and mark elements.
-   H1_FECollection fec(order, dim);
-   ParFiniteElementSpace pfes_H1(&pmesh, &fec);
-   ParGridFunction ls_gf(&pfes_H1);
-   ls_gf.ProjectCoefficient(level_set);
-   // Mark elements.
-   Array<int> elem_marker;
-   ShiftedFaceMarker marker(pmesh, pfes_H1, false);
-   ls_gf.ExchangeFaceNbrData();
-   marker.MarkElements(ls_gf, elem_marker);
-
-   Vector errors_L1(NE), errors_L2(NE), errors_LI(NE);
-   GridFunctionCoefficient exact_coeff(&exact);
-
-   xtrap.ComputeElementL1Errors(exact_coeff, errors_L1);
-   xtrap.ComputeElementL2Errors(exact_coeff, errors_L2);
-   xtrap.ComputeElementMaxErrors(exact_coeff, errors_LI);
-   err_L1 = 0.0, err_L2 = 0.0, err_LI = 0.0;
-   double cut_volume = 0.0;
-   for (int k = 0; k < NE; k++)
-   {
-      if (elem_marker[k] == ShiftedFaceMarker::CUT)
-      {
-         err_L1 += errors_L1(k);
-         err_L2 += errors_L2(k);
-         err_LI = std::max(err_LI, errors_LI(k));
-         cut_volume += pmesh.GetElementVolume(k);
-      }
-   }
-   MPI_Comm comm = pmesh.GetComm();
-   MPI_Allreduce(MPI_IN_PLACE, &err_L1, 1, MPI_DOUBLE, MPI_SUM, comm);
-   MPI_Allreduce(MPI_IN_PLACE, &err_L2, 1, MPI_DOUBLE, MPI_SUM, comm);
-   MPI_Allreduce(MPI_IN_PLACE, &err_LI, 1, MPI_DOUBLE, MPI_MAX, comm);
-   MPI_Allreduce(MPI_IN_PLACE, &cut_volume, 1, MPI_DOUBLE, MPI_SUM, comm);
-   err_L1 /= cut_volume;
-   err_L2 /= cut_volume;
-}
-
-void Extrapolator::TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
-                            double dt, int vis_x_pos, std::string vis_name)
-{
-   socketstream sock;
-
-   const int myid  = sltn.ParFESpace()->GetMyRank();
-   const double t_final = 0.35;
-   bool done = false;
-   double t = 0.0;
-   for (int ti = 0; !done;)
-   {
-      double dt_real = min(dt, t_final - t);
-      ode_solver.Step(sltn, t, dt_real);
-      ti++;
-
-      done = (t >= t_final - 1e-8*dt);
-      if (done || ti % vis_steps == 0)
-      {
-         if (myid == 0)
-         {
-            cout << "time step: " << ti << ", time: " << t << endl;
-         }
-         if (visualization)
-         {
-            common::VisualizeField(sock, vishost, visport, sltn,
-                                   vis_name.c_str(), vis_x_pos, wsize+60,
-                                   wsize, wsize, "rRjmm********A");
-            MPI_Barrier(sltn.ParFESpace()->GetComm());
-         }
-      }
-   }
+   K_mat = K.ParallelAssemble(&K.SpMat());
+   M_Lump.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+   M_Lump.Assemble();
+   M_Lump.Finalize();
 }
 
 void AdvectionOper::Mult(const Vector &x, Vector &dx) const
@@ -471,6 +181,300 @@ void AdvectionOper::ComputeBounds(const ParFiniteElementSpace &pfes,
       }
    }
 }
+
+void Extrapolator::Extrapolate(Coefficient &level_set,
+                               const ParGridFunction &input,
+                               ParGridFunction &xtrap)
+{
+   ParMesh &pmesh = *input.ParFESpace()->GetParMesh();
+   const int order = input.ParFESpace()->GetOrder(0),
+             dim   = pmesh.Dimension(), NE = pmesh.GetNE();
+
+   // Get a ParGridFunction and mark elements.
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace pfes_H1(&pmesh, &fec);
+   ParGridFunction ls_gf(&pfes_H1);
+   ls_gf.ProjectCoefficient(level_set);
+   if (visualization)
+   {
+      socketstream sock1, sock2;
+      common::VisualizeField(sock1, vishost, visport, ls_gf,
+                             "Domain level set", 0, 0, wsize, wsize,
+                             "rRjmm********A");
+      common::VisualizeField(sock2, vishost, visport, input,
+                             "Input u", 0, wsize+60, wsize, wsize,
+                             "rRjmm********A");
+      MPI_Barrier(pmesh.GetComm());
+   }
+   // Mark elements.
+   Array<int> elem_marker;
+   ShiftedFaceMarker marker(pmesh, pfes_H1, false);
+   ls_gf.ExchangeFaceNbrData();
+   marker.MarkElements(ls_gf, elem_marker);
+
+   // The active zones are where we extrapolate (where the PDE is solved).
+   Array<bool> active_zones(NE);
+   for (int k = 0; k < NE; k++)
+   {
+      // Extrapolation is done in zones that are CUT or OUTSIDE.
+      active_zones[k] =
+         (elem_marker[k] == ShiftedFaceMarker::INSIDE) ? false : true;
+   }
+
+   // Setup a VectorCoefficient for n = - grad_ls / |grad_ls|.
+   // The sign makes it point out of the known region.
+   // The coefficient must be continuous to have well-defined transport.
+   LevelSetNormalGradCoeff ls_n_coeff_L2(ls_gf);
+   ParFiniteElementSpace pfes_H1_vec(&pmesh, &fec, dim);
+   ParGridFunction lsn_gf(&pfes_H1_vec);
+   ls_gf.ExchangeFaceNbrData();
+   lsn_gf.ProjectDiscCoefficient(ls_n_coeff_L2, GridFunction::ARITHMETIC);
+   VectorGridFunctionCoefficient ls_n_coeff(&lsn_gf);
+
+   // Initial solution.
+   // Trim to the known values (only elements inside the known region).
+   Array<int> dofs;
+   L2_FECollection fec_L2(order, dim);
+   ParFiniteElementSpace pfes_L2(&pmesh, &fec_L2);
+   ParGridFunction u(&pfes_L2), vis_marking(&pfes_L2);
+   u.ProjectGridFunction(input);
+   for (int k = 0; k < NE; k++)
+   {
+      pfes_L2.GetElementDofs(k, dofs);
+      if (elem_marker[k] != ShiftedFaceMarker::INSIDE)
+      { u.SetSubVector(dofs, 0.0); }
+      vis_marking.SetSubVector(dofs, elem_marker[k]);
+   }
+   if (visualization)
+   {
+      socketstream sock1, sock2;
+      common::VisualizeField(sock1, vishost, visport, u,
+                             "Fixed (known) u values", wsize, 0,
+                             wsize, wsize, "rRjmm********A");
+      common::VisualizeField(sock2, vishost, visport, vis_marking,
+                             "Element markings", 0, 2*wsize+60,
+                             wsize, wsize, "rRjmm********A");
+   }
+
+   // Normal derivative function.
+   ParGridFunction n_grad_u(&pfes_L2);
+   NormalGradCoeff n_grad_u_coeff(u, ls_n_coeff);
+   n_grad_u.ProjectCoefficient(n_grad_u_coeff);
+   if (visualization && xtrap_order >= 1)
+   {
+      socketstream sock;
+      common::VisualizeField(sock, vishost, visport, n_grad_u,
+                             "n.grad(u)", 2*wsize, 0, wsize, wsize,
+                             "rRjmm********A");
+   }
+
+   // 2nd normal derivative function.
+   ParGridFunction n_grad_n_grad_u(&pfes_L2);
+   NormalGradCoeff n_grad_n_grad_u_coeff(n_grad_u, ls_n_coeff);
+   n_grad_n_grad_u.ProjectCoefficient(n_grad_n_grad_u_coeff);
+   if (visualization && xtrap_order == 2)
+   {
+      socketstream sock;
+      common::VisualizeField(sock, vishost, visport, n_grad_n_grad_u,
+                             "n.grad(n.grad(u))", 3*wsize, 0, wsize, wsize,
+                             "rRjmm********A");
+   }
+
+   ParBilinearForm lhs_bf(&pfes_L2), rhs_bf(&pfes_L2);
+   lhs_bf.AddDomainIntegrator(new MassIntegrator);
+   const double alpha = -1.0;
+   rhs_bf.AddDomainIntegrator(new ConvectionIntegrator(ls_n_coeff, alpha));
+   auto trace_i = new NonconservativeDGTraceIntegrator(ls_n_coeff, alpha);
+   rhs_bf.AddInteriorFaceIntegrator(trace_i);
+   rhs_bf.KeepNbrBlock(true);
+
+   ls_gf.ExchangeFaceNbrData();
+   lhs_bf.Assemble();
+   lhs_bf.Finalize();
+   rhs_bf.Assemble(0);
+   rhs_bf.Finalize(0);
+
+   // Compute a CFL time step.
+   double h_min = std::numeric_limits<double>::infinity();
+   for (int k = 0; k < NE; k++)
+   {
+      h_min = std::min(h_min, pmesh.GetElementSize(k));
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &h_min, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
+   // The propagation speed is 1.
+   double dt = 0.05 * h_min / order / 1.0;
+
+   // Time loops.
+   Vector rhs(pfes_L2.GetVSize());
+   AdvectionOper adv_oper(active_zones, lhs_bf, rhs_bf, rhs);
+   adv_oper.dg_mode = dg_mode;
+   RK2Solver ode_solver(1.0);
+   ode_solver.Init(adv_oper);
+   adv_oper.SetDt(dt);
+
+   if (xtrap_type == ASLAM)
+   {
+      switch (xtrap_order)
+      {
+         case 0:
+         {
+            // Constant extrapolation of u.
+            rhs = 0.0;
+            TimeLoop(u, ode_solver, dt, wsize, "u - constant extrap");
+            break;
+         }
+         case 1:
+         {
+            // Constant extrapolation of [n.grad_u].
+            rhs = 0.0;
+            TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
+
+            // Linear sextrapolation of u.
+            lhs_bf.Mult(n_grad_u, rhs);
+            TimeLoop(u, ode_solver, dt, wsize, "u - linear Aslam extrap");
+            break;
+         }
+         case 2:
+         {
+            // Constant extrapolation of [n.grad(n.grad(u))].
+            rhs = 0.0;
+            TimeLoop(n_grad_n_grad_u, ode_solver, dt, 3*wsize, "n.grad(n.grad(u))");
+
+            // Linear extrapolation of [n.grad_u].
+            lhs_bf.Mult(n_grad_n_grad_u, rhs);
+            TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
+
+            // Quadratic extrapolation of u.
+            lhs_bf.Mult(n_grad_u, rhs);
+            TimeLoop(u, ode_solver, dt, wsize, "u - quadratic Aslam extrap");
+            break;
+         }
+         default: MFEM_ABORT("Wrong extrapolation order.");
+      }
+   }
+   else if (xtrap_type == BOCHKOV)
+   {
+      switch (xtrap_order)
+      {
+         case 0:
+         {
+            // Constant extrapolation of u.
+            rhs = 0.0;
+            TimeLoop(u, ode_solver, dt, wsize, "u - constant extrap");
+            break;
+         }
+         case 1:
+         {
+            // Constant extrapolation of all grad(u) components.
+            rhs = 0.0;
+            ParGridFunction grad_u_0(&pfes_L2), grad_u_1(&pfes_L2);
+            GradComponentCoeff grad_u_0_coeff(u, 0), grad_u_1_coeff(u, 1);
+            grad_u_0.ProjectCoefficient(grad_u_0_coeff);
+            grad_u_1.ProjectCoefficient(grad_u_1_coeff);
+            TimeLoop(grad_u_0, ode_solver, dt, 2*wsize, "grad_u_0");
+            TimeLoop(grad_u_1, ode_solver, dt, 3*wsize, "grad_u_1");
+
+            // Linear extrapolation of u.
+            ParLinearForm rhs_lf(&pfes_L2);
+            NormalGradComponentCoeff grad_u_n(grad_u_0, grad_u_1, ls_n_coeff);
+            rhs_lf.AddDomainIntegrator(new DomainLFIntegrator(grad_u_n));
+            rhs_lf.Assemble();
+            rhs = rhs_lf;
+            TimeLoop(u, ode_solver, dt, wsize, "u - linear Bochkov extrap");
+            break;
+         }
+         case 2:  MFEM_ABORT("Quadratic Bochkov method is not implemented.");
+         default: MFEM_ABORT("Wrong extrapolation order.");
+      }
+   }
+   else { MFEM_ABORT("Wrong extrapolation type option"); }
+
+   xtrap.ProjectGridFunction(u);
+}
+
+// Errors in cut elements.
+void Extrapolator::ComputeLocalErrors(Coefficient &level_set,
+                                      const ParGridFunction &exact,
+                                      const ParGridFunction &xtrap,
+                                      double &err_L1, double &err_L2,
+                                      double &err_LI)
+{
+   ParMesh &pmesh = *exact.ParFESpace()->GetParMesh();
+   const int order = exact.ParFESpace()->GetOrder(0),
+             dim   = pmesh.Dimension(), NE = pmesh.GetNE();
+
+   // Get a ParGridFunction and mark elements.
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace pfes_H1(&pmesh, &fec);
+   ParGridFunction ls_gf(&pfes_H1);
+   ls_gf.ProjectCoefficient(level_set);
+   // Mark elements.
+   Array<int> elem_marker;
+   ShiftedFaceMarker marker(pmesh, pfes_H1, false);
+   ls_gf.ExchangeFaceNbrData();
+   marker.MarkElements(ls_gf, elem_marker);
+
+   Vector errors_L1(NE), errors_L2(NE), errors_LI(NE);
+   GridFunctionCoefficient exact_coeff(&exact);
+
+   xtrap.ComputeElementL1Errors(exact_coeff, errors_L1);
+   xtrap.ComputeElementL2Errors(exact_coeff, errors_L2);
+   xtrap.ComputeElementMaxErrors(exact_coeff, errors_LI);
+   err_L1 = 0.0, err_L2 = 0.0, err_LI = 0.0;
+   double cut_volume = 0.0;
+   for (int k = 0; k < NE; k++)
+   {
+      if (elem_marker[k] == ShiftedFaceMarker::CUT)
+      {
+         err_L1 += errors_L1(k);
+         err_L2 += errors_L2(k);
+         err_LI = std::max(err_LI, errors_LI(k));
+         cut_volume += pmesh.GetElementVolume(k);
+      }
+   }
+   MPI_Comm comm = pmesh.GetComm();
+   MPI_Allreduce(MPI_IN_PLACE, &err_L1, 1, MPI_DOUBLE, MPI_SUM, comm);
+   MPI_Allreduce(MPI_IN_PLACE, &err_L2, 1, MPI_DOUBLE, MPI_SUM, comm);
+   MPI_Allreduce(MPI_IN_PLACE, &err_LI, 1, MPI_DOUBLE, MPI_MAX, comm);
+   MPI_Allreduce(MPI_IN_PLACE, &cut_volume, 1, MPI_DOUBLE, MPI_SUM, comm);
+   err_L1 /= cut_volume;
+   err_L2 /= cut_volume;
+}
+
+void Extrapolator::TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
+                            double dt, int vis_x_pos, std::string vis_name)
+{
+   socketstream sock;
+
+   const int myid  = sltn.ParFESpace()->GetMyRank();
+   const double t_final = 0.35;
+   bool done = false;
+   double t = 0.0;
+   for (int ti = 0; !done;)
+   {
+      double dt_real = min(dt, t_final - t);
+      ode_solver.Step(sltn, t, dt_real);
+      ti++;
+
+      done = (t >= t_final - 1e-8*dt);
+      if (done || ti % vis_steps == 0)
+      {
+         if (myid == 0)
+         {
+            cout << "time step: " << ti << ", time: " << t << endl;
+         }
+         if (visualization)
+         {
+            common::VisualizeField(sock, vishost, visport, sltn,
+                                   vis_name.c_str(), vis_x_pos, wsize+60,
+                                   wsize, wsize, "rRjmm********A");
+            MPI_Barrier(sltn.ParFESpace()->GetComm());
+         }
+      }
+   }
+}
+
+
 
 DiscreteUpwindLOSolver::DiscreteUpwindLOSolver(ParFiniteElementSpace &space,
                                                const SparseMatrix &adv,
