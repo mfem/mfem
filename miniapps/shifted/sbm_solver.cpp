@@ -233,7 +233,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
    Vector D(vD->GetVDim());
    // Assemble: -< \nabla u.n, w >
    //           -< u + \nabla u.d + h.o.t, \nabla w.n>
-   //           -<alpha h^{-1} (u + \nabla u.d + h.o.t), w + \nabla w.d + h.o.t>
+   //           +<alpha h^{-1} (u + \nabla u.d + h.o.t), w + \nabla w.d + h.o.t>
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
@@ -541,10 +541,11 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
    Vector D(vD->GetVDim());
    Vector wrk = shape;
    // Assemble: -< u_D, \nabla w.n >
-   //           -<alpha h^{-1} u_D, w + \nabla w.d + h.o.t>
+   //           +<alpha h^{-1} u_D, w + \nabla w.d + h.o.t>
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
-
+      // reset the temp_elvect to zero at each quadrature point
+      temp_elvect = 0.0;
       const IntegrationPoint &ip = ir->IntPoint(p);
 
       // Set the integration point in the face and the neighboring element
