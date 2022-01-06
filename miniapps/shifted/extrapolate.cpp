@@ -49,6 +49,7 @@ double domainLS(const Vector &coord)
       {
          // Star.
          MFEM_VERIFY(dim > 1, "Problem 1 is not applicable to 1D.");
+
          return 0.60 - sqrt(x*x + y*y + z*z + 1e-12) +
                 0.25 * (y*y*y*y*y + 5.0*x*x*x*x*y - 10.0*x*x*y*y*y) /
                        pow(x*x + y*y + z*z + 1e-12, 2.5) *
@@ -62,11 +63,11 @@ double solution0(const Vector &coord)
 {
    // Map from [0,1] to [-1,1].
    const int dim = coord.Size();
-   const double x = coord(0)*2.0 - 1.0,
+   const double x = coord(0)*2.0 - 1.0 + 0.25,
                 y = (dim > 1) ? coord(1)*2.0 - 1.0 : 0.0,
                 z = (dim > 2) ? coord(2)*2.0 - 1.0 : 0.0;
 
-   return std::sin(M_PI * x) * std::cos(M_PI * y) * std::cos(M_PI * z);
+   return std::cos(M_PI * x) * std::cos(M_PI * y) * std::cos(M_PI * z);
 }
 
 void PrintNorm(int myid, Vector &v, std::string text)
@@ -104,6 +105,7 @@ int main(int argc, char *argv[])
    AdvectionOper::AdvectionMode dg_mode = AdvectionOper::HO;
    int xtrap_order = 1;
    int order = 2;
+   double distance = 0.1;
    bool visualization = true;
    int vis_steps = 10;
 
@@ -123,6 +125,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&distance, "-d", "--distance",
+                  "Extrapolation distance.");
    args.AddOption(&problem, "-p", "--problem",
                   "0 - 2D circle,\n\t"
                   "1 - 2D star");
@@ -163,7 +167,7 @@ int main(int argc, char *argv[])
    xtrap.vis_steps     = vis_steps;
    FunctionCoefficient ls_coeff(domainLS);
    ParGridFunction ux(&pfes_L2);
-   xtrap.Extrapolate(ls_coeff, u, ux);
+   xtrap.Extrapolate(ls_coeff, u, distance, ux);
 
    PrintNorm(myid, ux, "Solution l1 norm: ");
    PrintIntegral(myid, ux, "Solution L1 norm: ");

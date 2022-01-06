@@ -68,7 +68,7 @@ public:
    // The known values taken from elements where level_set > 0, and extrapolated
    // to all other elements. The known values are not changed.
    void Extrapolate(Coefficient &level_set, const ParGridFunction &input,
-                    ParGridFunction &xtrap);
+                    double time_period, ParGridFunction &xtrap);
 
    // Errors in cut elements, given an exact solution.
    void ComputeLocalErrors(Coefficient &level_set, const ParGridFunction &exact,
@@ -76,7 +76,7 @@ public:
                            double &err_L1, double &err_L2, double &err_LI);
 
 private:
-   void TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
+   void TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver, double t_final,
                  double dt, int vis_x_pos, std::string vis_name);
 };
 

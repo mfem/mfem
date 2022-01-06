@@ -28,7 +28,7 @@ AdvectionOper::AdvectionOper(Array<bool> &zones, ParBilinearForm &Mbf,
    : TimeDependentOperator(Mbf.Size()),
      active_zones(zones),
      M(Mbf), K(Kbf), K_mat(NULL), b(rhs),
-     lo_solver(NULL), fct_solver(NULL), adv_mode(mode)
+     lo_solver(NULL), fct_solver(NULL), lumpedM(NULL), adv_mode(mode)
 {
    K_mat = K.ParallelAssemble(&K.SpMat());
 
@@ -203,7 +203,7 @@ void AdvectionOper::ComputeBounds(const ParFiniteElementSpace &pfes,
 
 void Extrapolator::Extrapolate(Coefficient &level_set,
                                const ParGridFunction &input,
-                               ParGridFunction &xtrap)
+                               double time_period, ParGridFunction &xtrap)
 {
    ParMesh &pmesh = *input.ParFESpace()->GetParMesh();
    const int order = input.ParFESpace()->GetOrder(0),
@@ -321,7 +321,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
    }
    MPI_Allreduce(MPI_IN_PLACE, &h_min, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
    // The propagation speed is 1.
-   double dt = 0.05 * h_min / order / 1.0;
+   double dt = 0.1 * h_min / order / 1.0;
 
    // Time loops.
    Vector rhs(pfes_L2.GetVSize());
@@ -338,33 +338,39 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
          {
             // Constant extrapolation of u.
             rhs = 0.0;
-            TimeLoop(u, ode_solver, dt, wsize, "u - constant extrap");
+            TimeLoop(u, ode_solver, time_period, dt,
+                     wsize, "u - constant extrap");
             break;
          }
          case 1:
          {
             // Constant extrapolation of [n.grad_u].
             rhs = 0.0;
-            TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
+            TimeLoop(n_grad_u, ode_solver, time_period, dt,
+                     2*wsize, "n.grad(u)");
 
             // Linear sextrapolation of u.
             lhs_bf.Mult(n_grad_u, rhs);
-            TimeLoop(u, ode_solver, dt, wsize, "u - linear Aslam extrap");
+            TimeLoop(u, ode_solver, time_period, dt,
+                     wsize, "u - linear Aslam extrap");
             break;
          }
          case 2:
          {
             // Constant extrapolation of [n.grad(n.grad(u))].
             rhs = 0.0;
-            TimeLoop(n_grad_n_grad_u, ode_solver, dt, 3*wsize, "n.grad(n.grad(u))");
+            TimeLoop(n_grad_n_grad_u, ode_solver, time_period, dt,
+                     3*wsize, "n.grad(n.grad(u))");
 
             // Linear extrapolation of [n.grad_u].
             lhs_bf.Mult(n_grad_n_grad_u, rhs);
-            TimeLoop(n_grad_u, ode_solver, dt, 2*wsize, "n.grad(u)");
+            TimeLoop(n_grad_u, ode_solver, time_period, dt,
+                     2*wsize, "n.grad(u)");
 
             // Quadratic extrapolation of u.
             lhs_bf.Mult(n_grad_u, rhs);
-            TimeLoop(u, ode_solver, dt, wsize, "u - quadratic Aslam extrap");
+            TimeLoop(u, ode_solver, time_period, dt,
+                     wsize, "u - quadratic Aslam extrap");
             break;
          }
          default: MFEM_ABORT("Wrong extrapolation order.");
@@ -378,7 +384,8 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
          {
             // Constant extrapolation of u.
             rhs = 0.0;
-            TimeLoop(u, ode_solver, dt, wsize, "u - constant extrap");
+            TimeLoop(u, ode_solver, time_period, dt,
+                     wsize, "u - constant extrap");
             break;
          }
          case 1:
@@ -389,8 +396,10 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
             GradComponentCoeff grad_u_0_coeff(u, 0), grad_u_1_coeff(u, 1);
             grad_u_0.ProjectCoefficient(grad_u_0_coeff);
             grad_u_1.ProjectCoefficient(grad_u_1_coeff);
-            TimeLoop(grad_u_0, ode_solver, dt, 2*wsize, "grad_u_0");
-            TimeLoop(grad_u_1, ode_solver, dt, 3*wsize, "grad_u_1");
+            TimeLoop(grad_u_0, ode_solver, time_period, dt,
+                     2*wsize, "grad_u_0");
+            TimeLoop(grad_u_1, ode_solver, time_period, dt,
+                     3*wsize, "grad_u_1");
 
             // Linear extrapolation of u.
             ParLinearForm rhs_lf(&pfes_L2);
@@ -398,7 +407,8 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
             rhs_lf.AddDomainIntegrator(new DomainLFIntegrator(grad_u_n));
             rhs_lf.Assemble();
             rhs = rhs_lf;
-            TimeLoop(u, ode_solver, dt, wsize, "u - linear Bochkov extrap");
+            TimeLoop(u, ode_solver, time_period, dt,
+                     wsize, "u - linear Bochkov extrap");
             break;
          }
          case 2:  MFEM_ABORT("Quadratic Bochkov method is not implemented.");
@@ -460,12 +470,12 @@ void Extrapolator::ComputeLocalErrors(Coefficient &level_set,
 }
 
 void Extrapolator::TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
-                            double dt, int vis_x_pos, std::string vis_name)
+                            double t_final, double dt,
+                            int vis_x_pos, std::string vis_name)
 {
    socketstream sock;
 
    const int myid  = sltn.ParFESpace()->GetMyRank();
-   const double t_final = 0.35;
    bool done = false;
    double t = 0.0;
    for (int ti = 0; !done;)
