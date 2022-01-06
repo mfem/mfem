@@ -641,7 +641,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       int offset = elem1f ? 0 : ndof1;
       for (int i = 0; i < temp_elvect.Size(); i++)
       {
-         elvect(i+offset) = temp_elvect(i);
+         elvect(i+offset) += temp_elvect(i);
       }
    }
 
