@@ -464,6 +464,17 @@ public:
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
 
+   /** @brief Add new Domain Integrator, restricted to the given region
+       attributes.
+
+       Assumes ownership of @a lfi_real and @a lfi_imag.
+
+       The array @a attr_marker is stored internally as a pointer to the
+       given Array<int> object. */
+   void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+                            LinearFormIntegrator *lfi_imag,
+                            Array<int> &attr_marker);
+
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                               LinearFormIntegrator *lfi_imag);

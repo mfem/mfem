@@ -880,6 +880,15 @@ ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 }
 
 void
+ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+                                          LinearFormIntegrator *lfi_imag,
+                                          Array<int> &attr_marker)
+{
+   if ( lfi_real ) { plfr->AddDomainIntegrator(lfi_real, attr_marker); }
+   if ( lfi_imag ) { plfi->AddDomainIntegrator(lfi_imag, attr_marker); }
+}
+
+void
 ParComplexLinearForm::AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                                             LinearFormIntegrator *lfi_imag)
 {
