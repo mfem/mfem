@@ -639,6 +639,26 @@ public:
 
 };
 
+class ScalarR2DCoef : public Coefficient
+{
+private:
+   Coefficient & coef_;
+   ParMesh & pmesh_;
+public:
+   ScalarR2DCoef(Coefficient & coef, ParMesh & pmesh)
+      : coef_(coef), pmesh_(pmesh) {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      int e = T.ElementNo;
+      ElementTransformation * pT = pmesh_.GetElementTransformation(e);
+      pT->SetIntPoint(&ip);
+
+      return coef_.Eval(*pT, ip);
+   }
+};
+
 class VectorR2DCoef : public VectorCoefficient
 {
 private:
@@ -654,20 +674,214 @@ public:
       int e = T.ElementNo;
       ElementTransformation * pT = pmesh_.GetElementTransformation(e);
       pT->SetIntPoint(&ip);
-      /*
-      {
-      Vector x3(3);
-      T.Transform(ip, x3);
 
-      Vector x2(2);
-      pT->Transform(ip, x2);
-
-      std::cout << "Element e: " << e << ", ip " << ip.x << " " << ip.y << " " << ip.z << std::endl;
-      std::cout << x3[0] << '\t' << x3[1] << '\t' << x3[2] << '\n';
-      std::cout << x2[0] << '\t' << x2[1] << '\n';
-           }
-           */
       coef_.Eval(v, *pT, ip);
+   }
+};
+
+class HCurlCylMassCoefficient : public MatrixCoefficient
+{
+private:
+   const int rho_ind_;
+   const int phi_ind_;
+   const int zed_ind_;
+
+   Coefficient       * SQ_;
+   MatrixCoefficient * MQ_;
+
+   mutable Vector x_;
+
+public:
+   HCurlCylMassCoefficient(int radial_comp = 1)
+      : MatrixCoefficient(3),
+        rho_ind_(radial_comp),
+        phi_ind_((rho_ind_+1)%3),
+        zed_ind_((rho_ind_+2)%3),
+        SQ_(NULL), MQ_(NULL), x_(3) {}
+
+   HCurlCylMassCoefficient(Coefficient & Q, int radial_comp = 1)
+      : MatrixCoefficient(3),
+        rho_ind_(radial_comp),
+        phi_ind_((rho_ind_+1)%3),
+        zed_ind_((rho_ind_+2)%3),
+        SQ_(&Q), MQ_(NULL), x_(3) {}
+
+   HCurlCylMassCoefficient(MatrixCoefficient & Q, int radial_comp = 1)
+      : MatrixCoefficient(3),
+        rho_ind_(radial_comp),
+        phi_ind_((rho_ind_+1)%3),
+        zed_ind_((rho_ind_+2)%3),
+        SQ_(NULL), MQ_(&Q), x_(3) {}
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      K.SetSize(3);
+
+      if (MQ_)
+      {
+         MQ_->Eval(K, T, ip);
+      }
+      else
+      {
+         K.Diag(1.0, 3);
+
+         if (SQ_)
+         {
+            K *= SQ_->Eval(T, ip);
+         }
+      }
+
+      T.Transform(ip, x_);
+
+      double rho = x_(rho_ind_);
+
+      MFEM_VERIFY(rho >= 0.0, "Radial component must be non-negative.");
+
+      K(rho_ind_, rho_ind_) *= rho;
+      K(rho_ind_, zed_ind_) *= rho;
+      K(zed_ind_, rho_ind_) *= rho;
+      K(zed_ind_, zed_ind_) *= rho;
+
+      K(phi_ind_, phi_ind_) *= (rho > 0.0) ? (1.0/rho) : 0.0;
+   }
+};
+
+class HCurlCylStiffnessCoefficient : public MatrixCoefficient
+{
+private:
+   const int rho_ind_;
+   const int phi_ind_;
+   const int zed_ind_;
+
+   Coefficient       * SQ_;
+   MatrixCoefficient * MQ_;
+
+   mutable Vector x_;
+
+public:
+   HCurlCylStiffnessCoefficient(int radial_comp = 1)
+      : MatrixCoefficient(3),
+        rho_ind_(radial_comp),
+        phi_ind_((rho_ind_+1)%3),
+        zed_ind_((rho_ind_+2)%3),
+        SQ_(NULL), MQ_(NULL), x_(3) {}
+
+   HCurlCylStiffnessCoefficient(Coefficient & Q, int radial_comp = 1)
+      : MatrixCoefficient(3),
+        rho_ind_(radial_comp),
+        phi_ind_((rho_ind_+1)%3),
+        zed_ind_((rho_ind_+2)%3),
+        SQ_(&Q), MQ_(NULL), x_(3) {}
+
+   HCurlCylStiffnessCoefficient(MatrixCoefficient & Q, int radial_comp = 1)
+      : MatrixCoefficient(3),
+        rho_ind_(radial_comp),
+        phi_ind_((rho_ind_+1)%3),
+        zed_ind_((rho_ind_+2)%3),
+        SQ_(NULL), MQ_(&Q), x_(3) {}
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      K.SetSize(3);
+
+      if (MQ_)
+      {
+         MQ_->Eval(K, T, ip);
+      }
+      else
+      {
+         K.Diag(1.0, 3);
+
+         if (SQ_)
+         {
+            K *= SQ_->Eval(T, ip);
+         }
+      }
+
+      T.Transform(ip, x_);
+
+      double rho = x_(rho_ind_);
+
+      MFEM_VERIFY(rho >= 0.0, "Radial component must be non-negative.");
+
+      double a = (rho > 0.0) ? (1.0/rho) : 0.0;
+      K(rho_ind_, rho_ind_) *= a;
+      K(rho_ind_, zed_ind_) *= a;
+      K(zed_ind_, rho_ind_) *= a;
+      K(zed_ind_, zed_ind_) *= a;
+
+      K(phi_ind_, phi_ind_) *= rho;
+   }
+};
+
+class HCurlCylSourceCoefficient : public MatrixCoefficient
+{
+private:
+   const int rho_ind_;
+   const int phi_ind_;
+   const int zed_ind_;
+
+   Coefficient       * SQ_;
+   MatrixCoefficient * MQ_;
+
+   mutable Vector x_;
+
+public:
+   HCurlCylSourceCoefficient(int radial_comp = 1)
+      : MatrixCoefficient(3),
+        rho_ind_(radial_comp),
+        phi_ind_((rho_ind_+1)%3),
+        zed_ind_((rho_ind_+2)%3),
+        SQ_(NULL), MQ_(NULL), x_(3) {}
+
+   HCurlCylSourceCoefficient(Coefficient & Q, int radial_comp = 1)
+      : MatrixCoefficient(3),
+        rho_ind_(radial_comp),
+        phi_ind_((rho_ind_+1)%3),
+        zed_ind_((rho_ind_+2)%3),
+        SQ_(&Q), MQ_(NULL), x_(3) {}
+
+   HCurlCylSourceCoefficient(MatrixCoefficient & Q, int radial_comp = 1)
+      : MatrixCoefficient(3),
+        rho_ind_(radial_comp),
+        phi_ind_((rho_ind_+1)%3),
+        zed_ind_((rho_ind_+2)%3),
+        SQ_(NULL), MQ_(&Q), x_(3) {}
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      K.SetSize(3);
+
+      if (MQ_)
+      {
+         MQ_->Eval(K, T, ip);
+      }
+      else
+      {
+         K.Diag(1.0, 3);
+
+         if (SQ_)
+         {
+            K *= SQ_->Eval(T, ip);
+         }
+      }
+
+      T.Transform(ip, x_);
+
+      double rho = x_(rho_ind_);
+
+      MFEM_VERIFY(rho >= 0.0, "Radial component must be non-negative.");
+
+      K(rho_ind_, rho_ind_) *= rho;
+      K(rho_ind_, phi_ind_) *= rho;
+      K(rho_ind_, zed_ind_) *= rho;
+
+      K(zed_ind_, rho_ind_) *= rho;
+      K(zed_ind_, phi_ind_) *= rho;
+      K(zed_ind_, zed_ind_) *= rho;
    }
 };
 
