@@ -2857,19 +2857,20 @@ class Gaussian1D : public Coefficient
 private:
    int comp_;
    double p0_;
+   double v_;
    double a_;
    double b_;
 
    mutable Vector x_;
 
 public:
-   Gaussian1D(double a, double b, double p0, int comp)
-      : comp_(comp), p0_(p0), a_(a), b_(b) {}
+   Gaussian1D(double a, double b, double p0, double v, int comp)
+     : comp_(comp), p0_(p0), v_(v), a_(a), b_(b) {}
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       T.Transform(ip, x_);
-      return a_ * exp(- b_ * pow(x_[comp_] - p0_, 2));
+      return a_ * exp(- b_ * pow(x_[comp_] - p0_ - v_ * time, 2));
    }
 };
 
@@ -3211,10 +3212,10 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
    }
    else if (name == "Gaussian1D")
    {
-      double a, b, p0;
+      double a, b, p0, v;
       int comp;
-      input >> a >> b >> p0 >> comp;
-      coef_idx = sCoefs.Append(new Gaussian1D(a, b, p0, comp));
+      input >> a >> b >> p0 >> v >> comp;
+      coef_idx = sCoefs.Append(new Gaussian1D(a, b, p0, v, comp));
    }
    else if (name == "Gaussian")
    {
