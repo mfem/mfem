@@ -466,13 +466,13 @@ int main(int argc, char *argv[])
    double hz = 1.0;
    int ser_ref_levels = 0;
    int order = 1;
-   int maxit = 100;
+   int maxit = 1;
    int sol = 2;
    int prec = 1;
    // int nspecies = 2;
    bool herm_conv = false;
    bool vis_u = false;
-   bool visualization = true;
+   bool visualization = false;
    bool visit = true;
 
    double freq = 1.0e6;
@@ -510,6 +510,7 @@ int main(int argc, char *argv[])
    Array<int> nbca1; // Neumann BC attributes
    Array<int> nbca2; // Neumann BC attributes
    Array<int> nbcaw; // Neumann BC attributes for plane wave source
+   Array<int> jsrca; // Current Source region attributes
    Vector dbcv1; // Dirichlet BC values
    Vector dbcv2; // Dirichlet BC values
    Vector nbcv; // Neumann BC values
@@ -648,6 +649,8 @@ int main(int argc, char *argv[])
                   "Piecewise values of Imaginary part of Complex Impedance "
                   "(one value per abc surface)");
    */
+   args.AddOption(&jsrca, "-jsrc", "--j-src-reg",
+                  "Current source region attributes");
    args.AddOption(&rod_params_, "-rod", "--rod_params",
                   "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
                   "2D Position, Radius");
@@ -697,8 +700,6 @@ int main(int argc, char *argv[])
                   "Neumann Boundary Condition (surface current) "
                   "Value 2 (v_x v_y v_z) or "
                   "(Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
-   // args.AddOption(&num_elements, "-ne", "--num-elements",
-   //             "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
@@ -821,6 +822,12 @@ int main(int argc, char *argv[])
                break;
          }
       }
+   }
+   if (bpt == BFieldProfile::CONSTANT && bpp.Size() == 0)
+   {
+     bpp.SetSize(3);
+     bpp = 0.0;
+     bpp[0] = 1.0;
    }
    if (num_elements <= 0)
    {
@@ -1333,7 +1340,7 @@ int main(int argc, char *argv[])
    int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
                   (dbcas.Size() > 0) + (dbcaw.Size() > 0);
 
-   StixBCs stixBCs(pmesh.bdr_attributes);
+   StixBCs stixBCs(pmesh.attributes, pmesh.bdr_attributes);
    //Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
 
    Vector zeroVec(3); zeroVec = 0.0;
@@ -1493,6 +1500,21 @@ int main(int argc, char *argv[])
       stixBCs.AddSheathBC(sbca, z_r, z_i);
    }
 
+   VectorFunctionCoefficient jrCoef(3, j_src_r);
+   VectorFunctionCoefficient jiCoef(3, j_src_i);
+   if (rod_params_.Size() > 0 ||slab_params_.Size() > 0)
+   {
+      if (mpi.Root())
+      {
+         cout << "Adding volumetric current source." << endl;
+      }
+      if (jsrca.Size() == 0)
+      {
+         jsrca = pmesh.attributes;
+      }
+      stixBCs.AddCurrentSrc(jsrca, jrCoef, jiCoef);
+   }
+
    if (mpi.Root())
    {
       cout << "Creating Cold Plasma Dielectric solver." << endl;
@@ -1509,10 +1531,12 @@ int main(int argc, char *argv[])
                    (phase_shift) ? &kImCoef : NULL,
                    abcs,
                    stixBCs,
+                   /*
                    (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
-                   j_src_r : NULL,
-                   (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
-                   j_src_i : NULL, vis_u, cyl, pa);
+                             j_src_r : NULL,
+                             (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
+                             j_src_i : NULL,*/
+                   vis_u, cyl, pa);
 
    // Initialize GLVis visualization
    if (visualization)
@@ -1793,6 +1817,7 @@ void record_cmd_line(int argc, char *argv[])
           strcmp(argv[i], "-B"      ) == 0 ||
           strcmp(argv[i], "-k-vec"  ) == 0 ||
           strcmp(argv[i], "-q"      ) == 0 ||
+          strcmp(argv[i], "-jsrc"   ) == 0 ||
           strcmp(argv[i], "-rod"    ) == 0 ||
           strcmp(argv[i], "-slab"   ) == 0 ||
           strcmp(argv[i], "-sp"     ) == 0 ||
@@ -1915,7 +1940,7 @@ void rod_current_source_i(const Vector &x, Vector &j)
 {
    MFEM_ASSERT(x.Size() == 2, "current source requires 3D space.");
 
-   j.SetSize(2);
+   j.SetSize(3);
    j = 0.0;
 
    bool cmplx = rod_params_.Size() == 9;

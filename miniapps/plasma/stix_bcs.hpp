@@ -40,28 +40,35 @@ struct ComplexVectorCoefficientByAttr : public AttributeArrays
    VectorCoefficient * imag;
 };
 
+typedef Array<ComplexCoefficientByAttr*>       CmplxScaCoefArray;
+typedef Array<ComplexVectorCoefficientByAttr*> CmplxVecCoefArray;
+
 // Used for combining scalar coefficients
 double prodFunc(double a, double b);
 
 class StixBCs
 {
 public:
-   enum BCType {DIRICHLET_BC, NEUMANN_BC, SHEATH_BC};
+   enum BCType {DIRICHLET_BC, NEUMANN_BC, SHEATH_BC, CURRENT_SRC};
 
 private:
    Array<ComplexVectorCoefficientByAttr*>  dbc; // Dirichlet BC data
    Array<ComplexVectorCoefficientByAttr*>  nbc; // Neumann BC data
    Array<ComplexCoefficientByAttr*> sbc; // Sheath BC data
 
+   Array<ComplexVectorCoefficientByAttr*> jsrc; // Current Density Source data
+
    mutable Array<int>  hbc_attr; // Homogeneous Neumann BC boundary attributes
    Array<int>  dbc_attr; // Dirichlet BC boundary attributes
 
    std::set<int> bc_attr;
+
+   const Array<int> & reg_attr;
    const Array<int> & bdr_attr;
 
 public:
-   StixBCs(const Array<int> & bdr)
-      : bdr_attr(bdr) {}
+   StixBCs(const Array<int> & reg, const Array<int> & bdr)
+      : reg_attr(reg), bdr_attr(bdr) {}
 
    ~StixBCs();
 
@@ -82,11 +89,19 @@ public:
                     Coefficient &real_imped,
                     Coefficient &imag_imped);
 
+   // Enforce J = val on regions with attributes in reg
+   void AddCurrentSrc(const Array<int> & reg,
+                      VectorCoefficient &real_val,
+                      VectorCoefficient &imag_val);
+
    const Array<ComplexVectorCoefficientByAttr*> & GetDirichletBCs() const
    { return dbc; }
    const Array<ComplexVectorCoefficientByAttr*> & GetNeumannBCs() const
    { return nbc; }
    const Array<ComplexCoefficientByAttr*> & GetSheathBCs() const { return sbc; }
+
+   const Array<ComplexVectorCoefficientByAttr*> & GetCurrentSrcs() const
+   { return jsrc; }
 
    const Array<int> & GetHomogeneousNeumannBDR() const;
    const Array<int> & GetDirichletBDR() const { return dbc_attr; }

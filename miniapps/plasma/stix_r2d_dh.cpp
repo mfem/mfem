@@ -1316,7 +1316,7 @@ int main(int argc, char *argv[])
    int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
                   (dbcas.Size() > 0) + (dbcaw.Size() > 0);
 
-   StixBCs stixBCs(pmesh.bdr_attributes);
+   StixBCs stixBCs(pmesh.attributes, pmesh.bdr_attributes);
    //Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
 
    Vector zeroVec(3); zeroVec = 0.0;

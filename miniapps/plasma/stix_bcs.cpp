@@ -38,6 +38,10 @@ StixBCs::~StixBCs()
    {
       delete sbc[i];
    }
+   for (int i=0; i<jsrc.Size(); i++)
+   {
+      delete jsrc[i];
+   }
 }
 
 const char * StixBCs::GetBCTypeName(BCType bctype)
@@ -47,6 +51,7 @@ const char * StixBCs::GetBCTypeName(BCType bctype)
       case DIRICHLET_BC: return "Dirichlet";
       case NEUMANN_BC: return "Neumann";
       case SHEATH_BC: return "Sheath";
+      case CURRENT_SRC: return "Current Density";
    }
    return "Unknown";
 }
@@ -127,6 +132,20 @@ void StixBCs::AddSheathBC(const Array<int> & bdr,
    AttrToMarker(bdr_attr.Max(), bc->attr, bc->attr_marker);
 
    sbc.Append(bc);
+}
+
+void StixBCs::AddCurrentSrc(const Array<int> & reg,
+                            VectorCoefficient &real_val,
+                            VectorCoefficient &imag_val)
+{
+   ComplexVectorCoefficientByAttr *src = new ComplexVectorCoefficientByAttr;
+   src->attr = reg;
+   src->real = &real_val;
+   src->imag = &imag_val;
+
+   AttrToMarker(reg_attr.Max(), src->attr, src->attr_marker);
+
+   jsrc.Append(src);
 }
 
 } // namespace plasma
