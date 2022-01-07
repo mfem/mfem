@@ -219,10 +219,10 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
       socketstream sock1, sock2;
       common::VisualizeField(sock1, vishost, visport, ls_gf,
                              "Domain level set", 0, 0, wsize, wsize,
-                             "rRjmm********A");
+                             "rRjlmm********A");
       common::VisualizeField(sock2, vishost, visport, input,
                              "Input u", 0, wsize+60, wsize, wsize,
-                             "rRjmm********A");
+                             "rRjlmm********A");
       MPI_Barrier(pmesh.GetComm());
    }
    // Mark elements.
@@ -269,10 +269,10 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
       socketstream sock1, sock2;
       common::VisualizeField(sock1, vishost, visport, u,
                              "Fixed (known) u values", wsize, 0,
-                             wsize, wsize, "rRjmm********A");
+                             wsize, wsize, "rRjlmm********A");
       common::VisualizeField(sock2, vishost, visport, vis_marking,
                              "Element markings", 0, 2*wsize+60,
-                             wsize, wsize, "rRjmm********A");
+                             wsize, wsize, "rRjlmm********A");
    }
 
    // Normal derivative function.
@@ -284,7 +284,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
       socketstream sock;
       common::VisualizeField(sock, vishost, visport, n_grad_u,
                              "n.grad(u)", 2*wsize, 0, wsize, wsize,
-                             "rRjmm********A");
+                             "rRjlmm********A");
    }
 
    // 2nd normal derivative function.
@@ -321,7 +321,11 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
    }
    MPI_Allreduce(MPI_IN_PLACE, &h_min, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
    // The propagation speed is 1.
-   double dt = 0.1 * h_min / order / 1.0;
+   double dt = 0.25 * h_min / order / 1.0;
+   if (dg_mode == AdvectionOper::LO || dg_mode == AdvectionOper::FCT)
+   {
+      dt *= 0.5;
+   }
 
    // Time loops.
    Vector rhs(pfes_L2.GetVSize());
@@ -495,7 +499,7 @@ void Extrapolator::TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
          {
             common::VisualizeField(sock, vishost, visport, sltn,
                                    vis_name.c_str(), vis_x_pos, wsize+60,
-                                   wsize, wsize, "rRjmm********A");
+                                   wsize, wsize, "rRjlmm********A");
             MPI_Barrier(sltn.ParFESpace()->GetComm());
          }
       }
