@@ -160,8 +160,8 @@ void AdvectionOper::ComputeBounds(const ParFiniteElementSpace &pfes,
    el_max_gf = el_max;
 
    el_min_gf.ExchangeFaceNbrData(); el_max_gf.ExchangeFaceNbrData();
-   const Vector &min_nbr = el_min_gf.FaceNbrData(),
-                &max_nbr = el_max_gf.FaceNbrData();
+   const Vector &min_nbr = el_min_gf.FaceNbrData();
+   const Vector &max_nbr = el_max_gf.FaceNbrData();
    const Table &el_to_el = pmesh->ElementToElementTable();
    Array<int> face_nbr_el;
    for (int k = 0; k < NE; k++)
@@ -730,8 +730,8 @@ UpdateSolutionAndFlux(const Vector &du_lo, const Vector &m,
                       ParGridFunction &coeff_pos, ParGridFunction &coeff_neg,
                       SparseMatrix &flux_mat, Vector &du) const
 {
-   Vector &a_pos_n = coeff_pos.FaceNbrData(),
-          &a_neg_n = coeff_neg.FaceNbrData();
+   Vector &a_pos_n = coeff_pos.FaceNbrData();
+   Vector &a_neg_n = coeff_neg.FaceNbrData();
    coeff_pos.ExchangeFaceNbrData();
    coeff_neg.ExchangeFaceNbrData();
 
