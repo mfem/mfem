@@ -11,11 +11,9 @@
 
 if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
-        dist_solver.cpp
         sbm_solver.cpp
         marking.cpp)
   list(APPEND DIST_COMMON_HEADERS
-        dist_solver.hpp
         sbm_solver.hpp
         marking.hpp)
 

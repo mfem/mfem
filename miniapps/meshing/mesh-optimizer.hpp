@@ -435,7 +435,46 @@ double in_circle(const Vector &x, const Vector &x_center, double radius)
    Vector x_current = x;
    x_current -= x_center;
    double dist = x_current.Norml2();
+   if (dist < radius)
+   {
+      return 1.0;
+   }
+   else if (dist == radius)
+   {
+      return 0.0;
+   }
+   else
+   {
+      return -1.0;
+   }
    return dist <= radius ? 1.0 : 0.0;
+}
+
+double in_triangle(const Vector px, Vector p1, Vector p2, Vector p3)
+{
+   Vector v0 = p1;
+   Vector v1 = p2; v1 -=p1;
+   Vector v2 = p3; v2 -=p1;
+   double p, q;
+   p = ((px(0)*v2(1)-px(1)*v2(0))-(v0(0)*v2(1)-v0(1)*v2(0))) /
+       (v1(0)*v2(1)-v1(1)*v2(0));
+   q = -((px(0)*v1(1)-px(1)*v1(0))-(v0(0)*v1(1)-v0(1)*v1(0))) /
+       (v1(0)*v2(1)-v1(1)*v2(0));
+
+   return (p > 0 && q > 0 && 1-p-q > 0) ? 1.0 : -1.0;
+}
+
+double in_propeller(double a, double b, double d, const Vector &x, double theta)
+{
+   Vector xr = x;
+   xr(0) = x(0)*cos(theta) - x(1)*sin(theta);
+   xr(1) = x(0)*sin(theta) + x(1)*cos(theta);
+
+   double val;
+   val = b*b*xr(0)*xr(0) + a*a*xr(1)*xr(1) + 2*xr(0)*xr(1)*xr(1) + xr(1)*xr(
+            1) - a*a*b*b;
+   val = xr(0)*xr(0)/(a*a) + xr(1)*xr(1)*exp(2*xr(0)*log(2.4))/(b*b) - 1.0;
+   return val < 0.0 ? 1.0 : -1.0;
 }
 
 double geometric_primitive(const Vector &x)
@@ -455,22 +494,101 @@ double geometric_primitive(const Vector &x)
    return -1.0;
 }
 
-double geometric_primitive2(const Vector &x)
+double snowman(const Vector &x)
 {
-   double power = 2.0;
-   double xc = x(0) - 0.5, yc = x(1) - 0.5;
-   double r = sqrt(xc*xc + yc*yc);
-   double r2 = pow(xc/1.0, power) + pow(yc/1.0, power);
-   double dist1 = r2 - pow(0.2, power);
+   // Base
+   Vector x_circle1(2);
+   x_circle1(0) = 0.5;
+   x_circle1(1) = 0.35;
+   double in_circle1_val = in_circle(x, x_circle1, 0.25);
+   // Head
+   Vector x_circle(x.Size());
+   x_circle(0) = 0.5;
+   x_circle(1) = 0.7;
+   double circle_radius = 0.15;
+   double in_circle2_val = in_circle(x, x_circle, circle_radius);
+   return max(in_circle1_val, in_circle2_val);
+}
 
-   power = 2.0;
-   xc = x(0) - 0.5;
-   yc = x(1) - 0.6;
-   r = sqrt(xc*xc + yc*yc);
-   r2 = pow(xc/1.0, power) + pow(yc/1.0, power);
-   double dist2 = r2 - pow(0.2, power);
+double mickeymouse(const Vector &x)
+{
+   // Big circle
+   Vector x_circle1(2);
+   x_circle1(0) = 0.5;
+   x_circle1(1) = 0.5;
+   double in_circle1_val = in_circle(x, x_circle1, 0.25);
+   // Circle 2
+   Vector x_circle(x.Size());
+   x_circle(0) = 0.3;
+   x_circle(1) = 0.65;
+   double circle_radius = 0.1;
+   double in_circle2_val = in_circle(x, x_circle, circle_radius);
+   // Circle 3
+   x_circle(0) = 0.7;
+   double in_circle3_val = in_circle(x, x_circle, circle_radius);
+   return max(max(in_circle1_val, in_circle2_val), in_circle3_val);
+}
 
-   return std::min(dist1, dist2);
+double ball_balance(const Vector &x)
+{
+   // Circle
+   double dx = 0.0;
+   Vector x_circle1(2);
+   x_circle1(0) = 0.5+dx;
+   x_circle1(1) = 0.6;
+   double in_circle1_val = in_circle(x, x_circle1, 0.171);
+
+   Vector p1(x.Size()), p2(x.Size()), p3(x.Size());
+   p1(0) = 0.5+dx; p1(1) = 0.51;
+   p2(0) = 0.71+dx; p2(1) = 0.24;
+   p3(0) = 0.29+dx; p3(1) = 0.24;
+   double in_triangle_val = in_triangle(x, p1, p2, p3);
+
+   return max(in_triangle_val, in_circle1_val);
+}
+
+double propeller(const Vector &x)
+{
+   // Circle
+   Vector x_circle1(2);
+   x_circle1(0) = 0.5;
+   x_circle1(1) = 0.5;
+   double in_circle1_val = in_circle(x, x_circle1, 0.151);
+
+   // Blade 1
+   double a = 0.35,
+          b = 0.11,
+          d = 1.0;
+   Vector xcc = x;
+   xcc -= x_circle1;
+   xcc *= 1.5;
+   xcc(0) -= 0.25;
+   double in_propeller_val = in_propeller(a, b, d, xcc, 0.0);
+
+   double final_val = max(in_propeller_val, in_circle1_val);
+
+   // Blade 2
+   double theta = -120.0*M_PI/180.0;
+   xcc = x;
+   xcc -= x_circle1;
+   xcc *= 1.5;
+   xcc(0) -= 0.25*cos(theta);
+   xcc(1) += 0.25*sin(theta);
+
+   in_propeller_val = in_propeller(a, b, d, xcc, theta);
+   final_val = max(final_val, in_propeller_val);
+
+   // Blade 3
+   theta = 120.0*M_PI/180.0;
+   xcc = x;
+   xcc -= x_circle1;
+   xcc *= 1.5;
+   xcc(0) -= 0.25*cos(theta);
+   xcc(1) += 0.25*sin(theta);
+
+   in_propeller_val = in_propeller(a, b, d, xcc, theta);
+
+   return max(final_val, in_propeller_val);
 }
 
 int material_id(int el_id, const GridFunction &g)
@@ -537,5 +655,152 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
 
    delete S;
    delete Lap;
+}
+
+void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
+                                       FunctionCoefficient &ls_coeff,
+                                       int amr_iter, ParGridFunction &distance_s)
+{
+   mfem::H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
+                               pmesh.Dimension());
+   mfem::ParFiniteElementSpace h1fespace(&pmesh, &h1fec);
+   mfem::ParGridFunction x(&h1fespace);
+
+   mfem::L2_FECollection l2fec(0, pmesh.Dimension());
+   mfem::ParFiniteElementSpace l2fespace(&pmesh, &l2fec);
+   mfem::ParGridFunction el_to_refine(&l2fespace);
+
+   mfem::H1_FECollection lhfec(1, pmesh.Dimension());
+   mfem::ParFiniteElementSpace lhfespace(&pmesh, &lhfec);
+   mfem::ParGridFunction lhx(&lhfespace);
+
+   x.ProjectCoefficient(ls_coeff);
+   x.ExchangeFaceNbrData();
+
+   for (int iter = 0; iter < amr_iter; iter++)
+   {
+      el_to_refine = 0.0;
+      for (int e = 0; e < pmesh.GetNE(); e++)
+      {
+         Array<int> dofs;
+         Vector x_vals;
+         h1fespace.GetElementDofs(e, dofs);
+         x.GetSubVector(dofs, x_vals);
+         int refine = 0;
+         double min_val = 100;
+         double max_val = -100;
+         for (int j = 0; j < x_vals.Size(); j++)
+         {
+            double x_dof_val = x_vals(j);
+            min_val = min(x_dof_val, min_val);
+            max_val = max(x_dof_val, max_val);
+         }
+         if (min_val < 0 && max_val > 0)
+         {
+            refine = 1;
+            el_to_refine(e) = 1.0;
+         }
+      }
+
+      //Refine an element if its neighbor will be refined
+      el_to_refine.ExchangeFaceNbrData();
+      GridFunctionCoefficient field_in_dg(&el_to_refine);
+      lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
+      for (int e = 0; e < pmesh.GetNE(); e++)
+      {
+         Array<int> dofs;
+         Vector x_vals;
+         lhfespace.GetElementDofs(e, dofs);
+         lhx.GetSubVector(dofs, x_vals);
+         int refine = 0;
+         double max_val = -100;
+         for (int j = 0; j < x_vals.Size(); j++)
+         {
+            double x_dof_val = x_vals(j);
+            max_val = max(x_dof_val, max_val);
+         }
+         if (max_val > 0)
+         {
+            refine = 1;
+            el_to_refine(e) = 1.0;
+         }
+      }
+
+      //make the list of elements to be refined
+      Array<int> el_to_refine_list;
+      for (int e = 0; e < el_to_refine.Size(); e++)
+      {
+         if (el_to_refine(e) > 0.0)
+         {
+            el_to_refine_list.Append(e);
+         }
+      }
+
+      int loc_count = el_to_refine_list.Size();
+      int glob_count = loc_count;
+      MPI_Allreduce(&loc_count, &glob_count, 1, MPI_INT, MPI_SUM,
+                    pmesh.GetComm());
+      MPI_Barrier(pmesh.GetComm());
+      if (glob_count > 0)
+      {
+         pmesh.GeneralRefinement(el_to_refine_list, 1);
+      }
+      h1fespace.Update();
+      x.Update();
+      x.ProjectCoefficient(ls_coeff);
+
+      l2fespace.Update();
+      el_to_refine.Update();
+
+      lhfespace.Update();
+      lhx.Update();
+
+      distance_s.ParFESpace()->Update();
+      distance_s.Update();
+   }
+
+   //Now determine distance
+   const double dx = AvgElementSize(pmesh);
+   DistanceSolver *dist_solver = NULL;
+   int solver_type = 1;
+   double t_param = 1.0;
+
+   if (solver_type == 0)
+   {
+      auto ds = new HeatDistanceSolver(t_param * dx * dx);
+      ds->smooth_steps = 0;
+      ds->vis_glvis = false;
+      dist_solver = ds;
+   }
+   else if (solver_type == 1)
+   {
+      const int p = 5;
+      const int newton_iter = 50;
+      auto ds = new PLapDistanceSolver(p, newton_iter);
+      dist_solver = ds;
+   }
+   else { MFEM_ABORT("Wrong solver option."); }
+   dist_solver->print_level = 1;
+
+   ParFiniteElementSpace pfes_s(*distance_s.ParFESpace());
+
+   // Smooth-out Gibbs oscillations from the input level set. The smoothing
+   // parameter here is specified to be mesh dependent with length scale dx.
+   ParGridFunction filt_gf(&pfes_s);
+   PDEFilter filter(pmesh, 1.0 * dx);
+   filter.Filter(ls_coeff, filt_gf);
+   GridFunctionCoefficient ls_filt_coeff(&filt_gf);
+
+   dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
+   distance_s.SetTrueVector();
+   distance_s.SetFromTrueVector();
+
+   DiffuseField(distance_s, 5);
+   distance_s.SetTrueVector();
+   distance_s.SetFromTrueVector();
+   for (int i = 0; i < distance_s.Size(); i++)
+   {
+      distance_s(i) *= distance_s(i);
+   }
 }
 #endif

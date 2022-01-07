@@ -37,17 +37,22 @@
 //   mpirun -np 4 tmop_surface -m ../../data/square-disc-p2.mesh -o 2 -rs 0 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 20 -sni 10 -oi 3 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2 -mod-bndr-attr
 //   mpirun -np 4 tmop_surface -m ../../data/square-disc-nurbs.mesh -o 4 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 10 -sni 10 -oi 5 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2 -mod-bndr-attr
 
-//   mpirun -np 4 tmop_surface -m ../../data/square-disc-nurbs.mesh -o 2 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e4 -ni 20 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 1 -smtype 2 -mod-bndr-attr
 
 //  Interface fitting
 //  mpirun -np 4 tmop_surface -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor -sapp 1 -slstype 1
 //  mpirun -np 4 tmop_surface -m square01-tri.mesh -o 2 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor -sapp 1 -slstype 1
 //  mpirun -np 4 tmop_surface -m square01-tri.mesh -o 2 -rs 2 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor -sapp 1 -slstype 3
+
+// mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e9 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 7 -sapp 1 -smtype 1
+// Trim on the inside and fit the boundary
+// mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e9 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 7 -sapp 1 -smtype 2 -trim
+// mpirun -np 6 tmop_surface -m square01-tri.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e12 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 8 -sapp 1 -smtype 1
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
 #include <fstream>
-#include "mesh-optimizer.hpp"
+#include "tmop_surface.hpp"
+
 
 using namespace mfem;
 using namespace std;
@@ -68,6 +73,8 @@ int main (int argc, char *argv[])
    double jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
+
+
    double surface_fit_const = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
@@ -94,6 +101,7 @@ int main (int argc, char *argv[])
    int surf_ls_type      = 1;
    int marking_type      = 1;
    bool mod_bndr_attr    = false;
+   bool trim_mesh        = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -148,6 +156,9 @@ int main (int argc, char *argv[])
                   "3: Ideal shape, initial size\n\t"
                   "4: Given full analytic Jacobian (in physical space)\n\t"
                   "5: Ideal shape, given size (in physical space)");
+
+
+
    args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
                   "Surface preservation constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
@@ -221,6 +232,8 @@ int main (int argc, char *argv[])
    args.AddOption(&mod_bndr_attr, "-mod-bndr-attr", "--modify-boundary-attribute",
                   "-fix-bndr-attr", "--fix-boundary-attribute",
                   "Change boundary attribue based on alignment with Cartesian axes.");
+   args.AddOption(&trim_mesh, "-trim", "--trim",
+                  "-no-trim","--no-trim", "trim the mesh or not.");
    args.Parse();
    if (!args.Good())
    {
@@ -240,6 +253,55 @@ int main (int argc, char *argv[])
    }
    const int dim = mesh->Dimension();
 
+   // Trim the mesh based on level-set
+   FunctionCoefficient *ls_coeff = NULL;
+   if (surf_ls_type == 1) //Circle
+   {
+      ls_coeff = new FunctionCoefficient(circle_level_set);
+   }
+   else if (surf_ls_type == 2) // Squircle
+   {
+      ls_coeff = new FunctionCoefficient(squircle_level_set);
+   }
+   else if (surf_ls_type == 3) // Butterfly
+   {
+      ls_coeff = new FunctionCoefficient(butterfly_level_set);
+   }
+   else if (surf_ls_type == 4) //
+   {
+      ls_coeff = new FunctionCoefficient(geometric_primitive);
+   }
+   else if (surf_ls_type == 5) // snowman
+   {
+      ls_coeff = new FunctionCoefficient(snowman);
+   }
+   else if (surf_ls_type == 6) // mickey mouse
+   {
+      ls_coeff = new FunctionCoefficient(mickeymouse);
+   }
+   else if (surf_ls_type == 7) // ball on triangle
+   {
+      ls_coeff = new FunctionCoefficient(ball_balance);
+   }
+   else if (surf_ls_type == 8) // propeller
+   {
+      ls_coeff = new FunctionCoefficient(propeller);
+   }
+   else
+   {
+      MFEM_ABORT("Surface fitting level set type not implemented yet.")
+   }
+
+   // Trim the mesh based on material attribute and set boundary attribute for fitting to 3
+   if (trim_mesh)
+   {
+      Mesh *mesh_trim = TrimMesh(*mesh, *ls_coeff, mesh_poly_deg, 2);
+      delete mesh;
+      mesh = new Mesh(*mesh_trim);
+      delete mesh_trim;
+   }
+
+
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
@@ -253,7 +315,8 @@ int main (int argc, char *argv[])
    if (surf_bg_mesh)
    {
       Mesh *mesh_surf_fit_bg =  new Mesh("../../data/inline-quad.mesh", 1, 1, false);
-      for (int lev = 0; lev < 5; lev++) { mesh_surf_fit_bg->UniformRefinement(); }
+      //for (int lev = 0; lev < 5; lev++) { mesh_surf_fit_bg->UniformRefinement(); }
+      mesh_surf_fit_bg->EnsureNCMesh();
       pmesh_surf_fit_bg = new ParMesh(MPI_COMM_WORLD, *mesh_surf_fit_bg);
       delete mesh_surf_fit_bg;
    }
@@ -485,71 +548,7 @@ int main (int argc, char *argv[])
    // Modify boundary attribute for surface node movement
    if (mod_bndr_attr)
    {
-      for (int i = 0; i < pmesh->GetNBE(); i++)
-      {
-         mfem::Array<int> dofs;
-         pfespace->GetBdrElementDofs(i, dofs);
-         mfem::Vector bdr_xy_data;
-         mfem::Vector dof_xyz(dim);
-         mfem::Vector dof_xyz_compare;
-         mfem::Array<int> xyz_check(dim);
-         for (int j = 0; j < dofs.Size(); j++)
-         {
-            for (int d = 0; d < dim; d++)
-            {
-               dof_xyz(d) = x(pfespace->DofToVDof(dofs[j], d));
-            }
-            if (j == 0)
-            {
-               dof_xyz_compare = dof_xyz;
-               xyz_check = 1;
-            }
-            else
-            {
-               for (int d = 0; d < dim; d++)
-               {
-                  if (std::fabs(dof_xyz(d)-dof_xyz_compare(d)) < 1.e-10)
-                  {
-                     xyz_check[d] += 1;
-                  }
-               }
-            }
-         }
-         if (dim == 2)
-         {
-            if (xyz_check[0] == dofs.Size())
-            {
-               pfespace->GetMesh()->SetBdrAttribute(i, 1);
-            }
-            else if (xyz_check[1] == dofs.Size())
-            {
-               pfespace->GetMesh()->SetBdrAttribute(i, 2);
-            }
-            else
-            {
-               pfespace->GetMesh()->SetBdrAttribute(i, 3);
-            }
-         }
-         else if (dim == 3)
-         {
-            if (xyz_check[0] == dofs.Size())
-            {
-               pfespace->GetMesh()->SetBdrAttribute(i, 1);
-            }
-            else if (xyz_check[1] == dofs.Size())
-            {
-               pfespace->GetMesh()->SetBdrAttribute(i, 2);
-            }
-            else if (xyz_check[2] == dofs.Size())
-            {
-               pfespace->GetMesh()->SetBdrAttribute(i, 3);
-            }
-            else
-            {
-               pfespace->GetMesh()->SetBdrAttribute(i, 4);
-            }
-         }
-      }
+      ModifyBoundaryAttributesForNodeMovement(pmesh, x);
       pmesh->SetAttributes();
    }
 
@@ -584,51 +583,35 @@ int main (int argc, char *argv[])
       surf_fit_bg_fec = new H1_FECollection(mesh_poly_deg, dim);
       surf_fit_bg_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec);
       surf_fit_bg_gf0 = new ParGridFunction(surf_fit_bg_fes);
-
-      surf_fit_bg_grad_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg,
-                                                       surf_fit_bg_fec,
-                                                       pmesh_surf_fit_bg->Dimension());
-      surf_fit_bg_grad = new ParGridFunction(surf_fit_bg_grad_fes);
-      surf_fit_grad_fes = new ParFiniteElementSpace(pmesh, &surf_fit_fec,
-                                                    pmesh->Dimension());
-      surf_fit_grad = new ParGridFunction(surf_fit_grad_fes);
-
-      int n_hessian_bg = pow(pmesh_surf_fit_bg->Dimension(), 2);
-      surf_fit_bg_hess_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg,
-                                                       surf_fit_bg_fec,
-                                                       n_hessian_bg);
-      surf_fit_bg_hess = new ParGridFunction(surf_fit_bg_hess_fes);
-      surf_fit_hess_fes = new ParFiniteElementSpace(pmesh, &surf_fit_fec,
-                                                    pmesh->Dimension()*pmesh->Dimension());
-      surf_fit_hess = new ParGridFunction(surf_fit_hess_fes);
    }
 
-   FunctionCoefficient *ls_coeff = NULL;
    if (surface_fit_const > 0.0)
    {
       MFEM_VERIFY(pa == false,
                   "Surface fitting with PA is not implemented yet.");
 
-      if (surf_ls_type == 1) //Circle
-      {
-         ls_coeff = new FunctionCoefficient(circle_level_set);
-      }
-      else if (surf_ls_type == 2) // Squircle
-      {
-         ls_coeff = new FunctionCoefficient(squircle_level_set);
-      }
-      else if (surf_ls_type == 3) // Butterfly
-      {
-         ls_coeff = new FunctionCoefficient(butterfly_level_set);
-      }
-      else
-      {
-         MFEM_ABORT("Surface fitting level set type not implemented yet.")
-      }
       surf_fit_gf0.ProjectCoefficient(*ls_coeff);
       if (surf_bg_mesh)
       {
-         surf_fit_bg_gf0->ProjectCoefficient(*ls_coeff);
+         ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, *ls_coeff, 7,
+                                           *surf_fit_bg_gf0);
+
+         surf_fit_bg_grad_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg,
+                                                          surf_fit_bg_fec,
+                                                          pmesh_surf_fit_bg->Dimension());
+         surf_fit_bg_grad = new ParGridFunction(surf_fit_bg_grad_fes);
+         surf_fit_grad_fes = new ParFiniteElementSpace(pmesh, &surf_fit_fec,
+                                                       pmesh->Dimension());
+         surf_fit_grad = new ParGridFunction(surf_fit_grad_fes);
+
+         int n_hessian_bg = pow(pmesh_surf_fit_bg->Dimension(), 2);
+         surf_fit_bg_hess_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg,
+                                                          surf_fit_bg_fec,
+                                                          n_hessian_bg);
+         surf_fit_bg_hess = new ParGridFunction(surf_fit_bg_hess_fes);
+         surf_fit_hess_fes = new ParFiniteElementSpace(pmesh, &surf_fit_fec,
+                                                       pmesh->Dimension()*pmesh->Dimension());
+         surf_fit_hess = new ParGridFunction(surf_fit_hess_fes);
 
          //Setup gradient of the background mesh
          surf_fit_bg_grad->ReorderByNodes();
@@ -654,7 +637,6 @@ int main (int argc, char *argv[])
                id++;
             }
          }
-
       }
 
       for (int i = 0; i < pmesh->GetNE(); i++)
@@ -663,75 +645,9 @@ int main (int argc, char *argv[])
          pmesh->SetAttribute(i, mat(i) + 1);
       }
 
-      mat.ExchangeFaceNbrData();
-      // Switch attribute if all but 1 of the faces of an element will be marked?
-      Array<int> element_attr(pmesh->GetNE());
-      element_attr = 0;
-      for (int e = 0; e < pmesh->GetNE(); e++)
-      {
-         Array<int> faces, ori;
-         if (pmesh->Dimension() == 2)
-         {
-            pmesh->GetElementEdges(e, faces, ori);
-         }
-         else
-         {
-            pmesh->GetElementFaces(e, faces, ori);
-         }
-         int inf1, inf2;
-         int elem1, elem2;
-         int diff_attr_count = 0;
-         int attr1;
-         int attr2;
-         attr1 = mat(e);
-         bool bdr_element = false;
-         element_attr[e] = attr1;
-         int target_attr = -1;
-         for (int f = 0; f < faces.Size(); f++)
-         {
-            pmesh->GetFaceElements(faces[f], &elem1, &elem2);
-            if (elem2 >= 0)
-            {
-               attr2 = elem1 == e ? (int)(mat(elem2)) : (int)(mat(elem1));
-               if (attr1 != attr2 && attr1 == 0)
-               {
-                  diff_attr_count += 1;
-                  target_attr = attr2;
-               }
-            }
-            else
-            {
-               pmesh->GetFaceInfos(faces[f], &inf1, &inf2);
-               if (inf2 >= 0)
-               {
-                  Vector dof_vals;
-                  Array<int> dofs;
-                  mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
-                  attr2 = (int)(dof_vals(0));
-                  if (attr1 != attr2 && attr1 == 0)
-                  {
-                     diff_attr_count += 1;
-                     target_attr = attr2;
-                  }
-               }
-               else
-               {
-                  bdr_element = true;
-               }
-            }
-         }
-
-         if (diff_attr_count == faces.Size()-1 && !bdr_element)
-         {
-            element_attr[e] = target_attr;
-         }
-      }
-      for (int e = 0; e < pmesh->GetNE(); e++)
-      {
-         mat(e) = element_attr[e];
-         pmesh->SetAttribute(e, element_attr[e]-1);
-      }
-      mat.ExchangeFaceNbrData();
+      // Fix attributes for marking
+      ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
+      ModifyAttributeForMarkingDOFS(pmesh, mat, 1);
 
       GridFunctionCoefficient coeff_mat(&mat);
       surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
@@ -892,7 +808,7 @@ int main (int argc, char *argv[])
       tauval -= 0.01 * h0min_all;
    }
 
-   // For HR tests, the energy is normalized by the number of elements.
+   // Get Initial TMOP Energy
    const double init_energy = a.GetParGridFunctionEnergy(x);
    double init_metric_energy = init_energy;
    if (surface_fit_const > 0.0)
@@ -919,7 +835,7 @@ int main (int argc, char *argv[])
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
-      if (surf_approach == 1)
+      if (surf_approach == 1 && marking_type == 2)
       {
          ess_bdr[2] = 0;
       }
