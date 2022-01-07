@@ -52,7 +52,7 @@ void AdvectionOper::Mult(const Vector &x, Vector &dx) const
 {
    ParFiniteElementSpace &pfes = *M.ParFESpace();
    const int NE = pfes.GetNE();
-   const int nd = pfes.GetFE(0)->GetDof(), size = NE * nd;
+   const int nd = pfes.GetFE(0)->GetDof();
    Array<int> dofs(nd);
 
    if (adv_mode == LO)
@@ -282,7 +282,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
    // The propagation speed is 1.
    double dt = 0.25 * h_min / order / 1.0;
    double half_dt = 0.5 * dt;
-   if (dg_mode == AdvectionOper::LO)
+   if (advection_mode == AdvectionOper::LO)
    {
       dt = half_dt;
    }
@@ -290,7 +290,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
    // Time loops.
    Vector rhs(pfes_L2.GetVSize());
    AdvectionOper adv_oper(active_zones, lhs_bf, rhs_bf, rhs);
-   adv_oper.adv_mode = dg_mode;
+   adv_oper.adv_mode = advection_mode;
    RK2Solver ode_solver(1.0);
    ode_solver.Init(adv_oper);
 
@@ -306,7 +306,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
    }
 
    std::string mode_text = "HO";
-   if (dg_mode == AdvectionOper::LO)  { mode_text = "LO"; }
+   if (advection_mode == AdvectionOper::LO)  { mode_text = "LO"; }
 
    MFEM_VERIFY(xtrap_order == 1 || xtrap_order == 2, "Wrong order input.");
    if (xtrap_type == ASLAM)
@@ -319,7 +319,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
          TimeLoop(n_grad_u, ode_solver, time_period, half_dt,
                   2*wsize, "Extrap const n.grad(u) -- Aslam -- LO");
 
-         adv_oper.adv_mode = dg_mode;
+         adv_oper.adv_mode = advection_mode;
 
          // Linear extrapolation of u.
          lhs_bf.Mult(n_grad_u, rhs);
@@ -335,7 +335,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
          TimeLoop(n_grad_n_grad_u, ode_solver, time_period, half_dt,
                   3*wsize, "Extrap const n.grad(n.grad(u)) -- Aslam -- LO");
 
-         adv_oper.adv_mode = dg_mode;
+         adv_oper.adv_mode = advection_mode;
 
          // Linear extrapolation of [n.grad_u].
          lhs_bf.Mult(n_grad_n_grad_u, rhs);
@@ -364,7 +364,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
          TimeLoop(grad_u_1, ode_solver, time_period, half_dt,
                   3*wsize, "Extrap const du_dy -- Bochkov -- LO");
 
-         adv_oper.adv_mode = dg_mode;
+         adv_oper.adv_mode = advection_mode;
 
          // Linear extrapolation of u.
          ParLinearForm rhs_lf(&pfes_L2);

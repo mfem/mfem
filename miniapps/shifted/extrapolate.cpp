@@ -101,25 +101,25 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
    int rs_levels = 2;
-   Extrapolator::XtrapType xtrap_type   = Extrapolator::ASLAM;
+   Extrapolator::XtrapType ex_type   = Extrapolator::ASLAM;
    AdvectionOper::AdvectionMode dg_mode = AdvectionOper::HO;
-   int xtrap_order = 1;
+   int ex_order = 1;
    int order = 2;
    double distance = 0.35;
-   bool visualization = true;
-   int vis_steps = 50;
+   bool vis_on = true;
+   int vis_steps_cnt = 50;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption((int*)&xtrap_type, "-et", "--extrap-type",
+   args.AddOption((int*)&ex_type, "-et", "--extrap-type",
                   "Extrapolation type: Aslam (0) or Bochkov (1).");
    args.AddOption((int*)&dg_mode, "-dg", "--dg-mode",
                   "DG advection mode: 0 - Standard High-Order,\n\t"
                   "                   1 - Low-Order Upwind Diffusion.");
-   args.AddOption(&xtrap_order, "-eo", "--extrap-order",
+   args.AddOption(&ex_order, "-eo", "--extrap-order",
                   "Extrapolation order: 0/1/2 for constant/linear/quadratic.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
@@ -129,10 +129,10 @@ int main(int argc, char *argv[])
    args.AddOption(&problem, "-p", "--problem",
                   "0 - 2D circle,\n\t"
                   "1 - 2D star");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+   args.AddOption(&vis_on, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
+   args.AddOption(&vis_steps_cnt, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.Parse();
    if (!args.Good())
@@ -159,11 +159,11 @@ int main(int argc, char *argv[])
 
    // Extrapolate.
    Extrapolator xtrap;
-   xtrap.xtrap_type    = xtrap_type;
-   xtrap.dg_mode       = dg_mode;
-   xtrap.xtrap_order   = xtrap_order;
-   xtrap.visualization = visualization;
-   xtrap.vis_steps     = vis_steps;
+   xtrap.xtrap_type     = ex_type;
+   xtrap.advection_mode = dg_mode;
+   xtrap.xtrap_order    = ex_order;
+   xtrap.visualization  = vis_on;
+   xtrap.vis_steps      = vis_steps_cnt;
    FunctionCoefficient ls_coeff(domainLS);
    ParGridFunction ux(&pfes_L2);
    xtrap.Extrapolate(ls_coeff, u, distance, ux);
