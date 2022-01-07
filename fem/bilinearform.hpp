@@ -121,6 +121,9 @@ protected:
        the constrained DoFs. */
    DiagonalPolicy diag_policy;
 
+   /// The desired nymber of derivatives restricted to the faces
+   int num_face_derivatives;
+   
    int precompute_sparsity;
    // Allocate appropriate SparseMatrix and assign it to mat
    void AllocMat();
@@ -138,6 +141,7 @@ protected:
       assembly = AssemblyLevel::LEGACY;
       batch = 1;
       ext = NULL;
+      num_face_derivatives = 0;
    }
 
 private:
@@ -178,6 +182,12 @@ public:
 
        This method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
+
+    /// Set the desired nymber of derivatives restricted to the faces
+   void SetFaceRestrictionDerivatives(int num_face_derivatives);
+
+    /// Set the desired nymber of derivatives restricted to the faces
+   int GetFaceRestrictionDerivatives() const { return num_face_derivatives; }
 
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }

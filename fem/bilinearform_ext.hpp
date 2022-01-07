@@ -41,10 +41,10 @@ public:
    { return Device::GetDeviceMemoryClass(); }
 
    /// Get the finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const;
+   virtual const Operator *GetProlongation() const; 
 
    /// Get the finite element space restriction matrix
-   virtual const Operator *GetRestriction() const;
+   virtual const Operator *GetRestriction() const; 
 
    /// Assemble at the level given for the BilinearFormExtension subclass
    virtual void Assemble() = 0;
@@ -71,6 +71,8 @@ protected:
    mutable Vector localX, localY;
    mutable Vector faceIntX, faceIntY;
    mutable Vector faceBdrX, faceBdrY;
+   mutable Vector faceNormDIntX, faceNormDIntY;
+   mutable Vector faceNormDBdrX, faceNormDBdrY;
    const Operator *elem_restrict; // Not owned
    const FaceRestriction *int_face_restrict_lex; // Not owned
    const FaceRestriction *bdr_face_restrict_lex; // Not owned

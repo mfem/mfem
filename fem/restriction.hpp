@@ -278,10 +278,71 @@ public:
                                          Vector &ea_data) const;
 };
 
+
+/// Operator that computes normal derivative at the face.
+/** Objects of this type are typically created and owned by FiniteElementSpace
+    objects, see FiniteElementSpace::GetFaceRestriction(). */
+class L2FaceNormalDRestriction : public FaceRestriction
+{
+protected:
+   const FiniteElementSpace &fes;
+   const int dim;
+   const int nf; // number of faces
+   const int ne; // number of elements
+   const int vdim; // number of vector components
+   const bool byvdim; // fes.GetOrdering() == Ordering::byVDIM
+   const int ndofs; // total number of dofs
+   const int ndofs1d; // dofs in 1 dimension (for tensor bases)
+   const int ndofs_face; // fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0))->GetDof()
+   // dof equal to dofs per face?
+   const int elemDofs; // dofs per element
+   const L2FaceValues m; // are face values double valued?
+   const int numfacedofs; // total number of face dofs
+   const int num_values_per_point; // 2 for values and their derivatives, more for second derivatices, etc.
+                                   // higher derivatives not yet implemented
+   const int num_faces_per_element;
+
+   Array<int> map_elements_to_faces;
+   Array<int> map_elements_to_sides;
+   Array<int> map_side_permutations;
+   int num_needed_elements;
+   Array<int> needed_elements;
+
+   Vector Ge;
+   Vector jac_face_factors;
+
+   L2FaceNormalDRestriction(const FiniteElementSpace&,
+                     const FaceType,
+                     const L2FaceValues m = L2FaceValues::DoubleValued);
+
+public:
+   L2FaceNormalDRestriction(const FiniteElementSpace&, 
+                     const ElementDofOrdering,
+                     const FaceType,
+                     //const IntegrationRule* Intrules,
+                     const L2FaceValues m = L2FaceValues::DoubleValued);
+   virtual void Mult(const Vector &x, Vector &y) const;
+   void AddMultTranspose(const Vector &x, Vector &y) const;
+   /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
+       given by this L2FaceRestriction. */
+
+   //virtual void FillI(SparseMatrix &mat, SparseMatrix &face_mat) const;
+   /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
+       pattern given by this L2FaceRestriction, and the values of ea_data. */
+   //virtual void FillJAndData(const Vector &ea_data,
+   //                          SparseMatrix &mat,
+   //                          SparseMatrix &face_mat) const;
+   /// This methods adds the DG face matrices to the element matrices.
+   //void AddFaceMatricesToElementMatrices(Vector &fea_data,
+   //                                      Vector &ea_data) const;
+};
+
 // Return the face degrees of freedom returned in Lexicographic order.
 void GetFaceDofs(const int dim, const int face_id,
-                 const int dof1d, Array<int> &faceMap);
-
+                 const int ndofs1d, Array<int> &faceMap);
+void GetNormalDFaceDofStencil(const int dim, const int face_id,
+                 const int ndofs1d, Array<Array<int>> &faceMap);
+                 
 // Convert from Native ordering to lexicographic ordering
 int ToLexOrdering(const int dim, const int face_id, const int size1d,
                   const int index);

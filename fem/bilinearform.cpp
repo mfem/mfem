@@ -140,6 +140,11 @@ void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    }
 }
 
+void BilinearForm::SetFaceRestrictionDerivatives(int num_face_derivatives_)
+{
+   num_face_derivatives = num_face_derivatives_;
+}
+
 void BilinearForm::EnableStaticCondensation()
 {
    delete static_cond;

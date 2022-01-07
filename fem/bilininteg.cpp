@@ -3083,6 +3083,17 @@ const IntegrationRule &DGTraceIntegrator::GetRule(
    return IntRules.Get(geom, int_order);
 }
 
+const IntegrationRule &DGDiffusionIntegrator::GetRule(
+   Geometry::Type geom, int order, FaceElementTransformations &T)
+{
+   //std::cout << __LINE__ << " " << __FILE__ << std::endl;
+   //exit(1);
+   int transelemW =  T.Elem1->OrderW(); // what should this be?
+   int int_order = transelemW + 2*order;
+   //int int_order = 2*order;
+   return IntRules.Get(geom, int_order);
+}
+
 void DGDiffusionIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
@@ -3193,6 +3204,17 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       {
          wq = ni * nor;
       }
+/*
+      std::cout << std::setprecision(10) <<
+      //" t2w " << Trans.Elem1->Weight() <<
+      " ipw " << ip.weight <<
+      " detJ(p,f_ind) " << Trans.Elem1->Jacobian().Det() <<
+      //" nor_norm2 " << nor*ni << 
+      " w " << w <<
+      //" wq " << wq <<
+      std::endl;
+      */
+
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in
       // direction perpendicular to the face. Indeed, for linear transformation
@@ -3316,6 +3338,12 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          elmat(i,i) *= (sigma - 1.);
       }
    }
+
+/*
+   SparseMatrix selmat(elmat); 
+   selmat.PrintMatlab();
+   exit(1);
+*/
 }
 
 

@@ -268,7 +268,9 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
    {
       int_face_restrict_lex = trialFes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
-                                 FaceType::Interior);
+                                 FaceType::Interior,
+                                 L2FaceValues::DoubleValued,
+                                 a->GetFaceRestrictionDerivatives());
       faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
@@ -279,7 +281,8 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       bdr_face_restrict_lex = trialFes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
                                  FaceType::Boundary,
-                                 m);
+                                 m,
+                                 a->GetFaceRestrictionDerivatives());
       faceBdrX.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
@@ -382,8 +385,24 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
+
+#define timings_on 0
+
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
+#if timings_on > 0
+   std::cout << "% timings for various kernels " << std::endl;
+   int num_timings = 20;
+   int timelines[20];
+   std::chrono::time_point<std::chrono::system_clock> timings[20] = {std::chrono::system_clock::now()};
+   int tid = 0;
+   timelines[tid] = __LINE__;
+   timings[tid++] = std::chrono::system_clock::now();
+#endif
+
+
+   // exactly the same for PA
+   // A = A_L
    const int iSz = integrators.Size();
    if (DeviceCanUseCeed() || !elem_restrict)
    {
@@ -391,18 +410,31 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
+         // localx = Px = x
          integrators[i]->AddMultPA(x, y);
       }
    }
    else
    {
       elem_restrict->Mult(x, localX);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultPA(localX, localY);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
       }
       elem_restrict->MultTranspose(localY, y);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
    }
 
    Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
@@ -410,32 +442,78 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    if (int_face_restrict_lex && iFISz>0)
    {
       int_face_restrict_lex->Mult(x, faceIntX);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
       if (faceIntX.Size()>0)
       {
          faceIntY = 0.0;
          for (int i = 0; i < iFISz; ++i)
          {
             intFaceIntegrators[i]->AddMultPA(faceIntX, faceIntY);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
          }
          int_face_restrict_lex->AddMultTranspose(faceIntY, y);
       }
    }
+
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
 
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
    const int bFISz = bdrFaceIntegrators.Size();
    if (bdr_face_restrict_lex && bFISz>0)
    {
       bdr_face_restrict_lex->Mult(x, faceBdrX);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
       if (faceBdrX.Size()>0)
       {
          faceBdrY = 0.0;
          for (int i = 0; i < bFISz; ++i)
          {
             bdrFaceIntegrators[i]->AddMultPA(faceBdrX, faceBdrY);
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
          }
          bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
       }
    }
+#if timings_on > 0 
+timelines[tid] = __LINE__;
+timings[tid++] = std::chrono::system_clock::now();
+#endif
+
+#if timings_on > 0 
+   double total = 0;
+   for(int k = 1 ; k < tid ; k++ )
+   {
+      auto time = std::chrono::duration_cast<std::chrono::microseconds>(timings[k]-timings[k-1]).count();
+      total += time;
+      std::cout << "lines  " << timelines[k-1] << " - " << timelines[k] << ": " << time << std::endl; 
+   }
+      std::cout << std::endl;
+
+   std::cout << "%  total " << total;
+   std::cout << std::endl;
+#endif
+
+
+#ifdef MFEM_DEBUG
+   std::cout << "y after" << std::endl;
+   y.Print(std::cout,1);
+#endif
+
 }
 
 void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const

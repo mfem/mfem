@@ -917,7 +917,6 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
    pcg.Mult(b, x);
 }
 
-
 inline void GeneratePlaneRotation(double &dx, double &dy,
                                   double &cs, double &sn)
 {

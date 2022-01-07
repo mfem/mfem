@@ -1284,7 +1284,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
 }
 
 const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
-   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
+   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul, int num_face_derivatives) const
 {
    const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
@@ -1300,7 +1300,16 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
       FaceRestriction *res;
       if (is_dg_space)
       {
-         res = new L2FaceRestriction(*this, e_ordering, type, m);
+         if(num_face_derivatives == 0)
+         {
+            res = new L2FaceRestriction(*this, e_ordering, type, m);
+         }
+         else
+         {
+            res = new L2FaceNormalDRestriction(*this, e_ordering, type, /*IntRule,*/ m);
+            // TODO (if needed): replace this with 
+            // res = new L2FaceNormalDRestriction(*this, e_ordering, type, m, num_face_derivatives);
+         }
       }
       else
       {
