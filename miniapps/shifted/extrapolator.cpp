@@ -23,33 +23,25 @@ const int  visport   = 19916;
 int wsize            = 350; // glvis window size
 
 AdvectionOper::AdvectionOper(Array<bool> &zones, ParBilinearForm &Mbf,
-                             ParBilinearForm &Kbf, const Vector &rhs,
-                             AdvectionMode mode)
+                             ParBilinearForm &Kbf, const Vector &rhs)
    : TimeDependentOperator(Mbf.Size()),
      active_zones(zones),
      M(Mbf), K(Kbf), K_mat(NULL), b(rhs),
-     lo_solver(NULL), fct_solver(NULL), lumpedM(NULL), adv_mode(mode)
+     lo_solver(NULL), fct_solver(NULL), lumpedM(NULL)
 {
    K_mat = K.ParallelAssemble(&K.SpMat());
 
-   if (adv_mode == LO || adv_mode == FCT)
-   {
-      ParBilinearForm M_Lump(M.ParFESpace());
-      lumpedM = new Vector;
-      M_Lump.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-      M_Lump.Assemble();
-      M_Lump.Finalize();
-      M_Lump.SpMat().GetDiag(*lumpedM);
+   ParBilinearForm M_Lump(M.ParFESpace());
+   lumpedM = new Vector;
+   M_Lump.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+   M_Lump.Assemble();
+   M_Lump.Finalize();
+   M_Lump.SpMat().GetDiag(*lumpedM);
+   lo_solver = new DiscreteUpwindLOSolver(*M.ParFESpace(),
+                                          K.SpMat(), *lumpedM);
 
-      lo_solver = new DiscreteUpwindLOSolver(*M.ParFESpace(),
-                                             K.SpMat(), *lumpedM);
-
-      if (adv_mode == FCT)
-      {
-         fct_solver = new FluxBasedFCT(*M.ParFESpace(), dt, K.SpMat(),
-                                       lo_solver->GetKmap(), M.SpMat());
-      }
-   }
+   fct_solver = new FluxBasedFCT(*M.ParFESpace(), dt, K.SpMat(),
+                                 lo_solver->GetKmap(), M.SpMat());
 }
 
 AdvectionOper::~AdvectionOper()
@@ -322,104 +314,108 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
    MPI_Allreduce(MPI_IN_PLACE, &h_min, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
    // The propagation speed is 1.
    double dt = 0.25 * h_min / order / 1.0;
+   double half_dt = 0.5 * dt;
    if (dg_mode == AdvectionOper::LO || dg_mode == AdvectionOper::FCT)
    {
-      dt *= 0.5;
+      dt = half_dt;
    }
 
    // Time loops.
    Vector rhs(pfes_L2.GetVSize());
-   AdvectionOper adv_oper(active_zones, lhs_bf, rhs_bf, rhs, dg_mode);
+   AdvectionOper adv_oper(active_zones, lhs_bf, rhs_bf, rhs);
+   adv_oper.adv_mode = dg_mode;
    RK2Solver ode_solver(1.0);
    ode_solver.Init(adv_oper);
    adv_oper.SetDt(dt);
 
+   if (xtrap_order == 0)
+   {
+      // Constant extrapolation of u (always LO).
+      rhs = 0.0;
+      adv_oper.adv_mode = AdvectionOper::LO;
+      TimeLoop(u, ode_solver, time_period, half_dt,
+               wsize, "u - constant extrap LO");
+      xtrap.ProjectGridFunction(u);
+      return;
+   }
+
+   std::string dg_mode_text = "HO";
+   if (dg_mode == AdvectionOper::LO)  { dg_mode_text = "LO"; }
+   if (dg_mode == AdvectionOper::FCT) { dg_mode_text = "FCT"; }
+
+   MFEM_VERIFY(xtrap_order == 1 || xtrap_order == 2, "Wrong order input.");
    if (xtrap_type == ASLAM)
    {
-      switch (xtrap_order)
+      if (xtrap_order == 1)
       {
-         case 0:
-         {
-            // Constant extrapolation of u.
-            rhs = 0.0;
-            TimeLoop(u, ode_solver, time_period, dt,
-                     wsize, "u - constant extrap");
-            break;
-         }
-         case 1:
-         {
-            // Constant extrapolation of [n.grad_u].
-            rhs = 0.0;
-            TimeLoop(n_grad_u, ode_solver, time_period, dt,
-                     2*wsize, "n.grad(u)");
+         // Constant extrapolation of [n.grad_u] (always LO).
+         rhs = 0.0;
+         adv_oper.adv_mode = AdvectionOper::LO;
+         TimeLoop(n_grad_u, ode_solver, time_period, half_dt,
+                  2*wsize, "n.grad(u) LO");
 
-            // Linear sextrapolation of u.
-            lhs_bf.Mult(n_grad_u, rhs);
-            TimeLoop(u, ode_solver, time_period, dt,
-                     wsize, "u - linear Aslam extrap");
-            break;
-         }
-         case 2:
-         {
-            // Constant extrapolation of [n.grad(n.grad(u))].
-            rhs = 0.0;
-            TimeLoop(n_grad_n_grad_u, ode_solver, time_period, dt,
-                     3*wsize, "n.grad(n.grad(u))");
+         adv_oper.adv_mode = dg_mode;
 
-            // Linear extrapolation of [n.grad_u].
-            lhs_bf.Mult(n_grad_n_grad_u, rhs);
-            TimeLoop(n_grad_u, ode_solver, time_period, dt,
-                     2*wsize, "n.grad(u)");
+         // Linear extrapolation of u.
+         lhs_bf.Mult(n_grad_u, rhs);
+         TimeLoop(u, ode_solver, time_period, dt,
+                  wsize, "u - linear Aslam extrap " + dg_mode_text);
+      }
 
-            // Quadratic extrapolation of u.
-            lhs_bf.Mult(n_grad_u, rhs);
-            TimeLoop(u, ode_solver, time_period, dt,
-                     wsize, "u - quadratic Aslam extrap");
-            break;
-         }
-         default: MFEM_ABORT("Wrong extrapolation order.");
+      if (xtrap_order == 2)
+      {
+         // Constant extrapolation of [n.grad(n.grad(u))] (always LO).
+         rhs = 0.0;
+         adv_oper.adv_mode = AdvectionOper::LO;
+         TimeLoop(n_grad_n_grad_u, ode_solver, time_period, half_dt,
+                  3*wsize, "n.grad(n.grad(u)) LO");
+
+         adv_oper.adv_mode = dg_mode;
+
+         // Linear extrapolation of [n.grad_u].
+         lhs_bf.Mult(n_grad_n_grad_u, rhs);
+         TimeLoop(n_grad_u, ode_solver, time_period, dt,
+                  2*wsize, "n.grad(u) " + dg_mode_text);
+
+         // Quadratic extrapolation of u.
+         lhs_bf.Mult(n_grad_u, rhs);
+         TimeLoop(u, ode_solver, time_period, dt,
+                  wsize, "u - quadratic Aslam extrap " + dg_mode_text);
       }
    }
    else if (xtrap_type == BOCHKOV)
    {
-      switch (xtrap_order)
+      if (xtrap_order == 1)
       {
-         case 0:
-         {
-            // Constant extrapolation of u.
-            rhs = 0.0;
-            TimeLoop(u, ode_solver, time_period, dt,
-                     wsize, "u - constant extrap");
-            break;
-         }
-         case 1:
-         {
-            // Constant extrapolation of all grad(u) components.
-            rhs = 0.0;
-            ParGridFunction grad_u_0(&pfes_L2), grad_u_1(&pfes_L2);
-            GradComponentCoeff grad_u_0_coeff(u, 0), grad_u_1_coeff(u, 1);
-            grad_u_0.ProjectCoefficient(grad_u_0_coeff);
-            grad_u_1.ProjectCoefficient(grad_u_1_coeff);
-            TimeLoop(grad_u_0, ode_solver, time_period, dt,
-                     2*wsize, "grad_u_0");
-            TimeLoop(grad_u_1, ode_solver, time_period, dt,
-                     3*wsize, "grad_u_1");
+         // Constant extrapolation of all grad(u) components (always LO).
+         rhs = 0.0;
+         adv_oper.adv_mode = AdvectionOper::LO;
+         ParGridFunction grad_u_0(&pfes_L2), grad_u_1(&pfes_L2);
+         GradComponentCoeff grad_u_0_coeff(u, 0), grad_u_1_coeff(u, 1);
+         grad_u_0.ProjectCoefficient(grad_u_0_coeff);
+         grad_u_1.ProjectCoefficient(grad_u_1_coeff);
+         TimeLoop(grad_u_0, ode_solver, time_period, half_dt,
+                  2*wsize, "grad_u_0 LO");
+         TimeLoop(grad_u_1, ode_solver, time_period, half_dt,
+                  3*wsize, "grad_u_1 LO");
 
-            // Linear extrapolation of u.
-            ParLinearForm rhs_lf(&pfes_L2);
-            NormalGradComponentCoeff grad_u_n(grad_u_0, grad_u_1, ls_n_coeff);
-            rhs_lf.AddDomainIntegrator(new DomainLFIntegrator(grad_u_n));
-            rhs_lf.Assemble();
-            rhs = rhs_lf;
-            TimeLoop(u, ode_solver, time_period, dt,
-                     wsize, "u - linear Bochkov extrap");
-            break;
-         }
-         case 2:  MFEM_ABORT("Quadratic Bochkov method is not implemented.");
-         default: MFEM_ABORT("Wrong extrapolation order.");
+         adv_oper.adv_mode = dg_mode;
+
+         // Linear extrapolation of u.
+         ParLinearForm rhs_lf(&pfes_L2);
+         NormalGradComponentCoeff grad_u_n(grad_u_0, grad_u_1, ls_n_coeff);
+         rhs_lf.AddDomainIntegrator(new DomainLFIntegrator(grad_u_n));
+         rhs_lf.Assemble();
+         rhs = rhs_lf;
+         TimeLoop(u, ode_solver, time_period, dt,
+                  wsize, "u - linear Bochkov extrap " + dg_mode_text);
+      }
+
+      if (xtrap_order == 2)
+      {
+         MFEM_ABORT("Quadratic Bochkov method is not implemented.");
       }
    }
-   else { MFEM_ABORT("Wrong extrapolation type option"); }
 
    xtrap.ProjectGridFunction(u);
 }

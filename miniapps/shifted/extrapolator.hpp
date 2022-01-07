@@ -42,10 +42,10 @@ private:
 
 public:
    // 0 is stanadard HO; 1 is upwind diffusion; 2 is FCT.
-   enum AdvectionMode {HO, LO, FCT} adv_mode = HO;
+   enum AdvectionMode {HO, LO, FCT} adv_mode = AdvectionOper::HO;
 
    AdvectionOper(Array<bool> &zones, ParBilinearForm &Mbf,
-                 ParBilinearForm &Kbf, const Vector &rhs, AdvectionMode mode);
+                 ParBilinearForm &Kbf, const Vector &rhs);
 
    ~AdvectionOper();
 
