@@ -38,7 +38,7 @@ double domainLS(const Vector &coord)
                 y = (dim > 1) ? coord(1)*2.0 - 1.0 : 0.0,
                 z = (dim > 2) ? coord(2)*2.0 - 1.0 : 0.0;
 
-   switch(problem)
+   switch (problem)
    {
       case 0:
       {
@@ -52,8 +52,8 @@ double domainLS(const Vector &coord)
 
          return 0.60 - sqrt(x*x + y*y + z*z + 1e-12) +
                 0.25 * (y*y*y*y*y + 5.0*x*x*x*x*y - 10.0*x*x*y*y*y) /
-                       pow(x*x + y*y + z*z + 1e-12, 2.5) *
-                       std::cos(0.5*M_PI * z / 0.6);
+                pow(x*x + y*y + z*z + 1e-12, 2.5) *
+                std::cos(0.5*M_PI * z / 0.6);
       }
       default: MFEM_ABORT("Bad option for --problem!"); return 0.0;
    }
