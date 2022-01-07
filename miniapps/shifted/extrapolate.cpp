@@ -18,8 +18,8 @@
 // Sample runs:
 //     mpirun -np 4 extrapolate -m "../../data/inline-segment.mesh" -rs 6 -eo 2
 //     mpirun -np 4 extrapolate -rs 5 -p 0 -eo 2
-//     mpirun -np 4 extrapolate -rs 5 -p 1 -eo 1
-//     mpirun -np 4 extrapolate -rs 5 -p 1 -et 1 -eo 1
+//     mpirun -np 4 extrapolate -rs 5 -p 1 -eo 2
+//     mpirun -np 4 extrapolate -rs 5 -p 1 -et 1 -eo 1 -dg 1
 //     mpirun -np 4 extrapolate -m "../../data/inline-hex.mesh" -eo 1 -rs 1
 //     mpirun -np 4 extrapolate -m "../../data/inline-hex.mesh" -p 1 -eo 1 -rs 1
 
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
    int order = 2;
    double distance = 0.35;
    bool visualization = true;
-   int vis_steps = 10;
+   int vis_steps = 50;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",

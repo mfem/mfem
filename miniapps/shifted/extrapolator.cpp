@@ -334,7 +334,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
       rhs = 0.0;
       adv_oper.adv_mode = AdvectionOper::LO;
       TimeLoop(u, ode_solver, time_period, half_dt,
-               wsize, "Extrap constant u -- LO");
+               wsize, "Extrap const u -- LO");
       xtrap.ProjectGridFunction(u);
       return;
    }
@@ -352,7 +352,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
          rhs = 0.0;
          adv_oper.adv_mode = AdvectionOper::LO;
          TimeLoop(n_grad_u, ode_solver, time_period, half_dt,
-                  2*wsize, "Extrap constant n.grad(u) -- Aslam -- LO");
+                  2*wsize, "Extrap const n.grad(u) -- Aslam -- LO");
 
          adv_oper.adv_mode = dg_mode;
 
@@ -368,7 +368,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
          rhs = 0.0;
          adv_oper.adv_mode = AdvectionOper::LO;
          TimeLoop(n_grad_n_grad_u, ode_solver, time_period, half_dt,
-                  3*wsize, "Extrap constant n.grad(n.grad(u)) -- Aslam -- LO");
+                  3*wsize, "Extrap const n.grad(n.grad(u)) -- Aslam -- LO");
 
          adv_oper.adv_mode = dg_mode;
 
@@ -395,9 +395,9 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
          grad_u_0.ProjectCoefficient(grad_u_0_coeff);
          grad_u_1.ProjectCoefficient(grad_u_1_coeff);
          TimeLoop(grad_u_0, ode_solver, time_period, half_dt,
-                  2*wsize, "Extrap constant du_dx -- Bochkov -- LO");
+                  2*wsize, "Extrap const du_dx -- Bochkov -- LO");
          TimeLoop(grad_u_1, ode_solver, time_period, half_dt,
-                  3*wsize, "Extrap constant du_dy -- Bochkov -- LO");
+                  3*wsize, "Extrap const du_dy -- Bochkov -- LO");
 
          adv_oper.adv_mode = dg_mode;
 
