@@ -93,9 +93,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion
+	rm -f *.o *~ distance diffusion extrapolate
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f diffusion.mesh diffusion.gf
-	@rm -rf ParaViewDistance ParaViewDiffusion
+	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate
