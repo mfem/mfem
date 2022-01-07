@@ -334,14 +334,14 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
       rhs = 0.0;
       adv_oper.adv_mode = AdvectionOper::LO;
       TimeLoop(u, ode_solver, time_period, half_dt,
-               wsize, "u - constant extrap LO");
+               wsize, "Extrap constant u -- LO");
       xtrap.ProjectGridFunction(u);
       return;
    }
 
-   std::string dg_mode_text = "HO";
-   if (dg_mode == AdvectionOper::LO)  { dg_mode_text = "LO"; }
-   if (dg_mode == AdvectionOper::FCT) { dg_mode_text = "FCT"; }
+   std::string mode_text = "HO";
+   if (dg_mode == AdvectionOper::LO)  { mode_text = "LO"; }
+   if (dg_mode == AdvectionOper::FCT) { mode_text = "FCT"; }
 
    MFEM_VERIFY(xtrap_order == 1 || xtrap_order == 2, "Wrong order input.");
    if (xtrap_type == ASLAM)
@@ -352,14 +352,14 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
          rhs = 0.0;
          adv_oper.adv_mode = AdvectionOper::LO;
          TimeLoop(n_grad_u, ode_solver, time_period, half_dt,
-                  2*wsize, "n.grad(u) LO");
+                  2*wsize, "Extrap constant n.grad(u) -- Aslam -- LO");
 
          adv_oper.adv_mode = dg_mode;
 
          // Linear extrapolation of u.
          lhs_bf.Mult(n_grad_u, rhs);
          TimeLoop(u, ode_solver, time_period, dt,
-                  wsize, "u - linear Aslam extrap " + dg_mode_text);
+                  wsize, "Extrap linear u -- Aslam -- " + mode_text);
       }
 
       if (xtrap_order == 2)
@@ -368,19 +368,19 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
          rhs = 0.0;
          adv_oper.adv_mode = AdvectionOper::LO;
          TimeLoop(n_grad_n_grad_u, ode_solver, time_period, half_dt,
-                  3*wsize, "n.grad(n.grad(u)) LO");
+                  3*wsize, "Extrap constant n.grad(n.grad(u)) -- Aslam -- LO");
 
          adv_oper.adv_mode = dg_mode;
 
          // Linear extrapolation of [n.grad_u].
          lhs_bf.Mult(n_grad_n_grad_u, rhs);
          TimeLoop(n_grad_u, ode_solver, time_period, dt,
-                  2*wsize, "n.grad(u) " + dg_mode_text);
+                  2*wsize, "Extrap linear n.grad(u) -- Aslam -- " + mode_text);
 
          // Quadratic extrapolation of u.
          lhs_bf.Mult(n_grad_u, rhs);
          TimeLoop(u, ode_solver, time_period, dt,
-                  wsize, "u - quadratic Aslam extrap " + dg_mode_text);
+                  wsize, "Extrap quadratic u -- Aslam -- " + mode_text);
       }
    }
    else if (xtrap_type == BOCHKOV)
@@ -395,9 +395,9 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
          grad_u_0.ProjectCoefficient(grad_u_0_coeff);
          grad_u_1.ProjectCoefficient(grad_u_1_coeff);
          TimeLoop(grad_u_0, ode_solver, time_period, half_dt,
-                  2*wsize, "grad_u_0 LO");
+                  2*wsize, "Extrap constant du_dx -- Bochkov -- LO");
          TimeLoop(grad_u_1, ode_solver, time_period, half_dt,
-                  3*wsize, "grad_u_1 LO");
+                  3*wsize, "Extrap constant du_dy -- Bochkov -- LO");
 
          adv_oper.adv_mode = dg_mode;
 
@@ -408,7 +408,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
          rhs_lf.Assemble();
          rhs = rhs_lf;
          TimeLoop(u, ode_solver, time_period, dt,
-                  wsize, "u - linear Bochkov extrap " + dg_mode_text);
+                  wsize, "Extrap linear u -- Bochkov -- " + mode_text);
       }
 
       if (xtrap_order == 2)
@@ -489,7 +489,7 @@ void Extrapolator::TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
       {
          if (myid == 0)
          {
-            cout << "time step: " << ti << ", time: " << t << endl;
+            cout << vis_name+" / time step: " << ti << ", time: " << t << endl;
          }
          if (visualization)
          {
