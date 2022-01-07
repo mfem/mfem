@@ -27,10 +27,8 @@ private:
    ParBilinearForm &M, &K;
    HypreParMatrix *K_mat;
    const Vector &b;
-   double dt = 0.0;
 
    DiscreteUpwindLOSolver *lo_solver;
-   FluxBasedFCT *fct_solver;
    Vector *lumpedM;
 
    void ComputeElementsMinMax(const ParGridFunction &gf,
@@ -42,7 +40,7 @@ private:
 
 public:
    // 0 is stanadard HO; 1 is upwind diffusion; 2 is FCT.
-   enum AdvectionMode {HO, LO, FCT} adv_mode = AdvectionOper::HO;
+   enum AdvectionMode {HO, LO} adv_mode = AdvectionOper::HO;
 
    AdvectionOper(Array<bool> &zones, ParBilinearForm &Mbf,
                  ParBilinearForm &Kbf, const Vector &rhs);
@@ -50,8 +48,6 @@ public:
    ~AdvectionOper();
 
    virtual void Mult(const Vector &x, Vector &dx) const;
-
-   void SetDt(double delta_t) { dt = delta_t; }
 };
 
 class Extrapolator
@@ -184,46 +180,6 @@ protected:
 
    void ComputeDiscreteUpwindMatrix() const;
    void ApplyDiscreteUpwindMatrix(ParGridFunction &u, Vector &du) const;
-};
-
-class FluxBasedFCT
-{
-public:
-   FluxBasedFCT(ParFiniteElementSpace &space, double &delta_t,
-                const SparseMatrix &adv_mat, const Array<int> &adv_smap,
-                const SparseMatrix &mass_mat)
-      : pfes(space), dt(delta_t),
-        K(adv_mat), M(mass_mat), K_smap(adv_smap), flux_ij(adv_mat),
-        gp(&pfes), gm(&pfes) { }
-
-   void CalcFCTSolution(const ParGridFunction &u, const Vector &m,
-                        const Vector &du_ho, const Vector &du_lo,
-                        const Vector &u_min, const Vector &u_max,
-                        Vector &du) const;
-
-protected:
-   ParFiniteElementSpace &pfes;
-   double &dt;
-
-   const SparseMatrix &K, &M;
-   const Array<int> &K_smap;
-
-   // Temporary computation objects.
-   mutable SparseMatrix flux_ij;
-   mutable ParGridFunction gp, gm;
-
-   void ComputeFluxMatrix(const ParGridFunction &u, const Vector &du_ho,
-                          SparseMatrix &flux_mat) const;
-   void AddFluxesAtDofs(const SparseMatrix &flux_mat,
-                        Vector &flux_pos, Vector &flux_neg) const;
-   void ComputeFluxCoefficients(const Vector &u, const Vector &du_lo,
-                                const Vector &m,
-                                const Vector &u_min, const Vector &u_max,
-                                Vector &coeff_pos, Vector &coeff_neg) const;
-   void UpdateSolutionAndFlux(const Vector &du_lo, const Vector &m,
-                              ParGridFunction &coeff_pos,
-                              ParGridFunction &coeff_neg,
-                              SparseMatrix &flux_mat, Vector &du) const;
 };
 
 } // namespace mfem

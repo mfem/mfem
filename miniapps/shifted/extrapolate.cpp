@@ -118,8 +118,7 @@ int main(int argc, char *argv[])
                   "Extrapolation type: Aslam (0) or Bochkov (1).");
    args.AddOption((int*)&dg_mode, "-dg", "--dg-mode",
                   "DG advection mode: 0 - Standard High-Order,\n\t"
-                  "                   1 - Low-Order Upwind Diffusion,\n\t"
-                  "                   2 - Flux-Corrected Transport.");
+                  "                   1 - Low-Order Upwind Diffusion.");
    args.AddOption(&xtrap_order, "-eo", "--extrap-order",
                   "Extrapolation order: 0/1/2 for constant/linear/quadratic.");
    args.AddOption(&order, "-o", "--order",
