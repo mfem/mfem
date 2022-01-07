@@ -54,7 +54,7 @@ class Extrapolator
 {
 public:
    enum XtrapType {ASLAM, BOCHKOV} xtrap_type = ASLAM;
-   AdvectionOper::AdvectionMode dg_mode = AdvectionOper::HO;
+   AdvectionOper::AdvectionMode advection_mode = AdvectionOper::HO;
    int xtrap_order    = 1;
    bool visualization = false;
    int vis_steps      = 5;
@@ -165,8 +165,7 @@ public:
    DiscreteUpwindLOSolver(ParFiniteElementSpace &space, const SparseMatrix &adv,
                           const Vector &Mlump);
 
-   virtual void CalcLOSolution(const Vector &u, const Vector &rhs,
-                               Vector &du) const;
+   void CalcLOSolution(const Vector &u, const Vector &rhs, Vector &du) const;
 
    Array<int> &GetKmap() { return K_smap; }
 
