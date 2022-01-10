@@ -82,6 +82,7 @@ struct TMOP_PMESH_OPTIMIZER
    ParNonlinearForm *a = nullptr;
    FiniteElementCollection *fec = nullptr;
    ParFiniteElementSpace *pfespace = nullptr;
+   int dofs;
    ConstantCoefficient *lim_coeff;
    ConstantCoefficient *coef_zeta;
    ConstantCoefficient *coef_ls;
@@ -203,6 +204,7 @@ struct TMOP_PMESH_OPTIMIZER
       }
       else { fec = new H1_FECollection(mesh_poly_deg, dim); }
       pfespace = new ParFiniteElementSpace(pmesh, fec, dim);
+      dofs = pfespace->GlobalTrueVSize();
 
       // 5. Make the mesh curved based on the above finite element space. This
       //    means that we define the mesh elements through a fespace-based
@@ -1240,8 +1242,9 @@ Initial strain energy: 3.6153e+02 = metrics: 3.6153e+02 + extra terms: 0.0000e+0
 Final strain energy: 3.6153e+02 = metrics: 3.6153e+02 + extra terms: 0.0000e+00
 The strain energy decreased by: 1.3211e-05 %.
  * */
+#define MAX_NDOFS 8*1024*1024
 #define P_ORDERS bm::CreateDenseRange(1,4,1)
-#define P_REFINE bm::CreateDenseRange(1,1,1)
+#define P_REFINE bm::CreateDenseRange(3,3,1)
 
 static void TmopPMeshOptimizerBenchmark(bm::State &state)
 {
@@ -1249,6 +1252,8 @@ static void TmopPMeshOptimizerBenchmark(bm::State &state)
    const int serial_refine = state.range(1);
    //dbg("order:%d serial_refine:%d",order,serial_refine);
    TMOP_PMESH_OPTIMIZER tmop_pmesh_optimizer(order,serial_refine);
+   const int ndofs = tmop_pmesh_optimizer.dofs;
+   if (ndofs/mpi->WorldSize() > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }
    while (state.KeepRunning()) { tmop_pmesh_optimizer.Mult(); }
    const double solvertime = tmop_pmesh_optimizer.TimeSolver.RealTime();
    state.counters["MPI"] = bm::Counter(tmop_pmesh_optimizer.num_procs);
@@ -1256,12 +1261,12 @@ static void TmopPMeshOptimizerBenchmark(bm::State &state)
    state.counters["P"] = bm::Counter(order);
    const int quad_points = tmop_pmesh_optimizer.hexahedron_quad_points;
    state.counters["Q"] = bm::Counter(quad_points);
+   state.counters["NDofs"] = bm::Counter(ndofs);
    //tmop_pmesh_optimizer.Postfix();
 }
 BENCHMARK(TmopPMeshOptimizerBenchmark)\
 -> ArgsProduct( {P_ORDERS,P_REFINE})\
--> Unit(bm::kMillisecond)\
-   -> Iterations(10);
+-> Unit(bm::kMillisecond) -> Iterations(10);
 
 int main(int argc, char *argv[])
 {
