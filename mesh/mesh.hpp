@@ -355,8 +355,9 @@ protected:
    /// NC version of GeneralDerefinement.
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
                                           double threshold, int nc_limit = 0,
-                                          int op = 1);
-   /// Derefinement helper.
+                                          int op = 1, bool same_attr_only = false);
+   // Derefinement helpers.
+   bool CheckSameAttr(const int *elem, int nelem);
    double AggregateError(const Array<double> &elem_error,
                          const int *fine, int nfine, int op);
 
@@ -1220,7 +1221,11 @@ public:
    int GetAttribute(int i) const { return elements[i]->GetAttribute(); }
 
    /// Set the attribute of element i.
-   void SetAttribute(int i, int attr) { elements[i]->SetAttribute(attr); }
+   void SetAttribute(int i, int attr)
+   {
+      elements[i]->SetAttribute(attr);
+      if (ncmesh) { ncmesh->SetAttribute(i, attr); }
+   }
 
    /// Return the attribute of boundary element i.
    int GetBdrAttribute(int i) const { return boundary[i]->GetAttribute(); }
@@ -1367,11 +1372,13 @@ public:
        that would increase the maximum level of hanging nodes of the mesh are
        skipped. Returns true if the mesh changed, false otherwise. */
    bool DerefineByError(Array<double> &elem_error, double threshold,
-                        int nc_limit = 0, int op = 1);
+                        int nc_limit = 0, int op = 1,
+                        bool same_attr_only = false);
 
    /// Same as DerefineByError for an error vector.
    bool DerefineByError(const Vector &elem_error, double threshold,
-                        int nc_limit = 0, int op = 1);
+                        int nc_limit = 0, int op = 1,
+                        bool same_attr_only = false);
 
    ///@{ @name NURBS mesh refinement methods
    void KnotInsert(Array<KnotVector *> &kv);

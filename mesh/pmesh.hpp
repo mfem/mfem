@@ -148,7 +148,7 @@ protected:
 
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
                                           double threshold, int nc_limit = 0,
-                                          int op = 1);
+                                          int op = 1, bool same_attr_only = false);
 
    void RebalanceImpl(const Array<int> *partition);
 

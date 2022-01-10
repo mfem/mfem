@@ -71,6 +71,15 @@ double rhs_func(const Vector &pt, double t);
 void UpdateProblem(Mesh &mesh, FiniteElementSpace &fespace,
                    GridFunction &x, BilinearForm &a, LinearForm &b);
 
+void UpdateAttributes(Mesh &mesh)
+{
+   Vector center;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      mesh.GetElementCenter(i, center);
+      mesh.SetAttribute(i, (center(0) < 0.0) ? 1 : 2);
+   }
+}
 
 int main(int argc, char *argv[])
 {
@@ -241,6 +250,7 @@ int main(int argc, char *argv[])
    ThresholdDerefiner derefiner(*estimator);
    derefiner.SetThreshold(hysteresis * max_elem_error);
    derefiner.SetNCLimit(nc_limit);
+   derefiner.SetSameAttributeOnly(true);
 
    // 12. The outer time loop. In each iteration we update the right hand side,
    //     solve the problem on the current mesh, visualize the solution and
@@ -318,6 +328,8 @@ int main(int argc, char *argv[])
          {
             break;
          }
+
+         UpdateAttributes(mesh);
 
          // 20. Update the space and interpolate the solution.
          UpdateProblem(mesh, fespace, x, a, b);

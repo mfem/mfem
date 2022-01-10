@@ -3783,7 +3783,8 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
 }
 
 bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
-                                        double threshold, int nc_limit, int op)
+                                        double threshold, int nc_limit, int op,
+                                        bool same_attr_only)
 {
    MFEM_VERIFY(pncmesh, "Only supported for non-conforming meshes.");
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
@@ -3804,8 +3805,12 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    {
       if (nc_limit > 0 && !level_ok[i]) { continue; }
 
-      double error =
-         AggregateError(elem_error, dt.GetRow(i), dt.RowSize(i), op);
+      const int *fine = dt.GetRow(i);
+      const int nfine = dt.RowSize(i);
+
+      if (same_attr_only && !CheckSameAttr(fine, nfine)) { continue; }
+
+      double error = AggregateError(elem_error, fine, nfine, op);
 
       if (error < threshold) { derefs.Append(i); }
    }

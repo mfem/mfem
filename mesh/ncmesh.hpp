@@ -313,6 +313,18 @@ public:
 
    // utility
 
+   /// Set attribute of an element; @a index is the Mesh element index.
+   void SetAttribute(int index, int attr)
+   {
+      elements[leaf_elements[index]].attribute = attr;
+   }
+
+   /// Retrieve attribute of element @index (Mesh numbering).
+   int GetAttribute(int index) const
+   {
+      return elements[leaf_elements[index]].attribute;
+   }
+
    /// Return Mesh vertex indices of an edge identified by 'edge_id'.
    void GetEdgeVertices(const MeshId &edge_id, int vert_index[2],
                         bool oriented = true) const;

@@ -8794,6 +8794,17 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
    }
 }
 
+bool Mesh::CheckSameAttr(const int *elem, int nelem)
+{
+   MFEM_ASSERT(nelem > 0 && ncmesh, "");
+   int attr = ncmesh->GetAttribute(elem[0]);
+   for (int i = 1; i < nelem; i++)
+   {
+      if (ncmesh->GetAttribute(elem[i]) != attr) { return false; }
+   }
+   return true;
+}
+
 double Mesh::AggregateError(const Array<double> &elem_error,
                             const int *fine, int nfine, int op)
 {
@@ -8814,7 +8825,8 @@ double Mesh::AggregateError(const Array<double> &elem_error,
 }
 
 bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
-                                     double threshold, int nc_limit, int op)
+                                     double threshold, int nc_limit, int op,
+                                     bool same_attr_only)
 {
    MFEM_VERIFY(ncmesh, "Only supported for non-conforming meshes.");
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
@@ -8835,8 +8847,12 @@ bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
    {
       if (nc_limit > 0 && !level_ok[i]) { continue; }
 
-      double error =
-         AggregateError(elem_error, dt.GetRow(i), dt.RowSize(i), op);
+      const int *fine = dt.GetRow(i);
+      const int nfine = dt.RowSize(i);
+
+      if (same_attr_only && !CheckSameAttr(fine, nfine)) { continue; }
+
+      double error = AggregateError(elem_error, fine, nfine, op);
 
       if (error < threshold) { derefs.Append(i); }
    }
@@ -8862,31 +8878,27 @@ bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
 }
 
 bool Mesh::DerefineByError(Array<double> &elem_error, double threshold,
-                           int nc_limit, int op)
+                           int nc_limit, int op, bool same_attr_only)
 {
    // NOTE: the error array is not const because it will be expanded in parallel
    //       by ghost element errors
-   if (Nonconforming())
-   {
-      return NonconformingDerefinement(elem_error, threshold, nc_limit, op);
-   }
-   else
-   {
-      MFEM_ABORT("Derefinement is currently supported for non-conforming "
-                 "meshes only.");
-      return false;
-   }
+
+   MFEM_VERIFY(Nonconforming(), "Derefinement is currently supported for "
+               "non-conforming meshes only.")
+
+   return NonconformingDerefinement(elem_error, threshold, nc_limit, op,
+                                    same_attr_only);
 }
 
 bool Mesh::DerefineByError(const Vector &elem_error, double threshold,
-                           int nc_limit, int op)
+                           int nc_limit, int op, bool same_attr_only)
 {
    Array<double> tmp(elem_error.Size());
    for (int i = 0; i < tmp.Size(); i++)
    {
       tmp[i] = elem_error(i);
    }
-   return DerefineByError(tmp, threshold, nc_limit, op);
+   return DerefineByError(tmp, threshold, nc_limit, op, same_attr_only);
 }
 
 
