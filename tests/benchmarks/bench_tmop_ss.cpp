@@ -26,11 +26,19 @@ using namespace mfem;
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
+static MPI_Session *mpi = nullptr;
+static int config_dev_size = 4; // default 4 GPU per node
+
+////////////////////////////////////////////////////////////////////////////////
 struct TMOP_PMESH_OPTIMIZER
 {
    int num_procs, myid;
    bool mpi_done = false;
-
+   // -m hex6.mesh -mid 303 -tid 1 -vl 2
+   // -bm -bnd -ni 1 -art 0 -ls 2 -qt 1
+   // -pa -qo 0 -li 20 -o 2 -st 0 -rs 1
+   // -scale 1.e-7 -bm_id 2 -pt 111
+   // -d cpu:fast
    const char *mesh_file       = "hex6.mesh"; // -m hex6.mesh
    const int mesh_poly_deg     = 1;           // -o 1
    const int rs_levels         = 1;           // -rs 1
@@ -59,7 +67,7 @@ struct TMOP_PMESH_OPTIMIZER
    const bool fdscheme         = false;
    const int adapt_eval        = 0;
    const bool exactaction      = false;
-   const char *devopt          = "cpu:fast";  // -d cpu:fast
+   //const char *devopt          = "cpu:fast";  // -d cpu:fast
    const bool pa               = true;        // -pa
    const int n_hr_iter         = 5;
    const int n_h_iter          = 1;
@@ -106,16 +114,8 @@ struct TMOP_PMESH_OPTIMIZER
    {
       if (h_metric_id < 0) { h_metric_id = metric_id; }
 
-      if (hradaptivity)
-      {
-         MFEM_VERIFY(strcmp(devopt,"cpu")==0, "HR-adaptivity is currently only"
-                     " supported on cpus.");
-      }
-      Device device(devopt);
-      if (myid == 0) { device.Print();}
-
 #warning quad_order set from command line
-      //quad_order = mesh_poly_deg + 4;
+      // quad_order = mesh_poly_deg + 4;
       // quad_order = 8;
       // quad_order = mesh_poly_deg * 2;
 
@@ -178,7 +178,8 @@ struct TMOP_PMESH_OPTIMIZER
 #endif
          }
 #ifndef MFEM_USE_METIS
-         return 1;
+         assert(false);
+         return;
 #endif
          pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
       }
@@ -712,12 +713,9 @@ struct TMOP_PMESH_OPTIMIZER
       }
       if (myid == 0 && dim == 3)
       {
-         cout << "Tetrahedron quadrature points: "
-              << irules->Get(Geometry::TETRAHEDRON, quad_order).GetNPoints()
-              << "\nHexahedron quadrature points: "
+         cout << "Hexahedron quadrature points: "
               << irules->Get(Geometry::CUBE, quad_order).GetNPoints()
-              << "\nPrism quadrature points: "
-              << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
+              << endl;
       }
 
       // Limit the node movement.
@@ -888,7 +886,7 @@ struct TMOP_PMESH_OPTIMIZER
          }
       }
 #else
-      static Vector x_out_loc(pfespace->GetVSize());
+      Vector x_out_loc(pfespace->GetVSize());
       pfespace->GetProlongationMatrix()->Mult(x->GetTrueVector(), x_out_loc);
       tauval = dim == 2 ? solver->MinDetJpr_2D(pfespace,x_out_loc):
                dim == 3 ? solver->MinDetJpr_3D(pfespace,x_out_loc): -1.0;
@@ -1107,7 +1105,6 @@ struct TMOP_PMESH_OPTIMIZER
       int device_tag  = 0; //gpu
       const double fin_energy = a->GetParGridFunctionEnergy(*x) /
                                 (hradaptivity ? pmesh->GetGlobalNE() : 1);
-      if (strcmp(devopt,"cpu")==0) { device_tag = 1; } //not gpu
       if (myid == 0)
       {
          std::cout << "Monitoring info      :" << endl
@@ -1133,7 +1130,6 @@ struct TMOP_PMESH_OPTIMIZER
                    << "Device Tag (0 for gpu, 1 otherwise):" << device_tag << endl
                    << " Final energy: " << fin_energy << endl;
 
-
          std::cout << "run_info: " << std::setprecision(4) << " "
                    << rs_levels << " "
                    << mesh_poly_deg << " " << quad_order << " "
@@ -1149,8 +1145,8 @@ struct TMOP_PMESH_OPTIMIZER
                    << (gradtime*100/solvertime) << " "
                    << (prectime*100/solvertime) << " "
                    << (processnewstatetime*100/solvertime) << " "
-                   << (scalefactortime*100/solvertime) << " " <<
-                   device_tag << " " << fin_energy << endl;
+                   << (scalefactortime*100/solvertime) << " "
+                   << fin_energy << endl;
       }
 
       // Compute the final energy of the functional.
@@ -1241,7 +1237,7 @@ Initial strain energy: 3.6153e+02 = metrics: 3.6153e+02 + extra terms: 0.0000e+0
 Final strain energy: 3.6153e+02 = metrics: 3.6153e+02 + extra terms: 0.0000e+00
 The strain energy decreased by: 1.3211e-05 %.
  * */
-#define P_ORDERS bm::CreateDenseRange(1,1,1)
+#define P_ORDERS bm::CreateDenseRange(1,2,1)
 #define P_REFINE bm::CreateDenseRange(1,1,1)
 
 static void TmopPMeshOptimizerBenchmark(bm::State &state)
@@ -1251,38 +1247,59 @@ static void TmopPMeshOptimizerBenchmark(bm::State &state)
    dbg("order:%d serial_refine:%d",order,serial_refine);
    TMOP_PMESH_OPTIMIZER tmop_pmesh_optimizer(order,serial_refine);
    while (state.KeepRunning()) { tmop_pmesh_optimizer.Mult(); }
+   const double solvertime = tmop_pmesh_optimizer.TimeSolver.RealTime();
+   state.counters["MPI"] = bm::Counter(tmop_pmesh_optimizer.num_procs);
+   state.counters["SolverTime"] = bm::Counter(solvertime);
+   state.counters["P"] = bm::Counter(order);
    tmop_pmesh_optimizer.Postfix();
-   //const bm::Counter::Flags isRate = bm::Counter::kIsRate;
 }
 BENCHMARK(TmopPMeshOptimizerBenchmark)\
 -> ArgsProduct( {P_ORDERS,P_REFINE})\
 -> Unit(bm::kMillisecond)\
-   -> Iterations(1);
+   -> Iterations(10);
 
 int main(int argc, char *argv[])
 {
-   int myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+#ifdef MFEM_USE_MPI
+   mfem::MPI_Session main_mpi(argc, argv);
+   mpi = &main_mpi;
+#endif
 
-#ifndef MFEM_USE_BENCHMARK
-   tmop_pmesh_optimizer->Mult();
-#else
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);
+
+   // Device setup, cpu by default
+   std::string config_device = "cpu:fast";
+
+   if (bmi::global_context != nullptr)
+   {
+      bmi::FindInContext("dev", config_device); // dev=cuda
+      bmi::FindInContext("ndev", config_dev_size); // ndev=4
+   }
+
+   const int mpi_rank = mpi->WorldRank();
+   const int mpi_size = mpi->WorldSize();
+   const int dev = config_dev_size > 0 ? mpi_rank % config_dev_size : 0;
+   dbg("[MPI] rank: %d/%d, using device #%d", 1+mpi_rank, mpi_size, dev);
+
+   Device device(config_device.c_str(), dev);
+   if (mpi->Root()) { device.Print(); }
+
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
 
-   if (myid==0) { bm::RunSpecifiedBenchmarks(&CR); }
+#ifndef MFEM_USE_MPI
+   bm::RunSpecifiedBenchmarks(&CR);
+#else
+   if (mpi->Root()) { bm::RunSpecifiedBenchmarks(&CR); }
    else
    {
       // No display_reporter and file_reporter
       bm::BenchmarkReporter *file_reporter = NoReporter();
       bm::BenchmarkReporter *display_reporter = NoReporter();
-      bm::RunSpecifiedBenchmarks(display_reporter, file_reporter);
+      //bm::RunSpecifiedBenchmarks(display_reporter, file_reporter);
+      bm::RunSpecifiedBenchmarks(NoReporter());
    }
-#endif // MFEM_USE_BENCHMARK
-
-   MPI_Finalize();
+#endif // MFEM_USE_MPI
    return 0;
 }
 
