@@ -51,6 +51,7 @@ struct TMOP_PMESH_OPTIMIZER
    const double surface_fit_const = 0.0;
    const int quad_type         = 1;           // -qt 1
    /*const*/ int quad_order    = 0;           // -qo 0
+   int hexahedron_quad_points  = 0;
    const int solver_type       = 0;           // -st 0
    const int solver_iter       = 1;           // -ni 1
    const double solver_rtol    = 1e-10;
@@ -63,7 +64,7 @@ struct TMOP_PMESH_OPTIMIZER
    int h_metric_id             = -1;
    const bool normalization    = false;
    const bool visualization    = false;
-   const int verbosity_level   = 2;           // -vl 2
+   const int verbosity_level   = 0;           // -vl 2
    const bool fdscheme         = false;
    const int adapt_eval        = 0;
    const bool exactaction      = false;
@@ -117,7 +118,7 @@ struct TMOP_PMESH_OPTIMIZER
 #warning quad_order set from command line
       // quad_order = mesh_poly_deg + 4;
       // quad_order = 8;
-      // quad_order = mesh_poly_deg * 2;
+      quad_order = mesh_poly_deg * 2;
 
       // 3. Initialize and refine the starting mesh.
       Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -171,7 +172,7 @@ struct TMOP_PMESH_OPTIMIZER
       {
          if (myid == 0)
          {
-            cout << "Non-Cartesian partitioning through METIS will be used.\n";
+            dbg("Non-Cartesian partitioning through METIS will be used.");
 #ifndef MFEM_USE_METIS
             cout << "MFEM was built without METIS. "
                  << "Adjust the number of tasks to use a Cartesian split." << endl;
@@ -711,12 +712,13 @@ struct TMOP_PMESH_OPTIMIZER
               << "\nQuadrilateral quadrature points: "
               << irules->Get(Geometry::SQUARE, quad_order).GetNPoints() << endl;
       }
-      if (myid == 0 && dim == 3)
+      hexahedron_quad_points =
+         irules->Get(Geometry::CUBE, quad_order).GetNPoints();
+      /*if (myid == 0 && dim == 3)
       {
          cout << "Hexahedron quadrature points: "
-              << irules->Get(Geometry::CUBE, quad_order).GetNPoints()
-              << endl;
-      }
+              << hexahedron_quad_points << endl;
+      }*/
 
       // Limit the node movement.
       // The limiting distances can be given by a general function of space.
@@ -896,8 +898,9 @@ struct TMOP_PMESH_OPTIMIZER
       double minJ0;
       MPI_Allreduce(&tauval, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
       tauval = minJ0;
-      if (myid == 0)
-      { cout << "Minimum det(J) of the original mesh is " << tauval << endl; }
+
+      /*if (myid == 0)
+      { cout << "Minimum det(J) of the original mesh is " << tauval << endl; }*/
 
       if (tauval < 0.0 && metric_id != 22 && metric_id != 211 && metric_id != 252
           && metric_id != 311 && metric_id != 313 && metric_id != 352)
@@ -1237,21 +1240,23 @@ Initial strain energy: 3.6153e+02 = metrics: 3.6153e+02 + extra terms: 0.0000e+0
 Final strain energy: 3.6153e+02 = metrics: 3.6153e+02 + extra terms: 0.0000e+00
 The strain energy decreased by: 1.3211e-05 %.
  * */
-#define P_ORDERS bm::CreateDenseRange(1,2,1)
+#define P_ORDERS bm::CreateDenseRange(1,4,1)
 #define P_REFINE bm::CreateDenseRange(1,1,1)
 
 static void TmopPMeshOptimizerBenchmark(bm::State &state)
 {
    const int order = state.range(0);
    const int serial_refine = state.range(1);
-   dbg("order:%d serial_refine:%d",order,serial_refine);
+   //dbg("order:%d serial_refine:%d",order,serial_refine);
    TMOP_PMESH_OPTIMIZER tmop_pmesh_optimizer(order,serial_refine);
    while (state.KeepRunning()) { tmop_pmesh_optimizer.Mult(); }
    const double solvertime = tmop_pmesh_optimizer.TimeSolver.RealTime();
    state.counters["MPI"] = bm::Counter(tmop_pmesh_optimizer.num_procs);
-   state.counters["SolverTime"] = bm::Counter(solvertime);
+   state.counters["T"] = bm::Counter(solvertime);
    state.counters["P"] = bm::Counter(order);
-   tmop_pmesh_optimizer.Postfix();
+   const int quad_points = tmop_pmesh_optimizer.hexahedron_quad_points;
+   state.counters["Q"] = bm::Counter(quad_points);
+   //tmop_pmesh_optimizer.Postfix();
 }
 BENCHMARK(TmopPMeshOptimizerBenchmark)\
 -> ArgsProduct( {P_ORDERS,P_REFINE})\
