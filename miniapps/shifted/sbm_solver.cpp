@@ -1083,7 +1083,8 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
       }
 
       double n_dot_ntilde = nor*Nhat;
-      wrk.Set(n_dot_ntilde*w, shape); //<w, (nhat.n)t_n)
+      wrk.Set(n_dot_ntilde*w, shape);
+      //<w, (nhat.n)t_n)
       temp_elvect.Add(1., wrk);
    }
 }
