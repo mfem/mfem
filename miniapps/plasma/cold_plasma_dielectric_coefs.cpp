@@ -1178,6 +1178,20 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
          return pmax - (pmax - pmin) * r;
       }
+      break;
+      case PEDESTAL:
+      {
+	 double pmin = p_[0];
+	 double pmax = p_[1];
+	 double lambda_n = p_[2]; // Damping length
+	 double nu = p_[3]; // Strength of decline
+	 Vector x0(&p_[4], 3);
+
+	 x_ -= x0;
+	 //double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+	 return (pmax - pmin) * pow(cosh(pow((x_[0] / lambda_n), nu)), -1.0) + pmin;
+      }
+      break;
       default:
          return 0.0;
    }
