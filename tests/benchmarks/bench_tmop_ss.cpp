@@ -168,6 +168,10 @@ struct TMOP_PMESH_OPTIMIZER
             unit = static_cast<int>(floor(pow(num_procs / 64, 1.0 / 3) + 1e-2));
             nxyz[0] = 4 * unit; nxyz[1] = 4 * unit; nxyz[2] = 4 * unit;
             break;
+         case 844: // 3D, 128 ranks
+            unit = static_cast<int>(floor(pow(num_procs / 128, 1.0 / 3) + 1e-2));
+            nxyz[0] = 8 * unit; nxyz[1] = 4 * unit; nxyz[2] = 4 * unit;
+            break;
          case 884: // 3D, 256 ranks
             unit = static_cast<int>(floor(pow(num_procs / 256, 1.0 / 3) + 1e-2));
             nxyz[0] = 8 * unit; nxyz[1] = 8 * unit; nxyz[2] = 4 * unit;
