@@ -2865,7 +2865,7 @@ private:
 
 public:
    Gaussian1D(double a, double b, double p0, double v, int comp)
-     : comp_(comp), p0_(p0), v_(v), a_(a), b_(b) {}
+      : comp_(comp), p0_(p0), v_(v), a_(a), b_(b) {}
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
@@ -3163,6 +3163,62 @@ public:
    }
 };
 
+/* An exact solution to Burger's equation for testing the ion momentum equation.
+
+   Using any solution to the heat equation, u, we can build a solution to
+   Burger's equation by forming the ratio -kappa (du/dx)/u, where kappa is the
+   diffusion constant.
+
+   For this test we take:
+      u = 1 + sum_i alpha_i cos(2 pi x/lambda_i) exp(-kappa (2pi/lambda_i)^2 t)
+   for i = 1 and 2.
+
+   Clearly shorter wavelengths will decay more rapidly. Note that zeros in u
+   will lead to singularities in the above ratio. Consequently, it would be
+   wise to choose sum_i |alpha_i| < 1.
+*/
+class BurgersEqnTestSol : public Coefficient
+{
+private:
+   const double alpha1_;
+   const double alpha2_;
+   const double kappa_;
+   const double kx1_;
+   const double kx2_;
+   const double sigma1_;
+   const double sigma2_;
+
+   mutable Vector x_;
+
+public:
+   BurgersEqnTestSol(double alpha1, double lambda1,
+                     double alpha2, double lambda2, double kappa)
+      : alpha1_(alpha1),
+        alpha2_(alpha2),
+        kappa_(kappa),
+        kx1_(2.0 * M_PI / lambda1),
+        kx2_(2.0 * M_PI / lambda2),
+        sigma1_(kappa * kx1_ * kx1_),
+        sigma2_(kappa * kx2_ * kx2_),
+        x_(2)
+   {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      double e1 = exp(-sigma1_ * time);
+      double e2 = exp(-sigma2_ * time);
+      double s1 = sin(kx1_ * x_[0]);
+      double s2 = sin(kx2_ * x_[0]);
+      double c1 = cos(kx1_ * x_[0]);
+      double c2 = cos(kx2_ * x_[0]);
+
+      return kappa_ * (kx1_ * alpha1_ * s1 * e1 + kx2_ * alpha2_ * s2 * e2) /
+             (1.0 + alpha1_ * c1 * e1 + alpha2_ * c2 * e2);
+   }
+};
+
 Coefficient *
 Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 {
@@ -3281,6 +3337,12 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       double ra, rb, d_perp, a_perp;
       input >> ra >> rb >> d_perp >> a_perp;
       coef_idx = sCoefs.Append(new AnnularTestSrc(ra, rb, d_perp, a_perp));
+   }
+   else if (name == "BurgersEqnTestSol")
+   {
+      double a1, l1, a2, l2, k;
+      input >> a1 >> l1 >> a2 >> l2 >> k;
+      coef_idx = sCoefs.Append(new BurgersEqnTestSol(a1, l1, a2, l2, k));
    }
    else
    {
