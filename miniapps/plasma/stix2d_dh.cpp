@@ -301,13 +301,17 @@ private:
     Any number of straps can be supported but the straps are assumed
     to be rectangular and aligned with the x and y axes..
     Each strap requires 6 parameters:
-      x0: x-position of the left hand side of the strap
-      x1: x-position of the right hand side of the strap
-      y0: y-position of the bottom side of the strap
-      y1: y-position of the top side of the strap
+      x0: x-position of the first corner of the strap
+      y0: y-position of the first corner of the strap
+      x1: x-position of the second corner of the strap
+      y1: y-position of the second corner of the strap
+      x2: "
+      y2: "
+      x3: "
+      y3: "
       Re(I): Real part of the current in the strap
       Im(I): Imaginary part of the current in the strap
-    The parameters should be grouped by strap so that the six params
+    The parameters should be grouped by strap so that the ten params
     for strap 1 are first then the six for strap 2, etc..
 */
 class MultiStrapAntennaH : public VectorCoefficient
@@ -325,7 +329,7 @@ public:
       : VectorCoefficient(3), real_part_(real_part), num_straps_(n),
         tol_(tol), params_(params), x_(2)
    {
-      MFEM_ASSERT(params.Size() == 6 * n,
+      MFEM_ASSERT(params.Size() == 10 * n,
                   "Incorrect number of parameters provided to "
                   "MultiStrapAntennaH");
    }
@@ -337,29 +341,67 @@ public:
       T.Transform(ip, x_);
       for (int i=0; i<num_straps_; i++)
       {
-         double x0  = params_[6 * i + 0];
-         double x1  = params_[6 * i + 1];
-         double y0  = params_[6 * i + 2];
-         double y1  = params_[6 * i + 3];
-         double ReI = params_[6 * i + 4];
-         double ImI = params_[6 * i + 5];
-         double   H = 0.5 * (real_part_ ? ReI : ImI) / (x1 - x0 + y1 - y0);
-         if (fabs(x_[1] - y0) <= tol_ && x_[0] >= x0 && x_[0] <= x1)
-         {
-            V[0] = H; break;
-         }
-         else if (fabs(x_[0] - x1) <= tol_ && x_[1] >= y0 && x_[1] <= y1)
-         {
-            V[1] = H; break;
-         }
-         else if (fabs(x_[1] - y1) <= tol_ && x_[0] >= x0 && x_[0] <= x1)
-         {
-            V[0] = -H; break;
-         }
-         else if (fabs(x_[0] - x0) <= tol_ && x_[1] >= y0 && x_[1] <= y1)
-         {
-            V[1] = -H; break;
-         }
+          double x0  = params_[10 * i + 0];
+          double y0  = params_[10 * i + 1];
+          double x1  = params_[10 * i + 2];
+          double y1  = params_[10 * i + 3];
+          double x2  = params_[10 * i + 4];
+          double y2  = params_[10 * i + 5];
+          double x3  = params_[10 * i + 6];
+          double y3  = params_[10 * i + 7];
+
+          double ReI = params_[10 * i + 8];
+          double ImI = params_[10 * i + 9];
+
+          double d01 = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2));
+          double d12 = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
+          double d23 = sqrt(pow(x3 - x2, 2) + pow(y3 - y2, 2));
+          double d30 = sqrt(pow(x0 - x3, 2) + pow(y0 - y3, 2));
+
+          double   H = (real_part_ ? ReI : ImI) / (d01 + d12 + d23 + d30);
+          
+          // *** The following will break on any vertical sides ***
+           // Bottom of Antenna Strap:
+           double s1 = (y1-y0)/(x1-x0);
+           double b1 = y1 - s1*x1;
+           // Right of Antenna Strap:
+           double s2 = (y2-y1)/(x2-x1);
+           double b2 = y2 - s2*x2;
+           // Top of Antenna Strap:
+           double s3 = (y3-y2)/(x3-x2);
+           double b3 = y3 - s3*x3;
+           // Left of Antenna Strap:
+           double s4 = (y3-y0)/(x3-x0);
+           double b4 = y3 - s4*x3;
+
+           if (fabs(x_[1] - (s1*x_[0]+b1)) <= tol_
+               && x_[0] >= x0 && x_[0] <= x1)
+           {
+              V[0] = (x1 - x0) * H / d01;
+              V[1] = (y1 - y0) * H / d01;
+              break;
+           }
+           else if (fabs(x_[1] - (s2*x_[0]+b2)) <= tol_
+                    && x_[1] >= y1 && x_[1] <= y2)
+           {
+              V[0] = (x2 - x1) * H / d12;
+              V[1] = (y2 - y1) * H / d12;
+              break;
+           }
+           else if (fabs(x_[1] - (s3*x_[0]+b3)) <= tol_
+                    && x_[0] >= x3 && x_[0] <= x2)
+           {
+              V[0] = (x3 - x2) * H / d23;
+              V[1] = (y3 - y2) * H / d23;
+              break;
+           }
+           else if (fabs(x_[1] - (s4*x_[0]+b4)) <= tol_
+                    && x_[1] >= y0 && x_[1] <= y3)
+           {
+              V[0] = (x0 - x3) * H / d30;
+              V[1] = (y0 - y3) * H / d30;
+              break;
+           }
       }
    }
 };
@@ -373,6 +415,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
+            Coefficient & xposCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
@@ -380,7 +423,8 @@ void Update(ParFiniteElementSpace & H1FESpace,
             BlockVector & density,
             BlockVector & temperature,
             ParGridFunction & density_gf,
-            ParGridFunction & temperature_gf);
+            ParGridFunction & temperature_gf,
+            ParGridFunction & xposition_gf);
 
 //static double freq_ = 1.0e9;
 
@@ -431,13 +475,17 @@ int main(int argc, char *argv[])
    Vector temps;
    Vector minority;
    Vector temp_charges;
+   double xpositions = 0;
 
    PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type xpt = PlasmaProfile::GRADIENT;
    BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
    Vector bpp;
+   Vector xpp(7);
+   xpp = 0.0; xpp(4) = 1.0;
    int nuprof = 0;
 
    Array<int> abcs; // Absorbing BC attributes
@@ -938,15 +986,15 @@ int main(int argc, char *argv[])
    {
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
-      std::complex<double> S = S_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> S = S_cold_plasma(omega, Bmag, xpositions, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> P = P_cold_plasma(omega, numbers,
+      std::complex<double> P = P_cold_plasma(omega, xpositions, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> D = D_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> D = D_cold_plasma(omega, Bmag, xpositions, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> R = R_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> R = R_cold_plasma(omega, Bmag, xpositions, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> L = L_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> L = L_cold_plasma(omega, Bmag, xpositions, numbers,
                                              charges, masses, temps, nuprof);
 
       cout << "\nConvenient Terms:\n";
@@ -1075,7 +1123,11 @@ int main(int argc, char *argv[])
    ParGridFunction BField(&HDivFESpace);
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
-
+   ParGridFunction xposition_gf(&H1FESpace);
+    
+   PlasmaProfile xposCoef(xpt, xpp);
+   xposition_gf.ProjectCoefficient(xposCoef);
+    
    BFieldProfile BCoef(bpt, bpp, false);
    BField.ProjectCoefficient(BCoef);
 
@@ -1132,15 +1184,15 @@ int main(int argc, char *argv[])
    Coefficient * etaCoef = SetupImpedanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
-   InverseDielectricTensor epsilonInv_real(BField, density, temperature,
+   InverseDielectricTensor epsilonInv_real(BField, xposition_gf, density, temperature,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            true);
-   InverseDielectricTensor epsilonInv_imag(BField, density, temperature,
+   InverseDielectricTensor epsilonInv_imag(BField, xposition_gf, density, temperature,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            false);
-   SPDDielectricTensor epsilon_abs(BField, density, temperature,
+   SPDDielectricTensor epsilon_abs(BField, xposition_gf, density, temperature,
                                    L2FESpace, H1FESpace,
                                    omega, charges, masses, nuprof);
    SheathImpedance z_r(BField, density, temperature,
@@ -1165,10 +1217,10 @@ int main(int argc, char *argv[])
 
    if (check_eps_inv)
    {
-      DielectricTensor epsilon_real(BField, density, temperature,
+      DielectricTensor epsilon_real(BField, xposition_gf, density, temperature,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, true);
-      DielectricTensor epsilon_imag(BField, density, temperature,
+      DielectricTensor epsilon_imag(BField, xposition_gf, density, temperature,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, false);
       DenseMatrix epsInvRe(3,3);
@@ -1730,11 +1782,11 @@ int main(int argc, char *argv[])
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
       Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-             rhoCoef, tempCoef,
+             rhoCoef, tempCoef, xposCoef,
              size_h1, size_l2,
              density_offsets, temperature_offsets,
              density, temperature,
-             density_gf, temperature_gf);
+             density_gf, temperature_gf, xposition_gf);
       CPD.Update();
 
       if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
@@ -1744,11 +1796,11 @@ int main(int argc, char *argv[])
 
          // Update again after rebalancing
          Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-                rhoCoef, tempCoef,
+                rhoCoef, tempCoef, xposCoef,
                 size_h1, size_l2,
                 density_offsets, temperature_offsets,
                 density, temperature,
-                density_gf, temperature_gf);
+                density_gf, temperature_gf, xposition_gf);
          CPD.Update();
       }
    }
@@ -1775,6 +1827,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
+            Coefficient & xposCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
@@ -1782,7 +1835,8 @@ void Update(ParFiniteElementSpace & H1FESpace,
             BlockVector & density,
             BlockVector & temperature,
             ParGridFunction & density_gf,
-            ParGridFunction & temperature_gf)
+            ParGridFunction & temperature_gf,
+            ParGridFunction & xposition_gf)
 {
    H1FESpace.Update();
    HCurlFESpace.Update();
@@ -1791,6 +1845,9 @@ void Update(ParFiniteElementSpace & H1FESpace,
 
    BField.Update();
    BField.ProjectCoefficient(BCoef);
+    
+   xposition_gf.Update();
+   xposition_gf.ProjectCoefficient(xposCoef);
 
    size_l2 = L2FESpace.GetVSize();
    for (int i=1; i<density_offsets.Size(); i++)
@@ -2060,12 +2117,14 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
 
    beta_r_ = 0.0;
    beta_i_ = 0.0;
+    
+   double xpositions_ = 0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   S_ = S_cold_plasma(omega_, Bmag_, xpositions_, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   D_ = D_cold_plasma(omega_, Bmag_, xpositions_, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_, nuprof_);
+   P_ = P_cold_plasma(omega_, xpositions_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {
@@ -2304,12 +2363,14 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
 
    beta_r_ = 0.0;
    beta_i_ = 0.0;
+    
+   double xpositions_ = 0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   S_ = S_cold_plasma(omega_, Bmag_, xpositions_, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   D_ = D_cold_plasma(omega_, Bmag_, xpositions_, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_, nuprof_);
+   P_ = P_cold_plasma(omega_, xpositions_, numbers_, charges_, masses_, temps_, nuprof_);
 
    switch (type_)
    {
