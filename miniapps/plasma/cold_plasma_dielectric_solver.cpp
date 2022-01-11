@@ -576,25 +576,26 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    rhsrCoef_ = new ScalarVectorProductCoefficient(-omega_, *jiCoef_);
    rhsiCoef_ = new ScalarVectorProductCoefficient(omega_, *jrCoef_);
 
-   if (nbcs_->Size() > 0)
-   {
-      nkbcs_ = new Array<ComplexVectorCoefficientByAttr*>(nbcs_->Size());
-      for (int i=0; i<nbcs_->Size(); i++)
-      {
-         (*nkbcs_)[i]->attr = (*nbcs_)[i]->attr;
-         (*nkbcs_)[i]->attr_marker.SetSize(pmesh.bdr_attributes.Max());
-         (*nkbcs_)[i]->attr_marker = 0;
-         for (int j=0; j<(*nbcs_)[i]->attr.Size(); j++)
-         {
-            (*nkbcs_)[i]->attr_marker[(*nbcs_)[i]->attr[j] - 1] = 1;
-         }
+    if (nbcs_->Size() > 0)
+    {
+       nkbcs_ = new Array<ComplexVectorCoefficientByAttr*>(nbcs_->Size());
+       for (int i=0; i<nbcs_->Size(); i++)
+       {
+          nkbcs_[i] = new ComplexVectorCoefficientByAttr;
+          (*nkbcs_)[i]->attr = (*nbcs_)[i]->attr;
+          (*nkbcs_)[i]->attr_marker.SetSize(pmesh.bdr_attributes.Max());
+          (*nkbcs_)[i]->attr_marker = 0;
+          for (int j=0; j<(*nbcs_)[i]->attr.Size(); j++)
+          {
+             (*nkbcs_)[i]->attr_marker[(*nbcs_)[i]->attr[j] - 1] = 1;
+          }
 
-         (*nkbcs_)[i]->real =
-            new ScalarVectorProductCoefficient(omega_, *(*nbcs_)[i]->imag);
-         (*nkbcs_)[i]->imag =
-            new ScalarVectorProductCoefficient(-omega_, *(*nbcs_)[i]->real);
-      }
-   }
+          (*nkbcs_)[i]->real =
+             new ScalarVectorProductCoefficient(-omega_, *(*nbcs_)[i]->imag);
+          (*nkbcs_)[i]->imag =
+             new ScalarVectorProductCoefficient(omega_, *(*nbcs_)[i]->real);
+       }
+    }
    /*
    // Magnetization
    if ( m_src_ != NULL )
