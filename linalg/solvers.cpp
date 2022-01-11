@@ -3259,13 +3259,13 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 {
    double global_sum = v.Sum();
    int global_size   = v.Size();
-#ifdef MFEM_USE_MPI
    if (parallel)
    {
+#ifdef MFEM_USE_MPI
       MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
       MPI_Allreduce(MPI_IN_PLACE, &global_size, 1, MPI_INT, MPI_SUM, mycomm);
-   }
 #endif
+   }
 
    double ratio = global_sum / static_cast<double>(global_size);
    v_ortho.SetSize(v.Size());
