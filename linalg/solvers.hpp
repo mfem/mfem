@@ -954,9 +954,17 @@ public:
 class OrthoSolver : public Solver
 {
 private:
+#ifdef MFEM_USE_MPI
    MPI_Comm mycomm;
+#endif
+
+   const bool parallel;
+
 public:
+   OrthoSolver();
+#ifdef MFEM_USE_MPI
    OrthoSolver(MPI_Comm mycomm_);
+#endif
 
    virtual void SetOperator(const Operator &op);
 
