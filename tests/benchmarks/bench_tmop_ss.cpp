@@ -28,6 +28,7 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 static MPI_Session *mpi = nullptr;
 static int config_dev_size = 4; // default 4 GPU per node
+static int config_partition_type = 111;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct TMOP_PMESH_OPTIMIZER
@@ -75,7 +76,6 @@ struct TMOP_PMESH_OPTIMIZER
    const bool benchmark        = true;        // -bm
    const int  benchmarkid      = 2;           // -bm_id 2
    const double ls_scale       = 1e-7;        // -scale 1.e-7
-   const int partition_type    = 111;         // -pt 111
 
    Vector b;
    ParMesh *pmesh = nullptr;
@@ -116,9 +116,10 @@ struct TMOP_PMESH_OPTIMIZER
    {
       if (h_metric_id < 0) { h_metric_id = metric_id; }
 
-#warning quad_order set from command line
+      //#warning quad_order set from command line
       // quad_order = mesh_poly_deg + 4;
       // quad_order = 8;
+#warning quad_order = mesh_poly_deg * 2
       quad_order = mesh_poly_deg * 2;
 
       // 3. Initialize and refine the starting mesh.
@@ -134,33 +135,57 @@ struct TMOP_PMESH_OPTIMIZER
       // Parallel partitioning of the mesh.
       int unit = 1;
       int *nxyz = new int[dim];
-      switch (partition_type)
+      switch (config_partition_type)
       {
          case 0:
             for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
             break;
-         case 11:
-         case 111:
+         case 111: // 3D, 1 ranks
             unit = static_cast<int>(floor(pow(num_procs, 1.0 / dim) + 1e-2));
             for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
             break;
-         case 211: // 3D.
+         case 211: // 3D, 2 ranks
             unit = static_cast<int>(floor(pow(num_procs / 2, 1.0 / 3) + 1e-2));
             nxyz[0] = 2 * unit; nxyz[1] = 1 * unit; nxyz[2] = 1 * unit;
             break;
-         case 221: // 3D.
+         case 221: // 3D, 4 ranks
             unit = static_cast<int>(floor(pow(num_procs / 4, 1.0 / 3) + 1e-2));
             nxyz[0] = 2 * unit; nxyz[1] = 2 * unit; nxyz[2] = 1 * unit;
+            break;
+         case 222: // 3D, 8 ranks
+            unit = static_cast<int>(floor(pow(num_procs / 8, 1.0 / 3) + 1e-2));
+            nxyz[0] = 2 * unit; nxyz[1] = 2 * unit; nxyz[2] = 2 * unit;
+            break;
+         case 422: // 3D, 16 ranks
+            unit = static_cast<int>(floor(pow(num_procs / 16, 1.0 / 3) + 1e-2));
+            nxyz[0] = 4 * unit; nxyz[1] = 2 * unit; nxyz[2] = 2 * unit;
+            break;
+         case 442: // 3D, 32 ranks
+            unit = static_cast<int>(floor(pow(num_procs / 32, 1.0 / 3) + 1e-2));
+            nxyz[0] = 4 * unit; nxyz[1] = 4 * unit; nxyz[2] = 2 * unit;
+            break;
+         case 444: // 3D, 64 ranks
+            unit = static_cast<int>(floor(pow(num_procs / 64, 1.0 / 3) + 1e-2));
+            nxyz[0] = 4 * unit; nxyz[1] = 4 * unit; nxyz[2] = 4 * unit;
+            break;
+         case 884: // 3D, 256 ranks
+            unit = static_cast<int>(floor(pow(num_procs / 256, 1.0 / 3) + 1e-2));
+            nxyz[0] = 8 * unit; nxyz[1] = 8 * unit; nxyz[2] = 4 * unit;
+            break;
+         case 888: // 3D, 512 ranks
+            unit = static_cast<int>(floor(pow(num_procs / 512, 1.0 / 3) + 1e-2));
+            nxyz[0] = 8 * unit; nxyz[1] = 8 * unit; nxyz[2] = 8 * unit;
             break;
          default:
             if (myid == 0)
             {
-               cout << "Unknown partition type: " << partition_type << '\n';
+               cout << "Unknown partition type: " << config_partition_type << '\n';
             }
             delete mesh;
             assert(false);
             return;
       }
+      dbg("unit:%d nxyz:%d%d%d",unit,nxyz[0],nxyz[1],nxyz[2]);
       int product = 1;
       for (int d = 0; d < dim; d++) { product *= nxyz[d]; }
       if (product == num_procs)
@@ -171,6 +196,7 @@ struct TMOP_PMESH_OPTIMIZER
       }
       else
       {
+         assert(false);
          if (myid == 0)
          {
             dbg("Non-Cartesian partitioning through METIS will be used.");
@@ -1242,11 +1268,11 @@ Initial strain energy: 3.6153e+02 = metrics: 3.6153e+02 + extra terms: 0.0000e+0
 Final strain energy: 3.6153e+02 = metrics: 3.6153e+02 + extra terms: 0.0000e+00
 The strain energy decreased by: 1.3211e-05 %.
  * */
-#define MAX_NDOFS 8*1024*1024
+#define MAX_NDOFS 32*1024*1024
 #define P_ORDERS bm::CreateDenseRange(1,4,1)
-#define P_REFINE bm::CreateDenseRange(3,3,1)
+#define P_REFINE bm::CreateDenseRange(1,7,1)
 
-static void TmopPMeshOptimizerBenchmark(bm::State &state)
+static void TMOP_SS(bm::State &state)
 {
    const int order = state.range(0);
    const int serial_refine = state.range(1);
@@ -1264,7 +1290,7 @@ static void TmopPMeshOptimizerBenchmark(bm::State &state)
    state.counters["NDofs"] = bm::Counter(ndofs);
    //tmop_pmesh_optimizer.Postfix();
 }
-BENCHMARK(TmopPMeshOptimizerBenchmark)\
+BENCHMARK(TMOP_SS)\
 -> ArgsProduct( {P_ORDERS,P_REFINE})\
 -> Unit(bm::kMillisecond) -> Iterations(10);
 
@@ -1285,6 +1311,7 @@ int main(int argc, char *argv[])
    {
       bmi::FindInContext("dev", config_device); // dev=cuda
       bmi::FindInContext("ndev", config_dev_size); // ndev=4
+      bmi::FindInContext("nxyz", config_partition_type); // ndev=4
    }
 
    const int mpi_rank = mpi->WorldRank();
@@ -1304,10 +1331,10 @@ int main(int argc, char *argv[])
    else
    {
       // No display_reporter and file_reporter
+      // bm::RunSpecifiedBenchmarks(NoReporter());
       bm::BenchmarkReporter *file_reporter = NoReporter();
       bm::BenchmarkReporter *display_reporter = NoReporter();
-      //bm::RunSpecifiedBenchmarks(display_reporter, file_reporter);
-      bm::RunSpecifiedBenchmarks(NoReporter());
+      bm::RunSpecifiedBenchmarks(display_reporter, file_reporter);
    }
 #endif // MFEM_USE_MPI
    return 0;
