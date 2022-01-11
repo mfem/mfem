@@ -1838,11 +1838,16 @@ void Poly_1D::Basis::EvalIntegrated(const Vector &d_aux, Vector &u) const
    MFEM_VERIFY(etype == Integrated,
                "EvalIntegrated is only valid for Integrated basis type");
    int p = d_aux.Size() - 1;
+   // See Gerritsma, M. (2010).  "Edge functions for spectral element methods",
+   // in Lecture Notes in Computational Science and Engineering, 199--207.
    u[0] = -d_aux[0];
    for (int j=1; j<p; ++j)
    {
       u[j] = u[j-1] - d_aux[j];
    }
+   // If scale_integrated is true, the degrees of freedom represent mean values,
+   // otherwise they represent subcell integrals. Generally, scale_integrated
+   // should be true for MapType::VALUE, and false for other map types.
    if (scale_integrated)
    {
       Vector &aux_nodes = auxiliary_basis->x;
@@ -2395,6 +2400,10 @@ NodalTensorFiniteElement::NodalTensorFiniteElement(const int dims,
 void NodalTensorFiniteElement::SetMapType(const int map_type)
 {
    ScalarFiniteElement::SetMapType(map_type);
+   // If we are using the "integrated" basis, the basis functions should be
+   // scaled for MapType::VALUE, and not scaled for MapType::INTEGRAL. This
+   // ensures spectral equivalence of the mass matrix with its low-order-refined
+   // counterpart (cf. LORDiscretization)
    if (basis1d.IsIntegratedType())
    {
       basis1d.ScaleIntegrated(map_type == VALUE);
