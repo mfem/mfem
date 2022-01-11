@@ -3231,8 +3231,12 @@ void ProductSolver::MultTranspose(const Vector & x, Vector & y) const
    y += S0Tz;
 }
 
+OrthoSolver::OrthoSolver() : Solver(0, true), parallel(false) { }
+
+#ifdef MFEM_USE_MPI
 OrthoSolver::OrthoSolver(MPI_Comm mycomm_) : Solver(0, true),
-   mycomm(mycomm_) {}
+   mycomm(mycomm_), parallel(true) { }
+#endif
 
 void OrthoSolver::SetOperator(const Operator &op)
 {
@@ -3253,13 +3257,15 @@ void OrthoSolver::Mult(const Vector &b, Vector &x) const
 
 void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 {
-   double loc_sum = v.Sum();
-   double global_sum = 0.0;
-   int loc_size = v.Size();
-   int global_size = 0;
-
-   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
-   MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, mycomm);
+   double global_sum = v.Sum();
+   int global_size   = v.Size();
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
+      MPI_Allreduce(MPI_IN_PLACE, &global_size, 1, MPI_INT, MPI_SUM, mycomm);
+   }
+#endif
 
    double ratio = global_sum / static_cast<double>(global_size);
    v_ortho.SetSize(v.Size());
