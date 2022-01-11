@@ -3,8 +3,8 @@ reset
 set encoding iso_8859_15
 set datafile separator '|'
 
-#set terminal png transparent size 3072,2048 truecolor enhanced fontscale 4
-set terminal pdf enhanced linewidth 1.0 color
+set terminal png transparent size 3072,2048 truecolor enhanced fontscale 4
+#set terminal pdf enhanced linewidth 1.0 color
 set size 1,1
 
 set logscale y
