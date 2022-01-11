@@ -983,7 +983,7 @@ public:
       ///@{
       mutable Vector u_aux, d_aux, d2_aux;
       ///@}
-      /// @brief An auxuliary nodal basis used to evaluate the integrated basis.
+      /// @brief An auxiliary nodal basis used to evaluate the integrated basis.
       /// This member variable is NULL whenever etype != Integrated.
       Basis *auxiliary_basis;
       /// Should the integrated basis functions be scaled? See ScaleIntegrated.
@@ -1003,7 +1003,7 @@ public:
       /// @brief Evaluate the "integrated" basis type using pre-computed closed
       /// basis derivatives.
       ///
-      /// This basis  is given by the negative partial sum of the corresponding
+      /// This basis is given by the negative partial sum of the corresponding
       /// closed basis derivatives. The closed basis derivatives are given by @a
       /// d, and the result is stored in @a i.
       void EvalIntegrated(const Vector &d, Vector &i) const;
