@@ -944,6 +944,32 @@ public:
    virtual void SetOperator(const Operator &op) { }
 };
 
+/// Solver wrapper which orthogonalizes the input and output vector
+/**
+ * OrthoSolver wraps an existing Operator and orthogonalizes the input vector
+ * before passing it to the Mult method of the Operator. This is a convenience
+ * implementation to handle e.g. a Poisson problem with pure Neumann boundary
+ * conditions, where this procedure removes the Nullspace.
+ */
+class OrthoSolver : public Solver
+{
+private:
+   MPI_Comm mycomm;
+public:
+   OrthoSolver(MPI_Comm mycomm_);
+
+   virtual void SetOperator(const Operator &op);
+
+   void Mult(const Vector &b, Vector &x) const;
+
+private:
+   const Operator *oper = nullptr;
+
+   mutable Vector b_ortho;
+
+   void Orthogonalize(const Vector &v, Vector &v_ortho) const;
+};
+
 #ifdef MFEM_USE_MPI
 /** This smoother does relaxations on an auxiliary space (determined by a map
     from the original space to the auxiliary space provided by the user).
