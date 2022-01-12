@@ -966,7 +966,7 @@ void DiffusionIntegrator::ComputeElementFlux
 ( const FiniteElement &el, ElementTransformation &Trans,
   Vector &u, const FiniteElement &fluxelem, Vector &flux, bool with_coef )
 {
-   int i, j, nd, spaceDim, fnd;
+   int nd, spaceDim, fnd;
 
    nd = el.GetDof();
    dim = el.GetDim();
@@ -1005,7 +1005,7 @@ void DiffusionIntegrator::ComputeElementFlux
    fnd = ir.GetNPoints();
    flux.SetSize( fnd * spaceDim );
 
-   for (i = 0; i < fnd; i++)
+   for (int i = 0; i < fnd; i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
       el.CalcDShape(ip, dshape);
@@ -1023,7 +1023,7 @@ void DiffusionIntegrator::ComputeElementFlux
             {
                vecdxt *= Q->Eval(Trans,ip);
             }
-            for (j = 0; j < spaceDim; j++)
+            for (int j = 0; j < spaceDim; j++)
             {
                flux(fnd*j+i) = vecdxt(j);
             }
@@ -1038,12 +1038,12 @@ void DiffusionIntegrator::ComputeElementFlux
             else
             {
                VQ->Eval(D, Trans, ip);
-               for (j=0; j<spaceDim; ++j)
+               for (int j=0; j<spaceDim; ++j)
                {
                   pointflux[j] = D[j] * vecdxt[j];
                }
             }
-            for (j = 0; j < spaceDim; j++)
+            for (int j = 0; j < spaceDim; j++)
             {
                flux(fnd*j+i) = pointflux(j);
             }
@@ -1051,7 +1051,7 @@ void DiffusionIntegrator::ComputeElementFlux
       }
       else
       {
-         for (j = 0; j < spaceDim; j++)
+         for (int j = 0; j < spaceDim; j++)
          {
             flux(fnd*j+i) = vecdxt(j);
          }
@@ -2947,13 +2947,13 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
                                            FaceElementTransformations &Trans,
                                            DenseMatrix &elmat)
 {
-   int dim1, ndof1, ndof2;
+   int ndof1, ndof2;
 
    double un, a, b, w;
 
-   dim1 = el1.GetDim();
+   dim = el1.GetDim();
    ndof1 = el1.GetDof();
-   Vector vu(dim1), nor(dim1);
+   Vector vu(dim), nor(dim);
 
    if (Trans.Elem2No >= 0)
    {
@@ -3004,7 +3004,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
 
       u->Eval(vu, *Trans.Elem1, eip1);
 
-      if (dim1 == 1)
+      if (dim == 1)
       {
          nor(0) = 2*eip1.x - 1.0;
       }
