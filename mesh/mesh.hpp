@@ -1345,6 +1345,20 @@ public:
       }
 
       /// @brief Return true if the face is a ghost non-conforming slave face.
+      bool IsLocalNonConformingSlave() const
+      {
+         return location==Mesh::FaceLocation::Local &&
+                conformity==Mesh::FaceConformity::NonConformingSlave;
+      }
+
+      /// @brief Return true if the face is a ghost non-conforming master face.
+      bool IsLocalNonConformingMaster() const
+      {
+         return location==Mesh::FaceLocation::Local &&
+                conformity==Mesh::FaceConformity::NonConformingMaster;
+      }
+
+      /// @brief Return true if the face is a ghost non-conforming slave face.
       bool IsSharedNonConformingSlave() const
       {
          return location==Mesh::FaceLocation::Shared &&

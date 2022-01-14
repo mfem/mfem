@@ -1184,7 +1184,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
             else
             {
                face.location = FaceLocation::Shared;
-               face.conformity = FaceConformity::NonConformingMaster;
+               face.conformity = FaceConformity::NonConformingSlave;
                face.elem_2_index = -1 - e2;
                face.elem_2_orientation = inf2%64;
             }
@@ -1204,7 +1204,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
       else
       {
          face.location = FaceLocation::Shared;
-         face.conformity = FaceConformity::NonConformingSlave;
+         face.conformity = FaceConformity::NonConformingMaster;
          face.elem_2_index = -1 - e2;
          face.elem_2_orientation = inf2%64;
       }
@@ -5193,7 +5193,7 @@ int Mesh::GetNFbyType(FaceType type) const
          FaceInformation face = GetFaceInformation(f);
          if ( face.IsOfFaceType(type) )
          {
-            if (face.IsLocal() && face.IsNonConformingMaster())
+            if (face.IsLocalNonConformingMaster())
             {
                // We don't count local non-conforming master faces.
                continue;

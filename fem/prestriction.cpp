@@ -213,7 +213,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      if ( face.IsLocalNonConformingMaster() )
       {
          // We skip local non-conforming master faces as they are treated by the
          // local non-conforming slave faces.
@@ -230,7 +230,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
          else // Non-conforming face
          {
             SetFaceDofsScatterIndices(face, f_ind, ordering);
-            if (face.IsSharedNonConformingSlave())
+            if (face.IsSharedNonConformingMaster())
             {
                // In this case the local face is the master (coarse) face, thus
                // we need to interpolate the values on the slave (fine) face.
@@ -274,7 +274,7 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      if ( face.IsLocalNonConformingMaster() )
       {
          // We skip local non-conforming master faces as they are treated by the
          // local non-conforming slave faces.
@@ -972,7 +972,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      if ( face.IsLocalNonConformingMaster() )
       {
          // We skip local non-conforming master faces as they are treated by the
          // local non-conforming slave faces.
@@ -1049,7 +1049,7 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      if ( face.IsLocalNonConformingMaster() )
       {
          // We skip local non-conforming master faces as they are treated by the
          // local non-conforming slave faces.
