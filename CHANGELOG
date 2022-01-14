@@ -11,6 +11,9 @@
 Version 4.3.1 (development)
 ===========================
 
+- Added a miniapp for PDE-based extrapolation of finite element functions. See
+  miniapps/shifted/extrapolate.cpp.
+
 - Added support for automatic differentiation. Users can select between native
   implementation and external library implementation during configuration. One
   parallel and two serial examples are implemented in the miniapps/autodiff/
