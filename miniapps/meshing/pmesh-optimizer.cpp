@@ -380,15 +380,13 @@ int main (int argc, char *argv[])
          rdm(pfespace->DofToVDof(i,d)) *= h0(i);
       }
    }
+   Array<int> vdofs;
+   for (int i = 0; i < pfespace->GetNBE(); i++)
    {
-      Array<int> vdofs;
-      for (int i = 0; i < pfespace->GetNBE(); i++)
-      {
-         // Get the vector degrees of freedom in the boundary element.
-         pfespace->GetBdrElementVDofs(i, vdofs);
-         // Set the boundary values to zero.
-         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-      }
+      // Get the vector degrees of freedom in the boundary element.
+      pfespace->GetBdrElementVDofs(i, vdofs);
+      // Set the boundary values to zero.
+      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
    }
    x -= rdm;
    // Set the perturbation of all nodes from the true nodes.
@@ -1021,7 +1019,7 @@ int main (int argc, char *argv[])
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
-      Array<int> ess_vdofs(n), vdofs;
+      Array<int> ess_vdofs(n);
       n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
