@@ -13,6 +13,21 @@
 //            Extrapolation Miniapp: PDE-based extrapolation
 //            ------------------------------------------------
 //
+// This miniapp extrapolates a finite element function from a set of elements
+// (known values) to the rest of the domain. The set of elements that contains
+// the known values is specified by the positive values of a level set
+// Coefficient. The known values are not modified. The miniapps supports two
+// PDE-based approaches [1, 2], both of which rely on solving a sequence of
+// advection problems in the direction of the unknown parts of the domain.
+// The extrapolation can be constant (1st order), linear (2nd order), or
+// quadratic (3rd order). These formal orders in for a limited band around
+// the zero level set, see the given reference for more info.
+//
+// [1] Aslam, "A Partial Differential Equation Approach to Multidimensional
+// Extrapolation", JCP 193(1), 2004.
+// [2] Bochkov, Gibou, "PDE-Based Multidimensional Extrapolation of Scalar
+// Fields over Interfaces with Kinks and High Curvatures", SISC 42(4), 2020.
+//
 // Compile with: make extrapolate
 //
 // Sample runs:

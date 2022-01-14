@@ -39,7 +39,7 @@ private:
    void ZeroOutInactiveZones(Vector &dx);
 
 public:
-   // 0 is stanadard HO; 1 is upwind diffusion; 2 is FCT.
+   // HO is standard FE advection solve; LO is upwind diffusion.
    enum AdvectionMode {HO, LO} adv_mode = AdvectionOper::HO;
 
    AdvectionOper(Array<bool> &zones, ParBilinearForm &Mbf,
@@ -50,6 +50,11 @@ public:
    virtual void Mult(const Vector &x, Vector &dx) const;
 };
 
+// Extrapolates through DG advection based on:
+// [1] Aslam, "A Partial Differential Equation Approach to Multidimensional
+// Extrapolation", JCP 193(1), 2004.
+// [2] Bochkov, Gibou, "PDE-Based Multidimensional Extrapolation of Scalar
+// Fields over Interfaces with Kinks and High Curvatures", SISC 42(4), 2020.
 class Extrapolator
 {
 public:
