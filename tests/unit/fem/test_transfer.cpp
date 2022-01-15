@@ -125,19 +125,19 @@ TEST_CASE("transfer")
                      {
                         c_fec = new H1_FECollection(order, dimension);
                         f_fec = (geometric == 1) ? c_fec : new
-                                   H1_FECollection(fineOrder, dimension);
+                                H1_FECollection(fineOrder, dimension);
                      }
                      else if (vectorspace == 2)
                      {
                         c_fec = new ND_FECollection(order+1, dimension);
                         f_fec = (geometric == 1) ? c_fec : new
-                                   ND_FECollection(fineOrder, dimension);
+                                ND_FECollection(fineOrder, dimension);
                      }
                      else
                      {
                         c_fec = new RT_FECollection(order, dimension);
                         f_fec = (geometric == 1) ? c_fec : new
-                                   RT_FECollection(fineOrder, dimension);
+                                RT_FECollection(fineOrder, dimension);
                      }
 
                      Mesh fineMesh(mesh);
@@ -241,10 +241,10 @@ TEST_CASE("variable_order_transfer")
             for (int order = 1; order <= 4; order *= 2)
             {
                std::cout << "Testing variable order transfer:\n"
-                           << "  Vectorspace:    " << vectorspace << "\n"
-                           << "  Dimension:      " << dimension << "\n"
-                           << "  Elements:       " << std::pow(ne, dimension) << "\n"
-                           << "  Coarse order:   " << order << "\n";
+                         << "  Vectorspace:    " << vectorspace << "\n"
+                         << "  Dimension:      " << dimension << "\n"
+                         << "  Elements:       " << std::pow(ne, dimension) << "\n"
+                         << "  Coarse order:   " << order << "\n";
 
                Mesh mesh;
                if (dimension == 2)
@@ -294,7 +294,7 @@ TEST_CASE("variable_order_transfer")
                Operator* referenceOperator = nullptr;
 
                referenceOperator = new PRefinementTransferOperator(*c_fespace,
-                                                                     *f_fespace);
+                                                                   *f_fespace);
 
                TransferOperator testTransferOperator(*c_fespace, *f_fespace);
                GridFunction X(c_fespace);
@@ -354,9 +354,9 @@ TEST_CASE("variable_order_true_transfer")
          for (int order = 1; order <= 3; order++)
          {
             std::cout << "Testing variable order true transfer:\n"
-                        << "  Vectorspace:    " << vectorspace << "\n"
-                        << "  Dimension:      " << dimension << "\n"
-                        << "  Coarse order:   " << order << "\n";
+                      << "  Vectorspace:    " << vectorspace << "\n"
+                      << "  Dimension:      " << dimension << "\n"
+                      << "  Coarse order:   " << order << "\n";
 
             Mesh mesh;
             if (dimension == 2)
@@ -418,7 +418,7 @@ TEST_CASE("variable_order_true_transfer")
             else
             {
                Xc = xc;
-            }  
+            }
             T.Mult(Xc, Xf);
 
             BilinearFormIntegrator * massc=nullptr;
@@ -426,14 +426,14 @@ TEST_CASE("variable_order_true_transfer")
 
             switch (vectorspace)
             {
-            case 0:
-               massc = new MassIntegrator;
-               massf = new MassIntegrator;
-               break;
-            default:
-               massc = new VectorMassIntegrator;   
-               massf = new VectorMassIntegrator;   
-               break;
+               case 0:
+                  massc = new MassIntegrator;
+                  massf = new MassIntegrator;
+                  break;
+               default:
+                  massc = new VectorMassIntegrator;
+                  massf = new VectorMassIntegrator;
+                  break;
             }
 
 
