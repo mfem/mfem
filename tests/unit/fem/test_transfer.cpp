@@ -14,6 +14,25 @@
 
 using namespace mfem;
 
+int RandomPRefinement(FiniteElementSpace & fes)
+{
+   Mesh * mesh = fes.GetMesh();
+   Array<Refinement> refs;
+   int maxorder = fes.GetElementOrder(0);
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      if ((double) rand() / RAND_MAX < 0.5)
+      {
+         int order = fes.GetElementOrder(i) + 1;
+         fes.SetElementOrder(i,order);
+         maxorder = std::max(maxorder,order);
+      }
+   }
+   fes.Update(false);
+   return maxorder;
+}
+
+
 int dimension;
 double coeff(const Vector& x)
 {
@@ -34,6 +53,23 @@ void vectorcoeff(const Vector& x, Vector& y)
    if (dimension == 3)
    {
       y(2) = 2.0 * coeff(x);
+   }
+}
+
+double coeff2(const Vector & X)
+{
+   double x = X[0];
+   double y = X[1];
+   return (1.-x)*x*(1.-y)*y;
+}
+
+void vectorcoeff2(const Vector& x, Vector& y)
+{
+   y(0) = coeff2(x);
+   y(1) = -coeff2(x);
+   if (dimension == 3)
+   {
+      y(2) = 2.0 * coeff2(x);
    }
 }
 
@@ -82,25 +118,25 @@ TEST_CASE("transfer")
                         }
                         mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
                      }
-                     FiniteElementCollection* c_h1_fec = nullptr;
-                     FiniteElementCollection* f_h1_fec = nullptr;
+                     FiniteElementCollection* c_fec = nullptr;
+                     FiniteElementCollection* f_fec = nullptr;
 
                      if (vectorspace < 2)
                      {
-                        c_h1_fec = new H1_FECollection(order, dimension);
-                        f_h1_fec = (geometric == 1) ? c_h1_fec : new
+                        c_fec = new H1_FECollection(order, dimension);
+                        f_fec = (geometric == 1) ? c_fec : new
                                    H1_FECollection(fineOrder, dimension);
                      }
                      else if (vectorspace == 2)
                      {
-                        c_h1_fec = new ND_FECollection(order+1, dimension);
-                        f_h1_fec = (geometric == 1) ? c_h1_fec : new
+                        c_fec = new ND_FECollection(order+1, dimension);
+                        f_fec = (geometric == 1) ? c_fec : new
                                    ND_FECollection(fineOrder, dimension);
                      }
                      else
                      {
-                        c_h1_fec = new RT_FECollection(order, dimension);
-                        f_h1_fec = (geometric == 1) ? c_h1_fec : new
+                        c_fec = new RT_FECollection(order, dimension);
+                        f_fec = (geometric == 1) ? c_fec : new
                                    RT_FECollection(fineOrder, dimension);
                      }
 
@@ -117,33 +153,33 @@ TEST_CASE("transfer")
                         spaceDimension = dimension;
                      }
 
-                     FiniteElementSpace* c_h1_fespace =
-                        new FiniteElementSpace(&mesh, c_h1_fec, spaceDimension);
-                     FiniteElementSpace* f_h1_fespace =
-                        new FiniteElementSpace(&fineMesh, f_h1_fec,spaceDimension);
+                     FiniteElementSpace* c_fespace =
+                        new FiniteElementSpace(&mesh, c_fec, spaceDimension);
+                     FiniteElementSpace* f_fespace =
+                        new FiniteElementSpace(&fineMesh, f_fec,spaceDimension);
 
 
                      Operator* referenceOperator = nullptr;
 
                      if (geometric == 0)
                      {
-                        referenceOperator = new PRefinementTransferOperator(*c_h1_fespace,
-                                                                            *f_h1_fespace);
+                        referenceOperator = new PRefinementTransferOperator(*c_fespace,
+                                                                            *f_fespace);
                      }
                      else
                      {
                         OperatorPtr P(Operator::ANY_TYPE);
-                        f_h1_fespace->GetTransferOperator(*c_h1_fespace, P);
+                        f_fespace->GetTransferOperator(*c_fespace, P);
                         P.SetOperatorOwner(false);
                         referenceOperator = P.Ptr();
                      }
 
-                     TransferOperator testTransferOperator(*c_h1_fespace, *f_h1_fespace);
-                     GridFunction X(c_h1_fespace);
-                     GridFunction X_cmp(c_h1_fespace);
-                     GridFunction Y_exact(f_h1_fespace);
-                     GridFunction Y_std(f_h1_fespace);
-                     GridFunction Y_test(f_h1_fespace);
+                     TransferOperator testTransferOperator(*c_fespace, *f_fespace);
+                     GridFunction X(c_fespace);
+                     GridFunction X_cmp(c_fespace);
+                     GridFunction Y_exact(f_fespace);
+                     GridFunction Y_std(f_fespace);
+                     GridFunction Y_test(f_fespace);
 
                      if (vectorspace == 0)
                      {
@@ -166,31 +202,25 @@ TEST_CASE("transfer")
                      Y_std -= Y_exact;
                      REQUIRE(Y_std.Norml2() < 1e-12 * Y_exact.Norml2());
 
-                     if (vectorspace == 0)
-                     {
-                        testTransferOperator.Mult(X, Y_test);
+                     testTransferOperator.Mult(X, Y_test);
 
-                        Y_test -= Y_exact;
-                        REQUIRE(Y_test.Norml2() < 1e-12 * Y_exact.Norml2());
-                     }
+                     Y_test -= Y_exact;
+                     REQUIRE(Y_test.Norml2() < 1e-12 * Y_exact.Norml2());
 
-                     if (vectorspace == 0)
-                     {
-                        referenceOperator->MultTranspose(Y_exact, X);
-                        testTransferOperator.MultTranspose(Y_exact, X_cmp);
+                     referenceOperator->MultTranspose(Y_exact, X);
+                     testTransferOperator.MultTranspose(Y_exact, X_cmp);
 
-                        X -= X_cmp;
-                        REQUIRE(X.Norml2() < 1e-12 * X_cmp.Norml2());
-                     }
+                     X -= X_cmp;
+                     REQUIRE(X.Norml2() < 1e-12 * X_cmp.Norml2());
 
                      delete referenceOperator;
-                     delete f_h1_fespace;
-                     delete c_h1_fespace;
+                     delete f_fespace;
+                     delete c_fespace;
                      if (geometric == 0)
                      {
-                        delete f_h1_fec;
+                        delete f_fec;
                      }
-                     delete c_h1_fec;
+                     delete c_fec;
                   }
                }
             }
@@ -198,6 +228,251 @@ TEST_CASE("transfer")
       }
    }
 }
+
+
+TEST_CASE("variable_order_transfer")
+{
+   for (int vectorspace = 0; vectorspace <= 3; ++vectorspace)
+   {
+      for (dimension = 2; dimension <= 3; ++dimension)
+      {
+         for (int ne = 1; ne <= 3; ++ne)
+         {
+            for (int order = 1; order <= 4; order *= 2)
+            {
+               std::cout << "Testing variable order transfer:\n"
+                           << "  Vectorspace:    " << vectorspace << "\n"
+                           << "  Dimension:      " << dimension << "\n"
+                           << "  Elements:       " << std::pow(ne, dimension) << "\n"
+                           << "  Coarse order:   " << order << "\n";
+
+               Mesh mesh;
+               if (dimension == 2)
+               {
+                  Element::Type type = Element::QUADRILATERAL;
+                  mesh = Mesh::MakeCartesian2D(ne, ne, type, 1, 1.0, 1.0);
+               }
+               else
+               {
+                  Element::Type type = Element::HEXAHEDRON;
+                  mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
+               }
+               FiniteElementCollection* c_fec = nullptr;
+               FiniteElementCollection* f_fec = nullptr;
+               if (vectorspace < 2)
+               {
+                  c_fec = new H1_FECollection(order, dimension);
+                  f_fec = new H1_FECollection(order, dimension);
+               }
+               else if (vectorspace == 2)
+               {
+                  c_fec = new ND_FECollection(order+1, dimension);
+                  f_fec = new ND_FECollection(order+1, dimension);
+               }
+               else
+               {
+                  c_fec = new RT_FECollection(order, dimension);
+                  f_fec = new RT_FECollection(order, dimension);
+               }
+               mesh.EnsureNCMesh();
+
+               int spaceDimension = 1;
+
+               if (vectorspace == 1)
+               {
+                  spaceDimension = dimension;
+               }
+
+               FiniteElementSpace* c_fespace =
+                  new FiniteElementSpace(&mesh, c_fec, spaceDimension);
+               FiniteElementSpace* f_fespace =
+                  new FiniteElementSpace(&mesh, f_fec,spaceDimension);
+               int maxorder = RandomPRefinement(*f_fespace);
+
+               std::cout  << "  Max fine order: " << maxorder << "\n";
+
+               Operator* referenceOperator = nullptr;
+
+               referenceOperator = new PRefinementTransferOperator(*c_fespace,
+                                                                     *f_fespace);
+
+               TransferOperator testTransferOperator(*c_fespace, *f_fespace);
+               GridFunction X(c_fespace);
+               GridFunction X_cmp(c_fespace);
+               GridFunction Y_exact(f_fespace);
+               GridFunction Y_std(f_fespace);
+               GridFunction Y_test(f_fespace);
+
+               if (vectorspace == 0)
+               {
+                  FunctionCoefficient funcCoeff(&coeff);
+                  X.ProjectCoefficient(funcCoeff);
+                  Y_exact.ProjectCoefficient(funcCoeff);
+               }
+               else
+               {
+                  VectorFunctionCoefficient funcCoeff(dimension, &vectorcoeff);
+                  X.ProjectCoefficient(funcCoeff);
+                  Y_exact.ProjectCoefficient(funcCoeff);
+               }
+
+               Y_std = 0.0;
+               Y_test = 0.0;
+
+               referenceOperator->Mult(X, Y_std);
+
+               Y_std -= Y_exact;
+               REQUIRE(Y_std.Norml2() < 1e-12 * Y_exact.Norml2());
+
+               testTransferOperator.Mult(X, Y_test);
+
+               Y_test -= Y_exact;
+               REQUIRE(Y_test.Norml2() < 1e-12 * Y_exact.Norml2());
+
+               referenceOperator->MultTranspose(Y_exact, X);
+               testTransferOperator.MultTranspose(Y_exact, X_cmp);
+
+               X -= X_cmp;
+               REQUIRE(X.Norml2() < 1e-12 * X_cmp.Norml2());
+
+               delete referenceOperator;
+               delete f_fespace;
+               delete c_fespace;
+               delete c_fec;
+            }
+         }
+      }
+   }
+}
+
+TEST_CASE("variable_order_true_transfer")
+{
+   for (int vectorspace = 0; vectorspace <= 1; ++vectorspace)
+   {
+      for (dimension = 2; dimension <= 3; ++dimension)
+      {
+         for (int order = 1; order <= 3; order++)
+         {
+            std::cout << "Testing variable order true transfer:\n"
+                        << "  Vectorspace:    " << vectorspace << "\n"
+                        << "  Dimension:      " << dimension << "\n"
+                        << "  Coarse order:   " << order << "\n";
+
+            Mesh mesh;
+            if (dimension == 2)
+            {
+               Element::Type type = Element::QUADRILATERAL;
+               mesh = Mesh::MakeCartesian2D(3, 3, type, 1, 1.0, 1.0);
+            }
+            else
+            {
+               Element::Type type = Element::HEXAHEDRON;
+               mesh = Mesh::MakeCartesian3D(3, 3, 3, type, 1.0, 1.0, 1.0);
+            }
+            FiniteElementCollection* c_fec = nullptr;
+            FiniteElementCollection* f_fec = nullptr;
+            c_fec = new H1_FECollection(order, dimension);
+            f_fec = new H1_FECollection(order, dimension);
+            mesh.EnsureNCMesh();
+
+            int spaceDimension = 1;
+
+            if (vectorspace == 1)
+            {
+               spaceDimension = dimension;
+            }
+
+            FiniteElementSpace* c_fespace =
+               new FiniteElementSpace(&mesh, c_fec, spaceDimension);
+            FiniteElementSpace* f_fespace =
+               new FiniteElementSpace(&mesh, f_fec,spaceDimension);
+            int maxorder = RandomPRefinement(*f_fespace);
+
+            std::cout  << "  Max fine order: " << maxorder << "\n";
+
+
+            const SparseMatrix * Rc = c_fespace->GetRestrictionMatrix();
+            TrueTransferOperator T(*c_fespace, *f_fespace);
+            GridFunction xc(c_fespace);
+            Vector Xc(c_fespace->GetTrueVSize());
+            Vector Diff(c_fespace->GetTrueVSize());
+            Vector Yc(c_fespace->GetTrueVSize());
+            Vector Xf(f_fespace->GetTrueVSize());
+            Vector Yf(f_fespace->GetTrueVSize());
+
+
+            if (vectorspace == 0)
+            {
+               FunctionCoefficient funcCoeff(&coeff2);
+               xc.ProjectCoefficient(funcCoeff);
+            }
+            else
+            {
+               VectorFunctionCoefficient funcCoeff(dimension, &vectorcoeff2);
+               xc.ProjectCoefficient(funcCoeff);
+            }
+            if (Rc)
+            {
+               Rc->Mult(xc,Xc);
+            }
+            else
+            {
+               Xc = xc;
+            }  
+            T.Mult(Xc, Xf);
+
+            BilinearFormIntegrator * massc=nullptr;
+            BilinearFormIntegrator * massf=nullptr;
+
+            switch (vectorspace)
+            {
+            case 0:
+               massc = new MassIntegrator;
+               massf = new MassIntegrator;
+               break;
+            default:
+               massc = new VectorMassIntegrator;   
+               massf = new VectorMassIntegrator;   
+               break;
+            }
+
+
+            BilinearForm mc(c_fespace);
+            mc.AddDomainIntegrator(massc);
+            mc.Assemble();
+            SparseMatrix Mc;
+            Array<int> empty;
+            mc.FormSystemMatrix(empty, Mc);
+
+            BilinearForm mf(f_fespace);
+            mf.AddDomainIntegrator(massf);
+            mf.Assemble();
+            SparseMatrix Mf;
+            mf.FormSystemMatrix(empty, Mf);
+
+            Mf.Mult(Xf,Yf);
+
+            T.MultTranspose(Yf,Yc);
+
+            GSSmoother M(Mc);
+            Diff = 0.;
+            PCG(Mc, M, Yc, Diff, 0, 500, 1e-24, 0.0);
+
+            Diff -= Xc;
+
+            REQUIRE(Diff.Norml2() < 1e-10);
+
+            delete f_fespace;
+            delete c_fespace;
+            delete c_fec;
+         }
+      }
+   }
+}
+
+
+
+
 
 #ifdef MFEM_USE_MPI
 
