@@ -196,6 +196,15 @@ ComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 }
 
 void
+ComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+                                       LinearFormIntegrator *lfi_imag,
+                                       Array<int> &elem_attr_marker)
+{
+   if ( lfi_real ) { lfr->AddDomainIntegrator(lfi_real, elem_attr_marker); }
+   if ( lfi_imag ) { lfi->AddDomainIntegrator(lfi_imag, elem_attr_marker); }
+}
+
+void
 ComplexLinearForm::AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                                          LinearFormIntegrator *lfi_imag)
 {
@@ -315,6 +324,14 @@ void SesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
 {
    if (bfi_real) { blfr->AddDomainIntegrator(bfi_real); }
    if (bfi_imag) { blfi->AddDomainIntegrator(bfi_imag); }
+}
+
+void SesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                                           BilinearFormIntegrator *bfi_imag,
+                                           Array<int> & elem_marker)
+{
+   if (bfi_real) { blfr->AddDomainIntegrator(bfi_real, elem_marker); }
+   if (bfi_imag) { blfi->AddDomainIntegrator(bfi_imag, elem_marker); }
 }
 
 void
@@ -880,6 +897,15 @@ ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 }
 
 void
+ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+                                          LinearFormIntegrator *lfi_imag,
+                                          Array<int> &elem_attr_marker)
+{
+   if ( lfi_real ) { plfr->AddDomainIntegrator(lfi_real, elem_attr_marker); }
+   if ( lfi_imag ) { plfi->AddDomainIntegrator(lfi_imag, elem_attr_marker); }
+}
+
+void
 ParComplexLinearForm::AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                                             LinearFormIntegrator *lfi_imag)
 {
@@ -1038,6 +1064,14 @@ void ParSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
 {
    if (bfi_real) { pblfr->AddDomainIntegrator(bfi_real); }
    if (bfi_imag) { pblfi->AddDomainIntegrator(bfi_imag); }
+}
+
+void ParSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                                              BilinearFormIntegrator *bfi_imag,
+                                              Array<int> & elem_marker)
+{
+   if (bfi_real) { pblfr->AddDomainIntegrator(bfi_real, elem_marker); }
+   if (bfi_imag) { pblfi->AddDomainIntegrator(bfi_imag, elem_marker); }
 }
 
 void

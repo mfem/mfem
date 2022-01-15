@@ -784,6 +784,8 @@ protected: // implementation
 
       Point() { dim = 0; }
 
+      Point(const Point &) = default;
+
       Point(double x)
       { dim = 1; coord[0] = x; }
 
