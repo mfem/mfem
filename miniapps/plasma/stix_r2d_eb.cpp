@@ -426,6 +426,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
+            Coefficient & xposCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
@@ -433,7 +434,8 @@ void Update(ParFiniteElementSpace & H1FESpace,
             BlockVector & density,
             BlockVector & temperature,
             ParGridFunction & density_gf,
-            ParGridFunction & temperature_gf);
+            ParGridFunction & temperature_gf,
+            ParGridFunction & xposition_gf);
 
 //static double freq_ = 1.0e9;
 
@@ -493,10 +495,13 @@ int main(int argc, char *argv[])
 
    PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type xpt = PlasmaProfile::GRADIENT;
    BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
    Vector bpp;
+   Vector xpp(7);
+   xpp = 0.0; xpp(4) = 1.0;
    int nuprof = 0;
 
    Array<int> abcs; // Absorbing BC attributes
@@ -851,15 +856,15 @@ int main(int argc, char *argv[])
    {
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
-      std::complex<double> S = S_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> S = S_cold_plasma(omega, Bmag, 1.0, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> P = P_cold_plasma(omega, numbers,
+      std::complex<double> P = P_cold_plasma(omega, 1.0, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> D = D_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> D = D_cold_plasma(omega, Bmag, 1.0, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> R = R_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> R = R_cold_plasma(omega, Bmag, 1.0, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> L = L_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> L = L_cold_plasma(omega, Bmag, 1.0, numbers,
                                              charges, masses, temps, nuprof);
 
       cout << "\nConvenient Terms:\n";
@@ -1022,8 +1027,6 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient BCoef(BVec);
    VectorConstantCoefficient BUnitCoef(BUnitVec);
    */
-   BFieldProfile BCoef(bpt, bpp, false);
-   BFieldProfile BUnitCoef(bpt, bpp, true);
 
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    ND_R2D_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
@@ -1033,7 +1036,13 @@ int main(int argc, char *argv[])
    ParGridFunction BField(&HDivFESpace);
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
+   ParGridFunction xposition_gf(&H1FESpace);
+   
+   PlasmaProfile xposCoef(xpt, xpp);
+   xposition_gf.ProjectCoefficient(xposCoef);
 
+   BFieldProfile BCoef(bpt, bpp, false);
+   BFieldProfile BUnitCoef(bpt, bpp, true);
    BField.ProjectCoefficient(BCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -1087,16 +1096,16 @@ int main(int argc, char *argv[])
    Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
-   DielectricTensor epsilon_real(BField, density, temperature,
+   DielectricTensor epsilon_real(BField, xposition_gf, density, temperature,
                                  L2FESpace, H1FESpace,
                                  omega, charges, masses, nuprof,
                                  true);
-   DielectricTensor epsilon_imag(BField, density, temperature,
+   DielectricTensor epsilon_imag(BField, xposition_gf, density, temperature,
                                  L2FESpace, H1FESpace,
                                  omega, charges, masses, nuprof,
                                  false);
 
-   SPDDielectricTensor epsilon_abs(BField, density, temperature,
+   SPDDielectricTensor epsilon_abs(BField, xposition_gf, density, temperature,
                                    L2FESpace, H1FESpace,
                                    omega, charges, masses, nuprof);
 
@@ -1122,11 +1131,13 @@ int main(int argc, char *argv[])
 
    if (check_eps_inv)
    {
-      InverseDielectricTensor epsilonInv_real(BField, density, temperature,
+      InverseDielectricTensor epsilonInv_real(BField, xposition_gf,
+					      density, temperature,
                                               L2FESpace, H1FESpace,
                                               omega, charges, masses,
                                               nuprof, true);
-      InverseDielectricTensor epsilonInv_imag(BField, density, temperature,
+      InverseDielectricTensor epsilonInv_imag(BField, xposition_gf,
+					      density, temperature,
                                               L2FESpace, H1FESpace,
                                               omega, charges, masses,
                                               nuprof, false);
@@ -1678,11 +1689,11 @@ int main(int argc, char *argv[])
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
       Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-             rhoCoef, tempCoef,
+             rhoCoef, tempCoef, xposCoef,
              size_h1, size_l2,
              density_offsets, temperature_offsets,
              density, temperature,
-             density_gf, temperature_gf);
+             density_gf, temperature_gf, xposition_gf);
       CPD.Update();
 
       if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
@@ -1692,11 +1703,11 @@ int main(int argc, char *argv[])
 
          // Update again after rebalancing
          Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-                rhoCoef, tempCoef,
+                rhoCoef, tempCoef, xposCoef,
                 size_h1, size_l2,
                 density_offsets, temperature_offsets,
                 density, temperature,
-                density_gf, temperature_gf);
+                density_gf, temperature_gf, xposition_gf);
          CPD.Update();
       }
    }
@@ -1730,6 +1741,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
+            Coefficient & xposCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
@@ -1737,7 +1749,8 @@ void Update(ParFiniteElementSpace & H1FESpace,
             BlockVector & density,
             BlockVector & temperature,
             ParGridFunction & density_gf,
-            ParGridFunction & temperature_gf)
+            ParGridFunction & temperature_gf,
+            ParGridFunction & xposition_gf)
 {
    H1FESpace.Update();
    HCurlFESpace.Update();
@@ -1746,6 +1759,9 @@ void Update(ParFiniteElementSpace & H1FESpace,
 
    BField.Update();
    BField.ProjectCoefficient(BCoef);
+
+   xposition_gf.Update();
+   xposition_gf.ProjectCoefficient(xposCoef);
 
    size_l2 = L2FESpace.GetVSize();
    for (int i=1; i<density_offsets.Size(); i++)
@@ -2248,11 +2264,12 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   S_ = S_cold_plasma(omega_, Bmag_, 1.0, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   D_ = D_cold_plasma(omega_, Bmag_, 1.0, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_, nuprof_);
+   P_ = P_cold_plasma(omega_, 1.0, numbers_, charges_, masses_, temps_,
+		      nuprof_);
 
    switch (type_)
    {
@@ -2492,11 +2509,12 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   S_ = S_cold_plasma(omega_, Bmag_, 1.0, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   D_ = D_cold_plasma(omega_, Bmag_, 1.0, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_, nuprof_);
+   P_ = P_cold_plasma(omega_, 1.0, numbers_, charges_, masses_, temps_,
+		      nuprof_);
 
    switch (type_)
    {
