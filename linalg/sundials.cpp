@@ -1976,6 +1976,11 @@ void KINSolver::SetMAA(int m_aa)
    }
 }
 
+void KINSolver::SetPrintLevel(PrintLevel)
+{
+   MFEM_ABORT("this method is not supported! Use SetPrintLevel(int) instead.");
+}
+
 // Compute the scaling vectors and solve nonlinear system
 void KINSolver::Mult(const Vector&, Vector &x) const
 {
