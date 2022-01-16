@@ -28,12 +28,16 @@ ParNonlinearForm::ParNonlinearForm(ParFiniteElementSpace *pf)
 }
 
 ParNonlinearForm::ParNonlinearForm(ParNonlinearForm &&other)
-   : NonlinearForm(std::move(other)), pGrad(other.pGrad.Type())
+   : NonlinearForm(std::move(other)),
+   X((ParFiniteElementSpace *)other.fes, other.X.GetData()),
+   Y((ParFiniteElementSpace *)other.fes, other.Y.GetData()), pGrad(other.pGrad)
 {
-   X.MakeRef(other.fes, other.X.GetData());
    other.X.MakeRef(other.fes, nullptr);
-   Y.MakeRef(other.fes, other.Y.GetData());
    other.Y.MakeRef(other.fes, nullptr);
+
+   pGrad.SetOperatorOwner();
+   other.pGrad.SetOperatorOwner(false);
+   other.pGrad.SetType(Operator::Hypre_ParCSR);
 }
 
 ParNonlinearForm& ParNonlinearForm::operator=(ParNonlinearForm &&other)
@@ -45,6 +49,12 @@ ParNonlinearForm& ParNonlinearForm::operator=(ParNonlinearForm &&other)
       other.X.MakeRef(other.fes, nullptr);
       Y.MakeRef(other.fes, other.Y.GetData());
       other.Y.MakeRef(other.fes, nullptr);
+
+      pGrad = other.pGrad;
+      pGrad.SetOperatorOwner();
+      other.pGrad.SetOperatorOwner(false);
+      other.pGrad.SetType(Operator::Hypre_ParCSR);
+
    }
    return *this;
 }
