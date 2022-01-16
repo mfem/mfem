@@ -29,8 +29,8 @@ ParNonlinearForm::ParNonlinearForm(ParFiniteElementSpace *pf)
 
 ParNonlinearForm::ParNonlinearForm(ParNonlinearForm &&other)
    : NonlinearForm(std::move(other)),
-   X((ParFiniteElementSpace *)other.fes, other.X.GetData()),
-   Y((ParFiniteElementSpace *)other.fes, other.Y.GetData()), pGrad(other.pGrad)
+     X((ParFiniteElementSpace *)other.fes, other.X.GetData()),
+     Y((ParFiniteElementSpace *)other.fes, other.Y.GetData()), pGrad(other.pGrad)
 {
    other.X.MakeRef(other.fes, nullptr);
    other.Y.MakeRef(other.fes, nullptr);

@@ -64,7 +64,7 @@ public:
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
-    /// Explicitly prohibit copy construction/assignment of ParBilinearForm
+   /// Explicitly prohibit copy construction/assignment of ParBilinearForm
    ParBilinearForm(const ParBilinearForm &) = delete;
    ParBilinearForm &operator=(const ParBilinearForm &) = delete;
 
