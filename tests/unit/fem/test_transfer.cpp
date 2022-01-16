@@ -17,14 +17,15 @@ using namespace mfem;
 int RandomPRefinement(FiniteElementSpace & fes)
 {
    Mesh * mesh = fes.GetMesh();
-   Array<Refinement> refs;
-   int maxorder = fes.GetElementOrder(0);
+   int maxorder = 0;
+   int order;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
+      order = fes.GetElementOrder(i);
+      maxorder = std::max(maxorder,order);
       if ((double) rand() / RAND_MAX < 0.5)
       {
-         int order = fes.GetElementOrder(i) + 1;
-         fes.SetElementOrder(i,order);
+         fes.SetElementOrder(i,order+1);
          maxorder = std::max(maxorder,order);
       }
    }
@@ -338,6 +339,7 @@ TEST_CASE("variable_order_transfer")
                delete referenceOperator;
                delete f_fespace;
                delete c_fespace;
+               delete f_fec;
                delete c_fec;
             }
          }
@@ -464,6 +466,7 @@ TEST_CASE("variable_order_true_transfer")
 
             delete f_fespace;
             delete c_fespace;
+            delete f_fec;
             delete c_fec;
          }
       }
