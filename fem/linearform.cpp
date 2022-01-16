@@ -41,7 +41,7 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
 }
 
 LinearForm::LinearForm(LinearForm &&other)
-   : Vector(other.Size()), fes(other.fes), extern_lfs(other.extern_lfs)
+   : Vector(std::move(other)), fes(other.fes), extern_lfs(other.extern_lfs)
 {
    // Linear forms are stored on the device
    UseDevice(true);
@@ -67,6 +67,8 @@ LinearForm& LinearForm::operator=(LinearForm &&other)
 {
    if (this != &other)
    {
+      Vector::operator=(std::move(other));
+
       /// If we own our integrators, delete them
       if (extern_lfs == 0)
       {
