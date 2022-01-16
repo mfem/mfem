@@ -21,9 +21,9 @@ namespace mfem
 
 ParBilinearForm::ParBilinearForm(ParBilinearForm &&other)
    : BilinearForm(std::move(other)), pfes(other.pfes),
-   X(other.pfes, other.X.GetData()), Y(other.pfes, other.Y.GetData()),
-   Ytmp(std::move(other.Ytmp)), p_mat(other.p_mat), p_mat_e(other.p_mat_e),
-   keep_nbr_block(other.keep_nbr_block)
+     X(other.pfes, other.X.GetData()), Y(other.pfes, other.Y.GetData()),
+     Ytmp(std::move(other.Ytmp)), p_mat(other.p_mat), p_mat_e(other.p_mat_e),
+     keep_nbr_block(other.keep_nbr_block)
 {
    other.X.MakeRef(other.pfes, nullptr);
    other.Y.MakeRef(other.pfes, nullptr);
