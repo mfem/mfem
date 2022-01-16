@@ -117,8 +117,8 @@ BilinearForm::BilinearForm(BilinearForm &&other)
    fes(other.fes), assembly(other.assembly), batch(other.batch),
    ext(other.ext), sequence(other.sequence), extern_bfs(other.extern_bfs),
    static_cond(other.static_cond), hybridization(other.hybridization),
-   precompute_sparsity(other.precompute_sparsity),
-   diag_policy(other.diag_policy)
+   diag_policy(other.diag_policy),
+   precompute_sparsity(other.precompute_sparsity)
 {
    // We swap stored integrators and markers with the moved nonlinear form
    mfem::Swap(domain_integs, other.domain_integs);
