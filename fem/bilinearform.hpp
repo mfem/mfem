@@ -140,13 +140,6 @@ protected:
       ext = NULL;
    }
 
-private:
-   /// Copy construction is not supported; body is undefined.
-   BilinearForm(const BilinearForm &);
-
-   /// Copy assignment is not supported; body is undefined.
-   BilinearForm &operator=(const BilinearForm &);
-
 public:
    /// Creates bilinear form associated with FE space @a *f.
    /** The pointer @a f is not owned by the newly constructed object. */
@@ -163,6 +156,20 @@ public:
        The optional parameter @a ps is used to initialize the internal flag
        #precompute_sparsity, see UsePrecomputedSparsity() for details. */
    BilinearForm(FiniteElementSpace *f, BilinearForm *bf, int ps = 0);
+
+   /// Explicitly prohibit copy construction/assignment of BilinearForms
+   BilinearForm(const BilinearForm &) = delete;
+   BilinearForm &operator=(const BilinearForm &) = delete;
+
+   /// Move constructor for BilinearForm.
+   /** This constructor "steals" the owned data members from the @a other
+       BilinearForm. */
+   BilinearForm(BilinearForm &&other);
+
+   /// Move assignment operator for BilinearForm
+   /** This assignment first frees all owned data, then "steals" the owned data
+       members from the @a other BilinearForm. */
+   BilinearForm& operator=(BilinearForm &&other);
 
    /// Get the size of the BilinearForm as a square matrix.
    int Size() const { return height; }

@@ -44,13 +44,6 @@ protected:
 
    void AssembleSharedFaces(int skip_zeros = 1);
 
-private:
-   /// Copy construction is not supported; body is undefined.
-   ParBilinearForm(const ParBilinearForm &);
-
-   /// Copy assignment is not supported; body is undefined.
-   ParBilinearForm &operator=(const ParBilinearForm &);
-
 public:
    /// Creates parallel bilinear form associated with the FE space @a *pf.
    /** The pointer @a pf is not owned by the newly constructed object. */
@@ -70,6 +63,13 @@ public:
       : BilinearForm(pf, bf), pfes(pf),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
+
+    /// Explicitly prohibit copy construction/assignment of ParBilinearForm
+   ParBilinearForm(const ParBilinearForm &) = delete;
+   ParBilinearForm &operator=(const ParBilinearForm &) = delete;
+
+   ParBilinearForm(ParBilinearForm &&other);
+   ParBilinearForm& operator=(ParBilinearForm &&other);
 
    /** When set to true and the ParBilinearForm has interior face integrators,
        the local SparseMatrix will include the rows (in addition to the columns)

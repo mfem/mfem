@@ -19,6 +19,28 @@
 namespace mfem
 {
 
+ParBilinearForm::ParBilinearForm(ParBilinearForm &&other)
+   : BilinearForm(std::move(other)), pGrad(other.pGrad.Type())
+{
+   X.MakeRef(other.fes, other.X.GetData());
+   other.X.MakeRef(other.fes, nullptr);
+   Y.MakeRef(other.fes, other.Y.GetData());
+   other.Y.MakeRef(other.fes, nullptr);
+}
+
+ParBilinearForm& ParBilinearForm::operator=(ParBilinearForm &&other)
+{
+   if (this != &other)
+   {
+      BilinearForm::operator=(std::move(other));
+      X.MakeRef(other.fes, other.X.GetData());
+      other.X.MakeRef(other.fes, nullptr);
+      Y.MakeRef(other.fes, other.Y.GetData());
+      other.Y.MakeRef(other.fes, nullptr);
+   }
+   return *this;
+}
+
 void ParBilinearForm::pAllocMat()
 {
    int nbr_size = pfes->GetFaceNbrVSize();
