@@ -116,8 +116,8 @@ BilinearForm::BilinearForm(BilinearForm &&other)
    : Matrix(other.fes->GetVSize()), mat(other.mat), mat_e(other.mat_e),
      fes(other.fes), assembly(other.assembly), batch(other.batch),
      ext(other.ext), sequence(other.sequence), extern_bfs(other.extern_bfs),
-     static_cond(other.static_cond), hybridization(other.hybridization),
-     diag_policy(other.diag_policy),
+     element_matrices(other.element_matrices), static_cond(other.static_cond),
+     hybridization(other.hybridization), diag_policy(other.diag_policy),
      precompute_sparsity(other.precompute_sparsity)
 {
    // We swap stored integrators and markers with the moved nonlinear form
