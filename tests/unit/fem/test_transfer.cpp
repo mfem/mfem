@@ -349,6 +349,134 @@ TEST_CASE("variable_order_transfer")
    }
 }
 
+TEST_CASE("variable_order_true_transfer")
+{
+   for (int vectorspace = 0; vectorspace <= 1; ++vectorspace)
+   {
+      for (dimension = 2; dimension <= 3; ++dimension)
+      {
+         for (int order = 1; order <= 3; order++)
+         {
+            std::cout << "Testing variable order true transfer:\n"
+                      << "  Vectorspace:    " << vectorspace << "\n"
+                      << "  Dimension:      " << dimension << "\n"
+                      << "  Coarse order:   " << order << "\n";
+
+            Mesh mesh;
+            if (dimension == 2)
+            {
+               Element::Type type = Element::QUADRILATERAL;
+               mesh = Mesh::MakeCartesian2D(3, 3, type, 1, 1.0, 1.0);
+            }
+            else
+            {
+               Element::Type type = Element::HEXAHEDRON;
+               mesh = Mesh::MakeCartesian3D(3, 3, 3, type, 1.0, 1.0, 1.0);
+            }
+            FiniteElementCollection* c_fec = nullptr;
+            FiniteElementCollection* f_fec = nullptr;
+            c_fec = new H1_FECollection(order, dimension);
+            f_fec = new H1_FECollection(order, dimension);
+            mesh.EnsureNCMesh();
+            mesh.RandomRefinement(0.5);
+            int spaceDimension = 1;
+
+            if (vectorspace == 1)
+            {
+               spaceDimension = dimension;
+            }
+
+            FiniteElementSpace* c_fespace =
+               new FiniteElementSpace(&mesh, c_fec, spaceDimension);
+            FiniteElementSpace* f_fespace =
+               new FiniteElementSpace(&mesh, f_fec,spaceDimension);
+            f_fespace->SetRelaxedHpConformity(true);
+            int maxorder = RandomPRefinement(*f_fespace);
+
+            std::cout  << "  Max fine order: " << maxorder << "\n";
+
+
+            const SparseMatrix * Rc = c_fespace->GetRestrictionMatrix();
+            TrueTransferOperator T(*c_fespace, *f_fespace);
+            GridFunction xc(c_fespace);
+            Vector Xc(c_fespace->GetTrueVSize());
+            Vector Diff(c_fespace->GetTrueVSize());
+            Vector Yc(c_fespace->GetTrueVSize());
+            Vector Xf(f_fespace->GetTrueVSize());
+            Vector Yf(f_fespace->GetTrueVSize());
+
+            coeff_order = 2;
+
+            if (vectorspace == 0)
+            {
+               FunctionCoefficient funcCoeff(&coeff);
+               xc.ProjectCoefficient(funcCoeff);
+            }
+            else
+            {
+               VectorFunctionCoefficient funcCoeff(dimension, &vectorcoeff);
+               xc.ProjectCoefficient(funcCoeff);
+            }
+            if (Rc)
+            {
+               Rc->Mult(xc,Xc);
+            }
+            else
+            {
+               Xc.MakeRef(xc,0);
+            }
+            T.Mult(Xc, Xf);
+
+            BilinearFormIntegrator * massc=nullptr;
+            BilinearFormIntegrator * massf=nullptr;
+
+            switch (vectorspace)
+            {
+               case 0:
+                  massc = new MassIntegrator;
+                  massf = new MassIntegrator;
+                  break;
+               default:
+                  massc = new VectorMassIntegrator;
+                  massf = new VectorMassIntegrator;
+                  break;
+            }
+
+            BilinearForm mc(c_fespace);
+            mc.AddDomainIntegrator(massc);
+            mc.Assemble();
+            SparseMatrix Mc;
+            Array<int> empty;
+            mc.FormSystemMatrix(empty, Mc);
+
+            BilinearForm mf(f_fespace);
+            mf.AddDomainIntegrator(massf);
+            mf.Assemble();
+            SparseMatrix Mf;
+            mf.FormSystemMatrix(empty, Mf);
+
+            Mf.Mult(Xf,Yf);
+
+            T.MultTranspose(Yf,Yc);
+
+            GSSmoother M(Mc);
+            Diff = 0.;
+            PCG(Mc, M, Yc, Diff, 0, 500, 1e-24, 0.0);
+
+            Diff -= Xc;
+
+            REQUIRE(Diff.Norml2() < 1e-10);
+
+            delete f_fespace;
+            delete c_fespace;
+            delete f_fec;
+            delete c_fec;
+         }
+      }
+   }
+}
+
+
 #ifdef MFEM_USE_MPI
 
 TEST_CASE("partransfer", "[Parallel]")
