@@ -453,14 +453,15 @@ public:
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
-#ifdef MFEM_USE_MPI
 /// @brief Matrix-free transfer operator between finite element spaces working
 /// on true degrees of freedom
 class TrueTransferOperator : public Operator
 {
 private:
-   const ParFiniteElementSpace& lFESpace;
-   const ParFiniteElementSpace& hFESpace;
+   const FiniteElementSpace& lFESpace;
+   const FiniteElementSpace& hFESpace;
+   const Operator * P = nullptr;
+   const SparseMatrix * R = nullptr;
    TransferOperator* localTransferOperator;
    mutable Vector tmpL;
    mutable Vector tmpH;
@@ -468,8 +469,8 @@ private:
 public:
    /// @brief Constructs a transfer operator working on true degrees of freedom
    /// from \p lFESpace to \p hFESpace
-   TrueTransferOperator(const ParFiniteElementSpace& lFESpace_,
-                        const ParFiniteElementSpace& hFESpace_);
+   TrueTransferOperator(const FiniteElementSpace& lFESpace_,
+                        const FiniteElementSpace& hFESpace_);
 
    /// Destructor
    ~TrueTransferOperator();
@@ -485,7 +486,6 @@ public:
        the true dof vector \p y corresponding to the coarse space. */
    virtual void MultTranspose(const Vector& x, Vector& y) const override;
 };
-#endif
 
 } // namespace mfem
 
