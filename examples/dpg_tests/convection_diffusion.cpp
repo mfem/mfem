@@ -165,6 +165,11 @@ int main(int argc, char *argv[])
    Vector negbeta = beta;
    negbeta.Neg();
 
+   ConstantCoefficient zero(0.0);
+   Vector vec0(dim); vec0 = 0.;
+   VectorConstantCoefficient vzero(vec0);
+
+
    DenseMatrix bbt(beta.Size());
    MultVVt(beta, bbt); 
    MatrixConstantCoefficient bbtcoeff(bbt);
@@ -263,6 +268,7 @@ int main(int argc, char *argv[])
             double volume = mesh.GetElementVolume(i);
             double c1 = min(epsilon/volume, 1.);
             double c2 = min(1./epsilon, 1./volume);
+            // double c2 = 1.;
             coeff_fes->GetElementDofs(i,dofs);
             c1_gf.SetSubVector(dofs,c1);
             c2_gf.SetSubVector(dofs,c2);
@@ -314,6 +320,7 @@ int main(int argc, char *argv[])
    mfem::out << " Refinement |" 
              << "    Dofs    |" 
              << "  L2 Error  |" 
+             << " Relative % |" 
              << "  Rate  |" 
              << "  Residual  |" 
              << "  Rate  |" << endl;
@@ -419,6 +426,9 @@ int main(int argc, char *argv[])
       GridFunction uex_gf(u_fes);
       uex_gf.ProjectCoefficient(uex);
 
+      GridFunction sigmaex_gf(sigma_fes);
+      sigmaex_gf.ProjectCoefficient(sigmaex);
+
       GridFunction u_gf;
       u_gf.MakeRef(u_fes,x.GetBlock(0));
 
@@ -427,11 +437,15 @@ int main(int argc, char *argv[])
 
       int dofs = X.Size();
       double u_err = u_gf.ComputeL2Error(uex);
+      double u_norm = uex_gf.ComputeL2Error(zero);
       // mfem::out << "u_err = " << u_err << endl;
       double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
+      double sigma_norm = sigmaex_gf.ComputeL2Error(vzero);
       // mfem::out << "sigma_err = " << sigma_err << endl;
       double L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
+      double L2norm = sqrt(u_norm * u_norm + sigma_norm * sigma_norm);
 
+      double rel_error = L2Error/L2norm;
 
       double rate_err = (i) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
       double rate_res = (i) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
@@ -443,6 +457,8 @@ int main(int argc, char *argv[])
                 << std::setw(10) <<  dof0 << " | " 
                 << std::setprecision(3) 
                 << std::setw(10) << std::scientific <<  err0 << " | " 
+                << std::setprecision(3) 
+                << std::setw(10) << std::fixed <<  rel_error * 100. << " | " 
                 << std::setprecision(2) 
                 << std::setw(6) << std::fixed << rate_err << " | " 
                 << std::setprecision(3) 
@@ -463,7 +479,6 @@ int main(int argc, char *argv[])
          u_out << "solution\n" << mesh << u_gf <<
                   "window_title 'Numerical u' "
                   << flush;
-
          // sigma_out.precision(8);
          // sigma_out << "solution\n" << mesh << sigma_gf <<
          //       "window_title 'Numerical flux' "
@@ -491,6 +506,7 @@ int main(int argc, char *argv[])
             double volume = mesh.GetElementVolume(i);
             double c1 = min(epsilon/volume, 1.);
             double c2 = min(1./epsilon, 1./volume);
+            // double c2 = 1.;
             coeff_fes->GetElementDofs(i,dofs);
             c1_gf.SetSubVector(dofs,c1);
             c2_gf.SetSubVector(dofs,c2);

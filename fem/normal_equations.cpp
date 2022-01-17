@@ -372,6 +372,19 @@ void NormalEquations::Assemble(int skip_zeros)
 
 
       // DenseMatrixInverse Ginv
+
+      // // scale G B and rhs
+      // Vector diag(G.Height());
+      // G.GetDiag(diag);
+      // for (int i = 0; i<diag.Size(); i++)
+      // {
+      //    diag(i) = sqrt(diag(i));
+      // }
+      // G.LeftScaling(diag);
+      // G.RightScaling(diag);
+      // B.LeftScaling(diag);
+      // vec *= diag;
+
       DenseMatrixInverse Ginv(G);
       Ginv.Factor();
 
