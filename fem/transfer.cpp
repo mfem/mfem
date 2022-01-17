@@ -1430,20 +1430,34 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
 }
 
 
-#ifdef MFEM_USE_MPI
-TrueTransferOperator::TrueTransferOperator(const
-                                           ParFiniteElementSpace& lFESpace_,
-                                           const ParFiniteElementSpace& hFESpace_)
+TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
+                                           const FiniteElementSpace& hFESpace_)
    : Operator(hFESpace_.GetTrueVSize(), lFESpace_.GetTrueVSize()),
      lFESpace(lFESpace_),
      hFESpace(hFESpace_)
 {
    localTransferOperator = new TransferOperator(lFESpace_, hFESpace_);
 
-   tmpL.SetSize(lFESpace_.GetVSize());
-   tmpH.SetSize(hFESpace_.GetVSize());
+   P = lFESpace.GetProlongationMatrix();
+   R = hFESpace.GetRestrictionMatrix();
 
-   hFESpace.GetRestrictionMatrix()->BuildTranspose();
+   // P and R can be both null
+   // P can be null and R not null
+   // If P is not null it is assummed that R is not null as well
+   if (P) { MFEM_VERIFY(R, "Both P and R have to be not NULL") }
+
+   if (P)
+   {
+      tmpL.SetSize(lFESpace_.GetVSize());
+      tmpH.SetSize(hFESpace_.GetVSize());
+      R->BuildTranspose();
+   }
+   // P can be null and R not null
+   else if (R)
+   {
+      tmpH.SetSize(hFESpace_.GetVSize());
+      R->BuildTranspose();
+   }
 }
 
 TrueTransferOperator::~TrueTransferOperator()
@@ -1453,17 +1467,40 @@ TrueTransferOperator::~TrueTransferOperator()
 
 void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 {
-   lFESpace.GetProlongationMatrix()->Mult(x, tmpL);
-   localTransferOperator->Mult(tmpL, tmpH);
-   hFESpace.GetRestrictionMatrix()->Mult(tmpH, y);
+   if (P)
+   {
+      P->Mult(x, tmpL);
+      localTransferOperator->Mult(tmpL, tmpH);
+      R->Mult(tmpH, y);
+   }
+   else if (R)
+   {
+      localTransferOperator->Mult(x, tmpH);
+      R->Mult(tmpH, y);
+   }
+   else
+   {
+      localTransferOperator->Mult(x, y);
+   }
 }
 
 void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
-   hFESpace.GetRestrictionMatrix()->MultTranspose(x, tmpH);
-   localTransferOperator->MultTranspose(tmpH, tmpL);
-   lFESpace.GetProlongationMatrix()->MultTranspose(tmpL, y);
+   if (P)
+   {
+      R->MultTranspose(x, tmpH);
+      localTransferOperator->MultTranspose(tmpH, tmpL);
+      P->MultTranspose(tmpL, y);
+   }
+   else if (R)
+   {
+      R->MultTranspose(x, tmpH);
+      localTransferOperator->MultTranspose(tmpH, y);
+   }
+   else
+   {
+      localTransferOperator->MultTranspose(x, y);
+   }
 }
-#endif
 
 } // namespace mfem
