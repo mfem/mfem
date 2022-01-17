@@ -57,9 +57,9 @@ double coeff(const Vector& X)
       z = X[2];
       if (coeff_order == 1)
       {
-        return 1.1 * x + 2.0 * y + 3.0 * z;
+         return 1.1 * x + 2.0 * y + 3.0 * z;
       }
-      else  
+      else
       {
          return (1.-x)*x*(1.-y)*y*(1.-z)*z;
       }
