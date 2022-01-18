@@ -18,25 +18,25 @@ return_type __enzyme_autodiff(Args...);
 template <typename return_type, typename... Args>
 return_type __enzyme_fwddiff(Args...);
 
+MFEM_HOST_DEVICE static constexpr auto I = Identity<3>();
+
 template <int dim>
 struct LinearElasticMaterial
 {
-  static constexpr auto I = Identity<dim>();
-
-  tensor<double, dim, dim> stress(const tensor<double, dim, dim> &dudx) const
+  tensor<double, dim, dim> MFEM_HOST_DEVICE stress(const tensor<double, dim, dim> &dudx) const
   {
     auto epsilon = sym(dudx);
     return lambda * tr(epsilon) * I + 2.0 * mu * epsilon;
   }
 
-  tensor<double, dim, dim>
+  tensor<double, dim, dim> MFEM_HOST_DEVICE
   action_of_gradient(const tensor<double, dim, dim> & /* dudx */,
                      const tensor<double, dim, dim> &ddudx) const
   {
     return stress(ddudx);
   }
 
-  tensor<double, dim, dim, dim, dim>
+  tensor<double, dim, dim, dim, dim> MFEM_HOST_DEVICE
   gradient(tensor<double, dim, dim> du_dx) const
   {
     return make_tensor<dim, dim, dim, dim>([&](auto i, auto j, auto k, auto l)
@@ -52,11 +52,10 @@ struct NeoHookeanMaterial
 {
   static_assert(dim == 3, "NeoHookean model only defined in 3D");
 
-  static constexpr auto I = Identity<dim>();
-
   template <typename T>
-  tensor<T, dim, dim>
-  stress(const tensor<T, dim, dim> &__restrict__ du_dx) const
+  MFEM_HOST_DEVICE
+      tensor<T, dim, dim>
+      stress(const tensor<T, dim, dim> &__restrict__ du_dx) const
   {
     T J = det(I + du_dx);
     T p = -2.0 * D1 * J * (J - 1);
@@ -69,14 +68,14 @@ struct NeoHookeanMaterial
     return sigma;
   }
 
-  static void stress_wrapper(NeoHookeanMaterial<dim> *self,
-                             tensor<double, dim, dim> &du_dx,
-                             tensor<double, dim, dim> &sigma)
+  MFEM_HOST_DEVICE static void stress_wrapper(NeoHookeanMaterial<dim> *self,
+                                              tensor<double, dim, dim> &du_dx,
+                                              tensor<double, dim, dim> &sigma)
   {
     sigma = self->stress(du_dx);
   }
 
-  tensor<double, dim, dim, dim, dim>
+  MFEM_HOST_DEVICE tensor<double, dim, dim, dim, dim>
   gradient(tensor<double, dim, dim> du_dx) const
   {
     tensor<double, dim, dim> F = I + du_dx;
@@ -92,7 +91,7 @@ struct NeoHookeanMaterial
     // clang-format on
   }
 
-  tensor<double, dim, dim>
+  MFEM_HOST_DEVICE tensor<double, dim, dim>
   action_of_gradient(const tensor<double, dim, dim> &dudx,
                      const tensor<double, dim, dim> &ddudx) const
   {
@@ -103,7 +102,7 @@ struct NeoHookeanMaterial
     // return action_of_gradient_dual(dudx, ddudx);
   }
 
-  tensor<double, dim, dim>
+  MFEM_HOST_DEVICE tensor<double, dim, dim>
   action_of_gradient_dual(const tensor<double, dim, dim> &dudx,
                           const tensor<double, dim, dim> &ddudx) const
   {
@@ -119,7 +118,7 @@ struct NeoHookeanMaterial
     return get_gradient(stress(dudx_and_ddudx));
   }
 
-  tensor<double, dim, dim>
+  MFEM_HOST_DEVICE tensor<double, dim, dim>
   action_of_gradient_enzyme_fwd(const tensor<double, dim, dim> &dudx,
                                 const tensor<double, dim, dim> &ddudx) const
   {
@@ -131,7 +130,7 @@ struct NeoHookeanMaterial
     return dsigma;
   }
 
-  tensor<double, dim, dim>
+  MFEM_HOST_DEVICE tensor<double, dim, dim>
   action_of_gradient_enzyme_rev(const tensor<double, dim, dim> &dudx,
                                 const tensor<double, dim, dim> &ddudx) const
   {
@@ -153,7 +152,7 @@ struct NeoHookeanMaterial
     return ddot(gradient, ddudx);
   }
 
-  tensor<double, dim, dim>
+  MFEM_HOST_DEVICE tensor<double, dim, dim>
   action_of_gradient_fd(const tensor<double, dim, dim> &dudx,
                         const tensor<double, dim, dim> &ddudx) const
   {
@@ -163,7 +162,7 @@ struct NeoHookeanMaterial
 
   // d(stress)_{ij} := (d(stress)_ij / d(du_dx)_{kl}) * d(du_dx)_{kl}
   // Only works with 3D stress
-  tensor<double, dim, dim>
+  MFEM_HOST_DEVICE tensor<double, dim, dim>
   action_of_gradient_symbolic(const tensor<double, dim, dim> &du_dx,
                               const tensor<double, dim, dim> &ddu_dx) const
   {
@@ -325,11 +324,11 @@ public:
 
   const Array<int> GetDisplacedTDofs() { return displaced_tdof_list_; };
 
-  template <int DIM, int D1D, int Q1D>
   // DeviceTensor<2> means RANK=2
   // Multi-component gradient evaluation from DOFs to quadrature points in
   // reference coordinates.
-  static inline void
+  template <int DIM, int D1D, int Q1D>
+  static inline void MFEM_HOST_DEVICE
   CalcGrad(const DeviceTensor<2, const double> &B, // Q1D x D1D
            const DeviceTensor<2, const double> &G, // Q1D x D1D
            const DeviceTensor<4, const double> &U, // D1D x D1D x D1D x DIM
@@ -384,11 +383,11 @@ public:
     }
   }
 
-  template <int DIM, int D1D, int Q1D>
   // DeviceTensor<2> means RANK=2
   // Multi-component transpose gradient evaluation from DOFs to quadrature
   // points in reference coordinates with contraction of the D vector.
-  static inline void CalcGradTSum(
+  template <int DIM, int D1D, int Q1D>
+  MFEM_HOST_DEVICE static inline void CalcGradTSum(
       const DeviceTensor<2, const double> &B,           // Q1D x D1D
       const DeviceTensor<2, const double> &G,           // Q1D x D1D
       const tensor<double, Q1D, Q1D, Q1D, DIM, DIM> &U, // Q1D x Q1D x Q1D x DIM
@@ -447,20 +446,21 @@ public:
   }
 
   template <int DIM, int D1D, int Q1D>
-  static inline tensor<double, D1D, D1D, D1D, DIM>
+  MFEM_HOST_DEVICE static inline tensor<double, D1D, D1D, D1D, DIM>
   gradient_of_all_shape_functions(int qx, int qy, int qz, const DeviceTensor<2, const double> &B,
                                   const DeviceTensor<2, const double> &G, const tensor<double, DIM, DIM> &invJ)
   {
-    tensor<double, D1D, D1D, D1D, DIM> dphi_dx;
+    MFEM_SHARED tensor<double, D1D, D1D, D1D, DIM> dphi_dx;
     // G (x) B (x) B
     // B (x) G (x) B
     // B (x) B (x) G
-    for (int dx = 0; dx < D1D; dx++)
+    MFEM_FOREACH_THREAD(dx, x, D1D)
     {
-      for (int dy = 0; dy < D1D; dy++)
+      MFEM_FOREACH_THREAD(dy, y, D1D)
       {
-        for (int dz = 0; dz < D1D; dz++)
+        MFEM_FOREACH_THREAD(dz, z, D1D)
         {
+
           dphi_dx[dx][dy][dz] = transpose(invJ) * tensor<double, DIM>{
                                                       G(qx, dx) * B(qy, dy) * B(qz, dz),
                                                       B(qx, dx) * G(qy, dy) * B(qz, dz),
@@ -468,6 +468,7 @@ public:
         }
       }
     }
+    MFEM_SYNC_THREAD;
     return dphi_dx;
   }
 
@@ -505,11 +506,10 @@ public:
     // ndofs1d x ndofs1d x VDIM x NE
     const auto U = Reshape(U_.Read(), D1D, D1D, D1D, DIM, NE);
 
-    // cauchy stress
-    tensor<double, Q1D, Q1D, Q1D, DIM, DIM> invJ_dsigma_detJw;
+    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D, {
+      // cauchy stress
+      MFEM_SHARED tensor<double, Q1D, Q1D, Q1D, DIM, DIM> invJ_dsigma_detJw;
 
-    MFEM_FORALL(e, NE,
-    {
       // du/dxi
       tensor<double, Q1D, Q1D, Q1D, DIM, DIM> dudxi{};
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), D1D, D1D, D1D, DIM);
@@ -520,11 +520,11 @@ public:
       const auto dU_el = Reshape(&dU(0, 0, 0, 0, e), D1D, D1D, D1D, DIM);
       CalcGrad<DIM, D1D, Q1D>(B, G, dU_el, ddudxi);
 
-      for (int qx = 0; qx < Q1D; qx++)
+      MFEM_FOREACH_THREAD(qx, x, Q1D)
       {
-        for (int qy = 0; qy < Q1D; qy++)
+        MFEM_FOREACH_THREAD(qy, y, Q1D)
         {
-          for (int qz = 0; qz < Q1D; qz++)
+          MFEM_FOREACH_THREAD(qz, z, Q1D)
           {
             auto invJqp = inv(make_tensor<DIM, DIM>(
                 [&](int i, int j)
@@ -540,7 +540,7 @@ public:
           }
         }
       }
-
+      MFEM_SYNC_THREAD;
       auto F = Reshape(&force(0, 0, 0, 0, e), D1D, D1D, D1D, DIM);
       CalcGradTSum<DIM, D1D, Q1D>(B, G, invJ_dsigma_detJw, F);
     }); // for each element
@@ -575,21 +575,20 @@ public:
     // ndofs1d x ndofs1d x VDIM x NE
     auto force = Reshape(Y_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
-    // cauchy stress
-    tensor<double, Q1D, Q1D, Q1D, DIM, DIM> invJ_sigma_detJw;
+    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D, {
+      // cauchy stress
+      MFEM_SHARED tensor<double, Q1D, Q1D, Q1D, DIM, DIM> invJ_sigma_detJw;
 
-    MFEM_FORALL(e, NE,
-    {
       // du/dxi
       tensor<double, Q1D, Q1D, Q1D, DIM, DIM> dudxi{};
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), D1D, D1D, D1D, DIM);
       CalcGrad<DIM, D1D, Q1D>(B, G, U_el, dudxi);
 
-      for (int qx = 0; qx < Q1D; qx++)
+      MFEM_FOREACH_THREAD(qx, x, Q1D)
       {
-        for (int qy = 0; qy < Q1D; qy++)
+        MFEM_FOREACH_THREAD(qy, y, Q1D)
         {
-          for (int qz = 0; qz < Q1D; qz++)
+          MFEM_FOREACH_THREAD(qz, z, Q1D)
           {
             auto invJqp = inv(make_tensor<DIM, DIM>(
                 [&](int i, int j)
@@ -604,6 +603,7 @@ public:
           }
         }
       }
+      MFEM_SYNC_THREAD;
       auto F = Reshape(&force(0, 0, 0, 0, e), D1D, D1D, D1D, DIM);
       CalcGradTSum<DIM, D1D, Q1D>(B, G, invJ_sigma_detJw, F);
     }); // for each element
@@ -638,8 +638,7 @@ public:
     // ndofs1d x ndofs1d x VDIM x NE
     auto Ke_diag_m = Reshape(Ke_diag_memory.ReadWrite(), D1D, D1D, D1D, dim, NE, dim);
 
-    MFEM_FORALL(e, NE,
-    {
+    MFEM_FORALL(e, NE, {
       tensor<double, D1D, D1D, D1D, dim, dim> Ke_diag{};
 
       // du/dxi
@@ -739,10 +738,6 @@ public:
     submat_height = gradient_operator_->elasticity_op_.h1_fes_.GetVDim();
     num_submats = gradient_operator_->elasticity_op_.h1_fes_.GetTrueVSize() /
                   gradient_operator_->elasticity_op_.h1_fes_.GetVDim();
-
-    if (type_ == Type::BlockDiagonal)
-    {
-    }
   }
 
   void Mult(const Vector &x, Vector &y) const override
@@ -767,13 +762,11 @@ public:
 
       for (int s = 0; s < num_submats; s++)
       {
-        auto submat_inv = inv(make_tensor<dim, dim>([&](auto i, auto j) {
-          return K_diag_submats(s, i, j);
-        }));
-        
-        auto x_block = make_tensor<dim>([&](auto i) {
-          return x(s + i * num_submats);
-        });
+        auto submat_inv = inv(make_tensor<dim, dim>([&](auto i, auto j)
+                                                    { return K_diag_submats(s, i, j); }));
+
+        auto x_block = make_tensor<dim>([&](auto i)
+                                        { return x(s + i * num_submats); });
 
         tensor<double, dim> y_block;
 
@@ -839,7 +832,7 @@ int main(int argc, char *argv[])
   // auto mesh = Mesh()
   mesh.EnsureNodes();
 
-  for (int l = 0; l < 1; l++)
+  for (int l = 0; l < 3; l++)
   {
     mesh.UniformRefinement();
   }
@@ -881,15 +874,15 @@ int main(int argc, char *argv[])
   ElasticityDiagonalPreconditioner diagonal_pc(ElasticityDiagonalPreconditioner::Type::Diagonal);
 
   CGSolver cg(MPI_COMM_WORLD);
-  cg.SetRelTol(1e-8);
+  cg.SetRelTol(1e-1);
   cg.SetMaxIter(10000);
   cg.SetPrintLevel(2);
-  cg.SetPreconditioner(diagonal_pc);
+  // cg.SetPreconditioner(diagonal_pc);
 
   NewtonSolver newton(MPI_COMM_WORLD);
   newton.SetSolver(cg);
   newton.SetOperator(elasticity_op);
-  newton.SetRelTol(1e-2);
+  newton.SetRelTol(1e-6);
   newton.SetMaxIter(10);
   newton.SetPrintLevel(1);
 
@@ -925,13 +918,12 @@ ElasticityOperator::ElasticityOperator(ParMesh &mesh, const int order)
     : Operator(), mesh_(mesh), order_(order), DIM_(mesh_.SpaceDimension()), VDIM_(mesh_.SpaceDimension()),
       NE_(mesh_.GetNE()), h1_fec_(order_, DIM_), h1_fes_(&mesh_, &h1_fec_, VDIM_, Ordering::byNODES)
 {
-  const MemoryType mt = Device::GetDeviceMemoryType();
-
   this->height = h1_fes_.GetTrueVSize();
   this->width = this->height;
 
   int global_tdof_size = h1_fes_.GlobalTrueVSize();
-  if (mesh.GetMyRank() == 0) {
+  if (mesh.GetMyRank() == 0)
+  {
     cout << "#dofs: " << global_tdof_size << endl;
   }
 
@@ -942,26 +934,39 @@ ElasticityOperator::ElasticityOperator(ParMesh &mesh, const int order)
       &IntRules.Get(mfem::Element::HEXAHEDRON, 2 * h1_fes_.GetOrder(0) + 1));
 
   geometric_factors_ = h1_fes_.GetParMesh()->GetGeometricFactors(
-      *ir_, GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS, mt);
+      *ir_, GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS);
   maps = &h1_fes_.GetFE(0)->GetDofToQuad(*ir_, DofToQuad::TENSOR);
   Ndofs1d_ = maps->ndof;
   Nq1d_ = maps->nqpt;
 
-  dX_ess.SetSize(h1_fes_.GetTrueVSize(), mt);
+  dX_ess.UseDevice(true);
+  dX_ess.SetSize(h1_fes_.GetTrueVSize());
 
-  X_el.SetSize(h1_element_restriction_->Height(), mt);
-  Y_el.SetSize(h1_element_restriction_->Height(), mt);
-  cstate_el.SetSize(h1_element_restriction_->Height(), mt);
+  X_el.UseDevice(true);
+  X_el.SetSize(h1_element_restriction_->Height());
 
-  X_local.SetSize(h1_prolongation_->Height(), mt);
-  Y_local.SetSize(h1_prolongation_->Height(), mt);
-  cstate_local.SetSize(h1_prolongation_->Height(), mt);
+  Y_el.UseDevice(true);
+  Y_el.SetSize(h1_element_restriction_->Height());
+
+  cstate_el.UseDevice(true);
+  cstate_el.SetSize(h1_element_restriction_->Height());
+
+  X_local.UseDevice(true);
+  X_local.SetSize(h1_prolongation_->Height());
+
+  Y_local.UseDevice(true);
+  Y_local.SetSize(h1_prolongation_->Height());
+
+  cstate_local.UseDevice(true);
+  cstate_local.SetSize(h1_prolongation_->Height());
 
   gradient = new ElasticityGradientOperator(*this);
 }
 
 void ElasticityOperator::Mult(const Vector &X, Vector &Y) const
 {
+  ess_tdof_list_.Read();
+
   // T-vector to L-vector
   h1_prolongation_->Mult(X, X_local);
   // L-vector to E-vector
@@ -993,6 +998,8 @@ Operator &ElasticityOperator::GetGradient(const Vector &x) const
 
 void ElasticityOperator::GradientMult(const Vector &dX, Vector &Y) const
 {
+  ess_tdof_list_.Read();
+
   // Column elimination for essential dofs
   dX_ess = dX;
   dX_ess.SetSubVector(ess_tdof_list_, 0.0);
@@ -1015,9 +1022,12 @@ void ElasticityOperator::GradientMult(const Vector &dX, Vector &Y) const
   // L-vector to T-vector
   h1_prolongation_->MultTranspose(Y_local, Y);
 
-  for (int i = 0; i < ess_tdof_list_.Size(); i++)
   {
-    Y(ess_tdof_list_[i]) = dX(ess_tdof_list_[i]);
+    const auto d_dX = dX.Read();
+    auto d_Y = Y.ReadWrite();
+    const auto d_ess_tdof_list = ess_tdof_list_.Read();
+    MFEM_FORALL(i, ess_tdof_list_.Size(),
+                d_Y[d_ess_tdof_list[i]] = d_dX[d_ess_tdof_list[i]];);
   }
 }
 
@@ -1033,16 +1043,20 @@ void ElasticityOperator::AssembleGradientDiagonal(Vector &Ke_diag, Vector &K_dia
 
   for (int i = 0; i < DIM_; i++)
   {
-    int input_scalar_component_size = Ndofs1d_ * Ndofs1d_ * Ndofs1d_ * DIM_ * NE_;
-    int output_scalar_component_size_local = h1_element_restriction_->Width();
+    // Scalar component E-size
+    int sce_sz = Ndofs1d_ * Ndofs1d_ * Ndofs1d_ * DIM_ * NE_;
+    // Scalar component L-size
+    int scl_sz = h1_element_restriction_->Width();
+
     Vector vin_local, vout_local;
-    vin_local.MakeRef(Ke_diag, i * input_scalar_component_size, input_scalar_component_size);
-    vout_local.MakeRef(K_diag_local, i * output_scalar_component_size_local, output_scalar_component_size_local);
+    vin_local.MakeRef(Ke_diag, i * sce_sz, sce_sz);
+    vout_local.MakeRef(K_diag_local, i * scl_sz, scl_sz);
     h1_element_restriction_->MultTranspose(vin_local, vout_local);
 
-    int output_scalar_component_size = h1_prolongation_->Width();
+    // Scalar component T-size
+    int sct_sz = h1_prolongation_->Width();
     Vector vout;
-    vout.MakeRef(K_diag, i * output_scalar_component_size, output_scalar_component_size);
+    vout.MakeRef(K_diag, i * sct_sz, sct_sz);
     h1_prolongation_->MultTranspose(vout_local, vout);
   }
 
