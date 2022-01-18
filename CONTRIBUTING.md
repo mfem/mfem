@@ -21,6 +21,9 @@ documentation; new examples and miniapps; HPC performance improvements; etc.
 MFEM is distributed under the terms of the BSD-3 license. All new contributions
 must be made under this license.
 
+Note also that MFEM has a [Code of Conduct](CODE_OF_CONDUCT.md). By participating
+in the MFEM community, you agree to abide by its rules.
+
 If you plan on contributing to MFEM, consider reviewing the
 [issue tracker](https://github.com/mfem/mfem/issues) first to check if a thread
 already exists for your desired feature or the bug you ran into. Use a pull
@@ -123,6 +126,7 @@ The MFEM source code has the following structure:
   ├── mesh
   ├── miniapps
   │   ├── adjoint
+  │   ├── autodiff
   │   ├── common
   │   ├── electromagnetics
   │   ├── gslib

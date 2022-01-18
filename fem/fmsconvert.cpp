@@ -112,7 +112,7 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh,
    // NOTE: transplanted from the FmsMeshToMesh function
    //       We should do this work once and save it.
    //--------------------------------------------------
-   FmsInt dim, n_vert, n_elem, space_dim;
+   FmsInt dim, n_elem, space_dim;
 
    // Find the first component that has coordinates - that will be the new mfem
    // mesh.
@@ -144,7 +144,6 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh,
          n_ents[et] += num_ents;
       }
    }
-   n_vert = n_ents[FMS_VERTEX];
    //--------------------------------------------------
 
    // Interrogate the field.

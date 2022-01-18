@@ -29,6 +29,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_constrainedsolver.cpp
   linalg/test_direct_solvers.cpp
   linalg/test_hypre_ilu.cpp
+  linalg/test_hypre_vector.cpp
   linalg/test_ilu.cpp
   linalg/test_matrix_block.cpp
   linalg/test_matrix_dense.cpp
@@ -55,6 +56,7 @@ set(UNIT_TESTS_SRCS
   fem/test_bilinearform.cpp
   fem/test_blocknonlinearform.cpp
   fem/test_calcshape.cpp
+  fem/test_coefficient.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_estimator.cpp
@@ -69,6 +71,7 @@ set(UNIT_TESTS_SRCS
   fem/test_lexicographic_ordering.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
+  fem/test_lor.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_grad.cpp
