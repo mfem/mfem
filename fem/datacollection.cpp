@@ -787,44 +787,36 @@ void ParaViewDataCollection::Load(int )
 
 std::string ParaViewDataCollection::GenerateCollectionPath()
 {
-   std::string str = "";
-   str = prefix_path + DataCollection::GetCollectionName();
-   return str;
+   return prefix_path + DataCollection::GetCollectionName();
 }
 
 std::string ParaViewDataCollection::GeneratePVTUPath()
 {
-   std::string str = "Cycle" + to_padded_string(cycle,pad_digits_cycle);
-   return str;
+   return "Cycle" + to_padded_string(cycle,pad_digits_cycle);
 }
 
 std::string ParaViewDataCollection::GenerateVTUPath()
 {
-   std::string str = GeneratePVTUPath();
-   return str;
+   return GeneratePVTUPath();
 }
 
 std::string ParaViewDataCollection::GeneratePVDFileName()
 {
-   std::string str = GetCollectionName()+".pvd";
-   return str;
+   return GetCollectionName()+".pvd";
 }
 
 std::string ParaViewDataCollection::GeneratePVTUFileName()
 {
-   std::string str = "data.pvtu";
-   return str;
+   return "data.pvtu";
 }
 
 std::string ParaViewDataCollection::GenerateVTUFileName()
 {
-   std::string str = "proc" + to_padded_string(myid,pad_digits_rank)+".vtu";
-   return str;
+   return "proc" + to_padded_string(myid,pad_digits_rank)+".vtu";
 }
 std::string ParaViewDataCollection::GenerateVTUFileName(int crank)
 {
-   std::string str = "proc" + to_padded_string(crank,pad_digits_rank)+".vtu";
-   return str;
+   return "proc" + to_padded_string(crank,pad_digits_rank)+".vtu";
 }
 
 void ParaViewDataCollection::Save()
