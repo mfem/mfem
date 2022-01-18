@@ -708,13 +708,13 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
    MFEM_FORALL_SWITCH(use_dev, i, n, d_data[d_dofs[i]] = d_dofs_vals[i];);
 }
 
-void Vector::Print(std::ostream &pout, int width) const
+void Vector::Print(std::ostream &os, int width) const
 {
    if (!size) { return; }
    data.Read(MemoryClass::HOST, size);
    for (int i = 0; 1; )
    {
-      pout << ZeroSubnormal(data[i]);
+      os << ZeroSubnormal(data[i]);
       i++;
       if (i == size)
       {
@@ -722,51 +722,51 @@ void Vector::Print(std::ostream &pout, int width) const
       }
       if ( i % width == 0 )
       {
-         pout << '\n';
+         os << '\n';
       }
       else
       {
-         pout << ' ';
+         os << ' ';
       }
    }
-   pout << '\n';
+   os << '\n';
 }
 
 #ifdef MFEM_USE_ADIOS2
-void Vector::Print(adios2stream &pout,
+void Vector::Print(adios2stream &os,
                    const std::string& variable_name) const
 {
    if (!size) { return; }
    data.Read(MemoryClass::HOST, size);
-   pout.engine.Put(variable_name, &data[0] );
+   os.engine.Put(variable_name, &data[0] );
 }
 #endif
 
-void Vector::Print_HYPRE(std::ostream &pout) const
+void Vector::Print_HYPRE(std::ostream &os) const
 {
    int i;
-   std::ios::fmtflags old_fmt = pout.flags();
-   pout.setf(std::ios::scientific);
-   std::streamsize old_prec = pout.precision(14);
+   std::ios::fmtflags old_fmt = os.flags();
+   os.setf(std::ios::scientific);
+   std::streamsize old_prec = os.precision(14);
 
-   pout << size << '\n';  // number of rows
+   os << size << '\n';  // number of rows
 
    data.Read(MemoryClass::HOST, size);
    for (i = 0; i < size; i++)
    {
-      pout << ZeroSubnormal(data[i]) << '\n';
+      os << ZeroSubnormal(data[i]) << '\n';
    }
 
-   pout.precision(old_prec);
-   pout.flags(old_fmt);
+   os.precision(old_prec);
+   os.flags(old_fmt);
 }
 
-void Vector::PrintHash(std::ostream &pout) const
+void Vector::PrintHash(std::ostream &os) const
 {
-   pout << "size: " << size << '\n';
+   os << "size: " << size << '\n';
    HashFunction hf;
    hf.AppendDoubles(HostRead(), size);
-   pout << "hash: " << hf.GetHash() << '\n';
+   os << "hash: " << hf.GetHash() << '\n';
 }
 
 void Vector::Randomize(int seed)

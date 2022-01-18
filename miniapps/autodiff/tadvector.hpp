@@ -588,8 +588,8 @@ public:
    /// Destroys vector.
    ~TAutoDiffVector() { delete[] data; }
 
-   /// Prints vector to stream out_stream.
-   void Print(std::ostream &out_stream = mfem::out, int width = 8) const
+   /// Prints vector to stream @a os with @a width entries per line.
+   void Print(std::ostream &os = mfem::out, int width = 8) const
    {
       if (!size)
       {
@@ -597,7 +597,7 @@ public:
       }
       for (int i = 0; 1;)
       {
-         out_stream << data[i];
+         os << data[i];
          i++;
          if (i == size)
          {
@@ -605,14 +605,14 @@ public:
          }
          if (i % width == 0)
          {
-            out_stream << '\n';
+            os << '\n';
          }
          else
          {
-            out_stream << ' ';
+            os << ' ';
          }
       }
-      out_stream << '\n';
+      os << '\n';
    }
 
    /// Set random values in the vector.

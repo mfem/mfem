@@ -19,25 +19,25 @@
 namespace mfem
 {
 
-void Matrix::Print (std::ostream & pout, int width_) const
+void Matrix::Print (std::ostream & os, int width_) const
 {
    using namespace std;
    // output flags = scientific + show sign
-   pout << setiosflags(ios::scientific | ios::showpos);
+   os << setiosflags(ios::scientific | ios::showpos);
    for (int i = 0; i < height; i++)
    {
-      pout << "[row " << i << "]\n";
+      os << "[row " << i << "]\n";
       for (int j = 0; j < width; j++)
       {
-         pout << Elem(i,j) << " ";
+         os << Elem(i,j) << " ";
          if ( !((j+1) % width_) )
          {
-            pout << '\n';
+            os << '\n';
          }
       }
-      pout << '\n';
+      os << '\n';
    }
-   pout << '\n';
+   os << '\n';
 }
 
 }

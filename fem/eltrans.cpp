@@ -117,30 +117,30 @@ int InverseElementTransformation::FindClosestRefPoint(
 
 void InverseElementTransformation::NewtonPrint(int mode, double val)
 {
-   std::ostream &pout = mfem::out;
+   std::ostream &os = mfem::out;
 
    // separator:
    switch (mode%3)
    {
-      case 0: pout << ", "; break;
-      case 1: pout << "Newton: "; break;
-      case 2: pout << "                   "; break;
+      case 0: os << ", "; break;
+      case 1: os << "Newton: "; break;
+      case 2: os << "                   "; break;
          //          "Newton: iter = xx, "
    }
    switch ((mode/3)%4)
    {
-      case 0: pout << "iter = " << std::setw(2) << int(val); break;
-      case 1: pout << "delta_ref = " << std::setw(11) << val; break;
-      case 2: pout << " err_phys = " << std::setw(11) << val; break;
+      case 0: os << "iter = " << std::setw(2) << int(val); break;
+      case 1: os << "delta_ref = " << std::setw(11) << val; break;
+      case 2: os << " err_phys = " << std::setw(11) << val; break;
       case 3: break;
    }
    // ending:
    switch ((mode/12)%4)
    {
       case 0: break;
-      case 1: pout << '\n'; break;
-      case 2: pout << " (converged)\n"; break;
-      case 3: pout << " (actual)\n"; break;
+      case 1: os << '\n'; break;
+      case 2: os << " (converged)\n"; break;
+      case 3: os << " (actual)\n"; break;
    }
 }
 
@@ -148,14 +148,14 @@ void InverseElementTransformation::NewtonPrintPoint(const char *prefix,
                                                     const Vector &pt,
                                                     const char *suffix)
 {
-   std::ostream &pout = mfem::out;
+   std::ostream &os = mfem::out;
 
-   pout << prefix << " = (";
+   os << prefix << " = (";
    for (int j = 0; j < pt.Size(); j++)
    {
-      pout << (j > 0 ? ", " : "") << pt(j);
+      os << (j > 0 ? ", " : "") << pt(j);
    }
-   pout << ')' << suffix;
+   os << ')' << suffix;
 }
 
 int InverseElementTransformation::NewtonSolve(const Vector &pt,
@@ -633,7 +633,7 @@ void FaceElementTransformations::Transform(const DenseMatrix &matrix,
 }
 
 double FaceElementTransformations::CheckConsistency(int print_level,
-                                                    std::ostream &pout)
+                                                    std::ostream &os)
 {
    // Check that the face vertices are mapped to the same physical location
    // when using the following three transformations:
@@ -661,9 +661,9 @@ double FaceElementTransformations::CheckConsistency(int print_level,
       Transform(v_ir, coords_base);
       if (print_level > 0)
       {
-         pout << "\nface vertex coordinates (from face transform):\n"
-              << "----------------------------------------------\n";
-         coords_base.PrintT(pout, coords_base.Height());
+         os << "\nface vertex coordinates (from face transform):\n"
+            << "----------------------------------------------\n";
+         coords_base.PrintT(os, coords_base.Height());
       }
    }
    if (have_el1)
@@ -672,9 +672,9 @@ double FaceElementTransformations::CheckConsistency(int print_level,
       Elem1->Transform(v_eir, coords_el);
       if (print_level > 0)
       {
-         pout << "\nface vertex coordinates (from element 1 transform):\n"
-              << "---------------------------------------------------\n";
-         coords_el.PrintT(pout, coords_el.Height());
+         os << "\nface vertex coordinates (from element 1 transform):\n"
+            << "---------------------------------------------------\n";
+         coords_el.PrintT(os, coords_el.Height());
       }
       if (have_face)
       {
@@ -693,9 +693,9 @@ double FaceElementTransformations::CheckConsistency(int print_level,
       Elem2->Transform(v_eir, coords_el);
       if (print_level > 0)
       {
-         pout << "\nface vertex coordinates (from element 2 transform):\n"
-              << "---------------------------------------------------\n";
-         coords_el.PrintT(pout, coords_el.Height());
+         os << "\nface vertex coordinates (from element 2 transform):\n"
+            << "---------------------------------------------------\n";
+         coords_el.PrintT(os, coords_el.Height());
       }
       coords_el -= coords_base;
       coords_el.Norm2(dist);

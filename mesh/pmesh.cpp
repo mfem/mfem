@@ -4406,7 +4406,7 @@ void ParMesh::NURBSUniformRefinement()
    }
 }
 
-void ParMesh::PrintXG(std::ostream &pout) const
+void ParMesh::PrintXG(std::ostream &os) const
 {
    MFEM_ASSERT(Dim == spaceDim, "2D manifolds not supported");
    if (Dim == 3 && meshgen == 1)
@@ -4414,45 +4414,45 @@ void ParMesh::PrintXG(std::ostream &pout) const
       int i, j, nv;
       const int *ind;
 
-      pout << "NETGEN_Neutral_Format\n";
+      os << "NETGEN_Neutral_Format\n";
       // print the vertices
-      pout << NumOfVertices << '\n';
+      os << NumOfVertices << '\n';
       for (i = 0; i < NumOfVertices; i++)
       {
          for (j = 0; j < Dim; j++)
          {
-            pout << " " << vertices[i](j);
+            os << " " << vertices[i](j);
          }
-         pout << '\n';
+         os << '\n';
       }
 
       // print the elements
-      pout << NumOfElements << '\n';
+      os << NumOfElements << '\n';
       for (i = 0; i < NumOfElements; i++)
       {
          nv = elements[i]->GetNVertices();
          ind = elements[i]->GetVertices();
-         pout << elements[i]->GetAttribute();
+         os << elements[i]->GetAttribute();
          for (j = 0; j < nv; j++)
          {
-            pout << " " << ind[j]+1;
+            os << " " << ind[j]+1;
          }
-         pout << '\n';
+         os << '\n';
       }
 
       // print the boundary + shared faces information
-      pout << NumOfBdrElements + sface_lface.Size() << '\n';
+      os << NumOfBdrElements + sface_lface.Size() << '\n';
       // boundary
       for (i = 0; i < NumOfBdrElements; i++)
       {
          nv = boundary[i]->GetNVertices();
          ind = boundary[i]->GetVertices();
-         pout << boundary[i]->GetAttribute();
+         os << boundary[i]->GetAttribute();
          for (j = 0; j < nv; j++)
          {
-            pout << " " << ind[j]+1;
+            os << " " << ind[j]+1;
          }
-         pout << '\n';
+         os << '\n';
       }
       // shared faces
       const int sf_attr =
@@ -4460,12 +4460,12 @@ void ParMesh::PrintXG(std::ostream &pout) const
       for (i = 0; i < shared_trias.Size(); i++)
       {
          ind = shared_trias[i].v;
-         pout << sf_attr;
+         os << sf_attr;
          for (j = 0; j < 3; j++)
          {
-            pout << ' ' << ind[j]+1;
+            os << ' ' << ind[j]+1;
          }
-         pout << '\n';
+         os << '\n';
       }
       // There are no quad shared faces
    }
@@ -4475,20 +4475,20 @@ void ParMesh::PrintXG(std::ostream &pout) const
       int i, j, nv;
       const int *ind;
 
-      pout << "TrueGrid\n"
-           << "1 " << NumOfVertices << " " << NumOfElements
-           << " 0 0 0 0 0 0 0\n"
-           << "0 0 0 1 0 0 0 0 0 0 0\n"
-           << "0 0 " << NumOfBdrElements+sface_lface.Size()
-           << " 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
-           << "0.0 0.0 0.0 0 0 0.0 0.0 0 0.0\n"
-           << "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n";
+      os << "TrueGrid\n"
+         << "1 " << NumOfVertices << " " << NumOfElements
+         << " 0 0 0 0 0 0 0\n"
+         << "0 0 0 1 0 0 0 0 0 0 0\n"
+         << "0 0 " << NumOfBdrElements+sface_lface.Size()
+         << " 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
+         << "0.0 0.0 0.0 0 0 0.0 0.0 0 0.0\n"
+         << "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n";
 
       // print the vertices
       for (i = 0; i < NumOfVertices; i++)
       {
-         pout << i+1 << " 0.0 " << vertices[i](0) << " " << vertices[i](1)
-              << " " << vertices[i](2) << " 0.0\n";
+         os << i+1 << " 0.0 " << vertices[i](0) << " " << vertices[i](1)
+            << " " << vertices[i](2) << " 0.0\n";
       }
 
       // print the elements
@@ -4496,12 +4496,12 @@ void ParMesh::PrintXG(std::ostream &pout) const
       {
          nv = elements[i]->GetNVertices();
          ind = elements[i]->GetVertices();
-         pout << i+1 << " " << elements[i]->GetAttribute();
+         os << i+1 << " " << elements[i]->GetAttribute();
          for (j = 0; j < nv; j++)
          {
-            pout << " " << ind[j]+1;
+            os << " " << ind[j]+1;
          }
-         pout << '\n';
+         os << '\n';
       }
 
       // print the boundary information
@@ -4509,12 +4509,12 @@ void ParMesh::PrintXG(std::ostream &pout) const
       {
          nv = boundary[i]->GetNVertices();
          ind = boundary[i]->GetVertices();
-         pout << boundary[i]->GetAttribute();
+         os << boundary[i]->GetAttribute();
          for (j = 0; j < nv; j++)
          {
-            pout << " " << ind[j]+1;
+            os << " " << ind[j]+1;
          }
-         pout << " 1.0 1.0 1.0 1.0\n";
+         os << " 1.0 1.0 1.0 1.0\n";
       }
 
       // print the shared faces information
@@ -4524,12 +4524,12 @@ void ParMesh::PrintXG(std::ostream &pout) const
       for (i = 0; i < shared_quads.Size(); i++)
       {
          ind = shared_quads[i].v;
-         pout << sf_attr;
+         os << sf_attr;
          for (j = 0; j < 4; j++)
          {
-            pout << ' ' << ind[j]+1;
+            os << ' ' << ind[j]+1;
          }
-         pout << " 1.0 1.0 1.0 1.0\n";
+         os << " 1.0 1.0 1.0 1.0\n";
       }
    }
 
@@ -4538,74 +4538,74 @@ void ParMesh::PrintXG(std::ostream &pout) const
       int i, j, attr;
       Array<int> v;
 
-      pout << "areamesh2\n\n";
+      os << "areamesh2\n\n";
 
       // print the boundary + shared edges information
-      pout << NumOfBdrElements + shared_edges.Size() << '\n';
+      os << NumOfBdrElements + shared_edges.Size() << '\n';
       // boundary
       for (i = 0; i < NumOfBdrElements; i++)
       {
          attr = boundary[i]->GetAttribute();
          boundary[i]->GetVertices(v);
-         pout << attr << "     ";
+         os << attr << "     ";
          for (j = 0; j < v.Size(); j++)
          {
-            pout << v[j] + 1 << "   ";
+            os << v[j] + 1 << "   ";
          }
-         pout << '\n';
+         os << '\n';
       }
       // shared edges
       for (i = 0; i < shared_edges.Size(); i++)
       {
          attr = shared_edges[i]->GetAttribute();
          shared_edges[i]->GetVertices(v);
-         pout << attr << "     ";
+         os << attr << "     ";
          for (j = 0; j < v.Size(); j++)
          {
-            pout << v[j] + 1 << "   ";
+            os << v[j] + 1 << "   ";
          }
-         pout << '\n';
+         os << '\n';
       }
 
       // print the elements
-      pout << NumOfElements << '\n';
+      os << NumOfElements << '\n';
       for (i = 0; i < NumOfElements; i++)
       {
          attr = elements[i]->GetAttribute();
          elements[i]->GetVertices(v);
 
-         pout << attr << "   ";
+         os << attr << "   ";
          if ((j = GetElementType(i)) == Element::TRIANGLE)
          {
-            pout << 3 << "   ";
+            os << 3 << "   ";
          }
          else if (j == Element::QUADRILATERAL)
          {
-            pout << 4 << "   ";
+            os << 4 << "   ";
          }
          else if (j == Element::SEGMENT)
          {
-            pout << 2 << "   ";
+            os << 2 << "   ";
          }
          for (j = 0; j < v.Size(); j++)
          {
-            pout << v[j] + 1 << "  ";
+            os << v[j] + 1 << "  ";
          }
-         pout << '\n';
+         os << '\n';
       }
 
       // print the vertices
-      pout << NumOfVertices << '\n';
+      os << NumOfVertices << '\n';
       for (i = 0; i < NumOfVertices; i++)
       {
          for (j = 0; j < Dim; j++)
          {
-            pout << vertices[i](j) << " ";
+            os << vertices[i](j) << " ";
          }
-         pout << '\n';
+         os << '\n';
       }
    }
-   pout.flush();
+   os.flush();
 }
 
 bool ParMesh::WantSkipSharedMaster(const NCMesh::Master &master) const
@@ -4621,7 +4621,7 @@ bool ParMesh::WantSkipSharedMaster(const NCMesh::Master &master) const
    return false;
 }
 
-void ParMesh::Print(std::ostream &pout) const
+void ParMesh::Print(std::ostream &os) const
 {
    bool print_shared = true;
    int i, j, shared_bdr_attr;
@@ -4629,7 +4629,7 @@ void ParMesh::Print(std::ostream &pout) const
 
    if (NURBSext)
    {
-      Printer(pout); // does not print shared boundary
+      Printer(os); // does not print shared boundary
       return;
    }
 
@@ -4667,25 +4667,25 @@ void ParMesh::Print(std::ostream &pout) const
       }
    }
 
-   pout << "MFEM mesh v1.0\n";
+   os << "MFEM mesh v1.0\n";
 
    // optional
-   pout <<
-        "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
-        "# POINT       = 0\n"
-        "# SEGMENT     = 1\n"
-        "# TRIANGLE    = 2\n"
-        "# SQUARE      = 3\n"
-        "# TETRAHEDRON = 4\n"
-        "# CUBE        = 5\n"
-        "# PRISM       = 6\n"
-        "#\n";
+   os <<
+      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "# POINT       = 0\n"
+      "# SEGMENT     = 1\n"
+      "# TRIANGLE    = 2\n"
+      "# SQUARE      = 3\n"
+      "# TETRAHEDRON = 4\n"
+      "# CUBE        = 5\n"
+      "# PRISM       = 6\n"
+      "#\n";
 
-   pout << "\ndimension\n" << Dim
-        << "\n\nelements\n" << NumOfElements << '\n';
+   os << "\ndimension\n" << Dim
+      << "\n\nelements\n" << NumOfElements << '\n';
    for (i = 0; i < NumOfElements; i++)
    {
-      PrintElement(elements[i], pout);
+      PrintElement(elements[i], os);
    }
 
    int num_bdr_elems = NumOfBdrElements;
@@ -4693,10 +4693,10 @@ void ParMesh::Print(std::ostream &pout) const
    {
       num_bdr_elems += s2l_face->Size();
    }
-   pout << "\nboundary\n" << num_bdr_elems << '\n';
+   os << "\nboundary\n" << num_bdr_elems << '\n';
    for (i = 0; i < NumOfBdrElements; i++)
    {
-      PrintElement(boundary[i], pout);
+      PrintElement(boundary[i], os);
    }
 
    if (print_shared && Dim > 1)
@@ -4713,28 +4713,28 @@ void ParMesh::Print(std::ostream &pout) const
       {
          // Modify the attributes of the faces (not used otherwise?)
          faces[(*s2l_face)[i]]->SetAttribute(shared_bdr_attr);
-         PrintElement(faces[(*s2l_face)[i]], pout);
+         PrintElement(faces[(*s2l_face)[i]], os);
       }
    }
-   pout << "\nvertices\n" << NumOfVertices << '\n';
+   os << "\nvertices\n" << NumOfVertices << '\n';
    if (Nodes == NULL)
    {
-      pout << spaceDim << '\n';
+      os << spaceDim << '\n';
       for (i = 0; i < NumOfVertices; i++)
       {
-         pout << vertices[i](0);
+         os << vertices[i](0);
          for (j = 1; j < spaceDim; j++)
          {
-            pout << ' ' << vertices[i](j);
+            os << ' ' << vertices[i](j);
          }
-         pout << '\n';
+         os << '\n';
       }
-      pout.flush();
+      os.flush();
    }
    else
    {
-      pout << "\nnodes\n";
-      Nodes->Save(pout);
+      os << "\nnodes\n";
+      Nodes->Save(os);
    }
 }
 
@@ -4748,9 +4748,9 @@ void ParMesh::Save(const char *fname, int precision) const
 }
 
 #ifdef MFEM_USE_ADIOS2
-void ParMesh::Print(adios2stream &pout) const
+void ParMesh::Print(adios2stream &os) const
 {
-   Mesh::Print(pout);
+   Mesh::Print(os);
 }
 #endif
 
@@ -4766,7 +4766,7 @@ static void dump_element(const Element* elem, Array<int> &data)
    }
 }
 
-void ParMesh::PrintAsOne(std::ostream &pout) const
+void ParMesh::PrintAsOne(std::ostream &os) const
 {
    int i, j, k, p, nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1], vc;
    const int *v;
@@ -4776,40 +4776,40 @@ void ParMesh::PrintAsOne(std::ostream &pout) const
 
    if (MyRank == 0)
    {
-      pout << "MFEM mesh v1.0\n";
+      os << "MFEM mesh v1.0\n";
 
       // optional
-      pout <<
-           "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
-           "# POINT       = 0\n"
-           "# SEGMENT     = 1\n"
-           "# TRIANGLE    = 2\n"
-           "# SQUARE      = 3\n"
-           "# TETRAHEDRON = 4\n"
-           "# CUBE        = 5\n"
-           "# PRISM       = 6\n"
-           "#\n";
+      os <<
+         "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+         "# POINT       = 0\n"
+         "# SEGMENT     = 1\n"
+         "# TRIANGLE    = 2\n"
+         "# SQUARE      = 3\n"
+         "# TETRAHEDRON = 4\n"
+         "# CUBE        = 5\n"
+         "# PRISM       = 6\n"
+         "#\n";
 
-      pout << "\ndimension\n" << Dim;
+      os << "\ndimension\n" << Dim;
    }
 
    nv = NumOfElements;
    MPI_Reduce(&nv, &ne, 1, MPI_INT, MPI_SUM, 0, MyComm);
    if (MyRank == 0)
    {
-      pout << "\n\nelements\n" << ne << '\n';
+      os << "\n\nelements\n" << ne << '\n';
       for (i = 0; i < NumOfElements; i++)
       {
          // processor number + 1 as attribute and geometry type
-         pout << 1 << ' ' << elements[i]->GetGeometryType();
+         os << 1 << ' ' << elements[i]->GetGeometryType();
          // vertices
          nv = elements[i]->GetNVertices();
          v  = elements[i]->GetVertices();
          for (j = 0; j < nv; j++)
          {
-            pout << ' ' << v[j];
+            os << ' ' << v[j];
          }
-         pout << '\n';
+         os << '\n';
       }
       vc = NumOfVertices;
       for (p = 1; p < NRanks; p++)
@@ -4823,14 +4823,14 @@ void ParMesh::PrintAsOne(std::ostream &pout) const
          for (i = 0; i < ne; )
          {
             // processor number + 1 as attribute and geometry type
-            pout << p+1 << ' ' << ints[i];
+            os << p+1 << ' ' << ints[i];
             // vertices
             k = Geometries.GetVertices(ints[i++])->GetNPoints();
             for (j = 0; j < k; j++)
             {
-               pout << ' ' << vc + ints[i++];
+               os << ' ' << vc + ints[i++];
             }
-            pout << '\n';
+            os << '\n';
          }
          vc += nv;
       }
@@ -4945,7 +4945,7 @@ void ParMesh::PrintAsOne(std::ostream &pout) const
    MPI_Reduce(&ne, &k, 1, MPI_INT, MPI_SUM, 0, MyComm);
    if (MyRank == 0)
    {
-      pout << "\nboundary\n" << k << '\n';
+      os << "\nboundary\n" << k << '\n';
       vc = 0;
       for (p = 0; p < NRanks; p++)
       {
@@ -4966,14 +4966,14 @@ void ParMesh::PrintAsOne(std::ostream &pout) const
          for (i = 0; i < ne; )
          {
             // processor number + 1 as bdr. attr. and bdr. geometry type
-            pout << p+1 << ' ' << ints[i];
+            os << p+1 << ' ' << ints[i];
             k = Geometries.NumVerts[ints[i++]];
             // vertices
             for (j = 0; j < k; j++)
             {
-               pout << ' ' << vc + ints[i++];
+               os << ' ' << vc + ints[i++];
             }
-            pout << '\n';
+            os << '\n';
          }
          vc += nv;
       }
@@ -4993,21 +4993,21 @@ void ParMesh::PrintAsOne(std::ostream &pout) const
    MPI_Reduce(&NumOfVertices, &nv, 1, MPI_INT, MPI_SUM, 0, MyComm);
    if (MyRank == 0)
    {
-      pout << "\nvertices\n" << nv << '\n';
+      os << "\nvertices\n" << nv << '\n';
    }
    if (Nodes == NULL)
    {
       if (MyRank == 0)
       {
-         pout << spaceDim << '\n';
+         os << spaceDim << '\n';
          for (i = 0; i < NumOfVertices; i++)
          {
-            pout << vertices[i](0);
+            os << vertices[i](0);
             for (j = 1; j < spaceDim; j++)
             {
-               pout << ' ' << vertices[i](j);
+               os << ' ' << vertices[i](j);
             }
-            pout << '\n';
+            os << '\n';
          }
          for (p = 1; p < NRanks; p++)
          {
@@ -5019,15 +5019,15 @@ void ParMesh::PrintAsOne(std::ostream &pout) const
             }
             for (i = 0; i < nv; i++)
             {
-               pout << vert[i*spaceDim];
+               os << vert[i*spaceDim];
                for (j = 1; j < spaceDim; j++)
                {
-                  pout << ' ' << vert[i*spaceDim+j];
+                  os << ' ' << vert[i*spaceDim+j];
                }
-               pout << '\n';
+               os << '\n';
             }
          }
-         pout.flush();
+         os.flush();
       }
       else
       {
@@ -5050,12 +5050,12 @@ void ParMesh::PrintAsOne(std::ostream &pout) const
    {
       if (MyRank == 0)
       {
-         pout << "\nnodes\n";
+         os << "\nnodes\n";
       }
       ParGridFunction *pnodes = dynamic_cast<ParGridFunction *>(Nodes);
       if (pnodes)
       {
-         pnodes->SaveAsOne(pout);
+         pnodes->SaveAsOne(os);
       }
       else
       {
@@ -5065,7 +5065,7 @@ void ParMesh::PrintAsOne(std::ostream &pout) const
          {
             // create a wrapper ParGridFunction
             ParGridFunction ParNodes(pfes, Nodes);
-            ParNodes.SaveAsOne(pout);
+            ParNodes.SaveAsOne(os);
          }
          else
          {
@@ -5086,7 +5086,7 @@ void ParMesh::SaveAsOne(const char *fname, int precision) const
    PrintAsOne(ofs);
 }
 
-void ParMesh::PrintAsOneXG(std::ostream &pout)
+void ParMesh::PrintAsOneXG(std::ostream &os)
 {
    MFEM_ASSERT(Dim == spaceDim, "2D Manifolds not supported.");
    if (Dim == 3 && meshgen == 1)
@@ -5099,18 +5099,18 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
 
       if (MyRank == 0)
       {
-         pout << "NETGEN_Neutral_Format\n";
+         os << "NETGEN_Neutral_Format\n";
          // print the vertices
          ne = NumOfVertices;
          MPI_Reduce(&ne, &nv, 1, MPI_INT, MPI_SUM, 0, MyComm);
-         pout << nv << '\n';
+         os << nv << '\n';
          for (i = 0; i < NumOfVertices; i++)
          {
             for (j = 0; j < Dim; j++)
             {
-               pout << " " << vertices[i](j);
+               os << " " << vertices[i](j);
             }
-            pout << '\n';
+            os << '\n';
          }
          for (p = 1; p < NRanks; p++)
          {
@@ -5121,26 +5121,26 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
             {
                for (j = 0; j < Dim; j++)
                {
-                  pout << " " << vert[Dim*i+j];
+                  os << " " << vert[Dim*i+j];
                }
-               pout << '\n';
+               os << '\n';
             }
          }
 
          // print the elements
          nv = NumOfElements;
          MPI_Reduce(&nv, &ne, 1, MPI_INT, MPI_SUM, 0, MyComm);
-         pout << ne << '\n';
+         os << ne << '\n';
          for (i = 0; i < NumOfElements; i++)
          {
             nv = elements[i]->GetNVertices();
             ind = elements[i]->GetVertices();
-            pout << 1;
+            os << 1;
             for (j = 0; j < nv; j++)
             {
-               pout << " " << ind[j]+1;
+               os << " " << ind[j]+1;
             }
-            pout << '\n';
+            os << '\n';
          }
          k = NumOfVertices;
          for (p = 1; p < NRanks; p++)
@@ -5151,30 +5151,30 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
             MPI_Recv(&ints[0], 4*ne, MPI_INT, p, 447, MyComm, &status);
             for (i = 0; i < ne; i++)
             {
-               pout << p+1;
+               os << p+1;
                for (j = 0; j < 4; j++)
                {
-                  pout << " " << k+ints[i*4+j]+1;
+                  os << " " << k+ints[i*4+j]+1;
                }
-               pout << '\n';
+               os << '\n';
             }
             k += nv;
          }
          // print the boundary + shared faces information
          nv = NumOfBdrElements + sface_lface.Size();
          MPI_Reduce(&nv, &ne, 1, MPI_INT, MPI_SUM, 0, MyComm);
-         pout << ne << '\n';
+         os << ne << '\n';
          // boundary
          for (i = 0; i < NumOfBdrElements; i++)
          {
             nv = boundary[i]->GetNVertices();
             ind = boundary[i]->GetVertices();
-            pout << 1;
+            os << 1;
             for (j = 0; j < nv; j++)
             {
-               pout << " " << ind[j]+1;
+               os << " " << ind[j]+1;
             }
-            pout << '\n';
+            os << '\n';
          }
          // shared faces
          const int sf_attr =
@@ -5182,12 +5182,12 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
          for (i = 0; i < shared_trias.Size(); i++)
          {
             ind = shared_trias[i].v;
-            pout << sf_attr;
+            os << sf_attr;
             for (j = 0; j < 3; j++)
             {
-               pout << ' ' << ind[j]+1;
+               os << ' ' << ind[j]+1;
             }
-            pout << '\n';
+            os << '\n';
          }
          // There are no quad shared faces
          k = NumOfVertices;
@@ -5199,12 +5199,12 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
             MPI_Recv(&ints[0], 3*ne, MPI_INT, p, 447, MyComm, &status);
             for (i = 0; i < ne; i++)
             {
-               pout << p+1;
+               os << p+1;
                for (j = 0; j < 3; j++)
                {
-                  pout << ' ' << k+ints[i*3+j]+1;
+                  os << ' ' << k+ints[i*3+j]+1;
                }
-               pout << '\n';
+               os << '\n';
             }
             k += nv;
          }
@@ -5281,19 +5281,19 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
          nv = NumOfBdrElements + sface_lface.Size();
          MPI_Reduce(&nv, &TG_nbe, 1, MPI_INT, MPI_SUM, 0, MyComm);
 
-         pout << "TrueGrid\n"
-              << "1 " << TG_nv << " " << TG_ne << " 0 0 0 0 0 0 0\n"
-              << "0 0 0 1 0 0 0 0 0 0 0\n"
-              << "0 0 " << TG_nbe << " 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
-              << "0.0 0.0 0.0 0 0 0.0 0.0 0 0.0\n"
-              << "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n";
+         os << "TrueGrid\n"
+            << "1 " << TG_nv << " " << TG_ne << " 0 0 0 0 0 0 0\n"
+            << "0 0 0 1 0 0 0 0 0 0 0\n"
+            << "0 0 " << TG_nbe << " 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
+            << "0.0 0.0 0.0 0 0 0.0 0.0 0 0.0\n"
+            << "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n";
 
          // print the vertices
          nv = TG_nv;
          for (i = 0; i < NumOfVertices; i++)
          {
-            pout << i+1 << " 0.0 " << vertices[i](0) << " " << vertices[i](1)
-                 << " " << vertices[i](2) << " 0.0\n";
+            os << i+1 << " 0.0 " << vertices[i](0) << " " << vertices[i](1)
+               << " " << vertices[i](2) << " 0.0\n";
          }
          for (p = 1; p < NRanks; p++)
          {
@@ -5302,8 +5302,8 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
             MPI_Recv(&vert[0], Dim*nv, MPI_DOUBLE, p, 445, MyComm, &status);
             for (i = 0; i < nv; i++)
             {
-               pout << i+1 << " 0.0 " << vert[Dim*i] << " " << vert[Dim*i+1]
-                    << " " << vert[Dim*i+2] << " 0.0\n";
+               os << i+1 << " 0.0 " << vert[Dim*i] << " " << vert[Dim*i+1]
+                  << " " << vert[Dim*i+2] << " 0.0\n";
             }
          }
 
@@ -5313,12 +5313,12 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
          {
             nv = elements[i]->GetNVertices();
             ind = elements[i]->GetVertices();
-            pout << i+1 << " " << 1;
+            os << i+1 << " " << 1;
             for (j = 0; j < nv; j++)
             {
-               pout << " " << ind[j]+1;
+               os << " " << ind[j]+1;
             }
-            pout << '\n';
+            os << '\n';
          }
          k = NumOfVertices;
          for (p = 1; p < NRanks; p++)
@@ -5329,12 +5329,12 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
             MPI_Recv(&ints[0], 8*ne, MPI_INT, p, 447, MyComm, &status);
             for (i = 0; i < ne; i++)
             {
-               pout << i+1 << " " << p+1;
+               os << i+1 << " " << p+1;
                for (j = 0; j < 8; j++)
                {
-                  pout << " " << k+ints[i*8+j]+1;
+                  os << " " << k+ints[i*8+j]+1;
                }
-               pout << '\n';
+               os << '\n';
             }
             k += nv;
          }
@@ -5346,12 +5346,12 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
          {
             nv = boundary[i]->GetNVertices();
             ind = boundary[i]->GetVertices();
-            pout << 1;
+            os << 1;
             for (j = 0; j < nv; j++)
             {
-               pout << " " << ind[j]+1;
+               os << " " << ind[j]+1;
             }
-            pout << " 1.0 1.0 1.0 1.0\n";
+            os << " 1.0 1.0 1.0 1.0\n";
          }
          // shared faces
          const int sf_attr =
@@ -5360,12 +5360,12 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
          for (i = 0; i < shared_quads.Size(); i++)
          {
             ind = shared_quads[i].v;
-            pout << sf_attr;
+            os << sf_attr;
             for (j = 0; j < 4; j++)
             {
-               pout << ' ' << ind[j]+1;
+               os << ' ' << ind[j]+1;
             }
-            pout << " 1.0 1.0 1.0 1.0\n";
+            os << " 1.0 1.0 1.0 1.0\n";
          }
          k = NumOfVertices;
          for (p = 1; p < NRanks; p++)
@@ -5376,12 +5376,12 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
             MPI_Recv(&ints[0], 4*ne, MPI_INT, p, 447, MyComm, &status);
             for (i = 0; i < ne; i++)
             {
-               pout << p+1;
+               os << p+1;
                for (j = 0; j < 4; j++)
                {
-                  pout << " " << k+ints[i*4+j]+1;
+                  os << " " << k+ints[i*4+j]+1;
                }
-               pout << " 1.0 1.0 1.0 1.0\n";
+               os << " 1.0 1.0 1.0 1.0\n";
             }
             k += nv;
          }
@@ -5449,35 +5449,35 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
 
       if (MyRank == 0)
       {
-         pout << "areamesh2\n\n";
+         os << "areamesh2\n\n";
 
          // print the boundary + shared edges information
          nv = NumOfBdrElements + shared_edges.Size();
          MPI_Reduce(&nv, &ne, 1, MPI_INT, MPI_SUM, 0, MyComm);
-         pout << ne << '\n';
+         os << ne << '\n';
          // boundary
          for (i = 0; i < NumOfBdrElements; i++)
          {
             attr = boundary[i]->GetAttribute();
             boundary[i]->GetVertices(v);
-            pout << attr << "     ";
+            os << attr << "     ";
             for (j = 0; j < v.Size(); j++)
             {
-               pout << v[j] + 1 << "   ";
+               os << v[j] + 1 << "   ";
             }
-            pout << '\n';
+            os << '\n';
          }
          // shared edges
          for (i = 0; i < shared_edges.Size(); i++)
          {
             attr = shared_edges[i]->GetAttribute();
             shared_edges[i]->GetVertices(v);
-            pout << attr << "     ";
+            os << attr << "     ";
             for (j = 0; j < v.Size(); j++)
             {
-               pout << v[j] + 1 << "   ";
+               os << v[j] + 1 << "   ";
             }
-            pout << '\n';
+            os << '\n';
          }
          k = NumOfVertices;
          for (p = 1; p < NRanks; p++)
@@ -5488,12 +5488,12 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
             MPI_Recv(&ints[0], 2*ne, MPI_INT, p, 447, MyComm, &status);
             for (i = 0; i < ne; i++)
             {
-               pout << p+1;
+               os << p+1;
                for (j = 0; j < 2; j++)
                {
-                  pout << " " << k+ints[i*2+j]+1;
+                  os << " " << k+ints[i*2+j]+1;
                }
-               pout << '\n';
+               os << '\n';
             }
             k += nv;
          }
@@ -5501,17 +5501,17 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
          // print the elements
          nv = NumOfElements;
          MPI_Reduce(&nv, &ne, 1, MPI_INT, MPI_SUM, 0, MyComm);
-         pout << ne << '\n';
+         os << ne << '\n';
          for (i = 0; i < NumOfElements; i++)
          {
             // attr = elements[i]->GetAttribute(); // not used
             elements[i]->GetVertices(v);
-            pout << 1 << "   " << 3 << "   ";
+            os << 1 << "   " << 3 << "   ";
             for (j = 0; j < v.Size(); j++)
             {
-               pout << v[j] + 1 << "  ";
+               os << v[j] + 1 << "  ";
             }
-            pout << '\n';
+            os << '\n';
          }
          k = NumOfVertices;
          for (p = 1; p < NRanks; p++)
@@ -5522,12 +5522,12 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
             MPI_Recv(&ints[0], 3*ne, MPI_INT, p, 447, MyComm, &status);
             for (i = 0; i < ne; i++)
             {
-               pout << p+1 << " " << 3;
+               os << p+1 << " " << 3;
                for (j = 0; j < 3; j++)
                {
-                  pout << " " << k+ints[i*3+j]+1;
+                  os << " " << k+ints[i*3+j]+1;
                }
-               pout << '\n';
+               os << '\n';
             }
             k += nv;
          }
@@ -5535,14 +5535,14 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
          // print the vertices
          ne = NumOfVertices;
          MPI_Reduce(&ne, &nv, 1, MPI_INT, MPI_SUM, 0, MyComm);
-         pout << nv << '\n';
+         os << nv << '\n';
          for (i = 0; i < NumOfVertices; i++)
          {
             for (j = 0; j < Dim; j++)
             {
-               pout << vertices[i](j) << " ";
+               os << vertices[i](j) << " ";
             }
-            pout << '\n';
+            os << '\n';
          }
          for (p = 1; p < NRanks; p++)
          {
@@ -5553,9 +5553,9 @@ void ParMesh::PrintAsOneXG(std::ostream &pout)
             {
                for (j = 0; j < Dim; j++)
                {
-                  pout << " " << vert[Dim*i+j];
+                  os << " " << vert[Dim*i+j];
                }
-               pout << '\n';
+               os << '\n';
             }
          }
       }
@@ -5645,7 +5645,7 @@ void ParMesh::GetCharacteristics(double &gh_min, double &gh_max,
    MPI_Allreduce(&kappa_max, &gk_max, 1, MPI_DOUBLE, MPI_MAX, MyComm);
 }
 
-void ParMesh::PrintInfo(std::ostream &pout)
+void ParMesh::PrintInfo(std::ostream &os)
 {
    int i;
    DenseMatrix J(Dim);
@@ -5653,7 +5653,7 @@ void ParMesh::PrintInfo(std::ostream &pout)
 
    if (MyRank == 0)
    {
-      pout << "Parallel Mesh Stats:" << '\n';
+      os << "Parallel Mesh Stats:" << '\n';
    }
 
    for (i = 0; i < NumOfElements; i++)
@@ -5710,50 +5710,50 @@ void ParMesh::PrintInfo(std::ostream &pout)
 
    if (MyRank == 0)
    {
-      pout << '\n'
-           << "           "
-           << setw(12) << "minimum"
-           << setw(12) << "average"
-           << setw(12) << "maximum"
-           << setw(12) << "total" << '\n';
-      pout << " vertices  "
-           << setw(12) << mindata[0]
-           << setw(12) << sumdata[0]/NRanks
-           << setw(12) << maxdata[0]
-           << setw(12) << sumdata[0] << '\n';
-      pout << " edges     "
-           << setw(12) << mindata[1]
-           << setw(12) << sumdata[1]/NRanks
-           << setw(12) << maxdata[1]
-           << setw(12) << sumdata[1] << '\n';
+      os << '\n'
+         << "           "
+         << setw(12) << "minimum"
+         << setw(12) << "average"
+         << setw(12) << "maximum"
+         << setw(12) << "total" << '\n';
+      os << " vertices  "
+         << setw(12) << mindata[0]
+         << setw(12) << sumdata[0]/NRanks
+         << setw(12) << maxdata[0]
+         << setw(12) << sumdata[0] << '\n';
+      os << " edges     "
+         << setw(12) << mindata[1]
+         << setw(12) << sumdata[1]/NRanks
+         << setw(12) << maxdata[1]
+         << setw(12) << sumdata[1] << '\n';
       if (Dim == 3)
       {
-         pout << " faces     "
-              << setw(12) << mindata[2]
-              << setw(12) << sumdata[2]/NRanks
-              << setw(12) << maxdata[2]
-              << setw(12) << sumdata[2] << '\n';
+         os << " faces     "
+            << setw(12) << mindata[2]
+            << setw(12) << sumdata[2]/NRanks
+            << setw(12) << maxdata[2]
+            << setw(12) << sumdata[2] << '\n';
       }
-      pout << " elements  "
-           << setw(12) << mindata[3]
-           << setw(12) << sumdata[3]/NRanks
-           << setw(12) << maxdata[3]
-           << setw(12) << sumdata[3] << '\n';
-      pout << " neighbors "
-           << setw(12) << mindata[4]
-           << setw(12) << sumdata[4]/NRanks
-           << setw(12) << maxdata[4] << '\n';
-      pout << '\n'
-           << "       "
-           << setw(12) << "minimum"
-           << setw(12) << "maximum" << '\n';
-      pout << " h     "
-           << setw(12) << gh_min
-           << setw(12) << gh_max << '\n';
-      pout << " kappa "
-           << setw(12) << gk_min
-           << setw(12) << gk_max << '\n';
-      pout << std::flush;
+      os << " elements  "
+         << setw(12) << mindata[3]
+         << setw(12) << sumdata[3]/NRanks
+         << setw(12) << maxdata[3]
+         << setw(12) << sumdata[3] << '\n';
+      os << " neighbors "
+         << setw(12) << mindata[4]
+         << setw(12) << sumdata[4]/NRanks
+         << setw(12) << maxdata[4] << '\n';
+      os << '\n'
+         << "       "
+         << setw(12) << "minimum"
+         << setw(12) << "maximum" << '\n';
+      os << " h     "
+         << setw(12) << gh_min
+         << setw(12) << gh_max << '\n';
+      os << " kappa "
+         << setw(12) << gk_min
+         << setw(12) << gk_max << '\n';
+      os << std::flush;
    }
 }
 
@@ -5764,59 +5764,59 @@ long ParMesh::ReduceInt(int value) const
    return global;
 }
 
-void ParMesh::ParPrint(ostream &pout) const
+void ParMesh::ParPrint(ostream &os) const
 {
    if (NURBSext)
    {
       // TODO: NURBS meshes.
-      Print(pout); // use the serial MFEM v1.0 format for now
+      Print(os); // use the serial MFEM v1.0 format for now
       return;
    }
 
    if (Nonconforming())
    {
       // the NC mesh format works both in serial and in parallel
-      Printer(pout);
+      Printer(os);
       return;
    }
 
    // Write out serial mesh.  Tell serial mesh to deliniate the end of it's
    // output with 'mfem_serial_mesh_end' instead of 'mfem_mesh_end', as we will
    // be adding additional parallel mesh information.
-   Printer(pout, "mfem_serial_mesh_end");
+   Printer(os, "mfem_serial_mesh_end");
 
    // write out group topology info.
-   gtopo.Save(pout);
+   gtopo.Save(os);
 
-   pout << "\ntotal_shared_vertices " << svert_lvert.Size() << '\n';
+   os << "\ntotal_shared_vertices " << svert_lvert.Size() << '\n';
    if (Dim >= 2)
    {
-      pout << "total_shared_edges " << shared_edges.Size() << '\n';
+      os << "total_shared_edges " << shared_edges.Size() << '\n';
    }
    if (Dim >= 3)
    {
-      pout << "total_shared_faces " << sface_lface.Size() << '\n';
+      os << "total_shared_faces " << sface_lface.Size() << '\n';
    }
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       {
          const int  nv = group_svert.RowSize(gr-1);
          const int *sv = group_svert.GetRow(gr-1);
-         pout << "\n# group " << gr << "\nshared_vertices " << nv << '\n';
+         os << "\n# group " << gr << "\nshared_vertices " << nv << '\n';
          for (int i = 0; i < nv; i++)
          {
-            pout << svert_lvert[sv[i]] << '\n';
+            os << svert_lvert[sv[i]] << '\n';
          }
       }
       if (Dim >= 2)
       {
          const int  ne = group_sedge.RowSize(gr-1);
          const int *se = group_sedge.GetRow(gr-1);
-         pout << "\nshared_edges " << ne << '\n';
+         os << "\nshared_edges " << ne << '\n';
          for (int i = 0; i < ne; i++)
          {
             const int *v = shared_edges[se[i]]->GetVertices();
-            pout << v[0] << ' ' << v[1] << '\n';
+            os << v[0] << ' ' << v[1] << '\n';
          }
       }
       if (Dim >= 3)
@@ -5825,26 +5825,26 @@ void ParMesh::ParPrint(ostream &pout) const
          const int *st = group_stria.GetRow(gr-1);
          const int  nq = group_squad.RowSize(gr-1);
          const int *sq = group_squad.GetRow(gr-1);
-         pout << "\nshared_faces " << nt+nq << '\n';
+         os << "\nshared_faces " << nt+nq << '\n';
          for (int i = 0; i < nt; i++)
          {
-            pout << Geometry::TRIANGLE;
+            os << Geometry::TRIANGLE;
             const int *v = shared_trias[st[i]].v;
-            for (int j = 0; j < 3; j++) { pout << ' ' << v[j]; }
-            pout << '\n';
+            for (int j = 0; j < 3; j++) { os << ' ' << v[j]; }
+            os << '\n';
          }
          for (int i = 0; i < nq; i++)
          {
-            pout << Geometry::SQUARE;
+            os << Geometry::SQUARE;
             const int *v = shared_quads[sq[i]].v;
-            for (int j = 0; j < 4; j++) { pout << ' ' << v[j]; }
-            pout << '\n';
+            for (int j = 0; j < 4; j++) { os << ' ' << v[j]; }
+            os << '\n';
          }
       }
    }
 
    // Write out section end tag for mesh.
-   pout << "\nmfem_mesh_end" << endl;
+   os << "\nmfem_mesh_end" << endl;
 }
 
 void ParMesh::PrintVTU(std::string pathname,
@@ -5863,50 +5863,50 @@ void ParMesh::PrintVTU(std::string pathname,
    if (MyRank == 0)
    {
       std::string pvtu_name = pathname + "/" + fname + ".pvtu";
-      std::ofstream pout(pvtu_name);
+      std::ofstream os(pvtu_name);
 
       std::string data_type = (format == VTKFormat::BINARY32) ? "Float32" : "Float64";
       std::string data_format = (format == VTKFormat::ASCII) ? "ascii" : "binary";
 
-      pout << "<?xml version=\"1.0\"?>\n";
-      pout << "<VTKFile type=\"PUnstructuredGrid\"";
-      pout << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
-      pout << "<PUnstructuredGrid GhostLevel=\"0\">\n";
+      os << "<?xml version=\"1.0\"?>\n";
+      os << "<VTKFile type=\"PUnstructuredGrid\"";
+      os << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+      os << "<PUnstructuredGrid GhostLevel=\"0\">\n";
 
-      pout << "<PPoints>\n";
-      pout << "\t<PDataArray type=\"" << data_type << "\" ";
-      pout << " Name=\"Points\" NumberOfComponents=\"3\""
-           << " format=\"" << data_format << "\"/>\n";
-      pout << "</PPoints>\n";
+      os << "<PPoints>\n";
+      os << "\t<PDataArray type=\"" << data_type << "\" ";
+      os << " Name=\"Points\" NumberOfComponents=\"3\""
+         << " format=\"" << data_format << "\"/>\n";
+      os << "</PPoints>\n";
 
-      pout << "<PCells>\n";
-      pout << "\t<PDataArray type=\"Int32\" ";
-      pout << " Name=\"connectivity\" NumberOfComponents=\"1\""
-           << " format=\"" << data_format << "\"/>\n";
-      pout << "\t<PDataArray type=\"Int32\" ";
-      pout << " Name=\"offsets\"      NumberOfComponents=\"1\""
-           << " format=\"" << data_format << "\"/>\n";
-      pout << "\t<PDataArray type=\"UInt8\" ";
-      pout << " Name=\"types\"        NumberOfComponents=\"1\""
-           << " format=\"" << data_format << "\"/>\n";
-      pout << "</PCells>\n";
+      os << "<PCells>\n";
+      os << "\t<PDataArray type=\"Int32\" ";
+      os << " Name=\"connectivity\" NumberOfComponents=\"1\""
+         << " format=\"" << data_format << "\"/>\n";
+      os << "\t<PDataArray type=\"Int32\" ";
+      os << " Name=\"offsets\"      NumberOfComponents=\"1\""
+         << " format=\"" << data_format << "\"/>\n";
+      os << "\t<PDataArray type=\"UInt8\" ";
+      os << " Name=\"types\"        NumberOfComponents=\"1\""
+         << " format=\"" << data_format << "\"/>\n";
+      os << "</PCells>\n";
 
-      pout << "<PCellData>\n";
-      pout << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
-           << "\" NumberOfComponents=\"1\""
-           << " format=\"" << data_format << "\"/>\n";
-      pout << "</PCellData>\n";
+      os << "<PCellData>\n";
+      os << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
+         << "\" NumberOfComponents=\"1\""
+         << " format=\"" << data_format << "\"/>\n";
+      os << "</PCellData>\n";
 
       for (int ii=0; ii<NRanks; ii++)
       {
          std::string piece = fname + ".proc"
                              + to_padded_string(ii, pad_digits_rank) + ".vtu";
-         pout << "<Piece Source=\"" << piece << "\"/>\n";
+         os << "<Piece Source=\"" << piece << "\"/>\n";
       }
 
-      pout << "</PUnstructuredGrid>\n";
-      pout << "</VTKFile>\n";
-      pout.close();
+      os << "</PUnstructuredGrid>\n";
+      os << "</VTKFile>\n";
+      os.close();
    }
 
    std::string vtu_fname = pathname + "/" + fname + ".proc"
@@ -5954,12 +5954,12 @@ int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
    return pts_found;
 }
 
-static void PrintVertex(const Vertex &v, int space_dim, ostream &pout)
+static void PrintVertex(const Vertex &v, int space_dim, ostream &os)
 {
-   pout << v(0);
+   os << v(0);
    for (int d = 1; d < space_dim; d++)
    {
-      pout << ' ' << v(d);
+      os << ' ' << v(d);
    }
 }
 
@@ -5968,47 +5968,47 @@ void ParMesh::PrintSharedEntities(const char *fname_prefix) const
    stringstream out_name;
    out_name << fname_prefix << '_' << setw(5) << setfill('0') << MyRank
             << ".shared_entities";
-   ofstream pout(out_name.str().c_str());
-   pout.precision(16);
+   ofstream os(out_name.str().c_str());
+   os.precision(16);
 
    gtopo.Save(out);
 
-   pout << "\ntotal_shared_vertices " << svert_lvert.Size() << '\n';
+   os << "\ntotal_shared_vertices " << svert_lvert.Size() << '\n';
    if (Dim >= 2)
    {
-      pout << "total_shared_edges " << shared_edges.Size() << '\n';
+      os << "total_shared_edges " << shared_edges.Size() << '\n';
    }
    if (Dim >= 3)
    {
-      pout << "total_shared_faces " << sface_lface.Size() << '\n';
+      os << "total_shared_faces " << sface_lface.Size() << '\n';
    }
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       {
          const int  nv = group_svert.RowSize(gr-1);
          const int *sv = group_svert.GetRow(gr-1);
-         pout << "\n# group " << gr << "\n\nshared_vertices " << nv << '\n';
+         os << "\n# group " << gr << "\n\nshared_vertices " << nv << '\n';
          for (int i = 0; i < nv; i++)
          {
             const int lvi = svert_lvert[sv[i]];
-            // pout << lvi << '\n';
-            PrintVertex(vertices[lvi], spaceDim, pout);
-            pout << '\n';
+            // os << lvi << '\n';
+            PrintVertex(vertices[lvi], spaceDim, os);
+            os << '\n';
          }
       }
       if (Dim >= 2)
       {
          const int  ne = group_sedge.RowSize(gr-1);
          const int *se = group_sedge.GetRow(gr-1);
-         pout << "\nshared_edges " << ne << '\n';
+         os << "\nshared_edges " << ne << '\n';
          for (int i = 0; i < ne; i++)
          {
             const int *v = shared_edges[se[i]]->GetVertices();
-            // pout << v[0] << ' ' << v[1] << '\n';
-            PrintVertex(vertices[v[0]], spaceDim, pout);
-            pout << " | ";
-            PrintVertex(vertices[v[1]], spaceDim, pout);
-            pout << '\n';
+            // os << v[0] << ' ' << v[1] << '\n';
+            PrintVertex(vertices[v[0]], spaceDim, os);
+            os << " | ";
+            PrintVertex(vertices[v[1]], spaceDim, os);
+            os << '\n';
          }
       }
       if (Dim >= 3)
@@ -6017,33 +6017,33 @@ void ParMesh::PrintSharedEntities(const char *fname_prefix) const
          const int *st = group_stria.GetRow(gr-1);
          const int  nq = group_squad.RowSize(gr-1);
          const int *sq = group_squad.GetRow(gr-1);
-         pout << "\nshared_faces " << nt+nq << '\n';
+         os << "\nshared_faces " << nt+nq << '\n';
          for (int i = 0; i < nt; i++)
          {
             const int *v = shared_trias[st[i]].v;
 #if 0
-            pout << Geometry::TRIANGLE;
-            for (int j = 0; j < 3; j++) { pout << ' ' << v[j]; }
-            pout << '\n';
+            os << Geometry::TRIANGLE;
+            for (int j = 0; j < 3; j++) { os << ' ' << v[j]; }
+            os << '\n';
 #endif
             for (int j = 0; j < 3; j++)
             {
-               PrintVertex(vertices[v[j]], spaceDim, pout);
-               (j < 2) ? pout << " | " : pout << '\n';
+               PrintVertex(vertices[v[j]], spaceDim, os);
+               (j < 2) ? os << " | " : os << '\n';
             }
          }
          for (int i = 0; i < nq; i++)
          {
             const int *v = shared_quads[sq[i]].v;
 #if 0
-            pout << Geometry::SQUARE;
-            for (int j = 0; j < 4; j++) { pout << ' ' << v[j]; }
-            pout << '\n';
+            os << Geometry::SQUARE;
+            for (int j = 0; j < 4; j++) { os << ' ' << v[j]; }
+            os << '\n';
 #endif
             for (int j = 0; j < 4; j++)
             {
-               PrintVertex(vertices[v[j]], spaceDim, pout);
-               (j < 3) ? pout << " | " : pout << '\n';
+               PrintVertex(vertices[v[j]], spaceDim, os);
+               (j < 3) ? os << " | " : os << '\n';
             }
          }
       }
