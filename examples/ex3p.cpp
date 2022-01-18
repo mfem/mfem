@@ -255,10 +255,10 @@ int main(int argc, char *argv[])
 
    // 15. Compute and print the L^2 norm of the error.
    {
-      double err = x.ComputeL2Error(E);
+      double error = x.ComputeL2Error(E);
       if (myid == 0)
       {
-         cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
+         cout << "\n|| E_h - E ||_{L^2} = " << error << '\n' << endl;
       }
    }
 
