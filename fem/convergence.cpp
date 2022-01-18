@@ -193,29 +193,29 @@ void ConvergenceStudy::AddGf(GridFunction *gf, VectorCoefficient *vector_u,
    }
 }
 
-void ConvergenceStudy::Print(bool relative, std::ostream &pout)
+void ConvergenceStudy::Print(bool relative, std::ostream &os)
 {
    if (print_flag)
    {
       std::string title = (relative) ? "Relative " : "Absolute ";
-      pout << "\n";
-      pout << " -------------------------------------------" << "\n";
-      pout <<  std::setw(21) << title << "L2 Error " << "\n";
-      pout << " -------------------------------------------"
-           << "\n";
-      pout << std::right<< std::setw(11)<< "DOFs "<< std::setw(13) << "Error ";
-      pout <<  std::setw(15) << "Rate " << "\n";
-      pout << " -------------------------------------------"
-           << "\n";
-      pout << std::setprecision(4);
+      os << "\n";
+      os << " -------------------------------------------" << "\n";
+      os <<  std::setw(21) << title << "L2 Error " << "\n";
+      os << " -------------------------------------------"
+         << "\n";
+      os << std::right<< std::setw(11)<< "DOFs "<< std::setw(13) << "Error ";
+      os <<  std::setw(15) << "Rate " << "\n";
+      os << " -------------------------------------------"
+         << "\n";
+      os << std::setprecision(4);
       double d = (relative) ? CoeffNorm : 1.0;
       for (int i =0; i<counter; i++)
       {
-         pout << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
-              << std::scientific << L2Errors[i]/d << std::setw(13)
-              << std::fixed << L2Rates[i] << "\n";
+         os << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
+            << std::scientific << L2Errors[i]/d << std::setw(13)
+            << std::fixed << L2Rates[i] << "\n";
       }
-      pout << "\n";
+      os << "\n";
       if (dcounter == counter)
       {
          std::string dname;
@@ -227,22 +227,22 @@ void ConvergenceStudy::Print(bool relative, std::ostream &pout)
             case 3: dname = "DG Grad";  break;
             default: break;
          }
-         pout << " -------------------------------------------" << "\n";
-         pout <<  std::setw(21) << title << dname << " Error  " << "\n";
-         pout << " -------------------------------------------" << "\n";
-         pout << std::right<<std::setw(11)<< "DOFs "<< std::setw(13) << "Error";
-         pout << std::setw(15) << "Rate " << "\n";
-         pout << " -------------------------------------------"
-              << "\n";
-         pout << std::setprecision(4);
+         os << " -------------------------------------------" << "\n";
+         os <<  std::setw(21) << title << dname << " Error  " << "\n";
+         os << " -------------------------------------------" << "\n";
+         os << std::right<<std::setw(11)<< "DOFs "<< std::setw(13) << "Error";
+         os << std::setw(15) << "Rate " << "\n";
+         os << " -------------------------------------------"
+            << "\n";
+         os << std::setprecision(4);
          d = (relative) ? CoeffDNorm : 1.0;
          for (int i =0; i<dcounter; i++)
          {
-            pout << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
-                 << std::scientific << DErrors[i]/d << std::setw(13)
-                 << std::fixed << DRates[i] << "\n";
+            os << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
+               << std::scientific << DErrors[i]/d << std::setw(13)
+               << std::fixed << DRates[i] << "\n";
          }
-         pout << "\n";
+         os << "\n";
          switch (cont_type)
          {
             case 0: dname = "H1"; break;
@@ -257,43 +257,43 @@ void ConvergenceStudy::Print(bool relative, std::ostream &pout)
             d = (relative) ?
                 sqrt(CoeffNorm*CoeffNorm + CoeffDNorm*CoeffDNorm):1.0;
 
-            pout << " -------------------------------------------" << "\n";
-            pout << std::setw(21) << title << dname << " Error   " << "\n";
-            pout << " -------------------------------------------" << "\n";
-            pout << std::right<< std::setw(11)<< "DOFs "<< std::setw(13);
-            pout << "Error ";
-            pout << std::setw(15) << "Rate " << "\n";
-            pout << " -------------------------------------------"
-                 << "\n";
-            pout << std::setprecision(4);
+            os << " -------------------------------------------" << "\n";
+            os << std::setw(21) << title << dname << " Error   " << "\n";
+            os << " -------------------------------------------" << "\n";
+            os << std::right<< std::setw(11)<< "DOFs "<< std::setw(13);
+            os << "Error ";
+            os << std::setw(15) << "Rate " << "\n";
+            os << " -------------------------------------------"
+               << "\n";
+            os << std::setprecision(4);
             for (int i =0; i<dcounter; i++)
             {
-               pout << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
-                    << std::scientific << EnErrors[i]/d << std::setw(13)
-                    << std::fixed << EnRates[i] << "\n";
+               os << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
+                  << std::scientific << EnErrors[i]/d << std::setw(13)
+                  << std::fixed << EnRates[i] << "\n";
             }
-            pout << "\n";
+            os << "\n";
          }
       }
       if (cont_type == 3 && fcounter)
       {
-         pout << " -------------------------------------------" << "\n";
-         pout << "            DG Face Jump Error          " << "\n";
-         pout << " -------------------------------------------"
-              << "\n";
-         pout << std::right<< std::setw(11)<< "DOFs "<< std::setw(13);
-         pout << "Error ";
-         pout << std::setw(15) << "Rate " << "\n";
-         pout << " -------------------------------------------"
-              << "\n";
-         pout << std::setprecision(4);
+         os << " -------------------------------------------" << "\n";
+         os << "            DG Face Jump Error          " << "\n";
+         os << " -------------------------------------------"
+            << "\n";
+         os << std::right<< std::setw(11)<< "DOFs "<< std::setw(13);
+         os << "Error ";
+         os << std::setw(15) << "Rate " << "\n";
+         os << " -------------------------------------------"
+            << "\n";
+         os << std::setprecision(4);
          for (int i =0; i<fcounter; i++)
          {
-            pout << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
-                 << std::scientific << DGFaceErrors[i] << std::setw(13)
-                 << std::fixed << DGFaceRates[i] << "\n";
+            os << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
+               << std::scientific << DGFaceErrors[i] << std::setw(13)
+               << std::fixed << DGFaceRates[i] << "\n";
          }
-         pout << "\n";
+         os << "\n";
       }
    }
 }

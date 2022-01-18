@@ -227,23 +227,23 @@ void Mesh::GetCharacteristics(double &h_min, double &h_max,
 // static method
 void Mesh::PrintElementsByGeometry(int dim,
                                    const Array<int> &num_elems_by_geom,
-                                   std::ostream &pout)
+                                   std::ostream &os)
 {
    for (int g = Geometry::DimStart[dim], first = 1;
         g < Geometry::DimStart[dim+1]; g++)
    {
       if (!num_elems_by_geom[g]) { continue; }
-      if (!first) { pout << " + "; }
+      if (!first) { os << " + "; }
       else { first = 0; }
-      pout << num_elems_by_geom[g] << ' ' << Geometry::Name[g] << "(s)";
+      os << num_elems_by_geom[g] << ' ' << Geometry::Name[g] << "(s)";
    }
 }
 
-void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &pout)
+void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &os)
 {
    double h_min, h_max, kappa_min, kappa_max;
 
-   pout << "Mesh Characteristics:";
+   os << "Mesh Characteristics:";
 
    this->GetCharacteristics(h_min, h_max, kappa_min, kappa_max, Vh, Vk);
 
@@ -254,39 +254,39 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &pout)
       num_elems_by_geom[GetElementBaseGeometry(i)]++;
    }
 
-   pout << '\n'
-        << "Dimension          : " << Dimension() << '\n'
-        << "Space dimension    : " << SpaceDimension();
+   os << '\n'
+      << "Dimension          : " << Dimension() << '\n'
+      << "Space dimension    : " << SpaceDimension();
    if (Dim == 0)
    {
-      pout << '\n'
-           << "Number of vertices : " << GetNV() << '\n'
-           << "Number of elements : " << GetNE() << '\n'
-           << "Number of bdr elem : " << GetNBE() << '\n';
+      os << '\n'
+         << "Number of vertices : " << GetNV() << '\n'
+         << "Number of elements : " << GetNE() << '\n'
+         << "Number of bdr elem : " << GetNBE() << '\n';
    }
    else if (Dim == 1)
    {
-      pout << '\n'
-           << "Number of vertices : " << GetNV() << '\n'
-           << "Number of elements : " << GetNE() << '\n'
-           << "Number of bdr elem : " << GetNBE() << '\n'
-           << "h_min              : " << h_min << '\n'
-           << "h_max              : " << h_max << '\n';
+      os << '\n'
+         << "Number of vertices : " << GetNV() << '\n'
+         << "Number of elements : " << GetNE() << '\n'
+         << "Number of bdr elem : " << GetNBE() << '\n'
+         << "h_min              : " << h_min << '\n'
+         << "h_max              : " << h_max << '\n';
    }
    else if (Dim == 2)
    {
-      pout << '\n'
-           << "Number of vertices : " << GetNV() << '\n'
-           << "Number of edges    : " << GetNEdges() << '\n'
-           << "Number of elements : " << GetNE() << "  --  ";
-      PrintElementsByGeometry(2, num_elems_by_geom, pout);
-      pout << '\n'
-           << "Number of bdr elem : " << GetNBE() << '\n'
-           << "Euler Number       : " << EulerNumber2D() << '\n'
-           << "h_min              : " << h_min << '\n'
-           << "h_max              : " << h_max << '\n'
-           << "kappa_min          : " << kappa_min << '\n'
-           << "kappa_max          : " << kappa_max << '\n';
+      os << '\n'
+         << "Number of vertices : " << GetNV() << '\n'
+         << "Number of edges    : " << GetNEdges() << '\n'
+         << "Number of elements : " << GetNE() << "  --  ";
+      PrintElementsByGeometry(2, num_elems_by_geom, os);
+      os << '\n'
+         << "Number of bdr elem : " << GetNBE() << '\n'
+         << "Euler Number       : " << EulerNumber2D() << '\n'
+         << "h_min              : " << h_min << '\n'
+         << "h_max              : " << h_max << '\n'
+         << "kappa_min          : " << kappa_min << '\n'
+         << "kappa_max          : " << kappa_max << '\n';
    }
    else
    {
@@ -303,25 +303,25 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &pout)
          num_faces_by_geom[GetFaceBaseGeometry(i)]++;
       }
 
-      pout << '\n'
-           << "Number of vertices : " << GetNV() << '\n'
-           << "Number of edges    : " << GetNEdges() << '\n'
-           << "Number of faces    : " << GetNFaces() << "  --  ";
-      PrintElementsByGeometry(Dim-1, num_faces_by_geom, pout);
-      pout << '\n'
-           << "Number of elements : " << GetNE() << "  --  ";
-      PrintElementsByGeometry(Dim, num_elems_by_geom, pout);
-      pout << '\n'
-           << "Number of bdr elem : " << GetNBE() << "  --  ";
-      PrintElementsByGeometry(Dim-1, num_bdr_elems_by_geom, pout);
-      pout << '\n'
-           << "Euler Number       : " << EulerNumber() << '\n'
-           << "h_min              : " << h_min << '\n'
-           << "h_max              : " << h_max << '\n'
-           << "kappa_min          : " << kappa_min << '\n'
-           << "kappa_max          : " << kappa_max << '\n';
+      os << '\n'
+         << "Number of vertices : " << GetNV() << '\n'
+         << "Number of edges    : " << GetNEdges() << '\n'
+         << "Number of faces    : " << GetNFaces() << "  --  ";
+      PrintElementsByGeometry(Dim-1, num_faces_by_geom, os);
+      os << '\n'
+         << "Number of elements : " << GetNE() << "  --  ";
+      PrintElementsByGeometry(Dim, num_elems_by_geom, os);
+      os << '\n'
+         << "Number of bdr elem : " << GetNBE() << "  --  ";
+      PrintElementsByGeometry(Dim-1, num_bdr_elems_by_geom, os);
+      os << '\n'
+         << "Euler Number       : " << EulerNumber() << '\n'
+         << "h_min              : " << h_min << '\n'
+         << "h_max              : " << h_max << '\n'
+         << "kappa_min          : " << kappa_min << '\n'
+         << "kappa_max          : " << kappa_max << '\n';
    }
-   pout << '\n' << std::flush;
+   os << '\n' << std::flush;
 }
 
 FiniteElement *Mesh::GetTransformationFEforElementType(Element::Type ElemType)
@@ -3605,16 +3605,16 @@ Element *Mesh::ReadElementWithoutAttr(std::istream &input)
    return el;
 }
 
-void Mesh::PrintElementWithoutAttr(const Element *el, std::ostream &pout)
+void Mesh::PrintElementWithoutAttr(const Element *el, std::ostream &os)
 {
-   pout << el->GetGeometryType();
+   os << el->GetGeometryType();
    const int nv = el->GetNVertices();
    const int *v = el->GetVertices();
    for (int j = 0; j < nv; j++)
    {
-      pout << ' ' << v[j];
+      os << ' ' << v[j];
    }
-   pout << '\n';
+   os << '\n';
 }
 
 Element *Mesh::ReadElement(std::istream &input)
@@ -3629,10 +3629,10 @@ Element *Mesh::ReadElement(std::istream &input)
    return el;
 }
 
-void Mesh::PrintElement(const Element *el, std::ostream &pout)
+void Mesh::PrintElement(const Element *el, std::ostream &os)
 {
-   pout << el->GetAttribute() << ' ';
-   PrintElementWithoutAttr(el, pout);
+   os << el->GetAttribute() << ' ';
+   PrintElementWithoutAttr(el, os);
 }
 
 void Mesh::SetMeshGen()
@@ -9640,7 +9640,7 @@ const CoarseFineTransformations& Mesh::GetRefinementTransforms()
    return CoarseFineTr;
 }
 
-void Mesh::PrintXG(std::ostream &pout) const
+void Mesh::PrintXG(std::ostream &os) const
 {
    MFEM_ASSERT(Dim==spaceDim, "2D Manifold meshes not supported");
    int i, j;
@@ -9651,59 +9651,59 @@ void Mesh::PrintXG(std::ostream &pout) const
       // Print the type of the mesh.
       if (Nodes == NULL)
       {
-         pout << "areamesh2\n\n";
+         os << "areamesh2\n\n";
       }
       else
       {
-         pout << "curved_areamesh2\n\n";
+         os << "curved_areamesh2\n\n";
       }
 
       // Print the boundary elements.
-      pout << NumOfBdrElements << '\n';
+      os << NumOfBdrElements << '\n';
       for (i = 0; i < NumOfBdrElements; i++)
       {
          boundary[i]->GetVertices(v);
 
-         pout << boundary[i]->GetAttribute();
+         os << boundary[i]->GetAttribute();
          for (j = 0; j < v.Size(); j++)
          {
-            pout << ' ' << v[j] + 1;
+            os << ' ' << v[j] + 1;
          }
-         pout << '\n';
+         os << '\n';
       }
 
       // Print the elements.
-      pout << NumOfElements << '\n';
+      os << NumOfElements << '\n';
       for (i = 0; i < NumOfElements; i++)
       {
          elements[i]->GetVertices(v);
 
-         pout << elements[i]->GetAttribute() << ' ' << v.Size();
+         os << elements[i]->GetAttribute() << ' ' << v.Size();
          for (j = 0; j < v.Size(); j++)
          {
-            pout << ' ' << v[j] + 1;
+            os << ' ' << v[j] + 1;
          }
-         pout << '\n';
+         os << '\n';
       }
 
       if (Nodes == NULL)
       {
          // Print the vertices.
-         pout << NumOfVertices << '\n';
+         os << NumOfVertices << '\n';
          for (i = 0; i < NumOfVertices; i++)
          {
-            pout << vertices[i](0);
+            os << vertices[i](0);
             for (j = 1; j < Dim; j++)
             {
-               pout << ' ' << vertices[i](j);
+               os << ' ' << vertices[i](j);
             }
-            pout << '\n';
+            os << '\n';
          }
       }
       else
       {
-         pout << NumOfVertices << '\n';
-         Nodes->Save(pout);
+         os << NumOfVertices << '\n';
+         Nodes->Save(os);
       }
    }
    else  // ===== Dim != 2 =====
@@ -9718,44 +9718,44 @@ void Mesh::PrintXG(std::ostream &pout) const
          int nv;
          const int *ind;
 
-         pout << "NETGEN_Neutral_Format\n";
+         os << "NETGEN_Neutral_Format\n";
          // print the vertices
-         pout << NumOfVertices << '\n';
+         os << NumOfVertices << '\n';
          for (i = 0; i < NumOfVertices; i++)
          {
             for (j = 0; j < Dim; j++)
             {
-               pout << ' ' << vertices[i](j);
+               os << ' ' << vertices[i](j);
             }
-            pout << '\n';
+            os << '\n';
          }
 
          // print the elements
-         pout << NumOfElements << '\n';
+         os << NumOfElements << '\n';
          for (i = 0; i < NumOfElements; i++)
          {
             nv = elements[i]->GetNVertices();
             ind = elements[i]->GetVertices();
-            pout << elements[i]->GetAttribute();
+            os << elements[i]->GetAttribute();
             for (j = 0; j < nv; j++)
             {
-               pout << ' ' << ind[j]+1;
+               os << ' ' << ind[j]+1;
             }
-            pout << '\n';
+            os << '\n';
          }
 
          // print the boundary information.
-         pout << NumOfBdrElements << '\n';
+         os << NumOfBdrElements << '\n';
          for (i = 0; i < NumOfBdrElements; i++)
          {
             nv = boundary[i]->GetNVertices();
             ind = boundary[i]->GetVertices();
-            pout << boundary[i]->GetAttribute();
+            os << boundary[i]->GetAttribute();
             for (j = 0; j < nv; j++)
             {
-               pout << ' ' << ind[j]+1;
+               os << ' ' << ind[j]+1;
             }
-            pout << '\n';
+            os << '\n';
          }
       }
       else if (meshgen == 2)  // TrueGrid
@@ -9763,61 +9763,61 @@ void Mesh::PrintXG(std::ostream &pout) const
          int nv;
          const int *ind;
 
-         pout << "TrueGrid\n"
-              << "1 " << NumOfVertices << " " << NumOfElements
-              << " 0 0 0 0 0 0 0\n"
-              << "0 0 0 1 0 0 0 0 0 0 0\n"
-              << "0 0 " << NumOfBdrElements << " 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
-              << "0.0 0.0 0.0 0 0 0.0 0.0 0 0.0\n"
-              << "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n";
+         os << "TrueGrid\n"
+            << "1 " << NumOfVertices << " " << NumOfElements
+            << " 0 0 0 0 0 0 0\n"
+            << "0 0 0 1 0 0 0 0 0 0 0\n"
+            << "0 0 " << NumOfBdrElements << " 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
+            << "0.0 0.0 0.0 0 0 0.0 0.0 0 0.0\n"
+            << "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n";
 
          for (i = 0; i < NumOfVertices; i++)
-            pout << i+1 << " 0.0 " << vertices[i](0) << ' ' << vertices[i](1)
-                 << ' ' << vertices[i](2) << " 0.0\n";
+            os << i+1 << " 0.0 " << vertices[i](0) << ' ' << vertices[i](1)
+               << ' ' << vertices[i](2) << " 0.0\n";
 
          for (i = 0; i < NumOfElements; i++)
          {
             nv = elements[i]->GetNVertices();
             ind = elements[i]->GetVertices();
-            pout << i+1 << ' ' << elements[i]->GetAttribute();
+            os << i+1 << ' ' << elements[i]->GetAttribute();
             for (j = 0; j < nv; j++)
             {
-               pout << ' ' << ind[j]+1;
+               os << ' ' << ind[j]+1;
             }
-            pout << '\n';
+            os << '\n';
          }
 
          for (i = 0; i < NumOfBdrElements; i++)
          {
             nv = boundary[i]->GetNVertices();
             ind = boundary[i]->GetVertices();
-            pout << boundary[i]->GetAttribute();
+            os << boundary[i]->GetAttribute();
             for (j = 0; j < nv; j++)
             {
-               pout << ' ' << ind[j]+1;
+               os << ' ' << ind[j]+1;
             }
-            pout << " 1.0 1.0 1.0 1.0\n";
+            os << " 1.0 1.0 1.0 1.0\n";
          }
       }
    }
 
-   pout << flush;
+   os << flush;
 }
 
-void Mesh::Printer(std::ostream &pout, std::string section_delimiter) const
+void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
 {
    int i, j;
 
    if (NURBSext)
    {
       // general format
-      NURBSext->Print(pout);
-      pout << '\n';
-      Nodes->Save(pout);
+      NURBSext->Print(os);
+      os << '\n';
+      Nodes->Save(os);
 
       // patch-wise format
       // NURBSext->ConvertToPatches(*Nodes);
-      // NURBSext->Print(pout);
+      // NURBSext->Print(os);
 
       return;
    }
@@ -9825,106 +9825,106 @@ void Mesh::Printer(std::ostream &pout, std::string section_delimiter) const
    if (Nonconforming())
    {
       // nonconforming mesh format
-      ncmesh->Print(pout);
+      ncmesh->Print(os);
 
       if (Nodes)
       {
-         pout << "\n# mesh curvature GridFunction";
-         pout << "\nnodes\n";
-         Nodes->Save(pout);
+         os << "\n# mesh curvature GridFunction";
+         os << "\nnodes\n";
+         Nodes->Save(os);
       }
 
-      pout << "\nmfem_mesh_end" << endl;
+      os << "\nmfem_mesh_end" << endl;
       return;
    }
 
    // serial/parallel conforming mesh format
-   pout << (section_delimiter.empty()
-            ? "MFEM mesh v1.0\n" : "MFEM mesh v1.2\n");
+   os << (section_delimiter.empty()
+          ? "MFEM mesh v1.0\n" : "MFEM mesh v1.2\n");
 
    // optional
-   pout <<
-        "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
-        "# POINT       = 0\n"
-        "# SEGMENT     = 1\n"
-        "# TRIANGLE    = 2\n"
-        "# SQUARE      = 3\n"
-        "# TETRAHEDRON = 4\n"
-        "# CUBE        = 5\n"
-        "# PRISM       = 6\n"
-        "# PYRAMID     = 7\n"
-        "#\n";
+   os <<
+      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "# POINT       = 0\n"
+      "# SEGMENT     = 1\n"
+      "# TRIANGLE    = 2\n"
+      "# SQUARE      = 3\n"
+      "# TETRAHEDRON = 4\n"
+      "# CUBE        = 5\n"
+      "# PRISM       = 6\n"
+      "# PYRAMID     = 7\n"
+      "#\n";
 
-   pout << "\ndimension\n" << Dim;
+   os << "\ndimension\n" << Dim;
 
-   pout << "\n\nelements\n" << NumOfElements << '\n';
+   os << "\n\nelements\n" << NumOfElements << '\n';
    for (i = 0; i < NumOfElements; i++)
    {
-      PrintElement(elements[i], pout);
+      PrintElement(elements[i], os);
    }
 
-   pout << "\nboundary\n" << NumOfBdrElements << '\n';
+   os << "\nboundary\n" << NumOfBdrElements << '\n';
    for (i = 0; i < NumOfBdrElements; i++)
    {
-      PrintElement(boundary[i], pout);
+      PrintElement(boundary[i], os);
    }
 
-   pout << "\nvertices\n" << NumOfVertices << '\n';
+   os << "\nvertices\n" << NumOfVertices << '\n';
    if (Nodes == NULL)
    {
-      pout << spaceDim << '\n';
+      os << spaceDim << '\n';
       for (i = 0; i < NumOfVertices; i++)
       {
-         pout << vertices[i](0);
+         os << vertices[i](0);
          for (j = 1; j < spaceDim; j++)
          {
-            pout << ' ' << vertices[i](j);
+            os << ' ' << vertices[i](j);
          }
-         pout << '\n';
+         os << '\n';
       }
-      pout.flush();
+      os.flush();
    }
    else
    {
-      pout << "\nnodes\n";
-      Nodes->Save(pout);
+      os << "\nnodes\n";
+      Nodes->Save(os);
    }
 
    if (!section_delimiter.empty())
    {
-      pout << section_delimiter << endl; // only with format v1.2
+      os << section_delimiter << endl; // only with format v1.2
    }
 }
 
-void Mesh::PrintTopo(std::ostream &pout,const Array<int> &e_to_k) const
+void Mesh::PrintTopo(std::ostream &os,const Array<int> &e_to_k) const
 {
    int i;
    Array<int> vert;
 
-   pout << "MFEM NURBS mesh v1.0\n";
+   os << "MFEM NURBS mesh v1.0\n";
 
    // optional
-   pout <<
-        "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
-        "# SEGMENT     = 1\n"
-        "# SQUARE      = 3\n"
-        "# CUBE        = 5\n"
-        "#\n";
+   os <<
+      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "# SEGMENT     = 1\n"
+      "# SQUARE      = 3\n"
+      "# CUBE        = 5\n"
+      "#\n";
 
-   pout << "\ndimension\n" << Dim
-        << "\n\nelements\n" << NumOfElements << '\n';
+   os << "\ndimension\n" << Dim
+      << "\n\nelements\n" << NumOfElements << '\n';
    for (i = 0; i < NumOfElements; i++)
    {
-      PrintElement(elements[i], pout);
+      PrintElement(elements[i], os);
    }
 
-   pout << "\nboundary\n" << NumOfBdrElements << '\n';
+   os << "\nboundary\n" << NumOfBdrElements << '\n';
    for (i = 0; i < NumOfBdrElements; i++)
    {
-      PrintElement(boundary[i], pout);
+      PrintElement(boundary[i], os);
    }
 
-   pout << "\nedges\n" << NumOfEdges << '\n';
+   os << "\nedges\n" << NumOfEdges << '\n';
    for (i = 0; i < NumOfEdges; i++)
    {
       edge_vertex->GetRow(i, vert);
@@ -9933,9 +9933,9 @@ void Mesh::PrintTopo(std::ostream &pout,const Array<int> &e_to_k) const
       {
          ki = -1 - ki;
       }
-      pout << ki << ' ' << vert[0] << ' ' << vert[1] << '\n';
+      os << ki << ' ' << vert[0] << ' ' << vert[1] << '\n';
    }
-   pout << "\nvertices\n" << NumOfVertices << '\n';
+   os << "\nvertices\n" << NumOfVertices << '\n';
 }
 
 void Mesh::Save(const char *fname, int precision) const
@@ -9946,58 +9946,58 @@ void Mesh::Save(const char *fname, int precision) const
 }
 
 #ifdef MFEM_USE_ADIOS2
-void Mesh::Print(adios2stream &pout) const
+void Mesh::Print(adios2stream &os) const
 {
-   pout.Print(*this);
+   os.Print(*this);
 }
 #endif
 
-void Mesh::PrintVTK(std::ostream &pout)
+void Mesh::PrintVTK(std::ostream &os)
 {
-   pout <<
-        "# vtk DataFile Version 3.0\n"
-        "Generated by MFEM\n"
-        "ASCII\n"
-        "DATASET UNSTRUCTURED_GRID\n";
+   os <<
+      "# vtk DataFile Version 3.0\n"
+      "Generated by MFEM\n"
+      "ASCII\n"
+      "DATASET UNSTRUCTURED_GRID\n";
 
    if (Nodes == NULL)
    {
-      pout << "POINTS " << NumOfVertices << " double\n";
+      os << "POINTS " << NumOfVertices << " double\n";
       for (int i = 0; i < NumOfVertices; i++)
       {
-         pout << vertices[i](0);
+         os << vertices[i](0);
          int j;
          for (j = 1; j < spaceDim; j++)
          {
-            pout << ' ' << vertices[i](j);
+            os << ' ' << vertices[i](j);
          }
          for ( ; j < 3; j++)
          {
-            pout << ' ' << 0.0;
+            os << ' ' << 0.0;
          }
-         pout << '\n';
+         os << '\n';
       }
    }
    else
    {
       Array<int> vdofs(3);
-      pout << "POINTS " << Nodes->FESpace()->GetNDofs() << " double\n";
+      os << "POINTS " << Nodes->FESpace()->GetNDofs() << " double\n";
       for (int i = 0; i < Nodes->FESpace()->GetNDofs(); i++)
       {
          vdofs.SetSize(1);
          vdofs[0] = i;
          Nodes->FESpace()->DofsToVDofs(vdofs);
-         pout << (*Nodes)(vdofs[0]);
+         os << (*Nodes)(vdofs[0]);
          int j;
          for (j = 1; j < spaceDim; j++)
          {
-            pout << ' ' << (*Nodes)(vdofs[j]);
+            os << ' ' << (*Nodes)(vdofs[j]);
          }
          for ( ; j < 3; j++)
          {
-            pout << ' ' << 0.0;
+            os << ' ' << 0.0;
          }
-         pout << '\n';
+         os << '\n';
       }
    }
 
@@ -10009,19 +10009,19 @@ void Mesh::PrintVTK(std::ostream &pout)
       {
          size += elements[i]->GetNVertices() + 1;
       }
-      pout << "CELLS " << NumOfElements << ' ' << size << '\n';
+      os << "CELLS " << NumOfElements << ' ' << size << '\n';
       for (int i = 0; i < NumOfElements; i++)
       {
          const int *v = elements[i]->GetVertices();
          const int nv = elements[i]->GetNVertices();
-         pout << nv;
+         os << nv;
          Geometry::Type geom = elements[i]->GetGeometryType();
          const int *perm = VTKGeometry::VertexPermutation[geom];
          for (int j = 0; j < nv; j++)
          {
-            pout << ' ' << v[perm ? perm[j] : j];
+            os << ' ' << v[perm ? perm[j] : j];
          }
-         pout << '\n';
+         os << '\n';
       }
       order = 1;
    }
@@ -10036,7 +10036,7 @@ void Mesh::PrintVTK(std::ostream &pout)
                      "Point meshes should have a single dof per element");
          size += dofs.Size() + 1;
       }
-      pout << "CELLS " << NumOfElements << ' ' << size << '\n';
+      os << "CELLS " << NumOfElements << ' ' << size << '\n';
       const char *fec_name = Nodes->FESpace()->FEColl()->Name();
 
       if (!strcmp(fec_name, "Linear") ||
@@ -10063,12 +10063,12 @@ void Mesh::PrintVTK(std::ostream &pout)
       for (int i = 0; i < NumOfElements; i++)
       {
          Nodes->FESpace()->GetElementDofs(i, dofs);
-         pout << dofs.Size();
+         os << dofs.Size();
          if (order == 1)
          {
             for (int j = 0; j < dofs.Size(); j++)
             {
-               pout << ' ' << dofs[j];
+               os << ' ' << dofs[j];
             }
          }
          else if (order == 2)
@@ -10090,32 +10090,32 @@ void Mesh::PrintVTK(std::ostream &pout)
             }
             for (int j = 0; j < dofs.Size(); j++)
             {
-               pout << ' ' << dofs[vtk_mfem[j]];
+               os << ' ' << dofs[vtk_mfem[j]];
             }
          }
-         pout << '\n';
+         os << '\n';
       }
    }
 
-   pout << "CELL_TYPES " << NumOfElements << '\n';
+   os << "CELL_TYPES " << NumOfElements << '\n';
    for (int i = 0; i < NumOfElements; i++)
    {
       int vtk_cell_type = 5;
       Geometry::Type geom = GetElement(i)->GetGeometryType();
       if (order == 1) { vtk_cell_type = VTKGeometry::Map[geom]; }
       else if (order == 2) { vtk_cell_type = VTKGeometry::QuadraticMap[geom]; }
-      pout << vtk_cell_type << '\n';
+      os << vtk_cell_type << '\n';
    }
 
    // write attributes
-   pout << "CELL_DATA " << NumOfElements << '\n'
-        << "SCALARS material int\n"
-        << "LOOKUP_TABLE default\n";
+   os << "CELL_DATA " << NumOfElements << '\n'
+      << "SCALARS material int\n"
+      << "LOOKUP_TABLE default\n";
    for (int i = 0; i < NumOfElements; i++)
    {
-      pout << elements[i]->GetAttribute() << '\n';
+      os << elements[i]->GetAttribute() << '\n';
    }
-   pout.flush();
+   os.flush();
 }
 
 void Mesh::PrintVTU(std::string fname,
@@ -10128,20 +10128,20 @@ void Mesh::PrintVTU(std::string fname,
              ? Nodes->FESpace()->GetElementOrder(0) : 1;
 
    fname = fname + ".vtu";
-   std::fstream pout(fname.c_str(),std::ios::out);
-   pout << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
+   std::fstream os(fname.c_str(),std::ios::out);
+   os << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
    if (compression_level != 0)
    {
-      pout << " compressor=\"vtkZLibDataCompressor\"";
+      os << " compressor=\"vtkZLibDataCompressor\"";
    }
-   pout << " byte_order=\"" << VTKByteOrder() << "\">\n";
-   pout << "<UnstructuredGrid>\n";
-   PrintVTU(pout, ref, format, high_order_output, compression_level, bdr);
-   pout << "</Piece>\n"; // need to close the piece open in the PrintVTU method
-   pout << "</UnstructuredGrid>\n";
-   pout << "</VTKFile>" << std::endl;
+   os << " byte_order=\"" << VTKByteOrder() << "\">\n";
+   os << "<UnstructuredGrid>\n";
+   PrintVTU(os, ref, format, high_order_output, compression_level, bdr);
+   os << "</Piece>\n"; // need to close the piece open in the PrintVTU method
+   os << "</UnstructuredGrid>\n";
+   os << "</VTKFile>" << std::endl;
 
-   pout.close();
+   os.close();
 }
 
 void Mesh::PrintBdrVTU(std::string fname,
@@ -10153,26 +10153,26 @@ void Mesh::PrintBdrVTU(std::string fname,
 }
 
 template <typename T>
-void WriteBinaryOrASCII(std::ostream &wout, std::vector<char> &buf,
+void WriteBinaryOrASCII(std::ostream &os, std::vector<char> &buf,
                         const T &val,
                         const char *suffix, VTKFormat format)
 {
-   if (format == VTKFormat::ASCII) { wout << val << suffix; }
+   if (format == VTKFormat::ASCII) { os << val << suffix; }
    else { bin_io::AppendBytes(buf, val); }
 }
 
 // Ensure ASCII output of uint8_t to stream is integer rather than character
 template <>
-void WriteBinaryOrASCII<uint8_t>(std::ostream &wout, std::vector<char> &buf,
+void WriteBinaryOrASCII<uint8_t>(std::ostream &os, std::vector<char> &buf,
                                  const uint8_t &val, const char *suffix,
                                  VTKFormat format)
 {
-   if (format == VTKFormat::ASCII) { wout << static_cast<int>(val) << suffix; }
+   if (format == VTKFormat::ASCII) { os << static_cast<int>(val) << suffix; }
    else { bin_io::AppendBytes(buf, val); }
 }
 
 template <>
-void WriteBinaryOrASCII<double>(std::ostream &wout, std::vector<char> &buf,
+void WriteBinaryOrASCII<double>(std::ostream &os, std::vector<char> &buf,
                                 const double &val, const char *suffix,
                                 VTKFormat format)
 {
@@ -10186,29 +10186,29 @@ void WriteBinaryOrASCII<double>(std::ostream &wout, std::vector<char> &buf,
    }
    else
    {
-      wout << val << suffix;
+      os << val << suffix;
    }
 }
 
 template <>
-void WriteBinaryOrASCII<float>(std::ostream &wout, std::vector<char> &buf,
+void WriteBinaryOrASCII<float>(std::ostream &os, std::vector<char> &buf,
                                const float &val, const char *suffix,
                                VTKFormat format)
 {
    if (format == VTKFormat::BINARY) { bin_io::AppendBytes<double>(buf, val); }
    else if (format == VTKFormat::BINARY32) { bin_io::AppendBytes(buf, val); }
-   else { wout << val << suffix; }
+   else { os << val << suffix; }
 }
 
-void WriteBase64WithSizeAndClear(std::ostream &wout, std::vector<char> &buf,
+void WriteBase64WithSizeAndClear(std::ostream &os, std::vector<char> &buf,
                                  int compression_level)
 {
-   WriteVTKEncodedCompressed(wout, buf.data(), buf.size(), compression_level);
-   wout << '\n';
+   WriteVTKEncodedCompressed(os, buf.data(), buf.size(), compression_level);
+   os << '\n';
    buf.clear();
 }
 
-void Mesh::PrintVTU(std::ostream &pout, int ref, VTKFormat format,
+void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
                     bool high_order_output, int compression_level,
                     bool bdr_elements)
 {
@@ -10238,13 +10238,13 @@ void Mesh::PrintVTU(std::ostream &pout, int ref, VTKFormat format,
       size += (RefG->RefGeoms.Size() / nv) * (nv + 1);
    }
 
-   pout << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
-        << (high_order_output ? ne : nc_ref) << "\">\n";
+   os << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
+      << (high_order_output ? ne : nc_ref) << "\">\n";
 
    // print out the points
-   pout << "<Points>\n";
-   pout << "<DataArray type=\"" << type_str
-        << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
+   os << "<Points>\n";
+   os << "<DataArray type=\"" << type_str
+      << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
    for (int i = 0; i < ne; i++)
    {
       RefG = GlobGeometryRefiner.Refine(get_geom(i), ref, 1);
@@ -10260,36 +10260,36 @@ void Mesh::PrintVTU(std::ostream &pout, int ref, VTKFormat format,
 
       for (int j = 0; j < pmat.Width(); j++)
       {
-         WriteBinaryOrASCII(pout, buf, pmat(0,j), " ", format);
+         WriteBinaryOrASCII(os, buf, pmat(0,j), " ", format);
          if (pmat.Height() > 1)
          {
-            WriteBinaryOrASCII(pout, buf, pmat(1,j), " ", format);
+            WriteBinaryOrASCII(os, buf, pmat(1,j), " ", format);
          }
          else
          {
-            WriteBinaryOrASCII(pout, buf, 0.0, " ", format);
+            WriteBinaryOrASCII(os, buf, 0.0, " ", format);
          }
          if (pmat.Height() > 2)
          {
-            WriteBinaryOrASCII(pout, buf, pmat(2,j), "", format);
+            WriteBinaryOrASCII(os, buf, pmat(2,j), "", format);
          }
          else
          {
-            WriteBinaryOrASCII(pout, buf, 0.0, "", format);
+            WriteBinaryOrASCII(os, buf, 0.0, "", format);
          }
-         if (format == VTKFormat::ASCII) { pout << '\n'; }
+         if (format == VTKFormat::ASCII) { os << '\n'; }
       }
    }
    if (format != VTKFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(pout, buf, compression_level);
+      WriteBase64WithSizeAndClear(os, buf, compression_level);
    }
-   pout << "</DataArray>" << std::endl;
-   pout << "</Points>" << std::endl;
+   os << "</DataArray>" << std::endl;
+   os << "</Points>" << std::endl;
 
-   pout << "<Cells>" << std::endl;
-   pout << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\""
-        << fmt_str << "\">" << std::endl;
+   os << "<Cells>" << std::endl;
+   os << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\""
+      << fmt_str << "\">" << std::endl;
    // connectivity
    std::vector<int> offset;
 
@@ -10304,10 +10304,10 @@ void Mesh::PrintVTU(std::ostream &pout, int ref, VTKFormat format,
          int nnodes = local_connectivity.Size();
          for (int i=0; i<nnodes; ++i)
          {
-            WriteBinaryOrASCII(pout, buf, np+local_connectivity[i], " ",
+            WriteBinaryOrASCII(os, buf, np+local_connectivity[i], " ",
                                format);
          }
-         if (format == VTKFormat::ASCII) { pout << '\n'; }
+         if (format == VTKFormat::ASCII) { os << '\n'; }
          np += nnodes;
          offset.push_back(np);
       }
@@ -10328,34 +10328,34 @@ void Mesh::PrintVTU(std::ostream &pout, int ref, VTKFormat format,
             const int *p = VTKGeometry::VertexPermutation[geom];
             for (int k = 0; k < nv; k++, j++)
             {
-               WriteBinaryOrASCII(pout, buf, np + RG[p ? p[j] : j], " ",
+               WriteBinaryOrASCII(os, buf, np + RG[p ? p[j] : j], " ",
                                   format);
             }
-            if (format == VTKFormat::ASCII) { pout << '\n'; }
+            if (format == VTKFormat::ASCII) { os << '\n'; }
          }
          np += RefG->RefPts.GetNPoints();
       }
    }
    if (format != VTKFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(pout, buf, compression_level);
+      WriteBase64WithSizeAndClear(os, buf, compression_level);
    }
-   pout << "</DataArray>" << std::endl;
+   os << "</DataArray>" << std::endl;
 
-   pout << "<DataArray type=\"Int32\" Name=\"offsets\" format=\""
-        << fmt_str << "\">" << std::endl;
+   os << "<DataArray type=\"Int32\" Name=\"offsets\" format=\""
+      << fmt_str << "\">" << std::endl;
    // offsets
    for (size_t ii=0; ii<offset.size(); ii++)
    {
-      WriteBinaryOrASCII(pout, buf, offset[ii], "\n", format);
+      WriteBinaryOrASCII(os, buf, offset[ii], "\n", format);
    }
    if (format != VTKFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(pout, buf, compression_level);
+      WriteBase64WithSizeAndClear(os, buf, compression_level);
    }
-   pout << "</DataArray>" << std::endl;
-   pout << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
-        << fmt_str << "\">" << std::endl;
+   os << "</DataArray>" << std::endl;
+   os << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
+      << fmt_str << "\">" << std::endl;
    // cell types
    const int *vtk_geom_map =
       high_order_output ? VTKGeometry::HighOrderMap : VTKGeometry::Map;
@@ -10368,7 +10368,7 @@ void Mesh::PrintVTU(std::ostream &pout, int ref, VTKFormat format,
 
       if (high_order_output)
       {
-         WriteBinaryOrASCII(pout, buf, vtk_cell_type, "\n", format);
+         WriteBinaryOrASCII(os, buf, vtk_cell_type, "\n", format);
       }
       else
       {
@@ -10377,26 +10377,26 @@ void Mesh::PrintVTU(std::ostream &pout, int ref, VTKFormat format,
          Array<int> &RG = RefG->RefGeoms;
          for (int j = 0; j < RG.Size(); j += nv)
          {
-            WriteBinaryOrASCII(pout, buf, vtk_cell_type, "\n", format);
+            WriteBinaryOrASCII(os, buf, vtk_cell_type, "\n", format);
          }
       }
    }
    if (format != VTKFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(pout, buf, compression_level);
+      WriteBase64WithSizeAndClear(os, buf, compression_level);
    }
-   pout << "</DataArray>" << std::endl;
-   pout << "</Cells>" << std::endl;
+   os << "</DataArray>" << std::endl;
+   os << "</Cells>" << std::endl;
 
-   pout << "<CellData Scalars=\"attribute\">" << std::endl;
-   pout << "<DataArray type=\"Int32\" Name=\"attribute\" format=\""
-        << fmt_str << "\">" << std::endl;
+   os << "<CellData Scalars=\"attribute\">" << std::endl;
+   os << "<DataArray type=\"Int32\" Name=\"attribute\" format=\""
+      << fmt_str << "\">" << std::endl;
    for (int i = 0; i < ne; i++)
    {
       int attr = bdr_elements ? GetBdrAttribute(i) : GetAttribute(i);
       if (high_order_output)
       {
-         WriteBinaryOrASCII(pout, buf, attr, "\n", format);
+         WriteBinaryOrASCII(os, buf, attr, "\n", format);
       }
       else
       {
@@ -10405,41 +10405,41 @@ void Mesh::PrintVTU(std::ostream &pout, int ref, VTKFormat format,
          RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
          for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
          {
-            WriteBinaryOrASCII(pout, buf, attr, "\n", format);
+            WriteBinaryOrASCII(os, buf, attr, "\n", format);
          }
       }
    }
    if (format != VTKFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(pout, buf, compression_level);
+      WriteBase64WithSizeAndClear(os, buf, compression_level);
    }
-   pout << "</DataArray>" << std::endl;
-   pout << "</CellData>" << std::endl;
+   os << "</DataArray>" << std::endl;
+   os << "</CellData>" << std::endl;
 }
 
 
-void Mesh::PrintVTK(std::ostream &pout, int ref, int field_data)
+void Mesh::PrintVTK(std::ostream &os, int ref, int field_data)
 {
    int np, nc, size;
    RefinedGeometry *RefG;
    DenseMatrix pmat;
 
-   pout <<
-        "# vtk DataFile Version 3.0\n"
-        "Generated by MFEM\n"
-        "ASCII\n"
-        "DATASET UNSTRUCTURED_GRID\n";
+   os <<
+      "# vtk DataFile Version 3.0\n"
+      "Generated by MFEM\n"
+      "ASCII\n"
+      "DATASET UNSTRUCTURED_GRID\n";
 
    // additional dataset information
    if (field_data)
    {
-      pout << "FIELD FieldData 1\n"
-           << "MaterialIds " << 1 << " " << attributes.Size() << " int\n";
+      os << "FIELD FieldData 1\n"
+         << "MaterialIds " << 1 << " " << attributes.Size() << " int\n";
       for (int i = 0; i < attributes.Size(); i++)
       {
-         pout << ' ' << attributes[i];
+         os << ' ' << attributes[i];
       }
-      pout << '\n';
+      os << '\n';
    }
 
    // count the points, cells, size
@@ -10453,7 +10453,7 @@ void Mesh::PrintVTK(std::ostream &pout, int ref, int field_data)
       nc += RefG->RefGeoms.Size() / nv;
       size += (RefG->RefGeoms.Size() / nv) * (nv + 1);
    }
-   pout << "POINTS " << np << " double\n";
+   os << "POINTS " << np << " double\n";
    // write the points
    for (int i = 0; i < GetNE(); i++)
    {
@@ -10464,29 +10464,29 @@ void Mesh::PrintVTK(std::ostream &pout, int ref, int field_data)
 
       for (int j = 0; j < pmat.Width(); j++)
       {
-         pout << pmat(0, j) << ' ';
+         os << pmat(0, j) << ' ';
          if (pmat.Height() > 1)
          {
-            pout << pmat(1, j) << ' ';
+            os << pmat(1, j) << ' ';
             if (pmat.Height() > 2)
             {
-               pout << pmat(2, j);
+               os << pmat(2, j);
             }
             else
             {
-               pout << 0.0;
+               os << 0.0;
             }
          }
          else
          {
-            pout << 0.0 << ' ' << 0.0;
+            os << 0.0 << ' ' << 0.0;
          }
-         pout << '\n';
+         os << '\n';
       }
    }
 
    // write the cells
-   pout << "CELLS " << nc << ' ' << size << '\n';
+   os << "CELLS " << nc << ' ' << size << '\n';
    np = 0;
    for (int i = 0; i < GetNE(); i++)
    {
@@ -10497,16 +10497,16 @@ void Mesh::PrintVTK(std::ostream &pout, int ref, int field_data)
 
       for (int j = 0; j < RG.Size(); )
       {
-         pout << nv;
+         os << nv;
          for (int k = 0; k < nv; k++, j++)
          {
-            pout << ' ' << np + RG[j];
+            os << ' ' << np + RG[j];
          }
-         pout << '\n';
+         os << '\n';
       }
       np += RefG->RefPts.GetNPoints();
    }
-   pout << "CELL_TYPES " << nc << '\n';
+   os << "CELL_TYPES " << nc << '\n';
    for (int i = 0; i < GetNE(); i++)
    {
       Geometry::Type geom = GetElementBaseGeometry(i);
@@ -10517,13 +10517,13 @@ void Mesh::PrintVTK(std::ostream &pout, int ref, int field_data)
 
       for (int j = 0; j < RG.Size(); j += nv)
       {
-         pout << vtk_cell_type << '\n';
+         os << vtk_cell_type << '\n';
       }
    }
    // write attributes (materials)
-   pout << "CELL_DATA " << nc << '\n'
-        << "SCALARS material int\n"
-        << "LOOKUP_TABLE default\n";
+   os << "CELL_DATA " << nc << '\n'
+      << "SCALARS material int\n"
+      << "LOOKUP_TABLE default\n";
    for (int i = 0; i < GetNE(); i++)
    {
       Geometry::Type geom = GetElementBaseGeometry(i);
@@ -10532,7 +10532,7 @@ void Mesh::PrintVTK(std::ostream &pout, int ref, int field_data)
       int attr = GetAttribute(i);
       for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
       {
-         pout << attr << '\n';
+         os << attr << '\n';
       }
    }
 
@@ -10543,8 +10543,8 @@ void Mesh::PrintVTK(std::ostream &pout, int ref, int field_data)
       double a = double(rand()) / (double(RAND_MAX) + 1.);
       int el0 = (int)floor(a * GetNE());
       GetElementColoring(coloring, el0);
-      pout << "SCALARS element_coloring int\n"
-           << "LOOKUP_TABLE default\n";
+      os << "SCALARS element_coloring int\n"
+         << "LOOKUP_TABLE default\n";
       for (int i = 0; i < GetNE(); i++)
       {
          Geometry::Type geom = GetElementBaseGeometry(i);
@@ -10552,13 +10552,13 @@ void Mesh::PrintVTK(std::ostream &pout, int ref, int field_data)
          RefG = GlobGeometryRefiner.Refine(geom, ref, 1);
          for (int j = 0; j < RefG->RefGeoms.Size(); j += nv)
          {
-            pout << coloring[i] + 1 << '\n';
+            os << coloring[i] + 1 << '\n';
          }
       }
    }
 
    // prepare to write data
-   pout << "POINT_DATA " << np << '\n' << flush;
+   os << "POINT_DATA " << np << '\n' << flush;
 }
 
 void Mesh::GetElementColoring(Array<int> &colors, int el0)
@@ -10636,40 +10636,40 @@ void Mesh::GetElementColoring(Array<int> &colors, int el0)
    }
 }
 
-void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &pout,
+void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &os,
                                  int elem_attr) const
 {
    if (Dim != 3 && Dim != 2) { return; }
 
    int i, j, k, l, nv, nbe, *v;
 
-   pout << "MFEM mesh v1.0\n";
+   os << "MFEM mesh v1.0\n";
 
    // optional
-   pout <<
-        "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
-        "# POINT       = 0\n"
-        "# SEGMENT     = 1\n"
-        "# TRIANGLE    = 2\n"
-        "# SQUARE      = 3\n"
-        "# TETRAHEDRON = 4\n"
-        "# CUBE        = 5\n"
-        "# PRISM       = 6\n"
-        "#\n";
+   os <<
+      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "# POINT       = 0\n"
+      "# SEGMENT     = 1\n"
+      "# TRIANGLE    = 2\n"
+      "# SQUARE      = 3\n"
+      "# TETRAHEDRON = 4\n"
+      "# CUBE        = 5\n"
+      "# PRISM       = 6\n"
+      "#\n";
 
-   pout << "\ndimension\n" << Dim
-        << "\n\nelements\n" << NumOfElements << '\n';
+   os << "\ndimension\n" << Dim
+      << "\n\nelements\n" << NumOfElements << '\n';
    for (i = 0; i < NumOfElements; i++)
    {
-      pout << int((elem_attr) ? partitioning[i]+1 : elements[i]->GetAttribute())
-           << ' ' << elements[i]->GetGeometryType();
+      os << int((elem_attr) ? partitioning[i]+1 : elements[i]->GetAttribute())
+         << ' ' << elements[i]->GetGeometryType();
       nv = elements[i]->GetNVertices();
       v  = elements[i]->GetVertices();
       for (j = 0; j < nv; j++)
       {
-         pout << ' ' << v[j];
+         os << ' ' << v[j];
       }
-      pout << '\n';
+      os << '\n';
    }
    nbe = 0;
    for (i = 0; i < faces_info.Size(); i++)
@@ -10692,7 +10692,7 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &pout,
          nbe++;
       }
    }
-   pout << "\nboundary\n" << nbe << '\n';
+   os << "\nboundary\n" << nbe << '\n';
    for (i = 0; i < faces_info.Size(); i++)
    {
       if ((l = faces_info[i].Elem2No) >= 0)
@@ -10703,20 +10703,20 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &pout,
          {
             nv = faces[i]->GetNVertices();
             v  = faces[i]->GetVertices();
-            pout << k+1 << ' ' << faces[i]->GetGeometryType();
+            os << k+1 << ' ' << faces[i]->GetGeometryType();
             for (j = 0; j < nv; j++)
             {
-               pout << ' ' << v[j];
+               os << ' ' << v[j];
             }
-            pout << '\n';
+            os << '\n';
             if (!Nonconforming() || !IsSlaveFace(faces_info[i]))
             {
-               pout << l+1 << ' ' << faces[i]->GetGeometryType();
+               os << l+1 << ' ' << faces[i]->GetGeometryType();
                for (j = nv-1; j >= 0; j--)
                {
-                  pout << ' ' << v[j];
+                  os << ' ' << v[j];
                }
-               pout << '\n';
+               os << '\n';
             }
          }
       }
@@ -10725,38 +10725,38 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &pout,
          k = partitioning[faces_info[i].Elem1No];
          nv = faces[i]->GetNVertices();
          v  = faces[i]->GetVertices();
-         pout << k+1 << ' ' << faces[i]->GetGeometryType();
+         os << k+1 << ' ' << faces[i]->GetGeometryType();
          for (j = 0; j < nv; j++)
          {
-            pout << ' ' << v[j];
+            os << ' ' << v[j];
          }
-         pout << '\n';
+         os << '\n';
       }
    }
-   pout << "\nvertices\n" << NumOfVertices << '\n';
+   os << "\nvertices\n" << NumOfVertices << '\n';
    if (Nodes == NULL)
    {
-      pout << spaceDim << '\n';
+      os << spaceDim << '\n';
       for (i = 0; i < NumOfVertices; i++)
       {
-         pout << vertices[i](0);
+         os << vertices[i](0);
          for (j = 1; j < spaceDim; j++)
          {
-            pout << ' ' << vertices[i](j);
+            os << ' ' << vertices[i](j);
          }
-         pout << '\n';
+         os << '\n';
       }
-      pout.flush();
+      os.flush();
    }
    else
    {
-      pout << "\nnodes\n";
-      Nodes->Save(pout);
+      os << "\nnodes\n";
+      Nodes->Save(os);
    }
 }
 
 void Mesh::PrintElementsWithPartitioning(int *partitioning,
-                                         std::ostream &pout,
+                                         std::ostream &os,
                                          int interior_faces)
 {
    MFEM_ASSERT(Dim == spaceDim, "2D Manifolds not supported\n");
@@ -10841,7 +10841,7 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
       }
 
       // Print the type of the mesh and the boundary elements.
-      pout << "areamesh2\n\n" << nbe << '\n';
+      os << "areamesh2\n\n" << nbe << '\n';
 
       for (i = 0; i < edge_el.Size(); i++)
       {
@@ -10854,22 +10854,22 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             {
                Array<int> ev;
                GetEdgeVertices(i,ev);
-               pout << k+1; // attribute
+               os << k+1; // attribute
                for (j = 0; j < 2; j++)
                   for (s = 0; s < vcount[ev[j]]; s++)
                      if (vown[ev[j]][s] == el[0])
                      {
-                        pout << ' ' << voff[ev[j]]+s+1;
+                        os << ' ' << voff[ev[j]]+s+1;
                      }
-               pout << '\n';
-               pout << l+1; // attribute
+               os << '\n';
+               os << l+1; // attribute
                for (j = 1; j >= 0; j--)
                   for (s = 0; s < vcount[ev[j]]; s++)
                      if (vown[ev[j]][s] == el[1])
                      {
-                        pout << ' ' << voff[ev[j]]+s+1;
+                        os << ' ' << voff[ev[j]]+s+1;
                      }
-               pout << '\n';
+               os << '\n';
             }
          }
          else
@@ -10877,31 +10877,31 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             k = partitioning[el[0]];
             Array<int> ev;
             GetEdgeVertices(i,ev);
-            pout << k+1; // attribute
+            os << k+1; // attribute
             for (j = 0; j < 2; j++)
                for (s = 0; s < vcount[ev[j]]; s++)
                   if (vown[ev[j]][s] == el[0])
                   {
-                     pout << ' ' << voff[ev[j]]+s+1;
+                     os << ' ' << voff[ev[j]]+s+1;
                   }
-            pout << '\n';
+            os << '\n';
          }
       }
 
       // Print the elements.
-      pout << NumOfElements << '\n';
+      os << NumOfElements << '\n';
       for (i = 0; i < NumOfElements; i++)
       {
          nv  = elements[i]->GetNVertices();
          ind = elements[i]->GetVertices();
-         pout << partitioning[i]+1 << ' '; // use subdomain number as attribute
-         pout << nv << ' ';
+         os << partitioning[i]+1 << ' '; // use subdomain number as attribute
+         os << nv << ' ';
          for (j = 0; j < nv; j++)
          {
-            pout << ' ' << voff[ind[j]]+vcount[ind[j]]--;
+            os << ' ' << voff[ind[j]]+vcount[ind[j]]--;
             vown[ind[j]][vcount[ind[j]]] = i;
          }
-         pout << '\n';
+         os << '\n';
       }
 
       for (i = 0; i < NumOfVertices; i++)
@@ -10910,46 +10910,46 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
       }
 
       // Print the vertices.
-      pout << voff[NumOfVertices] << '\n';
+      os << voff[NumOfVertices] << '\n';
       for (i = 0; i < NumOfVertices; i++)
          for (k = 0; k < vcount[i]; k++)
          {
             for (j = 0; j < Dim; j++)
             {
-               pout << vertices[i](j) << ' ';
+               os << vertices[i](j) << ' ';
             }
-            pout << '\n';
+            os << '\n';
          }
    }
    //  Dim is 3
    else if (meshgen == 1)
    {
-      pout << "NETGEN_Neutral_Format\n";
+      os << "NETGEN_Neutral_Format\n";
       // print the vertices
-      pout << voff[NumOfVertices] << '\n';
+      os << voff[NumOfVertices] << '\n';
       for (i = 0; i < NumOfVertices; i++)
          for (k = 0; k < vcount[i]; k++)
          {
             for (j = 0; j < Dim; j++)
             {
-               pout << ' ' << vertices[i](j);
+               os << ' ' << vertices[i](j);
             }
-            pout << '\n';
+            os << '\n';
          }
 
       // print the elements
-      pout << NumOfElements << '\n';
+      os << NumOfElements << '\n';
       for (i = 0; i < NumOfElements; i++)
       {
          nv = elements[i]->GetNVertices();
          ind = elements[i]->GetVertices();
-         pout << partitioning[i]+1; // use subdomain number as attribute
+         os << partitioning[i]+1; // use subdomain number as attribute
          for (j = 0; j < nv; j++)
          {
-            pout << ' ' << voff[ind[j]]+vcount[ind[j]]--;
+            os << ' ' << voff[ind[j]]+vcount[ind[j]]--;
             vown[ind[j]][vcount[ind[j]]] = i;
          }
-         pout << '\n';
+         os << '\n';
       }
 
       for (i = 0; i < NumOfVertices; i++)
@@ -10975,7 +10975,7 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             nbe++;
          }
 
-      pout << nbe << '\n';
+      os << nbe << '\n';
       for (i = 0; i < NumOfFaces; i++)
          if ((l = faces_info[i].Elem2No) >= 0)
          {
@@ -10985,22 +10985,22 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             {
                nv = faces[i]->GetNVertices();
                ind = faces[i]->GetVertices();
-               pout << k+1; // attribute
+               os << k+1; // attribute
                for (j = 0; j < nv; j++)
                   for (s = 0; s < vcount[ind[j]]; s++)
                      if (vown[ind[j]][s] == faces_info[i].Elem1No)
                      {
-                        pout << ' ' << voff[ind[j]]+s+1;
+                        os << ' ' << voff[ind[j]]+s+1;
                      }
-               pout << '\n';
-               pout << l+1; // attribute
+               os << '\n';
+               os << l+1; // attribute
                for (j = nv-1; j >= 0; j--)
                   for (s = 0; s < vcount[ind[j]]; s++)
                      if (vown[ind[j]][s] == faces_info[i].Elem2No)
                      {
-                        pout << ' ' << voff[ind[j]]+s+1;
+                        os << ' ' << voff[ind[j]]+s+1;
                      }
-               pout << '\n';
+               os << '\n';
             }
          }
          else
@@ -11008,14 +11008,14 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             k = partitioning[faces_info[i].Elem1No];
             nv = faces[i]->GetNVertices();
             ind = faces[i]->GetVertices();
-            pout << k+1; // attribute
+            os << k+1; // attribute
             for (j = 0; j < nv; j++)
                for (s = 0; s < vcount[ind[j]]; s++)
                   if (vown[ind[j]][s] == faces_info[i].Elem1No)
                   {
-                     pout << ' ' << voff[ind[j]]+s+1;
+                     os << ' ' << voff[ind[j]]+s+1;
                   }
-            pout << '\n';
+            os << '\n';
          }
    }
    //  Dim is 3
@@ -11040,30 +11040,30 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
          }
 
 
-      pout << "TrueGrid\n"
-           << "1 " << voff[NumOfVertices] << " " << NumOfElements
-           << " 0 0 0 0 0 0 0\n"
-           << "0 0 0 1 0 0 0 0 0 0 0\n"
-           << "0 0 " << nbe << " 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
-           << "0.0 0.0 0.0 0 0 0.0 0.0 0 0.0\n"
-           << "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n";
+      os << "TrueGrid\n"
+         << "1 " << voff[NumOfVertices] << " " << NumOfElements
+         << " 0 0 0 0 0 0 0\n"
+         << "0 0 0 1 0 0 0 0 0 0 0\n"
+         << "0 0 " << nbe << " 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
+         << "0.0 0.0 0.0 0 0 0.0 0.0 0 0.0\n"
+         << "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n";
 
       for (i = 0; i < NumOfVertices; i++)
          for (k = 0; k < vcount[i]; k++)
-            pout << voff[i]+k << " 0.0 " << vertices[i](0) << ' '
-                 << vertices[i](1) << ' ' << vertices[i](2) << " 0.0\n";
+            os << voff[i]+k << " 0.0 " << vertices[i](0) << ' '
+               << vertices[i](1) << ' ' << vertices[i](2) << " 0.0\n";
 
       for (i = 0; i < NumOfElements; i++)
       {
          nv = elements[i]->GetNVertices();
          ind = elements[i]->GetVertices();
-         pout << i+1 << ' ' << partitioning[i]+1; // partitioning as attribute
+         os << i+1 << ' ' << partitioning[i]+1; // partitioning as attribute
          for (j = 0; j < nv; j++)
          {
-            pout << ' ' << voff[ind[j]]+vcount[ind[j]]--;
+            os << ' ' << voff[ind[j]]+vcount[ind[j]]--;
             vown[ind[j]][vcount[ind[j]]] = i;
          }
-         pout << '\n';
+         os << '\n';
       }
 
       for (i = 0; i < NumOfVertices; i++)
@@ -11081,22 +11081,22 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             {
                nv = faces[i]->GetNVertices();
                ind = faces[i]->GetVertices();
-               pout << k+1; // attribute
+               os << k+1; // attribute
                for (j = 0; j < nv; j++)
                   for (s = 0; s < vcount[ind[j]]; s++)
                      if (vown[ind[j]][s] == faces_info[i].Elem1No)
                      {
-                        pout << ' ' << voff[ind[j]]+s+1;
+                        os << ' ' << voff[ind[j]]+s+1;
                      }
-               pout << " 1.0 1.0 1.0 1.0\n";
-               pout << l+1; // attribute
+               os << " 1.0 1.0 1.0 1.0\n";
+               os << l+1; // attribute
                for (j = nv-1; j >= 0; j--)
                   for (s = 0; s < vcount[ind[j]]; s++)
                      if (vown[ind[j]][s] == faces_info[i].Elem2No)
                      {
-                        pout << ' ' << voff[ind[j]]+s+1;
+                        os << ' ' << voff[ind[j]]+s+1;
                      }
-               pout << " 1.0 1.0 1.0 1.0\n";
+               os << " 1.0 1.0 1.0 1.0\n";
             }
          }
          else
@@ -11104,18 +11104,18 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             k = partitioning[faces_info[i].Elem1No];
             nv = faces[i]->GetNVertices();
             ind = faces[i]->GetVertices();
-            pout << k+1; // attribute
+            os << k+1; // attribute
             for (j = 0; j < nv; j++)
                for (s = 0; s < vcount[ind[j]]; s++)
                   if (vown[ind[j]][s] == faces_info[i].Elem1No)
                   {
-                     pout << ' ' << voff[ind[j]]+s+1;
+                     os << ' ' << voff[ind[j]]+s+1;
                   }
-            pout << " 1.0 1.0 1.0 1.0\n";
+            os << " 1.0 1.0 1.0 1.0\n";
          }
    }
 
-   pout << flush;
+   os << flush;
 
    for (i = 0; i < NumOfVertices; i++)
    {
@@ -11127,7 +11127,7 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
    delete [] vown;
 }
 
-void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &pout) const
+void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &os) const
 {
    int i, j;
 
@@ -11138,28 +11138,28 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &pout) const
       return;
    }
 
-   pout << "MFEM mesh v1.0\n";
+   os << "MFEM mesh v1.0\n";
 
    // optional
-   pout <<
-        "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
-        "# POINT       = 0\n"
-        "# SEGMENT     = 1\n"
-        "# TRIANGLE    = 2\n"
-        "# SQUARE      = 3\n"
-        "# TETRAHEDRON = 4\n"
-        "# CUBE        = 5\n"
-        "# PRISM       = 6\n"
-        "#\n";
+   os <<
+      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "# POINT       = 0\n"
+      "# SEGMENT     = 1\n"
+      "# TRIANGLE    = 2\n"
+      "# SQUARE      = 3\n"
+      "# TETRAHEDRON = 4\n"
+      "# CUBE        = 5\n"
+      "# PRISM       = 6\n"
+      "#\n";
 
-   pout << "\ndimension\n" << Dim
-        << "\n\nelements\n" << NumOfElements << '\n';
+   os << "\ndimension\n" << Dim
+      << "\n\nelements\n" << NumOfElements << '\n';
    for (i = 0; i < NumOfElements; i++)
    {
-      PrintElement(elements[i], pout);
+      PrintElement(elements[i], os);
    }
 
-   pout << "\nboundary\n" << Aface_face.Size_of_connections() << '\n';
+   os << "\nboundary\n" << Aface_face.Size_of_connections() << '\n';
    const int * const i_AF_f = Aface_face.GetI();
    const int * const j_AF_f = Aface_face.GetJ();
 
@@ -11168,29 +11168,29 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &pout) const
            iface < j_AF_f + i_AF_f[iAF+1];
            ++iface)
       {
-         pout << iAF+1 << ' ';
-         PrintElementWithoutAttr(faces[*iface],pout);
+         os << iAF+1 << ' ';
+         PrintElementWithoutAttr(faces[*iface],os);
       }
 
-   pout << "\nvertices\n" << NumOfVertices << '\n';
+   os << "\nvertices\n" << NumOfVertices << '\n';
    if (Nodes == NULL)
    {
-      pout << spaceDim << '\n';
+      os << spaceDim << '\n';
       for (i = 0; i < NumOfVertices; i++)
       {
-         pout << vertices[i](0);
+         os << vertices[i](0);
          for (j = 1; j < spaceDim; j++)
          {
-            pout << ' ' << vertices[i](j);
+            os << ' ' << vertices[i](j);
          }
-         pout << '\n';
+         os << '\n';
       }
-      pout.flush();
+      os.flush();
    }
    else
    {
-      pout << "\nnodes\n";
-      Nodes->Save(pout);
+      os << "\nnodes\n";
+      Nodes->Save(os);
    }
 }
 
@@ -11597,10 +11597,10 @@ void Mesh::FreeElement(Element *E)
 #endif
 }
 
-std::ostream &operator<<(std::ostream &mout, const Mesh &mesh)
+std::ostream &operator<<(std::ostream &os, const Mesh &mesh)
 {
-   mesh.Print(mout);
-   return mout;
+   mesh.Print(os);
+   return os;
 }
 
 int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
@@ -12258,15 +12258,15 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
 }
 
 #ifdef MFEM_DEBUG
-void Mesh::DebugDump(std::ostream &dout) const
+void Mesh::DebugDump(std::ostream &os) const
 {
    // dump vertices and edges (NCMesh "nodes")
-   dout << NumOfVertices + NumOfEdges << "\n";
+   os << NumOfVertices + NumOfEdges << "\n";
    for (int i = 0; i < NumOfVertices; i++)
    {
       const double *v = GetVertex(i);
-      dout << i << " " << v[0] << " " << v[1] << " " << v[2]
-           << " 0 0 " << i << " -1 0\n";
+      os << i << " " << v[0] << " " << v[1] << " " << v[2]
+         << " 0 0 " << i << " -1 0\n";
    }
 
    Array<int> ev;
@@ -12281,26 +12281,26 @@ void Mesh::DebugDump(std::ostream &dout) const
             mid[k] += GetVertex(ev[j])[k];
          }
       }
-      dout << NumOfVertices+i << " "
-           << mid[0]/2 << " " << mid[1]/2 << " " << mid[2]/2 << " "
-           << ev[0] << " " << ev[1] << " -1 " << i << " 0\n";
+      os << NumOfVertices+i << " "
+         << mid[0]/2 << " " << mid[1]/2 << " " << mid[2]/2 << " "
+         << ev[0] << " " << ev[1] << " -1 " << i << " 0\n";
    }
 
    // dump elements
-   dout << NumOfElements << "\n";
+   os << NumOfElements << "\n";
    for (int i = 0; i < NumOfElements; i++)
    {
       const Element* e = elements[i];
-      dout << e->GetNVertices() << " ";
+      os << e->GetNVertices() << " ";
       for (int j = 0; j < e->GetNVertices(); j++)
       {
-         dout << e->GetVertices()[j] << " ";
+         os << e->GetVertices()[j] << " ";
       }
-      dout << e->GetAttribute() << " 0 " << i << "\n";
+      os << e->GetAttribute() << " 0 " << i << "\n";
    }
 
    // dump faces
-   dout << "0\n";
+   os << "0\n";
 }
 #endif
 

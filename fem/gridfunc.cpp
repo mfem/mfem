@@ -3598,29 +3598,29 @@ GridFunction & GridFunction::operator=(const Vector &v)
    return *this;
 }
 
-void GridFunction::Save(std::ostream &sout) const
+void GridFunction::Save(std::ostream &os) const
 {
-   fes->Save(sout);
-   sout << '\n';
+   fes->Save(os);
+   os << '\n';
 #if 0
    // Testing: write NURBS GridFunctions using "NURBS_patches" format.
    if (fes->GetNURBSext())
    {
-      sout << "NURBS_patches\n";
-      fes->GetNURBSext()->PrintSolution(*this, sout);
-      sout.flush();
+      os << "NURBS_patches\n";
+      fes->GetNURBSext()->PrintSolution(*this, os);
+      os.flush();
       return;
    }
 #endif
    if (fes->GetOrdering() == Ordering::byNODES)
    {
-      Vector::Print(sout, 1);
+      Vector::Print(os, 1);
    }
    else
    {
-      Vector::Print(sout, fes->GetVDim());
+      Vector::Print(os, fes->GetVDim());
    }
-   sout.flush();
+   os.flush();
 }
 
 void GridFunction::Save(const char *fname, int precision) const
@@ -3631,15 +3631,15 @@ void GridFunction::Save(const char *fname, int precision) const
 }
 
 #ifdef MFEM_USE_ADIOS2
-void GridFunction::Save(adios2stream &sout,
+void GridFunction::Save(adios2stream &os,
                         const std::string& variable_name,
                         const adios2stream::data_type type) const
 {
-   sout.Save(*this, variable_name, type);
+   os.Save(*this, variable_name, type);
 }
 #endif
 
-void GridFunction::SaveVTK(std::ostream &sout, const std::string &field_name,
+void GridFunction::SaveVTK(std::ostream &os, const std::string &field_name,
                            int ref)
 {
    Mesh *mesh = fes->GetMesh();
@@ -3651,8 +3651,8 @@ void GridFunction::SaveVTK(std::ostream &sout, const std::string &field_name,
    if (vec_dim == 1)
    {
       // scalar data
-      sout << "SCALARS " << field_name << " double 1\n"
-           << "LOOKUP_TABLE default\n";
+      os << "SCALARS " << field_name << " double 1\n"
+         << "LOOKUP_TABLE default\n";
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
@@ -3662,14 +3662,14 @@ void GridFunction::SaveVTK(std::ostream &sout, const std::string &field_name,
 
          for (int j = 0; j < val.Size(); j++)
          {
-            sout << val(j) << '\n';
+            os << val(j) << '\n';
          }
       }
    }
    else if ( (vec_dim == 2 || vec_dim == 3) && mesh->SpaceDimension() > 1)
    {
       // vector data
-      sout << "VECTORS " << field_name << " double\n";
+      os << "VECTORS " << field_name << " double\n";
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
@@ -3681,16 +3681,16 @@ void GridFunction::SaveVTK(std::ostream &sout, const std::string &field_name,
 
          for (int j = 0; j < vval.Width(); j++)
          {
-            sout << vval(0, j) << ' ' << vval(1, j) << ' ';
+            os << vval(0, j) << ' ' << vval(1, j) << ' ';
             if (vval.Height() == 2)
             {
-               sout << 0.0;
+               os << 0.0;
             }
             else
             {
-               sout << vval(2, j);
+               os << vval(2, j);
             }
-            sout << '\n';
+            os << '\n';
          }
       }
    }
@@ -3699,8 +3699,8 @@ void GridFunction::SaveVTK(std::ostream &sout, const std::string &field_name,
       // other data: save the components as separate scalars
       for (int vd = 0; vd < vec_dim; vd++)
       {
-         sout << "SCALARS " << field_name << vd << " double 1\n"
-              << "LOOKUP_TABLE default\n";
+         os << "SCALARS " << field_name << vd << " double 1\n"
+            << "LOOKUP_TABLE default\n";
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             RefG = GlobGeometryRefiner.Refine(
@@ -3710,15 +3710,15 @@ void GridFunction::SaveVTK(std::ostream &sout, const std::string &field_name,
 
             for (int j = 0; j < val.Size(); j++)
             {
-               sout << val(j) << '\n';
+               os << val(j) << '\n';
             }
          }
       }
    }
-   sout.flush();
+   os.flush();
 }
 
-void GridFunction::SaveSTLTri(std::ostream &sout, double p1[], double p2[],
+void GridFunction::SaveSTLTri(std::ostream &os, double p1[], double p2[],
                               double p3[])
 {
    double v1[3] = { p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2] };
@@ -3730,15 +3730,15 @@ void GridFunction::SaveSTLTri(std::ostream &sout, double p1[], double p2[],
    double rl = 1.0 / sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
    n[0] *= rl; n[1] *= rl; n[2] *= rl;
 
-   sout << " facet normal " << n[0] << ' ' << n[1] << ' ' << n[2]
-        << "\n  outer loop"
-        << "\n   vertex " << p1[0] << ' ' << p1[1] << ' ' << p1[2]
-        << "\n   vertex " << p2[0] << ' ' << p2[1] << ' ' << p2[2]
-        << "\n   vertex " << p3[0] << ' ' << p3[1] << ' ' << p3[2]
-        << "\n  endloop\n endfacet\n";
+   os << " facet normal " << n[0] << ' ' << n[1] << ' ' << n[2]
+      << "\n  outer loop"
+      << "\n   vertex " << p1[0] << ' ' << p1[1] << ' ' << p1[2]
+      << "\n   vertex " << p2[0] << ' ' << p2[1] << ' ' << p2[2]
+      << "\n   vertex " << p3[0] << ' ' << p3[1] << ' ' << p3[2]
+      << "\n  endloop\n endfacet\n";
 }
 
-void GridFunction::SaveSTL(std::ostream &sout, int TimesToRefine)
+void GridFunction::SaveSTL(std::ostream &os, int TimesToRefine)
 {
    Mesh *mesh = fes->GetMesh();
 
@@ -3753,7 +3753,7 @@ void GridFunction::SaveSTL(std::ostream &sout, int TimesToRefine)
    RefinedGeometry * RefG;
    double pts[4][3], bbox[3][2];
 
-   sout << "solid GridFunction\n";
+   os << "solid GridFunction\n";
 
    bbox[0][0] = bbox[0][1] = bbox[1][0] = bbox[1][1] =
                                              bbox[2][0] = bbox[2][1] = 0.0;
@@ -3776,12 +3776,12 @@ void GridFunction::SaveSTL(std::ostream &sout, int TimesToRefine)
 
          if (n == 3)
          {
-            SaveSTLTri(sout, pts[0], pts[1], pts[2]);
+            SaveSTLTri(os, pts[0], pts[1], pts[2]);
          }
          else
          {
-            SaveSTLTri(sout, pts[0], pts[1], pts[2]);
-            SaveSTLTri(sout, pts[0], pts[2], pts[3]);
+            SaveSTLTri(os, pts[0], pts[1], pts[2]);
+            SaveSTLTri(os, pts[0], pts[2], pts[3]);
          }
       }
 
@@ -3829,13 +3829,13 @@ void GridFunction::SaveSTL(std::ostream &sout, int TimesToRefine)
              << "[zmin,zmax] = [" << bbox[2][0] << ',' << bbox[2][1] << ']'
              << endl;
 
-   sout << "endsolid GridFunction" << endl;
+   os << "endsolid GridFunction" << endl;
 }
 
-std::ostream &operator<<(std::ostream &sout, const GridFunction &sol)
+std::ostream &operator<<(std::ostream &os, const GridFunction &sol)
 {
-   sol.Save(sout);
-   return sout;
+   sol.Save(os);
+   return os;
 }
 
 void GridFunction::LegacyNCReorder()
@@ -3933,19 +3933,19 @@ QuadratureFunction & QuadratureFunction::operator=(const QuadratureFunction &v)
    return this->operator=((const Vector &)v);
 }
 
-void QuadratureFunction::Save(std::ostream &sout) const
+void QuadratureFunction::Save(std::ostream &os) const
 {
-   qspace->Save(sout);
-   sout << "VDim: " << vdim << '\n'
-        << '\n';
-   Vector::Print(sout, vdim);
-   sout.flush();
+   qspace->Save(os);
+   os << "VDim: " << vdim << '\n'
+      << '\n';
+   Vector::Print(os, vdim);
+   os.flush();
 }
 
-std::ostream &operator<<(std::ostream &sout, const QuadratureFunction &qf)
+std::ostream &operator<<(std::ostream &os, const QuadratureFunction &qf)
 {
-   qf.Save(sout);
-   return sout;
+   qf.Save(os);
+   return os;
 }
 
 

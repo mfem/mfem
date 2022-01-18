@@ -787,44 +787,44 @@ void ParaViewDataCollection::Load(int )
 
 std::string ParaViewDataCollection::GenerateCollectionPath()
 {
-   std::string sout = "";
-   sout = prefix_path + DataCollection::GetCollectionName();
-   return sout;
+   std::string str = "";
+   str = prefix_path + DataCollection::GetCollectionName();
+   return str;
 }
 
 std::string ParaViewDataCollection::GeneratePVTUPath()
 {
-   std::string sout = "Cycle" + to_padded_string(cycle,pad_digits_cycle);
-   return sout;
+   std::string str = "Cycle" + to_padded_string(cycle,pad_digits_cycle);
+   return str;
 }
 
 std::string ParaViewDataCollection::GenerateVTUPath()
 {
-   std::string sout = GeneratePVTUPath();
-   return sout;
+   std::string str = GeneratePVTUPath();
+   return str;
 }
 
 std::string ParaViewDataCollection::GeneratePVDFileName()
 {
-   std::string sout = GetCollectionName()+".pvd";
-   return sout;
+   std::string str = GetCollectionName()+".pvd";
+   return str;
 }
 
 std::string ParaViewDataCollection::GeneratePVTUFileName()
 {
-   std::string sout = "data.pvtu";
-   return sout;
+   std::string str = "data.pvtu";
+   return str;
 }
 
 std::string ParaViewDataCollection::GenerateVTUFileName()
 {
-   std::string sout = "proc" + to_padded_string(myid,pad_digits_rank)+".vtu";
-   return sout;
+   std::string str = "proc" + to_padded_string(myid,pad_digits_rank)+".vtu";
+   return str;
 }
 std::string ParaViewDataCollection::GenerateVTUFileName(int crank)
 {
-   std::string sout = "proc" + to_padded_string(crank,pad_digits_rank)+".vtu";
-   return sout;
+   std::string str = "proc" + to_padded_string(crank,pad_digits_rank)+".vtu";
+   return str;
 }
 
 void ParaViewDataCollection::Save()
@@ -919,10 +919,10 @@ void ParaViewDataCollection::Save()
    {
       std::string fname = GenerateCollectionPath()+"/"+GenerateVTUPath()+"/"
                           +GenerateVTUFileName();
-      std::fstream fout(fname, std::ios::out);
-      fout.precision(precision);
-      SaveDataVTU(fout,levels_of_detail);
-      fout.close();
+      std::fstream fs(fname, std::ios::out);
+      fs.precision(precision);
+      SaveDataVTU(fs,levels_of_detail);
+      fs.close();
    }
 
    // define the pvtu file only on process 0
@@ -930,58 +930,58 @@ void ParaViewDataCollection::Save()
    {
       std::string fname = GenerateCollectionPath()+"/"+GeneratePVTUPath()+"/"
                           +GeneratePVTUFileName();
-      std::fstream fout(fname, std::ios::out);
+      std::fstream fs(fname, std::ios::out);
 
-      fout << "<?xml version=\"1.0\"?>\n";
-      fout << "<VTKFile type=\"PUnstructuredGrid\"";
-      fout << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
-      fout << "<PUnstructuredGrid GhostLevel=\"0\">\n";
+      fs << "<?xml version=\"1.0\"?>\n";
+      fs << "<VTKFile type=\"PUnstructuredGrid\"";
+      fs << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+      fs << "<PUnstructuredGrid GhostLevel=\"0\">\n";
 
-      fout << "<PPoints>\n";
-      fout << "\t<PDataArray type=\"" << GetDataTypeString() << "\" ";
-      fout << " Name=\"Points\" NumberOfComponents=\"3\""
-           << " format=\"" << GetDataFormatString() << "\"/>\n";
-      fout << "</PPoints>\n";
+      fs << "<PPoints>\n";
+      fs << "\t<PDataArray type=\"" << GetDataTypeString() << "\" ";
+      fs << " Name=\"Points\" NumberOfComponents=\"3\""
+         << " format=\"" << GetDataFormatString() << "\"/>\n";
+      fs << "</PPoints>\n";
 
-      fout << "<PCells>\n";
-      fout << "\t<PDataArray type=\"Int32\" ";
-      fout << " Name=\"connectivity\" NumberOfComponents=\"1\""
-           << " format=\"" << GetDataFormatString() << "\"/>\n";
-      fout << "\t<PDataArray type=\"Int32\" ";
-      fout << " Name=\"offsets\"      NumberOfComponents=\"1\""
-           << " format=\"" << GetDataFormatString() << "\"/>\n";
-      fout << "\t<PDataArray type=\"UInt8\" ";
-      fout << " Name=\"types\"        NumberOfComponents=\"1\""
-           << " format=\"" << GetDataFormatString() << "\"/>\n";
-      fout << "</PCells>\n";
+      fs << "<PCells>\n";
+      fs << "\t<PDataArray type=\"Int32\" ";
+      fs << " Name=\"connectivity\" NumberOfComponents=\"1\""
+         << " format=\"" << GetDataFormatString() << "\"/>\n";
+      fs << "\t<PDataArray type=\"Int32\" ";
+      fs << " Name=\"offsets\"      NumberOfComponents=\"1\""
+         << " format=\"" << GetDataFormatString() << "\"/>\n";
+      fs << "\t<PDataArray type=\"UInt8\" ";
+      fs << " Name=\"types\"        NumberOfComponents=\"1\""
+         << " format=\"" << GetDataFormatString() << "\"/>\n";
+      fs << "</PCells>\n";
 
-      fout << "<PPointData>\n";
+      fs << "<PPointData>\n";
       for (FieldMapIterator it=field_map.begin(); it!=field_map.end(); ++it)
       {
          int vec_dim=it->second->VectorDim();
-         fout << "<PDataArray type=\"" << GetDataTypeString()
-              << "\" Name=\"" << it->first
-              << "\" NumberOfComponents=\"" << vec_dim << "\" "
-              << "format=\"" << GetDataFormatString() << "\" />\n";
+         fs << "<PDataArray type=\"" << GetDataTypeString()
+            << "\" Name=\"" << it->first
+            << "\" NumberOfComponents=\"" << vec_dim << "\" "
+            << "format=\"" << GetDataFormatString() << "\" />\n";
       }
-      fout << "</PPointData>\n";
+      fs << "</PPointData>\n";
 
       // CELL DATA
-      fout << "<PCellData>\n";
-      fout << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
-           << "\" NumberOfComponents=\"1\""
-           << " format=\"" << GetDataFormatString() << "\"/>\n";
-      fout << "</PCellData>\n";
+      fs << "<PCellData>\n";
+      fs << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
+         << "\" NumberOfComponents=\"1\""
+         << " format=\"" << GetDataFormatString() << "\"/>\n";
+      fs << "</PCellData>\n";
 
       for (int ii=0; ii<num_procs; ii++)
       {
          // this one is generated without the path
          std::string nfname=GenerateVTUFileName(ii);
-         fout << "<Piece Source=\"" << nfname << "\"/>\n";
+         fs << "<Piece Source=\"" << nfname << "\"/>\n";
       }
-      fout << "</PUnstructuredGrid>\n";
-      fout << "</VTKFile>\n";
-      fout.close();
+      fs << "</PUnstructuredGrid>\n";
+      fs << "</VTKFile>\n";
+      fs.close();
 
       fname = GeneratePVTUPath()+"/"+GeneratePVTUFileName();
       // add the pvtu file to the pvd_stream
@@ -996,24 +996,24 @@ void ParaViewDataCollection::Save()
    }
 }
 
-void ParaViewDataCollection::SaveDataVTU(std::ostream &sout, int ref)
+void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
 {
-   sout << "<VTKFile type=\"UnstructuredGrid\"";
+   os << "<VTKFile type=\"UnstructuredGrid\"";
    if (compression != 0)
    {
-      sout << " compressor=\"vtkZLibDataCompressor\"";
+      os << " compressor=\"vtkZLibDataCompressor\"";
    }
-   sout << " version=\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
-   sout << "<UnstructuredGrid>\n";
-   mesh->PrintVTU(sout,ref,pv_data_format,high_order_output,compression);
+   os << " version=\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+   os << "<UnstructuredGrid>\n";
+   mesh->PrintVTU(os,ref,pv_data_format,high_order_output,compression);
 
    // dump out the grid functions as point data
-   sout << "<PointData >\n";
+   os << "<PointData >\n";
    // save the grid functions
    // iterate over all grid functions
    for (FieldMapIterator it=field_map.begin(); it!=field_map.end(); ++it)
    {
-      SaveGFieldVTU(sout,ref,it);
+      SaveGFieldVTU(os,ref,it);
    }
    // iterate over all quadrature functions
    // if the Quadrature functions are dumped as cell data
@@ -1023,23 +1023,23 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &sout, int ref)
    {
       // save the quadrature functions
       // this one is not implemented yet
-      SaveQFieldVTU(sout,ref,it);
+      SaveQFieldVTU(os,ref,it);
    }
-   sout << "</PointData>\n";
+   os << "</PointData>\n";
    // close the mesh
-   sout << "</Piece>\n"; // close the piece open in the PrintVTU method
-   sout << "</UnstructuredGrid>\n";
-   sout << "</VTKFile>" << std::endl;
+   os << "</Piece>\n"; // close the piece open in the PrintVTU method
+   os << "</UnstructuredGrid>\n";
+   os << "</VTKFile>" << std::endl;
 }
 
-void ParaViewDataCollection::SaveQFieldVTU(std::ostream &sout, int ref,
+void ParaViewDataCollection::SaveQFieldVTU(std::ostream &os, int ref,
                                            const QFieldMapIterator& it )
 {
    MFEM_WARNING("SaveQFieldVTU is not currently implemented - field name:"
                 << it->second);
 }
 
-void ParaViewDataCollection::SaveGFieldVTU(std::ostream &sout, int ref_,
+void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
                                            const FieldMapIterator& it)
 {
    RefinedGeometry *RefG;
@@ -1050,10 +1050,10 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &sout, int ref_,
    if (vec_dim == 1)
    {
       // scalar data
-      sout << "<DataArray type=\"" << GetDataTypeString()
-           << "\" Name=\"" << it->first;
-      sout << "\" NumberOfComponents=\"1\" format=\""
-           << GetDataFormatString() << "\" >\n";
+      os << "<DataArray type=\"" << GetDataTypeString()
+         << "\" Name=\"" << it->first;
+      os << "\" NumberOfComponents=\"1\" format=\""
+         << GetDataFormatString() << "\" >\n";
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
@@ -1063,7 +1063,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &sout, int ref_,
          {
             if (pv_data_format == VTKFormat::ASCII)
             {
-               sout << ZeroSubnormal(val(j)) << '\n';
+               os << ZeroSubnormal(val(j)) << '\n';
             }
             else if (pv_data_format == VTKFormat::BINARY)
             {
@@ -1079,10 +1079,10 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &sout, int ref_,
    else
    {
       // vector data
-      sout << "<DataArray type=\"" << GetDataTypeString()
-           << "\" Name=\"" << it->first;
-      sout << "\" NumberOfComponents=\"" << vec_dim << "\""
-           << " format=\"" << GetDataFormatString() << "\" >" << '\n';
+      os << "<DataArray type=\"" << GetDataTypeString()
+         << "\" Name=\"" << it->first;
+      os << "\" NumberOfComponents=\"" << vec_dim << "\""
+         << " format=\"" << GetDataFormatString() << "\" >" << '\n';
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
@@ -1096,7 +1096,7 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &sout, int ref_,
             {
                if (pv_data_format == VTKFormat::ASCII)
                {
-                  sout << ZeroSubnormal(vval(ii,jj)) << ' ';
+                  os << ZeroSubnormal(vval(ii,jj)) << ' ';
                }
                else if (pv_data_format == VTKFormat::BINARY)
                {
@@ -1107,17 +1107,17 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &sout, int ref_,
                   bin_io::AppendBytes<float>(buf, float(vval(ii,jj)));
                }
             }
-            if (pv_data_format == VTKFormat::ASCII) { sout << '\n'; }
+            if (pv_data_format == VTKFormat::ASCII) { os << '\n'; }
          }
       }
    }
 
    if (IsBinaryFormat())
    {
-      WriteVTKEncodedCompressed(sout,buf.data(),buf.size(),compression);
-      sout << '\n';
+      WriteVTKEncodedCompressed(os,buf.data(),buf.size(),compression);
+      os << '\n';
    }
-   sout << "</DataArray>" << std::endl;
+   os << "</DataArray>" << std::endl;
 }
 
 void ParaViewDataCollection::SetDataFormat(VTKFormat fmt)

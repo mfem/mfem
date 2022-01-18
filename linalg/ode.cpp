@@ -827,29 +827,29 @@ void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
    gamma = 0.5 + alpha_m - alpha_f;
 }
 
-void GeneralizedAlphaSolver::PrintProperties(std::ostream &pout)
+void GeneralizedAlphaSolver::PrintProperties(std::ostream &os)
 {
-   pout << "Generalized alpha time integrator:" << std::endl;
-   pout << "alpha_m = " << alpha_m << std::endl;
-   pout << "alpha_f = " << alpha_f << std::endl;
-   pout << "gamma   = " << gamma   << std::endl;
+   os << "Generalized alpha time integrator:" << std::endl;
+   os << "alpha_m = " << alpha_m << std::endl;
+   os << "alpha_f = " << alpha_f << std::endl;
+   os << "gamma   = " << gamma   << std::endl;
 
    if (gamma == 0.5 + alpha_m - alpha_f)
    {
-      pout<<"Second order"<<" and ";
+      os<<"Second order"<<" and ";
    }
    else
    {
-      pout<<"First order"<<" and ";
+      os<<"First order"<<" and ";
    }
 
    if ((alpha_m >= alpha_f)&&(alpha_f >= 0.5))
    {
-      pout<<"Stable"<<std::endl;
+      os<<"Stable"<<std::endl;
    }
    else
    {
-      pout<<"Unstable"<<std::endl;
+      os<<"Unstable"<<std::endl;
    }
 }
 
@@ -1000,32 +1000,32 @@ void NewmarkSolver::Init(SecondOrderTimeDependentOperator &f_)
    first = true;
 }
 
-void NewmarkSolver::PrintProperties(std::ostream &pout)
+void NewmarkSolver::PrintProperties(std::ostream &os)
 {
-   pout << "Newmark time integrator:" << std::endl;
-   pout << "beta    = " << beta  << std::endl;
-   pout << "gamma   = " << gamma << std::endl;
+   os << "Newmark time integrator:" << std::endl;
+   os << "beta    = " << beta  << std::endl;
+   os << "gamma   = " << gamma << std::endl;
 
    if (gamma == 0.5)
    {
-      pout<<"Second order"<<" and ";
+      os<<"Second order"<<" and ";
    }
    else
    {
-      pout<<"First order"<<" and ";
+      os<<"First order"<<" and ";
    }
 
    if ((gamma >= 0.5) && (beta >= (gamma + 0.5)*(gamma + 0.5)/4))
    {
-      pout<<"A-Stable"<<std::endl;
+      os<<"A-Stable"<<std::endl;
    }
    else if ((gamma >= 0.5) && (beta >= 0.5*gamma))
    {
-      pout<<"Conditionally stable"<<std::endl;
+      os<<"Conditionally stable"<<std::endl;
    }
    else
    {
-      pout<<"Unstable"<<std::endl;
+      os<<"Unstable"<<std::endl;
    }
 }
 
@@ -1093,32 +1093,32 @@ void GeneralizedAlpha2Solver::SetStateVector(int i, Vector &state)
    nstate = 1;
 }
 
-void GeneralizedAlpha2Solver::PrintProperties(std::ostream &pout)
+void GeneralizedAlpha2Solver::PrintProperties(std::ostream &os)
 {
-   pout << "Generalized alpha time integrator:" << std::endl;
-   pout << "alpha_m = " << alpha_m << std::endl;
-   pout << "alpha_f = " << alpha_f << std::endl;
-   pout << "beta    = " << beta    << std::endl;
-   pout << "gamma   = " << gamma   << std::endl;
+   os << "Generalized alpha time integrator:" << std::endl;
+   os << "alpha_m = " << alpha_m << std::endl;
+   os << "alpha_f = " << alpha_f << std::endl;
+   os << "beta    = " << beta    << std::endl;
+   os << "gamma   = " << gamma   << std::endl;
 
    if (gamma == 0.5 + alpha_m - alpha_f)
    {
-      pout<<"Second order"<<" and ";
+      os<<"Second order"<<" and ";
    }
    else
    {
-      pout<<"First order"<<" and ";
+      os<<"First order"<<" and ";
    }
 
    if ((alpha_m >= alpha_f)&&
        (alpha_f >= 0.5) &&
        (beta >= 0.25 + 0.5*(alpha_m - alpha_f)))
    {
-      pout<<"Stable"<<std::endl;
+      os<<"Stable"<<std::endl;
    }
    else
    {
-      pout<<"Unstable"<<std::endl;
+      os<<"Unstable"<<std::endl;
    }
 }
 

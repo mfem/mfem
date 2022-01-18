@@ -2328,7 +2328,7 @@ void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
    width = GetNumCols();
 }
 
-void HypreParMatrix::PrintCommPkg(std::ostream &pout) const
+void HypreParMatrix::PrintCommPkg(std::ostream &os) const
 {
    hypre_ParCSRCommPkg *comm_pkg = A->comm_pkg;
    MPI_Comm comm = A->comm;
@@ -2344,83 +2344,83 @@ void HypreParMatrix::PrintCommPkg(std::ostream &pout) const
    }
    else
    {
-      pout << "\nHypreParMatrix: hypre_ParCSRCommPkg:\n";
+      os << "\nHypreParMatrix: hypre_ParCSRCommPkg:\n";
    }
-   pout << "Rank " << myid << ":\n"
-        "   number of sends  = " << comm_pkg->num_sends <<
-        " (" << sizeof(double)*comm_pkg->send_map_starts[comm_pkg->num_sends] <<
-        " bytes)\n"
-        "   number of recvs  = " << comm_pkg->num_recvs <<
-        " (" << sizeof(double)*comm_pkg->recv_vec_starts[comm_pkg->num_recvs] <<
-        " bytes)\n";
+   os << "Rank " << myid << ":\n"
+      "   number of sends  = " << comm_pkg->num_sends <<
+      " (" << sizeof(double)*comm_pkg->send_map_starts[comm_pkg->num_sends] <<
+      " bytes)\n"
+      "   number of recvs  = " << comm_pkg->num_recvs <<
+      " (" << sizeof(double)*comm_pkg->recv_vec_starts[comm_pkg->num_recvs] <<
+      " bytes)\n";
    if (myid != nproc-1)
    {
-      pout << std::flush;
+      os << std::flush;
       MPI_Send(&c, 1, MPI_CHAR, myid+1, tag, comm);
    }
    else
    {
-      pout << std::endl;
+      os << std::endl;
    }
    MPI_Barrier(comm);
 }
 
-void HypreParMatrix::PrintHash(std::ostream &pout) const
+void HypreParMatrix::PrintHash(std::ostream &os) const
 {
    HashFunction hf;
 
-   pout << "global number of rows    : " << A->global_num_rows << '\n'
-        << "global number of columns : " << A->global_num_cols << '\n'
-        << "first row index : " << A->first_row_index << '\n'
-        << " last row index : " << A->last_row_index << '\n'
-        << "first col diag  : " << A->first_col_diag << '\n'
-        << " last col diag  : " << A->last_col_diag << '\n'
-        << "number of nonzeros : " << A->num_nonzeros << '\n';
+   os << "global number of rows    : " << A->global_num_rows << '\n'
+      << "global number of columns : " << A->global_num_cols << '\n'
+      << "first row index : " << A->first_row_index << '\n'
+      << " last row index : " << A->last_row_index << '\n'
+      << "first col diag  : " << A->first_col_diag << '\n'
+      << " last col diag  : " << A->last_col_diag << '\n'
+      << "number of nonzeros : " << A->num_nonzeros << '\n';
    // diagonal, off-diagonal
    hypre_CSRMatrix *csr = A->diag;
    const char *csr_name = "diag";
    for (int m = 0; m < 2; m++)
    {
       auto csr_nnz = csr->i[csr->num_rows];
-      pout << csr_name << " num rows : " << csr->num_rows << '\n'
-           << csr_name << " num cols : " << csr->num_cols << '\n'
-           << csr_name << " num nnz  : " << csr->num_nonzeros << '\n'
-           << csr_name << " i last   : " << csr_nnz
-           << (csr_nnz == csr->num_nonzeros ?
-               " [good]" : " [** BAD **]") << '\n';
+      os << csr_name << " num rows : " << csr->num_rows << '\n'
+         << csr_name << " num cols : " << csr->num_cols << '\n'
+         << csr_name << " num nnz  : " << csr->num_nonzeros << '\n'
+         << csr_name << " i last   : " << csr_nnz
+         << (csr_nnz == csr->num_nonzeros ?
+             " [good]" : " [** BAD **]") << '\n';
       hf.AppendInts(csr->i, csr->num_rows + 1);
-      pout << csr_name << " i     hash : " << hf.GetHash() << '\n';
-      pout << csr_name << " j     hash : ";
+      os << csr_name << " i     hash : " << hf.GetHash() << '\n';
+      os << csr_name << " j     hash : ";
       if (csr->j == nullptr)
       {
-         pout << "(null)\n";
+         os << "(null)\n";
       }
       else
       {
          hf.AppendInts(csr->j, csr_nnz);
-         pout << hf.GetHash() << '\n';
+         os << hf.GetHash() << '\n';
       }
 #if MFEM_HYPRE_VERSION >= 21600
-      pout << csr_name << " big j hash : ";
+      os << csr_name << " big j hash : ";
       if (csr->big_j == nullptr)
       {
-         pout << "(null)\n";
+         os << "(null)\n";
       }
       else
       {
          hf.AppendInts(csr->big_j, csr_nnz);
-         pout << hf.GetHash() << '\n';
+         os << hf.GetHash() << '\n';
       }
 #endif
-      pout << csr_name << " data  hash : ";
+      os << csr_name << " data  hash : ";
       if (csr->data == nullptr)
       {
-         pout << "(null)\n";
+         os << "(null)\n";
       }
       else
       {
          hf.AppendDoubles(csr->data, csr_nnz);
-         pout << hf.GetHash() << '\n';
+         os << hf.GetHash() << '\n';
       }
 
       csr = A->offd;
@@ -2428,7 +2428,7 @@ void HypreParMatrix::PrintHash(std::ostream &pout) const
    }
 
    hf.AppendInts(A->col_map_offd, A->offd->num_cols);
-   pout << "col map offd hash : " << hf.GetHash() << '\n';
+   os << "col map offd hash : " << hf.GetHash() << '\n';
 }
 
 inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)

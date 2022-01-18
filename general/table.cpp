@@ -304,29 +304,29 @@ int Table::Width() const
    return width + 1;
 }
 
-void Table::Print(std::ostream & pout, int width) const
+void Table::Print(std::ostream & os, int width) const
 {
    int i, j;
 
    for (i = 0; i < size; i++)
    {
-      pout << "[row " << i << "]\n";
+      os << "[row " << i << "]\n";
       for (j = I[i]; j < I[i+1]; j++)
       {
-         pout << setw(5) << J[j];
+         os << setw(5) << J[j];
          if ( !((j+1-I[i]) % width) )
          {
-            pout << '\n';
+            os << '\n';
          }
       }
       if ((j-I[i]) % width)
       {
-         pout << '\n';
+         os << '\n';
       }
    }
 }
 
-void Table::PrintMatlab(std::ostream & pout) const
+void Table::PrintMatlab(std::ostream & os) const
 {
    int i, j;
 
@@ -334,24 +334,24 @@ void Table::PrintMatlab(std::ostream & pout) const
    {
       for (j = I[i]; j < I[i+1]; j++)
       {
-         pout << i << " " << J[j] << " 1. \n";
+         os << i << " " << J[j] << " 1. \n";
       }
    }
 
-   pout << flush;
+   os << flush;
 }
 
-void Table::Save(std::ostream &sout) const
+void Table::Save(std::ostream &os) const
 {
-   sout << size << '\n';
+   os << size << '\n';
 
    for (int i = 0; i <= size; i++)
    {
-      sout << I[i] << '\n';
+      os << I[i] << '\n';
    }
    for (int i = 0, nnz = I[size]; i < nnz; i++)
    {
-      sout << J[i] << '\n';
+      os << J[i] << '\n';
    }
 }
 

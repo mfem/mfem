@@ -248,7 +248,7 @@ void OptionsParser::Parse()
    error_type = 0;
 }
 
-void OptionsParser::ParseCheck(std::ostream &pout)
+void OptionsParser::ParseCheck(std::ostream &os)
 {
    Parse();
    int my_rank = 0;
@@ -262,60 +262,60 @@ void OptionsParser::ParseCheck(std::ostream &pout)
 #endif
    if (!Good())
    {
-      if (my_rank == 0) { PrintUsage(pout); }
+      if (my_rank == 0) { PrintUsage(os); }
 #ifdef MFEM_USE_MPI
       if (mpi_is_initialized) { MPI_Finalize(); }
 #endif
       std::exit(1);
    }
-   if (my_rank == 0) { PrintOptions(pout); }
+   if (my_rank == 0) { PrintOptions(os); }
 }
 
-void OptionsParser::WriteValue(const Option &opt, std::ostream &wout)
+void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
 {
    switch (opt.type)
    {
       case INT:
-         wout << *(int *)(opt.var_ptr);
+         os << *(int *)(opt.var_ptr);
          break;
 
       case DOUBLE:
-         wout << *(double *)(opt.var_ptr);
+         os << *(double *)(opt.var_ptr);
          break;
 
       case STRING:
-         wout << *(const char **)(opt.var_ptr);
+         os << *(const char **)(opt.var_ptr);
          break;
 
       case ARRAY:
       {
          Array<int> &list = *(Array<int>*)(opt.var_ptr);
-         wout << '\'';
+         os << '\'';
          if (list.Size() > 0)
          {
-            wout << list[0];
+            os << list[0];
          }
          for (int i = 1; i < list.Size(); i++)
          {
-            wout << ' ' << list[i];
+            os << ' ' << list[i];
          }
-         wout << '\'';
+         os << '\'';
          break;
       }
 
       case VECTOR:
       {
          Vector &list = *(Vector*)(opt.var_ptr);
-         wout << '\'';
+         os << '\'';
          if (list.Size() > 0)
          {
-            wout << list(0);
+            os << list(0);
          }
          for (int i = 1; i < list.Size(); i++)
          {
-            wout << ' ' << list(i);
+            os << ' ' << list(i);
          }
-         wout << '\'';
+         os << '\'';
          break;
       }
 
@@ -324,81 +324,81 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &wout)
    }
 }
 
-void OptionsParser::PrintOptions(ostream &pout) const
+void OptionsParser::PrintOptions(ostream &os) const
 {
    static const char *indent = "   ";
 
-   pout << "Options used:\n";
+   os << "Options used:\n";
    for (int j = 0; j < options.Size(); j++)
    {
       OptionType type = options[j].type;
 
-      pout << indent;
+      os << indent;
       if (type == ENABLE)
       {
          if (*(bool *)(options[j].var_ptr) == true)
          {
-            pout << options[j].long_name;
+            os << options[j].long_name;
          }
          else
          {
-            pout << options[j+1].long_name;
+            os << options[j+1].long_name;
          }
          j++;
       }
       else
       {
-         pout << options[j].long_name << " ";
-         WriteValue(options[j], pout);
+         os << options[j].long_name << " ";
+         WriteValue(options[j], os);
       }
-      pout << '\n';
+      os << '\n';
    }
 }
 
-void OptionsParser::PrintError(ostream &pout) const
+void OptionsParser::PrintError(ostream &os) const
 {
    static const char *line_sep = "";
 
-   pout << line_sep;
+   os << line_sep;
    switch (error_type)
    {
       case 2:
-         pout << "Unrecognized option: " << argv[error_idx] << '\n' << line_sep;
+         os << "Unrecognized option: " << argv[error_idx] << '\n' << line_sep;
          break;
 
       case 3:
-         pout << "Missing argument for the last option: " << argv[argc-1]
-              << '\n' << line_sep;
+         os << "Missing argument for the last option: " << argv[argc-1]
+            << '\n' << line_sep;
          break;
 
       case 4:
          if (options[error_idx].type == ENABLE )
-            pout << "Option " << options[error_idx].long_name << " or "
-                 << options[error_idx + 1].long_name
-                 << " provided multiple times\n" << line_sep;
+            os << "Option " << options[error_idx].long_name << " or "
+               << options[error_idx + 1].long_name
+               << " provided multiple times\n" << line_sep;
          else if (options[error_idx].type == DISABLE)
-            pout << "Option " << options[error_idx - 1].long_name << " or "
-                 << options[error_idx].long_name
-                 << " provided multiple times\n" << line_sep;
+            os << "Option " << options[error_idx - 1].long_name << " or "
+               << options[error_idx].long_name
+               << " provided multiple times\n" << line_sep;
          else
-            pout << "Option " << options[error_idx].long_name
-                 << " provided multiple times\n" << line_sep;
+            os << "Option " << options[error_idx].long_name
+               << " provided multiple times\n" << line_sep;
          break;
 
       case 5:
-         pout << "Wrong option format: " << argv[error_idx - 1] << " "
-              << argv[error_idx] << '\n' << line_sep;
+         os << "Wrong option format: " << argv[error_idx - 1] << " "
+            << argv[error_idx] << '\n' << line_sep;
          break;
 
       case 6:
-         pout << "Missing required option: " << options[error_idx].long_name
-              << '\n' << line_sep;
+         os << "Missing required option: " << options[error_idx].long_name
+            << '\n' << line_sep;
          break;
    }
-   pout << endl;
+   os << endl;
 }
 
-void OptionsParser::PrintHelp(ostream &pout) const
+void OptionsParser::PrintHelp(ostream &os) const
 {
    static const char *indent = "   ";
    static const char *seprtr = ", ";
@@ -408,60 +408,60 @@ void OptionsParser::PrintHelp(ostream &pout) const
                                   " '<int>...'", " '<double>...'"
                                 };
 
-   pout << indent << "-h" << seprtr << "--help" << descr_sep
-        << "Print this help message and exit.\n" << line_sep;
+   os << indent << "-h" << seprtr << "--help" << descr_sep
+      << "Print this help message and exit.\n" << line_sep;
    for (int j = 0; j < options.Size(); j++)
    {
       OptionType type = options[j].type;
 
-      pout << indent << options[j].short_name << types[type]
-           << seprtr << options[j].long_name << types[type]
-           << seprtr;
+      os << indent << options[j].short_name << types[type]
+         << seprtr << options[j].long_name << types[type]
+         << seprtr;
       if (options[j].required)
       {
-         pout << "(required)";
+         os << "(required)";
       }
       else
       {
          if (type == ENABLE)
          {
             j++;
-            pout << options[j].short_name << types[type] << seprtr
-                 << options[j].long_name << types[type] << seprtr
-                 << "current option: ";
+            os << options[j].short_name << types[type] << seprtr
+               << options[j].long_name << types[type] << seprtr
+               << "current option: ";
             if (*(bool *)(options[j].var_ptr) == true)
             {
-               pout << options[j-1].long_name;
+               os << options[j-1].long_name;
             }
             else
             {
-               pout << options[j].long_name;
+               os << options[j].long_name;
             }
          }
          else
          {
-            pout << "current value: ";
-            WriteValue(options[j], pout);
+            os << "current value: ";
+            WriteValue(options[j], os);
          }
       }
-      pout << descr_sep;
+      os << descr_sep;
 
       if (options[j].description)
       {
-         pout << options[j].description << '\n';
+         os << options[j].description << '\n';
       }
-      pout << line_sep;
+      os << line_sep;
    }
 }
 
-void OptionsParser::PrintUsage(ostream &pout) const
+void OptionsParser::PrintUsage(ostream &os) const
 {
    static const char *line_sep = "";
 
-   PrintError(pout);
-   pout << "Usage: " << argv[0] << " [options] ...\n" << line_sep
-        << "Options:\n" << line_sep;
-   PrintHelp(pout);
+   PrintError(os);
+   os << "Usage: " << argv[0] << " [options] ...\n" << line_sep
+      << "Options:\n" << line_sep;
+   PrintHelp(os);
 }
 
 }
