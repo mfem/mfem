@@ -213,9 +213,9 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonConformingMaster() )
+      if ( face.IsLocalNonConformingCoarse() )
       {
-         // We skip local non-conforming master faces as they are treated by the
+         // We skip local non-conforming coarse faces as they are treated by the
          // local non-conforming slave faces.
          continue;
       }
@@ -230,7 +230,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
          else // Non-conforming face
          {
             SetFaceDofsScatterIndices(face, f_ind, ordering);
-            if (face.IsSharedNonConformingMaster())
+            if (face.IsSharedNonConformingCoarse())
             {
                // In this case the local face is the master (coarse) face, thus
                // we need to interpolate the values on the slave (fine) face.
@@ -274,9 +274,9 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonConformingMaster() )
+      if ( face.IsLocalNonConformingCoarse() )
       {
-         // We skip local non-conforming master faces as they are treated by the
+         // We skip local non-conforming coarse faces as they are treated by the
          // local non-conforming slave faces.
          continue;
       }
@@ -972,9 +972,9 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonConformingMaster() )
+      if ( face.IsLocalNonConformingCoarse() )
       {
-         // We skip local non-conforming master faces as they are treated by the
+         // We skip local non-conforming coarse faces as they are treated by the
          // local non-conforming slave faces.
          continue;
       }
@@ -1049,9 +1049,9 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonConformingMaster() )
+      if ( face.IsLocalNonConformingCoarse() )
       {
-         // We skip local non-conforming master faces as they are treated by the
+         // We skip local non-conforming coarse faces as they are treated by the
          // local non-conforming slave faces.
          continue;
       }

@@ -29,7 +29,7 @@ static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       face_id = face.elem_1_local_face;
-      if (face.IsLocal() && face.IsNonConformingMaster())
+      if (face.IsLocalNonConformingCoarse())
       {
          // We skip local non-conforming master faces as they are treated by the
          // local non-conforming slave faces.
