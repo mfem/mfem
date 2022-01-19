@@ -1010,12 +1010,9 @@ void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 {
    FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
 
-   if (Conforming())
-   {
-      // Make sure that processors without boundary elements mark
-      // their boundary dofs (if they have any).
-      Synchronize(ess_dofs);
-   }
+   // Make sure that processors without boundary elements mark
+   // their boundary dofs (if they have any).
+   Synchronize(ess_dofs);
 }
 
 void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
@@ -1041,7 +1038,8 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    {
       if (bool(ted[i]) != bool(true_ess_dofs2[i])) { counter++; }
    }
-   MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter);
+   MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter
+               << ", rank = " << MyRank);
 #endif
 
    MarkerToList(true_ess_dofs, ess_tdof_list);
