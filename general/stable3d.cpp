@@ -61,7 +61,7 @@ inline void Sort3 (int &r, int &c, int &f)
    }
 }
 
-int STable3D::Push (int r, int c, int f)
+int STable3D::Push (int r, int c, int f, int t)
 {
    STable3DNode *node;
 
@@ -86,6 +86,7 @@ int STable3D::Push (int r, int c, int f)
 #endif
    node->Column = c;
    node->Floor  = f;
+   node->Tier   = t;
    node->Number = NElem;
    node->Prev   = Rows[r];
    Rows[r] = node;
@@ -109,9 +110,9 @@ int STable3D::operator() (int r, int c, int f) const
          }
    }
 
-   MFEM_ABORT("(r,c,f) = (" << r << "," << c << "," << f << ")");
+   // MFEM_ABORT("(r,c,f) = (" << r << "," << c << "," << f << ")");
 
-   return 0;
+   return -1;
 }
 
 int STable3D::Index (int r, int c, int f) const
@@ -152,13 +153,13 @@ int STable3D::Push4 (int r, int c, int f, int t)
    switch (i)
    {
       case 0:
-         return Push (c,f,t);
+         return Push (c,f,t,r);
       case 1:
-         return Push (r,f,t);
+         return Push (r,f,t,c);
       case 2:
-         return Push (r,c,t);
+         return Push (r,c,t,f);
       case 3:
-         return Push (r,c,f);
+         return Push (r,c,f,t);
    }
 
    return -1;
@@ -218,6 +219,7 @@ void STable3D::Print(std::ostream & out) const
          out << row
              << ' ' << node_p->Column
              << ' ' << node_p->Floor
+             << ' ' << node_p->Tier
              << ' ' << node_p->Number
              << endl;
          node_p = node_p->Prev;

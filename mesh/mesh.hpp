@@ -20,6 +20,7 @@
 #include "vertex.hpp"
 #include "vtk.hpp"
 #include "ncmesh.hpp"
+#include "entsets.hpp"
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
 #include "../general/zstr.hpp"
@@ -54,9 +55,11 @@ class Mesh
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
    friend class ParNCMesh;
+   friend class ParEntitySets;
 #endif
    friend class NCMesh;
    friend class NURBSExtension;
+   friend class EntitySets;
 
 #ifdef MFEM_USE_ADIOS2
    friend class adios2stream;
@@ -166,6 +169,7 @@ protected:
    Array<int> be_to_face;
    mutable Table *face_edge;
    mutable Table *edge_vertex;
+   mutable Table *face_vertex;
 
    IsoparametricTransformation Transformation, Transformation2;
    IsoparametricTransformation BdrTransformation;
@@ -215,6 +219,8 @@ public:
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
    Array<FaceGeometricFactors*>
    face_geom_factors; ///< Optional face geometric factors.
+
+   EntitySets *ent_sets;
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -287,7 +293,7 @@ protected:
    void PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert);
    void DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert);
 
-   STable3D *GetFacesTable();
+   STable3D *GetFacesTable() const;
    STable3D *GetElementToFaceTable(int ret_ftbl = 0);
 
    /** Red refinement. Element with index i is refined. The default
@@ -1067,8 +1073,11 @@ public:
    /// Returns the face-to-edge Table (3D)
    Table *GetFaceEdgeTable() const;
 
-   /// Returns the edge-to-vertex Table (3D)
+   /// Returns the edge-to-vertex Table (2D or 3D)
    Table *GetEdgeVertexTable() const;
+
+   /// Returns the face-to-vertex Table (2d or 3D)
+   Table *GetFaceVertexTable() const;
 
    /// Return the indices and the orientations of all faces of element i.
    void GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const;

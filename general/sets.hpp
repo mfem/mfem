@@ -36,7 +36,7 @@ public:
    IntegerSet(const int n, const int *p) { Recreate(n, p); }
 
    /// Return the size of the set.
-   int Size() { return me.Size(); }
+   int Size() const { return me.Size(); }
 
    /// Return a reference to the sorted array of all the set entries.
    operator Array<int>& () { return me; }
@@ -49,6 +49,8 @@ public:
 
    /// Return 1 if the sets are equal and 0 otherwise.
    int operator==(IntegerSet &s);
+
+   inline const int & operator[](int i) const { return me[i]; }
 
    /** @brief Create an integer set from C-array 'p' of 'n' integers.
        Overwrites any existing set data. */
@@ -64,7 +66,7 @@ private:
 public:
 
    /// Return the number of integer sets in the list.
-   int Size() { return TheList.Size(); }
+   int Size() const { return TheList.Size(); }
 
    /// Return the value of the first element of the ith set.
    int PickElementInSet(int i) { return TheList[i]->PickElement(); }
@@ -83,6 +85,9 @@ public:
 
    /// Write the list of sets into table 't'.
    void AsTable(Table &t);
+
+   inline const IntegerSet & operator[](int i) const { return *TheList[i]; }
+   inline IntegerSet & operator[](int i) { return *TheList[i]; }
 
    ~ListOfIntegerSets();
 };

@@ -778,11 +778,37 @@ public:
                                   Array<int> &ess_vdofs,
                                   int component = -1) const;
 
+   /** Mark degrees of freedom associated with the entity set with the
+       specified entity type and set index. */
+   virtual void GetEssentialVDofs(EntitySets::EntityType type, int set_index,
+                                  Array<int> &ess_vdofs,
+                                  int component = -1) const;
+
+   /** Mark degrees of freedom associated with the entity set with the
+       specified entity type and set index. */
+   virtual void GetEssentialVDofs(EntitySets::EntityType type,
+                                  const std::string & set_name,
+                                  Array<int> &ess_vdofs,
+                                  int component = -1) const;
+
    /** @brief Get a list of essential true dofs, ess_tdof_list, corresponding to the
        boundary attributes marked in the array bdr_attr_is_ess.
        For spaces with 'vdim' > 1, the 'component' parameter can be used
        to restricts the marked tDOFs to the specified component. */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
+                                     Array<int> &ess_tdof_list,
+                                     int component = -1);
+
+   /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
+       entity set specified by the given entity type and set index. */
+   virtual void GetEssentialTrueDofs(EntitySets::EntityType type, int set_index,
+                                     Array<int> &ess_tdof_list,
+                                     int component = -1);
+
+   /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
+       entity set specified by the given entity type and set name. */
+   virtual void GetEssentialTrueDofs(EntitySets::EntityType type,
+                                     const std::string & set_name,
                                      Array<int> &ess_tdof_list,
                                      int component = -1);
 

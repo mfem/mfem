@@ -20,6 +20,7 @@
 #include "../general/globals.hpp"
 #include "mesh.hpp"
 #include "pncmesh.hpp"
+#include "pentsets.hpp"
 #include <iostream>
 
 namespace mfem
@@ -320,6 +321,7 @@ public:
    Table            send_face_nbr_vertices;
 
    ParNCMesh* pncmesh;
+   ParEntitySets* pent_sets;
 
    int GetNGroups() const { return gtopo.NGroups(); }
 

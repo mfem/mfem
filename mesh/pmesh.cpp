@@ -91,6 +91,10 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
       *Nodes = *pmesh.Nodes;
       own_nodes = 1;
    }
+
+   // Copy entity sets if present in the input mesh
+   ent_sets = pent_sets =
+                 (pmesh.pent_sets) ? new ParEntitySets(*pmesh.pent_sets) : NULL;
 }
 
 ParMesh::ParMesh(ParMesh &&mesh) : ParMesh()
@@ -110,6 +114,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    , glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
+   , pent_sets(NULL)
 {
    int *partitioning = NULL;
    Array<bool> activeBdrElem;
@@ -117,6 +122,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
+
+   Array<int> vert_global_local;
 
    if (mesh.Nonconforming())
    {
@@ -148,6 +155,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       mesh.bdr_attributes.Copy(bdr_attributes);
 
       GenerateNCFaceInfo();
+
+      //      if (mesh.ent_sets)
+      // NumOfVertices = BuildLocalVertices(mesh, partitioning,
+      //                                    vert_global_local);
    }
    else // mesh.Conforming()
    {
@@ -168,7 +179,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       // re-enumerate the partitions to better map to actual processor
       // interconnect topology !?
 
-      Array<int> vert_global_local;
       NumOfVertices = BuildLocalVertices(mesh, partitioning, vert_global_local);
       NumOfElements = BuildLocalElements(mesh, partitioning, vert_global_local);
 
@@ -240,6 +250,12 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       SetMeshGen();
       meshgen = mesh.meshgen; // copy the global 'meshgen'
+
+      ent_sets = pent_sets =
+                    (mesh.ent_sets) ? new ParEntitySets(*this, *mesh.ent_sets,
+                                                        partitioning,
+                                                        vert_global_local)
+                    : NULL;
    }
 
    if (mesh.NURBSext)
@@ -289,7 +305,12 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       // for compatibility (e.g., Mesh::GetVertex())
       SetVerticesFromNodes(Nodes);
    }
-
+   /*
+   ent_sets = pent_sets =
+                 (mesh.ent_sets) ? new ParEntitySets(*this, *mesh.ent_sets,
+                                                     partitioning,
+                                                     vert_global_local) : NULL;
+   */
    if (partitioning != partitioning_)
    {
       delete [] partitioning;
@@ -859,6 +880,7 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    , glob_offset_sequence(-1)
    , gtopo(MyComm)
    , pncmesh(NULL)
+   , pent_sets(NULL)
 {
    Mesh::InitFromNCMesh(pncmesh);
    ReduceMeshGen();
@@ -925,6 +947,7 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    , glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
+   , pent_sets(NULL)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -1139,7 +1162,8 @@ void ParMesh::MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type)
    gtopo = orig_mesh.gtopo;
    have_face_nbr_data = false;
    pncmesh = NULL;
-
+   pent_sets = NULL;
+   
    Array<int> ref_factors(orig_mesh.GetNE());
    ref_factors = ref_factor;
    Mesh::MakeRefined_(orig_mesh, ref_factors, ref_type);
@@ -3770,6 +3794,13 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    // and this mesh will be the new fine mesh
    Mesh::Swap(*pmesh2, false);
 
+   // swap entity set information if present
+   mfem::Swap(pmesh2->pent_sets, this->pent_sets);
+   if (this->pent_sets)
+   {
+      this->pent_sets->pmesh_ = this;
+   }
+
    delete pmesh2; // NOTE: old face neighbors destroyed here
 
    pncmesh->GetConformingSharedStructures(*this);
@@ -6172,6 +6203,9 @@ void ParMesh::Destroy()
 {
    delete pncmesh;
    ncmesh = pncmesh = NULL;
+
+   delete pent_sets;
+   ent_sets = pent_sets = NULL;
 
    DeleteFaceNbrData();
 

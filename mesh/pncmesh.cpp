@@ -20,6 +20,8 @@
 #include <map>
 #include <climits> // INT_MIN, INT_MAX
 
+#include <fstream> // MLS Debugging
+
 namespace mfem
 {
 
@@ -27,6 +29,7 @@ using namespace bin_io;
 
 ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
    : NCMesh(ncmesh)
+   , pncent_sets(NULL)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -40,6 +43,40 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
    }
 
    Update();
+
+   std::ostringstream oss; oss << "elements_" << MyRank << ".out";
+   std::ofstream ofs(oss.str().c_str());
+
+   for (int i=0; i<elements.Size(); i++)
+   {
+      ofs << i
+          << '\t' << elements[i].index
+          << '\t' << elements[i].rank
+          << '\t' << elements[i].attribute
+          << '\t' << elements[i].parent;
+      if ( elements[i].ref_type == 0 )
+      {
+         ofs << " nodes {";
+         for (int j=0; j<8; j++)
+         {
+            ofs << " " << elements[i].node[j];
+         }
+         ofs << "}";
+      }
+      else
+      {
+         ofs << " children {";
+         for (int j=0; j<8; j++)
+         {
+            ofs << " " << elements[i].child[j];
+         }
+         ofs << "}";
+      }
+      ofs << std::endl;
+   }
+
+   ncent_sets = pncent_sets =
+                   (ncmesh.ncent_sets) ? new ParNCEntitySets(comm, ncmesh) : NULL;
 
    // note that at this point all processors still have all the leaf elements;
    // we however may now start pruning the refinement tree to get rid of
@@ -85,6 +122,9 @@ ParNCMesh::ParNCMesh(const ParNCMesh &other)
 ParNCMesh::~ParNCMesh()
 {
    ClearAuxPM();
+
+   delete pncent_sets;
+   ncent_sets = pncent_sets = NULL;
 }
 
 void ParNCMesh::Update()
@@ -114,6 +154,386 @@ void ParNCMesh::Update()
    ghost_layer.SetSize(0);
    boundary_layer.SetSize(0);
 }
+
+  /*
+void ParNCMesh::AssignLeafIndices()
+{
+   // This is an override of NCMesh::AssignLeafIndices(). The difference is
+   // that we shift all elements we own to the beginning of the array
+   // 'leaf_elements' and assign all ghost elements indices >= NElements.
+
+   // Also note that the ordering of ghosts and non-ghosts is preserved here,
+   // which is important for ParNCMesh::GetFaceNeighbors.
+
+   // We store the original leaf ordering in 'leaf_glob_order'. This is later
+   // used (and deleted) in GetConformingSharedStructures
+
+   NCMesh::AssignLeafIndices(); // original numbering, for 'leaf_glob_order'
+
+   int nleafs = leaf_elements.Size();
+
+   Array<int> ghosts;
+   ghosts.Reserve(nleafs);
+
+   NElements = 0;
+   for (int i = 0; i < nleafs; i++)
+   {
+      int elem = leaf_elements[i];
+      if (elements[elem].rank == MyRank)
+      {
+         leaf_elements[NElements++] = elem;
+      }
+      else
+      {
+         ghosts.Append(elem);
+      }
+   }
+   NGhostElements = ghosts.Size();
+
+   leaf_elements.SetSize(NElements);
+   leaf_elements.Append(ghosts);
+
+   // store original (globally consistent) numbering in 'leaf_glob_order'
+   leaf_glob_order.SetSize(nleafs);
+   for (int i = 0; i < nleafs; i++)
+   {
+      leaf_glob_order[i] = elements[leaf_elements[i]].index;
+   }
+
+   // new numbering with ghost shifted to the back
+   NCMesh::AssignLeafIndices();
+}
+
+void ParNCMesh::UpdateVertices()
+{
+   // This is an override of NCMesh::UpdateVertices. This version first
+   // assigns vert_index to vertices of elements of our rank. Only these
+   // vertices then make it to the Mesh in NCMesh::GetMeshComponents.
+   // The remaining (ghost) vertices are assigned indices greater or equal to
+   // Mesh::GetNV().
+
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   {
+      if (node->HasVertex()) { node->vert_index = -1; }
+   }
+
+   NVertices = 0;
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      Element &el = elements[leaf_elements[i]];
+      if (el.rank == MyRank)
+      {
+         for (int j = 0; j < GI[el.Geom()].nv; j++)
+         {
+            int &vindex = nodes[el.node[j]].vert_index;
+            if (vindex < 0) { vindex = NVertices++; }
+         }
+      }
+   }
+
+   vertex_nodeId.SetSize(NVertices);
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   {
+      if (node->HasVertex() && node->vert_index >= 0)
+      {
+         vertex_nodeId[node->vert_index] = node.index();
+      }
+   }
+
+   NGhostVertices = 0;
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   {
+      if (node->HasVertex() && node->vert_index < 0)
+      {
+         node->vert_index = NVertices + (NGhostVertices++);
+      }
+   }
+}
+
+void ParNCMesh::OnMeshUpdated(Mesh *mesh)
+{
+   std::cout << MyRank << ": Entering ParNCMesh::OnMeshUpdated" << std::endl;
+   // This is an override (or extension of) NCMesh::OnMeshUpdated().
+   // In addition to getting edge/face indices from 'mesh', we also
+   // assign indices to ghost edges/faces that don't exist in the 'mesh'.
+
+   // clear edge_index and Face::index
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   {
+      if (node->HasEdge()) { node->edge_index = -1; }
+   }
+   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
+   {
+      face->index = -1;
+   }
+
+   // go assign existing edge/face indices
+   NCMesh::OnMeshUpdated(mesh);
+
+   std::cout << MyRank << ": NVertices = " << NVertices << std::endl;
+
+   std::ostringstream ossN;
+   ossN << "node_on_mesh_updated_" << MyRank << ".out";
+   std::ofstream ofsN(ossN.str().c_str());
+   ofsN << nodes.Size() << std::endl;
+   for (int i=0; i<nodes.Size(); i++)
+   {
+      ofsN << i
+           // << " " << nodes[i].vert_refc
+           //  << " " << nodes[i].edge_refc
+           << " " << nodes[i].HasVertex()
+           << " " << nodes[i].HasEdge()
+           << " " << nodes[i].vert_index
+           << " " << nodes[i].edge_index
+           << " " << nodes[i].p1
+           << " " << nodes[i].p2
+           << " " << nodes[i].next << std::endl;
+   }
+   ofsN.close();
+
+   // count ghost edges and assign their indices
+   NEdges = mesh->GetNEdges();
+   NGhostEdges = 0;
+   for (node_iterator node = nodes.begin(); node != nodes.end(); ++node)
+   {
+      if (node->HasEdge() && node->edge_index < 0)
+      {
+         node->edge_index = NEdges + (NGhostEdges++);
+      }
+   }
+
+   // count ghost faces
+   NFaces = mesh->GetNumFaces();
+   NGhostFaces = 0;
+   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
+   {
+      if (face->index < 0) { NGhostFaces++; }
+   }
+
+   if (Dim == 2)
+   {
+      // in 2D we have fake faces because of DG
+      MFEM_ASSERT(NFaces == NEdges, "");
+      MFEM_ASSERT(NGhostFaces == NGhostEdges, "");
+   }
+
+   // resize face_geom (default_geom is for slave faces beyond the ghost layer)
+   Geometry::Type default_geom = Geometry::SQUARE;
+   face_geom.SetSize(NFaces + NGhostFaces, default_geom);
+
+   // update 'face_geom' for ghost faces, assign ghost face indices
+   int nghosts = 0;
+   for (int i = 0; i < NGhostElements; i++)
+   {
+      Element &el = elements[leaf_elements[NElements + i]]; // ghost element
+      GeomInfo &gi = GI[el.Geom()];
+
+      for (int j = 0; j < gi.nf; j++)
+      {
+         const int *fv = gi.faces[j];
+         Face* face = faces.Find(el.node[fv[0]], el.node[fv[1]],
+                                 el.node[fv[2]], el.node[fv[3]]);
+         MFEM_ASSERT(face, "face not found!");
+
+         if (face->index < 0)
+         {
+            face->index = NFaces + (nghosts++);
+
+            // store the face geometry
+            static const Geometry::Type types[5] =
+            {
+               Geometry::INVALID, Geometry::INVALID,
+               Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE
+            };
+            face_geom[face->index] = types[gi.nfv[j]];
+         }
+      }
+   }
+
+   // assign valid indices also to faces beyond the ghost layer
+   for (face_iterator face = faces.begin(); face != faces.end(); ++face)
+   {
+      if (face->index < 0) { face->index = NFaces + (nghosts++); }
+   }
+   MFEM_ASSERT(nghosts == NGhostFaces, "");
+
+   {
+      /// Debugging output
+      std::ostringstream oss; oss << "elements_on_mesh_updated_"
+                                  << MyRank << ".out";
+      std::ofstream ofs(oss.str().c_str());
+
+      for (int i=0; i<elements.Size(); i++)
+      {
+         ofs << i
+             << '\t' << elements[i].index
+             << '\t' << elements[i].rank
+             << '\t' << elements[i].attribute
+             << '\t' << elements[i].parent;
+         if ( elements[i].ref_type == 0 )
+         {
+            ofs << " nodes {";
+            for (int j=0; j<8; j++)
+            {
+               ofs << " " << elements[i].node[j];
+            }
+            ofs << "}";
+         }
+         else
+         {
+            ofs << " children {";
+            for (int j=0; j<8; j++)
+            {
+               ofs << " " << elements[i].child[j];
+            }
+            ofs << "}";
+         }
+         ofs << std::endl;
+      }
+
+      if (pncent_sets)
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated pncent_sets is non NULL" << std::endl;
+      }
+      else
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated pncent_sets is NULL" << std::endl;
+      }
+      if (ncent_sets)
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated ncent_sets is non NULL" << std::endl;
+      }
+      else
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated ncent_sets is NULL" << std::endl;
+      }
+      if (mesh->ent_sets)
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated mesh->ent_sets is non NULL" << std::endl;
+      }
+      else
+      {
+         std::cout << "ParNCMesh::OnMeshUpdated mesh->ent_sets is NULL" << std::endl;
+      }
+      ParMesh * pmesh = dynamic_cast<ParMesh*>(mesh);
+      if (pmesh)
+      {
+         std::cout << "dynamic cast succeeded: mesh is a ParMesh" << std::endl;
+
+         if (pmesh->pent_sets != NULL)
+         {
+            std::cout << "ParNCMesh::OnMeshUpdated deleting ParEntitySets object in ParMesh"
+                      << std::endl;
+            delete pmesh->pent_sets;
+         }
+         else if (pmesh->ent_sets != NULL)
+         {
+            std::cout << "ParNCMesh::OnMeshUpdated deleting EntitySets object in ParMesh" <<
+                      std::endl;
+            delete pmesh->ent_sets;
+         }
+         std::cout << "ParNCMesh::OnMeshUpdated creating ParEntitySets object in ParMesh"
+                   << std::endl;
+         pmesh->ent_sets = pmesh->pent_sets =
+                              (pncent_sets) ? new ParEntitySets(*pmesh, *this): NULL;
+	 */
+         /*
+         if (pmesh->ent_sets)
+         {
+         std::cout << MyRank << ": ParNCMesh::OnMeshUpdated pmesh->ent_sets is non NULL" << std::endl;
+         pmesh->ent_sets->PrintSetInfo(std::cout);
+
+         std::ostringstream oss; oss << "ent_sets_" << MyRank << ".out";
+         std::ofstream ofs(oss.str().c_str());
+         pmesh->ent_sets->Print(ofs);
+         MPI_Barrier(MyComm);
+
+         std::cout << MyRank << ": testing " << NElements << std::endl;
+         //pmesh->ent_sets->Prune(NElements);
+         }
+         else
+         {
+         std::cout << "ParNCMesh::OnMeshUpdated pmesh->ent_sets is NULL" << std::endl;
+         }
+         */
+	 /*
+         if (pmesh->pent_sets)
+         {
+            std::cout << "ParNCMesh::OnMeshUpdated pmesh->pent_sets is non NULL" <<
+                      std::endl;
+         }
+         else
+         {
+            std::cout << "ParNCMesh::OnMeshUpdated pmesh->pent_sets is NULL" << std::endl;
+         }
+      }
+      else
+      {
+         std::cout << "dynamic cast failed: mesh is not a ParMesh" << std::endl;
+      }
+      */
+      /*
+      if (pncent_sets)
+      {
+        if (!pmesh->pent_sets)
+        {
+          pmesh->pent_sets = new ParEntitySets(*pmesh, *this);
+        }
+      }
+      */
+      /*
+      // Prune the Entity Sets
+      if ( entity_sets )
+      {
+         EntitySets::EntityType t = EntitySets::INVALID;
+         unsigned int ns = -1;
+
+         std::cout << "Processing node sets" << std::endl;
+
+         t = EntitySets::VERTEX;
+         ns = entity_sets->GetNumSets(t);
+         for (unsigned int s=0; s<ns; s++)
+         {
+            unsigned int ni = entity_sets->GetNumEntities(t, s);
+       int e = 0;
+       for (unsigned int i=0; i<ni; i++)
+         {
+           if ( (*mesh->ent_sets)(t, s, i) < NVertices )
+             {
+          (*mesh->ent_sets)(t, s, e) = (*mesh->ent_sets)(t, s, i);
+          e++;
+             }
+         }
+       (*mesh->ent_sets)(t, s).resize(e);
+         }
+
+         t = EntitySets::EDGE;
+         ns = entity_sets->GetNumSets(t);
+         for (unsigned int s=0; s<ns; s++)
+         {
+            unsigned int ni = entity_sets->GetNumEntities(t, s);
+       BlockArray<int> ids;
+
+            for (unsigned int i=0; i<ni; i++)
+            {
+         if ( (*mesh->ent_sets)(t, s, i) < NEdges )
+         {
+           ids.Append((*mesh->ent_sets)(t, s, i));
+         }
+            }
+       (*mesh->ent_sets)(t, s).resize(ids.Size());
+       for (int i=0; i<ids.Size(); i++)
+         {
+           (*mesh->ent_sets)(t, s, i) = ids[i];
+         }
+         }
+      }
+      */
+	/*
+      std::cout << MyRank << ": Leaving ParNCMesh::OnMeshUpdated" << std::endl;
+   }
+}
+*/
 
 void ParNCMesh::ElementSharesFace(int elem, int local, int face)
 {
@@ -2730,6 +3150,94 @@ void ParNCMesh::GetDebugMesh(Mesh &debug_mesh) const
    debug_mesh.InitFromNCMesh(*copy);
    debug_mesh.SetAttributes();
    debug_mesh.ncmesh = copy;
+}
+
+void ParNCMesh::GetRefinedEdges(int vn0, int vn1, BlockArray<int> & edges)
+{
+   std::cout << MyRank
+             << ": entering ParNCMesh::GetRefinedEdges "
+             <<"searching for edge with vertices: " << vn0 << " and " << vn1
+             << std::endl;
+   return this->NCMesh::GetRefinedEdges(vn0, vn1, edges);
+
+   int mid = nodes.FindId(vn0, vn1);
+   if (mid < 0) { return; }
+
+   /*
+   Node &nd = nodes[mid];
+
+   if ( nd.edge_index < 0 ) { return; }
+
+   edges.Append(nd.edge_index);
+
+   GetRefinedEdges(vn0, mid, edges);
+   GetRefinedEdges(mid, vn1, edges);
+   */
+   edges.Append(mid);
+
+   GetRefinedEdges(vn0, mid, edges);
+   GetRefinedEdges(mid, vn1, edges);
+}
+
+void ParNCMesh::GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
+                                BlockArray<int> & face_ids)
+{
+   return this->NCMesh::GetRefinedFaces(vn0, vn1, vn2, vn3, face_ids);
+   /*
+   Face* fa = faces.Find(vn0, vn1, vn2, vn3);
+
+   if (fa)
+   {
+      if ( fa->index >= 0 )
+      {
+         face_ids.Append(fa->index);
+      }
+      return;
+   }
+
+   // we need to recurse deeper
+   int mid[4];
+   int split = FaceSplitType(vn0, vn1, vn2, vn3, mid);
+
+   if (split == 1) // "X" split face
+   {
+      GetRefinedFaces(vn0, mid[0], mid[2], vn3, face_ids);
+      GetRefinedFaces(mid[0], vn1, vn2, mid[2], face_ids);
+   }
+   else if (split == 2) // "Y" split face
+   {
+      GetRefinedFaces(vn0, vn1, mid[1], mid[3], face_ids);
+      GetRefinedFaces(mid[3], mid[1], vn2, vn3, face_ids);
+   }
+   */
+}
+
+void ParNCMesh::GetRefinedElements(int elem_id, BlockArray<int> & elem_ids)
+{
+   // std::cout << MyRank
+   //           << ": entering ParNCMesh::GetRefinedElements "
+   //           <<"searching for element id: " << elem_id << std::endl;
+   Element &el = elements[elem_id];
+
+   if (el.ref_type != 0)
+   {
+      // This element has been refined so recurse into its children
+      for (int i = 0; i < 8; i++)
+      {
+         if (el.child[i] >= 0 && el.child[i] < elements.Size() )
+         {
+            GetRefinedElements(el.child[i], elem_ids);
+         }
+      }
+   }
+   else
+   {
+      // This element has not been refined so add it if it's a local element
+      if (el.rank == MyRank)
+      {
+         elem_ids.Append(elem_id);
+      }
+   }
 }
 
 void ParNCMesh::Trim()

@@ -561,6 +561,155 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    }
 }
 
+void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
+                                           int set_index,
+                                           Array<int> &ess_vdofs,
+                                           int component) const
+{
+   Array<int> vdofs, dofs;
+
+   ess_vdofs.SetSize(GetVSize());
+   ess_vdofs = 0;
+
+   MFEM_VERIFY(mesh->ent_sets != NULL, "Mesh object contains no "
+               "entity set information");
+   if (!mesh->ent_sets->SetExists(type, set_index))
+   {
+      ostringstream oss; oss << "Entity set of type \""
+                             << EntitySets::GetTypeName(type)
+                             << "\" and index " << set_index
+                             << " was not found.";
+
+      MFEM_VERIFY(false, oss.str().c_str());
+   }
+
+   set<int>::iterator it;
+   for (it=(*mesh->ent_sets)(type, set_index).begin();
+        it!=(*mesh->ent_sets)(type, set_index).end(); it++)
+   {
+      int ent_index = *it;
+      cout << "collecting vdofs for entity " << ent_index << "->";
+      if (component < 0)
+      {
+         switch (type)
+         {
+            case EntitySets::VERTEX:
+               GetVertexVDofs(ent_index, vdofs);
+               break;
+            case EntitySets::EDGE:
+               GetEdgeVDofs(ent_index, vdofs);
+               break;
+            case EntitySets::FACE:
+               GetFaceVDofs(ent_index, vdofs);
+               break;
+            case EntitySets::ELEMENT:
+               GetElementVDofs(ent_index, vdofs);
+               break;
+            default:
+               mfem_error("GetEssentialVDofs: Invalid entity type");
+         }
+         vdofs.Print(cout);
+         mark_dofs(vdofs, ess_vdofs);
+      }
+      else
+      {
+         switch (type)
+         {
+            case EntitySets::VERTEX:
+               GetVertexDofs(ent_index, dofs);
+               break;
+            case EntitySets::EDGE:
+               GetEdgeDofs(ent_index, dofs);
+               break;
+            case EntitySets::FACE:
+               GetFaceDofs(ent_index, dofs);
+               break;
+            case EntitySets::ELEMENT:
+               GetElementDofs(ent_index, dofs);
+               break;
+            default:
+               mfem_error("GetEssentialDofs: Invalid entity type");
+         }
+         for (int d = 0; d < dofs.Size(); d++)
+         { dofs[d] = DofToVDof(dofs[d], component); }
+         mark_dofs(dofs, ess_vdofs);
+      }
+   }
+
+   if (mesh->ncmesh)
+   {
+      Array<int> es_verts, es_edges, es_faces;
+      mesh->ncmesh->GetEntitySetClosure(type, set_index,
+                                        es_verts, es_edges, es_faces);
+      cout << "returned from get closure" << endl;
+      for (int i = 0; i < es_verts.Size(); i++)
+      {
+         if (es_verts[i] < GetNV())
+         {
+            if (component < 0)
+            {
+               GetVertexVDofs(es_verts[i], vdofs);
+               mark_dofs(vdofs, ess_vdofs);
+            }
+            else
+            {
+               GetVertexDofs(es_verts[i], dofs);
+               for (int d = 0; d < dofs.Size(); d++)
+               { dofs[d] = DofToVDof(dofs[d], component); }
+               mark_dofs(dofs, ess_vdofs);
+            }
+         }
+      }
+      for (int i = 0; i < es_edges.Size(); i++)
+      {
+         if (es_edges[i] < GetMesh()->GetNEdges())
+         {
+            if (component < 0)
+            {
+               GetEdgeVDofs(es_edges[i], vdofs);
+               mark_dofs(vdofs, ess_vdofs);
+            }
+            else
+            {
+               GetEdgeDofs(es_edges[i], dofs);
+               for (int d = 0; d < dofs.Size(); d++)
+               { dofs[d] = DofToVDof(dofs[d], component); }
+               mark_dofs(dofs, ess_vdofs);
+            }
+         }
+      }
+      for (int i = 0; i < es_faces.Size(); i++)
+      {
+         if (es_faces[i] < GetMesh()->GetNFaces())
+         {
+            if (component < 0)
+            {
+               GetFaceVDofs(es_faces[i], vdofs);
+               mark_dofs(vdofs, ess_vdofs);
+            }
+            else
+            {
+               GetFaceDofs(es_faces[i], dofs);
+               for (int d = 0; d < dofs.Size(); d++)
+               { dofs[d] = DofToVDof(dofs[d], component); }
+               mark_dofs(dofs, ess_vdofs);
+            }
+         }
+      }
+   }
+}
+
+void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
+                                           const string & set_name,
+                                           Array<int> &ess_vdofs,
+                                           int component) const
+{
+   MFEM_VERIFY(mesh->ent_sets != NULL, "Mesh object contains no "
+               "entity set information");
+   GetEssentialVDofs(type, mesh->ent_sets->GetSetIndex(type, set_name),
+                     ess_vdofs, component);
+}
+
 void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_tdof_list,
                                               int component)
@@ -577,6 +726,36 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
       R->BooleanMult(ess_vdofs, ess_tdofs);
    }
    MarkerToList(ess_tdofs, ess_tdof_list);
+}
+
+void FiniteElementSpace::GetEssentialTrueDofs(EntitySets::EntityType type,
+                                              int set_index,
+                                              Array<int> &ess_tdof_list,
+                                              int component)
+{
+   Array<int> ess_vdofs, ess_tdofs;
+   GetEssentialVDofs(type, set_index, ess_vdofs, component);
+   const SparseMatrix *R = GetConformingRestriction();
+   if (!R)
+   {
+      ess_tdofs.MakeRef(ess_vdofs);
+   }
+   else
+   {
+      R->BooleanMult(ess_vdofs, ess_tdofs);
+   }
+   MarkerToList(ess_tdofs, ess_tdof_list);
+}
+
+void FiniteElementSpace::GetEssentialTrueDofs(EntitySets::EntityType type,
+                                              const string & set_name,
+                                              Array<int> &ess_tdof_list,
+                                              int component)
+{
+   MFEM_VERIFY(mesh->ent_sets != NULL, "Mesh object contains no "
+               "entity set information");
+   GetEssentialTrueDofs(type, mesh->ent_sets->GetSetIndex(type, set_name),
+                        ess_tdof_list, component);
 }
 
 void FiniteElementSpace::GetBoundaryTrueDofs(Array<int> &boundary_dofs,
