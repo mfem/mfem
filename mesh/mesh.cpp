@@ -75,7 +75,7 @@ void Mesh::GetElementCenter(int i, Vector &center)
 
 double Mesh::GetElementSize(ElementTransformation *T, int type)
 {
-   DenseMatrix J(spaceDim,Dim);
+   DenseMatrix J(spaceDim, Dim);
 
    Geometry::Type geom = T->GetGeometryType();
    T->SetIntPoint(&Geometries.GetCenter(geom));
@@ -102,7 +102,7 @@ double Mesh::GetElementSize(int i, int type)
 
 double Mesh::GetElementSize(int i, const Vector &dir)
 {
-   DenseMatrix J(spaceDim,Dim);
+   DenseMatrix J(spaceDim, Dim);
    Vector d_hat(Dim);
    GetElementJacobian(i, J);
    J.MultTranspose(dir, d_hat);
@@ -350,6 +350,7 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
    ElTr->ElementType = ElementTransformation::ELEMENT;
+   ElTr->mesh = this;
    ElTr->Reset();
    if (Nodes == NULL)
    {
@@ -382,6 +383,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
    ElTr->ElementType = ElementTransformation::ELEMENT;
+   ElTr->mesh = this;
    DenseMatrix &pm = ElTr->GetPointMat();
    ElTr->Reset();
    nodes.HostRead();
@@ -437,6 +439,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
    ElTr->Attribute = GetBdrAttribute(i);
    ElTr->ElementNo = i; // boundary element number
    ElTr->ElementType = ElementTransformation::BDR_ELEMENT;
+   ElTr->mesh = this;
    DenseMatrix &pm = ElTr->GetPointMat();
    ElTr->Reset();
    if (Nodes == NULL)
@@ -481,6 +484,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
                      "Mesh requires nodal Finite Element.");
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = elem_id;
+         FaceElemTr.Loc1.Transf.mesh = this;
          FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
          FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
          Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
@@ -495,6 +499,7 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
    FTr->Attribute = (Dim == 1) ? 1 : faces[FaceNo]->GetAttribute();
    FTr->ElementNo = FaceNo;
    FTr->ElementType = ElementTransformation::FACE;
+   FTr->mesh = this;
    DenseMatrix &pm = FTr->GetPointMat();
    FTr->Reset();
    if (Nodes == NULL)
@@ -551,6 +556,7 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = face_info.Elem1No;
          FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
+         FaceElemTr.Loc1.Transf.mesh = this;
          FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
          Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
 
@@ -580,6 +586,7 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
    EdTr->Attribute = 1;
    EdTr->ElementNo = EdgeNo;
    EdTr->ElementType = ElementTransformation::EDGE;
+   EdTr->mesh = this;
    DenseMatrix &pm = EdTr->GetPointMat();
    EdTr->Reset();
    if (Nodes == NULL)
@@ -1098,6 +1105,7 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    tr->Attribute = boundary[BdrElemNo]->GetAttribute();
    tr->ElementNo = BdrElemNo;
    tr->ElementType = ElementTransformation::BDR_FACE;
+   tr->mesh = this;
    return tr;
 }
 
@@ -8527,8 +8535,8 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
          elements[new_e] = new Segment(new_v, vert[1], attr);
          vert[1] = new_v;
 
-         CoarseFineTr.embeddings[i] = Embedding(i, 1);
-         CoarseFineTr.embeddings[new_e] = Embedding(i, 2);
+         CoarseFineTr.embeddings[i] = Embedding(i, Geometry::SEGMENT, 1);
+         CoarseFineTr.embeddings[new_e] = Embedding(i, Geometry::SEGMENT, 2);
       }
 
       static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
@@ -9276,7 +9284,7 @@ void Mesh::Bisection(int i, const DSTable &v_to_v,
 
       int coarse = FindCoarseElement(i);
       CoarseFineTr.embeddings[i].parent = coarse;
-      CoarseFineTr.embeddings.Append(Embedding(coarse));
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TRIANGLE));
 
       // 3. edge1 and edge2 may have to be changed for the second triangle.
       if (v[1][0] < v_to_v.NumberOfRows() && v[1][1] < v_to_v.NumberOfRows())
@@ -9396,7 +9404,7 @@ void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
 
       int coarse = FindCoarseElement(i);
       CoarseFineTr.embeddings[i].parent = coarse;
-      CoarseFineTr.embeddings.Append(Embedding(coarse));
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TETRAHEDRON));
 
       // 3. Set the bisection flag
       switch (type)
@@ -9534,10 +9542,10 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
 
       // set parent indices
       int coarse = FindCoarseElement(i);
-      CoarseFineTr.embeddings[i] = Embedding(coarse);
-      CoarseFineTr.embeddings.Append(Embedding(coarse));
-      CoarseFineTr.embeddings.Append(Embedding(coarse));
-      CoarseFineTr.embeddings.Append(Embedding(coarse));
+      CoarseFineTr.embeddings[i] = Embedding(coarse, Geometry::TRIANGLE);
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TRIANGLE));
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TRIANGLE));
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TRIANGLE));
 
       NumOfElements += 3;
    }
@@ -9555,7 +9563,7 @@ void Mesh::InitRefinementTransforms()
    for (int i = 0; i < NumOfElements; i++)
    {
       elements[i]->ResetTransform(0);
-      CoarseFineTr.embeddings[i] = Embedding(i);
+      CoarseFineTr.embeddings[i] = Embedding(i, GetElementGeometry(i));
    }
 }
 

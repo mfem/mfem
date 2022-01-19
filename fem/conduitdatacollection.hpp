@@ -166,7 +166,8 @@ public:
                                    conduit::Node &out,
                                    const std::string &coordset_name = "coords",
                                    const std::string &main_topology_name = "main",
-                                   const std::string &boundary_topology_name = "boundary");
+                                   const std::string &boundary_topology_name = "boundary",
+                                   const std::string &main_adjset_name = "main_adjset");
 
    /// Describes a MFEM grid function using the mesh blueprint
    /** Sets up passed conduit::Node out to describe the given grid function

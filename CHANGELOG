@@ -10,6 +10,19 @@
 
 Version 4.3.1 (development)
 ===========================
+
+- Added support for automatic differentiation. Users can select between native
+  implementation and external library implementation during configuration. One
+  parallel and two serial examples are implemented in the miniapps/autodiff/
+  directory.
+
+- GridFunctionCoefficient (and the related vector, gradient, divergence, and
+  curl classes) now work properly with LORDiscretization and LORSolver.
+
+- Added support for mesh preprocessing to resolve fine scale problem data
+  before simulation. This feature uses adaptive mesh refinement to control the
+  associated data oscillation error. See the new Example 30/30p.
+
 - Switched from Artistic Style (astyle) version 2.05.1 to version 3.1 for code
   formatting. See the "make style" target.
 
@@ -59,6 +72,16 @@ Version 4.3.1 (development)
 
 - Remove the 'u' flag in the ar command, to update all files in the archive,
   avoiding file name collisions from different subdirectories.
+
+- Added initial TMOP-based capabilities for surface fitting and tangential
+  relaxation in the mesh-optimizer and pmesh-optimizer miniapps.
+
+- Added ParMesh Adjaceny Set (adjset) creation support to the Conduit Mesh
+  Blueprint MFEM wrapper functions in ConduitDataCollection.
+
+- `HypreParVector` and `Vector` now support move semantics, and the copy
+  constructor for `HypreParVector` now copies the local vector data.
+
 
 Version 4.3, released on July 29, 2021
 ======================================
