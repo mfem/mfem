@@ -61,10 +61,10 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
    }
-   else if (QuadratureFunctionCoefficient* cQ =
+   else if (QuadratureFunctionCoefficient* Qfc =
                dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
-      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      const QuadratureFunction &qFun = Qfc->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -80,10 +80,10 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       auto C = Reshape(coeff.HostWrite(), nq, ne);
       for (int e = 0; e < ne; ++e)
       {
-         ElementTransformation& T = *fes.GetElementTransformation(e);
+         ElementTransformation &Tr = *fes.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)
          {
-            C(q,e) = Q->Eval(T, ir->IntPoint(q));
+            C(q,e) = Q->Eval(Tr, ir->IntPoint(q));
          }
       }
    }
@@ -673,6 +673,7 @@ static void SmemPAMassApply2D(const int NE,
                               const int q1d = 0,
                               const int nbz = 0)
 {
+   MFEM_CONTRACT_VAR(nbz);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -970,7 +971,7 @@ static void SmemPAMassApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            MFEM_UNROLL(MD1);
+            MFEM_UNROLL(MD1)
             for (int dz = 0; dz < D1D; ++dz)
             {
                X[dz][dy][dx] = x(dx,dy,dz,e);
@@ -986,22 +987,22 @@ static void SmemPAMassApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[D1D];
-            MFEM_UNROLL(MD1);
+            double u[MD1];
+            MFEM_UNROLL(MD1)
             for (int dz = 0; dz < D1D; dz++)
             {
                u[dz] = 0;
             }
-            MFEM_UNROLL(MD1);
+            MFEM_UNROLL(MD1)
             for (int dx = 0; dx < D1D; ++dx)
             {
-               MFEM_UNROLL(MD1);
+               MFEM_UNROLL(MD1)
                for (int dz = 0; dz < D1D; ++dz)
                {
                   u[dz] += X[dz][dy][dx] * B[qx][dx];
                }
             }
-            MFEM_UNROLL(MD1);
+            MFEM_UNROLL(MD1)
             for (int dz = 0; dz < D1D; ++dz)
             {
                DDQ[dz][dy][qx] = u[dz];
@@ -1013,22 +1014,22 @@ static void SmemPAMassApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[D1D];
-            MFEM_UNROLL(MD1);
+            double u[MD1];
+            MFEM_UNROLL(MD1)
             for (int dz = 0; dz < D1D; dz++)
             {
                u[dz] = 0;
             }
-            MFEM_UNROLL(MD1);
+            MFEM_UNROLL(MD1)
             for (int dy = 0; dy < D1D; ++dy)
             {
-               MFEM_UNROLL(MD1);
+               MFEM_UNROLL(MD1)
                for (int dz = 0; dz < D1D; dz++)
                {
                   u[dz] += DDQ[dz][dy][qx] * B[qy][dy];
                }
             }
-            MFEM_UNROLL(MD1);
+            MFEM_UNROLL(MD1)
             for (int dz = 0; dz < D1D; dz++)
             {
                DQQ[dz][qy][qx] = u[dz];
@@ -1040,22 +1041,22 @@ static void SmemPAMassApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double u[Q1D];
-            MFEM_UNROLL(MQ1);
+            double u[MQ1];
+            MFEM_UNROLL(MQ1)
             for (int qz = 0; qz < Q1D; qz++)
             {
                u[qz] = 0;
             }
-            MFEM_UNROLL(MD1);
+            MFEM_UNROLL(MD1)
             for (int dz = 0; dz < D1D; ++dz)
             {
-               MFEM_UNROLL(MQ1);
+               MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; qz++)
                {
                   u[qz] += DQQ[dz][qy][qx] * B[qz][dz];
                }
             }
-            MFEM_UNROLL(MQ1);
+            MFEM_UNROLL(MQ1)
             for (int qz = 0; qz < Q1D; qz++)
             {
                QQQ[qz][qy][qx] = u[qz] * d(qx,qy,qz,e);
@@ -1075,22 +1076,22 @@ static void SmemPAMassApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[Q1D];
-            MFEM_UNROLL(MQ1);
+            double u[MQ1];
+            MFEM_UNROLL(MQ1)
             for (int qz = 0; qz < Q1D; ++qz)
             {
                u[qz] = 0;
             }
-            MFEM_UNROLL(MQ1);
+            MFEM_UNROLL(MQ1)
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               MFEM_UNROLL(MQ1);
+               MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   u[qz] += QQQ[qz][qy][qx] * Bt[dx][qx];
                }
             }
-            MFEM_UNROLL(MQ1);
+            MFEM_UNROLL(MQ1)
             for (int qz = 0; qz < Q1D; ++qz)
             {
                QQD[qz][qy][dx] = u[qz];
@@ -1102,22 +1103,22 @@ static void SmemPAMassApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[Q1D];
-            MFEM_UNROLL(MQ1);
+            double u[MQ1];
+            MFEM_UNROLL(MQ1)
             for (int qz = 0; qz < Q1D; ++qz)
             {
                u[qz] = 0;
             }
-            MFEM_UNROLL(MQ1);
+            MFEM_UNROLL(MQ1)
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               MFEM_UNROLL(MQ1);
+               MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   u[qz] += QQD[qz][qy][dx] * Bt[dy][qy];
                }
             }
-            MFEM_UNROLL(MQ1);
+            MFEM_UNROLL(MQ1)
             for (int qz = 0; qz < Q1D; ++qz)
             {
                QDD[qz][dy][dx] = u[qz];
@@ -1129,22 +1130,22 @@ static void SmemPAMassApply3D(const int NE,
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
          {
-            double u[D1D];
-            MFEM_UNROLL(MD1);
+            double u[MD1];
+            MFEM_UNROLL(MD1)
             for (int dz = 0; dz < D1D; ++dz)
             {
                u[dz] = 0;
             }
-            MFEM_UNROLL(MQ1);
+            MFEM_UNROLL(MQ1)
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               MFEM_UNROLL(MD1);
+               MFEM_UNROLL(MD1)
                for (int dz = 0; dz < D1D; ++dz)
                {
                   u[dz] += QDD[qz][dy][dx] * Bt[dz][qz];
                }
             }
-            MFEM_UNROLL(MD1);
+            MFEM_UNROLL(MD1)
             for (int dz = 0; dz < D1D; ++dz)
             {
                y(dx,dy,dz,e) += u[dz];

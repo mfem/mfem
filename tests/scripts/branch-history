@@ -149,6 +149,9 @@ foreach my $sha (@commits) {
         # File was added
         $blob_size += int(`git cat-file -s $dst`); }
       elsif ($mode eq "DD") { }
+      elsif ($mode eq "RM") {
+      # should be handled ?
+      }
       elsif ($mode eq "MM") {
         # File was modified, use the gzip'ed diff as a proxy of the required git
         # storage

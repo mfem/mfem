@@ -1539,21 +1539,24 @@ void embedPostfix(context_t &pp)
 void unroll(context_t &pp)
 {
    //DBG("__unroll")
-   while ('(' != get(pp)) {assert(not pp.in.eof());}
+   while ('(' != get(pp)) { assert(not pp.in.eof()); }
    drop(pp);
    string depth = get_id(pp);
    //DBG("(%s)",depth.c_str());
    drop(pp);
    check(pp,is_right_parenthesis(pp),"no last right parenthesis found");
    get(pp);
-   drop(pp);
-   check(pp,is_semicolon(pp),"no last semicolon found");
-   get(pp);
+   drop(pp); // ')'
+   //check(pp,is_newline(pp.in.peek()),"no newline after unroll");
+   //put(pp);
+   // check(pp,is_semicolon(pp),"no last semicolon found");
+   // get(pp);
    // only if we are in a forall, we push the unrolling
    if (pp.ker.is_forall)
    {
       pp.ker.forall.body += "#pragma unroll ";
       pp.ker.forall.body += depth.c_str();
+      pp.ker.forall.body += "\n";
    }
 }
 
