@@ -24,8 +24,9 @@ namespace mfem
 class ParFiniteElementSpace;
 
 /// Operator that extracts Face degrees of freedom for NCMesh in parallel.
-/** Objects of this type are typically created and owned by FiniteElementSpace
-    objects, see FiniteElementSpace::GetFaceRestriction(). */
+/** Objects of this type are typically created and owned by
+    ParFiniteElementSpace objects, see
+    ParFiniteElementSpace::GetFaceRestriction(). */
 class ParNCH1FaceRestriction : public H1FaceRestriction
 {
 protected:
@@ -90,8 +91,9 @@ private:
 };
 
 /// Operator that extracts Face degrees of freedom in parallel.
-/** Objects of this type are typically created and owned by FiniteElementSpace
-    objects, see FiniteElementSpace::GetFaceRestriction(). */
+/** Objects of this type are typically created and owned by
+    ParFiniteElementSpace objects, see
+    ParFiniteElementSpace::GetFaceRestriction(). */
 class ParL2FaceRestriction : virtual public L2FaceRestriction
 {
 protected:
@@ -218,8 +220,9 @@ protected:
 };
 
 /// Operator that extracts Face degrees of freedom for NCMesh in parallel.
-/** Objects of this type are typically created and owned by FiniteElementSpace
-    objects, see FiniteElementSpace::GetFaceRestriction(). */
+/** Objects of this type are typically created and owned by
+    ParFiniteElementSpace objects, see
+    ParFiniteElementSpace::GetFaceRestriction(). */
 class ParNCL2FaceRestriction
    : public NCL2FaceRestriction, public ParL2FaceRestriction
 {
@@ -270,20 +273,26 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows. */
+                                 default behavior is to disregard those rows.
+
+       @warning This method is not implemented yet. */
    void FillI(SparseMatrix &mat,
               const bool keep_nbr_block = false) const override;
 
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this ParNCL2FaceRestriction. @a mat contains the interior dofs
-       contribution, the @a face_mat contains the shared dofs contribution.*/
+       contribution, the @a face_mat contains the shared dofs contribution.
+
+       @warning This method is not implemented yet. */
    void FillI(SparseMatrix &mat,
               SparseMatrix &face_mat) const;
 
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this ParNCL2FaceRestriction, and the values of ea_data.
        @a mat contains the interior dofs contribution, the @a face_mat contains
-       the shared dofs contribution.*/
+       the shared dofs contribution.
+
+       @warning This method is not implemented yet. */
    void FillJAndData(const Vector &fea_data,
                      SparseMatrix &mat,
                      SparseMatrix &face_mat) const;
@@ -302,7 +311,9 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows. */
+                                 default behavior is to disregard those rows.
+
+       @warning This method is not implemented yet. */
    void FillJAndData(const Vector &fea_data,
                      SparseMatrix &mat,
                      const bool keep_nbr_block = false) const override;

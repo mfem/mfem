@@ -10,6 +10,17 @@
 
 Version 4.3.1 (development)
 ===========================
+- More explicit and consistent formating of the output of iterative solvers
+  with the new IterativeSolver::PrintLevel options. See linalg/solvers.hpp.
+
+- Added support for automatic differentiation. Users can select between native
+  implementation and external library implementation during configuration. One
+  parallel and two serial examples are implemented in the miniapps/autodiff/
+  directory.
+
+- GridFunctionCoefficient (and the related vector, gradient, divergence, and
+  curl classes) now work properly with LORDiscretization and LORSolver.
+
 - Added support for mesh preprocessing to resolve fine scale problem data
   before simulation. This feature uses adaptive mesh refinement to control the
   associated data oscillation error. See the new Example 30/30p.
@@ -70,6 +81,11 @@ Version 4.3.1 (development)
 - Added ParMesh Adjaceny Set (adjset) creation support to the Conduit Mesh
   Blueprint MFEM wrapper functions in ConduitDataCollection.
 
+- `HypreParVector` and `Vector` now support move semantics, and the copy
+  constructor for `HypreParVector` now copies the local vector data.
+
+- The HPC versions of ex1 and ex1p (in miniapps/performance) now support
+  runtime selection of either 2D or 3D meshes.
 
 Version 4.3, released on July 29, 2021
 ======================================

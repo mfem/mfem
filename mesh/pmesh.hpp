@@ -425,14 +425,14 @@ public:
    /// Return the local face index for the given shared face.
    int GetSharedFace(int sface) const;
 
-   /** @brief Returns the number of faces according to the requested type, does
-       not count master non-conforming faces.
+   /** @brief Returns the number of local faces according to the requested type,
+       does not count master non-conforming faces.
 
-       If type==Boundary returns only the "true" number of boundary faces
-       contrary to GetNBE() that returns "fake" boundary faces associated to
-       visualization for GLVis.
-       Similarly, if type==Interior, the "fake" boundary faces associated to
-       visualization are counted as interior faces. */
+       If type==Boundary returns only the number of true boundary faces
+       contrary to GetNBE() that returns all "boundary" elements which may
+       include actual interior faces.
+       Similarly, if type==Interior, only the true interior faces (including
+       shared faces) are counted excluding all master non-conforming faces. */
    int GetNFbyType(FaceType type) const override;
 
    /// See the remarks for the serial version in mesh.hpp

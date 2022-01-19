@@ -1890,6 +1890,7 @@ void ParMesh::GetFaceNbrElementTransformation(
    ElTr->Attribute = elem->GetAttribute();
    ElTr->ElementNo = NumOfElements + i;
    ElTr->ElementType = ElementTransformation::ELEMENT;
+   ElTr->mesh = this;
    ElTr->Reset();
 
    if (Nodes == NULL)
@@ -2711,6 +2712,7 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
    }
    face_nbr_el_to_face->Finalize();
 
+   delete sfaces_tbl;
    if (ret_ftbl)
    {
       return faces_tbl;
@@ -2867,7 +2869,7 @@ FaceElementTransformations *ParMesh::GetFaceElementTransformations(
    }
    else
    {
-      const bool fill2 = mask & 10; // Elem2 and Loc2
+      const bool fill2 = mask & 10; // Elem2 and/or Loc2
       return GetSharedFaceTransformationsByLocalIndex(FaceNo, fill2);
    }
 }
@@ -6207,6 +6209,9 @@ void ParMesh::Destroy()
       FreeElement(shared_edges[i]);
    }
    shared_edges.DeleteAll();
+
+   delete face_nbr_el_to_face;
+   face_nbr_el_to_face = NULL;
 }
 
 ParMesh::~ParMesh()
