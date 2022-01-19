@@ -1143,8 +1143,8 @@ int main (int argc, char *argv[])
 
       if (mk == 'S')
       {
-         const char mesh_file[] = "mesh-explorer.mesh";
-         ofstream omesh(mesh_file);
+         const char omesh_file[] = "mesh-explorer.mesh";
+         ofstream omesh(omesh_file);
          omesh.precision(14);
          mesh->Print(omesh);
          cout << "New mesh file: " << mesh_file << endl;
@@ -1152,8 +1152,8 @@ int main (int argc, char *argv[])
 
       if (mk == 'V')
       {
-         const char mesh_file[] = "mesh-explorer.vtk";
-         ofstream omesh(mesh_file);
+         const char omesh_file[] = "mesh-explorer.vtk";
+         ofstream omesh(omesh_file);
          omesh.precision(14);
          mesh->PrintVTK(omesh);
          cout << "New VTK mesh file: " << mesh_file << endl;
