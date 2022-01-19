@@ -2521,9 +2521,9 @@ public:
       double tau = tau_e(Te, z_i_, ne, 17.0);
       // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
-      return 3.16 * ne * Te * eV_ * tau / me_kg_;
+      return 3.16 * Te * eV_ * tau / me_kg_;
    }
-
+   /*
    double Eval_dTe(ElementTransformation &T,
                    const IntegrationPoint &ip)
    {
@@ -2544,7 +2544,7 @@ public:
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
       return 3.16 * ne * eV_ * (tau + Te * dtau)/ me_kg_;
    }
-
+   */
 };
 
 class VectorXYCoefficient : public VectorCoefficient
@@ -3671,7 +3671,7 @@ private:
        for a single ion species.
 
        1.5 T_i d n_i / dt + 1.5 n_i d T_i / dt
-          = Div(Chi_i Grad(T_i))
+          = Div(n_i Chi_i Grad(T_i) - 2.5 n_i v_i T_i)
 
        Where the diffusion coefficient Chi_i is a function of the
        magnetic field direction, ion density and temperature.
@@ -3758,7 +3758,7 @@ private:
        energy) for the flow of electrons.
 
        1.5 T_e d n_e / dt + 1.5 n_e d T_e / dt
-          = Div(Chi_e Grad(T_e))
+          = Div(Chi_e Grad(T_e) - 2.5 n_e v_i T_e)
 
        Where the diffusion coefficient Chi_e is a function of the
        magnetic field direction, electron density and temperature.
