@@ -93,10 +93,11 @@ protected:
 
    /** @brief This structure stores the low level information necessary to
        interpret the configuration of elements on a specific face. This
-       information is accessed through Mesh::GetFaceElements and
-       Mesh::GetFaceInfos.
-       For accessing higher level deciphered information
-       look at Mesh::FaceInformation, and its accessor Mesh::GetFaceInformation.
+       information can be accessed using methods like GetFaceElements(),
+       GetFaceInfos(), FaceIsInterior(), etc.
+
+       For accessing higher level deciphered information look at
+       Mesh::FaceInformation, and its accessor Mesh::GetFaceInformation().
 
        Each face contains information on the indices, local reference faces,
        orientations, and potential non-conformity for the two neighboring
@@ -120,10 +121,10 @@ protected:
        FaceInfo::Elem1No and FaceInfo::Elem2No, read the note below for special
        cases on the index of Elem2.
 
-       The local face identifiants are deciphered from FaceInfo::Elem1Inf and
+       The local face identifiers are deciphered from FaceInfo::Elem1Inf and
        FaceInfo::Elem2Inf through the formula: LocalFaceIndex = ElemInf/64,
-       the semantic of the computed local face identifiant can be found in
-       fem/geom.cpp. The local face identifiant corresponds to an index
+       the semantic of the computed local face identifier can be found in
+       fem/geom.cpp. The local face identifier corresponds to an index
        in the Constants<Geometry>::Edges arrays for 2D element geometries, and
        to an index in the Constants<Geometry>::FaceVert arrays for 3D element
        geometries.
@@ -148,7 +149,7 @@ protected:
        faces use a different design based on so called "ghost" faces.
        Ghost faces, as their name suggest are very well hidden, and they
        usually have a separate interface from "standard" faces.
-       */
+   */
    struct FaceInfo
    {
       // Inf = 64 * LocalFaceIndex + FaceOrientation
@@ -945,11 +946,11 @@ public:
    /** @brief Returns the number of faces according to the requested type, does
        not count master non-conforming faces.
 
-       If type==Boundary returns only the "true" number of boundary faces
-       contrary to GetNBE() that returns "fake" boundary faces associated to
-       visualization for GLVis.
-       Similarly, if type==Interior, the "fake" boundary faces associated to
-       visualization are counted as interior faces. */
+       If type==Boundary returns only the number of true boundary faces
+       contrary to GetNBE() that returns all "boundary" elements which may
+       include actual interior faces.
+       Similarly, if type==Interior, only the true interior faces are counted
+       excluding all master non-conforming faces. */
    virtual int GetNFbyType(FaceType type) const;
 
    /// Utility function: sum integers from all processors (Allreduce).
@@ -1257,17 +1258,17 @@ public:
 
    /** This enumerated type is used to describe interior, boundary, or shared
        interior faces. */
-   enum class FaceLocation {Local, Shared, Boundary, NA};
+   enum class FaceLocation { Local, Shared, Boundary, NA };
    /** This enumerated type is used to describe if a face is a conforming face,
        a non-conforming slave face, or a non-conforming master face. */
-   enum class FaceConformity {Conforming,
-                              NonConformingMaster,
-                              NonConformingSlave,
-                              NA
+   enum class FaceConformity { Conforming,
+                               NonConformingMaster,
+                               NonConformingSlave,
+                               NA
                              };
    /** @brief This structure is used as a human readable output format that
        decipheres the information contained in Mesh::FaceInfo when using the
-       Mesh::GetFaceInformation method.
+       Mesh::GetFaceInformation() method.
 
        The element indices in this structure don't need further processing,
        contrary to the ones obtained through Mesh::GetFacesElements and can
@@ -1285,7 +1286,7 @@ public:
       int ncface;
       const DenseMatrix* point_matrix;
 
-      /** @brief return true if the face is either an local or shared interior
+      /** @brief return true if the face is either a local or shared interior
           face. */
       bool IsInterior() const
       {
@@ -1359,56 +1360,13 @@ public:
       }
 
       /// @brief Print function for FaceInformation.
-      friend std::ostream& operator<<(std::ostream& os, const FaceInformation& info)
-      {
-         os << "location=";
-         switch (info.location)
-         {
-            case Mesh::FaceLocation::Local:
-               os << "Local";
-               break;
-            case Mesh::FaceLocation::Shared:
-               os << "Shared";
-               break;
-            case Mesh::FaceLocation::Boundary:
-               os << "Boundary";
-               break;
-            case Mesh::FaceLocation::NA:
-               os << "NA";
-               break;
-         }
-         os << std::endl;
-         os << "conformity=";
-         switch (info.conformity)
-         {
-            case Mesh::FaceConformity::Conforming:
-               os << "Conforming";
-               break;
-            case Mesh::FaceConformity::NonConformingMaster:
-               os << "NonConformingMaster";
-               break;
-            case Mesh::FaceConformity::NonConformingSlave:
-               os << "NonConformingSlave";
-               break;
-            case Mesh::FaceConformity::NA:
-               os << "NA";
-               break;
-         }
-         os << std::endl;
-         os << "elem_1_index=" << info.elem_1_index << std::endl
-            << "elem_2_index=" << info.elem_2_index << std::endl
-            << "elem_1_local_face=" << info.elem_1_local_face << std::endl
-            << "elem_2_local_face=" << info.elem_2_local_face << std::endl
-            << "elem_1_orientation=" << info.elem_1_orientation << std::endl
-            << "elem_2_orientation=" << info.elem_2_orientation << std::endl
-            << "ncface=" << info.ncface << std::endl;
-         return os;
-      }
+      friend std::ostream& operator<<(std::ostream& os,
+                                      const FaceInformation& info);
    };
 
    /** This method aims to provide face information in a deciphered format, i.e.
        Mesh::FaceInformation, compared to the raw encoded information returned
-       by Mesh::GetFaceElements and Mesh::GetFaceInfos. */
+       by Mesh::GetFaceElements() and Mesh::GetFaceInfos(). */
    FaceInformation GetFaceInformation(int f) const;
 
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
