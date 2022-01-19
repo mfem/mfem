@@ -1257,13 +1257,16 @@ public:
 
    /** This enumerated type is used to describe interior, boundary, or shared
        interior faces. */
-   enum class FaceLocation {Local, Shared, Boundary, NA};
-   /** This enumerated type is used to describe if a face is a conforming face,
-       a non-conforming slave face, or a non-conforming master face. */
-   enum class FaceConformity {Conforming,
-                              NonConformingMaster,
-                              NonConformingSlave,
-                              NA
+   enum class FaceLocation { Local, Shared, Boundary, NA };
+   /** This enumerated type is used to describe if an element face is a
+       conforming face, a non-conforming fine face, or a non-conforming coarse
+       face. By extension, we name a face a non-conforming coarse or fine face,
+       if the face belonging to elem1 is a non-conforming coarse of fine face
+       respectively. */
+   enum class FaceConformity { Conforming,
+                               NonConformingCoarse,
+                               NonConformingFine,
+                               NA
                              };
    /** @brief This structure is used as a human readable output format that
        decipheres the information contained in Mesh::FaceInfo when using the
@@ -1271,46 +1274,47 @@ public:
 
        The element indices in this structure don't need further processing,
        contrary to the ones obtained through Mesh::GetFacesElements and can
-       directly be used as Elem1 and Elem2 indices.
+       directly be used, e.g., Elem1 and Elem2 indices.
        Likewise the orientations for Elem1 and Elem2 already take into account
        special cases and can be used as is.
    */
    struct FaceInformation
    {
-      FaceLocation location; // Local, shared, boundary
-      FaceConformity conformity; // Conforming, non-conforming master or slave
+      FaceLocation elem_1_location, elem_2_location; // Local, shared, boundary
+      // elem1 and elem2 face conformity, i.e., conforming, non-conforming
+      // coarse, or non-conforming fine (or NA)
+      FaceConformity elem_1_conformity, elem_2_conformity;
       int elem_1_index, elem_2_index; // Elem1 and Elem2 indices
       int elem_1_local_face, elem_2_local_face; // Elem1 and Elem2 local faces
       int elem_1_orientation, elem_2_orientation; // Elem1 and Elem2 orientations
       int ncface;
       const DenseMatrix* point_matrix;
 
-      /** @brief return true if the face is either an local or shared interior
-          face. */
-      bool IsInterior() const
-      {
-         return conformity!=Mesh::FaceConformity::NA &&
-                (location==Mesh::FaceLocation::Local ||
-                 location==Mesh::FaceLocation::Shared);
-      }
-
       /// @brief Return true if the face is a local interior face.
       bool IsLocal() const
       {
-         return location == Mesh::FaceLocation::Local;
+         return elem_2_location == Mesh::FaceLocation::Local;
       }
 
       /// @brief Return true if the face is a shared interior face.
       bool IsShared() const
       {
-         return location == Mesh::FaceLocation::Shared;
+         return elem_2_location == Mesh::FaceLocation::Shared;
       }
 
-      /** @brief Return true if the face is a boundary face, and not a
-          non-conforming master face. */
+      /** @brief return true if the face is either a local or shared interior
+          face (not a boundary face). */
+      bool IsInterior() const
+      {
+         return IsLocal() || IsShared() ||
+                ( elem_1_conformity == FaceConformity::NonConformingCoarse &&
+                  elem_2_location == FaceLocation::NA );
+      }
+
+      /** @brief Return true if the face is a boundary face. */
       bool IsBoundary() const
       {
-         return location==Mesh::FaceLocation::Boundary;
+         return elem_1_location==Mesh::FaceLocation::Boundary;
       }
 
       /// @brief Return true if the face is of the same type as @a type.
@@ -1329,94 +1333,45 @@ public:
       /// @brief Return true if the face is a conforming face.
       bool IsConforming() const
       {
-         return conformity==Mesh::FaceConformity::Conforming;
+         return elem_1_conformity==Mesh::FaceConformity::Conforming &&
+                elem_2_conformity==Mesh::FaceConformity::Conforming;
       }
 
-      /// @brief Return true if the face is a non-conforming slave face.
-      bool IsNonConformingSlave() const
+      /// @brief Return true if the face is a non-conforming fine face.
+      bool IsNonConformingFine() const
       {
-         return conformity==Mesh::FaceConformity::NonConformingSlave;
+         return elem_1_conformity==Mesh::FaceConformity::NonConformingFine;
       }
 
-      /// @brief Return true if the face is a non-conforming master face.
-      bool IsNonConformingMaster() const
+      /// @brief Return true if the face is a non-conforming coarse face.
+      bool IsNonConformingCoarse() const
       {
-         return conformity==Mesh::FaceConformity::NonConformingMaster;
+         return elem_1_conformity==Mesh::FaceConformity::NonConformingCoarse;
       }
 
-      /// @brief Return true if the face is a ghost non-conforming slave face.
-      bool IsLocalNonConformingSlave() const
+      /// @brief Return true if the face is a local non-conforming fine face.
+      bool IsLocalNonConformingFine() const
       {
-         return location==Mesh::FaceLocation::Local &&
-                conformity==Mesh::FaceConformity::NonConformingSlave;
+         return IsLocal() && IsNonConformingFine();
       }
 
-      /// @brief Return true if the face is a ghost non-conforming master face.
-      bool IsLocalNonConformingMaster() const
+      /// @brief Return true if the face is a local (or NA) non-conforming coarse face.
+      bool IsLocalNonConformingCoarse() const
       {
-         return location==Mesh::FaceLocation::Local &&
-                conformity==Mesh::FaceConformity::NonConformingMaster;
+         return (IsLocal() || elem_2_location==Mesh::FaceLocation::NA) &&
+                IsNonConformingCoarse();
       }
 
-      /// @brief Return true if the face is a ghost non-conforming slave face.
-      bool IsSharedNonConformingSlave() const
+      /// @brief Return true if the face is a shared non-conforming fine face.
+      bool IsSharedNonConformingFine() const
       {
-         return location==Mesh::FaceLocation::Shared &&
-                conformity==Mesh::FaceConformity::NonConformingSlave;
+         return IsShared() && IsNonConformingFine();
       }
 
-      /// @brief Return true if the face is a ghost non-conforming master face.
-      bool IsSharedNonConformingMaster() const
+      /// @brief Return true if the face is a shared non-conforming coarse face.
+      bool IsSharedNonConformingCoarse() const
       {
-         return location==Mesh::FaceLocation::Shared &&
-                conformity==Mesh::FaceConformity::NonConformingMaster;
-      }
-
-      /// @brief Print function for FaceInformation.
-      friend std::ostream& operator<<(std::ostream& os, const FaceInformation& info)
-      {
-         os << "location=";
-         switch (info.location)
-         {
-            case Mesh::FaceLocation::Local:
-               os << "Local";
-               break;
-            case Mesh::FaceLocation::Shared:
-               os << "Shared";
-               break;
-            case Mesh::FaceLocation::Boundary:
-               os << "Boundary";
-               break;
-            case Mesh::FaceLocation::NA:
-               os << "NA";
-               break;
-         }
-         os << std::endl;
-         os << "conformity=";
-         switch (info.conformity)
-         {
-            case Mesh::FaceConformity::Conforming:
-               os << "Conforming";
-               break;
-            case Mesh::FaceConformity::NonConformingMaster:
-               os << "NonConformingMaster";
-               break;
-            case Mesh::FaceConformity::NonConformingSlave:
-               os << "NonConformingSlave";
-               break;
-            case Mesh::FaceConformity::NA:
-               os << "NA";
-               break;
-         }
-         os << std::endl;
-         os << "elem_1_index=" << info.elem_1_index << std::endl
-            << "elem_2_index=" << info.elem_2_index << std::endl
-            << "elem_1_local_face=" << info.elem_1_local_face << std::endl
-            << "elem_2_local_face=" << info.elem_2_local_face << std::endl
-            << "elem_1_orientation=" << info.elem_1_orientation << std::endl
-            << "elem_2_orientation=" << info.elem_2_orientation << std::endl
-            << "ncface=" << info.ncface << std::endl;
-         return os;
+         return IsShared() && IsNonConformingCoarse();
       }
    };
 
@@ -1945,6 +1900,9 @@ inline void ShiftRight(int &a, int &b, int &c)
    int t = a;
    a = c;  c = b;  b = t;
 }
+
+/// @brief Print function for Mesh::FaceInformation.
+std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info);
 
 }
 
