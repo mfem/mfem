@@ -290,12 +290,12 @@ TEST_CASE("BlockMatrix", "[BlockMatrix]")
 
       subtract(Cx, ABx, Cx);
 
-      double err = Cx.Normlinf();
+      double error = Cx.Normlinf();
 
       delete B;
       delete C;
 
-      REQUIRE(err < tol );
+      REQUIRE(error < tol );
    }
 
    delete A;

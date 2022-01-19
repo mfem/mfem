@@ -152,7 +152,7 @@ private:
    static Device& Get() { return device_singleton; }
 
    /// Setup switcher based on configuration settings
-   void Setup(const int dev = 0);
+   void Setup(const int device_id = 0);
 
    void MarkBackend(Backend::Id b) { backends |= b; }
 
