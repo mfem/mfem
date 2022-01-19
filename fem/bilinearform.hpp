@@ -90,22 +90,22 @@ protected:
    int extern_bfs;
 
    /// Set of Domain Integrators to be applied.
-   Array<BilinearFormIntegrator*> domain_integs;
+   Array<BilinearFormIntegrator*> domain_integs; // owned
    /// Element attribute marker (should be of length mesh->attributes)
    /// Includes all by default.
    /// 0 - ignore attribute
    /// 1 - include attribute
-   Array<Array<int>*>             domain_integs_marker;
+   Array<Array<int>*>             domain_integs_marker; // not owned
 
    /// Set of Boundary Integrators to be applied.
-   Array<BilinearFormIntegrator*> boundary_integs;
+   Array<BilinearFormIntegrator*> boundary_integs; // owned
    Array<Array<int>*> boundary_integs_marker; ///< Entries are not owned.
 
    /// Set of interior face Integrators to be applied.
-   Array<BilinearFormIntegrator*> interior_face_integs;
+   Array<BilinearFormIntegrator*> interior_face_integs; // owned
 
    /// Set of boundary face Integrators to be applied.
-   Array<BilinearFormIntegrator*> boundary_face_integs;
+   Array<BilinearFormIntegrator*> boundary_face_integs; // owned
    Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
    DenseMatrix elemmat;
