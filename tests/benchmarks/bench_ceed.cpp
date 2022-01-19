@@ -21,21 +21,62 @@
   See: ceed.exascaleproject.org/bps and github.com/CEED/benchmarks
 */
 
+namespace mfem
+{
+
+////////////////////////////////////////////////////////////////////////////////
+#ifdef MFEM_USE_MPI
+static MPI_Session *mpi;
+#define mpiRoot mpi->Root()
+#define mpiWorldSize mpi->WorldSize()
+#define mpiWorldRank mpi->WorldRank()
+#else
+typedef int MPI_Session;
+#define mpiRoot true
+#define mpiWorldSize 1
+#define mpiWorldRank 0
+#define GlobalTrueVSize GetVSize
+#define HYPRE_Int int
+#define MPI_COMM_WORLD
+#define ParMesh Mesh
+#define GetParMesh GetMesh
+#define HypreParMatrix SparseMatrix
+#define ParGridFunction GridFunction
+#define ParBilinearForm BilinearForm
+#define ParLinearForm LinearForm
+#define ParFiniteElementSpace FiniteElementSpace
+#define ParFiniteElementSpaceHierarchy FiniteElementSpaceHierarchy
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+static int config_dev_size = 4; // default 4 GPU per node
+
+////////////////////////////////////////////////////////////////////////////////
 struct BakeOff
 {
    const int p, c, q, n, nx, ny, nz, dim = 3;
    const bool check_x, check_y, check_z, checked;
-   Mesh mesh;
+   std::function<ParMesh()> GetMesh = [&]()
+   {
+      Mesh smesh = Mesh::MakeCartesian3D(nx,ny,nz, Element::HEXAHEDRON);
+#ifdef MFEM_USE_MPI
+      ParMesh mesh(MPI_COMM_WORLD, smesh);
+#else
+      ParMesh mesh(smesh);
+#endif // MFEM_USE_MPI
+      return mesh;
+   };
+   ParMesh pmesh;
    H1_FECollection fec;
-   FiniteElementSpace fes;
+   ParFiniteElementSpace pfes;
    const Geometry::Type geom_type;
    IntegrationRules IntRulesGLL;
    const IntegrationRule *irGLL;
    const IntegrationRule *ir;
    ConstantCoefficient one;
    const int dofs;
-   GridFunction x,y;
-   BilinearForm a;
+   ParGridFunction x,y;
+   ParBilinearForm a;
    double mdofs;
 
    BakeOff(int p, int side, int vdim, bool gll):
@@ -50,18 +91,18 @@ struct BakeOff
       check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
       check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
       checked((assert(check_x && check_y && check_z), true)),
-      mesh(Mesh::MakeCartesian3D(nx,ny,nz,Element::HEXAHEDRON)),
+      pmesh(GetMesh()),
       fec(p, dim, BasisType::GaussLobatto),
-      fes(&mesh, &fec, vdim),
-      geom_type(fes.GetFE(0)->GetGeomType()),
+      pfes(&pmesh, &fec, vdim),
+      geom_type(pfes.GetFE(0)->GetGeomType()),
       IntRulesGLL(0, Quadrature1D::GaussLobatto),
       irGLL(&IntRulesGLL.Get(geom_type, q)),
       ir(&IntRules.Get(geom_type, q)),
       one(1.0),
-      dofs(fes.GetTrueVSize()),
-      x(&fes),
-      y(&fes),
-      a(&fes),
+      dofs(pfes.GlobalTrueVSize()),
+      x(&pfes),
+      y(&pfes),
+      a(&pfes),
       mdofs(0.0) { }
 
    virtual void benchmark() = 0;
@@ -88,11 +129,12 @@ struct Problem: public BakeOff
 
    Problem(int order, int side):
       BakeOff(order,side,VDIM,GLL),
-      ess_bdr(mesh.bdr_attributes.Max()),
-      b(&fes)
+      ess_bdr(pmesh.bdr_attributes.Max()),
+      b(&pfes),
+      cg(MPI_COMM_WORLD)
    {
       ess_bdr = 1;
-      fes.GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+      pfes.GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
       b.AddDomainIntegrator(new DomainLFIntegrator(one));
       b.Assemble();
 
@@ -133,6 +175,7 @@ static void OrderSideArgs(bmi::Benchmark *b)
 }
 
 /// Bake-off Problems (BPs)
+/// const int nranks = mpiWorldSize;
 #define BakeOff_Problem(i,Kernel,VDIM,GLL)\
 static void BP##i(bm::State &state){\
    const int p = state.range(0);\
@@ -146,7 +189,8 @@ static void BP##i(bm::State &state){\
 }\
 BENCHMARK(BP##i)\
        -> Apply(OrderSideArgs)\
-       -> Unit(bm::kMillisecond);
+       -> Unit(bm::kMillisecond)\
+       -> Iterations(10);
 
 /// BP1: scalar PCG with mass matrix, q=p+2
 BakeOff_Problem(1,Mass,1,false)
@@ -171,9 +215,9 @@ BakeOff_Problem(6,VectorDiffusion,3,true)
 template <typename BFI, int VDIM = 1, bool GLL = false>
 struct Kernel: public BakeOff
 {
-   GridFunction y;
+   ParGridFunction y;
 
-   Kernel(int order, int side): BakeOff(order, side, VDIM, GLL), y(&fes)
+   Kernel(int order, int side): BakeOff(order, side, VDIM, GLL), y(&pfes)
    {
       x.Randomize(1);
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -191,12 +235,14 @@ struct Kernel: public BakeOff
    }
 };
 
+} // namespace mfem
+
 /// Generic CEED BKi
 #define BakeOff_Kernel(i,KER,VDIM,GLL)\
 static void BK##i(bm::State &state){\
    const int p = state.range(0);\
    const int side = state.range(1);\
-   Kernel<KER##Integrator,VDIM,GLL> ker(p,side);\
+   mfem::Kernel<KER##Integrator,VDIM,GLL> ker(p,side);\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
    state.counters["Dofs"] = bm::Counter(ker.dofs);\
@@ -234,11 +280,17 @@ BakeOff_Kernel(6,VectorDiffusion,3,true)
  */
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_MPI
+   mfem::MPI_Session main_mpi(argc, argv);
+   mpi = &main_mpi;
+#endif
+
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);
 
    // Device setup, cpu by default
    std::string device_config = "cpu";
+
    if (bmi::global_context != nullptr)
    {
       const auto device = bmi::global_context->find("device");
@@ -248,11 +300,27 @@ int main(int argc, char *argv[])
          device_config = device->second;
       }
    }
-   Device device(device_config.c_str());
-   device.Print();
+
+   const int mpi_rank = mpiWorldRank;
+   const int device_id = mpi_rank % config_dev_size;
+   Device device(device_config.c_str(), device_id);
+   if (mpiRoot) { device.Print(); }
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
+
+#ifndef MFEM_USE_MPI
    bm::RunSpecifiedBenchmarks(&CR);
+#else
+   if (mpi->Root()) { bm::RunSpecifiedBenchmarks(&CR); }
+   else
+   {
+      // No display_reporter and file_reporter
+      bm::BenchmarkReporter *file_reporter = NoReporter();
+      bm::BenchmarkReporter *display_reporter = NoReporter();
+      bm::RunSpecifiedBenchmarks(display_reporter, file_reporter);
+   }
+#endif
+
    return 0;
 }
 

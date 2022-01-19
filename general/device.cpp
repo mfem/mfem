@@ -368,8 +368,8 @@ void Device::UpdateMemoryTypeAndClass()
    {
       deterministic_kernels = DETERMINISTIC_KERNELS::OFF;
       kernels_version = atoi(device_option + 4);
-      printf("\033[32m[version:%d]\033[m\n", kernels_version);
-      fflush(0);
+      //printf("\033[32m[version:%d]\033[m\n", kernels_version);
+      //fflush(0);
    }
 
    // Enable the version shortcut when requested
