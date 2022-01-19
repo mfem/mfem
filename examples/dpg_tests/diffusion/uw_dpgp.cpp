@@ -1,4 +1,4 @@
-//                                MFEM Example 1
+//                 MFEM UW DPG parallel example
 //
 // Compile with: make poisson_fosls
 //
@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
    int myid = mpi.WorldRank();
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/inline-quad.mesh";
+   const char *mesh_file = "../../../data/inline-quad.mesh";
    int order = 1;
    int delta_order = 1;
    int ref = 1;
@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
 
    if (prob == prob_type::lshape)
    {
-      mesh_file = "lshape2.mesh";
+      mesh_file = "../lshape2.mesh";
    }
 
    Mesh mesh(mesh_file, 1, 1);

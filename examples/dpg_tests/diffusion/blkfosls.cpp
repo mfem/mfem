@@ -1,6 +1,6 @@
-//                                MFEM Example 1
+//                 MFEM Fosls 1
 //
-// Compile with: make ex_blk_fosls
+// Compile with: make blkfosls
 //
 #include "mfem.hpp"
 #include <fstream>
@@ -12,7 +12,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/inline-quad.mesh";
+   const char *mesh_file = "../../../data/inline-quad.mesh";
    int order = 1;
    bool visualization = true;
 
@@ -70,32 +70,32 @@ int main(int argc, char *argv[])
    FiniteElementSpace RT_trace_fes(&mesh, fec2);
    cout << "RT trace = " << RT_trace_fes.GetVSize() << endl;
 
-   for (int i = 0; i<mesh.GetNE(); i++)
-   {
-      // const FiniteElement * fe = fespace1.GetFE(i);
-      // fespace1.GetTraceElement()
-      Array<int> faces, ori;
-      mesh.GetElementEdges(i, faces, ori);
-      for (int f = 0; f<faces.Size(); f++)
-      {
-         const FiniteElement * fe_trace = RT_trace_fes.GetFaceElement(faces[f]);
-         cout << fe_trace->GetDof() << endl;
-         Array<int> face_dofs;
-         RT_trace_fes.GetFaceDofs(faces[f],face_dofs);
-         cout << "face dofs = " << endl;
-         face_dofs.Print();
-      }
+   // for (int i = 0; i<mesh.GetNE(); i++)
+   // {
+   //    // const FiniteElement * fe = fespace1.GetFE(i);
+   //    // fespace1.GetTraceElement()
+   //    Array<int> faces, ori;
+   //    mesh.GetElementEdges(i, faces, ori);
+   //    for (int f = 0; f<faces.Size(); f++)
+   //    {
+   //       const FiniteElement * fe_trace = RT_trace_fes.GetFaceElement(faces[f]);
+   //       cout << fe_trace->GetDof() << endl;
+   //       Array<int> face_dofs;
+   //       RT_trace_fes.GetFaceDofs(faces[f],face_dofs);
+   //       cout << "face dofs = " << endl;
+   //       face_dofs.Print();
+   //    }
 
-      // cout << fe->GetGeomType() << endl;
-      Array<int> vdofs;
-      RT_trace_fes.GetElementVDofs(i, vdofs);
-      cout << "trace dofs = " << endl;
-      vdofs.Print();
-      fespace1.GetElementVDofs(i, vdofs);
-      cout << "elem dofs = " << endl;
-      vdofs.Print();
-      cin.get();
-   }
+   //    // cout << fe->GetGeomType() << endl;
+   //    Array<int> vdofs;
+   //    RT_trace_fes.GetElementVDofs(i, vdofs);
+   //    cout << "trace dofs = " << endl;
+   //    vdofs.Print();
+   //    fespace1.GetElementVDofs(i, vdofs);
+   //    cout << "elem dofs = " << endl;
+   //    vdofs.Print();
+   //    cin.get();
+   // }
 
 
 

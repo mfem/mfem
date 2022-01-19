@@ -1,9 +1,9 @@
 //                                MFEM Ultraweak DPG example
 //
-// Compile with: make  convection_diffusionp 
+// Compile with: make  uw_dpgp
 //
 // sample runs 
-// mpirun -np 4 ./convection_diffusionp  -m ../../data/inline-quad.mesh -o 2 -ref 20 -graph-norm -do 1
+// mpirun -np 4 ./uw_dpgp  -m ../../../data/inline-quad.mesh -o 2 -ref 20 -graph-norm -do 1
 
 //     - εΔu + ∇⋅(βu) = f,   in Ω
 //                  u = u_0, on ∂Ω
@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
    int myid = mpi.WorldRank();
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/inline-quad.mesh";
+   const char *mesh_file = "../../../data/inline-quad.mesh";
    int order = 1;
    int delta_order = 1;
    int ref = 1;
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
 
    if (prob == prob_type::EJ)
    {
-      mesh_file = "../../data/inline-quad.mesh";
+      mesh_file = "../../../data/inline-quad.mesh";
    }
 
    Mesh mesh(mesh_file, 1, 1);

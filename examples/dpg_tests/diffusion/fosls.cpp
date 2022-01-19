@@ -1,6 +1,6 @@
-//                                MFEM Example 1
+//                   MFEM Fosls example
 //
-// Compile with: make poisson_fosls
+// Compile with: make fosls
 //
 //     - Δ u = f, in Ω
 //         u = 0, on ∂Ω
@@ -34,7 +34,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/inline-quad.mesh";
+   const char *mesh_file = "../../../data/inline-quad.mesh";
    int order = 1;
    bool visualization = true;
 

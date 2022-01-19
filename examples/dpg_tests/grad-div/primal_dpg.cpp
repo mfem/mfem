@@ -1,16 +1,7 @@
-//                                MFEM Example 0
+//                                MFEM primal dpg example for grad-dic problem
 //
-// Compile with: make ex0
+// Compile with: make primal_dpg
 //
-// Sample runs:  ex0
-//               ex0 -m ../data/fichera.mesh
-//               ex0 -m ../data/square-disc.mesh -o 2
-//
-// Description: This example code demonstrates the most basic usage of MFEM to
-//              define a simple finite element discretization of the Laplace
-//              problem -Delta u = 1 with zero Dirichlet boundary conditions.
-//              General 2D/3D mesh files and finite element polynomial degrees
-//              can be specified by command line options.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -28,7 +19,7 @@ double freq = 1.0, kappa;
 int main(int argc, char *argv[])
 {
    // 1. Parse command line options
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "../../../data/star.mesh";
    int order = 1;
 
    OptionsParser args(argc, argv);

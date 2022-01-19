@@ -1,9 +1,9 @@
-//                                MFEM Ultraweak DPG example
+//                     MFEM Ultraweak DPG example
 //
-// Compile with: make convection_diffusion
+// Compile with: make uw_dpg
 //
 // sample runs 
-// ./convection_diffusion -m ../../data/inline-quad.mesh -o 2 -ref 20 -graph-norm -do 1
+// ./uw_dpg -m ../../../data/inline-quad.mesh -o 2 -ref 20 -graph-norm -do 1
 
 //     - εΔu + ∇⋅(βu) = f,   in Ω
 //                  u = u_0, on ∂Ω
@@ -71,7 +71,7 @@ double f_exact(const Vector & X);
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/inline-quad.mesh";
+   const char *mesh_file = "../../../data/inline-quad.mesh";
    int order = 1;
    int delta_order = 1;
    int ref = 1;
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
 
    if (prob == prob_type::EJ)
    {
-      mesh_file = "../../data/inline-quad.mesh";
+      mesh_file = "../../../data/inline-quad.mesh";
    }
 
    Mesh mesh(mesh_file, 1, 1);

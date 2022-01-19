@@ -10,17 +10,17 @@
 # CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
-MFEM_DIR ?= ../..
-MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/dpg_tests,)
+MFEM_DIR ?= ../../..
+MFEM_BUILD_DIR ?= ../../..
+SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/examples/dpg_tests/diffusion,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = diffusion_blkfosls diffusion_fosls diffusion_primal_dpg \
-	 grad_div_primal_dpg	diffusion_uwdpg convection_diffusion
-PAR_EXAMPLES = diffusion_uwdpgp convection_diffusionp
+SEQ_EXAMPLES = blkfosls fosls primal_dpg \
+	 				uw_dpg 
+PAR_EXAMPLES = uw_dpgp 
 
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
@@ -56,5 +56,6 @@ clean: clean-build clean-exec
 clean-build:
 	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
+	rm -rf ParaView
 
 clean-exec:
