@@ -1127,52 +1127,6 @@ int Mesh::GetBdrFace(int BdrElemNo) const
    return fn;
 }
 
-std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
-{
-   os << "location=";
-   switch (info.location)
-   {
-      case Mesh::FaceLocation::Local:
-         os << "Local";
-         break;
-      case Mesh::FaceLocation::Shared:
-         os << "Shared";
-         break;
-      case Mesh::FaceLocation::Boundary:
-         os << "Boundary";
-         break;
-      case Mesh::FaceLocation::NA:
-         os << "NA";
-         break;
-   }
-   os << std::endl;
-   os << "conformity=";
-   switch (info.conformity)
-   {
-      case Mesh::FaceConformity::Conforming:
-         os << "Conforming";
-         break;
-      case Mesh::FaceConformity::NonConformingMaster:
-         os << "NonConformingMaster";
-         break;
-      case Mesh::FaceConformity::NonConformingSlave:
-         os << "NonConformingSlave";
-         break;
-      case Mesh::FaceConformity::NA:
-         os << "NA";
-         break;
-   }
-   os << std::endl;
-   os << "elem_1_index=" << info.elem_1_index << std::endl
-      << "elem_2_index=" << info.elem_2_index << std::endl
-      << "elem_1_local_face=" << info.elem_1_local_face << std::endl
-      << "elem_2_local_face=" << info.elem_2_local_face << std::endl
-      << "elem_1_orientation=" << info.elem_1_orientation << std::endl
-      << "elem_2_orientation=" << info.elem_2_orientation << std::endl
-      << "ncface=" << info.ncface << std::endl;
-   return os;
-}
-
 Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
 {
    FaceInformation face;
