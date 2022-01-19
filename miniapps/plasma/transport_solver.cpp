@@ -5516,13 +5516,13 @@ IonStaticPressureOp(const MPI_Session & mpi,
                   *yCoefPtrs_[ION_DENSITY], *yCoefPtrs_[ION_TEMPERATURE]),
      ChiPerpCoef_(ChiPerpConst_, *yCoefPtrs_[ION_DENSITY]),
      ChiParaCoefPtr_((ispcoefs_(ISPCoefs::PARA_DIFFUSION_COEF) != NULL)
-		     ? const_cast<Coefficient*>
-		     (ispcoefs_(ISPCoefs::PARA_DIFFUSION_COEF))
-		     : &ChiParaCoef_),
+                     ? const_cast<Coefficient*>
+                     (ispcoefs_(ISPCoefs::PARA_DIFFUSION_COEF))
+                     : &ChiParaCoef_),
      ChiPerpCoefPtr_((ispcoefs_(ISPCoefs::PERP_DIFFUSION_COEF) != NULL)
-		     ? const_cast<Coefficient*>
-		     (ispcoefs_(ISPCoefs::PERP_DIFFUSION_COEF))
-		     : &ChiPerpCoef_),
+                     ? const_cast<Coefficient*>
+                     (ispcoefs_(ISPCoefs::PERP_DIFFUSION_COEF))
+                     : &ChiPerpCoef_),
      ChiCoef_(ChiParaCoefPtr_,
               ChiPerpCoefPtr_, B3Coef_),
      nChiCoef_(niCoef_, ChiCoef_),
@@ -5704,15 +5704,16 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      ChiParaCoef_(plasma.z_i, neCoef_, TeCoef_),
      ChiPerpCoef_(ChiPerpConst_, neCoef_),
      ChiParaCoefPtr_((espcoefs_(ESPCoefs::PARA_DIFFUSION_COEF) != NULL)
-		     ? const_cast<Coefficient*>
-		     (espcoefs_(ESPCoefs::PARA_DIFFUSION_COEF))
-		     : &ChiParaCoef_),
+                     ? const_cast<Coefficient*>
+                     (espcoefs_(ESPCoefs::PARA_DIFFUSION_COEF))
+                     : &ChiParaCoef_),
      ChiPerpCoefPtr_((espcoefs_(ESPCoefs::PERP_DIFFUSION_COEF) != NULL)
-		     ? const_cast<Coefficient*>
-		     (espcoefs_(ESPCoefs::PERP_DIFFUSION_COEF))
-		     : &ChiPerpCoef_),
+                     ? const_cast<Coefficient*>
+                     (espcoefs_(ESPCoefs::PERP_DIFFUSION_COEF))
+                     : &ChiPerpCoef_),
      ChiCoef_(ChiParaCoefPtr_,
               ChiPerpCoefPtr_, B3Coef_),
+     nChiCoef_(neCoef_, ChiCoef_),
      ChiParaGF_(NULL),
      ChiPerpGF_(NULL),
      SGF_(NULL)

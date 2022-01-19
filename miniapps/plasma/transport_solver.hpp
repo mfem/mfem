@@ -1308,13 +1308,13 @@ private:
    StateVariableMatCoef *b;
 
    mutable DenseMatrix dM_;
-  
+
 public:
    // Result is A * B
    StateVariableScalarMatrixProductCoef(StateVariableCoef &A,
-					StateVariableMatCoef &B)
-     : StateVariableMatCoef(B.GetHeight(), B.GetWidth()),
-       a(A.Clone()), b(B.Clone()), dM_(B.GetHeight(), B.GetWidth()) {}
+                                        StateVariableMatCoef &B)
+      : StateVariableMatCoef(B.GetHeight(), B.GetWidth()),
+        a(A.Clone()), b(B.Clone()), dM_(B.GetHeight(), B.GetWidth()) {}
 
    ~StateVariableScalarMatrixProductCoef()
    {
@@ -1340,47 +1340,47 @@ public:
 
    /// Evaluate the coefficient
    virtual void Eval_Func(DenseMatrix &M, ElementTransformation &T,
-                            const IntegrationPoint &ip)
+                          const IntegrationPoint &ip)
    { b->Eval_Func(M, T, ip); M *= a->Eval_Func(T, ip); }
 
    virtual void Eval_dNn(DenseMatrix &M, ElementTransformation &T,
-                           const IntegrationPoint &ip)
+                         const IntegrationPoint &ip)
    {
-     b->Eval_Func(M, T, ip); M *= a->Eval_dNn(T, ip);
-     b->Eval_dNn(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
-     M += dM_;
+      b->Eval_Func(M, T, ip); M *= a->Eval_dNn(T, ip);
+      b->Eval_dNn(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
+      M += dM_;
    }
 
    virtual void Eval_dNi(DenseMatrix &M, ElementTransformation &T,
-                           const IntegrationPoint &ip)
+                         const IntegrationPoint &ip)
    {
-     b->Eval_Func(M, T, ip); M *= a->Eval_dNi(T, ip);
-     b->Eval_dNi(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
-     M += dM_;
+      b->Eval_Func(M, T, ip); M *= a->Eval_dNi(T, ip);
+      b->Eval_dNi(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
+      M += dM_;
    }
 
    virtual void Eval_dVi(DenseMatrix &M, ElementTransformation &T,
-                           const IntegrationPoint &ip)
+                         const IntegrationPoint &ip)
    {
-     b->Eval_Func(M, T, ip); M *= a->Eval_dVi(T, ip);
-     b->Eval_dVi(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
-     M += dM_;
+      b->Eval_Func(M, T, ip); M *= a->Eval_dVi(T, ip);
+      b->Eval_dVi(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
+      M += dM_;
    }
 
    virtual void Eval_dTi(DenseMatrix &M, ElementTransformation &T,
-                           const IntegrationPoint &ip)
+                         const IntegrationPoint &ip)
    {
-     b->Eval_Func(M, T, ip); M *= a->Eval_dTi(T, ip);
-     b->Eval_dTi(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
-     M += dM_;
+      b->Eval_Func(M, T, ip); M *= a->Eval_dTi(T, ip);
+      b->Eval_dTi(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
+      M += dM_;
    }
 
    virtual void Eval_dTe(DenseMatrix &M, ElementTransformation &T,
-                           const IntegrationPoint &ip)
+                         const IntegrationPoint &ip)
    {
-     b->Eval_Func(M, T, ip); M *= a->Eval_dTe(T, ip);
-     b->Eval_dTe(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
-     M += dM_;
+      b->Eval_Func(M, T, ip); M *= a->Eval_dTe(T, ip);
+      b->Eval_dTe(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
+      M += dM_;
    }
 };
 
@@ -3737,6 +3737,7 @@ private:
       Coefficient *                    ChiParaCoefPtr_;
       Coefficient *                    ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
+      StateVariableScalarMatrixProductCoef nChiCoef_;
 
       ParGridFunction * ChiParaGF_;
       ParGridFunction * ChiPerpGF_;
