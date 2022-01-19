@@ -5512,6 +5512,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
      ChiPerpConst_(ChiPerp),
      izCoef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
      presCoef_(niCoef_, TiCoef_),
+     aniViCoef_(niCoef_, viCoef_, 2.5, B3Coef_),
      ChiParaCoef_(plasma.z_i, plasma.m_i,
                   *yCoefPtrs_[ION_DENSITY], *yCoefPtrs_[ION_TEMPERATURE]),
      ChiPerpCoef_(ChiPerpConst_, *yCoefPtrs_[ION_DENSITY]),
@@ -5525,6 +5526,8 @@ IonStaticPressureOp(const MPI_Session & mpi,
                      : &ChiPerpCoef_),
      ChiCoef_(ChiParaCoefPtr_,
               ChiPerpCoefPtr_, B3Coef_),
+     nChiParaCoef_(niCoef_, *ChiParaCoefPtr_),
+     nChiPerpCoef_(niCoef_, *ChiPerpCoefPtr_),
      nChiCoef_(niCoef_, ChiCoef_),
      ChiParaGF_(NULL),
      ChiPerpGF_(NULL),
@@ -5549,10 +5552,26 @@ IonStaticPressureOp(const MPI_Session & mpi,
    // Time derivative term:  d(1.5 n_i T_i) / dt
    SetTimeDerivativeTerm(presCoef_);
 
-   if (this->CheckTermFlag(DIFFUSION_TERM))
+   if (this->CheckTermFlag(DIFFUSION_TERM) &&
+       this->CheckTermFlag(ADVECTION_TERM))
    {
-      // Diffusion term: -Div(n_i chi Grad T_i)
-      SetDiffusionTerm(nChiCoef_);
+      // Advection-Diffusion term: -Div(n_i Chi_i Grad T_i - 2.5 n_i v_i T_i)
+      SetAdvectionDiffusionTerm(nChiCoef_, aniViCoef_,
+                                &nChiParaCoef_, &nChiPerpCoef_);
+   }
+   else
+   {
+      if (this->CheckTermFlag(DIFFUSION_TERM))
+      {
+         // Diffusion term: -Div(n_i chi Grad T_i)
+         SetDiffusionTerm(nChiCoef_);
+      }
+
+      if (this->CheckTermFlag(ADVECTION_TERM))
+      {
+         // Advection term: Div(2.5 n_i v_i T_i)
+         SetAdvectionTerm(aniViCoef_/*, true*/);
+      }
    }
 
    if (this->CheckTermFlag(SOURCE_TERM) &&
@@ -5701,6 +5720,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      ChiPerpConst_(ChiPerp),
      izCoef_(TeCoef_),
      presCoef_(z_i_, niCoef_, TeCoef_),
+     aneViCoef_(neCoef_, viCoef_, 2.5, B3Coef_),
      ChiParaCoef_(plasma.z_i, neCoef_, TeCoef_),
      ChiPerpCoef_(ChiPerpConst_, neCoef_),
      ChiParaCoefPtr_((espcoefs_(ESPCoefs::PARA_DIFFUSION_COEF) != NULL)
@@ -5713,6 +5733,8 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
                      : &ChiPerpCoef_),
      ChiCoef_(ChiParaCoefPtr_,
               ChiPerpCoefPtr_, B3Coef_),
+     nChiParaCoef_(neCoef_, *ChiParaCoefPtr_),
+     nChiPerpCoef_(neCoef_, *ChiPerpCoefPtr_),
      nChiCoef_(neCoef_, ChiCoef_),
      ChiParaGF_(NULL),
      ChiPerpGF_(NULL),
@@ -5737,10 +5759,26 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
    // Time derivative term:  d(1.5 z_i n_i T_e) / dt
    SetTimeDerivativeTerm(presCoef_);
 
-   if (this->CheckTermFlag(DIFFUSION_TERM))
+   if (this->CheckTermFlag(DIFFUSION_TERM) &&
+       this->CheckTermFlag(ADVECTION_TERM))
    {
-      // Diffusion term: -Div(chi Grad T_e)
-      SetDiffusionTerm(ChiCoef_);
+      // Advection-Diffusion term: -Div(n_e Chi_e Grad T_e - 2.5 n_e v_i T_e)
+      SetAdvectionDiffusionTerm(nChiCoef_, aneViCoef_,
+                                &nChiParaCoef_, &nChiPerpCoef_);
+   }
+   else
+   {
+      if (this->CheckTermFlag(DIFFUSION_TERM))
+      {
+         // Diffusion term: -Div(n_e chi Grad T_e)
+         SetDiffusionTerm(nChiCoef_);
+      }
+
+      if (this->CheckTermFlag(ADVECTION_TERM))
+      {
+         // Advection term: Div(2.5 n_e v_i T_e)
+         SetAdvectionTerm(aneViCoef_/*, true*/);
+      }
    }
 
    if (this->CheckTermFlag(SOURCE_TERM) &&

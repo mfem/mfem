@@ -2343,6 +2343,68 @@ public:
    }
 };
 
+class StaticPressureAdvectionCoef : public StateVariableVecCoef
+{
+private:
+   double a_;
+
+   StateVariableCoef &ni_;
+   StateVariableCoef &vi_;
+
+   VectorCoefficient * B3_;
+
+   mutable Vector B_;
+
+public:
+   StaticPressureAdvectionCoef(StateVariableCoef &ni,
+                               StateVariableCoef &vi,
+                               double a,
+                               VectorCoefficient &B3Coef)
+      : StateVariableVecCoef(2),
+        a_(a),
+        ni_(ni),
+        vi_(vi),
+        B3_(&B3Coef), B_(3)
+   {}
+
+   StaticPressureAdvectionCoef(const StaticPressureAdvectionCoef &other)
+      : StateVariableVecCoef(other.vdim),
+        a_(other.a_),
+        ni_(other.ni_),
+        vi_(other.vi_),
+        B3_(other.B3_),
+        B_(3)
+   {}
+
+   virtual StaticPressureAdvectionCoef * Clone() const
+   {
+      return new StaticPressureAdvectionCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   void Eval_Func(Vector & V,
+                  ElementTransformation &T,
+                  const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      double ni = ni_.Eval(T, ip);
+      double vi = vi_.Eval(T, ip);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+      double Bmag = sqrt(Bmag2);
+
+      V[0] = a_ * (ni * vi * B_[0] / Bmag);
+      V[1] = a_ * (ni * vi * B_[1] / Bmag);
+   }
+};
+
 class IonThermalParaDiffusionCoef : public StateVariableCoef
 {
 private:
@@ -3636,9 +3698,9 @@ private:
    class IonStaticPressureOp : public TransportOp
    {
    private:
-      enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
+      enum TermFlag {DIFFUSION_TERM = 0, ADVECTION_TERM, SOURCE_TERM};
       enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
-                     SOURCE_COEF = 1
+                     SOURCE_COEF
                     };
 
       const IonStaticPressureCoefs & ispcoefs_;
@@ -3648,13 +3710,16 @@ private:
       ApproxIonizationRate     izCoef_;
 
       StaticPressureCoef               presCoef_;
+      StaticPressureAdvectionCoef      aniViCoef_;
       IonThermalParaDiffusionCoef      ChiParaCoef_;
       ProductCoefficient               ChiPerpCoef_;
       Coefficient *                    ChiParaCoefPtr_;
       Coefficient *                    ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
+      ProductCoefficient               nChiParaCoef_;
+      ProductCoefficient               nChiPerpCoef_;
       StateVariableScalarMatrixProductCoef nChiCoef_;
-     
+
       ParGridFunction * ChiParaGF_;
       ParGridFunction * ChiPerpGF_;
       ParGridFunction * SGF_;
@@ -3720,7 +3785,7 @@ private:
    class ElectronStaticPressureOp : public TransportOp
    {
    private:
-      enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
+      enum TermFlag {DIFFUSION_TERM = 0, ADVECTION_TERM, SOURCE_TERM};
       enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
                      SOURCE_COEF = 1
                     };
@@ -3732,11 +3797,14 @@ private:
       ApproxIonizationRate     izCoef_;
 
       StaticPressureCoef               presCoef_;
+      StaticPressureAdvectionCoef      aneViCoef_;
       ElectronThermalParaDiffusionCoef ChiParaCoef_;
       ProductCoefficient               ChiPerpCoef_;
       Coefficient *                    ChiParaCoefPtr_;
       Coefficient *                    ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
+      ProductCoefficient               nChiParaCoef_;
+      ProductCoefficient               nChiPerpCoef_;
       StateVariableScalarMatrixProductCoef nChiCoef_;
 
       ParGridFunction * ChiParaGF_;
