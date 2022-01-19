@@ -2869,7 +2869,7 @@ FaceElementTransformations *ParMesh::GetFaceElementTransformations(
    }
    else
    {
-      const bool fill2 = mask & 10; // Elem2 and Loc2
+      const bool fill2 = mask & 10; // Elem2 and/or Loc2
       return GetSharedFaceTransformationsByLocalIndex(FaceNo, fill2);
    }
 }
