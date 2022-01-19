@@ -1559,11 +1559,11 @@ static void SmemPADiffusionApply3D(const int NE,
    constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");
    MFEM_VERIFY(Q1D <= M1Q, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto g = Reshape(g_.Read(), Q1D, D1D);
-   auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
-   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   auto b = Reshape(b_, Q1D, D1D);
+   auto g = Reshape(g_, Q1D, D1D);
+   auto d = Reshape(d_, Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
+   auto x = Reshape(x_, D1D, D1D, D1D, NE);
+   auto y = Reshape(y_, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -1757,7 +1757,7 @@ static void SmemPADiffusionApply3D(const int NE,
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL(Q1D)
+               MFEM_UNROLL(MQ1)
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   const int i = qi(qy,dy,Q1D);
@@ -1795,6 +1795,7 @@ static void SmemPADiffusionApply3D(const int NE,
                   v += QDD1[qz][dy][dx] * Bt[j][i];
                   w += QDD2[qz][dy][dx] * Gt[l][k] * s;
                }
+               y(dx,dy,dz,e) += (u + v + w);
             }
          }
       }
