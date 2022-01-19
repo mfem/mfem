@@ -586,7 +586,7 @@ protected:
    int nc_cpt; // Counter for interpolators, and used as index.
 
    /** The interpolators are associated to a key of containing the address of
-       PointMatrix and a local face identifiant. */
+       PointMatrix and a local face identifier. */
    using Key = std::pair<const DenseMatrix*,int>;
    /// The temporary map used to store the different interpolators.
    using Map = std::map<Key, std::pair<int,const DenseMatrix*>>;
@@ -745,7 +745,9 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows. */
+                                 default behavior is to disregard those rows.
+
+       @warning This method is not implemented yet. */
    void FillI(SparseMatrix &mat,
               const bool keep_nbr_block = false) const override;
 
@@ -763,7 +765,9 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows. */
+                                 default behavior is to disregard those rows.
+
+       @warning This method is not implemented yet. */
    void FillJAndData(const Vector &fea_data,
                      SparseMatrix &mat,
                      const bool keep_nbr_block = false) const override;
@@ -781,7 +785,9 @@ public:
                               added the face contributions.
                               The format is: dofs x dofs x ne, where dofs is the
                               number of dofs per element and ne the number of
-                              elements. */
+                              elements.
+
+       @warning This method is not implemented yet. */
    void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                          Vector &ea_data) const override;
 
@@ -843,7 +849,7 @@ protected:
     requested local face of a quad or hex, returned in Lexicographic order.
 
     @param[in] dim The dimension of the space
-    @param[in] face_id The local face identifiant
+    @param[in] face_id The local face identifier
     @param[in] dof1d The 1D number of degrees of freedom for each dimension
     @param[out] face_map The map that maps each face dof to an element dof
 */
@@ -854,7 +860,7 @@ void GetFaceDofs(const int dim, const int face_id,
     ordering for quads and hexes.
 
     @param[in] dim The dimension of the element, 2 for quad, 3 for hex
-    @param[in] face_id The local face identifiant
+    @param[in] face_id The local face identifier
     @param[in] size1d The 1D number of degrees of freedom for each dimension
     @param[in] index The native index on the face
     @return The lexicographic index on the face
@@ -866,8 +872,8 @@ int ToLexOrdering(const int dim, const int face_id, const int size1d,
     face index.
 
     @param[in] dim The dimension of the element, 2 for quad, 3 for hex
-    @param[in] face_id1 The local face identifiant of elem1
-    @param[in] face_id2 The local face identifiant of elem2
+    @param[in] face_id1 The local face identifier of elem1
+    @param[in] face_id2 The local face identifier of elem2
     @param[in] orientation The orientation of elem2 relative to elem1 on the
                            face
     @param[in] size1d The 1D number of degrees of freedom for each dimension
@@ -880,4 +886,4 @@ int PermuteFaceL2(const int dim, const int face_id1,
 
 }
 
-#endif //MFEM_RESTRICTION
+#endif // MFEM_RESTRICTION

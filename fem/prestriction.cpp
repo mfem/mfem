@@ -111,7 +111,8 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
                   double res = 0.0;
                   for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                   {
-                     res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
+                     res += d_interp(dof_out, dof_in, interp_index)*
+                            dof_values[dof_in];
                   }
                   d_y(dof_out, c, face) = res;
                }

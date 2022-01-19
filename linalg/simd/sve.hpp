@@ -33,6 +33,10 @@ template <> struct MFEM_AUTOSIMD_ALIGN_SVE AutoSIMD<double,8,64>
 
    double vec[size];
 
+   AutoSIMD() = default;
+
+   AutoSIMD(const AutoSIMD &) = default;
+
    inline MFEM_ALWAYS_INLINE double &operator[](int i)
    {
       return vec[i];
@@ -121,6 +125,11 @@ template <> struct MFEM_AUTOSIMD_ALIGN_SVE AutoSIMD<double,8,64>
       const svfloat64_t vd = svld1_f64(svptrue_b64(), vec);
       svst1_f64(svptrue_b64(), r.vec, svneg_f64_z(svptrue_b64(),vd));
       return r;
+   }
+
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator+() const
+   {
+      return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const AutoSIMD &v) const

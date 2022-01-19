@@ -350,6 +350,7 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
    ElTr->ElementType = ElementTransformation::ELEMENT;
+   ElTr->mesh = this;
    ElTr->Reset();
    if (Nodes == NULL)
    {
@@ -382,6 +383,7 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
    ElTr->ElementType = ElementTransformation::ELEMENT;
+   ElTr->mesh = this;
    DenseMatrix &pm = ElTr->GetPointMat();
    ElTr->Reset();
    nodes.HostRead();
@@ -437,6 +439,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
    ElTr->Attribute = GetBdrAttribute(i);
    ElTr->ElementNo = i; // boundary element number
    ElTr->ElementType = ElementTransformation::BDR_ELEMENT;
+   ElTr->mesh = this;
    DenseMatrix &pm = ElTr->GetPointMat();
    ElTr->Reset();
    if (Nodes == NULL)
@@ -481,6 +484,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
                      "Mesh requires nodal Finite Element.");
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = elem_id;
+         FaceElemTr.Loc1.Transf.mesh = this;
          FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
          FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
          Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
@@ -495,6 +499,7 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
    FTr->Attribute = (Dim == 1) ? 1 : faces[FaceNo]->GetAttribute();
    FTr->ElementNo = FaceNo;
    FTr->ElementType = ElementTransformation::FACE;
+   FTr->mesh = this;
    DenseMatrix &pm = FTr->GetPointMat();
    FTr->Reset();
    if (Nodes == NULL)
@@ -551,6 +556,7 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = face_info.Elem1No;
          FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
+         FaceElemTr.Loc1.Transf.mesh = this;
          FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
          Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
 
@@ -580,6 +586,7 @@ void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
    EdTr->Attribute = 1;
    EdTr->ElementNo = EdgeNo;
    EdTr->ElementType = ElementTransformation::EDGE;
+   EdTr->mesh = this;
    DenseMatrix &pm = EdTr->GetPointMat();
    EdTr->Reset();
    if (Nodes == NULL)
@@ -1098,6 +1105,7 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    tr->Attribute = boundary[BdrElemNo]->GetAttribute();
    tr->ElementNo = BdrElemNo;
    tr->ElementType = ElementTransformation::BDR_FACE;
+   tr->mesh = this;
    return tr;
 }
 
@@ -1117,6 +1125,52 @@ int Mesh::GetBdrFace(int BdrElemNo) const
       fn = boundary[BdrElemNo]->GetVertices()[0];
    }
    return fn;
+}
+
+std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
+{
+   os << "location=";
+   switch (info.location)
+   {
+      case Mesh::FaceLocation::Local:
+         os << "Local";
+         break;
+      case Mesh::FaceLocation::Shared:
+         os << "Shared";
+         break;
+      case Mesh::FaceLocation::Boundary:
+         os << "Boundary";
+         break;
+      case Mesh::FaceLocation::NA:
+         os << "NA";
+         break;
+   }
+   os << std::endl;
+   os << "conformity=";
+   switch (info.conformity)
+   {
+      case Mesh::FaceConformity::Conforming:
+         os << "Conforming";
+         break;
+      case Mesh::FaceConformity::NonConformingMaster:
+         os << "NonConformingMaster";
+         break;
+      case Mesh::FaceConformity::NonConformingSlave:
+         os << "NonConformingSlave";
+         break;
+      case Mesh::FaceConformity::NA:
+         os << "NA";
+         break;
+   }
+   os << std::endl;
+   os << "elem_1_index=" << info.elem_1_index << std::endl
+      << "elem_2_index=" << info.elem_2_index << std::endl
+      << "elem_1_local_face=" << info.elem_1_local_face << std::endl
+      << "elem_2_local_face=" << info.elem_2_local_face << std::endl
+      << "elem_1_orientation=" << info.elem_1_orientation << std::endl
+      << "elem_2_orientation=" << info.elem_2_orientation << std::endl
+      << "ncface=" << info.ncface << std::endl;
+   return os;
 }
 
 Mesh::FaceInformation Mesh::GetFaceInformation(int f) const

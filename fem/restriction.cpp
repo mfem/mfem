@@ -12,7 +12,6 @@
 #include "restriction.hpp"
 #include "gridfunc.hpp"
 #include "fespace.hpp"
-#include "../mesh/mesh_headers.hpp"
 #include "../general/forall.hpp"
 #include <climits>
 
@@ -1699,7 +1698,6 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    isotr.SetIdentityTransformation(trace_fe->GetGeomType());
    isotr.SetPointMat(*ptMat);
    DenseMatrix& trans_pt_mat = isotr.GetPointMat();
-   trans_pt_mat = (*ptMat);
    // PointMatrix needs to be flipped in 2D
    if ( trace_fe->GetGeomType()==Geometry::SEGMENT &&
         !face.IsSharedNonConformingCoarse() )
@@ -1708,8 +1706,8 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    }
    DenseMatrix native_interpolator(face_dofs,face_dofs);
    trace_fe->GetLocalInterpolation(isotr, native_interpolator);
-   const int dim = fes.GetMesh()->SpaceDimension();
-   const int dof1d = fes.GetFE(0)->GetOrder()+1;
+   const int dim = trace_fe->GetDim()+1;
+   const int dof1d = trace_fe->GetOrder()+1;
    const int orientation = face.elem_2_orientation;
    for (int i = 0; i < face_dofs; i++)
    {
