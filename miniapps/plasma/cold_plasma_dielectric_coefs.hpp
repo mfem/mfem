@@ -71,7 +71,7 @@ inline double nu_art(double x)
    return (1e14*exp(-x/0.1));
 }
 
-void StixCoefs_cold_plasma(Vector &V, double omega, double Bmag, double xpos,
+void StixCoefs_cold_plasma(Vector &V, double omega, double Bmag, double nu,
                            const Vector & number,
                            const Vector & charge,
                            const Vector & mass,
@@ -79,35 +79,35 @@ void StixCoefs_cold_plasma(Vector &V, double omega, double Bmag, double xpos,
                            int nuprof,
                            bool realPart);
 
-std::complex<double> R_cold_plasma(double omega, double Bmag, double xpos,
+std::complex<double> R_cold_plasma(double omega, double Bmag, double nu,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
                                    int nuprof);
 
-std::complex<double> L_cold_plasma(double omega, double Bmag, double xpos,
+std::complex<double> L_cold_plasma(double omega, double Bmag, double nu,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
                                    int nuprof);
 
-std::complex<double> P_cold_plasma(double omega, double xpos,
+std::complex<double> P_cold_plasma(double omega, double nu,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
                                    int nuprof);
 
-std::complex<double> S_cold_plasma(double omega, double Bmag, double xpos,
+std::complex<double> S_cold_plasma(double omega, double Bmag, double nu,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
                                    int nuprof);
 
-std::complex<double> D_cold_plasma(double omega, double Bmag, double xpos,
+std::complex<double> D_cold_plasma(double omega, double Bmag, double nu,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
@@ -274,7 +274,7 @@ class StixCoefBase
 {
 public:
    StixCoefBase(const ParGridFunction & B,
-                const ParGridFunction & xpos,
+                const ParGridFunction & nu,
                 const BlockVector & density,
                 const BlockVector & temp,
                 const ParFiniteElementSpace & L2FESpace,
@@ -296,10 +296,10 @@ public:
    double GetOmega() const { return omega_; }
 
    void SetNu(int nuprof) { nuprof_ = nuprof; }
-   double GetNu() const { return nuprof_; }
+   double GetNuProf() const { return nuprof_; }
 
    const ParGridFunction & GetBField() const { return B_; }
-   const ParGridFunction & GetxPos() const { return xpos_; }
+   const ParGridFunction & GetNu() const { return nu_; }
    const BlockVector & GetDensityFields() const { return density_; }
    const BlockVector & GetTemperatureFields() const { return temp_; }
    const ParFiniteElementSpace & GetDensityFESpace() const
@@ -318,7 +318,7 @@ protected:
                               const IntegrationPoint &ip);
 
    const ParGridFunction & B_;
-   const ParGridFunction & xpos_;
+   const ParGridFunction & nu_;
    const BlockVector & density_;
    const BlockVector & temp_;
    const ParFiniteElementSpace & L2FESpace_;
@@ -334,7 +334,7 @@ protected:
 
    Vector density_vals_;
    Vector temp_vals_;
-   double xpos_vals_;
+   double nu_vals_;
    const Vector & charges_;
    const Vector & masses_;
 };
@@ -343,7 +343,7 @@ class StixSCoef: public Coefficient, public StixCoefBase
 {
 public:
    StixSCoef(const ParGridFunction & B,
-             const ParGridFunction & xpos,
+             const ParGridFunction & nu,
              const BlockVector & density,
              const BlockVector & temp,
              const ParFiniteElementSpace & L2FESpace,
@@ -365,7 +365,7 @@ class StixDCoef: public Coefficient, public StixCoefBase
 {
 public:
    StixDCoef(const ParGridFunction & B,
-             const ParGridFunction & xpos,
+             const ParGridFunction & nu,
              const BlockVector & density,
              const BlockVector & temp,
              const ParFiniteElementSpace & L2FESpace,
@@ -387,7 +387,7 @@ class StixPCoef: public Coefficient, public StixCoefBase
 {
 public:
    StixPCoef(const ParGridFunction & B,
-             const ParGridFunction & xpos,
+             const ParGridFunction & nu,
              const BlockVector & density,
              const BlockVector & temp,
              const ParFiniteElementSpace & L2FESpace,
@@ -409,7 +409,7 @@ class StixTensorBase: public StixCoefBase
 {
 public:
    StixTensorBase(const ParGridFunction & B,
-                  const ParGridFunction & xpos,
+                  const ParGridFunction & nu,
                   const BlockVector & density,
                   const BlockVector & temp,
                   const ParFiniteElementSpace & L2FESpace,
@@ -434,7 +434,7 @@ class DielectricTensor: public MatrixCoefficient, public StixTensorBase
 {
 public:
    DielectricTensor(const ParGridFunction & B,
-                    const ParGridFunction & xpos,
+                    const ParGridFunction & nu,
                     const BlockVector & density,
                     const BlockVector & temp,
                     const ParFiniteElementSpace & L2FESpace,
@@ -458,7 +458,7 @@ class InverseDielectricTensor: public MatrixCoefficient, public StixTensorBase
 {
 public:
    InverseDielectricTensor(const ParGridFunction & B,
-                           const ParGridFunction & xpos,
+                           const ParGridFunction & nu,
                            const BlockVector & density,
                            const BlockVector & temp,
                            const ParFiniteElementSpace & L2FESpace,
@@ -482,7 +482,7 @@ class SPDDielectricTensor: public MatrixCoefficient, public StixCoefBase
 {
 public:
    SPDDielectricTensor(const ParGridFunction & B,
-                       const ParGridFunction & xpos,
+                       const ParGridFunction & nu,
                        const BlockVector & density,
                        const BlockVector & temp,
                        const ParFiniteElementSpace & L2FESpace,
@@ -548,13 +548,13 @@ public:
 class PlasmaProfile : public Coefficient
 {
 public:
-   enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS, PARABOLIC, PEDESTAL};
+   enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS, PARABOLIC, PEDESTAL, CUSTOM1, CUSTOM2};
 
 private:
    Type type_;
    Vector p_;
 
-   const int np_[6] = {1, 7, 9, 7, 7, 7};
+   const int np_[8] = {1, 7, 9, 7, 7, 7, 2, 2};
 
    mutable Vector x_;
 
