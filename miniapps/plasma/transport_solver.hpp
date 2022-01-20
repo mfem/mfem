@@ -2405,7 +2405,7 @@ public:
    }
 };
 
-class EnergyCoef : public StateVariableCoef
+class TotalEnergyCoef : public StateVariableCoef
 {
 private:
    FieldType fieldType_;
@@ -2416,22 +2416,22 @@ private:
    StateVariableCoef &TCoef_;
 
 public:
-   EnergyCoef(double m,
-              StateVariableCoef &niCoef,
-              StateVariableCoef &viCoef,
-              StateVariableCoef &TCoef)
+   TotalEnergyCoef(double m,
+                   StateVariableCoef &niCoef,
+                   StateVariableCoef &viCoef,
+                   StateVariableCoef &TCoef)
       : fieldType_(ION_TEMPERATURE),
         z_i_(1), m_(m), niCoef_(niCoef), viCoef_(viCoef), TCoef_(TCoef) {}
 
-   EnergyCoef(int z_i,
-              double m,
-              StateVariableCoef &niCoef,
-              StateVariableCoef &viCoef,
-              StateVariableCoef &TCoef)
+   TotalEnergyCoef(int z_i,
+                   double m,
+                   StateVariableCoef &niCoef,
+                   StateVariableCoef &viCoef,
+                   StateVariableCoef &TCoef)
       : fieldType_(ELECTRON_TEMPERATURE),
         z_i_(z_i), m_(m), niCoef_(niCoef), viCoef_(viCoef), TCoef_(TCoef) {}
 
-   EnergyCoef(const EnergyCoef &other)
+   TotalEnergyCoef(const TotalEnergyCoef &other)
       : niCoef_(other.niCoef_),
         viCoef_(other.viCoef_),
         TCoef_(other.TCoef_)
@@ -2442,9 +2442,9 @@ public:
       m_         = other.m_;
    }
 
-   virtual EnergyCoef * Clone() const
+   virtual TotalEnergyCoef * Clone() const
    {
-      return new EnergyCoef(*this);
+      return new TotalEnergyCoef(*this);
    }
 
    virtual bool NonTrivialValue(FieldType deriv) const
