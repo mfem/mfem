@@ -1260,8 +1260,10 @@ public:
        interior faces. */
    enum class FaceLocation { Local, Shared, Boundary, NA };
    /** This enumerated type is used to describe if an element face is a
-       conforming face, a non-conforming fine face, or a non-conforming coarse
-       face. By extension, we name a face a non-conforming coarse or fine face,
+       conforming or a non-conforming face. In the case of a non-conforming
+       face, the element can either be the coarse element or the fine element of
+       the non-conforming face.
+       By extension, we name a face a non-conforming coarse or fine face,
        if the face belonging to elem1 is a non-conforming coarse of fine face
        respectively. */
    enum class FaceConformity { Conforming,
@@ -1339,40 +1341,40 @@ public:
       }
 
       /// @brief Return true if the face is a non-conforming fine face.
-      bool IsNonConformingFine() const
+      bool IsElem1NonConformingFine() const
       {
          return elem_1_conformity==Mesh::FaceConformity::NonConformingFine;
       }
 
       /// @brief Return true if the face is a non-conforming coarse face.
-      bool IsNonConformingCoarse() const
+      bool IsElem1NonConformingCoarse() const
       {
          return elem_1_conformity==Mesh::FaceConformity::NonConformingCoarse;
       }
 
       /// @brief Return true if the face is a local non-conforming fine face.
-      bool IsLocalNonConformingFine() const
+      bool IsElem1LocalNonConformingFine() const
       {
-         return IsLocal() && IsNonConformingFine();
+         return IsLocal() && IsElem1NonConformingFine();
       }
 
       /// @brief Return true if the face is a local (or NA) non-conforming coarse face.
-      bool IsLocalNonConformingCoarse() const
+      bool IsElem1LocalNonConformingCoarse() const
       {
          return (IsLocal() || elem_2_location==Mesh::FaceLocation::NA) &&
-                IsNonConformingCoarse();
+                IsElem1NonConformingCoarse();
       }
 
       /// @brief Return true if the face is a shared non-conforming fine face.
-      bool IsSharedNonConformingFine() const
+      bool IsElem1SharedNonConformingFine() const
       {
-         return IsShared() && IsNonConformingFine();
+         return IsShared() && IsElem1NonConformingFine();
       }
 
       /// @brief Return true if the face is a shared non-conforming coarse face.
-      bool IsSharedNonConformingCoarse() const
+      bool IsElem1SharedNonConformingCoarse() const
       {
-         return IsShared() && IsNonConformingCoarse();
+         return IsShared() && IsElem1NonConformingCoarse();
       }
    };
 
