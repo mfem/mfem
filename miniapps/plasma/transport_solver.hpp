@@ -2405,6 +2405,114 @@ public:
    }
 };
 
+class EnergyCoef : public StateVariableCoef
+{
+private:
+   FieldType fieldType_;
+   int z_i_;
+   double m_;
+   StateVariableCoef &niCoef_;
+   StateVariableCoef &viCoef_;
+   StateVariableCoef &TCoef_;
+
+public:
+   EnergyCoef(double m,
+              StateVariableCoef &niCoef,
+              StateVariableCoef &viCoef,
+              StateVariableCoef &TCoef)
+      : fieldType_(ION_TEMPERATURE),
+        z_i_(1), m_(m), niCoef_(niCoef), viCoef_(viCoef), TCoef_(TCoef) {}
+
+   EnergyCoef(int z_i,
+              double m,
+              StateVariableCoef &niCoef,
+              StateVariableCoef &viCoef,
+              StateVariableCoef &TCoef)
+      : fieldType_(ELECTRON_TEMPERATURE),
+        z_i_(z_i), m_(m), niCoef_(niCoef), viCoef_(viCoef), TCoef_(TCoef) {}
+
+   EnergyCoef(const EnergyCoef &other)
+      : niCoef_(other.niCoef_),
+        viCoef_(other.viCoef_),
+        TCoef_(other.TCoef_)
+   {
+      derivType_ = other.derivType_;
+      fieldType_ = other.fieldType_;
+      z_i_       = other.z_i_;
+      m_         = other.m_;
+   }
+
+   virtual EnergyCoef * Clone() const
+   {
+      return new EnergyCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID ||
+              deriv == ION_DENSITY ||
+              deriv == ION_PARA_VELOCITY || deriv == fieldType_);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip);
+
+      return 0.5 * z_i_ * ni * (3.0 * Ts + m_ * vi * vi);
+   }
+
+   double Eval_dNi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double vi = viCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip);
+
+      return 0.5 * z_i_ * (3.0 * Ts + m_ * vi * vi);
+   }
+
+   double Eval_dVi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+
+      return z_i_ * ni * m_ * vi;
+   }
+
+   double Eval_dTi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      if (fieldType_ == ION_TEMPERATURE)
+      {
+         double ni = niCoef_.Eval(T, ip);
+
+         return 1.5 * z_i_ * ni;
+      }
+      else
+      {
+         return 0.0;
+      }
+   }
+
+   double Eval_dTe(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      if (fieldType_ == ELECTRON_TEMPERATURE)
+      {
+         double ni = niCoef_.Eval(T, ip);
+
+         return 1.5 * z_i_ * ni;
+      }
+      else
+      {
+         return 0.0;
+      }
+   }
+};
+
 class IonThermalParaDiffusionCoef : public StateVariableCoef
 {
 private:
