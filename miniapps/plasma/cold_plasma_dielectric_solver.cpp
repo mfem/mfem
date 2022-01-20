@@ -1,4 +1,4 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+//  Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
 // the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
 // reserved. See file COPYRIGHT for details.
 //
@@ -299,6 +299,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      rhs_(NULL),
      e_t_(NULL),
      e_b_(NULL),
+     e_perp_(NULL),
      e_v_(NULL),
      d_v_(NULL),
      phi_v_(NULL),
@@ -388,6 +389,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    {
       e_b_ = new ParComplexGridFunction(L2FESpace_);
       *e_b_ = 0.0;
+      e_perp_ = new ParComplexGridFunction(L2FESpace_);
+      *e_perp_ = 0.0;
       b_hat_ = new ParGridFunction(HDivFESpace_);
       EpsPara_ = new ParComplexGridFunction(L2FESpace_);
    }
@@ -846,6 +849,7 @@ CPDSolver::~CPDSolver()
    if (j_v_ != j_) { delete j_v_; }
    if (phi_v_ != phi_) {delete phi_v_;}
    delete e_b_;
+   delete e_perp_;
    // delete e_r_;
    // delete e_i_;
    delete e_;
@@ -1109,6 +1113,7 @@ CPDSolver::Update()
    if (S_) { S_->Update(); }
    if (e_t_) { e_t_->Update(); }
    if (e_b_) { e_b_->Update(); }
+   if (e_perp_) { e_perp_->Update(); }
    if (e_v_) { e_v_->Update(); }
    if (d_v_) { d_v_->Update(); }
    if (j_v_) { j_v_->Update(); }
@@ -1249,7 +1254,6 @@ CPDSolver::Solve()
                   e_->ProjectBdrCoefficientTangent(*(*dbcs_)[i].real,
                                                    *(*dbcs_)[i].imag,
                                                    attr_marker);
-
              e_->ProjectCoefficient(*(*dbcs_)[i].real,
                                     *(*dbcs_)[i].imag);
             */
@@ -1685,6 +1689,8 @@ CPDSolver::Solve()
 
       e_tmp_->real() = e_->real();
       e_tmp_->imag() = e_->imag();
+       
+      if (sbcs_->Size() <= 0){break;}
 
       E_iter++;
    }
@@ -1762,6 +1768,8 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("B_hat", b_hat_);
       visit_dc.RegisterField("Re_EB", &e_b_->real());
       visit_dc.RegisterField("Im_EB", &e_b_->imag());
+      visit_dc.RegisterField("Re_EPerp", &e_perp_->real());
+      visit_dc.RegisterField("Im_EPerp", &e_perp_->imag());
       visit_dc.RegisterField("Re_EpsPara", &EpsPara_->real());
       visit_dc.RegisterField("Im_EpsPara", &EpsPara_->imag());
    }
@@ -1852,6 +1860,14 @@ CPDSolver::WriteVisItFields(int it)
          InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
          e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
+          
+         IdentityMatrixCoefficient identityM(3);
+         OuterProductCoefficient bb(*BCoef_, *BCoef_);
+         MatrixSumCoefficient Ibb(identityM, bb, 1.0, -1.0);
+         MatrixVectorProductCoefficient eperp_rCoef(Ibb, e_r);
+         MatrixVectorProductCoefficient eperp_iCoef(Ibb, e_i);
+
+         e_perp_ ->ProjectCoefficient(eperp_rCoef, eperp_iCoef);
 
          MatrixVectorProductCoefficient ReEpsB(*epsReCoef_, *BCoef_);
          MatrixVectorProductCoefficient ImEpsB(*epsImCoef_, *BCoef_);
@@ -1870,7 +1886,6 @@ CPDSolver::WriteVisItFields(int it)
       {
         RectifiedSheathPotential rectPotCoefR(*sb, true);
         RectifiedSheathPotential rectPotCoefI(*sb, false);
-
         rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
        }
        */
@@ -2037,7 +2052,6 @@ CPDSolver::DisplayToGLVis()
    VisualizeField(*socks_["Dr"], vishost, visport,
                  d_v_->real(), "Electric Flux, Re(D)", Wx, Wy, Ww, Wh);
    Wx += offx;
-
    VisualizeField(*socks_["Di"], vishost, visport,
                  d_v_->imag(), "Electric Flux, Im(D)", Wx, Wy, Ww, Wh);
     */
@@ -2054,12 +2068,10 @@ CPDSolver::DisplayToGLVis()
                      phi_v_->imag(), "Sheath Potential, Im(Phi)", Wx, Wy, Ww, Wh);
 
       /*
-
       Wx += offx;
       VisualizeField(*socks_["RecPhir"], vishost, visport,
                     rectPot_->real(), "Rectified Potential, Re(RecPhi)", Wx, Wy, Ww, Wh);
       Wx += offx;
-
       VisualizeField(*socks_["RecPhii"], vishost, visport,
                     rectPot_->imag(), "Rectified Potential, Im(RecPhi)", Wx, Wy, Ww, Wh);
        */
@@ -2073,7 +2085,6 @@ CPDSolver::DisplayToGLVis()
       VectorGridFunctionCoefficient e_i(&e_v_->imag());
       InnerProductCoefficient ebrCoef(e_r, *BCoef_);
       InnerProductCoefficient ebiCoef(e_i, *BCoef_);
-
       e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
        */
 

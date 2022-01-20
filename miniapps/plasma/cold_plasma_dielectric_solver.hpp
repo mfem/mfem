@@ -321,6 +321,7 @@ private:
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
+   ParComplexGridFunction * e_perp_; // Complex perpendicular electric field (L2)
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
    ParComplexGridFunction * phi_v_; // Complex sheath potential (L2)
