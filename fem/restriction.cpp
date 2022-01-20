@@ -812,7 +812,7 @@ void H1FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonConformingCoarse() )
+      if ( face.IsElem1LocalNonConformingCoarse() )
       {
          // We skip local non-conforming coarse faces as they are treated by the
          // local non-conforming slave faces.
@@ -844,7 +844,7 @@ void H1FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonConformingCoarse() )
+      if ( face.IsElem1LocalNonConformingCoarse() )
       {
          // We skip local non-conforming coarse faces as they are treated by the
          // local non-conforming slave faces.
@@ -871,7 +871,7 @@ void H1FaceRestriction::SetFaceDofsScatterIndices(
    const int face_index,
    const ElementDofOrdering ordering)
 {
-   MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
+   MFEM_ASSERT(!(face.IsElem1LocalNonConformingCoarse()),
                "This method should not be used on local non-conforming master faces.");
    MFEM_ASSERT(face.elem_1_orientation==0,
                "FaceRestriction used on degenerated mesh.");
@@ -906,7 +906,7 @@ void H1FaceRestriction::SetFaceDofsGatherIndices(
    const int face_index,
    const ElementDofOrdering ordering)
 {
-   MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
+   MFEM_ASSERT(!(face.IsElem1LocalNonConformingCoarse()),
                "This method should not be used on local non-conforming master faces.");
 
    const TensorBasisElement* el =
@@ -1472,7 +1472,7 @@ void L2FaceRestriction::SetFaceDofsScatterIndices1(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
-   MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
+   MFEM_ASSERT(!(face.IsElem1LocalNonConformingCoarse()),
                "This method should not be used on local non-conforming master "
                "faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
@@ -1572,7 +1572,7 @@ void L2FaceRestriction::SetFaceDofsGatherIndices1(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
-   MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
+   MFEM_ASSERT(!(face.IsElem1LocalNonConformingCoarse()),
                "This method should not be used on local non-conforming master faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
@@ -1646,7 +1646,7 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
                "Registering face as non-conforming even though it is not.");
    const DenseMatrix* ptMat = face.point_matrix;
    // In the case of non-conforming slave shared face the master face is elem1.
-   const int master_side = face.IsSharedNonConformingCoarse() ? 0 : 1;
+   const int master_side = face.IsElem1SharedNonConformingCoarse() ? 0 : 1;
    const int face_key = (master_side == 0 ? 1000 : 0) +
                         face.elem_1_local_face + 6*face.elem_2_local_face +
                         36*face.elem_2_orientation ;
@@ -1679,7 +1679,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    const int face_id1 = face.elem_1_local_face;
    const int face_id2 = face.elem_2_local_face;
 
-   const bool is_ghost_slave = face.IsSharedNonConformingCoarse();
+   const bool is_ghost_slave = face.IsElem1SharedNonConformingCoarse();
    const int master_face_id = is_ghost_slave ? face_id1 : face_id2;
 
    // Computation of the interpolation matrix from master
@@ -1700,7 +1700,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    DenseMatrix& trans_pt_mat = isotr.GetPointMat();
    // PointMatrix needs to be flipped in 2D
    if ( trace_fe->GetGeomType()==Geometry::SEGMENT &&
-        !face.IsSharedNonConformingCoarse() )
+        !face.IsElem1SharedNonConformingCoarse() )
    {
       std::swap(trans_pt_mat(0,0),trans_pt_mat(0,1));
    }
@@ -1713,7 +1713,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    {
       const int ni = (dof_map.Size()==0) ? i : dof_map[i];
       int li = ToLexOrdering(dim, master_face_id, dof1d, i);
-      if ( !face.IsSharedNonConformingCoarse() )
+      if ( !face.IsElem1SharedNonConformingCoarse() )
       {
          // master side is elem 2, so we permute to order dofs as elem 1.
          li = PermuteFaceL2(dim, face_id2, face_id1,
@@ -1722,7 +1722,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
       for (int j = 0; j < face_dofs; j++)
       {
          int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
-         if ( !face.IsSharedNonConformingCoarse() )
+         if ( !face.IsElem1SharedNonConformingCoarse() )
          {
             // master side is elem 2, so we permute to order dofs as elem 1.
             lj = PermuteFaceL2(dim, face_id2, face_id1,
@@ -2057,7 +2057,7 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonConformingCoarse() )
+      if ( face.IsElem1LocalNonConformingCoarse() )
       {
          // We skip local non-conforming coarse faces as they are treated by the
          // local non-conforming slave faces.
@@ -2116,7 +2116,7 @@ void NCL2FaceRestriction::ComputeGatherIndices(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       MFEM_ASSERT(!face.IsShared(),
                   "Unexpected shared face in NCL2FaceRestriction.");
-      if ( face.IsLocalNonConformingCoarse() )
+      if ( face.IsElem1LocalNonConformingCoarse() )
       {
          // We skip local non-conforming coarse faces as they are treated by the
          // local non-conforming slave faces.

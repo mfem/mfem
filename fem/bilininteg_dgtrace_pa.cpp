@@ -185,7 +185,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
          Mesh::FaceInformation face = mesh->GetFaceInformation(f);
-         if (face.IsLocalNonConformingCoarse())
+         if (face.IsElem1LocalNonConformingCoarse())
          {
             // We skip local non-conforming coarse faces
             continue;
@@ -247,7 +247,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
          Mesh::FaceInformation face = mesh->GetFaceInformation(f);
-         if (face.IsLocalNonConformingCoarse())
+         if (face.IsElem1LocalNonConformingCoarse())
          {
             // We skip local non-conforming coarse faces
             continue;
