@@ -533,7 +533,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
       int attr = 1;
       if( gmshPhysEnt ) {
          apf_mesh->getIntTag(ent,gmshPhysEnt,&attr);
-         if(!MyRank) fprintf(stderr, "read attr %d\n", attr);
       }
 
       // Get attribute Tag vs Geometry
