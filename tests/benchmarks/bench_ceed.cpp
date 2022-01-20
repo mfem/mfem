@@ -26,7 +26,7 @@ namespace mfem
 
 ////////////////////////////////////////////////////////////////////////////////
 #ifdef MFEM_USE_MPI
-static MPI_Session *mpi;
+static MPI_Session *mpi = nullptr;
 #define mpiRoot mpi->Root()
 #define mpiWorldSize mpi->WorldSize()
 #define mpiWorldRank mpi->WorldRank()
@@ -49,7 +49,7 @@ typedef int MPI_Session;
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
-static int config_dev_size = 4; // default 4 GPU per node
+static int config_ndev = 4; // default 4 GPU per node
 
 ////////////////////////////////////////////////////////////////////////////////
 struct BakeOff
@@ -164,9 +164,9 @@ struct Problem: public BakeOff
 static void OrderSideArgs(bmi::Benchmark *b)
 {
    const auto est = [](int c) { return (c+1)*(c+1)*(c+1); };
-   for (int p = 1; p <= 6; ++p)
+   for (int p = 6; p > 0; p--)
    {
-      for (int c = p; est(c) <= 2*1024*1024; c += 1)
+      for (int c = p; est(c) <= 4*1024*1024; c += 1)
       {
          if (c<10) { continue; }
          b->Args({p, c});
@@ -289,21 +289,17 @@ int main(int argc, char *argv[])
    bm::Initialize(&argc, argv);
 
    // Device setup, cpu by default
-   std::string device_config = "cpu";
+   std::string config_device = "cpu";
 
    if (bmi::global_context != nullptr)
    {
-      const auto device = bmi::global_context->find("device");
-      if (device != bmi::global_context->end())
-      {
-         mfem::out << device->first << " : " << device->second << std::endl;
-         device_config = device->second;
-      }
+      bmi::FindInContext("device", config_device); // device=cuda/hip
+      bmi::FindInContext("ndev", config_ndev); // ndev=1 when biding is used
    }
 
    const int mpi_rank = mpiWorldRank;
-   const int device_id = mpi_rank % config_dev_size;
-   Device device(device_config.c_str(), device_id);
+   const int device_id = mpi_rank % config_ndev;
+   Device device(config_device.c_str(), device_id);
    if (mpiRoot) { device.Print(); }
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
@@ -314,9 +310,9 @@ int main(int argc, char *argv[])
    if (mpi->Root()) { bm::RunSpecifiedBenchmarks(&CR); }
    else
    {
-      // No display_reporter and file_reporter
-      bm::BenchmarkReporter *file_reporter = NoReporter();
-      bm::BenchmarkReporter *display_reporter = NoReporter();
+      // No default display_reporter and file_reporter
+      bm::BenchmarkReporter *file_reporter = new NoReporter();
+      bm::BenchmarkReporter *display_reporter = new NoReporter();
       bm::RunSpecifiedBenchmarks(display_reporter, file_reporter);
    }
 #endif

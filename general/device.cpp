@@ -376,8 +376,8 @@ void Device::UpdateMemoryTypeAndClass()
    if (device_option && !strncmp(device_option, "ver", 3))
    {
       kernels_version = atoi(device_option + 3);
-      printf("\033[32m[version:%d]\033[m\n", kernels_version);
-      fflush(0);
+      //printf("\033[32m[version:%d]\033[m\n", kernels_version);
+      //fflush(0);
    }
 
    // Enable the DEBUG mode when requested
