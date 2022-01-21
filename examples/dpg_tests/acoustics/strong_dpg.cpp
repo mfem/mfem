@@ -20,25 +20,13 @@
 //   (∇ p, v) - ω (u,v) = 0,     in Ω, ∀ v ∈ (L^2)^dim
 //  -(∇⋅u, q) ± ω (p,q) = (f,q), in Ω, ∀ q ∈  L^2 
 //                    p = p_0, in ∂Ω
-//
-//   ((1,0)∇ p, v_0) - ω ((1,0)u,v_0) = 0,     in Ω, ∀ v_0 ∈ L^2
-//   ((0,1)∇ p, v_1) - ω ((0,1)u,v_1) = 0,     in Ω, ∀ v_1 ∈ L^2
-// in 3D
-//   ((1,0,0)∇ p, v_0) - ω ((1,0,0)u,v_0) = 0,     in Ω, ∀ v_0 ∈ L^2
-//   ((0,1,0)∇ p, v_1) - ω ((0,1,0)u,v_1) = 0,     in Ω, ∀ v_1 ∈ L^2
-//   ((0,0,1)∇ p, v_2) - ω ((0,0,1)u,v_1) = 0,     in Ω, ∀ v_2 ∈ L^2
-
-//  -(∇⋅u, q) ± ω (p,q) = (f,q), in Ω, ∀ q ∈  L^2 
-//                    p = p_0, in ∂Ω
-
-// ----------------------------------------------------
-// |     |         p       |        u        |   RHS  | 
-// ----------------------------------------------------
-// | q   |   ± ω (p, q)    | - (∇⋅u, q)      |  (f,q) |
-// |     |                 |                 |        |
-// | v_0 | ((1,0)∇ p, v_0) | -ω ((1,0)u,v_0) |        |
-// |     |                 |                 |        |
-// | v_1 | ((0,1)∇ p, v_1) | -ω ((0,1)u,v_1) |        |
+// 
+// ------------------------------------
+// |   |      p    |     u    |  RHS  | 
+// ------------------------------------
+// | q | ± ω (p,q) | -(∇⋅u,q) | (f,q) |
+// |   |           |          |       |
+// | v | (∇ p, v)  | -ω (u,v) |       |
 
 // where (q,v) ∈ L^2  × (L^2)^dim
 
@@ -117,11 +105,7 @@ int main(int argc, char *argv[])
    // testspace fe collections
    int test_order = order+delta_order;
    FiniteElementCollection * q_fec = new L2_FECollection(test_order-1, dim);
-   Array<FiniteElementCollection * > v_fec(dim);
-   for (int i = 0; i<dim; i++)
-   {
-      v_fec[i] = new L2_FECollection(test_order-1, dim);
-   }
+   FiniteElementCollection * v_fec = new L2_FECollection(test_order-1, dim);
 
    ConstantCoefficient one(1.0);
    ConstantCoefficient negone(-1.0);
@@ -134,12 +118,12 @@ int main(int argc, char *argv[])
 
    trial_fes.Append(p_fes);
    trial_fes.Append(u_fes);
-
    test_fec.Append(q_fec);
    test_fec.Append(v_fec);
 
-
    NormalEquations * a = new NormalEquations(trial_fes,test_fec);
+   a->SetTestFECollVdim(1,dim);
+   
    a->StoreMatrices(true);
 
 //  ± ω (p, q)
@@ -154,38 +138,16 @@ int main(int argc, char *argv[])
 // -(∇⋅u, q) 
    a->AddTrialIntegrator(new MixedScalarDivergenceIntegrator(negone),1,0);
 
-// 
-   Array<Vector *> vone(dim);
-   Array<VectorConstantCoefficient *> vonecf(dim);
-   Array<ScalarVectorProductCoefficient *> vnegomegcf(dim);
-   for (int i = 0; i<dim; i++)
-   {
-      vone[i] = new Vector(dim);
-      *vone[i] = 0.;
-      (*vone[i])[i] = 1.;
-      vonecf[i] = new VectorConstantCoefficient(*vone[i]);
-      vnegomegcf[i] = new ScalarVectorProductCoefficient(negomeg,*vonecf[i]);
-   }
-   Vector vone_0(dim); vone_0[0] = 1; vone_0[1] = 0; 
-   Vector vone_1(dim); vone_1[0] = 0; vone_1[1] = 1; 
+// -ω (u,v)
+   a->AddTrialIntegrator(new VectorFEMassIntegrator(negomeg),1,1);
 
-   VectorConstantCoefficient vone0(vone_0);
-   VectorConstantCoefficient vone1(vone_1);
-   ScalarVectorProductCoefficient negomega0(negomeg,vone0);
-   ScalarVectorProductCoefficient negomega1(negomeg,vone1);
+// (∇ p, v)
+   a->AddTrialIntegrator(new GradientIntegrator(one),0,1);
 
-
-   for (int i = 0; i<dim; i++)
-   {
-      // -ω (u,v)
-      a->AddTrialIntegrator(new MixedDotProductIntegrator(*vnegomegcf[i]),1,i+1);
-      // (∇ p, v)
-      a->AddTrialIntegrator(new MixedDirectionalDerivativeIntegrator(*vonecf[i]),0,i+1);
-      // (v,δv)
-      a->AddTestIntegrator(new MassIntegrator(one),i+1,i+1);
-   }    
-
-   // (q,δq)
+// (v,δv)
+   a->AddTestIntegrator(new VectorMassIntegrator(one),1,1);
+    
+// (q,δq)
    a->AddTestIntegrator(new MassIntegrator(one),0,0);
 
    FunctionCoefficient f_rhs(rhs_func);
