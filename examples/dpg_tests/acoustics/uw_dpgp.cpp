@@ -314,6 +314,12 @@ int main(int argc, char *argv[])
       M->SetDiagonalBlock(0,amg0);
       M->SetDiagonalBlock(1,amg1);
       M->SetDiagonalBlock(2,amg2);
+      // for (int i = 0; i < 3; i++)
+      // {
+      //    MUMPSSolver * mumps = new MUMPSSolver;
+      //    mumps->SetOperator(A->GetBlock(i,i));
+      //    M->SetDiagonalBlock(i,mumps);
+      // }
 
       HypreSolver * prec;
       if (dim == 2)
@@ -327,9 +333,9 @@ int main(int argc, char *argv[])
       M->SetDiagonalBlock(3,prec);
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-8);
+      cg.SetRelTol(1e-6);
       cg.SetMaxIter(20000);
-      cg.SetPrintLevel(3);
+      cg.SetPrintLevel(-1);
       cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
@@ -394,6 +400,7 @@ int main(int argc, char *argv[])
       res0 = globalresidual;
       dof0 = dofs;
 
+         std::ios oldState(nullptr);
       if (myid == 0)
       {
          mfem::out << std::right << std::setw(11) << i << " | " 
@@ -408,9 +415,11 @@ int main(int argc, char *argv[])
                    << std::setw(10) << std::scientific <<  res0 << " | " 
                    << std::setprecision(2) 
                    << std::setw(6) << std::fixed << rate_res << " | " 
-                   << std::resetiosflags(std::ios::showbase)
+                   << std::setprecision(5) 
+                   << std::scientific 
                    << std::endl;
       }   
+
       if (visualization)
       {
          p_out << "parallel " << num_procs << " " << myid << "\n";

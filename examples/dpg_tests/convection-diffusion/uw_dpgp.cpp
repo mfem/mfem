@@ -444,7 +444,7 @@ int main(int argc, char *argv[])
       // }
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-12);
+      cg.SetRelTol(1e-6);
       cg.SetMaxIter(200000);
       cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M);
