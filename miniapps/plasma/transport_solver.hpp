@@ -1991,9 +1991,10 @@ private:
 
 public:
    IonMomentumParaDiffusionCoef(int ion_charge, double ion_mass,
+                                double lnLambda,
                                 StateVariableCoef &TiCoef)
       : z_i_((double)ion_charge), m_i_(ion_mass),
-        lnLambda_(17.0),
+        lnLambda_(lnLambda),
         a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
            sqrt(m_i_ * amu_ * pow(eV_, 5) / M_PI) /
            (lnLambda_ * amu_ * pow(q_ * z_i_, 4))),
@@ -2002,7 +2003,7 @@ public:
 
    IonMomentumParaDiffusionCoef(const IonMomentumParaDiffusionCoef &other)
       : z_i_(other.z_i_), m_i_(other.m_i_),
-        lnLambda_(17.0),
+        lnLambda_(other.lnLambda_),
         a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
            sqrt(m_i_ * amu_ * pow(eV_, 5) / M_PI) /
            (lnLambda_ * amu_ * pow(q_ * z_i_, 4))),
@@ -2516,6 +2517,7 @@ public:
 class IonThermalParaDiffusionCoef : public StateVariableCoef
 {
 private:
+   double lnLambda_;
    double z_i_;
    double m_i_;
    double m_i_kg_;
@@ -2526,16 +2528,19 @@ private:
 public:
    IonThermalParaDiffusionCoef(double ion_charge,
                                double ion_mass,
+                               double lnLambda,
                                Coefficient &niCoef,
                                Coefficient &TiCoef)
       : StateVariableCoef(),
-        z_i_(ion_charge), m_i_(ion_mass), m_i_kg_(ion_mass * amu_),
+        lnLambda_(lnLambda), z_i_(ion_charge),
+        m_i_(ion_mass), m_i_kg_(ion_mass * amu_),
         niCoef_(&niCoef), TiCoef_(&TiCoef)
    {}
 
    IonThermalParaDiffusionCoef(const IonThermalParaDiffusionCoef &other)
    {
       derivType_ = other.derivType_;
+      lnLambda_  = other.lnLambda_;
       z_i_       = other.z_i_;
       m_i_       = other.m_i_;
       m_i_kg_    = other.m_i_kg_;
@@ -2568,7 +2573,7 @@ public:
                   "less than or equal to zero in "
                   "IonThermalParaDiffusionCoef.");
 
-      double tau = tau_i(m_i_, z_i_, ni, Ti, 17.0);
+      double tau = tau_i(m_i_, z_i_, ni, Ti, lnLambda_);
       // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
       return 3.9 * Ti * eV_ * tau / m_i_kg_;
@@ -2579,6 +2584,7 @@ public:
 class ElectronThermalParaDiffusionCoef : public StateVariableCoef
 {
 private:
+   double lnLambda_;
    double z_i_;
 
    Coefficient * neCoef_;
@@ -2586,17 +2592,20 @@ private:
 
 public:
    ElectronThermalParaDiffusionCoef(double ion_charge,
+                                    double lnLambda,
                                     Coefficient &neCoef,
                                     Coefficient &TeCoef,
                                     FieldType deriv = INVALID)
       : StateVariableCoef(deriv),
-        z_i_(ion_charge), neCoef_(&neCoef), TeCoef_(&TeCoef)
+        lnLambda_(lnLambda), z_i_(ion_charge),
+        neCoef_(&neCoef), TeCoef_(&TeCoef)
    {}
 
    ElectronThermalParaDiffusionCoef(
       const ElectronThermalParaDiffusionCoef &other)
    {
       derivType_ = other.derivType_;
+      lnLambda_ = other.lnLambda_;
       z_i_ = other.z_i_;
       neCoef_ = other.neCoef_;
       TeCoef_ = other.TeCoef_;
@@ -2626,7 +2635,7 @@ public:
                   "less than or equal to zero in "
                   "ElectronThermalParaDiffusionCoef.");
 
-      double tau = tau_e(Te, z_i_, ne, 17.0);
+      double tau = tau_e(Te, z_i_, ne, lnLambda_);
       // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
       return 3.16 * Te * eV_ * tau / me_kg_;
@@ -3021,6 +3030,7 @@ struct DGParams
 
 struct PlasmaParams
 {
+   double lnLambda; // Coulomb Logarithm
    double m_n;
    double T_n;
    double m_i;

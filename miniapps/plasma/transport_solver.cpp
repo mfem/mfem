@@ -5251,7 +5251,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      DPerpConst_(DPerp),
      DPerpCoef_(DPerp),
      momCoef_(m_i_, niCoef_, viCoef_),
-     EtaParaCoef_(z_i_, m_i_, TiCoef_),
+     EtaParaCoef_(z_i_, m_i_, plasma.lnLambda, TiCoef_),
      EtaPerpCoef_(DPerpConst_, m_i_, niCoef_),
      EtaParaCoefPtr_((imcoefs_(IMCoefs::PARA_DIFFUSION_COEF) != NULL)
                      ? const_cast<Coefficient*>
@@ -5513,7 +5513,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
      izCoef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
      presCoef_(niCoef_, TiCoef_),
      aniViCoef_(niCoef_, viCoef_, 2.5, B3Coef_),
-     ChiParaCoef_(plasma.z_i, plasma.m_i,
+     ChiParaCoef_(plasma.z_i, plasma.m_i, plasma.lnLambda,
                   *yCoefPtrs_[ION_DENSITY], *yCoefPtrs_[ION_TEMPERATURE]),
      ChiPerpCoef_(ChiPerpConst_, *yCoefPtrs_[ION_DENSITY]),
      ChiParaCoefPtr_((ispcoefs_(ISPCoefs::PARA_DIFFUSION_COEF) != NULL)
@@ -5721,7 +5721,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      izCoef_(TeCoef_),
      presCoef_(z_i_, niCoef_, TeCoef_),
      aneViCoef_(neCoef_, viCoef_, 2.5, B3Coef_),
-     ChiParaCoef_(plasma.z_i, neCoef_, TeCoef_),
+     ChiParaCoef_(plasma.z_i, plasma.lnLambda, neCoef_, TeCoef_),
      ChiPerpCoef_(ChiPerpConst_, neCoef_),
      ChiParaCoefPtr_((espcoefs_(ESPCoefs::PARA_DIFFUSION_COEF) != NULL)
                      ? const_cast<Coefficient*>

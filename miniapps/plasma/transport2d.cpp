@@ -1018,6 +1018,7 @@ int main(int argc, char *argv[])
    int vis_steps = 10;
 
    PlasmaParams plasma;
+   plasma.lnLambda = 17.0;
    plasma.m_n = 2.01410178; // (amu)
    plasma.T_n = 3.0;        // (eV)
    plasma.m_i = 2.01410178; // (amu)
