@@ -177,6 +177,11 @@ int main(int argc, char *argv[])
    // (v,δv)
    a->AddTestIntegrator(new VectorFEMassIntegrator(one),1,1);
 
+   // Additional terms for adjoint graph norm
+   {   // TODO
+
+   }
+
 
    // RHS
    FunctionCoefficient f_rhs(rhs_func);

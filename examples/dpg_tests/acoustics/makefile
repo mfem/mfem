@@ -18,8 +18,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = fosls uw_dpg
-	 
+SEQ_EXAMPLES = fosls uw_dpg  strong_dpg
 PAR_EXAMPLES = uw_dpgp
 
 ifeq ($(MFEM_USE_MPI),NO)
