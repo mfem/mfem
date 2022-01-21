@@ -41,7 +41,7 @@
 using namespace std;
 using namespace mfem;
 
-#define DEFINITE
+// #define DEFINITE
 
 double p_exact(const Vector &x);
 void u_exact(const Vector &x, Vector & u);
@@ -57,12 +57,14 @@ double omega;
 
 int main(int argc, char *argv[])
 {
-  const char *mesh_file = "../../../data/inline-quad.mesh";
+   const char *mesh_file = "../../../data/inline-quad.mesh";
    int order = 1;
    int delta_order = 1;
    bool visualization = true;
    double rnum=1.0;
    int ref = 1;
+   double theta = 0.0;
+   bool adjoint_graph_norm = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -75,7 +77,12 @@ int main(int argc, char *argv[])
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
                   "Number of wavelengths");      
    args.AddOption(&delta_order, "-do", "--delta_order",
-                  "Order enrichment for DPG test space.");                  
+                  "Order enrichment for DPG test space.");     
+   args.AddOption(&theta, "-theta", "--theta",
+                  "Theta parameter for AMR");                    
+   args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
+                  "-no-graph-norm", "--no-adjoint-graph-norm",
+                  "Enable or disable Adjoint Graph Norm on the test space");                                
    args.AddOption(&ref, "-ref", "--serial_ref",
                   "Number of serial refinements.");                               
    args.Parse();
@@ -92,11 +99,6 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    dim = mesh.Dimension();
 
-
-   for (int i = 0; i < ref; i++ )
-   {
-      mesh.UniformRefinement();
-   }
 
    // Define spaces
    // L2 space for p
@@ -123,8 +125,12 @@ int main(int argc, char *argv[])
 
    // Coefficients
    ConstantCoefficient one(1.0);
+   ConstantCoefficient zero(0.0);
+   Vector vec0(dim); vec0 = 0.;
+   VectorConstantCoefficient vzero(vec0);
    ConstantCoefficient negone(-1.0);
    ConstantCoefficient omeg(omega);
+   ConstantCoefficient omeg2(omega*omega);
    ConstantCoefficient negomeg(-omega);
 
    // Normal equation weak formulation
@@ -141,7 +147,6 @@ int main(int argc, char *argv[])
 
    NormalEquations * a = new NormalEquations(trial_fes,test_fec);
    a->StoreMatrices(true);
-
 
 
    // ± ω (p,q)
@@ -166,22 +171,43 @@ int main(int argc, char *argv[])
 // < û,q >
    a->AddTrialIntegrator(new TraceIntegrator,3,0);
 
-   // test integrators (space-induced norm for H(div) × H1)
+
+// test integrators 
+
+   //space-induced norm for H(div) × H1
    // (∇q,∇δq)
    a->AddTestIntegrator(new DiffusionIntegrator(one),0,0);
    // (q,δq)
    a->AddTestIntegrator(new MassIntegrator(one),0,0);
-
    // (∇⋅v,∇⋅δv)
    a->AddTestIntegrator(new DivDivIntegrator(one),1,1);
    // (v,δv)
    a->AddTestIntegrator(new VectorFEMassIntegrator(one),1,1);
 
-   // Additional terms for adjoint graph norm
-   {   // TODO
+   // additional integrators for the adjoint graph norm
+   if (adjoint_graph_norm)
+   {   
+      // -ω (∇q,δv)
+      a->AddTestIntegrator(new MixedVectorGradientIntegrator(negomeg),0,1);
+      // -ω (v,δq)
+      a->AddTestIntegrator(new MixedVectorWeakDivergenceIntegrator(omeg),1,0);
+      // ω^2 (v,δv)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(omeg2),1,1);
 
+#ifdef DEFINITE
+      // - (∇⋅v,δq)   
+      a->AddTestIntegrator(new VectorFEDivergenceIntegrator(negone),1,0);
+      // - (q,∇⋅v)   
+      a->AddTestIntegrator(new MixedScalarWeakGradientIntegrator(one),0,1);
+#else
+      // (∇⋅v,δq)   
+      a->AddTestIntegrator(new VectorFEDivergenceIntegrator(one),1,0);
+      // (q,∇⋅v)   
+      a->AddTestIntegrator(new MixedScalarWeakGradientIntegrator(negone),0,1);
+#endif
+      // (q,δq)
+      a->AddTestIntegrator(new MassIntegrator(one),0,0);
    }
-
 
    // RHS
    FunctionCoefficient f_rhs(rhs_func);
@@ -189,19 +215,37 @@ int main(int argc, char *argv[])
 
 
    FunctionCoefficient hatpex(hatp_exact);
+   FunctionCoefficient pex(p_exact);
+   VectorFunctionCoefficient uex(dim,u_exact);
    Array<int> elements_to_refine;
    GridFunction hatp_gf;
 
 
    socketstream p_out;
-   socketstream u_out;
+   // socketstream u_out;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       p_out.open(vishost, visport);
-      u_out.open(vishost, visport);
+      // u_out.open(vishost, visport);
    }
+
+   double res0 = 0.;
+   double err0 = 0.;
+   int dof0;
+   mfem::out << " Refinement |" 
+             << "    Dofs    |" 
+             << "  L2 Error  |" 
+             << " Relative % |" 
+             << "  Rate  |" 
+             << "  Residual  |" 
+             << "  Rate  |" << endl;
+   mfem::out << " --------------------"      
+             <<  "-------------------"    
+             <<  "-------------------"    
+             <<  "-------------------" << endl;   
+
 
    for (int i = 0; i<ref; i++)
    {
@@ -248,8 +292,8 @@ int main(int argc, char *argv[])
       }
 
       CGSolver cg;
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(2000);
+      cg.SetRelTol(1e-8);
+      cg.SetMaxIter(20000);
       cg.SetPrintLevel(3);
       cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
@@ -260,11 +304,9 @@ int main(int argc, char *argv[])
       Vector & residuals = a->ComputeResidual(x);
 
       double residual = residuals.Norml2();
-      cout << "Residual = " << residual << endl;
 
       elements_to_refine.SetSize(0);
       double max_resid = residuals.Max();
-      double theta = 0.0;
       for (int iel = 0; iel<mesh.GetNE(); iel++)
       {
          if (residuals[iel] > theta * max_resid)
@@ -279,6 +321,45 @@ int main(int argc, char *argv[])
       GridFunction u_gf;
       u_gf.MakeRef(u_fes,x.GetBlock(1));
 
+      GridFunction pex_gf(p_fes);
+      GridFunction uex_gf(u_fes);
+      pex_gf.ProjectCoefficient(pex);
+      uex_gf.ProjectCoefficient(uex);
+
+
+      // Error
+      int dofs = X.Size();
+      double p_err = p_gf.ComputeL2Error(pex);
+      double p_norm = uex_gf.ComputeL2Error(zero);
+      double u_err = u_gf.ComputeL2Error(uex);
+      double u_norm = u_gf.ComputeL2Error(vzero);
+
+      double L2Error = sqrt(p_err*p_err + u_err*u_err);
+      double L2norm = sqrt(p_norm * p_norm + u_norm * u_norm);
+
+      double rel_error = L2Error/L2norm;
+
+      double rate_err = (i) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
+      double rate_res = (i) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
+
+      err0 = L2Error;
+      res0 = residual;
+      dof0 = dofs;
+      mfem::out << std::right << std::setw(11) << i << " | " 
+                << std::setw(10) <<  dof0 << " | " 
+                << std::setprecision(3) 
+                << std::setw(10) << std::scientific <<  err0 << " | " 
+                << std::setprecision(3) 
+                << std::setw(10) << std::fixed <<  rel_error * 100. << " | " 
+                << std::setprecision(2) 
+                << std::setw(6) << std::fixed << rate_err << " | " 
+                << std::setprecision(3) 
+                << std::setw(10) << std::scientific <<  res0 << " | " 
+                << std::setprecision(2) 
+                << std::setw(6) << std::fixed << rate_res << " | " 
+                << std::resetiosflags(std::ios::showbase)
+                << std::endl;
+
       if (visualization)
       {
          p_out.precision(8);
@@ -286,13 +367,16 @@ int main(int argc, char *argv[])
                   "window_title 'Numerical presure' "
                   << flush;
 
-         u_out.precision(8);
-         u_out << "solution\n" << mesh << u_gf <<
-               "window_title 'Numerical velocity' "
-               << flush;
+         // u_out.precision(8);
+         // u_out << "solution\n" << mesh << u_gf <<
+         //       "window_title 'Numerical velocity' "
+         //       << flush;
       }
 
-      mesh.GeneralRefinement(elements_to_refine);
+      if (i == ref)
+         break;
+
+      mesh.GeneralRefinement(elements_to_refine,1,1);
       for (int i =0; i<trial_fes.Size(); i++)
       {
          trial_fes[i]->Update(false);

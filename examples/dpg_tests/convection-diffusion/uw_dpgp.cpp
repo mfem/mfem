@@ -333,7 +333,6 @@ int main(int argc, char *argv[])
       // sigma_out.open(vishost, visport);
    }
 
-
    double res0 = 0.;
    double err0 = 0.;
    int dof0;
