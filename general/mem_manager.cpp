@@ -593,7 +593,7 @@ public:
       return CuMemcpyDtoD(dst, src, bytes);
 #endif
 #ifdef MFEM_USE_HIP
-      return HipMemcpyDtoD(dst, src, bytes);
+      return HipMemcpyDtoDAsync(dst, src, bytes);
 #endif
       // rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
