@@ -18,10 +18,9 @@ int RandomPRefinement(FiniteElementSpace & fes)
 {
    Mesh * mesh = fes.GetMesh();
    int maxorder = 0;
-   int order;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      order = fes.GetElementOrder(i);
+      const int order = fes.GetElementOrder(i);
       maxorder = std::max(maxorder,order);
       if ((double) rand() / RAND_MAX < 0.5)
       {
@@ -395,7 +394,6 @@ TEST_CASE("variable_order_true_transfer")
 
             std::cout  << "  Max fine order: " << maxorder << "\n";
 
-
             const SparseMatrix * Rc = c_fespace->GetRestrictionMatrix();
             TrueTransferOperator T(*c_fespace, *f_fespace);
             GridFunction xc(c_fespace);
@@ -466,7 +464,6 @@ TEST_CASE("variable_order_true_transfer")
             Diff -= Xc;
 
             REQUIRE(Diff.Norml2() < 1e-10);
-
             delete f_fespace;
             delete c_fespace;
             delete f_fec;
@@ -508,7 +505,7 @@ TEST_CASE("partransfer", "[Parallel]")
                                << "  Fine order:   " << fineOrder << "\n"
                                << "  Geometric:    " << geometric << "\n";
                   }
-                  coeff_order = std::min(1,order);
+                  coeff_order = 1;
 
                   Mesh mesh;
                   if (dimension == 2)
