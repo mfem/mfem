@@ -2,6 +2,27 @@
 //
 // Compile with: make blkfosls
 //
+//     - Δ u = f, in Ω
+//         u = 0, on ∂Ω
+
+// First Order System
+
+//   ∇ u - σ = 0, in Ω
+// - ∇⋅σ     = f, in Ω
+//        u  = 0, in ∂Ω
+
+// FOSLS:
+//       minimize  1/2(||∇u - σ||^2 + ||∇ ⋅ σ - f||^2)
+
+
+// -------------------------------------------------
+// |   |    u    |         σ           |    RHS    |
+// -------------------------------------------------
+// | v | (∇u,∇v) |      -(σ,∇v)        |     0     |
+// |   |         |                     |           |
+// | τ | -(∇u,τ) | (∇⋅σ, ∇⋅τ) + (σ,τ)  | -(f,∇⋅τ ) |
+
+// where (u,τ) ∈ H^1(Ω) × H(div,Ω)
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -96,8 +117,6 @@ int main(int argc, char *argv[])
    //    vdofs.Print();
    //    cin.get();
    // }
-
-
 
 
    ConstantCoefficient one(1.0);
