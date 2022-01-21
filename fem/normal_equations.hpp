@@ -52,6 +52,7 @@ protected:
 
    // Test FE Collections (Broken)
    Array<FiniteElementCollection *> test_fecols;
+   Array<int> test_fecols_vdims;
 
    /// Set of Trial Integrators to be applied for matrix B
    Array2D<Array<BilinearFormIntegrator * > * > trial_integs;
@@ -105,11 +106,20 @@ public:
       SetSpaces(fes_,fecol_);
    }
 
+   void SetTestFECollVdim(int test_fec, int vdim)
+   {
+      test_fecols_vdims[test_fec] = vdim;
+   }
+
+
+
    void SetSpaces(Array<FiniteElementSpace* > & fes_,
                   Array<FiniteElementCollection *> & fecol_)
    {
       trial_fes = fes_;
       test_fecols = fecol_;
+      test_fecols_vdims.SetSize(test_fecols.Size());
+      test_fecols_vdims = 1;
       nblocks = trial_fes.Size();
       mesh = trial_fes[0]->GetMesh();
 

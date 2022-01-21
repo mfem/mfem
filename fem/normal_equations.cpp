@@ -277,7 +277,7 @@ void NormalEquations::Assemble(int skip_zeros)
       for (int j = 0; j < test_fecols.Size(); j++)
       {
          int order = test_fecols[j]->GetOrder(); // assuming uniform order
-         test_offs[j+1] = test_fecols[j]->GetFE(eltrans->GetGeometryType(),
+         test_offs[j+1] = test_fecols_vdims[j]*test_fecols[j]->GetFE(eltrans->GetGeometryType(),
                                                 order)->GetDof();
       }
       for (int j = 0; j < trial_fes.Size(); j++)
@@ -286,7 +286,7 @@ void NormalEquations::Assemble(int skip_zeros)
          {
             for (int ie = 0; ie<faces.Size(); ie++)
             {
-               trial_offs[j+1] += trial_fes[j]->GetFaceElement(faces[ie])->GetDof();
+               trial_offs[j+1] += trial_fes[j]->GetVDim()*trial_fes[j]->GetFaceElement(faces[ie])->GetDof();
             }
          }
          else
