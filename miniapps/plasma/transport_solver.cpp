@@ -839,11 +839,25 @@ void TransportCoefs::ReadCoefs(CoefFactory &cf, std::istream &input)
          pos[3] = input.tellg();
          mfem::out << "Found 'ion_static_pressure' at position " << pos[3]
                    << endl;
+         MFEM_ABORT("Outdated input file: switch to total energy equations");
       }
       else if (buff == "electron_static_pressure")
       {
          pos[4] = input.tellg();
          mfem::out << "Found 'electron_static_pressure' at position " << pos[4]
+                   << endl;
+         MFEM_ABORT("Outdated input file: switch to total energy equations");
+      }
+      else if (buff == "ion_total_energy")
+      {
+         pos[3] = input.tellg();
+         mfem::out << "Found 'ion_total_energy' at position " << pos[3]
+                   << endl;
+      }
+      else if (buff == "electron_total_energy")
+      {
+         pos[4] = input.tellg();
+         mfem::out << "Found 'electron_total_energy' at position " << pos[4]
                    << endl;
       }
       else if (buff == "common_coefs")
@@ -1001,6 +1015,22 @@ IonStaticPressureCoefs::IonStaticPressureCoefs()
 }
 
 ElectronStaticPressureCoefs::ElectronStaticPressureCoefs()
+   : EqnCoefficients(sCoefNames::NUM_SCALAR_COEFS)
+{
+   sCoefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
+   sCoefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
+   sCoefNames_[SOURCE_COEF]         = "source_coef";
+}
+
+IonTotalEnergyCoefs::IonTotalEnergyCoefs()
+   : EqnCoefficients(sCoefNames::NUM_SCALAR_COEFS)
+{
+   sCoefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
+   sCoefNames_[PERP_DIFFUSION_COEF] = "perp_diffusion_coef";
+   sCoefNames_[SOURCE_COEF]         = "source_coef";
+}
+
+ElectronTotalEnergyCoefs::ElectronTotalEnergyCoefs()
    : EqnCoefficients(sCoefNames::NUM_SCALAR_COEFS)
 {
    sCoefNames_[PARA_DIFFUSION_COEF] = "para_diffusion_coef";
@@ -4402,7 +4432,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                            term_flags[2], vis_flags[2],
                            logging, "v_i (dummy): ");
    }
-
+   /*
    if ((op_flag >> 3) & 1)
    {
       op_[3] = new IonStaticPressureOp(mpi, dg, plasma, yGF, kGF,
@@ -4437,6 +4467,44 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                            bcs[4], bcs.GetCoupledBCs(),
                            coefs.GetCommonCoefs(), *B3Coef, 4,
                            "Electron Static Pressure", "Electron Temperature",
+                           term_flags[4], vis_flags[4],
+                           logging, "T_e (dummy): ");
+   }
+   */
+   if ((op_flag >> 3) & 1)
+   {
+      op_[3] = new IonTotalEnergyOp(mpi, dg, plasma, yGF, kGF,
+                                    bcs[3], bcs.GetCoupledBCs(),
+                                    coefs.GetIonTotalEnergyCoefs(),
+                                    coefs.GetCommonCoefs(), *B3Coef, XiPerp,
+                                    term_flags[3], vis_flags[3],
+                                    logging, "T_i: ");
+   }
+   else
+   {
+      op_[3] = new DummyOp(mpi, dg, plasma, yGF, kGF,
+                           bcs[3], bcs.GetCoupledBCs(),
+                           coefs.GetCommonCoefs(), *B3Coef, 3,
+                           "Total Ion Energy", "Ion Temperature",
+                           term_flags[3], vis_flags[3],
+                           logging, "T_i (dummy): ");
+   }
+
+   if ((op_flag >> 4) & 1)
+   {
+      op_[4] = new ElectronTotalEnergyOp(mpi, dg, plasma, yGF, kGF,
+                                         bcs[4], bcs.GetCoupledBCs(),
+                                         coefs.GetElectronTotalEnergyCoefs(),
+                                         coefs.GetCommonCoefs(), *B3Coef, XePerp,
+                                         term_flags[4], vis_flags[4],
+                                         logging, "T_e: ");
+   }
+   else
+   {
+      op_[4] = new DummyOp(mpi, dg, plasma, yGF, kGF,
+                           bcs[4], bcs.GetCoupledBCs(),
+                           coefs.GetCommonCoefs(), *B3Coef, 4,
+                           "Total Electron Energy", "Electron Temperature",
                            term_flags[4], vis_flags[4],
                            logging, "T_e (dummy): ");
    }
@@ -5900,6 +5968,153 @@ void DGTransportTDO::ElectronStaticPressureOp::Update()
    {
       cout << "Leaving DGTransportTDO::ElectronStaticPressureOp::Update"
            << endl;
+   }
+}
+
+DGTransportTDO::TotalEnergyOp::
+TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
+              const PlasmaParams & plasma, int index,
+              const std::string &eqn_name,
+              const std::string &field_name,
+              ParFiniteElementSpace * h1_fes,
+              ParGridFunctionArray & yGF,
+              ParGridFunctionArray & kGF,
+              const AdvectionDiffusionBC & bcs,
+              const CoupledBCs & cbcs,
+              const CommonCoefs & common_coefs,
+              VectorCoefficient & B3Coef,
+              int term_flag, int vis_flag,
+              int logging,
+              const std::string & log_prefix)
+   : TransportOp(mpi, dg, plasma, index, eqn_name, field_name,
+                 NULL,
+                 yGF, kGF, bcs, cbcs, common_coefs, B3Coef, term_flag, vis_flag,
+                 logging, log_prefix),
+     QiCoef_(plasma.z_i, plasma.m_i, plasma.lnLambda, niCoef_, TiCoef_, TeCoef_)
+{
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << "Constructing TotalEnergyOp for the " << field_name << endl;
+   }
+
+   if (term_flag_ < 0)
+   {
+      // Set default terms
+      term_flag_ = 1023;
+   }
+   if (vis_flag_ < 0)
+   {
+      // Set default visualization fields
+      vis_flag_ = (logging_ > 1) ? 1023 : this->GetDefaultVisFlag();
+   }
+}
+
+DGTransportTDO::IonTotalEnergyOp::
+IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
+                 const PlasmaParams & plasma,
+                 ParGridFunctionArray & yGF,
+                 ParGridFunctionArray & kGF,
+                 const AdvectionDiffusionBC & bcs,
+                 const CoupledBCs & cbcs,
+                 const ITECoefs & espcoefs,
+                 const CmnCoefs & cmncoefs,
+                 VectorCoefficient & B3Coef,
+                 double ChiPerp,
+                 int term_flag, int vis_flag,
+                 int logging,
+                 const std::string & log_prefix)
+   : TotalEnergyOp(mpi, dg, plasma, 3, "Total Ion Energy", "Ion Temperature",
+                   NULL,
+                   yGF, kGF, bcs, cbcs, cmncoefs, B3Coef, term_flag, vis_flag,
+                   logging, log_prefix),
+     totEnergyCoef_(plasma.m_i * amu_ / eV_, niCoef_, viCoef_, TiCoef_),
+     QiGF_(NULL)
+{
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << "Constructing IonTotalEnergyOp" << endl;
+   }
+
+   // Time derivative term:  d(1.5 n T + 0.5 m n v^2) / dt
+   SetTimeDerivativeTerm(totEnergyCoef_);
+
+   if (this->CheckTermFlag(EQUIPARTITION_SOURCE_TERM))
+   {
+      // Source term: Siz
+      SetSourceTerm(QiCoef_, 1.0);
+   }
+
+   if (this->CheckVisFlag(EQUIPARTITION_SOURCE_COEF))
+   {
+      QiGF_ = new ParGridFunction(&fes_);
+   }
+}
+
+DGTransportTDO::IonTotalEnergyOp::~IonTotalEnergyOp()
+{
+   delete QiGF_;
+}
+
+void DGTransportTDO::IonTotalEnergyOp::RegisterDataFields(DataCollection & dc)
+{
+   NLOperator::RegisterDataFields(dc);
+
+   if (this->CheckVisFlag(EQUIPARTITION_SOURCE_COEF))
+   {
+      ostringstream oss;
+      oss << eqn_name_ << " Qi";
+      dc.RegisterField(oss.str(), QiGF_);
+   }
+}
+
+void DGTransportTDO::IonTotalEnergyOp::PrepareDataFields()
+{
+   if (this->CheckVisFlag(EQUIPARTITION_SOURCE_COEF))
+   {
+      if (this->CheckTermFlag(EQUIPARTITION_SOURCE_TERM))
+      {
+         QiGF_->ProjectCoefficient(QiCoef_);
+      }
+      else
+      {
+         *QiGF_ = 0.0;
+      }
+   }
+}
+
+DGTransportTDO::ElectronTotalEnergyOp::
+ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
+                      const PlasmaParams & plasma,
+                      ParGridFunctionArray & yGF,
+                      ParGridFunctionArray & kGF,
+                      const AdvectionDiffusionBC & bcs,
+                      const CoupledBCs & cbcs,
+                      const ETECoefs & espcoefs,
+                      const CmnCoefs & cmncoefs,
+                      VectorCoefficient & B3Coef,
+                      double ChiPerp,
+                      int term_flag, int vis_flag,
+                      int logging,
+                      const std::string & log_prefix)
+   : TotalEnergyOp(mpi, dg, plasma, 4, "Total Electron Energy",
+                   "Electron Temperature",
+                   NULL,
+                   yGF, kGF, bcs, cbcs, cmncoefs, B3Coef, term_flag, vis_flag,
+                   logging, log_prefix),
+     totEnergyCoef_(plasma.z_i, me_kg_ / eV_, niCoef_, viCoef_, TeCoef_)
+{
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << "Constructing ElectronTotalEnergyOp" << endl;
+   }
+
+   // Time derivative term:  d(1.5 n T + 0.5 m n v^2) / dt
+   SetTimeDerivativeTerm(totEnergyCoef_);
+
+   if (this->CheckTermFlag(EQUIPARTITION_SOURCE_TERM))
+   {
+      // Source term: Siz
+      SetSourceTerm(QiCoef_, -1.0);
    }
 }
 
