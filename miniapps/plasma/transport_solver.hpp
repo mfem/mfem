@@ -2556,6 +2556,182 @@ public:
    }
 };
 
+class TotalEnergyAdvectionCoef : public StateVariableVecCoef
+{
+private:
+   FieldType fieldType_;
+   int z_i_;
+   double m_;
+   StateVariableCoef &niCoef_;
+   StateVariableCoef &viCoef_;
+   StateVariableCoef &TCoef_;
+
+   VectorCoefficient * B3_;
+
+   mutable Vector B_;
+
+public:
+   TotalEnergyAdvectionCoef(double m,
+                            StateVariableCoef &niCoef,
+                            StateVariableCoef &viCoef,
+                            StateVariableCoef &TCoef,
+                            VectorCoefficient &B3Coef)
+      : StateVariableVecCoef(2),
+        fieldType_(ION_TEMPERATURE),
+        z_i_(1), m_(m), niCoef_(niCoef), viCoef_(viCoef), TCoef_(TCoef),
+        B3_(&B3Coef), B_(3)
+   {}
+
+   TotalEnergyAdvectionCoef(int z_i,
+                            double m,
+                            StateVariableCoef &niCoef,
+                            StateVariableCoef &viCoef,
+                            StateVariableCoef &TCoef,
+                            VectorCoefficient &B3Coef)
+      : StateVariableVecCoef(2),
+        fieldType_(ELECTRON_TEMPERATURE),
+        z_i_(z_i), m_(m), niCoef_(niCoef), viCoef_(viCoef), TCoef_(TCoef),
+        B3_(&B3Coef), B_(3)
+   {}
+
+   TotalEnergyAdvectionCoef(const TotalEnergyAdvectionCoef &other)
+      : StateVariableVecCoef(other.vdim),
+        niCoef_(other.niCoef_),
+        viCoef_(other.viCoef_),
+        TCoef_(other.TCoef_),
+        B3_(other.B3_),
+        B_(3)
+   {
+      derivType_ = other.derivType_;
+      fieldType_ = other.fieldType_;
+      z_i_       = other.z_i_;
+      m_         = other.m_;
+   }
+
+   virtual TotalEnergyAdvectionCoef * Clone() const
+   {
+      return new TotalEnergyAdvectionCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID ||
+              deriv == ION_DENSITY ||
+              deriv == ION_PARA_VELOCITY || deriv == fieldType_);
+   }
+
+   void Eval_Func(Vector & V,
+                  ElementTransformation &T,
+                  const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+      double Bmag = sqrt(Bmag2);
+
+      V[0] = B_[0] / Bmag;
+      V[1] = B_[1] / Bmag;
+      V *= 0.5 * z_i_ * ni * vi * (5.0 * Ts + m_ * vi * vi);
+   }
+
+   void Eval_dNi(Vector & V,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      double vi = viCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+      double Bmag = sqrt(Bmag2);
+
+      V[0] = B_[0] / Bmag;
+      V[1] = B_[1] / Bmag;
+      V *= 0.5 * z_i_ * vi * (5.0 * Ts + m_ * vi * vi);
+   }
+
+   void Eval_dVi(Vector & V,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+      double Bmag = sqrt(Bmag2);
+
+      V[0] = B_[0] / Bmag;
+      V[1] = B_[1] / Bmag;
+      V *= 0.5 * z_i_ * ni * (5.0 * Ts + 3.0 * m_ * vi * vi);
+   }
+
+   void Eval_dTi(Vector & V,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      if (fieldType_ == ION_TEMPERATURE)
+      {
+         double ni = niCoef_.Eval(T, ip);
+         double vi = viCoef_.Eval(T, ip);
+
+         B3_->Eval(B_, T, ip);
+
+         double Bmag2 = B_ * B_;
+         double Bmag = sqrt(Bmag2);
+
+         V[0] = B_[0] / Bmag;
+         V[1] = B_[1] / Bmag;
+         V *= 2.5 * z_i_ * ni * vi;
+      }
+      else
+      {
+         V = 0.0;
+      }
+   }
+
+   void Eval_dTe(Vector & V,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      if (fieldType_ == ELECTRON_TEMPERATURE)
+      {
+         double ni = niCoef_.Eval(T, ip);
+         double vi = viCoef_.Eval(T, ip);
+
+         B3_->Eval(B_, T, ip);
+
+         double Bmag2 = B_ * B_;
+         double Bmag = sqrt(Bmag2);
+
+         V[0] = B_[0] / Bmag;
+         V[1] = B_[1] / Bmag;
+         V *= 2.5 * z_i_ * ni * vi;
+      }
+      else
+      {
+         V = 0.0;
+      }
+   }
+};
+
 class IonElectronHeatExchangeCoef : public StateVariableCoef
 {
 private:
