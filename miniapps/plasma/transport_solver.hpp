@@ -3860,7 +3860,8 @@ private:
                      ADVECTION_TERM, GRADP_SOURCE_TERM, SOURCE_TERM
                     };
       enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
-                     ADVECTION_COEF, GRADP_SOURCE_COEF, SOURCE_COEF
+                     GRADP_SOURCE_COEF, SOURCE_COEF,
+                     ION_PARA_MOMENTUM
                     };
 
       const IonMomentumCoefs & imcoefs_;
@@ -3914,7 +3915,7 @@ private:
 
       void Update();
 
-      virtual int GetDefaultVisFlag() { return 19; }
+      virtual int GetDefaultVisFlag() { return 15; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -4119,7 +4120,6 @@ private:
 
    public:
 
-      virtual int GetDefaultVisFlag() { return 4; }
    };
 
    class IonTotalEnergyOp : public TotalEnergyOp
@@ -4131,12 +4131,14 @@ private:
                     };
 
       enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
-                     EQUIPARTITION_SOURCE_COEF, SOURCE_COEF
+                     EQUIPARTITION_SOURCE_COEF, SOURCE_COEF,
+                     ION_TOTAL_ENERGY
                     };
 
       TotalEnergyCoef totEnergyCoef_;
 
       ParGridFunction * QiGF_;
+      ParGridFunction * totEnergyGF_;
 
    public:
       IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
@@ -4155,6 +4157,8 @@ private:
 
       virtual ~IonTotalEnergyOp();
 
+      virtual int GetDefaultVisFlag() { return 15; }
+
       virtual void RegisterDataFields(DataCollection & dc);
 
       virtual void PrepareDataFields();
@@ -4168,7 +4172,14 @@ private:
                      EQUIPARTITION_SOURCE_TERM
                     };
 
+      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
+                     SOURCE_COEF,
+                     ELECTRON_TOTAL_ENERGY
+                    };
+
       TotalEnergyCoef totEnergyCoef_;
+
+      ParGridFunction * totEnergyGF_;
 
    public:
       ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
@@ -4184,6 +4195,14 @@ private:
                             int term_flag, int vis_flag,
                             int logging,
                             const std::string & log_prefix);
+
+      virtual ~ElectronTotalEnergyOp();
+
+      virtual int GetDefaultVisFlag() { return 7; }
+
+      virtual void RegisterDataFields(DataCollection & dc);
+
+      virtual void PrepareDataFields();
    };
 
    class DummyOp : public TransportOp

@@ -5422,10 +5422,6 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    {
       EtaPerpGF_ = new ParGridFunction(&fes_);
    }
-   if (this->CheckVisFlag(ADVECTION_COEF))
-   {
-      MomParaGF_ = new ParGridFunction(&vfes);
-   }
    if (this->CheckVisFlag(GRADP_SOURCE_COEF))
    {
       SGPGF_ = new ParGridFunction(&fes_);
@@ -5434,6 +5430,10 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
        imcoefs_(IMCoefs::SOURCE_COEF) != NULL)
    {
       SGF_ = new ParGridFunction(&fes_);
+   }
+   if (this->CheckVisFlag(ION_PARA_MOMENTUM))
+   {
+      MomParaGF_ = new ParGridFunction(&vfes);
    }
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -5476,12 +5476,6 @@ IonMomentumOp::RegisterDataFields(DataCollection & dc)
       oss << eqn_name_ << " Eta_i Perpendicular";
       dc.RegisterField(oss.str(), EtaPerpGF_);
    }
-   if (this->CheckVisFlag(ADVECTION_COEF))
-   {
-      ostringstream oss;
-      oss << eqn_name_ << " Advection Coef";
-      dc.RegisterField(oss.str(), MomParaGF_);
-   }
    if (this->CheckVisFlag(GRADP_SOURCE_COEF))
    {
       ostringstream oss;
@@ -5493,6 +5487,12 @@ IonMomentumOp::RegisterDataFields(DataCollection & dc)
       ostringstream oss;
       oss << eqn_name_ << " S_im";
       dc.RegisterField(oss.str(), SGF_);
+   }
+   if (this->CheckVisFlag(ION_PARA_MOMENTUM))
+   {
+      ostringstream oss;
+      oss << eqn_name_;
+      dc.RegisterField(oss.str(), MomParaGF_);
    }
 }
 
@@ -5521,10 +5521,6 @@ IonMomentumOp::PrepareDataFields()
          *EtaPerpGF_ = 0.0;
       }
    }
-   if (this->CheckVisFlag(ADVECTION_COEF))
-   {
-      MomParaGF_->ProjectCoefficient(miniViCoef_);
-   }
    if (this->CheckVisFlag(GRADP_SOURCE_COEF))
    {
       SGPGF_->ProjectCoefficient(gradPCoef_);
@@ -5533,6 +5529,10 @@ IonMomentumOp::PrepareDataFields()
    {
       SGF_->ProjectCoefficient(
          const_cast<Coefficient&>(*imcoefs_(IMCoefs::SOURCE_COEF)));
+   }
+   if (this->CheckVisFlag(ION_PARA_MOMENTUM))
+   {
+      MomParaGF_->ProjectCoefficient(miniViCoef_);
    }
 }
 
@@ -6002,11 +6002,6 @@ TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
       // Set default terms
       term_flag_ = 1023;
    }
-   if (vis_flag_ < 0)
-   {
-      // Set default visualization fields
-      vis_flag_ = (logging_ > 1) ? 1023 : this->GetDefaultVisFlag();
-   }
 }
 
 DGTransportTDO::IonTotalEnergyOp::
@@ -6028,11 +6023,18 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                    yGF, kGF, bcs, cbcs, cmncoefs, B3Coef, term_flag, vis_flag,
                    logging, log_prefix),
      totEnergyCoef_(plasma.m_i * amu_ / eV_, niCoef_, viCoef_, TiCoef_),
-     QiGF_(NULL)
+     QiGF_(NULL),
+     totEnergyGF_(NULL)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Constructing IonTotalEnergyOp" << endl;
+   }
+
+   if (vis_flag_ < 0)
+   {
+      // Set default visualization fields
+      vis_flag_ = (logging_ > 1) ? 1023 : this->GetDefaultVisFlag();
    }
 
    // Time derivative term:  d(1.5 n T + 0.5 m n v^2) / dt
@@ -6048,11 +6050,20 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
    {
       QiGF_ = new ParGridFunction(&fes_);
    }
+   if (this->CheckVisFlag(ION_TOTAL_ENERGY))
+   {
+      totEnergyGF_ = new ParGridFunction(&fes_);
+   }
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << "Done constructing IonTotalEnergyOp" << endl;
+   }
 }
 
 DGTransportTDO::IonTotalEnergyOp::~IonTotalEnergyOp()
 {
    delete QiGF_;
+   delete totEnergyGF_;
 }
 
 void DGTransportTDO::IonTotalEnergyOp::RegisterDataFields(DataCollection & dc)
@@ -6064,6 +6075,12 @@ void DGTransportTDO::IonTotalEnergyOp::RegisterDataFields(DataCollection & dc)
       ostringstream oss;
       oss << eqn_name_ << " Qi";
       dc.RegisterField(oss.str(), QiGF_);
+   }
+   if (this->CheckVisFlag(ION_TOTAL_ENERGY))
+   {
+      ostringstream oss;
+      oss << eqn_name_;
+      dc.RegisterField(oss.str(), totEnergyGF_);
    }
 }
 
@@ -6079,6 +6096,10 @@ void DGTransportTDO::IonTotalEnergyOp::PrepareDataFields()
       {
          *QiGF_ = 0.0;
       }
+   }
+   if (this->CheckVisFlag(ION_TOTAL_ENERGY))
+   {
+      totEnergyGF_->ProjectCoefficient(totEnergyCoef_);
    }
 }
 
@@ -6101,11 +6122,18 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                    NULL,
                    yGF, kGF, bcs, cbcs, cmncoefs, B3Coef, term_flag, vis_flag,
                    logging, log_prefix),
-     totEnergyCoef_(plasma.z_i, me_kg_ / eV_, niCoef_, viCoef_, TeCoef_)
+     totEnergyCoef_(plasma.z_i, me_kg_ / eV_, niCoef_, viCoef_, TeCoef_),
+     totEnergyGF_(NULL)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
       cout << "Constructing ElectronTotalEnergyOp" << endl;
+   }
+
+   if (vis_flag_ < 0)
+   {
+      // Set default visualization fields
+      vis_flag_ = (logging_ > 1) ? 1023 : this->GetDefaultVisFlag();
    }
 
    // Time derivative term:  d(1.5 n T + 0.5 m n v^2) / dt
@@ -6115,6 +6143,40 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
    {
       // Source term: Siz
       SetSourceTerm(QiCoef_, -1.0);
+   }
+   if (this->CheckVisFlag(ELECTRON_TOTAL_ENERGY))
+   {
+      totEnergyGF_ = new ParGridFunction(&fes_);
+   }
+   if ( mpi_.Root() && logging_ > 1)
+   {
+      cout << "Done constructing ElectronTotalEnergyOp" << endl;
+   }
+}
+
+DGTransportTDO::ElectronTotalEnergyOp::~ElectronTotalEnergyOp()
+{
+   delete totEnergyGF_;
+}
+
+void DGTransportTDO::ElectronTotalEnergyOp::RegisterDataFields(
+   DataCollection & dc)
+{
+   NLOperator::RegisterDataFields(dc);
+
+   if (this->CheckVisFlag(ELECTRON_TOTAL_ENERGY))
+   {
+      ostringstream oss;
+      oss << eqn_name_;
+      dc.RegisterField(oss.str(), totEnergyGF_);
+   }
+}
+
+void DGTransportTDO::ElectronTotalEnergyOp::PrepareDataFields()
+{
+   if (this->CheckVisFlag(ELECTRON_TOTAL_ENERGY))
+   {
+      totEnergyGF_->ProjectCoefficient(totEnergyCoef_);
    }
 }
 
