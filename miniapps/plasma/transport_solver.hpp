@@ -4303,7 +4303,7 @@ private:
    private:
       enum TermFlag {DIFFUSION_TERM = 0,
                      ADVECTION_TERM,
-                     EQUIPARTITION_SOURCE_TERM
+                     EQUIPARTITION_SOURCE_TERM, SOURCE_TERM
                     };
 
       enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
@@ -4311,8 +4311,25 @@ private:
                      ION_TOTAL_ENERGY
                     };
 
-      TotalEnergyCoef totEnergyCoef_;
+      const IonTotalEnergyCoefs & itecoefs_;
 
+      double ChiPerpConst_;
+
+      TotalEnergyCoef totEnergyCoef_;
+      TotalEnergyAdvectionCoef         advFluxCoef_;
+      StaticPressureAdvectionCoef      aniViCoef_;
+      IonThermalParaDiffusionCoef      ChiParaCoef_;
+      ProductCoefficient               ChiPerpCoef_;
+      Coefficient *                    ChiParaCoefPtr_;
+      Coefficient *                    ChiPerpCoefPtr_;
+      Aniso2DDiffusionCoef             ChiCoef_;
+      ProductCoefficient               nChiParaCoef_;
+      ProductCoefficient               nChiPerpCoef_;
+      StateVariableScalarMatrixProductCoef nChiCoef_;
+
+      ParGridFunction * ChiParaGF_;
+      ParGridFunction * ChiPerpGF_;
+      ParGridFunction * SGF_;
       ParGridFunction * QiGF_;
       ParGridFunction * totEnergyGF_;
 
@@ -4345,7 +4362,7 @@ private:
    private:
       enum TermFlag {DIFFUSION_TERM = 0,
                      ADVECTION_TERM,
-                     EQUIPARTITION_SOURCE_TERM
+                     EQUIPARTITION_SOURCE_TERM, SOURCE_TERM
                     };
 
       enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
@@ -4353,8 +4370,25 @@ private:
                      ELECTRON_TOTAL_ENERGY
                     };
 
-      TotalEnergyCoef totEnergyCoef_;
+      const ElectronTotalEnergyCoefs & etecoefs_;
 
+      double ChiPerpConst_;
+
+      TotalEnergyCoef totEnergyCoef_;
+      TotalEnergyAdvectionCoef         advFluxCoef_;
+      StaticPressureAdvectionCoef      aneViCoef_;
+      ElectronThermalParaDiffusionCoef ChiParaCoef_;
+      ProductCoefficient               ChiPerpCoef_;
+      Coefficient *                    ChiParaCoefPtr_;
+      Coefficient *                    ChiPerpCoefPtr_;
+      Aniso2DDiffusionCoef             ChiCoef_;
+      ProductCoefficient               nChiParaCoef_;
+      ProductCoefficient               nChiPerpCoef_;
+      StateVariableScalarMatrixProductCoef nChiCoef_;
+
+      ParGridFunction * ChiParaGF_;
+      ParGridFunction * ChiPerpGF_;
+      ParGridFunction * SGF_;
       ParGridFunction * totEnergyGF_;
 
    public:

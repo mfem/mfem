@@ -6011,7 +6011,7 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                  ParGridFunctionArray & kGF,
                  const AdvectionDiffusionBC & bcs,
                  const CoupledBCs & cbcs,
-                 const ITECoefs & espcoefs,
+                 const ITECoefs & itecoefs,
                  const CmnCoefs & cmncoefs,
                  VectorCoefficient & B3Coef,
                  double ChiPerp,
@@ -6022,7 +6022,28 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                    NULL,
                    yGF, kGF, bcs, cbcs, cmncoefs, B3Coef, term_flag, vis_flag,
                    logging, log_prefix),
+     itecoefs_(itecoefs),
+     ChiPerpConst_(ChiPerp),
      totEnergyCoef_(plasma.m_i * amu_ / eV_, niCoef_, viCoef_, TiCoef_),
+     advFluxCoef_(plasma.m_i * amu_ / eV_, niCoef_, viCoef_, TiCoef_, B3Coef),
+     aniViCoef_(niCoef_, viCoef_, 2.5, B3Coef_),
+     ChiParaCoef_(plasma.z_i, plasma.m_i, plasma.lnLambda, niCoef_, TiCoef_),
+     ChiPerpCoef_(ChiPerpConst_, niCoef_),
+     ChiParaCoefPtr_((itecoefs_(ITECoefs::PARA_DIFFUSION_COEF) != NULL)
+                     ? const_cast<Coefficient*>
+                     (itecoefs_(ITECoefs::PARA_DIFFUSION_COEF))
+                     : &ChiParaCoef_),
+     ChiPerpCoefPtr_((itecoefs_(ITECoefs::PERP_DIFFUSION_COEF) != NULL)
+                     ? const_cast<Coefficient*>
+                     (itecoefs_(ITECoefs::PERP_DIFFUSION_COEF))
+                     : &ChiPerpCoef_),
+     ChiCoef_(ChiParaCoefPtr_,
+              ChiPerpCoefPtr_, B3Coef_),
+     nChiParaCoef_(niCoef_, *ChiParaCoefPtr_),
+     nChiPerpCoef_(niCoef_, *ChiPerpCoefPtr_),
+     nChiCoef_(niCoef_, ChiCoef_),
+     ChiParaGF_(NULL),
+     ChiPerpGF_(NULL),
      QiGF_(NULL),
      totEnergyGF_(NULL)
 {
@@ -6040,12 +6061,60 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
    // Time derivative term:  d(1.5 n T + 0.5 m n v^2) / dt
    SetTimeDerivativeTerm(totEnergyCoef_);
 
+   if (this->CheckTermFlag(DIFFUSION_TERM) &&
+       this->CheckTermFlag(ADVECTION_TERM))
+   {
+      // Advection-Diffusion term: -Div(n_i Chi_i Grad T_i - 2.5 n_i T_i v_i)
+      SetAdvectionDiffusionTerm(nChiCoef_, aniViCoef_,
+                                &nChiParaCoef_, &nChiPerpCoef_);
+   }
+   else
+   {
+      if (this->CheckTermFlag(DIFFUSION_TERM))
+      {
+         // Diffusion term: -Div(n_i Chi_i Grad T_i)
+         SetAnisotropicDiffusionTerm(nChiCoef_, &nChiParaCoef_, &nChiPerpCoef_);
+      }
+
+      if (this->CheckTermFlag(ADVECTION_TERM))
+      {
+         // Advection term: Div(2.5 n_i T_i v_i)
+         SetAdvectionTerm(aniViCoef_/*, true*/);
+      }
+   }
+
+   if (this->CheckTermFlag(ADVECTION_TERM) && bcs_.GetOutflowBCs().Size() > 0)
+   {
+      SetOutflowBdrTerm(advFluxCoef_, bcs_.GetOutflowBCs());
+   }
+
    if (this->CheckTermFlag(EQUIPARTITION_SOURCE_TERM))
    {
       // Source term: Siz
       SetSourceTerm(QiCoef_, 1.0);
    }
 
+   if (this->CheckTermFlag(SOURCE_TERM) &&
+       itecoefs_(ITECoefs::SOURCE_COEF) != NULL)
+   {
+      // Source term from command line
+      SetSourceTerm(const_cast<Coefficient&>
+                    (*itecoefs_(ITECoefs::SOURCE_COEF)));
+   }
+
+   if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
+   {
+      ChiParaGF_ = new ParGridFunction(&fes_);
+   }
+   if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
+   {
+      ChiPerpGF_ = new ParGridFunction(&fes_);
+   }
+   if (this->CheckVisFlag(SOURCE_COEF) &&
+       itecoefs_(ITECoefs::SOURCE_COEF) != NULL)
+   {
+      SGF_ = new ParGridFunction(&fes_);
+   }
    if (this->CheckVisFlag(EQUIPARTITION_SOURCE_COEF))
    {
       QiGF_ = new ParGridFunction(&fes_);
@@ -6062,6 +6131,9 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
 
 DGTransportTDO::IonTotalEnergyOp::~IonTotalEnergyOp()
 {
+   delete ChiPerpGF_;
+   delete ChiParaGF_;
+   delete SGF_;
    delete QiGF_;
    delete totEnergyGF_;
 }
@@ -6070,6 +6142,18 @@ void DGTransportTDO::IonTotalEnergyOp::RegisterDataFields(DataCollection & dc)
 {
    NLOperator::RegisterDataFields(dc);
 
+   if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
+   {
+      dc.RegisterField("Chi_i Parallel", ChiParaGF_);
+   }
+   if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
+   {
+      dc.RegisterField("Chi_i Perpendicular", ChiPerpGF_);
+   }
+   if (this->CheckVisFlag(SOURCE_COEF) && SGF_ != NULL)
+   {
+      dc.RegisterField("Ion Energy Source", SGF_);
+   }
    if (this->CheckVisFlag(EQUIPARTITION_SOURCE_COEF))
    {
       ostringstream oss;
@@ -6086,6 +6170,41 @@ void DGTransportTDO::IonTotalEnergyOp::RegisterDataFields(DataCollection & dc)
 
 void DGTransportTDO::IonTotalEnergyOp::PrepareDataFields()
 {
+   if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
+   {
+      if (itecoefs_(ITECoefs::PARA_DIFFUSION_COEF) != NULL)
+      {
+         ChiParaGF_->ProjectCoefficient
+         (const_cast<Coefficient&>
+          (*itecoefs_(ITECoefs::PARA_DIFFUSION_COEF)));
+      }
+      else
+      {
+         ChiParaGF_->ProjectCoefficient(ChiParaCoef_);
+      }
+   }
+   if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
+   {
+      if (itecoefs_(ITECoefs::PERP_DIFFUSION_COEF) != NULL)
+      {
+         ChiPerpGF_->ProjectCoefficient
+         (const_cast<Coefficient&>
+          (*itecoefs_(ITECoefs::PERP_DIFFUSION_COEF)));
+      }
+      else
+      {
+         ChiPerpGF_->ProjectCoefficient(ChiPerpCoef_);
+      }
+   }
+   if (this->CheckVisFlag(SOURCE_COEF))
+   {
+      if (itecoefs_(ITECoefs::SOURCE_COEF) != NULL)
+      {
+         SGF_->ProjectCoefficient
+         (const_cast<Coefficient&>
+          (*itecoefs_(ITECoefs::SOURCE_COEF)));
+      }
+   }
    if (this->CheckVisFlag(EQUIPARTITION_SOURCE_COEF))
    {
       if (this->CheckTermFlag(EQUIPARTITION_SOURCE_TERM))
@@ -6110,7 +6229,7 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                       ParGridFunctionArray & kGF,
                       const AdvectionDiffusionBC & bcs,
                       const CoupledBCs & cbcs,
-                      const ETECoefs & espcoefs,
+                      const ETECoefs & etecoefs,
                       const CmnCoefs & cmncoefs,
                       VectorCoefficient & B3Coef,
                       double ChiPerp,
@@ -6122,7 +6241,29 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                    NULL,
                    yGF, kGF, bcs, cbcs, cmncoefs, B3Coef, term_flag, vis_flag,
                    logging, log_prefix),
+     etecoefs_(etecoefs),
+     ChiPerpConst_(ChiPerp),
      totEnergyCoef_(plasma.z_i, me_kg_ / eV_, niCoef_, viCoef_, TeCoef_),
+     advFluxCoef_(plasma.z_i, me_kg_ / eV_, niCoef_, viCoef_, TeCoef_, B3Coef),
+     aneViCoef_(neCoef_, viCoef_, 2.5, B3Coef_),
+     ChiParaCoef_(plasma.z_i, plasma.lnLambda, neCoef_, TeCoef_),
+     ChiPerpCoef_(ChiPerpConst_, neCoef_),
+     ChiParaCoefPtr_((etecoefs_(ETECoefs::PARA_DIFFUSION_COEF) != NULL)
+                     ? const_cast<Coefficient*>
+                     (etecoefs_(ETECoefs::PARA_DIFFUSION_COEF))
+                     : &ChiParaCoef_),
+     ChiPerpCoefPtr_((etecoefs_(ETECoefs::PERP_DIFFUSION_COEF) != NULL)
+                     ? const_cast<Coefficient*>
+                     (etecoefs_(ETECoefs::PERP_DIFFUSION_COEF))
+                     : &ChiPerpCoef_),
+     ChiCoef_(ChiParaCoefPtr_,
+              ChiPerpCoefPtr_, B3Coef_),
+     nChiParaCoef_(neCoef_, *ChiParaCoefPtr_),
+     nChiPerpCoef_(neCoef_, *ChiPerpCoefPtr_),
+     nChiCoef_(neCoef_, ChiCoef_),
+     ChiParaGF_(NULL),
+     ChiPerpGF_(NULL),
+     SGF_(NULL),
      totEnergyGF_(NULL)
 {
    if ( mpi_.Root() && logging_ > 1)
@@ -6139,6 +6280,54 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
    // Time derivative term:  d(1.5 n T + 0.5 m n v^2) / dt
    SetTimeDerivativeTerm(totEnergyCoef_);
 
+   if (this->CheckTermFlag(DIFFUSION_TERM) &&
+       this->CheckTermFlag(ADVECTION_TERM))
+   {
+      // Advection-Diffusion term: -Div(n_e Chi_i Grad T_i - 2.5 n_e T_e v_i)
+      SetAdvectionDiffusionTerm(nChiCoef_, aneViCoef_,
+                                &nChiParaCoef_, &nChiPerpCoef_);
+   }
+   else
+   {
+      if (this->CheckTermFlag(DIFFUSION_TERM))
+      {
+         // Diffusion term: -Div(n_e Chi_i Grad T_i)
+         SetAnisotropicDiffusionTerm(nChiCoef_, &nChiParaCoef_, &nChiPerpCoef_);
+      }
+
+      if (this->CheckTermFlag(ADVECTION_TERM))
+      {
+         // Advection term: Div(2.5 n_e T_e v_i)
+         SetAdvectionTerm(aneViCoef_/*, true*/);
+      }
+   }
+
+   if (this->CheckTermFlag(ADVECTION_TERM) && bcs_.GetOutflowBCs().Size() > 0)
+   {
+      SetOutflowBdrTerm(advFluxCoef_, bcs_.GetOutflowBCs());
+   }
+
+   if (this->CheckTermFlag(SOURCE_TERM) &&
+       etecoefs_(ETECoefs::SOURCE_COEF) != NULL)
+   {
+      // Source term from command line
+      SetSourceTerm(const_cast<Coefficient&>
+                    (*etecoefs_(ETECoefs::SOURCE_COEF)));
+   }
+
+   if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
+   {
+      ChiParaGF_ = new ParGridFunction(&fes_);
+   }
+   if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
+   {
+      ChiPerpGF_ = new ParGridFunction(&fes_);
+   }
+   if (this->CheckVisFlag(SOURCE_COEF) &&
+       etecoefs_(ETECoefs::SOURCE_COEF) != NULL)
+   {
+      SGF_ = new ParGridFunction(&fes_);
+   }
    if (this->CheckTermFlag(EQUIPARTITION_SOURCE_TERM))
    {
       // Source term: Siz
@@ -6156,6 +6345,9 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
 
 DGTransportTDO::ElectronTotalEnergyOp::~ElectronTotalEnergyOp()
 {
+   delete ChiPerpGF_;
+   delete ChiParaGF_;
+   delete SGF_;
    delete totEnergyGF_;
 }
 
@@ -6164,6 +6356,18 @@ void DGTransportTDO::ElectronTotalEnergyOp::RegisterDataFields(
 {
    NLOperator::RegisterDataFields(dc);
 
+   if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
+   {
+      dc.RegisterField("Chi_e Parallel", ChiParaGF_);
+   }
+   if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
+   {
+      dc.RegisterField("Chi_e Perpendicular", ChiPerpGF_);
+   }
+   if (this->CheckVisFlag(SOURCE_COEF) && SGF_ != NULL)
+   {
+      dc.RegisterField("Electron Energy Source", SGF_);
+   }
    if (this->CheckVisFlag(ELECTRON_TOTAL_ENERGY))
    {
       ostringstream oss;
@@ -6174,6 +6378,41 @@ void DGTransportTDO::ElectronTotalEnergyOp::RegisterDataFields(
 
 void DGTransportTDO::ElectronTotalEnergyOp::PrepareDataFields()
 {
+   if (this->CheckVisFlag(DIFFUSION_PARA_COEF))
+   {
+      if (etecoefs_(ETECoefs::PARA_DIFFUSION_COEF) != NULL)
+      {
+         ChiParaGF_->ProjectCoefficient
+         (const_cast<Coefficient&>
+          (*etecoefs_(ETECoefs::PARA_DIFFUSION_COEF)));
+      }
+      else
+      {
+         ChiParaGF_->ProjectCoefficient(ChiParaCoef_);
+      }
+   }
+   if (this->CheckVisFlag(DIFFUSION_PERP_COEF))
+   {
+      if (etecoefs_(ETECoefs::PERP_DIFFUSION_COEF) != NULL)
+      {
+         ChiPerpGF_->ProjectCoefficient
+         (const_cast<Coefficient&>
+          (*etecoefs_(ETECoefs::PERP_DIFFUSION_COEF)));
+      }
+      else
+      {
+         ChiPerpGF_->ProjectCoefficient(ChiPerpCoef_);
+      }
+   }
+   if (this->CheckVisFlag(SOURCE_COEF))
+   {
+      if (etecoefs_(ETECoefs::SOURCE_COEF) != NULL)
+      {
+         SGF_->ProjectCoefficient
+         (const_cast<Coefficient&>
+          (*etecoefs_(ETECoefs::SOURCE_COEF)));
+      }
+   }
    if (this->CheckVisFlag(ELECTRON_TOTAL_ENERGY))
    {
       totEnergyGF_->ProjectCoefficient(totEnergyCoef_);
