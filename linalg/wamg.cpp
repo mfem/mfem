@@ -181,8 +181,8 @@ WAMGRSolver::WAMGRSolver(FiniteElementSpace &fes,
 {
    MFEM_NVTX;
    const int n = args.op_h->Height();
-   const int max_depth = args.max_depth;
-   const int max_ndofs = args.max_ndofs;
+   const int max_depth = args.mg_depth;
+   const int max_ndofs = args.mg_ndofs;
    dbg("COARSE WAMGRSolver n:%d, %s wavelets max_levels:%d",
        n, Wavelet::GetType(wavelet).c_str(),  max_depth);
 

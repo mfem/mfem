@@ -83,7 +83,7 @@ static bool config_inner_cg = false;
 static int config_smoother_order = 2;
 
 static int config_max_nic = 2;
-static int config_max_nip = 3;
+static int config_max_nip = 0;
 static int config_max_nif = 500;
 
 static int config_mg_depth = 8;
@@ -1294,10 +1294,10 @@ struct SolverProblem: public BakeOff
 
 // The different side sizes
 // 120 max for one rank when generating tex data
-#define P_SIDES bm::CreateDenseRange(12,120,6)
+#define P_SIDES bm::CreateDenseRange(12,360,6)
 
 // Maximum number of dofs
-#define MAX_NDOFS 2*1024*1024
+#define MAX_NDOFS 8*1024*1024
 
 
 /// Bake-off Solvers (BPSs)
@@ -1309,7 +1309,7 @@ struct SolverProblem: public BakeOff
 #define BakeOff_Solver(i,Kernel,Precond)\
 static void BPS##i##_##Precond(bm::State &state){\
    const bool rhs_n = 3;\
-   const bool rhs_1 = true;\
+   const bool rhs_1 = false;\
    const int smoothness = 0;\
    const int refinements = 0;\
    const int nranks = mpiWorldSize;\
@@ -1331,7 +1331,7 @@ static void BPS##i##_##Precond(bm::State &state){\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_SIDES,P_ORDERS,P_EPSILONS})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(10);
+    -> Iterations(2);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 //BakeOff_Solver(3,Diffusion,None)
@@ -1416,8 +1416,8 @@ int main(int argc, char *argv[])
    else
    {
       // No display_reporter and file_reporter
-      bm::BenchmarkReporter *file_reporter = NoReporter();
-      bm::BenchmarkReporter *display_reporter = NoReporter();
+      bm::BenchmarkReporter *file_reporter = new NoReporter();
+      bm::BenchmarkReporter *display_reporter = new NoReporter();
       bm::RunSpecifiedBenchmarks(display_reporter, file_reporter);
    }
 #endif
