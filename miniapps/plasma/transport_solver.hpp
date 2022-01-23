@@ -3567,15 +3567,17 @@ private:
       mutable Vector locvec_;
       mutable Vector locdvec_;
 
+      typedef std::vector<Array<BilinearFormIntegrator*> > vArrayBFI;
+
       // Domain integrators for time derivatives of field variables
-      std::vector<Array<BilinearFormIntegrator*> > dbfi_m_;  // Domain Integrators
+      vArrayBFI dbfi_m_;  // Domain Integrators
       // Array<Array<StateVariableCoef*> >      dbfi_mc_; // Domain Integrators
 
       // Domain integrators for field variables at next time step
-      Array<BilinearFormIntegrator*> dbfi_;  // Domain Integrators
-      Array<BilinearFormIntegrator*> fbfi_;  // Interior Face Integrators
-      Array<BilinearFormIntegrator*> bfbfi_; // Boundary Face Integrators
-      Array<Array<int>*>             bfbfi_marker_; ///< Entries are owned.
+      vArrayBFI dbfi_;  // Domain Integrators
+      vArrayBFI fbfi_;  // Interior Face Integrators
+      vArrayBFI bfbfi_; // Boundary Face Integrators
+      std::vector<Array<Array<int>*> > bfbfi_marker_; ///< Entries are owned.
 
       // Domain integrators for source terms
       Array<LinearFormIntegrator*> dlfi_;  // Domain Integrators
