@@ -6056,7 +6056,9 @@ TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                  NULL,
                  yGF, kGF, bcs, cbcs, common_coefs, B3Coef, term_flag, vis_flag,
                  logging, log_prefix),
-     QiCoef_(plasma.z_i, plasma.m_i, plasma.lnLambda, niCoef_, TiCoef_, TeCoef_)
+     QiCoef_(plasma.z_i, plasma.m_i, plasma.lnLambda,
+             niCoef_, TiCoef_, TeCoef_),
+     BSVCoef_(B3Coef)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -6068,6 +6070,37 @@ TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
       // Set default terms
       term_flag_ = 1023;
    }
+}
+
+void
+DGTransportTDO::TotalEnergyOp::
+SetKineticEnergyAdvectionTerm(StateVariableVecCoef &VCoef)
+{
+   if ( mpi_.Root() && logging_ > 0)
+   {
+      cout << eqn_name_ << ": Adding kinetic energy advection term" << endl;
+   }
+
+   // advectionCoef_ = &VCoef;
+
+   ScalarVectorProductCoefficient * dtVCoef =
+      new ScalarVectorProductCoefficient(dt_, VCoef);
+   dtVCoefs_.Append(dtVCoef);
+
+   dbfi_[ION_PARA_VELOCITY].Append(
+      new ConservativeConvectionIntegrator(VCoef, 1.0));
+   fbfi_[ION_PARA_VELOCITY].Append(
+      new DGTraceIntegrator(VCoef, 1.0, -0.5));
+
+   if (blf_[ION_PARA_VELOCITY] == NULL)
+   {
+      blf_[ION_PARA_VELOCITY] = new ParBilinearForm(&fes_);
+   }
+
+   blf_[ION_PARA_VELOCITY]->AddDomainIntegrator(
+      new ConservativeConvectionIntegrator(*dtVCoef, 1.0));
+   blf_[ION_PARA_VELOCITY]->AddInteriorFaceIntegrator(
+      new DGTraceIntegrator(*dtVCoef, 1.0, -0.5));
 }
 
 DGTransportTDO::IonTotalEnergyOp::
@@ -6091,6 +6124,7 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      itecoefs_(itecoefs),
      ChiPerpConst_(ChiPerp),
      totEnergyCoef_(plasma.m_i * amu_ / eV_, niCoef_, viCoef_, TiCoef_),
+     kinEnergyCoef_(plasma.m_i * amu_ / eV_, niCoef_, viCoef_),
      advFluxCoef_(plasma.m_i * amu_ / eV_, niCoef_, viCoef_, TiCoef_, B3Coef),
      aniViCoef_(niCoef_, viCoef_, 2.5, B3Coef_),
      ChiParaCoef_(plasma.z_i, plasma.m_i, plasma.lnLambda, niCoef_, TiCoef_),
@@ -6108,6 +6142,7 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      nChiParaCoef_(niCoef_, *ChiParaCoefPtr_),
      nChiPerpCoef_(niCoef_, *ChiPerpCoefPtr_),
      nChiCoef_(niCoef_, ChiCoef_),
+     keVCoef_(kinEnergyCoef_, BSVCoef_),
      ChiParaGF_(NULL),
      ChiPerpGF_(NULL),
      QiGF_(NULL),
@@ -6147,6 +6182,11 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
          // Advection term: Div(2.5 n_i T_i v_i)
          SetAdvectionTerm(aniViCoef_/*, true*/);
       }
+   }
+   if (this->CheckTermFlag(KE_ADVECTION_TERM))
+   {
+      // Advection term: Div(0.5 m_i n_i v_i^2 bHat)
+      SetKineticEnergyAdvectionTerm(keVCoef_);
    }
 
    if (this->CheckTermFlag(ADVECTION_TERM) && bcs_.GetOutflowBCs().Size() > 0)
@@ -6310,6 +6350,7 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      etecoefs_(etecoefs),
      ChiPerpConst_(ChiPerp),
      totEnergyCoef_(plasma.z_i, me_kg_ / eV_, niCoef_, viCoef_, TeCoef_),
+     kinEnergyCoef_(plasma.z_i, me_kg_ / eV_, niCoef_, viCoef_),
      advFluxCoef_(plasma.z_i, me_kg_ / eV_, niCoef_, viCoef_, TeCoef_, B3Coef),
      aneViCoef_(neCoef_, viCoef_, 2.5, B3Coef_),
      ChiParaCoef_(plasma.z_i, plasma.lnLambda, neCoef_, TeCoef_),
@@ -6327,6 +6368,7 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      nChiParaCoef_(neCoef_, *ChiParaCoefPtr_),
      nChiPerpCoef_(neCoef_, *ChiPerpCoefPtr_),
      nChiCoef_(neCoef_, ChiCoef_),
+     keVCoef_(kinEnergyCoef_, BSVCoef_),
      ChiParaGF_(NULL),
      ChiPerpGF_(NULL),
      SGF_(NULL),
@@ -6366,6 +6408,11 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
          // Advection term: Div(2.5 n_e T_e v_i)
          SetAdvectionTerm(aneViCoef_/*, true*/);
       }
+   }
+   if (this->CheckTermFlag(KE_ADVECTION_TERM))
+   {
+      // Advection term: Div(0.5 m_e n_e v_i^2 bHat)
+      SetKineticEnergyAdvectionTerm(keVCoef_);
    }
 
    if (this->CheckTermFlag(ADVECTION_TERM) && bcs_.GetOutflowBCs().Size() > 0)

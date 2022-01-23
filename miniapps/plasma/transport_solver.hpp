@@ -2708,6 +2708,74 @@ public:
    }
 };
 
+class KineticEnergyCoef : public StateVariableCoef
+{
+private:
+   int z_i_;
+   double m_;
+   StateVariableCoef &niCoef_;
+   StateVariableCoef &viCoef_;
+
+public:
+   KineticEnergyCoef(double m,
+                     StateVariableCoef &niCoef,
+                     StateVariableCoef &viCoef)
+      : z_i_(1), m_(m), niCoef_(niCoef), viCoef_(viCoef) {}
+
+   KineticEnergyCoef(int z_i,
+                     double m,
+                     StateVariableCoef &niCoef,
+                     StateVariableCoef &viCoef)
+      : z_i_(z_i), m_(m), niCoef_(niCoef), viCoef_(viCoef) {}
+
+   KineticEnergyCoef(const KineticEnergyCoef &other)
+      : niCoef_(other.niCoef_),
+        viCoef_(other.viCoef_)
+   {
+      derivType_ = other.derivType_;
+      z_i_       = other.z_i_;
+      m_         = other.m_;
+   }
+
+   virtual KineticEnergyCoef * Clone() const
+   {
+      return new KineticEnergyCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID ||
+              deriv == ION_DENSITY ||
+              deriv == ION_PARA_VELOCITY);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+
+      return 0.5 * z_i_ * ni * m_ * vi * vi;
+   }
+
+   double Eval_dNi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double vi = viCoef_.Eval(T, ip);
+
+      return 0.5 * z_i_ * m_ * vi * vi;
+   }
+
+   double Eval_dVi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+
+      return z_i_ * ni * m_ * vi;
+   }
+};
+
 class TotalEnergyAdvectionCoef : public StateVariableVecCoef
 {
 private:
@@ -3800,7 +3868,7 @@ private:
 
    class TransportOp : public NLOperator
    {
-   private:
+   protected:
       Array<StateVariableCoef*>    svscoefs_;
       Array<StateVariableVecCoef*> svvcoefs_;
       Array<ProductCoefficient*>             dtSCoefs_;
@@ -3815,7 +3883,6 @@ private:
 
       ParFiniteElementSpace *h1_fes_;
 
-   protected:
       const PlasmaParams &plasma_;
 
       double m_n_;
@@ -4433,6 +4500,8 @@ private:
 
       IonElectronHeatExchangeCoef QiCoef_;
 
+      StateVariableStandardVectorCoef BSVCoef_;
+
       TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                     const PlasmaParams & plasma, int index,
                     const std::string &eqn_name,
@@ -4450,13 +4519,15 @@ private:
 
    public:
 
+      void SetKineticEnergyAdvectionTerm(StateVariableVecCoef &VCoef);
+
    };
 
    class IonTotalEnergyOp : public TotalEnergyOp
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0,
-                     ADVECTION_TERM,
+                     ADVECTION_TERM, KE_ADVECTION_TERM,
                      EQUIPARTITION_SOURCE_TERM, SOURCE_TERM
                     };
 
@@ -4469,7 +4540,8 @@ private:
 
       double ChiPerpConst_;
 
-      TotalEnergyCoef totEnergyCoef_;
+      TotalEnergyCoef                  totEnergyCoef_;
+      KineticEnergyCoef                kinEnergyCoef_;
       TotalEnergyAdvectionCoef         advFluxCoef_;
       StaticPressureAdvectionCoef      aniViCoef_;
       IonThermalParaDiffusionCoef      ChiParaCoef_;
@@ -4480,6 +4552,7 @@ private:
       ProductCoefficient               nChiParaCoef_;
       ProductCoefficient               nChiPerpCoef_;
       StateVariableScalarMatrixProductCoef nChiCoef_;
+      StateVariableScalarVectorProductCoef keVCoef_;
 
       ParGridFunction * ChiParaGF_;
       ParGridFunction * ChiPerpGF_;
@@ -4515,7 +4588,7 @@ private:
    {
    private:
       enum TermFlag {DIFFUSION_TERM = 0,
-                     ADVECTION_TERM,
+                     ADVECTION_TERM, KE_ADVECTION_TERM,
                      EQUIPARTITION_SOURCE_TERM, SOURCE_TERM
                     };
 
@@ -4528,7 +4601,8 @@ private:
 
       double ChiPerpConst_;
 
-      TotalEnergyCoef totEnergyCoef_;
+      TotalEnergyCoef                  totEnergyCoef_;
+      KineticEnergyCoef                kinEnergyCoef_;
       TotalEnergyAdvectionCoef         advFluxCoef_;
       StaticPressureAdvectionCoef      aneViCoef_;
       ElectronThermalParaDiffusionCoef ChiParaCoef_;
@@ -4539,6 +4613,7 @@ private:
       ProductCoefficient               nChiParaCoef_;
       ProductCoefficient               nChiPerpCoef_;
       StateVariableScalarMatrixProductCoef nChiCoef_;
+      StateVariableScalarVectorProductCoef keVCoef_;
 
       ParGridFunction * ChiParaGF_;
       ParGridFunction * ChiPerpGF_;
