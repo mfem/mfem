@@ -136,6 +136,9 @@ public:
    /// Write details of the memory usage to the mfem output stream.
    void PrintMemoryDetail() const;
 
+   /// Print hash table statistic for debugging purposes.
+   void PrintStats() const;
+
    class iterator : public Base::iterator
    {
    protected:
@@ -210,6 +213,8 @@ protected:
    /// Check table load factor and resize if necessary
    inline void CheckRehash();
    void DoRehash();
+
+   int BinSize(int id) const;
 };
 
 
@@ -648,6 +653,47 @@ void HashTable<T>::PrintMemoryDetail() const
 {
    mfem::out << Base::MemoryUsage() << " + " << (mask+1) * sizeof(int)
              << " + " << unused.MemoryUsage();
+}
+
+template<typename T>
+int HashTable<T>::BinSize(int id) const
+{
+   int count = 0;
+   while (id >= 0)
+   {
+      const T& item = Base::At(id);
+      id = item.next;
+      count++;
+   }
+   return count;
+}
+
+template<typename T>
+void HashTable<T>::PrintStats() const
+{
+   int table_size = mask+1;
+   mfem::out << "Hash table size: " << table_size << "\n";
+   mfem::out << "Item count: " << Size() << "\n";
+   mfem::out << "BlockArray size: " << Base::Size() << "\n";
+
+   const int H = 16;
+   int hist[H];
+
+   for (int i = 0; i < H; i++) { hist[i] = 0; }
+
+   for (int i = 0; i < table_size; i++)
+   {
+      int bs = BinSize(i);
+      if (bs >= H) { bs = H-1; }
+      hist[bs]++;
+   }
+
+   mfem::out << "Bin size histogram:\n";
+   for (int i = 0; i < H; i++)
+   {
+      mfem::out << "  size " << i << ": "
+                << hist[i] << " bins" << std::endl;
+   }
 }
 
 
