@@ -1103,6 +1103,37 @@ public:
    }
 };
 
+class StateVariableStandardVectorCoef : public StateVariableVecCoef
+{
+private:
+   VectorCoefficient & V_;
+
+public:
+   StateVariableStandardVectorCoef(VectorCoefficient & V)
+      : StateVariableVecCoef(V.GetVDim()), V_(V)
+   {}
+
+   StateVariableStandardVectorCoef(const StateVariableStandardVectorCoef &other)
+      : StateVariableVecCoef(other.vdim), V_(other.V_)
+   {}
+
+   virtual StateVariableStandardVectorCoef * Clone() const
+   {
+      return new StateVariableStandardVectorCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   virtual void Eval_Func(Vector & V, ElementTransformation &T,
+                          const IntegrationPoint &ip)
+   {
+      V_.Eval(V, T, ip);
+   }
+};
+
 class StateVariableConstantCoef : public StateVariableCoef
 {
 private:
