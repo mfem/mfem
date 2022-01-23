@@ -591,6 +591,7 @@ void HashTable<T>::Alloc(int id, int p1, int p2)
       item.p2 = p2;
 
       Insert(Hash(p1, p2), id, item);
+      CheckRehash();
    }
 }
 
