@@ -1374,6 +1374,127 @@ public:
    }
 };
 
+class StateVariableScalarVectorProductCoef : public StateVariableVecCoef
+{
+private:
+   StateVariableCoef    *a;
+   StateVariableVecCoef *b;
+
+   VectorCoefficient *b_std;
+
+   mutable Vector dV_;
+
+public:
+   // Result is A * B
+   StateVariableScalarVectorProductCoef(StateVariableCoef &A,
+                                        StateVariableVecCoef &B)
+      : StateVariableVecCoef(B.GetVDim()),
+        a(A.Clone()), b(B.Clone()), b_std(NULL), dV_(B.GetVDim()) {}
+
+   StateVariableScalarVectorProductCoef(StateVariableCoef &A,
+                                        VectorCoefficient &B)
+      : StateVariableVecCoef(B.GetVDim()),
+        a(A.Clone()), b(NULL), b_std(&B) {}
+
+   ~StateVariableScalarVectorProductCoef()
+   {
+      if (a != NULL) { delete a; }
+      if (b != NULL) { delete b; }
+   }
+
+   virtual StateVariableScalarVectorProductCoef * Clone() const
+   {
+      if (b != NULL)
+      {
+         return new StateVariableScalarVectorProductCoef(*a, *b);
+      }
+      else
+      {
+         return new StateVariableScalarVectorProductCoef(*a, *b_std);
+      }
+   }
+
+   void SetACoef(StateVariableCoef &A) { a = &A; }
+   StateVariableCoef * GetACoef() const { return a; }
+
+   void SetBCoef(StateVariableVecCoef &B) { b = &B; b_std = NULL; }
+   StateVariableVecCoef * GetBCoef() const { return b; }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return a->NonTrivialValue(deriv) ||
+             (b ? b->NonTrivialValue(deriv) : false);
+   }
+
+   /// Evaluate the coefficient
+   virtual void Eval_Func(Vector &V, ElementTransformation &T,
+                          const IntegrationPoint &ip)
+   {
+      b ? b->Eval_Func(V, T, ip) : b_std->Eval(V, T, ip);
+      V *= a->Eval_Func(T, ip);
+   }
+
+   virtual void Eval_dNn(Vector &V, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b ? b->Eval_Func(V, T, ip) : b_std->Eval(V, T, ip);
+      V *= a->Eval_dNn(T, ip);
+      if (b)
+      {
+         b->Eval_dNn(dV_, T, ip); dV_ *= a->Eval_Func(T, ip);
+         V += dV_;
+      }
+   }
+
+   virtual void Eval_dNi(Vector &V, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b ? b->Eval_Func(V, T, ip) : b_std->Eval(V, T, ip);
+      V *= a->Eval_dNi(T, ip);
+      if (b)
+      {
+         b->Eval_dNi(dV_, T, ip); dV_ *= a->Eval_Func(T, ip);
+         V += dV_;
+      }
+   }
+
+   virtual void Eval_dVi(Vector &V, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b ? b->Eval_Func(V, T, ip) : b_std->Eval(V, T, ip);
+      V *= a->Eval_dVi(T, ip);
+      if (b)
+      {
+         b->Eval_dVi(dV_, T, ip); dV_ *= a->Eval_Func(T, ip);
+         V += dV_;
+      }
+   }
+
+   virtual void Eval_dTi(Vector &V, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b ? b->Eval_Func(V, T, ip) : b_std->Eval(V, T, ip);
+      V *= a->Eval_dTi(T, ip);
+      if (b)
+      {
+         b->Eval_dTi(dV_, T, ip); dV_ *= a->Eval_Func(T, ip);
+         V += dV_;
+      }
+   }
+
+   virtual void Eval_dTe(Vector &V, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b ? b->Eval_Func(V, T, ip) : b_std->Eval(V, T, ip);
+      V *= a->Eval_dTe(T, ip);
+      if (b)
+      {
+         b->Eval_dTe(dV_, T, ip); dV_ *= a->Eval_Func(T, ip);
+         V += dV_;
+      }
+   }
+};
+
 class StateVariableScalarMatrixProductCoef : public StateVariableMatCoef
 {
 private:
