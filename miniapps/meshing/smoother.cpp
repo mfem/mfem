@@ -8,6 +8,12 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+//
+// Sample runs:
+//   mpirun -np 4 smoother -p 0
+//   mpirun -np 4 smoother -p 1
+//   mpirun -np 4 smoother -p 2 -rs 3 -ds 2
+//
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -66,7 +72,8 @@ double level_set_func(const Vector &coord)
    return 1.0;
 }
 
-void MeasureJumps(const ParGridFunction &u, ParGridFunction &jumps);
+void MeasureJumps(const ParGridFunction &u, ParGridFunction &jumps, bool vis);
+void DiffuseField(ParGridFunction &field, int smooth_steps);
 
 class GradientCompCoefficient : public Coefficient
 {
@@ -77,16 +84,6 @@ private:
 public:
    GradientCompCoefficient(const ParGridFunction &u_gf, int c)
       : u(u_gf), comp(c) { }
-
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
-};
-
-class GradientDot11Coefficient : public Coefficient
-{
-private:
-   const ParGridFunction &u;
-public:
-   GradientDot11Coefficient(const ParGridFunction &g) : u(g) { }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -102,6 +99,7 @@ int main (int argc, char *argv[])
    const char *mesh_file = "../../data/inline-quad.mesh";
    int rs_levels = 2;
    int order = 2;
+   int diffuse_steps = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -113,6 +111,8 @@ int main (int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
                   "Polynomial degree of mesh finite element space.");
+   args.AddOption(&diffuse_steps, "-ds", "--diffuse-steps",
+                  "Diffusion steps.");
    args.Parse();
    if (!args.Good())
    {
@@ -133,29 +133,51 @@ int main (int argc, char *argv[])
 
    FunctionCoefficient ls_coeff(level_set_func);
    u.ProjectCoefficient(ls_coeff);
+   DiffuseField(u, diffuse_steps);
    socketstream sock_u;
    common::VisualizeField(sock_u, vishost, visport, u, "u",
                           0, 0, wsize, wsize, "Rjmc***");
 
    L2_FECollection fec_L2(order, dim);
    ParFiniteElementSpace pfes_L2(&pmesh, &fec_L2);
-   ParGridFunction grad_u_dot_1(&pfes_L2);
-   GradientDot11Coefficient grad_u_dot_1_coeff(u);
-   grad_u_dot_1.ProjectCoefficient(grad_u_dot_1_coeff);
-   socketstream sock_grad;
-   common::VisualizeField(sock_grad, vishost, visport, grad_u_dot_1,
-                          "grad_u . 1", 0, wsize, wsize, wsize, "Rjmc***");
+   ParGridFunction du_comp(&pfes_L2), dudu_comp(&pfes_L2);
 
    H1_FECollection fec_lin_H1(1, dim);
    ParFiniteElementSpace pfes_lin_H1(&pmesh, &fec_lin_H1);
-   ParGridFunction jumps(&pfes_lin_H1);
-   MeasureJumps(grad_u_dot_1, jumps);
-   socketstream sock_j;
-   common::VisualizeField(sock_j, vishost, visport, jumps, "smooth indicator",
-                          3*wsize, wsize, wsize, wsize, "Rjmc***");
+   ParGridFunction du_jumps(&pfes_lin_H1), dudu_jumps(&pfes_lin_H1),
+                   comp_jumps(&pfes_lin_H1);
+   du_jumps = 0.0;
+   dudu_jumps = 0.0;
+   for (int d = 0; d < dim; d++)
+   {
+      GradientCompCoefficient du_comp_coeff(u, d);
+      du_comp.ProjectCoefficient(du_comp_coeff);
+      for (int c = 0; c < dim; c++)
+      {
+         GradientCompCoefficient d2u_comp_coeff(du_comp, c);
+         dudu_comp.ProjectCoefficient(d2u_comp_coeff);
+         MeasureJumps(dudu_comp, comp_jumps, false);
+         for (int i = 0; i < du_jumps.Size(); i++)
+         {
+            dudu_jumps(i) = fmax(dudu_jumps(i), comp_jumps(i));
+         }
+      }
+      MeasureJumps(du_comp, comp_jumps, false);
+      for (int i = 0; i < du_jumps.Size(); i++)
+      {
+         du_jumps(i) = fmax(du_jumps(i), comp_jumps(i));
+      }
+   }
+   socketstream sock_j, sock_jj;
+   common::VisualizeField(sock_j, vishost, visport, du_jumps,
+                          "smoo indicator grad",
+                          wsize, 0, wsize, wsize, "Rjmc***");
+   common::VisualizeField(sock_jj, vishost, visport, dudu_jumps,
+                          "smoo indicator hess",
+                          2*wsize, 0, wsize, wsize, "Rjmc***");
 
    ConstantCoefficient zero(0.0);
-   double norm = jumps.ComputeL1Error(zero);
+   double norm = du_jumps.ComputeL1Error(zero);
    if (myid == 0)
    {
       std::cout << setprecision(12) << "L1 norm = " << norm << std::endl;
@@ -165,7 +187,7 @@ int main (int argc, char *argv[])
    return 0;
 }
 
-void MeasureJumps(const ParGridFunction &u, ParGridFunction &jumps)
+void MeasureJumps(const ParGridFunction &u, ParGridFunction &jumps, bool vis)
 {
    ParFiniteElementSpace &pfes_L2 = *u.ParFESpace();
    const int dim   = pfes_L2.GetMesh()->Dimension();
@@ -182,9 +204,12 @@ void MeasureJumps(const ParGridFunction &u, ParGridFunction &jumps)
                  u_n.ParFESpace()->GetComm());
    u_n /= u_max;
 
-   socketstream sock_un;
-   common::VisualizeField(sock_un, vishost, visport, u_n, "u normalized",
-                          wsize, wsize, wsize, wsize, "Rjmc**");
+   if (vis)
+   {
+      socketstream sock_un;
+      common::VisualizeField(sock_un, vishost, visport, u_n, "u normalized",
+                             wsize, wsize, wsize, wsize, "Rjmc**");
+   }
 
    // Form min/max at each CG dof, considering element overlaps.
    H1_FECollection fec_H1(order, dim);
@@ -225,9 +250,12 @@ void MeasureJumps(const ParGridFunction &u, ParGridFunction &jumps)
    {
       u_jump_H1(i) = fabs(u_max_H1(i) - u_min_H1(i));
    }
-   socketstream sock_j;
-   common::VisualizeField(sock_j, vishost, visport, u_jump_H1, "u jumps HO",
-                          2*wsize, wsize, wsize, wsize, "Rjmc**");
+   if (vis)
+   {
+      socketstream sock_j;
+      common::VisualizeField(sock_j, vishost, visport, u_jump_H1, "u jumps HO",
+                             2*wsize, wsize, wsize, wsize, "Rjmc**");
+   }
 
    // Project the jumps to Q1.
    jumps.ProjectGridFunction(u_jump_H1);
@@ -237,20 +265,34 @@ void MeasureJumps(const ParGridFunction &u, ParGridFunction &jumps)
    jumps.Distribute(tv);
 }
 
+void DiffuseField(ParGridFunction &field, int smooth_steps)
+{
+   // Setup the Laplacian operator
+   ParBilinearForm *Lap = new ParBilinearForm(field.ParFESpace());
+   Lap->AddDomainIntegrator(new DiffusionIntegrator());
+   Lap->Assemble();
+   Lap->Finalize();
+   HypreParMatrix *A = Lap->ParallelAssemble();
+
+   HypreSmoother *S = new HypreSmoother(*A,0,smooth_steps);
+   S->iterative_mode = true;
+
+   Vector tmp(A->Width());
+   field.SetTrueVector();
+   Vector fieldtrue = field.GetTrueVector();
+   tmp = 0.0;
+   S->Mult(tmp, fieldtrue);
+
+   field.Distribute(fieldtrue);
+
+   delete S;
+   delete Lap;
+}
+
 double GradientCompCoefficient::Eval(ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
    Vector grad_u(T.GetDimension());
    u.GetGradient(T, grad_u);
    return grad_u(comp);
-}
-
-double GradientDot11Coefficient::Eval(ElementTransformation &T,
-                                      const IntegrationPoint &ip)
-{
-   const int dim = T.GetDimension();
-   Vector grad_u(dim), one(dim);
-   u.GetGradient(T, grad_u);
-   one = 1.0;
-   return grad_u * one;
 }
