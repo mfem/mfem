@@ -1316,14 +1316,14 @@ static inline void device_copy(double *d_dest, const double *d_src, int size)
 #ifdef MFEM_USE_MPI
 void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
 {
-   MFEM_VERIFY(adapt_lim_eval, "SetAdaptivityEvaluator() has not been called!")
+   MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
    ParFiniteElementSpace *ptspec_fes = t.ParFESpace();
 
-   adapt_lim_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(),
+   adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(),
                                   *ptspec_fes->FEColl(), ncomp);
-   adapt_lim_eval->SetInitialField(*ptspec_fes->GetMesh()->GetNodes(), tspec);
+   adapt_eval->SetInitialField(*ptspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
 
@@ -1354,9 +1354,9 @@ void DiscreteAdaptTC::ParUpdateAfterMeshTopologyChange()
    tspec.SetDataAndSize(tspec_pgf->GetData(), tspec_pgf->Size());
    tspec_sav = tspec;
 
-   adapt_lim_eval->SetParMetaInfo(*ptspec_fesv->GetParMesh(),
+   adapt_eval->SetParMetaInfo(*ptspec_fesv->GetParMesh(),
                                   *ptspec_fesv->FEColl(), ncomp);
-   adapt_lim_eval->SetInitialField(*ptspec_fesv->GetMesh()->GetNodes(), tspec);
+   adapt_eval->SetInitialField(*ptspec_fesv->GetMesh()->GetNodes(), tspec);
 }
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
@@ -1481,13 +1481,13 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(const GridFunction &o)
 
 void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction &t)
 {
-   MFEM_VERIFY(adapt_lim_eval, "SetAdaptivityEvaluator() has not been called!")
+   MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
    const FiniteElementSpace *tspec_fes = t.FESpace();
-   adapt_lim_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
+   adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
                                      *tspec_fes->FEColl(), ncomp);
-   adapt_lim_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
+   adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
 
@@ -1520,9 +1520,9 @@ void DiscreteAdaptTC::UpdateAfterMeshTopologyChange()
    tspec.SetDataAndSize(tspec_gf->GetData(), tspec_gf->Size());
    tspec_sav = tspec;
 
-   adapt_lim_eval->SetSerialMetaInfo(*tspec_fesv->GetMesh(),
+   adapt_eval->SetSerialMetaInfo(*tspec_fesv->GetMesh(),
                                      *tspec_fesv->FEColl(), ncomp);
-   adapt_lim_eval->SetInitialField(*tspec_fesv->GetMesh()->GetNodes(), tspec);
+   adapt_eval->SetInitialField(*tspec_fesv->GetMesh()->GetNodes(), tspec);
 }
 
 void DiscreteAdaptTC::SetSerialDiscreteTargetSpec(const GridFunction &tspec_)
@@ -1537,7 +1537,7 @@ void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
    if (use_flag && good_tspec) { return; }
 
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
-   adapt_lim_eval->ComputeAtNewPosition(new_x, tspec);
+   adapt_eval->ComputeAtNewPosition(new_x, tspec);
    tspec_sav = tspec;
 
    good_tspec = use_flag;
@@ -1546,7 +1546,7 @@ void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
 void DiscreteAdaptTC::UpdateTargetSpecification(Vector &new_x,
                                                 Vector &IntData)
 {
-   adapt_lim_eval->ComputeAtNewPosition(new_x, IntData);
+   adapt_eval->ComputeAtNewPosition(new_x, IntData);
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
@@ -2259,7 +2259,7 @@ void DiscreteAdaptTC::UpdateHessianTargetSpecification(const Vector &x,
 DiscreteAdaptTC::~DiscreteAdaptTC()
 {
    delete tspec_gf;
-   delete adapt_lim_eval;
+   delete adapt_eval;
    delete tspec_fesv;
 #ifdef MFEM_USE_MPI
    delete ptspec_fesv;

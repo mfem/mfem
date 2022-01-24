@@ -1133,7 +1133,7 @@ protected:
 
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
-   AdaptivityEvaluator *adapt_lim_eval;
+   AdaptivityEvaluator *adapt_eval;
 
    void SetDiscreteTargetBase(const GridFunction &tspec_);
    void SetTspecAtIndex(int idx, const GridFunction &tspec_);
@@ -1156,7 +1156,7 @@ public:
 #endif
         amr_el(-1), lim_min_size(-0.1),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
-        adapt_lim_eval(NULL) { }
+        adapt_eval(NULL) { }
 
    virtual ~DiscreteAdaptTC();
 
@@ -1232,8 +1232,8 @@ public:
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
-      if (adapt_lim_eval) { delete adapt_lim_eval; }
-      adapt_lim_eval = ae;
+      if (adapt_eval) { delete adapt_eval; }
+      adapt_eval = ae;
    }
 
    const Vector &GetTspecPert1H()   { return tspec_pert1h; }
