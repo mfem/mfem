@@ -6145,6 +6145,7 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      keVCoef_(kinEnergyCoef_, BSVCoef_),
      ChiParaGF_(NULL),
      ChiPerpGF_(NULL),
+     SGF_(NULL),
      QiGF_(NULL),
      totEnergyGF_(NULL)
 {
