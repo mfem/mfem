@@ -432,7 +432,7 @@ CUDA_LIB = -lcusparse
 
 # HIP library configuration (currently not needed)
 HIP_OPT =
-HIP_LIB =
+HIP_LIB = -lhipsparse
 
 # OCCA library configuration
 OCCA_DIR = @MFEM_DIR@/../occa
