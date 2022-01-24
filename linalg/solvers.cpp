@@ -2031,7 +2031,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    for (it = 0; true; it++)
    {
       MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
-      if (print_level >= 0)
+      if (print_options.iterations)
       {
          mfem::out << "LBFGS iteration " <<  it
                    << " : ||r|| = " << norm;
@@ -2044,13 +2044,13 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
       if (norm <= norm_goal)
       {
-         converged = 1;
+         converged = true;
          break;
       }
 
       if (it >= max_iter)
       {
-         converged = 0;
+         converged = false;
          break;
       }
 
@@ -2058,7 +2058,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
-         converged = 0;
+         converged = false;
          break;
       }
       add(x, -c_scale, c, x); // x_{k+1} = x_k - c_scale*c
@@ -2117,6 +2117,17 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    }
    final_iter = it;
    final_norm = norm;
+
+   if (print_options.summary || (!converged && print_options.warnings) ||
+       print_options.first_and_last)
+   {
+      mfem::out << "LBFGS: Number of iterations: " << final_iter << '\n'
+                << "   ||r|| = " << final_norm << '\n';
+   }
+   if (print_options.summary || (!converged && print_options.warnings))
+   {
+      mfem::out << "LBFGS: No convergence!\n";
+   }
 }
 
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
