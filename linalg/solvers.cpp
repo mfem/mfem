@@ -2027,6 +2027,11 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    c = r;           // initial descent direction
 
    norm0 = norm = Norm(r);
+   if (print_options.first_and_last && !print_options.iterations)
+   {
+      mfem::out << "LBFGS iteration " << setw(2) << 0
+                << " : ||r|| = " << norm << "...\n";
+   }
    norm_goal = std::max(rel_tol*norm, abs_tol);
    for (it = 0; true; it++)
    {
@@ -2115,6 +2120,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
       norm = Norm(r);
    }
+
    final_iter = it;
    final_norm = norm;
 
