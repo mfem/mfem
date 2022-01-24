@@ -3311,6 +3311,7 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
      cbcs_(cbcs),
      cmncoefs_(common_coefs),
      B3Coef_(B3Coef),
+     BxyCoef_(B3Coef),
      massCoef_(NULL),
      diffusionCoef_(NULL),
      diffusionMatrixCoef_(NULL),
@@ -6058,7 +6059,7 @@ TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                  logging, log_prefix),
      QiCoef_(plasma.z_i, plasma.m_i, plasma.lnLambda,
              niCoef_, TiCoef_, TeCoef_),
-     BSVCoef_(B3Coef)
+     BSVCoef_(BxyCoef_)
 {
    if ( mpi_.Root() && logging_ > 1)
    {

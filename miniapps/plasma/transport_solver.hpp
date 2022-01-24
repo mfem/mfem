@@ -3914,6 +3914,7 @@ private:
       const CommonCoefs & cmncoefs_;
 
       VectorCoefficient & B3Coef_;
+      VectorXYCoefficient BxyCoef_;
 
       Coefficient       * massCoef_;
       Coefficient       * diffusionCoef_;
