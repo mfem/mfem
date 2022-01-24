@@ -29,6 +29,7 @@
 // negative Jacobian determinants. Each Newton step requires the inversion of a
 // Jacobian matrix, which is done through an inner linear solver.
 //
+// mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 333 -tid 3 -ni 500 -bnd -ae 0 -vl 1 -sfc 1000 -rtol 1e-6 -qo 6 -st 1
 // Compile with: make pmesh-optimizer
 //
 // Sample runs:
