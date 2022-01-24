@@ -1995,7 +1995,11 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
    // Quadrature points that are checked for negative Jacobians etc.
    Vector sk, rk, yk, rho, alpha;
-   DenseMatrix skM(width, m), ykM(width, m);
+   for (int i = 0; i < m; i++)
+   {
+      skArray[i]->SetSize(width);
+      ykArray[i]->SetSize(width);
+   }
 
    // r - r_{k+1}, c - descent direction
    sk.SetSize(width);    // x_{k+1}-x_k
@@ -2023,16 +2027,11 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    c = r;           // initial descent direction
 
    norm0 = norm = Norm(r);
-   if (print_options.first_and_last && !print_options.iterations)
-   {
-      mfem::out << "LBFGS iteration " << setw(2) << 0
-                << " : ||r|| = " << norm << "...\n";
-   }
    norm_goal = std::max(rel_tol*norm, abs_tol);
    for (it = 0; true; it++)
    {
       MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
-      if (print_options.iterations)
+      if (print_level >= 0)
       {
          mfem::out << "LBFGS iteration " <<  it
                    << " : ||r|| = " << norm;
@@ -2045,13 +2044,13 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
       if (norm <= norm_goal)
       {
-         converged = true;
+         converged = 1;
          break;
       }
 
       if (it >= max_iter)
       {
-         converged = false;
+         converged = 0;
          break;
       }
 
@@ -2059,7 +2058,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
-         converged = false;
+         converged = 0;
          break;
       }
       add(x, -c_scale, c, x); // x_{k+1} = x_k - c_scale*c
@@ -2079,27 +2078,23 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
       // Save last m vectors
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
-      skM.SetCol(last_saved_id, sk);
-      ykM.SetCol(last_saved_id, yk);
+      *skArray[last_saved_id] = sk;
+      *ykArray[last_saved_id] = yk;
 
       c = r;
       for (int i = last_saved_id; i > -1; i--)
       {
-         skM.GetColumn(i, sk);
-         ykM.GetColumn(i, yk);
-         rho(i) = 1./Dot(sk, yk);
-         alpha(i) = rho(i)*Dot(sk,c);
-         add(c, -alpha(i), yk, c);
+         rho(i) = 1.0/Dot((*skArray[i]),(*ykArray[i]));
+         alpha(i) = rho(i)*Dot((*skArray[i]),c);
+         add(c, -alpha(i), (*ykArray[i]), c);
       }
       if (it > m-1)
       {
          for (int i = m-1; i > last_saved_id; i--)
          {
-            skM.GetColumn(i, sk);
-            ykM.GetColumn(i, yk);
-            rho(i) = 1./Dot(sk, yk);
-            alpha(i) = rho(i)*Dot(sk,c);
-            add(c, -alpha(i), yk, c);
+            rho(i) = 1./Dot((*skArray[i]), (*ykArray[i]));
+            alpha(i) = rho(i)*Dot((*skArray[i]),c);
+            add(c, -alpha(i), (*ykArray[i]), c);
          }
       }
 
@@ -2108,36 +2103,20 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       {
          for (int i = last_saved_id+1; i < m ; i++)
          {
-            skM.GetColumn(i,sk);
-            ykM.GetColumn(i,yk);
-            double betai = rho(i)*Dot(yk, c);
-            add(c, alpha(i)-betai, sk, c);
+            double betai = rho(i)*Dot((*ykArray[i]), c);
+            add(c, alpha(i)-betai, (*skArray[i]), c);
          }
       }
       for (int i = 0; i < last_saved_id+1 ; i++)
       {
-         skM.GetColumn(i,sk);
-         ykM.GetColumn(i,yk);
-         double betai = rho(i)*Dot(yk, c);
-         add(c, alpha(i)-betai, sk, c);
+         double betai = rho(i)*Dot((*ykArray[i]), c);
+         add(c, alpha(i)-betai, (*skArray[i]), c);
       }
 
       norm = Norm(r);
    }
-
    final_iter = it;
    final_norm = norm;
-
-   if (print_options.summary || (!converged && print_options.warnings) ||
-       print_options.first_and_last)
-   {
-      mfem::out << "LBFGS: Number of iterations: " << final_iter << '\n'
-                << "   ||r|| = " << final_norm << '\n';
-   }
-   if (print_options.summary || (!converged && print_options.warnings))
-   {
-      mfem::out << "LBFGS: No convergence!\n";
-   }
 }
 
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
