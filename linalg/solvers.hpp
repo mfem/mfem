@@ -699,15 +699,26 @@ class LBFGSSolver : public NewtonSolver
 {
 protected:
    int m = 10;
+   mutable Array<Vector *> skArray, ykArray;
 
 public:
-   LBFGSSolver() : NewtonSolver() { }
+   LBFGSSolver() : NewtonSolver()
+   {
+      InitializeStorageVectors();
+   }
 
 #ifdef MFEM_USE_MPI
-   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) { }
+   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_)
+   {
+      InitializeStorageVectors();
+   }
 #endif
 
-   void SetHistorySize(int dim) { m = dim; }
+   void SetHistorySize(int dim)
+   {
+      m = dim;
+      InitializeStorageVectors();
+   }
 
    /// Solve the nonlinear system with right-hand side @a b.
    /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
@@ -717,7 +728,33 @@ public:
    { MFEM_WARNING("L-BFGS won't use the given preconditioner."); }
    virtual void SetSolver(Solver &solver)
    { MFEM_WARNING("L-BFGS won't use the given solver."); }
+
+   void DeleteStorageVectors()
+   {
+      for (int i = 0; i < skArray.Size(); i++)
+      {
+         skArray[i]->Destroy();
+         ykArray[i]->Destroy();
+      }
+   }
+
+   void InitializeStorageVectors()
+   {
+      DeleteStorageVectors();
+      skArray.SetSize(m);
+      ykArray.SetSize(m);
+      for (int i = 0; i < m; i++)
+      {
+         skArray[i] = new Vector(width);
+         ykArray[i] = new Vector(width);
+         skArray[i]->UseDevice(true);
+         ykArray[i]->UseDevice(true);
+      }
+   }
+
+   virtual ~LBFGSSolver() { DeleteStorageVectors(); }
 };
+
 
 /** Adaptive restarted GMRES.
     m_max and m_min(=1) are the maximal and minimal restart parameters.
