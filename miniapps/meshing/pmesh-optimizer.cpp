@@ -1108,6 +1108,7 @@ int main (int argc, char *argv[])
       // Specify linear solver when we use a Newton-based solver.
       solver.SetPreconditioner(*S);
    }
+   StopWatch TimeSolver;
    // For untangling, the solver will update the min det(T) values.
    if (tauval < 0.0) { solver.SetMinDetPtr(&tauval); }
    solver.SetMaxIter(solver_iter);
@@ -1118,25 +1119,64 @@ int main (int argc, char *argv[])
       solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
    }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   solver.SetOperator(a);
+   TimeSolver.Start();
+   solver.Mult(b, x.GetTrueVector());
+   TimeSolver.Stop();
+   x.SetFromTrueVector();
 
-   // hr-adaptivity solver.
-   // If hr-adaptivity is disabled, r-adaptivity is done once using the
-   // TMOPNewtonSolver.
-   // Otherwise, "hr_iter" iterations of r-adaptivity are done followed by
-   // "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity.
-   // The solver terminates if an h-adaptivity iteration does not modify
-   // any element in the mesh.
-   TMOPHRSolver hr_solver(*pmesh, a, solver,
-                          x, move_bnd, hradaptivity,
-                          mesh_poly_deg, h_metric_id,
-                          n_hr_iter, n_h_iter);
-   hr_solver.AddGridFunctionForUpdate(&x0);
-   if (adapt_lim_const > 0.)
+   const double solvertime = TimeSolver.RealTime(),
+                vectortime = solver.GetAssembleElementVectorTime(),
+                gradtime   = solver.GetAssembleElementGradTime(),
+                prectime   = solver.GetPrecMultTime(),
+                processnewstatetime = solver.GetProcessNewStateTime(),
+                scalefactortime = solver.GetComputeScalingTime();
+
+   if (myid == 0 && solver.GetConverged() == false)
    {
-      hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);
-      hr_solver.AddFESpaceForUpdate(&ind_fes);
+      cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
    }
-   hr_solver.Mult();
+
+   MPI_Barrier(MPI_COMM_WORLD);
+   int NDofs = x.ParFESpace()->GlobalTrueVSize()/pmesh->Dimension(),
+       NEGlob = pmesh->GetGlobalNE();
+   if (myid == 0)
+   {
+      std::cout << "Monitoring info      :" << endl
+                << "Number of elements   :" << NEGlob << endl
+                << "Number of procs      :" << num_procs << endl
+                << "Polynomial degree    :" << mesh_poly_deg << endl
+                << "Total TDofs          :" << NDofs << endl
+                << std::setprecision(4)
+                << "Total Iterations     :" << solver.GetNumIterations() << endl
+                << "Total Solver Time (%):" << solvertime << " "
+                << (solvertime*100/solvertime) << endl
+                << "Assemble Vector Time :" << vectortime << " "
+                << (vectortime*100/solvertime) << endl
+                << "Assemble Grad Time   :" << gradtime << " "
+                << gradtime*100/solvertime <<  endl
+                << "Prec Solve Time      :" << prectime << " "
+                << prectime*100/solvertime <<  endl
+                << "ProcessNewState Time :" << processnewstatetime << " "
+                << (processnewstatetime*100/solvertime) <<  endl
+                << "ComputeScale Time    :" << scalefactortime << " "
+                << (scalefactortime*100/solvertime) <<  endl;
+
+      std::cout << "run_info: " << std::setprecision(4) << " "
+                << rs_levels << " "
+                << mesh_poly_deg << " " << quad_order << " "
+                << solver_type << " " <<  solver_art_type << " "
+                << lin_solver << " " << max_lin_iter << " "
+                << pa << " " << metric_id << " " << num_procs
+                << std::setprecision(10) << " "
+                << NEGlob << " " << NDofs << " "
+                << solver.GetNumIterations() << " " << solvertime << " "
+                << (vectortime*100/solvertime) << " "
+                << (gradtime*100/solvertime) << " "
+                << (prectime*100/solvertime) << " "
+                << (processnewstatetime*100/solvertime) << " "
+                << (scalefactortime*100/solvertime) << endl;
+   }
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
@@ -1149,16 +1189,14 @@ int main (int argc, char *argv[])
    }
 
    // Compute the final energy of the functional.
-   const double fin_energy = a.GetParGridFunctionEnergy(x) /
-                             (hradaptivity ? pmesh->GetGlobalNE() : 1);
+   const double fin_energy = a.GetParGridFunctionEnergy(x);
    double fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
       surf_fit_coeff.constant  = 0.0;
-      fin_metric_energy  = a.GetParGridFunctionEnergy(x) /
-                           (hradaptivity ? pmesh->GetGlobalNE() : 1);
+      fin_metric_energy  = a.GetParGridFunctionEnergy(x);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;
       surf_fit_coeff.constant  = surface_fit_const;
