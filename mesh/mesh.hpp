@@ -1262,10 +1262,7 @@ public:
    /** This enumerated type is used to describe if an element face is a
        conforming or a non-conforming face. In the case of a non-conforming
        face, the element can either be the coarse element or the fine element of
-       the non-conforming face.
-       By extension, we name a face a non-conforming coarse or fine face,
-       if the face belonging to elem1 is a non-conforming coarse of fine face
-       respectively. */
+       the non-conforming face. */
    enum class FaceConformity { Conforming,
                                NonConformingCoarse,
                                NonConformingFine,
