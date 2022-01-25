@@ -897,7 +897,7 @@ int FiniteElementSpace::GetNumBorderDofs(Geometry::Type geom, int order) const
    const int nv = fec->GetNumDof(Geometry::POINT, order);
    const int ne = fec->GetNumDof(Geometry::SEGMENT, order);
 
-   return Geometry::NumVerts[geom] * (mesh->Dimension() == 3 ? (nv + ne) : nv);
+   return Geometry::NumVerts[geom] * (geom == Geometry::SEGMENT ? nv : (nv + ne));
 }
 
 int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
