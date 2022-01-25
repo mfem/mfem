@@ -1191,13 +1191,13 @@ void ComplexSchwarzSmoother::Mult(const Vector &r, Vector &z) const
             Array<int> block_offs(3);
             block_offs[0] = 0;
             block_offs[1] = res_r[ip]->GetBlock(0).Size();
-            block_offs[2] = res_r[ip]->GetBlock(1).Size();
+            block_offs[2] = res_i[ip]->GetBlock(1).Size();
             block_offs.PartialSum();
             sol_r[ip] = new BlockVector(block_offs);
             sol_i[ip] = new BlockVector(block_offs);
             Vector res(2*sol_r[ip]->Size());
             res.SetVector(*res_r[ip],0);
-            res.SetVector(*res_r[ip],res_r[ip]->Size());
+            res.SetVector(*res_i[ip],res_r[ip]->Size());
             Vector sol(2*sol_r[ip]->Size());
             PatchInv[ip]->Mult(res, sol);
             Vector solr, soli;
