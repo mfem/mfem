@@ -62,7 +62,7 @@ void VectorDomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
    }
    else
    {
-      Vector Qvec(vdim);
+      Vector qvec(vdim);
       coeff.SetSize(vdim * NQ * NE);
       auto C = Reshape(coeff.HostWrite(), vdim, NQ, NE);
       for (int e = 0; e < NE; ++e)
@@ -70,8 +70,8 @@ void VectorDomainLFGradIntegrator::AssembleFull(const FiniteElementSpace &fes,
          ElementTransformation &Tr = *fes.GetElementTransformation(e);
          for (int q = 0; q < NQ; ++q)
          {
-            Q.Eval(Qvec, Tr, ir->IntPoint(q));
-            for (int c = 0; c<vdim; ++c) { C(c,q,e) = Qvec[c]; }
+            Q.Eval(qvec, Tr, ir->IntPoint(q));
+            for (int c = 0; c<vdim; ++c) { C(c,q,e) = qvec[c]; }
          }
       }
    }

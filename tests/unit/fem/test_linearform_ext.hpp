@@ -156,8 +156,8 @@ struct LinearFormExtTest
       lf_full.AddDomainIntegrator(integ_full, elem_marker);
       lf_legacy.AddDomainIntegrator(integ_legacy, elem_marker);
 
-      lf_full.SetAssemblyLevel(LinearAssemblyLevel::FULL);
-      lf_legacy.SetAssemblyLevel(LinearAssemblyLevel::LEGACY);
+      lf_full.SetAssemblyLevel(AssemblyLevel::FULL);
+      lf_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
    }
 
    void AssembleBoth()

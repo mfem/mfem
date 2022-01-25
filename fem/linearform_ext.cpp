@@ -20,6 +20,7 @@ namespace mfem
 FullLinearFormExtension::FullLinearFormExtension(LinearForm *lf):
    LinearFormExtension(lf)
 {
+   markers.GetMemory().UseDevice(true);
    Update();
 }
 
@@ -72,7 +73,7 @@ void FullLinearFormExtension::Assemble()
       // if there are no markers, just use the whole linear form (1)
       if (!has_markers_k)
       {
-         // done this way as operator= for array are still done on the host
+         // done this way as operator= for array is still done on the host
          MFEM_FORALL(e, NE, markers_w[e] = 1;);
       }
       else

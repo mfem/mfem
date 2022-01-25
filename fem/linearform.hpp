@@ -14,23 +14,14 @@
 
 #include "../config/config.hpp"
 #include "lininteg.hpp"
+#include "bilinearform.hpp"
 #include "linearform_ext.hpp"
 #include "gridfunc.hpp"
 
 namespace mfem
 {
 
-/** @brief Enumeration defining the assembly level for linear form classes
- *  derived from Vector. */
-enum class LinearAssemblyLevel
-{
-   /// Legacy assembled form, i.e. a global vector in MFEM format.
-   /// This assembly level is ALWAYS performed on the host.
-   LEGACY = 0,
-   /// Fully assembled form, i.e. a global vector in MFEM format.
-   /// This assembly is compatible with device execution.
-   FULL
-};
+enum class AssemblyLevel;
 
 /// Vector with associated FE space and LinearFormIntegrators.
 class LinearForm : public Vector
@@ -42,7 +33,7 @@ protected:
    FiniteElementSpace *fes;
 
    /// The assembly level of the form (legacy or full)
-   LinearAssemblyLevel assembly;
+   AssemblyLevel assembly;
 
    /** @brief Extension for supporting different assembly levels. */
    LinearFormExtension *ext;
@@ -197,9 +188,9 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetFLFI_Marker() { return &boundary_face_integs_marker; }
 
-   /// Set the desired assembly level, default is LinearAssemblyLevel::LEGACY.
+   /// Set the desired assembly level, default is AssemblyLevel::LEGACY.
    /** This method must be called before assembly. */
-   void SetAssemblyLevel(LinearAssemblyLevel);
+   void SetAssemblyLevel(AssemblyLevel);
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();

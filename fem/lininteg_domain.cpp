@@ -36,10 +36,10 @@ void DomainLFIntegrator::AssembleFull(const FiniteElementSpace &fes,
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
    }
-   else if (QuadratureFunctionCoefficient *cQ =
+   else if (QuadratureFunctionCoefficient *qfQ =
                dynamic_cast<QuadratureFunctionCoefficient*>(&Q))
    {
-      const QuadratureFunction &qfun = cQ->GetQuadFunction();
+      const QuadratureFunction &qfun = qfQ->GetQuadFunction();
       MFEM_VERIFY(qfun.Size() == vdim*NE*NQ,
                   "Incompatible QuadratureFunction dimension \n");
       MFEM_VERIFY(ir == &qfun.GetSpace()->GetElementIntRule(0),

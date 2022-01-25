@@ -15,6 +15,7 @@
 
 #include "../fem/kernels.hpp"
 #include "../general/forall.hpp"
+#include "../fem/kernels.hpp"
 #include "../linalg/kernels.hpp"
 
 namespace mfem
@@ -148,7 +149,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
 
    const int sm_size = 2*q*(d+q);
    constexpr int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = ScratchMem<GRID>(sm_size);
+   double *gmem = kernels::internal::ScratchPadMemory<GRID>(sm_size);
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
@@ -159,9 +160,9 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
       constexpr bool USE_SMEM = D > 0 && Q > 0;
       MFEM_SHARED double SMEM[USE_SMEM ? SM_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
-      const DeviceMatrix Bt(DeviceMemAlloc(sm,q*d), q,d);
-      const DeviceMatrix QQ(DeviceMemAlloc(sm,q*q), q,q);
-      const DeviceMatrix QD(DeviceMemAlloc(sm,q*d), q,d);
+      const DeviceMatrix Bt(kernels::internal::DeviceMemAlloc(sm,q*d), q,d);
+      const DeviceMatrix QQ(kernels::internal::DeviceMemAlloc(sm,q*q), q,q);
+      const DeviceMatrix QD(kernels::internal::DeviceMemAlloc(sm,q*d), q,d);
 
       kernels::internal::LoadB(d,q,B,Bt);
 
@@ -217,7 +218,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
 
    const int sm_size = q*d + q*q*q;
    const int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = ScratchMem<GRID>(sm_size);
+   double *gmem = kernels::internal::ScratchPadMemory<GRID>(sm_size);
    MFEM_VERIFY(q < 32, "Unsupported quadrature order!");
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
@@ -231,8 +232,8 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
       constexpr bool USE_SMEM = D > 0 && Q > 0;
       MFEM_SHARED double SMEM[USE_SMEM ? SM_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
-      const DeviceCube QQQ(DeviceMemAlloc(sm,q*q*q), q,q,q);
-      const DeviceMatrix Bt(DeviceMemAlloc(sm,q*d), q,d);
+      const DeviceCube QQQ(kernels::internal::DeviceMemAlloc(sm,q*q*q), q,q,q);
+      const DeviceMatrix Bt(kernels::internal::DeviceMemAlloc(sm,q*d), q,d);
       kernels::internal::LoadB(d,q,B,Bt);
 
       for (int c = 0; c < vdim; ++c)
