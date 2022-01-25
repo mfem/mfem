@@ -5291,9 +5291,9 @@ int Mesh::GetNFbyType(FaceType type) const
          FaceInformation face = GetFaceInformation(f);
          if ( face.IsOfFaceType(type) )
          {
-            if (face.IsElem1LocalNonConformingCoarse())
+            if (face.IsLocalNonConformingCoarseFine())
             {
-               // We don't count local non-conforming coarse faces.
+               // We don't count local non-conforming coarse-fine faces.
                continue;
             }
             nf++;
