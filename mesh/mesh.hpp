@@ -1338,40 +1338,40 @@ public:
       }
 
       /// @brief Return true if the face is a non-conforming fine face.
-      bool IsElem1NonConformingFine() const
+      bool IsNonConformingFineCoarse() const
       {
          return elem_1_conformity==Mesh::FaceConformity::NonConformingFine;
       }
 
       /// @brief Return true if the face is a non-conforming coarse face.
-      bool IsElem1NonConformingCoarse() const
+      bool IsNonConformingCoarseFine() const
       {
          return elem_1_conformity==Mesh::FaceConformity::NonConformingCoarse;
       }
 
       /// @brief Return true if the face is a local non-conforming fine face.
-      bool IsElem1LocalNonConformingFine() const
+      bool IsLocalNonConformingFineCoarse() const
       {
-         return IsLocal() && IsElem1NonConformingFine();
+         return IsLocal() && IsNonConformingFineCoarse();
       }
 
       /// @brief Return true if the face is a local (or NA) non-conforming coarse face.
-      bool IsElem1LocalNonConformingCoarse() const
+      bool IsLocalNonConformingCoarseFine() const
       {
          return (IsLocal() || elem_2_location==Mesh::FaceLocation::NA) &&
-                IsElem1NonConformingCoarse();
+                IsNonConformingCoarseFine();
       }
 
       /// @brief Return true if the face is a shared non-conforming fine face.
-      bool IsElem1SharedNonConformingFine() const
+      bool IsSharedNonConformingFineCoarse() const
       {
-         return IsShared() && IsElem1NonConformingFine();
+         return IsShared() && IsNonConformingFineCoarse();
       }
 
       /// @brief Return true if the face is a shared non-conforming coarse face.
-      bool IsElem1SharedNonConformingCoarse() const
+      bool IsSharedNonConformingCoarseFine() const
       {
-         return IsShared() && IsElem1NonConformingCoarse();
+         return IsShared() && IsNonConformingCoarseFine();
       }
    };
 
