@@ -32,21 +32,6 @@ const int MAX_D1D = 14;
 const int MAX_Q1D = 14;
 #endif
 
-/** @brief Create a scratch memory on the device. */
-template<int GRID, typename T = double>
-static T *ScratchMem(const int sm_size)
-{
-   if (GRID==0) { return nullptr; }
-   static Memory<T> data;
-   if (sm_size*GRID > data.Capacity())
-   {
-      data.Delete();
-      data.New(sm_size*GRID, Device::GetDeviceMemoryType());
-      data.UseDevice(true);
-   }
-   return data.Write(Device::GetDeviceMemoryClass(), data.Capacity());
-}
-
 // MFEM pragma macros that can be used inside MFEM_FORALL macros.
 #define MFEM_PRAGMA(X) _Pragma(#X)
 

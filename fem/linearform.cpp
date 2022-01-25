@@ -100,7 +100,7 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
    interior_face_integs.Append(lfi);
 }
 
-void LinearForm::SetAssemblyLevel(LinearAssemblyLevel assembly_level)
+void LinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 {
    if (ext)
    {
@@ -109,9 +109,9 @@ void LinearForm::SetAssemblyLevel(LinearAssemblyLevel assembly_level)
    assembly = assembly_level;
    switch (assembly)
    {
-      case LinearAssemblyLevel::LEGACY:
+      case AssemblyLevel::LEGACY:
          break;
-      case LinearAssemblyLevel::FULL:
+      case AssemblyLevel::FULL:
          ext = new FullLinearFormExtension(this);
          break;
       default:
@@ -134,8 +134,6 @@ void LinearForm::Assemble()
    DofTransformation *doftrans;
    Vector elemvect;
 
-   int i;
-
    if (domain_integs.Size())
    {
       for (int k = 0; k < domain_integs.Size(); k++)
@@ -149,7 +147,7 @@ void LinearForm::Assemble()
          }
       }
 
-      for (i = 0; i < fes -> GetNE(); i++)
+      for (int i = 0; i < fes -> GetNE(); i++)
       {
          int elem_attr = fes->GetMesh()->GetAttribute(i);
          for (int k = 0; k < domain_integs.Size(); k++)
@@ -197,7 +195,7 @@ void LinearForm::Assemble()
          }
       }
 
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -245,7 +243,7 @@ void LinearForm::Assemble()
          }
       }
 
-      for (i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < mesh->GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -275,7 +273,7 @@ void LinearForm::Assemble()
 
       for (int k = 0; k < interior_face_integs.Size(); k++)
       {
-         for (i = 0; i < mesh->GetNumFaces(); i++)
+         for (int i = 0; i < mesh->GetNumFaces(); i++)
          {
             FaceElementTransformations *tr = NULL;
             tr = mesh->GetInteriorFaceTransformations (i);

@@ -38,12 +38,13 @@ struct Test: public LinearFormExtTest
    void Run() override
    {
       AssembleBoth();
+      mdofs += MDofs();
       MFEM_DEVICE_SYNC;
-      const double tolerance = 1e-13;
+      const double tolerance = 1e-12;
       const double dtd = lf_full*lf_full;
       const double rtr = lf_legacy*lf_legacy;
       const bool almost_eq = almost_equal(dtd, rtr, tolerance);
-      MFEM_VERIFY(almost_eq, "almost_equal test error!");
+      MFEM_VERIFY(almost_eq, "almost_equal test error: " << dtd << " " << rtr);
    }
 };
 
@@ -98,7 +99,7 @@ LinExtTest(VectorDomainLFGrad,_3D,VDIM,_GL)
 
 ////////////////////////////////////////////////////////////////////////////////
 /// BENCH for LinearFormExtension
-template<enum LinearAssemblyLevel LAL>
+template<enum AssemblyLevel LAL>
 struct Bench: public LinearFormExtTest
 {
    Bench(int dim, int vdim, int ordering, bool gll, int problem, int p):
@@ -112,10 +113,10 @@ struct Bench: public LinearFormExtTest
 
    void Run() override
    {
+      mdofs += MDofs();
       MFEM_DEVICE_SYNC;
-      this->mdofs += this->MDofs();
-      if (LAL==LinearAssemblyLevel::FULL) { lf_full.Assemble(); }
-      if (LAL==LinearAssemblyLevel::LEGACY) { lf_legacy.Assemble(); }
+      if (LAL==AssemblyLevel::FULL) { lf_full.Assemble(); }
+      if (LAL==AssemblyLevel::LEGACY) { lf_legacy.Assemble(); }
    }
 };
 
@@ -123,7 +124,7 @@ struct Bench: public LinearFormExtTest
 #define LinExtBench(Problem,lal,dim,vdim,gll)\
 static void BENCH_##lal##_##Problem##dim##gll(bm::State &state){\
    const int p = state.range(0);\
-   Bench<LinearAssemblyLevel::lal> ker(dim,vdim,Ordering::byVDIM,gll,LinearFormExtTest::Problem, p);\
+   Bench<AssemblyLevel::lal> ker(dim,vdim,Ordering::byVDIM,gll,LinearFormExtTest::Problem, p);\
    while (state.KeepRunning()) { ker.Run(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
 BENCHMARK(BENCH_##lal##_##Problem##dim##gll)->DenseRange(1,6)->Unit(bm::kMicrosecond);
