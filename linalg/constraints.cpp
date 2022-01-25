@@ -327,7 +327,7 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    krylov->SetMaxIter(max_iter);
    krylov->SetRelTol(rel_tol);
    krylov->SetAbsTol(abs_tol);
-   krylov->SetPrintLevel(print_level);
+   krylov->SetPrintLevel(print_options);
 
    Vector rtilde(rhs.Size());
    if (constraint_rhs.Size() > 0)
@@ -447,7 +447,7 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    krylov->SetRelTol(rel_tol);
    krylov->SetAbsTol(abs_tol);
    krylov->SetMaxIter(max_iter);
-   krylov->SetPrintLevel(print_level);
+   krylov->SetPrintLevel(print_options);
    krylov->Mult(penalized_rhs, x);
    final_iter = krylov->GetNumIterations();
    final_norm = krylov->GetFinalNorm();
@@ -574,7 +574,7 @@ void SchurConstrainedSolver::LagrangeSystemMult(const Vector& x,
    gmres->SetRelTol(rel_tol);
    gmres->SetAbsTol(abs_tol);
    gmres->SetMaxIter(max_iter);
-   gmres->SetPrintLevel(print_level);
+   gmres->SetPrintLevel(print_options);
    gmres->SetPreconditioner(
       const_cast<BlockDiagonalPreconditioner&>(*block_pc));
 

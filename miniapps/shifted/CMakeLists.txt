@@ -17,6 +17,7 @@ if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_HEADERS
         dist_solver.hpp
         sbm_solver.hpp
+	sbm_aux.hpp
         marking.hpp)
 
 convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
