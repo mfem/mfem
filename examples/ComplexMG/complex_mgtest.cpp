@@ -1,10 +1,4 @@
 //
-// Compile with: make helmholtz
-//
-// Sample runs:  helmholtz -m ../data/one-hex.mesh
-//               helmholtz -m ../data/fichera.mesh
-//               helmholtz -m ../data/fichera-mixed.mesh
-//
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Helmholtz problem
 //               -Delta p - omega^2 p = f with impedance boundary conditiones.
