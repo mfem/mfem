@@ -41,8 +41,9 @@
 
 using namespace mfem;
 using namespace std;
-.
-GridFunction* ProlongToMaxOrder(const GridFunction *x)
+
+// Experimental - required for visualizing functions on p-refined spaces.
+GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
 {
    const FiniteElementSpace *fespace = x->FESpace();
    Mesh *mesh = fespace->GetMesh();
@@ -56,15 +57,21 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x)
    }
 
    // create a visualization space of max order for all elements
-   FiniteElementCollection *l2fec =
-      new H1_FECollection(max_order, mesh->Dimension());
-   // new L2_FECollection(max_order, mesh->Dimension(), BasisType::GaussLobatto);
-   FiniteElementSpace *l2space = new FiniteElementSpace(mesh, l2fec);
+   FiniteElementCollection *fecInt = NULL;
+   if (fieldtype == 0)
+   {
+      fecInt = new H1_FECollection(max_order, mesh->Dimension());
+   }
+   else if (fieldtype == 1)
+   {
+      fecInt = new L2_FECollection(max_order, mesh->Dimension());
+   }
+   FiniteElementSpace *spaceInt = new FiniteElementSpace(mesh, fecInt);
 
    IsoparametricTransformation T;
    DenseMatrix I;
 
-   GridFunction *prolonged_x = new GridFunction(l2space);
+   GridFunction *xInt = new GridFunction(spaceInt);
 
    // interpolate solution vector in the larger space
    for (int i = 0; i < mesh->GetNE(); i++)
@@ -74,22 +81,22 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x)
 
       Array<int> dofs;
       fespace->GetElementDofs(i, dofs);
-      Vector elemvect, l2vect;
+      Vector elemvect, vectInt;
       x->GetSubVector(dofs, elemvect);
 
       const auto *fe = fec->GetFE(geom, fespace->GetElementOrder(i));
-      const auto *l2fe = l2fec->GetFE(geom, max_order);
+      const auto *feInt = fecInt->GetFE(geom, max_order);
 
-      l2fe->GetTransferMatrix(*fe, T, I);
-      l2space->GetElementDofs(i, dofs);
-      l2vect.SetSize(dofs.Size());
+      feInt->GetTransferMatrix(*fe, T, I);
+      spaceInt->GetElementDofs(i, dofs);
+      vectInt.SetSize(dofs.Size());
 
-      I.Mult(elemvect, l2vect);
-      prolonged_x->SetSubVector(dofs, l2vect);
+      I.Mult(elemvect, vectInt);
+      xInt->SetSubVector(dofs, vectInt);
    }
 
-   prolonged_x->MakeOwner(l2fec);
-   return prolonged_x;
+   xInt->MakeOwner(fecInt);
+   return xInt;
 }
 
 // Scalar function to project
@@ -247,9 +254,9 @@ int main (int argc, char *argv[])
    VectorFunctionCoefficient F(vec_dim, F_exact);
    field_vals.ProjectCoefficient(F);
 
-   GridFunction *field_vals_max_order = prefinement ?
-                                        ProlongToMaxOrder(&field_vals) :
-                                        &field_vals;
+   GridFunction *field_vals_pref = prefinement ?
+                                   ProlongToMaxOrder(&field_vals, fieldtype) :
+                                   &field_vals;
 
    // Display the mesh and the field through glvis.
    if (visualization)
@@ -266,7 +273,7 @@ int main (int argc, char *argv[])
       else
       {
          sout.precision(8);
-         sout << "solution\n" << mesh << *field_vals_max_order;
+         sout << "solution\n" << mesh << *field_vals_pref;
          if (dim == 2) { sout << "keys RmjA*****\n"; }
          if (dim == 3) { sout << "keys mA\n"; }
          sout << flush;
@@ -346,7 +353,7 @@ int main (int argc, char *argv[])
    // Free the internal gslib data.
    finder.FreeData();
 
-   if (prefinement) { delete field_vals_max_order; }
+   if (prefinement) { delete field_vals_pref; }
    delete fec;
 
    return 0;
