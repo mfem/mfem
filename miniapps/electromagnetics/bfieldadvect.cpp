@@ -1,6 +1,8 @@
-#include "vector_advectors.hpp"
+#include "bfieldadvect_solver.hpp"
 
+using namespace std;
 using namespace mfem;
+using namespace mfem::electromagnetics;
 
 void BFieldFunc(const Vector &, Vector&);
 
@@ -10,7 +12,7 @@ int main(int argc, char *argv[])
 
    // Parse command-line options.
    const char *mesh_file = "../../data/toroid-hex.mesh";
-   int sOrder = 1;
+   int order = 1;
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
    bool visualization = true;
@@ -19,7 +21,7 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&sOrder, "-so", "--spatial-order",
+   args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
                   "Number of serial refinement levels.");
@@ -81,8 +83,8 @@ int main(int argc, char *argv[])
    ParMesh pmesh_new(pmesh);
 
    //Set up the pre and post advection fields on the relevant meshes/spaces
-   RT_ParFESpace *HDivFESpaceOld  = new RT_ParFESpace(pmesh,order,pmesh.Dimension());
-   RT_ParFESpace *HDivFESpaceNew  = new RT_ParFESpace(pmesh_new,order,pmesh_new.Dimension());
+   RT_ParFESpace *HDivFESpaceOld  = new RT_ParFESpace(&pmesh,order,pmesh.Dimension());
+   RT_ParFESpace *HDivFESpaceNew  = new RT_ParFESpace(&pmesh_new,order,pmesh_new.Dimension());
    ParGridFunction *b = new ParGridFunction(HDivFESpaceOld);
    ParGridFunction *b_new = new ParGridFunction(HDivFESpaceNew);
 
@@ -91,8 +93,8 @@ int main(int argc, char *argv[])
    b->ProjectCoefficient(BFieldCoef);
    //b->ParallelProject(*B);
 
-   BFieldAdvector advector(&pmesh, &pmesh_new);
-   advector.advect(b, b_new);
+   BFieldAdvector advector(&pmesh, &pmesh_new, 1);
+   advector.Advect(b, b_new);
    ParGridFunction *b_recon = advector.GetReconstructedB();
 
    // Handle the visit viusalization
@@ -101,9 +103,9 @@ int main(int argc, char *argv[])
       VisItDataCollection visit_dc("bfield-advect", &pmesh);
       visit_dc.RegisterField("B", b);
       visit_dc.RegisterField("B_recon", b_recon);
-      visit_dc_->SetCycle(0);
-      visit_dc_->SetTime(0);
-      visit_dc_->Save();
+      visit_dc.SetCycle(0);
+      visit_dc.SetTime(0);
+      visit_dc.Save();
    }
 
 }
