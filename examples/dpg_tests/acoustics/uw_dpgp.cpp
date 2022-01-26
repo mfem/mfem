@@ -333,7 +333,7 @@ int main(int argc, char *argv[])
       M->SetDiagonalBlock(3,prec);
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-6);
+      cg.SetRelTol(1e-10);
       cg.SetMaxIter(20000);
       cg.SetPrintLevel(-1);
       cg.SetPreconditioner(*M);

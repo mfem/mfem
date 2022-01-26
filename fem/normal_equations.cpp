@@ -415,6 +415,56 @@ void NormalEquations::Assemble(int skip_zeros)
          B.MultTranspose(Ginvl,b);
       }
 
+
+
+      // Get Shur Complement
+      Array<int> all_dofs;
+      Array<int> bubble_dofs;
+      Array<int> trace_beg;
+      Array<int> trace_end;
+      Array<int> bubble_beg;
+      Array<int> bubble_end;
+      if (static_cond)
+      {
+         // construct Array of bubble dofs to be extracted
+         int k=0;
+         for (int i = 0; i<trial_fes.Size(); i++)
+         {
+            int td,ndof;
+            if (IsTraceFes[i])
+            {
+               Array<int> face_vdofs;
+               for (int k = 0; k < numfaces; k++)
+               {
+                  int iface = faces[k];
+                  trial_fes[i]->GetFaceVDofs(iface, face_vdofs);
+                  all_dofs.Append(face_vdofs);
+               }
+               ndof = all_dofs.Size();
+               td = ndof;
+            }
+            else
+            {
+               trial_fes[i]->GetElementVDofs(iel, all_dofs);
+               trial_fes[i]->GetElementInteriorVDofs(iel, bubble_dofs);
+               ndof = all_dofs.Size(); // number of all dofs
+               td = ndof - bubble_dofs.Size(); // number of bubble dofs
+            }
+
+            trace_beg.Append(k);
+            trace_end.Append(k+td);
+            bubble_beg.Append(k+td);
+            k+=ndof;
+            bubble_end.Append(k);
+         }
+         mfem::out << "trace_beg  = " ; trace_beg.Print() ;
+         mfem::out << "trace_end  = " ; trace_end.Print() ;
+         mfem::out << "bubble_beg = " ; bubble_beg.Print() ;
+         mfem::out << "bubble_end = " ; bubble_end.Print() ;
+         std::cin.get();
+      }
+
+
       // Assembly
       for (int i = 0; i<trial_fes.Size(); i++)
       {
@@ -461,7 +511,10 @@ void NormalEquations::Assemble(int skip_zeros)
             {
                TransformDual(doftrans_i, doftrans_j, Ae);
             }
-            mat->GetBlock(i,j).AddSubMatrix(vdofs_i,vdofs_j, Ae);
+            else
+            {
+               mat->GetBlock(i,j).AddSubMatrix(vdofs_i,vdofs_j, Ae);
+            }
          }
 
          // assemble rhs

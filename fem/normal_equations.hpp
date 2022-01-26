@@ -25,6 +25,7 @@ class NormalEquations
 
 protected:
 
+   bool static_cond = false;
    bool initialized = false;
 
    Mesh * mesh = nullptr;
