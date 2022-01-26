@@ -276,9 +276,19 @@ public:
 
    /** @brief Add the original uneliminated matrix vector multiple to a vector.
        The original matrix is \f$ M + Me \f$ so we have:
-       \f$ y += M x + M_e x \f$ */
-   void FullAddMult(const Vector &x, Vector &y) const
-   { mat->AddMult(x, y); mat_e->AddMult(x, y); }
+       \f$ y += a * M x + a * M_e x \f$ */
+   void FullAddMult(const Vector &x, Vector &y, const double a = 1.0) const
+   { mat->AddMult(x, y, a); mat_e->AddMult(x, y, a); }
+
+   /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
+   virtual void MultTranspose(const Vector & x, Vector & y) const
+   { y = 0.0; AddMultTranspose (x, y); }
+
+   /** @brief Matrix transpose vector multiplication with the original
+       uneliminated matrix.  The original matrix is \f$ M + M_e \f$ so we have:
+       \f$ y = M^T x + {M_e}^T x \f$ */
+   void FullMultTranspose(const Vector &x, Vector &y) const
+   { mat->MultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
 
    /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
    virtual void AddMultTranspose(const Vector & x, Vector & y,
@@ -287,17 +297,18 @@ public:
 
    /** @brief Add the original uneliminated matrix transpose vector
        multiple to a vector. The original matrix is \f$ M + M_e \f$
-       so we have: \f$ y += M^T x + {M_e}^T x \f$ */
-   void FullAddMultTranspose(const Vector & x, Vector & y) const
-   { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
-
-   /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
-   virtual void MultTranspose(const Vector & x, Vector & y) const
-   { y = 0.0; AddMultTranspose (x, y); }
+       so we have: \f$ y += a * M^T x + a * {M_e}^T x \f$ */
+   void FullAddMultTranspose(const Vector & x, Vector & y,
+                             const double a = 1.0) const
+   { mat->AddMultTranspose(x, y, a); mat_e->AddMultTranspose(x, y, a); }
 
    /// Compute \f$ y^T M x \f$
    double InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct (x, y); }
+
+   /// Compute inner product for full uneliminated matrix \f$ y^T M x + y^T M_e x \f$
+   double FullInnerProduct(const Vector &x, const Vector &y) const
+   { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
 
    /// Returns a pointer to (approximation) of the matrix inverse:  \f$ M^{-1} \f$
    virtual MatrixInverse *Inverse() const;
@@ -434,8 +445,14 @@ public:
        recovered by calling RecoverFEMSolution() (with the same vectors @a X,
        @a b, and @a x).
 
-       NOTE: If there are no transformations, @a X simply reuses the data of
-             @a x. */
+       @note If there are no transformations, @a X simply reuses the data of
+             @a x.
+
+       @note This method does modify the bilinear form operator. For example,
+             calls to Mult() will produce different results before and after
+             use of this method. Use FullMult() to obtain the original behavior.
+             Similar methods exist for AddMult(), MultTranspose(), etc..
+   */
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                  Vector &b, OperatorHandle &A, Vector &X,
                                  Vector &B, int copy_interior = 0);
@@ -590,10 +607,6 @@ public:
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x,
                             Vector &b);
 
-   /// Compute inner product for full uneliminated matrix \f$ y^T M x + y^T M_e x \f$
-   double FullInnerProduct(const Vector &x, const Vector &y) const
-   { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
-
    /// Update the @a FiniteElementSpace and delete all data associated with the old one.
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
@@ -714,12 +727,41 @@ public:
    /// Matrix multiplication: \f$ y = M x \f$
    virtual void Mult(const Vector & x, Vector & y) const;
 
+   /** @brief Matrix vector multiplication with the original uneliminated
+       matrix.  The original matrix is \f$ M + M_e \f$ so we have:
+       \f$ y = M x + M_e x \f$ */
+   void FullMult(const Vector &x, Vector &y) const
+   { mat->Mult(x, y); mat_e->AddMult(x, y); }
+
+   /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
    virtual void AddMult(const Vector & x, Vector & y,
                         const double a = 1.0) const;
 
+   /** @brief Add the original uneliminated matrix vector multiple to a vector.
+       The original matrix is \f$ M + Me \f$ so we have:
+       \f$ y += a * M x + a * M_e x \f$ */
+   void FullAddMult(const Vector &x, Vector &y, const double a = 1.0) const
+   { mat->AddMult(x, y, a); mat_e->AddMult(x, y, a); }
+
+   /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
    virtual void MultTranspose(const Vector & x, Vector & y) const;
+
+   /** @brief Matrix transpose vector multiplication with the original
+       uneliminated matrix.  The original matrix is \f$ M + M_e \f$ so we have:
+       \f$ y = M^T x + {M_e}^T x \f$ */
+   void FullMultTranspose(const Vector &x, Vector &y) const
+   { mat->MultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
+
+   /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
    virtual void AddMultTranspose(const Vector & x, Vector & y,
                                  const double a = 1.0) const;
+
+   /** @brief Add the original uneliminated matrix transpose vector
+       multiple to a vector. The original matrix is \f$ M + M_e \f$
+       so we have: \f$ y += a * M^T x + a * {M_e}^T x \f$ */
+   void FullAddMultTranspose(const Vector & x, Vector & y,
+                             const double a = 1.0) const
+   { mat->AddMultTranspose(x, y, a); mat_e->AddMultTranspose(x, y, a); }
 
    virtual MatrixInverse *Inverse() const;
 
@@ -904,12 +946,17 @@ public:
       A.MakeRef(*A_ptr);
    }
 
-   /** @brief Form the linear system A X = B, corresponding to this mixed bilinear
-       form and the linear form @a b(.).
+   /** @brief Form the linear system A X = B, corresponding to this mixed
+       bilinear form and the linear form @a b(.). */
+   /** Return in @a A a *reference* to the system matrix that is
+       column-constrained. The reference will be invalidated when
+       SetOperatorType(), Update(), or the destructor is called.
 
-       Return in @a A a *reference* to the system matrix that is column-constrained.
-       The reference will be invalidated when SetOperatorType(), Update(), or the
-       destructor is called. */
+       @note This method does modify the bilinear form operator. For example,
+             calls to Mult() will produce different results before and after
+             use of this method. Use FullMult() to obtain the original behavior.
+             Similar methods exist for AddMult(), MultTranspose(), etc..
+   */
    virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
                                             const Array<int> &test_tdof_list,
                                             Vector &x, Vector &b,

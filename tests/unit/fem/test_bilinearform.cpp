@@ -11,10 +11,19 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+#include "common_get_mesh.hpp"
 
 #include <iostream>
 
 using namespace mfem;
+using namespace mfem_test_fem;
+
+namespace bilinearform
+{
+
+static double a_ = 5.0;
+static double b_ = 3.0;
+static double c_ = 2.0;
 
 TEST_CASE("Test order of boundary integrators",
           "[BilinearForm]")
@@ -142,3 +151,293 @@ TEST_CASE("FormLinearSystem/SolutionScope",
       REQUIRE(AsConst(sol)(bdr_dof) == 0.0);
    }
 }
+
+enum FEType
+{
+   H1_FEC = 0,
+   ND_FEC,
+   RT_FEC,
+   L2V_FEC,
+   L2I_FEC,
+};
+
+TEST_CASE("BilinearForm Full Ops",
+          "[BilinearForm]")
+{
+   int order = 2;
+   double alpha = M_E;
+
+   for (int mt = (int)MeshType::SEGMENT;
+        mt <= (int)MeshType::MIXED3D8; mt++)
+   {
+      Mesh *mesh = GetMesh((MeshType)mt, a_, b_, c_);
+      int  dim = mesh->Dimension();
+      mesh->UniformRefinement();
+
+      Vector oneVec(dim); oneVec = 1.0;
+
+      ConstantCoefficient oneCoef(1.0);
+      VectorConstantCoefficient oneVecCoef(oneVec);
+
+      for (int ft = (int)FEType::H1_FEC; ft <= (int)FEType::RT_FEC; ft++)
+      {
+         // if (ft == (int)FEType::ND_FEC || ft == (int)FEType::RT_FEC)
+         // { continue; }
+         bool vec = (ft == (int)FEType::ND_FEC || ft == (int)FEType::RT_FEC);
+
+         if (dim == 1 && vec) { continue; }
+         if (vec && (mt == (int)MeshType::WEDGE2 ||
+                     mt == (int)MeshType::WEDGE4 ||
+                     mt == (int)MeshType::MIXED3D6 ||
+                     mt == (int)MeshType::MIXED3D8))
+         { continue; }
+
+         SECTION("Integral of field " + std::to_string(ft) +
+                 " on mesh type " + std::to_string(mt) )
+         {
+
+            FiniteElementCollection *fec = NULL;
+            switch ((FEType)ft)
+            {
+               case FEType::H1_FEC:
+                  fec = new H1_FECollection(order, dim);
+                  break;
+               case FEType::ND_FEC:
+                  fec = new ND_FECollection(order, dim);
+                  break;
+               case FEType::RT_FEC:
+                  fec = new RT_FECollection(order-1, dim);
+                  break;
+               case FEType::L2V_FEC:
+                  fec = new L2_FECollection(order-1, dim);
+                  break;
+               case FEType::L2I_FEC:
+                  fec = new L2_FECollection(order, dim,
+                                            BasisType::GaussLegendre,
+                                            FiniteElement::INTEGRAL);
+                  break;
+               default:
+                  MFEM_ABORT("Invalid vector FE type");
+            }
+            FiniteElementSpace fespace(mesh, fec);
+
+            Array<int> ess_tdof_list;
+            if (mesh->bdr_attributes.Size())
+            {
+               Array<int> ess_bdr(mesh->bdr_attributes.Max());
+               ess_bdr = 1;
+               fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+            }
+
+            GridFunction u(&fespace);
+            if (!vec)
+            {
+               u.ProjectCoefficient(oneCoef);
+            }
+            else
+            {
+               u.ProjectCoefficient(oneVecCoef);
+            }
+
+            BilinearForm a(&fespace);
+            if (!vec)
+            {
+               a.AddDomainIntegrator(new MassIntegrator(oneCoef));
+            }
+            else
+            {
+               a.AddDomainIntegrator(new VectorFEMassIntegrator(oneCoef));
+            }
+            a.Assemble();
+
+            LinearForm Au(&fespace);
+            LinearForm ATu(&fespace);
+            LinearForm aAu(&fespace);
+            LinearForm aATu(&fespace);
+            LinearForm b(&fespace);
+
+            a.Mult(u, Au);
+            a.MultTranspose(u, ATu);
+
+            aAu = Au;
+            aATu = ATu;
+
+            a.AddMult(u, aAu, alpha);
+            a.AddMultTranspose(u, aATu, alpha);
+
+            // Modify the Bilinear Form
+            OperatorPtr A;
+            a.FormSystemMatrix(ess_tdof_list, A);
+
+            a.FullMult(u, b);
+            b -= Au;
+
+            REQUIRE(b.Norml2() == MFEM_Approx( 0.0));
+
+            a.FullMultTranspose(u, b);
+            b -= ATu;
+
+            REQUIRE(b.Norml2() == MFEM_Approx( 0.0));
+
+            b = Au;
+            a.FullAddMult(u, b, alpha);
+            b -= aAu;
+
+            REQUIRE(b.Norml2() == MFEM_Approx( 0.0));
+
+            b = ATu;
+            a.FullAddMultTranspose(u, b, alpha);
+            b -= aATu;
+
+            REQUIRE(b.Norml2() == MFEM_Approx( 0.0));
+
+            delete fec;
+         }
+      }
+
+      delete mesh;
+   }
+}
+
+TEST_CASE("MixedBilinearform Full Ops",
+          "[MixedBilinearForm]")
+{
+   int order = 2;
+   double alpha = M_E;
+
+   for (int mt = (int)MeshType::SEGMENT;
+        mt <= (int)MeshType::MIXED3D8; mt++)
+   {
+      Mesh *mesh = GetMesh((MeshType)mt, a_, b_, c_);
+      int  dim = mesh->Dimension();
+      mesh->UniformRefinement();
+
+      Vector oneVec(dim); oneVec = 1.0;
+
+      ConstantCoefficient oneCoef(1.0);
+      VectorConstantCoefficient oneVecCoef(oneVec);
+
+      for (int ft = (int)FEType::H1_FEC; ft <= (int)FEType::RT_FEC; ft++)
+      {
+         bool vec = (ft == (int)FEType::ND_FEC || ft == (int)FEType::RT_FEC);
+
+         if (dim == 1 && vec) { continue; }
+         if (vec && (mt == (int)MeshType::WEDGE2 ||
+                     mt == (int)MeshType::WEDGE4 ||
+                     mt == (int)MeshType::MIXED3D6 ||
+                     mt == (int)MeshType::MIXED3D8))
+         { continue; }
+
+         SECTION("Integral of field " + std::to_string(ft) +
+                 " on mesh type " + std::to_string(mt) )
+         {
+
+            FiniteElementCollection *fec_dom = NULL;
+            FiniteElementCollection *fec_ran = NULL;
+            switch ((FEType)ft)
+            {
+               case FEType::H1_FEC:
+                  fec_dom = new H1_FECollection(order, dim);
+                  fec_ran = new H1_FECollection(order-1, dim);
+                  break;
+               case FEType::ND_FEC:
+                  fec_dom = new ND_FECollection(order, dim);
+                  fec_ran = new RT_FECollection(order-1, dim);
+                  break;
+               case FEType::RT_FEC:
+                  fec_dom = new RT_FECollection(order-1, dim);
+                  fec_ran = new ND_FECollection(order, dim);
+                  break;
+               default:
+                  MFEM_ABORT("Invalid vector FE type");
+            }
+            FiniteElementSpace fespace_dom(mesh, fec_dom);
+            FiniteElementSpace fespace_ran(mesh, fec_ran);
+
+            Array<int> ess_tdof_list_dom;
+            Array<int> ess_tdof_list_ran;
+            if (mesh->bdr_attributes.Size())
+            {
+               Array<int> ess_bdr(mesh->bdr_attributes.Max());
+               ess_bdr = 1;
+               fespace_dom.GetEssentialTrueDofs(ess_bdr, ess_tdof_list_dom);
+               fespace_ran.GetEssentialTrueDofs(ess_bdr, ess_tdof_list_ran);
+            }
+
+            GridFunction u_dom(&fespace_dom);
+            GridFunction u_ran(&fespace_ran);
+            if (!vec)
+            {
+               u_dom.ProjectCoefficient(oneCoef);
+               u_ran.ProjectCoefficient(oneCoef);
+            }
+            else
+            {
+               u_dom.ProjectCoefficient(oneVecCoef);
+               u_ran.ProjectCoefficient(oneVecCoef);
+            }
+
+            MixedBilinearForm a(&fespace_dom, &fespace_ran);
+            if (!vec)
+            {
+               a.AddDomainIntegrator(new MassIntegrator(oneCoef));
+            }
+            else
+            {
+               a.AddDomainIntegrator(new VectorFEMassIntegrator(oneCoef));
+            }
+            a.Assemble();
+
+            LinearForm Au(&fespace_ran);
+            LinearForm ATu(&fespace_dom);
+            LinearForm aAu(&fespace_ran);
+            LinearForm aATu(&fespace_dom);
+            LinearForm b_ran(&fespace_ran);
+            LinearForm b_dom(&fespace_dom);
+
+            a.Mult(u_dom, Au);
+            a.MultTranspose(u_ran, ATu);
+
+            aAu = Au;
+            aATu = ATu;
+
+            a.AddMult(u_dom, aAu, alpha);
+            a.AddMultTranspose(u_ran, aATu, alpha);
+
+            // Modify the Bilinear Form
+            OperatorPtr A;
+            a.FormRectangularSystemMatrix(ess_tdof_list_dom,
+                                          ess_tdof_list_ran, A);
+
+            a.FullMult(u_dom, b_ran);
+            b_ran -= Au;
+
+            REQUIRE(b_ran.Norml2() == MFEM_Approx( 0.0));
+
+            a.FullMultTranspose(u_ran, b_dom);
+            b_dom -= ATu;
+
+            REQUIRE(b_dom.Norml2() == MFEM_Approx( 0.0));
+
+            b_ran = Au;
+            a.FullAddMult(u_dom, b_ran, alpha);
+            b_ran -= aAu;
+
+            REQUIRE(b_ran.Norml2() == MFEM_Approx( 0.0));
+
+            b_dom = ATu;
+            a.FullAddMultTranspose(u_ran, b_dom, alpha);
+            b_dom -= aATu;
+
+            REQUIRE(b_dom.Norml2() == MFEM_Approx( 0.0));
+
+            delete fec_dom;
+            delete fec_ran;
+         }
+      }
+
+      delete mesh;
+   }
+}
+
+} // namespace bilinearform
