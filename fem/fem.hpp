@@ -28,10 +28,8 @@
 #include "fespace.hpp"
 #include "gridfunc.hpp"
 #include "linearform.hpp"
-#include "blocklinearform.hpp"
 #include "nonlinearform.hpp"
 #include "bilinearform.hpp"
-#include "blockbilinearform.hpp"
 #include "hybridization.hpp"
 #include "datacollection.hpp"
 #include "estimators.hpp"
@@ -48,8 +46,10 @@
 #include "multigrid.hpp"
 #include "ceed/algebraic.hpp"
 #include "lor.hpp"
-#include "weakformulation.hpp"
+#include "blocklinearform.hpp"
+#include "blockbilinearform.hpp"
 #include "normal_equations.hpp"
+#include "blockstaticcond.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
