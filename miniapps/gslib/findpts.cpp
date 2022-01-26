@@ -182,18 +182,7 @@ int main (int argc, char *argv[])
    }
 
    // Random h-refinements to mesh
-   if (hrefinement)
-   {
-      Array<Refinement> refs;
-      for (int e = 0; e < mesh.GetNE(); e++)
-      {
-         if ((double) rand() / RAND_MAX < 0.5)
-         {
-            refs.Append(Refinement(e));
-         }
-      }
-      mesh.GeneralRefinement(refs, -1, 0);
-   }
+   if (hrefinement) { mesh.RandomRefinement(0.5); }
 
    // Curve the mesh based on the chosen polynomial degree.
    H1_FECollection fecm(mesh_poly_deg, dim);
@@ -240,7 +229,7 @@ int main (int argc, char *argv[])
    {
       for (int e = 0; e < mesh.GetNE(); e++)
       {
-         if ((double) rand() / RAND_MAX < 0.5)
+         if (rand() % 2 == 0)
          {
             int element_order = sc_fes.GetElementOrder(e);
             sc_fes.SetElementOrder(e, element_order + 1);
