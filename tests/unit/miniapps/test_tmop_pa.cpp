@@ -332,12 +332,13 @@ int tmop(int id, Req &res, int argc, char *argv[])
       he_nlf_integ2->SetIntegrationRule(*ir);
       if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
       he_nlf_integ2->SetExactActionFlag(exactaction);
-      TMOPComboIntegrator *combo = new TMOPComboIntegrator;
-      combo->AddTMOPIntegrator(he_nlf_integ);
-      combo->AddTMOPIntegrator(he_nlf_integ2);
-      if (normalization) { combo->ParEnableNormalization(x0); }
-      if (lim_const != 0.0) { combo->EnableLimiting(x0, dist, lim_coeff); }
-      nlf.AddDomainIntegrator(combo);
+      TMOPComboIntegrator *combo_integ = new TMOPComboIntegrator;
+      combo_integ->AddTMOPIntegrator(he_nlf_integ);
+      combo_integ->AddTMOPIntegrator(he_nlf_integ2);
+      if (normalization) { combo_integ->ParEnableNormalization(x0); }
+      if (lim_const != 0.0)
+      { combo_integ->EnableLimiting(x0, dist, lim_coeff); }
+      nlf.AddDomainIntegrator(combo_integ);
    }
    else
    {
@@ -471,7 +472,6 @@ int tmop(int id, Req &res, int argc, char *argv[])
       dist *= 0.93;
       if (normalization == 1) { dist = small_phys_size; }
 
-      ConstantCoefficient lim_coeff(lim_const);
       if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
       if (normalization == 1) { he_nlf_integ->ParEnableNormalization(x); }

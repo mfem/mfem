@@ -42,7 +42,7 @@ public:
    /// Clear the elapsed time on the stopwatch and restart it if it's running.
    void Clear();
 
-   /// Clear the elapsed time and start the stopwatch.
+   /// Start the stopwatch. The elapsed time is @b not cleared.
    void Start();
 
    /// Stop the stopwatch.
