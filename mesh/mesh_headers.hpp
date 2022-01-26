@@ -27,6 +27,7 @@
 #include "mesh_operators.hpp"
 #include "nurbs.hpp"
 #include "wedge.hpp"
+#include "pyramid.hpp"
 
 #ifdef MFEM_USE_MESQUITE
 #include "mesquite.hpp"

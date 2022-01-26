@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# There will be collision between corona and quartz baselines.
+# Once the corresponding files have been generated, we can switch to machine
+# specific ref.
+ARTIFACT_PATH=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}
+#ARTIFACT_PATH=${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/baseline-${SYS_TYPE}-${MACHINE_NAME}
+
+PATCH_FILE=${ARTIFACT_PATH}.patch
+FULL_FILE=${ARTIFACT_PATH}.out
+DIFF_FILE=${ARTIFACT_PATH}.diff
+
+# There will be collision between corona and quartz baselines.
+# Once the corresponding files have been generated, we can switch to machine
+# specific ref.
+SAVED_NAME=baseline-${SYS_TYPE}.saved
+#SAVED_NAME=baseline-${SYS_TYPE}-${MACHINE_NAME}.saved
+
+cd ${BUILD_ROOT}/tests
+
+if [[ ! -f "${DIFF_FILE}" ]]
+then
+    echo "Nothing to be done: no relevant change in baseline"
+    exit 0
+elif [[ -f "${PATCH_FILE}" ]]
+then
+    patch "${SAVED_NAME}" < "${PATCH_FILE}"
+elif [[ -f "${FULL_FILE}" ]]
+then
+    cp "${FULL_FILE}" "${SAVED_NAME}"
+else
+    echo "File missing: expected ${PATCH_FILE} or ${FULL_FILE}"
+    exit 1
+fi
+
+git add "${SAVED_NAME}"
+git commit -m "${SYS_TYPE} (${MACHINE_NAME}) rebaselined in GitLab pipeline ${CI_PIPELINE_ID}"
+git push origin master

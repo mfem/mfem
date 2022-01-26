@@ -29,6 +29,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_constrainedsolver.cpp
   linalg/test_direct_solvers.cpp
   linalg/test_hypre_ilu.cpp
+  linalg/test_hypre_vector.cpp
   linalg/test_ilu.cpp
   linalg/test_matrix_block.cpp
   linalg/test_matrix_dense.cpp
@@ -40,6 +41,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
   linalg/test_vector.cpp
+  mesh/test_fms.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
   mesh/test_pmesh.cpp
@@ -57,6 +59,7 @@ set(UNIT_TESTS_SRCS
   fem/test_calcdshape.cpp
   fem/test_calccurlshape.cpp
   fem/test_calcdivshape.cpp
+  fem/test_coefficient.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_estimator.cpp
@@ -64,12 +67,14 @@ set(UNIT_TESTS_SRCS
   fem/test_face_permutation.cpp
   fem/test_fe.cpp
   fem/test_get_value.cpp
+  fem/test_getderivative.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
   fem/test_lexicographic_ordering.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
+  fem/test_lor.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_grad.cpp
@@ -83,6 +88,7 @@ set(UNIT_TESTS_SRCS
   fem/test_transfer.cpp
   fem/test_var_order.cpp
   # The following are tested separately (keep the comment as a reminder):
+  # miniapps/test_debug_device.cpp
   # miniapps/test_sedov.cpp
   # miniapps/test_tmop_pa.cpp
   # ceed/test_ceed.cpp
@@ -308,3 +314,20 @@ if (MFEM_USE_MPI)
    add_parallel_miniapp_test(sedov TRUE)
    add_parallel_miniapp_test(tmop_pa FALSE)
 endif(MFEM_USE_MPI)
+
+#-----------------------------------------------------------
+# SERIAL DEBUG-DEVICE TESTS:
+#   debug_device_tests
+#-----------------------------------------------------------
+set(DEBUG_DEVICE_SRCS miniapps/test_debug_device.cpp)
+if (MFEM_USE_CUDA)
+   set_property(SOURCE ${DEBUG_DEVICE_SRCS} PROPERTY LANGUAGE CUDA)
+endif()
+if (MFEM_USE_HIP)
+   set_property(SOURCE ${DEBUG_DEVICE_SRCS}
+                PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+endif()
+mfem_add_executable(debug_device_tests unit_test_main.cpp ${DEBUG_DEVICE_SRCS})
+target_link_libraries(debug_device_tests mfem)
+add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} debug_device_tests)
+add_test(NAME debug_device_tests COMMAND debug_device_tests)

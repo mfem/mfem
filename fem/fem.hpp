@@ -35,6 +35,7 @@
 #include "staticcond.hpp"
 #include "tmop.hpp"
 #include "tmop_tools.hpp"
+#include "tmop_amr.hpp"
 #include "gslib.hpp"
 #include "restriction.hpp"
 #include "quadinterpolator.hpp"
@@ -63,6 +64,11 @@
 
 #ifdef MFEM_USE_ADIOS2
 #include "adios2datacollection.hpp"
+#endif
+
+#ifdef MFEM_USE_FMS
+#include "fmsconvert.hpp"
+#include "fmsdatacollection.hpp"
 #endif
 
 #endif

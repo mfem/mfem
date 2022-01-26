@@ -17,7 +17,7 @@ using namespace mfem;
 namespace doftrans
 {
 
-TEST_CASE("DoF Transformation Classes"
+TEST_CASE("DoF Transformation Classes",
           "[DofTransformation]"
           "[ND_TetDofTransformation]")
 {
@@ -60,6 +60,17 @@ TEST_CASE("DoF Transformation Classes"
 
          REQUIRE(w.Norml2() < tol * u.Norml2());
       }
+      SECTION("Inverse Dual DoF transformation")
+      {
+         Vector w;
+
+         ut = u; T.TransformDual(ut);
+         w = ut; T.InvTransformDual(w);
+
+         w -= u;
+
+         REQUIRE(w.Norml2() < tol * u.Norml2());
+      }
 
       SECTION("Inner product with linear form f(v)")
       {
@@ -83,8 +94,7 @@ TEST_CASE("DoF Transformation Classes"
 
       SECTION("Inner product of two primal vectors")
       {
-         // The matrix A in this case should be regarded as
-         // a BilinearForm.
+         // The matrix A in this case should be regarded as a BilinearForm.
          DenseMatrix tA;
          DenseMatrix At;
          DenseMatrix tAt;
@@ -99,13 +109,13 @@ TEST_CASE("DoF Transformation Classes"
          double uAv = A.InnerProduct(v, u);
 
          REQUIRE(fabs(uAv -  At.InnerProduct(vt, u )) < tol * fabs(uAv));
-         REQUIRE(fabs(uAv -  tA.InnerProduct(v , ut)) < tol * fabs(uAv));
+         REQUIRE(fabs(uAv -  tA.InnerProduct(v, ut)) < tol * fabs(uAv));
          REQUIRE(fabs(uAv - tAt.InnerProduct(vt, ut)) < tol * fabs(uAv));
       }
       SECTION("Inner product of a primal vector and a dual vector")
       {
-         // The matrix A in this case should be regarded as
-         // a DiscreteLinearOperator.
+         // The matrix A in this case should be regarded as a
+         // DiscreteLinearOperator.
          DenseMatrix tA;
          DenseMatrix At;
          DenseMatrix tAt;
@@ -120,16 +130,16 @@ TEST_CASE("DoF Transformation Classes"
          double fAv = A.InnerProduct(v, f);
 
          REQUIRE(fabs(fAv -  At.InnerProduct(vt, f )) < tol * fabs(fAv));
-         REQUIRE(fabs(fAv -  tA.InnerProduct(v , ft)) < tol * fabs(fAv));
+         REQUIRE(fabs(fAv -  tA.InnerProduct(v, ft)) < tol * fabs(fAv));
          REQUIRE(fabs(fAv - tAt.InnerProduct(vt, ft)) < tol * fabs(fAv));
       }
    }
 }
 
-TEST_CASE("DoF Transformation Functions"
+TEST_CASE("DoF Transformation Functions",
           "[DofTransformation]"
-          "TransformPrimal"
-          "TransformDual")
+          "[TransformPrimal]"
+          "[TransformDual]")
 {
    int p = 3, q = 4;
    int seed = 123;
@@ -160,8 +170,8 @@ TEST_CASE("DoF Transformation Functions"
 
    SECTION("TransformPrimal")
    {
-      // The matrix A in this case should be regarded as
-      // a DiscreteLinearOperator.
+      // The matrix A in this case should be regarded as a
+      // DiscreteLinearOperator.
 
       Vector v(Tq.Width());
       Vector f(Tp.Width());
@@ -186,15 +196,14 @@ TEST_CASE("DoF Transformation Functions"
 
       double fAv = A.InnerProduct(v, f);
 
-      REQUIRE(fabs(fAv - nAn.InnerProduct(v , f )) < tol * fabs(fAv));
+      REQUIRE(fabs(fAv - nAn.InnerProduct(v, f )) < tol * fabs(fAv));
       REQUIRE(fabs(fAv -  At.InnerProduct(vt, f )) < tol * fabs(fAv));
-      REQUIRE(fabs(fAv -  tA.InnerProduct(v , ft)) < tol * fabs(fAv));
+      REQUIRE(fabs(fAv -  tA.InnerProduct(v, ft)) < tol * fabs(fAv));
       REQUIRE(fabs(fAv - tAt.InnerProduct(vt, ft)) < tol * fabs(fAv));
    }
    SECTION("TransformDual")
    {
-      // The matrix A in this case should be regarded as
-      // a BilinearForm.
+      // The matrix A in this case should be regarded as a BilinearForm.
 
       Vector u(Tp.Width());
       Vector v(Tq.Width());
@@ -219,14 +228,14 @@ TEST_CASE("DoF Transformation Functions"
 
       double uAv = A.InnerProduct(v, u);
 
-      REQUIRE(fabs(uAv - nAn.InnerProduct(v , u )) < tol * fabs(uAv));
+      REQUIRE(fabs(uAv - nAn.InnerProduct(v, u )) < tol * fabs(uAv));
       REQUIRE(fabs(uAv -  At.InnerProduct(vt, u )) < tol * fabs(uAv));
-      REQUIRE(fabs(uAv -  tA.InnerProduct(v , ut)) < tol * fabs(uAv));
+      REQUIRE(fabs(uAv -  tA.InnerProduct(v, ut)) < tol * fabs(uAv));
       REQUIRE(fabs(uAv - tAt.InnerProduct(vt, ut)) < tol * fabs(uAv));
    }
 }
 
-TEST_CASE("VDoF Transformation Class"
+TEST_CASE("VDoF Transformation Class",
           "[DofTransformation]"
           "[VDofTransformation]")
 {
@@ -269,6 +278,17 @@ TEST_CASE("VDoF Transformation Class"
 
          REQUIRE(w.Norml2() < tol * v.Norml2());
       }
+      SECTION("Inverse Dual DoF transformation")
+      {
+         Vector w;
+
+         vt = v; T.TransformDual(vt);
+         w = vt; T.InvTransformDual(w);
+
+         w -= v;
+
+         REQUIRE(w.Norml2() < tol * v.Norml2());
+      }
       SECTION("Inner product with linear form f(v)")
       {
          vt = v; T.TransformPrimal(vt);
@@ -304,6 +324,17 @@ TEST_CASE("VDoF Transformation Class"
 
             REQUIRE(w.Norml2() < tol * v.Norml2());
          }
+         SECTION("Inverse Dual DoF transformation")
+         {
+            Vector w;
+
+            vt = v; T.TransformDual(vt);
+            w = vt; T.InvTransformDual(w);
+
+            w -= v;
+
+            REQUIRE(w.Norml2() < tol * v.Norml2());
+         }
          SECTION("Inner product with linear form f(v)")
          {
             vt = v; T.TransformPrimal(vt);
@@ -324,6 +355,17 @@ TEST_CASE("VDoF Transformation Class"
 
             vt = v; T.TransformPrimal(vt);
             w = vt; T.InvTransformPrimal(w);
+
+            w -= v;
+
+            REQUIRE(w.Norml2() < tol * v.Norml2());
+         }
+         SECTION("Inverse Dual DoF transformation")
+         {
+            Vector w;
+
+            vt = v; T.TransformDual(vt);
+            w = vt; T.InvTransformDual(w);
 
             w -= v;
 

@@ -16,6 +16,8 @@
 //               mpirun -np 4 ex3p -m ../data/beam-hex-nurbs.mesh
 //               mpirun -np 4 ex3p -m ../data/amr-quad.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/amr-hex.mesh
+//               mpirun -np 4 ex3p -m ../data/ref-prism.mesh -o 1
+//               mpirun -np 4 ex3p -m ../data/octahedron.mesh -o 1
 //               mpirun -np 4 ex3p -m ../data/star-surf.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/mobius-strip.mesh -o 2 -f 0.1
 //               mpirun -np 4 ex3p -m ../data/klein-bottle.mesh -o 2 -f 0.1
@@ -103,6 +105,7 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
+      // HYPRE_Finalize();
       MPI_Finalize();
       return 1;
    }
@@ -252,10 +255,10 @@ int main(int argc, char *argv[])
 
    // 15. Compute and print the L^2 norm of the error.
    {
-      double err = x.ComputeL2Error(E);
+      double error = x.ComputeL2Error(E);
       if (myid == 0)
       {
-         cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
+         cout << "\n|| E_h - E ||_{L^2} = " << error << '\n' << endl;
       }
    }
 

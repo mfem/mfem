@@ -1890,6 +1890,7 @@ void ParMesh::GetFaceNbrElementTransformation(
    ElTr->Attribute = elem->GetAttribute();
    ElTr->ElementNo = NumOfElements + i;
    ElTr->ElementType = ElementTransformation::ELEMENT;
+   ElTr->mesh = this;
    ElTr->Reset();
 
    if (Nodes == NULL)
@@ -2733,6 +2734,7 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
    }
    face_nbr_el_to_face->Finalize();
 
+   delete sfaces_tbl;
    if (ret_ftbl)
    {
       return faces_tbl;
@@ -3030,7 +3032,6 @@ int ParMesh::GetSharedFace(int sface) const
    }
 }
 
-/*
 // shift cyclically 3 integers a, b, c, so that the smallest of
 // order[a], order[b], order[c] is first
 static inline
@@ -3246,7 +3247,7 @@ void ParMesh::ReorientTetMesh()
    // update sedge_ledge and sface_lface.
    FinalizeParTopo();
 }
-*/
+
 void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 {
    if (pncmesh)
@@ -3729,8 +3730,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          elements[new_e] = new Segment(new_v, vert[1], attr);
          vert[1] = new_v;
 
-         CoarseFineTr.embeddings[i] = Embedding(i, 1);
-         CoarseFineTr.embeddings[new_e] = Embedding(i, 2);
+         CoarseFineTr.embeddings[i] = Embedding(i, Geometry::SEGMENT, 1);
+         CoarseFineTr.embeddings[new_e] = Embedding(i, Geometry::SEGMENT, 2);
       }
 
       static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
@@ -6070,7 +6071,7 @@ void ParMesh::PrintSharedEntities(const char *fname_prefix) const
    }
 }
 
-void ParMesh::GetGlobalVertexIndices(Array<HYPRE_Int> &gi) const
+void ParMesh::GetGlobalVertexIndices(Array<HYPRE_BigInt> &gi) const
 {
    H1_FECollection fec(1, Dim); // Order 1, mesh dimension (not spatial dimension).
    ParMesh *pm = const_cast<ParMesh *>(this);
@@ -6086,7 +6087,7 @@ void ParMesh::GetGlobalVertexIndices(Array<HYPRE_Int> &gi) const
    }
 }
 
-void ParMesh::GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const
+void ParMesh::GetGlobalEdgeIndices(Array<HYPRE_BigInt> &gi) const
 {
    if (Dim == 1)
    {
@@ -6109,7 +6110,7 @@ void ParMesh::GetGlobalEdgeIndices(Array<HYPRE_Int> &gi) const
    }
 }
 
-void ParMesh::GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const
+void ParMesh::GetGlobalFaceIndices(Array<HYPRE_BigInt> &gi) const
 {
    if (Dim == 2)
    {
@@ -6137,11 +6138,11 @@ void ParMesh::GetGlobalFaceIndices(Array<HYPRE_Int> &gi) const
    }
 }
 
-void ParMesh::GetGlobalElementIndices(Array<HYPRE_Int> &gi) const
+void ParMesh::GetGlobalElementIndices(Array<HYPRE_BigInt> &gi) const
 {
    ComputeGlobalElementOffset();
 
-   const HYPRE_Int offset = glob_elem_offset;  // Cast from long to HYPRE_Int
+   const HYPRE_BigInt offset = glob_elem_offset; // Cast from long to HYPRE_BigInt
 
    gi.SetSize(GetNE());
    for (int i=0; i<GetNE(); ++i)
@@ -6201,6 +6202,9 @@ void ParMesh::Destroy()
       FreeElement(shared_edges[i]);
    }
    shared_edges.DeleteAll();
+
+   delete face_nbr_el_to_face;
+   face_nbr_el_to_face = NULL;
 }
 
 ParMesh::~ParMesh()
