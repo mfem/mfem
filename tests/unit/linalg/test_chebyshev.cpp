@@ -38,7 +38,7 @@ TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
       Vector diag(fespace.GetTrueVSize());
       aform.AssembleDiagonal(diag);
 
-      Solver* smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag, ess_tdof_list,
+      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag, ess_tdof_list,
                                                        cheb_order);
 
       int n = smoother->Width();
@@ -49,12 +49,12 @@ TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
       right.Randomize(seed + 2);
 
       // test that x^T S y = y^T S x
-      Vector out(n);
-      out = 0.0;
-      smoother->Mult(right, out);
-      double forward_val = left * out;
-      smoother->Mult(left, out);
-      double transpose_val = right * out;
+      Vector smooth(n);
+      smooth = 0.0;
+      smoother->Mult(right, smooth);
+      double forward_val = left * smooth;
+      smoother->Mult(left, smooth);
+      double transpose_val = right * smooth;
 
       double error = fabs(forward_val - transpose_val) / fabs(forward_val);
       std::cout << "Order " << order << " symmetry error: " << error << std::endl;

@@ -95,6 +95,12 @@ public:
       : Vector(data, f->GetVSize())
    { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
+   /** @brief Construct a GridFunction using previously allocated Vector @a base
+       starting at the given offset, @a base_offset. */
+   GridFunction(FiniteElementSpace *f, Vector &base, int base_offset = 0)
+      : Vector(base, base_offset, f->GetVSize())
+   { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
        Save(). The reconstructed FiniteElementSpace and FiniteElementCollection
@@ -130,9 +136,7 @@ public:
        or set. */
    Vector &GetTrueVector() { return t_vec; }
 
-   /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
-   /// then `tv` will be set to point to the data of `*this`.
-   /** @warning This method breaks const-ness when all dofs are true. */
+   /// Extract the true-dofs from the GridFunction.
    void GetTrueDofs(Vector &tv) const;
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
@@ -306,6 +310,16 @@ public:
 
    void ProjectVectorFieldOn(GridFunction &vec_field, int comp = 0);
 
+   /** @brief Compute a certain derivative of a function's component.
+       Derivatives of the function are computed at the DOF locations of @a der,
+       and averaged over overlapping DOFs. Thus this function projects the
+       derivative to the FiniteElementSpace of @a der.
+       @param[in]  comp  Index of the function's component to be differentiated.
+                         The index is 1-based, i.e., use 1 for scalar functions.
+       @param[in]  der_comp  Use 0/1/2 for derivatives in x/y/z directions.
+       @param[out] der       The resulting derivative (scalar function). The
+                             FiniteElementSpace of this function must be set
+                             before the call. */
    void GetDerivative(int comp, int der_comp, GridFunction &der);
 
    double GetDivergence(ElementTransformation &tr) const;
@@ -406,6 +420,12 @@ protected:
        shared vdofs and counts in how many zones each vdof appears. */
    void AccumulateAndCountZones(VectorCoefficient &vcoeff, AvgType type,
                                 Array<int> &zones_per_vdof);
+
+   /** @brief Used for the serial and parallel implementations of the
+       GetDerivative() method; see its documentation. */
+   void AccumulateAndCountDerivativeValues(int comp, int der_comp,
+                                           GridFunction &der,
+                                           Array<int> &zones_per_dof);
 
    void AccumulateAndCountBdrValues(Coefficient *coeff[],
                                     VectorCoefficient *vcoeff, Array<int> &attr,

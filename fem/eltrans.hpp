@@ -75,6 +75,12 @@ public:
 
    int Attribute, ElementNo, ElementType;
 
+   /// The Mesh object containing the element.
+   /** If the element transformation belongs to a mesh, this will point to the
+       containing Mesh object. ElementNo will be the number of the element in
+       this Mesh. This will be NULL if the element does not belong to a mesh. */
+   class Mesh *mesh;
+
    ElementTransformation();
 
    /** @brief Force the reevaluation of the Jacobian in the next call. */
@@ -316,7 +322,7 @@ public:
 
    /// Set the desired print level, useful for debugging.
    /** The valid options are: -1 - never print (default); 0 - print only errors;
-       1 - print the first and last last iterations; 2 - print every iteration;
+       1 - print the first and last iterations; 2 - print every iteration;
        and 3 - print every iteration including point coordinates. */
    void SetPrintLevel(int pr_level) { print_level = pr_level; }
 
