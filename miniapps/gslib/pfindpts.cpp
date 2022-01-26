@@ -30,7 +30,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/rt-2d-p4-tri.mesh -o 4
 //    mpirun -np 2 pfindpts -m ../../data/inline-tri.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3
-//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -hr -pr
+//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -hr
 //    mpirun -np 2 pfindpts -m ../../data/inline-tet.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-wedge.mesh -o 3
