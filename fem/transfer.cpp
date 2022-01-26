@@ -1439,7 +1439,7 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
    localTransferOperator = new TransferOperator(lFESpace_, hFESpace_);
 
    P = lFESpace.GetProlongationMatrix();
-   R = hFESpace.GetRestrictionMatrix();
+   R = hFESpace.GetHpRestrictionMatrix();
 
    // P and R can be both null
    // P can be null and R not null
