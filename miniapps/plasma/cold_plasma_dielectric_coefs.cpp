@@ -583,6 +583,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
    double normag = nor.Norml2();
    double bn = (B * nor)/(normag*Bmag); // Unitless
     
+    
    // Setting up normalized V_RF:
    // Jim's newest parametrization (Myra et al 2017):
    double volt_norm = (phi_mag)/temp_val ; // Unitless: V zero-to-peak
@@ -590,9 +591,14 @@ double SheathImpedance::Eval(ElementTransformation &T,
    // Jim's old parametrization (Kohno et al 2017):
    //double volt_norm = (2*phi_mag)/temp_val ; // Unitless: V peak-to-peak
     
-   //if ( volt_norm == 0){volt_norm = 190.5/temp_val;} // Initial Guess
+   //if ( volt_norm == 0){volt_norm = 1/temp_val;} // Initial Guess
    // This is only for old parameterization
    //if ( volt_norm > 20) {cout << "Warning: V_RF > Z Parameterization Limit!" << endl;}
+    
+   // Jim's 2022 Analytical Expression:
+   //double volt_norm = 274.8/temp_val;
+   //double delta = debye_length * pow(volt_norm, 0.75);
+   //complex<double> zsheath_analytic(0.0, delta/(omega_ * epsilon0_));
 
    // Calculating Sheath Impedance:
    // Jim's newest parametrization (Myra et al 2017):
@@ -617,11 +623,13 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    if (realPart_)
    {
+       //return zsheath_analytic.real();
       return (zsheath_norm.real()*debye_length)/(epsilon0_*wpi); // Units: Ohm m^2
 
    }
    else
    {
+      // return zsheath_analytic.imag();
       return (zsheath_norm.imag()*debye_length)/(epsilon0_*wpi); // Units: Ohm m^2
    }
 }
@@ -1234,7 +1242,7 @@ double PlasmaProfile::Eval(ElementTransformation &T,
        {
            double rad_res_loc = p_[0];
            double nu0 = p_[1];
-           double width = 3e-5;
+           double width = 1e-4;
            double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
            return nu0*exp(-pow(rho-rad_res_loc, 2)/width) + (1e14)*exp(-rho/0.1);
        }

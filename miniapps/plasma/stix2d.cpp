@@ -1122,7 +1122,7 @@ int main(int argc, char *argv[])
    MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, true);
    MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, false);
     
-    /*
+    
    ColdPlasmaPlaneWaveE EReCoef(wave_type[0], omega, BVec,
                                  numbers, charges, masses, temps, nuprof, true);
    ColdPlasmaPlaneWaveE EImCoef(wave_type[0], omega, BVec,
@@ -1162,8 +1162,7 @@ int main(int argc, char *argv[])
        EImCoef.SetPhaseShift(kReVec, kImVec);
     }
     else
-     */
-    /*
+    
     if (phase_shift)
        {
           if (kVec.Size() >= 3)
@@ -1193,9 +1192,8 @@ int main(int argc, char *argv[])
 
     VectorConstantCoefficient kReCoef(kReVec);
     VectorConstantCoefficient kImCoef(kImVec);
-     */
     
-    VectorConstantCoefficient kCoef(kVec);
+    //VectorConstantCoefficient kCoef(kVec);
     
     if (visualization && wave_type[0] != ' ')
    {
@@ -1467,9 +1465,9 @@ int main(int argc, char *argv[])
                  conv, BUnitCoef,
                  epsilon_real, epsilon_imag, epsilon_abs,
                  muInvCoef, etaInvCoef,
-                 (phase_shift) ? &kCoef : NULL,
-                 //(phase_shift) ? &kReCoef : NULL,
-                 //(phase_shift) ? &kImCoef : NULL,
+                 //(phase_shift) ? &kCoef : NULL,
+                 (phase_shift) ? &kReCoef : NULL,
+                 (phase_shift) ? &kImCoef : NULL,
                  abcs,
                  dbcs, nbcs, sbcs,
                  // e_bc_r, e_bc_i,
