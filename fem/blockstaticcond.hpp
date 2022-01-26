@@ -33,7 +33,7 @@ class BlockStaticCondensation
    // New set of "reduced" Finite Element Spaces
    // (after static condensation)
    Array<FiniteElementSpace *> tr_fes;
-   
+
    // Schur complement matrix
    // S = A_ii - A_ib (A_bb)^{-1} A_bi.
    BlockMatrix * S = nullptr;
@@ -54,7 +54,7 @@ class BlockStaticCondensation
        and A_bi. */
    void AssembleMatrix(int el, const DenseMatrix &elmat);
 
-      /// Finalize the construction of the Schur complement matrix.
+   /// Finalize the construction of the Schur complement matrix.
    void Finalize();
 
    /// Determine and save internally essential reduced true dofs.
@@ -86,17 +86,17 @@ class BlockStaticCondensation
    /** Restrict a marker Array on the true FE space dofs to a marker Array on
     the reduced/trace true FE space dofs. */
    void ConvertMarkerToReducedTrueDofs(const Array<int> &ess_tdof_marker,
-                                       Array<int> &ess_rtdof_marker) const;     
+                                       Array<int> &ess_rtdof_marker) const;
 
    /** Restrict a list of true FE space dofs to a list of reduced/trace true FE
     space dofs. */
    void ConvertListToReducedTrueDofs(const Array<int> &ess_tdof_list,
-                                     Array<int> &ess_rtdof_list) const;    
+                                     Array<int> &ess_rtdof_list) const;
 
    /** Given a solution of the reduced system 'sc_sol' and the RHS 'b' for the
        full linear system, compute the solution of the full system 'sol'. */
    void ComputeSolution(const Vector &b, const Vector &sc_sol,
-                        Vector &sol) const;                                                                                       
+                        Vector &sol) const;
 
 };
 
