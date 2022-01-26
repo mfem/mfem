@@ -125,12 +125,11 @@ TEST_CASE("Variable Order FiniteElementSpace",
          x.ProjectCoefficient(exsol);
 
          // Enforce space constraints on locally interpolated GridFunction x
-
          const SparseMatrix *R = fespace.GetHpRestrictionMatrix();
          const SparseMatrix *P = fespace.GetConformingProlongation();
          Vector y(fespace.GetTrueVSize());
-         fespace.GetHpRestrictionMatrix()->Mult(x, y);
-         fespace.GetProlongationMatrix()->Mult(y, x);
+         R->Mult(x, y);
+         P->Mult(y, x);
 
          const double error = x.ComputeL2Error(exsol);
          REQUIRE(error == MFEM_Approx(0.0));
