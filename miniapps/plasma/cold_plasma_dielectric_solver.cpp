@@ -1731,6 +1731,9 @@ CPDSolver::Solve()
       {
          d_->imag() *= -1.0;
       }
+       
+      E_err = EsolErr;
+      if ( EsolNorm != 0 ) { E_err = EsolErr / EsolNorm; }
 
       if (myid_ == 0)
       {
