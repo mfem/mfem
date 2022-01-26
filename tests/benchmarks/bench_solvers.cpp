@@ -912,10 +912,8 @@ struct BakeOff
 
    ParMesh pmesh;
 
-   Nvtx nvtx_fec = {"p_fec"};
    H1_FECollection p_fec;
 
-   Nvtx nvtx_fes = {"p_fes"};
    ParFiniteElementSpace p_fes;
 
    int mg_nlevels, mg_fine_order, mg_coarse_order ;
@@ -1268,7 +1266,7 @@ struct SolverProblem: public BakeOff
 
    void benchmark() override
    {
-      MFEM_NVTX;
+      //MFEM_NVTX;
       MFEM_DEVICE_SYNC;
       sw_solve.Start();
       cg.Mult(B,X);
@@ -1331,12 +1329,12 @@ static void BPS##i##_##Precond(bm::State &state){\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_SIDES,P_ORDERS,P_EPSILONS})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(2);
+    -> Iterations(5);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 //BakeOff_Solver(3,Diffusion,None)
 //BakeOff_Solver(3,Diffusion,Jacobi)
-BakeOff_Solver(3,Diffusion,BoomerAMG)
+//BakeOff_Solver(3,Diffusion,BoomerAMG)
 BakeOff_Solver(3,Diffusion,LORBatch)
 BakeOff_Solver(3,Diffusion,MGJacobi)
 BakeOff_Solver(3,Diffusion,MGFAHypre)
