@@ -16,12 +16,12 @@
 // This miniapp extrapolates a finite element function from a set of elements
 // (known values) to the rest of the domain. The set of elements that contains
 // the known values is specified by the positive values of a level set
-// Coefficient. The known values are not modified. The miniapps supports two
+// Coefficient. The known values are not modified. The miniapp supports two
 // PDE-based approaches [1, 2], both of which rely on solving a sequence of
 // advection problems in the direction of the unknown parts of the domain.
 // The extrapolation can be constant (1st order), linear (2nd order), or
-// quadratic (3rd order). These formal orders in for a limited band around
-// the zero level set, see the given reference for more info.
+// quadratic (3rd order). These formal orders hold for a limited band around
+// the zero level set, see the given references for more info.
 //
 // [1] Aslam, "A Partial Differential Equation Approach to Multidimensional
 // Extrapolation", JCP 193(1), 2004.
@@ -31,12 +31,12 @@
 // Compile with: make extrapolate
 //
 // Sample runs:
-//     mpirun -np 4 extrapolate -m "../../data/inline-segment.mesh" -rs 6 -eo 2
-//     mpirun -np 4 extrapolate -rs 5 -p 0 -eo 2
-//     mpirun -np 4 extrapolate -rs 5 -p 1 -eo 2
-//     mpirun -np 4 extrapolate -rs 5 -p 1 -et 1 -eo 1 -dg 1
-//     mpirun -np 4 extrapolate -m "../../data/inline-hex.mesh" -eo 1 -rs 1
-//     mpirun -np 4 extrapolate -m "../../data/inline-hex.mesh" -p 1 -eo 1 -rs 1
+//     mpirun -np 4 extrapolate -m "../../data/inline-segment.mesh" -rs 6 -ed 2
+//     mpirun -np 4 extrapolate -rs 5 -p 0 -ed 2
+//     mpirun -np 4 extrapolate -rs 5 -p 1 -ed 2
+//     mpirun -np 4 extrapolate -rs 5 -p 1 -et 1 -ed 1 -dg 1
+//     mpirun -np 4 extrapolate -m "../../data/inline-hex.mesh" -ed 1 -rs 1
+//     mpirun -np 4 extrapolate -m "../../data/inline-hex.mesh" -p 1 -ed 1 -rs 1
 
 #include "extrapolator.hpp"
 
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
    int rs_levels = 2;
    Extrapolator::XtrapType ex_type   = Extrapolator::ASLAM;
    AdvectionOper::AdvectionMode dg_mode = AdvectionOper::HO;
-   int ex_order = 1;
+   int ex_degree = 1;
    int order = 2;
    double distance = 0.35;
    bool vis_on = true;
@@ -134,8 +134,8 @@ int main(int argc, char *argv[])
    args.AddOption((int*)&dg_mode, "-dg", "--dg-mode",
                   "DG advection mode: 0 - Standard High-Order,\n\t"
                   "                   1 - Low-Order Upwind Diffusion.");
-   args.AddOption(&ex_order, "-eo", "--extrap-order",
-                  "Extrapolation order: 0/1/2 for constant/linear/quadratic.");
+   args.AddOption(&ex_degree, "-ed", "--extrap-degree",
+                  "Extrapolation degree: 0/1/2 for constant/linear/quadratic.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -157,7 +157,6 @@ int main(int argc, char *argv[])
    }
    if (myid == 0) { args.PrintOptions(cout); }
 
-
    // Refine the mesh and distribute.
    Mesh mesh(mesh_file, 1, 1);
    for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
@@ -176,7 +175,7 @@ int main(int argc, char *argv[])
    Extrapolator xtrap;
    xtrap.xtrap_type     = ex_type;
    xtrap.advection_mode = dg_mode;
-   xtrap.xtrap_order    = ex_order;
+   xtrap.xtrap_degree   = ex_degree;
    xtrap.visualization  = vis_on;
    xtrap.vis_steps      = vis_steps_cnt;
    FunctionCoefficient ls_coeff(domainLS);

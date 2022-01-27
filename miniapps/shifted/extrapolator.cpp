@@ -70,6 +70,8 @@ void AdvectionOper::Mult(const Vector &x, Vector &dx) const
       return;
    }
 
+   MFEM_VERIFY(adv_mode == HO, "Wrong input for avection mode (-dg).");
+
    Vector rhs(x.Size());
    K_mat->Mult(x, rhs);
    rhs += b;
@@ -162,7 +164,8 @@ void AdvectionOper::ComputeBounds(const ParFiniteElementSpace &pfes,
 
 void Extrapolator::Extrapolate(Coefficient &level_set,
                                const ParGridFunction &input,
-                               double time_period, ParGridFunction &xtrap)
+                               const double time_period,
+                               ParGridFunction &xtrap)
 {
    ParMesh &pmesh = *input.ParFESpace()->GetParMesh();
    const int order = input.ParFESpace()->GetOrder(0),
@@ -238,7 +241,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
    ParGridFunction n_grad_u(&pfes_L2);
    NormalGradCoeff n_grad_u_coeff(u, ls_n_coeff);
    n_grad_u.ProjectCoefficient(n_grad_u_coeff);
-   if (visualization && xtrap_order >= 1)
+   if (visualization && xtrap_degree >= 1)
    {
       socketstream sock;
       common::VisualizeField(sock, vishost, visport, n_grad_u,
@@ -250,7 +253,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
    ParGridFunction n_grad_n_grad_u(&pfes_L2);
    NormalGradCoeff n_grad_n_grad_u_coeff(n_grad_u, ls_n_coeff);
    n_grad_n_grad_u.ProjectCoefficient(n_grad_n_grad_u_coeff);
-   if (visualization && xtrap_order == 2)
+   if (visualization && xtrap_degree == 2)
    {
       socketstream sock;
       common::VisualizeField(sock, vishost, visport, n_grad_n_grad_u,
@@ -294,7 +297,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
    RK2Solver ode_solver(1.0);
    ode_solver.Init(adv_oper);
 
-   if (xtrap_order == 0)
+   if (xtrap_degree == 0)
    {
       // Constant extrapolation of u (always LO).
       rhs = 0.0;
@@ -308,10 +311,10 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
    std::string mode_text = "HO";
    if (advection_mode == AdvectionOper::LO)  { mode_text = "LO"; }
 
-   MFEM_VERIFY(xtrap_order == 1 || xtrap_order == 2, "Wrong order input.");
+   MFEM_VERIFY(xtrap_degree == 1 || xtrap_degree == 2, "Wrong order input.");
    if (xtrap_type == ASLAM)
    {
-      if (xtrap_order == 1)
+      if (xtrap_degree == 1)
       {
          // Constant extrapolation of [n.grad_u] (always LO).
          rhs = 0.0;
@@ -327,7 +330,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
                   wsize, "Extrap linear u -- Aslam -- " + mode_text);
       }
 
-      if (xtrap_order == 2)
+      if (xtrap_degree == 2)
       {
          // Constant extrapolation of [n.grad(n.grad(u))] (always LO).
          rhs = 0.0;
@@ -350,7 +353,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
    }
    else if (xtrap_type == BOCHKOV)
    {
-      if (xtrap_order == 1)
+      if (xtrap_degree == 1)
       {
          // Constant extrapolation of all grad(u) components (always LO).
          rhs = 0.0;
@@ -376,11 +379,12 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
                   wsize, "Extrap linear u -- Bochkov -- " + mode_text);
       }
 
-      if (xtrap_order == 2)
+      if (xtrap_degree == 2)
       {
          MFEM_ABORT("Quadratic Bochkov method is not implemented.");
       }
    }
+   else { MFEM_ABORT("Wrong input for extrapolation type (-et)."); }
 
    xtrap.ProjectGridFunction(u);
 }
