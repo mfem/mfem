@@ -146,19 +146,7 @@ int main (int argc, char *argv[])
    for (int lev = 0; lev < rp_levels; lev++) { pmesh.UniformRefinement(); }
 
    // Random h-refinements to mesh
-   if (hrefinement)
-   {
-      Array<Refinement> refs;
-      for (int e = 0; e < pmesh.GetNE(); e++)
-      {
-         if ((double) rand() / RAND_MAX < 0.5)
-         {
-            refs.Append(Refinement(e));
-         }
-      }
-      pmesh.GeneralRefinement(refs, -1, 0);
-   }
-
+   if (hrefinement) { pmesh.RandomRefinement(0.5); }
 
    // Curve the mesh based on the chosen polynomial degree.
    H1_FECollection fecm(mesh_poly_deg, dim);
