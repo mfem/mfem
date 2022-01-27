@@ -23,12 +23,34 @@
 #include <limits>
 #include <cstring>
 
+#if defined(MFEM_USE_CUDA)
+#define cu_or_hip(stub) cu##stub
+#define Cu_or_Hip(stub) Cu##stub
+#define CU_or_HIP(stub) CU##stub
+#define CUDA_or_HIP(stub) CUDA##stub
+
+#if CUSPARSE_VERSION >=  11400
+#define MFEM_GPUSPARSE_ALG CUSPARSE_SPMV_CSR_ALG1
+#else // CUSPARSE_VERSION >= 11400
+#define MFEM_GPUSPARSE_ALG CUSPARSE_CSRMV_ALG1
+#endif // CUSPARSE_VERSION >= 11400
+
+#elif defined(MFEM_USE_HIP)
+#define cu_or_hip(stub) hip##stub
+#define Cu_or_Hip(stub) Hip##stub
+#define CU_or_HIP(stub) HIP##stub
+#define CUDA_or_HIP(stub) HIP##stub
+
+// https://hipsparse.readthedocs.io/en/latest/usermanual.html#hipsparsespmvalg-t
+#define MFEM_GPUSPARSE_ALG HIPSPARSE_CSRMV_ALG1
+#endif // defined(MFEM_USE_CUDA)
+
 namespace mfem
 {
 
 using namespace std;
 
-#ifdef CUDA_or_HIP
+#ifdef MFEM_USE_CUDA_OR_HIP
 int SparseMatrix::SparseMatrixCount = 0;
 // doxygen doesn't like the macro-assisted typename so let's skip parsing it:
 // \cond false
@@ -36,23 +58,13 @@ cu_or_hip(sparseHandle_t) SparseMatrix::handle = nullptr;
 // \endcond
 size_t SparseMatrix::bufferSize = 0;
 void * SparseMatrix::dBuffer = nullptr;
-# if defined(MFEM_USE_CUDA)
-#  if CUSPARSE_VERSION >=  11400
-#    define MFEM_GPUSPARSE_ALG CUSPARSE_SPMV_CSR_ALG1
-#  else
-#    define MFEM_GPUSPARSE_ALG CUSPARSE_CSRMV_ALG1
-#  endif // CUSPARSE_VERSION >= 11400
-# elif defined(MFEM_USE_HIP)
-// https://hipsparse.readthedocs.io/en/latest/usermanual.html#hipsparsespmvalg-t
-#  define MFEM_GPUSPARSE_ALG HIPSPARSE_CSRMV_ALG1
-# endif
-#endif // CUDA_or_HIP
+#endif // MFEM_USE_CUDA_OR_HIP
 
 void SparseMatrix::InitGPUSparse()
 {
-   // Initialize cuSPARSE library
-#ifdef CUDA_or_HIP
-   if (Device::Allows(Backend::CUDA_MASK) || Device::Allows(Backend::HIP_MASK))
+   // Initialize cuSPARSE/hipSPARSE library
+#ifdef MFEM_USE_CUDA_OR_HIP
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
       if (!handle) { cu_or_hip(sparseCreate)(&handle); }
       useGPUSparse=true;
@@ -62,12 +74,12 @@ void SparseMatrix::InitGPUSparse()
    {
       useGPUSparse=false;
    }
-#endif
+#endif // MFEM_USE_CUDA_OR_HIP
 }
 
 void SparseMatrix::ClearGPUSparse()
 {
-#ifdef CUDA_or_HIP
+#ifdef MFEM_USE_CUDA_OR_HIP
    if (initBuffers)
    {
 #if CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
@@ -79,7 +91,7 @@ void SparseMatrix::ClearGPUSparse()
 #endif // CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
       initBuffers = false;
    }
-#endif // CUDA_or_HIP
+#endif // MFEM_USE_CUDA_OR_HIP
 }
 
 SparseMatrix::SparseMatrix(int nrows, int ncols)
@@ -668,10 +680,9 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    // Skip if matrix has no non-zeros
    if (nnz == 0) {return;}
-   if ((Device::Allows(Backend::CUDA_MASK) || Device::Allows(Backend::HIP_MASK)) &&
-       useGPUSparse)
+   if ((Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK)) && useGPUSparse)
    {
-#ifdef CUDA_or_HIP
+#ifdef MFEM_USE_CUDA_OR_HIP
       const double alpha = a;
       const double beta  = 1.0;
 
@@ -680,14 +691,21 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       {
 #if CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
          // Setup matrix descriptor
-         cu_or_hip(sparseCreateCsr)(&matA_descr,Height(), Width(), J.Capacity(),
+         cu_or_hip(sparseCreateCsr)(&matA_descr,Height(),
+                                    Width(),
+                                    J.Capacity(),
                                     const_cast<int *>(d_I),
-                                    const_cast<int *>(d_J), const_cast<double *>(d_A), CU_or_HIP(SPARSE_INDEX_32I),
-                                    CU_or_HIP(SPARSE_INDEX_32I), CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
+                                    const_cast<int *>(d_J),
+                                    const_cast<double *>(d_A),
+                                    CU_or_HIP(SPARSE_INDEX_32I),
+                                    CU_or_HIP(SPARSE_INDEX_32I),
+                                    CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
                                     CUDA_or_HIP(_R_64F));
 
          // Create handles for input/output vectors
-         cu_or_hip(sparseCreateDnVec)(&vecX_descr, x.Size(), const_cast<double *>(d_x),
+         cu_or_hip(sparseCreateDnVec)(&vecX_descr,
+                                      x.Size(),
+                                      const_cast<double *>(d_x),
                                       CUDA_or_HIP(_R_64F));
          cu_or_hip(sparseCreateDnVec)(&vecY_descr, y.Size(), d_y, CUDA_or_HIP(_R_64F));
 #else
@@ -701,10 +719,15 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       size_t newBufferSize = 0;
 
       cu_or_hip(sparseSpMV_bufferSize)(handle,
-                                       CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE), &alpha,
+                                       CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE),
+                                       &alpha,
                                        matA_descr,
-                                       vecX_descr, &beta, vecY_descr, CUDA_or_HIP(_R_64F),
-                                       MFEM_GPUSPARSE_ALG, &newBufferSize);
+                                       vecX_descr,
+                                       &beta,
+                                       vecY_descr,
+                                       CUDA_or_HIP(_R_64F),
+                                       MFEM_GPUSPARSE_ALG,
+                                       &newBufferSize);
 
       // Check if we need to resize
       if (newBufferSize > bufferSize)
@@ -720,18 +743,32 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       cu_or_hip(sparseDnVecSetValues)(vecY_descr, d_y);
 
       // Y = alpha A * X + beta * Y
-      cu_or_hip(sparseSpMV)(handle, CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE), &alpha,
+      cu_or_hip(sparseSpMV)(handle,
+                            CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE),
+                            &alpha,
                             matA_descr,
-                            vecX_descr, &beta, vecY_descr, CUDA_or_HIP(_R_64F), MFEM_GPUSPARSE_ALG,
+                            vecX_descr,
+                            &beta,
+                            vecY_descr,
+                            CUDA_or_HIP(_R_64F),
+                            MFEM_GPUSPARSE_ALG,
                             dBuffer);
 #else
-      cusparseDcsrmv(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
-                     Height(), Width(), J.Capacity(),
-                     &alpha, matA_descr,
-                     const_cast<double *>(d_A), const_cast<int *>(d_I), const_cast<int *>(d_J),
-                     const_cast<double *>(d_x), &beta, d_y);
+      cusparseDcsrmv(handle,
+                     CUSPARSE_OPERATION_NON_TRANSPOSE,
+                     Height(),
+                     Width(),
+                     J.Capacity(),
+                     &alpha,
+                     matA_descr,
+                     const_cast<double *>(d_A),
+                     const_cast<int *>(d_I),
+                     const_cast<int *>(d_J),
+                     const_cast<double *>(d_x),
+                     &beta,
+                     d_y);
 #endif // CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
-#endif // CUDA_or_HIP
+#endif // MFEM_USE_CUDA_OR_HIP
    }
    else
    {
@@ -4006,6 +4043,31 @@ void SparseMatrix::Swap(SparseMatrix &other)
 #endif
 
    mfem::Swap(isSorted, other.isSorted);
+}
+
+SparseMatrix::~SparseMatrix()
+{
+   Destroy();
+#ifdef MFEM_USE_CUDA_OR_HIP
+   if (useGPUSparse)
+   {
+      if (SparseMatrixCount==1)
+      {
+         if (handle)
+         {
+            cu_or_hip(sparseDestroy)(handle);
+            handle = nullptr;
+         }
+         if (dBuffer)
+         {
+            Cu_or_Hip(MemFree)(dBuffer);
+            dBuffer = nullptr;
+            bufferSize = 0;
+         }
+      }
+      SparseMatrixCount--;
+   }
+#endif // MFEM_USE_CUDA_OR_HIP
 }
 
 }

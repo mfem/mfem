@@ -24,15 +24,6 @@
 
 #if defined(MFEM_USE_HIP)
 #include <hipsparse.h>
-#define cu_or_hip(stub) hip##stub
-#define Cu_or_Hip(stub) Hip##stub
-#define CU_or_HIP(stub) HIP##stub
-#define CUDA_or_HIP(stub) HIP##stub
-#elif defined(MFEM_USE_CUDA)
-#define cu_or_hip(stub) cu##stub
-#define Cu_or_Hip(stub) Cu##stub
-#define CU_or_HIP(stub) CU##stub
-#define CUDA_or_HIP(stub) CUDA##stub
 #endif
 
 
@@ -95,27 +86,41 @@ protected:
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
 
-   bool useGPUSparse{true}; // Use cuSPARSE or hipSPARSE if available
+   bool useGPUSparse = true; // Use cuSPARSE or hipSPARSE if available
 
    // Initialize cuSPARSE/hipSPARSE
    void InitGPUSparse();
 
-#ifdef CUDA_or_HIP
-   cu_or_hip(sparseStatus_t) status;
-   static cu_or_hip(sparseHandle_t) handle;
-   cu_or_hip(sparseMatDescr_t) descr=0;
+#ifdef MFEM_USE_CUDA_OR_HIP
+   // common for hipSPARSE and cuSPARSE
    static int SparseMatrixCount;
    static size_t bufferSize;
    static void *dBuffer;
-   mutable bool initBuffers{false};
-#if CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
-   mutable cu_or_hip(sparseSpMatDescr_t) matA_descr;
-   mutable cu_or_hip(sparseDnVecDescr_t) vecX_descr;
-   mutable cu_or_hip(sparseDnVecDescr_t) vecY_descr;
-#else
+   mutable bool initBuffers = false;
+
+#if defined(MFEM_USE_CUDA)
+   cusparseStatus_t status;
+   static cusparseHandle_t handle;
+   cusparseMatDescr_t descr = 0;
+
+#if CUDA_VERSION >= 10010
+   mutable cusparseSpMatDescr_t matA_descr;
+   mutable cusparseDnVecDescr_t vecX_descr;
+   mutable cusparseDnVecDescr_t vecY_descr;
+#else // CUDA_VERSION >= 10010
    mutable cusparseMatDescr_t matA_descr;
-#endif
-#endif
+#endif // CUDA_VERSION >= 10010
+
+#else // defined(MFEM_USE_CUDA)
+   hipsparseStatus_t status;
+   static hipsparseHandle_t handle;
+   hipsparseMatDescr_t descr = 0;
+
+   mutable hipsparseSpMatDescr_t matA_descr;
+   mutable hipsparseDnVecDescr_t vecX_descr;
+   mutable hipsparseDnVecDescr_t vecY_descr;
+#endif // defined(MFEM_USE_CUDA)
+#endif // MFEM_USE_CUDA_OR_HIP
 
 public:
    /// Create an empty SparseMatrix.
@@ -167,6 +172,8 @@ public:
 
    // Runtime option to use cuSPARSE or hipSPARSE. Only valid when using a CUDA or HIP backend.
    void UseGPUSparse(bool useGPUSparse_ = true) { useGPUSparse = useGPUSparse_;}
+   MFEM_DEPRECATED
+   void UseCUSparse(bool useCUSparse_ = true) { UseGPUSparse(useCUSparse_); }
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);
@@ -186,6 +193,8 @@ public:
    /** @brief Clear the cuSPARSE/hipSPARSE descriptors.
        This must be called after releasing the device memory of A. */
    void ClearGPUSparse();
+   MFEM_DEPRECATED
+   void ClearCUSparse() { ClearGPUSparse(); }
 
    /// Check if the SparseMatrix is empty.
    bool Empty() const { return (A == NULL) && (Rows == NULL); }
@@ -642,30 +651,7 @@ public:
    void Swap(SparseMatrix &other);
 
    /// Destroys sparse matrix.
-   virtual ~SparseMatrix()
-   {
-      Destroy();
-#ifdef CUDA_or_HIP
-      if (useGPUSparse)
-      {
-         if (SparseMatrixCount==1)
-         {
-            if (handle)
-            {
-               cu_or_hip(sparseDestroy)(handle);
-               handle = nullptr;
-            }
-            if (dBuffer)
-            {
-               Cu_or_Hip(MemFree)(dBuffer);
-               dBuffer = nullptr;
-               bufferSize = 0;
-            }
-         }
-         SparseMatrixCount--;
-      }
-#endif
-   }
+   ~SparseMatrix() override;
 
    Type GetType() const { return MFEM_SPARSEMAT; }
 };
