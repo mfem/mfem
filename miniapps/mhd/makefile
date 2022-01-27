@@ -15,7 +15,7 @@ MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/mhd/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-OBJ = InitialConditions.o
+OBJ = InitialConditions.o ../navier/ortho_solver.o
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk

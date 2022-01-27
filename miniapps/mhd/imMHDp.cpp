@@ -16,6 +16,7 @@
 #include "PCSolver.hpp"
 #include "InitialConditions.hpp"
 #include "localrefine.hpp"
+#include "../navier/ortho_solver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -893,10 +894,11 @@ int main(int argc, char *argv[])
    {
       //recover vector fields first
       ParFiniteElementSpace vfes(pmesh, &fe_coll, 2);
-      ParGridFunction vel(&vfes), mag(&vfes), nlterm(&vfes);
-      ParMixedBilinearForm grad(&fespace, &vfes);
+      ParGridFunction vel(&vfes), mag(&vfes), gfv(&vfes), gftmp(&fespace);
+      ParMixedBilinearForm grad(&fespace, &vfes), div(&vfes, &fespace);
       ParLinearForm zLF(&vfes), zJxB(&vfes); 
       Vector z(vfes.TrueVSize()), z2(vfes.TrueVSize());
+      Vector zscalar(fespace.TrueVSize()), zscalar2(fespace.TrueVSize());
 
       DenseMatrix A(2);
       A(0,0) = 0.0; A(0,1) =-1.0;
@@ -925,6 +927,10 @@ int main(int argc, char *argv[])
       convect_nl.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
       convect_nl.Setup();
 
+      //divergence operator from Vector H1 to H1
+      div.AddDomainIntegrator(new VectorDivergenceIntegrator);
+      div.Assemble();
+
       CGSolver M_solver(MPI_COMM_WORLD);
       HypreSmoother *M_prec;  
       M_solver.iterative_mode = false;
@@ -936,6 +942,8 @@ int main(int argc, char *argv[])
       M_prec->SetType(HypreSmoother::Jacobi);
       M_solver.SetPreconditioner(*M_prec);
       M_solver.SetOperator(*MfullMat);
+
+      CGSolver &Mscalar_solver = oper.GetM_solver2();
 
       //compute velocity 
       grad.Mult(phi, zLF);
@@ -961,7 +969,7 @@ int main(int argc, char *argv[])
       M_solver.Mult(z, z2);
       mag.SetFromTrueDofs(z2);
 
-      //compute Δp=u.grad u - JxB
+      //compute -Δp=div(u.grad u - JxB)
       Vector vtrue, rhs, vtmp;
       int vfes_truevsize = vfes.GetTrueVSize();
       const IntegrationRule &ir = IntRules.Get(vfes.GetFE(0)->GetGeomType(), 3*order);
@@ -982,8 +990,35 @@ int main(int argc, char *argv[])
       
       //compute M^{-1}(u.grad u - JxB)
       M_solver.Mult(rhs, z2);
+      gfv.SetFromTrueDofs(z2);
+      div.Mult(gfv, gftmp);
 
-      mag.SetFromTrueDofs(z2);
+      ParBilinearForm a(&fespace);
+      a.AddDomainIntegrator(new DiffusionIntegrator);
+      a.Assemble();
+      a.Finalize();
+      HypreParMatrix *KMat=a.ParallelAssemble();
+
+      HypreSolver *K_amg = new HypreBoomerAMG(*KMat);
+      CGSolver *K_pcg = new CGSolver(MPI_COMM_WORLD);
+      mfem::navier::OrthoSolver *SpInvOrthoPC = new mfem::navier::OrthoSolver();
+      SpInvOrthoPC->SetOperator(*K_amg);
+
+      K_pcg->SetOperator(*KMat);
+      K_pcg->iterative_mode = false;
+      K_pcg->SetRelTol(1e-7);
+      K_pcg->SetMaxIter(200);
+      K_pcg->SetPrintLevel(0);
+      K_pcg->SetPreconditioner(*SpInvOrthoPC);
+
+      ParLinearForm b(&fespace);
+      b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(JxBCoeff), ess_bdr);
+      b.Assemble();
+      b.ParallelAssemble(zscalar);
+      gftmp.GetTrueDofs(zscalar2);
+      zscalar.Add(1.0, zscalar2);
+      K_pcg->Mult(zscalar, zscalar2);
+      gftmp.SetFromTrueDofs(zscalar2);
 
       //visualize
       ParaViewDataCollection *pd2 = NULL;
@@ -991,6 +1026,7 @@ int main(int argc, char *argv[])
       pd2->SetPrefixPath("ParaView");
       pd2->RegisterField("vel", &vel);
       pd2->RegisterField("mag", &mag);
+      pd2->RegisterField("pre", &gftmp);
       pd2->SetLevelsOfDetail(order);
       pd2->SetDataFormat(VTKFormat::BINARY);
       pd2->SetHighOrderOutput(true);
@@ -1000,10 +1036,10 @@ int main(int argc, char *argv[])
       delete M_prec;
       delete MfullMat;
       delete pd2;
-
-
-
-      //try to use BoundaryNormalLFIntegrator
+      delete K_amg;
+      delete SpInvOrthoPC;
+      delete KMat;
+      delete K_pcg;
    }
 
    if (icase==1){

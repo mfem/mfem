@@ -391,7 +391,7 @@ public:
 
    bool getConverged(){ return convergedSolver;}
    void resetConverged(){ convergedSolver=true;}
-
+   CGSolver &GetM_solver2() { return M_solver2;}
 
    //update grid functions (grid functions have to be updated immediately)
    void UpdateGridFunction()
