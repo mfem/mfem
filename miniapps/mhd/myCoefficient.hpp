@@ -87,4 +87,62 @@ namespace mfem
 
         return -gradu(1)*gradv(0)+gradu(0)*gradv(1);
     }
+
+    /*
+    //speical rhs coefficient
+    //coefficient=2*[vecg1_x vecg2_y - (vecg1_y)^2] - J^2 - (J_x Psi_x + J_y Psi_y)
+    class RHSCoefficient : public Coefficient
+    {
+      private:
+         GridFunction *vecg, *Psi, *J;
+      public:
+         PBCoefficient(GridFunction *vecg_, GridFunction *Psi_, GridFunction *J_)
+        { vecg=vecg_; Psi=Psi_; J=J_}
+         double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+    };
+
+    double RHSCoefficient::Eval(ElementTransformation &T,
+                     const IntegrationPoint &ip)
+    {
+        Vector grad, gradJ, HenssianPhi;
+        double Jvalue;
+        Psi->GetGradient(T, gradPsi);
+          J->GetGradient(T, gradJ);
+        Jvalue = J->GetValue(T, ip);
+
+        return Jvalue*Jvalue-gradJ(0)*gradPsi(0)-gradJ(1)*gradPsi(1);
+    }
+
+
+    //rhs = Phi_xx Phi_yy -Phi_xy^2 - J^2 - (J_x Psi_x + J_y Psi_y)
+    double RHSCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ir)
+    {
+        DenseMatrix rhs;
+
+        M.SetSize(1, ir.GetNPoints());
+        Psi->GetGradients(T, ir, gradPsi);
+          J->GetGradients(T, ir, gradJ);
+          J->GetValues(T, ir, Jvalue);
+        Phi->GetHessians(T, ir, Hessians);
+
+        for (int i=0; i<ir.GetNPoints(); i++)
+        {
+            M(0,j)= Hessians(i, 0)*Hessians(i,2) - Hessians(i,1)*Hessians(i,1) 
+                  -Jvalue(i)*Jvalue(i)-gradJ(0,i)*gradPsi(0,i)-gradJ(1,i)*gradPsi(1,i);
+        }
+    }
+
+    //compute the boundary coefficient
+    class RHSCoefficient : public Coefficient
+    {
+      private:
+         GridFunction *vel, *mag, *J;
+      public:
+         PBCoefficient(GridFunction *vel_, GridFunction *mag_, GridFunction *J_)
+        { vel=vel_; mag=mag_; J=J_}
+         double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+    };
+    */
+
 }

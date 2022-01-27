@@ -889,6 +889,101 @@ int main(int argc, char *argv[])
  
    }
 
+   //recover pressure in the post processing
+   {
+      //recover vector fields first
+      ParFiniteElementSpace vfes(pmesh, &fe_coll, 2);
+      ParGridFunction vel(&vfes), mag(&vfes), nlterm(&vfes);
+      ParMixedBilinearForm grad(&fespace, &vfes);
+      ParLinearForm zLF(&vfes); 
+      Vector z(vfes.TrueVSize()), z2(vfes.TrueVSize());
+
+      DenseMatrix A(2);
+      A(0,0) = 0.0; A(0,1) =-1.0;
+      A(1,0) = 1.0; A(1,1) = 0.0;
+      MatrixConstantCoefficient coeff_curl(A);
+
+      //mass matrix for vector fields
+      ParBilinearForm Mfull(&vfes);
+      Mfull.AddDomainIntegrator(new VectorMassIntegrator);
+      Mfull.Assemble();
+      Mfull.Finalize();
+      HypreParMatrix *MfullMat=Mfull.ParallelAssemble();
+
+      //rotation matrix
+      ParBilinearForm Mrot(&vfes);
+      Mrot.AddDomainIntegrator(new VectorMassIntegrator(coeff_curl));
+      Mrot.Assemble();
+      Mrot.Finalize();
+
+      //gradient operator from H1 to Vector H1
+      grad.AddDomainIntegrator(new GradientIntegrator);
+      grad.Assemble(); 
+
+      ////nonlinear convection term
+      //ParBilinearForm convect_nl(&vfes);
+      //convect_nl.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+      //convect_nl.Assemble();
+      //convect_nl.Finalize();
+
+      CGSolver M_solver(MPI_COMM_WORLD);
+      HypreSmoother *M_prec;  
+      M_solver.iterative_mode = false;
+      M_solver.SetRelTol(1e-7);
+      M_solver.SetAbsTol(0.0);
+      M_solver.SetMaxIter(2000);
+      M_solver.SetPrintLevel(0);
+      M_prec = new HypreSmoother;
+      M_prec->SetType(HypreSmoother::Jacobi);
+      M_solver.SetPreconditioner(*M_prec);
+      M_solver.SetOperator(*MfullMat);
+
+      //compute velocity 
+      grad.Mult(phi, zLF);
+      zLF.ParallelAssemble(z);
+      M_solver.Mult(z, z2);
+      vel.SetFromTrueDofs(z2);
+
+      //finalize with a rotation
+      Mrot.Mult(vel, zLF);
+      zLF.ParallelAssemble(z);
+      M_solver.Mult(z, z2);
+      vel.SetFromTrueDofs(z2);
+
+      //compute B field
+      grad.Mult(psi, zLF);
+      zLF.ParallelAssemble(z);
+      M_solver.Mult(z, z2);
+      mag.SetFromTrueDofs(z2);
+
+      //finalize with a rotation
+      Mrot.Mult(mag, zLF);
+      zLF.ParallelAssemble(z);
+      M_solver.Mult(z, z2);
+      mag.SetFromTrueDofs(z2);
+
+      //visualize
+      ParaViewDataCollection *pd2 = NULL;
+      pd2 = new ParaViewDataCollection("vector", pmesh);
+      pd2->SetPrefixPath("ParaView");
+      pd2->RegisterField("vel", &vel);
+      pd2->RegisterField("mag", &mag);
+      pd2->SetLevelsOfDetail(order);
+      pd2->SetDataFormat(VTKFormat::BINARY);
+      pd2->SetHighOrderOutput(true);
+      pd2->SetCycle(0);
+      pd2->Save();
+
+      delete M_prec;
+      delete MfullMat;
+      delete pd2;
+
+      //compute a projection of f=u.grad u - JxB
+
+
+      //try to use BoundaryNormalLFIntegrator
+   }
+
    if (icase==1){
       FunctionCoefficient psiExact(exactPsi1); 
       FunctionCoefficient phiExact(exactPhi1); 
