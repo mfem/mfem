@@ -229,13 +229,15 @@ int main(int argc, char *argv[])
 
 
    socketstream u_out;
-   socketstream sigma_out;
+   // socketstream sigma_out;
+   socketstream mesh_out;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       u_out.open(vishost, visport);
-      sigma_out.open(vishost, visport);
+      // sigma_out.open(vishost, visport);
+      mesh_out.open(vishost, visport);
    }
 
    for (int i = 0; i<ref; i++)
@@ -317,14 +319,22 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          u_out.precision(8);
-         u_out << "solution\n" << mesh << u_gf <<
-                  "window_title 'Numerical u' "
+         string keys = (i == 0) ? "keys em\n" : "keys";
+         u_out << "solution\n" << mesh << u_gf 
+               << "window_title 'Numerical u' "
                   << flush;
 
-         sigma_out.precision(8);
-         sigma_out << "solution\n" << mesh << sigma_gf <<
-               "window_title 'Numerical flux' "
-               << flush;
+         // sigma_out.precision(8);
+         // sigma_out << "solution\n" << mesh << sigma_gf <<
+         //       "window_title 'Numerical flux' "
+         //       << flush;
+
+         mesh_out.precision(8);
+         mesh_out << "mesh\n" << mesh 
+                  << keys
+                  << "window_title 'Mesh' "
+                  << flush;
+
       }
 
       mesh.GeneralRefinement(elements_to_refine);
