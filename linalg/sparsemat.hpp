@@ -651,7 +651,7 @@ public:
    void Swap(SparseMatrix &other);
 
    /// Destroys sparse matrix.
-   ~SparseMatrix() override;
+   virtual ~SparseMatrix();
 
    Type GetType() const { return MFEM_SPARSEMAT; }
 };
