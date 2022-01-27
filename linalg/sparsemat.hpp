@@ -170,8 +170,13 @@ public:
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
-   // Runtime option to use cuSPARSE or hipSPARSE. Only valid when using a CUDA or HIP backend.
+   /** @brief Runtime option to use cuSPARSE or hipSPARSE. Only valid when using
+       a CUDA or HIP backend.
+
+       @note This option is enabled by default, so typically one would use this
+       method to disable the use of cuSPARSE/hipSPARSE. */
    void UseGPUSparse(bool useGPUSparse_ = true) { useGPUSparse = useGPUSparse_;}
+   /// Deprecated equivalent of UseGPUSparse().
    MFEM_DEPRECATED
    void UseCUSparse(bool useCUSparse_ = true) { UseGPUSparse(useCUSparse_); }
 
@@ -193,6 +198,7 @@ public:
    /** @brief Clear the cuSPARSE/hipSPARSE descriptors.
        This must be called after releasing the device memory of A. */
    void ClearGPUSparse();
+   /// Deprecated equivalent of ClearGPUSparse().
    MFEM_DEPRECATED
    void ClearCUSparse() { ClearGPUSparse(); }
 
