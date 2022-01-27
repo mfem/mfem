@@ -38,6 +38,10 @@
 #endif
 #endif
 
+#if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__))
+#define MFEM_DEVICE_COMPILE
+#endif
+
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
