@@ -10,6 +10,8 @@
 
 Version 4.3.1 (development)
 ===========================
+- More explicit and consistent formating of the output of iterative solvers
+  with the new IterativeSolver::PrintLevel options. See linalg/solvers.hpp.
 
 - Added a miniapp for PDE-based extrapolation of finite element functions. See
   miniapps/shifted/extrapolate.cpp.

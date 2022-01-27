@@ -330,7 +330,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
          }
          else
          {
-            Node &(n_bndry_conn_conv) =
+            Node &n_bndry_conn_conv =
                n_conv["topologies"][bndry_topo_name]["elements/connectivity"];
             n_bndry_conn.to_int_array(n_bndry_conn_conv);
             bndry_indices = (n_bndry_conn_conv).value();
