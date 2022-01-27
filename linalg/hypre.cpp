@@ -65,7 +65,7 @@ bool CanShallowCopy(const Memory<T> &src, MemoryClass mc)
 inline void HypreParVector::_SetDataAndSize_()
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
-#if !defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_HIP)
+#if !defined(HYPRE_USING_GPU)
    SetDataAndSize(hypre_VectorData(x_loc),
                   internal::to_int(hypre_VectorSize(x_loc)));
 #else
@@ -112,7 +112,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 #endif
    double tmp = 0.0;
    hypre_VectorData(x_loc) = &tmp;
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) =
       is_device_ptr ? HYPRE_MEMORY_DEVICE : HYPRE_MEMORY_HOST;
 #else
@@ -257,7 +257,7 @@ void HypreParVector::HypreRead() const
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) =
       const_cast<double*>(data.Read(GetHypreMemoryClass(), size));
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
 #endif
 }
@@ -266,7 +266,7 @@ void HypreParVector::HypreReadWrite()
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.ReadWrite(GetHypreMemoryClass(), size);
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
 #endif
 }
@@ -275,7 +275,7 @@ void HypreParVector::HypreWrite()
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.Write(GetHypreMemoryClass(), size);
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
 #endif
 }
@@ -289,7 +289,7 @@ void HypreParVector::WrapMemoryRead(const Memory<double> &mem)
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) =
       const_cast<double*>(mem.Read(GetHypreMemoryClass(), size));
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
 #endif
    data.MakeAlias(mem, 0, size);
@@ -303,7 +303,7 @@ void HypreParVector::WrapMemoryReadWrite(Memory<double> &mem)
    data.Delete();
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = mem.ReadWrite(GetHypreMemoryClass(), size);
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
 #endif
    data.MakeAlias(mem, 0, size);
@@ -317,7 +317,7 @@ void HypreParVector::WrapMemoryWrite(Memory<double> &mem)
    data.Delete();
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = mem.Write(GetHypreMemoryClass(), size);
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
 #endif
    data.MakeAlias(mem, 0, size);
@@ -885,7 +885,7 @@ HypreParMatrix::HypreParMatrix(
    hypre_CSRMatrixJ(A->diag) = diag_j;
    hypre_CSRMatrixData(A->diag) = diag_data;
    hypre_CSRMatrixNumNonzeros(A->diag) = diag_i[local_num_rows];
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->diag) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->diag);
@@ -895,7 +895,7 @@ HypreParMatrix::HypreParMatrix(
    hypre_CSRMatrixJ(A->offd) = offd_j;
    hypre_CSRMatrixData(A->offd) = offd_data;
    hypre_CSRMatrixNumNonzeros(A->offd) = offd_i[local_num_rows];
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->offd) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->offd);
@@ -1070,7 +1070,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    hypre_CSRMatrixI(A->diag)    = i_diag;
    hypre_CSRMatrixJ(A->diag)    = j_diag;
    hypre_CSRMatrixData(A->diag) = mem_diag.data;
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->diag) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->diag);
@@ -1079,7 +1079,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    hypre_CSRMatrixI(A->offd)    = i_offd;
    hypre_CSRMatrixJ(A->offd)    = j_offd;
    hypre_CSRMatrixData(A->offd) = mem_offd.data;
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->offd) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->offd);
@@ -1306,7 +1306,7 @@ hypre_ParCSRMatrix* HypreParMatrix::StealData()
    MFEM_ASSERT(diagOwner == offdOwner, "");
    MFEM_ASSERT(ParCSROwner, "");
    hypre_ParCSRMatrix *R = A;
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    if (diagOwner == -1) { HostReadWrite(); }
    else { HypreReadWrite(); }
 #endif
@@ -1418,8 +1418,8 @@ void HypreParMatrix::GetDiag(Vector &diag) const
 {
    const int size = Height();
    diag.SetSize(size);
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
-   if (Device::Allows(Backend::CUDA_MASK) || Device::Allows(Backend::HIP_MASK))
+#ifdef HYPRE_USING_GPU
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
       MFEM_ASSERT(A->diag->memory_location == HYPRE_MEMORY_DEVICE, "");
       double *d_diag = diag.Write();
@@ -2447,7 +2447,7 @@ void HypreParMatrix::Destroy()
 
    if (A == NULL) { return; }
 
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    if (ParCSROwner && (diagOwner < 0 || offdOwner < 0))
    {
       // Put the "host" or "hypre" pointers in {i,j,data} of A->{diag,offd}, so
@@ -2590,7 +2590,7 @@ HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
                          bool own_matrix)
 {
    hypre_ParCSRMatrix * ab;
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    ab = hypre_ParCSRMatMat(*A, *B);
 #else
    ab = hypre_ParMatmul(*A,*B);
@@ -2611,7 +2611,7 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
 {
    hypre_ParCSRMatrix * rap;
 
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    // FIXME: this way of computing Pt A P can completely eliminate zero rows
    //        from the sparsity pattern of the product which prevents
    //        EliminateZeroRows() from working correctly. This issue is observed
@@ -2658,7 +2658,7 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
 {
    hypre_ParCSRMatrix * rap;
 
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    {
       hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
       rap = hypre_ParCSRTMatMat(*Rt,Q);
@@ -3253,15 +3253,9 @@ void HypreSmoother::SetOperator(const Operator &op)
    }
    if (l1_norms && pos_l1_norms)
    {
-#if defined(HYPRE_USING_CUDA)
+#if defined(HYPRE_USING_GPU)
       double *d_l1_norms = l1_norms;  // avoid *this capture
-      CuWrap1D(height, [=] MFEM_DEVICE (int i)
-      {
-         d_l1_norms[i] = std::abs(d_l1_norms[i]);
-      });
-#elif defined(HYPRE_USING_HIP)
-      double *d_l1_norms = l1_norms;  // avoid *this capture
-      HipWrap1D(height, [=] MFEM_DEVICE (int i)
+      GPU_WRAP1D(height, [=] MFEM_DEVICE (int i)
       {
          d_l1_norms[i] = std::abs(d_l1_norms[i]);
       });
@@ -4464,7 +4458,7 @@ HypreBoomerAMG::HypreBoomerAMG(const HypreParMatrix &A) : HypreSolver(&A)
 
 void HypreBoomerAMG::SetDefaultOptions()
 {
-#if !defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_HIP)
+#if !defined(HYPRE_USING_GPU)
    // AMG coarsening options:
    int coarsen_type = 10;   // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
    int agg_levels   = 1;    // number of aggressive coarsening levels
@@ -4733,7 +4727,7 @@ void HypreBoomerAMG::RecomputeRBMs()
 
 void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
 {
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    MFEM_ABORT("this method is not supported in hypre built with CUDA");
 #endif
 
@@ -4914,7 +4908,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
-#if !defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_HIP)
+#if !defined(HYPRE_USING_GPU)
    int amg_coarsen_type = 10;
    int amg_agg_levels   = 1;
    int amg_rlx_type     = 8;
@@ -5165,7 +5159,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
-#if !defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_HIP)
+#if !defined(HYPRE_USING_GPU)
    int rlx_type         = 2;
    int amg_coarsen_type = 10;
    int amg_agg_levels   = 1;
