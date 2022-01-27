@@ -196,9 +196,9 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 int main(int argc, char *argv[])
 {
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
+#ifdef HYPRE_USING_GPU
    cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this example\n"
-        << "is NOT supported with the CUDA/HIP version of hypre.\n\n";
+        << "is NOT supported with the GPU version of hypre.\n\n";
    return 255;
 #endif
 
@@ -486,8 +486,8 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
       if (!spaces[0]->GetParMesh()->Nonconforming())
       {
-#if !defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_HIP)
-         // Not available yet when hypre is built with CUDA/HIP
+#if !defined(HYPRE_USING_GPU)
+         // Not available yet when hypre is built with GPU
          stiff_prec_amg->SetElasticityOptions(spaces[0]);
 #endif
       }

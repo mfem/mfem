@@ -74,7 +74,7 @@ inline int to_int(HYPRE_Int i)
 /// The MemoryClass used by Hypre objects.
 inline constexpr MemoryClass GetHypreMemoryClass()
 {
-#if !defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_HIP)
+#if !defined(HYPRE_USING_GPU)
    return MemoryClass::HOST;
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryClass::MANAGED;
@@ -86,7 +86,7 @@ inline constexpr MemoryClass GetHypreMemoryClass()
 /// The MemoryType used by MFEM when allocating arrays for Hypre objects.
 inline MemoryType GetHypreMemoryType()
 {
-#if !defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_HIP)
+#if !defined(HYPRE_USING_GPU)
    return Device::GetHostMemoryType();
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryType::MANAGED;
@@ -919,7 +919,7 @@ public:
    enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
                GS = 6, OPFS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
              };
-#if !defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_HIP)
+#if !defined(HYPRE_USING_GPU)
    static constexpr Type default_type = l1GS;
 #else
    static constexpr Type default_type = l1Jacobi;

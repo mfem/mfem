@@ -1243,7 +1243,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          HypreParMatrix * Ah;
          A_i.Get(Ah);
          hypre_ParCSRMatrix *Aih = *Ah;
-#if !defined(HYPRE_USING_CUDA) && !defined(HYPRE_USING_HIP)
+#if !defined(HYPRE_USING_GPU)
          ess_tdof_list.HostRead();
          for (int k = 0; k < n; k++)
          {
@@ -1256,19 +1256,11 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
             ess_tdof_list.GetMemory().Read(MemoryClass::DEVICE, n);
          const int *d_diag_i = Aih->diag->i;
          double *d_diag_data = Aih->diag->data;
-#if defined(HYPRE_USING_CUDA)
-         CuWrap1D(n, [=] MFEM_DEVICE (int k)
+         GPU_WRAP1D(n, [=] MFEM_DEVICE (int k)
          {
             const int j = d_ess_tdof_list[k];
             d_diag_data[d_diag_i[j]] = 0.0;
          });
-#else
-         HipWrap1D(n, [=] MFEM_DEVICE (int k)
-         {
-            const int j = d_ess_tdof_list[k];
-            d_diag_data[d_diag_i[j]] = 0.0;
-         });
-#endif
 #endif
       }
       else

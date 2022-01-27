@@ -2207,7 +2207,7 @@ TEST_CASE("Sedov", "[Sedov], [Parallel]")
    if (!strcmp(MFEM_SEDOV_DEVICE,"debug"))
    {
       cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
-           << "is NOT supported with the CUDA/HIP version of hypre.\n\n";
+           << "is NOT supported with the GPU version of hypre.\n\n";
       return;
    }
 #endif

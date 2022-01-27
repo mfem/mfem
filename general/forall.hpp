@@ -42,6 +42,12 @@ const int MAX_Q1D = 14;
 #define MFEM_UNROLL(N)
 #endif
 
+#if defined(HYPRE_USING_CUDA)
+#define GPU_WRAP1D CuWrap1D
+#elif defined(HYPRE_USING_HIP)
+#define GPU_WRAP1D HipWrap1D
+#endif
+
 // Implementation of MFEM's "parallel for" (forall) device/host kernel
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
 
