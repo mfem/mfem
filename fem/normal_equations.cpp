@@ -49,6 +49,7 @@ void NormalEquations::Init()
    width = height;
 
    initialized = true;
+   static_cond = nullptr;
 
    if (store_matrices)
    {
@@ -75,6 +76,8 @@ void NormalEquations::ComputeOffsets()
 // Allocate SparseMatrix and RHS
 void NormalEquations::AllocMat()
 {
+   if (static_cond) { return; }
+
    mat = new BlockMatrix(dof_offsets);
    mat->owns_blocks = 1;
 
@@ -95,6 +98,7 @@ void NormalEquations::Finalize(int skip_zeros)
 {
    if (mat) { mat->Finalize(skip_zeros); }
    if (mat_e) { mat_e->Finalize(skip_zeros); }
+   if (static_cond) { static_cond->Finalize(); }
 }
 
 /// Adds new Domain BF Integrator. Assumes ownership of @a bfi.
@@ -416,21 +420,17 @@ void NormalEquations::Assemble(int skip_zeros)
       }
 
 
-
-      // Get Shur Complement
-      Array<int> all_dofs;
-      Array<int> bubble_dofs;
-      Array<int> trace_beg;
-      Array<int> trace_end;
-      Array<int> bubble_beg;
-      Array<int> bubble_end;
       if (static_cond)
       {
-         // construct Array of bubble dofs to be extracted
-         int k=0;
+         static_cond->AssembleReducedSystem(iel,A,b);
+      }
+      else
+      {
+         // Assembly
          for (int i = 0; i<trial_fes.Size(); i++)
          {
-            int td,ndof;
+            Array<int> vdofs_i;
+            doftrans_i = nullptr;
             if (IsTraceFes[i])
             {
                Array<int> face_vdofs;
@@ -438,96 +438,58 @@ void NormalEquations::Assemble(int skip_zeros)
                {
                   int iface = faces[k];
                   trial_fes[i]->GetFaceVDofs(iface, face_vdofs);
-                  all_dofs.Append(face_vdofs);
+                  vdofs_i.Append(face_vdofs);
                }
-               ndof = all_dofs.Size();
-               td = ndof;
             }
             else
             {
-               trial_fes[i]->GetElementVDofs(iel, all_dofs);
-               trial_fes[i]->GetElementInteriorVDofs(iel, bubble_dofs);
-               ndof = all_dofs.Size(); // number of all dofs
-               td = ndof - bubble_dofs.Size(); // number of bubble dofs
+               doftrans_i = trial_fes[i]->GetElementVDofs(iel, vdofs_i);
             }
-
-            trace_beg.Append(k);
-            trace_end.Append(k+td);
-            bubble_beg.Append(k+td);
-            k+=ndof;
-            bubble_end.Append(k);
-         }
-         mfem::out << "trace_beg  = " ; trace_beg.Print() ;
-         mfem::out << "trace_end  = " ; trace_end.Print() ;
-         mfem::out << "bubble_beg = " ; bubble_beg.Print() ;
-         mfem::out << "bubble_end = " ; bubble_end.Print() ;
-         std::cin.get();
-      }
-
-
-      // Assembly
-      for (int i = 0; i<trial_fes.Size(); i++)
-      {
-         Array<int> vdofs_i;
-         doftrans_i = nullptr;
-         if (IsTraceFes[i])
-         {
-            Array<int> face_vdofs;
-            for (int k = 0; k < numfaces; k++)
+            for (int j = 0; j<trial_fes.Size(); j++)
             {
-               int iface = faces[k];
-               trial_fes[i]->GetFaceVDofs(iface, face_vdofs);
-               vdofs_i.Append(face_vdofs);
-            }
-         }
-         else
-         {
-            doftrans_i = trial_fes[i]->GetElementVDofs(iel, vdofs_i);
-         }
-         for (int j = 0; j<trial_fes.Size(); j++)
-         {
-            Array<int> vdofs_j;
-            doftrans_j = nullptr;
+               Array<int> vdofs_j;
+               doftrans_j = nullptr;
 
-            if (IsTraceFes[j])
-            {
-               Array<int> face_vdofs;
-               for (int k = 0; k < numfaces; k++)
+               if (IsTraceFes[j])
                {
-                  int iface = faces[k];
-                  trial_fes[j]->GetFaceVDofs(iface, face_vdofs);
-                  vdofs_j.Append(face_vdofs);
+                  Array<int> face_vdofs;
+                  for (int k = 0; k < numfaces; k++)
+                  {
+                     int iface = faces[k];
+                     trial_fes[j]->GetFaceVDofs(iface, face_vdofs);
+                     vdofs_j.Append(face_vdofs);
+                  }
+               }
+               else
+               {
+                  doftrans_j = trial_fes[j]->GetElementVDofs(iel, vdofs_j);
+               }
+
+               DenseMatrix Ae;
+               A.GetSubMatrix(trial_offs[i],trial_offs[i+1],
+                              trial_offs[j],trial_offs[j+1], Ae);
+               if (doftrans_i || doftrans_j)
+               {
+                  TransformDual(doftrans_i, doftrans_j, Ae);
+               }
+               else
+               {
+                  mat->GetBlock(i,j).AddSubMatrix(vdofs_i,vdofs_j, Ae);
                }
             }
-            else
-            {
-               doftrans_j = trial_fes[j]->GetElementVDofs(iel, vdofs_j);
-            }
 
-            DenseMatrix Ae;
-            A.GetSubMatrix(trial_offs[i],trial_offs[i+1],
-                           trial_offs[j],trial_offs[j+1], Ae);
-            if (doftrans_i || doftrans_j)
+            // assemble rhs
+            double * data = b.GetData();
+            Vector vec1;
+            // ref subvector
+            vec1.SetDataAndSize(&data[trial_offs[i]],
+                                trial_offs[i+1]-trial_offs[i]);
+            if (doftrans_i)
             {
-               TransformDual(doftrans_i, doftrans_j, Ae);
+               doftrans_i->TransformDual(vec1);
             }
-            else
-            {
-               mat->GetBlock(i,j).AddSubMatrix(vdofs_i,vdofs_j, Ae);
-            }
+            y->GetBlock(i).AddElementVector(vdofs_i,vec1);
          }
-
-         // assemble rhs
-         double * data = b.GetData();
-         Vector vec1;
-         // ref subvector
-         vec1.SetDataAndSize(&data[trial_offs[i]],
-                             trial_offs[i+1]-trial_offs[i]);
-         if (doftrans_i)
-         {
-            doftrans_i->TransformDual(vec1);
-         }
-         y->GetBlock(i).AddElementVector(vdofs_i,vec1);
       }
    }
 }
@@ -539,6 +501,11 @@ void NormalEquations::FormLinearSystem(const Array<int>
                                        Vector &B, int copy_interior)
 {
    FormSystemMatrix(ess_tdof_list, A);
+   if (static_cond)
+   {
+      // Schur complement reduction to the exposed dofs
+      static_cond->ReduceSystem(x, *y, X, B, copy_interior);
+   }
    if (!P)
    {
       EliminateVDofsInRHS(ess_tdof_list, x, *y);
@@ -586,24 +553,38 @@ void NormalEquations::FormSystemMatrix(const Array<int>
                                        &ess_tdof_list,
                                        OperatorHandle &A)
 {
-   if (!mat_e)
+   if (static_cond)
    {
-      bool conforming = true;
-      for (int i = 0; i<nblocks; i++)
+      if (!static_cond->HasEliminatedBC())
       {
-         const SparseMatrix *P_ = trial_fes[i]->GetConformingProlongation();
-         if (P_)
-         {
-            conforming = false;
-            break;
-         }
+         static_cond->SetEssentialTrueDofs(ess_tdof_list);
+         static_cond->Finalize(); // finalize Schur complement (to true dofs)
+         static_cond->EliminateReducedTrueDofs(diag_policy);
+         static_cond->Finalize(); // finalize eliminated part
       }
-      if (!conforming) { ConformingAssemble(); }
-      const int remove_zeros = 0;
-      EliminateVDofs(ess_tdof_list, diag_policy);
-      Finalize(remove_zeros);
+      A.Reset(&static_cond->GetMatrix(), false);
    }
-   A.Reset(mat, false);
+   else
+   {
+      if (!mat_e)
+      {
+         bool conforming = true;
+         for (int i = 0; i<nblocks; i++)
+         {
+            const SparseMatrix *P_ = trial_fes[i]->GetConformingProlongation();
+            if (P_)
+            {
+               conforming = false;
+               break;
+            }
+         }
+         if (!conforming) { ConformingAssemble(); }
+         const int remove_zeros = 0;
+         EliminateVDofs(ess_tdof_list, diag_policy);
+         Finalize(remove_zeros);
+      }
+      A.Reset(mat, false);
+   }
 }
 
 void NormalEquations::EliminateVDofsInRHS(
@@ -642,21 +623,34 @@ void NormalEquations::RecoverFEMSolution(const Vector &X,
 {
    if (!P)
    {
+      if (static_cond)
+      {
+         // Private dofs back solve
+         static_cond->ComputeSolution(*y, X, x);
+      }
       x.SyncMemory(X);
    }
    else
    {
-      x.SetSize(P->Height());
-      P->Mult(X, x);
-      double *data = X.GetData();
-      Vector tmp;
-      for (int i = 0; i<nblocks; i++)
+      if (static_cond)
       {
-         if (P->IsZeroBlock(i,i))
+         // Private dofs back solve
+         static_cond->ComputeSolution(*y, X, x);
+      }
+      else
+      {
+         x.SetSize(P->Height());
+         P->Mult(X, x);
+         double *data = X.GetData();
+         Vector tmp;
+         for (int i = 0; i<nblocks; i++)
          {
-            int offset = tdof_offsets[i];
-            tmp.SetDataAndSize(&data[offset],tdof_offsets[i+1]-tdof_offsets[i]);
-            x.SetVector(tmp,offset);
+            if (P->IsZeroBlock(i,i))
+            {
+               int offset = tdof_offsets[i];
+               tmp.SetDataAndSize(&data[offset],tdof_offsets[i+1]-tdof_offsets[i]);
+               x.SetVector(tmp,offset);
+            }
          }
       }
    }
@@ -709,6 +703,9 @@ void NormalEquations::Update()
       delete R; R = nullptr;
    }
 
+   delete static_cond;
+   static_cond = NULL;
+
    ComputeOffsets();
 
    diag_policy = mfem::Operator::DIAG_ONE;
@@ -733,6 +730,15 @@ void NormalEquations::Update()
       }
    }
 }
+
+
+void NormalEquations::EnableStaticCondensation()
+{
+   static_cond = new BlockStaticCondensation(trial_fes);
+   static_cond->Init();
+}
+
+
 
 Vector & NormalEquations::ComputeResidual(const BlockVector & x)
 {
@@ -832,6 +838,8 @@ NormalEquations::~NormalEquations()
       delete P;
       delete R;
    }
+
+   delete static_cond;
 
    if (store_matrices)
    {

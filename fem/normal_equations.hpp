@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
+#include "blockstaticcond.hpp"
 
 namespace mfem
 {
@@ -25,7 +26,8 @@ class NormalEquations
 
 protected:
 
-   bool static_cond = false;
+   BlockStaticCondensation *static_cond; ///< Owned.
+
    bool initialized = false;
 
    Mesh * mesh = nullptr;
@@ -238,6 +240,8 @@ public:
          }
       }
    }
+
+   void EnableStaticCondensation();
 
    Vector & ComputeResidual(const BlockVector & x);
 

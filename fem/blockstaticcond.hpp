@@ -25,6 +25,9 @@ namespace mfem
 
 class BlockStaticCondensation
 {
+   int height, width;
+   int nblocks;
+   Mesh * mesh = nullptr;
    // original set of Finite Element Spaces
    Array<FiniteElementSpace *> fes;
    // indicates if the original space is already a trace space
@@ -37,22 +40,32 @@ class BlockStaticCondensation
    // Schur complement matrix
    // S = A_ii - A_ib (A_bb)^{-1} A_bi.
    BlockMatrix * S = nullptr;
+   BlockMatrix * S_e = nullptr;
 
    Array<int> rdof_edof;      // Map from reduced dofs to exposed dofs
    Array<int> ess_rtdof_list;
+
+   // tr_dofs (element dof to global dof)
+   // tr_dofs (element dof to global dof)
+   void GetReduceElementIndices(int el, Array<int> & tr_dofs,
+                                Array<int> & tr_ldofs);
+
+public:
 
    BlockStaticCondensation(Array<FiniteElementSpace *> & fes_);
 
    ~BlockStaticCondensation();
 
-   void SetSpaces();
+   void SetSpaces(Array<FiniteElementSpace*> & fes_);
 
    void Init();
 
    /** Assemble the contribution to the Schur complement from the given
        element matrix 'elmat'; save the other blocks internally: A_bb_inv, A_bi,
        and A_bi. */
-   void AssembleMatrix(int el, const DenseMatrix &elmat);
+
+   void AssembleReducedSystem(int el, const DenseMatrix &elmat,
+                              const Vector & elvect);
 
    /// Finalize the construction of the Schur complement matrix.
    void Finalize();
@@ -65,6 +78,18 @@ class BlockStaticCondensation
                                  Matrix::DiagonalPolicy dpolicy);
 
    void EliminateReducedTrueDofs(Matrix::DiagonalPolicy dpolicy);
+
+   bool HasEliminatedBC() const
+   {
+      return S_e;
+   }
+
+   /// Return the serial Schur complement matrix.
+   BlockMatrix &GetMatrix() { return *S; }
+
+   /// Return the eliminated part of the serial Schur complement matrix.
+   BlockMatrix &GetMatrixElim() { return *S_e; }
+
 
    /** Given a RHS vector for the full linear system, compute the RHS for the
        reduced linear system: sc_b = b_e - A_ep A_pp_inv b_p. */
