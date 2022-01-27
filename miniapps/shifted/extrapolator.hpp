@@ -60,7 +60,7 @@ class Extrapolator
 public:
    enum XtrapType {ASLAM, BOCHKOV} xtrap_type = ASLAM;
    AdvectionOper::AdvectionMode advection_mode = AdvectionOper::HO;
-   int xtrap_order    = 1;
+   int xtrap_degree   = 1;
    bool visualization = false;
    int vis_steps      = 5;
 
@@ -69,7 +69,7 @@ public:
    // The known values taken from elements where level_set > 0, and extrapolated
    // to all other elements. The known values are not changed.
    void Extrapolate(Coefficient &level_set, const ParGridFunction &input,
-                    double time_period, ParGridFunction &xtrap);
+                    const double time_period, ParGridFunction &xtrap);
 
    // Errors in cut elements, given an exact solution.
    void ComputeLocalErrors(Coefficient &level_set, const ParGridFunction &exact,
