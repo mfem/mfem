@@ -782,8 +782,6 @@ int main(int argc, char *argv[])
 
    }
 
-   
-
    MPI_Barrier(MPI_COMM_WORLD); 
    double end = MPI_Wtime();
 
@@ -892,12 +890,13 @@ int main(int argc, char *argv[])
 
    //recover pressure in the post processing
    {
-      //recover vector fields first
+      //recover vector fields
       ParFiniteElementSpace vfes(pmesh, &fe_coll, 2);
-      ParGridFunction vel(&vfes), mag(&vfes), gfv(&vfes), gftmp(&fespace);
+      ParGridFunction vel(&vfes), mag(&vfes), force_diff(&vfes), gfv(&vfes), gfscalar(&fespace), pre(&fespace);
       ParMixedBilinearForm grad(&fespace, &vfes), div(&vfes, &fespace);
+      ParNonlinearForm convect_nl(&vfes);
       ParLinearForm zLF(&vfes), zJxB(&vfes); 
-      Vector z(vfes.TrueVSize()), z2(vfes.TrueVSize());
+      Vector zv(vfes.TrueVSize()), zv2(vfes.TrueVSize());
       Vector zscalar(fespace.TrueVSize()), zscalar2(fespace.TrueVSize());
 
       DenseMatrix A(2);
@@ -922,8 +921,7 @@ int main(int argc, char *argv[])
       grad.AddDomainIntegrator(new GradientIntegrator);
       grad.Assemble(); 
 
-      //nonlinear convection term
-      ParNonlinearForm convect_nl(&vfes);
+      //nonlinear convection term u.grad u
       convect_nl.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
       convect_nl.Setup();
 
@@ -932,66 +930,65 @@ int main(int argc, char *argv[])
       div.Assemble();
 
       CGSolver M_solver(MPI_COMM_WORLD);
-      HypreSmoother *M_prec;  
       M_solver.iterative_mode = false;
       M_solver.SetRelTol(1e-7);
       M_solver.SetAbsTol(0.0);
       M_solver.SetMaxIter(2000);
       M_solver.SetPrintLevel(0);
-      M_prec = new HypreSmoother;
+      HypreSmoother *M_prec = new HypreSmoother;  
       M_prec->SetType(HypreSmoother::Jacobi);
       M_solver.SetPreconditioner(*M_prec);
       M_solver.SetOperator(*MfullMat);
 
-      CGSolver &Mscalar_solver = oper.GetM_solver2();
+      CGSolver &Mscalar_solver = oper.GetM_solver2();//this solver does not have bc
 
       //compute velocity 
       grad.Mult(phi, zLF);
-      zLF.ParallelAssemble(z);
-      M_solver.Mult(z, z2);
-      vel.SetFromTrueDofs(z2);
+      zLF.ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      vel.SetFromTrueDofs(zv2);
 
       //finalize with a rotation
       Mrot.Mult(vel, zLF);
-      zLF.ParallelAssemble(z);
-      M_solver.Mult(z, z2);
-      vel.SetFromTrueDofs(z2);
+      zLF.ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      vel.SetFromTrueDofs(zv2);
 
       //compute B field
       grad.Mult(psi, zLF);
-      zLF.ParallelAssemble(z);
-      M_solver.Mult(z, z2);
-      mag.SetFromTrueDofs(z2);
+      zLF.ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      mag.SetFromTrueDofs(zv2);
 
       //finalize with a rotation
       Mrot.Mult(mag, zLF);
-      zLF.ParallelAssemble(z);
-      M_solver.Mult(z, z2);
-      mag.SetFromTrueDofs(z2);
+      zLF.ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      mag.SetFromTrueDofs(zv2);
 
       //compute -Δp=div(u.grad u - JxB)
-      Vector vtrue, rhs, vtmp;
+      Vector vtrue, rhs, vJxB;
       int vfes_truevsize = vfes.GetTrueVSize();
       const IntegrationRule &ir = IntRules.Get(vfes.GetFE(0)->GetGeomType(), 3*order);
       vtrue.SetSize(vfes_truevsize);
       rhs.SetSize(vfes_truevsize);
-      vtmp.SetSize(vfes_truevsize);
+      vJxB.SetSize(vfes_truevsize);
 
       vel.GetTrueDofs(vtrue);
-      convect_nl.Mult(vtrue, rhs);
+      convect_nl.Mult(vtrue, rhs);  //nonlinear form only works with true dofs?
 
       JxBCoefficient JxBCoeff(&j, &mag);
       VectorDomainLFIntegrator *domainJxB = new VectorDomainLFIntegrator(JxBCoeff);
       domainJxB->SetIntRule(&ir);
       zJxB.AddDomainIntegrator(domainJxB);
       zJxB.Assemble();
-      zJxB.ParallelAssemble(vtmp);
-      rhs.Add(-1.0, z);
+      zJxB.ParallelAssemble(vJxB);
+      rhs.Add(-1.0, vJxB);
       
       //compute M^{-1}(u.grad u - JxB)
-      M_solver.Mult(rhs, z2);
-      gfv.SetFromTrueDofs(z2);
-      div.Mult(gfv, gftmp);
+      M_solver.Mult(rhs, zv2);
+      gfv.SetFromTrueDofs(zv2);
+      div.Mult(gfv, gfscalar);
 
       ParBilinearForm a(&fespace);
       a.AddDomainIntegrator(new DiffusionIntegrator);
@@ -999,7 +996,8 @@ int main(int argc, char *argv[])
       a.Finalize();
       HypreParMatrix *KMat=a.ParallelAssemble();
 
-      HypreSolver *K_amg = new HypreBoomerAMG(*KMat);
+      HypreBoomerAMG *K_amg = new HypreBoomerAMG(*KMat);
+      K_amg->SetPrintLevel(0);
       CGSolver *K_pcg = new CGSolver(MPI_COMM_WORLD);
       mfem::navier::OrthoSolver *SpInvOrthoPC = new mfem::navier::OrthoSolver();
       SpInvOrthoPC->SetOperator(*K_amg);
@@ -1015,18 +1013,26 @@ int main(int argc, char *argv[])
       b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(JxBCoeff), ess_bdr);
       b.Assemble();
       b.ParallelAssemble(zscalar);
-      gftmp.GetTrueDofs(zscalar2);
+      gfscalar.GetTrueDofs(zscalar2);
       zscalar.Add(1.0, zscalar2);
       K_pcg->Mult(zscalar, zscalar2);
-      gftmp.SetFromTrueDofs(zscalar2);
+      pre.SetFromTrueDofs(zscalar2);
+
+      //compute grad P - JxB
+      grad.Mult(pre, zLF);
+      zLF.ParallelAssemble(zv);
+      zv.Add(-1.0, vJxB);
+      M_solver.Mult(zv, zv2);
+      force_diff.SetFromTrueDofs(zv2);
 
       //visualize
       ParaViewDataCollection *pd2 = NULL;
       pd2 = new ParaViewDataCollection("vector", pmesh);
       pd2->SetPrefixPath("ParaView");
-      pd2->RegisterField("vel", &vel);
-      pd2->RegisterField("mag", &mag);
-      pd2->RegisterField("pre", &gftmp);
+      pd2->RegisterField("V", &vel);
+      pd2->RegisterField("B", &mag);
+      pd2->RegisterField("Pre", &pre);
+      pd2->RegisterField("Force_diff", &force_diff);
       pd2->SetLevelsOfDetail(order);
       pd2->SetDataFormat(VTKFormat::BINARY);
       pd2->SetHighOrderOutput(true);
@@ -1034,12 +1040,12 @@ int main(int argc, char *argv[])
       pd2->Save();
 
       delete M_prec;
-      delete MfullMat;
-      delete pd2;
       delete K_amg;
       delete SpInvOrthoPC;
+      delete MfullMat;
       delete KMat;
       delete K_pcg;
+      delete pd2;
    }
 
    if (icase==1){
