@@ -895,7 +895,7 @@ int main(int argc, char *argv[])
       ParFiniteElementSpace vfes(pmesh, &fe_coll, 2);
       ParGridFunction vel(&vfes), mag(&vfes), nlterm(&vfes);
       ParMixedBilinearForm grad(&fespace, &vfes);
-      ParLinearForm zLF(&vfes); 
+      ParLinearForm zLF(&vfes), zJxB(&vfes); 
       Vector z(vfes.TrueVSize()), z2(vfes.TrueVSize());
 
       DenseMatrix A(2);
@@ -920,11 +920,10 @@ int main(int argc, char *argv[])
       grad.AddDomainIntegrator(new GradientIntegrator);
       grad.Assemble(); 
 
-      ////nonlinear convection term
-      //ParBilinearForm convect_nl(&vfes);
-      //convect_nl.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
-      //convect_nl.Assemble();
-      //convect_nl.Finalize();
+      //nonlinear convection term
+      ParNonlinearForm convect_nl(&vfes);
+      convect_nl.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+      convect_nl.Setup();
 
       CGSolver M_solver(MPI_COMM_WORLD);
       HypreSmoother *M_prec;  
@@ -962,6 +961,30 @@ int main(int argc, char *argv[])
       M_solver.Mult(z, z2);
       mag.SetFromTrueDofs(z2);
 
+      //compute Δp=u.grad u - JxB
+      Vector vtrue, rhs, vtmp;
+      int vfes_truevsize = vfes.GetTrueVSize();
+      const IntegrationRule &ir = IntRules.Get(vfes.GetFE(0)->GetGeomType(), 3*order);
+      vtrue.SetSize(vfes_truevsize);
+      rhs.SetSize(vfes_truevsize);
+      vtmp.SetSize(vfes_truevsize);
+
+      vel.GetTrueDofs(vtrue);
+      convect_nl.Mult(vtrue, rhs);
+
+      JxBCoefficient JxBCoeff(&j, &mag);
+      VectorDomainLFIntegrator *domainJxB = new VectorDomainLFIntegrator(JxBCoeff);
+      domainJxB->SetIntRule(&ir);
+      zJxB.AddDomainIntegrator(domainJxB);
+      zJxB.Assemble();
+      zJxB.ParallelAssemble(vtmp);
+      rhs.Add(-1.0, z);
+      
+      //compute M^{-1}(u.grad u - JxB)
+      M_solver.Mult(rhs, z2);
+
+      mag.SetFromTrueDofs(z2);
+
       //visualize
       ParaViewDataCollection *pd2 = NULL;
       pd2 = new ParaViewDataCollection("vector", pmesh);
@@ -978,7 +1001,6 @@ int main(int argc, char *argv[])
       delete MfullMat;
       delete pd2;
 
-      //compute a projection of f=u.grad u - JxB
 
 
       //try to use BoundaryNormalLFIntegrator

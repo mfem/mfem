@@ -88,6 +88,36 @@ namespace mfem
         return -gradu(1)*gradv(0)+gradu(0)*gradv(1);
     }
 
+    //Evalue a vector JxB=[0,0,j]x[B1,B2,0]
+    //                   =[-jB2, jB1]
+    class JxBCoefficient : public VectorCoefficient
+    {
+      private:
+         GridFunction *gfj, *gfB;
+      public:
+         JxBCoefficient(GridFunction *gfj_, GridFunction *gfB_)
+         :VectorCoefficient (2) 
+        { gfj=gfj_; gfB=gfB_;}
+         void Eval(Vector &V, ElementTransformation &T,
+                   const IntegrationPoint &ip);
+    };
+
+    void JxBCoefficient::Eval(Vector &V, ElementTransformation &T,
+                              const IntegrationPoint &ip)
+    {
+        V.SetSize(2);
+        T.SetIntPoint(&ip);
+
+        Vector Bvec;
+        gfB->GetVectorValue(T, ip, Bvec);
+
+        double j;
+        j=gfj->GetValue(T,ip);
+
+        V(0)=-j*Bvec(1);
+        V(1)= j*Bvec(0);
+    }
+
     /*
     //speical rhs coefficient
     //coefficient=2*[vecg1_x vecg2_y - (vecg1_y)^2] - J^2 - (J_x Psi_x + J_y Psi_y)
