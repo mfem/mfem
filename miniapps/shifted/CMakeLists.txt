@@ -18,6 +18,7 @@ if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_HEADERS
         dist_solver.hpp
         sbm_solver.hpp
+        sbm_aux.hpp
         marking.hpp
         extrapolator.hpp)
 
