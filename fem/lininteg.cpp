@@ -27,14 +27,21 @@ void LinearFormIntegrator::AssembleFull(const FiniteElementSpace&,
 void LinearFormIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {
-   mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
+   MFEM_CONTRACT_VAR(el);
+   MFEM_CONTRACT_VAR(Tr);
+   MFEM_CONTRACT_VAR(elvect);
+   MFEM_ABORT("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
 void LinearFormIntegrator::AssembleRHSElementVect(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Tr, Vector &elvect)
 {
-   mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
+   MFEM_CONTRACT_VAR(el1);
+   MFEM_CONTRACT_VAR(el2);
+   MFEM_CONTRACT_VAR(Tr);
+   MFEM_CONTRACT_VAR(elvect);
+   MFEM_ABORT("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
@@ -681,7 +688,10 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
 void BoundaryFlowIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   mfem_error("BoundaryFlowIntegrator::AssembleRHSElementVect\n"
+   MFEM_CONTRACT_VAR(el);
+   MFEM_CONTRACT_VAR(Tr);
+   MFEM_CONTRACT_VAR(elvect);
+   MFEM_ABORT("BoundaryFlowIntegrator::AssembleRHSElementVect\n"
               "  is not implemented as boundary integrator!\n"
               "  Use LinearForm::AddBdrFaceIntegrator instead of\n"
               "  LinearForm::AddBoundaryIntegrator.");
@@ -747,7 +757,10 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
 void DGDirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   mfem_error("DGDirichletLFIntegrator::AssembleRHSElementVect");
+   MFEM_CONTRACT_VAR(el);
+   MFEM_CONTRACT_VAR(Tr);
+   MFEM_CONTRACT_VAR(elvect);
+   MFEM_ABORT("DGDirichletLFIntegrator::AssembleRHSElementVect");
 }
 
 void DGDirichletLFIntegrator::AssembleRHSElementVect(
@@ -838,7 +851,10 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
 void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   mfem_error("DGElasticityDirichletLFIntegrator::AssembleRHSElementVect");
+   MFEM_CONTRACT_VAR(el);
+   MFEM_CONTRACT_VAR(Tr);
+   MFEM_CONTRACT_VAR(elvect);
+   MFEM_ABORT("DGElasticityDirichletLFIntegrator::AssembleRHSElementVect");
 }
 
 void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
