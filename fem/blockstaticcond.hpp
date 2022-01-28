@@ -26,7 +26,8 @@ namespace mfem
 class BlockStaticCondensation
 {
    int height, width;
-   int nblocks;
+   int nblocks; // original number of blocks
+   int rblocks; // reduces number of blocks
    Mesh * mesh = nullptr;
    // original set of Finite Element Spaces
    Array<FiniteElementSpace *> fes;
@@ -37,18 +38,43 @@ class BlockStaticCondensation
    // (after static condensation)
    Array<FiniteElementSpace *> tr_fes;
 
+   Array<int> rdof_offsets;
+   Array<int> rtdof_offsets;
+
    // Schur complement matrix
    // S = A_ii - A_ib (A_bb)^{-1} A_bi.
    BlockMatrix * S = nullptr;
    BlockMatrix * S_e = nullptr;
 
+   BlockVector * y = nullptr;
+
+   Array<DenseMatrix * > lmat;
+   Array<Vector * > lvec;
+
    Array<int> rdof_edof;      // Map from reduced dofs to exposed dofs
    Array<int> ess_rtdof_list;
 
-   // tr_dofs (element dof to global dof)
-   // tr_dofs (element dof to global dof)
-   void GetReduceElementIndices(int el, Array<int> & tr_dofs,
-                                Array<int> & tr_ldofs);
+   BlockMatrix * P = nullptr; // Block Prolongation
+   BlockMatrix * R = nullptr; // Block Restriction
+
+   // tr_idx (trace dofs indices)
+   // int_idx (interior dof indices)
+   void GetReduceElementIndicesAndOffsets(int el, Array<int> & tr_idx,
+                                          Array<int> & int_idx,
+                                          Array<int> & offsets);
+
+   //  S = A_ii - A_ib (A_bb)^{-1} A_bi.
+   //  y = y_i - A_ib (A_bb)^{-1} y_b
+   void GetLocalShurComplement(int el, const Array<int> & tr_idx,
+                               const Array<int> & int_idx,
+                               const DenseMatrix & elmat, const Vector & elvect,
+                               DenseMatrix & rmat, Vector & rvect);
+
+   void ComputeOffsets();
+
+   void BuildProlongation();
+
+   void ConformingAssemble(int skip_zeros);
 
 public:
 
@@ -64,11 +90,11 @@ public:
        element matrix 'elmat'; save the other blocks internally: A_bb_inv, A_bi,
        and A_bi. */
 
-   void AssembleReducedSystem(int el, const DenseMatrix &elmat,
-                              const Vector & elvect);
+   void AssembleReducedSystem(int el, DenseMatrix &elmat,
+                              Vector & elvect);
 
    /// Finalize the construction of the Schur complement matrix.
-   void Finalize();
+   void Finalize(int skip_zeros = 0);
 
    /// Determine and save internally essential reduced true dofs.
    void SetEssentialTrueDofs(const Array<int> &ess_tdof_list);
@@ -90,6 +116,7 @@ public:
    /// Return the eliminated part of the serial Schur complement matrix.
    BlockMatrix &GetMatrixElim() { return *S_e; }
 
+   void FormSystemMatrix(Operator::DiagonalPolicy diag_policy);
 
    /** Given a RHS vector for the full linear system, compute the RHS for the
        reduced linear system: sc_b = b_e - A_ep A_pp_inv b_p. */
