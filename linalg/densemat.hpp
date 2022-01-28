@@ -356,9 +356,9 @@ public:
    void AddMatrix(double a, const DenseMatrix &A, int ro, int co);
 
    /// GetSubMatrix
-   void GetSubMatrix(const Array<int> & idx, DenseMatrix & A);
+   void GetSubMatrix(const Array<int> & idx, DenseMatrix & A) const;
    void GetSubMatrix(const Array<int> & idx_i, const Array<int> & idx_j,
-                     DenseMatrix & A);
+                     DenseMatrix & A) const;
 
    // Get submatrix i,j ∈ [ibeg, iend)
    void GetSubMatrix(int ibeg, int iend, DenseMatrix & A);

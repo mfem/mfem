@@ -1701,7 +1701,7 @@ void DenseMatrix::AddMatrix(double a, const DenseMatrix &A, int ro, int co)
    }
 }
 
-void DenseMatrix::GetSubMatrix(const Array<int> & idx, DenseMatrix & A)
+void DenseMatrix::GetSubMatrix(const Array<int> & idx, DenseMatrix & A) const
 {
    int k = idx.Size();
    A.SetSize(k);
@@ -1720,7 +1720,7 @@ void DenseMatrix::GetSubMatrix(const Array<int> & idx, DenseMatrix & A)
 }
 
 void DenseMatrix::GetSubMatrix(const Array<int> & idx_i,
-                               const Array<int> & idx_j, DenseMatrix & A)
+                               const Array<int> & idx_j, DenseMatrix & A) const
 {
    int k = idx_i.Size();
    int l = idx_j.Size();
