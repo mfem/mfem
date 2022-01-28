@@ -472,10 +472,7 @@ void NormalEquations::Assemble(int skip_zeros)
                {
                   TransformDual(doftrans_i, doftrans_j, Ae);
                }
-               else
-               {
-                  mat->GetBlock(i,j).AddSubMatrix(vdofs_i,vdofs_j, Ae);
-               }
+               mat->GetBlock(i,j).AddSubMatrix(vdofs_i,vdofs_j, Ae);
             }
 
             // assemble rhs
@@ -506,7 +503,7 @@ void NormalEquations::FormLinearSystem(const Array<int>
       // Schur complement reduction to the exposed dofs
       static_cond->ReduceSystem(x, *y, X, B, copy_interior);
    }
-   if (!P)
+   else if (!P)
    {
       EliminateVDofsInRHS(ess_tdof_list, x, *y);
       X.MakeRef(x, 0, x.Size());
@@ -558,9 +555,7 @@ void NormalEquations::FormSystemMatrix(const Array<int>
       if (!static_cond->HasEliminatedBC())
       {
          static_cond->SetEssentialTrueDofs(ess_tdof_list);
-         static_cond->Finalize(); // finalize Schur complement (to true dofs)
-         static_cond->EliminateReducedTrueDofs(diag_policy);
-         static_cond->Finalize(); // finalize eliminated part
+         static_cond->FormSystemMatrix(diag_policy);
       }
       A.Reset(&static_cond->GetMatrix(), false);
    }
