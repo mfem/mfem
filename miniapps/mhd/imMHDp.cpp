@@ -621,10 +621,10 @@ int main(int argc, char *argv[])
 
    //++++recover pressure and vector fields++++
    ParFiniteElementSpace *vfes;
-   ParGridFunction *vel, *mag, *force_diff, *gfv, *gfscalar, *pre;
+   ParGridFunction *vel, *mag, *force_diff, *gfv, *pre;
    ParMixedBilinearForm *grad, *div;
    ParNonlinearForm *convect;
-   ParLinearForm *zLF, *zJxB; 
+   ParLinearForm *zLF, *zLFscalar, *zJxB; 
    ParBilinearForm *Mfull, *Mrot;
    Vector zv, zv2, zscalar, zscalar2;
    HypreParMatrix *MfullMat;
@@ -637,12 +637,12 @@ int main(int argc, char *argv[])
       mag = new ParGridFunction(vfes);
       force_diff = new ParGridFunction(vfes);
       gfv = new ParGridFunction(vfes);
-      gfscalar = new ParGridFunction(&fespace);
       pre = new ParGridFunction(&fespace);
       grad = new ParMixedBilinearForm(&fespace, vfes);
       div = new ParMixedBilinearForm(vfes, &fespace);
       convect = new ParNonlinearForm(vfes);
       zLF  = new ParLinearForm(vfes);
+      zLFscalar = new ParLinearForm(&fespace);
       zJxB = new ParLinearForm(vfes);
       Mfull = new ParBilinearForm(vfes);
       Mrot = new ParBilinearForm(vfes);
@@ -1012,7 +1012,7 @@ int main(int argc, char *argv[])
       //compute M^{-1}(u.grad u - JxB)
       M_solver.Mult(rhs, zv2);
       gfv->SetFromTrueDofs(zv2);
-      div->Mult(*gfv, *gfscalar);
+      div->Mult(*gfv, *zLFscalar);
 
       ParBilinearForm a(&fespace);
       a.AddDomainIntegrator(new DiffusionIntegrator);
@@ -1038,17 +1038,17 @@ int main(int argc, char *argv[])
       b.Assemble();
       b.ParallelAssemble(zscalar);
 
-      gfscalar->GetTrueDofs(zscalar2);
+      zLFscalar->ParallelAssemble(zscalar2);
       zscalar.Add(1.0, zscalar2);
       K_pcg->Mult(zscalar, zscalar2);
       pre->SetFromTrueDofs(zscalar2);
 
       //compute grad P - JxB
-      grad->Mult(*pre, *zLF);
-      zLF->ParallelAssemble(zv);
+      zv=0.0;
+      grad->TrueAddMult(zscalar2, zv);
       zv.Add(-1.0, vJxB);
       M_solver.Mult(zv, zv2);
-      force_diff->SetFromTrueDofs(zv);
+      force_diff->SetFromTrueDofs(zv2);
 
       //visualize
       ParaViewDataCollection *pd2 = NULL;
@@ -1077,7 +1077,7 @@ int main(int argc, char *argv[])
       delete mag;
       delete force_diff;
       delete gfv;       
-      delete gfscalar; 
+      delete zLFscalar; 
       delete pre;      
       delete grad;     
       delete div ;     
