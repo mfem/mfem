@@ -31,6 +31,8 @@
 //
 // mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 333 -tid 3 -ni 500 -bnd -ae 0 -vl 1 -sfc 1000 -rtol 1e-6 -qo 6 -st 1
 // Compile with: make pmesh-optimizer
+// adaptive surface fit example
+// mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 58 -tid 1 -ni 50 -vl 2 -sfc 10 -rtol 1e-12 -st 1 -asf
 //
 // Sample runs:
 //   Adapted analytic shape:
@@ -152,6 +154,7 @@ int main (int argc, char *argv[])
    bool pa               = false;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
+   bool asf              = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -277,6 +280,9 @@ int main (int argc, char *argv[])
    args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
                   "Number of h-adaptivity iterations per r-adaptivity"
                   "iteration.");
+   args.AddOption(&asf, "-asf", "--adaptive-surface-fit", "-no-asf",
+                  "--no-adaptive-surface-fit",
+                  "Enable or disable adaptive surface fitting.");
    args.Parse();
    if (!args.Good())
    {
@@ -1102,6 +1108,7 @@ int main (int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
+   if (asf) { solver.EnableAdaptiveSurfaceFitting(); }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)

@@ -122,6 +122,23 @@ public:
    virtual int Id() const { return 1; }
 };
 
+class TMOP_Metric_000 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+
+public:
+   // W = 0.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 1; }
+};
+
 /// 2D non-barrier Skew metric.
 class TMOP_Metric_skew2D : public TMOP_QualityMetric
 {
@@ -1347,8 +1364,14 @@ protected:
    Coefficient *surf_fit_coeff;         // Not owned.
    AdaptivityEvaluator *surf_fit_eval;  // Not owned.
    double surf_fit_normal;
+   double surf_fit_coeff_const_prvs;
 
    DiscreteAdaptTC *discr_tc;
+
+   // Timers
+   mutable StopWatch TimeEnergyShape, TimeEnergySurfFit,
+                     TimeVectorShape, TimeVectorSurfFit,
+                     TimeGradShape, TimeGradSurfFit;
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
@@ -1538,11 +1561,19 @@ public:
         adapt_lim_gf0(NULL), adapt_lim_gf(NULL), adapt_lim_coeff(NULL),
         adapt_lim_eval(NULL),
         surf_fit_gf(NULL), surf_fit_gf_bar(NULL), surf_fit_marker(NULL),
-        surf_fit_coeff(NULL),
+        surf_fit_coeff(NULL), surf_fit_coeff_const_prvs(-10),
         surf_fit_eval(NULL), surf_fit_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
-   { PA.enabled = false; }
+   {
+       PA.enabled = false;
+       TimeEnergyShape.Clear();
+       TimeEnergySurfFit.Clear();
+       TimeVectorShape.Clear();
+       TimeVectorSurfFit.Clear();
+       TimeGradShape.Clear();
+       TimeGradSurfFit.Clear();
+   }
 
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
       : TMOP_Integrator(m, tc, m) { }
@@ -1710,6 +1741,34 @@ public:
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
+
+   // Get timing data
+   double GetEnergySplitShapeTime() { return TimeEnergyShape.RealTime(); }
+   double GetEnergySplitSurfFitTime() { return TimeEnergySurfFit.RealTime(); }
+   double GetVectorSplitShapeTime() { return TimeVectorShape.RealTime(); }
+   double GetVectorSplitSurfFitTime() { return TimeVectorSurfFit.RealTime(); }
+   double GetGradSplitShapeTime() { return TimeVectorShape.RealTime(); }
+   double GetGradSplitSurfFitTime() { return TimeVectorSurfFit.RealTime(); }
+
+   void UpdateSurfaceFittingWeight(double factor);
+
+   void SetSurfaceFittingWeight(double weight)
+   {
+       if (surf_fit_coeff) {
+           ConstantCoefficient *cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
+           cf->constant = weight;
+       }
+   }
+
+   double GetSurfaceFittingWeight()
+   {
+       if (surf_fit_coeff) {
+           ConstantCoefficient *cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
+           return cf->constant;
+       }
+       return 0.0;
+   }
+
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

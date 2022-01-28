@@ -420,6 +420,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    const double norm_in = Norm(r);
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
+   double err_avg_out = -10;
+   double err_max_out = -10;
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
@@ -494,7 +496,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (have_b) { r -= b; }
       double norm_out = Norm(r);
 
-      if (norm_out > 1.2*norm_in)
+      if (norm_out > 1.1*norm_in)
       {
          if (print_options.iterations)
          {
@@ -537,8 +539,92 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
    }
 
-   if (x_out_ok == false) { scale = 0.0; }
+
+   if (adaptive_surf_fit) {
+       surf_fit_err_max = -10;
+       surf_fit_err_avg = -10;
+       GetMaxSurfaceFittingError(surf_fit_err_max, surf_fit_err_avg);
+
+       if (x_out_ok == false) { scale = 0.0; }
+       std::cout << surf_fit_err_avg_prvs << " " <<
+                    surf_fit_err_avg << " " <<
+                    surf_fit_err_avg_prvs-surf_fit_err_avg << " "
+                    << GetSurfaceFittingWeight() << " k10c\n";
+
+
+       if ((std::fabs(surf_fit_err_avg-surf_fit_err_avg_prvs)/surf_fit_err_avg_prvs)<1.e-5) {
+           UpdateSurfaceFittingWeight(10);
+           surf_fit_change = 1;
+       }
+       else if (surf_fit_err_avg > 1.0*surf_fit_err_avg_prvs) {
+           if (surf_fit_change <= 0) {
+              UpdateSurfaceFittingWeight(10);
+              surf_fit_change = 1;
+          }
+          else {
+              UpdateSurfaceFittingWeight(0.9);
+              surf_fit_change = -1;
+         }
+       }
+       surf_fit_err_max_prvs = surf_fit_err_max;
+       surf_fit_err_avg_prvs = surf_fit_err_avg;
+   }
    return scale;
+}
+
+void TMOPNewtonSolver::UpdateSurfaceFittingWeight(double factor) const
+{
+    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+    TMOP_Integrator *ti  = NULL;
+    for (int i = 0; i < integs.Size(); i++)
+    {
+       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+       if (ti)
+       {
+           ti->UpdateSurfaceFittingWeight(factor);
+       }
+    }
+}
+
+double TMOPNewtonSolver::GetSurfaceFittingWeight() const
+{
+    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+    TMOP_Integrator *ti  = NULL;
+    double weight = 0.0;
+    for (int i = 0; i < integs.Size(); i++)
+    {
+       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+       if (ti)
+       {
+           weight = ti->GetSurfaceFittingWeight();
+       }
+    }
+    return weight;
+}
+
+void TMOPNewtonSolver::GetMaxSurfaceFittingError(double &err_avg, double &err_max) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+
+   double err_avg_loc = -10;
+   double err_max_loc = -10;
+
+   // Reset the update flags of all TargetConstructors. This is done to avoid
+   // repeated updates of shared TargetConstructors.
+   TMOP_Integrator *ti  = NULL;
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
+      {
+          ti->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+      }
+      err_avg = std::fmax(err_avg_loc, err_avg);
+      err_max = std::fmax(err_max_loc, err_max);
+   }
 }
 
 void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
@@ -639,6 +725,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       }
    }
 }
+
 
 void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
                                         const Vector &x_new) const

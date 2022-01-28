@@ -70,6 +70,8 @@ void TMOP_Metric_001::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    P = ie.Get_dI1();
 }
 
+
+
 void TMOP_Metric_001::AssembleH(const DenseMatrix &Jpt,
                                 const DenseMatrix &DS,
                                 const double weight,
@@ -78,6 +80,29 @@ void TMOP_Metric_001::AssembleH(const DenseMatrix &Jpt,
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1(weight, A.GetData());
+}
+
+double TMOP_Metric_000::EvalW(const DenseMatrix &Jpt) const
+{
+   return 0.0;
+}
+
+void TMOP_Metric_000::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   P = ie.Get_dI1();
+   P *= 0.0;
+}
+
+void TMOP_Metric_000::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   ie.Assemble_ddI1(weight, A.GetData());
+   A *= 0;
 }
 
 double TMOP_Metric_skew2D::EvalW(const DenseMatrix &Jpt) const
@@ -2522,10 +2547,12 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
    const IntegrationRule &ir = EnergyIntegrationRule(el);
+   TimeEnergyShape.Start();
 
    energy = 0.0;
    DenseTensor Jtr(dim, dim, ir.GetNPoints());
    targetC->ComputeElementTargets(el_id, el, ir, elfun, Jtr);
+   TimeEnergyShape.Stop();
 
    // Limited case.
    Vector shape, p, p0, d_vals;
@@ -2550,6 +2577,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       }
    }
 
+   TimeEnergySurfFit.Start();
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
    if (metric_coeff || lim_coeff || adaptive_limiting || surface_fit)
@@ -2562,6 +2590,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Tpr->mesh = T.mesh;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }
+   TimeEnergySurfFit.Stop();
    // TODO: computing the coefficients 'metric_coeff' and 'lim_coeff' in physical
    //       coordinates means that, generally, the gradient and Hessian of the
    //       TMOP_Integrator will depend on the derivatives of the coefficients.
@@ -2577,13 +2606,19 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       adapt_lim_gf0->GetValues(el_id, ir, adapt_lim_gf0_q);
    }
 
+   TimeEnergySurfFit.Start();
    Vector surf_fit_gf_bar_q;
-   if (surface_fit) { surf_fit_gf_bar->GetValues(el_id, ir, surf_fit_gf_bar_q); }
+   if (surface_fit) {
+       surf_fit_gf_bar->GetValues(el_id, ir, surf_fit_gf_bar_q);
+   }
+
+   TimeEnergySurfFit.Stop();
 
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
 
+      TimeEnergyShape.Start();
       const DenseMatrix &Jtr_i = Jtr(i);
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
@@ -2594,6 +2629,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Mult(Jpr, Jrt, Jpt);
 
       double val = metric_normal * metric->EvalW(Jpt);
+      TimeEnergyShape.Stop();
       if (metric_coeff) { val *= metric_coeff->Eval(*Tpr, ip); }
 
       if (lim_coeff)
@@ -2614,11 +2650,16 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       }
 
       // Contribution from the surface fitting term.
+      //double oval = val;
+
+      TimeEnergySurfFit.Start();
       if (surface_fit)
       {
-         val += surf_fit_coeff->Eval(*Tpr, ip) * surf_fit_normal *
+          val += surf_fit_coeff->Eval(*Tpr, ip) * surf_fit_normal *
                 surf_fit_gf_bar_q(i) * surf_fit_gf_bar_q(i);
       }
+       //std::cout << oval << " " << oval-val << " k10surfcont\n";
+      TimeEnergySurfFit.Stop();
 
       energy += weight * val;
    }
@@ -3487,6 +3528,21 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
       if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, Tpr, ir, weights, elmat); }
       if (surf_fit_gf) { AssembleElemGradSurfFit(el, Tpr, ir, weights, elmat); }
    }
+}
+
+void TMOP_Integrator::UpdateSurfaceFittingWeight(double factor)
+{
+    if (!surf_fit_coeff) { return; }
+
+    if (surf_fit_coeff) {
+        ConstantCoefficient *cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
+        if (surf_fit_coeff_const_prvs < 0) {
+            surf_fit_coeff_const_prvs = cf->constant;
+            return;
+        }
+        surf_fit_coeff_const_prvs *= factor;
+        cf->constant = surf_fit_coeff_const_prvs;
+    }
 }
 
 void TMOP_Integrator::EnableNormalization(const GridFunction &x)
