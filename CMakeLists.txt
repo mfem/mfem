@@ -413,8 +413,7 @@ if (MFEM_USE_HIP)
       list(APPEND HIP_HIPCC_FLAGS "-std=c++14")
     endif()
   endif()
-  set(HIPSPARSE_FOUND TRUE)
-  set(HIPSPARSE_LIBRARIES "hipsparse")
+  find_package(HIPSPARSE REQUIRED)
 endif()
 
 # ADIOS2 for parallel I/O
