@@ -127,6 +127,12 @@ protected:
    // 0 - Newton, 1 - LBFGS.
    int solver_type;
    bool parallel;
+   bool adaptive_surf_fit = false;
+   mutable double surf_fit_change = 0;
+   mutable double surf_fit_err_max_prvs = 10000.0;
+   mutable double surf_fit_err_avg_prvs = 10000.0;
+   mutable double surf_fit_err_max = -10.0;
+   mutable double surf_fit_err_avg = -10.0;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
@@ -183,6 +189,11 @@ public:
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
    virtual void ProcessNewState(const Vector &x) const;
+
+   virtual void GetMaxSurfaceFittingError(double &err_avg, double &err_max) const;
+   void UpdateSurfaceFittingWeight(double factor) const;
+   double GetSurfaceFittingWeight() const;
+   void EnableAdaptiveSurfaceFitting() { adaptive_surf_fit = true; }
 
    virtual void Mult(const Vector &b, Vector &x) const
    {
