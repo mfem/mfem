@@ -4049,7 +4049,7 @@ SparseMatrix::~SparseMatrix()
 {
    Destroy();
 #ifdef MFEM_USE_CUDA_OR_HIP
-   if (useGPUSparse)
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
       if (SparseMatrixCount==1)
       {
