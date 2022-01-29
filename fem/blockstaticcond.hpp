@@ -38,6 +38,9 @@ class BlockStaticCondensation
    // (after static condensation)
    Array<FiniteElementSpace *> tr_fes;
 
+   Array<int> dof_offsets;
+   Array<int> tdof_offsets;
+
    Array<int> rdof_offsets;
    Array<int> rtdof_offsets;
 
@@ -76,6 +79,10 @@ class BlockStaticCondensation
 
    void ConformingAssemble(int skip_zeros);
 
+   /** Restrict a marker Array on the true FE spaces dofs to a marker Array on
+    the reduced/trace true FE spaces dofs. */
+   void ConvertMarkerToReducedTrueDofs(Array<int> & tdof_marker,
+                                       Array<int> & rtdof_marker);
 public:
 
    BlockStaticCondensation(Array<FiniteElementSpace *> & fes_);
@@ -118,10 +125,6 @@ public:
 
    void FormSystemMatrix(Operator::DiagonalPolicy diag_policy);
 
-   /** Given a RHS vector for the full linear system, compute the RHS for the
-       reduced linear system: sc_b = b_e - A_ep A_pp_inv b_p. */
-   void ReduceRHS(const Vector &b, Vector &sc_b) const;
-
    /** Restrict a solution vector on the full FE space dofs to a vector on the
        reduced/trace true FE space dofs. */
    void ReduceSolution(const Vector &sol, Vector &sc_sol) const;
@@ -132,13 +135,8 @@ public:
       This method should be called after the internal reduced essential dofs
       have been set using SetEssentialTrueDofs() and both the Schur complement
       and its eliminated part have been finalized. */
-   void ReduceSystem(Vector &x, Vector &b, Vector &X, Vector &B,
+   void ReduceSystem(Vector &x, Vector &X, Vector &B,
                      int copy_interior = 0) const;
-
-   /** Restrict a marker Array on the true FE space dofs to a marker Array on
-    the reduced/trace true FE space dofs. */
-   void ConvertMarkerToReducedTrueDofs(const Array<int> &ess_tdof_marker,
-                                       Array<int> &ess_rtdof_marker) const;
 
    /** Restrict a list of true FE space dofs to a list of reduced/trace true FE
     space dofs. */

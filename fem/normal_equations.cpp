@@ -501,7 +501,7 @@ void NormalEquations::FormLinearSystem(const Array<int>
    if (static_cond)
    {
       // Schur complement reduction to the exposed dofs
-      static_cond->ReduceSystem(x, *y, X, B, copy_interior);
+      static_cond->ReduceSystem(x, X, B, copy_interior);
    }
    else if (!P)
    {

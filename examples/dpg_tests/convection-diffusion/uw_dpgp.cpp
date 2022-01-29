@@ -3,7 +3,7 @@
 // Compile with: make  uw_dpgp
 //
 // sample runs 
-// mpirun -np 4 ./uw_dpgp  -m ../../../data/inline-quad.mesh -o 2 -ref 20 -graph-norm -do 1
+// mpirun -np 6 ./uw_dpgp  -m ../../../data/inline-quad.mesh -o 3 -ref 5 -test-norm 0 -do 1 -prob 1 -eps 1e-3
 
 //     - εΔu + ∇⋅(βu) = f,   in Ω
 //                  u = u_0, on ∂Ω
@@ -17,7 +17,7 @@
 // UW-DPG:
 // 
 // u ∈ L^2(Ω), σ ∈ (L^2(Ω))^dim 
-// û ∈ H^1/2, σ̂ ∈ H^-1/2  
+// û ∈ H^1/2, f̂ ∈ H^-1/2  
 // -(βu , ∇v)  + (σ , ∇v)     + < f̂ ,  v  > = (f,v),   ∀ v ∈ H^1(Ω)      
 //   (u , ∇⋅τ) + 1/ε (σ , τ)  + < û , τ⋅n > = 0,       ∀ τ ∈ H(div,Ω)
 //                                        û = u_0  on ∂Ω 

@@ -19,6 +19,39 @@ BlockStaticCondensation::BlockStaticCondensation(Array<FiniteElementSpace *> &
                                                  fes_)
 {
    SetSpaces(fes_);
+
+   Array<int> rvdofs;
+   Array<int> vdofs;
+   Array<int> rdof_edof0;
+   for (int k = 0; k<nblocks; k++)
+   {
+      if (!tr_fes[k]) { continue; }
+      rdof_edof0.SetSize(tr_fes[k]->GetVSize());
+      for (int i = 0; i < mesh->GetNE(); i++)
+      {
+         fes[k]->GetElementVDofs(i, vdofs);
+         tr_fes[k]->GetElementVDofs(i, rvdofs);
+         const int vdim = fes[k]->GetVDim();
+         const int nsd = vdofs.Size()/vdim;
+         const int nsrd = rvdofs.Size()/vdim;
+         for (int vd = 0; vd < vdim; vd++)
+         {
+            for (int j = 0; j < nsrd; j++)
+            {
+               int rvdof = rvdofs[j+nsrd*vd];
+               int vdof = vdofs[j+nsd*vd];
+               if (rvdof < 0)
+               {
+                  rvdof = -1-rvdof;
+                  vdof = -1-vdof;
+               }
+               MFEM_ASSERT(vdof >= 0, "incompatible volume and trace FE spaces");
+               rdof_edof0[rvdof] = vdof + dof_offsets[k];
+            }
+         }
+      }
+      rdof_edof.Append(rdof_edof0);
+   }
 }
 
 void BlockStaticCondensation::SetSpaces(Array<FiniteElementSpace*> & fes_)
@@ -51,6 +84,11 @@ void BlockStaticCondensation::SetSpaces(Array<FiniteElementSpace*> & fes_)
 
 void BlockStaticCondensation::ComputeOffsets()
 {
+   dof_offsets.SetSize(nblocks+1);
+   tdof_offsets.SetSize(nblocks+1);
+   dof_offsets[0] = 0;
+   tdof_offsets[0] = 0;
+
    rdof_offsets.SetSize(rblocks+1);
    rtdof_offsets.SetSize(rblocks+1);
    rdof_offsets[0] = 0;
@@ -59,6 +97,8 @@ void BlockStaticCondensation::ComputeOffsets()
    int j=0;
    for (int i =0; i<nblocks; i++)
    {
+      dof_offsets[i+1] = fes[i]->GetVSize();
+      tdof_offsets[i+1] = fes[i]->GetTrueVSize();
       if (tr_fes[i])
       {
          rdof_offsets[j+1] = tr_fes[i]->GetVSize();
@@ -68,6 +108,8 @@ void BlockStaticCondensation::ComputeOffsets()
    }
    rdof_offsets.PartialSum();
    rtdof_offsets.PartialSum();
+   dof_offsets.PartialSum();
+   tdof_offsets.PartialSum();
 }
 
 
@@ -197,20 +239,20 @@ void BlockStaticCondensation::GetLocalShurComplement(int el,
    lu.Factor();
    lmat[el] = new DenseMatrix(idofs,rdofs);
    lvec[el] = new Vector(idofs);
-   DenseMatrix temp_it(idofs,rdofs);
 
    lu.Mult(A_it,*lmat[el]);
    lu.Mult(y_i,*lvec[el]);
 
    // LHS
    mfem::Mult(A_ti,*lmat[el],rmat);
+
    rmat.Neg();
    rmat.Add(1., A_tt);
 
    // RHS
    A_ti.Mult(*lvec[el], rvect);
    rvect.Neg();
-   rvect.Add(1., y_i);
+   rvect.Add(1., y_t);
 }
 
 
@@ -229,7 +271,7 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
    // Extract the reduced matrices based on tr_idx and int_idx
    if (int_idx.Size()!=0)
    {
-      GetLocalShurComplement(el,tr_idx,tr_idx, elmat, elvect, rmat, rvec);
+      GetLocalShurComplement(el,tr_idx,int_idx, elmat, elvect, rmat, rvec);
       rmatptr = &rmat;
       rvecptr = &rvec;
    }
@@ -452,72 +494,168 @@ void BlockStaticCondensation::Finalize(int skip_zeros)
 void BlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
                                                diag_policy)
 {
-
+   if (!S_e)
+   {
+      bool conforming = true;
+      for (int i = 0; i<nblocks; i++)
+      {
+         if (!tr_fes[i]) { continue; }
+         const SparseMatrix *P_ = tr_fes[i]->GetConformingProlongation();
+         if (P_)
+         {
+            conforming = false;
+            break;
+         }
+      }
+      if (!conforming) { ConformingAssemble(0); }
+      const int remove_zeros = 0;
+      EliminateReducedTrueDofs(ess_rtdof_list, diag_policy);
+      Finalize(remove_zeros);
+   }
 }
 
 
+
+void BlockStaticCondensation::ConvertMarkerToReducedTrueDofs(
+   Array<int> & tdof_marker,
+   Array<int> & rtdof_marker)
+{
+
+   // convert tdof_marker to dof_marker
+   rtdof_marker.SetSize(0);
+   Array<int> tdof_marker0;
+   Array<int> dof_marker0;
+   Array<int> dof_marker;
+   int * data = tdof_marker.GetData();
+   for (int i = 0; i<nblocks; i++)
+   {
+      tdof_marker0.MakeRef(&data[tdof_offsets[i]],tdof_offsets[i+1]-tdof_offsets[i]);
+      const SparseMatrix * R = fes[i]->GetRestrictionMatrix();
+      if (!R)
+      {
+         dof_marker0.MakeRef(tdof_marker0);
+      }
+      else
+      {
+         dof_marker0.SetSize(fes[i]->GetVSize());
+         R->BooleanMultTranspose(tdof_marker0, dof_marker0);
+      }
+      dof_marker.Append(dof_marker0);
+   }
+
+   int rdofs = rdof_edof.Size();
+   Array<int> rdof_marker(rdofs);
+
+   for (int i = 0; i < rdofs; i++)
+   {
+      rdof_marker[i] = dof_marker[rdof_edof[i]];
+   }
+
+   // convert rdof_marker to rtdof_marker
+   Array<int> rtdof_marker0;
+   Array<int> rdof_marker0;
+   int * rdata = rdof_marker.GetData();
+   int k=0;
+   for (int i = 0; i<nblocks; i++)
+   {
+      if (!tr_fes[i]) { continue; }
+      rdof_marker0.MakeRef(&rdata[rdof_offsets[k]],rdof_offsets[k+1]-rdof_offsets[k]);
+      const SparseMatrix *tr_R = tr_fes[i]->GetRestrictionMatrix();
+      if (!tr_R)
+      {
+         rtdof_marker0.MakeRef(rdof_marker0);
+      }
+      else
+      {
+         rtdof_marker0.SetSize(tr_fes[i]->GetTrueVSize());
+         tr_R->BooleanMult(rdof_marker0, rtdof_marker0);
+      }
+      rtdof_marker.Append(rtdof_marker0);
+      k++;
+   }
+}
 
 
 void BlockStaticCondensation::SetEssentialTrueDofs(const Array<int>
                                                    &ess_tdof_list)
 {
-   // TODO
-   // convert list to reduced true dofs
-   // 1. convert to global marker for each space
-   // 2. booean mult with R for each space
-   //
-
-
-
+   Array<int> tdof_marker;
+   Array<int> rtdof_marker;
+   FiniteElementSpace::ListToMarker(ess_tdof_list,tdof_offsets.Last(),tdof_marker);
+   ConvertMarkerToReducedTrueDofs(tdof_marker, rtdof_marker);
+   FiniteElementSpace::MarkerToList(rtdof_marker,ess_rtdof_list);
 }
 
 void BlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
                                                        &ess_rtdof_list,
                                                        Matrix::DiagonalPolicy dpolicy)
 {
+   if (S_e == NULL)
+   {
+      Array<int> offsets;
 
+      offsets.MakeRef( (P) ? rtdof_offsets : rdof_offsets);
+
+      S_e = new BlockMatrix(offsets);
+      S_e->owns_blocks = 1;
+      for (int i = 0; i<S_e->NumRowBlocks(); i++)
+      {
+         int h = offsets[i+1] - offsets[i];
+         for (int j = 0; j<S_e->NumColBlocks(); j++)
+         {
+            int w = offsets[j+1] - offsets[j];
+            S_e->SetBlock(i,j,new SparseMatrix(h, w));
+         }
+      }
+   }
+   S->EliminateRowCols(ess_rtdof_list,S_e,dpolicy);
 }
 
 void BlockStaticCondensation::EliminateReducedTrueDofs(Matrix::DiagonalPolicy
                                                        dpolicy)
 {
-
-}
-
-void BlockStaticCondensation::ReduceRHS(const Vector &b, Vector &sc_b) const
-{
-
+   EliminateReducedTrueDofs(ess_rtdof_list, dpolicy);
 }
 
 void BlockStaticCondensation::ReduceSolution(const Vector &sol,
                                              Vector &sc_sol) const
 {
+   MFEM_ABORT("TODO: BlockStaticCondensation::ReduceSolution");
 
 }
 
-void BlockStaticCondensation::ReduceSystem(Vector &x, Vector &b, Vector &X,
+void BlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
                                            Vector &B,
                                            int copy_interior) const
 {
 
+   MFEM_ABORT("TODO: BlockStaticCondensation::ReduceSystem");
+
+   // ReduceSolution(x, X);
+   // if (!P)
+   // {
+   //    S_e->AddMult(x,*y,-1.);
+   //    S->PartMult(rtdof_offsets,x,*y);
+
+   // }
+   // else
+   // {
+
+   // }
 
 
+
+   // // ReduceRHS(b, B);
+   // S_e->AddMult(X, B, -1.);
+   // S->PartMult(ess_rtdof_list, X, B);
+
+   // if (!copy_interior)
+   // {
+   //    X.SetSubVectorComplement(ess_rtdof_list, 0.0);
+   // }
 
 }
 
-void BlockStaticCondensation::ConvertMarkerToReducedTrueDofs(
-   const Array<int> &ess_tdof_marker,
-   Array<int> &ess_rtdof_marker) const
-{
-
-}
-
-void BlockStaticCondensation::ConvertListToReducedTrueDofs(
-   const Array<int> &ess_tdof_list,
-   Array<int> &ess_rtdof_list) const
-{
-
-}
 
 void BlockStaticCondensation::ComputeSolution(const Vector &b,
                                               const Vector &sc_sol,
