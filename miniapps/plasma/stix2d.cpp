@@ -375,7 +375,7 @@ int main(int argc, char *argv[])
    bool visit = true;
 
    double freq = 1.0e6;
-   const char * wave_type = "R";
+   const char * wave_type = " ";
 
    Vector BVec(3);
    BVec = 0.0; BVec(0) = 0.1;
@@ -1162,28 +1162,26 @@ int main(int argc, char *argv[])
        EImCoef.SetPhaseShift(kReVec, kImVec);
     }
     else
-    
-    if (phase_shift)
-       {
-          if (kVec.Size() >= 3)
-          {
-             kReVec.SetDataAndSize(&kVec[0], 3);
-          }
-          else
-          {
-             kReVec.SetSize(3);
-             kReVec = 0.0;
-          }
-          if (kVec.Size() >= 6)
-          {
-             kImVec.SetDataAndSize(&kVec[3], 3);
-          }
-          else
-          {
-             kImVec.SetSize(3);
-             kImVec = 0.0;
-          }
-       }
+    {
+      if (kVec.Size() >= 3)
+	{
+	  kReVec.SetDataAndSize(&kVec[0], 3);
+	}
+      else
+	{
+	  kReVec.SetSize(3);
+	  kReVec = 0.0;
+	}
+      if (kVec.Size() >= 6)
+	{
+	  kImVec.SetDataAndSize(&kVec[3], 3);
+	}
+      else
+	{
+	  kImVec.SetSize(3);
+	  kImVec = 0.0;
+	}
+    }
 
     mfem::out << "Setting phase shift of ("
               << complex<double>(kReVec[0],kImVec[0]) << ","
