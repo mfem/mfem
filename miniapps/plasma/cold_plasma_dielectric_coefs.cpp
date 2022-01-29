@@ -586,12 +586,12 @@ double SheathImpedance::Eval(ElementTransformation &T,
     
    // Setting up normalized V_RF:
    // Jim's newest parametrization (Myra et al 2017):
-   double volt_norm = (phi_mag)/temp_val ; // Unitless: V zero-to-peak
+   //double volt_norm = (phi_mag)/temp_val ; // Unitless: V zero-to-peak
     
    // Jim's old parametrization (Kohno et al 2017):
-   //double volt_norm = (2*phi_mag)/temp_val ; // Unitless: V peak-to-peak
+   double volt_norm = (2*phi_mag)/temp_val ; // Unitless: V peak-to-peak
     
-   //if ( volt_norm == 0){volt_norm = 1/temp_val;} // Initial Guess
+   //if ( volt_norm == 0){volt_norm = 10;} // Initial Guess
    // This is only for old parameterization
    //if ( volt_norm > 20) {cout << "Warning: V_RF > Z Parameterization Limit!" << endl;}
     
@@ -602,11 +602,11 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    // Calculating Sheath Impedance:
    // Jim's newest parametrization (Myra et al 2017):
-   complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
-   masses_[0], masses_[1]);
+   //complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
+   //masses_[0], masses_[1]);
     
    // Jim's old parametrization (Kohno et al 2017):
-    //complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
+   complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
 
    // Fixed sheath impedance:
    //complex<double> zsheath_norm(0.6, 0.4);
@@ -1242,9 +1242,9 @@ double PlasmaProfile::Eval(ElementTransformation &T,
        {
            double rad_res_loc = p_[0];
            double nu0 = p_[1];
-           double width = 1e-4;
+           double width = 3e-5;
            double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
-           return nu0*exp(-pow(rho-rad_res_loc, 2)/width) + (1e14)*exp(-rho/0.1);
+           return nu0*exp(-pow(rho-rad_res_loc, 2)/width) + (3e14)*exp(-x_[0]/0.1);
        }
        break;
       default:
