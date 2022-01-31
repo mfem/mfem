@@ -17,6 +17,10 @@
 #include "../../config/tconfig.hpp"
 #include <altivec.h>
 
+#ifdef __GNUC__
+#undef bool
+#endif
+
 namespace mfem
 {
 
@@ -111,7 +115,11 @@ template <> struct AutoSIMD<double,2,16>
    inline MFEM_ALWAYS_INLINE AutoSIMD operator-() const
    {
       AutoSIMD r;
+#ifndef __GNUC__
       r.vd = vec_neg(vd);
+#else
+      r.vd = vec_splats(0.0) - vd;
+#endif
       return r;
    }
 
