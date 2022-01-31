@@ -389,7 +389,7 @@ TEST_CASE("variable_order_true_transfer")
                new FiniteElementSpace(&mesh, c_fec, spaceDimension);
             FiniteElementSpace* f_fespace =
                new FiniteElementSpace(&mesh, f_fec,spaceDimension);
-            f_fespace->SetRelaxedHpConformity(true);
+
             int maxorder = RandomPRefinement(*f_fespace);
 
             std::cout  << "  Max fine order: " << maxorder << "\n";
