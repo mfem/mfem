@@ -1439,11 +1439,12 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
    localTransferOperator = new TransferOperator(lFESpace_, hFESpace_);
 
    P = lFESpace.GetProlongationMatrix();
-   R = hFESpace.GetRestrictionMatrix();
+   R = hFESpace.IsVariableOrder() ? hFESpace.GetHpRestrictionMatrix() :
+       hFESpace.GetRestrictionMatrix();
 
    // P and R can be both null
    // P can be null and R not null
-   // If P is not null it is assummed that R is not null as well
+   // If P is not null it is assumed that R is not null as well
    if (P) { MFEM_VERIFY(R, "Both P and R have to be not NULL") }
 
    if (P)
