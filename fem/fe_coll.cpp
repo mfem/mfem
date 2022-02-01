@@ -1749,7 +1749,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
          H1_dof[Geometry::PRISM] = TriDof*pm1;
-         H1_dof[Geometry::PYRAMID] = 0;
+         H1_dof[Geometry::PYRAMID] = pm1*pm2*(2*p-3)/6;
          if (b_type == BasisType::Positive)
          {
             H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
@@ -1763,7 +1763,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
             H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
          }
-         H1_Elements[Geometry::PYRAMID] = new LinearPyramidFiniteElement;
+         H1_Elements[Geometry::PYRAMID] = new H1_PyramidElement(p, btype);
 
          const int &TetDof = H1_dof[Geometry::TETRAHEDRON];
          TetDofOrd[0] = new int[24*TetDof];
@@ -1861,16 +1861,16 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 const FiniteElement *
 H1_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
-   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
+  // if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
    {
       return H1_Elements[GeomType];
    }
-   else
-   {
-      MFEM_ABORT("H1 Pyramid basis functions are not yet supported "
-                 "for order > 1.");
-      return NULL;
-   }
+   // else
+   // {
+   //   MFEM_ABORT("H1 Pyramid basis functions are not yet supported "
+   //              "for order > 1.");
+   //   return NULL;
+   // }
 }
 
 const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,

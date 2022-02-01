@@ -148,6 +148,31 @@ public:
                            DenseMatrix &dshape) const;
 };
 
+class H1_PyramidElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   // mutable Vector shape_0, shape_1, shape_2;
+   // mutable Vector dshape_0_0, dshape_1_0, dshape_2_0;
+   // mutable Vector dshape_0_1, dshape_1_1, dshape_2_1;
+   // mutable Vector u;
+   // mutable DenseMatrix du;
+
+   mutable Vector shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z, u;
+   mutable Vector ddshape_x, ddshape_y, ddshape_z;
+   mutable DenseMatrix du, ddu;
+#endif
+   DenseMatrixInverse Ti;
+
+public:
+   H1_PyramidElement(const int p,
+                     const int btype = BasisType::GaussLobatto);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
 } // namespace mfem
 
 #endif

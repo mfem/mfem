@@ -1993,6 +1993,57 @@ void Poly_1D::CalcDBinomTerms(const int p, const double x, const double y,
    }
 }
 
+void Poly_1D::CalcJacobi(const int p, const double alpha, const double beta,
+                         const double x, double *u)
+{
+   // use the recursive definition for [-1,1]:
+   // 2(n+1)(n+a+b+1)(2n+a+b)P^{(a,b)}_{n+1}(z) =
+   //    (2n+a+b+1)((2n+a+b+2)(2n+a+b)z+a^2-b^2)P^{(a,b)}_n(z)
+   //    -2(n+a)(n+b)(2n+a+b+2)P^{(a,b)}_{n-1}(z)
+   u[0] = 1.;
+   if (p == 0) { return; }
+   double z = 2.*x - 1.;
+   u[1] = 0.5 * ((alpha + beta + 2.) * z + alpha - beta);
+   for (int n = 1; n < p; n++)
+   {
+      double c2 = 2.*(1. + n)*(1. + n + alpha + beta)*(2.*n + alpha + beta);
+      double c1 = (1. + 2.*n + alpha + beta) *
+                  ((2. + 2.*n + alpha + beta)*
+                   (2.*n + alpha + beta)*z + pow(alpha,2) - pow(beta,2));
+      double c0 = 2.*(alpha + n)*(beta + n)*(2. + 2.*n + alpha + beta);
+
+      u[n+1] = (c1 * u[n] - c0 * u[n-1]) / c2;
+   }
+}
+
+void Poly_1D::CalcJacobi(const int p, const double alpha, const double beta,
+                         const double x, double *u, double *d)
+{
+   // use the recursive definition for [-1,1]:
+   // 2(n+1)(n+a+b+1)(2n+a+b)P^{(a,b)}_{n+1}(z) =
+   //    (2n+a+b+1)((2n+a+b+2)(2n+a+b)z+a^2-b^2)P^{(a,b)}_n(z)
+   //    -2(n+a)(n+b)(2n+a+b+2)P^{(a,b)}_{n-1}(z)
+   u[0] = 1.;
+   d[0] = 0.;
+   if (p == 0) { return; }
+   double z = 2.*x - 1.;
+   u[1] = 0.5 * ((alpha + beta + 2.) * z + alpha - beta);
+   d[1] = alpha + beta + 2.;
+   for (int n = 1; n < p; n++)
+   {
+      double c2 = 2.*(1. + n)*(1. + n + alpha + beta)*(2.*n + alpha + beta);
+      double c1 = (1. + 2.*n + alpha + beta) *
+                  ((2. + 2.*n + alpha + beta)*
+                   (2.*n + alpha + beta)*z + pow(alpha,2) - pow(beta,2));
+      double c0 = 2.*(alpha + n)*(beta + n)*(2. + 2.*n + alpha + beta);
+      double dc1 = 2.*(1. + 2.*n + alpha + beta) *
+                   (2. + 2.*n + alpha + beta)*(2.*n + alpha + beta);
+
+      u[n+1] = (c1 * u[n] - c0 * u[n-1]) / c2;
+      d[n+1] = (c1 * d[n] + dc1 * u[n] - c0 * d[n-1]) / c2;
+   }
+}
+
 void Poly_1D::CalcLegendre(const int p, const double x, double *u)
 {
    // use the recursive definition for [-1,1]:
