@@ -1256,18 +1256,62 @@ public:
       return (faces_info[FaceNo].Elem2No >= 0);
    }
 
-   /** This enumerated type is used to describe interior, boundary, or shared
-       interior faces. */
-   enum class FaceLocation { Local, Shared, Boundary, NA };
-   /** This enumerated type is used to describe if an element face is a
-       conforming or a non-conforming face. In the case of a non-conforming
-       face, the element can either be the coarse element or the fine element of
-       the non-conforming face. */
-   enum class FaceConformity { Conforming,
-                               NonConformingCoarse,
-                               NonConformingFine,
-                               NA
-                             };
+   /** This enumerated type describes the three main face topologies:
+       - Boundary, for faces on the boundary of the computational domain,
+       - Conforming, for conforming faces interior to the computational domain,
+       - NonConforming, for non-conforming faces interior to the computational
+         domain. */
+   enum class FaceTopology { Boundary,
+                             Conforming,
+                             NonConforming,
+                             NA
+                           };
+   /** This enumerated type describes the location of the two elements sharing a
+       face, Local meaning that the element is local to the MPI rank, Shared
+       meaning that the element is distributed on a different MPI rank. */
+   enum class ElementLocation { Local, Shared, NA };
+   /** This enumerated type describes the topological relation of an element to
+       a face:
+       - Conforming meaning that the element's face is topologically equal to
+         the mesh face.
+       - Coarse meaning that the element's face is topologically coarser than
+         the mesh face, i.e., the element's face contains the mesh face.
+       - Fine meaning that the element's face is topologically finer than the
+         mesh face, i.e., the element's face is contained in the mesh face.
+       Coarse and Fine are only relevant for non-conforming faces.
+       Master non-conforming faces have a conforming element on one side, and a
+       fine element on the other side. Slave non-conforming faces have a
+       conforming element on one side, and a coarse element on the other side.
+    */
+   enum class ElementConformity { Conforming, Coarse, Fine, NA };
+   /** This enumerated type describes the corresponding FaceInfo internal
+       representation and encryption cases, c.f. FaceInfo's documentation:
+       Classification of a local (non-ghost) face based on its FaceInfo:
+         - Elem2No >= 0 --> local interior face; can be either:
+            - NCFace == -1 --> LocalConformingInterior,
+            - NCFace >= 0 --> LocalNonConformingInterior,
+         - Elem2No < 0 --> local "boundary" face; can be one of:
+            - NCFace == -1 --> conforming face; can be either:
+               - Elem2Inf < 0 --> TrueBoundary,
+               - Elem2Inf >= 0 --> SharedConformingInterior,
+            - NCFace >= 0 --> non-conforming face; can be one of:
+               - Elem2Inf < 0 --> MasterNonConforming,
+               - Elem2Inf >= 0 --> SlaveNonConforming.
+       Classification of a ghost (non-local) face based on its FaceInfo:
+         - Elem1No == -1 --> GhostMaster,
+         - Elem1No >= 0 --> GhostSlave.
+    */
+   enum class FaceInfoTag { LocalConformingInterior,
+                            LocalNonConformingInterior,
+                            TrueBoundary,
+                            SharedConformingInterior,
+                            MasterNonConforming,
+                            SlaveNonConforming,
+                            GhostMaster,
+                            GhostSlave,
+                            Invalid
+                          };
+
    /** @brief This structure is used as a human readable output format that
        decipheres the information contained in Mesh::FaceInfo when using the
        Mesh::GetFaceInformation() method.
@@ -1280,10 +1324,11 @@ public:
    */
    struct FaceInformation
    {
-      FaceLocation elem_1_location, elem_2_location; // Local, shared, boundary
-      // elem1 and elem2 face conformity, i.e., conforming, non-conforming
-      // coarse, or non-conforming fine (or NA)
-      FaceConformity elem_1_conformity, elem_2_conformity;
+      FaceTopology topology;
+      static constexpr ElementLocation elem_1_location = ElementLocation::Local;
+      ElementLocation elem_2_location;
+      ElementConformity elem_1_conformity, elem_2_conformity;
+      FaceInfoTag tag;
       int elem_1_index, elem_2_index; // Elem1 and Elem2 indices
       int elem_1_local_face, elem_2_local_face; // Elem1 and Elem2 local faces
       int elem_1_orientation, elem_2_orientation; // Elem1 and Elem2 orientations
@@ -1293,28 +1338,28 @@ public:
       /// @brief Return true if the face is a local interior face.
       bool IsLocal() const
       {
-         return elem_2_location == Mesh::FaceLocation::Local;
+         return elem_2_location == Mesh::ElementLocation::Local;
       }
 
       /// @brief Return true if the face is a shared interior face.
       bool IsShared() const
       {
-         return elem_2_location == Mesh::FaceLocation::Shared;
+         return elem_2_location == Mesh::ElementLocation::Shared;
       }
 
-      /** @brief return true if the face is either a local or shared interior
-          face (not a boundary face). */
+      /** @brief return true if the face is an interior face to the computaion
+          domain, either a local or shared interior face (not a boundary face).
+       */
       bool IsInterior() const
       {
-         return IsLocal() || IsShared() ||
-                ( elem_1_conformity == FaceConformity::NonConformingCoarse &&
-                  elem_2_location == FaceLocation::NA );
+         return topology == FaceTopology::Conforming ||
+                topology == FaceTopology::NonConforming;
       }
 
       /** @brief Return true if the face is a boundary face. */
       bool IsBoundary() const
       {
-         return elem_1_location==Mesh::FaceLocation::Boundary;
+         return topology == FaceTopology::Boundary;
       }
 
       /// @brief Return true if the face is of the same type as @a type.
@@ -1333,46 +1378,50 @@ public:
       /// @brief Return true if the face is a conforming face.
       bool IsConforming() const
       {
-         return elem_1_conformity==Mesh::FaceConformity::Conforming &&
-                elem_2_conformity==Mesh::FaceConformity::Conforming;
+         return topology == FaceTopology::Conforming;
       }
 
       /// @brief Return true if the face is a non-conforming fine face.
-      bool IsNonConformingFineCoarse() const
+      bool IsNonConformingFine() const
       {
-         return elem_1_conformity==Mesh::FaceConformity::NonConformingFine;
+         return topology == FaceTopology::NonConforming &&
+                elem_2_conformity == ElementConformity::Coarse;
       }
 
       /// @brief Return true if the face is a non-conforming coarse face.
-      bool IsNonConformingCoarseFine() const
+      bool IsNonConformingCoarse() const
       {
-         return elem_1_conformity==Mesh::FaceConformity::NonConformingCoarse;
+         return topology == FaceTopology::NonConforming &&
+                elem_2_conformity == ElementConformity::Fine;
       }
 
       /// @brief Return true if the face is a local non-conforming fine face.
-      bool IsLocalNonConformingFineCoarse() const
+      bool IsLocalNonConformingFine() const
       {
-         return IsLocal() && IsNonConformingFineCoarse();
+         return IsLocal() && IsNonConformingFine();
       }
 
       /// @brief Return true if the face is a local (or NA) non-conforming coarse face.
-      bool IsLocalNonConformingCoarseFine() const
+      bool IsLocalNonConformingCoarse() const
       {
-         return (IsLocal() || elem_2_location==Mesh::FaceLocation::NA) &&
-                IsNonConformingCoarseFine();
+         return (IsLocal() || elem_2_location==Mesh::ElementLocation::NA) &&
+                IsNonConformingCoarse();
       }
 
       /// @brief Return true if the face is a shared non-conforming fine face.
-      bool IsSharedNonConformingFineCoarse() const
+      bool IsSharedNonConformingFine() const
       {
-         return IsShared() && IsNonConformingFineCoarse();
+         return IsShared() && IsNonConformingFine();
       }
 
       /// @brief Return true if the face is a shared non-conforming coarse face.
-      bool IsSharedNonConformingCoarseFine() const
+      bool IsSharedNonConformingCoarse() const
       {
-         return IsShared() && IsNonConformingCoarseFine();
+         return IsShared() && IsNonConformingCoarse();
       }
+
+      /// @brief cast operator from FaceInformation to FaceInfo.
+      operator Mesh::FaceInfo() const;
    };
 
    /** This method aims to provide face information in a deciphered format, i.e.
