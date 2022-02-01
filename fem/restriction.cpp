@@ -814,8 +814,8 @@ void H1FaceRestriction::ComputeScatterIndicesAndOffsets(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsLocalNonConformingCoarse() )
       {
-         // We skip local non-conforming coarse-fine faces as they are treated
-         // by the corresponding local non-conforming fine-coarse faces.
+         // We skip local non-conforming coarse faces as they are treated
+         // by the corresponding local non-conforming fine faces.
          continue;
       }
       else if ( face.IsOfFaceType(type) )
@@ -846,8 +846,8 @@ void H1FaceRestriction::ComputeGatherIndices(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsLocalNonConformingCoarse() )
       {
-         // We skip local non-conforming coarse-fine faces as they are treated
-         // by the corresponding local non-conforming fine-coarse faces.
+         // We skip local non-conforming coarse faces as they are treated
+         // by the corresponding local non-conforming fine faces.
          continue;
       }
       else if ( face.IsOfFaceType(type) )
@@ -872,7 +872,7 @@ void H1FaceRestriction::SetFaceDofsScatterIndices(
    const ElementDofOrdering ordering)
 {
    MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
-               "This method should not be used on local non-conforming coarse-fine faces.");
+               "This method should not be used on local non-conforming coarse faces.");
    MFEM_ASSERT(face.elem_1_orientation==0,
                "FaceRestriction used on degenerated mesh.");
 
@@ -907,7 +907,7 @@ void H1FaceRestriction::SetFaceDofsGatherIndices(
    const ElementDofOrdering ordering)
 {
    MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
-               "This method should not be used on local non-conforming coarse-fine faces.");
+               "This method should not be used on local non-conforming coarse faces.");
 
    const TensorBasisElement* el =
       dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
@@ -1474,7 +1474,7 @@ void L2FaceRestriction::SetFaceDofsScatterIndices1(
 {
    MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
                "This method should not be used on local non-conforming "
-               "coarse-fine faces.");
+               "coarse faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int face_id1 = face.elem_1_local_face;
@@ -1573,7 +1573,7 @@ void L2FaceRestriction::SetFaceDofsGatherIndices1(
    const int face_index)
 {
    MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
-               "This method should not be used on local non-conforming coarse-fine faces.");
+               "This method should not be used on local non-conforming coarse faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int face_id1 = face.elem_1_local_face;
@@ -2060,8 +2060,8 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsLocalNonConformingCoarse() )
       {
-         // We skip local non-conforming coarse-fine faces as they are treated
-         // by the corresponding local non-conforming fine-coarse faces.
+         // We skip local non-conforming coarse faces as they are treated
+         // by the corresponding local non-conforming fine faces.
          continue;
       }
       else if ( type==FaceType::Interior && face.IsInterior() )
@@ -2119,8 +2119,8 @@ void NCL2FaceRestriction::ComputeGatherIndices(
                   "Unexpected shared face in NCL2FaceRestriction.");
       if ( face.IsLocalNonConformingCoarse() )
       {
-         // We skip local non-conforming coarse-fine faces as they are treated
-         // by the corresponding local non-conforming fine-coarse faces.
+         // We skip local non-conforming coarse faces as they are treated
+         // by the corresponding local non-conforming fine faces.
          continue;
       }
       else if ( face.IsOfFaceType(type) )
