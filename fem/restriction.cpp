@@ -1647,7 +1647,7 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
    const DenseMatrix* ptMat = face.point_matrix;
    // In the case of non-conforming slave shared face the master face is elem1.
    const int master_side =
-      face.elem_1_conformity == Mesh::ElementConformity::Coarse ? 0 : 1;
+      face.elem_1_conformity == Mesh::ElementConformity::Superset ? 0 : 1;
    const int face_key = (master_side == 0 ? 1000 : 0) +
                         face.elem_1_local_face + 6*face.elem_2_local_face +
                         36*face.elem_2_orientation ;
@@ -1681,7 +1681,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    const int face_id2 = face.elem_2_local_face;
 
    const bool is_ghost_slave =
-      face.elem_1_conformity == Mesh::ElementConformity::Coarse;
+      face.elem_1_conformity == Mesh::ElementConformity::Superset;
    const int master_face_id = is_ghost_slave ? face_id1 : face_id2;
 
    // Computation of the interpolation matrix from master

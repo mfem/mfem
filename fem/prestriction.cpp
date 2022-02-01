@@ -231,7 +231,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
          else // Non-conforming face
          {
             SetFaceDofsScatterIndices(face, f_ind, ordering);
-            if ( face.elem_1_conformity == Mesh::ElementConformity::Coarse )
+            if ( face.elem_1_conformity == Mesh::ElementConformity::Superset )
             {
                // In this case the local face is the master (coarse) face, thus
                // we need to interpolate the values on the slave (fine) face.
