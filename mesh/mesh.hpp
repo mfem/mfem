@@ -1266,24 +1266,30 @@ public:
                              NonConforming,
                              NA
                            };
+
    /** This enumerated type describes the location of the two elements sharing a
-       face, Local meaning that the element is local to the MPI rank, Shared
-       meaning that the element is distributed on a different MPI rank. */
-   enum class ElementLocation { Local, Shared, NA };
+       face, Local meaning that the element is local to the MPI rank, FaceNbr
+       meaning that the element is distributed on a different MPI rank, this
+       typically means that methods with FaceNbr should be used to access the
+       relevant information, e.g., ParFiniteElementSpace::GetFaceNbrElementVDofs.
+    */
+   enum class ElementLocation { Local, FaceNbr, NA };
+
    /** This enumerated type describes the topological relation of an element to
        a face:
-       - Conforming meaning that the element's face is topologically equal to
+       - Coincident meaning that the element's face is topologically equal to
          the mesh face.
-       - Coarse meaning that the element's face is topologically coarser than
+       - Superset meaning that the element's face is topologically coarser than
          the mesh face, i.e., the element's face contains the mesh face.
-       - Fine meaning that the element's face is topologically finer than the
+       - Subset meaning that the element's face is topologically finer than the
          mesh face, i.e., the element's face is contained in the mesh face.
-       Coarse and Fine are only relevant for non-conforming faces.
+       Superset and Subset are only relevant for non-conforming faces.
        Master non-conforming faces have a conforming element on one side, and a
        fine element on the other side. Slave non-conforming faces have a
        conforming element on one side, and a coarse element on the other side.
     */
-   enum class ElementConformity { Conforming, Coarse, Fine, NA };
+   enum class ElementConformity { Coincident, Superset, Subset, NA };
+
    /** This enumerated type describes the corresponding FaceInfo internal
        representation and encryption cases, c.f. FaceInfo's documentation:
        Classification of a local (non-ghost) face based on its FaceInfo:
@@ -1344,7 +1350,7 @@ public:
       /// @brief Return true if the face is a shared interior face.
       bool IsShared() const
       {
-         return elem_2_location == Mesh::ElementLocation::Shared;
+         return elem_2_location == Mesh::ElementLocation::FaceNbr;
       }
 
       /** @brief return true if the face is an interior face to the computaion
@@ -1385,15 +1391,15 @@ public:
       bool IsNonConformingFine() const
       {
          return topology == FaceTopology::NonConforming &&
-                (elem_1_conformity == ElementConformity::Coarse ||
-                 elem_2_conformity == ElementConformity::Coarse);
+                (elem_1_conformity == ElementConformity::Superset ||
+                 elem_2_conformity == ElementConformity::Superset);
       }
 
       /// @brief Return true if the face is a non-conforming coarse face.
       bool IsNonConformingCoarse() const
       {
          return topology == FaceTopology::NonConforming &&
-                elem_2_conformity == ElementConformity::Fine;
+                elem_2_conformity == ElementConformity::Subset;
       }
 
       /// @brief Return true if the face is a local non-conforming fine face.

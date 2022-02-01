@@ -1151,8 +1151,8 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
          {
             face.topology = FaceTopology::Conforming;
             face.elem_2_location = ElementLocation::Local;
-            face.elem_1_conformity = ElementConformity::Conforming;
-            face.elem_2_conformity = ElementConformity::Conforming;
+            face.elem_1_conformity = ElementConformity::Coincident;
+            face.elem_2_conformity = ElementConformity::Coincident;
             face.tag = FaceInfoTag::LocalConformingInterior;
             face.elem_2_index = e2;
             face.elem_2_orientation = inf2%64;
@@ -1161,8 +1161,8 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
          {
             face.topology = FaceTopology::NonConforming;
             face.elem_2_location = ElementLocation::Local;
-            face.elem_1_conformity = ElementConformity::Conforming;
-            face.elem_2_conformity = ElementConformity::Coarse;
+            face.elem_1_conformity = ElementConformity::Coincident;
+            face.elem_2_conformity = ElementConformity::Superset;
             face.tag = FaceInfoTag::LocalNonConformingInterior;
             face.elem_2_index = e2;
             MFEM_ASSERT(inf2%64==0, "unexpected slave face orientation.");
@@ -1178,7 +1178,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
             {
                face.topology = FaceTopology::Boundary;
                face.elem_2_location = ElementLocation::NA;
-               face.elem_1_conformity = ElementConformity::Conforming;
+               face.elem_1_conformity = ElementConformity::Coincident;
                face.elem_2_conformity = ElementConformity::NA;
                face.tag = FaceInfoTag::TrueBoundary;
                face.elem_2_index = -1;
@@ -1187,9 +1187,9 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
             else // inf2 >= 0
             {
                face.topology = FaceTopology::Conforming;
-               face.elem_1_conformity = ElementConformity::Conforming;
-               face.elem_2_conformity = ElementConformity::Conforming;
-               face.elem_2_location = ElementLocation::Shared;
+               face.elem_1_conformity = ElementConformity::Coincident;
+               face.elem_2_conformity = ElementConformity::Coincident;
+               face.elem_2_location = ElementLocation::FaceNbr;
                face.tag = FaceInfoTag::SharedConformingInterior;
                face.elem_2_index = -1 - e2;
                face.elem_2_orientation = inf2%64;
@@ -1201,8 +1201,8 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
             {
                face.topology = FaceTopology::NonConforming;
                face.elem_2_location = ElementLocation::NA;
-               face.elem_1_conformity = ElementConformity::Conforming;
-               face.elem_2_conformity = ElementConformity::Fine;
+               face.elem_1_conformity = ElementConformity::Coincident;
+               face.elem_2_conformity = ElementConformity::Subset;
                face.tag = FaceInfoTag::MasterNonConforming;
                face.elem_2_index = -1;
                face.elem_2_orientation = -1;
@@ -1210,9 +1210,9 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
             else
             {
                face.topology = FaceTopology::NonConforming;
-               face.elem_2_location = ElementLocation::Shared;
-               face.elem_1_conformity = ElementConformity::Conforming;
-               face.elem_2_conformity = ElementConformity::Coarse;
+               face.elem_2_location = ElementLocation::FaceNbr;
+               face.elem_1_conformity = ElementConformity::Coincident;
+               face.elem_2_conformity = ElementConformity::Superset;
                face.tag = FaceInfoTag::SlaveNonConforming;
                face.elem_2_index = -1 - e2;
                face.elem_2_orientation = inf2%64;
@@ -1236,9 +1236,9 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
       else
       {
          face.topology = FaceTopology::NonConforming;
-         face.elem_2_location = ElementLocation::Shared;
-         face.elem_1_conformity = ElementConformity::Coarse;
-         face.elem_2_conformity = ElementConformity::Conforming;
+         face.elem_2_location = ElementLocation::FaceNbr;
+         face.elem_1_conformity = ElementConformity::Superset;
+         face.elem_2_conformity = ElementConformity::Coincident;
          face.tag = FaceInfoTag::GhostSlave;
          face.elem_2_index = -1 - e2;
          face.elem_2_orientation = inf2%64;
@@ -1326,8 +1326,8 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
       case Mesh::ElementLocation::Local:
          os << "Local";
          break;
-      case Mesh::ElementLocation::Shared:
-         os << "Shared";
+      case Mesh::ElementLocation::FaceNbr:
+         os << "FaceNbr";
          break;
       case Mesh::ElementLocation::NA:
          os << "NA";
@@ -1340,8 +1340,8 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
       case Mesh::ElementLocation::Local:
          os << "Local";
          break;
-      case Mesh::ElementLocation::Shared:
-         os << "Shared";
+      case Mesh::ElementLocation::FaceNbr:
+         os << "FaceNbr";
          break;
       case Mesh::ElementLocation::NA:
          os << "NA";
@@ -1351,14 +1351,14 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
    os << "elem_1_conformity=";
    switch (info.elem_1_conformity)
    {
-      case Mesh::ElementConformity::Conforming:
-         os << "Conforming";
+      case Mesh::ElementConformity::Coincident:
+         os << "Coincident";
          break;
-      case Mesh::ElementConformity::Coarse:
-         os << "Coarse";
+      case Mesh::ElementConformity::Superset:
+         os << "Superset";
          break;
-      case Mesh::ElementConformity::Fine:
-         os << "Fine";
+      case Mesh::ElementConformity::Subset:
+         os << "Subset";
          break;
       case Mesh::ElementConformity::NA:
          os << "NA";
@@ -1368,14 +1368,14 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
    os << "elem_2_conformity=";
    switch (info.elem_2_conformity)
    {
-      case Mesh::ElementConformity::Conforming:
-         os << "Conforming";
+      case Mesh::ElementConformity::Coincident:
+         os << "Coincident";
          break;
-      case Mesh::ElementConformity::Coarse:
-         os << "Coarse";
+      case Mesh::ElementConformity::Superset:
+         os << "Superset";
          break;
-      case Mesh::ElementConformity::Fine:
-         os << "Fine";
+      case Mesh::ElementConformity::Subset:
+         os << "Subset";
          break;
       case Mesh::ElementConformity::NA:
          os << "NA";
