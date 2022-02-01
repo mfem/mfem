@@ -64,7 +64,11 @@ class BlockStaticCondensation
    // int_idx (interior dof indices)
    void GetReduceElementIndicesAndOffsets(int el, Array<int> & tr_idx,
                                           Array<int> & int_idx,
-                                          Array<int> & offsets);
+                                          Array<int> & offsets) const;
+
+   void GetReduceElementVDofs(int el, Array<int> & rdofs) const;
+   void GetElementVDofs(int el, Array<int> & vdofs) const;
+
 
    //  S = A_ii - A_ib (A_bb)^{-1} A_bi.
    //  y = y_i - A_ib (A_bb)^{-1} y_b
@@ -145,8 +149,7 @@ public:
 
    /** Given a solution of the reduced system 'sc_sol' and the RHS 'b' for the
        full linear system, compute the solution of the full system 'sol'. */
-   void ComputeSolution(const Vector &b, const Vector &sc_sol,
-                        Vector &sol) const;
+   void ComputeSolution(const Vector &sc_sol, Vector &sol) const;
 
 };
 

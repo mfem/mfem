@@ -140,7 +140,7 @@ void BlockStaticCondensation::Init()
 void BlockStaticCondensation::GetReduceElementIndicesAndOffsets(int el,
                                                                 Array<int> & trace_ldofs,
                                                                 Array<int> & interior_ldofs,
-                                                                Array<int> & offsets)
+                                                                Array<int> & offsets) const
 {
    int dim = mesh->Dimension();
    offsets.SetSize(tr_fes.Size()+1); offsets = 0;
@@ -208,6 +208,96 @@ void BlockStaticCondensation::GetReduceElementIndicesAndOffsets(int el,
       interior_ldofs.Append(int_dofs);
    }
    offsets.PartialSum();
+}
+
+
+void BlockStaticCondensation::GetReduceElementVDofs(int el,
+                                                    Array<int> & rdofs) const
+{
+   Array<int> faces, ori;
+   int dim = mesh->Dimension();
+   if (dim == 1)
+   {
+      mesh->GetElementVertices(el, faces);
+   }
+   if (dim == 2)
+   {
+      mesh->GetElementEdges(el, faces, ori);
+   }
+   else //dim = 3
+   {
+      mesh->GetElementFaces(el,faces,ori);
+   }
+   int numfaces = faces.Size();
+   rdofs.SetSize(0);
+   for (int i = 0; i<tr_fes.Size(); i++)
+   {
+      if (!tr_fes[i]) { continue; }
+      Array<int> vdofs;
+      if (IsTraceSpace[i])
+      {
+         Array<int> face_vdofs;
+         for (int k = 0; k < numfaces; k++)
+         {
+            int iface = faces[k];
+            tr_fes[i]->GetFaceVDofs(iface, face_vdofs);
+            vdofs.Append(face_vdofs);
+         }
+      }
+      else
+      {
+         tr_fes[i]->GetElementVDofs(el, vdofs);
+      }
+      for (int j=0; j<vdofs.Size(); j++)
+      {
+         vdofs[j] = (vdofs[j]>=0) ? vdofs[j]+rdof_offsets[i] :
+                    vdofs[j]-rdof_offsets[i];
+      }
+      rdofs.Append(vdofs);
+   }
+}
+void BlockStaticCondensation::GetElementVDofs(int el, Array<int> & vdofs) const
+{
+   Array<int> faces, ori;
+   int dim = mesh->Dimension();
+   if (dim == 1)
+   {
+      mesh->GetElementVertices(el, faces);
+   }
+   if (dim == 2)
+   {
+      mesh->GetElementEdges(el, faces, ori);
+   }
+   else //dim = 3
+   {
+      mesh->GetElementFaces(el,faces,ori);
+   }
+   int numfaces = faces.Size();
+   vdofs.SetSize(0);
+   for (int i = 0; i<tr_fes.Size(); i++)
+   {
+      Array<int> dofs;
+      if (IsTraceSpace[i])
+      {
+         Array<int> face_vdofs;
+         for (int k = 0; k < numfaces; k++)
+         {
+            int iface = faces[k];
+            fes[i]->GetFaceVDofs(iface, face_vdofs);
+            dofs.Append(face_vdofs);
+         }
+      }
+      else
+      {
+         fes[i]->GetElementVDofs(el, dofs);
+      }
+      for (int j=0; j<dofs.Size(); j++)
+      {
+         dofs[j] = (dofs[j]>=0) ? dofs[j]+dof_offsets[i] :
+                   dofs[j]-dof_offsets[i];
+      }
+      vdofs.Append(dofs);
+   }
 }
 
 
@@ -283,6 +373,7 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
 
    // Assemble global mat and rhs
    DofTransformation * doftrans_i, *doftrans_j;
+
 
    Array<int> faces, ori;
    int dim = mesh->Dimension();
@@ -620,8 +711,27 @@ void BlockStaticCondensation::EliminateReducedTrueDofs(Matrix::DiagonalPolicy
 void BlockStaticCondensation::ReduceSolution(const Vector &sol,
                                              Vector &sc_sol) const
 {
-   MFEM_ABORT("TODO: BlockStaticCondensation::ReduceSolution");
-
+   MFEM_ASSERT(sol.Size() == dof_offsets.Last(), "'sol' has incorrect size");
+   const int nrdofs = rdof_offsets.Last();
+   BlockVector sol_r(rdof_offsets);
+   if (!R)
+   {
+      sc_sol.SetSize(nrdofs);
+      sol_r.SetDataAndSize(sc_sol.GetData(), sc_sol.Size());
+   }
+   else
+   {
+      sol_r.SetSize(nrdofs);
+   }
+   for (int i = 0; i < nrdofs; i++)
+   {
+      sol_r(i) = sol(rdof_edof[i]);
+   }
+   if (R)
+   {
+      sc_sol.SetSize(R->Height());
+      R->Mult(sol_r, sc_sol);
+   }
 }
 
 void BlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
@@ -629,38 +739,93 @@ void BlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
                                            int copy_interior) const
 {
 
-   MFEM_ABORT("TODO: BlockStaticCondensation::ReduceSystem");
+   ReduceSolution(x, X);
 
-   // ReduceSolution(x, X);
-   // if (!P)
-   // {
-   //    S_e->AddMult(x,*y,-1.);
-   //    S->PartMult(rtdof_offsets,x,*y);
-
-   // }
-   // else
-   // {
-
-   // }
-
-
-
-   // // ReduceRHS(b, B);
-   // S_e->AddMult(X, B, -1.);
-   // S->PartMult(ess_rtdof_list, X, B);
-
-   // if (!copy_interior)
-   // {
-   //    X.SetSubVectorComplement(ess_rtdof_list, 0.0);
-   // }
+   if (!P)
+   {
+      S_e->AddMult(X,*y,-1.);
+      S->PartMult(ess_rtdof_list,X,*y);
+      B.MakeRef(*y, 0, y->Size());
+   }
+   else
+   {
+      B.SetSize(P->Width());
+      P->MultTranspose(*y, B);
+      S_e->AddMult(X,B,-1.);
+      S->PartMult(ess_rtdof_list,X,B);
+   }
+   if (!copy_interior) { X.SetSubVectorComplement(ess_rtdof_list, 0.0); }
 
 }
 
 
-void BlockStaticCondensation::ComputeSolution(const Vector &b,
-                                              const Vector &sc_sol,
+void BlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
                                               Vector &sol) const
 {
+
+   const int nrdofs = rdof_offsets.Last();
+   const int nrtdofs = rtdof_offsets.Last();
+   MFEM_VERIFY(sc_sol.Size() == nrtdofs, "'sc_sol' has incorrect size");
+
+
+
+   Vector sol_r;
+   if (!P)
+   {
+      sol_r.SetDataAndSize(sc_sol.GetData(), sc_sol.Size());
+   }
+   else
+   {
+      sol_r.SetSize(nrdofs);
+      P->Mult(sc_sol, sol_r);
+   }
+
+   if (rdof_offsets.Last() == dof_offsets.Last())
+   {
+      sol = sol_r;
+      return;
+   }
+   else
+   {
+      sol.SetSize(dof_offsets.Last());
+   }
+
+   // wrap solution vector to a block vector
+   // BlockVector sr(sol_r, rdof_offsets);
+
+   Vector lsr; // element (local) sc solution vector
+   Vector lsi; // element (local) interior solution vector
+   const int NE = mesh->GetNE();
+
+   Array<int> trace_vdofs;
+   Array<int> vdofs;
+   Array<int> tr_offsets;
+   Vector lsol;
+   for (int iel = 0; iel < NE; iel++)
+   {
+      lsol.SetSize(lmat[iel]->Width() + lmat[iel]->Height());
+      // GetReduceElementIndicesAndOffsets(iel, trace_ldofs, interior_ldofs, tr_offsets);
+      GetReduceElementVDofs(iel, trace_vdofs);
+
+      lsr.SetSize(trace_vdofs.Size());
+      sol_r.GetSubVector(trace_vdofs, lsr);
+      // complete the interior dofs
+
+      lsi.SetSize(lmat[iel]->Height());
+      lmat[iel]->Mult(lsr,lsi);
+      lsi.Neg();
+      lsi+=*lvec[iel];
+
+      Array<int> tr_idx,int_idx,idx_offs;
+      GetReduceElementIndicesAndOffsets(iel,tr_idx, int_idx, idx_offs);
+      lsol.SetSubVector(tr_idx,lsr);
+
+      lsol.SetSubVector(int_idx,lsi);
+
+      GetElementVDofs(iel, vdofs);
+      sol.SetSubVector(vdofs,lsol);
+
+   }
 
 }
 

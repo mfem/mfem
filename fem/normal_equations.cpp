@@ -616,36 +616,29 @@ void NormalEquations::EliminateVDofs(const Array<int> &vdofs,
 void NormalEquations::RecoverFEMSolution(const Vector &X,
                                          Vector &x)
 {
-   if (!P)
+
+   if (static_cond)
    {
-      if (static_cond)
-      {
-         // Private dofs back solve
-         static_cond->ComputeSolution(*y, X, x);
-      }
+      // Private dofs back solve
+      static_cond->ComputeSolution(X, x);
+   }
+   else if (!P)
+   {
       x.SyncMemory(X);
    }
    else
    {
-      if (static_cond)
+      x.SetSize(P->Height());
+      P->Mult(X, x);
+      double *data = X.GetData();
+      Vector tmp;
+      for (int i = 0; i<nblocks; i++)
       {
-         // Private dofs back solve
-         static_cond->ComputeSolution(*y, X, x);
-      }
-      else
-      {
-         x.SetSize(P->Height());
-         P->Mult(X, x);
-         double *data = X.GetData();
-         Vector tmp;
-         for (int i = 0; i<nblocks; i++)
+         if (P->IsZeroBlock(i,i))
          {
-            if (P->IsZeroBlock(i,i))
-            {
-               int offset = tdof_offsets[i];
-               tmp.SetDataAndSize(&data[offset],tdof_offsets[i+1]-tdof_offsets[i]);
-               x.SetVector(tmp,offset);
-            }
+            int offset = tdof_offsets[i];
+            tmp.SetDataAndSize(&data[offset],tdof_offsets[i+1]-tdof_offsets[i]);
+            x.SetVector(tmp,offset);
          }
       }
    }
