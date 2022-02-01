@@ -1237,8 +1237,8 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
       {
          face.topology = FaceTopology::NonConforming;
          face.elem_2_location = ElementLocation::Shared;
-         face.elem_1_conformity = ElementConformity::Conforming;
-         face.elem_2_conformity = ElementConformity::Fine;
+         face.elem_1_conformity = ElementConformity::Coarse;
+         face.elem_2_conformity = ElementConformity::Conforming;
          face.tag = FaceInfoTag::GhostSlave;
          face.elem_2_index = -1 - e2;
          face.elem_2_orientation = inf2%64;

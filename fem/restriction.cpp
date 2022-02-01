@@ -1646,7 +1646,8 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
                "Registering face as non-conforming even though it is not.");
    const DenseMatrix* ptMat = face.point_matrix;
    // In the case of non-conforming slave shared face the master face is elem1.
-   const int master_side = face.IsSharedNonConformingCoarse() ? 0 : 1;
+   const int master_side =
+      face.elem_1_conformity == Mesh::ElementConformity::Coarse ? 0 : 1;
    const int face_key = (master_side == 0 ? 1000 : 0) +
                         face.elem_1_local_face + 6*face.elem_2_local_face +
                         36*face.elem_2_orientation ;
@@ -1679,7 +1680,8 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    const int face_id1 = face.elem_1_local_face;
    const int face_id2 = face.elem_2_local_face;
 
-   const bool is_ghost_slave = face.IsSharedNonConformingCoarse();
+   const bool is_ghost_slave =
+      face.elem_1_conformity == Mesh::ElementConformity::Coarse;
    const int master_face_id = is_ghost_slave ? face_id1 : face_id2;
 
    // Computation of the interpolation matrix from master
@@ -1699,8 +1701,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    isotr.SetPointMat(*ptMat);
    DenseMatrix& trans_pt_mat = isotr.GetPointMat();
    // PointMatrix needs to be flipped in 2D
-   if ( trace_fe->GetGeomType()==Geometry::SEGMENT &&
-        !face.IsSharedNonConformingCoarse() )
+   if ( trace_fe->GetGeomType()==Geometry::SEGMENT && !is_ghost_slave )
    {
       std::swap(trans_pt_mat(0,0),trans_pt_mat(0,1));
    }
@@ -1713,7 +1714,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    {
       const int ni = (dof_map.Size()==0) ? i : dof_map[i];
       int li = ToLexOrdering(dim, master_face_id, dof1d, i);
-      if ( !face.IsSharedNonConformingCoarse() )
+      if ( !is_ghost_slave )
       {
          // master side is elem 2, so we permute to order dofs as elem 1.
          li = PermuteFaceL2(dim, face_id2, face_id1,
@@ -1722,7 +1723,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
       for (int j = 0; j < face_dofs; j++)
       {
          int lj = ToLexOrdering(dim, master_face_id, dof1d, j);
-         if ( !face.IsSharedNonConformingCoarse() )
+         if ( !is_ghost_slave )
          {
             // master side is elem 2, so we permute to order dofs as elem 1.
             lj = PermuteFaceL2(dim, face_id2, face_id1,

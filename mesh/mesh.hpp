@@ -1385,7 +1385,8 @@ public:
       bool IsNonConformingFine() const
       {
          return topology == FaceTopology::NonConforming &&
-                elem_2_conformity == ElementConformity::Coarse;
+                (elem_1_conformity == ElementConformity::Coarse ||
+                 elem_2_conformity == ElementConformity::Coarse);
       }
 
       /// @brief Return true if the face is a non-conforming coarse face.
