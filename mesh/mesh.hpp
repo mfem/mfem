@@ -1335,9 +1335,9 @@ public:
       ElementLocation elem_2_location;
       ElementConformity elem_1_conformity, elem_2_conformity;
       FaceInfoTag tag;
-      int elem_1_index, elem_2_index; // Elem1 and Elem2 indices
-      int elem_1_local_face, elem_2_local_face; // Elem1 and Elem2 local faces
-      int elem_1_orientation, elem_2_orientation; // Elem1 and Elem2 orientations
+      int elem_1_index, elem_2_index;
+      int elem_1_local_face, elem_2_local_face;
+      int elem_1_orientation, elem_2_orientation;
       int ncface;
       const DenseMatrix* point_matrix;
 
