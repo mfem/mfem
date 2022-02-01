@@ -1259,11 +1259,11 @@ public:
    /** This enumerated type describes the three main face topologies:
        - Boundary, for faces on the boundary of the computational domain,
        - Conforming, for conforming faces interior to the computational domain,
-       - NonConforming, for non-conforming faces interior to the computational
+       - Nonconforming, for non-conforming faces interior to the computational
          domain. */
    enum class FaceTopology { Boundary,
                              Conforming,
-                             NonConforming,
+                             Nonconforming,
                              NA
                            };
 
@@ -1359,7 +1359,7 @@ public:
       bool IsInterior() const
       {
          return topology == FaceTopology::Conforming ||
-                topology == FaceTopology::NonConforming;
+                topology == FaceTopology::Nonconforming;
       }
 
       /** @brief Return true if the face is a boundary face. */
@@ -1390,7 +1390,7 @@ public:
       /// @brief Return true if the face is a non-conforming fine face.
       bool IsNonConformingFine() const
       {
-         return topology == FaceTopology::NonConforming &&
+         return topology == FaceTopology::Nonconforming &&
                 (elem_1_conformity == ElementConformity::Superset ||
                  elem_2_conformity == ElementConformity::Superset);
       }
@@ -1398,7 +1398,7 @@ public:
       /// @brief Return true if the face is a non-conforming coarse face.
       bool IsNonConformingCoarse() const
       {
-         return topology == FaceTopology::NonConforming &&
+         return topology == FaceTopology::Nonconforming &&
                 elem_2_conformity == ElementConformity::Subset;
       }
 

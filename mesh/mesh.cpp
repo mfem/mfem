@@ -1159,7 +1159,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
          }
          else // ncface >= 0
          {
-            face.topology = FaceTopology::NonConforming;
+            face.topology = FaceTopology::Nonconforming;
             face.elem_2_location = ElementLocation::Local;
             face.elem_1_conformity = ElementConformity::Coincident;
             face.elem_2_conformity = ElementConformity::Superset;
@@ -1199,7 +1199,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
          {
             if (inf2 < 0)
             {
-               face.topology = FaceTopology::NonConforming;
+               face.topology = FaceTopology::Nonconforming;
                face.elem_2_location = ElementLocation::NA;
                face.elem_1_conformity = ElementConformity::Coincident;
                face.elem_2_conformity = ElementConformity::Subset;
@@ -1209,7 +1209,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
             }
             else
             {
-               face.topology = FaceTopology::NonConforming;
+               face.topology = FaceTopology::Nonconforming;
                face.elem_2_location = ElementLocation::FaceNbr;
                face.elem_1_conformity = ElementConformity::Coincident;
                face.elem_2_conformity = ElementConformity::Superset;
@@ -1235,7 +1235,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
       }
       else
       {
-         face.topology = FaceTopology::NonConforming;
+         face.topology = FaceTopology::Nonconforming;
          face.elem_2_location = ElementLocation::FaceNbr;
          face.elem_1_conformity = ElementConformity::Superset;
          face.elem_2_conformity = ElementConformity::Coincident;
@@ -1313,7 +1313,7 @@ std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
       case Mesh::FaceTopology::Conforming:
          os << "Conforming";
          break;
-      case Mesh::FaceTopology::NonConforming:
+      case Mesh::FaceTopology::Nonconforming:
          os << "Non-conforming";
          break;
       case Mesh::FaceTopology::NA:
