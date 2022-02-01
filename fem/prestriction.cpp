@@ -216,8 +216,8 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsLocalNonConformingCoarse() )
       {
-         // We skip local non-conforming coarse-fine faces as they are treated
-         // by the corresponding local non-conforming fine-coarse faces.
+         // We skip local non-conforming coarse faces as they are treated
+         // by the corresponding local non-conforming fine faces.
          continue;
       }
       else if (type==FaceType::Interior && face.IsInterior())
@@ -277,8 +277,8 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsLocalNonConformingCoarse() )
       {
-         // We skip local non-conforming coarse-fine faces as they are treated
-         // by the corresponding local non-conforming fine-coarse faces.
+         // We skip local non-conforming coarse faces as they are treated
+         // by the corresponding local non-conforming fine faces.
          continue;
       }
       else if (face.IsOfFaceType(type))
@@ -975,8 +975,8 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsLocalNonConformingCoarse() )
       {
-         // We skip local non-conforming coarse-fine faces as they are treated
-         // by the corresponding local non-conforming fine-coarse faces.
+         // We skip local non-conforming coarse faces as they are treated
+         // by the corresponding local non-conforming fine faces.
          continue;
       }
       else if ( type==FaceType::Interior && face.IsInterior() )
@@ -1052,8 +1052,8 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsLocalNonConformingCoarse() )
       {
-         // We skip local non-conforming coarse-fine faces as they are treated
-         // by the corresponding local non-conforming fine-coarse faces.
+         // We skip local non-conforming coarse faces as they are treated
+         // by the corresponding local non-conforming fine faces.
          continue;
       }
       else if ( face.IsOfFaceType(type) )
