@@ -15,10 +15,13 @@ int main(int argc, char *argv[])
    // 1. Parse command line options
    const char *mesh_file = "../../../data/star.mesh";
    int order = 1;
+   bool static_cond = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
+   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
+                  "--no-static-condensation", "Enable static condensation.");   
    args.ParseCheck();
 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
@@ -64,6 +67,7 @@ int main(int argc, char *argv[])
    a->AddTestIntegrator(mass,0,0);
 
    a->AddDomainLFIntegrator(new DomainLFIntegrator(one),0);
+   if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
    Array<int> ess_tdof_list;

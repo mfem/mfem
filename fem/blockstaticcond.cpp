@@ -230,6 +230,7 @@ void BlockStaticCondensation::GetReduceElementVDofs(int el,
    }
    int numfaces = faces.Size();
    rdofs.SetSize(0);
+   int skip = 0;
    for (int i = 0; i<tr_fes.Size(); i++)
    {
       if (!tr_fes[i]) { continue; }
@@ -250,9 +251,10 @@ void BlockStaticCondensation::GetReduceElementVDofs(int el,
       }
       for (int j=0; j<vdofs.Size(); j++)
       {
-         vdofs[j] = (vdofs[j]>=0) ? vdofs[j]+rdof_offsets[i] :
-                    vdofs[j]-rdof_offsets[i];
+         vdofs[j] = (vdofs[j]>=0) ? vdofs[j]+rdof_offsets[skip] :
+                    vdofs[j]-rdof_offsets[skip];
       }
+      skip++;
       rdofs.Append(vdofs);
    }
 }
@@ -831,7 +833,21 @@ void BlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
 
 BlockStaticCondensation::~BlockStaticCondensation()
 {
+   delete S_e; S_e = nullptr;
+   delete S; S=nullptr;
+   delete y; y=nullptr;
 
+   if (P)
+   {
+      delete P; P=nullptr;
+      delete R; R=nullptr;
+   }
+
+   for (int i=0; i<lmat.Size(); i++)
+   {
+      delete lmat[i]; lmat[i] = nullptr;
+      delete lvec[i]; lvec[i] = nullptr;
+   }
 }
 
 }
