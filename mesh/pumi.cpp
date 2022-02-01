@@ -374,7 +374,8 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
       apf_mesh->getDownward(ent,0,verts); // num_vert
       // Get attribute Tag from gmsh if it exists
       int attr = 1;
-      if( gmshPhysEnt ) {
+      if ( gmshPhysEnt )
+      {
          apf_mesh->getIntTag(ent,gmshPhysEnt,&attr);
       }
 
@@ -531,7 +532,8 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
       apf_mesh->getDownward(ent,0,verts);
       // Get attribute Tag from gmsh if it exists
       int attr = 1;
-      if( gmshPhysEnt ) {
+      if ( gmshPhysEnt )
+      {
          apf_mesh->getIntTag(ent,gmshPhysEnt,&attr);
       }
 
