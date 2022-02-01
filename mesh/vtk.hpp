@@ -81,7 +81,7 @@ struct VTKGeometry
    /// @brief Does the given VTK geometry type describe an arbitrary-order
    /// Lagrange element?
    static bool IsLagrange(int vtk_geom);
-   /// @brief Does the given VTK geometry type describe an legacy quadratic
+   /// @brief Does the given VTK geometry type describe a legacy quadratic
    /// element?
    static bool IsQuadratic(int vtk_geom);
    /// @brief For the given VTK geometry type and number of points, return the

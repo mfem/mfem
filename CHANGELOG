@@ -87,6 +87,9 @@ Version 4.3.1 (development)
 - The HPC versions of ex1 and ex1p (in miniapps/performance) now support
   runtime selection of either 2D or 3D meshes.
 
+- Added ParaView visualization of `QuadratureFunction` fields, through both
+  `QuadratureFunction::SaveVTU` and `ParaViewDataCollection::RegisterQField`.
+
 Version 4.3, released on July 29, 2021
 ======================================
 
