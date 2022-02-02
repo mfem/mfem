@@ -33,7 +33,7 @@ struct TMOP_PMESH_OPTIMIZER
 {
    int num_procs, myid;
    bool mpi_done = false;
-   const int mesh_poly_deg     = 1;           // -o 1
+   const int mesh_poly_deg;                   // -o 1
    const int rs_levels         = 0;           // -rs 1
    const int rp_levels         = 0;
    const double jitter         = 0.0;
@@ -43,7 +43,7 @@ struct TMOP_PMESH_OPTIMIZER
    const double adapt_lim_const   = 0.0;
    const double surface_fit_const = 0.0;
    const int quad_type         = 1;           // -qt 1
-   const int quad_order        = 0;           // -qo 0
+   const int quad_order;                     // -qo 0
    int hexahedron_quad_points  = 0;
    const int solver_type       = 0;           // -st 0
    const int solver_iter       = 1;           // -ni 1
@@ -1166,7 +1166,7 @@ struct TMOP_PMESH_OPTIMIZER
 };
 
 //////////////////////////////////////////////////////////////////////////////
-#define MAX_NDOFS 4*1024*1024
+#define MAX_NDOFS 6*1024*1024
 
 #if 0
 static void OrderSideArgs(bmi::Benchmark *b)
@@ -1198,6 +1198,7 @@ static void OrderSideArgs(bmi::Benchmark *b)
    {
       for (int c = 12; est(c) <= MAX_NDOFS; c += 6)
       {
+         if ((c==12) && (p<3)) { continue; } // skip these inverted meshes
          b->Args({p, c});
       }
    }
