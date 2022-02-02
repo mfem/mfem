@@ -84,12 +84,9 @@ void TMOP_Integrator::AddMultPA_SF_2D(const Vector &X, Vector &Y) const
    const Vector &SFM = PA.SFM;
    const Array<double> &W   = PA.irsf->GetWeights();
    const Array<double> &B   = PA.maps_surf->B;
-   const Array<double> &BLD = PA.maps_surf->B;
    MFEM_VERIFY(PA.maps_surf->ndof == D1D, "");
    MFEM_VERIFY(PA.maps_surf->nqpt == Q1D, "");
    const Vector &C0SF = PA.C0sf;
-   const Vector &O = PA.Osf;
-   Vector &E = PA.Esf;
    const Array<double> &G = PA.maps_surf->G;
 
    PA.fessf->GetMesh()->DeleteGeometricFactors();
