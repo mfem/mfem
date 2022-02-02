@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
-   int ser_ref_levels = 2;
+   int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int order = 3;
    bool pa = false;
@@ -424,15 +424,19 @@ int main(int argc, char *argv[])
 
    m->AddDomainIntegrator(new MassIntegrator);
    constexpr double alpha = -1.0;
-   k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k->AddInteriorFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
-   k->AddBdrFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
+   //k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+
+   k->AddInteriorFaceIntegrator
+     (new TransposeIntegrator(new DGTraceIntegrator(velocity, -1.0, -0.5)));
+
+
+   //k->AddBdrFaceIntegrator(
+   //new NonconservativeDGTraceIntegrator(velocity, alpha));
 
    ParLinearForm *b = new ParLinearForm(fes);
-   b->AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, alpha));
+   b->AddBdrFaceIntegrator
+     (new BoundaryFlowIntegrator(inflow, velocity, alpha));
+
 
    int skip_zeros = 0;
    m->Assemble();
@@ -450,6 +454,18 @@ int main(int argc, char *argv[])
    ParGridFunction *u = new ParGridFunction(fes);
    u->ProjectCoefficient(u0);
    HypreParVector *U = u->GetTrueDofs();
+
+   Vector x(u->Size());
+   x = 1.0;
+
+   Vector y(u->Size()); y=0.0;
+   k->TrueAddMult(x, y);
+
+   y.Print();
+   std::cout<<"Solution vector norm "<<y.Norml2()<<std::endl;
+   exit(-1);
+
+
 
    {
       ostringstream mesh_name, sol_name;
