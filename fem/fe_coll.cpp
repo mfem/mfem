@@ -1861,16 +1861,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 const FiniteElement *
 H1_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
-  // if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
-   {
-      return H1_Elements[GeomType];
-   }
-   // else
-   // {
-   //   MFEM_ABORT("H1 Pyramid basis functions are not yet supported "
-   //              "for order > 1.");
-   //   return NULL;
-   // }
+   return H1_Elements[GeomType];
 }
 
 const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,

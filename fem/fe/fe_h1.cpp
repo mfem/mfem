@@ -1042,8 +1042,7 @@ void H1_WedgeElement::CalcDShape(const IntegrationPoint &ip,
 
 H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::PYRAMID,
-                        //p * (p * p + 3) + 1, // Fuentes et al
-                        (p + 1) * (p + 2) * (2 * p + 3) / 6, // JSC
+                        (p + 1) * (p + 2) * (2 * p + 3) / 6,
                         p, FunctionSpace::Qk)
 {
    const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
@@ -1068,32 +1067,8 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
    u.SetSize(dof);
    du.SetSize(dof, dim);
    ddu.SetSize(dof, (dim * (dim + 1)) / 2);
-   /*
-   shape_0.SetSize(p + 1);
-   shape_1.SetSize(p + 1);
-   shape_2.SetSize(p + 1);
-   dshape_0_0.SetSize(p + 1);
-   dshape_1_0.SetSize(p + 1);
-   dshape_2_0.SetSize(p + 1);
-   dshape_0_1.SetSize(p + 1);
-   dshape_1_1.SetSize(p + 1);
-   dshape_2_1.SetSize(p + 1);
-   u.SetSize(dof);
-   du.SetSize(dof, dim);
-   */
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1);
-   /*
-   Vector shape_0(p + 1);
-   Vector shape_1(p + 1);
-   Vector shape_2(p + 1);
-   Vector dshape_0_0(p + 1);
-   Vector dshape_1_0(p + 1);
-   Vector dshape_2_0(p + 1);
-   Vector dshape_0_1(p + 1);
-   Vector dshape_1_1(p + 1);
-   Vector dshape_2_1(p + 1);
-   */
 #endif
 
    // vertices
@@ -1153,21 +1128,18 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
       {
          double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[i]/w, cp[0], cp[j]/w);
-         // mfem::out << i << " " << j << "\t" << cp[i]/w << " " << cp[0] << " " << cp[j]/w << std::endl;
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (1,2,4)
       {
          double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(1.0 - cp[j]/w, cp[i]/w, cp[j]/w);
-         // mfem::out << i << " " << j << "\t" << 1.0 - cp[j]/w << " " << cp[i]/w << " " << cp[j]/w << std::endl;
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (3,4,2)
       {
          double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[j]/w, 1.0 - cp[i]/w, cp[i]/w);
-         // mfem::out << i << " " << j << "\t" << cp[j]/w << " " << 1.0 - cp[i]/w << " " << cp[i]/w << std::endl;
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,4,3)
@@ -1175,55 +1147,7 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
          double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[0], cp[j]/w, cp[i]/w);
       }
-   /*
-   mfem::out << "pts342 = {";
-   for (int j = 0; j <= p; j++)
-   {
-     for (int i = 0; i + j <= p; i++)  // (3,4,2)
-     {
-       double w = cp[i] + cp[j] + cp[p-i-j];
-       mfem::out << "{" << cp[j] / w
-       << "," << 1.0 - cp[i] / w
-       << "," << cp[i] / w << "}";
-       if (i + j != p) mfem::out << ",";
-     }
-     if (j != p) mfem::out << ",";
-     mfem::out << std::endl;
-   }
-   mfem::out << "};\npts043 = {";
-   for (int j = 0; j <= p; j++)
-   {
-     for (int i = 0; i + j <= p; i++)  // (0,4,3)
-     {
-       double w = cp[i] + cp[j] + cp[p-i-j];
-       mfem::out << "{" << cp[0]
-       << "," << cp[j] / w
-       << "," << cp[i] / w << "}";
-       if (i + j != p) mfem::out << ",";
-     }
-     if (j != p) mfem::out << ",";
-     mfem::out << std::endl;
-   }
-   mfem::out << "};\n";
-   */
    // interior
-   /*
-   for (int k = 1; k < p - 1; k++)
-   {
-      for (int j = 1; j < p - k; j++)
-      {
-         double wjk = cp[j] + cp[k] + cp[p-j-k];
-         for (int i = 1; i < p - k; i++)
-         {
-            double wik = cp[i] + cp[k] + cp[p-i-k];
-            double w = wik * wjk * cp[p-k];
-            Nodes.IntPoint(o++).Set3(cp[i] * (cp[j] + cp[p-j-k]) / w,
-                                     cp[j] * (cp[i] + cp[p-i-k]) / w,
-                                     cp[k] * cp[p-k] / w);
-         }
-      }
-   }
-   */
    for (int k = 1; k < p - 1; k++)
    {
       double wk = 1.0 - cp[k];
@@ -1237,106 +1161,12 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
          }
       }
    }
-   /*
-   // Points based on Fuentes' interior bubbles
-   // mfem::out << "pts = {";
-   for (int k = 1; k < p; k++)
-   {
-      for (int j = 1; j < p; j++)
-      {
-         // double wjk = cp[j] + cp[k] + cp[p-j-k];
-         for (int i = 1; i < p; i++)
-         {
-            // double wik = cp[i] + cp[k] + cp[p-i-k];
-            // double w = wik * wjk;
-            // mfem::out << "{" << cp[i] * (1.0 - cp[k])
-            //         << "," << cp[j] * (1.0 - cp[k])
-            //         << "," << cp[k] << "}";
-            // if (i != p - 1) mfem::out << ",";
-            Nodes.IntPoint(o++).Set3(cp[i] * (1.0 - cp[k]),
-                                     cp[j] * (1.0 - cp[k]),
-                                     cp[k]);
-         }
-         // if (j != p - 1) mfem::out << ",";
-         // mfem::out << std::endl;
-      }
-      // if (k != p - 1) mfem::out << ",";
-   }
-   // mfem::out << "};\n";
-   */
-   // Nodes
-   mfem::out << "nodes = {";
-   for (int i=0; i<Nodes.Size(); i++)
-   {
-      mfem::out << "{ " << Nodes[i].x
-                << ", " << Nodes[i].y
-                << ", " << Nodes[i].z << "}";
-      if (i < Nodes.Size() - 1) { mfem::out << ",\n"; }
-   }
-   mfem::out << "};\n";
-   /*
-   // Points based on JSC's interior bubbles
-   mfem::out << "pts = {";
-   for (int k = 1; k < p - 1; k++)
-   {
-      for (int j = 0; j <= p - k; j++)
-      {
-         double wjk = cp[j] + cp[k] + cp[p-j-k];
-         for (int i = 0; i <= p - k; i++)
-         {
-            double wik = cp[i] + cp[k] + cp[p-i-k];
-            // double w = (i >= j) ? wik : wjk;
-            double w = wik * wjk;
-            // mfem::out << wik;
-            mfem::out << "{" << cp[i] * (cp[j] + cp[p-j-k]) / (w * cp[p-k])
-                      << "," << cp[j] * (cp[i] + cp[p-i-k]) / (w * cp[p-k])
-                      << "," << cp[k] / w << "}";
-            // mfem::out << wjk;
-            if (i != p - k) { mfem::out << ","; }
-         }
-         if (j != p - k) { mfem::out << ","; }
-         mfem::out << std::endl;
-      }
-      if (k != p - 2) { mfem::out << ","; }
-   }
-   mfem::out << "};\n";
-   */
+
    MFEM_ASSERT(o == dof,
                "Number of nodes does not match the "
                "number of degrees of freedom");
    DenseMatrix T(dof);
-   /*
-   for (int m = 0; m < dof; m++)
-   {
-      const IntegrationPoint &ip = Nodes.IntPoint(m);
 
-      // double x = (ip.z < 1.0) ? (2.0 * ip.x / (1.0 - ip.z) - 1.0) : 0.0;
-      // double y = (ip.z < 1.0) ? (2.0 * ip.y / (1.0 - ip.z) - 1.0) : 0.0;
-      // double z = 2.0 * ip.z - 1.0;
-
-      double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
-      double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
-      double z = ip.z;
-
-      o = 0;
-      for (int i = 0; i <= p; i++)
-      {
-      poly1d.CalcLegendre(i, x, shape_x);
-         for (int j = 0; j <= p; j++)
-      {
-       poly1d.CalcLegendre(j, y, shape_y);
-       int maxij = std::max(i, j);
-       for (int k = 0; k <= p - maxij; k++)
-       {
-          poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
-               T(o++, m) = shape_x(i) * shape_y(j) * shape_z(k) *
-        pow(1.0 - ip.z, maxij);
-            }
-      }
-      }
-      // calcBasis(order, ip, shape_0, shape_1, shape_2, T.GetColumn(m));
-   }
-   */
    for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
@@ -1344,10 +1174,6 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
       double oz = 1.0 - ip.z;
 
       double tol = 1e-6;
-      
-      // double xhat = 2.0 * ip.x + ip.z - 1.0;
-      // double yhat = 2.0 * ip.y + ip.z - 1.0;
-      // double zhat = ip.z;
 
       double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
       double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
@@ -1362,66 +1188,32 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
          for (int j = 0; j <= p; j++)
          {
             int maxij = std::max(i, j);
-	    poly1d.CalcJacobi(p - maxij, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
+            poly1d.CalcJacobi(p - maxij, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
 
-	    for (int k = 0; k <= p - maxij; k++)
+            for (int k = 0; k <= p - maxij; k++)
             {
-	       if (oz <= tol)
-	       {
-		  if (maxij == 0)
-		  {
-		    T(o++, m) = shape_z(k);
-		  }
-		  else
-		  {
-		    T(o++, m) = 0.0;
-		  }
-	       }
-	       else
-	       {
+               if (oz <= tol)
+               {
+                  if (maxij == 0)
+                  {
+                     T(o++, m) = shape_z(k);
+                  }
+                  else
+                  {
+                     T(o++, m) = 0.0;
+                  }
+               }
+               else
+               {
                   T(o++, m) = shape_x(i) * shape_y(j) * shape_z(k) *
-	 	    pow(1.0 - ip.z, maxij);
-	       }
-	    }
+                              pow(1.0 - ip.z, maxij);
+               }
+            }
          }
       }
    }
    Ti.Factor(T);
-   /*
-   if (false)
-   {
-      calcScaledLegendre(6, 0.3, 0.7, shape_0, dshape_0_0, dshape_0_1);
-      mfem::out << "Scaled Legendre: ";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << shape_0[i]; }
-      mfem::out << '\n';
 
-      mfem::out << "Scaled Legendre du/dx:\n";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << dshape_0_0[i]; }
-      mfem::out << '\n';
-
-      double dx = 1e-8;
-      calcScaledLegendre(6, 0.3+dx, 0.7, shape_2);
-      mfem::out << "Scaled Legendre (x+dx): ";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << shape_2[i]; }
-      mfem::out << '\n';
-      mfem::out << "Scaled Legendre (u(x+dx) - u(x)) / dx:\n";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << (shape_2[i] - shape_0[i]) / dx; }
-      mfem::out << '\n';
-
-      mfem::out << "Scaled Legendre du/dt:\n";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << dshape_0_1[i]; }
-      mfem::out << '\n';
-
-      double dt = 1e-8;
-      calcScaledLegendre(6, 0.3, 0.7+dt, shape_2);
-      mfem::out << "Scaled Legendre (t+dt): ";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << shape_2[i]; }
-      mfem::out << '\n';
-      mfem::out << "Scaled Legendre (u(t+dt) - u(t)) / dt:\n";
-      for (int i=0; i<6; i++) { mfem::out << '\t' << (shape_2[i] - shape_0[i]) / dt; }
-      mfem::out << '\n';
-   }
-   */
    delete [] mcp;
 }
 
@@ -1437,10 +1229,6 @@ void H1_PyramidElement::CalcShape(const IntegrationPoint &ip,
    Vector u(dof);
 #endif
 
-   // double xhat = 2.0 * ip.x + ip.z - 1.0;
-   // double yhat = 2.0 * ip.y + ip.z - 1.0;
-   // double zhat = ip.z;
-
    double oz = 1.0 - ip.z;
 
    double tol = 1e-6;
@@ -1451,31 +1239,31 @@ void H1_PyramidElement::CalcShape(const IntegrationPoint &ip,
 
    poly1d.CalcLegendre(p, x, shape_x);
    poly1d.CalcLegendre(p, y, shape_y);
-   
+
    for (int o = 0, i = 0; i <= p; i++)
    {
       for (int j = 0; j <= p; j++)
       {
-         int maxij = std::max(i, j); 
-	 poly1d.CalcJacobi(p - maxij, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
-	 for (int k = 0; k <= p - maxij; k++)
+         int maxij = std::max(i, j);
+         poly1d.CalcJacobi(p - maxij, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
+         for (int k = 0; k <= p - maxij; k++)
          {
-	       if (oz <= tol)
-	       {
-		  if (maxij == 0)
-		  {
-		    u(o++) = shape_z(k);
-		  }
-		  else
-		  {
-		    u(o++) = 0.0;
-		  }
-	       }
-	       else
-	       {
-            u(o++) =
-               shape_x(i) * shape_y(j) * shape_z(k) * pow(1.0 - ip.z, maxij);
-	       }
+            if (oz <= tol)
+            {
+               if (maxij == 0)
+               {
+                  u(o++) = shape_z(k);
+               }
+               else
+               {
+                  u(o++) = 0.0;
+               }
+            }
+            else
+            {
+               u(o++) =
+                  shape_x(i) * shape_y(j) * shape_z(k) * pow(1.0 - ip.z, maxij);
+            }
          }
       }
    }
@@ -1497,10 +1285,11 @@ void H1_PyramidElement::CalcDShape(const IntegrationPoint &ip,
    double oz = 1.0 - ip.z;
 
    double tol = 1e-6;
-      
-   // double xhat = 2.0 * ip.x + ip.z - 1.0;
-   // double yhat = 2.0 * ip.y + ip.z - 1.0;
-   // double zhat = ip.z;
+
+   if (oz <= tol)
+   {
+      mfem::out << "H1_PyramidElement::CalcDShape near apex" << std::endl;
+   }
 
    double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
    double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
@@ -1514,21 +1303,47 @@ void H1_PyramidElement::CalcDShape(const IntegrationPoint &ip,
       for (int j = 0; j <= p; j++)
       {
          int maxij = std::max(i, j);
-	 poly1d.CalcJacobi(p - maxij, 2.0 * (maxij + 1.0), 0.0, z,
-			   shape_z, dshape_z);
+         poly1d.CalcJacobi(p - maxij, 2.0 * (maxij + 1.0), 0.0, z,
+                           shape_z, dshape_z);
          for (int k = 0; k <= p - maxij; k++)
          {
-            du(o, 0) = dshape_x(i) * shape_y(j) * shape_z(k) *
-	      pow(1.0 - ip.z, maxij - 1);
-            du(o, 1) = shape_x(i) * dshape_y(j) * shape_z(k) *
-	      pow(1.0 - ip.z, maxij - 1);
-	    du(o, 2) = (ip.x * dshape_x(i) * shape_y(j) * shape_z(k) +
-			ip.y * shape_x(i) * dshape_y(j) * shape_z(k) -
-			shape_x(i) * shape_y(j) * (1.0 - ip.z) *
-			(shape_z(k) * maxij -
-			 (1.0 - ip.z) * dshape_z(k))
-			) * pow(1.0 - ip.z, maxij - 2);
-	    o++;
+            if (oz > tol)
+            {
+               du(o, 0) = dshape_x(i) * shape_y(j) * shape_z(k) *
+                          pow(1.0 - ip.z, maxij - 1);
+               du(o, 1) = shape_x(i) * dshape_y(j) * shape_z(k) *
+                          pow(1.0 - ip.z, maxij - 1);
+               du(o, 2) = (ip.x * dshape_x(i) * shape_y(j) * shape_z(k) +
+                           ip.y * shape_x(i) * dshape_y(j) * shape_z(k) -
+                           shape_x(i) * shape_y(j) * (1.0 - ip.z) *
+                           (shape_z(k) * maxij -
+                            (1.0 - ip.z) * dshape_z(k))
+                          ) * pow(1.0 - ip.z, maxij - 2);
+            }
+            else
+            {
+               // The gradient is multivalued at the apex. The following
+               // values were produced by setting x and y equal to zero
+               // and computing the limit as z->1.
+
+               du(o, 0) = 0.0;
+               du(o, 1) = 0.0;
+               du(o, 2) = 0.0;
+
+               if (i == 0 && j == 0)
+               {
+                  du(o, 2) = k * (k + 1) * (k + 2) * (k + 3) / 6;
+               }
+               else if (i == 0 && j == 1)
+               {
+                  du(o, 1) = -(k + 1) * (k + 2) * (k + 3) * (k + 4) / 24;
+               }
+               else if (i == 1 && j == 0)
+               {
+                  du(o, 0) = -(k + 1) * (k + 2) * (k + 3) * (k + 4) / 24;
+               }
+            }
+            o++;
          }
       }
    }
