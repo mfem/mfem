@@ -827,8 +827,8 @@ int main (int argc, char *argv[])
    {
       MFEM_VERIFY(hradaptivity == false,
                   "Surface fitting with HR is not implemented yet.");
-      MFEM_VERIFY(pa == false,
-                  "Surface fitting with PA is not implemented yet.");
+//      MFEM_VERIFY(pa == false,
+//                  "Surface fitting with PA is not implemented yet.");
 
       FunctionCoefficient ls_coeff(surface_level_set);
       surf_fit_gf0.ProjectCoefficient(ls_coeff);

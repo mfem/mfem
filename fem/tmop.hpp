@@ -1358,8 +1358,7 @@ protected:
    AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
 
    // Surface fitting.
-   GridFunction *surf_fit_gf,
-                *surf_fit_gf_bar;       // Owned, Updated by surf_fit_eval.
+   GridFunction *surf_fit_gf;       // Owned, Updated by surf_fit_eval.
    const Array<bool> *surf_fit_marker;  // Not owned.
    Coefficient *surf_fit_coeff;         // Not owned.
    AdaptivityEvaluator *surf_fit_eval;  // Not owned.
@@ -1427,15 +1426,20 @@ protected:
    {
       bool enabled;
       int dim, ne, nq;
+      int nqsf;
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, H, C0, LD, H0;
+      mutable Vector C0sf, Hsf, SFG, Esf, Osf, SFM;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
+      const DofToQuad *maps_surf = nullptr;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
+      const IntegrationRule *irsf;
+      const FiniteElementSpace *fessf;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
@@ -1524,21 +1528,29 @@ protected:
    void AssembleGradPA_3D(const Vector&) const;
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
+   void AssembleGradPA_SF_2D(const Vector&) const;
+   void AssembleGradPA_SF_3D(const Vector&) const;
 
    double GetLocalStateEnergyPA_2D(const Vector&) const;
    double GetLocalStateEnergyPA_C0_2D(const Vector&) const;
+   double GetLocalStateEnergyPA_SF_2D(const Vector&) const;
    double GetLocalStateEnergyPA_3D(const Vector&) const;
    double GetLocalStateEnergyPA_C0_3D(const Vector&) const;
+   double GetLocalStateEnergyPA_SF_3D(const Vector&) const;
 
    void AddMultPA_2D(const Vector&, Vector&) const;
    void AddMultPA_3D(const Vector&, Vector&) const;
    void AddMultPA_C0_2D(const Vector&, Vector&) const;
    void AddMultPA_C0_3D(const Vector&, Vector&) const;
+   void AddMultPA_SF_2D(const Vector&, Vector&) const;
+   void AddMultPA_SF_3D(const Vector&, Vector&) const;
 
    void AddMultGradPA_2D(const Vector&, Vector&) const;
    void AddMultGradPA_3D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_2D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_3D(const Vector&, Vector&) const;
+   void AddMultGradPA_SF_2D(const Vector&, Vector&) const;
+   void AddMultGradPA_SF_3D(const Vector&, Vector&) const;
 
    void AssembleDiagonalPA_2D(Vector&) const;
    void AssembleDiagonalPA_3D(Vector&) const;
@@ -1546,6 +1558,7 @@ protected:
    void AssembleDiagonalPA_C0_3D(Vector&) const;
 
    void AssemblePA_Limiting();
+   void AssemblePA_SurfFit();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
 
 public:
@@ -1560,9 +1573,10 @@ public:
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         adapt_lim_gf0(NULL), adapt_lim_gf(NULL), adapt_lim_coeff(NULL),
         adapt_lim_eval(NULL),
-        surf_fit_gf(NULL), surf_fit_gf_bar(NULL), surf_fit_marker(NULL),
-        surf_fit_coeff(NULL), surf_fit_coeff_const_prvs(-10),
+        surf_fit_gf(NULL), surf_fit_marker(NULL),
+        surf_fit_coeff(NULL),
         surf_fit_eval(NULL), surf_fit_normal(1.0),
+        surf_fit_coeff_const_prvs(-10),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    {

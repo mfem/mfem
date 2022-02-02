@@ -2351,7 +2351,6 @@ TMOP_Integrator::~TMOP_Integrator()
    delete lim_func;
    delete adapt_lim_gf;
    delete surf_fit_gf;
-   delete surf_fit_gf_bar;
    for (int i = 0; i < ElemDer.Size(); i++)
    {
       delete ElemDer[i];
@@ -2430,14 +2429,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
 
-   // Compute the restricted surf_fit_gf.
-   delete surf_fit_gf_bar;
-   surf_fit_gf_bar = new GridFunction(*surf_fit_gf);
-   for (int i = 0; i < surf_fit_marker->Size(); i++)
-   {
-      if ((*surf_fit_marker)[i] == false) { (*surf_fit_gf_bar)(i) = 0.0; }
-   }
-
    surf_fit_eval->SetSerialMetaInfo(*s0.FESpace()->GetMesh(),
                                     *s0.FESpace()->FEColl(), 1);
    surf_fit_eval->SetInitialField
@@ -2455,14 +2446,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
-
-   // Compute the restricted surf_fit_gf.
-   delete surf_fit_gf_bar;
-   surf_fit_gf_bar = new GridFunction(*surf_fit_gf);
-   for (int i = 0; i < surf_fit_marker->Size(); i++)
-   {
-      if ((*surf_fit_marker)[i] == false) { (*surf_fit_gf_bar)(i) = 0.0; }
-   }
 
    surf_fit_eval->SetParMetaInfo(*s0.ParFESpace()->GetParMesh(),
                                  *s0.ParFESpace()->FEColl(), 1);
@@ -2482,8 +2465,8 @@ void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
       if ((*surf_fit_marker)[i] == true)
       {
          loc_cnt++;
-         loc_max  = std::max(loc_max, std::abs((*surf_fit_gf_bar)(i)));
-         loc_sum += std::abs((*surf_fit_gf_bar)(i));
+         loc_max  = std::max(loc_max, std::abs((*surf_fit_gf)(i)));
+         loc_sum += std::abs((*surf_fit_gf)(i));
       }
    }
    err_avg = loc_sum / loc_cnt;
@@ -2606,13 +2589,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       adapt_lim_gf0->GetValues(el_id, ir, adapt_lim_gf0_q);
    }
 
-   TimeEnergySurfFit.Start();
-   Vector surf_fit_gf_bar_q;
-   if (surface_fit) {
-       surf_fit_gf_bar->GetValues(el_id, ir, surf_fit_gf_bar_q);
-   }
-
-   TimeEnergySurfFit.Stop();
 
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
@@ -2649,20 +2625,32 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          val += adapt_lim_coeff->Eval(*Tpr, ip) * lim_normal * diff * diff;
       }
 
-      // Contribution from the surface fitting term.
-      //double oval = val;
-
-      TimeEnergySurfFit.Start();
-      if (surface_fit)
-      {
-          val += surf_fit_coeff->Eval(*Tpr, ip) * surf_fit_normal *
-                surf_fit_gf_bar_q(i) * surf_fit_gf_bar_q(i);
-      }
-       //std::cout << oval << " " << oval-val << " k10surfcont\n";
-      TimeEnergySurfFit.Stop();
-
       energy += weight * val;
    }
+
+      TimeEnergySurfFit.Start();
+
+      // Contribution from the surface fitting term.
+   if (surface_fit)
+   {
+      const IntegrationRule &ir_s =
+         surf_fit_gf->FESpace()->GetFE(el_id)->GetNodes();
+      Array<int> dofs;
+      Vector sigma_e;
+      surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
+      surf_fit_gf->GetSubVector(dofs, sigma_e);
+      for (int s = 0; s < dofs.Size(); s++)
+      {
+         if ((*surf_fit_marker)[dofs[s]] == true)
+         {
+            const IntegrationPoint &ip_s = ir_s.IntPoint(s);
+            Tpr->SetIntPoint(&ip_s);
+            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+                      sigma_e(s) * sigma_e(s);
+         }
+      }
+   }
+       TimeEnergySurfFit.Stop();
 
    delete Tpr;
    return energy;
@@ -3192,56 +3180,41 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
    const FiniteElement &el_s = *surf_fit_gf->FESpace()->GetFE(el_id);
 
    const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
-             dof_s = el_s.GetDof(), nqp = ir_quad.GetNPoints();
+             dof_s = el_s.GetDof();
 
-   Vector surf_fit_gf_e, surf_fit_gf_bar_e;
-   Vector surf_fit_gf_bar_q;
+   Vector sigma_e;
    Array<int> dofs;
    surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
-   surf_fit_gf->GetSubVector(dofs, surf_fit_gf_e);
-   surf_fit_gf_bar->GetSubVector(dofs, surf_fit_gf_bar_e);
-   surf_fit_gf_bar->GetValues(el_id, ir_quad, surf_fit_gf_bar_q);
+   surf_fit_gf->GetSubVector(dofs, sigma_e);
 
-   // Project the gradient of surf_fit_gf in the same space.
-   // The FE coefficients of the gradient go in surf_fit_gf_grad_e.
-   DenseMatrix surf_fit_gf_grad_e(dof_s, dim);
+   // Project the gradient of sigma in the same space.
+   // The FE coefficients of the gradient go in surf_fit_grad_e.
+   DenseMatrix surf_fit_grad_e(dof_s, dim);
+   Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
    DenseMatrix grad_phys; // This will be (dof x dim, dof).
    el_s.ProjectGrad(el_s, Tpr, grad_phys);
-   Vector grad_ptr(surf_fit_gf_grad_e.GetData(), dof_s * dim);
-   grad_phys.Mult(surf_fit_gf_e, grad_ptr);
+   grad_phys.Mult(sigma_e, grad_ptr);
 
-   // Gradient of surf_fit_gf_bar.
-   DenseMatrix surf_fit_gf_bar_grad_e(dof_s, dim);
-   Vector ptr(surf_fit_gf_bar_grad_e.GetData(), dof_s * dim);
-   grad_phys.Mult(surf_fit_gf_bar_e, ptr);
+   Vector shape_x(dof_x), shape_s(dof_s);
+   const IntegrationRule &ir = el_s.GetNodes();
+   Vector surf_fit_grad_s(dim);
+   surf_fit_grad_s = 0.0;
 
-   Vector shape_x(dof_x), shape_s(dof_s), grad_q(dim);
-
-   for (int q = 0; q < nqp; q++)
+   for (int s = 0; s < dof_s; s++)
    {
-      const IntegrationPoint &ip = ir_quad.IntPoint(q);
+      if ((*surf_fit_marker)[dofs[s]] == false) { continue; }
+
+      const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
+      el_x.CalcShape(ip, shape_x);
       el_s.CalcShape(ip, shape_s);
 
-      // Grad of surf_fit_gf_bar at the current quad point.
-      surf_fit_gf_bar_grad_e.MultTranspose(shape_s, grad_q);
+      // Note that this gradient is already in physical space.
+      surf_fit_grad_e.MultTranspose(shape_s, surf_fit_grad_s);
+      surf_fit_grad_s *= 2.0 * surf_fit_normal * surf_fit_coeff->Eval(Tpr,
+                                                                      ip) * sigma_e(s);
 
-      for (int s = 0; s < dof_s; s++)
-      {
-         if ((*surf_fit_marker)[dofs[s]] == false) { continue; }
-
-         for (int d = 0; d < dim; d++)
-         {
-            // Grad of surf_fit_gf must be taken at the active DOFs.
-            grad_q(d) += surf_fit_gf_grad_e(s, d) * shape_s(s);
-         }
-      }
-
-      grad_q *= 2.0 * surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip) *
-                weights(q) * surf_fit_gf_bar_q(q);
-
-      el_x.CalcShape(ip, shape_x);
-      AddMultVWt(shape_x, grad_q, mat);
+      AddMultVWt(shape_x, surf_fit_grad_s, mat);
    }
 }
 
@@ -3251,93 +3224,66 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
                                               const Vector &weights,
                                               DenseMatrix &mat)
 {
-   const int el_id = Tpr.ElementNo, nqp = ir_quad.GetNPoints();
+   const int el_id = Tpr.ElementNo;
    const FiniteElement &el_s = *surf_fit_gf->FESpace()->GetFE(el_id);
 
    const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
              dof_s = el_s.GetDof();
 
-   Vector surf_fit_gf_e, surf_fit_gf_bar_e;
-   Vector surf_fit_gf_bar_q;
+   Vector sigma_e;
 
    Array<int> dofs;
    surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
-   surf_fit_gf->GetSubVector(dofs, surf_fit_gf_e);
-   surf_fit_gf_bar->GetSubVector(dofs, surf_fit_gf_bar_e);
-   surf_fit_gf_bar->GetValues(el_id, ir_quad, surf_fit_gf_bar_q);
+   surf_fit_gf->GetSubVector(dofs, sigma_e);
 
-   // Project the gradient of surf_fit_gf in the same space.
-   // The FE coefficients of the gradient go in surf_fit_gf_grad_e.
-   DenseMatrix surf_fit_gf_grad_e(dof_s, dim);
-   DenseMatrix grad_phys; // This will be (dof x dim, dof).
+   DenseMatrix surf_fit_grad_e(dof_s, dim);
+   Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
+   DenseMatrix grad_phys;
    el_s.ProjectGrad(el_s, Tpr, grad_phys);
-   Vector grad_ptr(surf_fit_gf_grad_e.GetData(), dof_s * dim);
-   grad_phys.Mult(surf_fit_gf_e, grad_ptr);
+   grad_phys.Mult(sigma_e, grad_ptr);
 
-   // Gradient of surf_fit_gf_bar.
-   DenseMatrix surf_fit_gf_bar_grad_e(dof_s, dim);
-   Vector ptr(surf_fit_gf_bar_grad_e.GetData(), dof_s * dim);
-   grad_phys.Mult(surf_fit_gf_bar_e, ptr);
+   DenseMatrix surf_fit_hess_e(dof_s, dim*dim);
+   Vector hess_ptr(surf_fit_hess_e.GetData(), dof_s*dim*dim);
+   surf_fit_hess_e.SetSize(dof_s*dim, dim);
+   Mult(grad_phys, surf_fit_grad_e, surf_fit_hess_e);
+   surf_fit_hess_e.SetSize(dof_s, dim * dim);
 
-   // Project the gradient of each gradient of surf_fit_gf in the same space.
-   // The FE coefficients of the second derivatives go in surf_fit_gf_hess_e.
-   DenseMatrix surf_fit_gf_hess_e(dof_s * dim, dim);
-   Mult(grad_phys, surf_fit_gf_grad_e, surf_fit_gf_hess_e);
+   const IntegrationRule &ir = el_s.GetNodes();
+   Vector shape_x(dof_x), shape_s(dof_s);
 
-   // Project the gradient of each gradient of surf_fit_gf in the same space.
-   // The FE coefficients of the second derivatives go in surf_fit_gf_hess_e.
-   DenseMatrix surf_fit_gf_bar_hess_e(dof_s * dim, dim);
-   Mult(grad_phys, surf_fit_gf_bar_grad_e, surf_fit_gf_bar_hess_e);
-   // Reshape to be more convenient later (no change in the data).
-   surf_fit_gf_bar_hess_e.SetSize(dof_s, dim * dim);
+   Vector surf_fit_grad_s(dim);
+   DenseMatrix surf_fit_hess_s(dim, dim);
 
-   DenseMatrix surf_fit_gf_bar_hess_q(dim, dim);
 
-   Vector shape_x(dof_x), shape_s(dof_s), surf_fit_gf_bar_grad_q(dim);
-   DenseMatrix dshape_s(dof_s, dim);
-
-   for (int q = 0; q < nqp; q++)
+   for (int s = 0; s < dof_s; s++)
    {
-      const IntegrationPoint &ip = ir_quad.IntPoint(q);
+      //std::cout << s << " " << ((*surf_fit_marker)[dofs[s]]) << " k10s\n";
+      if ((*surf_fit_marker)[dofs[s]] == false) { continue; }
+
+      const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
-      el_s.CalcShape(ip, shape_s);
       el_x.CalcShape(ip, shape_x);
-      // We could reuse grad_phys, but this is more accurate.
-      el_s.CalcPhysDShape(Tpr, dshape_s);
+      el_s.CalcShape(ip, shape_s);
 
-      // Grad of surf_fit_gf_bar at the current quad point.
-      surf_fit_gf_bar_grad_e.MultTranspose(shape_s, surf_fit_gf_bar_grad_q);
-
-      // Grad-grad of surf_fit_gf_bar at the current quad point.
-      Vector gg_ptr(surf_fit_gf_bar_hess_q.GetData(), dim * dim);
-      surf_fit_gf_bar_hess_e.MultTranspose(shape_s, gg_ptr);
+      // These are the sums over k at the dof s (looking at the notes).
+      surf_fit_grad_e.MultTranspose(shape_s, surf_fit_grad_s);
+      Vector gg_ptr(surf_fit_hess_s.GetData(), dim * dim);
+      surf_fit_hess_e.MultTranspose(shape_s, gg_ptr);
+      //surf_fit_hess_s.Print();
 
       // Loops over the local matrix.
-      const double w = 2.0 * surf_fit_normal *
-                       surf_fit_coeff->Eval(Tpr, ip) * weights(q);
+      const double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip);
       for (int i = 0; i < dof_x * dim; i++)
       {
          const int idof = i % dof_x, idim = i / dof_x;
          for (int j = 0; j <= i; j++)
          {
             const int jdof = j % dof_x, jdim = j / dof_x;
-
-            double Di = surf_fit_gf_bar_grad_q(idim),
-                   Dj = surf_fit_gf_bar_grad_q(jdim),
-                   DD = surf_fit_gf_bar_hess_q(idim, jdim);
-            for (int s = 0; s < dof_s; s++)
-            {
-               if ((*surf_fit_marker)[dofs[s]] == false) { continue; }
-
-               Di += surf_fit_gf_grad_e(s, idim) * shape_s(s);
-               Dj += surf_fit_gf_grad_e(s, jdim) * shape_s(s);
-               DD += surf_fit_gf_grad_e(s, idim) * dshape_s(s, jdim) +
-                     surf_fit_gf_hess_e(dof_s * idim + s, jdim) * shape_s(s) +
-                     surf_fit_gf_grad_e(s, jdim) * dshape_s(s, idim);
-            }
-            const double entry = w * (Di * Dj + surf_fit_gf_bar_q(q) * DD) *
-                                 shape_x(idof) * shape_x(jdof);
-
+            const double entry =
+               w * ( 2.0 * surf_fit_grad_s(idim) * shape_x(idof) *
+                     /* */ surf_fit_grad_s(jdim) * shape_x(jdof) +
+                     2.0 * sigma_e(s) * surf_fit_hess_s(idim, jdim) *
+                     /* */ shape_x(idof) * shape_x(jdof));
             mat(i, j) += entry;
             if (i != j) { mat(j, i) += entry; }
          }
@@ -3574,7 +3520,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
                                                    double &surf_fit_gf_energy)
 {
    Array<int> vdofs;
-   Vector x_vals, surf_fit_gf_bar_q;
+   Vector x_vals;
    const FiniteElementSpace* const fes = x.FESpace();
 
    const int dim = fes->GetMesh()->Dimension();
@@ -3600,8 +3546,6 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
 
       targetC->ComputeElementTargets(i, *fe, ir, x_vals, Jtr);
 
-      if (surf_fit_gf) { surf_fit_gf_bar->GetValues(i, ir, surf_fit_gf_bar_q); }
-
       for (int q = 0; q < nqp; q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
@@ -3615,11 +3559,21 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
 
          metric_energy += weight * metric->EvalW(Jpt);
          lim_energy += weight;
+      }
 
-         // Normalization of the surface fitting term.
-         if (surf_fit_gf)
+      // Normalization of the surface fitting term.
+      if (surf_fit_gf)
+      {
+         Array<int> dofs;
+         Vector sigma_e;
+         surf_fit_gf->FESpace()->GetElementDofs(i, dofs);
+         surf_fit_gf->GetSubVector(dofs, sigma_e);
+         for (int s = 0; s < dofs.Size(); s++)
          {
-            surf_fit_gf_energy += weight * surf_fit_gf_bar_q(q) * surf_fit_gf_bar_q(q);
+            if ((*surf_fit_marker)[dofs[s]] == true)
+            {
+               surf_fit_gf_energy += sigma_e(s) * sigma_e(s);
+            }
          }
       }
    }
@@ -3678,11 +3632,12 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x)
    if (surf_fit_gf)
    {
       surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf);
-      // Update the restricted surf_fit_gf.
-      for (int i = 0; i < surf_fit_marker->Size(); i++)
-      {
-         (*surf_fit_gf_bar)(i) = ((*surf_fit_marker)[i] == true) ? (*surf_fit_gf)(
-                                    i) : 0.0;
+      if (PA.enabled) {
+          const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+          const Operator *n0_R = PA.fessf->GetElementRestriction(ordering);
+          PA.SFG.SetSize(n0_R->Height(), Device::GetMemoryType());
+          PA.SFG.UseDevice(true);
+          n0_R->Mult(*surf_fit_gf, PA.SFG);
       }
    }
 }

@@ -540,18 +540,20 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 
 
-   if (adaptive_surf_fit) {
-       surf_fit_err_max = -10;
-       surf_fit_err_avg = -10;
-       GetMaxSurfaceFittingError(surf_fit_err_max, surf_fit_err_avg);
+   surf_fit_err_max = -10;
+   surf_fit_err_avg = -10;
+   GetMaxSurfaceFittingError(surf_fit_err_max, surf_fit_err_avg);
 
-       if (x_out_ok == false) { scale = 0.0; }
+   if (x_out_ok == false) { scale = 0.0; }
+
+   if (print_options.iterations) {
        std::cout << surf_fit_err_avg_prvs << " " <<
                     surf_fit_err_avg << " " <<
                     surf_fit_err_avg_prvs-surf_fit_err_avg << " "
                     << GetSurfaceFittingWeight() << " k10c\n";
+   }
 
-
+   if (adaptive_surf_fit) {
        if ((std::fabs(surf_fit_err_avg-surf_fit_err_avg_prvs)/surf_fit_err_avg_prvs)<1.e-5) {
            UpdateSurfaceFittingWeight(10);
            surf_fit_change = 1;
