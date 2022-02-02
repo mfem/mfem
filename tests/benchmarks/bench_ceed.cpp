@@ -103,7 +103,7 @@ struct BakeOff
       x(&pfes),
       y(&pfes),
       a(&pfes),
-      mdofs(0.0) { }
+      mdofs(0.0) { x = 0.0; }
 
    virtual void benchmark() = 0;
 
@@ -166,9 +166,8 @@ static void OrderSideArgs(bmi::Benchmark *b)
    const auto est = [](int c) { return (c+1)*(c+1)*(c+1); };
    for (int p = 6; p > 0; p--)
    {
-      for (int c = 6; est(c) <= 8*1024*1024; c += 6)
+      for (int c = 12; est(c) <= 2*1024*1024; c += 6)
       {
-         //if (c<10) { continue; }
          b->Args({p, c});
       }
    }
