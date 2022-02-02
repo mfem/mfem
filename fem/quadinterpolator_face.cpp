@@ -28,7 +28,7 @@ static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      face_id = face.elem_1_local_face;
+      face_id = face.element[0].local_face_id;
       if (face.IsLocalNonConformingCoarse())
       {
          // We skip local non-conforming coarse-fine faces as they are treated

@@ -873,7 +873,7 @@ void H1FaceRestriction::SetFaceDofsScatterIndices(
 {
    MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
                "This method should not be used on local non-conforming coarse faces.");
-   MFEM_ASSERT(face.elem_1_orientation==0,
+   MFEM_ASSERT(face.element[0].orientation==0,
                "FaceRestriction used on degenerated mesh.");
 
    const TensorBasisElement* el =
@@ -881,10 +881,10 @@ void H1FaceRestriction::SetFaceDofsScatterIndices(
    const int *dof_map = el->GetDofMap().GetData();
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
-   const int face_id = face.elem_1_local_face;
+   const int face_id = face.element[0].local_face_id;
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_index = face.elem_1_index;
+   const int elem_index = face.element[0].index;
    const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
    GetFaceDofs(dim, face_id, dof1d, face_map); // Only for quad and hex
 
@@ -914,10 +914,10 @@ void H1FaceRestriction::SetFaceDofsGatherIndices(
    const int *dof_map = el->GetDofMap().GetData();
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
-   const int face_id = face.elem_1_local_face;
+   const int face_id = face.element[0].local_face_id;
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_index = face.elem_1_index;
+   const int elem_index = face.element[0].index;
    const bool dof_reorder = (ordering == ElementDofOrdering::LEXICOGRAPHIC);
    GetFaceDofs(dim, face_id, dof1d, face_map); // Only for quad and hex
 
@@ -1477,10 +1477,10 @@ void L2FaceRestriction::SetFaceDofsScatterIndices1(
                "coarse faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
-   const int face_id1 = face.elem_1_local_face;
+   const int face_id1 = face.element[0].local_face_id;
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_index = face.elem_1_index;
+   const int elem_index = face.element[0].index;
    GetFaceDofs(dim, face_id1, dof1d, face_map); // Only for quad and hex
 
    for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
@@ -1501,10 +1501,10 @@ void L2FaceRestriction::PermuteAndSetFaceDofsScatterIndices2(
                "This method should only be used on local faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
-   const int elem_index = face.elem_2_index;
-   const int face_id1 = face.elem_1_local_face;
-   const int face_id2 = face.elem_2_local_face;
-   const int orientation = face.elem_2_orientation;
+   const int elem_index = face.element[1].index;
+   const int face_id1 = face.element[0].local_face_id;
+   const int face_id2 = face.element[1].local_face_id;
+   const int orientation = face.element[1].orientation;
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
@@ -1529,10 +1529,10 @@ void L2FaceRestriction::PermuteAndSetSharedFaceDofsScatterIndices2(
 #ifdef MFEM_USE_MPI
    MFEM_ASSERT(face.IsShared(),
                "This method should only be used on shared faces.");
-   const int elem_index = face.elem_2_index;
-   const int face_id1 = face.elem_1_local_face;
-   const int face_id2 = face.elem_2_local_face;
-   const int orientation = face.elem_2_orientation;
+   const int elem_index = face.element[1].index;
+   const int face_id1 = face.element[0].local_face_id;
+   const int face_id2 = face.element[1].local_face_id;
+   const int orientation = face.element[1].orientation;
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
@@ -1576,10 +1576,10 @@ void L2FaceRestriction::SetFaceDofsGatherIndices1(
                "This method should not be used on local non-conforming coarse faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
-   const int face_id1 = face.elem_1_local_face;
+   const int face_id1 = face.element[0].local_face_id;
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
-   const int elem_index = face.elem_1_index;
+   const int elem_index = face.element[0].index;
    GetFaceDofs(dim, face_id1, dof1d, face_map); // Only for quad and hex
 
    for (int face_dof_elem1 = 0; face_dof_elem1 < face_dofs; ++face_dof_elem1)
@@ -1600,10 +1600,10 @@ void L2FaceRestriction::PermuteAndSetFaceDofsGatherIndices2(
                "This method should only be used on local faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
-   const int elem_index = face.elem_2_index;
-   const int face_id1 = face.elem_1_local_face;
-   const int face_id2 = face.elem_2_local_face;
-   const int orientation = face.elem_2_orientation;
+   const int elem_index = face.element[1].index;
+   const int face_id1 = face.element[0].local_face_id;
+   const int face_id2 = face.element[1].local_face_id;
+   const int orientation = face.element[1].orientation;
    const int dim = fes.GetMesh()->Dimension();
    const int dof1d = fes.GetFE(0)->GetOrder()+1;
    GetFaceDofs(dim, face_id2, dof1d, face_map); // Only for quad and hex
@@ -1647,10 +1647,11 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
    const DenseMatrix* ptMat = face.point_matrix;
    // In the case of non-conforming slave shared face the master face is elem1.
    const int master_side =
-      face.elem_1_conformity == Mesh::ElementConformity::Superset ? 0 : 1;
+      face.element[0].conformity == Mesh::ElementConformity::Superset ? 0 : 1;
    const int face_key = (master_side == 0 ? 1000 : 0) +
-                        face.elem_1_local_face + 6*face.elem_2_local_face +
-                        36*face.elem_2_orientation ;
+                        face.element[0].local_face_id +
+                        6*face.element[1].local_face_id +
+                        36*face.element[1].orientation ;
    // Unfortunately we can't trust unicity of the ptMat to identify the transformation.
    Key key(ptMat, face_key);
    auto itr = interp_map.find(key);
@@ -1677,11 +1678,11 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
                "lexicographic ordering.");
    MFEM_VERIFY(!face.IsConforming(),
                "This method should not be called on conforming faces.")
-   const int face_id1 = face.elem_1_local_face;
-   const int face_id2 = face.elem_2_local_face;
+   const int face_id1 = face.element[0].local_face_id;
+   const int face_id2 = face.element[1].local_face_id;
 
    const bool is_ghost_slave =
-      face.elem_1_conformity == Mesh::ElementConformity::Superset;
+      face.element[0].conformity == Mesh::ElementConformity::Superset;
    const int master_face_id = is_ghost_slave ? face_id1 : face_id2;
 
    // Computation of the interpolation matrix from master
@@ -1709,7 +1710,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    trace_fe->GetLocalInterpolation(isotr, native_interpolator);
    const int dim = trace_fe->GetDim()+1;
    const int dof1d = trace_fe->GetOrder()+1;
-   const int orientation = face.elem_2_orientation;
+   const int orientation = face.element[1].orientation;
    for (int i = 0; i < face_dofs; i++)
    {
       const int ni = (dof_map.Size()==0) ? i : dof_map[i];
