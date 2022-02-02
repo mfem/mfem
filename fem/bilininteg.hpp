@@ -234,6 +234,8 @@ public:
                          position of the mesh element.
        @param[in] flux   "Flux" coefficients representing the expansion of the
                          "flux" function in the basis of @a fluxelem.
+       @param[in] wcoef  If true, @a flux includes the coefficient of this
+                         integrator.
        @param[out] d_energy  If not NULL, the given Vector should be set to
                              represent directional energy split that can be used
                              for anisotropic error estimation.
@@ -241,7 +243,8 @@ public:
     */
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
-                                    Vector &flux, Vector *d_energy = NULL)
+                                    Vector &flux, bool wcoef = true,
+                                    Vector *d_energy = NULL)
    { return 0.0; }
 
    virtual ~BilinearFormIntegrator() { }
@@ -2033,7 +2036,8 @@ public:
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
-                                    Vector &flux, Vector *d_energy = NULL);
+                                    Vector &flux, bool wcoef = true,
+                                    Vector *d_energy = NULL);
 
    using BilinearFormIntegrator::AssemblePA;
 
@@ -2452,7 +2456,8 @@ public:
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
-                                    Vector &flux, Vector *d_energy = NULL);
+                                    Vector &flux, bool wcoef = true,
+                                    Vector *d_energy = NULL);
 
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
@@ -2785,7 +2790,8 @@ public:
        s_yz in 3D. */
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
-                                    Vector &flux, Vector *d_energy = NULL);
+                                    Vector &flux, bool wcoef = true,
+                                    Vector *d_energy = NULL);
 };
 
 /** Integrator for the DG form:

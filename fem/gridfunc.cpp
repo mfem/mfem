@@ -4003,7 +4003,7 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
          fl -= fla;
 
          double err = blfi.ComputeFluxEnergy(*ffes->GetFE(i), *Transf, fl,
-                                             (aniso_flags ? &d_xyz : NULL));
+                                             with_coeff, (aniso_flags ? &d_xyz : NULL));
 
          error_estimates(i) = std::sqrt(err);
          total_error += err;
