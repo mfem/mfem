@@ -39,12 +39,14 @@ void TMOP_Integrator::AssembleGradPA(const Vector &xe,
    {
       AssembleGradPA_2D(xe);
       if (lim_coeff) { AssembleGradPA_C0_2D(xe); }
+      if (surf_fit_coeff) { AssembleGradPA_SF_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
       AssembleGradPA_3D(xe);
       if (lim_coeff) { AssembleGradPA_C0_3D(xe); }
+      if (surf_fit_coeff) { AssembleGradPA_SF_3D(xe); }
    }
 }
 
@@ -118,6 +120,99 @@ void TMOP_Integrator::AssemblePA_Limiting()
    {
       PA.LD = 1.0;
    }
+}
+
+void TMOP_Integrator::AssemblePA_SurfFit()
+{
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+   // Return immediately if limiting is not enabled
+   if (surf_fit_coeff == nullptr) { return; }
+   MFEM_VERIFY(surf_fit_gf, "internal error");
+   MFEM_VERIFY(surf_fit_marker, "internal error");
+   MFEM_VERIFY(PA.enabled, "AssemblePA_SurfFit but PA is not enabled!");
+
+   //surf_fit_gf->ReorderByNodes();
+   PA.fessf = surf_fit_gf->FESpace();
+
+   const FiniteElementSpace *fes = PA.fessf;
+   const int NE = PA.ne;
+   if (NE == 0) { return; }  // Quick return for empty processors
+   const IntegrationRule *irnodes = &surf_fit_gf->FESpace()->GetFE(0)->GetNodes();
+   const NodalFiniteElement *fe = dynamic_cast<const NodalFiniteElement*>(surf_fit_gf->FESpace()->GetFE(0));
+   MFEM_VERIFY(fe, "Only nodal finite elements are allowed\n");
+   const Array<int> &irordering = fe->GetLexicographicOrdering();
+
+   const int dim = fe->GetDim();
+
+   IntegrationRule *irlex = new IntegrationRule(irnodes->GetNPoints());
+   for (int i = 0; i < irnodes->GetNPoints(); i++) {
+       IntegrationPoint &ip = irlex->IntPoint(i);
+       const IntegrationPoint &ip2 = irnodes->IntPoint(irordering[i]);
+       if (dim == 2) {
+           ip.Set2w(ip2.x, ip2.y, ip2.weight);
+       }
+       else if (dim == 3) {
+           ip.Set(ip2.x, ip2.y, ip2.z, ip2.weight);
+       }
+   }
+   PA.irsf = irlex;
+   const IntegrationRule &ir = *PA.irsf;
+
+   MFEM_ASSERT(fes->GetOrdering() == Ordering::byNODES,
+               "PA Only supports Ordering::byNODES!");
+   PA.nqsf = ir.GetNPoints();
+   PA.maps_surf = &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
+
+   // H0 for lim_coeff, (dim x dim) Q-vector
+   PA.Hsf.UseDevice(true);
+   PA.Hsf.SetSize(PA.dim * PA.dim * PA.nqsf * NE, mt);
+
+   PA.Esf.UseDevice(true);
+   PA.Esf.SetSize(NE*PA.nqsf, Device::GetDeviceMemoryType());
+
+   // Scalar Q-vector of '1', used to compute sums via dot product
+   PA.Osf.SetSize(NE*PA.nqsf, Device::GetDeviceMemoryType());
+   PA.Osf = 1.0;
+
+   // lim_coeff -> PA.C0 (Q-vector)
+   PA.C0sf.UseDevice(true);
+   if (ConstantCoefficient* cQ =
+          dynamic_cast<ConstantCoefficient*>(surf_fit_coeff))
+   {
+      PA.C0sf.SetSize(1, Device::GetMemoryType());
+      PA.C0sf.HostWrite();
+      PA.C0sf(0) = cQ->constant;
+   }
+   else
+   {
+      PA.C0sf.SetSize(PA.nqsf * PA.ne, Device::GetMemoryType());
+      auto C0 = Reshape(PA.C0sf.HostWrite(), PA.nqsf, PA.ne);
+      for (int e = 0; e < NE; ++e)
+      {
+         ElementTransformation& T = *fes->GetElementTransformation(e);
+         for (int q = 0; q < ir.GetNPoints(); ++q)
+         {
+            C0(q,e) = surf_fit_coeff->Eval(T, ir.IntPoint(q));
+         }
+      }
+   }
+
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *n0_R = fes->GetElementRestriction(ordering);
+   PA.SFG.SetSize(n0_R->Height(), Device::GetMemoryType());
+   PA.SFG.UseDevice(true);
+   n0_R->Mult(*surf_fit_gf, PA.SFG);
+
+   GridFunction surf_fit_marker_gf(*surf_fit_gf);
+   for (int i = 0; i < surf_fit_marker->Size(); i++) {
+       surf_fit_marker_gf(i) = (*surf_fit_marker)[i] ? 1.0 : 0.0;
+   }
+
+   //surf_fit_marker_gf.ReorderByNodes();
+   PA.SFM.SetSize(n0_R->Height(), Device::GetMemoryType());
+   PA.SFM.UseDevice(true);
+   n0_R->Mult(surf_fit_marker_gf, PA.SFM);
 }
 
 void TargetConstructor::ComputeAllElementTargets(const FiniteElementSpace &fes,
@@ -219,6 +314,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
    // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.X0, lim_dist -> PA.LD, PA.H0
    if (lim_coeff) { AssemblePA_Limiting(); }
+   if (surf_fit_coeff) { AssemblePA_SurfFit(); }
 }
 
 void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
@@ -259,12 +355,14 @@ void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
    {
       AddMultPA_2D(xe,ye);
       if (lim_coeff) { AddMultPA_C0_2D(xe,ye); }
+      if (surf_fit_coeff) { AddMultPA_SF_2D(xe, ye); }
    }
 
    if (PA.dim == 3)
    {
       AddMultPA_3D(xe,ye);
       if (lim_coeff) { AddMultPA_C0_3D(xe,ye); }
+      if (surf_fit_coeff) { AddMultPA_SF_3D(xe, ye); }
    }
 }
 
@@ -284,12 +382,14 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
    {
       AddMultGradPA_2D(re,ce);
       if (lim_coeff) { AddMultGradPA_C0_2D(re,ce); }
+      if (surf_fit_coeff) { AddMultGradPA_SF_2D(re,ce); }
    }
 
    if (PA.dim == 3)
    {
       AddMultGradPA_3D(re,ce);
       if (lim_coeff) { AddMultGradPA_C0_3D(re,ce); }
+      if (surf_fit_coeff) { AddMultGradPA_SF_3D(re,ce); }
    }
 }
 
@@ -308,12 +408,14 @@ double TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
    {
       energy = GetLocalStateEnergyPA_2D(xe);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
+      if (surf_fit_coeff) { energy += GetLocalStateEnergyPA_SF_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
       energy = GetLocalStateEnergyPA_3D(xe);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
+      if (surf_fit_coeff) { energy += GetLocalStateEnergyPA_SF_3D(xe); }
    }
 
    return energy;
