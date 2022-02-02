@@ -520,7 +520,7 @@ MFEM_USE_MKL_CPARDISO = YES/NO
    MFEM_USE_LAPACK=YES, verify that the MKL LAPACK libraries are used. The
    OpenMP capabilities are disabled at link time.
 
-MFEM_USE_MOONOOLITH = YES/NO
+MFEM_USE_MOONOLITH = YES/NO
    Enables the interface ParMoonolith for parallel non-conforming, non-matching,
    variational, volumetric mesh information transfer using ParMoonolith. It
    requires the variable MOONOLITH_DIR=<path to installation> to
