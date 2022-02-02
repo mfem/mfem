@@ -1331,26 +1331,30 @@ public:
    struct FaceInformation
    {
       FaceTopology topology;
-      static constexpr ElementLocation elem_1_location = ElementLocation::Local;
-      ElementLocation elem_2_location;
-      ElementConformity elem_1_conformity, elem_2_conformity;
+
+      struct
+      {
+         ElementLocation location;
+         ElementConformity conformity;
+         int index;
+         int local_face_id;
+         int orientation;
+      } element[2];
+
       FaceInfoTag tag;
-      int elem_1_index, elem_2_index;
-      int elem_1_local_face, elem_2_local_face;
-      int elem_1_orientation, elem_2_orientation;
       int ncface;
       const DenseMatrix* point_matrix;
 
       /// @brief Return true if the face is a local interior face.
       bool IsLocal() const
       {
-         return elem_2_location == Mesh::ElementLocation::Local;
+         return element[1].location == Mesh::ElementLocation::Local;
       }
 
       /// @brief Return true if the face is a shared interior face.
       bool IsShared() const
       {
-         return elem_2_location == Mesh::ElementLocation::FaceNbr;
+         return element[1].location == Mesh::ElementLocation::FaceNbr;
       }
 
       /** @brief return true if the face is an interior face to the computaion
@@ -1391,15 +1395,15 @@ public:
       bool IsNonConformingFine() const
       {
          return topology == FaceTopology::Nonconforming &&
-                (elem_1_conformity == ElementConformity::Superset ||
-                 elem_2_conformity == ElementConformity::Superset);
+                (element[0].conformity == ElementConformity::Superset ||
+                 element[1].conformity == ElementConformity::Superset);
       }
 
       /// @brief Return true if the face is a non-conforming coarse face.
       bool IsNonConformingCoarse() const
       {
          return topology == FaceTopology::Nonconforming &&
-                elem_2_conformity == ElementConformity::Subset;
+                element[1].conformity == ElementConformity::Subset;
       }
 
       /// @brief Return true if the face is a local non-conforming fine face.
@@ -1411,7 +1415,7 @@ public:
       /// @brief Return true if the face is a local (or NA) non-conforming coarse face.
       bool IsLocalNonConformingCoarse() const
       {
-         return (IsLocal() || elem_2_location==Mesh::ElementLocation::NA) &&
+         return (IsLocal() || element[1].location==Mesh::ElementLocation::NA) &&
                 IsNonConformingCoarse();
       }
 
