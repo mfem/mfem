@@ -122,7 +122,7 @@ struct Problem: public BakeOff
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
-   LinearForm b;
+   ParLinearForm b;
    OperatorPtr A;
    Vector B, X;
    CGSolver cg;
@@ -166,9 +166,9 @@ static void OrderSideArgs(bmi::Benchmark *b)
    const auto est = [](int c) { return (c+1)*(c+1)*(c+1); };
    for (int p = 6; p > 0; p--)
    {
-      for (int c = p; est(c) <= 4*1024*1024; c += 1)
+      for (int c = 6; est(c) <= 8*1024*1024; c += 6)
       {
-         if (c<10) { continue; }
+         //if (c<10) { continue; }
          b->Args({p, c});
       }
    }
@@ -190,7 +190,7 @@ static void BP##i(bm::State &state){\
 BENCHMARK(BP##i)\
        -> Apply(OrderSideArgs)\
        -> Unit(bm::kMillisecond)\
-       -> Iterations(10);
+       -> Iterations(50);
 
 /// BP1: scalar PCG with mass matrix, q=p+2
 BakeOff_Problem(1,Mass,1,false)
