@@ -35,7 +35,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_SF_3D,
    const bool const_c0 = c0sf_.Size() == 1;
    constexpr int DIM = 3;
 
-   constexpr int NBZ = 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -51,11 +50,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_SF_3D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
