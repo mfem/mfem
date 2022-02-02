@@ -116,7 +116,7 @@ struct NoReporter : public ::benchmark::BenchmarkReporter
    explicit NoReporter() {}
    bool ReportContext(const Context &) { return true; }
    void ReportRuns(const std::vector<Run> &) { }
-   operator NoReporter*() { return this; }
+   //operator NoReporter*() { return this; }
    //void Finalize() {}
 };
 

@@ -16,7 +16,6 @@
 #include "mfem.hpp"
 #include <iostream>
 #include <fstream>
-//#include "../../miniapps/common/mfem-common.hpp"
 #include "../../miniapps/meshing/mesh-optimizer.hpp"
 
 #define MFEM_DEBUG_COLOR 206
@@ -28,21 +27,14 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 static MPI_Session *mpi = nullptr;
 static int config_dev_size = 4; // default 4 GPU per node
-static int config_partition_type = 111;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct TMOP_PMESH_OPTIMIZER
 {
    int num_procs, myid;
    bool mpi_done = false;
-   // -m hex6.mesh -mid 303 -tid 1 -vl 2
-   // -bm -bnd -ni 1 -art 0 -ls 2 -qt 1
-   // -pa -qo 0 -li 20 -o 2 -st 0 -rs 1
-   // -scale 1.e-7 -bm_id 2 -pt 111
-   // -d cpu:fast
-   const char *mesh_file       = "hex6.mesh"; // -m hex6.mesh
    const int mesh_poly_deg     = 1;           // -o 1
-   const int rs_levels         = 1;           // -rs 1
+   const int rs_levels         = 0;           // -rs 1
    const int rp_levels         = 0;
    const double jitter         = 0.0;
    const int metric_id         = 303;         // -mid 303
@@ -51,7 +43,7 @@ struct TMOP_PMESH_OPTIMIZER
    const double adapt_lim_const   = 0.0;
    const double surface_fit_const = 0.0;
    const int quad_type         = 1;           // -qt 1
-   /*const*/ int quad_order    = 0;           // -qo 0
+   const int quad_order        = 0;           // -qo 0
    int hexahedron_quad_points  = 0;
    const int solver_type       = 0;           // -st 0
    const int solver_iter       = 1;           // -ni 1
@@ -78,27 +70,36 @@ struct TMOP_PMESH_OPTIMIZER
    const double ls_scale       = 1e-7;        // -scale 1.e-7
 
    Vector b;
+   const int p, c, n, nx, ny, nz, dim = 3;
+   const bool check_x, check_y, check_z, checked;
+   std::function<ParMesh*()> GetParMesh = [&]()
+   {
+      Mesh smesh = Mesh::MakeCartesian3D(nx,ny,nz, Element::HEXAHEDRON);
+      ParMesh *par_mesh = new ParMesh(MPI_COMM_WORLD, smesh);
+      return par_mesh;
+   };
    ParMesh *pmesh = nullptr;
    ParNonlinearForm *a = nullptr;
    FiniteElementCollection *fec = nullptr;
    ParFiniteElementSpace *pfespace = nullptr;
-   int dofs;
-   ConstantCoefficient *lim_coeff;
-   ConstantCoefficient *coef_zeta;
-   ConstantCoefficient *coef_ls;
+   int ndofs;
+   double mdof;
+   ConstantCoefficient *lim_coeff = nullptr;
+   ConstantCoefficient *coef_zeta = nullptr;
+   ConstantCoefficient *coef_ls = nullptr;
 
-   TMOP_QualityMetric *metric = NULL;
-   ConstantCoefficient *coeff1 = NULL;
-   TMOP_QualityMetric *metric2 = NULL;
-   TargetConstructor *target_c2 = NULL;
-   TMOP_Integrator *he_nlf_integ;
-   Solver *S = NULL, *S_prec = NULL;
-   AdaptivityEvaluator *adapt_evaluator = NULL;
-   AdaptivityEvaluator *adapt_surface = NULL;
-   TargetConstructor *target_c = NULL;
-   HessianCoefficient *adapt_coeff = NULL;
-   HRHessianCoefficient *hr_adapt_coeff = NULL;
-   TMOP_QualityMetric *h_metric = NULL;
+   TMOP_QualityMetric *metric = nullptr;
+   ConstantCoefficient *coeff1 = nullptr;
+   TMOP_QualityMetric *metric2 = nullptr;
+   TargetConstructor *target_c2 = nullptr;
+   TMOP_Integrator *he_nlf_integ = nullptr;
+   Solver *S = nullptr, *S_prec = nullptr;
+   AdaptivityEvaluator *adapt_evaluator = nullptr;
+   AdaptivityEvaluator *adapt_surface = nullptr;
+   TargetConstructor *target_c = nullptr;
+   HessianCoefficient *adapt_coeff = nullptr;
+   HRHessianCoefficient *hr_adapt_coeff = nullptr;
+   TMOP_QualityMetric *h_metric = nullptr;
 
    StopWatch TimeSolver;
    ParGridFunction *x = nullptr;
@@ -106,135 +107,39 @@ struct TMOP_PMESH_OPTIMIZER
 
    double init_energy, init_metric_energy;
 
-   TMOP_PMESH_OPTIMIZER(int mesh_poly_deg, int rs_levels):
+   TMOP_PMESH_OPTIMIZER(int mesh_poly_deg, int side):
       // 0. Initialize MPI.
       mpi_done((MPI_Comm_size(MPI_COMM_WORLD, &num_procs),
                 MPI_Comm_rank(MPI_COMM_WORLD, &myid), true)),
       mesh_poly_deg(mesh_poly_deg),
-      rs_levels(rs_levels),
-      b(0) // Set up an empty right-hand side vector b, which is equivalent to b=0.
+      quad_order(mesh_poly_deg * 2), // Used for all tests
+      b(0), // Set up an empty right-hand side vector b, which is equivalent to b=0.
+      p(mesh_poly_deg),
+      c(side),
+      n((assert(c>=p),c/p)),
+      nx(n + (p*(n+1)*p*n*p*n < c*c*c ?1:0)),
+      ny(n + (p*(n+1)*p*(n+1)*p*n < c*c*c ?1:0)),
+      nz(n),
+      check_x(p*nx * p*ny * p*nz <= c*c*c),
+      check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
+      check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
+      checked((assert(check_x && check_y && check_z), true)),
+      pmesh(GetParMesh()),
+      mdof(0.0)
    {
       if (h_metric_id < 0) { h_metric_id = metric_id; }
 
-      //#warning quad_order set from command line
-      // quad_order = mesh_poly_deg + 4;
-      // quad_order = 8;
-#warning quad_order = mesh_poly_deg * 2
-      quad_order = mesh_poly_deg * 2;
-
-      // 3. Initialize and refine the starting mesh.
-      Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-      for (int lev = 0; lev < rs_levels; lev++)
-      {
-         mesh->UniformRefinement();
-      }
-      const int dim = mesh->Dimension();
-
-      if (hradaptivity) { mesh->EnsureNCMesh(); }
-
-      // Parallel partitioning of the mesh.
-      int unit = 1;
-      int *nxyz = new int[dim];
-      switch (config_partition_type)
-      {
-         case 0:
-            for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
-            break;
-         case 111: // 3D, 1 ranks
-            unit = static_cast<int>(floor(pow(num_procs, 1.0 / dim) + 1e-2));
-            for (int d = 0; d < dim; d++) { nxyz[d] = unit; }
-            break;
-         case 211: // 3D, 2 ranks
-            unit = static_cast<int>(floor(pow(num_procs / 2, 1.0 / 3) + 1e-2));
-            nxyz[0] = 2 * unit; nxyz[1] = 1 * unit; nxyz[2] = 1 * unit;
-            break;
-         case 221: // 3D, 4 ranks
-            unit = static_cast<int>(floor(pow(num_procs / 4, 1.0 / 3) + 1e-2));
-            nxyz[0] = 2 * unit; nxyz[1] = 2 * unit; nxyz[2] = 1 * unit;
-            break;
-         case 222: // 3D, 8 ranks
-            unit = static_cast<int>(floor(pow(num_procs / 8, 1.0 / 3) + 1e-2));
-            nxyz[0] = 2 * unit; nxyz[1] = 2 * unit; nxyz[2] = 2 * unit;
-            break;
-         case 422: // 3D, 16 ranks
-            unit = static_cast<int>(floor(pow(num_procs / 16, 1.0 / 3) + 1e-2));
-            nxyz[0] = 4 * unit; nxyz[1] = 2 * unit; nxyz[2] = 2 * unit;
-            break;
-         case 442: // 3D, 32 ranks
-            unit = static_cast<int>(floor(pow(num_procs / 32, 1.0 / 3) + 1e-2));
-            nxyz[0] = 4 * unit; nxyz[1] = 4 * unit; nxyz[2] = 2 * unit;
-            break;
-         case 444: // 3D, 64 ranks
-            unit = static_cast<int>(floor(pow(num_procs / 64, 1.0 / 3) + 1e-2));
-            nxyz[0] = 4 * unit; nxyz[1] = 4 * unit; nxyz[2] = 4 * unit;
-            break;
-         case 844: // 3D, 128 ranks
-            unit = static_cast<int>(floor(pow(num_procs / 128, 1.0 / 3) + 1e-2));
-            nxyz[0] = 8 * unit; nxyz[1] = 4 * unit; nxyz[2] = 4 * unit;
-            break;
-         case 884: // 3D, 256 ranks
-            unit = static_cast<int>(floor(pow(num_procs / 256, 1.0 / 3) + 1e-2));
-            nxyz[0] = 8 * unit; nxyz[1] = 8 * unit; nxyz[2] = 4 * unit;
-            break;
-         case 888: // 3D, 512 ranks
-            unit = static_cast<int>(floor(pow(num_procs / 512, 1.0 / 3) + 1e-2));
-            nxyz[0] = 8 * unit; nxyz[1] = 8 * unit; nxyz[2] = 8 * unit;
-            break;
-         default:
-            if (myid == 0)
-            {
-               cout << "Unknown partition type: " << config_partition_type << '\n';
-            }
-            delete mesh;
-            assert(false);
-            return;
-      }
-      dbg("unit:%d nxyz:%d%d%d",unit,nxyz[0],nxyz[1],nxyz[2]);
-      int product = 1;
-      for (int d = 0; d < dim; d++) { product *= nxyz[d]; }
-      if (product == num_procs)
-      {
-         int *partitioning = mesh->CartesianPartitioning(nxyz);
-         pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partitioning);
-         delete [] partitioning;
-      }
-      else
-      {
-         assert(false);
-         if (myid == 0)
-         {
-            dbg("Non-Cartesian partitioning through METIS will be used.");
-#ifndef MFEM_USE_METIS
-            cout << "MFEM was built without METIS. "
-                 << "Adjust the number of tasks to use a Cartesian split." << endl;
-#endif
-         }
-#ifndef MFEM_USE_METIS
-         assert(false);
-         return;
-#endif
-         pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-      }
-      delete [] nxyz;
-      delete mesh;
-
-      for (int lev = 0; lev < rp_levels; lev++)
-      {
-         pmesh->UniformRefinement();
-      }
+      assert(!hradaptivity);
+      //assert(num_procs == 1);
 
       // 4. Define a finite element space on the mesh. Here we use vector finite
       //    elements which are tensor products of quadratic finite elements. The
       //    number of components in the vector finite element space is specified by
       //    the last parameter of the FiniteElementSpace constructor.
-      if (mesh_poly_deg <= 0)
-      {
-         fec = new QuadraticPosFECollection;
-         mesh_poly_deg = 2;
-      }
-      else { fec = new H1_FECollection(mesh_poly_deg, dim); }
+      assert(mesh_poly_deg > 0);
+      fec = new H1_FECollection(mesh_poly_deg, dim);
       pfespace = new ParFiniteElementSpace(pmesh, fec, dim);
-      dofs = pfespace->GlobalTrueVSize();
+      ndofs = pfespace->GlobalTrueVSize();
 
       // 5. Make the mesh curved based on the above finite element space. This
       //    means that we define the mesh elements through a fespace-based
@@ -255,22 +160,22 @@ struct TMOP_PMESH_OPTIMIZER
       Vector h0(pfespace->GetNDofs());
       h0 = infinity();
       double vol_loc = 0.0;
-      Array<int> dofs;
+      Array<int> edofs;
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          // Get the local scalar element degrees of freedom in dofs.
-         pfespace->GetElementDofs(i, dofs);
+         pfespace->GetElementDofs(i, edofs);
          // Adjust the value of h0 in dofs based on the local mesh size.
          const double hi = pmesh->GetElementSize(i);
-         for (int j = 0; j < dofs.Size(); j++)
+         for (int j = 0; j < edofs.Size(); j++)
          {
-            h0(dofs[j]) = min(h0(dofs[j]), hi);
+            h0(edofs[j]) = min(h0(edofs[j]), hi);
          }
          vol_loc += pmesh->GetElementVolume(i);
       }
-      double volume;
-      MPI_Allreduce(&vol_loc, &volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-      const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
+      double global_volume;
+      MPI_Allreduce(&vol_loc, &global_volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      const double small_phys_size = pow(global_volume, 1.0 / dim) / 100.0;
 
       // 9. Add a random perturbation to the nodes in the interior of the domain.
       //    We define a random grid function of fespace and make sure that it is
@@ -290,13 +195,13 @@ struct TMOP_PMESH_OPTIMIZER
             rdm(pfespace->DofToVDof(i,d)) *= h0(i);
          }
       }
-      Array<int> vdofs;
+      Array<int> be_vdofs;
       for (int i = 0; i < pfespace->GetNBE(); i++)
       {
          // Get the vector degrees of freedom in the boundary element.
-         pfespace->GetBdrElementVDofs(i, vdofs);
+         pfespace->GetBdrElementVDofs(i, be_vdofs);
          // Set the boundary values to zero.
-         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
+         for (int j = 0; j < be_vdofs.Size(); j++) { rdm(be_vdofs[j]) = 0.0; }
       }
       *x -= rdm;
       // Set the perturbation of all nodes from the true nodes.
@@ -357,19 +262,19 @@ struct TMOP_PMESH_OPTIMIZER
       {
          for (int e = 0; e < pmesh->GetNBE(); e++)
          {
-            Array<int> dofs;
-            pfespace->GetBdrElementDofs(e, dofs);
+            Array<int> be_dofs;
+            pfespace->GetBdrElementDofs(e, be_dofs);
             Array<double> x_c(dim);
             Array<int> nnodes(dim);
             nnodes = 0;
             double tolerance = 1.e-6;
-            for (int j = 0; j < dofs.Size(); j++)
+            for (int j = 0; j < be_dofs.Size(); j++)
             {
                if (j == 0)
                {
                   for (int d = 0; d < dim; d++)
                   {
-                     x_c[d] = x->operator()(pfespace->DofToVDof(dofs[j], d));
+                     x_c[d] = x->operator()(pfespace->DofToVDof(be_dofs[j], d));
                      nnodes[d]++;
                   }
                }
@@ -377,7 +282,7 @@ struct TMOP_PMESH_OPTIMIZER
                {
                   for (int d = 0; d < dim; d++)
                   {
-                     if (abs(x_c[d] - x->operator()(pfespace->DofToVDof(dofs[j],d))) < tolerance)
+                     if (abs(x_c[d] - x->operator()(pfespace->DofToVDof(be_dofs[j],d))) < tolerance)
                      {
                         nnodes[d]++;
                      }
@@ -388,7 +293,7 @@ struct TMOP_PMESH_OPTIMIZER
             be->SetAttribute(4);
             for (int d = 0; d < dim; d++)
             {
-               if (nnodes[d] == dofs.Size())
+               if (nnodes[d] == be_dofs.Size())
                {
                   be->SetAttribute(d+1);
                }
@@ -457,8 +362,9 @@ struct TMOP_PMESH_OPTIMIZER
             case 315: h_metric = new TMOP_Metric_315; break;
             case 316: h_metric = new TMOP_Metric_316; break;
             case 321: h_metric = new TMOP_Metric_321; break;
-            default: cout << "Metric_id not supported for h-adaptivity: " << h_metric_id <<
-                             endl;
+            default: std::cout << "Metric_id not supported for h-adaptivity: "
+                                  << h_metric_id
+                                  << std::endl;
                assert(false);
                return;
          }
@@ -618,8 +524,8 @@ struct TMOP_PMESH_OPTIMIZER
             for (int i = 0; i < size.Size(); i++)
             {
                const double val = size(i);
-               const double a = (big_zone_size - small_zone_size) / small_zone_size;
-               size(i) = big_zone_size / (1.0+a*val);
+               const double alpha = (big_zone_size - small_zone_size) / small_zone_size;
+               size(i) = big_zone_size / (1.0+alpha*val);
             }
 
             DiffuseField(size, 2);
@@ -983,7 +889,7 @@ struct TMOP_PMESH_OPTIMIZER
       }
       else
       {
-         int n = 0;
+         int ess_vdofs_size = 0;
          for (int i = 0; i < pmesh->GetNBE(); i++)
          {
             const int nd = pfespace->GetBE(i)->GetDof();
@@ -992,11 +898,11 @@ struct TMOP_PMESH_OPTIMIZER
                         "Boundary attribute 3 must be used only for 3D meshes. "
                         "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
                         "components, rest for free nodes), or use -fix-bnd.");
-            if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
-            if (attr == 4) { n += nd * dim; }
+            if (attr == 1 || attr == 2 || attr == 3) { ess_vdofs_size += nd; }
+            if (attr == 4) { ess_vdofs_size += nd * dim; }
          }
-         Array<int> ess_vdofs(n), vdofs;
-         n = 0;
+         Array<int> ess_vdofs(ess_vdofs_size), vdofs;
+         ess_vdofs_size = 0;
          for (int i = 0; i < pmesh->GetNBE(); i++)
          {
             const int nd = pfespace->GetBE(i)->GetDof();
@@ -1005,22 +911,22 @@ struct TMOP_PMESH_OPTIMIZER
             if (attr == 1) // Fix x components.
             {
                for (int j = 0; j < nd; j++)
-               { ess_vdofs[n++] = vdofs[j]; }
+               { ess_vdofs[ess_vdofs_size++] = vdofs[j]; }
             }
             else if (attr == 2) // Fix y components.
             {
                for (int j = 0; j < nd; j++)
-               { ess_vdofs[n++] = vdofs[j+nd]; }
+               { ess_vdofs[ess_vdofs_size++] = vdofs[j+nd]; }
             }
             else if (attr == 3) // Fix z components.
             {
                for (int j = 0; j < nd; j++)
-               { ess_vdofs[n++] = vdofs[j+2*nd]; }
+               { ess_vdofs[ess_vdofs_size++] = vdofs[j+2*nd]; }
             }
             else if (attr == 4) // Fix all components.
             {
                for (int j = 0; j < vdofs.Size(); j++)
-               { ess_vdofs[n++] = vdofs[j]; }
+               { ess_vdofs[ess_vdofs_size++] = vdofs[j]; }
             }
          }
          a->SetEssentialVDofs(ess_vdofs);
@@ -1112,13 +1018,48 @@ struct TMOP_PMESH_OPTIMIZER
       solver->SetOperator(*a);
    }
 
+   /////////////////////////////////////////////////////////////////////////////
+   ~TMOP_PMESH_OPTIMIZER()
+   {
+      delete S;
+      delete S_prec;
+      delete target_c2;
+      delete metric2;
+      delete coeff1;
+      delete adapt_evaluator;
+      delete adapt_surface;
+      delete target_c;
+      delete hr_adapt_coeff;
+      delete adapt_coeff;
+      delete h_metric;
+      delete metric;
+      delete pfespace;
+      delete fec;
+      delete pmesh;
+
+      // he_nlf_integ will be deleted with a
+      delete a;
+      delete lim_coeff;
+      delete coef_zeta;
+      delete coef_ls;
+      delete x;
+      delete solver;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
    void Mult()
    {
       TimeSolver.Start();
       solver->Mult(b, x->GetTrueVector());
+      MFEM_DEVICE_SYNC;
       TimeSolver.Stop();
+      mdof += 1e-6 * ndofs;
    }
 
+   /////////////////////////////////////////////////////////////////////////////
+   double Mdof() const { return mdof; }
+
+   /////////////////////////////////////////////////////////////////////////////
    void Postfix()
    {
       x->SetFromTrueVector();
@@ -1222,81 +1163,64 @@ struct TMOP_PMESH_OPTIMIZER
          }
       }
    }
-
-   ~TMOP_PMESH_OPTIMIZER()
-   {
-      // 20. Free the used memory.
-      delete S;
-      delete S_prec;
-      delete target_c2;
-      delete metric2;
-      delete coeff1;
-      delete adapt_evaluator;
-      delete adapt_surface;
-      delete target_c;
-      delete hr_adapt_coeff;
-      delete adapt_coeff;
-      delete h_metric;
-      delete metric;
-      delete pfespace;
-      delete fec;
-      delete pmesh;
-   }
 };
-/* order:1, refine:0, qorder:0
-Minimum det(J) of the original mesh is 6.78461e-05
-Newton iteration  0 : ||r|| = 538.773
-MINRES: iteration   0: ||r||_B = 538.773 ...
-MINRES: iteration  20: ||r||_B = 39.0083
-MINRES: No convergence!
-Energy decrease: 361.527 --> 361.527 or 1.32106e-05% with 1e-07 scaling.
-Newton iteration  1 : ||r|| = 538.773, ||r||/||r_0|| = 1
-Nonlinear solver: rtol = 1e-10 not achieved.
-Monitoring info      :
-Number of elements   :1728
-Number of procs      :1
-Polynomial degree    :1
-Total TDofs          :2197
-Total Iterations     :1
-Total Prec Iterations:20
-Total Solver Time (%):0.06393 100
-Assemble Vector Time :0.00501 7.837
-Assemble Grad Time   :0.01712 26.78
-Prec Solve Time      :0.0387 60.54
-ProcessNewState Time :6.381e-05 0.0998
-ComputeScale Time    :0.002969 4.644
-Device Tag (0 for gpu, 1 otherwise):0
- Final energy: 361.5
-run_info:  1 1 0 0 0 2 20 1 303 1 1728 2197 1 20 0.063931742 7.836651784 26.77589483 60.53651565 0.09980175419 4.64421883 0 361.5268045
-Initial strain energy: 3.6153e+02 = metrics: 3.6153e+02 + extra terms: 0.0000e+00
-Final strain energy: 3.6153e+02 = metrics: 3.6153e+02 + extra terms: 0.0000e+00
-The strain energy decreased by: 1.3211e-05 %.
- * */
-#define MAX_NDOFS 32*1024*1024
-#define P_ORDERS bm::CreateDenseRange(1,4,1)
-#define P_REFINE bm::CreateDenseRange(1,7,1)
 
-static void TMOP_SS(bm::State &state)
+//////////////////////////////////////////////////////////////////////////////
+#define MAX_NDOFS 4*1024*1024
+
+#if 0
+static void OrderSideArgs(bmi::Benchmark *b)
 {
-   const int order = state.range(0);
-   const int serial_refine = state.range(1);
-   //dbg("order:%d serial_refine:%d",order,serial_refine);
-   TMOP_PMESH_OPTIMIZER tmop_pmesh_optimizer(order,serial_refine);
-   const int ndofs = tmop_pmesh_optimizer.dofs;
-   if (ndofs/mpi->WorldSize() > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }
-   while (state.KeepRunning()) { tmop_pmesh_optimizer.Mult(); }
-   const double solvertime = tmop_pmesh_optimizer.TimeSolver.RealTime();
-   state.counters["MPI"] = bm::Counter(tmop_pmesh_optimizer.num_procs);
+   const auto ndofs_estimate = [](int p, int nx, int ny, int nz)
+   {
+      return (nx*p)*(ny*p)*(nz*p);
+   };
+   for (int p = 4; p > 0; p--)
+   {
+      for (int nx = 12; nx <= 60; nx += 6)
+      {
+         for (int ny = nx; ny < nx+6; ny += 2)
+         {
+            for (int nz = ny; nz < nx+6; nz += 2)
+            {
+               if (ndofs_estimate(p,nx,ny,nz) > MAX_NDOFS) { continue; }
+               b->Args({p, nx, ny, nz});
+            }
+         }
+      }
+   }
+}
+#else
+static void OrderSideArgs(bmi::Benchmark *b)
+{
+   const auto est = [](int c) { return 3*(c+1)*(c+1)*(c+1); };
+   for (int p = 4; p > 0; p--)
+   {
+      for (int c = 12; est(c) <= MAX_NDOFS; c += 6)
+      {
+         b->Args({p, c});
+      }
+   }
+}
+#endif
+
+static void TMOP_FULL(bm::State &state)
+{
+   const int p = state.range(0);
+   const int side = state.range(1);
+   TMOP_PMESH_OPTIMIZER ker(p, side);
+   const int ndofs = ker.ndofs;
+   while (state.KeepRunning()) { ker.Mult(); }
+   const double solvertime = ker.TimeSolver.RealTime();
+   state.counters["P"] = bm::Counter(p);
    state.counters["T"] = bm::Counter(solvertime);
-   state.counters["P"] = bm::Counter(order);
-   const int quad_points = tmop_pmesh_optimizer.hexahedron_quad_points;
-   state.counters["Q"] = bm::Counter(quad_points);
-   state.counters["NDofs"] = bm::Counter(ndofs);
+   state.counters["Q"] = bm::Counter(ker.hexahedron_quad_points);
+   state.counters["Dofs"] = bm::Counter(ndofs);
+   state.counters["MDofs"] = bm::Counter(ker.Mdof(), bm::Counter::kIsRate);
    //tmop_pmesh_optimizer.Postfix();
 }
-BENCHMARK(TMOP_SS)\
--> ArgsProduct( {P_ORDERS,P_REFINE})\
--> Unit(bm::kMillisecond) -> Iterations(10);
+BENCHMARK(TMOP_FULL)\
+-> Apply(OrderSideArgs) -> Unit(bm::kMillisecond) -> Iterations(10);
 
 int main(int argc, char *argv[])
 {
@@ -1315,7 +1239,6 @@ int main(int argc, char *argv[])
    {
       bmi::FindInContext("dev", config_device); // dev=cuda
       bmi::FindInContext("ndev", config_dev_size); // ndev=4
-      bmi::FindInContext("nxyz", config_partition_type); // ndev=4
    }
 
    const int mpi_rank = mpi->WorldRank();
