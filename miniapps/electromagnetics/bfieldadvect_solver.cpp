@@ -25,6 +25,14 @@ BFieldAdvector::BFieldAdvector(ParMesh *pmesh_old, ParMesh *pmesh_new, int order
    order(order_),
    pmeshOld(nullptr),
    pmeshNew(nullptr),
+   H1FESpaceOld(nullptr),
+   H1FESpaceNew(nullptr),
+   HCurlFESpaceOld(nullptr),
+   HCurlFESpaceNew(nullptr),
+   HDivFESpaceOld(nullptr),
+   HDivFESpaceNew(nullptr),
+   L2FESpaceOld(nullptr),
+   L2FESpaceNew(nullptr),
    grad(nullptr),
    curl(nullptr),
    weakCurl(nullptr),
@@ -58,16 +66,24 @@ void BFieldAdvector::SetMeshes(ParMesh *pmesh_old, ParMesh *pmesh_new)
 
    //Discrete Differential Operators
    grad = new ParDiscreteGradOperator(H1FESpaceOld, HCurlFESpaceOld);
+   grad->Assemble();
+   grad->Finalize();
    curl = new ParDiscreteCurlOperator(HCurlFESpaceOld, HDivFESpaceOld);
+   curl->Assemble();
+   curl->Finalize();
 
    //Weak curl operator for taking the curl of B living in Hdiv
    ConstantCoefficient oneCoef(1.0);
    weakCurl = new ParMixedBilinearForm(HDivFESpaceOld, HCurlFESpaceOld);
    weakCurl->AddDomainIntegrator(new VectorFECurlIntegrator(oneCoef));
+   weakCurl->Assemble();
+   weakCurl->Finalize();   
 
    //CurlCurl operator
    curlCurl  = new ParBilinearForm(HCurlFESpaceOld);
    curlCurl->AddDomainIntegrator(new CurlCurlIntegrator(oneCoef));
+   curlCurl->Assemble();
+   curlCurl->Finalize();   
 
    //Projector to clean the divergence out of vectors in Hcurl
    int irOrder = H1FESpaceOld->GetElementTransformation(0)->OrderW()+ 2 * order;   
@@ -112,20 +128,12 @@ void BFieldAdvector::Advect(ParGridFunction* b_old, ParGridFunction* b_new)
    ComputeA(b_old);
 }
 
-
-//Given b_ in Hdiv compute the curl of b_ in Hcurl
-//and then clean any divergence out of it
-void BFieldAdvector::ComputeCleanCurlB(ParGridFunction* b)
-{
-   weakCurl->Mult(*b, *curl_b);
-   divFreeProj->Mult(*curl_b, *clean_curl_b);
-}
-
-
 //Solve Curl Curl A = Curl B for A using AMS
 void BFieldAdvector::ComputeA(ParGridFunction* b)
 {
    Array<int> ess_bdr;
+   ess_bdr.SetSize(pmeshOld->bdr_attributes.Max());
+   ess_bdr = 0;   // All outer surfaces
    Array<int> ess_bdr_tdofs;
    HCurlFESpaceOld->GetEssentialTrueDofs(ess_bdr, ess_bdr_tdofs);
 
@@ -166,6 +174,18 @@ void BFieldAdvector::ComputeA(ParGridFunction* b)
    std::cout << "L2 Error in reconstructed B field:  " << diff.Norml2() << std::endl;
 
 }
+
+
+//Given b_ in Hdiv compute the curl of b_ in Hcurl
+//and then clean any divergence out of it
+void BFieldAdvector::ComputeCleanCurlB(ParGridFunction* b)
+{
+   weakCurl->Mult(*b, *curl_b);
+   divFreeProj->Mult(*curl_b, *clean_curl_b);
+}
+
+
+
 
 
 } // namespace electromagnetics

@@ -34,6 +34,8 @@ class BFieldAdvector
    void Advect(ParGridFunction* b_old, ParGridFunction* b_new);
 
    ParGridFunction* GetVectorPotential() {return a;}
+   ParGridFunction* GetCurlB() {return curl_b;}
+   ParGridFunction* GetCleanCurlB() {return clean_curl_b;}
    ParGridFunction* GetReconstructedB() {return recon_b;}
 
    private:
