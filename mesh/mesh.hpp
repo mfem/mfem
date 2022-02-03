@@ -1392,7 +1392,7 @@ public:
       }
 
       /// @brief Return true if the face is a non-conforming fine face.
-      bool IsNonConformingFine() const
+      bool IsNonconformingFine() const
       {
          return topology == FaceTopology::Nonconforming &&
                 (element[0].conformity == ElementConformity::Superset ||
@@ -1400,35 +1400,35 @@ public:
       }
 
       /// @brief Return true if the face is a non-conforming coarse face.
-      bool IsNonConformingCoarse() const
+      bool IsNonconformingCoarse() const
       {
          return topology == FaceTopology::Nonconforming &&
                 element[1].conformity == ElementConformity::Subset;
       }
 
       /// @brief Return true if the face is a local non-conforming fine face.
-      bool IsLocalNonConformingFine() const
+      bool IsLocalNonconformingFine() const
       {
-         return IsLocal() && IsNonConformingFine();
+         return IsLocal() && IsNonconformingFine();
       }
 
       /// @brief Return true if the face is a local (or NA) non-conforming coarse face.
-      bool IsLocalNonConformingCoarse() const
+      bool IsLocalNonconformingCoarse() const
       {
          return (IsLocal() || element[1].location==Mesh::ElementLocation::NA) &&
-                IsNonConformingCoarse();
+                IsNonconformingCoarse();
       }
 
       /// @brief Return true if the face is a shared non-conforming fine face.
-      bool IsSharedNonConformingFine() const
+      bool IsSharedNonconformingFine() const
       {
-         return IsShared() && IsNonConformingFine();
+         return IsShared() && IsNonconformingFine();
       }
 
       /// @brief Return true if the face is a shared non-conforming coarse face.
-      bool IsSharedNonConformingCoarse() const
+      bool IsSharedNonconformingCoarse() const
       {
-         return IsShared() && IsNonConformingCoarse();
+         return IsShared() && IsNonconformingCoarse();
       }
 
       /// @brief cast operator from FaceInformation to FaceInfo.

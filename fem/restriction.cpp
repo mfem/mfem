@@ -812,7 +812,7 @@ void H1FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonConformingCoarse() )
+      if ( face.IsLocalNonconformingCoarse() )
       {
          // We skip local non-conforming coarse faces as they are treated
          // by the corresponding local non-conforming fine faces.
@@ -844,7 +844,7 @@ void H1FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonConformingCoarse() )
+      if ( face.IsLocalNonconformingCoarse() )
       {
          // We skip local non-conforming coarse faces as they are treated
          // by the corresponding local non-conforming fine faces.
@@ -871,7 +871,7 @@ void H1FaceRestriction::SetFaceDofsScatterIndices(
    const int face_index,
    const ElementDofOrdering ordering)
 {
-   MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
+   MFEM_ASSERT(!(face.IsLocalNonconformingCoarse()),
                "This method should not be used on local non-conforming coarse faces.");
    MFEM_ASSERT(face.element[0].orientation==0,
                "FaceRestriction used on degenerated mesh.");
@@ -906,7 +906,7 @@ void H1FaceRestriction::SetFaceDofsGatherIndices(
    const int face_index,
    const ElementDofOrdering ordering)
 {
-   MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
+   MFEM_ASSERT(!(face.IsLocalNonconformingCoarse()),
                "This method should not be used on local non-conforming coarse faces.");
 
    const TensorBasisElement* el =
@@ -1472,7 +1472,7 @@ void L2FaceRestriction::SetFaceDofsScatterIndices1(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
-   MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
+   MFEM_ASSERT(!(face.IsLocalNonconformingCoarse()),
                "This method should not be used on local non-conforming "
                "coarse faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
@@ -1572,7 +1572,7 @@ void L2FaceRestriction::SetFaceDofsGatherIndices1(
    const Mesh::FaceInformation &face,
    const int face_index)
 {
-   MFEM_ASSERT(!(face.IsLocalNonConformingCoarse()),
+   MFEM_ASSERT(!(face.IsLocalNonconformingCoarse()),
                "This method should not be used on local non-conforming coarse faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
@@ -2059,7 +2059,7 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < fes.GetNF(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonConformingCoarse() )
+      if ( face.IsLocalNonconformingCoarse() )
       {
          // We skip local non-conforming coarse faces as they are treated
          // by the corresponding local non-conforming fine faces.
@@ -2118,7 +2118,7 @@ void NCL2FaceRestriction::ComputeGatherIndices(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       MFEM_ASSERT(!face.IsShared(),
                   "Unexpected shared face in NCL2FaceRestriction.");
-      if ( face.IsLocalNonConformingCoarse() )
+      if ( face.IsLocalNonconformingCoarse() )
       {
          // We skip local non-conforming coarse faces as they are treated
          // by the corresponding local non-conforming fine faces.
