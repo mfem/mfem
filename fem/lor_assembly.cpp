@@ -341,19 +341,26 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
          dbg("Wait for MPI communication to finish");
          hypre_ParCSRCommHandleDestroy(comm_handle);
 
+         // Convert a "column marker" array to a "column index" array.
+
+         // First we need to know how many columns are marked, and do a partial
+         // sum to figure out which index they correspond to.
          HYPRE_Int *col_idx = hypre_CTAlloc(HYPRE_Int, offd_ncols, HYPRE_MEMORY_DEVICE);
          thrust::exclusive_scan(
             thrust::device, eliminate_col, eliminate_col + offd_ncols, col_idx
          );
 
+         // Because we do an exclusive scan above, the last entry is missing
+         // from the partial sum. To compute the total sum, get last entry of
+         // both arrays and add them.
          HYPRE_Int partial_sum, last_element;
          hypre_TMemcpy(&partial_sum, col_idx + offd_ncols - 1, HYPRE_Int, 1, HYPRE_MEMORY_HOST, HYPRE_MEMORY_DEVICE);
          hypre_TMemcpy(&last_element, eliminate_col + offd_ncols - 1, HYPRE_Int, 1, HYPRE_MEMORY_HOST, HYPRE_MEMORY_DEVICE);
          HYPRE_Int ncols_to_eliminate = partial_sum + last_element;
 
+         // Perform the conversion to "column index" array.
          cols_to_eliminate.SetSize(ncols_to_eliminate);
          HYPRE_Int *cols = cols_to_eliminate.Write();
-
          MFEM_FORALL(i, offd_ncols,
          {
             if (eliminate_col[i])
