@@ -20,6 +20,9 @@
 #define MFEM_NVTX_COLOR DarkOrchid
 #include "../general/nvtx.hpp"
 
+#include <thrust/execution_policy.h>
+#include <thrust/scan.h>
+
 namespace mfem
 {
 
@@ -223,11 +226,6 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
       Ah.MakePtAP(dA, Ph);
    }
 
-   /*{
-      NVTX("EliminateRowsCols");
-      Ah.As<HypreParMatrix>()->EliminateRowsCols(ess_dofs);
-   }*/
-
    {
       dbg("EliminateRowsCols");
       NVTX("EliminateRowsCols");
@@ -251,10 +249,11 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
       hypre_ParCSRCommHandle *comm_handle;
       HYPRE_Int *int_buf_data, *eliminate_row, *eliminate_col;
       {
-         eliminate_row = hypre_CTAlloc(HYPRE_Int, diag_nrows, HYPRE_MEMORY_HOST);
-         eliminate_col = hypre_CTAlloc(HYPRE_Int, offd_ncols, HYPRE_MEMORY_HOST);
+         eliminate_row = hypre_CTAlloc(HYPRE_Int, diag_nrows, HYPRE_MEMORY_DEVICE);
+         eliminate_col = hypre_CTAlloc(HYPRE_Int, offd_ncols, HYPRE_MEMORY_DEVICE);
 
-         // Make sure A has a communication package
+         // Get the communication package for A, creating it if it does not
+         // already exist.
          hypre_ParCSRCommPkg *comm_pkg = hypre_ParCSRMatrixCommPkg(A);
          if (!comm_pkg)
          {
@@ -262,38 +261,34 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
             comm_pkg = hypre_ParCSRMatrixCommPkg(A);
          }
 
-         // Which of the local rows are to be eliminated?
-         for (int i = 0; i < diag_nrows; i++)
+         MFEM_FORALL(i, diag_nrows,
          {
             eliminate_row[i] = 0;
-         }
-
-         ess_dofs.HostRead();
-         for (int i = 0; i < n_ess_dofs; i++)
+         });
+         MFEM_FORALL(i, n_ess_dofs,
          {
-            eliminate_row[ess_dofs[i]] = 1;
-         }
+            eliminate_row[ess_dofs_d[i]] = 1;
+         });
 
          // Use a matvec communication pattern to find (in eliminate_col) which of
          // the local offd columns are to be eliminated
          HYPRE_Int num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
+         HYPRE_Int int_buf_sz = hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends);
          dbg("num_sends:%d", num_sends);
-         int_buf_data =
-            hypre_CTAlloc(HYPRE_Int,
-                          hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends),
-                          HYPRE_MEMORY_HOST);
-         int index = 0;
-         for (int i = 0; i < num_sends; i++)
+         int_buf_data = hypre_CTAlloc(HYPRE_Int, int_buf_sz, HYPRE_MEMORY_DEVICE);
+
+         hypre_ParCSRCommPkgCopySendMapElmtsToDevice(comm_pkg);
+         HYPRE_Int *send_map_elmts = hypre_ParCSRCommPkgDeviceSendMapElmts(comm_pkg);
+         MFEM_FORALL(i, int_buf_sz,
          {
-            int start = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i);
-            for (int j = start; j < hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1); j++)
-            {
-               int k = hypre_ParCSRCommPkgSendMapElmt(comm_pkg,j);
-               int_buf_data[index++] = eliminate_row[k];
-            }
-         }
-         comm_handle = hypre_ParCSRCommHandleCreate(
-                          11, comm_pkg, int_buf_data, eliminate_col);
+            int k = send_map_elmts[i];
+            int_buf_data[i] = eliminate_row[k];
+         });
+
+         // Try to use device-aware MPI for the communication
+         comm_handle = hypre_ParCSRCommHandleCreate_v2(
+            11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
+            HYPRE_MEMORY_DEVICE, eliminate_col);
       }
 
       // Eliminate rows and columns in the diagonal block
@@ -346,28 +341,31 @@ void ParAssembleBatchedLOR(LORBase &lor_disc,
          dbg("Wait for MPI communication to finish");
          hypre_ParCSRCommHandleDestroy(comm_handle);
 
-         // set the array cols_to_eliminate
-         int ncols_to_eliminate = 0;
-         for (int i = 0; i < offd_ncols; i++)
-         {
-            if (eliminate_col[i]) { ncols_to_eliminate++; }
-         }
+         HYPRE_Int *col_idx = hypre_CTAlloc(HYPRE_Int, offd_ncols, HYPRE_MEMORY_DEVICE);
+         thrust::exclusive_scan(
+            thrust::device, eliminate_col, eliminate_col + offd_ncols, col_idx
+         );
+
+         HYPRE_Int partial_sum, last_element;
+         hypre_TMemcpy(&partial_sum, col_idx + offd_ncols - 1, HYPRE_Int, 1, HYPRE_MEMORY_HOST, HYPRE_MEMORY_DEVICE);
+         hypre_TMemcpy(&last_element, eliminate_col + offd_ncols - 1, HYPRE_Int, 1, HYPRE_MEMORY_HOST, HYPRE_MEMORY_DEVICE);
+         HYPRE_Int ncols_to_eliminate = partial_sum + last_element;
 
          cols_to_eliminate.SetSize(ncols_to_eliminate);
-         cols_to_eliminate = 0.0;
+         HYPRE_Int *cols = cols_to_eliminate.Write();
 
-         ncols_to_eliminate = 0;
-         for (int i = 0; i < offd_ncols; i++)
+         MFEM_FORALL(i, offd_ncols,
          {
             if (eliminate_col[i])
             {
-               cols_to_eliminate[ncols_to_eliminate++] = i;
+               cols[col_idx[i]] = i;
             }
-         }
+         });
 
-         hypre_TFree(int_buf_data, HYPRE_MEMORY_HOST);
-         hypre_TFree(eliminate_row, HYPRE_MEMORY_HOST);
-         hypre_TFree(eliminate_col, HYPRE_MEMORY_HOST);
+         hypre_TFree(int_buf_data, HYPRE_MEMORY_DEVICE);
+         hypre_TFree(eliminate_row, HYPRE_MEMORY_DEVICE);
+         hypre_TFree(eliminate_col, HYPRE_MEMORY_DEVICE);
+         hypre_TFree(col_idx, HYPRE_MEMORY_DEVICE);
       }
 
       // Eliminate columns in the off-diagonal block
