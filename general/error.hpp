@@ -165,18 +165,39 @@ __device__ void abort_msg(T & msg)
 
 // Abort inside a device kernel
 #if defined(__CUDA_ARCH__)
-#define MFEM_ABORT_KERNEL(msg) \
+#define MFEM_ABORT_KERNEL(...) \
    {                           \
-      printf(msg);             \
+      printf(__VA_ARGS__);     \
       asm("trap;");            \
    }
-#elif defined(MFEM_USE_HIP)
-#define MFEM_ABORT_KERNEL(msg) \
+#elif defined(__HIP_DEVICE_COMPILE__)
+#define MFEM_ABORT_KERNEL(...) \
    {                           \
-      abort_msg(msg);          \
+      printf(__VA_ARGS__);     \
+      abort_msg("");           \
    }
 #else
-#define MFEM_ABORT_KERNEL(msg) MFEM_ABORT(msg)
+#define MFEM_ABORT_KERNEL(...)       \
+   printf(__VA_ARGS__);              \
+   MFEM_ABORT("")
+#endif
+
+// Verify inside a device kernel
+#define MFEM_VERIFY_KERNEL(x,...)    \
+   if (!(x))                         \
+   {                                 \
+      MFEM_ABORT_KERNEL(__VA_ARGS__) \
+   }                                 \
+
+// Assert inside a device kernel
+#ifdef MFEM_DEBUG
+#define MFEM_ASSERT_KERNEL(x,...)    \
+   if (!(x))                         \
+   {                                 \
+      MFEM_ABORT_KERNEL(__VA_ARGS__) \
+   }
+#else
+#define MFEM_ASSERT_KERNEL(x,...)
 #endif
 
 #endif
