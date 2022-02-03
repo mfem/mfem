@@ -602,33 +602,20 @@ int main(int argc, char *argv[])
       dc->Save();
    }
 
-   ParaViewDataCollection *pd = NULL;
-   if (paraview)
-   {
-      pd = new ParaViewDataCollection("imMHDp", pmesh);
-      pd->SetPrefixPath("ParaView");
-      pd->RegisterField("psi", &psi);
-      pd->RegisterField("phi", &phi);
-      pd->RegisterField("omega", &w);
-      pd->RegisterField("current", &j);
-      pd->SetLevelsOfDetail(order);
-      pd->SetDataFormat(VTKFormat::BINARY);
-      pd->SetHighOrderOutput(true);
-      pd->SetCycle(0);
-      pd->SetTime(0.0);
-      pd->Save();
-   }
-
    //++++recover pressure and vector fields++++
    ParFiniteElementSpace *vfes;
    ParGridFunction *vel, *mag, *force_diff, *gfv, *pre;
    ParMixedBilinearForm *grad, *div;
    ParNonlinearForm *convect;
-   ParLinearForm *zLF, *zLFscalar, *zJxB; 
+   ParLinearForm *zLF, *zLFscalar, *zJxB=nullptr; 
    ParBilinearForm *Mfull, *Mrot;
    Vector zv, zv2, zscalar, zscalar2;
    HypreParMatrix *MfullMat;
    const IntegrationRule &ir = IntRules.Get(fespace.GetFE(0)->GetGeomType(), 3*order);
+   CGSolver M_solver(MPI_COMM_WORLD);
+   HypreSmoother *M_prec;
+   Vector vtrue, rhs, vJxB;
+   VectorDomainLFIntegrator *domainJxB=nullptr;
 
    if(compute_pressure)
    {
@@ -643,9 +630,13 @@ int main(int argc, char *argv[])
       convect = new ParNonlinearForm(vfes);
       zLF  = new ParLinearForm(vfes);
       zLFscalar = new ParLinearForm(&fespace);
-      zJxB = new ParLinearForm(vfes);
       Mfull = new ParBilinearForm(vfes);
       Mrot = new ParBilinearForm(vfes);
+
+      int vfes_truevsize = vfes->GetTrueVSize();
+      vtrue.SetSize(vfes_truevsize);
+      rhs.SetSize(vfes_truevsize);
+      vJxB.SetSize(vfes_truevsize);
 
       DenseMatrix A(2);
       A(0,0) = 0.0; A(0,1) =-1.0;
@@ -657,6 +648,16 @@ int main(int argc, char *argv[])
       Mfull->Assemble();
       Mfull->Finalize();
       MfullMat = Mfull->ParallelAssemble();
+
+      M_solver.iterative_mode = false;
+      M_solver.SetRelTol(1e-7);
+      M_solver.SetAbsTol(0.0);
+      M_solver.SetMaxIter(2000);
+      M_solver.SetPrintLevel(0);
+      M_prec = new HypreSmoother;  
+      M_prec->SetType(HypreSmoother::Jacobi);
+      M_solver.SetPreconditioner(*M_prec);
+      M_solver.SetOperator(*MfullMat);
 
       //gradient operator from H1 to Vector H1
       grad->AddDomainIntegrator(new GradientIntegrator);
@@ -679,6 +680,23 @@ int main(int argc, char *argv[])
       zv2.SetSize(vfes->TrueVSize());
       zscalar.SetSize(fespace.TrueVSize());
       zscalar2.SetSize(fespace.TrueVSize());
+   }
+
+   ParaViewDataCollection *pd = NULL;
+   if (paraview)
+   {
+      pd = new ParaViewDataCollection("imMHDp", pmesh);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("psi", &psi);
+      pd->RegisterField("phi", &phi);
+      pd->RegisterField("omega", &w);
+      pd->RegisterField("current", &j);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(0);
+      pd->SetTime(0.0);
+      pd->Save();
    }
 
    MPI_Barrier(MPI_COMM_WORLD); 
@@ -956,17 +974,6 @@ int main(int argc, char *argv[])
    //recover pressure in the post processing
    if(compute_pressure)
    {
-      CGSolver M_solver(MPI_COMM_WORLD);
-      M_solver.iterative_mode = false;
-      M_solver.SetRelTol(1e-7);
-      M_solver.SetAbsTol(0.0);
-      M_solver.SetMaxIter(2000);
-      M_solver.SetPrintLevel(0);
-      HypreSmoother *M_prec = new HypreSmoother;  
-      M_prec->SetType(HypreSmoother::Jacobi);
-      M_solver.SetPreconditioner(*M_prec);
-      M_solver.SetOperator(*MfullMat);
-
       //compute velocity 
       grad->Mult(phi, *zLF);
       zLF->ParallelAssemble(zv);
@@ -992,18 +999,15 @@ int main(int argc, char *argv[])
       mag->SetFromTrueDofs(zv2);
 
       //compute -Δp=div(u.grad u - JxB)
-      Vector vtrue, rhs, vJxB;
-      int vfes_truevsize = vfes->GetTrueVSize();
-      vtrue.SetSize(vfes_truevsize);
-      rhs.SetSize(vfes_truevsize);
-      vJxB.SetSize(vfes_truevsize);
-
       vel->GetTrueDofs(vtrue);
       convect->Mult(vtrue, rhs);  //nonlinear form only works with true dofs?
 
       JxBCoefficient JxBCoeff(&j, mag);
-      VectorDomainLFIntegrator *domainJxB = new VectorDomainLFIntegrator(JxBCoeff);
+      delete domainJxB;
+      domainJxB = new VectorDomainLFIntegrator(JxBCoeff);
       domainJxB->SetIntRule(&ir);
+      delete zJxB;
+      zJxB = new ParLinearForm(vfes);
       zJxB->AddDomainIntegrator(domainJxB);
       zJxB->Assemble();
       zJxB->ParallelAssemble(vJxB);
