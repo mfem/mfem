@@ -78,7 +78,6 @@ void BlockStaticCondensation::SetSpaces(Array<FiniteElementSpace*> & fes_)
                                          fes[i]->GetOrdering());
       if (tr_fes[i]) { rblocks++; }
    }
-
    Init();
 }
 
@@ -490,88 +489,20 @@ void BlockStaticCondensation::ConformingAssemble(int skip_zeros)
 
    BlockMatrix * Pt = Transpose(*P);
    BlockMatrix * PtA = mfem::Mult(*Pt, *S);
-   S->owns_blocks = 0;
-   for (int i = 0; i<rblocks; i++)
-   {
-      for (int j = 0; j<rblocks; j++)
-      {
-         SparseMatrix * tmp = &S->GetBlock(i,j);
-         if (Pt->IsZeroBlock(i,i))
-         {
-            PtA->SetBlock(i,j,tmp);
-         }
-         else
-         {
-            delete tmp;
-         }
-      }
-   }
    delete S;
    if (S_e)
    {
       BlockMatrix *PtAe = mfem::Mult(*Pt, *S_e);
-      S_e->owns_blocks = 0;
-      for (int i = 0; i<rblocks; i++)
-      {
-         for (int j = 0; j<rblocks; j++)
-         {
-            SparseMatrix * tmp = &S_e->GetBlock(i,j);
-            if (Pt->IsZeroBlock(i,i))
-            {
-               PtAe->SetBlock(i,j,tmp);
-            }
-            else
-            {
-               delete tmp;
-            }
-         }
-      }
       delete S_e;
       S_e = PtAe;
    }
    delete Pt;
-
    S = mfem::Mult(*PtA, *P);
-
-   PtA->owns_blocks = 0;
-   for (int i = 0; i<rblocks; i++)
-   {
-      for (int j = 0; j<rblocks; j++)
-      {
-         SparseMatrix * tmp = &PtA->GetBlock(j,i);
-         if (P->IsZeroBlock(i,i))
-         {
-            S->SetBlock(j,i,tmp);
-         }
-         else
-         {
-            delete tmp;
-         }
-      }
-   }
    delete PtA;
 
    if (S_e)
    {
       BlockMatrix *PtAeP = mfem::Mult(*S_e, *P);
-      S_e->owns_blocks = 0;
-      for (int i = 0; i<rblocks; i++)
-      {
-         for (int j = 0; j<rblocks; j++)
-         {
-            SparseMatrix * tmp = &S_e->GetBlock(j,i);
-            if (P->IsZeroBlock(i,i))
-            {
-               PtAeP->SetBlock(j,i,tmp);
-            }
-            else
-            {
-               delete tmp;
-            }
-         }
-      }
-
-      delete S_e;
       S_e = PtAeP;
    }
    height = S->Height();
@@ -606,7 +537,6 @@ void BlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
       Finalize(remove_zeros);
    }
 }
-
 
 
 void BlockStaticCondensation::ConvertMarkerToReducedTrueDofs(

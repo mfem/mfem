@@ -82,7 +82,7 @@ void ParNormalEquations::ParallelAssemble(BlockMatrix *m)
 void ParNormalEquations::BuildProlongation()
 {
    P = new BlockOperator(dof_offsets, tdof_offsets);
-   R = new BlockOperator(tdof_offsets, dof_offsets);
+   R = new BlockMatrix(tdof_offsets, dof_offsets);
    P->owns_blocks = 0;
    R->owns_blocks = 0;
 

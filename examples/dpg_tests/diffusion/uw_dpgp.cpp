@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
    bool adjoint_graph_norm = false;
    bool visualization = true;
    int iprob = 0;
+   bool static_cond = false;
 
 
    OptionsParser args(argc, argv);
@@ -85,7 +86,9 @@ int main(int argc, char *argv[])
                   "-no-graph-norm", "--no-adjoint-graph-norm",
                   "Enable or disable Adjoint Graph Norm on the test space");   
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: lshape, 1: General");                              
+                  " 0: lshape, 1: General");       
+   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
+                  "--no-static-condensation", "Enable static condensation.");                                            
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -221,6 +224,8 @@ int main(int argc, char *argv[])
       sigma_out.open(vishost, visport);
    }
 
+
+   if (static_cond) { a->EnableStaticCondensation(); }
 
    for (int i = 0; i<ref; i++)
    {

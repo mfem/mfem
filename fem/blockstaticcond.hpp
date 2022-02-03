@@ -60,6 +60,19 @@ class BlockStaticCondensation
    BlockMatrix * P = nullptr; // Block Prolongation
    BlockMatrix * R = nullptr; // Block Restriction
 
+#ifdef MFEM_USE_MPI
+   Array<ParFiniteElementSpace *> pfes;
+   Array<ParFiniteElementSpace *> tr_pfes;
+   BlockOperator * pS = nullptr;
+   BlockOperator * pS_e = nullptr;
+   // Block HypreParMatrix for Prolongation
+   BlockOperator * pP = nullptr;
+   bool Parallel() const { return (tr_fes.Size() != 0); }
+#else
+   bool Parallel() const { return false; }
+#endif
+
+
    // tr_idx (trace dofs indices)
    // int_idx (interior dof indices)
    void GetReduceElementIndicesAndOffsets(int el, Array<int> & tr_idx,
@@ -118,7 +131,12 @@ public:
 
    bool HasEliminatedBC() const
    {
+#ifndef MFEM_USE_MPI
       return S_e;
+#else
+      return S_e || pS_e;
+#endif
+
    }
 
    /// Return the serial Schur complement matrix.

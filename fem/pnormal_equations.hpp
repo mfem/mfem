@@ -43,7 +43,7 @@ protected:
 
    // Block operator of HypreParMatrix
    BlockOperator * P = nullptr; // Block Prolongation
-   BlockOperator * R = nullptr; // Block Restriction
+   BlockMatrix * R = nullptr; // Block Restriction
 
    // Block operator of HypreParMatrix
    BlockOperator * p_mat = nullptr;
