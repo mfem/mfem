@@ -178,7 +178,7 @@ public:
    void UseGPUSparse(bool useGPUSparse_ = true) { useGPUSparse = useGPUSparse_;}
    /// Deprecated equivalent of UseGPUSparse().
    MFEM_DEPRECATED
-   void UseCUSparse(bool useCUSparse_ = true) { UseGPUSparse(useCUSparse_); }
+   void UseCuSparse(bool useCuSparse_ = true) { UseGPUSparse(useCuSparse_); }
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);
@@ -200,7 +200,7 @@ public:
    void ClearGPUSparse();
    /// Deprecated equivalent of ClearGPUSparse().
    MFEM_DEPRECATED
-   void ClearCUSparse() { ClearGPUSparse(); }
+   void ClearCuSparse() { ClearGPUSparse(); }
 
    /// Check if the SparseMatrix is empty.
    bool Empty() const { return (A == NULL) && (Rows == NULL); }
