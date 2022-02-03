@@ -43,9 +43,11 @@ const int MAX_Q1D = 14;
 #endif
 
 #if defined(HYPRE_USING_CUDA)
-#define GPU_WRAP1D CuWrap1D
+#define MFEM_GPU_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
+                                       (int i) {__VA_ARGS__})
 #elif defined(HYPRE_USING_HIP)
-#define GPU_WRAP1D HipWrap1D
+#define MFEM_GPU_FORALL(i, N,...) HipWrap1D(N, [=] MFEM_DEVICE     \
+                                        (int i) {__VA_ARGS__})
 #endif
 
 // Implementation of MFEM's "parallel for" (forall) device/host kernel

@@ -3255,7 +3255,7 @@ void HypreSmoother::SetOperator(const Operator &op)
    {
 #if defined(HYPRE_USING_GPU)
       double *d_l1_norms = l1_norms;  // avoid *this capture
-      GPU_WRAP1D(height, [=] MFEM_DEVICE (int i)
+      MFEM_GPU_FORALL(i, height,
       {
          d_l1_norms[i] = std::abs(d_l1_norms[i]);
       });
@@ -4728,7 +4728,7 @@ void HypreBoomerAMG::RecomputeRBMs()
 void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
 {
 #ifdef HYPRE_USING_GPU
-   MFEM_ABORT("this method is not supported in hypre built with CUDA");
+   MFEM_ABORT("this method is not supported in hypre built with GPU support");
 #endif
 
    // Save the finite element space to support multiple calls to SetOperator()

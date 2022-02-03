@@ -487,7 +487,7 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
       if (!spaces[0]->GetParMesh()->Nonconforming())
       {
 #if !defined(HYPRE_USING_GPU)
-         // Not available yet when hypre is built with GPU
+         // Not available yet when hypre is built with GPU support
          stiff_prec_amg->SetElasticityOptions(spaces[0]);
 #endif
       }
