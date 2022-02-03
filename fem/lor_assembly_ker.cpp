@@ -15,73 +15,16 @@
 #define MFEM_DEBUG_COLOR 187
 #include "../general/debug.hpp"
 
+#define MFEM_NVTX_COLOR SlateBlue
+#include "../general/nvtx.hpp"
+
 namespace mfem
 {
 
-void NodalInterpolation3D(const int NE, const int D1D, const int Q1D,
+template<int D1D, int Q1D>
+void NodalInterpolation3D(const int NE,
                           const Vector& localL, Vector& localH,
-                          const Array<double>& B)
-{
-   static constexpr int VDIM = 3;
-   auto x_ = Reshape(localL.Read(), D1D, D1D, D1D, VDIM, NE);
-   auto y_ = Reshape(localH.Write(), VDIM, Q1D, Q1D, Q1D, NE);
-   auto B_ = Reshape(B.Read(), Q1D, D1D);
-
-   localH = 0.0;
-
-   MFEM_FORALL(e, NE,
-   {
-      for (int vd = 0; vd < VDIM; ++vd)
-      {
-         for (int dz = 0; dz < D1D; ++dz)
-         {
-            double sol_xy[MAX_Q1D][MAX_Q1D];
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  sol_xy[qy][qx] = 0.0;
-               }
-            }
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               double sol_x[MAX_Q1D];
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  sol_x[qx] = 0;
-               }
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  const double s = x_(dx, dy, dz, vd, e);
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     sol_x[qx] += B_(qx, dx) * s;
-                  }
-               }
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  const double wy = B_(qy, dy);
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     sol_xy[qy][qx] += wy * sol_x[qx];
-                  }
-               }
-            }
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               const double wz = B_(qz, dz);
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  for (int qx = 0; qx < Q1D; ++qx)
-                  {
-                     y_(vd, qx, qy, qz, e) += wz * sol_xy[qy][qx];
-                  }
-               }
-            }
-         }
-      }
-   });
-}
+                          const Array<double>& B);
 
 template <int order, bool USE_SMEM = true>
 void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
@@ -136,8 +79,8 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
    MFEM_VERIFY(ir.Size() == ndof_per_el, "");
 
    // Get the map from mesh nodes to LOR vertices
-   const DofToQuad& maps = nodal_fes->GetFE(0)->GetDofToQuad(ir,
-                                                             DofToQuad::TENSOR);
+   const DofToQuad& maps =
+      nodal_fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
 
    // Map from nodal E-vector to L-vector
    Vector nodes_loc(nodal_restriction->Height());
@@ -149,7 +92,26 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
    X_loc.UseDevice(true);
 
    // Get the LOR vertex coordinates
-   NodalInterpolation3D(nel_ho, nodal_nd1d, nd1d, nodes_loc, X_loc, maps.B);
+   MFEM_VERIFY(nd1d==order+1, "nd1d!=order+1");
+   switch (nodal_nd1d)
+   {
+      case 2:
+      {
+         NodalInterpolation3D<2,nd1d>(nel_ho, nodes_loc, X_loc, maps.B);
+         break;
+      }
+      case 4:
+      {
+         NodalInterpolation3D<4,nd1d>(nel_ho, nodes_loc, X_loc, maps.B);
+         break;
+      }
+      case 6:
+      {
+         NodalInterpolation3D<6,nd1d>(nel_ho, nodes_loc, X_loc, maps.B);
+         break;
+      }
+      default: MFEM_ABORT("Unsuported mesh order!");
+   }
    auto X = X_loc.Read();
 
    // Last GRID dimension is lowered to avoid too many resources
@@ -169,7 +131,7 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
          {
             MFEM_FOREACH_THREAD(ix,x,nd1d)
             {
-               MFEM_UNROLL(27)
+               //MFEM_UNROLL(27)
                for (int j=0; j<nnz_per_row; ++j)
                {
                   V(j,ix,iy,iz) = 0.0;
@@ -254,13 +216,13 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                const double v7y = X[e7 + 1];
                const double v7z = X[e7 + 2];
 
-               MFEM_UNROLL(2)
+               //MFEM_UNROLL(2)
                for (int iqz=0; iqz<2; ++iqz)
                {
-                  MFEM_UNROLL(2)
+                  //MFEM_UNROLL(2)
                   for (int iqy=0; iqy<2; ++iqy)
                   {
-                     MFEM_UNROLL(2)
+                     //MFEM_UNROLL(2)
                      for (int iqx=0; iqx<2; ++iqx)
                      {
 
@@ -333,21 +295,21 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                   }
                }
 
-               MFEM_UNROLL(2)
+               //MFEM_UNROLL(2)
                for (int iqx=0; iqx<2; ++iqx)
                {
-                  MFEM_UNROLL(2)
+                  //MFEM_UNROLL(2)
                   for (int jz=0; jz<2; ++jz)
                   {
                      // Note loop starts at iz=jz here, taking advantage of
                      // symmetries.
-                     MFEM_UNROLL(2)
+                     //MFEM_UNROLL(2)
                      for (int iz=jz; iz<2; ++iz)
                      {
-                        MFEM_UNROLL(2)
+                        //MFEM_UNROLL(2)
                         for (int iqy=0; iqy<2; ++iqy)
                         {
-                           MFEM_UNROLL(2)
+                           //MFEM_UNROLL(2)
                            for (int iqz=0; iqz<2; ++iqz)
                            {
                               const double biz = (iz == iqz) ? 1.0 : 0.0;
@@ -376,10 +338,10 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                               grad_A(1,2,iqy,iz,jz,iqx) += J23*biz*gjz;
                               grad_A(2,2,iqy,iz,jz,iqx) += J33*giz*gjz;
                            }
-                           MFEM_UNROLL(2)
+                           //MFEM_UNROLL(2)
                            for (int jy=0; jy<2; ++jy)
                            {
-                              MFEM_UNROLL(2)
+                              //MFEM_UNROLL(2)
                               for (int iy=0; iy<2; ++iy)
                               {
                                  const double biy = (iy == iqy) ? 1.0 : 0.0;
@@ -400,16 +362,16 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                               }
                            }
                         }
-                        MFEM_UNROLL(2)
+                        //MFEM_UNROLL(2)
                         for (int jy=0; jy<2; ++jy)
                         {
-                           MFEM_UNROLL(2)
+                           //MFEM_UNROLL(2)
                            for (int jx=0; jx<2; ++jx)
                            {
-                              MFEM_UNROLL(2)
+                              //MFEM_UNROLL(2)
                               for (int iy=0; iy<2; ++iy)
                               {
-                                 MFEM_UNROLL(2)
+                                 //MFEM_UNROLL(2)
                                  for (int ix=0; ix<2; ++ix)
                                  {
                                     const double bix = (ix == iqx) ? 1.0 : 0.0;
@@ -447,7 +409,7 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                // Assemble the local matrix into the macro-element sparse matrix
                // in a format similar to coordinate format. The (I,J) arrays
                // are implicit (not stored explicitly).
-               MFEM_UNROLL(8)
+               //MFEM_UNROLL(8)
                for (int ii_loc=0; ii_loc<8; ++ii_loc)
                {
                   const int ix = ii_loc%2;
@@ -556,7 +518,7 @@ LOR_KERNEL_INSTANCE(2,true);
 LOR_KERNEL_INSTANCE(3,true);
 LOR_KERNEL_INSTANCE(4,true);
 LOR_KERNEL_INSTANCE(5,true);
-LOR_KERNEL_INSTANCE(6,false);
+LOR_KERNEL_INSTANCE(6,false);/*
 LOR_KERNEL_INSTANCE(7,false);
 LOR_KERNEL_INSTANCE(8,false);
 LOR_KERNEL_INSTANCE(9,false);
@@ -566,6 +528,6 @@ LOR_KERNEL_INSTANCE(12,false);
 LOR_KERNEL_INSTANCE(13,false);
 LOR_KERNEL_INSTANCE(14,false);
 LOR_KERNEL_INSTANCE(15,false);
-LOR_KERNEL_INSTANCE(16,false);
+LOR_KERNEL_INSTANCE(16,false);*/
 
 } // namespace mfem
