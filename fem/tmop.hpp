@@ -1431,7 +1431,7 @@ protected:
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, H, C0, LD, H0;
-      mutable Vector C0sf, Hsf, SFG, Esf, Osf, SFM;
+      mutable Vector C0sf, Hsf, Gsf, SFG, Esf, Osf, SFM;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const DofToQuad *maps_surf = nullptr;
