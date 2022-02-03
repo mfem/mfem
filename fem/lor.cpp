@@ -23,6 +23,7 @@
 
 #define MFEM_NVTX_COLOR Turquoise
 #include "../general/nvtx.hpp"
+#include <limits.h>
 
 namespace mfem
 {
@@ -317,8 +318,9 @@ void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
    {
       dbg("supports_batched_assembly");
       fes_ho.GetMesh()->EnsureNodes();
-      ParFiniteElementSpace *pfes_ho = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
 #ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes_ho =
+         dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
       if (pfes_ho)
       {
          dbg("=> PARALLEL AssembleBatchedLOR");
@@ -638,6 +640,7 @@ void LORRestriction::SetupLocalToElement()
 
    auto d_offsets = offsets.Write();
    const int NDOFS = ndofs;
+   dbg();
    MFEM_FORALL(i, NDOFS+1, d_offsets[i] = 0;);
 
    const Memory<int> &J = e2dTable_ho.GetJMemory();
@@ -646,13 +649,17 @@ void LORRestriction::SetupLocalToElement()
    const int *d_local_dof_map = local_dof_map.Read();
    const int DOF = dof;
    const int DOF_ho = fe_ho->GetDof();
-   MFEM_FORALL(e, ne,
+   const int NE = ne;
+   const int NR_REF = ne_ref;
+
+   dbg();
+   MFEM_FORALL(e, NE,
    {
-      const int e_ho = e/ne_ref;
-      const int i_ref = e%ne_ref;
+      const int e_ho = e/NR_REF;
+      const int i_ref = e%NR_REF;
       for (int d = 0; d < DOF; ++d)
       {
-         int d_ho = d_local_dof_map[d + i_ref*dof];
+         const int d_ho = d_local_dof_map[d + i_ref*DOF];
          const int sgid = d_elementMap[DOF_ho*e_ho + d_ho];  // signed
          const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          AtomicAdd(d_offsets[gid+1], 1);
@@ -669,13 +676,15 @@ void LORRestriction::SetupLocalToElement()
    auto drw_offsets = offsets.ReadWrite();
    const auto dof_map_mem = fe_dof_map.GetMemory();
    const auto d_dof_map = fe_dof_map.GetMemory().Read(mc,dof_map_mem.Capacity());
-   MFEM_FORALL(e, ne,
+
+   dbg();
+   MFEM_FORALL(e, NE,
    {
-      const int e_ho = e/ne_ref;
-      const int i_ref = e%ne_ref;
+      const int e_ho = e/NR_REF;
+      const int i_ref = e%NR_REF;
       for (int d = 0; d < DOF; ++d)
       {
-         int d_ho = d_local_dof_map[d + i_ref*dof];
+         int d_ho = d_local_dof_map[d + i_ref*DOF];
          const int sdid = d_dof_map[d];  // signed
          // const int did = d;
          const int sgid = d_elementMap[DOF_ho*e_ho + d_ho];  // signed
@@ -687,6 +696,7 @@ void LORRestriction::SetupLocalToElement()
       }
    });
 
+   dbg();
    offsets.HostReadWrite();
    for (int i = ndofs; i > 0; --i) { offsets[i] = offsets[i - 1]; }
    offsets[0] = 0;
@@ -714,6 +724,10 @@ void LORRestriction::SetupGlobalToLocal()
       (*fes_ho.GetFE(0)).GetLexicographicOrdering();
 
    dof_glob2loc_offsets = 0;
+   const Memory<int> &I = fes_ho.GetElementToDofTable().GetIMemory();
+   const Memory<int> &J = fes_ho.GetElementToDofTable().GetJMemory();
+   I.Read(MemoryClass::HOST, I.Capacity());
+   J.Read(MemoryClass::HOST, J.Capacity());
 
    for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
    {

@@ -69,6 +69,10 @@ set(SRCS
   ceed/util.cpp
   linearform.cpp
   lininteg.cpp
+  lor.cpp
+  lor_assembly.cpp
+  lor_assembly_ker.cpp
+  lor_assembly_ni3.cpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
@@ -118,7 +122,6 @@ set(SRCS
   tmop_amr.cpp
   gslib.cpp
   transfer.cpp
-  lor.cpp
   )
 
 set(HDRS
