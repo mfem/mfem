@@ -165,10 +165,10 @@ __device__ void abort_msg(T & msg)
 
 // Abort inside a device kernel
 #if defined(__CUDA_ARCH__)
-#define MFEM_ABORT_KERNEL(...)                              \
-   {                                                        \
-      printf(__VA_ARGS__);                                  \
-      asm("trap;");                                         \
+#define MFEM_ABORT_KERNEL(...) \
+   {                           \
+      printf(__VA_ARGS__);     \
+      asm("trap;");            \
    }
 #elif defined(__HIP_DEVICE_COMPILE__)
 #define MFEM_ABORT_KERNEL(...) \
