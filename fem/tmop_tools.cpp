@@ -574,9 +574,9 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    if (parallel)
    {
 #ifdef MFEM_USE_MPI
-      const ParNonlinearForm *nlf =
+      const ParNonlinearForm *pnlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
-      const ParFiniteElementSpace *pfesc = nlf->ParFESpace();
+      const ParFiniteElementSpace *pfesc = pnlf->ParFESpace();
       Vector x_loc(pfesc->GetVSize());
       pfesc->GetProlongationMatrix()->Mult(x, x_loc);
       for (int i = 0; i < integs.Size(); i++)
