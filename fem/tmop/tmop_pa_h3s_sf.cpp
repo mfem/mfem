@@ -44,8 +44,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_SF_3D,
    const auto SFG = Reshape(surf_fit_gf.Read(), D1D, D1D, D1D, NE);
    const auto SFM = Reshape(surf_fit_mask.Read(), D1D, D1D, D1D, NE);
    const auto G = Reshape(gradq.Read(), Q1D, Q1D, Q1D, DIM, NE);
-   const auto Hin = Reshape(hessq.Read(), Q1D, Q1D, Q1D, DIM, DIM, NE);
-   auto H0 = Reshape(h0_.Write(), Q1D, Q1D, Q1D, DIM, DIM, NE);
+   const auto Hin = Reshape(hessq.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
+   auto H0 = Reshape(h0_.Write(), DIM, DIM, Q1D, Q1D, Q1D, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
@@ -63,12 +63,16 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_SF_3D,
                {
                   for (int j = 0; j < DIM; j++)
                   {
-                     H0(qx, qy, qz, i, j, e) = coeff0 * 2 * surf_fit_normal *
-                                               SFM(qx, qy, qz, e) *
-                                               (Hin(qx, qy, qz, i, j, e) *
-                                                SFG(qx, qy, qz, e) +
-                                                G(qx, qy, qz, i, e) *
-                                                G(qx, qy, qz, j, e));
+                     const double entry = coeff0 * 2 * surf_fit_normal *
+                                          SFM(qx, qy, qz, e) *
+                                          (Hin(i, j, qx, qy, qz, e) *
+                                           SFG(qx, qy, qz, e) +
+                                           G(qx, qy, qz, j, e) *
+                                           G(qx, qy, qz, i, e));
+                      H0(i, j, qx, qy, qz, e) = entry;
+                      if (j != i) {
+                          H0(j, i, qx, qy, qz, e) = entry;
+                      }
                   }
                }
             }
@@ -92,6 +96,7 @@ void TMOP_Integrator::AssembleGradPA_SF_3D(const Vector &X) const
    MFEM_VERIFY(PA.maps_surf->nqpt == Q1D, "");
    const Vector &C0SF = PA.C0sf;
    const Array<double> &G = PA.maps_surf->G;
+   Vector &gradq = PA.Gsf;
 
    QuadratureInterpolator qi = QuadratureInterpolator(*PA.fessf, *PA.irsf);
 
@@ -104,9 +109,8 @@ void TMOP_Integrator::AssembleGradPA_SF_3D(const Vector &X) const
    TensorDerivatives<QVectorLayout::byNODES>(N, vdim, maps, X, jacobians);
    constexpr QVectorLayout L = QVectorLayout::byNODES;
    constexpr bool P = true; // GRAD_PHYS
-   Vector gradq(nqp*N*dim);
+   //Vector gradq(nqp*N*dim);
    const double *J = jacobians.Read();
-
 
    Vector hessq(nqp*N*dim*dim);
    Vector &Hsf = PA.Hsf;
@@ -117,9 +121,9 @@ void TMOP_Integrator::AssembleGradPA_SF_3D(const Vector &X) const
                << " are not supported!");
    MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
                << MQ << " 1D points are not supported!");
-   Derivatives3D<L,P,0,0,0,MD,MQ>(N,B,G,J,SFG,gradq,1,D1D,Q1D);
+   //Derivatives3D<L,P,0,0,0,MD,MQ>(N,B,G,J,SFG,gradq,1,D1D,Q1D);
 
-   Derivatives3D<L,P,0,0,0,MD,MQ>(N,B,G,J,gradq,hessq,dim,D1D,Q1D);
+   Derivatives3D<QVectorLayout::byVDIM,P,0,0,0,MD,MQ>(N,B,G,J,gradq.GetData(),hessq,dim,D1D,Q1D);
 
    MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_SF_3D,id,sn,SFM,SFG,gradq,hessq,C0SF,N,Hsf);
 }

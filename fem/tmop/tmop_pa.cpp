@@ -168,6 +168,9 @@ void TMOP_Integrator::AssemblePA_SurfFit()
    PA.Hsf.UseDevice(true);
    PA.Hsf.SetSize(PA.dim * PA.dim * PA.nqsf * NE, mt);
 
+   PA.Gsf.UseDevice(true);
+   PA.Gsf.SetSize(PA.dim * PA.nqsf * NE, mt);
+
    PA.Esf.UseDevice(true);
    PA.Esf.SetSize(NE*PA.nqsf, Device::GetDeviceMemoryType());
 

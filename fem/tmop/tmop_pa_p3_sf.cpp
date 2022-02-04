@@ -35,7 +35,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_SF_3D,
    const bool const_c0 = c0sf_.Size() == 1;
    constexpr int DIM = 3;
 
-
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -51,7 +50,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_SF_3D,
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-
+      for (int d = 0; d < DIM; d++) {
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -60,7 +59,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_SF_3D,
             {
                const double coeff = const_c0 ? C0SF(0, 0, 0, 0) :
                                     C0SF(qx, qy, qz, e);
-               for (int d = 0; d < DIM; d++) {
                   Y(qx, qy, qz, d, e) += 2 * surf_fit_normal * coeff *
                                      SFM(qx, qy, qz, e) *
                                      SFG(qx, qy, qz, e) *
@@ -87,6 +85,7 @@ void TMOP_Integrator::AddMultPA_SF_3D(const Vector &X, Vector &Y) const
    const Vector &C0SF = PA.C0sf;
    const Array<double> &G = PA.maps_surf->G;
    const Array<double> &B   = PA.maps_surf->B;
+   Vector &gradq = PA.Gsf;
 
    PA.fessf->GetMesh()->DeleteGeometricFactors();
    QuadratureInterpolator qi = QuadratureInterpolator(*PA.fessf, *PA.irsf);
@@ -100,7 +99,7 @@ void TMOP_Integrator::AddMultPA_SF_3D(const Vector &X, Vector &Y) const
    TensorDerivatives<QVectorLayout::byNODES>(N, vdim, maps, X, jacobians);
    constexpr QVectorLayout L = QVectorLayout::byNODES;
    constexpr bool P = true; // GRAD_PHYS
-   Vector gradq(nqp*N*dim);
+   //Vector gradq(nqp*N*dim);
    const double *J = jacobians.Read();
 
    constexpr int MD = MAX_D1D;
@@ -109,7 +108,8 @@ void TMOP_Integrator::AddMultPA_SF_3D(const Vector &X, Vector &Y) const
                << " are not supported!");
    MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
                << MQ << " 1D points are not supported!");
-   Derivatives3D<L,P,0,0,0,MD,MQ>(N,B,G,J,SFG,gradq,1,D1D,Q1D);
+   double *gradqrw = gradq.ReadWrite();
+   Derivatives3D<L,P,0,0,0,MD,MQ>(N,B,G,J,SFG,gradqrw,1,D1D,Q1D);
 
    const bool const_c0 = C0SF.Size() == 1;
    MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_SF_3D,id,sn,SFG,SFM,gradq,C0SF,N,Y);
