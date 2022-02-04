@@ -239,16 +239,12 @@ protected:
    double total_error;
    bool anisotropic;
    Array<int> aniso_flags;
-   int flux_averaging; // see SetFluxAveraging()
    double tichonov_coeff;
+   bool subdomain_reconstruction = true;
 
    BilinearFormIntegrator *integ; ///< Not owned.
    GridFunction *solution; ///< Not owned.
-
-   FiniteElementSpace *flux_space; /**< @brief Ownership based on own_flux_fes.
-      Its Update() method is called automatically by this class when needed. */
    bool with_coeff;
-   bool own_flux_fes; ///< Ownership flag for flux_space.
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -263,79 +259,44 @@ protected:
 
 public:
    /** @brief Construct a new NewZienkiewiczZhuEstimator object.
-    * The arguments are intentionally similar to the ZienkiewiczZhuEstimator
-    * constructor
-       @param integ    This BilinearFormIntegrator must implement the methods
-                       ComputeElementFlux() and ComputeFluxEnergy().
+       @param integ    This BilinearFormIntegrator must implement only the
+                       method ComputeElementFlux().
        @param sol      The solution field whose error is to be estimated.
-       @param flux_fes The ZienkiewiczZhuEstimator assumes ownership of this
-                       FiniteElementSpace and will call its Update() method when
-                       needed.*/
-   NewZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
-                              FiniteElementSpace *flux_fes)
+   */
+   NewZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol)
       : current_sequence(-1),
         total_error(),
         anisotropic(false),
-        flux_averaging(0),
+        subdomain_reconstruction(0),
         tichonov_coeff(0.0),
         integ(&integ),
         solution(&sol),
-        flux_space(flux_fes),
-        with_coeff(false),
-        own_flux_fes(true)
-   { }
-
-   /** @brief Construct a new NewZienkiewiczZhuEstimator object.
-    * The arguments are intentionally similar to the ZienkiewiczZhuEstimator
-    * constructor
-       @param integ    This BilinearFormIntegrator must implement the methods
-                       ComputeElementFlux() and ComputeFluxEnergy().
-       @param sol      The solution field whose error is to be estimated.
-       @param flux_fes The ZienkiewiczZhuEstimator does NOT assume ownership of
-                       this FiniteElementSpace; will call its Update() method
-                       when needed. */
-   NewZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
-                              FiniteElementSpace &flux_fes)
-      : current_sequence(-1),
-        total_error(),
-        anisotropic(false),
-        flux_averaging(0),
-        tichonov_coeff(0.0),
-        integ(&integ),
-        solution(&sol),
-        flux_space(&flux_fes),
-        with_coeff(false),
-        own_flux_fes(false)
+        with_coeff(false)
    { }
 
    /** @brief Consider the coefficient in BilinearFormIntegrator to calculate
        the fluxes for the error estimator.*/
    void SetWithCoeff(bool w_coeff = true) { with_coeff = w_coeff; }
 
-   /** @brief Enable/disable anisotropic estimates. To enable this option, the
-       BilinearFormIntegrator must support the 'd_energy' parameter in its
-       ComputeFluxEnergy() method. */
+   /** @brief Enable/disable anisotropic estimates */
    void SetAnisotropic(bool aniso = true)
    {
-      MFEM_WARNING("Anisotropic refinement is not implemented yet.")
-      anisotropic = aniso;
+      MFEM_ABORT("Anisotropic refinement is not implemented yet.")
    }
 
+   /** @brief Disable reconstructing the flux in patches spanning different
+    *         subdomains. */
+   void DisableReconstructionAcrossSubdomains() { subdomain_reconstruction = false; }
+
    /** @brief Solve a Tichonov-regularized least-squares problem for the
-    *         reconstructed fluxes. This is epsecially helpful for when not
+    *         reconstructed fluxes. This is especially helpful for when not
     *         using tensor product elements, which typically require fewer
-    *         integration points. */
+    *         integration points and, therefore, may lead to an
+    *         ill-conditioned linear system. */
    void SetTichonovRegularization(double lambda = 1.0e-8)
    {
       tichonov_coeff = lambda;
    }
-
-   /** @brief Set the way the flux is averaged (smoothed) across elements.
-
-       When @a fa is zero (default), averaging is performed across interfaces
-       between different mesh attributes. When @a fa is non-zero, the flux is
-       not averaged across interfaces between different mesh attributes. */
-   void SetFluxAveraging(int fa) { flux_averaging = fa; }
 
    /// Return the total error from the last error estimate.
    virtual double GetTotalError() const override { return total_error; }
@@ -359,12 +320,7 @@ public:
    /// Reset the error estimator.
    virtual void Reset() override { current_sequence = -1; }
 
-   /** @brief Destroy a ZienkiewiczZhuEstimator object. Destroys, if owned, the
-       FiniteElementSpace, flux_space. */
-   virtual ~NewZienkiewiczZhuEstimator()
-   {
-      if (own_flux_fes) { delete flux_space; }
-   }
+   virtual ~NewZienkiewiczZhuEstimator() { }
 };
 
 

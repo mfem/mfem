@@ -186,8 +186,7 @@ int main(int argc, char *argv[])
       {
          case 1:
          {
-            auto flux_fes = new FiniteElementSpace(&mesh, &fec, dim);
-            estimator = new NewZienkiewiczZhuEstimator(di, x, flux_fes);
+            estimator = new NewZienkiewiczZhuEstimator(di, x);
             // int flux_order = 4;
             // estimator = new NewZienkiewiczZhuEstimator(di, x, flux_order);
             break;

@@ -928,8 +928,9 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         bool with_coeff = false);
 
 /// Defines the global polynomial space used by NewZZErorrEstimator
-Vector LegendreND(const Vector & x, const Vector &xmax, const Vector &xmin,
-                  int order, int dim, double angle=0.0, const Vector *center=NULL);
+void TensorProductLegendre(int dim, int order, const Vector &x_in,
+                           const Vector &xmax, const Vector &xmin,
+                           Vector &poly, double angle=0.0, const Vector *center=NULL);
 
 /// Defines the a bounding box for the face patches used by NewZZErorrEstimator
 void BoundingBox(Array<int> patch,                // input
@@ -944,9 +945,8 @@ void BoundingBox(Array<int> patch,                // input
 /// A ``true'' ZZ error estimator which uses face-based patches
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,
-                           GridFunction &flux,
                            Vector &error_estimates,
-                           int with_subdomains = 1,
+                           bool subdomain_reconstruction = true,
                            bool with_coeff = false,
                            double tichonov_coeff = 0.0);
 

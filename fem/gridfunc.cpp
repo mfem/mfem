@@ -4085,23 +4085,24 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
    return std::sqrt(total_error);
 }
 
-Vector LegendreND(const Vector &x_in, const Vector &xmax, const Vector &xmin,
-                  int order, int dim, double angle, const Vector *center)
+void TensorProductLegendre(int dim, int order, const Vector &x_in,
+                           const Vector &xmax, const Vector &xmin,
+                           Vector &poly, double angle, const Vector *center)
 {
-   MFEM_VERIFY(order >= 0, "order cannot be negative");
    MFEM_VERIFY(dim >= 1, "dim must be positive");
    MFEM_VERIFY(dim <= 3, "dim cannot be greater than 3");
+   MFEM_VERIFY(order >= 0, "order cannot be negative");
 
-   Vector x(dim);
-   x = x_in;
+   Vector tmp(dim);
+   tmp = x_in;
+
    // bool rotate = (iface == -1 && dim == 2);
    // bool rotate = false;
    bool rotate = true;
+   Vector x(dim);
    if (rotate)
    {
-      x -= *center;
-      Vector tmp(dim);
-      tmp = x;
+      tmp -= *center;
       x[0] = tmp[0]*cos(angle) - tmp[1]*sin(angle);
       x[1] = tmp[0]*sin(angle) + tmp[1]*cos(angle);
    }
@@ -4123,7 +4124,7 @@ Vector LegendreND(const Vector &x_in, const Vector &xmax, const Vector &xmin,
    }
 
    int basis_dimension = pow(order+1,dim);
-   Vector poly(basis_dimension);
+   poly.SetSize(basis_dimension);
    if (dim == 1)
    {
       for (int i = 0; i <= order; i++)
@@ -4156,8 +4157,6 @@ Vector LegendreND(const Vector &x_in, const Vector &xmax, const Vector &xmin,
          }
       }
    }
-
-   return poly;
 }
 
 void BoundingBox(Array<int> patch,         // input
@@ -4174,8 +4173,8 @@ void BoundingBox(Array<int> patch,         // input
    int num_elems = patch.Size();
    IsoparametricTransformation Tr;
 
-   xmax = -std::numeric_limits<double>::max();
-   xmin = std::numeric_limits<double>::max();
+   xmax = -infinity();
+   xmin = infinity();
    angle = 0.0;
    center = 0.0;
    bool rotate = (mesh->GetElementType(patch[0]) == Element::QUADRILATERAL);
@@ -4190,9 +4189,11 @@ void BoundingBox(Array<int> patch,         // input
       Vector physical_pt(2);
       Vector physical_diff(2);
       physical_diff = 0.0;
+      // Get the endpoints of the edge in physical space
+      // then compute
       for (int i = 0; i < 2; i++)
       {
-         reference_pt.Set1w((float)i, 0.0);
+         reference_pt.Set1w((double)i, 0.0);
          Tr.Transform(reference_pt, physical_pt);
          center += physical_pt;
          physical_pt *= pow(-1.0,i);
@@ -4236,15 +4237,13 @@ void BoundingBox(Array<int> patch,         // input
 
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
                            GridFunction &u,
-                           GridFunction &flux,
                            Vector &error_estimates,
-                           int with_subdomains,
+                           bool subdomain_reconstruction,
                            bool with_coeff,
                            double tichonov_coeff)
 {
    MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
    FiniteElementSpace *ufes = u.FESpace();
-   FiniteElementSpace *ffes = flux.FESpace();
    ElementTransformation *Transf;
 
    Mesh *mesh = ufes->GetMesh();
@@ -4269,7 +4268,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
 
    // Compute the number of subdomains
    int nsd = 1;
-   if (with_subdomains)
+   if (subdomain_reconstruction)
    {
       nsd = ufes->GetMesh()->attributes.Max();
    }
@@ -4291,7 +4290,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       }
 
       // 1.C Check if face patch crosses an attribute interface and
-      // continue if true (only active if with_subdomains == true)
+      // continue if true (only active if subdomain_reconstruction == true)
       if (nsd > 1)
       {
          int patch_attr = ufes->GetAttribute(neighbor_elems[0]);
@@ -4349,8 +4348,9 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          // I had to redefine ComputeElementFlux to make this work.
          // *ffes->GetFE(ielem) is an inactive argument, but I didn't want
          // to change the signature of the original function too much.
+         FiniteElement *dummy = nullptr;
          blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
-                                 *ffes->GetFE(ielem), fl, with_coeff, ir);
+                                 *dummy, fl, with_coeff, ir);
          if (fdoftrans)
          {
             fdoftrans->TransformPrimal(fl);
@@ -4365,8 +4365,9 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             Vector transip(tmp, 3);
             Transf->Transform(ip, transip);
 
-            Vector p(num_basis_functions);
-            p = LegendreND(transip, xmax, xmin, patch_order, dim, angle, &center);
+            Vector p;
+            TensorProductLegendre(dim, patch_order, transip, xmax, xmin, p, angle, &center);
+            // p = LegendreND(transip, xmax, xmin, patch_order, dim, angle, &center);
             AddMultVVt(p, A);
 
             for (int l = 0; l < num_basis_functions; l++)
@@ -4406,8 +4407,9 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       // 2.F. Construct l2-minimizing global polynomial
       auto global_poly_tmp = [=] (const Vector &x, Vector &f)
       {
-         Vector p(num_basis_functions);
-         p = LegendreND(x, xmax, xmin, patch_order, dim, angle, &center);
+         Vector p;
+         TensorProductLegendre(dim, patch_order, x, xmax, xmin, p, angle, &center);
+         // p = LegendreND(x, xmax, xmin, patch_order, dim, angle, &center);
          f = 0.0;
          for (int i = 0; i < num_basis_functions; i++)
          {
