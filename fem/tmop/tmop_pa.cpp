@@ -336,12 +336,14 @@ void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
    {
       AssembleDiagonalPA_2D(de);
       if (lim_coeff) { AssembleDiagonalPA_C0_2D(de); }
+      if (surf_fit_coeff) { AssembleDiagonalPA_SF_2D(de); }
    }
 
    if (PA.dim == 3)
    {
       AssembleDiagonalPA_3D(de);
       if (lim_coeff) { AssembleDiagonalPA_C0_3D(de); }
+      if (surf_fit_coeff) { AssembleDiagonalPA_SF_3D(de); }
    }
 }
 
