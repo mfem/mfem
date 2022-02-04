@@ -28,25 +28,17 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_SF_3D,
                            const int q1d)
 {
    constexpr int DIM = 3;
-   constexpr int NBZ = 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto H0 = Reshape(h0_.Read(), Q1D, Q1D, Q1D, DIM, DIM, NE);
-   const auto b = Reshape(b_.Read(), Q1D, D1D);
+   const auto H0 = Reshape(h0_.Read(),  DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto R = Reshape(r_.Read(), D1D, D1D, D1D, DIM, NE);
 
    auto Y = Reshape(c_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
-
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
@@ -68,7 +60,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_SF_3D,
                {
                   for (int j = 0; j < DIM; j++)
                   {
-                     H(i,j) = H0(qx, qy, qz, i, j,e);
+                     H(i,j) = H0(i, j, qx, qy, qz, e);
                   }
                }
 
