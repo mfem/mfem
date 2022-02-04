@@ -56,7 +56,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
 #else
       Aabs->HypreReadWrite();
       double *d_diag_data = AparCSR->diag->data;
-      CuWrap1D(nnzd, [=] MFEM_DEVICE (int i)
+      MFEM_GPU_FORALL(i, nnzd,
       {
          d_diag_data[i] = fabs(d_diag_data[i]);
       });
@@ -70,7 +70,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       }
 #else
       double *d_offd_data = AparCSR->offd->data;
-      CuWrap1D(nnzoffd, [=] MFEM_DEVICE (int i)
+      MFEM_GPU_FORALL(i, nnzoffd,
       {
          d_offd_data[i] = fabs(d_offd_data[i]);
       });
