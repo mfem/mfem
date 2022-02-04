@@ -49,6 +49,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_SF_3D,
 
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
       for (int d = 0; d < DIM; d++) {
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -58,7 +59,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_SF_3D,
             {
                const double coeff = const_c0 ? C0SF(0, 0, 0, 0) :
                                     C0SF(qx, qy, qz, e);
-               //for (int d = 0; d < DIM; d++) {
                   Y(qx, qy, qz, d, e) += 2 * surf_fit_normal * coeff *
                                      SFM(qx, qy, qz, e) *
                                      SFG(qx, qy, qz, e) *
