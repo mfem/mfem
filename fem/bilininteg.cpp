@@ -1002,7 +1002,6 @@ void DiffusionIntegrator::ComputeElementFlux
    vecdxt.SetSize(spaceDim);
    pointflux.SetSize(MQ || VQ ? spaceDim : 0);
 
-   // const IntegrationRule &ir = fluxelem.GetNodes();
    if (!ir)
    {
       ir = &fluxelem.GetNodes();
@@ -1953,6 +1952,8 @@ void CurlCurlIntegrator
    DenseMatrix projcurl;
 #endif
 
+   MFEM_VERIFY(ir == NULL, "Integration rule (ir) must be NULL")
+
    fluxelem.ProjectCurl(el, Trans, projcurl);
 
    flux.SetSize(projcurl.Height());
@@ -2804,7 +2805,6 @@ void ElasticityIntegrator::ComputeElementFlux(
    DenseMatrix gh(gh_data, dim, dim);
    DenseMatrix grad(grad_data, dim, dim);
 
-   // const IntegrationRule &ir = fluxelem.GetNodes();
    if (!ir)
    {
       ir = &fluxelem.GetNodes();

@@ -293,9 +293,10 @@ public:
     *         using tensor product elements, which typically require fewer
     *         integration points and, therefore, may lead to an
     *         ill-conditioned linear system. */
-   void SetTichonovRegularization(double lambda = 1.0e-8)
+   void SetTichonovRegularization(double tcoeff = 1.0e-8)
    {
-      tichonov_coeff = lambda;
+      MFEM_VERIFY(tcoeff >= 0.0, "Tichonov coefficient cannot be negative");
+      tichonov_coeff = tcoeff;
    }
 
    /// Return the total error from the last error estimate.
@@ -313,7 +314,7 @@ public:
        enabled. */
    virtual const Array<int> &GetAnisotropicFlags() override
    {
-      if (MeshIsModified()) { ComputeEstimates(); }
+      MFEM_ABORT("Anisotropic refinement is not implemented yet.")
       return aniso_flags;
    }
 

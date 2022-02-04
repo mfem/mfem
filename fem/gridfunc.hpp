@@ -486,8 +486,8 @@ public:
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
 
-   /// Returns ||grad u_ex - grad u_h||_L2 in element i for H1 or L2 elements
-   virtual double ComputeElementGradError(int i, VectorCoefficient *exgrad,
+   /// Returns ||grad u_ex - grad u_h||_L2 in element ielem for H1 or L2 elements
+   virtual double ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
                                           const IntegrationRule *irs[] = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
@@ -927,28 +927,47 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         int with_subdomains = 1,
                         bool with_coeff = false);
 
-/// Defines the global polynomial space used by NewZZErorrEstimator
-void TensorProductLegendre(int dim, int order, const Vector &x_in,
-                           const Vector &xmax, const Vector &xmin,
-                           Vector &poly, double angle=0.0, const Vector *center=NULL);
+/// Defines the global tensor product polynomial space used by NewZZErorrEstimator
+/**
+ *  See BoundingBox(...) for a description of @a angle and @a midpoint
+ */
+void TensorProductLegendre(int dim,                      // input
+                           int order,                    // input
+                           const Vector &x_in,           // input
+                           const Vector &xmax,           // input
+                           const Vector &xmin,           // input
+                           Vector &poly,                 // output
+                           double angle=0.0,             // input (optional)
+                           const Vector *midpoint=NULL); // input (optional)
 
-/// Defines the a bounding box for the face patches used by NewZZErorrEstimator
-void BoundingBox(Array<int> patch,                // input
+/// Defines the bounding box for the face patches used by NewZZErorrEstimator
+/**
+ *  By default, BoundingBox(...) computes the parameters of a minimal bounding box
+ *  for the given @a face_patch that is aligned with the physical (i.e. global)
+ *  Cartesian axes. This means that the size of the bounding box with depend on the
+ *  orientation of the patch. It is better to contruct an orientation-independent box.
+ *  This is implemented for patches made up of quadrilaterals. The parameters @a angle
+ *  and @a midpoint encode this additional geometric information.
+ * 
+ *      @a angle     : the angle the patch face makes with the x-axis
+ *      @a midpoint  : the midpoint of the face
+ */
+void BoundingBox(Array<int> face_patch,    // input
                  FiniteElementSpace *ufes, // input
                  int order,                // input
                  Vector &xmin,             // output
                  Vector &xmax,             // output
                  double &angle,            // output
-                 Vector &center,           // output
+                 Vector &midpoint,         // output
                  int iface=-1);            // input (optional)
 
 /// A ``true'' ZZ error estimator which uses face-based patches
-double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
-                           GridFunction &u,
-                           Vector &error_estimates,
-                           bool subdomain_reconstruction = true,
-                           bool with_coeff = false,
-                           double tichonov_coeff = 0.0);
+double NewZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
+                           GridFunction &u,                      // input
+                           Vector &error_estimates,              // output
+                           bool subdomain_reconstruction = true, // input (optional)
+                           bool with_coeff = false,              // input (optional)
+                           double tichonov_coeff = 0.0);         // input (optional)
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,

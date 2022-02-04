@@ -2823,7 +2823,7 @@ double GridFunction::ComputeL2Error(
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
-double GridFunction::ComputeElementGradError(int i, VectorCoefficient *exgrad,
+double GridFunction::ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
                                              const IntegrationRule *irs[]) const
 {
    double error = 0.0;
@@ -2835,8 +2835,8 @@ double GridFunction::ComputeElementGradError(int i, VectorCoefficient *exgrad,
    int dim = fes->GetMesh()->SpaceDimension();
    Vector vec(dim);
 
-   fe = fes->GetFE(i);
-   Tr = fes->GetElementTransformation(i);
+   fe = fes->GetFE(ielem);
+   Tr = fes->GetElementTransformation(ielem);
    intorder = 2*fe->GetOrder() + 3; // <--------
    const IntegrationRule *ir;
    if (irs)
@@ -2847,7 +2847,7 @@ double GridFunction::ComputeElementGradError(int i, VectorCoefficient *exgrad,
    {
       ir = &(IntRules.Get(fe->GetGeomType(), intorder));
    }
-   fes->GetElementDofs(i, dofs);
+   fes->GetElementDofs(ielem, dofs);
    for (int j = 0; j < ir->GetNPoints(); j++)
    {
       const IntegrationPoint &ip = ir->IntPoint(j);
@@ -4085,26 +4085,35 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
    return std::sqrt(total_error);
 }
 
-void TensorProductLegendre(int dim, int order, const Vector &x_in,
-                           const Vector &xmax, const Vector &xmin,
-                           Vector &poly, double angle, const Vector *center)
+void TensorProductLegendre(int dim,                // input
+                           int order,              // input
+                           const Vector &x_in,     // input
+                           const Vector &xmax,     // input
+                           const Vector &xmin,     // input
+                           Vector &poly,           // output
+                           double angle,           // input (optional)
+                           const Vector *midpoint) // input (optional)
 {
    MFEM_VERIFY(dim >= 1, "dim must be positive");
    MFEM_VERIFY(dim <= 3, "dim cannot be greater than 3");
    MFEM_VERIFY(order >= 0, "order cannot be negative");
 
-   Vector tmp(dim);
-   tmp = x_in;
+   bool rotate = (angle != 0.0) || (midpoint->Norml2() != 0.0);
 
-   // bool rotate = (iface == -1 && dim == 2);
-   // bool rotate = false;
-   bool rotate = true;
    Vector x(dim);
-   if (rotate)
+   if (rotate && dim == 2)
    {
-      tmp -= *center;
+      // Rotate coordinates to match rotated bounding box
+      Vector tmp(dim);
+      tmp = x_in;
+      tmp -= *midpoint;
       x[0] = tmp[0]*cos(angle) - tmp[1]*sin(angle);
       x[1] = tmp[0]*sin(angle) + tmp[1]*cos(angle);
+   }
+   else
+   {
+      // Bounding box is not reorientated no need to change orientation
+      x = x_in;
    }
 
    // Map x to [0, 1] to use CalcLegendre since it uses shifted Legendre Polynomials.
@@ -4165,7 +4174,7 @@ void BoundingBox(Array<int> patch,         // input
                  Vector &xmin,             // output
                  Vector &xmax,             // output
                  double &angle,            // output
-                 Vector &center,           // output
+                 Vector &midpoint,         // output
                  int iface)                // input (optional)
 {
    Mesh *mesh = ufes->GetMesh();
@@ -4176,13 +4185,11 @@ void BoundingBox(Array<int> patch,         // input
    xmax = -infinity();
    xmin = infinity();
    angle = 0.0;
-   center = 0.0;
+   midpoint = 0.0;
    bool rotate = (mesh->GetElementType(patch[0]) == Element::QUADRILATERAL);
-   // bool rotate = false;
-   // bool rotate = true;
 
-   // Compute angle
-   if (rotate)
+   // Rotate bounding box to match the face orientation
+   if (rotate && iface >= 0)
    {
       IntegrationPoint reference_pt;
       mesh->GetFaceTransformation(iface, &Tr);
@@ -4190,16 +4197,16 @@ void BoundingBox(Array<int> patch,         // input
       Vector physical_diff(2);
       physical_diff = 0.0;
       // Get the endpoints of the edge in physical space
-      // then compute
+      // then compute midpoint and angle
       for (int i = 0; i < 2; i++)
       {
          reference_pt.Set1w((double)i, 0.0);
          Tr.Transform(reference_pt, physical_pt);
-         center += physical_pt;
+         midpoint += physical_pt;
          physical_pt *= pow(-1.0,i);
          physical_diff += physical_pt;
       }
-      center /= 2.0;
+      midpoint /= 2.0;
       angle = atan2(physical_diff(1),physical_diff(0));
       // if (angle < 0) { angle += 2.0*M_PI; }
    }
@@ -4217,7 +4224,7 @@ void BoundingBox(Array<int> patch,         // input
          Tr.Transform(ip, transip);
          if (rotate)
          {
-            transip -= center;
+            transip -= midpoint;
             Vector tmp(dim);
             tmp = transip;
             transip[0] = tmp[0]*cos(-angle) - tmp[1]*sin(-angle);
@@ -4235,12 +4242,12 @@ void BoundingBox(Array<int> patch,         // input
    }
 }
 
-double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
-                           GridFunction &u,
-                           Vector &error_estimates,
-                           bool subdomain_reconstruction,
-                           bool with_coeff,
-                           double tichonov_coeff)
+double NewZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
+                           GridFunction &u,               // input
+                           Vector &error_estimates,       // output
+                           bool subdomain_reconstruction, // input (optional)
+                           bool with_coeff,               // input (optional)
+                           double tichonov_coeff)         // input (optional)
 {
    MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
    FiniteElementSpace *ufes = u.FESpace();
@@ -4264,7 +4271,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
    Vector xmax(dim);
    Vector xmin(dim);
    double angle = 0.0;
-   Vector center(dim);
+   Vector midpoint(dim);
 
    // Compute the number of subdomains
    int nsd = 1;
@@ -4293,16 +4300,15 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       // continue if true (only active if subdomain_reconstruction == true)
       if (nsd > 1)
       {
+         bool subdomain_interface = false;
          int patch_attr = ufes->GetAttribute(neighbor_elems[0]);
          for (int i = 1; i < num_neighbor_elems; i++)
          {
             int ielem = neighbor_elems[i];
             int tmp_attr = ufes->GetAttribute(ielem);
-            if (patch_attr != tmp_attr)
-            {
-               continue;
-            }
+            if (patch_attr != tmp_attr) { subdomain_interface = true; }
          }
+         if (subdomain_interface) { continue; } 
       }
 
       // 2. Compute global flux polynomial.
@@ -4326,7 +4332,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       // 2.B. Estimate the smallest bounding box around the face patch
       //      (this is used in 2.C.ii. to define a global polynomial basis)
       BoundingBox(neighbor_elems, ufes, flux_order,
-                  xmin, xmax, angle, center, iface);
+                  xmin, xmax, angle, midpoint, iface);
 
       // 2.C. Compute the normal equations for the least-squares problem
       // 2.C.i. Evaluate the discrete flux at all integration points in all
@@ -4345,9 +4351,6 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             udoftrans->InvTransformPrimal(ul);
          }
          Transf = ufes->GetElementTransformation(ielem);
-         // I had to redefine ComputeElementFlux to make this work.
-         // *ffes->GetFE(ielem) is an inactive argument, but I didn't want
-         // to change the signature of the original function too much.
          FiniteElement *dummy = nullptr;
          blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
                                  *dummy, fl, with_coeff, ir);
@@ -4366,8 +4369,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
             Transf->Transform(ip, transip);
 
             Vector p;
-            TensorProductLegendre(dim, patch_order, transip, xmax, xmin, p, angle, &center);
-            // p = LegendreND(transip, xmax, xmin, patch_order, dim, angle, &center);
+            TensorProductLegendre(dim, patch_order, transip, xmax, xmin, p, angle, &midpoint);
             AddMultVVt(p, A);
 
             for (int l = 0; l < num_basis_functions; l++)
@@ -4381,7 +4383,12 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          }
       }
 
-      // 2.D. Shift spectrum of A with to avoid conditioning issues.
+      // 2.D. Shift spectrum of A to avoid conditioning issues.
+      //      Regularization is necessary if the tensor product space used for the
+      //      flux reconstruction leads to an underdetermined system of linear equations.
+      //      This should not happen if there are tensor product elements in the patch,
+      //      but it can happen if there are other element shapes (those with few
+      //      integration points) in the patch.
       for (int i = 0; i < num_basis_functions; i++)
       {
          A(i,i) += tichonov_coeff;
@@ -4408,8 +4415,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
       auto global_poly_tmp = [=] (const Vector &x, Vector &f)
       {
          Vector p;
-         TensorProductLegendre(dim, patch_order, x, xmax, xmin, p, angle, &center);
-         // p = LegendreND(x, xmax, xmin, patch_order, dim, angle, &center);
+         TensorProductLegendre(dim, patch_order, x, xmax, xmin, p, angle, &midpoint);
          f = 0.0;
          for (int i = 0; i < num_basis_functions; i++)
          {
@@ -4432,7 +4438,9 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,
          patch_error += element_error;
          error_estimates(ielem) += element_error;
          counters[ielem] += 1;
-         // Only compute for the primary element if at a slave face or a master face
+         // The "primary element" is always the first in the list.
+         // Only compute the error for the primary element if the patch
+         // comes from a slave face or a master face
          if (type != 0) { break; }
       }
 
