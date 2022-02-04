@@ -2702,7 +2702,7 @@ void NURBSExtension::KVRed2Ext()
 
 void NURBSExtension::UpdateKVRed()
 {
-   Array<int> edges, orient, ifupdated, kvdir;
+   Array<int> edges, orient, ifupd, kvdir;
    Vector diff;
    Array<int>e(Dimension());
 
@@ -2719,8 +2719,9 @@ void NURBSExtension::UpdateKVRed()
       e[2] = 8;
    }
 
-   ifupdated.SetSize(NumOfKnotVectors);
-   ifupdated = 0;
+   ifupd.SetSize(NumOfKnotVectors);
+   ifupd = 0;
+
 
 
    for (int p = 0; p < GetNP(); p++)
@@ -2731,8 +2732,27 @@ void NURBSExtension::UpdateKVRed()
 
       for ( int i = 0; i < Dimension(); i++)
       {
-         // Check if difference between knotvector arrays
+
+         // Check order
+         int dorder = KnotVecRed(edges[e[i]])->GetOrder() - knotVectorsExt[Dimension()*p+i]->GetOrder();
+         if (dorder)
+         {
+            if (ifupd[KnotIndRed(edges[e[i]])] == 1)
+            {
+               mfem::out <<
+                         "KnotVectorRed[i] was updated and is updated again. Knotvectors problably not equal."
+                         << endl;
+               mfem_error("NURBSExtension::UpdateKVRed()");
+            }
+            // Update reduced set of knotvectors
+            *(KnotVecRed(edges[e[i]])) = *(knotVectorsExt[Dimension()*p+i]);
+            ifupd[KnotIndRed(edges[e[i]])] = 1;
+         }
+
+         // Check if difference between knots
          if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
+         KnotVecRed(edges[e[i]])->Print(cout);
+         knotVectorsExt[Dimension()*p+i]->Print(cout);
          KnotVecRed(edges[e[i]])->Difference(*(knotVectorsExt[Dimension()*p+i]), diff);
          if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
 
@@ -2740,7 +2760,7 @@ void NURBSExtension::UpdateKVRed()
          if (diff.Size() > 0)
          {
             // Check if knotvector is allready updated. If update twice, something is wrong
-            if (ifupdated[KnotIndRed(edges[e[i]])] == 1)
+            if (ifupd[KnotIndRed(edges[e[i]])] == 1)
             {
                mfem::out <<
                          "KnotVectorRed[i] was updated and is updated again. Knotvectors problably not equal."
@@ -2754,7 +2774,7 @@ void NURBSExtension::UpdateKVRed()
             // Give correct direction to knotvector. Reduced knotvectors are always not rotated.
             if (kvdir[i] == -1) {KnotVecRed(edges[e[i]])->Flip();}
 
-            ifupdated[KnotIndRed(edges[e[i]])] = 1;
+            ifupd[KnotIndRed(edges[e[i]])] = 1;
          }
       }
    }
@@ -2792,14 +2812,22 @@ void NURBSExtension::CheckKVRedKVExt()
 
       for ( int i = 0; i < Dimension(); i++)
       {
+         int dorder = KnotVecRed(edges[e[i]])->GetOrder() - knotVectorsExt[Dimension()*p+i]->GetOrder();
+         if (dorder)
+         {
+            mfem::out << "\nOrder of knotvector of extended array " << i << " of patch " << p;
+            mfem::out << " do not agree with order of knotvector of reduced array " << KnotIndRed(
+                         edges[e[i]]) << "\n";
+         }
+
          if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
          KnotVecRed(edges[e[i]])->Difference(*(knotVectorsExt[Dimension()*p+i]), diff);
          if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
 
          if (diff.Size() > 0)
          {
-            mfem::out << "\nKnotvector of extended array " << i << " of patch " << p;
-            mfem::out << " does not agree with knotvector of reduced array " << KnotIndRed(
+            mfem::out << "\nKnots of knotvector of extended array " << i << " of patch " << p;
+            mfem::out << " do not agree with knots of knotvector of reduced array " << KnotIndRed(
                          edges[e[i]]) << "\n";
 
             PrintKnotvectors();
