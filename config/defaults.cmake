@@ -50,6 +50,7 @@ option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
 option(MFEM_USE_HIOP "Enable HiOp" OFF)
 option(MFEM_USE_CUDA "Enable CUDA" OFF)
+option(MFEM_USE_HIP "Enable HIP" OFF)
 option(MFEM_USE_OCCA "Enable OCCA" OFF)
 option(MFEM_USE_RAJA "Enable RAJA" OFF)
 option(MFEM_USE_CEED "Enable CEED" OFF)
@@ -107,6 +108,7 @@ if (MFEM_USE_CUDA)
    set(HYPRE_REQUIRED_LIBRARIES "-lcusparse" "-lcurand" CACHE STRING
        "Libraries that HYPRE depends on.")
 endif()
+# HIP dependency for HYPRE is handled in FindHYPRE.cmake.
 
 set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library.")
 
@@ -245,7 +247,8 @@ set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")
 set(LAPACK_INCLUDE_DIRS "" CACHE STRING "Path to LAPACK headers.")
 set(LAPACK_LIBRARIES "" CACHE STRING "The LAPACK library.")
 
-set(CODIPACK_INCLUDE_DIRS "${MFEM_DIR}/../CoDiPack/inlude" CACHE STRING "Path to CoDiPack headers.")
+set(CODIPACK_INCLUDE_DIRS "${MFEM_DIR}/../CoDiPack/include" CACHE STRING
+    "Path to CoDiPack headers.")
 set(CODIPACK_LIBRARIES "")
 
 # Some useful variables:

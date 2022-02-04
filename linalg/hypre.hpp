@@ -32,8 +32,15 @@
 #error "MFEM does not work with HYPRE's complex numbers support"
 #endif
 
+#if defined(HYPRE_USING_GPU) && \
+    !(defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP))
+#error "Unsupported GPU build of HYPRE! Only CUDA and HIP builds are supported."
+#endif
 #if defined(HYPRE_USING_CUDA) && !defined(MFEM_USE_CUDA)
 #error "MFEM_USE_CUDA=YES is required when HYPRE is built with CUDA!"
+#endif
+#if defined(HYPRE_USING_HIP) && !defined(MFEM_USE_HIP)
+#error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
 
 #include "sparsemat.hpp"

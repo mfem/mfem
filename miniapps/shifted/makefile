@@ -58,10 +58,10 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 
 all: $(MINIAPPS)
 
-distance: sbm_aux.hpp $(DISTANCE_OBJ)
+distance: $(SRC)sbm_aux.hpp $(DISTANCE_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DISTANCE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
-diffusion: sbm_aux.hpp $(DIFFUSION_OBJ)
+diffusion: $(SRC)sbm_aux.hpp $(DIFFUSION_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DIFFUSION_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
