@@ -37,7 +37,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_SF_3D,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-
    const bool const_c0 = c0sf_.Size() == 1;
    const auto C0SF = const_c0 ?
                    Reshape(c0sf_.Read(), 1, 1, 1, 1) :
@@ -66,14 +65,18 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_SF_3D,
 
                for (int i = 0; i < DIM; i++)
                {
-                  for (int j = 0; j < DIM; j++)
+                  for (int j = 0; j <= i; j++)
                   {
-                     H0(i, j, qx, qy, qz, e) = coeff0 * 2 * surf_fit_normal *
-                                               SFM(qx, qy, qz, e) *
-                                               (Hin(i, j, qx, qy, qz, e) *
-                                                SFG(qx, qy, qz, e) +
-                                                G(qx, qy, qz, i, e) *
-                                                G(qx, qy, qz, j, e));
+                     const double entry = coeff0 * 2 * surf_fit_normal *
+                                          SFM(qx, qy, qz, e) *
+                                          (Hin(i, j, qx, qy, qz, e) *
+                                           SFG(qx, qy, qz, e) +
+                                           G(qx, qy, qz, j, e) *
+                                           G(qx, qy, qz, i, e));
+                      H0(i, j, qx, qy, qz, e) = entry;
+                      if (j != i) {
+                          H0(j, i, qx, qy, qz, e) = entry;
+                      }
                   }
                }
             }
