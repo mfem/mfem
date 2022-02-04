@@ -29,6 +29,10 @@ struct MFEM_AUTOSIMD_ALIGN__ AutoSIMD
 
    scalar_t vec[size];
 
+   AutoSIMD() = default;
+
+   AutoSIMD(const AutoSIMD &) = default;
+
    inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i)
    {
       return vec[i];
@@ -115,6 +119,11 @@ struct MFEM_AUTOSIMD_ALIGN__ AutoSIMD
       MFEM_VECTORIZE_LOOP
       for (int i = 0; i < size; i++) { r[i] = -vec[i]; }
       return r;
+   }
+
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator+() const
+   {
+      return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const AutoSIMD &v) const
