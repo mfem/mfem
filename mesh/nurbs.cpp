@@ -2751,8 +2751,6 @@ void NURBSExtension::UpdateKVRed()
 
          // Check if difference between knots
          if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
-         KnotVecRed(edges[e[i]])->Print(cout);
-         knotVectorsExt[Dimension()*p+i]->Print(cout);
          KnotVecRed(edges[e[i]])->Difference(*(knotVectorsExt[Dimension()*p+i]), diff);
          if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
 
