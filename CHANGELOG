@@ -10,6 +10,12 @@
 
 Version 4.3.1 (development)
 ===========================
+
+- Added support for using the HYPRE library built with HIP support. Similar to
+  the HYPRE + CUDA support added earlier, most of the MFEM examples and miniapps
+  work transparently with HYPRE + HIP builds. This includes the BoomerAMG, AMS,
+  and ADS solvers.
+
 - More explicit and consistent formating of the output of iterative solvers
   with the new IterativeSolver::PrintLevel options. See linalg/solvers.hpp.
 
@@ -86,6 +92,7 @@ Version 4.3.1 (development)
 
 - The HPC versions of ex1 and ex1p (in miniapps/performance) now support
   runtime selection of either 2D or 3D meshes.
+
 
 Version 4.3, released on July 29, 2021
 ======================================

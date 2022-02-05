@@ -37,7 +37,7 @@ as CUDA, HIP, OCCA, OpenMP and RAJA.
   https://developer.nvidia.com/cuda-toolkit
 
 - HIP support requires an AMD GPU and an installation of the ROCm software stack
-  https://rocm.github.io/ROCmInstall.html#installing-from-amd-rocm-repositories
+  https://rocmdocs.amd.com
 
 - OCCA support requires the OCCA library
   https://libocca.org
@@ -58,7 +58,8 @@ following package managers:
 
 - Spack, https://github.com/spack/spack
 - OpenHPC, http://openhpc.community
-- Conda-forge, https://conda-forge.org (pre-built binaries linked with OpenMPI/MPICH, hypre, and METIS)
+- Conda-forge, https://conda-forge.org (pre-built binaries linked with
+  OpenMPI/MPICH, hypre, and METIS)
 - Homebrew/Science, https://github.com/Homebrew/homebrew-science (deprecated)
 
 We also recommend downloading and building the MFEM-based GLVis visualization
@@ -78,7 +79,7 @@ Parallel build:
 
 CUDA build:
    make cuda -j 4
-   (build for a specific compute capability: 'make cuda -j 4 CUDA_ARCH=sm_30')
+   (build for a specific compute capability: 'make cuda -j 4 CUDA_ARCH=sm_70')
 
 HIP build:
    make hip -j 4
@@ -566,7 +567,7 @@ The specific libraries and their options are:
   Options: HYPRE_OPT, HYPRE_LIB.
   Versions: HYPRE >= 2.10.0b  (HYPRE built without CUDA)
             HYPRE >= 2.20.0   (HYPRE built with '--enable-mixedint')
-            HYPRE >= 2.22.1   (HYPRE built with CUDA)
+            HYPRE >= 2.22.1   (HYPRE built with CUDA or HIP)
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4).
@@ -639,7 +640,8 @@ The specific libraries and their options are:
   C++ compiler that supports the C++-14 standard. For additional requirements
   and dependencies of specific modules, see the Ginkgo webpage below.
   URL: https://ginkgo-project.github.io
-  Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or Debug).
+  Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or
+           Debug).
   Versions: Ginkgo >= 1.4.0.
 
 - AmgX (optional), used when MFEM_USE_AMGX = YES.
@@ -737,7 +739,7 @@ The specific libraries and their options are:
   Versions: CUDA >= 10.1.168.
 
 - HIP (optional), used when MFEM_USE_HIP = YES.
-  URL: https://rocm.github.io/ROCmInstall.html
+  URL: https://rocmdocs.amd.com
   Options: HIP_CXX, HIP_ARCH, HIP_OPT, HIP_LIB.
 
 - OCCA (optional), used when MFEM_USE_OCCA = YES.
@@ -924,6 +926,7 @@ MFEM_USE_HIOP
 MFEM_USE_CODIPACK
 MFEM_USE_ADFORWARD
 MFEM_USE_CUDA
+MFEM_USE_HIP
 MFEM_USE_OCCA
 MFEM_USE_CEED
 MFEM_USE_RAJA
