@@ -2823,7 +2823,8 @@ double GridFunction::ComputeL2Error(
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
-double GridFunction::ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
+double GridFunction::ComputeElementGradError(int ielem,
+                                             VectorCoefficient *exgrad,
                                              const IntegrationRule *irs[]) const
 {
    double error = 0.0;
@@ -4229,15 +4230,9 @@ void BoundingBox(Array<int> patch,         // input
             tmp = transip;
             transip[0] = tmp[0]*cos(-angle) - tmp[1]*sin(-angle);
             transip[1] = tmp[0]*sin(-angle) + tmp[1]*cos(-angle);
-
-            for (int d = 0; d < dim; d++) { xmax(d) = max(xmax(d), transip(d)); }
-            for (int d = 0; d < dim; d++) { xmin(d) = min(xmin(d), transip(d)); }
          }
-         else
-         {
-            for (int d = 0; d < dim; d++) { xmax(d) = max(xmax(d), transip(d)); }
-            for (int d = 0; d < dim; d++) { xmin(d) = min(xmin(d), transip(d)); }
-         }
+         for (int d = 0; d < dim; d++) { xmax(d) = max(xmax(d), transip(d)); }
+         for (int d = 0; d < dim; d++) { xmin(d) = min(xmin(d), transip(d)); }
       }
    }
 }
@@ -4284,14 +4279,14 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
    for (int iface = 0; iface < nfaces; iface++)
    {
       // 1.A. Find all elements in the face patch.
-      int type;
-      Array<int> neighbor_elems;
-      Array<int> neighbor_faces;
-      type = mesh->GetFaceElementsAndFaces(iface, neighbor_elems, neighbor_faces);
-      int num_neighbor_elems = neighbor_elems.Size();
+      int el1;
+      int el2;
+      mesh->GetFaceElements(iface, &el1, &el2);
+      Array<int> patch(2);
+      patch[0] = el1; patch[1] = el2;
 
       // 1.B. Check if boundary face and continue if true.
-      if (type == -1)
+      if (el1 == -1 || el2 == -1)
       {
          continue;
       }
@@ -4300,28 +4295,18 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       // continue if true (only active if subdomain_reconstruction == true)
       if (nsd > 1)
       {
-         bool subdomain_interface = false;
-         int patch_attr = ufes->GetAttribute(neighbor_elems[0]);
-         for (int i = 1; i < num_neighbor_elems; i++)
-         {
-            int ielem = neighbor_elems[i];
-            int tmp_attr = ufes->GetAttribute(ielem);
-            if (patch_attr != tmp_attr) { subdomain_interface = true; }
-         }
-         if (subdomain_interface) { continue; } 
+         int el1_attr = ufes->GetAttribute(el1);
+         int el2_attr = ufes->GetAttribute(el2);
+         if (el1_attr != el2_attr) { continue; }
       }
 
       // 2. Compute global flux polynomial.
-      DofTransformation *udoftrans;
-      DofTransformation *fdoftrans;
-      int patch_order = 0;
+
 
       // 2.A. Compute polynomial order of patch (for hp FEM)
-      for (int i = 0; i < num_neighbor_elems; i++)
-      {
-         int ielem = neighbor_elems[i];
-         patch_order = max(patch_order, ufes->GetElementOrder(ielem));
-      }
+      const int patch_order = max(ufes->GetElementOrder(el1),
+                                  ufes->GetElementOrder(el2));
+
       int num_basis_functions = pow(patch_order+1,dim);
       int flux_order = 2*patch_order + 1;
       DenseMatrix A(num_basis_functions);
@@ -4331,33 +4316,25 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
 
       // 2.B. Estimate the smallest bounding box around the face patch
       //      (this is used in 2.C.ii. to define a global polynomial basis)
-      BoundingBox(neighbor_elems, ufes, flux_order,
+      BoundingBox(patch, ufes, flux_order,
                   xmin, xmax, angle, midpoint, iface);
 
       // 2.C. Compute the normal equations for the least-squares problem
       // 2.C.i. Evaluate the discrete flux at all integration points in all
       //        elements in the face patch
-      for (int i = 0; i < num_neighbor_elems; i++)
+      for (int i = 0; i < patch.Size(); i++)
       {
-         int ielem = neighbor_elems[i];
+         int ielem = patch[i];
          const IntegrationRule *ir = &(IntRules.Get(mesh->GetElementGeometry(ielem),
                                                     flux_order));
          int num_integration_pts = ir->GetNPoints();
 
-         udoftrans = ufes->GetElementVDofs(ielem, udofs);
+         ufes->GetElementVDofs(ielem, udofs);
          u.GetSubVector(udofs, ul);
-         if (udoftrans)
-         {
-            udoftrans->InvTransformPrimal(ul);
-         }
          Transf = ufes->GetElementTransformation(ielem);
          FiniteElement *dummy = nullptr;
          blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
                                  *dummy, fl, with_coeff, ir);
-         if (fdoftrans)
-         {
-            fdoftrans->TransformPrimal(fl);
-         }
 
          // 2.C.ii. Use global polynomial basis to construct normal
          //         equations
@@ -4369,7 +4346,8 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
             Transf->Transform(ip, transip);
 
             Vector p;
-            TensorProductLegendre(dim, patch_order, transip, xmax, xmin, p, angle, &midpoint);
+            TensorProductLegendre(dim, patch_order, transip, xmax, xmin, p, angle,
+                                  &midpoint);
             AddMultVVt(p, A);
 
             for (int l = 0; l < num_basis_functions; l++)
@@ -4430,33 +4408,18 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       // 3. Compute error contributions from the face.
       double element_error = 0.0;
       double patch_error = 0.0;
-      for (int i = 0; i < num_neighbor_elems; i++)
+      for (int i = 0; i < patch.Size(); i++)
       {
-         int ielem = neighbor_elems[i];
+         int ielem = patch[i];
          element_error = u.ComputeElementGradError(ielem, &global_poly);
          element_error *= element_error;
          patch_error += element_error;
          error_estimates(ielem) += element_error;
-         counters[ielem] += 1;
-         // The "primary element" is always the first in the list.
-         // Only compute the error for the primary element if the patch
-         // comes from a slave face or a master face
-         if (type != 0) { break; }
+         counters[ielem]++;
       }
 
       total_error += patch_error;
    }
-
-
-#ifdef MFEM_USE_MPI
-   auto pfes = dynamic_cast<ParFiniteElementSpace*>(ufes);
-   if (pfes)
-   {
-      auto process_local_error = total_error;
-      MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
-                    MPI_SUM, pfes->GetComm());
-   }
-#endif // MFEM_USE_MPI
 
    // 4. Calibrate the final error estimates. Note that the l2 norm of
    //    error_estimates vector converges to total_error.
@@ -4467,7 +4430,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
    {
       if (counters == 0)
       {
-         error_estimates(ielem) = std::numeric_limits<double>::max();
+         error_estimates(ielem) = infinity();
       }
       else
       {

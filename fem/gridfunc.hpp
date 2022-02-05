@@ -948,7 +948,7 @@ void TensorProductLegendre(int dim,                      // input
  *  orientation of the patch. It is better to contruct an orientation-independent box.
  *  This is implemented for patches made up of quadrilaterals. The parameters @a angle
  *  and @a midpoint encode this additional geometric information.
- * 
+ *
  *      @a angle     : the angle the patch face makes with the x-axis
  *      @a midpoint  : the midpoint of the face
  */
