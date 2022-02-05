@@ -399,16 +399,18 @@ public:
       void Amr()
       {
          MFEM_VERIFY(opt.amr_threshold >= 0.0 && opt.amr_threshold <= 1.0, "");
-         Mesh *mesh = S.mesh;
+         Mesh *smesh = S.mesh;
          Array<Refinement> amr;
-         const int NE = mesh->GetNE();
+         const int NE = smesh->GetNE();
          DenseMatrix Jadjt, Jadj(DIM, SDIM);
          for (int e = 0; e < NE; e++)
          {
             double minW = +NL_DMAX;
             double maxW = -NL_DMAX;
-            ElementTransformation *eTr = mesh->GetElementTransformation(e);
-            const Geometry::Type &type = mesh->GetElement(e)->GetGeometryType();
+            ElementTransformation *eTr = smesh->GetElementTransformation(e);
+            const Geometry::Type &type =
+               smesh->GetElement(e)->GetGeometryType();
+
             const IntegrationRule *ir = &IntRules.Get(type, opt.order);
             const int NQ = ir->GetNPoints();
             for (int q = 0; q < NQ; q++)
@@ -431,8 +433,8 @@ public:
          }
          if (amr.Size()>0)
          {
-            mesh->GetNodes()->HostReadWrite();
-            mesh->GeneralRefinement(amr);
+            smesh->GetNodes()->HostReadWrite();
+            smesh->GeneralRefinement(amr);
             S.fes->Update();
             x.HostReadWrite();
             x.Update();
