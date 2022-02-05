@@ -804,11 +804,11 @@ public:
          mfem::ad::ADFloatType aa;
          mfem::ad::ADVectorType lvec(ndof);
 
-         for (int i = 0; i < ir.GetNPoints(); i++)
+         for (int q = 0; q < ir.GetNPoints(); q++)
          {
             lvec=0.0;
 
-            const IntegrationPoint &ip = ir.IntPoint(i);
+            const IntegrationPoint &ip = ir.IntPoint(q);
             trans.SetIntPoint(&ip);
             w = trans.Weight();
             detJ = (square ? w : w * w);
