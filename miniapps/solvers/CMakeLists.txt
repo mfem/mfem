@@ -39,10 +39,10 @@ if (MFEM_USE_MPI)
       -no-vis
       ${MPIEXEC_POSTFLAGS})
 
-      add_test(NAME plor_solvers_np${MFEM_MPI_NP}
+    add_test(NAME plor_solvers_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:plor_solvers> -fe h -m ../../data/fichera.mesh -no-vis
+      $<TARGET_FILE:plor_solvers> -fe n -m ../../data/fichera.mesh -no-vis
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()
@@ -53,5 +53,5 @@ add_mfem_miniapp(lor_solvers
   LIBRARIES mfem)
 
 if (MFEM_ENABLE_TESTING)
-  add_test(NAME lor_solvers_ser COMMAND lor_solvers -fe h -no-vis)
+  add_test(NAME lor_solvers_ser COMMAND lor_solvers -fe n -no-vis)
 endif()
