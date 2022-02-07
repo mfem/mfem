@@ -213,18 +213,18 @@ int main(int argc, char *argv[])
    ComplexHypreParMatrix * AZ = Ah.As<ComplexHypreParMatrix>();
 
 
-   // ComplexMGSolver * M = new ComplexMGSolver(AZ,P,fespaces);
-   // M->SetTheta(0.25);
+   ComplexMGSolver * M = new ComplexMGSolver(AZ,P,fespaces);
+   M->SetTheta(0.1);
 
 
-   ComplexSchwarzSmoother * M = new ComplexSchwarzSmoother(
-      fespace.GetParMesh(),0,&fespace,AZ);
+   // ComplexSchwarzSmoother * M = new ComplexSchwarzSmoother(
+      // fespace.GetParMesh(),0,&fespace,AZ);
 
    GMRESSolver gmres(MPI_COMM_WORLD);
    gmres.SetPrintLevel(1);
    gmres.SetMaxIter(2000);
    gmres.SetKDim(200);
-   gmres.SetRelTol(1e-12);
+   gmres.SetRelTol(1e-10);
    gmres.SetAbsTol(0.0);
    gmres.SetOperator(*AZ);
    gmres.SetPreconditioner(*M);

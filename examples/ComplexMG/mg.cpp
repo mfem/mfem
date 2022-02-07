@@ -33,7 +33,6 @@ MGSolver::MGSolver(HypreParMatrix * Af_, std::vector<HypreParMatrix *> P_,std::v
       // S[i] = new SchwarzSmoother(fespaces[i]->GetParMesh(),1,fespaces[i+1],A[i+1]);
       S[i] = new SchwarzSmoother(fespaces[i+1]->GetParMesh(),0,fespaces[i+1],A[i+1]);
    }
-
 }
 
 void MGSolver::Mult(const Vector &r, Vector &z) const
@@ -122,7 +121,8 @@ std::vector<HypreParMatrix *> P_,std::vector<ParFiniteElementSpace * > fespaces)
 
    for (int i = NumGrids - 1; i >= 0 ; i--)
    {
-      S[i] = new ComplexSchwarzSmoother(fespaces[i+1]->GetParMesh(),0,fespaces[i+1],A[i+1]);
+      S[i] = new ComplexSchwarzSmoother(fespaces[i]->GetParMesh(),1,fespaces[i+1],A[i+1]);
+      // S[i] = new ComplexSchwarzSmoother(fespaces[i+1]->GetParMesh(),0,fespaces[i+1],A[i+1]);
    }
 
 }

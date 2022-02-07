@@ -103,15 +103,19 @@ int main(int argc, char *argv[])
 
    // 11. Solve the system using PCG with hypre's BoomerAMG preconditioner.
    // HypreBoomerAMG M(A);
-   MGSolver * M = new MGSolver(&A,P,fespaces);
-   M->SetTheta(0.33);
+   // MGSolver * M = new MGSolver(&A,P,fespaces);
+   // M->SetTheta(0.2);
 
-   // SchwarzSmoother * M = new SchwarzSmoother(fespace.GetParMesh(), 0, &fespace, &A);
-   // M->SetDumpingParam(0.3);
-   // M->SetNumSmoothSteps(1);
-   // M->SetTheta(0.33);
+
+   int j = 3;
+   ParMesh * cpmesh = fespaces[href-j]->GetParMesh();
+   SchwarzSmoother * M = new SchwarzSmoother(cpmesh, j, &fespace, &A);
+   M->SetDumpingParam(0.3);
+   M->SetNumSmoothSteps(1);
+
+   X = 0.;
    CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
+   cg.SetRelTol(1e-8);
    cg.SetMaxIter(2000);
    cg.SetPrintLevel(1);
    cg.SetPreconditioner(*M);

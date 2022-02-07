@@ -154,7 +154,8 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
    int dim = pmesh->Dimension();
    // 1. Define an auxiliary parallel H1 finite element space on the parallel mesh.
    FiniteElementCollection * aux_fec = new H1_FECollection(1, dim);
-   ParFiniteElementSpace * aux_fespace = new ParFiniteElementSpace(pmesh, aux_fec);
+   ParMesh * aux_pmesh = new ParMesh(*pmesh);
+   ParFiniteElementSpace * aux_fespace = new ParFiniteElementSpace(aux_pmesh, aux_fec);
    int mycdofoffset = aux_fespace->GetMyDofOffset(); // dof offset for the coarse mesh
 
    // 2. Store the cDofTrueDof Matrix. Required after the refinements
@@ -165,7 +166,7 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
    for (int i = 0; i < ref_levels; i++)
    {
       const ParFiniteElementSpace cfespace(*aux_fespace);
-      pmesh->UniformRefinement();
+      aux_pmesh->UniformRefinement();
       // Update fespace
       aux_fespace->Update();
       OperatorHandle Tr(Operator::Hypre_ParCSR);
@@ -182,7 +183,7 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
          Pr = ParMult(P, Pr);
       }
    }
-   if (Pr) Pr->Threshold(0.0);
+   // if (Pr) Pr->Threshold(0.0);
 
    // 4. Get the DofTrueDof map on this mesh and convert the prolongation matrix
    // to correspond to global dof numbering (from true dofs to dofs)
@@ -264,7 +265,7 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
       patch_natural_order_idx[k] = i;
    }
 
-   int nvert = pmesh->GetNV();
+   int nvert = aux_pmesh->GetNV();
    // first find all the contributions of the vertices
    vert_contr.resize(nvert);
    SparseMatrix H1pr_diag;
@@ -303,11 +304,11 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
    }
 
    Array<int> edge_vertices;
-   int nedge = pmesh->GetNEdges();
+   int nedge = aux_pmesh->GetNEdges();
    edge_contr.resize(nedge);
    for (int ie = 0; ie < nedge; ie++)
    {
-      pmesh->GetEdgeVertices(ie, edge_vertices);
+      aux_pmesh->GetEdgeVertices(ie, edge_vertices);
       int nv = edge_vertices.Size(); // always 2 but ok
       // The edge will contribute to the same patches as its vertices
       for (int iv = 0; iv < nv; iv++)
@@ -322,11 +323,11 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
    // done with edges. Now the faces
    // -----------------------------------------------------------------------
    Array<int> face_vertices;
-   int nface = pmesh->GetNFaces();
+   int nface = aux_pmesh->GetNFaces();
    face_contr.resize(nface);
    for (int ifc = 0; ifc < nface; ifc++)
    {
-      pmesh->GetFaceVertices(ifc, face_vertices);
+      aux_pmesh->GetFaceVertices(ifc, face_vertices);
       int nv = face_vertices.Size();
       // The face will contribute to the same patches as its vertices
       for (int iv = 0; iv < nv; iv++)
@@ -341,11 +342,11 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
    // Finally the elements
    // -----------------------------------------------------------------------
    Array<int> elem_vertices;
-   int nelem = pmesh->GetNE();
+   int nelem = aux_pmesh->GetNE();
    elem_contr.resize(nelem);
    for (int iel = 0; iel < nelem; iel++)
    {
-      pmesh->GetElementVertices(iel, elem_vertices);
+      aux_pmesh->GetElementVertices(iel, elem_vertices);
       int nv = elem_vertices.Size();
       // The element will contribute to the same patches as its vertices
       for (int iv = 0; iv < nv; iv++)
@@ -362,6 +363,7 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
    delete cDofTrueDof;
    delete aux_fespace;
    delete aux_fec;
+   delete aux_pmesh;
 }
 
 PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, int ref_levels_, ParFiniteElementSpace *fespace)
@@ -381,6 +383,7 @@ PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, int ref_levels_, ParFiniteElementSpa
    patch_local_tdofs.resize(nrpatch);
    int * offs = fespace->GetTrueDofOffsets();
    int nrvert = fespace->GetNV();
+
    for (int i = 0; i < nrvert; i++)
    {
       int np = patch_nodes->vert_contr[i].Size();
@@ -438,6 +441,7 @@ PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, int ref_levels_, ParFiniteElementSpa
          }
       }
    }
+
    int nelem = fespace->GetNE();
    for (int i = 0; i < nelem; i++)
    {
@@ -511,6 +515,7 @@ PatchDofInfo::PatchDofInfo(ParMesh *pmesh_, int ref_levels_, ParFiniteElementSpa
       MPI_Group_free(&new_group_id);
       if (new_comm != MPI_COMM_NULL) MPI_Comm_free(&new_comm);
    }
+
 }
 
 PatchAssembly::PatchAssembly(ParMesh *cpmesh_, int ref_levels_, ParFiniteElementSpace *fespace_, HypreParMatrix * A_) 
@@ -806,6 +811,7 @@ PatchAssembly::PatchAssembly(ParMesh *cpmesh_, int ref_levels_, ParFiniteElement
    PatchMat01.DeleteAll();
    PatchMat10.DeleteAll();
    PatchMat11.DeleteAll();
+
 }
 
 
