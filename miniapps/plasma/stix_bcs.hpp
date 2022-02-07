@@ -49,12 +49,14 @@ double prodFunc(double a, double b);
 class StixBCs
 {
 public:
-   enum BCType {DIRICHLET_BC, NEUMANN_BC, SHEATH_BC, CURRENT_SRC};
+   enum BCType {DIRICHLET_BC, NEUMANN_BC, SHEATH_BC, CYL_AXIS, CURRENT_SRC};
 
 private:
    Array<ComplexVectorCoefficientByAttr*>  dbc; // Dirichlet BC data
    Array<ComplexVectorCoefficientByAttr*>  nbc; // Neumann BC data
    Array<ComplexCoefficientByAttr*> sbc; // Sheath BC data
+
+   Array<AttributeArrays*> cyl_axis; // Symmetry axis in cylindrical coords
 
    Array<ComplexVectorCoefficientByAttr*> jsrc; // Current Density Source data
 
@@ -89,6 +91,9 @@ public:
                     Coefficient &real_imped,
                     Coefficient &imag_imped);
 
+   // Enforce phi component of u equal zero on cylindrical axis
+   void AddCylindricalAxis(const Array<int> & bdr);
+
    // Enforce J = val on regions with attributes in reg
    void AddCurrentSrc(const Array<int> & reg,
                       VectorCoefficient &real_val,
@@ -99,6 +104,9 @@ public:
    const Array<ComplexVectorCoefficientByAttr*> & GetNeumannBCs() const
    { return nbc; }
    const Array<ComplexCoefficientByAttr*> & GetSheathBCs() const { return sbc; }
+
+   const Array<AttributeArrays*> & GetCylindricalAxis() const
+   { return cyl_axis; }
 
    const Array<ComplexVectorCoefficientByAttr*> & GetCurrentSrcs() const
    { return jsrc; }

@@ -38,6 +38,10 @@ StixBCs::~StixBCs()
    {
       delete sbc[i];
    }
+   for (int i=0; i<cyl_axis.Size(); i++)
+   {
+      delete cyl_axis[i];
+   }
    for (int i=0; i<jsrc.Size(); i++)
    {
       delete jsrc[i];
@@ -51,6 +55,7 @@ const char * StixBCs::GetBCTypeName(BCType bctype)
       case DIRICHLET_BC: return "Dirichlet";
       case NEUMANN_BC: return "Neumann";
       case SHEATH_BC: return "Sheath";
+      case CYL_AXIS: return "Cylindrical Axis";
       case CURRENT_SRC: return "Current Density";
    }
    return "Unknown";
@@ -132,6 +137,15 @@ void StixBCs::AddSheathBC(const Array<int> & bdr,
    AttrToMarker(bdr_attr.Max(), bc->attr, bc->attr_marker);
 
    sbc.Append(bc);
+}
+
+void StixBCs::AddCylindricalAxis(const Array<int> & bdr)
+{
+   AttributeArrays *aa = new AttributeArrays;
+   aa->attr = bdr;
+
+   AttrToMarker(bdr_attr.Max(), aa->attr, aa->attr_marker);
+   cyl_axis.Append(aa);
 }
 
 void StixBCs::AddCurrentSrc(const Array<int> & reg,
