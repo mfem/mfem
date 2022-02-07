@@ -776,7 +776,7 @@ void Hybridization::MultAfInv(const Vector &b, const Vector &lambda, Vector &bf,
          if (vdof_marker[vdof]) { el_vals(j) = 0.0; }
          else { vdof_marker[vdof] = true; }
       }
-      bf_i.SetDataAndSize(&bf[hat_offsets[i]], vdofs.Size());
+      bf_i.MakeRef(bf, hat_offsets[i], vdofs.Size());
       if (mode == 1)
       {
          el_vals -= bf_i;
@@ -821,7 +821,16 @@ void Hybridization::ReduceRHS(const Vector &b, Vector &b_r) const
    else
    {
       Vector bl(pC ? pC->Height() : Ct->Width());
-      pC ? pC->Mult(bf, bl) : Ct->MultTranspose(bf, bl);
+      if (pC)
+      {
+         pC->Mult(bf, bl)
+      }
+      else
+      {
+         // needed for gpu
+         Ct->BuildTranspose();
+         Ct->MultTranspose(bf, bl);
+      }
       b_r.SetSize(pH.Ptr()->Height());
       (P_pc ? P_pc : c_pfes->GetProlongationMatrix())->MultTranspose(bl, b_r);
    }
