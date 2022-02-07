@@ -69,9 +69,9 @@ block-solvers-anisotropic: block-solvers
 	  -m $(SRC)anisotropic.mesh -c $(SRC)anisotropic.coeff\
 	  -eb $(SRC)anisotropic.bdr)
 lor_solvers-test-seq: lor_solvers
-	@$(call mfem-test,$<,, LOR solvers miniapp,-fe h)
+	@$(call mfem-test,$<,, LOR solvers miniapp,-fe n)
 plor_solvers-test-par: plor_solvers
-	@$(call mfem-test,$<, $(RUN_MPI), Parallel LOR solvers miniapp,-fe h\
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel LOR solvers miniapp,-fe n\
 	  -m ../../data/fichera.mesh)
 
 # Generate an error message if the MFEM library is not built and exit
