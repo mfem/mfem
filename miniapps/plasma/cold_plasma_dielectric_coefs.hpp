@@ -568,17 +568,25 @@ public:
       The radius of the ellipse in the x direction
       The radius of the ellipse in the y direction
       The center of the ellipse
+
+   POWER: 4 parameters
+      The direction of the variation (comp)
+      The value at x[comp]=0
+      The value at x[comp]=1
+      The power (exponent)
 */
 class PlasmaProfile : public Coefficient
 {
 public:
-   enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS, PARABOLIC, PEDESTAL};
+   enum Type {CONSTANT, GRADIENT, TANH, ELLIPTIC_COS, PARABOLIC, PEDESTAL,
+              POWER
+             };
 
 private:
    Type type_;
    Vector p_;
 
-   const int np_[6] = {1, 7, 9, 7, 7, 7};
+   const int np_[7] = {1, 7, 9, 7, 7, 7, 4};
 
    mutable Vector x_;
 
@@ -592,7 +600,7 @@ public:
 class BFieldProfile : public VectorCoefficient
 {
 public:
-   enum Type {CONSTANT, B_P, B_TOPDOWN, B_P_KOHNO};
+   enum Type {CONSTANT, B_P, B_TOPDOWN, B_P_KOHNO, B_WHAM};
 
 private:
    Type type_;
@@ -600,7 +608,7 @@ private:
    bool unit_;
 
 
-   const int np_[4] = {3, 7, 6, 8};
+   const int np_[5] = {3, 7, 6, 8, 2};
 
    mutable Vector x3_;
    mutable Vector x_;

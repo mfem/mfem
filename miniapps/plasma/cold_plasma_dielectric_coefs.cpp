@@ -1259,6 +1259,16 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          return (pmax - pmin) * pow(cosh(pow((rho / lambda_n), nu)), -1.0) + pmin;
       }
       break;
+      case POWER:
+      {
+         int comp = (int)rint(p_[0]);
+         double a = p_[1];
+         double b = p_[2];
+         double p = p_[3];
+
+         return a + (b - a) * pow(x_[comp], p);
+      }
+      break;
       default:
          return 0.0;
    }
@@ -1382,6 +1392,15 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             V[1] = -bp_coef * x_[0];
             V[2] = bz0;
          }
+      }
+      break;
+      case B_WHAM:
+      {
+         double a = p_[0];
+         double b = p_[1];
+         V[0] = a + b * pow(x_[0], 4);
+         V[1] = -2.0 * b * x_[1] * pow(x_[0], 3);
+         V[2] = 0.0;
       }
       break;
       default:
