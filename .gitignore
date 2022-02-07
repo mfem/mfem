@@ -51,6 +51,8 @@ examples/ex1[04-9]
 examples/ex1[0-9]p
 examples/ex2[0-9]
 examples/ex2[0-9]p
+examples/ex30
+examples/ex30p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -223,6 +225,14 @@ miniapps/mtop/ParHeat*
 miniapps/mtop/seqheat
 miniapps/mtop/SeqHeat*
 
+miniapps/autodiff/paradiff
+miniapps/autodiff/seqadiff
+miniapps/autodiff/seqtest
+miniapps/autodiff/par_example
+miniapps/autodiff/seq_example
+miniapps/autodiff/seq_test
+miniapps/autodiff/Exampl*
+
 miniapps/navier/navier_mms
 miniapps/navier/navier_kovasznay
 miniapps/navier/navier_kovasznay_vs
@@ -288,16 +298,27 @@ miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
 
+miniapps/parelag/MultilevelHcurlHdivSolver
+miniapps/parelag/*.mesh
+
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests
 tests/unit/punit_tests
+tests/unit/cunit_tests
+tests/unit/pcunit_tests
 tests/unit/sedov_tests_*
 tests/unit/psedov_tests_*
 tests/unit/tmop_pa_tests_*
 tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
 tests/unit/debug_device_tests
+
+# Benchmark binaries
+tests/benchmarks/bench_ceed
+tests/benchmarks/bench_tmop
+tests/benchmarks/bench_vector
+tests/benchmarks/bench_virtuals
 
 # Test script output
 tests/scripts/*.err
@@ -315,3 +336,6 @@ build-*/*
 # PETSc automated build
 petsc-build/*
 pkg.gitcommit
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints

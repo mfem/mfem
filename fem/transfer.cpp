@@ -175,7 +175,8 @@ const Operator &InterpolationGridTransfer::ForwardOperator()
                                             localP[elem_geoms[i]]);
       }
       F.Reset(ran_fes.RefinementMatrix_main(
-                 dom_fes.GetNDofs(), dom_fes.GetElementToDofTable(), localP));
+                 dom_fes.GetNDofs(), dom_fes.GetElementToDofTable(),
+                 dom_fes.GetElementToFaceOrientationTable(), localP));
    }
    else
    {
@@ -912,7 +913,11 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
    else if (lFESpace_.GetMesh()->GetNE() > 0
             && hFESpace_.GetMesh()->GetNE() > 0
             && dynamic_cast<const TensorBasisElement*>(lFESpace_.GetFE(0))
-            && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetFE(0)))
+            && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetFE(0))
+            && (hFESpace_.FEColl()->GetContType() ==
+                mfem::FiniteElementCollection::CONTINUOUS ||
+                hFESpace_.FEColl()->GetContType() ==
+                mfem::FiniteElementCollection::DISCONTINUOUS))
    {
       opr = new TensorProductPRefinementTransferOperator(lFESpace_, hFESpace_);
    }
@@ -960,8 +965,8 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      hFESpace.GetElementDofs(i, h_dofs);
-      lFESpace.GetElementDofs(i, l_dofs);
+      DofTransformation * doftrans_h = hFESpace.GetElementDofs(i, h_dofs);
+      DofTransformation * doftrans_l = lFESpace.GetElementDofs(i, l_dofs);
 
       const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
       if (geom != cached_geom)
@@ -981,7 +986,15 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
          h_dofs.Copy(h_vdofs);
          hFESpace.DofsToVDofs(vd, h_vdofs);
          x.GetSubVector(l_vdofs, subX);
+         if (doftrans_l)
+         {
+            doftrans_l->InvTransformPrimal(subX);
+         }
          loc_prol.Mult(subX, subY);
+         if (doftrans_h)
+         {
+            doftrans_h->TransformPrimal(subY);
+         }
          y.SetSubVector(h_vdofs, subY);
       }
    }
@@ -1009,8 +1022,8 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
 
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      hFESpace.GetElementDofs(i, h_dofs);
-      lFESpace.GetElementDofs(i, l_dofs);
+      DofTransformation * doftrans_h = hFESpace.GetElementDofs(i, h_dofs);
+      DofTransformation * doftrans_l = lFESpace.GetElementDofs(i, l_dofs);
 
       const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
       if (geom != cached_geom)
@@ -1032,6 +1045,10 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
          hFESpace.DofsToVDofs(vd, h_vdofs);
 
          x.GetSubVector(h_vdofs, subX);
+         if (doftrans_h)
+         {
+            doftrans_h->InvTransformDual(subX);
+         }
          for (int p = 0; p < h_dofs.Size(); ++p)
          {
             if (processed[lFESpace.DecodeDof(h_dofs[p])])
@@ -1041,6 +1058,10 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
          }
 
          loc_prol.Mult(subX, subY);
+         if (doftrans_l)
+         {
+            doftrans_l->TransformDual(subY);
+         }
          y.AddElementVector(l_vdofs, subY);
       }
 
@@ -1084,7 +1105,8 @@ TensorProductPRefinementTransferOperator(
    // must be sorted in lexicographical order
    for (int i = 0; i < ir.GetNPoints(); ++i)
    {
-      irLex.IntPoint(i) = ir.IntPoint(hdofmap[i]);
+      int j = hdofmap[i] >=0 ? hdofmap[i] : -1 - hdofmap[i];
+      irLex.IntPoint(i) = ir.IntPoint(j);
    }
 
    NE = lFESpace.GetNE();

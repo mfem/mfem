@@ -33,7 +33,8 @@
 #endif
 
 #ifdef MFEM_USE_UMPIRE
-#include "umpire/Umpire.hpp"
+#include <umpire/Umpire.hpp>
+#include <umpire/strategy/QuickPool.hpp>
 
 // Make sure Umpire is build with CUDA support if MFEM is built with it.
 #if defined(MFEM_USE_CUDA) && !defined(UMPIRE_ENABLE_CUDA)
@@ -469,7 +470,10 @@ public:
    void *HtoD(void *dst, const void *src, size_t bytes)
    { return HipMemcpyHtoD(dst, src, bytes); }
    void *DtoD(void* dst, const void* src, size_t bytes)
-   { return HipMemcpyDtoD(dst, src, bytes); }
+   // Unlike cudaMemcpy(DtoD), hipMemcpy(DtoD) causes a host-side synchronization so
+   // instead we use hipMemcpyAsync to get similar behavior.
+   // for more info see: https://github.com/mfem/mfem/pull/2780
+   { return HipMemcpyDtoDAsync(dst, src, bytes); }
    void *DtoH(void *dst, const void *src, size_t bytes)
    { return HipMemcpyDtoH(dst, src, bytes); }
 };
@@ -535,7 +539,7 @@ public:
    {
       if (!rm.isAllocator(name))
       {
-         allocator = rm.makeAllocator<umpire::strategy::DynamicPool>(
+         allocator = rm.makeAllocator<umpire::strategy::QuickPool>(
                         name, rm.getAllocator(space));
          owns_allocator = true;
       }
@@ -592,7 +596,10 @@ public:
       return CuMemcpyDtoD(dst, src, bytes);
 #endif
 #ifdef MFEM_USE_HIP
-      return HipMemcpyDtoD(dst, src, bytes);
+      // Unlike cudaMemcpy(DtoD), hipMemcpy(DtoD) causes a host-side synchronization so
+      // instead we use hipMemcpyAsync to get similar behavior.
+      // for more info see: https://github.com/mfem/mfem/pull/2780
+      return HipMemcpyDtoDAsync(dst, src, bytes);
 #endif
       // rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
@@ -910,7 +917,12 @@ MemoryType MemoryManager::Delete_(void *h_ptr, MemoryType h_mt, unsigned flags)
    MFEM_ASSERT(IsHostMemory(h_mt), "invalid h_mt = " << (int)h_mt);
    // MFEM_ASSERT(registered || IsHostMemory(h_mt),"");
    MFEM_ASSERT(!owns_device || owns_internal, "invalid Memory state");
-   MFEM_ASSERT(registered || !(owns_host || owns_device || owns_internal),
+   // If at least one of the 'own_*' flags is true then 'registered' must be
+   // true too. An acceptable exception is the special case when 'h_ptr' is
+   // NULL, and both 'own_device' and 'own_internal' are false -- this case is
+   // an exception only when 'own_host' is true and 'registered' is false.
+   MFEM_ASSERT(registered || !(owns_host || owns_device || owns_internal) ||
+               (!(owns_device || owns_internal) && h_ptr == nullptr),
                "invalid Memory state");
    if (!mm.exists || !registered) { return h_mt; }
    if (alias)
@@ -1377,10 +1389,6 @@ void MemoryManager::EraseDevice(void *h_ptr)
    if (!h_ptr) { return; }
    auto mem_map_iter = maps->memories.find(h_ptr);
    if (mem_map_iter == maps->memories.end()) { mfem_error("Unknown pointer!"); }
-   if (maps->aliases.find(h_ptr) != maps->aliases.end())
-   {
-      mfem_error("cannot delete aliased obj!");
-   }
    internal::Memory &mem = mem_map_iter->second;
    if (mem.d_ptr) { ctrl->Device(mem.d_mt)->Dealloc(mem);}
    mem.d_ptr = nullptr;

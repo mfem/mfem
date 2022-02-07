@@ -175,4 +175,13 @@
 // Enable interface to the MKL CPardiso library.
 #cmakedefine MFEM_USE_MKL_CPARDISO
 
+// Use forward mode for automatic differentiation
+#cmakedefine MFEM_USE_ADFORWARD
+
+// Enable the use of the CoDiPack library for AD
+#cmakedefine MFEM_USE_CODIPACK
+
+// Enable MFEM functionality based on the Google Benchmark library.
+#cmakedefine MFEM_USE_BENCHMARK
+
 #endif // MFEM_CONFIG_HEADER

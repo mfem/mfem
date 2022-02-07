@@ -604,10 +604,15 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
    mfem_error("Hypre version 2.16+ is required when using AmgX \n");
 #endif
 
+   // Ensure HypreParMatrix is on the host
+   A.HostRead();
+
    hypre_ParCSRMatrix * A_ptr =
       (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(A);
 
    hypre_CSRMatrix *A_csr = hypre_MergeDiagAndOffd(A_ptr);
+
+   A.HypreRead();
 
    Array<double> loc_A(A_csr->data, (int)A_csr->num_nonzeros);
    const Array<HYPRE_Int> loc_I(A_csr->i, (int)A_csr->num_rows+1);
