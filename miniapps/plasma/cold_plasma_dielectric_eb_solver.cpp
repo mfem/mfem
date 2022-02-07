@@ -696,6 +696,209 @@ void Displacement::ComputeD()
    delete pcg;
 }
 
+VectorFieldVisObject::VectorFieldVisObject(const std::string & field_name,
+                                           L2_ParFESpace *vfes,
+                                           L2_ParFESpace *sfes,
+                                           bool cyl)
+   : cyl_(cyl),
+     dim_(-1),
+     field_name_(field_name),
+     v_(NULL),
+     v_y_(NULL),
+     v_z_(NULL)
+{
+   MFEM_VERIFY(vfes != NULL || sfes != NULL, "VectorFieldVisObject: "
+               "Either vfes or sfes must be non NULL.");
+
+   if (vfes)
+   {
+      dim_ = vfes->GetParMesh()->SpaceDimension();
+   }
+   else
+   {
+      dim_ = sfes->GetParMesh()->SpaceDimension();
+   }
+
+   switch (dim_)
+   {
+      case 1:
+         MFEM_VERIFY(sfes != NULL, "VectorFieldVisObject: "
+                     "sfes must be non NULL in 1D.");
+         v_   = new ComplexGridFunction(sfes);
+         v_y_ = new ComplexGridFunction(sfes);
+         v_z_ = new ComplexGridFunction(sfes);
+         break;
+      case 2:
+         MFEM_VERIFY(vfes != NULL && sfes != NULL, "VectorFieldVisObject: "
+                     "vfes and sfes must be non NULL in 2D.");
+         v_   = new ComplexGridFunction(vfes);
+         v_z_ = new ComplexGridFunction(sfes);
+         break;
+      case 3:
+         MFEM_VERIFY(vfes != NULL, "VectorFieldVisObject: "
+                     "vfes must be non NULL in 3D.");
+         v_   = new ComplexGridFunction(vfes);
+         break;
+   }
+}
+
+VectorFieldVisObject::~VectorFieldVisObject()
+{
+   delete v_;
+   delete v_y_;
+   delete v_z_;
+}
+
+void VectorFieldVisObject::RegisterVisItFields(VisItDataCollection & visit_dc)
+{
+   switch (dim_)
+   {
+      case 1:
+      {
+         ostringstream oss_x_r;
+         ostringstream oss_x_i;
+         ostringstream oss_y_r;
+         ostringstream oss_y_i;
+         ostringstream oss_z_r;
+         ostringstream oss_z_i;
+
+         oss_x_r << "Re_" << field_name_ << "x";
+         oss_x_i << "Im_" << field_name_ << "x";
+         oss_y_r << "Re_" << field_name_ << "y";
+         oss_y_i << "Im_" << field_name_ << "y";
+         oss_z_r << "Re_" << field_name_ << "z";
+         oss_z_i << "Im_" << field_name_ << "z";
+
+         visit_dc.RegisterField(oss_x_r.str(), &v_->real());
+         visit_dc.RegisterField(oss_x_i.str(), &v_->imag());
+         visit_dc.RegisterField(oss_y_r.str(), &v_y_->real());
+         visit_dc.RegisterField(oss_y_i.str(), &v_y_->imag());
+         visit_dc.RegisterField(oss_z_r.str(), &v_z_->real());
+         visit_dc.RegisterField(oss_z_i.str(), &v_z_->imag());
+      }
+      break;
+      case 2:
+      {
+         ostringstream oss_xy_r;
+         ostringstream oss_xy_i;
+         ostringstream oss_z_r;
+         ostringstream oss_z_i;
+
+         oss_xy_r << "Re_" << field_name_;
+         oss_xy_i << "Im_" << field_name_;
+         oss_z_r << "Re_" << field_name_;
+         oss_z_i << "Im_" << field_name_;
+
+         if (!cyl_)
+         {
+            oss_xy_r << "xy";
+            oss_xy_i << "xy";
+            oss_z_r << "z";
+            oss_z_i << "z";
+
+            visit_dc.RegisterField(oss_xy_r.str(), &v_->real());
+            visit_dc.RegisterField(oss_xy_i.str(), &v_->imag());
+            visit_dc.RegisterField(oss_z_r.str(), &v_z_->real());
+            visit_dc.RegisterField(oss_z_i.str(), &v_z_->imag());
+         }
+         else
+         {
+            oss_xy_r << "zr";
+            oss_xy_i << "zr";
+            oss_z_r << "phi";
+            oss_z_i << "phi";
+
+            visit_dc.RegisterField(oss_xy_r.str(), &v_->real());
+            visit_dc.RegisterField(oss_xy_i.str(), &v_->imag());
+            visit_dc.RegisterField(oss_z_r.str(), &v_z_->real());
+            visit_dc.RegisterField(oss_z_i.str(), &v_z_->imag());
+         }
+      }
+      break;
+      case 3:
+      {
+         ostringstream oss_r;
+         ostringstream oss_i;
+
+         oss_r << "Re_" << field_name_;
+         oss_i << "Im_" << field_name_;
+
+         visit_dc.RegisterField(oss_r.str(), &v_->real());
+         visit_dc.RegisterField(oss_i.str(), &v_->imag());
+      }
+      break;
+   }
+}
+
+void VectorFieldVisObject::PrepareVisField(const ParComplexGridFunction &u,
+                                           VectorCoefficient * kReCoef,
+                                           VectorCoefficient * kImCoef)
+{
+   if (kReCoef || kImCoef)
+   {
+      VectorGridFunctionCoefficient u_r(&u.real());
+      VectorGridFunctionCoefficient u_i(&u.imag());
+      ComplexPhaseVectorCoefficient uk_r(kReCoef, kImCoef, &u_r, &u_i,
+                                         true, false);
+      ComplexPhaseVectorCoefficient uk_i(kReCoef, kImCoef, &u_r, &u_i,
+                                         false, false);
+
+      switch (dim_)
+      {
+         case 1:
+         {}
+         break;
+         case 2:
+         {
+            VectorXYCoef ukxy_r(uk_r);
+            VectorXYCoef ukxy_i(uk_i);
+            VectorZCoef   ukz_r(uk_r);
+            VectorZCoef   ukz_i(uk_i);
+
+            v_->ProjectCoefficient(ukxy_r, ukxy_i);
+            if (v_z_) { v_z_->ProjectCoefficient(ukz_r, ukz_i); }
+         }
+         break;
+         case 3:
+         {}
+         break;
+      }
+   }
+   else
+   {
+      VectorGridFunctionCoefficient u_r(&u.real());
+      VectorGridFunctionCoefficient u_i(&u.imag());
+
+      switch (dim_)
+      {
+         case 1:
+         {}
+         break;
+         case 2:
+         {
+            VectorXYCoef uxy_r(u_r);
+            VectorXYCoef uxy_i(u_i);
+            VectorZCoef   uz_r(u_r);
+            VectorZCoef   uz_i(u_i);
+
+            v_->ProjectCoefficient(uxy_r, uxy_i);
+            if (v_z_) { v_z_->ProjectCoefficient(uz_r, uz_i); }
+         }
+         break;
+         case 3:
+         {}
+         break;
+      }
+   }
+}
+
+void VectorFieldVisObject::Update()
+{
+   if (v_) { v_->Update(); }
+   if (v_y_) { v_y_->Update(); }
+   if (v_z_) { v_z_->Update(); }
+}
+
 inline ParFiniteElementSpace *
 MakeHCurlFESpace(ParMesh &pmesh, int order)
 {
@@ -759,9 +962,8 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
      pmesh_(&pmesh),
      L2FESpace_(new L2_ParFESpace(pmesh_, order-1, pmesh_->Dimension())),
      L2FESpace2p_(NULL),
-     // L2VFESpace_(NULL),
-     // L2FESpace3D_(NULL),
-     L2VSFESpace_(NULL),
+     L2VSFESpace_(new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
+                                    pmesh_->SpaceDimension())),
      L2V3FESpace_(NULL),
      HCurlFESpace_(MakeHCurlFESpace(pmesh, order)),
      HDivFESpace_(MakeHDivFESpace(pmesh, order)),
@@ -770,15 +972,13 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
      e_(HCurlFESpace_),
      e_t_(NULL),
      e_b_(NULL),
-     e_v_(NULL),
-     e_y_v_(NULL),
-     e_z_v_(NULL),
-     b_v_(NULL),
+     e_v_("E", L2VSFESpace_, L2FESpace_, cyl_),
+     b_v_("B", L2VSFESpace_, L2FESpace_, cyl_),
      db_v_(NULL),
-     d_v_(NULL),
+     d_v_("D", L2VSFESpace_, L2FESpace_, cyl_),
      dd_v_(NULL),
-     j_v_(NULL),
-     k_v_(NULL),
+     j_v_("J", L2VSFESpace_, L2FESpace_, cyl_),
+     k_v_("K", L2VSFESpace_, L2FESpace_, cyl_),
      b_hat_(NULL),
      u_(NULL),
      uE_(NULL),
@@ -855,8 +1055,6 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
    }
    if (kReCoef_ || kImCoef_)
    {
-      L2VSFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
-                                       pmesh_->SpaceDimension());
       e_t_ = new ParGridFunction(L2VSFESpace_);
    }
    else
@@ -1119,15 +1317,8 @@ CPDSolverEB::~CPDSolverEB()
    delete StixS_;
    delete StixD_;
    delete StixP_;
-   delete e_v_;
-   delete e_y_v_;
-   delete e_z_v_;
-   delete b_v_;
    delete db_v_;
-   delete d_v_;
    delete dd_v_;
-   delete j_v_;
-   delete k_v_;
    delete e_b_;
    delete b_hat_;
    delete b_hat_v_;
@@ -1279,15 +1470,13 @@ CPDSolverEB::Update()
    if (S_) { S_->Update(); }
    if (e_t_) { e_t_->Update(); }
    if (e_b_) { e_b_->Update(); }
-   if (e_v_) { e_v_->Update(); }
-   if (e_y_v_) { e_y_v_->Update(); }
-   if (e_z_v_) { e_z_v_->Update(); }
-   if (b_v_) { b_v_->Update(); }
+   e_v_.Update();
+   b_v_.Update();
+   d_v_.Update();
+   j_v_.Update();
+   k_v_.Update();
    if (db_v_) { db_v_->Update(); }
-   if (d_v_) { d_v_->Update(); }
    if (dd_v_) { dd_v_->Update(); }
-   if (j_v_) { j_v_->Update(); }
-   if (k_v_) { k_v_->Update(); }
    if (b_hat_) { b_hat_->Update(); }
 
    if (StixS_) { StixS_->Update(); }
@@ -1785,14 +1974,14 @@ void CPDSolverEB::prepareVectorVisField(const ParComplexGridFunction &u,
 
 void CPDSolverEB::prepareVisFields()
 {
-   prepareVectorVisField(e_, *e_v_, e_y_v_, e_z_v_);
+   e_v_.PrepareVisField(e_, kReCoef_, kImCoef_);
+   b_v_.PrepareVisField(faraday_.GetMagneticFlux(), kReCoef_, kImCoef_);
+   d_v_.PrepareVisField(displacement_.GetDisplacement(), kReCoef_, kImCoef_);
+   j_v_.PrepareVisField(current_.GetVolumeCurrentDensity(),
+                        kReCoef_, kImCoef_);
+   k_v_.PrepareVisField(current_.GetSurfaceCurrentDensity(),
+                        kReCoef_, kImCoef_);
    /*
-    prepareVectorVisField(e_, *e_v_);
-    prepareVectorVisField(displacement_.GetDisplacement(), *d_v_);
-    prepareVectorVisField(current_.GetVolumeCurrentDensity(), *j_v_);
-    prepareVectorVisField(current_.GetSurfaceCurrentDensity(), *k_v_);
-    prepareVectorVisField(faraday_.GetMagneticFlux(), *b_v_);
-
     divB_.ComputeDiv();
     prepareScalarVisField(divB_.GetDivergence(), *db_v_);
 
@@ -1867,16 +2056,7 @@ void
 CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
    visit_dc_ = &visit_dc;
-   /*
-   if (L2FESpace3D_ == NULL)
-   {
-      L2FESpace3D_  = new L2_FESpace(visit_dc_->GetMesh(),order_-1,3);
-   }
-   if (L2VFESpace3D_ == NULL)
-   {
-      L2VFESpace3D_  = new L2_FESpace(visit_dc_->GetMesh(),order_-1,3,3);
-   }
-   */
+
    if (L2VSFESpace_ == NULL)
    {
       L2VSFESpace_ = new L2_ParFESpace(pmesh_,order_,pmesh_->Dimension(),
@@ -1887,74 +2067,22 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
    StixD_ = new ComplexGridFunction(L2FESpace_);
    StixP_ = new ComplexGridFunction(L2FESpace_);
 
-   e_v_ = new ComplexGridFunction(L2VSFESpace_);
-
-   switch (pmesh_->SpaceDimension())
-   {
-      case 1:
-         e_y_v_ = new ComplexGridFunction(L2FESpace_);
-         e_z_v_ = new ComplexGridFunction(L2FESpace_);
-
-         visit_dc.RegisterField("Re_Ex", &e_v_->real());
-         visit_dc.RegisterField("Im_Ex", &e_v_->imag());
-         visit_dc.RegisterField("Re_Ey", &e_y_v_->real());
-         visit_dc.RegisterField("Im_Ey", &e_y_v_->imag());
-         visit_dc.RegisterField("Re_Ez", &e_z_v_->real());
-         visit_dc.RegisterField("Im_Ez", &e_z_v_->imag());
-
-         break;
-      case 2:
-         e_z_v_ = new ComplexGridFunction(L2FESpace_);
-
-         if (!cyl_)
-         {
-            visit_dc.RegisterField("Re_Exy", &e_v_->real());
-            visit_dc.RegisterField("Im_Exy", &e_v_->imag());
-            visit_dc.RegisterField("Re_Ez", &e_z_v_->real());
-            visit_dc.RegisterField("Im_Ez", &e_z_v_->imag());
-         }
-         else
-         {
-            visit_dc.RegisterField("Re_Ezr", &e_v_->real());
-            visit_dc.RegisterField("Im_Ezr", &e_v_->imag());
-            visit_dc.RegisterField("Re_Ephi", &e_z_v_->real());
-            visit_dc.RegisterField("Im_Ephi", &e_z_v_->imag());
-         }
-         break;
-      case 3:
-         visit_dc.RegisterField("Re_E", &e_v_->real());
-         visit_dc.RegisterField("Im_E", &e_v_->imag());
-         break;
-   }
+   e_v_.RegisterVisItFields(visit_dc);
+   b_v_.RegisterVisItFields(visit_dc);
+   d_v_.RegisterVisItFields(visit_dc);
+   j_v_.RegisterVisItFields(visit_dc);
+   k_v_.RegisterVisItFields(visit_dc);
    /*
-   d_v_ = new ComplexGridFunction(L2VFESpace3D_);
-   b_v_ = new ComplexGridFunction(L2VFESpace3D_);
-   j_v_ = new ComplexGridFunction(L2VFESpace3D_);
-   k_v_ = new ComplexGridFunction(L2VFESpace3D_);
-
    dd_v_ = new ComplexGridFunction(L2FESpace3D_);
    db_v_ = new ComplexGridFunction(L2FESpace3D_);
    */
    /*
-   visit_dc.RegisterField("Re_E", &e_v_->real());
-   visit_dc.RegisterField("Im_E", &e_v_->imag());
-
-   visit_dc.RegisterField("Re_D", &d_v_->real());
-   visit_dc.RegisterField("Im_D", &d_v_->imag());
-
-   visit_dc.RegisterField("Re_B", &b_v_->real());
-   visit_dc.RegisterField("Im_B", &b_v_->imag());
-
    visit_dc.RegisterField("Re_DivD", &dd_v_->real());
    visit_dc.RegisterField("Im_DivD", &dd_v_->imag());
 
    visit_dc.RegisterField("Re_DivB", &db_v_->real());
    visit_dc.RegisterField("Im_DivB", &db_v_->imag());
    */
-   // visit_dc.RegisterField("Er", e_r_);
-   // visit_dc.RegisterField("Ei", e_i_);
-   // visit_dc.RegisterField("B", b_);
-   // visit_dc.RegisterField("H", h_);
    /*
    if ( BCoef_)
    {
@@ -1963,16 +2091,6 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("B_hat", b_hat_v_);
    }
 
-   if ( j_v_ )
-   {
-      visit_dc.RegisterField("Re_J", &j_v_->real());
-      visit_dc.RegisterField("Im_J", &j_v_->imag());
-   }
-   if ( k_v_ )
-   {
-      visit_dc.RegisterField("Re_K", &k_v_->real());
-      visit_dc.RegisterField("Im_K", &k_v_->imag());
-   }
    if ( u_ )
    {
       visit_dc.RegisterField("U", u_);
@@ -1983,9 +2101,6 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
       // visit_dc.RegisterField("Im(u)", &u_->imag());
    }
    */
-   // if ( j_r_ ) { visit_dc.RegisterField("Jr", j_r_); }
-   // if ( j_i_ ) { visit_dc.RegisterField("Ji", j_i_); }
-   // if ( k_ ) { visit_dc.RegisterField("K", k_); }
    // if ( m_ ) { visit_dc.RegisterField("M", m_); }
    // if ( SurfCur_ ) { visit_dc.RegisterField("Psi", SurfCur_->GetPsi()); }
    if ( StixS_ )
@@ -2087,7 +2202,7 @@ CPDSolverEB::InitializeGLVis()
 
    // socks_["H"] = new socketstream;
    // socks_["H"]->precision(8);
-
+   /*
    if ( j_v_ )
    {
       socks_["Jr"] = new socketstream;
@@ -2096,7 +2211,7 @@ CPDSolverEB::InitializeGLVis()
       socks_["Ji"] = new socketstream;
       socks_["Ji"]->precision(8);
    }
-
+   */
    if ( u_ )
    {
       socks_["U"] = new socketstream;
@@ -2167,6 +2282,7 @@ CPDSolverEB::DisplayToGLVis()
       d_v_ = d_;
    }
    */
+   /*
    ostringstream er_keys, ei_keys;
    er_keys << "aaAcppppp";
    ei_keys << "aaAcppppp";
@@ -2188,7 +2304,8 @@ CPDSolverEB::DisplayToGLVis()
                         ei_keys.str().c_str());
          break;
    }
-
+   */
+   /*
    ostringstream br_keys, bi_keys;
    br_keys << "aaAcPPPP";
    bi_keys << "aaAcPPPP";
@@ -2213,7 +2330,7 @@ CPDSolverEB::DisplayToGLVis()
          Wx += offx;
          break;
    }
-
+   */
    /*
    VisualizeField(*socks_["Er"], vishost, visport,
                   e_v_->real(), "Electric Field, Re(E)", Wx, Wy, Ww, Wh);
@@ -2262,7 +2379,7 @@ CPDSolverEB::DisplayToGLVis()
                   *h_, "Magnetic Field (H)", Wx, Wy, Ww, Wh);
    Wx += offx;
    */
-   if ( j_v_ )
+   // if ( j_v_ )
    {
       Wx = 0; Wy += offy; // next line
       /*
@@ -2346,7 +2463,7 @@ void
 CPDSolverEB::DisplayAnimationToGLVis()
 {
    if (myid_ == 0) { cout << "Sending animation data to GLVis ..." << flush; }
-
+   /*
    if (kReCoef_ || kImCoef_)
    {
       VectorGridFunctionCoefficient e_r(&e_.real());
@@ -2401,6 +2518,7 @@ CPDSolverEB::DisplayAnimationToGLVis()
                << "window_title '" << oss.str() << "'" << flush;
       i++;
    }
+   */
 }
 
 } // namespace plasma

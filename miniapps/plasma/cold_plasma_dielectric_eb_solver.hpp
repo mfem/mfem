@@ -696,6 +696,35 @@ public:
    void ComputeD();
 };
 
+class VectorFieldVisObject
+{
+private:
+   bool cyl_;
+
+   int dim_;
+
+   std::string field_name_;
+
+   ComplexGridFunction * v_; // Complex field in problem domain (L2^d)
+   ComplexGridFunction * v_y_; // Complex field y component in 1D (L2)
+   ComplexGridFunction * v_z_; // Complex field z component in 1D or 2D (L2)
+
+public:
+   VectorFieldVisObject(const std::string & field_name,
+                        L2_ParFESpace *vfes, L2_ParFESpace *sfes,
+                        bool cyl);
+
+   ~VectorFieldVisObject();
+
+   void RegisterVisItFields(VisItDataCollection & visit_dc);
+
+   void PrepareVisField(const ParComplexGridFunction &u,
+                        VectorCoefficient * kReCoef,
+                        VectorCoefficient * kImCoef);
+
+   void Update();
+};
+
 /// Cold Plasma Dielectric Solver
 class CPDSolverEB
 {
@@ -822,8 +851,6 @@ private:
    L2_ParFESpace * L2FESpace2p_;
    L2_ParFESpace * L2VSFESpace_;
    L2_ParFESpace * L2V3FESpace_;
-   // L2_FESpace * L2FESpace3D_;
-   // L2_FESpace * L2VFESpace3D_;
    ParFiniteElementSpace * HCurlFESpace_;
    ParFiniteElementSpace * HDivFESpace_;
    ParFiniteElementSpace * HDivFESpace2p_;
@@ -835,15 +862,13 @@ private:
    ParComplexGridFunction   e_;   // Complex electric field (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
-   ComplexGridFunction * e_v_; // Complex electric field (L2^d)
-   ComplexGridFunction * e_y_v_; // Complex electric field (L2)
-   ComplexGridFunction * e_z_v_; // Complex electric field (L2)
-   ComplexGridFunction * b_v_; // Complex magnetic flux (L2^d)
+   VectorFieldVisObject e_v_;
+   VectorFieldVisObject b_v_;
    ComplexGridFunction * db_v_; // Complex divergence of magnetic flux (L2)
-   ComplexGridFunction * d_v_; // Complex electric flux (L2^d)
+   VectorFieldVisObject d_v_;
    ComplexGridFunction * dd_v_; // Complex divergence of electric flux (L2)
-   ComplexGridFunction * j_v_; // Complex current density (L2^d)
-   ComplexGridFunction * k_v_; // Complex surface current density (L2^d)
+   VectorFieldVisObject j_v_;
+   VectorFieldVisObject k_v_;
    ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
    GridFunction           * b_hat_v_; // Unit vector along B (L2^d)
    ParGridFunction        * u_;   // Energy density (L2)
