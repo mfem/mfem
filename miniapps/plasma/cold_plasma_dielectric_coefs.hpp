@@ -341,6 +341,28 @@ protected:
    const Vector & masses_;
 };
 
+class StixLCoef: public Coefficient, public StixCoefBase
+{
+public:
+   StixLCoef(const ParGridFunction & B,
+             const ParGridFunction & xpos,
+             const BlockVector & density,
+             const BlockVector & temp,
+             const ParFiniteElementSpace & L2FESpace,
+             const ParFiniteElementSpace & H1FESpace,
+             double omega,
+             const Vector & charges,
+             const Vector & masses,
+             int nuprof,
+             bool realPart);
+
+   StixLCoef(StixCoefBase &s) : StixCoefBase(s) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+   virtual ~StixLCoef() {}
+};
+
 class StixSCoef: public Coefficient, public StixCoefBase
 {
 public:

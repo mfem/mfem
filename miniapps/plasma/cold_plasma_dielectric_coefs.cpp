@@ -697,6 +697,46 @@ void StixCoefBase::fillTemperatureVals(ElementTransformation &T,
    }
 }
 
+StixLCoef::StixLCoef(const ParGridFunction & B,
+                     const ParGridFunction & xpos,
+                     const BlockVector & density,
+                     const BlockVector & temp,
+                     const ParFiniteElementSpace & L2FESpace,
+                     const ParFiniteElementSpace & H1FESpace,
+                     double omega,
+                     const Vector & charges,
+                     const Vector & masses,
+                     int nuprof,
+                     bool realPart)
+   : StixCoefBase(B, xpos, density, temp, L2FESpace, H1FESpace, omega,
+                  charges, masses, nuprof, realPart)
+{}
+
+double StixLCoef::Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+{
+   // Collect density, temperature, and magnetic field values
+   double Bmag = this->getBMagnitude(T, ip);
+   xpos_vals_ = xpos_.GetValue(T, ip);
+
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
+
+   // Evaluate Stix Coefficient
+   complex<double> L = L_cold_plasma(omega_, Bmag, xpos_vals_, density_vals_,
+                                     charges_, masses_, temp_vals_, nuprof_);
+
+   // Return the selected component
+   if (realPart_)
+   {
+      return L.real();
+   }
+   else
+   {
+      return L.imag();
+   }
+}
+
 StixSCoef::StixSCoef(const ParGridFunction & B,
                      const ParGridFunction & xpos,
                      const BlockVector & density,
