@@ -17,6 +17,7 @@
 #include "../config/config.hpp"
 #include "../linalg/vector.hpp"
 #include "bilinearform.hpp"
+#include "complex_fem.hpp"
 #ifdef MFEM_USE_MPI
 #include "pgridfunc.hpp"
 #endif
@@ -404,6 +405,200 @@ public:
 
    /// Destructor
    virtual ~LpErrorEstimator() {}
+};
+
+
+/** @brief The ComplexLpErrorEstimator class compares the solution to a known
+    coefficient.
+
+    This class can be used, for example, to adapt a mesh to a non-trivial
+    initial condition in a time-dependent simulation. It can also be used to
+    force refinement in the neighborhood of small features before switching to a
+    more traditional error estimator.
+
+    The ComplexLpErrorEstimator supports either complex-valued scalar or vector\    coefficients and works both in serial and in parallel.
+*/
+class ComplexLpErrorEstimator : public ErrorEstimator
+{
+protected:
+   long current_sequence;
+   int local_norm_p;
+   Vector error_estimates;
+
+   // double total_error = 0.0;
+
+   Coefficient * real_coef;
+   Coefficient * imag_coef;
+   VectorCoefficient * real_vcoef;
+   VectorCoefficient * imag_vcoef;
+   ComplexGridFunction * sol;
+#ifdef MFEM_USE_MPI
+   ParComplexGridFunction * par_sol;
+#endif
+
+   LpErrorEstimator real_estimator;
+   LpErrorEstimator imag_estimator;
+
+   /// Check if the mesh of the solution was modified.
+   bool MeshIsModified()
+   {
+      long mesh_sequence = 0;
+      if (sol) { mesh_sequence = sol->FESpace()->GetMesh()->GetSequence(); }
+#ifdef MFEM_USE_MPI
+      if (par_sol)
+      { mesh_sequence = par_sol->FESpace()->GetMesh()->GetSequence(); }
+#endif
+      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+      return (mesh_sequence > current_sequence);
+   }
+
+   /// Compute the element error estimates.
+   void ComputeEstimates();
+
+public:
+   /** @brief Construct a new ComplexLpErrorEstimator object for a scalar field.
+       @param p    Integer which selects which Lp norm to use.
+       @param sol  The ComplexGridFunction representation of the scalar field.
+       Note: the coefficient must be set before use with the SetCoef method.
+   */
+   ComplexLpErrorEstimator(int p, ComplexGridFunction &sol)
+      : current_sequence(-1), local_norm_p(p),
+        error_estimates(0),
+        real_coef(NULL), imag_coef(NULL),
+        real_vcoef(NULL), imag_vcoef(NULL), sol(&sol),
+#ifdef MFEM_USE_MPI
+        par_sol(NULL),
+#endif
+        real_estimator(p, sol.real()), imag_estimator(p, sol.imag()) { }
+
+   /** @brief Construct a new ComplexLpErrorEstimator object for a scalar field.
+       @param p    Integer which selects which Lp norm to use.
+       @param real_coef The scalar Coefficient to compare to the real part of
+                        the solution.
+       @param imag_coef The scalar Coefficient to compare to the imaginary part
+                        of the solution.
+       @param sol  The ComplexGridFunction representation of the scalar field.
+   */
+   ComplexLpErrorEstimator(int p,
+                           Coefficient &real_coef, Coefficient &imag_coef,
+                           ComplexGridFunction &sol)
+      : current_sequence(-1), local_norm_p(p),
+        error_estimates(0),
+        real_coef(&real_coef), imag_coef(&imag_coef),
+        real_vcoef(NULL), imag_vcoef(NULL), sol(&sol),
+#ifdef MFEM_USE_MPI
+        par_sol(NULL),
+#endif
+        real_estimator(p, real_coef, sol.real()),
+        imag_estimator(p, imag_coef, sol.imag()) { }
+
+   /** @brief Construct a new ComplexLpErrorEstimator object for a vector field.
+       @param p    Integer which selects which Lp norm to use.
+       @param real_coef The vector VectorCoefficient to compare to the real
+                        part of the solution.
+       @param imag_coef The vector VectorCoefficient to compare to the
+                        imaginary part of the solution.
+       @param sol  The ComplexGridFunction representation of the vector field.
+   */
+   ComplexLpErrorEstimator(int p,
+                           VectorCoefficient &real_coef,
+                           VectorCoefficient &imag_coef,
+                           ComplexGridFunction &sol)
+      : current_sequence(-1), local_norm_p(p),
+        error_estimates(0),
+        real_coef(NULL), imag_coef(NULL),
+        real_vcoef(&real_coef), imag_vcoef(&imag_coef), sol(&sol),
+#ifdef MFEM_USE_MPI
+        par_sol(NULL),
+#endif
+        real_estimator(p, real_coef, sol.real()),
+        imag_estimator(p, imag_coef, sol.imag()) { }
+
+#ifdef MFEM_USE_MPI
+   /** @brief Construct a new ComplexLpErrorEstimator object for a scalar field.
+       @param p    Integer which selects which Lp norm to use.
+       @param sol  The ComplexGridFunction representation of the scalar field.
+       Note: the coefficient must be set before use with the SetCoef method.
+   */
+   ComplexLpErrorEstimator(int p, ParComplexGridFunction &par_sol)
+      : current_sequence(-1), local_norm_p(p),
+        error_estimates(0),
+        real_coef(NULL), imag_coef(NULL),
+        real_vcoef(NULL), imag_vcoef(NULL),
+        sol(NULL), par_sol(&par_sol),
+        real_estimator(p, par_sol.real()), imag_estimator(p, par_sol.imag()) { }
+
+   /** @brief Construct a new ComplexLpErrorEstimator object for a scalar field.
+       @param p    Integer which selects which Lp norm to use.
+       @param real_coef The scalar Coefficient to compare to the real part of
+                        the solution.
+       @param imag_coef The scalar Coefficient to compare to the imaginary part
+                        of the solution.
+       @param sol  The ComplexGridFunction representation of the scalar field.
+   */
+   ComplexLpErrorEstimator(int p,
+                           Coefficient &real_coef, Coefficient &imag_coef,
+                           ParComplexGridFunction &par_sol)
+      : current_sequence(-1), local_norm_p(p),
+        error_estimates(0),
+        real_coef(&real_coef), imag_coef(&imag_coef),
+        real_vcoef(NULL), imag_vcoef(NULL),
+        sol(NULL), par_sol(&par_sol),
+        real_estimator(p, real_coef, par_sol.real()),
+        imag_estimator(p, imag_coef, par_sol.imag()) { }
+
+   /** @brief Construct a new ComplexLpErrorEstimator object for a vector field.
+       @param p    Integer which selects which Lp norm to use.
+       @param real_coef The vector VectorCoefficient to compare to the real
+                        part of the solution.
+       @param imag_coef The vector VectorCoefficient to compare to the
+                        imaginary part of the solution.
+       @param sol  The ComplexGridFunction representation of the vector field.
+   */
+   ComplexLpErrorEstimator(int p,
+                           VectorCoefficient &real_coef,
+                           VectorCoefficient &imag_coef,
+                           ParComplexGridFunction &par_sol)
+      : current_sequence(-1), local_norm_p(p),
+        error_estimates(0),
+        real_coef(NULL), imag_coef(NULL),
+        real_vcoef(&real_coef), imag_vcoef(&imag_coef),
+        sol(NULL), par_sol(&par_sol),
+        real_estimator(p, real_coef, par_sol.real()),
+        imag_estimator(p, imag_coef, par_sol.imag()) { }
+#endif
+
+   /** @brief Set the exponent, p, of the Lp norm used for computing the local
+       element errors. */
+   void SetLocalErrorNormP(int p)
+   {
+      local_norm_p = p;
+      real_estimator.SetLocalErrorNormP(p);
+      imag_estimator.SetLocalErrorNormP(p);
+   }
+
+   void SetRealCoef(Coefficient &A)
+   { real_coef = &A; real_estimator.SetCoef(A); }
+   void SetImagCoef(Coefficient &A)
+   { imag_coef = &A; imag_estimator.SetCoef(A); }
+   void SetRealCoef(VectorCoefficient &A)
+   { real_vcoef = &A; real_estimator.SetCoef(A); }
+   void SetImagCoef(VectorCoefficient &A)
+   { imag_vcoef = &A; imag_estimator.SetCoef(A); }
+
+   /// Reset the error estimator.
+   virtual void Reset() override
+   { current_sequence = -1; real_estimator.Reset(); imag_estimator.Reset(); }
+
+   /// Get a Vector with all element errors.
+   virtual const Vector &GetLocalErrors() override
+   {
+      if (MeshIsModified()) { ComputeEstimates(); }
+      return error_estimates;
+   }
+
+   /// Destructor
+   virtual ~ComplexLpErrorEstimator() {}
 };
 
 
