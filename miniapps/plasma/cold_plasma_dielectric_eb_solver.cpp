@@ -817,6 +817,7 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
      dbcs_(stixBCs.GetDirichletBCs()),
      nbcs_(stixBCs.GetNeumannBCs()),
      sbcs_(stixBCs.GetSheathBCs()),
+     axis_(stixBCs.GetCylindricalAxis()),
      maxwell_(*HCurlFESpace_, omega, conv,
               epsReCoef, epsImCoef, muInvCoef,
               kReCoef, kImCoef, cyl, pa),
@@ -899,6 +900,48 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
       }
       HCurlFESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
    }
+
+   if (axis_.Size() > 0)
+   {
+      Array<int> axis_bdr(pmesh_->bdr_attributes.Max());
+      Array<int> axis_bdr_tdofs;
+      Array<int> axis_bdr_z_tdofs;
+      if ( axis_.Size() == 1 && axis_[0]->attr[0] == -1 )
+      {
+         axis_bdr = 1;
+      }
+      else
+      {
+         axis_bdr = 0;
+         for (int i=0; i<axis_.Size(); i++)
+         {
+            for (int j=0; j<axis_[i]->attr.Size(); j++)
+            {
+               axis_bdr[axis_[i]->attr[j]-1] = 1;
+            }
+         }
+      }
+      HCurlFESpace_->GetEssentialTrueDofs(axis_bdr, axis_bdr_tdofs);
+
+      Vector zHat(3); zHat = 0.0; zHat[2] = 1.0;
+      VectorConstantCoefficient zHatCoef(zHat);
+
+      e_.real().ProjectCoefficient(zHatCoef);
+
+      HypreParVector *tv = e_.real().GetTrueDofs();
+
+      for (int i=0; i<axis_bdr_tdofs.Size(); i++)
+      {
+         if ((*tv)(axis_bdr_tdofs[i]) > 0.5)
+         {
+            axis_bdr_z_tdofs.Append(axis_bdr_tdofs[i]);
+         }
+      }
+      ess_bdr_tdofs_.Append(axis_bdr_z_tdofs);
+
+      delete tv;
+   }
+
    // Setup various coefficients
    posMassCoef_ = new ScalarMatrixProductCoefficient(*omega2Coef_,
                                                      *epsAbsCoef_);
@@ -1179,6 +1222,47 @@ CPDSolverEB::Update()
    // Inform the grid functions that the space has changed.
    e_.Update();
 
+   if (axis_.Size() > 0)
+   {
+      Array<int> axis_bdr(pmesh_->bdr_attributes.Max());
+      Array<int> axis_bdr_tdofs;
+      Array<int> axis_bdr_z_tdofs;
+      if ( axis_.Size() == 1 && axis_[0]->attr[0] == -1 )
+      {
+         axis_bdr = 1;
+      }
+      else
+      {
+         axis_bdr = 0;
+         for (int i=0; i<axis_.Size(); i++)
+         {
+            for (int j=0; j<axis_[i]->attr.Size(); j++)
+            {
+               axis_bdr[axis_[i]->attr[j]-1] = 1;
+            }
+         }
+      }
+      HCurlFESpace_->GetEssentialTrueDofs(axis_bdr, axis_bdr_tdofs);
+
+      Vector zHat(3); zHat = 0.0; zHat[2] = 1.0;
+      VectorConstantCoefficient zHatCoef(zHat);
+
+      e_.real().ProjectCoefficient(zHatCoef);
+
+      HypreParVector *tv = e_.real().GetTrueDofs();
+
+      for (int i=0; i<axis_bdr_tdofs.Size(); i++)
+      {
+         if ((*tv)(axis_bdr_tdofs[i]) > 0.5)
+         {
+            axis_bdr_z_tdofs.Append(axis_bdr_tdofs[i]);
+         }
+      }
+      ess_bdr_tdofs_.Append(axis_bdr_z_tdofs);
+
+      delete tv;
+   }
+
    if (u_) { u_->Update(); }
    if (uE_) { uE_->Update(); }
    if (uB_) { uB_->Update(); }
@@ -1251,6 +1335,25 @@ CPDSolverEB::Solve()
             e_.ProjectBdrCoefficientTangent(*dbcs_[i]->real, *dbcs_[i]->imag,
                                             attr_marker);
          }
+      }
+   }
+
+   if (axis_.Size() > 0)
+   {
+      Vector zeroVec(3); zeroVec = 0.0;
+      VectorConstantCoefficient zeroVecCoef(zeroVec);
+
+      Array<int> attr_marker(pmesh_->bdr_attributes.Max());
+      for (int i = 0; i<axis_.Size(); i++)
+      {
+         attr_marker = 0;
+         for (int j=0; j<axis_[i]->attr.Size(); j++)
+         {
+            attr_marker[axis_[i]->attr[j] - 1] = 1;
+         }
+
+         e_.ProjectBdrCoefficientTangent(zeroVecCoef, zeroVecCoef,
+                                         attr_marker);
       }
    }
 

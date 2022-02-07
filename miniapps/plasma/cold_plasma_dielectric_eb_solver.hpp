@@ -902,6 +902,9 @@ private:
 
    const Array<ComplexCoefficientByAttr*> & sbcs_; // Sheath BCs
 
+   const Array<AttributeArrays*> & axis_; // Cylindrical Axis
+   Array<int> axis_tdofs_;
+
    Maxwell2ndE   maxwell_;
    CurrentSource current_;
    FaradaysLaw   faraday_;

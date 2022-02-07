@@ -544,6 +544,7 @@ int main(int argc, char *argv[])
    Array<int> nbca2; // Neumann BC attributes
    Array<int> nbcaw; // Neumann BC attributes for plane wave source
    Array<int> jsrca; // Current Source region attributes
+   Array<int> axis; // Boundary attributes of axis (for cylindrical coords)
    Vector dbcv1; // Dirichlet BC values
    Vector dbcv2; // Dirichlet BC values
    Vector nbcv; // Neumann BC values
@@ -583,6 +584,8 @@ int main(int argc, char *argv[])
                   "--cartesian-coords",
                   "Cartesian (x, y, z) coordinates or "
                   "Cylindrical (z, rho, phi).");
+   args.AddOption(&axis, "-axis", "--cyl-axis-bdr",
+                  "Boundary attributes of cylindrical axis if applicable.");
    args.AddOption(&init_amr_tol, "-iatol", "--init-amr-tol",
                   "Initial AMR tolerance.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
@@ -1574,6 +1577,11 @@ int main(int argc, char *argv[])
    if (sbca.Size() > 0)
    {
       stixBCs.AddSheathBC(sbca, z_r, z_i);
+   }
+
+   if (axis.Size() > 0)
+   {
+      stixBCs.AddCylindricalAxis(axis);
    }
 
    VectorFunctionCoefficient jrCoef(3, j_src_r);
