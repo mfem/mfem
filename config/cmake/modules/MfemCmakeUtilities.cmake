@@ -529,12 +529,15 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
             if (NOT ImportConfig)
               set(ImportConfig RELEASE)
             endif()
+            set(ImportConfigSuffix "_${ImportConfig}")
             get_target_property(ImpConfigs ${TargetName} IMPORTED_CONFIGURATIONS)
             list(FIND ImpConfigs ${ImportConfig} _Index)
-            if (_Index EQUAL -1)
-              message(FATAL_ERROR " *** ${ReqPack}: configuration "
-                "${ImportConfig} not found. Set ${ReqPack}_IMPORT_CONFIG "
-                "from the list: ${ImpConfigs}.")
+            if ((_Index EQUAL -1) OR ("${ImportConfig}" STREQUAL "NO_CONFIG"))
+              set(ImportConfig "NO_CONFIG")
+              set(ImportConfigSuffix "")
+              # message(FATAL_ERROR " *** ${ReqPack}: configuration "
+              #   "${ImportConfig} not found. Set ${ReqPack}_IMPORT_CONFIG "
+              #   "from the list: ${ImpConfigs}.")
             endif()
           endif()
           # Set _Pack_LIBS
@@ -546,8 +549,8 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
             endif()
           else()
             # Set _Pack_LIBS from the target properties for ImportConfig
-            foreach (_prop IMPORTED_LOCATION_${ImportConfig}
-                IMPORTED_LINK_INTERFACE_LIBRARIES_${ImportConfig})
+            foreach (_prop IMPORTED_LOCATION${ImportConfigSuffix}
+                IMPORTED_LINK_INTERFACE_LIBRARIES${ImportConfigSuffix})
               get_target_property(_value ${TargetName} ${_prop})
               if (_value)
                 list(APPEND _Pack_LIBS ${_value})
@@ -559,7 +562,7 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
             endif()
           endif()
           # Set _Pack_INCS
-          foreach (_prop INCLUDE_DIRECTORIES)
+          foreach (_prop INCLUDE_DIRECTORIES INTERFACE_INCLUDE_DIRECTORIES)
             get_target_property(_value ${TargetName} ${_prop})
             if (_value)
               list(APPEND _Pack_INCS ${_value})
