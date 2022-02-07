@@ -427,6 +427,8 @@ CurrentSource::~CurrentSource()
 
 void CurrentSource::Update()
 {
+   this->ParComplexLinearForm::Update();
+
    jt_.Update();
    kt_.Update();
 }
@@ -750,15 +752,17 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
      prec_(prec),
      conv_(conv),
      ownsEtaInv_(etaInvCoef == NULL),
+     cyl_(cyl),
      vis_u_(vis_u),
      pa_(pa),
      omega_(omega),
      pmesh_(&pmesh),
      L2FESpace_(new L2_ParFESpace(pmesh_, order-1, pmesh_->Dimension())),
      L2FESpace2p_(NULL),
-     L2VFESpace_(NULL),
-     L2FESpace3D_(NULL),
-     L2VFESpace3D_(NULL),
+     // L2VFESpace_(NULL),
+     // L2FESpace3D_(NULL),
+     L2VSFESpace_(NULL),
+     L2V3FESpace_(NULL),
      HCurlFESpace_(MakeHCurlFESpace(pmesh, order)),
      HDivFESpace_(MakeHDivFESpace(pmesh, order)),
      HDivFESpace2p_(NULL),
@@ -767,6 +771,8 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
      e_t_(NULL),
      e_b_(NULL),
      e_v_(NULL),
+     e_y_v_(NULL),
+     e_z_v_(NULL),
      b_v_(NULL),
      db_v_(NULL),
      d_v_(NULL),
@@ -849,9 +855,9 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
    }
    if (kReCoef_ || kImCoef_)
    {
-      L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
-                                      pmesh_->SpaceDimension());
-      e_t_ = new ParGridFunction(L2VFESpace_);
+      L2VSFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
+                                       pmesh_->SpaceDimension());
+      e_t_ = new ParGridFunction(L2VSFESpace_);
    }
    else
    {
@@ -1114,6 +1120,8 @@ CPDSolverEB::~CPDSolverEB()
    delete StixD_;
    delete StixP_;
    delete e_v_;
+   delete e_y_v_;
+   delete e_z_v_;
    delete b_v_;
    delete db_v_;
    delete d_v_;
@@ -1132,7 +1140,8 @@ CPDSolverEB::~CPDSolverEB()
 
    delete L2FESpace_;
    delete L2FESpace2p_;
-   delete L2VFESpace_;
+   delete L2VSFESpace_;
+   delete L2V3FESpace_;
    delete HCurlFESpace_;
    delete HDivFESpace_;
    delete HDivFESpace2p_;
@@ -1204,7 +1213,8 @@ CPDSolverEB::Update()
    // H1FESpace_->Update(false);
    if (L2FESpace_) { L2FESpace_->Update(); }
    if (L2FESpace2p_) { L2FESpace2p_->Update(); }
-   if (L2VFESpace_) { L2VFESpace_->Update(); }
+   if (L2VSFESpace_) { L2VSFESpace_->Update(); }
+   if (L2V3FESpace_) { L2V3FESpace_->Update(); }
    HCurlFESpace_->Update();
    HDivFESpace_->Update();
    if (HDivFESpace2p_) { HDivFESpace2p_->Update(false); }
@@ -1270,6 +1280,8 @@ CPDSolverEB::Update()
    if (e_t_) { e_t_->Update(); }
    if (e_b_) { e_b_->Update(); }
    if (e_v_) { e_v_->Update(); }
+   if (e_y_v_) { e_y_v_->Update(); }
+   if (e_z_v_) { e_z_v_->Update(); }
    if (b_v_) { b_v_->Update(); }
    if (db_v_) { db_v_->Update(); }
    if (d_v_) { d_v_->Update(); }
@@ -1277,6 +1289,10 @@ CPDSolverEB::Update()
    if (j_v_) { j_v_->Update(); }
    if (k_v_) { k_v_->Update(); }
    if (b_hat_) { b_hat_->Update(); }
+
+   if (StixS_) { StixS_->Update(); }
+   if (StixD_) { StixD_->Update(); }
+   if (StixP_) { StixP_->Update(); }
 
    // Inform the bilinear forms that the space has changed.
    b1_->Update();
@@ -1630,18 +1646,38 @@ CPDSolverEB::GetErrorEstimates(Vector & errors)
    if ( myid_ == 0 && logging_ > 0 )
    { cout << "Estimating Error ... " << flush; }
 
+   FiniteElementCollection *flux_fec = NULL;
+   FiniteElementCollection *smooth_flux_fec = NULL;
+
+   switch (pmesh_->SpaceDimension())
+   {
+      case 1:
+         flux_fec = new RT_R1D_FECollection(order_ - 1, 1);
+         smooth_flux_fec = new ND_R1D_FECollection(order_, 1);
+         break;
+      case 2:
+         flux_fec = new RT_R2D_FECollection(order_ - 1, 2);
+         smooth_flux_fec = new ND_R2D_FECollection(order_, 2);
+         break;
+      case 3:
+         flux_fec = new RT_FECollection(order_ - 1, 3);
+         smooth_flux_fec = new ND_FECollection(order_, 3);
+         break;
+   }
+
    // Space for the discontinuous (original) flux
    CurlCurlIntegrator flux_integrator(*muInvCoef_);
-   RT_FECollection flux_fec(order_-1, pmesh_->SpaceDimension());
-   ParFiniteElementSpace flux_fes(pmesh_, &flux_fec);
+   ParFiniteElementSpace flux_fes(pmesh_, flux_fec);
 
    // Space for the smoothed (conforming) flux
    double norm_p = 1;
-   ND_FECollection smooth_flux_fec(order_, pmesh_->Dimension());
-   ParFiniteElementSpace smooth_flux_fes(pmesh_, &smooth_flux_fec);
+   ParFiniteElementSpace smooth_flux_fes(pmesh_, smooth_flux_fec);
 
    L2ZZErrorEstimator(flux_integrator, e_.real(),
                       smooth_flux_fes, flux_fes, errors, norm_p);
+
+   delete flux_fec;
+   delete smooth_flux_fec;
 
    if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << endl; }
 }
@@ -1676,7 +1712,9 @@ void CPDSolverEB::prepareScalarVisField(const ParComplexGridFunction &u,
 }
 
 void CPDSolverEB::prepareVectorVisField(const ParComplexGridFunction &u,
-                                        ComplexGridFunction &v)
+                                        ComplexGridFunction &v,
+                                        ComplexGridFunction *vy,
+                                        ComplexGridFunction *vz)
 {
    if (kReCoef_ || kImCoef_)
    {
@@ -1687,48 +1725,92 @@ void CPDSolverEB::prepareVectorVisField(const ParComplexGridFunction &u,
       ComplexPhaseVectorCoefficient uk_i(kReCoef_, kImCoef_, &u_r, &u_i,
                                          false, false);
 
-      VectorR2DCoef uk_r_3D(uk_r, *pmesh_);
-      VectorR2DCoef uk_i_3D(uk_i, *pmesh_);
+      switch (pmesh_->SpaceDimension())
+      {
+         case 1:
+         {}
+         break;
+         case 2:
+         {
+            VectorXYCoef ukxy_r(uk_r);
+            VectorXYCoef ukxy_i(uk_i);
+            VectorZCoef   ukz_r(uk_r);
+            VectorZCoef   ukz_i(uk_i);
 
-      v.ProjectCoefficient(uk_r_3D, uk_i_3D);
+            v.ProjectCoefficient(ukxy_r, ukxy_i);
+            if (vz) { vz->ProjectCoefficient(ukz_r, ukz_i); }
+         }
+         break;
+         case 3:
+         {}
+         break;
+      }
+      // VectorR2DCoef uk_r_3D(uk_r, *pmesh_);
+      // VectorR2DCoef uk_i_3D(uk_i, *pmesh_);
+
+      // v.ProjectCoefficient(uk_r_3D, uk_i_3D);
    }
    else
    {
       VectorGridFunctionCoefficient u_r(&u.real());
       VectorGridFunctionCoefficient u_i(&u.imag());
 
-      VectorR2DCoef u_r_3D(u_r, *pmesh_);
-      VectorR2DCoef u_i_3D(u_i, *pmesh_);
+      switch (pmesh_->SpaceDimension())
+      {
+         case 1:
+         {}
+         break;
+         case 2:
+         {
+            VectorXYCoef uxy_r(u_r);
+            VectorXYCoef uxy_i(u_i);
+            VectorZCoef   uz_r(u_r);
+            VectorZCoef   uz_i(u_i);
 
-      v.ProjectCoefficient(u_r_3D, u_i_3D);
+            v.ProjectCoefficient(uxy_r, uxy_i);
+            if (vz) { vz->ProjectCoefficient(uz_r, uz_i); }
+         }
+         break;
+         case 3:
+         {}
+         break;
+      }
+
+      // VectorR2DCoef u_r_3D(u_r, *pmesh_);
+      // VectorR2DCoef u_i_3D(u_i, *pmesh_);
+
+      // v.ProjectCoefficient(u_r_3D, u_i_3D);
    }
 }
 
 void CPDSolverEB::prepareVisFields()
 {
-   prepareVectorVisField(e_, *e_v_);
-   prepareVectorVisField(displacement_.GetDisplacement(), *d_v_);
-   prepareVectorVisField(current_.GetVolumeCurrentDensity(), *j_v_);
-   prepareVectorVisField(current_.GetSurfaceCurrentDensity(), *k_v_);
-   prepareVectorVisField(faraday_.GetMagneticFlux(), *b_v_);
-
-   divB_.ComputeDiv();
-   prepareScalarVisField(divB_.GetDivergence(), *db_v_);
-
-   divD_.ComputeDiv();
-   prepareScalarVisField(divD_.GetDivergence(), *dd_v_);
+   prepareVectorVisField(e_, *e_v_, e_y_v_, e_z_v_);
    /*
-   if (h_tilde_)
-   {
-      VectorGridFunctionCoefficient u_r(&h_->real());
-      VectorGridFunctionCoefficient u_i(&h_->imag());
+    prepareVectorVisField(e_, *e_v_);
+    prepareVectorVisField(displacement_.GetDisplacement(), *d_v_);
+    prepareVectorVisField(current_.GetVolumeCurrentDensity(), *j_v_);
+    prepareVectorVisField(current_.GetSurfaceCurrentDensity(), *k_v_);
+    prepareVectorVisField(faraday_.GetMagneticFlux(), *b_v_);
 
-      VectorR2DCoef u_r_3D(u_r, *pmesh_);
-      VectorR2DCoef u_i_3D(u_i, *pmesh_);
+    divB_.ComputeDiv();
+    prepareScalarVisField(divB_.GetDivergence(), *db_v_);
 
-      h_tilde_->ProjectCoefficient(u_r_3D, u_i_3D);
-   }
+    divD_.ComputeDiv();
+    prepareScalarVisField(divD_.GetDivergence(), *dd_v_);
    */
+   /*
+    if (h_tilde_)
+    {
+       VectorGridFunctionCoefficient u_r(&h_->real());
+       VectorGridFunctionCoefficient u_i(&h_->imag());
+
+       VectorR2DCoef u_r_3D(u_r, *pmesh_);
+       VectorR2DCoef u_i_3D(u_i, *pmesh_);
+
+       h_tilde_->ProjectCoefficient(u_r_3D, u_i_3D);
+    }
+    */
    /*
    {
       VectorGridFunctionCoefficient d_r(&d_->real());
@@ -1764,7 +1846,7 @@ void CPDSolverEB::prepareVisFields()
       div_d_->ProjectCoefficient(ddk_r, ddk_i);
    }
    */
-   if (BCoef_)
+   if (BCoef_ && false)
    {
       // VectorGridFunctionCoefficient b_hat(b_hat_);
       // VectorR2DCoef b_hat_3D(b_hat, *pmesh_);
@@ -1785,7 +1867,7 @@ void
 CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
    visit_dc_ = &visit_dc;
-
+   /*
    if (L2FESpace3D_ == NULL)
    {
       L2FESpace3D_  = new L2_FESpace(visit_dc_->GetMesh(),order_-1,3);
@@ -1794,12 +1876,57 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
    {
       L2VFESpace3D_  = new L2_FESpace(visit_dc_->GetMesh(),order_-1,3,3);
    }
+   */
+   if (L2VSFESpace_ == NULL)
+   {
+      L2VSFESpace_ = new L2_ParFESpace(pmesh_,order_,pmesh_->Dimension(),
+                                       pmesh_->SpaceDimension());
+   }
 
-   StixS_ = new ComplexGridFunction(L2FESpace3D_);
-   StixD_ = new ComplexGridFunction(L2FESpace3D_);
-   StixP_ = new ComplexGridFunction(L2FESpace3D_);
+   StixS_ = new ComplexGridFunction(L2FESpace_);
+   StixD_ = new ComplexGridFunction(L2FESpace_);
+   StixP_ = new ComplexGridFunction(L2FESpace_);
 
-   e_v_ = new ComplexGridFunction(L2VFESpace3D_);
+   e_v_ = new ComplexGridFunction(L2VSFESpace_);
+
+   switch (pmesh_->SpaceDimension())
+   {
+      case 1:
+         e_y_v_ = new ComplexGridFunction(L2FESpace_);
+         e_z_v_ = new ComplexGridFunction(L2FESpace_);
+
+         visit_dc.RegisterField("Re_Ex", &e_v_->real());
+         visit_dc.RegisterField("Im_Ex", &e_v_->imag());
+         visit_dc.RegisterField("Re_Ey", &e_y_v_->real());
+         visit_dc.RegisterField("Im_Ey", &e_y_v_->imag());
+         visit_dc.RegisterField("Re_Ez", &e_z_v_->real());
+         visit_dc.RegisterField("Im_Ez", &e_z_v_->imag());
+
+         break;
+      case 2:
+         e_z_v_ = new ComplexGridFunction(L2FESpace_);
+
+         if (!cyl_)
+         {
+            visit_dc.RegisterField("Re_Exy", &e_v_->real());
+            visit_dc.RegisterField("Im_Exy", &e_v_->imag());
+            visit_dc.RegisterField("Re_Ez", &e_z_v_->real());
+            visit_dc.RegisterField("Im_Ez", &e_z_v_->imag());
+         }
+         else
+         {
+            visit_dc.RegisterField("Re_Ezr", &e_v_->real());
+            visit_dc.RegisterField("Im_Ezr", &e_v_->imag());
+            visit_dc.RegisterField("Re_Ephi", &e_z_v_->real());
+            visit_dc.RegisterField("Im_Ephi", &e_z_v_->imag());
+         }
+         break;
+      case 3:
+         visit_dc.RegisterField("Re_E", &e_v_->real());
+         visit_dc.RegisterField("Im_E", &e_v_->imag());
+         break;
+   }
+   /*
    d_v_ = new ComplexGridFunction(L2VFESpace3D_);
    b_v_ = new ComplexGridFunction(L2VFESpace3D_);
    j_v_ = new ComplexGridFunction(L2VFESpace3D_);
@@ -1807,7 +1934,8 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    dd_v_ = new ComplexGridFunction(L2FESpace3D_);
    db_v_ = new ComplexGridFunction(L2FESpace3D_);
-
+   */
+   /*
    visit_dc.RegisterField("Re_E", &e_v_->real());
    visit_dc.RegisterField("Im_E", &e_v_->imag());
 
@@ -1822,11 +1950,12 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    visit_dc.RegisterField("Re_DivB", &db_v_->real());
    visit_dc.RegisterField("Im_DivB", &db_v_->imag());
-
+   */
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
    // visit_dc.RegisterField("B", b_);
    // visit_dc.RegisterField("H", h_);
+   /*
    if ( BCoef_)
    {
       b_hat_v_ = new GridFunction(L2VFESpace3D_);
@@ -1853,6 +1982,7 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("Im_S", &S_->imag());
       // visit_dc.RegisterField("Im(u)", &u_->imag());
    }
+   */
    // if ( j_r_ ) { visit_dc.RegisterField("Jr", j_r_); }
    // if ( j_i_ ) { visit_dc.RegisterField("Ji", j_i_); }
    // if ( k_ ) { visit_dc.RegisterField("K", k_); }

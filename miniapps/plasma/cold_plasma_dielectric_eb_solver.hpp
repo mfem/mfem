@@ -792,7 +792,9 @@ private:
                               ComplexGridFunction &v);
 
    void prepareVectorVisField(const ParComplexGridFunction &u,
-                              ComplexGridFunction &v);
+                              ComplexGridFunction &v,
+                              ComplexGridFunction *vy,
+                              ComplexGridFunction *vz);
 
    void prepareVisFields();
 
@@ -808,6 +810,7 @@ private:
    ComplexOperator::Convention conv_;
 
    bool ownsEtaInv_;
+   bool cyl_;
    bool vis_u_;
    bool pa_;
 
@@ -817,9 +820,10 @@ private:
 
    L2_ParFESpace * L2FESpace_;
    L2_ParFESpace * L2FESpace2p_;
-   L2_ParFESpace * L2VFESpace_;
-   L2_FESpace * L2FESpace3D_;
-   L2_FESpace * L2VFESpace3D_;
+   L2_ParFESpace * L2VSFESpace_;
+   L2_ParFESpace * L2V3FESpace_;
+   // L2_FESpace * L2FESpace3D_;
+   // L2_FESpace * L2VFESpace3D_;
    ParFiniteElementSpace * HCurlFESpace_;
    ParFiniteElementSpace * HDivFESpace_;
    ParFiniteElementSpace * HDivFESpace2p_;
@@ -832,6 +836,8 @@ private:
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
    ComplexGridFunction * e_v_; // Complex electric field (L2^d)
+   ComplexGridFunction * e_y_v_; // Complex electric field (L2)
+   ComplexGridFunction * e_z_v_; // Complex electric field (L2)
    ComplexGridFunction * b_v_; // Complex magnetic flux (L2^d)
    ComplexGridFunction * db_v_; // Complex divergence of magnetic flux (L2)
    ComplexGridFunction * d_v_; // Complex electric flux (L2^d)
