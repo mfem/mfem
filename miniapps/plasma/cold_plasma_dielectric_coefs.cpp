@@ -167,6 +167,7 @@ complex<double> S_cold_plasma(double omega,
                  nu_ei(q, coul_log, m, Te, n) :
                  nu_art(xpos);
    complex<double> collision_correction(1.0, nuei/omega);
+   complex<double> ion_collision_correction(1.0, 500.0 * nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -175,6 +176,7 @@ complex<double> S_cold_plasma(double omega,
       double m = mass[i];
       complex<double> m_eff = m;
       if (i == 0) { m_eff = m*collision_correction; }
+      if (i == 1) { m_eff = m*ion_collision_correction; }
       complex<double> w_c = omega_c(Bmag, q, m_eff);
       complex<double> w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p / (omega * omega - w_c * w_c);
@@ -202,6 +204,7 @@ complex<double> D_cold_plasma(double omega,
                  nu_ei(q, coul_log, m, Te, n) :
                  nu_art(xpos);
    complex<double> collision_correction(1.0, nuei/omega);
+   complex<double> ion_collision_correction(1.0, 500.0 * nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -210,6 +213,7 @@ complex<double> D_cold_plasma(double omega,
       double m = mass[i];
       complex<double> m_eff = m;
       if (i == 0) { m_eff = m*collision_correction; }
+      if (i == 1) { m_eff = m*ion_collision_correction; }
       complex<double> w_c = omega_c(Bmag, q, m_eff);
       complex<double> w_p = omega_p(n, q, m_eff);
       val += w_p * w_p * w_c / (omega * (omega * omega - w_c * w_c));
@@ -748,7 +752,7 @@ StixSCoef::StixSCoef(const ParGridFunction & B,
                      const Vector & masses,
                      int nuprof,
                      bool realPart)
-  : StixCoefBase(B, xpos, density, temp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, xpos, density, temp, L2FESpace, H1FESpace, omega,
                   charges, masses, nuprof, realPart)
 {}
 
@@ -758,7 +762,7 @@ double StixSCoef::Eval(ElementTransformation &T,
    // Collect density, temperature, and magnetic field values
    double Bmag = this->getBMagnitude(T, ip);
    xpos_vals_ = xpos_.GetValue(T, ip);
-   
+
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
 
@@ -788,7 +792,7 @@ StixDCoef::StixDCoef(const ParGridFunction & B,
                      const Vector & masses,
                      int nuprof,
                      bool realPart)
-  : StixCoefBase(B, xpos, density, temp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, xpos, density, temp, L2FESpace, H1FESpace, omega,
                   charges, masses, nuprof, realPart)
 {}
 
@@ -828,7 +832,7 @@ StixPCoef::StixPCoef(const ParGridFunction & B,
                      const Vector & masses,
                      int nuprof,
                      bool realPart)
-  : StixCoefBase(B, xpos, density, temp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, xpos, density, temp, L2FESpace, H1FESpace, omega,
                   charges, masses, nuprof, realPart)
 {
    std::cout << "*** WARNING: Stix P has been rescaled! ***" << std::endl;
@@ -868,7 +872,7 @@ StixTensorBase::StixTensorBase(const ParGridFunction & B,
                                const Vector & masses,
                                int nuprof,
                                bool realPart)
-: StixCoefBase(B, xpos, density, temp, L2FESpace, H1FESpace,
+   : StixCoefBase(B, xpos, density, temp, L2FESpace, H1FESpace,
                   omega, charges, masses, nuprof, realPart)
 {}
 
@@ -941,7 +945,7 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    double Bmag = this->getBMagnitude(T, ip);
    BVec_ /= Bmag;
    xpos_vals_ = xpos_.GetValue(T, ip);
-   
+
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
 
@@ -1044,7 +1048,7 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
    double Bmag = this->getBMagnitude(T, ip);
    BVec_ /= Bmag;
    xpos_vals_ = xpos_.GetValue(T, ip);
-   
+
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
 
@@ -1095,7 +1099,7 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    double Bmag = this->getBMagnitude(T, ip);
    BVec_ /= Bmag;
    xpos_vals_ = xpos_.GetValue(T, ip);
-   
+
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
    /*

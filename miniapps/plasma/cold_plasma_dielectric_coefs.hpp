@@ -720,6 +720,45 @@ public:
    }
 };
 
+class VectorXYCoef : public VectorCoefficient
+{
+private:
+   VectorCoefficient & coef_;
+
+   mutable Vector v3_;
+
+public:
+   VectorXYCoef(VectorCoefficient & coef)
+      : VectorCoefficient(2), coef_(coef), v3_(3) {}
+
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      coef_.Eval(v3_, T, ip);
+      v.SetSize(2);
+      v[0] = v3_[0]; v[1] = v3_[1];
+   }
+};
+
+class VectorZCoef : public Coefficient
+{
+private:
+   VectorCoefficient & coef_;
+
+   mutable Vector v3_;
+
+public:
+   VectorZCoef(VectorCoefficient & coef)
+      : coef_(coef), v3_(3) {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      coef_.Eval(v3_, T, ip);
+      return v3_[2];
+   }
+};
+
 class HCurlCylMassCoefficient : public MatrixCoefficient
 {
 private:

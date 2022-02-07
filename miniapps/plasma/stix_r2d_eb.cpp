@@ -865,9 +865,9 @@ int main(int argc, char *argv[])
    }
    if (bpt == BFieldProfile::CONSTANT && bpp.Size() == 0)
    {
-     bpp.SetSize(3);
-     bpp = 0.0;
-     bpp[0] = 1.0;
+      bpp.SetSize(3);
+      bpp = 0.0;
+      bpp[0] = 1.0;
    }
    if (num_elements <= 0)
    {
@@ -1077,7 +1077,7 @@ int main(int argc, char *argv[])
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
    ParGridFunction xposition_gf(&H1FESpace);
-   
+
    PlasmaProfile xposCoef(xpt, xpp);
    xposition_gf.ProjectCoefficient(xposCoef);
 
@@ -1200,12 +1200,12 @@ int main(int argc, char *argv[])
    if (check_eps_inv)
    {
       InverseDielectricTensor epsilonInv_real(BField, xposition_gf,
-					      density, temperature,
+                                              density, temperature,
                                               L2FESpace, H1FESpace,
                                               omega, charges, masses,
                                               nuprof, true);
       InverseDielectricTensor epsilonInv_imag(BField, xposition_gf,
-					      density, temperature,
+                                              density, temperature,
                                               L2FESpace, H1FESpace,
                                               omega, charges, masses,
                                               nuprof, false);
@@ -2469,7 +2469,7 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    D_ = D_cold_plasma(omega_, Bmag_, 1.0, numbers_, charges_, masses_, temps_,
                       nuprof_);
    P_ = P_cold_plasma(omega_, 1.0, numbers_, charges_, masses_, temps_,
-		      nuprof_);
+                      nuprof_);
 
    switch (type_)
    {
@@ -2714,7 +2714,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    D_ = D_cold_plasma(omega_, Bmag_, 1.0, numbers_, charges_, masses_, temps_,
                       nuprof_);
    P_ = P_cold_plasma(omega_, 1.0, numbers_, charges_, masses_, temps_,
-		      nuprof_);
+                      nuprof_);
 
    switch (type_)
    {
