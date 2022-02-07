@@ -418,11 +418,36 @@ public:
    }
 };
 
+void AdaptInitialMesh(MPI_Session &mpi,
+                      ParMesh &pmesh,
+                      ParFiniteElementSpace &err_fespace,
+                      ParFiniteElementSpace & H1FESpace,
+                      ParFiniteElementSpace & HCurlFESpace,
+                      ParFiniteElementSpace & HDivFESpace,
+                      ParFiniteElementSpace & L2FESpace,
+                      VectorCoefficient & BCoef,
+                      Coefficient & rhoCoef,
+                      Coefficient & TCoef,
+                      Coefficient & xposCoef,
+                      int & size_h1,
+                      int & size_l2,
+                      Array<int> & density_offsets,
+                      Array<int> & temperature_offsets,
+                      BlockVector & density,
+                      BlockVector & temperature,
+                      ParGridFunction & BField,
+                      ParGridFunction & density_gf,
+                      ParGridFunction & temperature_gf,
+                      ParGridFunction & xposition_gf,
+                      Coefficient &ReCoef,
+                      Coefficient &ImCoef,
+                      int p, double tol,
+                      bool visualization);
+
 void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
-            ParGridFunction & BField,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
@@ -433,6 +458,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             Array<int> & temperature_offsets,
             BlockVector & density,
             BlockVector & temperature,
+            ParGridFunction & BField,
             ParGridFunction & density_gf,
             ParGridFunction & temperature_gf,
             ParGridFunction & xposition_gf);
@@ -466,7 +492,9 @@ int main(int argc, char *argv[])
    Vector bowt_mesh;
 
    double hz = 1.0;
+   double init_amr_tol = 1e-2;
    int ser_ref_levels = 0;
+   int par_ref_levels = 0;
    int order = 1;
    int maxit = 1;
    int sol = 2;
@@ -555,8 +583,12 @@ int main(int argc, char *argv[])
                   "--cartesian-coords",
                   "Cartesian (x, y, z) coordinates or "
                   "Cylindrical (z, rho, phi).");
+   args.AddOption(&init_amr_tol, "-iatol", "--init-amr-tol",
+                  "Initial AMR tolerance.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    // args.AddOption(&nspecies, "-ns", "--num-species",
@@ -1001,7 +1033,7 @@ int main(int argc, char *argv[])
    }
 
    // Ensure that quad and hex meshes are treated as non-conforming.
-   // mesh->EnsureNCMesh();
+   mesh->EnsureNCMesh();
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
@@ -1011,7 +1043,12 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
-   Mesh * mesh3d = Extrude2D(&pmesh, 1, hz);
+   for (int lev = 0; lev < par_ref_levels; lev++)
+   {
+      pmesh.UniformRefinement();
+   }
+
+   // Mesh * mesh3d = Extrude2D(&pmesh, 1, hz);
 
    if (mpi.Root())
    {
@@ -1082,6 +1119,34 @@ int main(int argc, char *argv[])
    {
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
       density_gf.ProjectCoefficient(rhoCoef);
+   }
+
+   if (mpi.Root())
+   {
+      cout << "Adapting mesh to Stix 'L' coefficient." << endl;
+   }
+
+   {
+      StixLCoef ReLCoef(BField, xposition_gf, density, temperature,
+                        L2FESpace, H1FESpace,
+                        omega, charges, masses, nuprof,
+                        true);
+      StixLCoef ImLCoef(BField, xposition_gf, density, temperature,
+                        L2FESpace, H1FESpace,
+                        omega, charges, masses, nuprof,
+                        false);
+
+      L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
+
+      AdaptInitialMesh(mpi, pmesh, err_fes,
+                       H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
+                       BCoef, rhoCoef, tempCoef, xposCoef,
+                       size_h1, size_l2,
+                       density_offsets, temperature_offsets,
+                       density, temperature,
+                       BField, density_gf, temperature_gf, xposition_gf,
+                       ReLCoef, ImLCoef,
+                       order, init_amr_tol, visualization);
    }
 
    if (mpi.Root())
@@ -1557,7 +1622,7 @@ int main(int argc, char *argv[])
 
    // Initialize VisIt visualization
    VisItDataCollection visit_dc(MPI_COMM_WORLD, "STIX-R2D-EB-AMR-Parallel",
-                                mesh3d);
+                                &pmesh);
 
    Array<ParComplexGridFunction*> auxFields;
 
@@ -1688,12 +1753,12 @@ int main(int argc, char *argv[])
       }
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
-      Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-             rhoCoef, tempCoef, xposCoef,
+      Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
+             BCoef, rhoCoef, tempCoef, xposCoef,
              size_h1, size_l2,
              density_offsets, temperature_offsets,
              density, temperature,
-             density_gf, temperature_gf, xposition_gf);
+             BField, density_gf, temperature_gf, xposition_gf);
       CPD.Update();
 
       if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
@@ -1702,12 +1767,12 @@ int main(int argc, char *argv[])
          pmesh.Rebalance();
 
          // Update again after rebalancing
-         Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-                rhoCoef, tempCoef, xposCoef,
+         Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
+                BCoef, rhoCoef, tempCoef, xposCoef,
                 size_h1, size_l2,
                 density_offsets, temperature_offsets,
                 density, temperature,
-                density_gf, temperature_gf, xposition_gf);
+                BField, density_gf, temperature_gf, xposition_gf);
          CPD.Update();
       }
    }
@@ -1728,16 +1793,142 @@ int main(int argc, char *argv[])
       delete nbcVecs[i];
    }
 
-   delete mesh3d;
+   // delete mesh3d;
 
    return 0;
+}
+
+void AdaptInitialMesh(MPI_Session &mpi,
+                      ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
+                      ParFiniteElementSpace & H1FESpace,
+                      ParFiniteElementSpace & HCurlFESpace,
+                      ParFiniteElementSpace & HDivFESpace,
+                      ParFiniteElementSpace & L2FESpace,
+                      VectorCoefficient & BCoef,
+                      Coefficient & rhoCoef,
+                      Coefficient & tempCoef,
+                      Coefficient & xposCoef,
+                      int & size_h1,
+                      int & size_l2,
+                      Array<int> & density_offsets,
+                      Array<int> & temperature_offsets,
+                      BlockVector & density,
+                      BlockVector & temperature,
+                      ParGridFunction & BField,
+                      ParGridFunction & density_gf,
+                      ParGridFunction & temperature_gf,
+                      ParGridFunction & xposition_gf,
+                      Coefficient &ReCoef,
+                      Coefficient &ImCoef,
+                      int p, double tol,
+                      bool visualization)
+{
+   ParComplexGridFunction gf(&L2FESpace);
+
+   ComplexLpErrorEstimator estimator(p, ReCoef, ImCoef, gf);
+
+   ThresholdRefiner refiner(estimator);
+   refiner.SetTotalErrorFraction(0);
+   refiner.SetTotalErrorNormP(p);
+   refiner.SetLocalErrorGoal(tol);
+
+   vector<socketstream> sout(2);
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   int Wx = 0, Wy = 0; // window position
+   int Ww = 275, Wh = 250; // window size
+   int offx = Ww + 3;
+
+   const int max_dofs = 100000;
+   for (int it = 0; ; it++)
+   {
+      HYPRE_Int global_dofs = L2FESpace.GlobalTrueVSize();
+      if (mpi.Root())
+      {
+         cout << "\nAMR iteration " << it << endl;
+         cout << "Number of L2 unknowns: " << global_dofs << endl;
+      }
+
+      // 19. Send the solution by socket to a GLVis server.
+      gf.ProjectCoefficient(ReCoef, ImCoef);
+
+      if (visualization)
+      {
+         VisualizeField(sout[0], vishost, visport, gf.real(),
+                        "Stix L Real",
+                        Wx, Wy, Ww, Wh);
+         Wx += offx;
+
+         VisualizeField(sout[1], vishost, visport, gf.imag(),
+                        "Stix L Imaginary",
+                        Wx, Wy, Ww, Wh);
+      }
+
+      if (global_dofs > max_dofs)
+      {
+         if (mpi.Root())
+         {
+            cout << "Reached the maximum number of dofs. Stop." << endl;
+         }
+         break;
+      }
+
+      // 20. Call the refiner to modify the mesh. The refiner calls the error
+      //     estimator to obtain element errors, then it selects elements to be
+      //     refined and finally it modifies the mesh. The Stop() method can be
+      //     used to determine if a stopping criterion was met.
+      refiner.Apply(pmesh);
+      if (refiner.Stop())
+      {
+         if (mpi.Root())
+         {
+            cout << "Stopping criterion satisfied. Stop." << endl;
+         }
+         break;
+      }
+
+      // 21. Update the finite element space (recalculate the number of DOFs,
+      //     etc.) and create a grid function update matrix. Apply the matrix
+      //     to any GridFunctions over the space. In this case, the update
+      //     matrix is an interpolation matrix so the updated GridFunction will
+      //     still represent the same function as before refinement.
+      Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
+             BCoef, rhoCoef, tempCoef, xposCoef,
+             size_h1, size_l2,
+             density_offsets, temperature_offsets,
+             density, temperature,
+             BField, density_gf, temperature_gf, xposition_gf);
+
+      err_fespace.Update();
+      gf.Update();
+
+      // 22. Load balance the mesh, and update the space and solution. Currently
+      //     available only for nonconforming meshes.
+      if (pmesh.Nonconforming())
+      {
+         pmesh.Rebalance();
+
+         // Update the space and the GridFunction. This time the update matrix
+         // redistributes the GridFunction among the processors.
+         Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
+                BCoef, rhoCoef, tempCoef, xposCoef,
+                size_h1, size_l2,
+                density_offsets, temperature_offsets,
+                density, temperature,
+                BField, density_gf, temperature_gf, xposition_gf);
+
+         err_fespace.Update();
+         gf.Update();
+      }
+
+   }
 }
 
 void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
-            ParGridFunction & BField,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
@@ -1748,6 +1939,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             Array<int> & temperature_offsets,
             BlockVector & density,
             BlockVector & temperature,
+            ParGridFunction & BField,
             ParGridFunction & density_gf,
             ParGridFunction & temperature_gf,
             ParGridFunction & xposition_gf)
