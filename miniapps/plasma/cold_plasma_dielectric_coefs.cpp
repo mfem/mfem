@@ -576,7 +576,6 @@ double SheathImpedance::Eval(ElementTransformation &T,
    double w_norm = omega_ / wpi; // Unitless
    double wci_norm = wci / wpi;  // Unitless
    double phi_mag = sqrt(pow(phi.real(), 2) + pow(phi.imag(), 2));
-   //double temp_val = 10.0; // 10 eV
    double debye_length = debye(temp_val, density_val); // Units: m
    Vector nor(T.GetSpaceDim());
    CalcOrtho(T.Jacobian(), nor);
@@ -586,12 +585,13 @@ double SheathImpedance::Eval(ElementTransformation &T,
     
    // Setting up normalized V_RF:
    // Jim's newest parametrization (Myra et al 2017):
-   //double volt_norm = (phi_mag)/temp_val ; // Unitless: V zero-to-peak
+   double volt_norm = (phi_mag)/temp_val ; // Unitless: V zero-to-peak
+   //double volt_norm = 190.5/temp_val;
     
    // Jim's old parametrization (Kohno et al 2017):
-   double volt_norm = (2*phi_mag)/temp_val ; // Unitless: V peak-to-peak
+   //double volt_norm = (2*phi_mag)/temp_val ; // Unitless: V peak-to-peak
     
-   //if ( volt_norm == 0){volt_norm = 10;} // Initial Guess
+   //if ( volt_norm == 0){volt_norm = 118.1;} // Initial Guess
    // This is only for old parameterization
    //if ( volt_norm > 20) {cout << "Warning: V_RF > Z Parameterization Limit!" << endl;}
     
@@ -602,11 +602,11 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    // Calculating Sheath Impedance:
    // Jim's newest parametrization (Myra et al 2017):
-   //complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
-   //masses_[0], masses_[1]);
+   complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
+   masses_[0], masses_[1]);
     
    // Jim's old parametrization (Kohno et al 2017):
-   complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
+   //complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
 
    // Fixed sheath impedance:
    //complex<double> zsheath_norm(0.6, 0.4);

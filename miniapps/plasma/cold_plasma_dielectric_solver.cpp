@@ -285,13 +285,12 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      n20ZRe_(NULL),
      n20ZIm_(NULL),
      e_(NULL),
-     e_tmp_(NULL),
      d_(NULL),
      temp_(NULL),
      grad_(NULL),
      kOp_(NULL),
      phi_(NULL),
-     phi_tmp_(NULL),
+     prev_phi_(NULL),
      rectPot_(NULL),
      j_(NULL),
      rhs_(NULL),
@@ -882,7 +881,7 @@ CPDSolver::~CPDSolver()
    delete b_;
    delete temp_;
    delete phi_;
-   delete phi_tmp_;
+   delete prev_phi_;
    delete rectPot_;
    // delete b_;
    // delete h_;
@@ -1237,24 +1236,12 @@ CPDSolver::Solve()
       }
    }
 
-   if (e_tmp_ == NULL)
-   {
-      e_tmp_ = new ParComplexGridFunction(HCurlFESpace_);
-   }
-   e_tmp_->real() = e_->real();
-   e_tmp_->imag() = e_->imag();
-
-   VectorGridFunctionCoefficient e_tmp_r_(&e_tmp_->real());
-   VectorGridFunctionCoefficient e_tmp_i_(&e_tmp_->imag());
-
-   Vector zeroVec(3); zeroVec = 0.0;
-   VectorConstantCoefficient zeroVecCoef(zeroVec);
-
    int E_iter = 1;
+   double phi_diff = std::numeric_limits<double>::max();
 
-   while ( E_err > 1e-4 && E_iter <= 5 )
+   while (E_iter <= 5 )
    {
-      //if (E_iter > 3){break;}
+      if ( phi_diff < 1e-3) {break;}
       OperatorHandle A1;
       Vector E, RHS;
       // cout << "Norm of jd (pre-fls): " << jd_->Norml2() << endl;
@@ -1305,8 +1292,6 @@ CPDSolver::Solve()
 
          }
       }
-
-      if (e_ == e_tmp_ ) { break;} // L2 norm errors, these are only the boundary values at this point
 
       a1_->FormLinearSystem(ess_bdr_tdofs_, *e_, *rhs_, A1, E, RHS);
 
@@ -1587,17 +1572,15 @@ CPDSolver::Solve()
       // Update phi = - i w z n.D on the boundary
       if (sbcs_->Size() > 0)
       {
-         if (phi_tmp_ == NULL)
+         if (prev_phi_ == NULL)
          {
-            phi_tmp_ = new ParComplexGridFunction(H1FESpace_);
+            prev_phi_ = new ParComplexGridFunction(H1FESpace_);
          }
-         phi_tmp_->real() = phi_->real();
-         phi_tmp_->imag() = phi_->imag();
+        
+         prev_phi_->Vector::operator=((Vector&)(*phi_));
 
-         GridFunctionCoefficient phi_tmp_r_(&phi_tmp_->real());
-         GridFunctionCoefficient phi_tmp_i_(&phi_tmp_->imag());
-
-         ConstantCoefficient zeroScalarCoef(0.0);
+         GridFunctionCoefficient prevPhiReCoef(&prev_phi_->real());
+         GridFunctionCoefficient prevPhiImCoef(&prev_phi_->imag());
 
          HypreParMatrix M0;
          Vector Phi, RHS0;
@@ -1695,21 +1678,17 @@ CPDSolver::Solve()
             }
 
             // have to have some error tolerance ...
-            double PhisolNorm = phi_tmp_->ComputeL2Error(zeroScalarCoef, zeroScalarCoef);
-            double PhisolErr = phi_->ComputeL2Error(phi_tmp_r_, phi_tmp_i_);
-
-            Phi_err = PhisolErr;
-            if ( PhisolNorm != 0 ) { Phi_err = PhisolErr / PhisolNorm; }
-
-            // if (PhisolNorm == 0 && Phi_err < 1e-3) { break; }
+             
+            double dr = phi_->real().ComputeL2Error(prevPhiReCoef);
+            double di = phi_->imag().ComputeL2Error(prevPhiImCoef);
+            phi_diff = sqrt(dr*dr + di*di);
 
             if (myid_ == 0)
             {
-               cout << "Phi pass: " << Phi_iter << " Error: " << Phi_err << '\n';
+               cout << "Phi pass: " << Phi_iter << " Error: " << phi_diff << '\n';
             }
 
-            phi_tmp_->real() = phi_->real();
-            phi_tmp_->imag() = phi_->imag();
+            prev_phi_->Vector::operator=((Vector&)(*phi_));
 
             Phi_iter++;
          }
@@ -1723,25 +1702,16 @@ CPDSolver::Solve()
       {
          cout << " Solver done in " << tic_toc.RealTime() << " seconds." << endl;
       }
-      double EsolNorm = e_tmp_->ComputeL2Error(zeroVecCoef, zeroVecCoef);
-      double EsolErr = e_->ComputeL2Error(e_tmp_r_, e_tmp_i_);
-      double EsolNorm_e = e_->ComputeL2Error(zeroVecCoef, zeroVecCoef);
 
       if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
       {
          d_->imag() *= -1.0;
       }
-       
-      E_err = EsolErr;
-      if ( EsolNorm != 0 ) { E_err = EsolErr / EsolNorm; }
 
       if (myid_ == 0)
       {
-         cout << "EField pass: " << E_iter << " Error: " << E_err << '\n';
+         cout << "EField pass: " << E_iter << " Phi Error: " << phi_diff << '\n';
       }
-
-      e_tmp_->real() = e_->real();
-      e_tmp_->imag() = e_->imag();
 
       if (sbcs_->Size() <= 0){break;}
        

@@ -433,7 +433,6 @@ private:
    ParMixedBilinearForm * n20ZIm_;
 
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
-   ParComplexGridFunction * e_tmp_; // Temporary complex electric field (HCurl)
    ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
    ParComplexGridFunction * b_;   // Complex magnetic flux (HDiv)
 
@@ -441,7 +440,7 @@ private:
    ParDiscreteGradOperator * grad_; // For Computing E = Grad phi
    ParDiscreteLinearOperator * kOp_; // E += i k phi
    ParComplexGridFunction * phi_; // Complex sheath potential (H1)
-   ParComplexGridFunction * phi_tmp_; // Complex sheath potential temporary (H1)
+   ParComplexGridFunction * prev_phi_; // Complex sheath potential temporary (H1)
    ParComplexGridFunction * rectPot_; // Complex rectified potential (H1)
    ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
