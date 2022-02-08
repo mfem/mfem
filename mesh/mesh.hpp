@@ -1381,8 +1381,9 @@ public:
                return IsInterior();
             case FaceType::Boundary:
                return IsBoundary();
+            default:
+               return false;
          }
-         return false;
       }
 
       /// @brief Return true if the face is a conforming face.
