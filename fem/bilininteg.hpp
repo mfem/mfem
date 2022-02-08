@@ -218,7 +218,8 @@ public:
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true) { }
+                                   Vector &flux, bool with_coef = true,
+                                   const IntegrationRule *ir = NULL) { }
 
    /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
 
@@ -2029,7 +2030,8 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true);
+                                   Vector &flux, bool with_coef = true,
+                                   const IntegrationRule *ir = NULL);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
@@ -2448,7 +2450,8 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef);
+                                   Vector &flux, bool with_coef,
+                                   const IntegrationRule *ir = NULL);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
@@ -2772,7 +2775,8 @@ public:
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true);
+                                   Vector &flux, bool with_coef = true,
+                                   const IntegrationRule *ir = NULL);
 
    /** Compute the element energy (integral of the strain energy density)
        corresponding to the stress represented by @a flux which is a vector of
