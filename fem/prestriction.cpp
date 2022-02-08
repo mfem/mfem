@@ -214,10 +214,10 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonconformingCoarse() )
+      if ( face.IsNonconformingCoarse() )
       {
-         // We skip local non-conforming coarse faces as they are treated
-         // by the corresponding local non-conforming fine faces.
+         // We skip non-conforming coarse faces as they are treated
+         // by the corresponding non-conforming fine faces.
          continue;
       }
       else if (type==FaceType::Interior && face.IsInterior())
@@ -275,10 +275,10 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonconformingCoarse() )
+      if ( face.IsNonconformingCoarse() )
       {
-         // We skip local non-conforming coarse faces as they are treated
-         // by the corresponding local non-conforming fine faces.
+         // We skip non-conforming coarse faces as they are treated
+         // by the corresponding non-conforming fine faces.
          continue;
       }
       else if (face.IsOfFaceType(type))
@@ -973,10 +973,10 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonconformingCoarse() )
+      if ( face.IsNonconformingCoarse() )
       {
-         // We skip local non-conforming coarse faces as they are treated
-         // by the corresponding local non-conforming fine faces.
+         // We skip non-conforming coarse faces as they are treated
+         // by the corresponding non-conforming fine faces.
          continue;
       }
       else if ( type==FaceType::Interior && face.IsInterior() )
@@ -1050,10 +1050,10 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocalNonconformingCoarse() )
+      if ( face.IsNonconformingCoarse() )
       {
-         // We skip local non-conforming coarse faces as they are treated
-         // by the corresponding local non-conforming fine faces.
+         // We skip non-conforming coarse faces as they are treated
+         // by the corresponding non-conforming fine faces.
          continue;
       }
       else if ( face.IsOfFaceType(type) )
