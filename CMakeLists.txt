@@ -354,7 +354,7 @@ endif()
 if (MFEM_USE_PUMI)
   # If PUMI_DIR was specified, only link to that directory,
   # i.e. don't link to another installation in /usr/lib by mistake
-  find_package(SCOREC 2.1.0 REQUIRED OPTIONAL_COMPONENTS gmi_sim
+  find_package(SCOREC 2.2.6 REQUIRED OPTIONAL_COMPONENTS gmi_sim
     CONFIG PATHS ${PUMI_DIR} NO_DEFAULT_PATH)
   if (SCOREC_FOUND)
     # Define a header file with the MFEM_USE_SIMMETRIX preprocessor variable
