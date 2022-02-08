@@ -824,7 +824,7 @@ protected:
                      requested by @a type in the constructor.
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
-   virtual void DoubleValuedNonConformingMult(const Vector& x, Vector& y) const;
+   virtual void DoubleValuedNonconformingMult(const Vector& x, Vector& y) const;
 
    /** @brief Apply a change of basis from fine element basis to coarse element
        basis for the coarse face dofs. Should only be used when:
@@ -833,7 +833,7 @@ protected:
        @param[in] x The dofs vector that needs coarse dofs to be express in term
                     of the coarse basis, the result is stored in x_interp.
    */
-   void SingleValuedNonConformingTransposeInterpolation(const Vector& x) const;
+   void SingleValuedNonconformingTransposeInterpolation(const Vector& x) const;
 
    /** @brief Apply a change of basis from fine element basis to coarse element
        basis for the coarse face dofs. Should only be used when:
@@ -842,7 +842,7 @@ protected:
        @param[in] x The dofs vector that needs coarse dofs to be express in term
                     of the coarse basis, the result is stored in x_interp.
    */
-   void DoubleValuedNonConformingTransposeInterpolation(const Vector& x) const;
+   void DoubleValuedNonconformingTransposeInterpolation(const Vector& x) const;
 };
 
 /** @brief Return the face map that extracts the degrees of freedom for the
