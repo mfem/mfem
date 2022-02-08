@@ -1406,31 +1406,6 @@ public:
                 element[1].conformity == ElementConformity::Subset;
       }
 
-      /// @brief Return true if the face is a local non-conforming fine face.
-      bool IsLocalNonconformingFine() const
-      {
-         return IsLocal() && IsNonconformingFine();
-      }
-
-      /// @brief Return true if the face is a local (or NA) non-conforming coarse face.
-      bool IsLocalNonconformingCoarse() const
-      {
-         return (IsLocal() || element[1].location==Mesh::ElementLocation::NA) &&
-                IsNonconformingCoarse();
-      }
-
-      /// @brief Return true if the face is a shared non-conforming fine face.
-      bool IsSharedNonconformingFine() const
-      {
-         return IsShared() && IsNonconformingFine();
-      }
-
-      /// @brief Return true if the face is a shared non-conforming coarse face.
-      bool IsSharedNonconformingCoarse() const
-      {
-         return IsShared() && IsNonconformingCoarse();
-      }
-
       /// @brief cast operator from FaceInformation to FaceInfo.
       operator Mesh::FaceInfo() const;
    };
