@@ -30,6 +30,21 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 }
 
+void NewZienkiewiczZhuEstimator::ComputeEstimates()
+{
+
+   // TODO: add support for anisotropic AMR
+   if (!anisotropic) { aniso_flags.SetSize(0); }
+
+   total_error = NewZZErrorEstimator(*integ,
+                                     *solution,
+                                     error_estimates,
+                                     subdomain_reconstruction,
+                                     with_coeff,
+                                     tichonov_coeff);
+
+   current_sequence = solution->FESpace()->GetMesh()->GetSequence();
+}
 
 #ifdef MFEM_USE_MPI
 
