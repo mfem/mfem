@@ -3951,10 +3951,10 @@ std::ostream &operator<<(std::ostream &out, const QuadratureFunction &qf)
 void QuadratureFunction::SaveVTU(std::ostream &out, VTKFormat format,
                                  int compression_level) const
 {
-   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
+   out << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
    if (compression_level != 0)
    {
-      out << " compressor=\"vtkZLibDataCompressor\"";
+      out << R"( compressor="vtkZLibDataCompressor")";
    }
    out << " byte_order=\"" << VTKByteOrder() << "\">\n";
    out << "<UnstructuredGrid>\n";
@@ -4003,7 +4003,7 @@ void QuadratureFunction::SaveVTU(std::ostream &out, VTKFormat format,
    // Write cells (each cell is just a vertex)
    out << "<Cells>\n";
    // Connectivity
-   out << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\""
+   out << R"(<DataArray type="Int32" Name="connectivity" format=")"
        << fmt_str << "\">\n";
 
    for (int i=0; i<np; ++i) { WriteBinaryOrASCII(out, buf, i, "\n", format); }
@@ -4013,7 +4013,7 @@ void QuadratureFunction::SaveVTU(std::ostream &out, VTKFormat format,
    }
    out << "</DataArray>\n";
    // Offsets
-   out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\""
+   out << R"(<DataArray type="Int32" Name="offsets" format=")"
        << fmt_str << "\">\n";
    for (int i=0; i<np; ++i) { WriteBinaryOrASCII(out, buf, i, "\n", format); }
    if (format != VTKFormat::ASCII)
@@ -4022,7 +4022,7 @@ void QuadratureFunction::SaveVTU(std::ostream &out, VTKFormat format,
    }
    out << "</DataArray>\n";
    // Types
-   out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
+   out << R"(<DataArray type="UInt8" Name="types" format=")"
        << fmt_str << "\">\n";
    for (int i = 0; i < np; i++)
    {
