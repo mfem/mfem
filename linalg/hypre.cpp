@@ -2976,8 +2976,11 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
    rowStarts2[0] = first_loc_row;
    rowStarts2[1] = first_loc_row + all_num_loc_rows[rank];
 
-   if (first_loc_row == first_loc_col &&
-       all_num_loc_rows[rank] == all_num_loc_cols[rank])
+   int square = (first_loc_row == first_loc_col &&
+                 all_num_loc_rows[rank] == all_num_loc_cols[rank]);
+   MPI_Allreduce(MPI_IN_PLACE, &square, 1, MPI_INT, MPI_MAX, comm);
+
+   if (square)
    {
       return new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols,
                                 opI.data(), opJ.data(),
