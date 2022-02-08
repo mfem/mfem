@@ -341,7 +341,7 @@ private:
 
 protected:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
-       face E-Vector. Should only be used with non-conforming faces and when:
+       face E-Vector. Should only be used with nonconforming faces and when:
        L2FaceValues m == L2FaceValues::SingleValued
 
        @param[in]  x The L-vector degrees of freedom.
@@ -354,7 +354,7 @@ protected:
    void SingleValuedNonconformingMult(const Vector& x, Vector& y) const;
 
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
-       face E-Vector. Should only be used with non-conforming faces and when:
+       face E-Vector. Should only be used with nonconforming faces and when:
        L2FaceValues m == L2FaceValues::DoubleValued
 
        @param[in]  x The L-vector degrees of freedom.
