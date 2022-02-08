@@ -177,9 +177,11 @@ __device__ void abort_msg(T & msg)
       abort_msg("");           \
    }
 #else
-#define MFEM_ABORT_KERNEL(...)       \
-   printf(__VA_ARGS__);              \
-   MFEM_ABORT("")
+#define MFEM_ABORT_KERNEL(...) \
+   {                           \
+      printf(__VA_ARGS__);     \
+      MFEM_ABORT("");          \
+   }
 #endif
 
 // Verify inside a device kernel
