@@ -823,12 +823,11 @@ void Hybridization::ReduceRHS(const Vector &b, Vector &b_r) const
       Vector bl(pC ? pC->Height() : Ct->Width());
       if (pC)
       {
-         pC->Mult(bf, bl)
+         pC->Mult(bf, bl);
       }
       else
       {
-         // needed for gpu
-         Ct->BuildTranspose();
+         if (Device::IsEnabled) { Ct->BuildTranspose(); }
          Ct->MultTranspose(bf, bl);
       }
       b_r.SetSize(pH.Ptr()->Height());
