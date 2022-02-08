@@ -246,8 +246,8 @@ protected:
    double total_error;
    bool anisotropic;
    Array<int> aniso_flags;
-   double tichonov_coeff;
    bool subdomain_reconstruction = true;
+   double tichonov_coeff;
 
    BilinearFormIntegrator *integ; ///< Not owned.
    GridFunction *solution; ///< Not owned.
