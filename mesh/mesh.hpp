@@ -1295,24 +1295,24 @@ public:
        Classification of a local (non-ghost) face based on its FaceInfo:
          - Elem2No >= 0 --> local interior face; can be either:
             - NCFace == -1 --> LocalConformingInterior,
-            - NCFace >= 0 --> LocalNonConformingInterior,
+            - NCFace >= 0 --> LocalNonconformingInterior,
          - Elem2No < 0 --> local "boundary" face; can be one of:
             - NCFace == -1 --> conforming face; can be either:
                - Elem2Inf < 0 --> TrueBoundary,
                - Elem2Inf >= 0 --> SharedConformingInterior,
             - NCFace >= 0 --> non-conforming face; can be one of:
-               - Elem2Inf < 0 --> MasterNonConforming,
-               - Elem2Inf >= 0 --> SlaveNonConforming.
+               - Elem2Inf < 0 --> MasterNonconforming,
+               - Elem2Inf >= 0 --> SlaveNonconforming.
        Classification of a ghost (non-local) face based on its FaceInfo:
          - Elem1No == -1 --> GhostMaster,
          - Elem1No >= 0 --> GhostSlave.
     */
    enum class FaceInfoTag { LocalConformingInterior,
-                            LocalNonConformingInterior,
+                            LocalNonconformingInterior,
                             TrueBoundary,
                             SharedConformingInterior,
-                            MasterNonConforming,
-                            SlaveNonConforming,
+                            MasterNonconforming,
+                            SlaveNonconforming,
                             GhostMaster,
                             GhostSlave,
                             Invalid

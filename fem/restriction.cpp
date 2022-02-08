@@ -1787,7 +1787,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
    : NCL2FaceRestriction(fes, ordering, type, m, true)
 { }
 
-void NCL2FaceRestriction::DoubleValuedNonConformingMult(
+void NCL2FaceRestriction::DoubleValuedNonconformingMult(
    const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
@@ -1857,7 +1857,7 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
-      DoubleValuedNonConformingMult(x, y);
+      DoubleValuedNonconformingMult(x, y);
    }
    else if ( type==FaceType::Boundary && m==L2FaceValues::DoubleValued )
    {
@@ -1869,7 +1869,7 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    }
 }
 
-void NCL2FaceRestriction::SingleValuedNonConformingTransposeInterpolation(
+void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolation(
    const Vector& x) const
 {
    MFEM_ASSERT(
@@ -1922,7 +1922,7 @@ void NCL2FaceRestriction::SingleValuedNonConformingTransposeInterpolation(
    });
 }
 
-void NCL2FaceRestriction::DoubleValuedNonConformingTransposeInterpolation(
+void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolation(
    const Vector& x) const
 {
    MFEM_ASSERT(
@@ -1981,12 +1981,12 @@ void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
    {
       if ( m==L2FaceValues::DoubleValued )
       {
-         DoubleValuedNonConformingTransposeInterpolation(x);
+         DoubleValuedNonconformingTransposeInterpolation(x);
          DoubleValuedConformingAddMultTranspose(x_interp, y);
       }
       else if ( m==L2FaceValues::SingleValued )
       {
-         SingleValuedNonConformingTransposeInterpolation(x);
+         SingleValuedNonconformingTransposeInterpolation(x);
          SingleValuedConformingAddMultTranspose(x_interp, y);
       }
    }

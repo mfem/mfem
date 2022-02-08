@@ -687,7 +687,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    ComputeGatherIndices(ordering, type);
 }
 
-void ParNCL2FaceRestriction::SingleValuedNonConformingMult(
+void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
    const Vector& x, Vector& y) const
 {
    MFEM_ASSERT(
@@ -769,7 +769,7 @@ void ParNCL2FaceRestriction::SingleValuedNonConformingMult(
    });
 }
 
-void ParNCL2FaceRestriction::DoubleValuedNonConformingMult(
+void ParNCL2FaceRestriction::DoubleValuedNonconformingMult(
    const Vector& x, Vector& y) const
 {
    MFEM_ASSERT(
@@ -882,7 +882,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
-      DoubleValuedNonConformingMult(x, y);
+      DoubleValuedNonconformingMult(x, y);
    }
    else if ( type==FaceType::Boundary && m==L2FaceValues::DoubleValued )
    {
@@ -890,7 +890,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    }
    else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
    {
-      SingleValuedNonConformingMult(x, y);
+      SingleValuedNonconformingMult(x, y);
    }
    else if ( type==FaceType::Boundary && m==L2FaceValues::SingleValued )
    {
@@ -908,12 +908,12 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    {
       if ( m==L2FaceValues::DoubleValued )
       {
-         DoubleValuedNonConformingTransposeInterpolation(x);
+         DoubleValuedNonconformingTransposeInterpolation(x);
          DoubleValuedConformingAddMultTranspose(x_interp, y);
       }
       else // Single Valued
       {
-         SingleValuedNonConformingTransposeInterpolation(x);
+         SingleValuedNonconformingTransposeInterpolation(x);
          SingleValuedConformingAddMultTranspose(x_interp, y);
       }
    }
