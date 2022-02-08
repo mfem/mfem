@@ -827,7 +827,7 @@ void Hybridization::ReduceRHS(const Vector &b, Vector &b_r) const
       }
       else
       {
-         if (Device::IsEnabled) { Ct->BuildTranspose(); }
+         if (Device::IsEnabled()) { Ct->BuildTranspose(); }
          Ct->MultTranspose(bf, bl);
       }
       b_r.SetSize(pH.Ptr()->Height());
