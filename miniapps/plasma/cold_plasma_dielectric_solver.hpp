@@ -441,6 +441,8 @@ private:
    ParDiscreteLinearOperator * kOp_; // E += i k phi
    ParComplexGridFunction * phi_; // Complex sheath potential (H1)
    ParComplexGridFunction * prev_phi_; // Complex sheath potential temporary (H1)
+   ParComplexGridFunction * z_; // Complex sheath potential (H1)
+  
    ParComplexGridFunction * rectPot_; // Complex rectified potential (H1)
    ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)

@@ -291,6 +291,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      kOp_(NULL),
      phi_(NULL),
      prev_phi_(NULL),
+     z_(NULL),
      rectPot_(NULL),
      j_(NULL),
      rhs_(NULL),
@@ -735,6 +736,9 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    {
       phi_  = new ParComplexGridFunction(H1FESpace_);
       *phi_ = 0.0;
+
+      z_  = new ParComplexGridFunction(H1FESpace_);
+      *z_ = 0.0;
       /*
       PlasmaProfile::Type dpt = PlasmaProfile::GRADIENT;
       Vector dpp(6);
@@ -883,6 +887,7 @@ CPDSolver::~CPDSolver()
    delete phi_;
    delete prev_phi_;
    delete rectPot_;
+   delete z_;
    // delete b_;
    // delete h_;
    delete j_;
@@ -1587,6 +1592,7 @@ CPDSolver::Solve()
 
          // ParComplexLinearForm rhs(HDivFESpace_, conv_);
          // ParComplexLinearForm tmp(HDivFESpace_, conv_);
+	 ParComplexLinearForm zd(H1FESpace_, conv_);
 
          Array<int> sbc_marker(pmesh_->bdr_attributes.Max());
          sbc_marker = 0;
@@ -1597,6 +1603,9 @@ CPDSolver::Solve()
             {
                sbc_marker[j] |= sbc->attr_marker[j];
             }
+	    zd.AddBoundaryIntegrator(new DomainLFIntegrator(*sbc->real),
+				     new DomainLFIntegrator(*sbc->imag),
+				     sbc->attr_marker);
          }
 
          Array<int> sbc_tdof;
@@ -1677,6 +1686,27 @@ CPDSolver::Solve()
                phi_->imag() *= -1.0;
             }
 
+	    {
+	      zd.Assemble();
+	      
+	      zd.real().ParallelAssemble(RHS0);
+	    
+	      pcg.Mult(RHS0, Phi);
+
+	      z_->real().Distribute(Phi);
+
+	      zd.imag().ParallelAssemble(RHS0);
+
+	      pcg.Mult(RHS0, Phi);
+
+	      z_->imag().Distribute(Phi);
+
+	      if (conv_ == ComplexOperator::Convention::BLOCK_SYMMETRIC)
+	      {
+		z_->imag() *= -1.0;
+	      }
+	    }
+	    
             // have to have some error tolerance ...
              
             double dr = phi_->real().ComputeL2Error(prevPhiReCoef);
@@ -1781,6 +1811,9 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
    {
       visit_dc.RegisterField("Re_Phi", &phi_->real());
       visit_dc.RegisterField("Im_Phi", &phi_->imag());
+
+      visit_dc.RegisterField("Re_z", &z_->real());
+      visit_dc.RegisterField("Im_z", &z_->imag());
    }
 
    if ( rectPot_ )
