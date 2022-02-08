@@ -1096,7 +1096,7 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    FaceElementTransformations *tr;
    int fn = GetBdrFace(BdrElemNo);
 
-   // Check if the face is interior, shared, or non-conforming.
+   // Check if the face is interior, shared, or nonconforming.
    if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
    {
       return NULL;
@@ -5375,7 +5375,7 @@ int Mesh::GetNFbyType(FaceType type) const
          {
             if (face.IsNonconformingCoarse())
             {
-               // We don't count non-conforming coarse-fine faces.
+               // We don't count nonconforming coarse faces.
                continue;
             }
             nf++;

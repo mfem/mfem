@@ -31,8 +31,8 @@ static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
       face_id = face.element[0].local_face_id;
       if (face.IsNonconformingCoarse())
       {
-         // We skip non-conforming coarse-fine faces as they are treated
-         // by the corresponding non-conforming fine-coarse faces.
+         // We skip nonconforming coarse-fine faces as they are treated
+         // by the corresponding nonconforming fine-coarse faces.
          continue;
       }
       else if ( face.IsOfFaceType(type) )

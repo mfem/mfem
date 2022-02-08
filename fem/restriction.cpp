@@ -814,8 +814,8 @@ void H1FaceRestriction::ComputeScatterIndicesAndOffsets(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsNonconformingCoarse() )
       {
-         // We skip non-conforming coarse faces as they are treated
-         // by the corresponding non-conforming fine faces.
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
          continue;
       }
       else if ( face.IsOfFaceType(type) )
@@ -846,8 +846,8 @@ void H1FaceRestriction::ComputeGatherIndices(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsNonconformingCoarse() )
       {
-         // We skip non-conforming coarse faces as they are treated
-         // by the corresponding non-conforming fine faces.
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
          continue;
       }
       else if ( face.IsOfFaceType(type) )
@@ -872,7 +872,7 @@ void H1FaceRestriction::SetFaceDofsScatterIndices(
    const ElementDofOrdering ordering)
 {
    MFEM_ASSERT(!(face.IsNonconformingCoarse()),
-               "This method should not be used on non-conforming coarse faces.");
+               "This method should not be used on nonconforming coarse faces.");
    MFEM_ASSERT(face.element[0].orientation==0,
                "FaceRestriction used on degenerated mesh.");
 
@@ -907,7 +907,7 @@ void H1FaceRestriction::SetFaceDofsGatherIndices(
    const ElementDofOrdering ordering)
 {
    MFEM_ASSERT(!(face.IsNonconformingCoarse()),
-               "This method should not be used on non-conforming coarse faces.");
+               "This method should not be used on nonconforming coarse faces.");
 
    const TensorBasisElement* el =
       dynamic_cast<const TensorBasisElement*>(fes.GetFE(0));
@@ -1473,7 +1473,7 @@ void L2FaceRestriction::SetFaceDofsScatterIndices1(
    const int face_index)
 {
    MFEM_ASSERT(!(face.IsNonconformingCoarse()),
-               "This method should not be used on non-conforming coarse faces.");
+               "This method should not be used on nonconforming coarse faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int face_id1 = face.element[0].local_face_id;
@@ -1572,7 +1572,7 @@ void L2FaceRestriction::SetFaceDofsGatherIndices1(
    const int face_index)
 {
    MFEM_ASSERT(!(face.IsNonconformingCoarse()),
-               "This method should not be used on non-conforming coarse faces.");
+               "This method should not be used on nonconforming coarse faces.");
    const Table& e2dTable = fes.GetElementToDofTable();
    const int* elem_map = e2dTable.GetJ();
    const int face_id1 = face.element[0].local_face_id;
@@ -1642,9 +1642,9 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
    int face_index)
 {
    MFEM_ASSERT(!face.IsConforming(),
-               "Registering face as non-conforming even though it is not.");
+               "Registering face as nonconforming even though it is not.");
    const DenseMatrix* ptMat = face.point_matrix;
-   // In the case of non-conforming slave shared face the master face is elem1.
+   // In the case of nonconforming slave shared face the master face is elem1.
    const int master_side =
       face.element[0].conformity == Mesh::ElementConformity::Superset ? 0 : 1;
    const int face_key = (master_side == 0 ? 1000 : 0) +
@@ -1863,7 +1863,7 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    {
       DoubleValuedConformingMult(x, y);
    }
-   else // Single valued (assumes no non-conforming master on elem1)
+   else // Single valued (assumes no nonconforming master on elem1)
    {
       SingleValuedConformingMult(x, y);
    }
@@ -2060,8 +2060,8 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsNonconformingCoarse() )
       {
-         // We skip non-conforming coarse faces as they are treated
-         // by the corresponding non-conforming fine faces.
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
          continue;
       }
       else if ( type==FaceType::Interior && face.IsInterior() )
@@ -2119,8 +2119,8 @@ void NCL2FaceRestriction::ComputeGatherIndices(
                   "Unexpected shared face in NCL2FaceRestriction.");
       if ( face.IsNonconformingCoarse() )
       {
-         // We skip non-conforming coarse faces as they are treated
-         // by the corresponding non-conforming fine faces.
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
          continue;
       }
       else if ( face.IsOfFaceType(type) )

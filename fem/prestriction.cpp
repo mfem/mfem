@@ -216,8 +216,8 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsNonconformingCoarse() )
       {
-         // We skip non-conforming coarse faces as they are treated
-         // by the corresponding non-conforming fine faces.
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
          continue;
       }
       else if (type==FaceType::Interior && face.IsInterior())
@@ -277,8 +277,8 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsNonconformingCoarse() )
       {
-         // We skip non-conforming coarse faces as they are treated
-         // by the corresponding non-conforming fine faces.
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
          continue;
       }
       else if (face.IsOfFaceType(type))
@@ -975,8 +975,8 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsNonconformingCoarse() )
       {
-         // We skip non-conforming coarse faces as they are treated
-         // by the corresponding non-conforming fine faces.
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
          continue;
       }
       else if ( type==FaceType::Interior && face.IsInterior() )
@@ -1007,7 +1007,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
                {
                   PermuteAndSetSharedFaceDofsScatterIndices2(face,f_ind);
                }
-               else // local non-conforming slave
+               else // local nonconforming slave
                {
                   PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
                }
@@ -1052,8 +1052,8 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if ( face.IsNonconformingCoarse() )
       {
-         // We skip non-conforming coarse faces as they are treated
-         // by the corresponding non-conforming fine faces.
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
          continue;
       }
       else if ( face.IsOfFaceType(type) )
