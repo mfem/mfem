@@ -701,34 +701,6 @@ protected:
    int m = 10;
    mutable Array<Vector *> skArray, ykArray;
 
-public:
-   LBFGSSolver() : NewtonSolver()
-   {
-      InitializeStorageVectors();
-   }
-
-#ifdef MFEM_USE_MPI
-   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_)
-   {
-      InitializeStorageVectors();
-   }
-#endif
-
-   void SetHistorySize(int dim)
-   {
-      m = dim;
-      InitializeStorageVectors();
-   }
-
-   /// Solve the nonlinear system with right-hand side @a b.
-   /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
-   virtual void Mult(const Vector &b, Vector &x) const;
-
-   virtual void SetPreconditioner(Solver &pr)
-   { MFEM_WARNING("L-BFGS won't use the given preconditioner."); }
-   virtual void SetSolver(Solver &solver)
-   { MFEM_WARNING("L-BFGS won't use the given solver."); }
-
    void DeleteStorageVectors()
    {
       for (int i = 0; i < skArray.Size(); i++)
@@ -751,6 +723,34 @@ public:
          ykArray[i]->UseDevice(true);
       }
    }
+
+public:
+   LBFGSSolver() : NewtonSolver() { }
+
+#ifdef MFEM_USE_MPI
+   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) { }
+#endif
+
+   virtual void SetOperator(const Operator &op)
+   {
+      NewtonSolver::SetOperator(op);
+      InitializeStorageVectors();
+   }
+
+   void SetHistorySize(int dim)
+   {
+      m = dim;
+      InitializeStorageVectors();
+   }
+
+   /// Solve the nonlinear system with right-hand side @a b.
+   /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
+   virtual void Mult(const Vector &b, Vector &x) const;
+
+   virtual void SetPreconditioner(Solver &pr)
+   { MFEM_WARNING("L-BFGS won't use the given preconditioner."); }
+   virtual void SetSolver(Solver &solver)
+   { MFEM_WARNING("L-BFGS won't use the given solver."); }
 
    virtual ~LBFGSSolver() { DeleteStorageVectors(); }
 };
