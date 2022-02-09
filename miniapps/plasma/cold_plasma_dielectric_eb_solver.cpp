@@ -699,8 +699,10 @@ void Displacement::ComputeD()
 VectorFieldVisObject::VectorFieldVisObject(const std::string & field_name,
                                            L2_ParFESpace *vfes,
                                            L2_ParFESpace *sfes,
-                                           bool cyl)
+                                           bool cyl,
+                                           bool pseudo)
    : cyl_(cyl),
+     pseudo_(pseudo),
      dim_(-1),
      field_name_(field_name),
      v_(NULL),
@@ -850,10 +852,10 @@ void VectorFieldVisObject::PrepareVisField(const ParComplexGridFunction &u,
          break;
          case 2:
          {
-            VectorXYCoef ukxy_r(uk_r);
-            VectorXYCoef ukxy_i(uk_i);
-            VectorZCoef   ukz_r(uk_r);
-            VectorZCoef   ukz_i(uk_i);
+            VectorXYCoef ukxy_r(uk_r, pseudo_ && cyl_);
+            VectorXYCoef ukxy_i(uk_i, pseudo_ && cyl_);
+            VectorZCoef   ukz_r(uk_r, !pseudo_ && cyl_);
+            VectorZCoef   ukz_i(uk_i, !pseudo_ && cyl_);
 
             v_->ProjectCoefficient(ukxy_r, ukxy_i);
             if (v_z_) { v_z_->ProjectCoefficient(ukz_r, ukz_i); }
@@ -876,10 +878,10 @@ void VectorFieldVisObject::PrepareVisField(const ParComplexGridFunction &u,
          break;
          case 2:
          {
-            VectorXYCoef uxy_r(u_r);
-            VectorXYCoef uxy_i(u_i);
-            VectorZCoef   uz_r(u_r);
-            VectorZCoef   uz_i(u_i);
+            VectorXYCoef uxy_r(u_r, pseudo_ && cyl_);
+            VectorXYCoef uxy_i(u_i, pseudo_ && cyl_);
+            VectorZCoef   uz_r(u_r, !pseudo_ && cyl_);
+            VectorZCoef   uz_i(u_i, !pseudo_ && cyl_);
 
             v_->ProjectCoefficient(uxy_r, uxy_i);
             if (v_z_) { v_z_->ProjectCoefficient(uz_r, uz_i); }
@@ -972,13 +974,13 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
      e_(HCurlFESpace_),
      e_t_(NULL),
      e_b_(NULL),
-     e_v_("E", L2VSFESpace_, L2FESpace_, cyl_),
-     b_v_("B", L2VSFESpace_, L2FESpace_, cyl_),
      db_v_(NULL),
-     d_v_("D", L2VSFESpace_, L2FESpace_, cyl_),
      dd_v_(NULL),
-     j_v_("J", L2VSFESpace_, L2FESpace_, cyl_),
-     k_v_("K", L2VSFESpace_, L2FESpace_, cyl_),
+     e_v_("E", L2VSFESpace_, L2FESpace_, cyl_, false),
+     b_v_("B", L2VSFESpace_, L2FESpace_, cyl_, true),
+     d_v_("D", L2VSFESpace_, L2FESpace_, cyl_, true),
+     j_v_("J", L2VSFESpace_, L2FESpace_, cyl_, true),
+     k_v_("K", L2VSFESpace_, L2FESpace_, cyl_, true),
      b_hat_(NULL),
      u_(NULL),
      uE_(NULL),

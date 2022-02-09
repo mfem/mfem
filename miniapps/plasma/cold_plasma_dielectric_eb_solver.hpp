@@ -700,6 +700,7 @@ class VectorFieldVisObject
 {
 private:
    bool cyl_;
+   bool pseudo_;
 
    int dim_;
 
@@ -712,7 +713,7 @@ private:
 public:
    VectorFieldVisObject(const std::string & field_name,
                         L2_ParFESpace *vfes, L2_ParFESpace *sfes,
-                        bool cyl);
+                        bool cyl, bool pseudo);
 
    ~VectorFieldVisObject();
 

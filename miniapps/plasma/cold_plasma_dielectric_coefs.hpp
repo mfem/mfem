@@ -723,39 +723,70 @@ public:
 class VectorXYCoef : public VectorCoefficient
 {
 private:
+   bool cyl_;
+
    VectorCoefficient & coef_;
 
+   mutable Vector x_;
    mutable Vector v3_;
 
 public:
-   VectorXYCoef(VectorCoefficient & coef)
-      : VectorCoefficient(2), coef_(coef), v3_(3) {}
+   VectorXYCoef(VectorCoefficient & coef, bool cyl = false)
+      : VectorCoefficient(2), cyl_(cyl), coef_(coef), x_(2), v3_(3) {}
 
    void Eval(Vector &v, ElementTransformation &T,
              const IntegrationPoint &ip)
    {
       coef_.Eval(v3_, T, ip);
       v.SetSize(2);
-      v[0] = v3_[0]; v[1] = v3_[1];
+      if (!cyl_)
+      {
+         v[0] = v3_[0]; v[1] = v3_[1];
+      }
+      else
+      {
+         T.Transform(ip, x_);
+         if (x_[1] == 0.0)
+         {
+            v = 0.0;
+         }
+         else
+         {
+            v[0] = v3_[0] / x_[1]; v[1] = v3_[1] / x_[1];
+         }
+      }
    }
 };
 
 class VectorZCoef : public Coefficient
 {
 private:
+   bool cyl_;
+
    VectorCoefficient & coef_;
 
+   mutable Vector x_;
    mutable Vector v3_;
 
 public:
-   VectorZCoef(VectorCoefficient & coef)
-      : coef_(coef), v3_(3) {}
+   VectorZCoef(VectorCoefficient & coef, bool cyl = false)
+      : cyl_(cyl), coef_(coef), x_(2), v3_(3) {}
 
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip)
    {
       coef_.Eval(v3_, T, ip);
-      return v3_[2];
+
+      if (!cyl_)
+      {
+         return v3_[2];
+      }
+      else
+      {
+         T.Transform(ip, x_);
+         if (x_[1] == 0.0) { return 0.0; }
+         return v3_[2] / x_[1];
+      }
    }
 };
 
