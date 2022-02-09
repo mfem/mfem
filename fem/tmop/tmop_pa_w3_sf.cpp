@@ -37,8 +37,8 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_SF_3D,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto C0SF = const_c0 ?
-                   Reshape(c0sf_.Read(), 1, 1, 1, 1) :
-                   Reshape(c0sf_.Read(), Q1D, Q1D, Q1D, NE);
+                     Reshape(c0sf_.Read(), 1, 1, 1, 1) :
+                     Reshape(c0sf_.Read(), Q1D, Q1D, Q1D, NE);
    const auto SFG = Reshape(surf_fit_gf.Read(), D1D, D1D, D1D, NE);
    const auto SFM = Reshape(surf_fit_mask.Read(), D1D, D1D, D1D, NE);
    auto E = Reshape(energy.Write(), Q1D, Q1D, Q1D, NE);
@@ -51,8 +51,8 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_SF_3D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-     MFEM_FOREACH_THREAD(qz,z,Q1D)
-     {
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -60,9 +60,9 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_SF_3D,
                double sf, sfm;
                const double surf_fit_coeff = const_c0 ? C0SF(0,0,0,0) : C0SF(qx,qy,qz,e);
                E(qx, qy, qz, e) = surf_fit_normal *
-                                  surf_fit_coeff *
-                                  SFM(qx, qy, qz, e) *
-                                  SFG(qx, qy, qz, e) * SFG(qx, qy, qz, e);
+               surf_fit_coeff *
+               SFM(qx, qy, qz, e) *
+               SFG(qx, qy, qz, e) * SFG(qx, qy, qz, e);
             }
          }
       }

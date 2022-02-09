@@ -41,8 +41,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_SF_2D,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto C0SF = const_c0 ?
-                   Reshape(c0sf_.Read(), 1, 1, 1) :
-                   Reshape(c0sf_.Read(), Q1D, Q1D, NE);
+                     Reshape(c0sf_.Read(), 1, 1, 1) :
+                     Reshape(c0sf_.Read(), Q1D, Q1D, NE);
    const auto SFG = Reshape(surf_fit_gf.Read(), D1D, D1D, NE);
    const auto SFM = Reshape(surf_fit_mask.Read(), D1D, D1D, NE);
    const auto G = Reshape(gradq.Read(), Q1D, Q1D, DIM, NE);
@@ -62,10 +62,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_SF_2D,
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             const double coeff = const_c0 ? C0SF(0, 0, 0) :
-                                 C0SF(qx, qy, e);
-            for (int d = 0; d < DIM; d++) {
+            C0SF(qx, qy, e);
+            for (int d = 0; d < DIM; d++)
+            {
                Y(qx, qy, d, e) += 2 * coeff * SFM(qx, qy, e) *
-                              SFG(qx, qy, e) * G(qx, qy, d, e);
+               SFG(qx, qy, e) * G(qx, qy, d, e);
             }
          }
       }
@@ -97,7 +98,8 @@ void TMOP_Integrator::AddMultPA_SF_2D(const Vector &X, Vector &Y) const
    const int nqp = PA.irsf->GetNPoints();
    Vector jacobians(nqp*N*dim*dim);
    using namespace internal::quadrature_interpolator;
-   const DofToQuad &maps = PA.fes->GetFE(0)->GetDofToQuad(*PA.irsf, DofToQuad::TENSOR);
+   const DofToQuad &maps = PA.fes->GetFE(0)->GetDofToQuad(*PA.irsf,
+                                                          DofToQuad::TENSOR);
    TensorDerivatives<QVectorLayout::byNODES>(N, vdim, maps, X, jacobians);
    constexpr QVectorLayout L = QVectorLayout::byNODES;
    constexpr bool P = true; // GRAD_PHYS

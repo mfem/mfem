@@ -2155,14 +2155,14 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    final_norm = norm;
 
    if (print_options.summary || (!converged && print_options.warnings) ||
-        print_options.first_and_last)
+       print_options.first_and_last)
    {
-       mfem::out << "LBFGS: Number of iterations: " << final_iter << '\n'
-               << "   ||r|| = " << final_norm << '\n';
-  }
-  if (print_options.summary || (!converged && print_options.warnings))
-  {
-     mfem::out << "LBFGS: No convergence!\n";
+      mfem::out << "LBFGS: Number of iterations: " << final_iter << '\n'
+                << "   ||r|| = " << final_norm << '\n';
+   }
+   if (print_options.summary || (!converged && print_options.warnings))
+   {
+      mfem::out << "LBFGS: No convergence!\n";
    }
 }
 

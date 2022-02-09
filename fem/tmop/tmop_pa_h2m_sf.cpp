@@ -34,7 +34,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_SF_2D,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto H0 = Reshape(h0_.Read(), Q1D, Q1D, DIM, DIM, NE);
-   const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto R = Reshape(r_.Read(), D1D, D1D, DIM, NE);
 
    auto Y = Reshape(c_.ReadWrite(), D1D, D1D, DIM, NE);
@@ -42,11 +41,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_SF_2D,
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       constexpr int DIM = 2;
-      const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
-      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -72,8 +67,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_SF_2D,
             // p2 = H . Xh
             double p2[2];
             kernels::Mult(2,2,H_data,Xh,p2);
-            for (int d = 0; d < DIM; d++) {
-                Y(qx, qy, d, e) += p2[d];
+            for (int d = 0; d < DIM; d++)
+            {
+               Y(qx, qy, d, e) += p2[d];
             }
          }
       }

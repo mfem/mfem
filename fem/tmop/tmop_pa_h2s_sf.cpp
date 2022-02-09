@@ -68,8 +68,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_SF_2D,
                for (int j = 0; j < DIM; j++)
                {
                   H0(qx,qy, i, j,e) = coeff0 * 2 * MQ(qx, qy, e) *
-                                      (HQ(qx, qy, i, j, e) * VQ(qx, qy, e) +
-                                       GQ(qx, qy, i, e) * GQ(qx, qy, j, e));
+                  (HQ(qx, qy, i, j, e) * VQ(qx, qy, e) +
+                   GQ(qx, qy, i, e) * GQ(qx, qy, j, e));
                }
             }
          }
@@ -100,7 +100,8 @@ void TMOP_Integrator::AssembleGradPA_SF_2D(const Vector &X) const
    const int nqp = PA.irsf->GetNPoints();
    Vector jacobians(nqp*N*dim*dim);
    using namespace internal::quadrature_interpolator;
-   const DofToQuad &maps = PA.fes->GetFE(0)->GetDofToQuad(*PA.irsf, DofToQuad::TENSOR);
+   const DofToQuad &maps = PA.fes->GetFE(0)->GetDofToQuad(*PA.irsf,
+                                                          DofToQuad::TENSOR);
    TensorDerivatives<QVectorLayout::byNODES>(N, vdim, maps, X, jacobians);
    constexpr QVectorLayout L = QVectorLayout::byNODES;
    constexpr bool P = true; // GRAD_PHYS

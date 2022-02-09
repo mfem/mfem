@@ -155,6 +155,7 @@ int main (int argc, char *argv[])
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
    bool asf              = false;
+   double surf_fit_threshold = -10;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -283,6 +284,9 @@ int main (int argc, char *argv[])
    args.AddOption(&asf, "-asf", "--adaptive-surface-fit", "-no-asf",
                   "--no-adaptive-surface-fit",
                   "Enable or disable adaptive surface fitting.");
+   args.AddOption(&surf_fit_threshold, "-sft", "--surf-fit-threshold",
+                  "Set Newton Solver termination threshold based on "
+                  "max surface fitting error.");
    args.Parse();
    if (!args.Good())
    {
@@ -408,7 +412,7 @@ int main (int argc, char *argv[])
       mesh_name << "perturbed.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-//      pmesh->PrintAsOne(mesh_ofs);
+      //      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // 11. Store the starting (prior to the optimization) positions.
@@ -827,8 +831,8 @@ int main (int argc, char *argv[])
    {
       MFEM_VERIFY(hradaptivity == false,
                   "Surface fitting with HR is not implemented yet.");
-//      MFEM_VERIFY(pa == false,
-//                  "Surface fitting with PA is not implemented yet.");
+      //      MFEM_VERIFY(pa == false,
+      //                  "Surface fitting with PA is not implemented yet.");
 
       FunctionCoefficient ls_coeff(surface_level_set);
       surf_fit_gf0.ProjectCoefficient(ls_coeff);
@@ -1109,6 +1113,10 @@ int main (int argc, char *argv[])
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
    if (asf) { solver.EnableAdaptiveSurfaceFitting(); }
+   if (surf_fit_threshold > 0)
+   {
+      solver.SetTerminationWithMaxSurfaceFittingError(surf_fit_threshold);
+   }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
@@ -1185,7 +1193,7 @@ int main (int argc, char *argv[])
                 << pa << " " << metric_id << " " << num_procs
                 << std::setprecision(10) << " "
                 << NEGlob << " " << NDofs << " "
-                << solver.GetNumIterations() << " " 
+                << solver.GetNumIterations() << " "
                 << solver.GetTotalPrecIterations() << " "
                 << solvertime << " "
                 << (vectortime*100/solvertime) << " "
@@ -1203,7 +1211,7 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-//      pmesh->PrintAsOne(mesh_ofs);
+      //      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // Compute the final energy of the functional.

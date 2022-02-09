@@ -632,9 +632,9 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
 /// 2D Scalar Gradient, 1/2
 template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void GradScalarX(const int D1D, const int Q1D,
-                                   const double (&sBG)[2][MQ1*MD1],
-                                   const double (&sX)[NBZ][MD1*MD1],
-                                   double (&sDQ)[2][NBZ][MD1*MQ1])
+                                         const double (&sBG)[2][MQ1*MD1],
+                                         const double (&sX)[NBZ][MD1*MD1],
+                                         double (&sDQ)[2][NBZ][MD1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix B(sBG[0], D1D, Q1D);
@@ -667,9 +667,9 @@ MFEM_HOST_DEVICE inline void GradScalarX(const int D1D, const int Q1D,
 /// 2D scalar Gradient, 2/2
 template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void GradScalarY(const int D1D, const int Q1D,
-                                   const double (&sBG)[2][MQ1*MD1],
-                                   const double (&sDQ)[2][NBZ][MD1*MQ1],
-                                   double (&sQQ)[2][NBZ][MQ1*MQ1])
+                                         const double (&sBG)[2][MQ1*MD1],
+                                         const double (&sDQ)[2][NBZ][MD1*MQ1],
+                                         double (&sQQ)[2][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix B(sBG[0], D1D, Q1D);
@@ -702,9 +702,9 @@ MFEM_HOST_DEVICE inline void GradScalarY(const int D1D, const int Q1D,
 /// Pull scalar 2D Gradient
 template<int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void PullScalarGrad(const int Q1D,
-                                      const int qx, const int qy,
-                                      const double (&sQQ)[2][NBZ][MQ1*MQ1],
-                                      double *Jpr)
+                                            const int qx, const int qy,
+                                            const double (&sQQ)[2][NBZ][MQ1*MQ1],
+                                            double *Jpr)
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix X0GB(sQQ[0][tidz], Q1D, Q1D);
@@ -717,9 +717,9 @@ MFEM_HOST_DEVICE inline void PullScalarGrad(const int Q1D,
 /// Push scalar 2D Gradient
 template<int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void PushScalarGrad(const int Q1D,
-                                      const int qx, const int qy,
-                                      const double *A,
-                                      double (&sQQ)[2][NBZ][MQ1*MQ1])
+                                            const int qx, const int qy,
+                                            const double *A,
+                                            double (&sQQ)[2][NBZ][MQ1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    DeviceMatrix X0GB(sQQ[0][tidz], Q1D, Q1D);
@@ -732,9 +732,9 @@ MFEM_HOST_DEVICE inline void PushScalarGrad(const int Q1D,
 /// 2D scalar Transposed gradient, 1/2
 template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void GradScalarYt(const int D1D, const int Q1D,
-                                    const double (&sBG)[2][MQ1*MD1],
-                                    const double (&GQ)[2][NBZ][MQ1*MQ1],
-                                    double (&GD)[2][NBZ][MD1*MQ1])
+                                          const double (&sBG)[2][MQ1*MD1],
+                                          const double (&GQ)[2][NBZ][MQ1*MQ1],
+                                          double (&GD)[2][NBZ][MD1*MQ1])
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
@@ -765,10 +765,10 @@ MFEM_HOST_DEVICE inline void GradScalarYt(const int D1D, const int Q1D,
 /// 2D scalar Transposed gradient, 2/2
 template<int MD1, int MQ1, int NBZ>
 MFEM_HOST_DEVICE inline void GradScalarXt(const int D1D, const int Q1D,
-                                    const double (&sBG)[2][MQ1*MD1],
-                                    const double (&GD)[2][NBZ][MD1*MQ1],
-                                    const DeviceTensor<4> &Y, // output
-                                    const int e)
+                                          const double (&sBG)[2][MQ1*MD1],
+                                          const double (&GD)[2][NBZ][MD1*MQ1],
+                                          const DeviceTensor<4> &Y, // output
+                                          const int e)
 {
    const int tidz = MFEM_THREAD_ID(z);
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);

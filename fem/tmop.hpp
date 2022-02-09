@@ -1363,14 +1363,13 @@ protected:
    Coefficient *surf_fit_coeff;         // Not owned.
    AdaptivityEvaluator *surf_fit_eval;  // Not owned.
    double surf_fit_normal;
-   double surf_fit_coeff_const_prvs;
 
    DiscreteAdaptTC *discr_tc;
 
    // Timers
    mutable StopWatch TimeEnergyShape, TimeEnergySurfFit,
-                     TimeVectorShape, TimeVectorSurfFit,
-                     TimeGradShape, TimeGradSurfFit;
+           TimeVectorShape, TimeVectorSurfFit,
+           TimeGradShape, TimeGradSurfFit;
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
@@ -1578,17 +1577,16 @@ public:
         surf_fit_gf(NULL), surf_fit_marker(NULL),
         surf_fit_coeff(NULL),
         surf_fit_eval(NULL), surf_fit_normal(1.0),
-        surf_fit_coeff_const_prvs(-10),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    {
-       PA.enabled = false;
-       TimeEnergyShape.Clear();
-       TimeEnergySurfFit.Clear();
-       TimeVectorShape.Clear();
-       TimeVectorSurfFit.Clear();
-       TimeGradShape.Clear();
-       TimeGradSurfFit.Clear();
+      PA.enabled = false;
+      TimeEnergyShape.Clear();
+      TimeEnergySurfFit.Clear();
+      TimeVectorShape.Clear();
+      TimeVectorSurfFit.Clear();
+      TimeGradShape.Clear();
+      TimeGradSurfFit.Clear();
    }
 
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
@@ -1679,6 +1677,7 @@ public:
                              AdaptivityEvaluator &ae);
 #endif
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
+   bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
@@ -1768,21 +1767,14 @@ public:
 
    void UpdateSurfaceFittingWeight(double factor);
 
-   void SetSurfaceFittingWeight(double weight)
-   {
-       if (surf_fit_coeff) {
-           ConstantCoefficient *cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
-           cf->constant = weight;
-       }
-   }
-
    double GetSurfaceFittingWeight()
    {
-       if (surf_fit_coeff) {
-           ConstantCoefficient *cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
-           return cf->constant;
-       }
-       return 0.0;
+      if (surf_fit_coeff)
+      {
+         ConstantCoefficient *cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
+         if (cf) { return cf->constant; }
+      }
+      return 0.0;
    }
 
 };
