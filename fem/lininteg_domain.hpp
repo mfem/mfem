@@ -27,6 +27,21 @@ namespace internal
 namespace linearform_extension
 {
 
+///
+class LinearFormExtensionElementRestriction : public ElementRestriction
+{
+public:
+   LinearFormExtensionElementRestriction(const FiniteElementSpace &fes,
+                                         ElementDofOrdering ordering):
+      ElementRestriction(fes, ordering) { /**/ }
+
+   /**
+    * @brief GatherMap
+    * @return the mapping from L dofs to E dofs.
+    */
+   const Array<int> &GatherMap() const { return gatherMap; }
+};
+
 /// Signature of the kernels used for linear form extension
 using LinearFormExtensionKernel_f = void (*)(const int vdim,
                                              const bool byVDIM,
@@ -93,6 +108,7 @@ inline void Launch(const LinearFormExtensionKernel_f &kernel,
    const GeometricFactors *geom = mesh->GetGeometricFactors(*ir, flags, mt);
    const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   //LinearFormExtensionElementRestriction LFEER(fes, ordering);
    const Operator *ERop = fes.GetElementRestriction(ordering);
    const ElementRestriction* ER = dynamic_cast<const ElementRestriction*>(ERop);
    MFEM_ASSERT(ER, "Not supported!");
@@ -149,7 +165,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
 
    const int sm_size = 2*q*(d+q);
    constexpr int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = kernels::internal::ScratchPadMemory<GRID>(sm_size);
+   double *gmem = kernels::internal::DeviceMemSetSize<GRID>(sm_size);
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
@@ -218,7 +234,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
 
    const int sm_size = q*d + q*q*q;
    const int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = kernels::internal::ScratchPadMemory<GRID>(sm_size);
+   double *gmem = kernels::internal::DeviceMemSetSize<GRID>(sm_size);
    MFEM_VERIFY(q < 32, "Unsupported quadrature order!");
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
