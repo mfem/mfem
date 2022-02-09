@@ -91,7 +91,7 @@ template <typename Tensor,
              is_static_tensor<Tensor> &&
              get_tensor_rank<Tensor> == 2 &&
              get_tensor_size<0,Tensor> == get_tensor_size<1,Tensor> &&
-             (get_tensor_size<0,Tensor> > 1) &&
+             (get_tensor_size<0,Tensor> > 3) &&
              !is_threaded_tensor_dim<0,Tensor>,
           bool> = true>
 MFEM_HOST_DEVICE inline
