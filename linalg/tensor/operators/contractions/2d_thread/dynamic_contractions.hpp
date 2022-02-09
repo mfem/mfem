@@ -66,7 +66,8 @@ template <typename Basis,
              get_tensor_rank<Tensor> == 2 &&
              is_dynamic_tensor<Tensor> &&
              is_2d_threaded_tensor<Tensor>, // TODO should be 1d?
-             bool> = true >MFEM_HOST_DEVICE inline
+             bool> = true >
+MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B,
                const Tensor &u)
 {

@@ -68,6 +68,7 @@ template <typename Basis,
              is_static_tensor<Tensor> &&
              is_2d_threaded_tensor<Tensor>, // TODO should be 1d?
              bool> = true >
+MFEM_HOST_DEVICE inline
 auto ContractX(const Basis &B, const Tensor &u)
 {
    constexpr int Q = get_basis_size<0,Basis>;
