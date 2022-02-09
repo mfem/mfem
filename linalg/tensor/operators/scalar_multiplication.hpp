@@ -37,6 +37,23 @@ auto operator*(const Scalar &a, const Tensor &u)
    return v;
 }
 
+template <typename Scalar,
+          typename Tensor,
+          std::enable_if_t<
+             is_tensor<Tensor> &&
+             std::is_same<Scalar, get_tensor_type<Tensor>>::value,
+             bool> = true >
+MFEM_HOST_DEVICE inline
+auto operator*(const Tensor &u, const Scalar &a)
+{
+   using Res = ResultTensor<Tensor>;
+   Res v(GetLayout(u));
+   ForallDims<Tensor>::ApplyBinOp(u, v, [&](auto... idx)
+   {
+      v(idx...) = a * u(idx...);
+   });
+   return v;
+}
 } // namespace mfem
 
 #endif // MFEM_TENSOR_SCALAR_MULT
