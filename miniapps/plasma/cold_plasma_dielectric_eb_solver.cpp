@@ -696,6 +696,76 @@ void Displacement::ComputeD()
    delete pcg;
 }
 
+ScalarFieldVisObject::ScalarFieldVisObject(const std::string & field_name,
+                                           L2_ParFESpace *sfes,
+                                           bool cyl,
+                                           bool pseudo)
+   : cyl_(cyl),
+     pseudo_(pseudo),
+     dim_(-1),
+     field_name_(field_name),
+     v_(NULL)
+{
+   MFEM_VERIFY(sfes != NULL, "ScalarFieldVisObject: "
+               "FiniteElementSpace sfes must be non NULL.");
+
+   dim_ = sfes->GetParMesh()->SpaceDimension();
+
+   v_ = new ComplexGridFunction(sfes);
+}
+
+ScalarFieldVisObject::~ScalarFieldVisObject()
+{
+   delete v_;
+}
+
+void ScalarFieldVisObject::RegisterVisItFields(VisItDataCollection & visit_dc)
+{
+   ostringstream oss_r;
+   ostringstream oss_i;
+
+   oss_r << "Re_" << field_name_;
+   oss_i << "Im_" << field_name_;
+
+   visit_dc.RegisterField(oss_r.str(), &v_->real());
+   visit_dc.RegisterField(oss_i.str(), &v_->imag());
+}
+
+void ScalarFieldVisObject::PrepareVisField(const ParComplexGridFunction &u,
+                                           VectorCoefficient * kReCoef,
+                                           VectorCoefficient * kImCoef)
+{
+   if (kReCoef || kImCoef)
+   {
+      GridFunctionCoefficient u_r(&u.real());
+      GridFunctionCoefficient u_i(&u.imag());
+      ComplexPhaseCoefficient uk_r(kReCoef, kImCoef, &u_r, &u_i,
+                                   true, false);
+      ComplexPhaseCoefficient uk_i(kReCoef, kImCoef, &u_r, &u_i,
+                                   false, false);
+
+      PseudoScalarCoef   psu_r(uk_r, pseudo_ && cyl_);
+      PseudoScalarCoef   psu_i(uk_i, pseudo_ && cyl_);
+
+      v_->ProjectCoefficient(psu_r, psu_i);
+   }
+   else
+   {
+      GridFunctionCoefficient u_r(&u.real());
+      GridFunctionCoefficient u_i(&u.imag());
+
+      PseudoScalarCoef   psu_r(u_r, pseudo_ && cyl_);
+      PseudoScalarCoef   psu_i(u_i, pseudo_ && cyl_);
+
+      v_->ProjectCoefficient(psu_r, psu_i);
+   }
+}
+
+void ScalarFieldVisObject::Update()
+{
+   if (v_) { v_->Update(); }
+}
+
 VectorFieldVisObject::VectorFieldVisObject(const std::string & field_name,
                                            L2_ParFESpace *vfes,
                                            L2_ParFESpace *sfes,
@@ -974,11 +1044,11 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
      e_(HCurlFESpace_),
      e_t_(NULL),
      e_b_(NULL),
-     db_v_(NULL),
-     dd_v_(NULL),
      e_v_("E", L2VSFESpace_, L2FESpace_, cyl_, false),
      b_v_("B", L2VSFESpace_, L2FESpace_, cyl_, true),
+     db_v_("DivB", L2FESpace_, cyl_, true),
      d_v_("D", L2VSFESpace_, L2FESpace_, cyl_, true),
+     dd_v_("DivD", L2FESpace_, cyl_, true),
      j_v_("J", L2VSFESpace_, L2FESpace_, cyl_, true),
      k_v_("K", L2VSFESpace_, L2FESpace_, cyl_, true),
      b_hat_(NULL),
@@ -1319,8 +1389,6 @@ CPDSolverEB::~CPDSolverEB()
    delete StixS_;
    delete StixD_;
    delete StixP_;
-   delete db_v_;
-   delete dd_v_;
    delete e_b_;
    delete b_hat_;
    delete b_hat_v_;
@@ -1477,8 +1545,8 @@ CPDSolverEB::Update()
    d_v_.Update();
    j_v_.Update();
    k_v_.Update();
-   if (db_v_) { db_v_->Update(); }
-   if (dd_v_) { dd_v_->Update(); }
+   db_v_.Update();
+   dd_v_.Update();
    if (b_hat_) { b_hat_->Update(); }
 
    if (StixS_) { StixS_->Update(); }
@@ -1983,11 +2051,15 @@ void CPDSolverEB::prepareVisFields()
                         kReCoef_, kImCoef_);
    k_v_.PrepareVisField(current_.GetSurfaceCurrentDensity(),
                         kReCoef_, kImCoef_);
-   /*
-    divB_.ComputeDiv();
-    prepareScalarVisField(divB_.GetDivergence(), *db_v_);
 
-    divD_.ComputeDiv();
+   divB_.ComputeDiv();
+   divD_.ComputeDiv();
+
+   db_v_.PrepareVisField(divB_.GetDivergence(), kReCoef_, kImCoef_);
+   dd_v_.PrepareVisField(divD_.GetDivergence(), kReCoef_, kImCoef_);
+   /*
+   prepareScalarVisField(divB_.GetDivergence(), *db_v_);
+
     prepareScalarVisField(divD_.GetDivergence(), *dd_v_);
    */
    /*
@@ -2074,17 +2146,8 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
    d_v_.RegisterVisItFields(visit_dc);
    j_v_.RegisterVisItFields(visit_dc);
    k_v_.RegisterVisItFields(visit_dc);
-   /*
-   dd_v_ = new ComplexGridFunction(L2FESpace3D_);
-   db_v_ = new ComplexGridFunction(L2FESpace3D_);
-   */
-   /*
-   visit_dc.RegisterField("Re_DivD", &dd_v_->real());
-   visit_dc.RegisterField("Im_DivD", &dd_v_->imag());
-
-   visit_dc.RegisterField("Re_DivB", &db_v_->real());
-   visit_dc.RegisterField("Im_DivB", &db_v_->imag());
-   */
+   db_v_.RegisterVisItFields(visit_dc);
+   dd_v_.RegisterVisItFields(visit_dc);
    /*
    if ( BCoef_)
    {

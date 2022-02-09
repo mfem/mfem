@@ -696,6 +696,34 @@ public:
    void ComputeD();
 };
 
+class ScalarFieldVisObject
+{
+private:
+   bool cyl_;
+   bool pseudo_;
+
+   int dim_;
+
+   std::string field_name_;
+
+   ComplexGridFunction * v_; // Complex field in problem domain (L2)
+
+public:
+   ScalarFieldVisObject(const std::string & field_name,
+                        L2_ParFESpace *sfes,
+                        bool cyl, bool pseudo);
+
+   ~ScalarFieldVisObject();
+
+   void RegisterVisItFields(VisItDataCollection & visit_dc);
+
+   void PrepareVisField(const ParComplexGridFunction &u,
+                        VectorCoefficient * kReCoef,
+                        VectorCoefficient * kImCoef);
+
+   void Update();
+};
+
 class VectorFieldVisObject
 {
 private:
@@ -865,9 +893,9 @@ private:
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
    VectorFieldVisObject e_v_;
    VectorFieldVisObject b_v_;
-   ComplexGridFunction * db_v_; // Complex divergence of magnetic flux (L2)
+   ScalarFieldVisObject db_v_; // Complex divergence of magnetic flux (L2)
    VectorFieldVisObject d_v_;
-   ComplexGridFunction * dd_v_; // Complex divergence of electric flux (L2)
+   ScalarFieldVisObject dd_v_; // Complex divergence of electric flux (L2)
    VectorFieldVisObject j_v_;
    VectorFieldVisObject k_v_;
    ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
