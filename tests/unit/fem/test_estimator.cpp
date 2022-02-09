@@ -17,8 +17,6 @@
 
 using namespace mfem;
 
-#if defined(MFEM_USE_MPI)
-
 namespace testhelper
 {
 double SmoothSolutionX(const mfem::Vector& x)
@@ -51,6 +49,216 @@ double NonsmoothSolutionZ(const mfem::Vector& x)
    return std::abs(x(2)-0.5);
 }
 }
+
+#ifndef MFEM_USE_MPI
+
+TEST_CASE("New ZZ estimator on 2D NCMesh",
+          "[NCMesh], [Serial]")
+{
+   // Setup
+   const auto order = GENERATE(1, 3, 5);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+
+   // Make the mesh NC
+   mesh.EnsureNCMesh();
+   {
+      mesh.RandomRefinement(0.2);
+   }
+
+   H1_FECollection fe_coll(order, mesh.Dimension());
+   FiniteElementSpace fespace(&mesh, &fe_coll);
+
+   SECTION("Perfect Approximation X")
+   {
+      FunctionCoefficient u_analytic(testhelper::SmoothSolutionX);
+      GridFunction u_gf(&fespace);
+      u_gf.ProjectCoefficient(u_analytic);
+
+      DiffusionIntegrator di;
+      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+
+      auto &local_errors = estimator.GetLocalErrors();
+      for (int i=0; i<local_errors.Size(); i++)
+      {
+         REQUIRE(local_errors(i) < 1e-10);
+      }
+      REQUIRE(estimator.GetTotalError() < 1e-10);
+   }
+
+   SECTION("Perfect Approximation Y")
+   {
+      FunctionCoefficient u_analytic(testhelper::SmoothSolutionY);
+      GridFunction u_gf(&fespace);
+      u_gf.ProjectCoefficient(u_analytic);
+
+      DiffusionIntegrator di;
+      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+
+      auto &local_errors = estimator.GetLocalErrors();
+      for (int i=0; i<local_errors.Size(); i++)
+      {
+         REQUIRE(local_errors(i) < 1e-10);
+      }
+      REQUIRE(estimator.GetTotalError() < 1e-10);
+   }
+
+   SECTION("Nonsmooth Approximation X")
+   {
+      FunctionCoefficient u_analytic(testhelper::NonsmoothSolutionX);
+      GridFunction u_gf(&fespace);
+      u_gf.ProjectCoefficient(u_analytic);
+
+      DiffusionIntegrator di;
+      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+
+      auto &local_errors = estimator.GetLocalErrors();
+      for (int i=0; i<local_errors.Size(); i++)
+      {
+         REQUIRE(local_errors(i) >= 0.0);
+      }
+      REQUIRE(estimator.GetTotalError() > 0.0);
+   }
+
+   SECTION("Nonsmooth Approximation Y")
+   {
+      FunctionCoefficient u_analytic(testhelper::NonsmoothSolutionY);
+      GridFunction u_gf(&fespace);
+      u_gf.ProjectCoefficient(u_analytic);
+
+      DiffusionIntegrator di;
+      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+
+      auto &local_errors = estimator.GetLocalErrors();
+      for (int i=0; i<local_errors.Size(); i++)
+      {
+         REQUIRE(local_errors(i) >= 0.0);
+      }
+      REQUIRE(estimator.GetTotalError() > 0.0);
+   }
+
+}
+
+TEST_CASE("New ZZ estimator on 3D NCMesh",
+          "[NCMesh], [Serial]")
+{
+   // Setup
+   const auto order = GENERATE(1, 3, 5);
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+
+   // Make the mesh NC
+   mesh.EnsureNCMesh();
+   {
+      mesh.RandomRefinement(0.05);
+   }
+
+   H1_FECollection fe_coll(order, mesh.Dimension());
+   FiniteElementSpace fespace(&mesh, &fe_coll);
+
+   SECTION("Perfect Approximation X")
+   {
+      FunctionCoefficient u_analytic(testhelper::SmoothSolutionX);
+      GridFunction u_gf(&fespace);
+      u_gf.ProjectCoefficient(u_analytic);
+
+      DiffusionIntegrator di;
+      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+
+      auto &local_errors = estimator.GetLocalErrors();
+      for (int i=0; i<local_errors.Size(); i++)
+      {
+         REQUIRE(local_errors(i) < 1e-10);
+      }
+      REQUIRE(estimator.GetTotalError() < 1e-10);;
+   }
+
+   SECTION("Perfect Approximation Y")
+   {
+      FunctionCoefficient u_analytic(testhelper::SmoothSolutionY);
+      GridFunction u_gf(&fespace);
+      u_gf.ProjectCoefficient(u_analytic);
+
+      DiffusionIntegrator di;
+      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+
+      auto &local_errors = estimator.GetLocalErrors();
+      for (int i=0; i<local_errors.Size(); i++)
+      {
+         REQUIRE(local_errors(i) < 1e-10);
+      }
+      REQUIRE(estimator.GetTotalError() < 1e-10);
+   }
+
+   SECTION("Perfect Approximation Z")
+   {
+      FunctionCoefficient u_analytic(testhelper::SmoothSolutionZ);
+      GridFunction u_gf(&fespace);
+      u_gf.ProjectCoefficient(u_analytic);
+
+      DiffusionIntegrator di;
+      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+
+      auto &local_errors = estimator.GetLocalErrors();
+      for (int i=0; i<local_errors.Size(); i++)
+      {
+         REQUIRE(local_errors(i) < 1e-10);
+      }
+      REQUIRE(estimator.GetTotalError() < 1e-10);
+   }
+
+   SECTION("Nonsmooth Approximation X")
+   {
+      FunctionCoefficient u_analytic(testhelper::NonsmoothSolutionX);
+      GridFunction u_gf(&fespace);
+      u_gf.ProjectCoefficient(u_analytic);
+
+      DiffusionIntegrator di;
+      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+
+      auto &local_errors = estimator.GetLocalErrors();
+      for (int i=0; i<local_errors.Size(); i++)
+      {
+         REQUIRE(local_errors(i) >= 0.0);
+      }
+      REQUIRE(estimator.GetTotalError() > 0.0);
+   }
+
+   SECTION("Nonsmooth Approximation Y")
+   {
+      FunctionCoefficient u_analytic(testhelper::NonsmoothSolutionY);
+      GridFunction u_gf(&fespace);
+      u_gf.ProjectCoefficient(u_analytic);
+
+      DiffusionIntegrator di;
+      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+
+      auto &local_errors = estimator.GetLocalErrors();
+      for (int i=0; i<local_errors.Size(); i++)
+      {
+         REQUIRE(local_errors(i) >= 0.0);
+      }
+      REQUIRE(estimator.GetTotalError() > 0.0);
+   }
+
+   SECTION("Nonsmooth Approximation Z")
+   {
+      FunctionCoefficient u_analytic(testhelper::NonsmoothSolutionZ);
+      GridFunction u_gf(&fespace);
+      u_gf.ProjectCoefficient(u_analytic);
+
+      DiffusionIntegrator di;
+      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+
+      auto &local_errors = estimator.GetLocalErrors();
+      for (int i=0; i<local_errors.Size(); i++)
+      {
+         REQUIRE(local_errors(i) >= 0.0);
+      }
+      REQUIRE(estimator.GetTotalError() > 0.0);
+   }
+
+}
+
+#else
 
 TEST_CASE("Kelly Error Estimator on 2D NCMesh",
           "[NCMesh], [Parallel]")
