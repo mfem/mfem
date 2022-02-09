@@ -53,7 +53,8 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 %: %.cpp
 %.o: %.cpp
 
-%.o: $(SRC)%.cpp sbm_aux.hpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+%.o: $(SRC)%.cpp $(SRC)sbm_aux.hpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
+ $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
