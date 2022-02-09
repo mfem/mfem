@@ -44,6 +44,7 @@ auto operator*(const Matrix &M, const Vector &u)
       });
       v(row) = res;
    });
+   return v;
 }
 
 } // namespace mfem
