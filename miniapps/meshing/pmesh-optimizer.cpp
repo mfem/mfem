@@ -1182,8 +1182,8 @@ int main (int argc, char *argv[])
                 << "ComputeScale Time    :" << scalefactortime << " "
                 << (scalefactortime*100/solvertime) <<  "  " << endl
                 << "Device Tag (0 for gpu, 1 otherwise):" << device_tag << endl
-                << " Final energy: " << fin_energy << endl
-                << " Surface fitting weight:" << surface_fit_const << endl;
+                << "Final energy: " << fin_energy << endl
+                << "Surface fitting weight:" << surface_fit_const << endl;
 
       std::cout << "run_info: " << std::setprecision(4) << " "
                 << rs_levels << " "
@@ -1200,8 +1200,11 @@ int main (int argc, char *argv[])
                 << (gradtime*100/solvertime) << " "
                 << (prectime*100/solvertime) << " "
                 << (processnewstatetime*100/solvertime) << " "
-                << (scalefactortime*100/solvertime) << " " <<
-                device_tag << " " << fin_energy << " " << surface_fit_const << endl;
+                << (scalefactortime*100/solvertime) << " "
+                << device_tag << " "
+                << fin_energy << " "
+                << surface_fit_const
+                << endl;
    }
 
    // 16. Save the optimized mesh to a file. This output can be viewed later

@@ -3268,7 +3268,6 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       surf_fit_grad_e.MultTranspose(shape_s, surf_fit_grad_s);
       Vector gg_ptr(surf_fit_hess_s.GetData(), dim * dim);
       surf_fit_hess_e.MultTranspose(shape_s, gg_ptr);
-      //surf_fit_hess_s.Print();
 
       // Loops over the local matrix.
       const double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip);
