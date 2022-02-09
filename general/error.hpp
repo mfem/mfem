@@ -170,7 +170,7 @@ __device__ void abort_msg(T & msg)
       printf(__VA_ARGS__);                                  \
       asm("trap;");                                         \
    }
-#elif defined(__HIP_DEVICE_COMPILE__)
+#elif defined(MFEM_USE_HIP)
 #define MFEM_ABORT_KERNEL(...) \
    {                           \
       printf(__VA_ARGS__);     \
