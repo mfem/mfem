@@ -772,12 +772,13 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
 
    if (!Finalized())
    {
-      double *yp = y.GetData();
+      double *yp = y.HostReadWrite();
+      const double *xp = x.HostRead();
       // The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
       {
          RowNode *row = Rows[i];
-         double b = a * x(i);
+         double b = a * xp[i];
          for ( ; row != NULL; row = row->Prev)
          {
             yp[row->Column] += row->Value * b;

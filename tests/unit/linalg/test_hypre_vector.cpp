@@ -17,6 +17,9 @@ namespace mfem
 
 #ifdef MFEM_USE_MPI
 
+// TODO: modify the tests here to support HYPRE_USING_GPU?
+#ifndef HYPRE_USING_GPU
+
 namespace internal
 {
 
@@ -160,6 +163,8 @@ TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
    v1_copy -= v1_move;
    REQUIRE(InnerProduct(v1_copy, v1_copy) == MFEM_Approx(0.0));
 }
+
+#endif // HYPRE_USING_GPU
 
 #endif // MFEM_USE_MPI
 
