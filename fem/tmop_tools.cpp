@@ -750,7 +750,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    {
       double surf_fit_err_max = -10;
       double surf_fit_err_avg = -10;
-      GetSurfaceFittingError(surf_fit_err_max, surf_fit_err_avg);
+      GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
       Array<double> weights;
       GetSurfaceFittingWeight(weights);
 
@@ -765,7 +765,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 
       double change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_avg;
       double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
-      if (change_surf_fit_err > 0)
+      if (change_surf_fit_err >= 0)
       {
          if (rel_change_surf_fit_err < 1.e-5)
          {
@@ -773,9 +773,9 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             surf_fit_change = 1;
          }
       }
-      else if (rel_change_surf_fit_err < -1.e-5)
+      else //if (rel_change_surf_fit_err < -1.e-5)
       {
-         if (surf_fit_change < 0)
+         if (surf_fit_change <= 0)
          {
             UpdateSurfaceFittingWeight(10);
             surf_fit_change = 1;
