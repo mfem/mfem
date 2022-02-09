@@ -36,7 +36,6 @@ static T *DeviceMemSetSize(const int size)
    static Memory<T> data;
    // when the kernel does not need this memory space, no pointer is needed
    if (GRID == 0) { return nullptr; }
-   const int capacity = data.Capacity();
    // when size is null, delete the internal data
    if (size == 0) { data.Delete(); return nullptr; }
    if (size*GRID > data.Capacity())
@@ -45,7 +44,7 @@ static T *DeviceMemSetSize(const int size)
       data.New(size*GRID, Device::GetDeviceMemoryType());
       data.UseDevice(true);
    }
-   return data.Write(Device::GetDeviceMemoryClass(), capacity);
+   return data.Write(Device::GetDeviceMemoryClass(), data.Capacity());
 }
 
 /// Helper function to return and increment a given pointer with a given size
