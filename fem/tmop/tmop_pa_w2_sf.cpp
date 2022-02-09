@@ -37,8 +37,8 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_SF_2D,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const auto C0SF = const_c0 ?
-                   Reshape(c0sf_.Read(), 1, 1, 1) :
-                   Reshape(c0sf_.Read(), Q1D, Q1D, NE);
+                     Reshape(c0sf_.Read(), 1, 1, 1) :
+                     Reshape(c0sf_.Read(), Q1D, Q1D, NE);
    const auto SFG = Reshape(surf_fit_gf.Read(), D1D, D1D, NE);
    const auto SFM = Reshape(surf_fit_mask.Read(), D1D, D1D, NE);
    auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
@@ -58,7 +58,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_SF_2D,
             double sf, sfm;
             const double surf_fit_coeff = const_c0 ? C0SF(0,0,0) : C0SF(qx,qy,e);
             E(qx, qy, e) = surf_fit_normal * surf_fit_coeff *
-                           SFM(qx, qy, e) * SFG(qx, qy, e) * SFG(qx, qy, e);
+            SFM(qx, qy, e) * SFG(qx, qy, e) * SFG(qx, qy, e);
          }
       }
    });

@@ -1347,7 +1347,7 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
    ParFiniteElementSpace *ptspec_fes = t.ParFESpace();
 
    adapt_eval->SetParMetaInfo(*ptspec_fes->GetParMesh(),
-                                  *ptspec_fes->FEColl(), ncomp);
+                              *ptspec_fes->FEColl(), ncomp);
    adapt_eval->SetInitialField(*ptspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
@@ -1380,7 +1380,7 @@ void DiscreteAdaptTC::ParUpdateAfterMeshTopologyChange()
    tspec_sav = tspec;
 
    adapt_eval->SetParMetaInfo(*ptspec_fesv->GetParMesh(),
-                                  *ptspec_fesv->FEColl(), ncomp);
+                              *ptspec_fesv->FEColl(), ncomp);
    adapt_eval->SetInitialField(*ptspec_fesv->GetMesh()->GetNodes(), tspec);
 }
 
@@ -1511,7 +1511,7 @@ void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction &t)
 
    const FiniteElementSpace *tspec_fes = t.FESpace();
    adapt_eval->SetSerialMetaInfo(*tspec_fes->GetMesh(),
-                                     *tspec_fes->FEColl(), ncomp);
+                                 *tspec_fes->FEColl(), ncomp);
    adapt_eval->SetInitialField(*tspec_fes->GetMesh()->GetNodes(), tspec);
 
    tspec_sav = tspec;
@@ -1546,7 +1546,7 @@ void DiscreteAdaptTC::UpdateAfterMeshTopologyChange()
    tspec_sav = tspec;
 
    adapt_eval->SetSerialMetaInfo(*tspec_fesv->GetMesh(),
-                                     *tspec_fesv->FEColl(), ncomp);
+                                 *tspec_fesv->FEColl(), ncomp);
    adapt_eval->SetInitialField(*tspec_fesv->GetMesh()->GetNodes(), tspec);
 }
 
@@ -2628,9 +2628,9 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       energy += weight * val;
    }
 
-      TimeEnergySurfFit.Start();
+   TimeEnergySurfFit.Start();
 
-      // Contribution from the surface fitting term.
+   // Contribution from the surface fitting term.
    if (surface_fit)
    {
       const IntegrationRule &ir_s =
@@ -2650,7 +2650,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          }
       }
    }
-       TimeEnergySurfFit.Stop();
+   TimeEnergySurfFit.Stop();
 
    delete Tpr;
    return energy;
@@ -3257,7 +3257,6 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
 
    for (int s = 0; s < dof_s; s++)
    {
-      //std::cout << s << " " << ((*surf_fit_marker)[dofs[s]]) << " k10s\n";
       if ((*surf_fit_marker)[dofs[s]] == false) { continue; }
 
       const IntegrationPoint &ip = ir.IntPoint(s);
@@ -3478,17 +3477,19 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
 
 void TMOP_Integrator::UpdateSurfaceFittingWeight(double factor)
 {
-    if (!surf_fit_coeff) { return; }
+   if (!surf_fit_coeff) { return; }
 
-    if (surf_fit_coeff) {
-        ConstantCoefficient *cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
-        if (surf_fit_coeff_const_prvs < 0) {
-            surf_fit_coeff_const_prvs = cf->constant;
-            return;
-        }
-        surf_fit_coeff_const_prvs *= factor;
-        cf->constant = surf_fit_coeff_const_prvs;
-    }
+   if (surf_fit_coeff)
+   {
+      ConstantCoefficient *cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
+      if (cf)
+      {
+         cf->constant *= factor;
+         PA.C0sf.SetSize(1, Device::GetMemoryType());
+         PA.C0sf.HostWrite();
+         PA.C0sf(0) = cf->constant;
+      }
+   }
 }
 
 void TMOP_Integrator::EnableNormalization(const GridFunction &x)
@@ -3632,12 +3633,13 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x)
    if (surf_fit_gf)
    {
       surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf);
-      if (PA.enabled) {
-          const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-          const Operator *n0_R = PA.fessf->GetElementRestriction(ordering);
-          PA.SFG.SetSize(n0_R->Height(), Device::GetMemoryType());
-          PA.SFG.UseDevice(true);
-          n0_R->Mult(*surf_fit_gf, PA.SFG);
+      if (PA.enabled)
+      {
+         const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+         const Operator *n0_R = PA.fessf->GetElementRestriction(ordering);
+         PA.SFG.SetSize(n0_R->Height(), Device::GetMemoryType());
+         PA.SFG.UseDevice(true);
+         n0_R->Mult(*surf_fit_gf, PA.SFG);
       }
    }
 }

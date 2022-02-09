@@ -38,8 +38,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_SF_3D,
 
    const bool const_c0 = c0sf_.Size() == 1;
    const auto C0SF = const_c0 ?
-                   Reshape(c0sf_.Read(), 1, 1, 1, 1) :
-                   Reshape(c0sf_.Read(), Q1D, Q1D, Q1D, NE);
+                     Reshape(c0sf_.Read(), 1, 1, 1, 1) :
+                     Reshape(c0sf_.Read(), Q1D, Q1D, Q1D, NE);
    const auto SFG = Reshape(surf_fit_gf.Read(), D1D, D1D, D1D, NE);
    const auto SFM = Reshape(surf_fit_mask.Read(), D1D, D1D, D1D, NE);
    const auto G = Reshape(gradq.Read(), Q1D, Q1D, Q1D, DIM, NE);
@@ -63,15 +63,16 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_SF_3D,
                   for (int j = 0; j <= i; j++)
                   {
                      const double entry = coeff0 * 2 * surf_fit_normal *
-                                          SFM(qx, qy, qz, e) *
-                                          (Hin(i, j, qx, qy, qz, e) *
-                                           SFG(qx, qy, qz, e) +
-                                           G(qx, qy, qz, j, e) *
-                                           G(qx, qy, qz, i, e));
-                      H0(i, j, qx, qy, qz, e) = entry;
-                      if (j != i) {
-                          H0(j, i, qx, qy, qz, e) = entry;
-                      }
+                     SFM(qx, qy, qz, e) *
+                     (Hin(i, j, qx, qy, qz, e) *
+                      SFG(qx, qy, qz, e) +
+                      G(qx, qy, qz, j, e) *
+                      G(qx, qy, qz, i, e));
+                     H0(i, j, qx, qy, qz, e) = entry;
+                     if (j != i)
+                     {
+                        H0(j, i, qx, qy, qz, e) = entry;
+                     }
                   }
                }
             }
@@ -104,7 +105,8 @@ void TMOP_Integrator::AssembleGradPA_SF_3D(const Vector &X) const
    const int nqp = PA.irsf->GetNPoints();
    Vector jacobians(nqp*N*dim*dim);
    using namespace internal::quadrature_interpolator;
-   const DofToQuad &maps = PA.fes->GetFE(0)->GetDofToQuad(*PA.irsf, DofToQuad::TENSOR);
+   const DofToQuad &maps = PA.fes->GetFE(0)->GetDofToQuad(*PA.irsf,
+                                                          DofToQuad::TENSOR);
    TensorDerivatives<QVectorLayout::byNODES>(N, vdim, maps, X, jacobians);
    constexpr QVectorLayout L = QVectorLayout::byNODES;
    constexpr bool P = true; // GRAD_PHYS
@@ -122,7 +124,8 @@ void TMOP_Integrator::AssembleGradPA_SF_3D(const Vector &X) const
                << MQ << " 1D points are not supported!");
    //Derivatives3D<L,P,0,0,0,MD,MQ>(N,B,G,J,SFG,gradq,1,D1D,Q1D);
 
-   Derivatives3D<QVectorLayout::byVDIM,P,0,0,0,MD,MQ>(N,B,G,J,gradq.GetData(),hessq,dim,D1D,Q1D);
+   Derivatives3D<QVectorLayout::byVDIM,P,0,0,0,MD,MQ>(N,B,G,J,gradq.GetData(),
+                                                      hessq,dim,D1D,Q1D);
 
    MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_SF_3D,id,sn,SFM,SFG,gradq,hessq,C0SF,N,Hsf);
 }

@@ -139,22 +139,26 @@ void TMOP_Integrator::AssemblePA_SurfFit()
    const int NE = PA.ne;
    if (NE == 0) { return; }  // Quick return for empty processors
    const IntegrationRule *irnodes = &surf_fit_gf->FESpace()->GetFE(0)->GetNodes();
-   const NodalFiniteElement *fe = dynamic_cast<const NodalFiniteElement*>(surf_fit_gf->FESpace()->GetFE(0));
+   const NodalFiniteElement *fe = dynamic_cast<const NodalFiniteElement*>
+                                  (surf_fit_gf->FESpace()->GetFE(0));
    MFEM_VERIFY(fe, "Only nodal finite elements are allowed\n");
    const Array<int> &irordering = fe->GetLexicographicOrdering();
 
    const int dim = fe->GetDim();
 
    IntegrationRule *irlex = new IntegrationRule(irnodes->GetNPoints());
-   for (int i = 0; i < irnodes->GetNPoints(); i++) {
-       IntegrationPoint &ip = irlex->IntPoint(i);
-       const IntegrationPoint &ip2 = irnodes->IntPoint(irordering[i]);
-       if (dim == 2) {
-           ip.Set2w(ip2.x, ip2.y, ip2.weight);
-       }
-       else if (dim == 3) {
-           ip.Set(ip2.x, ip2.y, ip2.z, ip2.weight);
-       }
+   for (int i = 0; i < irnodes->GetNPoints(); i++)
+   {
+      IntegrationPoint &ip = irlex->IntPoint(i);
+      const IntegrationPoint &ip2 = irnodes->IntPoint(irordering[i]);
+      if (dim == 2)
+      {
+         ip.Set2w(ip2.x, ip2.y, ip2.weight);
+      }
+      else if (dim == 3)
+      {
+         ip.Set(ip2.x, ip2.y, ip2.z, ip2.weight);
+      }
    }
    PA.irsf = irlex;
    const IntegrationRule &ir = *PA.irsf;
@@ -189,16 +193,8 @@ void TMOP_Integrator::AssemblePA_SurfFit()
    }
    else
    {
-      PA.C0sf.SetSize(PA.nqsf * PA.ne, Device::GetMemoryType());
-      auto C0 = Reshape(PA.C0sf.HostWrite(), PA.nqsf, PA.ne);
-      for (int e = 0; e < NE; ++e)
-      {
-         ElementTransformation& T = *fes->GetElementTransformation(e);
-         for (int q = 0; q < ir.GetNPoints(); ++q)
-         {
-            C0(q,e) = surf_fit_coeff->Eval(T, ir.IntPoint(q));
-         }
-      }
+      MFEM_ABORT("Partial assembly for surface fitting enabled "
+                 "for constant coeffs only.");
    }
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -208,8 +204,9 @@ void TMOP_Integrator::AssemblePA_SurfFit()
    n0_R->Mult(*surf_fit_gf, PA.SFG);
 
    GridFunction surf_fit_marker_gf(*surf_fit_gf);
-   for (int i = 0; i < surf_fit_marker->Size(); i++) {
-       surf_fit_marker_gf(i) = (*surf_fit_marker)[i] ? 1.0 : 0.0;
+   for (int i = 0; i < surf_fit_marker->Size(); i++)
+   {
+      surf_fit_marker_gf(i) = (*surf_fit_marker)[i] ? 1.0 : 0.0;
    }
 
    //surf_fit_marker_gf.ReorderByNodes();

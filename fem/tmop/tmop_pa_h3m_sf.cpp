@@ -67,8 +67,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_SF_3D,
                // p2 = H . Xh
                double p2[3];
                kernels::Mult(3,3,H_data,Xh,p2);
-               for (int d = 0; d < DIM; d++) {
-                   Y(qx, qy, qz, d, e) += p2[d];
+               for (int d = 0; d < DIM; d++)
+               {
+                  Y(qx, qy, qz, d, e) += p2[d];
                }
             }
          }

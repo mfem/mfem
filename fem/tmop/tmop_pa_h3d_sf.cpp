@@ -29,7 +29,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_SF_3D,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto B = Reshape(b.Read(), Q1D, D1D);
    const auto H0 = Reshape(h0.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
 
    auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, D1D, DIM, NE);

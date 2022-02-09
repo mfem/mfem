@@ -131,8 +131,8 @@ protected:
    mutable double surf_fit_change = 0;
    mutable double surf_fit_err_max_prvs = 10000.0;
    mutable double surf_fit_err_avg_prvs = 10000.0;
-   mutable double surf_fit_err_max = -10.0;
-   mutable double surf_fit_err_avg = -10.0;
+   mutable bool update_surf_fit_coeff = false;
+   double surf_fit_max_threshold = -1.0;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
@@ -190,10 +190,14 @@ public:
 
    virtual void ProcessNewState(const Vector &x) const;
 
-   virtual void GetMaxSurfaceFittingError(double &err_avg, double &err_max) const;
+   virtual void GetSurfaceFittingError(double &err_avg, double &err_max) const;
    void UpdateSurfaceFittingWeight(double factor) const;
-   double GetSurfaceFittingWeight() const;
+   void GetSurfaceFittingWeight(Array<double> &weights) const;
    void EnableAdaptiveSurfaceFitting() { adaptive_surf_fit = true; }
+   void SetTerminationWithMaxSurfaceFittingError(double max_error)
+   {
+      surf_fit_max_threshold = max_error;
+   }
 
    virtual void Mult(const Vector &b, Vector &x) const
    {
