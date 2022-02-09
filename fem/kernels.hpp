@@ -28,6 +28,26 @@ namespace kernels
 namespace internal
 {
 
+/// @brief Resize an internal device memory suitable for a block of threads.
+/// When @a size is 0, the internal data is deleted and the nullptr is returned.
+template<int GRID, typename T = double>
+static T *DeviceMemSetSize(const int size)
+{
+   static Memory<T> data;
+   // when the kernel does not need this memory space, no pointer is needed
+   if (GRID == 0) { return nullptr; }
+   const int capacity = data.Capacity();
+   // when size is null, delete the internal data
+   if (size == 0) { data.Delete(); return nullptr; }
+   if (size*GRID > data.Capacity())
+   {
+      data.Delete();
+      data.New(size*GRID, Device::GetDeviceMemoryType());
+      data.UseDevice(true);
+   }
+   return data.Write(Device::GetDeviceMemoryClass(), capacity);
+}
+
 /// Helper function to return and increment a given pointer with a given size
 /**
 * @brief DeviceMemAlloc
@@ -39,22 +59,8 @@ template<typename T> MFEM_HOST_DEVICE static
 inline T *DeviceMemAlloc(T* &mem, const size_t size) noexcept
 {
    T* base = mem;
-   return (mem += size, base);
-}
-
-/** @brief Create a scratchpad memory on the device. */
-template<int GRID, typename T = double>
-static T *ScratchPadMemory(const int sm_size)
-{
-   if (GRID==0) { return nullptr; }
-   static Memory<T> data;
-   if (sm_size*GRID > data.Capacity())
-   {
-      data.Delete();
-      data.New(sm_size*GRID, Device::GetDeviceMemoryType());
-      data.UseDevice(true);
-   }
-   return data.Write(Device::GetDeviceMemoryClass(), data.Capacity());
+   mem += size;
+   return base;
 }
 
 /// Load B1d matrice into shared memory

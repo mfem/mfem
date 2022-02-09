@@ -65,7 +65,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
 
    const int sm_size = 2*d*q + 4*q*q;
    const int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = kernels::internal::ScratchPadMemory<GRID>(sm_size);
+   double *gmem = kernels::internal::DeviceMemSetSize<GRID>(sm_size);
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
@@ -159,7 +159,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
    const int sm_size = 2*q*d + 6*q*q*q;
 
    const int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = kernels::internal::ScratchPadMemory<GRID>(sm_size);
+   double *gmem = kernels::internal::DeviceMemSetSize<GRID>(sm_size);
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {

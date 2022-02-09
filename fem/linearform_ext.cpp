@@ -20,7 +20,7 @@ namespace mfem
 FullLinearFormExtension::FullLinearFormExtension(LinearForm *lf):
    LinearFormExtension(lf)
 {
-   markers.GetMemory().UseDevice(true);
+   markers.UseDevice(true);
    Update();
 }
 
