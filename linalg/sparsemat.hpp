@@ -363,7 +363,9 @@ public:
        an appropriate message pointing to this method. When using the default
        backend, calling this method is optional.
 
-       This method can only be used when the sparse matrix is finalized. */
+       This method can only be used when the sparse matrix is finalized.
+
+       @sa EnsureMultTranspose() */
    void BuildTranspose() const;
 
    /** Reset (destroy) the internal transpose matrix. See BuildTranspose() for
@@ -378,7 +380,8 @@ public:
        transpose matrix, see BuildTranspose().
 
        For the serial CPU backend, the internal transpose is not required, and
-       this function is a no-op. */
+       this function is a no-op. This allows for significant memory savings
+       when the internal transpose matrix is not required. */
    void EnsureMultTranspose() const;
 
    void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;

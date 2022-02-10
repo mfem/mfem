@@ -1437,7 +1437,7 @@ TrueTransferOperator::TrueTransferOperator(const
    tmpL.SetSize(lFESpace_.GetVSize());
    tmpH.SetSize(hFESpace_.GetVSize());
 
-   hFESpace.GetRestrictionMatrix()->BuildTranspose();
+   hFESpace.GetRestrictionMatrix()->EnsureMultTranspose();
 }
 
 TrueTransferOperator::~TrueTransferOperator()
