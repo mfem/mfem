@@ -243,10 +243,10 @@ int main(int argc, char *argv[])
       mesh_out.open(vishost, visport);
    }
 
-   if (static_cond) { a->EnableStaticCondensation(); }
 
    for (int i = 0; i<ref; i++)
    {
+      if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
 
       Array<int> ess_tdof_list;

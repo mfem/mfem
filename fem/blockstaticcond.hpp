@@ -29,6 +29,7 @@ class BlockStaticCondensation
    int nblocks; // original number of blocks
    int rblocks; // reduces number of blocks
    Mesh * mesh = nullptr;
+   bool parallel = false;
    // original set of Finite Element Spaces
    Array<FiniteElementSpace *> fes;
    // indicates if the original space is already a trace space
@@ -61,16 +62,13 @@ class BlockStaticCondensation
    BlockMatrix * R = nullptr; // Block Restriction
 
 #ifdef MFEM_USE_MPI
-   Array<ParFiniteElementSpace *> pfes;
-   Array<ParFiniteElementSpace *> tr_pfes;
    BlockOperator * pS = nullptr;
    BlockOperator * pS_e = nullptr;
    // Block HypreParMatrix for Prolongation
    BlockOperator * pP = nullptr;
-   bool Parallel() const { return (tr_fes.Size() != 0); }
-#else
-   bool Parallel() const { return false; }
 #endif
+
+   bool Parallel() const { return parallel; }
 
 
    // tr_idx (trace dofs indices)
@@ -93,6 +91,13 @@ class BlockStaticCondensation
    void ComputeOffsets();
 
    void BuildProlongation();
+#ifdef MFEM_USE_MPI
+   void BuildParallelProlongation();
+#endif
+
+   // ess_tdof list for each space
+   Array<Array<int> *> ess_tdofs;
+   void FillEssTdofLists(const Array<int> & ess_tdof_list);
 
    void ConformingAssemble(int skip_zeros);
 
@@ -144,6 +149,16 @@ public:
 
    /// Return the eliminated part of the serial Schur complement matrix.
    BlockMatrix &GetMatrixElim() { return *S_e; }
+
+#ifdef MFEM_USE_MPI
+   /// Return the parallel Schur complement matrix.
+   BlockOperator &GetParallelMatrix() { return *pS; }
+
+   /// Return the eliminated part of the parallel Schur complement matrix.
+   BlockOperator &GetParallelMatrixElim() { return *pS_e; }
+
+   void ParallelAssemble(BlockMatrix *m);
+#endif
 
    void FormSystemMatrix(Operator::DiagonalPolicy diag_policy);
 
