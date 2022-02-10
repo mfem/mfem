@@ -552,7 +552,7 @@ protected:
    void DoubleValuedConformingAddMultTranspose(const Vector& x, Vector& y) const;
 };
 
-/** This struct stores which side is the master non-conforming side and the
+/** This struct stores which side is the master nonconforming side and the
     index of the interpolator, see InterpolationManager class below. */
 struct InterpConfig
 {
@@ -666,12 +666,12 @@ private:
       const DenseMatrix* ptMat);
 };
 
-/** @brief Operator that extracts face degrees of freedom for L2 non-conforming
+/** @brief Operator that extracts face degrees of freedom for L2 nonconforming
     spaces.
 
-    In order to support face restrictions on non-conforming meshes, this
+    In order to support face restrictions on nonconforming meshes, this
     operator interpolates master (coarse) face degrees of freedom onto the
-    slave (fine) face. This allows face integrators to treat non-conforming
+    slave (fine) face. This allows face integrators to treat nonconforming
     faces just as regular conforming faces. */
 class NCL2FaceRestriction : virtual public L2FaceRestriction
 {
@@ -680,7 +680,7 @@ protected:
    mutable Vector x_interp;
 
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
-       L2FaceRestriction for non-conforming meshes.
+       L2FaceRestriction for nonconforming meshes.
 
        @param[in] fes      The FiniteElementSpace on which this operates
        @param[in] ordering Request a specific ordering
@@ -698,7 +698,7 @@ protected:
                        bool build);
 public:
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a
-       L2FaceRestriction for non-conforming meshes.
+       L2FaceRestriction for nonconforming meshes.
 
        @param[in] fes      The FiniteElementSpace on which this operates
        @param[in] ordering Request a specific ordering
@@ -814,7 +814,7 @@ private:
 
 protected:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
-       face E-Vector. Should only be used with non-conforming faces and when:
+       face E-Vector. Should only be used with nonconforming faces and when:
        L2FaceValues m == L2FaceValues::DoubleValued
 
        @param[in]  x The L-vector degrees of freedom.
@@ -824,7 +824,7 @@ protected:
                      requested by @a type in the constructor.
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
-   virtual void DoubleValuedNonConformingMult(const Vector& x, Vector& y) const;
+   virtual void DoubleValuedNonconformingMult(const Vector& x, Vector& y) const;
 
    /** @brief Apply a change of basis from fine element basis to coarse element
        basis for the coarse face dofs. Should only be used when:
@@ -833,7 +833,7 @@ protected:
        @param[in] x The dofs vector that needs coarse dofs to be express in term
                     of the coarse basis, the result is stored in x_interp.
    */
-   void SingleValuedNonConformingTransposeInterpolation(const Vector& x) const;
+   void SingleValuedNonconformingTransposeInterpolation(const Vector& x) const;
 
    /** @brief Apply a change of basis from fine element basis to coarse element
        basis for the coarse face dofs. Should only be used when:
@@ -842,7 +842,7 @@ protected:
        @param[in] x The dofs vector that needs coarse dofs to be express in term
                     of the coarse basis, the result is stored in x_interp.
    */
-   void DoubleValuedNonConformingTransposeInterpolation(const Vector& x) const;
+   void DoubleValuedNonconformingTransposeInterpolation(const Vector& x) const;
 };
 
 /** @brief Return the face map that extracts the degrees of freedom for the

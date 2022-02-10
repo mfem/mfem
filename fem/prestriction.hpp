@@ -341,7 +341,7 @@ private:
 
 protected:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
-       face E-Vector. Should only be used with non-conforming faces and when:
+       face E-Vector. Should only be used with nonconforming faces and when:
        L2FaceValues m == L2FaceValues::SingleValued
 
        @param[in]  x The L-vector degrees of freedom.
@@ -351,10 +351,10 @@ protected:
                      requested by @a type in the constructor.
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
-   void SingleValuedNonConformingMult(const Vector& x, Vector& y) const;
+   void SingleValuedNonconformingMult(const Vector& x, Vector& y) const;
 
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
-       face E-Vector. Should only be used with non-conforming faces and when:
+       face E-Vector. Should only be used with nonconforming faces and when:
        L2FaceValues m == L2FaceValues::DoubleValued
 
        @param[in]  x The L-vector degrees of freedom.
@@ -364,7 +364,7 @@ protected:
                      requested by @a type in the constructor.
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
-   void DoubleValuedNonConformingMult(const Vector& x, Vector& y) const override;
+   void DoubleValuedNonconformingMult(const Vector& x, Vector& y) const override;
 };
 
 }
