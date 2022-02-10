@@ -1291,20 +1291,20 @@ public:
    enum class ElementConformity { Coincident, Superset, Subset, NA };
 
    /** This enumerated type describes the corresponding FaceInfo internal
-       representation and encryption cases, c.f. FaceInfo's documentation:
+       representation (encoded cases), c.f. FaceInfo's documentation:
        Classification of a local (non-ghost) face based on its FaceInfo:
          - Elem2No >= 0 --> local interior face; can be either:
             - NCFace == -1 --> LocalConformingInterior,
-            - NCFace >= 0 --> LocalNonconformingInterior,
+            - NCFace >= 0 --> LocalNonconformingInterior (nonconforming slave),
          - Elem2No < 0 --> local "boundary" face; can be one of:
             - NCFace == -1 --> conforming face; can be either:
                - Elem2Inf < 0 --> TrueBoundary,
                - Elem2Inf >= 0 --> SharedConformingInterior,
             - NCFace >= 0 --> nonconforming face; can be one of:
-               - Elem2Inf < 0 --> MasterNonconforming,
-               - Elem2Inf >= 0 --> SlaveNonconforming.
+               - Elem2Inf < 0 --> MasterNonconforming (shared or not shared),
+               - Elem2Inf >= 0 --> SlaveNonconforming (shared).
        Classification of a ghost (non-local) face based on its FaceInfo:
-         - Elem1No == -1 --> GhostMaster,
+         - Elem1No == -1 --> GhostMaster (includes other unused ghost faces),
          - Elem1No >= 0 --> GhostSlave.
     */
    enum class FaceInfoTag { LocalConformingInterior,
@@ -1345,20 +1345,23 @@ public:
       int ncface;
       const DenseMatrix* point_matrix;
 
-      /// @brief Return true if the face is a local interior face.
+      /** @brief Return true if the face is a local interior face which is NOT
+          a master nonconforming face. */
       bool IsLocal() const
       {
          return element[1].location == Mesh::ElementLocation::Local;
       }
 
-      /// @brief Return true if the face is a shared interior face.
+      /** @brief Return true if the face is a shared interior face which is NOT
+          a master nonconforming face. */
       bool IsShared() const
       {
          return element[1].location == Mesh::ElementLocation::FaceNbr;
       }
 
       /** @brief return true if the face is an interior face to the computaion
-          domain, either a local or shared interior face (not a boundary face).
+          domain, either a local or shared interior face (not a boundary face)
+          which is NOT a master nonconforming face.
        */
       bool IsInterior() const
       {
@@ -1401,6 +1404,9 @@ public:
       }
 
       /// @brief Return true if the face is a nonconforming coarse face.
+      /** Note that ghost nonconforming master faces cannot be clearly
+          identified as such with the currently available information, so this
+          method will return false for such faces. */
       bool IsNonconformingCoarse() const
       {
          return topology == FaceTopology::Nonconforming &&
