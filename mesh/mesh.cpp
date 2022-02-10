@@ -1296,9 +1296,6 @@ Mesh::FaceInformation::operator Mesh::FaceInfo() const
          res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
          res.Elem2Inf = element[1].orientation + element[1].local_face_id*64;
          break;
-      case FaceInfoTag::Invalid:
-         MFEM_ABORT("This face information is invalid and cannot be represented with FaceInfo.");
-         break;
    }
    return res;
 }
