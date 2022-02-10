@@ -214,10 +214,10 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      if ( face.IsNonconformingCoarse() )
       {
-         // We skip local non-conforming master faces as they are treated by the
-         // local non-conforming slave faces.
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
          continue;
       }
       else if (type==FaceType::Interior && face.IsInterior())
@@ -231,7 +231,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
          else // Non-conforming face
          {
             SetFaceDofsScatterIndices(face, f_ind, ordering);
-            if (face.IsSharedNonConformingSlave())
+            if ( face.element[0].conformity==Mesh::ElementConformity::Superset )
             {
                // In this case the local face is the master (coarse) face, thus
                // we need to interpolate the values on the slave (fine) face.
@@ -275,10 +275,10 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      if ( face.IsNonconformingCoarse() )
       {
-         // We skip local non-conforming master faces as they are treated by the
-         // local non-conforming slave faces.
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
          continue;
       }
       else if (face.IsOfFaceType(type))
@@ -687,7 +687,7 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    ComputeGatherIndices(ordering, type);
 }
 
-void ParNCL2FaceRestriction::SingleValuedNonConformingMult(
+void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
    const Vector& x, Vector& y) const
 {
    MFEM_ASSERT(
@@ -769,7 +769,7 @@ void ParNCL2FaceRestriction::SingleValuedNonConformingMult(
    });
 }
 
-void ParNCL2FaceRestriction::DoubleValuedNonConformingMult(
+void ParNCL2FaceRestriction::DoubleValuedNonconformingMult(
    const Vector& x, Vector& y) const
 {
    MFEM_ASSERT(
@@ -882,7 +882,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
-      DoubleValuedNonConformingMult(x, y);
+      DoubleValuedNonconformingMult(x, y);
    }
    else if ( type==FaceType::Boundary && m==L2FaceValues::DoubleValued )
    {
@@ -890,7 +890,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    }
    else if ( type==FaceType::Interior && m==L2FaceValues::SingleValued )
    {
-      SingleValuedNonConformingMult(x, y);
+      SingleValuedNonconformingMult(x, y);
    }
    else if ( type==FaceType::Boundary && m==L2FaceValues::SingleValued )
    {
@@ -908,12 +908,12 @@ void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
    {
       if ( m==L2FaceValues::DoubleValued )
       {
-         DoubleValuedNonConformingTransposeInterpolation(x);
+         DoubleValuedNonconformingTransposeInterpolation(x);
          DoubleValuedConformingAddMultTranspose(x_interp, y);
       }
       else // Single Valued
       {
-         SingleValuedNonConformingTransposeInterpolation(x);
+         SingleValuedNonconformingTransposeInterpolation(x);
          SingleValuedConformingAddMultTranspose(x_interp, y);
       }
    }
@@ -973,10 +973,10 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      if ( face.IsNonconformingCoarse() )
       {
-         // We skip local non-conforming master faces as they are treated by the
-         // local non-conforming slave faces.
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
          continue;
       }
       else if ( type==FaceType::Interior && face.IsInterior() )
@@ -1007,7 +1007,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
                {
                   PermuteAndSetSharedFaceDofsScatterIndices2(face,f_ind);
                }
-               else // local non-conforming slave
+               else // local nonconforming slave
                {
                   PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
                }
@@ -1050,10 +1050,10 @@ void ParNCL2FaceRestriction::ComputeGatherIndices(
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if ( face.IsLocal() && face.IsNonConformingMaster() )
+      if ( face.IsNonconformingCoarse() )
       {
-         // We skip local non-conforming master faces as they are treated by the
-         // local non-conforming slave faces.
+         // We skip nonconforming coarse faces as they are treated
+         // by the corresponding nonconforming fine faces.
          continue;
       }
       else if ( face.IsOfFaceType(type) )

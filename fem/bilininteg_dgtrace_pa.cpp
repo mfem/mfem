@@ -185,9 +185,10 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
          Mesh::FaceInformation face = mesh->GetFaceInformation(f);
-         if (face.IsLocal() && face.IsNonConformingMaster())
+         if (face.IsNonconformingCoarse())
          {
-            // We skip local non-conforming master faces
+            // We skip nonconforming coarse faces as they are treated
+            // by the corresponding nonconforming fine faces.
             continue;
          }
          else if ( face.IsOfFaceType(type) )
@@ -199,7 +200,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face.elem_1_local_face, quad1D, q);
+               int iq = ToLexOrdering(dim, face.element[0].local_face_id,
+                                      quad1D, q);
                T.SetAllIntPoints(&ir->IntPoint(q));
                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
                u->Eval(Vq, *T.Elem1, eip1);
@@ -247,9 +249,10 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
          Mesh::FaceInformation face = mesh->GetFaceInformation(f);
-         if (face.IsLocal() && face.IsNonConformingMaster())
+         if (face.IsNonconformingCoarse())
          {
-            // We skip local non-conforming master faces
+            // We skip nonconforming coarse faces as they are treated
+            // by the corresponding nonconforming fine faces.
             continue;
          }
          else if ( face.IsOfFaceType(type) )
@@ -259,7 +262,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face.elem_1_local_face, quad1D, q);
+               int iq = ToLexOrdering(dim, face.element[0].local_face_id,
+                                      quad1D, q);
 
                T.SetAllIntPoints(&ir->IntPoint(q));
                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
