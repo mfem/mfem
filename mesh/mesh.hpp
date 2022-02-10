@@ -1314,8 +1314,7 @@ public:
                             SharedSlaveNonconforming,
                             MasterNonconforming,
                             GhostSlave,
-                            GhostMaster,
-                            Invalid
+                            GhostMaster
                           };
 
    /** @brief This structure is used as a human readable output format that
