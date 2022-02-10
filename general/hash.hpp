@@ -660,10 +660,11 @@ template<typename T>
 int HashTable<T>::BinSize(int idx) const
 {
    int count = 0;
-   while (idx >= 0)
+   int id = table[idx];
+   while (id >= 0)
    {
-      const T& item = Base::At(idx);
-      idx = item.next;
+      const T& item = Base::At(id);
+      id = item.next;
       count++;
    }
    return count;
