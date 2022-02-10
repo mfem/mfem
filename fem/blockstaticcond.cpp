@@ -56,12 +56,23 @@ BlockStaticCondensation::BlockStaticCondensation(Array<FiniteElementSpace *> &
 
 void BlockStaticCondensation::SetSpaces(Array<FiniteElementSpace*> & fes_)
 {
-   fes = fes_;
+#ifdef MFEM_USE_MPI
+   ParMesh *pmesh = nullptr;
+   parallel = false;
+   if (dynamic_cast<ParFiniteElementSpace *>(fes_[0]))
+   {
+      parallel = true;
+   }
+#else
+   parallel = false;
+#endif
+   fes=fes_;
    nblocks = fes.Size();
    rblocks = 0;
    tr_fes.SetSize(nblocks);
-   IsTraceSpace.SetSize(nblocks);
    mesh = fes[0]->GetMesh();
+
+   IsTraceSpace.SetSize(nblocks);
    const FiniteElementCollection * fec;
    for (int i = 0; i < nblocks; i++)
    {
@@ -70,13 +81,38 @@ void BlockStaticCondensation::SetSpaces(Array<FiniteElementSpace*> & fes_)
          (dynamic_cast<const H1_Trace_FECollection*>(fec) ||
           dynamic_cast<const ND_Trace_FECollection*>(fec) ||
           dynamic_cast<const RT_Trace_FECollection*>(fec));
-
+#ifdef MFEM_USE_MPI
+      if (parallel)
+      {
+         pmesh = dynamic_cast<ParMesh *>(mesh);
+         tr_fes[i] = (fec->GetContType() == FiniteElementCollection::DISCONTINUOUS) ?
+                     nullptr : (IsTraceSpace[i]) ? fes[i] :
+                     new ParFiniteElementSpace(pmesh, fec->GetTraceCollection(), fes[i]->GetVDim(),
+                                               fes[i]->GetOrdering());
+      }
+      else
+      {
+         tr_fes[i] = (fec->GetContType() == FiniteElementCollection::DISCONTINUOUS) ?
+                     nullptr : (IsTraceSpace[i]) ? fes[i] :
+                     new FiniteElementSpace(mesh, fec->GetTraceCollection(), fes[i]->GetVDim(),
+                                            fes[i]->GetOrdering());
+      }
+#else
       // skip if it's an L2 space (no trace space to construct)
       tr_fes[i] = (fec->GetContType() == FiniteElementCollection::DISCONTINUOUS) ?
                   nullptr : (IsTraceSpace[i]) ? fes[i] :
                   new FiniteElementSpace(mesh, fec->GetTraceCollection(), fes[i]->GetVDim(),
                                          fes[i]->GetOrdering());
+#endif
       if (tr_fes[i]) { rblocks++; }
+   }
+   if (parallel)
+   {
+      ess_tdofs.SetSize(rblocks);
+      for (int i = 0; i<rblocks; i++)
+      {
+         ess_tdofs[i] = new Array<int>();
+      }
    }
    Init();
 }
@@ -485,6 +521,83 @@ void BlockStaticCondensation::BuildProlongation()
    }
 }
 
+#ifdef MFEM_USE_MPI
+void BlockStaticCondensation::BuildParallelProlongation()
+{
+   MFEM_VERIFY(parallel, "BuildParallelProlongation: wrong code path");
+   pP = new BlockOperator(rdof_offsets, rtdof_offsets);
+   R = new BlockMatrix(rtdof_offsets, rdof_offsets);
+   pP->owns_blocks = 0;
+   R->owns_blocks = 0;
+   int skip = 0;
+   for (int i = 0; i<nblocks; i++)
+   {
+      if (!tr_fes[i]) { continue; }
+      const HypreParMatrix *P_ =
+         dynamic_cast<ParFiniteElementSpace *>(tr_fes[i])->Dof_TrueDof_Matrix();
+      if (P_)
+      {
+         const SparseMatrix *R_ = tr_fes[i]->GetRestrictionMatrix();
+         pP->SetBlock(skip,skip,const_cast<HypreParMatrix*>(P_));
+         R->SetBlock(skip,skip,const_cast<SparseMatrix*>(R_));
+      }
+      skip++;
+   }
+}
+
+void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
+{
+   if (!pP) { BuildParallelProlongation(); }
+
+   pS = new BlockOperator(rtdof_offsets);
+   pS_e = new BlockOperator(rtdof_offsets);
+   pS->owns_blocks = 1;
+   pS_e->owns_blocks = 1;
+   HypreParMatrix * A = nullptr;
+   HypreParMatrix * PtAP = nullptr;
+   int skip_i=0;
+   ParFiniteElementSpace * pfes_i = nullptr;
+   ParFiniteElementSpace * pfes_j = nullptr;
+   for (int i = 0; i<nblocks; i++)
+   {
+      if (!tr_fes[i]) { continue; }
+      pfes_i = dynamic_cast<ParFiniteElementSpace*>(fes[i]);
+      HypreParMatrix * Pi = (HypreParMatrix*)(&pP->GetBlock(skip_i,skip_i));
+      int skip_j=0;
+      for (int j = 0; j<nblocks; j++)
+      {
+         if (!tr_fes[j]) { continue; }
+         if (m->IsZeroBlock(skip_i,skip_j)) { continue; }
+         if (skip_i == skip_j)
+         {
+            // Make block diagonal square hypre matrix
+            A = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
+                                   pfes_i->GetDofOffsets(),&m->GetBlock(skip_i,skip_i));
+            PtAP = RAP(A,Pi);
+            delete A;
+            pS_e->SetBlock(skip_i,skip_i,PtAP->EliminateRowsCols(*ess_tdofs[skip_i]));
+         }
+         else
+         {
+            pfes_j = dynamic_cast<ParFiniteElementSpace*>(fes[j]);
+            HypreParMatrix * Pj = (HypreParMatrix*)(&pP->GetBlock(skip_j,skip_j));
+            A = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
+                                   pfes_j->GlobalVSize(), pfes_i->GetDofOffsets(),
+                                   pfes_j->GetDofOffsets(), &m->GetBlock(skip_i,skip_j));
+            PtAP = RAP(Pi,A,Pj);
+            delete A;
+            pS_e->SetBlock(skip_i,skip_j,PtAP->EliminateCols(*ess_tdofs[skip_j]));
+            PtAP->EliminateRows(*ess_tdofs[skip_i]);
+         }
+         pS->SetBlock(skip_i,skip_j,PtAP);
+         skip_j++;
+      }
+      skip_i++;
+   }
+}
+
+#endif
+
 
 void BlockStaticCondensation::ConformingAssemble(int skip_zeros)
 {
@@ -522,23 +635,40 @@ void BlockStaticCondensation::Finalize(int skip_zeros)
 void BlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
                                                diag_policy)
 {
-   if (!S_e)
+   if (parallel)
    {
-      bool conforming = true;
-      for (int i = 0; i<nblocks; i++)
+      FillEssTdofLists(ess_rtdof_list);
+      if (S)
       {
-         if (!tr_fes[i]) { continue; }
-         const SparseMatrix *P_ = tr_fes[i]->GetConformingProlongation();
-         if (P_)
-         {
-            conforming = false;
-            break;
-         }
+         const int remove_zeros = 0;
+         Finalize(remove_zeros);
+         ParallelAssemble(S);
+         delete S;
+         S=nullptr;
+         delete S_e;
+         S_e = nullptr;
       }
-      if (!conforming) { ConformingAssemble(0); }
-      const int remove_zeros = 0;
-      EliminateReducedTrueDofs(ess_rtdof_list, diag_policy);
-      Finalize(remove_zeros);
+   }
+   else
+   {
+      if (!S_e)
+      {
+         bool conforming = true;
+         for (int i = 0; i<nblocks; i++)
+         {
+            if (!tr_fes[i]) { continue; }
+            const SparseMatrix *P_ = tr_fes[i]->GetConformingProlongation();
+            if (P_)
+            {
+               conforming = false;
+               break;
+            }
+         }
+         if (!conforming) { ConformingAssemble(0); }
+         const int remove_zeros = 0;
+         EliminateReducedTrueDofs(ess_rtdof_list, diag_policy);
+         Finalize(remove_zeros);
+      }
    }
 }
 
@@ -547,7 +677,6 @@ void BlockStaticCondensation::ConvertMarkerToReducedTrueDofs(
    Array<int> & tdof_marker,
    Array<int> & rtdof_marker)
 {
-
    // convert tdof_marker to dof_marker
    rtdof_marker.SetSize(0);
    Array<int> tdof_marker0;
@@ -602,6 +731,19 @@ void BlockStaticCondensation::ConvertMarkerToReducedTrueDofs(
    }
 }
 
+void BlockStaticCondensation::FillEssTdofLists(const Array<int> & ess_tdof_list)
+{
+   int j;
+   for (int i = 0; i<ess_tdof_list.Size(); i++)
+   {
+      int tdof = ess_tdof_list[i];
+      for (j = 0; j < rblocks; j++)
+      {
+         if (rtdof_offsets[j+1] > tdof) { break; }
+      }
+      ess_tdofs[j]->Append(tdof-rtdof_offsets[j]);
+   }
+}
 
 void BlockStaticCondensation::SetEssentialTrueDofs(const Array<int>
                                                    &ess_tdof_list)
@@ -617,6 +759,10 @@ void BlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
                                                        &ess_rtdof_list,
                                                        Matrix::DiagonalPolicy dpolicy)
 {
+
+   MFEM_VERIFY(!parallel, "EliminateReducedTrueDofs::not implemented yet");
+
+
    if (S_e == NULL)
    {
       Array<int> offsets;
@@ -676,24 +822,46 @@ void BlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
                                            Vector &B,
                                            int copy_interior) const
 {
-
    ReduceSolution(x, X);
-
-   if (!P)
+   if (parallel)
    {
-      S_e->AddMult(X,*y,-1.);
-      S->PartMult(ess_rtdof_list,X,*y);
-      B.MakeRef(*y, 0, y->Size());
+      B.SetSize(pP->Width());
+      pP->MultTranspose(*y,B);
+
+      Vector tmp(B.Size());
+      pS_e->Mult(X,tmp);
+      B-=tmp;
+      for (int j = 0; j<rblocks; j++)
+      {
+         if (!ess_tdofs[j]->Size()) { continue; }
+         HypreParMatrix *Ah = (HypreParMatrix *)(&pS->GetBlock(j,j));
+         Vector diag;
+         Ah->GetDiag(diag);
+         for (int i = 0; i < ess_tdofs[j]->Size(); i++)
+         {
+            int tdof = (*ess_tdofs[j])[i];
+            int gdof = tdof + rtdof_offsets[j];
+            B(gdof) = diag(tdof)*X(gdof);
+         }
+      }
    }
    else
    {
-      B.SetSize(P->Width());
-      P->MultTranspose(*y, B);
-      S_e->AddMult(X,B,-1.);
-      S->PartMult(ess_rtdof_list,X,B);
+      if (!P)
+      {
+         S_e->AddMult(X,*y,-1.);
+         S->PartMult(ess_rtdof_list,X,*y);
+         B.MakeRef(*y, 0, y->Size());
+      }
+      else
+      {
+         B.SetSize(P->Width());
+         P->MultTranspose(*y, B);
+         S_e->AddMult(X,B,-1.);
+         S->PartMult(ess_rtdof_list,X,B);
+      }
    }
    if (!copy_interior) { X.SetSubVectorComplement(ess_rtdof_list, 0.0); }
-
 }
 
 
@@ -705,17 +873,25 @@ void BlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    const int nrtdofs = rtdof_offsets.Last();
    MFEM_VERIFY(sc_sol.Size() == nrtdofs, "'sc_sol' has incorrect size");
 
-
    Vector sol_r;
-   if (!P)
+   if (parallel)
    {
-      sol_r.SetDataAndSize(sc_sol.GetData(), sc_sol.Size());
+      sol_r.SetSize(nrdofs);
+      pP->Mult(sc_sol, sol_r);
    }
    else
    {
-      sol_r.SetSize(nrdofs);
-      P->Mult(sc_sol, sol_r);
+      if (!P)
+      {
+         sol_r.SetDataAndSize(sc_sol.GetData(), sc_sol.Size());
+      }
+      else
+      {
+         sol_r.SetSize(nrdofs);
+         P->Mult(sc_sol, sol_r);
+      }
    }
+
 
    if (rdof_offsets.Last() == dof_offsets.Last())
    {
@@ -769,10 +945,18 @@ BlockStaticCondensation::~BlockStaticCondensation()
    delete S; S=nullptr;
    delete y; y=nullptr;
 
-   if (P)
+   if (P) { delete P; } P=nullptr;
+   if (R) { delete R; } R=nullptr;
+
+   if (parallel)
    {
-      delete P; P=nullptr;
-      delete R; R=nullptr;
+      delete pS; pS=nullptr;
+      delete pS_e; pS_e=nullptr;
+      for (int i = 0; i<rblocks; i++)
+      {
+         delete ess_tdofs[i];
+      }
+      delete pP; pP=nullptr;
    }
 
    for (int i=0; i<lmat.Size(); i++)

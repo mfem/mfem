@@ -101,32 +101,40 @@ void ParNormalEquations::FormLinearSystem(const Array<int>
                                           OperatorHandle &A, Vector &X,
                                           Vector &B, int copy_interior)
 {
-   FillEssTdofLists(ess_tdof_list);
    FormSystemMatrix(ess_tdof_list, A);
 
-   B.SetSize(P->Width());
-   P->MultTranspose(*y,B);
-   X.SetSize(R->Height());
-   R->Mult(x,X);
 
-   // eliminate tdof is RHS
-   // B -= Ae*X
-   Vector tmp(B.Size());
-   p_mat_e->Mult(X,tmp);
-   B-=tmp;
-
-   for (int j = 0; j<nblocks; j++)
+   if (static_cond)
    {
-      if (!ess_tdofs[j]->Size()) { continue; }
-      HypreParMatrix *Ah = (HypreParMatrix *)(&p_mat->GetBlock(j,j));
-      Vector diag;
-      Ah->GetDiag(diag);
-      for (int i = 0; i < ess_tdofs[j]->Size(); i++)
+      static_cond->ReduceSystem(x, X, B, copy_interior);
+   }
+   else
+   {
+      B.SetSize(P->Width());
+      P->MultTranspose(*y,B);
+      X.SetSize(R->Height());
+      R->Mult(x,X);
+
+      // eliminate tdof is RHS
+      // B -= Ae*X
+      Vector tmp(B.Size());
+      p_mat_e->Mult(X,tmp);
+      B-=tmp;
+
+      for (int j = 0; j<nblocks; j++)
       {
-         int tdof = (*ess_tdofs[j])[i];
-         int gdof = tdof + tdof_offsets[j];
-         B(gdof) = diag(tdof)*X(gdof);
+         if (!ess_tdofs[j]->Size()) { continue; }
+         HypreParMatrix *Ah = (HypreParMatrix *)(&p_mat->GetBlock(j,j));
+         Vector diag;
+         Ah->GetDiag(diag);
+         for (int i = 0; i < ess_tdofs[j]->Size(); i++)
+         {
+            int tdof = (*ess_tdofs[j])[i];
+            int gdof = tdof + tdof_offsets[j];
+            B(gdof) = diag(tdof)*X(gdof);
+         }
       }
+      if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
    }
 }
 
@@ -134,17 +142,31 @@ void ParNormalEquations::FormSystemMatrix(const Array<int>
                                           &ess_tdof_list,
                                           OperatorHandle &A)
 {
-   if (mat)
+   if (static_cond)
    {
-      const int remove_zeros = 0;
-      Finalize(remove_zeros);
-      ParallelAssemble(mat);
-      delete mat;
-      mat = nullptr;
-      delete mat_e;
-      mat_e = nullptr;
+      if (!static_cond->HasEliminatedBC())
+      {
+         static_cond->SetEssentialTrueDofs(ess_tdof_list);
+         static_cond->FormSystemMatrix(Operator::DiagonalPolicy::DIAG_ONE);
+      }
+      A.Reset(&static_cond->GetParallelMatrix(), false);
    }
-   A.Reset(p_mat,false);
+   else
+   {
+      FillEssTdofLists(ess_tdof_list);
+      if (mat)
+      {
+         const int remove_zeros = 0;
+         Finalize(remove_zeros);
+         ParallelAssemble(mat);
+         delete mat;
+         mat = nullptr;
+         delete mat_e;
+         mat_e = nullptr;
+      }
+      A.Reset(p_mat,false);
+   }
+
 }
 
 
@@ -152,8 +174,16 @@ void ParNormalEquations::FormSystemMatrix(const Array<int>
 void ParNormalEquations::RecoverFEMSolution(const Vector &X,
                                             Vector &x)
 {
-   x.SetSize(P->Height());
-   P->Mult(X, x);
+
+   if (static_cond)
+   {
+      static_cond->ComputeSolution(X, x);
+   }
+   else
+   {
+      x.SetSize(P->Height());
+      P->Mult(X, x);
+   }
 }
 
 void ParNormalEquations::Update()
