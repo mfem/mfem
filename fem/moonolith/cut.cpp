@@ -202,6 +202,7 @@ void Cut2D::MakePolytope(Mesh &mesh, const int elem_idx, Polygon_t &polygon)
       }
    }
 
+   assert(polygon.check_convexity());
    assert(::moonolith::measure(polygon) > 0.0);
 }
 
