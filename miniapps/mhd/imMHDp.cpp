@@ -606,16 +606,20 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *vfes;
    ParGridFunction *vel, *mag, *force_diff, *gfv, *pre;
    ParMixedBilinearForm *grad, *div;
+   ParBilinearForm *a;
    ParNonlinearForm *convect;
-   ParLinearForm *zLF, *zLFscalar, *zJxB=nullptr; 
+   ParLinearForm *zLF, *zLFscalar; 
    ParBilinearForm *Mfull, *Mrot;
    Vector zv, zv2, zscalar, zscalar2;
-   HypreParMatrix *MfullMat;
+   HypreParMatrix *MfullMat, *KMat;
    const IntegrationRule &ir = IntRules.Get(fespace.GetFE(0)->GetGeomType(), 3*order);
    CGSolver M_solver(MPI_COMM_WORLD);
    HypreSmoother *M_prec;
+   HypreBoomerAMG *K_amg;
+   CGSolver *K_pcg;
+   mfem::navier::OrthoSolver *SpInvOrthoPC;
    Vector vtrue, rhs, vJxB;
-   VectorDomainLFIntegrator *domainJxB=nullptr;
+   VectorDomainLFIntegrator *domainJxB;
 
    if(compute_pressure)
    {
@@ -680,6 +684,83 @@ int main(int argc, char *argv[])
       zv2.SetSize(vfes->TrueVSize());
       zscalar.SetSize(fespace.TrueVSize());
       zscalar2.SetSize(fespace.TrueVSize());
+
+      //compute velocity 
+      grad->Mult(phi, *zLF);
+      zLF->ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      vel->SetFromTrueDofs(zv2);
+
+      //finalize with a rotation
+      Mrot->Mult(*vel, *zLF);
+      zLF->ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      vel->SetFromTrueDofs(zv2);
+
+      //compute B field
+      grad->Mult(psi, *zLF);
+      zLF->ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      mag->SetFromTrueDofs(zv2);
+
+      //finalize with a rotation
+      Mrot->Mult(*mag, *zLF);
+      zLF->ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      mag->SetFromTrueDofs(zv2);
+
+      //compute -Δp=div(u.grad u - JxB)
+      vel->GetTrueDofs(vtrue);
+      convect->Mult(vtrue, rhs);  //nonlinear form only works with true dofs?
+
+      JxBCoefficient JxBCoeff(&j, mag);
+      domainJxB = new VectorDomainLFIntegrator(JxBCoeff);
+      domainJxB->SetIntRule(&ir);
+      ParLinearForm zJxB(vfes);
+      zJxB.AddDomainIntegrator(domainJxB);
+      zJxB.Assemble();
+      zJxB.ParallelAssemble(vJxB);
+      rhs.Add(-1.0, vJxB);
+      
+      //compute M^{-1}(u.grad u - JxB)
+      M_solver.Mult(rhs, zv2);
+      gfv->SetFromTrueDofs(zv2);
+      div->Mult(*gfv, *zLFscalar);  //it is a mystery why ParGridFunction fails here
+
+      a = new ParBilinearForm(&fespace);
+      a->AddDomainIntegrator(new DiffusionIntegrator);
+      a->Assemble();
+      a->Finalize();
+      KMat=a->ParallelAssemble();
+
+      K_amg = new HypreBoomerAMG(*KMat);
+      K_amg->SetPrintLevel(0);
+      K_pcg = new CGSolver(MPI_COMM_WORLD);
+      SpInvOrthoPC = new mfem::navier::OrthoSolver();
+      SpInvOrthoPC->SetOperator(*K_amg);
+      K_pcg->SetOperator(*KMat);
+      K_pcg->iterative_mode = false;
+      K_pcg->SetRelTol(1e-7);
+      K_pcg->SetMaxIter(200);
+      K_pcg->SetPrintLevel(0);
+      K_pcg->SetPreconditioner(*SpInvOrthoPC);
+
+      ParLinearForm b(&fespace);
+      b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(JxBCoeff), ess_bdr);
+      b.Assemble();
+      b.ParallelAssemble(zscalar);
+
+      zLFscalar->ParallelAssemble(zscalar2);
+      zscalar.Add(1.0, zscalar2);
+      K_pcg->Mult(zscalar, zscalar2);
+      pre->SetFromTrueDofs(zscalar2);
+
+      //compute grad P - JxB
+      zv=0.0;
+      grad->TrueAddMult(zscalar2, zv);
+      zv.Add(-1.0, vJxB);
+      M_solver.Mult(zv, zv2);
+      force_diff->SetFromTrueDofs(zv2);
    }
 
    ParaViewDataCollection *pd = NULL;
@@ -691,6 +772,12 @@ int main(int argc, char *argv[])
       pd->RegisterField("phi", &phi);
       pd->RegisterField("omega", &w);
       pd->RegisterField("current", &j);
+      if (compute_pressure){
+          pd->RegisterField("V", vel);
+          pd->RegisterField("B", mag);
+          pd->RegisterField("pre", pre);
+          pd->RegisterField("force_diff", force_diff);
+      }
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(true);
@@ -792,6 +879,68 @@ int main(int argc, char *argv[])
                subtract(psi,psiBack,psiPer);
                double l2norm  = psiPer.ComputeL2Error(zero);
                if (myid==0) cout << "t="<<t<<" ln(|psiPer|_2) ="<<log(l2norm)<<endl;
+            }
+
+            if(compute_pressure)
+            {
+                //compute velocity 
+                grad->Mult(phi, *zLF);
+                zLF->ParallelAssemble(zv);
+                M_solver.Mult(zv, zv2);
+                vel->SetFromTrueDofs(zv2);
+
+                //finalize with a rotation
+                Mrot->Mult(*vel, *zLF);
+                zLF->ParallelAssemble(zv);
+                M_solver.Mult(zv, zv2);
+                vel->SetFromTrueDofs(zv2);
+
+                //compute B field
+                grad->Mult(psi, *zLF);
+                zLF->ParallelAssemble(zv);
+                M_solver.Mult(zv, zv2);
+                mag->SetFromTrueDofs(zv2);
+
+                //finalize with a rotation
+                Mrot->Mult(*mag, *zLF);
+                zLF->ParallelAssemble(zv);
+                M_solver.Mult(zv, zv2);
+                mag->SetFromTrueDofs(zv2);
+
+                //compute -Δp=div(u.grad u - JxB)
+                vel->GetTrueDofs(vtrue);
+                convect->Mult(vtrue, rhs);  //nonlinear form only works with true dofs?
+
+                JxBCoefficient JxBCoeff(&j, mag);
+                domainJxB = new VectorDomainLFIntegrator(JxBCoeff);
+                domainJxB->SetIntRule(&ir);
+                ParLinearForm zJxB(vfes);
+                zJxB.AddDomainIntegrator(domainJxB);
+                zJxB.Assemble();
+                zJxB.ParallelAssemble(vJxB);
+                rhs.Add(-1.0, vJxB);
+                
+                //compute M^{-1}(u.grad u - JxB)
+                M_solver.Mult(rhs, zv2);
+                gfv->SetFromTrueDofs(zv2);
+                div->Mult(*gfv, *zLFscalar);  //it is a mystery why ParGridFunction fails here
+
+                ParLinearForm b(&fespace);
+                b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(JxBCoeff), ess_bdr);
+                b.Assemble();
+                b.ParallelAssemble(zscalar);
+
+                zLFscalar->ParallelAssemble(zscalar2);
+                zscalar.Add(1.0, zscalar2);
+                K_pcg->Mult(zscalar, zscalar2);
+                pre->SetFromTrueDofs(zscalar2);
+
+                //compute grad P - JxB
+                zv=0.0;
+                grad->TrueAddMult(zscalar2, zv);
+                zv.Add(-1.0, vJxB);
+                M_solver.Mult(zv, zv2);
+                force_diff->SetFromTrueDofs(zv2);
             }
          }
 
@@ -971,111 +1120,15 @@ int main(int argc, char *argv[])
  
    }
 
-   //recover pressure in the post processing
    if(compute_pressure)
    {
-      //compute velocity 
-      grad->Mult(phi, *zLF);
-      zLF->ParallelAssemble(zv);
-      M_solver.Mult(zv, zv2);
-      vel->SetFromTrueDofs(zv2);
-
-      //finalize with a rotation
-      Mrot->Mult(*vel, *zLF);
-      zLF->ParallelAssemble(zv);
-      M_solver.Mult(zv, zv2);
-      vel->SetFromTrueDofs(zv2);
-
-      //compute B field
-      grad->Mult(psi, *zLF);
-      zLF->ParallelAssemble(zv);
-      M_solver.Mult(zv, zv2);
-      mag->SetFromTrueDofs(zv2);
-
-      //finalize with a rotation
-      Mrot->Mult(*mag, *zLF);
-      zLF->ParallelAssemble(zv);
-      M_solver.Mult(zv, zv2);
-      mag->SetFromTrueDofs(zv2);
-
-      //compute -Δp=div(u.grad u - JxB)
-      vel->GetTrueDofs(vtrue);
-      convect->Mult(vtrue, rhs);  //nonlinear form only works with true dofs?
-
-      JxBCoefficient JxBCoeff(&j, mag);
-      delete domainJxB;
-      domainJxB = new VectorDomainLFIntegrator(JxBCoeff);
-      domainJxB->SetIntRule(&ir);
-      delete zJxB;
-      zJxB = new ParLinearForm(vfes);
-      zJxB->AddDomainIntegrator(domainJxB);
-      zJxB->Assemble();
-      zJxB->ParallelAssemble(vJxB);
-      rhs.Add(-1.0, vJxB);
-      
-      //compute M^{-1}(u.grad u - JxB)
-      M_solver.Mult(rhs, zv2);
-      gfv->SetFromTrueDofs(zv2);
-      div->Mult(*gfv, *zLFscalar);
-
-      ParBilinearForm a(&fespace);
-      a.AddDomainIntegrator(new DiffusionIntegrator);
-      a.Assemble();
-      a.Finalize();
-      HypreParMatrix *KMat=a.ParallelAssemble();
-
-      HypreBoomerAMG *K_amg = new HypreBoomerAMG(*KMat);
-      K_amg->SetPrintLevel(0);
-      CGSolver *K_pcg = new CGSolver(MPI_COMM_WORLD);
-      mfem::navier::OrthoSolver *SpInvOrthoPC = new mfem::navier::OrthoSolver();
-      SpInvOrthoPC->SetOperator(*K_amg);
-
-      K_pcg->SetOperator(*KMat);
-      K_pcg->iterative_mode = false;
-      K_pcg->SetRelTol(1e-7);
-      K_pcg->SetMaxIter(200);
-      K_pcg->SetPrintLevel(0);
-      K_pcg->SetPreconditioner(*SpInvOrthoPC);
-
-      ParLinearForm b(&fespace);
-      b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(JxBCoeff), ess_bdr);
-      b.Assemble();
-      b.ParallelAssemble(zscalar);
-
-      zLFscalar->ParallelAssemble(zscalar2);
-      zscalar.Add(1.0, zscalar2);
-      K_pcg->Mult(zscalar, zscalar2);
-      pre->SetFromTrueDofs(zscalar2);
-
-      //compute grad P - JxB
-      zv=0.0;
-      grad->TrueAddMult(zscalar2, zv);
-      zv.Add(-1.0, vJxB);
-      M_solver.Mult(zv, zv2);
-      force_diff->SetFromTrueDofs(zv2);
-
-      //visualize
-      ParaViewDataCollection *pd2 = NULL;
-      pd2 = new ParaViewDataCollection("vector", pmesh);
-      pd2->SetPrefixPath("ParaView");
-      pd2->RegisterField("V", vel);
-      pd2->RegisterField("B", mag);
-      pd2->RegisterField("Pre", pre);
-      pd2->RegisterField("Force_diff", force_diff);
-      pd2->SetLevelsOfDetail(order);
-      pd2->SetDataFormat(VTKFormat::BINARY);
-      pd2->SetHighOrderOutput(true);
-      pd2->SetCycle(0);
-      pd2->Save();
-
       delete M_prec;
       delete K_amg;
       delete SpInvOrthoPC;
       delete MfullMat;
       delete KMat;
+      delete a;
       delete K_pcg;
-      delete pd2;
-
       delete vfes;
       delete vel;
       delete mag;
@@ -1087,7 +1140,6 @@ int main(int argc, char *argv[])
       delete div ;     
       delete convect;  
       delete zLF  ;    
-      delete zJxB ;    
       delete Mfull;    
       delete Mrot ;     
    }
