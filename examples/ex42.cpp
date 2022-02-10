@@ -9,14 +9,19 @@
 // #include "tensor.hpp"
 #include "../linalg/tensor/tensor.hpp"
 #include "../linalg/tensor/tensor_types.hpp"
+#include "../linalg/tensor/operators/init_lambda.hpp"
 #include "../linalg/tensor/operators/determinant.hpp"
+#include "../linalg/tensor/operators/matrix_identity.hpp"
 #include "../linalg/tensor/operators/matrix_transpose.hpp"
+#include "../linalg/tensor/operators/matrix_trace.hpp"
 #include "../linalg/tensor/operators/dot_product.hpp"
 #include "../linalg/tensor/operators/addition.hpp"
 #include "../linalg/tensor/operators/subtraction.hpp"
 #include "../linalg/tensor/operators/scalar_multiplication.hpp"
 #include "../linalg/tensor/operators/matrix_multiplication.hpp"
 #include "../linalg/tensor/operators/matrix_matrix_multiplication.hpp"
+#include "../linalg/tensor/operators/matrix_inverse.hpp"
+#include "../linalg/tensor/operators/matrix_deviator.hpp"
 #include "dual.hpp"
 template <typename T, int... Dims>
 using tensor = mfem::StaticTensor<T, Dims...>;
@@ -45,30 +50,6 @@ template <typename return_type, typename... Args>
 return_type __enzyme_fwddiff(Args...);
 
 /// Added stuff
-template <int dim>
-MFEM_HOST_DEVICE tensor<double, dim, dim> Identity()
-{
-   tensor<double, dim, dim> I{};
-   for (int i = 0; i < dim; i++)
-   {
-      for (int j = 0; j < dim; j++)
-      {
-         I(i,j) = (i == j);
-      }
-   }
-   return I;
-}
-
-template <typename Tensor, typename Lambda>
-MFEM_HOST_DEVICE auto& init_tensor_lambda(Tensor& t, Lambda f)
-{
-   ForallDims<Tensor>::Apply(t, [&](auto... idx)
-   {
-      t(idx...) = f(idx...);
-   });
-   return t;
-}
-
 template <typename Tensor>
 auto det(const Tensor& t)
 {
@@ -78,85 +59,13 @@ auto det(const Tensor& t)
 template <typename TensorLHS, typename TensorRHS>
 auto dot(const TensorLHS& lhs, const TensorRHS& rhs)
 {
+   return lhs * rhs;
+}
+
+template <typename TensorLHS, typename TensorRHS>
+auto ddot(const TensorLHS& lhs, const TensorRHS& rhs)
+{
    return Dot(lhs, rhs);
-}
-
-/**
- * @brief Inverts a matrix
- * @param[in] A The matrix to invert
- * @note Uses a shortcut for inverting a 2-by-2 matrix
- */
-tensor<double, 2, 2> inv(const tensor<double, 2, 2>& A)
-{
-   double inv_detA(1.0 / det(A));
-
-   tensor<double, 2, 2> invA{};
-
-   invA(0,0) =  A(1,1) * inv_detA;
-   invA(0,1) = -A(0,1) * inv_detA;
-   invA(1,0) = -A(1,0) * inv_detA;
-   invA(1,1) =  A(0,0) * inv_detA;
-
-   return invA;
-}
-
-/**
- * @overload
- * @note Uses a shortcut for inverting a 3-by-3 matrix
- */
-tensor<double, 3, 3> inv(const tensor<double, 3, 3>& A)
-{
-   double inv_detA(1.0 / det(A));
-
-   tensor<double, 3, 3> invA{};
-
-   invA(0,0) = (A(1,1) * A(2,2) - A(1,2) * A(2,1)) * inv_detA;
-   invA(0,1) = (A(0,2) * A(2,1) - A(0,1) * A(2,2)) * inv_detA;
-   invA(0,2) = (A(0,1) * A(1,2) - A(0,2) * A(1,1)) * inv_detA;
-   invA(1,0) = (A(1,2) * A(2,0) - A(1,0) * A(2,2)) * inv_detA;
-   invA(1,1) = (A(0,0) * A(2,2) - A(0,2) * A(2,0)) * inv_detA;
-   invA(1,2) = (A(0,2) * A(1,0) - A(0,0) * A(1,2)) * inv_detA;
-   invA(2,0) = (A(1,0) * A(2,1) - A(1,1) * A(2,0)) * inv_detA;
-   invA(2,1) = (A(0,1) * A(2,0) - A(0,0) * A(2,1)) * inv_detA;
-   invA(2,2) = (A(0,0) * A(1,1) - A(0,1) * A(1,0)) * inv_detA;
-
-   return invA;
-}
-
-/**
- * @brief Returns the trace of a square matrix
- * @param[in] A The matrix to compute the trace of
- * @return The sum of the elements on the main diagonal
- */
-template <typename T, int n>
-constexpr auto tr(const tensor<T, n, n>& A)
-{
-   T trA{};
-   for (int i = 0; i < n; i++)
-   {
-      trA = trA + A(i,i);
-   }
-   return trA;
-}
-
-/**
- *
- * @brief Calculates the deviator of a matrix (rank-2 tensor)
- * @param[in] A The matrix to calculate the deviator of
- * In the context of stress tensors, the deviator is obtained by
- * subtracting the mean stress (average of main diagonal elements)
- * from each element on the main diagonal
- */
-template <typename T, int n>
-constexpr auto dev(const tensor<T, n, n>& A)
-{
-   auto devA = A;
-   auto trA  = tr(A);
-   for (int i = 0; i < n; i++)
-   {
-      devA(i,i) -= trA / n;
-   }
-   return devA;
 }
 
 // Define the identity tensor in three dimensions.
@@ -193,8 +102,6 @@ struct LinearElasticMaterial
       init_tensor_lambda(t,[&](auto i, auto j, auto k, auto l)
       { return lambda * (i == j) * (k == l) + mu * ((i == l) * (j == k) + (i == k) * (j == l)); });
       return t;
-      // return make_tensor<dim, dim, dim, dim>([&](auto i, auto j, auto k, auto l)
-      // { return lambda * (i == j) * (k == l) + mu * ((i == l) * (j == k) + (i == k) * (j == l)); });
    }
 
    double mu = 50;
@@ -237,7 +144,7 @@ struct NeoHookeanMaterial
    {
       T J = det(I + du_dx);
       T p = -2.0 * D1 * J * (J - 1);
-      auto devB = dev(du_dx + transpose(du_dx) + du_dx * transpose(du_dx));
+      auto devB = dev(du_dx + transpose(du_dx) + dot(du_dx, transpose(du_dx)));
       auto sigma = -(p / J) * I + 2 * (C1 / pow(J, 5.0 / 3.0)) * devB;
       return sigma;
    }
@@ -260,8 +167,8 @@ struct NeoHookeanMaterial
    {
       tensor<double, dim, dim> F = I + du_dx;
       tensor<double, dim, dim> invF = inv(F);
-      tensor<double, dim, dim> devB = dev(du_dx + transpose(du_dx) +
-                                          ( du_dx * transpose(du_dx) ) );
+      tensor<double, dim, dim> devB = dev(du_dx + transpose(du_dx) + dot(du_dx,
+                                                                         transpose(du_dx) ) );
       double J = det(F);
       double coef = (C1 / pow(J, 5.0 / 3.0));
       tensor<double, 3, 3, 3, 3> t;
@@ -269,17 +176,11 @@ struct NeoHookeanMaterial
       {
          return 2.0 * (D1 * J * (i == j) - (5.0 / 3.0) * coef * devB(i,j)) * invF(l,k)
                 +
-                2.0 * coef * ((i == k) * F(j,l) + F(i,l) * (j == k) - (2.0 / 3.0) * ((
-                                                                                        i == j) * F(k,l)));
+                2.0 * coef * ((i == k) * F(j,l) + F(i,l) * (j == k)
+                              -
+                              (2.0 / 3.0) * ((i == j) * F(k,l)));
       });
       return t;
-      // return make_tensor<3, 3, 3, 3>([&](auto i, auto j, auto k, auto l)
-      // {
-      //    return 2.0 * (D1 * J * (i == j) - (5.0 / 3.0) * coef * devB[i][j]) * invF[l][k]
-      //           +
-      //           2.0 * coef * ((i == k) * F[j][l] + F[i][l] * (j == k) - (2.0 / 3.0) * ((
-      //                 i == j) * F[k][l]));
-      // });
    }
 
    MFEM_HOST_DEVICE tensor<double, dim, dim>
@@ -375,15 +276,15 @@ struct NeoHookeanMaterial
       tensor<double, dim, dim> F = I + du_dx;
       tensor<double, dim, dim> invFT = inv(transpose(F));
       tensor<double, dim, dim> devB =
-         dev(du_dx + transpose(du_dx) + du_dx * transpose(du_dx));
+         dev(du_dx + transpose(du_dx) + dot(du_dx, transpose(du_dx)));
       double J = det(F);
       double coef = (C1 / pow(J, 5.0 / 3.0));
-      double a1 = dot(invFT, ddu_dx);
-      double a2 = dot(F, ddu_dx);
+      double a1 = ddot(invFT, ddu_dx);
+      double a2 = ddot(F, ddu_dx);
 
       return (2.0 * D1 * J * a1 - (4.0 / 3.0) * coef * a2) * I -
              ((10.0 / 3.0) * coef * a1) * devB +
-             (2 * coef) * ((ddu_dx * transpose(F)) + (F * transpose(ddu_dx)));
+             (2 * coef) * (dot(ddu_dx, transpose(F)) + dot(F, transpose(ddu_dx)));
    }
 
    double C1 = 50.0;
@@ -599,14 +500,10 @@ public:
             init_tensor_lambda(t, [&](auto i, auto j)
             { return K_diag_submats(s, i, j); });
             auto submat_inv = inv(t);
-            // auto submat_inv = inv(make_tensor<dim, dim>([&](auto i, auto j)
-            // { return K_diag_submats(s, i, j); }));
 
             tensor<double, dim> x_block;
             init_tensor_lambda(x_block, [&](auto i)
             { return x(s + i * num_submats_); });
-            // auto x_block = make_tensor<dim>([&](auto i)
-            // { return x(s + i * num_submats_); });
 
             tensor<double, dim> y_block;
 
@@ -995,9 +892,6 @@ Apply3D(const int ne, const Array<double> &B_, const Array<double> &G_,
                init_tensor_lambda(Jqp, [&](int i, int j)
                { return J(qx, qy, qz, i, j, e); });
                auto invJqp = inv(Jqp);
-               // auto invJqp = inv(make_tensor<dim, dim>(
-               //                      [&](int i, int j)
-               // { return J(qx, qy, qz, i, j, e); }));
 
                auto dudxiq = Get<0>(qz, Get<0>(qy, Get<0>(qx, dudxi) ) );
                auto dudx = dudxiq * invJqp;
@@ -1076,9 +970,6 @@ ApplyGradient3D(const int ne, const Array<double> &B_,
                init_tensor_lambda(Jqp, [&](int i, int j)
                { return J(qx, qy, qz, i, j, e); });
                auto invJqp = inv(Jqp);
-               // auto invJqp = inv(make_tensor<dim, dim>(
-               //                      [&](int i, int j)
-               // { return J(qx, qy, qz, i, j, e); }));
 
                auto dudxiq = Get<0>(qz, Get<0>(qy, Get<0>(qx, dudxi) ) );
                auto dudx = dudxiq * invJqp;
@@ -1092,8 +983,6 @@ ApplyGradient3D(const int ne, const Array<double> &B_,
                auto invJ_dsigma_detJwqxqy = Get<0>(qy, invJ_dsigma_detJwqx);
                auto invJ_dsigma_detJwq = Get<0>(qz, invJ_dsigma_detJwqxqy);
                invJ_dsigma_detJwq = alpha * invJqp * dsigma;
-               // invJ_dsigma_detJw(qx, qy, qz) =
-               //    invJqp * dsigma * detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
             }
          }
       }
@@ -1151,9 +1040,6 @@ static inline void AssembleGradientDiagonal3D(
                init_tensor_lambda(Jqp, [&](int i, int j)
                { return J(qx, qy, qz, i, j, e); });
                auto invJqp = inv(Jqp);
-               // auto invJqp = inv(make_tensor<dim, dim>(
-               //                      [&](int i, int j)
-               // { return J(qx, qy, qz, i, j, e); }));
 
                auto dudxiq = Get<0>(qz, Get<0>(qy, Get<0>(qx, dudxi) ) );
                auto dudx = dudxiq * invJqp;
