@@ -214,7 +214,8 @@ protected:
    inline void CheckRehash();
    void DoRehash();
 
-   int BinSize(int id) const;
+   /// Return the size of bin 'idx'
+   int BinSize(int idx) const;
 };
 
 
@@ -656,13 +657,13 @@ void HashTable<T>::PrintMemoryDetail() const
 }
 
 template<typename T>
-int HashTable<T>::BinSize(int id) const
+int HashTable<T>::BinSize(int idx) const
 {
    int count = 0;
-   while (id >= 0)
+   while (idx >= 0)
    {
-      const T& item = Base::At(id);
-      id = item.next;
+      const T& item = Base::At(idx);
+      idx = item.next;
       count++;
    }
    return count;
