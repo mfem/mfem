@@ -385,7 +385,7 @@ int main(int argc, char *argv[])
    // Test if the result for the test run is as expected.
    if (ctx.checkres)
    {
-      double tol = 1e-5;
+      double tol = 2e-5;
       double ke_expected = 1.25e-1;
       if (fabs(ke - ke_expected) > tol)
       {

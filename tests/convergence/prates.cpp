@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << x <<
-               "window_title 'Numerical Pressure (real part)' "
+               "window_title 'Numerical Solution' "
                << flush;
    }
 
