@@ -1150,7 +1150,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
       {
          if (ncface==-1)
          {
-            face.tag = FaceInfoTag::LocalConformingInterior;
+            face.tag = FaceInfoTag::LocalConforming;
             face.topology = FaceTopology::Conforming;
             face.element[1].location = ElementLocation::Local;
             face.element[0].conformity = ElementConformity::Coincident;
@@ -1160,7 +1160,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
          }
          else // ncface >= 0
          {
-            face.tag = FaceInfoTag::LocalNonconformingInterior;
+            face.tag = FaceInfoTag::LocalSlaveNonconforming;
             face.topology = FaceTopology::Nonconforming;
             face.element[1].location = ElementLocation::Local;
             face.element[0].conformity = ElementConformity::Coincident;
@@ -1177,7 +1177,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
          {
             if (inf2<0)
             {
-               face.tag = FaceInfoTag::TrueBoundary;
+               face.tag = FaceInfoTag::Boundary;
                face.topology = FaceTopology::Boundary;
                face.element[1].location = ElementLocation::NA;
                face.element[0].conformity = ElementConformity::Coincident;
@@ -1187,7 +1187,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
             }
             else // inf2 >= 0
             {
-               face.tag = FaceInfoTag::SharedConformingInterior;
+               face.tag = FaceInfoTag::SharedConforming;
                face.topology = FaceTopology::Conforming;
                face.element[0].conformity = ElementConformity::Coincident;
                face.element[1].conformity = ElementConformity::Coincident;
@@ -1210,7 +1210,7 @@ Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
             }
             else
             {
-               face.tag = FaceInfoTag::SlaveNonconforming;
+               face.tag = FaceInfoTag::SharedSlaveNonconforming;
                face.topology = FaceTopology::Nonconforming;
                face.element[1].location = ElementLocation::FaceNbr;
                face.element[0].conformity = ElementConformity::Coincident;
@@ -1254,25 +1254,25 @@ Mesh::FaceInformation::operator Mesh::FaceInfo() const
    FaceInfo res {-1, -1, -1, -1, -1};
    switch (tag)
    {
-      case FaceInfoTag::LocalConformingInterior:
+      case FaceInfoTag::LocalConforming:
          res.Elem1No = element[0].index;
          res.Elem2No = element[1].index;
          res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
          res.Elem2Inf = element[1].orientation + element[1].local_face_id*64;
          res.NCFace = ncface;
          break;
-      case FaceInfoTag::LocalNonconformingInterior:
+      case FaceInfoTag::LocalSlaveNonconforming:
          res.Elem1No = element[0].index;
          res.Elem2No = element[1].index;
          res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
          res.Elem2Inf = element[1].orientation + element[1].local_face_id*64;
          res.NCFace = ncface;
          break;
-      case FaceInfoTag::TrueBoundary:
+      case FaceInfoTag::Boundary:
          res.Elem1No = element[0].index;
          res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
          break;
-      case FaceInfoTag::SharedConformingInterior:
+      case FaceInfoTag::SharedConforming:
          res.Elem1No = element[0].index;
          res.Elem2No = -1 - element[1].index;
          res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
@@ -1282,7 +1282,7 @@ Mesh::FaceInformation::operator Mesh::FaceInfo() const
          res.Elem1No = element[0].index;
          res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
          break;
-      case FaceInfoTag::SlaveNonconforming:
+      case FaceInfoTag::SharedSlaveNonconforming:
          res.Elem1No = element[0].index;
          res.Elem2No = -1 - element[1].index;
          res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
