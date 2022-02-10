@@ -136,7 +136,7 @@ public:
    /// Write details of the memory usage to the mfem output stream.
    void PrintMemoryDetail() const;
 
-   /// Print hash table statistic for debugging purposes.
+   /// Print a histogram of bin sizes for debugging purposes.
    void PrintStats() const;
 
    class iterator : public Base::iterator
