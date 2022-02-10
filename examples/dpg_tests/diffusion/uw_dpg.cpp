@@ -243,10 +243,10 @@ int main(int argc, char *argv[])
       mesh_out.open(vishost, visport);
    }
 
-   if (static_cond) { a->EnableStaticCondensation(); }
 
-   for (int i = 0; i<ref; i++)
+   for (int iref = 0; iref<ref; iref++)
    {
+      if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
 
       Array<int> ess_tdof_list;
@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
       M->owns_blocks = 1;
       for (int i=0; i<A->NumRowBlocks(); i++)
       {
-         M->SetDiagonalBlock(i,new UMFPackSolver(A->GetBlock(i,i)));
+         M->SetDiagonalBlock(i,new GSSmoother(A->GetBlock(i,i)));
       }
 
       CGSolver cg;
@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          u_out.precision(8);
-         string keys = (i == 0) ? "keys em\n" : "keys";
+         string keys = (iref == 0) ? "keys em\n" : "keys";
          u_out << "solution\n" << mesh << u_gf 
                << "window_title 'Numerical u' "
                   << flush;
@@ -348,7 +348,6 @@ int main(int argc, char *argv[])
          trial_fes[i]->Update(false);
       }
       a->Update();
-
    }
 
    delete a;
@@ -359,6 +358,7 @@ int main(int argc, char *argv[])
    delete hatu_fes;
    delete hatu_fec;
    delete sigma_fec;
+   delete sigma_fes;
    delete u_fec;
    delete u_fes;
 

@@ -116,7 +116,11 @@ void BlockStaticCondensation::Init()
 {
    lmat.SetSize(mesh->GetNE());
    lvec.SetSize(mesh->GetNE());
-
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      lmat[i] = nullptr;
+      lvec[i] = nullptr;
+   }
 
    ComputeOffsets();
 
@@ -645,7 +649,7 @@ void BlockStaticCondensation::ReduceSolution(const Vector &sol,
 {
    MFEM_ASSERT(sol.Size() == dof_offsets.Last(), "'sol' has incorrect size");
    const int nrdofs = rdof_offsets.Last();
-   BlockVector sol_r(rdof_offsets);
+   Vector sol_r;
    if (!R)
    {
       sc_sol.SetSize(nrdofs);
@@ -661,8 +665,10 @@ void BlockStaticCondensation::ReduceSolution(const Vector &sol,
    }
    if (R)
    {
+      // wrap vector into a block vector
+      BlockVector blsol_r(sol_r,rdof_offsets);
       sc_sol.SetSize(R->Height());
-      R->Mult(sol_r, sc_sol);
+      R->Mult(blsol_r, sc_sol);
    }
 }
 
@@ -700,7 +706,6 @@ void BlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    MFEM_VERIFY(sc_sol.Size() == nrtdofs, "'sc_sol' has incorrect size");
 
 
-
    Vector sol_r;
    if (!P)
    {
@@ -721,9 +726,6 @@ void BlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    {
       sol.SetSize(dof_offsets.Last());
    }
-
-   // wrap solution vector to a block vector
-   // BlockVector sr(sol_r, rdof_offsets);
 
    Vector lsr; // element (local) sc solution vector
    Vector lsi; // element (local) interior solution vector

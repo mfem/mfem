@@ -674,6 +674,16 @@ void NormalEquations::ReleaseInitMemory()
          }
       }
       test_integs.DeleteAll();
+
+      for (int k = 0; k < lfis.Size(); k++)
+      {
+         for (int i = 0; i < lfis[k]->Size(); i++)
+         {
+            delete (*lfis[k])[i];
+         }
+         delete lfis[k];
+      }
+      lfis.DeleteAll();
    }
 }
 
@@ -723,7 +733,6 @@ void NormalEquations::Update()
 void NormalEquations::EnableStaticCondensation()
 {
    static_cond = new BlockStaticCondensation(trial_fes);
-   static_cond->Init();
 }
 
 
