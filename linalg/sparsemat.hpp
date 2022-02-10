@@ -370,6 +370,17 @@ public:
        more details. */
    void ResetTranspose() const;
 
+   /** @brief Ensures that the matrix is capable of performing MultTranspose()
+        and AddMultTranspose(). */
+   /** For non-serial-CPU backends (e.g. GPU, OpenMP), multiplying by the
+       transpose requires that the internal transpose matrix be already built.
+       When such a backend is enabled, this function will build the internal
+       transpose matrix, see BuildTranspose().
+
+       For the serial CPU backend, the internal transpose is not required, and
+       this function is a no-op. */
+   void EnsureMultTranspose() const;
+
    void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
    void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
                     const double a=1.0) const;
