@@ -45,6 +45,8 @@ public:
    /// to discern between different level-sets.
    enum SBElementType {INSIDE = 0, OUTSIDE = 1, CUT = 2};
 
+   enum SBFaceType {UNDEFINED = 0, SURROGATE = 1};
+
    ShiftedFaceMarker(ParMesh &pm, ParFiniteElementSpace &pfes,
                      bool include_cut_cell_)
       : pmesh(pm), pfes_sltn(&pfes),
@@ -53,6 +55,9 @@ public:
 
    /// Mark all the elements in the mesh using the @a SBElementType
    void MarkElements(const ParGridFunction &ls_func, Array<int> &elem_marker);
+
+   /// Mark all faces in the mesh using  the @a SBFaceType
+   void MarkFaces(mfem::Array<int>& elem_marker, mfem::Array<int>& face_marker);
 
    /// List dofs associated with the surrogate boundary.
    /// If @a include_cut_cell = false, the surrogate boundary includes faces
