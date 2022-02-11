@@ -398,7 +398,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    }
 #endif
 
-   double scale = 1.0, energy_out = 0.0, min_detT_out;
+   double scale = 1.0;
    if (surf_fit_max_threshold > 0.0)
    {
       double avg_err, max_err;
@@ -428,6 +428,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
+   double energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
@@ -505,7 +506,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       if (have_b) { r -= b; }
       double norm_out = Norm(r);
 
-      if (norm_out > 1.1*norm_in)
+      if (norm_out > 1.2*norm_in)
       {
          if (print_options.iterations)
          {
@@ -791,7 +792,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       update_surf_fit_coeff = false;
    }
 }
-
 
 void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
                                         const Vector &x_new) const

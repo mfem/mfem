@@ -104,14 +104,14 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// 2D non-barrier metric without a type.
-class TMOP_Metric_001 : public TMOP_QualityMetric
+/// 0 Metric
+class TMOP_Metric_000 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   // W = |J|^2.
+   // W = 0.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
@@ -122,13 +122,14 @@ public:
    virtual int Id() const { return 1; }
 };
 
-class TMOP_Metric_000 : public TMOP_QualityMetric
+/// 2D non-barrier metric without a type.
+class TMOP_Metric_001 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
 
 public:
-   // W = 0.
+   // W = |J|^2.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
