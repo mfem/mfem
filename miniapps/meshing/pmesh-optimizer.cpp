@@ -412,7 +412,7 @@ int main (int argc, char *argv[])
       mesh_name << "perturbed.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      //      pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // 11. Store the starting (prior to the optimization) positions.
@@ -831,8 +831,8 @@ int main (int argc, char *argv[])
    {
       MFEM_VERIFY(hradaptivity == false,
                   "Surface fitting with HR is not implemented yet.");
-      //      MFEM_VERIFY(pa == false,
-      //                  "Surface fitting with PA is not implemented yet.");
+      MFEM_VERIFY(pa == false,
+                  "Surface fitting with PA is not implemented yet.");
 
       FunctionCoefficient ls_coeff(surface_level_set);
       surf_fit_gf0.ProjectCoefficient(ls_coeff);
@@ -1124,7 +1124,6 @@ int main (int argc, char *argv[])
       // Specify linear solver when we use a Newton-based solver.
       solver.SetPreconditioner(*S);
    }
-
    // For untangling, the solver will update the min det(T) values.
    if (tauval < 0.0) { solver.SetMinDetPtr(&tauval); }
    solver.SetMaxIter(solver_iter);
@@ -1135,14 +1134,26 @@ int main (int argc, char *argv[])
       solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
    }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-   solver.SetOperator(a);
-   solver.Mult(b, x.GetTrueVector());
-   x.SetFromTrueVector();
 
-   if (myid == 0 && solver.GetConverged() == false)
+   // hr-adaptivity solver.
+   // If hr-adaptivity is disabled, r-adaptivity is done once using the
+   // TMOPNewtonSolver.
+   // Otherwise, "hr_iter" iterations of r-adaptivity are done followed by
+   // "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity.
+   // The solver terminates if an h-adaptivity iteration does not modify
+   // any element in the mesh.
+   TMOPHRSolver hr_solver(*pmesh, a, solver,
+                          x, move_bnd, hradaptivity,
+                          mesh_poly_deg, h_metric_id,
+                          n_hr_iter, n_h_iter);
+   hr_solver.AddGridFunctionForUpdate(&x0);
+   if (adapt_lim_const > 0.)
    {
-      cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
+      hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);
+      hr_solver.AddFESpaceForUpdate(&ind_fes);
    }
+   hr_solver.Mult();
+   hr_solver.Mult();
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
@@ -1151,18 +1162,19 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      //      pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsOne(mesh_ofs);
    }
 
    // Compute the final energy of the functional.
-   double fin_metric_energy =  a.GetParGridFunctionEnergy(x)/
-                               (hradaptivity ? pmesh->GetGlobalNE() : 1);
+   const double fin_energy = a.GetParGridFunctionEnergy(x) /
+                             (hradaptivity ? pmesh->GetGlobalNE() : 1);
+   double fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
       surf_fit_coeff.constant  = 0.0;
-      fin_metric_energy  = a.GetParGridFunctionEnergy(x)/
+      fin_metric_energy  = a.GetParGridFunctionEnergy(x) /
                            (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;
@@ -1174,11 +1186,11 @@ int main (int argc, char *argv[])
       cout << "Initial strain energy: " << init_energy
            << " = metrics: " << init_metric_energy
            << " + extra terms: " << init_energy - init_metric_energy << endl;
-      cout << "  Final strain energy: " << fin_metric_energy
+      cout << "  Final strain energy: " << fin_energy
            << " = metrics: " << fin_metric_energy
-           << " + extra terms: " << fin_metric_energy - fin_metric_energy << endl;
+           << " + extra terms: " << fin_energy - fin_metric_energy << endl;
       cout << "The strain energy decreased by: "
-           << (init_energy - fin_metric_energy) * 100.0 / init_energy << " %." << endl;
+           << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
 
    // 18. Visualize the final mesh and metric values.
