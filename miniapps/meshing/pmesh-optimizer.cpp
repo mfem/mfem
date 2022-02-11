@@ -154,8 +154,8 @@ int main (int argc, char *argv[])
    bool pa               = false;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
-   bool asf              = false;
-   double surf_fit_threshold = -10;
+   bool surface_fit_adapt = false;
+   double surface_fit_threshold = -10;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -281,12 +281,12 @@ int main (int argc, char *argv[])
    args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
                   "Number of h-adaptivity iterations per r-adaptivity"
                   "iteration.");
-   args.AddOption(&asf, "-asf", "--adaptive-surface-fit", "-no-asf",
+   args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit", "-no-sfa",
                   "--no-adaptive-surface-fit",
                   "Enable or disable adaptive surface fitting.");
-   args.AddOption(&surf_fit_threshold, "-sft", "--surf-fit-threshold",
-                  "Set Newton Solver termination threshold based on "
-                  "max surface fitting error.");
+   args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
+                  "Set threshold for surface fitting. TMOP solver will"
+                  "terminate when max surface fitting error is below this limit");
    args.Parse();
    if (!args.Good())
    {
@@ -1112,10 +1112,10 @@ int main (int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
-   if (asf) { solver.EnableAdaptiveSurfaceFitting(); }
-   if (surf_fit_threshold > 0)
+   if (surface_fit_adapt) { solver.EnableAdaptiveSurfaceFitting(); }
+   if (surface_fit_threshold > 0)
    {
-      solver.SetTerminationWithMaxSurfaceFittingError(surf_fit_threshold);
+      solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
    }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
@@ -1124,7 +1124,7 @@ int main (int argc, char *argv[])
       // Specify linear solver when we use a Newton-based solver.
       solver.SetPreconditioner(*S);
    }
-   StopWatch TimeSolver;
+
    // For untangling, the solver will update the min det(T) values.
    if (tauval < 0.0) { solver.SetMinDetPtr(&tauval); }
    solver.SetMaxIter(solver_iter);
@@ -1136,75 +1136,12 @@ int main (int argc, char *argv[])
    }
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
    solver.SetOperator(a);
-   TimeSolver.Start();
    solver.Mult(b, x.GetTrueVector());
-   TimeSolver.Stop();
    x.SetFromTrueVector();
-
-   const double solvertime = TimeSolver.RealTime(),
-                vectortime = solver.GetAssembleElementVectorTime(),
-                gradtime   = solver.GetAssembleElementGradTime(),
-                prectime   = solver.GetPrecMultTime(),
-                processnewstatetime = solver.GetProcessNewStateTime(),
-                scalefactortime = solver.GetComputeScalingTime();
 
    if (myid == 0 && solver.GetConverged() == false)
    {
       cout << "Nonlinear solver: rtol = " << solver_rtol << " not achieved.\n";
-   }
-
-   MPI_Barrier(MPI_COMM_WORLD);
-   int NDofs = x.ParFESpace()->GlobalTrueVSize()/pmesh->Dimension(),
-       NEGlob = pmesh->GetGlobalNE();
-   int device_tag  = 0; //gpu
-   const double fin_energy = a.GetParGridFunctionEnergy(x);
-   if (strcmp(devopt,"cpu")==0) { device_tag = 1; } //not gpu
-   if (myid == 0)
-   {
-      std::cout << "Monitoring info      :" << endl
-                << "Number of elements   :" << NEGlob << endl
-                << "Number of procs      :" << num_procs << endl
-                << "Polynomial degree    :" << mesh_poly_deg << endl
-                << "Total TDofs          :" << NDofs << endl
-                << std::setprecision(4)
-                << "Total Iterations     :" << solver.GetNumIterations() << endl
-                << "Total Prec Iterations:" << solver.GetTotalPrecIterations() << endl
-                << "Total Solver Time (%):" << solvertime << " "
-                << (solvertime*100/solvertime) << endl
-                << "Assemble Vector Time :" << vectortime << " "
-                << (vectortime*100/solvertime) << endl
-                << "Assemble Grad Time   :" << gradtime << " "
-                << gradtime*100/solvertime <<  endl
-                << "Prec Solve Time      :" << prectime << " "
-                << prectime*100/solvertime <<  endl
-                << "ProcessNewState Time :" << processnewstatetime << " "
-                << (processnewstatetime*100/solvertime) <<  endl
-                << "ComputeScale Time    :" << scalefactortime << " "
-                << (scalefactortime*100/solvertime) <<  "  " << endl
-                << "Device Tag (0 for gpu, 1 otherwise):" << device_tag << endl
-                << "Final energy: " << fin_energy << endl
-                << "Surface fitting weight:" << surface_fit_const << endl;
-
-      std::cout << "run_info: " << std::setprecision(4) << " "
-                << rs_levels << " "
-                << mesh_poly_deg << " " << quad_order << " "
-                << solver_type << " " <<  solver_art_type << " "
-                << lin_solver << " " << max_lin_iter << " "
-                << pa << " " << metric_id << " " << num_procs
-                << std::setprecision(10) << " "
-                << NEGlob << " " << NDofs << " "
-                << solver.GetNumIterations() << " "
-                << solver.GetTotalPrecIterations() << " "
-                << solvertime << " "
-                << (vectortime*100/solvertime) << " "
-                << (gradtime*100/solvertime) << " "
-                << (prectime*100/solvertime) << " "
-                << (processnewstatetime*100/solvertime) << " "
-                << (scalefactortime*100/solvertime) << " "
-                << device_tag << " "
-                << fin_energy << " "
-                << surface_fit_const
-                << endl;
    }
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
@@ -1218,13 +1155,15 @@ int main (int argc, char *argv[])
    }
 
    // Compute the final energy of the functional.
-   double fin_metric_energy = fin_energy;
+   double fin_metric_energy =  a.GetParGridFunctionEnergy(x)/
+                               (hradaptivity ? pmesh->GetGlobalNE() : 1);
    if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
       surf_fit_coeff.constant  = 0.0;
-      fin_metric_energy  = a.GetParGridFunctionEnergy(x);
+      fin_metric_energy  = a.GetParGridFunctionEnergy(x)/
+                           (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;
       surf_fit_coeff.constant  = surface_fit_const;
@@ -1235,11 +1174,11 @@ int main (int argc, char *argv[])
       cout << "Initial strain energy: " << init_energy
            << " = metrics: " << init_metric_energy
            << " + extra terms: " << init_energy - init_metric_energy << endl;
-      cout << "  Final strain energy: " << fin_energy
+      cout << "  Final strain energy: " << fin_metric_energy
            << " = metrics: " << fin_metric_energy
-           << " + extra terms: " << fin_energy - fin_metric_energy << endl;
+           << " + extra terms: " << fin_metric_energy - fin_metric_energy << endl;
       cout << "The strain energy decreased by: "
-           << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
+           << (init_energy - fin_metric_energy) * 100.0 / init_energy << " %." << endl;
    }
 
    // 18. Visualize the final mesh and metric values.

@@ -1430,15 +1430,11 @@ protected:
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, H, C0, LD, H0;
-      mutable Vector C0sf, Hsf, Gsf, SFG, Esf, Osf, SFM;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
-      const DofToQuad *maps_surf = nullptr;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
-      const IntegrationRule *irsf;
-      const FiniteElementSpace *fessf;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
@@ -1527,39 +1523,28 @@ protected:
    void AssembleGradPA_3D(const Vector&) const;
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
-   void AssembleGradPA_SF_2D(const Vector&) const;
-   void AssembleGradPA_SF_3D(const Vector&) const;
 
    double GetLocalStateEnergyPA_2D(const Vector&) const;
    double GetLocalStateEnergyPA_C0_2D(const Vector&) const;
-   double GetLocalStateEnergyPA_SF_2D(const Vector&) const;
    double GetLocalStateEnergyPA_3D(const Vector&) const;
    double GetLocalStateEnergyPA_C0_3D(const Vector&) const;
-   double GetLocalStateEnergyPA_SF_3D(const Vector&) const;
 
    void AddMultPA_2D(const Vector&, Vector&) const;
    void AddMultPA_3D(const Vector&, Vector&) const;
    void AddMultPA_C0_2D(const Vector&, Vector&) const;
    void AddMultPA_C0_3D(const Vector&, Vector&) const;
-   void AddMultPA_SF_2D(const Vector&, Vector&) const;
-   void AddMultPA_SF_3D(const Vector&, Vector&) const;
 
    void AddMultGradPA_2D(const Vector&, Vector&) const;
    void AddMultGradPA_3D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_2D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_3D(const Vector&, Vector&) const;
-   void AddMultGradPA_SF_2D(const Vector&, Vector&) const;
-   void AddMultGradPA_SF_3D(const Vector&, Vector&) const;
 
    void AssembleDiagonalPA_2D(Vector&) const;
    void AssembleDiagonalPA_3D(Vector&) const;
    void AssembleDiagonalPA_C0_2D(Vector&) const;
    void AssembleDiagonalPA_C0_3D(Vector&) const;
-   void AssembleDiagonalPA_SF_2D(Vector&) const;
-   void AssembleDiagonalPA_SF_3D(Vector&) const;
 
    void AssemblePA_Limiting();
-   void AssemblePA_SurfFit();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
 
 public:

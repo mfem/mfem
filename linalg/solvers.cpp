@@ -1815,13 +1815,9 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
-   TimeProcessNewState.Start();
    ProcessNewState(x);
-   TimeProcessNewState.Stop();
 
-   TimeVector.Start();
    oper->Mult(x, r);
-   TimeVector.Stop();
    if (have_b)
    {
       r -= b;
@@ -1836,7 +1832,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    norm_goal = std::max(rel_tol*norm, abs_tol);
 
    prec->iterative_mode = false;
-   IterativeSolver *preciter = dynamic_cast<IterativeSolver *>(prec);
 
    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
    for (it = 0; true; it++)
@@ -1866,9 +1861,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          break;
       }
 
-      TimeGrad.Start();
       grad = &oper->GetGradient(x);
-      TimeGrad.Stop();
       prec->SetOperator(*grad);
 
       if (lin_rtol_type)
@@ -1876,20 +1869,14 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          AdaptiveLinRtolPreSolve(x, it, norm);
       }
 
-      TimePrecMult.Start();
       prec->Mult(r, c); // c = [DF(x_i)]^{-1} [F(x_i)-b]
-      TimePrecMult.Stop();
-      int prec_iters = preciter->GetNumIterations();
-      total_prec_iterations += prec_iters;
 
       if (lin_rtol_type)
       {
          AdaptiveLinRtolPostSolve(c, r, it, norm);
       }
 
-      TimeComputeScaling.Start();
       const double c_scale = ComputeScalingFactor(x, b);
-      TimeComputeScaling.Stop();
       if (c_scale == 0.0)
       {
          converged = false;
@@ -1897,13 +1884,9 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       }
       add(x, -c_scale, c, x);
 
-      TimeProcessNewState.Start();
       ProcessNewState(x);
-      TimeProcessNewState.Stop();
 
-      TimeVector.Start();
       oper->Mult(x, r);
-      TimeVector.Stop();
 
       if (have_b)
       {
@@ -2036,14 +2019,10 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
-   TimeProcessNewState.Start();
    ProcessNewState(x);
-   TimeProcessNewState.Stop();
 
    // r = F(x)-b
-   TimeVector.Start();
    oper->Mult(x, r);
-   TimeVector.Stop();
    if (have_b) { r -= b; }
 
    c = r;           // initial descent direction
@@ -2082,9 +2061,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       }
 
       rk = r;
-      TimeComputeScaling.Start();
       const double c_scale = ComputeScalingFactor(x, b);
-      TimeComputeScaling.Stop();
       if (c_scale == 0.0)
       {
          converged = false;
@@ -2092,20 +2069,15 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       }
       add(x, -c_scale, c, x); // x_{k+1} = x_k - c_scale*c
 
-      TimeProcessNewState.Start();
       ProcessNewState(x);
-      TimeProcessNewState.Stop();
 
-      TimeVector.Start();
       oper->Mult(x, r);
-      TimeVector.Stop();
       if (have_b)
       {
          r -= b;
       }
 
       // LBFGS - construct descent direction
-      TimePrecMult.Start();
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
       const double gamma = Dot(sk, yk)/Dot(yk, yk);
@@ -2146,8 +2118,6 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
          double betai = rho(i)*Dot((*ykMV[i]), c);
          add(c, alpha(i)-betai, (*skMV[i]), c);
       }
-
-      TimePrecMult.Stop();
 
       norm = Norm(r);
    }
