@@ -2528,12 +2528,10 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
    const IntegrationRule &ir = EnergyIntegrationRule(el);
-   TimeEnergyShape.Start();
 
    energy = 0.0;
    DenseTensor Jtr(dim, dim, ir.GetNPoints());
    targetC->ComputeElementTargets(el_id, el, ir, elfun, Jtr);
-   TimeEnergyShape.Stop();
 
    // Limited case.
    Vector shape, p, p0, d_vals;
@@ -2558,7 +2556,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       }
    }
 
-   TimeEnergySurfFit.Start();
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
    if (metric_coeff || lim_coeff || adaptive_limiting || surface_fit)
@@ -2571,7 +2568,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Tpr->mesh = T.mesh;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }
-   TimeEnergySurfFit.Stop();
    // TODO: computing the coefficients 'metric_coeff' and 'lim_coeff' in physical
    //       coordinates means that, generally, the gradient and Hessian of the
    //       TMOP_Integrator will depend on the derivatives of the coefficients.
@@ -2591,7 +2587,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
 
-      TimeEnergyShape.Start();
       const DenseMatrix &Jtr_i = Jtr(i);
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
@@ -2602,7 +2597,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Mult(Jpr, Jrt, Jpt);
 
       double val = metric_normal * metric->EvalW(Jpt);
-      TimeEnergyShape.Stop();
       if (metric_coeff) { val *= metric_coeff->Eval(*Tpr, ip); }
 
       if (lim_coeff)
@@ -2625,8 +2619,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       energy += weight * val;
    }
 
-   TimeEnergySurfFit.Start();
-
    // Contribution from the surface fitting term.
    if (surface_fit)
    {
@@ -2647,7 +2639,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          }
       }
    }
-   TimeEnergySurfFit.Stop();
 
    delete Tpr;
    return energy;
