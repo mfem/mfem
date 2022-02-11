@@ -223,8 +223,6 @@ int main(int argc, char *argv[])
       sigma_out.open(vishost, visport);
    }
 
-
-
    for (int i = 0; i<ref; i++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
@@ -364,7 +362,6 @@ int main(int argc, char *argv[])
          trial_fes[i]->Update(false);
       }
       a->Update();
-
    }
 
    delete a;
@@ -375,6 +372,7 @@ int main(int argc, char *argv[])
    delete hatu_fes;
    delete hatu_fec;
    delete sigma_fec;
+   delete sigma_fes;
    delete u_fec;
    delete u_fes;
 
