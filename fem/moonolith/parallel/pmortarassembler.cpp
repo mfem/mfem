@@ -43,9 +43,43 @@ public:
    std::shared_ptr<HypreParMatrix> mass_matrix;
 
    bool verbose{false};
+
+   bool assemble_mass_and_coupling_together{true};
+
+   bool is_vector_fe() const
+   {
+      bool is_vector_fe = false;
+      for (auto i_ptr : integrators)
+      {
+         if (i_ptr->is_vector_fe())
+         {
+            is_vector_fe = true;
+            break;
+         }
+      }
+
+      return is_vector_fe;
+   }
+
+   BilinearFormIntegrator * new_mass_integrator() const
+   {
+      if (is_vector_fe())
+      {
+         return new VectorFEMassIntegrator();
+      }
+      else
+      {
+         return new MassIntegrator();
+      }
+   }
 };
 
 ParMortarAssembler::~ParMortarAssembler() = default;
+
+void ParMortarAssembler::SetAssembleMassAndCouplingTogether(const bool value)
+{
+   impl_->assemble_mass_and_coupling_together = value;
+}
 
 void ParMortarAssembler::AddMortarIntegrator(
    const std::shared_ptr<MortarIntegrator> &integrator)
@@ -768,15 +802,85 @@ static bool Assemble(moonolith::Communicator &comm,
    return true;
 }
 
+static void add_matrix(const Array<int> &destination_vdofs, const Array<int> &source_vdofs, const DenseMatrix &elem_mat, moonolith::SparseMatrix<double> &mat_buffer){
+
+   for (int i = 0; i < destination_vdofs.Size(); ++i)
+   {
+      long dof_I = destination_vdofs[i];
+
+      double sign_I = 1.0;
+
+      if (dof_I < 0)
+      {
+         sign_I = -1.0;
+         dof_I = -dof_I - 1;
+      }
+
+      for (int j = 0; j < source_vdofs.Size(); ++j)
+      {
+         long dof_J = source_vdofs[j];
+
+         double sign_J = sign_I;
+
+         if (dof_J < 0)
+         {
+            sign_J = -sign_I;
+            dof_J = -dof_J - 1;
+         }
+
+         mat_buffer.add(dof_I, dof_J, sign_J * elem_mat.Elem(i, j));
+      }
+   }
+}
+
+std::shared_ptr<HypreParMatrix> convert_to_hypre_matrix(
+   const std::vector<moonolith::Integer> &destination_ranges, 
+    HYPRE_BigInt *s_offsets,
+    HYPRE_BigInt *m_offsets,
+   moonolith::SparseMatrix<double> &mat_buffer)  {
+
+   auto && comm = mat_buffer.comm();
+
+   moonolith::Redistribute<moonolith::SparseMatrix<double>> redist(comm.get());
+   redist.apply(destination_ranges, mat_buffer, moonolith::AddAssign<double>());
+
+   std::vector<int> I(s_offsets[1] - s_offsets[0] + 1);
+   I[0] = 0;
+
+   std::vector<HYPRE_Int> J;
+   std::vector<double> data;
+   J.reserve(mat_buffer.n_local_entries());
+   data.reserve(J.size());
+
+   for (auto it = mat_buffer.iter(); it; ++it)
+   {
+      I[it.row() - s_offsets[0] + 1]++;
+      J.push_back(it.col());
+      data.push_back(*it);
+   }
+
+   for (int i = 1; i < I.size(); ++i)
+   {
+      I[i] += I[i - 1];
+   }
+
+   return std::make_shared<HypreParMatrix>(
+             comm.get(), s_offsets[1] - s_offsets[0], mat_buffer.rows(),
+             mat_buffer.cols(), &I[0], &J[0], &data[0], s_offsets, m_offsets);
+}
+
 template <int Dimensions>
 static bool
 Assemble(moonolith::Communicator &comm,
-         std::shared_ptr<ParFiniteElementSpace> &source,
-         std::shared_ptr<ParFiniteElementSpace> &destination,
-         std::vector<std::shared_ptr<MortarIntegrator>> &integrators,
-         std::shared_ptr<HypreParMatrix> &pmat,
+         ParMortarAssembler::Impl &impl,
          const moonolith::SearchSettings &settings, const bool verbose)
 {
+   auto &source = impl.source;
+   auto &destination = impl.destination;
+
+   auto &integrators = impl.integrators;
+   auto &pmat  = impl.coupling_matrix;
+
 
    int max_q_order = 0;
 
@@ -814,6 +918,11 @@ Assemble(moonolith::Communicator &comm,
 
    moonolith::SparseMatrix<double> mat_buffer(comm);
    mat_buffer.set_size(s_global_n_dofs, m_global_n_dofs);
+
+   moonolith::SparseMatrix<double> mass_mat_buffer(comm);
+   mass_mat_buffer.set_size(s_global_n_dofs, s_global_n_dofs);
+
+   std::unique_ptr<BilinearFormIntegrator> mass_integr(impl.new_mass_integrator());
 
    auto fun = [&](const ElementAdapter<Dimensions> &source,
                   const ElementAdapter<Dimensions> &destination) -> bool
@@ -864,33 +973,12 @@ Assemble(moonolith::Communicator &comm,
          }
 
          local_element_matrices_sum += Sum(cumulative_elemmat);
+         add_matrix(destination_vdofs, source_vdofs, cumulative_elemmat, mat_buffer);
 
-         for (int i = 0; i < destination_vdofs.Size(); ++i)
-         {
-            long dof_I = destination_vdofs[i];
-
-            double sign_I = 1.0;
-
-            if (dof_I < 0)
-            {
-               sign_I = -1.0;
-               dof_I = -dof_I - 1;
-            }
-
-            for (int j = 0; j < source_vdofs.Size(); ++j)
-            {
-               long dof_J = source_vdofs[j];
-
-               double sign_J = sign_I;
-
-               if (dof_J < 0)
-               {
-                  sign_J = -sign_I;
-                  dof_J = -dof_J - 1;
-               }
-
-               mat_buffer.add(dof_I, dof_J, sign_J * cumulative_elemmat.Elem(i, j));
-            }
+         if(impl.assemble_mass_and_coupling_together) {
+            mass_integr->SetIntRule(&dest_ir);
+            mass_integr->AssembleElementMatrix(dest_fe, dest_Trans, elemmat);
+            add_matrix(destination_vdofs, destination_vdofs, elemmat, mass_mat_buffer);
          }
 
          return true;
@@ -926,34 +1014,16 @@ Assemble(moonolith::Communicator &comm,
    comm.all_reduce(&destination_ranges[0], destination_ranges.size(),
                    moonolith::MPIMax());
 
-   // mat_buffer.synch_describe(mfem::out);
 
-   moonolith::Redistribute<moonolith::SparseMatrix<double>> redist(comm.get());
-   redist.apply(destination_ranges, mat_buffer, moonolith::AddAssign<double>());
+   pmat = convert_to_hypre_matrix(
+      destination_ranges, 
+      s_offsets,
+       m_offsets,
+      mat_buffer);
 
-   std::vector<int> I(s_offsets[1] - s_offsets[0] + 1);
-   I[0] = 0;
-
-   std::vector<HYPRE_Int> J;
-   std::vector<double> data;
-   J.reserve(mat_buffer.n_local_entries());
-   data.reserve(J.size());
-
-   for (auto it = mat_buffer.iter(); it; ++it)
-   {
-      I[it.row() - s_offsets[0] + 1]++;
-      J.push_back(it.col());
-      data.push_back(*it);
+   if(impl.assemble_mass_and_coupling_together) {
+      impl.mass_matrix = convert_to_hypre_matrix(destination_ranges, s_offsets, s_offsets, mass_mat_buffer);
    }
-
-   for (int i = 1; i < I.size(); ++i)
-   {
-      I[i] += I[i - 1];
-   }
-
-   pmat = std::make_shared<HypreParMatrix>(
-             comm.get(), s_offsets[1] - s_offsets[0], mat_buffer.rows(),
-             mat_buffer.cols(), &I[0], &J[0], &data[0], s_offsets, m_offsets);
 
    return true;
 }
@@ -977,23 +1047,23 @@ bool ParMortarAssembler::Assemble(std::shared_ptr<HypreParMatrix> &pmat)
    // settings.set("disable_redistribution", moonolith::Boolean(true));
    // settings.set("disable_asynch", moonolith::Boolean(true));
 
+   bool ok = false;
+
    moonolith::Communicator comm(impl_->comm);
    if (impl_->source->GetMesh()->Dimension() == 2)
    {
-      return mfem::Assemble<2>(comm, impl_->source, impl_->destination,
-                               impl_->integrators, pmat, settings,
+      ok = mfem::Assemble<2>(comm, *impl_, settings,
                                impl_->verbose);
    }
 
    if (impl_->source->GetMesh()->Dimension() == 3)
    {
-      return mfem::Assemble<3>(comm, impl_->source, impl_->destination,
-                               impl_->integrators, pmat, settings,
+      ok = mfem::Assemble<3>(comm, *impl_, settings,
                                impl_->verbose);
    }
 
-   assert(false && "Dimension not supported!");
-   return false;
+   pmat = impl_->coupling_matrix;
+   return ok;
 }
 
 bool ParMortarAssembler::Transfer(const ParGridFunction &src_fun,
@@ -1085,30 +1155,14 @@ bool ParMortarAssembler::Update()
 
    auto &B = *impl_->coupling_matrix;
 
-   bool is_vector_fe = false;
-   for (auto i_ptr : impl_->integrators)
-   {
-      if (i_ptr->is_vector_fe())
-      {
-         is_vector_fe = true;
-         break;
-      }
+   if(!impl_->assemble_mass_and_coupling_together) {
+      ParBilinearForm b_form(impl_->destination.get());
+      b_form.AddDomainIntegrator(impl_->new_mass_integrator());
+      b_form.Assemble();
+      b_form.Finalize();
+      impl_->mass_matrix = shared_ptr<HypreParMatrix>(b_form.ParallelAssemble());
    }
 
-   ParBilinearForm b_form(impl_->destination.get());
-   if (is_vector_fe)
-   {
-      b_form.AddDomainIntegrator(new VectorFEMassIntegrator());
-   }
-   else
-   {
-      b_form.AddDomainIntegrator(new MassIntegrator());
-   }
-
-   b_form.Assemble();
-   b_form.Finalize();
-
-   impl_->mass_matrix = shared_ptr<HypreParMatrix>(b_form.ParallelAssemble());
 
    comm.barrier();
 
@@ -1122,11 +1176,12 @@ bool ParMortarAssembler::Update()
                 << ")\n";
    }
 
-   // if (dof_transformation)
-   // {
-   //    impl_->mass_matrix.reset(RAP(impl_->mass_matrix.get(),
-   //                                 impl_->destination->Dof_TrueDof_Matrix()));
-   // }
+   if (dof_transformation && impl_->assemble_mass_and_coupling_together)
+   {
+      impl_->mass_matrix.reset(RAP(impl_->destination->Dof_TrueDof_Matrix(),
+                                   impl_->mass_matrix.get(),
+                                   impl_->destination->Dof_TrueDof_Matrix()));
+   }
 
    auto &D = *impl_->mass_matrix;
 
