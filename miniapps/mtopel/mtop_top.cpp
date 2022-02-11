@@ -95,6 +95,7 @@ int main(int argc, char *argv[])
    double abs_tol = 1e-15;
    double fradius = 0.05;
    int tot_iter = 100;
+   int max_it = 51;
    int print_level = 1;
    bool visualization = false;
    const char *petscrc_file = "";
@@ -133,6 +134,10 @@ int main(int argc, char *argv[])
                   "-it",
                   "--linear-iterations",
                   "Maximum iterations for the linear solve.");
+   args.AddOption(&max_it,
+                  "-mit",
+                  "--max-optimization-iterations",
+                  "Maximum iterations for the linear optimizer.");
    args.AddOption(&fradius,
                   "-r",
                   "--radius",
@@ -258,7 +263,6 @@ int main(int argc, char *argv[])
 
    double max_ch=0.1; //max design change
    double lam, lam_max, lam_min; //Lagrange multiplier
-   int max_it=51;
 
    double cpl; //compliance
    double vol; //volume
