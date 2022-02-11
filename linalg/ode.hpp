@@ -703,6 +703,21 @@ public:
    virtual void Step(Vector &x, Vector &e, double &t, double &dt) = 0;
 };
 
+/// Use a standard ODE Solver as an embedded solver with no error estimate
+class EmbeddedStandardSolver : public ODEEmbeddedSolver
+{
+private:
+   ODESolver *sol;
+
+public:
+   EmbeddedStandardSolver(ODESolver &sol) : sol(&sol) {}
+
+   virtual void Init(TimeDependentOperator &f) { sol->Init(f); }
+
+   void Step(Vector &x, double &t, double &dt) { sol->Step(x, t, dt); }
+   void Step(Vector &x, Vector &e, double &t, double &dt);
+};
+
 /** An explicit embedded Runge-Kutta method corresponding to a general
     extended Butcher tableau
     +--------+-------------------------+

@@ -1122,7 +1122,8 @@ int main(int argc, char *argv[])
    args.AddOption(&tol_ode, "-tol", "--ode-tolerance",
                   "Difference tolerance for ODE integration.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - SDIRK 212, 2 - SDIRK 534.");
+                  "ODE solver: 0 - Backward Euler (disables adaptive time "
+                  "stepping), 1 - SDIRK 212, 2 - SDIRK 534.");
    args.AddOption(&ode_limiter_type, "-sl", "--ode-limiter",
                   "ODE Limiter: 1 - Maximum, 2 - Dead-Zone.");
    args.AddOption(&ode_epus, "-epus", "--err-per-unit-step", "-eps",
@@ -1559,8 +1560,15 @@ int main(int argc, char *argv[])
    IAdjFactor   dt_rej(kI_rej);
 
    ODEEmbeddedSolver * ode_solver = NULL;
+   BackwardEulerSolver bw_euler;
    switch (ode_solver_type)
    {
+      case 0:
+         ode_solver = new EmbeddedStandardSolver(bw_euler);
+         // Disable adaptive time stepping
+         dt_floor = dt;
+         lim_max = 1.0;
+         break;
       case 1: ode_solver = new SDIRK212Solver; break;
       case 2: ode_solver = new SDIRK534Solver; break;
    }

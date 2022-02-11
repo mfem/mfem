@@ -976,6 +976,14 @@ void IMEXRK2::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
+
+void EmbeddedStandardSolver::Step(Vector &x, Vector &e, double &t, double &dt)
+{
+   sol->Step(x, t, dt);
+   if (e.Size() != x.Size()) { e.SetSize(x.Size()); }
+   e = -1.0;
+}
+
 EmbeddedRKSolver::EmbeddedRKSolver(int _s, const double *_a,
                                    const double *_b, const double *_b_embedded,
                                    const double *_c)
