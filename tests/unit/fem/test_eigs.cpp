@@ -52,7 +52,7 @@ int eigs[21] =
 };
 
 #ifdef MFEM_USE_LAPACK
-#
+
 TEST_CASE("Laplacian Eigenvalues",
           "[H1_FECollection]"
           "[GridFunction]"

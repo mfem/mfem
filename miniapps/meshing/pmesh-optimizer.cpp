@@ -358,9 +358,9 @@ int main (int argc, char *argv[])
       }
       vol_loc += pmesh->GetElementVolume(i);
    }
-   double volume;
-   MPI_Allreduce(&vol_loc, &volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
+   double vol_glb;
+   MPI_Allreduce(&vol_loc, &vol_glb, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   const double small_phys_size = pow(vol_glb, 1.0 / dim) / 100.0;
 
    // 9. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -1019,7 +1019,7 @@ int main (int argc, char *argv[])
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
-      Array<int> ess_vdofs(n), vdofs;
+      Array<int> ess_vdofs(n);
       n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
