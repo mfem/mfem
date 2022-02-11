@@ -358,7 +358,7 @@ public:
        method has no effect.
 
        When any non-serial-CPU backend is enabled, i.e. the call
-       `Device::Allows(~Backend::CPU_MASK)` returns true, the above methods
+       Device::Allows(~ Backend::CPU_MASK) returns true, the above methods
        require the internal transpose to be built. If that is not the case (i.e.
        the internal transpose is not built), these methods will raise an error
        with an appropriate message pointing to EnsureMultTranspose(). When using
