@@ -4741,9 +4741,9 @@ private:
       inline MatrixCoefficient * GetnXeCoef()
       { return op_[4]->GetDiffusionMatrixCoef(); }
 
-      inline Solver* GetIonDensityPreconditoner() const
+      inline Solver* GetPreconditionerBlock(int i) const
       {
-         return op_[1]->dg_precond_;
+         return op_[i]->GetPreconditioner();
       }
 
       void Update();
