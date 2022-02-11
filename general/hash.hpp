@@ -207,6 +207,9 @@ protected:
    int SearchList(int id, int p1, int p2) const;
    int SearchList(int id, int p1, int p2, int p3) const;
 
+   /// Insert the item with id into bin idx.
+   /** Does not check if the bin has space.  Be sure
+       to use CheckRehash() if that is in question. */
    inline void Insert(int idx, int id, T &item);
    void Unlink(int idx, int id);
 
