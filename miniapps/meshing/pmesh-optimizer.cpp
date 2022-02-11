@@ -29,10 +29,7 @@
 // negative Jacobian determinants. Each Newton step requires the inversion of a
 // Jacobian matrix, which is done through an inner linear solver.
 //
-// mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 333 -tid 3 -ni 500 -bnd -ae 0 -vl 1 -sfc 1000 -rtol 1e-6 -qo 6 -st 1
 // Compile with: make pmesh-optimizer
-// adaptive surface fit example
-// mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 58 -tid 1 -ni 50 -vl 2 -sfc 10 -rtol 1e-12 -st 1 -asf
 //
 // Sample runs:
 //   Adapted analytic shape:
@@ -75,7 +72,8 @@
 //  Adaptive surface fitting:
 //    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor
 //    mpirun -np 4 pmesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
-//
+//  Surface fitting with weight adaptation and termination based on fitting error
+//    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -vis -st 0 -sfa -sft 1e-5
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
@@ -425,6 +423,7 @@ int main (int argc, char *argv[])
    switch (metric_id)
    {
       // T-metrics
+      case 0: metric = new TMOP_Metric_000; break;
       case 1: metric = new TMOP_Metric_001; break;
       case 2: metric = new TMOP_Metric_002; break;
       case 7: metric = new TMOP_Metric_007; break;
