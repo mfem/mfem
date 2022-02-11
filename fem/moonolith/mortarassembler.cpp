@@ -37,9 +37,42 @@ public:
    std::shared_ptr<SparseMatrix> coupling_matrix;
    std::shared_ptr<SparseMatrix> mass_matrix;
    bool verbose{false};
+   bool assemble_mass_and_coupling_together{true};
+
+   bool is_vector_fe() const
+   {
+      bool is_vector_fe = false;
+      for (auto i_ptr : integrators)
+      {
+         if (i_ptr->is_vector_fe())
+         {
+            is_vector_fe = true;
+            break;
+         }
+      }
+
+      return is_vector_fe;
+   }
+
+   BilinearFormIntegrator * new_mass_integrator() const
+   {
+      if (is_vector_fe())
+      {
+         return new VectorFEMassIntegrator();
+      }
+      else
+      {
+         return new MassIntegrator();
+      }
+   }
 };
 
 MortarAssembler::~MortarAssembler() = default;
+
+void MortarAssembler::SetAssembleMassAndCouplingTogether(const bool value)
+{
+   impl_->assemble_mass_and_coupling_together = value;
+}
 
 void MortarAssembler::AddMortarIntegrator(
    const std::shared_ptr<MortarIntegrator> &integrator)
@@ -152,6 +185,14 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    int skip_zeros = 1;
    B = make_shared<SparseMatrix>(impl_->destination->GetNDofs(),
                                  impl_->source->GetNDofs());
+
+
+   std::unique_ptr<BilinearFormIntegrator> mass_integr(impl_->new_mass_integrator());
+
+   if(impl_->assemble_mass_and_coupling_together) {
+      impl_->mass_matrix = make_shared<SparseMatrix>(impl_->destination->GetNDofs(), impl_->destination->GetNDofs());
+   }
+
    Array<int> source_vdofs, destination_vdofs;
    DenseMatrix elemmat;
    DenseMatrix cumulative_elemmat;
@@ -212,6 +253,13 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 
          B->AddSubMatrix(destination_vdofs, source_vdofs, cumulative_elemmat,
                          skip_zeros);
+
+         if(impl_->assemble_mass_and_coupling_together) {
+            mass_integr->SetIntRule(&destination_ir);
+            mass_integr->AssembleElementMatrix(destination_fe, destination_Trans, elemmat);
+            impl_->mass_matrix->AddSubMatrix(destination_vdofs, destination_vdofs, elemmat, skip_zeros);
+         }
+
          intersected = true;
          ++n_intersections;
       }
@@ -223,6 +271,10 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    }
 
    B->Finalize();
+
+   if(impl_->assemble_mass_and_coupling_together) {
+      impl_->mass_matrix->Finalize();
+   }
 
    if (verbose)
    {
@@ -257,13 +309,18 @@ bool MortarAssembler::Apply(const GridFunction &src_fun,
       }
    }
 
-   CGSolver Dinv;
-   Dinv.SetOperator(*impl_->mass_matrix);
-   Dinv.SetRelTol(1e-6);
-   Dinv.SetMaxIter(20);
-
    Vector temp(impl_->coupling_matrix->Height());
    impl_->coupling_matrix->Mult(src_fun, temp);
+
+   CGSolver Dinv;
+
+   if(impl_->verbose) {
+      Dinv.SetPrintLevel(3);
+   }
+   
+   Dinv.SetOperator(*impl_->mass_matrix);
+   Dinv.SetRelTol(1e-6);
+   Dinv.SetMaxIter(80);
    Dinv.Mult(temp, dest_fun);
    return true;
 }
@@ -294,31 +351,16 @@ bool MortarAssembler::Update()
       mfem::out << chrono.RealTime() << " seconds" << endl;
    }
 
-   BilinearForm b_form(impl_->destination.get());
+   if(!impl_->assemble_mass_and_coupling_together) {
+      BilinearForm b_form(impl_->destination.get());
 
-   bool is_vector_fe = false;
-   for (auto i_ptr : impl_->integrators)
-   {
-      if (i_ptr->is_vector_fe())
-      {
-         is_vector_fe = true;
-         break;
-      }
+      b_form.AddDomainIntegrator(impl_->new_mass_integrator());
+
+      b_form.Assemble();
+      b_form.Finalize();
+
+      impl_->mass_matrix = std::shared_ptr<SparseMatrix>(b_form.LoseMat());
    }
-
-   if (is_vector_fe)
-   {
-      b_form.AddDomainIntegrator(new VectorFEMassIntegrator());
-   }
-   else
-   {
-      b_form.AddDomainIntegrator(new MassIntegrator());
-   }
-
-   b_form.Assemble();
-   b_form.Finalize();
-
-   impl_->mass_matrix = std::shared_ptr<SparseMatrix>(b_form.LoseMat());
 
    if (verbose)
    {

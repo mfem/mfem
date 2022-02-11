@@ -35,7 +35,10 @@ namespace mfem
  * It generates quadrature rules in the intersection which allows us to
  * integrate with to machine precision using the mfem::MortarIntegrator
  * interface. See https://doi.org/10.1137/15M1008361 for and in-depth
- * explanation. At this time curved elements are not supported.
+ * explanation. At this time curved elements are not supported. 
+ * Convex non-affine elements are supported, however, high order (>3)
+ * finite element discretizations might generate some undesidered oscillations.
+ * For such cases localized versions of the projection will have to be developed.
  */
 class ParMortarAssembler
 {
@@ -109,8 +112,18 @@ public:
     */
    void SetVerbose(const bool verbose);
 
-private:
+
+   /*!
+    * @brief Control if the Mass matrix is computed together with the coupling operator every time.
+    * @param value is set to true for computing the mass matrix operator with the coupling operator, false otherwise.
+    * The option is true by default, set to false if only the coupling operator is needed.
+    */
+   void SetAssembleMassAndCouplingTogether(const bool value);
+
+
    struct Impl;
+
+   private:
    std::unique_ptr<Impl> impl_;
 };
 

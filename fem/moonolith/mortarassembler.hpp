@@ -102,6 +102,14 @@ public:
     */
    void SetVerbose(const bool verbose);
 
+
+   /*!
+    * @brief Control if the Mass matrix is computed together with the coupling operator every time.
+    * @param value is set to true for computing the mass matrix operator with the coupling operator, false otherwise.
+    * The option is true by default, set to false if only the coupling operator is needed.
+    */
+   void SetAssembleMassAndCouplingTogether(const bool value);
+
 private:
    struct Impl;
    std::unique_ptr<Impl> impl_;
