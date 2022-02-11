@@ -69,8 +69,10 @@ public:
        passed in 'part', where part[i] is the desired MPI rank for element i. */
    ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, int* part = NULL);
 
-   /// Load from a stream. The id header is assumed to have been read already.
-   ParNCMesh(MPI_Comm comm, std::istream &input, int version, int &curved);
+   /** Load from a stream, parallel version. See the serial NCMesh::NCMesh
+       counterpart for a description of the parameters. */
+   ParNCMesh(MPI_Comm comm, std::istream &input,
+             int version, int &curved, int &is_nc);
 
    /// Deep copy of another instance.
    ParNCMesh(const ParNCMesh &other);
@@ -92,6 +94,11 @@ public:
    /** Parallel reimplementation of NCMesh::Derefine, keeps ghost layers
        in sync. The interface is identical. */
    virtual void Derefine(const Array<int> &derefs);
+
+   /** Gets partitioning for the coarse mesh if the current fine mesh were to
+       be derefined. */
+   virtual void GetFineToCoarsePartitioning(const Array<int> &derefs,
+                                            Array<int> &new_ranks) const;
 
    /** Migrate leaf elements of the global refinement hierarchy (including ghost
        elements) so that each processor owns the same number of leaves (+-1).
@@ -241,7 +248,6 @@ public:
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
 
-
 protected: // interface for ParMesh
 
    friend class ParMesh;
@@ -294,9 +300,6 @@ protected: // implementation
    Array<int> boundary_layer; ///< list of type 3 elements
 
    virtual void Update();
-
-   virtual int GetNumGhostElements() const { return NGhostElements; }
-   virtual int GetNumGhostVertices() const { return NGhostVertices; }
 
    /// Return the processor number for a global element number.
    int Partition(long index, long total_elements) const

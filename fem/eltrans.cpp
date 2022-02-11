@@ -21,7 +21,8 @@ ElementTransformation::ElementTransformation()
      EvalState(0),
      geom(Geometry::INVALID),
      Attribute(-1),
-     ElementNo(-1)
+     ElementNo(-1),
+     mesh(nullptr)
 { }
 
 double ElementTransformation::EvalWeight()
@@ -380,6 +381,7 @@ void IsoparametricTransformation::SetIdentityTransformation(
       case Geometry::TETRAHEDRON : FElem = &TetrahedronFE; break;
       case Geometry::CUBE :        FElem = &HexahedronFE; break;
       case Geometry::PRISM :       FElem = &WedgeFE; break;
+      case Geometry::PYRAMID :     FElem = &PyramidFE; break;
       default:
          MFEM_ABORT("unknown Geometry::Type!");
    }

@@ -35,6 +35,10 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+   virtual void AssembleRHSElementVect(const FiniteElement &el1,
+                                       const FiniteElement &el2,
+                                       FaceElementTransformations &Tr,
+                                       Vector &elvect);
 
    virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
    const IntegrationRule* GetIntRule() { return IntRule; }
@@ -166,6 +170,8 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 /// Class for boundary integration \f$ L(v) = (g \cdot n, v) \f$
@@ -431,13 +437,13 @@ private:
    Vector shape;
 
 public:
-   BoundaryFlowIntegrator(Coefficient &_f, VectorCoefficient &_u,
+   BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
                           double a)
-   { f = &_f; u = &_u; alpha = a; beta = 0.5*a; }
+   { f = &f_; u = &u_; alpha = a; beta = 0.5*a; }
 
-   BoundaryFlowIntegrator(Coefficient &_f, VectorCoefficient &_u,
+   BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
                           double a, double b)
-   { f = &_f; u = &_u; alpha = a; beta = b; }
+   { f = &f_; u = &u_; alpha = a; beta = b; }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
@@ -445,7 +451,10 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
+
 
 /** Boundary linear integrator for imposing non-zero Dirichlet boundary
     conditions, to be used in conjunction with DGDiffusionIntegrator.
@@ -484,6 +493,8 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 
@@ -527,6 +538,8 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 /** Class for domain integration of L(v) := (f, v), where

@@ -29,6 +29,8 @@
 #include "solvers.hpp"
 #include "handle.hpp"
 #include "invariants.hpp"
+#include "constraints.hpp"
+#include "auxiliary.hpp"
 
 #ifdef MFEM_USE_AMGX
 #include "amgxsolver.hpp"

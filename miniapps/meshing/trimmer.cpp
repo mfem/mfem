@@ -235,24 +235,47 @@ int main(int argc, char *argv[])
    trimmed_mesh.FinalizeTopology();
    trimmed_mesh.RemoveUnusedVertices();
 
-
-   mesh.EnsureNodes();
-   GridFunction * nodes = mesh.GetNodes();
-   VectorGridFunctionCoefficient gf_nodes(nodes);
-
-   int order = nodes->FESpace()->GetOrder(0);
-   cout << order  << endl;
-   if (order > 1)
+   // Check for curved or discontinuous mesh
+   if (mesh.GetNodes())
    {
-      trimmed_mesh.SetCurvature(order, true, 3, Ordering::byVDIM);
+      // Extract Nodes GridFunction and determine its type
+      const GridFunction * Nodes = mesh.GetNodes();
+      const FiniteElementSpace * fes = Nodes->FESpace();
+
+      Ordering::Type ordering = fes->GetOrdering();
+      int order = fes->FEColl()->GetOrder();
+      int sdim = mesh.SpaceDimension();
+      bool discont =
+         dynamic_cast<const L2_FECollection*>(fes->FEColl()) != NULL;
+
+      // Set curvature of the same type as original mesh
+      trimmed_mesh.SetCurvature(order, discont, sdim, ordering);
+
+      const FiniteElementSpace * trimmed_fes = trimmed_mesh.GetNodalFESpace();
+      GridFunction * trimmed_nodes = trimmed_mesh.GetNodes();
+
+      Array<int> vdofs;
+      Array<int> trimmed_vdofs;
+      Vector loc_vec;
+
+      // Copy nodes to trimmed mesh
+      int te = 0;
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         Element * el = mesh.GetElement(e);
+         int elem_attr = el->GetAttribute();
+         if (!marker[elem_attr-1])
+         {
+            fes->GetElementVDofs(e, vdofs);
+            Nodes->GetSubVector(vdofs, loc_vec);
+
+            trimmed_fes->GetElementVDofs(te, trimmed_vdofs);
+            trimmed_nodes->SetSubVector(trimmed_vdofs, loc_vec);
+            te++;
+         }
+      }
    }
-   trimmed_mesh.Transform(gf_nodes);
-   
-   if (order > 1)
-   {
-      trimmed_mesh.SetCurvature(order, false, 3, Ordering::byVDIM);
-   }
-   
+
    // Save the final mesh
    ofstream mesh_ofs("trimmer.mesh");
    mesh_ofs.precision(8);

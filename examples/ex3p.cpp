@@ -16,6 +16,8 @@
 //               mpirun -np 4 ex3p -m ../data/beam-hex-nurbs.mesh
 //               mpirun -np 4 ex3p -m ../data/amr-quad.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/amr-hex.mesh
+//               mpirun -np 4 ex3p -m ../data/ref-prism.mesh -o 1
+//               mpirun -np 4 ex3p -m ../data/octahedron.mesh -o 1
 //               mpirun -np 4 ex3p -m ../data/star-surf.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/mobius-strip.mesh -o 2 -f 0.1
 //               mpirun -np 4 ex3p -m ../data/klein-bottle.mesh -o 2 -f 0.1
@@ -69,7 +71,10 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
-   bool visualization = 1;
+   bool visualization = true;
+#ifdef MFEM_USE_AMGX
+   bool useAmgX = false;
+#endif
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -87,6 +92,11 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+#ifdef MFEM_USE_AMGX
+   args.AddOption(&useAmgX, "-amgx", "--useAmgX", "-no-amgx",
+                  "--no-useAmgX",
+                  "Enable or disable AmgX in MatrixFreeAMS.");
+#endif
 
    args.Parse();
    if (!args.Good())
@@ -95,6 +105,7 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
+      // HYPRE_Finalize();
       MPI_Finalize();
       return 1;
    }
@@ -130,9 +141,7 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
-   //    meshes need to be reoriented before we can define high-order Nedelec
-   //    spaces on them.
+   //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
@@ -142,13 +151,12 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -159,9 +167,10 @@ int main(int argc, char *argv[])
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
+   Array<int> ess_bdr;
    if (pmesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr.SetSize(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
@@ -205,20 +214,20 @@ int main(int argc, char *argv[])
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-   // 13. Solve the system AX=B using PCG with the AMS preconditioner from hypre
-   //     (in the full assembly case) or CG with Jacobi preconditioner (in the
-   //     partial assembly case).
-
-   if (pa) // Jacobi preconditioning in partial assembly mode
+   // 13. Solve the system AX=B using PCG with an AMS preconditioner.
+   if (pa)
    {
-      OperatorJacobiSmoother Jacobi(*a, ess_tdof_list);
-
+#ifdef MFEM_USE_AMGX
+      MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, NULL, ess_bdr, useAmgX);
+#else
+      MatrixFreeAMS ams(*a, *A, *fespace, muinv, sigma, NULL, ess_bdr);
+#endif
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(1000);
       cg.SetPrintLevel(1);
       cg.SetOperator(*A);
-      cg.SetPreconditioner(Jacobi);
+      cg.SetPreconditioner(ams);
       cg.Mult(B, X);
    }
    else
@@ -246,10 +255,10 @@ int main(int argc, char *argv[])
 
    // 15. Compute and print the L^2 norm of the error.
    {
-      double err = x.ComputeL2Error(E);
+      double error = x.ComputeL2Error(E);
       if (myid == 0)
       {
-         cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
+         cout << "\n|| E_h - E ||_{L^2} = " << error << '\n' << endl;
       }
    }
 

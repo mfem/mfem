@@ -138,7 +138,7 @@ static void rotateSimplex(int type,
       MFEM_ASSERT(r>=0 && r<6, "incorrect rotation");
       n = 3;
    }
-   else if (type = apf::Mesh::TET) // tets
+   else if (type == apf::Mesh::TET) // tets
    {
       MFEM_ASSERT(r>=0 && r<12, "incorrect rotation");
       n = 4;
@@ -360,6 +360,10 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
    NumOfElements = countOwned(apf_mesh,Dim);
    elements.SetSize(NumOfElements);
 
+   // Look for the gmsh physical entity tag
+   const char* gmshTagName = "gmsh_physical_entity";
+   apf::MeshTag* gmshPhysEnt = apf_mesh->findTag(gmshTagName);
+
    // Read elements from SCOREC Mesh
    itr = apf_mesh->begin(Dim);
    unsigned int j=0;
@@ -368,8 +372,12 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
       // Get vertices
       apf::Downward verts;
       apf_mesh->getDownward(ent,0,verts); // num_vert
-      // Get attribute Tag vs Geometry
+      // Get attribute Tag from gmsh if it exists
       int attr = 1;
+      if ( gmshPhysEnt )
+      {
+         apf_mesh->getIntTag(ent,gmshPhysEnt,&attr);
+      }
 
       int geom_type = apf_mesh->getType(ent);
       elements[j] = NewElement(geom_type);
@@ -511,6 +519,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
    NumOfElements = countOwned(apf_mesh,Dim);
    elements.SetSize(NumOfElements);
 
+   // Look for the gmsh physical entity tag
+   const char* gmshTagName = "gmsh_physical_entity";
+   apf::MeshTag* gmshPhysEnt = apf_mesh->findTag(gmshTagName);
+
    // Read elements from SCOREC Mesh
    itr = apf_mesh->begin(Dim);
    for (int j = 0; (ent = apf_mesh->iterate(itr)); j++)
@@ -518,9 +530,14 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
       // Get vertices
       apf::Downward verts;
       apf_mesh->getDownward(ent,0,verts);
+      // Get attribute Tag from gmsh if it exists
+      int attr = 1;
+      if ( gmshPhysEnt )
+      {
+         apf_mesh->getIntTag(ent,gmshPhysEnt,&attr);
+      }
 
       // Get attribute Tag vs Geometry
-      int attr = 1;
       int geom_type = apf_mesh->getType(ent);
       elements[j] = NewElement(geom_type);
       ReadPumiElement(ent, verts, attr, v_num_loc, elements[j]);
@@ -931,7 +948,7 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
    }
    PumiM->end(itr);
 
-   sequence = 0;
+   fes_sequence = 0;
 }
 
 // Copy the adapted mesh to the original mesh and increase the sequence to be

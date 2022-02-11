@@ -263,24 +263,23 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh *orig_mesh = new Mesh("../../data/periodic-cube.mesh");
-   Mesh *mesh = new Mesh(orig_mesh,
-                         ctx.element_subdivisions,
-                         BasisType::ClosedUniform);
-   delete orig_mesh;
+   Mesh orig_mesh("../../data/periodic-cube.mesh");
+   Mesh mesh = Mesh::MakeRefined(orig_mesh, ctx.element_subdivisions,
+                                 BasisType::ClosedUniform);
+   orig_mesh.Clear();
 
-   mesh->EnsureNodes();
-   GridFunction *nodes = mesh->GetNodes();
+   mesh.EnsureNodes();
+   GridFunction *nodes = mesh.GetNodes();
    *nodes *= M_PI;
 
-   int nel = mesh->GetNE();
+   int nel = mesh.GetNE();
    if (mpi.Root())
    {
       mfem::out << "Number of elements: " << nel << std::endl;
    }
 
-   auto *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
 
    // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
@@ -328,7 +327,7 @@ int main(int argc, char *argv[])
    double ke = kin_energy.ComputeKineticEnergy(*u_gf);
 
    std::string fname = "tgv_out_p_" + std::to_string(ctx.order) + ".txt";
-   FILE *f;
+   FILE *f = NULL;
 
    if (mpi.Root())
    {
@@ -367,11 +366,11 @@ int main(int argc, char *argv[])
          pvdc.Save();
       }
 
-      double u_inf_loc = u_gf->Normlinf();
-      double p_inf_loc = p_gf->Normlinf();
-      double u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
-      double p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
-      double ke = kin_energy.ComputeKineticEnergy(*u_gf);
+      u_inf_loc = u_gf->Normlinf();
+      p_inf_loc = p_gf->Normlinf();
+      u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
+      p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
+      ke = kin_energy.ComputeKineticEnergy(*u_gf);
       if (mpi.Root())
       {
          printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
@@ -386,7 +385,7 @@ int main(int argc, char *argv[])
    // Test if the result for the test run is as expected.
    if (ctx.checkres)
    {
-      double tol = 1e-5;
+      double tol = 2e-5;
       double ke_expected = 1.25e-1;
       if (fabs(ke - ke_expected) > tol)
       {

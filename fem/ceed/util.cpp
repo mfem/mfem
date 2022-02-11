@@ -186,22 +186,26 @@ static void InitTensorBasis(const mfem::FiniteElementSpace &fes,
    const int ndofs = maps.ndof;
    const int nqpts = maps.nqpt;
    mfem::Vector qX(nqpts), qW(nqpts);
-   const mfem::IntegrationRule &ir1d =
-      IntRules.Get(Geometry::SEGMENT, ir.GetOrder());
+   // The x-coordinates of the first `nqpts` points of the integration rule are
+   // the points of the corresponding 1D rule. We also scale the weights
+   // accordingly.
+   double w_sum = 0.0;
    for (int i = 0; i < nqpts; i++)
    {
-      const mfem::IntegrationPoint &ip = ir1d.IntPoint(i);
+      const mfem::IntegrationPoint &ip = ir.IntPoint(i);
       qX(i) = ip.x;
       qW(i) = ip.weight;
+      w_sum += ip.weight;
    }
+   qW *= 1.0/w_sum;
    CeedBasisCreateTensorH1(ceed, mesh->Dimension(), fes.GetVDim(), ndofs,
                            nqpts, maps.Bt.GetData(),
                            maps.Gt.GetData(), qX.GetData(),
                            qW.GetData(), basis);
 }
 
-static void InitTensorRestriction(const mfem::FiniteElementSpace &fes,
-                                  Ceed ceed, CeedElemRestriction *restr)
+void InitTensorRestriction(const mfem::FiniteElementSpace &fes,
+                           Ceed ceed, CeedElemRestriction *restr)
 {
    mfem::Mesh *mesh = fes.GetMesh();
    const mfem::FiniteElement *fe = fes.GetFE(0);
@@ -256,7 +260,7 @@ void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
                                        nelem*nqpts*qdatasize,
                                        strides,
                                        restr);
-      /// Will be automatically destroyed when @a fes gets destroyed.
+      // Will be automatically destroyed when @a fes gets destroyed.
       mfem::internal::ceed_restr_map[restr_key] = *restr;
    }
    else
@@ -315,6 +319,77 @@ void InitBasisAndRestriction(const FiniteElementSpace &fes,
    {
       *restr = restr_itr->second;
    }
+}
+
+// Assumes a tensor-product operator with one active field
+int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
+{
+   int ierr;
+   Ceed ceed;
+   ierr = CeedOperatorGetCeed(oper, &ceed); CeedChk(ierr);
+
+   CeedQFunction qf;
+   bool isComposite;
+   ierr = CeedOperatorIsComposite(oper, &isComposite); CeedChk(ierr);
+   CeedOperator *subops;
+   if (isComposite)
+   {
+      ierr = CeedOperatorGetSubList(oper, &subops); CeedChk(ierr);
+      ierr = CeedOperatorGetQFunction(subops[0], &qf); CeedChk(ierr);
+   }
+   else
+   {
+      ierr = CeedOperatorGetQFunction(oper, &qf); CeedChk(ierr);
+   }
+   CeedInt numinputfields, numoutputfields;
+   ierr = CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
+   CeedOperatorField *inputfields;
+   if (isComposite)
+   {
+      ierr = CeedOperatorGetFields(subops[0], &inputfields, NULL); CeedChk(ierr);
+   }
+   else
+   {
+      ierr = CeedOperatorGetFields(oper, &inputfields, NULL); CeedChk(ierr);
+   }
+
+   CeedVector if_vector;
+   bool found = false;
+   int found_index = -1;
+   for (int i = 0; i < numinputfields; ++i)
+   {
+      ierr = CeedOperatorFieldGetVector(inputfields[i], &if_vector); CeedChk(ierr);
+      if (if_vector == CEED_VECTOR_ACTIVE)
+      {
+         if (found)
+         {
+            return CeedError(ceed, 1, "Multiple active vectors in CeedOperator!");
+         }
+         found = true;
+         found_index = i;
+      }
+   }
+   if (!found)
+   {
+      return CeedError(ceed, 1, "No active vector in CeedOperator!");
+   }
+   *field = inputfields[found_index];
+
+   return 0;
+}
+
+int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
+                                         CeedElemRestriction* restr_out)
+{
+   int ierr;
+
+   CeedOperatorField active_field;
+   ierr = CeedOperatorGetActiveField(oper, &active_field); CeedChk(ierr);
+   CeedElemRestriction er;
+   ierr = CeedOperatorFieldGetElemRestriction(active_field, &er); CeedChk(ierr);
+   *restr_out = er;
+
+   return 0;
 }
 
 std::string ceed_path;

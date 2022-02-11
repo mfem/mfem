@@ -134,6 +134,9 @@ public:
    /// Copy the internal data to the external 'copy'.
    void Copy(GroupTopology & copy) const;
 
+   /// Swap the internal data with another @a GroupTopology object.
+   void Swap(GroupTopology &other);
+
    virtual ~GroupTopology() {}
 };
 

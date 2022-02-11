@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "densemat.hpp"
 #include "handle.hpp"
+#include <memory>
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -55,7 +56,7 @@ public:
    {
    }
 
-   /** @brief This method is invoked by ItertiveSolver::SetMonitor, informing
+   /** @brief This method is invoked by IterativeSolver::SetMonitor, informing
        the monitor which IterativeSolver is using it. */
    void SetIterativeSolver(const IterativeSolver &solver)
    { iter_solver = &solver; }
@@ -64,10 +65,55 @@ public:
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
 {
+public:
+   /** @brief Settings for the output behavior of the IterativeSolver.
+
+       By default, all output is suppressed. The construction of the desired
+       print level can be achieved through a builder pattern, for example
+
+           PrintLevel().Errors().Warnings()
+
+       constructs the print level with only errors and warnings enabled.
+     */
+   struct PrintLevel
+   {
+      /** @brief If a fatal problem has been detected the failure will be
+          reported to @ref mfem::err. */
+      bool errors = false;
+      /** @brief If a non-fatal problem has been detected some context-specific
+          information will be reported to @ref mfem::out */
+      bool warnings = false;
+      /** @brief Detailed information about each iteration will be reported to
+          @ref mfem::out */
+      bool iterations = false;
+      /** @brief A summary of the solver process will be reported after the last
+          iteration to @ref mfem::out */
+      bool summary = false;
+      /** @brief Information about the first and last iteration will be printed
+          to @ref mfem::out */
+      bool first_and_last = false;
+
+      /// Initializes the print level to suppress
+      PrintLevel() = default;
+
+      /** @name Builder
+         These methods are utilized to construct PrintLevel objects through a
+         builder approach by chaining the function calls in this group. */
+      ///@{
+      PrintLevel &None() { *this = PrintLevel(); return *this; }
+      PrintLevel &Warnings() { warnings=true; return *this; }
+      PrintLevel &Errors() { errors=true; return *this; }
+      PrintLevel &Iterations() { iterations=true; return *this; }
+      PrintLevel &FirstAndLast() { first_and_last=true; return *this; }
+      PrintLevel &Summary() { summary=true; return *this; }
+      PrintLevel &All() { return Warnings().Errors().Iterations().FirstAndLast().Summary(); }
+      ///@}
+   };
+
 #ifdef MFEM_USE_MPI
 private:
    int dot_prod_type; // 0 - local, 1 - global over 'comm'
-   MPI_Comm comm;
+   MPI_Comm comm = MPI_COMM_NULL;
 #endif
 
 protected:
@@ -75,12 +121,51 @@ protected:
    Solver *prec;
    IterativeSolverMonitor *monitor = nullptr;
 
-   int max_iter, print_level;
-   double rel_tol, abs_tol;
+   /// @name Reporting (protected attributes and member functions)
+   ///@{
 
-   // stats
-   mutable int final_iter, converged;
+   /** @brief (DEPRECATED) Legacy print level definition, which is left for
+       compatibility with custom iterative solvers.
+       @deprecated #print_options should be used instead. */
+   int print_level = -1;
+
+   /** @brief Output behavior for the iterative solver.
+
+       This primarily controls the output behavior of the iterative solvers
+       provided by this library. This member must be synchronized with
+       #print_level to ensure compatibility with custom iterative solvers. */
+   PrintLevel print_options;
+
+   /// Convert a legacy print level integer to a PrintLevel object
+   PrintLevel FromLegacyPrintLevel(int);
+
+   /// @brief Use some heuristics to guess a legacy print level corresponding to
+   /// the given PrintLevel.
+   static int GuessLegacyPrintLevel(PrintLevel);
+   ///@}
+
+   /// @name Convergence (protected attributes)
+   ///@{
+
+   /// Limit for the number of iterations the solver is allowed to do
+   int max_iter;
+
+   /// Relative tolerance.
+   double rel_tol;
+
+   /// Absolute tolerance.
+   double abs_tol;
+
+   ///@}
+
+   /// @name Solver statistics (protected attributes)
+   ///@{
+
+   mutable int final_iter;
+   mutable bool converged;
    mutable double final_norm;
+
+   ///@}
 
    double Dot(const Vector &x, const Vector &y) const;
    double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
@@ -91,23 +176,83 @@ public:
    IterativeSolver();
 
 #ifdef MFEM_USE_MPI
-   IterativeSolver(MPI_Comm _comm);
+   IterativeSolver(MPI_Comm comm_);
 #endif
 
+   /** @name Convergence
+       @brief Termination criteria for the iterative solvers.
+
+       @details While the convergence criterion is solver specific, most of the
+       provided iterative solvers use one of the following criteria
+
+       \f$ ||r||_X \leq tol_{rel}||r_0||_X \f$,
+
+       \f$ ||r||_X \leq tol_{abs} \f$,
+
+       \f$ ||r||_X \leq \max\{ tol_{abs}, tol_{rel} ||r_0||_X \} \f$,
+
+       where X denotes the space in which the norm is measured. The choice of
+       X depends on the specific iterative solver.
+      */
+   ///@{
    void SetRelTol(double rtol) { rel_tol = rtol; }
    void SetAbsTol(double atol) { abs_tol = atol; }
    void SetMaxIter(int max_it) { max_iter = max_it; }
-   void SetPrintLevel(int print_lvl);
+   ///@}
 
+   /** @name Reporting
+       These options control the internal reporting behavior into ::mfem::out
+       and ::mfem::err of the iterative solvers.
+    */
+   ///@{
+
+   /// @brief Legacy method to set the level of verbosity of the solver output.
+   /** This is the old way to control what information will be printed to
+       ::mfem::out and ::mfem::err. The behavior for the print level for all
+       iterative solvers is:
+
+       - -1: Suppress all outputs.
+       -  0: Print information about all detected issues (e.g. no convergence).
+       -  1: Same as level 0, but with detailed information about each
+             iteration.
+       -  2: Print detected issues and a summary when the solver terminates.
+       -  3: Same as 2, but print also the first and last iterations.
+       - >3: Custom print options which are dependent on the specific solver.
+
+       In parallel, only rank 0 produces output.
+
+       @note It is recommended to use @ref SetPrintLevel(PrintLevel) instead.
+
+       @note Some derived classes, like KINSolver, redefine this method and use
+       their own set of print level constants. */
+   virtual void SetPrintLevel(int print_lvl);
+
+   /// @brief Set the level of verbosity of the solver output.
+   /** In parallel, only rank 0 produces outputs. Errors are output to
+       ::mfem::err and all other information to ::mfem::out.
+
+       @note Not all subclasses of IterativeSolver support all possible options.
+
+       @note Some derived classes, like KINSolver, disable this method in favor
+       of SetPrintLevel(int).
+
+       @sa PrintLevel for possible options.
+   */
+   virtual void SetPrintLevel(PrintLevel);
+   ///@}
+
+   /// @name Solver statistics
+   ///@{
    int GetNumIterations() const { return final_iter; }
-   int GetConverged() const { return converged; }
+   bool GetConverged() const { return converged; }
    double GetFinalNorm() const { return final_norm; }
+   ///@}
 
    /// This should be called before SetOperator
    virtual void SetPreconditioner(Solver &pr);
 
    /// Also calls SetOperator for the preconditioner if there is one
-   virtual void SetOperator(const Operator &op);
+   virtual void SetOperator(const Operator &op) override;
 
    /// Set the iterative solver monitor
    void SetMonitor(IterativeSolverMonitor &m)
@@ -129,10 +274,20 @@ public:
 class OperatorJacobiSmoother : public Solver
 {
 public:
+   /** @brief Default constructor: the diagonal will be computed by subsequent
+       calls to SetOperator() using the Operator method AssembleDiagonal. */
+   /** In this case the array of essential tdofs will be empty. */
+   OperatorJacobiSmoother(const double damping=1.0);
+
    /** Setup a Jacobi smoother with the diagonal of @a a obtained by calling
        a.AssembleDiagonal(). It is assumed that the underlying operator acts as
        the identity on entries in ess_tdof_list, corresponding to (assembled)
-       DIAG_ONE policy or ConstrainedOperator in the matrix-free setting. */
+       DIAG_ONE policy or ConstrainedOperator in the matrix-free setting.
+
+       @note For objects created with this constructor, calling SetOperator()
+       will only set the internal Operator pointer to the given new Operator
+       without any other changes to the object. This is done to preserve the
+       original behavior of this class. */
    OperatorJacobiSmoother(const BilinearForm &a,
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
@@ -140,25 +295,53 @@ public:
    /** Application is by the *inverse* of the given vector. It is assumed that
        the underlying operator acts as the identity on entries in ess_tdof_list,
        corresponding to (assembled) DIAG_ONE policy or ConstrainedOperator in
-       the matrix-free setting. */
+       the matrix-free setting.
+
+       @note For objects created with this constructor, calling SetOperator()
+       will only set the internal Operator pointer to the given new Operator
+       without any other changes to the object. This is done to preserve the
+       original behavior of this class. */
    OperatorJacobiSmoother(const Vector &d,
                           const Array<int> &ess_tdof_list,
                           const double damping=1.0);
+
    ~OperatorJacobiSmoother() {}
+
+   /// Replace diagonal entries with their absolute values.
+   void SetPositiveDiagonal(bool pos_diag = true) { use_abs_diag = pos_diag; }
 
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
-   void SetOperator(const Operator &op) { oper = &op; }
-   void Setup(const Vector &diag);
+
+   /** @brief Recompute the diagonal using the method AssembleDiagonal of the
+       given new Operator, @a op. */
+   /** Note that (Par)BilinearForm operators are treated similar to the way they
+       are treated in the constructor that takes a BilinearForm parameter.
+       Specifically, this means that the OperatorJacobiSmoother will work with
+       true-dof vectors even though the size of the BilinearForm may be
+       different.
+
+       When the new Operator, @a op, is not a (Par)BilinearForm, any previously
+       set array of essential true-dofs will be thrown away because in this case
+       any essential b.c. will be handled by the AssembleDiagonal method. */
+   void SetOperator(const Operator &op);
 
 private:
-   const int N;
    Vector dinv;
    const double damping;
-   const Array<int> &ess_tdof_list;
+   const Array<int> *ess_tdof_list; // not owned; may be NULL
    mutable Vector residual;
+   /// Uses absolute values of the diagonal entries.
+   bool use_abs_diag = false;
 
-   const Operator *oper;
+   const Operator *oper; // not owned
+
+   // To preserve the original behavior, some constructors set this flag to
+   // false to disallow updating the OperatorJacobiSmoother with SetOperator.
+   const bool allow_updates;
+
+public:
+   void Setup(const Vector &diag);
 };
 
 /// Chebyshev accelerated smoothing with given vector, no matrix necessary
@@ -174,7 +357,13 @@ public:
        the matrix-free setting. The estimated largest eigenvalue of the
        diagonally preconditoned operator must be provided via
        max_eig_estimate. */
-   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+   OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, double max_eig_estimate);
+
+   /// Deprecated: see pass-by-reference version above
+   MFEM_DEPRECATED
+   OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, double max_eig_estimate);
 
@@ -186,14 +375,31 @@ public:
        accuracy of the estimated eigenvalue may be controlled via
        power_iterations and power_tolerance. */
 #ifdef MFEM_USE_MPI
-   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+   OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
-                             int order, MPI_Comm comm = MPI_COMM_NULL, int power_iterations = 10,
+                             int order, MPI_Comm comm = MPI_COMM_NULL,
+                             int power_iterations = 10,
+                             double power_tolerance = 1e-8);
+
+   /// Deprecated: see pass-by-reference version above
+   MFEM_DEPRECATED
+   OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, MPI_Comm comm = MPI_COMM_NULL,
+                             int power_iterations = 10,
                              double power_tolerance = 1e-8);
 #else
-   OperatorChebyshevSmoother(Operator* oper_, const Vector &d,
+   OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
-                             int order, int power_iterations = 10, double power_tolerance = 1e-8);
+                             int order, int power_iterations = 10,
+                             double power_tolerance = 1e-8);
+
+   /// Deprecated: see pass-by-reference version above
+   MFEM_DEPRECATED
+   OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, int power_iterations = 10,
+                             double power_tolerance = 1e-8);
 #endif
 
    ~OperatorChebyshevSmoother() {}
@@ -235,7 +441,7 @@ public:
    SLISolver() { }
 
 #ifdef MFEM_USE_MPI
-   SLISolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   SLISolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
@@ -267,7 +473,7 @@ public:
    CGSolver() { }
 
 #ifdef MFEM_USE_MPI
-   CGSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   CGSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
@@ -297,7 +503,7 @@ public:
    GMRESSolver() { m = 50; }
 
 #ifdef MFEM_USE_MPI
-   GMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { m = 50; }
+   GMRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { m = 50; }
 #endif
 
    /// Set the number of iteration to perform between restarts, default is 50.
@@ -316,7 +522,7 @@ public:
    FGMRESSolver() { m = 50; }
 
 #ifdef MFEM_USE_MPI
-   FGMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { m = 50; }
+   FGMRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { m = 50; }
 #endif
 
    void SetKDim(int dim) { m = dim; }
@@ -346,7 +552,7 @@ public:
    BiCGSTABSolver() { }
 
 #ifdef MFEM_USE_MPI
-   BiCGSTABSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   BiCGSTABSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetOperator(const Operator &op)
@@ -376,7 +582,7 @@ public:
    MINRESSolver() { }
 
 #ifdef MFEM_USE_MPI
-   MINRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   MINRESSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
 
    virtual void SetPreconditioner(Solver &pr)
@@ -407,7 +613,7 @@ void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
 class NewtonSolver : public IterativeSolver
 {
 protected:
-   mutable Vector xcur, r, c;
+   mutable Vector r, c;
    mutable Operator *grad;
 
    // Adaptive linear solver rtol variables
@@ -446,7 +652,7 @@ public:
    NewtonSolver() { }
 
 #ifdef MFEM_USE_MPI
-   NewtonSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   NewtonSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
    virtual void SetOperator(const Operator &op);
 
@@ -468,9 +674,6 @@ public:
    /** @brief This method can be overloaded in derived classes to perform
        computations that need knowledge of the newest Newton state. */
    virtual void ProcessNewState(const Vector &x) const { }
-
-   const Vector &GetCurrentResidual() const { return r; }
-   const Vector &GetCurrentIterate() const { return xcur; }
 
    /// Enable adaptive linear solver relative tolerance algorithm.
    /** Compute a relative tolerance for the Krylov method after each nonlinear
@@ -501,7 +704,7 @@ public:
    LBFGSSolver() : NewtonSolver() { }
 
 #ifdef MFEM_USE_MPI
-   LBFGSSolver(MPI_Comm _comm) : NewtonSolver(_comm) { }
+   LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) { }
 #endif
 
    void SetHistorySize(int dim) { m = dim; }
@@ -585,7 +788,7 @@ protected:
 public:
    OptimizationSolver(): IterativeSolver(), problem(NULL) { }
 #ifdef MFEM_USE_MPI
-   OptimizationSolver(MPI_Comm _comm): IterativeSolver(_comm), problem(NULL) { }
+   OptimizationSolver(MPI_Comm comm_): IterativeSolver(comm_), problem(NULL) { }
 #endif
    virtual ~OptimizationSolver() { }
 
@@ -643,7 +846,7 @@ public:
    SLBQPOptimizer() { }
 
 #ifdef MFEM_USE_MPI
-   SLBQPOptimizer(MPI_Comm _comm) : OptimizationSolver(_comm) { }
+   SLBQPOptimizer(MPI_Comm comm_) : OptimizationSolver(comm_) { }
 #endif
 
    /** Setting an OptimizationProblem will overwrite the Vectors given by
@@ -651,8 +854,8 @@ public:
     *  unchanged. */
    virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
-   void SetBounds(const Vector &_lo, const Vector &_hi);
-   void SetLinearConstraint(const Vector &_w, double _a);
+   void SetBounds(const Vector &lo_, const Vector &hi_);
+   void SetLinearConstraint(const Vector &w_, double a_);
 
    /** We let the target values play the role of the initial vector xt, from
     *  which the operator generates the optimal vector x. */
@@ -698,7 +901,7 @@ public:
     *  case that @a op is a HypreParMatrix, the ILU factorization is performed
     *  on the diagonal blocks of the parallel decomposition.
     */
-   BlockILU(Operator &op, int block_size_ = 1,
+   BlockILU(const Operator &op, int block_size_ = 1,
             Reordering reordering_ = Reordering::MINIMUM_DISCARDED_FILL,
             int k_fill_ = 0);
 
@@ -797,14 +1000,14 @@ public:
    mutable double Info[UMFPACK_INFO];
 
    /** @brief For larger matrices, if the solver fails, set the parameter @a
-       _use_long_ints = true. */
-   UMFPackSolver(bool _use_long_ints = false)
-      : use_long_ints(_use_long_ints) { Init(); }
+       use_long_ints_ = true. */
+   UMFPackSolver(bool use_long_ints_ = false)
+      : use_long_ints(use_long_ints_) { Init(); }
    /** @brief Factorize the given SparseMatrix using the defaults. For larger
-       matrices, if the solver fails, set the parameter @a _use_long_ints =
+       matrices, if the solver fails, set the parameter @a use_long_ints_ =
        true. */
-   UMFPackSolver(SparseMatrix &A, bool _use_long_ints = false)
-      : use_long_ints(_use_long_ints) { Init(); SetOperator(A); }
+   UMFPackSolver(SparseMatrix &A, bool use_long_ints_ = false)
+      : use_long_ints(use_long_ints_) { Init(); SetOperator(A); }
 
    /** @brief Factorize the given Operator @a op which must be a SparseMatrix.
 
@@ -860,7 +1063,7 @@ class DirectSubBlockSolver : public Solver
    mutable Array<int> local_dofs;
    mutable Vector sub_rhs;
    mutable Vector sub_sol;
-   Array<DenseMatrixInverse> block_solvers;
+   std::unique_ptr<DenseMatrixInverse[]> block_solvers;
 public:
    /// block_dof is a boolean matrix, block_dof(i, j) = 1 if j-th dof belongs to
    /// i-th block, block_dof(i, j) = 0 otherwise.

@@ -22,7 +22,7 @@ namespace ceed
 {
 
 /** A base class to represent a CeedOperator as an MFEM Operator. */
-class Operator : mfem::Operator
+class Operator : public mfem::Operator
 {
 protected:
 #ifdef MFEM_USE_CEED
@@ -33,9 +33,15 @@ protected:
 #endif
 
 public:
-   void Mult(const mfem::Vector &x, mfem::Vector &y) const;
+#ifdef MFEM_USE_CEED
+   /// This class takes ownership of op and will delete it
+   Operator(CeedOperator op);
+#endif
+   void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
    void AddMult(const mfem::Vector &x, mfem::Vector &y) const;
    void GetDiagonal(mfem::Vector &diag) const;
+   using mfem::Operator::SetupRAP;
+
    virtual ~Operator()
    {
 #ifdef MFEM_USE_CEED
@@ -44,6 +50,10 @@ public:
       CeedVectorDestroy(&v);
 #endif
    }
+
+#ifdef MFEM_USE_CEED
+   CeedOperator& GetCeedOperator() { return oper; }
+#endif
 };
 
 } // namespace ceed

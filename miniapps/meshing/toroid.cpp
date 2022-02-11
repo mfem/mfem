@@ -127,18 +127,20 @@ int main(int argc, char *argv[])
    }
 
    // Add Elements of the desired type
-   int v[8];
-   for (int i=0; i < nphi_; i++)
    {
-      if (el_type_ == Element::WEDGE)
+      int v[8];
+      for (int i=0; i < nphi_; i++)
       {
-         for (int j = 0; j < 6; j++) { v[j] = 3*i+j; }
-         mesh->AddWedge(v);
-      }
-      else
-      {
-         for (int j = 0; j < 8; j++) { v[j] = 4*i+j; }
-         mesh->AddHex(v);
+         if (el_type_ == Element::WEDGE)
+         {
+            for (int j = 0; j < 6; j++) { v[j] = 3*i+j; }
+            mesh->AddWedge(v);
+         }
+         else
+         {
+            for (int j = 0; j < 8; j++) { v[j] = 4*i+j; }
+            mesh->AddHex(v);
+         }
       }
    }
    mesh->FinalizeTopology();

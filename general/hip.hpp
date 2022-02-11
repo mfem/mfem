@@ -19,6 +19,7 @@
 #define MFEM_HIP_BLOCKS 256
 
 #ifdef MFEM_USE_HIP
+#define MFEM_USE_CUDA_OR_HIP
 #define MFEM_DEVICE __device__
 #define MFEM_LAMBDA __host__ __device__
 #define MFEM_HOST_DEVICE __host__ __device__
@@ -43,6 +44,7 @@
 #if defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
+#define MFEM_BLOCK_ID(k) hipBlockIdx_ ##k
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
 #define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
 #define MFEM_FOREACH_THREAD(i,k,N) \
@@ -64,8 +66,14 @@ void* HipMemAlloc(void **d_ptr, size_t bytes);
 /// Allocates managed device memory
 void* HipMallocManaged(void **d_ptr, size_t bytes);
 
+/// Allocates page-locked (pinned) host memory
+void* HipMemAllocHostPinned(void **ptr, size_t bytes);
+
 /// Frees device memory
 void* HipMemFree(void *d_ptr);
+
+/// Frees page-locked (pinned) host memory and returns destination ptr.
+void* HipMemFreeHostPinned(void *ptr);
 
 /// Copies memory from Host to Device
 void* HipMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);

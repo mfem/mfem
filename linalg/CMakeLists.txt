@@ -10,10 +10,12 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND SRCS
+  auxiliary.cpp
   blockmatrix.cpp
   blockoperator.cpp
   blockvector.cpp
   complex_operator.cpp
+  constraints.cpp
   densemat.cpp
   symmat.cpp
   handle.cpp
@@ -27,11 +29,14 @@ list(APPEND SRCS
   )
 
 list(APPEND HDRS
+  auxiliary.hpp
   blockmatrix.hpp
   blockoperator.hpp
   blockvector.hpp
   complex_operator.hpp
+  constraints.hpp
   densemat.hpp
+  dinvariants.hpp
   symmat.hpp
   dtensor.hpp
   handle.hpp

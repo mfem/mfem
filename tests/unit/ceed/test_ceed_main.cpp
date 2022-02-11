@@ -20,9 +20,9 @@ int main(int argc, char *argv[])
    std::string device_str("ceed-cpu");
    using namespace Catch::clara;
    auto cli = session.cli()
-      | Opt(device_str, "device_string")
-        ["--device"]
-        ("CEED device string (default: ceed-cpu)");
+              | Opt(device_str, "device_string")
+              ["--device"]
+              ("CEED device string (default: ceed-cpu)");
    session.cli(cli);
    int result = session.applyCommandLine( argc, argv );
    if (result != 0)

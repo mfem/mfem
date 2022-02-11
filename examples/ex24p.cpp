@@ -141,7 +141,6 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use Nedelec or Raviart-Thomas finite elements of the specified order.
@@ -167,8 +166,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace trial_fes(pmesh, trial_fec);
    ParFiniteElementSpace test_fes(pmesh, test_fec);
 
-   HYPRE_Int trial_size = trial_fes.GlobalTrueVSize();
-   HYPRE_Int test_size = test_fes.GlobalTrueVSize();
+   HYPRE_BigInt trial_size = trial_fes.GlobalTrueVSize();
+   HYPRE_BigInt test_size = test_fes.GlobalTrueVSize();
 
    if (myid == 0)
    {

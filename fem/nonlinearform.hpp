@@ -27,9 +27,10 @@ protected:
    /// The assembly level.
    AssemblyLevel assembly;
 
-   /** Extension for supporting Partial Assembly (PA) or
-       Matrix Free assembly (MF). */
-   NonlinearFormExtension *ext;
+   /// Extension for supporting different AssemblyLevel%s
+   /** For nonlinear operators, the "matrix" assembly levels usually do not make
+       sense, so only PARTIAL and NONE (matrix-free) are supported. */
+   NonlinearFormExtension *ext; // owned
 
    /// FE space on which the form lives.
    FiniteElementSpace *fes; // not owned
@@ -45,6 +46,8 @@ protected:
    Array<Array<int>*>              bfnfi_marker; // not owned
 
    mutable SparseMatrix *Grad, *cGrad; // owned
+   /// Gradient Operator when not assembled as a matrix.
+   mutable OperatorHandle hGrad; // has internal ownership flag
 
    /// A list of all essential true dofs
    Array<int> ess_tdof_list;
@@ -75,7 +78,29 @@ public:
    { }
 
    /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
-   /** This method must be called before assembly. */
+   /** For nonlinear operators, the "matrix" assembly levels usually do not make
+       sense, so only LEGACY, NONE (matrix-free) and PARTIAL are supported.
+
+       Currently, AssemblyLevel::LEGACY uses the standard nonlinear action
+       methods like AssembleElementVector of the NonlinearFormIntegrator class
+       which work only on CPU and do not utilize features such as fast
+       tensor-product basis evaluations. In this mode, the gradient operator is
+       constructed as a SparseMatrix (or, in parallel, format such as
+       HypreParMatrix).
+
+       When using AssemblyLevel::PARTIAL, the action is performed using methods
+       like AddMultPA of the NonlinearFormIntegrator class which typically
+       support both CPU and GPU backends and utilize features such as fast
+       tensor-product basis evaluations. In this mode, the gradient operator
+       also uses partial assembly with support for CPU and GPU backends.
+
+       When using AssemblyLevel::NONE, the action is performed using methods
+       like AddMultMF of the NonlinearFormIntegrator class which typically
+       support both CPU and GPU backends and utilize features such as fast
+       tensor-product basis evaluations. In this mode, the gradient operator
+       is currently not supported.
+
+       This method must be called before "assembly" with Setup(). */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
    FiniteElementSpace *FESpace() { return fes; }
@@ -93,6 +118,11 @@ public:
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
    { fnfi.Append(nlfi); }
 
+   /** @brief Access all interior face integrators added with
+       AddInteriorFaceIntegrator(). */
+   const Array<NonlinearFormIntegrator*> &GetInteriorFaceIntegrators() const
+   { return fnfi; }
+
    /// Adds new Boundary Face Integrator.
    void AddBdrFaceIntegrator(NonlinearFormIntegrator *nlfi)
    { bfnfi.Append(nlfi); bfnfi_marker.Append(NULL); }
@@ -102,6 +132,11 @@ public:
    void AddBdrFaceIntegrator(NonlinearFormIntegrator *nfi,
                              Array<int> &bdr_marker)
    { bfnfi.Append(nfi); bfnfi_marker.Append(&bdr_marker); }
+
+   /** @brief Access all boundary face integrators added with
+       AddBdrFaceIntegrator(). */
+   const Array<NonlinearFormIntegrator*> &GetBdrFaceIntegrators() const
+   { return bfnfi; }
 
    /// Specify essential boundary conditions.
    /** This method calls FiniteElementSpace::GetEssentialTrueDofs() and stores
@@ -162,7 +197,12 @@ public:
        set again. */
    virtual void Update();
 
-   /// Setup the NonlinearForm
+   /** @brief Setup the NonlinearForm: based on the current AssemblyLevel and
+       the current mesh, optionally, precompute and store data that will be
+       reused in subsequent call to Mult(). */
+   /** Typically, this method has to be called before Mult() when using
+       AssemblyLevel::PARTIAL, after calling Update(), or after modifying the
+       mesh coordinates. */
    virtual void Setup();
 
    /// Get the finite element space prolongation matrix
@@ -171,7 +211,7 @@ public:
    virtual const Operator *GetRestriction() const
    { return fes->GetRestrictionMatrix(); }
 
-   /** @brief Destroy the NoninearForm including the owned
+   /** @brief Destroy the NonlinearForm including the owned
        NonlinearFormIntegrator%s and gradient Operator. */
    virtual ~NonlinearForm();
 };
