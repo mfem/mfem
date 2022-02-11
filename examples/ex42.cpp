@@ -43,8 +43,7 @@ MFEM_HOST_DEVICE static auto I = Identity<dimension>();
  * Defines a linear elastic material response. It satisfies the material_type
  * interface for ElasticityOperator::SetMaterial.
  */
-template <int dim>
-struct LinearElasticMaterial
+template <int dim> struct LinearElasticMaterial
 {
    /**
     * @brief Compute the stress response.
@@ -52,8 +51,8 @@ struct LinearElasticMaterial
     * @param dudx derivative of the displacement
     * @return tensor<double, dim, dim>
     */
-   tensor<double, dim, dim> MFEM_HOST_DEVICE stress(const tensor<double, dim, dim>
-                                                    &dudx) const
+   tensor<double, dim, dim>
+   MFEM_HOST_DEVICE stress(const tensor<double, dim, dim> &dudx) const
    {
       auto epsilon = sym(dudx);
       return lambda * tr(epsilon) * I + 2.0 * mu * epsilon;
@@ -80,11 +79,14 @@ struct LinearElasticMaterial
     * @param dudx
     * @return tensor<double, dim, dim, dim, dim>
     */
-   tensor<double, dim, dim, dim, dim> MFEM_HOST_DEVICE
-   gradient(tensor<double, dim, dim> /* dudx */) const
+   tensor<double, dim, dim, dim, dim>
+   MFEM_HOST_DEVICE gradient(tensor<double, dim, dim> /* dudx */) const
    {
       return make_tensor<dim, dim, dim, dim>([&](int i, int j, int k, int l)
-      { return lambda * (i == j) * (k == l) + mu * ((i == l) * (j == k) + (i == k) * (j == l)); });
+      {
+         return lambda * (i == j) * (k == l) +
+                mu * ((i == l) * (j == k) + (i == k) * (j == l));
+      });
    }
 
    /// First Lame parameter
@@ -150,10 +152,10 @@ struct NeoHookeanMaterial
     * @param sigma
     * @return MFEM_HOST_DEVICE
     */
-   MFEM_HOST_DEVICE static void stress_wrapper(
-      NeoHookeanMaterial<dim, gradient_type> *self,
-      tensor<double, dim, dim> &dudx,
-      tensor<double, dim, dim> &sigma)
+   MFEM_HOST_DEVICE static void
+   stress_wrapper(NeoHookeanMaterial<dim, gradient_type> *self,
+                  tensor<double, dim, dim> &dudx,
+                  tensor<double, dim, dim> &sigma)
    {
       sigma = self->stress(dudx);
    }
@@ -173,16 +175,17 @@ struct NeoHookeanMaterial
    {
       tensor<double, dim, dim> F = I + dudx;
       tensor<double, dim, dim> invF = inv(F);
-      tensor<double, dim, dim> devB = dev(dudx + transpose(dudx) + dot(dudx,
-                                                                       transpose(dudx)));
+      tensor<double, dim, dim> devB =
+         dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
       double J = det(F);
       double coef = (C1 / pow(J, 5.0 / 3.0));
-      return make_tensor<3, 3, 3, 3>([&](int i, int j, int k, int l)
+      return make_tensor<dim, dim, dim, dim>([&](int i, int j, int k, int l)
       {
-         return 2.0 * (D1 * J * (i == j) - (5.0 / 3.0) * coef * devB[i][j]) * invF[l][k]
-                +
-                2.0 * coef * ((i == k) * F[j][l] + F[i][l] * (j == k) - (2.0 / 3.0) * ((
-                      i == j) * F[k][l]));
+         return 2.0 * (D1 * J * (i == j) - (5.0 / 3.0) * coef * devB[i][j]) *
+                invF[l][k] +
+                2.0 * coef *
+                ((i == k) * F[j][l] + F[i][l] * (j == k) -
+                 (2.0 / 3.0) * ((i == j) * F[k][l]));
       });
    }
 
@@ -222,11 +225,12 @@ struct NeoHookeanMaterial
    action_of_gradient_dual(const tensor<double, dim, dim> &dudx,
                            const tensor<double, dim, dim> &ddudx) const
    {
-      auto sigma = stress(make_tensor<3,3>([&](int i, int j)
+      auto sigma = stress(make_tensor<dim, dim>([&](int i, int j)
       {
-         return dual< double > {dudx[i][j], ddudx[i][j]};
+         return dual<double> {dudx[i][j], ddudx[i][j]};
       }));
-      return make_tensor<3,3>([&](int i, int j) { return sigma[i][j].gradient; });
+      return make_tensor<dim, dim>(
+      [&](int i, int j) { return sigma[i][j].gradient; });
    }
 
 #ifdef MFEM_USE_ENZYME
@@ -478,11 +482,12 @@ public:
    }
 
    /**
-    * @brief Return the T-vector degrees of freedom that have been marked as displaced.
+    * @brief Return the T-vector degrees of freedom that have been marked as
+    * displaced.
     *
     * @return const Array<int>&
     */
-   const Array<int>& GetDisplacedTDofs() { return displaced_tdof_list_; };
+   const Array<int> &GetDisplacedTDofs() { return displaced_tdof_list_; };
 };
 
 /**
@@ -521,14 +526,10 @@ class ElasticityDiagonalPreconditioner : public Solver
 public:
    static constexpr int dim = dimension;
 
-   enum Type
-   {
-      Diagonal,
-      BlockDiagonal
-   };
+   enum Type { Diagonal, BlockDiagonal };
 
-   ElasticityDiagonalPreconditioner(Type type = Type::Diagonal) : Solver(),
-      type_(type) {}
+   ElasticityDiagonalPreconditioner(Type type = Type::Diagonal)
+      : Solver(), type_(type) {}
 
    void SetOperator(const Operator &op) override
    {
@@ -538,7 +539,8 @@ public:
 
       width = height = op.Height();
 
-      gradient_operator_->AssembleGradientDiagonal(Ke_diag_, K_diag_local_, K_diag_);
+      gradient_operator_->AssembleGradientDiagonal(Ke_diag_, K_diag_local_,
+                                                   K_diag_);
 
       submat_height_ = gradient_operator_->elasticity_op_.h1_fes_.GetVDim();
       num_submats_ = gradient_operator_->elasticity_op_.h1_fes_.GetTrueVSize() /
@@ -549,8 +551,8 @@ public:
    {
       if (type_ == Type::Diagonal)
       {
-         auto K_diag_submats = Reshape(K_diag_.Read(), num_submats_, submat_height_,
-                                       submat_height_);
+         auto K_diag_submats =
+            Reshape(K_diag_.Read(), num_submats_, submat_height_, submat_height_);
          // TODO: This could be MFEM_FORALL
          // Assuming Y and X are ordered byNODES. K_diag is ordered byVDIM.
          for (int s = 0; s < num_submats_; s++)
@@ -564,16 +566,16 @@ public:
       }
       else if (type_ == Type::BlockDiagonal)
       {
-         auto K_diag_submats = Reshape(K_diag_.Read(), num_submats_, submat_height_,
-                                       submat_height_);
+         auto K_diag_submats =
+            Reshape(K_diag_.Read(), num_submats_, submat_height_, submat_height_);
 
          for (int s = 0; s < num_submats_; s++)
          {
-            auto submat_inv = inv(make_tensor<dim, dim>([&](int i, int j)
-            { return K_diag_submats(s, i, j); }));
+            auto submat_inv = inv(make_tensor<dim, dim>(
+            [&](int i, int j) { return K_diag_submats(s, i, j); }));
 
-            auto x_block = make_tensor<dim>([&](int i)
-            { return x(s + i * num_submats_); });
+            auto x_block =
+            make_tensor<dim>([&](int i) { return x(s + i * num_submats_); });
 
             tensor<double, dim> y_block;
 
@@ -739,10 +741,11 @@ void CheckMemoryRestriction(int d1d, int q1d)
 {
    MFEM_VERIFY(d1d <= MAX_D1D,
                "Maximum number of degrees of freedom in 1D reached."
-               "This number can be increased globally in general/forall.hpp if device memory allows.");
-   MFEM_VERIFY(q1d <= MAX_Q1D,
-               "Maximum quadrature points 1D reached."
-               "This number can be increased globally in general/forall.hpp if device memory allows.");
+               "This number can be increased globally in general/forall.hpp if "
+               "device memory allows.");
+   MFEM_VERIFY(q1d <= MAX_Q1D, "Maximum quadrature points 1D reached."
+               "This number can be increased globally in "
+               "general/forall.hpp if device memory allows.");
 }
 
 /**
@@ -906,8 +909,7 @@ static inline void MFEM_HOST_DEVICE CalcGradTSum(
  */
 template <int dim, int d1d, int q1d>
 static inline MFEM_HOST_DEVICE tensor<double, d1d, d1d, d1d, dim>
-GradAllPhis(int qx, int qy, int qz,
-            const DeviceTensor<2, const double> &B,
+GradAllPhis(int qx, int qy, int qz, const DeviceTensor<2, const double> &B,
             const DeviceTensor<2, const double> &G,
             const tensor<double, dim, dim> &invJ)
 {
@@ -922,19 +924,19 @@ GradAllPhis(int qx, int qy, int qz,
          MFEM_FOREACH_THREAD(dz, z, d1d)
          {
 
-            dphi_dx[dx][dy][dz] = transpose(invJ) * tensor<double, dim>
-            {
-               G(qx, dx) * B(qy, dy) * B(qz, dz),
-               B(qx, dx) * G(qy, dy) * B(qz, dz),
-               B(qx, dx) * B(qy, dy) * G(qz, dz)
-            };
+            dphi_dx[dx][dy][dz] =
+               transpose(invJ) *
+               tensor<double, dim> {G(qx, dx) * B(qy, dy) * B(qz, dz),
+                                    B(qx, dx) * G(qy, dy) * B(qz, dz),
+                                    B(qx, dx) * B(qy, dy) * G(qz, dz)
+                                   };
          }
       }
    }
    MFEM_SYNC_THREAD;
    return dphi_dx;
 }
-}
+} // namespace KernelHelpers
 
 namespace ElasticityKernels
 {
@@ -950,12 +952,12 @@ Apply3D(const int ne, const Array<double> &B_, const Array<double> &G_,
    // 1D Basis functions in column-major layout
    // q1d x d1d
    const auto B = Reshape(B_.Read(), q1d, d1d);
-   // Gradients of 1D basis functions evaluated at quadrature points in column-major layout
-   // q1d x d1d
+   // Gradients of 1D basis functions evaluated at quadrature points in
+   // column-major layout q1d x d1d
    const auto G = Reshape(G_.Read(), q1d, d1d);
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
-   // Jacobians of the element transformations at all quadrature points in column-major layout
-   // q1d x q1d x q1d x sdim x dim x ne
+   // Jacobians of the element transformations at all quadrature points in
+   // column-major layout q1d x q1d x q1d x sdim x dim x ne
    const auto J = Reshape(Jacobian_.Read(), q1d, q1d, q1d, dim, dim, ne);
    const auto detJ = Reshape(detJ_.Read(), q1d, q1d, q1d, ne);
    // Input vector
@@ -982,8 +984,7 @@ Apply3D(const int ne, const Array<double> &B_, const Array<double> &G_,
             MFEM_FOREACH_THREAD(qz, z, q1d)
             {
                auto invJqp = inv(make_tensor<dim, dim>(
-                                    [&](int i, int j)
-               { return J(qx, qy, qz, i, j, e); }));
+               [&](int i, int j) { return J(qx, qy, qz, i, j, e); }));
 
                auto dudx = dudxi(qz, qy, qx) * invJqp;
 
@@ -1002,11 +1003,10 @@ Apply3D(const int ne, const Array<double> &B_, const Array<double> &G_,
 
 template <int d1d, int q1d, typename material_type>
 static inline void
-ApplyGradient3D(const int ne, const Array<double> &B_,
-                const Array<double> &G_, const Array<double> &W_,
-                const Vector &Jacobian_, const Vector &detJ_,
-                const Vector &dU_, Vector &dF_, const Vector &U_,
-                const material_type &material)
+ApplyGradient3D(const int ne, const Array<double> &B_, const Array<double> &G_,
+                const Array<double> &W_, const Vector &Jacobian_,
+                const Vector &detJ_, const Vector &dU_, Vector &dF_,
+                const Vector &U_, const material_type &material)
 {
    constexpr int dim = dimension;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
@@ -1014,12 +1014,12 @@ ApplyGradient3D(const int ne, const Array<double> &B_,
    // 1D Basis functions in column-major layout
    // q1d x d1d
    const auto B = Reshape(B_.Read(), q1d, d1d);
-   // Gradients of 1D basis functions evaluated at quadrature points in column-major layout
-   // q1d x d1d
+   // Gradients of 1D basis functions evaluated at quadrature points in
+   // column-major layout q1d x d1d
    const auto G = Reshape(G_.Read(), q1d, d1d);
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
-   // Jacobians of the element transformations at all quadrature points in column-major layout
-   // q1d x q1d x q1d x sdim x dim x ne
+   // Jacobians of the element transformations at all quadrature points in
+   // column-major layout q1d x q1d x q1d x sdim x dim x ne
    const auto J = Reshape(Jacobian_.Read(), q1d, q1d, q1d, dim, dim, ne);
    const auto detJ = Reshape(detJ_.Read(), q1d, q1d, q1d, ne);
    // Input vector
@@ -1054,8 +1054,7 @@ ApplyGradient3D(const int ne, const Array<double> &B_,
             MFEM_FOREACH_THREAD(qz, z, q1d)
             {
                auto invJqp = inv(make_tensor<dim, dim>(
-                                    [&](int i, int j)
-               { return J(qx, qy, qz, i, j, e); }));
+               [&](int i, int j) { return J(qx, qy, qz, i, j, e); }));
 
                auto dudx = dudxi(qz, qy, qx) * invJqp;
                auto ddudx = ddudxi(qz, qy, qx) * invJqp;
@@ -1085,8 +1084,8 @@ static inline void AssembleGradientDiagonal3D(
    // 1D Basis functions in column-major layout
    // q1d x d1d
    const auto B = Reshape(B_.Read(), q1d, d1d);
-   // Gradients of 1D basis functions evaluated at quadrature points in column-major layout
-   // q1d x d1d
+   // Gradients of 1D basis functions evaluated at quadrature points in
+   // column-major layout q1d x d1d
    const auto G = Reshape(G_.Read(), q1d, d1d);
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
    // Jacobians of the element transformations at all quadrature points. This
@@ -1099,8 +1098,8 @@ static inline void AssembleGradientDiagonal3D(
    const auto U = Reshape(X_.Read(), d1d, d1d, d1d, dim, ne);
    // Output vector
    // d1d x d1d x d1d x vdim x ne
-   auto Ke_diag_m = Reshape(Ke_diag_memory.ReadWrite(), d1d, d1d, d1d, dim, ne,
-                            dim);
+   auto Ke_diag_m =
+      Reshape(Ke_diag_memory.ReadWrite(), d1d, d1d, d1d, dim, ne, dim);
 
    MFEM_FORALL(e, ne,
    {
@@ -1118,16 +1117,15 @@ static inline void AssembleGradientDiagonal3D(
             for (int qz = 0; qz < q1d; qz++)
             {
                auto invJqp = inv(make_tensor<dim, dim>(
-                                    [&](int i, int j)
-               { return J(qx, qy, qz, i, j, e); }));
+               [&](int i, int j) { return J(qx, qy, qz, i, j, e); }));
 
                auto dudx = dudxi(qz, qy, qx) * invJqp;
 
                auto dsigma_ddudx = material.gradient(dudx);
 
                double JxW = detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
-               auto dphidx = KernelHelpers::GradAllPhis<dim, d1d, q1d>(qx, qy, qz, B, G,
-                                                                       invJqp);
+               auto dphidx = KernelHelpers::GradAllPhis<dim, d1d, q1d>(qx, qy, qz, B,
+                                                                       G, invJqp);
 
                for (int dx = 0; dx < d1d; dx++)
                {
@@ -1137,8 +1135,9 @@ static inline void AssembleGradientDiagonal3D(
                      {
                         // phi_i * f(...) * phi_i
                         // dphidx_i dsigma_ddudx_ijkl dphidx_l
-                        Ke_diag[dx][dy][dz] += (dphidx[dx][dy][dz] * dsigma_ddudx * dphidx[dx][dy][dz])
-                                               * JxW;
+                        Ke_diag[dx][dy][dz] +=
+                           (dphidx[dx][dy][dz] * dsigma_ddudx * dphidx[dx][dy][dz]) *
+                           JxW;
                      }
                   }
                }
@@ -1175,9 +1174,8 @@ void ElasticityGradientOperator::Mult(const Vector &x, Vector &y) const
 
 ElasticityOperator::ElasticityOperator(ParMesh &mesh, const int order)
    : Operator(), mesh_(mesh), order_(order), dim_(mesh_.SpaceDimension()),
-     vdim_(mesh_.SpaceDimension()),
-     ne_(mesh_.GetNE()), h1_fec_(order_, dim_), h1_fes_(&mesh_, &h1_fec_, vdim_,
-                                                        Ordering::byNODES)
+     vdim_(mesh_.SpaceDimension()), ne_(mesh_.GetNE()), h1_fec_(order_, dim_),
+     h1_fes_(&mesh_, &h1_fec_, vdim_, Ordering::byNODES)
 {
    this->height = h1_fes_.GetTrueVSize();
    this->width = this->height;
@@ -1188,8 +1186,8 @@ ElasticityOperator::ElasticityOperator(ParMesh &mesh, const int order)
       cout << "#dofs: " << global_tdof_size << endl;
    }
 
-   h1_element_restriction_ = h1_fes_.GetElementRestriction(
-                                ElementDofOrdering::LEXICOGRAPHIC);
+   h1_element_restriction_ =
+      h1_fes_.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
    h1_prolongation_ = h1_fes_.GetProlongationMatrix();
 
    ir_ = const_cast<IntegrationRule *>(
@@ -1239,8 +1237,8 @@ void ElasticityOperator::Mult(const Vector &X, Vector &Y) const
 
    // Apply operator
    element_apply_kernel_wrapper(ne_, maps_->B, maps_->G, ir_->GetWeights(),
-                                geometric_factors_->J, geometric_factors_->detJ, X_el_,
-                                Y_el_);
+                                geometric_factors_->J, geometric_factors_->detJ,
+                                X_el_, Y_el_);
 
    // E-vector to L-vector
    h1_element_restriction_->MultTranspose(Y_el_, Y_local_);
@@ -1295,7 +1293,8 @@ void ElasticityOperator::GradientMult(const Vector &dX, Vector &Y) const
 }
 
 void ElasticityOperator::AssembleGradientDiagonal(Vector &Ke_diag,
-                                                  Vector &K_diag_local, Vector &K_diag) const
+                                                  Vector &K_diag_local,
+                                                  Vector &K_diag) const
 {
    Ke_diag.SetSize(d1d_ * d1d_ * d1d_ * dim_ * ne_ * dim_);
    K_diag_local.SetSize(h1_element_restriction_->Width() * dim_);
@@ -1360,21 +1359,19 @@ void ElasticityOperator::SetMaterial(const material_type &material)
 
    element_apply_kernel_wrapper =
       [=](const int ne, const Array<double> &B_, const Array<double> &G_,
-          const Array<double> &W_, const Vector &Jacobian_,
-          const Vector &detJ_, const Vector &X_, Vector &Y_)
+          const Array<double> &W_, const Vector &Jacobian_, const Vector &detJ_,
+          const Vector &X_, Vector &Y_)
    {
       const int id = (d1d_ << 4) | q1d_;
       switch (id)
       {
          case 0x22:
-            ElasticityKernels::Apply3D<2, 2, material_type>(ne, B_, G_, W_, Jacobian_,
-                                                            detJ_, X_,
-                                                            Y_, material);
+            ElasticityKernels::Apply3D<2, 2, material_type>(
+               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          case 0x33:
-            ElasticityKernels::Apply3D<3, 3, material_type>(ne, B_, G_, W_, Jacobian_,
-                                                            detJ_, X_,
-                                                            Y_, material);
+            ElasticityKernels::Apply3D<3, 3, material_type>(
+               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          default:
             MFEM_ABORT("not implemented");
@@ -1383,22 +1380,19 @@ void ElasticityOperator::SetMaterial(const material_type &material)
 
    element_apply_gradient_kernel_wrapper =
       [=](const int ne, const Array<double> &B_, const Array<double> &G_,
-          const Array<double> &W_, const Vector &Jacobian_,
-          const Vector &detJ_, const Vector &dU_, Vector &dF_,
-          const Vector &U_)
+          const Array<double> &W_, const Vector &Jacobian_, const Vector &detJ_,
+          const Vector &dU_, Vector &dF_, const Vector &U_)
    {
       const int id = (d1d_ << 4) | q1d_;
       switch (id)
       {
          case 0x22:
-            ElasticityKernels::ApplyGradient3D<2, 2, material_type>(ne, B_, G_, W_,
-                                                                    Jacobian_,
-                                                                    detJ_, dU_, dF_, U_, material);
+            ElasticityKernels::ApplyGradient3D<2, 2, material_type>(
+               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
          case 0x33:
-            ElasticityKernels::ApplyGradient3D<3, 3, material_type>(ne, B_, G_, W_,
-                                                                    Jacobian_,
-                                                                    detJ_, dU_, dF_, U_, material);
+            ElasticityKernels::ApplyGradient3D<3, 3, material_type>(
+               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
          default:
             MFEM_ABORT("not implemented");
@@ -1407,8 +1401,8 @@ void ElasticityOperator::SetMaterial(const material_type &material)
 
    element_kernel_assemble_diagonal_wrapper =
       [=](const int ne, const Array<double> &B_, const Array<double> &G_,
-          const Array<double> &W_, const Vector &Jacobian_,
-          const Vector &detJ_, const Vector &X_, Vector &Y_)
+          const Array<double> &W_, const Vector &Jacobian_, const Vector &detJ_,
+          const Vector &X_, Vector &Y_)
    {
       const int id = (d1d_ << 4) | q1d_;
       switch (id)
