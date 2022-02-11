@@ -2711,6 +2711,44 @@ void InitialCondition(const Vector &x, Vector &y)
    */
 }
 
+/** Coefficient which returns a * cos(kx * (x - c)) + b */
+class Cos1D: public Coefficient
+{
+private:
+   double a_, b_, c_, kx_;
+
+   mutable Vector x_;
+
+public:
+   Cos1D(double a, double b, double c, double kx)
+      : a_(a), b_(b), c_(c), kx_(kx), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * cos(kx_ * (x_[0] - c_)) + b_;
+   }
+};
+
+/** Coefficient which returns a * sin(kx * (x - c)) + b */
+class Sin1D: public Coefficient
+{
+private:
+   double a_, b_, c_, kx_;
+
+   mutable Vector x_;
+
+public:
+   Sin1D(double a, double b, double c, double kx)
+      : a_(a), b_(b), c_(c), kx_(kx), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * sin(kx_ * (x_[0] - c_)) + b_;
+   }
+};
+
 /** Coefficient which returns a * sinh(kx * (x - c)) + b */
 class Sinh1D: public Coefficient
 {
@@ -3239,7 +3277,19 @@ Coefficient *
 Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 {
    int coef_idx = -1;
-   if (name == "Sinh1D")
+   if (name == "Sin1D")
+   {
+      double a, b, c, kx;
+      input >> a >> b >> c >> kx;
+      coef_idx = sCoefs.Append(new Sin1D(a, b, c, kx));
+   }
+   else if (name == "Cos1D")
+   {
+      double a, b, c, kx;
+      input >> a >> b >> c >> kx;
+      coef_idx = sCoefs.Append(new Cos1D(a, b, c, kx));
+   }
+   else if (name == "Sinh1D")
    {
       double a, b, c, kx;
       input >> a >> b >> c >> kx;
