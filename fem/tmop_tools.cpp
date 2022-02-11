@@ -756,11 +756,11 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 
       if (print_options.iterations)
       {
-         std::cout << "Avg/Max surface fitting error: " <<
+         mfem::out << "Avg/Max surface fitting error: " <<
                    surf_fit_err_avg << " " <<
-                   surf_fit_err_max << std::endl;
-         std::cout << "Min/Max surface fitting weight: " <<
-                   weights.Min() << " " << weights.Max() << std::endl;
+                   surf_fit_err_max << "\n";
+         mfem::out << "Min/Max surface fitting weight: " <<
+                   weights.Min() << " " << weights.Max() << "\n";
       }
 
       double change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_avg;
