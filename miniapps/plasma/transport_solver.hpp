@@ -3812,6 +3812,7 @@ private:
       HypreBoomerAMG *D_amg_ = NULL;
       HypreSmoother *D_smoother_ = NULL;
       HypreParMatrix *D_cg_ = NULL;
+      Solver *dg_precond_ = NULL;
 
       Array<int> cg_ess_tdof_list;
 
@@ -3849,6 +3850,8 @@ private:
       virtual void Update();
       virtual Operator *GetGradientBlock(int i);
 
+      virtual Solver *GetPreconditioner() { return dg_precond_; }
+
       inline bool CheckTermFlag(int flag) { return (term_flag_>> flag) & 1; }
 
       inline bool CheckVisFlag(int flag) { return (vis_flag_>> flag) & 1; }
@@ -3862,8 +3865,6 @@ private:
       virtual void InitializeGLVis() = 0;
 
       virtual void DisplayToGLVis() = 0;
-
-      Solver *dg_precond_ = NULL;
    };
 
    class TransportOp : public NLOperator

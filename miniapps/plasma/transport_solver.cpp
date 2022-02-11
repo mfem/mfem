@@ -2161,35 +2161,8 @@ void DGTransportTDO::TransportPrec::SetOperator(const Operator &op)
             else
 #endif
             {
-               if (i == 1) // IonDensity
-               {
-                  diag_prec_[i] = comb_op_.GetIonDensityPreconditoner();
-               }
-               else
-               {
-                  //cout << "Using HypreBoomerAMG for block " << i << endl;
-                  HypreBoomerAMG * amg =
-                     new HypreBoomerAMG(const_cast<HypreParMatrix&>(M));
-                  amg->SetPrintLevel(p_.log_lvl);
-                  diag_prec_[i] = amg;
-
-                  //HypreSmoother * smth = new HypreSmoother(const_cast<HypreParMatrix&>(M));
-                  //diag_prec_[i] = smth;
-                  //diag_prec_[i] = new IdentityOperator(M.NumRows());
-               }
+               diag_prec_[i] = comb_op_.GetPreconditionerBlock(i);
             }
-            /*
-                 if (i == 0)
-                 {
-                    cout << "Building new HypreBoomerAMG preconditioner" << endl;
-                    diag_prec_[i] = new HypreBoomerAMG(M);
-                 }
-                 else
-                 {
-                    cout << "Building new HypreDiagScale preconditioner" << endl;
-                    diag_prec_[i] = new HypreDiagScale(M);
-                 }
-            */
             SetDiagonalBlock(i, diag_prec_[i]);
          }
       }
@@ -2649,8 +2622,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      cgblf_(5),
      term_flag_(term_flag),
      vis_flag_(vis_flag),
-     dc_(NULL),
-     dg_precond_(NULL)
+     dc_(NULL)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -3191,11 +3163,11 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
       blf_[i]->Update(); // Clears the matrix so we start from 0 again
       blf_[i]->Assemble(0);
       blf_[i]->Finalize(0);
-      //Operator * D = blf_[i]->ParallelAssemble();
+
       HypreParMatrix * Dmat = blf_[i]->ParallelAssemble();
       Operator * D = Dmat;
 
-      if (index_ == 1 && i == 1)  // IonDensity diagonal term
+      if (index_ == i)  // Diagonal term
       {
          if (cgblf_[i])
          {
