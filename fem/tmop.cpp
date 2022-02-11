@@ -58,30 +58,6 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
    }
 }
 
-double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
-{
-   ie.SetJacobian(Jpt.GetData());
-   return ie.Get_I1();
-}
-
-void TMOP_Metric_001::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-{
-   ie.SetJacobian(Jpt.GetData());
-   P = ie.Get_dI1();
-}
-
-
-
-void TMOP_Metric_001::AssembleH(const DenseMatrix &Jpt,
-                                const DenseMatrix &DS,
-                                const double weight,
-                                DenseMatrix &A) const
-{
-   ie.SetJacobian(Jpt.GetData());
-   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   ie.Assemble_ddI1(weight, A.GetData());
-}
-
 double TMOP_Metric_000::EvalW(const DenseMatrix &Jpt) const
 {
    return 0.0;
@@ -103,6 +79,28 @@ void TMOP_Metric_000::AssembleH(const DenseMatrix &Jpt,
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1(weight, A.GetData());
    A *= 0;
+}
+
+double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   return ie.Get_I1();
+}
+
+void TMOP_Metric_001::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   P = ie.Get_dI1();
+}
+
+void TMOP_Metric_001::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   ie.Assemble_ddI1(weight, A.GetData());
 }
 
 double TMOP_Metric_skew2D::EvalW(const DenseMatrix &Jpt) const
