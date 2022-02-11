@@ -4214,7 +4214,7 @@ private:
 
       void Update();
 
-      virtual int GetDefaultVisFlag() { return 11; }
+      virtual int GetDefaultVisFlag() { return 27; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -4314,7 +4314,7 @@ private:
 
       void Update();
 
-      virtual int GetDefaultVisFlag() { return 15; }
+      virtual int GetDefaultVisFlag() { return 31; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -4369,7 +4369,7 @@ private:
       StaticPressureCoef               presCoef_;
       StaticPressureAdvectionCoef      aniViCoef_;
       IonThermalParaDiffusionCoef      ChiParaCoef_;
-      ProductCoefficient               ChiPerpCoef_;
+      ConstantCoefficient              ChiPerpCoef_;
       Coefficient *                    ChiParaCoefPtr_;
       Coefficient *                    ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
@@ -4456,7 +4456,7 @@ private:
       StaticPressureCoef               presCoef_;
       StaticPressureAdvectionCoef      aneViCoef_;
       ElectronThermalParaDiffusionCoef ChiParaCoef_;
-      ProductCoefficient               ChiPerpCoef_;
+      ConstantCoefficient              ChiPerpCoef_;
       Coefficient *                    ChiParaCoefPtr_;
       Coefficient *                    ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
@@ -4547,7 +4547,7 @@ private:
       TotalEnergyAdvectionCoef         advFluxCoef_;
       StaticPressureAdvectionCoef      aniViCoef_;
       IonThermalParaDiffusionCoef      ChiParaCoef_;
-      ProductCoefficient               ChiPerpCoef_;
+      ConstantCoefficient              ChiPerpCoef_;
       Coefficient *                    ChiParaCoefPtr_;
       Coefficient *                    ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
@@ -4579,7 +4579,7 @@ private:
 
       virtual ~IonTotalEnergyOp();
 
-      virtual int GetDefaultVisFlag() { return 15; }
+      virtual int GetDefaultVisFlag() { return 31; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -4608,7 +4608,7 @@ private:
       TotalEnergyAdvectionCoef         advFluxCoef_;
       StaticPressureAdvectionCoef      aneViCoef_;
       ElectronThermalParaDiffusionCoef ChiParaCoef_;
-      ProductCoefficient               ChiPerpCoef_;
+      ConstantCoefficient              ChiPerpCoef_;
       Coefficient *                    ChiParaCoefPtr_;
       Coefficient *                    ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
@@ -4639,7 +4639,7 @@ private:
 
       virtual ~ElectronTotalEnergyOp();
 
-      virtual int GetDefaultVisFlag() { return 7; }
+      virtual int GetDefaultVisFlag() { return 15; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 

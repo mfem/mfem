@@ -5620,9 +5620,8 @@ IonStaticPressureOp(const MPI_Session & mpi,
      izCoef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
      presCoef_(niCoef_, TiCoef_),
      aniViCoef_(niCoef_, viCoef_, 2.5, B3Coef_),
-     ChiParaCoef_(plasma.z_i, plasma.m_i, plasma.lnLambda,
-                  *yCoefPtrs_[ION_DENSITY], *yCoefPtrs_[ION_TEMPERATURE]),
-     ChiPerpCoef_(ChiPerpConst_, *yCoefPtrs_[ION_DENSITY]),
+     ChiParaCoef_(plasma.z_i, plasma.m_i, plasma.lnLambda, niCoef_, TiCoef_),
+     ChiPerpCoef_(ChiPerpConst_),
      ChiParaCoefPtr_((ispcoefs_(ISPCoefs::PARA_DIFFUSION_COEF) != NULL)
                      ? const_cast<Coefficient*>
                      (ispcoefs_(ISPCoefs::PARA_DIFFUSION_COEF))
@@ -5829,7 +5828,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      presCoef_(z_i_, niCoef_, TeCoef_),
      aneViCoef_(neCoef_, viCoef_, 2.5, B3Coef_),
      ChiParaCoef_(plasma.z_i, plasma.lnLambda, neCoef_, TeCoef_),
-     ChiPerpCoef_(ChiPerpConst_, neCoef_),
+     ChiPerpCoef_(ChiPerpConst_),
      ChiParaCoefPtr_((espcoefs_(ESPCoefs::PARA_DIFFUSION_COEF) != NULL)
                      ? const_cast<Coefficient*>
                      (espcoefs_(ESPCoefs::PARA_DIFFUSION_COEF))
@@ -6101,7 +6100,7 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      advFluxCoef_(plasma.m_i * amu_ / eV_, niCoef_, viCoef_, TiCoef_, B3Coef),
      aniViCoef_(niCoef_, viCoef_, 2.5, B3Coef_),
      ChiParaCoef_(plasma.z_i, plasma.m_i, plasma.lnLambda, niCoef_, TiCoef_),
-     ChiPerpCoef_(ChiPerpConst_, niCoef_),
+     ChiPerpCoef_(ChiPerpConst_),
      ChiParaCoefPtr_((itecoefs_(ITECoefs::PARA_DIFFUSION_COEF) != NULL)
                      ? const_cast<Coefficient*>
                      (itecoefs_(ITECoefs::PARA_DIFFUSION_COEF))
@@ -6170,7 +6169,7 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
 
    if (this->CheckTermFlag(EQUIPARTITION_SOURCE_TERM))
    {
-      // Source term: Siz
+      // Source term: Qi
       SetSourceTerm(QiCoef_, 1.0);
    }
 
@@ -6328,7 +6327,7 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      advFluxCoef_(plasma.z_i, me_kg_ / eV_, niCoef_, viCoef_, TeCoef_, B3Coef),
      aneViCoef_(neCoef_, viCoef_, 2.5, B3Coef_),
      ChiParaCoef_(plasma.z_i, plasma.lnLambda, neCoef_, TeCoef_),
-     ChiPerpCoef_(ChiPerpConst_, neCoef_),
+     ChiPerpCoef_(ChiPerpConst_),
      ChiParaCoefPtr_((etecoefs_(ETECoefs::PARA_DIFFUSION_COEF) != NULL)
                      ? const_cast<Coefficient*>
                      (etecoefs_(ETECoefs::PARA_DIFFUSION_COEF))
@@ -6394,6 +6393,12 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
       SetOutflowBdrTerm(advFluxCoef_, bcs_.GetOutflowBCs());
    }
 
+   if (this->CheckTermFlag(EQUIPARTITION_SOURCE_TERM))
+   {
+      // Source term: -Qi
+      SetSourceTerm(QiCoef_, -1.0);
+   }
+
    if (this->CheckTermFlag(SOURCE_TERM) &&
        etecoefs_(ETECoefs::SOURCE_COEF) != NULL)
    {
@@ -6414,11 +6419,6 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
        etecoefs_(ETECoefs::SOURCE_COEF) != NULL)
    {
       SGF_ = new ParGridFunction(&fes_);
-   }
-   if (this->CheckTermFlag(EQUIPARTITION_SOURCE_TERM))
-   {
-      // Source term: Siz
-      SetSourceTerm(QiCoef_, -1.0);
    }
    if (this->CheckVisFlag(ELECTRON_TOTAL_ENERGY))
    {
