@@ -1367,11 +1367,6 @@ protected:
 
    DiscreteAdaptTC *discr_tc;
 
-   // Timers
-   mutable StopWatch TimeEnergyShape, TimeEnergySurfFit,
-           TimeVectorShape, TimeVectorSurfFit,
-           TimeGradShape, TimeGradSurfFit;
-
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
    double dx;
@@ -1426,7 +1421,6 @@ protected:
    {
       bool enabled;
       int dim, ne, nq;
-      int nqsf;
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
@@ -1565,15 +1559,7 @@ public:
         surf_fit_eval(NULL), surf_fit_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
-   {
-      PA.enabled = false;
-      TimeEnergyShape.Clear();
-      TimeEnergySurfFit.Clear();
-      TimeVectorShape.Clear();
-      TimeVectorSurfFit.Clear();
-      TimeGradShape.Clear();
-      TimeGradSurfFit.Clear();
-   }
+   { PA.enabled = false; }
 
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
       : TMOP_Integrator(m, tc, m) { }
@@ -1742,14 +1728,6 @@ public:
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
-
-   // Get timing data
-   double GetEnergySplitShapeTime() { return TimeEnergyShape.RealTime(); }
-   double GetEnergySplitSurfFitTime() { return TimeEnergySurfFit.RealTime(); }
-   double GetVectorSplitShapeTime() { return TimeVectorShape.RealTime(); }
-   double GetVectorSplitSurfFitTime() { return TimeVectorSurfFit.RealTime(); }
-   double GetGradSplitShapeTime() { return TimeVectorShape.RealTime(); }
-   double GetGradSplitSurfFitTime() { return TimeVectorSurfFit.RealTime(); }
 
    void UpdateSurfaceFittingWeight(double factor);
 
