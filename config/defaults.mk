@@ -42,6 +42,9 @@ STATIC = YES
 SHARED = NO
 
 # CUDA configuration options
+#
+# If you set MFEM_USE_ENZYME=YES, this has to be configured to use cuda with
+# clang as it's host compiler.
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
 CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
@@ -161,6 +164,7 @@ MFEM_USE_ADFORWARD     = NO
 MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
+MFEM_USE_ENZYME        = NO
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
@@ -483,6 +487,12 @@ MKL_CPARDISO_LIB = $(XLINKER)-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
 PARELAG_DIR = @MFEM_DIR@/../parelag
 PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
 PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
+
+# Enzyme configuration
+ENZYME_DIR ?=
+ifeq ($(MFEM_USE_ENZYME),YES)
+   BASE_FLAGS += -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-14.so -mllvm -enzyme-loose-types=1
+endif
 
 # If YES, enable some informational messages
 VERBOSE = NO
