@@ -37,22 +37,33 @@
 //   mpirun -np 4 tmop_surface -m ../../data/square-disc-p2.mesh -o 2 -rs 0 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 20 -sni 10 -oi 3 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2 -mod-bndr-attr
 //   mpirun -np 4 tmop_surface -m ../../data/square-disc-nurbs.mesh -o 4 -rs 2 -mid 1 -tid 1 -vl 2 -sfc 1e2 -rtol 1e-12 -ni 10 -sni 10 -oi 5 -ae 1 -fix-bnd -sbgmesh -slstype 2 -sapp 2 -smtype 2 -mod-bndr-attr
 
-
 //  Interface fitting
 //  mpirun -np 4 tmop_surface -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor -sapp 1 -slstype 1
 //  mpirun -np 4 tmop_surface -m square01-tri.mesh -o 2 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor -sapp 1 -slstype 1
 //  mpirun -np 4 tmop_surface -m square01-tri.mesh -o 2 -rs 2 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor -sapp 1 -slstype 3
 
+// Snowman
+//
+//
+// Keyhole
 // mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e9 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 7 -sapp 1 -smtype 1
 // Trim on the inside and fit the boundary
 // mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e9 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 7 -sapp 1 -smtype 2 -trim
+
+// Propeller1
+// mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 3 -mid 2 -tid 1 -vl 2 -sfc 1e12 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 8 -sapp 1 -smtype 2 -trim
 // mpirun -np 6 tmop_surface -m square01-tri.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e12 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 8 -sapp 1 -smtype 1
+
+// Reactor fin
+// mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 3 -mid 2 -tid 1 -vl 2 -sfc 1e12 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -sbgmesh -slstype 9 -sapp 1 -smtype 1 -st 0
+
+// Propeller2
+// mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 1e12 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 10 -sapp 1 -smtype 1
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
 #include <fstream>
 #include "tmop_surface.hpp"
-
 
 using namespace mfem;
 using namespace std;
@@ -156,9 +167,6 @@ int main (int argc, char *argv[])
                   "3: Ideal shape, initial size\n\t"
                   "4: Given full analytic Jacobian (in physical space)\n\t"
                   "5: Ideal shape, given size (in physical space)");
-
-
-
    args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
                   "Surface preservation constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
@@ -286,6 +294,14 @@ int main (int argc, char *argv[])
    else if (surf_ls_type == 8) // propeller
    {
       ls_coeff = new FunctionCoefficient(propeller);
+   }
+   else if (surf_ls_type == 9) // reactor
+   {
+      ls_coeff = new FunctionCoefficient(reactor);
+   }
+   else if (surf_ls_type == 10) // propeller
+   {
+      ls_coeff = new FunctionCoefficient(propeller2);
    }
    else
    {

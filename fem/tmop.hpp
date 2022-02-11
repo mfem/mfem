@@ -118,7 +118,7 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
 
-   virtual int Id() const { return 1; }
+   virtual int Id() const { return 0; }
 };
 
 /// 2D non-barrier metric without a type.

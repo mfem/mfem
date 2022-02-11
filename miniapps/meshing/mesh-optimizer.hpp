@@ -14,6 +14,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "../common/mfem-common.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -589,6 +590,188 @@ double propeller(const Vector &x)
    in_propeller_val = in_propeller(a, b, d, xcc, theta);
 
    return max(final_val, in_propeller_val);
+}
+
+double in_trapezium(const Vector &x, double a, double b, double l)
+{
+   double phi_t = x(1) + (a-b)*x(0)/l - a;
+   if (phi_t <= 0.0)
+   {
+      return 1.0;
+   }
+   return -1.0;
+}
+
+double in_parabola(const Vector &x, double h, double k, double t)
+{
+   double phi_p1 = (x(0)-h-t/2) - k*x(1)*x(1);
+   double phi_p2 = (x(0)-h+t/2) - k*x(1)*x(1);
+   if (phi_p1 <= 0.0 && phi_p2 >= 0.0)
+   {
+      return 1.0;
+   }
+   return -1.0;
+}
+
+// xc, yc = center, w,h = width and height
+double in_rectangle(const Vector &x, double xc, double yc, double w, double h)
+{
+   double dx = fabs(x(0) - xc);
+   double dy = fabs(x(1) - yc);
+   if (dx <= w/2 && dy <= h/2)
+   {
+      return 1.0;
+   }
+   else
+   {
+      return -1.0;
+   }
+}
+
+double reactor(const Vector &x)
+{
+   // Circle
+   Vector x_circle1(2);
+   x_circle1(0) = 0.0;
+   x_circle1(1) = 0.0;
+   double in_circle1_val = in_circle(x, x_circle1, 0.2);
+
+   double r1 = 0.2;
+   double r2 = 1.0;
+   double in_trapezium_val = in_trapezium(x,0.05, 0.1, r2-r1);
+
+   double return_val = max(in_circle1_val, in_trapezium_val);
+
+   double h = 0.4;
+   double k = 2;
+   double t = 0.15;
+   double in_parabola_val = in_parabola(x, h, k, t);
+   return_val = max(return_val, in_parabola_val);
+
+   double in_rectangle_val = in_rectangle(x, 1.0, 0.0, 0.12, 0.35);
+   return_val = max(return_val, in_rectangle_val);
+
+   double in_rectangle_val2 = in_rectangle(x, 1.0, 0.5, 0.12, 0.28);
+   return_val = max(return_val, in_rectangle_val2);
+   return return_val;
+   return return_val;
+
+   //   double h = 0.4;
+   //   double k = 1.2;
+   //   double t = 0.12;
+   //   double in_parabola_val = in_parabola(x, h, k, t);
+   return_val = max(return_val, in_parabola_val);
+
+   h = 0.7;
+   k = 2;
+   t = 0.12;
+   in_parabola_val = in_parabola(x, h, k, t);
+
+   return max(return_val, in_parabola_val);
+}
+
+double in_parabola_xy(const Vector &x,
+                      double hx, double hy,
+                      double kx, double ky,
+                      double tx, double ty,
+                      double powerx, double powery,
+                      double minv, double maxv,
+                      int idir, int check_flip)
+{
+   double phi_p1 = kx*pow(x(0)-hx-tx/2, powerx) - ky*pow(x(1)-hy-ty/2, powery);
+   double phi_p2 = kx*pow(x(0)-hx+tx/2, powerx) - ky*pow(x(1)-hy+ty/2, powery);
+   if (check_flip == 0 && phi_p1 >= 0.0 && phi_p2 <= 0.0 && x(idir) >= minv &&
+       x(idir) <= maxv)
+   {
+      return 1.0;
+   }
+   else if (check_flip == 1 && phi_p1 <= 0.0 && phi_p2 >= 0.0 && x(idir) >= minv &&
+            x(idir) <= maxv)
+   {
+      return 1.0;
+   }
+   return -1.0;
+}
+
+double propeller2(const Vector &x)
+{
+   // big circle
+   Vector x_circle1(2);
+   x_circle1(0) = 0.5;
+   x_circle1(1) = 0.5;
+   double rad = 0.151;
+   double in_circle1_val = in_circle(x, x_circle1, rad);
+
+   double thickness = 0.1;
+
+   double kx = 5;
+   double ky = 1.0;
+   double ty = thickness;
+   double tx = 0.0;
+   double hx = 0.5+rad;
+   double hy = 0.5;
+   double xmin = 0.5+rad-rad/4;
+   double xmax = 0.825;
+   double powerx = 2.0;
+   double powery = 1.0;
+   int idir = 0;
+   int check_flip = 0;
+   double in_parabola_val1 = in_parabola_xy(x, hx, hy, kx, ky, tx, ty,
+                                            powerx, powery, xmin, xmax,
+                                            idir, check_flip);
+   double return_val = max(in_circle1_val, in_parabola_val1);
+
+   kx = 1.0;
+   ky = -5.0;
+   tx = thickness;
+   ty = 0.0;
+   hx = 0.5;
+   hy = 0.5+rad;
+   powerx = 1.0;
+   powery = 2.0;
+   idir = 1;
+   check_flip = 1;
+
+   in_parabola_val1 = in_parabola_xy(x, hx, hy, kx, ky, tx, ty,
+                                     powerx, powery, xmin, xmax,
+                                     idir, check_flip);
+   return_val = max(return_val, in_parabola_val1);
+
+   kx = -5.0;
+   ky = 1.0;
+   tx = 0.0;
+   ty = thickness;
+   hx = 0.5-rad;
+   hy = 0.5;
+   powerx = 2.0;
+   powery = 1.0;
+   idir = 0;
+   check_flip = 0;
+   xmax = 0.5-rad+rad/4;
+   xmin = 0.5-(0.825-0.5);
+
+   in_parabola_val1 = in_parabola_xy(x, hx, hy, kx, ky, tx, ty,
+                                     powerx, powery, xmin, xmax,
+                                     idir, check_flip);
+   return_val = max(return_val, in_parabola_val1);
+
+   kx = 1.0;
+   ky = 5.0;
+   tx = thickness;
+   ty = 0.0;
+   hx = 0.5;
+   hy = 0.5-rad;
+   powerx = 1.0;
+   powery = 2.0;
+   idir = 1;
+   check_flip = 1;
+
+   in_parabola_val1 = in_parabola_xy(x, hx, hy, kx, ky, tx, ty,
+                                     powerx, powery, xmin, xmax,
+                                     idir, check_flip);
+   return_val = max(return_val, in_parabola_val1);
+
+   return return_val;
 }
 
 int material_id(int el_id, const GridFunction &g)
