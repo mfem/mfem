@@ -3495,9 +3495,6 @@ void TMOP_Integrator::UpdateSurfaceFittingWeight(double factor)
       if (cf)
       {
          cf->constant *= factor;
-         PA.C0sf.SetSize(1, Device::GetMemoryType());
-         PA.C0sf.HostWrite();
-         PA.C0sf(0) = cf->constant;
       }
    }
 }
@@ -3643,14 +3640,6 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x)
    if (surf_fit_gf)
    {
       surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf);
-      if (PA.enabled)
-      {
-         const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-         const Operator *n0_R = PA.fessf->GetElementRestriction(ordering);
-         PA.SFG.SetSize(n0_R->Height(), Device::GetMemoryType());
-         PA.SFG.UseDevice(true);
-         n0_R->Mult(*surf_fit_gf, PA.SFG);
-      }
    }
 }
 
