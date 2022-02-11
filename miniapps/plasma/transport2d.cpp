@@ -985,6 +985,7 @@ int main(int argc, char *argv[])
    dg.kappa = -1.0;
 
    int ode_solver_type = 2;
+   int ode_limiter_type = 2;
    int logging = 0;
    bool     imex = false;
    bool ode_epus = false;
@@ -1005,6 +1006,7 @@ int main(int argc, char *argv[])
    double t_min = 0.0;
    double t_final = -1.0;
    double dt = -0.01;
+   double dt_floor = 1e-10;
    // double dt_rel_tol = 0.1;
    double cfl = 0.3;
 
@@ -1121,6 +1123,8 @@ int main(int argc, char *argv[])
                   "Difference tolerance for ODE integration.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - SDIRK 212, 2 - SDIRK 534.");
+   args.AddOption(&ode_limiter_type, "-sl", "--ode-limiter",
+                  "ODE Limiter: 1 - Maximum, 2 - Dead-Zone.");
    args.AddOption(&ode_epus, "-epus", "--err-per-unit-step", "-eps",
                   "--err-per-step",
                   "Select error value used by ODE controller.");
@@ -1147,6 +1151,9 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step. Positive number skips CFL timestep calculation.");
+   args.AddOption(&dt_floor, "-dt-floor", "--time-step-floor",
+                  "Minimum Time step. Time step should not drop below this "
+                  "value.");
    // args.AddOption(&dt_rel_tol, "-dttol", "--time-step-tolerance",
    //                "Time step will only be adjusted if the relative difference "
    //                "exceeds dttol.");
@@ -1550,13 +1557,19 @@ int main(int argc, char *argv[])
    ODEController ode_controller;
    PIDAdjFactor dt_acc(kP_acc, kI_acc, kD_acc);
    IAdjFactor   dt_rej(kI_rej);
-   DeadZoneLimiter dt_lim(lim_a, lim_b, lim_max);
 
-   ODEEmbeddedSolver * ode_solver   = NULL;
+   ODEEmbeddedSolver * ode_solver = NULL;
    switch (ode_solver_type)
    {
       case 1: ode_solver = new SDIRK212Solver; break;
       case 2: ode_solver = new SDIRK534Solver; break;
+   }
+
+   ODEStepAdjustmentLimiter * ode_limiter = NULL;
+   switch (ode_limiter_type)
+   {
+      case 1: ode_limiter = new MaxLimiter(lim_max); break;
+      case 2: ode_limiter = new DeadZoneLimiter(lim_a, lim_b, lim_max); break;
    }
 
    ParGridFunction psi(&fes_h1);
@@ -1942,10 +1955,11 @@ int main(int argc, char *argv[])
    ode_solver->Init(oper);
 
    ode_controller.Init(*ode_solver, ode_diff_msr,
-                       dt_acc, dt_rej, dt_lim);
+                       dt_acc, dt_rej, *ode_limiter);
 
    ode_controller.SetOutputFrequency(vis_steps);
    ode_controller.SetTimeStep(dt);
+   ode_controller.SetMinTimeStep(dt_floor);
    ode_controller.SetTolerance(tol_ode);
    ode_controller.SetRejectionLimit(rej_ode);
    if (ode_epus) { ode_controller.SetErrorPerUnitStep(); }

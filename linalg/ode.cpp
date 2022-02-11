@@ -1515,7 +1515,7 @@ void ODEController::Step(Vector &x, double &t, double delta_t)
 
       if (epus) { r /= dt; }
 
-      if (r <= rho * tol)
+      if (r <= rho * tol || dt <= min_dt)
       {
          accept = true;
          nrejs  = 0;

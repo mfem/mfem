@@ -1064,20 +1064,21 @@ private:
    double mx;
 
 public:
-   DeadZoneLimiter(double _lo, double _hi, double _mx)
-      : lo(_lo), hi(_hi), mx(_mx) {}
+   DeadZoneLimiter(double lo, double hi, double mx)
+      : lo(lo), hi(hi), mx(mx) {}
 
    double operator()(double theta) const
    { return std::min(mx, ((lo <= theta && theta <= hi) ? 1.0 : theta)); }
 };
 
+/// The next time step will never be more than mx * current_time_step
 class MaxLimiter : public ODEStepAdjustmentLimiter
 {
 private:
    double mx;
 
 public:
-   MaxLimiter(double _mx) : mx(_mx) {}
+   MaxLimiter(double mx) : mx(mx) {}
 
    double operator()(double theta) const
    { return std::min(mx, theta); }
