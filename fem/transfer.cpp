@@ -1459,6 +1459,8 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
       tmpH.SetSize(hFESpace_.GetVSize());
       R->BuildTranspose();
    }
+
+   hFESpace.GetRestrictionMatrix()->EnsureMultTranspose();
 }
 
 TrueTransferOperator::~TrueTransferOperator()

@@ -1193,7 +1193,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       if (cR_hp) { MakeVDimMatrix(*cR_hp); }
    }
 
-   if (Device::IsEnabled()) { cP->BuildTranspose(); }
+   cP->EnsureMultTranspose();
 }
 
 void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
