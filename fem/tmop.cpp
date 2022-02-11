@@ -2589,7 +2589,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       adapt_lim_gf0->GetValues(el_id, ir, adapt_lim_gf0_q);
    }
 
-
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
@@ -3185,6 +3184,12 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
    Vector sigma_e;
    Array<int> dofs;
    surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
+   int count = 0;
+   for (int s = 0; s < dofs.Size(); s++)
+   {
+      count += ((*surf_fit_marker)[dofs[s]]) ? 1 : 0;
+   }
+   if (count == 0) { return; }
    surf_fit_gf->GetSubVector(dofs, sigma_e);
 
    // Project the gradient of sigma in the same space.
@@ -3234,6 +3239,12 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
 
    Array<int> dofs;
    surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
+   int count = 0;
+   for (int s = 0; s < dofs.Size(); s++)
+   {
+      count += ((*surf_fit_marker)[dofs[s]]) ? 1 : 0;
+   }
+   if (count == 0) { return; }
    surf_fit_gf->GetSubVector(dofs, sigma_e);
 
    DenseMatrix surf_fit_grad_e(dof_s, dim);
