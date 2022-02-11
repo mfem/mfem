@@ -120,7 +120,6 @@ void TMOP_Integrator::AssemblePA_Limiting()
    }
 }
 
-
 void TargetConstructor::ComputeAllElementTargets(const FiniteElementSpace &fes,
                                                  const IntegrationRule &ir,
                                                  const Vector &xe,

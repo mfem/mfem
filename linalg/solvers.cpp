@@ -1887,7 +1887,6 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       ProcessNewState(x);
 
       oper->Mult(x, r);
-
       if (have_b)
       {
          r -= b;
@@ -1996,11 +1995,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
    // Quadrature points that are checked for negative Jacobians etc.
    Vector sk, rk, yk, rho, alpha;
-   for (int i = 0; i < m; i++)
-   {
-      skMV[i]->SetSize(width);
-      ykMV[i]->SetSize(width);
-   }
+   DenseMatrix skM(width, m), ykM(width, m);
 
    // r - r_{k+1}, c - descent direction
    sk.SetSize(width);    // x_{k+1}-x_k
@@ -2084,23 +2079,27 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
       // Save last m vectors
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
-      *skMV[last_saved_id] = sk;
-      *ykMV[last_saved_id] = yk;
+      skM.SetCol(last_saved_id, sk);
+      ykM.SetCol(last_saved_id, yk);
 
       c = r;
       for (int i = last_saved_id; i > -1; i--)
       {
-         rho(i) = 1.0/Dot((*skMV[i]),(*ykMV[i]));
-         alpha(i) = rho(i)*Dot((*skMV[i]),c);
-         add(c, -alpha(i), (*ykMV[i]), c);
+         skM.GetColumn(i, sk);
+         ykM.GetColumn(i, yk);
+         rho(i) = 1./Dot(sk, yk);
+         alpha(i) = rho(i)*Dot(sk,c);
+         add(c, -alpha(i), yk, c);
       }
       if (it > m-1)
       {
          for (int i = m-1; i > last_saved_id; i--)
          {
-            rho(i) = 1./Dot((*skMV[i]), (*ykMV[i]));
-            alpha(i) = rho(i)*Dot((*skMV[i]),c);
-            add(c, -alpha(i), (*ykMV[i]), c);
+            skM.GetColumn(i, sk);
+            ykM.GetColumn(i, yk);
+            rho(i) = 1./Dot(sk, yk);
+            alpha(i) = rho(i)*Dot(sk,c);
+            add(c, -alpha(i), yk, c);
          }
       }
 
@@ -2109,18 +2108,23 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       {
          for (int i = last_saved_id+1; i < m ; i++)
          {
-            double betai = rho(i)*Dot((*ykMV[i]), c);
-            add(c, alpha(i)-betai, (*skMV[i]), c);
+            skM.GetColumn(i,sk);
+            ykM.GetColumn(i,yk);
+            double betai = rho(i)*Dot(yk, c);
+            add(c, alpha(i)-betai, sk, c);
          }
       }
       for (int i = 0; i < last_saved_id+1 ; i++)
       {
-         double betai = rho(i)*Dot((*ykMV[i]), c);
-         add(c, alpha(i)-betai, (*skMV[i]), c);
+         skM.GetColumn(i,sk);
+         ykM.GetColumn(i,yk);
+         double betai = rho(i)*Dot(yk, c);
+         add(c, alpha(i)-betai, sk, c);
       }
 
       norm = Norm(r);
    }
+
    final_iter = it;
    final_norm = norm;
 
