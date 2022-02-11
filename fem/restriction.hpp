@@ -499,6 +499,7 @@ protected:
    void PermuteAndSetFaceDofsGatherIndices2(const Mesh::FaceInformation &face,
                                             const int face_index);
 
+public:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
        face E-Vector. Should only be used with conforming faces and when:
        m == L2FacesValues::SingleValued
@@ -812,7 +813,7 @@ private:
    void ComputeGatherIndices(const ElementDofOrdering ordering,
                              const FaceType type);
 
-protected:
+public:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
        face E-Vector. Should only be used with nonconforming faces and when:
        L2FaceValues m == L2FaceValues::DoubleValued
