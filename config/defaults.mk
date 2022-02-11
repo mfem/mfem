@@ -490,8 +490,9 @@ PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 
 # Enzyme configuration
 ENZYME_DIR ?=
+ENZYME_VERSION ?= 14
 ifeq ($(MFEM_USE_ENZYME),YES)
-   BASE_FLAGS += -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-14.so -mllvm -enzyme-loose-types=1
+   BASE_FLAGS += -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so -mllvm -enzyme-loose-types=1
 endif
 
 # If YES, enable some informational messages
