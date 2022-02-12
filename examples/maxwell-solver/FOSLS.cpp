@@ -37,7 +37,7 @@ void ComplexMaxwellFOSLS::GetFOSLSMatrix(Array2D<HypreParMatrix *> & A_)
 
 void ComplexMaxwellFOSLS::FormSystem(bool system)
 {
-   HYPRE_Int size = fes->GlobalTrueVSize();
+   // HYPRE_Int size = fes->GlobalTrueVSize();
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
@@ -50,13 +50,13 @@ void ComplexMaxwellFOSLS::FormSystem(bool system)
    }
 
    VectorFunctionCoefficient * E_ex_re = ess_data[0];
-   VectorFunctionCoefficient * H_ex_re = ess_data[1];
+   // VectorFunctionCoefficient * H_ex_re = ess_data[1];
    VectorFunctionCoefficient * E_ex_im = ess_data[2];
-   VectorFunctionCoefficient * H_ex_im = ess_data[3];
+   // VectorFunctionCoefficient * H_ex_im = ess_data[3];
 
-   VectorFunctionCoefficient * f_ex_re = loads[0];
+   // VectorFunctionCoefficient * f_ex_re = loads[0];
    VectorFunctionCoefficient * g_ex_re = loads[1];
-   VectorFunctionCoefficient * f_ex_im = loads[2];
+   // VectorFunctionCoefficient * f_ex_im = loads[2];
    VectorFunctionCoefficient * g_ex_im = loads[3];
 
    int n = fes->GetVSize();
@@ -297,7 +297,7 @@ void HelmholtzFOSLS::GetFOSLSMatrix(Array2D<HypreParMatrix *> & A_)
 
 void HelmholtzFOSLS::FormSystem(bool system)
 {
-   HYPRE_Int size = fes[0]->GlobalTrueVSize() + fes[1]->GlobalTrueVSize();
+   // HYPRE_Int size = fes[0]->GlobalTrueVSize() + fes[1]->GlobalTrueVSize();
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;

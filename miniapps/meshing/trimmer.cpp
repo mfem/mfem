@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
    args.AddOption(&attr, "-a", "--attr",
                   "Set of attributes to remove from the mesh.");
    args.AddOption(&attr_complement, "-ac", "--attr_complement",
-                  "Set of attributes to leave in the mesh.");                  
+                  "Set of attributes to leave in the mesh.");
    args.AddOption(&bdr_attr, "-b", "--bdr-attr",
                   "Set of attributes to assign to the new boundary elements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",

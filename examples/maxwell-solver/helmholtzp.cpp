@@ -189,14 +189,14 @@ int main(int argc, char *argv[])
 
 
    double hl = GetUniformMeshElementSize(pmesh);
-   int nrlayers = 14;
+   int nrlayers = 4;
 
    Array2D<double> lengths(dim,2);
    lengths = hl*nrlayers;
    // lengths[0][1] = 0.0;
    // lengths[1][1] = 0.0;
    // lengths[1][0] = 0.0;
-   lengths[0][0] = 0.0;
+   // lengths[0][0] = 0.0;
    // CartesianPML pml(mesh,lengths);
    CartesianPML pml(pmesh,lengths);
    pml.SetOmega(omega);
@@ -408,25 +408,23 @@ int main(int argc, char *argv[])
                      << "window_title 'Numerical Pressure: Imag Part' " << flush;     
 
       int num_frames = 16;
-      int i = 0;
       GridFunction x_t(fespace);
       x_t = p_gf.real();
-      ParaViewDataCollection * pd = new ParaViewDataCollection("helmholtz_var_ws16", pmesh);
-      pd->SetPrefixPath("ParaView");
-      pd->RegisterField("solution", &x_t);
-      pd->SetLevelsOfDetail(order);
-      pd->SetDataFormat(VTKFormat::BINARY);
-      pd->SetHighOrderOutput(true);
-      pd->SetCycle(0);
-      pd->SetTime(0.0);
-      pd->Save();
+      // ParaViewDataCollection * pd = new ParaViewDataCollection("helmholtz_var_ws16", pmesh);
+      // pd->SetPrefixPath("ParaView");
+      // pd->RegisterField("solution", &x_t);
+      // pd->SetLevelsOfDetail(order);
+      // pd->SetDataFormat(VTKFormat::BINARY);
+      // pd->SetHighOrderOutput(true);
+      // pd->SetCycle(0);
+      // pd->SetTime(0.0);
+      // pd->Save();
 
 
       // while (sol_sock)
       // {
       for (int i = 1; i<num_frames; i++)
       {   
-         cout << i << endl;
          double t = (double)(i % num_frames) / num_frames;
          // ostringstream oss;
          // oss << "Harmonic Solution (t = " << t << " T)";
@@ -438,9 +436,9 @@ int main(int argc, char *argv[])
          //          << "window_title '" << oss.str() << "'" << flush;
          // i++;
 
-         pd->SetCycle(i);
-         pd->SetTime((double)i);
-         pd->Save();
+         // pd->SetCycle(i);
+         // pd->SetTime((double)i);
+         // pd->Save();
       }               
 
       }
@@ -617,6 +615,7 @@ double wavespeed(const Vector &x)
    // }
 
 
+   ws = 1.0;
    return ws;
 }
 

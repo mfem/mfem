@@ -58,7 +58,7 @@ private:
    Array<ComplexUMFPackSolver *> PmlMatInv;
 //    Array<ComplexMUMPSSolver *> PmlMatInv;
    mutable Array<Vector *> f_orig;
-   mutable Array<Array<Vector * >> f_transf;
+   mutable std::vector<Array<Vector * >> f_transf;
    mutable Array<Vector * > subdomain_sol;
    mutable std::vector<std::vector<Vector * >> OvlpSol;
    void SetupSubdomainProblems();

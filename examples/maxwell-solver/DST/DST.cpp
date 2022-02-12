@@ -56,7 +56,7 @@ DST::DST(SesquilinearForm * bf_, Array2D<double> & Pmllength_,
    PmlMat.SetSize(nrpatch);
    PmlMatInv.SetSize(nrpatch);
    f_orig.SetSize(nrpatch);
-   f_transf.SetSize(nrpatch);
+   f_transf.resize(nrpatch);
    cout << "nrsubdomain = " << nrpatch << endl;
 
    chrono.Clear();

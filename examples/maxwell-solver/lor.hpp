@@ -10,7 +10,7 @@ Array<int> ComputeVectorFE_LORPermutation(FiniteElementSpace &fes_ho,
                                           FiniteElementSpace &fes_lor,
                                           FiniteElement::MapType type);
 
-class LORSolver : public Solver
+class RealLORSolver : public Solver
 {
 
 private:
@@ -20,7 +20,7 @@ private:
    Array<int> p;
    Solver *solv=nullptr;
 public:
-   LORSolver(HypreParMatrix & A, const Array<int> p_, 
+   RealLORSolver(HypreParMatrix & A, const Array<int> p_, 
                          bool exact = true, Solver * prec = nullptr);
 void SetOperator(const Operator&) { }
 

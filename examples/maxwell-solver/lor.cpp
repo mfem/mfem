@@ -105,7 +105,7 @@ Array<int> ComputeVectorFE_LORPermutation(
 }
 
 
-LORSolver::LORSolver(HypreParMatrix & A, const Array<int> p_, bool exact, Solver * prec)
+RealLORSolver::RealLORSolver(HypreParMatrix & A, const Array<int> p_, bool exact, Solver * prec)
    : Solver(A.Height()), p(p_)
 {
    if (exact)
@@ -125,7 +125,7 @@ LORSolver::LORSolver(HypreParMatrix & A, const Array<int> p_, bool exact, Solver
    for (int i = 0; i<n2; i++) { perm[i+n1] = p[i]; }
 }
 
-void LORSolver::Mult(const Vector &b, Vector &x) const
+void RealLORSolver::Mult(const Vector &b, Vector &x) const
 {
    Vector bp(b.Size());
    Vector xp(x.Size());

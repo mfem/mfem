@@ -32,7 +32,7 @@ private:
    Array<ComplexUMFPackSolver *> PmlMatInv;
    Sweep * swp=nullptr;
    mutable Array<Vector *> f_orig;
-   mutable Array<Array<Vector * >> f_transf;
+   mutable std::vector<Array<Vector * >> f_transf;
    mutable Vector zaux;
 
 

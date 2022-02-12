@@ -376,7 +376,7 @@ int main(int argc, char *argv[])
       string keys;
       if (dim ==2 )
       {
-         keys = "keys mrRljc\n";
+         keys = "keys mrRljcUUuuu\n";
       }
       else
       {
@@ -482,8 +482,9 @@ void source_re(const Vector &x, Vector &f)
       double n = 4.0*omega/M_PI;
       double coeff = 16.0*omega*omega/M_PI/M_PI/M_PI;
 
-      for (int i = 0; i<nrsources; i++)
-      // for (int i = 0; i<1; i++)
+      // for (int i = 0; i<nrsources; i++)
+      x0(0) = 0.5; y0(0) = 0.5; 
+      for (int i = 0; i<1; i++)
       {
          double beta = pow(x0(i)-x(0),2) + pow(y0(i)-x(1),2);
          if (dim == 3) { beta += pow(z0(i)-x(2),2); }

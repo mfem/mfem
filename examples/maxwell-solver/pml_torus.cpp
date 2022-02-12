@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
    {
       // Define visualization keys for GLVis (see GLVis documentation)
       string keys;
-      keys = (dim == 3) ? "keys macF\n" : keys = "keys amrRljcUUuu\n";
+      keys = (dim == 3) ? "keys macF\n" : keys = "keys amrRljcUUuuu\n";
 
       char vishost[] = "localhost";
       int visport = 19916;
@@ -368,50 +368,51 @@ int main(int argc, char *argv[])
       sol_sock_im << "solution\n"
                   << *mesh << x.imag() << keys
                   << "window_title 'Solution imag part'" << flush;
+      {
+         GridFunction x_t(fespace);
+         x_t = x.real();
+         socketstream sol_sock(vishost, visport);
+         sol_sock.precision(8);
+         sol_sock << "solution\n"
+                  << *mesh << x_t << keys << "autoscale off\n"
+                  << "window_title 'Harmonic Solution (t = 0.0 T)'"
+                  << "pause\n" << flush;
 
-      GridFunction x_t(fespace);
-      x_t = x.real();
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n"
-               << *mesh << x_t << keys << "autoscale off\n"
-               << "window_title 'Harmonic Solution (t = 0.0 T)'"
-               << "pause\n" << flush;
-      cout << "GLVis visualization paused."
-           << " Press space (in the GLVis window) to resume it.\n";
+         cout << "GLVis visualization paused."
+               << " Press space (in the GLVis window) to resume it.\n";
       int num_frames = 16;
-      int i = 0;
+      // int i = 0;
 
-      ParaViewDataCollection * pd = new ParaViewDataCollection("PML_circle16", mesh);
-      pd->SetPrefixPath("ParaView");
-      pd->RegisterField("solution", &x_t);
-      pd->SetLevelsOfDetail(order);
-      pd->SetDataFormat(VTKFormat::BINARY);
-      pd->SetHighOrderOutput(true);
-      pd->SetCycle(0);
-      pd->SetTime(0.0);
-      pd->Save();
+      // ParaViewDataCollection * pd = new ParaViewDataCollection("PML_circle16", mesh);
+      // pd->SetPrefixPath("ParaView");
+      // pd->RegisterField("solution", &x_t);
+      // pd->SetLevelsOfDetail(order);
+      // pd->SetDataFormat(VTKFormat::BINARY);
+      // pd->SetHighOrderOutput(true);
+      // pd->SetCycle(0);
+      // pd->SetTime(0.0);
+      // pd->Save();
 
 
-      // while (sol_sock)
-      // {
-      for (int i = 1; i<num_frames; i++)
-      {   
-         cout << i << endl;
-         double t = (double)(i % num_frames) / num_frames;
-         // ostringstream oss;
-         // oss << "Harmonic Solution (t = " << t << " T)";
+         while (sol_sock)
+         {
+            for (int i = 1; i<num_frames; i++)
+            {   
+               double t = (double)(i % num_frames) / num_frames;
+               ostringstream oss;
+               oss << "Harmonic Solution (t = " << t << " T)";
 
-         add(cos(2.0 * M_PI * t), x.real(),
-             sin(2.0 * M_PI * t), x.imag(), x_t);
-         // sol_sock << "solution\n"
-         //          << *mesh << x_t
-         //          << "window_title '" << oss.str() << "'" << flush;
-         // i++;
-
-         pd->SetCycle(i);
-         pd->SetTime((double)i);
-         pd->Save();
+               add(cos(2.0 * M_PI * t), x.real(),
+                  sin(2.0 * M_PI * t), x.imag(), x_t);
+               sol_sock << "solution\n"
+                        << *mesh << x_t 
+                        << "window_title '" << oss.str() << "'" << flush;
+               // i++;
+            // pd->SetCycle(i);
+            // pd->SetTime((double)i);
+            // pd->Save();
+            }
+         }
       }
    }
 

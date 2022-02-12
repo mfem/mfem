@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
    FiniteElement::MapType t = FiniteElement::H_DIV;
    Array<int> perm = ComputeVectorFE_LORPermutation(RTfes_ho, RTfes_lor, t);
    
-   LORSolver M_lor(*A_lor, perm);
+   RealLORSolver M_lor(*A_lor, perm);
    M.SetDiagonalBlock(0,amg_p);
    ScaledOperator S(prec,1.0);
    M.SetDiagonalBlock(1,&S);
@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
    ScaledOperator S_lor(prec_lor,1.0);
    M_lor2.SetDiagonalBlock(1,&S_lor);
 
-   LORSolver M_lor_inexact(*A_lor, perm, false, &M_lor2);
+   RealLORSolver M_lor_inexact(*A_lor, perm, false, &M_lor2);
 
    StopWatch chrono;
    chrono.Clear();

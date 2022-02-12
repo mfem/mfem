@@ -251,7 +251,7 @@ void ParDST::SetupSubdomainProblems()
    PmlMat.SetSize(nrsubdomains);
    PmlMatInv.SetSize(nrsubdomains);
    f_orig.SetSize(nrsubdomains);
-   f_transf.SetSize(nrsubdomains);
+   f_transf.resize(nrsubdomains);
    subdomain_sol.SetSize(nrsubdomains);
    for (int ip=0; ip<nrsubdomains; ip++)
    {
