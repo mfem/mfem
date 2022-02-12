@@ -361,11 +361,11 @@ protected:
    { return (984120265*p1 + 125965121*p2 + 495698413*p3) & mask; }
 
    // Delete() and Reparent() use one of these:
-   /// @brief Hash function for item of type T that inherit from Hashed2.
+   /// @brief Hash function for items of type T that inherit from Hashed2.
    inline int Hash(const Hashed2& item) const
    { return Hash(item.p1, item.p2); }
 
-   /// @brief Hash function for item of type T that inherit from Hashed4.
+   /// @brief Hash function for items of type T that inherit from Hashed4.
    inline int Hash(const Hashed4& item) const
    { return Hash(item.p1, item.p2, item.p3); }
 
