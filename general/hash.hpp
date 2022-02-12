@@ -66,6 +66,14 @@ struct Hashed4
  *
  *  All items in the container can also be accessed sequentially using the
  *  provided iterator.
+ *
+ *  Notes:
+ *   The data structure and implementation is based on a BlockArray<T> to
+ *   provide high performance by avoiding pointers overheads. This also provides
+ *   an efficient index based access to the items stored.
+ *   - an item is what is also called the pair <key, value>,
+ *   - "id" denotes the index of an item in the underlying BlockArray<T>,
+ *   - "idx" denotes the key after hashing with the function `Hash`.
  */
 template<typename T>
 class HashTable : public BlockArray<T>
@@ -74,69 +82,206 @@ protected:
    typedef BlockArray<T> Base;
 
 public:
+   /** @brief Main constructor of the HashTable class.
+
+       @param[in] block_size The size of the memory blocks allocated by the
+                             inherited BlockArray<T> when resizing the HashTable
+                             to insert new items. Must be a power of 2.
+       @param[in] init_hash_size The initial size of the BlockArray<T>. Must be
+                                 a power of 2. */
    HashTable(int block_size = 16*1024, int init_hash_size = 32*1024);
-   HashTable(const HashTable& other); // deep copy
+   /// @brief Deep copy
+   HashTable(const HashTable& other);
    ~HashTable();
 
-   /// Get item whose parents are 'p1', 'p2'... Create it if it doesn't exist.
+   /** @brief Item accessor with key (or parents) the pair 'p1', 'p2'. Default
+       construct an item of type T if no value correspond to the requested key.
+
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @return The index "id" of the key in the BlockArray<T>.
+
+       @warning This method should only be called if T inherits from Hashed2. */
    T* Get(int p1, int p2);
+
+   /** @brief Item accessor with key (or parents) the quadruplet 'p1', 'p2',
+       'p3', 'p4'. The key 'p4' is optional. Default construct an item of type T
+       if no value correspond to the requested key.
+
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @param[in] p3 Third part of the key.
+       @param[in] p4 Fourth part of the key (optional).
+       @return The index "id" of the key in the BlockArray<T>.
+
+      @warning This method should only be called if T inherits from Hashed4. */
    T* Get(int p1, int p2, int p3, int p4 = -1 /* p4 optional */);
 
    /// Get id of item whose parents are p1, p2... Create it if it doesn't exist.
+   /** @brief Get the "id" of an item, this "id" corresponding to the index of the
+       item in the underlying BlockArray<T> object. Default construct an item
+       and id if no value correspond to the requested key.
+
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @return The index "id" of the key in the BlockArray<T>.
+
+       @warning This method should only be called if T inherits from Hashed2. */
    int GetId(int p1, int p2);
+   /** @brief Get the "id" of an item, this "id" corresponding to the index of the
+       item in the underlying BlockArray<T> object. Default construct an item
+       and id if no value correspond to the requested key.
+
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @param[in] p3 Third part of the key.
+       @param[in] p4 Fourth part of the key (optional).
+       @return The index "id" of the key in the BlockArray<T>.
+
+       @warning This method should only be called if T inherits from Hashed4. */
    int GetId(int p1, int p2, int p3, int p4 = -1);
 
    /// Find item whose parents are p1, p2... Return NULL if it doesn't exist.
+   /** @brief Item accessor with key (or parents) the pair 'p1', 'p2'. Return
+       nullptr if no value correspond to the requested key.
+
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @return The item associated to the key (p1,p2).
+
+       @warning This method should only be called if T inherits from Hashed2. */
    T* Find(int p1, int p2);
+   /** @brief Item accessor with key (or parents) the quadruplet 'p1', 'p2',
+       'p3', 'p4'. The key 'p4' is optional. Return nullptr if no value
+       correspond to the requested key.
+
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @param[in] p3 Third part of the key.
+       @param[in] p4 Fourth part of the key (optional).
+       @return The item associated to the key (p1,p2,p3,p4).
+
+       @warning This method should only be called if T inherits from Hashed4. */
    T* Find(int p1, int p2, int p3, int p4 = -1);
 
+   /** @brief Item const accessor with key (or parents) the pair 'p1', 'p2'.
+       Return nullptr if no value correspond to the requested key.
+
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @return The item associated to the key (p1,p2).
+
+      @warning This method should only be called if T inherits from Hashed2. */
    const T* Find(int p1, int p2) const;
+   /** @brief Item const accessor with key (or parents) the quadruplet 'p1',
+       'p2', 'p3', 'p4'. The key 'p4' is optional. Return nullptr if no value
+       correspond to the requested key.
+
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @param[in] p3 Third part of the key.
+       @param[in] p4 Fourth part of the key (optional).
+       @return The item associated to the key (p1,p2,p3,p4).
+
+       @warning This method should only be called if T inherits from Hashed4. */
    const T* Find(int p1, int p2, int p3, int p4 = -1) const;
 
    /// Find id of item whose parents are p1, p2... Return -1 if it doesn't exist.
+   /** @brief Find the "id" of an item, this "id" corresponding to the index of
+       the item in the underlying BlockArray<T> object. Default construct an
+       item and id if no value correspond to the requested key.
+
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @return The index "id" of the key in the BlockArray<T>.
+
+       @warning This method should only be called if T inherits from Hashed2. */
    int FindId(int p1, int p2) const;
+   /** @brief Find the "id" of an item, this "id" corresponding to the index of
+       the item in the underlying BlockArray<T> object. Default construct an
+       item and id if no value correspond to the requested key.
+
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @param[in] p3 Third part of the key.
+       @param[in] p4 Fourth part of the key (optional).
+       @return The index "id" of the key in the BlockArray<T>.
+
+       @warning This method should only be called if T inherits from Hashed4. */
    int FindId(int p1, int p2, int p3, int p4 = -1) const;
 
-   /// Return the number of elements currently stored in the HashTable.
+   /// @brief Return the number of elements currently stored in the HashTable.
    int Size() const { return Base::Size() - unused.Size(); }
 
-   /// Return the total number of ids (used and unused) in the HashTable.
+   /// @brief Return the total number of ids (used and unused) in the HashTable.
    int NumIds() const { return Base::Size(); }
 
-   /// Return the number of free/unused ids in the HashTable.
+   /// @brief Return the number of free/unused ids in the HashTable.
    int NumFreeIds() const { return unused.Size(); }
 
-   /// Return true if item 'id' exists in (is used by) the container.
-   /** It is assumed that 0 <= id < NumIds(). */
+   /** @brief Return true if item 'id' exists in (is used by) the container.
+
+       @param[in] id Index of the item in the underlying BlockArray<T>.
+
+       @warning It is assumed that 0 <= id < NumIds(). */
    bool IdExists(int id) const { return (Base::At(id).next != -2); }
 
-   /// Remove an item from the hash table.
-   /** Its id will be reused by newly added items. */
+   /** @brief Remove an item from the hash table.
+
+       @param[in] id Index of the item in the underlying BlockArray<T>.
+
+       @warning Its id will be reused by newly added items. */
    void Delete(int id);
 
-   /// Remove all items.
+   /// @brief Remove all items.
    void DeleteAll();
 
-   /// Allocate an item at 'id'. Enlarge the underlying BlockArray if necessary.
-   /** This is a special purpose method used when loading data from a file.
-       Does nothing if the slot 'id' has already been allocated. */
+   /** @brief Allocate an item at 'id'. Enlarge the underlying BlockArray if
+       necessary.
+
+       @param[in] id Index of the item in the underlying BlockArray<T>.
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+
+       @warning This is a special purpose method used when loading data from a
+       file. Does nothing if the slot 'id' has already been allocated. */
    void Alloc(int id, int p1, int p2);
 
-   /// Reinitialize the internal list of unallocated items.
-   /** This is a special purpose method used when loading data from a file. */
+   /** @brief Reinitialize the internal list of unallocated items.
+
+       @warning This is a special purpose method used when loading data from a file. */
    void UpdateUnused();
 
-   /// Make an item hashed under different parent IDs.
+   /** @brief Change the key associated to an item.
+
+       NOTE: Make an item hashed under different parent IDs.
+
+       @param[in] id Index of the item in the underlying BlockArray<T>.
+       @param[in] new_p1 First part of the new key.
+       @param[in] new_p2 Second part of the new key.
+
+       @warning This method should only be called if T inherits from Hashed2. */
    void Reparent(int id, int new_p1, int new_p2);
+   /** @brief Change the key associated to an item.
+
+       NOTE: Make an item hashed under different parent IDs.
+
+       @param[in] id Index of the item in the underlying BlockArray<T>.
+       @param[in] new_p1 First part of the new key.
+       @param[in] new_p2 Second part of the new key.
+       @param[in] new_p3 Third part of the new key.
+       @param[in] new_p4 Fourth part of the new key (optional).
+
+       @warning This method should only be called if T inherits from Hashed4. */
    void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4 = -1);
 
-   /// Return total size of allocated memory (tables plus items), in bytes.
+   /// @brief Return total size of allocated memory (tables plus items), in bytes.
    long MemoryUsage() const;
 
-   /// Write details of the memory usage to the mfem output stream.
+   /// @brief Write details of the memory usage to the mfem output stream.
    void PrintMemoryDetail() const;
 
-   /// Print a histogram of bin sizes for debugging purposes.
+   /// @brief Print a histogram of bin sizes for debugging purposes.
    void PrintStats() const;
 
    class iterator : public Base::iterator
@@ -186,38 +331,99 @@ public:
    const_iterator cend() const { return const_iterator(); }
 
 protected:
-   int* table;
-   int mask;
-   Array<int> unused;
+   int* table; ///< Mapping from hash keys "idx" to indices "id".
+   int mask; ///< mask = table_size-1. Used to determine load factor.
+   Array<int>
+   unused; ///< Array of indices in the BlockArray<T> unused by the HashTable.
 
-   // hash functions (NOTE: the constants are arbitrary)
+   /** @brief hash function for Hashed2 items.
+
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @return The hash key "idx" identifying a bin/bucket.
+
+       NOTE: the constants are arbitrary
+       @warning This method should only be called if T inherits from Hashed2. */
    inline int Hash(int p1, int p2) const
    { return (984120265*p1 + 125965121*p2) & mask; }
 
+   /** @brief hash function for Hashed4 items.
+
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @param[in] p3 Third part of the key.
+       @return The hash key "idx" identifying a bin/bucket.
+
+       NOTE: The constants are arbitrary.
+       NOTE: Result in hash collisions for all p4 that share the same p1, p2, p3.
+       @warning This method should only be called if T inherits from Hashed4. */
    inline int Hash(int p1, int p2, int p3) const
    { return (984120265*p1 + 125965121*p2 + 495698413*p3) & mask; }
 
    // Delete() and Reparent() use one of these:
+   /// @brief Hash function for item of type T that inherit from Hashed2.
    inline int Hash(const Hashed2& item) const
    { return Hash(item.p1, item.p2); }
 
+   /// @brief Hash function for item of type T that inherit from Hashed4.
    inline int Hash(const Hashed4& item) const
    { return Hash(item.p1, item.p2, item.p3); }
 
+   /** @brief Search the index of the item associated to the key (p1,p2)
+       starting from the item with index @a id.
+
+       @param[in] id Index of the item in the underlying BlockArray<T>.
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @return The index "id" of the key in the BlockArray<T>.
+
+       @warning This method should only be called if T inherits from Hashed2. */
    int SearchList(int id, int p1, int p2) const;
+   /** @brief Search the index of the item associated to the key (p1,p2,p3,(p4))
+       starting from the item with index @a id.
+
+       @param[in] id Index of the item in the underlying BlockArray<T>.
+       @param[in] p1 First part of the key.
+       @param[in] p2 Second part of the key.
+       @param[in] p3 Third part of the key.
+       @return The index "id" of the key in the BlockArray<T>.
+
+       @warning This method should only be called if T inherits from Hashed4. */
    int SearchList(int id, int p1, int p2, int p3) const;
 
-   /// Insert the item with id into bin idx.
-   /** Does not check if the bin has space.  Be sure
-       to use CheckRehash() if that is in question. */
+   /** @brief Insert the item with id into bin idx.
+
+       @param[in] idx The hash key that identifies a bin/bucket.
+       @param[in] id The index of the item in the BlockArray<T>.
+       @param[in] item The item to insert at the begining of the linked list.
+
+       @warning The method is unsage and does not check if the bin has space.
+                Be sure to use CheckRehash() to insert safely. */
    inline void Insert(int idx, int id, T &item);
    void Unlink(int idx, int id);
 
-   /// Check table load factor and resize if necessary
+   /** @brief Check table load factor and resize if necessary (load factor > 2).
+
+       NOTE: The formula used is the load factor defined as the ratio of the
+             number of entries occupied in the hash table divided by the number
+             of buckets. */
    inline void CheckRehash();
+   /** @brief Rehash the items in the HashTable by doubling the number of
+       bins/buckets.
+
+       Reallocate the table storing the mapping from hash key "idx" to
+       indices "id" in the BlockArray<T>. The size of the table is doubled,
+       therefore doubling the number of bins/buckets.
+
+       NOTE: Rehashing is computationally expensive, appropriate block_size and
+             init_hash_size can improve performance by minimizing the number of
+             Rehash. */
    void DoRehash();
 
-   /// Return the size of bin 'idx'
+   /** @brief Return the size of the bin/bucket associated to the hash key "idx".
+
+       @param[in] idx The hash key that identifies a bin/bucket.
+       @return The size of the bin/bucket. */
    int BinSize(int idx) const;
 };
 
