@@ -184,7 +184,7 @@ TEST_CASE("Convergence rate test on 2D NCMesh",
       x = 0.0;
       Array<int> ess_tdof_list;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   
+
       // Solve for the current mesh:
       b.Assemble();
       a.Assemble();
@@ -210,7 +210,7 @@ TEST_CASE("Convergence rate test on 2D NCMesh",
 
       old_num_dofs = double(num_dofs);
       old_error = error;
-      
+
       mesh.UniformRefinement();
 
       // Update the space, interpolate the solution.
