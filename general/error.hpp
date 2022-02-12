@@ -113,7 +113,7 @@ void mfem_warning(const char *msg = NULL);
 //   MFEM_CONTRACT_VAR(err);
 //   MFEM_ASSERT( err == 0, "MPI_Reduce gave an error with length "
 //                       << ldata );
-#define MFEM_CONTRACT_VAR(x) if (false && (&x)+1){}
+#define MFEM_CONTRACT_VAR(x) (void)(x)
 
 // Now set up some optional checks, but only if the right flags are on
 #ifdef MFEM_DEBUG
