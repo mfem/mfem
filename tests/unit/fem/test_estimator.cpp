@@ -200,7 +200,7 @@ TEST_CASE("Convergence rate test on 2D NCMesh",
       a.RecoverFEMSolution(X, b, x);
 
       NewZienkiewiczZhuEstimator estimator(di, x);
-      const Vector &zzerr = estimator.GetLocalErrors();
+      estimator.GetLocalErrors();
       double error = estimator.GetTotalError();
 
       if (old_error > 0.0)
