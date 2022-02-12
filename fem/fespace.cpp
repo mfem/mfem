@@ -505,7 +505,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 
 void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                            Array<int> &ess_vdofs,
-                                           Array2D<int> componentID) const
+                                           const Array2D<int> &componentID) const
 {
    // Note this doesn't treat mesh->ncmesh like the GetEssentialVDofs in
    // fem/fespace.cpp
@@ -583,7 +583,7 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
 
 void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_tdof_list,
-                                              Array2D<int> componentID)
+                                              const Array2D<int> &componentID)
 {
    Array<int> ess_vdofs, ess_tdofs;
    GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs, componentID);

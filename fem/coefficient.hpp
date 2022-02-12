@@ -701,14 +701,17 @@ class VectorFunctionRestrictedCoefficient : public VectorCoefficient
 private:
    void (*TDFunction)(int, Vector &);
    const Array<int> &active_attr;
+   const Array2D<double> &active_scale;
    Coefficient *Q;
 
 public:
    /// Construct a time-dependent vector coefficient from a C-function
    VectorFunctionRestrictedCoefficient(int dim,
                                        void (*TDF)(int, Vector &),
-                                       Array<int> &attr, Coefficient *q = NULL)
-      : VectorCoefficient(dim), Q(q), active_attr(attr)
+                                       Array<int> &attr,
+                                       Array2D<double> &scale,
+                                       Coefficient *q = NULL)
+      : VectorCoefficient(dim), Q(q), active_attr(attr), active_scale(scale)
    {
       TDFunction = TDF;
    }
@@ -720,6 +723,7 @@ public:
    virtual ~VectorFunctionRestrictedCoefficient() { }
 
    const Array<int> &GetActiveAttr() { return active_attr; }
+   const Array2D<double> &GetActiveScale() { return active_scale; }
 
 };
 typedef VectorCoefficient DiagonalMatrixCoefficient;

@@ -153,6 +153,7 @@ public:
        active displacement component BC to the correct Vdof, srw.
    */
    void SetEssentialBCPartial(const Array<int> &bdr_attr_is_ess,
+                              const Array2D<int> &bdr_component,
                               Vector *rhs = NULL);
 
    /// Specify essential boundary conditions.
