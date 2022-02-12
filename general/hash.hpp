@@ -397,9 +397,16 @@ protected:
        @param[in] id The index of the item in the BlockArray<T>.
        @param[in] item The item to insert at the begining of the linked list.
 
-       @warning The method is unsage and does not check if the bin has space.
+       @warning The method is unsafe and does not check if the bin has space.
                 Be sure to use CheckRehash() to insert safely. */
    inline void Insert(int idx, int id, T &item);
+   /** @brief Unlink an item by providing its index @a id and the hash key
+              @a idx.
+
+       @param[in] idx The hash key that identifies a bin/bucket.
+       @param[in] id The index of the item in the BlockArray<T>.
+
+       @warning The method aborts if the item is not found. */
    void Unlink(int idx, int id);
 
    /** @brief Check table load factor and resize if necessary (load factor > 2).
