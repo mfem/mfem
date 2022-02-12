@@ -48,6 +48,13 @@ double NonsmoothSolutionZ(const mfem::Vector& x)
 {
    return std::abs(x(2)-0.5);
 }
+
+double SinXSinY(const mfem::Vector& x)
+{
+   double pi = 3.14159265358979323846;
+   return std::sin(pi*x(0)) * std::sin(pi*x(1));
+}
+
 }
 
 #ifndef MFEM_USE_MPI
@@ -61,9 +68,7 @@ TEST_CASE("New ZZ estimator on 2D NCMesh",
 
    // Make the mesh NC
    mesh.EnsureNCMesh();
-   {
-      mesh.RandomRefinement(0.2);
-   }
+   mesh.RandomRefinement(0.2);
 
    H1_FECollection fe_coll(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fe_coll);
@@ -135,7 +140,88 @@ TEST_CASE("New ZZ estimator on 2D NCMesh",
       }
       REQUIRE(estimator.GetTotalError() > 0.0);
    }
+}
 
+TEST_CASE("Convergence rate test on 2D NCMesh",
+          "[NCMesh], [Serial]")
+{
+   // Setup
+   double pi = 3.14159265358979323846;
+   ConstantCoefficient one(1.0);
+   const auto order = GENERATE(1, 2, 3, 4, 5);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+
+   // Make the mesh NC
+   mesh.EnsureNCMesh();
+   mesh.UniformRefinement();
+
+   H1_FECollection fe_coll(order, mesh.Dimension());
+   FiniteElementSpace fespace(&mesh, &fe_coll);
+   FunctionCoefficient exsol(testhelper::SinXSinY);
+   ProductCoefficient rhs(-2.0*pi*pi,exsol);
+
+   LinearForm b(&fespace);
+   BilinearForm a(&fespace);
+
+   b.AddDomainIntegrator(new DomainLFIntegrator(rhs));
+   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   DiffusionIntegrator di;
+
+   // Define the solution vector x as a finite element grid function
+   GridFunction x(&fespace);
+
+   double old_error = 0.0;
+   double old_num_dofs = 0.0;
+   double rate = 0.0;
+   for (int it = 0; it < 5; it++)
+   {
+      int num_dofs = fespace.GetTrueVSize();
+
+      // Set Dirichlet boundary values in the GridFunction x.
+      // Determine the list of Dirichlet true DOFs in the linear system.
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      x = 0.0;
+      Array<int> ess_tdof_list;
+      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   
+      // Solve for the current mesh:
+      b.Assemble();
+      a.Assemble();
+      a.Finalize();
+      OperatorPtr A;
+      Vector B, X;
+
+      const int copy_interior = 1;
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+      GSSmoother M((SparseMatrix&)(*A));
+      PCG(*A, M, B, X, 0, 2000, 1e-30, 0.0);
+
+      a.RecoverFEMSolution(X, b, x);
+
+      NewZienkiewiczZhuEstimator estimator(di, x);
+      const Vector &zzerr = estimator.GetLocalErrors();
+      double error = estimator.GetTotalError();
+
+      if (old_error > 0.0)
+      {
+         rate = log(error/old_error) / log(old_num_dofs/num_dofs);
+      }
+
+      old_num_dofs = double(num_dofs);
+      old_error = error;
+      
+      mesh.UniformRefinement();
+
+      // Update the space, interpolate the solution.
+      fespace.Update();
+      a.Update();
+      b.Update();
+      x.Update();
+
+   }
+   REQUIRE(rate < order/2.0 + 1e-1);
+   REQUIRE(rate > order/2.0 - 1e-1);
 }
 
 TEST_CASE("New ZZ estimator on 3D NCMesh",
@@ -147,9 +233,7 @@ TEST_CASE("New ZZ estimator on 3D NCMesh",
 
    // Make the mesh NC
    mesh.EnsureNCMesh();
-   {
-      mesh.RandomRefinement(0.05);
-   }
+   mesh.RandomRefinement(0.05);
 
    H1_FECollection fe_coll(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fe_coll);
