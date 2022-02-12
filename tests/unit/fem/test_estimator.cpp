@@ -51,8 +51,7 @@ double NonsmoothSolutionZ(const mfem::Vector& x)
 
 double SinXSinY(const mfem::Vector& x)
 {
-   double pi = 3.14159265358979323846;
-   return std::sin(pi*x(0)) * std::sin(pi*x(1));
+   return std::sin(M_PI*x(0)) * std::sin(M_PI*x(1));
 }
 
 }
@@ -146,7 +145,6 @@ TEST_CASE("Convergence rate test on 2D NCMesh",
           "[NCMesh], [Serial]")
 {
    // Setup
-   double pi = 3.14159265358979323846;
    ConstantCoefficient one(1.0);
    const auto order = GENERATE(1, 2, 3, 4, 5);
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
@@ -158,7 +156,7 @@ TEST_CASE("Convergence rate test on 2D NCMesh",
    H1_FECollection fe_coll(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fe_coll);
    FunctionCoefficient exsol(testhelper::SinXSinY);
-   ProductCoefficient rhs(-2.0*pi*pi,exsol);
+   ProductCoefficient rhs(-2.0*M_PI*M_PI,exsol);
 
    LinearForm b(&fespace);
    BilinearForm a(&fespace);
