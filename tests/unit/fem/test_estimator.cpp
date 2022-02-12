@@ -56,10 +56,7 @@ double SinXSinY(const mfem::Vector& x)
 
 }
 
-#ifndef MFEM_USE_MPI
-
-TEST_CASE("New ZZ estimator on 2D NCMesh",
-          "[NCMesh], [Serial]")
+TEST_CASE("New ZZ estimator on 2D NCMesh", "[NCMesh]")
 {
    // Setup
    const auto order = GENERATE(1, 3, 5);
@@ -141,8 +138,7 @@ TEST_CASE("New ZZ estimator on 2D NCMesh",
    }
 }
 
-TEST_CASE("Convergence rate test on 2D NCMesh",
-          "[NCMesh], [Serial]")
+TEST_CASE("Convergence rate test on 2D NCMesh", "[NCMesh]")
 {
    // Setup
    ConstantCoefficient one(1.0);
@@ -222,8 +218,7 @@ TEST_CASE("Convergence rate test on 2D NCMesh",
    REQUIRE(rate > order/2.0 - 1e-1);
 }
 
-TEST_CASE("New ZZ estimator on 3D NCMesh",
-          "[NCMesh], [Serial]")
+TEST_CASE("New ZZ estimator on 3D NCMesh", "[NCMesh]")
 {
    // Setup
    const auto order = GENERATE(1, 3, 5);
@@ -340,7 +335,7 @@ TEST_CASE("New ZZ estimator on 3D NCMesh",
 
 }
 
-#else
+#ifdef MFEM_USE_MPI
 
 TEST_CASE("Kelly Error Estimator on 2D NCMesh",
           "[NCMesh], [Parallel]")
