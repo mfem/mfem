@@ -165,7 +165,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
 
    const int sm_size = 2*q*(d+q);
    constexpr int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = kernels::internal::DeviceMemSetSize<GRID>(sm_size);
+   double *gmem = kernels::internal::pool::SetSize<GRID>(sm_size);
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
@@ -176,11 +176,11 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
       constexpr bool USE_SMEM = D > 0 && Q > 0;
       MFEM_SHARED double SMEM[USE_SMEM ? SM_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
-      const DeviceMatrix Bt(kernels::internal::DeviceMemAlloc(sm,q*d), q,d);
-      const DeviceMatrix QQ(kernels::internal::DeviceMemAlloc(sm,q*q), q,q);
-      const DeviceMatrix QD(kernels::internal::DeviceMemAlloc(sm,q*d), q,d);
+      const DeviceMatrix Bt(kernels::internal::pool::Alloc(sm,q*d), q,d);
+      const DeviceMatrix QQ(kernels::internal::pool::Alloc(sm,q*q), q,q);
+      const DeviceMatrix QD(kernels::internal::pool::Alloc(sm,q*d), q,d);
 
-      kernels::internal::LoadB(d,q,B,Bt);
+      kernels::internal::load::B(d,q,B,Bt);
 
       for (int c = 0; c < vdim; ++c)
       {
@@ -195,7 +195,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Atomic2DEvalTranspose(d,q,Bt,QQ,QD,I,Y,c,e,byVDIM);
+         kernels::internal::eval::fast::Transpose(d,q,Bt,QQ,QD,I,Y,c,e,byVDIM);
       }
    });
 }
@@ -234,7 +234,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
 
    const int sm_size = q*d + q*q*q;
    const int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = kernels::internal::DeviceMemSetSize<GRID>(sm_size);
+   double *gmem = kernels::internal::pool::SetSize<GRID>(sm_size);
    MFEM_VERIFY(q < 32, "Unsupported quadrature order!");
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
@@ -248,9 +248,9 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
       constexpr bool USE_SMEM = D > 0 && Q > 0;
       MFEM_SHARED double SMEM[USE_SMEM ? SM_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
-      const DeviceCube QQQ(kernels::internal::DeviceMemAlloc(sm,q*q*q), q,q,q);
-      const DeviceMatrix Bt(kernels::internal::DeviceMemAlloc(sm,q*d), q,d);
-      kernels::internal::LoadB(d,q,B,Bt);
+      const DeviceCube QQQ(kernels::internal::pool::Alloc(sm,q*q*q), q,q,q);
+      const DeviceMatrix Bt(kernels::internal::pool::Alloc(sm,q*d), q,d);
+      kernels::internal::load::B(d,q,B,Bt);
 
       for (int c = 0; c < vdim; ++c)
       {
@@ -268,7 +268,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Atomic3DEvalTranspose(d,q,u,Bt,QQQ,I,Y,c,e,byVDIM);
+         kernels::internal::eval::fast::Transpose(d,q,u,Bt,QQQ,I,Y,c,e,byVDIM);
       }
    });
 }
