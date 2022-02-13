@@ -65,7 +65,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
 
    const int sm_size = 2*d*q + 4*q*q;
    const int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = kernels::internal::DeviceMemSetSize<GRID>(sm_size);
+   double *gmem = kernels::internal::pool::SetSize<GRID>(sm_size);
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
@@ -77,15 +77,15 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
       MFEM_SHARED double SMEM[USE_SMEM ? SM_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
 
-      const DeviceMatrix Bt(kernels::internal::DeviceMemAlloc(sm,q*d), d,q);
-      const DeviceMatrix Gt(kernels::internal::DeviceMemAlloc(sm,q*d), d,q);
-      kernels::internal::LoadBGt(d,q,B,G,Bt,Gt);
+      const DeviceMatrix Bt(kernels::internal::pool::Alloc(sm,q*d), d,q);
+      const DeviceMatrix Gt(kernels::internal::pool::Alloc(sm,q*d), d,q);
+      kernels::internal::load::BGt(d,q,B,G,Bt,Gt);
 
-      const DeviceMatrix QQ0(kernels::internal::DeviceMemAlloc(sm,q*q), q,q);
-      const DeviceMatrix QQ1(kernels::internal::DeviceMemAlloc(sm,q*q), q,q);
+      const DeviceMatrix QQ0(kernels::internal::pool::Alloc(sm,q*q), q,q);
+      const DeviceMatrix QQ1(kernels::internal::pool::Alloc(sm,q*q), q,q);
 
-      const DeviceMatrix DQ0(kernels::internal::DeviceMemAlloc(sm,d*q), d,q);
-      const DeviceMatrix DQ1(kernels::internal::DeviceMemAlloc(sm,d*q), d,q);
+      const DeviceMatrix DQ0(kernels::internal::pool::Alloc(sm,d*q), d,q);
+      const DeviceMatrix DQ1(kernels::internal::pool::Alloc(sm,d*q), d,q);
 
       for (int c = 0; c < vdim; ++c)
       {
@@ -113,9 +113,9 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Atomic2DGradTranspose(d,q,Bt,Gt,
-                                                  QQ0,QQ1,DQ0,DQ1,
-                                                  I,Y,c,e,byVDIM);
+         kernels::internal::grad::fast::MultTranspose(d,q,Bt,Gt,
+                                                      QQ0,QQ1,DQ0,DQ1,
+                                                      I,Y,c,e,byVDIM);
       }
    });
 }
@@ -159,7 +159,7 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
    const int sm_size = 2*q*d + 6*q*q*q;
 
    const int GRID = USE_SMEM ? 0 : 128;
-   double *gmem = kernels::internal::DeviceMemSetSize<GRID>(sm_size);
+   double *gmem = kernels::internal::pool::SetSize<GRID>(sm_size);
 
    MFEM_FORALL_3D_GRID(e, NE, q,q,1, GRID,
    {
@@ -171,17 +171,17 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
       MFEM_SHARED double SMEM[USE_SMEM ? SM_SIZE : 1];
       double *sm = USE_SMEM ? SMEM : (gmem + sm_size*bid);
 
-      const DeviceMatrix Bt(kernels::internal::DeviceMemAlloc(sm,q*d), d,q);
-      const DeviceMatrix Gt(kernels::internal::DeviceMemAlloc(sm,q*d), d,q);
-      kernels::internal::LoadBGt(d,q,B,G,Bt,Gt);
+      const DeviceMatrix Bt(kernels::internal::pool::Alloc(sm,q*d), d,q);
+      const DeviceMatrix Gt(kernels::internal::pool::Alloc(sm,q*d), d,q);
+      kernels::internal::load::BGt(d,q,B,G,Bt,Gt);
 
-      const DeviceCube QQ0(kernels::internal::DeviceMemAlloc(sm,q*q*q), q,q,q);
-      const DeviceCube QQ1(kernels::internal::DeviceMemAlloc(sm,q*q*q), q,q,q);
-      const DeviceCube QQ2(kernels::internal::DeviceMemAlloc(sm,q*q*q), q,q,q);
+      const DeviceCube QQ0(kernels::internal::pool::Alloc(sm,q*q*q), q,q,q);
+      const DeviceCube QQ1(kernels::internal::pool::Alloc(sm,q*q*q), q,q,q);
+      const DeviceCube QQ2(kernels::internal::pool::Alloc(sm,q*q*q), q,q,q);
 
-      const DeviceCube QD0(kernels::internal::DeviceMemAlloc(sm,q*q*q), q,q,d);
-      const DeviceCube QD1(kernels::internal::DeviceMemAlloc(sm,q*q*q), q,q,d);
-      const DeviceCube QD2(kernels::internal::DeviceMemAlloc(sm,q*q*q), q,q,d);
+      const DeviceCube QD0(kernels::internal::pool::Alloc(sm,q*q*q), q,q,d);
+      const DeviceCube QD1(kernels::internal::pool::Alloc(sm,q*q*q), q,q,d);
+      const DeviceCube QD2(kernels::internal::pool::Alloc(sm,q*q*q), q,q,d);
 
       const DeviceCube DD0(QQ0,q,d,d);
       const DeviceCube DD1(QQ1,q,d,d);
@@ -223,11 +223,11 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Atomic3DGrad(d,q,Bt,Gt,
-                                         QQ0,QQ1,QQ2,
-                                         QD0,QD1,QD2,
-                                         DD0,DD1,DD2,
-                                         I,Y,c,e,byVDIM);
+         kernels::internal::grad::fast::MultTranspose(d,q,Bt,Gt,
+                                                      QQ0,QQ1,QQ2,
+                                                      QD0,QD1,QD2,
+                                                      DD0,DD1,DD2,
+                                                      I,Y,c,e,byVDIM);
       }
    });
 }
