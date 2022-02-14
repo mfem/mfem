@@ -3485,6 +3485,10 @@ void TMOP_Integrator::UpdateSurfaceFittingWeight(double factor)
       {
          cf->constant *= factor;
       }
+      else
+      {
+         MFEM_ABORT("UpdateSurfaceFittingWeight works for ConstantCoefficient.");
+      }
    }
 }
 

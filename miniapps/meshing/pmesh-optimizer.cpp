@@ -1152,7 +1152,6 @@ int main (int argc, char *argv[])
       hr_solver.AddFESpaceForUpdate(&ind_fes);
    }
    hr_solver.Mult();
-   hr_solver.Mult();
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".

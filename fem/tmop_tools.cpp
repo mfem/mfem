@@ -771,23 +771,22 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          if (rel_change_surf_fit_err < 1.e-5)
          {
             UpdateSurfaceFittingWeight(10);
-            surf_fit_change = 1;
+            surf_fit_multiplier = 10;
          }
       }
-      else //if (rel_change_surf_fit_err < -1.e-5)
+      else
       {
-         if (surf_fit_change <= 0)
+         if (surf_fit_multiplier <= 1)
          {
             UpdateSurfaceFittingWeight(10);
-            surf_fit_change = 1;
+            surf_fit_multiplier = 10;
          }
          else
          {
             UpdateSurfaceFittingWeight(0.9);
-            surf_fit_change = -1;
+            surf_fit_multiplier = 0.9;
          }
       }
-      surf_fit_err_max_prvs = surf_fit_err_max;
       surf_fit_err_avg_prvs = surf_fit_err_avg;
       update_surf_fit_coeff = false;
    }
