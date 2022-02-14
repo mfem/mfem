@@ -444,7 +444,6 @@ static void write_space(const Iterator &begin, const Iterator &end,
    for (Iterator it = begin; it != end; ++it)
    {
       const int k = *it;
-      auto &elem = *space.GetFE(k);
       space.GetElementVertices(k, verts);
 
       const int attribute = space.GetAttribute(k);
@@ -585,7 +584,7 @@ static void read_space(moonolith::InputStream &is,
       int type, attribute, order, e_n_nodes;
       is >> type >> attribute >> order >> e_n_nodes;
       e2v.resize(e_n_nodes);
-      int index, global_id;
+      int index;
       for (int i = 0; i < e_n_nodes; ++i)
       {
          // READ 8
@@ -693,7 +692,7 @@ static bool Assemble(moonolith::Communicator &comm,
    std::map<long, std::vector<std::shared_ptr<Spaces>>> migrated_spaces;
 
    auto read = [&spaces, &migrated_spaces,
-                         comm](const long ownerrank, const long senderrank,
+                         comm](const long ownerrank, const long /*senderrank*/,
                       bool is_forwarding, DataContainer &data, InputStream &in)
    {
       CHECK_STREAM_READ_BEGIN("vol_proj", in);
@@ -736,10 +735,10 @@ static bool Assemble(moonolith::Communicator &comm,
    };
 
    auto write = [&local_spaces, &spaces,
-                                &comm](const long ownerrank, const long recvrank,
+                                &comm](const long ownerrank, const long /*recvrank*/,
                         const std::vector<long>::const_iterator &begin,
                         const std::vector<long>::const_iterator &end,
-                        const DataContainer &data, OutputStream &out)
+                        const DataContainer &/*data*/, OutputStream &out)
    {
       CHECK_STREAM_WRITE_BEGIN("vol_proj", out);
 
@@ -898,7 +897,6 @@ Assemble(moonolith::Communicator &comm,
    }
 
    //////////////////////////////////////////////////
-   int skip_zeros = 1;
    Array<int> source_vdofs, destination_vdofs;
    DenseMatrix elemmat;
    DenseMatrix cumulative_elemmat;
@@ -929,9 +927,6 @@ Assemble(moonolith::Communicator &comm,
    {
       const auto &src = source.space();
       const auto &dest = destination.space();
-
-      const auto &src_mesh = *src.GetMesh();
-      const auto &dest_mesh = *dest.GetMesh();
 
       const int src_index = source.element();
       const int dest_index = destination.element();
