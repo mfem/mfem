@@ -59,7 +59,7 @@ opt_par_gcc_6_1_0_sundials:
 
 opt_par_gcc_6_1_0_petsc:
   variables:
-    SPEC: "%gcc@6.1.0 +petsc ^petsc+mumps"
+    SPEC: "%gcc@6.1.0 +petsc ^petsc+mumps~superlu-dist"
   extends: .build_and_test_on_quartz
 
 opt_par_gcc_6_1_0_pumi:

@@ -42,6 +42,19 @@ const int MAX_Q1D = 14;
 #define MFEM_UNROLL(N)
 #endif
 
+// MFEM_GPU_FORALL: "parallel for" executed with CUDA or HIP based on the MFEM
+// build-time configuration (MFEM_USE_CUDA or MFEM_USE_HIP). If neither CUDA nor
+// HIP is enabled, this macro is a no-op.
+#if defined(MFEM_USE_CUDA)
+#define MFEM_GPU_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
+                                       (int i) {__VA_ARGS__})
+#elif defined(MFEM_USE_HIP)
+#define MFEM_GPU_FORALL(i, N,...) HipWrap1D(N, [=] MFEM_DEVICE     \
+                                        (int i) {__VA_ARGS__})
+#else
+#define MFEM_GPU_FORALL(i, N,...) do { } while (false)
+#endif
+
 // Implementation of MFEM's "parallel for" (forall) device/host kernel
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
 
