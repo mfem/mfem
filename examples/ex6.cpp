@@ -152,8 +152,14 @@ int main(int argc, char *argv[])
    //     flux to get an error indicator. We need to supply the space for the
    //     smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
    FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
-   ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
-   estimator.SetAnisotropic();
+   // ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
+   // estimator.SetAnisotropic();
+
+   NewZienkiewiczZhuEstimator estimator(*integ, x);
+   if (dim == 3 && mesh.GetElementType(0) != Element::HEXAHEDRON)
+   {
+      estimator.SetTichonovRegularization();
+   }
 
    // 11. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
