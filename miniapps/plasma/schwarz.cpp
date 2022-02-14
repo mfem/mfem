@@ -465,6 +465,58 @@ int SetCoarseVertexLinePatches_xy45line(ParMesh *pmesh, ParFiniteElementSpace *f
   return nlines;
 }
 
+void ReadPatches(string filename, vector<vector<int>> &patches)
+{
+  ifstream file(filename);
+  string line, word;
+  int count = 0;
+
+  while (getline(file, line))
+    {
+      stringstream s(line);
+      vector<int> patch;
+
+      while (getline(s, word, ','))
+	{
+	  if (word.empty())
+	    break;
+
+	  patch.push_back(stoi(word) - 1);  // Subtract 1 from Matlab indexing
+	}
+
+      cout << "Patch " << patches.size() << " has size " << patch.size() << endl;
+
+      patches.push_back(patch);
+    }
+
+  file.close();
+}
+
+int SetCoarseVertexLinePatches_Matlab(ParMesh *pmesh, ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
+{
+  Vector linecrd;
+  double tol = 1.0e-3;
+
+  vector<vector<int>> patches;
+  ReadPatches("cover.csv", patches);
+  const int nlines = patches.size();
+  cout << "Read " << nlines << " from cover.csv" << endl;
+
+  for (int i=0; i<nlines; ++i)
+    {
+      for (int j=0; j<patches[i].size(); ++j)
+	{
+	  Array<int> dofs;
+	  fespace->GetVertexDofs(patches[i][j], dofs);
+	  MFEM_VERIFY(dofs.Size() == 1, "");
+
+	  cdofToGlobalLine[dofs[0]] = i;
+	}
+    }
+
+  return nlines;
+}
+
 LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
    : pmesh(pmesh_), ref_levels(ref_levels_)
 {
@@ -480,14 +532,32 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
    Array<int> cdofToGlobalLine(aux_fespace->GetNDofs());
    cdofToGlobalLine = -1;
    //const int nlines = SetCoarseVertexLinePatches_xline(pmesh, aux_fespace, cdofToGlobalLine);
-   const int nlines = SetCoarseVertexLinePatches_xy45line(pmesh, aux_fespace, cdofToGlobalLine);
+   //const int nlines = SetCoarseVertexLinePatches_xy45line(pmesh, aux_fespace, cdofToGlobalLine);
+
+   int nlines = SetCoarseVertexLinePatches_Matlab(pmesh, aux_fespace, cdofToGlobalLine);
 
    // 2. Store the cDofTrueDof Matrix. Required after the refinements
    HypreParMatrix *cDofTrueDof = new HypreParMatrix(
       *aux_fespace->Dof_TrueDof_Matrix());
 
    //cdofToGlobalLine.Print(std::cout);
-   
+   if (cdofToGlobalLine.Min() == -1)
+     {
+       // Check how many nodes are not in a patch
+       int cnt=0;
+       for (int i=0; i<cdofToGlobalLine.Size(); ++i)
+	 {
+	   if (cdofToGlobalLine[i] < 0)
+	     {
+	       cdofToGlobalLine[i] = nlines;
+	       nlines++;
+	       cnt++;
+	     }
+	 }
+
+       cout << "WARNING: " << cnt << " out of " << cdofToGlobalLine.Size() << " nodes are not in a patch and will made into separate patches " << endl;
+     }
+
    MFEM_VERIFY(cDofTrueDof->Height() == cdofToGlobalLine.Size(), "");
    MFEM_VERIFY(cdofToGlobalLine.Min() == 0, ""); // TODO: in parallel, just check >= 0
 
@@ -1483,11 +1553,11 @@ SchwarzSmoother::SchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,
 #ifdef MFEM_USE_SUITESPARSE
          PatchInv[ip] = new UMFPackSolver;
          PatchInv[ip]->Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_AMD;
-         //std::cout << "SchwarzSmoother using UMFPackSolver" << std::endl;
+         std::cout << "SchwarzSmoother using UMFPackSolver" << std::endl;
 #else
          PatchInv[ip] = new GMRESSolver;
          PatchInv[ip]->iterative_mode = false;
-         //std::cout << "SchwarzSmoother using GMRESSolver size " << P->PatchMat[ip]->Height() << " x " << P->PatchMat[ip]->Width() << " sym " << P->PatchMat[ip]->IsSymmetric() << std::endl;
+         std::cout << "SchwarzSmoother using GMRESSolver size " << P->PatchMat[ip]->Height() << " x " << P->PatchMat[ip]->Width() << " sym " << P->PatchMat[ip]->IsSymmetric() << std::endl;
 	 PatchInv[ip]->SetRelTol(1e-12);
          PatchInv[ip]->SetMaxIter(100);
 #endif
