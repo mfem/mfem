@@ -38,8 +38,9 @@ enum MeshType
    WEDGE2 = 12,
    TETRAHEDRA = 13,
    WEDGE4 = 14,
-   MIXED3D6 = 15,
-   MIXED3D8 = 16
+   PYRAMID6 = 15,
+   MIXED3D6 = 16,
+   MIXED3D8 = 17
 };
 
 Mesh * GetMesh(MeshType type);
@@ -70,6 +71,7 @@ TEST_CASE("Laplacian Eigenvalues",
           mt == MeshType::WEDGE2     ||
           mt == MeshType::TETRAHEDRA ||
           mt == MeshType::WEDGE4     ||
+          mt == MeshType::PYRAMID6   ||
           mt == MeshType::MIXED3D8 )
       {
          mesh->UniformRefinement();
@@ -579,6 +581,40 @@ Mesh * GetMesh(MeshType type)
          mesh->AddWedge(v);
          v[0] = 3; v[1] = 0; v[2] = 4; v[3] = 8; v[4] = 5; v[5] = 9;
          mesh->AddWedge(v);
+         break;
+      case PYRAMID6:
+         mesh = new Mesh(3, 9, 6);
+         c[0] = 0.0; c[1] = 0.0; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = 0.0; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = b_; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = b_; c[2] = 0.0;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = 0.0; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = 0.0; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = a_; c[1] = b_; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = 0.0; c[1] = b_; c[2] = c_;
+         mesh->AddVertex(c);
+         c[0] = 0.5 * a_; c[1] = 0.5 * b_; c[2] = 0.5 * c_;
+         mesh->AddVertex(c);
+
+         v[0] = 0; v[1] = 1; v[2] = 2; v[3] = 3; v[4] = 8;
+         mesh->AddPyramid(v);
+         v[0] = 0; v[1] = 4; v[2] = 5; v[3] = 1; v[4] = 8;
+         mesh->AddPyramid(v);
+         v[0] = 1; v[1] = 5; v[2] = 6; v[3] = 2; v[4] = 8;
+	 mesh->AddPyramid(v);
+         v[0] = 2; v[1] = 6; v[2] = 7; v[3] = 3; v[4] = 8;
+	 mesh->AddPyramid(v);
+         v[0] = 3; v[1] = 7; v[2] = 4; v[3] = 0; v[4] = 8;
+	 mesh->AddPyramid(v);
+         v[0] = 7; v[1] = 6; v[2] = 5; v[3] = 4; v[4] = 8;
+	 mesh->AddPyramid(v);
          break;
       case MIXED3D6:
          mesh = new Mesh(3, 12, 6);
