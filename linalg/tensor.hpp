@@ -34,7 +34,6 @@ namespace internal
 #define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
 #endif
 
-/// @cond
 template <typename T, int... n>
 struct tensor;
 
