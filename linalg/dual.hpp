@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include <iostream>
 #include <cmath>
 #include "../general/backends.hpp"
 
@@ -285,7 +284,7 @@ dual<gradient_type> pow(dual<gradient_type> a, double b)
    return {value, value * a.gradient * b / a.value};
 }
 
-/** @brief overload of operator<< for `dual` to work with `std::cout` and other `std::ostream`s */
+/** @brief overload of operator<< for `dual` to work with work with standard output streams */
 template <typename T, int... n>
 std::ostream& operator<<(std::ostream& out, dual<T> A)
 {

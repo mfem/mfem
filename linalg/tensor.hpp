@@ -1595,11 +1595,11 @@ dual<gradient_type> inv(tensor<dual<gradient_type>, n, n> A)
 }
 
 /**
- * @brief recursively serialize the entries in a tensor to an ostream.
+ * @brief recursively serialize the entries in a tensor to an output stream.
  * Output format uses braces and comma separators to mimic C syntax for multidimensional array
  * initialization.
  *
- * @param[in] out the std::ostream to write to (e.g. std::cout or std::ofstream)
+ * @param[in] out The stream to work with standard output streams
  * @param[in] A The tensor to write out
  */
 template <typename T, int... n>
