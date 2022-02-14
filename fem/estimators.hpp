@@ -238,19 +238,17 @@ public:
    *  Anisotropic refinement is NOT YET SUPPORTED.
 
  */
-class NewZienkiewiczZhuEstimator : public AnisotropicErrorEstimator
+class NewZienkiewiczZhuEstimator : public ErrorEstimator
 {
 protected:
    long current_sequence;
    Vector error_estimates;
    double total_error;
-   bool anisotropic;
-   Array<int> aniso_flags;
    bool subdomain_reconstruction = true;
    double tichonov_coeff;
 
-   BilinearFormIntegrator *integ; ///< Not owned.
-   GridFunction *solution; ///< Not owned.
+   BilinearFormIntegrator *integ;
+   GridFunction *solution;
    bool with_coeff;
 
    /// Check if the mesh of the solution was modified.
@@ -272,9 +270,8 @@ public:
    */
    NewZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol)
       : current_sequence(-1),
-        total_error(),
-        anisotropic(false),
-        subdomain_reconstruction(0),
+        total_error(-1.0),
+        subdomain_reconstruction(true),
         tichonov_coeff(0.0),
         integ(&integ),
         solution(&sol),
@@ -284,12 +281,6 @@ public:
    /** @brief Consider the coefficient in BilinearFormIntegrator to calculate
        the fluxes for the error estimator.*/
    void SetWithCoeff(bool w_coeff = true) { with_coeff = w_coeff; }
-
-   /** @brief Enable/disable anisotropic estimates */
-   void SetAnisotropic(bool aniso = true)
-   {
-      MFEM_ABORT("Anisotropic refinement is not implemented yet.")
-   }
 
    /** @brief Disable reconstructing the flux in patches spanning different
     *         subdomains. */
@@ -314,14 +305,6 @@ public:
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
-   }
-
-   /** @brief Get an Array<int> with anisotropic flags for all mesh elements.
-       Return an empty array when anisotropic estimates are not available or
-       enabled. */
-   virtual const Array<int> &GetAnisotropicFlags() override
-   {
-      return aniso_flags;
    }
 
    /// Reset the error estimator.

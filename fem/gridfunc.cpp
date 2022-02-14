@@ -4115,52 +4115,62 @@ void TensorProductLegendre(int dim,                // input
    poly1d.CalcLegendre(order, x1, poly_x);
    if (dim > 1)
    {
-      x2 = (x(1) -xmin(1))/(xmax(1)-xmin(1));
+      x2 = (x(1)-xmin(1))/(xmax(1)-xmin(1));
       poly1d.CalcLegendre(order, x2, poly_y);
    }
    if (dim == 3)
    {
-      x3 = (x(2) - xmin(2))/(xmax(2)-xmin(2));
+      x3 = (x(2)-xmin(2))/(xmax(2)-xmin(2));
       poly1d.CalcLegendre(order, x3, poly_z);
    }
 
    int basis_dimension = pow(order+1,dim);
    poly.SetSize(basis_dimension);
-   if (dim == 1)
+   switch (dim)
    {
-      for (int i = 0; i <= order; i++)
-      {
-         poly(i) = poly_x(i);
-      }
-   }
-   if (dim == 2)
-   {
-      for (int j = 0; j <= order; j++)
+      case 1:
       {
          for (int i = 0; i <= order; i++)
          {
-            int cnt = i + (order+1) * j;
-            poly(cnt) = poly_x(i) * poly_y(j);
+            poly(i) = poly_x(i);
          }
       }
-   }
-   if (dim == 3)
-   {
-      for (int k = 0; k <= order; k++)
+      break;
+      case 2:
       {
          for (int j = 0; j <= order; j++)
          {
             for (int i = 0; i <= order; i++)
             {
-               int cnt = i + (order+1) * j + (order+1) * (order+1) * k;
-               poly(cnt) = poly_x(i) * poly_y(j) * poly_z(k);
+               int cnt = i + (order+1) * j;
+               poly(cnt) = poly_x(i) * poly_y(j);
             }
          }
+      }
+      break;
+      case 3:
+      {
+         for (int k = 0; k <= order; k++)
+         {
+            for (int j = 0; j <= order; j++)
+            {
+               for (int i = 0; i <= order; i++)
+               {
+                  int cnt = i + (order+1) * j + (order+1) * (order+1) * k;
+                  poly(cnt) = poly_x(i) * poly_y(j) * poly_z(k);
+               }
+            }
+         }
+      }
+      break;
+      default:
+      {
+         MFEM_ABORT("TensorProductLegendre: invalid value of dim");
       }
    }
 }
 
-void BoundingBox(Array<int> patch,         // input
+void BoundingBox(const Array<int> &patch,  // input
                  FiniteElementSpace *ufes, // input
                  int order,                // input
                  Vector &xmin,             // output
@@ -4178,7 +4188,6 @@ void BoundingBox(Array<int> patch,         // input
    xmin = infinity();
    angle = 0.0;
    midpoint = 0.0;
-   // bool rotate = (mesh->GetElementType(patch[0]) == Element::QUADRILATERAL);
    bool rotate = (dim == 2);
 
    // Rotate bounding box to match the face orientation
@@ -4201,7 +4210,6 @@ void BoundingBox(Array<int> patch,         // input
       }
       midpoint /= 2.0;
       angle = atan2(physical_diff(1),physical_diff(0));
-      // if (angle < 0) { angle += 2.0*M_PI; }
    }
 
    for (int i = 0; i < num_elems; i++)
@@ -4277,7 +4285,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       Array<int> patch(2);
       patch[0] = el1; patch[1] = el2;
 
-      // 1.B. Check if boundary face and continue if true.
+      // 1.B. Check if boundary face or non-conforming coarse face and continue if true.
       if (el1 == -1 || el2 == -1)
       {
          continue;
@@ -4419,7 +4427,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
    //    exact.
    for (int ielem = 0; ielem < nfe; ielem++)
    {
-      if (counters == 0)
+      if (counters[ielem] == 0)
       {
          error_estimates(ielem) = infinity();
       }

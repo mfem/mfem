@@ -32,10 +32,6 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
 
 void NewZienkiewiczZhuEstimator::ComputeEstimates()
 {
-
-   // TODO: add support for anisotropic AMR
-   if (!anisotropic) { aniso_flags.SetSize(0); }
-
    total_error = NewZZErrorEstimator(*integ,
                                      *solution,
                                      error_estimates,

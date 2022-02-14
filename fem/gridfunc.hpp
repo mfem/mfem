@@ -937,24 +937,34 @@ void TensorProductLegendre(int dim,                      // input
 /**
  *  By default, BoundingBox(...) computes the parameters of a minimal bounding box
  *  for the given @a face_patch that is aligned with the physical (i.e. global)
- *  Cartesian axes. This means that the size of the bounding box with depend on the
- *  orientation of the patch. It is better to contruct an orientation-independent box.
- *  This is implemented for patches made up of quadrilaterals. The parameters @a angle
- *  and @a midpoint encode this additional geometric information.
+ *  Cartesian axes. This means that the size of the bounding box will depend on the
+ *  orientation of the patch. It is better to construct an orientation-independent box.
+ *  This is implemented for 2D patches. The parameters @a angle and @a midpoint encode
+ *  the necessary additional geometric information.
  *
- *      @a angle     : the angle the patch face makes with the x-axis
- *      @a midpoint  : the midpoint of the face
+ *      @a iface     : Index of the face that the patch corresponds to.
+ *                     This is used to compute @a angle and @a midpoint.
+ *
+ *      @a angle     : The angle the patch face makes with the x-axis.
+ *      @a midpoint  : The midpoint of the face.
  */
-void BoundingBox(Array<int> face_patch,    // input
-                 FiniteElementSpace *ufes, // input
-                 int order,                // input
-                 Vector &xmin,             // output
-                 Vector &xmax,             // output
-                 double &angle,            // output
-                 Vector &midpoint,         // output
-                 int iface=-1);            // input (optional)
+void BoundingBox(const Array<int> &face_patch, // input
+                 FiniteElementSpace *ufes,     // input
+                 int order,                    // input
+                 Vector &xmin,                 // output
+                 Vector &xmax,                 // output
+                 double &angle,                // output
+                 Vector &midpoint,             // output
+                 int iface=-1);                // input (optional)
 
-/// A ``true'' ZZ error estimator that uses face-based patches for flux reconstruction
+/// A ``true'' ZZ error estimator that uses face-based patches for flux reconstruction.
+/**
+ *  Only two-element face patches are ever used:
+ *   - For conforming faces, the face patch consists of its two neighboring elements.
+ *   - In the non-conforming setting, only the face patches associated to fine-scale
+ *     element faces are used. These face patches always consist of two elements
+ *     delivered by mesh::GetFaceElements(Face, *Elem1, *Elem2).
+ */
 double NewZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
                            GridFunction &u,                      // input
                            Vector &error_estimates,              // output
