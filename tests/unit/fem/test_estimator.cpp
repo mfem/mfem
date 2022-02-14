@@ -142,7 +142,7 @@ TEST_CASE("Convergence rate test on 2D NCMesh", "[NCMesh]")
 {
    // Setup
    ConstantCoefficient one(1.0);
-   const auto order = GENERATE(1, 2, 3, 4, 5);
+   const auto order = GENERATE(1, 2, 3, 4);
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
 
    // Make the mesh NC
@@ -167,7 +167,7 @@ TEST_CASE("Convergence rate test on 2D NCMesh", "[NCMesh]")
    double old_error = 0.0;
    double old_num_dofs = 0.0;
    double rate = 0.0;
-   for (int it = 0; it < 5; it++)
+   for (int it = 0; it < 4; it++)
    {
       int num_dofs = fespace.GetTrueVSize();
 
@@ -182,7 +182,6 @@ TEST_CASE("Convergence rate test on 2D NCMesh", "[NCMesh]")
       // Solve for the current mesh:
       b.Assemble();
       a.Assemble();
-      a.Finalize();
       OperatorPtr A;
       Vector B, X;
 
