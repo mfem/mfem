@@ -769,7 +769,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
       if (change_surf_fit_err >= 0)
       {
-         if (rel_change_surf_fit_err < 1.e-5)
+         if (rel_change_surf_fit_err < 1.e-2)
          {
             UpdateSurfaceFittingWeight(10);
          }
