@@ -14,6 +14,10 @@
 #include "gridfunc.hpp"
 #include "ceed/mass.hpp"
 
+#include "../linalg/tensor/factories/factories.hpp"
+#include "../linalg/tensor/operators/operators.hpp"
+#include "../linalg/tensor/utilities/utilities.hpp"
+
 using namespace std;
 
 namespace mfem
@@ -1151,6 +1155,167 @@ static void SmemPAMassApply3D(const int NE,
    });
 }
 
+// template <int Dim,
+//           bool IsTensor,
+//           int Dofs = Dynamic,
+//           int Quads = Dynamic,
+//           int BatchSize = 1>
+// static void SetupMass(const int ne,
+//                       const Array<double> &w,
+//                       const Array<double> &b,
+//                       const Array<double> &bt,
+//                       const Array<double> &g,
+//                       const Array<double> &gt,
+//                       const Vector &x,
+//                       Vector &d,
+//                       const int dofs = Dofs,
+//                       const int quads = Quads)
+// {
+//    auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
+//    const auto B = MakeBasis(config, b, bt, g, gt);
+//    const auto X = MakeDoFs<1>(config, x.Read(), ne);
+//    const auto C = MakeQData<0>(config, c.Read(), ne);
+//    const auto W = MakeWeight(config, w);
+//    auto D       = MakeQData<0>(config, d.Write(), ne);
+//    MFEM_FORALL(e,ne,
+//    // forall(e, ne, config,
+//    {
+//       D(e) = det(gradient(B) * X(e)) * C(e) * W;
+//    });
+// }
+
+template <int Dim,
+          int VDim,
+          bool IsTensor,
+          int Dofs = Dynamic,
+          int Quads = Dynamic,
+          int BatchSize = 1>
+static void ApplyMass(const int ne,
+                      const Array<double> &b,
+                      const Array<double> &bt,
+                      const Vector &d,
+                      const Vector &x,
+                      Vector &y,
+                      const int dofs = Dofs,
+                      const int quads = Quads)
+{
+   // config_static_device_tensor_is<
+   // ThreadTensor<Dim>::template static_type
+   // > static_tensor;
+   auto config  = MakeConfig(quads,
+                             config_dim_is<Dim>(),
+                             config_is_tensor<IsTensor>(),
+                             config_quads_is<Quads>());
+   auto B       = MakeBasis<Dofs>(config, dofs, quads, b.Read(), bt.Read());
+   const auto X = MakeDoFs<Dofs,VDim>(config, dofs, x.Read(), ne);
+   const auto D = MakeQData<0>(config, d.Read(), ne);
+   auto Y       = MakeDoFs<Dofs,VDim>(config, dofs, y.ReadWrite(), ne);
+   MFEM_FORALL_CONFIG(config, e, ne,
+   {
+      Y(e) += transpose(B) * D(e) * B * X(e);
+   });
+}
+
+template <int Dim,
+          int VDim,
+          bool IsTensor,
+          int Dofs = Dynamic,
+          int Quads = Dynamic,
+          int BatchSize = 1>
+static void ApplyDGMassInverse(const int ne,
+                               const Array<double> &b,
+                               const Array<double> &bt,
+                               const Vector &d,
+                               const Vector &x,
+                               Vector &y,
+                               const int dofs = Dofs,
+                               const int quads = Quads)
+{
+   // config_static_device_tensor_is<
+   // ThreadTensor<Dim>::template static_type
+   // > static_tensor;
+   auto config  = MakeConfig(quads,
+                             config_dim_is<Dim>(),
+                             config_is_tensor<IsTensor>(),
+                             config_quads_is<Quads>());
+   auto B       = MakeBasis<Dofs>(config, dofs, quads, b.Read(), bt.Read());
+   const auto X = MakeDoFs<Dofs,VDim>(config, dofs, x.Read(), ne);
+   const auto D = MakeQData<0>(config, d.Read(), ne);
+   auto Y       = MakeDoFs<Dofs,VDim>(config, dofs, y.ReadWrite(), ne);
+   MFEM_FORALL_CONFIG(config, e, ne,
+   {
+      auto op = transpose(B) * D(e) * B;
+      Identity P;
+      int iter = 400;
+      double tol = 1e-12;
+      Y(e) += conjugate_gradient(op, X(e), P, iter, tol);
+   });
+}
+
+// template <int Dim,
+//           int VDim,
+//           bool IsTensor,
+//           int DofsMesh = Dynamic,
+//           int Dofs = Dynamic,
+//           int Quads = Dynamic,
+//           int BatchSize = 1>
+// static void ApplyMassMF(const int ne,
+//                         const Array<double> &w,
+//                         const Array<double> &b_m,
+//                         const Array<double> &bt_m,
+//                         const Array<double> &b,
+//                         const Array<double> &bt,
+//                         const Vector &nodes,
+//                         const Vector &x,
+//                         Vector &y,
+//                         const int dofs = Dofs,
+//                         const int quads = Quads)
+// {
+//    //
+//    // FESpace<Dim,IsTensor,Dofs,Quads,BatchSize> fes(dofs, quads);
+//    // const auto B_M = fes.GetBasis(b_m.Read(), bt_m.Read());
+//    //
+//    auto config_m  = MakeConfig<Dim,IsTensor,DofsMesh,Quads,BatchSize>(dofs, quads);
+//    auto config    = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
+//    const auto B_M = MakeBasis(config_m, b_m.Read(), bt_m.Read());
+//    const auto B   = MakeBasis(config, b.Read(), bt.Read());
+//    const auto X_M = MakeDoFs<Dim>(config_m, nodes.Read(), ne);
+//    const auto X   = MakeDoFs<VDim>(config, x.Read(), ne);
+//    const auto W   = MakeWeight(config, w);
+//    auto Y         = MakeDoFs<VDim>(config, y.ReadWrite(), ne);
+//    MFEM_FORALL(e,ne,
+//    // forall(e, ne, config,
+//    {
+//       auto C = Eval(lambda, B_M, X_M);
+//       auto D = det(gradient(B_M) * X_M(e)) * W * C;
+//       Y(e) += transpose(B) * ( D * ( B * X(e) ) );
+//    });
+// }
+
+// template <int Dim,
+//           int DimComp,
+//           bool IsTensor,
+//           int Dofs = Dynamic,
+//           int Quads = Dynamic,
+//           int BatchSize = 1>
+// static void SetupMassEA(const int ne,
+//                         const Array<double> &b,
+//                         const Array<double> &bt,
+//                         const Vector &d,
+//                         const int dofs = Dofs,
+//                         const int quads = Quads)
+// {
+//    auto config  = MakeConfig<Dim,IsTensor,Dofs,Quads,BatchSize>(dofs, quads);
+//    const auto B = MakeBasis(config, b.Read(), bt.Read());
+//    const auto D = MakeQData<0>(config, d.Read(), ne);
+//    auto M       = MakeElementMatrix<VDim>(config, m.Write(), ne);
+//    MFEM_FORALL(e,ne,
+//    // forall(e, ne, config,
+//    {
+//       M(e) = transpose(B) * D(e) * B;
+//    });
+// }
+
 static void PAMassApply(const int dim,
                         const int D1D,
                         const int Q1D,
@@ -1176,51 +1341,90 @@ static void PAMassApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
    const int id = (D1D << 4) | Q1D;
-   if (dim == 2)
+   if (dim == 1)
    {
       switch (id)
       {
-         case 0x22: return SmemPAMassApply2D<2,2,16>(NE,B,Bt,D,X,Y);
-         case 0x24: return SmemPAMassApply2D<2,4,16>(NE,B,Bt,D,X,Y);
-         case 0x33: return SmemPAMassApply2D<3,3,16>(NE,B,Bt,D,X,Y);
-         case 0x34: return SmemPAMassApply2D<3,4,16>(NE,B,Bt,D,X,Y);
-         case 0x35: return SmemPAMassApply2D<3,5,16>(NE,B,Bt,D,X,Y);
-         case 0x36: return SmemPAMassApply2D<3,6,16>(NE,B,Bt,D,X,Y);
-         case 0x44: return SmemPAMassApply2D<4,4,8>(NE,B,Bt,D,X,Y);
-         case 0x46: return SmemPAMassApply2D<4,6,8>(NE,B,Bt,D,X,Y);
-         case 0x48: return SmemPAMassApply2D<4,8,4>(NE,B,Bt,D,X,Y);
-         case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,Bt,D,X,Y);
-         case 0x57: return SmemPAMassApply2D<5,7,8>(NE,B,Bt,D,X,Y);
-         case 0x58: return SmemPAMassApply2D<5,8,2>(NE,B,Bt,D,X,Y);
-         case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,Bt,D,X,Y);
-         case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,Bt,D,X,Y);
-         case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,Bt,D,X,Y);
-         case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,Bt,D,X,Y);
+         // case 0x22: return Apply1D<2,2,16>(NE,B,Bt,D,X,Y);
+         default:   mfem_error("default impl not yet implemented.");
+      }
+   }
+   else if (dim == 2)
+   {
+      switch (id)
+      {
+         // case 0x22: return SmemPAMassApply2D<2,2,16>(NE,B,Bt,D,X,Y);
+         // case 0x24: return SmemPAMassApply2D<2,4,16>(NE,B,Bt,D,X,Y);
+         // case 0x33: return SmemPAMassApply2D<3,3,16>(NE,B,Bt,D,X,Y);
+         // case 0x34: return SmemPAMassApply2D<3,4,16>(NE,B,Bt,D,X,Y);
+         // case 0x35: return SmemPAMassApply2D<3,5,16>(NE,B,Bt,D,X,Y);
+         // case 0x36: return SmemPAMassApply2D<3,6,16>(NE,B,Bt,D,X,Y);
+         // case 0x44: return SmemPAMassApply2D<4,4,8>(NE,B,Bt,D,X,Y);
+         // case 0x46: return SmemPAMassApply2D<4,6,8>(NE,B,Bt,D,X,Y);
+         // case 0x48: return SmemPAMassApply2D<4,8,4>(NE,B,Bt,D,X,Y);
+         // case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,Bt,D,X,Y);
+         // case 0x57: return SmemPAMassApply2D<5,7,8>(NE,B,Bt,D,X,Y);
+         // case 0x58: return SmemPAMassApply2D<5,8,2>(NE,B,Bt,D,X,Y);
+         // case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,Bt,D,X,Y);
+         // case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,Bt,D,X,Y);
+         // case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,Bt,D,X,Y);
+         // case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,Bt,D,X,Y);
          default:   return PAMassApply2D(NE,B,Bt,D,X,Y,D1D,Q1D);
+         case 0x22: return ApplyMass<2,0,true,2,2,16>(NE,B,Bt,D,X,Y);
+         case 0x24: return ApplyMass<2,0,true,2,4,16>(NE,B,Bt,D,X,Y);
+         case 0x33: return ApplyMass<2,0,true,3,3,16>(NE,B,Bt,D,X,Y);
+         case 0x34: return ApplyMass<2,0,true,3,4,16>(NE,B,Bt,D,X,Y);
+         case 0x35: return ApplyMass<2,0,true,3,5,16>(NE,B,Bt,D,X,Y);
+         case 0x36: return ApplyMass<2,0,true,3,6,16>(NE,B,Bt,D,X,Y);
+         case 0x44: return ApplyMass<2,0,true,4,4,8>(NE,B,Bt,D,X,Y);
+         case 0x46: return ApplyMass<2,0,true,4,6,8>(NE,B,Bt,D,X,Y);
+         case 0x48: return ApplyMass<2,0,true,4,8,4>(NE,B,Bt,D,X,Y);
+         case 0x55: return ApplyMass<2,0,true,5,5,8>(NE,B,Bt,D,X,Y);
+         case 0x57: return ApplyMass<2,0,true,5,7,8>(NE,B,Bt,D,X,Y);
+         case 0x58: return ApplyMass<2,0,true,5,8,2>(NE,B,Bt,D,X,Y);
+         case 0x66: return ApplyMass<2,0,true,6,6,4>(NE,B,Bt,D,X,Y);
+         case 0x77: return ApplyMass<2,0,true,7,7,4>(NE,B,Bt,D,X,Y);
+         case 0x88: return ApplyMass<2,0,true,8,8,2>(NE,B,Bt,D,X,Y);
+         case 0x99: return ApplyMass<2,0,true,9,9,2>(NE,B,Bt,D,X,Y);
+            // default:   return ApplyMass<2,0,true>(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
    }
    else if (dim == 3)
    {
       switch (id)
       {
-         case 0x22: return SmemPAMassApply3D<2,2>(NE,B,Bt,D,X,Y);
-         case 0x23: return SmemPAMassApply3D<2,3>(NE,B,Bt,D,X,Y);
-         case 0x24: return SmemPAMassApply3D<2,4>(NE,B,Bt,D,X,Y);
-         case 0x26: return SmemPAMassApply3D<2,6>(NE,B,Bt,D,X,Y);
-         case 0x34: return SmemPAMassApply3D<3,4>(NE,B,Bt,D,X,Y);
-         case 0x35: return SmemPAMassApply3D<3,5>(NE,B,Bt,D,X,Y);
-         case 0x36: return SmemPAMassApply3D<3,6>(NE,B,Bt,D,X,Y);
-         case 0x37: return SmemPAMassApply3D<3,7>(NE,B,Bt,D,X,Y);
-         case 0x45: return SmemPAMassApply3D<4,5>(NE,B,Bt,D,X,Y);
-         case 0x46: return SmemPAMassApply3D<4,6>(NE,B,Bt,D,X,Y);
-         case 0x48: return SmemPAMassApply3D<4,8>(NE,B,Bt,D,X,Y);
-         case 0x56: return SmemPAMassApply3D<5,6>(NE,B,Bt,D,X,Y);
-         case 0x58: return SmemPAMassApply3D<5,8>(NE,B,Bt,D,X,Y);
-         case 0x67: return SmemPAMassApply3D<6,7>(NE,B,Bt,D,X,Y);
-         case 0x78: return SmemPAMassApply3D<7,8>(NE,B,Bt,D,X,Y);
-         case 0x89: return SmemPAMassApply3D<8,9>(NE,B,Bt,D,X,Y);
-         case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,Bt,D,X,Y);
+         // case 0x23: return SmemPAMassApply3D<2,3>(NE,B,Bt,D,X,Y);
+         // case 0x24: return SmemPAMassApply3D<2,4>(NE,B,Bt,D,X,Y);
+         // case 0x34: return SmemPAMassApply3D<3,4>(NE,B,Bt,D,X,Y);
+         // case 0x35: return SmemPAMassApply3D<3,5>(NE,B,Bt,D,X,Y);
+         // case 0x36: return SmemPAMassApply3D<3,6>(NE,B,Bt,D,X,Y);
+         // case 0x37: return SmemPAMassApply3D<3,7>(NE,B,Bt,D,X,Y);
+         // case 0x45: return SmemPAMassApply3D<4,5>(NE,B,Bt,D,X,Y);
+         // case 0x46: return SmemPAMassApply3D<4,6>(NE,B,Bt,D,X,Y);
+         // case 0x48: return SmemPAMassApply3D<4,8>(NE,B,Bt,D,X,Y);
+         // case 0x56: return SmemPAMassApply3D<5,6>(NE,B,Bt,D,X,Y);
+         // case 0x58: return SmemPAMassApply3D<5,8>(NE,B,Bt,D,X,Y);
+         // case 0x67: return SmemPAMassApply3D<6,7>(NE,B,Bt,D,X,Y);
+         // case 0x78: return SmemPAMassApply3D<7,8>(NE,B,Bt,D,X,Y);
+         // case 0x89: return SmemPAMassApply3D<8,9>(NE,B,Bt,D,X,Y);
+         // case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,Bt,D,X,Y);
          default:   return PAMassApply3D(NE,B,Bt,D,X,Y,D1D,Q1D);
+         case 0x23: return ApplyMass<3,0,true,2,3>(NE,B,Bt,D,X,Y);
+         case 0x24: return ApplyMass<3,0,true,2,4>(NE,B,Bt,D,X,Y);
+         case 0x34: return ApplyMass<3,0,true,3,4>(NE,B,Bt,D,X,Y);
+         case 0x35: return ApplyMass<3,0,true,3,5>(NE,B,Bt,D,X,Y);
+         case 0x36: return ApplyMass<3,0,true,3,6>(NE,B,Bt,D,X,Y);
+         case 0x37: return ApplyMass<3,0,true,3,7>(NE,B,Bt,D,X,Y);
+         case 0x45: return ApplyMass<3,0,true,4,5>(NE,B,Bt,D,X,Y);
+         case 0x46: return ApplyMass<3,0,true,4,6>(NE,B,Bt,D,X,Y);
+         case 0x48: return ApplyMass<3,0,true,4,8>(NE,B,Bt,D,X,Y);
+         case 0x56: return ApplyMass<3,0,true,5,6>(NE,B,Bt,D,X,Y);
+         case 0x58: return ApplyMass<3,0,true,5,8>(NE,B,Bt,D,X,Y);
+         case 0x67: return ApplyMass<3,0,true,6,7>(NE,B,Bt,D,X,Y);
+         case 0x78: return ApplyMass<3,0,true,7,8>(NE,B,Bt,D,X,Y);
+         case 0x89: return ApplyMass<3,0,true,8,9>(NE,B,Bt,D,X,Y);
+         case 0x9A: return ApplyMass<3,0,true,9,10>(NE,B,Bt,D,X,Y);
+            // default:   return ApplyMass<3,0,true>(NE,B,Bt,D,X,Y,D1D,Q1D);
       }
    }
    mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
