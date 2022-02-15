@@ -1055,6 +1055,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             // get lowest order variant DOFs and FE
             int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
             const auto *master_fe = fec->GetFE(geom, p);
+            if (!master_fe) { break; }
 
             // constrain all higher order DOFs: interpolate lowest order function
             for (int variant = 1; ; variant++)
