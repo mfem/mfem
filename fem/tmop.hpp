@@ -1551,7 +1551,7 @@ public:
 
    /// Release the device memory of large PA allocations. This will copy device
    /// memory back to the host before releasing.
-   void ReleasePADeviceMemory();
+   void ReleasePADeviceMemory(bool copy_to_host=true);
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** This function has priority over SetIntRule(), if both are called. */
