@@ -4360,12 +4360,12 @@ void BoundingBox(const Array<int> &patch,  // input
    }
 }
 
-double NewZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
-                           GridFunction &u,               // input
-                           Vector &error_estimates,       // output
-                           bool subdomain_reconstruction, // input (optional)
-                           bool with_coeff,               // input (optional)
-                           double tichonov_coeff)         // input (optional)
+double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
+                          GridFunction &u,               // input
+                          Vector &error_estimates,       // output
+                          bool subdomain_reconstruction, // input (optional)
+                          bool with_coeff,               // input (optional)
+                          double tichonov_coeff)         // input (optional)
 {
    MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
    FiniteElementSpace *ufes = u.FESpace();
@@ -4501,7 +4501,7 @@ double NewZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       if (!lu.Factor(num_basis_functions,TOL))
       {
          // Singular matrix
-         mfem::out << "NewZZErrorEstimator: Matrix A is singular.\t"
+         mfem::out << "LSZZErrorEstimator: Matrix A is singular.\t"
                    << "Consider increasing tichonov_coeff." << endl;
          for (int i = 0; i < num_basis_functions; i++)
          {

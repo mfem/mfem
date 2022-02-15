@@ -202,7 +202,7 @@ public:
 };
 
 
-/** @brief The NewZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
+/** @brief The LSZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
     error estimation procedure [1,2] using face-based patches [3].
 
     [1] Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
@@ -217,8 +217,8 @@ public:
     a posteriori error control in FEM on unstructured grids. Part II: Higher
     order FEM. Math. Comp. 71(239), 971-994 (2002)
 
-    The required BilinearFormIntegrator must implement the methods
-    ComputeElementFlux() and ComputeFluxEnergy().
+    The required BilinearFormIntegrator must implement the method
+    ComputeElementFlux().
 
    COMMENTS:
    *  The present implementation ignores all single-element patches corresponding
@@ -238,7 +238,7 @@ public:
    *  Anisotropic refinement is NOT YET SUPPORTED.
 
  */
-class NewZienkiewiczZhuEstimator : public ErrorEstimator
+class LSZienkiewiczZhuEstimator : public ErrorEstimator
 {
 protected:
    long current_sequence;
@@ -263,12 +263,12 @@ protected:
    void ComputeEstimates();
 
 public:
-   /** @brief Construct a new NewZienkiewiczZhuEstimator object.
+   /** @brief Construct a new LSZienkiewiczZhuEstimator object.
        @param integ    This BilinearFormIntegrator must implement only the
                        method ComputeElementFlux().
        @param sol      The solution field whose error is to be estimated.
    */
-   NewZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol)
+   LSZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol)
       : current_sequence(-1),
         total_error(-1.0),
         subdomain_reconstruction(true),
@@ -310,7 +310,7 @@ public:
    /// Reset the error estimator.
    virtual void Reset() override { current_sequence = -1; }
 
-   virtual ~NewZienkiewiczZhuEstimator() { }
+   virtual ~LSZienkiewiczZhuEstimator() { }
 };
 
 

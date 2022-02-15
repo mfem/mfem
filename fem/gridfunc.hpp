@@ -981,12 +981,12 @@ void BoundingBox(const Array<int> &face_patch, // input
  *     element faces are used. These face patches always consist of two elements
  *     delivered by mesh::GetFaceElements(Face, *Elem1, *Elem2).
  */
-double NewZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
-                           GridFunction &u,                      // input
-                           Vector &error_estimates,              // output
-                           bool subdomain_reconstruction = true, // input (optional)
-                           bool with_coeff = false,              // input (optional)
-                           double tichonov_coeff = 0.0);         // input (optional)
+double LSZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
+                          GridFunction &u,                      // input
+                          Vector &error_estimates,              // output
+                          bool subdomain_reconstruction = true, // input (optional)
+                          bool with_coeff = false,              // input (optional)
+                          double tichonov_coeff = 0.0);         // input (optional)
 
 /// Compute the Lp distance between two grid functions on the given element.
 double ComputeElementLpDistance(double p, int i,
