@@ -34,6 +34,43 @@
 using namespace std;
 using namespace mfem;
 
+MatrixConstantCoefficient AnisotropicCoefficient(int dim, double anisotropy)
+{
+   DenseMatrix coeff(dim, dim);
+   coeff = 0.0;
+   coeff(0,0) = anisotropy;
+   for (int d = 1; d < dim; ++d)
+   {
+      coeff(d, d) = 1.0;
+   }
+   return coeff;
+}
+
+class SymmetricILUSmoother : public Solver
+{
+   BlockILU ilu;
+   double alpha;
+
+public:
+   SymmetricILUSmoother(Operator &op, double alpha_)
+      : ilu(op), alpha(alpha_)
+   { }
+
+   void Mult(const Vector &b, Vector &x) const
+   {
+      ilu.Mult(b, x);
+      x *= alpha;
+   }
+
+   void MultTranspose(const Vector &b, Vector &x) const
+   {
+      ilu.Mult(b, x);
+      x *= alpha;
+   }
+
+   void SetOperator(const Operator &op) { }
+};
+
 // Class for constructing a multigrid preconditioner for the diffusion operator.
 // This example multigrid preconditioner class demonstrates the creation of the
 // diffusion bilinear forms and operators using partial assembly for all spaces
@@ -43,13 +80,18 @@ using namespace mfem;
 class DiffusionMultigrid : public GeometricMultigrid
 {
 private:
-   ConstantCoefficient one;
+   MatrixConstantCoefficient coeff;
+   bool use_ilu;
 
 public:
    // Constructs a diffusion multigrid for the given FiniteElementSpaceHierarchy
    // and the array of essential boundaries
-   DiffusionMultigrid(FiniteElementSpaceHierarchy& fespaces, Array<int>& ess_bdr)
-      : GeometricMultigrid(fespaces), one(1.0)
+   DiffusionMultigrid(FiniteElementSpaceHierarchy& fespaces, Array<int>& ess_bdr,
+                      double anisotropy, bool use_ilu_)
+      : GeometricMultigrid(fespaces),
+        coeff(AnisotropicCoefficient(fespaces.GetFinestFESpace().GetMesh()->Dimension(),
+                                     anisotropy)),
+        use_ilu(use_ilu_)
    {
       ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0), ess_bdr);
 
@@ -63,8 +105,7 @@ private:
    void ConstructBilinearForm(FiniteElementSpace& fespace, Array<int>& ess_bdr)
    {
       BilinearForm* form = new BilinearForm(&fespace);
-      form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      form->AddDomainIntegrator(new DiffusionIntegrator(one));
+      form->AddDomainIntegrator(new DiffusionIntegrator(coeff));
       form->Assemble();
       bfs.Append(form);
 
@@ -78,18 +119,13 @@ private:
       ConstructBilinearForm(coarse_fespace, ess_bdr);
 
       OperatorPtr opr;
-      opr.SetType(Operator::ANY_TYPE);
+      opr.SetType(Operator::MFEM_SPARSEMAT);
       bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
       opr.SetOperatorOwner(false);
 
-      CGSolver* pcg = new CGSolver();
-      pcg->SetPrintLevel(-1);
-      pcg->SetMaxIter(200);
-      pcg->SetRelTol(sqrt(1e-4));
-      pcg->SetAbsTol(0.0);
-      pcg->SetOperator(*opr.Ptr());
+      UMFPackSolver *coarse_solver = new UMFPackSolver(*opr.As<SparseMatrix>());
 
-      AddLevel(opr.Ptr(), pcg, true, true);
+      AddLevel(opr.Ptr(), coarse_solver, false, true);
    }
 
    void ConstructOperatorAndSmoother(FiniteElementSpace& fespace,
@@ -98,16 +134,25 @@ private:
       ConstructBilinearForm(fespace, ess_bdr);
 
       OperatorPtr opr;
-      opr.SetType(Operator::ANY_TYPE);
+      opr.SetType(Operator::MFEM_SPARSEMAT);
       bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
       opr.SetOperatorOwner(false);
 
-      Vector diag(fespace.GetTrueVSize());
-      bfs.Last()->AssembleDiagonal(diag);
+      Solver *smoother;
 
-      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag,
-                                                       *essentialTrueDofs.Last(), 2);
-      AddLevel(opr.Ptr(), smoother, true, true);
+      if (use_ilu)
+      {
+         smoother = new SymmetricILUSmoother(*opr, 0.5);
+      }
+      else
+      {
+         Vector diag(fespace.GetTrueVSize());
+         bfs.Last()->AssembleDiagonal(diag);
+         smoother = new OperatorChebyshevSmoother(
+            *opr, diag, *essentialTrueDofs.Last(), 2);
+      }
+
+      AddLevel(opr.Ptr(), smoother, false, true);
    }
 };
 
@@ -120,6 +165,8 @@ int main(int argc, char *argv[])
    int order_refinements = 2;
    const char *device_config = "cpu";
    bool visualization = true;
+   double anisotropy = 1.0;
+   bool use_ilu = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -128,8 +175,11 @@ int main(int argc, char *argv[])
                   "Number of geometric refinements done prior to order refinements.");
    args.AddOption(&order_refinements, "-or", "--order-refinements",
                   "Number of order refinements. Finest level in the hierarchy has order 2^{or}.");
+   args.AddOption(&anisotropy, "-a", "--anisotropy", "Anisotropy coefficient.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&use_ilu, "-i", "--use-ilu", "-no-i", "--no-ilu",
+                  "Use ILU smoothing?");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -210,7 +260,7 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
 
-   DiffusionMultigrid M(fespaces, ess_bdr);
+   DiffusionMultigrid M(fespaces, ess_bdr, anisotropy, use_ilu);
    M.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
 
    OperatorPtr A;
