@@ -558,6 +558,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
 void TMOPNewtonSolver::UpdateSurfaceFittingWeight(double factor) const
 {
+   surf_fit_multiplier = factor;
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
    TMOP_Integrator *ti  = NULL;
@@ -771,7 +772,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          if (rel_change_surf_fit_err < 1.e-5)
          {
             UpdateSurfaceFittingWeight(10);
-            surf_fit_multiplier = 10;
          }
       }
       else
@@ -779,12 +779,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          if (surf_fit_multiplier <= 1)
          {
             UpdateSurfaceFittingWeight(10);
-            surf_fit_multiplier = 10;
          }
          else
          {
             UpdateSurfaceFittingWeight(0.9);
-            surf_fit_multiplier = 0.9;
          }
       }
       surf_fit_err_avg_prvs = surf_fit_err_avg;
