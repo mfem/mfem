@@ -1101,7 +1101,7 @@ inline void QuadratureFunction::GetElementValues(int idx,
 }
 
 
-GridFunction* ProlongToMaxOrder(const GridFunction *x)
+GridFunction* ProlongToMaxOrder(const GridFunction *x);
 
 } // namespace mfem
 
