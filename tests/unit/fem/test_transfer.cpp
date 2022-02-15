@@ -102,13 +102,10 @@ TEST_CASE("Transfer", "[Transfer]")
 
    int fineOrder = geometric ? order : 2*order;
 
-   INFO("  Vector space: " << VecSpaceName(vectorspace) << '\n' <<
-        "  Dimension:    " << dimension << '\n' <<
-        "  Simplex:      " << simplex << '\n' <<
-        "  Elements:     " << std::pow(ne, dimension) << '\n' <<
-        "  Coarse order: " << order << '\n' <<
-        "  Fine order:   " << fineOrder << '\n' <<
-        "  Geometric:    " << geometric);
+   // Log test case information
+   int total_ne = std::pow(ne, dimension);
+   CAPTURE(VecSpaceName(vectorspace), dimension, simplex, total_ne, order,
+           fineOrder, geometric);
 
    Mesh mesh;
    if (dimension == 2)
@@ -227,10 +224,9 @@ TEST_CASE("Variable Order Transfer", "[Transfer][VariableOrder]")
    int ne = 2;
    int order = 2;
 
-   INFO("  Vectorspace:    " << VecSpaceName(vectorspace) << '\n' <<
-        "  Dimension:      " << dimension << '\n' <<
-        "  Elements:       " << std::pow(ne, dimension) << '\n' <<
-        "  Coarse order:   " << order);
+   // Log test case information
+   int total_ne = pow(ne, dimension);
+   CAPTURE(VecSpaceName(vectorspace), dimension, total_ne, order);
 
    Mesh mesh;
    if (dimension == 2)
@@ -330,9 +326,8 @@ TEST_CASE("Variable Order True Transfer", "[Transfer][VariableOrder]")
    int ne = 2;
    int order = 2;
 
-   INFO("  Vector space:   " << VecSpaceName(vectorspace) << '\n' <<
-        "  Dimension:      " << dimension << '\n' <<
-        "  Coarse order:   " << order);
+   // Log test case information
+   CAPTURE(VecSpaceName(vectorspace), dimension, order);
 
    Mesh mesh;
    if (dimension == 2)
@@ -443,12 +438,10 @@ TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   INFO("Dimension:    " << dimension << '\n' <<
-        "Simplex:      " << simplex << '\n' <<
-        "Elements:     " << std::pow(ne, dimension) << '\n' <<
-        "Coarse order: " << order << '\n' <<
-        "Fine order:   " << fineOrder << '\n' <<
-        "Geometric:    " << geometric);
+   // Log test case information
+   int total_ne = std::pow(ne, dimension);
+   CAPTURE(dimension, simplex, total_ne, order, fineOrder, geometric);
+
    coeff_order = 1;
 
    Mesh mesh;
