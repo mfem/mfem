@@ -4252,44 +4252,44 @@ void TensorProductLegendre(int dim,                // input
    switch (dim)
    {
       case 1:
-      {
-         for (int i = 0; i <= order; i++)
-         {
-            poly(i) = poly_x(i);
-         }
-      }
-      break;
-      case 2:
-      {
-         for (int j = 0; j <= order; j++)
          {
             for (int i = 0; i <= order; i++)
             {
-               int cnt = i + (order+1) * j;
-               poly(cnt) = poly_x(i) * poly_y(j);
+               poly(i) = poly_x(i);
             }
          }
-      }
-      break;
-      case 3:
-      {
-         for (int k = 0; k <= order; k++)
+         break;
+      case 2:
          {
             for (int j = 0; j <= order; j++)
             {
                for (int i = 0; i <= order; i++)
                {
-                  int cnt = i + (order+1) * j + (order+1) * (order+1) * k;
-                  poly(cnt) = poly_x(i) * poly_y(j) * poly_z(k);
+                  int cnt = i + (order+1) * j;
+                  poly(cnt) = poly_x(i) * poly_y(j);
                }
             }
          }
-      }
-      break;
+         break;
+      case 3:
+         {
+            for (int k = 0; k <= order; k++)
+            {
+               for (int j = 0; j <= order; j++)
+               {
+                  for (int i = 0; i <= order; i++)
+                  {
+                     int cnt = i + (order+1) * j + (order+1) * (order+1) * k;
+                     poly(cnt) = poly_x(i) * poly_y(j) * poly_z(k);
+                  }
+               }
+            }
+         }
+         break;
       default:
-      {
-         MFEM_ABORT("TensorProductLegendre: invalid value of dim");
-      }
+         {
+            MFEM_ABORT("TensorProductLegendre: invalid value of dim");
+         }
    }
 }
 
