@@ -13,12 +13,14 @@ if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
         dist_solver.cpp
         sbm_solver.cpp
-        marking.cpp)
+        marking.cpp
+        extrapolator.cpp)
   list(APPEND DIST_COMMON_HEADERS
         dist_solver.hpp
         sbm_solver.hpp
         sbm_aux.hpp
-        marking.hpp)
+        marking.hpp
+        extrapolator.hpp)
 
   convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
   convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -34,6 +36,11 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(diffusion
     MAIN diffusion.cpp
+    ${DIST_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+  add_mfem_miniapp(extrapolate
+    MAIN extrapolate.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
