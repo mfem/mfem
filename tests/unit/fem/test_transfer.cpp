@@ -86,6 +86,7 @@ std::string VecSpaceName(VecSpace vectorspace)
       case VecSpace::ND: return "Nedelec";
       case VecSpace::RT: return "Raviart-Thomas";
    }
+   return "";
 }
 
 TEST_CASE("Transfer", "[Transfer]")
