@@ -211,54 +211,6 @@ void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res)
    }
 }
 
-/*
-TEST_CASE("CalcShape for several Lagrange FiniteElement instances",
-          "[Lagrange1DFiniteElement]"
-          "[BiLinear2DFiniteElement]"
-          "[BiQuad2DFiniteElement]"
-          "[LagrangeHexFiniteElement]")
-{
-   int maxOrder = 5;
-   int resolution = 10;
-
-   SECTION("Lagrange1DFiniteElement")
-   {
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing Lagrange1DFiniteElement::CalcShape() "
-                   << "for order " << order << std::endl;
-         Lagrange1DFiniteElement fe(order);
-         TestCalcShape(&fe, resolution);
-      }
-   }
-
-   SECTION("BiLinear2DFiniteElement")
-   {
-      std::cout << "Testing BiLinear2DFiniteElement::CalcShape()" << std::endl;
-      BiLinear2DFiniteElement fe;
-      TestCalcShape(&fe, resolution);
-   }
-
-   SECTION("BiQuad2DFiniteElement")
-   {
-      std::cout << "Testing BiQuad2DFiniteElement::CalcShape()" << std::endl;
-      BiQuad2DFiniteElement fe;
-      TestCalcShape(&fe, resolution);
-   }
-
-
-   SECTION("LagrangeHexFiniteElement")
-   {
-      std::cout << "Testing LagrangeHexFiniteElement::CalcShape() "
-                << "for order 2" << std::endl;
-
-      // Comments for LagrangeHexFiniteElement state
-      // that only degree 2 is functional for this class
-      LagrangeHexFiniteElement fe(2);
-      TestCalcShape(&fe, resolution);
-   }
-}
-*/
 TEST_CASE("CalcVShape for several ND FiniteElement instances",
           "[ND_SegmentElement]"
           "[ND_TriangleElement]"
