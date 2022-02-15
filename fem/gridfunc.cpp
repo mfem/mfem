@@ -4252,44 +4252,44 @@ void TensorProductLegendre(int dim,                // input
    switch (dim)
    {
       case 1:
-      {
-         for (int i = 0; i <= order; i++)
-         {
-            poly(i) = poly_x(i);
-         }
-      }
-      break;
-      case 2:
-      {
-         for (int j = 0; j <= order; j++)
          {
             for (int i = 0; i <= order; i++)
             {
-               int cnt = i + (order+1) * j;
-               poly(cnt) = poly_x(i) * poly_y(j);
+               poly(i) = poly_x(i);
             }
          }
-      }
-      break;
-      case 3:
-      {
-         for (int k = 0; k <= order; k++)
+         break;
+      case 2:
          {
             for (int j = 0; j <= order; j++)
             {
                for (int i = 0; i <= order; i++)
                {
-                  int cnt = i + (order+1) * j + (order+1) * (order+1) * k;
-                  poly(cnt) = poly_x(i) * poly_y(j) * poly_z(k);
+                  int cnt = i + (order+1) * j;
+                  poly(cnt) = poly_x(i) * poly_y(j);
                }
             }
          }
-      }
-      break;
+         break;
+      case 3:
+         {
+            for (int k = 0; k <= order; k++)
+            {
+               for (int j = 0; j <= order; j++)
+               {
+                  for (int i = 0; i <= order; i++)
+                  {
+                     int cnt = i + (order+1) * j + (order+1) * (order+1) * k;
+                     poly(cnt) = poly_x(i) * poly_y(j) * poly_z(k);
+                  }
+               }
+            }
+         }
+         break;
       default:
-      {
-         MFEM_ABORT("TensorProductLegendre: invalid value of dim");
-      }
+         {
+            MFEM_ABORT("TensorProductLegendre: invalid value of dim");
+         }
    }
 }
 
@@ -4684,6 +4684,57 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
       sol2d->ProjectCoefficient(c2d);
    }
    return sol2d;
+}
+
+
+
+GridFunction* ProlongToMaxOrder(const GridFunction *x)
+{
+   const FiniteElementSpace *fespace = x->FESpace();
+   Mesh *mesh = fespace->GetMesh();
+   const FiniteElementCollection *fec = fespace->FEColl();
+
+   // find the max order in the space
+   int max_order = 1;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      max_order = std::max(fespace->GetElementOrder(i), max_order);
+   }
+
+   // create a visualization space of max order for all elements
+   FiniteElementCollection *l2fec =
+      new L2_FECollection(max_order, mesh->Dimension(), BasisType::GaussLobatto);
+   FiniteElementSpace *l2space = new FiniteElementSpace(mesh, l2fec);
+
+   IsoparametricTransformation T;
+   DenseMatrix I;
+
+   GridFunction *prolonged_x = new GridFunction(l2space);
+
+   // interpolate solution vector in the larger space
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      Geometry::Type geom = mesh->GetElementGeometry(i);
+      T.SetIdentityTransformation(geom);
+
+      Array<int> dofs;
+      fespace->GetElementDofs(i, dofs);
+      Vector elemvect, l2vect;
+      x->GetSubVector(dofs, elemvect);
+
+      const auto *fe = fec->GetFE(geom, fespace->GetElementOrder(i));
+      const auto *l2fe = l2fec->GetFE(geom, max_order);
+
+      l2fe->GetTransferMatrix(*fe, T, I);
+      l2space->GetElementDofs(i, dofs);
+      l2vect.SetSize(dofs.Size());
+
+      I.Mult(elemvect, l2vect);
+      prolonged_x->SetSubVector(dofs, l2vect);
+   }
+
+   prolonged_x->MakeOwner(l2fec);
+   return prolonged_x;
 }
 
 }
