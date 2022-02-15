@@ -10,10 +10,8 @@
 
 Version 4.3.1 (development)
 ===========================
-<<<<<<< HEAD
 - Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error
   estimator; see fem/estimators.hpp.
-=======
 
 - Add hipSPARSE support for sparse mat-vec multiplications.
 
@@ -21,7 +19,6 @@ Version 4.3.1 (development)
   the HYPRE + CUDA support added earlier, most of the MFEM examples and miniapps
   work transparently with HYPRE + HIP builds. This includes the BoomerAMG, AMS,
   and ADS solvers.
->>>>>>> master
 
 - More explicit and consistent formating of the output of iterative solvers
   with the new IterativeSolver::PrintLevel options. See linalg/solvers.hpp.
