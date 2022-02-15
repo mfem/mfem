@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
    // ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
    // estimator.SetAnisotropic();
 
-   NewZienkiewiczZhuEstimator estimator(*integ, x);
+   LSZienkiewiczZhuEstimator estimator(*integ, x);
    if (dim == 3 && mesh.GetElementType(0) != Element::HEXAHEDRON)
    {
       estimator.SetTichonovRegularization();

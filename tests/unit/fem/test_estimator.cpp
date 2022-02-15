@@ -56,7 +56,7 @@ double SinXSinY(const mfem::Vector& x)
 
 }
 
-TEST_CASE("New ZZ estimator on 2D NCMesh", "[NCMesh]")
+TEST_CASE("Least-squares ZZ estimator on 2D NCMesh", "[NCMesh]")
 {
    // Setup
    const auto order = GENERATE(1, 3, 5);
@@ -76,7 +76,7 @@ TEST_CASE("New ZZ estimator on 2D NCMesh", "[NCMesh]")
       u_gf.ProjectCoefficient(u_analytic);
 
       DiffusionIntegrator di;
-      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+      LSZienkiewiczZhuEstimator estimator(di, u_gf);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
@@ -93,7 +93,7 @@ TEST_CASE("New ZZ estimator on 2D NCMesh", "[NCMesh]")
       u_gf.ProjectCoefficient(u_analytic);
 
       DiffusionIntegrator di;
-      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+      LSZienkiewiczZhuEstimator estimator(di, u_gf);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
@@ -110,7 +110,7 @@ TEST_CASE("New ZZ estimator on 2D NCMesh", "[NCMesh]")
       u_gf.ProjectCoefficient(u_analytic);
 
       DiffusionIntegrator di;
-      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+      LSZienkiewiczZhuEstimator estimator(di, u_gf);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
@@ -127,7 +127,7 @@ TEST_CASE("New ZZ estimator on 2D NCMesh", "[NCMesh]")
       u_gf.ProjectCoefficient(u_analytic);
 
       DiffusionIntegrator di;
-      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+      LSZienkiewiczZhuEstimator estimator(di, u_gf);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
@@ -192,7 +192,7 @@ TEST_CASE("Convergence rate test on 2D NCMesh", "[NCMesh]")
 
       a.RecoverFEMSolution(X, b, x);
 
-      NewZienkiewiczZhuEstimator estimator(di, x);
+      LSZienkiewiczZhuEstimator estimator(di, x);
       estimator.GetLocalErrors();
       double error = estimator.GetTotalError();
 
@@ -217,7 +217,7 @@ TEST_CASE("Convergence rate test on 2D NCMesh", "[NCMesh]")
    REQUIRE(rate > order/2.0 - 1e-1);
 }
 
-TEST_CASE("New ZZ estimator on 3D NCMesh", "[NCMesh]")
+TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
 {
    // Setup
    const auto order = GENERATE(1, 3, 5);
@@ -237,7 +237,7 @@ TEST_CASE("New ZZ estimator on 3D NCMesh", "[NCMesh]")
       u_gf.ProjectCoefficient(u_analytic);
 
       DiffusionIntegrator di;
-      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+      LSZienkiewiczZhuEstimator estimator(di, u_gf);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
@@ -254,7 +254,7 @@ TEST_CASE("New ZZ estimator on 3D NCMesh", "[NCMesh]")
       u_gf.ProjectCoefficient(u_analytic);
 
       DiffusionIntegrator di;
-      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+      LSZienkiewiczZhuEstimator estimator(di, u_gf);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
@@ -271,7 +271,7 @@ TEST_CASE("New ZZ estimator on 3D NCMesh", "[NCMesh]")
       u_gf.ProjectCoefficient(u_analytic);
 
       DiffusionIntegrator di;
-      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+      LSZienkiewiczZhuEstimator estimator(di, u_gf);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
@@ -288,7 +288,7 @@ TEST_CASE("New ZZ estimator on 3D NCMesh", "[NCMesh]")
       u_gf.ProjectCoefficient(u_analytic);
 
       DiffusionIntegrator di;
-      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+      LSZienkiewiczZhuEstimator estimator(di, u_gf);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
@@ -305,7 +305,7 @@ TEST_CASE("New ZZ estimator on 3D NCMesh", "[NCMesh]")
       u_gf.ProjectCoefficient(u_analytic);
 
       DiffusionIntegrator di;
-      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+      LSZienkiewiczZhuEstimator estimator(di, u_gf);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
@@ -322,7 +322,7 @@ TEST_CASE("New ZZ estimator on 3D NCMesh", "[NCMesh]")
       u_gf.ProjectCoefficient(u_analytic);
 
       DiffusionIntegrator di;
-      NewZienkiewiczZhuEstimator estimator(di, u_gf);
+      LSZienkiewiczZhuEstimator estimator(di, u_gf);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
