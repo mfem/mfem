@@ -359,8 +359,8 @@ protected:
 
        NOTE: the constants are arbitrary
        @warning This method should only be called if T inherits from Hashed2. */
-   inline int Hash(int p1, int p2) const
-   { return (984120265*p1 + 125965121*p2) & mask; }
+   inline int Hash(size_t p1, size_t p2) const
+   { return (984120265ul*p1 + 125965121ul*p2) & mask; }
 
    /** @brief hash function for Hashed4 items.
 
@@ -372,8 +372,8 @@ protected:
        NOTE: The constants are arbitrary.
        NOTE: p4 is not hashed nor stored as p1, p2, p3 identify a face uniquely.
        @warning This method should only be called if T inherits from Hashed4. */
-   inline int Hash(int p1, int p2, int p3) const
-   { return (984120265*p1 + 125965121*p2 + 495698413*p3) & mask; }
+   inline int Hash(size_t p1, size_t p2, size_t p3) const
+   { return (984120265ul*p1 + 125965121ul*p2 + 495698413ul*p3) & mask; }
 
    // Delete() and Reparent() use one of these:
    /// @brief Hash function for items of type T that inherit from Hashed2.
