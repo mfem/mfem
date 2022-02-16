@@ -3281,6 +3281,59 @@ public:
    }
 };
 
+/* A steady state solution to the ion total energy equation for testing the
+   Robin boundary condition.
+
+   The test problem only evolves the ion total energy with the ion
+   density, ion parallel velocity and electron temperature remaining
+   constant at values of 1e19, 0, and 10 respectively.
+
+   The ion thermal parallel diffusion coefficient can be adjusted as
+   can the 'a' and 'b' factors in the Robin BC. The Robin BC is defined as:
+      n chi_parallel Grad T + a n T = b
+*/
+class RobinBCTestSol : public Coefficient
+{
+private:
+   const double ni_;
+   const double Te_;
+   const double chi_;
+   const double q_;
+   const double a_;
+   const double b_;
+
+   double k_;
+   double alpha_;
+
+   mutable Vector x_;
+
+public:
+   RobinBCTestSol(double ni, double Te,
+                  double chi, double q, double a, double b)
+      : ni_(ni), Te_(Te), chi_(chi), q_(q), a_(a), b_(b),
+        x_(2)
+   {
+      MFEM_VERIFY(ni_ > 0.0 && chi_ > 0.0 && q_ > 0.0,
+                  "RobinBCTestSol: parameters ni, chi, and q must be positive");
+
+      k_ = sqrt(q_ / (ni_ * chi_));
+
+      const double ck = cosh(k_);
+      const double sk = sinh(k_);
+
+      alpha_ = (b_ / ni_ - a_ * Te_) / (a_ * ck + k_ * chi_ * sk);
+   }
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      double ckx = cosh(k_ * x_[0]);
+
+      return Te_ + alpha_ * ckx;
+   }
+};
+
 Coefficient *
 Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 {
@@ -3417,6 +3470,12 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       double a1, l1, a2, l2, k;
       input >> a1 >> l1 >> a2 >> l2 >> k;
       coef_idx = sCoefs.Append(new BurgersEqnTestSol(a1, l1, a2, l2, k));
+   }
+   else if (name == "RobinBCTestSol")
+   {
+      double ni, Te, chi, q, a, b;
+      input >> ni >> Te >> chi >> q >> a >> b;
+      coef_idx = sCoefs.Append(new RobinBCTestSol(ni, Te, chi, q, a, b));
    }
    else
    {
