@@ -2345,8 +2345,8 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
       RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
       RT_dof[Geometry::CUBE] = 3*p*pp1*pp1;
 
-      RT_Elements[Geometry::PRISM] = new RT0WdgFiniteElement;
-      RT_dof[Geometry::PRISM] = 0;
+      RT_Elements[Geometry::PRISM] = new RT_WedgeElement(p);
+      RT_dof[Geometry::PRISM] = p*pp1*(3*p + 4)/2;
 
       RT_Elements[Geometry::PYRAMID] = new RT0PyrFiniteElement(false);
       RT_dof[Geometry::PYRAMID] = 0;
@@ -2496,14 +2496,13 @@ void RT_FECollection::InitFaces(const int p, const int dim,
 const FiniteElement *
 RT_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
-   if ((GeomType != Geometry::PRISM && GeomType != Geometry::PYRAMID) ||
-       this->GetOrder() == 1)
+   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
    {
       return RT_Elements[GeomType];
    }
    else
    {
-      MFEM_ABORT("RT Wedge and Pyramid basis functions are not yet supported "
+      MFEM_ABORT("RT Pyramid basis functions are not yet supported "
                  "for order > 0.");
       return NULL;
    }
@@ -2770,8 +2769,8 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       ND_Elements[Geometry::TETRAHEDRON] = new ND_TetrahedronElement(p);
       ND_dof[Geometry::TETRAHEDRON] = p*pm1*pm2/2;
 
-      ND_Elements[Geometry::PRISM] = new Nedelec1WdgFiniteElement;
-      ND_dof[Geometry::PRISM] = 0;
+      ND_Elements[Geometry::PRISM] = new ND_WedgeElement(p);
+      ND_dof[Geometry::PRISM] = p*pm1*(3*p-4)/2;
 
       ND_Elements[Geometry::PYRAMID] = new Nedelec1PyrFiniteElement;
       ND_dof[Geometry::PYRAMID] = 0;
@@ -2781,14 +2780,13 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
 const FiniteElement *
 ND_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
-   if ((GeomType != Geometry::PRISM && GeomType != Geometry::PYRAMID) ||
-       this->GetOrder() == 1)
+   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
    {
       return ND_Elements[GeomType];
    }
    else
    {
-      MFEM_ABORT("ND Wedge and Pyramid basis functions are not yet supported "
+      MFEM_ABORT("ND Pyramid basis functions are not yet supported "
                  "for order > 1.");
       return NULL;
    }
