@@ -471,4 +471,36 @@ TEST_CASE("PA Convection", "[PartialAssembly][MFEMData]")
 
 } // test case
 
+TEST_CASE("PA Mass", "[PartialAssembly]")
+{
+   auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
+                         "../../data/fichera.mesh", "../../data/fichera-q3.mesh");
+   auto map_type = GENERATE(FiniteElement::VALUE, FiniteElement::INTEGRAL);
+   int order = 2;
+
+   Mesh mesh(fname);
+   int dim = mesh.Dimension();
+   L2_FECollection fec(order, dim, BasisType::GaussLobatto, map_type);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   BilinearForm blf_fa(&fes);
+   blf_fa.AddDomainIntegrator(new MassIntegrator);
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   blf_fa.Mult(x, y_fa);
+
+   BilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddDomainIntegrator(new MassIntegrator);
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   y_fa -= y_pa;
+
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+} // test case
+
 } // namespace pa_kernels

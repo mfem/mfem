@@ -894,9 +894,10 @@ int FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
 int FiniteElementSpace::GetNumBorderDofs(Geometry::Type geom, int order) const
 {
    // return the number of vertex and edge DOFs that precede inner DOFs
-   int nv = fec->GetNumDof(Geometry::POINT, order);
-   int ne = fec->GetNumDof(Geometry::SEGMENT, order);
-   return Geometry::NumVerts[geom] * (nv + ne);
+   const int nv = fec->GetNumDof(Geometry::POINT, order);
+   const int ne = fec->GetNumDof(Geometry::SEGMENT, order);
+
+   return Geometry::NumVerts[geom] * (geom == Geometry::SEGMENT ? nv : (nv + ne));
 }
 
 int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
@@ -1192,7 +1193,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       if (cR_hp) { MakeVDimMatrix(*cR_hp); }
    }
 
-   if (Device::IsEnabled()) { cP->BuildTranspose(); }
+   cP->EnsureMultTranspose();
 }
 
 void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
