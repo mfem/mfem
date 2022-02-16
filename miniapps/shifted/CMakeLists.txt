@@ -39,6 +39,11 @@ if (MFEM_USE_MPI)
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
+  add_mfem_miniapp(extrapolate
+    MAIN extrapolate.cpp
+    ${DIST_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
   if (MFEM_ENABLE_TESTING)
     add_test(NAME shifted_distance_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
@@ -52,10 +57,4 @@ if (MFEM_USE_MPI)
       $<TARGET_FILE:diffusion> -no-vis
       ${MPIEXEC_POSTFLAGS})
   endif()
-
-add_mfem_miniapp(extrapolate
-    MAIN extrapolate.cpp
-    ${DIST_COMMON_FILES}
-    LIBRARIES mfem mfem-common)
-
 endif ()
