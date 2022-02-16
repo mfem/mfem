@@ -51,6 +51,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool use_vector_fe = false;
    bool verbose = false;
+   bool assemble_mass_and_coupling_together = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&source_mesh_file, "-s", "--source_mesh",
@@ -72,6 +73,11 @@ int main(int argc, char *argv[])
                   "Eanble/Disable verbose output");
    args.AddOption(&use_vector_fe, "-vfe", "--use_vector_fe", "-no-vfe",
                   "--no-vector_fe", "Use vector finite elements (Experimental)");
+
+   args.AddOption(&assemble_mass_and_coupling_together, "-act",
+                  "--assemble_mass_and_coupling_together", "-no-act",
+                  "--no-assemble_mass_and_coupling_together",
+                  "Assemble mass and coupling operators together (better for non-affine elements)");
 
    args.Parse();
    check_options(args);
@@ -206,6 +212,8 @@ int main(int argc, char *argv[])
    dest_fun.Update();
 
    ParMortarAssembler assembler(src_fe, dest_fe);
+   assembler.SetAssembleMassAndCouplingTogether(
+      assemble_mass_and_coupling_together);
    assembler.SetVerbose(verbose);
 
    if (use_vector_fe)

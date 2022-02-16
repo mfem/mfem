@@ -45,6 +45,57 @@ protected:
    virtual void MakePolytope(Mesh &mesh, const int elem_idx,
                              Polytope &polygon) = 0;
 
+   bool IsValidPhysicalPoint(const Vector &p_mfem) const 
+   {
+      Point p;
+
+      for(int d = 0; d < Dim; ++d) {
+         p[d] = p_mfem[d];
+      }
+
+      moonolith::HPolytope<double, Dim> poly;
+      poly.make(from());
+
+      if(!poly.contains(p, 1e-8)) return false;
+
+      poly.make(to());
+
+      return poly.contains(p, 1e-8);
+   }
+
+   bool IsValidQPoint(const IntegrationPoint &p) const 
+   {
+      assert(p.x == p.x);
+      assert(p.y == p.y);
+      assert(p.z == p.z);
+
+      assert(p.x >= -1e-8);
+      assert(p.y >= -1e-8);
+      assert(p.z >= -1e-8);
+
+      assert(p.x <= 1 + 1e-8);
+      assert(p.y <= 1 + 1e-8);
+      assert(p.z <= 1 + 1e-8);
+
+      bool ok = true;
+
+      ok = ok && (p.x == p.x);
+      ok = ok && (p.y == p.y);
+      ok = ok && (p.z == p.z);
+
+      ok = ok && (p.x >= -1e-8);
+      ok = ok && (p.y >= -1e-8);
+      ok = ok && (p.z >= -1e-8);
+
+      ok = ok && (p.x <= 1 + 1e-8);
+      ok = ok && (p.y <= 1 + 1e-8);
+      ok = ok && (p.z <= 1 + 1e-8);
+      return ok;
+   }
+
+   inline const Polytope & from() const { return from_; }
+   inline const Polytope & to() const { return to_; }
+
 private:
    Polytope from_, to_;
    Quadrature_t q_rule_;
@@ -169,10 +220,17 @@ bool CutGeneric<Polytope>::BuildQuadrature(const FiniteElementSpace &from_space,
       double w = physical_quadrature_.weights[qp];
       intersection_measure_ += w;
 
+      assert(IsValidPhysicalPoint(p));
+
       TransformToReference(from_trans, from_type, p, w / from_measure,
                            from_quadrature[qp]);
+
       TransformToReference(to_trans, to_type, p, w / to_measure,
                            to_quadrature[qp]);
+
+
+      assert(IsValidQPoint(from_quadrature[qp]));
+      assert(IsValidQPoint(to_quadrature[qp]));
    }
 
    return true;
@@ -205,6 +263,8 @@ void Cut2D::MakePolytope(Mesh &mesh, const int elem_idx, Polygon_t &polygon)
    assert(polygon.check_convexity());
    assert(::moonolith::measure(polygon) > 0.0);
 }
+
+
 
 void Cut2D::SetQuadratureRule(const IntegrationRule &ir)
 {
@@ -294,6 +354,7 @@ void Cut3D::MakePolytope(Mesh &mesh, const int elem_idx,
 
    polyhedron.fix_ordering();
 }
+
 
 void Cut3D::SetQuadratureRule(const IntegrationRule &ir)
 {
