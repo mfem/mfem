@@ -17,6 +17,8 @@
 
 using namespace mfem::internal;
 
+// #define MFEM_DEBUG_MOONOLITH
+
 namespace mfem
 {
 
@@ -45,7 +47,7 @@ protected:
    virtual void MakePolytope(Mesh &mesh, const int elem_idx,
                              Polytope &polygon) = 0;
 
-   bool IsValidPhysicalPoint(const Vector &p_mfem) const 
+   bool IsValidPhysicalPoint(const Vector &p_mfem) const
    {
       Point p;
 
@@ -63,7 +65,7 @@ protected:
       return poly.contains(p, 1e-8);
    }
 
-   bool IsValidQPoint(const IntegrationPoint &p) const 
+   bool IsValidQPoint(const IntegrationPoint &p) const
    {
       assert(p.x == p.x);
       assert(p.y == p.y);
@@ -91,6 +93,25 @@ protected:
       ok = ok && (p.y <= 1 + 1e-8);
       ok = ok && (p.z <= 1 + 1e-8);
       return ok;
+   }
+
+   static void ConvertQRule(const IntegrationRule &ir, Quadrature_t &result)
+   {
+      const int size = ir.Size();
+
+      result.resize(size);
+
+      for (int k = 0; k < size; ++k)
+      {
+         auto &qp = ir[k];
+         result.points[k][0] = qp.x;
+         result.points[k][1] = qp.y;
+         if constexpr (Dim == 3) {
+            result.points[k][12] = qp.z;
+         }
+
+         result.weights[k] = qp.weight;
+      }
    }
 
    inline const Polytope & from() const { return from_; }
@@ -192,6 +213,27 @@ bool CutGeneric<Polytope>::BuildQuadrature(const FiniteElementSpace &from_space,
       return false;
    }
 
+
+#ifdef MFEM_DEBUG_MOONOLITH
+
+   {
+      static int counter = 0;
+
+      moonolith::MatlabScripter script;
+      script.hold_on();
+      script.plot(from_, "\'g-\'");
+      script.plot(from_, "\'g.\'");
+      script.plot(to_, "\'r-\'");
+      script.plot(to_, "\'r.\'");
+      script.plot(physical_quadrature_.points, "\'*b\'");
+
+      std::cout << "measure(" << counter << "): " << moonolith::measure(physical_quadrature_) << "\n";
+
+      script.save("out_" + std::to_string(counter++) + ".m");
+   }
+
+#endif //MFEM_DEBUG_MOONOLITH
+
    int from_type = from_space.GetFE(from_elem_idx)->GetGeomType();
    int to_type = to_space.GetFE(to_elem_idx)->GetGeomType();
 
@@ -232,6 +274,30 @@ bool CutGeneric<Polytope>::BuildQuadrature(const FiniteElementSpace &from_space,
       assert(IsValidQPoint(from_quadrature[qp]));
       assert(IsValidQPoint(to_quadrature[qp]));
    }
+
+#ifdef MFEM_DEBUG_MOONOLITH
+
+      {
+         static int counter = 0;
+
+         moonolith::MatlabScripter script;
+         script.hold_on();
+         script.plot(from_, "\'g-\'");
+         script.plot(from_, "\'g.\'");
+         script.plot(to_, "\'r-\'");
+         script.plot(to_, "\'r.\'");
+
+         Quadrature_t q_to;
+         ConvertQRule(to_quadrature, q_to);
+         script.close_all();
+         script.plot(q_to.points, "\'*b\'");
+
+         std::cout << "to_measure(" << counter << "): " << moonolith::measure(q_to) << "\n";
+
+         script.save("ref_to_" + std::to_string(counter++) + ".m");
+      }
+
+#endif //MFEM_DEBUG_MOONOLITH
 
    return true;
 }
