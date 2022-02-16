@@ -935,6 +935,12 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    if (cP_is_set) { return; }
    cP_is_set = true;
 
+   if (FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS)
+   {
+      cP = cR = cR_hp = NULL; // will be treated as identities
+      return;
+   }
+
    Array<int> master_dofs, slave_dofs, highest_dofs;
 
    IsoparametricTransformation T;
