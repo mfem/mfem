@@ -17,12 +17,32 @@
 
 #include "mfem.hpp"
 
+#include "mfem.hpp"
+#include <fstream>
+#include <iostream>
+
+using namespace std;
+using namespace mfem;
+
+
 void RationalApproximation_AAA(const Vector &val,
                                const Vector &pt,           // inputs
                                Array<double> &z, Array<double> &f, Vector &w, // outputs
-                               double tol = 1.0e-8, int max_order = 100)      // options
+                               double tol = 1.0e-8, int max_order = 100);
+
+
+int main(int argc, char *argv[])
 {
-   MFEM::VERIFY(x.Size() == val.Size());
+
+
+}
+
+
+void RationalApproximation_AAA(const Vector &val, const Vector &pt,
+                               Array<double> &z, Array<double> &f, Vector &w,
+                               double tol, int max_order)
+{
+   MFEM_VERIFY(pt.Size() == val.Size(), "size mismatch");
 
    z.SetSize(0);
    f.SetSize(0);
@@ -37,7 +57,7 @@ void RationalApproximation_AAA(const Vector &val,
    Array<int> J(size);
    for (int i = 0; i < size; i++)
    {
-      J(i) = i;
+      J[i] = i;
    }
 
 
@@ -67,14 +87,13 @@ void RationalApproximation_AAA(const Vector &val,
       {
          if (j != index)
          {
-            C_tmp[cnt] = 1.0/(x(j)-x(index));
+            C_tmp[cnt] = 1.0/(pt(j)-pt(index));
          }
          cnt++;
       }
       C_i.Append(C_tmp);
 
-      f_vec.SizeDataAndSize(f.GetData(),f.Size());
-      Matrix Sf(f_vec);
+      f_vec.SetDataAndSize(f.GetData(),f.Size());
 
 
 
