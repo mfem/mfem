@@ -366,12 +366,12 @@ rotate(double * x)
 }
 
 void
-trans(const int * conf, Mesh & mesh)
+trans(const int * new_conf, Mesh & mesh)
 {
    for (int i=0; i<23; i++)
    {
       joint_ = i;
-      notch_ = conf[i];
+      notch_ = new_conf[i];
 
       if (notch_ != 0)
       {
@@ -444,12 +444,12 @@ rotate_step(double * x)
 }
 
 bool
-anim_step(const int * conf, Mesh & mesh)
+anim_step(const int * new_conf, Mesh & mesh)
 {
    if (notch_ == 2 && step_ == 2 * nstep_) { joint_++; step_ = 0; }
    if (notch_ != 2 && step_ == nstep_) { joint_++; step_ = 0; }
    if (joint_ == 23) { return false; }
-   notch_ = conf[joint_];
+   notch_ = new_conf[joint_];
 
    if (notch_ == 0)
    {

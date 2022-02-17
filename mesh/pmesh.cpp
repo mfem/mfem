@@ -1890,6 +1890,7 @@ void ParMesh::GetFaceNbrElementTransformation(
    ElTr->Attribute = elem->GetAttribute();
    ElTr->ElementNo = NumOfElements + i;
    ElTr->ElementType = ElementTransformation::ELEMENT;
+   ElTr->mesh = this;
    ElTr->Reset();
 
    if (Nodes == NULL)
@@ -2711,6 +2712,7 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
    }
    face_nbr_el_to_face->Finalize();
 
+   delete sfaces_tbl;
    if (ret_ftbl)
    {
       return faces_tbl;
@@ -2857,12 +2859,34 @@ void ParMesh::GetGhostFaceTransformation(
    }
 }
 
+FaceElementTransformations *ParMesh::GetFaceElementTransformations(
+   int FaceNo,
+   int mask)
+{
+   if (FaceNo < GetNumFaces())
+   {
+      return Mesh::GetFaceElementTransformations(FaceNo, mask);
+   }
+   else
+   {
+      const bool fill2 = mask & 10; // Elem2 and/or Loc2
+      return GetSharedFaceTransformationsByLocalIndex(FaceNo, fill2);
+   }
+}
+
 FaceElementTransformations *ParMesh::
 GetSharedFaceTransformations(int sf, bool fill2)
 {
    int FaceNo = GetSharedFace(sf);
 
+   return GetSharedFaceTransformationsByLocalIndex(FaceNo, fill2);
+}
+
+FaceElementTransformations *ParMesh::
+GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
+{
    FaceInfo &face_info = faces_info[FaceNo];
+   MFEM_VERIFY(face_info.Elem2Inf >= 0, "The face must be shared.");
 
    bool is_slave = Nonconforming() && IsSlaveFace(face_info);
    bool is_ghost = Nonconforming() && FaceNo >= GetNumFaces();
@@ -3006,6 +3030,13 @@ int ParMesh::GetSharedFace(int sface) const
              ? shared.conforming[sface].index
              : shared.slaves[sface - csize].index;
    }
+}
+
+int ParMesh::GetNFbyType(FaceType type) const
+{
+   MFEM_VERIFY(have_face_nbr_data,
+               "ExchangeFaceNbrData() should be called before using GetNFbyType");
+   return Mesh::GetNFbyType(type);
 }
 
 // shift cyclically 3 integers a, b, c, so that the smallest of
@@ -6178,6 +6209,9 @@ void ParMesh::Destroy()
       FreeElement(shared_edges[i]);
    }
    shared_edges.DeleteAll();
+
+   delete face_nbr_el_to_face;
+   face_nbr_el_to_face = NULL;
 }
 
 ParMesh::~ParMesh()

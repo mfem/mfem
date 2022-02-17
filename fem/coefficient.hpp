@@ -125,6 +125,87 @@ public:
                        const IntegrationPoint &ip);
 };
 
+/** @brief A piecewise coefficient with the pieces keyed off the element
+    attribute numbers.
+
+    A value of zero will be returned for any missing attribute numbers.
+
+    This object will not assume ownership of any Coefficient objects
+    passed to it. Consequently, the caller must ensure that the
+    individual Coefficient objects are not deleted while this
+    PWCoefficient is still in use.
+
+    \note The keys may either be domain attribute numbers or boundary
+    attribute numbers. If the PWCoefficient is used with a domain
+    integrator the keys are assumed to be domain attribute
+    numbers. Similarly, if the PWCoefficient is used with a boundary
+    integrator the keys are assumed to be boundary attribute numbers.
+*/
+class PWCoefficient : public Coefficient
+{
+private:
+   /** Internal data structure to store pointers to the appropriate
+       coefficients for different regions of the mesh. The keys used
+       in the map are the mesh attribute numbers (either element
+       attribute or boundary element attribute depending upon
+       context). The values returned for any missing attributes will
+       be zero. The coefficient pointers may be NULL in which case a
+       value of zero is returned.
+
+       The Coefficient objects contained in this map are NOT owned by
+       this PWCoefficient object. This means that they will not be
+       deleted when this object is deleted also the caller must ensure
+       that the various Coefficient objects are not deleted while this
+       PWCoefficient is still needed.
+   */
+   std::map<int, Coefficient*> pieces;
+
+   /** Convenience function to check for compatible array lengths,
+       loop over the arrays, and add their attribute/Coefficient pairs
+       to the internal data structure.
+   */
+   void InitMap(const Array<int> & attr,
+                const Array<Coefficient*> & coefs);
+
+public:
+
+   /// Constructs a piecewise coefficient
+   explicit PWCoefficient() {}
+
+   /// Construct the coefficient using arrays describing the pieces
+   /** \param attr - an array of attribute numbers for each piece
+       \param coefs - the corresponding array of Coefficient pointers
+       Any missing attributes or NULL coefficient pointers will result in a
+       value of zero being returned for that attribute.
+
+       \note Ownership of the Coefficient objects will NOT be
+       transferred to this object.
+   */
+   PWCoefficient(const Array<int> & attr,
+                 const Array<Coefficient*> & coefs)
+   { InitMap(attr, coefs); }
+
+   /// Set the time for time dependent coefficients
+   virtual void SetTime(double t);
+
+   /// Replace a set of coefficients
+   void UpdateCoefficients(const Array<int> & attr,
+                           const Array<Coefficient*> & coefs)
+   { InitMap(attr, coefs); }
+
+   /// Replace a single Coefficient for a particular attribute
+   void UpdateCoefficient(int attr, Coefficient & coef)
+   { pieces[attr] = &coef; }
+
+   /// Remove a single Coefficient for a particular attribute
+   void ZeroCoefficient(int attr)
+   { pieces.erase(attr); }
+
+   /// Evaluate the coefficient.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
 /// A general function coefficient
 class FunctionCoefficient : public Coefficient
 {
@@ -411,6 +492,89 @@ public:
 
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() { return vec; }
+};
+
+/** @brief A piecewise vector-valued coefficient with the pieces keyed off the
+    element attribute numbers.
+
+    A value of zero will be returned for any missing attribute numbers.
+
+    This object will not assume ownership of any VectorCoefficient
+    objects passed to it. Consequently, the caller must ensure that
+    the individual VectorCoefficient objects are not deleted while
+    this PWVectorCoefficient is still in use.
+
+    \note The keys may either be domain attribute numbers or boundary
+    attribute numbers. If the PWVectorCoefficient is used with a
+    domain integrator the keys are assumed to be domain attribute
+    numbers. Similarly, if the PWVectorCoefficient is used with a
+    boundary integrator the keys are assumed to be boundary attribute
+    numbers.
+*/
+class PWVectorCoefficient : public VectorCoefficient
+{
+private:
+   /** Internal data structure to store pointers to the appropriate
+       coefficients for different regions of the mesh. The keys used
+       in the map are the mesh attribute numbers (either element
+       attribute or boundary element attribute depending upon
+       context). The values returned for any missing attributes will
+       be zero. The coefficient pointers may be NULL in which case a
+       value of zero is returned.
+
+       The VectorCoefficient objects contained in this map are NOT
+       owned by this PWVectorCoefficient object. This means that they
+       will not be deleted when this object is deleted also the caller
+       must ensure that the various VectorCoefficient objects are not
+       deleted while this PWVectorCoefficient is still needed.
+   */
+   std::map<int, VectorCoefficient*> pieces;
+
+   /** Convenience function to check for compatible array lengths,
+       loop over the arrays, and add their attribute/VectorCoefficient
+       pairs to the internal data structure.
+   */
+   void InitMap(const Array<int> & attr,
+                const Array<VectorCoefficient*> & coefs);
+
+public:
+
+   /// Constructs a piecewise vector coefficient of dimension vd
+   explicit PWVectorCoefficient(int vd): VectorCoefficient(vd) {}
+
+   /// Construct the coefficient using arrays describing the pieces
+   /** \param vd - dimension of the vector-valued result
+       \param attr - an array of attribute numbers for each piece
+       \param coefs - the corresponding array of VectorCoefficient pointers
+       Any missing attributes or NULL coefficient pointers will result in a
+       zero vector being returned for that attribute.
+
+       \note Ownership of the VectorCoefficient objects will NOT be
+       transferred to this object.
+   */
+   PWVectorCoefficient(int vd, const Array<int> & attr,
+                       const Array<VectorCoefficient*> & coefs)
+      : VectorCoefficient(vd) { InitMap(attr, coefs); }
+
+   /// Set the time for time dependent coefficients
+   virtual void SetTime(double t);
+
+   /// Replace a set of coefficients
+   void UpdateCoefficients(const Array<int> & attr,
+                           const Array<VectorCoefficient*> & coefs)
+   { InitMap(attr, coefs); }
+
+   /// Replace a single Coefficient for a particular attribute
+   void UpdateCoefficient(int attr, VectorCoefficient & coef);
+
+   /// Remove a single VectorCoefficient for a particular attribute
+   void ZeroCoefficient(int attr)
+   { pieces.erase(attr); }
+
+   /// Evaluate the coefficient.
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// A general vector function coefficient
@@ -781,6 +945,112 @@ public:
                      const IntegrationPoint &ip) { M = mat; }
 };
 
+
+/** @brief A piecewise matrix-valued coefficient with the pieces keyed off the
+    element attribute numbers.
+
+    A value of zero will be returned for any missing attribute numbers.
+
+    This object will not assume ownership of any MatrixCoefficient
+    objects passed to it. Consequently, the caller must ensure that
+    the individual MatrixCoefficient objects are not deleted while
+    this PWMatrixCoefficient is still in use.
+
+    \note The keys may either be domain attribute numbers or boundary
+    attribute numbers. If the PWMatrixCoefficient is used with a
+    domain integrator the keys are assumed to be domain attribute
+    numbers. Similarly, if the PWMatrixCoefficient is used with a
+    boundary integrator the keys are assumed to be boundary attribute
+    numbers.
+*/
+class PWMatrixCoefficient : public MatrixCoefficient
+{
+private:
+   /** Internal data structure to store pointers to the appropriate
+       coefficients for different regions of the mesh. The keys used
+       in the map are the mesh attribute numbers (either element
+       attribute or boundary element attribute depending upon
+       context). The values returned for any missing attributes will
+       be zero. The coefficient pointers may be NULL in which case a
+       value of zero is returned.
+
+       The MatrixCoefficient objects contained in this map are NOT
+       owned by this PWMatrixCoefficient object. This means that they
+       will not be deleted when this object is deleted also the caller
+       must ensure that the various MatrixCoefficient objects are not
+       deleted while this PWMatrixCoefficient is still needed.
+   */
+   std::map<int, MatrixCoefficient*> pieces;
+
+   /** Convenience function to check for compatible array lengths,
+       loop over the arrays, and add their attribute/MatrixCoefficient
+       pairs to the internal data structure.
+   */
+   void InitMap(const Array<int> & attr,
+                const Array<MatrixCoefficient*> & coefs);
+
+public:
+
+   /// Constructs a piecewise matrix coefficient of dimension dim by dim
+   explicit PWMatrixCoefficient(int dim, bool symm = false)
+      : MatrixCoefficient(dim, symm) {}
+
+   /// Constructs a piecewise matrix coefficient of dimension h by w
+   explicit PWMatrixCoefficient(int h, int w, bool symm = false)
+      : MatrixCoefficient(h, w, symm) {}
+
+   /// Construct the coefficient using arrays describing the pieces
+   /** \param dim - size of the square matrix-valued result
+       \param attr - an array of attribute numbers for each piece
+       \param coefs - the corresponding array of MatrixCoefficient pointers
+       \param symm - true if the result will be symmetric, false otherwise
+       Any missing attributes or NULL coefficient pointers will result in a
+       zero matrix being returned.
+
+       \note Ownership of the MatrixCoefficient objects will NOT be
+       transferred to this object.
+   */
+   PWMatrixCoefficient(int dim, const Array<int> & attr,
+                       const Array<MatrixCoefficient*> & coefs,
+                       bool symm=false)
+      : MatrixCoefficient(dim, symm) { InitMap(attr, coefs); }
+
+   /// Construct the coefficient using arrays describing the pieces
+   /** \param h - height of the matrix-valued result
+       \param w - width of the matrix-valued result
+       \param attr - an array of attribute numbers for each piece
+       \param coefs - the corresponding array of MatrixCoefficient pointers
+       \param symm - true if the result will be symmetric, false otherwise
+       Any missing attributes or NULL coefficient pointers will result in a
+       zero matrix being returned for that attribute.
+
+       \note Ownership of the MatrixCoefficient objects will NOT be
+       transferred to this object.
+   */
+   PWMatrixCoefficient(int h, int w, const Array<int> & attr,
+                       const Array<MatrixCoefficient*> & coefs,
+                       bool symm=false)
+      : MatrixCoefficient(h, w, symm) { InitMap(attr, coefs); }
+
+   /// Set the time for time dependent coefficients
+   virtual void SetTime(double t);
+
+   /// Replace a set of coefficients
+   void UpdateCoefficients(const Array<int> & attr,
+                           const Array<MatrixCoefficient*> & coefs)
+   { InitMap(attr, coefs); }
+
+   /// Replace a single coefficient for a particular attribute
+   void UpdateCoefficient(int attr, MatrixCoefficient & coef);
+
+   /// Remove a single MatrixCoefficient for a particular attribute
+   void ZeroCoefficient(int attr)
+   { pieces.erase(attr); }
+
+   /// Evaluate the coefficient.
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
 
 /** @brief A matrix coefficient with an optional scalar coefficient multiplier
     \a q.  The matrix function can either be represented by a std function or
