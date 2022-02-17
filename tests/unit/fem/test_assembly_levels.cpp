@@ -111,13 +111,13 @@ TEST_CASE("Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL, AssemblyLevel::ELEMENT,
                             AssemblyLevel::FULL);
-   auto pb = GENERATE(0, 1, 2);
-   auto dg = GENERATE(true, false);
-   auto order_2d = GENERATE(2, 3, 4);
+   auto order_2d = GENERATE(2, 3);
    auto order_3d = GENERATE(2);
 
    SECTION("2D")
    {
+      auto pb = GENERATE(0, 1, 2);
+      auto dg = GENERATE(true, false);
       test_assembly_level("../../data/periodic-square.mesh",
                           order_2d, dg, pb, assembly);
       test_assembly_level("../../data/periodic-hexagon.mesh",
@@ -128,6 +128,8 @@ TEST_CASE("Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
 
    SECTION("3D")
    {
+      auto pb = GENERATE(0, 1, 2);
+      auto dg = GENERATE(true, false);
       test_assembly_level("../../data/periodic-cube.mesh",
                           order_3d, dg, pb, assembly);
       test_assembly_level("../../data/fichera-q3.mesh",
