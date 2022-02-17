@@ -15,6 +15,14 @@
 //   algorithm for rational approximation. SIAM Journal on Scientific
 //   Computing, 40(3), A1494-A1522.
 
+
+extern "C" void
+dggev_(char *jobvl, char *jobvr, int *n, double *a, int *lda, double *B,
+       int *ldb, double *alphar, double *alphai, double *beta, double *vl,
+       int * ldvl, double * vr, int * ldvr, double * work, int * lwork, int* info);
+
+
+
 #include "mfem.hpp"
 
 #include "mfem.hpp"
@@ -29,10 +37,14 @@ void RationalApproximation_AAA(const Vector &val,
                                Array<double> &z, Array<double> &f, Vector &w, // outputs
                                double tol = 1.0e-8, int max_order = 100);
 
+void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
+                          Vector & poles, Vector & zeros);
+
+
 
 int main(int argc, char *argv[])
 {
-   int size = 100;
+   int size = 10;
    Vector x(size);
    Vector val(size);
    for (int i = 0; i<size; i++)
@@ -43,7 +55,7 @@ int main(int argc, char *argv[])
 
    Array<double> z, f;
    Vector w;
-   RationalApproximation_AAA(val,x,z,f,w,1e-7,10);
+   RationalApproximation_AAA(val,x,z,f,w,1e-7,100);
 
    mfem::out << "x = " ; x.Print(cout,size);
    mfem::out << "val = " ; val.Print(cout,size);
@@ -51,6 +63,14 @@ int main(int argc, char *argv[])
    mfem::out << "z = " ; z.Print(cout,z.Size());
    mfem::out << "f = " ; f.Print(cout,f.Size());
    mfem::out << "w = " ; w.Print(cout,w.Size());
+
+
+   Vector vecz, vecf;
+   vecz.SetDataAndSize(z.GetData(), z.Size());
+   vecf.SetDataAndSize(f.GetData(), f.Size());
+
+   Vector poles, zeros;
+   ComputePolesAndZeros(vecz, vecf, w, poles, zeros);
 
 }
 
@@ -229,4 +249,94 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
          break;
       }
    }
+}
+
+void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
+                          Vector & poles, Vector & zeros)
+{
+   //    m = length(w); B = eye(m+1); B(1,1) = 0;
+   //    E = [0 w.'; ones(m,1) diag(z)];
+   //    pol = eig(E,B)
+
+   // compute the poles
+
+   int m = w.Size();
+   DenseMatrix B(m+1); B = 0.;
+   DenseMatrix E(m+1); E = 0.;
+   for (int i = 1; i<=m; i++)
+   {
+      B(i,i) = 1.;
+      E(0,i) = w(i-1);
+      E(i,0) = 1.;
+      E(i,i) = z(i-1);
+   }
+
+   Vector alphar(m+1);
+   Vector alphai(m+1);
+   Vector beta(m+1);
+
+   int lwork = 8*(m+1);
+   Vector work(lwork);
+   int info;
+
+   char jobvl  = 'N';
+   char jobvr  = 'N';
+
+
+   int N = m+1;
+   int M = 1;
+
+   dggev_(&jobvl,&jobvr,&N,E.GetData(),&N,B.GetData(),&N,alphar.GetData(),
+          alphai.GetData(), beta.GetData(), nullptr, &M, nullptr, &M,
+          work.GetData(), &lwork, &info);
+
+   mfem::out << "info = " << info << endl;
+
+   for (int i = 0; i<=m; i++ )
+   {
+      if (beta(i) == 0.)
+      {
+         mfem::out << "poles("<<i<<") = inf" << endl;
+      }
+      else
+      {
+         mfem::out << "poles("<<i<<") = " << alphar(i)/beta(i) <<
+                   " + " << alphai(i)/beta(i) << " i " << endl;
+      }
+   }
+
+
+   // compute the zeros
+
+   B = 0.;
+   E = 0.;
+   for (int i = 1; i<=m; i++)
+   {
+      B(i,i) = 1.;
+      E(0,i) = w(i-1) * f(i-1);
+      E(i,0) = 1.;
+      E(i,i) = z(i-1);
+   }
+
+
+   dggev_(&jobvl,&jobvr,&N,E.GetData(),&N,B.GetData(),&N,alphar.GetData(),
+          alphai.GetData(), beta.GetData(), nullptr, &M, nullptr, &M,
+          work.GetData(), &lwork, &info);
+
+   mfem::out << "info = " << info << endl;
+
+   for (int i = 0; i<=m; i++ )
+   {
+      if (beta(i) == 0.)
+      {
+         mfem::out << "zeros("<<i<<") = inf" << endl;
+      }
+      else
+      {
+         mfem::out << "zeros("<<i<<") = " << alphar(i)/beta(i) <<
+                   " + " << alphai(i)/beta(i) << " i " << endl;
+      }
+   }
+
+
 }
