@@ -362,7 +362,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      MFEM_VERIFY(!VQ && !MQ && !SMQ,
+      MFEM_VERIFY(!VQ && !MQ,
                   "Only scalar coefficient supported for DiffusionIntegrator"
                   " with libCEED");
       ceedOp = new ceed::PADiffusionIntegrator(fes, *ir, Q);
@@ -381,7 +381,33 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    int coeffDim = 1;
    Vector coeff;
    const int MQfullDim = MQ ? MQ->GetHeight() * MQ->GetWidth() : 0;
-   if (MQ)
+   if (auto *SMQ = dynamic_cast<SymmetricMatrixCoefficient *>(MQ))
+   {
+      MFEM_VERIFY(SMQ->GetSize() == dim, "");
+      coeffDim = symmDims;
+      coeff.SetSize(symmDims * nq * ne);
+
+      DenseSymmetricMatrix M;
+      M.SetSize(dim);
+
+      auto C = Reshape(coeff.HostWrite(), symmDims, nq, ne);
+
+      for (int e=0; e<ne; ++e)
+      {
+         ElementTransformation *tr = mesh->GetElementTransformation(e);
+         for (int p=0; p<nq; ++p)
+         {
+            SMQ->Eval(M, *tr, ir->IntPoint(p));
+            int cnt = 0;
+            for (int i=0; i<dim; ++i)
+               for (int j=i; j<dim; ++j, ++cnt)
+               {
+                  C(cnt, p, e) = M(i,j);
+               }
+         }
+      }
+   }
+   else if (MQ)
    {
       symmetric = false;
       MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
@@ -404,32 +430,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                for (int j=0; j<dim; ++j)
                {
                   C(j+(i*dim), p, e) = M(i,j);
-               }
-         }
-      }
-   }
-   else if (SMQ)
-   {
-      MFEM_VERIFY(SMQ->GetSize() == dim, "");
-      coeffDim = symmDims;
-      coeff.SetSize(symmDims * nq * ne);
-
-      DenseSymmetricMatrix M;
-      M.SetSize(dim);
-
-      auto C = Reshape(coeff.HostWrite(), symmDims, nq, ne);
-
-      for (int e=0; e<ne; ++e)
-      {
-         ElementTransformation *tr = mesh->GetElementTransformation(e);
-         for (int p=0; p<nq; ++p)
-         {
-            SMQ->Eval(M, *tr, ir->IntPoint(p));
-            int cnt = 0;
-            for (int i=0; i<dim; ++i)
-               for (int j=i; j<dim; ++j, ++cnt)
-               {
-                  C(cnt, p, e) = M(i,j);
                }
          }
       }

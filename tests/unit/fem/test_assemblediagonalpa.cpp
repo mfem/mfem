@@ -194,7 +194,6 @@ TEST_CASE("diffusiondiag")
                Coefficient* coeff = nullptr;
                VectorCoefficient* vcoeff = nullptr;
                MatrixCoefficient* mcoeff = nullptr;
-               SymmetricMatrixCoefficient* smcoeff = nullptr;
                if (coeffType == 0)
                {
                   coeff = new ConstantCoefficient(12.34);
@@ -209,10 +208,8 @@ TEST_CASE("diffusiondiag")
                }
                else if (coeffType == 3)
                {
-                  mcoeff = new MatrixFunctionCoefficient(dimension,
-                                                         &fullSymmetricMatrixCoeffFunction);
-                  smcoeff = new SymmetricMatrixFunctionCoefficient(dimension,
-                                                                   &symmetricMatrixCoeffFunction);
+                  mcoeff = new SymmetricMatrixFunctionCoefficient(dimension,
+                                                                  &symmetricMatrixCoeffFunction);
                }
                else if (coeffType == 4)
                {
@@ -224,14 +221,9 @@ TEST_CASE("diffusiondiag")
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
                BilinearForm faform(&h1_fespace);
 
-               if (coeffType >= 4)
+               if (coeffType >= 3)
                {
                   paform.AddDomainIntegrator(new DiffusionIntegrator(*mcoeff));
-                  faform.AddDomainIntegrator(new DiffusionIntegrator(*mcoeff));
-               }
-               else if (coeffType == 3)
-               {
-                  paform.AddDomainIntegrator(new DiffusionIntegrator(*smcoeff));
                   faform.AddDomainIntegrator(new DiffusionIntegrator(*mcoeff));
                }
                else if (coeffType == 2)
@@ -263,7 +255,6 @@ TEST_CASE("diffusiondiag")
                delete coeff;
                delete vcoeff;
                delete mcoeff;
-               delete smcoeff;
             }
 
             delete h1_fec;
@@ -365,7 +356,6 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
          Coefficient* coeff = nullptr;
          DiagonalMatrixCoefficient* dcoeff = nullptr;
          MatrixCoefficient* mcoeff = nullptr;
-         SymmetricMatrixCoefficient* smcoeff = nullptr;
          if (coeffType == 0)
          {
             coeff = new ConstantCoefficient(12.34);
@@ -380,10 +370,8 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
          }
          else if (coeffType == 3)
          {
-            mcoeff = new MatrixFunctionCoefficient(dimension,
-                                                   &fullSymmetricMatrixCoeffFunction);
-            smcoeff = new SymmetricMatrixFunctionCoefficient(dimension,
-                                                             &symmetricMatrixCoeffFunction);
+            mcoeff = new SymmetricMatrixFunctionCoefficient(dimension,
+                                                            &symmetricMatrixCoeffFunction);
          }
          else if (coeffType == 4)
          {
@@ -435,14 +423,9 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                      paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
                      if (integrator == 0)
                      {
-                        if (coeffType >= 4)
+                        if (coeffType >= 3)
                         {
                            paform.AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
-                           faform.AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
-                        }
-                        else if (coeffType == 3)
-                        {
-                           paform.AddDomainIntegrator(new VectorFEMassIntegrator(*smcoeff));
                            faform.AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
                         }
                         else if (coeffType == 2)
@@ -464,14 +447,9 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                            const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
                                                                                      *mesh.GetElementTransformation(0));
 
-                           if (coeffType >= 4)
+                           if (coeffType >= 3)
                            {
                               paform.AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
-                              faform.AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
-                           }
-                           else if (coeffType == 3)
-                           {
-                              paform.AddDomainIntegrator(new CurlCurlIntegrator(*smcoeff, intRule));
                               faform.AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
                            }
                            else if (coeffType == 2)
@@ -514,7 +492,6 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
          delete coeff;
          delete dcoeff;
          delete mcoeff;
-         delete smcoeff;
       }  // coeffType
    }  // dimension
 }
