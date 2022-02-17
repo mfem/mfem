@@ -110,6 +110,12 @@ public:
     */
    void SetAssembleMassAndCouplingTogether(const bool value);
 
+   /*!
+    * @brief Control the maximum numbers of conjugate gradients steps for mass matrix inversion 
+    * @param max_solver_iterations the maximum number of iterations
+    */
+   void SetMaxSolverIterations(const int max_solver_iterations);
+
 private:
    struct Impl;
    std::unique_ptr<Impl> impl_;

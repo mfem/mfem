@@ -81,12 +81,10 @@ public:
     * @brief transfer a function from source to destination. It requires that
     * the Update function is called before
     * @param src_fun the function associated with the source finite element space
-    * @param[out] dest_fun the function associated with the destination finite
-    * @param max_solver_iterations maximum numbers of conjugate gradients steps for mass matrix inversion
-    * element space
+    * @param[out] dest_fun the function associated with the destination finite element space
     * @return true if the transfer was succesfull, fale otherwise.
     */
-   bool Apply(const ParGridFunction &src_fun, ParGridFunction &dest_fun, const int max_solver_iterations = 400);
+   bool Apply(const ParGridFunction &src_fun, ParGridFunction &dest_fun);
 
    /*!
     * @brief assembles the various components necessary for the transfer.
@@ -120,6 +118,13 @@ public:
     * The option is true by default, set to false if only the coupling operator is needed.
     */
    void SetAssembleMassAndCouplingTogether(const bool value);
+
+
+   /*!
+    * @brief Control the maximum numbers of conjugate gradients steps for mass matrix inversion 
+    * @param max_solver_iterations the maximum number of iterations
+    */
+   void SetMaxSolverIterations(const int max_solver_iterations);
 
 
    struct Impl;
