@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+echo "Runs if there was at least one failure on ${MACHINE_NAME}"
+
+cd ${AUTOTEST_ROOT}/autotest || \
+  { echo "Invalid 'autotest' dir: ${AUTOTEST_ROOT}/autotest"; exit 1; }
+mkdir -p ${MACHINE_NAME}
+
+rundir="${MACHINE_NAME}/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+rundir=$(${CI_PROJECT_DIR}/.gitlab/scripts/safe_create_rundir $rundir)
+
+printf "%s\n" "Some 'build-and-test' jobs on ${MACHINE_NAME} FAILED." \
+  "Pipeline URL:" "$CI_PIPELINE_URL" > ${rundir}/gitlab.err
+
+msg="GitLab CI log for build-and-test on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
+
+# Create 'autotest-email.html' to indicate failure:
+cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
+
+if [[ "$AUTOTEST_COMMIT" != "NO" ]]; then
+  git pull && \
+  git add ${rundir} && \
+  git commit -m "${msg}" && \
+  git push origin master
+else
+  for file in ${rundir}/*; do
+    echo "------------------------------"
+    echo "Content of '$file'"
+    echo "******************************"
+    cat $file
+    echo "******************************"
+  done
+  rm -rf ${rundir} || true
+fi
