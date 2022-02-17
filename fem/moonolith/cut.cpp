@@ -369,7 +369,7 @@ void Cut2D::SetIntegrationOrder(const int order)
    if (this->GetOrder() != order)
    {
       const IntegrationRule &ir = IntRules.Get(Geometry::TRIANGLE, order);
-      assert(ir.GetOrder() == order);
+      assert(ir.GetOrder() >= order);
       SetQuadratureRule(ir);
    }
 }
@@ -379,7 +379,7 @@ void Cut3D::SetIntegrationOrder(const int order)
    if (this->GetOrder() != order)
    {
       const IntegrationRule &ir = IntRules.Get(Geometry::TETRAHEDRON, order);
-      assert(ir.GetOrder() == order);
+      assert(ir.GetOrder() >= order);
       SetQuadratureRule(ir);
    }
 }

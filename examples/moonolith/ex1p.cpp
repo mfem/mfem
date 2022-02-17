@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool use_vector_fe = false;
    bool verbose = false;
-   bool assemble_mass_and_coupling_together = false;
+   bool assemble_mass_and_coupling_together = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&source_mesh_file, "-s", "--source_mesh",
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
    args.AddOption(&dest_fe_order, "-do", "--dest_fe_order",
                   "Order of the dest finite elements");
    args.AddOption(&verbose, "-verb", "--verbose", "--no-verb", "--no-verbose",
-                  "Eanble/Disable verbose output");
+                  "Enable/Disable verbose output");
    args.AddOption(&use_vector_fe, "-vfe", "--use_vector_fe", "-no-vfe",
                   "--no-vector_fe", "Use vector finite elements (Experimental)");
 

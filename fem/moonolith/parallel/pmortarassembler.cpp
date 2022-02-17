@@ -889,6 +889,7 @@ Assemble(moonolith::Communicator &comm,
    auto &pmat  = impl.coupling_matrix;
 
 
+   bool lump_mass = false;
    int max_q_order = 0;
 
    for (auto i_ptr : integrators)
@@ -942,19 +943,24 @@ Assemble(moonolith::Communicator &comm,
       auto &src_fe = *src.GetFE(src_index);
       auto &dest_fe = *dest.GetFE(dest_index);
 
-
       int src_order_mult = order_multiplier(src_fe.GetGeomType(), Dimensions);
       int dest_order_mult = order_multiplier(dest_fe.GetGeomType(), Dimensions);
 
-
       ElementTransformation &dest_Trans =
       *dest.GetElementTransformation(dest_index);
-      const int order = src_order_mult * src_fe.GetOrder() + dest_order_mult * (dest_fe.GetOrder() +
-      dest_Trans.OrderW()) + max_q_order;
+
+      const int src_order = src_order_mult * src_fe.GetOrder();
+      const int dest_order = dest_order_mult * dest_fe.GetOrder();
+
+      int contraction_order = src_order + dest_order;
+      if(impl.assemble_mass_and_coupling_together) {
+         contraction_order = std::max(contraction_order, 2 * dest_order);
+      }
+
+      const int order = contraction_order + dest_order_mult * dest_Trans.OrderW() + max_q_order;
 
       cut->SetIntegrationOrder(order);
-      // cut->SetIntegrationOrder(2*order);
-      // cut->SetIntegrationOrder(1);
+
       if (cut->BuildQuadrature(src, src_index, dest, dest_index, src_ir,
                                dest_ir))
       {
@@ -988,6 +994,21 @@ Assemble(moonolith::Communicator &comm,
          if(impl.assemble_mass_and_coupling_together) {
             mass_integr->SetIntRule(&dest_ir);
             mass_integr->AssembleElementMatrix(dest_fe, dest_Trans, elemmat);
+
+            if(lump_mass) {
+               int n = destination_vdofs.Size();
+
+               for(int i = 0; i < n; ++i) {
+                  double row_sum = 0.;
+                  for(int j = 0; j < n; ++j) {
+                     row_sum += elemmat(i, j);
+                     elemmat(i, j) = 0.;
+                  }
+
+                  elemmat(i, i) = row_sum;
+               }
+            }
+
             add_matrix(destination_vdofs, destination_vdofs, elemmat, mass_mat_buffer);
          }
 
@@ -1084,8 +1105,11 @@ bool ParMortarAssembler::Transfer(const ParGridFunction &src_fun,
 }
 
 bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
-                               ParGridFunction &dest_fun)
+                               ParGridFunction &dest_fun,
+                               const int max_solver_iterations)
 {
+
+   const bool verbose = impl_->verbose;
 
    if (!impl_->coupling_matrix)
    {
@@ -1104,8 +1128,8 @@ bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
    CGSolver Dinv(impl_->comm);
    Dinv.SetOperator(D);
    Dinv.SetRelTol(1e-6);
-   Dinv.SetMaxIter(20);
-   // Dinv.SetPrintLevel(1);
+   Dinv.SetMaxIter(max_solver_iterations);
+   Dinv.SetPrintLevel(verbose);
 
    Vector P_x_src_fun(B.Width());
    P_source.MultTranspose(src_fun, P_x_src_fun);
