@@ -38,6 +38,7 @@ public:
    std::shared_ptr<SparseMatrix> mass_matrix;
    bool verbose{false};
    bool assemble_mass_and_coupling_together{true};
+   int max_solver_iterations{400};
 
    bool is_vector_fe() const
    {
@@ -72,6 +73,11 @@ MortarAssembler::~MortarAssembler() = default;
 void MortarAssembler::SetAssembleMassAndCouplingTogether(const bool value)
 {
    impl_->assemble_mass_and_coupling_together = value;
+}
+
+void MortarAssembler::SetMaxSolverIterations(const int max_solver_iterations)
+{
+   impl_->max_solver_iterations = max_solver_iterations;
 }
 
 void MortarAssembler::AddMortarIntegrator(
@@ -200,6 +206,8 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
       impl_->mass_matrix = make_shared<SparseMatrix>(impl_->destination->GetNDofs(), impl_->destination->GetNDofs());
    }
 
+
+
    Array<int> source_vdofs, destination_vdofs;
    DenseMatrix elemmat;
    DenseMatrix cumulative_elemmat;
@@ -208,6 +216,13 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 
    long n_intersections = 0;
    long n_candidates = 0;
+
+   int max_q_order = 0;
+
+   for (auto i_ptr : impl_->integrators)
+   {
+      max_q_order = std::max(i_ptr->GetQuadratureOrder(), max_q_order);
+   }
 
    bool intersected = false;
    for (auto it = begin(pairs); it != end(pairs); /*inside*/)
@@ -220,10 +235,21 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 
       ElementTransformation &destination_Trans =
          *impl_->destination->GetElementTransformation(destination_index);
-      const int order = 
-      order_multiplier(source_fe.GetGeomType(), dim) * source_fe.GetOrder() +  
-      order_multiplier(destination_fe.GetGeomType(), dim) * (destination_fe.GetOrder() +
-                        destination_Trans.OrderW());
+
+      // Quadrature order mangling
+      int src_order_mult = order_multiplier(source_fe.GetGeomType(), dim);
+      int dest_order_mult = order_multiplier(destination_fe.GetGeomType(), dim);
+
+      const int src_order = src_order_mult * source_fe.GetOrder();
+      const int dest_order = dest_order_mult * destination_fe.GetOrder();
+
+      int contraction_order = src_order + dest_order;
+    
+     if(impl_->assemble_mass_and_coupling_together) {
+        contraction_order = std::max(contraction_order, 2 * dest_order);
+     }
+
+     const int order = contraction_order + dest_order_mult * destination_Trans.OrderW() + max_q_order;
 
       // Update the quadrature rule in case it changed the order
       cut->SetIntegrationOrder(order);
@@ -322,6 +348,7 @@ bool MortarAssembler::Apply(const GridFunction &src_fun,
    impl_->coupling_matrix->Mult(src_fun, temp);
 
    CGSolver Dinv;
+   Dinv.SetMaxIter(impl_->max_solver_iterations);
 
    if(impl_->verbose) {
       Dinv.SetPrintLevel(3);

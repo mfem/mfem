@@ -46,6 +46,8 @@ public:
 
    bool assemble_mass_and_coupling_together{true};
 
+   int max_solver_iterations{400};
+
    bool is_vector_fe() const
    {
       bool is_vector_fe = false;
@@ -79,6 +81,11 @@ ParMortarAssembler::~ParMortarAssembler() = default;
 void ParMortarAssembler::SetAssembleMassAndCouplingTogether(const bool value)
 {
    impl_->assemble_mass_and_coupling_together = value;
+}
+
+void ParMortarAssembler::SetMaxSolverIterations(const int max_solver_iterations)
+{
+   impl_->max_solver_iterations = max_solver_iterations;
 }
 
 void ParMortarAssembler::AddMortarIntegrator(
@@ -943,11 +950,13 @@ Assemble(moonolith::Communicator &comm,
       auto &src_fe = *src.GetFE(src_index);
       auto &dest_fe = *dest.GetFE(dest_index);
 
-      int src_order_mult = order_multiplier(src_fe.GetGeomType(), Dimensions);
-      int dest_order_mult = order_multiplier(dest_fe.GetGeomType(), Dimensions);
-
       ElementTransformation &dest_Trans =
       *dest.GetElementTransformation(dest_index);
+
+      // Quadrature order mangling
+
+      int src_order_mult = order_multiplier(src_fe.GetGeomType(), Dimensions);
+      int dest_order_mult = order_multiplier(dest_fe.GetGeomType(), Dimensions);
 
       const int src_order = src_order_mult * src_fe.GetOrder();
       const int dest_order = dest_order_mult * dest_fe.GetOrder();
@@ -1045,7 +1054,6 @@ Assemble(moonolith::Communicator &comm,
    comm.all_reduce(&destination_ranges[0], destination_ranges.size(),
                    moonolith::MPIMax());
 
-
    pmat = convert_to_hypre_matrix(
       destination_ranges, 
       s_offsets,
@@ -1105,8 +1113,7 @@ bool ParMortarAssembler::Transfer(const ParGridFunction &src_fun,
 }
 
 bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
-                               ParGridFunction &dest_fun,
-                               const int max_solver_iterations)
+                               ParGridFunction &dest_fun)
 {
 
    const bool verbose = impl_->verbose;
@@ -1128,8 +1135,12 @@ bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
    CGSolver Dinv(impl_->comm);
    Dinv.SetOperator(D);
    Dinv.SetRelTol(1e-6);
-   Dinv.SetMaxIter(max_solver_iterations);
-   Dinv.SetPrintLevel(verbose);
+   Dinv.SetMaxIter(impl_->max_solver_iterations);
+   
+   if(impl_->verbose) {
+      Dinv.SetPrintLevel(3);
+   }
+   
 
    Vector P_x_src_fun(B.Width());
    P_source.MultTranspose(src_fun, P_x_src_fun);
