@@ -82,10 +82,11 @@ public:
     * the Update function is called before
     * @param src_fun the function associated with the source finite element space
     * @param[out] dest_fun the function associated with the destination finite
+    * @param max_solver_iterations maximum numbers of conjugate gradients steps for mass matrix inversion
     * element space
     * @return true if the transfer was succesfull, fale otherwise.
     */
-   bool Apply(const ParGridFunction &src_fun, ParGridFunction &dest_fun);
+   bool Apply(const ParGridFunction &src_fun, ParGridFunction &dest_fun, const int max_solver_iterations = 400);
 
    /*!
     * @brief assembles the various components necessary for the transfer.
