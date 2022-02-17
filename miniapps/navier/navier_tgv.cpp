@@ -30,6 +30,7 @@ struct s_NavierContext
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
+   const char *device_config = "cpu";
 } ctx;
 
 void vel_tgv(const Vector &x, double t, Vector &u)
@@ -122,6 +123,8 @@ T sq(T x)
 // Computes Q = 0.5*(tr(\nabla u)^2 - tr(\nabla u \cdot \nabla u))
 void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
 {
+   u.HostRead();
+
    FiniteElementSpace *v_fes = u.FESpace();
    FiniteElementSpace *fes = q.FESpace();
 
@@ -131,6 +134,7 @@ void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
    zones_per_vdof = 0;
 
    q = 0.0;
+   q.HostReadWrite();
 
    // Local interpolation
    int elndofs;
@@ -214,54 +218,35 @@ int main(int argc, char *argv[])
    MPI_Session mpi(argc, argv);
 
    OptionsParser args(argc, argv);
-   args.AddOption(&ctx.element_subdivisions,
-                  "-es",
-                  "--element-subdivisions",
+   args.AddOption(&ctx.element_subdivisions, "-es", "--element-subdivisions",
                   "Number of 1d uniform subdivisions for each element.");
-   args.AddOption(&ctx.order,
-                  "-o",
-                  "--order",
+   args.AddOption(&ctx.order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
    args.AddOption(&ctx.pa,
-                  "-pa",
-                  "--enable-pa",
-                  "-no-pa",
-                  "--disable-pa",
+                  "-pa", "--enable-pa",
+                  "-no-pa", "--disable-pa",
                   "Enable partial assembly.");
    args.AddOption(&ctx.ni,
-                  "-ni",
-                  "--enable-ni",
-                  "-no-ni",
-                  "--disable-ni",
+                  "-ni", "--enable-ni",
+                  "-no-ni", "--disable-ni",
                   "Enable numerical integration rules.");
    args.AddOption(&ctx.visualization,
-                  "-vis",
-                  "--visualization",
-                  "-no-vis",
-                  "--no-visualization",
+                  "-vis", "--visualization",
+                  "-no-vis", "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(
-      &ctx.checkres,
-      "-cr",
-      "--checkresult",
-      "-no-cr",
-      "--no-checkresult",
-      "Enable or disable checking of the result. Returns -1 on failure.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (mpi.Root())
-      {
-         args.PrintUsage(mfem::out);
-      }
-      return 1;
-   }
-   if (mpi.Root())
-   {
-      args.PrintOptions(mfem::out);
-   }
+   args.AddOption(&ctx.checkres,
+                  "-cr", "--checkresult",
+                  "-no-cr", "--no-checkresult",
+                  "Enable or disable checking of the result. "
+                  "Returns -1 on failure.");
+   args.AddOption(&ctx.device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.ParseCheck();
+
+   Device device(ctx.device_config);
+   if (mpi.Root()) { device.Print(); }
 
    Mesh orig_mesh("../../data/periodic-cube.mesh");
    Mesh mesh = Mesh::MakeRefined(orig_mesh, ctx.element_subdivisions,
@@ -357,27 +342,27 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step);
 
-      if ((step + 1) % 100 == 0 || last_step)
-      {
-         flowsolver.ComputeCurl3D(*u_gf, w_gf);
-         ComputeQCriterion(*u_gf, q_gf);
-         pvdc.SetCycle(step);
-         pvdc.SetTime(t);
-         pvdc.Save();
-      }
+      // if ((step + 1) % 100 == 0 || last_step)
+      // {
+      //    flowsolver.ComputeCurl3D(*u_gf, w_gf);
+      //    ComputeQCriterion(*u_gf, q_gf);
+      //    pvdc.SetCycle(step);
+      //    pvdc.SetTime(t);
+      //    pvdc.Save();
+      // }
 
-      u_inf_loc = u_gf->Normlinf();
-      p_inf_loc = p_gf->Normlinf();
-      u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
-      p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
-      ke = kin_energy.ComputeKineticEnergy(*u_gf);
-      if (mpi.Root())
-      {
-         printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
-         fprintf(f, "%20.16e     %20.16e\n", t, ke);
-         fflush(f);
-         fflush(stdout);
-      }
+      // u_inf_loc = u_gf->Normlinf();
+      // p_inf_loc = p_gf->Normlinf();
+      // u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
+      // p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
+      // ke = kin_energy.ComputeKineticEnergy(*u_gf);
+      // if (mpi.Root())
+      // {
+      //    printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
+      //    fprintf(f, "%20.16e     %20.16e\n", t, ke);
+      //    fflush(f);
+      //    fflush(stdout);
+      // }
    }
 
    flowsolver.PrintTimingData();
@@ -387,6 +372,7 @@ int main(int argc, char *argv[])
    {
       double tol = 2e-5;
       double ke_expected = 1.25e-1;
+      ke = kin_energy.ComputeKineticEnergy(*u_gf);
       if (fabs(ke - ke_expected) > tol)
       {
          if (mpi.Root())
