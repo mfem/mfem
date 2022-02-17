@@ -1,0 +1,94 @@
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# Setup clones the mfem/data repo in ${SHARED_REPOS_DIR}. The build_and_test
+# script then symlinks the repo to the parent directory of the MFEM source
+# directory. Unit tests that depend on the mfem/data repo will then detect that
+# this directory is present and be enabled.
+setup:
+  tags:
+    - shell
+    - quartz
+  stage: setup
+  variables:
+    GIT_STRATEGY: none
+  script:
+    #
+    # Setup MFEM_DATA_DIR=${SHARED_REPOS_DIR}/mfem-data, see '.gitlab-ci.yml'
+    # and '.gitlab/configs/<machine>-config.yml'
+    #
+    - echo "MACHINE_NAME = ${MACHINE_NAME}"
+    - echo "AUTOTEST = ${AUTOTEST}"
+    - echo "AUTOTEST_COMMIT = ${AUTOTEST_COMMIT}"
+    - echo "SHARED_REPOS_DIR ${SHARED_REPOS_DIR}"
+    - mkdir -p ${SHARED_REPOS_DIR} && cd ${SHARED_REPOS_DIR}
+    - command -v flock || echo "Required command 'flock' not found"
+    - |
+      (
+        date
+        echo "Waiting to aquire lock on '$PWD/mfem-data.lock' ..."
+        # try to get an excusive lock on fd 9 (mfem-data.lock) repeating the try
+        # every 5 seconds; simply using no timeout, i.e. 'flock 9', causes the
+        # command to hang indefinitely sometimes, so we use the timeout & retry
+        # as a workaround; we may want to add a counter for the number of
+        # retries to interrupt a potential infinite loop
+        while ! flock -w 5 9; do
+          true
+        done
+        echo "Aquired lock on '$PWD/mfem-data.lock'"
+        date
+        # clone/update the mfem/data repo while holding the file lock on
+        # 'mfem-data.lock'
+        err=0
+        if [[ ! -d "mfem-data" ]]; then
+          git clone ${MFEM_DATA_REPO} "mfem-data"
+        else
+          cd "mfem-data" && git pull && cd ..
+        fi || err=1
+        # sleep for a period to allow NFS to propagate the above changes;
+        # clearly, there is no guarantee that other NFS clients will see the
+        # changes even after the timeout
+        sleep 10
+        exit $err
+      ) 9> mfem-data.lock
+    #
+    # Setup ${AUTOTEST_ROOT}/autotest:
+    #
+    - echo "AUTOTEST_ROOT ${AUTOTEST_ROOT}"
+    - mkdir -p ${AUTOTEST_ROOT} && cd ${AUTOTEST_ROOT}
+    - |
+      (
+        date
+        echo "Waiting to aquire lock on '$PWD/autotest.lock' ..."
+        # try to get an excusive lock on fd 9 (autotest.lock) repeating the try
+        # every 5 seconds; simply using no timeout, i.e. 'flock 9', causes the
+        # command to hang indefinitely sometimes, so we use the timeout & retry
+        # as a workaround; we may want to add a counter for the number of
+        # retries to interrupt a potential infinite loop
+        while ! flock -w 5 9; do
+          true
+        done
+        echo "Aquired lock on '$PWD/autotest.lock'"
+        date
+        # clone/update the autotest repo while holding the file lock on
+        # 'autotest.lock'
+        err=0
+        if [[ ! -d "autotest" ]]; then
+          git clone ${AUTOTEST_REPO}
+        else
+          cd autotest && git pull && cd ..
+        fi || err=1
+        # sleep for a period to allow NFS to propagate the above changes;
+        # clearly, there is no guarantee that other NFS clients will see the
+        # changes even after the timeout
+        sleep 10
+        exit $err
+      ) 9> autotest.lock

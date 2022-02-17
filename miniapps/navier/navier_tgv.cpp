@@ -366,11 +366,11 @@ int main(int argc, char *argv[])
          pvdc.Save();
       }
 
-      double u_inf_loc = u_gf->Normlinf();
-      double p_inf_loc = p_gf->Normlinf();
-      double u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
-      double p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
-      double ke = kin_energy.ComputeKineticEnergy(*u_gf);
+      u_inf_loc = u_gf->Normlinf();
+      p_inf_loc = p_gf->Normlinf();
+      u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
+      p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
+      ke = kin_energy.ComputeKineticEnergy(*u_gf);
       if (mpi.Root())
       {
          printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
@@ -385,7 +385,7 @@ int main(int argc, char *argv[])
    // Test if the result for the test run is as expected.
    if (ctx.checkres)
    {
-      double tol = 1e-5;
+      double tol = 2e-5;
       double ke_expected = 1.25e-1;
       if (fabs(ke - ke_expected) > tol)
       {

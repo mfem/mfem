@@ -226,6 +226,9 @@ public:
                                const IntegrationPoint &ip,
                                Vector &val, Vector *tr = NULL) const;
 
+   /// Parallel version of GridFunction::GetDerivative(); see its documentation.
+   void GetDerivative(int comp, int der_comp, ParGridFunction &der);
+
    /** Sets the output vector @a dof_vals to the values of the degrees of
        freedom of element @a el. If @a el is greater than or equal to the number
        of local elements, it will be interpreted as a shifted index of a face
