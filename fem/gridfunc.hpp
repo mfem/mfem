@@ -903,6 +903,22 @@ public:
 
    /// Write the QuadratureFunction to the stream @a out.
    void Save(std::ostream &out) const;
+
+   /// @brief Write the QuadratureFunction to @a out in VTU (ParaView) format.
+   ///
+   /// The data will be uncompressed if @a compression_level is zero, or if the
+   /// format is VTKFormat::ASCII. Otherwise, zlib compression will be used for
+   /// binary data.
+   void SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
+                int compression_level=0) const;
+
+   /// @brief Save the QuadratureFunction to a VTU (ParaView) file.
+   ///
+   /// The extension ".vtu" will be appended to @a filename.
+   /// @sa SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
+   ///             int compression_level=0)
+   void SaveVTU(const std::string &filename, VTKFormat format=VTKFormat::ASCII,
+                int compression_level=0) const;
 };
 
 /// Overload operator<< for std::ostream and QuadratureFunction.

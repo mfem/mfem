@@ -197,7 +197,7 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
 /// specified host and port. Set the visualization window title, and optionally,
 /// its geometry.
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
-                    ParGridFunction &gf, const char *title,
+                    const ParGridFunction &gf, const char *title,
                     int x = 0, int y = 0, int w = 400, int h = 400,
                     const char *keys = NULL, bool vec = false);
 

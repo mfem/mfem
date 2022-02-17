@@ -66,11 +66,15 @@ protected:
 
 public:
 
-   /// Default constructor for Vector. Sets size = 0 and data = NULL.
-   Vector() { data.Reset(); size = 0; }
+   /** Default constructor for Vector. Sets size = 0, and calls Memory::Reset on
+       data through Memory<double>'s default constructor. */
+   Vector(): size(0) { }
 
    /// Copy constructor. Allocates a new data array and copies the data.
    Vector(const Vector &);
+
+   /// Move constructor. "Steals" data from its argument.
+   Vector(Vector&& v);
 
    /// @brief Creates vector of size s.
    /// @warning Entries are not initialized to zero!
@@ -277,6 +281,9 @@ public:
    /** @note Defining this method overwrites the implicitly defined copy
        assignment operator. */
    Vector &operator=(const Vector &v);
+
+   /// Move assignment
+   Vector &operator=(Vector&& v);
 
    /// Redefine '=' for vector = constant.
    Vector &operator=(double value);
@@ -503,15 +510,11 @@ inline int CheckFinite(const double *v, const int n)
 
 inline Vector::Vector(int s)
 {
+   MFEM_ASSERT(s>=0,"Unexpected negative size.");
+   size = s;
    if (s > 0)
    {
-      size = s;
       data.New(s);
-   }
-   else
-   {
-      size = 0;
-      data.Reset();
    }
 }
 

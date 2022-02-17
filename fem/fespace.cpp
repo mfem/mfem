@@ -894,9 +894,10 @@ int FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
 int FiniteElementSpace::GetNumBorderDofs(Geometry::Type geom, int order) const
 {
    // return the number of vertex and edge DOFs that precede inner DOFs
-   int nv = fec->GetNumDof(Geometry::POINT, order);
-   int ne = fec->GetNumDof(Geometry::SEGMENT, order);
-   return Geometry::NumVerts[geom] * (nv + ne);
+   const int nv = fec->GetNumDof(Geometry::POINT, order);
+   const int ne = fec->GetNumDof(Geometry::SEGMENT, order);
+
+   return Geometry::NumVerts[geom] * (geom == Geometry::SEGMENT ? nv : (nv + ne));
 }
 
 int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
@@ -1192,7 +1193,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       if (cR_hp) { MakeVDimMatrix(*cR_hp); }
    }
 
-   if (Device::IsEnabled()) { cP->BuildTranspose(); }
+   cP->EnsureMultTranspose();
 }
 
 void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
@@ -1300,7 +1301,14 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
       FaceRestriction *res;
       if (is_dg_space)
       {
-         res = new L2FaceRestriction(*this, e_ordering, type, m);
+         if (Conforming())
+         {
+            res = new L2FaceRestriction(*this, e_ordering, type, m);
+         }
+         else
+         {
+            res = new NCL2FaceRestriction(*this, e_ordering, type, m);
+         }
       }
       else
       {
@@ -1709,8 +1717,7 @@ void FiniteElementSpace::RefinementOperator
             fespace->DofsToVDofs(vd, c_vdofs, old_ndofs);
 
             x.GetSubVector(f_vdofs, subX);
-            old_DoFTrans[geom]->InvTransformPrimal(subX);
-
+            doftrans->InvTransformDual(subX);
             for (int p = 0; p < f_dofs.Size(); ++p)
             {
                if (processed[DecodeDof(f_dofs[p])])
@@ -1719,9 +1726,9 @@ void FiniteElementSpace::RefinementOperator
                }
             }
 
-            lP.MultTranspose(subX, subY);
-            doftrans->TransformPrimal(subY);
-            y.AddElementVector(c_vdofs, subY);
+            lP.MultTranspose(subX, subYt);
+            old_DoFTrans[geom]->TransformDual(subYt);
+            y.AddElementVector(c_vdofs, subYt);
          }
 
          if (vdoftrans)
