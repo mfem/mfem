@@ -132,32 +132,32 @@ void EliminationProjection::MultTranspose(const Vector& vin, Vector& vout) const
 
 SparseMatrix * EliminationProjection::AssembleExact() const
 {
-   SparseMatrix * mout = new SparseMatrix(height, width);
+   SparseMatrix * mat = new SparseMatrix(height, width);
 
    for (int i = 0; i < height; ++i)
    {
-      mout->Add(i, i, 1.0);
+      mat->Add(i, i, 1.0);
    }
 
    for (int k = 0; k < eliminators.Size(); ++k)
    {
       Eliminator* elim = eliminators[k];
-      DenseMatrix mat;
-      elim->ExplicitAssembly(mat);
+      DenseMatrix mat_k;
+      elim->ExplicitAssembly(mat_k);
       for (int iz = 0; iz < elim->SecondaryDofs().Size(); ++iz)
       {
          int i = elim->SecondaryDofs()[iz];
          for (int jz = 0; jz < elim->PrimaryDofs().Size(); ++jz)
          {
             int j = elim->PrimaryDofs()[jz];
-            mout->Add(i, j, mat(iz, jz));
+            mat->Add(i, j, mat_k(iz, jz));
          }
-         mout->Set(i, i, 0.0);
+         mat->Set(i, i, 0.0);
       }
    }
 
-   mout->Finalize();
-   return mout;
+   mat->Finalize();
+   return mat;
 }
 
 void EliminationProjection::BuildGTilde(const Vector& r, Vector& rtilde) const

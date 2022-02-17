@@ -338,14 +338,14 @@ int SparseMatrix::RowSize(const int i) const
 
 int SparseMatrix::MaxRowSize() const
 {
-   int rout=0;
+   int max_row_size=0;
    int rowSize=0;
    if (I)
    {
       for (int i=0; i < height; ++i)
       {
          rowSize = I[i+1]-I[i];
-         rout = (rout > rowSize) ? rout : rowSize;
+         max_row_size = (max_row_size > rowSize) ? max_row_size : rowSize;
       }
    }
    else
@@ -353,11 +353,11 @@ int SparseMatrix::MaxRowSize() const
       for (int i=0; i < height; ++i)
       {
          rowSize = RowSize(i);
-         rout = (rout > rowSize) ? rout : rowSize;
+         max_row_size = (max_row_size > rowSize) ? max_row_size : rowSize;
       }
    }
 
-   return rout;
+   return max_row_size;
 }
 
 int *SparseMatrix::GetRowColumns(const int row)
@@ -3718,9 +3718,9 @@ SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
    SparseMatrix * R = Transpose(Rt);
    SparseMatrix * RA = Mult(*R,A);
    delete R;
-   SparseMatrix * mout = Mult(*RA, P);
+   SparseMatrix * RAP_ = Mult(*RA, P);
    delete RA;
-   return mout;
+   return RAP_;
 }
 
 SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,

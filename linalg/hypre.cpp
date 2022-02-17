@@ -2130,7 +2130,7 @@ void HypreParMatrix::Threshold(double threshold)
 
 void HypreParMatrix::DropSmallEntries(double tol)
 {
-   HYPRE_Int new_err = 0, old_err = hypre_error_flag;
+   HYPRE_Int old_err = hypre_error_flag;
    hypre_error_flag = 0;
 
 #if MFEM_HYPRE_VERSION < 21400
@@ -2161,15 +2161,15 @@ void HypreParMatrix::DropSmallEntries(double tol)
 
 #elif MFEM_HYPRE_VERSION < 21800
 
-   new_err = hypre_ParCSRMatrixDropSmallEntries(A, tol);
+   HYPRE_Int err_flag = hypre_ParCSRMatrixDropSmallEntries(A, tol);
 
 #else
 
-   new_err = hypre_ParCSRMatrixDropSmallEntries(A, tol, 2);
+   HYPRE_Int err_flag = hypre_ParCSRMatrixDropSmallEntries(A, tol, 2);
 
 #endif
 
-   MFEM_VERIFY(!new_err, "error encountered: error code = " << new_err);
+   MFEM_VERIFY(!err_flag, "error encountered: error code = " << err_flag);
 
    hypre_error_flag = old_err;
 }
