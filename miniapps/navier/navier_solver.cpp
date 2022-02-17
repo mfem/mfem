@@ -517,7 +517,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       pn_gf.ProjectBdrCoefficient(*pres_dbc.coeff, pres_dbc.attr);
    }
 
-   pfes->GetRestrictionMatrix()->MultTranspose(resp, resp_gf);
+   pfes->GetRestrictionOperator()->MultTranspose(resp, resp_gf);
 
    Vector X1, B1;
    if (partial_assembly)
@@ -560,7 +560,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       un_next_gf.ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
    }
 
-   vfes->GetRestrictionMatrix()->MultTranspose(resu, resu_gf);
+   vfes->GetRestrictionOperator()->MultTranspose(resu, resu_gf);
 
    Vector X2, B2;
    if (partial_assembly)
@@ -695,6 +695,9 @@ void NavierSolver::Orthogonalize(Vector &v)
 
 void NavierSolver::ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu)
 {
+   // For now, on host. TODO: do this computation on device
+   u.HostRead();
+
    FiniteElementSpace *fes = u.FESpace();
 
    // AccumulateAndCountZones.
@@ -703,6 +706,7 @@ void NavierSolver::ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu)
    zones_per_vdof = 0;
 
    cu = 0.0;
+   cu.HostReadWrite();
 
    // Local interpolation.
    int elndofs;
@@ -788,6 +792,9 @@ void NavierSolver::ComputeCurl2D(ParGridFunction &u,
                                  ParGridFunction &cu,
                                  bool assume_scalar)
 {
+   // For now, on host. TODO: do this computation on device
+   u.HostRead();
+
    FiniteElementSpace *fes = u.FESpace();
 
    // AccumulateAndCountZones.
@@ -796,6 +803,7 @@ void NavierSolver::ComputeCurl2D(ParGridFunction &u,
    zones_per_vdof = 0;
 
    cu = 0.0;
+   cu.HostReadWrite();
 
    // Local interpolation.
    int elndofs;
