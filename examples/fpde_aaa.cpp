@@ -38,8 +38,10 @@ void RationalApproximation_AAA(const Vector &val,
                                double tol = 1.0e-8, int max_order = 100);
 
 void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
-                          Vector & poles, Vector & zeros);
+                          Vector & poles, Vector & zeros, double scale);
 
+void PartialFractionExpansion(double scale, Vector & poles,
+                              Vector & zeros, Vector & coeffs);
 
 
 int main(int argc, char *argv[])
@@ -50,7 +52,8 @@ int main(int argc, char *argv[])
    for (int i = 0; i<size; i++)
    {
       x(i) = (double)i+0.01;
-      val(i) = 1./pow(x(i),0.33);
+      val(i) = (1.-x(i))/pow(x(i),0.33);
+    //   val(i) = 1./pow(x(i),0.33);
    }
 
    Array<double> z, f;
@@ -69,8 +72,9 @@ int main(int argc, char *argv[])
    vecz.SetDataAndSize(z.GetData(), z.Size());
    vecf.SetDataAndSize(f.GetData(), f.Size());
 
+   double scale;
    Vector poles, zeros;
-   ComputePolesAndZeros(vecz, vecf, w, poles, zeros);
+   ComputePolesAndZeros(vecz, vecf, w, poles, zeros, scale);
 
 }
 
@@ -252,7 +256,7 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
 }
 
 void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
-                          Vector & poles, Vector & zeros)
+                          Vector & poles, Vector & zeros, double scale)
 {
    //    m = length(w); B = eye(m+1); B(1,1) = 0;
    //    E = [0 w.'; ones(m,1) diag(z)];
@@ -338,5 +342,33 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
       }
    }
 
+    double tmp1=0.0;
+    double tmp2=0.0;
+    for (int i = 0; i<=m; i++)
+    {
+        tmp1 += w(i) * f(i);
+        tmp2 += w(i);
+    }
+    scale = tmp1/tmp2;
+
+}
+
+void PartialFractionExpansion(double scale, Vector & poles, Vector & zeros, Vector & coeffs)
+{
+    int size = zeros.Size();
+
+    coeffs.SetSize(size);
+    coeffs = scale;
+    for (int i=0; i<size; i++)
+    {
+        double tmp_numer=1.0;
+        double tmp_denom=1.0;
+        for (int j=0; j<size; j++)
+        {
+            tmp_numer *= poles(i)-zeros(j);
+            if (j != i) { tmp_denom *= poles(i)-poles(j); }
+        }
+        coeffs(i) *= tmp_numer / tmp_denom;
+    }
 
 }
