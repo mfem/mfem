@@ -1079,11 +1079,12 @@ void VectorFiniteElement::ProjectCurl_ND(
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix curlshape(fe.GetDof(), dim);
    DenseMatrix curlshape_J(fe.GetDof(), dim);
+   DenseMatrix JtJ(dim, dim);
 #else
    curlshape.SetSize(fe.GetDof(), dim);
    curlshape_J.SetSize(fe.GetDof(), dim);
+   JtJ.SetSize(dim, dim);
 #endif
-   DenseMatrix J(dim, dim);
 
    Vector curl_k(fe.GetDof());
 
@@ -1094,12 +1095,12 @@ void VectorFiniteElement::ProjectCurl_ND(
 
       // calculate J^t * J / |J|
       Trans.SetIntPoint(&ip);
-      MultAtB(Trans.Jacobian(), Trans.Jacobian(), J);
-      J *= 1.0 / Trans.Weight();
+      MultAtB(Trans.Jacobian(), Trans.Jacobian(), JtJ);
+      JtJ *= 1.0 / Trans.Weight();
 
       // transform curl of shapes (rows) by J^t * J / |J|
       fe.CalcCurlShape(ip, curlshape);
-      Mult(curlshape, J, curlshape_J);
+      Mult(curlshape, JtJ, curlshape_J);
 
       curlshape_J.Mult(tk + d2t[k]*dim, curl_k);
       for (int j = 0; j < curl_k.Size(); j++)

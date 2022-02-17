@@ -789,6 +789,7 @@ private:
 protected:
    bool is_nodal;
 #ifndef MFEM_THREAD_SAFE
+   mutable DenseMatrix JtJ;
    mutable DenseMatrix curlshape, curlshape_J;
 #endif
    void SetDerivMembers();
