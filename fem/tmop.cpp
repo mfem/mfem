@@ -2317,7 +2317,10 @@ void TMOP_Integrator::ReleasePADeviceMemory(bool copy_to_host)
    {
       PA.H.GetMemory().DeleteDevice(copy_to_host);
       PA.H0.GetMemory().DeleteDevice(copy_to_host);
-      if (!copy_to_host && !PA.Jtr.GetMemory().HostIsValid()) { PA.Jtr_needs_update = true; }
+      if (!copy_to_host && !PA.Jtr.GetMemory().HostIsValid())
+      {
+         PA.Jtr_needs_update = true;
+      }
       PA.Jtr.GetMemory().DeleteDevice(copy_to_host);
    }
 }
