@@ -155,6 +155,13 @@ MortarAssembler::MortarAssembler(
    impl_->destination = destination;
 }
 
+int order_multiplier(const Geometry::Type type, const int dim)
+{
+   return
+   (type == Geometry::TRIANGLE || type == Geometry::TETRAHEDRON ||
+      type == Geometry::SEGMENT)? 1 : dim;
+}
+
 bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 {
    using namespace std;
@@ -213,8 +220,10 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
 
       ElementTransformation &destination_Trans =
          *impl_->destination->GetElementTransformation(destination_index);
-      const int order = source_fe.GetOrder() + destination_fe.GetOrder() +
-                        destination_Trans.OrderW();
+      const int order = 
+      order_multiplier(source_fe.GetGeomType(), dim) * source_fe.GetOrder() +  
+      order_multiplier(destination_fe.GetGeomType(), dim) * (destination_fe.GetOrder() +
+                        destination_Trans.OrderW());
 
       // Update the quadrature rule in case it changed the order
       cut->SetIntegrationOrder(order);

@@ -180,6 +180,17 @@ void TransformToReference(ElementTransformation &Trans, int type,
    assert(ref_p.y <= 1 + 1e-8);
    assert(ref_p.z <= 1 + 1e-8);
 
+#ifdef MFEM_DEBUG_MOONOLITH
+   {
+      Vector physical_test_p;
+      Trans.Transform(ref_p, physical_test_p);
+
+      physical_test_p -= physical_p;
+
+      assert(physical_test_p.Norml2() < 1e-10);
+   }
+#endif
+
    ref_p.weight = w;
 
    if (type == Geometry::TRIANGLE && dim == 2)
@@ -275,29 +286,29 @@ bool CutGeneric<Polytope>::BuildQuadrature(const FiniteElementSpace &from_space,
       assert(IsValidQPoint(to_quadrature[qp]));
    }
 
-#ifdef MFEM_DEBUG_MOONOLITH
+// #ifdef MFEM_DEBUG_MOONOLITH
 
-      {
-         static int counter = 0;
+//       {
+//          static int counter = 0;
 
-         moonolith::MatlabScripter script;
-         script.hold_on();
-         script.plot(from_, "\'g-\'");
-         script.plot(from_, "\'g.\'");
-         script.plot(to_, "\'r-\'");
-         script.plot(to_, "\'r.\'");
+//          moonolith::MatlabScripter script;
+//          script.hold_on();
+//          script.plot(from_, "\'g-\'");
+//          script.plot(from_, "\'g.\'");
+//          script.plot(to_, "\'r-\'");
+//          script.plot(to_, "\'r.\'");
 
-         Quadrature_t q_to;
-         ConvertQRule(to_quadrature, q_to);
-         script.close_all();
-         script.plot(q_to.points, "\'*b\'");
+//          Quadrature_t q_to;
+//          ConvertQRule(to_quadrature, q_to);
+//          script.close_all();
+//          script.plot(q_to.points, "\'*b\'");
 
-         std::cout << "to_measure(" << counter << "): " << moonolith::measure(q_to) << "\n";
+//          std::cout << "to_measure(" << counter << "): " << moonolith::measure(q_to) << "\n";
 
-         script.save("ref_to_" + std::to_string(counter++) + ".m");
-      }
+//          script.save("ref_to_" + std::to_string(counter++) + ".m");
+//       }
 
-#endif //MFEM_DEBUG_MOONOLITH
+// #endif //MFEM_DEBUG_MOONOLITH
 
    return true;
 }

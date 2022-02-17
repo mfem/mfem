@@ -868,6 +868,14 @@ std::shared_ptr<HypreParMatrix> convert_to_hypre_matrix(
              mat_buffer.cols(), &I[0], &J[0], &data[0], s_offsets, m_offsets);
 }
 
+
+int order_multiplier(const Geometry::Type type, const int dim)
+{
+   return
+   (type == Geometry::TRIANGLE || type == Geometry::TETRAHEDRON ||
+      type == Geometry::SEGMENT)? 1 : dim;
+}
+
 template <int Dimensions>
 static bool
 Assemble(moonolith::Communicator &comm,
@@ -934,12 +942,19 @@ Assemble(moonolith::Communicator &comm,
       auto &src_fe = *src.GetFE(src_index);
       auto &dest_fe = *dest.GetFE(dest_index);
 
+
+      int src_order_mult = order_multiplier(src_fe.GetGeomType(), Dimensions);
+      int dest_order_mult = order_multiplier(dest_fe.GetGeomType(), Dimensions);
+
+
       ElementTransformation &dest_Trans =
       *dest.GetElementTransformation(dest_index);
-      const int order = src_fe.GetOrder() + dest_fe.GetOrder() +
-      dest_Trans.OrderW() + max_q_order;
+      const int order = src_order_mult * src_fe.GetOrder() + dest_order_mult * (dest_fe.GetOrder() +
+      dest_Trans.OrderW()) + max_q_order;
 
       cut->SetIntegrationOrder(order);
+      // cut->SetIntegrationOrder(2*order);
+      // cut->SetIntegrationOrder(1);
       if (cut->BuildQuadrature(src, src_index, dest, dest_index, src_ir,
                                dest_ir))
       {
