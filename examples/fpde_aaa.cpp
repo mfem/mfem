@@ -38,7 +38,7 @@ void RationalApproximation_AAA(const Vector &val,
                                double tol = 1.0e-8, int max_order = 100);
 
 void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
-                          Array<double> & poles, Array<double> & zeros, double * scale);
+                          Array<double> & poles, Array<double> & zeros, double &scale);
 
 void PartialFractionExpansion(double scale, Array<double> & poles,
                               Array<double> & zeros, Vector & coeffs);
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 
    double scale;
    Array<double> poles, zeros;
-   ComputePolesAndZeros(vecz, vecf, w, poles, zeros, &scale);
+   ComputePolesAndZeros(vecz, vecf, w, poles, zeros, scale);
 
    mfem::out << "scale = " << scale << endl;
 
@@ -267,7 +267,7 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
 }
 
 void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
-                          Array<double> & poles, Array<double> & zeros, double *scale)
+                          Array<double> & poles, Array<double> & zeros, double &scale)
 {
    // Initialization
    poles.SetSize(0);
@@ -363,7 +363,7 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
       tmp1 += w(i) * f(i);
       tmp2 += w(i);
    }
-   *scale = tmp1/tmp2;
+   scale = tmp1/tmp2;
 
 }
 
