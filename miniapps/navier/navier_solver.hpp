@@ -329,6 +329,7 @@ protected:
    /// Kinematic viscosity (dimensionless).
    double kin_vis;
 
+   /// Gauss-Lobatto integration rules for numerical integration.
    IntegrationRules gll_rules;
 
    /// Velocity \f$H^1\f$ finite element collection.
