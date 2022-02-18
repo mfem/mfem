@@ -152,8 +152,8 @@ TEST_CASE("direct-serial","[CUDA]")
 
       a.RecoverFEMSolution(X, b, x);
       VectorFunctionCoefficient grad(dim,gradexact);
-      double err = x.ComputeH1Error(&uex,&grad);
-      REQUIRE(err < 1.e-12);
+      double error = x.ComputeH1Error(&uex,&grad);
+      REQUIRE(error < 1.e-12);
       delete fec;
    }
 }
@@ -230,8 +230,8 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
 
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim,gradexact);
-         double err = x.ComputeH1Error(&uex,&grad);
-         REQUIRE(err < 1.e-12);
+         double error = x.ComputeH1Error(&uex,&grad);
+         REQUIRE(error < 1.e-12);
       }
 #endif
 #ifdef MFEM_USE_SUPERLU
@@ -250,8 +250,8 @@ TEST_CASE("direct-parallel", "[Parallel], [CUDA]")
          REQUIRE(Y.Norml2() < 1.e-12);
          a.RecoverFEMSolution(X, b, x);
          VectorFunctionCoefficient grad(dim,gradexact);
-         double err = x.ComputeH1Error(&uex,&grad);
-         REQUIRE(err < 1.e-12);
+         double error = x.ComputeH1Error(&uex,&grad);
+         REQUIRE(error < 1.e-12);
       }
 #endif
       delete fec;
