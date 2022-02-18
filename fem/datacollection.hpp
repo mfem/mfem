@@ -491,19 +491,20 @@ private:
    bool restart_mode;
 
 protected:
+   void WritePVTUHeader(std::ostream &out);
+   void WritePVTUFooter(std::ostream &out, const std::string &vtu_prefix);
    void SaveDataVTU(std::ostream &out, int ref);
    void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
-   void SaveQFieldVTU(std::ostream &out, int ref, const QFieldMapIterator& it);
    const char *GetDataFormatString() const;
    const char *GetDataTypeString() const;
 
-   std::string  GenerateCollectionPath();
-   std::string  GenerateVTUFileName();
-   std::string  GenerateVTUFileName(int rank);
-   std::string  GenerateVTUPath();
-   std::string  GeneratePVDFileName();
-   std::string  GeneratePVTUFileName();
-   std::string  GeneratePVTUPath();
+   std::string GenerateCollectionPath();
+   std::string GenerateVTUFileName(const std::string &prefix, int rank);
+   std::string GenerateVTUPath();
+   std::string GeneratePVDFileName();
+   std::string GeneratePVTUFileName(const std::string &prefix);
+   std::string GeneratePVTUPath();
+
 
 public:
    /// Constructor. The collection name is used when saving the data.
