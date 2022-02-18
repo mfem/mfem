@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
    // Perform Uniform refinement
    if (ref_levels > 1)
    {
-      ma::Input* uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
+      auto uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
 
       if (geom_order > 1)
       {

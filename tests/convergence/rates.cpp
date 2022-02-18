@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x <<
-               "window_title 'Numerical Pressure (real part)' "
+               "window_title 'Numerical Solution' "
                << flush;
    }
 
