@@ -2677,9 +2677,9 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
 #endif
 
 #if MFEM_HYPRE_VERSION < 21900
-   hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
+   hypre_BoomerAMGBuildCoarseOperator(*Rt,*A,*P,&rap);
 #else
-   rap = hypre_ParCSRMatrixRAP(*P,*A,*P);
+   rap = hypre_ParCSRMatrixRAP(*Rt,*A,*P);
 #endif
 
 #if MFEM_HYPRE_VERSION <= 22200
