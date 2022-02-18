@@ -282,10 +282,10 @@ int main(int argc, char *argv[])
    delete b;
 
    // 12. Compute and print the L^2 norm of the error.
-   double err = x.ComputeL2Error(sol_coef);
+   double error = x.ComputeL2Error(sol_coef);
    if (myid == 0)
    {
-      cout << "\nL2 norm of error: " << err << endl;
+      cout << "\nL2 norm of error: " << error << endl;
    }
 
    // 13. Save the refined mesh and the solution. This output can be viewed

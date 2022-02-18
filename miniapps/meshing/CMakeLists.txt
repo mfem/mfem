@@ -99,13 +99,13 @@ if (MFEM_USE_MPI)
 
   # Add parallel tests.
   if (MFEM_ENABLE_TESTING)
-    add_test(NAME pmesh-optimizer_np=4
+    add_test(NAME pmesh-optimizer_np=${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pmesh-optimizer> -no-vis
       -m ${CMAKE_CURRENT_SOURCE_DIR}/icf.mesh
       ${MPIEXEC_POSTFLAGS})
 
-    add_test(NAME pminimal-surface_np=4
+    add_test(NAME pminimal-surface_np=${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pminimal-surface> -no-vis
       ${MPIEXEC_POSTFLAGS})
