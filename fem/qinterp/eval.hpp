@@ -65,12 +65,12 @@ static void Values2D(const int NE,
       MFEM_SHARED double sm0[NBZ][MDQ*MDQ];
       MFEM_SHARED double sm1[NBZ][MDQ*MDQ];
 
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
+
       ConstDeviceMatrix B(sB, D1D,Q1D);
       DeviceMatrix DD(sm0[tidz], MD1, MD1);
       DeviceMatrix DQ(sm1[tidz], MD1, MQ1);
       DeviceMatrix QQ(sm0[tidz], MQ1, MQ1);
-
-      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
 
       for (int c = 0; c < VDIM; c++)
       {
@@ -126,13 +126,13 @@ static void Values3D(const int NE,
       MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
       MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
 
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
+
       ConstDeviceMatrix B(sB, D1D,Q1D);
       DeviceCube DDD(sm0, MD1,MD1,MD1);
       DeviceCube DDQ(sm1, MD1,MD1,MQ1);
       DeviceCube DQQ(sm0, MD1,MQ1,MQ1);
       DeviceCube QQQ(sm1, MQ1,MQ1,MQ1);
-
-      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
 
       for (int c = 0; c < VDIM; c++)
       {

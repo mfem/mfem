@@ -199,8 +199,8 @@ int main(int argc, char *argv[])
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    if (eta > 0)
    {
-      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
-      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(*fespace, eta));
+      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(*fespace, eta));
    }
    a->Assemble();
    a->Finalize();
@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
    {
       HyprePCG pcg(*A);
       pcg.SetTol(1e-12);
-      pcg.SetMaxIter(200);
+      pcg.SetMaxIter(500);
       pcg.SetPrintLevel(2);
       pcg.SetPreconditioner(*amg);
       pcg.Mult(*B, *X);
@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetAbsTol(0.0);
       gmres.SetRelTol(1e-12);
-      gmres.SetMaxIter(200);
+      gmres.SetMaxIter(500);
       gmres.SetKDim(10);
       gmres.SetPrintLevel(1);
       gmres.SetOperator(*A);

@@ -72,10 +72,6 @@ TEST_CASE("Build Dof To Arrays",
       {
          mesh->UniformRefinement();
       }
-      if (dim == 3)
-      {
-         mesh->ReorientTetMesh();
-      }
 
       for (int bt = (int)BasisType::H1; bt <= (int)BasisType::L2; bt++)
       {
@@ -177,10 +173,6 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
       }
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
       delete mesh;
-      if (dim == 3)
-      {
-         pmesh.ReorientTetMesh();
-      }
 
       for (int bt = (int)BasisType::H1; bt <= (int)BasisType::L2; bt++)
       {

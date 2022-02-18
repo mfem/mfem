@@ -78,6 +78,8 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
    MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
                "Mixed meshes are not currently supported in FindPointsGSLIB.");
+   MFEM_VERIFY(!(m.GetNodes()->FESpace()->IsVariableOrder()),
+               "Variable order mesh is not currently supported.");
 
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
@@ -590,7 +592,8 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
    const L2_FECollection *fec_l2 = dynamic_cast<const L2_FECollection *>(fec_in);
 
    if (fec_h1 && gf_order == mesh_order &&
-       fec_h1->GetBasisType() == BasisType::GaussLobatto)
+       fec_h1->GetBasisType() == BasisType::GaussLobatto &&
+       !field_in.FESpace()->IsVariableOrder())
    {
       InterpolateH1(field_in, field_out);
       return;
@@ -610,7 +613,12 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       {
          if (gsl_code[i] == 1) { indl2.Append(i); }
       }
-      if (indl2.Size() == 0) { return; } // no points on element borders
+      int borderPts = indl2.Size();
+#ifdef MFEM_USE_MPI
+      MPI_Allreduce(MPI_IN_PLACE, &borderPts, 1, MPI_INT, MPI_SUM, gsl_comm->c);
+#endif
+      if (borderPts == 0) { return; } // no points on element borders
+
 
       Vector field_out_l2(field_out.Size());
       VectorGridFunctionCoefficient field_in_dg(&field_in);
@@ -852,6 +860,8 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
    MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
                "Mixed meshes are not currently supported in FindPointsGSLIB.");
+   MFEM_VERIFY(!(m.GetNodes()->FESpace()->IsVariableOrder()),
+               "Variable order mesh is not currently supported.");
 
    // FreeData if OversetFindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }

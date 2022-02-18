@@ -149,7 +149,7 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 void InitialVelocity(const Vector &x, Vector &v);
 
-void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
+void visualize(ostream &os, Mesh *mesh, GridFunction *deformed_nodes,
                GridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
@@ -376,10 +376,10 @@ int main(int argc, char *argv[])
 }
 
 
-void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
+void visualize(ostream &os, Mesh *mesh, GridFunction *deformed_nodes,
                GridFunction *field, const char *field_name, bool init_vis)
 {
-   if (!out)
+   if (!os)
    {
       return;
    }
@@ -389,24 +389,25 @@ void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
 
    mesh->SwapNodes(nodes, owns_nodes);
 
-   out << "solution\n" << *mesh << *field;
+   os << "solution\n" << *mesh << *field;
 
    mesh->SwapNodes(nodes, owns_nodes);
 
    if (init_vis)
    {
-      out << "window_size 800 800\n";
-      out << "window_title '" << field_name << "'\n";
+      os << "window_size 800 800\n";
+      os << "window_title '" << field_name << "'\n";
       if (mesh->SpaceDimension() == 2)
       {
-         out << "view 0 0\n"; // view from top
-         out << "keys jl\n";  // turn off perspective and light
+         os << "view 0 0\n"; // view from top
+         os << "keys jl\n";  // turn off perspective and light
       }
-      out << "keys cm\n";         // show colorbar and mesh
-      out << "autoscale value\n"; // update value-range; keep mesh-extents fixed
-      out << "pause\n";
+      os << "keys cm\n";         // show colorbar and mesh
+      // update value-range; keep mesh-extents fixed
+      os << "autoscale value\n";
+      os << "pause\n";
    }
-   out << flush;
+   os << flush;
 }
 
 

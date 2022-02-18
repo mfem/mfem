@@ -1461,12 +1461,12 @@ void QKernel(const int nzones,
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
                QBody<dim>(nzones, z, nqp, qx + qy * Q1D,
-               gamma, use_viscosity, h0, h1order, cfl, infinity,
-               Jinv,stress,sgrad_v,eig_val_data,eig_vec_data,
-               compr_dir,Jpi,ph_dir,stressJiT,
-               d_weights, d_Jacobians, d_rho0DetJ0w,
-               d_e_quads, d_grad_v_ext, d_Jac0inv,
-               d_dt_est, d_stressJinvT);
+                          gamma, use_viscosity, h0, h1order, cfl, infinity,
+                          Jinv,stress,sgrad_v,eig_val_data,eig_vec_data,
+                          compr_dir,Jpi,ph_dir,stressJiT,
+                          d_weights, d_Jacobians, d_rho0DetJ0w,
+                          d_e_quads, d_grad_v_ext, d_Jac0inv,
+                          d_dt_est, d_stressJinvT);
             }
          }
          MFEM_SYNC_THREAD;
@@ -1494,12 +1494,12 @@ void QKernel(const int nzones,
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
                   QBody<dim>(nzones, z, nqp, qx + Q1D * (qy + qz * Q1D),
-                  gamma, use_viscosity, h0, h1order, cfl, infinity,
-                  Jinv,stress,sgrad_v,eig_val_data,eig_vec_data,
-                  compr_dir,Jpi,ph_dir,stressJiT,
-                  d_weights, d_Jacobians, d_rho0DetJ0w,
-                  d_e_quads, d_grad_v_ext, d_Jac0inv,
-                  d_dt_est, d_stressJinvT);
+                             gamma, use_viscosity, h0, h1order, cfl, infinity,
+                             Jinv,stress,sgrad_v,eig_val_data,eig_vec_data,
+                             compr_dir,Jpi,ph_dir,stressJiT,
+                             d_weights, d_Jacobians, d_rho0DetJ0w,
+                             d_e_quads, d_grad_v_ext, d_Jac0inv,
+                             d_dt_est, d_stressJinvT);
                }
             }
          }
@@ -1849,19 +1849,6 @@ public:
    }
 
    void ResetQuadratureData() const { quad_data_is_current = false; }
-
-   void ComputeDensity(ParGridFunction &rho) const
-   {
-      rho.SetSpace(&L2FESpace);
-      DenseMatrix Mrho(l2dofs_cnt);
-      Vector rhs(l2dofs_cnt), rho_z(l2dofs_cnt);
-      Array<int> dofs(l2dofs_cnt);
-      for (int i = 0; i < nzones; i++)
-      {
-         L2FESpace.GetElementDofs(i, dofs);
-         rho.SetSubVector(dofs, rho_z);
-      }
-   }
 };
 } // namespace hydrodynamics
 
@@ -2203,11 +2190,11 @@ TEST_CASE("Sedov", "[Sedov], [Parallel]")
 #else
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-#if defined(HYPRE_USING_CUDA) && defined(MFEM_DEBUG)
+#if defined(HYPRE_USING_GPU) && defined(MFEM_DEBUG)
    if (!strcmp(MFEM_SEDOV_DEVICE,"debug"))
    {
       cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
-           << "is NOT supported with the CUDA version of hypre.\n\n";
+           << "is NOT supported with the GPU version of hypre.\n\n";
       return;
    }
 #endif
