@@ -2561,9 +2561,9 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
    }
 }
 
-void SparseMatrix::Set(const int i, const int j, const double a_)
+void SparseMatrix::Set(const int i, const int j, const double val)
 {
-   double a = a_;
+   double a = val;
    int gi, gj, s, t;
 
    if ((gi=i) < 0) { gi = -1-gi, s = -1; }
@@ -2580,10 +2580,10 @@ void SparseMatrix::Set(const int i, const int j, const double a_)
    _Set_(gi, gj, a);
 }
 
-void SparseMatrix::Add(const int i, const int j, const double a_)
+void SparseMatrix::Add(const int i, const int j, const double val)
 {
    int gi, gj, s, t;
-   double a = a_;
+   double a = val;
 
    if ((gi=i) < 0) { gi = -1-gi, s = -1; }
    else { s = 1; }

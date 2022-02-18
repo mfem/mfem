@@ -153,22 +153,22 @@ public:
    //! Add a square block op in the block-entry (iblock, iblock).
    /**
     * iblock: The block will be inserted in location (iblock, iblock).
-    * opt: the Operator to be inserted.
+    * op: the Operator to be inserted.
     */
-   void SetDiagonalBlock(int iblock, Operator *opt);
+   void SetDiagonalBlock(int iblock, Operator *op);
    //! This method is present since required by the abstract base class Solver
-   virtual void SetOperator(const Operator &opt) { }
+   virtual void SetOperator(const Operator &op) { }
 
    //! Return the number of blocks
    int NumBlocks() const { return nBlocks; }
 
    //! Return a reference to block i,i.
    Operator & GetDiagonalBlock(int iblock)
-   { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
+   { MFEM_VERIFY(ops[iblock], ""); return *ops[iblock]; }
 
    //! Return a reference to block i,i (const version).
    const Operator & GetDiagonalBlock(int iblock) const
-   { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
+   { MFEM_VERIFY(ops[iblock], ""); return *ops[iblock]; }
 
    //! Return the offsets for block starts
    Array<int> & Offsets() { return offsets; }
@@ -195,7 +195,7 @@ private:
    //! Offsets for the starting position of each block
    Array<int> offsets;
    //! 1D array that stores each block of the operator.
-   Array<Operator *> op;
+   Array<Operator *> ops;
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
    //! methods.
    mutable BlockVector xblock;
@@ -237,24 +237,24 @@ public:
    //! Add block op in the block-entry (iblock, iblock).
    /**
     * @param iblock  The block will be inserted in location (iblock, iblock).
-    * @param opt     The Operator to be inserted.
+    * @param op      The Operator to be inserted.
     */
-   void SetDiagonalBlock(int iblock, Operator *opt);
+   void SetDiagonalBlock(int iblock, Operator *op);
    //! Add a block opt in the block-entry (iblock, jblock).
    /**
     * @param iRow, iCol  The block will be inserted in location (iRow, iCol).
-    * @param opt         The Operator to be inserted.
+    * @param op          The Operator to be inserted.
     */
-   void SetBlock(int iRow, int iCol, Operator *opt);
+   void SetBlock(int iRow, int iCol, Operator *op);
    //! This method is present since required by the abstract base class Solver
-   virtual void SetOperator(const Operator &opt) { }
+   virtual void SetOperator(const Operator &op) { }
 
    //! Return the number of blocks
    int NumBlocks() const { return nBlocks; }
 
    //! Return a reference to block i,j.
    Operator & GetBlock(int iblock, int jblock)
-   { MFEM_VERIFY(op(iblock,jblock), ""); return *op(iblock,jblock); }
+   { MFEM_VERIFY(ops(iblock,jblock), ""); return *ops(iblock,jblock); }
 
    //! Return the offsets for block starts
    Array<int> & Offsets() { return offsets; }
@@ -278,7 +278,7 @@ private:
    //! Offsets for the starting position of each block
    Array<int> offsets;
    //! 2D array that stores each block of the operator.
-   Array2D<Operator *> op;
+   Array2D<Operator *> ops;
 
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
    //! methods.
