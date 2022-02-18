@@ -97,9 +97,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                   const double *Jtr = &J(0,0,qx,qy,e);
 
                   // Jrt = Jtr^{-1}
-                  double j[4];
-                  ConstDeviceMatrix Jrt(j,2,2);
-                  kernels::CalcInverse<2>(Jtr, j);
+                  double jrt_data[4];
+                  ConstDeviceMatrix Jrt(jrt_data,2,2);
+                  kernels::CalcInverse<2>(Jtr, jrt_data);
 
                   const double gg = G(qy,dy) * G(qy,dy);
                   const double gb = G(qy,dy) * B(qy,dy);

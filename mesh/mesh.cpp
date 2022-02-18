@@ -1097,7 +1097,7 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    FaceElementTransformations *tr;
    int fn = GetBdrFace(BdrElemNo);
 
-   // Check if the face is interior, shared, or non-conforming.
+   // Check if the face is interior, shared, or nonconforming.
    if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
    {
       return NULL;
@@ -1126,6 +1126,269 @@ int Mesh::GetBdrFace(int BdrElemNo) const
       fn = boundary[BdrElemNo]->GetVertices()[0];
    }
    return fn;
+}
+
+Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
+{
+   FaceInformation face;
+   int e1, e2;
+   int inf1, inf2;
+   int ncface;
+   GetFaceElements(f, &e1, &e2);
+   GetFaceInfos(f, &inf1, &inf2, &ncface);
+   face.element[0].index = e1;
+   face.element[0].location = ElementLocation::Local;
+   face.element[0].orientation = inf1%64;
+   face.element[0].local_face_id = inf1/64;
+   face.element[1].local_face_id = inf2/64;
+   face.ncface = ncface;
+   face.point_matrix = nullptr;
+   // The following figures out face.location, face.conformity,
+   // face.element[1].index, and face.element[1].orientation.
+   if (f < GetNumFaces()) // Non-ghost face
+   {
+      if (e2>=0)
+      {
+         if (ncface==-1)
+         {
+            face.tag = FaceInfoTag::LocalConforming;
+            face.topology = FaceTopology::Conforming;
+            face.element[1].location = ElementLocation::Local;
+            face.element[0].conformity = ElementConformity::Coincident;
+            face.element[1].conformity = ElementConformity::Coincident;
+            face.element[1].index = e2;
+            face.element[1].orientation = inf2%64;
+         }
+         else // ncface >= 0
+         {
+            face.tag = FaceInfoTag::LocalSlaveNonconforming;
+            face.topology = FaceTopology::Nonconforming;
+            face.element[1].location = ElementLocation::Local;
+            face.element[0].conformity = ElementConformity::Coincident;
+            face.element[1].conformity = ElementConformity::Superset;
+            face.element[1].index = e2;
+            MFEM_ASSERT(inf2%64==0, "unexpected slave face orientation.");
+            face.element[1].orientation = inf2%64;
+            face.point_matrix = nc_faces_info[ncface].PointMatrix;
+         }
+      }
+      else // e2<0
+      {
+         if (ncface==-1)
+         {
+            if (inf2<0)
+            {
+               face.tag = FaceInfoTag::Boundary;
+               face.topology = FaceTopology::Boundary;
+               face.element[1].location = ElementLocation::NA;
+               face.element[0].conformity = ElementConformity::Coincident;
+               face.element[1].conformity = ElementConformity::NA;
+               face.element[1].index = -1;
+               face.element[1].orientation = -1;
+            }
+            else // inf2 >= 0
+            {
+               face.tag = FaceInfoTag::SharedConforming;
+               face.topology = FaceTopology::Conforming;
+               face.element[0].conformity = ElementConformity::Coincident;
+               face.element[1].conformity = ElementConformity::Coincident;
+               face.element[1].location = ElementLocation::FaceNbr;
+               face.element[1].index = -1 - e2;
+               face.element[1].orientation = inf2%64;
+            }
+         }
+         else // ncface >= 0
+         {
+            if (inf2 < 0)
+            {
+               face.tag = FaceInfoTag::MasterNonconforming;
+               face.topology = FaceTopology::Nonconforming;
+               face.element[1].location = ElementLocation::NA;
+               face.element[0].conformity = ElementConformity::Coincident;
+               face.element[1].conformity = ElementConformity::Subset;
+               face.element[1].index = -1;
+               face.element[1].orientation = -1;
+            }
+            else
+            {
+               face.tag = FaceInfoTag::SharedSlaveNonconforming;
+               face.topology = FaceTopology::Nonconforming;
+               face.element[1].location = ElementLocation::FaceNbr;
+               face.element[0].conformity = ElementConformity::Coincident;
+               face.element[1].conformity = ElementConformity::Superset;
+               face.element[1].index = -1 - e2;
+               face.element[1].orientation = inf2%64;
+            }
+            face.point_matrix = nc_faces_info[ncface].PointMatrix;
+         }
+      }
+   }
+   else // Ghost face
+   {
+      if (e1==-1)
+      {
+         face.tag = FaceInfoTag::GhostMaster;
+         face.topology = FaceTopology::NA;
+         face.element[1].location = ElementLocation::NA;
+         face.element[0].conformity = ElementConformity::NA;
+         face.element[1].conformity = ElementConformity::NA;
+         face.element[1].index = -1;
+         face.element[1].orientation = -1;
+      }
+      else
+      {
+         face.tag = FaceInfoTag::GhostSlave;
+         face.topology = FaceTopology::Nonconforming;
+         face.element[1].location = ElementLocation::FaceNbr;
+         face.element[0].conformity = ElementConformity::Superset;
+         face.element[1].conformity = ElementConformity::Coincident;
+         face.element[1].index = -1 - e2;
+         face.element[1].orientation = inf2%64;
+         face.point_matrix = nc_faces_info[ncface].PointMatrix;
+      }
+   }
+   return face;
+}
+
+Mesh::FaceInformation::operator Mesh::FaceInfo() const
+{
+   FaceInfo res {-1, -1, -1, -1, -1};
+   switch (tag)
+   {
+      case FaceInfoTag::LocalConforming:
+         res.Elem1No = element[0].index;
+         res.Elem2No = element[1].index;
+         res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
+         res.Elem2Inf = element[1].orientation + element[1].local_face_id*64;
+         res.NCFace = ncface;
+         break;
+      case FaceInfoTag::LocalSlaveNonconforming:
+         res.Elem1No = element[0].index;
+         res.Elem2No = element[1].index;
+         res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
+         res.Elem2Inf = element[1].orientation + element[1].local_face_id*64;
+         res.NCFace = ncface;
+         break;
+      case FaceInfoTag::Boundary:
+         res.Elem1No = element[0].index;
+         res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
+         break;
+      case FaceInfoTag::SharedConforming:
+         res.Elem1No = element[0].index;
+         res.Elem2No = -1 - element[1].index;
+         res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
+         res.Elem2Inf = element[1].orientation + element[1].local_face_id*64;
+         break;
+      case FaceInfoTag::MasterNonconforming:
+         res.Elem1No = element[0].index;
+         res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
+         break;
+      case FaceInfoTag::SharedSlaveNonconforming:
+         res.Elem1No = element[0].index;
+         res.Elem2No = -1 - element[1].index;
+         res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
+         res.Elem2Inf = element[1].orientation + element[1].local_face_id*64;
+         break;
+      case FaceInfoTag::GhostMaster:
+         break;
+      case FaceInfoTag::GhostSlave:
+         res.Elem1No = element[0].index;
+         res.Elem2No = -1 - element[1].index;
+         res.Elem1Inf = element[0].orientation + element[0].local_face_id*64;
+         res.Elem2Inf = element[1].orientation + element[1].local_face_id*64;
+         break;
+   }
+   return res;
+}
+
+std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
+{
+   os << "face topology=";
+   switch (info.topology)
+   {
+      case Mesh::FaceTopology::Boundary:
+         os << "Boundary";
+         break;
+      case Mesh::FaceTopology::Conforming:
+         os << "Conforming";
+         break;
+      case Mesh::FaceTopology::Nonconforming:
+         os << "Non-conforming";
+         break;
+      case Mesh::FaceTopology::NA:
+         os << "NA";
+         break;
+   }
+   os << "element[0].location=";
+   switch (info.element[0].location)
+   {
+      case Mesh::ElementLocation::Local:
+         os << "Local";
+         break;
+      case Mesh::ElementLocation::FaceNbr:
+         os << "FaceNbr";
+         break;
+      case Mesh::ElementLocation::NA:
+         os << "NA";
+         break;
+   }
+   os << std::endl;
+   os << "element[1].location=";
+   switch (info.element[1].location)
+   {
+      case Mesh::ElementLocation::Local:
+         os << "Local";
+         break;
+      case Mesh::ElementLocation::FaceNbr:
+         os << "FaceNbr";
+         break;
+      case Mesh::ElementLocation::NA:
+         os << "NA";
+         break;
+   }
+   os << std::endl;
+   os << "element[0].conformity=";
+   switch (info.element[0].conformity)
+   {
+      case Mesh::ElementConformity::Coincident:
+         os << "Coincident";
+         break;
+      case Mesh::ElementConformity::Superset:
+         os << "Superset";
+         break;
+      case Mesh::ElementConformity::Subset:
+         os << "Subset";
+         break;
+      case Mesh::ElementConformity::NA:
+         os << "NA";
+         break;
+   }
+   os << std::endl;
+   os << "element[1].conformity=";
+   switch (info.element[1].conformity)
+   {
+      case Mesh::ElementConformity::Coincident:
+         os << "Coincident";
+         break;
+      case Mesh::ElementConformity::Superset:
+         os << "Superset";
+         break;
+      case Mesh::ElementConformity::Subset:
+         os << "Subset";
+         break;
+      case Mesh::ElementConformity::NA:
+         os << "NA";
+         break;
+   }
+   os << std::endl;
+   os << "element[0].index=" << info.element[0].index << std::endl
+      << "element[1].index=" << info.element[1].index << std::endl
+      << "element[0].local_face_id=" << info.element[0].local_face_id << std::endl
+      << "element[1].local_face_id=" << info.element[1].local_face_id << std::endl
+      << "element[0].orientation=" << info.element[0].orientation << std::endl
+      << "element[1].orientation=" << info.element[1].orientation << std::endl
+      << "ncface=" << info.ncface << std::endl;
+   return os;
 }
 
 void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2) const
@@ -5091,26 +5354,32 @@ int Mesh::GetNumFaces() const
    return 0;
 }
 
-static int CountFacesByType(const Mesh &mesh, const FaceType type)
+int Mesh::GetNumFacesWithGhost() const
 {
-   int e1, e2;
-   int inf1, inf2;
-   int nf = 0;
-   for (int f = 0; f < mesh.GetNumFaces(); ++f)
-   {
-      mesh.GetFaceElements(f, &e1, &e2);
-      mesh.GetFaceInfos(f, &inf1, &inf2);
-      if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-          (type==FaceType::Boundary && e2<0 && inf2<0) ) { nf++; }
-   }
-   return nf;
+   return faces_info.Size();
 }
 
 int Mesh::GetNFbyType(FaceType type) const
 {
    const bool isInt = type==FaceType::Interior;
    int &nf = isInt ? nbInteriorFaces : nbBoundaryFaces;
-   if (nf<0) { nf = CountFacesByType(*this, type); }
+   if (nf<0)
+   {
+      nf = 0;
+      for (int f = 0; f < GetNumFacesWithGhost(); ++f)
+      {
+         FaceInformation face = GetFaceInformation(f);
+         if ( face.IsOfFaceType(type) )
+         {
+            if (face.IsNonconformingCoarse())
+            {
+               // We don't count nonconforming coarse faces.
+               continue;
+            }
+            nf++;
+         }
+      }
+   }
    return nf;
 }
 
@@ -10151,61 +10420,6 @@ void Mesh::PrintBdrVTU(std::string fname,
                        int compression_level)
 {
    PrintVTU(fname, format, high_order_output, compression_level, true);
-}
-
-template <typename T>
-void WriteBinaryOrASCII(std::ostream &out, std::vector<char> &buf, const T &val,
-                        const char *suffix, VTKFormat format)
-{
-   if (format == VTKFormat::ASCII) { out << val << suffix; }
-   else { bin_io::AppendBytes(buf, val); }
-}
-
-// Ensure ASCII output of uint8_t to stream is integer rather than character
-template <>
-void WriteBinaryOrASCII<uint8_t>(std::ostream &out, std::vector<char> &buf,
-                                 const uint8_t &val, const char *suffix,
-                                 VTKFormat format)
-{
-   if (format == VTKFormat::ASCII) { out << static_cast<int>(val) << suffix; }
-   else { bin_io::AppendBytes(buf, val); }
-}
-
-template <>
-void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
-                                const double &val, const char *suffix,
-                                VTKFormat format)
-{
-   if (format == VTKFormat::BINARY32)
-   {
-      bin_io::AppendBytes<float>(buf, float(val));
-   }
-   else if (format == VTKFormat::BINARY)
-   {
-      bin_io::AppendBytes(buf, val);
-   }
-   else
-   {
-      out << val << suffix;
-   }
-}
-
-template <>
-void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
-                               const float &val, const char *suffix,
-                               VTKFormat format)
-{
-   if (format == VTKFormat::BINARY) { bin_io::AppendBytes<double>(buf, val); }
-   else if (format == VTKFormat::BINARY32) { bin_io::AppendBytes(buf, val); }
-   else { out << val << suffix; }
-}
-
-void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
-                                 int compression_level)
-{
-   WriteVTKEncodedCompressed(out, buf.data(), buf.size(), compression_level);
-   out << '\n';
-   buf.clear();
 }
 
 void Mesh::PrintVTU(std::ostream &out, int ref, VTKFormat format,

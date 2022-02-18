@@ -45,7 +45,7 @@ template <typename T> void VerifyOrdering(int order)
    VerifyOrdering(el);
 }
 
-TEST_CASE("Lexicographic Ordering", "[FiniteElement,Geometry]")
+TEST_CASE("Lexicographic Ordering", "[FiniteElement][Geometry]")
 {
    auto order = GENERATE(1, 2, 3, 4, 5, 6);
    VerifyOrdering<H1_SegmentElement>(order);

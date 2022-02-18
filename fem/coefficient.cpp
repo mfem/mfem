@@ -21,15 +21,6 @@ namespace mfem
 
 using namespace std;
 
-void Coefficient::EvalRevDiff(const double Q_bar,
-                              ElementTransformation &T,
-                              const IntegrationPoint &ip,
-                              DenseMatrix &PointMat_bar)
-{
-   MFEM_ABORT("Coefficient::EvalRevDiff\n"
-              "\tEvalRevDiff not implemented for this coefficient!\n");
-}
-
 // Given an ElementTransformation and IntegrationPoint in a refined mesh,
 // return the ElementTransformation of the parent coarse element, and set
 // coarse_ip to the location of the original ip within the coarse element.
@@ -55,6 +46,15 @@ ElementTransformation *RefinedToCoarse(
    fine_to_coarse.Transform(ip, coarse_ip);
    coarse_T->SetIntPoint(&coarse_ip);
    return coarse_T;
+}
+
+void Coefficient::EvalRevDiff(const double Q_bar,
+                              ElementTransformation &T,
+                              const IntegrationPoint &ip,
+                              DenseMatrix &PointMat_bar)
+{
+   MFEM_ABORT("Coefficient::EvalRevDiff\n"
+              "\tEvalRevDiff not implemented for this coefficient!\n");
 }
 
 double PWConstCoefficient::Eval(ElementTransformation & T,
@@ -219,12 +219,16 @@ double DeltaCoefficient::EvalDelta(ElementTransformation &T,
    return weight ? weight->Eval(T, ip, GetTime())*w : w;
 }
 
+<<<<<<< HEAD
 void RestrictedCoefficient::SetTime(double t)
 {
    if (c) { c->SetTime(t); }
    this->Coefficient::SetTime(t);
 }
 
+=======
+<<<<<<< HEAD
+>>>>>>> mesh-sens-dev
 void VectorCoefficient::EvalRevDiff(const Vector &V_bar,
                                     ElementTransformation &T,
                                     const IntegrationPoint &ip,
@@ -232,6 +236,15 @@ void VectorCoefficient::EvalRevDiff(const Vector &V_bar,
 {
    MFEM_ABORT("VectorCoefficient::EvalRevDiff\n"
               "\tEvalRevDiff not implemented for this coefficient!\n");
+<<<<<<< HEAD
+=======
+=======
+void RestrictedCoefficient::SetTime(double t)
+{
+   if (c) { c->SetTime(t); }
+   this->Coefficient::SetTime(t);
+>>>>>>> master
+>>>>>>> mesh-sens-dev
 }
 
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
