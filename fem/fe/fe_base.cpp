@@ -30,6 +30,7 @@ FiniteElement::FiniteElement(int D, Geometry::Type G, int Do, int O, int F)
    deriv_map_type = VALUE;
    for (int i = 0; i < Geometry::MaxDim; i++) { orders[i] = -1; }
 #ifndef MFEM_THREAD_SAFE
+   shape.SetSize(dof);
    vshape.SetSize(dof, dim);
 #endif
 }
@@ -107,8 +108,6 @@ void FiniteElement::CalcPhysCurlShapeRevDiff(ElementTransformation &Trans,
       {
 #ifdef MFEM_THREAD_SAFE
          DenseMatrix vshape(dof, dim);
-#else
-         vshape.SetSize(dof, dim);
 #endif
          DenseMatrix vshapedxt(dof, dim);
          DenseMatrix vshapedxt_bar(dof, dim);
@@ -256,6 +255,26 @@ void FiniteElement::CalcPhysShape(ElementTransformation &Trans,
    if (map_type == INTEGRAL)
    {
       shape /= Trans.Weight();
+   }
+}
+
+void FiniteElement::CalcPhysShapeRevDiff(ElementTransformation &Trans,
+                                         const Vector &shape_bar,
+                                         DenseMatrix &PointMat_bar) const
+{
+   if (map_type == INTEGRAL)
+   {
+#ifdef MFEM_THREAD_SAFE
+      Vector shape(dof);
+#endif
+      CalcShape(Trans.GetIntPoint(), shape);
+      // shape /= Trans.Weight();
+      auto weight = Trans.Weight();
+      auto weight_bar = -(shape_bar * shape) / pow(weight, 2);
+
+      // cast the ElementTransformation
+      auto &isotrans = dynamic_cast<IsoparametricTransformation &>(Trans);
+      isotrans.WeightRevDiff(weight_bar, PointMat_bar);
    }
 }
 

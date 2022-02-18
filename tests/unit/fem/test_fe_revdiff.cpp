@@ -86,6 +86,9 @@ template<typename T>
 void runProjectRevDiffTest(Mesh &mesh, VectorCoefficient &vc);
 
 template<typename T>
+void runCalcPhysShapeRevDiffTest(Mesh &mesh);
+
+template<typename T>
 void runCalcVShapeRevDiffTest(Mesh &mesh);
 
 void runCalcPhysCurlShapeRevDiffTest(Mesh &mesh);
@@ -121,6 +124,18 @@ TEST_CASE("VectorFiniteElement::ProjectRevDiff - 3D")
 
    runProjectRevDiffTest<RT_FECollection>(mesh3D, vc3D);
    runProjectRevDiffTest<ND_FECollection>(mesh3D, vc3D);
+}
+
+TEST_CASE("FiniteElement::CalcPhysShapeRevDiff")
+{
+   // Create quadratic mesh with single C-shaped quadrilateral
+   std::stringstream meshStr;
+   meshStr << mesh_str;
+   Mesh mesh2D(meshStr);
+   REQUIRE(mesh2D.GetNE() == 1);
+   REQUIRE(mesh2D.GetNodes() != nullptr);
+   runCalcPhysShapeRevDiffTest<H1_FECollection>(mesh2D);
+   runCalcPhysShapeRevDiffTest<L2_FECollection>(mesh2D);
 }
 
 TEST_CASE("VectorFiniteElement::CalcVShape_RTRevDiff - 2D")
@@ -218,6 +233,63 @@ void runProjectRevDiffTest(Mesh &mesh, VectorCoefficient &vc)
             double x_bar_fd = P_bar * dofs_fd;
 
             REQUIRE(coords_bar(di, n) == Approx(x_bar_fd));
+         }
+      }
+   }
+}
+
+template<typename T>
+void runCalcPhysShapeRevDiffTest(Mesh &mesh)
+{
+   for (int p = 1; p <= 4; ++p)
+   {
+      const int dim = mesh.Dimension();
+      T fec(p, dim);
+      FiniteElementSpace fes(&mesh, &fec);
+
+      const FiniteElement &el = *fes.GetFE(0);
+      IsoparametricTransformation trans;
+      mesh.GetElementTransformation(0, &trans);
+
+      int order = trans.OrderW() + 2 * el.GetOrder();
+      const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), order);
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         trans.SetIntPoint(&ip);
+
+         const int dof = el.GetDof();
+         Vector shape_bar(dof);
+         for (int k = 0; k < shape_bar.Size(); ++k)
+         {
+            shape_bar(k) = distribution(generator);
+         }
+
+         // reverse-mode differentiation CalcVShape
+         DenseMatrix &coords = trans.GetPointMat();
+         DenseMatrix coords_bar(coords.Height(), coords.Width());
+         coords_bar = 0.0;
+         el.CalcPhysShapeRevDiff(trans, shape_bar, coords_bar);
+
+         // get the weighted derivatives using finite difference method
+         Vector shape_fd(dof), shape_pert(dof);
+         for (int n = 0; n < coords.Width(); ++n)
+         {
+            for (int di = 0; di < coords.Height(); ++di)
+            {
+               coords(di, n) += eps_fd;
+               trans.Reset();
+               el.CalcPhysShape(trans, shape_fd);
+               coords(di, n) -= 2.0 * eps_fd;
+               trans.Reset();
+               el.CalcPhysShape(trans, shape_pert);
+               shape_fd -= shape_pert;
+               shape_fd *= 1.0 / (2.0 * eps_fd);
+               coords(di, n) += eps_fd;
+               double x_bar_fd = shape_bar * shape_fd;
+
+               REQUIRE(coords_bar(di, n) == Approx(x_bar_fd));
+            }
          }
       }
    }

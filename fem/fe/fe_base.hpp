@@ -245,6 +245,7 @@ protected:
    mutable int orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
+   mutable Vector shape;
    mutable DenseMatrix vshape; // Dof x Dim
 #endif
    /// Container for all DofToQuad objects created by the FiniteElement.
@@ -361,6 +362,10 @@ public:
        element in physical space at the point described by @a Trans. */
    /** The size (#dof) of the result Vector @a shape must be set in advance. */
    void CalcPhysShape(ElementTransformation &Trans, Vector &shape) const;
+
+   void CalcPhysShapeRevDiff(ElementTransformation &Trans,
+                             const Vector &shape_bar,
+                             DenseMatrix &PointMat_bar) const;
 
    /** @brief Evaluate the gradients of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
