@@ -41,6 +41,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
       return;
    }
+   int map_type = el.GetMapType();
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
@@ -93,6 +94,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NE = ne;
       const int Q1D = quad1D;
       const bool const_c = coeff.Size() == 1;
+      const bool by_val = map_type == FiniteElement::VALUE;
       const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D);
       const auto J = Reshape(geom->J.Read(), Q1D,Q1D,2,2,NE);
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
@@ -110,7 +112,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                const double J22 = J(qx,qy,1,1,e);
                const double detJ = (J11*J22)-(J21*J12);
                const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
-               v(qx,qy,e) =  W(qx,qy) * coeff * detJ;
+               v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
             }
          }
       });
@@ -120,6 +122,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NE = ne;
       const int Q1D = quad1D;
       const bool const_c = coeff.Size() == 1;
+      const bool by_val = map_type == FiniteElement::VALUE;
       const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D,Q1D);
       const auto J = Reshape(geom->J.Read(), Q1D,Q1D,Q1D,3,3,NE);
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1,1) :
@@ -146,7 +149,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   /* */               J21 * (J12 * J33 - J32 * J13) +
                   /* */               J31 * (J12 * J23 - J22 * J13);
                   const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
-                  v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * detJ;
+                  v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * (by_val ? detJ : 1.0/detJ);
                }
             }
          }

@@ -310,7 +310,7 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
 }
 
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
-                    ParGridFunction &gf, const char *title,
+                    const ParGridFunction &gf, const char *title,
                     int x, int y, int w, int h, const char *keys, bool vec)
 {
    ParMesh &pmesh = *gf.ParFESpace()->GetParMesh();

@@ -182,22 +182,26 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       auto C = Reshape(vel.HostWrite(), dim, nq, nf);
       Vector Vq(dim);
       int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
+      for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
-         int e1, e2;
-         int inf1, inf2;
-         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-         int face_id = inf1 / 64;
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-             (type==FaceType::Boundary && e2<0 && inf2<0) )
+         Mesh::FaceInformation face = mesh->GetFaceInformation(f);
+         if (face.IsNonconformingCoarse())
          {
+            // We skip nonconforming coarse faces as they are treated
+            // by the corresponding nonconforming fine faces.
+            continue;
+         }
+         else if ( face.IsOfFaceType(type) )
+         {
+            const int mask = FaceElementTransformations::HAVE_ELEM1 |
+                             FaceElementTransformations::HAVE_LOC1;
             FaceElementTransformations &T =
-               *fes.GetMesh()->GetFaceElementTransformations(f);
+               *fes.GetMesh()->GetFaceElementTransformations(f, mask);
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face_id, quad1D, q);
+               int iq = ToLexOrdering(dim, face.element[0].local_face_id,
+                                      quad1D, q);
                T.SetAllIntPoints(&ir->IntPoint(q));
                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
                u->Eval(Vq, *T.Elem1, eip1);
@@ -242,29 +246,31 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       auto n = Reshape(geom->normal.HostRead(), nq, dim, nf);
       auto C = Reshape(r.HostWrite(), nq, nf);
       int f_ind = 0;
-      for (int f = 0; f < fes.GetNF(); ++f)
+      for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
-         int e1, e2;
-         int inf1, inf2;
-         fes.GetMesh()->GetFaceElements(f, &e1, &e2);
-         fes.GetMesh()->GetFaceInfos(f, &inf1, &inf2);
-         int face_id = inf1 / 64;
-         if ((type==FaceType::Interior && (e2>=0 || (e2<0 && inf2>=0))) ||
-             (type==FaceType::Boundary && e2<0 && inf2<0) )
+         Mesh::FaceInformation face = mesh->GetFaceInformation(f);
+         if (face.IsNonconformingCoarse())
+         {
+            // We skip nonconforming coarse faces as they are treated
+            // by the corresponding nonconforming fine faces.
+            continue;
+         }
+         else if ( face.IsOfFaceType(type) )
          {
             FaceElementTransformations &T =
                *fes.GetMesh()->GetFaceElementTransformations(f);
             for (int q = 0; q < nq; ++q)
             {
                // Convert to lexicographic ordering
-               int iq = ToLexOrdering(dim, face_id, quad1D, q);
+               int iq = ToLexOrdering(dim, face.element[0].local_face_id,
+                                      quad1D, q);
 
                T.SetAllIntPoints(&ir->IntPoint(q));
                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
                const IntegrationPoint &eip2 = T.GetElement2IntPoint();
                double rq;
 
-               if (inf2 < 0)
+               if ( face.IsBoundary() )
                {
                   rq = rho->Eval(*T.Elem1, eip1);
                }
