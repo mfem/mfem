@@ -894,9 +894,10 @@ int FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
 int FiniteElementSpace::GetNumBorderDofs(Geometry::Type geom, int order) const
 {
    // return the number of vertex and edge DOFs that precede inner DOFs
-   int nv = fec->GetNumDof(Geometry::POINT, order);
-   int ne = fec->GetNumDof(Geometry::SEGMENT, order);
-   return Geometry::NumVerts[geom] * (nv + ne);
+   const int nv = fec->GetNumDof(Geometry::POINT, order);
+   const int ne = fec->GetNumDof(Geometry::SEGMENT, order);
+
+   return Geometry::NumVerts[geom] * (geom == Geometry::SEGMENT ? nv : (nv + ne));
 }
 
 int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
@@ -933,6 +934,12 @@ void FiniteElementSpace::BuildConformingInterpolation() const
 
    if (cP_is_set) { return; }
    cP_is_set = true;
+
+   if (FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS)
+   {
+      cP = cR = cR_hp = NULL; // will be treated as identities
+      return;
+   }
 
    Array<int> master_dofs, slave_dofs, highest_dofs;
 
@@ -1054,6 +1061,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             // get lowest order variant DOFs and FE
             int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
             const auto *master_fe = fec->GetFE(geom, p);
+            if (!master_fe) { break; }
 
             // constrain all higher order DOFs: interpolate lowest order function
             for (int variant = 1; ; variant++)
@@ -1192,7 +1200,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       if (cR_hp) { MakeVDimMatrix(*cR_hp); }
    }
 
-   if (Device::IsEnabled()) { cP->BuildTranspose(); }
+   cP->EnsureMultTranspose();
 }
 
 void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
@@ -1300,7 +1308,14 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
       FaceRestriction *res;
       if (is_dg_space)
       {
-         res = new L2FaceRestriction(*this, e_ordering, type, m);
+         if (Conforming())
+         {
+            res = new L2FaceRestriction(*this, e_ordering, type, m);
+         }
+         else
+         {
+            res = new NCL2FaceRestriction(*this, e_ordering, type, m);
+         }
       }
       else
       {

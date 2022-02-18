@@ -1538,7 +1538,7 @@ void VectorFiniteElement::LocalRestriction_ND(
 
 
 Poly_1D::Basis::Basis(const int p, const double *nodes, EvalType etype)
-   : etype(etype), auxiliary_basis(NULL)
+   : etype(etype), auxiliary_basis(NULL), scale_integrated(false)
 {
    switch (etype)
    {
@@ -1838,11 +1838,29 @@ void Poly_1D::Basis::EvalIntegrated(const Vector &d_aux_, Vector &u) const
    MFEM_VERIFY(etype == Integrated,
                "EvalIntegrated is only valid for Integrated basis type");
    int p = d_aux_.Size() - 1;
+   // See Gerritsma, M. (2010).  "Edge functions for spectral element methods",
+   // in Lecture Notes in Computational Science and Engineering, 199--207.
    u[0] = -d_aux_[0];
    for (int j=1; j<p; ++j)
    {
       u[j] = u[j-1] - d_aux_[j];
    }
+   // If scale_integrated is true, the degrees of freedom represent mean values,
+   // otherwise they represent subcell integrals. Generally, scale_integrated
+   // should be true for MapType::VALUE, and false for other map types.
+   if (scale_integrated)
+   {
+      Vector &aux_nodes = auxiliary_basis->x;
+      for (int j=0; j<aux_nodes.Size()-1; ++j)
+      {
+         u[j] *= aux_nodes[j+1] - aux_nodes[j];
+      }
+   }
+}
+
+void Poly_1D::Basis::ScaleIntegrated(bool scale_integrated_)
+{
+   scale_integrated = scale_integrated_;
 }
 
 Poly_1D::Basis::~Basis()
@@ -2379,6 +2397,18 @@ NodalTensorFiniteElement::NodalTensorFiniteElement(const int dims,
    lex_ordering = dof_map;
 }
 
+void NodalTensorFiniteElement::SetMapType(const int map_type)
+{
+   ScalarFiniteElement::SetMapType(map_type);
+   // If we are using the "integrated" basis, the basis functions should be
+   // scaled for MapType::VALUE, and not scaled for MapType::INTEGRAL. This
+   // ensures spectral equivalence of the mass matrix with its low-order-refined
+   // counterpart (cf. LORDiscretization)
+   if (basis1d.IsIntegratedType())
+   {
+      basis1d.ScaleIntegrated(map_type == VALUE);
+   }
+}
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
                                                      const int d,

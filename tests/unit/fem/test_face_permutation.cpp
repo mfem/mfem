@@ -198,8 +198,8 @@ double TestFaceRestriction(Mesh &mesh, int order)
 
       for (int i=0; i<ndof_face; ++i)
       {
-         double err = std::abs(face_values(i) - face_values(i + ndof_face));
-         max_err = std::max(max_err, err);
+         double error = std::abs(face_values(i) - face_values(i + ndof_face));
+         max_err = std::max(max_err, error);
       }
    }
    return max_err;
@@ -214,8 +214,8 @@ TEST_CASE("2D Face Permutation", "[Face Permutation]")
       for (int fp1=0; fp1<4; ++fp1)
       {
          Mesh *mesh = mesh_2d_orientation(fp1, fp2);
-         double err = TestFaceRestriction(*mesh, order);
-         max_err = std::max(max_err, err);
+         double error = TestFaceRestriction(*mesh, order);
+         max_err = std::max(max_err, error);
          delete mesh;
       }
    }
@@ -232,8 +232,8 @@ TEST_CASE("3D Face Permutation", "[Face Permutation]")
       for (int fp1=0; fp1<24; ++fp1)
       {
          Mesh *mesh = mesh_3d_orientation(fp1, fp2);
-         double err = TestFaceRestriction(*mesh, order);
-         max_err = std::max(max_err, err);
+         double error = TestFaceRestriction(*mesh, order);
+         max_err = std::max(max_err, error);
          delete mesh;
       }
    }
