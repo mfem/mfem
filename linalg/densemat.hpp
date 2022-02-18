@@ -720,6 +720,7 @@ public:
 class DenseMatrixSVD
 {
    Vector sv;
+   DenseMatrix U,Vt;
    int m, n;
 
 #ifdef MFEM_USE_LAPACK
@@ -730,12 +731,17 @@ class DenseMatrixSVD
 
    void Init();
 public:
-
-   DenseMatrixSVD(DenseMatrix &M);
-   DenseMatrixSVD(int h, int w);
+   DenseMatrixSVD(DenseMatrix &M,
+                  bool left_singular_vectors=false,
+                  bool right_singlular_vectors=false);
+   DenseMatrixSVD(int h, int w,
+                  bool left_singular_vectors=false,
+                  bool right_singlular_vectors=false);
    void Eval(DenseMatrix &M);
    Vector &Singularvalues() { return sv; }
    double Singularvalue(int i) { return sv(i); }
+   DenseMatrix &LeftSingularvectors() { return U; }
+   DenseMatrix &RightSingularvectors() { return Vt; }
    ~DenseMatrixSVD();
 };
 

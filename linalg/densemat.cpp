@@ -3360,17 +3360,25 @@ DenseMatrixEigensystem::~DenseMatrixEigensystem()
 }
 
 
-DenseMatrixSVD::DenseMatrixSVD(DenseMatrix &M)
+DenseMatrixSVD::DenseMatrixSVD(DenseMatrix &M,
+                               bool left_singular_vectors,
+                               bool right_singular_vectors)
 {
    m = M.Height();
    n = M.Width();
+   jobu = (left_singular_vectors)? 'S' : 'N';
+   jobvt = (right_singular_vectors)? 'S' : 'N';
    Init();
 }
 
-DenseMatrixSVD::DenseMatrixSVD(int h, int w)
+DenseMatrixSVD::DenseMatrixSVD(int h, int w,
+                               bool left_singular_vectors,
+                               bool right_singular_vectors)
 {
    m = h;
    n = w;
+   jobu = (left_singular_vectors)? 'S' : 'N';
+   jobvt = (right_singular_vectors)? 'S' : 'N';
    Init();
 }
 
@@ -3378,10 +3386,6 @@ void DenseMatrixSVD::Init()
 {
 #ifdef MFEM_USE_LAPACK
    sv.SetSize(min(m, n));
-
-   jobu  = 'N';
-   jobvt = 'N';
-
    double qwork;
    lwork = -1;
    dgesvd_(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(), NULL, &m,
@@ -3402,10 +3406,23 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
       mfem_error("DenseMatrixSVD::Eval()");
    }
 #endif
+   double * datau = nullptr;
+   double * datavt = nullptr;
+   if (jobu == 'S')
+   {
+      U.SetSize(m,min(m,n));
+      datau = U.Data();
+   }
+   if (jobvt == 'S')
+   {
+      Vt.SetSize(min(m,n),n);
+      datavt = Vt.Data();
+   }
+
 
 #ifdef MFEM_USE_LAPACK
-   dgesvd_(&jobu, &jobvt, &m, &n, M.Data(), &m, sv.GetData(), NULL, &m,
-           NULL, &n, work, &lwork, &info);
+   dgesvd_(&jobu, &jobvt, &m, &n, M.Data(), &m, sv.GetData(), datau, &m,
+           datavt, &n, work, &lwork, &info);
 
    if (info)
    {
