@@ -39,6 +39,7 @@ endif
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
+.PRECIOUS: $(NAVIER_COMMON_OBJ) $(MINIAPPS:=.o)
 
 # Remove built-in rules
 %: %.cpp
