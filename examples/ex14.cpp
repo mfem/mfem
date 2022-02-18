@@ -135,8 +135,8 @@ int main(int argc, char *argv[])
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    if (eta > 0)
    {
-      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
-      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(*fespace, eta));
+      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(*fespace, eta));
    }
    a->Assemble();
    a->Finalize();

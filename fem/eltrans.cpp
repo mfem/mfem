@@ -21,7 +21,8 @@ ElementTransformation::ElementTransformation()
      EvalState(0),
      geom(Geometry::INVALID),
      Attribute(-1),
-     ElementNo(-1)
+     ElementNo(-1),
+     mesh(nullptr)
 { }
 
 double ElementTransformation::EvalWeight()

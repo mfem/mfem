@@ -45,7 +45,7 @@ public:
    Coefficient() { time = 0.; }
 
    /// Set the time for time dependent coefficients
-   void SetTime(double t) { time = t; }
+   virtual void SetTime(double t) { time = t; }
 
    /// Get the time for time dependent coefficients
    double GetTime() { return time; }
@@ -134,6 +134,87 @@ public:
 
    /// Returns the number of constants representing different attributes.
    int GetNConst() { return constants.Size(); }
+
+   /// Evaluate the coefficient.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/** @brief A piecewise coefficient with the pieces keyed off the element
+    attribute numbers.
+
+    A value of zero will be returned for any missing attribute numbers.
+
+    This object will not assume ownership of any Coefficient objects
+    passed to it. Consequently, the caller must ensure that the
+    individual Coefficient objects are not deleted while this
+    PWCoefficient is still in use.
+
+    \note The keys may either be domain attribute numbers or boundary
+    attribute numbers. If the PWCoefficient is used with a domain
+    integrator the keys are assumed to be domain attribute
+    numbers. Similarly, if the PWCoefficient is used with a boundary
+    integrator the keys are assumed to be boundary attribute numbers.
+*/
+class PWCoefficient : public Coefficient
+{
+private:
+   /** Internal data structure to store pointers to the appropriate
+       coefficients for different regions of the mesh. The keys used
+       in the map are the mesh attribute numbers (either element
+       attribute or boundary element attribute depending upon
+       context). The values returned for any missing attributes will
+       be zero. The coefficient pointers may be NULL in which case a
+       value of zero is returned.
+
+       The Coefficient objects contained in this map are NOT owned by
+       this PWCoefficient object. This means that they will not be
+       deleted when this object is deleted also the caller must ensure
+       that the various Coefficient objects are not deleted while this
+       PWCoefficient is still needed.
+   */
+   std::map<int, Coefficient*> pieces;
+
+   /** Convenience function to check for compatible array lengths,
+       loop over the arrays, and add their attribute/Coefficient pairs
+       to the internal data structure.
+   */
+   void InitMap(const Array<int> & attr,
+                const Array<Coefficient*> & coefs);
+
+public:
+
+   /// Constructs a piecewise coefficient
+   explicit PWCoefficient() {}
+
+   /// Construct the coefficient using arrays describing the pieces
+   /** \param attr - an array of attribute numbers for each piece
+       \param coefs - the corresponding array of Coefficient pointers
+       Any missing attributes or NULL coefficient pointers will result in a
+       value of zero being returned for that attribute.
+
+       \note Ownership of the Coefficient objects will NOT be
+       transferred to this object.
+   */
+   PWCoefficient(const Array<int> & attr,
+                 const Array<Coefficient*> & coefs)
+   { InitMap(attr, coefs); }
+
+   /// Set the time for time dependent coefficients
+   virtual void SetTime(double t);
+
+   /// Replace a set of coefficients
+   void UpdateCoefficients(const Array<int> & attr,
+                           const Array<Coefficient*> & coefs)
+   { InitMap(attr, coefs); }
+
+   /// Replace a single Coefficient for a particular attribute
+   void UpdateCoefficient(int attr, Coefficient & coef)
+   { pieces[attr] = &coef; }
+
+   /// Remove a single Coefficient for a particular attribute
+   void ZeroCoefficient(int attr)
+   { pieces.erase(attr); }
 
    /// Evaluate the coefficient.
    virtual double Eval(ElementTransformation &T,
@@ -262,6 +343,9 @@ public:
                            double (*F)(double,double))
       : Q1(q1), Q2(q2), Transform2(F) { Transform1 = 0; }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
@@ -313,6 +397,9 @@ public:
       center[0] = x; center[1] = y; center[2] = z; scale = s; tol = 1e-12;
       weight = NULL; sdim = 3; tdf = NULL;
    }
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Set the center location of the delta function.
    void SetDeltaCenter(const Vector& center);
@@ -378,6 +465,9 @@ public:
    RestrictedCoefficient(Coefficient &c_, Array<int> &attr)
    { c = &c_; attr.Copy(active_attr); }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    { return active_attr[T.Attribute-1] ? c->Eval(T, ip, GetTime()) : 0.0; }
@@ -395,7 +485,7 @@ public:
    VectorCoefficient(int vd) { vdim = vd; time = 0.; }
 
    /// Set the time for time dependent coefficients
-   void SetTime(double t) { time = t; }
+   virtual void SetTime(double t) { time = t; }
 
    /// Get the time for time dependent coefficients
    double GetTime() { return time; }
@@ -465,6 +555,89 @@ public:
 
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() { return vec; }
+};
+
+/** @brief A piecewise vector-valued coefficient with the pieces keyed off the
+    element attribute numbers.
+
+    A value of zero will be returned for any missing attribute numbers.
+
+    This object will not assume ownership of any VectorCoefficient
+    objects passed to it. Consequently, the caller must ensure that
+    the individual VectorCoefficient objects are not deleted while
+    this PWVectorCoefficient is still in use.
+
+    \note The keys may either be domain attribute numbers or boundary
+    attribute numbers. If the PWVectorCoefficient is used with a
+    domain integrator the keys are assumed to be domain attribute
+    numbers. Similarly, if the PWVectorCoefficient is used with a
+    boundary integrator the keys are assumed to be boundary attribute
+    numbers.
+*/
+class PWVectorCoefficient : public VectorCoefficient
+{
+private:
+   /** Internal data structure to store pointers to the appropriate
+       coefficients for different regions of the mesh. The keys used
+       in the map are the mesh attribute numbers (either element
+       attribute or boundary element attribute depending upon
+       context). The values returned for any missing attributes will
+       be zero. The coefficient pointers may be NULL in which case a
+       value of zero is returned.
+
+       The VectorCoefficient objects contained in this map are NOT
+       owned by this PWVectorCoefficient object. This means that they
+       will not be deleted when this object is deleted also the caller
+       must ensure that the various VectorCoefficient objects are not
+       deleted while this PWVectorCoefficient is still needed.
+   */
+   std::map<int, VectorCoefficient*> pieces;
+
+   /** Convenience function to check for compatible array lengths,
+       loop over the arrays, and add their attribute/VectorCoefficient
+       pairs to the internal data structure.
+   */
+   void InitMap(const Array<int> & attr,
+                const Array<VectorCoefficient*> & coefs);
+
+public:
+
+   /// Constructs a piecewise vector coefficient of dimension vd
+   explicit PWVectorCoefficient(int vd): VectorCoefficient(vd) {}
+
+   /// Construct the coefficient using arrays describing the pieces
+   /** \param vd - dimension of the vector-valued result
+       \param attr - an array of attribute numbers for each piece
+       \param coefs - the corresponding array of VectorCoefficient pointers
+       Any missing attributes or NULL coefficient pointers will result in a
+       zero vector being returned for that attribute.
+
+       \note Ownership of the VectorCoefficient objects will NOT be
+       transferred to this object.
+   */
+   PWVectorCoefficient(int vd, const Array<int> & attr,
+                       const Array<VectorCoefficient*> & coefs)
+      : VectorCoefficient(vd) { InitMap(attr, coefs); }
+
+   /// Set the time for time dependent coefficients
+   virtual void SetTime(double t);
+
+   /// Replace a set of coefficients
+   void UpdateCoefficients(const Array<int> & attr,
+                           const Array<VectorCoefficient*> & coefs)
+   { InitMap(attr, coefs); }
+
+   /// Replace a single Coefficient for a particular attribute
+   void UpdateCoefficient(int attr, VectorCoefficient & coef);
+
+   /// Remove a single VectorCoefficient for a particular attribute
+   void ZeroCoefficient(int attr)
+   { pieces.erase(attr); }
+
+   /// Evaluate the coefficient.
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// A general vector function coefficient
@@ -553,6 +726,9 @@ public:
    /** @brief Construct vector of dim coefficients.  The actual coefficients
        still need to be added with Set(). */
    explicit VectorArrayCoefficient(int dim);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Returns i'th coefficient.
    Coefficient* GetCoeff(int i) { return Coeff[i]; }
@@ -730,6 +906,9 @@ public:
                           double s)
       : VectorCoefficient(dir_.Size()), dir(dir_), d(x,y,z,s) { }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Replace the associated DeltaCoefficient with a new DeltaCoefficient.
    /** The new DeltaCoefficient cannot have a specified weight Coefficient, i.e.
        DeltaCoefficient::Weight() should return NULL. */
@@ -775,6 +954,9 @@ public:
       : VectorCoefficient(vc.GetVDim())
    { c = &vc; attr.Copy(active_attr); }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -806,7 +988,7 @@ public:
       height(h), width(w), time(0.), symmetric(symm) { }
 
    /// Set the time for time dependent coefficients
-   void SetTime(double t) { time = t; }
+   virtual void SetTime(double t) { time = t; }
 
    /// Get the time for time dependent coefficients
    double GetTime() { return time; }
@@ -862,6 +1044,112 @@ public:
 };
 
 
+/** @brief A piecewise matrix-valued coefficient with the pieces keyed off the
+    element attribute numbers.
+
+    A value of zero will be returned for any missing attribute numbers.
+
+    This object will not assume ownership of any MatrixCoefficient
+    objects passed to it. Consequently, the caller must ensure that
+    the individual MatrixCoefficient objects are not deleted while
+    this PWMatrixCoefficient is still in use.
+
+    \note The keys may either be domain attribute numbers or boundary
+    attribute numbers. If the PWMatrixCoefficient is used with a
+    domain integrator the keys are assumed to be domain attribute
+    numbers. Similarly, if the PWMatrixCoefficient is used with a
+    boundary integrator the keys are assumed to be boundary attribute
+    numbers.
+*/
+class PWMatrixCoefficient : public MatrixCoefficient
+{
+private:
+   /** Internal data structure to store pointers to the appropriate
+       coefficients for different regions of the mesh. The keys used
+       in the map are the mesh attribute numbers (either element
+       attribute or boundary element attribute depending upon
+       context). The values returned for any missing attributes will
+       be zero. The coefficient pointers may be NULL in which case a
+       value of zero is returned.
+
+       The MatrixCoefficient objects contained in this map are NOT
+       owned by this PWMatrixCoefficient object. This means that they
+       will not be deleted when this object is deleted also the caller
+       must ensure that the various MatrixCoefficient objects are not
+       deleted while this PWMatrixCoefficient is still needed.
+   */
+   std::map<int, MatrixCoefficient*> pieces;
+
+   /** Convenience function to check for compatible array lengths,
+       loop over the arrays, and add their attribute/MatrixCoefficient
+       pairs to the internal data structure.
+   */
+   void InitMap(const Array<int> & attr,
+                const Array<MatrixCoefficient*> & coefs);
+
+public:
+
+   /// Constructs a piecewise matrix coefficient of dimension dim by dim
+   explicit PWMatrixCoefficient(int dim, bool symm = false)
+      : MatrixCoefficient(dim, symm) {}
+
+   /// Constructs a piecewise matrix coefficient of dimension h by w
+   explicit PWMatrixCoefficient(int h, int w, bool symm = false)
+      : MatrixCoefficient(h, w, symm) {}
+
+   /// Construct the coefficient using arrays describing the pieces
+   /** \param dim - size of the square matrix-valued result
+       \param attr - an array of attribute numbers for each piece
+       \param coefs - the corresponding array of MatrixCoefficient pointers
+       \param symm - true if the result will be symmetric, false otherwise
+       Any missing attributes or NULL coefficient pointers will result in a
+       zero matrix being returned.
+
+       \note Ownership of the MatrixCoefficient objects will NOT be
+       transferred to this object.
+   */
+   PWMatrixCoefficient(int dim, const Array<int> & attr,
+                       const Array<MatrixCoefficient*> & coefs,
+                       bool symm=false)
+      : MatrixCoefficient(dim, symm) { InitMap(attr, coefs); }
+
+   /// Construct the coefficient using arrays describing the pieces
+   /** \param h - height of the matrix-valued result
+       \param w - width of the matrix-valued result
+       \param attr - an array of attribute numbers for each piece
+       \param coefs - the corresponding array of MatrixCoefficient pointers
+       \param symm - true if the result will be symmetric, false otherwise
+       Any missing attributes or NULL coefficient pointers will result in a
+       zero matrix being returned for that attribute.
+
+       \note Ownership of the MatrixCoefficient objects will NOT be
+       transferred to this object.
+   */
+   PWMatrixCoefficient(int h, int w, const Array<int> & attr,
+                       const Array<MatrixCoefficient*> & coefs,
+                       bool symm=false)
+      : MatrixCoefficient(h, w, symm) { InitMap(attr, coefs); }
+
+   /// Set the time for time dependent coefficients
+   virtual void SetTime(double t);
+
+   /// Replace a set of coefficients
+   void UpdateCoefficients(const Array<int> & attr,
+                           const Array<MatrixCoefficient*> & coefs)
+   { InitMap(attr, coefs); }
+
+   /// Replace a single coefficient for a particular attribute
+   void UpdateCoefficient(int attr, MatrixCoefficient & coef);
+
+   /// Remove a single MatrixCoefficient for a particular attribute
+   void ZeroCoefficient(int attr)
+   { pieces.erase(attr); }
+
+   /// Evaluate the coefficient.
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
 /** @brief A matrix coefficient with an optional scalar coefficient multiplier
     \a q.  The matrix function can either be represented by a std function or
     a constant matrix provided when constructing this object.  */
@@ -915,6 +1203,9 @@ public:
       : MatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
    { }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -941,6 +1232,9 @@ public:
    /** @brief Construct a coefficient matrix of dimensions @a dim * @a dim. The
        actual coefficients still need to be added with Set(). */
    explicit MatrixArrayCoefficient (int dim);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Get the coefficient located at (i,j) in the matrix.
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
@@ -979,6 +1273,9 @@ public:
       : MatrixCoefficient(mc.GetHeight(), mc.GetWidth())
    { c = &mc; attr.Copy(active_attr); }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -1008,6 +1305,9 @@ public:
    SumCoefficient(Coefficient &A, Coefficient &B,
                   double alpha_ = 1.0, double beta_ = 1.0)
       : aConst(0.0), a(&A), b(&B), alpha(alpha_), beta(beta_) { }
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the first term in the linear combination as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
@@ -1057,7 +1357,7 @@ public:
    { dim = dimension; time = 0.; }
 
    /// Set the time for time dependent coefficients
-   void SetTime(double t) { time = t; }
+   virtual void SetTime(double t) { time = t; }
 
    /// Get the time for time dependent coefficients
    double GetTime() { return time; }
@@ -1135,6 +1435,9 @@ public:
       : SymmetricMatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
    { }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -1160,6 +1463,9 @@ public:
    /// Constructor with two coefficients.  Result is A * B.
    ProductCoefficient(Coefficient &A, Coefficient &B)
       : aConst(0.0), a(&A), b(&B) { }
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the first term in the product as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
@@ -1206,6 +1512,9 @@ public:
    RatioCoefficient(Coefficient &A, double B)
       : aConst(0.0), bConst(B), a(&A), b(NULL) { }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the numerator in the ratio as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
    /// Return the numerator of the ratio
@@ -1249,6 +1558,9 @@ public:
    PowerCoefficient(Coefficient &A, double p_)
       : a(&A), p(p_) { }
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the base coefficient
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the base coefficient
@@ -1279,6 +1591,9 @@ public:
    /// Construct with the two vector coefficients.  Result is \f$ A \cdot B \f$.
    InnerProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the first vector in the inner product
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the first vector coefficient in the inner product
@@ -1308,6 +1623,9 @@ public:
    /// Constructor with two vector coefficients.  Result is \f$ A_x B_y - A_y * B_x; \f$.
    VectorRotProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the first vector in the product
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the first vector of the product
@@ -1334,6 +1652,9 @@ private:
 public:
    /// Construct with the matrix.
    DeterminantCoefficient(MatrixCoefficient &A);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -1377,6 +1698,9 @@ public:
        Result is alpha_ * A_ + beta_ * B_ */
    VectorSumCoefficient(VectorCoefficient &A_, VectorCoefficient &B_,
                         Coefficient &alpha_, Coefficient &beta_);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the first vector coefficient
    void SetACoef(VectorCoefficient &A) { ACoef = &A; }
@@ -1442,6 +1766,9 @@ public:
    /// Constructor with two coefficients.  Result is A * B.
    ScalarVectorProductCoefficient(Coefficient &A, VectorCoefficient &B);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the scalar factor as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
    /// Return the scalar factor
@@ -1485,6 +1812,9 @@ public:
    */
    NormalizedVectorCoefficient(VectorCoefficient &A, double tol = 1e-6);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the vector coefficient
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the vector coefficient
@@ -1509,6 +1839,9 @@ private:
 public:
    /// Construct with the two coefficients.  Result is A x B.
    VectorCrossProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the first term in the product
    void SetACoef(VectorCoefficient &A) { a = &A; }
@@ -1540,6 +1873,9 @@ private:
 public:
    /// Constructor with two coefficients.  Result is A*B.
    MatrixVectorProductCoefficient(MatrixCoefficient &A, VectorCoefficient &B);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -1593,6 +1929,9 @@ public:
    MatrixSumCoefficient(MatrixCoefficient &A, MatrixCoefficient &B,
                         double alpha_ = 1.0, double beta_ = 1.0);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the first matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the first matrix coefficient
@@ -1634,6 +1973,9 @@ public:
    /// Constructor with two coefficients.  Result is A*B.
    ScalarMatrixProductCoefficient(Coefficient &A, MatrixCoefficient &B);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the scalar factor as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }
    /// Return the scalar factor
@@ -1664,6 +2006,9 @@ public:
    /// Construct with the matrix coefficient.  Result is \f$ A^T \f$.
    TransposeMatrixCoefficient(MatrixCoefficient &A);
 
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
+
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the matrix coefficient
@@ -1683,6 +2028,9 @@ private:
 public:
    /// Construct with the matrix coefficient.  Result is \f$ A^{-1} \f$.
    InverseMatrixCoefficient(MatrixCoefficient &A);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -1707,6 +2055,9 @@ private:
 public:
    /// Construct with two vector coefficients.  Result is \f$ A B^T \f$.
    OuterProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the first vector in the outer product
    void SetACoef(VectorCoefficient &A) { a = &A; }
@@ -1742,6 +2093,9 @@ private:
 public:
    CrossCrossCoefficient(double A, VectorCoefficient &K);
    CrossCrossCoefficient(Coefficient &A, VectorCoefficient &K);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(double t);
 
    /// Reset the scalar factor as a constant
    void SetAConst(double A) { a = NULL; aConst = A; }

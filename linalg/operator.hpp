@@ -242,7 +242,7 @@ public:
    void FormDiscreteOperator(Operator* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
-   void PrintMatlab(std::ostream & out, int n = 0, int m = 0) const;
+   void PrintMatlab(std::ostream & out, int n, int m = 0) const;
 
    /// Prints operator in Matlab format.
    virtual void PrintMatlab(std::ostream & out) const;
@@ -701,11 +701,15 @@ private:
 public:
    /// Create an operator which is a scalar multiple of A.
    explicit ScaledOperator(const Operator *A, double a)
-      : Operator(A->Width(), A->Height()), A_(*A), a_(a) { }
+      : Operator(A->Height(), A->Width()), A_(*A), a_(a) { }
 
    /// Operator application
    virtual void Mult(const Vector &x, Vector &y) const
    { A_.Mult(x, y); y *= a_; }
+
+   /// Application of the transpose.
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { A_.MultTranspose(x, y); y *= a_; }
 };
 
 
