@@ -201,7 +201,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
 {
    if (mat.Finalized())
    {
-      const int nnz = mat.I[height];
+      const int nnz = mat.NumNonZeroElems();
       if (copy_graph)
       {
          I.New(height+1, mt == MemoryType::PRESERVE ? mat.I.GetMemoryType() : mt);
@@ -1498,7 +1498,7 @@ int SparseMatrix::NumNonZeroElems() const
 {
    if (A != NULL)  // matrix is finalized
    {
-      return I[height];
+      return J.Capacity();
    }
    else
    {
