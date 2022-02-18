@@ -95,6 +95,11 @@ public:
        in sync. The interface is identical. */
    virtual void Derefine(const Array<int> &derefs);
 
+   /** Gets partitioning for the coarse mesh if the current fine mesh were to
+       be derefined. */
+   virtual void GetFineToCoarsePartitioning(const Array<int> &derefs,
+                                            Array<int> &new_ranks) const;
+
    /** Migrate leaf elements of the global refinement hierarchy (including ghost
        elements) so that each processor owns the same number of leaves (+-1).
        The default partitioning strategy is based on equal splitting of the
@@ -242,7 +247,6 @@ public:
    /** Extract a debugging Mesh containing all leaf elements, including ghosts.
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
-
 
 protected: // interface for ParMesh
 
