@@ -38,34 +38,39 @@ void RationalApproximation_AAA(const Vector &val,
                                double tol = 1.0e-8, int max_order = 100);
 
 void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
-                          Vector & poles, Vector & zeros, double scale);
+                          Array<double> & poles, Array<double> & zeros, double * scale);
 
-void PartialFractionExpansion(double scale, Vector & poles,
-                              Vector & zeros, Vector & coeffs);
+void PartialFractionExpansion(double scale, Array<double> & poles,
+                              Array<double> & zeros, Vector & coeffs);
 
 
 int main(int argc, char *argv[])
 {
-   int size = 10;
+   int size = 1000;
    Vector x(size);
    Vector val(size);
    for (int i = 0; i<size; i++)
    {
-      x(i) = (double)i+0.01;
-      val(i) = (1.-x(i))/pow(x(i),0.33);
+      x(i) = (double)i+1.0;
+      val(i) = pow(x(i),0.5);
+    //   val(i) = 1.0/x(i) + 2.0/(1.0+x(i));
+    //   val(i) = 2.0/(1.0+x(i));
+    //   val(i) = (1.-x(i))/pow(x(i),0.33);
     //   val(i) = 1./pow(x(i),0.33);
    }
 
    Array<double> z, f;
    Vector w;
-   RationalApproximation_AAA(val,x,z,f,w,1e-7,100);
+   double tol = 1e-6;
+   int MaxOrder = 100;
+   RationalApproximation_AAA(val,x,z,f,w,tol,MaxOrder);
 
-   mfem::out << "x = " ; x.Print(cout,size);
-   mfem::out << "val = " ; val.Print(cout,size);
-   mfem::out << endl;
-   mfem::out << "z = " ; z.Print(cout,z.Size());
-   mfem::out << "f = " ; f.Print(cout,f.Size());
-   mfem::out << "w = " ; w.Print(cout,w.Size());
+//    mfem::out << "x = " ; x.Print(cout,size);
+//    mfem::out << "val = " ; val.Print(cout,size);
+//    mfem::out << endl;
+//    mfem::out << "z = " ; z.Print(cout,z.Size());
+//    mfem::out << "f = " ; f.Print(cout,f.Size());
+//    mfem::out << "w = " ; w.Print(cout,w.Size());
 
 
    Vector vecz, vecf;
@@ -73,8 +78,13 @@ int main(int argc, char *argv[])
    vecf.SetDataAndSize(f.GetData(), f.Size());
 
    double scale;
-   Vector poles, zeros;
-   ComputePolesAndZeros(vecz, vecf, w, poles, zeros, scale);
+   Array<double> poles, zeros;
+   ComputePolesAndZeros(vecz, vecf, w, poles, zeros, &scale);
+
+   mfem::out << "scale = " << scale << endl;
+
+   Vector coeffs;
+   PartialFractionExpansion(scale, poles, zeros, coeffs);
 
 }
 
@@ -196,6 +206,7 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
       DenseMatrix AtA(Am->Width());
       MultAtB(*Am,*Am,AtA);
 
+      // TODO: Poorly conditioned. Replace with SVD.
       DenseMatrixEigensystem eig(AtA);
       eig.Eval();
       DenseMatrix & v = eig.Eigenvectors();
@@ -256,14 +267,13 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
 }
 
 void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
-                          Vector & poles, Vector & zeros, double scale)
+                          Array<double> & poles, Array<double> & zeros, double *scale)
 {
-   //    m = length(w); B = eye(m+1); B(1,1) = 0;
-   //    E = [0 w.'; ones(m,1) diag(z)];
-   //    pol = eig(E,B)
+   // Initialization
+   poles.SetSize(0);
+   zeros.SetSize(0);
 
-   // compute the poles
-
+   // Compute the poles
    int m = w.Size();
    DenseMatrix B(m+1); B = 0.;
    DenseMatrix E(m+1); E = 0.;
@@ -294,7 +304,7 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
           alphai.GetData(), beta.GetData(), nullptr, &M, nullptr, &M,
           work.GetData(), &lwork, &info);
 
-   mfem::out << "info = " << info << endl;
+//    mfem::out << "info = " << info << endl;
 
    for (int i = 0; i<=m; i++ )
    {
@@ -307,6 +317,8 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
          mfem::out << "poles("<<i<<") = " << alphar(i)/beta(i) <<
                    " + " << alphai(i)/beta(i) << " i " << endl;
       }
+
+      if (beta(i) != 0.) { poles.Append(alphar(i)/beta(i)); }
    }
 
 
@@ -327,7 +339,7 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
           alphai.GetData(), beta.GetData(), nullptr, &M, nullptr, &M,
           work.GetData(), &lwork, &info);
 
-   mfem::out << "info = " << info << endl;
+//    mfem::out << "info = " << info << endl;
 
    for (int i = 0; i<=m; i++ )
    {
@@ -340,35 +352,44 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
          mfem::out << "zeros("<<i<<") = " << alphar(i)/beta(i) <<
                    " + " << alphai(i)/beta(i) << " i " << endl;
       }
+
+      if (beta(i) != 0.) { zeros.Append(alphar(i)/beta(i)); }
    }
 
     double tmp1=0.0;
     double tmp2=0.0;
-    for (int i = 0; i<=m; i++)
+    for (int i = 0; i<m; i++)
     {
         tmp1 += w(i) * f(i);
         tmp2 += w(i);
     }
-    scale = tmp1/tmp2;
+    *scale = tmp1/tmp2;
 
 }
 
-void PartialFractionExpansion(double scale, Vector & poles, Vector & zeros, Vector & coeffs)
+void PartialFractionExpansion(double scale, Array<double> & poles, Array<double> & zeros, Vector & coeffs)
 {
-    int size = zeros.Size();
 
-    coeffs.SetSize(size);
+    poles.Append(0.0);
+    int psize = poles.Size();
+    int zsize = zeros.Size();
+    coeffs.SetSize(psize);
     coeffs = scale;
-    for (int i=0; i<size; i++)
+
+    for (int i=0; i<psize; i++)
     {
         double tmp_numer=1.0;
-        double tmp_denom=1.0;
-        for (int j=0; j<size; j++)
+        for (int j=0; j<zsize; j++)
         {
-            tmp_numer *= poles(i)-zeros(j);
-            if (j != i) { tmp_denom *= poles(i)-poles(j); }
+            tmp_numer *= poles[i]-zeros[j];
+        }
+
+        double tmp_denom=1.0;
+        for (int k=0; k<psize; k++)
+        {
+            if (k != i) { tmp_denom *= poles[i]-poles[k]; }
         }
         coeffs(i) *= tmp_numer / tmp_denom;
+        mfem::out << "coeffs("<<i<<") = " << coeffs(i) << endl;
     }
-
 }
