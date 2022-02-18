@@ -106,8 +106,10 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
    ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
 
-   ParGridFunction w_gf(*u_gf);
-   flowsolver.ComputeCurl2D(*u_gf, w_gf);
+   CurlEvaluator curl_evaluator(*u_gf->ParFESpace());
+
+   ParGridFunction w_gf(&curl_evaluator.GetCurlSpace());
+   curl_evaluator.ComputeCurl(*u_gf, w_gf);
 
    ParaViewDataCollection pvdc("shear_output", pmesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
@@ -131,7 +133,7 @@ int main(int argc, char *argv[])
 
       if (step % 10 == 0)
       {
-         flowsolver.ComputeCurl2D(*u_gf, w_gf);
+         curl_evaluator.ComputeCurl(*u_gf, w_gf);
          pvdc.SetCycle(step);
          pvdc.SetTime(t);
          pvdc.Save();

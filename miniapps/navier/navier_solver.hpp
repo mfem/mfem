@@ -16,6 +16,7 @@
 
 #include "mfem.hpp"
 #include "ortho_solver.hpp"
+#include "compute_curl.hpp"
 
 namespace mfem
 {
@@ -240,20 +241,15 @@ public:
 
    ~NavierSolver();
 
-   /// Compute \f$\nabla \times \nabla \times u\f$ for \f$u \in (H^1)^2\f$.
-   void ComputeCurl2D(ParGridFunction &u,
-                      ParGridFunction &cu,
-                      bool assume_scalar = false);
-
-   /// Compute \f$\nabla \times \nabla \times u\f$ for \f$u \in (H^1)^3\f$.
-   void ComputeCurl3D(ParGridFunction &u, ParGridFunction &cu);
+   /// Compute \f$\nabla \times \nabla \times u\f$ for \f$u \in (H^1)^d\f$.
+   void ComputeCurl(ParGridFunction &u, ParGridFunction &cu) const;
 
    /// Remove mean from a Vector.
    /**
     * Modify the Vector @a v by subtracting its mean using
     * \f$v = v - \frac{\sum_i^N v_i}{N} \f$
     */
-   void Orthogonalize(Vector &v);
+   void Orthogonalize(Vector &v) const;
 
    /// Remove the mean from a ParGridFunction.
    /**
@@ -364,6 +360,8 @@ protected:
 
    ParLinearForm *g_bdr_form = nullptr;
 
+   CurlEvaluator *curl_evaluator = nullptr;
+
    /// Linear form to compute the mass matrix in various subroutines.
    ParLinearForm *mass_lf = nullptr;
    ConstantCoefficient onecoeff;
@@ -396,8 +394,7 @@ protected:
 
    Vector pn, resp, FText_bdr, g_bdr;
 
-   ParGridFunction un_gf, un_next_gf, curlu_gf, curlcurlu_gf, Lext_gf, FText_gf,
-                   resu_gf;
+   ParGridFunction un_gf, un_next_gf, curlcurlu_gf, Lext_gf, FText_gf, resu_gf;
 
    ParGridFunction pn_gf, resp_gf;
 

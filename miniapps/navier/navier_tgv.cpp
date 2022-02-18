@@ -288,7 +288,9 @@ int main(int argc, char *argv[])
 
    ParGridFunction w_gf(*u_gf);
    ParGridFunction q_gf(*p_gf);
-   flowsolver.ComputeCurl3D(*u_gf, w_gf);
+
+   CurlEvaluator curl_evaluator(*u_gf->ParFESpace());
+   curl_evaluator.ComputeCurl(*u_gf, w_gf);
    ComputeQCriterion(*u_gf, q_gf);
 
    QuantitiesOfInterest kin_energy(pmesh);
@@ -344,7 +346,7 @@ int main(int argc, char *argv[])
 
       // if ((step + 1) % 100 == 0 || last_step)
       // {
-      //    flowsolver.ComputeCurl3D(*u_gf, w_gf);
+      //    curl_evaluator.ComputeCurl(*u_gf, w_gf);
       //    ComputeQCriterion(*u_gf, q_gf);
       //    pvdc.SetCycle(step);
       //    pvdc.SetTime(t);
