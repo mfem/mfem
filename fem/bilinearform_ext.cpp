@@ -514,6 +514,10 @@ void EABilinearFormExtension::Assemble()
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
+   if ( integratorCount == 0 )
+   {
+      ea_data = 0.0;
+   }
    for (int i = 0; i < integratorCount; ++i)
    {
       integrators[i]->AssembleEA(*a->FESpace(), ea_data, i);

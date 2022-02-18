@@ -1228,12 +1228,12 @@ Graph::reweight(uint k)
 
 // Linearly order graph.
 void
-Graph::order(Functional* functional, uint iterations, uint window, uint period,
-             uint seed, Progress* progress)
+Graph::order(Functional* functional_, uint iterations, uint window, uint period,
+             uint seed, Progress* progress_)
 {
    // Initialize graph.
-   this->functional = functional;
-   progress = this->progress = progress ? progress : new Progress;
+   this->functional = functional_;
+   progress_ = this->progress = progress_ ? progress_ : new Progress;
    for (level = 0; (1u << level) < nodes(); level++);
    place();
    Float mincost = cost();
