@@ -556,11 +556,25 @@ const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
       FaceRestriction *res;
       if (is_dg_space)
       {
-         res = new ParL2FaceRestriction(*this, e_ordering, type, m);
+         if (Conforming())
+         {
+            res = new ParL2FaceRestriction(*this, e_ordering, type, m);
+         }
+         else
+         {
+            res = new ParNCL2FaceRestriction(*this, e_ordering, type, m);
+         }
       }
       else
       {
-         res = new H1FaceRestriction(*this, e_ordering, type);
+         if (Conforming())
+         {
+            res = new H1FaceRestriction(*this, e_ordering, type);
+         }
+         else
+         {
+            res = new ParNCH1FaceRestriction(*this, e_ordering, type);
+         }
       }
       L2F[key] = res;
       return res;

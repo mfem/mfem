@@ -197,9 +197,9 @@ int main(int argc, char *argv[])
 
    // 15. Compute error in the solution and its flux
    FunctionCoefficient uCoef(uExact);
-   double err = x.ComputeL2Error(uCoef);
+   double error = x.ComputeL2Error(uCoef);
 
-   if (myid == 0) { cout << "|u - u_h|_2 = " << err << endl; }
+   if (myid == 0) { cout << "|u - u_h|_2 = " << error << endl; }
 
    ParFiniteElementSpace flux_fespace(&pmesh, &fec, 3);
    ParGridFunction flux(&flux_fespace);
