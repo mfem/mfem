@@ -600,4 +600,51 @@ const char *VTKByteOrder()
 
 }
 
+// Ensure ASCII output of uint8_t to stream is integer rather than character
+template <>
+void WriteBinaryOrASCII<uint8_t>(std::ostream &out, std::vector<char> &buf,
+                                 const uint8_t &val, const char *suffix,
+                                 VTKFormat format)
+{
+   if (format == VTKFormat::ASCII) { out << static_cast<int>(val) << suffix; }
+   else { bin_io::AppendBytes(buf, val); }
+}
+
+template <>
+void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
+                                const double &val, const char *suffix,
+                                VTKFormat format)
+{
+   if (format == VTKFormat::BINARY32)
+   {
+      bin_io::AppendBytes<float>(buf, float(val));
+   }
+   else if (format == VTKFormat::BINARY)
+   {
+      bin_io::AppendBytes(buf, val);
+   }
+   else
+   {
+      out << ZeroSubnormal(val) << suffix;
+   }
+}
+
+template <>
+void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
+                               const float &val, const char *suffix,
+                               VTKFormat format)
+{
+   if (format == VTKFormat::BINARY) { bin_io::AppendBytes<double>(buf, val); }
+   else if (format == VTKFormat::BINARY32) { bin_io::AppendBytes(buf, val); }
+   else { out << ZeroSubnormal(val) << suffix; }
+}
+
+void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
+                                 int compression_level)
+{
+   WriteVTKEncodedCompressed(out, buf.data(), buf.size(), compression_level);
+   out << '\n';
+   buf.clear();
+}
+
 } // namespace mfem
