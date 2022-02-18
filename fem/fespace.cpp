@@ -1540,11 +1540,11 @@ void FiniteElementSpace::RefinementOperator
       old_DoFTrans[i] = NULL;
    }
 
-   const FiniteElementCollection *fec = fespace->FEColl();
-   if (dynamic_cast<const ND_FECollection*>(fec))
+   const FiniteElementCollection *fec_ref = fespace->FEColl();
+   if (dynamic_cast<const ND_FECollection*>(fec_ref))
    {
       const FiniteElement * nd_tri =
-         fec->FiniteElementForGeometry(Geometry::TRIANGLE);
+         fec_ref->FiniteElementForGeometry(Geometry::TRIANGLE);
       if (nd_tri)
       {
          old_DoFTrans[Geometry::TRIANGLE] =
@@ -1552,7 +1552,7 @@ void FiniteElementSpace::RefinementOperator
       }
 
       const FiniteElement * nd_tet =
-         fec->FiniteElementForGeometry(Geometry::TETRAHEDRON);
+         fec_ref->FiniteElementForGeometry(Geometry::TETRAHEDRON);
       if (nd_tet)
       {
          old_DoFTrans[Geometry::TETRAHEDRON] =
@@ -1560,7 +1560,7 @@ void FiniteElementSpace::RefinementOperator
       }
 
       const FiniteElement * nd_pri =
-         fec->FiniteElementForGeometry(Geometry::PRISM);
+         fec_ref->FiniteElementForGeometry(Geometry::PRISM);
       if (nd_pri)
       {
          old_DoFTrans[Geometry::PRISM] =
