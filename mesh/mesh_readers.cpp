@@ -383,49 +383,46 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
    int order = -1;
    bool legacy_elem = false, lagrange_elem = false;
 
+   for (int i = 0; i < NumOfElements; i++)
    {
-      int j = 0;
-      for (int i = 0; i < NumOfElements; i++)
+      int j = (i > 0) ? cell_offsets[i-1] : 0;
+      int ct = cell_types[i];
+      Geometry::Type geom = VTKGeometry::GetMFEMGeometry(ct);
+      elements[i] = NewElement(geom);
+      if (cell_attributes.Size() > 0)
       {
-         int ct = cell_types[i];
-         Geometry::Type geom = VTKGeometry::GetMFEMGeometry(ct);
-         elements[i] = NewElement(geom);
-         if (cell_attributes.Size() > 0)
-         {
-            elements[i]->SetAttribute(cell_attributes[i]);
-         }
-         // VTK ordering of vertices is the same as MFEM ordering of vertices
-         // for all element types *except* prisms, which require a permutation
-         if (geom == Geometry::PRISM && ct != VTKGeometry::LAGRANGE_PRISM)
-         {
-            int prism_vertices[6];
-            for (int k=0; k<6; ++k)
-            {
-               prism_vertices[k] = cell_data[j+VTKGeometry::PrismMap[k]];
-            }
-            elements[i]->SetVertices(prism_vertices);
-         }
-         else
-         {
-            elements[i]->SetVertices(&cell_data[j]);
-         }
-
-         int elem_dim = Geometry::Dimension[geom];
-         int elem_order = VTKGeometry::GetOrder(ct, cell_offsets[i] - j);
-
-         if (VTKGeometry::IsLagrange(ct)) { lagrange_elem = true; }
-         else { legacy_elem = true; }
-
-         MFEM_VERIFY(Dim == -1 || Dim == elem_dim,
-                     "Elements with different dimensions are not supported");
-         MFEM_VERIFY(order == -1 || order == elem_order,
-                     "Elements with different orders are not supported");
-         MFEM_VERIFY(legacy_elem != lagrange_elem,
-                     "Mixing of legacy and Lagrange cell types is not supported");
-         Dim = elem_dim;
-         order = elem_order;
-         j = cell_offsets[i];
+         elements[i]->SetAttribute(cell_attributes[i]);
       }
+      // VTK ordering of vertices is the same as MFEM ordering of vertices
+      // for all element types *except* prisms, which require a permutation
+      if (geom == Geometry::PRISM && ct != VTKGeometry::LAGRANGE_PRISM)
+      {
+         int prism_vertices[6];
+         for (int k=0; k<6; ++k)
+         {
+            prism_vertices[k] = cell_data[j+VTKGeometry::PrismMap[k]];
+         }
+         elements[i]->SetVertices(prism_vertices);
+      }
+      else
+      {
+         elements[i]->SetVertices(&cell_data[j]);
+      }
+
+      int elem_dim = Geometry::Dimension[geom];
+      int elem_order = VTKGeometry::GetOrder(ct, cell_offsets[i] - j);
+
+      if (VTKGeometry::IsLagrange(ct)) { lagrange_elem = true; }
+      else { legacy_elem = true; }
+
+      MFEM_VERIFY(Dim == -1 || Dim == elem_dim,
+                  "Elements with different dimensions are not supported");
+      MFEM_VERIFY(order == -1 || order == elem_order,
+                  "Elements with different orders are not supported");
+      MFEM_VERIFY(legacy_elem != lagrange_elem,
+                  "Mixing of legacy and Lagrange cell types is not supported");
+      Dim = elem_dim;
+      order = elem_order;
    }
 
    // determine spaceDim based on min/max differences detected each dimension
@@ -487,38 +484,36 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
 
       // The following loop reorders pts_dofs so vertices are visited in
       // canonical order
+
+      // Keep the original ordering of the vertices
+      NumOfVertices = 0;
+      for (int i = 0; i < np; i++)
       {
-         // Keep the original ordering of the vertices
-         int n = 0;
-         for (int i = 0; i < np; i++)
+         if (pts_dof[i] != -1)
          {
-            if (pts_dof[i] != -1)
-            {
-               pts_dof[i] = n++;
-            }
+            pts_dof[i] = NumOfVertices++;
          }
-         // update the element vertices
-         for (int i = 0; i < NumOfElements; i++)
+      }
+      // update the element vertices
+      for (int i = 0; i < NumOfElements; i++)
+      {
+         int *v = elements[i]->GetVertices();
+         int nv = elements[i]->GetNVertices();
+         for (int j = 0; j < nv; j++)
          {
-            int *v = elements[i]->GetVertices();
-            int nv = elements[i]->GetNVertices();
-            for (int j = 0; j < nv; j++)
-            {
-               v[j] = pts_dof[v[j]];
-            }
+            v[j] = pts_dof[v[j]];
          }
-         // Define the 'vertices' from the 'points' through the 'pts_dof' map
-         NumOfVertices = n;
-         vertices.SetSize(n);
-         for (int i = 0; i < np; i++)
+      }
+      // Define the 'vertices' from the 'points' through the 'pts_dof' map
+      vertices.SetSize(NumOfVertices);
+      for (int i = 0; i < np; i++)
+      {
+         int j = pts_dof[i];
+         if (j != -1)
          {
-            int j = pts_dof[i];
-            if (j != -1)
-            {
-               vertices[j](0) = points(3*i+0);
-               vertices[j](1) = points(3*i+1);
-               vertices[j](2) = points(3*i+2);
-            }
+            vertices[j](0) = points(3*i+0);
+            vertices[j](1) = points(3*i+1);
+            vertices[j](2) = points(3*i+2);
          }
       }
 
