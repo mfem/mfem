@@ -219,7 +219,12 @@ double DeltaCoefficient::EvalDelta(ElementTransformation &T,
    return weight ? weight->Eval(T, ip, GetTime())*w : w;
 }
 
-<<<<<<< HEAD
+void RestrictedCoefficient::SetTime(double t)
+{
+   if (c) { c->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
 void VectorCoefficient::EvalRevDiff(const Vector &V_bar,
                                     ElementTransformation &T,
                                     const IntegrationPoint &ip,
@@ -227,12 +232,6 @@ void VectorCoefficient::EvalRevDiff(const Vector &V_bar,
 {
    MFEM_ABORT("VectorCoefficient::EvalRevDiff\n"
               "\tEvalRevDiff not implemented for this coefficient!\n");
-=======
-void RestrictedCoefficient::SetTime(double t)
-{
-   if (c) { c->SetTime(t); }
-   this->Coefficient::SetTime(t);
->>>>>>> master
 }
 
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
