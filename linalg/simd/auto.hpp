@@ -29,6 +29,10 @@ struct MFEM_AUTOSIMD_ALIGN__ AutoSIMD
 
    scalar_t vec[size];
 
+   AutoSIMD() = default;
+
+   AutoSIMD(const AutoSIMD &) = default;
+
    inline MFEM_ALWAYS_INLINE scalar_t &operator[](int i)
    {
       return vec[i];

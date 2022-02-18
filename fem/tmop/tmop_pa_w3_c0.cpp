@@ -63,6 +63,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
 
       MFEM_SHARED double B[MQ1*MD1];
       MFEM_SHARED double sBLD[MQ1*MD1];
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,sBLD);
       ConstDeviceMatrix BLD(sBLD, D1D, Q1D);
 
       MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
@@ -87,7 +88,6 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
       kernels::internal::LoadX<MD1>(e,D1D,X1,DDD1);
 
       kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
-      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,sBLD);
 
       kernels::internal::EvalX(D1D,Q1D,BLD,DDD,DDQ);
       kernels::internal::EvalY(D1D,Q1D,BLD,DDQ,DQQ);
