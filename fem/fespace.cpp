@@ -1575,7 +1575,7 @@ void FiniteElementSpace::RefinementOperator
       }
 
       const FiniteElement * nd_pri =
-         fec->FiniteElementForGeometry(Geometry::PRISM);
+         fec_ref->FiniteElementForGeometry(Geometry::PRISM);
       if (nd_pri)
       {
          old_DoFTrans[Geometry::PRISM] =
