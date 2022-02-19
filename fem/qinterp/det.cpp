@@ -40,15 +40,15 @@ static void Det1D(const int NE,
 
    MFEM_FORALL(e, NE,
    {
-       for (int q = 0; q < q1d; q++)
-       {
-          double u = 0.0;
-          for (int d = 0; d < d1d; d++)
-          {
-             u += G(q, d) * X(d, e);
-          }
-          Y(q, e) = u;
-       }
+      for (int q = 0; q < q1d; q++)
+      {
+         double u = 0.0;
+         for (int d = 0; d < d1d; d++)
+         {
+            u += G(q, d) * X(d, e);
+         }
+         Y(q, e) = u;
+      }
    });
 }
 
