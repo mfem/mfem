@@ -71,30 +71,6 @@ void asymmetricMatrixCoeffFunction(const Vector & x, DenseMatrix & f)
    }
 }
 
-void fullSymmetricMatrixCoeffFunction(const Vector & x, DenseMatrix & f)
-{
-   f = 0.0;
-   if (dimension == 2)
-   {
-      f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
-      f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
-      f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
-      f(1,0) = f(0,1);
-   }
-   else if (dimension == 3)
-   {
-      f(0,0) = sin(M_PI * x[1]);  // 1,1
-      f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
-      f(0,2) = sin(4.9 * M_PI * x[2]);  // 1,3
-      f(1,1) = sin(6.1 * M_PI * x[1]);  // 2,2
-      f(1,2) = cos(6.1 * M_PI * x[2]);  // 2,3
-      f(2,2) = sin(6.1 * M_PI * x[2]);  // 3,3
-      f(1,0) = f(0,1);
-      f(2,0) = f(0,2);
-      f(2,1) = f(1,2);
-   }
-}
-
 void symmetricMatrixCoeffFunction(const Vector & x, DenseSymmetricMatrix & f)
 {
    f = 0.0;
