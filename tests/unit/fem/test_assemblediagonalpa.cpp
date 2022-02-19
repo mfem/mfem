@@ -91,7 +91,7 @@ void symmetricMatrixCoeffFunction(const Vector & x, DenseSymmetricMatrix & f)
    }
 }
 
-TEST_CASE("massdiag")
+TEST_CASE("Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
@@ -140,7 +140,7 @@ TEST_CASE("massdiag")
    }
 }
 
-TEST_CASE("diffusiondiag")
+TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
@@ -276,7 +276,7 @@ double test_vdiagpa(int dim, int order)
    return diag_full.Norml2();
 }
 
-TEST_CASE("Vector Mass Diagonal PA", "[PartialAssembly], [AssembleDiagonal]")
+TEST_CASE("Vector Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 {
    SECTION("2D")
    {
@@ -298,7 +298,7 @@ TEST_CASE("Vector Mass Diagonal PA", "[PartialAssembly], [AssembleDiagonal]")
 }
 
 TEST_CASE("Vector Diffusion Diagonal PA",
-          "[PartialAssembly], [AssembleDiagonal]")
+          "[PartialAssembly][AssembleDiagonal]")
 {
    SECTION("2D")
    {
@@ -321,7 +321,7 @@ TEST_CASE("Vector Diffusion Diagonal PA",
 }
 
 TEST_CASE("Hcurl/Hdiv diagonal PA",
-          "[CUDA]")
+          "[CUDA][PartialAssembly][AssembleDiagonal]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {

@@ -103,7 +103,7 @@ void symmetricMatrixCoeffFunction(const Vector & x, DenseSymmetricMatrix & f)
    }
 }
 
-TEST_CASE("H1 pa_coeff")
+TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
@@ -259,8 +259,8 @@ TEST_CASE("H1 pa_coeff")
    }
 }
 
-TEST_CASE("Hcurl/Hdiv pa_coeff",
-          "[CUDA]")
+TEST_CASE("Hcurl/Hdiv PA Coefficient",
+          "[CUDA][PartialAssembly][Coefficient]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
@@ -583,8 +583,8 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
    }
 }
 
-TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
-          "[CUDA]")
+TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
+          "[CUDA][PartialAssembly][Coefficient]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
