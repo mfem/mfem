@@ -341,3 +341,107 @@ TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
       REQUIRE(t3.Data()[i] == t1.Data()[i]);
    }
 }
+
+#ifdef MFEM_USE_LAPACK
+
+
+enum class TestCase { GenEigSPD, GenEigGE, SVD};
+std::string TestCaseName(TestCase testcase)
+{
+   switch (testcase)
+   {
+      case TestCase::GenEigSPD:
+         return "Generalized Eigenvalue problem for an SPD matrix";
+      case TestCase::GenEigGE:
+         return "Generalized Eigenvalue problem for a general matrix";
+      case TestCase::SVD:
+         return "Singula Value Decomposition for a general matrix";
+   }
+   return "";
+}
+
+TEST_CASE("Eigensystem Problems",
+          "[DenseMatrix]")
+{
+   auto testcase = GENERATE(TestCase::GenEigSPD, TestCase::GenEigGE,
+                            TestCase::SVD);
+
+   CAPTURE(TestCaseName(testcase));
+
+   DenseMatrix M({{0.279841, 0.844288, 0.498302, 0.323955},
+      {0.884680, 0.243511, 0.397405, 0.265708},
+      {0.649685, 0.700754, 0.586396, 0.023724},
+      {0.081588, 0.728236, 0.083123, 0.488041}
+   });
+
+   switch (testcase)
+   {
+      case TestCase::GenEigSPD:
+      {
+         DenseMatrix A({{0.56806, 0.29211, 0.48315, 0.70024},
+            {0.29211, 0.85147, 0.68123, 0.70689},
+            {0.48315, 0.68123, 1.07229, 1.02681},
+            {0.70024, 0.70689, 1.02681, 1.15468}});
+
+         DenseMatrixGeneralizedEigensystem geig(A,M,true,true);
+         geig.Eval();
+         Vector & Lamda = geig.EigenvaluesRealPart();
+         DenseMatrix & Vl = geig.LeftEigenvectors();
+         DenseMatrix & Vr = geig.RightEigenvectors();
+
+         // check A * Vr - L * M * Vr
+         DenseMatrix AVr(4);
+         DenseMatrix MVr(4);
+         Mult(A,Vr,AVr);
+         Mult(M,Vr,MVr);
+         MVr.RightScaling(Lamda);
+         AVr-=MVr;
+
+         REQUIRE(AVr.MaxMaxNorm() == MFEM_Approx(0.));
+
+         // check Vl^t * A - L * Vl^t * M
+         DenseMatrix VltA(4);
+         DenseMatrix VltM(4);
+         MultAtB(Vl,A,VltA);
+         MultAtB(Vl,M,VltM);
+         VltM.LeftScaling(Lamda);
+         VltA-=VltM;
+
+         REQUIRE(VltA.MaxMaxNorm() == MFEM_Approx(0.));
+
+      }
+      break;
+      case TestCase::GenEigGE:
+      {
+         DenseMatrix A({{0.486278, 0.041135, 0.480727, 0.616026},
+            {0.523599, 0.119827, 0.087808, 0.415241},
+            {0.214454, 0.661631, 0.909626, 0.744259},
+            {0.107007, 0.630604, 0.077862, 0.221006}});
+
+         mfem::out << "TestCase::GenEigGE: TODO" << std::endl;
+
+      }
+      break;
+      case TestCase::SVD:
+      {
+         DenseMatrix Mc(M);
+         DenseMatrixSVD svd(Mc,true,true);
+         svd.Eval(Mc);
+         Vector &sigma = svd.Singularvalues();
+         DenseMatrix &U = svd.LeftSingularvectors();
+         DenseMatrix &V = svd.RightSingularvectors();
+
+         DenseMatrix Vt(V);
+         Vt.Transpose();
+         DenseMatrix USVt(4);
+         MultADBt(U,sigma,Vt,USVt);
+
+         USVt -= M;
+
+         REQUIRE(USVt.MaxMaxNorm() == MFEM_Approx(0.));
+      }
+      break;
+   }
+}
+
+#endif // if MFEM_USE_LAPACK
