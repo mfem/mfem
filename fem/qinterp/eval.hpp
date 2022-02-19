@@ -44,19 +44,19 @@ static void Values1D(const int NE,
 
    MFEM_FORALL(e, NE,
    {
-       for (int c = 0; c < vdim; c++)
-       {
-          for (int q = 0; q < q1d; q++)
-          {
-             double u = 0.0;
-             for (int d = 0; d < d1d; d++)
-             {
-                u += b(q, d) * x(d, c, e);
-             }
-             if (Q_LAYOUT == QVectorLayout::byVDIM)  { y(c, q, e) = u; }
-             if (Q_LAYOUT == QVectorLayout::byNODES) { y(q, c, e) = u; }
-          }
-       }
+      for (int c = 0; c < vdim; c++)
+      {
+         for (int q = 0; q < q1d; q++)
+         {
+            double u = 0.0;
+            for (int d = 0; d < d1d; d++)
+            {
+               u += b(q, d) * x(d, c, e);
+            }
+            if (Q_LAYOUT == QVectorLayout::byVDIM)  { y(c, q, e) = u; }
+            if (Q_LAYOUT == QVectorLayout::byNODES) { y(q, c, e) = u; }
+         }
+      }
    });
 }
 
