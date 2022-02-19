@@ -62,6 +62,15 @@ dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
 extern "C" void
 dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
        double *alpha, double *a, int *lda, double *b, int *ldb);
+extern "C" void
+dggev_(char *jobvl, char *jobvr, int *n, double *a, int *lda, double *B,
+       int *ldb, double *alphar, double *alphai, double *beta, double *vl,
+       int * ldvl, double * vr, int * ldvr, double * work, int * lwork, int* info);
+
+
+
+
+
 #endif
 
 
@@ -3355,6 +3364,107 @@ void DenseMatrixEigensystem::Eval()
 DenseMatrixEigensystem::~DenseMatrixEigensystem()
 {
 #ifdef MFEM_USE_LAPACK
+   delete [] work;
+#endif
+}
+
+
+DenseMatrixGeneralizedEigensystem::DenseMatrixGeneralizedEigensystem(
+   DenseMatrix &a, DenseMatrix &b,
+   bool left_eigen_vectors,
+   bool right_eigen_vectors)
+   : A(a), B(b)
+{
+   MFEM_VERIFY(A.Height() == A.Width(), "A has to be a square matrix");
+   MFEM_VERIFY(B.Height() == B.Width(), "B has to be a square matrix");
+   n = A.Width();
+   MFEM_VERIFY(B.Height() == n, "A and B dimension mismatch");
+
+#ifdef MFEM_USE_LAPACK
+   jobvl = 'N';
+   jobvr = 'N';
+   A_copy.SetSize(n);
+   B_copy.SetSize(n);
+   if (left_eigen_vectors)
+   {
+      jobvl = 'V';
+      Vl.SetSize(n);
+   }
+   if (right_eigen_vectors)
+   {
+      jobvr = 'V';
+      Vr.SetSize(n);
+   }
+
+   lwork = -1;
+   double qwork;
+
+   alphar = new double[n];
+   alphai = new double[n];
+   beta = new double[n];
+
+   int nl = max(1,Vl.Height());
+   int nr = max(1,Vr.Height());
+
+   dggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
+          alphai, beta, Vl.Data(), &nl, Vr.Data(), &nr,
+          &qwork, &lwork, &info);
+
+   lwork = (int) qwork;
+   work = new double[lwork];
+
+#else
+   mfem_error("DenseMatrixGeneralizedEigensystem:: Compiled without LAPACK");
+#endif
+
+}
+
+void DenseMatrixGeneralizedEigensystem::Eval()
+{
+#ifdef MFEM_USE_LAPACK
+
+   int nl = max(1,Vl.Height());
+   int nr = max(1,Vr.Height());
+
+   A_copy = A;
+   B_copy = B;
+   dggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
+          alphai, beta, Vl.Data(), &nl, Vr.Data(), &nr,
+          work, &lwork, &info);
+
+   if (info != 0)
+   {
+      mfem::err << "DenseMatrixGeneralizedEigensystem::Eval(): DGGEV error code: "
+                << info << endl;
+      mfem_error();
+   }
+   evalues_r.SetSize(n);
+   evalues_i.SetSize(n);
+   for (int i = 0; i<n; i++)
+   {
+      if (beta[i] != 0.)
+      {
+         evalues_r(i) = alphar[i]/beta[i];
+         evalues_i(i) = alphai[i]/beta[i];
+      }
+      else
+      {
+         evalues_r(i) = infinity();
+         evalues_i(i) = infinity();
+      }
+   }
+#else
+   mfem_error("DenseMatrixGeneralizedEigensystem::Eval(): Compiled without LAPACK");
+#endif
+
+}
+
+DenseMatrixGeneralizedEigensystem::~DenseMatrixGeneralizedEigensystem()
+{
+#ifdef MFEM_USE_LAPACK
+   delete [] alphar;
+   delete [] alphai;
+   delete [] beta;
    delete [] work;
 #endif
 }
