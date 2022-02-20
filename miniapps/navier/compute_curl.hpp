@@ -31,12 +31,13 @@ protected:
    int dim;
    /// Internal vector used when computing the curl-curl.
    mutable Vector u_curl_tmp;
+   /// Is partial assembly enabled?
+   bool partial_assembly = false;
 
    /// @name Partial assembly
    ///@{
 
-   /// Is partial assembly enabled?
-   bool partial_assembly = false;
+   mutable Array<int> els_per_dof;
 
    /// Nodal points in lexicographic ordering.
    mutable IntegrationRule ir_lex;
@@ -53,6 +54,9 @@ protected:
    ///@}
 
    ///@}
+
+   /// Count the number of elements containing each DOF. Used for averaging.
+   void CountElementsPerDof();
 
    /// @brief Used internally to compute the curl and perpendicular gradient.
    ///

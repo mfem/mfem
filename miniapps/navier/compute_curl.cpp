@@ -28,6 +28,8 @@ CurlEvaluator::CurlEvaluator(ParFiniteElementSpace &fes_) : fes(fes_)
    }
    u_gf.SetSpace(&fes);
    curl_u_gf.SetSpace(&GetCurlSpace());
+
+   CountElementsPerDof();
 }
 
 ParFiniteElementSpace &CurlEvaluator::GetCurlSpace()
@@ -40,6 +42,54 @@ const ParFiniteElementSpace &CurlEvaluator::GetCurlSpace() const
 {
    if (scalar_fes) { return *scalar_fes; }
    else { return fes; }
+}
+
+void CurlEvaluator::CountElementsPerDof()
+{
+   ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const ElementRestriction *el_restr =
+      dynamic_cast<const ElementRestriction*>(fes.GetElementRestriction(ordering));
+   MFEM_ASSERT(el_restr != NULL, "Bad element restriction.")
+
+   Vector evec(el_restr->Height());
+   Vector lvec(el_restr->Width());
+   evec.UseDevice(true);
+   lvec.UseDevice(true);
+   evec = 1.0;
+   el_restr->MultTransposeUnsigned(evec, lvec);
+
+   const GroupCommunicator &gcomm = fes.GroupComm();
+   gcomm.Reduce(lvec.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast(lvec.HostReadWrite());
+
+   const Table &e2dTable = fes.GetElementToDofTable();
+
+   const int ne = fes.GetNE();
+   const int ndof = fes.GetFE(0)->GetDof();
+
+   els_per_dof.SetSize(ne*ndof);
+
+   const int *element_map = mfem::Read(e2dTable.GetJMemory(),
+                                       e2dTable.Size_of_connections(), true);
+   const double *d_lvec = lvec.Read();
+   auto d_els_per_dof = Reshape(els_per_dof.Write(), ndof, ne);
+
+   auto nodal_fe = dynamic_cast<const NodalFiniteElement*>(fes.GetFE(0));
+   MFEM_VERIFY(nodal_fe != nullptr, "NodalFiniteElement is required.")
+   const Array<int> &lex = nodal_fe->GetLexicographicOrdering();
+   const int *d_lex = lex.Read();
+
+   for (int e = 0; e < ne; ++e)
+   {
+      for (int j = 0; j < ndof; ++j)
+      {
+         int d = d_lex[j];
+         const int sgid = element_map[ndof*e + d];  // signed
+         const int gid = (sgid >= 0) ? sgid : -1 - sgid;
+         d_els_per_dof(j, e) = d_lvec[gid];
+         // printf("(%d, %d) = %d\n", j, e, d_els_per_dof(j, e));
+      }
+   }
 }
 
 void CurlEvaluator::ComputeCurlLegacy_(
@@ -230,6 +280,7 @@ void CurlEvaluator::ComputeCurlPA_(
 
    const auto d_u = Reshape(du_evec.Read(), ndof, dom_vdim, dim, ne);
    const auto d_curl = Reshape(curl_u_evec.Write(), ndof, ran_vdim, ne);
+   const auto d_els_per_dof = Reshape(els_per_dof.Read(), ndof, ne);
 
    if (dim == 2)
    {
@@ -239,8 +290,9 @@ void CurlEvaluator::ComputeCurlPA_(
          {
             for (int j = 0; j < ndof; ++ j)
             {
-               d_curl(j, 0, i) = d_u(j, 0, 1, i);
-               d_curl(j, 1, i) = -d_u(j, 0, 0, i);
+               double a = 1.0/double(d_els_per_dof(j, i));
+               d_curl(j, 0, i) = d_u(j, 0, 1, i)*a;
+               d_curl(j, 1, i) = -d_u(j, 0, 0, i)*a;
             }
          });
       }
@@ -250,7 +302,8 @@ void CurlEvaluator::ComputeCurlPA_(
          {
             for (int j = 0; j < ndof; ++ j)
             {
-               d_curl(j, 0, i) = d_u(j, 1, 0, i) - d_u(j, 0, 1, i);
+               double a = 1.0/double(d_els_per_dof(j, i));
+               d_curl(j, 0, i) = (d_u(j, 1, 0, i) - d_u(j, 0, 1, i))*a;
             }
          });
       }
@@ -261,17 +314,16 @@ void CurlEvaluator::ComputeCurlPA_(
       {
          for (int j = 0; j < ndof; ++ j)
          {
-            d_curl(j, 0, i) = d_u(j, 2, 1, i) - d_u(j, 1, 2, i);
-            d_curl(j, 1, i) = d_u(j, 0, 2, i) - d_u(j, 2, 0, i);
-            d_curl(j, 2, i) = d_u(j, 1, 0, i) - d_u(j, 0, 1, i);
+            double a = 1.0/double(d_els_per_dof(j, i));
+            d_curl(j, 0, i) = (d_u(j, 2, 1, i) - d_u(j, 1, 2, i))*a;
+            d_curl(j, 1, i) = (d_u(j, 0, 2, i) - d_u(j, 2, 0, i))*a;
+            d_curl(j, 2, i) = (d_u(j, 1, 0, i) - d_u(j, 0, 1, i))*a;
          }
       });
    }
 
-   // Convert from E-vector to L-vector by averaging
-   ran_el_restr->MultTransposeAveraged(curl_u_evec, ran_gf);
-   // Convert from L-vector to T-vector by averaging
-   ran_gf.ParallelAverage(curl_u);
+   ran_el_restr->MultTranspose(curl_u_evec, ran_gf);
+   ran_gf.ParallelAssemble(curl_u);
 }
 
 void CurlEvaluator::ComputeCurl(const Vector &u, Vector &curl_u) const
