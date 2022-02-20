@@ -2162,14 +2162,14 @@ void HypreParMatrix::DropSmallEntries(double tol)
 #elif MFEM_HYPRE_VERSION < 21800
 
    HYPRE_Int err_flag = hypre_ParCSRMatrixDropSmallEntries(A, tol);
+   MFEM_VERIFY(!err_flag, "error encountered: error code = " << err_flag);
 
 #else
 
    HYPRE_Int err_flag = hypre_ParCSRMatrixDropSmallEntries(A, tol, 2);
+   MFEM_VERIFY(!err_flag, "error encountered: error code = " << err_flag);
 
 #endif
-
-   MFEM_VERIFY(!err_flag, "error encountered: error code = " << err_flag);
 
    hypre_error_flag = old_err;
 }
