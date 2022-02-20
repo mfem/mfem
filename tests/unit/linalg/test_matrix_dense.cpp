@@ -355,7 +355,7 @@ std::string TestCaseName(TestCase testcase)
       case TestCase::GenEigGE:
          return "Generalized Eigenvalue problem for a general matrix";
       case TestCase::SVD:
-         return "Singula Value Decomposition for a general matrix";
+         return "Singular Value Decomposition for a general matrix";
    }
    return "";
 }
@@ -385,30 +385,23 @@ TEST_CASE("Eigensystem Problems",
 
          DenseMatrixGeneralizedEigensystem geig(A,M,true,true);
          geig.Eval();
-         Vector & Lamda = geig.EigenvaluesRealPart();
-         DenseMatrix & Vl = geig.LeftEigenvectors();
-         DenseMatrix & Vr = geig.RightEigenvectors();
+         Vector & Lambda = geig.EigenvaluesRealPart();
+         DenseMatrix & V = geig.RightEigenvectors();
+         DenseMatrix & W = geig.LeftEigenvectors();
 
-         // check A * Vr - L * M * Vr
-         DenseMatrix AVr(4);
-         DenseMatrix MVr(4);
-         Mult(A,Vr,AVr);
-         Mult(M,Vr,MVr);
-         MVr.RightScaling(Lamda);
-         AVr-=MVr;
+         // check A * V - M * V * L
+         DenseMatrix AV(4); Mult(A,V,AV);
+         DenseMatrix MV(4); Mult(M,V,MV);
+         MV.RightScaling(Lambda);  AV-=MV;
 
-         REQUIRE(AVr.MaxMaxNorm() == MFEM_Approx(0.));
+         REQUIRE(AV.MaxMaxNorm() == MFEM_Approx(0.));
 
-         // check Vl^t * A - L * Vl^t * M
-         DenseMatrix VltA(4);
-         DenseMatrix VltM(4);
-         MultAtB(Vl,A,VltA);
-         MultAtB(Vl,M,VltM);
-         VltM.LeftScaling(Lamda);
-         VltA-=VltM;
+         // check W^t * A - L * W^t * M
+         DenseMatrix WtA(4); MultAtB(W,A,WtA);
+         DenseMatrix WtM(4); MultAtB(W,M,WtM);
+         WtM.LeftScaling(Lambda); WtA-=WtM;
 
-         REQUIRE(VltA.MaxMaxNorm() == MFEM_Approx(0.));
-
+         REQUIRE(WtA.MaxMaxNorm() == MFEM_Approx(0.));
       }
       break;
       case TestCase::GenEigGE:
@@ -418,8 +411,76 @@ TEST_CASE("Eigensystem Problems",
             {0.214454, 0.661631, 0.909626, 0.744259},
             {0.107007, 0.630604, 0.077862, 0.221006}});
 
-         mfem::out << "TestCase::GenEigGE: TODO" << std::endl;
+         DenseMatrixGeneralizedEigensystem geig(A,M,true,true);
+         geig.Eval();
+         Vector & Lambda_r = geig.EigenvaluesRealPart();
+         Vector & Lambda_i = geig.EigenvaluesImagPart();
+         DenseMatrix & V = geig.RightEigenvectors();
 
+         DenseMatrix Vr(4), Vi(4);
+         Vr.SetCol(0,V.GetColumn(0));
+         Vr.SetCol(1,V.GetColumn(0));
+         Vr.SetCol(2,V.GetColumn(2));
+         Vr.SetCol(3,V.GetColumn(3));
+
+         // Imag part of eigenvectors
+         Vector vi(4); V.GetColumn(1,vi);
+         Vi.SetCol(0,vi); vi *= -1.;
+         Vi.SetCol(1,vi);
+         Vi.SetCol(2,0.);
+         Vi.SetCol(3,0.);
+
+         // check A * V -  M * V * L
+         // or  A * Vr = M*Vr * Lambda_r -  M*Vi * Lambda_i
+         // and A * Vi = M*Vr * Lambda_i +  M*Vi * Lambda_r
+         DenseMatrix AVr(4); Mult(A,Vr, AVr);
+         DenseMatrix AVi(4); Mult(A,Vi, AVi);
+         DenseMatrix MVr(4); Mult(M,Vr,MVr);
+         DenseMatrix MVi(4); Mult(M,Vi,MVi);
+
+         DenseMatrix MVrlr = MVr; MVrlr.RightScaling(Lambda_r);
+         DenseMatrix MVrli = MVr; MVrli.RightScaling(Lambda_i);
+         DenseMatrix MVilr = MVi; MVilr.RightScaling(Lambda_r);
+         DenseMatrix MVili = MVi; MVili.RightScaling(Lambda_i);
+
+         AVr -= MVrlr; AVr+= MVili;
+         AVi -= MVrli; AVi-= MVilr;
+
+         REQUIRE(AVr.MaxMaxNorm() == MFEM_Approx(0.));
+         REQUIRE(AVi.MaxMaxNorm() == MFEM_Approx(0.));
+
+         DenseMatrix & W = geig.LeftEigenvectors();
+         DenseMatrix Wr(4), Wi(4);
+         Wr.SetCol(0,W.GetColumn(0));
+         Wr.SetCol(1,W.GetColumn(0));
+         Wr.SetCol(2,W.GetColumn(2));
+         Wr.SetCol(3,W.GetColumn(3));
+
+         // Imag part of eigenvectors
+         Vector wi(4); W.GetColumn(1,wi);
+         Wi.SetCol(0,wi); wi *= -1.;
+         Wi.SetCol(1,wi);
+         Wi.SetCol(2,0.);
+         Wi.SetCol(3,0.);
+
+         // check W' * A - L * W' * M
+         // or  Wr^t * A = Lambda_r * Wr^t * M + Lambda_i * Wi^t * M
+         // and Wi^t * A = Lambda_r * Wi^t * M - Lambda_i * Wr^t * M
+         DenseMatrix WrtA(4); MultAtB(Wr,A, WrtA);
+         DenseMatrix WitA(4); MultAtB(Wi,A, WitA);
+         DenseMatrix WrtM(4); MultAtB(Wr,M,WrtM);
+         DenseMatrix WitM(4); MultAtB(Wi,M,WitM);
+
+         DenseMatrix lrWrtM = WrtM; lrWrtM.LeftScaling(Lambda_r);
+         DenseMatrix liWrtM = WrtM; liWrtM.LeftScaling(Lambda_i);
+         DenseMatrix lrWitM = WitM; lrWitM.LeftScaling(Lambda_r);
+         DenseMatrix liWitM = WitM; liWitM.LeftScaling(Lambda_i);
+
+         WrtA -= lrWrtM; WrtA-= liWitM;
+         WitA -= lrWitM; WitA+= liWrtM;
+
+         REQUIRE(WrtA.MaxMaxNorm() == MFEM_Approx(0.));
+         REQUIRE(WitA.MaxMaxNorm() == MFEM_Approx(0.));
       }
       break;
       case TestCase::SVD:
@@ -431,10 +492,8 @@ TEST_CASE("Eigensystem Problems",
          DenseMatrix &U = svd.LeftSingularvectors();
          DenseMatrix &V = svd.RightSingularvectors();
 
-         DenseMatrix Vt(V);
-         Vt.Transpose();
-         DenseMatrix USVt(4);
-         MultADBt(U,sigma,Vt,USVt);
+         DenseMatrix Vt(V); Vt.Transpose();
+         DenseMatrix USVt(4); MultADBt(U,sigma,Vt,USVt);
 
          USVt -= M;
 
