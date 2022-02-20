@@ -34,50 +34,56 @@ CurlEvaluator::CurlEvaluator(ParFiniteElementSpace &fes_) : fes(fes_)
 
 void CurlEvaluator::CountElementsPerDof()
 {
+   // We count the number of elements containing each DOF
+
+   // First, we fill an E-vector with ones, and then use the element restriction
+   // transpose to obtain an L-vector with the number of *local* elements
+   // containing each DOF.
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const ElementRestriction *el_restr =
-      dynamic_cast<const ElementRestriction*>(fes.GetElementRestriction(ordering));
-   MFEM_ASSERT(el_restr != NULL, "Bad element restriction.")
+   const Operator *el_restr = fes.GetElementRestriction(ordering);
 
    Vector evec(el_restr->Height());
    Vector lvec(el_restr->Width());
    evec.UseDevice(true);
    lvec.UseDevice(true);
    evec = 1.0;
-   el_restr->MultTransposeUnsigned(evec, lvec);
+   el_restr->MultTranspose(evec, lvec);
 
+   // Use the group communicator reduction to obtain an L-vector with the
+   // *total* number of elements (across all MPI ranks) containing each DOF.
    const GroupCommunicator &gcomm = fes.GroupComm();
    gcomm.Reduce(lvec.HostReadWrite(), GroupCommunicator::Sum);
    gcomm.Bcast(lvec.HostReadWrite());
 
-   const Table &e2dTable = fes.GetElementToDofTable();
-
+   // Place the resulting L-vector into an array of dimension (ndof, ne),
+   // where ndof is the number of DOFs per element, and ne is the number of
+   // elements. *Note:* it is important that we place the DOFs in
+   // *lexicographic* order in this array.
    const int ne = fes.GetNE();
    const int ndof = fes.GetFE(0)->GetDof();
 
    els_per_dof.SetSize(ne*ndof);
 
-   const int *element_map = mfem::Read(e2dTable.GetJMemory(),
-                                       e2dTable.Size_of_connections(), true);
+   const Table &e2dTable = fes.GetElementToDofTable();
+   auto nodal_fe = dynamic_cast<const NodalFiniteElement*>(fes.GetFE(0));
+   MFEM_VERIFY(nodal_fe != nullptr, "NodalFiniteElement is required.")
+
+   const int *d_element_map =
+      mfem::Read(e2dTable.GetJMemory(), e2dTable.Size_of_connections(), true);
+   const int *d_lex = nodal_fe->GetLexicographicOrdering().Read();
    const double *d_lvec = lvec.Read();
    auto d_els_per_dof = Reshape(els_per_dof.Write(), ndof, ne);
 
-   auto nodal_fe = dynamic_cast<const NodalFiniteElement*>(fes.GetFE(0));
-   MFEM_VERIFY(nodal_fe != nullptr, "NodalFiniteElement is required.")
-   const Array<int> &lex = nodal_fe->GetLexicographicOrdering();
-   const int *d_lex = lex.Read();
-
-   for (int e = 0; e < ne; ++e)
+   MFEM_FORALL(e, ne,
    {
       for (int j = 0; j < ndof; ++j)
       {
          int d = d_lex[j];
-         const int sgid = element_map[ndof*e + d];  // signed
+         const int sgid = d_element_map[ndof*e + d];
          const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          d_els_per_dof(j, e) = d_lvec[gid];
-         // printf("(%d, %d) = %d\n", j, e, d_els_per_dof(j, e));
       }
-   }
+   });
 }
 
 void CurlEvaluator::ComputeCurlLegacy_(
