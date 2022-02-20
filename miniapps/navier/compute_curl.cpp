@@ -68,8 +68,12 @@ void CurlEvaluator::CountElementsPerDof()
    auto nodal_fe = dynamic_cast<const NodalFiniteElement*>(fes.GetFE(0));
    MFEM_VERIFY(nodal_fe != nullptr, "NodalFiniteElement is required.")
 
-   const int *d_element_map =
-      mfem::Read(e2dTable.GetJMemory(), e2dTable.Size_of_connections(), true);
+   // Make a copy, because otherwise we get "invalid host pointer access" when
+   // the table is used later (device ptr cannot be valid for operator[]).
+   Array<int> J(e2dTable.Size_of_connections());
+   J.CopyFrom(e2dTable.GetJ());
+
+   const int *d_element_map = J.Read();
    const int *d_lex = nodal_fe->GetLexicographicOrdering().Read();
    const double *d_lvec = lvec.Read();
    auto d_els_per_dof = Reshape(els_per_dof.Write(), ndof, ne);
@@ -256,6 +260,7 @@ void CurlEvaluator::ComputeCurlPA_(
          auto nodal_fe = dynamic_cast<const NodalFiniteElement*>(&fe);
          MFEM_VERIFY(nodal_fe != nullptr, "NodalFiniteElement is required.")
          const Array<int> &lex = nodal_fe->GetLexicographicOrdering();
+         lex.HostRead();
          for (int i = 0; i < ir_lex.Size(); ++i)
          {
             ir_lex[i] = ir[lex[i]];
