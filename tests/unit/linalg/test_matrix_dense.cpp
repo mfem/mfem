@@ -344,7 +344,6 @@ TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
 
 #ifdef MFEM_USE_LAPACK
 
-
 enum class TestCase { GenEigSPD, GenEigGE, SVD};
 std::string TestCaseName(TestCase testcase)
 {
@@ -485,9 +484,8 @@ TEST_CASE("Eigensystem Problems",
       break;
       case TestCase::SVD:
       {
-         DenseMatrix Mc(M);
-         DenseMatrixSVD svd(Mc,true,true);
-         svd.Eval(Mc);
+         DenseMatrixSVD svd(M,true,true);
+         svd.Eval(M);
          Vector &sigma = svd.Singularvalues();
          DenseMatrix &U = svd.LeftSingularvectors();
          DenseMatrix &V = svd.RightSingularvectors();
