@@ -18,7 +18,6 @@ using namespace navier;
 CurlEvaluator::CurlEvaluator(ParFiniteElementSpace &fes_) : fes(fes_)
 {
    dim = fes_.GetMesh()->Dimension();
-
    if (dim == 2)
    {
       scalar_fes = new ParFiniteElementSpace(fes.GetParMesh(), fes.FEColl());
@@ -32,6 +31,12 @@ CurlEvaluator::CurlEvaluator(ParFiniteElementSpace &fes_) : fes(fes_)
 }
 
 ParFiniteElementSpace &CurlEvaluator::GetCurlSpace()
+{
+   if (scalar_fes) { return *scalar_fes; }
+   else { return fes; }
+}
+
+const ParFiniteElementSpace &CurlEvaluator::GetCurlSpace() const
 {
    if (scalar_fes) { return *scalar_fes; }
    else { return fes; }
@@ -153,6 +158,104 @@ void CurlEvaluator::ComputeCurl(
    }
 }
 
+void CurlEvaluator::ComputeCurlPA(
+   const ParGridFunction &u, ParGridFunction &curl_u) const
+{
+   const FiniteElementSpace &dom_fes = *u.FESpace();
+   const FiniteElementSpace &ran_fes = *curl_u.FESpace();
+
+   ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *dom_el_restr = dom_fes.GetElementRestriction(ordering);
+   const ElementRestriction *ran_el_restr =
+      dynamic_cast<const ElementRestriction*>(
+         ran_fes.GetElementRestriction(ordering));
+   MFEM_ASSERT(ran_el_restr != NULL, "Bad element restriction.")
+
+   const int dom_vdim = dom_fes.GetVDim();
+   const int ran_vdim = ran_fes.GetVDim();
+   const bool is_scalar = dom_vdim == 1;
+
+   // Make sure internal E-vectors have correct size
+   u_evec.SetSize(dom_el_restr->Height());
+   du_evec.SetSize(dom_el_restr->Height()*dim);
+   curl_u_evec.SetSize(ran_el_restr->Height());
+
+   // Convert from L-vector to E-vector
+   dom_el_restr->Mult(u, u_evec);
+
+   const FiniteElement &fe = *dom_fes.GetFE(0);
+
+   // If the QuadratureInterpolator is not already constructed, create it.
+   auto quad_interp = is_scalar ? scalar_quad_interp : vector_quad_interp;
+   if (!quad_interp)
+   {
+      if (ir_lex.Size() == 0)
+      {
+         const IntegrationRule &ir = fe.GetNodes();
+         ir_lex.SetSize(ir.Size());
+         auto nodal_fe = dynamic_cast<const NodalFiniteElement*>(&fe);
+         MFEM_VERIFY(nodal_fe != nullptr, "NodalFiniteElement is required.")
+         const Array<int> &lex = nodal_fe->GetLexicographicOrdering();
+         for (int i = 0; i < ir_lex.Size(); ++i)
+         {
+            ir_lex[i] = ir[lex[i]];
+         }
+      }
+      quad_interp = new QuadratureInterpolator(dom_fes, ir_lex);
+      // This is the default layout, setting here explicitly for clarity.
+      quad_interp->SetOutputLayout(QVectorLayout::byNODES);
+   }
+
+   // Compute physical derivatives element-by-element
+   quad_interp->PhysDerivatives(u_evec, du_evec);
+
+   const int ne = fes.GetNE();
+   const int ndof = fe.GetDof();
+
+   const auto d_u = Reshape(du_evec.Read(), ndof, dom_vdim, dim, ne);
+   const auto d_curl = Reshape(curl_u_evec.Write(), ndof, ran_vdim, ne);
+
+   if (dim == 2)
+   {
+      if (is_scalar)
+      {
+         MFEM_FORALL(i, ne,
+         {
+            for (int j = 0; j < ndof; ++ j)
+            {
+               d_curl(j, 0, i) = d_u(j, 0, 1, i);
+               d_curl(j, 1, i) = -d_u(j, 0, 0, i);
+            }
+         });
+      }
+      else
+      {
+         MFEM_FORALL(i, ne,
+         {
+            for (int j = 0; j < ndof; ++ j)
+            {
+               d_curl(j, 0, i) = d_u(j, 1, 0, i) - d_u(j, 0, 1, i);
+            }
+         });
+      }
+   }
+   else if (dim == 3)
+   {
+      MFEM_FORALL(i, ne,
+      {
+         for (int j = 0; j < ndof; ++ j)
+         {
+            d_curl(j, 0, i) = d_u(j, 2, 1, i) - d_u(j, 1, 2, i);
+            d_curl(j, 1, i) = d_u(j, 0, 2, i) - d_u(j, 2, 0, i);
+            d_curl(j, 2, i) = d_u(j, 1, 0, i) - d_u(j, 0, 1, i);
+         }
+      });
+   }
+
+   // Convert from E-vector to L-vector by averaging
+   ran_el_restr->MultTransposeAveraged(curl_u_evec, curl_u);
+}
+
 void CurlEvaluator::ComputeCurlCurl(
    const ParGridFunction &u, ParGridFunction &curl_curl_u) const
 {
@@ -160,7 +263,16 @@ void CurlEvaluator::ComputeCurlCurl(
    ComputeCurl(curl_u, curl_curl_u);
 }
 
+void CurlEvaluator::ComputeCurlCurlPA(
+   const ParGridFunction &u, ParGridFunction &curl_curl_u) const
+{
+   ComputeCurlPA(u, curl_u);
+   ComputeCurlPA(curl_u, curl_curl_u);
+}
+
 CurlEvaluator::~CurlEvaluator()
 {
+   delete scalar_quad_interp;
+   delete vector_quad_interp;
    delete scalar_fes;
 }

@@ -22,8 +22,8 @@ namespace navier
 /// Class to evaluate the curl and curl-curl of grid functions.
 class CurlEvaluator
 {
-private:
-   /// Vector valued finitee element space (the domain of the curl operation)
+protected:
+   /// Vector valued finite element space (the domain of the curl operation)
    ParFiniteElementSpace &fes;
    /// Corresponding scalar-valued space in 2D, NULL in 3D.
    ParFiniteElementSpace *scalar_fes;
@@ -31,6 +31,22 @@ private:
    int dim;
    /// Internal grid function used when computing the curl-curl.
    mutable ParGridFunction curl_u;
+   /// @name Partial assembly
+   ///@{
+
+   /// Nodal points in lexicographic ordering
+   mutable IntegrationRule ir_lex;
+   ///@{
+   /// @name Quadrature interpolators used for PA computations
+   mutable QuadratureInterpolator *vector_quad_interp = nullptr;
+   mutable QuadratureInterpolator *scalar_quad_interp = nullptr;
+   ///@}
+   ///@{
+   /// @name Internal vectors used for PA computations
+   mutable Vector u_evec, du_evec, curl_u_evec;
+   ///@}
+
+   ///@}
 
 public:
    /// @brief Create an object to evaluate the curl and curl-curl of grid
@@ -48,6 +64,9 @@ public:
    /// construct this object.
    ParFiniteElementSpace &GetCurlSpace();
 
+   /// @a const version of GetCurlSpace().
+   const ParFiniteElementSpace &GetCurlSpace() const;
+
    /// @brief Compute the curl of @a u and place the result in @a curl_u.
    ///
    /// In 3D, the grid functions @a u and @a curl_u should belong to the space used to construct
@@ -60,6 +79,11 @@ public:
    /// 2. The grid function @a u belongs to the scalar space @a scalar_fes, and
    ///    @a curl_u belongs to the vector-valued space @a fes.
    void ComputeCurl(const ParGridFunction &u, ParGridFunction &curl_u) const;
+
+   void ComputeCurlPA(const ParGridFunction &u, ParGridFunction &curl_u) const;
+
+   void ComputeCurlCurlPA(
+      const ParGridFunction &u, ParGridFunction &curl_curl_u) const;
 
    /// @brief Compute the curl-curl of @a u and place the result in
    /// @a curl_curl_u.
