@@ -32,18 +32,6 @@ CurlEvaluator::CurlEvaluator(ParFiniteElementSpace &fes_) : fes(fes_)
    CountElementsPerDof();
 }
 
-ParFiniteElementSpace &CurlEvaluator::GetCurlSpace()
-{
-   if (scalar_fes) { return *scalar_fes; }
-   else { return fes; }
-}
-
-const ParFiniteElementSpace &CurlEvaluator::GetCurlSpace() const
-{
-   if (scalar_fes) { return *scalar_fes; }
-   else { return fes; }
-}
-
 void CurlEvaluator::CountElementsPerDof()
 {
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -324,6 +312,18 @@ void CurlEvaluator::ComputeCurlPA_(
 
    ran_el_restr->MultTranspose(curl_u_evec, ran_gf);
    ran_gf.ParallelAssemble(curl_u);
+}
+
+ParFiniteElementSpace &CurlEvaluator::GetCurlSpace()
+{
+   if (scalar_fes) { return *scalar_fes; }
+   else { return fes; }
+}
+
+const ParFiniteElementSpace &CurlEvaluator::GetCurlSpace() const
+{
+   if (scalar_fes) { return *scalar_fes; }
+   else { return fes; }
 }
 
 void CurlEvaluator::ComputeCurl(const Vector &u, Vector &curl_u) const
