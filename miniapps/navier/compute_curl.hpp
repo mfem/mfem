@@ -29,12 +29,16 @@ protected:
    ParFiniteElementSpace *scalar_fes;
    /// Spatial dimension, either 2 or 3.
    int dim;
-   /// Internal grid function used when computing the curl-curl.
-   mutable ParGridFunction curl_u;
+   /// Internal vector used when computing the curl-curl.
+   mutable Vector u_curl_tmp;
+
    /// @name Partial assembly
    ///@{
 
-   /// Nodal points in lexicographic ordering
+   /// Is partial assembly enabled?
+   bool partial_assembly = false;
+
+   /// Nodal points in lexicographic ordering.
    mutable IntegrationRule ir_lex;
    ///@{
    /// @name Quadrature interpolators used for PA computations
@@ -44,10 +48,31 @@ protected:
    ///@{
    /// @name Internal vectors used for PA computations
    mutable Vector u_evec, du_evec, curl_u_evec;
+   mutable ParGridFunction curl_u_gf;
+   mutable ParGridFunction u_gf;
    ///@}
 
    ///@}
 
+   /// @brief Used internally to compute the curl and perpendicular gradient.
+   ///
+   /// In 3D, @a perp_grad must be false. In 2D, if @a perp_grad is true, the
+   /// result is the perpendicular gradient of a scalar field. If @a perp_grad
+   /// is false, the result is the (scalar) curl of a vector field.
+   void ComputeCurlPA_(const Vector &u, Vector &curl_u, bool perp_grad) const;
+
+   /// @brief Used internally to compute the curl and perpendicular gradient.
+   ///
+   /// In 3D, @a perp_grad must be false. In 2D, if @a perp_grad is true, the
+   /// result is the perpendicular gradient of a scalar field. If @a perp_grad
+   /// is false, the result is the (scalar) curl of a vector field.
+   void ComputeCurlLegacy_(const Vector &u, Vector &curl_u, bool perp_grad) const;
+
+   /// Computes curl-curl using the legacy algorithm.
+   void ComputeCurlCurlLegacy(const Vector &u, Vector &curl_curl_u) const;
+
+   /// Computes curl-curl using the partial assemble algorithm.
+   void ComputeCurlCurlPA(const Vector &u, Vector &curl_curl_u) const;
 public:
    /// @brief Create an object to evaluate the curl and curl-curl of grid
    /// functions in @a fes.
@@ -67,31 +92,28 @@ public:
    /// @a const version of GetCurlSpace().
    const ParFiniteElementSpace &GetCurlSpace() const;
 
-   /// @brief Compute the curl of @a u and place the result in @a curl_u.
-   ///
-   /// In 3D, the grid functions @a u and @a curl_u should belong to the space used to construct
-   /// this object.
-   ///
-   /// In 2D, there are two options:
-   ///
-   /// 1. The grid function @a u belongs to the vector-valued space @a fes, and
-   ///    @a curl_u belongs to its scalar counterpart @a scalar_fes.
-   /// 2. The grid function @a u belongs to the scalar space @a scalar_fes, and
-   ///    @a curl_u belongs to the vector-valued space @a fes.
-   void ComputeCurl(const ParGridFunction &u, ParGridFunction &curl_u) const;
-
-   void ComputeCurlPA(const ParGridFunction &u, ParGridFunction &curl_u) const;
-
-   void ComputeCurlCurlPA(
-      const ParGridFunction &u, ParGridFunction &curl_curl_u) const;
-
    /// @brief Compute the curl-curl of @a u and place the result in
    /// @a curl_curl_u.
    ///
-   /// The grid function @a u should belong to the space used to construct this
-   /// object.
-   void ComputeCurlCurl(const ParGridFunction &u,
-                        ParGridFunction &curl_curl_u) const;
+   /// The input and output vectors should be vector-valued T-DOF vectors
+   /// belonging to the space used to construct this object.
+   void ComputeCurlCurl(const Vector &u, Vector &curl_curl_u) const;
+
+   /// @brief Compute the perpendicular gradient in 2D of @a u and place the
+   /// result in @a perp_grad_u.
+   ///
+   /// The input vector @a u should be a scalar-valued T-DOF vector, and the
+   /// output vector should be a vector-valued T-DOF vector.
+   void ComputePerpGrad(const Vector &u, Vector &perp_grad_u) const;
+
+   /// @brief Compute the curl of @a u and place the result in @a curl_u.
+   ///
+   /// The input vector @a u should be a vector-valued T-DOF vector. In 3D, the
+   /// output vector should be a vector-valued T-DOF vector, and in 2D it should
+   /// be a scalar-valued TDOF-vector.
+   void ComputeCurl(const Vector &u, Vector &curl_u) const;
+
+   void EnablePA(bool enable_pa) { partial_assembly = enable_pa; }
 
    ~CurlEvaluator();
 };

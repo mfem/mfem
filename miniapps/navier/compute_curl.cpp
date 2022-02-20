@@ -21,13 +21,13 @@ CurlEvaluator::CurlEvaluator(ParFiniteElementSpace &fes_) : fes(fes_)
    if (dim == 2)
    {
       scalar_fes = new ParFiniteElementSpace(fes.GetParMesh(), fes.FEColl());
-      curl_u.SetSpace(scalar_fes);
    }
    else
    {
       scalar_fes = nullptr;
-      curl_u.SetSpace(&fes);
    }
+   u_gf.SetSpace(&fes);
+   curl_u_gf.SetSpace(&GetCurlSpace());
 }
 
 ParFiniteElementSpace &CurlEvaluator::GetCurlSpace()
@@ -42,43 +42,48 @@ const ParFiniteElementSpace &CurlEvaluator::GetCurlSpace() const
    else { return fes; }
 }
 
-void CurlEvaluator::ComputeCurl(
-   const ParGridFunction &u, ParGridFunction &curl_u) const
+void CurlEvaluator::ComputeCurlLegacy_(
+   const Vector &u, Vector &curl_u, bool perp_grad) const
 {
-   // For now, on host. TODO: do this computation on device
-   u.HostRead();
+   // If perp_grad is true, we are computing the perpendicular gradient of a
+   // scalar field (in 2D). If perp_grad is false, we are computing the curl of
+   // a vector field.
+   const ParFiniteElementSpace &dom_fes = perp_grad ? GetCurlSpace() : fes;
+   const ParFiniteElementSpace &ran_fes = perp_grad ? fes : GetCurlSpace();
 
-   const FiniteElementSpace *dom_fes = u.FESpace();
-   const FiniteElementSpace *ran_fes = curl_u.FESpace();
+   ParGridFunction &dom_gf = perp_grad ? curl_u_gf : u_gf;
+   ParGridFunction &ran_gf = perp_grad ? u_gf : curl_u_gf;
 
    // AccumulateAndCountZones.
    Array<int> zones_per_vdof;
-   zones_per_vdof.SetSize(ran_fes->GetVSize());
+   zones_per_vdof.SetSize(ran_fes.GetVSize());
    zones_per_vdof = 0;
 
-   curl_u = 0.0;
-   curl_u.HostReadWrite();
+   dom_gf.Distribute(u);
+
+   ran_gf = 0.0;
+   ran_gf.HostReadWrite();
 
    // Local interpolation.
    int elndofs;
    Array<int> dom_dofs, ran_dofs;
    Vector vals;
    Vector loc_data;
-   int dom_vdim = dom_fes->GetVDim();
+   int dom_vdim = dom_fes.GetVDim();
    DenseMatrix grad_hat;
    DenseMatrix dshape;
    DenseMatrix grad;
    Vector curl;
 
-   for (int e = 0; e < dom_fes->GetNE(); ++e)
+   for (int e = 0; e < dom_fes.GetNE(); ++e)
    {
-      dom_fes->GetElementVDofs(e, dom_dofs);
-      ran_fes->GetElementVDofs(e, ran_dofs);
+      dom_fes.GetElementVDofs(e, dom_dofs);
+      ran_fes.GetElementVDofs(e, ran_dofs);
 
-      u.GetSubVector(dom_dofs, loc_data);
+      dom_gf.GetSubVector(dom_dofs, loc_data);
       vals.SetSize(ran_dofs.Size());
-      ElementTransformation *tr = dom_fes->GetElementTransformation(e);
-      const FiniteElement *el = dom_fes->GetFE(e);
+      ElementTransformation *tr = dom_fes.GetElementTransformation(e);
+      const FiniteElement *el = dom_fes.GetFE(e);
       elndofs = el->GetDof();
       int dim = el->GetDim();
       dshape.SetSize(elndofs, dim);
@@ -131,7 +136,7 @@ void CurlEvaluator::ComputeCurl(
       for (int j = 0; j < ran_dofs.Size(); j++)
       {
          int ldof = ran_dofs[j];
-         curl_u(ldof) += vals[j];
+         ran_gf(ldof) += vals[j];
          zones_per_vdof[ldof]++;
       }
    }
@@ -139,30 +144,39 @@ void CurlEvaluator::ComputeCurl(
    // Communication.
 
    // Count the zones globally.
-   GroupCommunicator &gcomm = u.ParFESpace()->GroupComm();
+   const GroupCommunicator &gcomm = ran_fes.GroupComm();
    gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
    gcomm.Bcast(zones_per_vdof);
 
    // Accumulate for all vdofs.
-   gcomm.Reduce<double>(curl_u.GetData(), GroupCommunicator::Sum);
-   gcomm.Bcast<double>(curl_u.GetData());
+   gcomm.Reduce<double>(ran_gf.GetData(), GroupCommunicator::Sum);
+   gcomm.Bcast<double>(ran_gf.GetData());
 
    // Compute means.
-   for (int i = 0; i < curl_u.Size(); i++)
+   for (int i = 0; i < ran_gf.Size(); i++)
    {
       const int nz = zones_per_vdof[i];
       if (nz)
       {
-         curl_u(i) /= nz;
+         ran_gf(i) /= nz;
       }
    }
+
+   ran_gf.ParallelProject(curl_u);
 }
 
-void CurlEvaluator::ComputeCurlPA(
-   const ParGridFunction &u, ParGridFunction &curl_u) const
+void CurlEvaluator::ComputeCurlPA_(
+   const Vector &u, Vector &curl_u, bool perp_grad) const
 {
-   const FiniteElementSpace &dom_fes = *u.FESpace();
-   const FiniteElementSpace &ran_fes = *curl_u.FESpace();
+   MFEM_ASSERT(!perp_grad || dim == 2, "Cannot compute perp grad in 3D");
+   // If perp_grad is true, we are computing the perpendicular gradient of a
+   // scalar field (in 2D). If perp_grad is false, we are computing the curl of
+   // a vector field.
+   const FiniteElementSpace &dom_fes = perp_grad ? GetCurlSpace() : fes;
+   const FiniteElementSpace &ran_fes = perp_grad ? fes : GetCurlSpace();
+
+   ParGridFunction &dom_gf = perp_grad ? curl_u_gf : u_gf;
+   ParGridFunction &ran_gf = perp_grad ? u_gf : curl_u_gf;
 
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *dom_el_restr = dom_fes.GetElementRestriction(ordering);
@@ -180,8 +194,10 @@ void CurlEvaluator::ComputeCurlPA(
    du_evec.SetSize(dom_el_restr->Height()*dim);
    curl_u_evec.SetSize(ran_el_restr->Height());
 
+   // Convert from T-vector to L-vector
+   dom_gf.Distribute(u);
    // Convert from L-vector to E-vector
-   dom_el_restr->Mult(u, u_evec);
+   dom_el_restr->Mult(dom_gf, u_evec);
 
    const FiniteElement &fe = *dom_fes.GetFE(0);
 
@@ -253,21 +269,49 @@ void CurlEvaluator::ComputeCurlPA(
    }
 
    // Convert from E-vector to L-vector by averaging
-   ran_el_restr->MultTransposeAveraged(curl_u_evec, curl_u);
+   ran_el_restr->MultTransposeAveraged(curl_u_evec, ran_gf);
+   // Convert from L-vector to T-vector by averaging
+   ran_gf.ParallelAverage(curl_u);
+}
+
+void CurlEvaluator::ComputeCurl(const Vector &u, Vector &curl_u) const
+{
+   if (partial_assembly)
+   {
+      ComputeCurlPA_(u, curl_u, false);
+   }
+   else
+   {
+      ComputeCurlLegacy_(u, curl_u, false);
+   }
+}
+
+void CurlEvaluator::ComputePerpGrad(const Vector &u, Vector &perp_grad_u) const
+{
+   if (partial_assembly)
+   {
+      ComputeCurlPA_(u, perp_grad_u, true);
+   }
+   else
+   {
+      ComputeCurlLegacy_(u, perp_grad_u, true);
+   }
 }
 
 void CurlEvaluator::ComputeCurlCurl(
-   const ParGridFunction &u, ParGridFunction &curl_curl_u) const
+   const Vector &u, Vector &curl_curl_u) const
 {
-   ComputeCurl(u, curl_u);
-   ComputeCurl(curl_u, curl_curl_u);
-}
-
-void CurlEvaluator::ComputeCurlCurlPA(
-   const ParGridFunction &u, ParGridFunction &curl_curl_u) const
-{
-   ComputeCurlPA(u, curl_u);
-   ComputeCurlPA(curl_u, curl_curl_u);
+   u_curl_tmp.SetSize(GetCurlSpace().GetTrueVSize());
+   if (dim == 2)
+   {
+      ComputeCurl(u, u_curl_tmp);
+      ComputePerpGrad(u_curl_tmp, curl_curl_u);
+   }
+   else if (dim == 3)
+   {
+      ComputeCurl(u, u_curl_tmp);
+      ComputeCurl(u_curl_tmp, curl_curl_u);
+   }
 }
 
 CurlEvaluator::~CurlEvaluator()

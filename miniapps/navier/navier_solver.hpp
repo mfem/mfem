@@ -389,12 +389,12 @@ protected:
    CGSolver *HInv = nullptr;
 
    Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext,
-          resu;
+          resu, curlcurlu;
    Vector tmp1;
 
    Vector pn, resp, FText_bdr, g_bdr;
 
-   ParGridFunction un_gf, un_next_gf, curlcurlu_gf, Lext_gf, FText_gf, resu_gf;
+   ParGridFunction un_gf, un_next_gf, FText_gf, resu_gf;
 
    ParGridFunction pn_gf, resp_gf;
 

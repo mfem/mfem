@@ -68,6 +68,7 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    Fext.SetSize(vfes_truevsize);
    FText.SetSize(vfes_truevsize);
    Lext.SetSize(vfes_truevsize);
+   curlcurlu.SetSize(vfes_truevsize);
    resu.SetSize(vfes_truevsize);
 
    tmp1.SetSize(vfes_truevsize);
@@ -84,8 +85,6 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    un_next_gf.SetSpace(vfes);
    un_next_gf = 0.0;
 
-   Lext_gf.SetSpace(vfes);
-   curlcurlu_gf.SetSpace(vfes);
    FText_gf.SetSpace(vfes);
    resu_gf.SetSpace(vfes);
 
@@ -473,10 +472,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
                               ab3_ * d_unm2[i];);
    }
 
-   Lext_gf.SetFromTrueDofs(Lext);
-   curl_evaluator->ComputeCurlCurl(Lext_gf, curlcurlu_gf);
-   curlcurlu_gf.GetTrueDofs(Lext);
-   Lext *= kin_vis;
+   curl_evaluator->ComputeCurlCurl(Lext, curlcurlu);
+   Lext.Set(kin_vis, curlcurlu);
 
    sw_curlcurl.Stop();
 
