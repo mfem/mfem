@@ -66,11 +66,6 @@ extern "C" void
 dggev_(char *jobvl, char *jobvr, int *n, double *a, int *lda, double *B,
        int *ldb, double *alphar, double *alphai, double *beta, double *vl,
        int * ldvl, double * vr, int * ldvr, double * work, int * lwork, int* info);
-
-
-
-
-
 #endif
 
 
@@ -3300,6 +3295,7 @@ DenseMatrixInverse::~DenseMatrixInverse()
    delete [] lu.ipiv;
 }
 
+#ifdef MFEM_USE_LAPACK
 
 DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    : mat(m)
@@ -3309,7 +3305,6 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    EVect.SetSize(n);
    ev.SetDataAndSize(NULL, n);
 
-#ifdef MFEM_USE_LAPACK
    jobz = 'V';
    uplo = 'U';
    lwork = -1;
@@ -3319,7 +3314,6 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
 
    lwork = (int) qwork;
    work = new double[lwork];
-#endif
 }
 
 DenseMatrixEigensystem::DenseMatrixEigensystem(
@@ -3327,13 +3321,11 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(
    : mat(other.mat), EVal(other.EVal), EVect(other.EVect), ev(NULL, other.n),
      n(other.n)
 {
-#ifdef MFEM_USE_LAPACK
    jobz = other.jobz;
    uplo = other.uplo;
    lwork = other.lwork;
 
    work = new double[lwork];
-#endif
 }
 
 void DenseMatrixEigensystem::Eval()
@@ -3345,7 +3337,6 @@ void DenseMatrixEigensystem::Eval()
    }
 #endif
 
-#ifdef MFEM_USE_LAPACK
    EVect = mat;
    dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
           work, &lwork, &info);
@@ -3356,16 +3347,11 @@ void DenseMatrixEigensystem::Eval()
                 << info << endl;
       mfem_error();
    }
-#else
-   mfem_error("DenseMatrixEigensystem::Eval(): Compiled without LAPACK");
-#endif
 }
 
 DenseMatrixEigensystem::~DenseMatrixEigensystem()
 {
-#ifdef MFEM_USE_LAPACK
    delete [] work;
-#endif
 }
 
 
@@ -3380,7 +3366,6 @@ DenseMatrixGeneralizedEigensystem::DenseMatrixGeneralizedEigensystem(
    n = A.Width();
    MFEM_VERIFY(B.Height() == n, "A and B dimension mismatch");
 
-#ifdef MFEM_USE_LAPACK
    jobvl = 'N';
    jobvr = 'N';
    A_copy.SetSize(n);
@@ -3413,16 +3398,10 @@ DenseMatrixGeneralizedEigensystem::DenseMatrixGeneralizedEigensystem(
    lwork = (int) qwork;
    work = new double[lwork];
 
-#else
-   mfem_error("DenseMatrixGeneralizedEigensystem:: Compiled without LAPACK");
-#endif
-
 }
 
 void DenseMatrixGeneralizedEigensystem::Eval()
 {
-#ifdef MFEM_USE_LAPACK
-
    int nl = max(1,Vl.Height());
    int nr = max(1,Vr.Height());
 
@@ -3453,22 +3432,15 @@ void DenseMatrixGeneralizedEigensystem::Eval()
          evalues_i(i) = infinity();
       }
    }
-#else
-   mfem_error("DenseMatrixGeneralizedEigensystem::Eval(): Compiled without LAPACK");
-#endif
-
 }
 
 DenseMatrixGeneralizedEigensystem::~DenseMatrixGeneralizedEigensystem()
 {
-#ifdef MFEM_USE_LAPACK
    delete [] alphar;
    delete [] alphai;
    delete [] beta;
    delete [] work;
-#endif
 }
-
 
 DenseMatrixSVD::DenseMatrixSVD(DenseMatrix &M,
                                bool left_singular_vectors,
@@ -3494,7 +3466,6 @@ DenseMatrixSVD::DenseMatrixSVD(int h, int w,
 
 void DenseMatrixSVD::Init()
 {
-#ifdef MFEM_USE_LAPACK
    sv.SetSize(min(m, n));
    double qwork;
    lwork = -1;
@@ -3503,9 +3474,6 @@ void DenseMatrixSVD::Init()
 
    lwork = (int) qwork;
    work = new double[lwork];
-#else
-   mfem_error("DenseMatrixSVD::Init(): Compiled without LAPACK");
-#endif
 }
 
 void DenseMatrixSVD::Eval(DenseMatrix &M)
@@ -3528,10 +3496,8 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
       Vt.SetSize(min(m,n),n);
       datavt = Vt.Data();
    }
-
-
-#ifdef MFEM_USE_LAPACK
-   dgesvd_(&jobu, &jobvt, &m, &n, M.Data(), &m, sv.GetData(), datau, &m,
+   Mc = M;
+   dgesvd_(&jobu, &jobvt, &m, &n, Mc.Data(), &m, sv.GetData(), datau, &m,
            datavt, &n, work, &lwork, &info);
 
    if (info)
@@ -3539,17 +3505,14 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
       mfem::err << "DenseMatrixSVD::Eval() : info = " << info << endl;
       mfem_error();
    }
-#else
-   mfem_error("DenseMatrixSVD::Eval(): Compiled without LAPACK");
-#endif
 }
 
 DenseMatrixSVD::~DenseMatrixSVD()
 {
-#ifdef MFEM_USE_LAPACK
    delete [] work;
-#endif
 }
+
+#endif // if MFEM_USE_LAPACK
 
 
 void DenseTensor::AddMult(const Table &elem_dof, const Vector &x, Vector &y)

@@ -685,6 +685,7 @@ public:
    virtual ~DenseMatrixInverse();
 };
 
+#ifdef MFEM_USE_LAPACK
 
 class DenseMatrixEigensystem
 {
@@ -693,13 +694,9 @@ class DenseMatrixEigensystem
    DenseMatrix EVect;
    Vector ev;
    int n;
-
-#ifdef MFEM_USE_LAPACK
    double *work;
    char jobz, uplo;
    int lwork, info;
-#endif
-
 public:
 
    DenseMatrixEigensystem(DenseMatrix &m);
@@ -728,14 +725,12 @@ class DenseMatrixGeneralizedEigensystem
    DenseMatrix Vl;
    int n;
 
-#ifdef MFEM_USE_LAPACK
    double *alphar;
    double *alphai;
    double *beta;
    double *work;
    char jobvl, jobvr;
    int lwork, info;
-#endif
 
 public:
 
@@ -755,6 +750,7 @@ public:
 
 class DenseMatrixSVD
 {
+   DenseMatrix Mc;
    Vector sv;
    DenseMatrix U,Vt;
    int m, n;
@@ -780,6 +776,8 @@ public:
    DenseMatrix &RightSingularvectors() { return Vt; }
    ~DenseMatrixSVD();
 };
+
+#endif // if MFEM_USE_LAPACK
 
 
 class Table;
