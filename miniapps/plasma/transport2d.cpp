@@ -3290,47 +3290,80 @@ public:
 
    The ion thermal parallel diffusion coefficient can be adjusted as
    can the 'a' and 'b' factors in the Robin BC. The Robin BC is defined as:
-      n chi_parallel Grad T + a n T = b
+
+      -qi.n + a Ti = b
+
+   Where the flux 'qi' is given by:
+
+      qi = - ni chi Grad Ti + (5/2 ni Ti + 1/2 mi ni vi^2) vi b_hat
+
+   The argument 'q' is the constant appearing in the temperature balance term:
+
+      Qi = q (Te - Ti)
+
+   Given by:
+
+      q = 3 (me ne) / (mi tau_e)
 */
 class RobinBCTestSol : public Coefficient
 {
 private:
+   const double mi_;
    const double ni_;
    const double Te_;
+   const double vi_;
    const double chi_;
    const double q_;
    const double a_;
    const double b_;
 
-   double k_;
-   double alpha_;
+   double alpha0_;
+   double alpha1_;
+   double kappa_;
+   double nu_;
 
    mutable Vector x_;
 
 public:
-   RobinBCTestSol(double ni, double Te,
+   RobinBCTestSol(double mi, double ni, double Te, double vi,
                   double chi, double q, double a, double b)
-      : ni_(ni), Te_(Te), chi_(chi), q_(q), a_(a), b_(b),
+      : mi_(mi * amu_ / eV_), ni_(ni), Te_(Te), vi_(vi),
+        chi_(chi), q_(q), a_(a), b_(b),
         x_(2)
    {
-      MFEM_VERIFY(ni_ > 0.0 && chi_ > 0.0 && q_ > 0.0,
-                  "RobinBCTestSol: parameters ni, chi, and q must be positive");
+      MFEM_VERIFY(mi_ > 0.0 && ni_ > 0.0 && chi_ > 0.0 && q_ > 0.0,
+                  "RobinBCTestSol: parameters mi, ni, chi, and q "
+                  "must be positive");
 
-      k_ = sqrt(q_ / (ni_ * chi_));
 
-      const double ck = cosh(k_);
-      const double sk = sinh(k_);
+      nu_ = 1.25 * vi_ / chi;
+      kappa_ = sqrt(q_ / (ni_ * chi_) + nu_ * nu_);
 
-      alpha_ = (b_ / ni_ - a_ * Te_) / (a_ * ck + k_ * chi_ * sk);
+      const double ev0 = exp(-nu_);
+      const double ev1 = exp(nu_);
+      const double ek = exp(kappa_);
+      const double ck = cosh(kappa_);
+      const double sk = sinh(kappa_);
+
+      const double zeta = ni_ * vi_ * (2.5 * Te_ + 0.5 * mi_ * vi_ * vi_);
+      const double d = 2.0 * ((ni_ * nu_ * a_ + q_) * sk +
+                              a_ * kappa_ * ni_ * ck);
+
+      alpha0_ = ((b_ + zeta - ni_ * Te_ * a_) * (kappa_ - nu_) * ev0 -
+                 zeta * (a_ / chi_ + kappa_ - nu_) * ek) / d;
+      alpha1_ = (zeta * (ni_ * a_ * (kappa_ - nu_) - q_) * ev1 +
+                 q_ * (b_ + zeta - ni_ * Te_ * a_) * ek
+                ) / (chi_ * ni_ * (kappa_ - nu_) * d);
    }
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       T.Transform(ip, x_);
 
-      double ckx = cosh(k_ * x_[0]);
+      double e0x = exp(-(kappa_ - nu_) * x_[0]);
+      double e1x = exp((kappa_ + nu_) * (x_[0] - 1.0));
 
-      return Te_ + alpha_ * ckx;
+      return Te_ + alpha0_ * e0x + alpha1_ * e1x;
    }
 };
 
@@ -3473,9 +3506,10 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
    }
    else if (name == "RobinBCTestSol")
    {
-      double ni, Te, chi, q, a, b;
-      input >> ni >> Te >> chi >> q >> a >> b;
-      coef_idx = sCoefs.Append(new RobinBCTestSol(ni, Te, chi, q, a, b));
+      double mi, ni, Te, vi, chi, q, a, b;
+      input >> mi >> ni >> Te >> vi >> chi >> q >> a >> b;
+      coef_idx = sCoefs.Append(new RobinBCTestSol(mi, ni, Te, vi,
+                                                  chi, q, a, b));
    }
    else
    {
