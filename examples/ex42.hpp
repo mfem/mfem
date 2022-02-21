@@ -1,26 +1,10 @@
-//                               Implementation of the AAA algorithm
-//
-//
-//
-//
-//
-//
-//
-//
-//
+//              Implementation of the AAA algorithm
 //
 //   REFERENCE
 //
 //   Nakatsukasa, Y., Sète, O., & Trefethen, L. N. (2018). The AAA
 //   algorithm for rational approximation. SIAM Journal on Scientific
 //   Computing, 40(3), A1494-A1522.
-
-
-extern "C" void
-dggev_(char *jobvl, char *jobvr, int *n, double *a, int *lda, double *B,
-       int *ldb, double *alphar, double *alphai, double *beta, double *vl,
-       int * ldvl, double * vr, int * ldvr, double * work, int * lwork, int* info);
-
 
 
 #include "mfem.hpp"
@@ -30,7 +14,6 @@ dggev_(char *jobvl, char *jobvr, int *n, double *a, int *lda, double *B,
 using namespace std;
 using namespace mfem;
 
-
 void RationalApproximation_AAA(const Vector &val, const Vector &pt,
                                Array<double> &z, Array<double> &f, Vector &w,
                                double tol, int max_order)
@@ -39,7 +22,6 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
    // number of sample points
    int size = val.Size();
    MFEM_VERIFY(pt.Size() == size, "size mismatch");
-
 
    // Initializations
    Array<int> J(size);
@@ -64,8 +46,6 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
       R(i) = mean_val;
    }
 
-   // mfem::out << "Val mean = " << mean_val << endl;
-   // Array<double> errors;
    for (int k = 0; k < max_order; k++)
    {
       // select next support point
@@ -81,22 +61,15 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
             idx = j;
          }
       }
-      // mfem::out << "tmp_max = " << tmp_max << endl;
-      // mfem::out << "idx = " << idx << endl;
 
       // Append support points and data values
       z.Append(pt(idx));
       f.Append(val(idx));
 
-      // mfem::out << "z = "; z.Print();
-      // mfem::out << "f = "; f.Print();
-
       // Update index vector
       J.DeleteFirst(idx);
-      // mfem::out << "J = "; J.Print(cout, J.Size());
 
       // next column in Cauchy matrix
-
       Array<double> C_tmp(size);
       // we might want to remove the inf
       for (int j = 0; j < size; j++)
@@ -107,8 +80,6 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
       int h_C = C_tmp.Size();
       int w_C = k+1;
       C.UseExternalData(C_i.GetData(),h_C,w_C);
-      // mfem::out << "C = " << endl;
-      // C.PrintMatlab();
 
       // This will need some cleanup
       // temporary copies to perform the scalings
@@ -122,10 +93,6 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
       A = new DenseMatrix(C.Height(), C.Width());
       Add(*Cl,*Cr,-1.0,*A);
 
-      // remove select only the J indexes of the columns of A
-
-      // mfem::out << "A = " << endl;
-      // A->PrintMatlab();
 
       int h_Am = J.Size();
       int w_Am = A->Width();
@@ -139,36 +106,14 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
          }
       }
 
-
-      // mfem::out << "Am = " << endl;
-      // Am->PrintMatlab();
-
-      // SVD to get the eigenvectors of Am
-
-      DenseMatrix AtA(Am->Width());
-      MultAtB(*Am,*Am,AtA);
-
-      // TODO: Poorly conditioned. Replace with SVD.
-      DenseMatrixEigensystem eig(AtA);
-      eig.Eval();
-      DenseMatrix & v = eig.Eigenvectors();
-      Vector & svalues = eig.Eigenvalues();
-
-      for (int i = 0; i<svalues.Size(); i++)
-      {
-         svalues(i) = std::sqrt(svalues(i));
-      }
-
-      // The columns of v (right-singular vectors) of A are eigenvectors of AtA
-      // Singular values of A are the square roots of eigenvalues of AtA
-      // mfem::out << "svalues = " << endl;
-      // svalues.Print();
-      // mfem::out << "singular vectors = " << endl;
-      // v.PrintMatlab();
-
-      v.GetColumn(0,w);
-
-      // mfem::out << "w = " ; w.Print();
+#ifdef MFEM_USE_LAPACK
+      DenseMatrixSVD svd(*Am,false,true);
+      svd.Eval(*Am);
+      DenseMatrix &v = svd.RightSingularvectors();
+      v.GetRow(k,w);
+#else
+      mfem_error("Compiled without LAPACK");
+#endif
 
       // N = C*(w.*f); D = C*w; % numerator and denominator
       Vector aux(w);
@@ -178,9 +123,6 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
       Vector D(C.Height()); // Denominator
       C.Mult(w,D);
 
-      // mfem::out << "Numerator = "; N.Print();
-      // mfem::out << "Denominator = "; D.Print();
-
       R = val;
       for (int i = 0; i<J.Size(); i++)
       {
@@ -188,13 +130,9 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
          R(ii) = N(ii)/D(ii);
       }
 
-      // mfem::out << "R = "; R.Print();
-
       Vector verr(val);
       verr-=R;
       double err = verr.Normlinf();
-      // errors.Append(err);
-
 
       delete Cl;
       delete Cr;
@@ -227,42 +165,20 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
       E(i,i) = z(i-1);
    }
 
-   Vector alphar(m+1);
-   Vector alphai(m+1);
-   Vector beta(m+1);
-
-   int lwork = 8*(m+1);
-   Vector work(lwork);
-   int info;
-
-   char jobvl  = 'N';
-   char jobvr  = 'N';
-
-
-   int N = m+1;
-   int M = 1;
-
-   dggev_(&jobvl,&jobvr,&N,E.GetData(),&N,B.GetData(),&N,alphar.GetData(),
-          alphai.GetData(), beta.GetData(), nullptr, &M, nullptr, &M,
-          work.GetData(), &lwork, &info);
-
-   //    mfem::out << "info = " << info << endl;
-
-   for (int i = 0; i<=m; i++ )
+#ifdef MFEM_USE_LAPACK
+   DenseMatrixGeneralizedEigensystem eig1(E,B);
+   eig1.Eval();
+   Vector & evalues = eig1.EigenvaluesRealPart();
+   for (int i = 0; i<evalues.Size(); i++)
    {
-      // if (beta(i) == 0.)
-      // {
-      //    // mfem::out << "poles("<<i<<") = inf" << endl;
-      // }
-      // else
-      // {
-      //    // mfem::out << "poles("<<i<<") = " << alphar(i)/beta(i) <<
-      //             //  " + " << alphai(i)/beta(i) << " i " << endl;
-      // }
-      if (beta(i) != 0.) { poles.Append(alphar(i)/beta(i)); }
+      if (IsFinite(evalues(i)))
+      {
+         poles.Append(evalues(i));
+      }
    }
-
-
+#else
+   mfem_error("Compiled without LAPACK");
+#endif
    // compute the zeros
 
    B = 0.;
@@ -275,27 +191,20 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
       E(i,i) = z(i-1);
    }
 
-
-   dggev_(&jobvl,&jobvr,&N,E.GetData(),&N,B.GetData(),&N,alphar.GetData(),
-          alphai.GetData(), beta.GetData(), nullptr, &M, nullptr, &M,
-          work.GetData(), &lwork, &info);
-
-   //    mfem::out << "info = " << info << endl;
-
-   for (int i = 0; i<=m; i++ )
+#ifdef MFEM_USE_LAPACK
+   DenseMatrixGeneralizedEigensystem eig2(E,B);
+   eig2.Eval();
+   evalues = eig2.EigenvaluesRealPart();
+   for (int i = 0; i<evalues.Size(); i++)
    {
-      // if (beta(i) == 0.)
-      // {
-      //    mfem::out << "zeros("<<i<<") = inf" << endl;
-      // }
-      // else
-      // {
-      //    mfem::out << "zeros("<<i<<") = " << alphar(i)/beta(i) <<
-      //              " + " << alphai(i)/beta(i) << " i " << endl;
-      // }
-      if (beta(i) != 0.) { zeros.Append(alphar(i)/beta(i)); }
+      if (IsFinite(evalues(i)))
+      {
+         zeros.Append(evalues(i));
+      }
    }
-
+#else
+   mfem_error("Compiled without LAPACK");
+#endif
    double tmp1=0.0;
    double tmp2=0.0;
    for (int i = 0; i<m; i++)
@@ -304,15 +213,11 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
       tmp2 += w(i);
    }
    scale = tmp1/tmp2;
-
 }
 
 void PartialFractionExpansion(double scale, Array<double> & poles,
                               Array<double> & zeros, Array<double> & coeffs)
 {
-   // This line changes the partial fraction expansion to an expansion for
-   // the function   F(z)
-
    int psize = poles.Size();
    int zsize = zeros.Size();
    coeffs.SetSize(psize);
@@ -332,7 +237,6 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
          if (k != i) { tmp_denom *= poles[i]-poles[k]; }
       }
       coeffs[i] *= tmp_numer / tmp_denom;
-      // mfem::out << "coeffs(" << i << ") = " << coeffs(i) << endl;
    }
 }
 
