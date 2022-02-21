@@ -7,7 +7,7 @@
 //               ex42 -m ../data/inline-quad.mesh -alpha 0.2 -o 3
 
 
-// Description:  
+// Description:
 //
 
 #include "mfem.hpp"
@@ -127,7 +127,6 @@ int main(int argc, char *argv[])
          xout << "solution\n" << mesh << x << flush;
          uout << "solution\n" << mesh << u << flush;
       }
-      cin.get();
    }
    return 0;
 }
