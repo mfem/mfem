@@ -1,4 +1,14 @@
+//                      MFEM Example 42
+//
+// Compile with: make ex42
+//
+// Sample runs:  ex42 -m ../data/square-disc.mesh -alpha 0.33 -o 2
+//               ex42 -m ../data/star.mesh -alpha 0.99 -o 3
+//               ex42 -m ../data/inline-quad.mesh -alpha 0.2 -o 3
 
+
+// Description:  
+//
 
 #include "mfem.hpp"
 #include <fstream>
