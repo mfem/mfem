@@ -1193,6 +1193,9 @@ public:
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
+   int GetFaceElementsAndFaces(int face, Array<int> & elems,
+                               Array<int> & faces) const;
+
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;
 

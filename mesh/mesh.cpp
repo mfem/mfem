@@ -5868,6 +5868,59 @@ void Mesh::GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const
    }
 }
 
+int Mesh::GetFaceElementsAndFaces(int face, Array<int> & elems,
+                                  Array<int> & faces) const
+{
+   int type = -1; // -1: bdr; 0: conforming, 1: slave, 2: master
+   bool nonconforming_face = ncmesh && (faces_info[face].NCFace != -1);
+   if (nonconforming_face)
+   {
+      int nc_index = faces_info[face].NCFace;
+      const NCFaceInfo &nc_info = nc_faces_info[nc_index];
+      const mfem::NCMesh::NCList &nc_list = ncmesh->GetNCList(Dim-1);
+
+      if (!nc_info.Slave)
+      {
+         type = 2;
+         elems.Append(ncmesh->elements[nc_list.masters[nc_index].element].index);
+         faces.Append(nc_list.masters[nc_index].index);
+         int j_begin = nc_list.masters[nc_index].slaves_begin;
+         int j_end = nc_list.masters[nc_index].slaves_end;
+         for (int j = j_begin; j<j_end ; j++)
+         {
+            elems.Append(ncmesh->elements[nc_list.slaves[j].element].index);
+            faces.Append(nc_list.slaves[j].index);
+         }
+         return type;
+      }
+      else
+      {
+         type = 1;
+         faces.Append(face);
+         faces.Append(nc_faces_info[nc_index].MasterFace);
+         int el1, el2;
+         GetFaceElements(face, &el1, &el2);
+         elems.Append(el1);
+         elems.Append(el2);
+         return type;
+      }
+   }
+   else
+   {
+      int el1, el2;
+      GetFaceElements(face, &el1, &el2);
+      elems.Append(el1);
+      faces.Append(face);
+      if (el2 != -1)
+      {
+         type = 0;
+         elems.Append(el2);
+         faces.Append(face);
+      }
+      return type;
+   }
+}
+
 void Mesh::GetBdrElementFace(int i, int *f, int *o) const
 {
    const int *bv, *fv;
