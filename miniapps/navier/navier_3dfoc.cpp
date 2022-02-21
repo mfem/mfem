@@ -23,6 +23,7 @@ struct s_NavierContext
    double kin_vis = 0.001;
    double t_final = 8.0;
    double dt = 1e-3;
+   const char *device_config = "cpu";
 } ctx;
 
 void vel(const Vector &x, double t, Vector &u)
@@ -49,6 +50,14 @@ void vel(const Vector &x, double t, Vector &u)
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
+
+   OptionsParser args(argc, argv);
+   args.AddOption(&ctx.device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.ParseCheck();
+
+   Device device(ctx.device_config);
+   if (mpi.Root()) { device.Print(); }
 
    int serial_refinements = 0;
 
