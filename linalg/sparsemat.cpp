@@ -848,8 +848,9 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    }
    else
    {
-      MFEM_VERIFY(Device::IsDisabled(), "transpose action on device is not "
-                  "enabled; see BuildTranspose() for details.");
+      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
+                  "this backend is not enabled; see EnsureMultTranspose() for "
+                  "details.");
       for (int i = 0; i < height; i++)
       {
          const double xi = a * x[i];
@@ -875,6 +876,14 @@ void SparseMatrix::ResetTranspose() const
 {
    delete At;
    At = NULL;
+}
+
+void SparseMatrix::EnsureMultTranspose() const
+{
+   if (Device::Allows(~Backend::CPU_MASK))
+   {
+      BuildTranspose();
+   }
 }
 
 void SparseMatrix::PartMult(
@@ -1054,8 +1063,9 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_VERIFY(Device::IsDisabled(), "transpose action on device is not "
-                  "enabled; see BuildTranspose() for details.");
+      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
+                  "this backend is not enabled; see EnsureMultTranspose() for "
+                  "details.");
       for (int i = 0; i < height; i++)
       {
          const double xi = x[i];

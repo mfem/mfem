@@ -814,7 +814,7 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                      y_assembly.SetSize(y_mat.Size());
                      y_pa.SetSize(y_mat.Size());
 
-                     A_explicit.BuildTranspose();
+                     A_explicit.EnsureMultTranspose();
                      paform->MultTranspose(*xin, y_pa);
                      assemblyform->MultTranspose(*xin, y_assembly);
                      A_explicit.MultTranspose(*xin, y_mat);
