@@ -114,6 +114,8 @@ void NavierSolver::Setup(double dt)
 
    sw_setup.Start();
 
+   curl_evaluator->EnablePA(partial_assembly);
+
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
 

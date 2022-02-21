@@ -235,7 +235,6 @@ void CurlEvaluator::ComputeCurlPA_(
 
    const int dom_vdim = dom_fes.GetVDim();
    const int ran_vdim = ran_fes.GetVDim();
-   const bool is_scalar = dom_vdim == 1;
 
    // Make sure internal E-vectors have correct size
    u_evec.SetSize(dom_el_restr->Height());
@@ -250,7 +249,7 @@ void CurlEvaluator::ComputeCurlPA_(
    const FiniteElement &fe = *dom_fes.GetFE(0);
 
    // If the QuadratureInterpolator is not already constructed, create it.
-   auto quad_interp = is_scalar ? scalar_quad_interp : vector_quad_interp;
+   auto quad_interp = perp_grad ? scalar_quad_interp : vector_quad_interp;
    if (!quad_interp)
    {
       if (ir_lex.Size() == 0)
@@ -281,9 +280,12 @@ void CurlEvaluator::ComputeCurlPA_(
    const auto d_curl = Reshape(curl_u_evec.Write(), ndof, ran_vdim, ne);
    const auto d_els_per_dof = Reshape(els_per_dof.Read(), ndof, ne);
 
+   // Compute the curl, scaling shared DOFs by one over the number of elements
+   // containing that DOF. When we assemble (sum) from E-vector to L-vector to
+   // T-vector, this will give the mean value.
    if (dim == 2)
    {
-      if (is_scalar)
+      if (perp_grad)
       {
          MFEM_FORALL(i, ne,
          {
@@ -339,26 +341,14 @@ const ParFiniteElementSpace &CurlEvaluator::GetCurlSpace() const
 
 void CurlEvaluator::ComputeCurl(const Vector &u, Vector &curl_u) const
 {
-   if (partial_assembly)
-   {
-      ComputeCurlPA_(u, curl_u, false);
-   }
-   else
-   {
-      ComputeCurlLegacy_(u, curl_u, false);
-   }
+   if (partial_assembly) { ComputeCurlPA_(u, curl_u, false); }
+   else { ComputeCurlLegacy_(u, curl_u, false); }
 }
 
 void CurlEvaluator::ComputePerpGrad(const Vector &u, Vector &perp_grad_u) const
 {
-   if (partial_assembly)
-   {
-      ComputeCurlPA_(u, perp_grad_u, true);
-   }
-   else
-   {
-      ComputeCurlLegacy_(u, perp_grad_u, true);
-   }
+   if (partial_assembly) { ComputeCurlPA_(u, perp_grad_u, true); }
+   else { ComputeCurlLegacy_(u, perp_grad_u, true); }
 }
 
 void CurlEvaluator::ComputeCurlCurl(

@@ -55,16 +55,6 @@ protected:
 
    ///@}
 
-   /// Count the number of elements containing each DOF. Used for averaging.
-   void CountElementsPerDof();
-
-   /// @brief Used internally to compute the curl and perpendicular gradient.
-   ///
-   /// In 3D, @a perp_grad must be false. In 2D, if @a perp_grad is true, the
-   /// result is the perpendicular gradient of a scalar field. If @a perp_grad
-   /// is false, the result is the (scalar) curl of a vector field.
-   void ComputeCurlPA_(const Vector &u, Vector &curl_u, bool perp_grad) const;
-
    /// @brief Used internally to compute the curl and perpendicular gradient.
    ///
    /// In 3D, @a perp_grad must be false. In 2D, if @a perp_grad is true, the
@@ -96,13 +86,6 @@ public:
    /// @a const version of GetCurlSpace().
    const ParFiniteElementSpace &GetCurlSpace() const;
 
-   /// @brief Compute the curl-curl of @a u and place the result in
-   /// @a curl_curl_u.
-   ///
-   /// The input and output vectors should be vector-valued T-DOF vectors
-   /// belonging to the space used to construct this object.
-   void ComputeCurlCurl(const Vector &u, Vector &curl_curl_u) const;
-
    /// @brief Compute the perpendicular gradient in 2D of @a u and place the
    /// result in @a perp_grad_u.
    ///
@@ -117,7 +100,30 @@ public:
    /// be a scalar-valued TDOF-vector.
    void ComputeCurl(const Vector &u, Vector &curl_u) const;
 
+   /// @brief Compute the curl-curl of @a u and place the result in
+   /// @a curl_curl_u.
+   ///
+   /// The input and output vectors should be vector-valued T-DOF vectors
+   /// belonging to the space used to construct this object.
+   void ComputeCurlCurl(const Vector &u, Vector &curl_curl_u) const;
+
+   /// @brief Enable or disable partial assembly (required for device support,
+   /// e.g. on GPU), disabled by default.
    void EnablePA(bool enable_pa) { partial_assembly = enable_pa; }
+
+   // The member functions CountElementsPerDof and ComputeCurlPA_ are required
+   // to be public because they contain MFEM_FORALL kernels, but should not be
+   // considered part of the public API.
+
+   /// Count the number of elements containing each DOF. Used for averaging.
+   void CountElementsPerDof();
+
+   /// @brief Used internally to compute the curl and perpendicular gradient.
+   ///
+   /// In 3D, @a perp_grad must be false. In 2D, if @a perp_grad is true, the
+   /// result is the perpendicular gradient of a scalar field. If @a perp_grad
+   /// is false, the result is the (scalar) curl of a vector field.
+   void ComputeCurlPA_(const Vector &u, Vector &curl_u, bool perp_grad) const;
 
    ~CurlEvaluator();
 };
