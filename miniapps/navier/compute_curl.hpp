@@ -23,7 +23,7 @@ namespace navier
 class CurlEvaluator
 {
 protected:
-   /// Vector valued finite element space (the domain of the curl operation)
+   /// Vector valued finite element space (the domain of the curl operation).
    ParFiniteElementSpace &fes;
    /// Corresponding scalar-valued space in 2D, NULL in 3D.
    ParFiniteElementSpace *scalar_fes;
@@ -37,6 +37,7 @@ protected:
    /// @name Partial assembly
    ///@{
 
+   /// Number of elements (across all MPI ranks) containing each DOF.
    mutable Array<int> els_per_dof;
 
    /// Nodal points in lexicographic ordering.
@@ -60,13 +61,9 @@ protected:
    /// In 3D, @a perp_grad must be false. In 2D, if @a perp_grad is true, the
    /// result is the perpendicular gradient of a scalar field. If @a perp_grad
    /// is false, the result is the (scalar) curl of a vector field.
+   ///
+   /// This function uses the "legacy" algorithm that is @b not GPU compatible.
    void ComputeCurlLegacy_(const Vector &u, Vector &curl_u, bool perp_grad) const;
-
-   /// Computes curl-curl using the legacy algorithm.
-   void ComputeCurlCurlLegacy(const Vector &u, Vector &curl_curl_u) const;
-
-   /// Computes curl-curl using the partial assemble algorithm.
-   void ComputeCurlCurlPA(const Vector &u, Vector &curl_curl_u) const;
 public:
    /// @brief Create an object to evaluate the curl and curl-curl of grid
    /// functions in @a fes.
@@ -100,7 +97,7 @@ public:
    /// be a scalar-valued TDOF-vector.
    void ComputeCurl(const Vector &u, Vector &curl_u) const;
 
-   /// @brief Compute the curl-curl of @a u and place the result in
+   /// @brief Compute curl(curl(u)) and place the result in
    /// @a curl_curl_u.
    ///
    /// The input and output vectors should be vector-valued T-DOF vectors
@@ -111,9 +108,11 @@ public:
    /// e.g. on GPU), disabled by default.
    void EnablePA(bool enable_pa) { partial_assembly = enable_pa; }
 
-   // The member functions CountElementsPerDof and ComputeCurlPA_ are required
-   // to be public because they contain MFEM_FORALL kernels, but should not be
-   // considered part of the public API.
+   /// @name Not part of the public API
+   ///@{
+   /// These functions contain MFEM_FORALL kernels and so because of @c nvcc
+   /// restrictions, they cannot be @a private or @a protected. However they
+   /// should not be considered part of the public API.
 
    /// Count the number of elements containing each DOF. Used for averaging.
    void CountElementsPerDof();
@@ -124,6 +123,7 @@ public:
    /// result is the perpendicular gradient of a scalar field. If @a perp_grad
    /// is false, the result is the (scalar) curl of a vector field.
    void ComputeCurlPA_(const Vector &u, Vector &curl_u, bool perp_grad) const;
+   ///@}
 
    ~CurlEvaluator();
 };
