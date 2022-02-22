@@ -62,11 +62,12 @@ private:
 protected:
    enum FESpaceType { H1, ND, RT, L2, INVALID };
 
+   int ref_type;
    FiniteElementSpace &fes_ho;
-   Mesh *mesh;
-   FiniteElementCollection *fec;
-   FiniteElementSpace *fes;
-   BilinearForm *a;
+   Mesh *mesh = nullptr;
+   FiniteElementCollection *fec = nullptr;
+   FiniteElementSpace *fes = nullptr;
+   BilinearForm *a = nullptr;
    OperatorHandle A;
    mutable Array<int> perm;
 
@@ -98,7 +99,9 @@ protected:
    /// ParLORDiscretization::AssembleSystem).
    void AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs);
 
-   LORBase(FiniteElementSpace &fes_ho_);
+   virtual void FormLORSpace() = 0;
+
+   LORBase(FiniteElementSpace &fes_ho_, int ref_type_);
 
 public:
    /// Returns the assembled LOR system.
@@ -118,14 +121,16 @@ public:
    const Array<int> &GetDofPermutation() const;
 
    /// Returns the low-order refined finite element space.
-   FiniteElementSpace &GetFESpace() const { return *fes; }
+   FiniteElementSpace &GetFESpace() const;
 
-   ~LORBase();
+   virtual ~LORBase();
 };
 
 /// Create and assemble a low-order refined version of a BilinearForm.
 class LORDiscretization : public LORBase
 {
+protected:
+   void FormLORSpace();
 public:
    /// @brief Construct the low-order refined version of @a a_ho using the given
    /// list of essential DOFs.
@@ -155,6 +160,8 @@ public:
 /// Create and assemble a low-order refined version of a ParBilinearForm.
 class ParLORDiscretization : public LORBase
 {
+protected:
+   void FormLORSpace();
 public:
    /// @brief Construct the low-order refined version of @a a_ho using the given
    /// list of essential DOFs.
