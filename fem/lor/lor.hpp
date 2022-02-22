@@ -12,7 +12,7 @@
 #ifndef MFEM_LOR
 #define MFEM_LOR
 
-#include "bilinearform.hpp"
+#include "../bilinearform.hpp"
 
 namespace mfem
 {
