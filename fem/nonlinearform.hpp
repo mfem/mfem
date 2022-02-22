@@ -151,8 +151,8 @@ public:
    void SetEssentialVDofs(const Array<int> &ess_vdofs_list);
 
    /// Specify essential boundary conditions.
-   void SetEssentialTrueDofs(const Array<int> &ess_tdof_list)
-   { ess_tdof_list.Copy(this->ess_tdof_list); }
+   void SetEssentialTrueDofs(const Array<int> &ess_tdof_list_)
+   { ess_tdof_list_.Copy(this->ess_tdof_list); }
 
    /// Return a (read-only) list of all essential true dofs.
    const Array<int> &GetEssentialTrueDofs() const { return ess_tdof_list; }

@@ -258,8 +258,8 @@ public:
    { q_field_map.Deregister(field_name, own_data); }
 
    /// Check if a grid function is part of the collection
-   bool HasField(const std::string& name) const
-   { return field_map.Has(name); }
+   bool HasField(const std::string& field_name) const
+   { return field_map.Has(field_name); }
 
    /// Get a pointer to a grid function in the collection.
    /** Returns NULL if @a field_name is not in the collection. */
