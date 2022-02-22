@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool visualization = true;
-   double alpha = 0.5;
+   double alpha = 0.2;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -45,16 +45,12 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-
    Array<double> coeffs, poles;
-   ComputePartialFractionApproximation(alpha,coeffs,poles);
 
-   mfem::out << "coeffs = "; coeffs.Print(cout, coeffs.Size());
-   mfem::out << "poles  = "; poles.Print(cout, poles.Size());
+   ComputePartialFractionApproximation(alpha,coeffs,poles);
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-
 
    mesh.UniformRefinement();
    mesh.UniformRefinement();

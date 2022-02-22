@@ -249,6 +249,50 @@ void ComputePartialFractionApproximation(double alpha,
                                          double tol=1e-6,  int npoints = 1000,
                                          int max_order = 100)
 {
+
+
+#ifndef MFEM_USE_LAPACK
+   mfem::out
+         << "MFEM is compiled without LAPACK. Using precomputed PartialFractionApproximation"
+         << std::endl;
+
+   if (alpha == 0.33)
+   {
+      Array<double> temp_coeff({1065.48, 54.1699, 15.3291, 6.11848,
+                                2.68179, 1.20193, 0.548187, 0.132272});
+      Array<double> temp_poles({-18385.1, -1165.58, -262.665, -72.2757,
+                                -20.0113, -5.00359, -0.865421, 0.});
+
+      coeffs = temp_coeff;
+      poles = temp_poles;
+   }
+   else if (alpha == 0.99)
+   {
+      Array<double> temp_coeff({0.0308111, 0.0178893, 0.0155946,
+                                0.0152471, 0.0169313, 0.0279873, 0.97561});
+      Array<double> temp_poles({-2759.65, -343.533, -71.7906,
+                                -16.3669, -3.47383, -0.438895, 0.});
+      coeffs = temp_coeff;
+      poles = temp_poles;
+   }
+   else
+   {
+      if (alpha != 0.2)
+      {
+         mfem::out << "Using default value of alpha = 0.2" << std::endl;
+      }
+      Array<double> temp_coeff({6148.43, 112.8, 25.0021, 8.39566,
+                                3.11164, 1.15051, 0.410864, 0.0692369});
+      Array<double> temp_poles({-34483.9, -1426.64, -313.405, -85.9195,
+                                -23.6185, -5.84528, -1.02519, 0.});
+      coeffs = temp_coeff;
+      poles = temp_poles;
+   }
+   return;
+#endif
+
+
+
    Vector x(npoints);
    Vector val(npoints);
    for (int i = 0; i<npoints; i++)
