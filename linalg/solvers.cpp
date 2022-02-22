@@ -112,7 +112,7 @@ void IterativeSolver::SetPrintLevel(PrintLevel options)
 }
 
 IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
-   int print_level)
+   int print_level_)
 {
 #ifdef MFEM_USE_MPI
    int rank = 0;
@@ -122,7 +122,7 @@ IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
    }
 #endif
 
-   switch (print_level)
+   switch (print_level_)
    {
       case -1:
          return PrintLevel();
@@ -139,7 +139,7 @@ IterativeSolver::PrintLevel IterativeSolver::FromLegacyPrintLevel(
          if (rank == 0)
 #endif
          {
-            MFEM_WARNING("Unknown print level " << print_level <<
+            MFEM_WARNING("Unknown print level " << print_level_ <<
                          ". Defaulting to level 0.");
          }
          return PrintLevel().Errors().Warnings();
@@ -1912,14 +1912,14 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 void NewtonSolver::SetAdaptiveLinRtol(const int type,
                                       const double rtol0,
                                       const double rtol_max,
-                                      const double alpha,
-                                      const double gamma)
+                                      const double alpha_,
+                                      const double gamma_)
 {
    lin_rtol_type = type;
    lin_rtol0 = rtol0;
    lin_rtol_max = rtol_max;
-   this->alpha = alpha;
-   this->gamma = gamma;
+   this->alpha = alpha_;
+   this->gamma = gamma_;
 }
 
 void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,

@@ -1165,13 +1165,13 @@ double Vector::operator*(const Vector &v) const
    if (Device::Allows(Backend::DEBUG_DEVICE))
    {
       const int N = size;
-      auto v_data = v.Read();
-      auto m_data = Read();
+      auto v_data_ = v.Read();
+      auto m_data_ = Read();
       Vector dot(1);
       dot.UseDevice(true);
       auto d_dot = dot.Write();
       dot = 0.0;
-      MFEM_FORALL(i, N, d_dot[0] += m_data[i] * v_data[i];);
+      MFEM_FORALL(i, N, d_dot[0] += m_data_[i] * v_data_[i];);
       dot.HostReadWrite();
       return dot[0];
    }
@@ -1225,12 +1225,12 @@ double Vector::Min() const
    if (Device::Allows(Backend::DEBUG_DEVICE))
    {
       const int N = size;
-      auto m_data = Read();
+      auto m_data_ = Read();
       Vector min(1);
       min = infinity();
       min.UseDevice(true);
       auto d_min = min.ReadWrite();
-      MFEM_FORALL(i, N, d_min[0] = (d_min[0]<m_data[i])?d_min[0]:m_data[i];);
+      MFEM_FORALL(i, N, d_min[0] = (d_min[0]<m_data_[i])?d_min[0]:m_data_[i];);
       min.HostReadWrite();
       return min[0];
    }
