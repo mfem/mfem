@@ -60,8 +60,10 @@ void NonlinearForm::SetEssentialBCPartial(const Array<int> &bdr_attr_is_ess,
    // virtual call, works in parallel too
    fes->GetEssentialTrueDofs(bdr_attr_is_ess, ess_tdof_list, bdr_component);
 
-   if (rhs) {
-      for (int i = 0; i < ess_tdof_list.Size(); i++) {
+   if (rhs)
+   {
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      {
          (*rhs)(ess_tdof_list[i]) = 0.0;
       }
    }

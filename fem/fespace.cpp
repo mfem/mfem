@@ -618,8 +618,8 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    if (Nonconforming())
    {
       mfem_error("FiniteElementSpace::GetEssentialVDofs"
-              " currently not supported setting per DOF component"
-              " for nonconforming meshes at this time.");
+                 " currently not supported setting per DOF component"
+                 " for nonconforming meshes at this time.");
    } // nonconforming
 }
 
