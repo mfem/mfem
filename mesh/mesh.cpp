@@ -4798,7 +4798,7 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
 
          // Apply rotations
          int nrot = num_rot[bitmask];
-         for (irot=0; irot<nrot; ++irot)
+         for (int k=0; k<nrot; ++k)
          {
             int vtemp;
             vtemp = vg[1];
