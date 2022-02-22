@@ -146,6 +146,19 @@ public:
        have zero entries at the essential true dofs. */
    void SetEssentialBC(const Array<int> &bdr_attr_is_ess, Vector *rhs = NULL);
 
+   /// Specify essential boundary conditions. If vdim > 1 then one can specify
+   /// per boundary attribute which components on a boundary are essential by
+   /// assigning the component ID to its location in bdr_component array
+   /// The bdr_component has dimensions #boundary attributes x #vdim
+   /** This method calls FiniteElementSpace::GetEssentialTrueDofs() and stores
+       the result internally for use by other methods. If the @a rhs pointer is
+       not NULL, its essential true dofs will be set to zero. This makes it
+       "compatible" with the output vectors from the Mult() method which also
+       have zero entries at the essential true dofs. */
+   void SetEssentialBCPartial(const Array<int> &bdr_attr_is_ess,
+                              const Array2D<int> &bdr_component,
+                              Vector *rhs);
+
    /// Specify essential boundary conditions.
    /** Use either SetEssentialBC() or SetEssentialTrueDofs() if possible. */
    void SetEssentialVDofs(const Array<int> &ess_vdofs_list);

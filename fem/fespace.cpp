@@ -561,9 +561,89 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    }
 }
 
+void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
+                                           Array<int> &ess_vdofs,
+                                           const Array2D<int> &component) const
+{
+   Array<int> vdofs, dofs, ess_comp;
+
+   bool cmpID_rows = false;
+
+   ess_vdofs.SetSize(GetVSize());
+   ess_vdofs = 0;
+
+   ess_comp.SetSize(3);
+   ess_comp = 0;
+
+   for (int i = 0; i < GetNBE(); i++)
+   {
+      int id = GetBdrAttribute(i)-1;
+      if (bdr_attr_is_ess[id])
+      {
+         cmpID_rows = true;
+         //Checking to see if all the values in the row are greater than -1 if so then
+         //all components on a boundary are said to be marked.
+         for (int j = 0; j < component.NumCols(); ++j)
+         {
+            cmpID_rows = cmpID_rows && ( component(id, j) > -1);
+         }
+         if (cmpID_rows) // same as srw component id system
+         {
+            // Mark all components.
+            GetBdrElementVDofs(i, vdofs);
+            mark_dofs(vdofs, ess_vdofs);
+         }
+         else
+         {
+            GetBdrElementDofs(i, dofs);
+            for (int d = 0; d < dofs.Size(); d++)
+            {
+               // loop over actively constrained components
+               for (int k = 0; k < component.NumCols(); ++k)
+               {
+                  if (component(id, k) != -1)   // -1 means inactive component
+                  {
+                     // component(id, k) should be equal to k here
+                     dofs[d] = DofToVDof(dofs[d], component(id, k));
+                  }
+               }
+            }
+            mark_dofs(dofs, ess_vdofs); // do this only once?
+         }
+      }
+   } // end conforming DOFs calculation
+
+   // mark possible hidden boundary edges in a non-conforming mesh, also
+   // local DOFs affected by boundary elements on other processors
+   if (Nonconforming())
+   {
+      mfem_error("FiniteElementSpace::GetEssentialVDofs"
+              " currently not supported setting per DOF component"
+              " for nonconforming meshes at this time.");
+   } // nonconforming
+}
+
 void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_tdof_list,
                                               int component)
+{
+   Array<int> ess_vdofs, ess_tdofs;
+   GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs, component);
+   const SparseMatrix *R = GetConformingRestriction();
+   if (!R)
+   {
+      ess_tdofs.MakeRef(ess_vdofs);
+   }
+   else
+   {
+      R->BooleanMult(ess_vdofs, ess_tdofs);
+   }
+   MarkerToList(ess_tdofs, ess_tdof_list);
+}
+
+void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
+                                              Array<int> &ess_tdof_list,
+                                              const Array2D<int> &component)
 {
    Array<int> ess_vdofs, ess_tdofs;
    GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs, component);
