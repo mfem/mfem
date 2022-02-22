@@ -10967,7 +10967,7 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
 }
 
 void Mesh::PrintElementsWithPartitioning(int *partitioning,
-                                         std::ostream &out,
+                                         std::ostream &os,
                                          int interior_faces)
 {
    MFEM_ASSERT(Dim == spaceDim, "2D Manifolds not supported\n");
@@ -11044,7 +11044,7 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
       }
 
       // Print the type of the mesh and the boundary elements.
-      out << "areamesh2\n\n" << nbe << '\n';
+      os << "areamesh2\n\n" << nbe << '\n';
 
       for (int i = 0; i < edge_el.Size(); i++)
       {
@@ -11057,22 +11057,22 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             {
                Array<int> ev;
                GetEdgeVertices(i,ev);
-               out << k+1; // attribute
+               os << k+1; // attribute
                for (int j = 0; j < 2; j++)
                   for (int s = 0; s < vcount[ev[j]]; s++)
                      if (vown[ev[j]][s] == el[0])
                      {
-                        out << ' ' << voff[ev[j]]+s+1;
+                        os << ' ' << voff[ev[j]]+s+1;
                      }
-               out << '\n';
-               out << l+1; // attribute
+               os << '\n';
+               os << l+1; // attribute
                for (int j = 1; j >= 0; j--)
                   for (int s = 0; s < vcount[ev[j]]; s++)
                      if (vown[ev[j]][s] == el[1])
                      {
-                        out << ' ' << voff[ev[j]]+s+1;
+                        os << ' ' << voff[ev[j]]+s+1;
                      }
-               out << '\n';
+               os << '\n';
             }
          }
          else
@@ -11080,31 +11080,31 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             int k = partitioning[el[0]];
             Array<int> ev;
             GetEdgeVertices(i,ev);
-            out << k+1; // attribute
+            os << k+1; // attribute
             for (int j = 0; j < 2; j++)
                for (int s = 0; s < vcount[ev[j]]; s++)
                   if (vown[ev[j]][s] == el[0])
                   {
-                     out << ' ' << voff[ev[j]]+s+1;
+                     os << ' ' << voff[ev[j]]+s+1;
                   }
-            out << '\n';
+            os << '\n';
          }
       }
 
       // Print the elements.
-      out << NumOfElements << '\n';
+      os << NumOfElements << '\n';
       for (int i = 0; i < NumOfElements; i++)
       {
          int nv  = elements[i]->GetNVertices();
          const int *ind = elements[i]->GetVertices();
-         out << partitioning[i]+1 << ' '; // use subdomain number as attribute
-         out << nv << ' ';
+         os << partitioning[i]+1 << ' '; // use subdomain number as attribute
+         os << nv << ' ';
          for (int j = 0; j < nv; j++)
          {
-            out << ' ' << voff[ind[j]]+vcount[ind[j]]--;
+            os << ' ' << voff[ind[j]]+vcount[ind[j]]--;
             vown[ind[j]][vcount[ind[j]]] = i;
          }
-         out << '\n';
+         os << '\n';
       }
 
       for (int i = 0; i < NumOfVertices; i++)
@@ -11113,46 +11113,46 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
       }
 
       // Print the vertices.
-      out << voff[NumOfVertices] << '\n';
+      os << voff[NumOfVertices] << '\n';
       for (int i = 0; i < NumOfVertices; i++)
          for (int k = 0; k < vcount[i]; k++)
          {
             for (int j = 0; j < Dim; j++)
             {
-               out << vertices[i](j) << ' ';
+               os << vertices[i](j) << ' ';
             }
-            out << '\n';
+            os << '\n';
          }
    }
    //  Dim is 3
    else if (meshgen == 1)
    {
-      out << "NETGEN_Neutral_Format\n";
+      os << "NETGEN_Neutral_Format\n";
       // print the vertices
-      out << voff[NumOfVertices] << '\n';
+      os << voff[NumOfVertices] << '\n';
       for (int i = 0; i < NumOfVertices; i++)
          for (int k = 0; k < vcount[i]; k++)
          {
             for (int j = 0; j < Dim; j++)
             {
-               out << ' ' << vertices[i](j);
+               os << ' ' << vertices[i](j);
             }
-            out << '\n';
+            os << '\n';
          }
 
       // print the elements
-      out << NumOfElements << '\n';
+      os << NumOfElements << '\n';
       for (int i = 0; i < NumOfElements; i++)
       {
          int nv = elements[i]->GetNVertices();
          const int *ind = elements[i]->GetVertices();
-         out << partitioning[i]+1; // use subdomain number as attribute
+         os << partitioning[i]+1; // use subdomain number as attribute
          for (int j = 0; j < nv; j++)
          {
-            out << ' ' << voff[ind[j]]+vcount[ind[j]]--;
+            os << ' ' << voff[ind[j]]+vcount[ind[j]]--;
             vown[ind[j]][vcount[ind[j]]] = i;
          }
-         out << '\n';
+         os << '\n';
       }
 
       for (int i = 0; i < NumOfVertices; i++)
@@ -11180,7 +11180,7 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
          }
       }
 
-      out << nbe << '\n';
+      os << nbe << '\n';
       for (int i = 0; i < NumOfFaces; i++)
       {
          int l = faces_info[i].Elem2No;
@@ -11192,22 +11192,22 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             {
                int nv = faces[i]->GetNVertices();
                const int *ind = faces[i]->GetVertices();
-               out << k+1; // attribute
+               os << k+1; // attribute
                for (int j = 0; j < nv; j++)
                   for (int s = 0; s < vcount[ind[j]]; s++)
                      if (vown[ind[j]][s] == faces_info[i].Elem1No)
                      {
-                        out << ' ' << voff[ind[j]]+s+1;
+                        os << ' ' << voff[ind[j]]+s+1;
                      }
-               out << '\n';
-               out << l+1; // attribute
+               os << '\n';
+               os << l+1; // attribute
                for (int j = nv-1; j >= 0; j--)
                   for (int s = 0; s < vcount[ind[j]]; s++)
                      if (vown[ind[j]][s] == faces_info[i].Elem2No)
                      {
-                        out << ' ' << voff[ind[j]]+s+1;
+                        os << ' ' << voff[ind[j]]+s+1;
                      }
-               out << '\n';
+               os << '\n';
             }
          }
          else
@@ -11215,14 +11215,14 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             int k = partitioning[faces_info[i].Elem1No];
             int nv = faces[i]->GetNVertices();
             const int *ind = faces[i]->GetVertices();
-            out << k+1; // attribute
+            os << k+1; // attribute
             for (int j = 0; j < nv; j++)
                for (int s = 0; s < vcount[ind[j]]; s++)
                   if (vown[ind[j]][s] == faces_info[i].Elem1No)
                   {
-                     out << ' ' << voff[ind[j]]+s+1;
+                     os << ' ' << voff[ind[j]]+s+1;
                   }
-            out << '\n';
+            os << '\n';
          }
       }
    }
@@ -11249,30 +11249,30 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
          }
       }
 
-      out << "TrueGrid\n"
-          << "1 " << voff[NumOfVertices] << " " << NumOfElements
-          << " 0 0 0 0 0 0 0\n"
-          << "0 0 0 1 0 0 0 0 0 0 0\n"
-          << "0 0 " << nbe << " 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
-          << "0.0 0.0 0.0 0 0 0.0 0.0 0 0.0\n"
-          << "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n";
+      os << "TrueGrid\n"
+         << "1 " << voff[NumOfVertices] << " " << NumOfElements
+         << " 0 0 0 0 0 0 0\n"
+         << "0 0 0 1 0 0 0 0 0 0 0\n"
+         << "0 0 " << nbe << " 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
+         << "0.0 0.0 0.0 0 0 0.0 0.0 0 0.0\n"
+         << "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n";
 
       for (int i = 0; i < NumOfVertices; i++)
          for (int k = 0; k < vcount[i]; k++)
-            out << voff[i]+k << " 0.0 " << vertices[i](0) << ' '
-                << vertices[i](1) << ' ' << vertices[i](2) << " 0.0\n";
+            os << voff[i]+k << " 0.0 " << vertices[i](0) << ' '
+               << vertices[i](1) << ' ' << vertices[i](2) << " 0.0\n";
 
       for (int i = 0; i < NumOfElements; i++)
       {
          int nv = elements[i]->GetNVertices();
          const int *ind = elements[i]->GetVertices();
-         out << i+1 << ' ' << partitioning[i]+1; // partitioning as attribute
+         os << i+1 << ' ' << partitioning[i]+1; // partitioning as attribute
          for (int j = 0; j < nv; j++)
          {
-            out << ' ' << voff[ind[j]]+vcount[ind[j]]--;
+            os << ' ' << voff[ind[j]]+vcount[ind[j]]--;
             vown[ind[j]][vcount[ind[j]]] = i;
          }
-         out << '\n';
+         os << '\n';
       }
 
       for (int i = 0; i < NumOfVertices; i++)
@@ -11292,22 +11292,22 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             {
                int nv = faces[i]->GetNVertices();
                const int *ind = faces[i]->GetVertices();
-               out << k+1; // attribute
+               os << k+1; // attribute
                for (int j = 0; j < nv; j++)
                   for (int s = 0; s < vcount[ind[j]]; s++)
                      if (vown[ind[j]][s] == faces_info[i].Elem1No)
                      {
-                        out << ' ' << voff[ind[j]]+s+1;
+                        os << ' ' << voff[ind[j]]+s+1;
                      }
-               out << " 1.0 1.0 1.0 1.0\n";
-               out << l+1; // attribute
+               os << " 1.0 1.0 1.0 1.0\n";
+               os << l+1; // attribute
                for (int j = nv-1; j >= 0; j--)
                   for (int s = 0; s < vcount[ind[j]]; s++)
                      if (vown[ind[j]][s] == faces_info[i].Elem2No)
                      {
-                        out << ' ' << voff[ind[j]]+s+1;
+                        os << ' ' << voff[ind[j]]+s+1;
                      }
-               out << " 1.0 1.0 1.0 1.0\n";
+               os << " 1.0 1.0 1.0 1.0\n";
             }
          }
          else
@@ -11315,19 +11315,19 @@ void Mesh::PrintElementsWithPartitioning(int *partitioning,
             int k = partitioning[faces_info[i].Elem1No];
             int nv = faces[i]->GetNVertices();
             const int *ind = faces[i]->GetVertices();
-            out << k+1; // attribute
+            os << k+1; // attribute
             for (int j = 0; j < nv; j++)
                for (int s = 0; s < vcount[ind[j]]; s++)
                   if (vown[ind[j]][s] == faces_info[i].Elem1No)
                   {
-                     out << ' ' << voff[ind[j]]+s+1;
+                     os << ' ' << voff[ind[j]]+s+1;
                   }
-            out << " 1.0 1.0 1.0 1.0\n";
+            os << " 1.0 1.0 1.0 1.0\n";
          }
       }
    }
 
-   out << flush;
+   os << flush;
 
    for (int i = 0; i < NumOfVertices; i++)
    {
