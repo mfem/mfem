@@ -13,8 +13,8 @@
 #define MFEM_LOR_ASSEMBLY
 
 #include "lor.hpp"
-#include "bilinearform.hpp"
-#include "pbilinearform.hpp"
+#include "../bilinearform.hpp"
+#include "../pbilinearform.hpp"
 
 namespace mfem
 {
