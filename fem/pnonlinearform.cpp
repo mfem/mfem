@@ -90,8 +90,8 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    const int N = ess_tdof_list.Size();
    const auto idx = ess_tdof_list.Read();
-   auto Y = y.ReadWrite();
-   MFEM_FORALL(i, N, Y[idx[i]] = 0.0; );
+   auto Y_RW = y.ReadWrite();
+   MFEM_FORALL(i, N, Y_RW[idx[i]] = 0.0; );
 }
 
 const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
