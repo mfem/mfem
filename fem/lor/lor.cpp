@@ -220,7 +220,8 @@ void LORBase::ConstructDofPermutation() const
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes_ho
       = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
-   ParFiniteElementSpace *pfes_lor = dynamic_cast<ParFiniteElementSpace*>(fes);
+   ParFiniteElementSpace *pfes_lor
+      = dynamic_cast<ParFiniteElementSpace*>(&GetFESpace());
    if (pfes_ho && pfes_lor)
    {
       Array<int> l_perm;
@@ -356,8 +357,8 @@ void CheckBasisType(const FiniteElementSpace &fes)
    // L2 is a bit more complicated, for now don't verify basis type
 }
 
-LORBase::LORBase(FiniteElementSpace &fes_ho_)
-   : irs(0, Quadrature1D::GaussLobatto), fes_ho(fes_ho_)
+LORBase::LORBase(FiniteElementSpace &fes_ho_, int ref_type_)
+   : irs(0, Quadrature1D::GaussLobatto), ref_type(ref_type_), fes_ho(fes_ho_)
 {
    Mesh &mesh_ = *fes_ho_.GetMesh();
    int dim = mesh_.Dimension();
@@ -376,6 +377,15 @@ LORBase::LORBase(FiniteElementSpace &fes_ho_)
    a = NULL;
 }
 
+FiniteElementSpace &LORBase::GetFESpace() const
+{
+   // In the case of "batched assembly", the creation of the LOR mesh and
+   // space can be completely omitted (for efficiency). In this case, the
+   // fes object is NULL, and we need to create it when requested.
+   if (fes == NULL) { const_cast<LORBase&>(*this).FormLORSpace(); }
+   return *fes;
+}
+
 LORBase::~LORBase()
 {
    delete a;
@@ -386,18 +396,35 @@ LORBase::~LORBase()
 
 LORDiscretization::LORDiscretization(BilinearForm &a_ho_,
                                      const Array<int> &ess_tdof_list,
-                                     int ref_type)
-   : LORDiscretization(*a_ho_.FESpace(), ref_type)
+                                     int ref_type_)
+   : LORBase(*a_ho_.FESpace(), ref_type_)
 {
-   AssembleSystem(a_ho_, ess_tdof_list);
+   bool use_batched = false;
+
+   CheckBasisType(fes_ho);
+   A.SetType(Operator::MFEM_SPARSEMAT);
+
+   if (use_batched)
+   {
+      // Skip formation of the LOR mesh and space
+   }
+   else
+   {
+      FormLORSpace();
+      AssembleSystem(a_ho_, ess_tdof_list);
+   }
 }
 
 LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
-                                     int ref_type) : LORBase(fes_ho)
+                                     int ref_type_) : LORBase(fes_ho, ref_type_)
 {
    CheckBasisType(fes_ho);
+   A.SetType(Operator::MFEM_SPARSEMAT);
+   FormLORSpace();
+}
 
-#if 0
+void LORDiscretization::FormLORSpace()
+{
    Mesh &mesh_ho = *fes_ho.GetMesh();
    // For H1, ND and RT spaces, use refinement = element order, for DG spaces,
    // use refinement = element order + 1 (since LOR is p = 0 in this case).
@@ -412,20 +439,13 @@ LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    fes = new FiniteElementSpace(mesh, fec);
    SetupProlongationAndRestriction();
-#else
-   mesh = NULL;
-   fec = NULL;
-   fes = NULL;
-#endif
-   A.SetType(Operator::MFEM_SPARSEMAT);
 }
 
 void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
                                        const Array<int> &ess_dofs)
 {
    delete a;
-   // a = new BilinearForm(&GetFESpace());
-   a = new BilinearForm(&fes_ho);
+   a = new BilinearForm(&GetFESpace());
    AssembleSystem_(a_ho, ess_dofs);
 }
 
@@ -439,48 +459,59 @@ SparseMatrix &LORDiscretization::GetAssembledMatrix() const
 
 ParLORDiscretization::ParLORDiscretization(ParBilinearForm &a_ho_,
                                            const Array<int> &ess_tdof_list,
-                                           int ref_type)
-   : ParLORDiscretization(*a_ho_.ParFESpace(), ref_type)
+                                           int ref_type_) : LORBase(*a_ho_.ParFESpace(), ref_type_)
 {
-   AssembleSystem(a_ho_, ess_tdof_list);
+   bool use_batched = false;
+
+   ParFiniteElementSpace *pfes_ho = a_ho_.ParFESpace();
+
+   if (pfes_ho->GetMyRank() == 0) { CheckBasisType(fes_ho); }
+   A.SetType(Operator::Hypre_ParCSR);
+
+   if (use_batched)
+   {
+      // Skip forming the space
+   }
+   else
+   {
+      FormLORSpace();
+      AssembleSystem(a_ho_, ess_tdof_list);
+   }
 }
 
-ParLORDiscretization::ParLORDiscretization(ParFiniteElementSpace &fes_ho,
-                                           int ref_type) : LORBase(fes_ho)
+ParLORDiscretization::ParLORDiscretization(
+   ParFiniteElementSpace &fes_ho, int ref_type_) : LORBase(fes_ho, ref_type_)
 {
    if (fes_ho.GetMyRank() == 0) { CheckBasisType(fes_ho); }
+   A.SetType(Operator::Hypre_ParCSR);
+   FormLORSpace();
+}
+
+void ParLORDiscretization::FormLORSpace()
+{
+   ParFiniteElementSpace &pfes_ho = static_cast<ParFiniteElementSpace&>(fes_ho);
    // TODO: support variable-order spaces in parallel
-   MFEM_VERIFY(!fes_ho.IsVariableOrder(),
+   MFEM_VERIFY(!pfes_ho.IsVariableOrder(),
                "Cannot construct LOR operators on variable-order spaces");
 
-#if 0
-   int order = fes_ho.GetMaxElementOrder();
+   int order = pfes_ho.GetMaxElementOrder();
    if (GetFESpaceType() == L2) { ++order; }
 
-   NVTX("ParMesh");
-   ParMesh &mesh_ho = *fes_ho.GetParMesh();
+   ParMesh &mesh_ho = *pfes_ho.GetParMesh();
    ParMesh *pmesh = new ParMesh(ParMesh::MakeRefined(mesh_ho, order, ref_type));
    mesh = pmesh;
 
-   fec = fes_ho.FEColl()->Clone(GetLOROrder());
+   fec = pfes_ho.FEColl()->Clone(GetLOROrder());
    ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
    fes = pfes;
    SetupProlongationAndRestriction();
-#else
-   mesh = NULL;
-   fec = NULL;
-   fes = NULL;
-#endif
-
-   A.SetType(Operator::Hypre_ParCSR);
 }
 
 void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
                                           const Array<int> &ess_dofs)
 {
    delete a;
-   // a = new ParBilinearForm(&GetParFESpace());
-   a = new ParBilinearForm(&dynamic_cast<ParFiniteElementSpace&>(fes_ho));
+   a = new ParBilinearForm(&GetParFESpace());
    AssembleSystem_(a_ho, ess_dofs);
 }
 
@@ -492,7 +523,7 @@ HypreParMatrix &ParLORDiscretization::GetAssembledMatrix() const
 
 ParFiniteElementSpace &ParLORDiscretization::GetParFESpace() const
 {
-   return static_cast<ParFiniteElementSpace&>(*fes);
+   return static_cast<ParFiniteElementSpace&>(GetFESpace());
 }
 
 #endif // MFEM_USE_MPI
