@@ -9,14 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "fem.hpp"
-#include "../general/forall.hpp"
+#include "../fem.hpp"
+#include "../../general/forall.hpp"
 
 #define MFEM_DEBUG_COLOR 187
-#include "../general/debug.hpp"
+#include "../../general/debug.hpp"
 
 #define MFEM_NVTX_COLOR SlateBlue
-#include "../general/nvtx.hpp"
+#include "../../general/nvtx.hpp"
 
 namespace mfem
 {
