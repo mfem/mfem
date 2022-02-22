@@ -111,12 +111,12 @@ TEST_CASE("Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL, AssemblyLevel::ELEMENT,
                             AssemblyLevel::FULL);
+   auto dg = GENERATE(true, false);
 
    SECTION("2D")
    {
       auto order_2d = GENERATE(2, 3);
       auto pb = GENERATE(0, 1, 2);
-      auto dg = GENERATE(true, false);
       test_assembly_level("../../data/periodic-square.mesh",
                           order_2d, dg, pb, assembly);
       test_assembly_level("../../data/periodic-hexagon.mesh",
@@ -129,7 +129,6 @@ TEST_CASE("Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
    {
       int order_3d = 2;
       auto pb = GENERATE(0, 1, 2);
-      auto dg = GENERATE(true, false);
       test_assembly_level("../../data/periodic-cube.mesh",
                           order_3d, dg, pb, assembly);
       test_assembly_level("../../data/fichera-q3.mesh",
@@ -141,13 +140,13 @@ TEST_CASE("Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
    {
       auto order_2d = GENERATE(2, 3);
       test_assembly_level("../../data/amr-quad.mesh",
-                          order_2d, false, 0, assembly);
+                          order_2d, dg, 0, assembly);
    }
    SECTION("AMR 3D")
    {
       int order_3d = 2;
       test_assembly_level("../../data/fichera-amr.mesh",
-                          order_3d, false, 0, assembly);
+                          order_3d, dg, 0, assembly);
    }
 } // test case
 
