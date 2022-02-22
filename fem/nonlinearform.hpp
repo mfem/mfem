@@ -149,7 +149,7 @@ public:
    /// Specify essential boundary conditions. If vdim > 1 then one can specify
    /// per boundary attribute which components on a boundary are essential by
    /// assigning the component ID to its location in bdr_component array
-   /// The bdr_component has dimensions #boundary attributes x #vdim
+   /// The bdr_component has dimensions number boundary attributes x vdim
    /** This method calls FiniteElementSpace::GetEssentialTrueDofs() and stores
        the result internally for use by other methods. If the @a rhs pointer is
        not NULL, its essential true dofs will be set to zero. This makes it

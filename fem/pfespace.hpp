@@ -362,7 +362,7 @@ public:
        If vdim > 1 then one can specify per boundary attribute which components
        on a boundary are essential by assigning the component ID to its location
        in component array.
-       The component has dimensions #boundary attributes x #vdim. */
+       The component has dimensions number of boundary attributes x vdim. */
    virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                   Array<int> &ess_vdofs,
                                   const Array2D<int> &component) const;
@@ -380,7 +380,7 @@ public:
        If vdim > 1 then one can specify per boundary attribute which components
        on a boundary are essential by assigning the component ID to its location
        in component array.
-       The component has dimensions #boundary attributes x #vdim. */
+       The component has dimensions number of boundary attributes x vdim. */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                      Array<int> &ess_tdof_list,
                                      const Array2D<int> &component);
