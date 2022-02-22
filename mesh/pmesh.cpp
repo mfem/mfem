@@ -4649,7 +4649,7 @@ bool ParMesh::WantSkipSharedMaster(const NCMesh::Master &master) const
    return false;
 }
 
-void ParMesh::Print(std::ostream &out) const
+void ParMesh::Print(std::ostream &os) const
 {
    bool print_shared = true;
    int shared_bdr_attr;
@@ -4657,7 +4657,7 @@ void ParMesh::Print(std::ostream &out) const
 
    if (NURBSext)
    {
-      Printer(out); // does not print shared boundary
+      Printer(os); // does not print shared boundary
       return;
    }
 
@@ -4695,25 +4695,25 @@ void ParMesh::Print(std::ostream &out) const
       }
    }
 
-   out << "MFEM mesh v1.0\n";
+   os << "MFEM mesh v1.0\n";
 
    // optional
-   out <<
-       "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
-       "# POINT       = 0\n"
-       "# SEGMENT     = 1\n"
-       "# TRIANGLE    = 2\n"
-       "# SQUARE      = 3\n"
-       "# TETRAHEDRON = 4\n"
-       "# CUBE        = 5\n"
-       "# PRISM       = 6\n"
-       "#\n";
+   os <<
+      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "# POINT       = 0\n"
+      "# SEGMENT     = 1\n"
+      "# TRIANGLE    = 2\n"
+      "# SQUARE      = 3\n"
+      "# TETRAHEDRON = 4\n"
+      "# CUBE        = 5\n"
+      "# PRISM       = 6\n"
+      "#\n";
 
-   out << "\ndimension\n" << Dim
-       << "\n\nelements\n" << NumOfElements << '\n';
+   os << "\ndimension\n" << Dim
+      << "\n\nelements\n" << NumOfElements << '\n';
    for (int i = 0; i < NumOfElements; i++)
    {
-      PrintElement(elements[i], out);
+      PrintElement(elements[i], os);
    }
 
    int num_bdr_elems = NumOfBdrElements;
@@ -4721,10 +4721,10 @@ void ParMesh::Print(std::ostream &out) const
    {
       num_bdr_elems += s2l_face->Size();
    }
-   out << "\nboundary\n" << num_bdr_elems << '\n';
+   os << "\nboundary\n" << num_bdr_elems << '\n';
    for (int i = 0; i < NumOfBdrElements; i++)
    {
-      PrintElement(boundary[i], out);
+      PrintElement(boundary[i], os);
    }
 
    if (print_shared && Dim > 1)
@@ -4741,28 +4741,28 @@ void ParMesh::Print(std::ostream &out) const
       {
          // Modify the attributes of the faces (not used otherwise?)
          faces[(*s2l_face)[i]]->SetAttribute(shared_bdr_attr);
-         PrintElement(faces[(*s2l_face)[i]], out);
+         PrintElement(faces[(*s2l_face)[i]], os);
       }
    }
-   out << "\nvertices\n" << NumOfVertices << '\n';
+   os << "\nvertices\n" << NumOfVertices << '\n';
    if (Nodes == NULL)
    {
-      out << spaceDim << '\n';
+      os << spaceDim << '\n';
       for (int i = 0; i < NumOfVertices; i++)
       {
-         out << vertices[i](0);
+         os << vertices[i](0);
          for (int j = 1; j < spaceDim; j++)
          {
-            out << ' ' << vertices[i](j);
+            os << ' ' << vertices[i](j);
          }
-         out << '\n';
+         os << '\n';
       }
-      out.flush();
+      os.flush();
    }
    else
    {
-      out << "\nnodes\n";
-      Nodes->Save(out);
+      os << "\nnodes\n";
+      Nodes->Save(os);
    }
 }
 
