@@ -323,10 +323,11 @@ int GridFunction::VectorDim() const
    const FiniteElement *fe;
    if (!fes->GetNE())
    {
-      const FiniteElementCollection *fec = fes->FEColl();
+      const FiniteElementCollection *fe_coll = fes->FEColl();
       static const Geometry::Type geoms[3] =
       { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fec->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
+      fe = fe_coll->
+           FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
    }
    else
    {
@@ -605,11 +606,11 @@ const
       ET->SetIntPoint(&ip);
       FElem->CalcPhysHessian(*ET, DofHes);
 
-      for (int i = 0; i < size; i++)
+      for (int j = 0; j < size; j++)
       {
          for (int d = 0; d < dof; d++)
          {
-            hess(k,i) += DofHes(d,i) * loc_data[d];
+            hess(k,j) += DofHes(d,j) * loc_data[d];
          }
       }
    }
@@ -3946,6 +3947,129 @@ std::ostream &operator<<(std::ostream &out, const QuadratureFunction &qf)
 {
    qf.Save(out);
    return out;
+}
+
+void QuadratureFunction::SaveVTU(std::ostream &out, VTKFormat format,
+                                 int compression_level) const
+{
+   out << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
+   if (compression_level != 0)
+   {
+      out << R"( compressor="vtkZLibDataCompressor")";
+   }
+   out << " byte_order=\"" << VTKByteOrder() << "\">\n";
+   out << "<UnstructuredGrid>\n";
+
+   const char *fmt_str = (format == VTKFormat::ASCII) ? "ascii" : "binary";
+   const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
+   std::vector<char> buf;
+
+   int np = qspace->GetSize();
+   int ne = qspace->GetNE();
+   int sdim = qspace->GetMesh()->SpaceDimension();
+
+   // For quadrature functions, each point is a vertex cell, so number of cells
+   // is equal to number of points
+   out << "<Piece NumberOfPoints=\"" << np
+       << "\" NumberOfCells=\"" << np << "\">\n";
+
+   // print out the points
+   out << "<Points>\n";
+   out << "<DataArray type=\"" << type_str
+       << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
+
+   Vector pt(sdim);
+   for (int i = 0; i < ne; i++)
+   {
+      ElementTransformation &T = *qspace->GetMesh()->GetElementTransformation(i);
+      const IntegrationRule &ir = GetElementIntRule(i);
+      for (int j = 0; j < ir.Size(); j++)
+      {
+         T.Transform(ir[j], pt);
+         WriteBinaryOrASCII(out, buf, pt[0], " ", format);
+         if (sdim > 1) { WriteBinaryOrASCII(out, buf, pt[1], " ", format); }
+         else { WriteBinaryOrASCII(out, buf, 0.0, " ", format); }
+         if (sdim > 2) { WriteBinaryOrASCII(out, buf, pt[2], "", format); }
+         else { WriteBinaryOrASCII(out, buf, 0.0, "", format); }
+         if (format == VTKFormat::ASCII) { out << '\n'; }
+      }
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>\n";
+   out << "</Points>\n";
+
+   // Write cells (each cell is just a vertex)
+   out << "<Cells>\n";
+   // Connectivity
+   out << R"(<DataArray type="Int32" Name="connectivity" format=")"
+       << fmt_str << "\">\n";
+
+   for (int i=0; i<np; ++i) { WriteBinaryOrASCII(out, buf, i, "\n", format); }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>\n";
+   // Offsets
+   out << R"(<DataArray type="Int32" Name="offsets" format=")"
+       << fmt_str << "\">\n";
+   for (int i=0; i<np; ++i) { WriteBinaryOrASCII(out, buf, i, "\n", format); }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>\n";
+   // Types
+   out << R"(<DataArray type="UInt8" Name="types" format=")"
+       << fmt_str << "\">\n";
+   for (int i = 0; i < np; i++)
+   {
+      uint8_t vtk_cell_type = VTKGeometry::POINT;
+      WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", format);
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>\n";
+   out << "</Cells>\n";
+
+   out << "<PointData>\n";
+   out << "<DataArray type=\"" << type_str << "\" Name=\"u\" format=\""
+       << fmt_str << "\" NumberOfComponents=\"" << vdim << "\">\n";
+   for (int i = 0; i < ne; i++)
+   {
+      DenseMatrix vals;
+      GetElementValues(i, vals);
+      for (int j = 0; j < vals.Size(); ++j)
+      {
+         for (int vd = 0; vd < vdim; ++vd)
+         {
+            WriteBinaryOrASCII(out, buf, vals(vd, j), " ", format);
+         }
+         if (format == VTKFormat::ASCII) { out << '\n'; }
+      }
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>\n";
+   out << "</PointData>\n";
+
+   out << "</Piece>\n";
+   out << "</UnstructuredGrid>\n";
+   out << "</VTKFile>" << std::endl;
+}
+
+void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
+                                 int compression_level) const
+{
+   std::ofstream f(filename + ".vtu");
+   SaveVTU(f, format, compression_level);
 }
 
 

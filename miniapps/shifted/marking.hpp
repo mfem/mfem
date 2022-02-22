@@ -51,7 +51,9 @@ public:
         include_cut_cell(include_cut_cell_), initial_marking_done(false),
         level_set_index(0) { }
 
-   /// Mark all the elements in the mesh using the @a SBElementType
+   /// Mark all the elements in the mesh using the @a SBElementType.
+   /// A point is considered inside when the level set function is positive.
+   /// Assumes the ExchangeFaceNbrData() has been called for pmesh, ls_func.
    void MarkElements(const ParGridFunction &ls_func, Array<int> &elem_marker);
 
    /// List dofs associated with the surrogate boundary.
