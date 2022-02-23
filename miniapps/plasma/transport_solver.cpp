@@ -1111,6 +1111,20 @@ TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 
       coef_idx = sCoefs.Append(new StateVariableProductCoef(*A, *B));
    }
+   else if (name == "StateVariablePowerCoef")
+   {
+      Coefficient * ACoef = this->GetScalarCoef(input);
+
+      StateVariableCoef * A = dynamic_cast<StateVariableCoef*>(ACoef);
+
+      MFEM_VERIFY(A != NULL, "TransportCoefFactory: first argument to "
+                  "StateVariablePowerCoef is not a StateVariableCoef.");
+
+      int p;
+      input >> p;
+
+      coef_idx = sCoefs.Append(new StateVariablePowerCoef(*A, p));
+   }
    else if (name == "SoundSpeedCoef")
    {
       double mi;

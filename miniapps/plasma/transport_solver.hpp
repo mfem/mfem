@@ -1374,6 +1374,84 @@ public:
    }
 };
 
+class StateVariablePowerCoef : public StateVariableCoef
+{
+private:
+   StateVariableCoef *a;
+   int p;
+
+public:
+   // Result is A^p
+   StateVariablePowerCoef(StateVariableCoef &A, int p)
+      : a(A.Clone()), p(p) {}
+
+   ~StateVariablePowerCoef()
+   {
+      if (a != NULL) { delete a; }
+   }
+
+   virtual StateVariablePowerCoef * Clone() const
+   {
+      return new StateVariablePowerCoef(*a, p);
+   }
+
+   void SetACoef(StateVariableCoef &A) { a = &A; }
+   StateVariableCoef * GetACoef() const { return a; }
+
+   void SetPower(int new_p) { p = new_p; }
+   int GetPower() const { return p; }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return a->NonTrivialValue(deriv);
+   }
+
+   /// Evaluate the coefficient
+   virtual double Eval_Func(ElementTransformation &T,
+                            const IntegrationPoint &ip)
+   { return pow(a->Eval_Func(T, ip), p); }
+
+   virtual double Eval_dNn(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      if (p == 0) { return 0; }
+      if (p == 1) { return a->Eval_dNn(T, ip); }
+      return (double)p * pow(a->Eval_Func(T, ip), p-1) * a->Eval_dNn(T, ip);
+   }
+
+   virtual double Eval_dNi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      if (p == 0) { return 0; }
+      if (p == 1) { return a->Eval_dNi(T, ip); }
+      return (double)p * pow(a->Eval_Func(T, ip), p-1) * a->Eval_dNi(T, ip);
+   }
+
+   virtual double Eval_dVi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      if (p == 0) { return 0; }
+      if (p == 1) { return a->Eval_dVi(T, ip); }
+      return (double)p * pow(a->Eval_Func(T, ip), p-1) * a->Eval_dVi(T, ip);
+   }
+
+   virtual double Eval_dTi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      if (p == 0) { return 0; }
+      if (p == 1) { return a->Eval_dTi(T, ip); }
+      return (double)p * pow(a->Eval_Func(T, ip), p-1) * a->Eval_dTi(T, ip);
+   }
+
+   virtual double Eval_dTe(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      if (p == 0) { return 0; }
+      if (p == 1) { return a->Eval_dTe(T, ip); }
+      return (double)p * pow(a->Eval_Func(T, ip), p-1) * a->Eval_dTe(T, ip);
+   }
+};
+
 class StateVariableScalarVectorProductCoef : public StateVariableVecCoef
 {
 private:
