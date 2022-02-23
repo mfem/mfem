@@ -55,6 +55,10 @@ set(UNIT_TESTS_SRCS
   fem/test_bilinearform.cpp
   fem/test_blocknonlinearform.cpp
   fem/test_calcshape.cpp
+  fem/test_calcvshape.cpp
+  fem/test_calcdshape.cpp
+  fem/test_calccurlshape.cpp
+  fem/test_calcdivshape.cpp
   fem/test_coefficient.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
