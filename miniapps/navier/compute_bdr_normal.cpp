@@ -99,7 +99,99 @@ void BoundaryNormalEvaluator::Mult(const Vector &g, Vector &y) const
    }
    else if (dim == 3)
    {
-      MFEM_ABORT("Not implemented");
+      auto B = Reshape(maps->B.Read(), Q1D, D1D);
+      auto Bt = Reshape(maps->Bt.Read(), D1D, Q1D);
+
+      const auto d_det = Reshape(geom->detJ.Read(), Q1D, Q1D, nf);
+      const auto d_n = Reshape(geom->normal.Read(), Q1D, Q1D, 3, nf);
+      const auto d_w = Reshape(ir.GetWeights().Read(), Q1D, Q1D);
+
+      const auto d_g = Reshape(g_face.Read(), D1D, D1D, 3, nf);
+      const auto d_y = Reshape(y_face.Write(), D1D, D1D, nf);
+
+      MFEM_FORALL(i, nf,
+      {
+         double g_q[MAX_Q1D][MAX_Q1D];
+         // Get g.n at quads
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               g_q[qy][qx] = 0.0;
+            }
+         }
+
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            double g_qx[MAX_Q1D][3];
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int d = 0; d < 3; ++ d)
+               {
+                  g_qx[qy][d] = 0.0;
+               }
+            }
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double g_0 = d_g(dx, dy, 0, i);
+               const double g_1 = d_g(dx, dy, 1, i);
+               const double g_2 = d_g(dx, dy, 2, i);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  double b = B(qx, dx);
+                  g_qx[qx][0] += b*g_0;
+                  g_qx[qx][1] += b*g_1;
+                  g_qx[qx][2] += b*g_2;
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double b = B(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  double det_w = d_det(qx,qy,i)*d_w(qx,qy);
+                  double n0 = det_w*d_n(qx,qy,0,i);
+                  double n1 = det_w*d_n(qx,qy,1,i);
+                  double n2 = det_w*d_n(qx,qy,2,i);
+
+                  g_q[qy][qx] += b*(n0*g_qx[qx][0] + n1*g_qx[qx][1] + n2*g_qx[qx][2]);
+               }
+            }
+         }
+
+         // Get y at dofs
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               d_y(dx, dy, i) = 0.0;
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            double y_x[MAX_D1D];
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               y_x[dx] = 0.0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double g_qx_qy = g_q[qy][qx];
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  y_x[dx] += Bt(dx,qx)*g_qx_qy;
+               }
+            }
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               const double b = Bt(dy,qy);
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  d_y(dx,dy,i) += b * y_x[dx];
+               }
+            }
+         }
+      });
    }
 
    p_face_restr->MultTranspose(y_face, y_gf);
