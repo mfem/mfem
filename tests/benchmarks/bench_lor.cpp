@@ -24,8 +24,6 @@
 #define MFEM_DEBUG_COLOR 227
 #include "general/debug.hpp"
 
-#include "linalg/wamg.hpp"
-
 #include <functional>
 #include <iostream>
 #include <fstream>
@@ -1169,6 +1167,7 @@ struct SolverProblem: public BakeOff
 
    void benchmark() override
    {
+      MFEM_NVTX;
       MFEM_DEVICE_SYNC;
       sw_solve.Start();
       cg.Mult(B,X);
@@ -1197,7 +1196,7 @@ struct SolverProblem: public BakeOff
 
 // The different side sizes
 // 120 max for one rank when generating tex data
-#define P_SIDES bm::CreateDenseRange(12,120,6)
+#define P_SIDES bm::CreateDenseRange(12,180,6)
 
 // Maximum number of dofs
 #define MAX_NDOFS 8*1024*1024
@@ -1209,7 +1208,7 @@ struct SolverProblem: public BakeOff
 /// order is set from state.range(1)
 /// epsy = epsz, set from state.range(2)
 /// with MPI, Iterations has to be set to force each rank to be in sync
-#define BakeOff_Solver(i,Kernel,Precond)\
+#define BakeOff_BPS3(i,Kernel,Precond)\
 static void BPS##i##_##Precond(bm::State &state){\
    const bool rhs_n = 3;\
    const bool rhs_1 = true;\
@@ -1233,22 +1232,22 @@ static void BPS##i##_##Precond(bm::State &state){\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_SIDES,P_ORDERS,P_EPSILONS})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(1);
+    -> Iterations(10);
 
-/// BPS3: scalar PCG with stiffness matrix, q=p+2
-BakeOff_Solver(3,Diffusion,None)
-BakeOff_Solver(3,Diffusion,Jacobi)
-BakeOff_Solver(3,Diffusion,BoomerAMG)
-BakeOff_Solver(3,Diffusion,LORBatch)
-BakeOff_Solver(3,Diffusion,MGJacobi)
-BakeOff_Solver(3,Diffusion,MGFAHypre)
+/// BPS3_LOR: scalar PCG with stiffness matrix, q=p+2
+BakeOff_BPS3(3,Diffusion,None)
+BakeOff_BPS3(3,Diffusion,Jacobi)
+//BakeOff_BPS3(3,Diffusion,BoomerAMG)
+BakeOff_BPS3(3,Diffusion,LORBatch)
+BakeOff_BPS3(3,Diffusion,MGJacobi)
+BakeOff_BPS3(3,Diffusion,MGFAHypre)
 
 } // namespace mfem
 
 /**
  * @brief main entry point
  * --benchmark_context=device=cuda
- * --benchmark_filter=BPS3_\(None\|Jacobi\|MGJacobi\)/4/2/1
+ * --benchmark_filter=BPS3_\(None\|Jacobi\|MGJacobi\)/60/6/3
  */
 int main(int argc, char *argv[])
 {
