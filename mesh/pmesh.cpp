@@ -2635,8 +2635,16 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
             for (int j = 0; j < 2; j++)
             {
                const int *fv = pri_t::FaceVert[j];
-               face_nbr_el_to_face->Push(
-                  i, faces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]));
+               int lf = faces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
+               if (lf < 0)
+               {
+                  lf = sfaces_tbl->Index(v[fv[0]], v[fv[1]], v[fv[2]]);
+                  if (lf >= 0)
+                  {
+                     lf += NumOfFaces;
+                  }
+               }
+               face_nbr_el_to_face->Push(i, lf);
             }
             for (int j = 2; j < 5; j++)
             {
@@ -2648,25 +2656,32 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
                if (max < v[fv[2]]) { max = v[fv[2]], k = 2; }
                if (max < v[fv[3]]) { k = 3; }
 
+               int v0 = -1, v1 = -1, v2 = -1;
                switch (k)
                {
                   case 0:
-                     face_nbr_el_to_face->Push(
-                        i, faces_tbl->Index(v[fv[1]],v[fv[2]],v[fv[3]]));
+                     v0 = v[fv[1]]; v1 = v[fv[2]]; v2 = v[fv[3]];
                      break;
                   case 1:
-                     face_nbr_el_to_face->Push(
-                        i, faces_tbl->Index(v[fv[0]],v[fv[2]],v[fv[3]]));
+                     v0 = v[fv[0]]; v1 = v[fv[2]]; v2 = v[fv[3]];
                      break;
                   case 2:
-                     face_nbr_el_to_face->Push(
-                        i, faces_tbl->Index(v[fv[0]],v[fv[1]],v[fv[3]]));
+                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[3]];
                      break;
                   case 3:
-                     face_nbr_el_to_face->Push(
-                        i, faces_tbl->Index(v[fv[0]],v[fv[1]],v[fv[2]]));
+                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[2]];
                      break;
                }
+               int lf = faces_tbl->Index(v0, v1, v2);
+               if (lf < 0)
+               {
+                  lf = sfaces_tbl->Index(v0, v1, v2);
+                  if (lf >= 0)
+                  {
+                     lf += NumOfFaces;
+                  }
+               }
+               face_nbr_el_to_face->Push(i, lf);
             }
             break;
          }
@@ -2684,25 +2699,32 @@ STable3D *ParMesh::GetFaceNbrElementToFaceTable(int ret_ftbl)
                if (max < v[fv[2]]) { max = v[fv[2]], k = 2; }
                if (max < v[fv[3]]) { k = 3; }
 
+               int v0 = -1, v1 = -1, v2 = -1;
                switch (k)
                {
                   case 0:
-                     face_nbr_el_to_face->Push(
-                        i, faces_tbl->Index(v[fv[1]],v[fv[2]],v[fv[3]]));
+                     v0 = v[fv[1]]; v1 = v[fv[2]]; v2 = v[fv[3]];
                      break;
                   case 1:
-                     face_nbr_el_to_face->Push(
-                        i, faces_tbl->Index(v[fv[0]],v[fv[2]],v[fv[3]]));
+                     v0 = v[fv[0]]; v1 = v[fv[2]]; v2 = v[fv[3]];
                      break;
                   case 2:
-                     face_nbr_el_to_face->Push(
-                        i, faces_tbl->Index(v[fv[0]],v[fv[1]],v[fv[3]]));
+                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[3]];
                      break;
                   case 3:
-                     face_nbr_el_to_face->Push(
-                        i, faces_tbl->Index(v[fv[0]],v[fv[1]],v[fv[2]]));
+                     v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[2]];
                      break;
                }
+               int lf = faces_tbl->Index(v0, v1, v2);
+               if (lf < 0)
+               {
+                  lf = sfaces_tbl->Index(v0, v1, v2);
+                  if (lf >= 0)
+                  {
+                     lf += NumOfFaces;
+                  }
+               }
+               face_nbr_el_to_face->Push(i, lf);
             }
             break;
          }
