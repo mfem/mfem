@@ -1724,7 +1724,7 @@ static void SmemPADiffusionApply3D(const int NE,
    MFEM_NVTX;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   dbg("D1D:%d, Q1D:%d",D1D,Q1D);
+   //dbg("D1D:%d, Q1D:%d",D1D,Q1D);
    constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");
@@ -2004,7 +2004,7 @@ static void PADiffusionApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
    const int ID = (D1D << 4) | Q1D;
-   dbg("Diffusion #0x%x",ID);
+   //dbg("Diffusion #0x%x",ID);
 
    if (dim == 2)
    {
@@ -2039,7 +2039,7 @@ static void PADiffusionApply(const int dim,
          case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
          case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
          case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
-         default:   return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+            //default:   return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
    MFEM_ABORT("Unknown kernel.");
