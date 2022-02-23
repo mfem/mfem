@@ -411,7 +411,9 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                                << " and coeffType " << coeffType << ": "
                                << std::pow(ne, dimension) << " elements." << std::endl;
 
-                  for (int order = 1; order < 4; ++order)
+                  int max_order = (dimension == 3) ? 2 : 3;
+
+                  for (int order = 1; order <= max_order; ++order)
                   {
                      Mesh mesh;
                      if (dimension == 2)
