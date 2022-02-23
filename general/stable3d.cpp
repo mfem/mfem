@@ -207,19 +207,19 @@ STable3D::~STable3D ()
    delete [] Rows;
 }
 
-void STable3D::Print(std::ostream & out) const
+void STable3D::Print(std::ostream & os) const
 {
-   out << NElem << endl;
+   os << NElem << endl;
    for (int row = 0; row < Size; row++)
    {
       STable3DNode *node_p = Rows[row];
       while (node_p != NULL)
       {
-         out << row
-             << ' ' << node_p->Column
-             << ' ' << node_p->Floor
-             << ' ' << node_p->Number
-             << endl;
+         os << row
+            << ' ' << node_p->Column
+            << ' ' << node_p->Floor
+            << ' ' << node_p->Number
+            << endl;
          node_p = node_p->Prev;
       }
    }

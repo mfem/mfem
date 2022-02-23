@@ -1810,75 +1810,75 @@ void DenseMatrix::Threshold(double eps)
    }
 }
 
-void DenseMatrix::Print(std::ostream &out, int width_) const
+void DenseMatrix::Print(std::ostream &os, int width_) const
 {
    // save current output flags
-   ios::fmtflags old_flags = out.flags();
+   ios::fmtflags old_flags = os.flags();
    // output flags = scientific + show sign
-   out << setiosflags(ios::scientific | ios::showpos);
+   os << setiosflags(ios::scientific | ios::showpos);
    for (int i = 0; i < height; i++)
    {
-      out << "[row " << i << "]\n";
+      os << "[row " << i << "]\n";
       for (int j = 0; j < width; j++)
       {
-         out << (*this)(i,j);
+         os << (*this)(i,j);
          if (j+1 == width || (j+1) % width_ == 0)
          {
-            out << '\n';
+            os << '\n';
          }
          else
          {
-            out << ' ';
+            os << ' ';
          }
       }
    }
    // reset output flags to original values
-   out.flags(old_flags);
+   os.flags(old_flags);
 }
 
-void DenseMatrix::PrintMatlab(std::ostream &out) const
+void DenseMatrix::PrintMatlab(std::ostream &os) const
 {
    // save current output flags
-   ios::fmtflags old_flags = out.flags();
+   ios::fmtflags old_flags = os.flags();
    // output flags = scientific + show sign
-   out << setiosflags(ios::scientific | ios::showpos);
+   os << setiosflags(ios::scientific | ios::showpos);
    for (int i = 0; i < height; i++)
    {
       for (int j = 0; j < width; j++)
       {
-         out << (*this)(i,j);
-         out << ' ';
+         os << (*this)(i,j);
+         os << ' ';
       }
-      out << "\n";
+      os << "\n";
    }
    // reset output flags to original values
-   out.flags(old_flags);
+   os.flags(old_flags);
 }
 
-void DenseMatrix::PrintT(std::ostream &out, int width_) const
+void DenseMatrix::PrintT(std::ostream &os, int width_) const
 {
    // save current output flags
-   ios::fmtflags old_flags = out.flags();
+   ios::fmtflags old_flags = os.flags();
    // output flags = scientific + show sign
-   out << setiosflags(ios::scientific | ios::showpos);
+   os << setiosflags(ios::scientific | ios::showpos);
    for (int j = 0; j < width; j++)
    {
-      out << "[col " << j << "]\n";
+      os << "[col " << j << "]\n";
       for (int i = 0; i < height; i++)
       {
-         out << (*this)(i,j);
+         os << (*this)(i,j);
          if (i+1 == height || (i+1) % width_ == 0)
          {
-            out << '\n';
+            os << '\n';
          }
          else
          {
-            out << ' ';
+            os << ' ';
          }
       }
    }
    // reset output flags to original values
-   out.flags(old_flags);
+   os.flags(old_flags);
 }
 
 void DenseMatrix::TestInversion()
