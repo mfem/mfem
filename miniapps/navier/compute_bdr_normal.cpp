@@ -49,6 +49,14 @@ void BoundaryNormalEvaluator::Mult(const Vector &g, Vector &y) const
    int dim = vfes.GetMesh()->Dimension();
    const int nf = vfes.GetNFbyType(FaceType::Boundary);
 
+   // Special case to work around bug in restriction when there are no faces
+   // (MultTranspose does not work properly)
+   if (nf == 0)
+   {
+      y = 0.0;
+      return;
+   }
+
    const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;
 
