@@ -982,8 +982,8 @@ void SmemPAConvectionApplyT2D(const int ne,
             {
                const double by = Bt(dy,qy);
                const double gy = Gt(dy,qy);
-               GDBu[tidz][dy][qx][0] += gy * DBu[tidz][qy][qx][0];
-               GDBu[tidz][dy][qx][1] += by * DBu[tidz][qy][qx][1];
+               GDBu[tidz][dy][qx][0] += by * DBu[tidz][qy][qx][0];
+               GDBu[tidz][dy][qx][1] += gy * DBu[tidz][qy][qx][1];
             }
          }
       }
