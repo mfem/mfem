@@ -28,6 +28,7 @@
 
 #include <functional>
 #include <iostream>
+#include <fstream>
 #include <memory>
 #include <vector>
 
@@ -77,6 +78,7 @@ static int config_dev_size = 4; // default 4 GPU per node
 static bool config_nxyz = false; // cartesian partitioning in x
 
 static bool config_debug = false;
+static bool config_save_mesh = false;
 
 static bool config_inner_cg = false;
 
@@ -1081,6 +1083,7 @@ struct SolverProblem: public BakeOff
       mg_fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       mg_fes.GetMesh()->EnsureNodes();
 
+      if (config_save_mesh) { GLVis(); std::exit(0); }
 
       if (rhs_1) { b.AddDomainIntegrator(new DomainLFIntegrator(one)); }
       else { b.AddDomainIntegrator(new DomainLFIntegrator(rhs)); }
@@ -1148,7 +1151,6 @@ struct SolverProblem: public BakeOff
          case None: { break; }
          case Jacobi:
          {
-            assert(false);
             M.reset(new OperatorJacobiSmoother(a,ess_tdof_list));
             break;
          }
@@ -1259,9 +1261,30 @@ struct SolverProblem: public BakeOff
       int  visport   = 19916;
       char vishost[] = "localhost";
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << pmesh << x << std::flush;
+      if (config_save_mesh)
+      {
+         std::string mesh_file("kershaw_p");
+         mesh_file += std::to_string(p);
+         mesh_file += "_x";
+         mesh_file += std::to_string(nx);
+         mesh_file += "y";
+         mesh_file += std::to_string(ny);
+         mesh_file += "z";
+         mesh_file += std::to_string(nz);
+         mesh_file += "_eps";
+         mesh_file += std::to_string(static_cast<int>(epsy*10.0));
+         mesh_file += ".mesh";
+         dbg("Saving mesh file: %s",mesh_file.c_str());
+         std::ofstream mesh_ofs(mesh_file.c_str());
+         mesh_ofs.precision(12);
+         mg_pmesh.Print(mesh_ofs);
+      }
+      else
+      {
+         sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock.precision(8);
+         sol_sock << "solution\n" << pmesh << x << std::flush;
+      }
    }
 
    void benchmark() override
@@ -1292,7 +1315,7 @@ struct SolverProblem: public BakeOff
 
 // The different side sizes
 // 120 max for one rank when generating tex data
-#define P_SIDES bm::CreateDenseRange(12,360,6)
+#define P_SIDES bm::CreateDenseRange(12,540,6)
 
 // Maximum number of dofs
 #define MAX_NDOFS 8*1024*1024
@@ -1307,7 +1330,7 @@ struct SolverProblem: public BakeOff
 #define BakeOff_Solver(i,Kernel,Precond)\
 static void BPS##i##_##Precond(bm::State &state){\
    const bool rhs_n = 3;\
-   const bool rhs_1 = false;\
+   const bool rhs_1 = true;\
    const int smoothness = 0;\
    const int refinements = 0;\
    const int nranks = mpiWorldSize;\
@@ -1329,14 +1352,14 @@ static void BPS##i##_##Precond(bm::State &state){\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_SIDES,P_ORDERS,P_EPSILONS})\
     -> Unit(bm::kMillisecond)\
-    -> Iterations(5);
+    -> Iterations(10);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 //BakeOff_Solver(3,Diffusion,None)
 //BakeOff_Solver(3,Diffusion,Jacobi)
 //BakeOff_Solver(3,Diffusion,BoomerAMG)
 BakeOff_Solver(3,Diffusion,LORBatch)
-BakeOff_Solver(3,Diffusion,MGJacobi)
+//BakeOff_Solver(3,Diffusion,MGJacobi)
 BakeOff_Solver(3,Diffusion,MGFAHypre)
 BakeOff_Solver(3,Diffusion,MGWavelets)
 BakeOff_Solver(3,Diffusion,MGFAWavelets)
@@ -1368,6 +1391,7 @@ int main(int argc, char *argv[])
    {
       bmi::FindInContext("device", config_device); // device=cuda
       bmi::FindInContext("debug", config_debug); // debug=true
+      bmi::FindInContext("save_mesh", config_save_mesh);
       bmi::FindInContext("nxyz", config_nxyz); // nxyz=true
 
       bmi::FindInContext("inner_cg", config_inner_cg);

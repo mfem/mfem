@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define MFEM_DEBUG_COLOR 85
+#include "../general/debug.hpp"
+
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
@@ -1070,8 +1073,7 @@ static void PAMassApply(const int dim,
       const int ver = Device::KernelsVersion();
       const int id = (ver << 8) | (D1D << 4) | Q1D;
 
-      static int ini = 0;
-      if (!ini++) { printf("\033[33mkernel #0x%x\033[m\n",id); }
+      dbg("Mass #0x%x",id);
 
       switch (id)
       {

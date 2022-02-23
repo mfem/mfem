@@ -19,6 +19,8 @@ CMakeFiles/
 *.nsys-rep
 
 # Benchmark files
+tests/benchmarks/*.bin
+tests/benchmarks/*.mesh
 *.tex
 *.org
 *.aux

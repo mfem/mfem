@@ -1504,6 +1504,7 @@ static void PADiffusionApply3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   dbg("D1D:%d, Q1D:%d",D1D,Q1D);
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
@@ -1723,6 +1724,7 @@ static void SmemPADiffusionApply3D(const int NE,
    MFEM_NVTX;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   dbg("D1D:%d, Q1D:%d",D1D,Q1D);
    constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");
@@ -2002,6 +2004,7 @@ static void PADiffusionApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
    const int ID = (D1D << 4) | Q1D;
+   dbg("Diffusion #0x%x",ID);
 
    if (dim == 2)
    {
@@ -2026,13 +2029,13 @@ static void PADiffusionApply(const int dim,
    {
       switch (ID)
       {
-         case 0x22: return SmemPADiffusionApply3D<2,2>(NE,symm,B,G,D,X,Y);
+         //case 0x22: return SmemPADiffusionApply3D<2,2>(NE,symm,B,G,D,X,Y);
          case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
          case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
          case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
-         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
+         //case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
          case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
-         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
+         //case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
          case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
          case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
          case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
