@@ -38,25 +38,25 @@ namespace transport
 */
 inline double tau_e(double Te, double zi, double ni, double lnLambda)
 {
-   // The factor of eV_ is included to convert Te from eV to Joules
+   // The factor of J_per_eV_ is included to convert Te from eV to Joules
    return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-          sqrt(0.5 * me_kg_ * pow(Te * eV_, 3) / M_PI) /
+          sqrt(0.5 * me_kg_ * pow(Te * J_per_eV_, 3) / M_PI) /
           (lnLambda * pow(q_, 4) * zi * zi * ni);
 }
 /// Derivative of tau_e wrt ni
 inline double dtau_e_dni(double Te, double zi, double ni, double lnLambda)
 {
-   // The factor of eV_ is included to convert Te from eV to Joules
+   // The factor of J_per_eV_ is included to convert Te from eV to Joules
    return -0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-          sqrt(0.5 * me_kg_ * pow(Te * eV_, 3) / M_PI) /
+          sqrt(0.5 * me_kg_ * pow(Te * J_per_eV_, 3) / M_PI) /
           (lnLambda * pow(q_, 4) * zi * zi * ni * ni);
 }
 /// Derivative of tau_e wrt Te
 inline double dtau_e_dTe(double Te, double zi, double ni, double lnLambda)
 {
-   // The factor of eV_ is included to convert Te from eV to Joules
-   return 1.125 * eV_ * pow(4.0 * M_PI * epsilon0_, 2) *
-          sqrt(0.5 * me_kg_ * Te * eV_ / M_PI) /
+   // The factor of J_per_eV_ is included to convert Te from eV to Joules
+   return 1.125 * J_per_eV_ * pow(4.0 * M_PI * epsilon0_, 2) *
+          sqrt(0.5 * me_kg_ * Te * J_per_eV_ / M_PI) /
           (lnLambda * pow(q_, 4) * zi * zi * ni);
 }
 
@@ -71,9 +71,9 @@ inline double dtau_e_dTe(double Te, double zi, double ni, double lnLambda)
 inline double tau_i(double mi, double zi, double ni, double Ti,
                     double lnLambda)
 {
-   // The factor of eV_ is included to convert Ti from eV to Joules
+   // The factor of J_per_eV_ is included to convert Ti from eV to Joules
    return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-          sqrt(mi * amu_ * pow(Ti * eV_, 3) / M_PI) /
+          sqrt(mi * kg_per_amu_ * pow(Ti * J_per_eV_, 3) / M_PI) /
           (lnLambda * pow(q_ * zi, 4) * ni);
 }
 
@@ -155,7 +155,7 @@ inline double chi_i_para(double ma, double Ta,
 {
  // The factor of q_ is included to convert Ta from eV to Joules
  // The factor of u_ is included to convert ma from a.m.u to kg
- return 3.9 * (q_ * Ta / (ma * amu_ ) ) *
+ return 3.9 * (q_ * Ta / (ma * kg_per_amu_ ) ) *
         tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 */
@@ -198,7 +198,7 @@ inline double eta_e_para(double ne, double Te, int ns, double * ni, int * zi)
 {
  // The factor of q_ is included to convert Te from eV to Joules
  // The factor of u_ is included to convert from kg to a.m.u
- return 0.73 * ne * (q_ * Te / amu_) * tau_e(Te, ns, ni, zi, 17.0);
+ return 0.73 * ne * (q_ * Te / kg_per_amu_) * tau_e(Te, ns, ni, zi, 17.0);
 }
 */
 /**
@@ -217,7 +217,7 @@ inline double eta_i_para(double ma, double Ta,
 {
  // The factor of q_ is included to convert Ti from eV to Joules
  // The factor of u_ is included to convert from kg to a.m.u
- return 0.96 * nb[ion] * (q_ * Ta / amu_) *
+ return 0.96 * nb[ion] * (q_ * Ta / kg_per_amu_) *
         tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 */
@@ -1696,7 +1696,7 @@ public:
       double Ti = TiCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
 
-      return sqrt(eV_ * (Ti + Te) / (amu_ * mi_));
+      return sqrt(J_per_eV_ * (Ti + Te) / (kg_per_amu_ * mi_));
    }
 
    double Eval_dTi(ElementTransformation &T,
@@ -1705,7 +1705,7 @@ public:
       double Ti = TiCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
 
-      return 0.5 * sqrt(eV_ / (amu_ * mi_ * (Ti + Te)));
+      return 0.5 * sqrt(J_per_eV_ / (kg_per_amu_ * mi_ * (Ti + Te)));
    }
 
    double Eval_dTe(ElementTransformation &T,
@@ -1714,7 +1714,7 @@ public:
       double Ti = TiCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
 
-      return 0.5 * sqrt(eV_ / (amu_ * mi_ * (Ti + Te)));
+      return 0.5 * sqrt(J_per_eV_ / (kg_per_amu_ * mi_ * (Ti + Te)));
    }
 
 };
@@ -2268,8 +2268,8 @@ public:
       : z_i_((double)ion_charge), m_i_(ion_mass),
         lnLambda_(lnLambda),
         a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-           sqrt(m_i_ * amu_ * pow(eV_, 5) / M_PI) /
-           (lnLambda_ * amu_ * pow(q_ * z_i_, 4))),
+           sqrt(m_i_ * kg_per_amu_ * pow(J_per_eV_, 5) / M_PI) /
+           (lnLambda_ * kg_per_amu_ * pow(q_ * z_i_, 4))),
         TiCoef_(&TiCoef)
    {}
 
@@ -2277,8 +2277,8 @@ public:
       : z_i_(other.z_i_), m_i_(other.m_i_),
         lnLambda_(other.lnLambda_),
         a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-           sqrt(m_i_ * amu_ * pow(eV_, 5) / M_PI) /
-           (lnLambda_ * amu_ * pow(q_ * z_i_, 4))),
+           sqrt(m_i_ * kg_per_amu_ * pow(J_per_eV_, 5) / M_PI) /
+           (lnLambda_ * kg_per_amu_ * pow(q_ * z_i_, 4))),
         TiCoef_(other.TiCoef_)
    {
       derivType_ = other.derivType_;
@@ -2384,7 +2384,7 @@ public:
       : StateVariableMatCoef(2), zi_((double)ion_charge), mi_(ion_mass),
         lnLambda_(17.0),
         a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-           sqrt(mi_ * amu_ * pow(eV_, 5) / M_PI) /
+           sqrt(mi_ * kg_per_amu_ * pow(J_per_eV_, 5) / M_PI) /
            (lnLambda_ * pow(q_ * zi_, 4))),
         Dperp_(&DperpCoef), niCoef_(&niCoef), TiCoef_(&TiCoef),
         B3_(&B3Coef), B_(3) {}
@@ -3146,7 +3146,7 @@ public:
                                Coefficient &TiCoef)
       : StateVariableCoef(),
         lnLambda_(lnLambda), z_i_(ion_charge),
-        m_i_(ion_mass), m_i_kg_(ion_mass * amu_),
+        m_i_(ion_mass), m_i_kg_(ion_mass * kg_per_amu_),
         niCoef_(&niCoef), TiCoef_(&TiCoef)
    {}
 
@@ -3187,9 +3187,9 @@ public:
                   "IonThermalParaDiffusionCoef.");
 
       double tau = tau_i(m_i_, z_i_, ni, Ti, lnLambda_);
-      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
+      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * J_per_eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
-      return 3.9 * Ti * eV_ * tau / m_i_kg_;
+      return 3.9 * Ti * J_per_eV_ * tau / m_i_kg_;
    }
 
 };
@@ -3249,9 +3249,9 @@ public:
                   "ElectronThermalParaDiffusionCoef.");
 
       double tau = tau_e(Te, z_i_, ne, lnLambda_);
-      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
+      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * J_per_eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
-      return 3.16 * Te * eV_ * tau / me_kg_;
+      return 3.16 * Te * J_per_eV_ * tau / me_kg_;
    }
    /*
    double Eval_dTe(ElementTransformation &T,
@@ -3270,9 +3270,9 @@ public:
 
       double tau = tau_e(Te, z_i_, ne, 17.0);
       double dtau = dtau_e_dT(Te, z_i_, ne, 17.0);
-      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
+      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * J_per_eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
-      return 3.16 * ne * eV_ * (tau + Te * dtau)/ me_kg_;
+      return 3.16 * ne * J_per_eV_ * (tau + Te * dtau)/ me_kg_;
    }
    */
 };
@@ -3496,7 +3496,7 @@ public:
 
       double Bmag = sqrt(B_ * B_);
 
-      return eV_ * ((zi_ * Te1 + Ti1) * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) +
+      return J_per_eV_ * ((zi_ * Te1 + Ti1) * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) +
                     (zi_ * (B_[0] * gTe1_[0] + B_[1] * gTe1_[1]) +
                      (B_[0] * gTi1_[0] + B_[1] * gTi1_[1])) * ni1) / Bmag;
    }
@@ -3520,7 +3520,7 @@ public:
 
       double Bmag = sqrt(B_ * B_);
 
-      return eV_ * (dt_ * zi_ * (B_[0] * gTe1_[0] + B_[1] * gTe1_[1]) +
+      return J_per_eV_ * (dt_ * zi_ * (B_[0] * gTe1_[0] + B_[1] * gTe1_[1]) +
                     (B_[0] * gTi1_[0] + B_[1] * gTi1_[1])) / Bmag;
    }
 
@@ -3539,7 +3539,7 @@ public:
 
       double Bmag = sqrt(B_ * B_);
 
-      return eV_ * dt_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
+      return J_per_eV_ * dt_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
    }
 
    double Eval_dTe(ElementTransformation &T,
@@ -3557,7 +3557,7 @@ public:
 
       double Bmag = sqrt(B_ * B_);
 
-      return eV_ * dt_ * zi_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
+      return J_per_eV_ * dt_ * zi_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
    }
 };
 /*

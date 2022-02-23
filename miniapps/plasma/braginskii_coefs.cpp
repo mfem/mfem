@@ -844,8 +844,8 @@ dEdnCoefficient::Eval(ElementTransformation &T,
    double temp = TCoef_.Eval(T, ip);
    uCoef_.Eval(u_, T, ip);
 
-   // The factor of amu_/q_ converts from amu * m^2/s to eV
-   return 1.5 * temp + 0.5 * m_ * (u_ * u_) * amu_ / q_;
+   // The factor of kg_per_amu_/q_ converts from amu * m^2/s to eV
+   return 1.5 * temp + 0.5 * m_ * (u_ * u_) * kg_per_amu_ / q_;
 }
 
 dEduCoefficient::dEduCoefficient(int c,
@@ -866,8 +866,8 @@ double dEduCoefficient::Eval(ElementTransformation &T,
    double n = nCoef_.Eval(T, ip);
    uCoef_.Eval(u_, T, ip);
 
-   // The factor of amu_/q_ converts from amu * m^2/s to eV
-   return m_ * n * u_[c_] * amu_ / q_;
+   // The factor of kg_per_amu_/q_ converts from amu * m^2/s to eV
+   return m_ * n * u_[c_] * kg_per_amu_ / q_;
 }
 
 TAdvectionCoefficient::TAdvectionCoefficient(Coefficient & nCoef,

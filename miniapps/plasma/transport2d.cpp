@@ -563,13 +563,13 @@ public:
       double tau = tau_i(mi_, zi_, ni, Ti, lnLam_);
 
       paraFunc(x_, K);
-      K *= 0.96 * ni * Ti * eV_ * tau;
+      K *= 0.96 * ni * Ti * J_per_eV_ * tau;
 
       perpFunc(x_, perp_);
 
       double Di_perp = Di_perp_->Eval(T, ip);
 
-      K.Add(mi_ * amu_ * ni * Di_perp, perp_);
+      K.Add(mi_ * kg_per_amu_ * ni * Di_perp, perp_);
    }
 };
 
@@ -620,7 +620,7 @@ public:
 
       paraFunc(x_, K);
 
-      K *= a_ * Temp * eV_ * tau / ( m_ * amu_ );
+      K *= a_ * Temp * J_per_eV_ * tau / ( m_ * kg_per_amu_ );
 
       perpFunc(x_, perp_);
 
@@ -1620,8 +1620,8 @@ int main(int argc, char *argv[])
 
    // Coefficients representing secondary fields
    ProductCoefficient      neCoef(plasma.z_i, niCoef);
-   ConstantCoefficient     vnCoef(sqrt(8.0 * plasma.T_n * eV_ /
-                                       (M_PI * plasma.m_n * amu_)));
+   ConstantCoefficient     vnCoef(sqrt(8.0 * plasma.T_n * J_per_eV_ /
+                                       (M_PI * plasma.m_n * kg_per_amu_)));
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
 
    /*
@@ -1639,8 +1639,8 @@ int main(int argc, char *argv[])
    // Intermediate Coefficients
    VectorFunctionCoefficient bHatCoef(2, bHatFunc);
    MatrixFunctionCoefficient perpCoef(2, perpFunc);
-   // ProductCoefficient          mnCoef(ion_mass * amu_, niCoef); // ???
-   ConstantCoefficient         mnCoef(plasma.m_i * amu_);
+   // ProductCoefficient          mnCoef(ion_mass * kg_per_amu_, niCoef); // ???
+   ConstantCoefficient         mnCoef(plasma.m_i * kg_per_amu_);
    ProductCoefficient        nnneCoef(nnCoef, neCoef);
    ApproxIonizationRate        izCoef(TeCoef);
    ConstantCoefficient     DiPerpCoef(Di_perp);
@@ -3339,7 +3339,7 @@ private:
 public:
    RobinBCTestSol(LeftBCType t, double mi, double ni, double Te, double vi,
                   double chi, double q, double a, double b)
-      : mi_(mi * amu_ / eV_), ni_(ni), Te_(Te), vi_(vi),
+      : mi_(mi * kg_per_amu_ / J_per_eV_), ni_(ni), Te_(Te), vi_(vi),
         chi_(chi), q_(q), a_(a), b_(b),
         type_(t), x_(2)
    {

@@ -28,14 +28,14 @@ namespace plasma
 inline std::complex<double> omega_c(double Bmag, double charge,
                                     std::complex<double> mass)
 {
-   return (charge * q_ * Bmag) / (mass * amu_);
+   return (charge * q_ * Bmag) / (mass * kg_per_amu_);
 }
 
 // Plasma frequency
 inline std::complex<double> omega_p(double number, double charge,
                                     std::complex<double> mass)
 {
-   return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass * amu_));
+   return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass * kg_per_amu_));
 }
 
 // Coulomb logarithm
