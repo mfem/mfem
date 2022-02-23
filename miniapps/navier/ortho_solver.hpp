@@ -27,18 +27,18 @@ namespace navier
  */
 class OrthoSolver : public Solver
 {
-private:
-   MPI_Comm mycomm;
 public:
-   OrthoSolver(MPI_Comm mycomm_);
+   OrthoSolver(MPI_Comm comm_);
 
    virtual void SetOperator(const Operator &op);
 
    void Mult(const Vector &b, Vector &x) const;
 
 private:
+   MPI_Comm comm;
    const Operator *oper = nullptr;
-
+   int global_size = 0;
+   Vector ones;
    mutable Vector b_ortho;
 
    void Orthogonalize(const Vector &v, Vector &v_ortho) const;

@@ -10,46 +10,49 @@
 // CONTRIBUTING.md for details.
 
 #include "ortho_solver.hpp"
+#include "../../general/forall.hpp"
 
 using namespace mfem;
 using namespace navier;
 
-OrthoSolver::OrthoSolver(MPI_Comm mycomm_) : Solver(0, true),
-   mycomm(mycomm_) {}
+OrthoSolver::OrthoSolver(MPI_Comm comm_) : Solver(0, true),
+   comm(comm_), global_size(0) { }
 
 void OrthoSolver::SetOperator(const Operator &op)
 {
+   width = op.Width();
+   height = op.Height();
+   MFEM_VERIFY(width == height, "OrthoSolver operator must be square.");
    oper = &op;
+   MPI_Allreduce(&width, &global_size, 1, MPI_INT, MPI_SUM, comm);
+   ones.SetSize(width);
+   ones.UseDevice(true);
+   ones = 1.0;
 }
 
 void OrthoSolver::Mult(const Vector &b, Vector &x) const
 {
    // Orthogonalize input
    Orthogonalize(b, b_ortho);
-
    // Apply operator
    oper->Mult(b_ortho, x);
-
    // Orthogonalize output
    Orthogonalize(x, x);
 }
 
 void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 {
-   double loc_sum = v.Sum();
+   v_ortho.SetSize(width);
+
+   double loc_sum = v*ones;
    double global_sum = 0.0;
-   int loc_size = v.Size();
-   int global_size = 0;
+   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
 
-   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
-   MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, mycomm);
-
-   double ratio = global_sum / static_cast<double>(global_size);
-   v_ortho.SetSize(v.Size());
-   v.HostRead();
-   v_ortho.HostWrite();
-   for (int i = 0; i < v_ortho.Size(); ++i)
+   const double ratio = global_sum / static_cast<double>(global_size);
+   const auto d_v = v.Read();
+   auto d_vo = v_ortho.Write();
+   MFEM_FORALL(i, width,
    {
-      v_ortho(i) = v(i) - ratio;
-   }
+      d_vo[i] = d_v[i] - ratio;
+   });
 }
