@@ -185,7 +185,7 @@ void Operator::FormDiscreteOperator(Operator* &Aout)
    Aout = new TripleProductOperator(Rout, this, Pin,false, false, false);
 }
 
-void Operator::PrintMatlab(std::ostream & out, int n, int m) const
+void Operator::PrintMatlab(std::ostream & os, int n, int m) const
 {
    using namespace std;
    if (n == 0) { n = width; }
@@ -194,7 +194,7 @@ void Operator::PrintMatlab(std::ostream & out, int n, int m) const
    Vector x(n), y(m);
    x = 0.0;
 
-   out << setiosflags(ios::scientific | ios::showpos);
+   os << setiosflags(ios::scientific | ios::showpos);
    for (int i = 0; i < n; i++)
    {
       x(i) = 1.0;
@@ -203,16 +203,16 @@ void Operator::PrintMatlab(std::ostream & out, int n, int m) const
       {
          if (y(j))
          {
-            out << j+1 << " " << i+1 << " " << y(j) << '\n';
+            os << j+1 << " " << i+1 << " " << y(j) << '\n';
          }
       }
       x(i) = 0.0;
    }
 }
 
-void Operator::PrintMatlab(std::ostream &out) const
+void Operator::PrintMatlab(std::ostream &os) const
 {
-   PrintMatlab(out, width, height);
+   PrintMatlab(os, width, height);
 }
 
 

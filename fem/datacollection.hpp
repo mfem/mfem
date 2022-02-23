@@ -381,7 +381,7 @@ public:
    /// Get the current error state
    int Error() const { return error; }
    /// Reset the error state
-   void ResetError(int err = NO_ERROR) { error = err; }
+   void ResetError(int err_state = NO_ERROR) { error = err_state; }
 
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
