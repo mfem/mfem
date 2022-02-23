@@ -3289,7 +3289,8 @@ public:
    constant at values of 1e19, 0, and 10 respectively.
 
    The ion thermal parallel diffusion coefficient can be adjusted as
-   can the 'a' and 'b' factors in the Robin BC. The Robin BC is defined as:
+   can the 'a' and 'b' factors in the Robin BC which is applied on the
+   right hand boundary. The Robin BC is defined as:
 
       -qi.n + a Ti = b
 
@@ -3304,9 +3305,18 @@ public:
    Given by:
 
       q = 3 (me ne) / (mi tau_e)
+
+   Three different cases are supported which are distinguished by the
+   choice of boundary condition on the left hand end of the 1D
+   domain. The first assumes that the total energy flux is zero, the
+   second that the thermal flux is zero, and finally that the same
+   Robin BC is applied on the left as on the right.
 */
 class RobinBCTestSol : public Coefficient
 {
+public:
+   enum LeftBCType { ZERO_ENERGY_FLUX, ZERO_THERMAL_FLUX, ROBIN};
+
 private:
    const double mi_;
    const double ni_;
@@ -3322,14 +3332,16 @@ private:
    double kappa_;
    double nu_;
 
+   const LeftBCType type_;
+
    mutable Vector x_;
 
 public:
-   RobinBCTestSol(double mi, double ni, double Te, double vi,
+   RobinBCTestSol(LeftBCType t, double mi, double ni, double Te, double vi,
                   double chi, double q, double a, double b)
       : mi_(mi * amu_ / eV_), ni_(ni), Te_(Te), vi_(vi),
         chi_(chi), q_(q), a_(a), b_(b),
-        x_(2)
+        type_(t), x_(2)
    {
       MFEM_VERIFY(mi_ > 0.0 && ni_ > 0.0 && chi_ > 0.0 && q_ > 0.0,
                   "RobinBCTestSol: parameters mi, ni, chi, and q "
@@ -3346,14 +3358,43 @@ public:
       const double sk = sinh(kappa_);
 
       const double zeta = ni_ * vi_ * (2.5 * Te_ + 0.5 * mi_ * vi_ * vi_);
-      const double d = 2.0 * ((ni_ * nu_ * a_ + q_) * sk +
-                              a_ * kappa_ * ni_ * ck);
 
-      alpha0_ = ((b_ + zeta - ni_ * Te_ * a_) * (kappa_ - nu_) * ev0 -
-                 zeta * (a_ / chi_ + kappa_ - nu_) * ek) / d;
-      alpha1_ = (zeta * (ni_ * a_ * (kappa_ - nu_) - q_) * ev1 +
-                 q_ * (b_ + zeta - ni_ * Te_ * a_) * ek
-                ) / (chi_ * ni_ * (kappa_ - nu_) * d);
+      switch (type_)
+      {
+         case ZERO_ENERGY_FLUX:
+         {
+            const double d = 2.0 * ((ni_ * nu_ * a_ + q_) * sk +
+                                    a_ * kappa_ * ni_ * ck);
+
+            alpha0_ = ((b_ + zeta - ni_ * Te_ * a_) * (kappa_ - nu_) * ev0 -
+                       zeta * (a_ / chi_ + kappa_ - nu_) * ek) / d;
+            alpha1_ = (zeta * (ni_ * a_ * (kappa_ - nu_) - q_) * ev1 +
+                       q_ * (b_ + zeta - ni_ * Te_ * a_) * ek
+                      ) / (chi_ * ni_ * (kappa_ - nu_) * d);
+         }
+         break;
+         case ZERO_THERMAL_FLUX:
+         {
+            const double d = 2.0 * (q_ * sk +
+                                    ni_ * (2.0 * chi_ * nu_ - a_) *
+                                    (nu_ * sk - kappa_ * ck));
+
+            alpha0_ =  ev0 * (b_ + zeta - ni_ * Te_ * a_) * (kappa_ + nu_) / d;
+            alpha1_ =  ek * (b_ + zeta - ni_ * Te_ * a_) * (kappa_ - nu_) / d;
+         }
+         break;
+         case ROBIN:
+            const double d = 2.0 * ((ni_ * a_ * a_ + q_ * chi_) * sk +
+                                    2 * ni_ * chi_ * kappa_ * a_ * ck);
+            const double c0 = b_ - ni_ * Te_ * a_ - zeta;
+            const double c1 = b_ - ni_ * Te_ * a_ + zeta;
+
+            alpha0_ = (ek * c0 * ((kappa_ - nu_) * chi_ + a_) +
+                       ev0 * c1 * ((kappa_ - nu_) * chi_ - a_))/ d;
+            alpha1_ = (ev1 * c0 * ((kappa_ + nu_) * chi_ - a_) +
+                       ek * c1 * ((kappa_ + nu_) * chi_ + a_))/ d;
+            break;
+      }
    }
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
@@ -3506,9 +3547,11 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
    }
    else if (name == "RobinBCTestSol")
    {
+      int t;
       double mi, ni, Te, vi, chi, q, a, b;
-      input >> mi >> ni >> Te >> vi >> chi >> q >> a >> b;
-      coef_idx = sCoefs.Append(new RobinBCTestSol(mi, ni, Te, vi,
+      input >> t >> mi >> ni >> Te >> vi >> chi >> q >> a >> b;
+      RobinBCTestSol::LeftBCType type = (RobinBCTestSol::LeftBCType)t;
+      coef_idx = sCoefs.Append(new RobinBCTestSol(type, mi, ni, Te, vi,
                                                   chi, q, a, b));
    }
    else
