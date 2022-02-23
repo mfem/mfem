@@ -200,7 +200,8 @@ int main(int argc, char *argv[])
       if (done || ti % vis_steps == 0)
       {
          cout << "time step: " << ti << ", time: " << t << endl;
-         Prefine(fes_old,u,u_ex, orders_gf, 1e-3, 1e-2);
+         u_ex.SetTime(t);
+         Prefine(fes_old,u,u_ex, orders_gf, 5e-5, 5e-4);
          m.Update();
          m.Assemble();
          m.Finalize();
