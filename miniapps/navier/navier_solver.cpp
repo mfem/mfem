@@ -127,11 +127,14 @@ void NavierSolver::Setup(double dt)
    Array<int> empty;
 
    // GLL integration rule (Numerical Integration)
-   const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
-                                                2 * order - 1);
+   const IntegrationRule &ir_ni =
+      gll_rules.Get(vfes->GetFE(0)->GetGeomType(), 2 * order - 1);
 
-   const IntegrationRule &ir = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
-                                             2 * order - 1);
+   const IntegrationRule &ir =
+      gll_rules.Get(vfes->GetFE(0)->GetGeomType(), 2 * order - 1);
+
+   const IntegrationRule &ir_face =
+      gll_rules.Get(vfes->GetMesh()->GetFaceGeometry( ), 2 * order - 1);
 
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
@@ -222,14 +225,7 @@ void NavierSolver::Setup(double dt)
    H_form->Assemble();
    H_form->FormSystemMatrix(vel_ess_tdof, H);
 
-   FText_gfcoeff = new VectorGridFunctionCoefficient(&FText_gf);
-   FText_bdr_form = new ParLinearForm(pfes);
-   auto *ftext_bnlfi = new BoundaryNormalLFIntegrator(*FText_gfcoeff);
-   if (numerical_integ)
-   {
-      ftext_bnlfi->SetIntRule(&ir_ni);
-   }
-   FText_bdr_form->AddBoundaryIntegrator(ftext_bnlfi, vel_ess_attr);
+   bdr_nor_eval = new BoundaryNormalEvaluator(*vfes, *pfes, ir_face);
 
    g_bdr_form = new ParLinearForm(pfes);
    for (auto &vel_dbc : vel_dbcs)
@@ -511,9 +507,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       resp.Neg();
 
       // Add boundary terms.
-      FText_gf.SetFromTrueDofs(FText);
-      FText_bdr_form->Assemble();
-      FText_bdr_form->ParallelAssemble(FText_bdr);
+      bdr_nor_eval->Mult(FText, FText_bdr);
 
       g_bdr_form->Assemble();
       g_bdr_form->ParallelAssemble(g_bdr);
@@ -993,9 +987,8 @@ void NavierSolver::PrintInfo()
 
 NavierSolver::~NavierSolver()
 {
-   delete FText_gfcoeff;
+   delete bdr_nor_eval;
    delete g_bdr_form;
-   delete FText_bdr_form;
    delete mass_lf;
    delete Mv_form;
    delete N;

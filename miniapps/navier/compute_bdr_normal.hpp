@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_COMPUTE_CURL_HPP
-#define MFEM_COMPUTE_CURL_HPP
+#ifndef MFEM_COMPUTE_BDR_NORMAL_HPP
+#define MFEM_COMPUTE_BDR_NORMAL_HPP
 
 #include "mfem.hpp"
 

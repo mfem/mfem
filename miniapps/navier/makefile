@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 NAVIER_COMMON_SRC = navier_solver.cpp ortho_solver.cpp compute_curl.cpp \
-						  compute_bdr_normal.cpp
+ compute_bdr_normal.cpp
 NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
 
 PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv\

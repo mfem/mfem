@@ -17,6 +17,7 @@
 #include "mfem.hpp"
 #include "ortho_solver.hpp"
 #include "compute_curl.hpp"
+#include "compute_bdr_normal.hpp"
 
 namespace mfem
 {
@@ -352,9 +353,7 @@ protected:
 
    ParBilinearForm *H_form = nullptr;
 
-   VectorGridFunctionCoefficient *FText_gfcoeff = nullptr;
-
-   ParLinearForm *FText_bdr_form = nullptr;
+   BoundaryNormalEvaluator *bdr_nor_eval = nullptr;
 
    ParLinearForm *f_form = nullptr;
 
