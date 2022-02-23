@@ -134,7 +134,7 @@ void NavierSolver::Setup(double dt)
       gll_rules.Get(vfes->GetFE(0)->GetGeomType(), 2 * order - 1);
 
    const IntegrationRule &ir_face =
-      gll_rules.Get(vfes->GetMesh()->GetFaceGeometry( ), 2 * order - 1);
+      gll_rules.Get(vfes->GetMesh()->GetFaceGeometry(0), 2 * order - 1);
 
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);

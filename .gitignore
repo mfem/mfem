@@ -239,6 +239,7 @@ miniapps/navier/navier_kovasznay_vs
 miniapps/navier/navier_tgv
 miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
+miniapps/navier/3dfoc
 miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
 

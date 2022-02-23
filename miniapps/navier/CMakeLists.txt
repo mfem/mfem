@@ -13,11 +13,13 @@ if (MFEM_USE_MPI)
   list(APPEND NAVIER_COMMON_SOURCES
       navier_solver.cpp
       ortho_solver.cpp
-      compute_curl.hpp)
+      compute_curl.cpp
+      compute_bdr_normal.cpp)
   list(APPEND NAVIER_COMMON_HEADERS
       navier_solver.hpp
       ortho_solver.hpp
-      compute_curl.hpp)
+      compute_curl.hpp
+      compute_bdr_normal.hpp)
 
   convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
   convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)
