@@ -3218,7 +3218,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          }
          else if (type == Element::WEDGE)
          {
-            AddBdrQuadAsTriangles(ind, 1);
+            AddBdrQuadAsTriangles(ind, 6);
          }
          else
          {
