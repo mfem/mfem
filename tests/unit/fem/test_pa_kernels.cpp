@@ -435,8 +435,8 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
    delete fec;
 }
 
-// Basic unit test for convection
-TEST_CASE("PA Convection", "[PartialAssembly][MFEMData]")
+// Basic unit tests for convection
+TEST_CASE("PA Convection", "[PartialAssembly]")
 {
    // prob:
    // - 0: CG,
@@ -454,7 +454,33 @@ TEST_CASE("PA Convection", "[PartialAssembly][MFEMData]")
    {
       test_pa_convection("../../data/periodic-square.mesh", order_2d, prob,
                          refinement_2d);
-      if (launch_all_non_regression_tests)
+   }
+
+   SECTION("3D")
+   {
+      test_pa_convection("../../data/periodic-cube.mesh", order_3d, prob,
+                         refinement_3d);
+   }
+} // test case
+
+// Advanced unit tests for convection
+TEST_CASE("PA Convection advanced", "[PartialAssembly][MFEMData]")
+{
+   if (launch_all_non_regression_tests)
+   {
+      // prob:
+      // - 0: CG,
+      // - 1: DG continuous coeff,
+      // - 2: DG discontinuous coeff,
+      // - 3: DG Bernstein discontinuous coeff.
+      auto prob = GENERATE(0, 1, 2, 3);
+      auto order_2d = GENERATE(2);
+      auto order_3d = GENERATE(2);
+      // refinement > 0 => Non-conforming mesh
+      auto refinement_2d = GENERATE(0,1);
+      auto refinement_3d = GENERATE(0,1);
+
+      SECTION("2D")
       {
          test_pa_convection("../../data/periodic-hexagon.mesh", order_2d, prob,
                             refinement_2d);
@@ -463,13 +489,8 @@ TEST_CASE("PA Convection", "[PartialAssembly][MFEMData]")
          test_pa_convection(mfem_data_dir+"/gmsh/v22/unstructured_quad.v22.msh",
                             order_2d, prob, refinement_2d);
       }
-   }
 
-   SECTION("3D")
-   {
-      test_pa_convection("../../data/periodic-cube.mesh", order_3d, prob,
-                         refinement_3d);
-      if (launch_all_non_regression_tests)
+      SECTION("3D")
       {
          test_pa_convection("../../data/fichera-q3.mesh", order_3d, prob,
                             refinement_3d);
@@ -477,7 +498,6 @@ TEST_CASE("PA Convection", "[PartialAssembly][MFEMData]")
                             order_3d, prob, refinement_3d);
       }
    }
-
 } // test case
 
 TEST_CASE("PA Mass", "[PartialAssembly]")
