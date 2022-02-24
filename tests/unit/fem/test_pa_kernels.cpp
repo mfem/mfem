@@ -414,8 +414,17 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 
    x.Randomize(1);
 
+   // Testing Mult
    k_fa.Mult(x,y_fa);
    k_pa.Mult(x,y_pa);
+
+   y_pa -= y_fa;
+
+   REQUIRE(y_pa.Norml2() < 1.e-12);
+
+   // Testing MultTranspose
+   k_fa.MultTranspose(x,y_fa);
+   k_pa.MultTranspose(x,y_pa);
 
    y_pa -= y_fa;
 

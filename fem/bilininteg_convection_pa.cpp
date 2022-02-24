@@ -915,7 +915,6 @@ void SmemPAConvectionApplyT2D(const int ne,
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-      // constexpr int MDQ = (max_Q1D > max_D1D) ? max_Q1D : max_D1D;
       MFEM_SHARED double u[NBZ][max_D1D][max_D1D];
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
