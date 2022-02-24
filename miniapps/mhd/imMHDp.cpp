@@ -604,7 +604,7 @@ int main(int argc, char *argv[])
 
    //++++recover pressure and vector fields++++
    ParFiniteElementSpace *vfes;
-   ParGridFunction *vel, *mag, *force_diff, *gfv, *pre;
+   ParGridFunction *vel, *mag, *gradP, *BgradB, *curvaF, *gfv, *pre;
    ParMixedBilinearForm *grad, *div;
    ParBilinearForm *a;
    ParNonlinearForm *convect;
@@ -613,7 +613,7 @@ int main(int argc, char *argv[])
    Vector zv, zv2, zscalar, zscalar2;
    HypreParMatrix *MfullMat, *KMat;
    const IntegrationRule &ir = IntRules.Get(fespace.GetFE(0)->GetGeomType(), 3*order);
-   CGSolver M_solver(MPI_COMM_WORLD);
+   CGSolver M_solver(MPI_COMM_WORLD), Mscal_solver;
    HypreSmoother *M_prec;
    HypreBoomerAMG *K_amg;
    CGSolver *K_pcg;
@@ -621,12 +621,15 @@ int main(int argc, char *argv[])
    Vector vtrue, rhs, vJxB;
    VectorDomainLFIntegrator *domainJxB;
 
+
    if(compute_pressure)
    {
       vfes = new ParFiniteElementSpace(pmesh, fespace.FEColl(), 2);
       vel = new ParGridFunction(vfes);
       mag = new ParGridFunction(vfes);
-      force_diff = new ParGridFunction(vfes);
+      gradP = new ParGridFunction(vfes);
+      BgradB = new ParGridFunction(vfes);
+      curvaF = new ParGridFunction(vfes);
       gfv = new ParGridFunction(vfes);
       pre = new ParGridFunction(&fespace);
       grad = new ParMixedBilinearForm(&fespace, vfes);
@@ -636,6 +639,7 @@ int main(int argc, char *argv[])
       zLFscalar = new ParLinearForm(&fespace);
       Mfull = new ParBilinearForm(vfes);
       Mrot = new ParBilinearForm(vfes);
+      Mscal_solver=oper.GetM_solver2();
 
       int vfes_truevsize = vfes->GetTrueVSize();
       vtrue.SetSize(vfes_truevsize);
@@ -755,12 +759,29 @@ int main(int argc, char *argv[])
       K_pcg->Mult(zscalar, zscalar2);
       pre->SetFromTrueDofs(zscalar2);
 
-      //compute grad P - JxB
+      //compute grad P
       zv=0.0;
       grad->TrueAddMult(zscalar2, zv);
-      zv.Add(-1.0, vJxB);
       M_solver.Mult(zv, zv2);
-      force_diff->SetFromTrueDofs(zv2);
+      gradP->SetFromTrueDofs(zv2);
+
+      //compute B.gradB
+      mag->GetTrueDofs(vtrue);
+      convect->Mult(vtrue, zv);  
+      M_solver.Mult(zv, zv2);
+      BgradB->SetFromTrueDofs(zv2);
+
+      //compute curvature force
+      B2Coefficient B2Coeff(mag);
+      ParLinearForm B2int(&fespace);
+      B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
+      B2int.Assemble();
+      B2int.ParallelAssemble(zscalar);
+      Mscal_solver.Mult(zscalar, zscalar2);
+      zv=0.0;
+      grad->TrueAddMult(zscalar2, zv);
+      M_solver.Mult(zv, zv2);
+      curvaF->SetFromTrueDofs(zv2);
    }
 
    ParaViewDataCollection *pd = NULL;
@@ -776,7 +797,9 @@ int main(int argc, char *argv[])
           pd->RegisterField("V", vel);
           pd->RegisterField("B", mag);
           pd->RegisterField("pre", pre);
-          pd->RegisterField("force_diff", force_diff);
+          pd->RegisterField("grad pre", gradP);
+          pd->RegisterField("curvature F", curvaF);
+          pd->RegisterField("B.gradB", BgradB);
       }
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
@@ -938,9 +961,26 @@ int main(int argc, char *argv[])
                 //compute grad P - JxB
                 zv=0.0;
                 grad->TrueAddMult(zscalar2, zv);
-                zv.Add(-1.0, vJxB);
                 M_solver.Mult(zv, zv2);
-                force_diff->SetFromTrueDofs(zv2);
+                gradP->SetFromTrueDofs(zv2);
+      
+                //compute B.gradB
+                mag->GetTrueDofs(vtrue);
+                convect->Mult(vtrue, zv);  
+                M_solver.Mult(zv, zv2);
+                BgradB->SetFromTrueDofs(zv2);
+
+                //compute curvature force
+                B2Coefficient B2Coeff(mag);
+                ParLinearForm B2int(&fespace);
+                B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
+                B2int.Assemble();
+                B2int.ParallelAssemble(zscalar);
+                Mscal_solver.Mult(zscalar, zscalar2);
+                zv=0.0;
+                grad->TrueAddMult(zscalar2, zv);
+                M_solver.Mult(zv, zv2);
+                curvaF->SetFromTrueDofs(zv2);
             }
          }
 
@@ -1132,7 +1172,9 @@ int main(int argc, char *argv[])
       delete vfes;
       delete vel;
       delete mag;
-      delete force_diff;
+      delete gradP;
+      delete curvaF;
+      delete BgradB;
       delete gfv;       
       delete zLFscalar; 
       delete pre;      

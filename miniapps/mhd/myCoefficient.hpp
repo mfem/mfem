@@ -118,6 +118,21 @@ namespace mfem
         V(1)= j*Bvec(0);
     }
 
+    //Evalute B^2/2
+    class B2Coefficient : public Coefficient
+    {
+      private:
+        GridFunction *gfB;
+      public:
+        B2Coefficient(GridFunction *gfB_) { gfB=gfB_;}
+        double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip){
+            Vector Bvec;
+            gfB->GetVectorValue(T, ip, Bvec);
+            return (Bvec(0)*Bvec(0)+Bvec(1)*Bvec(1))/2.0;
+        }
+    };
+
     /*
     //speical rhs coefficient
     //coefficient=2*[vecg1_x vecg2_y - (vecg1_y)^2] - J^2 - (J_x Psi_x + J_y Psi_y)
