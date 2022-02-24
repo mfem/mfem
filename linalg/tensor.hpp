@@ -1574,8 +1574,9 @@ tensor<T, n, n> inv(const tensor<T, n, n>& A)
  *
  * TODO: compare performance of this hardcoded implementation to just using inv() directly
  */
-template <typename gradient_type, int n>
-dual<gradient_type> inv(tensor<dual<gradient_type>, n, n> A)
+template <typename value_type, typename gradient_type, int n>
+dual<value_type, gradient_type> inv(
+   tensor<dual<value_type, gradient_type>, n, n> A)
 {
    auto invA = inv(get_value(A));
    return make_tensor<n, n>([&](int i, int j)
@@ -1589,7 +1590,7 @@ dual<gradient_type> inv(tensor<dual<gradient_type>, n, n> A)
             gradient -= invA[i][k] * A[k][l].gradient * invA[l][j];
          }
       }
-      return dual<gradient_type> {value, gradient};
+      return dual<value_type, gradient_type> {value, gradient};
    });
 }
 
