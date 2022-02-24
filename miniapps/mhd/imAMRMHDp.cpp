@@ -80,7 +80,8 @@ void AMRUpdateTrue(BlockVector &S,
                ParGridFunction &phi,
                ParGridFunction &psi,
                ParGridFunction &w,
-               ParGridFunction &j)
+               ParGridFunction &j,
+               ParGridFunction *pre)
 {
    FiniteElementSpace* H1FESpace = phi.FESpace();
 
@@ -99,6 +100,7 @@ void AMRUpdateTrue(BlockVector &S,
    
    // Note j stores data as a regular gridfunction
    j.Update();
+   if (pre!=NULL) pre->Update();
 
    int fe_size = H1FESpace->GetTrueVSize();
 
@@ -724,7 +726,7 @@ int main(int argc, char *argv[])
    
    //++++recover pressure and vector fields++++
    ParFiniteElementSpace *vfes;
-   ParGridFunction *vel, *mag, *gradP, *BgradB, *curvaF, *gfv, *pre;
+   ParGridFunction *vel, *mag, *gradP, *BgradB, *curvaF, *gfv, *pre=NULL;
    ParMixedBilinearForm *grad, *div;
    ParBilinearForm *a;
    ParNonlinearForm *convect;
@@ -954,9 +956,9 @@ int main(int argc, char *argv[])
 
       if (t>t_refs)
       {
-          ref_steps=4;
+          ref_steps=2;
           ref_its=1;
-          deref_its=1;
+          deref_its=2;
       }
 
       if (t>4. && levels3<amr_levels)
@@ -1020,8 +1022,19 @@ int main(int argc, char *argv[])
                break;
            }
 
-           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre);
            oper.UpdateGridFunction();
+           if (compute_pressure) {
+               vfes->Update();
+               //update vector grid function
+               vel->Update();
+               mag->Update();
+               gradP->Update();
+               BgradB->Update();
+               curvaF->Update();
+               gfv->Update();
+               vfes->UpdatesFinished();
+           }
            if (paraview) 
            {
                pw_const_fes.Update();
@@ -1037,8 +1050,19 @@ int main(int argc, char *argv[])
            }
 
            //---Update solutions after rebalancing---
-           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre);
            oper.UpdateGridFunction();
+           if (compute_pressure) {
+               vfes->Update();
+               //update vector grid function
+               vel->Update();
+               mag->Update();
+               gradP->Update();
+               BgradB->Update();
+               curvaF->Update();
+               gfv->Update();
+               vfes->UpdatesFinished();
+           }
            oper.UpdateProblem(ess_bdr); 
            oper.SetInitialJ(*jptr);      //need to reset the current bounary
 
@@ -1055,7 +1079,7 @@ int main(int argc, char *argv[])
             if (myid == 0) cout<<"Refined mesh; initialize ode_solver"<<endl;
             ode_solver->Init(oper);
             if (compute_pressure) {
-               cout << "Mesh has changed and rebuilding vfes is needed"<<endl;
+               if (myid == 0) cout << "Mesh has changed and rebuilding vfes is needed"<<endl;
                vfes_match = false;
             }
          }
@@ -1077,8 +1101,19 @@ int main(int argc, char *argv[])
              }
 
              //---Update solutions first---
-             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre);
              oper.UpdateGridFunction();
+             if (compute_pressure) {
+                vfes->Update();
+                //update vector grid function
+                vel->Update();
+                mag->Update();
+                gradP->Update();
+                BgradB->Update();
+                curvaF->Update();
+                gfv->Update();
+                vfes->UpdatesFinished();
+             }
 
              if (paraview) 
              {
@@ -1095,8 +1130,19 @@ int main(int argc, char *argv[])
              }
 
              //---Update solutions after rebalancing---
-             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre);
              oper.UpdateGridFunction();
+             if (compute_pressure) {
+                vfes->Update();
+                //update vector grid function
+                vel->Update();
+                mag->Update();
+                gradP->Update();
+                BgradB->Update();
+                curvaF->Update();
+                gfv->Update();
+                vfes->UpdatesFinished();
+             }
 
              //---assemble problem and update boundary condition---
              oper.UpdateProblem(ess_bdr); 
@@ -1114,7 +1160,7 @@ int main(int argc, char *argv[])
             if (myid == 0) cout<<"Derefined mesh; initialize ode_solver"<<endl;
             ode_solver->Init(oper);
             if (compute_pressure) {
-               cout << "Mesh has changed and rebuilding vfes is needed"<<endl;
+               if (myid == 0)  cout << "Mesh has changed and rebuilding vfes is needed"<<endl;
                vfes_match = false;
             }
          }
@@ -1133,14 +1179,6 @@ int main(int argc, char *argv[])
            if(compute_pressure && paraview)
            {
               if (!vfes_match){
-                delete vfes;
-                delete vel;
-                delete mag;
-                delete gradP;
-                delete BgradB;
-                delete curvaF;
-                delete gfv;       
-                delete pre;      
                 delete grad;     
                 delete div ;     
                 delete convect;  
@@ -1156,14 +1194,6 @@ int main(int argc, char *argv[])
                 delete K_pcg;
                 delete SpInvOrthoPC;
 
-                vfes = new ParFiniteElementSpace(pmesh, fespace.FEColl(), 2);
-                vel = new ParGridFunction(vfes);
-                mag = new ParGridFunction(vfes);
-                gradP = new ParGridFunction(vfes);
-                BgradB = new ParGridFunction(vfes);
-                curvaF = new ParGridFunction(vfes);
-                gfv = new ParGridFunction(vfes);
-                pre = new ParGridFunction(&fespace);
                 grad = new ParMixedBilinearForm(&fespace, vfes);
                 div = new ParMixedBilinearForm(vfes, &fespace);
                 convect = new ParNonlinearForm(vfes);
