@@ -43,6 +43,17 @@ const DenseMatrix &ElementTransformation::EvalAdjugateJ()
    return adjJ;
 }
 
+const DenseMatrix &ElementTransformation::EvalTransAdjugateJ()
+{
+   MFEM_ASSERT((EvalState & TRANS_ADJUGATE_MASK) == 0, "");
+   Jacobian();
+   adjJT.SetSize(dFdx.Height(), dFdx.Width());
+   if (dFdx.Width() == dFdx.Height()) { CalcAdjugateTranspose(dFdx, adjJT); }
+   else { AdjugateJacobian(); adjJT.Transpose(adjJ); }
+   EvalState |= TRANS_ADJUGATE_MASK;
+   return adjJT;
+}
+
 const DenseMatrix &ElementTransformation::EvalInverseJ()
 {
    // TODO: compute as invJ = / adjJ/Weight,    if J is square,
