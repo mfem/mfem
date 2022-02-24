@@ -1708,7 +1708,7 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
    const int s = symmetric ? 6 : 9;
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
 
@@ -1987,7 +1987,14 @@ static void SmemPACurlCurlApply3D(const int D1D,
             }
          }
       } // qz
-   }); // end of element loop
+   }; // end of element loop
+
+   auto host_kernel = [&] MFEM_LAMBDA (int)
+   {
+      MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
+   };
+
+   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
 void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
@@ -3318,7 +3325,7 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
       constexpr int maxCoeffDim = 3;
@@ -3579,7 +3586,14 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
             }
          }
       } // qz
-   }); // end of element loop
+   }; // end of element loop
+
+   auto host_kernel = [&] MFEM_LAMBDA (int)
+   {
+      MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
+   };
+
+   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
 // Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
@@ -4434,7 +4448,7 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
       constexpr int maxCoeffDim = 3;
@@ -4632,7 +4646,14 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
             }
          }
       } // qz
-   }); // end of element loop
+   }; // end of element loop
+
+   auto host_kernel = [&] MFEM_LAMBDA (int)
+   {
+      MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
+   };
+
+   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
 void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
