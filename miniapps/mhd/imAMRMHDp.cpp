@@ -16,6 +16,7 @@
 #include "BlockZZEstimator.hpp"
 #include "PCSolver.hpp"
 #include "InitialConditions.hpp"
+#include "../navier/ortho_solver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -145,6 +146,7 @@ int main(int argc, char *argv[])
    bool useStab = false; //use a stabilized formulation (explicit case only)
    bool initial_refine = false;
    bool yRange = false; //fix a refinement region along y direction
+   bool compute_pressure = false;
    const char *petscrc_file = "";
 
    //----amr coefficients----
@@ -277,6 +279,8 @@ int main(int argc, char *argv[])
                   "lumped mass for updatej=0");
    args.AddOption(&iestimator, "-iestimator", "--iestimator",
                   "iestimator: 1 - psi and J; 2 - omega and psi.");
+   args.AddOption(&compute_pressure, "-computep", "--compute-p", "-no-computep",
+                  "--no-compute-p", "Compute pressure in the post processing");
    args.Parse();
 
    if (!args.Good())
@@ -570,7 +574,6 @@ int main(int argc, char *argv[])
    oper.SetInitialJ(*jptr);
 
    //-----------------------------------AMR for the real computation---------------------------------
-
    ErrorEstimator *estimator_used;
    BlockZZEstimator *estimator=NULL;
    BlockL2ZZEstimator *L2estimator=NULL;
@@ -718,6 +721,190 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace pw_const_fes(pmesh, &pw_const_fec);
    ParGridFunction mpi_rank_gf(&pw_const_fes);
    mpi_rank_gf = myid_rand;
+   
+   //++++recover pressure and vector fields++++
+   ParFiniteElementSpace *vfes;
+   ParGridFunction *vel, *mag, *gradP, *BgradB, *curvaF, *gfv, *pre;
+   ParMixedBilinearForm *grad, *div;
+   ParBilinearForm *a;
+   ParNonlinearForm *convect;
+   ParLinearForm *zLF, *zLFscalar; 
+   ParBilinearForm *Mfull, *Mrot;
+   Vector zv, zv2, zscalar, zscalar2;
+   HypreParMatrix *MfullMat, *KMat;
+   const IntegrationRule &ir = IntRules.Get(fespace.GetFE(0)->GetGeomType(), 3*order);
+   CGSolver M_solver(MPI_COMM_WORLD), Mscal_solver;
+   HypreSmoother *M_prec;
+   HypreBoomerAMG *K_amg;
+   CGSolver *K_pcg;
+   mfem::navier::OrthoSolver *SpInvOrthoPC;
+   Vector vtrue, rhs, vJxB;
+   VectorDomainLFIntegrator *domainJxB;
+   bool vfes_match=false;
+
+   if(compute_pressure)
+   {
+      vfes = new ParFiniteElementSpace(pmesh, fespace.FEColl(), 2);
+      vel = new ParGridFunction(vfes);
+      mag = new ParGridFunction(vfes);
+      gradP = new ParGridFunction(vfes);
+      BgradB = new ParGridFunction(vfes);
+      curvaF = new ParGridFunction(vfes);
+      gfv = new ParGridFunction(vfes);
+      pre = new ParGridFunction(&fespace);
+      grad = new ParMixedBilinearForm(&fespace, vfes);
+      div = new ParMixedBilinearForm(vfes, &fespace);
+      convect = new ParNonlinearForm(vfes);
+      zLF  = new ParLinearForm(vfes);
+      zLFscalar = new ParLinearForm(&fespace);
+      Mfull = new ParBilinearForm(vfes);
+      Mrot = new ParBilinearForm(vfes);
+      Mscal_solver=oper.GetM_solver2();
+
+      int vfes_truevsize = vfes->GetTrueVSize();
+      vtrue.SetSize(vfes_truevsize);
+      rhs.SetSize(vfes_truevsize);
+      vJxB.SetSize(vfes_truevsize);
+
+      DenseMatrix A(2);
+      A(0,0) = 0.0; A(0,1) =-1.0;
+      A(1,0) = 1.0; A(1,1) = 0.0;
+      MatrixConstantCoefficient coeff_curl(A);
+
+      //mass matrix for vector fields
+      Mfull->AddDomainIntegrator(new VectorMassIntegrator);
+      Mfull->Assemble();
+      Mfull->Finalize();
+      MfullMat = Mfull->ParallelAssemble();
+
+      M_solver.iterative_mode = false;
+      M_solver.SetRelTol(1e-7);
+      M_solver.SetAbsTol(0.0);
+      M_solver.SetMaxIter(2000);
+      M_solver.SetPrintLevel(0);
+      M_prec = new HypreSmoother;  
+      M_prec->SetType(HypreSmoother::Jacobi);
+      M_solver.SetPreconditioner(*M_prec);
+      M_solver.SetOperator(*MfullMat);
+
+      //gradient operator from H1 to Vector H1
+      grad->AddDomainIntegrator(new GradientIntegrator);
+      grad->Assemble(); 
+
+      //nonlinear convection term u.grad u
+      convect->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+      convect->Setup();
+
+      //divergence operator from Vector H1 to H1
+      div->AddDomainIntegrator(new VectorDivergenceIntegrator);
+      div->Assemble();
+
+      //rotation matrix
+      Mrot->AddDomainIntegrator(new VectorMassIntegrator(coeff_curl));
+      Mrot->Assemble();
+      Mrot->Finalize();
+
+       zv.SetSize(vfes->TrueVSize());
+      zv2.SetSize(vfes->TrueVSize());
+      zscalar.SetSize(fespace.TrueVSize());
+      zscalar2.SetSize(fespace.TrueVSize());
+
+      //compute velocity 
+      grad->Mult(phi, *zLF);
+      zLF->ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      vel->SetFromTrueDofs(zv2);
+
+      //finalize with a rotation
+      Mrot->Mult(*vel, *zLF);
+      zLF->ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      vel->SetFromTrueDofs(zv2);
+
+      //compute B field
+      grad->Mult(psi, *zLF);
+      zLF->ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      mag->SetFromTrueDofs(zv2);
+
+      //finalize with a rotation
+      Mrot->Mult(*mag, *zLF);
+      zLF->ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      mag->SetFromTrueDofs(zv2);
+
+      //compute -Δp=div(u.grad u - JxB)
+      vel->GetTrueDofs(vtrue);
+      convect->Mult(vtrue, rhs);  //nonlinear form only works with true dofs?
+
+      JxBCoefficient JxBCoeff(&j, mag);
+      domainJxB = new VectorDomainLFIntegrator(JxBCoeff);
+      domainJxB->SetIntRule(&ir);
+      ParLinearForm zJxB(vfes);
+      zJxB.AddDomainIntegrator(domainJxB);
+      zJxB.Assemble();
+      zJxB.ParallelAssemble(vJxB);
+      rhs.Add(-1.0, vJxB);
+      
+      //compute M^{-1}(u.grad u - JxB)
+      M_solver.Mult(rhs, zv2);
+      gfv->SetFromTrueDofs(zv2);
+      div->Mult(*gfv, *zLFscalar);  //it is a mystery why ParGridFunction fails here
+
+      a = new ParBilinearForm(&fespace);
+      a->AddDomainIntegrator(new DiffusionIntegrator);
+      a->Assemble();
+      a->Finalize();
+      KMat=a->ParallelAssemble();
+
+      K_amg = new HypreBoomerAMG(*KMat);
+      K_amg->SetPrintLevel(0);
+      K_pcg = new CGSolver(MPI_COMM_WORLD);
+      SpInvOrthoPC = new mfem::navier::OrthoSolver();
+      SpInvOrthoPC->SetOperator(*K_amg);
+      K_pcg->SetOperator(*KMat);
+      K_pcg->iterative_mode = false;
+      K_pcg->SetRelTol(1e-7);
+      K_pcg->SetMaxIter(200);
+      K_pcg->SetPrintLevel(0);
+      K_pcg->SetPreconditioner(*SpInvOrthoPC);
+
+      ParLinearForm b(&fespace);
+      b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(JxBCoeff), ess_bdr);
+      b.Assemble();
+      b.ParallelAssemble(zscalar);
+
+      zLFscalar->ParallelAssemble(zscalar2);
+      zscalar.Add(1.0, zscalar2);
+      K_pcg->Mult(zscalar, zscalar2);
+      pre->SetFromTrueDofs(zscalar2);
+
+      //compute grad P
+      zv=0.0;
+      grad->TrueAddMult(zscalar2, zv);
+      M_solver.Mult(zv, zv2);
+      gradP->SetFromTrueDofs(zv2);
+
+      //compute B.gradB
+      mag->GetTrueDofs(vtrue);
+      convect->Mult(vtrue, zv);  
+      M_solver.Mult(zv, zv2);
+      BgradB->SetFromTrueDofs(zv2);
+
+      //compute curvature force
+      B2Coefficient B2Coeff(mag);
+      ParLinearForm B2int(&fespace);
+      B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
+      B2int.Assemble();
+      B2int.ParallelAssemble(zscalar);
+      Mscal_solver.Mult(zscalar, zscalar2);
+      zv=0.0;
+      grad->TrueAddMult(zscalar2, zv);
+      M_solver.Mult(zv, zv2);
+      curvaF->SetFromTrueDofs(zv2);
+
+      vfes_match=true;
+   }
 
    ParaViewDataCollection *pd = NULL;
    if (paraview)
@@ -729,6 +916,14 @@ int main(int argc, char *argv[])
       pd->RegisterField("omega", &w);
       pd->RegisterField("current", &j);
       pd->RegisterField("MPI rank", &mpi_rank_gf);
+      if (compute_pressure){
+          pd->RegisterField("V", vel);
+          pd->RegisterField("B", mag);
+          pd->RegisterField("pre", pre);
+          pd->RegisterField("grad pre", gradP);
+          pd->RegisterField("curvature F", curvaF);
+          pd->RegisterField("B.gradB", BgradB);
+      }
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(true);
@@ -850,7 +1045,7 @@ int main(int argc, char *argv[])
            if (myid == 0)
            {
              global_size = fespace.GlobalTrueVSize();
-             cout << "Number of total scalar unknowns: " << global_size <<"; amr it= "<<its<<endl;
+             cout << "Number of total scalar unknowns: " << global_size <<"; amr it= "<<its<<endl; 
            }
          }
 
@@ -859,6 +1054,10 @@ int main(int argc, char *argv[])
          {
             if (myid == 0) cout<<"Refined mesh; initialize ode_solver"<<endl;
             ode_solver->Init(oper);
+            if (compute_pressure) {
+               cout << "Mesh has changed and rebuilding vfes is needed"<<endl;
+               vfes_match = false;
+            }
          }
       }
 
@@ -914,6 +1113,10 @@ int main(int argc, char *argv[])
          {
             if (myid == 0) cout<<"Derefined mesh; initialize ode_solver"<<endl;
             ode_solver->Init(oper);
+            if (compute_pressure) {
+               cout << "Mesh has changed and rebuilding vfes is needed"<<endl;
+               vfes_match = false;
+            }
          }
       }
       //----------------------------AMR---------------------------------
@@ -926,6 +1129,195 @@ int main(int argc, char *argv[])
            psi.SetFromTrueDofs(vx.GetBlock(1));
            w.SetFromTrueDofs(vx.GetBlock(2));
            oper.UpdateJ(vx, &j);
+
+           if(compute_pressure && paraview)
+           {
+              if (!vfes_match){
+                delete vfes;
+                delete vel;
+                delete mag;
+                delete gradP;
+                delete BgradB;
+                delete curvaF;
+                delete gfv;       
+                delete pre;      
+                delete grad;     
+                delete div ;     
+                delete convect;  
+                delete zLF  ;    
+                delete zLFscalar; 
+                delete Mfull;    
+                delete Mrot ;    
+                delete M_prec;
+                delete MfullMat;
+                delete a;
+                delete KMat;
+                delete K_amg;
+                delete K_pcg;
+                delete SpInvOrthoPC;
+
+                vfes = new ParFiniteElementSpace(pmesh, fespace.FEColl(), 2);
+                vel = new ParGridFunction(vfes);
+                mag = new ParGridFunction(vfes);
+                gradP = new ParGridFunction(vfes);
+                BgradB = new ParGridFunction(vfes);
+                curvaF = new ParGridFunction(vfes);
+                gfv = new ParGridFunction(vfes);
+                pre = new ParGridFunction(&fespace);
+                grad = new ParMixedBilinearForm(&fespace, vfes);
+                div = new ParMixedBilinearForm(vfes, &fespace);
+                convect = new ParNonlinearForm(vfes);
+                zLF  = new ParLinearForm(vfes);
+                zLFscalar = new ParLinearForm(&fespace);
+                Mfull = new ParBilinearForm(vfes);
+                Mrot = new ParBilinearForm(vfes);
+                Mscal_solver=oper.GetM_solver2();
+
+                int vfes_truevsize = vfes->GetTrueVSize();
+                vtrue.SetSize(vfes_truevsize);
+                rhs.SetSize(vfes_truevsize);
+                vJxB.SetSize(vfes_truevsize);
+
+                DenseMatrix A(2);
+                A(0,0) = 0.0; A(0,1) =-1.0;
+                A(1,0) = 1.0; A(1,1) = 0.0;
+                MatrixConstantCoefficient coeff_curl(A);
+
+                //mass matrix for vector fields
+                Mfull->AddDomainIntegrator(new VectorMassIntegrator);
+                Mfull->Assemble();
+                Mfull->Finalize();
+                MfullMat = Mfull->ParallelAssemble();
+
+                M_solver.iterative_mode = false;
+                M_solver.SetRelTol(1e-7);
+                M_solver.SetAbsTol(0.0);
+                M_solver.SetMaxIter(2000);
+                M_solver.SetPrintLevel(0);
+                M_prec = new HypreSmoother;  
+                M_prec->SetType(HypreSmoother::Jacobi);
+                M_solver.SetPreconditioner(*M_prec);
+                M_solver.SetOperator(*MfullMat);
+
+                //gradient operator from H1 to Vector H1
+                grad->AddDomainIntegrator(new GradientIntegrator);
+                grad->Assemble(); 
+
+                //nonlinear convection term u.grad u
+                convect->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+                convect->Setup();
+
+                //divergence operator from Vector H1 to H1
+                div->AddDomainIntegrator(new VectorDivergenceIntegrator);
+                div->Assemble();
+
+                //rotation matrix
+                Mrot->AddDomainIntegrator(new VectorMassIntegrator(coeff_curl));
+                Mrot->Assemble();
+                Mrot->Finalize();
+
+                 zv.SetSize(vfes->TrueVSize());
+                zv2.SetSize(vfes->TrueVSize());
+                zscalar.SetSize(fespace.TrueVSize());
+                zscalar2.SetSize(fespace.TrueVSize());
+
+                a = new ParBilinearForm(&fespace);
+                a->AddDomainIntegrator(new DiffusionIntegrator);
+                a->Assemble();
+                a->Finalize();
+                KMat=a->ParallelAssemble();
+
+                K_amg = new HypreBoomerAMG(*KMat);
+                K_amg->SetPrintLevel(0);
+                K_pcg = new CGSolver(MPI_COMM_WORLD);
+                SpInvOrthoPC = new mfem::navier::OrthoSolver();
+                SpInvOrthoPC->SetOperator(*K_amg);
+                K_pcg->SetOperator(*KMat);
+                K_pcg->iterative_mode = false;
+                K_pcg->SetRelTol(1e-7);
+                K_pcg->SetMaxIter(200);
+                K_pcg->SetPrintLevel(0);
+                K_pcg->SetPreconditioner(*SpInvOrthoPC);
+               
+                vfes_match=true;
+              }
+
+              //compute velocity 
+              grad->Mult(phi, *zLF);
+              zLF->ParallelAssemble(zv);
+              M_solver.Mult(zv, zv2);
+              vel->SetFromTrueDofs(zv2);
+
+              //finalize with a rotation
+              Mrot->Mult(*vel, *zLF);
+              zLF->ParallelAssemble(zv);
+              M_solver.Mult(zv, zv2);
+              vel->SetFromTrueDofs(zv2);
+
+              //compute B field
+              grad->Mult(psi, *zLF);
+              zLF->ParallelAssemble(zv);
+              M_solver.Mult(zv, zv2);
+              mag->SetFromTrueDofs(zv2);
+
+              //finalize with a rotation
+              Mrot->Mult(*mag, *zLF);
+              zLF->ParallelAssemble(zv);
+              M_solver.Mult(zv, zv2);
+              mag->SetFromTrueDofs(zv2);
+
+              //compute -Δp=div(u.grad u - JxB)
+              vel->GetTrueDofs(vtrue);
+              convect->Mult(vtrue, rhs);  //nonlinear form only works with true dofs?
+
+              JxBCoefficient JxBCoeff(&j, mag);
+              domainJxB = new VectorDomainLFIntegrator(JxBCoeff);
+              domainJxB->SetIntRule(&ir);
+              ParLinearForm zJxB(vfes);
+              zJxB.AddDomainIntegrator(domainJxB);
+              zJxB.Assemble();
+              zJxB.ParallelAssemble(vJxB);
+              rhs.Add(-1.0, vJxB);
+              
+              //compute M^{-1}(u.grad u - JxB)
+              M_solver.Mult(rhs, zv2);
+              gfv->SetFromTrueDofs(zv2);
+              div->Mult(*gfv, *zLFscalar);  //it is a mystery why ParGridFunction fails here
+
+              ParLinearForm b(&fespace);
+              b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(JxBCoeff), ess_bdr);
+              b.Assemble();
+              b.ParallelAssemble(zscalar);
+
+              zLFscalar->ParallelAssemble(zscalar2);
+              zscalar.Add(1.0, zscalar2);
+              K_pcg->Mult(zscalar, zscalar2);
+              pre->SetFromTrueDofs(zscalar2);
+
+              //compute grad P
+              zv=0.0;
+              grad->TrueAddMult(zscalar2, zv);
+              M_solver.Mult(zv, zv2);
+              gradP->SetFromTrueDofs(zv2);
+
+              //compute B.gradB
+              mag->GetTrueDofs(vtrue);
+              convect->Mult(vtrue, zv);  
+              M_solver.Mult(zv, zv2);
+              BgradB->SetFromTrueDofs(zv2);
+
+              //compute curvature force
+              B2Coefficient B2Coeff(mag);
+              ParLinearForm B2int(&fespace);
+              B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
+              B2int.Assemble();
+              B2int.ParallelAssemble(zscalar);
+              Mscal_solver.Mult(zscalar, zscalar2);
+              zv=0.0;
+              grad->TrueAddMult(zscalar2, zv);
+              M_solver.Mult(zv, zv2);
+              curvaF->SetFromTrueDofs(zv2);
+           }
         }
 
         if (visualization)
@@ -975,12 +1367,12 @@ int main(int argc, char *argv[])
       psi.SetFromTrueDofs(vx.GetBlock(1));
       w.SetFromTrueDofs(vx.GetBlock(2));
 
-      ofstream ofs_mesh(MakeParFilename("checkpt-mesh.", myid));
+      ofstream ofs_mesh(MakeParFilename("mesh.", myid));
       ofstream ofs_phi(MakeParFilename("checkpt-phi.", myid));
       ofstream ofs_psi(MakeParFilename("checkpt-psi.", myid));
       ofstream   ofs_w(MakeParFilename("checkpt-w.", myid));
 
-      ofs_mesh.precision(16);
+      ofs_mesh.precision(8);
       ofs_phi.precision(16);
       ofs_psi.precision(16);
         ofs_w.precision(16);
@@ -1040,10 +1432,10 @@ int main(int argc, char *argv[])
 
       ostringstream mesh_name, j_name, psi_name, phi_name, w_name;
       mesh_name << "amr.mesh";
-      j_name << "jamr.sol";
-      w_name << "wamr.sol";
-      phi_name << "phiamr.sol";
-      psi_name << "psiamr.sol";
+      j_name << "j.sol";
+      w_name << "w.sol";
+      phi_name << "phi.sol";
+      psi_name << "psi.sol";
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       ofstream osolj(j_name.str().c_str());
@@ -1051,11 +1443,11 @@ int main(int argc, char *argv[])
       ofstream osolphi(phi_name.str().c_str());
       ofstream osolpsi(psi_name.str().c_str());
 
-      mesh_ofs.precision(16);
-      osolj.precision(16);
-      osolw.precision(16);
-      osolphi.precision(16);
-      osolpsi.precision(16);
+      mesh_ofs.precision(8);
+      osolj.precision(8);
+      osolw.precision(8);
+      osolphi.precision(8);
+      osolpsi.precision(8);
 
       pmesh->PrintAsOne(mesh_ofs);
 
@@ -1068,6 +1460,32 @@ int main(int argc, char *argv[])
    if (myid == 0) 
    { 
        cout <<"######Runtime = "<<end-start<<" ######"<<endl;
+   }
+
+   if(compute_pressure)
+   {
+      delete M_prec;
+      delete K_amg;
+      delete SpInvOrthoPC;
+      delete MfullMat;
+      delete KMat;
+      delete a;
+      delete K_pcg;
+      delete vfes;
+      delete vel;
+      delete mag;
+      delete gradP;
+      delete curvaF;
+      delete BgradB;
+      delete gfv;       
+      delete zLFscalar; 
+      delete pre;      
+      delete grad;     
+      delete div ;     
+      delete convect;  
+      delete zLF  ;    
+      delete Mfull;    
+      delete Mrot ;     
    }
 
    //+++++Free the used memory.
