@@ -565,8 +565,8 @@ public:
    inline void _Set_(const int row, const int col, const double a)
    { SearchRow(row, col) = a; }
 
-   void Set(const int i, const int j, const double a);
-   void Add(const int i, const int j, const double a);
+   void Set(const int i, const int j, const double val);
+   void Add(const int i, const int j, const double val);
 
    void SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);

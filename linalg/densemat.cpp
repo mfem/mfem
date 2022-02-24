@@ -2919,8 +2919,6 @@ double LUFactors::Det(int m) const
 
 void LUFactors::Mult(int m, int n, double *X) const
 {
-   const double *data = this->data;
-   const int *ipiv = this->ipiv;
    double *x = X;
    for (int k = 0; k < n; k++)
    {
@@ -2955,8 +2953,6 @@ void LUFactors::Mult(int m, int n, double *X) const
 
 void LUFactors::LSolve(int m, int n, double *X) const
 {
-   const double *data = this->data;
-   const int *ipiv = this->ipiv;
    double *x = X;
    for (int k = 0; k < n; k++)
    {
@@ -2980,7 +2976,6 @@ void LUFactors::LSolve(int m, int n, double *X) const
 
 void LUFactors::USolve(int m, int n, double *X) const
 {
-   const double *data = this->data;
    double *x = X;
    // X <- U^{-1} X
    for (int k = 0; k < n; k++)
@@ -3069,8 +3064,6 @@ void LUFactors::RightSolve(int m, int n, double *X) const
 void LUFactors::GetInverseMatrix(int m, double *X) const
 {
    // A^{-1} = U^{-1} L^{-1} P
-   const double *data = this->data;
-   const int *ipiv = this->ipiv;
    // X <- U^{-1} (set only the upper triangular part of X)
    double *x = X;
    for (int k = 0; k < m; k++)
@@ -3151,7 +3144,6 @@ void LUFactors::SubMult(int m, int n, int r, const double *A21,
 void LUFactors::BlockFactor(
    int m, int n, double *A12, double *A21, double *A22) const
 {
-   const double *data = this->data;
    // A12 <- L^{-1} P A12
    LSolve(m, n, A12);
    // A21 <- A21 U^{-1}
