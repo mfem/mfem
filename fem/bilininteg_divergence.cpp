@@ -135,7 +135,7 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                                             *trans);
    const int dims = trial_fe.GetDim();
    const int dimsToStore = dims * dims;
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = trial_fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);

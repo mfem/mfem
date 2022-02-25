@@ -1391,7 +1391,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    const int dims = el.GetDim();
    const int symmDims = dims;
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
@@ -1427,10 +1427,10 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       qi->DisableTensorProducts(!use_tensor_products);
       qi->Values(xe,vel);
    }
-   else if (VectorQuadratureFunctionCoefficient* cQ =
+   else if (VectorQuadratureFunctionCoefficient* vqfQ =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(Q))
    {
-      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      const QuadratureFunction &qFun = vqfQ->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == dim * nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -1445,16 +1445,16 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       vel.SetSize(dim * nq * ne);
       auto C = Reshape(vel.HostWrite(), dim, nq, ne);
-      DenseMatrix Q_ir;
+      DenseMatrix MQ_ir;
       for (int e = 0; e < ne; ++e)
       {
          ElementTransformation& T = *fes.GetElementTransformation(e);
-         Q->Eval(Q_ir, T, *ir);
+         Q->Eval(MQ_ir, T, *ir);
          for (int q = 0; q < nq; ++q)
          {
             for (int i = 0; i < dim; ++i)
             {
-               C(i,q,e) = Q_ir(i,q);
+               C(i,q,e) = MQ_ir(i,q);
             }
          }
       }
