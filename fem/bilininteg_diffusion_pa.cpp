@@ -390,8 +390,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
       coeff.SetSize(MQfullDim * nq * ne);
 
-      DenseMatrix M;
-      M.SetSize(dim);
+      DenseMatrix GM;
+      GM.SetSize(dim);
 
       auto C = Reshape(coeff.HostWrite(), MQfullDim, nq, ne);
       for (int e=0; e<ne; ++e)
@@ -399,11 +399,11 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            MQ->Eval(M, *tr, ir->IntPoint(p));
+            MQ->Eval(GM, *tr, ir->IntPoint(p));
             for (int i=0; i<dim; ++i)
                for (int j=0; j<dim; ++j)
                {
-                  C(j+(i*dim), p, e) = M(i,j);
+                  C(j+(i*dim), p, e) = GM(i,j);
                }
          }
       }
@@ -414,8 +414,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       coeffDim = symmDims;
       coeff.SetSize(symmDims * nq * ne);
 
-      DenseSymmetricMatrix M;
-      M.SetSize(dim);
+      DenseSymmetricMatrix SM;
+      SM.SetSize(dim);
 
       auto C = Reshape(coeff.HostWrite(), symmDims, nq, ne);
 
@@ -424,12 +424,12 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            SMQ->Eval(M, *tr, ir->IntPoint(p));
+            SMQ->Eval(SM, *tr, ir->IntPoint(p));
             int cnt = 0;
             for (int i=0; i<dim; ++i)
                for (int j=i; j<dim; ++j, ++cnt)
                {
-                  C(cnt, p, e) = M(i,j);
+                  C(cnt, p, e) = SM(i,j);
                }
          }
       }
@@ -440,16 +440,16 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       coeffDim = VQ->GetVDim();
       coeff.SetSize(coeffDim * nq * ne);
       auto C = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-      Vector D(coeffDim);
+      Vector DM(coeffDim);
       for (int e=0; e<ne; ++e)
       {
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            VQ->Eval(D, *tr, ir->IntPoint(p));
+            VQ->Eval(DM, *tr, ir->IntPoint(p));
             for (int i=0; i<coeffDim; ++i)
             {
-               C(i, p, e) = D[i];
+               C(i, p, e) = DM[i];
             }
          }
       }
@@ -464,10 +464,10 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
    }
-   else if (QuadratureFunctionCoefficient* cQ =
+   else if (QuadratureFunctionCoefficient* qfQ =
                dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
-      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      const QuadratureFunction &qFun = qfQ->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == ne*nq,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -625,12 +625,12 @@ static void SmemPADiffusionDiagonal2D(const int NE,
                const double D11 = symmetric ? D(q,2,e) : D(q,3,e);
                const double By = B[qy][dy];
                const double Gy = G[qy][dy];
-               const double BB = By * By;
-               const double BG = By * Gy;
-               const double GG = Gy * Gy;
-               QD0[qx][dy] += BB * D00;
-               QD1[qx][dy] += BG * (D01 + D10);
-               QD2[qx][dy] += GG * D11;
+               const double BBy = By * By;
+               const double BGy = By * Gy;
+               const double GGy = Gy * Gy;
+               QD0[qx][dy] += BBy * D00;
+               QD1[qx][dy] += BGy * (D01 + D10);
+               QD2[qx][dy] += GGy * D11;
             }
          }
       }
@@ -643,12 +643,12 @@ static void SmemPADiffusionDiagonal2D(const int NE,
             {
                const double Bx = B[qx][dx];
                const double Gx = G[qx][dx];
-               const double BB = Bx * Bx;
-               const double BG = Bx * Gx;
-               const double GG = Gx * Gx;
-               Y(dx,dy,e) += GG * QD0[qx][dy];
-               Y(dx,dy,e) += BG * QD1[qx][dy];
-               Y(dx,dy,e) += BB * QD2[qx][dy];
+               const double BBx = Bx * Bx;
+               const double BGx = Bx * Gx;
+               const double GGx = Gx * Gx;
+               Y(dx,dy,e) += GGx * QD0[qx][dy];
+               Y(dx,dy,e) += BGx * QD1[qx][dy];
+               Y(dx,dy,e) += BBx * QD2[qx][dy];
             }
          }
       }

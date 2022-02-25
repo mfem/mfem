@@ -590,25 +590,27 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       localY = 0.0;
    }
    // Apply the Element Matrices
-   const int NDOFS = elemDofs;
-   auto X = Reshape(useRestrict?localX.Read():x.Read(), NDOFS, ne);
-   auto Y = Reshape(useRestrict?localY.ReadWrite():y.ReadWrite(), NDOFS, ne);
-   auto A = Reshape(ea_data.Read(), NDOFS, NDOFS, ne);
-   MFEM_FORALL(glob_j, ne*NDOFS,
    {
-      const int e = glob_j/NDOFS;
-      const int j = glob_j%NDOFS;
-      double res = 0.0;
-      for (int i = 0; i < NDOFS; i++)
+      const int NDOFS = elemDofs;
+      auto X = Reshape(useRestrict?localX.Read():x.Read(), NDOFS, ne);
+      auto Y = Reshape(useRestrict?localY.ReadWrite():y.ReadWrite(), NDOFS, ne);
+      auto A = Reshape(ea_data.Read(), NDOFS, NDOFS, ne);
+      MFEM_FORALL(glob_j, ne*NDOFS,
       {
-         res += A(i, j, e)*X(i, e);
+         const int e = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         double res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(i, j, e)*X(i, e);
+         }
+         Y(j, e) += res;
+      });
+      // Apply the Element Restriction transposed
+      if (useRestrict)
+      {
+         elem_restrict->MultTranspose(localY, y);
       }
-      Y(j, e) += res;
-   });
-   // Apply the Element Restriction transposed
-   if (useRestrict)
-   {
-      elem_restrict->MultTranspose(localY, y);
    }
 
    // Treatment of interior faces
@@ -716,25 +718,27 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       localY = 0.0;
    }
    // Apply the Element Matrices transposed
-   const int NDOFS = elemDofs;
-   auto X = Reshape(useRestrict?localX.Read():x.Read(), NDOFS, ne);
-   auto Y = Reshape(useRestrict?localY.ReadWrite():y.ReadWrite(), NDOFS, ne);
-   auto A = Reshape(ea_data.Read(), NDOFS, NDOFS, ne);
-   MFEM_FORALL(glob_j, ne*NDOFS,
    {
-      const int e = glob_j/NDOFS;
-      const int j = glob_j%NDOFS;
-      double res = 0.0;
-      for (int i = 0; i < NDOFS; i++)
+      const int NDOFS = elemDofs;
+      auto X = Reshape(useRestrict?localX.Read():x.Read(), NDOFS, ne);
+      auto Y = Reshape(useRestrict?localY.ReadWrite():y.ReadWrite(), NDOFS, ne);
+      auto A = Reshape(ea_data.Read(), NDOFS, NDOFS, ne);
+      MFEM_FORALL(glob_j, ne*NDOFS,
       {
-         res += A(j, i, e)*X(i, e);
+         const int e = glob_j/NDOFS;
+         const int j = glob_j%NDOFS;
+         double res = 0.0;
+         for (int i = 0; i < NDOFS; i++)
+         {
+            res += A(j, i, e)*X(i, e);
+         }
+         Y(j, e) += res;
+      });
+      // Apply the Element Restriction transposed
+      if (useRestrict)
+      {
+         elem_restrict->MultTranspose(localY, y);
       }
-      Y(j, e) += res;
-   });
-   // Apply the Element Restriction transposed
-   if (useRestrict)
-   {
-      elem_restrict->MultTranspose(localY, y);
    }
 
    // Treatment of interior faces
