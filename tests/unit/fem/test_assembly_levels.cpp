@@ -142,7 +142,6 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
       SECTION("2D")
       {
          auto order = GENERATE(2, 3);
-         auto dg = GENERATE(true, false);
          test_assembly_level("../../data/periodic-square.mesh",
                              order, dg, pb, assembly);
          test_assembly_level("../../data/periodic-hexagon.mesh",
@@ -154,7 +153,6 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
       SECTION("3D")
       {
          int order = 2;
-         auto dg = GENERATE(true, false);
          test_assembly_level("../../data/periodic-cube.mesh",
                              order, dg, pb, assembly);
          test_assembly_level("../../data/fichera-q3.mesh",
