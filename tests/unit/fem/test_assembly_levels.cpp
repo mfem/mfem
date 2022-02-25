@@ -16,8 +16,31 @@
 
 using namespace mfem;
 
-namespace ea_kernels
+namespace assembly_levels
 {
+
+enum class Problem { Mass,
+                     Convection,
+                     Diffusion
+                   };
+
+std::string getString(Problem pb)
+{
+   switch (pb)
+   {
+      case Problem::Mass:
+         return "Mass";
+         break;
+      case Problem::Convection:
+         return "Convection";
+         break;
+      case Problem::Diffusion:
+         return "Diffusion";
+         break;
+   }
+   MFEM_ABORT("Unknown Problem.");
+   return "";
+}
 
 void velocity_function(const Vector &x, Vector &v)
 {
@@ -44,11 +67,11 @@ void AddConvectionIntegrators(BilinearForm &k, VectorCoefficient &velocity,
    }
 }
 
-void test_assembly_level(const char *meshname, int order, bool dg, const int pb,
-                         const AssemblyLevel assembly)
+void test_assembly_level(const char *meshname, int order, bool dg,
+                         const Problem pb, const AssemblyLevel assembly)
 {
    INFO("mesh=" << meshname << ", order=" << order << ", DG=" << dg
-        << ", pb=" << pb << ", assembly=" << int(assembly));
+        << ", pb=" << getString(pb) << ", assembly=" << int(assembly));
    Mesh mesh(meshname, 1, 1);
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
@@ -71,20 +94,20 @@ void test_assembly_level(const char *meshname, int order, bool dg, const int pb,
    ConstantCoefficient one(1.0);
    VectorFunctionCoefficient vel_coeff(dim, velocity_function);
 
-   if (pb==0) // Mass
+   switch (pb)
    {
-      k_ref.AddDomainIntegrator(new MassIntegrator(one));
-      k_test.AddDomainIntegrator(new MassIntegrator(one));
-   }
-   else if (pb==1) // Convection
-   {
-      AddConvectionIntegrators(k_ref, vel_coeff, dg);
-      AddConvectionIntegrators(k_test, vel_coeff, dg);
-   }
-   else if (pb==2) // Diffusion
-   {
-      k_ref.AddDomainIntegrator(new DiffusionIntegrator(one));
-      k_test.AddDomainIntegrator(new DiffusionIntegrator(one));
+      case Problem::Mass:
+         k_ref.AddDomainIntegrator(new MassIntegrator(one));
+         k_test.AddDomainIntegrator(new MassIntegrator(one));
+         break;
+      case Problem::Convection:
+         AddConvectionIntegrators(k_ref, vel_coeff, dg);
+         AddConvectionIntegrators(k_test, vel_coeff, dg);
+         break;
+      case Problem::Diffusion:
+         k_ref.AddDomainIntegrator(new DiffusionIntegrator(one));
+         k_test.AddDomainIntegrator(new DiffusionIntegrator(one));
+         break;
    }
 
    k_ref.Assemble();
@@ -110,7 +133,7 @@ void test_assembly_level(const char *meshname, int order, bool dg, const int pb,
 TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
 {
    const bool dg = false;
-   auto pb = GENERATE(0, 1, 2);
+   auto pb = GENERATE(Problem::Mass,Problem::Convection,Problem::Diffusion);
    auto assembly = GENERATE(AssemblyLevel::PARTIAL, AssemblyLevel::ELEMENT,
                             AssemblyLevel::FULL);
 
@@ -160,7 +183,7 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
 TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
 {
    const bool dg = true;
-   auto pb = GENERATE(0, 1);
+   auto pb = GENERATE(Problem::Mass,Problem::Convection);
 
    SECTION("Conforming")
    {
@@ -210,4 +233,4 @@ TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
    }
 } // test case
 
-} // namespace pa_kernels
+} // namespace assembly_levels
