@@ -1530,7 +1530,7 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
       for (int i = 0; i < elem_geoms.Size(); i++)
       {
          fespace->GetLocalRefinementMatrices(*coarse_fes, elem_geoms[i],
-                                          localP[elem_geoms[i]]);
+                                             localP[elem_geoms[i]]);
       }
    }
 
@@ -1622,7 +1622,8 @@ void FiniteElementSpace::RefinementOperator
          isotr.SetPointMat(pmats(emb.matrix));
          fe->GetLocalInterpolation(isotr, eP);
       }
-      const DenseMatrix &lP = (fespace->IsVariableOrder()) ? eP : localP[geom](emb.matrix);
+      const DenseMatrix &lP = (fespace->IsVariableOrder()) ? eP : localP[geom](
+                                 emb.matrix);
 
       subY.SetSize(lP.Height());
 
@@ -1716,7 +1717,8 @@ void FiniteElementSpace::RefinementOperator
          fe->GetLocalInterpolation(isotr, eP);
       }
 
-      const DenseMatrix &lP = (fespace->IsVariableOrder()) ? eP : localP[geom](emb.matrix);
+      const DenseMatrix &lP = (fespace->IsVariableOrder()) ? eP : localP[geom](
+                                 emb.matrix);
 
       DofTransformation * doftrans = fespace->GetElementDofs(k, f_dofs);
       old_elem_dof->GetRow(emb.parent, c_dofs);
