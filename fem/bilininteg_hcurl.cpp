@@ -917,6 +917,34 @@ static void PACurlCurlSetup3D(const int Q1D,
    });
 }
 
+// PA H(curl)-L2 assemble 2D kernel
+static void PACurlL2Setup2D(const int Q1D,
+                            const int NE,
+                            const bool by_val,
+                            const Array<double> &w,
+                            const Vector &j,
+                            Vector &coeff,
+                            Vector &op)
+{
+   const int NQ = Q1D*Q1D;
+   auto W = w.Read();
+   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
+   auto C = Reshape(coeff.Read(), NQ, NE);
+   auto y = Reshape(op.Write(), NQ, NE);
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         const double J11 = J(q,0,0,e);
+         const double J21 = J(q,1,0,e);
+         const double J12 = J(q,0,1,e);
+         const double J22 = J(q,1,1,e);
+         const double detJ = (J11*J22)-(J21*J12);
+         y(q,e) = W[q] * C(q,e) * (by_val ? 1.0 : 1.0); // TODO: by_val?
+      }
+   });
+}
+
 void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
@@ -1990,6 +2018,121 @@ static void SmemPACurlCurlApply3D(const int D1D,
    }); // end of element loop
 }
 
+static void PACurlL2Apply2D(const int D1D,
+                            const int Q1D,
+                            const int NE,
+                            const Array<double> &bo,
+                            const Array<double> &bot,
+                            const Array<double> &bt,
+                            const Array<double> &gc,
+                            const Array<double> &gct,
+                            const Vector &pa_data,
+                            const Vector &x, // trial = H(curl)
+                            Vector &y)  // test = L2
+{
+   constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   MFEM_VERIFY(y.Size() == NE*(D1D-1)*(D1D-1), "TODO: remove this check");
+
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   //auto Gct = Reshape(gct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D-1, D1D-1, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double curl[MAX_Q1D][MAX_Q1D];
+
+      // curl[qy][qx] will be computed as du_y/dx - du_x/dy
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            curl[qy][qx] = 0.0;
+         }
+      }
+
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+      {
+         const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+         for (int dy = 0; dy < D1Dy; ++dy)
+         {
+            double gradX[MAX_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               gradX[qx] = 0;
+            }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               const double t = X(dx + (dy * D1Dx) + osc, e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  gradX[qx] += t * ((c == 0) ? Bo(qx,dx) : Gc(qx,dx));
+               }
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy = (c == 0) ? -Gc(qy,dy) : Bo(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  curl[qy][qx] += gradX[qx] * wy;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            curl[qy][qx] *= op(qx,qy,e);
+         }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         double sol_x[MAX_D1D-1];
+         for (int dx = 0; dx < D1D-1; ++dx)
+         {
+            sol_x[dx] = 0.0;
+         }
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const double s = curl[qy][qx];
+            for (int dx = 0; dx < D1D-1; ++dx)
+            {
+               sol_x[dx] += s * Bot(dx,qx);
+            }
+         }
+         for (int dy = 0; dy < D1D-1; ++dy)
+         {
+            const double wy = Bot(dy,qy);
+
+            for (int dx = 0; dx < D1D-1; ++dx)
+            {
+               Y(dx,dy,e) += sol_x[dx] * wy;
+            }
+         }
+      }  // loop qy
+   }); // end of element loop
+}
+
 void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 3)
@@ -2853,6 +2996,90 @@ void PAHcurlL2Setup(const int NQ,
    });
 }
 
+void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
+                                           const FiniteElementSpace &test_fes)
+{
+   // Assumes tensor-product elements
+   Mesh *mesh = trial_fes.GetMesh();
+   const FiniteElement *fel = trial_fes.GetFE(0); // In H(curl)
+   const FiniteElement *eltest = test_fes.GetFE(0); // In scalar space
+
+   const VectorTensorFiniteElement *el =
+      dynamic_cast<const VectorTensorFiniteElement*>(fel);
+   MFEM_VERIFY(el != NULL, "Only VectorTensorFiniteElement is supported!");
+
+   if (el->GetDerivType() != mfem::FiniteElement::CURL)
+   {
+      MFEM_ABORT("Unknown kernel.");
+   }
+
+   /*
+   const IntegrationRule *ir
+      = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el,
+                                                     *mesh->GetElementTransformation(0));
+                       */
+   const IntegrationRule *ir
+      = IntRule ? IntRule : &MassIntegrator::GetRule(*eltest, *eltest,
+                                                     *mesh->GetElementTransformation(0));
+
+   const int dims = el->GetDim();
+   MFEM_VERIFY(dims == 2, "");
+
+   const int nq = ir->GetNPoints();
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2, "");
+
+   ne = test_fes.GetNE();
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   dofs1D = mapsC->ndof;
+   quad1D = mapsC->nqpt;
+
+   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+
+   pa_data.SetSize(nq * ne, Device::GetMemoryType());
+
+   Vector coeff(ne * nq);
+   coeff = 1.0;
+   auto coeffh = Reshape(coeff.HostWrite(), nq, ne);
+   if (Q)
+   {
+      for (int e=0; e<ne; ++e)
+      {
+         ElementTransformation *tr = mesh->GetElementTransformation(e);
+         for (int p=0; p<nq; ++p)
+         {
+            coeffh(p, e) = Q->Eval(*tr, ir->IntPoint(p));
+         }
+      }
+   }
+
+   if (dim == 2)
+   {
+      //PACurlL2Setup2D(quad1D, ne, true,
+      PACurlL2Setup2D(quad1D, ne, (el->GetMapType() == FiniteElement::VALUE),
+                      ir->GetWeights(), geom->J, coeff, pa_data);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void MixedScalarCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (dim == 2)
+   {
+      PACurlL2Apply2D(dofs1D, quad1D, ne, mapsO->B, mapsO->Bt, mapsC->Bt,
+                      mapsC->G, mapsC->Gt, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
 void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                            const FiniteElementSpace &test_fes)
 {
@@ -2899,7 +3126,11 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    coeffDim = (DQ ? 3 : 1);
 
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   const bool curlSpaces = (testType == mfem::FiniteElement::CURL &&
+                            trialType == mfem::FiniteElement::CURL);
+
+   const int ndata = curlSpaces ? coeffDim : symmDims;
+   pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
    Vector coeff(coeffDim * nq * ne);
    coeff = 1.0;
