@@ -920,27 +920,19 @@ static void PACurlCurlSetup3D(const int Q1D,
 // PA H(curl)-L2 assemble 2D kernel
 static void PACurlL2Setup2D(const int Q1D,
                             const int NE,
-                            const bool by_val,
                             const Array<double> &w,
-                            const Vector &j,
                             Vector &coeff,
                             Vector &op)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
-   auto J = Reshape(j.Read(), NQ, 2, 2, NE);
    auto C = Reshape(coeff.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
    MFEM_FORALL(e, NE,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double detJ = (J11*J22)-(J21*J12);
-         y(q,e) = W[q] * C(q,e) * (by_val ? 1.0 : 1.0); // TODO: by_val?
+         y(q,e) = W[q] * C(q,e);
       }
    });
 }
@@ -2019,6 +2011,7 @@ static void SmemPACurlCurlApply3D(const int D1D,
 }
 
 static void PACurlL2Apply2D(const int D1D,
+                            const int D1Dtest,
                             const int Q1D,
                             const int NE,
                             const Array<double> &bo,
@@ -2028,22 +2021,22 @@ static void PACurlL2Apply2D(const int D1D,
                             const Array<double> &gct,
                             const Vector &pa_data,
                             const Vector &x, // trial = H(curl)
-                            Vector &y)  // test = L2
+                            Vector &y)  // test = L2 or H1
 {
    constexpr static int VDIM = 2;
    constexpr static int MAX_D1D = HCURL_MAX_D1D;
    constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+   const int H1 = (D1Dtest == D1D);
 
-   MFEM_VERIFY(y.Size() == NE*(D1D-1)*(D1D-1), "TODO: remove this check");
+   MFEM_VERIFY(y.Size() == NE*D1Dtest*D1Dtest, "Test vector of wrong dimension");
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto Gc = Reshape(gc.Read(), Q1D, D1D);
-   //auto Gct = Reshape(gct.Read(), D1D, Q1D);
    auto op = Reshape(pa_data.Read(), Q1D, Q1D, NE);
    auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
-   auto Y = Reshape(y.ReadWrite(), D1D-1, D1D-1, NE);
+   auto Y = Reshape(y.ReadWrite(), D1Dtest, D1Dtest, NE);
 
    MFEM_FORALL(e, NE,
    {
@@ -2107,24 +2100,24 @@ static void PACurlL2Apply2D(const int D1D,
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double sol_x[MAX_D1D-1];
-         for (int dx = 0; dx < D1D-1; ++dx)
+         double sol_x[MAX_D1D];
+         for (int dx = 0; dx < D1Dtest; ++dx)
          {
             sol_x[dx] = 0.0;
          }
          for (int qx = 0; qx < Q1D; ++qx)
          {
             const double s = curl[qy][qx];
-            for (int dx = 0; dx < D1D-1; ++dx)
+            for (int dx = 0; dx < D1Dtest; ++dx)
             {
-               sol_x[dx] += s * Bot(dx,qx);
+               sol_x[dx] += s * ((H1 == 1) ? Bt(dx,qx) : Bot(dx,qx));
             }
          }
-         for (int dy = 0; dy < D1D-1; ++dy)
+         for (int dy = 0; dy < D1Dtest; ++dy)
          {
-            const double wy = Bot(dy,qy);
+            const double wy = (H1 == 1) ? Bt(dy,qy) : Bot(dy,qy);
 
-            for (int dx = 0; dx < D1D-1; ++dx)
+            for (int dx = 0; dx < D1Dtest; ++dx)
             {
                Y(dx,dy,e) += sol_x[dx] * wy;
             }
@@ -3013,11 +3006,6 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       MFEM_ABORT("Unknown kernel.");
    }
 
-   /*
-   const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el,
-                                                     *mesh->GetElementTransformation(0));
-                       */
    const IntegrationRule *ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(*eltest, *eltest,
                                                      *mesh->GetElementTransformation(0));
@@ -3030,13 +3018,21 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_VERIFY(dim == 2, "");
 
    ne = test_fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
    mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
    dofs1D = mapsC->ndof;
    quad1D = mapsC->nqpt;
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+
+   if (el->GetOrder() == eltest->GetOrder())
+   {
+      dofs1Dtest = dofs1D;
+   }
+   else
+   {
+      dofs1Dtest = dofs1D - 1;
+   }
 
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
@@ -3057,9 +3053,7 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    if (dim == 2)
    {
-      //PACurlL2Setup2D(quad1D, ne, true,
-      PACurlL2Setup2D(quad1D, ne, (el->GetMapType() == FiniteElement::VALUE),
-                      ir->GetWeights(), geom->J, coeff, pa_data);
+      PACurlL2Setup2D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
    }
    else
    {
@@ -3071,7 +3065,7 @@ void MixedScalarCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 2)
    {
-      PACurlL2Apply2D(dofs1D, quad1D, ne, mapsO->B, mapsO->Bt, mapsC->Bt,
+      PACurlL2Apply2D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B, mapsO->Bt, mapsC->Bt,
                       mapsC->G, mapsC->Gt, pa_data, x, y);
    }
    else

@@ -891,8 +891,8 @@ protected:
       const FiniteElement & test_fe) const
    {
       return (trial_fe.GetDim() == 2 && test_fe.GetDim() == 2 &&
-              trial_fe.GetDerivType() == mfem::FiniteElement::CURL  &&
-              test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR );
+              trial_fe.GetDerivType() == mfem::FiniteElement::CURL &&
+              test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR);
    }
 
    inline virtual const char * FiniteElementTypeFailureMessage() const
@@ -925,8 +925,7 @@ protected:
    Vector pa_data;
    const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
-   const GeometricFactors *geom;   ///< Not owned
-   int dim, ne, dofs1D, quad1D;
+   int dim, ne, dofs1D, quad1D, dofs1Dtest;
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q u, curl v) in 2D where
