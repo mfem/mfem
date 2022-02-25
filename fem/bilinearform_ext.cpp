@@ -545,6 +545,8 @@ void EABilinearFormExtension::Assemble()
                                                      ea_data_ext,
                                                      i);
    }
+   MFEM_VERIFY(!dynamic_cast<const NCL2FaceRestriction*>(int_face_restrict_lex),
+               "Element Assembly not yet supported on NCMesh.");
 
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
    const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
@@ -558,16 +560,18 @@ void EABilinearFormExtension::Assemble()
    {
       bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_bdr,i);
    }
+   MFEM_VERIFY(!dynamic_cast<const NCL2FaceRestriction*>(bdr_face_restrict_lex),
+               "Element Assembly not yet supported on NCMesh.");
 
    if (factorize_face_terms && int_face_restrict_lex)
    {
-      auto restFint = dynamic_cast<const L2FaceRestriction&>(*int_face_restrict_lex);
-      restFint.AddFaceMatricesToElementMatrices(ea_data_int, ea_data);
+      auto restFint = dynamic_cast<const L2FaceRestriction*>(int_face_restrict_lex);
+      restFint->AddFaceMatricesToElementMatrices(ea_data_int, ea_data);
    }
    if (factorize_face_terms && bdr_face_restrict_lex)
    {
-      auto restFbdr = dynamic_cast<const L2FaceRestriction&>(*bdr_face_restrict_lex);
-      restFbdr.AddFaceMatricesToElementMatrices(ea_data_bdr, ea_data);
+      auto restFbdr = dynamic_cast<const L2FaceRestriction*>(bdr_face_restrict_lex);
+      restFbdr->AddFaceMatricesToElementMatrices(ea_data_bdr, ea_data);
    }
 }
 
@@ -874,6 +878,9 @@ void FABilinearFormExtension::Assemble()
             static_cast<const L2ElementRestriction*>(elem_restrict);
          const L2FaceRestriction *restF =
             static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
+         MFEM_VERIFY(
+            !dynamic_cast<const NCL2FaceRestriction*>(int_face_restrict_lex),
+            "Full Assembly not yet supported on NCMesh.");
          // 1. Fill J and Data
          // 1.1 Fill J and Data with Elem ea_data
          restE->FillJAndData(ea_data, *mat);
@@ -903,6 +910,9 @@ void FABilinearFormExtension::Assemble()
             static_cast<const L2ElementRestriction*>(elem_restrict);
          const L2FaceRestriction *restF =
             static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
+         MFEM_VERIFY(
+            !dynamic_cast<const NCL2FaceRestriction*>(int_face_restrict_lex),
+            "Full Assembly not yet supported on NCMesh.");
          // 1. Fill I
          mat->GetMemoryI().New(height+1, mat->GetMemoryI().GetMemoryType());
          //  1.1 Increment with restE
