@@ -666,20 +666,22 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
          }
 
          enum MixedSpaces {HcurlH1, HcurlL2, HdivL2, NumSpaceTypes};
-
          for (int spaceType = 0; spaceType < NumSpaceTypes; ++spaceType)
          {
             if (spaceType == HdivL2 && coeffType == 1)
             {
                continue;  // This case fails, maybe because of insufficient quadrature.
             }
-            if ((spaceType != HcurlL2 && coeffType == 2) || (spaceType == HcurlL2 &&
-                                                             dimension == 2))
+            if ((spaceType != HcurlL2 && coeffType == 2))
+            {
+               continue;  // Case not implemented yet
+            }
+            if (spaceType == HcurlL2 && dimension == 2 && coeffType == 2)
             {
                continue;  // Case not implemented yet
             }
 
-            const int numIntegrators = (spaceType == HcurlL2) ? 2 : 1;
+            const int numIntegrators = (spaceType == HcurlL2 && dimension == 3) ? 2 : 1;
             for (int integrator = 0; integrator < numIntegrators; ++integrator)
             {
                if (spaceType == HcurlH1)
@@ -697,14 +699,31 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
 
                for (int order = 1; order < 4; ++order)
                {
-                  FiniteElementCollection* vec_fec = (spaceType == HcurlH1 ||
-                                                      spaceType == HcurlL2) ?
-                                                     (FiniteElementCollection*) new ND_FECollection(order, dimension) :
-                                                     (FiniteElementCollection*) new RT_FECollection(order-1, dimension);
+                  FiniteElementCollection* vec_fec = nullptr;
+                  if (spaceType == HcurlH1 || spaceType == HcurlL2)
+                  {
+                     vec_fec = (FiniteElementCollection*) new ND_FECollection(order, dimension);
+                  }
+                  else
+                  {
+                     vec_fec = (FiniteElementCollection*) new RT_FECollection(order-1, dimension);
+                  }
 
-                  FiniteElementCollection* scalar_fec = (spaceType == HcurlH1) ?
-                                                        (FiniteElementCollection*) new H1_FECollection(order, dimension) :
-                                                        (FiniteElementCollection*) new L2_FECollection(order-1, dimension);
+                  FiniteElementCollection* scalar_fec = nullptr;
+                  if (spaceType == HcurlH1)
+                  {
+                     scalar_fec = (FiniteElementCollection*) new H1_FECollection(order, dimension);
+                  }
+                  else if (spaceType == HcurlL2 && dimension == 2)
+                  {
+                     scalar_fec = (FiniteElementCollection*) new L2_FECollection(order-1,
+                                                                                 dimension);   // TODO: remove this redundant case
+                  }
+                  else
+                  {
+                     scalar_fec = (FiniteElementCollection*) new L2_FECollection(order-1,
+                                                                                 dimension);
+                  }
 
                   FiniteElementSpace v_fespace(&mesh, vec_fec);
                   FiniteElementSpace s_fespace(&mesh, scalar_fec);
@@ -723,7 +742,7 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                      paform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
                      paform->AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
                   }
-                  else if (spaceType == HcurlL2)
+                  else if (spaceType == HcurlL2 && dimension == 3)
                   {
                      assemblyform = new MixedBilinearForm(&v_fespace, &v_fespace);
                      paform = new MixedBilinearForm(&v_fespace, &v_fespace);
@@ -756,6 +775,15 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                         }
                      }
                   }
+                  else if (spaceType == HcurlL2 && dimension == 2)
+                  {
+                     assemblyform = new MixedBilinearForm(&v_fespace, &s_fespace);
+                     paform = new MixedBilinearForm(&v_fespace, &s_fespace);
+                     paform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+                     paform->AddDomainIntegrator(new MixedScalarCurlIntegrator(*coeff));
+                     assemblyform->AddDomainIntegrator(new MixedScalarCurlIntegrator(*coeff));
+                  }
                   else
                   {
                      assemblyform = new MixedBilinearForm(&v_fespace, &s_fespace);
@@ -776,7 +804,8 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                   Vector *xin = new Vector((spaceType == 0) ? s_fespace.GetTrueVSize() :
                                            v_fespace.GetTrueVSize());
                   xin->Randomize();
-                  Vector y_mat((spaceType == HdivL2) ? s_fespace.GetTrueVSize() :
+                  Vector y_mat((spaceType == HdivL2 || (spaceType == HcurlL2 &&
+                                                        dimension == 2)) ? s_fespace.GetTrueVSize() :
                                v_fespace.GetTrueVSize());
                   y_mat = 0.0;
                   Vector y_assembly(y_mat.Size());
