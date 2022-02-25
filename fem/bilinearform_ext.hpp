@@ -67,7 +67,7 @@ public:
 class PABilinearFormExtension : public BilinearFormExtension
 {
 protected:
-   const FiniteElementSpace *trialFes, *testFes; // Not owned
+   const FiniteElementSpace *trial_fes, *test_fes; // Not owned
    mutable Vector localX, localY;
    mutable Vector faceIntX, faceIntY;
    mutable Vector faceBdrX, faceBdrY;
@@ -138,7 +138,7 @@ public:
 class MFBilinearFormExtension : public BilinearFormExtension
 {
 protected:
-   const FiniteElementSpace *trialFes, *testFes; // Not owned
+   const FiniteElementSpace *trial_fes, *test_fes; // Not owned
    mutable Vector localX, localY;
    mutable Vector faceIntX, faceIntY;
    mutable Vector faceBdrX, faceBdrY;
@@ -212,7 +212,7 @@ public:
 class PAMixedBilinearFormExtension : public MixedBilinearFormExtension
 {
 protected:
-   const FiniteElementSpace *trialFes, *testFes; // Not owned
+   const FiniteElementSpace *trial_fes, *test_fes; // Not owned
    mutable Vector localTrial, localTest, tempY;
    const Operator *elem_restrict_trial; // Not owned
    const Operator *elem_restrict_test;  // Not owned
