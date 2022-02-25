@@ -199,7 +199,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 
 void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
    const ElementDofOrdering ordering,
-   const FaceType type)
+   const FaceType face_type)
 {
    Mesh &mesh = *fes.GetMesh();
 
@@ -220,7 +220,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
          // by the corresponding nonconforming fine faces.
          continue;
       }
-      else if (type==FaceType::Interior && face.IsInterior())
+      else if (face_type==FaceType::Interior && face.IsInterior())
       {
          if ( face.IsConforming() )
          {
@@ -246,7 +246,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
             f_ind++;
          }
       }
-      else if (type==FaceType::Boundary && face.IsBoundary())
+      else if (face_type==FaceType::Boundary && face.IsBoundary())
       {
          SetFaceDofsScatterIndices(face, f_ind, ordering);
          f_ind++;
@@ -266,7 +266,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
 
 void ParNCH1FaceRestriction::ComputeGatherIndices(
    const ElementDofOrdering ordering,
-   const FaceType type)
+   const FaceType face_type)
 {
    Mesh &mesh = *fes.GetMesh();
 
@@ -281,7 +281,7 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
          // by the corresponding nonconforming fine faces.
          continue;
       }
-      else if (face.IsOfFaceType(type))
+      else if (face.IsOfFaceType(face_type))
       {
          SetFaceDofsGatherIndices(face, f_ind, ordering);
          f_ind++;

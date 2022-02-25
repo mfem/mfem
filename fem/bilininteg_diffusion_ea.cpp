@@ -247,7 +247,7 @@ void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                      const bool add)
 {
    AssemblePA(fes);
-   const int ne = fes.GetMesh()->GetNE();
+   ne = fes.GetMesh()->GetNE();
    const Array<double> &B = maps->B;
    const Array<double> &G = maps->G;
    if (dim == 1)
