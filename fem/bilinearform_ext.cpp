@@ -40,8 +40,8 @@ const Operator *BilinearFormExtension::GetRestriction() const
 // Data and methods for partially-assembled bilinear forms
 MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
    : BilinearFormExtension(form),
-     trialFes(a->FESpace()),
-     testFes(a->FESpace())
+     trial_fes(a->FESpace()),
+     test_fes(a->FESpace())
 {
    elem_restrict = NULL;
    int_face_restrict_lex = NULL;
@@ -96,8 +96,8 @@ void MFBilinearFormExtension::Update()
 {
    FiniteElementSpace *fes = a->FESpace();
    height = width = fes->GetVSize();
-   trialFes = fes;
-   testFes = fes;
+   trial_fes = fes;
+   test_fes = fes;
 
    elem_restrict = nullptr;
    int_face_restrict_lex = nullptr;
@@ -241,8 +241,8 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 // Data and methods for partially-assembled bilinear forms
 PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    : BilinearFormExtension(form),
-     trialFes(a->FESpace()),
-     testFes(a->FESpace())
+     trial_fes(a->FESpace()),
+     test_fes(a->FESpace())
 {
    elem_restrict = NULL;
    int_face_restrict_lex = NULL;
@@ -254,7 +254,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
    ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace())?
                                  ElementDofOrdering::LEXICOGRAPHIC:
                                  ElementDofOrdering::NATIVE;
-   elem_restrict = trialFes->GetElementRestriction(ordering);
+   elem_restrict = trial_fes->GetElementRestriction(ordering);
    if (elem_restrict)
    {
       localX.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
@@ -266,7 +266,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
    // interior or boundary face integrators
    if (int_face_restrict_lex == NULL && a->GetFBFI()->Size() > 0)
    {
-      int_face_restrict_lex = trialFes->GetFaceRestriction(
+      int_face_restrict_lex = trial_fes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
                                  FaceType::Interior);
       faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
@@ -276,7 +276,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 
    if (bdr_face_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
    {
-      bdr_face_restrict_lex = trialFes->GetFaceRestriction(
+      bdr_face_restrict_lex = trial_fes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
                                  FaceType::Boundary,
                                  m);
@@ -353,8 +353,8 @@ void PABilinearFormExtension::Update()
 {
    FiniteElementSpace *fes = a->FESpace();
    height = width = fes->GetVSize();
-   trialFes = fes;
-   testFes = fes;
+   trial_fes = fes;
+   test_fes = fes;
 
    elem_restrict = nullptr;
    int_face_restrict_lex = nullptr;
@@ -506,8 +506,8 @@ void EABilinearFormExtension::Assemble()
 {
    SetupRestrictionOperators(L2FaceValues::SingleValued);
 
-   ne = trialFes->GetMesh()->GetNE();
-   elemDofs = trialFes->GetFE(0)->GetDof();
+   ne = trial_fes->GetMesh()->GetNE();
+   elemDofs = trial_fes->GetFE(0)->GetDof();
 
    ea_data.SetSize(ne*elemDofs*elemDofs, Device::GetMemoryType());
    ea_data.UseDevice(true);
@@ -523,8 +523,8 @@ void EABilinearFormExtension::Assemble()
       integrators[i]->AssembleEA(*a->FESpace(), ea_data, i);
    }
 
-   faceDofs = trialFes ->
-              GetTraceElement(0, trialFes->GetMesh()->GetFaceBaseGeometry(0)) ->
+   faceDofs = trial_fes ->
+              GetTraceElement(0, trial_fes->GetMesh()->GetFaceBaseGeometry(0)) ->
               GetDof();
 
    MFEM_VERIFY(a->GetBBFI()->Size() == 0,
@@ -534,7 +534,7 @@ void EABilinearFormExtension::Assemble()
    const int intFaceIntegratorCount = intFaceIntegrators.Size();
    if (intFaceIntegratorCount>0)
    {
-      nf_int = trialFes->GetNFbyType(FaceType::Interior);
+      nf_int = trial_fes->GetNFbyType(FaceType::Interior);
       ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
       ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
    }
@@ -552,7 +552,7 @@ void EABilinearFormExtension::Assemble()
    const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
    if (boundFaceIntegratorCount>0)
    {
-      nf_bdr = trialFes->GetNFbyType(FaceType::Boundary);
+      nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
       ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs, Device::GetMemoryType());
       ea_data_bdr = 0.0;
    }
@@ -959,7 +959,7 @@ void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes;
-   if ( (pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes)) )
+   if ( (pfes = dynamic_cast<const ParFiniteElementSpace*>(test_fes)) )
    {
       // DG Prolongation
       ParGridFunction x_gf;
@@ -1020,7 +1020,7 @@ void FABilinearFormExtension::DGMultTranspose(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes;
-   if ( (pfes = dynamic_cast<const ParFiniteElementSpace*>(testFes)) )
+   if ( (pfes = dynamic_cast<const ParFiniteElementSpace*>(test_fes)) )
    {
       // DG Prolongation
       ParGridFunction x_gf;
@@ -1109,8 +1109,8 @@ const Operator *MixedBilinearFormExtension::GetOutputRestriction() const
 PAMixedBilinearFormExtension::PAMixedBilinearFormExtension(
    MixedBilinearForm *form)
    : MixedBilinearFormExtension(form),
-     trialFes(form->TrialFESpace()),
-     testFes(form->TestFESpace()),
+     trial_fes(form->TrialFESpace()),
+     test_fes(form->TestFESpace()),
      elem_restrict_trial(NULL),
      elem_restrict_test(NULL)
 {
@@ -1123,7 +1123,7 @@ void PAMixedBilinearFormExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->AssemblePA(*trialFes, *testFes);
+      integrators[i]->AssemblePA(*trial_fes, *test_fes);
    }
    MFEM_VERIFY(a->GetBBFI()->Size() == 0,
                "Partial assembly does not support AddBoundaryIntegrator yet.");
@@ -1135,13 +1135,13 @@ void PAMixedBilinearFormExtension::Assemble()
 
 void PAMixedBilinearFormExtension::Update()
 {
-   trialFes = a->TrialFESpace();
-   testFes  = a->TestFESpace();
-   height = testFes->GetVSize();
-   width = trialFes->GetVSize();
-   elem_restrict_trial = trialFes->GetElementRestriction(
+   trial_fes = a->TrialFESpace();
+   test_fes  = a->TestFESpace();
+   height = test_fes->GetVSize();
+   width = trial_fes->GetVSize();
+   elem_restrict_trial = trial_fes->GetElementRestriction(
                             ElementDofOrdering::LEXICOGRAPHIC);
-   elem_restrict_test  =  testFes->GetElementRestriction(
+   elem_restrict_test  =  test_fes->GetElementRestriction(
                              ElementDofOrdering::LEXICOGRAPHIC);
    if (elem_restrict_trial)
    {
@@ -1366,7 +1366,7 @@ void PADiscreteLinearOperatorExtension::Assemble()
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->AssemblePA(*trialFes, *testFes);
+      integrators[i]->AssemblePA(*trial_fes, *test_fes);
    }
 
    test_multiplicity.UseDevice(true);
