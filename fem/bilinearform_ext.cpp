@@ -152,15 +152,15 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      int_face_restrict_lex->Mult(x, faceIntX);
-      if (faceIntX.Size()>0)
+      int_face_restrict_lex->Mult(x, int_face_X);
+      if (int_face_X.Size()>0)
       {
-         faceIntY = 0.0;
+         int_face_Y = 0.0;
          for (int i = 0; i < iFISz; ++i)
          {
-            intFaceIntegrators[i]->AddMultMF(faceIntX, faceIntY);
+            intFaceIntegrators[i]->AddMultMF(int_face_X, int_face_Y);
          }
-         int_face_restrict_lex->AddMultTranspose(faceIntY, y);
+         int_face_restrict_lex->AddMultTranspose(int_face_Y, y);
       }
    }
 
@@ -168,15 +168,15 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (bdr_face_restrict_lex && bFISz>0)
    {
-      bdr_face_restrict_lex->Mult(x, faceBdrX);
-      if (faceBdrX.Size()>0)
+      bdr_face_restrict_lex->Mult(x, bdr_face_X);
+      if (bdr_face_X.Size()>0)
       {
-         faceBdrY = 0.0;
+         bdr_face_Y = 0.0;
          for (int i = 0; i < bFISz; ++i)
          {
-            bdrFaceIntegrators[i]->AddMultMF(faceBdrX, faceBdrY);
+            bdrFaceIntegrators[i]->AddMultMF(bdr_face_X, bdr_face_Y);
          }
-         bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->AddMultTranspose(bdr_face_Y, y);
       }
    }
 }
@@ -209,15 +209,15 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      int_face_restrict_lex->Mult(x, faceIntX);
-      if (faceIntX.Size()>0)
+      int_face_restrict_lex->Mult(x, int_face_X);
+      if (int_face_X.Size()>0)
       {
-         faceIntY = 0.0;
+         int_face_Y = 0.0;
          for (int i = 0; i < iFISz; ++i)
          {
-            intFaceIntegrators[i]->AddMultTransposeMF(faceIntX, faceIntY);
+            intFaceIntegrators[i]->AddMultTransposeMF(int_face_X, int_face_Y);
          }
-         int_face_restrict_lex->AddMultTranspose(faceIntY, y);
+         int_face_restrict_lex->AddMultTranspose(int_face_Y, y);
       }
    }
 
@@ -225,15 +225,15 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (bdr_face_restrict_lex && bFISz>0)
    {
-      bdr_face_restrict_lex->Mult(x, faceBdrX);
-      if (faceBdrX.Size()>0)
+      bdr_face_restrict_lex->Mult(x, bdr_face_X);
+      if (bdr_face_X.Size()>0)
       {
-         faceBdrY = 0.0;
+         bdr_face_Y = 0.0;
          for (int i = 0; i < bFISz; ++i)
          {
-            bdrFaceIntegrators[i]->AddMultTransposeMF(faceBdrX, faceBdrY);
+            bdrFaceIntegrators[i]->AddMultTransposeMF(bdr_face_X, bdr_face_Y);
          }
-         bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->AddMultTranspose(bdr_face_Y, y);
       }
    }
 }
@@ -269,9 +269,9 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       int_face_restrict_lex = trial_fes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
                                  FaceType::Interior);
-      faceIntX.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceIntY.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceIntY.UseDevice(true); // ensure 'faceIntY = 0.0' is done on device
+      int_face_X.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
+      int_face_Y.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
+      int_face_Y.UseDevice(true); // ensure 'int_face_Y = 0.0' is done on device
    }
 
    if (bdr_face_restrict_lex == NULL && a->GetBFBFI()->Size() > 0)
@@ -280,9 +280,9 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
                                  ElementDofOrdering::LEXICOGRAPHIC,
                                  FaceType::Boundary,
                                  m);
-      faceBdrX.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceBdrY.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
-      faceBdrY.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
+      bdr_face_X.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
+      bdr_face_Y.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
+      bdr_face_Y.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
    }
 }
 
@@ -409,15 +409,15 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      int_face_restrict_lex->Mult(x, faceIntX);
-      if (faceIntX.Size()>0)
+      int_face_restrict_lex->Mult(x, int_face_X);
+      if (int_face_X.Size()>0)
       {
-         faceIntY = 0.0;
+         int_face_Y = 0.0;
          for (int i = 0; i < iFISz; ++i)
          {
-            intFaceIntegrators[i]->AddMultPA(faceIntX, faceIntY);
+            intFaceIntegrators[i]->AddMultPA(int_face_X, int_face_Y);
          }
-         int_face_restrict_lex->AddMultTranspose(faceIntY, y);
+         int_face_restrict_lex->AddMultTranspose(int_face_Y, y);
       }
    }
 
@@ -425,15 +425,15 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (bdr_face_restrict_lex && bFISz>0)
    {
-      bdr_face_restrict_lex->Mult(x, faceBdrX);
-      if (faceBdrX.Size()>0)
+      bdr_face_restrict_lex->Mult(x, bdr_face_X);
+      if (bdr_face_X.Size()>0)
       {
-         faceBdrY = 0.0;
+         bdr_face_Y = 0.0;
          for (int i = 0; i < bFISz; ++i)
          {
-            bdrFaceIntegrators[i]->AddMultPA(faceBdrX, faceBdrY);
+            bdrFaceIntegrators[i]->AddMultPA(bdr_face_X, bdr_face_Y);
          }
-         bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->AddMultTranspose(bdr_face_Y, y);
       }
    }
 }
@@ -466,15 +466,15 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      int_face_restrict_lex->Mult(x, faceIntX);
-      if (faceIntX.Size()>0)
+      int_face_restrict_lex->Mult(x, int_face_X);
+      if (int_face_X.Size()>0)
       {
-         faceIntY = 0.0;
+         int_face_Y = 0.0;
          for (int i = 0; i < iFISz; ++i)
          {
-            intFaceIntegrators[i]->AddMultTransposePA(faceIntX, faceIntY);
+            intFaceIntegrators[i]->AddMultTransposePA(int_face_X, int_face_Y);
          }
-         int_face_restrict_lex->AddMultTranspose(faceIntY, y);
+         int_face_restrict_lex->AddMultTranspose(int_face_Y, y);
       }
    }
 
@@ -482,15 +482,15 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (bdr_face_restrict_lex && bFISz>0)
    {
-      bdr_face_restrict_lex->Mult(x, faceBdrX);
-      if (faceBdrX.Size()>0)
+      bdr_face_restrict_lex->Mult(x, bdr_face_X);
+      if (bdr_face_X.Size()>0)
       {
-         faceBdrY = 0.0;
+         bdr_face_Y = 0.0;
          for (int i = 0; i < bFISz; ++i)
          {
-            bdrFaceIntegrators[i]->AddMultTransposePA(faceBdrX, faceBdrY);
+            bdrFaceIntegrators[i]->AddMultTransposePA(bdr_face_X, bdr_face_Y);
          }
-         bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->AddMultTranspose(bdr_face_Y, y);
       }
    }
 }
@@ -619,14 +619,14 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    if (int_face_restrict_lex && iFISz>0)
    {
       // Apply the Interior Face Restriction
-      int_face_restrict_lex->Mult(x, faceIntX);
-      if (faceIntX.Size()>0)
+      int_face_restrict_lex->Mult(x, int_face_X);
+      if (int_face_X.Size()>0)
       {
-         faceIntY = 0.0;
+         int_face_Y = 0.0;
          // Apply the interior face matrices
          const int NDOFS = faceDofs;
-         auto X = Reshape(faceIntX.Read(), NDOFS, 2, nf_int);
-         auto Y = Reshape(faceIntY.ReadWrite(), NDOFS, 2, nf_int);
+         auto X = Reshape(int_face_X.Read(), NDOFS, 2, nf_int);
+         auto Y = Reshape(int_face_Y.ReadWrite(), NDOFS, 2, nf_int);
          if (!factorize_face_terms)
          {
             auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
@@ -667,7 +667,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             Y(j, 0, f) += res;
          });
          // Apply the Interior Face Restriction transposed
-         int_face_restrict_lex->AddMultTranspose(faceIntY, y);
+         int_face_restrict_lex->AddMultTranspose(int_face_Y, y);
       }
    }
 
@@ -677,14 +677,14 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
    {
       // Apply the Boundary Face Restriction
-      bdr_face_restrict_lex->Mult(x, faceBdrX);
-      if (faceBdrX.Size()>0)
+      bdr_face_restrict_lex->Mult(x, bdr_face_X);
+      if (bdr_face_X.Size()>0)
       {
-         faceBdrY = 0.0;
+         bdr_face_Y = 0.0;
          // Apply the boundary face matrices
          const int NDOFS = faceDofs;
-         auto X = Reshape(faceBdrX.Read(), NDOFS, nf_bdr);
-         auto Y = Reshape(faceBdrY.ReadWrite(), NDOFS, nf_bdr);
+         auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
+         auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
          auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
          MFEM_FORALL(glob_j, nf_bdr*NDOFS,
          {
@@ -698,7 +698,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             Y(j, f) += res;
          });
          // Apply the Boundary Face Restriction transposed
-         bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->AddMultTranspose(bdr_face_Y, y);
       }
    }
 }
@@ -747,14 +747,14 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    if (int_face_restrict_lex && iFISz>0)
    {
       // Apply the Interior Face Restriction
-      int_face_restrict_lex->Mult(x, faceIntX);
-      if (faceIntX.Size()>0)
+      int_face_restrict_lex->Mult(x, int_face_X);
+      if (int_face_X.Size()>0)
       {
-         faceIntY = 0.0;
+         int_face_Y = 0.0;
          // Apply the interior face matrices transposed
          const int NDOFS = faceDofs;
-         auto X = Reshape(faceIntX.Read(), NDOFS, 2, nf_int);
-         auto Y = Reshape(faceIntY.ReadWrite(), NDOFS, 2, nf_int);
+         auto X = Reshape(int_face_X.Read(), NDOFS, 2, nf_int);
+         auto Y = Reshape(int_face_Y.ReadWrite(), NDOFS, 2, nf_int);
          if (!factorize_face_terms)
          {
             auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
@@ -795,7 +795,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             Y(j, 0, f) += res;
          });
          // Apply the Interior Face Restriction transposed
-         int_face_restrict_lex->AddMultTranspose(faceIntY, y);
+         int_face_restrict_lex->AddMultTranspose(int_face_Y, y);
       }
    }
 
@@ -805,14 +805,14 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
    {
       // Apply the Boundary Face Restriction
-      bdr_face_restrict_lex->Mult(x, faceBdrX);
-      if (faceBdrX.Size()>0)
+      bdr_face_restrict_lex->Mult(x, bdr_face_X);
+      if (bdr_face_X.Size()>0)
       {
-         faceBdrY = 0.0;
+         bdr_face_Y = 0.0;
          // Apply the boundary face matrices transposed
          const int NDOFS = faceDofs;
-         auto X = Reshape(faceBdrX.Read(), NDOFS, nf_bdr);
-         auto Y = Reshape(faceBdrY.ReadWrite(), NDOFS, nf_bdr);
+         auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
+         auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
          auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
          MFEM_FORALL(glob_j, nf_bdr*NDOFS,
          {
@@ -826,7 +826,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             Y(j, f) += res;
          });
          // Apply the Boundary Face Restriction transposed
-         bdr_face_restrict_lex->AddMultTranspose(faceBdrY, y);
+         bdr_face_restrict_lex->AddMultTranspose(bdr_face_Y, y);
       }
    }
 }
