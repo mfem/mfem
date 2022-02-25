@@ -545,7 +545,7 @@ void EABilinearFormExtension::Assemble()
                                                      ea_data_ext,
                                                      i);
    }
-   MFEM_VERIFY(!dynamic_cast<const NCL2FaceRestriction*>(int_face_restrict_lex),
+   MFEM_VERIFY(trial_fes->Conforming(),
                "Element Assembly not yet supported on NCMesh.");
 
    Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
@@ -560,7 +560,7 @@ void EABilinearFormExtension::Assemble()
    {
       bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_bdr,i);
    }
-   MFEM_VERIFY(!dynamic_cast<const NCL2FaceRestriction*>(bdr_face_restrict_lex),
+   MFEM_VERIFY(trial_fes->Conforming(),
                "Element Assembly not yet supported on NCMesh.");
 
    if (factorize_face_terms && int_face_restrict_lex)
@@ -879,7 +879,7 @@ void FABilinearFormExtension::Assemble()
          const L2FaceRestriction *restF =
             static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
          MFEM_VERIFY(
-            !dynamic_cast<const NCL2FaceRestriction*>(int_face_restrict_lex),
+            trial_fes->Conforming(),
             "Full Assembly not yet supported on NCMesh.");
          // 1. Fill J and Data
          // 1.1 Fill J and Data with Elem ea_data
