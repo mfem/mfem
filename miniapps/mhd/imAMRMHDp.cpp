@@ -164,6 +164,7 @@ int main(int argc, char *argv[])
    double derefine_ratio=.2;
    double derefine_fraction=.05;
    double t_refs=1e10;
+   int    t_refs_steps=2;
    double error_norm=infinity();
    //----end of amr----
    
@@ -172,6 +173,7 @@ int main(int argc, char *argv[])
    lambda=5.0;
 
    bool saveOne=false;
+   bool checkpt=false;
    bool visualization = true;
    int vis_steps = 10;
 
@@ -195,6 +197,8 @@ int main(int argc, char *argv[])
                   "dt change time; reduce to half.");
    args.AddOption(&t_refs, "-t-refs", "--t-refs",
                   "Time a quick refine/derefine is turned on.");
+   args.AddOption(&t_refs_steps, "-t-refs-steps", "--t-refs-steps",
+                  "Refine steps for a quick refine/derefine after t_refs.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
    args.AddOption(&icase, "-i", "--icase",
@@ -277,6 +281,8 @@ int main(int argc, char *argv[])
                   "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
    args.AddOption(&saveOne, "-saveOne", "--save-One",  "-no-saveOne", "--no-save-One",
                   "Save solution/mesh as one file");
+   args.AddOption(&checkpt, "-checkpt", "--check-pt",  "-no-checkpt", "--no-check-pt",
+                  "Save check point");
    args.AddOption(&lumpedMass, "-lumpmass", "--lump-mass",  "-no-lumpmass", "--no-lump-mass",
                   "lumped mass for updatej=0");
    args.AddOption(&iestimator, "-iestimator", "--iestimator",
@@ -551,18 +557,16 @@ int main(int argc, char *argv[])
    
    //++++Initialize the MHD operator, the GLVis visualization    
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
-   if (icase==2)  //add the source term
-   {
+   //add the source term
+   if (icase==2){
        oper.SetRHSEfield(E0rhs);
    }
-   else if (icase==3 || icase==4)     
-   {
+   else if (icase==3 || icase==4){
        oper.SetRHSEfield(E0rhs3);
    }
 
    //set initial J
-   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), 
-                       jInit3(InitialJ3), jInit4(InitialJ4), *jptr;
+   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), jInit3(InitialJ3), jInit4(InitialJ4), *jptr;
    if (icase==1)
        jptr=&jInit1;
    else if (icase==2)
@@ -586,10 +590,12 @@ int main(int argc, char *argv[])
    bool regularZZ=true;
    if (regularZZ)
    {
-     if (iestimator==1)
+     if (iestimator==1){
         estimator=new BlockZZEstimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
-     else
+     }
+     else{
         estimator=new BlockZZEstimator(*integ, w, *integ, psi, flux_fespace1, flux_fespace2);
+     }
      estimator->SetErrorRatio(err_ratio); 
      estimator_used=estimator;
    }
@@ -726,7 +732,7 @@ int main(int argc, char *argv[])
    
    //++++recover pressure and vector fields++++
    ParFiniteElementSpace *vfes;
-   ParGridFunction *vel, *mag, *gradP, *BgradB, *curvaF, *gfv, *pre=NULL;
+   ParGridFunction *vel, *mag, *gradP, *BgradB, *gradBP, *gfv, *pre=NULL;
    ParMixedBilinearForm *grad, *div;
    ParBilinearForm *a;
    ParNonlinearForm *convect;
@@ -751,7 +757,7 @@ int main(int argc, char *argv[])
       mag = new ParGridFunction(vfes);
       gradP = new ParGridFunction(vfes);
       BgradB = new ParGridFunction(vfes);
-      curvaF = new ParGridFunction(vfes);
+      gradBP = new ParGridFunction(vfes);
       gfv = new ParGridFunction(vfes);
       pre = new ParGridFunction(&fespace);
       grad = new ParMixedBilinearForm(&fespace, vfes);
@@ -893,7 +899,7 @@ int main(int argc, char *argv[])
       M_solver.Mult(zv, zv2);
       BgradB->SetFromTrueDofs(zv2);
 
-      //compute curvature force
+      //compute grad magnetic pressure
       B2Coefficient B2Coeff(mag);
       ParLinearForm B2int(&fespace);
       B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
@@ -903,7 +909,7 @@ int main(int argc, char *argv[])
       zv=0.0;
       grad->TrueAddMult(zscalar2, zv);
       M_solver.Mult(zv, zv2);
-      curvaF->SetFromTrueDofs(zv2);
+      gradBP->SetFromTrueDofs(zv2);
 
       vfes_match=true;
    }
@@ -923,7 +929,7 @@ int main(int argc, char *argv[])
           pd->RegisterField("B", mag);
           pd->RegisterField("pre", pre);
           pd->RegisterField("grad pre", gradP);
-          pd->RegisterField("curvature F", curvaF);
+          pd->RegisterField("grad mag pre", gradBP);
           pd->RegisterField("B.gradB", BgradB);
       }
       pd->SetLevelsOfDetail(order);
@@ -956,7 +962,7 @@ int main(int argc, char *argv[])
 
       if (t>t_refs)
       {
-          ref_steps=2;
+          ref_steps=t_refs_steps;
           ref_its=1;
           deref_its=2;
       }
@@ -1031,7 +1037,7 @@ int main(int argc, char *argv[])
                mag->Update();
                gradP->Update();
                BgradB->Update();
-               curvaF->Update();
+               gradBP->Update();
                gfv->Update();
                vfes->UpdatesFinished();
            }
@@ -1059,7 +1065,7 @@ int main(int argc, char *argv[])
                mag->Update();
                gradP->Update();
                BgradB->Update();
-               curvaF->Update();
+               gradBP->Update();
                gfv->Update();
                vfes->UpdatesFinished();
            }
@@ -1110,7 +1116,7 @@ int main(int argc, char *argv[])
                 mag->Update();
                 gradP->Update();
                 BgradB->Update();
-                curvaF->Update();
+                gradBP->Update();
                 gfv->Update();
                 vfes->UpdatesFinished();
              }
@@ -1139,7 +1145,7 @@ int main(int argc, char *argv[])
                 mag->Update();
                 gradP->Update();
                 BgradB->Update();
-                curvaF->Update();
+                gradBP->Update();
                 gfv->Update();
                 vfes->UpdatesFinished();
              }
@@ -1336,7 +1342,7 @@ int main(int argc, char *argv[])
               M_solver.Mult(zv, zv2);
               BgradB->SetFromTrueDofs(zv2);
 
-              //compute curvature force
+              //compute grad magnetic pressure
               B2Coefficient B2Coeff(mag);
               ParLinearForm B2int(&fespace);
               B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
@@ -1346,7 +1352,7 @@ int main(int argc, char *argv[])
               zv=0.0;
               grad->TrueAddMult(zscalar2, zv);
               M_solver.Mult(zv, zv2);
-              curvaF->SetFromTrueDofs(zv2);
+              gradBP->SetFromTrueDofs(zv2);
            }
         }
 
@@ -1390,8 +1396,8 @@ int main(int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD); 
    double end = MPI_Wtime();
 
-   //++++++Save the solutions (only if paraview or visit is not turned on).
-   if (true)
+   //++++++Save the solutions.
+   if (checkpt)
    {
       phi.SetFromTrueDofs(vx.GetBlock(0));
       psi.SetFromTrueDofs(vx.GetBlock(1));
@@ -1408,7 +1414,6 @@ int main(int argc, char *argv[])
         ofs_w.precision(16);
 
       pmesh->ParPrint(ofs_mesh);
-
       phi.Save(ofs_phi);
       psi.Save(ofs_psi);
         w.Save(ofs_w);
@@ -1505,7 +1510,7 @@ int main(int argc, char *argv[])
       delete vel;
       delete mag;
       delete gradP;
-      delete curvaF;
+      delete gradBP;
       delete BgradB;
       delete gfv;       
       delete zLFscalar; 

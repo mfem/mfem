@@ -604,7 +604,7 @@ int main(int argc, char *argv[])
 
    //++++recover pressure and vector fields++++
    ParFiniteElementSpace *vfes;
-   ParGridFunction *vel, *mag, *gradP, *BgradB, *curvaF, *gfv, *pre;
+   ParGridFunction *vel, *mag, *gradP, *BgradB, *gradBP, *gfv, *pre;
    ParMixedBilinearForm *grad, *div;
    ParBilinearForm *a;
    ParNonlinearForm *convect;
@@ -629,7 +629,7 @@ int main(int argc, char *argv[])
       mag = new ParGridFunction(vfes);
       gradP = new ParGridFunction(vfes);
       BgradB = new ParGridFunction(vfes);
-      curvaF = new ParGridFunction(vfes);
+      gradBP = new ParGridFunction(vfes);
       gfv = new ParGridFunction(vfes);
       pre = new ParGridFunction(&fespace);
       grad = new ParMixedBilinearForm(&fespace, vfes);
@@ -771,7 +771,7 @@ int main(int argc, char *argv[])
       M_solver.Mult(zv, zv2);
       BgradB->SetFromTrueDofs(zv2);
 
-      //compute curvature force
+      //compute grad magnetic pressure
       B2Coefficient B2Coeff(mag);
       ParLinearForm B2int(&fespace);
       B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
@@ -781,7 +781,7 @@ int main(int argc, char *argv[])
       zv=0.0;
       grad->TrueAddMult(zscalar2, zv);
       M_solver.Mult(zv, zv2);
-      curvaF->SetFromTrueDofs(zv2);
+      gradBP->SetFromTrueDofs(zv2);
    }
 
    ParaViewDataCollection *pd = NULL;
@@ -798,7 +798,7 @@ int main(int argc, char *argv[])
           pd->RegisterField("B", mag);
           pd->RegisterField("pre", pre);
           pd->RegisterField("grad pre", gradP);
-          pd->RegisterField("curvature F", curvaF);
+          pd->RegisterField("grad mag pre", gradBP);
           pd->RegisterField("B.gradB", BgradB);
       }
       pd->SetLevelsOfDetail(order);
@@ -970,7 +970,7 @@ int main(int argc, char *argv[])
                 M_solver.Mult(zv, zv2);
                 BgradB->SetFromTrueDofs(zv2);
 
-                //compute curvature force
+                //compute grad magnetic pressure
                 B2Coefficient B2Coeff(mag);
                 ParLinearForm B2int(&fespace);
                 B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
@@ -980,7 +980,7 @@ int main(int argc, char *argv[])
                 zv=0.0;
                 grad->TrueAddMult(zscalar2, zv);
                 M_solver.Mult(zv, zv2);
-                curvaF->SetFromTrueDofs(zv2);
+                gradBP->SetFromTrueDofs(zv2);
             }
          }
 
@@ -1173,7 +1173,7 @@ int main(int argc, char *argv[])
       delete vel;
       delete mag;
       delete gradP;
-      delete curvaF;
+      delete gradBP;
       delete BgradB;
       delete gfv;       
       delete zLFscalar; 
