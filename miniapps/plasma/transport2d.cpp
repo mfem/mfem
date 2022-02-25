@@ -1711,15 +1711,17 @@ int main(int argc, char *argv[])
       }
       for (int i=0; i<5; i++)
       {
+         double nrm = yGF[i]->ComputeL2Error(zeroCoef);
+         ofserr << '\t' << nrm;
+
          Coefficient * es = ess[i];
          if (es != NULL)
          {
-            double nrm = yGF[i]->ComputeL2Error(zeroCoef);
             es->SetTime(t_init);
             double err = yGF[i]->ComputeL2Error(*es);
             if (mpi.Root())
             {
-               ofserr << '\t' << nrm << '\t' << err;
+               ofserr << '\t' << err;
             }
          }
          else
@@ -2134,15 +2136,17 @@ int main(int argc, char *argv[])
          if (mpi.Root()) { ofserr << t; }
          for (int i=0; i<5; i++)
          {
+            double nrm = yGF[i]->ComputeL2Error(zeroCoef);
+            ofserr << '\t' << nrm;
+
             Coefficient * es = ess[i];
             if (es != NULL)
             {
-               double nrm = yGF[i]->ComputeL2Error(zeroCoef);
                es->SetTime(t);
                double err = yGF[i]->ComputeL2Error(*es);
                if (mpi.Root())
                {
-                  ofserr << '\t' << nrm << '\t' << err;
+                  ofserr << '\t' << err;
                }
             }
             else
