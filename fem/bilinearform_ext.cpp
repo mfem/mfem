@@ -911,7 +911,7 @@ void FABilinearFormExtension::Assemble()
          const L2FaceRestriction *restF =
             static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
          MFEM_VERIFY(
-            !dynamic_cast<const NCL2FaceRestriction*>(int_face_restrict_lex),
+            trial_fes->Conforming(),
             "Full Assembly not yet supported on NCMesh.");
          // 1. Fill I
          mat->GetMemoryI().New(height+1, mat->GetMemoryI().GetMemoryType());
