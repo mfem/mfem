@@ -268,6 +268,7 @@ public:
       Complex_Hypre_ParCSR,   ///< ID for class ComplexHypreParMatrix.
       MFEM_Block_Matrix,     ///< ID for class BlockMatrix.
       MFEM_Block_Operator,   ///< ID for the base class BlockOperator.
+      Complex_DenseMat  ///< ID for class ComplexDenseMatrix
    };
 
    /// Return the type ID of the Operator class.
