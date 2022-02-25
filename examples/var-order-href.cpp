@@ -47,13 +47,13 @@ int main()
       socketstream gf0_sock(vishost, visport);
       gf0_sock.precision(8);
       GridFunction * pgf = TransferToMaxOrder(&gf);
-      gf0_sock << "solution\n" << mesh << *pgf 
+      gf0_sock << "solution\n" << mesh << *pgf
                << "window_title 'GridFunction on the coarse mesh'" << flush;
 
       socketstream mesh0_sock(vishost, visport);
       mesh0_sock.precision(8);
-      mesh0_sock << "solution\n" << mesh << orders0 
-               << "window_title 'Coarse mesh orders'" << flush;
+      mesh0_sock << "solution\n" << mesh << orders0
+                 << "window_title 'Coarse mesh orders'" << flush;
       delete pgf;
    }
 
@@ -82,13 +82,13 @@ int main()
       socketstream gf1_sock(vishost, visport);
       gf1_sock.precision(8);
       GridFunction * pgf1 = TransferToMaxOrder(&gf);
-      gf1_sock << "solution\n" << mesh << *pgf1 
+      gf1_sock << "solution\n" << mesh << *pgf1
                << "window_title 'GridFunction on the fine mesh after transfer'" << flush;
 
       socketstream mesh1_sock(vishost, visport);
       mesh1_sock.precision(8);
       mesh1_sock << "solution\n" << mesh << orders1
-               << "window_title 'Fine mesh orders (after h-refinement)'" << flush;
+                 << "window_title 'Fine mesh orders (after h-refinement)'" << flush;
       delete pgf1;
    }
 
@@ -125,7 +125,7 @@ int main()
       if (R)
       {
          R->MultTranspose(trueY,Y);
-      } 
+      }
       else
       {
          Y.MakeRef(trueY,0);
@@ -176,8 +176,9 @@ int main()
       socketstream gf2_sock(vishost, visport);
       gf2_sock.precision(8);
       GridFunction * pgf2 = TransferToMaxOrder(&cX);
-      gf2_sock << "solution\n" << cmesh << *pgf2 
-               << "window_title 'GridFunction on the coarse mesh after transfer (transpose)'" << flush;
+      gf2_sock << "solution\n" << cmesh << *pgf2
+               << "window_title 'GridFunction on the coarse mesh after transfer (transpose)'"
+               << flush;
    }
 
    return 0;
