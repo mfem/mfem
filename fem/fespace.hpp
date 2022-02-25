@@ -343,6 +343,9 @@ protected:
                                        const Table *coarse_elem_fos,
                                        const DenseTensor localP[]) const;
 
+   SparseMatrix *VariableOrderRefinementMatrix_main(const int coarse_ndofs,
+                                                    const Table &coarse_elem_dof) const;
+
    void GetLocalRefinementMatrices(Geometry::Type geom,
                                    DenseTensor &localP) const;
    void GetLocalDerefinementMatrices(Geometry::Type geom,

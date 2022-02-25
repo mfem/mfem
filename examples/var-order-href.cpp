@@ -34,7 +34,7 @@ int main()
    GridFunction gf(&fes);
    gf.ProjectCoefficient(f);
 
-   DG_FECollection ordersfec(0, dim);
+   L2_FECollection ordersfec(0, dim);
    FiniteElementSpace ordersfes(&mesh, &ordersfec);
    GridFunction orders0(&ordersfes);
    for (int i = 0; i<mesh.GetNE(); i++)
@@ -94,7 +94,7 @@ int main()
 
    // Transfer operator
    OperatorHandle T;
-   T.SetType(Operator::ANY_TYPE);
+   T.SetType(Operator::MFEM_SPARSEMAT);
    fes.GetTransferOperator(cfes,T);
 
    GridFunction gft(&cfes);
