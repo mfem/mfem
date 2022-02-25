@@ -71,6 +71,9 @@ public:
        treated according to that policy. */
    void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
 
+   void EliminateRowCols(Array<int> vdofs, BlockMatrix *Ae,
+                         DiagonalPolicy dpolicy = DIAG_ONE);
+
    //! Symmetric elimination of the marked degree of freedom.
    /**
      @param ess_bc_dofs  marker of the degree of freedom to be eliminated
@@ -133,10 +136,16 @@ public:
                                  const double val = 1.) const;
    ///@}
 
+   void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
+   void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
+                    const double a=1.0) const;
+
    //! Destructor
    virtual ~BlockMatrix();
    //! If owns_blocks the SparseMatrix objects Aij will be deallocated.
    int owns_blocks;
+
+   virtual Type GetType() const { return MFEM_Block_Matrix; }
 
 private:
    //! Given a global row iglobal finds to which row iloc in block iblock belongs to.

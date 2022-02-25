@@ -289,6 +289,19 @@ void Vector::SetVector(const Vector &v, int offset)
    }
 }
 
+void Vector::AddSubVector(const Vector &v, int offset)
+{
+   MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
+
+   const int vs = v.Size();
+   const double *vp = v.data;
+   double *p = data + offset;
+   for (int i = 0; i < vs; i++)
+   {
+      p[i] += vp[i];
+   }
+}
+
 void Vector::Neg()
 {
    const bool use_dev = UseDevice();

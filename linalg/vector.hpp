@@ -314,6 +314,8 @@ public:
 
    void SetVector(const Vector &v, int offset);
 
+   void AddSubVector(const Vector &v, int offset);
+
    /// (*this) = -(*this)
    void Neg();
 

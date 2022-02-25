@@ -72,8 +72,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 1;
+      // (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -147,6 +147,8 @@ int main(int argc, char *argv[])
    F.AddDomainIntegrator(new DomainLFIntegrator(one));
    F.Assemble();
 
+
+
    // 7. Set up the mixed bilinear form for the primal trial unknowns, B0,
    //    the mixed bilinear form for the interfacial unknowns, Bhat,
    //    the inverse stiffness matrix on the discontinuous test space, Sinv,
@@ -187,10 +189,17 @@ int main(int argc, char *argv[])
    // 8. Set up the 1x2 block Least Squares DPG operator, B = [B0  Bhat],
    //    the normal equation operator, A = B^t Sinv B, and
    //    the normal equation right-hand-size, b = B^t Sinv F.
-   BlockOperator B(offsets_test, offsets);
+   // BlockOperator B(offsets_test, offsets);
+
+   BlockMatrix B(offsets_test, offsets);
    B.SetBlock(0,0,&matB0);
    B.SetBlock(0,1,&matBhat);
-   RAPOperator A(B, matSinv, B);
+   SparseMatrix * Bh = B.CreateMonolithic();
+
+   SparseMatrix * A = RAP(*Bh, matSinv, *Bh);
+
+
+   // RAPOperator A(B, matSinv, B);
    {
       Vector SinvF(s_test);
       matSinv.Mult(F,SinvF);
@@ -234,7 +243,20 @@ int main(int argc, char *argv[])
    // 10. Solve the normal equation system using the PCG iterative solver.
    //     Check the weighted norm of residual for the DPG least square problem.
    //     Wrap the primal variable in a GridFunction for visualization purposes.
-   PCG(A, P, b, x, 1, 200, 1e-12, 0.0);
+
+
+   // PCG(*A, P, b, x, 1, 200, 1e-12, 0.0);
+
+   GSSmoother M(*A);
+
+   CGSolver cg;
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(3);
+   cg.SetPreconditioner(M);
+   cg.SetOperator(*A);
+   cg.Mult(b, x);
+
 
    {
       Vector LSres(s_test);
