@@ -784,13 +784,13 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             double res = 0.0;
             for (int i = 0; i < NDOFS; i++)
             {
-               res += A_ext(j, i, 0, f)*X(i, 0, f);
+               res += A_ext(j, i, 1, f)*X(i, 0, f);
             }
             Y(j, 1, f) += res;
             res = 0.0;
             for (int i = 0; i < NDOFS; i++)
             {
-               res += A_ext(j, i, 1, f)*X(i, 1, f);
+               res += A_ext(j, i, 0, f)*X(i, 1, f);
             }
             Y(j, 0, f) += res;
          });
