@@ -86,7 +86,6 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    un_next_gf.SetSpace(vfes);
    un_next_gf = 0.0;
 
-   FText_gf.SetSpace(vfes);
    resu_gf.SetSpace(vfes);
 
    pn_gf.SetSpace(pfes);

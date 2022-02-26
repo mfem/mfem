@@ -392,7 +392,7 @@ protected:
 
    Vector diag_pa;
 
-   ParGridFunction un_gf, un_next_gf, FText_gf, resu_gf;
+   ParGridFunction un_gf, un_next_gf, resu_gf;
 
    ParGridFunction pn_gf, resp_gf;
 
