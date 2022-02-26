@@ -1072,7 +1072,8 @@ void BilinearForm::MultTranspose(const Vector & x, Vector & y) const
    }
    else
    {
-      y = 0.0; AddMultTranspose (x, y);
+      y = 0.0;
+      AddMultTranspose (x, y);
    }
 }
 

@@ -712,6 +712,7 @@ H1FaceRestriction::H1FaceRestriction(const FiniteElementSpace &fes,
 
 void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
+   if (nf==0) { return; }
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
@@ -733,6 +734,7 @@ void H1FaceRestriction::Mult(const Vector& x, Vector& y) const
 
 void H1FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
 {
+   if (nf==0) { return; }
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
@@ -1164,6 +1166,7 @@ void L2FaceRestriction::DoubleValuedConformingMult(const Vector& x,
 
 void L2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
+   if (nf==0) { return; }
    if (m==L2FaceValues::DoubleValued)
    {
       DoubleValuedConformingMult(x, y);
@@ -1237,6 +1240,7 @@ void L2FaceRestriction::DoubleValuedConformingAddMultTranspose(
 
 void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
 {
+   if (nf==0) { return; }
    if (m == L2FaceValues::DoubleValued)
    {
       DoubleValuedConformingAddMultTranspose(x, y);
@@ -1862,7 +1866,7 @@ void NCL2FaceRestriction::DoubleValuedNonconformingMult(
 
 void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-
+   if (nf==0) { return; }
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
       DoubleValuedNonconformingMult(x, y);
@@ -1985,6 +1989,7 @@ void NCL2FaceRestriction::DoubleValuedNonconformingTransposeInterpolation(
 
 void NCL2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y) const
 {
+   if (nf==0) { return; }
    if (type==FaceType::Interior)
    {
       if ( m==L2FaceValues::DoubleValued )

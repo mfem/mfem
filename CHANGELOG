@@ -144,8 +144,8 @@ Discretization improvements
 
 - Added support for nonscalar coefficient with VectorDiffusionIntegrator.
 
-- Added support for Partial Assembly with Discontinuous Galerkin methods on
-  nonconforming meshes.
+- Added support for Partial Assembly and Element Assembly with Discontinuous
+  Galerkin methods on nonconforming meshes.
 
 - Added a simpler interface to request face information: see
   `Mesh::FaceInformation` and `Mesh::GetFaceInformation`.

@@ -759,7 +759,7 @@ void SmemPAConvectionApply3D(const int ne,
                   const double w = Bt(dx,qx);
                   BBBDGu += w * BBDGu[dz][dy][qx];
                }
-               y(dx,dy,dz,e) = BBBDGu;
+               y(dx,dy,dz,e) += BBBDGu;
             }
          }
       }
@@ -1367,7 +1367,7 @@ void SmemPAConvectionApplyT3D(const int ne,
                   res += bx * GGDBu[dz][dy][qx][1];
                   res += bx * GGDBu[dz][dy][qx][2];
                }
-               y(dx,dy,dz,e) = res;
+               y(dx,dy,dz,e) += res;
             }
          }
       }

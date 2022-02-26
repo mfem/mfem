@@ -444,22 +444,20 @@ TEST_CASE("PA Convection", "[PartialAssembly]")
    // - 2: DG discontinuous coeff,
    // - 3: DG Bernstein discontinuous coeff.
    auto prob = GENERATE(0, 1, 2, 3);
-   auto order_2d = GENERATE(2);
-   auto order_3d = GENERATE(2);
+   auto order = GENERATE(2);
    // refinement > 0 => Non-conforming mesh
-   auto refinement_2d = GENERATE(0,1);
-   auto refinement_3d = GENERATE(0,1);
+   auto refinement = GENERATE(0,1);
 
    SECTION("2D")
    {
-      test_pa_convection("../../data/periodic-square.mesh", order_2d, prob,
-                         refinement_2d);
+      test_pa_convection("../../data/periodic-square.mesh", order, prob,
+                         refinement);
    }
 
    SECTION("3D")
    {
-      test_pa_convection("../../data/periodic-cube.mesh", order_3d, prob,
-                         refinement_3d);
+      test_pa_convection("../../data/periodic-cube.mesh", order, prob,
+                         refinement);
    }
 } // test case
 
@@ -474,28 +472,26 @@ TEST_CASE("PA Convection advanced", "[PartialAssembly][MFEMData]")
       // - 2: DG discontinuous coeff,
       // - 3: DG Bernstein discontinuous coeff.
       auto prob = GENERATE(0, 1, 2, 3);
-      auto order_2d = GENERATE(2);
-      auto order_3d = GENERATE(2);
+      auto order = GENERATE(2);
       // refinement > 0 => Non-conforming mesh
-      auto refinement_2d = GENERATE(0,1);
-      auto refinement_3d = GENERATE(0,1);
+      auto refinement = GENERATE(0,1);
 
       SECTION("2D")
       {
-         test_pa_convection("../../data/periodic-hexagon.mesh", order_2d, prob,
-                            refinement_2d);
-         test_pa_convection("../../data/star-q3.mesh", order_2d, prob,
-                            refinement_2d);
+         test_pa_convection("../../data/periodic-hexagon.mesh", order, prob,
+                            refinement);
+         test_pa_convection("../../data/star-q3.mesh", order, prob,
+                            refinement);
          test_pa_convection(mfem_data_dir+"/gmsh/v22/unstructured_quad.v22.msh",
-                            order_2d, prob, refinement_2d);
+                            order, prob, refinement);
       }
 
       SECTION("3D")
       {
-         test_pa_convection("../../data/fichera-q3.mesh", order_3d, prob,
-                            refinement_3d);
+         test_pa_convection("../../data/fichera-q3.mesh", order, prob,
+                            refinement);
          test_pa_convection(mfem_data_dir+"/gmsh/v22/unstructured_hex.v22.msh",
-                            order_3d, prob, refinement_3d);
+                            order, prob, refinement);
       }
    }
 } // test case
