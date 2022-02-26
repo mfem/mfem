@@ -50,6 +50,8 @@
 #include "blockbilinearform.hpp"
 #include "normal_equations.hpp"
 #include "blockstaticcond.hpp"
+#include "complex_normal_equations.hpp"
+#include "complex_blockstaticcond.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -58,6 +60,7 @@
 #include "pbilinearform.hpp"
 #include "pnonlinearform.hpp"
 #include "pnormal_equations.hpp"
+#include "pcomplex_normal_equations.hpp"
 #endif
 
 #ifdef MFEM_USE_SIDRE
