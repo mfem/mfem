@@ -37,7 +37,9 @@ double MeanEvaluator::ComputeIntegral(const Vector &x) const
    el_restr->Mult(x, x_evec);
    quad_interp.Values(x_evec, x_qvec);
 
-   return x_evec*geom->detJ;
+   double integ = x_evec*geom->detJ;
+   MPI_Allreduce(MPI_IN_PLACE, &integ, 1, MPI_DOUBLE, MPI_SUM, fes.GetComm());
+   return integ;
 }
 
 void MeanEvaluator::MakeMeanZero(Vector &x) const
