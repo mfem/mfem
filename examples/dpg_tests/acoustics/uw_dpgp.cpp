@@ -18,7 +18,7 @@
 // p̂ ∈ H^1/2(Ω), û ∈ H^-1/2(Ω)  
 // -(p,  ∇⋅v) - ω (u , v) + < p̂, v⋅n> = 0,      ∀ v ∈ H(div,Ω)      
 //  (u , ∇ q) ± ω (p , q) + < û, q >  = (f,q)   ∀ q ∈ H^1(Ω)
-//                                  û = u_0     on ∂Ω 
+//                                  p̂ = p_0     on ∂Ω 
 
 // Note: 
 // p̂ := p on Γ_h (skeleton)
@@ -207,18 +207,18 @@ int main(int argc, char *argv[])
       a->AddTestIntegrator(new VectorFEMassIntegrator(omeg2),1,1);
 
 #ifdef DEFINITE
-      // - (∇⋅v,δq)   
-      a->AddTestIntegrator(new VectorFEDivergenceIntegrator(negone),1,0);
-      // - (q,∇⋅v)   
-      a->AddTestIntegrator(new MixedScalarWeakGradientIntegrator(one),0,1);
+      // - ω (∇⋅v,δq)   
+      a->AddTestIntegrator(new VectorFEDivergenceIntegrator(negomeg),1,0);
+      // - ω (q,∇⋅v)   
+      a->AddTestIntegrator(new MixedScalarWeakGradientIntegrator(omeg),0,1);
 #else
-      // (∇⋅v,δq)   
-      a->AddTestIntegrator(new VectorFEDivergenceIntegrator(one),1,0);
-      // (q,∇⋅v)   
-      a->AddTestIntegrator(new MixedScalarWeakGradientIntegrator(negone),0,1);
+      // ω (∇⋅v,δq)   
+      a->AddTestIntegrator(new VectorFEDivergenceIntegrator(omeg),1,0);
+      // ω (q,∇⋅v)   
+      a->AddTestIntegrator(new MixedScalarWeakGradientIntegrator(negomeg),0,1);
 #endif
-      // (q,δq)
-      a->AddTestIntegrator(new MassIntegrator(one),0,0);
+      // ω^2 (q,δq)
+      a->AddTestIntegrator(new MassIntegrator(omeg2),0,0);
    }   
 
    // RHS
