@@ -42,6 +42,30 @@ std::string getString(Problem pb)
    return "";
 }
 
+std::string getString(AssemblyLevel assembly)
+{
+   switch (assembly)
+   {
+      case AssemblyLevel::NONE:
+         return "None";
+         break;
+      case AssemblyLevel::PARTIAL:
+         return "Partial";
+         break;
+      case AssemblyLevel::ELEMENT:
+         return "Element";
+         break;
+      case AssemblyLevel::FULL:
+         return "Full";
+         break;
+      case AssemblyLevel::LEGACY:
+         return "Legacy";
+         break;
+   }
+   MFEM_ABORT("Unknown assembly level.");
+   return "";
+}
+
 void velocity_function(const Vector &x, Vector &v)
 {
    int dim = x.Size();
@@ -71,7 +95,7 @@ void test_assembly_level(const char *meshname, int order, bool dg,
                          const Problem pb, const AssemblyLevel assembly)
 {
    INFO("mesh=" << meshname << ", order=" << order << ", DG=" << dg
-        << ", pb=" << getString(pb) << ", assembly=" << int(assembly));
+        << ", pb=" << getString(pb) << ", assembly=" << getString(assembly));
    Mesh mesh(meshname, 1, 1);
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
