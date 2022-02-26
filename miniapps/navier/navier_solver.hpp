@@ -361,6 +361,7 @@ protected:
    /// Forcing term
    ParLinearForm *f_form = nullptr;
 
+   // TODO: this form on device
    ParLinearForm *g_bdr_form = nullptr;
 
    ConstantCoefficient nlcoeff;
@@ -384,6 +385,8 @@ protected:
    Solver *HInvPC = nullptr;
    CGSolver *HInv = nullptr;
 
+   // TODO: reduce the number of these temporary vectors, we don't need all
+   // of them.
    Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext,
           resu, curlcurlu;
    Vector tmp1, B1, B2;
@@ -392,6 +395,7 @@ protected:
 
    Vector diag_pa;
 
+   // TODO: do we need resu_gf and resp_gf?
    ParGridFunction un_gf, un_next_gf, resu_gf;
 
    ParGridFunction pn_gf, resp_gf;

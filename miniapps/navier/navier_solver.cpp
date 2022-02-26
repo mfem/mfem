@@ -549,6 +549,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
 
       if (partial_assembly)
       {
+         // TODO: can we do the elimination of BCs without explicitly going to
+         // L-vectors?
          auto *SpC = Sp.As<ConstrainedOperator>();
          EliminateRHS(*Sp_form, *SpC, pres_ess_tdof, pn_gf, resp_gf, pn, B1, 1);
       }
@@ -587,6 +589,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
 
       if (partial_assembly)
       {
+         // TODO: can we do the elimination of BCs without explicitly going to
+         // L-vectors?
          auto *HC = H.As<ConstrainedOperator>();
          EliminateRHS(*H_form, *HC, vel_ess_tdof, un_next_gf, resu_gf, un_next, B2, 1);
       }
@@ -594,6 +598,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       {
          H_form->FormLinearSystem(vel_ess_tdof, un_next_gf, resu_gf, H, un_next, B2, 1);
       }
+      // TODO: for Helmholtz (vector mass and vector diffusion), add templated
+      // kernels with shared memory. Potential for fusion?
       sw_hsolve.Start();
       HInv->Mult(B2, un_next);
       sw_hsolve.Stop();
