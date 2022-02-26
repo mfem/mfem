@@ -18,6 +18,7 @@
 #include "ortho_solver.hpp"
 #include "compute_curl.hpp"
 #include "compute_bdr_normal.hpp"
+#include "compute_mean.hpp"
 
 namespace mfem
 {
@@ -353,18 +354,14 @@ protected:
 
    ParBilinearForm *H_form = nullptr;
 
-   BoundaryNormalEvaluator *bdr_nor_eval = nullptr;
+   // Helpers for device evaluation
+   BoundaryNormalEvaluator *bdr_nor_evaluator = nullptr;
+   CurlEvaluator *curl_evaluator = nullptr;
+   MeanEvaluator *mean_evaluator = nullptr;
 
    ParLinearForm *f_form = nullptr;
 
    ParLinearForm *g_bdr_form = nullptr;
-
-   CurlEvaluator *curl_evaluator = nullptr;
-
-   /// Linear form to compute the mass matrix in various subroutines.
-   ParLinearForm *mass_lf = nullptr;
-   ConstantCoefficient onecoeff;
-   double volume = 0.0;
 
    ConstantCoefficient nlcoeff;
    ConstantCoefficient Sp_coeff;

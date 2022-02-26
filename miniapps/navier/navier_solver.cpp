@@ -38,8 +38,6 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    vfes = new ParFiniteElementSpace(pmesh, vfec, pmesh->Dimension());
    pfes = new ParFiniteElementSpace(pmesh, pfec);
 
-   curl_evaluator = new CurlEvaluator(*vfes);
-
    // Check if fully periodic mesh
    if (!(pmesh->bdr_attributes.Size() == 0))
    {
@@ -119,6 +117,7 @@ void NavierSolver::Setup(double dt)
 
    sw_setup.Start();
 
+   curl_evaluator = new CurlEvaluator(*vfes);
    curl_evaluator->EnablePA(partial_assembly);
 
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
@@ -135,6 +134,9 @@ void NavierSolver::Setup(double dt)
 
    const IntegrationRule &ir_face =
       gll_rules.Get(vfes->GetMesh()->GetFaceGeometry(0), 2 * order - 1);
+
+   mean_evaluator = new MeanEvaluator(*pfes, ir);
+   bdr_nor_evaluator = new BoundaryNormalEvaluator(*vfes, *pfes, ir_face);
 
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
@@ -224,8 +226,6 @@ void NavierSolver::Setup(double dt)
    }
    H_form->Assemble();
    H_form->FormSystemMatrix(vel_ess_tdof, H);
-
-   bdr_nor_eval = new BoundaryNormalEvaluator(*vfes, *pfes, ir_face);
 
    g_bdr_form = new ParLinearForm(pfes);
    for (auto &vel_dbc : vel_dbcs)
@@ -507,7 +507,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       resp.Neg();
 
       // Add boundary terms.
-      bdr_nor_eval->Mult(FText, FText_bdr);
+      bdr_nor_evaluator->Mult(FText, FText_bdr);
 
       g_bdr_form->Assemble();
       g_bdr_form->ParallelAssemble(g_bdr);
@@ -553,12 +553,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       // nullspace by removing the mean of the pressure solution. This is also
       // ensured by the OrthoSolver wrapper for the preconditioner which removes
       // the nullspace after every application.
-      if (pres_dbcs.empty())
-      {
-         MeanZero(pn_gf);
-      }
-
       pn_gf.GetTrueDofs(pn);
+      mean_evaluator->MakeMeanZero(pn);
 
       // Project velocity.
       G->Mult(pn, resu);
@@ -643,35 +639,6 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       mfem::out << std::setprecision(8);
       mfem::out << std::fixed;
    }
-}
-
-void NavierSolver::MeanZero(ParGridFunction &v)
-{
-   // Make sure not to recompute the inner product linear form every
-   // application.
-   if (mass_lf == nullptr)
-   {
-      onecoeff.constant = 1.0;
-      mass_lf = new ParLinearForm(v.ParFESpace());
-      auto *dlfi = new DomainLFIntegrator(onecoeff);
-      if (numerical_integ)
-      {
-         const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
-                                                      2 * order - 1);
-         dlfi->SetIntRule(&ir_ni);
-      }
-      mass_lf->AddDomainIntegrator(dlfi);
-      mass_lf->Assemble();
-
-      ParGridFunction one_gf(v.ParFESpace());
-      one_gf.ProjectCoefficient(onecoeff);
-
-      volume = mass_lf->operator()(one_gf);
-   }
-
-   double integ = mass_lf->operator()(v);
-
-   v -= integ / volume;
 }
 
 void NavierSolver::EliminateRHS(Operator &A,
@@ -985,11 +952,20 @@ void NavierSolver::PrintInfo()
    }
 }
 
+void NavierSolver::MeanZero(ParGridFunction &v)
+{
+   Vector tvec;
+   v.GetTrueDofs(tvec);
+   mean_evaluator->MakeMeanZero(tvec);
+   v.Distribute(tvec);
+}
+
 NavierSolver::~NavierSolver()
 {
-   delete bdr_nor_eval;
+   delete bdr_nor_evaluator;
+   delete curl_evaluator;
+   delete mean_evaluator;
    delete g_bdr_form;
-   delete mass_lf;
    delete Mv_form;
    delete N;
    delete Sp_form;
@@ -1005,7 +981,6 @@ NavierSolver::~NavierSolver()
    delete lor;
    delete f_form;
    delete MvInv;
-   delete curl_evaluator;
    delete vfec;
    delete pfec;
    delete vfes;
