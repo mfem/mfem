@@ -86,11 +86,8 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    un_next_gf.SetSpace(vfes);
    un_next_gf = 0.0;
 
-   resu_gf.SetSpace(vfes);
-
    pn_gf.SetSpace(pfes);
    pn_gf = 0.0;
-   resp_gf.SetSpace(pfes);
 
    diag_pa.SetSize(vfes_truevsize);
 
@@ -545,25 +542,24 @@ void NavierSolver::Step(double &time, double dt, int current_step,
          pn_gf.ProjectBdrCoefficient(*pres_dbc.coeff, pres_dbc.attr);
       }
 
-      pfes->GetRestrictionOperator()->MultTranspose(resp, resp_gf);
+      pn_gf.GetTrueDofs(pn);
 
       if (partial_assembly)
       {
-         // TODO: can we do the elimination of BCs without explicitly going to
-         // L-vectors?
          auto *SpC = Sp.As<ConstrainedOperator>();
-         EliminateRHS(*Sp_form, *SpC, pres_ess_tdof, pn_gf, resp_gf, pn, B1, 1);
+         SpC->EliminateRHS(pn, resp);
       }
       else
       {
-         Sp_form->FormLinearSystem(pres_ess_tdof, pn_gf, resp_gf, Sp, pn, B1, 1);
+         Sp_form->EliminateVDofsInRHS(pres_ess_tdof, pn, resp);
       }
       sw_spsolve.Start();
-      SpInv->Mult(B1, pn);
+      SpInv->Mult(resp, pn);
+      // SpInv->Mult(B1, pn);
       sw_spsolve.Stop();
       iter_spsolve = SpInv->GetNumIterations();
       res_spsolve = SpInv->GetFinalNorm();
-      Sp_form->RecoverFEMSolution(pn, resp_gf, pn_gf);
+      pn_gf.Distribute(pn);
    }
 
    {
@@ -584,28 +580,26 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       {
          un_next_gf.ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
       }
-
-      vfes->GetRestrictionOperator()->MultTranspose(resu, resu_gf);
+      un_next_gf.GetTrueDofs(un_next);
 
       if (partial_assembly)
       {
-         // TODO: can we do the elimination of BCs without explicitly going to
-         // L-vectors?
          auto *HC = H.As<ConstrainedOperator>();
-         EliminateRHS(*H_form, *HC, vel_ess_tdof, un_next_gf, resu_gf, un_next, B2, 1);
+         HC->EliminateRHS(un_next, resu);
       }
       else
       {
-         H_form->FormLinearSystem(vel_ess_tdof, un_next_gf, resu_gf, H, un_next, B2, 1);
+         H_form->EliminateVDofsInRHS(vel_ess_tdof, un_next, resu);
       }
       // TODO: for Helmholtz (vector mass and vector diffusion), add templated
       // kernels with shared memory. Potential for fusion?
       sw_hsolve.Start();
-      HInv->Mult(B2, un_next);
+      // HInv->Mult(B2, un_next);
+      HInv->Mult(resu, un_next);
       sw_hsolve.Stop();
       iter_hsolve = HInv->GetNumIterations();
       res_hsolve = HInv->GetFinalNorm();
-      H_form->RecoverFEMSolution(un_next, resu_gf, un_next_gf);
+      un_next_gf.Distribute(un_next);
    }
 
    un_next_gf.GetTrueDofs(un_next);
@@ -658,26 +652,6 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       mfem::out << std::setprecision(8);
       mfem::out << std::fixed;
    }
-}
-
-void NavierSolver::EliminateRHS(Operator &A,
-                                ConstrainedOperator &constrainedA,
-                                const Array<int> &ess_tdof_list,
-                                Vector &x,
-                                Vector &b,
-                                Vector &X,
-                                Vector &B,
-                                int copy_interior)
-{
-   const Operator *Po = A.GetOutputProlongation();
-   const Operator *Pi = A.GetProlongation();
-   const Operator *Ri = A.GetRestriction();
-   A.InitTVectors(Po, Ri, Pi, x, b, X, B);
-   if (!copy_interior)
-   {
-      X.SetSubVectorComplement(ess_tdof_list, 0.0);
-   }
-   constrainedA.EliminateRHS(X, B);
 }
 
 void NavierSolver::ComputeCurl(ParGridFunction &u, ParGridFunction &cu) const

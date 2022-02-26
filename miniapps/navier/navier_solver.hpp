@@ -289,16 +289,6 @@ protected:
     */
    void SetTimeIntegrationCoefficients(int step);
 
-   /// Eliminate essential BCs in an Operator and apply to RHS.
-   void EliminateRHS(Operator &A,
-                     ConstrainedOperator &constrainedA,
-                     const Array<int> &ess_tdof_list,
-                     Vector &x,
-                     Vector &b,
-                     Vector &X,
-                     Vector &B,
-                     int copy_interior = 0);
-
    /// Enable/disable debug output.
    bool debug = false;
 
@@ -395,10 +385,9 @@ protected:
 
    Vector diag_pa;
 
-   // TODO: do we need resu_gf and resp_gf?
-   ParGridFunction un_gf, un_next_gf, resu_gf;
+   ParGridFunction un_gf, un_next_gf;
 
-   ParGridFunction pn_gf, resp_gf;
+   ParGridFunction pn_gf;
 
    // All essential attributes.
    Array<int> vel_ess_attr;
