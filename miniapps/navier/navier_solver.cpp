@@ -383,7 +383,6 @@ void NavierSolver::UpdateTimestepHistory(double dt)
    unm1 = un;
 
    // Update the current solution and corresponding GridFunction
-   un_next_gf.GetTrueDofs(un_next);
    un = un_next;
    un_gf.SetFromTrueDofs(un);
 }
@@ -537,11 +536,12 @@ void NavierSolver::Step(double &time, double dt, int current_step,
          SpInvOrthoPC->Orthogonalize(resp);
       }
 
+      // TODO: better project bdr coefficient on device?
+      // TODO: do this at true DOF level rather than LDOF?
       for (auto &pres_dbc : pres_dbcs)
       {
          pn_gf.ProjectBdrCoefficient(*pres_dbc.coeff, pres_dbc.attr);
       }
-
       pn_gf.GetTrueDofs(pn);
 
       if (partial_assembly)
@@ -555,7 +555,6 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       }
       sw_spsolve.Start();
       SpInv->Mult(resp, pn);
-      // SpInv->Mult(B1, pn);
       sw_spsolve.Stop();
       iter_spsolve = SpInv->GetNumIterations();
       res_spsolve = SpInv->GetFinalNorm();
@@ -576,6 +575,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       // resu = tmp1 - resu
       subtract(tmp1, resu, resu);
 
+      // TODO: better project bdr coefficient on device?
+      // TODO: do this at true DOF level rather than LDOF?
       for (auto &vel_dbc : vel_dbcs)
       {
          un_next_gf.ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
@@ -599,10 +600,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       sw_hsolve.Stop();
       iter_hsolve = HInv->GetNumIterations();
       res_hsolve = HInv->GetFinalNorm();
-      un_next_gf.Distribute(un_next);
    }
-
-   un_next_gf.GetTrueDofs(un_next);
 
    // If the current time step is not provisional, accept the computed solution
    // and update the time step history by default.
