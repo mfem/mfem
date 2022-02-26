@@ -93,6 +93,9 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    pn_gf = 0.0;
    resp_gf.SetSpace(pfes);
 
+   diag_pa.SetSize(vfes_truevsize);
+
+   diag_pa.UseDevice(true);
    fn.UseDevice(true);
    un.UseDevice(true);
    un_next.UseDevice(true);
@@ -276,7 +279,6 @@ void NavierSolver::Setup(double dt)
 
    if (partial_assembly)
    {
-      Vector diag_pa(vfes->GetTrueVSize());
       Mv_form->AssembleDiagonal(diag_pa);
       MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
    }
@@ -326,7 +328,6 @@ void NavierSolver::Setup(double dt)
 
    if (partial_assembly)
    {
-      Vector diag_pa(vfes->GetTrueVSize());
       H_form->AssembleDiagonal(diag_pa);
       HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
    }
@@ -424,11 +425,9 @@ void NavierSolver::Step(double &time, double dt, int current_step,
          HInv->SetOperator(*H);
          if (partial_assembly)
          {
-            delete HInvPC;
-            Vector diag_pa(vfes->GetTrueVSize());
+            auto *HInvJac = static_cast<OperatorJacobiSmoother*>(HInvPC);
             H_form->AssembleDiagonal(diag_pa);
-            HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
-            HInv->SetPreconditioner(*HInvPC);
+            HInvJac->Setup(diag_pa);
          }
       }
    }
