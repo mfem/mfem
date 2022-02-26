@@ -93,6 +93,27 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    pn_gf = 0.0;
    resp_gf.SetSpace(pfes);
 
+   fn.UseDevice(true);
+   un.UseDevice(true);
+   un_next.UseDevice(true);
+   unm1.UseDevice(true);
+   unm2.UseDevice(true);
+   Nun.UseDevice(true);
+   Nunm1.UseDevice(true);
+   Nunm2.UseDevice(true);
+   Fext.UseDevice(true);
+   FText.UseDevice(true);
+   Lext.UseDevice(true);
+   resu.UseDevice(true);
+   curlcurlu.UseDevice(true);
+   tmp1.UseDevice(true);
+   B1.UseDevice(true);
+   B2.UseDevice(true);
+   pn.UseDevice(true);
+   resp.UseDevice(true);
+   FText_bdr.UseDevice(true);
+   g_bdr.UseDevice(true);
+
    cur_step = 0;
 
    PrintInfo();
