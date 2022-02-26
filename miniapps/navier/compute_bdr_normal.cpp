@@ -60,11 +60,11 @@ void BoundaryNormalEvaluator::Mult(const Vector &g, Vector &y) const
    const int D1D = maps->ndof;
    const int Q1D = maps->nqpt;
 
+   auto B = Reshape(maps->B.Read(), Q1D, D1D);
+   auto Bt = Reshape(maps->Bt.Read(), D1D, Q1D);
+
    if (dim == 2)
    {
-      auto B = Reshape(maps->B.Read(), Q1D, D1D);
-      auto Bt = Reshape(maps->Bt.Read(), D1D, Q1D);
-
       const auto d_det = Reshape(geom->detJ.Read(), Q1D, nf);
       const auto d_n = Reshape(geom->normal.Read(), Q1D, 2, nf);
       const auto d_w = Reshape(ir.GetWeights().Read(), Q1D);
@@ -107,9 +107,6 @@ void BoundaryNormalEvaluator::Mult(const Vector &g, Vector &y) const
    }
    else if (dim == 3)
    {
-      auto B = Reshape(maps->B.Read(), Q1D, D1D);
-      auto Bt = Reshape(maps->Bt.Read(), D1D, Q1D);
-
       const auto d_det = Reshape(geom->detJ.Read(), Q1D, Q1D, nf);
       const auto d_n = Reshape(geom->normal.Read(), Q1D, Q1D, 3, nf);
       const auto d_w = Reshape(ir.GetWeights().Read(), Q1D, Q1D);

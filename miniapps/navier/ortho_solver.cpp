@@ -44,15 +44,22 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 {
    v_ortho.SetSize(width);
 
-   double loc_sum = v*ones;
-   double global_sum = 0.0;
-   MPI_Allreduce(&loc_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
+   double sum = v*ones;
+   MPI_Allreduce(MPI_IN_PLACE, &sum, 1, MPI_DOUBLE, MPI_SUM, comm);
 
-   const double ratio = global_sum / static_cast<double>(global_size);
+   const double ratio = sum/double(global_size);
    const auto d_v = v.Read();
    auto d_vo = v_ortho.Write();
    MFEM_FORALL(i, width,
    {
       d_vo[i] = d_v[i] - ratio;
    });
+}
+
+void OrthoSolver::Orthogonalize(Vector &v) const
+{
+   double sum = v*ones;
+   MPI_Allreduce(MPI_IN_PLACE, &sum, 1, MPI_DOUBLE, MPI_SUM, comm);
+   const double ratio = sum/double(global_size);
+   v -= ratio;
 }

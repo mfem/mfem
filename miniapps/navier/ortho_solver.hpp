@@ -41,6 +41,8 @@ public:
    void Mult(const Vector &b, Vector &x) const;
 
    void Orthogonalize(const Vector &v, Vector &v_ortho) const;
+
+   void Orthogonalize(Vector &v) const;
 };
 
 } // namespace navier

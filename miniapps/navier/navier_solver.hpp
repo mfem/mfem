@@ -246,13 +246,6 @@ public:
    /// Compute \f$\nabla \times \nabla \times u\f$ for \f$u \in (H^1)^d\f$.
    void ComputeCurl(ParGridFunction &u, ParGridFunction &cu) const;
 
-   /// Remove mean from a Vector.
-   /**
-    * Modify the Vector @a v by subtracting its mean using
-    * \f$v = v - \frac{\sum_i^N v_i}{N} \f$
-    */
-   void Orthogonalize(Vector &v) const;
-
    /// Remove the mean from a ParGridFunction.
    /**
     * Modify the ParGridFunction @a v by subtracting its mean using
