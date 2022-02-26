@@ -144,8 +144,17 @@ void test_assembly_level(const char *meshname, int order, bool dg,
 
    x.Randomize(1);
 
+   // Test Mult
    k_ref.Mult(x,y_ref);
    k_test.Mult(x,y_test);
+
+   y_test -= y_ref;
+
+   REQUIRE(y_test.Norml2() < 1.e-12);
+
+   // Test MultTranspose
+   k_ref.MultTranspose(x,y_ref);
+   k_test.MultTranspose(x,y_test);
 
    y_test -= y_ref;
 
