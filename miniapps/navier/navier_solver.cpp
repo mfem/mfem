@@ -383,42 +383,43 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    {
       vel_dbc.coeff->SetTime(time + dt);
    }
-
    // Set current time for pressure Dirichlet boundary conditions.
    for (auto &pres_dbc : pres_dbcs)
    {
       pres_dbc.coeff->SetTime(time + dt);
    }
 
+   if (H_bdfcoeff.constant != bd0 / dt)
    {
       NVTX("H_form");
-      H_bdfcoeff.constant = bd0 / dt;
-      H_form->Update();
-      H_form->Assemble();
-      H_form->FormSystemMatrix(vel_ess_tdof, H);
-   }
-
-   {
-      NVTX("HInv");
-      HInv->SetOperator(*H);
-      if (partial_assembly)
       {
-         delete HInvPC;
-         Vector diag_pa(vfes->GetTrueVSize());
-         H_form->AssembleDiagonal(diag_pa);
-         HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
-         HInv->SetPreconditioner(*HInvPC);
+         H_bdfcoeff.constant = bd0 / dt;
+         H_form->Update();
+         H_form->Assemble();
+         H_form->FormSystemMatrix(vel_ess_tdof, H);
       }
-   }
-
-   // Extrapolated f^{n+1}.
-   for (auto &accel_term : accel_terms)
-   {
-      accel_term.coeff->SetTime(time + dt);
+      {
+         NVTX("HInv");
+         HInv->SetOperator(*H);
+         if (partial_assembly)
+         {
+            delete HInvPC;
+            Vector diag_pa(vfes->GetTrueVSize());
+            H_form->AssembleDiagonal(diag_pa);
+            HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
+            HInv->SetPreconditioner(*HInvPC);
+         }
+      }
    }
 
    {
       NVTX("f_form");
+      // Set time for forcing function f^{n+1}.
+      for (auto &accel_term : accel_terms)
+      {
+         accel_term.coeff->SetTime(time + dt);
+      }
+
       f_form->Assemble();
       f_form->ParallelAssemble(fn);
    }
@@ -446,13 +447,12 @@ void NavierSolver::Step(double &time, double dt, int current_step,
                                  ab3_ * d_Nunm2[i];);
       }
 
-      Fext.Add(1.0, fn);
+      fn.Add(1.0, Fext);
 
       // Fext = M^{-1} (F(u^{n}) + f^{n+1})
-      MvInv->Mult(Fext, tmp1);
+      MvInv->Mult(fn, Fext);
       iter_mvsolve = MvInv->GetNumIterations();
       res_mvsolve = MvInv->GetFinalNorm();
-      Fext.Set(1.0, tmp1);
 
       // Compute BDF terms.
       {
@@ -499,8 +499,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    {
       NVTX("Boundary");
       // \tilde{F} = F - \nu CurlCurl(u)
-      FText.Set(-1.0, Lext);
-      FText.Add(1.0, Fext);
+      subtract(Fext, Lext, FText);
 
       // p_r = \nabla \cdot FText
       D->Mult(FText, resp);
@@ -529,22 +528,21 @@ void NavierSolver::Step(double &time, double dt, int current_step,
 
       pfes->GetRestrictionOperator()->MultTranspose(resp, resp_gf);
 
-      Vector X1, B1;
       if (partial_assembly)
       {
          auto *SpC = Sp.As<ConstrainedOperator>();
-         EliminateRHS(*Sp_form, *SpC, pres_ess_tdof, pn_gf, resp_gf, X1, B1, 1);
+         EliminateRHS(*Sp_form, *SpC, pres_ess_tdof, pn_gf, resp_gf, pn, B1, 1);
       }
       else
       {
-         Sp_form->FormLinearSystem(pres_ess_tdof, pn_gf, resp_gf, Sp, X1, B1, 1);
+         Sp_form->FormLinearSystem(pres_ess_tdof, pn_gf, resp_gf, Sp, pn, B1, 1);
       }
       sw_spsolve.Start();
-      SpInv->Mult(B1, X1);
+      SpInv->Mult(B1, pn);
       sw_spsolve.Stop();
       iter_spsolve = SpInv->GetNumIterations();
       res_spsolve = SpInv->GetFinalNorm();
-      Sp_form->RecoverFEMSolution(X1, resp_gf, pn_gf);
+      Sp_form->RecoverFEMSolution(pn, resp_gf, pn_gf);
    }
 
    {
@@ -553,16 +551,13 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       // nullspace by removing the mean of the pressure solution. This is also
       // ensured by the OrthoSolver wrapper for the preconditioner which removes
       // the nullspace after every application.
-      pn_gf.GetTrueDofs(pn);
       mean_evaluator->MakeMeanZero(pn);
 
       // Project velocity.
       G->Mult(pn, resu);
-      resu.Neg();
       Mv->Mult(Fext, tmp1);
-      resu.Add(1.0, tmp1);
-
-      // un_next_gf = un_gf;
+      // resu = tmp1 - resu
+      subtract(tmp1, resu, resu);
 
       for (auto &vel_dbc : vel_dbcs)
       {
@@ -571,22 +566,21 @@ void NavierSolver::Step(double &time, double dt, int current_step,
 
       vfes->GetRestrictionOperator()->MultTranspose(resu, resu_gf);
 
-      Vector X2, B2;
       if (partial_assembly)
       {
          auto *HC = H.As<ConstrainedOperator>();
-         EliminateRHS(*H_form, *HC, vel_ess_tdof, un_next_gf, resu_gf, X2, B2, 1);
+         EliminateRHS(*H_form, *HC, vel_ess_tdof, un_next_gf, resu_gf, un_next, B2, 1);
       }
       else
       {
-         H_form->FormLinearSystem(vel_ess_tdof, un_next_gf, resu_gf, H, X2, B2, 1);
+         H_form->FormLinearSystem(vel_ess_tdof, un_next_gf, resu_gf, H, un_next, B2, 1);
       }
       sw_hsolve.Start();
-      HInv->Mult(B2, X2);
+      HInv->Mult(B2, un_next);
       sw_hsolve.Stop();
       iter_hsolve = HInv->GetNumIterations();
       res_hsolve = HInv->GetFinalNorm();
-      H_form->RecoverFEMSolution(X2, resu_gf, un_next_gf);
+      H_form->RecoverFEMSolution(un_next, resu_gf, un_next_gf);
    }
 
    un_next_gf.GetTrueDofs(un_next);

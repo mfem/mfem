@@ -342,16 +342,22 @@ protected:
    /// Pressure \f$H^1\f$ finite element space.
    ParFiniteElementSpace *pfes = nullptr;
 
+   /// Nonlinear term
    ParNonlinearForm *N = nullptr;
 
+   /// Vector mass
    ParBilinearForm *Mv_form = nullptr;
 
+   /// Pressure Poisson
    ParBilinearForm *Sp_form = nullptr;
 
+   /// Divergence
    ParMixedBilinearForm *D_form = nullptr;
 
+   /// Gradient
    ParMixedBilinearForm *G_form = nullptr;
 
+   /// Helmholtz
    ParBilinearForm *H_form = nullptr;
 
    // Helpers for device evaluation
@@ -359,6 +365,7 @@ protected:
    CurlEvaluator *curl_evaluator = nullptr;
    MeanEvaluator *mean_evaluator = nullptr;
 
+   /// Forcing term
    ParLinearForm *f_form = nullptr;
 
    ParLinearForm *g_bdr_form = nullptr;
@@ -386,7 +393,7 @@ protected:
 
    Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext,
           resu, curlcurlu;
-   Vector tmp1;
+   Vector tmp1, B1, B2;
 
    Vector pn, resp, FText_bdr, g_bdr;
 
