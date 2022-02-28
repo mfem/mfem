@@ -59,21 +59,14 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    unm1 = 0.0;
    unm2.SetSize(vfes_truevsize);
    unm2 = 0.0;
-   fn.SetSize(vfes_truevsize);
+   u_tmp.SetSize(vfes_truevsize);
    Fext.SetSize(vfes_truevsize);
-   FText.SetSize(vfes_truevsize);
-   Lext.SetSize(vfes_truevsize);
-   curlcurlu.SetSize(vfes_truevsize);
-   resu.SetSize(vfes_truevsize);
-
-   tmp1.SetSize(vfes_truevsize);
 
    pn.SetSize(pfes_truevsize);
    pn = 0.0;
    resp.SetSize(pfes_truevsize);
    resp = 0.0;
-   FText_bdr.SetSize(pfes_truevsize);
-   g_bdr.SetSize(pfes_truevsize);
+   p_tmp.SetSize(pfes_truevsize);
 
    un_gf.SetSpace(vfes);
    un_gf = 0.0;
@@ -83,26 +76,15 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    pn_gf.SetSpace(pfes);
    pn_gf = 0.0;
 
-   diag_pa.SetSize(vfes_truevsize);
-
-   diag_pa.UseDevice(true);
-   fn.UseDevice(true);
+   u_tmp.UseDevice(true);
    un.UseDevice(true);
    un_next.UseDevice(true);
    unm1.UseDevice(true);
    unm2.UseDevice(true);
    Fext.UseDevice(true);
-   FText.UseDevice(true);
-   Lext.UseDevice(true);
-   resu.UseDevice(true);
-   curlcurlu.UseDevice(true);
-   tmp1.UseDevice(true);
-   B1.UseDevice(true);
-   B2.UseDevice(true);
    pn.UseDevice(true);
    resp.UseDevice(true);
-   FText_bdr.UseDevice(true);
-   g_bdr.UseDevice(true);
+   p_tmp.UseDevice(true);
 
    cur_step = 0;
 
@@ -267,8 +249,8 @@ void NavierSolver::Setup(double dt)
 
    if (partial_assembly)
    {
-      Mv_form->AssembleDiagonal(diag_pa);
-      MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
+      Mv_form->AssembleDiagonal(u_tmp);
+      MvInvPC = new OperatorJacobiSmoother(u_tmp, empty);
    }
    else
    {
@@ -316,8 +298,8 @@ void NavierSolver::Setup(double dt)
 
    if (partial_assembly)
    {
-      H_form->AssembleDiagonal(diag_pa);
-      HInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
+      H_form->AssembleDiagonal(u_tmp);
+      HInvPC = new OperatorJacobiSmoother(u_tmp, vel_ess_tdof);
    }
    else
    {
@@ -408,8 +390,8 @@ void NavierSolver::Step(double &time, double dt, int current_step,
          if (partial_assembly)
          {
             auto *HInvJac = static_cast<OperatorJacobiSmoother*>(HInvPC);
-            H_form->AssembleDiagonal(diag_pa);
-            HInvJac->Setup(diag_pa);
+            H_form->AssembleDiagonal(u_tmp);
+            HInvJac->Setup(u_tmp);
          }
       }
    }
@@ -422,6 +404,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
          accel_term.coeff->SetTime(time + dt);
       }
 
+      Vector &fn = u_tmp;
       f_form->Assemble();
       f_form->ParallelAssemble(fn);
    }
@@ -431,14 +414,13 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       NVTX("Extrapolation");
       sw_extrap.Start();
 
-      // Reuse Fext as a temporary
-      Vector &Nu = Fext;
-      N->Mult(un, Nu);
-      fn.Add(ab1, Nu);
-      N->Mult(unm1, Nu);
-      fn.Add(ab2, Nu);
-      N->Mult(unm2, Nu);
-      fn.Add(ab3, Nu);
+      Vector &fn = u_tmp;
+      N->Mult(un, Fext);
+      fn.Add(ab1, Fext);
+      N->Mult(unm1, Fext);
+      fn.Add(ab2, Fext);
+      N->Mult(unm2, Fext);
+      fn.Add(ab3, Fext);
 
       // Fext = M^{-1} (F(u^{n}) + f^{n+1})
       MvInv->Mult(fn, Fext);
@@ -466,43 +448,50 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    // Pressure Poisson.
    {
       NVTX("Curl curl");
+
       sw_curlcurl.Start();
       {
          const auto d_un = un.Read();
          const auto d_unm1 = unm1.Read();
          const auto d_unm2 = unm2.Read();
-         auto d_Lext = Lext.Write();
-         const auto ab1_ = ab1;
-         const auto ab2_ = ab2;
-         const auto ab3_ = ab3;
-         MFEM_FORALL(i, Lext.Size(),
-                     d_Lext[i] = ab1_ * d_un[i] +
-                                 ab2_ * d_unm1[i] +
-                                 ab3_ * d_unm2[i];);
+         auto d_u_tmp = u_tmp.Write();
+         const auto ab1_ = kin_vis * ab1;
+         const auto ab2_ = kin_vis * ab2;
+         const auto ab3_ = kin_vis * ab3;
+         MFEM_FORALL(i, u_tmp.Size(),
+                     d_u_tmp[i] = ab1_ * d_un[i] +
+                                  ab2_ * d_unm1[i] +
+                                  ab3_ * d_unm2[i];);
       }
 
-      curl_evaluator->ComputeCurlCurl(Lext, curlcurlu);
-      Lext.Set(kin_vis, curlcurlu);
+      // Use un_next as temporary to store curl(curl(u))
+      Vector &curlcurlu = un_next;
+      curl_evaluator->ComputeCurlCurl(u_tmp, curlcurlu);
 
       sw_curlcurl.Stop();
    }
 
    {
       NVTX("Boundary");
+
+      // Reuse u_tmp as a temporary
+      Vector &curlcurlu = un_next;
+      Vector &FText = u_tmp;
+
       // \tilde{F} = F - \nu CurlCurl(u)
-      subtract(Fext, Lext, FText);
+      subtract(Fext, curlcurlu, FText);
 
       // p_r = \nabla \cdot FText
       D->Mult(FText, resp);
       resp.Neg();
 
       // Add boundary terms.
-      bdr_nor_evaluator->Mult(FText, FText_bdr);
+      bdr_nor_evaluator->Mult(FText, p_tmp);
+      resp.Add(1.0, p_tmp);
 
       g_bdr_form->Assemble();
-      g_bdr_form->ParallelAssemble(g_bdr);
-      resp.Add(1.0, FText_bdr);
-      resp.Add(-bd0 / dt, g_bdr);
+      g_bdr_form->ParallelAssemble(p_tmp);
+      resp.Add(-bd0 / dt, p_tmp);
    }
 
    {
@@ -545,11 +534,17 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       // the nullspace after every application.
       mean_evaluator->MakeMeanZero(pn);
 
+      // Reuse u_tmp as a temporary
+      Vector &MFext = u_tmp;
+      Mv->Mult(Fext, MFext);
+
+      // Now, done with Fext, reuse it for resu
+      Vector &resu = Fext;
+
       // Project velocity.
       G->Mult(pn, resu);
-      Mv->Mult(Fext, tmp1);
-      // resu = tmp1 - resu
-      subtract(tmp1, resu, resu);
+      // resu = MFext - resu
+      subtract(MFext, resu, resu);
 
       // TODO: better project bdr coefficient on device?
       // TODO: do this at true DOF level rather than LDOF?

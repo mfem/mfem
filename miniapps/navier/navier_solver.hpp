@@ -375,15 +375,12 @@ protected:
    Solver *HInvPC = nullptr;
    CGSolver *HInv = nullptr;
 
-   // TODO: reduce the number of these temporary vectors, we don't need all
-   // of them.
-   Vector fn, un, un_next, unm1, unm2, Fext, FText, Lext,
-          resu, curlcurlu;
-   Vector tmp1, B1, B2;
-
-   Vector pn, resp, FText_bdr, g_bdr;
-
-   Vector diag_pa;
+   // Velocity history
+   Vector un, un_next, unm1, unm2;
+   // Velocity-sized intermediate vectors
+   Vector u_tmp, Fext;
+   // Pressure-sized vectors
+   Vector pn, resp, p_tmp;
 
    ParGridFunction un_gf, un_next_gf;
 
