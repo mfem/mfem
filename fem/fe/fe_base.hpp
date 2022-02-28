@@ -955,7 +955,7 @@ protected:
 
 public:
    VectorFiniteElement (int D, int VD, int CD, Geometry::Type G, int Do,
-			int O, int M, int F = FunctionSpace::Pk) :
+                        int O, int M, int F = FunctionSpace::Pk) :
       FiniteElement(D, G, Do, O, F, VD, CD)
    { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
 };
