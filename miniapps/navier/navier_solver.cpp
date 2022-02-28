@@ -253,7 +253,7 @@ void NavierSolver::Setup(double dt)
       auto *gbdr_bnlfi = new BoundaryNormalLFIntegrator(*vel_dbc.coeff);
       if (numerical_integ)
       {
-         gbdr_bnlfi->SetIntRule(&ir_ni);
+         gbdr_bnlfi->SetIntRule(&ir_face);
       }
       g_bdr_form->AddBoundaryIntegrator(gbdr_bnlfi, vel_dbc.attr);
    }
@@ -329,8 +329,7 @@ void NavierSolver::Setup(double dt)
    }
    else
    {
-      HInvPC = new HypreSmoother(*H.As<HypreParMatrix>());
-      dynamic_cast<HypreSmoother *>(HInvPC)->SetType(HypreSmoother::Jacobi, 1);
+      HInvPC = new HypreSmoother(*H.As<HypreParMatrix>(), HypreSmoother::Jacobi);
    }
    HInv = new CGSolver(vfes->GetComm());
    HInv->iterative_mode = true;
