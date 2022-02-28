@@ -1223,7 +1223,7 @@ const double ND_WedgeElement::tk[15] =
 ND_WedgeElement::ND_WedgeElement(const int p,
                                  const int cb_type,
                                  const int ob_type)
-   : VectorFiniteElement(3, Geometry::PRISM,
+   : VectorFiniteElement(3, 3, 3, Geometry::PRISM,
                          3 * p * ((p + 1) * (p + 2))/2, p,
                          H_CURL, FunctionSpace::Qk),
      dof2tk(dof),
