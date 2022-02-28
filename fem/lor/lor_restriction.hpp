@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_LOR
-#define MFEM_LOR
+#ifndef MFEM_LOR_RESTRICTION
+#define MFEM_LOR_RESTRICTION
 
 #include "../bilinearform.hpp"
 

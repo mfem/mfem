@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "lor.hpp"
-#include "lor_assembly.hpp"
+#include "lor_batched.hpp"
 #include "../restriction.hpp"
 #include "../pbilinearform.hpp"
 #include "../../general/forall.hpp"
@@ -263,16 +263,12 @@ bool LORBase::HasSameDofNumbering() const
 
 const OperatorHandle &LORBase::GetAssembledSystem() const
 {
-   MFEM_VERIFY(a != NULL && A.Ptr() != NULL, "No LOR system assembled");
+   MFEM_VERIFY(a != NULL || A.Ptr() != NULL, "No LOR system assembled");
    return A;
 }
 
 void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
 {
-   // By default, we want to use "batched assembly", however this is only
-   // supported for certain integrators. We set it to true here, and then when
-   // we loop through the integrators, if we encounter unsupported integrators,
-   // we set it to false.
    a->UseExternalIntegrators();
    AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
                   &BilinearForm::AddDomainIntegrator, ir_el);
@@ -399,20 +395,9 @@ LORDiscretization::LORDiscretization(BilinearForm &a_ho_,
                                      int ref_type_)
    : LORBase(*a_ho_.FESpace(), ref_type_)
 {
-   bool use_batched = false;
-
    CheckBasisType(fes_ho);
    A.SetType(Operator::MFEM_SPARSEMAT);
-
-   if (use_batched)
-   {
-      // Skip formation of the LOR mesh and space
-   }
-   else
-   {
-      FormLORSpace();
-      AssembleSystem(a_ho_, ess_tdof_list);
-   }
+   AssembleSystem(a_ho_, ess_tdof_list);
 }
 
 LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
@@ -445,8 +430,21 @@ void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
                                        const Array<int> &ess_dofs)
 {
    delete a;
-   a = new BilinearForm(&GetFESpace());
-   AssembleSystem_(a_ho, ess_dofs);
+   if (BatchedLORAssembly::FormIsSupported(a_ho))
+   {
+      // Skip forming the space
+      mfem::out << "Batched.\n";
+      a = nullptr;
+      BatchedLORAssembly::Assemble(*this, a_ho, fes_ho, ess_dofs, A);
+   }
+   else
+   {
+      mfem::out << "Not batched.\n";
+      // If the space is not formed already, it will be constructed lazily in
+      // GetParFESpace
+      a = new BilinearForm(&GetFESpace());
+      AssembleSystem_(a_ho, ess_dofs);
+   }
 }
 
 SparseMatrix &LORDiscretization::GetAssembledMatrix() const
@@ -461,22 +459,10 @@ ParLORDiscretization::ParLORDiscretization(ParBilinearForm &a_ho_,
                                            const Array<int> &ess_tdof_list,
                                            int ref_type_) : LORBase(*a_ho_.ParFESpace(), ref_type_)
 {
-   bool use_batched = false;
-
    ParFiniteElementSpace *pfes_ho = a_ho_.ParFESpace();
 
    if (pfes_ho->GetMyRank() == 0) { CheckBasisType(fes_ho); }
    A.SetType(Operator::Hypre_ParCSR);
-
-   if (use_batched)
-   {
-      // Skip forming the space
-   }
-   else
-   {
-      FormLORSpace();
-      AssembleSystem(a_ho_, ess_tdof_list);
-   }
 }
 
 ParLORDiscretization::ParLORDiscretization(
@@ -511,13 +497,26 @@ void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
                                           const Array<int> &ess_dofs)
 {
    delete a;
-   a = new ParBilinearForm(&GetParFESpace());
-   AssembleSystem_(a_ho, ess_dofs);
+   if (BatchedLORAssembly::FormIsSupported(a_ho))
+   {
+      // Skip forming the space
+      mfem::out << "Batched.\n";
+      a = nullptr;
+      BatchedLORAssembly::Assemble(*this, a_ho, fes_ho, ess_dofs, A);
+   }
+   else
+   {
+      mfem::out << "Not batched.\n";
+      // If the space is not formed already, it will be constructed lazily in
+      // GetParFESpace
+      a = new ParBilinearForm(&GetParFESpace());
+      AssembleSystem_(a_ho, ess_dofs);
+   }
 }
 
 HypreParMatrix &ParLORDiscretization::GetAssembledMatrix() const
 {
-   MFEM_VERIFY(a != nullptr && A.Ptr() != nullptr, "No LOR system assembled");
+   MFEM_VERIFY(a != nullptr || A.Ptr() != nullptr, "No LOR system assembled");
    return *A.As<HypreParMatrix>();
 }
 
