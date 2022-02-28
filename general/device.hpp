@@ -182,8 +182,8 @@ public:
        a program.
        @note This object should be destroyed after all other MFEM objects that
        use the Device are destroyed. */
-   Device(const std::string &device, const int dev = 0)
-   { Configure(device, dev); }
+   Device(const std::string &device, const int device_id = 0)
+   { Configure(device, device_id); }
 
    /// Destructor.
    ~Device();

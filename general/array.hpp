@@ -528,7 +528,7 @@ protected:
       bool stop;
 
       iterator_base() { }
-      iterator_base(bool stop) : stop(stop) { }
+      iterator_base(bool stop_state) : stop(stop_state) { }
       iterator_base(cA *a)
          : array(a), ptr(a->blocks[0]), ref(ptr), stop(false)
       {

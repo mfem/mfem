@@ -203,10 +203,11 @@ public:
    Memory(int size, MemoryType mt) { New(size, mt); }
 
    /** @brief Allocate memory for @a size entries with the given host MemoryType
-       @a h_mt and device MemoryType @a d_mt. */
+       @a host_mt and device MemoryType @a device_mt. */
    /** The newly allocated memory is not initialized. The host pointer is set as
        valid. */
-   Memory(int size, MemoryType h_mt, MemoryType d_mt) { New(size, h_mt, d_mt); }
+   Memory(int size, MemoryType host_mt, MemoryType device_mt)
+   { New(size, host_mt, device_mt); }
 
    /** @brief Wrap an externally allocated host pointer, @a ptr with the current
        host memory type returned by MemoryManager::GetHostMemoryType(). */
