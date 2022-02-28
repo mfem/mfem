@@ -76,6 +76,9 @@ SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
    A->GetMemoryData().New(nnz, A->GetMemoryData().GetMemoryType());
    R.FillJAndZeroData(*A); // J, A = 0.0
 
+   // TODO: check this
+   fes_ho.GetMesh()->EnsureNodes();
+
    AssemblyKernel(*A);
    A->Finalize();
    return A;
