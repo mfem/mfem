@@ -1023,7 +1023,7 @@ const double RT_WedgeElement::nk[15] =
 { 0,0,-1, 0,0,1, 0,-1,0, 1,1,0, -1,0,0};
 
 RT_WedgeElement::RT_WedgeElement(const int p)
-   : VectorFiniteElement(3, Geometry::PRISM,
+   : VectorFiniteElement(3, 3, 0, Geometry::PRISM,
                          (p + 2) * ((p + 1) * (p + 2)) / 2 +
                          (p + 1) * (p + 1) * (p + 3), p + 1,
                          H_DIV, FunctionSpace::Pk),
