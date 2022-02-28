@@ -60,12 +60,6 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    unm2.SetSize(vfes_truevsize);
    unm2 = 0.0;
    fn.SetSize(vfes_truevsize);
-   Nun.SetSize(vfes_truevsize);
-   Nun = 0.0;
-   Nunm1.SetSize(vfes_truevsize);
-   Nunm1 = 0.0;
-   Nunm2.SetSize(vfes_truevsize);
-   Nunm2 = 0.0;
    Fext.SetSize(vfes_truevsize);
    FText.SetSize(vfes_truevsize);
    Lext.SetSize(vfes_truevsize);
@@ -97,9 +91,6 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    un_next.UseDevice(true);
    unm1.UseDevice(true);
    unm2.UseDevice(true);
-   Nun.UseDevice(true);
-   Nunm1.UseDevice(true);
-   Nunm2.UseDevice(true);
    Fext.UseDevice(true);
    FText.UseDevice(true);
    Lext.UseDevice(true);
@@ -373,10 +364,6 @@ void NavierSolver::UpdateTimestepHistory(double dt)
    dthist[1] = dthist[0];
    dthist[0] = dt;
 
-   // Rotate values in nonlinear extrapolation history
-   Nunm2 = Nunm1;
-   Nunm1 = Nun;
-
    // Rotate values in solution history
    unm2 = unm1;
    unm1 = un;
@@ -443,25 +430,14 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       NVTX("Extrapolation");
       sw_extrap.Start();
 
-      N->Mult(un, Nun);
-      N->Mult(unm1, Nunm1);
-      N->Mult(unm2, Nunm2);
-
-      {
-         const auto d_Nun = Nun.Read();
-         const auto d_Nunm1 = Nunm1.Read();
-         const auto d_Nunm2 = Nunm2.Read();
-         auto d_Fext = Fext.Write();
-         const auto ab1_ = ab1;
-         const auto ab2_ = ab2;
-         const auto ab3_ = ab3;
-         MFEM_FORALL(i, Fext.Size(),
-                     d_Fext[i] = ab1_ * d_Nun[i] +
-                                 ab2_ * d_Nunm1[i] +
-                                 ab3_ * d_Nunm2[i];);
-      }
-
-      fn.Add(1.0, Fext);
+      // Reuse Fext as a temporary
+      Vector &Nu = Fext;
+      N->Mult(un, Nu);
+      fn.Add(ab1, Nu);
+      N->Mult(unm1, Nu);
+      fn.Add(ab2, Nu);
+      N->Mult(unm2, Nu);
+      fn.Add(ab3, Nu);
 
       // Fext = M^{-1} (F(u^{n}) + f^{n+1})
       MvInv->Mult(fn, Fext);

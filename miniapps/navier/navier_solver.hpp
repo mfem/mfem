@@ -377,7 +377,7 @@ protected:
 
    // TODO: reduce the number of these temporary vectors, we don't need all
    // of them.
-   Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext,
+   Vector fn, un, un_next, unm1, unm2, Fext, FText, Lext,
           resu, curlcurlu;
    Vector tmp1, B1, B2;
 
