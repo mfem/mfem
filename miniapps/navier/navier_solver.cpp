@@ -128,15 +128,14 @@ void NavierSolver::Setup(double dt)
 
    sw_setup.Start();
 
-   curl_evaluator = new CurlEvaluator(*vfes);
-   curl_evaluator->EnablePA(partial_assembly);
-
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
 
    Array<int> empty;
 
    // GLL integration rule (Numerical Integration)
+
+   // TODO: ir_ni and ir are the same???
    const IntegrationRule &ir_ni =
       gll_rules.Get(vfes->GetFE(0)->GetGeomType(), 2 * order - 1);
 
@@ -148,6 +147,8 @@ void NavierSolver::Setup(double dt)
 
    mean_evaluator = new MeanEvaluator(*pfes, ir);
    bdr_nor_evaluator = new BoundaryNormalEvaluator(*vfes, *pfes, ir_face);
+   curl_evaluator = new CurlEvaluator(*vfes);
+   curl_evaluator->EnablePA(partial_assembly);
 
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
@@ -570,11 +571,11 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       // TODO: for Helmholtz (vector mass and vector diffusion), add templated
       // kernels with shared memory. Potential for fusion?
       sw_hsolve.Start();
-      // HInv->Mult(B2, un_next);
       HInv->Mult(resu, un_next);
       sw_hsolve.Stop();
       iter_hsolve = HInv->GetNumIterations();
       res_hsolve = HInv->GetFinalNorm();
+      un_next_gf.SetFromTrueDofs(un_next);
    }
 
    // If the current time step is not provisional, accept the computed solution
