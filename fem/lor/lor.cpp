@@ -449,7 +449,7 @@ void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
 
 SparseMatrix &LORDiscretization::GetAssembledMatrix() const
 {
-   MFEM_VERIFY(a != nullptr && A.Ptr() != nullptr, "No LOR system assembled");
+   MFEM_VERIFY(A.Ptr() != nullptr, "No LOR system assembled");
    return *A.As<SparseMatrix>();
 }
 
@@ -516,7 +516,7 @@ void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
 
 HypreParMatrix &ParLORDiscretization::GetAssembledMatrix() const
 {
-   MFEM_VERIFY(a != nullptr || A.Ptr() != nullptr, "No LOR system assembled");
+   MFEM_VERIFY(A.Ptr() != nullptr, "No LOR system assembled");
    return *A.As<HypreParMatrix>();
 }
 
