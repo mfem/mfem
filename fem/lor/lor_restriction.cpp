@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "lor.hpp"
-#include "lor_assembly.hpp"
+#include "lor_restriction.hpp"
 #include "../pbilinearform.hpp"
 #include "../../general/forall.hpp"
 
