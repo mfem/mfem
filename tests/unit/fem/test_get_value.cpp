@@ -2432,7 +2432,7 @@ TEST_CASE("3D GetVectorValue",
    double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3102,7 +3102,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
    double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4306,7 +4306,7 @@ TEST_CASE("3D GetCurl",
    double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4807,7 +4807,7 @@ TEST_CASE("3D GetDivergence",
    double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
