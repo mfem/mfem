@@ -116,18 +116,12 @@ void NavierSolver::Setup(double dt)
    Array<int> empty;
 
    // GLL integration rule (Numerical Integration)
-
-   // TODO: ir_ni and ir are the same???
    const IntegrationRule &ir_ni =
       gll_rules.Get(vfes->GetFE(0)->GetGeomType(), 2 * order - 1);
-
-   const IntegrationRule &ir =
-      gll_rules.Get(vfes->GetFE(0)->GetGeomType(), 2 * order - 1);
-
    const IntegrationRule &ir_face =
       gll_rules.Get(vfes->GetMesh()->GetFaceGeometry(0), 2 * order - 1);
 
-   mean_evaluator = new MeanEvaluator(*pfes, ir);
+   mean_evaluator = new MeanEvaluator(*pfes, ir_ni);
    bdr_nor_evaluator = new BoundaryNormalEvaluator(*vfes, *pfes, ir_face);
    curl_evaluator = new CurlEvaluator(*vfes);
    curl_evaluator->EnablePA(partial_assembly);
@@ -137,7 +131,7 @@ void NavierSolver::Setup(double dt)
    auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff);
    if (numerical_integ)
    {
-      nlc_nlfi->SetIntRule(&ir);
+      nlc_nlfi->SetIntRule(&ir_ni);
    }
    N->AddDomainIntegrator(nlc_nlfi);
    if (partial_assembly)
