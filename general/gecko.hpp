@@ -220,7 +220,7 @@ namespace Gecko
 class WeightedValue
 {
 public:
-   WeightedValue(Float value, Float weight) : value(value), weight(weight) {}
+   WeightedValue(Float val, Float wgt) : value(val), weight(wgt) {}
    Float value;
    Float weight;
 };
@@ -229,7 +229,7 @@ public:
 class WeightedSum : public WeightedValue
 {
 public:
-   WeightedSum(Float value = 0, Float weight = 0) : WeightedValue(value, weight) {}
+   WeightedSum(Float val = 0, Float wgt = 0) : WeightedValue(val, wgt) {}
 };
 
 // abstract base class for ordering functionals
@@ -607,9 +607,9 @@ public:
    };
 
    // constructor
-   Node(Float pos = -1, Float length = 1, Arc::Index arc = Arc::null,
-        Node::Index parent = Node::null) : pos(pos), hlen(Float(0.5) * length),
-      arc(arc), parent(parent) {}
+   Node(Float pos_ = -1, Float length = 1, Arc::Index arc_ = Arc::null,
+        Node::Index par = Node::null) : pos(pos_), hlen(Float(0.5) * length),
+      arc(arc_), parent(par) {}
 
    Float pos;          // start position at full resolution
    Float hlen;         // half of node length (number of full res nodes)
@@ -682,7 +682,7 @@ protected:
    friend class Drawing;
 
    // constructor/destructor
-   Graph(uint nodes, uint level) : level(level), last_node(Node::null) { init(nodes); }
+   Graph(uint nodes, uint level_) : level(level_), last_node(Node::null) { init(nodes); }
 
    // arc length
    Float length(Node::Index i, Node::Index j) const { return std::fabs(node[i].pos - node[j].pos); }

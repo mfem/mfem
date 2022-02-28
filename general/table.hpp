@@ -28,7 +28,7 @@ struct Connection
 {
    int from, to;
    Connection() = default;
-   Connection(int from, int to) : from(from), to(to) {}
+   Connection(int f, int t) : from(f), to(t) {}
 
    bool operator== (const Connection &rhs) const
    { return (from == rhs.from) && (to == rhs.to); }

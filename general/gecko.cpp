@@ -388,7 +388,7 @@ private:
 using namespace Gecko;
 
 // Constructor.
-Subgraph::Subgraph(Graph* g, uint n) : g(g), n(n), f(g->functional)
+Subgraph::Subgraph(Graph* g_, uint n_) : g(g_), n(n_), f(g->functional)
 {
    if (n > GECKO_WINDOW_MAX)
    {
