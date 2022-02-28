@@ -1,10 +1,11 @@
-//                      MFEM Example 42
+//                      MFEM Example 31
 //
 // Compile with: make ex42
 //
-// Sample runs:  ex42 -m ../data/square-disc.mesh -alpha 0.33 -o 2
-//               ex42 -m ../data/star.mesh -alpha 0.99 -o 3
-//               ex42 -m ../data/inline-quad.mesh -alpha 0.2 -o 3
+// Sample runs:  ex31 -m ../data/square-disc.mesh -alpha 0.33 -o 2
+//               ex31 -m ../data/star.mesh -alpha 0.99 -o 3
+//               ex31 -m ../data/inline-quad.mesh -alpha 0.2 -o 3
+//               ex31 -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
 
 
 // Description:
@@ -13,7 +14,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "ex42.hpp"
+#include "ex31.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -52,6 +53,7 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
+   mesh.UniformRefinement();
    mesh.UniformRefinement();
    mesh.UniformRefinement();
 
