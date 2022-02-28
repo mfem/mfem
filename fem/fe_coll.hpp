@@ -1259,7 +1259,7 @@ public:
    { return (GeomType == GeomType_) ? Local_Element : NULL; }
    virtual int DofForGeometry(Geometry::Type GeomType_) const
    { return (GeomType == GeomType_) ? Local_Element->GetDof() : 0; }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType_,
                                              int Or) const
    { return NULL; }
    virtual const char *Name() const { return d_name; }

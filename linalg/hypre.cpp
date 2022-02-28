@@ -2130,7 +2130,7 @@ void HypreParMatrix::Threshold(double threshold)
 
 void HypreParMatrix::DropSmallEntries(double tol)
 {
-   HYPRE_Int err = 0, old_err = hypre_error_flag;
+   HYPRE_Int old_err = hypre_error_flag;
    hypre_error_flag = 0;
 
 #if MFEM_HYPRE_VERSION < 21400
@@ -2161,28 +2161,28 @@ void HypreParMatrix::DropSmallEntries(double tol)
 
 #elif MFEM_HYPRE_VERSION < 21800
 
-   err = hypre_ParCSRMatrixDropSmallEntries(A, tol);
+   HYPRE_Int err_flag = hypre_ParCSRMatrixDropSmallEntries(A, tol);
+   MFEM_VERIFY(!err_flag, "error encountered: error code = " << err_flag);
 
 #else
 
-   err = hypre_ParCSRMatrixDropSmallEntries(A, tol, 2);
+   HYPRE_Int err_flag = hypre_ParCSRMatrixDropSmallEntries(A, tol, 2);
+   MFEM_VERIFY(!err_flag, "error encountered: error code = " << err_flag);
 
 #endif
-
-   MFEM_VERIFY(!err, "error encountered: error code = " << err);
 
    hypre_error_flag = old_err;
 }
 
 void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
-                                       const HypreParVector &X,
-                                       HypreParVector &B)
+                                       const HypreParVector &x,
+                                       HypreParVector &b)
 {
    Array<HYPRE_Int> rc_sorted;
    get_sorted_rows_cols(rows_cols, rc_sorted);
 
    internal::hypre_ParCSRMatrixEliminateAXB(
-      A, rc_sorted.Size(), rc_sorted.GetData(), X, B);
+      A, rc_sorted.Size(), rc_sorted.GetData(), x, b);
 }
 
 HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
@@ -2228,10 +2228,10 @@ void HypreParMatrix::EliminateRows(const Array<int> &rows)
 
 void HypreParMatrix::EliminateBC(const HypreParMatrix &Ae,
                                  const Array<int> &ess_dof_list,
-                                 const Vector &X, Vector &B) const
+                                 const Vector &x, Vector &b) const
 {
-   // B -= Ae*X
-   Ae.Mult(-1.0, X, 1.0, B);
+   // b -= Ae*x
+   Ae.Mult(-1.0, x, 1.0, b);
 
    // All operations below are local, so we can skip them if ess_dof_list is
    // empty on this processor to avoid potential host <--> device transfers.
@@ -2249,13 +2249,13 @@ void HypreParMatrix::EliminateBC(const HypreParMatrix &Ae,
 #endif
 
    ess_dof_list.HostRead();
-   X.HostRead();
-   B.HostReadWrite();
+   x.HostRead();
+   b.HostReadWrite();
 
    for (int i = 0; i < ess_dof_list.Size(); i++)
    {
       int r = ess_dof_list[i];
-      B(r) = data[I[r]] * X(r);
+      b(r) = data[I[r]] * x(r);
 #ifdef MFEM_DEBUG
       MFEM_ASSERT(I[r] < I[r+1], "empty row found!");
       // Check that in the rows specified by the ess_dof_list, the matrix A has
@@ -2328,7 +2328,7 @@ void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
    width = GetNumCols();
 }
 
-void HypreParMatrix::PrintCommPkg(std::ostream &out) const
+void HypreParMatrix::PrintCommPkg(std::ostream &os) const
 {
    hypre_ParCSRCommPkg *comm_pkg = A->comm_pkg;
    MPI_Comm comm = A->comm;
@@ -2344,83 +2344,83 @@ void HypreParMatrix::PrintCommPkg(std::ostream &out) const
    }
    else
    {
-      out << "\nHypreParMatrix: hypre_ParCSRCommPkg:\n";
+      os << "\nHypreParMatrix: hypre_ParCSRCommPkg:\n";
    }
-   out << "Rank " << myid << ":\n"
-       "   number of sends  = " << comm_pkg->num_sends <<
-       " (" << sizeof(double)*comm_pkg->send_map_starts[comm_pkg->num_sends] <<
-       " bytes)\n"
-       "   number of recvs  = " << comm_pkg->num_recvs <<
-       " (" << sizeof(double)*comm_pkg->recv_vec_starts[comm_pkg->num_recvs] <<
-       " bytes)\n";
+   os << "Rank " << myid << ":\n"
+      "   number of sends  = " << comm_pkg->num_sends <<
+      " (" << sizeof(double)*comm_pkg->send_map_starts[comm_pkg->num_sends] <<
+      " bytes)\n"
+      "   number of recvs  = " << comm_pkg->num_recvs <<
+      " (" << sizeof(double)*comm_pkg->recv_vec_starts[comm_pkg->num_recvs] <<
+      " bytes)\n";
    if (myid != nproc-1)
    {
-      out << std::flush;
+      os << std::flush;
       MPI_Send(&c, 1, MPI_CHAR, myid+1, tag, comm);
    }
    else
    {
-      out << std::endl;
+      os << std::endl;
    }
    MPI_Barrier(comm);
 }
 
-void HypreParMatrix::PrintHash(std::ostream &out) const
+void HypreParMatrix::PrintHash(std::ostream &os) const
 {
    HashFunction hf;
 
-   out << "global number of rows    : " << A->global_num_rows << '\n'
-       << "global number of columns : " << A->global_num_cols << '\n'
-       << "first row index : " << A->first_row_index << '\n'
-       << " last row index : " << A->last_row_index << '\n'
-       << "first col diag  : " << A->first_col_diag << '\n'
-       << " last col diag  : " << A->last_col_diag << '\n'
-       << "number of nonzeros : " << A->num_nonzeros << '\n';
+   os << "global number of rows    : " << A->global_num_rows << '\n'
+      << "global number of columns : " << A->global_num_cols << '\n'
+      << "first row index : " << A->first_row_index << '\n'
+      << " last row index : " << A->last_row_index << '\n'
+      << "first col diag  : " << A->first_col_diag << '\n'
+      << " last col diag  : " << A->last_col_diag << '\n'
+      << "number of nonzeros : " << A->num_nonzeros << '\n';
    // diagonal, off-diagonal
    hypre_CSRMatrix *csr = A->diag;
    const char *csr_name = "diag";
    for (int m = 0; m < 2; m++)
    {
       auto csr_nnz = csr->i[csr->num_rows];
-      out << csr_name << " num rows : " << csr->num_rows << '\n'
-          << csr_name << " num cols : " << csr->num_cols << '\n'
-          << csr_name << " num nnz  : " << csr->num_nonzeros << '\n'
-          << csr_name << " i last   : " << csr_nnz
-          << (csr_nnz == csr->num_nonzeros ?
-              " [good]" : " [** BAD **]") << '\n';
+      os << csr_name << " num rows : " << csr->num_rows << '\n'
+         << csr_name << " num cols : " << csr->num_cols << '\n'
+         << csr_name << " num nnz  : " << csr->num_nonzeros << '\n'
+         << csr_name << " i last   : " << csr_nnz
+         << (csr_nnz == csr->num_nonzeros ?
+             " [good]" : " [** BAD **]") << '\n';
       hf.AppendInts(csr->i, csr->num_rows + 1);
-      out << csr_name << " i     hash : " << hf.GetHash() << '\n';
-      out << csr_name << " j     hash : ";
+      os << csr_name << " i     hash : " << hf.GetHash() << '\n';
+      os << csr_name << " j     hash : ";
       if (csr->j == nullptr)
       {
-         out << "(null)\n";
+         os << "(null)\n";
       }
       else
       {
          hf.AppendInts(csr->j, csr_nnz);
-         out << hf.GetHash() << '\n';
+         os << hf.GetHash() << '\n';
       }
 #if MFEM_HYPRE_VERSION >= 21600
-      out << csr_name << " big j hash : ";
+      os << csr_name << " big j hash : ";
       if (csr->big_j == nullptr)
       {
-         out << "(null)\n";
+         os << "(null)\n";
       }
       else
       {
          hf.AppendInts(csr->big_j, csr_nnz);
-         out << hf.GetHash() << '\n';
+         os << hf.GetHash() << '\n';
       }
 #endif
-      out << csr_name << " data  hash : ";
+      os << csr_name << " data  hash : ";
       if (csr->data == nullptr)
       {
-         out << "(null)\n";
+         os << "(null)\n";
       }
       else
       {
          hf.AppendDoubles(csr->data, csr_nnz);
-         out << hf.GetHash() << '\n';
+         os << hf.GetHash() << '\n';
       }
 
       csr = A->offd;
@@ -2428,7 +2428,7 @@ void HypreParMatrix::PrintHash(std::ostream &out) const
    }
 
    hf.AppendInts(A->col_map_offd, A->offd->num_cols);
-   out << "col map offd hash : " << hf.GetHash() << '\n';
+   os << "col map offd hash : " << hf.GetHash() << '\n';
 }
 
 inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
@@ -3554,7 +3554,7 @@ HypreSolver::HypreSolver(const HypreParMatrix *A_)
 
 void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 {
-   HYPRE_Int err;
+   HYPRE_Int err_flag;
    if (A == NULL)
    {
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
@@ -3572,27 +3572,29 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 
    if (!setup_called)
    {
-      err = SetupFcn()(*this, *A, b, x);
+      err_flag = SetupFcn()(*this, *A, b, x);
       if (error_mode == WARN_HYPRE_ERRORS)
       {
-         if (err) { MFEM_WARNING("Error during setup! Error code: " << err); }
+         if (err_flag)
+         { MFEM_WARNING("Error during setup! Error code: " << err_flag); }
       }
       else if (error_mode == ABORT_HYPRE_ERRORS)
       {
-         MFEM_VERIFY(!err, "Error during setup! Error code: " << err);
+         MFEM_VERIFY(!err_flag, "Error during setup! Error code: " << err_flag);
       }
       hypre_error_flag = 0;
       setup_called = 1;
    }
 
-   err = SolveFcn()(*this, *A, b, x);
+   err_flag = SolveFcn()(*this, *A, b, x);
    if (error_mode == WARN_HYPRE_ERRORS)
    {
-      if (err) { MFEM_WARNING("Error during solve! Error code: " << err); }
+      if (err_flag)
+      { MFEM_WARNING("Error during solve! Error code: " << err_flag); }
    }
    else if (error_mode == ABORT_HYPRE_ERRORS)
    {
-      MFEM_VERIFY(!err, "Error during solve! Error code: " << err);
+      MFEM_VERIFY(!err_flag, "Error during solve! Error code: " << err_flag);
    }
    hypre_error_flag = 0;
 }
@@ -4725,17 +4727,17 @@ void HypreBoomerAMG::RecomputeRBMs()
    }
 }
 
-void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
+void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
 {
 #ifdef HYPRE_USING_GPU
    MFEM_ABORT("this method is not supported in hypre built with GPU support");
 #endif
 
    // Save the finite element space to support multiple calls to SetOperator()
-   this->fespace = fespace;
+   this->fespace = fespace_;
 
    // Make sure the systems AMG options are set
-   int dim = fespace->GetParMesh()->Dimension();
+   int dim = fespace_->GetParMesh()->Dimension();
    SetSystemsOptions(dim);
 
    // Nodal coarsening options (nodal coarsening is required for this solver)
@@ -5476,9 +5478,9 @@ HypreLOBPCG::HypreMultiVector::~HypreMultiVector()
 }
 
 void
-HypreLOBPCG::HypreMultiVector::Randomize(HYPRE_Int seed)
+HypreLOBPCG::HypreMultiVector::Randomize(HYPRE_Int seed_)
 {
-   mv_MultiVectorSetRandom(mv_ptr, seed);
+   mv_MultiVectorSetRandom(mv_ptr, seed_);
 }
 
 HypreParVector &
