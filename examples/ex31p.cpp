@@ -72,8 +72,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace(&pmesh, fec);
    if (myid == 0)
    {
-        cout << "Number of finite element unknowns: "
-             << fespace.GetTrueVSize() << endl;
+      cout << "Number of finite element unknowns: "
+           << fespace.GetTrueVSize() << endl;
    }
 
    Array<int> ess_tdof_list;
