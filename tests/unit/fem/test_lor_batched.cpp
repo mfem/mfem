@@ -53,7 +53,10 @@ void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
 
 TEST_CASE("LOR Batched Diffusion", "[LOR][BatchedLOR]")
 {
-   const char *mesh_fname = "../../data/fichera.mesh";
+   auto mesh_fname = GENERATE(
+                        "../../data/star-q3.mesh",
+                        "../../data/fichera-q3.mesh"
+                     );
    const int order = 5;
 
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
@@ -85,7 +88,10 @@ TEST_CASE("LOR Batched Diffusion", "[LOR][BatchedLOR]")
 
 TEST_CASE("Parallel LOR Batched Diffusion", "[LOR][BatchedLOR][Parallel]")
 {
-   const char *mesh_fname = "../../data/fichera.mesh";
+   auto mesh_fname = GENERATE(
+                        "../../data/star-q3.mesh",
+                        "../../data/fichera-q3.mesh"
+                     );
    const int order = 5;
 
    Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname);
