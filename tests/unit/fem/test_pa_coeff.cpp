@@ -800,7 +800,7 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
 
                   const SparseMatrix& A_explicit = assemblyform->SpMat();
 
-                  Vector *xin = new Vector((spaceType == 0) ? s_fespace.GetTrueVSize() :
+                  Vector *xin = new Vector((spaceType == HcurlH1) ? s_fespace.GetTrueVSize() :
                                            v_fespace.GetTrueVSize());
                   xin->Randomize();
                   Vector y_mat((spaceType == HdivL2 || spaceType == HcurlH1_2D ||
@@ -831,15 +831,14 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                   REQUIRE(assembly_error < 1.e-12);
 
                   delete xin;
-                  if (spaceType == HdivL2)
+                  if (spaceType == HdivL2 || spaceType == HcurlH1_2D || (spaceType == HcurlL2 &&
+                                                                         dimension == 2))
                   {
                      // Test the transpose.
-                     xin = new Vector((spaceType == 0) ? v_fespace.GetTrueVSize() :
-                                      s_fespace.GetTrueVSize());
+                     xin = new Vector(s_fespace.GetTrueVSize());
                      xin->Randomize();
 
-                     y_mat.SetSize((spaceType == 0) ? s_fespace.GetTrueVSize() :
-                                   v_fespace.GetTrueVSize());
+                     y_mat.SetSize(v_fespace.GetTrueVSize());
                      y_assembly.SetSize(y_mat.Size());
                      y_pa.SetSize(y_mat.Size());
 

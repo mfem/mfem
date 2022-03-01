@@ -920,6 +920,7 @@ protected:
                            const FiniteElementSpace &test_fes);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    // PA extension
    Vector pa_data;
