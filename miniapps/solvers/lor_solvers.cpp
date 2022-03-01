@@ -65,6 +65,9 @@
 
 #include "lor_mms.hpp"
 
+#define MFEM_DEBUG_COLOR 195
+#include "general/debug.hpp"
+
 using namespace std;
 using namespace mfem;
 
@@ -132,8 +135,7 @@ int main(int argc, char *argv[])
    BilinearForm a(&fes);
    if (H1 || L2)
    {
-      // #warning no MassIntegrator
-      // all warnings being treated as errors
+#warning no MassIntegrator
       //a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator);
    }

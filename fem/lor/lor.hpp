@@ -12,7 +12,7 @@
 #ifndef MFEM_LOR
 #define MFEM_LOR
 
-#include "bilinearform.hpp"
+#include "../bilinearform.hpp"
 
 namespace mfem
 {
@@ -62,17 +62,14 @@ private:
 protected:
    enum FESpaceType { H1, ND, RT, L2, INVALID };
 
+   int ref_type;
    FiniteElementSpace &fes_ho;
-   Mesh *mesh;
-   FiniteElementCollection *fec;
-   FiniteElementSpace *fes;
-   BilinearForm *a;
+   Mesh *mesh = nullptr;
+   FiniteElementCollection *fec = nullptr;
+   FiniteElementSpace *fes = nullptr;
+   BilinearForm *a = nullptr;
    OperatorHandle A;
    mutable Array<int> perm;
-   bool supports_batched_assembly;
-
-   /// The LOR element restriction operator.
-   mutable class LORRestriction *R_lor;
 
    /// Constructs the local DOF (ldof) permutation. In parallel this is used as
    /// an intermediate step in computing the DOF permutation (see
@@ -102,7 +99,9 @@ protected:
    /// ParLORDiscretization::AssembleSystem).
    void AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs);
 
-   LORBase(FiniteElementSpace &fes_ho_);
+   virtual void FormLORSpace() = 0;
+
+   LORBase(FiniteElementSpace &fes_ho_, int ref_type_);
 
 public:
    /// Returns the assembled LOR system.
@@ -122,16 +121,16 @@ public:
    const Array<int> &GetDofPermutation() const;
 
    /// Returns the low-order refined finite element space.
-   FiniteElementSpace &GetFESpace() const { return *fes; }
+   FiniteElementSpace &GetFESpace() const;
 
-   /// Returns the low-order restriction.
-   const LORRestriction *GetLORRestriction() const;
-   ~LORBase();
+   virtual ~LORBase();
 };
 
 /// Create and assemble a low-order refined version of a BilinearForm.
 class LORDiscretization : public LORBase
 {
+protected:
+   void FormLORSpace();
 public:
    /// @brief Construct the low-order refined version of @a a_ho using the given
    /// list of essential DOFs.
@@ -161,6 +160,8 @@ public:
 /// Create and assemble a low-order refined version of a ParBilinearForm.
 class ParLORDiscretization : public LORBase
 {
+protected:
+   void FormLORSpace();
 public:
    /// @brief Construct the low-order refined version of @a a_ho using the given
    /// list of essential DOFs.
@@ -263,51 +264,6 @@ public:
    const LORBase &GetLOR() const { return *lor; }
 
    ~LORSolver() { if (own_lor) { delete lor; } }
-};
-
-
-/// Create a low-order refined version of a Restriction.
-/// Only used here for the FillI and FillJAndZeroData methods.
-class LORRestriction
-{
-   const FiniteElementSpace &fes_ho;
-   FiniteElementCollection *fec_lo;
-   const Geometry::Type geom;
-   const int ne_ref;
-   const int ne;
-   const int vdim;
-   const bool byvdim;
-   const int ndofs;
-   const int dof;
-
-   Array<int> offsets;
-   Array<int> indices;
-   Array<int> gatherMap;
-
-   Array<int> dof_glob2loc;
-   Array<int> dof_glob2loc_offsets;
-   Array<int> el_dof_lex;
-
-protected:
-   static int GetNRefinedElements(const FiniteElementSpace &fes);
-   static FiniteElementCollection *GetLowOrderFEC(const FiniteElementSpace &fes);
-
-public:
-   LORRestriction(const FiniteElementSpace &fes_ho);
-
-   int FillI(SparseMatrix &mat) const;
-   void FillJAndZeroData(SparseMatrix &mat) const;
-
-   const Array<int> &GatherMap() const { return el_dof_lex; }
-   const Array<int> &Indices() const { return dof_glob2loc; }
-   const Array<int> &Offsets() const { return dof_glob2loc_offsets; }
-
-   ~LORRestriction();
-
-   // Device lambda cannot have private or protected access
-public:
-   void SetupLocalToElement();
-   void SetupGlobalToLocal();
 };
 
 } // namespace mfem

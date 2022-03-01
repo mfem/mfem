@@ -63,6 +63,11 @@
 
 #include "lor_mms.hpp"
 
+#define MFEM_DEBUG_COLOR 123
+#include "general/debug.hpp"
+
+#include "general/nvtx.hpp"
+
 using namespace std;
 using namespace mfem;
 
@@ -105,6 +110,7 @@ int main(int argc, char *argv[])
    args.ParseCheck();
 
    const int dev = myid % config_dev_modulo;
+   dbg("[MPI] rank: %d/%d, using device #%d", 1+myid, num_procs, dev);
 
    Device device(device_config, dev);
    device.Print();
@@ -120,6 +126,7 @@ int main(int argc, char *argv[])
    if (RT) { grad_div_problem = true; }
    double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
 
+   NVTX("Mesh");
    Mesh serial_mesh(mesh_file, 1, 1);
    int dim = serial_mesh.Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "Spatial dimension must be 2 or 3.");
@@ -149,11 +156,11 @@ int main(int argc, char *argv[])
    // In DG, boundary conditions are enforced weakly, so no essential DOFs.
    if (!L2) { fes.GetBoundaryTrueDofs(ess_dofs); }
 
+   NVTX("a");
    ParBilinearForm a(&fes);
    if (H1 || L2)
    {
-      // #warning no MassIntegrator
-      // all warnings being treated as errors
+#warning no MassIntegrator
       //a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator);
    }
@@ -173,6 +180,7 @@ int main(int argc, char *argv[])
    if (!L2) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.Assemble();
 
+   NVTX("b");
    ParLinearForm b(&fes);
    if (H1 || L2) { b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff)); }
    else { b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_vec_coeff)); }
@@ -189,14 +197,18 @@ int main(int argc, char *argv[])
 
    Vector X, B;
    OperatorHandle A;
+   NVTX("FormLinearSystem");
    a.FormLinearSystem(ess_dofs, x, b, A, X, B);
 
+   NVTX("ParLORDiscretization");
    ParLORDiscretization lor(a, ess_dofs);
    ParFiniteElementSpace &fes_lor = lor.GetParFESpace();
 
    unique_ptr<Solver> solv_lor;
    if (H1 || L2)
    {
+      dbg("LORSolver<HypreBoomerAMG>");
+      NVTX("LORSolver");
       solv_lor.reset(new LORSolver<HypreBoomerAMG>(lor));
    }
    else if (RT && dim == 3)
@@ -218,6 +230,7 @@ int main(int argc, char *argv[])
    cg.SetOperator(*A);
    cg.SetPreconditioner(*solv_lor);
    {
+      NVTX("CG");
       cg.Mult(B, X);
    }
 

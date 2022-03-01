@@ -44,7 +44,7 @@
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
 #include "ceed/algebraic.hpp"
-#include "lor.hpp"
+#include "lor/lor.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
