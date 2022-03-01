@@ -220,7 +220,7 @@ TEST_CASE("Convergence rate test on 2D NCMesh", "[NCMesh]")
 TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
 {
    // Setup
-   const auto order = GENERATE(1, 3, 5);
+   const auto order = GENERATE(2, 3);
    Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
 
    // Make the mesh NC
