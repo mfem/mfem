@@ -435,7 +435,7 @@ void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
       // Skip forming the space
       mfem::out << "Batched.\n";
       a = nullptr;
-      BatchedLORAssembly::Assemble(*this, a_ho, fes_ho, ess_dofs, A);
+      BatchedLORAssembly::Assemble(a_ho, fes_ho, ess_dofs, A);
    }
    else
    {
@@ -502,7 +502,7 @@ void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
       // Skip forming the space
       mfem::out << "Batched.\n";
       a = nullptr;
-      BatchedLORAssembly::Assemble(*this, a_ho, fes_ho, ess_dofs, A);
+      BatchedLORAssembly::Assemble(a_ho, fes_ho, ess_dofs, A);
    }
    else
    {

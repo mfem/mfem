@@ -28,7 +28,6 @@ namespace mfem
 class BatchedLORAssembly
 {
 protected:
-   LORBase &lor_disc; ///< Information about the LOR space.
    LORRestriction R; ///< LOR restriction used for sparse matrix assembly.
    FiniteElementSpace &fes_ho; ///< The high-order space.
    const Array<int> &ess_dofs; ///< Essential DOFs to eliminate.
@@ -51,8 +50,7 @@ protected:
    virtual void AssemblyKernel(SparseMatrix &A) = 0;
 
    /// Called by one of the specialized classes, e.g. BatchedLORDiffusion.
-   BatchedLORAssembly(LORBase &lor_disc_,
-                      BilinearForm &a_,
+   BatchedLORAssembly(BilinearForm &a_,
                       FiniteElementSpace &fes_ho_,
                       const Array<int> &ess_dofs_);
 
@@ -63,8 +61,7 @@ public:
    ///
    /// In serial, the result will be a SparseMatrix. In parallel, the result
    /// will be a HypreParMatrix.
-   static void Assemble(LORBase &lor_disc,
-                        BilinearForm &a,
+   static void Assemble(BilinearForm &a,
                         FiniteElementSpace &fes_ho,
                         const Array<int> &ess_dofs,
                         OperatorHandle &A);
