@@ -1064,6 +1064,19 @@ void BilinearForm::Mult(const Vector &x, Vector &y) const
    }
 }
 
+void BilinearForm::MultTranspose(const Vector & x, Vector & y) const
+{
+   if (ext)
+   {
+      ext->MultTranspose(x, y);
+   }
+   else
+   {
+      y = 0.0;
+      AddMultTranspose (x, y);
+   }
+}
+
 void BilinearForm::Update(FiniteElementSpace *nfes)
 {
    bool full_update;

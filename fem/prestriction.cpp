@@ -42,6 +42,7 @@ ParNCH1FaceRestriction::ParNCH1FaceRestriction(const ParFiniteElementSpace &fes,
 
 void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
 {
+   if (nf==0) { return; }
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
@@ -125,6 +126,7 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
 
 void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 {
+   if (nf==0) { return; }
    if (x_interp.Size()==0)
    {
       x_interp.SetSize(x.Size());
@@ -377,6 +379,7 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
 
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
+   if (nf==0) { return; }
    if (m==L2FaceValues::DoubleValued)
    {
       DoubleValuedConformingMult(x, y);
@@ -880,6 +883,7 @@ void ParNCL2FaceRestriction::DoubleValuedNonconformingMult(
 
 void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
+   if (nf==0) { return; }
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
       DoubleValuedNonconformingMult(x, y);
@@ -904,6 +908,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 
 void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 {
+   if (nf==0) { return; }
    if (type==FaceType::Interior)
    {
       if ( m==L2FaceValues::DoubleValued )

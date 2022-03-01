@@ -2176,6 +2176,8 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
    static const IntegrationRule &GetRule(const FiniteElement &el,
                                          ElementTransformation &Trans);
 
