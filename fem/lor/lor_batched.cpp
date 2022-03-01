@@ -20,6 +20,11 @@ namespace mfem
 {
 
 template<int D1D, int Q1D>
+void NodalInterpolation2D(const int NE,
+                          const Vector &localL,
+                          Vector &localH,
+                          const Array<double> &B);
+template<int D1D, int Q1D>
 void NodalInterpolation3D(const int NE,
                           const Vector &localL,
                           Vector &localH,
@@ -93,12 +98,29 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
    const DofToQuad& maps =
       nodal_fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
 
-   switch (nodal_nd1d)
+   if (dim == 2)
    {
-      case 2: NodalInterpolation3D<2,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
-      case 4: NodalInterpolation3D<4,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
-      case 6: NodalInterpolation3D<6,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
-      default: MFEM_ABORT("Unsuported mesh order!");
+      switch (nodal_nd1d)
+      {
+         case 2: NodalInterpolation2D<2,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
+         case 4: NodalInterpolation2D<4,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
+         case 6: NodalInterpolation2D<6,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
+         default: MFEM_ABORT("Unsuported mesh order!");
+      }
+   }
+   else if (dim == 3)
+   {
+      switch (nodal_nd1d)
+      {
+         case 2: NodalInterpolation3D<2,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
+         case 4: NodalInterpolation3D<4,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
+         case 6: NodalInterpolation3D<6,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
+         default: MFEM_ABORT("Unsuported mesh order!");
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Not supported.");
    }
 }
 
