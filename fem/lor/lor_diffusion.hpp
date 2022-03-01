@@ -22,6 +22,9 @@ class BatchedLORDiffusion : public BatchedLORAssembly
 protected:
    Vector d_buffer; ///< Device buffer used for intermediate computations.
 
+   // TODO: for now only supporting constant coefficients
+   double mass_coeff, diffusion_coeff;
+
    template <int ORDER> void AssembleDiffusion2D(SparseMatrix &A);
    template <int ORDER, bool USE_SMEM=true>
    void AssembleDiffusion3D(SparseMatrix &A);

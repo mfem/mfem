@@ -51,7 +51,7 @@ void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
    TestSameMatrices(offd1, diag2);
 }
 
-TEST_CASE("LOR Batched Diffusion", "[LOR][BatchedLOR]")
+TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR]")
 {
    auto mesh_fname = GENERATE(
                         "../../data/star-q3.mesh",
@@ -66,14 +66,19 @@ TEST_CASE("LOR Batched Diffusion", "[LOR][BatchedLOR]")
    Array<int> ess_dofs;
    fespace.GetBoundaryTrueDofs(ess_dofs);
 
+   ConstantCoefficient diff_coeff(M_PI);
+   ConstantCoefficient mass_coeff(1.0/M_PI);
+
    BilinearForm a(&fespace);
-   a.AddDomainIntegrator(new DiffusionIntegrator);
+   a.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
+   a.AddDomainIntegrator(new MassIntegrator(mass_coeff));
    LORDiscretization lor(a, ess_dofs);
 
    BilinearForm a_lor(&lor.GetFESpace());
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
-   a_lor.AddDomainIntegrator(new DiffusionIntegrator(&ir));
+   a_lor.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, &ir));
+   a_lor.AddDomainIntegrator(new MassIntegrator(mass_coeff, &ir));
    a_lor.Assemble();
    a_lor.Finalize();
 
@@ -103,14 +108,19 @@ TEST_CASE("Parallel LOR Batched Diffusion", "[LOR][BatchedLOR][Parallel]")
    Array<int> ess_dofs;
    fespace.GetBoundaryTrueDofs(ess_dofs);
 
+   ConstantCoefficient diff_coeff(M_PI);
+   ConstantCoefficient mass_coeff(1.0/M_PI);
+
    ParBilinearForm a(&fespace);
-   a.AddDomainIntegrator(new DiffusionIntegrator);
+   a.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
+   a.AddDomainIntegrator(new MassIntegrator(mass_coeff));
    ParLORDiscretization lor(a, ess_dofs);
 
    ParBilinearForm a_lor(&lor.GetParFESpace());
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
-   a_lor.AddDomainIntegrator(new DiffusionIntegrator(&ir));
+   a_lor.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, &ir));
+   a_lor.AddDomainIntegrator(new MassIntegrator(mass_coeff, &ir));
    a_lor.Assemble();
    a_lor.Finalize();
 
