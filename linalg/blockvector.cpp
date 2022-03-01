@@ -63,8 +63,8 @@ BlockVector::BlockVector(const BlockVector & v):
 }
 
 //! View constructor
-BlockVector::BlockVector(double *data, const Array<int> & bOffsets):
-   Vector(data, bOffsets.Last()),
+BlockVector::BlockVector(double *data_, const Array<int> & bOffsets):
+   Vector(data_, bOffsets.Last()),
    numBlocks(bOffsets.Size()-1),
    blockOffsets(bOffsets.GetData())
 {
@@ -82,9 +82,9 @@ BlockVector::BlockVector(Vector &v, const Array<int> &bOffsets)
    SetBlocks();
 }
 
-void BlockVector::Update(double *data, const Array<int> & bOffsets)
+void BlockVector::Update(double *data_, const Array<int> & bOffsets)
 {
-   NewDataAndSize(data, bOffsets.Last());
+   NewDataAndSize(data_, bOffsets.Last());
    blockOffsets = bOffsets.GetData();
    if (numBlocks != bOffsets.Size()-1)
    {
@@ -95,7 +95,7 @@ void BlockVector::Update(double *data, const Array<int> & bOffsets)
    SetBlocks();
 }
 
-void BlockVector::Update(Vector & data, const Array<int> & bOffsets)
+void BlockVector::Update(Vector & data_, const Array<int> & bOffsets)
 {
    blockOffsets = bOffsets.GetData();
    if (numBlocks != bOffsets.Size()-1)
@@ -107,9 +107,9 @@ void BlockVector::Update(Vector & data, const Array<int> & bOffsets)
 
    for (int i = 0; i < numBlocks; ++i)
    {
-      blocks[i].MakeRef(data, blockOffsets[i], BlockSize(i));
+      blocks[i].MakeRef(data_, blockOffsets[i], BlockSize(i));
    }
-   MakeRef(data, 0, blockOffsets[numBlocks]);
+   MakeRef(data_, 0, blockOffsets[numBlocks]);
 }
 
 void BlockVector::Update(const Array<int> &bOffsets)
