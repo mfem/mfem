@@ -22,6 +22,7 @@ class BatchedLORDiffusion : public BatchedLORAssembly
 protected:
    Vector d_buffer;
 
+   template <int ORDER> void AssembleDiffusion2D(SparseMatrix &A);
    template <int ORDER, bool USE_SMEM=true>
    void AssembleDiffusion3D(SparseMatrix &A);
    void AssemblyKernel(SparseMatrix &A) override;

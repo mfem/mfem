@@ -185,7 +185,6 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
                               pfes_ho->GlobalVSize(),
                               pfes_ho->GetDofOffsets(),
                               A_local);
-   delete A_local;
 
    // Parallel matrix assembly using P^t A P
    OperatorHandle P(Operator::Hypre_ParCSR);

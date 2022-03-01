@@ -16,6 +16,249 @@
 namespace mfem
 {
 
+template <int ORDER>
+void BatchedLORDiffusion::AssembleDiffusion2D(SparseMatrix &A_mat)
+{
+   const Array<int> &dof_glob2loc_ = R.Indices();
+   const Array<int> &dof_glob2loc_offsets_ = R.Offsets();
+   const Array<int> &el_dof_lex_ = R.GatherMap();
+
+   const int nel_ho = fes_ho.GetNE();
+
+   static constexpr int nv = 4;
+   static constexpr int dim = 2;
+   static constexpr int ddm2 = (dim*(dim+1))/2;
+   static constexpr int nd1d = ORDER + 1;
+   static constexpr int ndof_per_el = nd1d*nd1d;
+   static constexpr int nnz_per_row = 9;
+   static constexpr int nnz_per_el = nnz_per_row * ndof_per_el;
+   static constexpr int sz_local_mat = nv*nv;
+
+   const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
+   const auto dof_glob2loc = dof_glob2loc_.Read();
+   const auto K = dof_glob2loc_offsets_.Read();
+
+   const auto I = A_mat.ReadI();
+   const auto J = A_mat.ReadJ();
+   auto A = A_mat.ReadWriteData();
+
+   auto X = X_vert.Read();
+
+   MFEM_FORALL_2D(iel_ho, nel_ho, ORDER, ORDER, 1,
+   {
+      MFEM_SHARED double smem[nnz_per_el];
+      DeviceTensor<3> V(smem, nnz_per_row, nd1d, nd1d);
+
+      // Assemble a sparse matrix over the macro-element by looping over each
+      // subelement.
+      // V(j,ix,iy) stores the jth nonzero in the row of the sparse matrix
+      // corresponding to local DOF (ix, iy).
+      MFEM_FOREACH_THREAD(iy,y,nd1d)
+      {
+         MFEM_FOREACH_THREAD(ix,x,nd1d)
+         {
+            for (int j=0; j<nnz_per_row; ++j)
+            {
+               V(j,ix,iy) = 0.0;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Compute geometric factors at quadrature points
+      MFEM_FOREACH_THREAD(ky,y,ORDER)
+      {
+         MFEM_FOREACH_THREAD(kx,x,ORDER)
+         {
+            double Q_[ddm2*nv];
+            double local_mat_[sz_local_mat];
+
+            DeviceTensor<3> Q(Q_, ddm2, 2, 2);
+            DeviceTensor<2> local_mat(local_mat_, nv, nv);
+
+            // local_mat is the local (dense) stiffness matrix
+            for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
+
+            const int v0 = kx + nd1d*ky;
+            const int v1 = kx + 1 + nd1d*ky;
+            const int v2 = kx + 1 + nd1d*(ky + 1);
+            const int v3 = kx + nd1d*(ky + 1);
+
+            const int e0 = dim*(v0 + ndof_per_el*iel_ho);
+            const int e1 = dim*(v1 + ndof_per_el*iel_ho);
+            const int e2 = dim*(v2 + ndof_per_el*iel_ho);
+            const int e3 = dim*(v3 + ndof_per_el*iel_ho);
+
+            // Vertex coordinates
+            const double v0x = X[e0 + 0];
+            const double v0y = X[e0 + 1];
+
+            const double v1x = X[e1 + 0];
+            const double v1y = X[e1 + 1];
+
+            const double v2x = X[e2 + 0];
+            const double v2y = X[e2 + 1];
+
+            const double v3x = X[e3 + 0];
+            const double v3y = X[e3 + 1];
+
+            for (int iqy=0; iqy<2; ++iqy)
+            {
+               for (int iqx=0; iqx<2; ++iqx)
+               {
+                  const double x = iqx;
+                  const double y = iqy;
+                  const double w = 1.0/4.0;
+
+                  const double J11 = -(1-y)*v0x + (1-y)*v1x + y*v2x - y*v3x;
+                  const double J12 = -(1-x)*v0x - x*v1x + x*v2x + (1-x)*v3x;
+
+                  const double J21 = -(1-y)*v0y + (1-y)*v1y + y*v2y - y*v3y;
+                  const double J22 = -(1-x)*v0y - x*v1y + x*v2y + (1-x)*v3y;
+
+                  const double detJ = J11*J22 - J21*J12;
+                  const double w_detJ = w/detJ;
+
+                  Q(0,iqy,iqx) = w_detJ * (J12*J12 + J22*J22); // 1,1
+                  Q(1,iqy,iqx) = -w_detJ * (J12*J11 + J22*J21); // 1,2
+                  Q(2,iqy,iqx) = w_detJ * (J11*J11 + J21*J21); // 2,2
+               }
+            }
+            for (int iqx=0; iqx<2; ++iqx)
+            {
+               for (int iqy=0; iqy<2; ++iqy)
+               {
+                  for (int jy=0; jy<2; ++jy)
+                  {
+                     const double bjy = (jy == iqy) ? 1.0 : 0.0;
+                     const double gjy = (jy == 0) ? -1.0 : 1.0;
+                     for (int jx=0; jx<2; ++jx)
+                     {
+                        const double bjx = (jx == iqx) ? 1.0 : 0.0;
+                        const double gjx = (jx == 0) ? -1.0 : 1.0;
+
+                        const double djx = gjx*bjy;
+                        const double djy = bjx*gjy;
+
+                        int jj_loc = jx + 2*jy;
+
+                        for (int iy=0; iy<2; ++iy)
+                        {
+                           const double biy = (iy == iqy) ? 1.0 : 0.0;
+                           const double giy = (iy == 0) ? -1.0 : 1.0;
+                           for (int ix=0; ix<2; ++ix)
+                           {
+                              const double bix = (ix == iqx) ? 1.0 : 0.0;
+                              const double gix = (ix == 0) ? -1.0 : 1.0;
+
+                              const double dix = gix*biy;
+                              const double diy = bix*giy;
+
+                              int ii_loc = ix + 2*iy;
+
+                              // Only store the lower-triangular part of
+                              // the matrix (by symmetry).
+                              if (jj_loc > ii_loc) { continue; }
+
+                              double val = 0.0;
+                              val += dix*djx*Q(0,iqy,iqx);
+                              val += (dix*djy + diy*djx)*Q(1,iqy,iqx);
+                              val += diy*djy*Q(2,iqy,iqx);
+
+                              local_mat(ii_loc, jj_loc) += val;
+                           }
+                        }
+                     }
+                  }
+               }
+            }
+            // Assemble the local matrix into the macro-element sparse matrix
+            // in a format similar to coordinate format. The (I,J) arrays
+            // are implicit (not stored explicitly).
+            for (int ii_loc=0; ii_loc<nv; ++ii_loc)
+            {
+               const int ix = ii_loc%2;
+               const int iy = ii_loc/2;
+               for (int jj_loc=0; jj_loc<nv; ++jj_loc)
+               {
+                  const int jx = jj_loc%2;
+                  const int jy = jj_loc/2;
+                  const int jj_off = (jx-ix+1) + 3*(jy-iy+1);
+
+                  // Symmetry
+                  if (jj_loc <= ii_loc)
+                  {
+                     AtomicAdd(V(jj_off, ix+kx, iy+ky), local_mat(ii_loc, jj_loc));
+                  }
+                  else
+                  {
+                     AtomicAdd(V(jj_off, ix+kx, iy+ky), local_mat(jj_loc, ii_loc));
+                  }
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Place the macro-element sparse matrix into the global sparse matrix.
+      MFEM_FOREACH_THREAD(iy,y,nd1d)
+      {
+         MFEM_FOREACH_THREAD(ix,x,nd1d)
+         {
+            double col_ptr[nnz_per_row]; // 9
+
+            const int ii_el = ix + nd1d*iy;
+            const int ii = el_dof_lex(ii_el, iel_ho);
+
+            // Set column pointer to avoid searching in the row
+            for (int j = I[ii], end = I[ii+1]; j < end; j++)
+            {
+               const int jj = J[j];
+               int jj_el = -1;
+               for (int k = K[jj], k_end = K[jj+1]; k < k_end; k += 2)
+               {
+                  if (dof_glob2loc[k] == iel_ho)
+                  {
+                     jj_el = dof_glob2loc[k+1];
+                     break;
+                  }
+               }
+               if (jj_el < 0) { continue; }
+               const int jx = jj_el%nd1d;
+               const int jy = jj_el/nd1d;
+               const int jj_off = (jx-ix+1) + 3*(jy-iy+1);
+               col_ptr[jj_off] = j;
+            }
+
+            const int jx_begin = (ix > 0) ? ix - 1 : 0;
+            const int jx_end = (ix < ORDER) ? ix + 1 : ORDER;
+
+            const int jy_begin = (iy > 0) ? iy - 1 : 0;
+            const int jy_end = (iy < ORDER) ? iy + 1 : ORDER;
+
+            for (int jy=jy_begin; jy<=jy_end; ++jy)
+            {
+               for (int jx=jx_begin; jx<=jx_end; ++jx)
+               {
+                  const int jj_off = (jx-ix+1) + 3*(jy-iy+1);
+                  const double Vji = V(jj_off, ix, iy);
+                  const int col_ptr_jj = col_ptr[jj_off];
+                  if ((ix == 0 && jx == 0) || (ix == ORDER && jx == ORDER) ||
+                      (iy == 0 && jy == 0) || (iy == ORDER && jy == ORDER))
+                  {
+                     AtomicAdd(A[col_ptr_jj], Vji);
+                  }
+                  else
+                  {
+                     A[col_ptr_jj] += Vji;
+                  }
+               }
+            }
+         }
+      }
+   });
+}
+
 template <int ORDER, bool USE_SMEM>
 void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
 {
@@ -34,7 +277,7 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
    static constexpr int nnz_per_el = nnz_per_row * ndof_per_el;
    static constexpr int sz_grad_A = 3*3*2*2*2*2;
    static constexpr int sz_grad_B = sz_grad_A*2;
-   static constexpr int sz_local_mat = 8*8;
+   static constexpr int sz_local_mat = nv*nv;
 
    static constexpr int GRID = USE_SMEM ? 0 : 128;
 
@@ -95,8 +338,8 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
                double grad_B_[sz_grad_B];
                double local_mat_[sz_local_mat];
 
-               DeviceTensor<4> Q(Q_, ddm2,2,2,2);
-               DeviceTensor<2> local_mat(local_mat_, 8, 8);
+               DeviceTensor<4> Q(Q_, ddm2, 2, 2, 2);
+               DeviceTensor<2> local_mat(local_mat_, nv, nv);
                DeviceTensor<6> grad_A(grad_A_, 3, 3, 2, 2, 2, 2);
                DeviceTensor<7> grad_B(grad_B_, 3, 3, 2, 2, 2, 2, 2);
 
@@ -352,13 +595,13 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
                // in a format similar to coordinate format. The (I,J) arrays
                // are implicit (not stored explicitly).
                //MFEM_UNROLL(8)
-               for (int ii_loc=0; ii_loc<8; ++ii_loc)
+               for (int ii_loc=0; ii_loc<nv; ++ii_loc)
                {
                   const int ix = ii_loc%2;
                   const int iy = (ii_loc/2)%2;
                   const int iz = ii_loc/2/2;
 
-                  for (int jj_loc=0; jj_loc<8; ++jj_loc)
+                  for (int jj_loc=0; jj_loc<nv; ++jj_loc)
                   {
                      const int jx = jj_loc%2;
                      const int jy = (jj_loc/2)%2;
@@ -456,7 +699,19 @@ void BatchedLORDiffusion::AssemblyKernel(SparseMatrix &A)
    const int dim = mesh_ho.Dimension();
    const int order = fes_ho.GetMaxElementOrder();
 
-   if (dim == 2) { MFEM_ABORT("Unsuported!"); }
+   if (dim == 2)
+   {
+      switch (order)
+      {
+         case 1: AssembleDiffusion2D<1>(A); break;
+         case 2: AssembleDiffusion2D<2>(A); break;
+         case 3: AssembleDiffusion2D<3>(A); break;
+         case 4: AssembleDiffusion2D<4>(A); break;
+         case 5: AssembleDiffusion2D<5>(A); break;
+         case 6: AssembleDiffusion2D<6>(A); break;
+         default: MFEM_ABORT("No kernel.");
+      }
+   }
    else if (dim == 3)
    {
       switch (order)
@@ -467,7 +722,7 @@ void BatchedLORDiffusion::AssemblyKernel(SparseMatrix &A)
          case 4: AssembleDiffusion3D<4>(A); break;
          case 5: AssembleDiffusion3D<5>(A); break;
          case 6: AssembleDiffusion3D<6,false>(A); break;
-         default: MFEM_ABORT("Kernel not ready!");
+         default: MFEM_ABORT("No kernel.");
       }
    }
 }
