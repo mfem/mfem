@@ -1311,7 +1311,6 @@ static void SmemPADiffusionApply2D(const int NE,
             Y(dx,dy,e) += (u + v);
          }
       }
-      MFEM_SYNC_THREAD;
    });
 }
 
@@ -1727,7 +1726,6 @@ static void SmemPADiffusionApply3D(const int NE,
             }
          }
       }
-      MFEM_SYNC_THREAD;
    });
 }
 
