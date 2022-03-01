@@ -24,8 +24,54 @@ namespace mfem
 #define M1D 8
 
 template<int D1D, int Q1D>
+void NodalInterpolation2D(const int NE,
+                          const Vector& x, Vector& y,
+                          const Array<double> &B)
+{
+   static constexpr int VDIM = 2;
+
+   const auto x_ = Reshape(x.Read(), D1D, D1D, VDIM, NE);
+   const auto B_ = Reshape(B.Read(), Q1D, D1D);
+
+   auto y_ = Reshape(y.Write(), VDIM, Q1D, Q1D, NE);
+
+   y = 0.0;
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int vd = 0; vd < VDIM; ++vd)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            double sol_x[M1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               sol_x[qx] = 0;
+            }
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double s = x_(dx, dy, vd, e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  sol_x[qx] += B_(qx, dx) * s;
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy = B_(qy, dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  y_(vd, qx, qy, e) += wy * sol_x[qx];
+               }
+            }
+         }
+      }
+   });
+}
+
+template<int D1D, int Q1D>
 void NodalInterpolation3D(const int NE,
-                          const Vector& localL, Vector& localH,
+                          const Vector& x, Vector& y,
                           const Array<double> &B)
 {
    MFEM_NVTX;
@@ -33,14 +79,14 @@ void NodalInterpolation3D(const int NE,
 
    static constexpr int VDIM = 3;
 
-   const auto x_ = Reshape(localL.Read(), D1D, D1D, D1D, VDIM, NE);
+   const auto x_ = Reshape(x.Read(), D1D, D1D, D1D, VDIM, NE);
    const auto B_ = Reshape(B.Read(), Q1D, D1D);
 
-   auto y_ = Reshape(localH.Write(), VDIM, Q1D, Q1D, Q1D, NE);
+   auto y_ = Reshape(y.Write(), VDIM, Q1D, Q1D, Q1D, NE);
 
    {
-      NVTX("localH = 0.0");
-      localH = 0.0;
+      NVTX("y = 0.0");
+      y = 0.0;
    }
 
    {
@@ -99,6 +145,31 @@ void NodalInterpolation3D(const int NE,
       });
    }
 }
+
+#define NODAL_INTERP_2D_INSTANCE(D1D,Q1D) \
+template void NodalInterpolation2D<D1D,Q1D>\
+    (const int, const Vector&, Vector&,const Array<double>&)
+
+NODAL_INTERP_2D_INSTANCE(2,2);
+NODAL_INTERP_2D_INSTANCE(2,3);
+NODAL_INTERP_2D_INSTANCE(2,4);
+NODAL_INTERP_2D_INSTANCE(2,5);
+NODAL_INTERP_2D_INSTANCE(2,6);
+NODAL_INTERP_2D_INSTANCE(2,7);
+
+NODAL_INTERP_2D_INSTANCE(4,2);
+NODAL_INTERP_2D_INSTANCE(4,3);
+NODAL_INTERP_2D_INSTANCE(4,4);
+NODAL_INTERP_2D_INSTANCE(4,5);
+NODAL_INTERP_2D_INSTANCE(4,6);
+NODAL_INTERP_2D_INSTANCE(4,7);
+
+NODAL_INTERP_2D_INSTANCE(6,2);
+NODAL_INTERP_2D_INSTANCE(6,3);
+NODAL_INTERP_2D_INSTANCE(6,4);
+NODAL_INTERP_2D_INSTANCE(6,5);
+NODAL_INTERP_2D_INSTANCE(6,6);
+NODAL_INTERP_2D_INSTANCE(6,7);
 
 #define NODAL_INTERP_3D_INSTANCE(D1D,Q1D) \
 template void NodalInterpolation3D<D1D,Q1D>\
