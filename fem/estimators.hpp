@@ -247,14 +247,14 @@ protected:
    bool subdomain_reconstruction = true;
    double tichonov_coeff;
 
-   BilinearFormIntegrator *integ;
-   GridFunction *solution;
+   BilinearFormIntegrator &integ;
+   GridFunction &solution;
    bool with_coeff;
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
    {
-      long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
+      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
       MFEM_ASSERT(mesh_sequence >= current_sequence, "");
       return (mesh_sequence > current_sequence);
    }
@@ -273,8 +273,8 @@ public:
         total_error(-1.0),
         subdomain_reconstruction(true),
         tichonov_coeff(0.0),
-        integ(&integ),
-        solution(&sol),
+        integ(integ),
+        solution(sol),
         with_coeff(false)
    { }
 
