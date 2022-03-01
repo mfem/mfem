@@ -95,8 +95,8 @@ protected:
    Array<int> aniso_flags;
    int flux_averaging; // see SetFluxAveraging()
 
-   BilinearFormIntegrator *integ; ///< Not owned.
-   GridFunction *solution; ///< Not owned.
+   BilinearFormIntegrator &integ;
+   GridFunction &solution;
 
    FiniteElementSpace *flux_space; /**< @brief Ownership based on own_flux_fes.
       Its Update() method is called automatically by this class when needed. */
@@ -106,7 +106,7 @@ protected:
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
    {
-      long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
+      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
       MFEM_ASSERT(mesh_sequence >= current_sequence, "");
       return (mesh_sequence > current_sequence);
    }
@@ -128,8 +128,8 @@ public:
         total_error(),
         anisotropic(false),
         flux_averaging(0),
-        integ(&integ),
-        solution(&sol),
+        integ(integ),
+        solution(sol),
         flux_space(flux_fes),
         with_coeff(false),
         own_flux_fes(true)
@@ -148,8 +148,8 @@ public:
         total_error(),
         anisotropic(false),
         flux_averaging(0),
-        integ(&integ),
-        solution(&sol),
+        integ(integ),
+        solution(sol),
         flux_space(&flux_fes),
         with_coeff(false),
         own_flux_fes(false)
@@ -222,8 +222,8 @@ protected:
    Vector error_estimates;
    double total_error;
 
-   BilinearFormIntegrator *integ; ///< Not owned.
-   ParGridFunction *solution; ///< Not owned.
+   BilinearFormIntegrator &integ;
+   ParGridFunction &solution;
 
    ParFiniteElementSpace *flux_space; /**< @brief Ownership based on the flag
       own_flux_fes. Its Update() method is called automatically by this class
@@ -233,25 +233,10 @@ protected:
       class when needed.*/
    bool own_flux_fes; ///< Ownership flag for flux_space and smooth_flux_space.
 
-   /// Initialize with the integrator, solution, and flux finite element spaces.
-   void Init(BilinearFormIntegrator &integ_,
-             ParGridFunction &sol,
-             ParFiniteElementSpace *flux_fes,
-             ParFiniteElementSpace *smooth_flux_fes)
-   {
-      current_sequence = -1;
-      local_norm_p = 1;
-      total_error = 0.0;
-      integ = &integ_;
-      solution = &sol;
-      flux_space = flux_fes;
-      smooth_flux_space = smooth_flux_fes;
-   }
-
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
    {
-      long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
+      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
       MFEM_ASSERT(mesh_sequence >= current_sequence, "");
       return (mesh_sequence > current_sequence);
    }
@@ -275,7 +260,15 @@ public:
                              ParGridFunction &sol,
                              ParFiniteElementSpace *flux_fes,
                              ParFiniteElementSpace *smooth_flux_fes)
-   { Init(integ, sol, flux_fes, smooth_flux_fes); own_flux_fes = true; }
+      :  current_sequence(-1),
+         local_norm_p(1),
+         total_error(0.0),
+         integ(integ),
+         solution(sol),
+         flux_space(flux_fes),
+         smooth_flux_space(smooth_flux_fes),
+         own_flux_fes(true)
+   { }
 
    /** @brief Construct a new L2ZienkiewiczZhuEstimator object.
        @param integ    This BilinearFormIntegrator must implement the methods
@@ -292,7 +285,15 @@ public:
                              ParGridFunction &sol,
                              ParFiniteElementSpace &flux_fes,
                              ParFiniteElementSpace &smooth_flux_fes)
-   { Init(integ, sol, &flux_fes, &smooth_flux_fes); own_flux_fes = false; }
+      :  current_sequence(-1),
+         local_norm_p(1),
+         total_error(0.0),
+         integ(integ),
+         solution(sol),
+         flux_space(&flux_fes),
+         smooth_flux_space(&smooth_flux_fes),
+         own_flux_fes(false)
+   { }
 
    /** @brief Set the exponent, p, of the Lp norm used for computing the local
        element errors. Default value is 1. */
