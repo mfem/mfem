@@ -850,17 +850,17 @@ void ParMesh::BuildSharedVertMapping(int nvert,
 
 
 // protected method, used by Nonconforming(De)Refinement and Rebalance
-ParMesh::ParMesh(const ParNCMesh &pncmesh)
-   : MyComm(pncmesh.MyComm)
-   , NRanks(pncmesh.NRanks)
-   , MyRank(pncmesh.MyRank)
+ParMesh::ParMesh(const ParNCMesh &pncmesh_)
+   : MyComm(pncmesh_.MyComm)
+   , NRanks(pncmesh_.NRanks)
+   , MyRank(pncmesh_.MyRank)
    , face_nbr_el_to_face(NULL)
    , glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(MyComm)
    , pncmesh(NULL)
 {
-   Mesh::InitFromNCMesh(pncmesh);
+   Mesh::InitFromNCMesh(pncmesh_);
    ReduceMeshGen();
    have_face_nbr_data = false;
 }

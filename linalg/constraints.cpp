@@ -230,12 +230,12 @@ void EliminationSolver::BuildExplicitOperator()
    delete h_explicit_projector;
 }
 
-EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
+EliminationSolver::EliminationSolver(HypreParMatrix& A_, SparseMatrix& B_,
                                      Array<int>& primary_dofs,
                                      Array<int>& secondary_dofs)
    :
-   ConstrainedSolver(A.GetComm(), A, B),
-   hA(A),
+   ConstrainedSolver(A_.GetComm(), A_, B_),
+   hA(A_),
    krylov(nullptr),
    prec(nullptr)
 {
@@ -246,25 +246,25 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
    {
       lagrange_dofs[i] = i;
    }
-   eliminators.Append(new Eliminator(B, lagrange_dofs, primary_dofs,
+   eliminators.Append(new Eliminator(B_, lagrange_dofs, primary_dofs,
                                      secondary_dofs));
    projector = new EliminationProjection(hA, eliminators);
    BuildExplicitOperator();
 }
 
-EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
+EliminationSolver::EliminationSolver(HypreParMatrix& A_, SparseMatrix& B_,
                                      Array<int>& constraint_rowstarts)
    :
-   ConstrainedSolver(A.GetComm(), A, B),
-   hA(A),
+   ConstrainedSolver(A_.GetComm(), A_, B_),
+   hA(A_),
    krylov(nullptr),
    prec(nullptr)
 {
-   if (!B.Empty())
+   if (!B_.Empty())
    {
-      int * I = B.GetI();
-      int * J = B.GetJ();
-      double * data = B.GetData();
+      int * I = B_.GetI();
+      int * J = B_.GetJ();
+      double * data = B_.GetData();
 
       for (int k = 0; k < constraint_rowstarts.Size() - 1; ++k)
       {
@@ -305,7 +305,7 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
          }
          primary_dofs.Sort();
          primary_dofs.Unique();
-         eliminators.Append(new Eliminator(B, lagrange_dofs, primary_dofs,
+         eliminators.Append(new Eliminator(B_, lagrange_dofs, primary_dofs,
                                            secondary_dofs));
       }
    }
@@ -356,62 +356,63 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    sol += rtilde;
 }
 
-void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
+void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A_,
+                                          HypreParMatrix& B_)
 {
-   HypreParMatrix * hBT = B.Transpose();
-   HypreParMatrix * hBTB = ParMult(hBT, &B, true);
+   HypreParMatrix * hBT = B_.Transpose();
+   HypreParMatrix * hBTB = ParMult(hBT, &B_, true);
    // this matrix doesn't get cleanly deleted?
    // (hypre comm pkg)
    (*hBTB) *= penalty;
-   penalized_mat = ParAdd(&A, hBTB);
+   penalized_mat = ParAdd(&A_, hBTB);
    delete hBTB;
    delete hBT;
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
-   HypreParMatrix& A, SparseMatrix& B, double penalty_)
+   HypreParMatrix& A_, SparseMatrix& B_, double penalty_)
    :
-   ConstrainedSolver(A.GetComm(), A, B),
+   ConstrainedSolver(A_.GetComm(), A_, B_),
    penalty(penalty_),
-   constraintB(B),
+   constraintB(B_),
    krylov(nullptr),
    prec(nullptr)
 {
    int rank, size;
-   MPI_Comm_rank(A.GetComm(), &rank);
-   MPI_Comm_size(A.GetComm(), &size);
+   MPI_Comm_rank(A_.GetComm(), &rank);
+   MPI_Comm_size(A_.GetComm(), &size);
 
    int constraint_running_total = 0;
-   int local_constraints = B.Height();
+   int local_constraints = B_.Height();
    MPI_Scan(&local_constraints, &constraint_running_total, 1, MPI_INT,
-            MPI_SUM, A.GetComm());
+            MPI_SUM, A_.GetComm());
    int global_constraints = 0;
    if (rank == size - 1) { global_constraints = constraint_running_total; }
-   MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, A.GetComm());
+   MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, A_.GetComm());
 
    HYPRE_BigInt glob_num_rows = global_constraints;
-   HYPRE_BigInt glob_num_cols = A.N();
+   HYPRE_BigInt glob_num_cols = A_.N();
    HYPRE_BigInt row_starts[2] = { constraint_running_total - local_constraints,
                                   constraint_running_total
                                 };
-   HYPRE_BigInt col_starts[2] = { A.ColPart()[0], A.ColPart()[1] };
-   HypreParMatrix hB(A.GetComm(), glob_num_rows, glob_num_cols,
-                     row_starts, col_starts, &B);
+   HYPRE_BigInt col_starts[2] = { A_.ColPart()[0], A_.ColPart()[1] };
+   HypreParMatrix hB(A_.GetComm(), glob_num_rows, glob_num_cols,
+                     row_starts, col_starts, &B_);
    hB.CopyRowStarts();
    hB.CopyColStarts();
-   Initialize(A, hB);
+   Initialize(A_, hB);
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
-   HypreParMatrix& A, HypreParMatrix& B, double penalty_)
+   HypreParMatrix& A_, HypreParMatrix& B_, double penalty_)
    :
-   ConstrainedSolver(A.GetComm(), A, B),
+   ConstrainedSolver(A_.GetComm(), A_, B_),
    penalty(penalty_),
-   constraintB(B),
+   constraintB(B_),
    krylov(nullptr),
    prec(nullptr)
 {
-   Initialize(A, B);
+   Initialize(A_, B_);
 }
 
 PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
@@ -490,11 +491,11 @@ void SchurConstrainedSolver::Initialize()
 }
 
 #ifdef MFEM_USE_MPI
-SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm,
+SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm_,
                                                Operator& A_, Operator& B_,
                                                Solver& primal_pc_)
    :
-   ConstrainedSolver(comm, A_, B_),
+   ConstrainedSolver(comm_, A_, B_),
    offsets(3),
    primal_pc(&primal_pc_),
    dual_pc(nullptr)
@@ -526,10 +527,10 @@ SchurConstrainedSolver::SchurConstrainedSolver(Operator& A_, Operator& B_,
 
 #ifdef MFEM_USE_MPI
 // protected constructor
-SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm, Operator& A_,
+SchurConstrainedSolver::SchurConstrainedSolver(MPI_Comm comm_, Operator& A_,
                                                Operator& B_)
    :
-   ConstrainedSolver(comm, A_, B_),
+   ConstrainedSolver(comm_, A_, B_),
    offsets(3),
    primal_pc(nullptr),
    dual_pc(nullptr)
@@ -585,13 +586,13 @@ void SchurConstrainedSolver::LagrangeSystemMult(const Vector& x,
 }
 
 #ifdef MFEM_USE_MPI
-SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm,
+SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm_,
                                                          HypreParMatrix& hA_,
                                                          HypreParMatrix& hB_,
                                                          int dimension,
                                                          bool reorder)
    :
-   SchurConstrainedSolver(comm, hA_, hB_),
+   SchurConstrainedSolver(comm_, hA_, hB_),
    hA(hA_),
    hB(hB_)
 {
@@ -641,9 +642,9 @@ void ConstrainedSolver::Initialize()
 }
 
 #ifdef MFEM_USE_MPI
-ConstrainedSolver::ConstrainedSolver(MPI_Comm comm, Operator& A_, Operator& B_)
+ConstrainedSolver::ConstrainedSolver(MPI_Comm comm_, Operator& A_, Operator& B_)
    :
-   IterativeSolver(comm), A(A_), B(B_)
+   IterativeSolver(comm_), A(A_), B(B_)
 {
    Initialize();
 }
