@@ -831,14 +831,16 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                   REQUIRE(assembly_error < 1.e-12);
 
                   delete xin;
-                  if (spaceType == HdivL2 || spaceType == HcurlH1_2D || (spaceType == HcurlL2 &&
-                                                                         dimension == 2))
+                  if (spaceType == HdivL2 || spaceType == HcurlH1_2D ||
+                      spaceType == HcurlH1 || (spaceType == HcurlL2 && dimension == 2))
                   {
                      // Test the transpose.
-                     xin = new Vector(s_fespace.GetTrueVSize());
+                     xin = new Vector(spaceType == HcurlH1 ? v_fespace.GetTrueVSize() :
+                                      s_fespace.GetTrueVSize());
                      xin->Randomize();
 
-                     y_mat.SetSize(v_fespace.GetTrueVSize());
+                     y_mat.SetSize(spaceType == HcurlH1 ? s_fespace.GetTrueVSize() :
+                                   v_fespace.GetTrueVSize());
                      y_assembly.SetSize(y_mat.Size());
                      y_pa.SetSize(y_mat.Size());
 
