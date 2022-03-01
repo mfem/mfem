@@ -122,13 +122,13 @@ public:
        @param flux_fes The ZienkiewiczZhuEstimator assumes ownership of this
                        FiniteElementSpace and will call its Update() method when
                        needed.*/
-   ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
+   ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ_, GridFunction &sol,
                            FiniteElementSpace *flux_fes)
       : current_sequence(-1),
         total_error(),
         anisotropic(false),
         flux_averaging(0),
-        integ(&integ),
+        integ(&integ_),
         solution(&sol),
         flux_space(flux_fes),
         with_coeff(false),
@@ -142,13 +142,13 @@ public:
        @param flux_fes The ZienkiewiczZhuEstimator does NOT assume ownership of
                        this FiniteElementSpace; will call its Update() method
                        when needed. */
-   ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
+   ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ_, GridFunction &sol,
                            FiniteElementSpace &flux_fes)
       : current_sequence(-1),
         total_error(),
         anisotropic(false),
         flux_averaging(0),
-        integ(&integ),
+        integ(&integ_),
         solution(&sol),
         flux_space(&flux_fes),
         with_coeff(false),
@@ -363,27 +363,27 @@ public:
        @param sol  The GridFunction representation of the scalar field.
        Note: the coefficient must be set before use with the SetCoef method.
    */
-   LpErrorEstimator(int p, GridFunction &sol)
+   LpErrorEstimator(int p, GridFunction &sol_)
       : current_sequence(-1), local_norm_p(p),
-        error_estimates(0), coef(NULL), vcoef(NULL), sol(&sol) { }
+        error_estimates(0), coef(NULL), vcoef(NULL), sol(&sol_) { }
 
    /** @brief Construct a new LpErrorEstimator object for a scalar field.
        @param p    Integer which selects which Lp norm to use.
        @param coef The scalar Coefficient to compare to the solution.
        @param sol  The GridFunction representation of the scalar field.
    */
-   LpErrorEstimator(int p, Coefficient &coef, GridFunction &sol)
+   LpErrorEstimator(int p, Coefficient &coef_, GridFunction &sol_)
       : current_sequence(-1), local_norm_p(p),
-        error_estimates(0), coef(&coef), vcoef(NULL), sol(&sol) { }
+        error_estimates(0), coef(&coef_), vcoef(NULL), sol(&sol_) { }
 
    /** @brief Construct a new LpErrorEstimator object for a vector field.
        @param p    Integer which selects which Lp norm to use.
        @param coef The vector VectorCoefficient to compare to the solution.
        @param sol  The GridFunction representation of the vector field.
    */
-   LpErrorEstimator(int p, VectorCoefficient &coef, GridFunction &sol)
+   LpErrorEstimator(int p, VectorCoefficient &coef_, GridFunction &sol_)
       : current_sequence(-1), local_norm_p(p),
-        error_estimates(0), coef(NULL), vcoef(&coef), sol(&sol) { }
+        error_estimates(0), coef(NULL), vcoef(&coef_), sol(&sol_) { }
 
    /** @brief Set the exponent, p, of the Lp norm used for computing the local
        element errors. */

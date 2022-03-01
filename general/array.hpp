@@ -565,7 +565,7 @@ public:
       typedef iterator_base<BlockArray, T> base;
 
       iterator() { }
-      iterator(bool stop) : base(stop) { }
+      iterator(bool stop_state) : base(stop_state) { }
       iterator(BlockArray *a) : base(a) { }
 
    public:

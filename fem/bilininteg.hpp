@@ -831,8 +831,8 @@ protected:
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
-                                 Vector & shape)
-   { scalar_fe.CalcPhysDivShape(Trans, shape); }
+                                 Vector & shape_)
+   { scalar_fe.CalcPhysDivShape(Trans, shape_); }
 };
 
 /** Class for integrating the bilinear form a(u,v) := -(Q u, div v) in either 2D
@@ -1035,8 +1035,8 @@ public:
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
-                                 Vector & shape)
-   { scalar_fe.CalcPhysDivShape(Trans, shape); shape *= -1.0; }
+                                 Vector & shape_)
+   { scalar_fe.CalcPhysDivShape(Trans, shape_); shape_ *= -1.0; }
 };
 
 /** Class for integrating the bilinear form a(u,v) := (V x u, Grad v) in 3D and
@@ -1372,9 +1372,9 @@ public:
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
-                                 Vector & shape)
+                                 Vector & shape_)
    {
-      DenseMatrix dshape(shape.GetData(), shape.Size(), 1);
+      DenseMatrix dshape(shape_.GetData(), shape_.Size(), 1);
       scalar_fe.CalcPhysCurlShape(Trans, dshape);
    }
 };
@@ -1476,10 +1476,10 @@ public:
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
-                                 Vector & shape)
+                                 Vector & shape_)
    {
-      DenseMatrix dshape(shape.GetData(), shape.Size(), 1);
-      scalar_fe.CalcPhysCurlShape(Trans, dshape); shape *= -1.0;
+      DenseMatrix dshape(shape_.GetData(), shape_.Size(), 1);
+      scalar_fe.CalcPhysCurlShape(Trans, dshape); shape_ *= -1.0;
    }
 };
 
@@ -1510,8 +1510,8 @@ public:
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
-                                  DenseMatrix & shape)
-   { vector_fe.CalcPhysDShape(Trans, shape); }
+                                  DenseMatrix & shape_)
+   { vector_fe.CalcPhysDShape(Trans, shape_); }
 };
 
 /** Class for integrating the bilinear form a(u,v) := (V x u, v) in 2D and where
@@ -1565,8 +1565,8 @@ public:
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
-                                 Vector & shape)
-   { scalar_fe.CalcPhysShape(Trans, shape); shape *= -1.0; }
+                                 Vector & shape_)
+   { scalar_fe.CalcPhysShape(Trans, shape_); shape_ *= -1.0; }
 };
 
 /** Class for integrating the bilinear form a(u,v) := (V . Grad u, v) in 2D or
@@ -1595,8 +1595,8 @@ public:
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
-                                  DenseMatrix & shape)
-   { vector_fe.CalcPhysDShape(Trans, shape); }
+                                  DenseMatrix & shape_)
+   { vector_fe.CalcPhysDShape(Trans, shape_); }
 };
 
 /** Class for integrating the bilinear form a(u,v) := (-V . Grad u, Div v) in 2D
@@ -1626,13 +1626,13 @@ public:
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
-                                  DenseMatrix & shape)
-   { vector_fe.CalcPhysDShape(Trans, shape); shape *= -1.0; }
+                                  DenseMatrix & shape_)
+   { vector_fe.CalcPhysDShape(Trans, shape_); shape_ *= -1.0; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
-                                 Vector & shape)
-   { scalar_fe.CalcPhysDivShape(Trans, shape); }
+                                 Vector & shape_)
+   { scalar_fe.CalcPhysDivShape(Trans, shape_); }
 };
 
 /** Class for integrating the bilinear form a(u,v) := (-V Div u, Grad v) in 2D
@@ -1663,13 +1663,13 @@ public:
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
-                                  DenseMatrix & shape)
-   { vector_fe.CalcPhysDShape(Trans, shape); shape *= -1.0; }
+                                  DenseMatrix & shape_)
+   { vector_fe.CalcPhysDShape(Trans, shape_); shape_ *= -1.0; }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
-                                 Vector & shape)
-   { scalar_fe.CalcPhysDivShape(Trans, shape); }
+                                 Vector & shape_)
+   { scalar_fe.CalcPhysDivShape(Trans, shape_); }
 };
 
 /** Class for integrating the bilinear form a(u,v) := (-V u, Grad v) in 2D or 3D
@@ -1698,8 +1698,8 @@ public:
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
-                                  DenseMatrix & shape)
-   { vector_fe.CalcPhysDShape(Trans, shape); shape *= -1.0; }
+                                  DenseMatrix & shape_)
+   { vector_fe.CalcPhysDShape(Trans, shape_); shape_ *= -1.0; }
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, v) in either 2D

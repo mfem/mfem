@@ -526,9 +526,9 @@ private:
    VectorQuadratureFunctionCoefficient &vqfc;
 
 public:
-   VectorQuadratureLFIntegrator(VectorQuadratureFunctionCoefficient &vqfc,
+   VectorQuadratureLFIntegrator(VectorQuadratureFunctionCoefficient &vqfc_,
                                 const IntegrationRule *ir)
-      : LinearFormIntegrator(ir), vqfc(vqfc)
+      : LinearFormIntegrator(ir), vqfc(vqfc_)
    {
       if (ir)
       {
@@ -557,9 +557,9 @@ private:
    QuadratureFunctionCoefficient &qfc;
 
 public:
-   QuadratureLFIntegrator(QuadratureFunctionCoefficient &qfc,
+   QuadratureLFIntegrator(QuadratureFunctionCoefficient &qfc_,
                           const IntegrationRule *ir)
-      : LinearFormIntegrator(ir), qfc(qfc)
+      : LinearFormIntegrator(ir), qfc(qfc_)
    {
       if (ir)
       {

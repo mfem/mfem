@@ -631,9 +631,9 @@ protected:
    // Forcing term (linear residual rtol) from the previous iterate
    mutable double eta_last = 0.0;
    // Eisenstat-Walker factor gamma
-   double gamma;
+   double ew_gamma;
    // Eisenstat-Walker factor alpha
-   double alpha;
+   double ew_alpha;
 
    /** @brief Method for the adaptive linear solver rtol invoked before the
        linear solve. */

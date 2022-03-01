@@ -33,10 +33,10 @@ private:
 
    void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
-   AdvectorCG(AssemblyLevel al = AssemblyLevel::LEGACY,
+   AdvectorCG(AssemblyLevel al_ = AssemblyLevel::LEGACY,
               double timestep_scale = 0.5)
       : AdaptivityEvaluator(),
-        ode_solver(), nodes0(), field0(), dt_scale(timestep_scale), al(al) { }
+        ode_solver(), nodes0(), field0(), dt_scale(timestep_scale), al(al_) { }
 
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field);

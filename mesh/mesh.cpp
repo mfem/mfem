@@ -1987,7 +1987,7 @@ class GeckoProgress : public Gecko::Progress
    double limit;
    mutable StopWatch sw;
 public:
-   GeckoProgress(double limit) : limit(limit) { sw.Start(); }
+   GeckoProgress(double limit_) : limit(limit_) { sw.Start(); }
    virtual bool quit() const { return limit > 0 && sw.UserTime() > limit; }
 };
 
@@ -1997,7 +1997,7 @@ class GeckoVerboseProgress : public GeckoProgress
    using Graph = Gecko::Graph;
    using uint = Gecko::uint;
 public:
-   GeckoVerboseProgress(double limit) : GeckoProgress(limit) {}
+   GeckoVerboseProgress(double limit_) : GeckoProgress(limit_) {}
 
    virtual void beginorder(const Graph* graph, Float cost) const
    { mfem::out << "Begin Gecko ordering, cost = " << cost << std::endl; }
@@ -2066,8 +2066,8 @@ struct HilbertCmp
    const Array<double> &points;
    double mid;
 
-   HilbertCmp(int coord, bool dir, const Array<double> &points, double mid)
-      : coord(coord), dir(dir), points(points), mid(mid) {}
+   HilbertCmp(int coord_, bool dir_, const Array<double> &points_, double mid_)
+      : coord(coord_), dir(dir_), points(points_), mid(mid_) {}
 
    bool operator()(int i) const
    {
@@ -11932,10 +11932,10 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 }
 
 
-GeometricFactors::GeometricFactors(const Mesh *mesh, const IntegrationRule &ir,
+GeometricFactors::GeometricFactors(const Mesh *mesh_, const IntegrationRule &ir,
                                    int flags, MemoryType d_mt)
 {
-   this->mesh = mesh;
+   mesh = mesh_;
    IntRule = &ir;
    computed_factors = flags;
 
@@ -12012,12 +12012,12 @@ void GeometricFactors::Compute(const GridFunction &nodes,
    }
 }
 
-FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
+FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh_,
                                            const IntegrationRule &ir,
-                                           int flags, FaceType type)
-   : type(type)
+                                           int flags, FaceType type_)
+   : type(type_)
 {
-   this->mesh = mesh;
+   mesh = mesh_;
    IntRule = &ir;
    computed_factors = flags;
 

@@ -1912,14 +1912,14 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 void NewtonSolver::SetAdaptiveLinRtol(const int type,
                                       const double rtol0,
                                       const double rtol_max,
-                                      const double alpha_,
-                                      const double gamma_)
+                                      const double alpha,
+                                      const double gamma)
 {
    lin_rtol_type = type;
    lin_rtol0 = rtol0;
    lin_rtol_max = rtol_max;
-   this->alpha = alpha_;
-   this->gamma = gamma_;
+   ew_alpha = alpha;
+   ew_gamma = gamma;
 }
 
 void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
@@ -1943,12 +1943,12 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
       if (lin_rtol_type == 1)
       {
          // eta = gamma * abs(||F(x1)|| - ||F(x0) + DF(x0) s0||) / ||F(x0)||
-         eta = gamma * abs(fnorm - lnorm_last) / fnorm_last;
+         eta = ew_gamma * abs(fnorm - lnorm_last) / fnorm_last;
       }
       else if (lin_rtol_type == 2)
       {
          // eta = gamma * (||F(x1)|| / ||F(x0)||)^alpha
-         eta = gamma * pow(fnorm / fnorm_last, alpha);
+         eta = ew_gamma * pow(fnorm / fnorm_last, ew_alpha);
       }
       else
       {
@@ -1956,7 +1956,7 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
       }
 
       // Safeguard rtol from "oversolving" ?!
-      const double sg_eta = gamma * pow(eta_last, alpha);
+      const double sg_eta = ew_gamma * pow(eta_last, ew_alpha);
       if (sg_eta > sg_threshold) { eta = std::max(eta, sg_eta); }
    }
 

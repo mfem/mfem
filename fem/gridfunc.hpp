@@ -91,8 +91,8 @@ public:
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData().
     */
-   GridFunction(FiniteElementSpace *f, double *data)
-      : Vector(data, f->GetVSize())
+   GridFunction(FiniteElementSpace *f, double *data_)
+      : Vector(data_, f->GetVSize())
    { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
    /** @brief Construct a GridFunction using previously allocated Vector @a base
