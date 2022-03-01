@@ -16,7 +16,7 @@
 
 using namespace mfem;
 
-namespace ea_kernels
+namespace assembly_levels
 {
 
 void velocity_function(const Vector &x, Vector &v)
@@ -170,4 +170,4 @@ TEST_CASE("Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
    }
 } // test case
 
-} // namespace pa_kernels
+} // namespace assembly_levels
