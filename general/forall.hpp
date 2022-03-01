@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -59,6 +59,19 @@ static T *ScratchMem(const int sm_size)
 #define MFEM_UNROLL(N) MFEM_PRAGMA(GCC unroll N)
 #else
 #define MFEM_UNROLL(N)
+#endif
+
+// MFEM_GPU_FORALL: "parallel for" executed with CUDA or HIP based on the MFEM
+// build-time configuration (MFEM_USE_CUDA or MFEM_USE_HIP). If neither CUDA nor
+// HIP is enabled, this macro is a no-op.
+#if defined(MFEM_USE_CUDA)
+#define MFEM_GPU_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
+                                       (int i) {__VA_ARGS__})
+#elif defined(MFEM_USE_HIP)
+#define MFEM_GPU_FORALL(i, N,...) HipWrap1D(N, [=] MFEM_DEVICE     \
+                                        (int i) {__VA_ARGS__})
+#else
+#define MFEM_GPU_FORALL(i, N,...) do { } while (false)
 #endif
 
 // Implementation of MFEM's "parallel for" (forall) device/host kernel
