@@ -23,14 +23,32 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2)
    const int *J1 = A1.GetJ();
    const double *V1 = A1.GetData();
 
+   double error = 0.0;
+
    for (int i=0; i<n; ++i)
    {
       for (int jj=I1[i]; jj<I1[i+1]; ++jj)
       {
          int j = J1[jj];
-         REQUIRE(V1[jj] == MFEM_Approx(A2(i,j)));
+         error = std::max(error, std::fabs(V1[jj] - A2(i,j)));
       }
    }
+
+   REQUIRE(error == MFEM_Approx(0.0));
+}
+
+void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
+{
+   HYPRE_BigInt *cmap;
+   SparseMatrix diag1, offd1, diag2, offd2;
+
+   A1.GetDiag(diag1);
+   A2.GetDiag(diag2);
+   A1.GetOffd(offd1, cmap);
+   A2.GetOffd(offd2, cmap);
+
+   TestSameMatrices(diag1, diag2);
+   TestSameMatrices(offd1, diag2);
 }
 
 TEST_CASE("LOR Batched Diffusion", "[LOR][BatchedLOR]")
@@ -38,27 +56,62 @@ TEST_CASE("LOR Batched Diffusion", "[LOR][BatchedLOR]")
    const char *mesh_fname = "../../data/fichera.mesh";
    const int order = 5;
 
-   Mesh mesh_orig = Mesh::LoadFromFile(mesh_fname);
-   Mesh mesh = Mesh::MakeRefined(mesh_orig, order, Quadrature1D::GaussLobatto);
-   mesh_orig.Clear();
-
-   H1_FECollection fec(1, mesh.Dimension());
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+   H1_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fec);
+
    Array<int> ess_dofs;
    fespace.GetBoundaryTrueDofs(ess_dofs);
+
    BilinearForm a(&fespace);
+   a.AddDomainIntegrator(new DiffusionIntegrator);
+   LORDiscretization lor(a, ess_dofs);
+
+   BilinearForm a_lor(&lor.GetFESpace());
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
-   a.AddDomainIntegrator(new DiffusionIntegrator(&ir));
-   a.Assemble();
-   a.Finalize();
+   a_lor.AddDomainIntegrator(new DiffusionIntegrator(&ir));
+   a_lor.Assemble();
+   a_lor.Finalize();
 
    OperatorHandle A;
-   a.FormSystemMatrix(ess_dofs, A);
+   a_lor.FormSystemMatrix(ess_dofs, A);
    SparseMatrix &A1 = *A.As<SparseMatrix>();
-
-   LORDiscretization lor(a, ess_dofs);
    SparseMatrix &A2 = lor.GetAssembledMatrix();
+
+   TestSameMatrices(A1, A2);
+   TestSameMatrices(A2, A1);
+}
+
+TEST_CASE("Parallel LOR Batched Diffusion", "[LOR][BatchedLOR][Parallel]")
+{
+   const char *mesh_fname = "../../data/fichera.mesh";
+   const int order = 5;
+
+   Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+   H1_FECollection fec(order, mesh.Dimension());
+   ParFiniteElementSpace fespace(&mesh, &fec);
+
+   Array<int> ess_dofs;
+   fespace.GetBoundaryTrueDofs(ess_dofs);
+
+   ParBilinearForm a(&fespace);
+   a.AddDomainIntegrator(new DiffusionIntegrator);
+   ParLORDiscretization lor(a, ess_dofs);
+
+   ParBilinearForm a_lor(&lor.GetParFESpace());
+   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
+   const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
+   a_lor.AddDomainIntegrator(new DiffusionIntegrator(&ir));
+   a_lor.Assemble();
+   a_lor.Finalize();
+
+   OperatorHandle A;
+   a_lor.FormSystemMatrix(ess_dofs, A);
+   HypreParMatrix &A1 = *A.As<HypreParMatrix>();
+   HypreParMatrix &A2 = lor.GetAssembledMatrix();
 
    TestSameMatrices(A1, A2);
    TestSameMatrices(A2, A1);

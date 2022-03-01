@@ -460,9 +460,9 @@ ParLORDiscretization::ParLORDiscretization(ParBilinearForm &a_ho_,
                                            int ref_type_) : LORBase(*a_ho_.ParFESpace(), ref_type_)
 {
    ParFiniteElementSpace *pfes_ho = a_ho_.ParFESpace();
-
    if (pfes_ho->GetMyRank() == 0) { CheckBasisType(fes_ho); }
    A.SetType(Operator::Hypre_ParCSR);
+   AssembleSystem(a_ho_, ess_tdof_list);
 }
 
 ParLORDiscretization::ParLORDiscretization(
