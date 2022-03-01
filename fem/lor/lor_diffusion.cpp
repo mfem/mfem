@@ -40,6 +40,9 @@ void BatchedLORDiffusion::AssembleDiffusion2D(SparseMatrix &A_mat)
    static constexpr int nnz_per_el = nnz_per_row * ndof_per_el;
    static constexpr int sz_local_mat = nv*nv;
 
+   const double DQ = diffusion_coeff;
+   const double MQ = mass_coeff;
+
    const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
    const auto dof_glob2loc = dof_glob2loc_.Read();
    const auto K = dof_glob2loc_offsets_.Read();
@@ -76,10 +79,10 @@ void BatchedLORDiffusion::AssembleDiffusion2D(SparseMatrix &A_mat)
       {
          MFEM_FOREACH_THREAD(kx,x,ORDER)
          {
-            double Q_[ddm2*nv];
+            double Q_[(ddm2 + 1)*nv];
             double local_mat_[sz_local_mat];
 
-            DeviceTensor<3> Q(Q_, ddm2, 2, 2);
+            DeviceTensor<3> Q(Q_, ddm2 + 1, 2, 2);
             DeviceTensor<2> local_mat(local_mat_, nv, nv);
 
             // local_mat is the local (dense) stiffness matrix
@@ -128,6 +131,7 @@ void BatchedLORDiffusion::AssembleDiffusion2D(SparseMatrix &A_mat)
                   Q(0,iqy,iqx) = w_detJ * (J12*J12 + J22*J22); // 1,1
                   Q(1,iqy,iqx) = -w_detJ * (J12*J11 + J22*J21); // 1,2
                   Q(2,iqy,iqx) = w_detJ * (J11*J11 + J21*J21); // 2,2
+                  Q(3,iqy,iqx) = w*detJ;
                }
             }
             for (int iqx=0; iqx<2; ++iqx)
@@ -170,6 +174,9 @@ void BatchedLORDiffusion::AssembleDiffusion2D(SparseMatrix &A_mat)
                               val += dix*djx*Q(0,iqy,iqx);
                               val += (dix*djy + diy*djx)*Q(1,iqy,iqx);
                               val += diy*djy*Q(2,iqy,iqx);
+                              val *= DQ;
+
+                              val += MQ*bix*biy*bjx*bjy*Q(3,iqy,iqx);
 
                               local_mat(ii_loc, jj_loc) += val;
                            }
@@ -281,6 +288,9 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
 
    const int nel_ho = fes_ho.GetNE();
 
+   const double DQ = diffusion_coeff;
+   const double MQ = mass_coeff;
+
    static constexpr int nv = 8;
    static constexpr int dim = 3;
    static constexpr int ddm2 = (dim*(dim+1))/2;
@@ -290,6 +300,8 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
    static constexpr int nnz_per_el = nnz_per_row * ndof_per_el;
    static constexpr int sz_grad_A = 3*3*2*2*2*2;
    static constexpr int sz_grad_B = sz_grad_A*2;
+   static constexpr int sz_mass_A = 2*2*2*2;
+   static constexpr int sz_mass_B = sz_mass_A*2;
    static constexpr int sz_local_mat = nv*nv;
 
    static constexpr int GRID = USE_SMEM ? 0 : 128;
@@ -346,15 +358,19 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
          {
             MFEM_FOREACH_THREAD(kx,x,ORDER)
             {
-               double Q_[ddm2*nv];
+               double Q_[(ddm2 + 1)*nv];
                double grad_A_[sz_grad_A];
                double grad_B_[sz_grad_B];
+               double mass_A_[sz_mass_A];
+               double mass_B_[sz_mass_B];
                double local_mat_[sz_local_mat];
 
-               DeviceTensor<4> Q(Q_, ddm2, 2, 2, 2);
+               DeviceTensor<4> Q(Q_, ddm2 + 1, 2, 2, 2);
                DeviceTensor<2> local_mat(local_mat_, nv, nv);
                DeviceTensor<6> grad_A(grad_A_, 3, 3, 2, 2, 2, 2);
                DeviceTensor<7> grad_B(grad_B_, 3, 3, 2, 2, 2, 2, 2);
+               DeviceTensor<4> mass_A(mass_A_, 2, 2, 2, 2);
+               DeviceTensor<5> mass_B(mass_B_, 2, 2, 2, 2, 2);
 
                // local_mat is the local (dense) stiffness matrix
                for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
@@ -363,6 +379,9 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
                // (see e.g. Mora and Demkowicz for notation).
                for (int i=0; i<sz_grad_A; ++i) { grad_A[i] = 0.0; }
                for (int i=0; i<sz_grad_B; ++i) { grad_B[i] = 0.0; }
+
+               for (int i=0; i<sz_mass_A; ++i) { mass_A[i] = 0.0; }
+               for (int i=0; i<sz_mass_B; ++i) { mass_B[i] = 0.0; }
 
                const int v0 = kx + nd1d*(ky + nd1d*kz);
                const int v1 = kx + 1 + nd1d*(ky + nd1d*kz);
@@ -489,6 +508,7 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
                         Q(3,iqz,iqy,iqx) = w_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
                         Q(4,iqz,iqy,iqx) = w_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
                         Q(5,iqz,iqy,iqx) = w_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+                        Q(6,iqz,iqy,iqx) = w*detJ;
                      }
                   }
                }
@@ -535,6 +555,9 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
                               grad_A(0,2,iqy,iz,jz,iqx) += J13*biz*gjz;
                               grad_A(1,2,iqy,iz,jz,iqx) += J23*biz*gjz;
                               grad_A(2,2,iqy,iz,jz,iqx) += J33*giz*gjz;
+
+                              double wdetJ = Q(6,iqz,iqy,iqx);
+                              mass_A(iqy,iz,jz,iqx) += wdetJ*biz*bjz;
                            }
                            //MFEM_UNROLL(2)
                            for (int jy=0; jy<2; ++jy)
@@ -557,6 +580,8 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
                                  grad_B(0,2,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(0,2,iqy,iz,jz,iqx);
                                  grad_B(1,2,iy,jy,iz,jz,iqx) += giy*bjy*grad_A(1,2,iqy,iz,jz,iqx);
                                  grad_B(2,2,iy,jy,iz,jz,iqx) += biy*bjy*grad_A(2,2,iqy,iz,jz,iqx);
+
+                                 mass_B(iy,jy,iz,jz,iqx) += biy*bjy*mass_A(iqy,iz,jz,iqx);
                               }
                            }
                         }
@@ -595,6 +620,10 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
                                     val += gix*bjx*grad_B(0,2,iy,jy,iz,jz,iqx);
                                     val += bix*bjx*grad_B(2,2,iy,jy,iz,jz,iqx);
                                     val += bix*bjx*grad_B(1,2,iy,jy,iz,jz,iqx);
+
+                                    val *= DQ;
+
+                                    val += MQ*bix*bjx*mass_B(iy,jy,iz,jz,iqx);
 
                                     local_mat(ii_loc, jj_loc) += val;
                                  }
@@ -741,10 +770,51 @@ void BatchedLORDiffusion::AssemblyKernel(SparseMatrix &A)
    }
 }
 
-BatchedLORDiffusion::BatchedLORDiffusion(BilinearForm &a_,
+template <typename T>
+T *GetIntegrator(BilinearForm &a)
+{
+   Array<BilinearFormIntegrator*> *integs = a.GetDBFI();
+   if (integs != NULL)
+   {
+      for (auto *i : *integs)
+      {
+         if (auto *ti = dynamic_cast<T*>(i))
+         {
+            return ti;
+         }
+      }
+   }
+   return nullptr;
+}
+
+BatchedLORDiffusion::BatchedLORDiffusion(BilinearForm &a,
                                          FiniteElementSpace &fes_ho_,
                                          const Array<int> &ess_dofs_)
-   : BatchedLORAssembly(a_, fes_ho_, ess_dofs_)
-{ }
+   : BatchedLORAssembly(a, fes_ho_, ess_dofs_)
+{
+   MassIntegrator *mass = GetIntegrator<MassIntegrator>(a);
+   DiffusionIntegrator *diffusion = GetIntegrator<DiffusionIntegrator>(a);
+
+   if (mass != nullptr)
+   {
+      auto *coeff = dynamic_cast<const ConstantCoefficient*>(mass->GetCoefficient());
+      mass_coeff = coeff ? coeff->constant : 1.0;
+   }
+   else
+   {
+      mass_coeff = 0.0;
+   }
+
+   if (diffusion != nullptr)
+   {
+      auto *coeff = dynamic_cast<const ConstantCoefficient*>
+                    (diffusion->GetCoefficient());
+      diffusion_coeff = coeff ? coeff->constant : 1.0;
+   }
+   else
+   {
+      diffusion_coeff = 0.0;
+   }
+}
 
 } // namespace mfem

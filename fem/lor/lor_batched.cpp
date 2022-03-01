@@ -128,10 +128,8 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
    // We want to support the following configurations:
    // H1, ND, and RT spaces: M, A, M + K
-   if (HasIntegrator<DiffusionIntegrator>(a))
-   {
-      return true;
-   }
+   if (HasIntegrator<DiffusionIntegrator>(a)) { return true; }
+   if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a)) { return true; }
    return false;
 }
 
@@ -403,7 +401,7 @@ void BatchedLORAssembly::Assemble(OperatorHandle &A)
    A.Reset(A_mat);
 }
 
-BatchedLORAssembly::BatchedLORAssembly(BilinearForm &a_,
+BatchedLORAssembly::BatchedLORAssembly(BilinearForm &a,
                                        FiniteElementSpace &fes_ho_,
                                        const Array<int> &ess_dofs_)
    : R(fes_ho_), fes_ho(fes_ho_), ess_dofs(ess_dofs_)
@@ -414,7 +412,8 @@ void BatchedLORAssembly::Assemble(BilinearForm &a,
                                   const Array<int> &ess_dofs,
                                   OperatorHandle &A)
 {
-   if (HasIntegrator<DiffusionIntegrator>(a))
+   if (HasIntegrator<DiffusionIntegrator>(a) ||
+       HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
    {
       BatchedLORDiffusion(a, fes_ho, ess_dofs).Assemble(A);
    }

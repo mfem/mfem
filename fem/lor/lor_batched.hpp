@@ -24,6 +24,7 @@ namespace mfem
 /// LORDiscretization and ParLORDiscretization. Only certain bilinear forms are
 /// supported, currently:
 ///
+///  - H1 diffusion + mass
 ///  - H1 diffusion
 class BatchedLORAssembly
 {
@@ -51,7 +52,7 @@ protected:
    virtual void AssemblyKernel(SparseMatrix &A) = 0;
 
    /// Called by one of the specialized classes, e.g. BatchedLORDiffusion.
-   BatchedLORAssembly(BilinearForm &a_,
+   BatchedLORAssembly(BilinearForm &a,
                       FiniteElementSpace &fes_ho_,
                       const Array<int> &ess_dofs_);
 
