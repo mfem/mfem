@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -954,7 +954,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
@@ -985,8 +985,8 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
    if (Q || DQ || MQ || SMQ)
    {
-      Vector D(DQ ? coeffDim : 0);
-      DenseMatrix M;
+      Vector DM(DQ ? coeffDim : 0);
+      DenseMatrix GM;
       DenseSymmetricMatrix SM;
 
       if (DQ)
@@ -995,7 +995,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
       if (MQ)
       {
-         M.SetSize(dimc);
+         GM.SetSize(dimc);
          MFEM_VERIFY(coeffDim == MQdim, "");
          MFEM_VERIFY(MQ->GetHeight() == dimc && MQ->GetWidth() == dimc, "");
       }
@@ -1012,12 +1012,12 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
          {
             if (MQ)
             {
-               MQ->Eval(M, *tr, ir->IntPoint(p));
+               MQ->Eval(GM, *tr, ir->IntPoint(p));
 
                for (int i=0; i<dimc; ++i)
                   for (int j=0; j<dimc; ++j)
                   {
-                     coeffh(j+(i*dimc), p, e) = M(i,j);
+                     coeffh(j+(i*dimc), p, e) = GM(i,j);
                   }
 
             }
@@ -1035,10 +1035,10 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
             }
             else if (DQ)
             {
-               DQ->Eval(D, *tr, ir->IntPoint(p));
+               DQ->Eval(DM, *tr, ir->IntPoint(p));
                for (int i=0; i<coeffDim; ++i)
                {
-                  coeffh(i, p, e) = D[i];
+                  coeffh(i, p, e) = DM[i];
                }
             }
             else
@@ -1728,7 +1728,7 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
    const int s = symmetric ? 6 : 9;
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
 
@@ -2007,7 +2007,14 @@ static void SmemPACurlCurlApply3D(const int D1D,
             }
          }
       } // qz
-   }); // end of element loop
+   }; // end of element loop
+
+   auto host_kernel = [&] MFEM_LAMBDA (int)
+   {
+      MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
+   };
+
+   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
 static void PACurlL2Apply2D(const int D1D,
@@ -3992,7 +3999,7 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
       constexpr int maxCoeffDim = 3;
@@ -4253,7 +4260,14 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
             }
          }
       } // qz
-   }); // end of element loop
+   }; // end of element loop
+
+   auto host_kernel = [&] MFEM_LAMBDA (int)
+   {
+      MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
+   };
+
+   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
 // Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
@@ -5108,7 +5122,7 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
       constexpr int maxCoeffDim = 3;
@@ -5306,7 +5320,14 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
             }
          }
       } // qz
-   }); // end of element loop
+   }; // end of element loop
+
+   auto host_kernel = [&] MFEM_LAMBDA (int)
+   {
+      MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
+   };
+
+   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
 void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -789,7 +789,7 @@ private:
 protected:
    bool is_nodal;
 #ifndef MFEM_THREAD_SAFE
-   mutable DenseMatrix J, Jinv;
+   mutable DenseMatrix JtJ;
    mutable DenseMatrix curlshape, curlshape_J;
 #endif
    void SetDerivMembers();
@@ -945,13 +945,8 @@ protected:
 public:
    VectorFiniteElement (int D, Geometry::Type G, int Do, int O, int M,
                         int F = FunctionSpace::Pk) :
-#ifdef MFEM_THREAD_SAFE
       FiniteElement(D, G, Do, O, F)
    { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
-#else
-      FiniteElement(D, G, Do, O, F), Jinv(D)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
-#endif
 };
 
 

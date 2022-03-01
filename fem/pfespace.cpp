@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -3610,11 +3610,11 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
 }
 
 static void ExtractSubVector(const Array<int> &indices,
-                             const Vector &in, Vector &out)
+                             const Vector &vin, Vector &vout)
 {
-   MFEM_ASSERT(indices.Size() == out.Size(), "incompatible sizes!");
-   auto y = out.Write();
-   const auto x = in.Read();
+   MFEM_ASSERT(indices.Size() == vout.Size(), "incompatible sizes!");
+   auto y = vout.Write();
+   const auto x = vin.Read();
    const auto I = indices.Read();
    MFEM_FORALL(i, indices.Size(), y[i] = x[I[i]];); // indices can be repeated
 }
@@ -3631,12 +3631,12 @@ void DeviceConformingProlongationOperator::BcastBeginCopy(
 }
 
 static void SetSubVector(const Array<int> &indices,
-                         const Vector &in, Vector &out)
+                         const Vector &vin, Vector &vout)
 {
-   MFEM_ASSERT(indices.Size() == in.Size(), "incompatible sizes!");
+   MFEM_ASSERT(indices.Size() == vin.Size(), "incompatible sizes!");
    // Use ReadWrite() since we modify only a subset of the indices:
-   auto y = out.ReadWrite();
-   const auto x = in.Read();
+   auto y = vout.ReadWrite();
+   const auto x = vin.Read();
    const auto I = indices.Read();
    MFEM_FORALL(i, indices.Size(), y[I[i]] = x[i];);
 }
