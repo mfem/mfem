@@ -71,6 +71,8 @@ void ConvergenceStudy::AddL2Error(GridFunction *gf,
                                   Coefficient *scalar_u, VectorCoefficient *vector_u)
 {
    int tdofs=0;
+   int dim = gf->FESpace()->GetMesh()->Dimension();
+
 #ifdef MFEM_USE_MPI
    ParGridFunction *pgf = dynamic_cast<ParGridFunction *>(gf);
    if (pgf)
@@ -102,8 +104,14 @@ void ConvergenceStudy::AddL2Error(GridFunction *gf,
    }
    L2Errors.Append(L2Err);
    // Compute the rate of convergence by:
-   // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
-   double val = (counter) ? log(L2Errors[counter-1]/L2Err)/log(2.0) : 0.0;
+   // rate = log (||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h}))
+   double val=0.;
+   if (counter)
+   {
+      double num =  log(L2Errors[counter-1]/L2Err);
+      double den = log((double)ndofs[counter]/ndofs[counter-1]);
+      val = dim * num/den;
+   }
    L2Rates.Append(val);
    counter++;
 }
@@ -120,6 +128,7 @@ void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
                "This constructor is intended for H1 or L2 Elements")
 
    AddL2Error(gf,scalar_u, nullptr);
+   int dim = gf->FESpace()->GetMesh()->Dimension();
 
    if (grad)
    {
@@ -129,10 +138,17 @@ void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
          sqrt(L2Errors[counter-1]*L2Errors[counter-1]+GradErr*GradErr);
       EnErrors.Append(error);
       // Compute the rate of convergence by:
-      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
-      double val = (dcounter) ? log(DErrors[dcounter-1]/GradErr)/log(2.0) : 0.0;
-      double eval =
-         (dcounter) ? log(EnErrors[dcounter-1]/error)/log(2.0) : 0.0;
+      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h}))
+      double val = 0.;
+      double eval = 0.;
+      if (dcounter)
+      {
+         double num = log(DErrors[dcounter-1]/GradErr);
+         double den = log((double)ndofs[dcounter]/ndofs[dcounter-1]);
+         val = dim * num/den;
+         num = log(EnErrors[dcounter-1]/error);
+         eval = dim * num/den;
+      }
       DRates.Append(val);
       EnRates.Append(eval);
       CoeffDNorm = GetNorm(gf,nullptr,grad);
@@ -146,8 +162,14 @@ void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
       double DGErr = gf->ComputeDGFaceJumpError(scalar_u,ell_coeff,jump_scaling);
       DGFaceErrors.Append(DGErr);
       // Compute the rate of convergence by:
-      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
-      double val=(fcounter) ? log(DGFaceErrors[fcounter-1]/DGErr)/log(2.0):0.;
+      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h}))
+      double val = 0.;
+      if (fcounter)
+      {
+         double num = log(DGFaceErrors[fcounter-1]/DGErr);
+         double den = log((double)ndofs[fcounter]/ndofs[fcounter-1]);
+         val = dim * num/den;
+      }
       DGFaceRates.Append(val);
       fcounter++;
       MFEM_VERIFY(fcounter == counter, "Number of added solutions mismatch");
@@ -160,6 +182,7 @@ void ConvergenceStudy::AddGf(GridFunction *gf, VectorCoefficient *vector_u,
    cont_type = gf->FESpace()->FEColl()->GetContType();
 
    AddL2Error(gf,nullptr,vector_u);
+   int dim = gf->FESpace()->GetMesh()->Dimension();
    double DErr = 0.0;
    bool derivative = false;
    if (curl)
@@ -181,10 +204,17 @@ void ConvergenceStudy::AddGf(GridFunction *gf, VectorCoefficient *vector_u,
       DErrors.Append(DErr);
       EnErrors.Append(error);
       // Compute the rate of convergence by:
-      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
-      double val = (dcounter) ? log(DErrors[dcounter-1]/DErr)/log(2.0) : 0.0;
-      double eval =
-         (dcounter) ? log(EnErrors[dcounter-1]/error)/log(2.0) : 0.0;
+      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h}))
+      double val = 0.;
+      double eval = 0.;
+      if (dcounter)
+      {
+         double num = log(DErrors[dcounter-1]/DErr);
+         double den = log((double)ndofs[dcounter]/ndofs[dcounter-1]);
+         val = dim * num/den;
+         num = log(EnErrors[dcounter-1]/error);
+         eval = dim * num/den;
+      }
       DRates.Append(val);
       EnRates.Append(eval);
       dcounter++;
