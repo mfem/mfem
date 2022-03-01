@@ -2018,7 +2018,6 @@ static void PACurlL2Apply2D(const int D1D,
                             const Array<double> &bot,
                             const Array<double> &bt,
                             const Array<double> &gc,
-                            const Array<double> &gct,
                             const Vector &pa_data,
                             const Vector &x, // trial = H(curl)
                             Vector &y)  // test = L2 or H1
@@ -2122,6 +2121,118 @@ static void PACurlL2Apply2D(const int D1D,
                Y(dx,dy,e) += sol_x[dx] * wy;
             }
          }
+      }  // loop qy
+   }); // end of element loop
+}
+
+static void PACurlL2ApplyTranspose2D(const int D1D,
+                                     const int D1Dtest,
+                                     const int Q1D,
+                                     const int NE,
+                                     const Array<double> &bo,
+                                     const Array<double> &bot,
+                                     const Array<double> &b,
+                                     const Array<double> &gct,
+                                     const Vector &pa_data,
+                                     const Vector &x, // trial = H(curl)
+                                     Vector &y)  // test = L2 or H1
+{
+   constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+   const int H1 = (D1Dtest == D1D);
+
+   MFEM_VERIFY(x.Size() == NE*D1Dtest*D1Dtest, "Test vector of wrong dimension");
+
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Gct = Reshape(gct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), D1Dtest, D1Dtest, NE);
+   auto Y = Reshape(y.ReadWrite(), 2*(D1D-1)*D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double mass[MAX_Q1D][MAX_Q1D];
+
+      // Zero-order term in L2 or H1 test space
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            mass[qy][qx] = 0.0;
+         }
+      }
+
+      for (int dy = 0; dy < D1Dtest; ++dy)
+      {
+         double sol_x[MAX_Q1D];
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            sol_x[qy] = 0.0;
+         }
+         for (int dx = 0; dx < D1Dtest; ++dx)
+         {
+            const double s = X(dx,dy,e);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               sol_x[qx] += s * ((H1 == 1) ? B(qx,dx) : Bo(qx,dx));
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            const double d2q = (H1 == 1) ? B(qy,dy) : Bo(qy,dy);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               mass[qy][qx] += d2q * sol_x[qx];
+            }
+         }
+      }
+
+      // Apply D operator.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            mass[qy][qx] *= op(qx,qy,e);
+         }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         int osc = 0;
+
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+         {
+            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+            double gradX[MAX_D1D];
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               gradX[dx] = 0.0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  gradX[dx] += mass[qy][qx] * ((c == 0) ? Bot(dx,qx) : Gct(dx,qx));
+               }
+            }
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               const double wy = (c == 0) ? -Gct(dy,qy) : Bot(dy,qy);
+
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  Y(dx + (dy * D1Dx) + osc, e) += gradX[dx] * wy;
+               }
+            }
+
+            osc += D1Dx * D1Dy;
+         }  // loop c
       }  // loop qy
    }); // end of element loop
 }
@@ -3065,8 +3176,22 @@ void MixedScalarCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (dim == 2)
    {
-      PACurlL2Apply2D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B, mapsO->Bt, mapsC->Bt,
-                      mapsC->G, mapsC->Gt, pa_data, x, y);
+      PACurlL2Apply2D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B, mapsO->Bt,
+                      mapsC->Bt, mapsC->G, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void MixedScalarCurlIntegrator::AddMultTransposePA(const Vector &x,
+                                                   Vector &y) const
+{
+   if (dim == 2)
+   {
+      PACurlL2ApplyTranspose2D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B, mapsO->Bt,
+                               mapsC->B, mapsC->Gt, pa_data, x, y);
    }
    else
    {
