@@ -126,6 +126,7 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
 
 bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
+   // TODO: check for maximum supported orders
    // We want to support the following configurations:
    // H1, ND, and RT spaces: M, A, M + K
    if (HasIntegrator<DiffusionIntegrator>(a)) { return true; }

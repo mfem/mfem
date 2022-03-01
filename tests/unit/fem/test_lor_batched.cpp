@@ -11,10 +11,13 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+#include <unordered_map>
 
 using namespace mfem;
 
-void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2)
+void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
+                      int *cmap1=nullptr,
+                      std::unordered_map<int,int> *cmap2inv=nullptr)
 {
    REQUIRE(A1.Height() == A2.Height());
    int n = A1.Height();
@@ -30,6 +33,17 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2)
       for (int jj=I1[i]; jj<I1[i+1]; ++jj)
       {
          int j = J1[jj];
+         if (cmap1)
+         {
+            if (cmap2inv->count(cmap1[j]) > 0)
+            {
+               j = (*cmap2inv)[cmap1[j]];
+            }
+            else
+            {
+               continue;
+            }
+         }
          error = std::max(error, std::fabs(V1[jj] - A2(i,j)));
       }
    }
@@ -39,19 +53,29 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2)
 
 void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
 {
-   HYPRE_BigInt *cmap;
+   HYPRE_BigInt *cmap1, *cmap2;
    SparseMatrix diag1, offd1, diag2, offd2;
 
    A1.GetDiag(diag1);
    A2.GetDiag(diag2);
-   A1.GetOffd(offd1, cmap);
-   A2.GetOffd(offd2, cmap);
+   A1.GetOffd(offd1, cmap1);
+   A2.GetOffd(offd2, cmap2);
 
    TestSameMatrices(diag1, diag2);
-   TestSameMatrices(offd1, diag2);
+
+   if (cmap1)
+   {
+      std::unordered_map<int,int> cmap2inv;
+      for (int i=0; i<offd2.Width(); ++i) { cmap2inv[cmap2[i]] = i; }
+      TestSameMatrices(offd1, offd2, cmap1, &cmap2inv);
+   }
+   else
+   {
+      TestSameMatrices(offd1, offd2);
+   }
 }
 
-TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR]")
+TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
 {
    auto mesh_fname = GENERATE(
                         "../../data/star-q3.mesh",
@@ -91,7 +115,7 @@ TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR]")
    TestSameMatrices(A2, A1);
 }
 
-TEST_CASE("Parallel LOR Batched Diffusion", "[LOR][BatchedLOR][Parallel]")
+TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
 {
    auto mesh_fname = GENERATE(
                         "../../data/star-q3.mesh",
