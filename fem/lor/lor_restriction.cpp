@@ -17,6 +17,15 @@
 namespace mfem
 {
 
+const Array<int> &GetDofMap(const FiniteElement *fe)
+{
+   const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_VERIFY(tfe != NULL, "!TensorBasisElement");
+   const Array<int> &dof_map = tfe->GetDofMap();
+   MFEM_VERIFY(dof_map.Size() > 0, "Invalid DOF map.");
+   return dof_map;
+}
+
 int LORRestriction::GetNRefinedElements(const FiniteElementSpace &fes)
 {
    int ref = fes.GetMaxElementOrder();
@@ -24,7 +33,7 @@ int LORRestriction::GetNRefinedElements(const FiniteElementSpace &fes)
    return pow(ref, dim);
 }
 
-FiniteElementCollection *LORRestriction::GetLowOrderFEC(
+FiniteElementCollection *LORRestriction::MakeLowOrderFEC(
    const FiniteElementSpace &fes)
 {
    return fes.FEColl()->Clone(1);
@@ -32,22 +41,18 @@ FiniteElementCollection *LORRestriction::GetLowOrderFEC(
 
 LORRestriction::LORRestriction(const FiniteElementSpace &fes_ho)
    : fes_ho(fes_ho),
-     fec_lo(GetLowOrderFEC(fes_ho)),
+     fec_lo(MakeLowOrderFEC(fes_ho)),
      geom(fes_ho.GetMesh()->GetElementGeometry(0)),
+     order(fes_ho.GetMaxElementOrder()),
      ne_ref(GetNRefinedElements(fes_ho)),
      ne(fes_ho.GetNE()*ne_ref),
      vdim(fes_ho.GetVDim()),
      byvdim(fes_ho.GetOrdering() == Ordering::byVDIM),
      ndofs(fes_ho.GetNDofs()),
-     dof(fec_lo->GetFE(geom, 1)->GetDof()),
-
+     lo_dof_per_el(fec_lo->GetFE(geom, 1)->GetDof()),
      offsets(ndofs+1),
-     indices(ne*dof),
-     gatherMap(ne*dof),
-
-     dof_glob2loc(),
-     dof_glob2loc_offsets(),
-     el_dof_lex()
+     indices(ne*lo_dof_per_el),
+     gatherMap(ne*lo_dof_per_el)
 {
    SetupLocalToElement();
    SetupGlobalToLocal();
@@ -55,30 +60,19 @@ LORRestriction::LORRestriction(const FiniteElementSpace &fes_ho)
 
 void LORRestriction::SetupLocalToElement()
 {
-   MFEM_VERIFY(ne>0, "ne==0 not supported");
-   const FiniteElement *fe = fec_lo->GetFE(geom, 1);
-   const TensorBasisElement* el =
-      dynamic_cast<const TensorBasisElement*>(fe);
-   MFEM_VERIFY(el, "!TensorBasisElement");
+   const Array<int> &fe_dof_map = GetDofMap(fec_lo->GetFE(geom, 1));
+   const Array<int> &fe_dof_map_ho = GetDofMap(fes_ho.GetFE(0));
 
-   const Array<int> &fe_dof_map = el->GetDofMap();
-   MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
-
-   const FiniteElement *fe_ho = fes_ho.GetFE(0);
-   const TensorBasisElement* tel_ho =
-      dynamic_cast<const TensorBasisElement*>(fe_ho);
-   MFEM_VERIFY(tel_ho, "!TensorBasisElement");
-   const Array<int> &fe_dof_map_ho = tel_ho->GetDofMap();
-
-   int order = fes_ho.GetMaxElementOrder();
+   // Form local_dof_map, which maps from the vertex of a LO element to the
+   // vertex in the macro element
    RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, order);
-   Array<int> local_dof_map(dof*ne_ref);
+   Array<int> local_dof_map(lo_dof_per_el*ne_ref);
    for (int ie_lo = 0; ie_lo < ne_ref; ++ie_lo)
    {
-      for (int i = 0; i < dof; ++i)
+      for (int i = 0; i < lo_dof_per_el; ++i)
       {
-         int cart_idx = RG.RefGeoms[i + dof*ie_lo]; // local Cartesian index
-         local_dof_map[i + dof*ie_lo] = fe_dof_map_ho[cart_idx];
+         int cart_idx = RG.RefGeoms[i + lo_dof_per_el*ie_lo]; // local Cartesian index
+         local_dof_map[i + lo_dof_per_el*ie_lo] = fe_dof_map_ho[cart_idx];
       }
    }
 
@@ -90,10 +84,10 @@ void LORRestriction::SetupLocalToElement()
 
    const Memory<int> &J = e2dTable_ho.GetJMemory();
    const MemoryClass mc = Device::GetDeviceMemoryClass();
-   const int *d_elementMap = J.Read(mc, J.Capacity());
+   const int *d_element_map = J.Read(mc, J.Capacity());
    const int *d_local_dof_map = local_dof_map.Read();
-   const int DOF = dof;
-   const int DOF_ho = fe_ho->GetDof();
+   const int DOF = lo_dof_per_el;
+   const int DOF_ho = fes_ho.GetFE(0)->GetDof();
    const int NE = ne;
    const int NR_REF = ne_ref;
 
@@ -104,7 +98,7 @@ void LORRestriction::SetupLocalToElement()
       for (int d = 0; d < DOF; ++d)
       {
          const int d_ho = d_local_dof_map[d + i_ref*DOF];
-         const int sgid = d_elementMap[DOF_ho*e_ho + d_ho];  // signed
+         const int sgid = d_element_map[DOF_ho*e_ho + d_ho];  // signed
          const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          AtomicAdd(d_offsets[gid+1], 1);
       }
@@ -129,8 +123,7 @@ void LORRestriction::SetupLocalToElement()
       {
          int d_ho = d_local_dof_map[d + i_ref*DOF];
          const int sdid = d_dof_map[d];  // signed
-         // const int did = d;
-         const int sgid = d_elementMap[DOF_ho*e_ho + d_ho];  // signed
+         const int sgid = d_element_map[DOF_ho*e_ho + d_ho];  // signed
          const int gid = (sgid >= 0) ? sgid : -1-sgid;
          const int lid = DOF*e + d;
          const bool plus = (sgid >= 0 && sdid >= 0) || (sgid < 0 && sdid < 0);
@@ -150,19 +143,22 @@ void LORRestriction::SetupGlobalToLocal()
    const int nel_ho = fes_ho.GetMesh()->GetNE();
    const int order = fes_ho.GetMaxElementOrder();
    const int dim = fes_ho.GetMesh()->Dimension();
-   MFEM_VERIFY(dim==3, "Not supported");
    const int nd1d = order + 1;
-   const int ndof_per_el = nd1d*nd1d*nd1d;
+   const int ndof_per_el = pow(nd1d, dim);
 
+   // Creates the mapping array, dof_glob2loc, which together with
+   // dof_glob2loc_offsets maps from global DOF numbers to (element, local DOF)
+   // pairs. For a given global DOF i, dof_glob2loc_offsets[i] and
+   // dof_glob2loc_offsets[i+1] define a range of pairs of values in
+   // dof_glob2loc that map to element indices and lexicographically ordered
+   // local DOF numbers.
    dof_glob2loc.SetSize(2*ndof_per_el*nel_ho);
    dof_glob2loc_offsets.SetSize(ndof+1);
+   // el_dof_lex maps from (element, local DOF idx) to global DOF idx, where
+   // the local DOF indices are ordered lexicographically
    el_dof_lex.SetSize(ndof_per_el*nel_ho);
 
-   Array<int> dofs;
-
-   const Array<int> &lex_map =
-      dynamic_cast<const NodalFiniteElement&>
-      (*fes_ho.GetFE(0)).GetLexicographicOrdering();
+   const Array<int> &lex_map = GetDofMap(fes_ho.GetFE(0));
 
    dof_glob2loc_offsets = 0;
    const Memory<int> &I = fes_ho.GetElementToDofTable().GetIMemory();
@@ -170,6 +166,7 @@ void LORRestriction::SetupGlobalToLocal()
    I.Read(MemoryClass::HOST, I.Capacity());
    J.Read(MemoryClass::HOST, J.Capacity());
 
+   Array<int> dofs;
    for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
    {
       fes_ho.GetElementDofs(iel_ho, dofs);
@@ -228,8 +225,8 @@ int LORRestriction::FillI(SparseMatrix &mat) const
    static constexpr int Max = 16;
    const int all_dofs = ndofs;
    const int vd = vdim;
-   const int elt_dofs = dof;
-   auto I = mat.ReadWriteI();
+   const int elt_dofs = lo_dof_per_el;
+   auto I = mat.WriteI();
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_gatherMap = gatherMap.Read();
@@ -298,7 +295,7 @@ void LORRestriction::FillJAndZeroData(SparseMatrix &mat) const
    static constexpr int Max = 8;
    const int all_dofs = ndofs;
    const int vd = vdim;
-   const int elt_dofs = dof;
+   const int elt_dofs = lo_dof_per_el;
    auto I = mat.ReadWriteI();
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();

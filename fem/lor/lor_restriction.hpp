@@ -24,12 +24,13 @@ class LORRestriction
    const FiniteElementSpace &fes_ho;
    FiniteElementCollection *fec_lo;
    const Geometry::Type geom;
+   const int order;
    const int ne_ref;
    const int ne;
    const int vdim;
    const bool byvdim;
    const int ndofs;
-   const int dof;
+   const int lo_dof_per_el;
 
    Array<int> offsets;
    Array<int> indices;
@@ -41,14 +42,16 @@ class LORRestriction
 
 protected:
    static int GetNRefinedElements(const FiniteElementSpace &fes);
-   static FiniteElementCollection *GetLowOrderFEC(const FiniteElementSpace &fes);
+   static FiniteElementCollection *MakeLowOrderFEC(const FiniteElementSpace &fes);
 
 public:
    LORRestriction(const FiniteElementSpace &fes_ho);
 
    int FillI(SparseMatrix &mat) const;
+   // TODO: Really should make a better version with Fill Data
    void FillJAndZeroData(SparseMatrix &mat) const;
 
+   // TODO: Rename these! Confusing!
    const Array<int> &GatherMap() const { return el_dof_lex; }
    const Array<int> &Indices() const { return dof_glob2loc; }
    const Array<int> &Offsets() const { return dof_glob2loc_offsets; }
