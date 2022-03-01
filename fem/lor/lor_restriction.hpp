@@ -36,10 +36,6 @@ class LORRestriction
    Array<int> indices;
    Array<int> gatherMap;
 
-   Array<int> dof_glob2loc;
-   Array<int> dof_glob2loc_offsets;
-   Array<int> el_dof_lex;
-
 protected:
    static int GetNRefinedElements(const FiniteElementSpace &fes);
    static FiniteElementCollection *MakeLowOrderFEC(const FiniteElementSpace &fes);
@@ -51,17 +47,7 @@ public:
    // TODO: Really should make a better version with Fill Data
    void FillJAndZeroData(SparseMatrix &mat) const;
 
-   // TODO: Rename these! Confusing!
-   const Array<int> &GatherMap() const { return el_dof_lex; }
-   const Array<int> &Indices() const { return dof_glob2loc; }
-   const Array<int> &Offsets() const { return dof_glob2loc_offsets; }
-
    ~LORRestriction();
-
-   // Device lambda cannot have private or protected access
-public:
-   void SetupLocalToElement();
-   void SetupGlobalToLocal();
 };
 
 } // namespace mfem

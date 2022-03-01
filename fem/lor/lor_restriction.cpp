@@ -54,12 +54,6 @@ LORRestriction::LORRestriction(const FiniteElementSpace &fes_ho)
      indices(ne*lo_dof_per_el),
      gatherMap(ne*lo_dof_per_el)
 {
-   SetupLocalToElement();
-   SetupGlobalToLocal();
-}
-
-void LORRestriction::SetupLocalToElement()
-{
    const Array<int> &fe_dof_map = GetDofMap(fec_lo->GetFE(geom, 1));
    const Array<int> &fe_dof_map_ho = GetDofMap(fes_ho.GetFE(0));
 
@@ -135,68 +129,6 @@ void LORRestriction::SetupLocalToElement()
    offsets.HostReadWrite();
    for (int i = ndofs; i > 0; --i) { offsets[i] = offsets[i - 1]; }
    offsets[0] = 0;
-}
-
-void LORRestriction::SetupGlobalToLocal()
-{
-   const int ndof = fes_ho.GetVSize();
-   const int nel_ho = fes_ho.GetMesh()->GetNE();
-   const int order = fes_ho.GetMaxElementOrder();
-   const int dim = fes_ho.GetMesh()->Dimension();
-   const int nd1d = order + 1;
-   const int ndof_per_el = pow(nd1d, dim);
-
-   // Creates the mapping array, dof_glob2loc, which together with
-   // dof_glob2loc_offsets maps from global DOF numbers to (element, local DOF)
-   // pairs. For a given global DOF i, dof_glob2loc_offsets[i] and
-   // dof_glob2loc_offsets[i+1] define a range of pairs of values in
-   // dof_glob2loc that map to element indices and lexicographically ordered
-   // local DOF numbers.
-   dof_glob2loc.SetSize(2*ndof_per_el*nel_ho);
-   dof_glob2loc_offsets.SetSize(ndof+1);
-   // el_dof_lex maps from (element, local DOF idx) to global DOF idx, where
-   // the local DOF indices are ordered lexicographically
-   el_dof_lex.SetSize(ndof_per_el*nel_ho);
-
-   const Array<int> &lex_map = GetDofMap(fes_ho.GetFE(0));
-
-   dof_glob2loc_offsets = 0;
-   const Memory<int> &I = fes_ho.GetElementToDofTable().GetIMemory();
-   const Memory<int> &J = fes_ho.GetElementToDofTable().GetJMemory();
-   I.Read(MemoryClass::HOST, I.Capacity());
-   J.Read(MemoryClass::HOST, J.Capacity());
-
-   Array<int> dofs;
-   for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
-   {
-      fes_ho.GetElementDofs(iel_ho, dofs);
-      for (int i=0; i<ndof_per_el; ++i)
-      {
-         const int dof = dofs[lex_map[i]];
-         el_dof_lex[i + iel_ho*ndof_per_el] = dof;
-         dof_glob2loc_offsets[dof+1] += 2;
-      }
-   }
-
-   dof_glob2loc_offsets.PartialSum();
-
-   // Sanity check
-   MFEM_VERIFY(dof_glob2loc_offsets[ndof] == dof_glob2loc.Size(), "");
-
-   Array<int> dof_ptr(ndof);
-
-   for (int i=0; i<ndof; ++i) { dof_ptr[i] = dof_glob2loc_offsets[i]; }
-
-   for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
-   {
-      fes_ho.GetElementDofs(iel_ho, dofs);
-      for (int i=0; i<ndof_per_el; ++i)
-      {
-         const int dof = dofs[lex_map[i]];
-         dof_glob2loc[dof_ptr[dof]++] = iel_ho;
-         dof_glob2loc[dof_ptr[dof]++] = i;
-      }
-   }
 }
 
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
