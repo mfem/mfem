@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int num_refs = 3;
    bool visualization = true;
    double alpha = 0.5;
 
@@ -67,6 +68,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&num_refs, "-r", "--refs",
+                  "Number of uniform refinements");
    args.AddOption(&alpha, "-alpha", "--alpha",
                   "Fractional exponent");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -90,9 +93,10 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
 
    // 4. Refine the mesh to increase the resolution.
-   mesh.UniformRefinement();
-   mesh.UniformRefinement();
-   mesh.UniformRefinement();
+   for (int i = 0; i < num_refs; i++)
+   {
+      mesh.UniformRefinement();
+   }
 
    // 5. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
