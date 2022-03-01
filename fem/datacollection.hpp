@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -381,7 +381,7 @@ public:
    /// Get the current error state
    int Error() const { return error; }
    /// Reset the error state
-   void ResetError(int err = NO_ERROR) { error = err; }
+   void ResetError(int err_state = NO_ERROR) { error = err_state; }
 
 #ifdef MFEM_USE_MPI
    friend class ParMesh;

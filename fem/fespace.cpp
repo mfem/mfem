@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1573,6 +1573,14 @@ void FiniteElementSpace::RefinementOperator
          old_DoFTrans[Geometry::TETRAHEDRON] =
             new ND_TetDofTransformation(nd_tet->GetOrder());
       }
+
+      const FiniteElement * nd_pri =
+         fec_ref->FiniteElementForGeometry(Geometry::PRISM);
+      if (nd_pri)
+      {
+         old_DoFTrans[Geometry::PRISM] =
+            new ND_WedgeDofTransformation(nd_pri->GetOrder());
+      }
    }
 }
 
@@ -2208,6 +2216,14 @@ void FiniteElementSpace::ConstructDoFTrans()
       {
          DoFTrans[Geometry::TETRAHEDRON] =
             new ND_TetDofTransformation(nd_tet->GetOrder());
+      }
+
+      const FiniteElement * nd_pri =
+         fec->FiniteElementForGeometry(Geometry::PRISM);
+      if (nd_pri)
+      {
+         DoFTrans[Geometry::PRISM] =
+            new ND_WedgeDofTransformation(nd_pri->GetOrder());
       }
    }
 }
@@ -3427,7 +3443,7 @@ void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
    mesh = new_mesh;
 }
 
-void FiniteElementSpace::Save(std::ostream &out) const
+void FiniteElementSpace::Save(std::ostream &os) const
 {
    int fes_format = 90; // the original format, v0.9
    bool nurbs_unit_weights = false;
@@ -3454,11 +3470,11 @@ void FiniteElementSpace::Save(std::ostream &out) const
       }
    }
 
-   out << (fes_format == 90 ?
-           "FiniteElementSpace\n" : "MFEM FiniteElementSpace v1.0\n")
-       << "FiniteElementCollection: " << fec->Name() << '\n'
-       << "VDim: " << vdim << '\n'
-       << "Ordering: " << ordering << '\n';
+   os << (fes_format == 90 ?
+          "FiniteElementSpace\n" : "MFEM FiniteElementSpace v1.0\n")
+      << "FiniteElementCollection: " << fec->Name() << '\n'
+      << "VDim: " << vdim << '\n'
+      << "Ordering: " << ordering << '\n';
 
    if (fes_format == 100) // v1.0
    {
@@ -3470,29 +3486,29 @@ void FiniteElementSpace::Save(std::ostream &out) const
       {
          if (NURBSext->GetOrder() != NURBSFECollection::VariableOrder)
          {
-            out << "NURBS_order\n" << NURBSext->GetOrder() << '\n';
+            os << "NURBS_order\n" << NURBSext->GetOrder() << '\n';
          }
          else
          {
-            out << "NURBS_orders\n";
+            os << "NURBS_orders\n";
             // 1 = do not write the size, just the entries:
-            NURBSext->GetOrders().Save(out, 1);
+            NURBSext->GetOrders().Save(os, 1);
          }
          // If periodic BCs are given, write connectivity
          if (NURBSext->GetMaster().Size() != 0 )
          {
-            out <<"NURBS_periodic\n";
-            NURBSext->GetMaster().Save(out);
-            NURBSext->GetSlave().Save(out);
+            os <<"NURBS_periodic\n";
+            NURBSext->GetMaster().Save(os);
+            NURBSext->GetSlave().Save(os);
          }
          // If the weights are not unit, write them to the output:
          if (!nurbs_unit_weights)
          {
-            out << "NURBS_weights\n";
-            NURBSext->GetWeights().Print(out, 1);
+            os << "NURBS_weights\n";
+            NURBSext->GetWeights().Print(os, 1);
          }
       }
-      out << "End: MFEM FiniteElementSpace v1.0\n";
+      os << "End: MFEM FiniteElementSpace v1.0\n";
    }
 }
 
@@ -3644,11 +3660,11 @@ QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
    Construct();
 }
 
-void QuadratureSpace::Save(std::ostream &out) const
+void QuadratureSpace::Save(std::ostream &os) const
 {
-   out << "QuadratureSpace\n"
-       << "Type: default_quadrature\n"
-       << "Order: " << order << '\n';
+   os << "QuadratureSpace\n"
+      << "Type: default_quadrature\n"
+      << "Order: " << order << '\n';
 }
 
 } // namespace mfem
