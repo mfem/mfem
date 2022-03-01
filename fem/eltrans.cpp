@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,6 +41,17 @@ const DenseMatrix &ElementTransformation::EvalAdjugateJ()
    if (dFdx.Width() > 0) { CalcAdjugate(dFdx, adjJ); }
    EvalState |= ADJUGATE_MASK;
    return adjJ;
+}
+
+const DenseMatrix &ElementTransformation::EvalTransAdjugateJ()
+{
+   MFEM_ASSERT((EvalState & TRANS_ADJUGATE_MASK) == 0, "");
+   Jacobian();
+   adjJT.SetSize(dFdx.Height(), dFdx.Width());
+   if (dFdx.Width() == dFdx.Height()) { CalcAdjugateTranspose(dFdx, adjJT); }
+   else { AdjugateJacobian(); adjJT.Transpose(adjJ); }
+   EvalState |= TRANS_ADJUGATE_MASK;
+   return adjJT;
 }
 
 const DenseMatrix &ElementTransformation::EvalInverseJ()
