@@ -639,7 +639,7 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   ```
 - [ ] Create the release tarball and push to `mfem/releases`.
 - [ ] Recreate the `next` branch as described in previous section.
-- [ ] Update and push documentation  to `mfem/doxygen`.
+- [ ] Update and push documentation to `mfem/doxygen`. Update `README.md` in the doxygen repo to documentation history of previous versions.
 - [ ] Update URL shortlinks:
     - [ ] Create a shortlink at [http://bit.ly/](http://bit.ly/) for the release tarball, e.g. https://mfem.github.io/releases/mfem-3.1.tgz.
     - [ ] (LLNL only) Add and commit the new shortlink in the `links` and `links-mfem` files of the internal `mfem/downloads` repo.
