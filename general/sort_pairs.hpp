@@ -28,7 +28,7 @@ public:
 
    Pair() = default;
 
-   Pair(const A &one, const B &two) : one(one), two(two) {}
+   Pair(const A &one_, const B &two_) : one(one_), two(two_) {}
 };
 
 /// @brief Comparison operator for class Pair, based on the first element only.
@@ -63,8 +63,8 @@ public:
 
    Triple() = default;
 
-   Triple(const A &one, const B &two, const C &three)
-      : one(one), two(two), three(three) { }
+   Triple(const A &one_, const B &two_, const C &three_)
+      : one(one_), two(two_), three(three_) { }
 };
 
 /// @brief Lexicographic comparison operator for class Triple.

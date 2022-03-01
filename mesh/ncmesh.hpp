@@ -61,8 +61,9 @@ struct Embedding
    unsigned ghost : 1;
 
    Embedding() = default;
-   Embedding(int elem, Geometry::Type geom, int matrix = 0, bool ghost = false)
-      : parent(elem), geom(geom), matrix(matrix), ghost(ghost) {}
+   Embedding(int elem, Geometry::Type geom_,
+             int matrix_ = 0, bool ghost_ = false)
+      : parent(elem), geom(geom_), matrix(matrix_), ghost(ghost_) {}
 };
 
 
@@ -191,8 +192,8 @@ public:
       Geometry::Type Geom() const { return Geometry::Type(geom); }
 
       MeshId() = default;
-      MeshId(int index, int element, int local, int geom = -1)
-         : index(index), element(element), local(local), geom(geom) {}
+      MeshId(int index_, int element_, int local_, int geom_ = -1)
+         : index(index_), element(element_), local(local_), geom(geom_) {}
    };
 
    /** Nonconforming edge/face that has more than one neighbor. The neighbors
@@ -202,8 +203,8 @@ public:
       int slaves_begin, slaves_end; ///< slave faces
 
       Master() = default;
-      Master(int index, int element, int local, int geom, int sb, int se)
-         : MeshId(index, element, local, geom)
+      Master(int index_, int element_, int local_, int geom_, int sb, int se)
+         : MeshId(index_, element_, local_, geom_)
          , slaves_begin(sb), slaves_end(se) {}
    };
 
@@ -215,8 +216,8 @@ public:
       unsigned edge_flags : 8; ///< orientation flags, see OrientedPointMatrix
 
       Slave() = default;
-      Slave(int index, int element, int local, int geom)
-         : MeshId(index, element, local, geom)
+      Slave(int index_, int element_, int local_, int geom_)
+         : MeshId(index_, element_, local_, geom_)
          , master(-1), matrix(0), edge_flags(0) {}
    };
 

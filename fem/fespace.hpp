@@ -412,19 +412,19 @@ public:
    FiniteElementSpace(const FiniteElementSpace &orig, Mesh *mesh = NULL,
                       const FiniteElementCollection *fec = NULL);
 
-   FiniteElementSpace(Mesh *mesh,
-                      const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES)
-   { Constructor(mesh, NULL, fec, vdim, ordering); }
+   FiniteElementSpace(Mesh *mesh_,
+                      const FiniteElementCollection *fec_,
+                      int vdim_ = 1, int ordering_ = Ordering::byNODES)
+   { Constructor(mesh_, NULL, fec_, vdim_, ordering_); }
 
    /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
    /** @note If the pointer @a ext is NULL, this constructor is equivalent to
        the standard constructor with the same arguments minus the
        NURBSExtension, @a ext. */
-   FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
-                      const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES)
-   { Constructor(mesh, ext, fec, vdim, ordering); }
+   FiniteElementSpace(Mesh *mesh_, NURBSExtension *ext,
+                      const FiniteElementCollection *fec_,
+                      int vdim_ = 1, int ordering_ = Ordering::byNODES)
+   { Constructor(mesh_, ext, fec_, vdim_, ordering_); }
 
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }

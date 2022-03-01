@@ -565,8 +565,8 @@ struct InterpConfig
    InterpConfig() = default;
 
    // Non-conforming face
-   InterpConfig(int master_side, int nc_index)
-      : is_non_conforming(1), master_side(master_side), index(nc_index)
+   InterpConfig(int master_side_, int nc_index)
+      : is_non_conforming(1), master_side(master_side_), index(nc_index)
    { }
 
    InterpConfig(const InterpConfig&) = default;

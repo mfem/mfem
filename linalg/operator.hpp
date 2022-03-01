@@ -504,9 +504,9 @@ public:
       \param[in] t Starting time to set
       \param[in] type The TimeDependentOperator type
    */
-   TimeDependentAdjointOperator(int dim, int adjdim, double t = 0.,
-                                Type type = EXPLICIT) :
-      TimeDependentOperator(dim, t, type),
+   TimeDependentAdjointOperator(int dim, int adjdim, double t_ = 0.,
+                                Type type_ = EXPLICIT) :
+      TimeDependentOperator(dim, t_, type_),
       adjoint_height(adjdim)
    {}
 
@@ -546,7 +546,7 @@ public:
    /** @brief Setup the ODE linear system \f$ A(x,t) = (I - gamma J) \f$ or
        \f$ A = (M - gamma J) \f$, where \f$ J(x,t) = \frac{df}{dt(x,t)} \f$.
 
-       @param[in]  t     The current time
+       @param[in]  t_    The current time
        @param[in]  x     The state at which \f$A(x,xB,t)\f$ should be evaluated.
        @param[in]  xB    The state at which \f$A(x,xB,t)\f$ should be evaluated.
        @param[in]  fxB   The current value of the ODE rhs function, \f$f(x,t)\f$.
@@ -559,7 +559,7 @@ public:
        Presently, this method is used by SUNDIALS ODE solvers, for more details,
        see the SUNDIALS User Guides.
    */
-   virtual int SUNImplicitSetupB(const double t, const Vector &x,
+   virtual int SUNImplicitSetupB(const double t_, const Vector &x,
                                  const Vector &xB, const Vector &fxB,
                                  int jokB, int *jcurB, double gammaB)
    {

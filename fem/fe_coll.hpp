@@ -256,8 +256,8 @@ public:
 class H1Pos_FECollection : public H1_FECollection
 {
 public:
-   explicit H1Pos_FECollection(const int p, const int dim = 3)
-      : H1_FECollection(p, dim, BasisType::Positive) { }
+   explicit H1Pos_FECollection(const int p, const int dim_ = 3)
+      : H1_FECollection(p, dim_, BasisType::Positive) { }
 };
 
 
@@ -266,8 +266,8 @@ public:
 class H1Ser_FECollection : public H1_FECollection
 {
 public:
-   explicit H1Ser_FECollection(const int p, const int dim = 2)
-      : H1_FECollection(p, dim, BasisType::Serendipity) { };
+   explicit H1Ser_FECollection(const int p, const int dim_ = 2)
+      : H1_FECollection(p, dim_, BasisType::Serendipity) { };
 };
 
 /** @brief Arbitrary order "H^{1/2}-conforming" trace finite elements defined on

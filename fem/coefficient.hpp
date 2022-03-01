@@ -1313,10 +1313,10 @@ public:
    /** \param dim - the size of the matrix
        \param F - time-independent function
        \param q - optional scalar Coefficient to scale the matrix coefficient */
-   SymmetricMatrixFunctionCoefficient(int dim,
+   SymmetricMatrixFunctionCoefficient(int dim_,
                                       std::function<void(const Vector &, DenseSymmetricMatrix &)> F,
                                       Coefficient *q = nullptr)
-      : SymmetricMatrixCoefficient(dim), Function(std::move(F)), Q(q), mat(0)
+      : SymmetricMatrixCoefficient(dim_), Function(std::move(F)), Q(q), mat(0)
    { }
 
    /// Define a constant matrix coefficient times a scalar Coefficient
@@ -1331,10 +1331,10 @@ public:
    /** \param dim - the size of the matrix
        \param TDF - time-dependent function
        \param q - optional scalar Coefficient to scale the matrix coefficient */
-   SymmetricMatrixFunctionCoefficient(int dim,
+   SymmetricMatrixFunctionCoefficient(int dim_,
                                       std::function<void(const Vector &, double, DenseSymmetricMatrix &)> TDF,
                                       Coefficient *q = nullptr)
-      : SymmetricMatrixCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
+      : SymmetricMatrixCoefficient(dim_), TDFunction(std::move(TDF)), Q(q)
    { }
 
    /// Set the time for internally stored coefficients
