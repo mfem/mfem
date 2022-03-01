@@ -249,6 +249,7 @@ public:
    ~AdamsBashforthSolver()
    {
       if (RKsolver) { delete RKsolver; }
+      delete k;
    }
 };
 
