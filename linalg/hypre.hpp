@@ -1056,7 +1056,7 @@ class HypreTriSolve : public HypreSolver
 {
 public:
    HypreTriSolve() : HypreSolver() { }
-   explicit HypreTriSolve(const HypreParMatrix &A) : HypreSolver(&A) { }
+   explicit HypreTriSolve(const HypreParMatrix &A_) : HypreSolver(&A_) { }
    virtual operator HYPRE_Solver() const { return NULL; }
 
    virtual HYPRE_PtrToParSolverFcn SetupFcn() const
@@ -1253,7 +1253,7 @@ class HypreDiagScale : public HypreSolver
 {
 public:
    HypreDiagScale() : HypreSolver() { }
-   explicit HypreDiagScale(const HypreParMatrix &A) : HypreSolver(&A) { }
+   explicit HypreDiagScale(const HypreParMatrix &A_) : HypreSolver(&A_) { }
    virtual operator HYPRE_Solver() const { return NULL; }
 
    virtual void SetOperator(const Operator &op);

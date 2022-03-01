@@ -257,10 +257,10 @@ protected:
 class EliminationCGSolver : public EliminationSolver
 {
 public:
-   EliminationCGSolver(HypreParMatrix& A, SparseMatrix& B,
+   EliminationCGSolver(HypreParMatrix& A_, SparseMatrix& B_,
                        Array<int>& constraint_rowstarts,
                        int dimension_=0, bool reorder_=false) :
-      EliminationSolver(A, B, constraint_rowstarts),
+      EliminationSolver(A_, B_, constraint_rowstarts),
       dimension(dimension_), reorder(reorder_)
    { }
 
@@ -322,15 +322,15 @@ protected:
 class PenaltyPCGSolver : public PenaltyConstrainedSolver
 {
 public:
-   PenaltyPCGSolver(HypreParMatrix& A, SparseMatrix& B, double penalty_,
+   PenaltyPCGSolver(HypreParMatrix& A_, SparseMatrix& B_, double penalty_,
                     int dimension=0, bool reorder=false) :
-      PenaltyConstrainedSolver(A, B, penalty_),
+      PenaltyConstrainedSolver(A_, B_, penalty_),
       dimension_(dimension), reorder_(reorder)
    { }
 
-   PenaltyPCGSolver(HypreParMatrix& A, HypreParMatrix& B, double penalty_,
+   PenaltyPCGSolver(HypreParMatrix& A_, HypreParMatrix& B_, double penalty_,
                     int dimension=0, bool reorder=false) :
-      PenaltyConstrainedSolver(A, B, penalty_),
+      PenaltyConstrainedSolver(A_, B_, penalty_),
       dimension_(dimension), reorder_(reorder)
    { }
 
