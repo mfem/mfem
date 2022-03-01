@@ -40,8 +40,8 @@ struct Refinement
 
    Refinement() = default;
 
-   Refinement(int index, int type = Refinement::XYZ)
-      : index(index), ref_type(type) {}
+   Refinement(int index_, int type = Refinement::XYZ)
+      : index(index_), ref_type(type) {}
 };
 
 

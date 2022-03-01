@@ -670,9 +670,9 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    }
 
 #ifndef MFEM_USE_LEGACY_OPENMP
-   const int height = this->height;
+   const int const_height = this->height;
    const int nnz = J.Capacity();
-   auto d_I = Read(I, height+1);
+   auto d_I = Read(I, const_height+1);
    auto d_J = Read(J, nnz);
    auto d_A = Read(A, nnz);
    auto d_x = x.Read();
@@ -778,7 +778,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    else
    {
       // Native version
-      MFEM_FORALL(i, height,
+      MFEM_FORALL(i, const_height,
       {
          double d = 0.0;
          const int end = d_I[i+1];
@@ -797,7 +797,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    const int *Jp = J, *Ip = I;
 
    #pragma omp parallel for
-   for (int i = 0; i < height; i++)
+   for (int i = 0; i < const_height; i++)
    {
       double d = 0.0;
       const int end = Ip[i+1];
@@ -938,13 +938,13 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
 
    y.SetSize(Height(), Device::GetDeviceMemoryType());
 
-   const int height = Height();
+   const int const_height = Height();
    const int nnz = J.Capacity();
-   auto d_I = Read(I, height+1);
+   auto d_I = Read(I, const_height+1);
    auto d_J = Read(J, nnz);
    auto d_x = Read(x.GetMemory(), x.Size());
    auto d_y = Write(y.GetMemory(), y.Size());
-   MFEM_FORALL(i, height,
+   MFEM_FORALL(i, const_height,
    {
       bool d_yi = false;
       const int end = d_I[i+1];
@@ -1013,14 +1013,14 @@ void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
       return;
    }
 
-   const int height = this->height;
+   const int const_height = this->height;
    const int nnz = J.Capacity();
-   auto d_I = Read(I, height+1);
+   auto d_I = Read(I, const_height+1);
    auto d_J = Read(J, nnz);
    auto d_A = Read(A, nnz);
    auto d_x = x.Read();
    auto d_y = y.ReadWrite();
-   MFEM_FORALL(i, height,
+   MFEM_FORALL(i, const_height,
    {
       double d = 0.0;
       const int end = d_I[i+1];

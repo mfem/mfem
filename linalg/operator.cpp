@@ -303,10 +303,10 @@ void SecondOrderTimeDependentOperator::ImplicitSolve(const double dt0,
 }
 
 
-ProductOperator::ProductOperator(const Operator *A, const Operator *B,
-                                 bool ownA, bool ownB)
-   : Operator(A->Height(), B->Width()),
-     A(A), B(B), ownA(ownA), ownB(ownB), z(A->Width())
+ProductOperator::ProductOperator(const Operator *A_, const Operator *B_,
+                                 bool ownA_, bool ownB_)
+   : Operator(A_->Height(), B_->Width()),
+     A(A_), B(B_), ownA(ownA_), ownB(ownB_), z(A->Width())
 {
    MFEM_VERIFY(A->Width() == B->Height(),
                "incompatible Operators: A->Width() = " << A->Width()
@@ -364,11 +364,11 @@ RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
 
 
 TripleProductOperator::TripleProductOperator(
-   const Operator *A, const Operator *B, const Operator *C,
-   bool ownA, bool ownB, bool ownC)
-   : Operator(A->Height(), C->Width())
-   , A(A), B(B), C(C)
-   , ownA(ownA), ownB(ownB), ownC(ownC)
+   const Operator *A_, const Operator *B_, const Operator *C_,
+   bool ownA_, bool ownB_, bool ownC_)
+   : Operator(A_->Height(), C_->Width())
+   , A(A_), B(B_), C(C_)
+   , ownA(ownA_), ownB(ownB_), ownC(ownC_)
 {
    MFEM_VERIFY(A->Width() == B->Height(),
                "incompatible Operators: A->Width() = " << A->Width()
@@ -407,10 +407,10 @@ TripleProductOperator::~TripleProductOperator()
 }
 
 
-ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
+ConstrainedOperator::ConstrainedOperator(Operator *A_, const Array<int> &list,
                                          bool own_A_,
                                          DiagonalPolicy diag_policy_)
-   : Operator(A->Height(), A->Width()), A(A), own_A(own_A_),
+   : Operator(A_->Height(), A_->Width()), A(A_), own_A(own_A_),
      diag_policy(diag_policy_)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
@@ -529,11 +529,11 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 }
 
 RectangularConstrainedOperator::RectangularConstrainedOperator(
-   Operator *A,
+   Operator *A_,
    const Array<int> &trial_list,
    const Array<int> &test_list,
    bool own_A_)
-   : Operator(A->Height(), A->Width()), A(A), own_A(own_A_)
+   : Operator(A_->Height(), A_->Width()), A(A_), own_A(own_A_)
 {
    // 'mem_class' should work with A->Mult() and MFEM_FORALL():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
