@@ -51,8 +51,8 @@ public:
        Vector constructors for externally allocated array, the pointer @a data
        can be NULL. The data array can be replaced later using the method
        SetData(). */
-   ParLinearForm(ParFiniteElementSpace *pf, double *data) :
-      LinearForm(pf, data), pfes(pf) { }
+   ParLinearForm(ParFiniteElementSpace *pf, double *data_) :
+      LinearForm(pf, data_), pfes(pf) { }
 
    /** @brief Create a ParLinearForm on the ParFiniteElementSpace @a *pf, using
        the same integrators as the ParLinearForm @a *plf.

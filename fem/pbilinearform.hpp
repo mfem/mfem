@@ -228,13 +228,13 @@ public:
        @a trial_fes and @a test_fes. */
    /** The pointers @a trial_fes and @a test_fes are not owned by the newly
        constructed object. */
-   ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
-                        ParFiniteElementSpace *test_fes)
-      : MixedBilinearForm(trial_fes, test_fes),
+   ParMixedBilinearForm(ParFiniteElementSpace *trial_fes_,
+                        ParFiniteElementSpace *test_fes_)
+      : MixedBilinearForm(trial_fes_, test_fes_),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    {
-      trial_pfes = trial_fes;
-      test_pfes  = test_fes;
+      trial_pfes = trial_fes_;
+      test_pfes  = test_fes_;
    }
 
    /** @brief Create a ParMixedBilinearForm on the given FiniteElementSpace%s
@@ -246,14 +246,14 @@ public:
 
        The integrators in @a mbf are copied as pointers and they are not owned
        by the newly constructed ParMixedBilinearForm. */
-   ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
-                        ParFiniteElementSpace *test_fes,
+   ParMixedBilinearForm(ParFiniteElementSpace *trial_fes_,
+                        ParFiniteElementSpace *test_fes_,
                         ParMixedBilinearForm * mbf)
-      : MixedBilinearForm(trial_fes, test_fes, mbf),
+      : MixedBilinearForm(trial_fes_, test_fes_, mbf),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    {
-      trial_pfes = trial_fes;
-      test_pfes  = test_fes;
+      trial_pfes = trial_fes_;
+      test_pfes  = test_fes_;
    }
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.

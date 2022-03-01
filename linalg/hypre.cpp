@@ -4202,11 +4202,11 @@ HypreParaSails::HypreParaSails(MPI_Comm comm)
    SetDefaultOptions();
 }
 
-HypreParaSails::HypreParaSails(const HypreParMatrix &A) : HypreSolver(&A)
+HypreParaSails::HypreParaSails(const HypreParMatrix &A_) : HypreSolver(&A_)
 {
    MPI_Comm comm;
 
-   HYPRE_ParCSRMatrixGetComm(A, &comm);
+   HYPRE_ParCSRMatrixGetComm(A_, &comm);
 
    HYPRE_ParaSailsCreate(comm, &sai_precond);
    SetDefaultOptions();
@@ -4301,11 +4301,11 @@ HypreEuclid::HypreEuclid(MPI_Comm comm)
    SetDefaultOptions();
 }
 
-HypreEuclid::HypreEuclid(const HypreParMatrix &A) : HypreSolver(&A)
+HypreEuclid::HypreEuclid(const HypreParMatrix &A_) : HypreSolver(&A_)
 {
    MPI_Comm comm;
 
-   HYPRE_ParCSRMatrixGetComm(A, &comm);
+   HYPRE_ParCSRMatrixGetComm(A_, &comm);
 
    HYPRE_EuclidCreate(comm, &euc_precond);
    SetDefaultOptions();
@@ -4452,7 +4452,7 @@ HypreBoomerAMG::HypreBoomerAMG()
    SetDefaultOptions();
 }
 
-HypreBoomerAMG::HypreBoomerAMG(const HypreParMatrix &A) : HypreSolver(&A)
+HypreBoomerAMG::HypreBoomerAMG(const HypreParMatrix &A_) : HypreSolver(&A_)
 {
    HYPRE_BoomerAMGCreate(&amg_precond);
    SetDefaultOptions();
@@ -4898,8 +4898,9 @@ HypreAMS::HypreAMS(ParFiniteElementSpace *edge_fespace)
    Init(edge_fespace);
 }
 
-HypreAMS::HypreAMS(const HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
-   : HypreSolver(&A)
+HypreAMS::HypreAMS(const HypreParMatrix &A_,
+                   ParFiniteElementSpace *edge_fespace)
+   : HypreSolver(&A_)
 {
    Init(edge_fespace);
 }
@@ -5149,8 +5150,9 @@ HypreADS::HypreADS(ParFiniteElementSpace *face_fespace)
    Init(face_fespace);
 }
 
-HypreADS::HypreADS(const HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
-   : HypreSolver(&A)
+HypreADS::HypreADS(const HypreParMatrix &A_,
+                   ParFiniteElementSpace *face_fespace)
+   : HypreSolver(&A_)
 {
    Init(face_fespace);
 }

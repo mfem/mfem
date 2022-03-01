@@ -158,8 +158,8 @@ protected:
 
 public:
 #ifdef MFEM_USE_MPI
-   TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
-      : LBFGSSolver(comm), solver_type(type), parallel(true),
+   TMOPNewtonSolver(MPI_Comm comm_, const IntegrationRule &irule, int type = 0)
+      : LBFGSSolver(comm_), solver_type(type), parallel(true),
         ir(irule), IntegRules(NULL), integ_order(-1) { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)

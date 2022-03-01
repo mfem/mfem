@@ -271,11 +271,11 @@ public:
                        The L2ZienkiewiczZhuEstimator assumes ownership of this
                        FiniteElementSpace and will call its Update() method when
                        needed. */
-   L2ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ,
+   L2ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ_,
                              ParGridFunction &sol,
                              ParFiniteElementSpace *flux_fes,
                              ParFiniteElementSpace *smooth_flux_fes)
-   { Init(integ, sol, flux_fes, smooth_flux_fes); own_flux_fes = true; }
+   { Init(integ_, sol, flux_fes, smooth_flux_fes); own_flux_fes = true; }
 
    /** @brief Construct a new L2ZienkiewiczZhuEstimator object.
        @param integ    This BilinearFormIntegrator must implement the methods
@@ -288,11 +288,11 @@ public:
                        The L2ZienkiewiczZhuEstimator does NOT assume ownership
                        of this FiniteElementSpace; will call its Update() method
                        when needed. */
-   L2ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ,
+   L2ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ_,
                              ParGridFunction &sol,
                              ParFiniteElementSpace &flux_fes,
                              ParFiniteElementSpace &smooth_flux_fes)
-   { Init(integ, sol, &flux_fes, &smooth_flux_fes); own_flux_fes = false; }
+   { Init(integ_, sol, &flux_fes, &smooth_flux_fes); own_flux_fes = false; }
 
    /** @brief Set the exponent, p, of the Lp norm used for computing the local
        element errors. Default value is 1. */

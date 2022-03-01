@@ -355,8 +355,8 @@ protected: // implementation
    class ElementSet
    {
    public:
-      ElementSet(NCMesh *ncmesh = NULL, bool include_ref_types = false)
-         : ncmesh(ncmesh), include_ref_types(include_ref_types) {}
+      ElementSet(NCMesh *ncmesh_ = NULL, bool include_ref_types_ = false)
+         : ncmesh(ncmesh_), include_ref_types(include_ref_types_) {}
       ElementSet(const ElementSet &other);
 
       void Encode(const Array<int> &elements);

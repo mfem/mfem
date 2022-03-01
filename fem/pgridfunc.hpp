@@ -62,8 +62,8 @@ public:
        can be NULL. The data array can be replaced later using the method
        SetData().
     */
-   ParGridFunction(ParFiniteElementSpace *pf, double *data) :
-      GridFunction(pf, data), pfes(pf) { }
+   ParGridFunction(ParFiniteElementSpace *pf, double *data_) :
+      GridFunction(pf, data_), pfes(pf) { }
 
    /** @brief Construct a ParGridFunction using previously allocated Vector
        @a base starting at the given offset, @a base_offset. */
