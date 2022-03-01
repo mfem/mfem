@@ -450,8 +450,8 @@ int NCMesh::Face::GetSingleElement() const
 
 //// Refinement ////////////////////////////////////////////////////////////////
 
-NCMesh::Element::Element(Geometry::Type geom, int attr)
-   : geom(geom), ref_type(0), tet_type(0), flag(0), index(-1)
+NCMesh::Element::Element(Geometry::Type geom_, int attr)
+   : geom(geom_), ref_type(0), tet_type(0), flag(0), index(-1)
    , rank(0), attribute(attr), parent(-1)
 {
    for (int i = 0; i < 8; i++) { node[i] = -1; }

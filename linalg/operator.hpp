@@ -501,8 +501,8 @@ public:
       \param[in] adjdim Dimension of the adjoint operator. Typically it is the
       same size as dim. However, SUNDIALS allows users to specify the size if
       one wants to perform custom operations.
-      \param[in] t Starting time to set
-      \param[in] type The TimeDependentOperator type
+      \param[in] t_ Starting time to set
+      \param[in] type_ The TimeDependentOperator type
    */
    TimeDependentAdjointOperator(int dim, int adjdim, double t_ = 0.,
                                 Type type_ = EXPLICIT) :

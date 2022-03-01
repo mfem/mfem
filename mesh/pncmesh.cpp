@@ -2049,7 +2049,7 @@ void ParNCMesh::SendRebalanceDofs(int old_ndofs,
 }
 
 
-void ParNCMesh::RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs)
+void ParNCMesh::RecvRebalanceDofs(Array<int> &elements_, Array<long> &dofs)
 {
    // receive from the same ranks as in last Rebalance()
    RebalanceDofMessage::RecvAll(recv_rebalance_dofs, MyComm);
@@ -2064,7 +2064,7 @@ void ParNCMesh::RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs)
       nd += msg.dofs.size();
    }
 
-   elements.SetSize(ne);
+   elements_.SetSize(ne);
    dofs.SetSize(nd);
 
    // copy element indices and their DOFs
@@ -2074,7 +2074,7 @@ void ParNCMesh::RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs)
       RebalanceDofMessage &msg = it->second;
       for (unsigned i = 0; i < msg.elem_ids.size(); i++)
       {
-         elements[ne++] = msg.elem_ids[i];
+         elements_[ne++] = msg.elem_ids[i];
       }
       for (unsigned i = 0; i < msg.dofs.size(); i++)
       {
@@ -2416,21 +2416,21 @@ void ParNCMesh::EncodeMeshIds(std::ostream &os, Array<MeshId> ids[])
    // get a list of elements involved, dump them to 'os' and create the mapping
    // element_id: (Element index -> stream ID)
    {
-      Array<int> elements;
+      Array<int> elements_;
       for (int type = 0; type < 3; type++)
       {
          for (int i = 0; i < ids[type].Size(); i++)
          {
-            elements.Append(ids[type][i].element);
+            elements_.Append(ids[type][i].element);
          }
       }
 
       ElementSet eset(this);
-      eset.Encode(elements);
+      eset.Encode(elements_);
       eset.Dump(os);
 
       Array<int> decoded;
-      decoded.Reserve(elements.Size());
+      decoded.Reserve(elements_.Size());
       eset.Decode(decoded);
 
       for (int i = 0; i < decoded.Size(); i++)

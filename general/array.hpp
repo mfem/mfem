@@ -582,7 +582,7 @@ public:
       typedef iterator_base<const BlockArray, const T> base;
 
       const_iterator() { }
-      const_iterator(bool stop) : base(stop) { }
+      const_iterator(bool stop_state) : base(stop_state) { }
       const_iterator(const BlockArray *a) : base(a) { }
 
    public:

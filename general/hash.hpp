@@ -546,9 +546,9 @@ template<typename T>
 HashTable<T>::HashTable(const HashTable& other)
    : Base(other), mask(other.mask)
 {
-   int size = mask+1;
-   table = new int[size];
-   memcpy(table, other.table, size*sizeof(int));
+   int table_size = mask+1;
+   table = new int[table_size];
+   memcpy(table, other.table, table_size*sizeof(int));
    other.unused.Copy(unused);
 }
 

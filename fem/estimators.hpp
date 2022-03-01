@@ -116,7 +116,7 @@ protected:
 
 public:
    /** @brief Construct a new ZienkiewiczZhuEstimator object.
-       @param integ    This BilinearFormIntegrator must implement the methods
+       @param integ_   This BilinearFormIntegrator must implement the methods
                        ComputeElementFlux() and ComputeFluxEnergy().
        @param sol      The solution field whose error is to be estimated.
        @param flux_fes The ZienkiewiczZhuEstimator assumes ownership of this
@@ -136,7 +136,7 @@ public:
    { }
 
    /** @brief Construct a new ZienkiewiczZhuEstimator object.
-       @param integ    This BilinearFormIntegrator must implement the methods
+       @param integ_   This BilinearFormIntegrator must implement the methods
                        ComputeElementFlux() and ComputeFluxEnergy().
        @param sol      The solution field whose error is to be estimated.
        @param flux_fes The ZienkiewiczZhuEstimator does NOT assume ownership of
@@ -261,7 +261,7 @@ protected:
 
 public:
    /** @brief Construct a new L2ZienkiewiczZhuEstimator object.
-       @param integ    This BilinearFormIntegrator must implement the methods
+       @param integ_   This BilinearFormIntegrator must implement the methods
                        ComputeElementFlux() and ComputeFluxEnergy().
        @param sol      The solution field whose error is to be estimated.
        @param flux_fes The L2ZienkiewiczZhuEstimator assumes ownership of this
@@ -278,7 +278,7 @@ public:
    { Init(integ_, sol, flux_fes, smooth_flux_fes); own_flux_fes = true; }
 
    /** @brief Construct a new L2ZienkiewiczZhuEstimator object.
-       @param integ    This BilinearFormIntegrator must implement the methods
+       @param integ_   This BilinearFormIntegrator must implement the methods
                        ComputeElementFlux() and ComputeFluxEnergy().
        @param sol      The solution field whose error is to be estimated.
        @param flux_fes The L2ZienkiewiczZhuEstimator does NOT assume ownership
@@ -360,7 +360,7 @@ protected:
 public:
    /** @brief Construct a new LpErrorEstimator object for a scalar field.
        @param p    Integer which selects which Lp norm to use.
-       @param sol  The GridFunction representation of the scalar field.
+       @param sol_ The GridFunction representation of the scalar field.
        Note: the coefficient must be set before use with the SetCoef method.
    */
    LpErrorEstimator(int p, GridFunction &sol_)
@@ -368,18 +368,18 @@ public:
         error_estimates(0), coef(NULL), vcoef(NULL), sol(&sol_) { }
 
    /** @brief Construct a new LpErrorEstimator object for a scalar field.
-       @param p    Integer which selects which Lp norm to use.
-       @param coef The scalar Coefficient to compare to the solution.
-       @param sol  The GridFunction representation of the scalar field.
+       @param p     Integer which selects which Lp norm to use.
+       @param coef_ The scalar Coefficient to compare to the solution.
+       @param sol_  The GridFunction representation of the scalar field.
    */
    LpErrorEstimator(int p, Coefficient &coef_, GridFunction &sol_)
       : current_sequence(-1), local_norm_p(p),
         error_estimates(0), coef(&coef_), vcoef(NULL), sol(&sol_) { }
 
    /** @brief Construct a new LpErrorEstimator object for a vector field.
-       @param p    Integer which selects which Lp norm to use.
-       @param coef The vector VectorCoefficient to compare to the solution.
-       @param sol  The GridFunction representation of the vector field.
+       @param p     Integer which selects which Lp norm to use.
+       @param coef_ The vector VectorCoefficient to compare to the solution.
+       @param sol_  The GridFunction representation of the vector field.
    */
    LpErrorEstimator(int p, VectorCoefficient &coef_, GridFunction &sol_)
       : current_sequence(-1), local_norm_p(p),

@@ -1310,7 +1310,7 @@ private:
 
 public:
    /// Define a time-independent symmetric matrix coefficient from a std function
-   /** \param dim - the size of the matrix
+   /** \param dim_ - the size of the matrix
        \param F - time-independent function
        \param q - optional scalar Coefficient to scale the matrix coefficient */
    SymmetricMatrixFunctionCoefficient(int dim_,
@@ -1328,7 +1328,7 @@ public:
    { }
 
    /// Define a time-dependent square matrix coefficient from a std function
-   /** \param dim - the size of the matrix
+   /** \param dim_ - the size of the matrix
        \param TDF - time-dependent function
        \param q - optional scalar Coefficient to scale the matrix coefficient */
    SymmetricMatrixFunctionCoefficient(int dim_,
