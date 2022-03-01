@@ -1761,7 +1761,6 @@ static void PADiffusionApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
    const int ID = (D1D << 4) | Q1D;
-   printf("\033[32m[0x%x]\033[m\n",ID); fflush(0);
 
    if (dim == 2)
    {
