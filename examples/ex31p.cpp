@@ -6,9 +6,43 @@
 //               mpirun -np 4 ex31 -m ../data/star.mesh -alpha 0.99 -o 3
 //               mpirun -np 4 ex31 -m ../data/inline-quad.mesh -alpha 0.2 -o 3
 //               mpirun -np 4 ex31 -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
-
-
+//
+//
 // Description:
+//
+//  In this example we solve the following fractional PDE with MFEM:
+//
+//    ( - Δ )^α u = f  in Ω,      u = 0  on ∂Ω,      0 < α < 1,
+//
+//  To solve this FPDE, we rely on a rational approximation [2] of the normal
+//  linear operator A^{-α}, where A = - Δ (with associated homogenous
+//  boundary conditions). Namely, we first approximate the operator
+//
+//    A^{-α} ≈ Σ_{i=0}^N c_i (A + d_i I)^{-1},      d_0 = 0,   d_i > 0,
+//
+//  where I is the L2-identity operator and the coefficients c_i and d_i
+//  are generated offline to a prescribed accuracy in a pre-processing step.
+//  We use the triple-A algorithm [1] to generate the rational approximation
+//  that this partial fractional expansion derives from. We then solve N+1
+//  independent integer-order PDEs,
+//
+//    A u_i + d_i u_i = c_i f  in Ω,      u_i = 0  on ∂Ω,      i=0,...,N,
+//
+//  using MFEM and sum u_i to arrive at an approximate solution of the FPDE
+//
+//    u ≈ Σ_{i=0}^N u_i.
+//
+//
+// References:
+//
+// [1] Nakatsukasa, Y., Sète, O., & Trefethen, L. N. (2018). The AAA algorithm
+//     for rational approximation. SIAM Journal on Scientific Computing, 40(3),
+//     A1494-A1522.
+//
+// [2] Harizanov, S., Lazarov, R., Margenov, S., Marinov, P., & Pasciak, J.
+//     (2020). Analysis of numerical methods for spectral fractional elliptic
+//     equations based on the best uniform rational approximation. Journal of
+//     Computational Physics, 408, 109285.
 //
 
 #include "mfem.hpp"

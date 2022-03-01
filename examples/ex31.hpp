@@ -1,10 +1,36 @@
 //              Implementation of the AAA algorithm
 //
+//   Here, we implement the triple-A algorithm [1] for the rational approximation
+//   of complex-valued functions,
+//
+//          p(z)/q(z) ≈ f(z).
+//
+//   In this file, we always assume f(z) = z^{-α}. The triple-A algorithm
+//   provides a robust, accurate approximation in rational barycentric from.
+//   This representation must be transformed into a partial fraction
+//   representation in order to be used to solve a spectral FPDE.
+//
+//   More specifically, we first expand the numerator in terms of the zeros of
+//   the rational approximation,
+//
+//          p(z) ∝ Π_i (z - z_i),
+//
+//   and expand the denominator in terms of the poles of the rational
+//   approximation,
+//
+//          q(z) ∝ Π_i (z - p_i).
+//
+//   We then use these zeros and poles to derive the partial fraction
+//   expansion
+//
+//          f(z) ≈ p(z)/q(z) = Σ_i c_i / (z - p_i).
+//
+//
 //   REFERENCE
 //
-//   Nakatsukasa, Y., Sète, O., & Trefethen, L. N. (2018). The AAA
-//   algorithm for rational approximation. SIAM Journal on Scientific
-//   Computing, 40(3), A1494-A1522.
+//   [1] Nakatsukasa, Y., Sète, O., & Trefethen, L. N. (2018). The AAA
+//       algorithm for rational approximation. SIAM Journal on Scientific
+//       Computing, 40(3), A1494-A1522.
 
 
 #include "mfem.hpp"
@@ -291,8 +317,6 @@ void ComputePartialFractionApproximation(double alpha,
    return;
 #endif
 
-
-
    Vector x(npoints);
    Vector val(npoints);
    for (int i = 0; i<npoints; i++)
@@ -301,6 +325,7 @@ void ComputePartialFractionApproximation(double alpha,
       val(i) = pow(x(i),1.-alpha);
    }
 
+   // Apply triple-A algorithm to f(x) = x^{1-a}
    Array<double> z, f;
    Vector w;
    RationalApproximation_AAA(val,x,z,f,w,tol,max_order);
@@ -309,10 +334,15 @@ void ComputePartialFractionApproximation(double alpha,
    vecz.SetDataAndSize(z.GetData(), z.Size());
    vecf.SetDataAndSize(f.GetData(), f.Size());
 
+   // Compute poles and zeros for RA of f(x) = x^{1-a}
    double scale;
    Array<double> zeros;
    ComputePolesAndZeros(vecz, vecf, w, poles, zeros, scale);
 
+   // Introduce one extra pole at x=0, thus, delivering a
+   // RA for f(x) = x^{-a}
    poles.Append(0.0);
+
+   // Compute partial fraction approximation of f(x) = x^{-a}
    PartialFractionExpansion(scale, poles, zeros, coeffs);
 }
