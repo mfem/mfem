@@ -140,13 +140,13 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el =
       *fes.GetTraceElement(0, fes.GetMesh()->GetFaceBaseGeometry(0));
-   FaceElementTransformations &T =
+   FaceElementTransformations &T0 =
       *fes.GetMesh()->GetFaceElementTransformations(0);
    const IntegrationRule *ir = IntRule?
                                IntRule:
-                               &GetRule(el.GetGeomType(), el.GetOrder(), T);
+                               &GetRule(el.GetGeomType(), el.GetOrder(), T0);
    const int symmDims = 4;
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    geom = mesh->GetFaceGeometricFactors(
              *ir,
@@ -162,11 +162,11 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    {
       vel = c_u->GetVec();
    }
-   else if (VectorQuadratureFunctionCoefficient* c_u =
+   else if (VectorQuadratureFunctionCoefficient* qf_u =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(u))
    {
       // Assumed to be in lexicographical ordering
-      const QuadratureFunction &qFun = c_u->GetQuadFunction();
+      const QuadratureFunction &qFun = qf_u->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == dim * nq * nf,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -226,10 +226,10 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
       r.SetSize(1);
       r(0) = c_rho->constant;
    }
-   else if (QuadratureFunctionCoefficient* c_rho =
+   else if (QuadratureFunctionCoefficient* qf_rho =
                dynamic_cast<QuadratureFunctionCoefficient*>(rho))
    {
-      const QuadratureFunction &qFun = c_rho->GetQuadFunction();
+      const QuadratureFunction &qFun = qf_rho->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == nq * nf,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -268,11 +268,11 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
                T.SetAllIntPoints(&ir->IntPoint(q));
                const IntegrationPoint &eip1 = T.GetElement1IntPoint();
                const IntegrationPoint &eip2 = T.GetElement2IntPoint();
-               double r;
+               double rq;
 
                if ( face.IsBoundary() )
                {
-                  r = rho->Eval(*T.Elem1, eip1);
+                  rq = rho->Eval(*T.Elem1, eip1);
                }
                else
                {
@@ -281,10 +281,10 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
                   {
                      udotn += C_vel(d,iq,f_ind)*n(iq,d,f_ind);
                   }
-                  if (udotn >= 0.0) { r = rho->Eval(*T.Elem2, eip2); }
-                  else { r = rho->Eval(*T.Elem1, eip1); }
+                  if (udotn >= 0.0) { rq = rho->Eval(*T.Elem2, eip2); }
+                  else { rq = rho->Eval(*T.Elem1, eip1); }
                }
-               C(iq,f_ind) = r;
+               C(iq,f_ind) = rq;
             }
             f_ind++;
          }
@@ -1048,10 +1048,10 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
             const double D01 = op(q1,q2,0,1,f+tidz);
             const double D10 = op(q1,q2,1,0,f+tidz);
             const double D11 = op(q1,q2,1,1,f+tidz);
-            const double u0 = BBu0[tidz][q1][q2];
-            const double u1 = BBu1[tidz][q1][q2];
-            DBBu0[tidz][q1][q2] = D00*u0 + D01*u1;
-            DBBu1[tidz][q1][q2] = D10*u0 + D11*u1;
+            const double u0q = BBu0[tidz][q1][q2];
+            const double u1q = BBu1[tidz][q1][q2];
+            DBBu0[tidz][q1][q2] = D00*u0q + D01*u1q;
+            DBBu1[tidz][q1][q2] = D10*u0q + D11*u1q;
          }
       }
       MFEM_SYNC_THREAD;
