@@ -105,7 +105,6 @@ int main(int argc, char *argv[])
    else if (string(fe) == "r") { RT = true; }
    else if (string(fe) == "l") { L2 = true; }
    else { MFEM_ABORT("Bad FE type. Must be 'h', 'n', 'r', or 'l'."); }
-   assert(H1);
 
    if (RT) { grad_div_problem = true; }
    double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
@@ -135,8 +134,7 @@ int main(int argc, char *argv[])
    BilinearForm a(&fes);
    if (H1 || L2)
    {
-#warning no MassIntegrator
-      //a.AddDomainIntegrator(new MassIntegrator);
+      a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator);
    }
    else
@@ -210,15 +208,6 @@ int main(int argc, char *argv[])
       dc.SetCycle(0);
       dc.SetTime(0.0);
       dc.Save();
-   }
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << flush;
    }
 
    return 0;
