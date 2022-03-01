@@ -246,7 +246,7 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
 void ComputePartialFractionApproximation(double alpha,
                                          Array<double> & coeffs, Array<double> & poles,
                                          double lmin = 1., double lmax = 1000.,
-                                         double tol=1e-6,  int npoints = 1000,
+                                         double tol=1e-10,  int npoints = 1000,
                                          int max_order = 100)
 {
 
