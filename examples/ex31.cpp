@@ -84,19 +84,23 @@ int main(int argc, char *argv[])
 
    ComputePartialFractionApproximation(alpha,coeffs,poles);
 
+   // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
+   // 3. Refine the mesh to increase the resolution.
    mesh.UniformRefinement();
    mesh.UniformRefinement();
    mesh.UniformRefinement();
 
+   // 4. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
 
    FiniteElementSpace fespace(&mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
+   // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    Array<int> ess_tdof_list;
    if (mesh.bdr_attributes.Size())
    {
@@ -105,12 +109,13 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-
+   // 6. Define diffusion coefficient, load, and solution GridFunction
    ConstantCoefficient f(1.0);
    ConstantCoefficient one(1.0);
    GridFunction u(&fespace);
    u = 0.;
 
+   // 7. Prepare for visualization
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream xout;
@@ -125,35 +130,39 @@ int main(int argc, char *argv[])
 
    for (int i = 0; i<coeffs.Size(); i++)
    {
+      // 8. Set up the linear form b(.) for integer-order PDE solve.
       LinearForm b(&fespace);
       ProductCoefficient cf(coeffs[i], f);
       b.AddDomainIntegrator(new DomainLFIntegrator(cf));
       b.Assemble();
 
+      // 9. Define GridFunction for integer-order PDE solve.
       GridFunction x(&fespace);
       x = 0.0;
 
+      // 10. Set up the bilinear form a(.,.) for integer-order PDE solve.
       BilinearForm a(&fespace);
       a.AddDomainIntegrator(new DiffusionIntegrator(one));
       ConstantCoefficient c2(-poles[i]);
       a.AddDomainIntegrator(new MassIntegrator(c2));
       a.Assemble();
 
+      // 11. Assemble the bilinear form and the corresponding linear system.
       OperatorPtr A;
       Vector B, X;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-      cout << "Size of linear system: " << A->Height() << endl;
-
+      // 12. Solve the linear system A X = B.
       GSSmoother M((SparseMatrix&)(*A));
       PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
 
-      // 12. Recover the solution as a finite element grid function.
+      // 13. Recover the solution as a finite element grid function.
       a.RecoverFEMSolution(X, b, x);
 
+      // 14. Accumulate integer-order PDE solutions.
       u+=x;
 
-      // 14. Send the solution by socket to a GLVis server.
+      // 15. Send the solutions by socket to a GLVis server.
       if (visualization)
       {
          xout << "solution\n" << mesh << x << flush;

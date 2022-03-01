@@ -90,11 +90,14 @@ int main(int argc, char *argv[])
 
    Array<double> coeffs, poles;
 
+   // 2. Compute the coefficients that define the integer-order PDEs.
    ComputePartialFractionApproximation(alpha,coeffs,poles);
 
+   // 3. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
+   // 4. Refine the mesh to increase the resolution.
    mesh.UniformRefinement();
    mesh.UniformRefinement();
    mesh.UniformRefinement();
@@ -102,6 +105,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
+   // 5. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
    ParFiniteElementSpace fespace(&pmesh, fec);
    if (myid == 0)
@@ -110,6 +114,7 @@ int main(int argc, char *argv[])
            << fespace.GetTrueVSize() << endl;
    }
 
+   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    Array<int> ess_tdof_list;
    if (pmesh.bdr_attributes.Size())
    {
@@ -118,11 +123,13 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
+   // 7. Define diffusion coefficient, load, and solution GridFunction.
    ConstantCoefficient f(1.0);
    ConstantCoefficient one(1.0);
    ParGridFunction u(&fespace);
    u = 0.;
 
+   // 8. Prepare for visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream xout;
@@ -137,26 +144,29 @@ int main(int argc, char *argv[])
 
    for (int i = 0; i<coeffs.Size(); i++)
    {
+      // 9. Set up the linear form b(.) for integer-order PDE solve.
       ParLinearForm b(&fespace);
       ProductCoefficient cf(coeffs[i], f);
       b.AddDomainIntegrator(new DomainLFIntegrator(cf));
       b.Assemble();
 
+      // 10. Define GridFunction for integer-order PDE solve.
       ParGridFunction x(&fespace);
       x = 0.0;
 
+      // 11. Set up the bilinear form a(.,.) for integer-order PDE solve.
       ParBilinearForm a(&fespace);
       a.AddDomainIntegrator(new DiffusionIntegrator(one));
       ConstantCoefficient c2(-poles[i]);
       a.AddDomainIntegrator(new MassIntegrator(c2));
       a.Assemble();
 
+      // 12. Assemble the bilinear form and the corresponding linear system.
       OperatorPtr A;
       Vector B, X;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-      cout << "Size of linear system: " << A->Height() << endl;
-
+      // 13. Solve the linear system A X = B.
       Solver *M = new OperatorJacobiSmoother(a, ess_tdof_list);;
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
@@ -167,12 +177,13 @@ int main(int argc, char *argv[])
       cg.Mult(B, X);
       delete M;
 
-      // 12. Recover the solution as a finite element grid function.
+      // 14. Recover the solution as a finite element grid function.
       a.RecoverFEMSolution(X, b, x);
 
+      // 15. Accumulate integer-order PDE solutions.
       u+=x;
 
-      // 14. Send the solution by socket to a GLVis server.
+      // 16. Send the solutions by socket to a GLVis server.
       if (visualization)
       {
          xout << "parallel " << num_procs << " " << myid << "\n";
