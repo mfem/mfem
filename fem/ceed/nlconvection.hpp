@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_LIBCEED_CONV_HPP
-#define MFEM_LIBCEED_CONV_HPP
+#ifndef MFEM_LIBCEED_NLCONV_HPP
+#define MFEM_LIBCEED_NLCONV_HPP
 
 #include "integrator.hpp"
 #include "../fespace.hpp"
@@ -45,4 +45,4 @@ public:
 
 }
 
-#endif // MFEM_LIBCEED_CONV_HPP
+#endif // MFEM_LIBCEED_NLCONV_HPP
