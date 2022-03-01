@@ -397,10 +397,10 @@ public:
           0 - write the number of rows and columns, followed by all entries
           1 - write only the entries, using row-major layout
    */
-   void Save(std::ostream &out, int fmt = 0) const
+   void Save(std::ostream &os, int fmt = 0) const
    {
-      if (fmt == 0) { out << NumRows() << ' ' << NumCols() << '\n'; }
-      array1d.Save(out, 1);
+      if (fmt == 0) { os << NumRows() << ' ' << NumCols() << '\n'; }
+      array1d.Save(os, 1);
    }
 
    /** @brief Read an Array2D from the stream @a in using format @a fmt.
