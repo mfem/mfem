@@ -2062,6 +2062,8 @@ public:
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
 
    bool SupportsBatchedLOR() const { return true; }
+
+   Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -2121,6 +2123,8 @@ public:
                                          ElementTransformation &Trans);
 
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
