@@ -19,9 +19,15 @@ namespace mfem
 template <int ORDER>
 void BatchedLORDiffusion::AssembleDiffusion2D(SparseMatrix &A_mat)
 {
-   const Array<int> &dof_glob2loc_ = R.Indices();
-   const Array<int> &dof_glob2loc_offsets_ = R.Offsets();
-   const Array<int> &el_dof_lex_ = R.GatherMap();
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *op = fes_ho.GetElementRestriction(ordering);
+   const ElementRestriction *el_restr =
+      dynamic_cast<const ElementRestriction*>(op);
+   MFEM_VERIFY(el_restr != nullptr, "");
+
+   const Array<int> &el_dof_lex_ = el_restr->GatherMap();
+   const Array<int> &dof_glob2loc_ = el_restr->Indices();
+   const Array<int> &dof_glob2loc_offsets_ = el_restr->Offsets();
 
    const int nel_ho = fes_ho.GetNE();
 
@@ -215,11 +221,12 @@ void BatchedLORDiffusion::AssembleDiffusion2D(SparseMatrix &A_mat)
             {
                const int jj = J[j];
                int jj_el = -1;
-               for (int k = K[jj], k_end = K[jj+1]; k < k_end; k += 2)
+               for (int k = K[jj], k_end = K[jj+1]; k < k_end; k += 1)
                {
-                  if (dof_glob2loc[k] == iel_ho)
+                  int edof_idx = dof_glob2loc[k];
+                  if (edof_idx/ndof_per_el == iel_ho)
                   {
-                     jj_el = dof_glob2loc[k+1];
+                     jj_el = edof_idx%ndof_per_el;
                      break;
                   }
                }
@@ -262,9 +269,15 @@ void BatchedLORDiffusion::AssembleDiffusion2D(SparseMatrix &A_mat)
 template <int ORDER, bool USE_SMEM>
 void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
 {
-   const Array<int> &dof_glob2loc_ = R.Indices();
-   const Array<int> &dof_glob2loc_offsets_ = R.Offsets();
-   const Array<int> &el_dof_lex_ = R.GatherMap();
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *op = fes_ho.GetElementRestriction(ordering);
+   const ElementRestriction *el_restr =
+      dynamic_cast<const ElementRestriction*>(op);
+   MFEM_VERIFY(el_restr != nullptr, "");
+
+   const Array<int> &el_dof_lex_ = el_restr->GatherMap();
+   const Array<int> &dof_glob2loc_ = el_restr->Indices();
+   const Array<int> &dof_glob2loc_offsets_ = el_restr->Offsets();
 
    const int nel_ho = fes_ho.GetNE();
 
@@ -640,11 +653,12 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
                {
                   const int jj = J[j];
                   int jj_el = -1;
-                  for (int k = K[jj], k_end = K[jj+1]; k < k_end; k += 2)
+                  for (int k = K[jj], k_end = K[jj+1]; k < k_end; k += 1)
                   {
-                     if (dof_glob2loc[k] == iel_ho)
+                     int edof_idx = dof_glob2loc[k];
+                     if (edof_idx/ndof_per_el == iel_ho)
                      {
-                        jj_el = dof_glob2loc[k+1];
+                        jj_el = edof_idx%ndof_per_el;
                         break;
                      }
                   }

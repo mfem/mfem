@@ -34,6 +34,7 @@ protected:
 
    Vector X_vert; ///< LOR vertex coordinates.
 
+   /// Get the vertices of the LOR mesh and place the result in @a X_vert.
    template <int Q1D> void GetLORVertexCoordinates();
 
    /// Assemble the system without eliminating essential DOFs.

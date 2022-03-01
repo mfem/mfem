@@ -20,7 +20,7 @@ namespace mfem
 class BatchedLORDiffusion : public BatchedLORAssembly
 {
 protected:
-   Vector d_buffer;
+   Vector d_buffer; ///< Device buffer used for intermediate computations.
 
    template <int ORDER> void AssembleDiffusion2D(SparseMatrix &A);
    template <int ORDER, bool USE_SMEM=true>
