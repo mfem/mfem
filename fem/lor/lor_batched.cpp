@@ -95,15 +95,9 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
 
    switch (nodal_nd1d)
    {
-      case 2:
-         NodalInterpolation3D<2,Q1D>(nel_ho, nodes_loc, X_vert, maps.B);
-         break;
-      case 4:
-         NodalInterpolation3D<4,Q1D>(nel_ho, nodes_loc, X_vert, maps.B);
-         break;
-      case 6:
-         NodalInterpolation3D<6,Q1D>(nel_ho, nodes_loc, X_vert, maps.B);
-         break;
+      case 2: NodalInterpolation3D<2,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
+      case 4: NodalInterpolation3D<4,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
+      case 6: NodalInterpolation3D<6,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
       default: MFEM_ABORT("Unsuported mesh order!");
    }
 }
@@ -146,7 +140,7 @@ SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
       default: MFEM_ABORT("Unsupported order!")
    }
 
-   // Assemble the matrix
+   // Assemble the matrix, using kernels from the derived classes
    AssemblyKernel(*A);
    A->Finalize();
    return A;
@@ -388,22 +382,20 @@ void BatchedLORAssembly::Assemble(OperatorHandle &A)
    A.Reset(A_mat);
 }
 
-BatchedLORAssembly::BatchedLORAssembly(LORBase &lor_disc_,
-                                       BilinearForm &a_,
+BatchedLORAssembly::BatchedLORAssembly(BilinearForm &a_,
                                        FiniteElementSpace &fes_ho_,
                                        const Array<int> &ess_dofs_)
-   : lor_disc(lor_disc_), R(fes_ho_), fes_ho(fes_ho_), ess_dofs(ess_dofs_)
+   : R(fes_ho_), fes_ho(fes_ho_), ess_dofs(ess_dofs_)
 { }
 
-void BatchedLORAssembly::Assemble(LORBase &lor_disc,
-                                  BilinearForm &a,
+void BatchedLORAssembly::Assemble(BilinearForm &a,
                                   FiniteElementSpace &fes_ho,
                                   const Array<int> &ess_dofs,
                                   OperatorHandle &A)
 {
    if (HasIntegrator<DiffusionIntegrator>(a))
    {
-      BatchedLORDiffusion(lor_disc, a, fes_ho, ess_dofs).Assemble(A);
+      BatchedLORDiffusion(a, fes_ho, ess_dofs).Assemble(A);
    }
 }
 

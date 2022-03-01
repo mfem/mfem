@@ -20,13 +20,13 @@ namespace mfem
 class BatchedLORDiffusion : public BatchedLORAssembly
 {
 protected:
-   template <int order, bool use_smem=true>
-   void AssembleDiffusion(SparseMatrix &A);
+   Vector d_buffer;
 
+   template <int ORDER, bool USE_SMEM=true>
+   void AssembleDiffusion3D(SparseMatrix &A);
    void AssemblyKernel(SparseMatrix &A) override;
 public:
-   BatchedLORDiffusion(LORBase &lor_disc_,
-                       BilinearForm &a_,
+   BatchedLORDiffusion(BilinearForm &a_,
                        FiniteElementSpace &fes_ho_,
                        const Array<int> &ess_dofs_);
 };

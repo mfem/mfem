@@ -17,7 +17,7 @@ namespace mfem
 {
 
 template <int ORDER, bool USE_SMEM>
-void BatchedLORDiffusion::AssembleDiffusion(SparseMatrix &A_mat)
+void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
 {
    const Array<int> &dof_glob2loc_ = R.Indices();
    const Array<int> &dof_glob2loc_offsets_ = R.Offsets();
@@ -37,17 +37,13 @@ void BatchedLORDiffusion::AssembleDiffusion(SparseMatrix &A_mat)
    static constexpr int sz_local_mat = 8*8;
 
    static constexpr int GRID = USE_SMEM ? 0 : 128;
+
    double *GM = nullptr;
-   static Vector *d_buffer = nullptr;
    if (!USE_SMEM)
    {
-      if (!d_buffer)
-      {
-         d_buffer = new Vector();
-         d_buffer->UseDevice(true);
-      }
-      d_buffer->SetSize(nnz_per_el*GRID);
-      GM = d_buffer->Write();
+      d_buffer.UseDevice(true);
+      d_buffer.SetSize(nnz_per_el*GRID);
+      GM = d_buffer.Write();
    }
 
    const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
@@ -465,22 +461,21 @@ void BatchedLORDiffusion::AssemblyKernel(SparseMatrix &A)
    {
       switch (order)
       {
-         case 1: AssembleDiffusion<1>(A); break;
-         case 2: AssembleDiffusion<2>(A); break;
-         case 3: AssembleDiffusion<3>(A); break;
-         case 4: AssembleDiffusion<4>(A); break;
-         case 5: AssembleDiffusion<5>(A); break;
-         case 6: AssembleDiffusion<6,false>(A); break;
+         case 1: AssembleDiffusion3D<1>(A); break;
+         case 2: AssembleDiffusion3D<2>(A); break;
+         case 3: AssembleDiffusion3D<3>(A); break;
+         case 4: AssembleDiffusion3D<4>(A); break;
+         case 5: AssembleDiffusion3D<5>(A); break;
+         case 6: AssembleDiffusion3D<6,false>(A); break;
          default: MFEM_ABORT("Kernel not ready!");
       }
    }
 }
 
-BatchedLORDiffusion::BatchedLORDiffusion(LORBase &lor_disc_,
-                                         BilinearForm &a_,
+BatchedLORDiffusion::BatchedLORDiffusion(BilinearForm &a_,
                                          FiniteElementSpace &fes_ho_,
                                          const Array<int> &ess_dofs_)
-   : BatchedLORAssembly(lor_disc_, a_, fes_ho_, ess_dofs_)
+   : BatchedLORAssembly(a_, fes_ho_, ess_dofs_)
 { }
 
 } // namespace mfem
