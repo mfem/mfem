@@ -28,10 +28,14 @@ namespace mfem
 class BatchedLORAssembly
 {
 protected:
-   LORBase &lor_disc; ///< Information about the LOR space
-   LORRestriction R;
-   FiniteElementSpace &fes_ho; ///< The high-order space
-   const Array<int> &ess_dofs; ///< Essential DOFs to eliminate
+   LORBase &lor_disc; ///< Information about the LOR space.
+   LORRestriction R; ///< LOR restriction used for sparse matrix assembly.
+   FiniteElementSpace &fes_ho; ///< The high-order space.
+   const Array<int> &ess_dofs; ///< Essential DOFs to eliminate.
+
+   Vector X_vert; ///< LOR vertex coordinates.
+
+   template <int Q1D> void GetLORVertexCoordinates();
 
    /// Assemble the system without eliminating essential DOFs.
    SparseMatrix *AssembleWithoutBC();

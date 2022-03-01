@@ -16,24 +16,19 @@
 namespace mfem
 {
 
-template<int D1D, int Q1D>
-void NodalInterpolation3D(const int NE,
-                          const Vector& localL, Vector& localH,
-                          const Array<double>& B);
-
-template <int order, bool USE_SMEM = true>
-void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
-                          const Array<int> &dof_glob2loc_offsets_,
-                          const Array<int> &el_dof_lex_,
-                          Mesh &mesh_ho,
-                          SparseMatrix &A_mat)
+template <int ORDER, bool USE_SMEM>
+void BatchedLORDiffusion::AssembleDiffusion(SparseMatrix &A_mat)
 {
-   const int nel_ho = mesh_ho.GetNE();
+   const Array<int> &dof_glob2loc_ = R.Indices();
+   const Array<int> &dof_glob2loc_offsets_ = R.Offsets();
+   const Array<int> &el_dof_lex_ = R.GatherMap();
+
+   const int nel_ho = fes_ho.GetNE();
 
    static constexpr int nv = 8;
    static constexpr int dim = 3;
    static constexpr int ddm2 = (dim*(dim+1))/2;
-   static constexpr int nd1d = order + 1;
+   static constexpr int nd1d = ORDER + 1;
    static constexpr int ndof_per_el = nd1d*nd1d*nd1d;
    static constexpr int nnz_per_row = 27;
    static constexpr int nnz_per_el = nnz_per_row * ndof_per_el;
@@ -63,54 +58,10 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
    const auto J = A_mat.ReadJ();
    auto A = A_mat.ReadWriteData();
 
-   const GridFunction *nodal_gf = mesh_ho.GetNodes();
-   const FiniteElementSpace *nodal_fes = nodal_gf->FESpace();
-   const Operator *nodal_restriction = nodal_fes->GetElementRestriction(
-                                          ElementDofOrdering::LEXICOGRAPHIC);
-   const int nodal_nd1d = nodal_fes->GetMaxElementOrder() + 1;
-
-   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const IntegrationRule &ir = irs.Get(Geometry::Type::CUBE, 2*nd1d - 3);
-   MFEM_VERIFY(ir.Size() == ndof_per_el, "");
-
-   // Get the map from mesh nodes to LOR vertices
-   const DofToQuad& maps =
-      nodal_fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
-
-   // Map from nodal E-vector to L-vector
-   Vector nodes_loc(nodal_restriction->Height());
-   nodes_loc.UseDevice(true);
-   nodal_restriction->Mult(*nodal_gf, nodes_loc);
-
-   // Get nodal points at the LOR vertices
-   Vector X_loc(dim*ndof_per_el*nel_ho);
-   X_loc.UseDevice(true);
-
-   // Get the LOR vertex coordinates
-   MFEM_VERIFY(nd1d==order+1, "nd1d!=order+1");
-   switch (nodal_nd1d)
-   {
-      case 2:
-      {
-         NodalInterpolation3D<2,nd1d>(nel_ho, nodes_loc, X_loc, maps.B);
-         break;
-      }
-      case 4:
-      {
-         NodalInterpolation3D<4,nd1d>(nel_ho, nodes_loc, X_loc, maps.B);
-         break;
-      }
-      case 6:
-      {
-         NodalInterpolation3D<6,nd1d>(nel_ho, nodes_loc, X_loc, maps.B);
-         break;
-      }
-      default: MFEM_ABORT("Unsuported mesh order!");
-   }
-   auto X = X_loc.Read();
+   auto X = X_vert.Read();
 
    // Last GRID dimension is lowered to avoid too many resources
-   MFEM_FORALL_3D_GRID(iel_ho, nel_ho, order, order, USE_SMEM?order:1, GRID,
+   MFEM_FORALL_3D_GRID(iel_ho, nel_ho, ORDER, ORDER, USE_SMEM?ORDER:1, GRID,
    {
       const int bid = MFEM_BLOCK_ID(x);
       MFEM_SHARED double smem[USE_SMEM ? nnz_per_el : 1];
@@ -137,11 +88,11 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
       MFEM_SYNC_THREAD;
 
       // Compute geometric factors at quadrature points
-      MFEM_FOREACH_THREAD(kz,z,order)
+      MFEM_FOREACH_THREAD(kz,z,ORDER)
       {
-         MFEM_FOREACH_THREAD(ky,y,order)
+         MFEM_FOREACH_THREAD(ky,y,ORDER)
          {
-            MFEM_FOREACH_THREAD(kx,x,order)
+            MFEM_FOREACH_THREAD(kx,x,ORDER)
             {
                double Q_[ddm2*nv];
                double grad_A_[sz_grad_A];
@@ -467,13 +418,13 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                }
 
                const int jx_begin = (ix > 0) ? ix - 1 : 0;
-               const int jx_end = (ix < order) ? ix + 1 : order;
+               const int jx_end = (ix < ORDER) ? ix + 1 : ORDER;
 
                const int jy_begin = (iy > 0) ? iy - 1 : 0;
-               const int jy_end = (iy < order) ? iy + 1 : order;
+               const int jy_end = (iy < ORDER) ? iy + 1 : ORDER;
 
                const int jz_begin = (iz > 0) ? iz - 1 : 0;
-               const int jz_end = (iz < order) ? iz + 1 : order;
+               const int jz_end = (iz < ORDER) ? iz + 1 : ORDER;
 
                for (int jz=jz_begin; jz<=jz_end; ++jz)
                {
@@ -484,9 +435,9 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
                         const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
                         const double Vji = V(jj_off, ix, iy, iz);
                         const int col_ptr_jj = col_ptr[jj_off];
-                        if ((ix == 0 && jx == 0) || (ix == order && jx == order) ||
-                            (iy == 0 && jy == 0) || (iy == order && jy == order) ||
-                            (iz == 0 && jz == 0) || (iz == order && jz == order))
+                        if ((ix == 0 && jx == 0) || (ix == ORDER && jx == ORDER) ||
+                            (iy == 0 && jy == 0) || (iy == ORDER && jy == ORDER) ||
+                            (iz == 0 && jz == 0) || (iz == ORDER && jz == ORDER))
                         {
                            AtomicAdd(A[col_ptr_jj], Vji);
                         }
@@ -503,46 +454,26 @@ void Assemble3DBatchedLOR(const Array<int> &dof_glob2loc_,
    });
 }
 
-#define LOR_KERNEL_INSTANCE(order,use_smem) \
-template void Assemble3DBatchedLOR<order,use_smem>\
-    (const Array<int> &,const Array<int> &, const Array<int> &,\
-     Mesh &, SparseMatrix &)
-
-LOR_KERNEL_INSTANCE(1,true);
-LOR_KERNEL_INSTANCE(2,true);
-LOR_KERNEL_INSTANCE(3,true);
-LOR_KERNEL_INSTANCE(4,true);
-LOR_KERNEL_INSTANCE(5,true);
-LOR_KERNEL_INSTANCE(6,false);
-
 void BatchedLORDiffusion::AssemblyKernel(SparseMatrix &A)
 {
    Mesh &mesh_ho = *fes_ho.GetMesh();
    const int dim = mesh_ho.Dimension();
    const int order = fes_ho.GetMaxElementOrder();
 
-   void (*Kernel)(const Array<int> &dof_glob2loc,
-                  const Array<int> &dof_glob2loc_offsets,
-                  const Array<int> &el_dof_lex,
-                  Mesh &mesh_ho,
-                  SparseMatrix &A_mat) = nullptr;
-
    if (dim == 2) { MFEM_ABORT("Unsuported!"); }
    else if (dim == 3)
    {
       switch (order)
       {
-         case 1: Kernel = Assemble3DBatchedLOR<1>; break;
-         case 2: Kernel = Assemble3DBatchedLOR<2>; break;
-         case 3: Kernel = Assemble3DBatchedLOR<3>; break;
-         case 4: Kernel = Assemble3DBatchedLOR<4>; break;
-         case 5: Kernel = Assemble3DBatchedLOR<5>; break;
-         case 6: Kernel = Assemble3DBatchedLOR<6,false>; break;
+         case 1: AssembleDiffusion<1>(A); break;
+         case 2: AssembleDiffusion<2>(A); break;
+         case 3: AssembleDiffusion<3>(A); break;
+         case 4: AssembleDiffusion<4>(A); break;
+         case 5: AssembleDiffusion<5>(A); break;
+         case 6: AssembleDiffusion<6,false>(A); break;
          default: MFEM_ABORT("Kernel not ready!");
       }
    }
-
-   Kernel(R.Indices(), R.Offsets(), R.GatherMap(), mesh_ho, A);
 }
 
 BatchedLORDiffusion::BatchedLORDiffusion(LORBase &lor_disc_,
