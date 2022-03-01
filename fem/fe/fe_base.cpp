@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1079,11 +1079,11 @@ void VectorFiniteElement::ProjectCurl_ND(
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix curlshape(fe.GetDof(), dim);
    DenseMatrix curlshape_J(fe.GetDof(), dim);
-   DenseMatrix J(dim, dim);
+   DenseMatrix JtJ(dim, dim);
 #else
    curlshape.SetSize(fe.GetDof(), dim);
    curlshape_J.SetSize(fe.GetDof(), dim);
-   J.SetSize(dim, dim);
+   JtJ.SetSize(dim, dim);
 #endif
 
    Vector curl_k(fe.GetDof());
@@ -1095,12 +1095,12 @@ void VectorFiniteElement::ProjectCurl_ND(
 
       // calculate J^t * J / |J|
       Trans.SetIntPoint(&ip);
-      MultAtB(Trans.Jacobian(), Trans.Jacobian(), J);
-      J *= 1.0 / Trans.Weight();
+      MultAtB(Trans.Jacobian(), Trans.Jacobian(), JtJ);
+      JtJ *= 1.0 / Trans.Weight();
 
       // transform curl of shapes (rows) by J^t * J / |J|
       fe.CalcCurlShape(ip, curlshape);
-      Mult(curlshape, J, curlshape_J);
+      Mult(curlshape, JtJ, curlshape_J);
 
       curlshape_J.Mult(tk + d2t[k]*dim, curl_k);
       for (int j = 0; j < curl_k.Size(); j++)
@@ -1833,17 +1833,17 @@ void Poly_1D::Basis::Eval(const double y, Vector &u, Vector &d,
    }
 }
 
-void Poly_1D::Basis::EvalIntegrated(const Vector &d_aux, Vector &u) const
+void Poly_1D::Basis::EvalIntegrated(const Vector &d_aux_, Vector &u) const
 {
    MFEM_VERIFY(etype == Integrated,
                "EvalIntegrated is only valid for Integrated basis type");
-   int p = d_aux.Size() - 1;
+   int p = d_aux_.Size() - 1;
    // See Gerritsma, M. (2010).  "Edge functions for spectral element methods",
    // in Lecture Notes in Computational Science and Engineering, 199--207.
-   u[0] = -d_aux[0];
+   u[0] = -d_aux_[0];
    for (int j=1; j<p; ++j)
    {
-      u[j] = u[j-1] - d_aux[j];
+      u[j] = u[j-1] - d_aux_[j];
    }
    // If scale_integrated is true, the degrees of freedom represent mean values,
    // otherwise they represent subcell integrals. Generally, scale_integrated

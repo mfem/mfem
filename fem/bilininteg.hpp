@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2175,6 +2175,8 @@ public:
    virtual void AddMultMF(const Vector&, Vector&) const;
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &el,
                                          ElementTransformation &Trans);
