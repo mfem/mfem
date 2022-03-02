@@ -16,8 +16,8 @@
 using namespace mfem;
 
 void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
-                      int *cmap1=nullptr,
-                      std::unordered_map<int,int> *cmap2inv=nullptr)
+                      HYPRE_BigInt *cmap1=nullptr,
+                      std::unordered_map<HYPRE_BigInt,int> *cmap2inv=nullptr)
 {
    REQUIRE(A1.Height() == A2.Height());
    int n = A1.Height();
@@ -45,6 +45,7 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
             }
             else
             {
+               error = std::max(error, std::fabs(V1[jj]));
                continue;
             }
          }
@@ -69,7 +70,7 @@ void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
 
    if (cmap1)
    {
-      std::unordered_map<int,int> cmap2inv;
+      std::unordered_map<HYPRE_BigInt,int> cmap2inv;
       for (int i=0; i<offd2.Width(); ++i) { cmap2inv[cmap2[i]] = i; }
       TestSameMatrices(offd1, offd2, cmap1, &cmap2inv);
    }
