@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1015,6 +1015,194 @@ void RT_TetrahedronElement::CalcDivShape(const IntegrationPoint &ip,
       }
 
    Ti.Mult(divu, divshape);
+}
+
+const double RT_WedgeElement::nk[15] =
+{ 0,0,-1, 0,0,1, 0,-1,0, 1,1,0, -1,0,0};
+
+RT_WedgeElement::RT_WedgeElement(const int p)
+   : VectorFiniteElement(3, Geometry::PRISM,
+                         (p + 2) * ((p + 1) * (p + 2)) / 2 +
+                         (p + 1) * (p + 1) * (p + 3), p + 1,
+                         H_DIV, FunctionSpace::Pk),
+     dof2nk(dof),
+     t_dof(dof),
+     s_dof(dof),
+     L2TriangleFE(p),
+     RTTriangleFE(p),
+     H1SegmentFE(p + 1),
+     L2SegmentFE(p)
+{
+   MFEM_ASSERT(L2TriangleFE.GetDof() * H1SegmentFE.GetDof() +
+               RTTriangleFE.GetDof() * L2SegmentFE.GetDof() == dof,
+               "Mismatch in number of degrees of freedom "
+               "when building RT_WedgeElement!");
+
+   const int pm1 = p - 1;
+
+#ifndef MFEM_THREAD_SAFE
+   tl2_shape.SetSize(L2TriangleFE.GetDof());
+   sh1_shape.SetSize(H1SegmentFE.GetDof());
+   trt_shape.SetSize(RTTriangleFE.GetDof(), 2);
+   sl2_shape.SetSize(L2SegmentFE.GetDof());
+   sh1_dshape.SetSize(H1SegmentFE.GetDof(), 1);
+   trt_dshape.SetSize(RTTriangleFE.GetDof());
+#endif
+
+   const IntegrationRule &tl2_n = L2TriangleFE.GetNodes();
+   const IntegrationRule &trt_n = RTTriangleFE.GetNodes();
+   const IntegrationRule &sh1_n = H1SegmentFE.GetNodes();
+   const IntegrationRule &sl2_n = L2SegmentFE.GetNodes();
+
+   // faces
+   int o = 0;
+   int l = 0;
+   // (0,2,1) -- bottom
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)
+      {
+         l = j + i * (2 * p + 3 - i) / 2;
+         t_dof[o] = l; s_dof[o] = 0; dof2nk[o] = 0;
+         const IntegrationPoint & t_ip = tl2_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sh1_n.IntPoint(s_dof[o]).x);
+         o++;
+      }
+   // (3,4,5) -- top
+   l = 0;
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)
+      {
+         t_dof[o] = l; s_dof[o] = 1; dof2nk[o] = 1; l++;
+         const IntegrationPoint & t_ip = tl2_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sh1_n.IntPoint(s_dof[o]).x);
+         o++;
+      }
+   // (0, 1, 4, 3) -- xz plane
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         t_dof[o] = i; s_dof[o] = j; dof2nk[o] = 2;
+         const IntegrationPoint & t_ip = trt_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sl2_n.IntPoint(s_dof[o]).x);
+         o++;
+      }
+   // (1, 2, 5, 4) -- (y-x)z plane
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         t_dof[o] = p + 1 + i; s_dof[o] = j; dof2nk[o] = 3;
+         const IntegrationPoint & t_ip = trt_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sl2_n.IntPoint(s_dof[o]).x);
+         o++;
+      }
+   // (2, 0, 3, 5) -- yz plane
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         t_dof[o] = 2 * p + 2 + i; s_dof[o] = j; dof2nk[o] = 4;
+         const IntegrationPoint & t_ip = trt_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sl2_n.IntPoint(s_dof[o]).x);
+         o++;
+      }
+
+   // interior
+   for (int k = 0; k < L2SegmentFE.GetDof(); k++)
+   {
+      l = 0;
+      for (int j = 0; j <= pm1; j++)
+         for (int i = 0; i + j <= pm1; i++)
+         {
+            t_dof[o] = 3 * (p + 1) + 2 * l;     s_dof[o] = k;
+            dof2nk[o] = 2;
+            const IntegrationPoint & t_ip0 = trt_n.IntPoint(t_dof[o]);
+            const IntegrationPoint & s_ip0 = sl2_n.IntPoint(s_dof[o]);
+            Nodes.IntPoint(o).Set3(t_ip0.x, t_ip0.y, s_ip0.x);
+            o++;
+            t_dof[o] = 3 * (p + 1) + 2 * l + 1; s_dof[o] = k;
+            dof2nk[o] = 4; l++;
+            const IntegrationPoint & t_ip1 = trt_n.IntPoint(t_dof[o]);
+            const IntegrationPoint & s_ip1 = sl2_n.IntPoint(s_dof[o]);
+            Nodes.IntPoint(o).Set3(t_ip1.x, t_ip1.y, s_ip1.x);
+            o++;
+         }
+   }
+   for (int k = 2; k < H1SegmentFE.GetDof(); k++)
+   {
+      for (l = 0; l < L2TriangleFE.GetDof(); l++)
+      {
+         t_dof[o] = l; s_dof[o] = k; dof2nk[o] = 1;
+         const IntegrationPoint & t_ip = tl2_n.IntPoint(t_dof[o]);
+         Nodes.IntPoint(o).Set3(t_ip.x, t_ip.y, sh1_n.IntPoint(s_dof[o]).x);
+         o++;
+      }
+   }
+}
+
+void RT_WedgeElement::CalcVShape(const IntegrationPoint &ip,
+                                 DenseMatrix &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix trt_shape(RTTriangleFE.GetDof(), 2);
+   Vector tl2_shape(L2TriangleFE.GetDof());
+   Vector sh1_shape(H1SegmentFE.GetDof());
+   Vector sl2_shape(L2SegmentFE.GetDof());
+#endif
+
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   L2TriangleFE.CalcShape(ip, tl2_shape);
+   RTTriangleFE.CalcVShape(ip, trt_shape);
+   H1SegmentFE.CalcShape(ipz, sh1_shape);
+   L2SegmentFE.CalcShape(ipz, sl2_shape);
+
+   for (int i=0; i<dof; i++)
+   {
+      if ( dof2nk[i] >= 2 )
+      {
+         shape(i, 0) = trt_shape(t_dof[i], 0) * sl2_shape[s_dof[i]];
+         shape(i, 1) = trt_shape(t_dof[i], 1) * sl2_shape[s_dof[i]];
+         shape(i, 2) = 0.0;
+      }
+      else
+      {
+         double s = (dof2nk[i] == 0) ? -1.0 : 1.0;
+         shape(i, 0) = 0.0;
+         shape(i, 1) = 0.0;
+         shape(i, 2) = s * tl2_shape[t_dof[i]] * sh1_shape(s_dof[i]);
+      }
+   }
+}
+
+void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
+                                   Vector &divshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector      trt_dshape(RTSegmentFE.GetDof());
+   Vector      tl2_shape(L2TriangleFE.GetDof());
+   Vector      sl2_shape(L2SegmentFE.GetDof());
+   DenseMatrix sh1_dshape(H1SegmentFE.GetDof(), 1);
+#endif
+
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   RTTriangleFE.CalcDivShape(ip, trt_dshape);
+   L2TriangleFE.CalcShape(ip, tl2_shape);
+
+   L2SegmentFE.CalcShape(ipz, sl2_shape);
+   H1SegmentFE.CalcDShape(ipz, sh1_dshape);
+
+   for (int i=0; i<dof; i++)
+   {
+      if ( dof2nk[i] >= 2 )
+      {
+         divshape(i) = trt_dshape(t_dof[i]) * sl2_shape(s_dof[i]);
+      }
+      else
+      {
+         double s = (dof2nk[i] == 0) ? -1.0 : 1.0;
+         divshape(i) = s * tl2_shape(t_dof[i]) * sh1_dshape(s_dof[i], 0);
+      }
+   }
 }
 
 }

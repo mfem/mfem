@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -667,7 +667,7 @@ AlgebraicSpaceHierarchy::AlgebraicSpaceHierarchy(FiniteElementSpace &fes)
       const SparseMatrix *R = fespaces[ilevel+1]->GetRestrictionMatrix();
       if (R)
       {
-         R->BuildTranspose();
+         R->EnsureMultTranspose();
          R_tr[ilevel] = new TransposeOperator(*R);
       }
       else

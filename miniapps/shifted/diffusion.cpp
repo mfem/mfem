@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+﻿// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -83,10 +83,10 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this miniapp\n"
-        << "is NOT supported with the CUDA version of hypre.\n\n";
-   return 255;
+        << "is NOT supported with the GPU version of hypre.\n\n";
+   return 242;
 #endif
 
    // Initialize MPI.
@@ -604,7 +604,7 @@ int main(int argc, char *argv[])
    if (dirichlet_level_set_type == 2 || dirichlet_level_set_type == 3 ||
        (dirichlet_level_set_type == -1 && neumann_level_set_type == 2))
    {
-      ParGridFunction err(x);
+      ParGridFunction error(x);
       Vector pxyz(dim);
       pxyz(0) = 0.;
       for (int i = 0; i < nodes_cnt; i++)
@@ -620,7 +620,7 @@ int main(int argc, char *argv[])
          {
             exact_val = dirichlet_velocity_xy_sinusoidal(pxyz);
          }
-         err(i) = std::fabs(x(i) - exact_val);
+         error(i) = std::fabs(x(i) - exact_val);
       }
 
       if (visualization)
@@ -628,7 +628,7 @@ int main(int argc, char *argv[])
          char vishost[] = "localhost";
          int  visport   = 19916, s = 350;
          socketstream sol_sock;
-         common::VisualizeField(sol_sock, vishost, visport, err,
+         common::VisualizeField(sol_sock, vishost, visport, error,
                                 "Error", 2*s, 0, s, s, "Rj");
       }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1168,7 +1168,7 @@ protected:
 
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
-   AdaptivityEvaluator *adapt_eval;
+   AdaptivityEvaluator *adapt_lim_eval;
 
    void SetDiscreteTargetBase(const GridFunction &tspec_);
    void SetTspecAtIndex(int idx, const GridFunction &tspec_);
@@ -1191,7 +1191,7 @@ public:
 #endif
         amr_el(-1), lim_min_size(-0.1),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
-        adapt_eval(NULL) { }
+        adapt_lim_eval(NULL) { }
 
    virtual ~DiscreteAdaptTC();
 
@@ -1267,8 +1267,8 @@ public:
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
-      if (adapt_eval) { delete adapt_eval; }
-      adapt_eval = ae;
+      if (adapt_lim_eval) { delete adapt_lim_eval; }
+      adapt_lim_eval = ae;
    }
 
    const Vector &GetTspecPert1H()   { return tspec_pert1h; }
@@ -1350,15 +1350,15 @@ protected:
    int integ_order;
 
    // Weight Coefficient multiplying the quality metric term.
-   Coefficient *coeff1; // not owned, if NULL -> coeff1 is 1.
+   Coefficient *metric_coeff; // not owned, if NULL -> metric_coeff is 1.
    // Normalization factor for the metric term.
    double metric_normal;
 
    // Nodes and weight Coefficient used for "limiting" the TMOP_Integrator.
    // These are both NULL when there is no limiting.
-   // The class doesn't own nodes0 and coeff0.
-   const GridFunction *nodes0;
-   Coefficient *coeff0;
+   // The class doesn't own lim_nodes0 and lim_coeff.
+   const GridFunction *lim_nodes0;
+   Coefficient *lim_coeff;
    // Limiting reference distance. Not owned.
    const GridFunction *lim_dist;
    // Limiting function. Owned.
@@ -1367,20 +1367,21 @@ protected:
    double lim_normal;
 
    // Adaptive limiting.
-   const GridFunction *zeta_0;       // Not owned.
+   const GridFunction *adapt_lim_gf0;    // Not owned.
 #ifdef MFEM_USE_MPI
-   const ParGridFunction *pzeta_0;
+   const ParGridFunction *adapt_lim_pgf0;
 #endif
-   GridFunction *zeta;               // Owned. Updated by adapt_eval.
-   Coefficient *coeff_zeta;          // Not owned.
-   AdaptivityEvaluator *adapt_eval;  // Not owned.
+   GridFunction *adapt_lim_gf;           // Owned. Updated by adapt_lim_eval.
+   Coefficient *adapt_lim_coeff;         // Not owned.
+   AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
 
    // Surface fitting.
-   GridFunction *sigma, *sigma_bar;  // Owned. Updated by sigma_eval.
-   const Array<bool> *sigma_marker;  // Not owned.
-   Coefficient *coeff_sigma;         // Not owned.
-   AdaptivityEvaluator *sigma_eval;  // Not owned.
-   double sigma_normal;
+   GridFunction *surf_fit_gf,
+                *surf_fit_gf_bar;       // Owned, Updated by surf_fit_eval.
+   const Array<bool> *surf_fit_marker;  // Not owned.
+   Coefficient *surf_fit_coeff;         // Not owned.
+   AdaptivityEvaluator *surf_fit_eval;  // Not owned.
+   double surf_fit_normal;
 
    DiscreteAdaptTC *discr_tc;
    AutomaticTC *auto_tc;
@@ -1452,7 +1453,7 @@ protected:
 
    void ComputeNormalizationEnergies(const GridFunction &x,
                                      double &metric_energy, double &lim_energy,
-                                     double &sigma_energy);
+                                     double &surf_fit_gf_energy);
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
@@ -1507,7 +1508,7 @@ protected:
 
    void DisableLimiting()
    {
-      nodes0 = NULL; coeff0 = NULL; lim_dist = NULL;
+      lim_nodes0 = NULL; lim_coeff = NULL; lim_dist = NULL;
       delete lim_func; lim_func = NULL;
    }
 
@@ -1569,12 +1570,14 @@ public:
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
                    TMOP_QualityMetric *hm)
       : h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
-        integ_order(-1), coeff1(NULL), metric_normal(1.0),
-        nodes0(NULL), coeff0(NULL),
+        integ_order(-1), metric_coeff(NULL), metric_normal(1.0),
+        lim_nodes0(NULL), lim_coeff(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
-        zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
-        sigma(NULL), sigma_bar(NULL), sigma_marker(NULL), coeff_sigma(NULL),
-        sigma_eval(NULL), sigma_normal(1.0),
+        adapt_lim_gf0(NULL), adapt_lim_gf(NULL), adapt_lim_coeff(NULL),
+        adapt_lim_eval(NULL),
+        surf_fit_gf(NULL), surf_fit_gf_bar(NULL), surf_fit_marker(NULL),
+        surf_fit_coeff(NULL),
+        surf_fit_eval(NULL), surf_fit_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         auto_tc(dynamic_cast<AutomaticTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
@@ -1587,7 +1590,7 @@ public:
 
    /// Release the device memory of large PA allocations. This will copy device
    /// memory back to the host before releasing.
-   void ReleasePADeviceMemory();
+   void ReleasePADeviceMemory(bool copy_to_host = true);
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** This function has priority over SetIntRule(), if both are called. */
@@ -1607,7 +1610,7 @@ public:
 
        Note that the Coefficient is evaluated in the physical configuration and
        not in the target configuration which may be undefined. */
-   void SetCoefficient(Coefficient &w1) { coeff1 = &w1; }
+   void SetCoefficient(Coefficient &w1) { metric_coeff = &w1; }
 
    /** @brief Limiting of the mesh displacements (general version).
 
@@ -1674,7 +1677,7 @@ public:
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
 
    /// Update the original/reference nodes used for limiting.
-   void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }
+   void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
 
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone.
        @param[in] el     Type of FiniteElement.

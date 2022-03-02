@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -330,7 +330,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
          }
          else
          {
-            Node &(n_bndry_conn_conv) =
+            Node &n_bndry_conn_conv =
                n_conv["topologies"][bndry_topo_name]["elements/connectivity"];
             n_bndry_conn.to_int_array(n_bndry_conn_conv);
             bndry_indices = (n_bndry_conn_conv).value();

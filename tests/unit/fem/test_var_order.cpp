@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,7 @@
 namespace mfem
 {
 
+static double exact_sln(const Vector &p);
 static void TestSolve(FiniteElementSpace &fespace);
 
 // Check basic functioning of variable order spaces, hp interpolation and
@@ -89,6 +90,50 @@ TEST_CASE("Variable Order FiniteElementSpace",
       REQUIRE(fespace.GetNConformingDofs() == 83);
 
       TestSolve(fespace);
+   }
+
+   SECTION("Quad/hex mesh projection")
+   {
+      for (int dim=2; dim<=3; ++dim)
+      {
+         // 2-element mesh
+         Mesh mesh = dim == 2 ? Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL) :
+                     Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+         mesh.EnsureNCMesh();
+
+         // h-refine element 1
+         Array<Refinement> refinements;
+         refinements.Append(Refinement(1));
+
+         int nonconformity_limit = 0; // 0 meaning allow unlimited ratio
+         mesh.GeneralRefinement(refinements, 1, nonconformity_limit);  // h-refinement
+
+         // standard H1 space with order 2 elements
+         H1_FECollection fec(2, mesh.Dimension());
+         FiniteElementSpace fespace(&mesh, &fec);
+
+         GridFunction x(&fespace);
+
+         // p-refine element 0
+         fespace.SetElementOrder(0, 3);
+
+         fespace.Update(false);
+         x.SetSpace(&fespace);
+
+         // Test projection of the coefficient
+         FunctionCoefficient exsol(exact_sln);
+         x.ProjectCoefficient(exsol);
+
+         // Enforce space constraints on locally interpolated GridFunction x
+         const SparseMatrix *R = fespace.GetHpRestrictionMatrix();
+         const SparseMatrix *P = fespace.GetConformingProlongation();
+         Vector y(fespace.GetTrueVSize());
+         R->Mult(x, y);
+         P->Mult(y, x);
+
+         const double error = x.ComputeL2Error(exsol);
+         REQUIRE(error == MFEM_Approx(0.0));
+      }
    }
 
    SECTION("Hex mesh")
