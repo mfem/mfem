@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -65,7 +65,7 @@ bool CanShallowCopy(const Memory<T> &src, MemoryClass mc)
 inline void HypreParVector::_SetDataAndSize_()
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
    SetDataAndSize(hypre_VectorData(x_loc),
                   internal::to_int(hypre_VectorSize(x_loc)));
 #else
@@ -112,7 +112,7 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
 #endif
    double tmp = 0.0;
    hypre_VectorData(x_loc) = &tmp;
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) =
       is_device_ptr ? HYPRE_MEMORY_DEVICE : HYPRE_MEMORY_HOST;
 #else
@@ -127,18 +127,19 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    own_ParVector = 1;
 }
 
-HypreParVector::HypreParVector(const HypreParVector &y) : Vector()
+// Call the move constructor on the "compatible" temp vector
+HypreParVector::HypreParVector(const HypreParVector &y) : HypreParVector(
+      y.CreateCompatibleVector())
 {
-   x = hypre_ParVectorCreate(y.x -> comm, y.x -> global_size,
-                             y.x -> partitioning);
-   hypre_ParVectorInitialize(x);
-#if MFEM_HYPRE_VERSION <= 22200
-   hypre_ParVectorSetPartitioningOwner(x,0);
-#endif
-   hypre_ParVectorSetDataOwner(x,1);
-   hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),1);
-   _SetDataAndSize_();
-   own_ParVector = 1;
+   // Deep copy the local data
+   hypre_SeqVectorCopy(hypre_ParVectorLocalVector(y.x),
+                       hypre_ParVectorLocalVector(x));
+}
+
+HypreParVector::HypreParVector(HypreParVector &&y)
+{
+   own_ParVector = 0;
+   *this = std::move(y);
 }
 
 HypreParVector::HypreParVector(const HypreParMatrix &A,
@@ -176,6 +177,23 @@ HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
    hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(x),1);
    _SetDataAndSize_();
    own_ParVector = 1;
+}
+
+HypreParVector HypreParVector::CreateCompatibleVector() const
+{
+   HypreParVector result;
+   result.x = hypre_ParVectorCreate(x -> comm, x -> global_size,
+                                    x -> partitioning);
+   hypre_ParVectorInitialize(result.x);
+#if MFEM_HYPRE_VERSION <= 22200
+   hypre_ParVectorSetPartitioningOwner(result.x,0);
+#endif
+   hypre_ParVectorSetDataOwner(result.x,1);
+   hypre_SeqVectorSetDataOwner(hypre_ParVectorLocalVector(result.x),1);
+   result._SetDataAndSize_();
+   result.own_ParVector = 1;
+
+   return result;
 }
 
 void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
@@ -216,6 +234,18 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
    return *this;
 }
 
+HypreParVector& HypreParVector::operator=(HypreParVector &&y)
+{
+   // If the argument vector owns its data, then the calling vector will as well
+   WrapHypreParVector(static_cast<hypre_ParVector*>(y), y.own_ParVector);
+   // Either way the argument vector will no longer own its data
+   y.own_ParVector = 0;
+   y.x = nullptr;
+   y.data.Reset();
+   y.size = 0;
+   return *this;
+}
+
 void HypreParVector::SetData(double *data_)
 {
    hypre_VectorData(hypre_ParVectorLocalVector(x)) = data_;
@@ -227,7 +257,7 @@ void HypreParVector::HypreRead() const
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) =
       const_cast<double*>(data.Read(GetHypreMemoryClass(), size));
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
 #endif
 }
@@ -236,7 +266,7 @@ void HypreParVector::HypreReadWrite()
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.ReadWrite(GetHypreMemoryClass(), size);
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
 #endif
 }
@@ -245,7 +275,7 @@ void HypreParVector::HypreWrite()
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.Write(GetHypreMemoryClass(), size);
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
 #endif
 }
@@ -259,7 +289,7 @@ void HypreParVector::WrapMemoryRead(const Memory<double> &mem)
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) =
       const_cast<double*>(mem.Read(GetHypreMemoryClass(), size));
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
 #endif
    data.MakeAlias(mem, 0, size);
@@ -273,7 +303,7 @@ void HypreParVector::WrapMemoryReadWrite(Memory<double> &mem)
    data.Delete();
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = mem.ReadWrite(GetHypreMemoryClass(), size);
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
 #endif
    data.MakeAlias(mem, 0, size);
@@ -287,7 +317,7 @@ void HypreParVector::WrapMemoryWrite(Memory<double> &mem)
    data.Delete();
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = mem.Write(GetHypreMemoryClass(), size);
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
 #endif
    data.MakeAlias(mem, 0, size);
@@ -301,6 +331,18 @@ HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
 void HypreParVector::Print(const char *fname) const
 {
    hypre_ParVectorPrint(x,fname);
+}
+
+void HypreParVector::Read(MPI_Comm comm, const char *fname)
+{
+   if (own_ParVector)
+   {
+      hypre_ParVectorDestroy(x);
+   }
+   data.Delete();
+   x = hypre_ParVectorRead(comm, fname);
+   own_ParVector = true;
+   _SetDataAndSize_();
 }
 
 HypreParVector::~HypreParVector()
@@ -843,7 +885,7 @@ HypreParMatrix::HypreParMatrix(
    hypre_CSRMatrixJ(A->diag) = diag_j;
    hypre_CSRMatrixData(A->diag) = diag_data;
    hypre_CSRMatrixNumNonzeros(A->diag) = diag_i[local_num_rows];
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->diag) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->diag);
@@ -853,7 +895,7 @@ HypreParMatrix::HypreParMatrix(
    hypre_CSRMatrixJ(A->offd) = offd_j;
    hypre_CSRMatrixData(A->offd) = offd_data;
    hypre_CSRMatrixNumNonzeros(A->offd) = offd_i[local_num_rows];
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->offd) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->offd);
@@ -1028,7 +1070,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    hypre_CSRMatrixI(A->diag)    = i_diag;
    hypre_CSRMatrixJ(A->diag)    = j_diag;
    hypre_CSRMatrixData(A->diag) = mem_diag.data;
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->diag) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->diag);
@@ -1037,7 +1079,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
    hypre_CSRMatrixI(A->offd)    = i_offd;
    hypre_CSRMatrixJ(A->offd)    = j_offd;
    hypre_CSRMatrixData(A->offd) = mem_offd.data;
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    hypre_CSRMatrixMemoryLocation(A->offd) = HYPRE_MEMORY_HOST;
 #endif
    hypre_CSRMatrixSetRownnz(A->offd);
@@ -1264,7 +1306,7 @@ hypre_ParCSRMatrix* HypreParMatrix::StealData()
    MFEM_ASSERT(diagOwner == offdOwner, "");
    MFEM_ASSERT(ParCSROwner, "");
    hypre_ParCSRMatrix *R = A;
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    if (diagOwner == -1) { HostReadWrite(); }
    else { HypreReadWrite(); }
 #endif
@@ -1376,8 +1418,8 @@ void HypreParMatrix::GetDiag(Vector &diag) const
 {
    const int size = Height();
    diag.SetSize(size);
-#ifdef HYPRE_USING_CUDA
-   if (Device::Allows(Backend::CUDA_MASK))
+#ifdef HYPRE_USING_GPU
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
       MFEM_ASSERT(A->diag->memory_location == HYPRE_MEMORY_DEVICE, "");
       double *d_diag = diag.Write();
@@ -1561,9 +1603,16 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
    }
 
    // Construct cpts_global array on hypre matrix structure
+#if (MFEM_HYPRE_VERSION > 22300) || (MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
+   HYPRE_BigInt cpts_global[2];
+
+   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+                              CF_marker, NULL, cpts_global);
+#else
    HYPRE_BigInt *cpts_global;
    hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
                               CF_marker, NULL, &cpts_global);
+#endif
 
    // Extract submatrix into *submat
 #ifdef hypre_IntArrayData
@@ -1575,7 +1624,9 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
                                         "FF", &submat, threshold);
 #endif
 
+#if (MFEM_HYPRE_VERSION <= 22300) && !(MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
    mfem_hypre_TFree(cpts_global);
+#endif
 #ifdef hypre_IntArrayData
    hypre_IntArrayDestroy(CF_marker);
 #endif
@@ -2079,7 +2130,7 @@ void HypreParMatrix::Threshold(double threshold)
 
 void HypreParMatrix::DropSmallEntries(double tol)
 {
-   HYPRE_Int err = 0, old_err = hypre_error_flag;
+   HYPRE_Int old_err = hypre_error_flag;
    hypre_error_flag = 0;
 
 #if MFEM_HYPRE_VERSION < 21400
@@ -2110,28 +2161,28 @@ void HypreParMatrix::DropSmallEntries(double tol)
 
 #elif MFEM_HYPRE_VERSION < 21800
 
-   err = hypre_ParCSRMatrixDropSmallEntries(A, tol);
+   HYPRE_Int err_flag = hypre_ParCSRMatrixDropSmallEntries(A, tol);
+   MFEM_VERIFY(!err_flag, "error encountered: error code = " << err_flag);
 
 #else
 
-   err = hypre_ParCSRMatrixDropSmallEntries(A, tol, 2);
+   HYPRE_Int err_flag = hypre_ParCSRMatrixDropSmallEntries(A, tol, 2);
+   MFEM_VERIFY(!err_flag, "error encountered: error code = " << err_flag);
 
 #endif
-
-   MFEM_VERIFY(!err, "error encountered: error code = " << err);
 
    hypre_error_flag = old_err;
 }
 
 void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
-                                       const HypreParVector &X,
-                                       HypreParVector &B)
+                                       const HypreParVector &x,
+                                       HypreParVector &b)
 {
    Array<HYPRE_Int> rc_sorted;
    get_sorted_rows_cols(rows_cols, rc_sorted);
 
    internal::hypre_ParCSRMatrixEliminateAXB(
-      A, rc_sorted.Size(), rc_sorted.GetData(), X, B);
+      A, rc_sorted.Size(), rc_sorted.GetData(), x, b);
 }
 
 HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
@@ -2177,10 +2228,10 @@ void HypreParMatrix::EliminateRows(const Array<int> &rows)
 
 void HypreParMatrix::EliminateBC(const HypreParMatrix &Ae,
                                  const Array<int> &ess_dof_list,
-                                 const Vector &X, Vector &B) const
+                                 const Vector &x, Vector &b) const
 {
-   // B -= Ae*X
-   Ae.Mult(-1.0, X, 1.0, B);
+   // b -= Ae*x
+   Ae.Mult(-1.0, x, 1.0, b);
 
    // All operations below are local, so we can skip them if ess_dof_list is
    // empty on this processor to avoid potential host <--> device transfers.
@@ -2198,13 +2249,13 @@ void HypreParMatrix::EliminateBC(const HypreParMatrix &Ae,
 #endif
 
    ess_dof_list.HostRead();
-   X.HostRead();
-   B.HostReadWrite();
+   x.HostRead();
+   b.HostReadWrite();
 
    for (int i = 0; i < ess_dof_list.Size(); i++)
    {
       int r = ess_dof_list[i];
-      B(r) = data[I[r]] * X(r);
+      b(r) = data[I[r]] * x(r);
 #ifdef MFEM_DEBUG
       MFEM_ASSERT(I[r] < I[r+1], "empty row found!");
       // Check that in the rows specified by the ess_dof_list, the matrix A has
@@ -2277,7 +2328,7 @@ void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
    width = GetNumCols();
 }
 
-void HypreParMatrix::PrintCommPkg(std::ostream &out) const
+void HypreParMatrix::PrintCommPkg(std::ostream &os) const
 {
    hypre_ParCSRCommPkg *comm_pkg = A->comm_pkg;
    MPI_Comm comm = A->comm;
@@ -2293,83 +2344,83 @@ void HypreParMatrix::PrintCommPkg(std::ostream &out) const
    }
    else
    {
-      out << "\nHypreParMatrix: hypre_ParCSRCommPkg:\n";
+      os << "\nHypreParMatrix: hypre_ParCSRCommPkg:\n";
    }
-   out << "Rank " << myid << ":\n"
-       "   number of sends  = " << comm_pkg->num_sends <<
-       " (" << sizeof(double)*comm_pkg->send_map_starts[comm_pkg->num_sends] <<
-       " bytes)\n"
-       "   number of recvs  = " << comm_pkg->num_recvs <<
-       " (" << sizeof(double)*comm_pkg->recv_vec_starts[comm_pkg->num_recvs] <<
-       " bytes)\n";
+   os << "Rank " << myid << ":\n"
+      "   number of sends  = " << comm_pkg->num_sends <<
+      " (" << sizeof(double)*comm_pkg->send_map_starts[comm_pkg->num_sends] <<
+      " bytes)\n"
+      "   number of recvs  = " << comm_pkg->num_recvs <<
+      " (" << sizeof(double)*comm_pkg->recv_vec_starts[comm_pkg->num_recvs] <<
+      " bytes)\n";
    if (myid != nproc-1)
    {
-      out << std::flush;
+      os << std::flush;
       MPI_Send(&c, 1, MPI_CHAR, myid+1, tag, comm);
    }
    else
    {
-      out << std::endl;
+      os << std::endl;
    }
    MPI_Barrier(comm);
 }
 
-void HypreParMatrix::PrintHash(std::ostream &out) const
+void HypreParMatrix::PrintHash(std::ostream &os) const
 {
    HashFunction hf;
 
-   out << "global number of rows    : " << A->global_num_rows << '\n'
-       << "global number of columns : " << A->global_num_cols << '\n'
-       << "first row index : " << A->first_row_index << '\n'
-       << " last row index : " << A->last_row_index << '\n'
-       << "first col diag  : " << A->first_col_diag << '\n'
-       << " last col diag  : " << A->last_col_diag << '\n'
-       << "number of nonzeros : " << A->num_nonzeros << '\n';
+   os << "global number of rows    : " << A->global_num_rows << '\n'
+      << "global number of columns : " << A->global_num_cols << '\n'
+      << "first row index : " << A->first_row_index << '\n'
+      << " last row index : " << A->last_row_index << '\n'
+      << "first col diag  : " << A->first_col_diag << '\n'
+      << " last col diag  : " << A->last_col_diag << '\n'
+      << "number of nonzeros : " << A->num_nonzeros << '\n';
    // diagonal, off-diagonal
    hypre_CSRMatrix *csr = A->diag;
    const char *csr_name = "diag";
    for (int m = 0; m < 2; m++)
    {
       auto csr_nnz = csr->i[csr->num_rows];
-      out << csr_name << " num rows : " << csr->num_rows << '\n'
-          << csr_name << " num cols : " << csr->num_cols << '\n'
-          << csr_name << " num nnz  : " << csr->num_nonzeros << '\n'
-          << csr_name << " i last   : " << csr_nnz
-          << (csr_nnz == csr->num_nonzeros ?
-              " [good]" : " [** BAD **]") << '\n';
+      os << csr_name << " num rows : " << csr->num_rows << '\n'
+         << csr_name << " num cols : " << csr->num_cols << '\n'
+         << csr_name << " num nnz  : " << csr->num_nonzeros << '\n'
+         << csr_name << " i last   : " << csr_nnz
+         << (csr_nnz == csr->num_nonzeros ?
+             " [good]" : " [** BAD **]") << '\n';
       hf.AppendInts(csr->i, csr->num_rows + 1);
-      out << csr_name << " i     hash : " << hf.GetHash() << '\n';
-      out << csr_name << " j     hash : ";
+      os << csr_name << " i     hash : " << hf.GetHash() << '\n';
+      os << csr_name << " j     hash : ";
       if (csr->j == nullptr)
       {
-         out << "(null)\n";
+         os << "(null)\n";
       }
       else
       {
          hf.AppendInts(csr->j, csr_nnz);
-         out << hf.GetHash() << '\n';
+         os << hf.GetHash() << '\n';
       }
 #if MFEM_HYPRE_VERSION >= 21600
-      out << csr_name << " big j hash : ";
+      os << csr_name << " big j hash : ";
       if (csr->big_j == nullptr)
       {
-         out << "(null)\n";
+         os << "(null)\n";
       }
       else
       {
          hf.AppendInts(csr->big_j, csr_nnz);
-         out << hf.GetHash() << '\n';
+         os << hf.GetHash() << '\n';
       }
 #endif
-      out << csr_name << " data  hash : ";
+      os << csr_name << " data  hash : ";
       if (csr->data == nullptr)
       {
-         out << "(null)\n";
+         os << "(null)\n";
       }
       else
       {
          hf.AppendDoubles(csr->data, csr_nnz);
-         out << hf.GetHash() << '\n';
+         os << hf.GetHash() << '\n';
       }
 
       csr = A->offd;
@@ -2377,7 +2428,7 @@ void HypreParMatrix::PrintHash(std::ostream &out) const
    }
 
    hf.AppendInts(A->col_map_offd, A->offd->num_cols);
-   out << "col map offd hash : " << hf.GetHash() << '\n';
+   os << "col map offd hash : " << hf.GetHash() << '\n';
 }
 
 inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
@@ -2396,7 +2447,7 @@ void HypreParMatrix::Destroy()
 
    if (A == NULL) { return; }
 
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    if (ParCSROwner && (diagOwner < 0 || offdOwner < 0))
    {
       // Put the "host" or "hypre" pointers in {i,j,data} of A->{diag,offd}, so
@@ -2539,7 +2590,7 @@ HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
                          bool own_matrix)
 {
    hypre_ParCSRMatrix * ab;
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    ab = hypre_ParCSRMatMat(*A, *B);
 #else
    ab = hypre_ParMatmul(*A,*B);
@@ -2560,7 +2611,7 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
 {
    hypre_ParCSRMatrix * rap;
 
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    // FIXME: this way of computing Pt A P can completely eliminate zero rows
    //        from the sparsity pattern of the product which prevents
    //        EliminateZeroRows() from working correctly. This issue is observed
@@ -2607,7 +2658,7 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
 {
    hypre_ParCSRMatrix * rap;
 
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    {
       hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
       rap = hypre_ParCSRTMatMat(*Rt,Q);
@@ -3202,9 +3253,9 @@ void HypreSmoother::SetOperator(const Operator &op)
    }
    if (l1_norms && pos_l1_norms)
    {
-#ifdef HYPRE_USING_CUDA
+#if defined(HYPRE_USING_GPU)
       double *d_l1_norms = l1_norms;  // avoid *this capture
-      CuWrap1D(height, [=] MFEM_DEVICE (int i)
+      MFEM_GPU_FORALL(i, height,
       {
          d_l1_norms[i] = std::abs(d_l1_norms[i]);
       });
@@ -3503,7 +3554,7 @@ HypreSolver::HypreSolver(const HypreParMatrix *A_)
 
 void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 {
-   HYPRE_Int err;
+   HYPRE_Int err_flag;
    if (A == NULL)
    {
       mfem_error("HypreSolver::Mult (...) : HypreParMatrix A is missing");
@@ -3521,27 +3572,29 @@ void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 
    if (!setup_called)
    {
-      err = SetupFcn()(*this, *A, b, x);
+      err_flag = SetupFcn()(*this, *A, b, x);
       if (error_mode == WARN_HYPRE_ERRORS)
       {
-         if (err) { MFEM_WARNING("Error during setup! Error code: " << err); }
+         if (err_flag)
+         { MFEM_WARNING("Error during setup! Error code: " << err_flag); }
       }
       else if (error_mode == ABORT_HYPRE_ERRORS)
       {
-         MFEM_VERIFY(!err, "Error during setup! Error code: " << err);
+         MFEM_VERIFY(!err_flag, "Error during setup! Error code: " << err_flag);
       }
       hypre_error_flag = 0;
       setup_called = 1;
    }
 
-   err = SolveFcn()(*this, *A, b, x);
+   err_flag = SolveFcn()(*this, *A, b, x);
    if (error_mode == WARN_HYPRE_ERRORS)
    {
-      if (err) { MFEM_WARNING("Error during solve! Error code: " << err); }
+      if (err_flag)
+      { MFEM_WARNING("Error during solve! Error code: " << err_flag); }
    }
    else if (error_mode == ABORT_HYPRE_ERRORS)
    {
-      MFEM_VERIFY(!err, "Error during solve! Error code: " << err);
+      MFEM_VERIFY(!err_flag, "Error during solve! Error code: " << err_flag);
    }
    hypre_error_flag = 0;
 }
@@ -4407,7 +4460,7 @@ HypreBoomerAMG::HypreBoomerAMG(const HypreParMatrix &A) : HypreSolver(&A)
 
 void HypreBoomerAMG::SetDefaultOptions()
 {
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
    // AMG coarsening options:
    int coarsen_type = 10;   // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
    int agg_levels   = 1;    // number of aggressive coarsening levels
@@ -4674,17 +4727,17 @@ void HypreBoomerAMG::RecomputeRBMs()
    }
 }
 
-void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
+void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
 {
-#ifdef HYPRE_USING_CUDA
-   MFEM_ABORT("this method is not supported in hypre built with CUDA");
+#ifdef HYPRE_USING_GPU
+   MFEM_ABORT("this method is not supported in hypre built with GPU support");
 #endif
 
    // Save the finite element space to support multiple calls to SetOperator()
-   this->fespace = fespace;
+   this->fespace = fespace_;
 
    // Make sure the systems AMG options are set
-   int dim = fespace->GetParMesh()->Dimension();
+   int dim = fespace_->GetParMesh()->Dimension();
    SetSystemsOptions(dim);
 
    // Nodal coarsening options (nodal coarsening is required for this solver)
@@ -4857,7 +4910,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
    int amg_coarsen_type = 10;
    int amg_agg_levels   = 1;
    int amg_rlx_type     = 8;
@@ -5112,7 +5165,7 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
    int rlx_type         = 2;
    int amg_coarsen_type = 10;
    int amg_agg_levels   = 1;
@@ -5425,9 +5478,9 @@ HypreLOBPCG::HypreMultiVector::~HypreMultiVector()
 }
 
 void
-HypreLOBPCG::HypreMultiVector::Randomize(HYPRE_Int seed)
+HypreLOBPCG::HypreMultiVector::Randomize(HYPRE_Int seed_)
 {
-   mv_MultiVectorSetRandom(mv_ptr, seed);
+   mv_MultiVectorSetRandom(mv_ptr, seed_);
 }
 
 HypreParVector &
