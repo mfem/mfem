@@ -13,6 +13,15 @@
 //               mpirun -np 4 ex1p -m ../../data/ball-nurbs.mesh -std  -asm -pc ho  -sc
 //               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -perf -mf  -pc lor
 //               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -std  -asm -pc ho  -sc
+//               mpirun -np 4 ex1p -m ../../data/star.mesh -perf -mf  -pc lor
+//               mpirun -np 4 ex1p -m ../../data/star.mesh -perf -asm -pc ho
+//               mpirun -np 4 ex1p -m ../../data/star.mesh -perf -asm -pc ho -sc
+//               mpirun -np 4 ex1p -m ../../data/star.mesh -std  -asm -pc ho
+//               mpirun -np 4 ex1p -m ../../data/star.mesh -std  -asm -pc ho -sc
+//               mpirun -np 4 ex1p -m ../../data/amr-quad.mesh -perf -asm -pc ho -sc
+//               mpirun -np 4 ex1p -m ../../data/amr-quad.mesh -std  -asm -pc ho -sc
+//               mpirun -np 4 ex1p -m ../../data/disc-nurbs.mesh -perf -asm -pc ho  -sc
+//               mpirun -np 4 ex1p -m ../../data/disc-nurbs.mesh -std  -asm -pc ho  -sc
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -36,29 +45,45 @@
 using namespace std;
 using namespace mfem;
 
+enum class PCType { NONE, LOR, HO };
+
 // Define template parameters for optimized build.
-const Geometry::Type geom     = Geometry::CUBE; // mesh elements  (default: hex)
-const int            mesh_p   = 3;              // mesh curvature (default: 3)
-const int            sol_p    = 3;              // solution order (default: 3)
-const int            rdim     = Geometry::Constants<geom>::Dimension;
-const int            ir_order = 2*sol_p+rdim-1;
+template <int dim> struct geom_t { };
+template <>
+struct geom_t<2> { static const Geometry::Type value = Geometry::SQUARE; };
+template <>
+struct geom_t<3> { static const Geometry::Type value = Geometry::CUBE; };
 
-// Static mesh type
-typedef H1_FiniteElement<geom,mesh_p>         mesh_fe_t;
-typedef H1_FiniteElementSpace<mesh_fe_t>      mesh_fes_t;
-typedef TMesh<mesh_fes_t>                     mesh_t;
+const int mesh_p   = 3; // mesh curvature (default: 3)
+const int sol_p    = 3; // solution order (default: 3)
 
-// Static solution finite element space type
-typedef H1_FiniteElement<geom,sol_p>          sol_fe_t;
-typedef H1_FiniteElementSpace<sol_fe_t>       sol_fes_t;
+template <int dim>
+struct ex1_t
+{
+   static const Geometry::Type geom = geom_t<dim>::value;
+   static const int            rdim     = Geometry::Constants<geom>::Dimension;
+   static const int            ir_order = 2*sol_p+rdim-1;
 
-// Static quadrature, coefficient and integrator types
-typedef TIntegrationRule<geom,ir_order>       int_rule_t;
-typedef TConstantCoefficient<>                coeff_t;
-typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
+   // Static mesh type
+   using mesh_fe_t = H1_FiniteElement<geom,mesh_p>;
+   using mesh_fes_t = H1_FiniteElementSpace<mesh_fe_t>;
+   using mesh_t = TMesh<mesh_fes_t>;
 
-// Static bilinear form type, combining the above types
-typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
+   // Static solution finite element space type
+   using sol_fe_t = H1_FiniteElement<geom,sol_p>;
+   using sol_fes_t = H1_FiniteElementSpace<sol_fe_t>;
+
+   // Static quadrature, coefficient and integrator types
+   using int_rule_t = TIntegrationRule<geom,ir_order>;
+   using coeff_t = TConstantCoefficient<>;
+   using integ_t = TIntegrator<coeff_t,TDiffusionKernel>;
+
+   using HPCBilinearForm = TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t>;
+
+   static int run(Mesh *mesh, int ser_ref_levels, int par_ref_levels, int order,
+                  int basis, bool static_cond, PCType pc_choice, bool perf,
+                  bool matrix_free, bool visualization);
+};
 
 int main(int argc, char *argv[])
 {
@@ -69,7 +94,11 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
+#ifdef MFEM_HPC_EX1_2D
+   const char *mesh_file = "../../data/star.mesh";
+#else
    const char *mesh_file = "../../data/fichera.mesh";
+#endif
    int ser_ref_levels = -1;
    int par_ref_levels = 1;
    int order = sol_p;
@@ -133,11 +162,10 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   enum PCType { NONE, LOR, HO };
    PCType pc_choice;
-   if (!strcmp(pc, "ho")) { pc_choice = HO; }
-   else if (!strcmp(pc, "lor")) { pc_choice = LOR; }
-   else if (!strcmp(pc, "none")) { pc_choice = NONE; }
+   if (!strcmp(pc, "ho")) { pc_choice = PCType::HO; }
+   else if (!strcmp(pc, "lor")) { pc_choice = PCType::LOR; }
+   else if (!strcmp(pc, "none")) { pc_choice = PCType::NONE; }
    else
    {
       mfem_error("Invalid Preconditioner specified");
@@ -162,6 +190,35 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+
+   if (dim == 2)
+   {
+      return ex1_t<2>::run(mesh, ser_ref_levels, par_ref_levels, order, basis,
+                           static_cond, pc_choice, perf, matrix_free,
+                           visualization);
+   }
+   else if (dim == 3)
+   {
+      return ex1_t<3>::run(mesh, ser_ref_levels, par_ref_levels, order,
+                           basis, static_cond, pc_choice, perf, matrix_free,
+                           visualization);
+   }
+   else
+   {
+      MFEM_ABORT("Dimension must be 2 or 3.")
+   }
+
+   return 0;
+}
+
+template <int dim>
+int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
+                    int order, int basis, bool static_cond, PCType pc_choice,
+                    bool perf, bool matrix_free, bool visualization)
+{
+   int num_procs, myid;
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 4. Check if the optimized version matches the given mesh
    if (perf)
@@ -230,8 +287,8 @@ int main(int argc, char *argv[])
    }
    if (pmesh->MeshGenerator() & 1) // simplex mesh
    {
-      MFEM_VERIFY(pc_choice != LOR, "triangle and tet meshes do not support"
-                  " the LOR preconditioner yet");
+      MFEM_VERIFY(pc_choice != PCType::LOR, "triangle and tet meshes do not "
+                  "support the LOR preconditioner yet");
    }
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
@@ -264,7 +321,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh_lor;
    FiniteElementCollection *fec_lor = NULL;
    ParFiniteElementSpace *fespace_lor = NULL;
-   if (pc_choice == LOR)
+   if (pc_choice == PCType::LOR)
    {
       int basis_lor = basis;
       if (basis == BasisType::Positive) { basis_lor=BasisType::ClosedUniform; }
@@ -318,8 +375,8 @@ int main(int argc, char *argv[])
    //     that will hold the matrix corresponding to the Laplacian operator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    ParBilinearForm *a_pc = NULL;
-   if (pc_choice == LOR) { a_pc = new ParBilinearForm(fespace_lor); }
-   if (pc_choice == HO)  { a_pc = new ParBilinearForm(fespace); }
+   if (pc_choice == PCType::LOR) { a_pc = new ParBilinearForm(fespace_lor); }
+   if (pc_choice == PCType::HO)  { a_pc = new ParBilinearForm(fespace); }
 
    // 13. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
@@ -328,7 +385,7 @@ int main(int argc, char *argv[])
    if (static_cond)
    {
       a->EnableStaticCondensation();
-      MFEM_VERIFY(pc_choice != LOR,
+      MFEM_VERIFY(pc_choice != PCType::LOR,
                   "cannot use LOR preconditioner with static condensation");
    }
 
@@ -404,7 +461,7 @@ int main(int argc, char *argv[])
    tic_toc.Start();
 
    HypreParMatrix A_pc;
-   if (pc_choice == LOR)
+   if (pc_choice == PCType::LOR)
    {
       // TODO: assemble the LOR matrix using the performance code
       a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
@@ -412,7 +469,7 @@ int main(int argc, char *argv[])
       a_pc->Assemble();
       a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
    }
-   else if (pc_choice == HO)
+   else if (pc_choice == PCType::HO)
    {
       if (!matrix_free)
       {
@@ -441,7 +498,7 @@ int main(int argc, char *argv[])
    HypreSolver *amg = NULL;
 
    pcg->SetOperator(*a_oper);
-   if (pc_choice != NONE)
+   if (pc_choice != PCType::NONE)
    {
       amg = new HypreBoomerAMG(A_pc);
       pcg->SetPreconditioner(*amg);

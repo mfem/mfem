@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1243,7 +1243,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          HypreParMatrix * Ah;
          A_i.Get(Ah);
          hypre_ParCSRMatrix *Aih = *Ah;
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
          ess_tdof_list.HostRead();
          for (int k = 0; k < n; k++)
          {
@@ -1256,7 +1256,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
             ess_tdof_list.GetMemory().Read(MemoryClass::DEVICE, n);
          const int *d_diag_i = Aih->diag->i;
          double *d_diag_data = Aih->diag->data;
-         CuWrap1D(n, [=] MFEM_DEVICE (int k)
+         MFEM_GPU_FORALL(k, n,
          {
             const int j = d_ess_tdof_list[k];
             d_diag_data[d_diag_i[j]] = 0.0;

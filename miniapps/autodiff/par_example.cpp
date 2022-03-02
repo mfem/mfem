@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -485,7 +485,7 @@ int main(int argc, char *argv[])
                    << std::endl;
       }
       // Compute the energy
-      double energy = nr->GetEnergy(*sv);
+      energy = nr->GetEnergy(*sv);
       if (myrank==0)
       {
          std::cout << "[pp="<<i<<"] The total energy of the system is E=" << energy
@@ -517,7 +517,7 @@ int main(int argc, char *argv[])
                    << std::endl;
       }
       // Compute the energy
-      double energy = nr->GetEnergy(*sv);
+      energy = nr->GetEnergy(*sv);
       if (myrank==0)
       {
          std::cout << "[pp="<<pp<<"] The total energy of the system is E=" << energy

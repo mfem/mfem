@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1849,19 +1849,6 @@ public:
    }
 
    void ResetQuadratureData() const { quad_data_is_current = false; }
-
-   void ComputeDensity(ParGridFunction &rho) const
-   {
-      rho.SetSpace(&L2FESpace);
-      DenseMatrix Mrho(l2dofs_cnt);
-      Vector rhs(l2dofs_cnt), rho_z(l2dofs_cnt);
-      Array<int> dofs(l2dofs_cnt);
-      for (int i = 0; i < nzones; i++)
-      {
-         L2FESpace.GetElementDofs(i, dofs);
-         rho.SetSubVector(dofs, rho_z);
-      }
-   }
 };
 } // namespace hydrodynamics
 
@@ -2203,11 +2190,11 @@ TEST_CASE("Sedov", "[Sedov], [Parallel]")
 #else
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-#if defined(HYPRE_USING_CUDA) && defined(MFEM_DEBUG)
+#if defined(HYPRE_USING_GPU) && defined(MFEM_DEBUG)
    if (!strcmp(MFEM_SEDOV_DEVICE,"debug"))
    {
       cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
-           << "is NOT supported with the CUDA version of hypre.\n\n";
+           << "is NOT supported with the GPU version of hypre.\n\n";
       return;
    }
 #endif

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -965,7 +965,7 @@ H1Pos_WedgeElement::H1Pos_WedgeElement(const int p)
 
    // Interior DoFs
    int m=0;
-   for (int k=1; k<p; k++)
+   for (k=1; k<p; k++)
    {
       int l=0;
       for (int j=1; j<p; j++)

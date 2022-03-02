@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,8 @@
 #define MFEM_FE_RT
 
 #include "fe_base.hpp"
+#include "fe_h1.hpp"
+#include "fe_l2.hpp"
 
 namespace mfem
 {
@@ -250,6 +252,63 @@ public:
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
                                  Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const
+   { Project_RT(nk, dof2nk, fe, Trans, I); }
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+};
+
+class RT_WedgeElement : public VectorFiniteElement
+{
+   static const double nk[15];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector      tl2_shape;
+   mutable Vector      sh1_shape;
+   mutable DenseMatrix trt_shape;
+   mutable Vector      sl2_shape;
+   mutable DenseMatrix sh1_dshape;
+   mutable Vector      trt_dshape;
+#endif
+   Array<int> dof2nk, t_dof, s_dof;
+
+   // The RT_Wedge is implemented as the sum of tensor products of
+   // lower dimensional basis funcgtions.
+   // Specifically: L2TriangleFE x H1SegmentFE + RTTriangle x L2SegmentFE
+   L2_TriangleElement L2TriangleFE;
+   RT_TriangleElement RTTriangleFE;
+   H1_SegmentElement  H1SegmentFE;
+   L2_SegmentElement  L2SegmentFE;
+
+public:
+   RT_WedgeElement(const int p);
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); }
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
+   using FiniteElement::Project;
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const
    { Project_RT(nk, dof2nk, vc, Trans, dofs); }
    virtual void ProjectMatrixCoefficient(
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
