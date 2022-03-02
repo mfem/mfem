@@ -3724,34 +3724,33 @@ void TMOP_Integrator::ComputeMeanGeometricParameters(Vector &xe,
 
          // Get QoI
          double detJ_q = Jpr.Det();
-         detJ_qavg += weight*detJ_q;
+         detJ_qavg += detJ_q;
 
          Vector col1, col2;
          Jpr.GetColumn(0, col1);
          Jpr.GetColumn(1, col2);
 
          double aspr_q = col2.Norml2() / col1.Norml2();
-         aspr_qavg += weight*aspr_q;
+         aspr_qavg += aspr_q;
 
          double norm_prod = col1.Norml2() * col2.Norml2();
          const double cos_skew = (col1 * col2) / norm_prod,
                       sin_skew = fabs(Jpr.Det()) / norm_prod;
          double skew_q = std::atan2(sin_skew, cos_skew);
          //if (skew_q < 0) { skew_q += M_PI; }
-         skew_qavg += weight*skew_q;
+         skew_qavg += skew_q;
 
          double ori_q = std::atan2(Jpr(1,0), Jpr(0,0));
          //if (ori_q < 0) { ori_q += M_PI; }
-         ori_qavg += weight*ori_q;
+         ori_qavg += ori_q;
          count_q++;
       }
    }
 
-
-   detJ_qavg /= sum_weight;
-   skew_qavg /= sum_weight;
-   ori_qavg /= sum_weight;
-   aspr_qavg /= sum_weight;
+   detJ_qavg /= count_q;
+   skew_qavg /= count_q;
+   ori_qavg /= count_q;
+   aspr_qavg /= count_q;
    auto_tc->SetTargetSize(detJ_qavg);
    auto_tc->SetTargetSkew(skew_qavg);
    auto_tc->SetTargetAspectRatio(aspr_qavg);
