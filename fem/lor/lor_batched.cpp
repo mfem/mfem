@@ -134,78 +134,6 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
    return false;
 }
 
-void BatchedLORAssembly::SparseIJToCSR(SparseMatrix &A)
-{
-   const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
-   const int nel_ho = fes_ho.GetNE();
-   const int nnz_per_row = sparse_mapping.Height();
-
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *op = fes_ho.GetElementRestriction(ordering);
-   const ElementRestriction *el_restr =
-      dynamic_cast<const ElementRestriction*>(op);
-   MFEM_VERIFY(el_restr != nullptr, "");
-
-   const Array<int> &el_dof_lex_ = el_restr->GatherMap();
-   const Array<int> &dof_glob2loc_ = el_restr->Indices();
-   const Array<int> &dof_glob2loc_offsets_ = el_restr->Offsets();
-
-   const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
-   const auto dof_glob2loc = dof_glob2loc_.Read();
-   const auto K = dof_glob2loc_offsets_.Read();
-
-   const auto V = Reshape(sparse_ij.Read(), nnz_per_row, ndof_per_el, nel_ho);
-   const auto map = Reshape(sparse_mapping.Read(), nnz_per_row, ndof_per_el);
-
-   const auto I = A.ReadI();
-   const auto J = A.ReadJ();
-   auto AV = A.ReadWriteData();
-
-   MFEM_FORALL(iel_ho, nel_ho,
-   {
-      for (int ii_el = 0; ii_el < ndof_per_el; ++ii_el)
-      {
-         double col_ptr[nnz_per_row]; // 27
-
-         const int ii = el_dof_lex(ii_el, iel_ho);
-
-         // Set column pointer to avoid searching in the row
-         for (int j = I[ii], end = I[ii+1]; j < end; j++)
-         {
-            const int jj = J[j];
-            int jj_el = -1;
-            for (int k = K[jj], k_end = K[jj+1]; k < k_end; k += 1)
-            {
-               int edof_idx = dof_glob2loc[k];
-               if (edof_idx/ndof_per_el == iel_ho)
-               {
-                  jj_el = edof_idx%ndof_per_el;
-                  break;
-               }
-            }
-            if (jj_el < 0) { continue; }
-            for (int jj_off = 0; jj_off < nnz_per_row; ++jj_off)
-            {
-               if (jj_el == map(jj_off, ii_el))
-               {
-                  col_ptr[jj_off] = j;
-                  break;
-               }
-            }
-         }
-
-         for (int j=0; j<nnz_per_row; ++j)
-         {
-            int jj_el = map(j, ii_el);
-            if (jj_el < 0) { continue; }
-            const double Vji = V(j, ii_el, iel_ho);
-            const int col_ptr_jj = col_ptr[j];
-            AtomicAdd(AV[col_ptr_jj], Vji);
-         }
-      }
-   });
-}
-
 SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
 {
    MFEM_VERIFY(UsesTensorBasis(fes_ho),
@@ -218,7 +146,6 @@ SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
    const int nnz = R.FillI(*A);
    A->GetMemoryJ().New(nnz, A->GetMemoryJ().GetMemoryType());
    A->GetMemoryData().New(nnz, A->GetMemoryData().GetMemoryType());
-   R.FillJAndZeroData(*A); // J, A = 0.0
 
    // Get the LOR vertex coordinates
    const int order = fes_ho.GetMaxElementOrder();
@@ -235,7 +162,7 @@ SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
 
    // Assemble the matrix, using kernels from the derived classes
    AssemblyKernel();
-   SparseIJToCSR(*A);
+   R.FillJAndData(*A, sparse_ij, sparse_mapping);
 
    return A;
 }
