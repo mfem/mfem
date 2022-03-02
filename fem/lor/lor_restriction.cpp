@@ -103,6 +103,7 @@ void LORRestriction::Setup()
       }
    });
 
+   // TODO: on device
    // Aggregate to find offsets for each global dof
    offsets.HostReadWrite();
    for (int i = 1; i <= ndofs; ++i) { offsets[i] += offsets[i - 1]; }
@@ -131,6 +132,7 @@ void LORRestriction::Setup()
       }
    });
 
+   // TODO: on device
    offsets.HostReadWrite();
    for (int i = ndofs; i > 0; --i) { offsets[i] = offsets[i - 1]; }
    offsets[0] = 0;
@@ -345,6 +347,7 @@ void LORRestriction::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
       }
    });
 
+   // TODO: on device
    // We need to shift again the entries of I, we do it on CPU as it is very
    // sequential.
    auto h_I = A.HostReadWriteI();
