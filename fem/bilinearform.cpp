@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1061,6 +1061,19 @@ void BilinearForm::Mult(const Vector &x, Vector &y) const
    else
    {
       mat->Mult(x, y);
+   }
+}
+
+void BilinearForm::MultTranspose(const Vector & x, Vector & y) const
+{
+   if (ext)
+   {
+      ext->MultTranspose(x, y);
+   }
+   else
+   {
+      y = 0.0;
+      AddMultTranspose (x, y);
    }
 }
 
