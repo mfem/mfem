@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -67,11 +67,11 @@ void LORBase::ResetIntegrationRules(GetIntegratorsFn get_integrators)
 
 LORBase::FESpaceType LORBase::GetFESpaceType() const
 {
-   const FiniteElementCollection *fec = fes_ho.FEColl();
-   if (dynamic_cast<const H1_FECollection*>(fec)) { return H1; }
-   else if (dynamic_cast<const ND_FECollection*>(fec)) { return ND; }
-   else if (dynamic_cast<const RT_FECollection*>(fec)) { return RT; }
-   else if (dynamic_cast<const L2_FECollection*>(fec)) { return L2; }
+   const FiniteElementCollection *fec_ho = fes_ho.FEColl();
+   if (dynamic_cast<const H1_FECollection*>(fec_ho)) { return H1; }
+   else if (dynamic_cast<const ND_FECollection*>(fec_ho)) { return ND; }
+   else if (dynamic_cast<const RT_FECollection*>(fec_ho)) { return RT; }
+   else if (dynamic_cast<const L2_FECollection*>(fec_ho)) { return L2; }
    else { MFEM_ABORT("Bad LOR space type."); }
    return INVALID;
 }
@@ -87,9 +87,9 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
    FESpaceType type = GetFESpaceType();
    MFEM_VERIFY(type != H1 && type != L2, "");
 
-   auto get_dof_map = [](FiniteElementSpace &fes, int i)
+   auto get_dof_map = [](FiniteElementSpace &fes_, int i)
    {
-      const FiniteElement *fe = fes.GetFE(i);
+      const FiniteElement *fe = fes_.GetFE(i);
       auto tfe = dynamic_cast<const TensorBasisElement*>(fe);
       MFEM_ASSERT(tfe != NULL, "");
       return tfe->GetDofMap();

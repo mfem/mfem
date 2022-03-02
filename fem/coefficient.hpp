@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1605,22 +1605,22 @@ public:
    void SetTime(double t);
 
    /// Reset the first vector coefficient
-   void SetACoef(VectorCoefficient &A) { ACoef = &A; }
+   void SetACoef(VectorCoefficient &A_) { ACoef = &A_; }
    /// Return the first vector coefficient
    VectorCoefficient * GetACoef() const { return ACoef; }
 
    /// Reset the second vector coefficient
-   void SetBCoef(VectorCoefficient &B) { BCoef = &B; }
+   void SetBCoef(VectorCoefficient &B_) { BCoef = &B_; }
    /// Return the second vector coefficient
    VectorCoefficient * GetBCoef() const { return BCoef; }
 
    /// Reset the factor in front of the first vector coefficient
-   void SetAlphaCoef(Coefficient &A) { alphaCoef = &A; }
+   void SetAlphaCoef(Coefficient &A_) { alphaCoef = &A_; }
    /// Return the factor in front of the first vector coefficient
    Coefficient * GetAlphaCoef() const { return alphaCoef; }
 
    /// Reset the factor in front of the second vector coefficient
-   void SetBetaCoef(Coefficient &B) { betaCoef = &B; }
+   void SetBetaCoef(Coefficient &B_) { betaCoef = &B_; }
    /// Return the factor in front of the second vector coefficient
    Coefficient * GetBetaCoef() const { return betaCoef; }
 

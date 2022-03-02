@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1616,34 +1616,34 @@ void MemoryManager::RegisterCheck(void *ptr)
    }
 }
 
-int MemoryManager::PrintPtrs(std::ostream &out)
+int MemoryManager::PrintPtrs(std::ostream &os)
 {
    int n_out = 0;
    for (const auto& n : maps->memories)
    {
       const internal::Memory &mem = n.second;
-      out << "\nkey " << n.first << ", "
-          << "h_ptr " << mem.h_ptr << ", "
-          << "d_ptr " << mem.d_ptr;
+      os << "\nkey " << n.first << ", "
+         << "h_ptr " << mem.h_ptr << ", "
+         << "d_ptr " << mem.d_ptr;
       n_out++;
    }
-   if (maps->memories.size() > 0) { out << std::endl; }
+   if (maps->memories.size() > 0) { os << std::endl; }
    return n_out;
 }
 
-int MemoryManager::PrintAliases(std::ostream &out)
+int MemoryManager::PrintAliases(std::ostream &os)
 {
    int n_out = 0;
    for (const auto& n : maps->aliases)
    {
       const internal::Alias &alias = n.second;
-      out << "\nalias: key " << n.first << ", "
-          << "h_ptr " << alias.mem->h_ptr << ", "
-          << "offset " << alias.offset << ", "
-          << "counter " << alias.counter;
+      os << "\nalias: key " << n.first << ", "
+         << "h_ptr " << alias.mem->h_ptr << ", "
+         << "offset " << alias.offset << ", "
+         << "counter " << alias.counter;
       n_out++;
    }
-   if (maps->aliases.size() > 0) { out << std::endl; }
+   if (maps->aliases.size() > 0) { os << std::endl; }
    return n_out;
 }
 
