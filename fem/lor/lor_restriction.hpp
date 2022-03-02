@@ -43,6 +43,8 @@ protected:
 public:
    LORRestriction(const FiniteElementSpace &fes_ho);
 
+   void Setup();
+
    int FillI(SparseMatrix &mat) const;
    // TODO: Really should make a better version with Fill Data
    void FillJAndZeroData(SparseMatrix &mat) const;

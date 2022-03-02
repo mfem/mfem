@@ -54,6 +54,11 @@ LORRestriction::LORRestriction(const FiniteElementSpace &fes_ho)
      indices(ne*lo_dof_per_el),
      gatherMap(ne*lo_dof_per_el)
 {
+   Setup();
+}
+
+void LORRestriction::Setup()
+{
    const Array<int> &fe_dof_map = GetDofMap(fec_lo->GetFE(geom, 1));
    const Array<int> &fe_dof_map_ho = GetDofMap(fes_ho.GetFE(0));
 

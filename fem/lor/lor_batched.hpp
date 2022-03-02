@@ -38,6 +38,8 @@ protected:
    /// Get the vertices of the LOR mesh and place the result in @a X_vert.
    template <int Q1D> void GetLORVertexCoordinates();
 
+   // compiler limitation
+public:
    /// Assemble the system without eliminating essential DOFs.
    SparseMatrix *AssembleWithoutBC();
 #ifdef MFEM_USE_MPI
