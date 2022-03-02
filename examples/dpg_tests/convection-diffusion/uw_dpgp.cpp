@@ -3,8 +3,7 @@
 // Compile with: make  uw_dpgp
 //
 // sample runs 
-// mpirun -np 6 ./uw_dpgp  -m ../../../data/inline-quad.mesh -o 3 -ref 5 -test-norm 0 -do 1 -prob 1 -eps 1e-3
-
+// mpirun -np 6 ./uw_dpgp  -m ../../../data/inline-quad.mesh -o 3 -ref 10 -test-norm 2 -do 1 -prob 1 -eps 1e-4
 //     - εΔu + ∇⋅(βu) = f,   in Ω
 //                  u = u_0, on ∂Ω
 
@@ -363,12 +362,12 @@ int main(int argc, char *argv[])
       {
          ess_bdr_uhat.SetSize(pmesh.bdr_attributes.Max());
          ess_bdr_fhat.SetSize(pmesh.bdr_attributes.Max());
-         ess_bdr_uhat = 1;
-         ess_bdr_fhat = 0;
-         // ess_bdr_uhat = 0;
-         // ess_bdr_fhat = 1;
-         // ess_bdr_uhat[1] = 1;
-         // ess_bdr_fhat[1] = 0;
+         // ess_bdr_uhat = 1;
+         // ess_bdr_fhat = 0;
+         ess_bdr_uhat = 0;
+         ess_bdr_fhat = 1;
+         ess_bdr_uhat[1] = 1;
+         ess_bdr_fhat[1] = 0;
          hatu_fes->GetEssentialTrueDofs(ess_bdr_uhat, ess_tdof_list_uhat);
          hatf_fes->GetEssentialTrueDofs(ess_bdr_fhat, ess_tdof_list_fhat);
       }

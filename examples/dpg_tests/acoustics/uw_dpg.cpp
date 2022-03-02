@@ -2,6 +2,7 @@
 //
 // Compile with: make uw_dpg
 //
+// ./uw_dpg -m ../../../data/inline-quad.mesh -rnum 40 -theta 0.7 -prob 1 -graph-norm -ref 40 -o 3
 
 //     - Δ p ± ω^2 p = f̃ ,   in Ω
 //                 p = p_0, on ∂Ω
@@ -42,18 +43,24 @@ using namespace std;
 using namespace mfem;
 
 // #define DEFINITE
-
+void acoustics_solution(const Vector & X, double & p, Vector & dp, double & d2p);
 double p_exact(const Vector &x);
 void u_exact(const Vector &x, Vector & u);
 double rhs_func(const Vector &x);
-void gradp_exact(const Vector &x, Vector &gradu);
 double divu_exact(const Vector &x);
-double d2_exact(const Vector &x);
 double hatp_exact(const Vector & X);
 void hatu_exact(const Vector & X, Vector & hatu);
 
 int dim;
 double omega;
+
+enum prob_type
+{
+   plane_wave,
+   gaussian_beam  
+};
+
+prob_type prob;
 
 int main(int argc, char *argv[])
 {
@@ -65,6 +72,7 @@ int main(int argc, char *argv[])
    int ref = 1;
    double theta = 0.0;
    bool adjoint_graph_norm = false;
+   int iprob = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -79,7 +87,9 @@ int main(int argc, char *argv[])
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");     
    args.AddOption(&theta, "-theta", "--theta",
-                  "Theta parameter for AMR");                    
+                  "Theta parameter for AMR");    
+   args.AddOption(&iprob, "-prob", "--problem", "Problem case"
+                  " 0: plane wave, 1: Gaussian beam");                                    
    args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
                   "-no-graph-norm", "--no-adjoint-graph-norm",
                   "Enable or disable Adjoint Graph Norm on the test space");                                
@@ -92,6 +102,10 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   if (iprob > 1) { iprob = 0; }
+   prob = (prob_type)iprob;
+
 
    omega = 2.0 * M_PI * rnum;
 
@@ -413,29 +427,25 @@ double rhs_func(const Vector &x)
 
 double p_exact(const Vector &x)
 {
-   return sin(omega*x.Sum());
-}
-
-void gradp_exact(const Vector &x, Vector &grad)
-{
-   grad.SetSize(x.Size());
-   grad = omega * cos(omega * x.Sum());
+   double p, d2p;
+   Vector dp;
+   acoustics_solution(x,p,dp,d2p);
+   return p;
 }
 
 void u_exact(const Vector &x, Vector & u)
 {
-   gradp_exact(x,u);
+   double p, d2p;
+   acoustics_solution(x,p,u,d2p);
    u *= 1./omega;
 }
 
 double divu_exact(const Vector &x)
 {
-   return d2_exact(x)/omega;
-}
-
-double d2_exact(const Vector &x)
-{
-   return -dim * omega * omega * sin(omega*x.Sum());
+   double p, d2p;
+   Vector dp;
+   acoustics_solution(x,p,dp,d2p);
+   return d2p/omega;
 }
 
 double hatp_exact(const Vector & X)
@@ -447,4 +457,90 @@ void hatu_exact(const Vector & X, Vector & hatu)
 {
    u_exact(X,hatu);
    hatu *= -1.;
+}
+
+void acoustics_solution(const Vector & X, double & p, Vector & dp, double & d2p)
+{
+   dp.SetSize(X.Size());
+   switch (prob)
+   {
+   case plane_wave:
+   {
+      p = sin(omega*X.Sum());
+      dp = omega * cos(omega * X.Sum());
+      d2p = -dim * omega * omega * sin(omega*X.Sum());
+   }
+      break;
+   default:
+   {
+      double rk = omega;
+      double alpha = 45 * M_PI/180.;
+      double sina = sin(alpha); 
+      double cosa = cos(alpha);
+      // shift the origin
+      double xprim=X(0) + 0.1; 
+      double yprim=X(1) + 0.1;
+
+      double  x = xprim*sina - yprim*cosa;
+      double  y = xprim*cosa + yprim*sina;
+      double  dxdxprim = sina, dxdyprim = -cosa;
+      double  dydxprim = cosa, dydyprim =  sina;
+      //wavelength
+      double rl = 2.*M_PI/rk;
+
+      // beam waist radius
+      double w0 = 0.05;
+
+      // function w
+      double fact = rl/M_PI/(w0*w0);
+      double aux = 1. + (fact*y)*(fact*y);
+
+      double w = w0*sqrt(aux);
+      double dwdy = w0*fact*fact*y/sqrt(aux);
+      double d2wdydy = w0*fact*fact*(1. - (fact*y)*(fact*y)/aux)/sqrt(aux);
+
+      double phi0 = atan(fact*y);
+      double dphi0dy = cos(phi0)*cos(phi0)*fact;
+      double d2phi0dydy = -2.*cos(phi0)*sin(phi0)*fact*dphi0dy;
+
+      double r = y + 1./y/(fact*fact);
+      double drdy = 1. - 1./(y*y)/(fact*fact);
+      double d2rdydy = 2./(y*y*y)/(fact*fact);
+
+      // pressure
+      complex<double> zi = complex<double>(0., 1.);
+      complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r + zi*phi0/2.;
+
+      complex<double> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
+      complex<double> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/(r*r)*drdy + zi*dphi0dy/2.;
+      complex<double> zd2edxdx = -2./(w*w) - 2.*zi*M_PI/rl/r;
+      complex<double> zd2edxdy = 4.*x/(w*w*w)*dwdy + 2.*zi*M_PI*x/rl/(r*r)*drdy;
+      complex<double> zd2edydx = zd2edxdy;
+      complex<double> zd2edydy = -6.*x*x/(w*w*w*w)*dwdy*dwdy + 2.*x*x/(w*w*w)*d2wdydy - 2.*zi*M_PI*x*x/rl/(r*r*r)*drdy*drdy
+                              + zi*M_PI*x*x/rl/(r*r)*d2rdydy + zi/2.*d2phi0dydy;
+
+      double pf = pow(2.0/M_PI/(w*w),0.25);
+      double dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
+      double d2pfdydy = -1./M_PI*pow(2./M_PI,-0.75)*(-1.5*pow(w,-2.5)
+                        *dwdy*dwdy + pow(w,-1.5)*d2wdydy);
+
+
+      complex<double> zp = pf*exp(ze);
+      complex<double> zdpdx = zp*zdedx;
+      complex<double> zdpdy = dpfdy*exp(ze)+zp*zdedy;
+      complex<double> zd2pdxdx = zdpdx*zdedx + zp*zd2edxdx;
+      complex<double> zd2pdxdy = zdpdy*zdedx + zp*zd2edxdy;
+      complex<double> zd2pdydx = dpfdy*exp(ze)*zdedx + zdpdx*zdedy + zp*zd2edydx;
+      complex<double> zd2pdydy = d2pfdydy*exp(ze) + dpfdy*exp(ze)*zdedy + zdpdy*zdedy + zp*zd2edydy;
+
+      p = zp.real();
+      dp[0] = (zdpdx*dxdxprim + zdpdy*dydxprim).real();
+      dp[1] = (zdpdx*dxdyprim + zdpdy*dydyprim).real();
+
+      d2p = (  (zd2pdxdx*dxdxprim + zd2pdydx*dydxprim)*dxdxprim + (zd2pdxdy*dxdxprim + zd2pdydy*dydxprim)*dydxprim
+            + (zd2pdxdx*dxdyprim + zd2pdydx*dydyprim)*dxdyprim + (zd2pdxdy*dxdyprim + zd2pdydy*dydyprim)*dydyprim ).real();
+   }
+   break;
+   }
+
 }
