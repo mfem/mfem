@@ -95,10 +95,10 @@ void test_assembly_level(const char *meshname,
                          int order, int q_order_inc, bool dg,
                          const Problem pb, const AssemblyLevel assembly)
 {
-   const int q = 2*order + q_order_inc;
+   const int q_order = 2*order + q_order_inc;
 
    INFO("mesh=" << meshname
-        << ", order=" << order << ", q=" << q << ", DG=" << dg
+        << ", order=" << order << ", q_order=" << q_order << ", DG=" << dg
         << ", pb=" << getString(pb) << ", assembly=" << getString(assembly));
    Mesh mesh(meshname, 1, 1);
    mesh.EnsureNodes();
@@ -122,8 +122,10 @@ void test_assembly_level(const char *meshname,
    ConstantCoefficient one(1.0);
    VectorFunctionCoefficient vel_coeff(dim, velocity_function);
 
-   const Geometry::Type geom_type = fespace.GetFE(0)->GetGeomType();
-   const IntegrationRule *ir = &IntRules.Get(geom_type, q);
+   // Don't use a special integration rule if q_order_inc == 0
+   const bool use_ir = q_order_inc > 0;
+   const IntegrationRule *ir =
+      use_ir ? &IntRules.Get(mesh.GetElementGeometry(0), q_order) : nullptr;
 
    switch (pb)
    {
@@ -179,7 +181,8 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,
                             AssemblyLevel::ELEMENT,
                             AssemblyLevel::FULL);
-   auto q_order_inc = GENERATE(1, 3);
+   // '0' will use the default integration rule
+   auto q_order_inc = !all_tests ? 0 : GENERATE(0, 1, 3);
 
    SECTION("Conforming")
    {
@@ -227,7 +230,8 @@ TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
    const bool dg = true;
    auto pb = GENERATE(Problem::Mass, Problem::Convection);
    const bool all_tests = launch_all_non_regression_tests;
-   auto q_order_inc = GENERATE(1, 3);
+   // '0' will use the default integration rule
+   auto q_order_inc = !all_tests ? 0 : GENERATE(0, 1, 3);
 
    SECTION("Conforming")
    {

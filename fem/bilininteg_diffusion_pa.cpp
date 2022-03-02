@@ -1758,11 +1758,11 @@ static void PADiffusionApply(const int dim,
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-   const int ID = (D1D << 4) | Q1D;
+   const int id = (D1D << 4) | Q1D;
 
    if (dim == 2)
    {
-      switch (ID)
+      switch (id)
       {
          case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
          case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
@@ -1778,7 +1778,7 @@ static void PADiffusionApply(const int dim,
 
    if (dim == 3)
    {
-      switch (ID)
+      switch (id)
       {
          case 0x22: return SmemPADiffusionApply3D<2,2>(NE,symm,B,G,D,X,Y);
          case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
@@ -1793,7 +1793,7 @@ static void PADiffusionApply(const int dim,
          default:   return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
-   MFEM_ABORT("Unknown kernel: 0x"<<std::hex << ID << std::dec);
+   MFEM_ABORT("Unknown kernel: 0x"<<std::hex << id << std::dec);
 }
 
 // PA Diffusion Apply kernel
