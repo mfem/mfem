@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1087,12 +1087,12 @@ void ParMesh::LoadSharedEntities(istream &input)
                case Geometry::TRIANGLE:
                   shared_trias.SetSize(shared_trias.Size()+1);
                   v = shared_trias.Last().v;
-                  for (int i = 0; i < 3; i++) { input >> v[i]; }
+                  for (int ii = 0; ii < 3; ii++) { input >> v[ii]; }
                   break;
                case Geometry::SQUARE:
                   shared_quads.SetSize(shared_quads.Size()+1);
                   v = shared_quads.Last().v;
-                  for (int i = 0; i < 4; i++) { input >> v[i]; }
+                  for (int ii = 0; ii < 4; ii++) { input >> v[ii]; }
                   break;
                default:
                   MFEM_ABORT("invalid shared face geometry: " << geom);
@@ -4675,7 +4675,7 @@ bool ParMesh::WantSkipSharedMaster(const NCMesh::Master &master) const
 void ParMesh::Print(std::ostream &os) const
 {
    bool print_shared = true;
-   int i, j, shared_bdr_attr;
+   int shared_bdr_attr;
    Array<int> nc_shared_faces;
 
    if (NURBSext)
@@ -4734,7 +4734,7 @@ void ParMesh::Print(std::ostream &os) const
 
    os << "\ndimension\n" << Dim
       << "\n\nelements\n" << NumOfElements << '\n';
-   for (i = 0; i < NumOfElements; i++)
+   for (int i = 0; i < NumOfElements; i++)
    {
       PrintElement(elements[i], os);
    }
@@ -4745,7 +4745,7 @@ void ParMesh::Print(std::ostream &os) const
       num_bdr_elems += s2l_face->Size();
    }
    os << "\nboundary\n" << num_bdr_elems << '\n';
-   for (i = 0; i < NumOfBdrElements; i++)
+   for (int i = 0; i < NumOfBdrElements; i++)
    {
       PrintElement(boundary[i], os);
    }
@@ -4760,7 +4760,7 @@ void ParMesh::Print(std::ostream &os) const
       {
          shared_bdr_attr = MyRank + 1;
       }
-      for (i = 0; i < s2l_face->Size(); i++)
+      for (int i = 0; i < s2l_face->Size(); i++)
       {
          // Modify the attributes of the faces (not used otherwise?)
          faces[(*s2l_face)[i]]->SetAttribute(shared_bdr_attr);
@@ -4771,10 +4771,10 @@ void ParMesh::Print(std::ostream &os) const
    if (Nodes == NULL)
    {
       os << spaceDim << '\n';
-      for (i = 0; i < NumOfVertices; i++)
+      for (int i = 0; i < NumOfVertices; i++)
       {
          os << vertices[i](0);
-         for (j = 1; j < spaceDim; j++)
+         for (int j = 1; j < spaceDim; j++)
          {
             os << ' ' << vertices[i](j);
          }
