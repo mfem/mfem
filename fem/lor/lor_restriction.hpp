@@ -46,8 +46,9 @@ public:
    void Setup();
 
    int FillI(SparseMatrix &mat) const;
-   // TODO: Really should make a better version with Fill Data
-   void FillJAndZeroData(SparseMatrix &mat) const;
+
+   void FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
+                     const DenseMatrix &sparse_mapping) const;
 
    ~LORRestriction();
 };
