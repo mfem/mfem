@@ -22,9 +22,13 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
    REQUIRE(A1.Height() == A2.Height());
    int n = A1.Height();
 
-   const int *I1 = A1.GetI();
-   const int *J1 = A1.GetJ();
-   const double *V1 = A1.GetData();
+   const int *I1 = A1.HostReadI();
+   const int *J1 = A1.HostReadJ();
+   const double *V1 = A1.HostReadData();
+
+   A2.HostReadI();
+   A2.HostReadJ();
+   A2.HostReadData();
 
    double error = 0.0;
 
