@@ -630,6 +630,72 @@ public:
 };
 
 
+/** Class that can compute Cholesky factorization of external data and perform various
+    operations with the factored data. */
+
+#ifdef MFEM_USE_LAPACK
+
+class CholeskyFactors
+{
+   int n;
+   DenseMatrix * A = nullptr;
+   char uplo;
+   int info;
+   bool factorized = false;
+public:
+
+   CholeskyFactors(DenseMatrix & A_) : A(&A_)
+   {
+      n = A->Height();
+      MFEM_VERIFY(n == A->Width(), "CholeskyFactors::Matrix A has to be square")
+   }
+
+   /**
+    * @brief Compute the Cholesky factorization of the current matrix
+    */
+   // A = L L^t or A = U^t U
+   void Factor(char uplo_ = 'U');
+
+   void GetL(DenseMatrix & L);
+
+   void GetU(DenseMatrix & U);
+
+   // Assuming L L^t = A
+   // y = L x
+   // Assuming U^t U = A
+   // y = U^t x
+   void LMult(const Vector & x, Vector & y) const;
+
+   // Assuming L L^t = A
+   // y = L^t x
+   // Assuming U^t U = A
+   // y = U x
+   void UMult(const Vector & x, Vector & y) const;
+
+   // Assuming L L^t = A
+   // y = L^-1 x
+   // Assuming U ^t U = A
+   // y = U^-t x
+   void LSolve(const Vector & x, Vector & y) const;
+
+   // Assuming L L^t = A
+   // y = L^-t x
+   // Assuming U ^t U = A
+   // y = U^-1 x
+   void USolve(const Vector & x, Vector & y) const;
+
+   // Assuming L L^t = A
+   // y = L^-1 L^-t x
+   // Assuming U ^t U = A
+   // y = U^-t U^-1 x
+   void Solve(const Vector & x, Vector & y) const;
+
+
+
+};
+
+#endif
+
 /** Data type for inverse of square dense matrix.
     Stores LU factors */
 class DenseMatrixInverse : public MatrixInverse

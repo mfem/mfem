@@ -970,4 +970,40 @@ void QuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
    }
 }
 
+
+void GaussianWhiteNoiseDomainLFIntegrator::AssembleRHSElementVect
+(const FiniteElement &el,
+ ElementTransformation &Tr,
+ Vector &elvect)
+{
+   int ElNo = Tr.ElementNo;
+   MFEM_VERIFY(&el == fes->GetFE(ElNo),
+               "GaussianWhiteNoiseDomainLFIntegrator::AssembleRHSElementVect : Incompatible FE space");
+
+#ifdef MFEM_USE_LAPACK
+
+   massinteg.AssembleElementMatrix(el, Tr, M);
+   CholeskyFactors chol(M);
+   chol.Factor('L');
+
+   int n = el.GetDof();
+   elvect.SetSize(n);
+
+   double * data = w.GetData();
+   Vector local_w;
+   local_w.SetDataAndSize(&data[cnt],n);
+   cnt += n;
+
+   chol.LMult(local_w,elvect);
+
+   if (ElNo == fes->GetMesh()->GetNE()-1) { cnt = 0; }
+
+#else
+
+   MFEM_ABORT("TODO");
+
+#endif
+
+}
+
 }
