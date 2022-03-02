@@ -202,7 +202,8 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
    HYPRE_Int offd_ncols = hypre_CSRMatrixNumCols(offd);
 
    const int n_ess_dofs = ess_dofs.Size();
-   const auto ess_dofs_d = ess_dofs.Read();
+   const auto ess_dofs_d = ess_dofs.GetMemory().Read(
+                              GetHypreMemoryClass(), n_ess_dofs);
 
    // Start communication to figure out which columns need to be eliminated in
    // the off-diagonal block
@@ -259,7 +260,7 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
       const auto J = diag->j;
       auto data = diag->data;
 
-      MFEM_FORALL(i, n_ess_dofs,
+      MFEM_HYPRE_FORALL(i, n_ess_dofs,
       {
          const int idof = ess_dofs_d[i];
          for (int j=I[idof]; j<I[idof+1]; ++j)
@@ -290,7 +291,7 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
    {
       const auto I = offd->i;
       auto data = offd->data;
-      MFEM_FORALL(i, n_ess_dofs,
+      MFEM_HYPRE_FORALL(i, n_ess_dofs,
       {
          const int idof = ess_dofs_d[i];
          for (int j=I[idof]; j<I[idof+1]; ++j)
@@ -333,14 +334,15 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
    {
       const int ncols_to_eliminate = cols_to_eliminate.Size();
       const int nrows_offd = hypre_CSRMatrixNumRows(offd);
-      const auto cols = cols_to_eliminate.Read();
+      const auto cols = cols_to_eliminate.GetMemory().Read(
+                           GetHypreMemoryClass(), ncols_to_eliminate);
       const auto I = offd->i;
       const auto J = offd->j;
       auto data = offd->data;
       // Note: could also try a different strategy, looping over nnz in the
       // matrix and then doing a binary search in ncols_to_eliminate to see if
       // the column should be eliminated.
-      MFEM_FORALL(idx, ncols_to_eliminate,
+      MFEM_HYPRE_FORALL(idx, ncols_to_eliminate,
       {
          const int j = cols[idx];
          for (int i=0; i<nrows_offd; ++i)
