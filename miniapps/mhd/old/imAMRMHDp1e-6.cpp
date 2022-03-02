@@ -16,6 +16,7 @@
 #include "BlockZZEstimator.hpp"
 #include "PCSolver.hpp"
 #include "InitialConditions.hpp"
+#include "../navier/ortho_solver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -29,7 +30,7 @@ double lambda;
 double resiG;
 double ep=.2;
 int icase = 1;
-
+ParMesh *pmesh;
 
 //this is an AMR update function for VSize (instead of TrueVSize)
 //It is only called in the initial stage of AMR to generate an adaptive mesh
@@ -145,6 +146,7 @@ int main(int argc, char *argv[])
    bool useStab = false; //use a stabilized formulation (explicit case only)
    bool initial_refine = false;
    bool yRange = false; //fix a refinement region along y direction
+   bool compute_pressure = false;
    const char *petscrc_file = "";
 
    //----amr coefficients----
@@ -159,14 +161,20 @@ int main(int argc, char *argv[])
    double err_fraction=.5;
    double derefine_ratio=.2;
    double derefine_fraction=.05;
+   int ref_its=1;
+   int deref_its=1;
    double t_refs=1e10;
+   int    t_refs_steps=2;
    double error_norm=infinity();
    //----end of amr----
    
+   //----problem paramters----
    beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
 
+   bool saveOne=false;
+   bool checkpt=false;
    bool visualization = true;
    int vis_steps = 10;
 
@@ -190,6 +198,8 @@ int main(int argc, char *argv[])
                   "dt change time; reduce to half.");
    args.AddOption(&t_refs, "-t-refs", "--t-refs",
                   "Time a quick refine/derefine is turned on.");
+   args.AddOption(&t_refs_steps, "-t-refs-steps", "--t-refs-steps",
+                  "Refine steps for a quick refine/derefine after t_refs.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
    args.AddOption(&icase, "-i", "--icase",
@@ -270,10 +280,18 @@ int main(int argc, char *argv[])
                   "UpdateJ: 0 - no boundary condition used; 1/2 - Dirichlet used on J boundary (2: lumped mass matrix).");
    args.AddOption(&BgradJ, "-BgradJ", "--BgradJ",
                   "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
+   args.AddOption(&saveOne, "-saveOne", "--save-One",  "-no-saveOne", "--no-save-One",
+                  "Save solution/mesh as one file");
+   args.AddOption(&checkpt, "-checkpt", "--check-pt",  "-no-checkpt", "--no-check-pt",
+                  "Save check point");
    args.AddOption(&lumpedMass, "-lumpmass", "--lump-mass",  "-no-lumpmass", "--no-lump-mass",
                   "lumped mass for updatej=0");
    args.AddOption(&iestimator, "-iestimator", "--iestimator",
                   "iestimator: 1 - psi and J; 2 - omega and psi.");
+   args.AddOption(&compute_pressure, "-computep", "--compute-p", "-no-computep",
+                  "--no-compute-p", "Compute pressure in the post processing");
+   args.AddOption(&ref_its, "-ref-its", "--ref-its","refinement iterations.");
+   args.AddOption(&deref_its, "-deref-its", "--deref-its","refinement iterations.");
    args.Parse();
 
    if (!args.Good())
@@ -350,7 +368,7 @@ int main(int argc, char *argv[])
 
    //amr_levels+=ser_ref_levels; this is not needed any more
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
@@ -542,18 +560,16 @@ int main(int argc, char *argv[])
    
    //++++Initialize the MHD operator, the GLVis visualization    
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
-   if (icase==2)  //add the source term
-   {
+   //add the source term
+   if (icase==2){
        oper.SetRHSEfield(E0rhs);
    }
-   else if (icase==3 || icase==4)     
-   {
+   else if (icase==3 || icase==4){
        oper.SetRHSEfield(E0rhs3);
    }
 
    //set initial J
-   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), 
-                       jInit3(InitialJ3), jInit4(InitialJ4), *jptr;
+   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), jInit3(InitialJ3), jInit4(InitialJ4), *jptr;
    if (icase==1)
        jptr=&jInit1;
    else if (icase==2)
@@ -577,10 +593,12 @@ int main(int argc, char *argv[])
    bool regularZZ=true;
    if (regularZZ)
    {
-     if (iestimator==1)
+     if (iestimator==1){
         estimator=new BlockZZEstimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
-     else
+     }
+     else{
         estimator=new BlockZZEstimator(*integ, w, *integ, psi, flux_fespace1, flux_fespace2);
+     }
      estimator->SetErrorRatio(err_ratio); 
      estimator_used=estimator;
    }
@@ -754,8 +772,6 @@ int main(int argc, char *argv[])
 
    //++++Perform time-integration (looping over the time iterations, ti, with a time-step dt).
    bool last_step = false;
-   int ref_its=1;
-   int deref_its=1;
    int current_amr_level=levels3;
    for (int ti = 1; !last_step; ti++)
    {
@@ -769,9 +785,9 @@ int main(int argc, char *argv[])
 
       if (t>t_refs)
       {
-          ref_steps=2;
+          ref_steps=t_refs_steps;
           ref_its=1;
-          deref_its=3;
+          deref_its=1;
       }
 
       if (t>4. && t<5.00001 && current_amr_level<levels4)
@@ -1019,8 +1035,8 @@ int main(int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD); 
    double end = MPI_Wtime();
 
-   //++++++Save the solutions (only if paraview or visit is not turned on).
-   if (false)
+   //++++++Save the solutions.
+   if (checkpt)
    {
       phi.SetFromTrueDofs(vx.GetBlock(0));
       psi.SetFromTrueDofs(vx.GetBlock(1));

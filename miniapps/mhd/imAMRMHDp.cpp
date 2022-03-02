@@ -667,7 +667,7 @@ int main(int argc, char *argv[])
       {
          vis_phi << "parallel " << num_procs << " " << myid << "\n";
          vis_phi.precision(8);
-         vis_phi << "solution\n" << *pmesh << psi;
+         vis_phi << "solution\n" << *pmesh << phi;
          vis_phi << "window_size 800 800\n"<< "window_title '" << "phi'" << "keys cm\n";
          vis_phi << flush;
 
