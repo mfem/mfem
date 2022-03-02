@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
 
    myid_rand=rand();
 
-   //++++Parse command-line options.
+   //----Parse command-line options----
    const char *mesh_file = "./Meshes/xperiodic-square.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
@@ -163,11 +163,14 @@ int main(int argc, char *argv[])
    double err_fraction=.5;
    double derefine_ratio=.2;
    double derefine_fraction=.05;
+   int ref_its=1;
+   int deref_its=1;
    double t_refs=1e10;
    int    t_refs_steps=2;
    double error_norm=infinity();
    //----end of amr----
    
+   //----problem paramters----
    beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
@@ -289,6 +292,8 @@ int main(int argc, char *argv[])
                   "iestimator: 1 - psi and J; 2 - omega and psi.");
    args.AddOption(&compute_pressure, "-computep", "--compute-p", "-no-computep",
                   "--no-compute-p", "Compute pressure in the post processing");
+   args.AddOption(&ref_its, "-ref-its", "--ref-its","refinement iterations.");
+   args.AddOption(&deref_its, "-deref-its", "--deref-its","refinement iterations.");
    args.Parse();
 
    if (!args.Good())
@@ -947,10 +952,9 @@ int main(int argc, char *argv[])
 
    //++++Perform time-integration (looping over the time iterations, ti, with a time-step dt).
    bool last_step = false;
-   int ref_its=1;
-   int deref_its=1;
    for (int ti = 1; !last_step; ti++)
    {
+      //this solver does not support reduce dt automatically when snes fails
       if (t_change>0. && t>=t_change)
       {
         dt=dt/2.;
@@ -964,7 +968,7 @@ int main(int argc, char *argv[])
       {
           ref_steps=t_refs_steps;
           ref_its=1;
-          deref_its=2;
+          deref_its=1;
       }
 
       if (t>4. && levels3<amr_levels)
