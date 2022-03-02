@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << x <<
-               "window_title 'Numerical Pressure (real part)' "
+               "window_title 'Numerical Solution' "
                << flush;
    }
 

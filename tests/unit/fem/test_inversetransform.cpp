@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,33 +54,34 @@ TEST_CASE("InverseElementTransformation",
 {
    typedef InverseElementTransformation InvTransform;
 
-   // Create quadratic with single C-shaped quadrilateral
-   std::stringstream meshStr;
-   meshStr << meshPrefixStr << CShapedNodesStr;
-   Mesh mesh( meshStr );
-
-   REQUIRE( mesh.GetNE() == 1 );
-   REQUIRE( mesh.GetNodes() != nullptr );
-
-   // Optionally, dump mesh to disk
-   bool dumpMesh = false;
-   if (dumpMesh)
-   {
-      std::string filename = "c_shaped_quadratic_mesh";
-      VisItDataCollection dataCol(filename, &mesh);
-      dataCol.Save();
-   }
-
-   const int res = 100;
-   const int dim = 2;
    const double tol = 2e-14;
 
    SECTION("{ C-shaped Q2 Quad }")
    {
+      // Create quadratic with single C-shaped quadrilateral
+      std::stringstream meshStr;
+      meshStr << meshPrefixStr << CShapedNodesStr;
+      Mesh mesh( meshStr );
+
+      REQUIRE( mesh.GetNE() == 1 );
+      REQUIRE( mesh.GetNodes() != nullptr );
+
+      // Optionally, dump mesh to disk
+      bool dumpMesh = false;
+      if (dumpMesh)
+      {
+         std::string filename = "c_shaped_quadratic_mesh";
+         VisItDataCollection dataCol(filename, &mesh);
+         dataCol.Save();
+      }
+
+      const int times = 100;
+      const int dim = 2;
+
       // Create a uniform grid of integration points over the element
       const int geom = mesh.GetElementBaseGeometry(0);
       RefinedGeometry* ref =
-         GlobGeometryRefiner.Refine(Geometry::Type(geom), res);
+         GlobGeometryRefiner.Refine(Geometry::Type(geom), times);
       const IntegrationRule& intRule = ref->RefPts;
 
       // Create a transformation

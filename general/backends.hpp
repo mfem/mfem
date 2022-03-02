@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,6 +32,11 @@
 #endif
 
 #ifdef MFEM_USE_RAJA
+// The following two definitions suppress CUB and THRUST deprecation warnings
+// about requiring c++14 with c++11 deprecated but still supported (to be
+// removed in a future release).
+#define CUB_IGNORE_DEPRECATED_CPP_DIALECT
+#define THRUST_IGNORE_DEPRECATED_CPP_DIALECT
 #include "RAJA/RAJA.hpp"
 #if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
 #error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required
