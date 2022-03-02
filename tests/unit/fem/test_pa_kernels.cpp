@@ -512,17 +512,19 @@ static void test_pa_integrator()
                          "../../data/fichera.mesh", "../../data/fichera-q3.mesh");
    auto map_type = GENERATE(FiniteElement::VALUE, FiniteElement::INTEGRAL);
 
-   auto order = !all_tests ? 2: GENERATE(1, 2, 3, 4);
-   auto q_order_inc = !all_tests ? 3 : GENERATE(1, 3);
+   auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+   auto q_order_inc = !all_tests ? 0 : GENERATE(0, 1, 3);
 
    Mesh mesh(fname);
    int dim = mesh.Dimension();
    L2_FECollection fec(order, dim, BasisType::GaussLobatto, map_type);
    FiniteElementSpace fes(&mesh, &fec);
 
-   const int q = 2*order + q_order_inc;
-   const Geometry::Type geom_type = fes.GetFE(0)->GetGeomType();
-   const IntegrationRule *ir = &IntRules.Get(geom_type, q);
+   const int q_order = 2*order + q_order_inc;
+   // Don't use a special integration rule if q_order_inc == 0
+   const bool use_ir = q_order_inc > 0;
+   const IntegrationRule *ir =
+      use_ir ? &IntRules.Get(mesh.GetElementGeometry(0), q_order) : nullptr;
 
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
