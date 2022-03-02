@@ -20,14 +20,12 @@ namespace mfem
 class BatchedLORDiffusion : public BatchedLORAssembly
 {
 protected:
-   Vector d_buffer; ///< Device buffer used for intermediate computations.
    // TODO: for now only supporting constant coefficients
    double mass_coeff, diffusion_coeff;
 public:
-   template <int ORDER> void AssembleDiffusion2D(SparseMatrix &A);
-   template <int ORDER, bool USE_SMEM=true>
-   void AssembleDiffusion3D(SparseMatrix &A);
-   void AssemblyKernel(SparseMatrix &A) override;
+   template <int ORDER> void AssembleDiffusion2D();
+   template <int ORDER> void AssembleDiffusion3D();
+   void AssemblyKernel() override;
    BatchedLORDiffusion(BilinearForm &a_,
                        FiniteElementSpace &fes_ho_,
                        const Array<int> &ess_dofs_);

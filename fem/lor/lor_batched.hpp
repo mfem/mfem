@@ -38,8 +38,13 @@ protected:
    /// Get the vertices of the LOR mesh and place the result in @a X_vert.
    template <int Q1D> void GetLORVertexCoordinates();
 
+   DenseMatrix sparse_mapping;
+   Vector sparse_ij;
+
    // compiler limitation
 public:
+   /// After assembling the "sparse IJ" format, convert it to CSR.
+   void SparseIJToCSR(SparseMatrix &A);
    /// Assemble the system without eliminating essential DOFs.
    SparseMatrix *AssembleWithoutBC();
 #ifdef MFEM_USE_MPI
@@ -51,7 +56,7 @@ public:
 
    /// @brief Pure virtual function for the kernel actually performing the
    /// assembly. Overridden in the derived classes.
-   virtual void AssemblyKernel(SparseMatrix &A) = 0;
+   virtual void AssemblyKernel() = 0;
 
    /// Called by one of the specialized classes, e.g. BatchedLORDiffusion.
    BatchedLORAssembly(BilinearForm &a,
