@@ -142,7 +142,6 @@ void AnalyticAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &fes,
    ComputeAllElementTargets_Fallback(fes, ir, xe, Jtr);
 }
 
-
 // Code paths leading to ComputeElementTargets:
 // - GetElementEnergy(elfun) which is done through GetGridFunctionEnergyPA(x)
 // - AssembleElementVectorExact(elfun)

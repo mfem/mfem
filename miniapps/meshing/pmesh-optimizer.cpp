@@ -508,7 +508,7 @@ int main (int argc, char *argv[])
       }
       case 5: // Discrete size 2D or 3D
       {
-         target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
+         target_t = TargetConstructor::GIVEN_FULL;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
          if (adapt_eval == 0)
          {
@@ -708,7 +708,14 @@ int main (int argc, char *argv[])
          tc->SetAnalyticTargetSpec(NULL, NULL, hr_adapt_coeff);
          target_c = tc;
          break;
-      }
+      }  
+       case 12:
+        {
+           target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+           AutomaticTC *tc = new AutomaticTC(target_t);
+           target_c = tc;
+           break;
+        }
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;

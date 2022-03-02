@@ -1316,12 +1316,15 @@ void AutomaticTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
 {
     DenseMatrix Jtr_loc;
     Jtr_loc.SetSize(fe.GetDim());
+//    aspr_qavg = 1.0;
+//    ori_qavg = 0;
+//    skew_qavg = M_PI/2;
     Jtr_loc(0, 0) = (1.0/std::sqrt(aspr_qavg))*std::cos(ori_qavg);
     Jtr_loc(1, 0) = (1.0/std::sqrt(aspr_qavg))*std::sin(ori_qavg);
 
     Jtr_loc(0, 1) = (std::sqrt(aspr_qavg))*std::cos(ori_qavg+skew_qavg);
     Jtr_loc(1, 1) = (std::sqrt(aspr_qavg))*std::sin(ori_qavg+skew_qavg);
-    Jtr_loc *= std::sqrt(detJ_qavg);
+    Jtr_loc *= std::sqrt(detJ_qavg/std::sin(skew_qavg));
     for (int i = 0; i < ir.GetNPoints(); i++)
     {
         Jtr(i) = Jtr_loc;
@@ -3688,6 +3691,7 @@ void TMOP_Integrator::ComputeMeanGeometricParameters(Vector &xe, const FiniteEle
     double skew_qavg = 0.0;
     double ori_qavg = 0.0;
     double aspr_qavg = 0.0;
+    double sum_weight = 0.0;
     for (int e = 0; e < NE; e++)
     {
         const FiniteElement *fe = fes.GetFE(e);
@@ -3696,40 +3700,45 @@ void TMOP_Integrator::ComputeMeanGeometricParameters(Vector &xe, const FiniteEle
         const IntegrationRule &ir = EnergyIntegrationRule(*fes.GetFE(e));
         PMatI.UseExternalData(el_x.GetData(), dof, dim);
         const int nqp = ir.GetNPoints();
+
         for (int q = 0; q < nqp; q++)
         {
             const IntegrationPoint &ip = ir.IntPoint(q);
             fe->CalcDShape(ip, DSh);
             MultAtB(PMatI, DSh, Jpr);
+            double weight = ip.weight*Jpr.Weight();
+            sum_weight += weight;
+
             // Get QoI
             double detJ_q = Jpr.Det();
-            detJ_qavg += detJ_q;
+            detJ_qavg += weight*detJ_q;
+
             Vector col1, col2;
             Jpr.GetColumn(0, col1);
             Jpr.GetColumn(1, col2);
 
             double aspr_q = col2.Norml2() / col1.Norml2();
-            aspr_qavg += aspr_q;
+            aspr_qavg += weight*aspr_q;
 
             double norm_prod = col1.Norml2() * col2.Norml2();
             const double cos_skew = (col1 * col2) / norm_prod,
                          sin_skew = fabs(Jpr.Det()) / norm_prod;
             double skew_q = std::atan2(sin_skew, cos_skew);
             //if (skew_q < 0) { skew_q += M_PI; }
-            skew_qavg += skew_q;
+            skew_qavg += weight*skew_q;
 
-            double ori_q = std::atan2(Jpr(0,0), Jpr(1,0));
+            double ori_q = std::atan2(Jpr(1,0), Jpr(0,0));
             //if (ori_q < 0) { ori_q += M_PI; }
-            ori_qavg += ori_q;
+            ori_qavg += weight*ori_q;
             count_q++;
         }
     }
 
-    detJ_qavg /= count_q;
-    skew_qavg /= count_q;
-    ori_qavg /= count_q;
-    aspr_qavg /= count_q;
 
+    detJ_qavg /= sum_weight;
+    skew_qavg /= sum_weight;
+    ori_qavg /= sum_weight;
+    aspr_qavg /= sum_weight;
     auto_tc->SetTargetSize(detJ_qavg);
     auto_tc->SetTargetSkew(skew_qavg);
     auto_tc->SetTargetAspectRatio(aspr_qavg);
