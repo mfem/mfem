@@ -1305,44 +1305,44 @@ void AutomaticTC::ComputeAllElementTargets(const FiniteElementSpace &fes,
                                            const Vector &xe,
                                            DenseTensor &Jtr) const
 {
-    MFEM_ABORT("PA not available for AutomaticTC yet.");
+   MFEM_ABORT("PA not available for AutomaticTC yet.");
 }
 
 
 void AutomaticTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
-                                            const IntegrationRule &ir,
-                                            const Vector &elfun,
-                                            DenseTensor &Jtr) const
+                                        const IntegrationRule &ir,
+                                        const Vector &elfun,
+                                        DenseTensor &Jtr) const
 {
-    DenseMatrix Jtr_loc;
-    Jtr_loc.SetSize(fe.GetDim());
-//    aspr_qavg = 1.0;
-//    ori_qavg = 0;
-//    skew_qavg = M_PI/2;
-    Jtr_loc(0, 0) = (1.0/std::sqrt(aspr_qavg))*std::cos(ori_qavg);
-    Jtr_loc(1, 0) = (1.0/std::sqrt(aspr_qavg))*std::sin(ori_qavg);
+   DenseMatrix Jtr_loc;
+   Jtr_loc.SetSize(fe.GetDim());
+   //    aspr_qavg = 1.0;
+   //    ori_qavg = 0;
+   //    skew_qavg = M_PI/2;
+   Jtr_loc(0, 0) = (1.0/std::sqrt(aspr_qavg))*std::cos(ori_qavg);
+   Jtr_loc(1, 0) = (1.0/std::sqrt(aspr_qavg))*std::sin(ori_qavg);
 
-    Jtr_loc(0, 1) = (std::sqrt(aspr_qavg))*std::cos(ori_qavg+skew_qavg);
-    Jtr_loc(1, 1) = (std::sqrt(aspr_qavg))*std::sin(ori_qavg+skew_qavg);
-    Jtr_loc *= std::sqrt(detJ_qavg/std::sin(skew_qavg));
-    for (int i = 0; i < ir.GetNPoints(); i++)
-    {
-        Jtr(i) = Jtr_loc;
-    }
+   Jtr_loc(0, 1) = (std::sqrt(aspr_qavg))*std::cos(ori_qavg+skew_qavg);
+   Jtr_loc(1, 1) = (std::sqrt(aspr_qavg))*std::sin(ori_qavg+skew_qavg);
+   Jtr_loc *= std::sqrt(detJ_qavg/std::sin(skew_qavg));
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      Jtr(i) = Jtr_loc;
+   }
 }
 
 void AutomaticTC::ComputeElementTargetsGradient(
-        const IntegrationRule &ir,
-        const Vector &elfun,
-        IsoparametricTransformation &Tpr,
-        DenseTensor &dJtr) const
+   const IntegrationRule &ir,
+   const Vector &elfun,
+   IsoparametricTransformation &Tpr,
+   DenseTensor &dJtr) const
 {
-    MFEM_CONTRACT_VAR(elfun);
-    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != NULL, "");
+   MFEM_CONTRACT_VAR(elfun);
+   MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != NULL, "");
 
-    // TODO: Compute derivative for targets with GIVEN_SHAPE or/and GIVEN_SIZE
-    for (int i = 0; i < Tpr.GetFE()->GetDim()*ir.GetNPoints(); i++)
-    { dJtr(i) = 0.; }
+   // TODO: Compute derivative for targets with GIVEN_SHAPE or/and GIVEN_SIZE
+   for (int i = 0; i < Tpr.GetFE()->GetDim()*ir.GetNPoints(); i++)
+   { dJtr(i) = 0.; }
 }
 
 namespace internal
@@ -3686,75 +3686,76 @@ void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
    ComputeMinJac(x, fes);
 }
 
-void TMOP_Integrator::ComputeMeanGeometricParameters(Vector &xe, const FiniteElementSpace &fes)
+void TMOP_Integrator::ComputeMeanGeometricParameters(Vector &xe,
+                                                     const FiniteElementSpace &fes)
 {
-    if (!auto_tc) { return; }
+   if (!auto_tc) { return; }
 
-    const int NE = fes.GetNE();
-    const int dof = fes.GetFE(0)->GetDof(),
-              dim = fes.GetFE(0)->GetDim();
-    Array<int> vdofs;
-    Vector el_x;
-    DenseMatrix DSh, Jpr, PMatI;
-    DSh.SetSize(dof, dim);
-    Jpr.SetSize(dim);
-    int count_q = 0;
-    double detJ_qavg = 0.0;
-    double skew_qavg = 0.0;
-    double ori_qavg = 0.0;
-    double aspr_qavg = 0.0;
-    double sum_weight = 0.0;
-    for (int e = 0; e < NE; e++)
-    {
-        const FiniteElement *fe = fes.GetFE(e);
-        fes.GetElementVDofs(e, vdofs);
-        xe.GetSubVector(vdofs, el_x);
-        const IntegrationRule &ir = EnergyIntegrationRule(*fes.GetFE(e));
-        PMatI.UseExternalData(el_x.GetData(), dof, dim);
-        const int nqp = ir.GetNPoints();
+   const int NE = fes.GetNE();
+   const int dof = fes.GetFE(0)->GetDof(),
+             dim = fes.GetFE(0)->GetDim();
+   Array<int> vdofs;
+   Vector el_x;
+   DenseMatrix DSh, Jpr, PMatI;
+   DSh.SetSize(dof, dim);
+   Jpr.SetSize(dim);
+   int count_q = 0;
+   double detJ_qavg = 0.0;
+   double skew_qavg = 0.0;
+   double ori_qavg = 0.0;
+   double aspr_qavg = 0.0;
+   double sum_weight = 0.0;
+   for (int e = 0; e < NE; e++)
+   {
+      const FiniteElement *fe = fes.GetFE(e);
+      fes.GetElementVDofs(e, vdofs);
+      xe.GetSubVector(vdofs, el_x);
+      const IntegrationRule &ir = EnergyIntegrationRule(*fes.GetFE(e));
+      PMatI.UseExternalData(el_x.GetData(), dof, dim);
+      const int nqp = ir.GetNPoints();
 
-        for (int q = 0; q < nqp; q++)
-        {
-            const IntegrationPoint &ip = ir.IntPoint(q);
-            fe->CalcDShape(ip, DSh);
-            MultAtB(PMatI, DSh, Jpr);
-            double weight = ip.weight*Jpr.Weight();
-            sum_weight += weight;
+      for (int q = 0; q < nqp; q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         fe->CalcDShape(ip, DSh);
+         MultAtB(PMatI, DSh, Jpr);
+         double weight = ip.weight*Jpr.Weight();
+         sum_weight += weight;
 
-            // Get QoI
-            double detJ_q = Jpr.Det();
-            detJ_qavg += weight*detJ_q;
+         // Get QoI
+         double detJ_q = Jpr.Det();
+         detJ_qavg += weight*detJ_q;
 
-            Vector col1, col2;
-            Jpr.GetColumn(0, col1);
-            Jpr.GetColumn(1, col2);
+         Vector col1, col2;
+         Jpr.GetColumn(0, col1);
+         Jpr.GetColumn(1, col2);
 
-            double aspr_q = col2.Norml2() / col1.Norml2();
-            aspr_qavg += weight*aspr_q;
+         double aspr_q = col2.Norml2() / col1.Norml2();
+         aspr_qavg += weight*aspr_q;
 
-            double norm_prod = col1.Norml2() * col2.Norml2();
-            const double cos_skew = (col1 * col2) / norm_prod,
-                         sin_skew = fabs(Jpr.Det()) / norm_prod;
-            double skew_q = std::atan2(sin_skew, cos_skew);
-            //if (skew_q < 0) { skew_q += M_PI; }
-            skew_qavg += weight*skew_q;
+         double norm_prod = col1.Norml2() * col2.Norml2();
+         const double cos_skew = (col1 * col2) / norm_prod,
+                      sin_skew = fabs(Jpr.Det()) / norm_prod;
+         double skew_q = std::atan2(sin_skew, cos_skew);
+         //if (skew_q < 0) { skew_q += M_PI; }
+         skew_qavg += weight*skew_q;
 
-            double ori_q = std::atan2(Jpr(1,0), Jpr(0,0));
-            //if (ori_q < 0) { ori_q += M_PI; }
-            ori_qavg += weight*ori_q;
-            count_q++;
-        }
-    }
+         double ori_q = std::atan2(Jpr(1,0), Jpr(0,0));
+         //if (ori_q < 0) { ori_q += M_PI; }
+         ori_qavg += weight*ori_q;
+         count_q++;
+      }
+   }
 
 
-    detJ_qavg /= sum_weight;
-    skew_qavg /= sum_weight;
-    ori_qavg /= sum_weight;
-    aspr_qavg /= sum_weight;
-    auto_tc->SetTargetSize(detJ_qavg);
-    auto_tc->SetTargetSkew(skew_qavg);
-    auto_tc->SetTargetAspectRatio(aspr_qavg);
-    auto_tc->SetTargetOrientation(ori_qavg);
+   detJ_qavg /= sum_weight;
+   skew_qavg /= sum_weight;
+   ori_qavg /= sum_weight;
+   aspr_qavg /= sum_weight;
+   auto_tc->SetTargetSize(detJ_qavg);
+   auto_tc->SetTargetSkew(skew_qavg);
+   auto_tc->SetTargetAspectRatio(aspr_qavg);
+   auto_tc->SetTargetOrientation(ori_qavg);
 }
 
 #ifdef MFEM_USE_MPI

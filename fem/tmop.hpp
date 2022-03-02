@@ -1086,12 +1086,13 @@ class AutomaticTC : public TargetConstructor
 {
 protected:
    // Analytic target specification.
-    mutable double detJ_qavg, skew_qavg, ori_qavg, aspr_qavg;
+   mutable double detJ_qavg, skew_qavg, ori_qavg, aspr_qavg;
 
 public:
-    AutomaticTC(TargetType ttype) : TargetConstructor(ttype) {
-        uses_phys_coords = true;
-    }
+   AutomaticTC(TargetType ttype) : TargetConstructor(ttype)
+   {
+      uses_phys_coords = true;
+   }
 
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
@@ -1111,10 +1112,10 @@ public:
                                               IsoparametricTransformation &Tpr,
                                               DenseTensor &dJtr) const;
 
-    void SetTargetSize(double detJ) { detJ_qavg = detJ; }
-    void SetTargetSkew(double skew) { skew_qavg = skew; }
-    void SetTargetAspectRatio(double aspr) { aspr_qavg = aspr; }
-    void SetTargetOrientation(double ori) { ori_qavg = ori; }
+   void SetTargetSize(double detJ) { detJ_qavg = detJ; }
+   void SetTargetSkew(double skew) { skew_qavg = skew; }
+   void SetTargetAspectRatio(double aspr) { aspr_qavg = aspr; }
+   void SetTargetOrientation(double ori) { ori_qavg = ori; }
 };
 
 #ifdef MFEM_USE_MPI
@@ -1600,8 +1601,10 @@ public:
       integ_order = order;
    }
 
-   void PreProcessAutomaticTCParameters(Vector &xe,  const FiniteElementSpace *fes) {
-       ComputeMeanGeometricParameters(xe, *fes);
+   void PreProcessAutomaticTCParameters(Vector &xe,
+                                        const FiniteElementSpace *fes)
+   {
+      ComputeMeanGeometricParameters(xe, *fes);
    }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.

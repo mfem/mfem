@@ -685,10 +685,10 @@ int main(int argc, char *argv[])
       }
       case 12:
       {
-       target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
-       AutomaticTC *tc = new AutomaticTC(target_t);
-       target_c = tc;
-       break;
+         target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+         AutomaticTC *tc = new AutomaticTC(target_t);
+         target_c = tc;
+         break;
       }
       default: cout << "Unknown target_id: " << target_id << endl; return 3;
    }
@@ -901,7 +901,7 @@ int main(int argc, char *argv[])
       a.AddDomainIntegrator(tmop_integ);
    }
 
-   he_nlf_integ->PreProcessAutomaticTCParameters(x, x.FESpace());
+   tmop_integ->PreProcessAutomaticTCParameters(x, x.FESpace());
 
    if (pa) { a.Setup(); }
 
