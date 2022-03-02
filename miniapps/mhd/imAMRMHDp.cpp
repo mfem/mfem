@@ -1363,7 +1363,7 @@ int main(int argc, char *argv[])
         if (visualization)
         {
            vis_phi << "parallel " << num_procs << " " << myid << "\n";
-           vis_phi << "solution\n" << *pmesh << psi;
+           vis_phi << "solution\n" << *pmesh << phi;
            if (icase==1) 
                vis_phi << "valuerange -.001 .001\n" << flush;
            else
