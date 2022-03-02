@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -814,7 +814,7 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                      y_assembly.SetSize(y_mat.Size());
                      y_pa.SetSize(y_mat.Size());
 
-                     A_explicit.BuildTranspose();
+                     A_explicit.EnsureMultTranspose();
                      paform->MultTranspose(*xin, y_pa);
                      assemblyform->MultTranspose(*xin, y_assembly);
                      A_explicit.MultTranspose(*xin, y_mat);

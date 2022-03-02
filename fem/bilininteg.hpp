@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -644,13 +644,13 @@ protected:
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
-                                  DenseMatrix & shape)
-   { vector_fe.CalcVShape(Trans, shape); }
+                                  DenseMatrix & shape_)
+   { vector_fe.CalcVShape(Trans, shape_); }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
-                                 Vector & shape)
-   { scalar_fe.CalcPhysShape(Trans, shape); }
+                                 Vector & shape_)
+   { scalar_fe.CalcPhysShape(Trans, shape_); }
 
    VectorCoefficient *VQ;
    bool transpose;
@@ -2176,6 +2176,8 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
    static const IntegrationRule &GetRule(const FiniteElement &el,
                                          ElementTransformation &Trans);
 
@@ -2258,7 +2260,7 @@ public:
       : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(NULL), MQ(&q) { }
 
    int GetVDim() const { return vdim; }
-   void SetVDim(int vdim) { this->vdim = vdim; }
+   void SetVDim(int vdim_) { vdim = vdim_; }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
