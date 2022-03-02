@@ -931,7 +931,9 @@ protected:
 
 /** Class for integrating the bilinear form a(u,v) := (Q u, curl v) in 2D where
     Q is an optional scalar coefficient, u is in L2 or H1, and v is in
-    H(Curl). */
+    H(Curl). Partial assembly (PA) is supported but could be further optimized
+    by using more efficient threading and shared memory.
+*/
 class MixedScalarWeakCurlIntegrator : public MixedScalarIntegrator
 {
 public:
@@ -1717,7 +1719,10 @@ public:
 
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, v) in either 2D
     or 3D and where Q is an optional coefficient (of type scalar, matrix, or
-    diagonal matrix) u is in H1 and v is in H(Curl) or H(Div). */
+    diagonal matrix) u is in H1 and v is in H(Curl) or H(Div). Partial assembly
+    (PA) is supported but could be further optimized by using more efficient
+    threading and shared memory.
+*/
 class MixedVectorGradientIntegrator : public MixedVectorIntegrator
 {
 public:
