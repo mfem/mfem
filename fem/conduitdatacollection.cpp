@@ -777,11 +777,13 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
       int num_bndry_ele = mesh->GetNBE();
 
       // must initialize this to something
-      Element::Type bndry_ele_type   = (num_bndry_ele > 0) ? mesh->GetBdrElementType(0) : mfem::Element::POINT;
+      Element::Type bndry_ele_type   = (num_bndry_ele > 0) ? mesh->GetBdrElementType(
+                                          0) : mfem::Element::POINT;
       std::string bndry_ele_shape    = ElementTypeToShapeName(bndry_ele_type);
       n_bndry_topo["elements/shape"] = bndry_ele_shape;
 
-      int bndry_geom          = (num_bndry_ele > 0) ? mesh->GetBdrElementBaseGeometry(0) : mfem::Element::POINT;
+      int bndry_geom          = (num_bndry_ele > 0) ? mesh->GetBdrElementBaseGeometry(
+                                   0) : mfem::Element::POINT;
       int bndry_idxs_per_ele  = Geometry::NumVerts[bndry_geom];
       int num_bndry_conn_idxs =  num_bndry_ele * bndry_idxs_per_ele;
 
@@ -952,7 +954,7 @@ ConduitDataCollection::HasBoundaryElements(mfem::Mesh* mesh)
    {
       int hasBndElts_g;
       MPI_Allreduce(&hasBndElts, &hasBndElts_g, 1,
-         MPI_INT, MPI_MAX,pmesh->GetComm());
+                    MPI_INT, MPI_MAX,pmesh->GetComm());
       hasBndElts = hasBndElts_g;
    }
 #endif
