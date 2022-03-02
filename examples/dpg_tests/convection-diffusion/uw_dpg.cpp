@@ -3,8 +3,7 @@
 // Compile with: make uw_dpg
 //
 // sample runs 
-// ./uw_dpg -m ../../../data/inline-quad.mesh -o 2 -ref 20 -graph-norm -do 1
-
+// ./uw_dpg  -m ../../../data/inline-quad.mesh -o 3 -ref 10 -test-norm 2 -do 1 -prob 1 -eps 1e-4
 //     - εΔu + ∇⋅(βu) = f,   in Ω
 //                  u = u_0, on ∂Ω
 
@@ -95,7 +94,7 @@ int main(int argc, char *argv[])
    args.AddOption(&theta, "-theta", "--theta",
                   "Theta parameter for AMR");                             
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
-                  " 0: lshape, 1: General");           
+                  " 0: polynomial, 1: EJ ,2: General");           
    args.AddOption(&itest_norm, "-test-norm", "--test-norm", "Choice of test norm"
                   " 0: Standard, 1: Adjoint Graph, 2: Robust");       
    args.AddOption(&beta, "-beta", "--beta",
@@ -342,12 +341,12 @@ int main(int argc, char *argv[])
       {
          ess_bdr_uhat.SetSize(mesh.bdr_attributes.Max());
          ess_bdr_fhat.SetSize(mesh.bdr_attributes.Max());
-         ess_bdr_uhat = 1;
-         ess_bdr_fhat = 0;
-         // ess_bdr_uhat = 0;
-         // ess_bdr_fhat = 1;
-         // ess_bdr_uhat[1] = 1;
-         // ess_bdr_fhat[1] = 0;
+         // ess_bdr_uhat = 1;
+         // ess_bdr_fhat = 0;
+         ess_bdr_uhat = 0;
+         ess_bdr_fhat = 1;
+         ess_bdr_uhat[1] = 1;
+         ess_bdr_fhat[1] = 0;
          hatu_fes->GetEssentialTrueDofs(ess_bdr_uhat, ess_tdof_list_uhat);
          hatf_fes->GetEssentialTrueDofs(ess_bdr_fhat, ess_tdof_list_fhat);
       }
