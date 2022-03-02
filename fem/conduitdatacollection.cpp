@@ -765,7 +765,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    ////////////////////////////////////////////
 
    // guard vs if we have boundary elements
-   if (mesh->GetNBE() > 0)
+   if (HasBoundaryElements(mesh))
    {
       n_topo["boundary_topology"] = boundary_topology_name;
 
@@ -774,15 +774,14 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
       n_bndry_topo["type"]     = "unstructured";
       n_bndry_topo["coordset"] = coordset_name;
 
-      Element::Type bndry_ele_type = mesh->GetBdrElementType(0);
+      int num_bndry_ele = mesh->GetNBE();
 
-      std::string bndry_ele_shape = ElementTypeToShapeName(bndry_ele_type);
-
+      // must initialize this to something
+      Element::Type bndry_ele_type   = (num_bndry_ele > 0) ? mesh->GetBdrElementType(0) : mfem::Element::POINT;
+      std::string bndry_ele_shape    = ElementTypeToShapeName(bndry_ele_type);
       n_bndry_topo["elements/shape"] = bndry_ele_shape;
 
-
-      int num_bndry_ele = mesh->GetNBE();
-      int bndry_geom    = mesh->GetBdrElementBaseGeometry(0);
+      int bndry_geom          = (num_bndry_ele > 0) ? mesh->GetBdrElementBaseGeometry(0) : mfem::Element::POINT;
       int bndry_idxs_per_ele  = Geometry::NumVerts[bndry_geom];
       int num_bndry_conn_idxs =  num_bndry_ele * bndry_idxs_per_ele;
 
@@ -937,6 +936,28 @@ ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
       }
    }
 
+}
+
+//---------------------------------------------------------------------------//
+bool
+ConduitDataCollection::HasBoundaryElements(mfem::Mesh* mesh)
+{
+   // check if this rank has any boundary elements
+   int hasBndElts = mesh->GetNBE() > 0 ? 1 : 0;
+
+#ifdef MFEM_USE_MPI
+   // check if any rank has boundary elements
+   ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+   if (pmesh)
+   {
+      int hasBndElts_g;
+      MPI_Allreduce(&hasBndElts, &hasBndElts_g, 1,
+         MPI_INT, MPI_MAX,pmesh->GetComm());
+      hasBndElts = hasBndElts_g;
+   }
+#endif
+
+   return hasBndElts > 0 ? true : false;
 }
 
 //------------------------------
