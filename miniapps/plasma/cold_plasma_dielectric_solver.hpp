@@ -433,6 +433,7 @@ private:
    ParMixedBilinearForm * n20ZIm_;
 
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
+   ParComplexGridFunction * e_tmp_; // Temporary complex electric field (HCurl)
    ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
    ParComplexGridFunction * b_;   // Complex magnetic flux (HDiv)
 
@@ -441,6 +442,7 @@ private:
    ParDiscreteLinearOperator * kOp_; // E += i k phi
    ParComplexGridFunction * phi_; // Complex sheath potential (H1)
    ParComplexGridFunction * prev_phi_; // Complex sheath potential temporary (H1)
+   ParComplexGridFunction * next_phi_; // Complex sheath potential temporary (H1)
    ParComplexGridFunction * z_; // Complex sheath potential (H1)
   
    ParComplexGridFunction * rectPot_; // Complex rectified potential (H1)
@@ -448,6 +450,7 @@ private:
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
+   //ParComplexGridFunction * e_perp_; // Complex perpendicular electric field (L2)
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
    ParComplexGridFunction * phi_v_; // Complex sheath potential (L2)
@@ -460,7 +463,7 @@ private:
    ParComplexGridFunction * StixS_; // Stix S Coefficient (L2)
    ParComplexGridFunction * StixD_; // Stix D Coefficient (L2)
    ParComplexGridFunction * StixP_; // Stix P Coefficient (L2)
-   ParComplexGridFunction * EpsPara_; // B^T eps B / |B|^2 Coefficient (L2)
+   //ParComplexGridFunction * EpsPara_; // B^T eps B / |B|^2 Coefficient (L2)
 
    VectorCoefficient * BCoef_;        // B Field Unit Vector
    MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient
