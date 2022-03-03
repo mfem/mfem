@@ -58,6 +58,9 @@ void BFieldAdvector::SetMeshes(ParMesh *pmesh_old, ParMesh *pmesh_new)
    pmeshOld = pmesh_old;
    pmeshNew = pmesh_new;
 
+   if (pmeshNew->GetNodes() == NULL) { pmeshNew->SetCurvature(1); }
+   pmeshNewOrder = pmeshNew->GetNodes()->FESpace()->GetElementOrder(0);
+
    //Set up the various spaces on the meshes
    H1FESpaceOld    = new H1_ParFESpace(pmeshOld,order,pmeshOld->Dimension());
    HCurlFESpaceOld = new ND_ParFESpace(pmeshOld,order,pmeshOld->Dimension());
@@ -100,8 +103,9 @@ void BFieldAdvector::SetMeshes(ParMesh *pmesh_old, ParMesh *pmesh_new)
    divFreeProj = new DivergenceFreeProjector(*H1FESpaceOld, *HCurlFESpaceOld,
                                               irOrder, NULL, NULL, grad);
 
-   // Build grid internal functions on the spaces
-   a  = new ParGridFunction(HCurlFESpaceOld);            //Vector potential Ain HCurl
+   // Build internal grid functions on the spaces
+   a  = new ParGridFunction(HCurlFESpaceOld);            //Vector potential A in HCurl
+   a_new = new ParGridFunction(HCurlFESpaceNew);         //Vector potential A in Hcurl on the new mesh
    curl_b = new ParGridFunction(HCurlFESpaceOld);        //curl B in Hcurl from the weak curl
    clean_curl_b = new ParGridFunction(HCurlFESpaceOld);  //B in Hcurl
    recon_b = new ParGridFunction(HDivFESpaceOld);        //Reconstructed B from A
@@ -127,6 +131,7 @@ void BFieldAdvector::CleanInternals()
    if (curlCurl != nullptr) delete curlCurl;
 
    if (a != nullptr) delete a;
+   if (a_new != nullptr) delete a_new;
    if (curl_b != nullptr) delete curl_b;
    if (clean_curl_b != nullptr) delete clean_curl_b;
    if (recon_b != nullptr) delete recon_b;
@@ -136,6 +141,8 @@ void BFieldAdvector::CleanInternals()
 void BFieldAdvector::Advect(ParGridFunction* b_old, ParGridFunction* b_new)
 {
    ComputeA(b_old);
+   FindPtsInterpolateToTargetMesh(a, a_new, 1);
+   curl->Mult(*a_new, *b_new);
 }
 
 //Solve Curl Curl A = Curl B for A using AMS
@@ -231,14 +238,16 @@ void BFieldAdvector::ComputeCleanCurlB(ParGridFunction* b)
 }
 
 
-void BFieldAdvector::FindPtsInterpolateToTargetMesh(const ParGridFunction *old_gf, ParGridFunction *new_gf)
+void BFieldAdvector::FindPtsInterpolateToTargetMesh(const ParGridFunction *old_gf, ParGridFunction *new_gf, int fieldtype)
 {
+   MFEM_ASSERT(fieldtype >= 0 && fieldtype <= 3, "Method expects a field type of 0, 1, 2, or 3");
+
    int dim = pmeshNew->Dimension();
    int vdim = old_gf->VectorDim();
    int num_target_elem = pmeshNew->GetNE();
    ParFiniteElementSpace *target_fes = new_gf->ParFESpace();
 
-   // Loop through the elements for this in case we have a mixed mesh
+   // Loop through the elements in case we have a mixed mesh
    int num_target_pts = 0;
    for (int e = 0; e < num_target_elem; ++e)
    {
@@ -253,22 +262,22 @@ void BFieldAdvector::FindPtsInterpolateToTargetMesh(const ParGridFunction *old_g
    {
       const FiniteElement *fe = target_fes->GetFE(e);
       const IntegrationRule ir = fe->GetNodes();
-      int num_elem_nodes = fe->GetNodes().GetNPoints();
+      int elem_num_nodes = fe->GetNodes().GetNPoints();
       ElementTransformation *trans = target_fes->GetElementTransformation(e);
 
       DenseMatrix pos;
       trans->Transform(ir, pos);
-      Vector rowx(vxyz.GetData() + vxyz_pos, num_elem_nodes),
-             rowy(vxyz.GetData() + num_target_pts + vxyz_pos, num_elem_nodes),
+      Vector rowx(vxyz.GetData() + vxyz_pos, elem_num_nodes),
+             rowy(vxyz.GetData() + num_target_pts + vxyz_pos, elem_num_nodes),
              rowz;
       if (dim == 3)
       {
-         rowz.SetDataAndSize(vxyz.GetData() + 2*num_target_pts + vxyz_pos, num_elem_nodes);
+         rowz.SetDataAndSize(vxyz.GetData() + 2*num_target_pts + vxyz_pos, elem_num_nodes);
       }
       pos.GetRow(0, rowx);
       pos.GetRow(1, rowy);
       if (dim == 3) { pos.GetRow(2, rowz); }
-      vxyz_pos += num_elem_nodes;
+      vxyz_pos += elem_num_nodes;
    }
 
    // Interpolate the values at the new_gf nodes
@@ -282,31 +291,35 @@ void BFieldAdvector::FindPtsInterpolateToTargetMesh(const ParGridFunction *old_g
    //The H1/L2 versions and the ND/RT versions.
    //It may be a good idea to have isH1, isL2, isND, and isRT methods in the FEC
    // Project the interpolated values to the target FiniteElementSpace.
-/*   if (fieldtype <= 1) // H1 or L2
+   if (fieldtype == 0 || fieldtype == 3) // H1 or L2
    {
-      if ((fieldtype == 0 && order == mesh_poly_deg) || fieldtype == 1)
+      if ((fieldtype == 0 && order == pmeshNewOrder) || fieldtype == 3)
       {
-         func_target = interp_vals;
+         (*new_gf) = interp_vals;
       }
       else // H1 - but mesh order != GridFunction order
       {
          Array<int> vdofs;
-         Vector vals;
-         Vector elem_dof_vals(nsp*tar_ncomp);
-
-         for (int i = 0; i < mesh_2.GetNE(); i++)
+         //Vector vals;
+         int ivals_pos = 0;
+         for (int e = 0; e < num_target_elem; e++)
          {
-            tar_fes->GetElementVDofs(i, vdofs);
-            vals.SetSize(vdofs.Size());
-            for (int j = 0; j < nsp; j++)
+            const FiniteElement *fe = target_fes->GetFE(e);
+            int elem_num_nodes = fe->GetNodes().GetNPoints();
+            Vector elem_dof_vals(elem_num_nodes*vdim);
+
+            target_fes->GetElementVDofs(e, vdofs);
+            //vals.SetSize(vdofs.Size());
+            for (int j = 0; j < elem_num_nodes; j++)
             {
-               for (int d = 0; d < tar_ncomp; d++)
+               for (int d = 0; d < vdim; d++)
                {
                   // Arrange values byNodes
-                  elem_dof_vals(j+d*nsp) = interp_vals(d*nsp*NE + i*nsp + j);
+                  elem_dof_vals(j+d*elem_num_nodes) = interp_vals(d*num_target_pts + ivals_pos + j);
                }
             }
-            func_target.SetSubVector(vdofs, elem_dof_vals);
+            new_gf->SetSubVector(vdofs, elem_dof_vals);
+            ivals_pos += elem_num_nodes;
          }
       }
    }
@@ -314,29 +327,30 @@ void BFieldAdvector::FindPtsInterpolateToTargetMesh(const ParGridFunction *old_g
    {
       Array<int> vdofs;
       Vector vals;
-      Vector elem_dof_vals(nsp*tar_ncomp);
-
-      for (int i = 0; i < mesh_2.GetNE(); i++)
+      int ivals_pos = 0;
+      for (int e = 0; e < num_target_elem; e++)
       {
-         tar_fes->GetElementVDofs(i, vdofs);
+         const FiniteElement *fe = target_fes->GetFE(e);
+         int elem_num_nodes = fe->GetNodes().GetNPoints();
+         Vector elem_dof_vals(elem_num_nodes*vdim);
+         target_fes->GetElementVDofs(e, vdofs);
          vals.SetSize(vdofs.Size());
-         for (int j = 0; j < nsp; j++)
+         for (int j = 0; j < elem_num_nodes; j++)
          {
-            for (int d = 0; d < tar_ncomp; d++)
+            for (int d = 0; d < vdim; d++)
             {
                // Arrange values byVDim
-               elem_dof_vals(j*tar_ncomp+d) = interp_vals(d*nsp*NE + i*nsp + j);
+               elem_dof_vals(j*vdim+d) = interp_vals(d*num_target_pts + ivals_pos + j);
             }
          }
-         tar_fes->GetFE(i)->ProjectFromNodes(elem_dof_vals,
-                                             *tar_fes->GetElementTransformation(i),
-                                             vals);
-         func_target.SetSubVector(vdofs, vals);
+         fe->ProjectFromNodes(elem_dof_vals,
+                              *target_fes->GetElementTransformation(e),
+                              vals);
+         new_gf->SetSubVector(vdofs, vals);
+         ivals_pos += elem_num_nodes;
       }
-   }*/
-
+   }
 }
-
 
 
 } // namespace electromagnetics

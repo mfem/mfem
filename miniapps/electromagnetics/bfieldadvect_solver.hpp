@@ -43,10 +43,13 @@ class BFieldAdvector
    void ComputeCleanCurlB(ParGridFunction* b);
    void ComputeA(ParGridFunction* b);
 
-   /// Given a grid function on the old and new meshes interpolate a field from the old to the new 
-   void FindPtsInterpolateToTargetMesh(const ParGridFunction *old_gf, ParGridFunction *new_gf);
+   /// Given a grid function on the old and new meshes interpolate a field from the old to the new
+   /** The fieldtype variable goes from 0 forms to 3 forms in order 0-H1, 1-H(curl), 2-H(div), 3-L2
+   **/
+   void FindPtsInterpolateToTargetMesh(const ParGridFunction *old_gf, ParGridFunction *new_gf, int fieldtype);
 
    int order;
+   int pmeshNewOrder;
    MPI_Comm myComm;
    ParMesh *pmeshOld, *pmeshNew;         //The old/source mesh and new/target mesh
    H1_ParFESpace *H1FESpaceOld, *H1FESpaceNew;
@@ -61,6 +64,7 @@ class BFieldAdvector
    ParBilinearForm *curlCurl;
    DivergenceFreeProjector *divFreeProj;
    ParGridFunction *a;
+   ParGridFunction *a_new;
    ParGridFunction *curl_b;
    ParGridFunction *clean_curl_b;
    ParGridFunction *recon_b;
