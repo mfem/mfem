@@ -120,6 +120,59 @@ TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
    TestSameMatrices(A2, A1);
 }
 
+TEST_CASE("LOR Batched ND", "[LOR][BatchedLOR][CUDA]")
+{
+   auto mesh_fname = GENERATE(
+                        "../../data/ref-square.mesh"
+                        // "../../data/star-q3.mesh",
+                        // "../../data/fichera-q3.mesh"
+                     );
+   const int order = 1;
+
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+   ND_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto,
+                       BasisType::IntegratedGLL);
+   FiniteElementSpace fespace(&mesh, &fec);
+
+   Array<int> ess_dofs;
+   // fespace.GetBoundaryTrueDofs(ess_dofs);
+
+   ConstantCoefficient diff_coeff(M_PI);
+   ConstantCoefficient mass_coeff(1.0/M_PI);
+
+   BilinearForm a(&fespace);
+   a.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff));
+   // a.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   LORDiscretization lor(a, ess_dofs);
+
+   BilinearForm a_lor(&lor.GetFESpace());
+   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
+   const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
+   a_lor.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff, &ir));
+   BilinearFormIntegrator *integ = new VectorFEMassIntegrator(mass_coeff);
+   integ->SetIntegrationRule(ir);
+   // a_lor.AddDomainIntegrator(integ);
+   a_lor.Assemble();
+   a_lor.Finalize();
+
+   OperatorHandle A;
+   a_lor.FormSystemMatrix(ess_dofs, A);
+   SparseMatrix &A1 = *A.As<SparseMatrix>();
+   SparseMatrix &A2 = lor.GetAssembledMatrix();
+
+   {
+      std::ofstream f("A1.txt");
+      A1.PrintMatlab(f);
+   }
+   {
+      std::ofstream f("A2.txt");
+      A2.PrintMatlab(f);
+   }
+
+   TestSameMatrices(A1, A2);
+   TestSameMatrices(A2, A1);
+}
+
 TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
 {
    auto mesh_fname = GENERATE(
