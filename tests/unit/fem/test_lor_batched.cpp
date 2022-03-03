@@ -15,6 +15,11 @@
 
 using namespace mfem;
 
+namespace lor_batched
+{
+
+static constexpr int RANDOM_SEED = 0x100001b3;
+
 void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
                       HYPRE_BigInt *cmap1=nullptr,
                       std::unordered_map<HYPRE_BigInt,int> *cmap2inv=nullptr)
@@ -80,6 +85,37 @@ void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
    }
 }
 
+void TestInnerProductMatrices(SparseMatrix &A1, const SparseMatrix &A2)
+{
+   REQUIRE((A1.Width() == A2.Width()));
+   Vector x(A1.Width()), y(A1.Height());
+
+   x.Randomize(RANDOM_SEED);
+   y.Randomize(RANDOM_SEED);
+
+   const double ytA1x = A1.InnerProduct(x,y);
+   const double ytA2x = A2.InnerProduct(x,y);
+
+   REQUIRE(ytA1x == MFEM_Approx(ytA2x));
+}
+
+GridFunction RandomizeMesh(Mesh &mesh, FiniteElementSpace &fes_mesh)
+{
+   GridFunction mesh_coords(&fes_mesh);
+   mesh.SetNodalFESpace(&fes_mesh);
+   mesh.SetNodalGridFunction(&mesh_coords);
+   const double jitter = 1./(M_PI*M_PI);
+   const double h0 = mesh.GetElementSize(0);
+   GridFunction randomized_gf(&fes_mesh);
+   randomized_gf.Randomize(RANDOM_SEED);
+   // Shift to random values in [-0.5,0.5]
+   randomized_gf -= 0.5;
+   // Scale the random values to be of same order
+   randomized_gf *= jitter * h0;
+   mesh_coords -= randomized_gf;
+   return mesh_coords;
+}
+
 TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
 {
    auto mesh_fname = GENERATE(
@@ -91,6 +127,9 @@ TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
    H1_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fec);
+
+   FiniteElementSpace fes_mesh(&mesh, &fec, mesh.Dimension());
+   GridFunction mesh_coords = RandomizeMesh(mesh, fes_mesh);
 
    Array<int> ess_dofs;
    fespace.GetBoundaryTrueDofs(ess_dofs);
@@ -118,6 +157,7 @@ TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
 
    TestSameMatrices(A1, A2);
    TestSameMatrices(A2, A1);
+   TestInnerProductMatrices(A1, A2);
 }
 
 TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
@@ -161,3 +201,5 @@ TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
    TestSameMatrices(A1, A2);
    TestSameMatrices(A2, A1);
 }
+
+} // namespace lor_batched
