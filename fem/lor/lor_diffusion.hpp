@@ -23,8 +23,8 @@ protected:
    // TODO: for now only supporting constant coefficients
    double mass_coeff, diffusion_coeff;
 public:
-   template <int ORDER> void AssembleDiffusion2D();
-   template <int ORDER> void AssembleDiffusion3D();
+   template <int ORDER> void Assemble2D();
+   template <int ORDER> void Assemble3D();
    void AssemblyKernel() override;
    BatchedLORDiffusion(BilinearForm &a_,
                        FiniteElementSpace &fes_ho_,
