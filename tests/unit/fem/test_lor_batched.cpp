@@ -15,6 +15,10 @@
 
 using namespace mfem;
 
+#ifndef MFEM_USE_MPI
+#define HYPRE_BigInt int
+#endif // MFEM_USE_MPI
+
 namespace lor_batched
 {
 
@@ -59,30 +63,6 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
    }
 
    REQUIRE(error == MFEM_Approx(0.0));
-}
-
-void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
-{
-   HYPRE_BigInt *cmap1, *cmap2;
-   SparseMatrix diag1, offd1, diag2, offd2;
-
-   A1.GetDiag(diag1);
-   A2.GetDiag(diag2);
-   A1.GetOffd(offd1, cmap1);
-   A2.GetOffd(offd2, cmap2);
-
-   TestSameMatrices(diag1, diag2);
-
-   if (cmap1)
-   {
-      std::unordered_map<HYPRE_BigInt,int> cmap2inv;
-      for (int i=0; i<offd2.Width(); ++i) { cmap2inv[cmap2[i]] = i; }
-      TestSameMatrices(offd1, offd2, cmap1, &cmap2inv);
-   }
-   else
-   {
-      TestSameMatrices(offd1, offd2);
-   }
 }
 
 void TestInnerProductMatrices(SparseMatrix &A1, const SparseMatrix &A2)
@@ -160,6 +140,32 @@ TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
    TestInnerProductMatrices(A1, A2);
 }
 
+#ifdef MFEM_USE_MPI
+
+void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
+{
+   HYPRE_BigInt *cmap1, *cmap2;
+   SparseMatrix diag1, offd1, diag2, offd2;
+
+   A1.GetDiag(diag1);
+   A2.GetDiag(diag2);
+   A1.GetOffd(offd1, cmap1);
+   A2.GetOffd(offd2, cmap2);
+
+   TestSameMatrices(diag1, diag2);
+
+   if (cmap1)
+   {
+      std::unordered_map<HYPRE_BigInt,int> cmap2inv;
+      for (int i=0; i<offd2.Width(); ++i) { cmap2inv[cmap2[i]] = i; }
+      TestSameMatrices(offd1, offd2, cmap1, &cmap2inv);
+   }
+   else
+   {
+      TestSameMatrices(offd1, offd2);
+   }
+}
+
 TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
 {
    auto mesh_fname = GENERATE(
@@ -201,5 +207,7 @@ TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
    TestSameMatrices(A1, A2);
    TestSameMatrices(A2, A1);
 }
+
+#endif // MFEM_USE_MPI
 
 } // namespace lor_batched
