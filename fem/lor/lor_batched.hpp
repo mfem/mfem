@@ -76,6 +76,23 @@ public:
                         OperatorHandle &A);
 };
 
+template <typename T>
+T *GetIntegrator(BilinearForm &a)
+{
+   Array<BilinearFormIntegrator*> *integs = a.GetDBFI();
+   if (integs != NULL)
+   {
+      for (auto *i : *integs)
+      {
+         if (auto *ti = dynamic_cast<T*>(i))
+         {
+            return ti;
+         }
+      }
+   }
+   return nullptr;
+}
+
 }
 
 #endif
