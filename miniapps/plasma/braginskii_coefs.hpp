@@ -56,7 +56,7 @@ inline double tau_i(double mi, double zi, double ni, double Ti,
 {
    // The factor of q_^{3/2} is included to convert Ti from eV to Joules
    return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-          sqrt(mi * amu_ * pow(q_ * Ti, 3) / M_PI) /
+          sqrt(mi * kg_per_amu_ * pow(q_ * Ti, 3) / M_PI) /
           (lnLambda * pow(q_ * zi, 4) * ni);
 }
 
@@ -233,7 +233,7 @@ inline double chi_i_para(double mi, double zi, double ni, double Ti)
 {
    // The factor of q_ is included to convert Ta from eV to Joules
    // The factor of u_ is included to convert ma from a.m.u to kg
-   return 3.906 * ni * (q_ * Ti / (mi * amu_ ) ) *
+   return 3.906 * ni * (q_ * Ti / (mi * kg_per_amu_ ) ) *
           tau_i(mi, zi, ni, Ti, 17.0);
 }
 
@@ -250,11 +250,11 @@ inline double chi_i_perp(double Bmag, double mi, double zi,
                          double ni, double Ti)
 {
    // The factor of q_ is included to convert Ti from eV to Joules
-   // The factor of amu_ is included to convert mi from a.m.u to kg
+   // The factor of kg_per_amu_ is included to convert mi from a.m.u to kg
    double tau = tau_i(mi, zi, ni, Ti, 17.0);
    double x = cyclotronFrequency(Bmag, mi, zi) * tau;
    double delta = x * x * (x * x + 2.70) + 0.677;
-   return ni * (q_ * Ti / (mi * amu_)) * tau *
+   return ni * (q_ * Ti / (mi * kg_per_amu_)) * tau *
           (2.0 * x * x + 2.645) / delta;
 }
 
@@ -272,11 +272,11 @@ inline double chi_i_cross(double Bmag, double mi, double zi,
                           double ni, double Ti)
 {
    // The factor of q_ is included to convert Ti from eV to Joules
-   // The factor of amu_ is included to convert mi from a.m.u to kg
+   // The factor of kg_per_amu_ is included to convert mi from a.m.u to kg
    double tau = tau_i(mi, zi, ni, Ti, 17.0);
    double x = cyclotronFrequency(Bmag, mi, zi) * tau;
    double delta = x * x * (x * x + 2.70) + 0.677;
-   return ni * (q_ * Ti * tau/ (mi * amu_)) *
+   return ni * (q_ * Ti * tau/ (mi * kg_per_amu_)) *
           (2.5 * x * x + 4.65) / delta;
 }
 
@@ -291,8 +291,8 @@ inline double chi_i_cross(double Bmag, double mi, double zi,
 inline double eta0_e(double ne, double Te, double zi, double ni)
 {
    // The factor of q_ is included to convert Te from eV to Joules
-   // The factor of amu_ is included to convert from kg to a.m.u
-   return 0.73 * ne * (q_ * Te / amu_) * tau_e(Te, zi, ni, 17.0);
+   // The factor of kg_per_amu_ is included to convert from kg to a.m.u
+   return 0.73 * ne * (q_ * Te / kg_per_amu_) * tau_e(Te, zi, ni, 17.0);
 }
 
 /**
@@ -307,9 +307,9 @@ inline double eta0_e(double ne, double Te, double zi, double ni)
 inline double eta1_e(double Bmag, double ne, double Te, double zi, double ni)
 {
    // The factor of q_ is included to convert Te from eV to Joules
-   // The factor of amu_ is included to convert from kg to a.m.u
+   // The factor of kg_per_amu_ is included to convert from kg to a.m.u
    double omega = cyclotronFrequency(Bmag, me_u_, 1.0);
-   return 0.51 * ne * (q_ * Te / amu_) /
+   return 0.51 * ne * (q_ * Te / kg_per_amu_) /
           (omega * omega * tau_e(Te, zi, ni, 17.0));
 }
 
@@ -337,9 +337,9 @@ inline double eta2_e(double Bmag, double ne, double Te, double zi, double ni)
 inline double eta3_e(double Bmag, double ne, double Te)
 {
    // The factor of q_ is included to convert Te from eV to Joules
-   // The factor of amu_ is included to convert from kg to a.m.u
+   // The factor of kg_per_amu_ is included to convert from kg to a.m.u
    double omega = cyclotronFrequency(Bmag, me_u_, 1.0);
-   return -0.5 * ne * (q_ * Te / amu_) / omega;
+   return -0.5 * ne * (q_ * Te / kg_per_amu_) / omega;
 }
 
 /**
@@ -366,7 +366,7 @@ inline double eta0_i(double mi, double zi, double ni, double Ti)
 {
    // The factor of q_ is included to convert Ti from eV to Joules
    // The factor of u_ is included to convert from kg to a.m.u
-   return 0.96 * ni * (q_ * Ti / amu_) * tau_i(mi, zi, ni, Ti, 17.0);
+   return 0.96 * ni * (q_ * Ti / kg_per_amu_) * tau_i(mi, zi, ni, Ti, 17.0);
 }
 
 /**
@@ -381,9 +381,9 @@ inline double eta0_i(double mi, double zi, double ni, double Ti)
 inline double eta1_i(double Bmag, double mi, double zi, double ni, double Ti)
 {
    // The factor of q_ is included to convert Te from eV to Joules
-   // The factor of amu_ is included to convert from kg to a.m.u
+   // The factor of kg_per_amu_ is included to convert from kg to a.m.u
    double omega = cyclotronFrequency(Bmag, mi, zi);
-   return 0.3 * ni * (q_ * Ti / amu_) /
+   return 0.3 * ni * (q_ * Ti / kg_per_amu_) /
           (omega * omega * tau_i(mi, zi, ni, Ti, 17.0));
 }
 
@@ -413,9 +413,9 @@ inline double eta2_i(double Bmag, double mi, double zi, double ni, double Ti)
 inline double eta3_i(double Bmag, double mi, double zi, double ni, double Ti)
 {
    // The factor of q_ is included to convert Te from eV to Joules
-   // The factor of amu_ is included to convert from kg to a.m.u
+   // The factor of kg_per_amu_ is included to convert from kg to a.m.u
    double omega = cyclotronFrequency(Bmag, mi, zi);
-   return 0.5 * ni * (q_ * Ti / amu_) / omega;
+   return 0.5 * ni * (q_ * Ti / kg_per_amu_) / omega;
 }
 
 /**

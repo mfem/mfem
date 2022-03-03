@@ -38,17 +38,25 @@ namespace transport
 */
 inline double tau_e(double Te, double zi, double ni, double lnLambda)
 {
-   // The factor of eV_ is included to convert Te from eV to Joules
+   // The factor of J_per_eV_ is included to convert Te from eV to Joules
    return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-          sqrt(0.5 * me_kg_ * pow(Te * eV_, 3) / M_PI) /
+          sqrt(0.5 * me_kg_ * pow(Te * J_per_eV_, 3) / M_PI) /
           (lnLambda * pow(q_, 4) * zi * zi * ni);
 }
-/// Derivative of tau_e wrt Te
-inline double dtau_e_dT(double Te, double zi, double ni, double lnLambda)
+/// Derivative of tau_e wrt ni
+inline double dtau_e_dni(double Te, double zi, double ni, double lnLambda)
 {
-   // The factor of eV_ is included to convert Te from eV to Joules
-   return 1.125 * eV_ * pow(4.0 * M_PI * epsilon0_, 2) *
-          sqrt(0.5 * me_kg_ * Te * eV_ / M_PI) /
+   // The factor of J_per_eV_ is included to convert Te from eV to Joules
+   return -0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
+          sqrt(0.5 * me_kg_ * pow(Te * J_per_eV_, 3) / M_PI) /
+          (lnLambda * pow(q_, 4) * zi * zi * ni * ni);
+}
+/// Derivative of tau_e wrt Te
+inline double dtau_e_dTe(double Te, double zi, double ni, double lnLambda)
+{
+   // The factor of J_per_eV_ is included to convert Te from eV to Joules
+   return 1.125 * J_per_eV_ * pow(4.0 * M_PI * epsilon0_, 2) *
+          sqrt(0.5 * me_kg_ * Te * J_per_eV_ / M_PI) /
           (lnLambda * pow(q_, 4) * zi * zi * ni);
 }
 
@@ -63,9 +71,9 @@ inline double dtau_e_dT(double Te, double zi, double ni, double lnLambda)
 inline double tau_i(double mi, double zi, double ni, double Ti,
                     double lnLambda)
 {
-   // The factor of eV_ is included to convert Ti from eV to Joules
+   // The factor of J_per_eV_ is included to convert Ti from eV to Joules
    return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-          sqrt(mi * amu_ * pow(Ti * eV_, 3) / M_PI) /
+          sqrt(mi * kg_per_amu_ * pow(Ti * J_per_eV_, 3) / M_PI) /
           (lnLambda * pow(q_ * zi, 4) * ni);
 }
 
@@ -147,7 +155,7 @@ inline double chi_i_para(double ma, double Ta,
 {
  // The factor of q_ is included to convert Ta from eV to Joules
  // The factor of u_ is included to convert ma from a.m.u to kg
- return 3.9 * (q_ * Ta / (ma * amu_ ) ) *
+ return 3.9 * (q_ * Ta / (ma * kg_per_amu_ ) ) *
         tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 */
@@ -190,7 +198,7 @@ inline double eta_e_para(double ne, double Te, int ns, double * ni, int * zi)
 {
  // The factor of q_ is included to convert Te from eV to Joules
  // The factor of u_ is included to convert from kg to a.m.u
- return 0.73 * ne * (q_ * Te / amu_) * tau_e(Te, ns, ni, zi, 17.0);
+ return 0.73 * ne * (q_ * Te / kg_per_amu_) * tau_e(Te, ns, ni, zi, 17.0);
 }
 */
 /**
@@ -209,7 +217,7 @@ inline double eta_i_para(double ma, double Ta,
 {
  // The factor of q_ is included to convert Ti from eV to Joules
  // The factor of u_ is included to convert from kg to a.m.u
- return 0.96 * nb[ion] * (q_ * Ta / amu_) *
+ return 0.96 * nb[ion] * (q_ * Ta / kg_per_amu_) *
         tau_i(ma, Ta, ion, ns, nb, zb, 17.0);
 }
 */
@@ -637,9 +645,32 @@ public:
    ElectronStaticPressureCoefs();
 };
 
+class IonTotalEnergyCoefs : public EqnCoefficients
+{
+public:
+   enum sCoefNames {PARA_DIFFUSION_COEF = 0, PERP_DIFFUSION_COEF,
+                    SOURCE_COEF, NUM_SCALAR_COEFS
+                   };
+
+   IonTotalEnergyCoefs();
+};
+
+class ElectronTotalEnergyCoefs : public EqnCoefficients
+{
+public:
+   enum sCoefNames {PERP_DIFFUSION_COEF = 0, PARA_DIFFUSION_COEF,
+                    SOURCE_COEF, NUM_SCALAR_COEFS
+                   };
+
+   ElectronTotalEnergyCoefs();
+};
+
 class CommonCoefs : public EqnCoefficients
 {
 public:
+   enum sCoefNames {IONIZATION_COEF = 0, RECOMBINATION_COEF,
+                    NUM_SCALAR_COEFS
+                   };
    enum vCoefNames {MAGNETIC_FIELD_COEF = 0, NUM_VECTOR_COEFS};
 
    CommonCoefs();
@@ -650,7 +681,9 @@ typedef IonDensityCoefs IDCoefs;
 typedef IonMomentumCoefs IMCoefs;
 typedef IonStaticPressureCoefs ISPCoefs;
 typedef ElectronStaticPressureCoefs ESPCoefs;
-typedef CommonCoefs CCoefs;
+typedef IonTotalEnergyCoefs ITECoefs;
+typedef ElectronTotalEnergyCoefs ETECoefs;
+typedef CommonCoefs CmnCoefs;
 
 class TransportCoefs
 {
@@ -669,8 +702,10 @@ public:
       eqnCoefs_[0] = new NeutralDensityCoefs;
       eqnCoefs_[1] = new IonDensityCoefs;
       eqnCoefs_[2] = new IonMomentumCoefs;
-      eqnCoefs_[3] = new IonStaticPressureCoefs;
-      eqnCoefs_[4] = new ElectronStaticPressureCoefs;
+      // eqnCoefs_[3] = new IonStaticPressureCoefs;
+      // eqnCoefs_[4] = new ElectronStaticPressureCoefs;
+      eqnCoefs_[3] = new IonTotalEnergyCoefs;
+      eqnCoefs_[4] = new ElectronTotalEnergyCoefs;
       eqnCoefs_[5] = new CommonCoefs;
    }
 
@@ -692,6 +727,46 @@ public:
 
    EqnCoefficients & operator[](int i) { return *eqnCoefs_[i]; }
    const EqnCoefficients & operator[](int i) const { return *eqnCoefs_[i]; }
+
+   NDCoefs & GetNeutralDensityCoefs()
+   { return dynamic_cast<NDCoefs&>(*eqnCoefs_[0]); }
+   const NDCoefs & GetNeutralDensityCoefs() const
+   { return dynamic_cast<const NDCoefs&>(*eqnCoefs_[0]); }
+
+   IDCoefs & GetIonDensityCoefs()
+   { return dynamic_cast<IDCoefs&>(*eqnCoefs_[1]); }
+   const IDCoefs & GetIonDensityCoefs() const
+   { return dynamic_cast<const IDCoefs&>(*eqnCoefs_[1]); }
+
+   IMCoefs & GetIonMomentumCoefs()
+   { return dynamic_cast<IMCoefs&>(*eqnCoefs_[2]); }
+   const IMCoefs & GetIonMomentumCoefs() const
+   { return dynamic_cast<const IMCoefs&>(*eqnCoefs_[2]); }
+   /*
+   ISPCoefs & GetIonStaticPressureCoefs()
+   { return dynamic_cast<ISPCoefs&>(*eqnCoefs_[3]); }
+   const ISPCoefs & GetIonStaticPressureCoefs() const
+   { return dynamic_cast<const ISPCoefs&>(*eqnCoefs_[3]); }
+
+   ESPCoefs & GetElectronStaticPressureCoefs()
+   { return dynamic_cast<ESPCoefs&>(*eqnCoefs_[4]); }
+   const ESPCoefs & GetElectronStaticPressureCoefs() const
+   { return dynamic_cast<const ESPCoefs&>(*eqnCoefs_[4]); }
+   */
+   ITECoefs & GetIonTotalEnergyCoefs()
+   { return dynamic_cast<ITECoefs&>(*eqnCoefs_[3]); }
+   const ITECoefs & GetIonTotalEnergyCoefs() const
+   { return dynamic_cast<const ITECoefs&>(*eqnCoefs_[3]); }
+
+   ETECoefs & GetElectronTotalEnergyCoefs()
+   { return dynamic_cast<ETECoefs&>(*eqnCoefs_[4]); }
+   const ETECoefs & GetElectronTotalEnergyCoefs() const
+   { return dynamic_cast<const ETECoefs&>(*eqnCoefs_[4]); }
+
+   CommonCoefs & GetCommonCoefs()
+   { return dynamic_cast<CommonCoefs&>(*eqnCoefs_[5]); }
+   const CommonCoefs & GetCommonCoefs() const
+   { return dynamic_cast<const CommonCoefs&>(*eqnCoefs_[5]); }
 };
 
 class ParGridFunctionArray : public Array<ParGridFunction*>
@@ -772,7 +847,12 @@ class TransportCoefFactory : public common::CoefFactory
 {
 public:
    TransportCoefFactory() {}
-   TransportCoefFactory(ParGridFunctionArray & pgfa);
+   TransportCoefFactory(const std::vector<std::string> & names,
+                        ParGridFunctionArray & pgfa);
+
+   using common::CoefFactory::GetScalarCoef;
+   using common::CoefFactory::GetVectorCoef;
+   using common::CoefFactory::GetMatrixCoef;
 
    Coefficient * GetScalarCoef(std::string &name, std::istream &input);
    VectorCoefficient * GetVectorCoef(std::string &name, std::istream &input);
@@ -822,23 +902,45 @@ public:
       }
    }
 
+   /// Implementation of the coefficient function
    virtual double Eval_Func(ElementTransformation &T,
                             const IntegrationPoint &ip) { return 0.0; }
 
+   /// Implementation of the genderalized derivative of the function
+   virtual double Eval_dFunc(FieldType deriv,
+                             ElementTransformation &T,
+                             const IntegrationPoint &ip) { return 0.0; }
+
+   /// The following can be overridden for efficiency when appropriate
    virtual double Eval_dNn(ElementTransformation &T,
-                           const IntegrationPoint &ip) { return 0.0; }
+                           const IntegrationPoint &ip)
+   {
+      return this->Eval_dFunc(NEUTRAL_DENSITY, T, ip);
+   }
 
    virtual double Eval_dNi(ElementTransformation &T,
-                           const IntegrationPoint &ip) { return 0.0; }
+                           const IntegrationPoint &ip)
+   {
+      return this->Eval_dFunc(ION_DENSITY, T, ip);
+   }
 
    virtual double Eval_dVi(ElementTransformation &T,
-                           const IntegrationPoint &ip) { return 0.0; }
+                           const IntegrationPoint &ip)
+   {
+      return this->Eval_dFunc(ION_PARA_VELOCITY, T, ip);
+   }
 
    virtual double Eval_dTi(ElementTransformation &T,
-                           const IntegrationPoint &ip) { return 0.0; }
+                           const IntegrationPoint &ip)
+   {
+      return this->Eval_dFunc(ION_TEMPERATURE, T, ip);
+   }
 
    virtual double Eval_dTe(ElementTransformation &T,
-                           const IntegrationPoint &ip) { return 0.0; }
+                           const IntegrationPoint &ip)
+   {
+      return this->Eval_dFunc(ELECTRON_TEMPERATURE, T, ip);
+   }
 
 protected:
    StateVariableCoef(FieldType deriv = INVALID) : StateVariableFunc(deriv) {}
@@ -987,6 +1089,68 @@ public:
    virtual StateVariableStandardCoef * Clone() const
    {
       return new StateVariableStandardCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   virtual double Eval_Func(ElementTransformation &T,
+                            const IntegrationPoint &ip)
+   {
+      return c_.Eval(T, ip);
+   }
+};
+
+class StateVariableStandardVectorCoef : public StateVariableVecCoef
+{
+private:
+   VectorCoefficient & V_;
+
+public:
+   StateVariableStandardVectorCoef(VectorCoefficient & V)
+      : StateVariableVecCoef(V.GetVDim()), V_(V)
+   {}
+
+   StateVariableStandardVectorCoef(const StateVariableStandardVectorCoef &other)
+      : StateVariableVecCoef(other.vdim), V_(other.V_)
+   {}
+
+   virtual StateVariableStandardVectorCoef * Clone() const
+   {
+      return new StateVariableStandardVectorCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   virtual void Eval_Func(Vector & V, ElementTransformation &T,
+                          const IntegrationPoint &ip)
+   {
+      V_.Eval(V, T, ip);
+   }
+};
+
+class StateVariableConstantCoef : public StateVariableCoef
+{
+private:
+   ConstantCoefficient c_;
+
+public:
+   StateVariableConstantCoef(double c)
+      : c_(c)
+   {}
+
+   StateVariableConstantCoef(const StateVariableConstantCoef &other)
+      : c_(other.c_)
+   {}
+
+   virtual StateVariableConstantCoef * Clone() const
+   {
+      return new StateVariableConstantCoef(*this);
    }
 
    virtual bool NonTrivialValue(FieldType deriv) const
@@ -1210,6 +1374,288 @@ public:
    }
 };
 
+class StateVariablePowerCoef : public StateVariableCoef
+{
+private:
+   StateVariableCoef *a;
+   int p;
+
+public:
+   // Result is A^p
+   StateVariablePowerCoef(StateVariableCoef &A, int p)
+      : a(A.Clone()), p(p) {}
+
+   ~StateVariablePowerCoef()
+   {
+      if (a != NULL) { delete a; }
+   }
+
+   virtual StateVariablePowerCoef * Clone() const
+   {
+      return new StateVariablePowerCoef(*a, p);
+   }
+
+   void SetACoef(StateVariableCoef &A) { a = &A; }
+   StateVariableCoef * GetACoef() const { return a; }
+
+   void SetPower(int new_p) { p = new_p; }
+   int GetPower() const { return p; }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return a->NonTrivialValue(deriv);
+   }
+
+   /// Evaluate the coefficient
+   virtual double Eval_Func(ElementTransformation &T,
+                            const IntegrationPoint &ip)
+   { return pow(a->Eval_Func(T, ip), p); }
+
+   virtual double Eval_dNn(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      if (p == 0) { return 0; }
+      if (p == 1) { return a->Eval_dNn(T, ip); }
+      return (double)p * pow(a->Eval_Func(T, ip), p-1) * a->Eval_dNn(T, ip);
+   }
+
+   virtual double Eval_dNi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      if (p == 0) { return 0; }
+      if (p == 1) { return a->Eval_dNi(T, ip); }
+      return (double)p * pow(a->Eval_Func(T, ip), p-1) * a->Eval_dNi(T, ip);
+   }
+
+   virtual double Eval_dVi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      if (p == 0) { return 0; }
+      if (p == 1) { return a->Eval_dVi(T, ip); }
+      return (double)p * pow(a->Eval_Func(T, ip), p-1) * a->Eval_dVi(T, ip);
+   }
+
+   virtual double Eval_dTi(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      if (p == 0) { return 0; }
+      if (p == 1) { return a->Eval_dTi(T, ip); }
+      return (double)p * pow(a->Eval_Func(T, ip), p-1) * a->Eval_dTi(T, ip);
+   }
+
+   virtual double Eval_dTe(ElementTransformation &T,
+                           const IntegrationPoint &ip)
+   {
+      if (p == 0) { return 0; }
+      if (p == 1) { return a->Eval_dTe(T, ip); }
+      return (double)p * pow(a->Eval_Func(T, ip), p-1) * a->Eval_dTe(T, ip);
+   }
+};
+
+class StateVariableScalarVectorProductCoef : public StateVariableVecCoef
+{
+private:
+   StateVariableCoef    *a;
+   StateVariableVecCoef *b;
+
+   VectorCoefficient *b_std;
+
+   mutable Vector dV_;
+
+public:
+   // Result is A * B
+   StateVariableScalarVectorProductCoef(StateVariableCoef &A,
+                                        StateVariableVecCoef &B)
+      : StateVariableVecCoef(B.GetVDim()),
+        a(A.Clone()), b(B.Clone()), b_std(NULL), dV_(B.GetVDim()) {}
+
+   StateVariableScalarVectorProductCoef(StateVariableCoef &A,
+                                        VectorCoefficient &B)
+      : StateVariableVecCoef(B.GetVDim()),
+        a(A.Clone()), b(NULL), b_std(&B) {}
+
+   ~StateVariableScalarVectorProductCoef()
+   {
+      if (a != NULL) { delete a; }
+      if (b != NULL) { delete b; }
+   }
+
+   virtual StateVariableScalarVectorProductCoef * Clone() const
+   {
+      if (b != NULL)
+      {
+         return new StateVariableScalarVectorProductCoef(*a, *b);
+      }
+      else
+      {
+         return new StateVariableScalarVectorProductCoef(*a, *b_std);
+      }
+   }
+
+   void SetACoef(StateVariableCoef &A) { a = &A; }
+   StateVariableCoef * GetACoef() const { return a; }
+
+   void SetBCoef(StateVariableVecCoef &B) { b = &B; b_std = NULL; }
+   StateVariableVecCoef * GetBCoef() const { return b; }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return a->NonTrivialValue(deriv) ||
+             (b ? b->NonTrivialValue(deriv) : false);
+   }
+
+   /// Evaluate the coefficient
+   virtual void Eval_Func(Vector &V, ElementTransformation &T,
+                          const IntegrationPoint &ip)
+   {
+      b ? b->Eval_Func(V, T, ip) : b_std->Eval(V, T, ip);
+      V *= a->Eval_Func(T, ip);
+   }
+
+   virtual void Eval_dNn(Vector &V, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b ? b->Eval_Func(V, T, ip) : b_std->Eval(V, T, ip);
+      V *= a->Eval_dNn(T, ip);
+      if (b)
+      {
+         b->Eval_dNn(dV_, T, ip); dV_ *= a->Eval_Func(T, ip);
+         V += dV_;
+      }
+   }
+
+   virtual void Eval_dNi(Vector &V, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b ? b->Eval_Func(V, T, ip) : b_std->Eval(V, T, ip);
+      V *= a->Eval_dNi(T, ip);
+      if (b)
+      {
+         b->Eval_dNi(dV_, T, ip); dV_ *= a->Eval_Func(T, ip);
+         V += dV_;
+      }
+   }
+
+   virtual void Eval_dVi(Vector &V, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b ? b->Eval_Func(V, T, ip) : b_std->Eval(V, T, ip);
+      V *= a->Eval_dVi(T, ip);
+      if (b)
+      {
+         b->Eval_dVi(dV_, T, ip); dV_ *= a->Eval_Func(T, ip);
+         V += dV_;
+      }
+   }
+
+   virtual void Eval_dTi(Vector &V, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b ? b->Eval_Func(V, T, ip) : b_std->Eval(V, T, ip);
+      V *= a->Eval_dTi(T, ip);
+      if (b)
+      {
+         b->Eval_dTi(dV_, T, ip); dV_ *= a->Eval_Func(T, ip);
+         V += dV_;
+      }
+   }
+
+   virtual void Eval_dTe(Vector &V, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b ? b->Eval_Func(V, T, ip) : b_std->Eval(V, T, ip);
+      V *= a->Eval_dTe(T, ip);
+      if (b)
+      {
+         b->Eval_dTe(dV_, T, ip); dV_ *= a->Eval_Func(T, ip);
+         V += dV_;
+      }
+   }
+};
+
+class StateVariableScalarMatrixProductCoef : public StateVariableMatCoef
+{
+private:
+   StateVariableCoef    *a;
+   StateVariableMatCoef *b;
+
+   mutable DenseMatrix dM_;
+
+public:
+   // Result is A * B
+   StateVariableScalarMatrixProductCoef(StateVariableCoef &A,
+                                        StateVariableMatCoef &B)
+      : StateVariableMatCoef(B.GetHeight(), B.GetWidth()),
+        a(A.Clone()), b(B.Clone()), dM_(B.GetHeight(), B.GetWidth()) {}
+
+   ~StateVariableScalarMatrixProductCoef()
+   {
+      if (a != NULL) { delete a; }
+      if (b != NULL) { delete b; }
+   }
+
+   virtual StateVariableScalarMatrixProductCoef * Clone() const
+   {
+      return new StateVariableScalarMatrixProductCoef(*a, *b);
+   }
+
+   void SetACoef(StateVariableCoef &A) { a = &A; }
+   StateVariableCoef * GetACoef() const { return a; }
+
+   void SetBCoef(StateVariableMatCoef &B) { b = &B; }
+   StateVariableMatCoef * GetBCoef() const { return b; }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return a->NonTrivialValue(deriv) || b->NonTrivialValue(deriv);
+   }
+
+   /// Evaluate the coefficient
+   virtual void Eval_Func(DenseMatrix &M, ElementTransformation &T,
+                          const IntegrationPoint &ip)
+   { b->Eval_Func(M, T, ip); M *= a->Eval_Func(T, ip); }
+
+   virtual void Eval_dNn(DenseMatrix &M, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b->Eval_Func(M, T, ip); M *= a->Eval_dNn(T, ip);
+      b->Eval_dNn(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
+      M += dM_;
+   }
+
+   virtual void Eval_dNi(DenseMatrix &M, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b->Eval_Func(M, T, ip); M *= a->Eval_dNi(T, ip);
+      b->Eval_dNi(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
+      M += dM_;
+   }
+
+   virtual void Eval_dVi(DenseMatrix &M, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b->Eval_Func(M, T, ip); M *= a->Eval_dVi(T, ip);
+      b->Eval_dVi(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
+      M += dM_;
+   }
+
+   virtual void Eval_dTi(DenseMatrix &M, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b->Eval_Func(M, T, ip); M *= a->Eval_dTi(T, ip);
+      b->Eval_dTi(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
+      M += dM_;
+   }
+
+   virtual void Eval_dTe(DenseMatrix &M, ElementTransformation &T,
+                         const IntegrationPoint &ip)
+   {
+      b->Eval_Func(M, T, ip); M *= a->Eval_dTe(T, ip);
+      b->Eval_dTe(dM_, T, ip); dM_ *= a->Eval_Func(T, ip);
+      M += dM_;
+   }
+};
+
 /** Given the ion and electron temperatures in eV this coefficient returns an
     approximation to the sound speed in m/s.
 */
@@ -1250,7 +1696,7 @@ public:
       double Ti = TiCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
 
-      return sqrt(eV_ * (Ti + Te) / (amu_ * mi_));
+      return sqrt(J_per_eV_ * (Ti + Te) / (kg_per_amu_ * mi_));
    }
 
    double Eval_dTi(ElementTransformation &T,
@@ -1259,7 +1705,7 @@ public:
       double Ti = TiCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
 
-      return 0.5 * sqrt(eV_ / (amu_ * mi_ * (Ti + Te)));
+      return 0.5 * sqrt(J_per_eV_ / (kg_per_amu_ * mi_ * (Ti + Te)));
    }
 
    double Eval_dTe(ElementTransformation &T,
@@ -1268,7 +1714,7 @@ public:
       double Ti = TiCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
 
-      return 0.5 * sqrt(eV_ / (amu_ * mi_ * (Ti + Te)));
+      return 0.5 * sqrt(J_per_eV_ / (kg_per_amu_ * mi_ * (Ti + Te)));
    }
 
 };
@@ -1280,12 +1726,8 @@ class ApproxIonizationRate : public StateVariableCoef
 {
 private:
    Coefficient *TeCoef_;
-   // GridFunction *Te_;
-
-   // StateVariable derivType_;
 
 public:
-   // ApproxIonizationRate(GridFunction &Te) : Te_(&Te) {}
    ApproxIonizationRate(Coefficient &TeCoef)
       : TeCoef_(&TeCoef) {}
 
@@ -1372,14 +1814,23 @@ public:
 class NeutralDiffusionCoef : public StateVariableCoef
 {
 private:
-   ProductCoefficient * ne_;
-   Coefficient        * vn_;
-   StateVariableCoef  * iz_;
+   Coefficient       * ne_;
+   Coefficient       * vn_;
+   Coefficient       * iz_;
+
+   StateVariableCoef * ne_sv_;
+   StateVariableCoef * vn_sv_;
+   StateVariableCoef * iz_sv_;
 
 public:
-   NeutralDiffusionCoef(ProductCoefficient &neCoef, Coefficient &vnCoef,
-                        StateVariableCoef &izCoef)
-      : ne_(&neCoef), vn_(&vnCoef), iz_(&izCoef) {}
+   NeutralDiffusionCoef(Coefficient &neCoef, Coefficient &vnCoef,
+                        Coefficient &izCoef)
+      : ne_(&neCoef), vn_(&vnCoef), iz_(&izCoef)
+   {
+      ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
+      vn_sv_ = dynamic_cast<StateVariableCoef*>(vn_);
+      iz_sv_ = dynamic_cast<StateVariableCoef*>(iz_);
+   }
 
    NeutralDiffusionCoef(const NeutralDiffusionCoef &other)
    {
@@ -1387,6 +1838,10 @@ public:
       ne_ = other.ne_;
       vn_ = other.vn_;
       iz_ = other.iz_;
+
+      ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
+      vn_sv_ = dynamic_cast<StateVariableCoef*>(vn_);
+      iz_sv_ = dynamic_cast<StateVariableCoef*>(iz_);
    }
 
    virtual NeutralDiffusionCoef * Clone() const
@@ -1396,8 +1851,11 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID || deriv == ION_DENSITY ||
-              deriv == ELECTRON_TEMPERATURE);
+      bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
+      bool dvn = (vn_sv_) ? vn_sv_->NonTrivialValue(deriv) : false;
+      bool diz = (iz_sv_) ? iz_sv_->NonTrivialValue(deriv) : false;
+
+      return (deriv == INVALID || dne || dvn || diz);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -1410,30 +1868,39 @@ public:
       return vn * vn / (3.0 * ne * iz);
    }
 
-   double Eval_dNi(ElementTransformation &T,
-                   const IntegrationPoint &ip)
+   double Eval_dFunc(FieldType deriv,
+                     ElementTransformation &T,
+                     const IntegrationPoint &ip)
    {
+      bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
+      bool dvn = (vn_sv_) ? vn_sv_->NonTrivialValue(deriv) : false;
+      bool diz = (iz_sv_) ? iz_sv_->NonTrivialValue(deriv) : false;
+
+      if (!dne && !dvn && !diz)
+      {
+         return 0.0;
+      }
+
       double ne = ne_->Eval(T, ip);
       double vn = vn_->Eval(T, ip);
       double iz = iz_->Eval(T, ip);
 
-      double dNe_dNi = ne_->GetAConst();
+      if (ne_sv_) { ne_sv_->SetDerivType(deriv); }
+      if (vn_sv_) { vn_sv_->SetDerivType(deriv); }
+      if (iz_sv_) { iz_sv_->SetDerivType(deriv); }
 
-      return -vn * vn * dNe_dNi / (3.0 * ne * ne * iz);
+      double dne_df = (ne_sv_) ? ne_sv_->Eval(T, ip) : 0.0;
+      double dvn_df = (vn_sv_) ? vn_sv_->Eval(T, ip) : 0.0;
+      double diz_df = (iz_sv_) ? iz_sv_->Eval(T, ip) : 0.0;
+
+      if (ne_sv_) { ne_sv_->SetDerivType(INVALID); }
+      if (vn_sv_) { vn_sv_->SetDerivType(INVALID); }
+      if (iz_sv_) { iz_sv_->SetDerivType(INVALID); }
+
+      // vn * vn / (3.0 * ne * iz);
+      return (2.0 * dvn_df - vn * (dne_df / ne + diz_df / iz ))
+             * vn / (3.0 * ne * iz);
    }
-
-   double Eval_dTe(ElementTransformation &T,
-                   const IntegrationPoint &ip)
-   {
-      double ne = ne_->Eval(T, ip);
-      double vn = vn_->Eval(T, ip);
-      double iz = iz_->Eval_Func(T, ip);
-
-      double diz_dTe = iz_->Eval_dTe(T, ip);
-
-      return -vn * vn * diz_dTe / (3.0 * ne * iz * iz);
-   }
-
 };
 
 class IonDiffusionCoef : public StateVariableMatCoef
@@ -1540,40 +2007,51 @@ public:
    }
 };
 
-class IonSourceCoef : public StateVariableCoef
+class IonizationSourceCoef : public StateVariableCoef
 {
 private:
-   ProductCoefficient * ne_;
+   Coefficient        * ne_;
    Coefficient        * nn_;
-   StateVariableCoef  * iz_;
+   Coefficient        * iz_;
+
+   StateVariableCoef  * ne_sv_;
+   StateVariableCoef  * iz_sv_;
 
    double nn0_;
-   double s_;
 
 public:
-   IonSourceCoef(ProductCoefficient &neCoef, Coefficient &nnCoef,
-                 StateVariableCoef &izCoef, double s = 1.0)
-      : ne_(&neCoef), nn_(&nnCoef), iz_(&izCoef), nn0_(1e10), s_(s) {}
+   IonizationSourceCoef(Coefficient &neCoef, Coefficient &nnCoef,
+                        Coefficient &izCoef,
+                        double nn0 = 1e10)
+      : ne_(&neCoef), nn_(&nnCoef), iz_(&izCoef), nn0_(nn0)
+   {
+      ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
+      iz_sv_ = dynamic_cast<StateVariableCoef*>(iz_);
+   }
 
-   IonSourceCoef(const IonSourceCoef &other)
+   IonizationSourceCoef(const IonizationSourceCoef &other)
    {
       derivType_ = other.derivType_;
       ne_  = other.ne_;
       nn_  = other.nn_;
       iz_  = other.iz_;
       nn0_ = other.nn0_;
-      s_   = other.s_;
+
+      ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
+      iz_sv_ = dynamic_cast<StateVariableCoef*>(iz_);
    }
 
-   virtual IonSourceCoef * Clone() const
+   virtual IonizationSourceCoef * Clone() const
    {
-      return new IonSourceCoef(*this);
+      return new IonizationSourceCoef(*this);
    }
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID || deriv == NEUTRAL_DENSITY ||
-              deriv == ION_DENSITY || deriv == ELECTRON_TEMPERATURE);
+      bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
+      bool diz = (iz_sv_) ? iz_sv_->NonTrivialValue(deriv) : false;
+
+      return (deriv == INVALID || deriv == NEUTRAL_DENSITY || dne || diz);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -1585,112 +2063,133 @@ public:
       double ne = ne_->Eval(T, ip);
       double iz = iz_->Eval(T, ip);
 
-      return s_ * ne * (nn - nn0_) * iz;
+      return ne * nn * iz;
    }
 
-   double Eval_dNn(ElementTransformation &T,
-                   const IntegrationPoint &ip)
+   double Eval_dFunc(FieldType deriv, ElementTransformation &T,
+                     const IntegrationPoint &ip)
    {
+      bool dnn = (deriv == NEUTRAL_DENSITY);
+      bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
+      bool diz = (iz_sv_) ? iz_sv_->NonTrivialValue(deriv) : false;
+
+      if (!dnn && !dne && !diz)
+      {
+         return 0.0;
+      }
+
       double nn = nn_->Eval(T, ip);
       if (nn < nn0_) { return 0.0; }
 
       double ne = ne_->Eval(T, ip);
       double iz = iz_->Eval(T, ip);
 
-      return s_ * ne * iz;
-   }
+      if (ne_sv_) { ne_sv_->SetDerivType(deriv); }
+      if (iz_sv_) { iz_sv_->SetDerivType(deriv); }
 
-   double Eval_dNi(ElementTransformation &T,
-                   const IntegrationPoint &ip)
-   {
-      double nn = nn_->Eval(T, ip);
-      if (nn < nn0_) { return 0.0; }
+      double dnn_df = (deriv == NEUTRAL_DENSITY) ? 1.0 : 0.0;
+      double dne_df = (ne_sv_) ? ne_sv_->Eval(T, ip) : 0.0;
+      double diz_df = (iz_sv_) ? iz_sv_->Eval(T, ip) : 0.0;
 
-      double iz = iz_->Eval(T, ip);
+      if (ne_sv_) { ne_sv_->SetDerivType(INVALID); }
+      if (iz_sv_) { iz_sv_->SetDerivType(INVALID); }
 
-      double dNe_dNi = ne_->GetAConst();
-
-      return s_ * dNe_dNi * (nn - nn0_) * iz;
-   }
-
-   double Eval_dTe(ElementTransformation &T,
-                   const IntegrationPoint &ip)
-   {
-      double nn = nn_->Eval(T, ip);
-      if (nn < nn0_) { return 0.0; }
-
-      double ne = ne_->Eval(T, ip);
-
-      double diz_dTe = iz_->Eval_dTe(T, ip);
-
-      return s_ * ne * (nn - nn0_) * diz_dTe;
+      //  s_ * ne * nn * iz;
+      return dne_df * nn * iz + ne * dnn_df * iz + ne * nn * diz_df;
    }
 };
 
-class IonSinkCoef : public StateVariableCoef
+class RecombinationSinkCoef : public StateVariableCoef
 {
 private:
-   ProductCoefficient * ne_;
+   Coefficient        * ne_;
    Coefficient        * ni_;
-   StateVariableCoef  * rc_;
+   Coefficient        * rc_;
 
-   double s_;
+   StateVariableCoef  * ne_sv_;
+   StateVariableCoef  * rc_sv_;
+
+   double ni0_;
 
 public:
-   IonSinkCoef(ProductCoefficient &neCoef, Coefficient &niCoef,
-               StateVariableCoef &rcCoef, double s = 1.0)
-      : ne_(&neCoef), ni_(&niCoef), rc_(&rcCoef), s_(s) {}
+   RecombinationSinkCoef(Coefficient &neCoef, Coefficient &niCoef,
+                         Coefficient &rcCoef, double ni0 = 1e10)
+      : ne_(&neCoef), ni_(&niCoef), rc_(&rcCoef), ni0_(ni0)
+   {
+      ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
+      rc_sv_ = dynamic_cast<StateVariableCoef*>(rc_);
+   }
 
-   IonSinkCoef(const IonSinkCoef &other)
+   RecombinationSinkCoef(const RecombinationSinkCoef &other)
    {
       derivType_ = other.derivType_;
       ne_ = other.ne_;
       ni_ = other.ni_;
       rc_ = other.rc_;
-      s_  = other.s_;
+
+      ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
+      rc_sv_ = dynamic_cast<StateVariableCoef*>(rc_);
+
+      ni0_ = other.ni0_;
    }
 
-   virtual IonSinkCoef * Clone() const
+   virtual RecombinationSinkCoef * Clone() const
    {
-      return new IonSinkCoef(*this);
+      return new RecombinationSinkCoef(*this);
    }
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
+      bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
+      bool drc = (rc_sv_) ? rc_sv_->NonTrivialValue(deriv) : false;
+
       return (deriv == INVALID ||
-              deriv == ION_DENSITY || deriv == ELECTRON_TEMPERATURE);
+              deriv == ION_DENSITY || dne || drc);
    }
 
    double Eval_Func(ElementTransformation &T,
                     const IntegrationPoint &ip)
    {
-      double ne = ne_->Eval(T, ip);
       double ni = ni_->Eval(T, ip);
+      if (ni < ni0_) { return 0.0; }
+
+      double ne = ne_->Eval(T, ip);
       double rc = rc_->Eval(T, ip);
 
-      return s_ * ne * ni * rc;
+      return ne * ni * rc;
    }
 
-   double Eval_dNi(ElementTransformation &T,
-                   const IntegrationPoint &ip)
+   double Eval_dFunc(FieldType deriv,
+                     ElementTransformation &T,
+                     const IntegrationPoint &ip)
    {
+      bool dni = (deriv == ION_DENSITY);
+      bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
+      bool drc = (rc_sv_) ? rc_sv_->NonTrivialValue(deriv) : false;
+
+      if (!dni && !dne && !drc)
+      {
+         return 0.0;
+      }
+
       double ni = ni_->Eval(T, ip);
+      if (ni < ni0_) { return 0.0; }
+
+      double ne = ne_->Eval(T, ip);
       double rc = rc_->Eval(T, ip);
 
-      double dNe_dNi = ne_->GetAConst();
+      if (ne_sv_) { ne_sv_->SetDerivType(deriv); }
+      if (rc_sv_) { rc_sv_->SetDerivType(deriv); }
 
-      return 2.0 * s_ * dNe_dNi * ni * rc;
-   }
+      double dni_df = (deriv == ION_DENSITY) ? 1.0 : 0.0;
+      double dne_df = (ne_sv_) ? ne_sv_->Eval(T, ip) : 0.0;
+      double drc_df = (rc_sv_) ? rc_sv_->Eval(T, ip) : 0.0;
 
-   double Eval_dTe(ElementTransformation &T,
-                   const IntegrationPoint &ip)
-   {
-      double ne = ne_->Eval(T, ip);
-      double ni = ni_->Eval(T, ip);
+      if (ne_sv_) { ne_sv_->SetDerivType(INVALID); }
+      if (rc_sv_) { rc_sv_->SetDerivType(INVALID); }
 
-      double drc_dTe = rc_->Eval_dTe(T, ip);
-
-      return s_ * ne * ni * drc_dTe;
+      /// ne * ni * rc
+      return dne_df * ni * rc + ne * dni_df * rc + ne * ni * drc_df;
    }
 };
 
@@ -1764,21 +2263,22 @@ private:
 
 public:
    IonMomentumParaDiffusionCoef(int ion_charge, double ion_mass,
+                                double lnLambda,
                                 StateVariableCoef &TiCoef)
       : z_i_((double)ion_charge), m_i_(ion_mass),
-        lnLambda_(17.0),
+        lnLambda_(lnLambda),
         a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-           sqrt(m_i_ * amu_ * pow(eV_, 5) / M_PI) /
-           (lnLambda_ * amu_ * pow(q_ * z_i_, 4))),
+           sqrt(m_i_ * kg_per_amu_ * pow(J_per_eV_, 5) / M_PI) /
+           (lnLambda_ * kg_per_amu_ * pow(q_ * z_i_, 4))),
         TiCoef_(&TiCoef)
    {}
 
    IonMomentumParaDiffusionCoef(const IonMomentumParaDiffusionCoef &other)
       : z_i_(other.z_i_), m_i_(other.m_i_),
-        lnLambda_(17.0),
+        lnLambda_(other.lnLambda_),
         a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-           sqrt(m_i_ * amu_ * pow(eV_, 5) / M_PI) /
-           (lnLambda_ * amu_ * pow(q_ * z_i_, 4))),
+           sqrt(m_i_ * kg_per_amu_ * pow(J_per_eV_, 5) / M_PI) /
+           (lnLambda_ * kg_per_amu_ * pow(q_ * z_i_, 4))),
         TiCoef_(other.TiCoef_)
    {
       derivType_ = other.derivType_;
@@ -1884,7 +2384,7 @@ public:
       : StateVariableMatCoef(2), zi_((double)ion_charge), mi_(ion_mass),
         lnLambda_(17.0),
         a_(0.96 * 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-           sqrt(mi_ * amu_ * pow(eV_, 5) / M_PI) /
+           sqrt(mi_ * kg_per_amu_ * pow(J_per_eV_, 5) / M_PI) /
            (lnLambda_ * pow(q_ * zi_, 4))),
         Dperp_(&DperpCoef), niCoef_(&niCoef), TiCoef_(&TiCoef),
         B3_(&B3Coef), B_(3) {}
@@ -2116,9 +2616,521 @@ public:
    }
 };
 
+class StaticPressureAdvectionCoef : public StateVariableVecCoef
+{
+private:
+   double a_;
+
+   StateVariableCoef &ni_;
+   StateVariableCoef &vi_;
+
+   VectorCoefficient * B3_;
+
+   mutable Vector B_;
+
+public:
+   StaticPressureAdvectionCoef(StateVariableCoef &ni,
+                               StateVariableCoef &vi,
+                               double a,
+                               VectorCoefficient &B3Coef)
+      : StateVariableVecCoef(2),
+        a_(a),
+        ni_(ni),
+        vi_(vi),
+        B3_(&B3Coef), B_(3)
+   {}
+
+   StaticPressureAdvectionCoef(const StaticPressureAdvectionCoef &other)
+      : StateVariableVecCoef(other.vdim),
+        a_(other.a_),
+        ni_(other.ni_),
+        vi_(other.vi_),
+        B3_(other.B3_),
+        B_(3)
+   {}
+
+   virtual StaticPressureAdvectionCoef * Clone() const
+   {
+      return new StaticPressureAdvectionCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID);
+   }
+
+   void Eval_Func(Vector & V,
+                  ElementTransformation &T,
+                  const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      double ni = ni_.Eval(T, ip);
+      double vi = vi_.Eval(T, ip);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+      double Bmag = sqrt(Bmag2);
+
+      V[0] = a_ * (ni * vi * B_[0] / Bmag);
+      V[1] = a_ * (ni * vi * B_[1] / Bmag);
+   }
+};
+
+class TotalEnergyCoef : public StateVariableCoef
+{
+private:
+   FieldType fieldType_;
+   int z_i_;
+   double m_;
+   StateVariableCoef &niCoef_;
+   StateVariableCoef &viCoef_;
+   StateVariableCoef &TCoef_;
+
+public:
+   TotalEnergyCoef(double m,
+                   StateVariableCoef &niCoef,
+                   StateVariableCoef &viCoef,
+                   StateVariableCoef &TCoef)
+      : fieldType_(ION_TEMPERATURE),
+        z_i_(1), m_(m), niCoef_(niCoef), viCoef_(viCoef), TCoef_(TCoef) {}
+
+   TotalEnergyCoef(int z_i,
+                   double m,
+                   StateVariableCoef &niCoef,
+                   StateVariableCoef &viCoef,
+                   StateVariableCoef &TCoef)
+      : fieldType_(ELECTRON_TEMPERATURE),
+        z_i_(z_i), m_(m), niCoef_(niCoef), viCoef_(viCoef), TCoef_(TCoef) {}
+
+   TotalEnergyCoef(const TotalEnergyCoef &other)
+      : niCoef_(other.niCoef_),
+        viCoef_(other.viCoef_),
+        TCoef_(other.TCoef_)
+   {
+      derivType_ = other.derivType_;
+      fieldType_ = other.fieldType_;
+      z_i_       = other.z_i_;
+      m_         = other.m_;
+   }
+
+   virtual TotalEnergyCoef * Clone() const
+   {
+      return new TotalEnergyCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID ||
+              deriv == ION_DENSITY ||
+              deriv == ION_PARA_VELOCITY || deriv == fieldType_);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip);
+
+      return 0.5 * z_i_ * ni * (3.0 * Ts + m_ * vi * vi);
+   }
+
+   double Eval_dNi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double vi = viCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip);
+
+      return 0.5 * z_i_ * (3.0 * Ts + m_ * vi * vi);
+   }
+
+   double Eval_dVi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+
+      return z_i_ * ni * m_ * vi;
+   }
+
+   double Eval_dTi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      if (fieldType_ == ION_TEMPERATURE)
+      {
+         double ni = niCoef_.Eval(T, ip);
+
+         return 1.5 * z_i_ * ni;
+      }
+      else
+      {
+         return 0.0;
+      }
+   }
+
+   double Eval_dTe(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      if (fieldType_ == ELECTRON_TEMPERATURE)
+      {
+         double ni = niCoef_.Eval(T, ip);
+
+         return 1.5 * z_i_ * ni;
+      }
+      else
+      {
+         return 0.0;
+      }
+   }
+};
+
+class KineticEnergyCoef : public StateVariableCoef
+{
+private:
+   int z_i_;
+   double m_;
+   StateVariableCoef &niCoef_;
+   StateVariableCoef &viCoef_;
+
+public:
+   KineticEnergyCoef(double m,
+                     StateVariableCoef &niCoef,
+                     StateVariableCoef &viCoef)
+      : z_i_(1), m_(m), niCoef_(niCoef), viCoef_(viCoef) {}
+
+   KineticEnergyCoef(int z_i,
+                     double m,
+                     StateVariableCoef &niCoef,
+                     StateVariableCoef &viCoef)
+      : z_i_(z_i), m_(m), niCoef_(niCoef), viCoef_(viCoef) {}
+
+   KineticEnergyCoef(const KineticEnergyCoef &other)
+      : niCoef_(other.niCoef_),
+        viCoef_(other.viCoef_)
+   {
+      derivType_ = other.derivType_;
+      z_i_       = other.z_i_;
+      m_         = other.m_;
+   }
+
+   virtual KineticEnergyCoef * Clone() const
+   {
+      return new KineticEnergyCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID ||
+              deriv == ION_DENSITY ||
+              deriv == ION_PARA_VELOCITY);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+
+      return 0.5 * z_i_ * ni * m_ * vi * vi;
+   }
+
+   double Eval_dNi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double vi = viCoef_.Eval(T, ip);
+
+      return 0.5 * z_i_ * m_ * vi * vi;
+   }
+
+   double Eval_dVi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+
+      return z_i_ * ni * m_ * vi;
+   }
+};
+
+class TotalEnergyAdvectionCoef : public StateVariableVecCoef
+{
+private:
+   FieldType fieldType_;
+   int z_i_;
+   double m_;
+   StateVariableCoef &niCoef_;
+   StateVariableCoef &viCoef_;
+   StateVariableCoef &TCoef_;
+
+   VectorCoefficient * B3_;
+
+   mutable Vector B_;
+
+public:
+   TotalEnergyAdvectionCoef(double m,
+                            StateVariableCoef &niCoef,
+                            StateVariableCoef &viCoef,
+                            StateVariableCoef &TCoef,
+                            VectorCoefficient &B3Coef)
+      : StateVariableVecCoef(2),
+        fieldType_(ION_TEMPERATURE),
+        z_i_(1), m_(m), niCoef_(niCoef), viCoef_(viCoef), TCoef_(TCoef),
+        B3_(&B3Coef), B_(3)
+   {}
+
+   TotalEnergyAdvectionCoef(int z_i,
+                            double m,
+                            StateVariableCoef &niCoef,
+                            StateVariableCoef &viCoef,
+                            StateVariableCoef &TCoef,
+                            VectorCoefficient &B3Coef)
+      : StateVariableVecCoef(2),
+        fieldType_(ELECTRON_TEMPERATURE),
+        z_i_(z_i), m_(m), niCoef_(niCoef), viCoef_(viCoef), TCoef_(TCoef),
+        B3_(&B3Coef), B_(3)
+   {}
+
+   TotalEnergyAdvectionCoef(const TotalEnergyAdvectionCoef &other)
+      : StateVariableVecCoef(other.vdim),
+        niCoef_(other.niCoef_),
+        viCoef_(other.viCoef_),
+        TCoef_(other.TCoef_),
+        B3_(other.B3_),
+        B_(3)
+   {
+      derivType_ = other.derivType_;
+      fieldType_ = other.fieldType_;
+      z_i_       = other.z_i_;
+      m_         = other.m_;
+   }
+
+   virtual TotalEnergyAdvectionCoef * Clone() const
+   {
+      return new TotalEnergyAdvectionCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID ||
+              deriv == ION_DENSITY ||
+              deriv == ION_PARA_VELOCITY || deriv == fieldType_);
+   }
+
+   void Eval_Func(Vector & V,
+                  ElementTransformation &T,
+                  const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+      double Bmag = sqrt(Bmag2);
+
+      V[0] = B_[0] / Bmag;
+      V[1] = B_[1] / Bmag;
+      V *= 0.5 * z_i_ * ni * vi * (5.0 * Ts + m_ * vi * vi);
+   }
+
+   void Eval_dNi(Vector & V,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      double vi = viCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+      double Bmag = sqrt(Bmag2);
+
+      V[0] = B_[0] / Bmag;
+      V[1] = B_[1] / Bmag;
+      V *= 0.5 * z_i_ * vi * (5.0 * Ts + m_ * vi * vi);
+   }
+
+   void Eval_dVi(Vector & V,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      double ni = niCoef_.Eval(T, ip);
+      double vi = viCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip);
+
+      B3_->Eval(B_, T, ip);
+
+      double Bmag2 = B_ * B_;
+      double Bmag = sqrt(Bmag2);
+
+      V[0] = B_[0] / Bmag;
+      V[1] = B_[1] / Bmag;
+      V *= 0.5 * z_i_ * ni * (5.0 * Ts + 3.0 * m_ * vi * vi);
+   }
+
+   void Eval_dTi(Vector & V,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      if (fieldType_ == ION_TEMPERATURE)
+      {
+         double ni = niCoef_.Eval(T, ip);
+         double vi = viCoef_.Eval(T, ip);
+
+         B3_->Eval(B_, T, ip);
+
+         double Bmag2 = B_ * B_;
+         double Bmag = sqrt(Bmag2);
+
+         V[0] = B_[0] / Bmag;
+         V[1] = B_[1] / Bmag;
+         V *= 2.5 * z_i_ * ni * vi;
+      }
+      else
+      {
+         V = 0.0;
+      }
+   }
+
+   void Eval_dTe(Vector & V,
+                 ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      V.SetSize(2);
+
+      if (fieldType_ == ELECTRON_TEMPERATURE)
+      {
+         double ni = niCoef_.Eval(T, ip);
+         double vi = viCoef_.Eval(T, ip);
+
+         B3_->Eval(B_, T, ip);
+
+         double Bmag2 = B_ * B_;
+         double Bmag = sqrt(Bmag2);
+
+         V[0] = B_[0] / Bmag;
+         V[1] = B_[1] / Bmag;
+         V *= 2.5 * z_i_ * ni * vi;
+      }
+      else
+      {
+         V = 0.0;
+      }
+   }
+};
+
+class IonElectronHeatExchangeCoef : public StateVariableCoef
+{
+private:
+   int z_i_;
+   double m_i_;
+   double lnLambda_;
+   StateVariableCoef &niCoef_;
+   StateVariableCoef &TiCoef_;
+   StateVariableCoef &TeCoef_;
+
+public:
+   IonElectronHeatExchangeCoef(int z_i, double m_i, double lnLambda,
+                               StateVariableCoef &niCoef,
+                               StateVariableCoef &TiCoef,
+                               StateVariableCoef &TeCoef)
+      : z_i_(z_i), m_i_(m_i), lnLambda_(lnLambda),
+        niCoef_(niCoef), TiCoef_(TiCoef), TeCoef_(TeCoef) {}
+
+   IonElectronHeatExchangeCoef(const IonElectronHeatExchangeCoef &other)
+      : niCoef_(other.niCoef_),
+        TiCoef_(other.TiCoef_),
+        TeCoef_(other.TeCoef_)
+   {
+      derivType_ = other.derivType_;
+      z_i_       = other.z_i_;
+      m_i_       = other.m_i_;
+      lnLambda_  = other.lnLambda_;
+   }
+
+   virtual IonElectronHeatExchangeCoef * Clone() const
+   {
+      return new IonElectronHeatExchangeCoef(*this);
+   }
+
+   virtual bool NonTrivialValue(FieldType deriv) const
+   {
+      return (deriv == INVALID ||
+              deriv == ION_DENSITY ||
+              deriv == ION_TEMPERATURE ||
+              deriv == ELECTRON_TEMPERATURE);
+   }
+
+   double Eval_Func(ElementTransformation &T,
+                    const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double Ti = TiCoef_.Eval(T, ip);
+      double Te = TeCoef_.Eval(T, ip);
+
+      double tau = tau_e(Te, z_i_, ni, lnLambda_);
+
+      return 3.0 * (Te - Ti) * me_u_ * z_i_ * ni / (m_i_ * tau);
+   }
+
+   double Eval_dNi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double Ti = TiCoef_.Eval(T, ip);
+      double Te = TeCoef_.Eval(T, ip);
+
+      double tau = tau_e(Te, z_i_, ni, lnLambda_);
+      double dtau = dtau_e_dni(Te, z_i_, ni, lnLambda_);
+
+      double a = 3.0 * (Te - Ti) * me_u_ * z_i_ / m_i_;
+
+      return a * (tau - ni * dtau) / (tau * tau);
+   }
+
+   double Eval_dTi(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double Te = TeCoef_.Eval(T, ip);
+
+      double tau = tau_e(Te, z_i_, ni, lnLambda_);
+
+      return -3.0 * me_u_ * z_i_ * ni / (m_i_ * tau);
+   }
+
+   double Eval_dTe(ElementTransformation &T,
+                   const IntegrationPoint &ip)
+   {
+      double ni = niCoef_.Eval(T, ip);
+      double Ti = TiCoef_.Eval(T, ip);
+      double Te = TeCoef_.Eval(T, ip);
+
+      double tau = tau_e(Te, z_i_, ni, lnLambda_);
+      double dtau = dtau_e_dTe(Te, z_i_, ni, lnLambda_);
+
+      double a = 3.0 * me_u_ * z_i_ * ni / m_i_;
+
+      return a * (tau - (Te - Ti) * dtau) / (tau * tau);
+   }
+
+};
+
 class IonThermalParaDiffusionCoef : public StateVariableCoef
 {
 private:
+   double lnLambda_;
    double z_i_;
    double m_i_;
    double m_i_kg_;
@@ -2129,16 +3141,19 @@ private:
 public:
    IonThermalParaDiffusionCoef(double ion_charge,
                                double ion_mass,
+                               double lnLambda,
                                Coefficient &niCoef,
                                Coefficient &TiCoef)
       : StateVariableCoef(),
-        z_i_(ion_charge), m_i_(ion_mass), m_i_kg_(ion_mass * amu_),
+        lnLambda_(lnLambda), z_i_(ion_charge),
+        m_i_(ion_mass), m_i_kg_(ion_mass * kg_per_amu_),
         niCoef_(&niCoef), TiCoef_(&TiCoef)
    {}
 
    IonThermalParaDiffusionCoef(const IonThermalParaDiffusionCoef &other)
    {
       derivType_ = other.derivType_;
+      lnLambda_  = other.lnLambda_;
       z_i_       = other.z_i_;
       m_i_       = other.m_i_;
       m_i_kg_    = other.m_i_kg_;
@@ -2171,10 +3186,10 @@ public:
                   "less than or equal to zero in "
                   "IonThermalParaDiffusionCoef.");
 
-      double tau = tau_i(m_i_, z_i_, ni, Ti, 17.0);
-      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
+      double tau = tau_i(m_i_, z_i_, ni, Ti, lnLambda_);
+      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * J_per_eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
-      return 3.9 * ni * Ti * eV_ * tau / m_i_kg_;
+      return 3.9 * Ti * J_per_eV_ * tau / m_i_kg_;
    }
 
 };
@@ -2182,6 +3197,7 @@ public:
 class ElectronThermalParaDiffusionCoef : public StateVariableCoef
 {
 private:
+   double lnLambda_;
    double z_i_;
 
    Coefficient * neCoef_;
@@ -2189,17 +3205,20 @@ private:
 
 public:
    ElectronThermalParaDiffusionCoef(double ion_charge,
+                                    double lnLambda,
                                     Coefficient &neCoef,
                                     Coefficient &TeCoef,
                                     FieldType deriv = INVALID)
       : StateVariableCoef(deriv),
-        z_i_(ion_charge), neCoef_(&neCoef), TeCoef_(&TeCoef)
+        lnLambda_(lnLambda), z_i_(ion_charge),
+        neCoef_(&neCoef), TeCoef_(&TeCoef)
    {}
 
    ElectronThermalParaDiffusionCoef(
       const ElectronThermalParaDiffusionCoef &other)
    {
       derivType_ = other.derivType_;
+      lnLambda_ = other.lnLambda_;
       z_i_ = other.z_i_;
       neCoef_ = other.neCoef_;
       TeCoef_ = other.TeCoef_;
@@ -2229,12 +3248,12 @@ public:
                   "less than or equal to zero in "
                   "ElectronThermalParaDiffusionCoef.");
 
-      double tau = tau_e(Te, z_i_, ne, 17.0);
-      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
+      double tau = tau_e(Te, z_i_, ne, lnLambda_);
+      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * J_per_eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
-      return 3.16 * ne * Te * eV_ * tau / me_kg_;
+      return 3.16 * Te * J_per_eV_ * tau / me_kg_;
    }
-
+   /*
    double Eval_dTe(ElementTransformation &T,
                    const IntegrationPoint &ip)
    {
@@ -2251,11 +3270,11 @@ public:
 
       double tau = tau_e(Te, z_i_, ne, 17.0);
       double dtau = dtau_e_dT(Te, z_i_, ne, 17.0);
-      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * eV_ * tau / me_kg_
+      // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * J_per_eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
-      return 3.16 * ne * eV_ * (tau + Te * dtau)/ me_kg_;
+      return 3.16 * ne * J_per_eV_ * (tau + Te * dtau)/ me_kg_;
    }
-
+   */
 };
 
 class VectorXYCoefficient : public VectorCoefficient
@@ -2477,7 +3496,7 @@ public:
 
       double Bmag = sqrt(B_ * B_);
 
-      return eV_ * ((zi_ * Te1 + Ti1) * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) +
+      return J_per_eV_ * ((zi_ * Te1 + Ti1) * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) +
                     (zi_ * (B_[0] * gTe1_[0] + B_[1] * gTe1_[1]) +
                      (B_[0] * gTi1_[0] + B_[1] * gTi1_[1])) * ni1) / Bmag;
    }
@@ -2501,7 +3520,7 @@ public:
 
       double Bmag = sqrt(B_ * B_);
 
-      return eV_ * (dt_ * zi_ * (B_[0] * gTe1_[0] + B_[1] * gTe1_[1]) +
+      return J_per_eV_ * (dt_ * zi_ * (B_[0] * gTe1_[0] + B_[1] * gTe1_[1]) +
                     (B_[0] * gTi1_[0] + B_[1] * gTi1_[1])) / Bmag;
    }
 
@@ -2520,7 +3539,7 @@ public:
 
       double Bmag = sqrt(B_ * B_);
 
-      return eV_ * dt_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
+      return J_per_eV_ * dt_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
    }
 
    double Eval_dTe(ElementTransformation &T,
@@ -2538,7 +3557,7 @@ public:
 
       double Bmag = sqrt(B_ * B_);
 
-      return eV_ * dt_ * zi_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
+      return J_per_eV_ * dt_ * zi_ * (B_[0] * gni1_[0] + B_[1] * gni1_[1]) / Bmag;
    }
 };
 /*
@@ -2624,6 +3643,7 @@ struct DGParams
 
 struct PlasmaParams
 {
+   double lnLambda; // Coulomb Logarithm
    double m_n;
    double T_n;
    double m_i;
@@ -2874,15 +3894,17 @@ private:
       mutable Vector locvec_;
       mutable Vector locdvec_;
 
+      typedef std::vector<Array<BilinearFormIntegrator*> > vArrayBFI;
+
       // Domain integrators for time derivatives of field variables
-      std::vector<Array<BilinearFormIntegrator*> > dbfi_m_;  // Domain Integrators
+      vArrayBFI dbfi_m_;  // Domain Integrators
       // Array<Array<StateVariableCoef*> >      dbfi_mc_; // Domain Integrators
 
       // Domain integrators for field variables at next time step
-      Array<BilinearFormIntegrator*> dbfi_;  // Domain Integrators
-      Array<BilinearFormIntegrator*> fbfi_;  // Interior Face Integrators
-      Array<BilinearFormIntegrator*> bfbfi_; // Boundary Face Integrators
-      Array<Array<int>*>             bfbfi_marker_; ///< Entries are owned.
+      vArrayBFI dbfi_;  // Domain Integrators
+      vArrayBFI fbfi_;  // Interior Face Integrators
+      vArrayBFI bfbfi_; // Boundary Face Integrators
+      std::vector<Array<Array<int>*> > bfbfi_marker_; ///< Entries are owned.
 
       // Domain integrators for source terms
       Array<LinearFormIntegrator*> dlfi_;  // Domain Integrators
@@ -2898,6 +3920,7 @@ private:
       ParLORDiscretization *D_lor_ = NULL;
       HypreSmoother *D_smoother_ = NULL;
       HypreParMatrix *D_cg_ = NULL;
+      Solver *dg_precond_ = NULL;
 
       Solver *D_mult_ = NULL;
       Solver *D_schwarz_ = NULL;
@@ -2941,6 +3964,8 @@ private:
       virtual void Update();
       virtual Operator *GetGradientBlock(int i);
 
+      virtual Solver *GetPreconditioner() { return dg_precond_; }
+
       inline bool CheckTermFlag(int flag) { return (term_flag_>> flag) & 1; }
 
       inline bool CheckVisFlag(int flag) { return (vis_flag_>> flag) & 1; }
@@ -2954,13 +3979,11 @@ private:
       virtual void InitializeGLVis() = 0;
 
       virtual void DisplayToGLVis() = 0;
-
-      Solver *dg_precond_ = NULL;
    };
 
    class TransportOp : public NLOperator
    {
-   private:
+   protected:
       Array<StateVariableCoef*>    svscoefs_;
       Array<StateVariableVecCoef*> svvcoefs_;
       Array<ProductCoefficient*>             dtSCoefs_;
@@ -2975,7 +3998,6 @@ private:
 
       ParFiniteElementSpace *h1_fes_;
 
-   protected:
       const PlasmaParams &plasma_;
 
       double m_n_;
@@ -2995,16 +4017,19 @@ private:
       StateVariableCoef &viCoef_;
       StateVariableCoef &TiCoef_;
       StateVariableCoef &TeCoef_;
-      ProductCoefficient neCoef_;
+
+      StateVariableConstantCoef ziCoef_;
+      StateVariableProductCoef  neCoef_;
 
       StateVariableGridFunctionCoef &dTe0Coef_;
 
       const AdvectionDiffusionBC & bcs_;
       const CoupledBCs & cbcs_;
 
-      const EqnCoefficients & eqncoefs_;
+      const CommonCoefs & cmncoefs_;
 
       VectorCoefficient & B3Coef_;
+      VectorXYCoefficient BxyCoef_;
 
       Coefficient       * massCoef_;
       Coefficient       * diffusionCoef_;
@@ -3021,7 +4046,7 @@ private:
                   ParGridFunctionArray & kGF,
                   const AdvectionDiffusionBC & bcs,
                   const CoupledBCs & cbcs,
-                  const EqnCoefficients & coefs,
+                  const CommonCoefs & common_coefs,
                   VectorCoefficient & B3Coef,
                   int term_flag, int vis_flag,
                   int logging,
@@ -3070,8 +4095,8 @@ private:
        */
       void SetAdvectionTerm(StateVariableVecCoef &VCoef/*, bool bc = false*/);
 
-      void SetSourceTerm(Coefficient &SCoef);
-      void SetSourceTerm(StateVariableCoef &SCoef);
+      void SetSourceTerm(Coefficient &SCoef, double s = 1.0);
+      void SetSourceTermGradient(StateVariableCoef &SCoef, double s = 1.0);
       void SetBdrSourceTerm(StateVariableCoef &SCoef,
                             StateVariableVecCoef &VCoef);
 
@@ -3149,17 +4174,22 @@ private:
                      SOURCE_COEF
                     };
 
+      const NeutralDensityCoefs & ndcoefs_;
+
       ConstantCoefficient       vnCoef_;
       ApproxIonizationRate      izCoef_;
       ApproxRecombinationRate   rcCoef_;
 
-      NeutralDiffusionCoef      DnCoef_;
+      NeutralDiffusionCoef      DDefCoef_; // Default diffusion coef
       StateVariableStandardCoef DCoef_;
 
       IonAdvectionCoef          ViCoef_;
 
-      IonSinkCoef               SrcCoef_;
-      IonSourceCoef             SizCoef_;
+      RecombinationSinkCoef     SrcDefCoef_; // Default recomb coef
+      IonizationSourceCoef      SizDefCoef_; // Default ionization coef
+
+      Coefficient & SrcCoef_;
+      Coefficient & SizCoef_;
 
       ParGridFunction * DGF_;
       ParGridFunction * SrcGF_;
@@ -3173,7 +4203,8 @@ private:
                        ParGridFunctionArray & kGF,
                        const AdvectionDiffusionBC & bcs,
                        const CoupledBCs & cbcs,
-                       const EqnCoefficients & coefs,
+                       const NDCoefs & ndcoefs,
+                       const CommonCoefs & cmncoefs,
                        VectorCoefficient & B3Coef,
                        int term_flag,
                        int vis_flag, int logging,
@@ -3250,6 +4281,8 @@ private:
                      SOURCE_COEF
                     };
 
+      const IonDensityCoefs & idcoefs_;
+
       ApproxIonizationRate    izCoef_;
       ApproxRecombinationRate rcCoef_;
 
@@ -3260,8 +4293,11 @@ private:
 
       IonAdvectionCoef        ViCoef_;
 
-      IonSourceCoef           SizCoef_;
-      IonSinkCoef             SrcCoef_;
+      IonizationSourceCoef    SizDefCoef_;
+      RecombinationSinkCoef   SrcDefCoef_;
+
+      Coefficient & SizCoef_;
+      Coefficient & SrcCoef_;
 
       ParGridFunction * DParaGF_;
       ParGridFunction * DPerpGF_;
@@ -3279,7 +4315,8 @@ private:
                    ParGridFunctionArray & kGF,
                    const AdvectionDiffusionBC & bcs,
                    const CoupledBCs & cbcs,
-                   const EqnCoefficients & coefs,
+                   const IDCoefs & idcoefs,
+                   const CommonCoefs & cmncoefs,
                    VectorCoefficient & B3Coef,
                    double DPerp,
                    int term_flag, int vis_flag, int logging,
@@ -3291,7 +4328,7 @@ private:
 
       void Update();
 
-      virtual int GetDefaultVisFlag() { return 11; }
+      virtual int GetDefaultVisFlag() { return 27; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -3336,8 +4373,11 @@ private:
                      ADVECTION_TERM, GRADP_SOURCE_TERM, SOURCE_TERM
                     };
       enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
-                     ADVECTION_COEF, GRADP_SOURCE_COEF, SOURCE_COEF
+                     GRADP_SOURCE_COEF, SOURCE_COEF,
+                     ION_PARA_MOMENTUM
                     };
+
+      const IonMomentumCoefs & imcoefs_;
 
       double DPerpConst_;
       ConstantCoefficient DPerpCoef_;
@@ -3355,7 +4395,7 @@ private:
 
       ApproxIonizationRate     izCoef_;
 
-      IonSourceCoef           SizCoef_;
+      IonizationSourceCoef    SizCoef_;
       ProductCoefficient   negSizCoef_;
 
       ProductCoefficient nnizCoef_;
@@ -3374,7 +4414,8 @@ private:
                     ParGridFunctionArray & yGF, ParGridFunctionArray & kGF,
                     const AdvectionDiffusionBC & bcs,
                     const CoupledBCs & cbcs,
-                    const EqnCoefficients & coefs,
+                    const IMCoefs & imcoefs,
+                    const CmnCoefs & cmncoefs,
                     VectorCoefficient & B3Coef,
                     // int ion_charge, double ion_mass,
                     double DPerp,
@@ -3387,7 +4428,7 @@ private:
 
       void Update();
 
-      virtual int GetDefaultVisFlag() { return 19; }
+      virtual int GetDefaultVisFlag() { return 31; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -3401,7 +4442,7 @@ private:
        for a single ion species.
 
        1.5 T_i d n_i / dt + 1.5 n_i d T_i / dt
-          = Div(Chi_i Grad(T_i))
+          = Div(n_i Chi_i Grad(T_i) - 2.5 n_i v_i T_i)
 
        Where the diffusion coefficient Chi_i is a function of the
        magnetic field direction, ion density and temperature.
@@ -3428,19 +4469,27 @@ private:
    class IonStaticPressureOp : public TransportOp
    {
    private:
-      enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
+      enum TermFlag {DIFFUSION_TERM = 0, ADVECTION_TERM, SOURCE_TERM};
       enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
-                     SOURCE_COEF = 1
+                     SOURCE_COEF
                     };
+
+      const IonStaticPressureCoefs & ispcoefs_;
 
       double ChiPerpConst_;
 
       ApproxIonizationRate     izCoef_;
 
       StaticPressureCoef               presCoef_;
+      StaticPressureAdvectionCoef      aniViCoef_;
       IonThermalParaDiffusionCoef      ChiParaCoef_;
-      ProductCoefficient               ChiPerpCoef_;
+      ConstantCoefficient              ChiPerpCoef_;
+      Coefficient *                    ChiParaCoefPtr_;
+      Coefficient *                    ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
+      ProductCoefficient               nChiParaCoef_;
+      ProductCoefficient               nChiPerpCoef_;
+      StateVariableScalarMatrixProductCoef nChiCoef_;
 
       ParGridFunction * ChiParaGF_;
       ParGridFunction * ChiPerpGF_;
@@ -3453,7 +4502,8 @@ private:
                           ParGridFunctionArray & kGF,
                           const AdvectionDiffusionBC & bcs,
                           const CoupledBCs & cbcs,
-                          const EqnCoefficients & coefs,
+                          const ISPCoefs & ispcoefs,
+                          const CmnCoefs & cmncoefs,
                           VectorCoefficient & B3Coef,
                           double ChiPerp,
                           int term_flag, int vis_flag, int logging,
@@ -3479,7 +4529,7 @@ private:
        energy) for the flow of electrons.
 
        1.5 T_e d n_e / dt + 1.5 n_e d T_e / dt
-          = Div(Chi_e Grad(T_e))
+          = Div(Chi_e Grad(T_e) - 2.5 n_e v_i T_e)
 
        Where the diffusion coefficient Chi_e is a function of the
        magnetic field direction, electron density and temperature.
@@ -3506,19 +4556,27 @@ private:
    class ElectronStaticPressureOp : public TransportOp
    {
    private:
-      enum TermFlag {DIFFUSION_TERM = 0, SOURCE_TERM = 1};
+      enum TermFlag {DIFFUSION_TERM = 0, ADVECTION_TERM, SOURCE_TERM};
       enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
                      SOURCE_COEF = 1
                     };
+
+      const ElectronStaticPressureCoefs & espcoefs_;
 
       double ChiPerpConst_;
 
       ApproxIonizationRate     izCoef_;
 
       StaticPressureCoef               presCoef_;
+      StaticPressureAdvectionCoef      aneViCoef_;
       ElectronThermalParaDiffusionCoef ChiParaCoef_;
-      ProductCoefficient               ChiPerpCoef_;
+      ConstantCoefficient              ChiPerpCoef_;
+      Coefficient *                    ChiParaCoefPtr_;
+      Coefficient *                    ChiPerpCoefPtr_;
       Aniso2DDiffusionCoef             ChiCoef_;
+      ProductCoefficient               nChiParaCoef_;
+      ProductCoefficient               nChiPerpCoef_;
+      StateVariableScalarMatrixProductCoef nChiCoef_;
 
       ParGridFunction * ChiParaGF_;
       ParGridFunction * ChiPerpGF_;
@@ -3531,7 +4589,8 @@ private:
                                ParGridFunctionArray & kGF,
                                const AdvectionDiffusionBC & bcs,
                                const CoupledBCs & cbcs,
-                               const EqnCoefficients & coefs,
+                               const ESPCoefs & espcoefs,
+                               const CmnCoefs & cmncoefs,
                                VectorCoefficient & B3Coef,
                                double ChiPerp,
                                int term_flag, int vis_flag,
@@ -3551,6 +4610,156 @@ private:
       virtual int GetDefaultVisFlag() { return 4; }
    };
 
+   class TotalEnergyOp : public TransportOp
+   {
+   protected:
+
+      IonElectronHeatExchangeCoef QiCoef_;
+
+      StateVariableStandardVectorCoef BSVCoef_;
+
+      TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
+                    const PlasmaParams & plasma, int index,
+                    const std::string &eqn_name,
+                    const std::string &field_name,
+                    ParFiniteElementSpace * h1_fes,
+                    ParGridFunctionArray & yGF,
+                    ParGridFunctionArray & kGF,
+                    const AdvectionDiffusionBC & bcs,
+                    const CoupledBCs & cbcs,
+                    const CommonCoefs & common_coefs,
+                    VectorCoefficient & B3Coef,
+                    int term_flag, int vis_flag,
+                    int logging,
+                    const std::string & log_prefix);
+
+   public:
+
+      void SetKineticEnergyAdvectionTerm(StateVariableVecCoef &VCoef);
+
+   };
+
+   class IonTotalEnergyOp : public TotalEnergyOp
+   {
+   private:
+      enum TermFlag {DIFFUSION_TERM = 0,
+                     ADVECTION_TERM, KE_ADVECTION_TERM,
+                     EQUIPARTITION_SOURCE_TERM, SOURCE_TERM
+                    };
+
+      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
+                     EQUIPARTITION_SOURCE_COEF, SOURCE_COEF,
+                     ION_TOTAL_ENERGY
+                    };
+
+      const IonTotalEnergyCoefs & itecoefs_;
+
+      double ChiPerpConst_;
+
+      TotalEnergyCoef                  totEnergyCoef_;
+      KineticEnergyCoef                kinEnergyCoef_;
+      TotalEnergyAdvectionCoef         advFluxCoef_;
+      StaticPressureAdvectionCoef      aniViCoef_;
+      IonThermalParaDiffusionCoef      ChiParaCoef_;
+      ConstantCoefficient              ChiPerpCoef_;
+      Coefficient *                    ChiParaCoefPtr_;
+      Coefficient *                    ChiPerpCoefPtr_;
+      Aniso2DDiffusionCoef             ChiCoef_;
+      ProductCoefficient               nChiParaCoef_;
+      ProductCoefficient               nChiPerpCoef_;
+      StateVariableScalarMatrixProductCoef nChiCoef_;
+      StateVariableScalarVectorProductCoef keVCoef_;
+
+      ParGridFunction * ChiParaGF_;
+      ParGridFunction * ChiPerpGF_;
+      ParGridFunction * SGF_;
+      ParGridFunction * QiGF_;
+      ParGridFunction * totEnergyGF_;
+
+   public:
+      IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
+                       const PlasmaParams & plasma,
+                       ParGridFunctionArray & yGF,
+                       ParGridFunctionArray & kGF,
+                       const AdvectionDiffusionBC & bcs,
+                       const CoupledBCs & cbcs,
+                       const ITECoefs & espcoefs,
+                       const CmnCoefs & cmncoefs,
+                       VectorCoefficient & B3Coef,
+                       double ChiPerp,
+                       int term_flag, int vis_flag,
+                       int logging,
+                       const std::string & log_prefix);
+
+      virtual ~IonTotalEnergyOp();
+
+      virtual int GetDefaultVisFlag() { return 31; }
+
+      virtual void RegisterDataFields(DataCollection & dc);
+
+      virtual void PrepareDataFields();
+   };
+
+   class ElectronTotalEnergyOp : public TotalEnergyOp
+   {
+   private:
+      enum TermFlag {DIFFUSION_TERM = 0,
+                     ADVECTION_TERM, KE_ADVECTION_TERM,
+                     EQUIPARTITION_SOURCE_TERM, SOURCE_TERM
+                    };
+
+      enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
+                     SOURCE_COEF,
+                     ELECTRON_TOTAL_ENERGY
+                    };
+
+      const ElectronTotalEnergyCoefs & etecoefs_;
+
+      double ChiPerpConst_;
+
+      TotalEnergyCoef                  totEnergyCoef_;
+      KineticEnergyCoef                kinEnergyCoef_;
+      TotalEnergyAdvectionCoef         advFluxCoef_;
+      StaticPressureAdvectionCoef      aneViCoef_;
+      ElectronThermalParaDiffusionCoef ChiParaCoef_;
+      ConstantCoefficient              ChiPerpCoef_;
+      Coefficient *                    ChiParaCoefPtr_;
+      Coefficient *                    ChiPerpCoefPtr_;
+      Aniso2DDiffusionCoef             ChiCoef_;
+      ProductCoefficient               nChiParaCoef_;
+      ProductCoefficient               nChiPerpCoef_;
+      StateVariableScalarMatrixProductCoef nChiCoef_;
+      StateVariableScalarVectorProductCoef keVCoef_;
+
+      ParGridFunction * ChiParaGF_;
+      ParGridFunction * ChiPerpGF_;
+      ParGridFunction * SGF_;
+      ParGridFunction * totEnergyGF_;
+
+   public:
+      ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
+                            const PlasmaParams & plasma,
+                            ParGridFunctionArray & yGF,
+                            ParGridFunctionArray & kGF,
+                            const AdvectionDiffusionBC & bcs,
+                            const CoupledBCs & cbcs,
+                            const ETECoefs & espcoefs,
+                            const CmnCoefs & cmncoefs,
+                            VectorCoefficient & B3Coef,
+                            double ChiPerp,
+                            int term_flag, int vis_flag,
+                            int logging,
+                            const std::string & log_prefix);
+
+      virtual ~ElectronTotalEnergyOp();
+
+      virtual int GetDefaultVisFlag() { return 15; }
+
+      virtual void RegisterDataFields(DataCollection & dc);
+
+      virtual void PrepareDataFields();
+   };
+
    class DummyOp : public TransportOp
    {
    public:
@@ -3560,7 +4769,7 @@ private:
               ParGridFunctionArray & kGF,
               const AdvectionDiffusionBC & bcs,
               const CoupledBCs & cbcs,
-              const EqnCoefficients & coefs,
+              const CommonCoefs & cmncoefs,
               VectorCoefficient & B3Coef,
               int index,
               const std::string &eqn_name,
@@ -3646,9 +4855,9 @@ private:
       inline MatrixCoefficient * GetnXeCoef()
       { return op_[4]->GetDiffusionMatrixCoef(); }
 
-      inline Solver* GetIonDensityPreconditoner() const
+      inline Solver* GetPreconditionerBlock(int i) const
       {
-         return op_[1]->dg_precond_;
+         return op_[i]->GetPreconditioner();
       }
 
       void Update();

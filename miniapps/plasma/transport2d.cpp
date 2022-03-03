@@ -497,8 +497,9 @@ class Transport2DCoefFactory : public TransportCoefFactory
 {
 public:
    Transport2DCoefFactory() {}
-   Transport2DCoefFactory(ParGridFunctionArray & pgfa)
-      : TransportCoefFactory(pgfa) {}
+   Transport2DCoefFactory(const std::vector<std::string> & names,
+                          ParGridFunctionArray & pgfa)
+      : TransportCoefFactory(names, pgfa) {}
 
    Coefficient * GetScalarCoef(std::string &name, std::istream &input);
    VectorCoefficient * GetVectorCoef(std::string &name, std::istream &input);
@@ -562,13 +563,13 @@ public:
       double tau = tau_i(mi_, zi_, ni, Ti, lnLam_);
 
       paraFunc(x_, K);
-      K *= 0.96 * ni * Ti * eV_ * tau;
+      K *= 0.96 * ni * Ti * J_per_eV_ * tau;
 
       perpFunc(x_, perp_);
 
       double Di_perp = Di_perp_->Eval(T, ip);
 
-      K.Add(mi_ * amu_ * ni * Di_perp, perp_);
+      K.Add(mi_ * kg_per_amu_ * ni * Di_perp, perp_);
    }
 };
 
@@ -619,7 +620,7 @@ public:
 
       paraFunc(x_, K);
 
-      K *= a_ * Temp * eV_ * tau / ( m_ * amu_ );
+      K *= a_ * Temp * J_per_eV_ * tau / ( m_ * kg_per_amu_ );
 
       perpFunc(x_, perp_);
 
@@ -984,6 +985,7 @@ int main(int argc, char *argv[])
    dg.kappa = -1.0;
 
    int ode_solver_type = 2;
+   int ode_limiter_type = 2;
    int logging = 0;
    bool     imex = false;
    bool ode_epus = false;
@@ -1004,6 +1006,7 @@ int main(int argc, char *argv[])
    double t_min = 0.0;
    double t_final = -1.0;
    double dt = -0.01;
+   double dt_floor = 1e-10;
    // double dt_rel_tol = 0.1;
    double cfl = 0.3;
 
@@ -1017,6 +1020,7 @@ int main(int argc, char *argv[])
    int vis_steps = 10;
 
    PlasmaParams plasma;
+   plasma.lnLambda = 17.0;
    plasma.m_n = 2.01410178; // (amu)
    plasma.T_n = 3.0;        // (eV)
    plasma.m_i = 2.01410178; // (amu)
@@ -1118,7 +1122,10 @@ int main(int argc, char *argv[])
    args.AddOption(&tol_ode, "-tol", "--ode-tolerance",
                   "Difference tolerance for ODE integration.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - SDIRK 212, 2 - SDIRK 534.");
+                  "ODE solver: 0 - Backward Euler (disables adaptive time "
+                  "stepping), 1 - SDIRK 212, 2 - SDIRK 534.");
+   args.AddOption(&ode_limiter_type, "-sl", "--ode-limiter",
+                  "ODE Limiter: 1 - Maximum, 2 - Dead-Zone.");
    args.AddOption(&ode_epus, "-epus", "--err-per-unit-step", "-eps",
                   "--err-per-step",
                   "Select error value used by ODE controller.");
@@ -1145,6 +1152,9 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step. Positive number skips CFL timestep calculation.");
+   args.AddOption(&dt_floor, "-dt-floor", "--time-step-floor",
+                  "Minimum Time step. Time step should not drop below this "
+                  "value.");
    // args.AddOption(&dt_rel_tol, "-dttol", "--time-step-tolerance",
    //                "Time step will only be adjusted if the relative difference "
    //                "exceeds dttol.");
@@ -1426,7 +1436,14 @@ int main(int argc, char *argv[])
    }
    kGF.SetOwner(true);
 
-   Transport2DCoefFactory coefFact(yGF);
+   std::vector<std::string> field_names(5);
+   field_names[0] = "neutral_density_gf";
+   field_names[1] = "ion_density_gf";
+   field_names[2] = "ion_para_velocity_gf";
+   field_names[3] = "ion_temperature_gf";
+   field_names[4] = "electron_temperature_gf";
+
+   Transport2DCoefFactory coefFact(field_names, yGF);
 
    if (mpi.Root())
    {
@@ -1541,13 +1558,26 @@ int main(int argc, char *argv[])
    ODEController ode_controller;
    PIDAdjFactor dt_acc(kP_acc, kI_acc, kD_acc);
    IAdjFactor   dt_rej(kI_rej);
-   DeadZoneLimiter dt_lim(lim_a, lim_b, lim_max);
 
-   ODEEmbeddedSolver * ode_solver   = NULL;
+   ODEEmbeddedSolver * ode_solver = NULL;
+   BackwardEulerSolver bw_euler;
    switch (ode_solver_type)
    {
+      case 0:
+         ode_solver = new EmbeddedStandardSolver(bw_euler);
+         // Disable adaptive time stepping
+         dt_floor = dt;
+         lim_max = 1.0;
+         break;
       case 1: ode_solver = new SDIRK212Solver; break;
       case 2: ode_solver = new SDIRK534Solver; break;
+   }
+
+   ODEStepAdjustmentLimiter * ode_limiter = NULL;
+   switch (ode_limiter_type)
+   {
+      case 1: ode_limiter = new MaxLimiter(lim_max); break;
+      case 2: ode_limiter = new DeadZoneLimiter(lim_a, lim_b, lim_max); break;
    }
 
    ParGridFunction psi(&fes_h1);
@@ -1590,8 +1620,8 @@ int main(int argc, char *argv[])
 
    // Coefficients representing secondary fields
    ProductCoefficient      neCoef(plasma.z_i, niCoef);
-   ConstantCoefficient     vnCoef(sqrt(8.0 * plasma.T_n * eV_ /
-                                       (M_PI * plasma.m_n * amu_)));
+   ConstantCoefficient     vnCoef(sqrt(8.0 * plasma.T_n * J_per_eV_ /
+                                       (M_PI * plasma.m_n * kg_per_amu_)));
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
 
    /*
@@ -1609,8 +1639,8 @@ int main(int argc, char *argv[])
    // Intermediate Coefficients
    VectorFunctionCoefficient bHatCoef(2, bHatFunc);
    MatrixFunctionCoefficient perpCoef(2, perpFunc);
-   // ProductCoefficient          mnCoef(ion_mass * amu_, niCoef); // ???
-   ConstantCoefficient         mnCoef(plasma.m_i * amu_);
+   // ProductCoefficient          mnCoef(ion_mass * kg_per_amu_, niCoef); // ???
+   ConstantCoefficient         mnCoef(plasma.m_i * kg_per_amu_);
    ProductCoefficient        nnneCoef(nnCoef, neCoef);
    ApproxIonizationRate        izCoef(TeCoef);
    ConstantCoefficient     DiPerpCoef(Di_perp);
@@ -1681,15 +1711,17 @@ int main(int argc, char *argv[])
       }
       for (int i=0; i<5; i++)
       {
+         double nrm = yGF[i]->ComputeL2Error(zeroCoef);
+         ofserr << '\t' << nrm;
+
          Coefficient * es = ess[i];
          if (es != NULL)
          {
-            double nrm = yGF[i]->ComputeL2Error(zeroCoef);
             es->SetTime(t_init);
             double err = yGF[i]->ComputeL2Error(*es);
             if (mpi.Root())
             {
-               ofserr << '\t' << nrm << '\t' << err;
+               ofserr << '\t' << err;
             }
          }
          else
@@ -1933,10 +1965,11 @@ int main(int argc, char *argv[])
    ode_solver->Init(oper);
 
    ode_controller.Init(*ode_solver, ode_diff_msr,
-                       dt_acc, dt_rej, dt_lim);
+                       dt_acc, dt_rej, *ode_limiter);
 
    ode_controller.SetOutputFrequency(vis_steps);
    ode_controller.SetTimeStep(dt);
+   ode_controller.SetMinTimeStep(dt_floor);
    ode_controller.SetTolerance(tol_ode);
    ode_controller.SetRejectionLimit(rej_ode);
    if (ode_epus) { ode_controller.SetErrorPerUnitStep(); }
@@ -2103,15 +2136,17 @@ int main(int argc, char *argv[])
          if (mpi.Root()) { ofserr << t; }
          for (int i=0; i<5; i++)
          {
+            double nrm = yGF[i]->ComputeL2Error(zeroCoef);
+            ofserr << '\t' << nrm;
+
             Coefficient * es = ess[i];
             if (es != NULL)
             {
-               double nrm = yGF[i]->ComputeL2Error(zeroCoef);
                es->SetTime(t);
                double err = yGF[i]->ComputeL2Error(*es);
                if (mpi.Root())
                {
-                  ofserr << '\t' << nrm << '\t' << err;
+                  ofserr << '\t' << err;
                }
             }
             else
@@ -2688,6 +2723,44 @@ void InitialCondition(const Vector &x, Vector &y)
    */
 }
 
+/** Coefficient which returns a * cos(kx * (x - c)) + b */
+class Cos1D: public Coefficient
+{
+private:
+   double a_, b_, c_, kx_;
+
+   mutable Vector x_;
+
+public:
+   Cos1D(double a, double b, double c, double kx)
+      : a_(a), b_(b), c_(c), kx_(kx), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * cos(kx_ * (x_[0] - c_)) + b_;
+   }
+};
+
+/** Coefficient which returns a * sin(kx * (x - c)) + b */
+class Sin1D: public Coefficient
+{
+private:
+   double a_, b_, c_, kx_;
+
+   mutable Vector x_;
+
+public:
+   Sin1D(double a, double b, double c, double kx)
+      : a_(a), b_(b), c_(c), kx_(kx), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return a_ * sin(kx_ * (x_[0] - c_)) + b_;
+   }
+};
+
 /** Coefficient which returns a * sinh(kx * (x - c)) + b */
 class Sinh1D: public Coefficient
 {
@@ -2849,19 +2922,21 @@ class Gaussian1D : public Coefficient
 private:
    int comp_;
    double p0_;
+   double v_;
    double a_;
    double b_;
+   double c_;
 
    mutable Vector x_;
 
 public:
-   Gaussian1D(double a, double b, double p0, int comp)
-      : comp_(comp), p0_(p0), a_(a), b_(b) {}
+   Gaussian1D(double a, double b, double c, double p0, double v, int comp)
+      : comp_(comp), p0_(p0), v_(v), a_(a), b_(b), c_(c) {}
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       T.Transform(ip, x_);
-      return a_ * exp(- b_ * pow(x_[comp_] - p0_, 2));
+      return a_ * exp(- b_ * pow(x_[comp_] - p0_ - v_ * time, 2)) + c_;
    }
 };
 
@@ -2976,6 +3051,42 @@ public:
      this->Coefficient::SetTime(t);
    }
    */
+};
+
+class ExpTime : public Coefficient
+{
+private:
+   double a_;
+   double b_;
+   double w_;
+   double t0_;
+
+public:
+   ExpTime(double a, double b, double w, double t0)
+      : a_(a), b_(b), w_(w), t0_(t0) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      return a_ * exp(w_ * (time - t0_)) + b_;
+   }
+};
+
+class TanhTime : public Coefficient
+{
+private:
+   double a_;
+   double b_;
+   double w_;
+   double t0_;
+
+public:
+   TanhTime(double a, double b, double w, double t0)
+      : a_(a), b_(b), w_(w), t0_(t0) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      return a_ * tanh(w_ * (time - t0_)) + b_;
+   }
 };
 
 class Radius : public Coefficient
@@ -3118,11 +3229,206 @@ public:
    }
 };
 
+/* An exact solution to Burger's equation for testing the ion momentum equation.
+
+   Using any solution to the heat equation, u, we can build a solution to
+   Burger's equation by forming the ratio -kappa (du/dx)/u, where kappa is the
+   diffusion constant.
+
+   For this test we take:
+      u = 1 + sum_i alpha_i cos(2 pi x/lambda_i) exp(-kappa (2pi/lambda_i)^2 t)
+   for i = 1 and 2.
+
+   Clearly shorter wavelengths will decay more rapidly. Note that zeros in u
+   will lead to singularities in the above ratio. Consequently, it would be
+   wise to choose sum_i |alpha_i| < 1.
+*/
+class BurgersEqnTestSol : public Coefficient
+{
+private:
+   const double alpha1_;
+   const double alpha2_;
+   const double kappa_;
+   const double kx1_;
+   const double kx2_;
+   const double sigma1_;
+   const double sigma2_;
+
+   mutable Vector x_;
+
+public:
+   BurgersEqnTestSol(double alpha1, double lambda1,
+                     double alpha2, double lambda2, double kappa)
+      : alpha1_(alpha1),
+        alpha2_(alpha2),
+        kappa_(kappa),
+        kx1_(2.0 * M_PI / lambda1),
+        kx2_(2.0 * M_PI / lambda2),
+        sigma1_(kappa * kx1_ * kx1_),
+        sigma2_(kappa * kx2_ * kx2_),
+        x_(2)
+   {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      double e1 = exp(-sigma1_ * time);
+      double e2 = exp(-sigma2_ * time);
+      double s1 = sin(kx1_ * x_[0]);
+      double s2 = sin(kx2_ * x_[0]);
+      double c1 = cos(kx1_ * x_[0]);
+      double c2 = cos(kx2_ * x_[0]);
+
+      return kappa_ * (kx1_ * alpha1_ * s1 * e1 + kx2_ * alpha2_ * s2 * e2) /
+             (1.0 + alpha1_ * c1 * e1 + alpha2_ * c2 * e2);
+   }
+};
+
+/* A steady state solution to the ion total energy equation for testing the
+   Robin boundary condition.
+
+   The test problem only evolves the ion total energy with the ion
+   density, ion parallel velocity and electron temperature remaining
+   constant at values of 1e19, 0, and 10 respectively.
+
+   The ion thermal parallel diffusion coefficient can be adjusted as
+   can the 'a' and 'b' factors in the Robin BC which is applied on the
+   right hand boundary. The Robin BC is defined as:
+
+      -qi.n + a Ti = b
+
+   Where the flux 'qi' is given by:
+
+      qi = - ni chi Grad Ti + (5/2 ni Ti + 1/2 mi ni vi^2) vi b_hat
+
+   The argument 'q' is the constant appearing in the temperature balance term:
+
+      Qi = q (Te - Ti)
+
+   Given by:
+
+      q = 3 (me ne) / (mi tau_e)
+
+   Three different cases are supported which are distinguished by the
+   choice of boundary condition on the left hand end of the 1D
+   domain. The first assumes that the total energy flux is zero, the
+   second that the thermal flux is zero, and finally that the same
+   Robin BC is applied on the left as on the right.
+*/
+class RobinBCTestSol : public Coefficient
+{
+public:
+   enum LeftBCType { ZERO_ENERGY_FLUX, ZERO_THERMAL_FLUX, ROBIN};
+
+private:
+   const double mi_;
+   const double ni_;
+   const double Te_;
+   const double vi_;
+   const double chi_;
+   const double q_;
+   const double a_;
+   const double b_;
+
+   double alpha0_;
+   double alpha1_;
+   double kappa_;
+   double nu_;
+
+   const LeftBCType type_;
+
+   mutable Vector x_;
+
+public:
+   RobinBCTestSol(LeftBCType t, double mi, double ni, double Te, double vi,
+                  double chi, double q, double a, double b)
+      : mi_(mi * kg_per_amu_ / J_per_eV_), ni_(ni), Te_(Te), vi_(vi),
+        chi_(chi), q_(q), a_(a), b_(b),
+        type_(t), x_(2)
+   {
+      MFEM_VERIFY(mi_ > 0.0 && ni_ > 0.0 && chi_ > 0.0 && q_ > 0.0,
+                  "RobinBCTestSol: parameters mi, ni, chi, and q "
+                  "must be positive");
+
+
+      nu_ = 1.25 * vi_ / chi;
+      kappa_ = sqrt(q_ / (ni_ * chi_) + nu_ * nu_);
+
+      const double ev0 = exp(-nu_);
+      const double ev1 = exp(nu_);
+      const double ek = exp(kappa_);
+      const double ck = cosh(kappa_);
+      const double sk = sinh(kappa_);
+
+      const double zeta = ni_ * vi_ * (2.5 * Te_ + 0.5 * mi_ * vi_ * vi_);
+
+      switch (type_)
+      {
+         case ZERO_ENERGY_FLUX:
+         {
+            const double d = 2.0 * ((ni_ * nu_ * a_ + q_) * sk +
+                                    a_ * kappa_ * ni_ * ck);
+
+            alpha0_ = ((b_ + zeta - ni_ * Te_ * a_) * (kappa_ - nu_) * ev0 -
+                       zeta * (a_ / chi_ + kappa_ - nu_) * ek) / d;
+            alpha1_ = (zeta * (ni_ * a_ * (kappa_ - nu_) - q_) * ev1 +
+                       q_ * (b_ + zeta - ni_ * Te_ * a_) * ek
+                      ) / (chi_ * ni_ * (kappa_ - nu_) * d);
+         }
+         break;
+         case ZERO_THERMAL_FLUX:
+         {
+            const double d = 2.0 * (q_ * sk +
+                                    ni_ * (2.0 * chi_ * nu_ - a_) *
+                                    (nu_ * sk - kappa_ * ck));
+
+            alpha0_ =  ev0 * (b_ + zeta - ni_ * Te_ * a_) * (kappa_ + nu_) / d;
+            alpha1_ =  ek * (b_ + zeta - ni_ * Te_ * a_) * (kappa_ - nu_) / d;
+         }
+         break;
+         case ROBIN:
+            const double d = 2.0 * ((ni_ * a_ * a_ + q_ * chi_) * sk +
+                                    2 * ni_ * chi_ * kappa_ * a_ * ck);
+            const double c0 = b_ - ni_ * Te_ * a_ - zeta;
+            const double c1 = b_ - ni_ * Te_ * a_ + zeta;
+
+            alpha0_ = (ek * c0 * ((kappa_ - nu_) * chi_ + a_) +
+                       ev0 * c1 * ((kappa_ - nu_) * chi_ - a_))/ d;
+            alpha1_ = (ev1 * c0 * ((kappa_ + nu_) * chi_ - a_) +
+                       ek * c1 * ((kappa_ + nu_) * chi_ + a_))/ d;
+            break;
+      }
+   }
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      double e0x = exp(-(kappa_ - nu_) * x_[0]);
+      double e1x = exp((kappa_ + nu_) * (x_[0] - 1.0));
+
+      return Te_ + alpha0_ * e0x + alpha1_ * e1x;
+   }
+};
+
 Coefficient *
 Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 {
    int coef_idx = -1;
-   if (name == "Sinh1D")
+   if (name == "Sin1D")
+   {
+      double a, b, c, kx;
+      input >> a >> b >> c >> kx;
+      coef_idx = sCoefs.Append(new Sin1D(a, b, c, kx));
+   }
+   else if (name == "Cos1D")
+   {
+      double a, b, c, kx;
+      input >> a >> b >> c >> kx;
+      coef_idx = sCoefs.Append(new Cos1D(a, b, c, kx));
+   }
+   else if (name == "Sinh1D")
    {
       double a, b, c, kx;
       input >> a >> b >> c >> kx;
@@ -3167,10 +3473,10 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
    }
    else if (name == "Gaussian1D")
    {
-      double a, b, p0;
+      double a, b, c, p0, v;
       int comp;
-      input >> a >> b >> p0 >> comp;
-      coef_idx = sCoefs.Append(new Gaussian1D(a, b, p0, comp));
+      input >> a >> b >> c >> p0 >> v >> comp;
+      coef_idx = sCoefs.Append(new Gaussian1D(a, b, c, p0, v, comp));
    }
    else if (name == "Gaussian")
    {
@@ -3199,6 +3505,18 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       input >> a >> b >> w >> t0;
       coef_idx = sCoefs.Append(new SineTime(a, b, w, t0));
    }
+   else if (name == "ExpTime")
+   {
+      double a, b, w, t0;
+      input >> a >> b >> w >> t0;
+      coef_idx = sCoefs.Append(new ExpTime(a, b, w, t0));
+   }
+   else if (name == "TanhTime")
+   {
+      double a, b, w, t0;
+      input >> a >> b >> w >> t0;
+      coef_idx = sCoefs.Append(new TanhTime(a, b, w, t0));
+   }
    else if (name == "AnnularTestSol")
    {
       double ra, rb, w, d_para, d_perp, a, a_para, a_perp;
@@ -3224,6 +3542,21 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       double ra, rb, d_perp, a_perp;
       input >> ra >> rb >> d_perp >> a_perp;
       coef_idx = sCoefs.Append(new AnnularTestSrc(ra, rb, d_perp, a_perp));
+   }
+   else if (name == "BurgersEqnTestSol")
+   {
+      double a1, l1, a2, l2, k;
+      input >> a1 >> l1 >> a2 >> l2 >> k;
+      coef_idx = sCoefs.Append(new BurgersEqnTestSol(a1, l1, a2, l2, k));
+   }
+   else if (name == "RobinBCTestSol")
+   {
+      int t;
+      double mi, ni, Te, vi, chi, q, a, b;
+      input >> t >> mi >> ni >> Te >> vi >> chi >> q >> a >> b;
+      RobinBCTestSol::LeftBCType type = (RobinBCTestSol::LeftBCType)t;
+      coef_idx = sCoefs.Append(new RobinBCTestSol(type, mi, ni, Te, vi,
+                                                  chi, q, a, b));
    }
    else
    {

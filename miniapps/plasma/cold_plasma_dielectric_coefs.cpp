@@ -206,7 +206,7 @@ void real_epsilon_sigma(double omega, const Vector &B,
 
    double Z1 = 1.0, Z2 = 18.0;
    double qe = -q_, qi1 = Z1 * q_, qi2 = Z2 * q_;
-   double mi1 = 2.01410178 * amu_, mi2 = 39.948 * amu_;
+   double mi1 = 2.01410178 * kg_per_amu_, mi2 = 39.948 * kg_per_amu_;
    double ne = density_vals[0], ni1 = density_vals[1], ni2 = density_vals[2];
    /*double Te = temperature_vals[0];
    double Ti1 = temperature_vals[1];

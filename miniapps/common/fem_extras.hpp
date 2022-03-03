@@ -117,41 +117,51 @@ protected:
    Array<VectorCoefficient*> vCoefs; ///< Owned
    Array<MatrixCoefficient*> mCoefs; ///< Owned
 
-   Array<GridFunction*>      ext_gf; ///< Not owned
+   /// The objects pointed to in the following maps are Not Owned
+   std::map<std::string, GridFunction*> ext_gf;
 
-   Array<double (*)(const Vector &)> ext_sfn;          ///< Not owned
-   Array<double (*)(const Vector &, double)> ext_stfn; ///< Not owned
+   std::map<std::string, double (*)(const Vector &)> ext_sfn;
+   std::map<std::string, double (*)(const Vector &, double)> ext_stfn;
 
-   Array<void (*)(const Vector &, Vector &)> ext_vfn;          ///< Not owned
-   Array<void (*)(const Vector &, double, Vector &)> ext_vtfn; ///< Not owned
+   std::map<std::string, void (*)(const Vector &, Vector &)> ext_vfn;
+   std::map<std::string, void (*)(const Vector &, double, Vector &)> ext_vtfn;
 
-   Array<void (*)(const Vector &, DenseMatrix &)> ext_mfn;     ///< Not owned
-   Array<void (*)(const Vector &, double, DenseMatrix &)> ext_mtfn;
+   std::map<std::string, void (*)(const Vector &, DenseMatrix &)> ext_mfn;
+   std::map<std::string,
+       void (*)(const Vector &, double, DenseMatrix &)> ext_mtfn;
 
 public:
    CoefFactory() {}
 
    virtual ~CoefFactory();
 
-   int AddExternalGridFunction(GridFunction &gf) { return ext_gf.Append(&gf); }
+   void AddExternalGridFunction(const std::string & name,
+                                GridFunction &gf)
+   { ext_gf[name] = &gf; }
 
-   int AddExternalFunction(double (*fn)(const Vector &))
-   { return ext_sfn.Append(fn); }
+   void AddExternalFunction(const std::string & name,
+                            double (*fn)(const Vector &))
+   { ext_sfn[name] = fn; }
 
-   int AddExternalFunction(double (*fn)(const Vector &, double))
-   { return ext_stfn.Append(fn); }
+   void AddExternalFunction(const std::string & name,
+                            double (*fn)(const Vector &, double))
+   { ext_stfn[name] = fn; }
 
-   int AddExternalFunction(void (*fn)(const Vector &, Vector &))
-   { return ext_vfn.Append(fn); }
+   void AddExternalFunction(const std::string & name,
+                            void (*fn)(const Vector &, Vector &))
+   { ext_vfn[name] = fn; }
 
-   int AddExternalFunction(void (*fn)(const Vector &, double, Vector &))
-   { return ext_vtfn.Append(fn); }
+   void AddExternalFunction(const std::string & name,
+                            void (*fn)(const Vector &, double, Vector &))
+   { ext_vtfn[name] = fn; }
 
-   int AddExternalFunction(void (*fn)(const Vector &, DenseMatrix &))
-   { return ext_mfn.Append(fn); }
+   void AddExternalFunction(const std::string & name,
+                            void (*fn)(const Vector &, DenseMatrix &))
+   { ext_mfn[name] = fn; }
 
-   int AddExternalFunction(void (*fn)(const Vector &, double, DenseMatrix &))
-   { return ext_mtfn.Append(fn); }
+   void AddExternalFunction(const std::string & name,
+                            void (*fn)(const Vector &, double, DenseMatrix &))
+   { ext_mtfn[name] = fn; }
 
    virtual Coefficient * GetScalarCoef(std::istream &input);
    virtual Coefficient * GetScalarCoef(std::string &coef_name,
