@@ -15,6 +15,7 @@
 
 // Specializations
 #include "lor_diffusion.hpp"
+#include "lor_hcurl.hpp"
 
 namespace mfem
 {
@@ -49,11 +50,16 @@ template <typename T1, typename T2>
 bool HasIntegrators(BilinearForm &a)
 {
    Array<BilinearFormIntegrator*> *integs = a.GetDBFI();
-   if (integs != NULL && integs->Size() == 2)
+   if (integs == NULL) { return false; }
+   if (integs->Size() == 1)
+   {
+      BilinearFormIntegrator *i0 = (*integs)[0];
+      if (dynamic_cast<T1*>(i0) || dynamic_cast<T2*>(i0)) { return true; }
+   }
+   else if (integs->Size() == 2)
    {
       BilinearFormIntegrator *i0 = (*integs)[0];
       BilinearFormIntegrator *i1 = (*integs)[1];
-
       if ((dynamic_cast<T1*>(i0) && dynamic_cast<T2*>(i1)) ||
           (dynamic_cast<T2*>(i0) && dynamic_cast<T1*>(i1)))
       {
@@ -126,11 +132,19 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
 
 bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
+   const FiniteElementCollection *fec = a.FESpace()->FEColl();
    // TODO: check for maximum supported orders
    // We want to support the following configurations:
    // H1, ND, and RT spaces: M, A, M + K
-   if (HasIntegrator<DiffusionIntegrator>(a)) { return true; }
-   if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a)) { return true; }
+   if (dynamic_cast<const H1_FECollection*>(fec))
+   {
+      if (HasIntegrator<DiffusionIntegrator>(a)) { return true; }
+      if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a)) { return true; }
+   }
+   else if (dynamic_cast<const ND_FECollection*>(fec))
+   {
+      if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a)) { return true; }
+   }
    return false;
 }
 
@@ -415,10 +429,20 @@ void BatchedLORAssembly::Assemble(BilinearForm &a,
                                   const Array<int> &ess_dofs,
                                   OperatorHandle &A)
 {
-   if (HasIntegrator<DiffusionIntegrator>(a) ||
-       HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
+   const FiniteElementCollection *fec = fes_ho.FEColl();
+   if (dynamic_cast<const H1_FECollection*>(fec))
    {
-      BatchedLORDiffusion(a, fes_ho, ess_dofs).Assemble(A);
+      if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
+      {
+         BatchedLORDiffusion(a, fes_ho, ess_dofs).Assemble(A);
+      }
+   }
+   else if (dynamic_cast<const ND_FECollection*>(fec))
+   {
+      if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a))
+      {
+         BatchedLORNedelec(a, fes_ho, ess_dofs).Assemble(A);
+      }
    }
 }
 
