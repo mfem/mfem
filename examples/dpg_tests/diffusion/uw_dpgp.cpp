@@ -56,6 +56,27 @@ double exact(const Vector & X)
    return pow(r,alpha) * sin(alpha * theta);
 }
 
+void gradexact(const Vector & X, Vector & grad)
+{
+   grad.SetSize(2);
+   double x = X[0];
+   double y = X[1];
+
+   double r = sqrt(x*x + y*y);
+   double alpha = 2./3.;
+   double theta = atan2(y,x);
+   if (theta < 0) theta += 2*M_PI;
+
+   double r_x = x/r;
+   double r_y = y/r;
+   double theta_x = - y / (r*r);
+   double theta_y = x / (r*r);
+   double beta = alpha * pow(r,alpha - 1.);
+   grad[0] = beta*(r_x * sin(alpha*theta) + r * theta_x * cos(alpha*theta));
+   grad[1] = beta*(r_y * sin(alpha*theta) + r * theta_y * cos(alpha*theta));
+}
+
+
 int main(int argc, char *argv[])
 {
    MPI_Session mpi;
@@ -71,6 +92,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int iprob = 0;
    bool static_cond = false;
+   double theta = 0.7;
 
 
    OptionsParser args(argc, argv);
@@ -81,7 +103,9 @@ int main(int argc, char *argv[])
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");
    args.AddOption(&ref, "-ref", "--num_refinements",
-                  "Number of uniform refinements");               
+                  "Number of uniform refinements");    
+   args.AddOption(&theta, "-theta", "--theta_factor",
+                  "Refinement factor");                              
    args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
                   "-no-graph-norm", "--no-adjoint-graph-norm",
                   "Enable or disable Adjoint Graph Norm on the test space");   
@@ -243,7 +267,6 @@ int main(int argc, char *argv[])
          ess_tdof_list[i] += u_fes->GetTrueVSize() + sigma_fes->GetTrueVSize();
       }
 
-
       Array<int> offsets(5);
       offsets[0] = 0;
       offsets[1] = u_fes->GetVSize();
@@ -292,8 +315,6 @@ int main(int argc, char *argv[])
       }
       M->SetDiagonalBlock(skip+1,prec);
 
-      
-
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
@@ -323,7 +344,6 @@ int main(int argc, char *argv[])
       }
 
       elements_to_refine.SetSize(0);
-      double theta = 0.7;
       for (int iel = 0; iel<pmesh.GetNE(); iel++)
       {
          if (residuals[iel] > theta * maxresidual)
@@ -331,8 +351,6 @@ int main(int argc, char *argv[])
             elements_to_refine.Append(iel);
          }
       }
-
-
 
       ParGridFunction u_gf;
       u_gf.MakeRef(u_fes,x.GetBlock(0));
@@ -353,6 +371,12 @@ int main(int argc, char *argv[])
          sigma_out << "solution\n" << pmesh << sigma_gf <<
                   "window_title 'Numerical flux' "
                   << flush;
+      }
+
+
+      if (i == ref-1)
+      {
+         break;
       }
 
       pmesh.GeneralRefinement(elements_to_refine);
