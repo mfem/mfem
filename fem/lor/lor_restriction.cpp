@@ -91,12 +91,14 @@ void LORRestriction::Setup()
    const int NR_REF = ne_ref;
 
    MFEM_FORALL(e, NE,
-   {
-      const int e_ho = e/NR_REF;
-      const int i_ref = e%NR_REF;
-      for (int d = 0; d < DOF; ++d)
+               for (int e=0; e<NE; ++e)
+{
+   const int e_ho = e/NR_REF;
+   const int i_ref = e%NR_REF;
+   for (int d = 0; d < DOF; ++d)
       {
-         const int d_ho = d_local_dof_map[d + i_ref*DOF];
+         const int sd_ho = d_local_dof_map[d + i_ref*DOF]; // signed
+         const int d_ho = (sd_ho >= 0) ? sd_ho : -1 - sd_ho;
          const int sgid = d_element_map[DOF_ho*e_ho + d_ho];  // signed
          const int gid = (sgid >= 0) ? sgid : -1 - sgid;
          AtomicAdd(d_offsets[gid+1], 1);
@@ -121,7 +123,8 @@ void LORRestriction::Setup()
       const int i_ref = e%NR_REF;
       for (int d = 0; d < DOF; ++d)
       {
-         int d_ho = d_local_dof_map[d + i_ref*DOF];
+         const int sd_ho = d_local_dof_map[d + i_ref*DOF]; // signed
+         const int d_ho = (sd_ho >= 0) ? sd_ho : -1 - sd_ho;
          const int sdid = d_dof_map[d];  // signed
          const int sgid = d_element_map[DOF_ho*e_ho + d_ho];  // signed
          const int gid = (sgid >= 0) ? sgid : -1-sgid;
@@ -170,13 +173,15 @@ int LORRestriction::FillI(SparseMatrix &mat) const
    auto d_indices = indices.Read();
    auto d_gatherMap = gatherMap.Read();
    MFEM_FORALL(i_L, vd*all_dofs+1, { I[i_L] = 0; });
-   MFEM_FORALL(e, ne,
+   // MFEM_FORALL(e, ne,
+   for (int e=0; e<ne; ++e)
    {
       for (int i = 0; i < elt_dofs; i++)
       {
          int i_elts[Max];
          const int i_E = e*elt_dofs + i;
-         const int i_L = d_gatherMap[i_E];
+         const int si_L = d_gatherMap[i_E]; // signed
+         const int i_L = (si_L >= 0) ? si_L : -1 - si_L;
          const int i_offset = d_offsets[i_L];
          const int i_nextOffset = d_offsets[i_L+1];
          const int i_nbElts = i_nextOffset - i_offset;
@@ -188,7 +193,8 @@ int LORRestriction::FillI(SparseMatrix &mat) const
          for (int j = 0; j < elt_dofs; j++)
          {
             const int j_E = e*elt_dofs + j;
-            const int j_L = d_gatherMap[j_E];
+            const int sj_L = d_gatherMap[j_E]; // signed
+            const int j_L = (sj_L >= 0) ? sj_L : -1 - sj_L;
             const int j_offset = d_offsets[j_L];
             const int j_nextOffset = d_offsets[j_L+1];
             const int j_nbElts = j_nextOffset - j_offset;
@@ -213,7 +219,7 @@ int LORRestriction::FillI(SparseMatrix &mat) const
             }
          }
       }
-   });
+   }//);
    // We need to sum the entries of I, we do it on CPU as it is very sequential.
    auto h_I = mat.HostReadWriteI();
    const int nTdofs = vd*all_dofs;
@@ -272,7 +278,8 @@ void LORRestriction::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
       for (int ii_el = 0; ii_el < ndof_per_el; ++ii_el)
       {
          // LDOF index of current row
-         const int ii = el_dof_lex(ii_el, iel_ho);
+         const int sii = el_dof_lex(ii_el, iel_ho);
+         const int ii = (sii >= 0) ? sii : -1 - sii;
          // Get number and list of elements containing this DOF
          int i_elts[Max];
          int i_B[Max];
@@ -290,7 +297,9 @@ void LORRestriction::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
             int jj_el = map(j, ii_el);
             if (jj_el < 0) { continue; }
             // LDOF index of column
-            int jj = el_dof_lex(jj_el, iel_ho);
+            const int sjj = el_dof_lex(jj_el, iel_ho);
+            const int jj = (sjj >= 0) ? sjj : -1 - sjj;
+            const int sgn = ((sjj >=0 && sii >= 0) || (sjj < 0 && sii <0)) ? 1 : -1;
             const int j_offset = K[jj];
             const int j_next_offset = K[jj+1];
             const int j_ne = j_next_offset - j_offset;
@@ -298,7 +307,7 @@ void LORRestriction::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
             {
                const int nnz = GetAndIncrementNnzIndex(ii, I);
                J[nnz] = jj;
-               AV[nnz] = V(j, ii_el, iel_ho);
+               AV[nnz] = sgn*V(j, ii_el, iel_ho);
             }
             else // assembly required
             {
