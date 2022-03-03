@@ -79,37 +79,21 @@ void TestInnerProductMatrices(SparseMatrix &A1, const SparseMatrix &A2)
    REQUIRE(ytA1x == MFEM_Approx(ytA2x));
 }
 
-GridFunction RandomizeMesh(Mesh &mesh, FiniteElementSpace &fes_mesh)
-{
-   GridFunction mesh_coords(&fes_mesh);
-   mesh.SetNodalFESpace(&fes_mesh);
-   mesh.SetNodalGridFunction(&mesh_coords);
-   const double jitter = 1./(M_PI*M_PI);
-   const double h0 = mesh.GetElementSize(0);
-   GridFunction randomized_gf(&fes_mesh);
-   randomized_gf.Randomize(RANDOM_SEED);
-   // Shift to random values in [-0.5,0.5]
-   randomized_gf -= 0.5;
-   // Scale the random values to be of same order
-   randomized_gf *= jitter * h0;
-   mesh_coords -= randomized_gf;
-   return mesh_coords;
-}
-
 TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
 {
+   const bool all_tests = launch_all_non_regression_tests;
+
+   const int order = !all_tests ? 5 : GENERATE(1,3,5);
+
    auto mesh_fname = GENERATE(
                         "../../data/star-q3.mesh",
                         "../../data/fichera-q3.mesh"
                      );
-   const int order = 5;
 
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+
    H1_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fec);
-
-   FiniteElementSpace fes_mesh(&mesh, &fec, mesh.Dimension());
-   GridFunction mesh_coords = RandomizeMesh(mesh, fes_mesh);
 
    Array<int> ess_dofs;
    fespace.GetBoundaryTrueDofs(ess_dofs);
@@ -123,8 +107,13 @@ TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
    LORDiscretization lor(a, ess_dofs);
 
    BilinearForm a_lor(&lor.GetFESpace());
+
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
+
+   const GeometricFactors::FactorFlags dets = GeometricFactors::DETERMINANTS;
+   REQUIRE(mesh.GetGeometricFactors(ir, dets)->detJ.Min() > 0.0);
+
    a_lor.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, &ir));
    a_lor.AddDomainIntegrator(new MassIntegrator(mass_coeff, &ir));
    a_lor.Assemble();
