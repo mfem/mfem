@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,18 +17,8 @@ namespace mfem
 {
 
 template <int ORDER>
-void BatchedLORDiffusion::AssembleDiffusion2D(SparseMatrix &A_mat)
+void BatchedLORDiffusion::AssembleDiffusion2D()
 {
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *op = fes_ho.GetElementRestriction(ordering);
-   const ElementRestriction *el_restr =
-      dynamic_cast<const ElementRestriction*>(op);
-   MFEM_VERIFY(el_restr != nullptr, "");
-
-   const Array<int> &el_dof_lex_ = el_restr->GatherMap();
-   const Array<int> &dof_glob2loc_ = el_restr->Indices();
-   const Array<int> &dof_glob2loc_offsets_ = el_restr->Offsets();
-
    const int nel_ho = fes_ho.GetNE();
 
    static constexpr int nv = 4;
@@ -37,27 +27,18 @@ void BatchedLORDiffusion::AssembleDiffusion2D(SparseMatrix &A_mat)
    static constexpr int nd1d = ORDER + 1;
    static constexpr int ndof_per_el = nd1d*nd1d;
    static constexpr int nnz_per_row = 9;
-   static constexpr int nnz_per_el = nnz_per_row * ndof_per_el;
    static constexpr int sz_local_mat = nv*nv;
 
    const double DQ = diffusion_coeff;
    const double MQ = mass_coeff;
 
-   const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
-   const auto dof_glob2loc = dof_glob2loc_.Read();
-   const auto K = dof_glob2loc_offsets_.Read();
-
-   const auto I = A_mat.ReadI();
-   const auto J = A_mat.ReadJ();
-   auto A = A_mat.ReadWriteData();
+   sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
+   auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nel_ho);
 
    auto X = X_vert.Read();
 
    MFEM_FORALL_2D(iel_ho, nel_ho, ORDER, ORDER, 1,
    {
-      MFEM_SHARED double smem[nnz_per_el];
-      DeviceTensor<3> V(smem, nnz_per_row, nd1d, nd1d);
-
       // Assemble a sparse matrix over the macro-element by looping over each
       // subelement.
       // V(j,ix,iy) stores the jth nonzero in the row of the sparse matrix
@@ -68,7 +49,7 @@ void BatchedLORDiffusion::AssembleDiffusion2D(SparseMatrix &A_mat)
          {
             for (int j=0; j<nnz_per_row; ++j)
             {
-               V(j,ix,iy) = 0.0;
+               V(j,ix,iy,iel_ho) = 0.0;
             }
          }
       }
@@ -201,91 +182,45 @@ void BatchedLORDiffusion::AssembleDiffusion2D(SparseMatrix &A_mat)
                   // Symmetry
                   if (jj_loc <= ii_loc)
                   {
-                     AtomicAdd(V(jj_off, ix+kx, iy+ky), local_mat(ii_loc, jj_loc));
+                     AtomicAdd(V(jj_off, ix+kx, iy+ky, iel_ho), local_mat(ii_loc, jj_loc));
                   }
                   else
                   {
-                     AtomicAdd(V(jj_off, ix+kx, iy+ky), local_mat(jj_loc, ii_loc));
-                  }
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      // Place the macro-element sparse matrix into the global sparse matrix.
-      MFEM_FOREACH_THREAD(iy,y,nd1d)
-      {
-         MFEM_FOREACH_THREAD(ix,x,nd1d)
-         {
-            double col_ptr[nnz_per_row]; // 9
-
-            const int ii_el = ix + nd1d*iy;
-            const int ii = el_dof_lex(ii_el, iel_ho);
-
-            // Set column pointer to avoid searching in the row
-            for (int j = I[ii], end = I[ii+1]; j < end; j++)
-            {
-               const int jj = J[j];
-               int jj_el = -1;
-               for (int k = K[jj], k_end = K[jj+1]; k < k_end; k += 1)
-               {
-                  int edof_idx = dof_glob2loc[k];
-                  if (edof_idx/ndof_per_el == iel_ho)
-                  {
-                     jj_el = edof_idx%ndof_per_el;
-                     break;
-                  }
-               }
-               if (jj_el < 0) { continue; }
-               const int jx = jj_el%nd1d;
-               const int jy = jj_el/nd1d;
-               const int jj_off = (jx-ix+1) + 3*(jy-iy+1);
-               col_ptr[jj_off] = j;
-            }
-
-            const int jx_begin = (ix > 0) ? ix - 1 : 0;
-            const int jx_end = (ix < ORDER) ? ix + 1 : ORDER;
-
-            const int jy_begin = (iy > 0) ? iy - 1 : 0;
-            const int jy_end = (iy < ORDER) ? iy + 1 : ORDER;
-
-            for (int jy=jy_begin; jy<=jy_end; ++jy)
-            {
-               for (int jx=jx_begin; jx<=jx_end; ++jx)
-               {
-                  const int jj_off = (jx-ix+1) + 3*(jy-iy+1);
-                  const double Vji = V(jj_off, ix, iy);
-                  const int col_ptr_jj = col_ptr[jj_off];
-                  if ((ix == 0 && jx == 0) || (ix == ORDER && jx == ORDER) ||
-                      (iy == 0 && jy == 0) || (iy == ORDER && jy == ORDER))
-                  {
-                     AtomicAdd(A[col_ptr_jj], Vji);
-                  }
-                  else
-                  {
-                     A[col_ptr_jj] += Vji;
+                     AtomicAdd(V(jj_off, ix+kx, iy+ky, iel_ho), local_mat(jj_loc, ii_loc));
                   }
                }
             }
          }
       }
    });
+
+   sparse_mapping.SetSize(nnz_per_row, ndof_per_el);
+   sparse_mapping = -1;
+   for (int iy=0; iy<nd1d; ++iy)
+   {
+      const int jy_begin = (iy > 0) ? iy - 1 : 0;
+      const int jy_end = (iy < ORDER) ? iy + 1 : ORDER;
+      for (int ix=0; ix<nd1d; ++ix)
+      {
+         const int jx_begin = (ix > 0) ? ix - 1 : 0;
+         const int jx_end = (ix < ORDER) ? ix + 1 : ORDER;
+         const int ii_el = ix + nd1d*iy;
+         for (int jy=jy_begin; jy<=jy_end; ++jy)
+         {
+            for (int jx=jx_begin; jx<=jx_end; ++jx)
+            {
+               const int jj_off = (jx-ix+1) + 3*(jy-iy+1);
+               const int jj_el = jx + nd1d*jy;
+               sparse_mapping(jj_off, ii_el) = jj_el;
+            }
+         }
+      }
+   }
 }
 
-template <int ORDER, bool USE_SMEM>
-void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
+template <int ORDER>
+void BatchedLORDiffusion::AssembleDiffusion3D()
 {
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *op = fes_ho.GetElementRestriction(ordering);
-   const ElementRestriction *el_restr =
-      dynamic_cast<const ElementRestriction*>(op);
-   MFEM_VERIFY(el_restr != nullptr, "");
-
-   const Array<int> &el_dof_lex_ = el_restr->GatherMap();
-   const Array<int> &dof_glob2loc_ = el_restr->Indices();
-   const Array<int> &dof_glob2loc_offsets_ = el_restr->Offsets();
-
    const int nel_ho = fes_ho.GetNE();
 
    const double DQ = diffusion_coeff;
@@ -297,41 +232,22 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
    static constexpr int nd1d = ORDER + 1;
    static constexpr int ndof_per_el = nd1d*nd1d*nd1d;
    static constexpr int nnz_per_row = 27;
-   static constexpr int nnz_per_el = nnz_per_row * ndof_per_el;
    static constexpr int sz_grad_A = 3*3*2*2*2*2;
    static constexpr int sz_grad_B = sz_grad_A*2;
    static constexpr int sz_mass_A = 2*2*2*2;
    static constexpr int sz_mass_B = sz_mass_A*2;
    static constexpr int sz_local_mat = nv*nv;
 
-   static constexpr int GRID = USE_SMEM ? 0 : 128;
+   static constexpr int GRID = 128;
 
-   double *GM = nullptr;
-   if (!USE_SMEM)
-   {
-      d_buffer.UseDevice(true);
-      d_buffer.SetSize(nnz_per_el*GRID);
-      GM = d_buffer.Write();
-   }
-
-   const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
-   const auto dof_glob2loc = dof_glob2loc_.Read();
-   const auto K = dof_glob2loc_offsets_.Read();
-
-   const auto I = A_mat.ReadI();
-   const auto J = A_mat.ReadJ();
-   auto A = A_mat.ReadWriteData();
+   sparse_ij.SetSize(nel_ho*ndof_per_el*nnz_per_row);
+   auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nd1d, nel_ho);
 
    auto X = X_vert.Read();
 
    // Last GRID dimension is lowered to avoid too many resources
-   MFEM_FORALL_3D_GRID(iel_ho, nel_ho, ORDER, ORDER, USE_SMEM?ORDER:1, GRID,
+   MFEM_FORALL_3D_GRID(iel_ho, nel_ho, ORDER, ORDER, ORDER, GRID,
    {
-      const int bid = MFEM_BLOCK_ID(x);
-      MFEM_SHARED double smem[USE_SMEM ? nnz_per_el : 1];
-      double *V_ = USE_SMEM ? smem : GM + nnz_per_el*bid;
-      DeviceTensor<4> V(V_, nnz_per_row, nd1d, nd1d, nd1d);
-
       // Assemble a sparse matrix over the macro-element by looping over each
       // subelement.
       // V(j,i) stores the jth nonzero in the ith row of the sparse matrix.
@@ -344,7 +260,7 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
                //MFEM_UNROLL(27)
                for (int j=0; j<nnz_per_row; ++j)
                {
-                  V(j,ix,iy,iz) = 0.0;
+                  V(j,ix,iy,iz,iel_ho) = 0.0;
                }
             }
          }
@@ -652,81 +568,11 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
 
                      if (jj_loc <= ii_loc)
                      {
-                        AtomicAdd(V(jj_off, ix+kx, iy+ky, iz+kz), local_mat(ii_loc, jj_loc));
+                        AtomicAdd(V(jj_off, ix+kx, iy+ky, iz+kz, iel_ho), local_mat(ii_loc, jj_loc));
                      }
                      else
                      {
-                        AtomicAdd(V(jj_off, ix+kx, iy+ky, iz+kz), local_mat(jj_loc, ii_loc));
-                     }
-                  }
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      // Place the macro-element sparse matrix into the global sparse matrix.
-      MFEM_FOREACH_THREAD(iz,z,nd1d)
-      {
-         MFEM_FOREACH_THREAD(iy,y,nd1d)
-         {
-            MFEM_FOREACH_THREAD(ix,x,nd1d)
-            {
-               double col_ptr[nnz_per_row]; // 27
-
-               const int ii_el = ix + nd1d*(iy + nd1d*iz);
-               const int ii = el_dof_lex(ii_el, iel_ho);
-
-               // Set column pointer to avoid searching in the row
-               for (int j = I[ii], end = I[ii+1]; j < end; j++)
-               {
-                  const int jj = J[j];
-                  int jj_el = -1;
-                  for (int k = K[jj], k_end = K[jj+1]; k < k_end; k += 1)
-                  {
-                     int edof_idx = dof_glob2loc[k];
-                     if (edof_idx/ndof_per_el == iel_ho)
-                     {
-                        jj_el = edof_idx%ndof_per_el;
-                        break;
-                     }
-                  }
-                  if (jj_el < 0) { continue; }
-                  const int jx = jj_el%nd1d;
-                  const int jy = (jj_el/nd1d)%nd1d;
-                  const int jz = jj_el/nd1d/nd1d;
-                  const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
-                  col_ptr[jj_off] = j;
-               }
-
-               const int jx_begin = (ix > 0) ? ix - 1 : 0;
-               const int jx_end = (ix < ORDER) ? ix + 1 : ORDER;
-
-               const int jy_begin = (iy > 0) ? iy - 1 : 0;
-               const int jy_end = (iy < ORDER) ? iy + 1 : ORDER;
-
-               const int jz_begin = (iz > 0) ? iz - 1 : 0;
-               const int jz_end = (iz < ORDER) ? iz + 1 : ORDER;
-
-               for (int jz=jz_begin; jz<=jz_end; ++jz)
-               {
-                  for (int jy=jy_begin; jy<=jy_end; ++jy)
-                  {
-                     for (int jx=jx_begin; jx<=jx_end; ++jx)
-                     {
-                        const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
-                        const double Vji = V(jj_off, ix, iy, iz);
-                        const int col_ptr_jj = col_ptr[jj_off];
-                        if ((ix == 0 && jx == 0) || (ix == ORDER && jx == ORDER) ||
-                            (iy == 0 && jy == 0) || (iy == ORDER && jy == ORDER) ||
-                            (iz == 0 && jz == 0) || (iz == ORDER && jz == ORDER))
-                        {
-                           AtomicAdd(A[col_ptr_jj], Vji);
-                        }
-                        else
-                        {
-                           A[col_ptr_jj] += Vji;
-                        }
+                        AtomicAdd(V(jj_off, ix+kx, iy+ky, iz+kz, iel_ho), local_mat(jj_loc, ii_loc));
                      }
                   }
                }
@@ -734,9 +580,42 @@ void BatchedLORDiffusion::AssembleDiffusion3D(SparseMatrix &A_mat)
          }
       }
    });
+
+   sparse_mapping.SetSize(nnz_per_row, ndof_per_el);
+   sparse_mapping = -1;
+   for (int iz=0; iz<nd1d; ++iz)
+   {
+      const int jz_begin = (iz > 0) ? iz - 1 : 0;
+      const int jz_end = (iz < ORDER) ? iz + 1 : ORDER;
+      for (int iy=0; iy<nd1d; ++iy)
+      {
+         const int jy_begin = (iy > 0) ? iy - 1 : 0;
+         const int jy_end = (iy < ORDER) ? iy + 1 : ORDER;
+         for (int ix=0; ix<nd1d; ++ix)
+         {
+            const int jx_begin = (ix > 0) ? ix - 1 : 0;
+            const int jx_end = (ix < ORDER) ? ix + 1 : ORDER;
+
+            const int ii_el = ix + nd1d*(iy + nd1d*iz);
+
+            for (int jz=jz_begin; jz<=jz_end; ++jz)
+            {
+               for (int jy=jy_begin; jy<=jy_end; ++jy)
+               {
+                  for (int jx=jx_begin; jx<=jx_end; ++jx)
+                  {
+                     const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
+                     const int jj_el = jx + nd1d*(jy + nd1d*jz);
+                     sparse_mapping(jj_off, ii_el) = jj_el;
+                  }
+               }
+            }
+         }
+      }
+   }
 }
 
-void BatchedLORDiffusion::AssemblyKernel(SparseMatrix &A)
+void BatchedLORDiffusion::AssemblyKernel()
 {
    Mesh &mesh_ho = *fes_ho.GetMesh();
    const int dim = mesh_ho.Dimension();
@@ -746,12 +625,12 @@ void BatchedLORDiffusion::AssemblyKernel(SparseMatrix &A)
    {
       switch (order)
       {
-         case 1: AssembleDiffusion2D<1>(A); break;
-         case 2: AssembleDiffusion2D<2>(A); break;
-         case 3: AssembleDiffusion2D<3>(A); break;
-         case 4: AssembleDiffusion2D<4>(A); break;
-         case 5: AssembleDiffusion2D<5>(A); break;
-         case 6: AssembleDiffusion2D<6>(A); break;
+         case 1: AssembleDiffusion2D<1>(); break;
+         case 2: AssembleDiffusion2D<2>(); break;
+         case 3: AssembleDiffusion2D<3>(); break;
+         case 4: AssembleDiffusion2D<4>(); break;
+         case 5: AssembleDiffusion2D<5>(); break;
+         case 6: AssembleDiffusion2D<6>(); break;
          default: MFEM_ABORT("No kernel.");
       }
    }
@@ -759,12 +638,12 @@ void BatchedLORDiffusion::AssemblyKernel(SparseMatrix &A)
    {
       switch (order)
       {
-         case 1: AssembleDiffusion3D<1>(A); break;
-         case 2: AssembleDiffusion3D<2>(A); break;
-         case 3: AssembleDiffusion3D<3>(A); break;
-         case 4: AssembleDiffusion3D<4>(A); break;
-         case 5: AssembleDiffusion3D<5>(A); break;
-         case 6: AssembleDiffusion3D<6,false>(A); break;
+         case 1: AssembleDiffusion3D<1>(); break;
+         case 2: AssembleDiffusion3D<2>(); break;
+         case 3: AssembleDiffusion3D<3>(); break;
+         case 4: AssembleDiffusion3D<4>(); break;
+         case 5: AssembleDiffusion3D<5>(); break;
+         case 6: AssembleDiffusion3D<6>(); break;
          default: MFEM_ABORT("No kernel.");
       }
    }

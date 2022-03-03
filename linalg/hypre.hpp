@@ -43,6 +43,19 @@
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
 
+// MFEM_HYPRE_FORALL is a macro similar to MFEM_FORALL, but it executes on the
+// device that hypre was configured with (no matter what device was selected
+// in MFEM's runtime configuration).
+#if defined(HYPRE_USING_CUDA)
+#define MFEM_HYPRE_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
+                                       (int i) {__VA_ARGS__})
+#elif defined(HYPRE_USING_HIP)
+#define MFEM_HYPRE_FORALL(i, N,...) HipWrap1D(N, [=] MFEM_DEVICE     \
+                                        (int i) {__VA_ARGS__})
+#else
+#define MFEM_HYPRE_FORALL(i, N,...) for (int i = 0; i < N; i++) { __VA_ARGS__ }
+#endif
+
 #include "sparsemat.hpp"
 #include "hypre_parcsr.hpp"
 
@@ -996,8 +1009,7 @@ public:
       ABORT_HYPRE_ERRORS   ///< Abort on hypre errors (default in base class)
    };
 
-   //protected:
-public:
+protected:
    /// The linear system matrix
    const HypreParMatrix *A;
 

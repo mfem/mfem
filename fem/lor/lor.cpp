@@ -15,6 +15,9 @@
 #include "../pbilinearform.hpp"
 #include "../../general/forall.hpp"
 
+#define MFEM_DEBUG_COLOR 226
+#include "../../general/debug.hpp"
+
 namespace mfem
 {
 
@@ -66,7 +69,10 @@ void LORBase::ResetIntegrationRules(GetIntegratorsFn get_integrators)
    Array<BilinearFormIntegrator*> *integrators = (a->*get_integrators)();
    for (int i=0; i<integrators->Size(); ++i)
    {
-      ((*integrators)[i])->SetIntegrationRule(*ir_map[(*integrators)[i]]);
+      BilinearFormIntegrator *bfi = (*integrators)[i];
+      const IntegrationRule *ir = ir_map[bfi];
+      if (!ir) { continue; }
+      bfi->SetIntegrationRule(*ir);
    }
 }
 
@@ -430,6 +436,8 @@ void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
                                        const Array<int> &ess_dofs)
 {
    delete a;
+#warning no batched
+
    if (BatchedLORAssembly::FormIsSupported(a_ho))
    {
       // Skip forming the space
@@ -439,6 +447,7 @@ void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
    }
    else
    {
+      dbg("Not batched");
       mfem::out << "Not batched.\n";
       // If the space is not formed already, it will be constructed lazily in
       // GetParFESpace

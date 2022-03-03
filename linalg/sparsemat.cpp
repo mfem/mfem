@@ -1497,7 +1497,7 @@ void SparseMatrix::Symmetrize()
 
 int SparseMatrix::NumNonZeroElems() const
 {
-   if (A != NULL)  // matrix is finalized
+   if (Finalized())
    {
       HostReadI();
       return I[height];

@@ -79,7 +79,7 @@ public:
     * @brief GatherMap
     * @return the mapping from L dofs to E dofs.
     */
-   const Array<int> &GatherMap() const { return gatherMap; }
+   const Array<int> &GatherMap() const { return gather_map; }
 
    /**
     * @brief Indices

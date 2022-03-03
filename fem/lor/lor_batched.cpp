@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,9 @@
 
 // Specializations
 #include "lor_diffusion.hpp"
+
+#define MFEM_DEBUG_COLOR 220
+#include "../../general/debug.hpp"
 
 namespace mfem
 {
@@ -126,6 +129,7 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
 
 bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
+   // TODO: check for maximum supported orders
    // We want to support the following configurations:
    // H1, ND, and RT spaces: M, A, M + K
    if (HasIntegrator<DiffusionIntegrator>(a)) { return true; }
@@ -145,7 +149,6 @@ SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
    const int nnz = R.FillI(*A);
    A->GetMemoryJ().New(nnz, A->GetMemoryJ().GetMemoryType());
    A->GetMemoryData().New(nnz, A->GetMemoryData().GetMemoryType());
-   R.FillJAndZeroData(*A); // J, A = 0.0
 
    // Get the LOR vertex coordinates
    const int order = fes_ho.GetMaxElementOrder();
@@ -161,8 +164,9 @@ SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
    }
 
    // Assemble the matrix, using kernels from the derived classes
-   AssemblyKernel(*A);
-   A->Finalize();
+   AssemblyKernel();
+   R.FillJAndData(*A, sparse_ij, sparse_mapping);
+
    return A;
 }
 
@@ -201,7 +205,8 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
    HYPRE_Int offd_ncols = hypre_CSRMatrixNumCols(offd);
 
    const int n_ess_dofs = ess_dofs.Size();
-   const auto ess_dofs_d = ess_dofs.Read();
+   const auto ess_dofs_d = ess_dofs.GetMemory().Read(
+                              GetHypreMemoryClass(), n_ess_dofs);
 
    // Start communication to figure out which columns need to be eliminated in
    // the off-diagonal block
@@ -258,7 +263,7 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
       const auto J = diag->j;
       auto data = diag->data;
 
-      MFEM_FORALL(i, n_ess_dofs,
+      MFEM_HYPRE_FORALL(i, n_ess_dofs,
       {
          const int idof = ess_dofs_d[i];
          for (int j=I[idof]; j<I[idof+1]; ++j)
@@ -289,7 +294,7 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
    {
       const auto I = offd->i;
       auto data = offd->data;
-      MFEM_FORALL(i, n_ess_dofs,
+      MFEM_HYPRE_FORALL(i, n_ess_dofs,
       {
          const int idof = ess_dofs_d[i];
          for (int j=I[idof]; j<I[idof+1]; ++j)
@@ -332,14 +337,15 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
    {
       const int ncols_to_eliminate = cols_to_eliminate.Size();
       const int nrows_offd = hypre_CSRMatrixNumRows(offd);
-      const auto cols = cols_to_eliminate.Read();
+      const auto cols = cols_to_eliminate.GetMemory().Read(
+                           GetHypreMemoryClass(), ncols_to_eliminate);
       const auto I = offd->i;
       const auto J = offd->j;
       auto data = offd->data;
       // Note: could also try a different strategy, looping over nnz in the
       // matrix and then doing a binary search in ncols_to_eliminate to see if
       // the column should be eliminated.
-      MFEM_FORALL(idx, ncols_to_eliminate,
+      MFEM_HYPRE_FORALL(idx, ncols_to_eliminate,
       {
          const int j = cols[idx];
          for (int i=0; i<nrows_offd; ++i)

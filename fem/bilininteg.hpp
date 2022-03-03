@@ -646,13 +646,13 @@ protected:
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
-                                  DenseMatrix & shape_)
-   { vector_fe.CalcVShape(Trans, shape_); }
+                                  DenseMatrix & shape)
+   { vector_fe.CalcVShape(Trans, shape); }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
-                                 Vector & shape_)
-   { scalar_fe.CalcPhysShape(Trans, shape_); }
+                                 Vector & shape)
+   { scalar_fe.CalcPhysShape(Trans, shape); }
 
    VectorCoefficient *VQ;
    bool transpose;
@@ -2062,6 +2062,8 @@ public:
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
 
    bool SupportsBatchedLOR() const { return true; }
+
+   Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -2121,6 +2123,8 @@ public:
                                          ElementTransformation &Trans);
 
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
@@ -2264,7 +2268,7 @@ public:
       : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(NULL), MQ(&q) { }
 
    int GetVDim() const { return vdim; }
-   void SetVDim(int vdim_) { vdim = vdim_; }
+   void SetVDim(int vdim) { this->vdim = vdim; }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,

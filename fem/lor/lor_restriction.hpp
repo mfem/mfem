@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,9 +43,12 @@ protected:
 public:
    LORRestriction(const FiniteElementSpace &fes_ho);
 
+   void Setup();
+
    int FillI(SparseMatrix &mat) const;
-   // TODO: Really should make a better version with Fill Data
-   void FillJAndZeroData(SparseMatrix &mat) const;
+
+   void FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
+                     const DenseMatrix &sparse_mapping) const;
 
    ~LORRestriction();
 };

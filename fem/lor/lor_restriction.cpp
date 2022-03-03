@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,6 +53,11 @@ LORRestriction::LORRestriction(const FiniteElementSpace &fes_ho)
      offsets(ndofs+1),
      indices(ne*lo_dof_per_el),
      gatherMap(ne*lo_dof_per_el)
+{
+   Setup();
+}
+
+void LORRestriction::Setup()
 {
    const Array<int> &fe_dof_map = GetDofMap(fec_lo->GetFE(geom, 1));
    const Array<int> &fe_dof_map_ho = GetDofMap(fes_ho.GetFE(0));
@@ -222,72 +227,128 @@ int LORRestriction::FillI(SparseMatrix &mat) const
    return h_I[nTdofs];
 }
 
-void LORRestriction::FillJAndZeroData(SparseMatrix &mat) const
+/** Returns the index where a non-zero entry should be added and increment the
+    number of non-zeros for the row i_L. */
+static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
 {
-   static constexpr int Max = 8;
-   const int all_dofs = ndofs;
-   const int vd = vdim;
-   const int elt_dofs = lo_dof_per_el;
-   auto I = mat.ReadWriteI();
-   auto J = mat.WriteJ();
-   auto Data = mat.WriteData();
-   const int NE = ne;
-   auto d_offsets = offsets.Read();
-   auto d_indices = indices.Read();
-   auto d_gatherMap = gatherMap.Read();
+   int ind = AtomicAdd(I[i_L],1);
+   return ind;
+}
 
-   MFEM_FORALL(e, NE,
+void LORRestriction::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
+                                  const DenseMatrix &sparse_mapping) const
+{
+   const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
+   const int nel_ho = fes_ho.GetNE();
+   const int nnz_per_row = sparse_mapping.Height();
+
+   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const Operator *op = fes_ho.GetElementRestriction(ordering);
+   const ElementRestriction *el_restr =
+      dynamic_cast<const ElementRestriction*>(op);
+   MFEM_VERIFY(el_restr != nullptr, "");
+
+   const Array<int> &el_dof_lex_ = el_restr->GatherMap();
+   const Array<int> &dof_glob2loc_ = el_restr->Indices();
+   const Array<int> &dof_glob2loc_offsets_ = el_restr->Offsets();
+
+   const auto el_dof_lex = Reshape(el_dof_lex_.Read(), ndof_per_el, nel_ho);
+   const auto dof_glob2loc = dof_glob2loc_.Read();
+   const auto K = dof_glob2loc_offsets_.Read();
+
+   const auto V = Reshape(sparse_ij.Read(), nnz_per_row, ndof_per_el, nel_ho);
+   const auto map = Reshape(sparse_mapping.Read(), nnz_per_row, ndof_per_el);
+
+   const auto I = A.ReadWriteI();
+   const auto J = A.ReadWriteJ();
+   auto AV = A.ReadWriteData();
+
+   static constexpr int Max = 16;
+
+   MFEM_FORALL(iel_ho, nel_ho,
    {
-      for (int i = 0; i < elt_dofs; i++)
+      for (int ii_el = 0; ii_el < ndof_per_el; ++ii_el)
       {
+         // LDOF index of current row
+         const int ii = el_dof_lex(ii_el, iel_ho);
+         // Get number and list of elements containing this DOF
          int i_elts[Max];
-         const int i_E = e*elt_dofs + i;
-         const int i_L = d_gatherMap[i_E];
-         const int i_offset = d_offsets[i_L];
-         const int i_nextOffset = d_offsets[i_L+1];
-         const int i_nbElts = i_nextOffset - i_offset;
-         for (int e_i = 0; e_i < i_nbElts; ++e_i)
+         int i_B[Max];
+         const int i_offset = K[ii];
+         const int i_next_offset = K[ii+1];
+         const int i_ne = i_next_offset - i_offset;
+         for (int e_i = 0; e_i < i_ne; ++e_i)
          {
-            const int i_E = d_indices[i_offset+e_i];
-            i_elts[e_i] = i_E/elt_dofs;
+            const int i_E = dof_glob2loc[i_offset+e_i];
+            i_elts[e_i] = i_E/ndof_per_el;
+            i_B[e_i] = i_E%ndof_per_el;
          }
-         for (int j = 0; j < elt_dofs; j++)
+         for (int j=0; j<nnz_per_row; ++j)
          {
-            const int j_E = e*elt_dofs + j;
-            const int j_L = d_gatherMap[j_E];
-            const int j_offset = d_offsets[j_L];
-            const int j_nextOffset = d_offsets[j_L+1];
-            const int j_nbElts = j_nextOffset - j_offset;
-            if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
+            int jj_el = map(j, ii_el);
+            if (jj_el < 0) { continue; }
+            // LDOF index of column
+            int jj = el_dof_lex(jj_el, iel_ho);
+            const int j_offset = K[jj];
+            const int j_next_offset = K[jj+1];
+            const int j_ne = j_next_offset - j_offset;
+            if (i_ne == 1 || j_ne == 1) // no assembly required
             {
-               const int nnz = AtomicAdd(I[i_L],1);
-               J[nnz] = j_L;
-               Data[nnz] = 0.0;
+               const int nnz = GetAndIncrementNnzIndex(ii, I);
+               J[nnz] = jj;
+               AV[nnz] = V(j, ii_el, iel_ho);
             }
             else // assembly required
             {
                int j_elts[Max];
-               for (int e_j = 0; e_j < j_nbElts; ++e_j)
+               int j_B[Max];
+               for (int e_j = 0; e_j < j_ne; ++e_j)
                {
-                  const int j_E = d_indices[j_offset+e_j];
-                  const int elt = j_E/elt_dofs;
-                  j_elts[e_j] = elt;
+                  const int j_E = dof_glob2loc[j_offset+e_j];
+                  j_elts[e_j] = j_E/ndof_per_el;
+                  j_B[e_j] = j_E%ndof_per_el;
                }
-               const int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
-               if (e == min_e) // add the nnz only once
+               const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
+               if (iel_ho == min_e) // add the nnz only once
                {
-                  const int nnz = AtomicAdd(I[i_L],1);
-                  J[nnz] = j_L;
-                  Data[nnz] = 0.0;
+                  double val = 0.0;
+                  for (int k = 0; k < i_ne; k++)
+                  {
+                     const int iel_ho_2 = i_elts[k];
+                     const int ii_el_2 = i_B[k];
+                     for (int l = 0; l < j_ne; l++)
+                     {
+                        const int jel_ho_2 = j_elts[l];
+                        if (iel_ho_2 == jel_ho_2)
+                        {
+                           const int jj_el_2 = j_B[l];
+                           int j2 = -1;
+                           for (int m = 0; m < nnz_per_row; ++m)
+                           {
+                              if (map(m, ii_el_2) == jj_el_2)
+                              {
+                                 j2 = m;
+                                 break;
+                              }
+                           }
+                           MFEM_ASSERT_KERNEL(j >= 0, "");
+                           val += V(j2, ii_el_2, iel_ho_2);
+                        }
+                     }
+                  }
+                  const int nnz = GetAndIncrementNnzIndex(ii, I);
+                  J[nnz] = jj;
+                  AV[nnz] = val;
                }
             }
          }
       }
    });
+
    // We need to shift again the entries of I, we do it on CPU as it is very
    // sequential.
-   auto h_I = mat.HostReadWriteI();
-   const int size = vd*all_dofs;
+   auto h_I = A.HostReadWriteI();
+   const int size = fes_ho.GetVSize();
    for (int i = 0; i < size; i++) { h_I[size-i] = h_I[size-(i+1)]; }
    h_I[0] = 0;
 }

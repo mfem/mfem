@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,40 +9,40 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include <cmath>
+#include <cassert>
+
 #include "bench.hpp"
 
 #ifdef MFEM_USE_BENCHMARK
 
-#include "fem/lor.hpp"
-#include "fem/lor_assembly.hpp"
+#include "fem/lor/lor.hpp"
 
 #define MFEM_DEBUG_COLOR 119
 #include "general/debug.hpp"
 
-#include <cassert>
-#include <cmath>
-
-constexpr int SEED = 0x100001b3;
 
 struct LORBench
 {
+   static constexpr double EPS = 1e-14;
+   static constexpr int RANDOM_SEED = 0x100001b3;
    const int p, c, q, n, nx, ny, nz, dim = 3;
    const bool check_x, check_y, check_z, checked;
    Mesh mesh;
    H1_FECollection fec;
-   FiniteElementSpace mfes, fes_ho;
-   Array<int> ess_bdr_ho, ess_dofs_ho;
-   LORDiscretization lor_disc;
+   FiniteElementSpace fes_mesh, fes_ho;
+   Array<int> ess_tdofs_ho;
+   LORDiscretization lor;
    IntegrationRules irs;
-   const IntegrationRule &ir_el;
-   FiniteElementSpace &fes_lo;
-   Array<int> ess_bdr_lo, ess_dofs_lo;
-   BilinearForm a_legacy, a_full;
-   OperatorHandle A_batched, A_deviced;
-   SparseMatrix *A_full;
-   GridFunction x;
-   const int dofs;
+   const IntegrationRule *ir;
+   FiniteElementSpace &fes_lor;
+   ConstantCoefficient diff_coeff, mass_coeff;
+   BilinearForm a_ho, a_lor_legacy, a_lor_full;
+   OperatorHandle A_lor_legacy, A_lor_full;
+   GridFunction mesh_coords;
+   const int nvdofs;
    double mdof;
+   Vector x, y;
 
    LORBench(int p, int side):
       p(p),
@@ -58,125 +58,119 @@ struct LORBench
       checked((assert(check_x && check_y && check_z), true)),
       mesh(Mesh::MakeCartesian3D(nx,ny,nz, Element::HEXAHEDRON)),
       fec(p, dim, BasisType::GaussLobatto),
-      mfes(&mesh, &fec, dim),
+      fes_mesh(&mesh, &fec, dim),
       fes_ho(&mesh, &fec),
-      ess_bdr_ho(mesh.bdr_attributes.Max()),
-      lor_disc(fes_ho, BasisType::GaussLobatto),
+      lor(fes_ho, BasisType::GaussLobatto),
       irs(0, Quadrature1D::GaussLobatto),
-      ir_el(irs.Get(Geometry::Type::CUBE, 1)),
-      fes_lo(lor_disc.GetFESpace()),
-      ess_bdr_lo(fes_lo.GetMesh()->bdr_attributes.Max()),
-      a_legacy(&fes_lo),
-      a_full(&fes_lo),
-      A_deviced(),
-      A_full(nullptr),
-      x(&mfes),
-      dofs(fes_ho.GetVSize()),
-      mdof(0.0)
+      ir(&irs.Get(mesh.GetElementGeometry(0), 1)),
+      fes_lor(lor.GetFESpace()),
+      diff_coeff(M_PI),
+      mass_coeff(1.0/M_PI),
+      a_ho(&fes_ho),
+      a_lor_legacy(&fes_lor),
+      a_lor_full(&fes_lor),
+      A_lor_legacy(),
+      A_lor_full(),
+      mesh_coords(&fes_mesh),
+      nvdofs(fes_ho.GetVSize()),
+      mdof(0.0),
+      x(nvdofs),
+      y(nvdofs)
    {
-      dbg("p:%d side:%d dofs:%d/%d",p,side,dofs, fes_lo.GetVSize());
-      a_legacy.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
-      a_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
+      dbg("p:%d side:%d nvdofs:%d/%d", p, side, nvdofs, fes_lor.GetVSize());
+      a_ho.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
+      a_ho.AddDomainIntegrator(new MassIntegrator(mass_coeff));
+      fes_ho.GetBoundaryTrueDofs(ess_tdofs_ho);
 
-      a_full.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
-      a_full.SetAssemblyLevel(AssemblyLevel::FULL);
+      a_lor_legacy.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
+      a_lor_legacy.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
+      a_lor_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
+
+      a_lor_full.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
+      a_lor_full.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
+      a_lor_full.SetAssemblyLevel(AssemblyLevel::FULL);
 
       SetupRandomMesh();
-      // Make sure that SetCurvature is called on the LOR mesh
-      fes_lo.GetMesh()->EnsureNodes();
 
-      ess_bdr_ho = 1;
-      fes_ho.GetEssentialTrueDofs(ess_bdr_ho, ess_dofs_ho);
-
-      ess_bdr_lo = 1;
-      fes_lo.GetEssentialTrueDofs(ess_bdr_lo, ess_dofs_lo);
+      x.Randomize(RANDOM_SEED);
+      y.Randomize(RANDOM_SEED);
 
       tic_toc.Clear();
    }
 
    void SetupRandomMesh() noexcept
    {
-      mesh.SetNodalFESpace(&mfes);
-      mesh.SetNodalGridFunction(&x);
+      mesh.SetNodalFESpace(&fes_mesh);
+      mesh.SetNodalGridFunction(&mesh_coords);
       const double jitter = 1./(M_PI*M_PI);
       const double h0 = mesh.GetElementSize(0);
-      GridFunction rdm(&mfes);
-      rdm.Randomize(SEED);
+      GridFunction rdm(&fes_mesh);
+      rdm.Randomize(RANDOM_SEED);
       rdm -= 0.5; // Shift to random values in [-0.5,0.5]
       rdm *= jitter * h0; // Scale the random values to be of same order
-      x -= rdm;
+      mesh_coords -= rdm;
    }
 
    void SanityChecks()
    {
       dbg();
-      constexpr double EPS = 1e-15;
-
-      Vector x(dofs), y(dofs);
-      x.Randomize(SEED);
-      y.Randomize(SEED);
-
-      OperatorHandle A_legacy, A_full, A_deviced;
-
-      BilinearForm a_legacy(&fes_lo);
-      a_legacy.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
-      a_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
+      a_lor_legacy = 0.0;
       MFEM_DEVICE_SYNC;
       tic();
-      a_legacy.Assemble();
+      a_lor_legacy.Assemble();
+      a_lor_legacy.EliminateVDofs(ess_tdofs_ho, Operator::DIAG_KEEP);
       MFEM_DEVICE_SYNC;
-      dbg(" Legacy time = %f",toc());
-      a_legacy.FormSystemMatrix(ess_dofs_lo, A_legacy);
-      a_legacy.Finalize();
-      A_legacy.As<SparseMatrix>()->HostReadWriteI();
-      A_legacy.As<SparseMatrix>()->HostReadWriteJ();
-      A_legacy.As<SparseMatrix>()->HostReadWriteData();
-      const double dot_legacy = A_legacy.As<SparseMatrix>()->InnerProduct(x,y);
+      dbg(" Legacy time = %f", toc());
+      SparseMatrix &A_lor_legacy_sp = a_lor_legacy.SpMat();
+      A_lor_legacy_sp.HostReadWriteI();
+      A_lor_legacy_sp.HostReadWriteJ();
+      A_lor_legacy_sp.HostReadWriteData();
+      const double dot_legacy = A_lor_legacy_sp.InnerProduct(x,y);
+      dbg("dot_legacy:%.15e", dot_legacy);
 
       MFEM_DEVICE_SYNC;
       tic();
-      a_full.Assemble();
+      a_lor_full.Assemble();
+      a_lor_full.EliminateVDofs(ess_tdofs_ho, Operator::DIAG_KEEP);
       MFEM_DEVICE_SYNC;
-      dbg("   Full time = %f",toc());
-      a_full.FormSystemMatrix(ess_dofs_lo, A_full); /// BC NOT DONE !!!
-      constexpr bool still_have_to_remove_the_bc = true;
-      if (still_have_to_remove_the_bc)
-      {
-         a_full.EliminateVDofs(ess_dofs_lo, Operator::DIAG_KEEP);
-         a_full.Finalize();
-      }
-      a_full.SpMat().HostReadWriteI();
-      a_full.SpMat().HostReadWriteJ();
-      a_full.SpMat().HostReadWriteData();
-      const double dot_full = a_full.SpMat().InnerProduct(x,y);
+      dbg("   Full time = %f", toc());
+      SparseMatrix &A_lor_full_sp = a_lor_full.SpMat();
+      A_lor_full_sp.HostReadWriteI();
+      A_lor_full_sp.HostReadWriteJ();
+      A_lor_full_sp.HostReadWriteData();
+      const double dot_full = A_lor_full_sp.InnerProduct(x,y);
+      dbg("dot_full:%.15e",dot_full);
       MFEM_VERIFY(almost_equal(dot_legacy, dot_full), "dot_full error!");
-      a_full.SpMat().Add(-1.0, *A_legacy.As<SparseMatrix>());
-      const double max_norm_full = a_full.SpMat().MaxNorm();
+      A_lor_full_sp.Add(-1.0, A_lor_legacy_sp);
+      const double max_norm_full = a_lor_full.SpMat().MaxNorm();
       MFEM_VERIFY(max_norm_full < EPS, "max_norm_full error!");
 
       MFEM_DEVICE_SYNC;
       tic();
-      AssembleBatchedLOR(lor_disc, a_legacy, fes_ho, ess_dofs_lo, A_deviced);
+      lor.AssembleSystem(a_ho, ess_tdofs_ho);
       MFEM_DEVICE_SYNC;
-      dbg("Deviced time = %f",toc());
-      A_deviced.As<SparseMatrix>()->HostReadWriteI();
-      A_deviced.As<SparseMatrix>()->HostReadWriteJ();
-      A_deviced.As<SparseMatrix>()->HostReadWriteData();
-      const double dot_device = A_deviced.As<SparseMatrix>()->InnerProduct(x,y);
-      MFEM_VERIFY(almost_equal(dot_legacy, dot_device), "dot_device error!");
-      A_deviced.As<SparseMatrix>()->Add(-1.0, *A_legacy.As<SparseMatrix>());
-      const double max_norm_deviced = A_deviced.As<SparseMatrix>()->MaxNorm();
-      MFEM_VERIFY(max_norm_deviced < EPS, "max_norm_deviced");
+      dbg("Batched time = %f", toc());
+      SparseMatrix &A_lor_batched_sp = lor.GetAssembledMatrix();
+      A_lor_batched_sp.HostReadWriteI();
+      A_lor_batched_sp.HostReadWriteJ();
+      A_lor_batched_sp.HostReadWriteData();
+      const double dot_batched = A_lor_batched_sp.InnerProduct(x,y);
+      dbg("dot_batched:%.15e",dot_batched);
+      MFEM_VERIFY(almost_equal(dot_legacy, dot_batched), "dot_batched error!");
+      A_lor_batched_sp.Add(-1.0, A_lor_legacy_sp);
+      const double max_norm_batched = A_lor_batched_sp.MaxNorm();
+      dbg("max_norm_batched:%.15e",max_norm_batched);
+      MFEM_VERIFY(max_norm_batched < EPS, "max_norm_batched");
    }
 
-   void GLVis(Mesh &mesh, GridFunction *x = nullptr)
+   void GLVis(Mesh &gl_mesh, GridFunction *gl_x = nullptr)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      if (!x) { sol_sock << "mesh\n" << mesh; }
-      else { sol_sock << "solution\n" << mesh << *x ;}
+      if (!gl_x) { sol_sock << "mesh\n" << gl_mesh; }
+      else { sol_sock << "solution\n" << gl_mesh << *gl_x ;}
       sol_sock << std::flush;
    }
 
@@ -184,49 +178,45 @@ struct LORBench
    {
       MFEM_DEVICE_SYNC;
       tic();
-      AssembleBatchedLOR(lor_disc, a_legacy, fes_ho, ess_dofs_lo, A_deviced);
+      lor.AssembleSystem(a_ho, ess_tdofs_ho);
       MFEM_DEVICE_SYNC;
       dbg(" Deviced time = %f",toc());
-      A_deviced.Clear(); // forcing initialization phase
       dbg("Exiting!");
       std::exit(0);
    }
 
    void Dump()
    {
-      OperatorHandle A_legacy;
-
-      MFEM_DEVICE_SYNC;
-      a_legacy.Assemble();
-      MFEM_DEVICE_SYNC;
-      a_legacy.FormSystemMatrix(ess_dofs_lo, A_legacy);
-      a_legacy.Finalize();
-      A_legacy.As<SparseMatrix>()->HostReadWriteI();
-      A_legacy.As<SparseMatrix>()->HostReadWriteJ();
-      A_legacy.As<SparseMatrix>()->HostReadWriteData();
+      a_lor_legacy.Assemble();
+      a_lor_legacy.FormSystemMatrix(ess_tdofs_ho, A_lor_legacy);
+      a_lor_legacy.Finalize();
+      SparseMatrix &A_lor_legacy_sp = *A_lor_legacy.As<SparseMatrix>();
+      A_lor_legacy_sp.HostReadWriteI();
+      A_lor_legacy_sp.HostReadWriteJ();
+      A_lor_legacy_sp.HostReadWriteData();
 
       dbg("Saving 'A.mtx' file");
       {
          std::ofstream mtx_file("A.mtx");
-         A_legacy.As<SparseMatrix>()->PrintMM(mtx_file);
+         A_lor_legacy_sp.PrintMM(mtx_file);
       }
 
-      dbg("fes_lo.GetVSize: %d", fes_lo.GetVSize());
-      Mesh *mesh_lo =fes_lo.GetMesh();
-      GridFunction ids_lo(&fes_lo);
-      Array<int> dofs(fes_lo.GetVSize());
-      fes_lo.GetVDofs(0,dofs);
-      assert(fes_lo.GetVDim()==1);
-      for (int i=0; i<fes_lo.GetVSize(); i++) { ids_lo(i) = dofs[i]; }
-      GLVis(*mesh_lo, &ids_lo);
+      dbg("fes_lo.GetVSize: %d", fes_lor.GetVSize());
+      Mesh *mesh_lor =fes_lor.GetMesh();
+      GridFunction ids_lor(&fes_lor);
+      Array<int> vdofs_lor(fes_lor.GetVSize());
+      fes_lor.GetVDofs(0, vdofs_lor);
+      assert(fes_lor.GetVDim()==1);
+      for (int i=0; i<fes_lor.GetVSize(); i++) { ids_lor(i) = vdofs_lor[i]; }
+      GLVis(*mesh_lor, &ids_lor);
       dbg("LO GLVis done!");
 
       dbg("fes_ho.GetVSize: %d", fes_ho.GetVSize());
       GridFunction ids(&fes_ho);
-      Array<int> vdofs(fes_ho.GetVSize());
-      fes_ho.GetVDofs(0, vdofs);
+      Array<int> vdofs_ho(fes_ho.GetVSize());
+      fes_ho.GetVDofs(0, vdofs_ho);
       assert(fes_ho.GetVDim()==1);
-      for (int i=0; i<fes_ho.GetVSize(); i++) { ids(i) = vdofs[i]; }
+      for (int i=0; i<fes_ho.GetVSize(); i++) { ids(i) = vdofs_ho[i]; }
       GLVis(mesh, &ids);
       dbg("HO GLVis done!");
 
@@ -236,63 +226,64 @@ struct LORBench
 
    void KerLegacy()
    {
+      dbg();
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      a_legacy.Assemble();
+      a_lor_legacy.Assemble();
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
-      mdof += 1e-6 * dofs;
+      mdof += 1e-6 * nvdofs;
    }
 
    void KerFull()
    {
+      dbg();
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      a_full.Assemble();
+      a_lor_full.Assemble();
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
-      mdof += 1e-6 * dofs;
+      mdof += 1e-6 * nvdofs;
    }
 
-   void KerDeviced()
+   void KerBatched()
    {
+      dbg();
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      AssembleBatchedLOR(lor_disc, a_legacy, fes_ho, ess_dofs_lo, A_deviced);
+      lor.AssembleSystem(a_ho, ess_tdofs_ho);
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
-      mdof += 1e-6 * dofs;
+      mdof += 1e-6 * nvdofs;
    }
 
    void AllFull()
    {
-      LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
-      FiniteElementSpace fes_lo(lor_disc.GetFESpace());
-      BilinearForm bf_full(&fes_lo);
-      bf_full.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
+      dbg();
+      BilinearForm bf_full(&fes_lor);
+      bf_full.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
+      bf_full.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
       bf_full.SetAssemblyLevel(AssemblyLevel::FULL);
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
       bf_full.Assemble();
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
-      mdof += 1e-6 * dofs;
+      mdof += 1e-6 * nvdofs;
    }
 
-   void AllDeviced()
+   void AllBatched()
    {
-      LORDiscretization lor_disc(fes_ho, BasisType::GaussLobatto);
-      FiniteElementSpace fes_lo(lor_disc.GetFESpace());
-      BilinearForm a_legacy(&fes_lo);
-      a_legacy.AddDomainIntegrator(new DiffusionIntegrator(&ir_el));
-      a_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
+      dbg();
+      BilinearForm bf_batched(&fes_ho);
+      bf_batched.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
+      bf_batched.AddDomainIntegrator(new MassIntegrator(mass_coeff));
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      OperatorHandle A_deviced;
-      AssembleBatchedLOR(lor_disc, a_legacy, fes_ho, ess_dofs_lo, A_deviced);
+      lor.AssembleSystem(bf_batched, ess_tdofs_ho);
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
-      mdof += 1e-6 * dofs;
+      mdof += 1e-6 * nvdofs;
    }
 
    double Mdofs() const { return mdof / tic_toc.RealTime(); }
@@ -302,7 +293,7 @@ struct LORBench
 #define P_ORDERS bm::CreateDenseRange(1,8,1)
 
 // The different sides of the mesh
-#define N_SIDES bm::CreateDenseRange(2,20,1)
+#define N_SIDES bm::CreateDenseRange(4,20,1)
 #define MAX_NDOFS 2*1024*1024
 
 /// Kernels definitions and registrations
@@ -311,33 +302,34 @@ static void Name(bm::State &state){\
    const int p = state.range(0);\
    const int side = state.range(1);\
    LORBench lor(p, side);\
-   if (lor.dofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
+   if (lor.nvdofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
    while (state.KeepRunning()) { lor.Name(); }\
    bm::Counter::Flags flags = bm::Counter::kIsIterationInvariantRate;\
-   state.counters["Ker_(Dofs/s)"] = bm::Counter(lor.dofs, flags);\
+   state.counters["Ker_(Dofs/s)"] = bm::Counter(lor.nvdofs, flags);\
    state.counters["All_(MDof/s)"] = bm::Counter(lor.Mdofs());\
-   state.counters["dofs"] = bm::Counter(lor.dofs);\
+   state.counters["dofs"] = bm::Counter(lor.nvdofs);\
    state.counters["p"] = bm::Counter(p);\
 }\
 BENCHMARK(Name)\
             -> ArgsProduct({P_ORDERS,N_SIDES})\
-            -> Unit(bm::kMillisecond);
+            -> Unit(bm::kMillisecond)\
+            ->Iterations(4);
 
 Benchmark(SanityChecks)
 
 Benchmark(KerLegacy)
 Benchmark(KerFull)
-Benchmark(KerDeviced)
+Benchmark(KerBatched)
 
 Benchmark(AllFull)
-Benchmark(AllDeviced)
+Benchmark(AllBatched)
 
 Benchmark(Dump)
 Benchmark(Test)
 
 /**
  * @brief main entry point
- * --benchmark_filter=Batched/4/16
+ * --benchmark_filter=SanityChecks/4/16
  * --benchmark_filter=\(Batched\|Deviced\|Full\)/4/16
  * --benchmark_context=device=cuda
  */

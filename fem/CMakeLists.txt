@@ -81,10 +81,6 @@ set(SRCS
   lininteg_domain_grad.cpp
   lininteg_vector_domain.cpp
   lininteg_vector_domain_grad.cpp
-  lor.cpp
-  lor_assembly.cpp
-  lor_assembly_ker.cpp
-  lor_assembly_ni3.cpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
@@ -134,7 +130,6 @@ set(SRCS
   tmop_amr.cpp
   gslib.cpp
   transfer.cpp
-  lor.cpp
   )
 
 set(HDRS
@@ -181,8 +176,6 @@ set(HDRS
   lininteg.hpp
   lininteg_domain.hpp
   lininteg_domain_grad.hpp
-  lor.hpp
-  lor_assembly.hpp
   multigrid.hpp
   nonlinearform.hpp
   nonlinearform_ext.hpp

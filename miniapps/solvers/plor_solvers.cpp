@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -85,7 +85,6 @@ int main(int argc, char *argv[])
    const char *fe = "h";
    const char *device_config = "cpu";
    bool visualization = false;
-   bool compute_L2_error = false;
    int config_dev_modulo = 4;
 
    OptionsParser args(argc, argv);
@@ -99,9 +98,6 @@ int main(int argc, char *argv[])
                   "FE type. h for H1, n for Hcurl, r for Hdiv, l for L2");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
-                  "Enable or disable GLVis visualization.");
-   args.AddOption(&compute_L2_error, "-l2", "--compute-L2-error", "-no-l2",
-                  "--no-compute-L2-error",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
@@ -121,7 +117,6 @@ int main(int argc, char *argv[])
    else if (string(fe) == "r") { RT = true; }
    else if (string(fe) == "l") { L2 = true; }
    else { MFEM_ABORT("Bad FE type. Must be 'h', 'n', 'r', or 'l'."); }
-   assert(H1);
 
    if (RT) { grad_div_problem = true; }
    double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
@@ -160,8 +155,7 @@ int main(int argc, char *argv[])
    ParBilinearForm a(&fes);
    if (H1 || L2)
    {
-#warning no MassIntegrator
-      //a.AddDomainIntegrator(new MassIntegrator);
+      a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator);
    }
    else
@@ -213,12 +207,10 @@ int main(int argc, char *argv[])
    }
    else if (RT && dim == 3)
    {
-      assert(false);
       solv_lor.reset(new LORSolver<HypreADS>(lor, &fes_lor));
    }
    else
    {
-      assert(false);
       solv_lor.reset(new LORSolver<HypreAMS>(lor, &fes_lor));
    }
 
@@ -236,12 +228,9 @@ int main(int argc, char *argv[])
 
    a.RecoverFEMSolution(X, b, x);
 
-   if (compute_L2_error)
-   {
-      double er =
-         (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
-      if (mpi.Root()) { cout << "L2 error: " << er << endl; }
-   }
+   double er =
+      (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
+   if (mpi.Root()) { cout << "L2 error: " << er << endl; }
 
    if (visualization)
    {
@@ -259,16 +248,6 @@ int main(int argc, char *argv[])
       dc.SetCycle(0);
       dc.SetTime(0.0);
       dc.Save();
-   }
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << flush;
    }
 
    return 0;
