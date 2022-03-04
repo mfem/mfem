@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-class BatchedLORNedelec : public BatchedLORAssembly
+class BatchedLOR_ND : public BatchedLORAssembly
 {
 protected:
    double mass_coeff, curl_curl_coeff;
@@ -25,9 +25,9 @@ public:
    template <int ORDER> void Assemble2D();
    template <int ORDER> void Assemble3D();
    void AssemblyKernel() override;
-   BatchedLORNedelec(BilinearForm &a_,
-                     FiniteElementSpace &fes_ho_,
-                     const Array<int> &ess_dofs_);
+   BatchedLOR_ND(BilinearForm &a_,
+                 FiniteElementSpace &fes_ho_,
+                 const Array<int> &ess_dofs_);
 };
 
 }

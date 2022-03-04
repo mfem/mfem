@@ -17,7 +17,7 @@ namespace mfem
 {
 
 template <int ORDER>
-void BatchedLORDiffusion::Assemble2D()
+void BatchedLOR_H1::Assemble2D()
 {
    const int nel_ho = fes_ho.GetNE();
 
@@ -219,7 +219,7 @@ void BatchedLORDiffusion::Assemble2D()
 }
 
 template <int ORDER>
-void BatchedLORDiffusion::Assemble3D()
+void BatchedLOR_H1::Assemble3D()
 {
    const int nel_ho = fes_ho.GetNE();
 
@@ -615,7 +615,7 @@ void BatchedLORDiffusion::Assemble3D()
    }
 }
 
-void BatchedLORDiffusion::AssemblyKernel()
+void BatchedLOR_H1::AssemblyKernel()
 {
    Mesh &mesh_ho = *fes_ho.GetMesh();
    const int dim = mesh_ho.Dimension();
@@ -649,9 +649,9 @@ void BatchedLORDiffusion::AssemblyKernel()
    }
 }
 
-BatchedLORDiffusion::BatchedLORDiffusion(BilinearForm &a,
-                                         FiniteElementSpace &fes_ho_,
-                                         const Array<int> &ess_dofs_)
+BatchedLOR_H1::BatchedLOR_H1(BilinearForm &a,
+                             FiniteElementSpace &fes_ho_,
+                             const Array<int> &ess_dofs_)
    : BatchedLORAssembly(a, fes_ho_, ess_dofs_)
 {
    MassIntegrator *mass = GetIntegrator<MassIntegrator>(a);
