@@ -515,7 +515,6 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
       // B^H G^-1 B
       ComplexDenseMatrix * A = mfem::MultAtB(B,*GinvB);
 
-
       Vector Ginvl(G.Height());
       // G^-1 l
       invG->Mult(vec,Ginvl);
@@ -529,7 +528,6 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
       double * bdata = b.GetData();
       b_r.SetDataAndSize(bdata, b.Size()/2);
       b_i.SetDataAndSize(&bdata[b.Size()/2], b.Size()/2);
-
 
       if (static_cond)
       {
@@ -733,7 +731,7 @@ void ComplexNormalEquations::FormSystemMatrix(const Array<int>
 
 void ComplexNormalEquations::EliminateVDofsInRHS(
    const Array<int> &vdofs, const Vector &x_r, const Vector & x_i,
-   Vector &b_r, Vector b_i)
+   Vector &b_r, Vector & b_i)
 {
    mat_e_r->AddMult(x_r,b_r,-1.);
    mat_e_i->AddMult(x_i,b_r,1.);
@@ -742,7 +740,6 @@ void ComplexNormalEquations::EliminateVDofsInRHS(
 
    mat_r->PartMult(vdofs,x_r,b_r);
    mat_i->PartAddMult(vdofs,x_i,b_r,-1.);
-
    mat_r->PartMult(vdofs,x_i,b_i);
    mat_i->PartAddMult(vdofs,x_r,b_i);
 }

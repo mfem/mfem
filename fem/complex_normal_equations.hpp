@@ -248,7 +248,7 @@ public:
 
    void EliminateVDofsInRHS(const Array<int> &vdofs,
                             const Vector &x_r, const Vector & x_i,
-                            Vector &b_r, Vector b_i);
+                            Vector &b_r, Vector & b_i);
 
    virtual void RecoverFEMSolution(const Vector &X,Vector &x);
 
