@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -167,9 +167,9 @@ TEST_CASE("DG SumIntegrator", "[SumIntegrator][PartialAssembly]")
    integ2.AssemblePAInteriorFaces(fes);
    integ_sum.AssemblePAInteriorFaces(fes);
 
-   const Operator *R_int = fes.GetFaceRestriction(
-                              ElementDofOrdering::LEXICOGRAPHIC,
-                              FaceType::Interior);
+   const FaceRestriction *R_int = fes.GetFaceRestriction(
+                                     ElementDofOrdering::LEXICOGRAPHIC,
+                                     FaceType::Interior);
 
    int n_int = R_int->Height();
    Vector x(n_int), y1(n_int), y2(n_int);
@@ -198,10 +198,10 @@ TEST_CASE("DG SumIntegrator", "[SumIntegrator][PartialAssembly]")
    integ2.AssemblePABoundaryFaces(fes);
    integ_sum.AssemblePABoundaryFaces(fes);
 
-   const Operator *R_bdr = fes.GetFaceRestriction(
-                              ElementDofOrdering::LEXICOGRAPHIC,
-                              FaceType::Boundary,
-                              L2FaceValues::DoubleValued);
+   const FaceRestriction *R_bdr = fes.GetFaceRestriction(
+                                     ElementDofOrdering::LEXICOGRAPHIC,
+                                     FaceType::Boundary,
+                                     L2FaceValues::DoubleValued);
 
    int n_bdr = R_bdr->Height();
    x.SetSize(n_bdr);

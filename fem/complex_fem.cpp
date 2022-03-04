@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -196,6 +196,15 @@ ComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 }
 
 void
+ComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+                                       LinearFormIntegrator *lfi_imag,
+                                       Array<int> &elem_attr_marker)
+{
+   if ( lfi_real ) { lfr->AddDomainIntegrator(lfi_real, elem_attr_marker); }
+   if ( lfi_imag ) { lfi->AddDomainIntegrator(lfi_imag, elem_attr_marker); }
+}
+
+void
 ComplexLinearForm::AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
                                          LinearFormIntegrator *lfi_imag)
 {
@@ -315,6 +324,14 @@ void SesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
 {
    if (bfi_real) { blfr->AddDomainIntegrator(bfi_real); }
    if (bfi_imag) { blfi->AddDomainIntegrator(bfi_imag); }
+}
+
+void SesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                                           BilinearFormIntegrator *bfi_imag,
+                                           Array<int> & elem_marker)
+{
+   if (bfi_real) { blfr->AddDomainIntegrator(bfi_real, elem_marker); }
+   if (bfi_imag) { blfi->AddDomainIntegrator(bfi_imag, elem_marker); }
 }
 
 void
@@ -824,10 +841,10 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    plfi = new ParLinearForm();
    plfi->MakeRef(pfes, *this, pfes->GetVSize());
 
-   HYPRE_Int *tdof_offsets_fes = pfes->GetTrueDofOffsets();
+   HYPRE_BigInt *tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
-   tdof_offsets = new HYPRE_Int[n+1];
+   tdof_offsets = new HYPRE_BigInt[n+1];
 
    for (int i = 0; i <= n; i++)
    {
@@ -853,10 +870,10 @@ ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
    plfr->MakeRef(pfes, *this, 0);
    plfi->MakeRef(pfes, *this, pfes->GetVSize());
 
-   HYPRE_Int *tdof_offsets_fes = pfes->GetTrueDofOffsets();
+   HYPRE_BigInt *tdof_offsets_fes = pfes->GetTrueDofOffsets();
 
    int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
-   tdof_offsets = new HYPRE_Int[n+1];
+   tdof_offsets = new HYPRE_BigInt[n+1];
 
    for (int i = 0; i <= n; i++)
    {
@@ -877,6 +894,15 @@ ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 {
    if ( lfi_real ) { plfr->AddDomainIntegrator(lfi_real); }
    if ( lfi_imag ) { plfi->AddDomainIntegrator(lfi_imag); }
+}
+
+void
+ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+                                          LinearFormIntegrator *lfi_imag,
+                                          Array<int> &elem_attr_marker)
+{
+   if ( lfi_real ) { plfr->AddDomainIntegrator(lfi_real, elem_attr_marker); }
+   if ( lfi_imag ) { plfi->AddDomainIntegrator(lfi_imag, elem_attr_marker); }
 }
 
 void
@@ -1038,6 +1064,14 @@ void ParSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
 {
    if (bfi_real) { pblfr->AddDomainIntegrator(bfi_real); }
    if (bfi_imag) { pblfi->AddDomainIntegrator(bfi_imag); }
+}
+
+void ParSesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                                              BilinearFormIntegrator *bfi_imag,
+                                              Array<int> & elem_marker)
+{
+   if (bfi_real) { pblfr->AddDomainIntegrator(bfi_real, elem_marker); }
+   if (bfi_imag) { pblfi->AddDomainIntegrator(bfi_imag, elem_marker); }
 }
 
 void
@@ -1204,17 +1238,30 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       });
       // Modify offdiagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
-      ess_tdof_list.HostRead();
       if (A_i.Type() == Operator::Hypre_ParCSR)
       {
          HypreParMatrix * Ah;
          A_i.Get(Ah);
          hypre_ParCSRMatrix *Aih = *Ah;
+#if !defined(HYPRE_USING_GPU)
+         ess_tdof_list.HostRead();
          for (int k = 0; k < n; k++)
          {
             const int j = ess_tdof_list[k];
             Aih->diag->data[Aih->diag->i[j]] = 0.0;
          }
+#else
+         Ah->HypreReadWrite();
+         const int *d_ess_tdof_list =
+            ess_tdof_list.GetMemory().Read(MemoryClass::DEVICE, n);
+         const int *d_diag_i = Aih->diag->i;
+         double *d_diag_data = Aih->diag->data;
+         MFEM_GPU_FORALL(k, n,
+         {
+            const int j = d_ess_tdof_list[k];
+            d_diag_data[d_diag_i[j]] = 0.0;
+         });
+#endif
       }
       else
       {

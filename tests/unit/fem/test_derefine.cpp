@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -91,12 +91,8 @@ TEST_CASE("Derefine")
 
             // Derefine by setting 0 error on the fine elements in coarse element 2.
             Table coarse_to_fine_;
-            Table ref_type_to_matrix;
-            Array<int> coarse_to_ref_type;
-            Array<Geometry::Type> ref_type_to_geom;
             const CoarseFineTransformations &rtrans = mesh.GetRefinementTransforms();
-            rtrans.GetCoarseToFineMap(mesh, coarse_to_fine_, coarse_to_ref_type,
-                                      ref_type_to_matrix, ref_type_to_geom);
+            rtrans.MakeCoarseToFineTable(coarse_to_fine_);
             Array<int> tabrow;
 
             Vector local_err(mesh.GetNE());
@@ -155,7 +151,8 @@ TEST_CASE("ParDerefine", "[Parallel]")
             fespace.Update();
             x.Update();
 
-            // Refine two elements on each process and then derefine, comparing x before and after.
+            // Refine two elements on each process and then derefine, comparing
+            // x before and after.
             Vector diff(x);
 
             Array<Refinement> refinements;

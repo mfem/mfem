@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -118,6 +118,11 @@ int STable3D::Index (int r, int c, int f) const
 {
    STable3DNode *node;
 
+   if (r >= Size)
+   {
+      return -1;
+   }
+
    Sort3 (r, c, f);
 
    for (node = Rows[r]; node != NULL; node = node->Prev)
@@ -202,19 +207,19 @@ STable3D::~STable3D ()
    delete [] Rows;
 }
 
-void STable3D::Print(std::ostream & out) const
+void STable3D::Print(std::ostream & os) const
 {
-   out << NElem << endl;
+   os << NElem << endl;
    for (int row = 0; row < Size; row++)
    {
       STable3DNode *node_p = Rows[row];
       while (node_p != NULL)
       {
-         out << row
-             << ' ' << node_p->Column
-             << ' ' << node_p->Floor
-             << ' ' << node_p->Number
-             << endl;
+         os << row
+            << ' ' << node_p->Column
+            << ' ' << node_p->Floor
+            << ' ' << node_p->Number
+            << endl;
          node_p = node_p->Prev;
       }
    }

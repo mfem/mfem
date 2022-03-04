@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,8 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_CUDA
+#include <cusparse.h>
+#include <library_types.h>
 #include <cuda_runtime.h>
 #include <cuda.h>
 #endif
@@ -30,6 +32,11 @@
 #endif
 
 #ifdef MFEM_USE_RAJA
+// The following two definitions suppress CUB and THRUST deprecation warnings
+// about requiring c++14 with c++11 deprecated but still supported (to be
+// removed in a future release).
+#define CUB_IGNORE_DEPRECATED_CPP_DIALECT
+#define THRUST_IGNORE_DEPRECATED_CPP_DIALECT
 #include "RAJA/RAJA.hpp"
 #if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
 #error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required
@@ -50,9 +57,27 @@
       (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
+#define MFEM_BLOCK_ID(k) 0
 #define MFEM_THREAD_ID(k) 0
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
+#endif
+
+// 'double' atomicAdd implementation for previous versions of CUDA
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
+MFEM_DEVICE double atomicAdd(double *add, double val)
+{
+   unsigned long long int *ptr = (unsigned long long int *) add;
+   unsigned long long int old = *ptr, reg;
+   do
+   {
+      reg = old;
+      old = atomicCAS(ptr, reg,
+                      __double_as_longlong(val + __longlong_as_double(reg)));
+   }
+   while (reg != old);
+   return __longlong_as_double(old);
+}
 #endif
 
 template <typename T>
@@ -63,6 +88,9 @@ MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
    return atomicAdd(&add,val);
 #else
    T old = add;
+#ifdef MFEM_USE_OPENMP
+   #pragma omp atomic
+#endif
    add += val;
    return old;
 #endif

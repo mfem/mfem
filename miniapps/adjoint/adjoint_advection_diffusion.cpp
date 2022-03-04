@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
    H1_FECollection fec(1, pmesh->SpaceDimension());
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
-   HYPRE_Int global_vSize = fes->GlobalTrueVSize();
+   HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << global_vSize << endl;

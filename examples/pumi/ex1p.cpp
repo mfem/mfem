@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
    // Perform Uniform refinement
    if (ref_levels > 1)
    {
-      ma::Input* uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
+      auto uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
 
       if (geom_order > 1)
       {
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
