@@ -3205,8 +3205,8 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
 
       // Note that this gradient is already in physical space.
       surf_fit_grad_e.MultTranspose(shape_s, surf_fit_grad_s);
-      surf_fit_grad_s *= 2.0 * surf_fit_normal * surf_fit_coeff->Eval(Tpr,
-                                                                      ip) * sigma_e(s);
+      surf_fit_grad_s *= 2.0 * surf_fit_normal *
+                         surf_fit_coeff->Eval(Tpr, ip) * sigma_e(s);
 
       AddMultVWt(shape_x, surf_fit_grad_s, mat);
    }
@@ -3480,16 +3480,21 @@ void TMOP_Integrator::UpdateSurfaceFittingWeight(double factor)
 
    if (surf_fit_coeff)
    {
-      ConstantCoefficient *cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
-      if (cf)
-      {
-         cf->constant *= factor;
-      }
-      else
-      {
-         MFEM_ABORT("UpdateSurfaceFittingWeight works for ConstantCoefficient.");
-      }
+      auto cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
+      MFEM_VERIFY(cf, "Dynamic weight works only with a ConstantCoefficient.");
+      cf->constant *= factor;
    }
+}
+
+double TMOP_Integrator::GetSurfaceFittingWeight()
+{
+   if (surf_fit_coeff)
+   {
+      auto cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
+      MFEM_VERIFY(cf, "Dynamic weight works only with a ConstantCoefficient.");
+      return cf->constant;
+   }
+   return 0.0;
 }
 
 void TMOP_Integrator::EnableNormalization(const GridFunction &x)

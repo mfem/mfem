@@ -1729,21 +1729,11 @@ public:
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
 
-   // Update the surface fitting weight as surf_fit_coeff *= factor;
+   /// Update the surface fitting weight as surf_fit_coeff *= factor;
    void UpdateSurfaceFittingWeight(double factor);
 
-   // Get the surface fitting weight.
-   double GetSurfaceFittingWeight()
-   {
-      if (surf_fit_coeff)
-      {
-         ConstantCoefficient *cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
-         if (cf) { return cf->constant; }
-         MFEM_ABORT("GetSurfaceFittingWeight works for ConstantCoefficient.");
-      }
-      return 0.0;
-   }
-
+   /// Get the surface fitting weight.
+   double GetSurfaceFittingWeight();
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

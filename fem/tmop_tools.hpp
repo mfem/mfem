@@ -127,6 +127,8 @@ protected:
    // 0 - Newton, 1 - LBFGS.
    int solver_type;
    bool parallel;
+
+   // Surface fitting variables.
    bool adaptive_surf_fit = false;
    mutable double surf_fit_multiplier = 1;
    mutable double surf_fit_err_avg_prvs = 10000.0;
@@ -182,40 +184,42 @@ public:
 
    void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }
 
-   // Set the memory type for temporary memory allocations.
+   /// Set the memory type for temporary memory allocations.
    void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
 
-   // Compute scaling factor for the node movement direction using line-search.
-   // We impose constraints on TMOP energy, gradient, minimum Jacobian of
-   // the mesh, and (optionally) on the surface fitting error.
+   /// Compute scaling factor for the node movement direction using line-search.
+   /// We impose constraints on TMOP energy, gradient, minimum Jacobian of
+   /// the mesh, and (optionally) on the surface fitting error.
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
-   // Update (i) discrete functions at new nodal positions, and
-   // (ii) surface fitting weight.
+   /// Update (i) discrete functions at new nodal positions, and
+   /// (ii) surface fitting weight.
    virtual void ProcessNewState(const Vector &x) const;
 
-   // Methods for adaptive surface fitting weight.
-   // Get the average and maximum surface fitting error at the marked nodes.
-   // If there is more than 1 TMOP integrator, we get the maximum of the
-   // average and maximum error over all integrators.
+   /** @name Methods for adaptive surface fitting weight. */
+   ///@{
+   /// Get the average and maximum surface fitting error at the marked nodes.
+   /// If there is more than 1 TMOP integrator, we get the maximum of the
+   /// average and maximum error over all integrators.
    virtual void GetSurfaceFittingError(double &err_avg, double &err_max) const;
 
-   // Update surface fitting weight as surf_fit_const *= factor.
+   /// Update surface fitting weight as surf_fit_weight *= factor.
    void UpdateSurfaceFittingWeight(double factor) const;
 
-   // Get the surface fitting weight for all the TMOP integrators.
+   /// Get the surface fitting weight for all the TMOP integrators.
    void GetSurfaceFittingWeight(Array<double> &weights) const;
 
-   // Enable adaptive surface fitting weight. The weight is modified after
-   // each TMOPNewtonSolver iteration.
+   /// Enable adaptive surface fitting weight.
+   /// The weight is modified after each TMOPNewtonSolver iteration.
    void EnableAdaptiveSurfaceFitting() { adaptive_surf_fit = true; }
 
-   // Set the termination criterion for mesh optimization based on the maximum
-   // surface fitting error.
+   /// Set the termination criterion for mesh optimization based on
+   /// the maximum surface fitting error.
    void SetTerminationWithMaxSurfaceFittingError(double max_error)
    {
       surf_fit_max_threshold = max_error;
    }
+   ///@}
 
    virtual void Mult(const Vector &b, Vector &x) const
    {
