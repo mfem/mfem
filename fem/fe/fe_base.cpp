@@ -20,11 +20,11 @@ namespace mfem
 using namespace std;
 
 FiniteElement::FiniteElement(int D, Geometry::Type G,
-                             int Do, int O, int F, int VD, int CD)
+                             int Do, int O, int F)
    : Nodes(Do)
 {
    dim = D ; geom_type = G ; dof = Do ; order = O ; func_space = F;
-   vdim = VD ; cdim = CD;
+   vdim = 0 ; cdim = 0;
    range_type = SCALAR;
    map_type = VALUE;
    deriv_type = NONE;
@@ -832,6 +832,21 @@ void NodalFiniteElement::ProjectDiv(
    }
 }
 
+
+VectorFiniteElement::VectorFiniteElement(int D, Geometry::Type G,
+                                         int Do, int O, int M, int F)
+   : FiniteElement(D, G, Do, O, F)
+{
+   range_type = VECTOR;
+   map_type = M;
+   SetDerivMembers();
+   is_nodal = true;
+   vdim = dim;
+   if (map_type == H_CURL)
+   {
+      cdim = (dim == 3) ? 3 : 1;
+   }
+}
 
 void VectorFiniteElement::CalcShape (
    const IntegrationPoint &ip, Vector &shape ) const
@@ -2412,15 +2427,13 @@ void NodalTensorFiniteElement::SetMapType(const int map_type)
 }
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
-                                                     const int dimv,
-                                                     const int dimc,
                                                      const int d,
                                                      const int p,
                                                      const int cbtype,
                                                      const int obtype,
                                                      const int M,
                                                      const DofMapType dmtype)
-   : VectorFiniteElement(dims, dimv, dimc, GetTensorProductGeometry(dims), d,
+   : VectorFiniteElement(dims, GetTensorProductGeometry(dims), d,
                          p, M, FunctionSpace::Qk),
      TensorBasisElement(dims, p, VerifyNodal(cbtype), dmtype),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cbtype))),
@@ -2431,14 +2444,12 @@ VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
 }
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
-                                                     const int dimv,
-                                                     const int dimc,
                                                      const int d,
                                                      const int p,
                                                      const int obtype,
                                                      const int M,
                                                      const DofMapType dmtype)
-   : VectorFiniteElement(dims, dimv, dimc, GetTensorProductGeometry(dims), d,
+   : VectorFiniteElement(dims, GetTensorProductGeometry(dims), d,
                          p, M, FunctionSpace::Pk),
      TensorBasisElement(dims, p, obtype, dmtype),
      cbasis1d(poly1d.GetBasis(p, VerifyOpen(obtype))),

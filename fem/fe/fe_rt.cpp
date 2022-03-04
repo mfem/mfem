@@ -25,8 +25,7 @@ const double RT_QuadrilateralElement::nk[8] =
 RT_QuadrilateralElement::RT_QuadrilateralElement(const int p,
                                                  const int cb_type,
                                                  const int ob_type)
-   : VectorTensorFiniteElement(2, 2, 0, 2*(p + 1)*(p + 2), p + 1,
-                               cb_type, ob_type,
+   : VectorTensorFiniteElement(2, 2*(p + 1)*(p + 2), p + 1, cb_type, ob_type,
                                H_DIV, DofMapType::L2_DOF_MAP),
      dof2nk(dof),
      cp(poly1d.ClosedPoints(p + 1, cb_type))
@@ -301,8 +300,8 @@ const double RT_HexahedronElement::nk[18] =
 RT_HexahedronElement::RT_HexahedronElement(const int p,
                                            const int cb_type,
                                            const int ob_type)
-   : VectorTensorFiniteElement(3, 3, 0, 3*(p + 1)*(p + 1)*(p + 2), p + 1,
-                               cb_type, ob_type, H_DIV, DofMapType::L2_DOF_MAP),
+   : VectorTensorFiniteElement(3, 3*(p + 1)*(p + 1)*(p + 2), p + 1, cb_type,
+                               ob_type, H_DIV, DofMapType::L2_DOF_MAP),
      dof2nk(dof),
      cp(poly1d.ClosedPoints(p + 1, cb_type))
 {
@@ -686,7 +685,7 @@ const double RT_TriangleElement::nk[6] =
 const double RT_TriangleElement::c = 1./3.;
 
 RT_TriangleElement::RT_TriangleElement(const int p)
-   : VectorFiniteElement(2, 2, 0, Geometry::TRIANGLE, (p + 1)*(p + 3), p + 1,
+   : VectorFiniteElement(2, Geometry::TRIANGLE, (p + 1)*(p + 3), p + 1,
                          H_DIV, FunctionSpace::Pk),
      dof2nk(dof)
 {
@@ -839,8 +838,7 @@ const double RT_TetrahedronElement::nk[12] =
 const double RT_TetrahedronElement::c = 1./4.;
 
 RT_TetrahedronElement::RT_TetrahedronElement(const int p)
-   : VectorFiniteElement(3, 3, 0, Geometry::TETRAHEDRON,
-                         (p + 1)*(p + 2)*(p + 4)/2,
+   : VectorFiniteElement(3, Geometry::TETRAHEDRON, (p + 1)*(p + 2)*(p + 4)/2,
                          p + 1, H_DIV, FunctionSpace::Pk),
      dof2nk(dof)
 {
@@ -1023,7 +1021,7 @@ const double RT_WedgeElement::nk[15] =
 { 0,0,-1, 0,0,1, 0,-1,0, 1,1,0, -1,0,0};
 
 RT_WedgeElement::RT_WedgeElement(const int p)
-   : VectorFiniteElement(3, 3, 0, Geometry::PRISM,
+   : VectorFiniteElement(3, Geometry::PRISM,
                          (p + 2) * ((p + 1) * (p + 2)) / 2 +
                          (p + 1) * (p + 1) * (p + 3), p + 1,
                          H_DIV, FunctionSpace::Pk),
@@ -1212,12 +1210,15 @@ const double RT_R1D_SegmentElement::nk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
 RT_R1D_SegmentElement::RT_R1D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
-   : VectorFiniteElement(1, 3, 0, Geometry::SEGMENT, 3 * p + 4, p + 1,
+   : VectorFiniteElement(1, Geometry::SEGMENT, 3 * p + 4, p + 1,
                          H_DIV, FunctionSpace::Pk),
      dof2nk(dof),
      cbasis1d(poly1d.GetBasis(p + 1, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type)))
 {
+   // Override default dimension for VectorFiniteElements
+   vdim = 3;
+
    const double *cp = poly1d.ClosedPoints(p + 1, cb_type);
    const double *op = poly1d.OpenPoints(p, ob_type);
 
@@ -1484,11 +1485,14 @@ const double RT_R2D_SegmentElement::nk[2] = { 0.,1.};
 
 RT_R2D_SegmentElement::RT_R2D_SegmentElement(const int p,
                                              const int ob_type)
-   : VectorFiniteElement(1, 2, 0, Geometry::SEGMENT, p + 1, p + 1,
+   : VectorFiniteElement(1, Geometry::SEGMENT, p + 1, p + 1,
                          H_DIV, FunctionSpace::Pk),
      dof2nk(dof),
      obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type)))
 {
+   // Override default dimension for VectorFiniteElements
+   vdim = 2;
+
    const double *op = poly1d.OpenPoints(p, ob_type);
 
 #ifndef MFEM_THREAD_SAFE
@@ -1592,12 +1596,15 @@ void RT_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
 
 RT_R2D_FiniteElement::RT_R2D_FiniteElement(int p, Geometry::Type G, int Do,
                                            const double *nk_fe)
-   : VectorFiniteElement(2, 3, 0, G, Do, p + 1,
+   : VectorFiniteElement(2, G, Do, p + 1,
                          H_DIV, FunctionSpace::Pk),
      nk(nk_fe),
      dof_map(dof),
      dof2nk(dof)
-{}
+{
+   // Override default dimension for VectorFiniteElements
+   vdim = 3;
+}
 
 void RT_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
                                       DenseMatrix &shape) const

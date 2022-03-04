@@ -24,8 +24,7 @@ const double ND_HexahedronElement::tk[18] =
 
 ND_HexahedronElement::ND_HexahedronElement(const int p,
                                            const int cb_type, const int ob_type)
-   : VectorTensorFiniteElement(3, 3, 3, 3*p*(p + 1)*(p + 1), p,
-                               cb_type, ob_type,
+   : VectorTensorFiniteElement(3, 3*p*(p + 1)*(p + 1), p, cb_type, ob_type,
                                H_CURL, DofMapType::L2_DOF_MAP),
      dof2tk(dof), cp(poly1d.ClosedPoints(p, cb_type))
 {
@@ -484,7 +483,7 @@ const double ND_QuadrilateralElement::tk[8] =
 ND_QuadrilateralElement::ND_QuadrilateralElement(const int p,
                                                  const int cb_type,
                                                  const int ob_type)
-   : VectorTensorFiniteElement(2, 2, 1, 2*p*(p + 1), p, cb_type, ob_type,
+   : VectorTensorFiniteElement(2, 2*p*(p + 1), p, cb_type, ob_type,
                                H_CURL, DofMapType::L2_DOF_MAP),
      dof2tk(dof),
      cp(poly1d.ClosedPoints(p, cb_type))
@@ -771,7 +770,7 @@ const double ND_TetrahedronElement::tk[18] =
 const double ND_TetrahedronElement::c = 1./4.;
 
 ND_TetrahedronElement::ND_TetrahedronElement(const int p)
-   : VectorFiniteElement(3, 3, 3, Geometry::TETRAHEDRON, p*(p + 2)*(p + 3)/2, p,
+   : VectorFiniteElement(3, Geometry::TETRAHEDRON, p*(p + 2)*(p + 3)/2, p,
                          H_CURL, FunctionSpace::Pk), dof2tk(dof)
 {
    const double *eop = poly1d.OpenPoints(p - 1);
@@ -1033,7 +1032,7 @@ const double ND_TriangleElement::tk[8] =
 const double ND_TriangleElement::c = 1./3.;
 
 ND_TriangleElement::ND_TriangleElement(const int p)
-   : VectorFiniteElement(2, 2, 1, Geometry::TRIANGLE, p*(p + 2), p,
+   : VectorFiniteElement(2, Geometry::TRIANGLE, p*(p + 2), p,
                          H_CURL, FunctionSpace::Pk),
      dof2tk(dof)
 {
@@ -1193,7 +1192,7 @@ void ND_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
 const double ND_SegmentElement::tk[1] = { 1. };
 
 ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
-   : VectorTensorFiniteElement(1, 1, 0, p, p - 1, ob_type, H_CURL,
+   : VectorTensorFiniteElement(1, p, p - 1, ob_type, H_CURL,
                                DofMapType::L2_DOF_MAP),
      dof2tk(dof)
 {
@@ -1223,7 +1222,7 @@ const double ND_WedgeElement::tk[15] =
 ND_WedgeElement::ND_WedgeElement(const int p,
                                  const int cb_type,
                                  const int ob_type)
-   : VectorFiniteElement(3, 3, 3, Geometry::PRISM,
+   : VectorFiniteElement(3, Geometry::PRISM,
                          3 * p * ((p + 1) * (p + 2))/2, p,
                          H_CURL, FunctionSpace::Qk),
      dof2tk(dof),
@@ -1508,12 +1507,14 @@ void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
 }
 
 ND_R1D_PointElement::ND_R1D_PointElement(int p)
-   : VectorFiniteElement(1, 2, 0, Geometry::POINT, 2, p,
+   : VectorFiniteElement(1, Geometry::POINT, 2, p,
                          H_CURL, FunctionSpace::Pk)
 {
    // VectorFiniteElement::SetDerivMembers doesn't support 0D H_CURL elements
    // so we mimic a 1D element and then correct the dimension here.
    dim = 0;
+   vdim = 2;
+   cdim = 0;
 }
 
 void ND_R1D_PointElement::CalcVShape(const IntegrationPoint &ip,
@@ -1537,7 +1538,7 @@ const double ND_R1D_SegmentElement::tk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
 ND_R1D_SegmentElement::ND_R1D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
-   : VectorFiniteElement(1, 3, 3, Geometry::SEGMENT, 3 * p + 2, p,
+   : VectorFiniteElement(1, Geometry::SEGMENT, 3 * p + 2, p,
                          H_CURL, FunctionSpace::Pk),
      dof2tk(dof),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
@@ -1547,6 +1548,10 @@ ND_R1D_SegmentElement::ND_R1D_SegmentElement(const int p,
    deriv_type = CURL;
    deriv_range_type = VECTOR;
    deriv_map_type = H_DIV;
+
+   // Override default dimensions for VectorFiniteElements
+   vdim = 3;
+   cdim = 3;
 
    const double *cp = poly1d.ClosedPoints(p, cb_type);
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
@@ -1810,12 +1815,16 @@ const double ND_R2D_SegmentElement::tk[4] = { 1.,0., 0.,1. };
 ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
-   : VectorFiniteElement(1, 2, 1, Geometry::SEGMENT, 2 * p + 1, p,
+   : VectorFiniteElement(1, Geometry::SEGMENT, 2 * p + 1, p,
                          H_CURL, FunctionSpace::Pk),
      dof2tk(dof),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
 {
+   // Override default dimensions for VectorFiniteElements
+   vdim = 2;
+   cdim = 1;
+
    const double *cp = poly1d.ClosedPoints(p, cb_type);
    const double *op = poly1d.OpenPoints(p - 1, ob_type);
 
@@ -1990,7 +1999,7 @@ void ND_R2D_SegmentElement::Project(VectorCoefficient &vc,
 
 ND_R2D_FiniteElement::ND_R2D_FiniteElement(int p, Geometry::Type G, int Do,
                                            const double *tk_fe)
-   : VectorFiniteElement(2, 3, 3, G, Do, p,
+   : VectorFiniteElement(2, G, Do, p,
                          H_CURL, FunctionSpace::Pk),
      tk(tk_fe),
      dof_map(dof),
@@ -2000,6 +2009,10 @@ ND_R2D_FiniteElement::ND_R2D_FiniteElement(int p, Geometry::Type G, int Do,
    deriv_type = CURL;
    deriv_range_type = VECTOR;
    deriv_map_type = H_DIV;
+
+   // Override default dimensions for VectorFiniteElements
+   vdim = 3;
+   cdim = 3;
 }
 
 void ND_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
