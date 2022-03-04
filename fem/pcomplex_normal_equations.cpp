@@ -100,8 +100,7 @@ void ComplexParNormalEquations::FormLinearSystem(const Array<int>
                                                  &ess_tdof_list,
                                                  Vector &x_r,
                                                  Vector &x_i,
-                                                 OperatorHandle &A_r,
-                                                 OperatorHandle &A_i,
+                                                 OperatorHandle &A,
                                                  Vector &X_r,Vector &X_i,
                                                  Vector &B_r,Vector &B_i,
                                                  int copy_interior)
@@ -145,8 +144,7 @@ void ComplexParNormalEquations::FormLinearSystem(const Array<int>
 
 void ComplexParNormalEquations::FormSystemMatrix(const Array<int>
                                                  &ess_tdof_list,
-                                                 OperatorHandle &A_r,
-                                                 OperatorHandle &A_i)
+                                                 OperatorHandle &A)
 {
    // if (static_cond)
    // {

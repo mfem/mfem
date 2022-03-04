@@ -39,6 +39,7 @@ protected:
    /// Block matrix \f$ M \f$ to be associated with the real/imag Block bilinear form. Owned.
    BlockMatrix *mat_r = nullptr;
    BlockMatrix *mat_i = nullptr;
+   ComplexOperator * mat = nullptr;
 
    /// BlockVectors to be associated with the real/imag Block linear form
    BlockVector * y_r = nullptr;
@@ -201,7 +202,7 @@ public:
 
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
                                  Vector &x_r, Vector &x_i,
-                                 OperatorHandle &A_r, OperatorHandle &A_i,
+                                 OperatorHandle & A,
                                  Vector &X_r, Vector &X_i,
                                  Vector &B_r, Vector &B_i,
                                  int copy_interior = 0);
@@ -209,38 +210,30 @@ public:
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x_r, Vector &x_i,
-                         OpType &A_r, OpType &A_i,
+                         OpType &A,
                          Vector &X_r, Vector &X_i,
                          Vector &B_r, Vector &B_i,
                          int copy_interior = 0)
    {
-      OperatorHandle Ah_r;
-      OperatorHandle Ah_i;
-      FormLinearSystem(ess_tdof_list, x_r, x_i, Ah_r, Ah_i, X_r, X_i,
+      OperatorHandle Ah;
+      FormLinearSystem(ess_tdof_list, x_r, x_i, Ah, X_r, X_i,
                        B_r, B_i, copy_interior);
-      OpType *A_ptr_r = Ah_r.Is<OpType>();
-      OpType *A_ptr_i = Ah_i.Is<OpType>();
-      MFEM_VERIFY(A_ptr_r, "invalid OpType used");
-      MFEM_VERIFY(A_ptr_i, "invalid OpType used");
-      A_r.MakeRef(*A_ptr_r);
-      A_i.MakeRef(*A_ptr_i);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
    }
 
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                 OperatorHandle &A_r, OperatorHandle &A_i);
+                                 OperatorHandle &A);
 
    template <typename OpType>
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OpType &A_r, OpType &A_i)
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OpType &A)
    {
-      OperatorHandle Ah_r;
-      OperatorHandle Ah_i;
-      FormSystemMatrix(ess_tdof_list, Ah_r, Ah_i);
-      OpType *A_ptr_r = Ah_r.Is<OpType>();
-      OpType *A_ptr_i = Ah_i.Is<OpType>();
-      MFEM_VERIFY(A_ptr_r, "invalid OpType used");
-      MFEM_VERIFY(A_ptr_i, "invalid OpType used");
-      A_r.MakeRef(*A_ptr_r);
-      A_i.MakeRef(*A_ptr_i);
+      OperatorHandle Ah;
+      FormSystemMatrix(ess_tdof_list, Ah);
+      OpType *A_ptr = Ah.Is<OpType>();
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
    }
 
    void EliminateVDofs(const Array<int> &vdofs,

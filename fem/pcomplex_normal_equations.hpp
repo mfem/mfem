@@ -91,13 +91,12 @@ public:
    void ParallelAssemble(BlockMatrix *mat);
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x_r, Vector &x_i,
-                         OperatorHandle &A_r, OperatorHandle &A_i,
+                         OperatorHandle &A,
                          Vector &X_r,Vector &X_i,
                          Vector &B_r,Vector &B_i,
                          int copy_interior = 0);
 
-   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A_r,
-                         OperatorHandle &A_i);
+   void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
 
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size

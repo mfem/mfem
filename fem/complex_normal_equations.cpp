@@ -614,13 +614,12 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
 void ComplexNormalEquations::FormLinearSystem(const Array<int>
                                               &ess_tdof_list,
                                               Vector &x_r, Vector &x_i,
-                                              OperatorHandle &A_r,
-                                              OperatorHandle &A_i,
+                                              OperatorHandle &A,
                                               Vector &X_r, Vector & X_i,
                                               Vector &B_r, Vector & B_i,
                                               int copy_interior)
 {
-   FormSystemMatrix(ess_tdof_list, A_r,A_i);
+   FormSystemMatrix(ess_tdof_list, A);
    if (static_cond)
    {
       MFEM_ABORT("ComplexNormalEquations:: Static cond not implemented yet");
@@ -692,8 +691,7 @@ void ComplexNormalEquations::FormLinearSystem(const Array<int>
 
 void ComplexNormalEquations::FormSystemMatrix(const Array<int>
                                               &ess_tdof_list,
-                                              OperatorHandle &A_r,
-                                              OperatorHandle &A_i)
+                                              OperatorHandle &A)
 {
    if (static_cond)
    {
@@ -724,8 +722,8 @@ void ComplexNormalEquations::FormSystemMatrix(const Array<int>
          EliminateVDofs(ess_tdof_list, diag_policy);
          Finalize(remove_zeros);
       }
-      A_r.Reset(mat_r, false);
-      A_i.Reset(mat_i, false);
+      mat = new ComplexOperator(mat_r,mat_i,true,true);
+      A.Reset(mat,false);
    }
 }
 

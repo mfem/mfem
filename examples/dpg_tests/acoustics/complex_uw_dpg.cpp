@@ -253,14 +253,16 @@ int main(int argc, char *argv[])
    hatp_gf_i.MakeRef(hatp_fes,x_i.GetBlock(2));
    hatp_gf_i.ProjectBdrCoefficient(hatpex_i,ess_bdr);
 
-   OperatorPtr Ah_r, Ah_i;
+   OperatorPtr Ah;
    Vector X_r,B_r;
    Vector X_i,B_i;
-   a->FormLinearSystem(ess_tdof_list,x_r,x_i,Ah_r, Ah_i,
+   a->FormLinearSystem(ess_tdof_list,x_r,x_i,Ah,
                        X_r,X_i,B_r,B_i);
 
-   SparseMatrix * Ar = Ah_r.As<BlockMatrix>()->CreateMonolithic();
-   SparseMatrix * Ai = Ah_i.As<BlockMatrix>()->CreateMonolithic();
+   ComplexOperator * Ahc = Ah.As<ComplexOperator>();
+
+   SparseMatrix * Ar = dynamic_cast<BlockMatrix *>(&Ahc->real())->CreateMonolithic();
+   SparseMatrix * Ai = dynamic_cast<BlockMatrix *>(&Ahc->imag())->CreateMonolithic();
 
    ComplexSparseMatrix Ac(Ar,Ai,false,false);
    SparseMatrix * A = Ac.GetSystemMatrix();
