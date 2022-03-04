@@ -551,8 +551,10 @@ public:
    {
       if (type_ == Type::Diagonal)
       {
+         x.HostRead();
+         y.HostReadWrite();
          auto K_diag_submats =
-            Reshape(K_diag_.Read(), num_submats_, submat_height_, submat_height_);
+            Reshape(K_diag_.HostRead(), num_submats_, submat_height_, submat_height_);
          // TODO: This could be MFEM_FORALL
          // Assuming Y and X are ordered byNODES. K_diag is ordered byVDIM.
          for (int s = 0; s < num_submats_; s++)
@@ -1327,6 +1329,7 @@ void ElasticityOperator::AssembleGradientDiagonal(Vector &Ke_diag,
 
    // Each essential dof row and column are set to zero with it's diagonal entry
    // set to 1, i.e. (Ke)_ii = 1.0.
+   ess_tdof_list_.HostRead();
    int num_submats = h1_fes_.GetTrueVSize() / h1_fes_.GetVDim();
    auto K_diag_submats = Reshape(K_diag.Write(), num_submats, dim_, dim_);
    for (int i = 0; i < ess_tdof_list_.Size(); i++)
