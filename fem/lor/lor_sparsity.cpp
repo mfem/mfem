@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "lor.hpp"
-#include "lor_restriction.hpp"
+#include "lor_sparsity.hpp"
 #include "../pbilinearform.hpp"
 #include "../../general/forall.hpp"
 
@@ -26,20 +26,20 @@ const Array<int> &GetDofMap(const FiniteElement *fe)
    return dof_map;
 }
 
-int LORRestriction::GetNRefinedElements(const FiniteElementSpace &fes)
+int LORSparsity::GetNRefinedElements(const FiniteElementSpace &fes)
 {
    int ref = fes.GetMaxElementOrder();
    int dim = fes.GetMesh()->Dimension();
    return pow(ref, dim);
 }
 
-FiniteElementCollection *LORRestriction::MakeLowOrderFEC(
+FiniteElementCollection *LORSparsity::MakeLowOrderFEC(
    const FiniteElementSpace &fes)
 {
    return fes.FEColl()->Clone(1);
 }
 
-LORRestriction::LORRestriction(const FiniteElementSpace &fes_ho)
+LORSparsity::LORSparsity(const FiniteElementSpace &fes_ho)
    : fes_ho(fes_ho),
      fec_lo(MakeLowOrderFEC(fes_ho)),
      geom(fes_ho.GetMesh()->GetElementGeometry(0)),
@@ -57,7 +57,7 @@ LORRestriction::LORRestriction(const FiniteElementSpace &fes_ho)
    Setup();
 }
 
-void LORRestriction::Setup()
+void LORSparsity::Setup()
 {
    const Array<int> &fe_dof_map = GetDofMap(fec_lo->GetFE(geom, 1));
    const Array<int> &fe_dof_map_ho = GetDofMap(fes_ho.GetFE(0));
@@ -162,7 +162,7 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
    return min_el;
 }
 
-int LORRestriction::FillI(SparseMatrix &mat) const
+int LORSparsity::FillI(SparseMatrix &mat) const
 {
    static constexpr int Max = 16;
    const int all_dofs = ndofs;
@@ -243,8 +243,8 @@ static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
    return ind;
 }
 
-void LORRestriction::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
-                                  const DenseMatrix &sparse_mapping) const
+void LORSparsity::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
+                               const DenseMatrix &sparse_mapping) const
 {
    const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
    const int nel_ho = fes_ho.GetNE();
@@ -365,7 +365,7 @@ void LORRestriction::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
    h_I[0] = 0;
 }
 
-LORRestriction::~LORRestriction()
+LORSparsity::~LORSparsity()
 {
    delete fec_lo;
 }

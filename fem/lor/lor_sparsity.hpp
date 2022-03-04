@@ -9,20 +9,18 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_LOR_RESTRICTION
-#define MFEM_LOR_RESTRICTION
+#ifndef MFEM_LOR_SPARSITY
+#define MFEM_LOR_SPARSITY
 
 #include "../bilinearform.hpp"
 
 namespace mfem
 {
 
-/// Create a low-order refined version of a Restriction.
-/// Only used here for the FillI and FillJAndZeroData methods.
-class LORRestriction
+class LORSparsity
 {
    const FiniteElementSpace &fes_ho;
-   FiniteElementCollection *fec_lo;
+   const FiniteElementCollection *fec_lo;
    const Geometry::Type geom;
    const int order;
    const int ne_ref;
@@ -41,7 +39,7 @@ protected:
    static FiniteElementCollection *MakeLowOrderFEC(const FiniteElementSpace &fes);
 
 public:
-   LORRestriction(const FiniteElementSpace &fes_ho);
+   LORSparsity(const FiniteElementSpace &fes_ho);
 
    void Setup();
 
@@ -50,7 +48,7 @@ public:
    void FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
                      const DenseMatrix &sparse_mapping) const;
 
-   ~LORRestriction();
+   ~LORSparsity();
 };
 
 } // namespace mfem
