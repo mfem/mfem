@@ -100,12 +100,12 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   omega = rnum;
+   omega = 2.*M_PI*rnum;
 
 
    Mesh mesh(mesh_file, 1, 1);
    dim = mesh.Dimension();
-   // mesh.UniformRefinement();
+   mesh.UniformRefinement();
    // mesh.UniformRefinement();
 
 
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
 
    //space-induced norm for H(div) × H1
    // (∇q,∇δq)
-   a->AddTestIntegrator(new DiffusionIntegrator(one),NULL,0,0);
+   a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,0,0);
    // (q,δq)
    a->AddTestIntegrator(new MassIntegrator(one),nullptr,0,0);
    // (∇⋅v,∇⋅δv)
@@ -259,8 +259,6 @@ int main(int argc, char *argv[])
    a->FormLinearSystem(ess_tdof_list,x_r,x_i,Ah_r, Ah_i,
                        X_r,X_i,B_r,B_i);
 
-
-
    SparseMatrix * Ar = Ah_r.As<BlockMatrix>()->CreateMonolithic();
    SparseMatrix * Ai = Ah_i.As<BlockMatrix>()->CreateMonolithic();
 
@@ -268,29 +266,25 @@ int main(int argc, char *argv[])
    SparseMatrix * A = Ac.GetSystemMatrix();
    Vector B,X;
    X.SetSize(A->Height());
-   X.SetVector(X_r,0);
-   X.SetVector(X_i,X_r.Size());
    B.SetSize(A->Height());
    B.SetVector(B_r,0);
    B.SetVector(B_i,B_r.Size());
 
-   UMFPackSolver invA;
-   invA.SetOperator(*A);
-   invA.Mult(B,X);
-
-
-
-   x_r.MakeRef(X,0);
-   x_i.MakeRef(X,x_r.Size());
-
-
+   UMFPackSolver umf(*A);
+   umf.Mult(B,X);
+   int size = A->Height()/2;
+   for (int i = 0; i<size; i++)
+   {
+      x_r(i) = X(i);
+      x_i(i) = X(i+size);
+   }
 
 
    GridFunction p_r(p_fes);
-   p_r.MakeRef(x_r,0);
+   p_r.MakeRef(p_fes,x_r.GetBlock(0));
 
    GridFunction p_i(p_fes);
-   p_i.MakeRef(x_i,0);
+   p_i.MakeRef(p_fes,x_i.GetBlock(0));
 
    GridFunction pgf_ex_r(p_fes);
    GridFunction pgf_ex_i(p_fes);
@@ -317,17 +311,6 @@ int main(int argc, char *argv[])
    socketstream ex_sock_i(vishost, visport);
    ex_sock_i.precision(8);
    ex_sock_i << "solution\n" << mesh << pgf_ex_i << flush;
-
-   // Ah_r.As<BlockMatrix>()->PrintMatlab();
-   // Ah_i.As<BlockMatrix>()->PrintMatlab();
-
-   // X_r.Print();
-   // X_i.Print();
-   // B_r.Print();
-   // B_i.Print();
-
-   // FunctionCoefficient pex(p_exact);
-   // VectorFunctionCoefficient uex(dim,u_exact);
 
 
    delete a;
@@ -379,7 +362,7 @@ void gradp_exact_i(const Vector &x, Vector &grad)
 
 double d2_exact_r(const Vector &x)
 {
-   return - omega * omega * cos(omega*x.Sum()/std::sqrt((double)x.Size()));
+   return -omega * omega * cos(omega*x.Sum()/std::sqrt((double)x.Size()));
 }
 
 double d2_exact_i(const Vector &x)
