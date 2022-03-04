@@ -210,7 +210,7 @@ binary_comparator_overload(>);   ///< implement operator>  for dual numbers
 #undef binary_comparator_overload
 
 /** @brief compound assignment (+) for dual numbers */
-template <typename value_type, typename gradient_type>
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type>& operator+=(dual<value_type, gradient_type>& a,
                                             const dual<value_type, gradient_type>& b)
 {
@@ -220,7 +220,7 @@ dual<value_type, gradient_type>& operator+=(dual<value_type, gradient_type>& a,
 }
 
 /** @brief compound assignment (-) for dual numbers */
-template <typename value_type, typename gradient_type>
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type>& operator-=(dual<value_type, gradient_type>& a,
                                             const dual<value_type, gradient_type>& b)
 {
@@ -230,7 +230,7 @@ dual<value_type, gradient_type>& operator-=(dual<value_type, gradient_type>& a,
 }
 
 /** @brief compound assignment (+) for dual numbers with `double` righthand side */
-template <typename value_type, typename gradient_type>
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type>& operator+=(dual<value_type, gradient_type>& a,
                                             double b)
 {
@@ -239,7 +239,7 @@ dual<value_type, gradient_type>& operator+=(dual<value_type, gradient_type>& a,
 }
 
 /** @brief compound assignment (-) for dual numbers with `double` righthand side */
-template <typename value_type, typename gradient_type>
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type>& operator-=(dual<value_type, gradient_type>& a,
                                             double b)
 {
@@ -248,35 +248,35 @@ dual<value_type, gradient_type>& operator-=(dual<value_type, gradient_type>& a,
 }
 
 /** @brief implementation of absolute value function for dual numbers */
-template <typename value_type, typename gradient_type>
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> abs(dual<value_type, gradient_type> x)
 {
    return (x.value >= 0) ? x : -x;
 }
 
 /** @brief implementation of square root for dual numbers */
-template <typename value_type, typename gradient_type>
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> sqrt(dual<value_type, gradient_type> x)
 {
    return {std::sqrt(x.value), x.gradient / (2.0 * std::sqrt(x.value))};
 }
 
 /** @brief implementation of cosine for dual numbers */
-template <typename value_type, typename gradient_type>
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> cos(dual<value_type, gradient_type> a)
 {
    return {std::cos(a.value), -a.gradient * std::sin(a.value)};
 }
 
 /** @brief implementation of sine for dual numbers */
-template <typename value_type, typename gradient_type>
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> sin(dual<value_type, gradient_type> a)
 {
    return {std::sin(a.value), a.gradient * std::cos(a.value)};
 }
 
 /** @brief implementation of sinh for dual numbers */
-template <typename value_type, typename gradient_type>
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> sinh(dual<value_type, gradient_type> a)
 {
    return {std::sinh(a.value), a.gradient * std::cosh(a.value)};
@@ -332,28 +332,29 @@ dual<value_type, gradient_type> log(dual<value_type, gradient_type> a)
 
 /** @brief implementation of `a` (dual) raised to the `b` (dual) power */
 template <typename value_type, typename gradient_type>
+MFEM_HOST_DEVICE
 dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a,
                                     dual<value_type, gradient_type> b)
 {
-   value_type value = pow(a.value, b.value);
+   value_type value = std::pow(a.value, b.value);
    return {value, value * (a.gradient * (b.value / a.value) + b.gradient * std::log(a.value))};
 }
 
 /** @brief implementation of `a` (non-dual) raised to the `b` (dual) power */
 template <typename value_type, typename gradient_type>
+MFEM_HOST_DEVICE
 dual<value_type, gradient_type> pow(double a, dual<value_type, gradient_type> b)
 {
-   using std::pow;
-   value_type value = pow(a, b.value);
+   value_type value = std::pow(a, b.value);
    return {value, value * b.gradient * std::log(a)};
 }
 
 /** @brief implementation of `a` (dual) raised to the `b` (non-dual) power */
 template <typename value_type, typename gradient_type>
+MFEM_HOST_DEVICE
 dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a, double b)
 {
-   using std::pow;
-   value_type value = pow(a.value, b);
+   value_type value = std::pow(a.value, b);
    return {value, value * a.gradient * b / a.value};
 }
 

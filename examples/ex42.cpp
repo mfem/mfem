@@ -7,6 +7,7 @@
 #include "../linalg/kernels.hpp"
 #include "../linalg/tensor.hpp"
 #include "mfem.hpp"
+#include <cassert>
 
 using namespace std;
 using namespace mfem;
@@ -36,7 +37,14 @@ return_type __enzyme_fwddiff(Args...);
 #endif
 
 /// Define the identity tensor in three dimensions.
-MFEM_HOST_DEVICE static auto I = Identity<dimension>();
+//MFEM_CONSTANT static tensor<double, dimension, dimension> I = Identity<dimension>();
+/*struct I
+{
+   MFEM_HOST_DEVICE tensor<double, dimension, dimension> operator()()
+   {
+      return Identity<dimension>();
+   }
+};*/
 
 /** @brief Linear elastic material.
  *
@@ -54,6 +62,8 @@ template <int dim> struct LinearElasticMaterial
    tensor<double, dim, dim>
    MFEM_HOST_DEVICE stress(const tensor<double, dim, dim> &dudx) const
    {
+      const auto I = Identity<dimension>();
+
       auto epsilon = sym(dudx);
       return lambda * tr(epsilon) * I + 2.0 * mu * epsilon;
    }
@@ -135,6 +145,8 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<T, dim, dim>
    stress(const tensor<T, dim, dim> &__restrict__ dudx) const
    {
+      const auto I = Identity<dimension>();
+
       T J = det(I + dudx);
       T p = -2.0 * D1 * J * (J - 1);
       auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
@@ -173,12 +185,14 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<double, dim, dim, dim, dim>
    gradient(tensor<double, dim, dim> dudx) const
    {
+      const auto I = Identity<dimension>();
+
       tensor<double, dim, dim> F = I + dudx;
       tensor<double, dim, dim> invF = inv(F);
       tensor<double, dim, dim> devB =
          dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
       double J = det(F);
-      double coef = (C1 / pow(J, 5.0 / 3.0));
+      double coef = (C1 / std::pow(J, 5.0 / 3.0));
       return make_tensor<dim, dim, dim, dim>([&](int i, int j, int k, int l)
       {
          return 2.0 * (D1 * J * (i == j) - (5.0 / 3.0) * coef * devB[i][j]) *
@@ -283,12 +297,14 @@ struct NeoHookeanMaterial
    action_of_gradient_symbolic(const tensor<double, dim, dim> &du_dx,
                                const tensor<double, dim, dim> &ddu_dx) const
    {
+      const auto I = Identity<dimension>();
+
       tensor<double, dim, dim> F = I + du_dx;
       tensor<double, dim, dim> invFT = inv(transpose(F));
       tensor<double, dim, dim> devB =
          dev(du_dx + transpose(du_dx) + dot(du_dx, transpose(du_dx)));
       double J = det(F);
-      double coef = (C1 / pow(J, 5.0 / 3.0));
+      double coef = (C1 / std::pow(J, 5.0 / 3.0));
       double a1 = ddot(invFT, ddu_dx);
       double a2 = ddot(F, ddu_dx);
 
@@ -526,7 +542,7 @@ class ElasticityDiagonalPreconditioner : public Solver
 public:
    static constexpr int dim = dimension;
 
-   enum Type { Diagonal, BlockDiagonal };
+   enum Type { Diagonal = 0, BlockDiagonal };
 
    ElasticityDiagonalPreconditioner(Type type = Type::Diagonal)
       : Solver(), type_(type) {}
@@ -552,8 +568,8 @@ public:
       if (type_ == Type::Diagonal)
       {
          x.HostRead();
-         y.HostReadWrite();
-         auto K_diag_submats =
+         y.HostWrite();
+         const auto K_diag_submats =
             Reshape(K_diag_.HostRead(), num_submats_, submat_height_, submat_height_);
          // TODO: This could be MFEM_FORALL
          // Assuming Y and X are ordered byNODES. K_diag is ordered byVDIM.
@@ -568,6 +584,7 @@ public:
       }
       else if (type_ == Type::BlockDiagonal)
       {
+         MFEM_ABORT("Using host here!");
          auto K_diag_submats =
             Reshape(K_diag_.Read(), num_submats_, submat_height_, submat_height_);
 
@@ -612,6 +629,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    int diagpc_type = ElasticityDiagonalPreconditioner::Type::Diagonal;
    int serial_refinement_levels = 0;
+   bool paraview_save = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -619,9 +637,13 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&diagpc_type, "-pc", "--pctype",
-                  "Device configuration string, see Device::Configure().");
+                  "Select diagonal preconditioner type"
+                  " (0:Diagonal, 1:BlockDiagonal).");
    args.AddOption(&serial_refinement_levels, "-rs", "--ref-serial",
                   "Number of uniform refinements on the serial mesh.");
+   args.AddOption(&paraview_save, "-pvs", "--paraview-save",
+                  "-no-pvs", "--no-paraview-save",
+                  "Enable or disable ParaView DataCollection save.");
    args.Parse();
    if (!args.Good())
    {
@@ -720,17 +742,19 @@ int main(int argc, char *argv[])
 
    U_gf.Distribute(U);
 
-   ParaViewDataCollection *pd = NULL;
-   pd = new ParaViewDataCollection("ex42_output", &pmesh);
-   pd->RegisterField("solution", &U_gf);
-   pd->SetLevelsOfDetail(order);
-   pd->SetDataFormat(VTKFormat::BINARY);
-   pd->SetHighOrderOutput(true);
-   pd->SetCycle(0);
-   pd->SetTime(0.0);
-   pd->Save();
-
-   delete pd;
+   if (paraview_save)
+   {
+      ParaViewDataCollection *pd = NULL;
+      pd = new ParaViewDataCollection("ex42_output", &pmesh);
+      pd->RegisterField("solution", &U_gf);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(0);
+      pd->SetTime(0.0);
+      pd->Save();
+      delete pd;
+   }
 
    return 0;
 }
@@ -915,6 +939,7 @@ GradAllPhis(int qx, int qy, int qz, const DeviceTensor<2, const double> &B,
             const DeviceTensor<2, const double> &G,
             const tensor<double, dim, dim> &invJ)
 {
+   MFEM_SYNC_THREAD;
    MFEM_SHARED tensor<double, d1d, d1d, d1d, dim> dphi_dx;
    // G (x) B (x) B
    // B (x) G (x) B
@@ -1074,11 +1099,16 @@ ApplyGradient3D(const int ne, const Array<double> &B_, const Array<double> &G_,
    }); // for each element
 }
 
-template <int d1d, int q1d, typename material_type>
-static inline void AssembleGradientDiagonal3D(
-   const int ne, const Array<double> &B_, const Array<double> &G_,
-   const Array<double> &W_, const Vector &Jacobian_, const Vector &detJ_,
-   const Vector &X_, Vector &Ke_diag_memory, const material_type &material)
+template <int d1d, int q1d, typename material_type> static inline
+void AssembleGradientDiagonal3D(const int ne,
+                                const Array<double> &B_,
+                                const Array<double> &G_,
+                                const Array<double> &W_,
+                                const Vector &Jacobian_,
+                                const Vector &detJ_,
+                                const Vector &X_,
+                                Vector &Ke_diag_memory,
+                                const material_type &material)
 {
    constexpr int dim = dimension;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
@@ -1319,19 +1349,21 @@ void ElasticityOperator::AssembleGradientDiagonal(Vector &Ke_diag,
       vin_local.MakeRef(Ke_diag, i * sce_sz, sce_sz);
       vout_local.MakeRef(K_diag_local, i * scl_sz, scl_sz);
       h1_element_restriction_->MultTranspose(vin_local, vout_local);
+      vout_local.GetMemory().SyncAlias(K_diag_local.GetMemory(), vout_local.Size());
 
       // Scalar component T-size
       int sct_sz = h1_prolongation_->Width();
       Vector vout;
       vout.MakeRef(K_diag, i * sct_sz, sct_sz);
       h1_prolongation_->MultTranspose(vout_local, vout);
+      vout.GetMemory().SyncAlias(K_diag.GetMemory(), vout.Size());
    }
 
    // Each essential dof row and column are set to zero with it's diagonal entry
    // set to 1, i.e. (Ke)_ii = 1.0.
    ess_tdof_list_.HostRead();
    int num_submats = h1_fes_.GetTrueVSize() / h1_fes_.GetVDim();
-   auto K_diag_submats = Reshape(K_diag.Write(), num_submats, dim_, dim_);
+   auto K_diag_submats = Reshape(K_diag.HostWrite(), num_submats, dim_, dim_);
    for (int i = 0; i < ess_tdof_list_.Size(); i++)
    {
       int ess_idx = ess_tdof_list_[i];
@@ -1376,8 +1408,12 @@ void ElasticityOperator::SetMaterial(const material_type &material)
             ElasticityKernels::Apply3D<3, 3, material_type>(
                ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
+         case 0x44:
+            ElasticityKernels::Apply3D<4, 4, material_type>(
+               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
+            break;
          default:
-            MFEM_ABORT("not implemented");
+            MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
       }
    };
 
@@ -1397,8 +1433,12 @@ void ElasticityOperator::SetMaterial(const material_type &material)
             ElasticityKernels::ApplyGradient3D<3, 3, material_type>(
                ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
+         case 0x44:
+            ElasticityKernels::ApplyGradient3D<4, 4, material_type>(
+               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+            break;
          default:
-            MFEM_ABORT("not implemented");
+            MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
       }
    };
 
@@ -1418,8 +1458,12 @@ void ElasticityOperator::SetMaterial(const material_type &material)
             ElasticityKernels::AssembleGradientDiagonal3D<3, 3, material_type>(
                ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
+         case 0x44:
+            ElasticityKernels::AssembleGradientDiagonal3D<4, 4, material_type>(
+               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
+            break;
          default:
-            MFEM_ABORT("not implemented");
+            MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
       }
    };
 }
