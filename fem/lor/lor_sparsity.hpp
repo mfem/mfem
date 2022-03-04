@@ -17,38 +17,46 @@
 namespace mfem
 {
 
+/// @brief Class to help assembling CSR matrices associated with LOR
+/// discretizations.
+///
+/// Some of the functionality in this class is similar to that of
+/// ElementRestriction, but modified for the case of low-order refined elements,
+/// where each "element matrix" is a sparse rather than dense matrix.
 class LORSparsity
 {
-   const FiniteElementSpace &fes_ho;
-   const FiniteElementCollection *fec_lo;
-   const Geometry::Type geom;
-   const int order;
-   const int ne_ref;
-   const int ne;
-   const int vdim;
-   const bool byvdim;
-   const int ndofs;
-   const int lo_dof_per_el;
-
-   Array<int> offsets;
-   Array<int> indices;
-   Array<int> gatherMap;
-
 protected:
-   static int GetNRefinedElements(const FiniteElementSpace &fes);
-   static FiniteElementCollection *MakeLowOrderFEC(const FiniteElementSpace &fes);
-
+   const FiniteElementSpace &fes_ho; ///< Original high-order space.
 public:
-   LORSparsity(const FiniteElementSpace &fes_ho);
+   /// Create the LORSparsity object given the high-order FE space.
+   LORSparsity(const FiniteElementSpace &fes_ho_) : fes_ho(fes_ho_) { };
 
-   void Setup();
+   /// Construct the CSR I array.
+   int FillI(SparseMatrix &A, const DenseMatrix &sparse_mapping) const;
 
-   int FillI(SparseMatrix &mat) const;
-
+   /// @brief Construct the CSR J array and fill the matrix entries.
+   ///
+   /// The matrix entries are given by @a sparse_ij. The array @a sparse_ij is
+   /// interpreted to have shape (nnz_per_row, ndof_per_el, nel_ho).
+   /// This is essentiall a block diagonal matrix, with blocks corresponding to
+   /// the high-order elements (the last index). Each block is itself a sparse
+   /// matrix, where the row index is the second index (local DOF index within
+   /// the element), and the column is determined by the first index. The first
+   /// index maps to a local DOF index through the mapping @a sparse_mapping,
+   /// which has shape shape (nnz_per_row, ndof_per_el). For example, for the
+   /// entry (i, j, k) in @a sparse_ij, the local DOF index of the row is @a j,
+   /// and the local DOF index of the column is sparse_mapping(i, j).
    void FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
                      const DenseMatrix &sparse_mapping) const;
 
-   ~LORSparsity();
+   SparseMatrix *FormCSR(const Vector &sparse_ij,
+                         const DenseMatrix &sparse_mapping) const;
+
+   /// @brief Internal method for constructing the sparsity pattern.
+   ///
+   /// @note This is not part of the public API, it is public only because of
+   /// compiler restrictions (it contains MFEM_FORALL kernels).
+   void Setup();
 };
 
 } // namespace mfem
