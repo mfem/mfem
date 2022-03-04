@@ -58,29 +58,6 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
    }
 }
 
-double TMOP_Metric_000::EvalW(const DenseMatrix &Jpt) const
-{
-   return 0.0;
-}
-
-void TMOP_Metric_000::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-{
-   ie.SetJacobian(Jpt.GetData());
-   P = ie.Get_dI1();
-   P *= 0.0;
-}
-
-void TMOP_Metric_000::AssembleH(const DenseMatrix &Jpt,
-                                const DenseMatrix &DS,
-                                const double weight,
-                                DenseMatrix &A) const
-{
-   ie.SetJacobian(Jpt.GetData());
-   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
-   ie.Assemble_ddI1(weight, A.GetData());
-   A *= 0;
-}
-
 double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
@@ -2948,7 +2925,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    }
 
    if (adapt_lim_gf) { AssembleElemVecAdaptLim(el, *Tpr, ir, weights, PMatO); }
-   if (surf_fit_gf) { AssembleElemVecSurfFit(el, *Tpr, ir, weights, PMatO); }
+   if (surf_fit_gf) { AssembleElemVecSurfFit(el, *Tpr, PMatO); }
 
    delete Tpr;
 }
@@ -3056,7 +3033,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    }
 
    if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat); }
-   if (surf_fit_gf) { AssembleElemGradSurfFit(el, *Tpr, ir, weights, elmat); }
+   if (surf_fit_gf) { AssembleElemGradSurfFit(el, *Tpr, elmat); }
 
    delete Tpr;
 }
@@ -3160,17 +3137,10 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
 
 void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
                                              IsoparametricTransformation &Tpr,
-                                             const IntegrationRule &ir_quad,
-                                             const Vector &weights,
                                              DenseMatrix &mat)
 {
    const int el_id = Tpr.ElementNo;
-   const FiniteElement &el_s = *surf_fit_gf->FESpace()->GetFE(el_id);
-
-   const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
-             dof_s = el_s.GetDof();
-
-   Vector sigma_e;
+   // Check if the element has any DOFs marked for surface fitting.
    Array<int> dofs;
    surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
    int count = 0;
@@ -3179,6 +3149,13 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
       count += ((*surf_fit_marker)[dofs[s]]) ? 1 : 0;
    }
    if (count == 0) { return; }
+
+   const FiniteElement &el_s = *surf_fit_gf->FESpace()->GetFE(el_id);
+
+   const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
+             dof_s = el_s.GetDof();
+
+   Vector sigma_e;
    surf_fit_gf->GetSubVector(dofs, sigma_e);
 
    // Project the gradient of sigma in the same space.
@@ -3214,18 +3191,10 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
 
 void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
                                               IsoparametricTransformation &Tpr,
-                                              const IntegrationRule &ir_quad,
-                                              const Vector &weights,
                                               DenseMatrix &mat)
 {
    const int el_id = Tpr.ElementNo;
-   const FiniteElement &el_s = *surf_fit_gf->FESpace()->GetFE(el_id);
-
-   const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
-             dof_s = el_s.GetDof();
-
-   Vector sigma_e;
-
+   // Check if the element has any DOFs marked for surface fitting.
    Array<int> dofs;
    surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
    int count = 0;
@@ -3234,6 +3203,13 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       count += ((*surf_fit_marker)[dofs[s]]) ? 1 : 0;
    }
    if (count == 0) { return; }
+
+   const FiniteElement &el_s = *surf_fit_gf->FESpace()->GetFE(el_id);
+
+   const int dof_x = el_x.GetDof(), dim = el_x.GetDim(),
+             dof_s = el_s.GetDof();
+
+   Vector sigma_e;
    surf_fit_gf->GetSubVector(dofs, sigma_e);
 
    DenseMatrix surf_fit_grad_e(dof_s, dim);
@@ -3373,7 +3349,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
 
       PMatO.UseExternalData(elvect.GetData(), dof, dim);
       if (adapt_lim_gf) { AssembleElemVecAdaptLim(el, Tpr, ir, weights, PMatO); }
-      if (surf_fit_gf) { AssembleElemVecSurfFit(el, Tpr, ir, weights, PMatO); }
+      if (surf_fit_gf) { AssembleElemVecSurfFit(el, Tpr, PMatO); }
    }
 }
 
@@ -3470,7 +3446,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
       }
 
       if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, Tpr, ir, weights, elmat); }
-      if (surf_fit_gf) { AssembleElemGradSurfFit(el, Tpr, ir, weights, elmat); }
+      if (surf_fit_gf) { AssembleElemGradSurfFit(el, Tpr, elmat); }
    }
 }
 

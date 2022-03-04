@@ -104,24 +104,6 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/// 0 Metric
-class TMOP_Metric_000 : public TMOP_QualityMetric
-{
-protected:
-   mutable InvariantsEvaluator2D<double> ie;
-
-public:
-   // W = 0.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
-
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
-
-   virtual int Id() const { return 1; }
-};
-
 /// 2D non-barrier metric without a type.
 class TMOP_Metric_001 : public TMOP_QualityMetric
 {
@@ -1465,13 +1447,12 @@ protected:
    // First derivative of the surface fitting term.
    void AssembleElemVecSurfFit(const FiniteElement &el_x,
                                IsoparametricTransformation &Tpr,
-                               const IntegrationRule &ir_quad,
-                               const Vector &weights, DenseMatrix &mat);
+                               DenseMatrix &mat);
+
    // Second derivative of the surface fitting term.
    void AssembleElemGradSurfFit(const FiniteElement &el_x,
                                 IsoparametricTransformation &Tpr,
-                                const IntegrationRule &ir_quad,
-                                const Vector &weights, DenseMatrix &mat);
+                                DenseMatrix &mat);
 
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
