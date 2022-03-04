@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "lor_batched.hpp"
-#include "lor_restriction.hpp"
 #include "../../general/forall.hpp"
 
 // Specializations
