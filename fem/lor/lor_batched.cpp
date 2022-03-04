@@ -14,8 +14,8 @@
 #include "../../general/forall.hpp"
 
 // Specializations
-#include "lor_diffusion.hpp"
-#include "lor_hcurl.hpp"
+#include "lor_h1.hpp"
+#include "lor_nd.hpp"
 
 namespace mfem
 {

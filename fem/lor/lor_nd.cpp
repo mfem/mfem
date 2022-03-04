@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "lor_hcurl.hpp"
+#include "lor_nd.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../general/forall.hpp"
 
