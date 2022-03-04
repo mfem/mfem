@@ -129,9 +129,14 @@ void LORSparsity::Setup()
          const int sgid = d_element_map[DOF_ho*e_ho + d_ho];  // signed
          const int gid = (sgid >= 0) ? sgid : -1-sgid;
          const int lid = DOF*e + d;
-         const bool plus = (sgid >= 0 && sdid >= 0) || (sgid < 0 && sdid < 0);
-         d_gather[lid] = plus ? gid : -1-gid;
-         d_indices[AtomicAdd(drw_offsets[gid], 1)] = plus ? lid : -1-lid;
+
+         const int sgn_1 = (sd_ho >= 0) ? 1 : - 1;
+         const int sgn_2 = (sdid >= 0) ? 1 : -1;
+         const int sgn_3 = (sgid >= 0) ? 1 : -1;
+         const int sgn = sgn_1*sgn_2*sgn_3;
+
+         d_gather[lid] = (sgn >= 0) ? gid : -1-gid;
+         d_indices[AtomicAdd(drw_offsets[gid], 1)] = (sgn >= 0) ? lid : -1-lid;
       }
    });
 
