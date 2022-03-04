@@ -434,14 +434,14 @@ void BatchedLORAssembly::Assemble(BilinearForm &a,
    {
       if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
       {
-         BatchedLORDiffusion(a, fes_ho, ess_dofs).Assemble(A);
+         BatchedLOR_H1(a, fes_ho, ess_dofs).Assemble(A);
       }
    }
    else if (dynamic_cast<const ND_FECollection*>(fec))
    {
       if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a))
       {
-         BatchedLORNedelec(a, fes_ho, ess_dofs).Assemble(A);
+         BatchedLOR_ND(a, fes_ho, ess_dofs).Assemble(A);
       }
    }
 }
