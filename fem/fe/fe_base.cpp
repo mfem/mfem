@@ -752,7 +752,8 @@ void NodalFiniteElement::Project(
    }
    else
    {
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      DenseMatrix vshape(fe.GetDof(), std::max(Trans.GetSpaceDim(),
+                                               fe.GetVDim()));
 
       I.SetSize(vshape.Width()*dof, fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -1036,7 +1037,7 @@ void VectorFiniteElement::Project_RT(
    {
       int sdim = Trans.GetSpaceDim();
       double vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      DenseMatrix vshape(fe.GetDof(), sdim);
       Vector vshapenk(fe.GetDof());
       const bool square_J = (dim == sdim);
 
@@ -1221,7 +1222,7 @@ void VectorFiniteElement::Project_ND(
          Trans.SetIntPoint(&ip);
          // Transform ND edge tengents from reference to physical space
          // vk = J tk
-         Trans.Jacobian().Mult(tk + d2t[k]*vdim, vk);
+         Trans.Jacobian().Mult(tk + d2t[k]*dim, vk);
          if (fe.GetMapType() == INTEGRAL)
          {
             double w = 1.0/Trans.Weight();
@@ -1249,8 +1250,9 @@ void VectorFiniteElement::Project_ND(
    }
    else
    {
+      int sdim = Trans.GetSpaceDim();
       double vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      DenseMatrix vshape(fe.GetDof(), sdim);
       Vector vshapetk(fe.GetDof());
 
       I.SetSize(dof, fe.GetDof());
@@ -1287,7 +1289,7 @@ void VectorFiniteElement::ProjectGrad_ND(
    for (int k = 0; k < dof; k++)
    {
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
-      dshape.Mult(tk + d2t[k]*vdim, grad_k);
+      dshape.Mult(tk + d2t[k]*dim, grad_k);
       for (int j = 0; j < grad_k.Size(); j++)
       {
          grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
