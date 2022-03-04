@@ -101,7 +101,7 @@ Version 4.3.1 (development)
 - Added ParaView visualization of `QuadratureFunction` fields, through both
   `QuadratureFunction::SaveVTU` and `ParaViewDataCollection::RegisterQField`.
 
-- Update the formulation for interface fitting with TMOP and introduced
+- Updated the formulation for interface fitting with TMOP and introduced
   a method to adaptively change the weight of the interface fitting term 
   for r-adaptivity.
 
