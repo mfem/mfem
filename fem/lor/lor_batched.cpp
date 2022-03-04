@@ -152,14 +152,6 @@ SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
    MFEM_VERIFY(UsesTensorBasis(fes_ho),
                "Batched LOR assembly requires tensor basis");
 
-   // Set up the sparsity pattern for the matrix
-   const int vsize = fes_ho.GetVSize();
-   SparseMatrix *A = new SparseMatrix(vsize, vsize, 0);
-   A->GetMemoryI().New(A->Height()+1, A->GetMemoryI().GetMemoryType());
-   const int nnz = R.FillI(*A);
-   A->GetMemoryJ().New(nnz, A->GetMemoryJ().GetMemoryType());
-   A->GetMemoryData().New(nnz, A->GetMemoryData().GetMemoryType());
-
    // Get the LOR vertex coordinates
    const int order = fes_ho.GetMaxElementOrder();
    const int nd1d = order + 1;
@@ -174,10 +166,9 @@ SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
    }
 
    // Assemble the matrix, using kernels from the derived classes
+   // This fills in the arrays sparse_ij and sparse_mapping
    AssemblyKernel();
-   R.FillJAndData(*A, sparse_ij, sparse_mapping);
-
-   return A;
+   return R.FormCSR(sparse_ij, sparse_mapping);
 }
 
 #ifdef MFEM_USE_MPI
