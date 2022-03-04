@@ -405,6 +405,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       GetSurfaceFittingError(avg_err, max_err);
       if (max_err < surf_fit_max_threshold)
       {
+         mfem::out << "TMOPNewtonSolver converged based on the surface fitting"
+                   "error.\n";
          scale = 0.0;
          return scale;
       }
@@ -558,7 +560,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
 void TMOPNewtonSolver::UpdateSurfaceFittingWeight(double factor) const
 {
-   surf_fit_multiplier = factor;
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
    TMOP_Integrator *ti  = NULL;
@@ -748,11 +749,17 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       }
    }
 
+   // Constant coefficient associated with the surface fitting terms if
+   // adaptive surface fitting is enabled. The idea is to increase the
+   // coefficient if the surface fitting error does not sufficiently
+   // decrease between subsequent TMOPNewtonSolver iterations.
    if (update_surf_fit_coeff)
    {
       double surf_fit_err_max = -10;
       double surf_fit_err_avg = -10;
+      // Get surface fitting errors.
       GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
+      // Get array with surface fitting weights.
       Array<double> weights;
       GetSurfaceFittingWeight(weights);
 
@@ -767,22 +774,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 
       double change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_avg;
       double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
+      // Increase the surface fitting coefficient if the surface fitting error
+      // does not decrease sufficiently.
       if (change_surf_fit_err >= 0)
       {
          if (rel_change_surf_fit_err < 1.e-2)
          {
             UpdateSurfaceFittingWeight(10);
-         }
-      }
-      else
-      {
-         if (surf_fit_multiplier <= 1)
-         {
-            UpdateSurfaceFittingWeight(10);
-         }
-         else
-         {
-            UpdateSurfaceFittingWeight(0.9);
          }
       }
       surf_fit_err_avg_prvs = surf_fit_err_avg;

@@ -74,6 +74,7 @@
 //    mpirun -np 4 pmesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
 //  Surface fitting with weight adaptation and termination based on fitting error
 //    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -vis -st 0 -sfa -sft 1e-5
+//
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
@@ -423,7 +424,6 @@ int main (int argc, char *argv[])
    switch (metric_id)
    {
       // T-metrics
-      case 0: metric = new TMOP_Metric_000; break;
       case 1: metric = new TMOP_Metric_001; break;
       case 2: metric = new TMOP_Metric_002; break;
       case 7: metric = new TMOP_Metric_007; break;
