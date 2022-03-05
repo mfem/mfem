@@ -92,10 +92,10 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
                                           ElementDofOrdering::LEXICOGRAPHIC);
    const int nodal_nd1d = nodal_fes->GetMaxElementOrder() + 1;
 
-   // Map from nodal E-vector to L-vector
-   Vector nodes_loc(nodal_restriction->Height());
-   nodes_loc.UseDevice(true);
-   nodal_restriction->Mult(*nodal_gf, nodes_loc);
+   // Map from nodal L-vector to E-vector
+   Vector nodal_evec(nodal_restriction->Height());
+   nodal_evec.UseDevice(true);
+   nodal_restriction->Mult(*nodal_gf, nodal_evec);
 
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    Geometry::Type geom = mesh_ho.GetElementGeometry(0);
@@ -107,9 +107,9 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
    {
       switch (nodal_nd1d)
       {
-         case 2: NodalInterpolation2D<2,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
-         case 4: NodalInterpolation2D<4,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
-         case 6: NodalInterpolation2D<6,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
+         case 2: NodalInterpolation2D<2,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
+         case 4: NodalInterpolation2D<4,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
+         case 6: NodalInterpolation2D<6,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
          default: MFEM_ABORT("Unsuported mesh order!");
       }
    }
@@ -117,9 +117,9 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
    {
       switch (nodal_nd1d)
       {
-         case 2: NodalInterpolation3D<2,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
-         case 4: NodalInterpolation3D<4,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
-         case 6: NodalInterpolation3D<6,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
+         case 2: NodalInterpolation3D<2,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
+         case 4: NodalInterpolation3D<4,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
+         case 6: NodalInterpolation3D<6,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
          default: MFEM_ABORT("Unsuported mesh order!");
       }
    }
