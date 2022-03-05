@@ -100,10 +100,11 @@ void ComplexNormalEquations::AllocMat()
          mat_i->SetBlock(i,j,new SparseMatrix(h, w));
       }
    }
-   y_r = new BlockVector(dof_offsets);
-   *y_r = 0.;
-   y_i = new BlockVector(dof_offsets);
-   *y_i = 0.;
+   y = new Vector(2*dof_offsets.Last());
+   double * ydata = y->GetData();
+   *y=0.;
+   y_r = new BlockVector(ydata, dof_offsets);
+   y_i = new BlockVector(&ydata[dof_offsets.Last()], dof_offsets);
 }
 
 void ComplexNormalEquations::Finalize(int skip_zeros)
@@ -613,10 +614,10 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
 
 void ComplexNormalEquations::FormLinearSystem(const Array<int>
                                               &ess_tdof_list,
-                                              Vector &x_r, Vector &x_i,
+                                              Vector &x,
                                               OperatorHandle &A,
-                                              Vector &X_r, Vector & X_i,
-                                              Vector &B_r, Vector & B_i,
+                                              Vector &X,
+                                              Vector &B,
                                               int copy_interior)
 {
    FormSystemMatrix(ess_tdof_list, A);
@@ -628,21 +629,24 @@ void ComplexNormalEquations::FormLinearSystem(const Array<int>
    }
    else if (!P)
    {
+      Vector x_r(x.GetData(),x.Size()/2);
+      Vector x_i(&x.GetData()[x.Size()/2],x.Size()/2);
+
       EliminateVDofsInRHS(ess_tdof_list, x_r,x_i, *y_r, *y_i);
-      X_r.MakeRef(x_r, 0, x_r.Size());
-      X_i.MakeRef(x_i, 0, x_i.Size());
-      B_r.MakeRef(*y_r, 0, y_r->Size());
-      B_i.MakeRef(*y_i, 0, y_i->Size());
       if (!copy_interior)
       {
-         X_r.SetSubVectorComplement(ess_tdof_list, 0.0);
-         X_i.SetSubVectorComplement(ess_tdof_list, 0.0);
+         x_r.SetSubVectorComplement(ess_tdof_list, 0.0);
+         x_i.SetSubVectorComplement(ess_tdof_list, 0.0);
       }
+      X.MakeRef(x, 0, x.Size());
+      B.MakeRef(*y,0,y->Size());
    }
    else // non conforming space
    {
-      B_r.SetSize(P->Width());
-      B_i.SetSize(P->Width());
+      B.SetSize(2*P->Width());
+      double * bdata = B.GetData();
+      Vector B_r(bdata,P->Width());
+      Vector B_i(&bdata[P->Width()],P->Width());
 
       P->MultTranspose(*y_r, B_r);
       P->MultTranspose(*y_i, B_i);
@@ -661,9 +665,12 @@ void ComplexNormalEquations::FormLinearSystem(const Array<int>
          }
       }
 
-      X_r.SetSize(R->Height());
-      X_i.SetSize(R->Height());
+      X.SetSize(2*R->Height());
+      Vector X_r(X.GetData(),X.Size()/2);
+      Vector X_i(&X.GetData()[X.Size()/2],X.Size()/2);
 
+      Vector x_r(x.GetData(),x.Size()/2);
+      Vector x_i(&x.GetData()[x.Size()/2],x.Size()/2);
       R->Mult(x_r, X_r);
       R->Mult(x_i, X_i);
       data_r = x_r.GetData();
@@ -774,116 +781,146 @@ void ComplexNormalEquations::RecoverFEMSolution(const Vector &X,
                                                 Vector &x)
 {
 
-   // if (static_cond)
-   // {
-   //    // Private dofs back solve
-   //    static_cond->ComputeSolution(X, x);
-   // }
-   // else if (!P)
-   // {
-   //    x.SyncMemory(X);
-   // }
-   // else
-   // {
-   //    x.SetSize(P->Height());
-   //    P->Mult(X, x);
-   //    double *data = X.GetData();
-   //    Vector tmp;
-   //    for (int i = 0; i<nblocks; i++)
-   //    {
-   //       if (P->IsZeroBlock(i,i))
-   //       {
-   //          int offset = tdof_offsets[i];
-   //          tmp.SetDataAndSize(&data[offset],tdof_offsets[i+1]-tdof_offsets[i]);
-   //          x.SetVector(tmp,offset);
-   //       }
-   //    }
-   // }
+   if (static_cond)
+   {
+      // Private dofs back solve
+      MFEM_ABORT("TODO: ComplexNormalEquations::StaticCond");
+      //    static_cond->ComputeSolution(X, x);
+   }
+   else if (!P)
+   {
+      x.SyncMemory(X);
+   }
+   else
+   {
+      x.SetSize(2*P->Height());
+      Vector X_r(X.GetData(),X.Size()/2);
+      Vector X_i(&X.GetData()[X.Size()/2],X.Size()/2);
+
+      Vector x_r(x.GetData(),x.Size()/2);
+      Vector x_i(&x.GetData()[x.Size()/2],x.Size()/2);
+
+      P->Mult(X_r, x_r);
+      P->Mult(X_i, x_i);
+      double *data_r = X_r.GetData();
+      double *data_i = X_i.GetData();
+      Vector tmp_r, tmp_i;
+      for (int i = 0; i<nblocks; i++)
+      {
+         if (P->IsZeroBlock(i,i))
+         {
+            int offset = tdof_offsets[i];
+            tmp_r.SetDataAndSize(&data_r[offset],tdof_offsets[i+1]-tdof_offsets[i]);
+            tmp_i.SetDataAndSize(&data_i[offset],tdof_offsets[i+1]-tdof_offsets[i]);
+            x_r.SetVector(tmp_r,offset);
+            x_i.SetVector(tmp_i,offset);
+         }
+      }
+   }
 }
 
 
 void ComplexNormalEquations::ReleaseInitMemory()
 {
-   // if (initialized)
-   // {
-   //    for (int k = 0; k< trial_integs.NumRows(); k++)
-   //    {
-   //       for (int l = 0; l<trial_integs.NumCols(); l++)
-   //       {
-   //          for (int i = 0; i<trial_integs(k,l)->Size(); i++)
-   //          {
-   //             delete (*trial_integs(k,l))[i];
-   //          }
-   //          delete trial_integs(k,l);
-   //       }
-   //    }
-   //    trial_integs.DeleteAll();
+   if (initialized)
+   {
+      for (int k = 0; k< trial_integs_r.NumRows(); k++)
+      {
+         for (int l = 0; l<trial_integs_r.NumCols(); l++)
+         {
+            for (int i = 0; i<trial_integs_r(k,l)->Size(); i++)
+            {
+               delete (*trial_integs_r(k,l))[i];
+            }
+            delete trial_integs_r(k,l);
+            for (int i = 0; i<trial_integs_i(k,l)->Size(); i++)
+            {
+               delete (*trial_integs_i(k,l))[i];
+            }
+            delete trial_integs_i(k,l);
+         }
+      }
+      trial_integs_r.DeleteAll();
+      trial_integs_i.DeleteAll();
 
-   //    for (int k = 0; k < test_integs.NumRows(); k++)
-   //    {
-   //       for (int l = 0; l < test_integs.NumCols(); l++)
-   //       {
-   //          for (int i = 0; i < test_integs(k,l)->Size(); i++)
-   //          {
-   //             delete (*test_integs(k,l))[i];
-   //          }
-   //          delete test_integs(k,l);
-   //       }
-   //    }
-   //    test_integs.DeleteAll();
+      for (int k = 0; k < test_integs_r.NumRows(); k++)
+      {
+         for (int l = 0; l < test_integs_r.NumCols(); l++)
+         {
+            for (int i = 0; i < test_integs_r(k,l)->Size(); i++)
+            {
+               delete (*test_integs_r(k,l))[i];
+            }
+            delete test_integs_r(k,l);
+            for (int i = 0; i < test_integs_i(k,l)->Size(); i++)
+            {
+               delete (*test_integs_i(k,l))[i];
+            }
+            delete test_integs_i(k,l);
+         }
+      }
+      test_integs_r.DeleteAll();
+      test_integs_i.DeleteAll();
 
-   //    for (int k = 0; k < lfis.Size(); k++)
-   //    {
-   //       for (int i = 0; i < lfis[k]->Size(); i++)
-   //       {
-   //          delete (*lfis[k])[i];
-   //       }
-   //       delete lfis[k];
-   //    }
-   //    lfis.DeleteAll();
-   // }
+      for (int k = 0; k < lfis_r.Size(); k++)
+      {
+         for (int i = 0; i < lfis_r[k]->Size(); i++)
+         {
+            delete (*lfis_r[k])[i];
+         }
+         delete lfis_r[k];
+         for (int i = 0; i < lfis_i[k]->Size(); i++)
+         {
+            delete (*lfis_i[k])[i];
+         }
+         delete lfis_i[k];
+      }
+      lfis_r.DeleteAll();
+      lfis_i.DeleteAll();
+   }
 }
 
 
 
 void ComplexNormalEquations::Update()
 {
-   // delete mat_e; mat_e = nullptr;
-   // delete mat; mat = nullptr;
-   // delete y; y = nullptr;
+   delete mat_e_r; mat_e_r = nullptr;
+   delete mat_e_i; mat_e_i = nullptr;
+   delete mat; mat = nullptr; //o owns imag and real part
+   delete y; y = nullptr; // same
 
-   // if (P)
-   // {
-   //    delete P; P = nullptr;
-   //    delete R; R = nullptr;
-   // }
+   if (P)
+   {
+      delete P; P = nullptr;
+      delete R; R = nullptr;
+   }
 
-   // delete static_cond;
-   // static_cond = NULL;
+   delete static_cond;
+   static_cond = NULL;
 
-   // ComputeOffsets();
+   ComputeOffsets();
 
-   // diag_policy = mfem::Operator::DIAG_ONE;
-   // height = dof_offsets[nblocks];
-   // width = height;
+   diag_policy = mfem::Operator::DIAG_ONE;
+   height = dof_offsets[nblocks];
+   width = height;
 
-   // initialized = true;
+   initialized = true;
 
-   // if (store_matrices)
-   // {
-   //    for (int i = 0; i<GB.Size(); i++)
-   //    {
-   //       delete GB[i]; GB[i] = nullptr;
-   //       delete Gl[i]; Gl[i] = nullptr;
-   //    }
-   //    GB.SetSize(mesh->GetNE());
-   //    Gl.SetSize(mesh->GetNE());
-   //    for (int i = 0; i<GB.Size(); i++)
-   //    {
-   //       GB[i] = nullptr;
-   //       Gl[i] = nullptr;
-   //    }
-   // }
+   if (store_matrices)
+   {
+      for (int i = 0; i<GB.Size(); i++)
+      {
+         delete GB[i]; GB[i] = nullptr;
+         delete Gl[i]; Gl[i] = nullptr;
+      }
+      GB.SetSize(mesh->GetNE());
+      Gl.SetSize(mesh->GetNE());
+      for (int i = 0; i<GB.Size(); i++)
+      {
+         GB[i] = nullptr;
+         Gl[i] = nullptr;
+      }
+   }
 }
 
 
@@ -981,28 +1018,29 @@ Vector & ComplexNormalEquations::ComputeResidual(const BlockVector & x)
 
 ComplexNormalEquations::~ComplexNormalEquations()
 {
-   //    delete mat_e; mat_e = nullptr;
-   //    delete mat; mat = nullptr;
-   //    delete y; y = nullptr;
+   delete mat_e_r; mat_e_r = nullptr;
+   delete mat_e_i; mat_e_i = nullptr;
+   delete mat; mat = nullptr; // owns real and imag part
+   delete y; y = nullptr; // same
 
-   //    ReleaseInitMemory();
+   ReleaseInitMemory();
 
-   //    if (P)
-   //    {
-   //       delete P;
-   //       delete R;
-   //    }
+   if (P)
+   {
+      delete P;
+      delete R;
+   }
 
-   //    delete static_cond;
+   delete static_cond;
 
-   //    if (store_matrices)
-   //    {
-   //       for (int i = 0; i<mesh->GetNE(); i++)
-   //       {
-   //          delete GB[i]; GB[i] = nullptr;
-   //          delete Gl[i]; Gl[i] = nullptr;
-   //       }
-   //    }
+   if (store_matrices)
+   {
+      for (int i = 0; i<mesh->GetNE(); i++)
+      {
+         delete GB[i]; GB[i] = nullptr;
+         delete Gl[i]; Gl[i] = nullptr;
+      }
+   }
 }
 
 } // namespace mfem

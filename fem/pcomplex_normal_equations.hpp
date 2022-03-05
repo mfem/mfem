@@ -90,10 +90,9 @@ public:
 
    void ParallelAssemble(BlockMatrix *mat);
 
-   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x_r, Vector &x_i,
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                          OperatorHandle &A,
-                         Vector &X_r,Vector &X_i,
-                         Vector &B_r,Vector &B_i,
+                         Vector &X, Vector &B,
                          int copy_interior = 0);
 
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);

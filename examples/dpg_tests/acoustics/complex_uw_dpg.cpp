@@ -239,25 +239,23 @@ int main(int argc, char *argv[])
    offsets[3] = hatp_fes->GetVSize();
    offsets[4] = hatu_fes->GetVSize();
    offsets.PartialSum();
-   BlockVector x_r(offsets); x_r = 0.0;
-   BlockVector x_i(offsets); x_i = 0.0;
 
+
+   Vector x(2*offsets.Last());
+   x = 0.;
+   double * xdata = x.GetData();
    FunctionCoefficient hatpex_r(hatp_exact_r);
    FunctionCoefficient hatpex_i(hatp_exact_i);
-   GridFunction hatp_gf_r;
-   GridFunction hatp_gf_i;
+   ComplexGridFunction hatp_gf(hatp_fes);
 
-   hatp_gf_r.MakeRef(hatp_fes,x_r.GetBlock(2));
-   hatp_gf_r.ProjectBdrCoefficient(hatpex_r,ess_bdr);
+   hatp_gf.real().MakeRef(hatp_fes,&xdata[offsets[2]]);
+   hatp_gf.imag().MakeRef(hatp_fes,&xdata[offsets.Last()+ offsets[2]]);
 
-   hatp_gf_i.MakeRef(hatp_fes,x_i.GetBlock(2));
-   hatp_gf_i.ProjectBdrCoefficient(hatpex_i,ess_bdr);
+   hatp_gf.ProjectBdrCoefficient(hatpex_r,hatpex_i, ess_bdr);
 
    OperatorPtr Ah;
-   Vector X_r,B_r;
-   Vector X_i,B_i;
-   a->FormLinearSystem(ess_tdof_list,x_r,x_i,Ah,
-                       X_r,X_i,B_r,B_i);
+   Vector X,B;
+   a->FormLinearSystem(ess_tdof_list,x,Ah, X,B);
 
    ComplexOperator * Ahc = Ah.As<ComplexOperator>();
 
@@ -266,53 +264,39 @@ int main(int argc, char *argv[])
 
    ComplexSparseMatrix Ac(Ar,Ai,false,false);
    SparseMatrix * A = Ac.GetSystemMatrix();
-   Vector B,X;
-   X.SetSize(A->Height());
-   B.SetSize(A->Height());
-   B.SetVector(B_r,0);
-   B.SetVector(B_i,B_r.Size());
 
    UMFPackSolver umf(*A);
    umf.Mult(B,X);
-   int size = A->Height()/2;
-   for (int i = 0; i<size; i++)
-   {
-      x_r(i) = X(i);
-      x_i(i) = X(i+size);
-   }
 
+   a->RecoverFEMSolution(X,x);
 
-   GridFunction p_r(p_fes);
-   p_r.MakeRef(p_fes,x_r.GetBlock(0));
+   ComplexGridFunction p(p_fes);
+   p.real().MakeRef(p_fes,x.GetData());
+   p.imag().MakeRef(p_fes,&x.GetData()[offsets.Last()]);
 
-   GridFunction p_i(p_fes);
-   p_i.MakeRef(p_fes,x_i.GetBlock(0));
-
-   GridFunction pgf_ex_r(p_fes);
-   GridFunction pgf_ex_i(p_fes);
+   ComplexGridFunction pgf_ex(p_fes);
    FunctionCoefficient p_ex_r(p_exact_r);
    FunctionCoefficient p_ex_i(p_exact_i);
-   pgf_ex_r.ProjectCoefficient(p_ex_r);
-   pgf_ex_i.ProjectCoefficient(p_ex_i);
+   pgf_ex.ProjectCoefficient(p_ex_r, p_ex_i);
 
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sol_sock_r(vishost, visport);
    sol_sock_r.precision(8);
-   sol_sock_r << "solution\n" << mesh << p_r << flush;
+   sol_sock_r << "solution\n" << mesh << p.real() << flush;
 
    socketstream sol_sock_i(vishost, visport);
    sol_sock_i.precision(8);
-   sol_sock_i << "solution\n" << mesh << p_i << flush;
+   sol_sock_i << "solution\n" << mesh << p.imag() << flush;
 
 
    socketstream ex_sock_r(vishost, visport);
    ex_sock_r.precision(8);
-   ex_sock_r << "solution\n" << mesh << pgf_ex_r << flush;
+   ex_sock_r << "solution\n" << mesh << pgf_ex.real() << flush;
 
    socketstream ex_sock_i(vishost, visport);
    ex_sock_i.precision(8);
-   ex_sock_i << "solution\n" << mesh << pgf_ex_i << flush;
+   ex_sock_i << "solution\n" << mesh << pgf_ex.imag() << flush;
 
 
    delete a;
@@ -395,8 +379,6 @@ void hatu_exact_i(const Vector & X, Vector & hatu)
 {
    u_exact_i(X,hatu);
 }
-
-
 
 //  ∇⋅u = i Δ p / ω
 //      = i (Δ p_r + i * Δ p_i)  / ω 

@@ -44,6 +44,7 @@ protected:
    /// BlockVectors to be associated with the real/imag Block linear form
    BlockVector * y_r = nullptr;
    BlockVector * y_i = nullptr;
+   Vector * y = nullptr;
 
    /** @brief Block Matrix \f$ M_e \f$ used to store the eliminations
         from the b.c.  Owned.
@@ -201,23 +202,18 @@ public:
    void Assemble(int skip_zeros = 1);
 
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
-                                 Vector &x_r, Vector &x_i,
-                                 OperatorHandle & A,
-                                 Vector &X_r, Vector &X_i,
-                                 Vector &B_r, Vector &B_i,
+                                 Vector &x, OperatorHandle & A,
+                                 Vector &X, Vector &B,
                                  int copy_interior = 0);
 
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x_r, Vector &x_i,
-                         OpType &A,
-                         Vector &X_r, Vector &X_i,
-                         Vector &B_r, Vector &B_i,
+                         Vector &x, OpType &A,
+                         Vector &X, Vector &B,
                          int copy_interior = 0)
    {
       OperatorHandle Ah;
-      FormLinearSystem(ess_tdof_list, x_r, x_i, Ah, X_r, X_i,
-                       B_r, B_i, copy_interior);
+      FormLinearSystem(ess_tdof_list, x, Ah, X, B, copy_interior);
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);

@@ -98,11 +98,9 @@ void ComplexParNormalEquations::BuildProlongation()
 
 void ComplexParNormalEquations::FormLinearSystem(const Array<int>
                                                  &ess_tdof_list,
-                                                 Vector &x_r,
-                                                 Vector &x_i,
+                                                 Vector &x,
                                                  OperatorHandle &A,
-                                                 Vector &X_r,Vector &X_i,
-                                                 Vector &B_r,Vector &B_i,
+                                                 Vector &X, Vector &B,
                                                  int copy_interior)
 {
    // FormSystemMatrix(ess_tdof_list, A);
