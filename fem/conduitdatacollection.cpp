@@ -765,7 +765,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    ////////////////////////////////////////////
 
    // guard vs if we have boundary elements
-   if (HasBoundaryElements(mesh))
+   if (mesh->HasBoundaryElements())
    {
       n_topo["boundary_topology"] = boundary_topology_name;
 
@@ -776,16 +776,18 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
 
       int num_bndry_ele = mesh->GetNBE();
 
-      // must initialize this to something
-      Element::Type bndry_ele_type   = (num_bndry_ele > 0) ? mesh->GetBdrElementType(
-                                          0) : mfem::Element::POINT;
+      Element *BE0 = NULL; // representative boundary element
+      if (num_bndry_ele > 0) { BE0 = mesh->GetBdrElement(0); }
+
+      // must initialize this to something, pick POINT if no boundary elements
+      Element::Type bndry_ele_type   = (BE0) ? BE0->GetType() : Element::POINT;
       std::string bndry_ele_shape    = ElementTypeToShapeName(bndry_ele_type);
       n_bndry_topo["elements/shape"] = bndry_ele_shape;
 
-      int bndry_geom          = (num_bndry_ele > 0) ? mesh->GetBdrElementBaseGeometry(
-                                   0) : mfem::Element::POINT;
+      // must initialize this to something, pick POINT if no boundary elements
+      int bndry_geom          = (BE0) ? BE0->GetGeometryType() : Geometry::POINT;
       int bndry_idxs_per_ele  = Geometry::NumVerts[bndry_geom];
-      int num_bndry_conn_idxs =  num_bndry_ele * bndry_idxs_per_ele;
+      int num_bndry_conn_idxs = num_bndry_ele * bndry_idxs_per_ele;
 
       n_bndry_topo["elements/connectivity"].set(DataType::c_int(num_bndry_conn_idxs));
 
@@ -938,28 +940,6 @@ ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
       }
    }
 
-}
-
-//---------------------------------------------------------------------------//
-bool
-ConduitDataCollection::HasBoundaryElements(mfem::Mesh* mesh)
-{
-   // check if this rank has any boundary elements
-   int hasBndElts = mesh->GetNBE() > 0 ? 1 : 0;
-
-#ifdef MFEM_USE_MPI
-   // check if any rank has boundary elements
-   ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
-   if (pmesh)
-   {
-      int hasBndElts_g;
-      MPI_Allreduce(&hasBndElts, &hasBndElts_g, 1,
-                    MPI_INT, MPI_MAX,pmesh->GetComm());
-      hasBndElts = hasBndElts_g;
-   }
-#endif
-
-   return hasBndElts > 0 ? true : false;
 }
 
 //------------------------------
