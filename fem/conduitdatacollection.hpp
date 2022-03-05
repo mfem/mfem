@@ -209,9 +209,6 @@ public:
                                                      const conduit::Node &n_field,
                                                      bool zero_copy = false);
 
-   /** Checks if any rank in the mesh has boundary elements */
-   static bool HasBoundaryElements(mfem::Mesh *mesh);
-
 private:
    /// Converts from MFEM element type enum to mesh bp shape name
    static std::string ElementTypeToShapeName(Element::Type element_type);
