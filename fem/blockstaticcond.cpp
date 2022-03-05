@@ -760,8 +760,7 @@ void BlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
                                                        Matrix::DiagonalPolicy dpolicy)
 {
 
-   MFEM_VERIFY(!parallel, "EliminateReducedTrueDofs::not implemented yet");
-
+   MFEM_VERIFY(!parallel, "EliminateReducedTrueDofs::Wrong Code path");
 
    if (S_e == NULL)
    {

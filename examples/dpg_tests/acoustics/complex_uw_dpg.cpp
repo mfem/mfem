@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
    int ref = 1;
    double theta = 0.0;
    bool adjoint_graph_norm = false;
+   bool static_cond = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -91,7 +92,9 @@ int main(int argc, char *argv[])
                   "-no-graph-norm", "--no-adjoint-graph-norm",
                   "Enable or disable Adjoint Graph Norm on the test space");                                
    args.AddOption(&ref, "-ref", "--serial_ref",
-                  "Number of serial refinements.");                               
+                  "Number of serial refinements.");       
+   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
+                  "--no-static-condensation", "Enable static condensation.");                                            
    args.Parse();
    if (!args.Good())
    {
@@ -215,6 +218,9 @@ int main(int argc, char *argv[])
    FunctionCoefficient f_rhs_r(rhs_func_r);
    FunctionCoefficient f_rhs_i(rhs_func_i);
    a->AddDomainLFIntegrator(new DomainLFIntegrator(f_rhs_r),new DomainLFIntegrator(f_rhs_i),0);
+   
+   
+   if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
    Array<int> ess_tdof_list;
@@ -264,6 +270,9 @@ int main(int argc, char *argv[])
 
    ComplexSparseMatrix Ac(Ar,Ai,false,false);
    SparseMatrix * A = Ac.GetSystemMatrix();
+
+   mfem::out << "Size of the linear system: " << A->Height() << std::endl;
+
 
    UMFPackSolver umf(*A);
    umf.Mult(B,X);

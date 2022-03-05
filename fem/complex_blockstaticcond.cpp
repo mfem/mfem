@@ -162,20 +162,27 @@ void ComplexBlockStaticCondensation::Init()
 
    ComputeOffsets();
 
-   S = new BlockMatrix(rdof_offsets);
-   S->owns_blocks = 1;
+   S_r = new BlockMatrix(rdof_offsets);
+   S_r->owns_blocks = 1;
+   S_i = new BlockMatrix(rdof_offsets);
+   S_i->owns_blocks = 1;
 
-   for (int i = 0; i<S->NumRowBlocks(); i++)
+   for (int i = 0; i<S_r->NumRowBlocks(); i++)
    {
       int h = rdof_offsets[i+1] - rdof_offsets[i];
-      for (int j = 0; j<S->NumColBlocks(); j++)
+      for (int j = 0; j<S_r->NumColBlocks(); j++)
       {
          int w = rdof_offsets[j+1] - rdof_offsets[j];
-         S->SetBlock(i,j,new SparseMatrix(h, w));
+         S_r->SetBlock(i,j,new SparseMatrix(h, w));
+         S_i->SetBlock(i,j,new SparseMatrix(h, w));
       }
    }
-   y = new BlockVector(rdof_offsets);
-   *y = 0.;
+
+   y = new Vector(2*rdof_offsets.Last());
+   double * ydata = y->GetData();
+   *y=0.;
+   y_r = new BlockVector(ydata,rdof_offsets);
+   y_i = new BlockVector(&ydata[rdof_offsets.Last()], rdof_offsets);
 }
 
 void ComplexBlockStaticCondensation::GetReduceElementIndicesAndOffsets(int el,
@@ -345,54 +352,87 @@ void ComplexBlockStaticCondensation::GetElementVDofs(int el,
 }
 
 
-void ComplexBlockStaticCondensation::GetLocalShurComplement(int el,
-                                                            const Array<int> & tr_idx, const Array<int> & int_idx,
-                                                            const DenseMatrix & elmat, const Vector & elvect,
-                                                            DenseMatrix & rmat, Vector & rvect)
+ComplexDenseMatrix * ComplexBlockStaticCondensation::GetLocalShurComplement(
+   int el,
+   const Array<int> & tr_idx, const Array<int> & int_idx,
+   const ComplexDenseMatrix & elmat,
+   const Vector & elvect_real, const Vector & elvect_imag,
+   Vector & rvect_real, Vector & rvect_imag)
 {
    int rdofs = tr_idx.Size();
    int idofs = int_idx.Size();
    MFEM_VERIFY(idofs != 0, "Number of interior dofs is zero");
    MFEM_VERIFY(rdofs != 0, "Number of interface dofs is zero");
 
-   rmat.SetSize(rdofs);
-   rvect.SetSize(rdofs);
+   DenseMatrix A_tt_real, A_ti_real, A_it_real, A_ii_real;
+   DenseMatrix A_tt_imag, A_ti_imag, A_it_imag, A_ii_imag;
 
-   DenseMatrix A_tt, A_ti, A_it, A_ii;
-   Vector y_t, y_i;
 
-   elmat.GetSubMatrix(tr_idx,A_tt);
-   elmat.GetSubMatrix(tr_idx,int_idx, A_ti);
-   elmat.GetSubMatrix(int_idx, tr_idx, A_it);
-   elmat.GetSubMatrix(int_idx, A_ii);
+   Vector y_t(2*rdofs);
+   Vector y_i(2*idofs);
 
-   elvect.GetSubVector(tr_idx, y_t);
-   elvect.GetSubVector(int_idx, y_i);
+   double * y_t_data = y_t.GetData();
+   Vector y_t_real(y_t_data,rdofs);
+   Vector y_t_imag(&y_t_data[rdofs],rdofs);
 
-   DenseMatrixInverse lu(A_ii);
-   lu.Factor();
-   lmat[el] = new DenseMatrix(idofs,rdofs);
-   lvec[el] = new Vector(idofs);
+   double * y_i_data = y_i.GetData();
+   Vector y_i_real(y_i_data,idofs);
+   Vector y_i_imag(&y_i_data[idofs],idofs);
 
-   lu.Mult(A_it,*lmat[el]);
-   lu.Mult(y_i,*lvec[el]);
+   // real part of Matrix and vectors
+   elmat.real().GetSubMatrix(tr_idx,A_tt_real);
+   elmat.real().GetSubMatrix(tr_idx,int_idx, A_ti_real);
+   elmat.real().GetSubMatrix(int_idx, tr_idx, A_it_real);
+   elmat.real().GetSubMatrix(int_idx, A_ii_real);
+
+   elvect_real.GetSubVector(tr_idx, y_t_real);
+   elvect_real.GetSubVector(int_idx, y_i_real);
+
+   // imag part of Matrix and vectors
+   elmat.imag().GetSubMatrix(tr_idx,A_tt_imag);
+   elmat.imag().GetSubMatrix(tr_idx,int_idx, A_ti_imag);
+   elmat.imag().GetSubMatrix(int_idx, tr_idx, A_it_imag);
+   elmat.imag().GetSubMatrix(int_idx, A_ii_imag);
+
+   elvect_imag.GetSubVector(tr_idx, y_t_imag);
+   elvect_imag.GetSubVector(int_idx, y_i_imag);
+
+   // construct complex
+   ComplexDenseMatrix A_tt(&A_tt_real,&A_tt_imag,false,false);
+   ComplexDenseMatrix A_ti(&A_ti_real,&A_ti_imag,false,false);
+   ComplexDenseMatrix A_it(&A_it_real,&A_it_imag,false,false);
+   ComplexDenseMatrix A_ii(&A_ii_real,&A_ii_imag,false,false);
+
+   ComplexDenseMatrix * invA_ii = A_ii.ComputeInverse();
 
    // LHS
-   mfem::Mult(A_ti,*lmat[el],rmat);
-
-   rmat.Neg();
-   rmat.Add(1., A_tt);
+   lmat[el] = mfem::Mult(*invA_ii,A_it);
+   ComplexDenseMatrix * rmat = mfem::Mult(A_ti,*lmat[el]);
+   rmat->real().Neg();
+   rmat->imag().Neg();
+   rmat->real().Add(1., A_tt.real());
+   rmat->imag().Add(1., A_tt.imag());
 
    // RHS
+   lvec[el] = new Vector(2*idofs);
+   invA_ii->Mult(y_i,*lvec[el]);
+
+   Vector rvect(2*rdofs);
    A_ti.Mult(*lvec[el], rvect);
-   rvect.Neg();
-   rvect.Add(1., y_t);
+   rvect_real.SetSize(rdofs);
+   rvect_imag.SetSize(rdofs);
+   for (int i = 0; i<rdofs; i++)
+   {
+      rvect_real(i) = y_t_real(i) - rvect(i);
+      rvect_imag(i) = y_t_imag(i) - rvect(i+rdofs);
+   }
+   return rmat;
 }
 
 
 void ComplexBlockStaticCondensation::AssembleReducedSystem(int el,
-                                                           DenseMatrix &elmat,
-                                                           Vector & elvect)
+                                                           ComplexDenseMatrix &elmat,
+                                                           Vector & elvect_r, Vector & elvect_i)
 {
    // Get Shur Complement
    Array<int> tr_idx, int_idx;
@@ -400,19 +440,22 @@ void ComplexBlockStaticCondensation::AssembleReducedSystem(int el,
    // Get local element idx and offsets for global assembly
    GetReduceElementIndicesAndOffsets(el, tr_idx,int_idx, offsets);
 
-   DenseMatrix rmat, *rmatptr;
-   Vector rvec, *rvecptr;
+   ComplexDenseMatrix *rmat = nullptr;
+   Vector rvec_real, *rvecptr_real;
+   Vector rvec_imag, *rvecptr_imag;
    // Extract the reduced matrices based on tr_idx and int_idx
    if (int_idx.Size()!=0)
    {
-      GetLocalShurComplement(el,tr_idx,int_idx, elmat, elvect, rmat, rvec);
-      rmatptr = &rmat;
-      rvecptr = &rvec;
+      rmat = GetLocalShurComplement(el,tr_idx,int_idx, elmat, elvect_r, elvect_i,
+                                    rvec_real,rvec_imag);
+      rvecptr_real = &rvec_real;
+      rvecptr_imag = &rvec_imag;
    }
    else
    {
-      rmatptr = &elmat;
-      rvecptr = &elvect;
+      rmat = &elmat;
+      rvecptr_real = &elvect_r;
+      rvecptr_imag = &elvect_i;
    }
 
    // Assemble global mat and rhs
@@ -477,28 +520,34 @@ void ComplexBlockStaticCondensation::AssembleReducedSystem(int el,
             doftrans_j = tr_fes[j]->GetElementVDofs(el, vdofs_j);
          }
 
-         DenseMatrix Ae;
-         rmatptr->GetSubMatrix(offsets[i],offsets[i+1],
-                               offsets[j],offsets[j+1], Ae);
+         DenseMatrix Ae_r, Ae_i;
+         rmat->real().GetSubMatrix(offsets[i],offsets[i+1],
+                                   offsets[j],offsets[j+1], Ae_r);
+         rmat->imag().GetSubMatrix(offsets[i],offsets[i+1],
+                                   offsets[j],offsets[j+1], Ae_i);
          if (doftrans_i || doftrans_j)
          {
-            TransformDual(doftrans_i, doftrans_j, Ae);
+            TransformDual(doftrans_i, doftrans_j, Ae_r);
+            TransformDual(doftrans_i, doftrans_j, Ae_i);
          }
-         S->GetBlock(skip_i,skip_j).AddSubMatrix(vdofs_i,vdofs_j, Ae);
+         S_r->GetBlock(skip_i,skip_j).AddSubMatrix(vdofs_i,vdofs_j, Ae_r);
+         S_i->GetBlock(skip_i,skip_j).AddSubMatrix(vdofs_i,vdofs_j, Ae_i);
          skip_j++;
       }
 
       // assemble rhs
-      double * data = rvecptr->GetData();
-      Vector vec1;
+      double * data_r = rvecptr_real->GetData();
+      double * data_i = rvecptr_imag->GetData();
+      Vector vec1_r(&data_r[offsets[i]],offsets[i+1]-offsets[i]);
+      Vector vec1_i(&data_i[offsets[i]],offsets[i+1]-offsets[i]);
       // ref subvector
-      vec1.SetDataAndSize(&data[offsets[i]],
-                          offsets[i+1]-offsets[i]);
       if (doftrans_i)
       {
-         doftrans_i->TransformDual(vec1);
+         doftrans_i->TransformDual(vec1_r);
+         doftrans_i->TransformDual(vec1_i);
       }
-      y->GetBlock(skip_i).AddElementVector(vdofs_i,vec1);
+      y_r->GetBlock(skip_i).AddElementVector(vdofs_i,vec1_r);
+      y_i->GetBlock(skip_i).AddElementVector(vdofs_i,vec1_i);
       skip_i++;
    }
 }
@@ -548,55 +597,63 @@ void ComplexBlockStaticCondensation::BuildParallelProlongation()
    }
 }
 
-void ComplexBlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
+void ComplexBlockStaticCondensation::ParallelAssemble(BlockMatrix *m_r,
+                                                      BlockMatrix *m_i)
 {
+
+   MFEM_ABORT("TODO: SC: parallel Assemble()");
+
    if (!pP) { BuildParallelProlongation(); }
 
-   pS = new BlockOperator(rtdof_offsets);
-   pS_e = new BlockOperator(rtdof_offsets);
-   pS->owns_blocks = 1;
-   pS_e->owns_blocks = 1;
-   HypreParMatrix * A = nullptr;
-   HypreParMatrix * PtAP = nullptr;
-   int skip_i=0;
-   ParFiniteElementSpace * pfes_i = nullptr;
-   ParFiniteElementSpace * pfes_j = nullptr;
-   for (int i = 0; i<nblocks; i++)
-   {
-      if (!tr_fes[i]) { continue; }
-      pfes_i = dynamic_cast<ParFiniteElementSpace*>(fes[i]);
-      HypreParMatrix * Pi = (HypreParMatrix*)(&pP->GetBlock(skip_i,skip_i));
-      int skip_j=0;
-      for (int j = 0; j<nblocks; j++)
-      {
-         if (!tr_fes[j]) { continue; }
-         if (m->IsZeroBlock(skip_i,skip_j)) { continue; }
-         if (skip_i == skip_j)
-         {
-            // Make block diagonal square hypre matrix
-            A = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
-                                   pfes_i->GetDofOffsets(),&m->GetBlock(skip_i,skip_i));
-            PtAP = RAP(A,Pi);
-            delete A;
-            pS_e->SetBlock(skip_i,skip_i,PtAP->EliminateRowsCols(*ess_tdofs[skip_i]));
-         }
-         else
-         {
-            pfes_j = dynamic_cast<ParFiniteElementSpace*>(fes[j]);
-            HypreParMatrix * Pj = (HypreParMatrix*)(&pP->GetBlock(skip_j,skip_j));
-            A = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
-                                   pfes_j->GlobalVSize(), pfes_i->GetDofOffsets(),
-                                   pfes_j->GetDofOffsets(), &m->GetBlock(skip_i,skip_j));
-            PtAP = RAP(Pi,A,Pj);
-            delete A;
-            pS_e->SetBlock(skip_i,skip_j,PtAP->EliminateCols(*ess_tdofs[skip_j]));
-            PtAP->EliminateRows(*ess_tdofs[skip_i]);
-         }
-         pS->SetBlock(skip_i,skip_j,PtAP);
-         skip_j++;
-      }
-      skip_i++;
-   }
+   pS_r = new BlockOperator(rtdof_offsets);
+   pS_r_e = new BlockOperator(rtdof_offsets);
+   pS_i = new BlockOperator(rtdof_offsets);
+   pS_i_e = new BlockOperator(rtdof_offsets);
+   pS_r->owns_blocks = 1;
+   pS_i->owns_blocks = 1;
+   pS_r_e->owns_blocks = 1;
+   pS_i_e->owns_blocks = 1;
+   // HypreParMatrix * A = nullptr;
+   // HypreParMatrix * PtAP = nullptr;
+   // int skip_i=0;
+   // ParFiniteElementSpace * pfes_i = nullptr;
+   // ParFiniteElementSpace * pfes_j = nullptr;
+   // for (int i = 0; i<nblocks; i++)
+   // {
+   //    if (!tr_fes[i]) { continue; }
+   //    pfes_i = dynamic_cast<ParFiniteElementSpace*>(fes[i]);
+   //    HypreParMatrix * Pi = (HypreParMatrix*)(&pP->GetBlock(skip_i,skip_i));
+   //    int skip_j=0;
+   //    for (int j = 0; j<nblocks; j++)
+   //    {
+   //       if (!tr_fes[j]) { continue; }
+   //       if (m->IsZeroBlock(skip_i,skip_j)) { continue; }
+   //       if (skip_i == skip_j)
+   //       {
+   //          // Make block diagonal square hypre matrix
+   //          A = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
+   //                                 pfes_i->GetDofOffsets(),&m->GetBlock(skip_i,skip_i));
+   //          PtAP = RAP(A,Pi);
+   //          delete A;
+   //          pS_e->SetBlock(skip_i,skip_i,PtAP->EliminateRowsCols(*ess_tdofs[skip_i]));
+   //       }
+   //       else
+   //       {
+   //          pfes_j = dynamic_cast<ParFiniteElementSpace*>(fes[j]);
+   //          HypreParMatrix * Pj = (HypreParMatrix*)(&pP->GetBlock(skip_j,skip_j));
+   //          A = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
+   //                                 pfes_j->GlobalVSize(), pfes_i->GetDofOffsets(),
+   //                                 pfes_j->GetDofOffsets(), &m->GetBlock(skip_i,skip_j));
+   //          PtAP = RAP(Pi,A,Pj);
+   //          delete A;
+   //          pS_e->SetBlock(skip_i,skip_j,PtAP->EliminateCols(*ess_tdofs[skip_j]));
+   //          PtAP->EliminateRows(*ess_tdofs[skip_i]);
+   //       }
+   //       pS->SetBlock(skip_i,skip_j,PtAP);
+   //       skip_j++;
+   //    }
+   //    skip_i++;
+   // }
 }
 
 #endif
@@ -608,31 +665,48 @@ void ComplexBlockStaticCondensation::ConformingAssemble(int skip_zeros)
    if (!P) { BuildProlongation(); }
 
    BlockMatrix * Pt = Transpose(*P);
-   BlockMatrix * PtA = mfem::Mult(*Pt, *S);
-   delete S;
-   if (S_e)
+   BlockMatrix * PtA_r = mfem::Mult(*Pt, *S_r);
+   BlockMatrix * PtA_i = mfem::Mult(*Pt, *S_i);
+   delete S_r;
+   delete S_i;
+   if (S_r_e)
    {
-      BlockMatrix *PtAe = mfem::Mult(*Pt, *S_e);
-      delete S_e;
-      S_e = PtAe;
+      BlockMatrix *PtAe_r = mfem::Mult(*Pt, *S_r_e);
+      BlockMatrix *PtAe_i = mfem::Mult(*Pt, *S_i_e);
+      delete S_r_e;
+      delete S_i_e;
+      S_r_e = PtAe_r;
+      S_i_e = PtAe_i;
    }
    delete Pt;
-   S = mfem::Mult(*PtA, *P);
-   delete PtA;
+   S_r = mfem::Mult(*PtA_r, *P);
+   S_i = mfem::Mult(*PtA_i, *P);
+   delete PtA_r;
+   delete PtA_i;
 
-   if (S_e)
+   if (S_r_e)
    {
-      BlockMatrix *PtAeP = mfem::Mult(*S_e, *P);
-      S_e = PtAeP;
+      BlockMatrix *PtAeP_r = mfem::Mult(*S_r_e, *P);
+      BlockMatrix *PtAeP_i = mfem::Mult(*S_i_e, *P);
+      S_r_e = PtAeP_r;
+      S_i_e = PtAeP_i;
    }
-   height = S->Height();
-   width = S->Width();
+   height = 2*S_r->Height();
+   width = 2*S_r->Width();
 }
 
 void ComplexBlockStaticCondensation::Finalize(int skip_zeros)
 {
-   if (S) { S->Finalize(skip_zeros); }
-   if (S_e) { S_e->Finalize(skip_zeros); }
+   if (S_r)
+   {
+      S_r->Finalize(skip_zeros);
+      S_i->Finalize(skip_zeros);
+   }
+   if (S_r_e)
+   {
+      S_r_e->Finalize(skip_zeros);
+      S_i_e->Finalize(skip_zeros);
+   }
 }
 
 void ComplexBlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
@@ -640,21 +714,22 @@ void ComplexBlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
 {
    if (parallel)
    {
-      FillEssTdofLists(ess_rtdof_list);
-      if (S)
-      {
-         const int remove_zeros = 0;
-         Finalize(remove_zeros);
-         ParallelAssemble(S);
-         delete S;
-         S=nullptr;
-         delete S_e;
-         S_e = nullptr;
-      }
+      MFEM_ABORT("sc: parallel form system matrix: TODO");
+      // FillEssTdofLists(ess_rtdof_list);
+      // if (S)
+      // {
+      //    const int remove_zeros = 0;
+      //    Finalize(remove_zeros);
+      //    ParallelAssemble(S);
+      //    delete S;
+      //    S=nullptr;
+      //    delete S_e;
+      //    S_e = nullptr;
+      // }
    }
    else
    {
-      if (!S_e)
+      if (!S_r_e)
       {
          bool conforming = true;
          for (int i = 0; i<nblocks; i++)
@@ -764,28 +839,31 @@ void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
                                                               Matrix::DiagonalPolicy dpolicy)
 {
 
-   MFEM_VERIFY(!parallel, "EliminateReducedTrueDofs::not implemented yet");
+   MFEM_VERIFY(!parallel, "EliminateReducedTrueDofs::Wrong code path");
 
-
-   if (S_e == NULL)
+   if (S_r_e == NULL)
    {
       Array<int> offsets;
 
       offsets.MakeRef( (P) ? rtdof_offsets : rdof_offsets);
 
-      S_e = new BlockMatrix(offsets);
-      S_e->owns_blocks = 1;
-      for (int i = 0; i<S_e->NumRowBlocks(); i++)
+      S_r_e = new BlockMatrix(offsets);
+      S_i_e = new BlockMatrix(offsets);
+      S_r_e->owns_blocks = 1;
+      S_i_e->owns_blocks = 1;
+      for (int i = 0; i<S_r_e->NumRowBlocks(); i++)
       {
          int h = offsets[i+1] - offsets[i];
-         for (int j = 0; j<S_e->NumColBlocks(); j++)
+         for (int j = 0; j<S_r_e->NumColBlocks(); j++)
          {
             int w = offsets[j+1] - offsets[j];
-            S_e->SetBlock(i,j,new SparseMatrix(h, w));
+            S_r_e->SetBlock(i,j,new SparseMatrix(h, w));
+            S_i_e->SetBlock(i,j,new SparseMatrix(h, w));
          }
       }
    }
-   S->EliminateRowCols(ess_rtdof_list,S_e,dpolicy);
+   S_r->EliminateRowCols(ess_rtdof_list,S_r_e,dpolicy);
+   S_i->EliminateRowCols(ess_rtdof_list,S_i_e,Operator::DiagonalPolicy::DIAG_ZERO);
 }
 
 void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(
@@ -798,28 +876,41 @@ void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(
 void ComplexBlockStaticCondensation::ReduceSolution(const Vector &sol,
                                                     Vector &sc_sol) const
 {
-   MFEM_ASSERT(sol.Size() == dof_offsets.Last(), "'sol' has incorrect size");
+   MFEM_ASSERT(sol.Size() == 2*dof_offsets.Last(), "'sol' has incorrect size");
    const int nrdofs = rdof_offsets.Last();
-   Vector sol_r;
+
+   Vector sol_r_real;
+   Vector sol_r_imag;
+
    if (!R)
    {
-      sc_sol.SetSize(nrdofs);
-      sol_r.SetDataAndSize(sc_sol.GetData(), sc_sol.Size());
+      sc_sol.SetSize(2*nrdofs);
+      sol_r_real.SetDataAndSize(sc_sol.GetData(), nrdofs);
+      sol_r_imag.SetDataAndSize(&sc_sol.GetData()[nrdofs], nrdofs);
    }
    else
    {
-      sol_r.SetSize(nrdofs);
+      sol_r_real.SetSize(nrdofs);
+      sol_r_imag.SetSize(nrdofs);
    }
    for (int i = 0; i < nrdofs; i++)
    {
-      sol_r(i) = sol(rdof_edof[i]);
+      sol_r_real(i) = sol(rdof_edof[i]);
+      sol_r_imag(i) = sol(rdof_edof[i] + dof_offsets.Last());
    }
+
    if (R)
    {
+      sc_sol.SetSize(2*R->Height());
+      double * sc_data = sc_sol.GetData();
+      Vector sc_real(sc_data,rdof_offsets.Last());
+      Vector sc_imag(&sc_data[rdof_offsets.Last()],rdof_offsets.Last());
+
       // wrap vector into a block vector
-      BlockVector blsol_r(sol_r,rdof_offsets);
-      sc_sol.SetSize(R->Height());
-      R->Mult(blsol_r, sc_sol);
+      BlockVector blsol_r_real(sol_r_real,rdof_offsets);
+      BlockVector blsol_r_imag(sol_r_imag,rdof_offsets);
+      R->Mult(blsol_r_real, sc_real);
+      R->Mult(blsol_r_imag, sc_imag);
    }
 }
 
@@ -828,45 +919,70 @@ void ComplexBlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
                                                   int copy_interior) const
 {
    ReduceSolution(x, X);
+   Vector X_r(X.GetData(),X.Size()/2);
+   Vector X_i(&X.GetData()[X.Size()/2],X.Size()/2);
    if (parallel)
    {
-      B.SetSize(pP->Width());
-      pP->MultTranspose(*y,B);
+      MFEM_ABORT("TODO:: parallel reduceSystem");
+      // B.SetSize(pP->Width());
+      // pP->MultTranspose(*y,B);
 
-      Vector tmp(B.Size());
-      pS_e->Mult(X,tmp);
-      B-=tmp;
-      for (int j = 0; j<rblocks; j++)
-      {
-         if (!ess_tdofs[j]->Size()) { continue; }
-         HypreParMatrix *Ah = (HypreParMatrix *)(&pS->GetBlock(j,j));
-         Vector diag;
-         Ah->GetDiag(diag);
-         for (int i = 0; i < ess_tdofs[j]->Size(); i++)
-         {
-            int tdof = (*ess_tdofs[j])[i];
-            int gdof = tdof + rtdof_offsets[j];
-            B(gdof) = diag(tdof)*X(gdof);
-         }
-      }
+      // Vector tmp(B.Size());
+      // pS_e->Mult(X,tmp);
+      // B-=tmp;
+      // for (int j = 0; j<rblocks; j++)
+      // {
+      //    if (!ess_tdofs[j]->Size()) { continue; }
+      //    HypreParMatrix *Ah = (HypreParMatrix *)(&pS->GetBlock(j,j));
+      //    Vector diag;
+      //    Ah->GetDiag(diag);
+      //    for (int i = 0; i < ess_tdofs[j]->Size(); i++)
+      //    {
+      //       int tdof = (*ess_tdofs[j])[i];
+      //       int gdof = tdof + rtdof_offsets[j];
+      //       B(gdof) = diag(tdof)*X(gdof);
+      //    }
+      // }
    }
    else
    {
+
       if (!P)
       {
-         S_e->AddMult(X,*y,-1.);
-         S->PartMult(ess_rtdof_list,X,*y);
+
+         S_r_e->AddMult(X_r,*y_r,-1.);
+         S_i_e->AddMult(X_i,*y_r,1.);
+         S_r_e->AddMult(X_i,*y_i,-1.);
+         S_i_e->AddMult(X_r,*y_i,-1.);
+
+         S_r->PartMult(ess_rtdof_list,X_r,*y_r);
+         S_r->PartMult(ess_rtdof_list,X_i,*y_i);
          B.MakeRef(*y, 0, y->Size());
       }
       else
       {
-         B.SetSize(P->Width());
-         P->MultTranspose(*y, B);
-         S_e->AddMult(X,B,-1.);
-         S->PartMult(ess_rtdof_list,X,B);
+         B.SetSize(2*P->Width());
+         double * bdata = B.GetData();
+         Vector B_r(bdata,P->Width());
+         Vector B_i(&bdata[P->Width()],P->Width());
+
+         P->MultTranspose(*y_r, B_r);
+         P->MultTranspose(*y_i, B_i);
+
+         S_r_e->AddMult(X_r,B_r,-1.);
+         S_i_e->AddMult(X_i,B_r,1.);
+         S_r_e->AddMult(X_i,B_i,-1.);
+         S_i_e->AddMult(X_r,B_i,-1.);
+         S_r->PartMult(ess_rtdof_list,X_r,B_r);
+         S_r->PartMult(ess_rtdof_list,X_i,B_i);
+
       }
    }
-   if (!copy_interior) { X.SetSubVectorComplement(ess_rtdof_list, 0.0); }
+   if (!copy_interior)
+   {
+      X_r.SetSubVectorComplement(ess_rtdof_list, 0.0);
+      X_i.SetSubVectorComplement(ess_rtdof_list, 0.0);
+   }
 }
 
 
@@ -876,78 +992,113 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
 
    const int nrdofs = rdof_offsets.Last();
    const int nrtdofs = rtdof_offsets.Last();
-   MFEM_VERIFY(sc_sol.Size() == nrtdofs, "'sc_sol' has incorrect size");
+   MFEM_VERIFY(sc_sol.Size() == 2*nrtdofs, "'sc_sol' has incorrect size");
 
-   Vector sol_r;
+   Vector sol_r_real;
+   Vector sol_r_imag;
    if (parallel)
    {
-      sol_r.SetSize(nrdofs);
-      pP->Mult(sc_sol, sol_r);
+      MFEM_ABORT("TODO:: sc: parallel ComputeSolution");
+
+      // pP->Mult(sc_sol, sol_r);
    }
    else
    {
       if (!P)
       {
-         sol_r.SetDataAndSize(sc_sol.GetData(), sc_sol.Size());
+         sol_r_real.SetDataAndSize(sc_sol.GetData(), sc_sol.Size()/2);
+         sol_r_imag.SetDataAndSize(&sc_sol.GetData()[sc_sol.Size()/2], sc_sol.Size()/2);
       }
       else
       {
-         sol_r.SetSize(nrdofs);
-         P->Mult(sc_sol, sol_r);
+         Vector sc_real(sc_sol.GetData(), nrtdofs);
+         Vector sc_imag(&sc_sol.GetData()[nrtdofs], nrtdofs);
+         sol_r_real.SetSize(nrdofs);
+         sol_r_imag.SetSize(nrdofs);
+         P->Mult(sc_real, sol_r_real);
+         P->Mult(sc_imag, sol_r_imag);
       }
    }
 
+   sol.SetSize(2*dof_offsets.Last());
+   double *data = sol.GetData();
+   Vector sol_real(data,dof_offsets.Last());
+   Vector sol_imag(&data[dof_offsets.Last()],dof_offsets.Last());
 
    if (rdof_offsets.Last() == dof_offsets.Last())
    {
-      sol = sol_r;
+      sol_real = sol_r_real;
+      sol_imag = sol_r_imag;
       return;
-   }
-   else
-   {
-      sol.SetSize(dof_offsets.Last());
    }
 
    Vector lsr; // element (local) sc solution vector
+   Vector lsr_real; // element (local) sc solution vector
+   Vector lsr_imag; // element (local) sc solution vector
    Vector lsi; // element (local) interior solution vector
+   Vector lsi_real; // element (local) interior solution vector
+   Vector lsi_imag; // element (local) interior solution vector
+
+
+
    const int NE = mesh->GetNE();
 
    Array<int> trace_vdofs;
    Array<int> vdofs;
    Array<int> tr_offsets;
    Vector lsol;
+   Vector lsol_real;
+   Vector lsol_imag;
    for (int iel = 0; iel < NE; iel++)
    {
-      lsol.SetSize(lmat[iel]->Width() + lmat[iel]->Height());
-      // GetReduceElementIndicesAndOffsets(iel, trace_ldofs, interior_ldofs, tr_offsets);
       GetReduceElementVDofs(iel, trace_vdofs);
 
-      lsr.SetSize(trace_vdofs.Size());
-      sol_r.GetSubVector(trace_vdofs, lsr);
-      // complete the interior dofs
+      int n = trace_vdofs.Size();
+      lsr.SetSize(2*n);
+      lsr_real.SetDataAndSize(lsr.GetData(), n);
+      lsr_imag.SetDataAndSize(&lsr.GetData()[n], n);
+      sol_r_real.GetSubVector(trace_vdofs, lsr_real);
+      sol_r_imag.GetSubVector(trace_vdofs, lsr_imag);
 
-      lsi.SetSize(lmat[iel]->Height());
+      // complete the interior dofs
+      int m = lmat[iel]->Height()/2;
+      lsi.SetSize(2*m);
+      lsi_real.SetDataAndSize(lsi.GetData(), m);
+      lsi_imag.SetDataAndSize(&lsi.GetData()[m], m);
       lmat[iel]->Mult(lsr,lsi);
       lsi.Neg();
       lsi+=*lvec[iel];
 
       Array<int> tr_idx,int_idx,idx_offs;
       GetReduceElementIndicesAndOffsets(iel,tr_idx, int_idx, idx_offs);
-      lsol.SetSubVector(tr_idx,lsr);
 
-      lsol.SetSubVector(int_idx,lsi);
+      // complete all the dofs in the element
+      int k = (lmat[iel]->Width() + lmat[iel]->Height())/2;
+      lsol.SetSize(2*k);
+      lsol_real.SetDataAndSize(lsol.GetData(), k);
+      lsol_imag.SetDataAndSize(&lsol.GetData()[k], k);
+
+      lsol_real.SetSubVector(tr_idx,lsr_real);
+      lsol_real.SetSubVector(int_idx,lsi_real);
+      lsol_imag.SetSubVector(tr_idx,lsr_imag);
+      lsol_imag.SetSubVector(int_idx,lsi_imag);
 
       GetElementVDofs(iel, vdofs);
-      sol.SetSubVector(vdofs,lsol);
 
+      // complete all the dofs in the global vector
+      sol_real.SetSubVector(vdofs,lsol_real);
+      sol_imag.SetSubVector(vdofs,lsol_imag);
    }
 
 }
 
 ComplexBlockStaticCondensation::~ComplexBlockStaticCondensation()
 {
-   delete S_e; S_e = nullptr;
-   delete S; S=nullptr;
+   delete S_r_e; S_r_e = nullptr;
+   delete S_i_e; S_i_e = nullptr;
+   delete S; S=nullptr; // owns real and imag
+   delete y_r; y_r=nullptr;
+   delete y_i; y_i=nullptr;
    delete y; y=nullptr;
 
    if (P) { delete P; } P=nullptr;
@@ -955,13 +1106,13 @@ ComplexBlockStaticCondensation::~ComplexBlockStaticCondensation()
 
    if (parallel)
    {
-      delete pS; pS=nullptr;
-      delete pS_e; pS_e=nullptr;
-      for (int i = 0; i<rblocks; i++)
-      {
-         delete ess_tdofs[i];
-      }
-      delete pP; pP=nullptr;
+      // delete pS; pS=nullptr;
+      // delete pS_e; pS_e=nullptr;
+      // for (int i = 0; i<rblocks; i++)
+      // {
+      //    delete ess_tdofs[i];
+      // }
+      // delete pP; pP=nullptr;
    }
 
    for (int i=0; i<lmat.Size(); i++)

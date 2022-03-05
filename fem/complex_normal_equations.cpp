@@ -523,17 +523,13 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
       Vector b(B.Width());
       B.MultTranspose(Ginvl,b);
 
-      DenseMatrix & A_r = A->real();
-      DenseMatrix & A_i = A->imag();
-
       double * bdata = b.GetData();
       b_r.SetDataAndSize(bdata, b.Size()/2);
       b_i.SetDataAndSize(&bdata[b.Size()/2], b.Size()/2);
 
       if (static_cond)
       {
-         MFEM_ABORT("Not implemented yet");
-         // static_cond->AssembleReducedSystem(iel,A,b);
+         static_cond->AssembleReducedSystem(iel,*A,b_r,b_i);
       }
       else
       {
@@ -577,10 +573,10 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
                }
 
                DenseMatrix Ae_r, Ae_i;
-               A_r.GetSubMatrix(trial_offs[i],trial_offs[i+1],
-                                trial_offs[j],trial_offs[j+1], Ae_r);
-               A_i.GetSubMatrix(trial_offs[i],trial_offs[i+1],
-                                trial_offs[j],trial_offs[j+1], Ae_i);
+               A->real().GetSubMatrix(trial_offs[i],trial_offs[i+1],
+                                      trial_offs[j],trial_offs[j+1], Ae_r);
+               A->imag().GetSubMatrix(trial_offs[i],trial_offs[i+1],
+                                      trial_offs[j],trial_offs[j+1], Ae_i);
                if (doftrans_i || doftrans_j)
                {
                   TransformDual(doftrans_i, doftrans_j, Ae_r);
@@ -623,9 +619,7 @@ void ComplexNormalEquations::FormLinearSystem(const Array<int>
    FormSystemMatrix(ess_tdof_list, A);
    if (static_cond)
    {
-      MFEM_ABORT("ComplexNormalEquations:: Static cond not implemented yet");
-      //    // Schur complement reduction to the exposed dofs
-      //    static_cond->ReduceSystem(x, X, B, copy_interior);
+      static_cond->ReduceSystem(x, X, B, copy_interior);
    }
    else if (!P)
    {
@@ -702,13 +696,12 @@ void ComplexNormalEquations::FormSystemMatrix(const Array<int>
 {
    if (static_cond)
    {
-      MFEM_ABORT("Complex static condensation not implement yet");
-      //    if (!static_cond->HasEliminatedBC())
-      //    {
-      //       static_cond->SetEssentialTrueDofs(ess_tdof_list);
-      //       static_cond->FormSystemMatrix(diag_policy);
-      //    }
-      //    A.Reset(&static_cond->GetMatrix(), false);
+      if (!static_cond->HasEliminatedBC())
+      {
+         static_cond->SetEssentialTrueDofs(ess_tdof_list);
+         static_cond->FormSystemMatrix(diag_policy);
+      }
+      A.Reset(&static_cond->GetComplexOperator(), false);
    }
    else
    {
@@ -744,9 +737,7 @@ void ComplexNormalEquations::EliminateVDofsInRHS(
    mat_e_i->AddMult(x_r,b_i,-1.);
 
    mat_r->PartMult(vdofs,x_r,b_r);
-   mat_i->PartAddMult(vdofs,x_i,b_r,-1.);
    mat_r->PartMult(vdofs,x_i,b_i);
-   mat_i->PartAddMult(vdofs,x_r,b_i);
 }
 
 void ComplexNormalEquations::EliminateVDofs(const Array<int> &vdofs,
@@ -784,8 +775,7 @@ void ComplexNormalEquations::RecoverFEMSolution(const Vector &X,
    if (static_cond)
    {
       // Private dofs back solve
-      MFEM_ABORT("TODO: ComplexNormalEquations::StaticCond");
-      //    static_cond->ComputeSolution(X, x);
+      static_cond->ComputeSolution(X, x);
    }
    else if (!P)
    {
@@ -926,7 +916,7 @@ void ComplexNormalEquations::Update()
 
 void ComplexNormalEquations::EnableStaticCondensation()
 {
-   // static_cond = new ComplexBlockStaticCondensation(trial_fes);
+   static_cond = new ComplexBlockStaticCondensation(trial_fes);
 }
 
 
