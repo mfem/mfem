@@ -9,8 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#include <cmath>
+#endif
+
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+
 #include <fstream>
 #include <iostream>
 
@@ -21,6 +27,7 @@ namespace pa_kernels
 
 double zero_field(const Vector &x)
 {
+   MFEM_CONTRACT_VAR(x);
    return 0.0;
 }
 
@@ -494,38 +501,61 @@ TEST_CASE("PA Convection advanced", "[PartialAssembly][MFEMData]")
                             order, prob, refinement);
       }
    }
-} // test case
+} // PA Convection test case
 
-TEST_CASE("PA Mass", "[PartialAssembly]")
+template <typename INTEGRATOR>
+static void test_pa_integrator()
 {
+   const bool all_tests = launch_all_non_regression_tests;
+
    auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
                          "../../data/fichera.mesh", "../../data/fichera-q3.mesh");
    auto map_type = GENERATE(FiniteElement::VALUE, FiniteElement::INTEGRAL);
-   int order = 2;
+
+   auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+   auto q_order_inc = !all_tests ? 0 : GENERATE(0, 1, 3);
 
    Mesh mesh(fname);
    int dim = mesh.Dimension();
    L2_FECollection fec(order, dim, BasisType::GaussLobatto, map_type);
    FiniteElementSpace fes(&mesh, &fec);
 
+   const int q_order = 2*order + q_order_inc;
+   // Don't use a special integration rule if q_order_inc == 0
+   const bool use_ir = q_order_inc > 0;
+   const IntegrationRule *ir =
+      use_ir ? &IntRules.Get(mesh.GetElementGeometry(0), q_order) : nullptr;
+
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
 
+   ConstantCoefficient pi(M_PI);
+
    BilinearForm blf_fa(&fes);
-   blf_fa.AddDomainIntegrator(new MassIntegrator);
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(pi,ir));
    blf_fa.Assemble();
    blf_fa.Finalize();
    blf_fa.Mult(x, y_fa);
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf_pa.AddDomainIntegrator(new MassIntegrator);
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(pi,ir));
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
 
    y_fa -= y_pa;
 
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
-} // test case
+}
+
+TEST_CASE("PA Mass", "[PartialAssembly], [CUDA]")
+{
+   test_pa_integrator<MassIntegrator>();
+} // PA Mass test case
+
+TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
+{
+   test_pa_integrator<DiffusionIntegrator>();
+} // PA Diffusion test case
 
 } // namespace pa_kernels

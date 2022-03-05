@@ -113,6 +113,17 @@ void PAHcurlH1Apply2D(const int D1D,
                       const Vector &x,
                       Vector &y);
 
+void PAHcurlH1ApplyTranspose2D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const Array<double> &bc,
+                               const Array<double> &bo,
+                               const Array<double> &bct,
+                               const Array<double> &gct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y);
+
 void PAHcurlH1Apply3D(const int D1D,
                       const int Q1D,
                       const int NE,
@@ -123,6 +134,17 @@ void PAHcurlH1Apply3D(const int D1D,
                       const Vector &pa_data,
                       const Vector &x,
                       Vector &y);
+
+void PAHcurlH1ApplyTranspose3D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const Array<double> &bc,
+                               const Array<double> &bo,
+                               const Array<double> &bct,
+                               const Array<double> &gct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y);
 
 void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
@@ -1123,6 +1145,21 @@ void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
    else if (dim == 2)
       PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
                        mapsO->Bt, mapsC->Bt, pa_data, x, y);
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void MixedVectorGradientIntegrator::AddMultTransposePA(const Vector &x,
+                                                       Vector &y) const
+{
+   if (dim == 3)
+      PAHcurlH1ApplyTranspose3D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
+                                mapsC->Bt, mapsC->Gt, pa_data, x, y);
+   else if (dim == 2)
+      PAHcurlH1ApplyTranspose2D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
+                                mapsC->Bt, mapsC->Gt, pa_data, x, y);
    else
    {
       MFEM_ABORT("Unsupported dimension!");
