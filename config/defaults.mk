@@ -24,7 +24,7 @@ EGREP_BIN = $(shell command -v egrep 2> /dev/null)
 CXX = g++
 MPICXX = mpicxx
 
-BASE_FLAGS  = -std=c++11
+BASE_FLAGS  = -std=c++17
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
 DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
 
@@ -432,7 +432,7 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # CUDA library configuration
 CUDA_OPT =
-CUDA_LIB = -lcusparse
+CUDA_LIB = -lcusparse -lnvToolsExt
 
 # HIP library configuration (currently not needed)
 HIP_OPT =

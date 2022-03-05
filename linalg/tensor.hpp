@@ -1289,7 +1289,7 @@ MFEM_HOST_DEVICE tensor<T, n, n> dev(const tensor<T, n, n>& A)
  * @return I_dim
  */
 template <int dim>
-MFEM_HOST_DEVICE tensor<double, dim, dim> Identity()
+MFEM_HOST_DEVICE constexpr tensor<double, dim, dim> Identity()
 {
    tensor<double, dim, dim> I{};
    for (int i = 0; i < dim; i++)
