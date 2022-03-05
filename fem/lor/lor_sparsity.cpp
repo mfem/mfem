@@ -71,7 +71,7 @@ int LORSparsity::FillI(SparseMatrix &A, const DenseMatrix &sparse_mapping) const
       for (int ii_el = 0; ii_el < ndof_per_el; ++ii_el)
       {
          // LDOF index of current row
-         const int sii = el_dof_lex(ii_el, iel_ho);
+         const int sii = el_dof_lex(ii_el, iel_ho); // signed
          const int ii = (sii >= 0) ? sii : -1 - sii;
          // Get number and list of elements containing this DOF
          int i_elts[Max];
@@ -80,7 +80,8 @@ int LORSparsity::FillI(SparseMatrix &A, const DenseMatrix &sparse_mapping) const
          const int i_ne = i_next_offset - i_offset;
          for (int e_i = 0; e_i < i_ne; ++e_i)
          {
-            const int i_E = dof_glob2loc[i_offset+e_i];
+            const int si_E = dof_glob2loc[i_offset+e_i]; // signed
+            const int i_E = (si_E >= 0) ? si_E : -1 - si_E;
             i_elts[e_i] = i_E/ndof_per_el;
          }
 
@@ -89,7 +90,7 @@ int LORSparsity::FillI(SparseMatrix &A, const DenseMatrix &sparse_mapping) const
             int jj_el = map(j, ii_el);
             if (jj_el < 0) { continue; }
             // LDOF index of column
-            const int sjj = el_dof_lex(jj_el, iel_ho);
+            const int sjj = el_dof_lex(jj_el, iel_ho); // signed
             const int jj = (sjj >= 0) ? sjj : -1 - sjj;
             const int j_offset = K[jj];
             const int j_next_offset = K[jj+1];
@@ -103,7 +104,8 @@ int LORSparsity::FillI(SparseMatrix &A, const DenseMatrix &sparse_mapping) const
                int j_elts[Max];
                for (int e_j = 0; e_j < j_ne; ++e_j)
                {
-                  const int j_E = dof_glob2loc[j_offset+e_j];
+                  const int sj_E = dof_glob2loc[j_offset+e_j]; // signed
+                  const int j_E = (sj_E >= 0) ? sj_E : -1 - sj_E;
                   const int elt = j_E/ndof_per_el;
                   j_elts[e_j] = elt;
                }
@@ -178,12 +180,13 @@ void LORSparsity::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
 
    static constexpr int Max = 16;
 
-   MFEM_FORALL(iel_ho, nel_ho,
+   // MFEM_FORALL(iel_ho, nel_ho,
+   for (int iel_ho=0; iel_ho<nel_ho; ++iel_ho)
    {
       for (int ii_el = 0; ii_el < ndof_per_el; ++ii_el)
       {
          // LDOF index of current row
-         const int sii = el_dof_lex(ii_el, iel_ho);
+         const int sii = el_dof_lex(ii_el, iel_ho); // signed
          const int ii = (sii >= 0) ? sii : -1 - sii;
          // Get number and list of elements containing this DOF
          int i_elts[Max];
@@ -193,16 +196,19 @@ void LORSparsity::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
          const int i_ne = i_next_offset - i_offset;
          for (int e_i = 0; e_i < i_ne; ++e_i)
          {
-            const int i_E = dof_glob2loc[i_offset+e_i];
+            const int si_E = dof_glob2loc[i_offset+e_i]; // signed
+            const bool plus = si_E >= 0;
+            const int i_E = plus ? si_E : -1 - si_E;
             i_elts[e_i] = i_E/ndof_per_el;
-            i_B[e_i] = i_E%ndof_per_el;
+            const double i_Bi = i_E%ndof_per_el;
+            i_B[e_i] = plus ? i_Bi : -1 - i_Bi; // encode with sign
          }
          for (int j=0; j<nnz_per_row; ++j)
          {
             int jj_el = map(j, ii_el);
             if (jj_el < 0) { continue; }
             // LDOF index of column
-            const int sjj = el_dof_lex(jj_el, iel_ho);
+            const int sjj = el_dof_lex(jj_el, iel_ho); // signed
             const int jj = (sjj >= 0) ? sjj : -1 - sjj;
             const int sgn = ((sjj >=0 && sii >= 0) || (sjj < 0 && sii <0)) ? 1 : -1;
             const int j_offset = K[jj];
@@ -220,9 +226,12 @@ void LORSparsity::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
                int j_B[Max];
                for (int e_j = 0; e_j < j_ne; ++e_j)
                {
-                  const int j_E = dof_glob2loc[j_offset+e_j];
+                  const int sj_E = dof_glob2loc[j_offset+e_j]; // signed
+                  const bool plus = sj_E >= 0;
+                  const int j_E = plus ? sj_E : -1 - sj_E;
                   j_elts[e_j] = j_E/ndof_per_el;
-                  j_B[e_j] = j_E%ndof_per_el;
+                  const double j_Bj = j_E%ndof_per_el;
+                  j_B[e_j] = plus ? j_Bj : -1 - j_Bj; // encode with sign
                }
                const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
                if (iel_ho == min_e) // add the nnz only once
@@ -231,14 +240,19 @@ void LORSparsity::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
                   for (int k = 0; k < i_ne; k++)
                   {
                      const int iel_ho_2 = i_elts[k];
-                     const int ii_el_2 = i_B[k];
+                     const int sii_el_2 = i_B[k]; // signed
+                     const int ii_el_2 = (sii_el_2 >= 0) ? sii_el_2 : -1 -sii_el_2;
                      for (int l = 0; l < j_ne; l++)
                      {
                         const int jel_ho_2 = j_elts[l];
                         if (iel_ho_2 == jel_ho_2)
                         {
-                           const int jj_el_2 = j_B[l];
+                           const int sjj_el_2 = j_B[l]; // signed
+                           const int jj_el_2 = (sjj_el_2 >= 0) ? sjj_el_2 : -1 -sjj_el_2;
+                           const int sgn_2 = ((sjj_el_2 >=0 && sii_el_2 >= 0)
+                                              || (sjj_el_2 < 0 && sii_el_2 <0)) ? 1 : -1;
                            int j2 = -1;
+                           // find nonzero in matrix of other element
                            for (int m = 0; m < nnz_per_row; ++m)
                            {
                               if (map(m, ii_el_2) == jj_el_2)
@@ -248,7 +262,7 @@ void LORSparsity::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
                               }
                            }
                            MFEM_ASSERT_KERNEL(j >= 0, "");
-                           val += V(j2, ii_el_2, iel_ho_2);
+                           val += sgn_2*V(j2, ii_el_2, iel_ho_2);
                         }
                      }
                   }
@@ -259,7 +273,7 @@ void LORSparsity::FillJAndData(SparseMatrix &A, const Vector &sparse_ij,
             }
          }
       }
-   });
+   }//);
 }
 
 SparseMatrix *LORSparsity::FormCSR(const Vector &sparse_ij,
