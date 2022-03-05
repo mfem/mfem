@@ -24,6 +24,8 @@ void BatchedLOR_ND::Assemble2D()
    static constexpr int nv = 4;
    static constexpr int ne = 4;
    static constexpr int dim = 2;
+   static constexpr int ddm2 = (dim*(dim+1))/2;
+   static constexpr int ngeom = ddm2 + 1;
    static constexpr int o = ORDER;
    static constexpr int op1 = ORDER + 1;
    static constexpr int ndof_per_el = 2*o*op1;
@@ -65,10 +67,10 @@ void BatchedLOR_ND::Assemble2D()
          MFEM_FOREACH_THREAD(kx,x,ORDER)
          {
             // Compute geometric factors at quadrature points
-            double Q_[nv];
+            double Q_[ngeom*nv];
             double local_mat_[sz_local_mat];
 
-            DeviceTensor<3> Q(Q_, 1, 2, 2);
+            DeviceTensor<3> Q(Q_, ngeom, 2, 2);
             DeviceTensor<2> local_mat(local_mat_, nv, nv);
 
             // local_mat is the local (dense) stiffness matrix
@@ -112,8 +114,12 @@ void BatchedLOR_ND::Assemble2D()
                   const double J22 = -(1-x)*v0y - x*v1y + x*v2y + (1-x)*v3y;
 
                   const double detJ = J11*J22 - J21*J12;
+                  const double w_detJ = w/detJ;
 
-                  Q(0,iqy,iqx) = w*detJ;
+                  Q(0,iqy,iqx) = w_detJ * (J12*J12 + J22*J22); // 1,1
+                  Q(1,iqy,iqx) = -w_detJ * (J12*J11 + J22*J21); // 1,2
+                  Q(2,iqy,iqx) = w_detJ * (J11*J11 + J21*J21); // 2,2
+                  Q(3,iqy,iqx) = w_detJ;
                }
             }
             for (int iqx=0; iqx<2; ++iqx)
@@ -146,9 +152,12 @@ void BatchedLOR_ND::Assemble2D()
                               if (jj_loc > ii_loc) { continue; }
 
                               double val = 0.0;
-                              double wdetJ = Q(0,iqy,iqx);
-                              val += DQ*curl_i*curl_j*wdetJ;
-                              val += MQ*(bxi*bxj + byi*byj)*wdetJ;
+                              val += bxi*bxj*Q(0,iqy,iqx);
+                              val += byi*bxj*Q(1,iqy,iqx);
+                              val += bxi*byj*Q(1,iqy,iqx);
+                              val += byi*byj*Q(2,iqy,iqx);
+                              val *= MQ;
+                              val += DQ*curl_i*curl_j*Q(3,iqy,iqx);
 
                               local_mat(ii_loc, jj_loc) += val;
                            }
@@ -177,8 +186,9 @@ void BatchedLOR_ND::Assemble2D()
                   const int jj_off = (ci == cj) ? (bj - bi + 1) : (3 + bj + (1-bi)*2);
 
                   // Symmetry
-                  double val = (jj_loc <= ii_loc) ? local_mat(ii_loc, jj_loc) : local_mat(jj_loc,
-                                                                                          ii_loc);
+                  const double val = (jj_loc <= ii_loc)
+                                     ? local_mat(ii_loc, jj_loc)
+                                     : local_mat(jj_loc, ii_loc);
                   AtomicAdd(V(jj_off, ii, ci, iel_ho), val);
                }
             }
