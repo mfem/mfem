@@ -29,6 +29,7 @@ void BatchedLOR_ND::Assemble2D()
    static constexpr int o = ORDER;
    static constexpr int op1 = ORDER + 1;
    static constexpr int ndof_per_el = 2*o*op1;
+   static constexpr int nlor_vert_per_el = op1*op1;
    static constexpr int nnz_per_row = 7;
    static constexpr int sz_local_mat = ne*ne;
 
@@ -81,10 +82,10 @@ void BatchedLOR_ND::Assemble2D()
             const int v2 = kx + 1 + op1*(ky + 1);
             const int v3 = kx + op1*(ky + 1);
 
-            const int e0 = dim*(v0 + ndof_per_el*iel_ho);
-            const int e1 = dim*(v1 + ndof_per_el*iel_ho);
-            const int e2 = dim*(v2 + ndof_per_el*iel_ho);
-            const int e3 = dim*(v3 + ndof_per_el*iel_ho);
+            const int e0 = dim*(v0 + nlor_vert_per_el*iel_ho);
+            const int e1 = dim*(v1 + nlor_vert_per_el*iel_ho);
+            const int e2 = dim*(v2 + nlor_vert_per_el*iel_ho);
+            const int e3 = dim*(v3 + nlor_vert_per_el*iel_ho);
 
             // Vertex coordinates
             const double v0x = X[e0 + 0];
