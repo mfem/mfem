@@ -2468,6 +2468,8 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
+
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Integrator for (curl u, curl v) for FE spaces defined by 'dim' copies of a
@@ -2558,6 +2560,8 @@ public:
                            const FiniteElementSpace &test_fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
+
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Integrator for (Q div u, p) where u=(v1,...,vn) and all vi are in the same

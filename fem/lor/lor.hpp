@@ -107,6 +107,12 @@ public:
    /// Returns the assembled LOR system.
    const OperatorHandle &GetAssembledSystem() const;
 
+   /// Assembles the LOR system corresponding to @a a_ho.
+   void AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
+
+   /// Assembles the LOR system corresponding to @a a_ho using the legacy methodπ.
+   void LegacyAssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
+
    /// @brief Returns the permutation that maps LOR DOFs to high-order DOFs.
    ///
    /// This permutation is constructed the first time it is requested, and then
@@ -148,9 +154,6 @@ public:
    LORDiscretization(FiniteElementSpace &fes_ho,
                      int ref_type=BasisType::GaussLobatto);
 
-   /// Assembles the LOR system corresponding to @a a_ho.
-   void AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
-
    /// Return the assembled LOR operator as a SparseMatrix.
    SparseMatrix &GetAssembledMatrix() const;
 };
@@ -178,9 +181,6 @@ public:
    /// (see ParMesh::MakeRefined).
    ParLORDiscretization(ParFiniteElementSpace &fes_ho,
                         int ref_type=BasisType::GaussLobatto);
-
-   /// Assembles the LOR system corresponding to @a a_ho.
-   void AssembleSystem(ParBilinearForm &a_ho, const Array<int> &ess_dofs);
 
    /// Return the assembled LOR operator as a HypreParMatrix.
    HypreParMatrix &GetAssembledMatrix() const;

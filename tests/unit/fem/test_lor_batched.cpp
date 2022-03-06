@@ -62,7 +62,7 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
       }
    }
 
-   REQUIRE(error == MFEM_Approx(0.0));
+   REQUIRE(error == MFEM_Approx(0.0, 1e-10));
 }
 
 void TestInnerProductMatrices(SparseMatrix &A1, const SparseMatrix &A2)
@@ -104,24 +104,57 @@ TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
    BilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
    a.AddDomainIntegrator(new MassIntegrator(mass_coeff));
-   LORDiscretization lor(a, ess_dofs);
 
-   BilinearForm a_lor(&lor.GetFESpace());
+   LORDiscretization lor(fespace);
 
+   // Sanity check that the LOR mesh is valid
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
-
    const GeometricFactors::FactorFlags dets = GeometricFactors::DETERMINANTS;
-   REQUIRE(mesh.GetGeometricFactors(ir, dets)->detJ.Min() > 0.0);
+   REQUIRE(lor.GetFESpace().GetMesh()->GetGeometricFactors(ir, dets)->detJ.Min()
+           > 0.0);
 
-   a_lor.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, &ir));
-   a_lor.AddDomainIntegrator(new MassIntegrator(mass_coeff, &ir));
-   a_lor.Assemble();
-   a_lor.Finalize();
+   lor.LegacyAssembleSystem(a, ess_dofs);
+   SparseMatrix A1 = lor.GetAssembledMatrix(); // deep copy
+   lor.AssembleSystem(a, ess_dofs);
+   SparseMatrix &A2 = lor.GetAssembledMatrix();
 
-   OperatorHandle A;
-   a_lor.FormSystemMatrix(ess_dofs, A);
-   SparseMatrix &A1 = *A.As<SparseMatrix>();
+   TestSameMatrices(A1, A2);
+   TestSameMatrices(A2, A1);
+}
+
+TEST_CASE("LOR Batched ND", "[LOR][BatchedLOR][CUDA]")
+{
+   auto mesh_fname = GENERATE(
+                        "../../data/star-q3.mesh"
+                        // "../../data/ref-square.mesh"
+                        // "../../data/inline-quad.mesh"
+                        // "/Users/pazner1/Documents/Professional/10.Research/18.Meshes/unstrsq.msh"
+                        // "../../data/ref-cube.mesh"
+                        // "../../data/star-q3.mesh",
+                        // "../../data/fichera-q3.mesh"
+                     );
+   const int order = 5;
+
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+   ND_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto,
+                       BasisType::IntegratedGLL);
+   FiniteElementSpace fespace(&mesh, &fec);
+
+   Array<int> ess_dofs;
+   fespace.GetBoundaryTrueDofs(ess_dofs);
+
+   ConstantCoefficient diff_coeff(M_PI);
+   ConstantCoefficient mass_coeff(1.0/M_PI);
+
+   BilinearForm a(&fespace);
+   a.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff));
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   LORDiscretization lor(fespace);
+
+   lor.LegacyAssembleSystem(a, ess_dofs);
+   SparseMatrix A1 = lor.GetAssembledMatrix(); // deep copy
+   lor.AssembleSystem(a, ess_dofs);
    SparseMatrix &A2 = lor.GetAssembledMatrix();
 
    TestSameMatrices(A1, A2);
@@ -178,19 +211,11 @@ TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
    ParBilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
    a.AddDomainIntegrator(new MassIntegrator(mass_coeff));
-   ParLORDiscretization lor(a, ess_dofs);
+   ParLORDiscretization lor(fespace);
 
-   ParBilinearForm a_lor(&lor.GetParFESpace());
-   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
-   a_lor.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, &ir));
-   a_lor.AddDomainIntegrator(new MassIntegrator(mass_coeff, &ir));
-   a_lor.Assemble();
-   a_lor.Finalize();
-
-   OperatorHandle A;
-   a_lor.FormSystemMatrix(ess_dofs, A);
-   HypreParMatrix &A1 = *A.As<HypreParMatrix>();
+   lor.LegacyAssembleSystem(a, ess_dofs);
+   HypreParMatrix A1 = lor.GetAssembledMatrix(); // deep copy
+   lor.AssembleSystem(a, ess_dofs);
    HypreParMatrix &A2 = lor.GetAssembledMatrix();
 
    TestSameMatrices(A1, A2);

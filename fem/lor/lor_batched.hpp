@@ -13,7 +13,7 @@
 #define MFEM_LOR_BATCHED
 
 #include "lor.hpp"
-#include "lor_restriction.hpp"
+#include "lor_sparsity.hpp"
 
 namespace mfem
 {
@@ -29,7 +29,7 @@ namespace mfem
 class BatchedLORAssembly
 {
 protected:
-   LORRestriction R; ///< LOR restriction used for sparse matrix assembly.
+   LORSparsity R; ///< LOR restriction used for sparse matrix assembly.
    FiniteElementSpace &fes_ho; ///< The high-order space.
    const Array<int> &ess_dofs; ///< Essential DOFs to eliminate.
 
@@ -75,6 +75,23 @@ public:
                         const Array<int> &ess_dofs,
                         OperatorHandle &A);
 };
+
+template <typename T>
+T *GetIntegrator(BilinearForm &a)
+{
+   Array<BilinearFormIntegrator*> *integs = a.GetDBFI();
+   if (integs != NULL)
+   {
+      for (auto *i : *integs)
+      {
+         if (auto *ti = dynamic_cast<T*>(i))
+         {
+            return ti;
+         }
+      }
+   }
+   return nullptr;
+}
 
 }
 

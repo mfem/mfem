@@ -9,26 +9,25 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_LOR_DIFFUSION
-#define MFEM_LOR_DIFFUSION
+#ifndef MFEM_LOR_NEDELEC
+#define MFEM_LOR_NEDELEC
 
 #include "lor_batched.hpp"
 
 namespace mfem
 {
 
-class BatchedLORDiffusion : public BatchedLORAssembly
+class BatchedLOR_ND : public BatchedLORAssembly
 {
 protected:
-   // TODO: for now only supporting constant coefficients
-   double mass_coeff, diffusion_coeff;
+   double mass_coeff, curl_curl_coeff;
 public:
-   template <int ORDER> void AssembleDiffusion2D();
-   template <int ORDER> void AssembleDiffusion3D();
+   template <int ORDER> void Assemble2D();
+   template <int ORDER> void Assemble3D();
    void AssemblyKernel() override;
-   BatchedLORDiffusion(BilinearForm &a_,
-                       FiniteElementSpace &fes_ho_,
-                       const Array<int> &ess_dofs_);
+   BatchedLOR_ND(BilinearForm &a_,
+                 FiniteElementSpace &fes_ho_,
+                 const Array<int> &ess_dofs_);
 };
 
 }
