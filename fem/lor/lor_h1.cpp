@@ -617,8 +617,7 @@ void BatchedLOR_H1::Assemble3D()
 
 void BatchedLOR_H1::AssemblyKernel()
 {
-   Mesh &mesh_ho = *fes_ho.GetMesh();
-   const int dim = mesh_ho.Dimension();
+   const int dim = fes_ho.GetMesh()->Dimension();
    const int order = fes_ho.GetMaxElementOrder();
 
    if (dim == 2)

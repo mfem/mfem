@@ -28,7 +28,7 @@ void BatchedLOR_ND::Assemble2D()
    static constexpr int ngeom = ddm2 + 1;
    static constexpr int o = ORDER;
    static constexpr int op1 = ORDER + 1;
-   static constexpr int ndof_per_el = 2*o*op1;
+   static constexpr int ndof_per_el = dim*o*op1;
    static constexpr int nlor_vert_per_el = op1*op1;
    static constexpr int nnz_per_row = 7;
    static constexpr int sz_local_mat = ne*ne;
@@ -37,7 +37,7 @@ void BatchedLOR_ND::Assemble2D()
    const double MQ = mass_coeff;
 
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
-   auto V = Reshape(sparse_ij.Write(), nnz_per_row, o*op1, 2, nel_ho);
+   auto V = Reshape(sparse_ij.Write(), nnz_per_row, o*op1, dim, nel_ho);
 
    auto X = X_vert.Read();
 
@@ -100,9 +100,9 @@ void BatchedLOR_ND::Assemble2D()
             const double v3x = X[e3 + 0];
             const double v3y = X[e3 + 1];
 
-            for (int iqy=0; iqy<2; ++iqy)
+            for (int iqx=0; iqx<2; ++iqx)
             {
-               for (int iqx=0; iqx<2; ++iqx)
+               for (int iqy=0; iqy<2; ++iqy)
                {
                   const double x = iqx;
                   const double y = iqy;
@@ -230,8 +230,7 @@ void BatchedLOR_ND::Assemble2D()
 
 void BatchedLOR_ND::AssemblyKernel()
 {
-   Mesh &mesh_ho = *fes_ho.GetMesh();
-   const int dim = mesh_ho.Dimension();
+   const int dim = fes_ho.GetMesh()->Dimension();
    const int order = fes_ho.GetMaxElementOrder();
 
    if (dim == 2)
