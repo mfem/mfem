@@ -65,20 +65,6 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
    REQUIRE(error == MFEM_Approx(0.0, 1e-10));
 }
 
-void TestInnerProductMatrices(SparseMatrix &A1, const SparseMatrix &A2)
-{
-   REQUIRE((A1.Width() == A2.Width()));
-   Vector x(A1.Width()), y(A1.Height());
-
-   x.Randomize(RANDOM_SEED);
-   y.Randomize(RANDOM_SEED);
-
-   const double ytA1x = A1.InnerProduct(x,y);
-   const double ytA2x = A2.InnerProduct(x,y);
-
-   REQUIRE(ytA1x == MFEM_Approx(ytA2x));
-}
-
 TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
 {
    const bool all_tests = launch_all_non_regression_tests;
@@ -159,7 +145,6 @@ TEST_CASE("LOR Batched ND", "[LOR][BatchedLOR][CUDA]")
 
    TestSameMatrices(A1, A2);
    TestSameMatrices(A2, A1);
-   TestInnerProductMatrices(A1, A2);
 }
 
 #ifdef MFEM_USE_MPI
