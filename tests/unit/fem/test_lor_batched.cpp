@@ -22,8 +22,6 @@ using namespace mfem;
 namespace lor_batched
 {
 
-static constexpr int RANDOM_SEED = 0x100001b3;
-
 void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
                       HYPRE_BigInt *cmap1=nullptr,
                       std::unordered_map<HYPRE_BigInt,int> *cmap2inv=nullptr)
