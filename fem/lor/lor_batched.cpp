@@ -10,11 +10,11 @@
 // CONTRIBUTING.md for details.
 
 #include "lor_batched.hpp"
-#include "lor_restriction.hpp"
 #include "../../general/forall.hpp"
 
 // Specializations
-#include "lor_diffusion.hpp"
+#include "lor_h1.hpp"
+#include "lor_nd.hpp"
 
 namespace mfem
 {
@@ -49,11 +49,16 @@ template <typename T1, typename T2>
 bool HasIntegrators(BilinearForm &a)
 {
    Array<BilinearFormIntegrator*> *integs = a.GetDBFI();
-   if (integs != NULL && integs->Size() == 2)
+   if (integs == NULL) { return false; }
+   if (integs->Size() == 1)
+   {
+      BilinearFormIntegrator *i0 = (*integs)[0];
+      if (dynamic_cast<T1*>(i0) || dynamic_cast<T2*>(i0)) { return true; }
+   }
+   else if (integs->Size() == 2)
    {
       BilinearFormIntegrator *i0 = (*integs)[0];
       BilinearFormIntegrator *i1 = (*integs)[1];
-
       if ((dynamic_cast<T1*>(i0) && dynamic_cast<T2*>(i1)) ||
           (dynamic_cast<T2*>(i0) && dynamic_cast<T1*>(i1)))
       {
@@ -87,10 +92,10 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
                                           ElementDofOrdering::LEXICOGRAPHIC);
    const int nodal_nd1d = nodal_fes->GetMaxElementOrder() + 1;
 
-   // Map from nodal E-vector to L-vector
-   Vector nodes_loc(nodal_restriction->Height());
-   nodes_loc.UseDevice(true);
-   nodal_restriction->Mult(*nodal_gf, nodes_loc);
+   // Map from nodal L-vector to E-vector
+   Vector nodal_evec(nodal_restriction->Height());
+   nodal_evec.UseDevice(true);
+   nodal_restriction->Mult(*nodal_gf, nodal_evec);
 
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    Geometry::Type geom = mesh_ho.GetElementGeometry(0);
@@ -102,9 +107,9 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
    {
       switch (nodal_nd1d)
       {
-         case 2: NodalInterpolation2D<2,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
-         case 4: NodalInterpolation2D<4,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
-         case 6: NodalInterpolation2D<6,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
+         case 2: NodalInterpolation2D<2,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
+         case 4: NodalInterpolation2D<4,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
+         case 6: NodalInterpolation2D<6,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
          default: MFEM_ABORT("Unsuported mesh order!");
       }
    }
@@ -112,9 +117,9 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
    {
       switch (nodal_nd1d)
       {
-         case 2: NodalInterpolation3D<2,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
-         case 4: NodalInterpolation3D<4,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
-         case 6: NodalInterpolation3D<6,Q1D>(nel_ho, nodes_loc, X_vert, maps.B); break;
+         case 2: NodalInterpolation3D<2,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
+         case 4: NodalInterpolation3D<4,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
+         case 6: NodalInterpolation3D<6,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
          default: MFEM_ABORT("Unsuported mesh order!");
       }
    }
@@ -126,11 +131,19 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
 
 bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
+   const FiniteElementCollection *fec = a.FESpace()->FEColl();
    // TODO: check for maximum supported orders
    // We want to support the following configurations:
    // H1, ND, and RT spaces: M, A, M + K
-   if (HasIntegrator<DiffusionIntegrator>(a)) { return true; }
-   if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a)) { return true; }
+   if (dynamic_cast<const H1_FECollection*>(fec))
+   {
+      if (HasIntegrator<DiffusionIntegrator>(a)) { return true; }
+      if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a)) { return true; }
+   }
+   else if (dynamic_cast<const ND_FECollection*>(fec))
+   {
+      if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a)) { return true; }
+   }
    return false;
 }
 
@@ -138,14 +151,6 @@ SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
 {
    MFEM_VERIFY(UsesTensorBasis(fes_ho),
                "Batched LOR assembly requires tensor basis");
-
-   // Set up the sparsity pattern for the matrix
-   const int vsize = fes_ho.GetVSize();
-   SparseMatrix *A = new SparseMatrix(vsize, vsize, 0);
-   A->GetMemoryI().New(A->Height()+1, A->GetMemoryI().GetMemoryType());
-   const int nnz = R.FillI(*A);
-   A->GetMemoryJ().New(nnz, A->GetMemoryJ().GetMemoryType());
-   A->GetMemoryData().New(nnz, A->GetMemoryData().GetMemoryType());
 
    // Get the LOR vertex coordinates
    const int order = fes_ho.GetMaxElementOrder();
@@ -161,10 +166,9 @@ SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
    }
 
    // Assemble the matrix, using kernels from the derived classes
+   // This fills in the arrays sparse_ij and sparse_mapping
    AssemblyKernel();
-   R.FillJAndData(*A, sparse_ij, sparse_mapping);
-
-   return A;
+   return R.FormCSR(sparse_ij, sparse_mapping);
 }
 
 #ifdef MFEM_USE_MPI
@@ -415,10 +419,20 @@ void BatchedLORAssembly::Assemble(BilinearForm &a,
                                   const Array<int> &ess_dofs,
                                   OperatorHandle &A)
 {
-   if (HasIntegrator<DiffusionIntegrator>(a) ||
-       HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
+   const FiniteElementCollection *fec = fes_ho.FEColl();
+   if (dynamic_cast<const H1_FECollection*>(fec))
    {
-      BatchedLORDiffusion(a, fes_ho, ess_dofs).Assemble(A);
+      if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
+      {
+         BatchedLOR_H1(a, fes_ho, ess_dofs).Assemble(A);
+      }
+   }
+   else if (dynamic_cast<const ND_FECollection*>(fec))
+   {
+      if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a))
+      {
+         BatchedLOR_ND(a, fes_ho, ess_dofs).Assemble(A);
+      }
    }
 }
 

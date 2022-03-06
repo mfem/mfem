@@ -382,6 +382,42 @@ FiniteElementSpace &LORBase::GetFESpace() const
    return *fes;
 }
 
+void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
+{
+   delete a;
+   if (BatchedLORAssembly::FormIsSupported(a_ho))
+   {
+      // Skip forming the space
+      mfem::out << "Batched.\n";
+      a = nullptr;
+      BatchedLORAssembly::Assemble(a_ho, fes_ho, ess_dofs, A);
+   }
+   else
+   {
+      LegacyAssembleSystem(a_ho, ess_dofs);
+   }
+}
+
+void LORBase::LegacyAssembleSystem(BilinearForm &a_ho,
+                                   const Array<int> &ess_dofs)
+{
+   mfem::out << "Not batched.\n";
+   // If the space is not formed already, it will be constructed lazily in
+   // GetParFESpace
+   FiniteElementSpace &fes = GetFESpace();
+#ifdef MFEM_USE_MPI
+   if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes))
+   {
+      a = new ParBilinearForm(pfes);
+   }
+   else
+#endif
+   {
+      a = new BilinearForm(&fes);
+   }
+   AssembleSystem_(a_ho, ess_dofs);
+}
+
 LORBase::~LORBase()
 {
    delete a;
@@ -424,27 +460,6 @@ void LORDiscretization::FormLORSpace()
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    fes = new FiniteElementSpace(mesh, fec);
    SetupProlongationAndRestriction();
-}
-
-void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
-                                       const Array<int> &ess_dofs)
-{
-   delete a;
-   if (BatchedLORAssembly::FormIsSupported(a_ho))
-   {
-      // Skip forming the space
-      mfem::out << "Batched.\n";
-      a = nullptr;
-      BatchedLORAssembly::Assemble(a_ho, fes_ho, ess_dofs, A);
-   }
-   else
-   {
-      mfem::out << "Not batched.\n";
-      // If the space is not formed already, it will be constructed lazily in
-      // GetParFESpace
-      a = new BilinearForm(&GetFESpace());
-      AssembleSystem_(a_ho, ess_dofs);
-   }
 }
 
 SparseMatrix &LORDiscretization::GetAssembledMatrix() const
@@ -491,27 +506,6 @@ void ParLORDiscretization::FormLORSpace()
    ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
    fes = pfes;
    SetupProlongationAndRestriction();
-}
-
-void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
-                                          const Array<int> &ess_dofs)
-{
-   delete a;
-   if (BatchedLORAssembly::FormIsSupported(a_ho))
-   {
-      // Skip forming the space
-      mfem::out << "Batched.\n";
-      a = nullptr;
-      BatchedLORAssembly::Assemble(a_ho, fes_ho, ess_dofs, A);
-   }
-   else
-   {
-      mfem::out << "Not batched.\n";
-      // If the space is not formed already, it will be constructed lazily in
-      // GetParFESpace
-      a = new ParBilinearForm(&GetParFESpace());
-      AssembleSystem_(a_ho, ess_dofs);
-   }
 }
 
 HypreParMatrix &ParLORDiscretization::GetAssembledMatrix() const
