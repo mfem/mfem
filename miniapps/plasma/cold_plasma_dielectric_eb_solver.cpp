@@ -232,6 +232,120 @@ void PoyntingVectorImCoef::Eval(Vector &S, ElementTransformation &T,
    S *= 0.5;
 }
 
+MinkowskiMomentumDensityReCoef::MinkowskiMomentumDensityReCoef(double omega,
+                                                               VectorCoefficient &Er,
+                                                               VectorCoefficient &Ei,
+                                                               VectorCoefficient &dEr,
+                                                               VectorCoefficient &dEi,
+                                                               MatrixCoefficient &epsr,
+                                                               MatrixCoefficient &epsi)
+   : VectorCoefficient(3),
+     omega_(omega),
+     ErCoef_(Er),
+     EiCoef_(Ei),
+     dErCoef_(dEr),
+     dEiCoef_(dEi),
+     epsrCoef_(epsr),
+     epsiCoef_(epsi),
+     Er_(3),
+     Ei_(3),
+     Dr_(3),
+     Di_(3),
+     Br_(3),
+     Bi_(3),
+     epsr_(3),
+     epsi_(3)
+{}
+
+void MinkowskiMomentumDensityReCoef::Eval(Vector &G, ElementTransformation &T,
+                                          const IntegrationPoint &ip)
+{
+   ErCoef_.Eval(Er_, T, ip);
+   EiCoef_.Eval(Ei_, T, ip);
+
+   dErCoef_.Eval(Bi_, T, ip); Bi_ *=  1.0 / omega_;
+   dEiCoef_.Eval(Br_, T, ip); Br_ *= -1.0 / omega_;
+
+   epsrCoef_.Eval(epsr_, T, ip);
+   epsiCoef_.Eval(epsi_, T, ip);
+
+   epsr_.Mult(Er_, Dr_);
+   epsi_.AddMult_a(-1.0, Ei_, Dr_);
+
+   epsr_.Mult(Ei_, Di_);
+   epsi_.AddMult(Er_, Di_);
+
+   G.SetSize(3);
+
+   G[0] = Dr_[1] * Br_[2] - Dr_[2] * Br_[1] +
+          Di_[1] * Bi_[2] - Di_[2] * Bi_[1] ;
+
+   G[1] = Dr_[2] * Br_[0] - Dr_[0] * Br_[2] +
+          Di_[2] * Bi_[0] - Di_[0] * Bi_[2] ;
+
+   G[2] = Dr_[0] * Br_[1] - Dr_[1] * Br_[0] +
+          Di_[0] * Bi_[1] - Di_[1] * Bi_[0] ;
+
+   G *= 0.5;
+}
+
+MinkowskiMomentumDensityImCoef::MinkowskiMomentumDensityImCoef(double omega,
+                                                               VectorCoefficient &Er,
+                                                               VectorCoefficient &Ei,
+                                                               VectorCoefficient &dEr,
+                                                               VectorCoefficient &dEi,
+                                                               MatrixCoefficient &epsr,
+                                                               MatrixCoefficient &epsi)
+   : VectorCoefficient(3),
+     omega_(omega),
+     ErCoef_(Er),
+     EiCoef_(Ei),
+     dErCoef_(dEr),
+     dEiCoef_(dEi),
+     epsrCoef_(epsr),
+     epsiCoef_(epsi),
+     Er_(3),
+     Ei_(3),
+     Dr_(3),
+     Di_(3),
+     Br_(3),
+     Bi_(3),
+     epsr_(3),
+     epsi_(3)
+{}
+
+void MinkowskiMomentumDensityImCoef::Eval(Vector &G, ElementTransformation &T,
+                                          const IntegrationPoint &ip)
+{
+   ErCoef_.Eval(Er_, T, ip);
+   EiCoef_.Eval(Ei_, T, ip);
+
+   dErCoef_.Eval(Bi_, T, ip); Bi_ *=  1.0 / omega_;
+   dEiCoef_.Eval(Br_, T, ip); Br_ *= -1.0 / omega_;
+
+   epsrCoef_.Eval(epsr_, T, ip);
+   epsiCoef_.Eval(epsi_, T, ip);
+
+   epsr_.Mult(Er_, Dr_);
+   epsi_.AddMult_a(-1.0, Ei_, Dr_);
+
+   epsr_.Mult(Ei_, Di_);
+   epsi_.AddMult(Er_, Di_);
+
+   G.SetSize(3);
+
+   G[0] = Dr_[1] * Br_[2] - Dr_[2] * Br_[1] -
+          Di_[1] * Bi_[2] + Di_[2] * Bi_[1] ;
+
+   G[1] = Dr_[2] * Br_[0] - Dr_[0] * Br_[2] -
+          Di_[2] * Bi_[0] + Di_[0] * Bi_[2] ;
+
+   G[2] = Dr_[0] * Br_[1] - Dr_[1] * Br_[0] -
+          Di_[0] * Bi_[1] + Di_[1] * Bi_[0] ;
+
+   G *= 0.5;
+}
+
 Maxwell2ndE::Maxwell2ndE(ParFiniteElementSpace & HCurlFESpace,
                          double omega,
                          ComplexOperator::Convention conv,
@@ -263,7 +377,14 @@ Maxwell2ndE::Maxwell2ndE(ParFiniteElementSpace & HCurlFESpace,
 {
    if (pa_) { this->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
-   this->AddDomainIntegrator(new CurlCurlIntegrator(muInvCoef), NULL);
+   if (!cyl_)
+   {
+      this->AddDomainIntegrator(new CurlCurlIntegrator(muInvCoef), NULL);
+   }
+   else
+   {
+      this->AddDomainIntegrator(new CurlCurlIntegrator(muInvCylCoef_), NULL);
+   }
    this->AddDomainIntegrator(new VectorFEMassIntegrator(massReCoef_),
                              new VectorFEMassIntegrator(massImCoef_));
 
@@ -301,16 +422,16 @@ void Maxwell2ndE::Assemble()
    if (!pa_) { this->Finalize(); }
 }
 
-CurrentSource::CurrentSource(ParFiniteElementSpace & HCurlFESpace,
-                             ParFiniteElementSpace & HDivFESpace,
-                             double omega,
-                             ComplexOperator::Convention conv,
-                             const CmplxVecCoefArray & jsrc,
-                             const CmplxVecCoefArray & ksrc,
-                             VectorCoefficient * kReCoef,
-                             VectorCoefficient * kImCoef,
-                             bool cyl,
-                             bool pa)
+CurrentSourceE::CurrentSourceE(ParFiniteElementSpace & HCurlFESpace,
+                               ParFiniteElementSpace & HDivFESpace,
+                               double omega,
+                               ComplexOperator::Convention conv,
+                               const CmplxVecCoefArray & jsrc,
+                               const CmplxVecCoefArray & ksrc,
+                               VectorCoefficient * kReCoef,
+                               VectorCoefficient * kImCoef,
+                               bool cyl,
+                               bool pa)
    : ParComplexLinearForm(&HCurlFESpace, conv),
      omega_(omega),
      jt_(&HDivFESpace),
@@ -409,7 +530,7 @@ CurrentSource::CurrentSource(ParFiniteElementSpace & HCurlFESpace,
    this->imag().Vector::operator=(0.0);
 }
 
-CurrentSource::~CurrentSource()
+CurrentSourceE::~CurrentSourceE()
 {
    for (int i=0; i<jtilde_.Size(); i++)
    {
@@ -425,7 +546,7 @@ CurrentSource::~CurrentSource()
    }
 }
 
-void CurrentSource::Update()
+void CurrentSourceE::Update()
 {
    this->ParComplexLinearForm::Update();
 
@@ -433,7 +554,7 @@ void CurrentSource::Update()
    kt_.Update();
 }
 
-void CurrentSource::Assemble()
+void CurrentSourceE::Assemble()
 {
    this->ParComplexLinearForm::Assemble();
 
@@ -696,311 +817,132 @@ void Displacement::ComputeD()
    delete pcg;
 }
 
-ScalarFieldVisObject::ScalarFieldVisObject(const std::string & field_name,
-                                           L2_ParFESpace *sfes,
-                                           bool cyl,
-                                           bool pseudo)
-   : cyl_(cyl),
-     pseudo_(pseudo),
-     dim_(-1),
-     field_name_(field_name),
-     v_(NULL)
+ElectricEnergyDensityVisObject::ElectricEnergyDensityVisObject(
+   const std::string & field_name,
+   L2_ParFESpace *sfes,
+   bool cyl, bool pseudo)
+   : ScalarFieldVisObject(field_name, sfes, cyl, pseudo)
+{}
+
+void ElectricEnergyDensityVisObject::PrepareVisField(const
+                                                     ParComplexGridFunction &e,
+                                                     MatrixCoefficient &epsr,
+                                                     MatrixCoefficient &epsi)
 {
-   MFEM_VERIFY(sfes != NULL, "ScalarFieldVisObject: "
-               "FiniteElementSpace sfes must be non NULL.");
+   VectorGridFunctionCoefficient Er(&e.real());
+   VectorGridFunctionCoefficient Ei(&e.imag());
 
-   dim_ = sfes->GetParMesh()->SpaceDimension();
+   ElectricEnergyDensityCoef ur(Er, Ei, epsr, epsi);
+   ConstantCoefficient ui(0.0);
 
-   v_ = new ComplexGridFunction(sfes);
+   this->PrepareVisField(ur, ui, NULL, NULL);
 }
 
-ScalarFieldVisObject::~ScalarFieldVisObject()
+MagneticEnergyDensityVisObject::MagneticEnergyDensityVisObject(
+   const std::string & field_name,
+   L2_ParFESpace *sfes,
+   bool cyl, bool pseudo)
+   : ScalarFieldVisObject(field_name, sfes, cyl, pseudo)
+{}
+
+void MagneticEnergyDensityVisObject::PrepareVisField(const
+                                                     ParComplexGridFunction &e,
+                                                     double omega,
+                                                     Coefficient &muInv)
 {
-   delete v_;
+   CurlGridFunctionCoefficient dEr(&e.real());
+   CurlGridFunctionCoefficient dEi(&e.imag());
+
+   MagneticEnergyDensityCoef ur(omega, dEr, dEi, muInv);
+   ConstantCoefficient ui(0.0);
+
+   this->PrepareVisField(ur, ui, NULL, NULL);
 }
 
-void ScalarFieldVisObject::RegisterVisItFields(VisItDataCollection & visit_dc)
+EnergyDensityVisObject::EnergyDensityVisObject(const std::string & field_name,
+                                               L2_ParFESpace *sfes,
+                                               bool cyl, bool pseudo)
+   : ScalarFieldVisObject(field_name, sfes, cyl, pseudo)
+{}
+
+void EnergyDensityVisObject::PrepareVisField(const ParComplexGridFunction &e,
+                                             double omega,
+                                             MatrixCoefficient &epsr,
+                                             MatrixCoefficient &epsi,
+                                             Coefficient &muInv)
 {
-   ostringstream oss_r;
-   ostringstream oss_i;
+   VectorGridFunctionCoefficient Er(&e.real());
+   VectorGridFunctionCoefficient Ei(&e.imag());
+   CurlGridFunctionCoefficient dEr(&e.real());
+   CurlGridFunctionCoefficient dEi(&e.imag());
 
-   oss_r << "Re_" << field_name_;
-   oss_i << "Im_" << field_name_;
+   EnergyDensityCoef ur(omega, Er, Ei, dEr, dEi, epsr, epsi, muInv);
+   ConstantCoefficient ui(0.0);
 
-   visit_dc.RegisterField(oss_r.str(), &v_->real());
-   visit_dc.RegisterField(oss_i.str(), &v_->imag());
+   this->PrepareVisField(ur, ui, NULL, NULL);
 }
 
-void ScalarFieldVisObject::PrepareVisField(const ParComplexGridFunction &u,
-                                           VectorCoefficient * kReCoef,
-                                           VectorCoefficient * kImCoef)
+PoyntingVectorVisObject::PoyntingVectorVisObject(const std::string & field_name,
+                                                 L2_ParFESpace *vfes,
+                                                 L2_ParFESpace *sfes,
+                                                 bool cyl, bool pseudo)
+   : VectorFieldVisObject(field_name, vfes, sfes, cyl, pseudo)
+{}
+
+void PoyntingVectorVisObject::PrepareVisField(const ParComplexGridFunction &e,
+                                              double omega,
+                                              Coefficient & muInvCoef)
 {
-   if (kReCoef || kImCoef)
-   {
-      GridFunctionCoefficient u_r(&u.real());
-      GridFunctionCoefficient u_i(&u.imag());
-      ComplexPhaseCoefficient uk_r(kReCoef, kImCoef, &u_r, &u_i,
-                                   true, false);
-      ComplexPhaseCoefficient uk_i(kReCoef, kImCoef, &u_r, &u_i,
-                                   false, false);
+   VectorGridFunctionCoefficient Er(&e.real());
+   VectorGridFunctionCoefficient Ei(&e.imag());
+   CurlGridFunctionCoefficient dEr(&e.real());
+   CurlGridFunctionCoefficient dEi(&e.imag());
 
-      PseudoScalarCoef   psu_r(uk_r, pseudo_ && cyl_);
-      PseudoScalarCoef   psu_i(uk_i, pseudo_ && cyl_);
+   PoyntingVectorReCoef Sr(omega, Er, Ei, dEr, dEi, muInvCoef);
+   PoyntingVectorImCoef Si(omega, Er, Ei, dEr, dEi, muInvCoef);
 
-      v_->ProjectCoefficient(psu_r, psu_i);
-   }
-   else
-   {
-      GridFunctionCoefficient u_r(&u.real());
-      GridFunctionCoefficient u_i(&u.imag());
-
-      PseudoScalarCoef   psu_r(u_r, pseudo_ && cyl_);
-      PseudoScalarCoef   psu_i(u_i, pseudo_ && cyl_);
-
-      v_->ProjectCoefficient(psu_r, psu_i);
-   }
+   this->PrepareVisField(Sr, Si, NULL, NULL);
 }
 
-void ScalarFieldVisObject::Update()
+MinkowskiMomentumDensityVisObject::MinkowskiMomentumDensityVisObject(
+   const std::string & field_name,
+   L2_ParFESpace *vfes,
+   L2_ParFESpace *sfes,
+   bool cyl, bool pseudo)
+   : VectorFieldVisObject(field_name, vfes, sfes, cyl, pseudo)
+{}
+
+void MinkowskiMomentumDensityVisObject::PrepareVisField(
+   const ParComplexGridFunction &e,
+   double omega,
+   MatrixCoefficient & epsr,
+   MatrixCoefficient & epsi)
 {
-   if (v_) { v_->Update(); }
+   VectorGridFunctionCoefficient Er(&e.real());
+   VectorGridFunctionCoefficient Ei(&e.imag());
+   CurlGridFunctionCoefficient dEr(&e.real());
+   CurlGridFunctionCoefficient dEi(&e.imag());
+
+   MinkowskiMomentumDensityReCoef Gr(omega, Er, Ei, dEr, dEi, epsr, epsi);
+   MinkowskiMomentumDensityImCoef Gi(omega, Er, Ei, dEr, dEi, epsr, epsi);
+
+   this->PrepareVisField(Gr, Gi, NULL, NULL);
 }
 
-VectorFieldVisObject::VectorFieldVisObject(const std::string & field_name,
-                                           L2_ParFESpace *vfes,
-                                           L2_ParFESpace *sfes,
-                                           bool cyl,
-                                           bool pseudo)
-   : cyl_(cyl),
-     pseudo_(pseudo),
-     dim_(-1),
-     field_name_(field_name),
-     v_(NULL),
-     v_y_(NULL),
-     v_z_(NULL)
+TensorCompVisObject::TensorCompVisObject(const std::string & field_name,
+                                         L2_ParFESpace *sfes,
+                                         bool cyl, bool pseudo)
+   : ScalarFieldVisObject(field_name, sfes, cyl, pseudo)
+{}
+
+void TensorCompVisObject::PrepareVisField(MatrixCoefficient &mr,
+                                          MatrixCoefficient &mi,
+                                          int i, int j)
 {
-   MFEM_VERIFY(vfes != NULL || sfes != NULL, "VectorFieldVisObject: "
-               "Either vfes or sfes must be non NULL.");
+   TensorCompCoef mrCoef(mr, i, j);
+   TensorCompCoef miCoef(mi, i, j);
 
-   if (vfes)
-   {
-      dim_ = vfes->GetParMesh()->SpaceDimension();
-   }
-   else
-   {
-      dim_ = sfes->GetParMesh()->SpaceDimension();
-   }
-
-   switch (dim_)
-   {
-      case 1:
-         MFEM_VERIFY(sfes != NULL, "VectorFieldVisObject: "
-                     "sfes must be non NULL in 1D.");
-         v_   = new ComplexGridFunction(sfes);
-         v_y_ = new ComplexGridFunction(sfes);
-         v_z_ = new ComplexGridFunction(sfes);
-         break;
-      case 2:
-         MFEM_VERIFY(vfes != NULL && sfes != NULL, "VectorFieldVisObject: "
-                     "vfes and sfes must be non NULL in 2D.");
-         v_   = new ComplexGridFunction(vfes);
-         v_z_ = new ComplexGridFunction(sfes);
-         break;
-      case 3:
-         MFEM_VERIFY(vfes != NULL, "VectorFieldVisObject: "
-                     "vfes must be non NULL in 3D.");
-         v_   = new ComplexGridFunction(vfes);
-         break;
-   }
-}
-
-VectorFieldVisObject::~VectorFieldVisObject()
-{
-   delete v_;
-   delete v_y_;
-   delete v_z_;
-}
-
-void VectorFieldVisObject::RegisterVisItFields(VisItDataCollection & visit_dc)
-{
-   switch (dim_)
-   {
-      case 1:
-      {
-         ostringstream oss_x_r;
-         ostringstream oss_x_i;
-         ostringstream oss_y_r;
-         ostringstream oss_y_i;
-         ostringstream oss_z_r;
-         ostringstream oss_z_i;
-
-         oss_x_r << "Re_" << field_name_ << "x";
-         oss_x_i << "Im_" << field_name_ << "x";
-         oss_y_r << "Re_" << field_name_ << "y";
-         oss_y_i << "Im_" << field_name_ << "y";
-         oss_z_r << "Re_" << field_name_ << "z";
-         oss_z_i << "Im_" << field_name_ << "z";
-
-         visit_dc.RegisterField(oss_x_r.str(), &v_->real());
-         visit_dc.RegisterField(oss_x_i.str(), &v_->imag());
-         visit_dc.RegisterField(oss_y_r.str(), &v_y_->real());
-         visit_dc.RegisterField(oss_y_i.str(), &v_y_->imag());
-         visit_dc.RegisterField(oss_z_r.str(), &v_z_->real());
-         visit_dc.RegisterField(oss_z_i.str(), &v_z_->imag());
-      }
-      break;
-      case 2:
-      {
-         ostringstream oss_xy_r;
-         ostringstream oss_xy_i;
-         ostringstream oss_z_r;
-         ostringstream oss_z_i;
-
-         oss_xy_r << "Re_" << field_name_;
-         oss_xy_i << "Im_" << field_name_;
-         oss_z_r << "Re_" << field_name_;
-         oss_z_i << "Im_" << field_name_;
-
-         if (!cyl_)
-         {
-            oss_xy_r << "xy";
-            oss_xy_i << "xy";
-            oss_z_r << "z";
-            oss_z_i << "z";
-
-            visit_dc.RegisterField(oss_xy_r.str(), &v_->real());
-            visit_dc.RegisterField(oss_xy_i.str(), &v_->imag());
-            visit_dc.RegisterField(oss_z_r.str(), &v_z_->real());
-            visit_dc.RegisterField(oss_z_i.str(), &v_z_->imag());
-         }
-         else
-         {
-            oss_xy_r << "zr";
-            oss_xy_i << "zr";
-            oss_z_r << "phi";
-            oss_z_i << "phi";
-
-            visit_dc.RegisterField(oss_xy_r.str(), &v_->real());
-            visit_dc.RegisterField(oss_xy_i.str(), &v_->imag());
-            visit_dc.RegisterField(oss_z_r.str(), &v_z_->real());
-            visit_dc.RegisterField(oss_z_i.str(), &v_z_->imag());
-         }
-      }
-      break;
-      case 3:
-      {
-         ostringstream oss_r;
-         ostringstream oss_i;
-
-         oss_r << "Re_" << field_name_;
-         oss_i << "Im_" << field_name_;
-
-         visit_dc.RegisterField(oss_r.str(), &v_->real());
-         visit_dc.RegisterField(oss_i.str(), &v_->imag());
-      }
-      break;
-   }
-}
-
-void VectorFieldVisObject::PrepareVisField(const ParComplexGridFunction &u,
-                                           VectorCoefficient * kReCoef,
-                                           VectorCoefficient * kImCoef)
-{
-   if (kReCoef || kImCoef)
-   {
-      VectorGridFunctionCoefficient u_r(&u.real());
-      VectorGridFunctionCoefficient u_i(&u.imag());
-      ComplexPhaseVectorCoefficient uk_r(kReCoef, kImCoef, &u_r, &u_i,
-                                         true, false);
-      ComplexPhaseVectorCoefficient uk_i(kReCoef, kImCoef, &u_r, &u_i,
-                                         false, false);
-
-      switch (dim_)
-      {
-         case 1:
-         {}
-         break;
-         case 2:
-         {
-            VectorXYCoef ukxy_r(uk_r, pseudo_ && cyl_);
-            VectorXYCoef ukxy_i(uk_i, pseudo_ && cyl_);
-            VectorZCoef   ukz_r(uk_r, !pseudo_ && cyl_);
-            VectorZCoef   ukz_i(uk_i, !pseudo_ && cyl_);
-
-            v_->ProjectCoefficient(ukxy_r, ukxy_i);
-            if (v_z_) { v_z_->ProjectCoefficient(ukz_r, ukz_i); }
-         }
-         break;
-         case 3:
-         {}
-         break;
-      }
-   }
-   else
-   {
-      VectorGridFunctionCoefficient u_r(&u.real());
-      VectorGridFunctionCoefficient u_i(&u.imag());
-
-      switch (dim_)
-      {
-         case 1:
-         {}
-         break;
-         case 2:
-         {
-            VectorXYCoef uxy_r(u_r, pseudo_ && cyl_);
-            VectorXYCoef uxy_i(u_i, pseudo_ && cyl_);
-            VectorZCoef   uz_r(u_r, !pseudo_ && cyl_);
-            VectorZCoef   uz_i(u_i, !pseudo_ && cyl_);
-
-            v_->ProjectCoefficient(uxy_r, uxy_i);
-            if (v_z_) { v_z_->ProjectCoefficient(uz_r, uz_i); }
-         }
-         break;
-         case 3:
-         {}
-         break;
-      }
-   }
-}
-
-void VectorFieldVisObject::Update()
-{
-   if (v_) { v_->Update(); }
-   if (v_y_) { v_y_->Update(); }
-   if (v_z_) { v_z_->Update(); }
-}
-
-inline ParFiniteElementSpace *
-MakeHCurlFESpace(ParMesh &pmesh, int order)
-{
-   switch (pmesh.Dimension())
-   {
-      case 1:
-         return new ND_R1D_ParFESpace(&pmesh, order, 1);
-      case 2:
-         return new ND_R2D_ParFESpace(&pmesh, order, 2);
-      case 3:
-         return new ND_ParFESpace(&pmesh, order, 3);
-      default:
-         return NULL;
-   }
-}
-
-inline ParFiniteElementSpace *
-MakeHDivFESpace(ParMesh &pmesh, int order)
-{
-   switch (pmesh.Dimension())
-   {
-      case 1:
-         return new RT_R1D_ParFESpace(&pmesh, order, 1);
-      case 2:
-         return new RT_R2D_ParFESpace(&pmesh, order, 2);
-      case 3:
-         return new RT_ParFESpace(&pmesh, order, 3);
-      default:
-         return NULL;
-   }
+   this->PrepareVisField(mrCoef, miCoef, NULL, NULL);
 }
 
 CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
@@ -1033,13 +975,15 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
      omega_(omega),
      pmesh_(&pmesh),
      L2FESpace_(new L2_ParFESpace(pmesh_, order-1, pmesh_->Dimension())),
-     L2FESpace2p_(NULL),
+     L2FESpace2p_(new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension())),
      L2VSFESpace_(new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
                                     pmesh_->SpaceDimension())),
+     L2VSFESpace2p_(new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension(),
+                                      pmesh_->SpaceDimension())),
      L2V3FESpace_(NULL),
-     HCurlFESpace_(MakeHCurlFESpace(pmesh, order)),
-     HDivFESpace_(MakeHDivFESpace(pmesh, order)),
-     HDivFESpace2p_(NULL),
+     HCurlFESpace_(MakeHCurlParFESpace(pmesh, order)),
+     HDivFESpace_(MakeHDivParFESpace(pmesh, order)),
+     // HDivFESpace2p_(NULL),
      b1_(NULL),
      e_(HCurlFESpace_),
      e_t_(NULL),
@@ -1051,11 +995,25 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
      dd_v_("DivD", L2FESpace_, cyl_, true),
      j_v_("J", L2VSFESpace_, L2FESpace_, cyl_, true),
      k_v_("K", L2VSFESpace_, L2FESpace_, cyl_, true),
+     ue_v_("uE", L2FESpace_, cyl_, true),
+     ub_v_("uB", L2FESpace_, cyl_, true),
+     u_v_("u", L2FESpace_, cyl_, true),
+     s_v_("S", L2VSFESpace_, L2FESpace_, cyl_, true),
+     g_v_("G", L2VSFESpace_, L2FESpace_, cyl_, true),
+     eps_00_v_("eps00", L2FESpace_, cyl_, true),
+     eps_01_v_("eps01", L2FESpace_, cyl_, true),
+     eps_02_v_("eps02", L2FESpace_, cyl_, true),
+     eps_10_v_("eps10", L2FESpace_, cyl_, true),
+     eps_11_v_("eps11", L2FESpace_, cyl_, true),
+     eps_12_v_("eps12", L2FESpace_, cyl_, true),
+     eps_20_v_("eps20", L2FESpace_, cyl_, true),
+     eps_21_v_("eps21", L2FESpace_, cyl_, true),
+     eps_22_v_("eps22", L2FESpace_, cyl_, true),
      b_hat_(NULL),
-     u_(NULL),
-     uE_(NULL),
-     uB_(NULL),
-     S_(NULL),
+     // u_(NULL),
+     // uE_(NULL),
+     // uB_(NULL),
+     // S_(NULL),
      StixS_(NULL),
      StixD_(NULL),
      StixP_(NULL),
@@ -1317,16 +1275,16 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order, double omega,
 
    if (vis_u_)
    {
-      if (L2FESpace2p_ == NULL)
-      {
-         L2FESpace2p_ = new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension());
-      }
-      u_ = new ParGridFunction(L2FESpace2p_);
-      uE_ = new ParGridFunction(L2FESpace2p_);
-      uB_ = new ParGridFunction(L2FESpace2p_);
+      // if (L2FESpace2p_ == NULL)
+      // {
+      //    L2FESpace2p_ = new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension());
+      // }
+      // u_ = new ParGridFunction(L2FESpace2p_);
+      // uE_ = new ParGridFunction(L2FESpace2p_);
+      // uB_ = new ParGridFunction(L2FESpace2p_);
 
-      HDivFESpace2p_ = new RT_ParFESpace(pmesh_,2*order,pmesh_->Dimension());
-      S_ = new ParComplexGridFunction(HDivFESpace2p_);
+      // HDivFESpace2p_ = new RT_ParFESpace(pmesh_,2*order,pmesh_->Dimension());
+      // S_ = new ParComplexGridFunction(HDivFESpace2p_);
 
       erCoef_.SetGridFunction(&e_.real());
       eiCoef_.SetGridFunction(&e_.imag());
@@ -1392,9 +1350,9 @@ CPDSolverEB::~CPDSolverEB()
    delete e_b_;
    delete b_hat_;
    delete b_hat_v_;
-   delete u_;
-   delete uE_;
-   delete uB_;
+   // delete u_;
+   // delete uE_;
+   // delete uB_;
    delete e_t_;
 
    delete b1_;
@@ -1402,10 +1360,11 @@ CPDSolverEB::~CPDSolverEB()
    delete L2FESpace_;
    delete L2FESpace2p_;
    delete L2VSFESpace_;
+   delete L2VSFESpace2p_;
    delete L2V3FESpace_;
    delete HCurlFESpace_;
    delete HDivFESpace_;
-   delete HDivFESpace2p_;
+   // delete HDivFESpace2p_;
 
    map<string,socketstream*>::iterator mit;
    for (mit=socks_.begin(); mit!=socks_.end(); mit++)
@@ -1475,10 +1434,11 @@ CPDSolverEB::Update()
    if (L2FESpace_) { L2FESpace_->Update(); }
    if (L2FESpace2p_) { L2FESpace2p_->Update(); }
    if (L2VSFESpace_) { L2VSFESpace_->Update(); }
+   if (L2VSFESpace2p_) { L2VSFESpace2p_->Update(); }
    if (L2V3FESpace_) { L2V3FESpace_->Update(); }
    HCurlFESpace_->Update();
    HDivFESpace_->Update();
-   if (HDivFESpace2p_) { HDivFESpace2p_->Update(false); }
+   // if (HDivFESpace2p_) { HDivFESpace2p_->Update(false); }
 
    if ( ess_bdr_.Size() > 0 )
    {
@@ -1534,10 +1494,10 @@ CPDSolverEB::Update()
       delete tv;
    }
 
-   if (u_) { u_->Update(); }
-   if (uE_) { uE_->Update(); }
-   if (uB_) { uB_->Update(); }
-   if (S_) { S_->Update(); }
+   // if (u_) { u_->Update(); }
+   // if (uE_) { uE_->Update(); }
+   // if (uB_) { uB_->Update(); }
+   // if (S_) { S_->Update(); }
    if (e_t_) { e_t_->Update(); }
    if (e_b_) { e_b_->Update(); }
    e_v_.Update();
@@ -1545,6 +1505,20 @@ CPDSolverEB::Update()
    d_v_.Update();
    j_v_.Update();
    k_v_.Update();
+   ue_v_.Update();
+   ub_v_.Update();
+   u_v_.Update();
+   s_v_.Update();
+   g_v_.Update();
+   eps_00_v_.Update();
+   eps_01_v_.Update();
+   eps_02_v_.Update();
+   eps_10_v_.Update();
+   eps_11_v_.Update();
+   eps_12_v_.Update();
+   eps_20_v_.Update();
+   eps_21_v_.Update();
+   eps_22_v_.Update();
    db_v_.Update();
    dd_v_.Update();
    if (b_hat_) { b_hat_->Update(); }
@@ -2051,6 +2025,20 @@ void CPDSolverEB::prepareVisFields()
                         kReCoef_, kImCoef_);
    k_v_.PrepareVisField(current_.GetSurfaceCurrentDensity(),
                         kReCoef_, kImCoef_);
+   ue_v_.PrepareVisField(e_, *epsReCoef_, *epsImCoef_);
+   ub_v_.PrepareVisField(e_, omega_, *muInvCoef_);
+   u_v_.PrepareVisField(e_, omega_, *epsReCoef_, *epsImCoef_, *muInvCoef_);
+   s_v_.PrepareVisField(e_, omega_, *muInvCoef_);
+   g_v_.PrepareVisField(e_, omega_, *epsReCoef_, *epsImCoef_);
+   eps_00_v_.PrepareVisField(*epsReCoef_, *epsImCoef_, 0, 0);
+   eps_01_v_.PrepareVisField(*epsReCoef_, *epsImCoef_, 0, 1);
+   eps_02_v_.PrepareVisField(*epsReCoef_, *epsImCoef_, 0, 2);
+   eps_10_v_.PrepareVisField(*epsReCoef_, *epsImCoef_, 1, 0);
+   eps_11_v_.PrepareVisField(*epsReCoef_, *epsImCoef_, 1, 1);
+   eps_12_v_.PrepareVisField(*epsReCoef_, *epsImCoef_, 1, 2);
+   eps_20_v_.PrepareVisField(*epsReCoef_, *epsImCoef_, 2, 0);
+   eps_21_v_.PrepareVisField(*epsReCoef_, *epsImCoef_, 2, 1);
+   eps_22_v_.PrepareVisField(*epsReCoef_, *epsImCoef_, 2, 2);
 
    divB_.ComputeDiv();
    divD_.ComputeDiv();
@@ -2146,6 +2134,20 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
    d_v_.RegisterVisItFields(visit_dc);
    j_v_.RegisterVisItFields(visit_dc);
    k_v_.RegisterVisItFields(visit_dc);
+   ue_v_.RegisterVisItFields(visit_dc);
+   ub_v_.RegisterVisItFields(visit_dc);
+   u_v_.RegisterVisItFields(visit_dc);
+   s_v_.RegisterVisItFields(visit_dc);
+   g_v_.RegisterVisItFields(visit_dc);
+   eps_00_v_.RegisterVisItFields(visit_dc);
+   eps_01_v_.RegisterVisItFields(visit_dc);
+   eps_02_v_.RegisterVisItFields(visit_dc);
+   eps_10_v_.RegisterVisItFields(visit_dc);
+   eps_11_v_.RegisterVisItFields(visit_dc);
+   eps_12_v_.RegisterVisItFields(visit_dc);
+   eps_20_v_.RegisterVisItFields(visit_dc);
+   eps_21_v_.RegisterVisItFields(visit_dc);
+   eps_22_v_.RegisterVisItFields(visit_dc);
    db_v_.RegisterVisItFields(visit_dc);
    dd_v_.RegisterVisItFields(visit_dc);
    /*
@@ -2277,6 +2279,7 @@ CPDSolverEB::InitializeGLVis()
       socks_["Ji"]->precision(8);
    }
    */
+   /*
    if ( u_ )
    {
       socks_["U"] = new socketstream;
@@ -2294,6 +2297,7 @@ CPDSolverEB::InitializeGLVis()
       socks_["Si"] = new socketstream;
       socks_["Si"]->precision(8);
    }
+   */
    /*
    if ( k_ )
    {
@@ -2473,7 +2477,7 @@ CPDSolverEB::DisplayToGLVis()
    }
    Wx = 0; Wy += offy; // next line
 
-   if ( u_ )
+   // if ( u_ )
    {
       /*
        Wx = 0; Wy += offy; // next line

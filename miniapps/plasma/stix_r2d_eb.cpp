@@ -17,14 +17,14 @@
 //   frequency although not necessarily in phase with one another.  This
 //   assumption implies that we can factor out the time dependence which we
 //   take to be of the form exp(-i omega t).  With these assumptions we can
-//   write the Maxwell equations for D and H in the form:
+//   write the Maxwell equations for E and B in the form:
 //
-//   -i omega D    = Curl H - J
-//    i omega mu H = Curl epsilon^{-1} D
+//   -i omega epsilon E = Curl mu^{-1} B - J
+//    i omega B         = Curl E
 //
 //   Which combine to yield:
 //
-//   Curl epsilon^{-1} Curl H - omega^2 mu H = Curl epsilon^{-1} J
+//   Curl mu^{-1} Curl E - omega^2 epsilon E = i omega J
 //
 //   In a cold plasma the dielectric tensor, epsilon, is complex-valued and
 //   anisotropic.  The anisotropy aligns with the external magnetic field and
@@ -55,15 +55,13 @@
 //   functions.  The curl curl operator must be handled with
 //   integration by parts which yields a surface integral:
 //
-//   (W, Curl epsilon^{-1} Curl H) = (Curl W, epsilon^{-1} Curl H)
-//               + (W, n x (epsilon^{-1} Curl H))_{\Gamma}
+//   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
+//               + (W, n x (mu^{-1} Curl E))_{\Gamma}
 //
 //   or
 //
-//   (W, Curl epsilon^{-1} Curl H) = (Curl W, epsilon^{-1} Curl H)
-//               - i omega (W, n x E)_{\Gamma}
-//
-//   Assuming J = 0 on the boundary
+//   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
+//               + i omega (W, n x H)_{\Gamma}
 //
 //   The non-linear sheath boundary condition can be used to set the
 //   components of E that are tangent to the boundary. The governing
@@ -441,7 +439,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       ParGridFunction & xposition_gf,
                       Coefficient &ReCoef,
                       Coefficient &ImCoef,
-                      int p, double tol,
+                      int p, double tol, int max_dofs,
                       bool visualization);
 
 void Update(ParFiniteElementSpace & H1FESpace,
@@ -493,6 +491,7 @@ int main(int argc, char *argv[])
 
    double hz = 1.0;
    double init_amr_tol = 1e-2;
+   int init_amr_max_dofs = 100000;
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int order = 1;
@@ -508,8 +507,8 @@ int main(int argc, char *argv[])
    double freq = 1.0e6;
    const char * wave_type = " ";
 
-   Vector BVec(3);
-   BVec = 0.0; BVec(0) = 0.1;
+   // Vector BVec(3);
+   // BVec = 0.0; BVec(0) = 0.1;
 
    bool phase_shift = false;
    Vector kVec;
@@ -586,12 +585,14 @@ int main(int argc, char *argv[])
                   "Cylindrical (z, rho, phi).");
    args.AddOption(&axis, "-axis", "--cyl-axis-bdr",
                   "Boundary attributes of cylindrical axis if applicable.");
-   args.AddOption(&init_amr_tol, "-iatol", "--init-amr-tol",
-                  "Initial AMR tolerance.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
+   args.AddOption(&init_amr_tol, "-iatol", "--init-amr-tol",
+                  "Initial AMR tolerance.");
+   args.AddOption(&init_amr_max_dofs, "-iamdof", "--init-amr-max-dofs",
+                  "Initial AMR Maximum Number of DoFs.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    // args.AddOption(&nspecies, "-ns", "--num-species",
@@ -639,8 +640,8 @@ int main(int argc, char *argv[])
                   "'O' - Ordinary, 'X' - Extraordinary, "
                   "'J' - Current Slab (in conjunction with -slab), "
                   "'Z' - Zero");
-   args.AddOption(&BVec, "-B", "--magnetic-flux",
-                  "Background magnetic flux vector");
+   // args.AddOption(&BVec, "-B", "--magnetic-flux",
+   //                "Background magnetic flux vector");
    args.AddOption(&kVec, "-k-vec", "--phase-vector",
                   "Phase shift vector across periodic directions."
                   " For complex phase shifts input 3 real phase shifts "
@@ -886,7 +887,7 @@ int main(int argc, char *argv[])
 
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
-
+   /*
    if (mpi.Root())
    {
       double lam0 = c0_ / freq;
@@ -959,7 +960,7 @@ int main(int argc, char *argv[])
       }
       cout << endl;
    }
-
+   */
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
@@ -1035,7 +1036,7 @@ int main(int argc, char *argv[])
       cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
 
-   // Ensure that quad and hex meshes are treated as non-conforming.
+   // Ensure that quad meshes are treated as non-conforming.
    mesh->EnsureNCMesh();
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
@@ -1149,7 +1150,7 @@ int main(int argc, char *argv[])
                        density, temperature,
                        BField, density_gf, temperature_gf, xposition_gf,
                        ReLCoef, ImLCoef,
-                       order, init_amr_tol, visualization);
+                       order, init_amr_tol, init_amr_max_dofs, visualization);
    }
 
    if (mpi.Root())
@@ -1186,7 +1187,7 @@ int main(int argc, char *argv[])
 
    MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, true);
    MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, false);
-
+   /*
    ColdPlasmaPlaneWaveH HReCoef(wave_type[0], omega, BVec,
                                 numbers, charges, masses, temps, nuprof, true);
    ColdPlasmaPlaneWaveH HImCoef(wave_type[0], omega, BVec,
@@ -1196,7 +1197,7 @@ int main(int argc, char *argv[])
                                 numbers, charges, masses, temps, nuprof, true);
    ColdPlasmaPlaneWaveE EImCoef(wave_type[0], omega, BVec,
                                 numbers, charges, masses, temps, nuprof, false);
-
+   */
    if (check_eps_inv)
    {
       InverseDielectricTensor epsilonInv_real(BField, xposition_gf,
@@ -1252,7 +1253,7 @@ int main(int argc, char *argv[])
          }
       }
    }
-
+   /*
    if (wave_type[0] != ' ')
    {
       Vector kr(3), ki(3);
@@ -1267,13 +1268,7 @@ int main(int argc, char *argv[])
       {
          kVec.SetSize(6);
          kVec = 0.0;
-         /*
-              if (per_y)
-              {
-                 kVec[1] = kr[1];
-                 kVec[4] = ki[1];
-              }
-         */
+
          kVec[2] = kr[2];
          kVec[5] = ki[2];
 
@@ -1289,6 +1284,7 @@ int main(int argc, char *argv[])
       EImCoef.SetPhaseShift(kReVec, kImVec);
    }
    else
+     */
    {
       if (kVec.Size() >= 3)
       {
@@ -1327,7 +1323,7 @@ int main(int argc, char *argv[])
                              mesh_dim_[0]);
    }
    */
-
+   /*
    if (visualization && wave_type[0] != ' ')
    {
       if (mpi.Root())
@@ -1409,7 +1405,7 @@ int main(int argc, char *argv[])
                         Wx, Wy, Ww, Wh);
       }
    }
-
+   */
    if (mpi.Root())
    {
       cout << "Setup boundary conditions." << endl;
@@ -1485,10 +1481,12 @@ int main(int argc, char *argv[])
       {
          stixBCs.AddDirichletBC(dbcas, HReStrapCoef, HImStrapCoef);
       }
+      /*
       if (dbcaw.Size() > 0)
       {
          stixBCs.AddDirichletBC(dbcaw, HReCoef, HImCoef);
       }
+      */
    }
 
    int nbcsSize = (nbca.Size() > 0) + (nbca1.Size() > 0) +
@@ -1567,10 +1565,12 @@ int main(int argc, char *argv[])
       {
          stixBCs.AddNeumannBC(nbca2, nbc2ReCoef, nbc2ImCoef);
       }
+      /*
       if (nbcaw.Size() > 0)
       {
          stixBCs.AddNeumannBC(nbcaw, EReCoef, EImCoef);
       }
+      */
    }
 
    // Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
@@ -1643,8 +1643,8 @@ int main(int argc, char *argv[])
          auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
          auxFields[1] = new ParComplexGridFunction(&HCurlFESpace);
 
-         auxFields[0]->ProjectCoefficient(HReCoef, HImCoef);
-         auxFields[1]->ProjectCoefficient(EReCoef, EImCoef);
+	 // auxFields[0]->ProjectCoefficient(HReCoef, HImCoef);
+	 // auxFields[1]->ProjectCoefficient(EReCoef, EImCoef);
 
          visit_dc.RegisterField("Re_H_Exact", &auxFields[0]->real());
          visit_dc.RegisterField("Im_H_Exact", &auxFields[0]->imag());
@@ -1687,11 +1687,13 @@ int main(int argc, char *argv[])
                   cout << "Global L2 Error in H field " << glb_error_H << endl;
                }
          */
+	 /*
          double glb_error_E = CPD.GetEFieldError(EReCoef, EImCoef);
          if (mpi.Root())
          {
             cout << "Global L2 Error in E field " << glb_error_E << endl;
          }
+	 */
       }
 
       // Determine the current size of the linear system
@@ -1828,9 +1830,11 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       ParGridFunction & xposition_gf,
                       Coefficient &ReCoef,
                       Coefficient &ImCoef,
-                      int p, double tol,
+                      int p, double tol, int max_dofs,
                       bool visualization)
 {
+   ConstantCoefficient zeroCoef(0.0);
+
    ParComplexGridFunction gf(&L2FESpace);
 
    ComplexLpErrorEstimator estimator(p, ReCoef, ImCoef, gf);
@@ -1848,7 +1852,6 @@ void AdaptInitialMesh(MPI_Session &mpi,
    int Ww = 275, Wh = 250; // window size
    int offx = Ww + 3;
 
-   const int max_dofs = 100000;
    for (int it = 0; ; it++)
    {
       HYPRE_Int global_dofs = L2FESpace.GlobalTrueVSize();
@@ -1858,9 +1861,23 @@ void AdaptInitialMesh(MPI_Session &mpi,
          cout << "Number of L2 unknowns: " << global_dofs << endl;
       }
 
-      // 19. Send the solution by socket to a GLVis server.
       gf.ProjectCoefficient(ReCoef, ImCoef);
 
+      double l2_nrm = gf.ComputeL2Error(zeroCoef, zeroCoef);
+      double l2_err = gf.ComputeL2Error(ReCoef, ImCoef);
+      if (mpi.Root())
+      {
+         if (l2_nrm > 0.0)
+         {
+            cout << "Relative L2 Error: " << l2_err / l2_nrm << endl;
+         }
+         else
+         {
+            cout << "L2 Error: " << l2_err << endl;
+         }
+      }
+
+      // 19. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          VisualizeField(sout[0], vishost, visport, gf.real(),
@@ -2046,8 +2063,10 @@ void record_cmd_line(int argc, char *argv[])
           strcmp(argv[i], "-dbcs2"  ) == 0 ||
           strcmp(argv[i], "-dbcv1"  ) == 0 ||
           strcmp(argv[i], "-dbcv2"  ) == 0 ||
+          strcmp(argv[i], "-nbcs"   ) == 0 ||
           strcmp(argv[i], "-nbcs1"  ) == 0 ||
           strcmp(argv[i], "-nbcs2"  ) == 0 ||
+          strcmp(argv[i], "-nbcv"   ) == 0 ||
           strcmp(argv[i], "-nbcv1"  ) == 0 ||
           strcmp(argv[i], "-nbcv2"  ) == 0)
       {

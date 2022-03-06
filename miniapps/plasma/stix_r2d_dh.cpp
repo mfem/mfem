@@ -360,13 +360,73 @@ public:
          double ReI = params_[10 * i + 8];
          double ImI = params_[10 * i + 9];
 
-         double d01 = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2));
-         double d12 = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
-         double d23 = sqrt(pow(x3 - x2, 2) + pow(y3 - y2, 2));
-         double d30 = sqrt(pow(x0 - x3, 2) + pow(y0 - y3, 2));
+	 double dx01 = x1 - x0;
+	 double dx12 = x2 - x1;
+	 double dx23 = x3 - x2;
+	 double dx30 = x0 - x3;
 
-         double   H = (real_part_ ? ReI : ImI) / (d01 + d12 + d23 + d30);
+	 double dy01 = y1 - y0;
+	 double dy12 = y2 - y1;
+	 double dy23 = y3 - y2;
+	 double dy30 = y0 - y3;
+	 /*
+         double d01 = sqrt(dx01 * dx01 + dy01 * dy01);
+         double d12 = sqrt(dx12 * dx12 + dy12 * dy12);
+         double d23 = sqrt(dx23 * dx23 + dy23 * dy23);
+         double d30 = sqrt(dx30 * dx30 + dy30 * dy30);
+	 */
+         double d01 = dx01 * dx01 + dy01 * dy01;
+         double d12 = dx12 * dx12 + dy12 * dy12;
+         double d23 = dx23 * dx23 + dy23 * dy23;
+         double d30 = dx30 * dx30 + dy30 * dy30;
 
+	 // Perpendicular distance to strap edge
+	 double p01 = fabs(dx01 * (y0 - x_[1]) - (x0 - x_[0]) * dy01);
+	 double p12 = fabs(dx12 * (y1 - x_[1]) - (x1 - x_[0]) * dy12);
+	 double p23 = fabs(dx23 * (y2 - x_[1]) - (x2 - x_[0]) * dy23);
+	 double p30 = fabs(dx30 * (y3 - x_[1]) - (x3 - x_[0]) * dy30);
+	 
+	 // Longitudinal distance along strap edge
+	 double l01 = (x_[0] - x0) * dx01 + (x_[1] - y0) * dy01;
+	 double l12 = (x_[0] - x1) * dx12 + (x_[1] - y1) * dy12;
+	 double l23 = (x_[0] - x2) * dx23 + (x_[1] - y2) * dy23;
+	 double l30 = (x_[0] - x3) * dx30 + (x_[1] - y3) * dy30;
+	 
+         double H = (real_part_ ? ReI : ImI) / (d01 + d12 + d23 + d30);
+
+	 if (p01 < tol_ * d01 &&
+	     l01 > -tol_ * d01 &&
+	     l01 < (1.0 + tol_) * d01)
+         {
+            V[0] = H * dx01 / d01;
+            V[1] = H * dy01 / d01;
+            break;
+         }
+	 else if (p12 < tol_ * d12 &&
+		  l12 > -tol_ * d12 &&
+		  l12 < (1.0 + tol_) * d12)
+         {
+            V[0] = H * dx12 / d12;
+            V[1] = H * dy12 / d12;
+            break;
+         }
+	 else if (p23 < tol_ * d23 &&
+		  l23 > -tol_ * d23 &&
+		  l23 < (1.0 + tol_) * d23)
+         {
+            V[0] = H * dx23 / d23;
+            V[1] = H * dy23 / d23;
+            break;
+         }
+	 else if (p30 < tol_ * d30 &&
+		  l30 > -tol_ * d30 &&
+		  l30 < (1.0 + tol_) * d30)
+         {
+            V[0] = H * dx30 / d30;
+            V[1] = H * dy30 / d30;
+            break;
+         }
+	 /*
          // *** The following will break on any vertical sides ***
          // Bottom of Antenna Strap:
          double s1 = (y1-y0)/(x1-x0);
@@ -409,26 +469,55 @@ public:
             V[1] = (y0 - y3) * H / d30;
             break;
          }
+	 */
       }
    }
 };
+
+void AdaptInitialMesh(MPI_Session &mpi,
+                      ParMesh &pmesh,
+                      ParFiniteElementSpace &err_fespace,
+                      ParFiniteElementSpace & H1FESpace,
+                      ParFiniteElementSpace & HCurlFESpace,
+                      ParFiniteElementSpace & HDivFESpace,
+                      ParFiniteElementSpace & L2FESpace,
+                      VectorCoefficient & BCoef,
+                      Coefficient & rhoCoef,
+                      Coefficient & TCoef,
+                      Coefficient & xposCoef,
+                      int & size_h1,
+                      int & size_l2,
+                      Array<int> & density_offsets,
+                      Array<int> & temperature_offsets,
+                      BlockVector & density,
+                      BlockVector & temperature,
+                      ParGridFunction & BField,
+                      ParGridFunction & density_gf,
+                      ParGridFunction & temperature_gf,
+                      ParGridFunction & xposition_gf,
+                      Coefficient &ReCoef,
+                      Coefficient &ImCoef,
+                      int p, double tol, int max_dofs,
+                      bool visualization);
 
 void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
-            ParGridFunction & BField,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
+            Coefficient & xposCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
             Array<int> & temperature_offsets,
             BlockVector & density,
             BlockVector & temperature,
+            ParGridFunction & BField,
             ParGridFunction & density_gf,
-            ParGridFunction & temperature_gf);
+            ParGridFunction & temperature_gf,
+            ParGridFunction & xposition_gf);
 
 //static double freq_ = 1.0e9;
 
@@ -459,22 +548,25 @@ int main(int argc, char *argv[])
    Vector bowt_mesh;
 
    double hz = 1.0;
+   double init_amr_tol = 1e-2;
+   int init_amr_max_dofs = 100000;
    int ser_ref_levels = 0;
+   int par_ref_levels = 0;
    int order = 1;
-   int maxit = 100;
+   int maxit = 1;
    int sol = 2;
    int prec = 1;
    // int nspecies = 2;
    bool herm_conv = false;
    bool vis_u = false;
-   bool visualization = true;
+   bool visualization = false;
    bool visit = true;
 
    double freq = 1.0e6;
    const char * wave_type = " ";
 
-   Vector BVec(3);
-   BVec = 0.0; BVec(0) = 0.1;
+   // Vector BVec(3);
+   // BVec = 0.0; BVec(0) = 0.1;
 
    bool phase_shift = false;
    Vector kVec;
@@ -488,24 +580,31 @@ int main(int argc, char *argv[])
 
    PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type xpt = PlasmaProfile::GRADIENT;
    BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
    Vector bpp;
+   Vector xpp(7);
+   xpp = 0.0; xpp(4) = 1.0;
    int nuprof = 0;
 
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbca; // Sheath BC attributes
-   Array<int> peca; // Perfect Electric Conductor BC attributes
+   Array<int> pmca; // Perfect Magnetic Conductor BC attributes
    Array<int> dbca1; // Dirichlet BC attributes
    Array<int> dbca2; // Dirichlet BC attributes
    Array<int> dbcas; // Dirichlet BC attributes for multi-strap antenna source
    Array<int> dbcaw; // Dirichlet BC attributes for plane wave source
+   Array<int> nbca; // Neumann BC attributes
    Array<int> nbca1; // Neumann BC attributes
    Array<int> nbca2; // Neumann BC attributes
    Array<int> nbcaw; // Neumann BC attributes for plane wave source
+   Array<int> jsrca; // Current Source region attributes
+   Array<int> axis; // Boundary attributes of axis (for cylindrical coords)
    Vector dbcv1; // Dirichlet BC values
    Vector dbcv2; // Dirichlet BC values
+   Vector nbcv; // Neumann BC values
    Vector nbcv1; // Neumann BC values
    Vector nbcv2; // Neumann BC values
 
@@ -542,8 +641,16 @@ int main(int argc, char *argv[])
                   "--cartesian-coords",
                   "Cartesian (x, y, z) coordinates or "
                   "Cylindrical (z, rho, phi).");
+   args.AddOption(&axis, "-axis", "--cyl-axis-bdr",
+                  "Boundary attributes of cylindrical axis if applicable.");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
+   args.AddOption(&init_amr_tol, "-iatol", "--init-amr-tol",
+                  "Initial AMR tolerance.");
+   args.AddOption(&init_amr_max_dofs, "-iamdof", "--init-amr-max-dofs",
+                  "Initial AMR Maximum Number of DoFs.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    // args.AddOption(&nspecies, "-ns", "--num-species",
@@ -591,8 +698,8 @@ int main(int argc, char *argv[])
                   "'O' - Ordinary, 'X' - Extraordinary, "
                   "'J' - Current Slab (in conjunction with -slab), "
                   "'Z' - Zero");
-   args.AddOption(&BVec, "-B", "--magnetic-flux",
-                  "Background magnetic flux vector");
+   // args.AddOption(&BVec, "-B", "--magnetic-flux",
+   //                "Background magnetic flux vector");
    args.AddOption(&kVec, "-k-vec", "--phase-vector",
                   "Phase shift vector across periodic directions."
                   " For complex phase shifts input 3 real phase shifts "
@@ -641,6 +748,8 @@ int main(int argc, char *argv[])
                   "Piecewise values of Imaginary part of Complex Impedance "
                   "(one value per abc surface)");
    */
+   args.AddOption(&jsrca, "-jsrc", "--j-src-reg",
+                  "Current source region attributes");
    args.AddOption(&rod_params_, "-rod", "--rod_params",
                   "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
                   "2D Position, Radius");
@@ -653,8 +762,8 @@ int main(int argc, char *argv[])
                   "Absorbing Boundary Condition Surfaces");
    args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
                   "Sheath Boundary Condition Surfaces");
-   args.AddOption(&peca, "-pecs", "--pec-bc-surf",
-                  "Perfect Electrical Conductor Boundary Condition Surfaces");
+   args.AddOption(&pmca, "-pmcs", "--pmc-bc-surf",
+                  "Perfect Magnetic Conductor Boundary Condition Surfaces");
    args.AddOption(&dbcas, "-dbcs-msa", "--dirichlet-bc-straps",
                   "Dirichlet Boundary Condition Surfaces Using "
                   "Multi-Strap Antenna");
@@ -670,12 +779,18 @@ int main(int argc, char *argv[])
    args.AddOption(&dbcv2, "-dbcv2", "--dirichlet-bc-2-vals",
                   "Dirichlet Boundary Condition Value 2 (v_x v_y v_z)"
                   " or (Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
+   args.AddOption(&nbca, "-nbcs", "--neumann-bc-surf",
+                  "Neumann Boundary Condition Surfaces Using Piecewise Values");
    args.AddOption(&nbca1, "-nbcs1", "--neumann-bc-1-surf",
                   "Neumann Boundary Condition Surfaces Using Value 1");
    args.AddOption(&nbca2, "-nbcs2", "--neumann-bc-2-surf",
                   "Neumann Boundary Condition Surfaces Using Value 2");
    args.AddOption(&nbcaw, "-nbcs-pw", "--neumann-bc-pw-surf",
                   "Neumann Boundary Condition Surfaces Using Plane Wave");
+   args.AddOption(&nbcv, "-nbcv", "--neumann-bc-vals",
+                  "Neuamnn Boundary Condition (surface current) "
+                  "Six values per boundary attribute: "
+                  "(Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z)) ...");
    args.AddOption(&nbcv1, "-nbcv1", "--neumann-bc-1-vals",
                   "Neuamnn Boundary Condition (surface current) "
                   "Value 1 (v_x v_y v_z) or "
@@ -684,8 +799,6 @@ int main(int argc, char *argv[])
                   "Neumann Boundary Condition (surface current) "
                   "Value 2 (v_x v_y v_z) or "
                   "(Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
-   // args.AddOption(&num_elements, "-ne", "--num-elements",
-   //             "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
@@ -809,6 +922,12 @@ int main(int argc, char *argv[])
          }
       }
    }
+   if (bpt == BFieldProfile::CONSTANT && bpp.Size() == 0)
+   {
+      bpp.SetSize(3);
+      bpp = 0.0;
+      bpp[0] = 1.0;
+   }
    if (num_elements <= 0)
    {
       num_elements = 10;
@@ -826,20 +945,20 @@ int main(int argc, char *argv[])
 
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
-
+   /*
    if (mpi.Root())
    {
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
-      std::complex<double> S = S_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> S = S_cold_plasma(omega, Bmag, 1.0, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> P = P_cold_plasma(omega, numbers,
+      std::complex<double> P = P_cold_plasma(omega, 1.0, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> D = D_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> D = D_cold_plasma(omega, Bmag, 1.0, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> R = R_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> R = R_cold_plasma(omega, Bmag, 1.0, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> L = L_cold_plasma(omega, Bmag, numbers,
+      std::complex<double> L = L_cold_plasma(omega, Bmag, 1.0, numbers,
                                              charges, masses, temps, nuprof);
 
       cout << "\nConvenient Terms:\n";
@@ -899,7 +1018,7 @@ int main(int argc, char *argv[])
       }
       cout << endl;
    }
-
+   */
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
@@ -975,8 +1094,8 @@ int main(int argc, char *argv[])
       cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
 
-   // Ensure that quad and hex meshes are treated as non-conforming.
-   // mesh->EnsureNCMesh();
+   // Ensure that quad meshes are treated as non-conforming.
+   mesh->EnsureNCMesh();
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
@@ -986,7 +1105,12 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
-   Mesh * mesh3d = Extrude2D(&pmesh, 1, hz);
+   for (int lev = 0; lev < par_ref_levels; lev++)
+   {
+      pmesh.UniformRefinement();
+   }
+
+   // Mesh * mesh3d = Extrude2D(&pmesh, 1, hz);
 
    if (mpi.Root())
    {
@@ -1002,8 +1126,6 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient BCoef(BVec);
    VectorConstantCoefficient BUnitCoef(BUnitVec);
    */
-   BFieldProfile BCoef(bpt, bpp, false);
-   BFieldProfile BUnitCoef(bpt, bpp, true);
 
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    ND_R2D_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
@@ -1013,7 +1135,13 @@ int main(int argc, char *argv[])
    ParGridFunction BField(&HDivFESpace);
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
+   ParGridFunction xposition_gf(&H1FESpace);
 
+   PlasmaProfile xposCoef(xpt, xpp);
+   xposition_gf.ProjectCoefficient(xposCoef);
+
+   BFieldProfile BCoef(bpt, bpp, false);
+   BFieldProfile BUnitCoef(bpt, bpp, true);
    BField.ProjectCoefficient(BCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -1057,6 +1185,34 @@ int main(int argc, char *argv[])
 
    if (mpi.Root())
    {
+      cout << "Adapting mesh to Stix 'L' coefficient." << endl;
+   }
+
+   {
+      StixLCoef ReLCoef(BField, xposition_gf, density, temperature,
+                        L2FESpace, H1FESpace,
+                        omega, charges, masses, nuprof,
+                        true);
+      StixLCoef ImLCoef(BField, xposition_gf, density, temperature,
+                        L2FESpace, H1FESpace,
+                        omega, charges, masses, nuprof,
+                        false);
+
+      L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
+
+      AdaptInitialMesh(mpi, pmesh, err_fes,
+                       H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
+                       BCoef, rhoCoef, tempCoef, xposCoef,
+                       size_h1, size_l2,
+                       density_offsets, temperature_offsets,
+                       density, temperature,
+                       BField, density_gf, temperature_gf, xposition_gf,
+                       ReLCoef, ImLCoef,
+                       order, init_amr_tol, init_amr_max_dofs, visualization);
+   }
+
+   if (mpi.Root())
+   {
       cout << "Creating coefficients for Maxwell equations." << endl;
    }
 
@@ -1067,15 +1223,17 @@ int main(int argc, char *argv[])
    Coefficient * etaCoef = SetupImpedanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
-   InverseDielectricTensor epsilonInv_real(BField, density, temperature,
+   InverseDielectricTensor epsilonInv_real(BField, xposition_gf, density,
+                                           temperature,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            true);
-   InverseDielectricTensor epsilonInv_imag(BField, density, temperature,
+   InverseDielectricTensor epsilonInv_imag(BField, xposition_gf, density,
+                                           temperature,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            false);
-   SPDDielectricTensor epsilon_abs(BField, density, temperature,
+   SPDDielectricTensor epsilon_abs(BField, xposition_gf, density, temperature,
                                    L2FESpace, H1FESpace,
                                    omega, charges, masses, nuprof);
    SheathImpedance z_r(BField, density, temperature,
@@ -1085,9 +1243,9 @@ int main(int argc, char *argv[])
                        L2FESpace, H1FESpace,
                        omega, charges, masses, false);
 
-   MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, true);
-   MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, false);
-
+   MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, true, 1e-2);
+   MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, false, 1e-2);
+   /*
    ColdPlasmaPlaneWaveH HReCoef(wave_type[0], omega, BVec,
                                 numbers, charges, masses, temps, nuprof, true);
    ColdPlasmaPlaneWaveH HImCoef(wave_type[0], omega, BVec,
@@ -1097,13 +1255,13 @@ int main(int argc, char *argv[])
                                 numbers, charges, masses, temps, nuprof, true);
    ColdPlasmaPlaneWaveE EImCoef(wave_type[0], omega, BVec,
                                 numbers, charges, masses, temps, nuprof, false);
-
+   */
    if (check_eps_inv)
    {
-      DielectricTensor epsilon_real(BField, density, temperature,
+      DielectricTensor epsilon_real(BField, xposition_gf, density, temperature,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, true);
-      DielectricTensor epsilon_imag(BField, density, temperature,
+      DielectricTensor epsilon_imag(BField, xposition_gf, density, temperature,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, false);
       DenseMatrix epsInvRe(3,3);
@@ -1149,7 +1307,7 @@ int main(int argc, char *argv[])
          }
       }
    }
-
+   /*
    if (wave_type[0] != ' ')
    {
       Vector kr(3), ki(3);
@@ -1164,13 +1322,7 @@ int main(int argc, char *argv[])
       {
          kVec.SetSize(6);
          kVec = 0.0;
-         /*
-              if (per_y)
-              {
-                 kVec[1] = kr[1];
-                 kVec[4] = ki[1];
-              }
-         */
+
          kVec[2] = kr[2];
          kVec[5] = ki[2];
 
@@ -1186,6 +1338,7 @@ int main(int argc, char *argv[])
       EImCoef.SetPhaseShift(kReVec, kImVec);
    }
    else
+   */
    {
       if (kVec.Size() >= 3)
       {
@@ -1224,7 +1377,7 @@ int main(int argc, char *argv[])
                              mesh_dim_[0]);
    }
    */
-
+   /*
    if (visualization && wave_type[0] != ' ')
    {
       if (mpi.Root())
@@ -1306,14 +1459,14 @@ int main(int argc, char *argv[])
                         Wx, Wy, Ww, Wh);
       }
    }
-
+   */
    if (mpi.Root())
    {
       cout << "Setup boundary conditions." << endl;
    }
 
    // Setup coefficients for Dirichlet BC
-   int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
+   int dbcsSize = (pmca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
                   (dbcas.Size() > 0) + (dbcaw.Size() > 0);
 
    StixBCs stixBCs(pmesh.attributes, pmesh.bdr_attributes);
@@ -1366,9 +1519,9 @@ int main(int argc, char *argv[])
 
    if (dbcsSize > 0)
    {
-      if (peca.Size() > 0)
+      if (pmca.Size() > 0)
       {
-         stixBCs.AddDirichletBC(peca, zeroCoef, zeroCoef);
+         stixBCs.AddDirichletBC(pmca, zeroCoef, zeroCoef);
       }
       if (dbca1.Size() > 0)
       {
@@ -1382,13 +1535,16 @@ int main(int argc, char *argv[])
       {
          stixBCs.AddDirichletBC(dbcas, HReStrapCoef, HImStrapCoef);
       }
+      /*
       if (dbcaw.Size() > 0)
       {
          stixBCs.AddDirichletBC(dbcaw, HReCoef, HImCoef);
       }
+      */
    }
 
-   int nbcsSize = (nbca1.Size() > 0) + (nbca2.Size() > 0) + (nbcaw.Size() > 0);
+   int nbcsSize = (nbca.Size() > 0) + (nbca1.Size() > 0) +
+                  (nbca2.Size() > 0) + (nbcaw.Size() > 0);
 
    // Array<ComplexVectorCoefficientByAttr> nbcs(nbcsSize);
 
@@ -1430,6 +1586,7 @@ int main(int argc, char *argv[])
       nbc2ImVec.SetDataAndSize(&zeroVec[0], 3);
    }
 
+   Array<VectorConstantCoefficient*> nbcVecs(2 * nbca.Size());
    VectorConstantCoefficient nbc1ReCoef(nbc1ReVec);
    VectorConstantCoefficient nbc1ImCoef(nbc1ImVec);
    VectorConstantCoefficient nbc2ReCoef(nbc2ReVec);
@@ -1437,6 +1594,23 @@ int main(int argc, char *argv[])
 
    if (nbcsSize > 0)
    {
+      if (nbca.Size() > 0)
+      {
+         Array<int> nbca0(1);
+         Vector nbc0ReVec, nbc0ImVec;
+         for (int i=0; i<nbca.Size(); i++)
+         {
+            nbca0[0] = nbca[i];
+
+            nbc0ReVec.SetDataAndSize(&nbcv[6*i+0], 3);
+            nbc0ImVec.SetDataAndSize(&nbcv[6*i+3], 3);
+
+            nbcVecs[2*i+0] = new VectorConstantCoefficient(nbc0ReVec);
+            nbcVecs[2*i+1] = new VectorConstantCoefficient(nbc0ImVec);
+
+            stixBCs.AddNeumannBC(nbca0, *nbcVecs[2*i+0], *nbcVecs[2*i+1]);
+         }
+      }
       if (nbca1.Size() > 0)
       {
          stixBCs.AddNeumannBC(nbca1, nbc1ReCoef, nbc1ImCoef);
@@ -1445,16 +1619,38 @@ int main(int argc, char *argv[])
       {
          stixBCs.AddNeumannBC(nbca2, nbc2ReCoef, nbc2ImCoef);
       }
+      /*
       if (nbcaw.Size() > 0)
       {
          stixBCs.AddNeumannBC(nbcaw, EReCoef, EImCoef);
       }
+      */
    }
 
    // Array<ComplexCoefficientByAttr> sbcs((sbca.Size() > 0)? 1 : 0);
    if (sbca.Size() > 0)
    {
       stixBCs.AddSheathBC(sbca, z_r, z_i);
+   }
+
+   if (axis.Size() > 0)
+   {
+      stixBCs.AddCylindricalAxis(axis);
+   }
+
+   VectorFunctionCoefficient jrCoef(3, j_src_r);
+   VectorFunctionCoefficient jiCoef(3, j_src_i);
+   if (rod_params_.Size() > 0 ||slab_params_.Size() > 0)
+   {
+      if (mpi.Root())
+      {
+         cout << "Adding volumetric current source." << endl;
+      }
+      if (jsrca.Size() == 0)
+      {
+         jsrca = pmesh.attributes;
+      }
+      stixBCs.AddCurrentSrc(jsrca, jrCoef, jiCoef);
    }
 
    if (mpi.Root())
@@ -1473,13 +1669,7 @@ int main(int argc, char *argv[])
                    (phase_shift) ? &kImCoef : NULL,
                    abcs,
                    stixBCs,
-                   // dbcs, nbcs, sbcs,
-                   // e_bc_r, e_bc_i,
-                   // EReCoef, EImCoef,
-                   (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
-                   j_src_r : NULL,
-                   (rod_params_.Size() > 0 ||slab_params_.Size() > 0) ?
-                   j_src_i : NULL, vis_u, cyl, pa);
+                   vis_u, cyl, pa);
 
    // Initialize GLVis visualization
    if (visualization)
@@ -1489,7 +1679,7 @@ int main(int argc, char *argv[])
 
    // Initialize VisIt visualization
    VisItDataCollection visit_dc(MPI_COMM_WORLD, "STIX-R2D-DH-AMR-Parallel",
-                                mesh3d);
+                                &pmesh);
 
    Array<ParComplexGridFunction*> auxFields;
 
@@ -1502,8 +1692,8 @@ int main(int argc, char *argv[])
          auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
          auxFields[1] = new ParComplexGridFunction(&HCurlFESpace);
 
-         auxFields[0]->ProjectCoefficient(HReCoef, HImCoef);
-         auxFields[1]->ProjectCoefficient(EReCoef, EImCoef);
+	 // auxFields[0]->ProjectCoefficient(HReCoef, HImCoef);
+	 // auxFields[1]->ProjectCoefficient(EReCoef, EImCoef);
 
          visit_dc.RegisterField("Re_H_Exact", &auxFields[0]->real());
          visit_dc.RegisterField("Im_H_Exact", &auxFields[0]->imag());
@@ -1535,7 +1725,7 @@ int main(int argc, char *argv[])
 
       // Solve the system and compute any auxiliary fields
       CPD.Solve();
-
+      /*
       if (wave_type[0] != ' ')
       {
          // Compute error
@@ -1551,7 +1741,7 @@ int main(int argc, char *argv[])
             cout << "Global L2 Error in E field " << glb_error_E << endl;
          }
       }
-
+      */
       // Determine the current size of the linear system
       int prob_size = CPD.GetProblemSize();
 
@@ -1619,26 +1809,26 @@ int main(int argc, char *argv[])
       }
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
-      Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-             rhoCoef, tempCoef,
+      Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
+             BCoef, rhoCoef, tempCoef, xposCoef,
              size_h1, size_l2,
              density_offsets, temperature_offsets,
              density, temperature,
-             density_gf, temperature_gf);
+             BField, density_gf, temperature_gf, xposition_gf);
       CPD.Update();
-
+      
       if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
       {
          if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
          pmesh.Rebalance();
 
          // Update again after rebalancing
-         Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace, BField, BCoef,
-                rhoCoef, tempCoef,
+         Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
+                BCoef, rhoCoef, tempCoef, xposCoef,
                 size_h1, size_l2,
                 density_offsets, temperature_offsets,
                 density, temperature,
-                density_gf, temperature_gf);
+                BField, density_gf, temperature_gf, xposition_gf);
          CPD.Update();
       }
    }
@@ -1654,27 +1844,176 @@ int main(int argc, char *argv[])
       delete auxFields[i];
    }
 
-   delete mesh3d;
+   for (int i=0; i<nbcVecs.Size(); i++)
+   {
+      delete nbcVecs[i];
+   }
+
+   // delete mesh3d;
 
    return 0;
+}
+
+void AdaptInitialMesh(MPI_Session &mpi,
+                      ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
+                      ParFiniteElementSpace & H1FESpace,
+                      ParFiniteElementSpace & HCurlFESpace,
+                      ParFiniteElementSpace & HDivFESpace,
+                      ParFiniteElementSpace & L2FESpace,
+                      VectorCoefficient & BCoef,
+                      Coefficient & rhoCoef,
+                      Coefficient & tempCoef,
+                      Coefficient & xposCoef,
+                      int & size_h1,
+                      int & size_l2,
+                      Array<int> & density_offsets,
+                      Array<int> & temperature_offsets,
+                      BlockVector & density,
+                      BlockVector & temperature,
+                      ParGridFunction & BField,
+                      ParGridFunction & density_gf,
+                      ParGridFunction & temperature_gf,
+                      ParGridFunction & xposition_gf,
+                      Coefficient &ReCoef,
+                      Coefficient &ImCoef,
+                      int p, double tol, int max_dofs,
+                      bool visualization)
+{
+   ConstantCoefficient zeroCoef(0.0);
+
+   ParComplexGridFunction gf(&L2FESpace);
+
+   ComplexLpErrorEstimator estimator(p, ReCoef, ImCoef, gf);
+
+   ThresholdRefiner refiner(estimator);
+   refiner.SetTotalErrorFraction(0);
+   refiner.SetTotalErrorNormP(p);
+   refiner.SetLocalErrorGoal(tol);
+
+   vector<socketstream> sout(2);
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   int Wx = 0, Wy = 0; // window position
+   int Ww = 275, Wh = 250; // window size
+   int offx = Ww + 3;
+
+   for (int it = 0; ; it++)
+   {
+      HYPRE_Int global_dofs = L2FESpace.GlobalTrueVSize();
+      if (mpi.Root())
+      {
+         cout << "\nAMR iteration " << it << endl;
+         cout << "Number of L2 unknowns: " << global_dofs << endl;
+      }
+
+      gf.ProjectCoefficient(ReCoef, ImCoef);
+
+      double l2_nrm = gf.ComputeL2Error(zeroCoef, zeroCoef);
+      double l2_err = gf.ComputeL2Error(ReCoef, ImCoef);
+      if (mpi.Root())
+      {
+         if (l2_nrm > 0.0)
+         {
+            cout << "Relative L2 Error: " << l2_err / l2_nrm << endl;
+         }
+         else
+         {
+            cout << "L2 Error: " << l2_err << endl;
+         }
+      }
+
+      // 19. Send the solution by socket to a GLVis server.
+      if (visualization)
+      {
+         VisualizeField(sout[0], vishost, visport, gf.real(),
+                        "Stix L Real",
+                        Wx, Wy, Ww, Wh);
+         Wx += offx;
+
+         VisualizeField(sout[1], vishost, visport, gf.imag(),
+                        "Stix L Imaginary",
+                        Wx, Wy, Ww, Wh);
+      }
+
+      if (global_dofs > max_dofs)
+      {
+         if (mpi.Root())
+         {
+            cout << "Reached the maximum number of dofs. Stop." << endl;
+         }
+         break;
+      }
+
+      // 20. Call the refiner to modify the mesh. The refiner calls the error
+      //     estimator to obtain element errors, then it selects elements to be
+      //     refined and finally it modifies the mesh. The Stop() method can be
+      //     used to determine if a stopping criterion was met.
+      refiner.Apply(pmesh);
+      if (refiner.Stop())
+      {
+         if (mpi.Root())
+         {
+            cout << "Stopping criterion satisfied. Stop." << endl;
+         }
+         break;
+      }
+
+      // 21. Update the finite element space (recalculate the number of DOFs,
+      //     etc.) and create a grid function update matrix. Apply the matrix
+      //     to any GridFunctions over the space. In this case, the update
+      //     matrix is an interpolation matrix so the updated GridFunction will
+      //     still represent the same function as before refinement.
+      Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
+             BCoef, rhoCoef, tempCoef, xposCoef,
+             size_h1, size_l2,
+             density_offsets, temperature_offsets,
+             density, temperature,
+             BField, density_gf, temperature_gf, xposition_gf);
+
+      err_fespace.Update();
+      gf.Update();
+
+      // 22. Load balance the mesh, and update the space and solution. Currently
+      //     available only for nonconforming meshes.
+      if (pmesh.Nonconforming())
+      {
+         pmesh.Rebalance();
+
+         // Update the space and the GridFunction. This time the update matrix
+         // redistributes the GridFunction among the processors.
+         Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
+                BCoef, rhoCoef, tempCoef, xposCoef,
+                size_h1, size_l2,
+                density_offsets, temperature_offsets,
+                density, temperature,
+                BField, density_gf, temperature_gf, xposition_gf);
+
+         err_fespace.Update();
+         gf.Update();
+      }
+
+   }
 }
 
 void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HCurlFESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
-            ParGridFunction & BField,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
+            Coefficient & xposCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
             Array<int> & temperature_offsets,
             BlockVector & density,
             BlockVector & temperature,
+            ParGridFunction & BField,
             ParGridFunction & density_gf,
-            ParGridFunction & temperature_gf)
+            ParGridFunction & temperature_gf,
+            ParGridFunction & xposition_gf)
 {
    H1FESpace.Update();
    HCurlFESpace.Update();
@@ -1683,6 +2022,9 @@ void Update(ParFiniteElementSpace & H1FESpace,
 
    BField.Update();
    BField.ProjectCoefficient(BCoef);
+
+   xposition_gf.Update();
+   xposition_gf.ProjectCoefficient(xposCoef);
 
    size_l2 = L2FESpace.GetVSize();
    for (int i=1; i<density_offsets.Size(); i++)
@@ -1754,6 +2096,7 @@ void record_cmd_line(int argc, char *argv[])
           strcmp(argv[i], "-B"      ) == 0 ||
           strcmp(argv[i], "-k-vec"  ) == 0 ||
           strcmp(argv[i], "-q"      ) == 0 ||
+          strcmp(argv[i], "-jsrc"   ) == 0 ||
           strcmp(argv[i], "-rod"    ) == 0 ||
           strcmp(argv[i], "-slab"   ) == 0 ||
           strcmp(argv[i], "-sp"     ) == 0 ||
@@ -1766,8 +2109,10 @@ void record_cmd_line(int argc, char *argv[])
           strcmp(argv[i], "-dbcs2"  ) == 0 ||
           strcmp(argv[i], "-dbcv1"  ) == 0 ||
           strcmp(argv[i], "-dbcv2"  ) == 0 ||
+          strcmp(argv[i], "-nbcs"   ) == 0 ||
           strcmp(argv[i], "-nbcs1"  ) == 0 ||
           strcmp(argv[i], "-nbcs2"  ) == 0 ||
+          strcmp(argv[i], "-nbcv"   ) == 0 ||
           strcmp(argv[i], "-nbcv1"  ) == 0 ||
           strcmp(argv[i], "-nbcv2"  ) == 0)
       {
@@ -1842,7 +2187,7 @@ void rod_current_source_i(const Vector &x, Vector &j)
 {
    MFEM_ASSERT(x.Size() == 2, "current source requires 3D space.");
 
-   j.SetSize(2);
+   j.SetSize(3);
    j = 0.0;
 
    bool cmplx = rod_params_.Size() == 9;
@@ -2150,11 +2495,12 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   S_ = S_cold_plasma(omega_, Bmag_, 1.0, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   D_ = D_cold_plasma(omega_, Bmag_, 1.0, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_, nuprof_);
+   P_ = P_cold_plasma(omega_, 1.0, numbers_, charges_, masses_, temps_,
+                      nuprof_);
 
    switch (type_)
    {
@@ -2394,11 +2740,12 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   S_ = S_cold_plasma(omega_, Bmag_, 1.0, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   D_ = D_cold_plasma(omega_, Bmag_, numbers_, charges_, masses_, temps_,
+   D_ = D_cold_plasma(omega_, Bmag_, 1.0, numbers_, charges_, masses_, temps_,
                       nuprof_);
-   P_ = P_cold_plasma(omega_, numbers_, charges_, masses_, temps_, nuprof_);
+   P_ = P_cold_plasma(omega_, 1.0, numbers_, charges_, masses_, temps_,
+                      nuprof_);
 
    switch (type_)
    {

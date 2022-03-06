@@ -16,6 +16,8 @@
 #include "../common/pfem_extras.hpp"
 #include "plasma.hpp"
 #include "stix_bcs.hpp"
+#include "vis_object.hpp"
+#include "cold_plasma_dielectric_coefs.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -305,6 +307,470 @@ public:
                                DenseMatrix &elmat);
 };
 
+class Maxwell2ndH : public ParSesquilinearForm
+{
+private:
+
+   class ScalarMassCoefficient : public Coefficient
+   {
+   private:
+      double omegaSqr_;
+      Coefficient & mCoef_;
+
+   public:
+
+      ScalarMassCoefficient(double omega, Coefficient & mCoef)
+         : omegaSqr_(omega * omega),
+           mCoef_(mCoef)
+      {}
+
+      virtual double Eval(ElementTransformation &T,
+                          const IntegrationPoint &ip)
+      {
+         return -omegaSqr_  * mCoef_.Eval(T, ip);
+      }
+   };
+
+   class MatrixMassCoefficient : public MatrixCoefficient
+   {
+   private:
+      double omegaSqr_;
+      MatrixCoefficient & mCoef_;
+
+   public:
+
+      MatrixMassCoefficient(double omega, MatrixCoefficient & mCoef)
+         : MatrixCoefficient(mCoef.GetHeight()),
+           omegaSqr_(omega * omega),
+           mCoef_(mCoef)
+      {}
+
+      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                        const IntegrationPoint &ip)
+      {
+         mCoef_.Eval(M, T, ip);
+         M *= -omegaSqr_;
+      }
+   };
+
+   class kmkCoefficient : public MatrixCoefficient
+   {
+   private:
+      VectorCoefficient * krCoef_;
+      VectorCoefficient * kiCoef_;
+      Coefficient       * mCoef_;
+      MatrixCoefficient * MrCoef_;
+      MatrixCoefficient * MiCoef_;
+
+      bool realPart_;
+      double a_;
+
+      mutable Vector kr_;
+      mutable Vector ki_;
+      mutable DenseMatrix Mr_;
+      mutable DenseMatrix Mi_;
+
+      static void kmk(double a,
+                      const Vector & kl, double m, const Vector &kr,
+                      DenseMatrix & M)
+      {
+         double kk = kl * kr;
+         for (int i=0; i<3; i++)
+         {
+            for (int j=0; j<3; j++)
+            {
+               M(i,j) += a * m * kl(j) * kr(i);
+            }
+            M(i,i) -= a * m * kk;
+         }
+      }
+
+      static void kmk(double a,
+                      const Vector & kl,
+                      const DenseMatrix & m,
+                      const Vector &kr,
+                      DenseMatrix & M)
+      {
+         for (int i=0; i<3; i++)
+         {
+            int i1 = (i + 1) % 3;
+            int i2 = (i + 2) % 3;
+            for (int j=0; j<3; j++)
+            {
+               int j1 = (j + 1) % 3;
+               int j2 = (j + 2) % 3;
+               M(i,j) += a * kl(i1) * m(i2,j1) * kr(j2);
+               M(i,j) += a * kl(i2) * m(i1,j2) * kr(j1);
+               M(i,j) -= a * kl(i1) * m(i2,j2) * kr(j1);
+               M(i,j) -= a * kl(i2) * m(i1,j1) * kr(j2);
+            }
+         }
+      }
+
+   public:
+      kmkCoefficient(VectorCoefficient *krCoef, VectorCoefficient *kiCoef,
+                     Coefficient *mCoef,
+                     bool realPart, double a = 1.0)
+         : MatrixCoefficient(3),
+           krCoef_(krCoef), kiCoef_(kiCoef),
+           mCoef_(mCoef),
+           MrCoef_(NULL),
+           MiCoef_(NULL),
+           realPart_(realPart),
+           a_(a), kr_(3), ki_(3)
+      { kr_ = 0.0; ki_ = 0.0; }
+
+      kmkCoefficient(VectorCoefficient *krCoef, VectorCoefficient *kiCoef,
+                     MatrixCoefficient *MrCoef, MatrixCoefficient *MiCoef,
+                     bool realPart, double a = 1.0)
+         : MatrixCoefficient(3),
+           krCoef_(krCoef), kiCoef_(kiCoef),
+           mCoef_(NULL),
+           MrCoef_(MrCoef),
+           MiCoef_(MiCoef),
+           realPart_(realPart),
+           a_(a), kr_(3), ki_(3), Mr_(3), Mi_(3)
+      { kr_ = 0.0; ki_ = 0.0; Mr_ = 0.0; Mi_ = 0.0; }
+
+      void Eval(DenseMatrix &M, ElementTransformation &T,
+                const IntegrationPoint &ip)
+      {
+         M.SetSize(3);
+         M = 0.0;
+         if ((krCoef_ == NULL && kiCoef_ == NULL) ||
+             (mCoef_ == NULL && MrCoef_ == NULL && MiCoef_ == NULL))
+         {
+            return;
+         }
+
+         double m = 0.0;
+         if (krCoef_) { krCoef_->Eval(kr_, T, ip); }
+         if (kiCoef_) { kiCoef_->Eval(ki_, T, ip); }
+         if (mCoef_) { m = mCoef_->Eval(T, ip); }
+         if (MrCoef_) { MrCoef_->Eval(Mr_, T, ip); }
+         if (MiCoef_) { MiCoef_->Eval(Mi_, T, ip); }
+
+         if (realPart_)
+         {
+            if (mCoef_)
+            {
+               if (krCoef_) { kmk(1.0, kr_, m, kr_, M); }
+               if (kiCoef_) { kmk(-1.0, ki_, m, ki_, M); }
+            }
+            else
+            {
+               if (MrCoef_)
+               {
+                  if (krCoef_) { kmk(1.0, kr_, Mr_, kr_, M); }
+                  if (kiCoef_) { kmk(-1.0, ki_, Mr_, ki_, M); }
+               }
+               if (MiCoef_)
+               {
+                  if (krCoef_ && kiCoef_) { kmk(-1.0, kr_, Mi_, ki_, M); }
+                  if (kiCoef_ && krCoef_) { kmk(-1.0, ki_, Mi_, kr_, M); }
+               }
+            }
+         }
+         else
+         {
+            if (mCoef_)
+            {
+               if (krCoef_ && kiCoef_) { kmk(1.0, kr_, m, ki_, M); }
+               if (kiCoef_ && krCoef_) { kmk(1.0, ki_, m, kr_, M); }
+            }
+            else
+            {
+               if (MrCoef_)
+               {
+                  if (krCoef_ && kiCoef_) { kmk(1.0, kr_, Mr_, ki_, M); }
+                  if (kiCoef_ && krCoef_) { kmk(1.0, ki_, Mr_, kr_, M); }
+               }
+               if (MiCoef_)
+               {
+                  if (krCoef_) { kmk(1.0, kr_, Mi_, kr_, M); }
+                  if (kiCoef_) { kmk(-1.0, ki_, Mi_, ki_, M); }
+               }
+            }
+         }
+         if (a_ != 1.0) { M *= a_; }
+      }
+   };
+
+   class CrossCoefficient : public MatrixCoefficient
+   {
+   private:
+      VectorCoefficient * krCoef_;
+      VectorCoefficient * kiCoef_;
+      Coefficient       * mCoef_;
+      MatrixCoefficient * MrCoef_;
+      MatrixCoefficient * MiCoef_;
+
+      double a_;
+
+      bool realPart_;
+      bool km_;
+
+      mutable Vector kr_;
+      mutable Vector ki_;
+      mutable DenseMatrix Mr_;
+      mutable DenseMatrix Mi_;
+
+      static void km(double a, const Vector & k, double m,
+                     DenseMatrix & M)
+      {
+         M(2,1) = a * m * k(0);
+         M(0,2) = a * m * k(1);
+         M(1,0) = a * m * k(2);
+
+         M(1,2) = -M(2,1);
+         M(2,0) = -M(0,2);
+         M(0,1) = -M(1,0);
+      }
+
+      void km(double a, const Vector & k, const DenseMatrix & m,
+              DenseMatrix & M)
+      {
+         for (int i=0; i<3; i++)
+         {
+            int i1 = (i + 1) % 3;
+            int i2 = (i + 2) % 3;
+            for (int j=0; j<3; j++)
+            {
+               M(i,j) += a * k(i1) * m(i2,j);
+               M(i,j) -= a * k(i2) * m(i1,j);
+            }
+         }
+      }
+
+      void mk(double a, const DenseMatrix & m, const Vector & k,
+              DenseMatrix & M)
+      {
+         for (int i=0; i<3; i++)
+         {
+            for (int j=0; j<3; j++)
+            {
+               int j1 = (j + 1) % 3;
+               int j2 = (j + 2) % 3;
+               M(i,j) += a * m(i,j1) * k(j2);
+               M(i,j) -= a * m(i,j2) * k(j1);
+            }
+         }
+      }
+
+   public:
+      CrossCoefficient(VectorCoefficient *krCoef,
+                       VectorCoefficient *kiCoef,
+                       Coefficient *mCoef,
+                       bool realPart, double a = 1.0)
+         : MatrixCoefficient(3),
+           krCoef_(krCoef),
+           kiCoef_(kiCoef),
+           mCoef_(mCoef),
+           MrCoef_(NULL),
+           MiCoef_(NULL),
+           a_(a), realPart_(realPart), km_(true), kr_(3), ki_(3)
+      { kr_ = 0.0; ki_ = 0.0; }
+
+      CrossCoefficient(VectorCoefficient *krCoef,
+                       VectorCoefficient *kiCoef,
+                       MatrixCoefficient *MrCoef,
+                       MatrixCoefficient *MiCoef,
+                       bool realPart, double a = 1.0)
+         : MatrixCoefficient(3),
+           krCoef_(krCoef),
+           kiCoef_(kiCoef),
+           mCoef_(NULL),
+           MrCoef_(MrCoef),
+           MiCoef_(MiCoef),
+           a_(a), realPart_(realPart), km_(true),
+           kr_(3), ki_(3), Mr_(3), Mi_(3)
+      { kr_ = 0.0; ki_ = 0.0; Mr_ = 0.0; Mi_ = 0.0; }
+
+      CrossCoefficient(MatrixCoefficient *MrCoef,
+                       MatrixCoefficient *MiCoef,
+                       VectorCoefficient *krCoef,
+                       VectorCoefficient *kiCoef,
+                       bool realPart, double a = 1.0)
+         : MatrixCoefficient(3),
+           krCoef_(krCoef),
+           kiCoef_(kiCoef),
+           mCoef_(NULL),
+           MrCoef_(MrCoef),
+           MiCoef_(MiCoef),
+           a_(a), realPart_(realPart), km_(false),
+           kr_(3), ki_(3), Mr_(3), Mi_(3)
+      { kr_ = 0.0; ki_ = 0.0; Mr_ = 0.0; Mi_ = 0.0; }
+
+      void Eval(DenseMatrix &M, ElementTransformation &T,
+                const IntegrationPoint &ip)
+      {
+         M.SetSize(3);
+         M = 0.0;
+         if ((krCoef_ == NULL && kiCoef_ == NULL) ||
+             (mCoef_ == NULL && MrCoef_ == NULL && MiCoef_ == NULL))
+         {
+            return;
+         }
+
+         double m = 0.0;
+         if (krCoef_) { krCoef_->Eval(kr_, T, ip); }
+         if (kiCoef_) { kiCoef_->Eval(ki_, T, ip); }
+         if (mCoef_) { m = mCoef_->Eval(T, ip); }
+         if (MrCoef_) { MrCoef_->Eval(Mr_, T, ip); }
+         if (MiCoef_) { MiCoef_->Eval(Mi_, T, ip); }
+
+         if (realPart_)
+         {
+            if (mCoef_)
+            {
+               if (krCoef_) { km(1.0, kr_, m, M); }
+            }
+            else
+            {
+               if (km_)
+               {
+                  if (krCoef_ && MrCoef_) { km(1.0, kr_, Mr_, M); }
+                  if (kiCoef_ && MiCoef_) { km(-1.0, ki_, Mi_, M); }
+               }
+               else
+               {
+                  if (krCoef_ && MrCoef_) { mk(1.0, Mr_, kr_, M); }
+                  if (kiCoef_ && MiCoef_) { mk(-1.0, Mi_, ki_, M); }
+               }
+            }
+         }
+         else
+         {
+            if (mCoef_)
+            {
+               if (kiCoef_) { km(1.0, ki_, m, M); }
+            }
+            else
+            {
+               if (km_)
+               {
+                  if (krCoef_ && MiCoef_) { km(1.0, kr_, Mi_, M); }
+                  if (kiCoef_ && MrCoef_) { km(1.0, ki_, Mr_, M); }
+               }
+               else
+               {
+                  if (MrCoef_ && kiCoef_) { mk(1.0, Mr_, ki_, M); }
+                  if (MiCoef_ && krCoef_) { mk(1.0, Mi_, kr_, M); }
+               }
+            }
+         }
+         if (a_ != 1.0) { M *= a_; }
+      }
+   };
+
+   bool cyl_;
+   bool pa_;
+
+   HCurlCylStiffnessCoefficient epsInvReCylCoef_;
+   HCurlCylStiffnessCoefficient epsInvImCylCoef_;
+   HCurlCylMassCoefficient muCylCoef_;
+
+   ScalarMassCoefficient massCoef_;  // -omega^2 mu
+   MatrixMassCoefficient massCylCoef_;  // -omega^2 mu
+
+   kmkCoefficient kmkReCoef_;  // Real part of k x epsInv k x
+   kmkCoefficient kmkImCoef_;  // Imaginary part of k x epsInv k x
+   CrossCoefficient kmReCoef_; // Real part of k x epsInv
+   CrossCoefficient kmImCoef_; // Imaginary part of k x epsInv
+   CrossCoefficient mkReCoef_; // Real part of epsInv k x
+   CrossCoefficient mkImCoef_; // Imaginary part of epsInv k x
+
+   kmkCoefficient kmkCylReCoef_;  // Real part of k x epsInv k x
+   kmkCoefficient kmkCylImCoef_;  // Imaginary part of k x epsInv k x
+   CrossCoefficient kmCylReCoef_; // Real part of k x epsInv
+   CrossCoefficient kmCylImCoef_; // Imaginary part of k x epsInv
+   CrossCoefficient mkCylReCoef_; // Real part of epsInv k x
+   CrossCoefficient mkCylImCoef_; // Imaginary part of epsInv k x
+
+public:
+   Maxwell2ndH(ParFiniteElementSpace & HCurlFESpace,
+               double omega,
+               ComplexOperator::Convention conv,
+               MatrixCoefficient & epsInvReCoef,
+               MatrixCoefficient & epsInvImCoef,
+               Coefficient & muCoef,
+               VectorCoefficient * kReCoef,
+               VectorCoefficient * kImCoef,
+               bool cyl,
+               bool pa);
+
+   void Assemble();
+};
+
+class CurrentSourceH : public ParComplexLinearForm
+{
+private:
+
+   double omega_;
+
+   ParComplexGridFunction jt_;
+   ParComplexGridFunction kt_;
+
+   // These contain the J*exp(-i k x) and K*exp(-i k x)
+   CmplxVecCoefArray jtilde_; // Volume Currents w/Phase
+   CmplxVecCoefArray ktilde_; // Surface Currents w/Phase
+
+   HCurlCylSourceCoefficient rhoSCoef_;
+
+   // These contain the rho*S*J*exp(-i k x) and rho*S*K*exp(-i k x)
+   CmplxVecCoefArray jtildeCyl_; // Volume Currents w/Phase
+   CmplxVecCoefArray ktildeCyl_; // Surface Currents w/Phase
+
+public:
+   CurrentSourceH(ParFiniteElementSpace & HCurlFESpace,
+                  ParFiniteElementSpace & HDivFESpace,
+                  double omega,
+                  ComplexOperator::Convention conv,
+                  const CmplxVecCoefArray & jsrc,
+                  const CmplxVecCoefArray & ksrc,
+                  VectorCoefficient * kReCoef,
+                  VectorCoefficient * kImCoef,
+                  bool cyl,
+                  bool pa);
+
+   ~CurrentSourceH();
+
+   ParComplexGridFunction & GetVolumeCurrentDensity() { return jt_; }
+   ParComplexGridFunction & GetSurfaceCurrentDensity() { return kt_; }
+
+   void Update();
+   void Assemble();
+};
+
+class AmperesLaw
+{
+private:
+
+   const ParComplexGridFunction & h_; // Complex magnetic field (HCurl)
+   const ParComplexGridFunction & j_; // Complex current density (HDiv)
+   ParComplexGridFunction         d_; // Complex electric flux (HDiv)
+
+   const double omega_;
+
+   ParDiscreteCurlOperator curl_;
+
+   ParDiscreteLinearOperator * kReCross_;
+   ParDiscreteLinearOperator * kImCross_;
+
+public:
+   AmperesLaw(const ParComplexGridFunction &h,
+              const ParComplexGridFunction &j,
+              double omega,
+              VectorCoefficient * kReCoef,
+              VectorCoefficient * kImCoef);
+
+   ParComplexGridFunction & GetElectricFlux() { return d_; }
+
+   void Update();
+   void Assemble();
+   void ComputeD();
+};
+
 /// Cold Plasma Dielectric Solver
 class CPDSolverDH
 {
@@ -357,8 +823,6 @@ public:
                VectorCoefficient * kImCoef,
                Array<int> & abcs,
                StixBCs & stixBCs,
-               void (*j_r_src)(const Vector&, Vector&),
-               void (*j_i_src)(const Vector&, Vector&),
                bool vis_u = false,
                bool cyl = false,
                bool pa = false);
@@ -736,6 +1200,7 @@ private:
    ComplexOperator::Convention conv_;
 
    bool ownsEta_;
+   bool cyl_;
    bool vis_u_;
    bool pa_;
 
@@ -743,21 +1208,20 @@ private:
 
    ParMesh * pmesh_;
 
+   H1_ParFESpace * H1FESpace_;
    L2_ParFESpace * L2FESpace_;
    L2_ParFESpace * L2FESpace2p_;
-   L2_ParFESpace * L2VFESpace_;
-   L2_FESpace * L2FESpace3D_;
-   L2_FESpace * L2VFESpace3D_;
-   ND_FESpace * HCurlFESpace3D_;
-   H1_ParFESpace * H1FESpace_;
+   L2_ParFESpace * L2VSFESpace_;
+   L2_ParFESpace * L2VSFESpace2p_;
+   L2_ParFESpace * L2V3FESpace_;
    ParFiniteElementSpace * HCurlFESpace_;
    ParFiniteElementSpace * HDivFESpace_;
-   ParFiniteElementSpace * HDivFESpace2p_;
+   // ParFiniteElementSpace * HDivFESpace2p_;
 
    Array<HYPRE_Int> blockTrueOffsets_;
 
    // ParSesquilinearForm * a0_;
-   ParSesquilinearForm * a1_;
+   // ParSesquilinearForm * a1_;
    // ParBilinearForm * b1_;
    ParMixedSesquilinearForm * nxD01_;
    ParMixedSesquilinearForm * d21EpsInv_;
@@ -778,7 +1242,8 @@ private:
    ParDiscreteLinearOperator * kReCross_;
    ParDiscreteLinearOperator * kImCross_;
 
-   ParComplexGridFunction * h_;   // Complex magnetic field (HCurl)
+   ParComplexGridFunction   h_;   // Complex magnetic field (HCurl)
+   ParComplexGridFunction   h_dbc_;   // Complex magnetic field (HCurl)
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
    ParComplexGridFunction * d_;   // Complex electric flux (HDiv)
    ParComplexGridFunction * j_;   // Complex current density (HDiv)
@@ -793,18 +1258,21 @@ private:
    // ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs1_; // RHS of magnetic field eqn (HCurl)
    ParComplexLinearForm   * rhs0_; // RHS of sheath potential eqn (H1)
-   ParGridFunction        * e_t_; // Time dependent Electric field
-   ComplexGridFunction    * e_b_v_; // Complex parallel electric field (L2)
-   ComplexGridFunction    * h_v_; // Complex magnetic field (L2^d)
-   ComplexGridFunction    * h_tilde_; // Complex magnetic field (HCurl3D)
-   ComplexGridFunction    * e_v_; // Complex electric field (L2^d)
-   ComplexGridFunction    * d_v_; // Complex electric flux (L2^d)
-   ComplexGridFunction    * phi_v_; // Complex sheath potential (L2)
-   ComplexGridFunction    * rectPot_v_; // Complex rectified potential (L2)
-   ComplexGridFunction    * j_v_; // Complex current density (L2^d)
-   ComplexGridFunction    * div_d_; // Complex charge density (L2)
-   ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
-   GridFunction           * b_hat_v_; // Unit vector along B (L2^d)
+   ParGridFunction        * h_t_; // Time dependent magnetic field
+   VectorFieldVisObject h_v_;
+   VectorFieldVisObject d_v_;
+   VectorFieldVisObject h_dbc_v_;
+   // ComplexGridFunction    * e_b_v_; // Complex parallel electric field (L2)
+   // ComplexGridFunction    * h_v_; // Complex magnetic field (L2^d)
+   // ComplexGridFunction    * h_tilde_; // Complex magnetic field (HCurl3D)
+   // ComplexGridFunction    * e_v_; // Complex electric field (L2^d)
+   // ComplexGridFunction    * d_v_; // Complex electric flux (L2^d)
+   // ComplexGridFunction    * phi_v_; // Complex sheath potential (L2)
+   // ComplexGridFunction    * rectPot_v_; // Complex rectified potential (L2)
+   // ComplexGridFunction    * j_v_; // Complex current density (L2^d)
+   // ComplexGridFunction    * div_d_; // Complex charge density (L2)
+   // ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
+   // GridFunction           * b_hat_v_; // Unit vector along B (L2^d)
    // ParGridFunction        * u_;   // Energy density (L2)
    // ParGridFunction        * uE_;  // Electric Energy density (L2)
    // ParGridFunction        * uB_;  // Magnetic Energy density (L2)
@@ -900,6 +1368,13 @@ private:
    Array<int> sbc_bdr_marker_;
    Array<int> non_sbc_h1_tdofs_;
    Array<int> sbc_nd_tdofs_;
+
+   const Array<AttributeArrays*> & axis_; // Cylindrical Axis
+   Array<int> axis_tdofs_;
+
+   Maxwell2ndH    maxwell_;
+   CurrentSourceH current_;
+   AmperesLaw     ampere_;
 
    VisItDataCollection * visit_dc_;
 

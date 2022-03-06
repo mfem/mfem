@@ -16,6 +16,7 @@
 #include "../common/pfem_extras.hpp"
 #include "plasma.hpp"
 #include "stix_bcs.hpp"
+#include "vis_object.hpp"
 #include "cold_plasma_dielectric_coefs.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -198,6 +199,96 @@ private:
    mutable Vector Ei_;
    mutable Vector Hr_;
    mutable Vector Hi_;
+};
+
+class MinkowskiMomentumDensityReCoef : public VectorCoefficient
+{
+public:
+   MinkowskiMomentumDensityReCoef(double omega,
+                                  VectorCoefficient &Er,
+                                  VectorCoefficient &Ei,
+                                  VectorCoefficient &dEr,
+                                  VectorCoefficient &dEi,
+                                  MatrixCoefficient &epsr,
+                                  MatrixCoefficient &epsi);
+
+   void Eval(Vector &S, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+private:
+   double omega_;
+
+   VectorCoefficient &ErCoef_;
+   VectorCoefficient &EiCoef_;
+   VectorCoefficient &dErCoef_;
+   VectorCoefficient &dEiCoef_;
+   MatrixCoefficient &epsrCoef_;
+   MatrixCoefficient &epsiCoef_;
+
+   mutable Vector Er_;
+   mutable Vector Ei_;
+   mutable Vector Dr_;
+   mutable Vector Di_;
+   mutable Vector Br_;
+   mutable Vector Bi_;
+   mutable DenseMatrix epsr_;
+   mutable DenseMatrix epsi_;
+};
+
+class MinkowskiMomentumDensityImCoef : public VectorCoefficient
+{
+public:
+   MinkowskiMomentumDensityImCoef(double omega,
+                                  VectorCoefficient &Er,
+                                  VectorCoefficient &Ei,
+                                  VectorCoefficient &dEr,
+                                  VectorCoefficient &dEi,
+                                  MatrixCoefficient &epsr,
+                                  MatrixCoefficient &epsi);
+
+   void Eval(Vector &S, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+private:
+   double omega_;
+
+   VectorCoefficient &ErCoef_;
+   VectorCoefficient &EiCoef_;
+   VectorCoefficient &dErCoef_;
+   VectorCoefficient &dEiCoef_;
+   MatrixCoefficient &epsrCoef_;
+   MatrixCoefficient &epsiCoef_;
+
+   mutable Vector Er_;
+   mutable Vector Ei_;
+   mutable Vector Dr_;
+   mutable Vector Di_;
+   mutable Vector Br_;
+   mutable Vector Bi_;
+   mutable DenseMatrix epsr_;
+   mutable DenseMatrix epsi_;
+};
+
+class TensorCompCoef : public Coefficient
+{
+public:
+   TensorCompCoef(MatrixCoefficient &m, int i, int j)
+      : i_(i), j_(j), m_(m) {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip)
+   {
+      m_.Eval(M_, T, ip);
+      return M_(i_, j_);
+   }
+
+private:
+   int i_;
+   int j_;
+
+   MatrixCoefficient &m_;
+
+   mutable DenseMatrix M_;
 };
 
 class Maxwell2ndE : public ParSesquilinearForm
@@ -482,7 +573,7 @@ public:
    void Assemble();
 };
 
-class CurrentSource : public ParComplexLinearForm
+class CurrentSourceE : public ParComplexLinearForm
 {
 private:
 
@@ -502,18 +593,18 @@ private:
    CmplxVecCoefArray ktildeCyl_; // Surface Currents w/Phase
 
 public:
-   CurrentSource(ParFiniteElementSpace & HCurlFESpace,
-                 ParFiniteElementSpace & HDivFESpace,
-                 double omega,
-                 ComplexOperator::Convention conv,
-                 const CmplxVecCoefArray & jsrc,
-                 const CmplxVecCoefArray & ksrc,
-                 VectorCoefficient * kReCoef,
-                 VectorCoefficient * kImCoef,
-                 bool cyl,
-                 bool pa);
+   CurrentSourceE(ParFiniteElementSpace & HCurlFESpace,
+                  ParFiniteElementSpace & HDivFESpace,
+                  double omega,
+                  ComplexOperator::Convention conv,
+                  const CmplxVecCoefArray & jsrc,
+                  const CmplxVecCoefArray & ksrc,
+                  VectorCoefficient * kReCoef,
+                  VectorCoefficient * kImCoef,
+                  bool cyl,
+                  bool pa);
 
-   ~CurrentSource();
+   ~CurrentSourceE();
 
    ParComplexGridFunction & GetVolumeCurrentDensity() { return jt_; }
    ParComplexGridFunction & GetSurfaceCurrentDensity() { return kt_; }
@@ -671,7 +762,7 @@ class Displacement
 private:
    bool pa_;
 
-   ParComplexGridFunction         d_; // Complex electric displacement (HDiv)
+   ParComplexGridFunction d_; // Complex electric displacement (HDiv)
 
    ComplexMatrixVectorProductRealCoef dReCoef_;
    ComplexMatrixVectorProductImagCoef dImCoef_;
@@ -696,62 +787,103 @@ public:
    void ComputeD();
 };
 
-class ScalarFieldVisObject
+class ElectricEnergyDensityVisObject : public ScalarFieldVisObject
 {
 private:
-   bool cyl_;
-   bool pseudo_;
 
-   int dim_;
-
-   std::string field_name_;
-
-   ComplexGridFunction * v_; // Complex field in problem domain (L2)
+   using ScalarFieldVisObject::PrepareVisField;
 
 public:
-   ScalarFieldVisObject(const std::string & field_name,
-                        L2_ParFESpace *sfes,
-                        bool cyl, bool pseudo);
+   ElectricEnergyDensityVisObject(const std::string & field_name,
+                                  L2_ParFESpace *sfes,
+                                  bool cyl, bool pseudo);
 
-   ~ScalarFieldVisObject();
-
-   void RegisterVisItFields(VisItDataCollection & visit_dc);
-
-   void PrepareVisField(const ParComplexGridFunction &u,
-                        VectorCoefficient * kReCoef,
-                        VectorCoefficient * kImCoef);
-
-   void Update();
+   void PrepareVisField(const ParComplexGridFunction &e,
+                        MatrixCoefficient &epsr,
+                        MatrixCoefficient &epsi);
 };
 
-class VectorFieldVisObject
+class MagneticEnergyDensityVisObject : public ScalarFieldVisObject
 {
 private:
-   bool cyl_;
-   bool pseudo_;
 
-   int dim_;
-
-   std::string field_name_;
-
-   ComplexGridFunction * v_; // Complex field in problem domain (L2^d)
-   ComplexGridFunction * v_y_; // Complex field y component in 1D (L2)
-   ComplexGridFunction * v_z_; // Complex field z component in 1D or 2D (L2)
+   using ScalarFieldVisObject::PrepareVisField;
 
 public:
-   VectorFieldVisObject(const std::string & field_name,
-                        L2_ParFESpace *vfes, L2_ParFESpace *sfes,
-                        bool cyl, bool pseudo);
+   MagneticEnergyDensityVisObject(const std::string & field_name,
+                                  L2_ParFESpace *sfes,
+                                  bool cyl, bool pseudo);
 
-   ~VectorFieldVisObject();
+   void PrepareVisField(const ParComplexGridFunction &de,
+                        double omega,
+                        Coefficient &muInv);
+};
 
-   void RegisterVisItFields(VisItDataCollection & visit_dc);
+class EnergyDensityVisObject : public ScalarFieldVisObject
+{
+private:
 
-   void PrepareVisField(const ParComplexGridFunction &u,
-                        VectorCoefficient * kReCoef,
-                        VectorCoefficient * kImCoef);
+   using ScalarFieldVisObject::PrepareVisField;
 
-   void Update();
+public:
+   EnergyDensityVisObject(const std::string & field_name,
+                          L2_ParFESpace *sfes,
+                          bool cyl, bool pseudo);
+
+   void PrepareVisField(const ParComplexGridFunction &e,
+                        double omega,
+                        MatrixCoefficient &epsr,
+                        MatrixCoefficient &epsi,
+                        Coefficient &muInv);
+};
+
+class PoyntingVectorVisObject : public VectorFieldVisObject
+{
+private:
+
+   using VectorFieldVisObject::PrepareVisField;
+
+public:
+   PoyntingVectorVisObject(const std::string & field_name,
+                           L2_ParFESpace *vfes, L2_ParFESpace *sfes,
+                           bool cyl, bool pseudo);
+
+   void PrepareVisField(const ParComplexGridFunction &e,
+                        double omega,
+                        Coefficient & muInvCoef);
+};
+
+class MinkowskiMomentumDensityVisObject : public VectorFieldVisObject
+{
+private:
+
+   using VectorFieldVisObject::PrepareVisField;
+
+public:
+   MinkowskiMomentumDensityVisObject(const std::string & field_name,
+                                     L2_ParFESpace *vfes, L2_ParFESpace *sfes,
+                                     bool cyl, bool pseudo);
+
+   void PrepareVisField(const ParComplexGridFunction &e,
+                        double omega,
+                        MatrixCoefficient & epsReCoef,
+                        MatrixCoefficient & epsImCoef);
+};
+
+class TensorCompVisObject : public ScalarFieldVisObject
+{
+private:
+
+   using ScalarFieldVisObject::PrepareVisField;
+
+public:
+   TensorCompVisObject(const std::string & field_name,
+                       L2_ParFESpace *sfes,
+                       bool cyl, bool pseudo);
+
+   void PrepareVisField(MatrixCoefficient &mr,
+                        MatrixCoefficient &mi,
+                        int i, int j);
 };
 
 /// Cold Plasma Dielectric Solver
@@ -879,10 +1011,11 @@ private:
    L2_ParFESpace * L2FESpace_;
    L2_ParFESpace * L2FESpace2p_;
    L2_ParFESpace * L2VSFESpace_;
+   L2_ParFESpace * L2VSFESpace2p_;
    L2_ParFESpace * L2V3FESpace_;
    ParFiniteElementSpace * HCurlFESpace_;
    ParFiniteElementSpace * HDivFESpace_;
-   ParFiniteElementSpace * HDivFESpace2p_;
+   // ParFiniteElementSpace * HDivFESpace2p_;
 
    Array<HYPRE_Int> blockTrueOffsets_;
 
@@ -898,12 +1031,26 @@ private:
    ScalarFieldVisObject dd_v_; // Complex divergence of electric flux (L2)
    VectorFieldVisObject j_v_;
    VectorFieldVisObject k_v_;
+   ElectricEnergyDensityVisObject ue_v_;
+   MagneticEnergyDensityVisObject ub_v_;
+   EnergyDensityVisObject u_v_;
+   PoyntingVectorVisObject s_v_;
+   MinkowskiMomentumDensityVisObject g_v_;
+   TensorCompVisObject eps_00_v_;
+   TensorCompVisObject eps_01_v_;
+   TensorCompVisObject eps_02_v_;
+   TensorCompVisObject eps_10_v_;
+   TensorCompVisObject eps_11_v_;
+   TensorCompVisObject eps_12_v_;
+   TensorCompVisObject eps_20_v_;
+   TensorCompVisObject eps_21_v_;
+   TensorCompVisObject eps_22_v_;
    ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
    GridFunction           * b_hat_v_; // Unit vector along B (L2^d)
-   ParGridFunction        * u_;   // Energy density (L2)
-   ParGridFunction        * uE_;  // Electric Energy density (L2)
+   // ParGridFunction        * u_;   // Energy density (L2)
+   // // ParGridFunction        * uE_;  // Electric Energy density (L2)
    ParGridFunction        * uB_;  // Magnetic Energy density (L2)
-   ParComplexGridFunction * S_;  // Poynting Vector (HDiv)
+   // ParComplexGridFunction * S_;  // Poynting Vector (HDiv)
    ComplexGridFunction * StixS_; // Stix S Coefficient (L2)
    ComplexGridFunction * StixD_; // Stix D Coefficient (L2)
    ComplexGridFunction * StixP_; // Stix P Coefficient (L2)
@@ -965,12 +1112,12 @@ private:
    const Array<AttributeArrays*> & axis_; // Cylindrical Axis
    Array<int> axis_tdofs_;
 
-   Maxwell2ndE   maxwell_;
-   CurrentSource current_;
-   FaradaysLaw   faraday_;
-   GausssLaw     divB_;
-   Displacement  displacement_;
-   GausssLaw     divD_;
+   Maxwell2ndE    maxwell_;
+   CurrentSourceE current_;
+   FaradaysLaw    faraday_;
+   GausssLaw      divB_;
+   Displacement   displacement_;
+   GausssLaw      divD_;
 
    Array<VectorCoefficient*> vCoefs_;
 

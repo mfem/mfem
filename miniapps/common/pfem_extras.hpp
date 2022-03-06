@@ -138,6 +138,38 @@ private:
    const FiniteElementCollection *FEC_;
 };
 
+inline ParFiniteElementSpace *
+MakeHCurlParFESpace(ParMesh &pmesh, int order)
+{
+   switch (pmesh.Dimension())
+   {
+      case 1:
+         return new ND_R1D_ParFESpace(&pmesh, order, 1);
+      case 2:
+         return new ND_R2D_ParFESpace(&pmesh, order, 2);
+      case 3:
+         return new ND_ParFESpace(&pmesh, order, 3);
+      default:
+         return NULL;
+   }
+}
+
+inline ParFiniteElementSpace *
+MakeHDivParFESpace(ParMesh &pmesh, int order)
+{
+   switch (pmesh.Dimension())
+   {
+      case 1:
+         return new RT_R1D_ParFESpace(&pmesh, order, 1);
+      case 2:
+         return new RT_R2D_ParFESpace(&pmesh, order, 2);
+      case 3:
+         return new RT_ParFESpace(&pmesh, order, 3);
+      default:
+         return NULL;
+   }
+}
+
 class ParDiscreteInterpolationOperator : public ParDiscreteLinearOperator
 {
 public:
