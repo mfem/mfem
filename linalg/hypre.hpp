@@ -64,10 +64,10 @@ private:
 
 public:
    /// Single HYPRE_Session object should be created before any hypre calls.
-   HYPRE_Session() { HYPRE_Init(); SetGlobalOptions(); }
+   HYPRE_Session();
 
    /// The HYPRE_Session object should be destroyed after the last hypre call.
-   ~HYPRE_Session() { HYPRE_Finalize(); }
+   ~HYPRE_Session();
 };
 
 

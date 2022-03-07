@@ -31,10 +31,29 @@ using namespace std;
 namespace mfem
 {
 
+
+HYPRE_Session::HYPRE_Session()
+{
+#if MFEM_HYPRE_VERSION >= 21500
+   HYPRE_Init();
+#endif
+
+   SetGlobalOptions();
+}
+
+HYPRE_Session::~HYPRE_Session()
+{
+#if MFEM_HYPRE_VERSION >= 21500
+   HYPRE_Finalize();
+#endif
+}
+
 void HYPRE_Session::SetGlobalOptions()
 {
+#if MFEM_HYPRE_VERSION >= 22100
    // Use hypre's SpGEMM instead of cuSPARSE.
    HYPRE_SetSpGemmUseCusparse(0);
+#endif
 
 #if 0
    // Additional global options, see
