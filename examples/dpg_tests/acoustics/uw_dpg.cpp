@@ -344,9 +344,9 @@ int main(int argc, char *argv[])
       // Error
       int dofs = X.Size();
       double p_err = p_gf.ComputeL2Error(pex);
-      double p_norm = uex_gf.ComputeL2Error(zero);
+      double p_norm = pex_gf.ComputeL2Error(zero);
       double u_err = u_gf.ComputeL2Error(uex);
-      double u_norm = u_gf.ComputeL2Error(vzero);
+      double u_norm = uex_gf.ComputeL2Error(vzero);
 
       double L2Error = sqrt(p_err*p_err + u_err*u_err);
       double L2norm = sqrt(p_norm * p_norm + u_norm * u_norm);

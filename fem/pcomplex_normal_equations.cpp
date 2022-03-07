@@ -215,7 +215,7 @@ void ComplexParNormalEquations::FormSystemMatrix(const Array<int>
          mat_e_r = nullptr;
          mat_e_i = nullptr;
       }
-      p_mat = new ComplexOperator(p_mat_r,p_mat_i,true,true);
+      p_mat = new ComplexOperator(p_mat_r,p_mat_i,false,false);
       A.Reset(p_mat,false);
    }
 }
@@ -273,6 +273,10 @@ ComplexParNormalEquations::~ComplexParNormalEquations()
    delete p_mat_e_i;
    p_mat_e_r = nullptr;
    p_mat_e_i = nullptr;
+   delete p_mat_r;
+   delete p_mat_i;
+   p_mat_r = nullptr;
+   p_mat_i = nullptr;
    delete p_mat; // owns real and imag parts
    p_mat = nullptr;
    for (int i = 0; i<nblocks; i++)

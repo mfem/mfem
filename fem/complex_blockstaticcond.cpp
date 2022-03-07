@@ -1123,7 +1123,9 @@ ComplexBlockStaticCondensation::~ComplexBlockStaticCondensation()
 {
    delete S_e_r; S_e_r = nullptr;
    delete S_e_i; S_e_i = nullptr;
-   delete S; S=nullptr; // owns real and imag
+   delete S_r; S_r = nullptr;
+   delete S_i; S_i = nullptr;
+   delete S; S=nullptr;
    delete y_r; y_r=nullptr;
    delete y_i; y_i=nullptr;
    delete y; y=nullptr;

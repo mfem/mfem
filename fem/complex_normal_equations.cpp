@@ -60,8 +60,9 @@ void ComplexNormalEquations::Init()
 
    if (store_matrices)
    {
-      GB.SetSize(mesh->GetNE());
-      Gl.SetSize(mesh->GetNE());
+      Ginv.SetSize(mesh->GetNE());
+      Bmat.SetSize(mesh->GetNE());
+      fvec.SetSize(mesh->GetNE());
    }
 }
 
@@ -498,16 +499,21 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
          }
       }
 
-
-
       ComplexDenseMatrix G(&G_r,&G_i,false,false);
       ComplexDenseMatrix B(&B_r,&B_i,false,false);
-
       ComplexDenseMatrix * invG = G.ComputeInverse();
 
       Vector vec(vec_i.Size()+vec_r.Size());
       vec.SetVector(vec_r,0);
       vec.SetVector(vec_i,vec_r.Size());
+
+      if (store_matrices)
+      {
+         Ginv[iel] = invG;
+         Bmat[iel] = new ComplexDenseMatrix(new DenseMatrix(B_r),
+                                            new DenseMatrix(B_i),true,true);
+         fvec[iel] = new Vector(vec);
+      }
 
       // Form Normal Equations B^H G^-1 B = B^H G^-1 l
 
@@ -581,6 +587,10 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
                {
                   TransformDual(doftrans_i, doftrans_j, Ae_r);
                   TransformDual(doftrans_i, doftrans_j, Ae_i);
+               }
+               if (!mat_r)
+               {
+                  mfem::out << "null matrix " << std::endl;
                }
                mat_r->GetBlock(i,j).AddSubMatrix(vdofs_i,vdofs_j, Ae_r);
                mat_i->GetBlock(i,j).AddSubMatrix(vdofs_i,vdofs_j, Ae_i);
@@ -722,7 +732,7 @@ void ComplexNormalEquations::FormSystemMatrix(const Array<int>
          EliminateVDofs(ess_tdof_list, diag_policy);
          Finalize(remove_zeros);
       }
-      mat = new ComplexOperator(mat_r,mat_i,true,true);
+      mat = new ComplexOperator(mat_r,mat_i,false,false);
       A.Reset(mat,false);
    }
 }
@@ -876,7 +886,9 @@ void ComplexNormalEquations::Update()
 {
    delete mat_e_r; mat_e_r = nullptr;
    delete mat_e_i; mat_e_i = nullptr;
-   delete mat; mat = nullptr; //o owns imag and real part
+   delete mat_r; mat_r = nullptr;
+   delete mat_i; mat_i = nullptr;
+   delete mat; mat = nullptr;
    delete y; y = nullptr; // same
 
    if (P)
@@ -898,17 +910,20 @@ void ComplexNormalEquations::Update()
 
    if (store_matrices)
    {
-      for (int i = 0; i<GB.Size(); i++)
+      for (int i = 0; i<Ginv.Size(); i++)
       {
-         delete GB[i]; GB[i] = nullptr;
-         delete Gl[i]; Gl[i] = nullptr;
+         delete Ginv[i]; Ginv[i] = nullptr;
+         delete Bmat[i]; Bmat[i] = nullptr;
+         delete fvec[i]; fvec[i] = nullptr;
       }
-      GB.SetSize(mesh->GetNE());
-      Gl.SetSize(mesh->GetNE());
-      for (int i = 0; i<GB.Size(); i++)
+      Ginv.SetSize(mesh->GetNE());
+      Bmat.SetSize(mesh->GetNE());
+      fvec.SetSize(mesh->GetNE());
+      for (int i = 0; i<Ginv.Size(); i++)
       {
-         GB[i] = nullptr;
-         Gl[i] = nullptr;
+         Ginv[i] = nullptr;
+         Bmat[i] = nullptr;
+         fvec[i] = nullptr;
       }
    }
 }
@@ -921,87 +936,108 @@ void ComplexNormalEquations::EnableStaticCondensation()
 
 
 
-Vector & ComplexNormalEquations::ComputeResidual(const BlockVector & x)
+Vector & ComplexNormalEquations::ComputeResidual(const Vector & x)
 {
-   // // Element vector of trial space size
-   // Vector u;
-   // Array<int> vdofs;
-   // Array<int> faces, ori;
-   // int dim = mesh->Dimension();
-   // residuals.SetSize(mesh->GetNE());
-   // // loop through elements
-   // for (int iel = 0; iel < mesh -> GetNE(); iel++)
-   // {
-   //    if (dim == 1)
-   //    {
-   //       mesh->GetElementVertices(iel, faces);
-   //    }
-   //    if (dim == 2)
-   //    {
-   //       mesh->GetElementEdges(iel, faces, ori);
-   //    }
-   //    else //dim = 3
-   //    {
-   //       mesh->GetElementFaces(iel,faces,ori);
-   //    }
-   //    int numfaces = faces.Size();
+   // wrap vector in a blockvector
+   double * xdata = x.GetData();
+   int n = x.Size()/2;
+   BlockVector x_r(xdata,dof_offsets);
+   BlockVector x_i(&xdata[n],dof_offsets);
 
-   //    Array<int> trial_offs(trial_fes.Size()+1); trial_offs = 0;
+   // Element vector of trial space size
+   Vector u;
+   Array<int> vdofs;
+   Array<int> faces, ori;
+   int dim = mesh->Dimension();
+   residuals.SetSize(mesh->GetNE());
+   // loop through elements
+   for (int iel = 0; iel < mesh -> GetNE(); iel++)
+   {
+      if (dim == 1)
+      {
+         mesh->GetElementVertices(iel, faces);
+      }
+      if (dim == 2)
+      {
+         mesh->GetElementEdges(iel, faces, ori);
+      }
+      else //dim = 3
+      {
+         mesh->GetElementFaces(iel,faces,ori);
+      }
+      int numfaces = faces.Size();
 
-   //    for (int j = 0; j < trial_fes.Size(); j++)
-   //    {
-   //       if (IsTraceFes[j])
-   //       {
-   //          for (int ie = 0; ie<faces.Size(); ie++)
-   //          {
-   //             trial_offs[j+1] += trial_fes[j]->GetFaceElement(faces[ie])->GetDof();
-   //          }
-   //       }
-   //       else
-   //       {
-   //          trial_offs[j+1] = trial_fes[j]->GetVDim() * trial_fes[j]->GetFE(
-   //                               iel)->GetDof();
-   //       }
-   //    }
-   //    trial_offs.PartialSum();
+      Array<int> trial_offs(trial_fes.Size()+1); trial_offs = 0;
 
-   //    u.SetSize(trial_offs.Last());
-   //    double * data = u.GetData();
-   //    DofTransformation * doftrans = nullptr;
-   //    for (int i = 0; i<trial_fes.Size(); i++)
-   //    {
-   //       vdofs.SetSize(0);
-   //       doftrans = nullptr;
-   //       if (IsTraceFes[i])
-   //       {
-   //          Array<int> face_vdofs;
-   //          for (int k = 0; k < numfaces; k++)
-   //          {
-   //             int iface = faces[k];
-   //             trial_fes[i]->GetFaceVDofs(iface, face_vdofs);
-   //             vdofs.Append(face_vdofs);
-   //          }
-   //       }
-   //       else
-   //       {
-   //          doftrans = trial_fes[i]->GetElementVDofs(iel, vdofs);
-   //       }
-   //       Vector vec1;
-   //       vec1.SetDataAndSize(&data[trial_offs[i]],
-   //                           trial_offs[i+1]-trial_offs[i]);
-   //       x.GetBlock(i).GetSubVector(vdofs,vec1);
-   //       if (doftrans)
-   //       {
-   //          doftrans->InvTransformPrimal(vec1);
-   //       }
-   //    } // end of loop through trial spaces
+      for (int j = 0; j < trial_fes.Size(); j++)
+      {
+         if (IsTraceFes[j])
+         {
+            for (int ie = 0; ie<faces.Size(); ie++)
+            {
+               trial_offs[j+1] += trial_fes[j]->GetFaceElement(faces[ie])->GetDof();
+            }
+         }
+         else
+         {
+            trial_offs[j+1] = trial_fes[j]->GetVDim() * trial_fes[j]->GetFE(
+                                 iel)->GetDof();
+         }
+      }
+      trial_offs.PartialSum();
 
-   //    // residual
-   //    Vector v(GB[iel]->Height());
-   //    GB[iel]->Mult(u,v);
-   //    v -= *Gl[iel];
-   //    residuals[iel] = v.Norml2();
-   // } // end of loop through elements
+      int nn = trial_offs.Last();
+      u.SetSize(2*nn);
+      double * data_r = u.GetData();
+      double * data_i = &u.GetData()[nn];
+      DofTransformation * doftrans = nullptr;
+      for (int i = 0; i<trial_fes.Size(); i++)
+      {
+         vdofs.SetSize(0);
+         doftrans = nullptr;
+         if (IsTraceFes[i])
+         {
+            Array<int> face_vdofs;
+            for (int k = 0; k < numfaces; k++)
+            {
+               int iface = faces[k];
+               trial_fes[i]->GetFaceVDofs(iface, face_vdofs);
+               vdofs.Append(face_vdofs);
+            }
+         }
+         else
+         {
+            doftrans = trial_fes[i]->GetElementVDofs(iel, vdofs);
+         }
+         Vector vec1_r;
+         Vector vec1_i;
+         vec1_r.SetDataAndSize(&data_r[trial_offs[i]],
+                               trial_offs[i+1]-trial_offs[i]);
+         vec1_i.SetDataAndSize(&data_i[trial_offs[i]],
+                               trial_offs[i+1]-trial_offs[i]);
+         x_r.GetBlock(i).GetSubVector(vdofs,vec1_r);
+         x_i.GetBlock(i).GetSubVector(vdofs,vec1_i);
+         if (doftrans)
+         {
+            doftrans->InvTransformPrimal(vec1_r);
+            doftrans->InvTransformPrimal(vec1_i);
+         }
+      } // end of loop through trial spaces
+
+      // residual
+      Vector v(Bmat[iel]->Height());
+      Bmat[iel]->Mult(u,v);
+      v -= *fvec[iel];
+      // complex inner product v^h ̇v
+      double res = 0.;
+      Vector Gv(v.Size());
+      Ginv[iel]->Mult(v,Gv);
+      for (int k = 0; k<v.Size()/2; k++)
+      {
+         res += Gv(k)*v(k) + Gv(k+v.Size()/2)* v(k+v.Size()/2);
+      }
+      residuals[iel] = sqrt(res);
+   } // end of loop through elements
    return residuals;
 }
 
@@ -1027,8 +1063,9 @@ ComplexNormalEquations::~ComplexNormalEquations()
    {
       for (int i = 0; i<mesh->GetNE(); i++)
       {
-         delete GB[i]; GB[i] = nullptr;
-         delete Gl[i]; Gl[i] = nullptr;
+         delete Ginv[i]; Ginv[i] = nullptr;
+         delete Bmat[i]; Bmat[i] = nullptr;
+         delete fvec[i]; fvec[i] = nullptr;
       }
    }
 }

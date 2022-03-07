@@ -93,10 +93,11 @@ protected:
 
    bool store_matrices = false;
 
-   // Store the matrices G ^-1 B  and G^-1 l
+   // Store the matrices G ^-1, B  and  Vector l
    // for computing the residual
-   Array<ComplexDenseMatrix * > GB;
-   Array<Vector * > Gl;
+   Array<ComplexDenseMatrix * > Ginv;
+   Array<ComplexDenseMatrix * > Bmat;
+   Array<Vector * > fvec;
    Vector residuals;
 
 
@@ -258,21 +259,23 @@ public:
    void StoreMatrices(bool store_matrices_ = true)
    {
       store_matrices = store_matrices_;
-      if (GB.Size() == 0)
+      if (Ginv.Size() == 0)
       {
-         GB.SetSize(mesh->GetNE());
-         Gl.SetSize(mesh->GetNE());
+         Ginv.SetSize(mesh->GetNE());
+         Bmat.SetSize(mesh->GetNE());
+         fvec.SetSize(mesh->GetNE());
          for (int i =0; i<mesh->GetNE(); i++)
          {
-            GB[i] = nullptr;
-            Gl[i] = nullptr;
+            Ginv[i] = nullptr;
+            Bmat[i] = nullptr;
+            fvec[i] = nullptr;
          }
       }
    }
 
    void EnableStaticCondensation();
 
-   Vector & ComputeResidual(const BlockVector & x);
+   Vector & ComputeResidual(const Vector & x);
 
 
    /// Destroys bilinear form.

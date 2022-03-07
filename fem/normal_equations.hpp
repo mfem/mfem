@@ -85,7 +85,7 @@ protected:
 
    bool store_matrices = false;
 
-   // Store the matrices G ^-1 B  and G^-1 l
+   // Store the matrices G ^-1, B  and  Vector l
    // for computing the residual
    Array<DenseMatrix * > Ginv;
    Array<DenseMatrix * > Bmat;

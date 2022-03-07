@@ -163,11 +163,11 @@ public:
       {
          if (parallel)
          {
-            S = new ComplexOperator(pS_r,pS_i,true,true);
+            S = new ComplexOperator(pS_r,pS_i,false,false);
          }
          else
          {
-            S = new ComplexOperator(S_r,S_i,true,true);
+            S = new ComplexOperator(S_r,S_i,false,false);
          }
       }
       return *S;
