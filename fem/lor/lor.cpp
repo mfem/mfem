@@ -441,7 +441,6 @@ LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
 {
    CheckBasisType(fes_ho);
    A.SetType(Operator::MFEM_SPARSEMAT);
-   FormLORSpace();
 }
 
 void LORDiscretization::FormLORSpace()
@@ -485,7 +484,6 @@ ParLORDiscretization::ParLORDiscretization(
 {
    if (fes_ho.GetMyRank() == 0) { CheckBasisType(fes_ho); }
    A.SetType(Operator::Hypre_ParCSR);
-   FormLORSpace();
 }
 
 void ParLORDiscretization::FormLORSpace()

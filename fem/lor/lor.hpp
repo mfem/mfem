@@ -136,7 +136,7 @@ public:
 class LORDiscretization : public LORBase
 {
 protected:
-   void FormLORSpace();
+   void FormLORSpace() override;
 public:
    /// @brief Construct the low-order refined version of @a a_ho using the given
    /// list of essential DOFs.
@@ -164,7 +164,7 @@ public:
 class ParLORDiscretization : public LORBase
 {
 protected:
-   void FormLORSpace();
+   void FormLORSpace() override;
 public:
    /// @brief Construct the low-order refined version of @a a_ho using the given
    /// list of essential DOFs.
