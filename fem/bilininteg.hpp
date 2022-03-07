@@ -244,8 +244,6 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
-   virtual bool SupportsBatchedLOR() const { return false; }
-
    virtual ~BilinearFormIntegrator() { }
 };
 
@@ -2060,8 +2058,6 @@ public:
                                          const FiniteElement &test_fe);
 
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
-
-   bool SupportsBatchedLOR() const { return true; }
 
    Coefficient *GetCoefficient() const { return Q; }
 };

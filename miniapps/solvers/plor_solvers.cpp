@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
    dbg("[MPI] rank: %d/%d, using device #%d", 1+myid, num_procs, dev);
 
    Device device(device_config, dev);
-   device.Print();
+   if (mpi.Root()) { device.Print(); }
 
    bool H1 = false, ND = false, RT = false, L2 = false;
    if (string(fe) == "h") { H1 = true; }
