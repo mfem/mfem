@@ -11,7 +11,10 @@
 Version 4.4, released on February 28, 2022
 ==========================================
 
-- Add hipSPARSE support for sparse mat-vec multiplications.
+- Added PA support for MixedScalarCurlIntegrator in 2D and
+  MixedVectorGradientIntegrator in 2D and 3D, as well as their transposes.
+
+- Added hipSPARSE support for sparse mat-vec multiplications.
 
 - Added support for using the HYPRE library built with HIP support. Similar to
   the HYPRE + CUDA support added earlier, most of the MFEM examples and miniapps
