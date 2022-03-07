@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_MPI
    MPI_Session mpi;
    if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   HYPRE_Session hypre;
 #endif
 
    // Parse command-line options.

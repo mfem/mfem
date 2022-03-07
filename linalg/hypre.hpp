@@ -52,6 +52,25 @@ namespace mfem
 class ParFiniteElementSpace;
 class HypreParMatrix;
 
+
+/** @brief A simple convenience class for hypre's global settings, that 1) calls
+    HYPRE_Init() and sets some GPU-relevant options at construction and 2) calls
+    HYPRE_Finalize() at destruction. */
+class HYPRE_Session
+{
+private:
+   /// Set the default hypre global options (mostly GPU-relevant)
+   void SetGlobalOptions();
+
+public:
+   /// Single HYPRE_Session object should be created before any hypre calls.
+   HYPRE_Session() { HYPRE_Init(); SetGlobalOptions(); }
+
+   /// The HYPRE_Session object should be destroyed after the last hypre call.
+   ~HYPRE_Session() { HYPRE_Finalize(); }
+};
+
+
 namespace internal
 {
 

@@ -232,10 +232,11 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
+   // 1. Initialize MPI and HYPRE.
    MPI_Session mpi;
    int num_procs = mpi.WorldSize();
    int myid = mpi.WorldRank();
+   HYPRE_Session hypre;
 
    // 2. Parse command-line options.
    problem = 0;

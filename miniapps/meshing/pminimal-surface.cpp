@@ -1292,6 +1292,7 @@ int main(int argc, char *argv[])
    MPI_Init(&argc, &argv);
    MPI_Comm_rank(MPI_COMM_WORLD, &opt.id);
    MPI_Comm_size(MPI_COMM_WORLD, &opt.sz);
+   HYPRE_Session hypre;
    // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&opt.pb, "-p", "--problem", "Problem to solve.");

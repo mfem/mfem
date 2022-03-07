@@ -96,12 +96,13 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
+   // 1. Initialize MPI and HYPRE.
    int num_procs, myid;
    MPI_Comm comm = MPI_COMM_WORLD;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
+   HYPRE_Session hypre;
 
    // 2. Parse command-line options.
    int order  = 1;

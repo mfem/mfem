@@ -37,11 +37,12 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 0. Initialize MPI.
+   // 0. Initialize MPI and HYPRE.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   HYPRE_Session hypre;
 
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-tri.mesh";

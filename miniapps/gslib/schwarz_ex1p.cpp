@@ -73,11 +73,12 @@ void GetInterdomainBoundaryPoints(OversetFindPointsGSLIB &finder,
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
+   // Initialize MPI and HYPRE.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   HYPRE_Session hypre;
 
    // Parse command-line options.
    int lim_meshes = 3; // should be greater than nmeshes

@@ -60,11 +60,12 @@ void F_exact(const Vector &p, Vector &F)
 
 int main (int argc, char *argv[])
 {
-   // Initialize MPI.
+   // Initialize MPI and HYPRE.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   HYPRE_Session hypre;
 
    // Set the method's default parameters.
    const char *mesh_file = "../../data/rt-2d-q3.mesh";
