@@ -45,13 +45,6 @@ return_type __enzyme_fwddiff(Args...);
 
 /// Define the identity tensor in three dimensions.
 //MFEM_HOST_DEVICE static constexpr auto I = Identity<dimension>();
-/*struct I
-{
-   MFEM_HOST_DEVICE tensor<double, dimension, dimension> operator()()
-   {
-      return Identity<dimension>();
-   }
-};*/
 
 /** @brief Linear elastic material.
  *
@@ -477,7 +470,7 @@ public:
     * @tparam material_type
     * @param material
     */
-   template <typename material_type>
+   template <bool opt, typename material_type>
    void SetMaterial(const material_type &material);
 
    /**
@@ -577,20 +570,18 @@ public:
       MFEM_NVTX;
       if (type_ == Type::Diagonal)
       {
-         x.HostRead();
-         y.HostWrite();
-         const auto K_diag_submats =
-            Reshape(K_diag_.HostRead(), num_submats_, submat_height_, submat_height_);
-         // TODO: This could be MFEM_FORALL
+         auto Y = y.Write();
+         const auto X = x.Read();
+         const int ns = num_submats_, sh = submat_height_, nsh = ns * sh;
+         const auto K_diag_submats = Reshape(K_diag_.Read(), ns, sh, sh);
          // Assuming Y and X are ordered byNODES. K_diag is ordered byVDIM.
-         for (int s = 0; s < num_submats_; s++)
+         MFEM_FORALL(si, nsh,
          {
-            for (int i = 0; i < submat_height_; i++)
-            {
-               int idx = s + i * num_submats_;
-               y(idx) = x(idx) / K_diag_submats(s, i, i);
-            }
-         }
+            const int s = si / sh;
+            const int i = si % sh;
+            const int idx = s + i * ns;
+            Y[idx] = X[idx] / K_diag_submats(s,i,i);
+         });
       }
       else if (type_ == Type::BlockDiagonal)
       {
@@ -641,6 +632,7 @@ int main(int argc, char *argv[])
    int diagpc_type = ElasticityDiagonalPreconditioner::Type::Diagonal;
    int serial_refinement_levels = 0;
    bool paraview_save = false;
+   bool optimized_kernels = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -655,6 +647,9 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview_save, "-pvs", "--paraview-save",
                   "-no-pvs", "--no-paraview-save",
                   "Enable or disable ParaView DataCollection save.");
+   args.AddOption(&optimized_kernels, "-opt", "--optimized-kernels",
+                  "-no-opt", "--no-optimized-kernels",
+                  "Enable or disable optimzed kernels.");
    args.Parse();
    if (!args.Good())
    {
@@ -697,7 +692,8 @@ int main(int argc, char *argv[])
    // Create and set the material type. We define it's GradientType during
    // instantiation.
    const NeoHookeanMaterial<dimension, GradientType::DualNumbers> material{};
-   elasticity_op.SetMaterial(material);
+   if (optimized_kernels) { elasticity_op.SetMaterial<true>(material); }
+   else { elasticity_op.SetMaterial<false>(material); }
 
    // Define all essential boundaries. In this specific example, this includes
    // all fixed and statically displaced degrees of freedom on mesh entities in
@@ -794,178 +790,176 @@ void CheckMemoryRestriction(int d1d, int q1d)
  * reference coordinates.
  *
  * @note DeviceTensor<2> means RANK=2
- * TODO: Does not make use of shared memory on the GPU.
  *
  * @tparam dim
  * @tparam d1d
  * @tparam q1d
+ * @tparam opt
  * @param B
  * @param G
  * @param U
  * @param dUdxi
  */
-template <int dim, int d1d, int q1d>
+template <int dim, int d1d, int q1d, bool opt>
 static inline void MFEM_HOST_DEVICE
 CalcGrad(const DeviceTensor<2, const double> &B, // q1d x d1d
          const DeviceTensor<2, const double> &G, // q1d x d1d
          const DeviceTensor<4, const double> &U, // d1d x d1d x d1d x dim
          tensor<double, q1d, q1d, q1d, dim, dim> &dUdxi)
 {
-   for (int c = 0; c < dim; ++c)
+   if (!opt)
    {
-      for (int dz = 0; dz < d1d; ++dz)
+      for (int c = 0; c < dim; ++c)
       {
-         tensor<double, q1d, q1d, dim> gradXY{};
-         for (int dy = 0; dy < d1d; ++dy)
+         for (int dz = 0; dz < d1d; ++dz)
          {
-            tensor<double, q1d, 2> gradX{};
-            for (int dx = 0; dx < d1d; ++dx)
+            tensor<double, q1d, q1d, dim> gradXY{};
+            for (int dy = 0; dy < d1d; ++dy)
             {
-               const double s = U(dx, dy, dz, c);
-               for (int qx = 0; qx < q1d; ++qx)
-               {
-                  gradX[qx][0] += s * B(qx, dx);
-                  gradX[qx][1] += s * G(qx, dx);
-               }
-            }
-            for (int qy = 0; qy < q1d; ++qy)
-            {
-               const double wy = B(qy, dy);
-               const double wDy = G(qy, dy);
-               for (int qx = 0; qx < q1d; ++qx)
-               {
-                  const double wx = gradX[qx][0];
-                  const double wDx = gradX[qx][1];
-                  gradXY[qy][qx][0] += wDx * wy;
-                  gradXY[qy][qx][1] += wx * wDy;
-                  gradXY[qy][qx][2] += wx * wy;
-               }
-            }
-         }
-         for (int qz = 0; qz < q1d; ++qz)
-         {
-            const double wz = B(qz, dz);
-            const double wDz = G(qz, dz);
-            for (int qy = 0; qy < q1d; ++qy)
-            {
-               for (int qx = 0; qx < q1d; ++qx)
-               {
-                  dUdxi[qz][qy][qx][c][0] += gradXY[qy][qx][0] * wz;
-                  dUdxi[qz][qy][qx][c][1] += gradXY[qy][qx][1] * wz;
-                  dUdxi[qz][qy][qx][c][2] += gradXY[qy][qx][2] * wDz;
-               }
-            }
-         }
-      }
-   }
-}
-
-template <int dim, int d1d, int q1d>
-static inline void MFEM_HOST_DEVICE
-CalcGrad_V2(const DeviceTensor<2, const double> &b, // q1d x d1d
-            const DeviceTensor<2, const double> &g, // q1d x d1d
-            const DeviceTensor<4, const double> &U, // d1d x d1d x d1d x dim
-            tensor<double, q1d, q1d, q1d, dim, dim> &dUdxi)
-{
-   MFEM_SHARED tensor<double,q1d,d1d> B;
-   MFEM_SHARED tensor<double,q1d,d1d> G;
-   const int tidz = MFEM_THREAD_ID(z);
-   if (tidz == 0)
-   {
-      MFEM_FOREACH_THREAD(d,y,d1d)
-      {
-         MFEM_FOREACH_THREAD(q,x,q1d)
-         {
-            B(q,d) = b(q,d);
-            G(q,d) = g(q,d);
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
-
-   MFEM_SHARED tensor<double,3,q1d,q1d,q1d> sm0;
-   MFEM_SHARED tensor<double,3,q1d,q1d,q1d> sm1;
-
-   for (int c = 0; c < dim; ++c)
-   {
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,d1d)
-      {
-         MFEM_FOREACH_THREAD(dy,y,d1d)
-         {
-            MFEM_FOREACH_THREAD(dx,x,d1d)
-            {
-               sm0(0,dx,dy,dz) = U(dx,dy,dz,c);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,d1d)
-      {
-         MFEM_FOREACH_THREAD(dy,y,d1d)
-         {
-            MFEM_FOREACH_THREAD(qx,x,q1d)
-            {
-               double u = 0.0;
-               double v = 0.0;
+               tensor<double, q1d, 2> gradX{};
                for (int dx = 0; dx < d1d; ++dx)
                {
-                  const double input = sm0(0,dx,dy,dz);
-                  u += input * B(qx,dx);
-                  v += input * G(qx,dx);
+                  const double s = U(dx, dy, dz, c);
+                  for (int qx = 0; qx < q1d; ++qx)
+                  {
+                     gradX[qx][0] += s * B(qx, dx);
+                     gradX[qx][1] += s * G(qx, dx);
+                  }
                }
-               sm0(1,dz,dy,qx) = u;
-               sm0(2,dz,dy,qx) = v;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,d1d)
-      {
-         MFEM_FOREACH_THREAD(qy,y,q1d)
-         {
-            MFEM_FOREACH_THREAD(qx,x,q1d)
-            {
-               double u = 0.0;
-               double v = 0.0;
-               double w = 0.0;
-               for (int dy = 0; dy < d1d; ++dy)
+               for (int qy = 0; qy < q1d; ++qy)
                {
-                  u += sm0(2,dz,dy,qx) * B(qy,dy);
-                  v += sm0(1,dz,dy,qx) * G(qy,dy);
-                  w += sm0(1,dz,dy,qx) * B(qy,dy);
+                  const double wy = B(qy, dy);
+                  const double wDy = G(qy, dy);
+                  for (int qx = 0; qx < q1d; ++qx)
+                  {
+                     const double wx = gradX[qx][0];
+                     const double wDx = gradX[qx][1];
+                     gradXY[qy][qx][0] += wDx * wy;
+                     gradXY[qy][qx][1] += wx * wDy;
+                     gradXY[qy][qx][2] += wx * wy;
+                  }
                }
-               sm1(0,dz,qy,qx) = u;
-               sm1(1,dz,qy,qx) = v;
-               sm1(2,dz,qy,qx) = w;
             }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,q1d)
-      {
-         MFEM_FOREACH_THREAD(qy,y,q1d)
-         {
-            MFEM_FOREACH_THREAD(qx,x,q1d)
+            for (int qz = 0; qz < q1d; ++qz)
             {
-               double u = 0.0;
-               double v = 0.0;
-               double w = 0.0;
-               for (int dz = 0; dz < d1d; ++dz)
+               const double wz = B(qz, dz);
+               const double wDz = G(qz, dz);
+               for (int qy = 0; qy < q1d; ++qy)
                {
-                  u += sm1(0,dz,qy,qx) * B(qz,dz);
-                  v += sm1(1,dz,qy,qx) * B(qz,dz);
-                  w += sm1(2,dz,qy,qx) * G(qz,dz);
+                  for (int qx = 0; qx < q1d; ++qx)
+                  {
+                     dUdxi[qz][qy][qx][c][0] += gradXY[qy][qx][0] * wz;
+                     dUdxi[qz][qy][qx][c][1] += gradXY[qy][qx][1] * wz;
+                     dUdxi[qz][qy][qx][c][2] += gradXY[qy][qx][2] * wDz;
+                  }
                }
-               dUdxi(qz,qy,qx,c,0) += u;
-               dUdxi(qz,qy,qx,c,1) += v;
-               dUdxi(qz,qy,qx,c,2) += w;
             }
          }
       }
-      MFEM_SYNC_THREAD;
    }
+   else // optimize version which makes use of shared memory on the GPU
+   {
+      MFEM_SHARED tensor<double,q1d,d1d> b;
+      MFEM_SHARED tensor<double,q1d,d1d> g;
+      const int tidz = MFEM_THREAD_ID(z);
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,d1d)
+         {
+            MFEM_FOREACH_THREAD(q,x,q1d)
+            {
+               b(q,d) = B(q,d);
+               g(q,d) = G(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      MFEM_SHARED tensor<double,3,q1d,q1d,q1d> sm0;
+      MFEM_SHARED tensor<double,3,q1d,q1d,q1d> sm1;
+
+      for (int c = 0; c < dim; ++c)
+      {
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,z,d1d)
+         {
+            MFEM_FOREACH_THREAD(dy,y,d1d)
+            {
+               MFEM_FOREACH_THREAD(dx,x,d1d)
+               {
+                  sm0(0,dx,dy,dz) = U(dx,dy,dz,c);
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,z,d1d)
+         {
+            MFEM_FOREACH_THREAD(dy,y,d1d)
+            {
+               MFEM_FOREACH_THREAD(qx,x,q1d)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  for (int dx = 0; dx < d1d; ++dx)
+                  {
+                     const double input = sm0(0,dx,dy,dz);
+                     u += input * b(qx,dx);
+                     v += input * g(qx,dx);
+                  }
+                  sm0(1,dz,dy,qx) = u;
+                  sm0(2,dz,dy,qx) = v;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,z,d1d)
+         {
+            MFEM_FOREACH_THREAD(qy,y,q1d)
+            {
+               MFEM_FOREACH_THREAD(qx,x,q1d)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  double w = 0.0;
+                  for (int dy = 0; dy < d1d; ++dy)
+                  {
+                     u += sm0(2,dz,dy,qx) * b(qy,dy);
+                     v += sm0(1,dz,dy,qx) * g(qy,dy);
+                     w += sm0(1,dz,dy,qx) * b(qy,dy);
+                  }
+                  sm1(0,dz,qy,qx) = u;
+                  sm1(1,dz,qy,qx) = v;
+                  sm1(2,dz,qy,qx) = w;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qz,z,q1d)
+         {
+            MFEM_FOREACH_THREAD(qy,y,q1d)
+            {
+               MFEM_FOREACH_THREAD(qx,x,q1d)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  double w = 0.0;
+                  for (int dz = 0; dz < d1d; ++dz)
+                  {
+                     u += sm1(0,dz,qy,qx) * b(qz,dz);
+                     v += sm1(1,dz,qy,qx) * b(qz,dz);
+                     w += sm1(2,dz,qy,qx) * g(qz,dz);
+                  }
+                  dUdxi(qz,qy,qx,c,0) += u;
+                  dUdxi(qz,qy,qx,c,1) += v;
+                  dUdxi(qz,qy,qx,c,2) += w;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      } // vdim
+   } // opt
 }
+
 /**
  * @brief Multi-component transpose gradient evaluation from DOFs to quadrature
  * points in reference coordinates with contraction of the D vector.
@@ -975,160 +969,157 @@ CalcGrad_V2(const DeviceTensor<2, const double> &b, // q1d x d1d
  * @tparam dim
  * @tparam d1d
  * @tparam q1d
+ * @tparam opt
  * @param B
  * @param G
  * @param U
  * @param F
  */
-template <int dim, int d1d, int q1d>
+template <int dim, int d1d, int q1d, bool opt>
 static inline void MFEM_HOST_DEVICE CalcGradTSum(
    const DeviceTensor<2, const double> &B,           // q1d x d1d
    const DeviceTensor<2, const double> &G,           // q1d x d1d
    const tensor<double, q1d, q1d, q1d, dim, dim> &U, // q1d x q1d x q1d x dim
    DeviceTensor<4, double> &F)                       // d1d x d1d x d1d x dim
 {
-   for (int c = 0; c < dim; ++c)
+   if (!opt)
    {
-      for (int qz = 0; qz < q1d; ++qz)
+      for (int c = 0; c < dim; ++c)
       {
-         tensor<double, d1d, d1d, dim> gradXY{};
-         for (int qy = 0; qy < q1d; ++qy)
+         for (int qz = 0; qz < q1d; ++qz)
          {
-            tensor<double, d1d, dim> gradX{};
-            for (int qx = 0; qx < q1d; ++qx)
+            tensor<double, d1d, d1d, dim> gradXY{};
+            for (int qy = 0; qy < q1d; ++qy)
             {
-               const double gX = U[qx][qy][qz][0][c];
-               const double gY = U[qx][qy][qz][1][c];
-               const double gZ = U[qx][qy][qz][2][c];
-               for (int dx = 0; dx < d1d; ++dx)
-               {
-                  const double wx = B(qx, dx);
-                  const double wDx = G(qx, dx);
-                  gradX[dx][0] += gX * wDx;
-                  gradX[dx][1] += gY * wx;
-                  gradX[dx][2] += gZ * wx;
-               }
-            }
-            for (int dy = 0; dy < d1d; ++dy)
-            {
-               const double wy = B(qy, dy);
-               const double wDy = G(qy, dy);
-               for (int dx = 0; dx < d1d; ++dx)
-               {
-                  gradXY[dy][dx][0] += gradX[dx][0] * wy;
-                  gradXY[dy][dx][1] += gradX[dx][1] * wDy;
-                  gradXY[dy][dx][2] += gradX[dx][2] * wy;
-               }
-            }
-         }
-         for (int dz = 0; dz < d1d; ++dz)
-         {
-            const double wz = B(qz, dz);
-            const double wDz = G(qz, dz);
-            for (int dy = 0; dy < d1d; ++dy)
-            {
-               for (int dx = 0; dx < d1d; ++dx)
-               {
-                  F(dx, dy, dz, c) +=
-                     ((gradXY[dy][dx][0] * wz) +
-                      (gradXY[dy][dx][1] * wz) +
-                      (gradXY[dy][dx][2] * wDz));
-               }
-            }
-         }
-      }
-   }
-}
-
-template <int dim, int d1d, int q1d>
-static inline void MFEM_HOST_DEVICE
-CalcGradTSum_V2(const DeviceTensor<2, const double> &b,           // q1d x d1d
-                const DeviceTensor<2, const double> &g,           // q1d x d1d
-                const tensor<double, q1d, q1d, q1d, dim, dim> &U, // q1d x q1d x q1d x dim
-                DeviceTensor<4, double> &F)                       // d1d x d1d x d1d x dim
-{
-   MFEM_SHARED tensor<double,q1d,d1d> Bt;
-   MFEM_SHARED tensor<double,q1d,d1d> Gt;
-   const int tidz = MFEM_THREAD_ID(z);
-   if (tidz == 0)
-   {
-      MFEM_FOREACH_THREAD(d,y,d1d)
-      {
-         MFEM_FOREACH_THREAD(q,x,q1d)
-         {
-            Bt(q,d) = b(q,d);
-            Gt(q,d) = g(q,d);
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
-   MFEM_SHARED tensor<double,3,q1d,q1d,q1d> sm0;
-   MFEM_SHARED tensor<double,3,q1d,q1d,q1d> sm1;
-
-   for (int c = 0; c < dim; ++c)
-   {
-      MFEM_FOREACH_THREAD(qz,z,q1d)
-      {
-         MFEM_FOREACH_THREAD(qy,y,q1d)
-         {
-            MFEM_FOREACH_THREAD(dx,x,d1d)
-            {
-               double u = 0.0, v = 0.0, w = 0.0;
+               tensor<double, d1d, dim> gradX{};
                for (int qx = 0; qx < q1d; ++qx)
                {
-                  u += U(qx,qy,qz,0,c) * Gt(qx,dx);
-                  v += U(qx,qy,qz,1,c) * Bt(qx,dx);
-                  w += U(qx,qy,qz,2,c) * Bt(qx,dx);
+                  const double gX = U[qx][qy][qz][0][c];
+                  const double gY = U[qx][qy][qz][1][c];
+                  const double gZ = U[qx][qy][qz][2][c];
+                  for (int dx = 0; dx < d1d; ++dx)
+                  {
+                     const double wx = B(qx, dx);
+                     const double wDx = G(qx, dx);
+                     gradX[dx][0] += gX * wDx;
+                     gradX[dx][1] += gY * wx;
+                     gradX[dx][2] += gZ * wx;
+                  }
                }
-               sm0(0,qz,qy,dx) = u;
-               sm0(1,qz,qy,dx) = v;
-               sm0(2,qz,qy,dx) = w;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,q1d)
-      {
-         MFEM_FOREACH_THREAD(dy,y,d1d)
-         {
-            MFEM_FOREACH_THREAD(dx,x,d1d)
-            {
-               double u = 0.0, v = 0.0, w = 0.0;
-               for (int qy = 0; qy < q1d; ++qy)
+               for (int dy = 0; dy < d1d; ++dy)
                {
-                  u += sm0(0,qz,qy,dx) * Bt(qy,dy);
-                  v += sm0(1,qz,qy,dx) * Gt(qy,dy);
-                  w += sm0(2,qz,qy,dx) * Bt(qy,dy);
+                  const double wy = B(qy, dy);
+                  const double wDy = G(qy, dy);
+                  for (int dx = 0; dx < d1d; ++dx)
+                  {
+                     gradXY[dy][dx][0] += gradX[dx][0] * wy;
+                     gradXY[dy][dx][1] += gradX[dx][1] * wDy;
+                     gradXY[dy][dx][2] += gradX[dx][2] * wy;
+                  }
                }
-               sm1(0,qz,dy,dx) = u;
-               sm1(1,qz,dy,dx) = v;
-               sm1(2,qz,dy,dx) = w;
             }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,d1d)
-      {
-         MFEM_FOREACH_THREAD(dy,y,d1d)
-         {
-            MFEM_FOREACH_THREAD(dx,x,d1d)
+            for (int dz = 0; dz < d1d; ++dz)
             {
-               double u = 0.0, v = 0.0, w = 0.0;
-               for (int qz = 0; qz < q1d; ++qz)
+               const double wz = B(qz, dz);
+               const double wDz = G(qz, dz);
+               for (int dy = 0; dy < d1d; ++dy)
                {
-                  u += sm1(0,qz,dy,dx) * Bt(qz,dz);
-                  v += sm1(1,qz,dy,dx) * Bt(qz,dz);
-                  w += sm1(2,qz,dy,dx) * Gt(qz,dz);
+                  for (int dx = 0; dx < d1d; ++dx)
+                  {
+                     F(dx, dy, dz, c) +=
+                        ((gradXY[dy][dx][0] * wz) +
+                         (gradXY[dy][dx][1] * wz) +
+                         (gradXY[dy][dx][2] * wDz));
+                  }
                }
-               const double sum = u + v + w;
-               F(dx, dy, dz, c) += sum;
+            }
+         }
+      }
+   }
+   else
+   {
+      MFEM_SHARED tensor<double,q1d,d1d> Bt;
+      MFEM_SHARED tensor<double,q1d,d1d> Gt;
+      const int tidz = MFEM_THREAD_ID(z);
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,d1d)
+         {
+            MFEM_FOREACH_THREAD(q,x,q1d)
+            {
+               Bt(q,d) = B(q,d);
+               Gt(q,d) = G(q,d);
             }
          }
       }
       MFEM_SYNC_THREAD;
+      MFEM_SHARED tensor<double,3,q1d,q1d,q1d> sm0;
+      MFEM_SHARED tensor<double,3,q1d,q1d,q1d> sm1;
+
+      for (int c = 0; c < dim; ++c)
+      {
+         MFEM_FOREACH_THREAD(qz,z,q1d)
+         {
+            MFEM_FOREACH_THREAD(qy,y,q1d)
+            {
+               MFEM_FOREACH_THREAD(dx,x,d1d)
+               {
+                  double u = 0.0, v = 0.0, w = 0.0;
+                  for (int qx = 0; qx < q1d; ++qx)
+                  {
+                     u += U(qx,qy,qz,0,c) * Gt(qx,dx);
+                     v += U(qx,qy,qz,1,c) * Bt(qx,dx);
+                     w += U(qx,qy,qz,2,c) * Bt(qx,dx);
+                  }
+                  sm0(0,qz,qy,dx) = u;
+                  sm0(1,qz,qy,dx) = v;
+                  sm0(2,qz,qy,dx) = w;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qz,z,q1d)
+         {
+            MFEM_FOREACH_THREAD(dy,y,d1d)
+            {
+               MFEM_FOREACH_THREAD(dx,x,d1d)
+               {
+                  double u = 0.0, v = 0.0, w = 0.0;
+                  for (int qy = 0; qy < q1d; ++qy)
+                  {
+                     u += sm0(0,qz,qy,dx) * Bt(qy,dy);
+                     v += sm0(1,qz,qy,dx) * Gt(qy,dy);
+                     w += sm0(2,qz,qy,dx) * Bt(qy,dy);
+                  }
+                  sm1(0,qz,dy,dx) = u;
+                  sm1(1,qz,dy,dx) = v;
+                  sm1(2,qz,dy,dx) = w;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,z,d1d)
+         {
+            MFEM_FOREACH_THREAD(dy,y,d1d)
+            {
+               MFEM_FOREACH_THREAD(dx,x,d1d)
+               {
+                  double u = 0.0, v = 0.0, w = 0.0;
+                  for (int qz = 0; qz < q1d; ++qz)
+                  {
+                     u += sm1(0,qz,dy,dx) * Bt(qz,dz);
+                     v += sm1(1,qz,dy,dx) * Bt(qz,dz);
+                     w += sm1(2,qz,dy,dx) * Gt(qz,dz);
+                  }
+                  const double sum = u + v + w;
+                  F(dx, dy, dz, c) += sum;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
    }
 }
-
 
 /**
  * @brief Compute the gradient of all shape functions.
@@ -1147,46 +1138,43 @@ CalcGradTSum_V2(const DeviceTensor<2, const double> &b,           // q1d x d1d
  */
 template <int dim, int d1d, int q1d>
 static inline MFEM_HOST_DEVICE tensor<double, d1d, d1d, d1d, dim>
-GradAllPhis(int qx, int qy, int qz, const DeviceTensor<2, const double> &B,
-            const DeviceTensor<2, const double> &G,
+GradAllPhis(int qx, int qy, int qz,
+            const tensor<double,q1d,d1d> &b,
+            const tensor<double,q1d,d1d> &g,
             const tensor<double, dim, dim> &invJ)
 {
-   MFEM_SYNC_THREAD;
-   MFEM_SHARED tensor<double, d1d, d1d, d1d, dim> dphi_dx;
+   tensor<double, d1d, d1d, d1d, dim> dphi_dx;
    // G (x) B (x) B
    // B (x) G (x) B
    // B (x) B (x) G
-   MFEM_FOREACH_THREAD(dx, x, d1d)
+   for (int dx = 0; dx < d1d; dx++)
    {
-      MFEM_FOREACH_THREAD(dy, y, d1d)
+      for (int dy = 0; dy < d1d; dy++)
       {
-         MFEM_FOREACH_THREAD(dz, z, d1d)
+         for (int dz = 0; dz < d1d; dz++)
          {
             dphi_dx[dx][dy][dz] =
                transpose(invJ) *
-               tensor<double, dim> {G(qx, dx) * B(qy, dy) * B(qz, dz),
-                                    B(qx, dx) * G(qy, dy) * B(qz, dz),
-                                    B(qx, dx) * B(qy, dy) * G(qz, dz)
+               tensor<double, dim> { g(qx, dx) * b(qy, dy) * b(qz, dz),
+                                     b(qx, dx) * g(qy, dy) * b(qz, dz),
+                                     b(qx, dx) * b(qy, dy) * g(qz, dz)
                                    };
          }
       }
    }
-   MFEM_SYNC_THREAD;
    return dphi_dx;
 }
 } // namespace KernelHelpers
 
 namespace ElasticityKernels
 {
-template <int d1d, int q1d, typename material_type>
+template <int d1d, int q1d, typename material_type, bool opt>
 static inline void
 Apply3D(const int ne, const Array<double> &B_, const Array<double> &G_,
         const Array<double> &W_, const Vector &Jacobian_, const Vector &detJ_,
         const Vector &X_, Vector &Y_, const material_type &material)
 {
    MFEM_NVTX;
-   static const bool env_V2 = getenv("V2") != nullptr;
-   const bool V2 = env_V2;
    constexpr int dim = dimension;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
@@ -1217,9 +1205,7 @@ Apply3D(const int ne, const Array<double> &B_, const Array<double> &G_,
       tensor<double, q1d, q1d, q1d, dim, dim> dudxi{};
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
 
-      (!V2 ?
-       KernelHelpers::CalcGrad<dim,d1d,q1d>(B, G, U_el, dudxi):
-       KernelHelpers::CalcGrad_V2<dim,d1d,q1d> (B, G, U_el, dudxi));
+      KernelHelpers::CalcGrad<dim,d1d,q1d,opt>(B, G, U_el, dudxi);
 
       MFEM_FOREACH_THREAD(qx, x, q1d)
       {
@@ -1241,14 +1227,11 @@ Apply3D(const int ne, const Array<double> &B_, const Array<double> &G_,
       }
       MFEM_SYNC_THREAD;
       auto F = Reshape(&force(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
-
-      (!V2 ?
-       KernelHelpers::CalcGradTSum<dim, d1d, q1d>(B, G, invJ_sigma_detJw, F):
-       KernelHelpers::CalcGradTSum_V2<dim, d1d, q1d>(B, G, invJ_sigma_detJw, F));
+      KernelHelpers::CalcGradTSum<dim, d1d, q1d, opt>(B, G, invJ_sigma_detJw, F);
    }); // for each element
 }
 
-template <int d1d, int q1d, typename material_type>
+template <int d1d, int q1d, typename material_type, bool opt>
 static inline void
 ApplyGradient3D(const int ne, const Array<double> &B_, const Array<double> &G_,
                 const Array<double> &W_, const Vector &Jacobian_,
@@ -1256,9 +1239,6 @@ ApplyGradient3D(const int ne, const Array<double> &B_, const Array<double> &G_,
                 const Vector &U_, const material_type &material)
 {
    MFEM_NVTX;
-   static const bool env_V2 = getenv("V2") != nullptr;
-   const bool V2 = env_V2;
-
    constexpr int dim = dimension;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
@@ -1291,17 +1271,12 @@ ApplyGradient3D(const int ne, const Array<double> &B_, const Array<double> &G_,
       // du/dxi
       tensor<double, q1d, q1d, q1d, dim, dim> dudxi{};
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
-
-      (!V2 ? KernelHelpers::CalcGrad<dim, d1d, q1d>(B, G, U_el, dudxi):
-       KernelHelpers::CalcGrad_V2<dim, d1d, q1d>(B, G, U_el, dudxi));
+      KernelHelpers::CalcGrad<dim,d1d,q1d,opt>(B, G, U_el, dudxi);
 
       // ddu/dxi
       tensor<double, q1d, q1d, q1d, dim, dim> ddudxi{};
       const auto dU_el = Reshape(&dU(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
-
-      (!V2 ?
-       KernelHelpers::CalcGrad<dim, d1d, q1d>(B, G, dU_el, ddudxi):
-       KernelHelpers::CalcGrad_V2<dim, d1d, q1d>(B, G, dU_el, ddudxi));
+      KernelHelpers::CalcGrad<dim,d1d,q1d,opt>(B, G, dU_el, ddudxi);
 
       MFEM_FOREACH_THREAD(qx, x, q1d)
       {
@@ -1324,14 +1299,11 @@ ApplyGradient3D(const int ne, const Array<double> &B_, const Array<double> &G_,
       }
       MFEM_SYNC_THREAD;
       auto F = Reshape(&force(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
-
-      (!V2 ?
-       KernelHelpers::CalcGradTSum<dim, d1d, q1d>(B, G, invJ_dsigma_detJw, F):
-       KernelHelpers::CalcGradTSum_V2<dim, d1d, q1d>(B, G, invJ_dsigma_detJw, F));
+      KernelHelpers::CalcGradTSum<dim,d1d,q1d,opt>(B, G, invJ_dsigma_detJw, F);
    }); // for each element
 }
 
-template <int d1d, int q1d, typename material_type> static inline
+template <int d1d, int q1d, typename material_type, bool opt> static inline
 void AssembleGradientDiagonal3D(const int ne,
                                 const Array<double> &B_,
                                 const Array<double> &G_,
@@ -1366,31 +1338,58 @@ void AssembleGradientDiagonal3D(const int ne,
    auto Ke_diag_m =
       Reshape(Ke_diag_memory.ReadWrite(), d1d, d1d, d1d, dim, ne, dim);
 
-   MFEM_FORALL(e, ne,
+   MFEM_FORALL_3D(e, ne, q1d, q1d, q1d,
    {
-      tensor<double, d1d, d1d, d1d, dim, dim> Ke_diag{};
+      MFEM_SHARED tensor<double, q1d, d1d> b, g;
+      MFEM_SHARED tensor<double, q1d, q1d, q1d, dim, dim> dudxi;
+      MFEM_SHARED tensor<double, d1d, d1d, d1d, dim, dim> Ke_diag;
 
-      // du/dxi
-      tensor<double, q1d, q1d, q1d, dim, dim> dudxi{};
-      const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
-      KernelHelpers::CalcGrad<dim, d1d, q1d>(B, G, U_el, dudxi);
-
-      for (int qx = 0; qx < q1d; qx++)
+      // dudxi, Ke_diag initialization
+      MFEM_FOREACH_THREAD(x,x,q1d)
       {
-         for (int qy = 0; qy < q1d; qy++)
+         MFEM_FOREACH_THREAD(y,y,q1d)
          {
-            for (int qz = 0; qz < q1d; qz++)
+            if (MFEM_THREAD_ID(z) == 0 && y<d1d)
+            {
+               b(x,y) = B(x,y);
+               g(x,y) = G(x,y);
+            }
+            MFEM_FOREACH_THREAD(z,z,q1d)
+            {
+               const bool ddd = (x < d1d) && (y < d1d) && (z < d1d);
+               for (int l = 0; l < dim; l++)
+               {
+                  for (int m = 0; m < dim; m++)
+                  {
+                     dudxi(x,y,z,l,m) = 0.0;
+                     if (ddd) { Ke_diag(x,y,z,l,m) = 0.0; }
+                  }
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
+      KernelHelpers::CalcGrad<dim, d1d, q1d, opt>(B, G, U_el, dudxi);
+      MFEM_SYNC_THREAD; // to check
+
+      MFEM_FOREACH_THREAD(qx,x,q1d)
+      {
+         MFEM_FOREACH_THREAD(qy,y,q1d)
+         {
+            MFEM_FOREACH_THREAD(qz,z,q1d)
             {
                auto invJqp = inv(make_tensor<dim, dim>(
                [&](int i, int j) { return J(qx, qy, qz, i, j, e); }));
 
-               auto dudx = dudxi(qz, qy, qx) * invJqp;
+               auto dudx = dudxi(qz,qy,qx) * invJqp;
 
                auto dsigma_ddudx = material.gradient(dudx);
 
-               double JxW = detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
-               auto dphidx =
-                  KernelHelpers::GradAllPhis<dim, d1d, q1d>(qx, qy, qz, B, G, invJqp);
+               const double JxW = detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
+               const auto dphidx =
+                  KernelHelpers::GradAllPhis<dim,d1d,q1d>(qx,qy,qz,b,g,invJqp);
 
                for (int dx = 0; dx < d1d; dx++)
                {
@@ -1400,31 +1399,40 @@ void AssembleGradientDiagonal3D(const int ne,
                      {
                         // phi_i * f(...) * phi_i
                         // dphidx_i dsigma_ddudx_ijkl dphidx_l
-                        Ke_diag[dx][dy][dz] +=
-                           (dphidx[dx][dy][dz] * dsigma_ddudx * dphidx[dx][dy][dz]) *
-                           JxW;
+                        const auto phi_i = dphidx[dx][dy][dz];
+                        const auto val = JxW * ( phi_i * dsigma_ddudx * phi_i);
+                        for (int l = 0; l < dim; l++)
+                        {
+                           for (int m = 0; m < dim; m++)
+                           {
+                              AtomicAdd(Ke_diag[dx][dy][dz][l][m], val[l][m]);
+                           }
+                        }
                      }
                   }
                }
             }
          }
       }
-      for (int i = 0; i < d1d; i++)
+      MFEM_SYNC_THREAD;
+
+      MFEM_FOREACH_THREAD(i,x,d1d)
       {
-         for (int j = 0; j < d1d; j++)
+         MFEM_FOREACH_THREAD(j,y,d1d)
          {
-            for (int k = 0; k < d1d; k++)
+            MFEM_FOREACH_THREAD(k,z,d1d)
             {
                for (int l = 0; l < dim; l++)
                {
                   for (int m = 0; m < dim; m++)
                   {
-                     Ke_diag_m(i, j, k, l, e, m) = Ke_diag[i][j][k][l][m];
+                     Ke_diag_m(i,j,k,l,e,m) = Ke_diag(i,j,k,l,m);
                   }
                }
             }
          }
       }
+      MFEM_SYNC_THREAD; // to check
    }); // for each element
 }
 } // namespace ElasticityKernels
@@ -1624,7 +1632,7 @@ void ElasticityOperator::AssembleGradientDiagonal(Vector &Ke_diag,
    }
 }
 
-template <typename material_type>
+template <bool opt, typename material_type>
 void ElasticityOperator::SetMaterial(const material_type &material)
 {
    MFEM_NVTX;
@@ -1643,11 +1651,11 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       switch (id)
       {
          case 0x22:
-            ElasticityKernels::Apply3D<2, 2, material_type>(
+            ElasticityKernels::Apply3D<2,2,material_type,opt>(
                ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          case 0x33:
-            ElasticityKernels::Apply3D<3, 3, material_type>(
+            ElasticityKernels::Apply3D<3,3,material_type,opt>(
                ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          default:
@@ -1665,11 +1673,11 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       switch (id)
       {
          case 0x22:
-            ElasticityKernels::ApplyGradient3D<2, 2, material_type>(
+            ElasticityKernels::ApplyGradient3D<2,2,material_type,opt>(
                ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
          case 0x33:
-            ElasticityKernels::ApplyGradient3D<3, 3, material_type>(
+            ElasticityKernels::ApplyGradient3D<3,3,material_type,opt>(
                ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
          default:
@@ -1687,11 +1695,11 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       switch (id)
       {
          case 0x22:
-            ElasticityKernels::AssembleGradientDiagonal3D<2, 2, material_type>(
+            ElasticityKernels::AssembleGradientDiagonal3D<2,2,material_type,opt>(
                ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          case 0x33:
-            ElasticityKernels::AssembleGradientDiagonal3D<3, 3, material_type>(
+            ElasticityKernels::AssembleGradientDiagonal3D<3,3,material_type,opt>(
                ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          default:

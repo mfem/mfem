@@ -52,6 +52,7 @@ examples/ex1[0-9]p
 examples/ex2[0-9]
 examples/ex2[0-9]p
 examples/ex3[0-9]p
+examples/ex4[0-9]
 examples/ex4[0-9]p
 
 examples/refined.mesh
