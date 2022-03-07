@@ -101,6 +101,7 @@ ostream &operator<<(ostream &v, void (*f)(VisMan&));
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
+   HYPRE_Session hypre;
 
    // 1. Define and parse command-line options.
    const char *mesh_file = "../data/beam-tri.mesh";

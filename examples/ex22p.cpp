@@ -75,11 +75,12 @@ bool check_for_inline_mesh(const char * mesh_file);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
+   // 1. Initialize MPI and HYPRE.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   HYPRE_Session hypre;
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";

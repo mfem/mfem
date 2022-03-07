@@ -107,6 +107,10 @@ Version 4.3.1 (development)
 - Added ParaView visualization of `QuadratureFunction` fields, through both
   `QuadratureFunction::SaveVTU` and `ParaViewDataCollection::RegisterQField`.
 
+- Added a simple convenience class, HYPRE_Session, to automatically set hypre's
+  global parameters, particularly GPU-relevant options. Updated example codes
+  and miniapps to use it.
+
 
 Version 4.3, released on July 29, 2021
 ======================================

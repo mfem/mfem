@@ -81,6 +81,7 @@ double pres_kovasznay(const Vector &x, double t)
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
+   HYPRE_Session hypre;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.ser_ref_levels,

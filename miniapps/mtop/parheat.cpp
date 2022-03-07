@@ -49,11 +49,12 @@
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
+   // 1. Initialize MPI and HYPRE.
    int nprocs, myrank;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+   mfem::HYPRE_Session hypre;
 
    // Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";

@@ -79,9 +79,10 @@ double IntegrateBC(const ParGridFunction &sol, const Array<int> &bdr_marker,
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
+   // 1. Initialize MPI and HYPRE.
    MPI_Session mpi;
    if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   HYPRE_Session hypre;
 
    // 2. Parse command-line options.
    int ser_ref_levels = 2;

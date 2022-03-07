@@ -65,6 +65,7 @@ void vel_shear_ic(const Vector &x, double t, Vector &u)
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
+   HYPRE_Session hypre;
 
    int serial_refinements = 2;
 

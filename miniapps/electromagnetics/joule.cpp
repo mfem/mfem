@@ -126,9 +126,10 @@ int electromagnetics::STATIC_COND        = 0;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
+   // 1. Initialize MPI and HYPRE.
    MPI_Session mpi(argc, argv);
    int myid = mpi.WorldRank();
+   HYPRE_Session hypre;
 
    // print the cool banner
    if (mpi.Root()) { display_banner(cout); }

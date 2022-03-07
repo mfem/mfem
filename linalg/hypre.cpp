@@ -31,6 +31,28 @@ using namespace std;
 namespace mfem
 {
 
+void HYPRE_Session::SetGlobalOptions()
+{
+   // Use hypre's SpGEMM instead of cuSPARSE.
+   HYPRE_SetSpGemmUseCusparse(0);
+
+#if 0
+   // Additional global options, see
+   // https://hypre.readthedocs.io/en/latest/solvers-boomeramg.html#gpu-supported-options
+   // for more details
+
+   // AMG in GPU memory (default)
+   HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
+   // Setup AMG on GPUs
+   HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
+   // Use GPU RNG
+   HYPRE_SetUseGpuRand(1);
+   // Umpire memory pool
+   HYPRE_SetUmpireUMPoolName("HYPRE_UM_POOL_TEST");
+   HYPRE_SetUmpireDevicePoolName("HYPRE_DEVICE_POOL_TEST");
+#endif
+}
+
 template<typename TargetT, typename SourceT>
 static TargetT *DuplicateAs(const SourceT *array, int size,
                             bool cplusplus = true)

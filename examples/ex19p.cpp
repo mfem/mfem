@@ -203,9 +203,10 @@ int main(int argc, char *argv[])
    return 242;
 #endif
 
-   // 1. Initialize MPI
+   // 1. Initialize MPI and HYPRE.
    MPI_Session mpi;
    const int myid = mpi.WorldRank();
+   HYPRE_Session hypre;
 
    // 2. Parse command-line options
    const char *mesh_file = "../data/beam-tet.mesh";
