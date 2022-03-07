@@ -110,13 +110,8 @@ TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
 TEST_CASE("LOR Batched ND", "[LOR][BatchedLOR][CUDA]")
 {
    auto mesh_fname = GENERATE(
-                        "../../data/star-q3.mesh"
-                        // "../../data/ref-square.mesh"
-                        // "../../data/inline-quad.mesh"
-                        // "/Users/pazner1/Documents/Professional/10.Research/18.Meshes/unstrsq.msh"
-                        // "../../data/ref-cube.mesh"
-                        // "../../data/star-q3.mesh",
-                        // "../../data/fichera-q3.mesh"
+                        "../../data/star-q3.mesh",
+                        "../../data/fichera-q3.mesh"
                      );
    const int order = 5;
 
