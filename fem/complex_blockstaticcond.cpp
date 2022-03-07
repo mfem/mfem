@@ -601,59 +601,77 @@ void ComplexBlockStaticCondensation::ParallelAssemble(BlockMatrix *m_r,
                                                       BlockMatrix *m_i)
 {
 
-   MFEM_ABORT("TODO: SC: parallel Assemble()");
-
    if (!pP) { BuildParallelProlongation(); }
 
    pS_r = new BlockOperator(rtdof_offsets);
-   pS_r_e = new BlockOperator(rtdof_offsets);
+   pS_e_r = new BlockOperator(rtdof_offsets);
    pS_i = new BlockOperator(rtdof_offsets);
-   pS_i_e = new BlockOperator(rtdof_offsets);
+   pS_e_i = new BlockOperator(rtdof_offsets);
    pS_r->owns_blocks = 1;
    pS_i->owns_blocks = 1;
-   pS_r_e->owns_blocks = 1;
-   pS_i_e->owns_blocks = 1;
-   // HypreParMatrix * A = nullptr;
-   // HypreParMatrix * PtAP = nullptr;
-   // int skip_i=0;
-   // ParFiniteElementSpace * pfes_i = nullptr;
-   // ParFiniteElementSpace * pfes_j = nullptr;
-   // for (int i = 0; i<nblocks; i++)
-   // {
-   //    if (!tr_fes[i]) { continue; }
-   //    pfes_i = dynamic_cast<ParFiniteElementSpace*>(fes[i]);
-   //    HypreParMatrix * Pi = (HypreParMatrix*)(&pP->GetBlock(skip_i,skip_i));
-   //    int skip_j=0;
-   //    for (int j = 0; j<nblocks; j++)
-   //    {
-   //       if (!tr_fes[j]) { continue; }
-   //       if (m->IsZeroBlock(skip_i,skip_j)) { continue; }
-   //       if (skip_i == skip_j)
-   //       {
-   //          // Make block diagonal square hypre matrix
-   //          A = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
-   //                                 pfes_i->GetDofOffsets(),&m->GetBlock(skip_i,skip_i));
-   //          PtAP = RAP(A,Pi);
-   //          delete A;
-   //          pS_e->SetBlock(skip_i,skip_i,PtAP->EliminateRowsCols(*ess_tdofs[skip_i]));
-   //       }
-   //       else
-   //       {
-   //          pfes_j = dynamic_cast<ParFiniteElementSpace*>(fes[j]);
-   //          HypreParMatrix * Pj = (HypreParMatrix*)(&pP->GetBlock(skip_j,skip_j));
-   //          A = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
-   //                                 pfes_j->GlobalVSize(), pfes_i->GetDofOffsets(),
-   //                                 pfes_j->GetDofOffsets(), &m->GetBlock(skip_i,skip_j));
-   //          PtAP = RAP(Pi,A,Pj);
-   //          delete A;
-   //          pS_e->SetBlock(skip_i,skip_j,PtAP->EliminateCols(*ess_tdofs[skip_j]));
-   //          PtAP->EliminateRows(*ess_tdofs[skip_i]);
-   //       }
-   //       pS->SetBlock(skip_i,skip_j,PtAP);
-   //       skip_j++;
-   //    }
-   //    skip_i++;
-   // }
+   pS_e_r->owns_blocks = 1;
+   pS_e_i->owns_blocks = 1;
+   HypreParMatrix * A_r = nullptr;
+   HypreParMatrix * A_i = nullptr;
+   HypreParMatrix * PtAP_r = nullptr;
+   HypreParMatrix * PtAP_i = nullptr;
+   int skip_i=0;
+   ParFiniteElementSpace * pfes_i = nullptr;
+   ParFiniteElementSpace * pfes_j = nullptr;
+   for (int i = 0; i<nblocks; i++)
+   {
+      if (!tr_fes[i]) { continue; }
+      pfes_i = dynamic_cast<ParFiniteElementSpace*>(fes[i]);
+      HypreParMatrix * Pi = (HypreParMatrix*)(&pP->GetBlock(skip_i,skip_i));
+      int skip_j=0;
+      for (int j = 0; j<nblocks; j++)
+      {
+         if (!tr_fes[j]) { continue; }
+         if (m_r->IsZeroBlock(skip_i,skip_j)) { continue; }
+         if (skip_i == skip_j)
+         {
+            // Make block diagonal square hypre matrix
+            A_r = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
+                                     pfes_i->GetDofOffsets(),&m_r->GetBlock(skip_i,skip_i));
+            PtAP_r = RAP(A_r,Pi);
+            delete A_r;
+
+            pS_e_r->SetBlock(skip_i,skip_i,PtAP_r->EliminateRowsCols(*ess_tdofs[skip_i]));
+
+            A_i = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
+                                     pfes_i->GetDofOffsets(),&m_i->GetBlock(skip_i,skip_i));
+            PtAP_i = RAP(A_i,Pi);
+            delete A_i;
+            pS_e_i->SetBlock(skip_i,skip_j,PtAP_i->EliminateCols(*ess_tdofs[skip_j]));
+            PtAP_i->EliminateRows(*ess_tdofs[skip_i]);
+         }
+         else
+         {
+            pfes_j = dynamic_cast<ParFiniteElementSpace*>(fes[j]);
+            HypreParMatrix * Pj = (HypreParMatrix*)(&pP->GetBlock(skip_j,skip_j));
+            A_r = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
+                                     pfes_j->GlobalVSize(), pfes_i->GetDofOffsets(),
+                                     pfes_j->GetDofOffsets(), &m_r->GetBlock(skip_i,skip_j));
+            PtAP_r = RAP(Pi,A_r,Pj);
+            delete A_r;
+            pS_e_r->SetBlock(skip_i,skip_j,PtAP_r->EliminateCols(*ess_tdofs[skip_j]));
+            PtAP_r->EliminateRows(*ess_tdofs[skip_i]);
+
+            A_i = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
+                                     pfes_j->GlobalVSize(), pfes_i->GetDofOffsets(),
+                                     pfes_j->GetDofOffsets(), &m_i->GetBlock(skip_i,skip_j));
+            PtAP_i = RAP(Pi,A_i,Pj);
+            delete A_i;
+            pS_e_i->SetBlock(skip_i,skip_j,PtAP_i->EliminateCols(*ess_tdofs[skip_j]));
+            PtAP_i->EliminateRows(*ess_tdofs[skip_i]);
+
+         }
+         pS_r->SetBlock(skip_i,skip_j,PtAP_r);
+         pS_i->SetBlock(skip_i,skip_j,PtAP_i);
+         skip_j++;
+      }
+      skip_i++;
+   }
 }
 
 #endif
@@ -669,14 +687,14 @@ void ComplexBlockStaticCondensation::ConformingAssemble(int skip_zeros)
    BlockMatrix * PtA_i = mfem::Mult(*Pt, *S_i);
    delete S_r;
    delete S_i;
-   if (S_r_e)
+   if (S_e_r)
    {
-      BlockMatrix *PtAe_r = mfem::Mult(*Pt, *S_r_e);
-      BlockMatrix *PtAe_i = mfem::Mult(*Pt, *S_i_e);
-      delete S_r_e;
-      delete S_i_e;
-      S_r_e = PtAe_r;
-      S_i_e = PtAe_i;
+      BlockMatrix *PtAe_r = mfem::Mult(*Pt, *S_e_r);
+      BlockMatrix *PtAe_i = mfem::Mult(*Pt, *S_e_i);
+      delete S_e_r;
+      delete S_e_i;
+      S_e_r = PtAe_r;
+      S_e_i = PtAe_i;
    }
    delete Pt;
    S_r = mfem::Mult(*PtA_r, *P);
@@ -684,12 +702,12 @@ void ComplexBlockStaticCondensation::ConformingAssemble(int skip_zeros)
    delete PtA_r;
    delete PtA_i;
 
-   if (S_r_e)
+   if (S_e_r)
    {
-      BlockMatrix *PtAeP_r = mfem::Mult(*S_r_e, *P);
-      BlockMatrix *PtAeP_i = mfem::Mult(*S_i_e, *P);
-      S_r_e = PtAeP_r;
-      S_i_e = PtAeP_i;
+      BlockMatrix *PtAeP_r = mfem::Mult(*S_e_r, *P);
+      BlockMatrix *PtAeP_i = mfem::Mult(*S_e_i, *P);
+      S_e_r = PtAeP_r;
+      S_e_i = PtAeP_i;
    }
    height = 2*S_r->Height();
    width = 2*S_r->Width();
@@ -702,10 +720,10 @@ void ComplexBlockStaticCondensation::Finalize(int skip_zeros)
       S_r->Finalize(skip_zeros);
       S_i->Finalize(skip_zeros);
    }
-   if (S_r_e)
+   if (S_e_r)
    {
-      S_r_e->Finalize(skip_zeros);
-      S_i_e->Finalize(skip_zeros);
+      S_e_r->Finalize(skip_zeros);
+      S_e_i->Finalize(skip_zeros);
    }
 }
 
@@ -714,22 +732,21 @@ void ComplexBlockStaticCondensation::FormSystemMatrix(Operator::DiagonalPolicy
 {
    if (parallel)
    {
-      MFEM_ABORT("sc: parallel form system matrix: TODO");
-      // FillEssTdofLists(ess_rtdof_list);
-      // if (S)
-      // {
-      //    const int remove_zeros = 0;
-      //    Finalize(remove_zeros);
-      //    ParallelAssemble(S);
-      //    delete S;
-      //    S=nullptr;
-      //    delete S_e;
-      //    S_e = nullptr;
-      // }
+      FillEssTdofLists(ess_rtdof_list);
+      if (S_r)
+      {
+         const int remove_zeros = 0;
+         Finalize(remove_zeros);
+         ParallelAssemble(S_r, S_i);
+         delete S_r;  S_r=nullptr;
+         delete S_i;  S_i=nullptr;
+         delete S_e_r; S_e_r = nullptr;
+         delete S_e_i; S_e_i = nullptr;
+      }
    }
    else
    {
-      if (!S_r_e)
+      if (!S_e_r)
       {
          bool conforming = true;
          for (int i = 0; i<nblocks; i++)
@@ -841,29 +858,29 @@ void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(const Array<int>
 
    MFEM_VERIFY(!parallel, "EliminateReducedTrueDofs::Wrong code path");
 
-   if (S_r_e == NULL)
+   if (S_e_r == NULL)
    {
       Array<int> offsets;
 
       offsets.MakeRef( (P) ? rtdof_offsets : rdof_offsets);
 
-      S_r_e = new BlockMatrix(offsets);
-      S_i_e = new BlockMatrix(offsets);
-      S_r_e->owns_blocks = 1;
-      S_i_e->owns_blocks = 1;
-      for (int i = 0; i<S_r_e->NumRowBlocks(); i++)
+      S_e_r = new BlockMatrix(offsets);
+      S_e_i = new BlockMatrix(offsets);
+      S_e_r->owns_blocks = 1;
+      S_e_i->owns_blocks = 1;
+      for (int i = 0; i<S_e_r->NumRowBlocks(); i++)
       {
          int h = offsets[i+1] - offsets[i];
-         for (int j = 0; j<S_r_e->NumColBlocks(); j++)
+         for (int j = 0; j<S_e_r->NumColBlocks(); j++)
          {
             int w = offsets[j+1] - offsets[j];
-            S_r_e->SetBlock(i,j,new SparseMatrix(h, w));
-            S_i_e->SetBlock(i,j,new SparseMatrix(h, w));
+            S_e_r->SetBlock(i,j,new SparseMatrix(h, w));
+            S_e_i->SetBlock(i,j,new SparseMatrix(h, w));
          }
       }
    }
-   S_r->EliminateRowCols(ess_rtdof_list,S_r_e,dpolicy);
-   S_i->EliminateRowCols(ess_rtdof_list,S_i_e,Operator::DiagonalPolicy::DIAG_ZERO);
+   S_r->EliminateRowCols(ess_rtdof_list,S_e_r,dpolicy);
+   S_i->EliminateRowCols(ess_rtdof_list,S_e_i,Operator::DiagonalPolicy::DIAG_ZERO);
 }
 
 void ComplexBlockStaticCondensation::EliminateReducedTrueDofs(
@@ -901,10 +918,11 @@ void ComplexBlockStaticCondensation::ReduceSolution(const Vector &sol,
 
    if (R)
    {
-      sc_sol.SetSize(2*R->Height());
+      int n = R->Height();
+      sc_sol.SetSize(2*n);
       double * sc_data = sc_sol.GetData();
-      Vector sc_real(sc_data,rdof_offsets.Last());
-      Vector sc_imag(&sc_data[rdof_offsets.Last()],rdof_offsets.Last());
+      Vector sc_real(sc_data,n);
+      Vector sc_imag(&sc_data[n],n);
 
       // wrap vector into a block vector
       BlockVector blsol_r_real(sol_r_real,rdof_offsets);
@@ -923,37 +941,43 @@ void ComplexBlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
    Vector X_i(&X.GetData()[X.Size()/2],X.Size()/2);
    if (parallel)
    {
-      MFEM_ABORT("TODO:: parallel reduceSystem");
-      // B.SetSize(pP->Width());
-      // pP->MultTranspose(*y,B);
+      int n = pP->Width();
+      B.SetSize(2*n);
+      double * Bdata = B.GetData();
+      Vector B_r(Bdata,n);
+      Vector B_i(&Bdata[n],n);
 
-      // Vector tmp(B.Size());
-      // pS_e->Mult(X,tmp);
-      // B-=tmp;
-      // for (int j = 0; j<rblocks; j++)
-      // {
-      //    if (!ess_tdofs[j]->Size()) { continue; }
-      //    HypreParMatrix *Ah = (HypreParMatrix *)(&pS->GetBlock(j,j));
-      //    Vector diag;
-      //    Ah->GetDiag(diag);
-      //    for (int i = 0; i < ess_tdofs[j]->Size(); i++)
-      //    {
-      //       int tdof = (*ess_tdofs[j])[i];
-      //       int gdof = tdof + rtdof_offsets[j];
-      //       B(gdof) = diag(tdof)*X(gdof);
-      //    }
-      // }
+      pP->MultTranspose(*y_r,B_r);
+      pP->MultTranspose(*y_i,B_i);
+
+      Vector tmp(B_r.Size());
+      pS_e_r->Mult(X_r,tmp); B_r-=tmp;
+      pS_e_i->Mult(X_i,tmp); B_r+=tmp;
+
+      pS_e_i->Mult(X_r,tmp); B_i-=tmp;
+      pS_e_r->Mult(X_i,tmp); B_i-=tmp;
+
+      for (int j = 0; j<rblocks; j++)
+      {
+         if (!ess_tdofs[j]->Size()) { continue; }
+         for (int i = 0; i < ess_tdofs[j]->Size(); i++)
+         {
+            int tdof = (*ess_tdofs[j])[i];
+            int gdof = tdof + rtdof_offsets[j];
+            B_r(gdof) = X_r(gdof);
+            B_i(gdof) = X_i(gdof);
+         }
+      }
    }
    else
    {
-
       if (!P)
       {
 
-         S_r_e->AddMult(X_r,*y_r,-1.);
-         S_i_e->AddMult(X_i,*y_r,1.);
-         S_r_e->AddMult(X_i,*y_i,-1.);
-         S_i_e->AddMult(X_r,*y_i,-1.);
+         S_e_r->AddMult(X_r,*y_r,-1.);
+         S_e_i->AddMult(X_i,*y_r,1.);
+         S_e_r->AddMult(X_i,*y_i,-1.);
+         S_e_i->AddMult(X_r,*y_i,-1.);
 
          S_r->PartMult(ess_rtdof_list,X_r,*y_r);
          S_r->PartMult(ess_rtdof_list,X_i,*y_i);
@@ -969,10 +993,10 @@ void ComplexBlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
          P->MultTranspose(*y_r, B_r);
          P->MultTranspose(*y_i, B_i);
 
-         S_r_e->AddMult(X_r,B_r,-1.);
-         S_i_e->AddMult(X_i,B_r,1.);
-         S_r_e->AddMult(X_i,B_i,-1.);
-         S_i_e->AddMult(X_r,B_i,-1.);
+         S_e_r->AddMult(X_r,B_r,-1.);
+         S_e_i->AddMult(X_i,B_r,1.);
+         S_e_r->AddMult(X_i,B_i,-1.);
+         S_e_i->AddMult(X_r,B_i,-1.);
          S_r->PartMult(ess_rtdof_list,X_r,B_r);
          S_r->PartMult(ess_rtdof_list,X_i,B_i);
 
@@ -998,9 +1022,12 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
    Vector sol_r_imag;
    if (parallel)
    {
-      MFEM_ABORT("TODO:: sc: parallel ComputeSolution");
-
-      // pP->Mult(sc_sol, sol_r);
+      Vector sc_real(sc_sol.GetData(), nrtdofs);
+      Vector sc_imag(&sc_sol.GetData()[nrtdofs], nrtdofs);
+      sol_r_real.SetSize(nrdofs);
+      sol_r_imag.SetSize(nrdofs);
+      pP->Mult(sc_real, sol_r_real);
+      pP->Mult(sc_imag, sol_r_imag);
    }
    else
    {
@@ -1094,8 +1121,8 @@ void ComplexBlockStaticCondensation::ComputeSolution(const Vector &sc_sol,
 
 ComplexBlockStaticCondensation::~ComplexBlockStaticCondensation()
 {
-   delete S_r_e; S_r_e = nullptr;
-   delete S_i_e; S_i_e = nullptr;
+   delete S_e_r; S_e_r = nullptr;
+   delete S_e_i; S_e_i = nullptr;
    delete S; S=nullptr; // owns real and imag
    delete y_r; y_r=nullptr;
    delete y_i; y_i=nullptr;
@@ -1106,13 +1133,15 @@ ComplexBlockStaticCondensation::~ComplexBlockStaticCondensation()
 
    if (parallel)
    {
-      // delete pS; pS=nullptr;
-      // delete pS_e; pS_e=nullptr;
-      // for (int i = 0; i<rblocks; i++)
-      // {
-      //    delete ess_tdofs[i];
-      // }
-      // delete pP; pP=nullptr;
+      // The Complex Operator (S) is deleted above
+
+      delete pS_e_r; pS_e_r=nullptr;
+      delete pS_e_i; pS_e_i=nullptr;
+      for (int i = 0; i<rblocks; i++)
+      {
+         delete ess_tdofs[i];
+      }
+      delete pP; pP=nullptr;
    }
 
    for (int i=0; i<lmat.Size(); i++)

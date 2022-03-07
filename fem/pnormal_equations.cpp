@@ -124,14 +124,11 @@ void ParNormalEquations::FormLinearSystem(const Array<int>
       for (int j = 0; j<nblocks; j++)
       {
          if (!ess_tdofs[j]->Size()) { continue; }
-         HypreParMatrix *Ah = (HypreParMatrix *)(&p_mat->GetBlock(j,j));
-         Vector diag;
-         Ah->GetDiag(diag);
          for (int i = 0; i < ess_tdofs[j]->Size(); i++)
          {
             int tdof = (*ess_tdofs[j])[i];
             int gdof = tdof + tdof_offsets[j];
-            B(gdof) = diag(tdof)*X(gdof);
+            B(gdof) = X(gdof); // diagonal policy in always one in parallel
          }
       }
       if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }

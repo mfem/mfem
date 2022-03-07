@@ -31,23 +31,26 @@ class ComplexParNormalEquations : public ComplexNormalEquations
 
 protected:
    // Trial FE spaces
-   // Array<ParFiniteElementSpace * > trial_pfes;
+   Array<ParFiniteElementSpace * > trial_pfes;
 
-   // // ess_tdof list for each space
-   // Array<Array<int> *> ess_tdofs;
+   // ess_tdof list for each space
+   Array<Array<int> *> ess_tdofs;
 
    // // split ess_tdof_list give in global tdof (for all spaces)
    // // to individual lists for each space
    // // (this can be changed i.e., the lists to be given by the user)
    void FillEssTdofLists(const Array<int> & ess_tdof_list);
 
-   // // Block operator of HypreParMatrix
-   // BlockOperator * P = nullptr; // Block Prolongation
-   // BlockMatrix * R = nullptr; // Block Restriction
+   // Block operator of HypreParMatrix
+   BlockOperator * P = nullptr; // Block Prolongation
+   BlockMatrix * R = nullptr; // Block Restriction
 
    // // Block operator of HypreParMatrix
-   // BlockOperator * p_mat = nullptr;
-   // BlockOperator * p_mat_e = nullptr;
+   ComplexOperator * p_mat = nullptr;
+   BlockOperator * p_mat_r = nullptr;
+   BlockOperator * p_mat_i = nullptr;
+   BlockOperator * p_mat_e_r = nullptr;
+   BlockOperator * p_mat_e_i = nullptr;
 
    void BuildProlongation();
 
@@ -62,23 +65,22 @@ public:
                              Array<FiniteElementCollection* > & fecol_)
       : ComplexNormalEquations()
    {
-      // SetParSpaces(trial_pfes_,fecol_);
+      SetParSpaces(trial_pfes_,fecol_);
    }
 
    void SetParSpaces(Array<ParFiniteElementSpace* > & trial_pfes_,
                      Array<FiniteElementCollection* > & fecol_)
    {
-      // trial_pfes = trial_pfes_;
-      // ess_tdofs.SetSize(trial_pfes.Size());
+      trial_pfes = trial_pfes_;
+      ess_tdofs.SetSize(trial_pfes.Size());
 
-      // Array<FiniteElementSpace * > trial_sfes(trial_pfes.Size());
-      // for (int i = 0; i<trial_sfes.Size(); i++)
-      // {
-      //    trial_sfes[i] = (FiniteElementSpace *)trial_pfes[i];
-      //    ess_tdofs[i] = new Array<int>();
-      // }
-
-      // SetSpaces(trial_sfes,fecol_);
+      Array<FiniteElementSpace * > trial_sfes(trial_pfes.Size());
+      for (int i = 0; i<trial_sfes.Size(); i++)
+      {
+         trial_sfes[i] = (FiniteElementSpace *)trial_pfes[i];
+         ess_tdofs[i] = new Array<int>();
+      }
+      SetSpaces(trial_sfes,fecol_);
    }
 
 
@@ -88,7 +90,7 @@ public:
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
 
-   void ParallelAssemble(BlockMatrix *mat);
+   void ParallelAssemble(BlockMatrix *mat_r, BlockMatrix *mat_i);
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                          OperatorHandle &A,
@@ -106,7 +108,6 @@ public:
 
    /// Destroys bilinear form.
    virtual ~ComplexParNormalEquations();
-
 
 
 };

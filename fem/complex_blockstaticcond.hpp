@@ -49,8 +49,8 @@ class ComplexBlockStaticCondensation
    // S = A_ii - A_ib (A_bb)^{-1} A_bi.
    BlockMatrix * S_r = nullptr;
    BlockMatrix * S_i = nullptr;
-   BlockMatrix * S_r_e = nullptr;
-   BlockMatrix * S_i_e = nullptr;
+   BlockMatrix * S_e_r = nullptr;
+   BlockMatrix * S_e_i = nullptr;
    ComplexOperator * S = nullptr;
 
    BlockVector * y_r = nullptr;
@@ -68,9 +68,9 @@ class ComplexBlockStaticCondensation
 
 #ifdef MFEM_USE_MPI
    BlockOperator * pS_r = nullptr;
-   BlockOperator * pS_r_e = nullptr;
+   BlockOperator * pS_e_r = nullptr;
    BlockOperator * pS_i = nullptr;
-   BlockOperator * pS_i_e = nullptr;
+   BlockOperator * pS_e_i = nullptr;
    // Block HypreParMatrix for Prolongation
    BlockOperator * pP = nullptr;
 #endif
@@ -147,9 +147,9 @@ public:
    bool HasEliminatedBC() const
    {
 #ifndef MFEM_USE_MPI
-      return S_r_e;
+      return S_e_r;
 #else
-      return S_r_e || pS_r_e;
+      return S_e_r || pS_e_r;
 #endif
 
    }
@@ -161,14 +161,21 @@ public:
    {
       if (!S)
       {
-         S = new ComplexOperator(S_r,S_i,true,true);
+         if (parallel)
+         {
+            S = new ComplexOperator(pS_r,pS_i,true,true);
+         }
+         else
+         {
+            S = new ComplexOperator(S_r,S_i,true,true);
+         }
       }
       return *S;
    }
 
    /// Return the eliminated part of the serial Schur complement matrix.
-   BlockMatrix &GetMatrixElim_r() { return *S_r_e; }
-   BlockMatrix &GetMatrixElim_i() { return *S_i_e; }
+   BlockMatrix &GetMatrixElim_r() { return *S_e_r; }
+   BlockMatrix &GetMatrixElim_i() { return *S_e_i; }
 
 #ifdef MFEM_USE_MPI
    /// Return the parallel Schur complement matrix.
@@ -176,8 +183,8 @@ public:
    BlockOperator &GetParallelMatrix_i() { return *pS_i; }
 
    /// Return the eliminated part of the parallel Schur complement matrix.
-   BlockOperator &GetParallelMatrixElim_r() { return *pS_r_e; }
-   BlockOperator &GetParallelMatrixElim_i() { return *pS_i_e; }
+   BlockOperator &GetParallelMatrixElim_r() { return *pS_e_r; }
+   BlockOperator &GetParallelMatrixElim_i() { return *pS_e_i; }
 
    void ParallelAssemble(BlockMatrix *m_r, BlockMatrix*m_i);
 #endif
