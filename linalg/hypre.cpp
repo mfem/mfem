@@ -31,7 +31,6 @@ using namespace std;
 namespace mfem
 {
 
-
 HYPRE_Session::HYPRE_Session()
 {
 #if MFEM_HYPRE_VERSION >= 21500
@@ -71,6 +70,7 @@ void HYPRE_Session::SetGlobalOptions()
    HYPRE_SetUmpireDevicePoolName("HYPRE_DEVICE_POOL_TEST");
 #endif
 }
+
 
 template<typename TargetT, typename SourceT>
 static TargetT *DuplicateAs(const SourceT *array, int size,
