@@ -205,11 +205,11 @@ constexpr auto operator/(dual<value_type_a, gradient_type_a> a,
     return a.value x b.value;                                   \
   }
 
-binary_comparator_overload(<);   ///< implement operator<  for dual numbers
-binary_comparator_overload(<=);  ///< implement operator<= for dual numbers
-binary_comparator_overload(==);  ///< implement operator== for dual numbers
-binary_comparator_overload(>=);  ///< implement operator>= for dual numbers
-binary_comparator_overload(>);   ///< implement operator>  for dual numbers
+binary_comparator_overload(<)   ///< implement operator<  for dual numbers
+binary_comparator_overload(<=)  ///< implement operator<= for dual numbers
+binary_comparator_overload(==)  ///< implement operator== for dual numbers
+binary_comparator_overload(>=)  ///< implement operator>= for dual numbers
+binary_comparator_overload(>)   ///< implement operator>  for dual numbers
 
 #undef binary_comparator_overload
 
