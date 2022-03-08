@@ -192,7 +192,7 @@ constexpr auto operator/(dual<value_type_a, gradient_type_a> a,
      const dual<value_type, gradient_type>& b)                  \
   {                                                             \
     return a x b.value;                                         \
-  };                                                            \
+  }                                                             \
                                                                 \
   template <typename value_type_a,                              \
             typename gradient_type_a,                           \
@@ -203,7 +203,7 @@ constexpr auto operator/(dual<value_type_a, gradient_type_a> a,
      const dual<value_type_b, gradient_type_b>& b)              \
   {                                                             \
     return a.value x b.value;                                   \
-  };
+  }
 
 binary_comparator_overload(<);   ///< implement operator<  for dual numbers
 binary_comparator_overload(<=);  ///< implement operator<= for dual numbers
