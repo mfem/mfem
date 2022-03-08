@@ -23,12 +23,12 @@ Discretization improvements
 
 Linear and nonlinear solvers
 ----------------------------
-- Added support for using the HYPRE library built with HIP support. Similar to
-  the HYPRE + CUDA support added earlier, most of the MFEM examples and miniapps
-  work transparently with HYPRE + HIP builds. This includes the BoomerAMG, AMS,
+- Added support for using the hypre library built with HIP support. Similar to
+  the existing hypre + CUDA support, most of the MFEM examples and miniapps
+  work transparently with hypre + HIP builds. This includes the BoomerAMG, AMS,
   and ADS solvers.
 
-- Added hipSPARSE support for sparse mat-vec multiplications.
+- Added hipSPARSE support for sparse matrix-vector multiplications.
 
 - More explicit and consistent formatting of the output of iterative solvers
   with the new IterativeSolver::PrintLevel options. See linalg/solvers.hpp.
@@ -50,7 +50,7 @@ Meshing improvements
 
 - Added support for hr-adaptivity using TMOP-based error estimator.
 
-- Added ParMesh Adjaceny Set (adjset) creation support to the Conduit Mesh
+- Added ParMesh adjaceny set (adjset) creation support to the Conduit Mesh
   Blueprint MFEM wrapper functions in ConduitDataCollection.
 
 New and updated examples and miniapps
@@ -82,7 +82,7 @@ Miscellaneous
 -------------
 - Doxygen documentation for previous releases is now available at docs.mfem.org.
 
-- Added initial support for google-benchmarks in the tests/benchmarks directory.
+- Added initial support for Google Benchmark in the tests/benchmarks directory.
   It can be enabled with MFEM_USE_BENCHMARK=YES.
 
 - Split the fem/fe.?pp files into separate files in the new fem/fe/ directory to
