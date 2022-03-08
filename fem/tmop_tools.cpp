@@ -776,12 +776,9 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
       // Increase the surface fitting coefficient if the surface fitting error
       // does not decrease sufficiently.
-      if (change_surf_fit_err >= 0)
+      if (rel_change_surf_fit_err < 1.e-2)
       {
-         if (rel_change_surf_fit_err < 1.e-2)
-         {
-            UpdateSurfaceFittingWeight(10);
-         }
+         UpdateSurfaceFittingWeight(10);
       }
       surf_fit_err_avg_prvs = surf_fit_err_avg;
       update_surf_fit_coeff = false;
