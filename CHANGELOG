@@ -21,7 +21,7 @@ Discretization improvements
 - Added arbitrary order Nedelec and Raviart-Thomas basis functions for
   wedge-shaped elements.
 
-- Added partial assembly (PA) and element assembly (EA) support for
+- Added GPU enabled partial assembly (PA) and element assembly (EA) support for
   discontinuous Galerkin methods on nonconforming meshes (NCMesh).
 
 Linear and nonlinear solvers
