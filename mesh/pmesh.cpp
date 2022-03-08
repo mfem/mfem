@@ -1599,7 +1599,7 @@ bool ParMesh::HasBoundaryElements() const
    // maximum number of boundary elements over all ranks
    int maxNumOfBdrElements;
    MPI_Allreduce(&NumOfBdrElements, &maxNumOfBdrElements, 1,
-                 MPI_C_BOOL, MPI_MAX, MyComm);
+                 MPI_INT, MPI_MAX, MyComm);
    return (maxNumOfBdrElements > 0);
 }
 
