@@ -49,26 +49,39 @@ HYPRE_Session::~HYPRE_Session()
 
 void HYPRE_Session::SetGlobalOptions()
 {
-#if MFEM_HYPRE_VERSION >= 22100
-   // Use hypre's SpGEMM instead of cuSPARSE.
-   HYPRE_SetSpGemmUseCusparse(0);
-#endif
-
-#if 0
    // Additional global options, see
    // https://hypre.readthedocs.io/en/latest/solvers-boomeramg.html#gpu-supported-options
    // for more details
 
-   // AMG in GPU memory (default)
-   HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
-   // Setup AMG on GPUs
-   HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
-   // Use GPU RNG
-   HYPRE_SetUseGpuRand(1);
-   // Umpire memory pool
-   HYPRE_SetUmpireUMPoolName("HYPRE_UM_POOL_TEST");
-   HYPRE_SetUmpireDevicePoolName("HYPRE_DEVICE_POOL_TEST");
+#if MFEM_HYPRE_VERSION >= 22100
+#ifdef HYPRE_USING_CUDA
+   // Use hypre's SpGEMM instead of cuSPARSE for performance reasons.
+   HYPRE_SetSpGemmUseCusparse(0);
+#elif defined(HYPRE_USING_HIP)
+   // Use rocSPARSE instead of hypre's SpGEMM for performance reasons (default)
+   // HYPRE_SetSpGemmUseCusparse(1);
 #endif
+#endif
+
+   // The following 3 options are the defaults as of hypre-2.24
+
+   // Allocate hypre objects in GPU memory (default)
+   // HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
+
+   // Where to execute when using UVM (default)
+   // HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
+
+   // Use GPU-based random number generator (default)
+   // HYPRE_SetUseGpuRand(1);
+
+   // The following options are to be used with UMPIRE memory pools
+
+   // Set Umpire names for device and UVM memory pools. If names are set by
+   // calling these functions, hypre doesn't own the pool and just uses it.If
+   // these functions are not called, hypre will allocate and own the pool
+   // (provided it is configured with --with-umpire).
+   // HYPRE_SetUmpireDevicePoolName("HYPRE_DEVICE_POOL");
+   // HYPRE_SetUmpireUMPoolName("HYPRE_UVM_POOL");
 }
 
 
@@ -4525,11 +4538,11 @@ void HypreBoomerAMG::SetDefaultOptions()
    double theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
 
    // AMG interpolation options:
-   int interp_type  = 6;   // or 3 = direct
+   int interp_type  = 6;    // 6 = extended+i, or 18 = extended+e
    int Pmax         = 4;    // max number of elements per row in P
 
    // AMG relaxation options:
-   int relax_type   = 18;    // or 18 = l1-Jacobi
+   int relax_type   = 18;   // 18 = l1-Jacobi, or 16 = Chebyshev
    int relax_sweeps = 1;    // relaxation sweeps on each level
 
    // Additional options:
