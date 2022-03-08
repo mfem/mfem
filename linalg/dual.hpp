@@ -18,7 +18,6 @@
 #pragma once
 
 #include <cmath>
-#include "cuda_runtime_api.h"
 #include "../general/backends.hpp"
 
 namespace mfem
