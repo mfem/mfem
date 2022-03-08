@@ -80,6 +80,8 @@ New and updated examples and miniapps
 
 Miscellaneous
 -------------
+- Doxygen documentation for previous releases is now available at docs.mfem.org.
+
 - Added initial support for google-benchmarks in the tests/benchmarks directory.
   It can be enabled with MFEM_USE_BENCHMARK=YES.
 
