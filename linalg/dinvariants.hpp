@@ -59,7 +59,7 @@ private:
 
 public:
    MFEM_HOST_DEVICE
-   InvariantsEvaluator2D(Buffers b):
+   InvariantsEvaluator2D(Buffers &b):
       J(b.J_),
       dI1(b.dI1_), dI1b(b.dI1b_), ddI1(b.ddI1_), ddI1b(b.ddI1b_),
       dI2(b.dI2_), dI2b(b.dI2b_), ddI2(b.ddI2_), ddI2b(b.ddI2b_) { }
@@ -296,7 +296,7 @@ private:
 
 public:
    MFEM_HOST_DEVICE
-   InvariantsEvaluator3D(Buffers b):
+   InvariantsEvaluator3D(Buffers &b):
       J(b.J_), B(b.B_),
       dI1(b.dI1_), dI1b(b.dI1b_), ddI1(b.ddI1_), ddI1b(b.ddI1b_),
       dI2(b.dI2_), dI2b(b.dI2b_), ddI2(b.ddI2_), ddI2b(b.ddI2b_),
