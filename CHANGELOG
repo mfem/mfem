@@ -21,6 +21,9 @@ Discretization improvements
 - Added arbitrary order Nedelec and Raviart-Thomas basis functions for
   wedge-shaped elements.
 
+- Added partial assembly (PA) and element assembly (EA) support for
+  discontinuous Galerkin methods on nonconforming meshes (NCMesh).
+
 Linear and nonlinear solvers
 ----------------------------
 - Added support for using the hypre library built with HIP support. Similar to
