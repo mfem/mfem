@@ -552,7 +552,7 @@ protected:
 
 
    inline virtual int GetTestVDim(const FiniteElement & test_fe)
-   { return test_fe.GetVDim(); }
+   { return std::max(space_dim, test_fe.GetVDim()); }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -560,13 +560,14 @@ protected:
    { test_fe.CalcVShape(Trans, shape); }
 
    inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
-   { return trial_fe.GetVDim(); }
+   { return std::max(space_dim, trial_fe.GetVDim()); }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix & shape)
    { trial_fe.CalcVShape(Trans, shape); }
 
+   int space_dim;
    Coefficient *Q;
    VectorCoefficient *VQ;
    DiagonalMatrixCoefficient *DQ;
@@ -649,7 +650,7 @@ protected:
 
 
    inline virtual int GetVDim(const FiniteElement & vector_fe)
-   { return vector_fe.GetVDim(); }
+   { return std::max(space_dim, vector_fe.GetVDim()); }
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
@@ -662,6 +663,7 @@ protected:
    { scalar_fe.CalcPhysShape(Trans, shape_); }
 
    VectorCoefficient *VQ;
+   int space_dim;
    bool transpose;
    bool cross_2d;  // In 2D use a cross product rather than a dot product
 

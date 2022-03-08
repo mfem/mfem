@@ -485,6 +485,7 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
    MFEM_ASSERT(this->VerifyFiniteElementTypes(trial_fe, test_fe),
                this->FiniteElementTypeFailureMessage());
 
+   space_dim = Trans.GetSpaceDim();
    int     trial_nd = trial_fe.GetDof(), test_nd = test_fe.GetDof(), i;
    int    test_vdim = GetTestVDim(test_fe);
    int   trial_vdim = GetTrialVDim(trial_fe);
@@ -661,6 +662,7 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
    const FiniteElement * vec_fe = transpose?&trial_fe:&test_fe;
    const FiniteElement * sca_fe = transpose?&test_fe:&trial_fe;
 
+   space_dim = Trans.GetSpaceDim();
    int trial_nd = trial_fe.GetDof(), test_nd = test_fe.GetDof(), i;
    int sca_nd = sca_fe->GetDof();
    int vec_nd = vec_fe->GetDof();
