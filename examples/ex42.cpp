@@ -1240,13 +1240,13 @@ static inline void AssembleGradientDiagonal3D(const int ne,
             }
             MFEM_FOREACH_THREAD(qz, z, q1d)
             {
-               const bool ddd = (qx < d1d) && (qy < d1d) && (qz < d1d);
+               const bool inside_d1d_cube = qx < d1d && qy < d1d && qz < d1d;
                for (int l = 0; l < dim; l++)
                {
                   for (int m = 0; m < dim; m++)
                   {
                      dudxi(qx, qy, qz, l, m) = 0.0;
-                     if (ddd) { Ke_diag(qx, qy, qz, l,m) = 0.0; }
+                     if (inside_d1d_cube) { Ke_diag(qx, qy, qz, l,m) = 0.0; }
                   }
                }
             }

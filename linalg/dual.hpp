@@ -18,7 +18,7 @@
 #pragma once
 
 #include <cmath>
-using namespace std;
+#include "cuda_runtime_api.h"
 #include "../general/backends.hpp"
 
 namespace mfem
@@ -352,11 +352,15 @@ dual<value_type, gradient_type> pow(double a, dual<value_type, gradient_type> b)
    return {value, value * b.gradient * std::log(a)};
 }
 
+/** @brief implementation of `a` (non-dual) raised to the `b` (non-dual) power */
+template <typename value_type > MFEM_HOST_DEVICE
+value_type pow(value_type a, value_type b) { return std::pow(a, b); }
+
 /** @brief implementation of `a` (dual) raised to the `b` (non-dual) power */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a, double b)
 {
-   value_type value = /*std::*/pow(a.value, b);
+   value_type value = pow(a.value, b);
    return {value, value * a.gradient * b / a.value};
 }
 
