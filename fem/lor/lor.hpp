@@ -205,7 +205,6 @@ protected:
    LORBase *lor;
    bool own_lor = true;
    SolverType solver;
-   mutable Vector px, py;
 public:
    /// @brief Create a solver of type @a SolverType, formed using the assembled
    /// SparseMatrix of the LOR version of @a a_ho. @see LORDiscretization
