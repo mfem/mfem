@@ -368,8 +368,7 @@ public:
    /** @brief Evaluate the values of all shape functions of a scalar finite
        element in physical space at the point described by @a Trans. */
    /** The size (#dof) of the result Vector @a shape must be set in advance. */
-   virtual void CalcPhysShape(ElementTransformation &Trans,
-                              Vector &shape) const;
+   void CalcPhysShape(ElementTransformation &Trans, Vector &shape) const;
 
    /** @brief Evaluate the gradients of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
