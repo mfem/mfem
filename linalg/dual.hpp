@@ -18,6 +18,7 @@
 #pragma once
 
 #include <cmath>
+using namespace std;
 #include "../general/backends.hpp"
 
 namespace mfem
@@ -339,7 +340,7 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a,
                                     dual<value_type, gradient_type> b)
 {
-   value_type value = std::pow(a.value, b.value);
+   value_type value = pow(a.value, b.value);
    return {value, value * (a.gradient * (b.value / a.value) + b.gradient * std::log(a.value))};
 }
 
@@ -347,7 +348,7 @@ dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a,
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> pow(double a, dual<value_type, gradient_type> b)
 {
-   value_type value = std::pow(a, b.value);
+   value_type value = pow(a, b.value);
    return {value, value * b.gradient * std::log(a)};
 }
 
@@ -355,7 +356,7 @@ dual<value_type, gradient_type> pow(double a, dual<value_type, gradient_type> b)
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a, double b)
 {
-   value_type value = std::pow(a.value, b);
+   value_type value = /*std::*/pow(a.value, b);
    return {value, value * a.gradient * b / a.value};
 }
 

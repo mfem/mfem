@@ -184,7 +184,7 @@ struct NeoHookeanMaterial
       tensor<double, dim, dim> devB =
          dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
       double J = det(F);
-      double coef = (C1 / std::pow(J, 5.0 / 3.0));
+      double coef = (C1 / pow(J, 5.0 / 3.0));
       return make_tensor<dim, dim, dim, dim>([&](int i, int j, int k, int l)
       {
          return 2.0 * (D1 * J * (i == j) - (5.0 / 3.0) * coef * devB[i][j]) *
@@ -296,7 +296,7 @@ struct NeoHookeanMaterial
       tensor<double, dim, dim> devB =
          dev(du_dx + transpose(du_dx) + dot(du_dx, transpose(du_dx)));
       double J = det(F);
-      double coef = (C1 / std::pow(J, 5.0 / 3.0));
+      double coef = (C1 / pow(J, 5.0 / 3.0));
       double a1 = ddot(invFT, ddu_dx);
       double a2 = ddot(F, ddu_dx);
 
