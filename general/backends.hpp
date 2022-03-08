@@ -41,7 +41,6 @@
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
-#define MFEM_CONSTANT
 #define MFEM_HOST_DEVICE
 // MFEM_DEVICE_SYNC is made available for debugging purposes
 #define MFEM_DEVICE_SYNC
