@@ -131,7 +131,6 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file, 1, 1);
    dim = mesh.Dimension();
-   mesh.UniformRefinement();
 
 
    // Define spaces
@@ -206,6 +205,10 @@ int main(int argc, char *argv[])
 // < û,q >
    a->AddTrialIntegrator(new TraceIntegrator,nullptr,3,0);
 
+   // for impedence condition (only on the boundary)
+   // TODO
+   // a->AddTrialIntegrator(new TraceIntegrator,nullptr,2,0);
+
 
 // test integrators 
 
@@ -245,6 +248,8 @@ int main(int argc, char *argv[])
    
    FunctionCoefficient hatpex_r(hatp_exact_r);
    FunctionCoefficient hatpex_i(hatp_exact_i);
+   VectorFunctionCoefficient hatuex_r(dim,hatu_exact_r);
+   VectorFunctionCoefficient hatuex_i(dim,hatu_exact_i);
    Array<int> elements_to_refine;
 
    socketstream p_out_r;
@@ -286,13 +291,17 @@ int main(int argc, char *argv[])
       {
          ess_bdr.SetSize(mesh.bdr_attributes.Max());
          ess_bdr = 1;
+         // ess_bdr[1] = 0;
+         // ess_bdr[2] = 1;
          hatp_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         // hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
 
       // shift the ess_tdofs
       for (int i = 0; i < ess_tdof_list.Size(); i++)
       {
          ess_tdof_list[i] += p_fes->GetTrueVSize() + u_fes->GetTrueVSize();
+                        //   + hatp_fes->GetTrueVSize(); 
       }
 
       Array<int> offsets(5);
@@ -310,8 +319,12 @@ int main(int argc, char *argv[])
       ComplexGridFunction hatp_gf(hatp_fes);
       hatp_gf.real().MakeRef(hatp_fes,&xdata[offsets[2]]);
       hatp_gf.imag().MakeRef(hatp_fes,&xdata[offsets.Last()+ offsets[2]]);
-
       hatp_gf.ProjectBdrCoefficient(hatpex_r,hatpex_i, ess_bdr);
+
+      // ComplexGridFunction hatu_gf(hatu_fes);
+      // hatu_gf.real().MakeRef(hatu_fes,&xdata[offsets[3]]);
+      // hatu_gf.imag().MakeRef(hatu_fes,&xdata[offsets.Last()+ offsets[3]]);
+      // hatu_gf.ProjectBdrCoefficientNormal(hatuex_r,hatuex_i, ess_bdr);
 
       OperatorPtr Ah;
       Vector X,B;
@@ -384,6 +397,7 @@ int main(int argc, char *argv[])
                 << std::setprecision(2) 
                 << std::setw(6) << std::fixed << rate_res << " | " 
                 << std::resetiosflags(std::ios::showbase)
+                << std::setw(10) << std::scientific 
                 << std::endl;
 
       if (visualization)
@@ -398,6 +412,9 @@ int main(int argc, char *argv[])
                   "window_title 'Imag Numerical presure' "
                   << flush;         
       }
+
+      if (i == ref)
+         break;
 
       mesh.GeneralRefinement(elements_to_refine,1,1);
       for (int i =0; i<trial_fes.Size(); i++)

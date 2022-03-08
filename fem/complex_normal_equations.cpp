@@ -1029,14 +1029,16 @@ Vector & ComplexNormalEquations::ComputeResidual(const Vector & x)
       Bmat[iel]->Mult(u,v);
       v -= *fvec[iel];
       // complex inner product v^h ̇v
-      double res = 0.;
       Vector Gv(v.Size());
       Ginv[iel]->Mult(v,Gv);
-      for (int k = 0; k<v.Size()/2; k++)
-      {
-         res += Gv(k)*v(k) + Gv(k+v.Size()/2)* v(k+v.Size()/2);
-      }
-      residuals[iel] = sqrt(res);
+      residuals[iel] = sqrt(v*Gv);
+
+      // double res = 0.;
+      // for (int k = 0; k<v.Size()/2; k++)
+      // {
+      //    res += Gv(k)*v(k) + Gv(k+v.Size()/2)* v(k+v.Size()/2);
+      // }
+      // residuals[iel] = sqrt(res);
    } // end of loop through elements
    return residuals;
 }
