@@ -58,6 +58,41 @@ public:
    virtual void Update();
 };
 
+class ScalarFieldBdrVisObject
+{
+protected:
+   bool cyl_;
+   bool pseudo_;
+
+   int dim_;
+
+   std::string field_name_;
+
+   ComplexGridFunction * v_; // Complex field in problem domain (L2)
+
+public:
+   ScalarFieldBdrVisObject(const std::string & field_name,
+			   L2_ParFESpace *sfes,
+			   bool cyl, bool pseudo);
+
+   ~ScalarFieldBdrVisObject();
+
+   virtual void RegisterVisItFields(VisItDataCollection & visit_dc);
+
+   virtual void PrepareVisField(const ParComplexGridFunction &u,
+                                VectorCoefficient * kReCoef,
+                                VectorCoefficient * kImCoef,
+				Array<int> & attr_marker);
+
+   virtual void PrepareVisField(Coefficient &uReCoef,
+                                Coefficient &uImCoef,
+                                VectorCoefficient * kReCoef,
+                                VectorCoefficient * kImCoef,
+				Array<int> & attr_marker);
+
+   virtual void Update();
+};
+
 class VectorFieldVisObject
 {
 protected:

@@ -99,6 +99,85 @@ void ScalarFieldVisObject::Update()
    if (v_) { v_->Update(); }
 }
 
+ScalarFieldBdrVisObject::ScalarFieldBdrVisObject(const std::string & field_name,
+						 L2_ParFESpace *sfes,
+						 bool cyl,
+						 bool pseudo)
+   : cyl_(cyl),
+     pseudo_(pseudo),
+     dim_(-1),
+     field_name_(field_name),
+     v_(NULL)
+{
+   MFEM_VERIFY(sfes != NULL, "ScalarFieldBdrVisObject: "
+               "FiniteElementSpace sfes must be non NULL.");
+
+   dim_ = sfes->GetParMesh()->SpaceDimension();
+
+   v_ = new ComplexGridFunction(sfes);
+   (*v_) = 0.0;
+}
+
+ScalarFieldBdrVisObject::~ScalarFieldBdrVisObject()
+{
+   delete v_;
+}
+
+void ScalarFieldBdrVisObject::RegisterVisItFields(VisItDataCollection & visit_dc)
+{
+   ostringstream oss_r;
+   ostringstream oss_i;
+
+   oss_r << "Re_" << field_name_;
+   oss_i << "Im_" << field_name_;
+
+   visit_dc.RegisterField(oss_r.str(), &v_->real());
+   visit_dc.RegisterField(oss_i.str(), &v_->imag());
+}
+
+void ScalarFieldBdrVisObject::PrepareVisField(const ParComplexGridFunction &u,
+					      VectorCoefficient * kReCoef,
+					      VectorCoefficient * kImCoef,
+					      Array<int> & attr_marker)
+{
+   GridFunctionCoefficient u_r(&u.real());
+   GridFunctionCoefficient u_i(&u.imag());
+
+   this->PrepareVisField(u_r, u_i, kReCoef, kImCoef, attr_marker);
+}
+
+void ScalarFieldBdrVisObject::PrepareVisField(Coefficient &u_r,
+					      Coefficient &u_i,
+					      VectorCoefficient * kReCoef,
+					      VectorCoefficient * kImCoef,
+					      Array<int> & attr_marker)
+{
+   if (kReCoef || kImCoef)
+   {
+      ComplexPhaseCoefficient uk_r(kReCoef, kImCoef, &u_r, &u_i,
+                                   true, false);
+      ComplexPhaseCoefficient uk_i(kReCoef, kImCoef, &u_r, &u_i,
+                                   false, false);
+
+      PseudoScalarCoef   psu_r(uk_r, pseudo_ && cyl_);
+      PseudoScalarCoef   psu_i(uk_i, pseudo_ && cyl_);
+
+      v_->ProjectBdrCoefficient(psu_r, psu_i, attr_marker);
+   }
+   else
+   {
+      PseudoScalarCoef   psu_r(u_r, pseudo_ && cyl_);
+      PseudoScalarCoef   psu_i(u_i, pseudo_ && cyl_);
+
+      v_->ProjectBdrCoefficient(psu_r, psu_i, attr_marker);
+   }
+}
+
+void ScalarFieldBdrVisObject::Update()
+{
+   if (v_) { v_->Update(); }
+}
+
 VectorFieldVisObject::VectorFieldVisObject(const std::string & field_name,
                                            L2_ParFESpace *vfes,
                                            L2_ParFESpace *sfes,
