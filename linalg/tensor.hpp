@@ -21,6 +21,7 @@
 
 namespace mfem
 {
+
 namespace internal
 {
 
@@ -1768,4 +1769,5 @@ decltype(df_dx * dx)
 }
 
 } // namespace internal
+
 } // namespace mfem

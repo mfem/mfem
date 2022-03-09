@@ -6,6 +6,7 @@
 #include "../general/forall.hpp"
 #include "../linalg/kernels.hpp"
 #include "../linalg/tensor.hpp"
+#include "../linalg/tensor_isotropic.hpp"
 #include "mfem.hpp"
 
 using namespace std;
@@ -36,7 +37,7 @@ return_type __enzyme_fwddiff(Args...);
 #endif
 
 /// Define the identity tensor in three dimensions.
-//static constexpr auto I = Identity<dimension>();
+MFEM_DEVICE static constexpr auto I = IsotropicIdentity<dimension>();
 
 /** @brief Linear elastic material.
  *
@@ -54,8 +55,6 @@ template <int dim> struct LinearElasticMaterial
    tensor<double, dim, dim>
    MFEM_HOST_DEVICE stress(const tensor<double, dim, dim> &dudx) const
    {
-      const auto I = Identity<dimension>();
-
       auto epsilon = sym(dudx);
       return lambda * tr(epsilon) * I + 2.0 * mu * epsilon;
    }
@@ -137,8 +136,6 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<T, dim, dim>
    stress(const tensor<T, dim, dim> &__restrict__ dudx) const
    {
-      const auto I = Identity<dimension>();
-
       T J = det(I + dudx);
       T p = -2.0 * D1 * J * (J - 1);
       auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
@@ -177,8 +174,6 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<double, dim, dim, dim, dim>
    gradient(tensor<double, dim, dim> dudx) const
    {
-      const auto I = Identity<dimension>();
-
       tensor<double, dim, dim> F = I + dudx;
       tensor<double, dim, dim> invF = inv(F);
       tensor<double, dim, dim> devB =
@@ -289,8 +284,6 @@ struct NeoHookeanMaterial
    action_of_gradient_symbolic(const tensor<double, dim, dim> &du_dx,
                                const tensor<double, dim, dim> &ddu_dx) const
    {
-      const auto I = Identity<dimension>();
-
       tensor<double, dim, dim> F = I + du_dx;
       tensor<double, dim, dim> invFT = inv(transpose(F));
       tensor<double, dim, dim> devB =
@@ -403,9 +396,6 @@ public:
    ElasticityGradientOperator *gradient_;
    const GeometricFactors *geometric_factors_;
    const DofToQuad *maps_;
-   tensor<double, 2, 2> BG2_[2];
-   tensor<double, 3, 3> BG3_[2];
-   tensor<double, 4, 4> BG4_[2];
    /// Input state L-vector
    mutable Vector X_local_;
    /// Input state E-vector
@@ -1302,15 +1292,6 @@ ElasticityOperator::ElasticityOperator(ParMesh &mesh, const int order)
    cstate_local_.SetSize(h1_prolongation_->Height());
 
    gradient_ = new ElasticityGradientOperator(*this);
-
-   BG2_[0] = make_tensor<2,2>([&](int i, int j) { return maps_->B[i+2*j]; });
-   BG2_[1] = make_tensor<2,2>([&](int i, int j) { return maps_->G[i+2*j]; });
-
-   BG3_[0] = make_tensor<3,3>([&](int i, int j) { return maps_->B[i+3*j]; });
-   BG3_[1] = make_tensor<3,3>([&](int i, int j) { return maps_->G[i+3*j]; });
-
-   BG4_[0] = make_tensor<4,4>([&](int i, int j) { return maps_->B[i+4*j]; });
-   BG4_[1] = make_tensor<4,4>([&](int i, int j) { return maps_->G[i+4*j]; });
 }
 
 void ElasticityOperator::Mult(const Vector &X, Vector &Y) const
@@ -1460,20 +1441,34 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       {
          case 0x22:
          {
+            static tensor<double, 2, 2> B =
+            make_tensor<2,2>([&](int i, int j) { return maps_->B[i+2*j]; });
+            static tensor<double, 2, 2> G =
+            make_tensor<2,2>([&](int i, int j) { return maps_->G[i+2*j]; });
             ElasticityKernels::Apply3D<2, 2, material_type>(
-               ne, BG2_[0], BG2_[1], W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, B, G, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          }
          case 0x33:
          {
+            static tensor<double, 3, 3> B =
+            make_tensor<3,3>([&](int i, int j) { return maps_->B[i+3*j]; });
+            static tensor<double, 3, 3> G =
+            make_tensor<3,3>([&](int i, int j) { return maps_->G[i+3*j]; });
             ElasticityKernels::Apply3D<3, 3, material_type>(
-               ne, BG3_[0], BG3_[1], W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, B, G, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          }
          case 0x44:
+         {
+            static tensor<double, 4, 4> B =
+            make_tensor<4,4>([&](int i, int j) { return maps_->B[i+4*j]; });
+            static tensor<double, 4, 4> G =
+            make_tensor<4,4>([&](int i, int j) { return maps_->G[i+4*j]; });
             ElasticityKernels::Apply3D<4, 4, material_type>(
-               ne, BG4_[0], BG4_[1], W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, B, G, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
+         }
          default:
             MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
       }
@@ -1488,17 +1483,35 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       switch (id)
       {
          case 0x22:
+         {
+            static const tensor<double, 2, 2> B =
+            make_tensor<2,2>([&](int i, int j) { return maps_->B[i+2*j]; });
+            static const tensor<double, 2, 2> G =
+            make_tensor<2,2>([&](int i, int j) { return maps_->G[i+2*j]; });
             ElasticityKernels::ApplyGradient3D<2, 2, material_type>(
-               ne, BG2_[0], BG2_[1], W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+               ne, B, G, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
+         }
          case 0x33:
+         {
+            static const tensor<double, 3, 3> B =
+            make_tensor<3,3>([&](int i, int j) { return maps_->B[i+3*j]; });
+            static const tensor<double, 3, 3> G =
+            make_tensor<3,3>([&](int i, int j) { return maps_->G[i+3*j]; });
             ElasticityKernels::ApplyGradient3D<3, 3, material_type>(
-               ne, BG3_[0], BG3_[1], W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+               ne, B, G, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
+         }
          case 0x44:
+         {
+            static const tensor<double, 4, 4> B =
+            make_tensor<4,4>([&](int i, int j) { return maps_->B[i+4*j]; });
+            static const tensor<double, 4, 4> G =
+            make_tensor<4,4>([&](int i, int j) { return maps_->G[i+4*j]; });
             ElasticityKernels::ApplyGradient3D<4, 4, material_type>(
-               ne, BG4_[0], BG4_[1], W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+               ne, B, G, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
+         }
          default:
             MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
       }
@@ -1513,17 +1526,35 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       switch (id)
       {
          case 0x22:
+         {
+            static const tensor<double, 2, 2> B =
+            make_tensor<2,2>([&](int i, int j) { return maps_->B[i+2*j]; });
+            static const tensor<double, 2, 2> G =
+            make_tensor<2,2>([&](int i, int j) { return maps_->G[i+2*j]; });
             ElasticityKernels::AssembleGradientDiagonal3D<2, 2, material_type>(
-               ne, BG2_[0], BG2_[1], W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, B, G, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
+         }
          case 0x33:
+         {
+            static const tensor<double, 3, 3> B =
+            make_tensor<3,3>([&](int i, int j) { return maps_->B[i+3*j]; });
+            static const tensor<double, 3, 3> G =
+            make_tensor<3,3>([&](int i, int j) { return maps_->G[i+3*j]; });
             ElasticityKernels::AssembleGradientDiagonal3D<3, 3, material_type>(
-               ne, BG3_[0], BG3_[1], W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, B, G, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
+         }
          case 0x44:
+         {
+            static const tensor<double, 4, 4> B =
+            make_tensor<4,4>([&](int i, int j) { return maps_->B[i+4*j]; });
+            static const tensor<double, 4, 4> G =
+            make_tensor<4,4>([&](int i, int j) { return maps_->G[i+4*j]; });
             ElasticityKernels::AssembleGradientDiagonal3D<4, 4, material_type>(
-               ne, BG4_[0], BG4_[1], W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, B, G, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
+         }
          default:
             MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
       }
