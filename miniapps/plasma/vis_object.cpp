@@ -100,9 +100,9 @@ void ScalarFieldVisObject::Update()
 }
 
 ScalarFieldBdrVisObject::ScalarFieldBdrVisObject(const std::string & field_name,
-						 L2_ParFESpace *sfes,
-						 bool cyl,
-						 bool pseudo)
+                                                 L2_ParFESpace *sfes,
+                                                 bool cyl,
+                                                 bool pseudo)
    : cyl_(cyl),
      pseudo_(pseudo),
      dim_(-1),
@@ -123,7 +123,8 @@ ScalarFieldBdrVisObject::~ScalarFieldBdrVisObject()
    delete v_;
 }
 
-void ScalarFieldBdrVisObject::RegisterVisItFields(VisItDataCollection & visit_dc)
+void ScalarFieldBdrVisObject::RegisterVisItFields(VisItDataCollection &
+                                                  visit_dc)
 {
    ostringstream oss_r;
    ostringstream oss_i;
@@ -136,9 +137,9 @@ void ScalarFieldBdrVisObject::RegisterVisItFields(VisItDataCollection & visit_dc
 }
 
 void ScalarFieldBdrVisObject::PrepareVisField(const ParComplexGridFunction &u,
-					      VectorCoefficient * kReCoef,
-					      VectorCoefficient * kImCoef,
-					      Array<int> & attr_marker)
+                                              VectorCoefficient * kReCoef,
+                                              VectorCoefficient * kImCoef,
+                                              Array<int> & attr_marker)
 {
    GridFunctionCoefficient u_r(&u.real());
    GridFunctionCoefficient u_i(&u.imag());
@@ -147,10 +148,10 @@ void ScalarFieldBdrVisObject::PrepareVisField(const ParComplexGridFunction &u,
 }
 
 void ScalarFieldBdrVisObject::PrepareVisField(Coefficient &u_r,
-					      Coefficient &u_i,
-					      VectorCoefficient * kReCoef,
-					      VectorCoefficient * kImCoef,
-					      Array<int> & attr_marker)
+                                              Coefficient &u_i,
+                                              VectorCoefficient * kReCoef,
+                                              VectorCoefficient * kImCoef,
+                                              Array<int> & attr_marker)
 {
    if (kReCoef || kImCoef)
    {

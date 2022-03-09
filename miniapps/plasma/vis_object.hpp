@@ -72,8 +72,8 @@ protected:
 
 public:
    ScalarFieldBdrVisObject(const std::string & field_name,
-			   L2_ParFESpace *sfes,
-			   bool cyl, bool pseudo);
+                           L2_ParFESpace *sfes,
+                           bool cyl, bool pseudo);
 
    ~ScalarFieldBdrVisObject();
 
@@ -82,13 +82,13 @@ public:
    virtual void PrepareVisField(const ParComplexGridFunction &u,
                                 VectorCoefficient * kReCoef,
                                 VectorCoefficient * kImCoef,
-				Array<int> & attr_marker);
+                                Array<int> & attr_marker);
 
    virtual void PrepareVisField(Coefficient &uReCoef,
                                 Coefficient &uImCoef,
                                 VectorCoefficient * kReCoef,
                                 VectorCoefficient * kImCoef,
-				Array<int> & attr_marker);
+                                Array<int> & attr_marker);
 
    virtual void Update();
 };
