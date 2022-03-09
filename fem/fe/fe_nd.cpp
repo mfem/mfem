@@ -1916,7 +1916,11 @@ void ND_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
                "1 or 3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
-      shape(i, 0) *= JI(0,0);
+      double sx = shape(i, 0);
+      double sz = shape(i, 1);
+      shape(i, 0) = sx * JI(0,0);
+      shape(i, 1) = sx * JI(0,1);
+      shape(i, 2) = sz;
    }
 }
 
@@ -1958,11 +1962,11 @@ void ND_R2D_SegmentElement::CalcPhysCurlShape(ElementTransformation &Trans,
                "3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
-      double sx = curl_shape(i, 0);
-      curl_shape(i, 0) = sx * J(0, 0);
-      curl_shape(i, 1) = sx * J(1, 0);
+      double sy = curl_shape(i, 1);
+      curl_shape(i, 0) = -sy * J(1, 0);
+      curl_shape(i, 1) =  sy * J(0, 0);
    }
-   curl_shape *= (1.0 / Trans.Weight());
+   curl_shape *= (1.0 / (Trans.Weight() * Trans.Weight()));
 }
 
 void ND_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
