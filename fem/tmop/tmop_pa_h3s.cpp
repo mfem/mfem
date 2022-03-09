@@ -229,7 +229,7 @@ void EvalH_332(const int e, const int qx, const int qy, const int qz,
       }
    }
 }
-
+/*
 MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
                            const double metric_normal,
                            const double metric_param,
@@ -312,6 +312,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
    });
 }
 
+*/
 void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
 {
    const int N = PA.ne;
@@ -329,7 +330,7 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
    double mp = 0.0;
    if (auto m = dynamic_cast<TMOP_Metric_332 *>(metric)) { mp = m->GetGamma(); }
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_3D,id,mn,mp,M,X,N,W,B,G,J,H);
+   //MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_3D,id,mn,mp,M,X,N,W,B,G,J,H);
 }
 
 } // namespace mfem
