@@ -110,8 +110,8 @@ void PrintIntegral(int myid, ParGridFunction &g, std::string text)
 int main(int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
-   MPI::Init();
-   int myid = MPI::Session().WorldRank();;
+   Mpi::Init();
+   int myid = Mpi::Session().WorldRank();;
    Hypre::Init();
 
    // Parse command-line options.

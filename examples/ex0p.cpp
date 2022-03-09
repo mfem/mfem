@@ -22,7 +22,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   MPI::Init(argc, argv);
+   Mpi::Init(argc, argv);
    Hypre::Init();
 
    // 2. Parse command line options.
@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, mesh.Dimension());
    ParFiniteElementSpace fespace(&mesh, &fec);
    HYPRE_BigInt total_num_dofs = fespace.GlobalTrueVSize();
-   if (MPI::Session().Root())
+   if (Mpi::Session().Root())
    {
       cout << "Number of unknowns: " << total_num_dofs << endl;
    }

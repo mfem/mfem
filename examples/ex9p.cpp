@@ -233,9 +233,9 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   MPI::Init();
-   int num_procs = MPI::Session().WorldSize();
-   int myid = MPI::Session().WorldRank();
+   Mpi::Init();
+   int num_procs = Mpi::Session().WorldSize();
+   int myid = Mpi::Session().WorldRank();
    Hypre::Init();
 
    // 2. Parse command-line options.
@@ -317,19 +317,19 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (MPI::Session().Root())
+      if (Mpi::Session().Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (MPI::Session().Root())
+   if (Mpi::Session().Root())
    {
       args.PrintOptions(cout);
    }
 
    Device device(device_config);
-   if (MPI::Session().Root()) { device.Print(); }
+   if (Mpi::Session().Root()) { device.Print(); }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
@@ -356,7 +356,7 @@ int main(int argc, char *argv[])
       case 23: ode_solver = new SDIRK23Solver; break;
       case 24: ode_solver = new SDIRK34Solver; break;
       default:
-         if (MPI::Session().Root())
+         if (Mpi::Session().Root())
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
@@ -394,7 +394,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
    HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
-   if (MPI::Session().Root())
+   if (Mpi::Session().Root())
    {
       cout << "Number of unknowns: " << global_vSize << endl;
    }
@@ -535,11 +535,11 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
       if (!sout)
       {
-         if (MPI::Session().Root())
+         if (Mpi::Session().Root())
             cout << "Unable to connect to GLVis server at "
                  << vishost << ':' << visport << endl;
          visualization = false;
-         if (MPI::Session().Root())
+         if (Mpi::Session().Root())
          {
             cout << "GLVis visualization disabled.\n";
          }
@@ -551,7 +551,7 @@ int main(int argc, char *argv[])
          sout << "solution\n" << *pmesh << *u;
          sout << "pause\n";
          sout << flush;
-         if (MPI::Session().Root())
+         if (Mpi::Session().Root())
             cout << "GLVis visualization paused."
                  << " Press space (in the GLVis window) to resume it.\n";
       }
@@ -577,7 +577,7 @@ int main(int argc, char *argv[])
 
       if (done || ti % vis_steps == 0)
       {
-         if (MPI::Session().Root())
+         if (Mpi::Session().Root())
          {
             cout << "time step: " << ti << ", time: " << t << endl;
          }

@@ -265,7 +265,7 @@ void OptionsParser::ParseCheck(std::ostream &os)
    {
       if (my_rank == 0) { PrintUsage(os); }
 #ifdef MFEM_USE_MPI
-      if (mpi_is_initialized && !MPI::IsInitialized()) { MPI_Finalize(); }
+      if (mpi_is_initialized && !Mpi::IsInitialized()) { MPI_Finalize(); }
 #endif
       std::exit(1);
    }

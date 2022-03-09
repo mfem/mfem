@@ -64,9 +64,9 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   MPI::Init();
-   int num_procs = MPI::Session().WorldSize();
-   int myid = MPI::Session().WorldRank();
+   Mpi::Init();
+   int num_procs = Mpi::Session().WorldSize();
+   int myid = Mpi::Session().WorldRank();
    Hypre::Init();
 
    // 2. Parse command-line options.

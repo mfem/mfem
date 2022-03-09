@@ -29,17 +29,17 @@ namespace mfem
 /** @brief A simple singleton class that calls MPI_Init() at construction and
     MPI_Finalize() at destruction. It also provides easy access to
     MPI_COMM_WORLD's rank and size. */
-class MPI
+class Mpi
 {
 public:
-   /// Singleton creation with MPI::Init();
+   /// Singleton creation with Mpi::Init();
    static void Init() { Init_(NULL, NULL); }
-   /// Singleton creation with MPI::Init(argc,argv);
+   /// Singleton creation with Mpi::Init(argc,argv);
    static void Init(int &argc, char **&argv) { Init_(&argc, &argv); }
-   /// Access to the singleton with MPI::Session()
-   static MPI &Session()
+   /// Access to the singleton with Mpi::Session()
+   static Mpi &Session()
    {
-      MPI &mpi = Instance();
+      Mpi &mpi = Instance();
       MFEM_VERIFY(mpi.initialized, "MPI not initialized!");
       return mpi;
    }
@@ -51,7 +51,7 @@ private:
    /// Initialize MPI
    static void Init_(int *argc, char ***argv)
    {
-      MPI &mpi = Instance();
+      Mpi &mpi = Instance();
       MFEM_VERIFY(!mpi.initialized, "MPI already initialized!")
       MPI_Init(argc, argv);
       MPI_Comm_rank(MPI_COMM_WORLD, &mpi.world_rank);
@@ -59,34 +59,34 @@ private:
       mpi.initialized = true;
    }
    /// Finalize MPI
-   ~MPI() { MPI_Finalize(); }
+   ~Mpi() { if (initialized) { MPI_Finalize(); } }
    /// Access the singleton instance
-   static MPI &Instance()
+   static Mpi &Instance()
    {
-      static MPI mpi;
+      static Mpi mpi;
       return mpi;
    }
    /// Prevent direct construction of objects of this class
-   MPI() { }
+   Mpi() { }
    int world_rank = 0;
    int world_size = 0;
    bool initialized = false;
 };
 
 /** @brief A simple convenience class based on the MPI singleton class above.
-    Preserved for backward compatibility. New code should use MPI::Init() and
-    MPI::Session() instead. */
+    Preserved for backward compatibility. New code should use Mpi::Init() and
+    Mpi::Session() instead. */
 class MPI_Session
 {
 public:
-   MPI_Session() { MPI::Init(); }
-   MPI_Session(int &argc, char **&argv) { MPI::Init(argc, argv); }
+   MPI_Session() { Mpi::Init(); }
+   MPI_Session(int &argc, char **&argv) { Mpi::Init(argc, argv); }
    /// Return MPI_COMM_WORLD's rank.
-   int WorldRank() const { return MPI::Session().WorldRank(); }
+   int WorldRank() const { return Mpi::Session().WorldRank(); }
    /// Return MPI_COMM_WORLD's size.
-   int WorldSize() const { return MPI::Session().WorldSize(); }
+   int WorldSize() const { return Mpi::Session().WorldSize(); }
    /// Return true if WorldRank() == 0.
-   bool Root() const { return MPI::Session().Root(); }
+   bool Root() const { return Mpi::Session().Root(); }
 };
 
 

@@ -48,7 +48,7 @@ void vel(const Vector &x, double t, Vector &u)
 
 int main(int argc, char *argv[])
 {
-   MPI::Init(argc, argv);
+   Mpi::Init(argc, argv);
    Hypre::Init();
 
    int serial_refinements = 0;
@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   if (MPI::Session().Root())
+   if (Mpi::Session().Root())
    {
       std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
    }
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
          pvdc.Save();
       }
 
-      if (MPI::Session().Root())
+      if (Mpi::Session().Root())
       {
          printf("%11s %11s\n", "Time", "dt");
          printf("%.5E %.5E\n", t, dt);
