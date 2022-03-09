@@ -2183,7 +2183,7 @@ static void sedov_tests(int myid)
 #ifndef MFEM_SEDOV_DEVICE
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-   sedov_tests(MPI::Session().)WorldRank());
+   sedov_tests(MPI::Session().WorldRank());
 }
 #else
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
