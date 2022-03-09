@@ -100,10 +100,10 @@ void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
-   MPI::Init(argc, argv);
+   Mpi::Init(argc, argv);
    Hypre::Init();
 
-   if ( MPI::Session().Root() ) { display_banner(cout); }
+   if ( Mpi::Session().Root() ) { display_banner(cout); }
 
    // Parse command-line options.
    const char *mesh_file = "../../data/ball-nurbs.mesh";
@@ -166,13 +166,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (MPI::Session().Root())
+      if (Mpi::Session().Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (MPI::Session().Root())
+   if (Mpi::Session().Root())
    {
       args.PrintOptions(cout);
    }
@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int sdim = mesh->SpaceDimension();
 
-   if (MPI::Session().Root())
+   if (Mpi::Session().Root())
    {
       cout << "Starting initialization." << endl;
    }
@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
    {
       Volta.RegisterVisItFields(visit_dc);
    }
-   if (MPI::Session().Root()) { cout << "Initialization done." << endl; }
+   if (Mpi::Session().Root()) { cout << "Initialization done." << endl; }
 
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
@@ -279,7 +279,7 @@ int main(int argc, char *argv[])
    const int max_dofs = 10000000;
    for (int it = 1; it <= maxit; it++)
    {
-      if (MPI::Session().Root())
+      if (Mpi::Session().Root())
       {
          cout << "\nAMR Iteration " << it << endl;
       }
@@ -308,7 +308,7 @@ int main(int argc, char *argv[])
          Volta.DisplayToGLVis();
       }
 
-      if (MPI::Session().Root())
+      if (Mpi::Session().Root())
       {
          cout << "AMR iteration " << it << " complete." << endl;
       }
@@ -316,7 +316,7 @@ int main(int argc, char *argv[])
       // Check stopping criteria
       if (prob_size > max_dofs)
       {
-         if (MPI::Session().Root())
+         if (Mpi::Session().Root())
          {
             cout << "Reached maximum number of dofs, exiting..." << endl;
          }
@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
 
       // Wait for user input. Ask every 10th iteration.
       char c = 'c';
-      if (MPI::Session().Root() && (it % 10 == 0))
+      if (Mpi::Session().Root() && (it % 10 == 0))
       {
          cout << "press (q)uit or (c)ontinue --> " << flush;
          cin >> c;
@@ -354,15 +354,15 @@ int main(int argc, char *argv[])
       // maximum element error.
       const double frac = 0.7;
       double threshold = frac * global_max_err;
-      if (MPI::Session().Root()) { cout << "Refining ..." << endl; }
+      if (Mpi::Session().Root()) { cout << "Refining ..." << endl; }
       pmesh.RefineByError(errors, threshold);
 
       // Update the electrostatic solver to reflect the new state of the mesh.
       Volta.Update();
 
-      if (pmesh.Nonconforming() && MPI::Session().WorldSize() > 1)
+      if (pmesh.Nonconforming() && Mpi::Session().WorldSize() > 1)
       {
-         if (MPI::Session().Root()) { cout << "Rebalancing ..." << endl; }
+         if (Mpi::Session().Root()) { cout << "Rebalancing ..." << endl; }
          pmesh.Rebalance();
 
          // Update again after rebalancing
