@@ -23,8 +23,8 @@ std::string mfem_data_dir;
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
-   mfem::MPI::Init();
-   bool root = mfem::MPI::Session().Root();
+   mfem::Mpi::Init();
+   bool root = mfem::Mpi::Session().Root();
    mfem::Hypre::Init();
 #else
    bool root = true;

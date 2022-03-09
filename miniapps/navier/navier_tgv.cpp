@@ -211,7 +211,7 @@ void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
 
 int main(int argc, char *argv[])
 {
-   MPI::Init(argc, argv);
+   Mpi::Init(argc, argv);
    Hypre::Init();
 
    OptionsParser args(argc, argv);
@@ -253,13 +253,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (MPI::Session().Root())
+      if (Mpi::Session().Root())
       {
          args.PrintUsage(mfem::out);
       }
       return 1;
    }
-   if (MPI::Session().Root())
+   if (Mpi::Session().Root())
    {
       args.PrintOptions(mfem::out);
    }
@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
    *nodes *= M_PI;
 
    int nel = mesh.GetNE();
-   if (MPI::Session().Root())
+   if (Mpi::Session().Root())
    {
       mfem::out << "Number of elements: " << nel << std::endl;
    }
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
    std::string fname = "tgv_out_p_" + std::to_string(ctx.order) + ".txt";
    FILE *f = NULL;
 
-   if (MPI::Session().Root())
+   if (Mpi::Session().Root())
    {
       int nel1d = std::round(pow(nel, 1.0 / 3.0));
       int ngridpts = p_gf->ParFESpace()->GlobalVSize();
@@ -372,7 +372,7 @@ int main(int argc, char *argv[])
       u_inf = GlobalLpNorm(infinity(), u_inf_loc, MPI_COMM_WORLD);
       p_inf = GlobalLpNorm(infinity(), p_inf_loc, MPI_COMM_WORLD);
       ke = kin_energy.ComputeKineticEnergy(*u_gf);
-      if (MPI::Session().Root())
+      if (Mpi::Session().Root())
       {
          printf("%.5E %.5E %.5E %.5E %.5E\n", t, dt, u_inf, p_inf, ke);
          fprintf(f, "%20.16e     %20.16e\n", t, ke);
@@ -390,7 +390,7 @@ int main(int argc, char *argv[])
       double ke_expected = 1.25e-1;
       if (fabs(ke - ke_expected) > tol)
       {
-         if (MPI::Session().Root())
+         if (Mpi::Session().Root())
          {
             mfem::out << "Result has a larger error than expected."
                       << std::endl;
