@@ -107,6 +107,8 @@ Version 4.3.1 (development)
 - Added ParaView visualization of `QuadratureFunction` fields, through both
   `QuadratureFunction::SaveVTU` and `ParaViewDataCollection::RegisterQField`.
 
+- Added Nedelec and Raviart-Thomas basis functions for modeling three
+  dimensional vector fields in 1D or 2D domains.
 
 Version 4.3, released on July 29, 2021
 ======================================
