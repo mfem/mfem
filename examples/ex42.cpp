@@ -784,7 +784,6 @@ CalcGrad(const tensor<double, q1d, d1d> &B, // q1d x d1d
 {
    for (int c = 0; c < dim; ++c)
    {
-      MFEM_SYNC_THREAD;
       MFEM_FOREACH_THREAD(dz,z,d1d)
       {
          MFEM_FOREACH_THREAD(dy,y,d1d)
@@ -981,7 +980,7 @@ GradAllPhis(int qx, int qy, int qz,
       {
          for (int dz = 0; dz < d1d; dz++)
          {
-            dphi_dx[dx][dy][dz] =
+            dphi_dx(dx,dy,dz) =
                transpose(invJ) *
                tensor<double, dim> {g(qx, dx) * b(qy, dy) * b(qz, dz),
                                     b(qx, dx) * g(qy, dy) * b(qz, dz),
@@ -1059,7 +1058,7 @@ Apply3D(const int ne, const Array<double> &B_, const Array<double> &G_,
       }
 
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
-      KernelHelpers::CalcGrad<dim, d1d, q1d>(B, G, smem, U_el, dudxi);
+      KernelHelpers::CalcGrad(B, G, smem, U_el, dudxi);
 
       MFEM_FOREACH_THREAD(qx, x, q1d)
       {
@@ -1082,7 +1081,7 @@ Apply3D(const int ne, const Array<double> &B_, const Array<double> &G_,
       MFEM_SYNC_THREAD;
 
       auto F = Reshape(&force(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
-      KernelHelpers::CalcGradTSum<dim, d1d, q1d>(B, G, smem, invJ_sigma_detJw, F);
+      KernelHelpers::CalcGradTSum(B, G, smem, invJ_sigma_detJw, F);
    }); // for each element
 }
 
@@ -1153,10 +1152,10 @@ ApplyGradient3D(const int ne, const Array<double> &B_, const Array<double> &G_,
          }
       }
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
-      KernelHelpers::CalcGrad<dim, d1d, q1d>(B, G, smem, U_el, dudxi);
+      KernelHelpers::CalcGrad(B, G, smem, U_el, dudxi);
 
       const auto dU_el = Reshape(&dU(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
-      KernelHelpers::CalcGrad<dim, d1d, q1d>(B, G, smem, dU_el, ddudxi);
+      KernelHelpers::CalcGrad(B, G, smem, dU_el, ddudxi);
 
       MFEM_FOREACH_THREAD(qx, x, q1d)
       {
@@ -1179,7 +1178,7 @@ ApplyGradient3D(const int ne, const Array<double> &B_, const Array<double> &G_,
       }
       MFEM_SYNC_THREAD;
       auto F = Reshape(&force(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
-      KernelHelpers::CalcGradTSum<dim, d1d, q1d>(B, G, smem, invJ_dsigma_detJw, F);
+      KernelHelpers::CalcGradTSum(B, G, smem, invJ_dsigma_detJw, F);
    }); // for each element
 }
 
@@ -1255,7 +1254,7 @@ static inline void AssembleGradientDiagonal3D(const int ne,
       MFEM_SYNC_THREAD;
 
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
-      KernelHelpers::CalcGrad<dim, d1d, q1d>(B, G, smem, U_el, dudxi);
+      KernelHelpers::CalcGrad(B, G, smem, U_el, dudxi);
 
       MFEM_FOREACH_THREAD(qx, x, q1d)
       {
@@ -1273,8 +1272,7 @@ static inline void AssembleGradientDiagonal3D(const int ne,
                const auto dsigma_ddudx = material.gradient(dudx);
 
                const double JxW = detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
-               const auto dphidx =
-                  KernelHelpers::GradAllPhis<dim, d1d, q1d>(qx, qy, qz, B, G, invJqp);
+               const auto dphidx = KernelHelpers::GradAllPhis(qx, qy, qz, B, G, invJqp);
 
                for (int dx = 0; dx < d1d; dx++)
                {
