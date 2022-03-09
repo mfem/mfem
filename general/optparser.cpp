@@ -11,6 +11,7 @@
 
 #include "optparser.hpp"
 #include "../linalg/vector.hpp"
+#include "../general/communication.hpp"
 #include <cctype>
 
 namespace mfem
