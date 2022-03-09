@@ -403,6 +403,9 @@ public:
    ElasticityGradientOperator *gradient_;
    const GeometricFactors *geometric_factors_;
    const DofToQuad *maps_;
+   tensor<double, 2, 2> BG2_[2];
+   tensor<double, 3, 3> BG3_[2];
+   tensor<double, 4, 4> BG4_[2];
    /// Input state L-vector
    mutable Vector X_local_;
    /// Input state E-vector
@@ -428,8 +431,9 @@ public:
     * and could be replaced by an abstract base class for the material including
     * virtual function calls.
     */
-   std::function<void(const int, const Array<double> &, const Array<double> &,
-                      const Array<double> &, const Vector &, const Vector &,
+   std::function<void(const int,
+                      const Array<double> &,
+                      const Vector &, const Vector &,
                       const Vector &, Vector &)>
    element_apply_kernel_wrapper;
 
@@ -438,8 +442,9 @@ public:
     *
     *  K(U) dX = dR(U)/dU dX
     */
-   std::function<void(const int, const Array<double> &, const Array<double> &,
-                      const Array<double> &, const Vector &, const Vector &,
+   std::function<void(const int,
+                      const Array<double> &,
+                      const Vector &, const Vector &,
                       const Vector &, Vector &, const Vector &)>
    element_apply_gradient_kernel_wrapper;
 
@@ -448,8 +453,9 @@ public:
     *
     * Ke_ii(U) = dRe_ii(U)/dU
     */
-   std::function<void(const int, const Array<double> &, const Array<double> &,
-                      const Array<double> &, const Vector &, const Vector &,
+   std::function<void(const int,
+                      const Array<double> &,
+                      const Vector &, const Vector &,
                       const Vector &, Vector &)>
    element_kernel_assemble_diagonal_wrapper;
 
@@ -747,10 +753,22 @@ int main(int argc, char *argv[])
 namespace KernelHelpers
 {
 
+// MFEM_SHARED_3D_BLOCK_TENSOR definition
+// Should be moved in backends/cuda/hip header files.
+#if defined(__CUDA_ARCH__)
+#define MFEM_SHARED_3D_BLOCK_TENSOR(name,T,bx,by,bz,...)\
+MFEM_SHARED tensor<T,bx,by,bz,__VA_ARGS__> name;\
+name(threadIdx.x, threadIdx.y, threadIdx.z) = tensor<T,__VA_ARGS__> {};
+#else
+#define MFEM_SHARED_3D_BLOCK_TENSOR(name,...) tensor<__VA_ARGS__> name {};
+#endif
+
 // Kernel helper functions
 void CheckMemoryRestriction(int d1d, int q1d)
 {
-   MFEM_VERIFY(d1d <= q1d, "d1d <= q1d");
+   MFEM_VERIFY(d1d <= q1d,
+               "There should be more or equal quadrature points "
+               "as there are dofs");
    MFEM_VERIFY(d1d <= MAX_D1D,
                "Maximum number of degrees of freedom in 1D reached."
                "This number can be increased globally in general/forall.hpp if "
@@ -771,11 +789,12 @@ void CheckMemoryRestriction(int d1d, int q1d)
  * @tparam q1d
  * @param B
  * @param G
+ * @param smem
  * @param U
  * @param dUdxi
  */
 template <int dim, int d1d, int q1d>
-static inline void MFEM_HOST_DEVICE
+static inline MFEM_HOST_DEVICE void
 CalcGrad(const tensor<double, q1d, d1d> &B, // q1d x d1d
          const tensor<double, q1d, d1d> &G, // q1d x d1d
          tensor<double,2,3,q1d,q1d,q1d> &smem,
@@ -866,78 +885,77 @@ CalcGrad(const tensor<double, q1d, d1d> &B, // q1d x d1d
  * @brief Multi-component transpose gradient evaluation from DOFs to quadrature
  * points in reference coordinates with contraction of the D vector.
  *
- * @note TODO: Does not make use of shared memory on the GPU.
- *
  * @tparam dim
  * @tparam d1d
  * @tparam q1d
  * @param B
  * @param G
+ * @param smem
  * @param U
  * @param F
  */
 template <int dim, int d1d, int q1d>
-static inline void MFEM_HOST_DEVICE CalcGradTSum(
-   const tensor<double,q1d,d1d> &B,
-   const tensor<double,q1d,d1d> &G,
-   tensor<double,2,3,q1d,q1d,q1d> &smem,
-   const tensor<double, q1d, q1d, q1d, dim, dim> &U, // q1d x q1d x q1d x dim
-   DeviceTensor<4, double> &F)                       // d1d x d1d x d1d x dim
+static inline MFEM_HOST_DEVICE void
+CalcGradTSum(const tensor<double, q1d, d1d> &B,
+             const tensor<double, q1d, d1d> &G,
+             tensor<double, 2, 3, q1d, q1d, q1d> &smem,
+             const tensor<double, q1d, q1d, q1d, dim, dim> &U, // q1d x q1d x q1d x dim
+             DeviceTensor<4, double> &F)                       // d1d x d1d x d1d x dim
 {
    for (int c = 0; c < dim; ++c)
    {
-      MFEM_FOREACH_THREAD(qz,z,q1d)
+      MFEM_FOREACH_THREAD(qz, z, q1d)
       {
-         MFEM_FOREACH_THREAD(qy,y,q1d)
+         MFEM_FOREACH_THREAD(qy, y, q1d)
          {
-            MFEM_FOREACH_THREAD(dx,x,d1d)
+            MFEM_FOREACH_THREAD(dx, x, d1d)
             {
                double u = 0.0, v = 0.0, w = 0.0;
                for (int qx = 0; qx < q1d; ++qx)
                {
-                  u += U(qx,qy,qz,0,c) * G(qx,dx);
-                  v += U(qx,qy,qz,1,c) * B(qx,dx);
-                  w += U(qx,qy,qz,2,c) * B(qx,dx);
+                  u += U(qx, qy, qz, 0, c) * G(qx, dx);
+                  v += U(qx, qy, qz, 1, c) * B(qx, dx);
+                  w += U(qx, qy, qz, 2, c) * B(qx, dx);
                }
-               smem(0,0,qz,qy,dx) = u;
-               smem(0,1,qz,qy,dx) = v;
-               smem(0,2,qz,qy,dx) = w;
+               smem(0, 0, qz, qy, dx) = u;
+               smem(0, 1, qz, qy, dx) = v;
+               smem(0, 2, qz, qy, dx) = w;
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qz,z,q1d)
+      MFEM_FOREACH_THREAD(qz, z, q1d)
       {
-         MFEM_FOREACH_THREAD(dy,y,d1d)
+         MFEM_FOREACH_THREAD(dy, y, d1d)
          {
-            MFEM_FOREACH_THREAD(dx,x,d1d)
+            MFEM_FOREACH_THREAD(dx, x, d1d)
             {
                double u = 0.0, v = 0.0, w = 0.0;
                for (int qy = 0; qy < q1d; ++qy)
                {
-                  u += smem(0,0,qz,qy,dx) * B(qy,dy);
-                  v += smem(0,1,qz,qy,dx) * G(qy,dy);
-                  w += smem(0,2,qz,qy,dx) * B(qy,dy);
+                  u += smem(0, 0, qz, qy, dx) * B(qy, dy);
+                  v += smem(0, 1, qz, qy, dx) * G(qy, dy);
+                  w += smem(0, 2, qz, qy, dx) * B(qy, dy);
                }
-               smem(1,0,qz,dy,dx) = u;
-               smem(1,1,qz,dy,dx) = v;
-               smem(1,2,qz,dy,dx) = w;
+               smem(1, 0, qz, dy, dx) = u;
+               smem(1, 1, qz, dy, dx) = v;
+               smem(1, 2, qz, dy, dx) = w;
             }
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dz,z,d1d)
+      MFEM_FOREACH_THREAD(dz, z, d1d)
       {
-         MFEM_FOREACH_THREAD(dy,y,d1d)
+         MFEM_FOREACH_THREAD(dy, y, d1d)
          {
-            MFEM_FOREACH_THREAD(dx,x,d1d)
+            MFEM_FOREACH_THREAD(dx, x, d1d)
             {
                double u = 0.0, v = 0.0, w = 0.0;
                for (int qz = 0; qz < q1d; ++qz)
                {
-                  u += smem(1,0,qz,dy,dx) * B(qz,dz);
-                  v += smem(1,1,qz,dy,dx) * B(qz,dz);
-                  w += smem(1,2,qz,dy,dx) * G(qz,dz);
+                  u += smem(1, 0, qz, dy, dx) * B(qz, dz);
+                  v += smem(1, 1, qz, dy, dx) * B(qz, dz);
+                  w += smem(1, 2, qz, dy, dx) * G(qz, dz);
                }
                const double sum = u + v + w;
                F(dx, dy, dz, c) += sum;
@@ -963,11 +981,11 @@ static inline void MFEM_HOST_DEVICE CalcGradTSum(
  * @param G
  * @param invJ
  */
-template <int dim, int d1d, int q1d>
-static inline MFEM_HOST_DEVICE tensor<double, d1d, d1d, d1d, dim>
+template <int dim, int d1d, int q1d> static inline MFEM_HOST_DEVICE
+tensor<double, d1d, d1d, d1d, dim>
 GradAllPhis(int qx, int qy, int qz,
-            const tensor<double,q1d,d1d> &b,
-            const tensor<double,q1d,d1d> &g,
+            const tensor<double, q1d, d1d> &B,
+            const tensor<double, q1d, d1d> &G,
             const tensor<double, dim, dim> &invJ)
 {
    tensor<double, d1d, d1d, d1d, dim> dphi_dx;
@@ -982,9 +1000,9 @@ GradAllPhis(int qx, int qy, int qz,
          {
             dphi_dx(dx,dy,dz) =
                transpose(invJ) *
-               tensor<double, dim> {g(qx, dx) * b(qy, dy) * b(qz, dz),
-                                    b(qx, dx) * g(qy, dy) * b(qz, dz),
-                                    b(qx, dx) * b(qy, dy) * g(qz, dz)
+               tensor<double, dim> {G(qx, dx) * B(qy, dy) * B(qz, dz),
+                                    B(qx, dx) * G(qy, dy) * B(qz, dz),
+                                    B(qx, dx) * B(qy, dy) * G(qz, dz)
                                    };
          }
       }
@@ -995,21 +1013,20 @@ GradAllPhis(int qx, int qy, int qz,
 
 namespace ElasticityKernels
 {
-template <int d1d, int q1d, typename material_type>
-static inline void
-Apply3D(const int ne, const Array<double> &B_, const Array<double> &G_,
-        const Array<double> &W_, const Vector &Jacobian_, const Vector &detJ_,
-        const Vector &X_, Vector &Y_, const material_type &material)
+
+template <int d1d, int q1d, typename material_type> static inline
+void Apply3D(const int ne,
+             const tensor<double, q1d, d1d> &B,
+             const tensor<double, q1d, d1d> &G,
+             const Array<double> &W_,
+             const Vector &Jacobian_,
+             const Vector &detJ_,
+             const Vector &X_, Vector &Y_,
+             const material_type &material)
 {
    constexpr int dim = dimension;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
-   // 1D Basis functions in column-major layout
-   // q1d x d1d
-   const auto b = Reshape(B_.Read(), q1d, d1d);
-   // Gradients of 1D basis functions evaluated at quadrature points in
-   // column-major layout q1d x d1d
-   const auto g = Reshape(G_.Read(), q1d, d1d);
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
    // Jacobians of the element transformations at all quadrature points in
    // column-major layout q1d x q1d x q1d x sdim x dim x ne
@@ -1024,38 +1041,12 @@ Apply3D(const int ne, const Array<double> &B_, const Array<double> &G_,
 
    MFEM_FORALL_3D(e, ne, q1d, q1d, q1d,
    {
-      // shared mememory 1D Basis functions, filled from b and g inputs
-      MFEM_SHARED tensor<double, q1d, d1d> B, G;
       // shared memory placeholders for temporary contraction results
       MFEM_SHARED tensor<double, 2, 3, q1d, q1d, q1d> smem;
       // cauchy stress
-      MFEM_SHARED tensor<double, q1d, q1d, q1d, dim, dim> invJ_sigma_detJw;
+      MFEM_SHARED_3D_BLOCK_TENSOR(invJ_sigma_detJw, double, q1d, q1d, q1d, dim, dim);
       // du/dxi
-      MFEM_SHARED tensor<double, q1d, q1d, q1d, dim, dim> dudxi;
-
-      // initializer '{}' not allowed for shared variable
-      MFEM_FOREACH_THREAD(qx, x, q1d)
-      {
-         MFEM_FOREACH_THREAD(qy, y, q1d)
-         {
-            if (MFEM_THREAD_ID(z) == 0 && qy<d1d)
-            {
-               const int dy = qy;
-               B(qx, dy) = b(qx, dy);
-               G(qx, dy) = g(qx, dy);
-            }
-            MFEM_FOREACH_THREAD(qz, z, q1d)
-            {
-               for (int l = 0; l < dim; l++)
-               {
-                  for (int m = 0; m < dim; m++)
-                  {
-                     dudxi(qx, qy, qz, l, m) = 0.0;
-                  }
-               }
-            }
-         }
-      }
+      MFEM_SHARED_3D_BLOCK_TENSOR(dudxi, double, q1d, q1d, q1d, dim, dim);
 
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
       KernelHelpers::CalcGrad(B, G, smem, U_el, dudxi);
@@ -1085,22 +1076,17 @@ Apply3D(const int ne, const Array<double> &B_, const Array<double> &G_,
    }); // for each element
 }
 
-template <int d1d, int q1d, typename material_type>
-static inline void
-ApplyGradient3D(const int ne, const Array<double> &B_, const Array<double> &G_,
-                const Array<double> &W_, const Vector &Jacobian_,
-                const Vector &detJ_, const Vector &dU_, Vector &dF_,
-                const Vector &U_, const material_type &material)
+template <int d1d, int q1d, typename material_type> static inline
+void ApplyGradient3D(const int ne,
+                     const tensor<double, q1d, d1d> &B,
+                     const tensor<double, q1d, d1d> &G,
+                     const Array<double> &W_, const Vector &Jacobian_,
+                     const Vector &detJ_, const Vector &dU_, Vector &dF_,
+                     const Vector &U_, const material_type &material)
 {
    constexpr int dim = dimension;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
-   // 1D Basis functions in column-major layout
-   // q1d x d1d
-   const auto b = Reshape(B_.Read(), q1d, d1d);
-   // Gradients of 1D basis functions evaluated at quadrature points in
-   // column-major layout q1d x d1d
-   const auto g = Reshape(G_.Read(), q1d, d1d);
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
    // Jacobians of the element transformations at all quadrature points in
    // column-major layout q1d x q1d x q1d x sdim x dim x ne
@@ -1118,39 +1104,14 @@ ApplyGradient3D(const int ne, const Array<double> &B_, const Array<double> &G_,
 
    MFEM_FORALL_3D(e, ne, q1d, q1d, q1d,
    {
-      // shared memory 1D Basis functions filled from b and g inputs
-      MFEM_SHARED tensor<double, q1d, d1d> B, G;
       // shared memory placeholders for temporary contraction results
       MFEM_SHARED tensor<double, 2, 3, q1d, q1d, q1d> smem;
       // cauchy stress
       MFEM_SHARED tensor<double, q1d, q1d, q1d, dim, dim> invJ_dsigma_detJw;
       // du/dxi, ddu/dxi
-      MFEM_SHARED tensor<double, q1d, q1d, q1d, dim, dim> dudxi, ddudxi;
+      MFEM_SHARED_3D_BLOCK_TENSOR( dudxi, double, q1d, q1d, q1d, dim, dim);
+      MFEM_SHARED_3D_BLOCK_TENSOR(ddudxi, double, q1d, q1d, q1d, dim, dim);
 
-      // initializer '{}' not allowed for shared variable
-      MFEM_FOREACH_THREAD(qx, x, q1d)
-      {
-         MFEM_FOREACH_THREAD(qy, y, q1d)
-         {
-            if (MFEM_THREAD_ID(z) == 0 && qy < d1d)
-            {
-               const int dy = qy;
-               B(qx, dy) = b(qx, dy);
-               G(qx, dy) = g(qx, dy);
-            }
-            MFEM_FOREACH_THREAD(qz, z, q1d)
-            {
-               for (int l = 0; l < dim; l++)
-               {
-                  for (int m = 0; m < dim; m++)
-                  {
-                     dudxi(qx, qy, qz, l, m) = 0.0;
-                     ddudxi(qx, qy, qz, l, m) = 0.0;
-                  }
-               }
-            }
-         }
-      }
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
       KernelHelpers::CalcGrad(B, G, smem, U_el, dudxi);
 
@@ -1182,26 +1143,20 @@ ApplyGradient3D(const int ne, const Array<double> &B_, const Array<double> &G_,
    }); // for each element
 }
 
-template <int d1d, int q1d, typename material_type>
-static inline void AssembleGradientDiagonal3D(const int ne,
-                                              const Array<double> &B_,
-                                              const Array<double> &G_,
-                                              const Array<double> &W_,
-                                              const Vector &Jacobian_,
-                                              const Vector &detJ_,
-                                              const Vector &X_,
-                                              Vector &Ke_diag_memory,
-                                              const material_type &material)
+template <int d1d, int q1d, typename material_type> static inline
+void AssembleGradientDiagonal3D(const int ne,
+                                const tensor<double, q1d, d1d> &B,
+                                const tensor<double, q1d, d1d> &G,
+                                const Array<double> &W_,
+                                const Vector &Jacobian_,
+                                const Vector &detJ_,
+                                const Vector &X_,
+                                Vector &Ke_diag_memory,
+                                const material_type &material)
 {
    constexpr int dim = dimension;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
-   // 1D Basis functions in column-major layout
-   // q1d x d1d
-   const auto b = Reshape(B_.Read(), q1d, d1d);
-   // Gradients of 1D basis functions evaluated at quadrature points in
-   // column-major layout q1d x d1d
-   const auto g = Reshape(G_.Read(), q1d, d1d);
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
    // Jacobians of the element transformations at all quadrature points. This
    // array uses a column-major layout
@@ -1218,40 +1173,11 @@ static inline void AssembleGradientDiagonal3D(const int ne,
 
    MFEM_FORALL_3D(e, ne, q1d, q1d, q1d,
    {
-      // shared mememory 1D Basis functions, filled from b and g inputs
-      MFEM_SHARED tensor<double, q1d, d1d> B, G;
       // shared memory placeholders for temporary contraction results
       MFEM_SHARED tensor<double, 2, 3, q1d, q1d, q1d> smem;
       // du/dxi
-      MFEM_SHARED tensor<double, q1d, q1d, q1d, dim, dim> dudxi;
-      MFEM_SHARED tensor<double, d1d, d1d, d1d, dim, dim> Ke_diag;
-
-      // B, G, dudxi, Ke_diag initialization
-      MFEM_FOREACH_THREAD(qx, x, q1d)
-      {
-         MFEM_FOREACH_THREAD(qy, y, q1d)
-         {
-            if (MFEM_THREAD_ID(z) == 0 && qy < d1d)
-            {
-               const int dy = qy;
-               B(qx, dy) = b(qx, dy);
-               G(qx, dy) = g(qx, dy);
-            }
-            MFEM_FOREACH_THREAD(qz, z, q1d)
-            {
-               const bool inside_d1d_cube = qx < d1d && qy < d1d && qz < d1d;
-               for (int l = 0; l < dim; l++)
-               {
-                  for (int m = 0; m < dim; m++)
-                  {
-                     dudxi(qx, qy, qz, l, m) = 0.0;
-                     if (inside_d1d_cube) { Ke_diag(qx, qy, qz, l,m) = 0.0; }
-                  }
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
+      MFEM_SHARED_3D_BLOCK_TENSOR(dudxi, double, q1d, q1d, q1d, dim, dim);
+      MFEM_SHARED_3D_BLOCK_TENSOR(Ke_diag, double, d1d, d1d, d1d, dim, dim);
 
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
       KernelHelpers::CalcGrad(B, G, smem, U_el, dudxi);
@@ -1376,6 +1302,15 @@ ElasticityOperator::ElasticityOperator(ParMesh &mesh, const int order)
    cstate_local_.SetSize(h1_prolongation_->Height());
 
    gradient_ = new ElasticityGradientOperator(*this);
+
+   BG2_[0] = make_tensor<2,2>([&](int i, int j) { return maps_->B[i+2*j]; });
+   BG2_[1] = make_tensor<2,2>([&](int i, int j) { return maps_->G[i+2*j]; });
+
+   BG3_[0] = make_tensor<3,3>([&](int i, int j) { return maps_->B[i+3*j]; });
+   BG3_[1] = make_tensor<3,3>([&](int i, int j) { return maps_->G[i+3*j]; });
+
+   BG4_[0] = make_tensor<4,4>([&](int i, int j) { return maps_->B[i+4*j]; });
+   BG4_[1] = make_tensor<4,4>([&](int i, int j) { return maps_->G[i+4*j]; });
 }
 
 void ElasticityOperator::Mult(const Vector &X, Vector &Y) const
@@ -1391,7 +1326,7 @@ void ElasticityOperator::Mult(const Vector &X, Vector &Y) const
    Y_el_ = 0.0;
 
    // Apply operator
-   element_apply_kernel_wrapper(ne_, maps_->B, maps_->G, ir_->GetWeights(),
+   element_apply_kernel_wrapper(ne_, ir_->GetWeights(),
                                 geometric_factors_->J, geometric_factors_->detJ,
                                 X_el_, Y_el_);
 
@@ -1429,8 +1364,8 @@ void ElasticityOperator::GradientMult(const Vector &dX, Vector &Y) const
 
    // Apply operator
    element_apply_gradient_kernel_wrapper(
-      ne_, maps_->B, maps_->G, ir_->GetWeights(), geometric_factors_->J,
-      geometric_factors_->detJ, X_el_, Y_el_, cstate_el_);
+      ne_, ir_->GetWeights(), geometric_factors_->J, geometric_factors_->detJ,
+      X_el_, Y_el_, cstate_el_);
 
    // E-vector to L-vector
    h1_element_restriction_->MultTranspose(Y_el_, Y_local_);
@@ -1456,7 +1391,7 @@ void ElasticityOperator::AssembleGradientDiagonal(Vector &Ke_diag,
    K_diag.SetSize(h1_prolongation_->Width() * dim_);
 
    element_kernel_assemble_diagonal_wrapper(
-      ne_, maps_->B, maps_->G, ir_->GetWeights(), geometric_factors_->J,
+      ne_, ir_->GetWeights(), geometric_factors_->J,
       geometric_factors_->detJ, cstate_el_, Ke_diag);
 
    // For each dimension, the H1 element restriction and H1 prolongation
@@ -1516,7 +1451,7 @@ void ElasticityOperator::SetMaterial(const material_type &material)
    }
 
    element_apply_kernel_wrapper =
-      [=](const int ne, const Array<double> &B_, const Array<double> &G_,
+      [=](const int ne,
           const Array<double> &W_, const Vector &Jacobian_, const Vector &detJ_,
           const Vector &X_, Vector &Y_)
    {
@@ -1524,16 +1459,20 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       switch (id)
       {
          case 0x22:
+         {
             ElasticityKernels::Apply3D<2, 2, material_type>(
-               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, BG2_[0], BG2_[1], W_, Jacobian_, detJ_, X_, Y_, material);
             break;
+         }
          case 0x33:
+         {
             ElasticityKernels::Apply3D<3, 3, material_type>(
-               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, BG3_[0], BG3_[1], W_, Jacobian_, detJ_, X_, Y_, material);
             break;
+         }
          case 0x44:
             ElasticityKernels::Apply3D<4, 4, material_type>(
-               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, BG4_[0], BG4_[1], W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          default:
             MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
@@ -1541,7 +1480,7 @@ void ElasticityOperator::SetMaterial(const material_type &material)
    };
 
    element_apply_gradient_kernel_wrapper =
-      [=](const int ne, const Array<double> &B_, const Array<double> &G_,
+      [=](const int ne,
           const Array<double> &W_, const Vector &Jacobian_, const Vector &detJ_,
           const Vector &dU_, Vector &dF_, const Vector &U_)
    {
@@ -1550,15 +1489,15 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       {
          case 0x22:
             ElasticityKernels::ApplyGradient3D<2, 2, material_type>(
-               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+               ne, BG2_[0], BG2_[1], W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
          case 0x33:
             ElasticityKernels::ApplyGradient3D<3, 3, material_type>(
-               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+               ne, BG3_[0], BG3_[1], W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
          case 0x44:
             ElasticityKernels::ApplyGradient3D<4, 4, material_type>(
-               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+               ne, BG4_[0], BG4_[1], W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
          default:
             MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
@@ -1566,7 +1505,7 @@ void ElasticityOperator::SetMaterial(const material_type &material)
    };
 
    element_kernel_assemble_diagonal_wrapper =
-      [=](const int ne, const Array<double> &B_, const Array<double> &G_,
+      [=](const int ne,
           const Array<double> &W_, const Vector &Jacobian_, const Vector &detJ_,
           const Vector &X_, Vector &Y_)
    {
@@ -1575,15 +1514,15 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       {
          case 0x22:
             ElasticityKernels::AssembleGradientDiagonal3D<2, 2, material_type>(
-               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, BG2_[0], BG2_[1], W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          case 0x33:
             ElasticityKernels::AssembleGradientDiagonal3D<3, 3, material_type>(
-               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, BG3_[0], BG3_[1], W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          case 0x44:
             ElasticityKernels::AssembleGradientDiagonal3D<4, 4, material_type>(
-               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, BG4_[0], BG4_[1], W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          default:
             MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
