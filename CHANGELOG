@@ -111,6 +111,9 @@ Version 4.3.1 (development)
   parameters, particularly GPU-relevant options. Updated parallel example codes
   and miniapps to call Hypre::Init() where appropriate.
 
+- Added a simple singleton class, MPI, as a replacement for MPI_Session. New
+  code should use MPI::Init() and MPI::Session() instead of MPI_Session.
+
 
 Version 4.3, released on July 29, 2021
 ======================================
