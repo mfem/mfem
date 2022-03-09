@@ -16,6 +16,7 @@
 #include "BlockZZEstimator.hpp"
 #include "PCSolver.hpp"
 #include "InitialConditions.hpp"
+#include "checkpoint.hpp"
 #include "../navier/ortho_solver.hpp"
 #include <memory>
 #include <iostream>
@@ -128,6 +129,7 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
+   srand(myid + 1);
    myid_rand=rand();
 
    //----Parse command-line options----
@@ -147,7 +149,6 @@ int main(int argc, char *argv[])
    bool use_factory = false;
    bool useStab = false; //use a stabilized formulation (explicit case only)
    bool initial_refine = false;
-   bool yRange = false; //fix a refinement region along y direction
    bool compute_pressure = false;
    bool compute_tau = false;
    const char *petscrc_file = "";
@@ -168,6 +169,7 @@ int main(int argc, char *argv[])
    int deref_its=1;
    double t_refs=1e10;
    int    t_refs_steps=2;
+   bool yRange = false; //fix a refinement region along y direction
    double error_norm=infinity();
    //----end of amr----
    
@@ -231,6 +233,8 @@ int main(int argc, char *argv[])
                   "AMR component ratio.");
    args.AddOption(&err_fraction, "-err-fraction", "--err-fraction",
                   "AMR error fraction in estimator.");
+   args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
+                  "--no-derefine-mesh", "Derefine the mesh in AMR.");
    args.AddOption(&derefine_ratio, "-derefine-ratio", "--derefine-ratio",
                   "AMR derefine error ratio.");
    args.AddOption(&derefine_fraction, "-derefine-fraction", "--derefine-fraction",
@@ -263,9 +267,6 @@ int main(int argc, char *argv[])
                   "--no-visit-datafiles", "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraivew",
                   "--no-paraview-datafiles", "Save data files for paraview visualization.");
-   args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
-                  "--no-derefine-mesh",
-                  "Derefine the mesh in AMR.");
    args.AddOption(&error_norm, "-error-norm", "--error-norm",
                   "AMR error norm (in both refine and derefine).");
    args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange",
@@ -1433,7 +1434,6 @@ int main(int argc, char *argv[])
               MyCoefficient velocity(&phi, 2);
               delete computeTau;
               delete tauv;
-
               computeTau = new ParLinearForm(&pw_const_fes);
               computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt_real, resi, velocity, itau_));
               computeTau->Assemble(); 
@@ -1464,27 +1464,7 @@ int main(int argc, char *argv[])
       psi.SetFromTrueDofs(vx.GetBlock(1));
       w.SetFromTrueDofs(vx.GetBlock(2));
 
-      ostringstream mesh_save, phi_name, psi_name, w_name;
-      mesh_save << "ncmesh." << setfill('0') << setw(6) << myid;
-      phi_name << "sol_phi." << setfill('0') << setw(6) << myid;
-      psi_name << "sol_psi." << setfill('0') << setw(6) << myid;
-      w_name << "sol_omega." << setfill('0') << setw(6) << myid;
-
-      ofstream ncmesh(mesh_save.str().c_str());
-      ncmesh.precision(16);
-      pmesh->ParPrint(ncmesh);
-
-      ofstream osol(phi_name.str().c_str());
-      osol.precision(16);
-      phi.Save(osol);
-
-      ofstream osol3(psi_name.str().c_str());
-      osol3.precision(16);
-      psi.Save(osol3);
-
-      ofstream osol4(w_name.str().c_str());
-      osol4.precision(16);
-      w.Save(osol4);
+      checkpoint(myid, t, *pmesh, phi, psi, w);
 
       //this is only saved if we do not do paraview or visit
       if (!paraview && !visit)
@@ -1574,7 +1554,6 @@ int main(int argc, char *argv[])
       delete tauv;
       delete computeTau;
    }
-
    oper.DestroyHypre();
 
    if (use_petsc) { MFEMFinalizePetsc(); }

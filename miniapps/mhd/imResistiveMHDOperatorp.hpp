@@ -2242,8 +2242,9 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      //---add supg to y2---
      if(viscosity!=resistivity || itau_!=2)
      {
-        if (myid==0 && viscosity!=resistivity ) 
+        if (myid==0 && viscosity!=resistivity ){
             cout <<"======WARNING: viscosity and resistivity are not identical======"<<endl;
+        }
         delete StabMass;
         StabMass = new ParBilinearForm(&fespace);
         StabMass->AddDomainIntegrator(new StabMassIntegrator(dt, resistivity, velocity, itau_));
@@ -2290,8 +2291,9 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      //---add supg to y2---
      if(viscosity!=resistivity || itau_!=2)
      {
-        if (myid==0 && viscosity!=resistivity ) 
+        if (myid==0 && viscosity!=resistivity ){
             cout <<"======WARNING: viscosity and resistivity are not identical======"<<endl;
+        }
         delete StabNv;
         StabNv = new ParBilinearForm(&fespace);
         StabNv->AddDomainIntegrator(new StabConvectionIntegrator(dt, resistivity, velocity, itau_));
@@ -2392,8 +2394,9 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
      */
 
      //---add special stabilized convection term to y2---
-     if (myid==0 && viscosity!=resistivity ) 
+     if (myid==0 && viscosity!=resistivity ){
          cout <<"======WARNING: viscosity and resistivity are not identical======"<<endl;
+     }
      delete StabNv;
      StabNv = new ParBilinearForm(&fespace);
      StabNv->AddDomainIntegrator(new SpecialConvectionIntegrator(dt, resistivity, velocity, itau_));
