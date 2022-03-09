@@ -12,7 +12,7 @@
 #ifndef MFEM_STIX_BCS
 #define MFEM_STIX_BCS
 
-#include "../../mfem.hpp"
+#include "mfem.hpp"
 #include "../common/mesh_extras.hpp"
 
 namespace mfem
