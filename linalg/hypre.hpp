@@ -53,21 +53,24 @@ class ParFiniteElementSpace;
 class HypreParMatrix;
 
 
-/** @brief A simple convenience class for hypre's global settings, that 1) calls
+/** @brief A simple singleton class for hypre's global settings, that 1) calls
     HYPRE_Init() and sets some GPU-relevant options at construction and 2) calls
     HYPRE_Finalize() at destruction. */
-class HYPRE_Session
+class Hypre
 {
-private:
-   /// Set the default hypre global options (mostly GPU-relevant)
-   void SetGlobalOptions();
-
 public:
-   /// Single HYPRE_Session object should be created before any hypre calls.
-   HYPRE_Session();
+   /// Singleton creation with Hypre::Init();
+   static void Init() { static Hypre hypre; }
 
-   /// The HYPRE_Session object should be destroyed after the last hypre call.
-   ~HYPRE_Session();
+private:
+   /// A single Hypre object should be created before any hypre calls.
+   Hypre();
+
+   /// The Hypre object should be destroyed after the last hypre call.
+   ~Hypre();
+
+   /// Set the default hypre global options (mostly GPU-relevant)
+   void SetDefaultOptions();
 };
 
 

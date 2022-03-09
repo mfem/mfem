@@ -118,7 +118,7 @@ int main (int argc, char *argv[])
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   HYPRE_Session hypre;
+   Hypre::Init();
 
    // 1. Set the method's default parameters.
    const char *mesh_file = "icf.mesh";

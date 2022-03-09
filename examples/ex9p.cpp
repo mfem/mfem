@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
    MPI_Session mpi;
    int num_procs = mpi.WorldSize();
    int myid = mpi.WorldRank();
-   HYPRE_Session hypre;
+   Hypre::Init();
 
    // 2. Parse command-line options.
    problem = 0;

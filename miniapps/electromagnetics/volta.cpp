@@ -101,7 +101,7 @@ void display_banner(ostream & os);
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
-   HYPRE_Session hypre;
+   Hypre::Init();
 
    if ( mpi.Root() ) { display_banner(cout); }
 

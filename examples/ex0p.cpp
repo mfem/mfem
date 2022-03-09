@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
    MPI_Session mpi(argc, argv);
-   HYPRE_Session hypre;
+   Hypre::Init();
 
    // 2. Parse command line options.
    const char *mesh_file = "../data/star.mesh";
