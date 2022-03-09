@@ -10,8 +10,22 @@
 
 Version 4.3.1 (development)
 ===========================
+
+- Added PA support for MixedScalarCurlIntegrator in 2D and
+  MixedVectorGradientIntegrator in 2D and 3D, as well as their transposes.
+
+- Added hipSPARSE support for sparse mat-vec multiplications.
+
+- Added support for using the HYPRE library built with HIP support. Similar to
+  the HYPRE + CUDA support added earlier, most of the MFEM examples and miniapps
+  work transparently with HYPRE + HIP builds. This includes the BoomerAMG, AMS,
+  and ADS solvers.
+
 - More explicit and consistent formating of the output of iterative solvers
   with the new IterativeSolver::PrintLevel options. See linalg/solvers.hpp.
+
+- Added a miniapp for PDE-based extrapolation of finite element functions. See
+  miniapps/shifted/extrapolate.cpp.
 
 - Added support for automatic differentiation. Users can select between native
   implementation and external library implementation during configuration. One
@@ -87,6 +101,13 @@ Version 4.3.1 (development)
 - The HPC versions of ex1 and ex1p (in miniapps/performance) now support
   runtime selection of either 2D or 3D meshes.
 
+- Added arbitrary order Nedelec and Raviart-Thomas basis functions for
+  wedge-shaped elements.
+
+- Added ParaView visualization of `QuadratureFunction` fields, through both
+  `QuadratureFunction::SaveVTU` and `ParaViewDataCollection::RegisterQField`.
+
+
 Version 4.3, released on July 29, 2021
 ======================================
 
@@ -125,6 +146,12 @@ Discretization improvements
   for clarity, which is a typedef of VectorCoefficient.
 
 - Added support for nonscalar coefficient with VectorDiffusionIntegrator.
+
+- Added support for Partial Assembly and Element Assembly with Discontinuous
+  Galerkin methods on nonconforming meshes.
+
+- Added a simpler interface to request face information: see
+  `Mesh::FaceInformation` and `Mesh::GetFaceInformation`.
 
 Linear and nonlinear solvers
 ----------------------------
