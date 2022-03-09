@@ -204,8 +204,8 @@ int main(int argc, char *argv[])
 #endif
 
    // 1. Initialize MPI and HYPRE.
-   MPI_Session mpi;
-   const int myid = mpi.WorldRank();
+   MPI::Init();
+   const int myid = MPI::Session().WorldRank();
    Hypre::Init();
 
    // 2. Parse command-line options

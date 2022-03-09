@@ -80,8 +80,8 @@ double IntegrateBC(const ParGridFunction &sol, const Array<int> &bdr_marker,
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   MPI::Init();
+   if (!MPI::Session().Root()) { mfem::out.Disable(); mfem::err.Disable(); }
    Hypre::Init();
 
    // 2. Parse command-line options.
@@ -376,8 +376,10 @@ int main(int argc, char *argv[])
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << mpi.WorldRank();
-      sol_name << "sol." << setfill('0') << setw(6) << mpi.WorldRank();
+      mesh_name << "mesh." << setfill('0')
+                << setw(6) << MPI::Session().WorldRank();
+      sol_name << "sol." << setfill('0')
+               << setw(6) << MPI::Session().WorldRank();
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
@@ -395,8 +397,8 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << mpi.WorldSize()
-               << " " << mpi.WorldRank() << "\n";
+      sol_sock << "parallel " << MPI::Session().WorldSize()
+               << " " << MPI::Session().WorldRank() << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << u
                << "window_title '" << title_str << " Solution'"

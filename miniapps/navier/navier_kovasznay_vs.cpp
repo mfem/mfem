@@ -84,7 +84,7 @@ double pres_kovasznay(const Vector &x, double t)
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+   MPI::Init(argc, argv);
    Hypre::Init();
 
    OptionsParser args(argc, argv);
@@ -126,13 +126,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (MPI::Session().Root())
       {
          args.PrintUsage(mfem::out);
       }
       return 1;
    }
-   if (mpi.Root())
+   if (MPI::Session().Root())
    {
       args.PrintOptions(mfem::out);
    }
@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
 
-   if (mpi.Root())
+   if (MPI::Session().Root())
    {
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
       if (error_est >= 1.0)
       {
          // Reject the time step
-         if (mpi.Root())
+         if (MPI::Session().Root())
          {
             std::cout
                   << "Step reached maximum CFL, retrying with smaller step size..."
@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
       err_u = u_gf->ComputeL2Error(u_excoeff);
       err_p = p_gf->ComputeL2Error(p_ex_gf_coeff);
 
-      if (mpi.Root())
+      if (MPI::Session().Root())
       {
          printf("%5s %8s %8s %8s %11s %11s\n",
                 "Order",
@@ -278,8 +278,8 @@ int main(int argc, char *argv[])
       int visport = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank()
-               << "\n";
+      sol_sock << "parallel " << MPI::Session().WorldSize() << " "
+               << MPI::Session().WorldRank() << "\n";
       sol_sock << "solution\n" << *pmesh << *u_ic << std::flush;
    }
 
@@ -292,7 +292,7 @@ int main(int argc, char *argv[])
       double tol_p = 1e-5;
       if (err_u > tol_u || err_p > tol_p)
       {
-         if (mpi.Root())
+         if (MPI::Session().Root())
          {
             mfem::out << "Result has a larger error than expected."
                       << std::endl;

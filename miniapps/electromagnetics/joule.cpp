@@ -127,12 +127,12 @@ int electromagnetics::STATIC_COND        = 0;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   MPI_Session mpi(argc, argv);
-   int myid = mpi.WorldRank();
+   MPI::Init(argc, argv);
+   int myid = MPI::Session().WorldRank();
    Hypre::Init();
 
    // print the cool banner
-   if (mpi.Root()) { display_banner(cout); }
+   if (MPI::Session().Root()) { display_banner(cout); }
 
    // 2. Parse command-line options.
    const char *mesh_file = "cylinder-hex.mesh";
@@ -202,13 +202,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (MPI::Session().Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (mpi.Root())
+   if (MPI::Session().Root())
    {
       args.PrintOptions(cout);
    }
@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
    sj_  = sigma;
    wj_  = 2.0*M_PI*freq;
 
-   if (mpi.Root())
+   if (MPI::Session().Root())
    {
       cout << "\nSkin depth sqrt(2.0/(wj*mj*sj)) = " << sqrt(2.0/(wj_*mj_*sj_))
            << "\nSkin depth sqrt(2.0*dt/(mj*sj)) = " << sqrt(2.0*dt/(mj_*sj_))
@@ -361,7 +361,7 @@ int main(int argc, char *argv[])
       case 23: ode_solver = new SDIRK23Solver; break;
       case 34: ode_solver = new SDIRK34Solver; break;
       default:
-         if (mpi.Root())
+         if (MPI::Session().Root())
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
@@ -451,7 +451,7 @@ int main(int argc, char *argv[])
    HYPRE_BigInt glob_size_rt = HDivFESpace.GlobalTrueVSize();
    HYPRE_BigInt glob_size_h1 = HGradFESpace.GlobalTrueVSize();
 
-   if (mpi.Root())
+   if (MPI::Session().Root())
    {
       cout << "Number of Temperature Flux unknowns:  " << glob_size_rt << endl;
       cout << "Number of Temperature unknowns:       " << glob_size_l2 << endl;
@@ -659,7 +659,7 @@ int main(int argc, char *argv[])
       {
          double el = oper.ElectricLosses(E_gf);
 
-         if (mpi.Root())
+         if (MPI::Session().Root())
          {
             cout << fixed;
             cout << "step " << setw(6) << ti << ",\tt = " << setw(6)
