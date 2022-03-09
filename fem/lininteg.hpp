@@ -583,7 +583,7 @@ public:
 };
 
 
-/// Class for spatial Gaussian white noise integration L(v) := (\dot{W}, v)
+/** Class for spatial white Gaussian noise integration L(v) := (\dot{W}, v)  */
 class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
 {
    MassIntegrator massinteg;
