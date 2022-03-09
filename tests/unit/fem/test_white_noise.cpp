@@ -17,8 +17,7 @@ using namespace mfem;
 namespace white_noise
 {
 
-static int N = 10000;
-// static int N = 100000;
+static int N = 20000;
 
 TEST_CASE("WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh")
 {
@@ -27,37 +26,48 @@ TEST_CASE("WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh")
    const auto order = GENERATE(1, 2, 3);
    Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
    // Make the mesh NC
-   // mesh.EnsureNCMesh();
-   // {
-   //    Array<int> elements_to_refine(1);
-   //    elements_to_refine[0] = 1;
-   //    mesh.GeneralRefinement(elements_to_refine, 1, 0);
-   // }
+   mesh.EnsureNCMesh();
+   {
+      Array<int> elements_to_refine(1);
+      elements_to_refine[0] = 1;
+      mesh.GeneralRefinement(elements_to_refine, 1, 0);
+   }
 
    H1_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fec);
+   const SparseMatrix * P = fespace.GetConformingProlongation();
+
    int ndofs = fespace.GetTrueVSize();
    LinearForm b(&fespace);
    int seed = 4000;
    WhiteGaussianNoiseDomainLFIntegrator *WhiteNoise = new
    WhiteGaussianNoiseDomainLFIntegrator(seed);
    b.AddDomainIntegrator(WhiteNoise);
-
+   Vector B;
 
    SECTION("Mean")
    {
       // Compute population mean
-      Vector bmean(ndofs);
-      bmean = 0.0;
+      Vector Bmean(ndofs);
+      Bmean = 0.0;
       for (int i = 0; i < N; i++)
       {
          b.Assemble();
-         bmean += b;
+         if (P)
+         {
+            B.SetSize(ndofs);
+            P->MultTranspose(b,B);
+         }
+         else
+         {
+            B.SetDataAndSize(b.GetData(),ndofs);
+         }
+         Bmean += B;
       }
-      bmean *= 1.0/(double)N;
+      Bmean *= 1.0/(double)N;
 
       // Compare population mean to the zero vector
-      REQUIRE(bmean.Normlinf() < 1.0e-2);
+      REQUIRE(Bmean.Normlinf() < 5.0e-3);
    }
 
    SECTION("Covariance")
@@ -68,7 +78,16 @@ TEST_CASE("WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh")
       for (int i = 0; i < N; i++)
       {
          b.Assemble();
-         AddMultVVt(b, C);
+         if (P)
+         {
+            B.SetSize(ndofs);
+            P->MultTranspose(b,B);
+         }
+         else
+         {
+            B.SetDataAndSize(b.GetData(),ndofs);
+         }
+         AddMultVVt(B, C);
       }
       C *= 1.0/(double)N;
 
@@ -85,9 +104,8 @@ TEST_CASE("WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh")
 
       // Compare population covariance to mass matrix
       Mdense -= C;
-      REQUIRE(Mdense.MaxMaxNorm() < 1.0e-2);
-      // REQUIRE(Mdense.MaxMaxNorm() < 1.0e-3);
+      REQUIRE(Mdense.MaxMaxNorm() < 1.0e-3);
    }
 }
 
-} // namespace eigs
+} // namespace white_noise
