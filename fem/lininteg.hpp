@@ -584,13 +584,10 @@ public:
 
 
 /// Class for spatial Gaussian white noise integration L(v) := (\dot{W}, v)
-class GaussianWhiteNoiseDomainLFIntegrator : public LinearFormIntegrator
+class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
 {
    MassIntegrator massinteg;
    DenseMatrix M;
-   Vector w;
-   int cnt;
-   FiniteElementSpace *fes;
 
    // Define random generator with Gaussian distribution
    std::default_random_engine generator;
@@ -599,29 +596,12 @@ class GaussianWhiteNoiseDomainLFIntegrator : public LinearFormIntegrator
    int seed;
 public:
    /// Constructs a domain integrator with a given seed
-   GaussianWhiteNoiseDomainLFIntegrator(FiniteElementSpace &fespace, int seed_ = 0)
-      : LinearFormIntegrator(), fes(&fespace), seed(seed_)
+   WhiteGaussianNoiseDomainLFIntegrator(int seed_ = 0)
+      : LinearFormIntegrator(), seed(seed_)
    {
-      int NE = fes->GetMesh()->GetNE();
-      int ndofs = 0;
-      for (int i = 0; i < NE; i++)
-      {
-         ndofs += fes->GetFE(i)->GetDof();
-      }
-      w.SetSize(ndofs);
-      // w.SetGlobalSeed(seed);
-      Reset(seed);
-   }
-
-   void Reset(int seed = 0)
-   {
-      if (seed != 0)
+      if (seed > 0)
       {
          generator.seed(seed);
-      }
-      for (int i = 0; i < w.Size(); i++)
-      {
-         w(i) = dist(generator);
       }
    }
 

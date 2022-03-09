@@ -169,11 +169,9 @@ int main(int argc, char *argv[])
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    LinearForm b(&fespace);
-   ConstantCoefficient one(100.0);
+   ConstantCoefficient one(1.0);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
-   GaussianWhiteNoiseDomainLFIntegrator *WhiteNoise = new
-   GaussianWhiteNoiseDomainLFIntegrator(fespace);
-   b.AddDomainIntegrator(WhiteNoise);
+   b.Assemble();
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -197,72 +195,57 @@ int main(int argc, char *argv[])
 
    OperatorPtr A;
    Vector B, X;
-
-   GridFunction u(&fespace);
-   u = 0.0;
-
-   int n = 10;
-   for (int i = 0; i < n; i++)
-   {
-      WhiteNoise->Reset();
-      b.Assemble();
-      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-      a.RecoverFEMSolution(X, b, x);
-      u += x;
-   }
-   u *= 1.0/(double)n;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
-   //    if (!pa)
-   //    {
-   // #ifndef MFEM_USE_SUITESPARSE
-   //       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-   //       GSSmoother M((SparseMatrix&)(*A));
-   //       PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-   // #else
-   //       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   //       UMFPackSolver umf_solver;
-   //       umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   //       umf_solver.SetOperator(*A);
-   //       umf_solver.Mult(B, X);
-   // #endif
-   //    }
-   //    else
-   //    {
-   //       if (UsesTensorBasis(fespace))
-   //       {
-   //          if (algebraic_ceed)
-   //          {
-   //             ceed::AlgebraicSolver M(a, ess_tdof_list);
-   //             PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-   //          }
-   //          else
-   //          {
-   //             OperatorJacobiSmoother M(a, ess_tdof_list);
-   //             PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-   //          }
-   //       }
-   //       else
-   //       {
-   //          CG(*A, B, X, 1, 400, 1e-12, 0.0);
-   //       }
-   //    }
+   if (!pa)
+   {
+#ifndef MFEM_USE_SUITESPARSE
+      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+      GSSmoother M((SparseMatrix&)(*A));
+      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+#else
+      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+      UMFPackSolver umf_solver;
+      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      umf_solver.SetOperator(*A);
+      umf_solver.Mult(B, X);
+#endif
+   }
+   else
+   {
+      if (UsesTensorBasis(fespace))
+      {
+         if (algebraic_ceed)
+         {
+            ceed::AlgebraicSolver M(a, ess_tdof_list);
+            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+         }
+         else
+         {
+            OperatorJacobiSmoother M(a, ess_tdof_list);
+            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+         }
+      }
+      else
+      {
+         CG(*A, B, X, 1, 400, 1e-12, 0.0);
+      }
+   }
 
    // 12. Recover the solution as a finite element grid function.
-   // a.RecoverFEMSolution(X, b, x);
+   a.RecoverFEMSolution(X, b, x);
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   // ofstream mesh_ofs("refined.mesh");
-   // mesh_ofs.precision(8);
-   // mesh.Print(mesh_ofs);
-   // ofstream sol_ofs("sol.gf");
-   // sol_ofs.precision(8);
-   // x.Save(sol_ofs);
+   ofstream mesh_ofs("refined.mesh");
+   mesh_ofs.precision(8);
+   mesh.Print(mesh_ofs);
+   ofstream sol_ofs("sol.gf");
+   sol_ofs.precision(8);
+   x.Save(sol_ofs);
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -271,7 +254,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << u << flush;
+      sol_sock << "solution\n" << mesh << x << flush;
    }
 
    // 15. Free the used memory.

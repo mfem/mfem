@@ -971,32 +971,29 @@ void QuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
 }
 
 
-void GaussianWhiteNoiseDomainLFIntegrator::AssembleRHSElementVect
+void WhiteGaussianNoiseDomainLFIntegrator::AssembleRHSElementVect
 (const FiniteElement &el,
  ElementTransformation &Tr,
  Vector &elvect)
 {
-   int ElNo = Tr.ElementNo;
-   MFEM_VERIFY(&el == fes->GetFE(ElNo),
-               "GaussianWhiteNoiseDomainLFIntegrator::AssembleRHSElementVect : Incompatible FE space");
+
+   massinteg.AssembleElementMatrix(el, Tr, M);
 
 #ifdef MFEM_USE_LAPACK
 
-   massinteg.AssembleElementMatrix(el, Tr, M);
    CholeskyFactors chol(M);
    chol.Factor('L');
 
    int n = el.GetDof();
    elvect.SetSize(n);
 
-   double * data = w.GetData();
-   Vector local_w;
-   local_w.SetDataAndSize(&data[cnt],n);
-   cnt += n;
+   Vector w(n);
+   for (int i = 0; i < w.Size(); i++)
+   {
+      w(i) = dist(generator);
+   }
 
-   chol.LMult(local_w,elvect);
-
-   if (ElNo == fes->GetMesh()->GetNE()-1) { cnt = 0; }
+   chol.LMult(w,elvect);
 
 #else
 
