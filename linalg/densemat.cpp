@@ -62,6 +62,18 @@ dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
 extern "C" void
 dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
        double *alpha, double *a, int *lda, double *b, int *ldb);
+
+// Cholesky factorizations/solves
+extern "C" void
+dpotrf_(char *, int *, double *, int *, int *);
+// Solve
+extern "C" void
+dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
+// Triangular Solves
+extern "C" void
+dtrtrs_(char *, char*, char *, int *, int *, double *, int *, double *, int *,
+        int *);
+
 #endif
 
 
@@ -3184,6 +3196,64 @@ void LUFactors::BlockBackSolve(int m, int n, int r, const double *U12,
    // Y1 <- U^{-1} Y1
    USolve(m, r, Y1);
 }
+
+
+
+bool CholeskyFactors::Factor(int m, double TOL)
+{
+   return 1;
+}
+
+double CholeskyFactors::Det(int m) const
+{
+   return 0.;
+}
+
+void CholeskyFactors::LMult(int m, int n, double * X) const
+{
+
+}
+
+void CholeskyFactors::UMult(int m, int n, double * X) const
+{
+
+}
+
+void CholeskyFactors::LSolve(int m, int n, double * X) const
+{
+
+}
+
+void CholeskyFactors::USolve(int m, int n, double * X) const
+{
+
+}
+
+void CholeskyFactors::Solve(int m, int n, double * X) const
+{
+
+}
+
+void CholeskyFactors::RightSolve(int m, int n, double * X) const
+{
+
+}
+
+void CholeskyFactors::GetInverseMatrix(int m, double * X) const
+{
+
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix &mat)

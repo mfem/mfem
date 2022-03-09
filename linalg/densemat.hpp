@@ -629,6 +629,68 @@ public:
                        const double *X2, double *Y1) const;
 };
 
+/** Class that can compute Cholesky factorization of external data and perform various
+    operations with the factored data. */
+class CholeskyFactors
+{
+public:
+   double *data;
+
+   /** With this constructor, the (public) data should be set
+       explicitly before calling class methods. */
+   CholeskyFactors() { }
+
+   CholeskyFactors(double *data_) : data(data_) { }
+
+   /**
+    * @brief Compute the Cholesky factorization of the current matrix
+    *
+    * Factorize the current matrix of size (m x m) overwriting it with the
+    * Cholesky factors. The factorization is such that LL^t = A, where A is the
+    * original matrix
+    *
+    * @param [in] m size of the square matrix
+    * @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0.
+    *
+    * @return status set to true if successful, otherwise, false.
+    */
+   bool Factor(int m, double TOL = 0.0);
+
+   /** Assuming LL^t = A factored data of size (m x m), compute |A|
+       from the diagonal values of L */
+   double Det(int m) const;
+
+   /** Assuming L.L^t = A factored data of size (m x m), compute X <- L X,
+       for a matrix X of size (m x n). */
+   void LMult(int m, int n, double *X) const;
+
+   /** Assuming L.L^t = A factored data of size (m x m), compute X <- L^t X,
+       for a matrix X of size (m x n). */
+   void UMult(int m, int n, double *X) const;
+
+   /** Assuming L L^t = A factored data of size (m x m), compute
+       X <- L^{-1} X, for a matrix X of size (m x n). */
+   void LSolve(int m, int n, double *X) const;
+
+   /** Assuming L L^t = A factored data of size (m x m), compute
+       X <- L^{-t} X, for a matrix X of size (m x n). */
+   void USolve(int m, int n, double *X) const;
+
+   /** Assuming L.L^t = A factored data of size (m x m), compute X <- A^{-1} X,
+       for a matrix X of size (m x n). */
+   void Solve(int m, int n, double *X) const;
+
+   /** Assuming L.L^t = A factored data of size (m x m), compute X <- X A^{-1},
+       for a matrix X of size (n x m). */
+   void RightSolve(int m, int n, double *X) const;
+
+   /// Assuming L.L^t = P.A factored data of size (m x m), compute X <- A^{-1}.
+   void GetInverseMatrix(int m, double *X) const;
+
+};
+
+
+
 
 /** Data type for inverse of square dense matrix.
     Stores LU factors */
