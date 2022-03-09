@@ -84,9 +84,9 @@ int main(int argc, char *argv[])
    double t_refs=1e10;
    int    t_refs_steps=4;
    bool     yRange = false; //fix a refinement region along y direction
-   double   ytop =.5;    //top of the fixed yrange
+   double   ytop =.5;       //top of the fixed yrange
    bool     xRange = false; //fix a refinement region along x direction
-   double   xright =.5;   //right of the fixed xrange
+   double   xright =.5;     //right of the fixed xrange
    int      xlevels=0;
    double error_norm=infinity();
    //----end of amr----
@@ -554,10 +554,8 @@ int main(int argc, char *argv[])
    else
       refiner.SetMaximumRefinementLevel(amr_levels);
    refiner.SetNCLimit(nc_limit);
-   if (yRange)
-       refiner.SetYRange(-ytop, ytop);
-   if (xRange)
-       refiner.SetXRange(-xright, xright, xlevels);
+   if (yRange) refiner.SetYRange(-ytop, ytop);
+   if (xRange) refiner.SetXRange(-xright, xright, xlevels);
 
    ThresholdDerefiner derefiner(*estimator_used);
    derefiner.SetThreshold(derefine_ratio*ltol_amr);
@@ -877,15 +875,15 @@ int main(int argc, char *argv[])
       }
 
       if(compute_tau){
-        //visualize Tau value
-        MyCoefficient velocity(&phi, 2);
-        computeTau = new ParLinearForm(&pw_const_fes);
-        //need to multiply a time-step factor for SDIRK(2)!!
-        computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt, resi, velocity, itau_));
-        computeTau->Assemble(); 
-        tauv=computeTau->ParallelAssemble();
-        tau_value.SetFromTrueDofs(*tauv);
-        pd->RegisterField("Tau", &tau_value);
+          //visualize Tau value
+          MyCoefficient velocity(&phi, 2);
+          computeTau = new ParLinearForm(&pw_const_fes);
+          //need to multiply a time-step factor for SDIRK(2)!!
+          computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt, resi, velocity, itau_));
+          computeTau->Assemble(); 
+          tauv=computeTau->ParallelAssemble();
+          tau_value.SetFromTrueDofs(*tauv);
+          pd->RegisterField("Tau", &tau_value);
       }
 
       pd->SetLevelsOfDetail(order);
@@ -1445,46 +1443,6 @@ int main(int argc, char *argv[])
       psi.SetFromTrueDofs(vx.GetBlock(1));
       w.SetFromTrueDofs(vx.GetBlock(2));
       checkpoint(myid, t, *pmesh, phi, psi, w);
-
-      //this is only saved if paraview or visit is not used (not needed any more)
-      if (!paraview && !visit)
-      {
-         ostringstream j_name;
-         j_name << "sol_j." << setfill('0') << setw(6) << myid;
-
-         oper.UpdateJ(vx, &j);
-         ofstream osol5(j_name.str().c_str());
-         osol5.precision(8);
-         j.Save(osol5);
-
-         //output v1 and v2 for a comparision
-         ParGridFunction v1(&fespace), v2(&fespace);
-         oper.computeV(&phi, &v1, &v2);
-
-         ostringstream v1_name, v2_name;
-         v1_name << "sol_v1." << setfill('0') << setw(6) << myid;
-         v2_name << "sol_v2." << setfill('0') << setw(6) << myid;
-         ofstream osol6(v1_name.str().c_str());
-         osol6.precision(8);
-         v1.Save(osol6);
-
-         ofstream osol7(v2_name.str().c_str());
-         osol7.precision(8);
-         v2.Save(osol7);
-
-         ParGridFunction b1(&fespace), b2(&fespace);
-         oper.computeV(&psi, &b1, &b2);
-         ostringstream b1_name, b2_name;
-         b1_name << "sol_b1." << setfill('0') << setw(6) << myid;
-         b2_name << "sol_b2." << setfill('0') << setw(6) << myid;
-         ofstream osol8(b1_name.str().c_str());
-         osol8.precision(8);
-         b1.Save(osol8);
-
-         ofstream osol9(b2_name.str().c_str());
-         osol9.precision(8);
-         b2.Save(osol9);
-      }
    }
 
    if (myid == 0) 
