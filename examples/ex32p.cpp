@@ -445,13 +445,13 @@ int main(int argc, char *argv[])
          VectorConstantCoefficient zVecCoef(zVec);
 
          H1_FECollection fec_h1(order, dim);
-         ND_FECollection fec_nd(order, dim);
-         RT_FECollection fec_rt(order-1, dim);
+         ND_FECollection fec_nd_xy(order, dim);
+         RT_FECollection fec_rt_xy(order-1, dim);
          L2_FECollection fec_l2(order-1, dim);
 
          ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
-         ParFiniteElementSpace fes_nd(&pmesh, &fec_nd);
-         ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
+         ParFiniteElementSpace fes_nd(&pmesh, &fec_nd_xy);
+         ParFiniteElementSpace fes_rt(&pmesh, &fec_rt_xy);
          ParFiniteElementSpace fes_l2(&pmesh, &fec_l2);
 
          ParGridFunction xyComp(&fes_nd);

@@ -177,8 +177,8 @@ int main(int argc, char *argv[])
 
    // 13. Compute and print the H(Curl) norm of the error.
    {
-      double err = sol.ComputeHCurlError(&E, &CurlE);
-      cout << "\n|| E_h - E ||_{H(Curl)} = " << err << '\n' << endl;
+      double error = sol.ComputeHCurlError(&E, &CurlE);
+      cout << "\n|| E_h - E ||_{H(Curl)} = " << error << '\n' << endl;
    }
 
 
