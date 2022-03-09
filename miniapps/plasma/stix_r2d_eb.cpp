@@ -1643,8 +1643,8 @@ int main(int argc, char *argv[])
          auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
          auxFields[1] = new ParComplexGridFunction(&HCurlFESpace);
 
-	 // auxFields[0]->ProjectCoefficient(HReCoef, HImCoef);
-	 // auxFields[1]->ProjectCoefficient(EReCoef, EImCoef);
+         // auxFields[0]->ProjectCoefficient(HReCoef, HImCoef);
+         // auxFields[1]->ProjectCoefficient(EReCoef, EImCoef);
 
          visit_dc.RegisterField("Re_H_Exact", &auxFields[0]->real());
          visit_dc.RegisterField("Im_H_Exact", &auxFields[0]->imag());
@@ -1687,13 +1687,13 @@ int main(int argc, char *argv[])
                   cout << "Global L2 Error in H field " << glb_error_H << endl;
                }
          */
-	 /*
-         double glb_error_E = CPD.GetEFieldError(EReCoef, EImCoef);
-         if (mpi.Root())
-         {
-            cout << "Global L2 Error in E field " << glb_error_E << endl;
-         }
-	 */
+         /*
+              double glb_error_E = CPD.GetEFieldError(EReCoef, EImCoef);
+              if (mpi.Root())
+              {
+                 cout << "Global L2 Error in E field " << glb_error_E << endl;
+              }
+         */
       }
 
       // Determine the current size of the linear system
@@ -2007,15 +2007,15 @@ void Update(ParFiniteElementSpace & H1FESpace,
 
 const char * banner[6] =
 {
-   R"(  _________ __   __       ________      ___________    ___ ___  )",
-   R"( /   _____//  |_|__|__  __\_____  \  __| _/\______ \  /   |   \ )",
-   R"( \_____  \\   __\  \  \/  //  ____/ / __ |  |    |  \/    ~    \)",
-   R"( /        \|  | |  |>    </       \/ /_/ |  |    `   \    Y    /)",
-   R"(/_______  /|__| |__/__/\_ \_______ \____ | /_______  /\___|_  / )",
-   R"(        \/               \/       \/    \/         \/       \/  )"
+   R"(  _________ __   __       __________ ________      ________________________ )",
+   R"( /   _____//  |_|__|__  __\______   \\_____  \  __| _/\_   _____/\______   \)",
+   R"( \_____  \\   __\  \  \/  /|       _/ /  ____/ / __ |  |    __)_  |    |  _/)",
+   R"( /        \|  | |  |>    < |    |   \/       \/ /_/ |  |        \ |    |   \)",
+   R"(/_______  /|__| |__/__/\_ \|____|_  /\_______ \____ | /_______  / |______  /)",
+   R"(        \/               \/       \/         \/    \/         \/         \/ )"
 };
 
-// Print the stix2d ascii logo to the given ostream
+// Print the stix_r2d_eb ascii logo to the given ostream
 void display_banner(ostream & os)
 {
    for (int i=0; i<6; i++)
@@ -2028,7 +2028,7 @@ void display_banner(ostream & os)
       << "  terrestrial plasmas to solar temperatures. He made important"
       << " contributions" << endl
       << "  to experimental and theoretic plasma physics. In the Stix"
-      << " application, the" << endl
+      << " applications, the" << endl
       << "  plasma dielectric for the wave equation is formulated using"
       << " the \"Stix\"" << endl
       << "  notation, \"S, D, P\"." << endl<< endl << flush;

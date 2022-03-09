@@ -1262,6 +1262,8 @@ private:
    VectorFieldVisObject h_v_;
    VectorFieldVisObject d_v_;
    VectorFieldVisObject h_dbc_v_;
+   ScalarFieldVisObject phi_v_;
+   ScalarFieldBdrVisObject z_v_;
    // ComplexGridFunction    * e_b_v_; // Complex parallel electric field (L2)
    // ComplexGridFunction    * h_v_; // Complex magnetic field (L2^d)
    // ComplexGridFunction    * h_tilde_; // Complex magnetic field (HCurl3D)

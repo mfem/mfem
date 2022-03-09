@@ -360,116 +360,116 @@ public:
          double ReI = params_[10 * i + 8];
          double ImI = params_[10 * i + 9];
 
-	 double dx01 = x1 - x0;
-	 double dx12 = x2 - x1;
-	 double dx23 = x3 - x2;
-	 double dx30 = x0 - x3;
+         double dx01 = x1 - x0;
+         double dx12 = x2 - x1;
+         double dx23 = x3 - x2;
+         double dx30 = x0 - x3;
 
-	 double dy01 = y1 - y0;
-	 double dy12 = y2 - y1;
-	 double dy23 = y3 - y2;
-	 double dy30 = y0 - y3;
-	 /*
-         double d01 = sqrt(dx01 * dx01 + dy01 * dy01);
-         double d12 = sqrt(dx12 * dx12 + dy12 * dy12);
-         double d23 = sqrt(dx23 * dx23 + dy23 * dy23);
-         double d30 = sqrt(dx30 * dx30 + dy30 * dy30);
-	 */
+         double dy01 = y1 - y0;
+         double dy12 = y2 - y1;
+         double dy23 = y3 - y2;
+         double dy30 = y0 - y3;
+         /*
+              double d01 = sqrt(dx01 * dx01 + dy01 * dy01);
+              double d12 = sqrt(dx12 * dx12 + dy12 * dy12);
+              double d23 = sqrt(dx23 * dx23 + dy23 * dy23);
+              double d30 = sqrt(dx30 * dx30 + dy30 * dy30);
+         */
          double d01 = dx01 * dx01 + dy01 * dy01;
          double d12 = dx12 * dx12 + dy12 * dy12;
          double d23 = dx23 * dx23 + dy23 * dy23;
          double d30 = dx30 * dx30 + dy30 * dy30;
 
-	 // Perpendicular distance to strap edge
-	 double p01 = fabs(dx01 * (y0 - x_[1]) - (x0 - x_[0]) * dy01);
-	 double p12 = fabs(dx12 * (y1 - x_[1]) - (x1 - x_[0]) * dy12);
-	 double p23 = fabs(dx23 * (y2 - x_[1]) - (x2 - x_[0]) * dy23);
-	 double p30 = fabs(dx30 * (y3 - x_[1]) - (x3 - x_[0]) * dy30);
-	 
-	 // Longitudinal distance along strap edge
-	 double l01 = (x_[0] - x0) * dx01 + (x_[1] - y0) * dy01;
-	 double l12 = (x_[0] - x1) * dx12 + (x_[1] - y1) * dy12;
-	 double l23 = (x_[0] - x2) * dx23 + (x_[1] - y2) * dy23;
-	 double l30 = (x_[0] - x3) * dx30 + (x_[1] - y3) * dy30;
-	 
+         // Perpendicular distance to strap edge
+         double p01 = fabs(dx01 * (y0 - x_[1]) - (x0 - x_[0]) * dy01);
+         double p12 = fabs(dx12 * (y1 - x_[1]) - (x1 - x_[0]) * dy12);
+         double p23 = fabs(dx23 * (y2 - x_[1]) - (x2 - x_[0]) * dy23);
+         double p30 = fabs(dx30 * (y3 - x_[1]) - (x3 - x_[0]) * dy30);
+
+         // Longitudinal distance along strap edge
+         double l01 = (x_[0] - x0) * dx01 + (x_[1] - y0) * dy01;
+         double l12 = (x_[0] - x1) * dx12 + (x_[1] - y1) * dy12;
+         double l23 = (x_[0] - x2) * dx23 + (x_[1] - y2) * dy23;
+         double l30 = (x_[0] - x3) * dx30 + (x_[1] - y3) * dy30;
+
          double H = (real_part_ ? ReI : ImI) / (d01 + d12 + d23 + d30);
 
-	 if (p01 < tol_ * d01 &&
-	     l01 > -tol_ * d01 &&
-	     l01 < (1.0 + tol_) * d01)
+         if (p01 < tol_ * d01 &&
+             l01 > -tol_ * d01 &&
+             l01 < (1.0 + tol_) * d01)
          {
             V[0] = H * dx01 / d01;
             V[1] = H * dy01 / d01;
             break;
          }
-	 else if (p12 < tol_ * d12 &&
-		  l12 > -tol_ * d12 &&
-		  l12 < (1.0 + tol_) * d12)
+         else if (p12 < tol_ * d12 &&
+                  l12 > -tol_ * d12 &&
+                  l12 < (1.0 + tol_) * d12)
          {
             V[0] = H * dx12 / d12;
             V[1] = H * dy12 / d12;
             break;
          }
-	 else if (p23 < tol_ * d23 &&
-		  l23 > -tol_ * d23 &&
-		  l23 < (1.0 + tol_) * d23)
+         else if (p23 < tol_ * d23 &&
+                  l23 > -tol_ * d23 &&
+                  l23 < (1.0 + tol_) * d23)
          {
             V[0] = H * dx23 / d23;
             V[1] = H * dy23 / d23;
             break;
          }
-	 else if (p30 < tol_ * d30 &&
-		  l30 > -tol_ * d30 &&
-		  l30 < (1.0 + tol_) * d30)
+         else if (p30 < tol_ * d30 &&
+                  l30 > -tol_ * d30 &&
+                  l30 < (1.0 + tol_) * d30)
          {
             V[0] = H * dx30 / d30;
             V[1] = H * dy30 / d30;
             break;
          }
-	 /*
-         // *** The following will break on any vertical sides ***
-         // Bottom of Antenna Strap:
-         double s1 = (y1-y0)/(x1-x0);
-         double b1 = y1 - s1*x1;
-         // Right of Antenna Strap:
-         double s2 = (y2-y1)/(x2-x1);
-         double b2 = y2 - s2*x2;
-         // Top of Antenna Strap:
-         double s3 = (y3-y2)/(x3-x2);
-         double b3 = y3 - s3*x3;
-         // Left of Antenna Strap:
-         double s4 = (y3-y0)/(x3-x0);
-         double b4 = y3 - s4*x3;
+         /*
+              // *** The following will break on any vertical sides ***
+              // Bottom of Antenna Strap:
+              double s1 = (y1-y0)/(x1-x0);
+              double b1 = y1 - s1*x1;
+              // Right of Antenna Strap:
+              double s2 = (y2-y1)/(x2-x1);
+              double b2 = y2 - s2*x2;
+              // Top of Antenna Strap:
+              double s3 = (y3-y2)/(x3-x2);
+              double b3 = y3 - s3*x3;
+              // Left of Antenna Strap:
+              double s4 = (y3-y0)/(x3-x0);
+              double b4 = y3 - s4*x3;
 
-         if (fabs(x_[1] - (s1*x_[0]+b1)) <= tol_
-             && x_[0] >= x0 && x_[0] <= x1)
-         {
-            V[0] = (x1 - x0) * H / d01;
-            V[1] = (y1 - y0) * H / d01;
-            break;
-         }
-         else if (fabs(x_[1] - (s2*x_[0]+b2)) <= tol_
-                  && x_[1] >= y1 && x_[1] <= y2)
-         {
-            V[0] = (x2 - x1) * H / d12;
-            V[1] = (y2 - y1) * H / d12;
-            break;
-         }
-         else if (fabs(x_[1] - (s3*x_[0]+b3)) <= tol_
-                  && x_[0] >= x3 && x_[0] <= x2)
-         {
-            V[0] = (x3 - x2) * H / d23;
-            V[1] = (y3 - y2) * H / d23;
-            break;
-         }
-         else if (fabs(x_[1] - (s4*x_[0]+b4)) <= tol_
-                  && x_[1] >= y0 && x_[1] <= y3)
-         {
-            V[0] = (x0 - x3) * H / d30;
-            V[1] = (y0 - y3) * H / d30;
-            break;
-         }
-	 */
+              if (fabs(x_[1] - (s1*x_[0]+b1)) <= tol_
+                  && x_[0] >= x0 && x_[0] <= x1)
+              {
+                 V[0] = (x1 - x0) * H / d01;
+                 V[1] = (y1 - y0) * H / d01;
+                 break;
+              }
+              else if (fabs(x_[1] - (s2*x_[0]+b2)) <= tol_
+                       && x_[1] >= y1 && x_[1] <= y2)
+              {
+                 V[0] = (x2 - x1) * H / d12;
+                 V[1] = (y2 - y1) * H / d12;
+                 break;
+              }
+              else if (fabs(x_[1] - (s3*x_[0]+b3)) <= tol_
+                       && x_[0] >= x3 && x_[0] <= x2)
+              {
+                 V[0] = (x3 - x2) * H / d23;
+                 V[1] = (y3 - y2) * H / d23;
+                 break;
+              }
+              else if (fabs(x_[1] - (s4*x_[0]+b4)) <= tol_
+                       && x_[1] >= y0 && x_[1] <= y3)
+              {
+                 V[0] = (x0 - x3) * H / d30;
+                 V[1] = (y0 - y3) * H / d30;
+                 break;
+              }
+         */
       }
    }
 };
@@ -484,7 +484,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       VectorCoefficient & BCoef,
                       Coefficient & rhoCoef,
                       Coefficient & TCoef,
-                      Coefficient & xposCoef,
+                      Coefficient & nuCoef,
                       int & size_h1,
                       int & size_l2,
                       Array<int> & density_offsets,
@@ -494,7 +494,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       ParGridFunction & BField,
                       ParGridFunction & density_gf,
                       ParGridFunction & temperature_gf,
-                      ParGridFunction & xposition_gf,
+                      ParGridFunction & nu_gf,
                       Coefficient &ReCoef,
                       Coefficient &ImCoef,
                       int p, double tol, int max_dofs,
@@ -507,7 +507,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
-            Coefficient & xposCoef,
+            Coefficient & nuCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
@@ -517,7 +517,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParGridFunction & BField,
             ParGridFunction & density_gf,
             ParGridFunction & temperature_gf,
-            ParGridFunction & xposition_gf);
+            ParGridFunction & nu_gf);
 
 //static double freq_ = 1.0e9;
 
@@ -577,16 +577,18 @@ int main(int argc, char *argv[])
    Vector charges;
    Vector masses;
    Vector temps;
+   Vector minority;
+   Vector temp_charges;
+   double nu = 0;
 
    PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
-   PlasmaProfile::Type xpt = PlasmaProfile::GRADIENT;
+   PlasmaProfile::Type npt = PlasmaProfile::CONSTANT;
    BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
+   Vector npp;
    Vector bpp;
-   Vector xpp(7);
-   xpp = 0.0; xpp(4) = 1.0;
    int nuprof = 0;
 
    Array<int> abcs; // Absorbing BC attributes
@@ -689,6 +691,18 @@ int main(int argc, char *argv[])
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
+   args.AddOption((int*)&npt, "-np", "--collision-profile",
+                  "Collisions Profile Type: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&npp, "-npp", "--collisions-profile-params",
+                  "Collisions Profile Parameters: \n"
+                  "   CONSTANT: temperature value \n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
    args.AddOption(&nuprof, "-nuprof", "--collisional-profile",
                   "Temperature Profile Type: \n"
                   "0 - Standard e-i Collision Freq, 1 - Custom Freq.");
@@ -707,12 +721,15 @@ int main(int argc, char *argv[])
    args.AddOption(&msa_n, "-ns", "--num-straps","");
    args.AddOption(&msa_p, "-sp", "--strap-params","");
    // args.AddOption(&numbers, "-num", "--number-densites",
-   //               "Number densities of the various species");
+   //                "Number densities of the various species");
    args.AddOption(&charges, "-q", "--charges",
                   "Charges of the various species "
                   "(in units of electron charge)");
-   args.AddOption(&masses, "-m", "--masses",
-                  "Masses of the various species (in amu)");
+   // args.AddOption(&masses, "-m", "--masses",
+   //                "Masses of the various species (in amu)");
+   args.AddOption(&minority, "-min", "--minority",
+                  "Minority Ion Species: charge, mass (amu), concentration."
+                  " Concentration being: n_min/n_e");
    args.AddOption(&prec, "-pc", "--precond",
                   "Preconditioner: 1 - Diagonal Scaling, 2 - ParaSails, "
                   "3 - Euclid, 4 - AMS");
@@ -873,17 +890,220 @@ int main(int argc, char *argv[])
       dpp.SetSize(1);
       dpp[0] = 1.0e19;
    }
+   if (npp.Size() == 0)
+   {
+      npp.SetSize(1);
+      npp[0] = 0;
+   }
    if (charges.Size() == 0)
    {
-      charges.SetSize(2);
-      charges[0] = -1.0;
-      charges[1] =  1.0;
+      if (minority.Size() == 0)
+      {
+         charges.SetSize(2);
+         charges[0] = -1.0;
+         charges[1] =  1.0;
+
+         masses.SetSize(2);
+         masses[0] = me_u_;
+         masses[1] = 2.01410178;
+      }
+      else
+      {
+         charges.SetSize(3);
+         charges[0] = -1.0;
+         charges[1] =  1.0;
+         charges[2] = minority[0];
+
+         masses.SetSize(3);
+         masses[0] = me_u_;
+         masses[1] = 2.01410178;
+         masses[2] = minority[1];
+      }
    }
-   if (masses.Size() == 0)
+   if (minority.Size() == 0)
    {
-      masses.SetSize(2);
-      masses[0] = me_u_;
-      masses[1] = 2.01410178;
+      if (charges.Size() == 2)
+      {
+         numbers.SetSize(2);
+         masses.SetSize(2);
+         masses[0] = me_u_;
+         masses[1] = 2.01410178;
+         switch (dpt)
+         {
+            case PlasmaProfile::CONSTANT:
+               numbers[0] = dpp[0];
+               numbers[1] = dpp[0];
+               break;
+            case PlasmaProfile::GRADIENT:
+               numbers[0] = dpp[0];
+               numbers[1] = dpp[0];
+               break;
+            case PlasmaProfile::TANH:
+               numbers[0] = dpp[1];
+               numbers[1] = dpp[1];
+               break;
+            case PlasmaProfile::ELLIPTIC_COS:
+               numbers[0] = dpp[1];
+               numbers[1] = dpp[1];
+               break;
+            case PlasmaProfile::PARABOLIC:
+               numbers[0] = dpp[1];
+               numbers[1] = dpp[1];
+               break;
+            default:
+               numbers[0] = 1.0e19;
+               numbers[1] = 1.0e19;
+               break;
+         }
+      }
+      else
+      {
+         numbers.SetSize(3);
+         masses.SetSize(3);
+         masses[0] = me_u_;
+         masses[1] = 2.01410178;
+         masses[2] = 3.01604928;
+         switch (dpt)
+         {
+            case PlasmaProfile::CONSTANT:
+               numbers[0] = dpp[0];
+               numbers[1] = 0.5*dpp[0];
+               numbers[2] = 0.5*dpp[0];
+               break;
+            case PlasmaProfile::GRADIENT:
+               numbers[0] = dpp[0];
+               numbers[1] = 0.5*dpp[0];
+               numbers[2] = 0.5*dpp[0];
+               break;
+            case PlasmaProfile::TANH:
+               numbers[0] = dpp[1];
+               numbers[1] = 0.5*dpp[1];
+               numbers[2] = 0.5*dpp[1];
+               break;
+            case PlasmaProfile::ELLIPTIC_COS:
+               numbers[0] = dpp[1];
+               numbers[1] = 0.5*dpp[1];
+               numbers[2] = 0.5*dpp[1];
+               break;
+            case PlasmaProfile::PARABOLIC:
+               numbers[0] = dpp[1];
+               numbers[1] = 0.5*dpp[1];
+               numbers[2] = 0.5*dpp[1];
+               break;
+            default:
+               numbers[0] = 1.0e19;
+               numbers[1] = 0.5*1.0e19;
+               numbers[2] = 0.5*1.0e19;
+               break;
+         }
+      }
+   }
+   if (minority.Size() > 0)
+   {
+      if (charges.Size() == 2)
+      {
+         temp_charges.SetSize(3);
+         temp_charges[0] = charges[0];
+         temp_charges[1] = charges[1];
+         temp_charges[2] = minority[0];
+         charges.SetSize(3);
+         charges = temp_charges;
+
+         numbers.SetSize(3);
+         masses.SetSize(3);
+         masses[0] = me_u_;
+         masses[1] = 2.01410178;
+         masses[2] = minority[1];
+         switch (dpt)
+         {
+            case PlasmaProfile::CONSTANT:
+               numbers[0] = dpp[0];
+               numbers[1] = (1.0-minority[2]*minority[0])*dpp[0];
+               numbers[2] = minority[2]*dpp[0];
+               break;
+            case PlasmaProfile::GRADIENT:
+               numbers[0] = dpp[0];
+               numbers[1] = (1.0-minority[2]*minority[0])*dpp[0];
+               numbers[2] = minority[2]*dpp[0];
+               break;
+            case PlasmaProfile::TANH:
+               numbers[0] = dpp[1];
+               numbers[1] = (1.0-minority[2]*minority[0])*dpp[1];
+               numbers[2] = minority[2]*dpp[1];
+               break;
+            case PlasmaProfile::ELLIPTIC_COS:
+               numbers[0] = dpp[1];
+               numbers[1] = (1.0-minority[2]*minority[0])*dpp[1];
+               numbers[2] = minority[2]*dpp[1];
+               break;
+            case PlasmaProfile::PARABOLIC:
+               numbers[0] = dpp[1];
+               numbers[1] = (1.0-minority[2]*minority[0])*dpp[1];
+               numbers[2] = minority[2]*dpp[1];
+               break;
+            default:
+               numbers[0] = 1.0e19;
+               numbers[1] = (1.0-minority[2]*minority[0])*1.0e19;
+               numbers[2] = minority[2]*1.0e19;
+               break;
+         }
+      }
+      else
+      {
+         temp_charges.SetSize(4);
+         temp_charges[0] = charges[0];
+         temp_charges[1] = charges[1];
+         temp_charges[2] = charges[2];
+         temp_charges[3] = minority[0];
+         charges.SetSize(4);
+         charges = temp_charges;
+
+         numbers.SetSize(4);
+         masses.SetSize(4);
+         masses[0] = me_u_;
+         masses[1] = 2.01410178;
+         masses[2] = 3.01604928;
+         masses[3] = minority[1];
+         switch (dpt)
+         {
+            case PlasmaProfile::CONSTANT:
+               numbers[0] = dpp[0];
+               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
+               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
+               numbers[3] = minority[2]*dpp[0];
+               break;
+            case PlasmaProfile::GRADIENT:
+               numbers[0] = dpp[0];
+               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
+               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[0];
+               numbers[3] = minority[2]*dpp[0];
+               break;
+            case PlasmaProfile::TANH:
+               numbers[0] = dpp[1];
+               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
+               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
+               numbers[3] = minority[2]*dpp[1];
+               break;
+            case PlasmaProfile::ELLIPTIC_COS:
+               numbers[0] = dpp[1];
+               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
+               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
+               numbers[3] = minority[2]*dpp[1];
+               break;
+            case PlasmaProfile::PARABOLIC:
+               numbers[0] = dpp[1];
+               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
+               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*dpp[1];
+               numbers[3] = minority[2]*dpp[1];
+               break;
+            default:
+               numbers[0] = 1.0e19;
+               numbers[1] = 0.5*(1.0-minority[2]*minority[0])*1.0e19;
+               numbers[2] = 0.5*(1.0-minority[2]*minority[0])*1.0e19;
+               numbers[3] = minority[2]*1.0e19;
+               break;
+         }
+      }
    }
    if (temps.Size() == 0)
    {
@@ -900,24 +1120,22 @@ int main(int argc, char *argv[])
          switch (tpt)
          {
             case PlasmaProfile::CONSTANT:
-               temps[0] = tpp[0];
-               temps[1] = tpp[0];
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[0];}
                break;
             case PlasmaProfile::GRADIENT:
-               temps[0] = tpp[0];
-               temps[1] = tpp[0];
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[0];}
                break;
             case PlasmaProfile::TANH:
-               temps[0] = tpp[1];
-               temps[1] = tpp[1];
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[1];}
                break;
             case PlasmaProfile::ELLIPTIC_COS:
-               temps[0] = tpp[1];
-               temps[1] = tpp[1];
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[1];}
+               break;
+            case PlasmaProfile::PARABOLIC:
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = tpp[1];}
                break;
             default:
-               temps[0] = 1.0e3;
-               temps[1] = 1.0e3;
+               for (int i=0; i<numbers.Size(); i++) {temps[i] = 1e3;}
                break;
          }
       }
@@ -950,15 +1168,15 @@ int main(int argc, char *argv[])
    {
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
-      std::complex<double> S = S_cold_plasma(omega, Bmag, 1.0, numbers,
+      std::complex<double> S = S_cold_plasma(omega, Bmag, nu, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> P = P_cold_plasma(omega, 1.0, numbers,
+      std::complex<double> P = P_cold_plasma(omega, nu, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> D = D_cold_plasma(omega, Bmag, 1.0, numbers,
+      std::complex<double> D = D_cold_plasma(omega, Bmag, nu, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> R = R_cold_plasma(omega, Bmag, 1.0, numbers,
+      std::complex<double> R = R_cold_plasma(omega, Bmag, nu, numbers,
                                              charges, masses, temps, nuprof);
-      std::complex<double> L = L_cold_plasma(omega, Bmag, 1.0, numbers,
+      std::complex<double> L = L_cold_plasma(omega, Bmag, nu, numbers,
                                              charges, masses, temps, nuprof);
 
       cout << "\nConvenient Terms:\n";
@@ -1135,10 +1353,10 @@ int main(int argc, char *argv[])
    ParGridFunction BField(&HDivFESpace);
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
-   ParGridFunction xposition_gf(&H1FESpace);
+   ParGridFunction nu_gf(&H1FESpace);
 
-   PlasmaProfile xposCoef(xpt, xpp);
-   xposition_gf.ProjectCoefficient(xposCoef);
+   PlasmaProfile nuCoef(npt, npp);
+   nu_gf.ProjectCoefficient(nuCoef);
 
    BFieldProfile BCoef(bpt, bpp, false);
    BFieldProfile BUnitCoef(bpt, bpp, true);
@@ -1181,6 +1399,7 @@ int main(int argc, char *argv[])
    {
       density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
       density_gf.ProjectCoefficient(rhoCoef);
+      density_gf *= numbers[i]/numbers[0];
    }
 
    if (mpi.Root())
@@ -1189,11 +1408,11 @@ int main(int argc, char *argv[])
    }
 
    {
-      StixLCoef ReLCoef(BField, xposition_gf, density, temperature,
+      StixLCoef ReLCoef(BField, nu_gf, density, temperature,
                         L2FESpace, H1FESpace,
                         omega, charges, masses, nuprof,
                         true);
-      StixLCoef ImLCoef(BField, xposition_gf, density, temperature,
+      StixLCoef ImLCoef(BField, nu_gf, density, temperature,
                         L2FESpace, H1FESpace,
                         omega, charges, masses, nuprof,
                         false);
@@ -1202,11 +1421,11 @@ int main(int argc, char *argv[])
 
       AdaptInitialMesh(mpi, pmesh, err_fes,
                        H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
-                       BCoef, rhoCoef, tempCoef, xposCoef,
+                       BCoef, rhoCoef, tempCoef, nuCoef,
                        size_h1, size_l2,
                        density_offsets, temperature_offsets,
                        density, temperature,
-                       BField, density_gf, temperature_gf, xposition_gf,
+                       BField, density_gf, temperature_gf, nu_gf,
                        ReLCoef, ImLCoef,
                        order, init_amr_tol, init_amr_max_dofs, visualization);
    }
@@ -1223,17 +1442,17 @@ int main(int argc, char *argv[])
    Coefficient * etaCoef = SetupImpedanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
-   InverseDielectricTensor epsilonInv_real(BField, xposition_gf, density,
+   InverseDielectricTensor epsilonInv_real(BField, nu_gf, density,
                                            temperature,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            true);
-   InverseDielectricTensor epsilonInv_imag(BField, xposition_gf, density,
+   InverseDielectricTensor epsilonInv_imag(BField, nu_gf, density,
                                            temperature,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            false);
-   SPDDielectricTensor epsilon_abs(BField, xposition_gf, density, temperature,
+   SPDDielectricTensor epsilon_abs(BField, nu_gf, density, temperature,
                                    L2FESpace, H1FESpace,
                                    omega, charges, masses, nuprof);
    SheathImpedance z_r(BField, density, temperature,
@@ -1258,10 +1477,10 @@ int main(int argc, char *argv[])
    */
    if (check_eps_inv)
    {
-      DielectricTensor epsilon_real(BField, xposition_gf, density, temperature,
+      DielectricTensor epsilon_real(BField, nu_gf, density, temperature,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, true);
-      DielectricTensor epsilon_imag(BField, xposition_gf, density, temperature,
+      DielectricTensor epsilon_imag(BField, nu_gf, density, temperature,
                                     L2FESpace, H1FESpace,
                                     omega, charges, masses, nuprof, false);
       DenseMatrix epsInvRe(3,3);
@@ -1686,14 +1905,24 @@ int main(int argc, char *argv[])
    if ( visit )
    {
       CPD.RegisterVisItFields(visit_dc);
+
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0));
+      visit_dc.RegisterField("Electron_Temp", &temperature_gf);
+
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
+      visit_dc.RegisterField("Electron_Density", &density_gf);
+
+      //nu_gf *= 1/omega;
+      visit_dc.RegisterField("Collisional Profile", &nu_gf);
+
       if (false)
       {
          auxFields.SetSize(2);
          auxFields[0] = new ParComplexGridFunction(&HCurlFESpace);
          auxFields[1] = new ParComplexGridFunction(&HCurlFESpace);
 
-	 // auxFields[0]->ProjectCoefficient(HReCoef, HImCoef);
-	 // auxFields[1]->ProjectCoefficient(EReCoef, EImCoef);
+         // auxFields[0]->ProjectCoefficient(HReCoef, HImCoef);
+         // auxFields[1]->ProjectCoefficient(EReCoef, EImCoef);
 
          visit_dc.RegisterField("Re_H_Exact", &auxFields[0]->real());
          visit_dc.RegisterField("Im_H_Exact", &auxFields[0]->imag());
@@ -1810,13 +2039,13 @@ int main(int argc, char *argv[])
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
       Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
-             BCoef, rhoCoef, tempCoef, xposCoef,
+             BCoef, rhoCoef, tempCoef, nuCoef,
              size_h1, size_l2,
              density_offsets, temperature_offsets,
              density, temperature,
-             BField, density_gf, temperature_gf, xposition_gf);
+             BField, density_gf, temperature_gf, nu_gf);
       CPD.Update();
-      
+
       if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
       {
          if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
@@ -1824,11 +2053,11 @@ int main(int argc, char *argv[])
 
          // Update again after rebalancing
          Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
-                BCoef, rhoCoef, tempCoef, xposCoef,
+                BCoef, rhoCoef, tempCoef, nuCoef,
                 size_h1, size_l2,
                 density_offsets, temperature_offsets,
                 density, temperature,
-                BField, density_gf, temperature_gf, xposition_gf);
+                BField, density_gf, temperature_gf, nu_gf);
          CPD.Update();
       }
    }
@@ -1863,7 +2092,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       VectorCoefficient & BCoef,
                       Coefficient & rhoCoef,
                       Coefficient & tempCoef,
-                      Coefficient & xposCoef,
+                      Coefficient & nuCoef,
                       int & size_h1,
                       int & size_l2,
                       Array<int> & density_offsets,
@@ -1873,7 +2102,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
                       ParGridFunction & BField,
                       ParGridFunction & density_gf,
                       ParGridFunction & temperature_gf,
-                      ParGridFunction & xposition_gf,
+                      ParGridFunction & nu_gf,
                       Coefficient &ReCoef,
                       Coefficient &ImCoef,
                       int p, double tol, int max_dofs,
@@ -1965,11 +2194,11 @@ void AdaptInitialMesh(MPI_Session &mpi,
       //     matrix is an interpolation matrix so the updated GridFunction will
       //     still represent the same function as before refinement.
       Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
-             BCoef, rhoCoef, tempCoef, xposCoef,
+             BCoef, rhoCoef, tempCoef, nuCoef,
              size_h1, size_l2,
              density_offsets, temperature_offsets,
              density, temperature,
-             BField, density_gf, temperature_gf, xposition_gf);
+             BField, density_gf, temperature_gf, nu_gf);
 
       err_fespace.Update();
       gf.Update();
@@ -1983,11 +2212,11 @@ void AdaptInitialMesh(MPI_Session &mpi,
          // Update the space and the GridFunction. This time the update matrix
          // redistributes the GridFunction among the processors.
          Update(H1FESpace, HCurlFESpace, HDivFESpace, L2FESpace,
-                BCoef, rhoCoef, tempCoef, xposCoef,
+                BCoef, rhoCoef, tempCoef, nuCoef,
                 size_h1, size_l2,
                 density_offsets, temperature_offsets,
                 density, temperature,
-                BField, density_gf, temperature_gf, xposition_gf);
+                BField, density_gf, temperature_gf, nu_gf);
 
          err_fespace.Update();
          gf.Update();
@@ -2003,7 +2232,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
-            Coefficient & xposCoef,
+            Coefficient & nuCoef,
             int & size_h1,
             int & size_l2,
             Array<int> & density_offsets,
@@ -2013,7 +2242,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParGridFunction & BField,
             ParGridFunction & density_gf,
             ParGridFunction & temperature_gf,
-            ParGridFunction & xposition_gf)
+            ParGridFunction & nu_gf)
 {
    H1FESpace.Update();
    HCurlFESpace.Update();
@@ -2023,8 +2252,8 @@ void Update(ParFiniteElementSpace & H1FESpace,
    BField.Update();
    BField.ProjectCoefficient(BCoef);
 
-   xposition_gf.Update();
-   xposition_gf.ProjectCoefficient(xposCoef);
+   nu_gf.Update();
+   nu_gf.ProjectCoefficient(nuCoef);
 
    size_l2 = L2FESpace.GetVSize();
    for (int i=1; i<density_offsets.Size(); i++)
@@ -2053,15 +2282,15 @@ void Update(ParFiniteElementSpace & H1FESpace,
 
 const char * banner[6] =
 {
-   R"(  _________ __   __       ________      ___________    ___ ___  )",
-   R"( /   _____//  |_|__|__  __\_____  \  __| _/\______ \  /   |   \ )",
-   R"( \_____  \\   __\  \  \/  //  ____/ / __ |  |    |  \/    ~    \)",
-   R"( /        \|  | |  |>    </       \/ /_/ |  |    `   \    Y    /)",
-   R"(/_______  /|__| |__/__/\_ \_______ \____ | /_______  /\___|_  / )",
-   R"(        \/               \/       \/    \/         \/       \/  )"
+   R"(  _________ __   __       __________ ________      ___________    ___ ___  )",
+   R"( /   _____//  |_|__|__  __\______   \\_____  \  __| _/\______ \  /   |   \ )",
+   R"( \_____  \\   __\  \  \/  /|       _/ /  ____/ / __ |  |    |  \/    ~    \)",
+   R"( /        \|  | |  |>    < |    |   \/       \/ /_/ |  |    `   \    Y    /)",
+   R"(/_______  /|__| |__/__/\_ \|____|_  /\_______ \____ | /_______  /\___|_  / )",
+   R"(        \/               \/       \/         \/    \/         \/       \/  )"
 };
 
-// Print the stix2d ascii logo to the given ostream
+// Print the stix_r2d_dh ascii logo to the given ostream
 void display_banner(ostream & os)
 {
    for (int i=0; i<6; i++)
@@ -2074,7 +2303,7 @@ void display_banner(ostream & os)
       << "  terrestrial plasmas to solar temperatures. He made important"
       << " contributions" << endl
       << "  to experimental and theoretic plasma physics. In the Stix"
-      << " application, the" << endl
+      << " applications, the" << endl
       << "  plasma dielectric for the wave equation is formulated using"
       << " the \"Stix\"" << endl
       << "  notation, \"S, D, P\"." << endl<< endl << flush;

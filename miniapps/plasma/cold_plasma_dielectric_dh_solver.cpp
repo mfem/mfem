@@ -249,7 +249,7 @@ void nxGradIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
                                               DenseMatrix &elmat)
 {
    int   test_nd = test_fe.GetDof();
-   int test_vdim = test_fe.GetVDim();
+   int test_vdim = test_fe.GetVDim() + 1;
    int  trial_nd = trial_fe.GetDof();
    int      sdim = Trans.GetSpaceDim();
    double w;
@@ -324,7 +324,6 @@ void nxGradIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
             elmat(i,j) += w * v;
          }
       }
-
    }
 }
 
@@ -334,7 +333,7 @@ void nxkIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
                                            DenseMatrix &elmat)
 {
    int   test_nd = test_fe.GetDof();
-   int test_vdim = test_fe.GetVDim();
+   int test_vdim = test_fe.GetVDim() + 1;
    int  trial_nd = trial_fe.GetDof();
    int      kdim = K->GetVDim();
    int      sdim = Trans.GetSpaceDim();
@@ -460,7 +459,6 @@ void nDotCurlIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
       {
          w *= Q->Eval(Trans, ip);
       }
-
       trial_dshape.Mult(nor, nDotCurl);
 
       for (int j=0; j<trial_nd; j++)
@@ -470,7 +468,6 @@ void nDotCurlIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
             elmat(i,j) += w * test_shape[i] * nDotCurl[j];
          }
       }
-
    }
 }
 
@@ -481,7 +478,7 @@ void zkxIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
 {
    int    test_nd = test_fe.GetDof();
    int   trial_nd = trial_fe.GetDof();
-   int trial_vdim = trial_fe.GetVDim();
+   int trial_vdim = trial_fe.GetVDim() + 1;
    int       sdim = Trans.GetSpaceDim();
    double w;
 
@@ -955,6 +952,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      h_v_("H", L2VSFESpace_, L2FESpace_, cyl_, false),
      d_v_("D", L2VSFESpace_, L2FESpace_, cyl_, true),
      h_dbc_v_("H_DBC", L2VSFESpace_, L2FESpace_, cyl_, false),
+     phi_v_("Phi", L2FESpace_, cyl_, true),
+     z_v_("Sheath_Impedance", L2FESpace_, cyl_, true),
      // e_b_v_(NULL),
      // h_v_(NULL),
      // h_tilde_(NULL),
@@ -1136,6 +1135,15 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    this->collectBdrAttributes(dbcs_, dbc_bdr_marker_);
    this->locateTrueDBCDofs(dbc_bdr_marker_,
                            dbc_nd_tdofs_);
+   if ( logging_ > 0 )
+   {
+      int l_dbc_nd_tdofs = dbc_nd_tdofs_.Size();
+      int g_dbc_nd_tdofs = 0;
+      MPI_Allreduce(&l_dbc_nd_tdofs, &g_dbc_nd_tdofs, 1,
+                    MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+      cout << "Number of H(Curl) Dirichlet BC Dofs: " << g_dbc_nd_tdofs
+           << endl;
+   }
 
    this->collectBdrAttributes(sbcs_, sbc_bdr_marker_);
    this->locateTrueSBCDofs(sbc_bdr_marker_, non_sbc_h1_tdofs_,
@@ -1143,6 +1151,27 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
    if ( sbcs_.Size() > 0 )
    {
+      if ( logging_ > 0 )
+      {
+         int l_non_sbc_h1_tdofs = non_sbc_h1_tdofs_.Size();
+         int l_sbc_nd_tdofs = sbc_nd_tdofs_.Size();
+         int g_non_sbc_h1_tdofs = 0;
+         int g_sbc_nd_tdofs = 0;
+
+         MPI_Allreduce(&l_non_sbc_h1_tdofs, &g_non_sbc_h1_tdofs, 1,
+                       MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(&l_sbc_nd_tdofs, &g_sbc_nd_tdofs, 1,
+                       MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+         if (myid_ == 0)
+         {
+            cout << "Number of H(Curl) Sheath BC Dofs: " << g_sbc_nd_tdofs
+                 << endl;
+            cout << "Number of H1 Non-Sheath BC Dofs: " << g_non_sbc_h1_tdofs
+                 << endl;
+            cout << "Sheath BC marker: "; sbc_bdr_marker_.Print(cout);
+         }
+      }
+
       nxD01_ = new ParMixedSesquilinearForm(H1FESpace_, HCurlFESpace_, conv_);
       nxD01_->AddBoundaryIntegrator(NULL,
                                     new nxGradIntegrator(*omegaCoef_),
@@ -1417,9 +1446,15 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                                             new MixedVectorCurlIntegrator(*sbc.imag),
                                             sbc.attr_marker);
          */
+         /*
+              nzD12_->AddBoundaryIntegrator(new VectorFECurlIntegrator(*sbc.real),
+                                            new VectorFECurlIntegrator(*sbc.imag),
+                                            sbc.attr_marker);
+         */
          nzD12_->AddBoundaryIntegrator(new nDotCurlIntegrator(*sbc.real),
                                        new nDotCurlIntegrator(*sbc.imag),
                                        sbc.attr_marker);
+
          if (kReCoef_)
          {
             nzD12_->AddBoundaryIntegrator(new zkxIntegrator(*sbc.imag,
@@ -1513,10 +1548,10 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    //                        new VectorFEDomainLFIntegrator(*rhsiCoef_));
    if (nkbcs_ != NULL)
    {
-   if ( myid_ == 0 && logging_ > 0 )
-     {
-       cout << "Adding boundary integrators to rhs1" << endl;
-     }
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "Adding boundary integrators to rhs1" << endl;
+      }
       for (int i=0; i<nkbcs_.Size(); i++)
       {
          rhs1_->AddBoundaryIntegrator(new VectorFEBoundaryTangentLFIntegrator
@@ -1554,10 +1589,10 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    }
    */
    {
-   if ( myid_ == 0 && logging_ > 0 )
-     {
-       cout << "Creating Stix Coefs" << endl;
-     }
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << "Creating Stix Coefs" << endl;
+      }
       StixCoefBase * s = dynamic_cast<StixCoefBase*>(epsInvReCoef_);
 
       if (s != NULL)
@@ -1779,40 +1814,40 @@ CPDSolverDH::Assemble()
    }
 
    if (d21EpsInv_)
-     {
-   if ( myid_ == 0 && logging_ > 0 )
-   { cout << "  Curl(1/eps) ..." << flush; }
-   tic_toc.Clear();
-   tic_toc.Start();
-
-   d21EpsInv_->Assemble();
-   if (!pa_) { d21EpsInv_->Finalize(); }
-
-   tic_toc.Stop();
-   if ( myid_ == 0 && logging_ > 0 )
    {
-      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+      if ( myid_ == 0 && logging_ > 0 )
+      { cout << "  Curl(1/eps) ..." << flush; }
+      tic_toc.Clear();
+      tic_toc.Start();
+
+      d21EpsInv_->Assemble();
+      if (!pa_) { d21EpsInv_->Finalize(); }
+
+      tic_toc.Stop();
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+      }
    }
-     }
 
    if (m1_)
-     {
-   if ( myid_ == 0 && logging_ > 0 )
-   { cout << "  H(Curl) mass matrix ..." << flush; }
-   tic_toc.Clear();
-   tic_toc.Start();
-
-   // m2_->Assemble();
-   // if (!pa_) { m2_->Finalize(); }
-   m1_->Assemble();
-   if (!pa_) { m1_->Finalize(); }
-
-   tic_toc.Stop();
-   if ( myid_ == 0 && logging_ > 0 )
    {
-      cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+      if ( myid_ == 0 && logging_ > 0 )
+      { cout << "  H(Curl) mass matrix ..." << flush; }
+      tic_toc.Clear();
+      tic_toc.Start();
+
+      // m2_->Assemble();
+      // if (!pa_) { m2_->Finalize(); }
+      m1_->Assemble();
+      if (!pa_) { m1_->Finalize(); }
+
+      tic_toc.Stop();
+      if ( myid_ == 0 && logging_ > 0 )
+      {
+         cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
+      }
    }
-     }
    /*
    if ( myid_ == 0 && logging_ > 0 )
    { cout << "  (epsilon u, v), u in H(Curl), v in H(Div)..." << flush; }
@@ -1974,8 +2009,24 @@ CPDSolverDH::Update()
    */
    this->locateTrueDBCDofs(dbc_bdr_marker_,
                            dbc_nd_tdofs_);
+   if ( logging_ > 0 )
+   {
+      cout << myid_
+           << ": Number of H(Curl) Dirichlet BC Dofs: " << dbc_nd_tdofs_.Size()
+           << endl;
+   }
+
    this->locateTrueSBCDofs(sbc_bdr_marker_, non_sbc_h1_tdofs_,
                            sbc_nd_tdofs_);
+   if ( sbcs_.Size() > 0 )
+   {
+      if ( logging_ > 0 )
+      {
+         cout << myid_
+              << ": Number of H(Curl) Sheath BC Dofs: " << sbc_nd_tdofs_.Size()
+              << endl;
+      }
+   }
 
    blockTrueOffsets_[0] = 0;
    blockTrueOffsets_[1] = HCurlFESpace_->TrueVSize();
@@ -2003,6 +2054,8 @@ CPDSolverDH::Update()
    // if (h_tilde_) { h_tilde_->Update(); }
    // if (e_v_) { e_v_->Update(); }
    d_v_.Update();
+   phi_v_.Update();
+   z_v_.Update();
    // if (j_v_) { j_v_->Update(); }
    // if (phi_v_) { phi_v_->Update(); }
    if (rectPot_) { rectPot_->Update();}
@@ -2126,16 +2179,16 @@ CPDSolverDH::Solve()
                                                    dbcs_[i]->real,
                                                    dbcs_[i]->imag, false, true);
 
-	    h_.ProjectBdrCoefficientTangent(re_h_dbc, im_h_dbc, attr_marker);
-	    h_dbc_.ProjectBdrCoefficientTangent(re_h_dbc, im_h_dbc, attr_marker);
-	    // h_dbc_.ProjectCoefficient(re_h_dbc, im_h_dbc);
+            h_.ProjectBdrCoefficientTangent(re_h_dbc, im_h_dbc, attr_marker);
+            h_dbc_.ProjectBdrCoefficientTangent(re_h_dbc, im_h_dbc, attr_marker);
+            // h_dbc_.ProjectCoefficient(re_h_dbc, im_h_dbc);
          }
          else
          {
             h_.ProjectBdrCoefficientTangent(*dbcs_[i]->real, *dbcs_[i]->imag,
                                             attr_marker);
             h_dbc_.ProjectBdrCoefficientTangent(*dbcs_[i]->real, *dbcs_[i]->imag,
-                                            attr_marker);
+                                                attr_marker);
          }
       }
       if (logging_ > 1)
@@ -2150,7 +2203,7 @@ CPDSolverDH::Solve()
    }
 
    maxwell_.FormLinearSystem(dbc_nd_tdofs_, h_, current_, A1, H, RHS1);
-   
+
    ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
    HypreParMatrix * A1C = (sol_ != SolverType::ZMUMPS) ?
                           A1Z->GetSystemMatrix() : NULL;
@@ -2209,6 +2262,17 @@ CPDSolverDH::Solve()
       nxD01_->FormRectangularSystemMatrix(non_sbc_h1_tdofs_, dbc_nd_tdofs_, B);
       m0_->FormSystemMatrix(non_sbc_h1_tdofs_, D);
 
+      {
+         if (B.As<ComplexHypreParMatrix>()->hasRealPart())
+         { B.As<ComplexHypreParMatrix>()->real().Print("nxD01_Re.mat"); }
+         if (B.As<ComplexHypreParMatrix>()->hasImagPart())
+         { B.As<ComplexHypreParMatrix>()->imag().Print("nxD01_Im.mat"); }
+         if (D.As<ComplexHypreParMatrix>()->hasRealPart())
+         { D.As<ComplexHypreParMatrix>()->real().Print("m0_Re.mat"); }
+         if (D.As<ComplexHypreParMatrix>()->hasImagPart())
+         { D.As<ComplexHypreParMatrix>()->imag().Print("m0_Im.mat"); }
+      }
+
       rhs0_->real() = 0.0;
       rhs0_->imag() = 0.0;
 
@@ -2219,7 +2283,7 @@ CPDSolverDH::Solve()
       double phi_diff = std::numeric_limits<double>::max();
       GridFunctionCoefficient prevPhiReCoef(&prev_phi_->real());
       GridFunctionCoefficient prevPhiImCoef(&prev_phi_->imag());
-      while (H_iter < 15)
+      while (H_iter < 1/*5*/)
       {
          if ( phi_diff < 1e-3) {break;}
          nzD12_->Update();
@@ -2227,6 +2291,12 @@ CPDSolverDH::Solve()
          nzD12_->Finalize();
          nzD12_->FormRectangularSystemMatrix(dbc_nd_tdofs_,
                                              non_sbc_h1_tdofs_, C);
+         {
+            if (C.As<ComplexHypreParMatrix>()->hasRealPart())
+            { C.As<ComplexHypreParMatrix>()->real().Print("nzD12_Re.mat"); }
+            if (C.As<ComplexHypreParMatrix>()->hasImagPart())
+            { C.As<ComplexHypreParMatrix>()->imag().Print("nzD12_Im.mat"); }
+         }
 
          SchurComplimentOperator schur(*AInv, *B, *C, *D);
 
@@ -2237,7 +2307,7 @@ CPDSolverDH::Solve()
          gmres.SetRelTol(1e-8);
          gmres.SetAbsTol(1e-10);
          gmres.SetMaxIter(500);
-         gmres.SetPrintLevel(1);
+         gmres.SetPrintLevel(3);
          gmres.SetOperator(schur);
 
          gmres.Mult(RHS, PHI);
@@ -2556,6 +2626,20 @@ void CPDSolverDH::prepareVisFields()
    h_v_.PrepareVisField(h_, kReCoef_, kImCoef_);
    h_dbc_v_.PrepareVisField(h_dbc_, kReCoef_, kImCoef_);
    d_v_.PrepareVisField(ampere_.GetElectricFlux(), kReCoef_, kImCoef_);
+   if (phi_)
+   {
+      phi_v_.PrepareVisField(*phi_, kReCoef_, kImCoef_);
+
+      if (sbcs_.Size() > 0)
+      {
+         for (int i = 0; i< sbcs_.Size(); i++)
+         {
+            ComplexCoefficientByAttr & sbc = *sbcs_[i];
+            z_v_.PrepareVisField(*sbc.real, *sbc.imag, kReCoef_, kImCoef_,
+                                 sbc.attr_marker);
+         }
+      }
+   }
    /*
    prepareVectorVisField(*h_, *h_v_);
    prepareVectorVisField(*e_, *e_v_);
@@ -2640,6 +2724,8 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
    h_v_.RegisterVisItFields(visit_dc);
    h_dbc_v_.RegisterVisItFields(visit_dc);
    d_v_.RegisterVisItFields(visit_dc);
+   if (phi_) { phi_v_.RegisterVisItFields(visit_dc); }
+   if (phi_) { z_v_.RegisterVisItFields(visit_dc); }
    /*
    h_v_ = new ComplexGridFunction(HCurlFESpace3D_);
    e_v_ = new ComplexGridFunction(L2VFESpace3D_);
