@@ -421,7 +421,7 @@ public:
     * and could be replaced by an abstract base class for the material including
     * virtual function calls.
     */
-   std::function<void(const int,
+   std::function<void(const int, const Array<double> &, const Array<double> &,
                       const Array<double> &,
                       const Vector &, const Vector &,
                       const Vector &, Vector &)>
@@ -432,7 +432,7 @@ public:
     *
     *  K(U) dX = dR(U)/dU dX
     */
-   std::function<void(const int,
+   std::function<void(const int, const Array<double> &, const Array<double> &,
                       const Array<double> &,
                       const Vector &, const Vector &,
                       const Vector &, Vector &, const Vector &)>
@@ -443,7 +443,7 @@ public:
     *
     * Ke_ii(U) = dRe_ii(U)/dU
     */
-   std::function<void(const int,
+   std::function<void(const int, const Array<double> &, const Array<double> &,
                       const Array<double> &,
                       const Vector &, const Vector &,
                       const Vector &, Vector &)>
@@ -743,6 +743,29 @@ int main(int argc, char *argv[])
 namespace KernelHelpers
 {
 
+template<int d1d, int q1d>
+const tensor<double, q1d, d1d> CopyFromArray(const Array<double> &A)
+{
+   return make_tensor<q1d, d1d>([&](int i, int j) { return A[i + q1d*j]; });
+}
+
+// Holds a single tensor of basis functions evaluated at quadrature points.
+template<int d1d, int q1d>
+const tensor<double, q1d, d1d> &AsTensorB(const Array<double> &A)
+{
+   static const tensor<double, q1d, d1d> B = CopyFromArray<d1d, q1d>(A);
+   return B;
+}
+
+// Holds a single tensor of gradients of basis functions
+// evaluated at quadrature points.
+template<int d1d, int q1d>
+const tensor<double, q1d, d1d> &AsTensorG(const Array<double> &A)
+{
+   static const tensor<double, q1d, d1d> G = CopyFromArray<d1d, q1d>(A);
+   return G;
+}
+
 // MFEM_SHARED_3D_BLOCK_TENSOR definition
 // Should be moved in backends/cuda/hip header files.
 #if defined(__CUDA_ARCH__)
@@ -1006,8 +1029,8 @@ namespace ElasticityKernels
 
 template <int d1d, int q1d, typename material_type> static inline
 void Apply3D(const int ne,
-             const tensor<double, q1d, d1d> &B,
-             const tensor<double, q1d, d1d> &G,
+             const Array<double> &B_,
+             const Array<double> &G_,
              const Array<double> &W_,
              const Vector &Jacobian_,
              const Vector &detJ_,
@@ -1016,6 +1039,12 @@ void Apply3D(const int ne,
 {
    constexpr int dim = dimension;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
+
+   // Basis functions evaluated at quadrature points.
+   const tensor<double, q1d, d1d> &B = KernelHelpers::AsTensorB<d1d, q1d>(B_);
+
+   // Gradients of basis functions evaluated at quadrature points.
+   const tensor<double, q1d, d1d> &G = KernelHelpers::AsTensorG<d1d, q1d>(G_);
 
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
    // Jacobians of the element transformations at all quadrature points in
@@ -1068,14 +1097,19 @@ void Apply3D(const int ne,
 
 template <int d1d, int q1d, typename material_type> static inline
 void ApplyGradient3D(const int ne,
-                     const tensor<double, q1d, d1d> &B,
-                     const tensor<double, q1d, d1d> &G,
+                     const Array<double> &B_, const Array<double> &G_,
                      const Array<double> &W_, const Vector &Jacobian_,
                      const Vector &detJ_, const Vector &dU_, Vector &dF_,
                      const Vector &U_, const material_type &material)
 {
    constexpr int dim = dimension;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
+
+   // Basis functions evaluated at quadrature points.
+   const tensor<double, q1d, d1d> &B = KernelHelpers::AsTensorB<d1d, q1d>(B_);
+
+   // Gradients of basis functions evaluated at quadrature points.
+   const tensor<double, q1d, d1d> &G = KernelHelpers::AsTensorG<d1d, q1d>(G_);
 
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
    // Jacobians of the element transformations at all quadrature points in
@@ -1135,8 +1169,8 @@ void ApplyGradient3D(const int ne,
 
 template <int d1d, int q1d, typename material_type> static inline
 void AssembleGradientDiagonal3D(const int ne,
-                                const tensor<double, q1d, d1d> &B,
-                                const tensor<double, q1d, d1d> &G,
+                                const Array<double> &B_,
+                                const Array<double> &G_,
                                 const Array<double> &W_,
                                 const Vector &Jacobian_,
                                 const Vector &detJ_,
@@ -1146,6 +1180,12 @@ void AssembleGradientDiagonal3D(const int ne,
 {
    constexpr int dim = dimension;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
+
+   // Basis functions evaluated at quadrature points.
+   const tensor<double, q1d, d1d> &B = KernelHelpers::AsTensorB<d1d, q1d>(B_);
+
+   // Gradients of basis functions evaluated at quadrature points.
+   const tensor<double, q1d, d1d> &G = KernelHelpers::AsTensorG<d1d, q1d>(G_);
 
    const auto qweights = Reshape(W_.Read(), q1d, q1d, q1d);
    // Jacobians of the element transformations at all quadrature points. This
@@ -1307,7 +1347,7 @@ void ElasticityOperator::Mult(const Vector &X, Vector &Y) const
    Y_el_ = 0.0;
 
    // Apply operator
-   element_apply_kernel_wrapper(ne_, ir_->GetWeights(),
+   element_apply_kernel_wrapper(ne_, maps_->B, maps_->G, ir_->GetWeights(),
                                 geometric_factors_->J, geometric_factors_->detJ,
                                 X_el_, Y_el_);
 
@@ -1345,8 +1385,8 @@ void ElasticityOperator::GradientMult(const Vector &dX, Vector &Y) const
 
    // Apply operator
    element_apply_gradient_kernel_wrapper(
-      ne_, ir_->GetWeights(), geometric_factors_->J, geometric_factors_->detJ,
-      X_el_, Y_el_, cstate_el_);
+      ne_, maps_->B, maps_->G, ir_->GetWeights(), geometric_factors_->J,
+      geometric_factors_->detJ, X_el_, Y_el_, cstate_el_);
 
    // E-vector to L-vector
    h1_element_restriction_->MultTranspose(Y_el_, Y_local_);
@@ -1372,8 +1412,8 @@ void ElasticityOperator::AssembleGradientDiagonal(Vector &Ke_diag,
    K_diag.SetSize(h1_prolongation_->Width() * dim_);
 
    element_kernel_assemble_diagonal_wrapper(
-      ne_, ir_->GetWeights(), geometric_factors_->J,
-      geometric_factors_->detJ, cstate_el_, Ke_diag);
+      ne_, maps_->B, maps_->G, ir_->GetWeights(), geometric_factors_->J,
+      geometric_factors_->detJ,  cstate_el_, Ke_diag);
 
    // For each dimension, the H1 element restriction and H1 prolongation
    // transpose actions are applied separately.
@@ -1432,7 +1472,7 @@ void ElasticityOperator::SetMaterial(const material_type &material)
    }
 
    element_apply_kernel_wrapper =
-      [=](const int ne,
+      [=](const int ne, const Array<double> &B_, const Array<double> &G_,
           const Array<double> &W_, const Vector &Jacobian_, const Vector &detJ_,
           const Vector &X_, Vector &Y_)
    {
@@ -1441,41 +1481,27 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       {
          case 0x22:
          {
-            static tensor<double, 2, 2> B =
-            make_tensor<2,2>([&](int i, int j) { return maps_->B[i+2*j]; });
-            static tensor<double, 2, 2> G =
-            make_tensor<2,2>([&](int i, int j) { return maps_->G[i+2*j]; });
             ElasticityKernels::Apply3D<2, 2, material_type>(
-               ne, B, G, W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          }
          case 0x33:
          {
-            static tensor<double, 3, 3> B =
-            make_tensor<3,3>([&](int i, int j) { return maps_->B[i+3*j]; });
-            static tensor<double, 3, 3> G =
-            make_tensor<3,3>([&](int i, int j) { return maps_->G[i+3*j]; });
             ElasticityKernels::Apply3D<3, 3, material_type>(
-               ne, B, G, W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
          }
          case 0x44:
-         {
-            static tensor<double, 4, 4> B =
-            make_tensor<4,4>([&](int i, int j) { return maps_->B[i+4*j]; });
-            static tensor<double, 4, 4> G =
-            make_tensor<4,4>([&](int i, int j) { return maps_->G[i+4*j]; });
             ElasticityKernels::Apply3D<4, 4, material_type>(
-               ne, B, G, W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
-         }
          default:
             MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
       }
    };
 
    element_apply_gradient_kernel_wrapper =
-      [=](const int ne,
+      [=](const int ne, const Array<double> &B_, const Array<double> &G_,
           const Array<double> &W_, const Vector &Jacobian_, const Vector &detJ_,
           const Vector &dU_, Vector &dF_, const Vector &U_)
    {
@@ -1483,42 +1509,24 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       switch (id)
       {
          case 0x22:
-         {
-            static const tensor<double, 2, 2> B =
-            make_tensor<2,2>([&](int i, int j) { return maps_->B[i+2*j]; });
-            static const tensor<double, 2, 2> G =
-            make_tensor<2,2>([&](int i, int j) { return maps_->G[i+2*j]; });
             ElasticityKernels::ApplyGradient3D<2, 2, material_type>(
-               ne, B, G, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
-         }
          case 0x33:
-         {
-            static const tensor<double, 3, 3> B =
-            make_tensor<3,3>([&](int i, int j) { return maps_->B[i+3*j]; });
-            static const tensor<double, 3, 3> G =
-            make_tensor<3,3>([&](int i, int j) { return maps_->G[i+3*j]; });
             ElasticityKernels::ApplyGradient3D<3, 3, material_type>(
-               ne, B, G, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
-         }
          case 0x44:
-         {
-            static const tensor<double, 4, 4> B =
-            make_tensor<4,4>([&](int i, int j) { return maps_->B[i+4*j]; });
-            static const tensor<double, 4, 4> G =
-            make_tensor<4,4>([&](int i, int j) { return maps_->G[i+4*j]; });
             ElasticityKernels::ApplyGradient3D<4, 4, material_type>(
-               ne, B, G, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
             break;
-         }
          default:
             MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
       }
    };
 
    element_kernel_assemble_diagonal_wrapper =
-      [=](const int ne,
+      [=](const int ne, const Array<double> &B_, const Array<double> &G_,
           const Array<double> &W_, const Vector &Jacobian_, const Vector &detJ_,
           const Vector &X_, Vector &Y_)
    {
@@ -1526,35 +1534,17 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       switch (id)
       {
          case 0x22:
-         {
-            static const tensor<double, 2, 2> B =
-            make_tensor<2,2>([&](int i, int j) { return maps_->B[i+2*j]; });
-            static const tensor<double, 2, 2> G =
-            make_tensor<2,2>([&](int i, int j) { return maps_->G[i+2*j]; });
             ElasticityKernels::AssembleGradientDiagonal3D<2, 2, material_type>(
-               ne, B, G, W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
-         }
          case 0x33:
-         {
-            static const tensor<double, 3, 3> B =
-            make_tensor<3,3>([&](int i, int j) { return maps_->B[i+3*j]; });
-            static const tensor<double, 3, 3> G =
-            make_tensor<3,3>([&](int i, int j) { return maps_->G[i+3*j]; });
             ElasticityKernels::AssembleGradientDiagonal3D<3, 3, material_type>(
-               ne, B, G, W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
-         }
          case 0x44:
-         {
-            static const tensor<double, 4, 4> B =
-            make_tensor<4,4>([&](int i, int j) { return maps_->B[i+4*j]; });
-            static const tensor<double, 4, 4> G =
-            make_tensor<4,4>([&](int i, int j) { return maps_->G[i+4*j]; });
             ElasticityKernels::AssembleGradientDiagonal3D<4, 4, material_type>(
-               ne, B, G, W_, Jacobian_, detJ_, X_, Y_, material);
+               ne, B_, G_, W_, Jacobian_, detJ_, X_, Y_, material);
             break;
-         }
          default:
             MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
       }
