@@ -16,9 +16,7 @@
 bool launch_all_non_regression_tests = false;
 std::string mfem_data_dir;
 
-#ifdef MFEM_USE_MPI
-mfem::MPI *GlobalMPISession;
-#else
+#ifndef MFEM_USE_MPI
 #error "This test should be disabled without MFEM_USE_MPI!"
 #endif
 
@@ -27,7 +25,6 @@ int main(int argc, char *argv[])
    mfem::Device device("cuda");
 #ifdef MFEM_USE_MPI
    mfem::MPI::Init();
-   GlobalMPISession = &mfem::MPI::Session();
    bool root = mfem::MPI::Session().Root();
    mfem::Hypre::Init();
 #else
