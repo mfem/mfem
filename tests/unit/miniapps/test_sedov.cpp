@@ -27,12 +27,12 @@
 #endif
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
-extern mfem::MPI_Session *GlobalMPISession;
+extern mfem::MPI *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
 #define HYPRE_BigInt int
-typedef int MPI_Session;
+typedef int MPI;
 #define ParMesh Mesh
 #define GetParMesh GetMesh
 #define GlobalTrueVSize GetVSize

@@ -27,13 +27,13 @@
 #endif
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
-extern mfem::MPI_Session *GlobalMPISession;
+extern mfem::MPI *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetComm()
 #define SetDiscreteTargetSize SetParDiscreteTargetSize
 #define SetDiscreteTargetAspectRatio SetParDiscreteTargetAspectRatio
 #define GradientClass HypreParMatrix
 #else
-typedef int MPI_Session;
+typedef int MPI;
 #define ParMesh Mesh
 #define ParGridFunction GridFunction
 #define ParNonlinearForm NonlinearForm

@@ -64,9 +64,9 @@ void fluxExact(const Vector &x, Vector &f)
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   MPI_Session mpi(argc, argv);
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
+   MPI::Init(argc, argv);
+   int num_procs = MPI::Session().WorldSize();
+   int myid = MPI::Session().WorldRank();
    Hypre::Init();
 
    // 2. Parse command-line options.
@@ -128,7 +128,10 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
    HYPRE_Int total_num_dofs = fespace.GlobalTrueVSize();
-   if (mpi.Root()) { cout << "Number of unknowns: " << total_num_dofs << endl; }
+   if (MPI::Session().Root())
+   {
+      cout << "Number of unknowns: " << total_num_dofs << endl;
+   }
 
    // 8. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all

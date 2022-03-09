@@ -22,7 +22,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   MPI_Session mpi(argc, argv);
+   MPI::Init(argc, argv);
    Hypre::Init();
 
    // 2. Parse command line options.
@@ -48,7 +48,10 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, mesh.Dimension());
    ParFiniteElementSpace fespace(&mesh, &fec);
    HYPRE_BigInt total_num_dofs = fespace.GlobalTrueVSize();
-   if (mpi.Root()) { cout << "Number of unknowns: " << total_num_dofs << endl; }
+   if (MPI::Session().Root())
+   {
+      cout << "Number of unknowns: " << total_num_dofs << endl;
+   }
 
    // 6. Extract the list of all the boundary DOFs. These will be marked as
    //    Dirichlet in order to enforce zero boundary conditions.

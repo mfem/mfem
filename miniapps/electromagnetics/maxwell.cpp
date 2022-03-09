@@ -126,10 +126,10 @@ void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+   MPI::Init();
    Hypre::Init();
 
-   if ( mpi.Root() ) { display_banner(cout); }
+   if ( MPI::Session().Root() ) { display_banner(cout); }
 
    // Parse command-line options.
    const char *mesh_file = "../../data/ball-nurbs.mesh";
@@ -190,13 +190,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (MPI::Session().Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (mpi.Root())
+   if (MPI::Session().Root())
    {
       args.PrintOptions(cout);
    }
@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
    ifstream imesh(mesh_file);
    if (!imesh)
    {
-      if (mpi.Root())
+      if (MPI::Session().Root())
       {
          cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
       }
@@ -267,7 +267,7 @@ int main(int argc, char *argv[])
 
    // Compute the energy of the initial fields
    double energy = Maxwell.GetEnergy();
-   if ( mpi.Root() )
+   if ( MPI::Session().Root() )
    {
       cout << "Energy(" << ti << "ns):  " << energy << "J" << endl;
    }
@@ -280,14 +280,14 @@ int main(int argc, char *argv[])
    tf *= tScale_;
    ts *= tScale_;
 
-   if ( mpi.Root() )
+   if ( MPI::Session().Root() )
    {
       cout << "Maximum Time Step:     " << dtmax / tScale_ << "ns" << endl;
    }
 
    // Round down the time step so that tf-ti is an integer multiple of dt
    int nsteps = SnapTimeStep(tf-ti, dtsf * dtmax, dt);
-   if ( mpi.Root() )
+   if ( MPI::Session().Root() )
    {
       cout << "Number of Time Steps:  " << nsteps << endl;
       cout << "Time Step Size:        " << dt / tScale_ << "ns" << endl;
@@ -337,7 +337,7 @@ int main(int argc, char *argv[])
 
       // Approximate the current energy if the fields
       energy = Maxwell.GetEnergy();
-      if ( mpi.Root() )
+      if ( MPI::Session().Root() )
       {
          cout << "Energy(" << t/tScale_ << "ns):  " << energy << "J" << endl;
       }
