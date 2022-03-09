@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-   HYPRE_Session hypre;
+   Hypre::Init();
    // Define Caliper ConfigManager
 #ifdef MFEM_USE_CALIPER
    cali::ConfigManager mgr;

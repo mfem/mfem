@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
    mfem::MPI_Session mpi;
    GlobalMPISession = &mpi;
    bool root = mpi.Root();
-   mfem::HYPRE_Session hypre;
+   mfem::Hypre::Init();
 #else
    bool root = true;
 #endif

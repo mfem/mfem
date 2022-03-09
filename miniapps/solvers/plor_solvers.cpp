@@ -71,7 +71,7 @@ bool grad_div_problem = false;
 int main(int argc, char *argv[])
 {
    MPI_Session mpi;
-   HYPRE_Session hypre;
+   Hypre::Init();
 
    const char *mesh_file = "../../data/star.mesh";
    int ser_ref_levels = 1, par_ref_levels = 1;

@@ -212,7 +212,7 @@ void ComputeQCriterion(ParGridFunction &u, ParGridFunction &q)
 int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
-   HYPRE_Session hypre;
+   Hypre::Init();
 
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.element_subdivisions,

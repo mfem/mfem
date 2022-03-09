@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
 
    // Initialize MPI and HYPRE.
    MPI_Session mpi(argc, argv);
-   HYPRE_Session hypre;
+   Hypre::Init();
 
    StopWatch chrono;
    auto ResetTimer = [&chrono]() { chrono.Clear(); chrono.Start(); };

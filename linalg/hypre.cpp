@@ -31,31 +31,33 @@ using namespace std;
 namespace mfem
 {
 
-HYPRE_Session::HYPRE_Session()
+Hypre::Hypre()
 {
 #if MFEM_HYPRE_VERSION >= 21500
+   // Initializing hypre
    HYPRE_Init();
 #endif
 
-   SetGlobalOptions();
+   // Global hypre options we set by default
+   SetDefaultOptions();
 }
 
-HYPRE_Session::~HYPRE_Session()
+Hypre::~Hypre()
 {
 #if MFEM_HYPRE_VERSION >= 21500
+   // Finalizing hypre
    HYPRE_Finalize();
 #endif
 }
 
-void HYPRE_Session::SetGlobalOptions()
+void Hypre::SetDefaultOptions()
 {
-   // Additional global options, see
+   // Global hypre options, see
    // https://hypre.readthedocs.io/en/latest/solvers-boomeramg.html#gpu-supported-options
-   // for more details
 
 #if MFEM_HYPRE_VERSION >= 22100
 #ifdef HYPRE_USING_CUDA
-   // Use hypre's SpGEMM instead of cuSPARSE for performance reasons.
+   // Use hypre's SpGEMM instead of cuSPARSE for performance reasons
    HYPRE_SetSpGemmUseCusparse(0);
 #elif defined(HYPRE_USING_HIP)
    // Use rocSPARSE instead of hypre's SpGEMM for performance reasons (default)
@@ -63,7 +65,7 @@ void HYPRE_Session::SetGlobalOptions()
 #endif
 #endif
 
-   // The following 3 options are the defaults as of hypre-2.24
+   // The following options are the defaults as of hypre-2.24
 
    // Allocate hypre objects in GPU memory (default)
    // HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);

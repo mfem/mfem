@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-   HYPRE_Session hypre;
+   Hypre::Init();
    // Define Caliper ConfigManager
    cali::ConfigManager mgr;
    // Caliper instrumentation

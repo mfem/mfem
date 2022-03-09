@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
    int num_ranks, myid;
    MPI_Comm_size(comm, &num_ranks);
    MPI_Comm_rank(comm, &myid);
-   HYPRE_Session hypre;
+   Hypre::Init();
 
    Timer total_timer = TimeManager::AddTimer("Program Execution -- Total");
    Timer init_timer = TimeManager::AddTimer("Initial Setup");

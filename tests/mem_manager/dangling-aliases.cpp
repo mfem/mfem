@@ -17,7 +17,7 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    MPI_Session mpi;
-   HYPRE_Session hypre;
+   Hypre::Init();
 
    const char *device_config = "cpu";
 

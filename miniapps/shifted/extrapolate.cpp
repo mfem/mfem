@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
    // Initialize MPI and HYPRE.
    MPI_Session mpi;
    int myid = mpi.WorldRank();
-   HYPRE_Session hypre;
+   Hypre::Init();
 
    // Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
