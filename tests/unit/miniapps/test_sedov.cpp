@@ -27,12 +27,10 @@
 #endif
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
-extern mfem::MPI *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
 #define HYPRE_BigInt int
-typedef int MPI;
 #define ParMesh Mesh
 #define GetParMesh GetMesh
 #define GlobalTrueVSize GetVSize
@@ -2185,7 +2183,7 @@ static void sedov_tests(int myid)
 #ifndef MFEM_SEDOV_DEVICE
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-   sedov_tests(GlobalMPISession->WorldRank());
+   sedov_tests(MPI::Session().)WorldRank());
 }
 #else
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
@@ -2202,7 +2200,7 @@ TEST_CASE("Sedov", "[Sedov], [Parallel]")
    Device device;
    device.Configure(MFEM_SEDOV_DEVICE);
    device.Print();
-   sedov_tests(GlobalMPISession->WorldRank());
+   sedov_tests(MPI::Session().WorldRank());
 }
 #endif
 #else
