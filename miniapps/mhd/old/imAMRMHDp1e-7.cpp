@@ -17,6 +17,7 @@
 #include "PCSolver.hpp"
 #include "InitialConditions.hpp"
 #include "checkpoint.hpp"
+#include "../navier/ortho_solver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -30,7 +31,7 @@ double lambda;
 double resiG;
 double ep=.2;
 int icase = 1;
-
+ParMesh *pmesh;
 
 //this is an AMR update function for VSize (instead of TrueVSize)
 //It is only called in the initial stage of AMR to generate an adaptive mesh
@@ -80,7 +81,8 @@ void AMRUpdateTrue(BlockVector &S,
                ParGridFunction &phi,
                ParGridFunction &psi,
                ParGridFunction &w,
-               ParGridFunction &j)
+               ParGridFunction &j,
+               ParGridFunction *pre)
 {
    FiniteElementSpace* H1FESpace = phi.FESpace();
 
@@ -99,6 +101,7 @@ void AMRUpdateTrue(BlockVector &S,
    
    // Note j stores data as a regular gridfunction
    j.Update();
+   if (pre!=NULL) pre->Update();
 
    int fe_size = H1FESpace->GetTrueVSize();
 
@@ -129,7 +132,7 @@ int main(int argc, char *argv[])
    srand(myid + 1);
    myid_rand=rand();
 
-   //++++Parse command-line options.
+   //----Parse command-line options----
    const char *mesh_file = "./Meshes/xperiodic-square.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
@@ -146,6 +149,8 @@ int main(int argc, char *argv[])
    bool use_factory = false;
    bool useStab = false; //use a stabilized formulation (explicit case only)
    bool initial_refine = false;
+   bool compute_pressure = false;
+   bool compute_tau = false;
    const char *petscrc_file = "";
 
    //----amr coefficients----
@@ -155,25 +160,32 @@ int main(int argc, char *argv[])
    int precision = 8;
    int nc_limit = 1;         // maximum level of hanging nodes
    int ref_steps=4;
+   int iestimator=1;
    int derefine_op=1;
    int check_steps=50;
    double err_ratio=.1;
-   double derefine_ratio=0.;
    double err_fraction=.5;
+   double derefine_ratio=.2;
    double derefine_fraction=.05;
+   int ref_its=1;
+   int deref_its=1;
    double t_refs=1e10;
-   bool yRange = false; //fix a refinement region along y direction
-   double ytop =.5;    //top of the fixed yrange
-   bool xRange = false; //fix a refinement region along x direction
-   double xright =.5;   //right of the fixed xrange
-   int xlevels=0;
+   int    t_refs_steps=4;
+   bool     yRange = false; //fix a refinement region along y direction
+   double   ytop =.5;    //top of the fixed yrange
+   bool     xRange = false; //fix a refinement region along x direction
+   double   xright =.5;   //right of the fixed xrange
+   int      xlevels=0;
    double error_norm=infinity();
    //----end of amr----
    
+   //----problem paramters----
    beta = 0.001; 
    Lx=3.0;
    lambda=5.0;
 
+   bool saveOne=false;
+   bool checkpt=false;
    bool visualization = true;
    int vis_steps = 10;
 
@@ -197,6 +209,8 @@ int main(int argc, char *argv[])
                   "dt change time; reduce to half.");
    args.AddOption(&t_refs, "-t-refs", "--t-refs",
                   "Time a quick refine/derefine is turned on.");
+   args.AddOption(&t_refs_steps, "-t-refs-steps", "--t-refs-steps",
+                  "Refine steps for a quick refine/derefine after t_refs.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
    args.AddOption(&icase, "-i", "--icase",
@@ -231,12 +245,8 @@ int main(int argc, char *argv[])
                   "AMR derefine error ratio of total_err_goal.");
    args.AddOption(&derefine_fraction, "-derefine-fraction", "--derefine-fraction",
                   "AMR derefine error fraction of total error (derefine if error is less than portion of total error).");
-   args.AddOption(&err_ratio, "-err-ratio", "--err-ratio",
-                  "AMR component ratio.");
    args.AddOption(&derefine_op, "-derefine-op", "--derefine-op",
                   "AMR Derefine op - 0: minimum of the errors - 1: sum of the errors (default) - 2: maximum of the errors");
-   args.AddOption(&error_norm, "-error-norm", "--error-norm",
-                  "AMR error norm (in both refine and derefine).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -253,8 +263,7 @@ int main(int argc, char *argv[])
                   "Use max-tau in supg.");
    args.AddOption(&dtfactor, "-dtfactor", "--dt-factor",
                   "Tau supg scales like dt/dtfactor.");
-   args.AddOption(&factormin, "-factormin", "--factor-min",
-                  "Min factor in tau");
+   args.AddOption(&factormin, "-factormin", "--factor-min", "Min factor in tau");
    args.AddOption(&useFull, "-useFull", "--useFull",
                   "version of Full preconditioner");
    args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
@@ -267,6 +276,7 @@ int main(int argc, char *argv[])
                   "--no-visit-datafiles", "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraivew",
                   "--no-paraview-datafiles", "Save data files for paraview visualization.");
+   args.AddOption(&error_norm, "-error-norm", "--error-norm", "AMR error norm (in both refine and derefine).");
    args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange", "--no-y-refine-range",
                   "Refine only in the y range of [-ytop, ytop] in AMR.");
    args.AddOption(&ytop, "-ytop", "--y-top",
@@ -289,6 +299,20 @@ int main(int argc, char *argv[])
                   "UpdateJ: 0 - no boundary condition used; 1/2 - Dirichlet used on J boundary (2: lumped mass matrix).");
    args.AddOption(&BgradJ, "-BgradJ", "--BgradJ",
                   "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
+   args.AddOption(&saveOne, "-saveOne", "--save-One",  "-no-saveOne", "--no-save-One",
+                  "Save solution/mesh as one file");
+   args.AddOption(&checkpt, "-checkpt", "--check-pt",  "-no-checkpt", "--no-check-pt",
+                  "Save check point");
+   args.AddOption(&lumpedMass, "-lumpmass", "--lump-mass",  "-no-lumpmass", "--no-lump-mass",
+                  "lumped mass for updatej=0");
+   args.AddOption(&iestimator, "-iestimator", "--iestimator",
+                  "iestimator: 1 - psi and J; 2 - omega and psi.");
+   args.AddOption(&compute_tau, "-computetau", "--compute-tau", "-no-computetau",
+                  "--no-compute-tau", "Compute tau in the post processing");
+   args.AddOption(&compute_pressure, "-computep", "--compute-p", "-no-computep",
+                  "--no-compute-p", "Compute pressure in the post processing");
+   args.AddOption(&ref_its, "-ref-its", "--ref-its","refinement iterations.");
+   args.AddOption(&deref_its, "-deref-its", "--deref-its","refinement iterations.");
    args.Parse();
 
    if (!args.Good())
@@ -365,15 +389,14 @@ int main(int argc, char *argv[])
 
    //amr_levels+=ser_ref_levels; this is not needed any more
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh->UniformRefinement();
    }
    amr_levels+=par_ref_levels;
-   if (xlevels>0)
-       xlevels+=par_ref_levels;
+   if (xlevels>0) xlevels+=par_ref_levels;
 
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll); 
@@ -559,18 +582,16 @@ int main(int argc, char *argv[])
    
    //++++Initialize the MHD operator, the GLVis visualization    
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
-   if (icase==2)  //add the source term
-   {
+   //add the source term
+   if (icase==2){
        oper.SetRHSEfield(E0rhs);
    }
-   else if (icase==3 || icase==4)     
-   {
+   else if (icase==3 || icase==4){
        oper.SetRHSEfield(E0rhs3);
    }
 
    //set initial J
-   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), 
-                       jInit3(InitialJ3), jInit4(InitialJ4), *jptr;
+   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), jInit3(InitialJ3), jInit4(InitialJ4), *jptr;
    if (icase==1)
        jptr=&jInit1;
    else if (icase==2)
@@ -594,7 +615,12 @@ int main(int argc, char *argv[])
    bool regularZZ=true;
    if (regularZZ)
    {
-     estimator=new BlockZZEstimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
+     if (iestimator==1){
+        estimator=new BlockZZEstimator(*integ, psi, *integ, j, flux_fespace1, flux_fespace2);
+     }
+     else{
+        estimator=new BlockZZEstimator(*integ, w, *integ, psi, flux_fespace1, flux_fespace2);
+     }
      estimator->SetErrorRatio(err_ratio); 
      estimator_used=estimator;
    }
@@ -607,10 +633,9 @@ int main(int argc, char *argv[])
    int levels2=par_ref_levels+2, levels3=par_ref_levels+3, levels4=par_ref_levels+4, levels5=par_ref_levels+5;
    ThresholdRefiner refiner(*estimator_used);
    refiner.SetTotalErrorFraction(err_fraction);   // here 0.0 means we use local threshold; default is 0.5
-   refiner.SetTotalErrorGoal(0.);  // this is likely not used in the current example
+   refiner.SetTotalErrorGoal(0.0);       // this error goal is likely not used in the current example
    refiner.SetLocalErrorGoal(ltol_amr);  // local error goal (stop criterion)
    refiner.SetTotalErrorNormP(error_norm);
-
    refiner.SetMaxElements(10000000);
    if (levels2<amr_levels)
       refiner.SetMaximumRefinementLevel(levels2);
@@ -627,7 +652,7 @@ int main(int argc, char *argv[])
    derefiner.SetNCLimit(nc_limit);
    derefiner.SetTotalErrorNormP(error_norm);
    derefiner.SetOp(derefine_op);
-   if (derefine_fraction>=err_fraction)
+   if (derefine_fraction>=err_fraction && derefine)
    {   
        if (myid==0) cout << "ERROR: derefine_fraction is set to be large than err_fraction!!"<<endl;
        if (use_petsc) { MFEMFinalizePetsc(); }
@@ -736,27 +761,220 @@ int main(int argc, char *argv[])
    HypreParVector *tauv=NULL;
    mpi_rank_gf = myid_rand;
 
+   //++++recover pressure and vector fields++++
+   ParFiniteElementSpace *vfes;
+   ParGridFunction *vel, *mag, *gradP, *BgradB, *gradBP, *gfv, *pre=NULL;
+   ParMixedBilinearForm *grad, *div;
+   ParBilinearForm *a;
+   ParNonlinearForm *convect;
+   ParLinearForm *zLF, *zLFscalar; 
+   ParBilinearForm *Mfull, *Mrot;
+   Vector zv, zv2, zscalar, zscalar2;
+   HypreParMatrix *MfullMat, *KMat;
+   const IntegrationRule &ir = IntRules.Get(fespace.GetFE(0)->GetGeomType(), 3*order);
+   CGSolver M_solver(MPI_COMM_WORLD), Mscal_solver;
+   HypreSmoother *M_prec;
+   HypreBoomerAMG *K_amg;
+   CGSolver *K_pcg;
+   mfem::navier::OrthoSolver *SpInvOrthoPC;
+   Vector vtrue, rhs, vJxB;
+   VectorDomainLFIntegrator *domainJxB;
+   bool vfes_match=false;
+
+   if(compute_pressure)
+   {
+      vfes = new ParFiniteElementSpace(pmesh, fespace.FEColl(), 2);
+      vel = new ParGridFunction(vfes);
+      mag = new ParGridFunction(vfes);
+      gradP = new ParGridFunction(vfes);
+      BgradB = new ParGridFunction(vfes);
+      gradBP = new ParGridFunction(vfes);
+      gfv = new ParGridFunction(vfes);
+      pre = new ParGridFunction(&fespace);
+      grad = new ParMixedBilinearForm(&fespace, vfes);
+      div = new ParMixedBilinearForm(vfes, &fespace);
+      convect = new ParNonlinearForm(vfes);
+      zLF  = new ParLinearForm(vfes);
+      zLFscalar = new ParLinearForm(&fespace);
+      Mfull = new ParBilinearForm(vfes);
+      Mrot = new ParBilinearForm(vfes);
+      Mscal_solver=oper.GetM_solver2();
+
+      int vfes_truevsize = vfes->GetTrueVSize();
+      vtrue.SetSize(vfes_truevsize);
+      rhs.SetSize(vfes_truevsize);
+      vJxB.SetSize(vfes_truevsize);
+
+      DenseMatrix A(2);
+      A(0,0) = 0.0; A(0,1) =-1.0;
+      A(1,0) = 1.0; A(1,1) = 0.0;
+      MatrixConstantCoefficient coeff_curl(A);
+
+      //mass matrix for vector fields
+      Mfull->AddDomainIntegrator(new VectorMassIntegrator);
+      Mfull->Assemble();
+      Mfull->Finalize();
+      MfullMat = Mfull->ParallelAssemble();
+
+      M_solver.iterative_mode = false;
+      M_solver.SetRelTol(1e-7);
+      M_solver.SetAbsTol(0.0);
+      M_solver.SetMaxIter(2000);
+      M_solver.SetPrintLevel(0);
+      M_prec = new HypreSmoother;  
+      M_prec->SetType(HypreSmoother::Jacobi);
+      M_solver.SetPreconditioner(*M_prec);
+      M_solver.SetOperator(*MfullMat);
+
+      //gradient operator from H1 to Vector H1
+      grad->AddDomainIntegrator(new GradientIntegrator);
+      grad->Assemble(); 
+
+      //nonlinear convection term u.grad u
+      convect->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+      convect->Setup();
+
+      //divergence operator from Vector H1 to H1
+      div->AddDomainIntegrator(new VectorDivergenceIntegrator);
+      div->Assemble();
+
+      //rotation matrix
+      Mrot->AddDomainIntegrator(new VectorMassIntegrator(coeff_curl));
+      Mrot->Assemble();
+      Mrot->Finalize();
+
+       zv.SetSize(vfes->TrueVSize());
+      zv2.SetSize(vfes->TrueVSize());
+      zscalar.SetSize(fespace.TrueVSize());
+      zscalar2.SetSize(fespace.TrueVSize());
+
+      //compute velocity 
+      grad->Mult(phi, *zLF);
+      zLF->ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      vel->SetFromTrueDofs(zv2);
+
+      //finalize with a rotation
+      Mrot->Mult(*vel, *zLF);
+      zLF->ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      vel->SetFromTrueDofs(zv2);
+
+      //compute B field
+      grad->Mult(psi, *zLF);
+      zLF->ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      mag->SetFromTrueDofs(zv2);
+
+      //finalize with a rotation
+      Mrot->Mult(*mag, *zLF);
+      zLF->ParallelAssemble(zv);
+      M_solver.Mult(zv, zv2);
+      mag->SetFromTrueDofs(zv2);
+
+      //compute -Δp=div(u.grad u - JxB)
+      vel->GetTrueDofs(vtrue);
+      convect->Mult(vtrue, rhs);  //nonlinear form only works with true dofs?
+
+      JxBCoefficient JxBCoeff(&j, mag);
+      domainJxB = new VectorDomainLFIntegrator(JxBCoeff);
+      domainJxB->SetIntRule(&ir);
+      ParLinearForm zJxB(vfes);
+      zJxB.AddDomainIntegrator(domainJxB);
+      zJxB.Assemble();
+      zJxB.ParallelAssemble(vJxB);
+      rhs.Add(-1.0, vJxB);
+      
+      //compute M^{-1}(u.grad u - JxB)
+      M_solver.Mult(rhs, zv2);
+      gfv->SetFromTrueDofs(zv2);
+      div->Mult(*gfv, *zLFscalar);  //it is a mystery why ParGridFunction fails here
+
+      a = new ParBilinearForm(&fespace);
+      a->AddDomainIntegrator(new DiffusionIntegrator);
+      a->Assemble();
+      a->Finalize();
+      KMat=a->ParallelAssemble();
+
+      K_amg = new HypreBoomerAMG(*KMat);
+      K_amg->SetPrintLevel(0);
+      K_pcg = new CGSolver(MPI_COMM_WORLD);
+      SpInvOrthoPC = new mfem::navier::OrthoSolver();
+      SpInvOrthoPC->SetOperator(*K_amg);
+      K_pcg->SetOperator(*KMat);
+      K_pcg->iterative_mode = false;
+      K_pcg->SetRelTol(1e-7);
+      K_pcg->SetMaxIter(200);
+      K_pcg->SetPrintLevel(0);
+      K_pcg->SetPreconditioner(*SpInvOrthoPC);
+
+      ParLinearForm b(&fespace);
+      b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(JxBCoeff), ess_bdr);
+      b.Assemble();
+      b.ParallelAssemble(zscalar);
+
+      zLFscalar->ParallelAssemble(zscalar2);
+      zscalar.Add(1.0, zscalar2);
+      K_pcg->Mult(zscalar, zscalar2);
+      pre->SetFromTrueDofs(zscalar2);
+
+      //compute grad P
+      zv=0.0;
+      grad->TrueAddMult(zscalar2, zv);
+      M_solver.Mult(zv, zv2);
+      gradP->SetFromTrueDofs(zv2);
+
+      //compute B.gradB
+      mag->GetTrueDofs(vtrue);
+      convect->Mult(vtrue, zv);  
+      M_solver.Mult(zv, zv2);
+      BgradB->SetFromTrueDofs(zv2);
+
+      //compute grad magnetic pressure
+      B2Coefficient B2Coeff(mag);
+      ParLinearForm B2int(&fespace);
+      B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
+      B2int.Assemble();
+      B2int.ParallelAssemble(zscalar);
+      Mscal_solver.Mult(zscalar, zscalar2);
+      zv=0.0;
+      grad->TrueAddMult(zscalar2, zv);
+      M_solver.Mult(zv, zv2);
+      gradBP->SetFromTrueDofs(zv2);
+
+      vfes_match=true;
+   }
+
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("case3amr-small", pmesh);
+      pd = new ParaViewDataCollection("imAMRMHD1e-7", pmesh);
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("psi", &psi);
       pd->RegisterField("phi", &phi);
       pd->RegisterField("omega", &w);
       pd->RegisterField("current", &j);
       pd->RegisterField("MPI rank", &mpi_rank_gf);
+      if (compute_pressure){
+          pd->RegisterField("V", vel);
+          pd->RegisterField("B", mag);
+          pd->RegisterField("pre", pre);
+          pd->RegisterField("grad pre", gradP);
+          pd->RegisterField("grad mag pre", gradBP);
+          pd->RegisterField("B.gradB", BgradB);
+      }
 
-      //visualize Tau value
-      MyCoefficient velocity(&phi, 2);
-      computeTau = new ParLinearForm(&pw_const_fes);
-      //need to multiply a time-step factor for SDIRK(2)!!
-      computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt, resi, velocity, itau_));
-      computeTau->Assemble(); 
-      tauv=computeTau->ParallelAssemble();
-      tau_value.SetFromTrueDofs(*tauv);
- 
-      pd->RegisterField("Tau", &tau_value);
+      if(compute_tau){
+        //visualize Tau value
+        MyCoefficient velocity(&phi, 2);
+        computeTau = new ParLinearForm(&pw_const_fes);
+        //need to multiply a time-step factor for SDIRK(2)!!
+        computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt, resi, velocity, itau_));
+        computeTau->Assemble(); 
+        tauv=computeTau->ParallelAssemble();
+        tau_value.SetFromTrueDofs(*tauv);
+        pd->RegisterField("Tau", &tau_value);
+      }
 
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
@@ -775,8 +993,6 @@ int main(int argc, char *argv[])
 
    //++++Perform time-integration (looping over the time iterations, ti, with a time-step dt).
    bool last_step = false;
-   int ref_its=1;
-   int deref_its=1;
    int current_amr_level=levels2;
    for (int ti = 1; !last_step; ti++)
    {
@@ -790,7 +1006,6 @@ int main(int argc, char *argv[])
       //change time step when problem becomes nicer
       if (reduced_step){
           success_step++;
-
           if (success_step>10)
           {
               dt = min(dt*1.1, dt0);
@@ -802,37 +1017,31 @@ int main(int argc, char *argv[])
 
       if (t>t_refs)
       {
-          ref_steps=4;
+          ref_steps=t_refs_steps;
           ref_its=1;
           deref_its=1;
       }
 
-      if (t>3. && t<=3.4 && current_amr_level<levels3)
-      {
+      if (t>3. && t<=3.4 && current_amr_level<levels3) {
           current_amr_level=levels3;
       }
-      else if (t>3.4 && t<4.00001 && current_amr_level<levels4)
-      {
+      else if (t>3.4 && t<4.00001 && current_amr_level<levels4){
           current_amr_level=levels4;
           err_fraction=0.7;
           derefine_fraction=0.0007;
-
           refiner.SetTotalErrorFraction(err_fraction);
           derefiner.SetThreshold(derefine_ratio*ltol_amr);
           derefiner.SetTotalErrorFraction(derefine_fraction);
       }
-      else if (t>=4.00001 && t<5.00001 && current_amr_level<levels5)
-      {
+      else if (t>=4.00001 && t<5.00001 && current_amr_level<levels5){
           current_amr_level=levels5;
           err_fraction=0.6;
           derefine_fraction=0.0006; 
-
           refiner.SetTotalErrorFraction(err_fraction);
           derefiner.SetThreshold(derefine_ratio*ltol_amr);
           derefiner.SetTotalErrorFraction(derefine_fraction);
       }
-      else if (t>=5.00001 && current_amr_level<amr_levels)
-      {
+      else if (t>=5.00001 && current_amr_level<amr_levels){
           current_amr_level=amr_levels;
           err_fraction=0.6;
           derefine_fraction=0.0006;
@@ -882,13 +1091,13 @@ int main(int argc, char *argv[])
          vx=vxold;
          ode_solver->Step(vx, t, dt_real);
 
-         if (!oper.getConverged())
+         if (!oper.getConverged()){
              MFEM_ABORT("======ERROR: reduced time step once still failed; checkme!======");
+         }
       }
 
       last_step = (t >= t_final - 1e-8*dt);
-      if (last_step)
-      {
+      if (last_step){
           refineMesh=false;
           derefineMesh=false;
       }
@@ -925,13 +1134,24 @@ int main(int argc, char *argv[])
                break;
            }
 
-           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre);
            oper.UpdateGridFunction();
+           if (compute_pressure) {
+               vfes->Update();
+               //update vector grid function
+               vel->Update();
+               mag->Update();
+               gradP->Update();
+               BgradB->Update();
+               gradBP->Update();
+               gfv->Update();
+               vfes->UpdatesFinished();
+           }
            if (paraview) 
            {
                pw_const_fes.Update();
                mpi_rank_gf.Update();
-               tau_value.Update();
+               if (compute_tau) tau_value.Update();
            }
 
            pmesh->Rebalance();
@@ -940,12 +1160,23 @@ int main(int argc, char *argv[])
            {
                pw_const_fes.Update();
                mpi_rank_gf.Update();
-               tau_value.Update();
+               if (compute_tau) tau_value.Update();
            }
 
            //---Update solutions after rebalancing---
-           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre);
            oper.UpdateGridFunction();
+           if (compute_pressure) {
+               vfes->Update();
+               //update vector grid function
+               vel->Update();
+               mag->Update();
+               gradP->Update();
+               BgradB->Update();
+               gradBP->Update();
+               gfv->Update();
+               vfes->UpdatesFinished();
+           }
            oper.UpdateProblem(ess_bdr); 
            oper.SetInitialJ(*jptr);      //need to reset the current bounary
 
@@ -961,11 +1192,15 @@ int main(int argc, char *argv[])
          {
             if (myid == 0) cout<<"Refined mesh; initialize ode_solver"<<endl;
             ode_solver->Init(oper);
+            if (compute_pressure) {
+               if (myid == 0) cout << "Mesh has changed and rebuilding vfes is needed"<<endl;
+               vfes_match = false;
+            }
          }
       }
 
       //++++++Derefine step++++++
-      if (derefineMesh)
+      if (derefineMesh && derefine)
       {
          if (myid == 0) cout << "Derefined mesh..." << endl;
 
@@ -973,8 +1208,8 @@ int main(int argc, char *argv[])
          for (its=0; its<deref_its; its++)
          {
              //only call this at its=0
-             if (its==0)
-                oper.UpdateJ(vx, &j);
+             if (its==0) oper.UpdateJ(vx, &j);
+
              if (!derefiner.Apply(*pmesh))
              {
                  if (myid == 0) cout << "No derefine elements found, skip..." << endl;
@@ -982,14 +1217,25 @@ int main(int argc, char *argv[])
              }
 
              //---Update solutions first---
-             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre);
              oper.UpdateGridFunction();
+             if (compute_pressure) {
+                vfes->Update();
+                //update vector grid function
+                vel->Update();
+                mag->Update();
+                gradP->Update();
+                BgradB->Update();
+                gradBP->Update();
+                gfv->Update();
+                vfes->UpdatesFinished();
+             }
 
              if (paraview) 
              {
                  pw_const_fes.Update();
                  mpi_rank_gf.Update();
-                 tau_value.Update();
+                 if (compute_tau) tau_value.Update();
              }
 
              pmesh->Rebalance();
@@ -998,12 +1244,23 @@ int main(int argc, char *argv[])
              {
                  pw_const_fes.Update();
                  mpi_rank_gf.Update();
-                 tau_value.Update();
+                 if (compute_tau) tau_value.Update();
              }
 
              //---Update solutions after rebalancing---
-             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j);
+             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre);
              oper.UpdateGridFunction();
+             if (compute_pressure) {
+                vfes->Update();
+                //update vector grid function
+                vel->Update();
+                mag->Update();
+                gradP->Update();
+                BgradB->Update();
+                gradBP->Update();
+                gfv->Update();
+                vfes->UpdatesFinished();
+             }
 
              //---assemble problem and update boundary condition---
              oper.UpdateProblem(ess_bdr); 
@@ -1020,12 +1277,15 @@ int main(int argc, char *argv[])
          {
             if (myid == 0) cout<<"Derefined mesh; initialize ode_solver"<<endl;
             ode_solver->Init(oper);
+            if (compute_pressure) {
+               if (myid == 0)  cout << "Mesh has changed and rebuilding vfes is needed"<<endl;
+               vfes_match = false;
+            }
          }
       }
       //----------------------------AMR---------------------------------
       
-      if ((ti % check_steps) == 0)
-      {
+      if ((ti % check_steps) == 0){
          phi.SetFromTrueDofs(vx.GetBlock(0));
          psi.SetFromTrueDofs(vx.GetBlock(1));
          w.SetFromTrueDofs(vx.GetBlock(2));
@@ -1040,6 +1300,179 @@ int main(int argc, char *argv[])
            psi.SetFromTrueDofs(vx.GetBlock(1));
            w.SetFromTrueDofs(vx.GetBlock(2));
            oper.UpdateJ(vx, &j);
+        
+           if(compute_pressure && paraview)
+           {
+              if (!vfes_match){
+                delete grad;     
+                delete div ;     
+                delete convect;  
+                delete zLF  ;    
+                delete zLFscalar; 
+                delete Mfull;    
+                delete Mrot ;    
+                delete M_prec;
+                delete MfullMat;
+                delete a;
+                delete KMat;
+                delete K_amg;
+                delete K_pcg;
+                delete SpInvOrthoPC;
+
+                grad = new ParMixedBilinearForm(&fespace, vfes);
+                div = new ParMixedBilinearForm(vfes, &fespace);
+                convect = new ParNonlinearForm(vfes);
+                zLF  = new ParLinearForm(vfes);
+                zLFscalar = new ParLinearForm(&fespace);
+                Mfull = new ParBilinearForm(vfes);
+                Mrot = new ParBilinearForm(vfes);
+                Mscal_solver=oper.GetM_solver2();
+
+                int vfes_truevsize = vfes->GetTrueVSize();
+                vtrue.SetSize(vfes_truevsize);
+                rhs.SetSize(vfes_truevsize);
+                vJxB.SetSize(vfes_truevsize);
+
+                DenseMatrix A(2);
+                A(0,0) = 0.0; A(0,1) =-1.0;
+                A(1,0) = 1.0; A(1,1) = 0.0;
+                MatrixConstantCoefficient coeff_curl(A);
+
+                //mass matrix for vector fields
+                Mfull->AddDomainIntegrator(new VectorMassIntegrator);
+                Mfull->Assemble();
+                Mfull->Finalize();
+                MfullMat = Mfull->ParallelAssemble();
+
+                M_solver.iterative_mode = false;
+                M_solver.SetRelTol(1e-7);
+                M_solver.SetAbsTol(0.0);
+                M_solver.SetMaxIter(2000);
+                M_solver.SetPrintLevel(0);
+                M_prec = new HypreSmoother;  
+                M_prec->SetType(HypreSmoother::Jacobi);
+                M_solver.SetPreconditioner(*M_prec);
+                M_solver.SetOperator(*MfullMat);
+
+                //gradient operator from H1 to Vector H1
+                grad->AddDomainIntegrator(new GradientIntegrator);
+                grad->Assemble(); 
+
+                //nonlinear convection term u.grad u
+                convect->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+                convect->Setup();
+
+                //divergence operator from Vector H1 to H1
+                div->AddDomainIntegrator(new VectorDivergenceIntegrator);
+                div->Assemble();
+
+                //rotation matrix
+                Mrot->AddDomainIntegrator(new VectorMassIntegrator(coeff_curl));
+                Mrot->Assemble();
+                Mrot->Finalize();
+
+                 zv.SetSize(vfes->TrueVSize());
+                zv2.SetSize(vfes->TrueVSize());
+                zscalar.SetSize(fespace.TrueVSize());
+                zscalar2.SetSize(fespace.TrueVSize());
+
+                a = new ParBilinearForm(&fespace);
+                a->AddDomainIntegrator(new DiffusionIntegrator);
+                a->Assemble();
+                a->Finalize();
+                KMat=a->ParallelAssemble();
+
+                K_amg = new HypreBoomerAMG(*KMat);
+                K_amg->SetPrintLevel(0);
+                K_pcg = new CGSolver(MPI_COMM_WORLD);
+                SpInvOrthoPC = new mfem::navier::OrthoSolver();
+                SpInvOrthoPC->SetOperator(*K_amg);
+                K_pcg->SetOperator(*KMat);
+                K_pcg->iterative_mode = false;
+                K_pcg->SetRelTol(1e-7);
+                K_pcg->SetMaxIter(200);
+                K_pcg->SetPrintLevel(0);
+                K_pcg->SetPreconditioner(*SpInvOrthoPC);
+               
+                vfes_match=true;
+              }
+
+              //compute velocity 
+              grad->Mult(phi, *zLF);
+              zLF->ParallelAssemble(zv);
+              M_solver.Mult(zv, zv2);
+              vel->SetFromTrueDofs(zv2);
+
+              //finalize with a rotation
+              Mrot->Mult(*vel, *zLF);
+              zLF->ParallelAssemble(zv);
+              M_solver.Mult(zv, zv2);
+              vel->SetFromTrueDofs(zv2);
+
+              //compute B field
+              grad->Mult(psi, *zLF);
+              zLF->ParallelAssemble(zv);
+              M_solver.Mult(zv, zv2);
+              mag->SetFromTrueDofs(zv2);
+
+              //finalize with a rotation
+              Mrot->Mult(*mag, *zLF);
+              zLF->ParallelAssemble(zv);
+              M_solver.Mult(zv, zv2);
+              mag->SetFromTrueDofs(zv2);
+
+              //compute -Δp=div(u.grad u - JxB)
+              vel->GetTrueDofs(vtrue);
+              convect->Mult(vtrue, rhs);  //nonlinear form only works with true dofs?
+
+              JxBCoefficient JxBCoeff(&j, mag);
+              domainJxB = new VectorDomainLFIntegrator(JxBCoeff);
+              domainJxB->SetIntRule(&ir);
+              ParLinearForm zJxB(vfes);
+              zJxB.AddDomainIntegrator(domainJxB);
+              zJxB.Assemble();
+              zJxB.ParallelAssemble(vJxB);
+              rhs.Add(-1.0, vJxB);
+              
+              //compute M^{-1}(u.grad u - JxB)
+              M_solver.Mult(rhs, zv2);
+              gfv->SetFromTrueDofs(zv2);
+              div->Mult(*gfv, *zLFscalar);  //it is a mystery why ParGridFunction fails here
+
+              ParLinearForm b(&fespace);
+              b.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(JxBCoeff), ess_bdr);
+              b.Assemble();
+              b.ParallelAssemble(zscalar);
+
+              zLFscalar->ParallelAssemble(zscalar2);
+              zscalar.Add(1.0, zscalar2);
+              K_pcg->Mult(zscalar, zscalar2);
+              pre->SetFromTrueDofs(zscalar2);
+
+              //compute grad P
+              zv=0.0;
+              grad->TrueAddMult(zscalar2, zv);
+              M_solver.Mult(zv, zv2);
+              gradP->SetFromTrueDofs(zv2);
+
+              //compute B.gradB
+              mag->GetTrueDofs(vtrue);
+              convect->Mult(vtrue, zv);  
+              M_solver.Mult(zv, zv2);
+              BgradB->SetFromTrueDofs(zv2);
+
+              //compute grad magnetic pressure
+              B2Coefficient B2Coeff(mag);
+              ParLinearForm B2int(&fespace);
+              B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
+              B2int.Assemble();
+              B2int.ParallelAssemble(zscalar);
+              Mscal_solver.Mult(zscalar, zscalar2);
+              zv=0.0;
+              grad->TrueAddMult(zscalar2, zv);
+              M_solver.Mult(zv, zv2);
+              gradBP->SetFromTrueDofs(zv2);
+           }
         }
 
         if (visualization)
@@ -1066,15 +1499,16 @@ int main(int argc, char *argv[])
 
         if (paraview)
         {
-           MyCoefficient velocity(&phi, 2);
-           delete computeTau;
-           delete tauv;
-
-           computeTau = new ParLinearForm(&pw_const_fes);
-           computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt_real, resi, velocity, itau_));
-           computeTau->Assemble(); 
-           tauv=computeTau->ParallelAssemble();
-           tau_value.SetFromTrueDofs(*tauv);
+           if(compute_tau){
+              MyCoefficient velocity(&phi, 2);
+              delete computeTau;
+              delete tauv;
+              computeTau = new ParLinearForm(&pw_const_fes);
+              computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt_real, resi, velocity, itau_));
+              computeTau->Assemble(); 
+              tauv=computeTau->ParallelAssemble();
+              tau_value.SetFromTrueDofs(*tauv);
+           }
  
            mpi_rank_gf = myid_rand;
            pd->SetCycle(ti);
@@ -1086,15 +1520,14 @@ int main(int argc, char *argv[])
       if (last_step)
           break;
       else
-
           continue;
    }
 
    MPI_Barrier(MPI_COMM_WORLD); 
    double end = MPI_Wtime();
 
-   //++++++Save the solutions (only if paraview or visit is not turned on).
-   if (true)
+   //++++++Save the solutions.
+   if (checkpt)
    {
       phi.SetFromTrueDofs(vx.GetBlock(0));
       psi.SetFromTrueDofs(vx.GetBlock(1));
@@ -1102,7 +1535,7 @@ int main(int argc, char *argv[])
 
       checkpoint(myid, t, *pmesh, phi, psi, w);
 
-      //this is only saved if paraview or visit is not used
+      //this is only saved if paraview or visit is not used (not needed any more)
       if (!paraview && !visit)
       {
          ostringstream j_name;
@@ -1148,6 +1581,32 @@ int main(int argc, char *argv[])
        cout <<"######Runtime = "<<end-start<<" ######"<<endl;
    }
 
+   if(compute_pressure)
+   {
+      delete M_prec;
+      delete K_amg;
+      delete SpInvOrthoPC;
+      delete MfullMat;
+      delete KMat;
+      delete a;
+      delete K_pcg;
+      delete vfes;
+      delete vel;
+      delete mag;
+      delete gradP;
+      delete gradBP;
+      delete BgradB;
+      delete gfv;       
+      delete zLFscalar; 
+      delete pre;      
+      delete grad;     
+      delete div ;     
+      delete convect;  
+      delete zLF  ;    
+      delete Mfull;    
+      delete Mrot ;     
+   }
+
    //+++++Free the used memory.
    delete ode_solver;
    delete pmesh;
@@ -1155,9 +1614,10 @@ int main(int argc, char *argv[])
    delete dc;
    delete pd;
    delete estimator_used;
-   delete tauv;
-   delete computeTau;
-
+   if(compute_tau){
+      delete tauv;
+      delete computeTau;
+   }
    oper.DestroyHypre();
 
    if (use_petsc) { MFEMFinalizePetsc(); }

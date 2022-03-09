@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
    int ref_its=1;
    int deref_its=1;
    double t_refs=1e10;
-   int    t_refs_steps=2;
+   int    t_refs_steps=4;
    bool yRange = false; //fix a refinement region along y direction
    double error_norm=infinity();
    //----end of amr----
@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
    args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
                   "--no-derefine-mesh", "Derefine the mesh in AMR.");
    args.AddOption(&derefine_ratio, "-derefine-ratio", "--derefine-ratio",
-                  "AMR derefine error ratio.");
+                  "AMR derefine error ratio of total_err_goal.");
    args.AddOption(&derefine_fraction, "-derefine-fraction", "--derefine-fraction",
                   "AMR derefine error fraction of total error (derefine if error is less than portion of total error).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -267,10 +267,8 @@ int main(int argc, char *argv[])
                   "--no-visit-datafiles", "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraivew",
                   "--no-paraview-datafiles", "Save data files for paraview visualization.");
-   args.AddOption(&error_norm, "-error-norm", "--error-norm",
-                  "AMR error norm (in both refine and derefine).");
-   args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange",
-                  "--no-y-refine-range",
+   args.AddOption(&error_norm, "-error-norm", "--error-norm", "AMR error norm (in both refine and derefine).");
+   args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange", "--no-y-refine-range",
                   "Refine only in the y range of [-.6, .6] in AMR.");
    args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
                   "--no-petsc",
@@ -617,7 +615,7 @@ int main(int argc, char *argv[])
    int levels3=par_ref_levels+3, levels4=par_ref_levels+4;
    ThresholdRefiner refiner(*estimator_used);
    refiner.SetTotalErrorFraction(err_fraction);   // here 0.0 means we use local threshold; default is 0.5
-   refiner.SetTotalErrorGoal(0.0);  // total error goal (stop criterion)
+   refiner.SetTotalErrorGoal(0.0);       // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(ltol_amr);  // local error goal (stop criterion)
    refiner.SetTotalErrorNormP(error_norm);
    refiner.SetMaxElements(10000000);
@@ -1062,7 +1060,6 @@ int main(int argc, char *argv[])
          if (myid == 0) cout<<"Refine mesh iterations..."<<endl;
 
          int its;
-         //here can we skip replacing??
          for (its=0; its<ref_its; its++)
          {
            oper.UpdateJ(vx, &j);
@@ -1466,7 +1463,7 @@ int main(int argc, char *argv[])
 
       checkpoint(myid, t, *pmesh, phi, psi, w);
 
-      //this is only saved if we do not do paraview or visit
+      //this is only saved if paraview or visit is not used (not needed any more)
       if (!paraview && !visit)
       {
          ostringstream mesh_name, j_name;
