@@ -50,6 +50,7 @@ int main(int argc, char *argv[])
    int dest_fe_order = 1;
    bool visualization = true;
    bool verbose = false;
+   int max_iterations = 2000;
 
    OptionsParser args(argc, argv);
    args.AddOption(&source_mesh_file, "-s", "--source_mesh",
@@ -69,6 +70,9 @@ int main(int argc, char *argv[])
                   "Order of the dest finite elements");
    args.AddOption(&verbose, "-verb", "--verbose", "--no-verb", "--no-verbose",
                   "Eanble/Disable verbose output");
+
+   args.AddOption(&max_iterations, "-m", "--max_iterations",
+                  "Max number of solver iterations");
 
    args.Parse();
    check_options(args);
@@ -163,6 +167,9 @@ int main(int argc, char *argv[])
    ParMortarAssembler assembler(src_fe, dest_fe);
    assembler.SetVerbose(verbose);
 
+
+   assembler.SetMaxSolverIterations(max_iterations);
+
    assembler.AddMortarIntegrator(make_shared<L2MortarIntegrator>());
    if (assembler.Transfer(src_fun, dest_fun))
    {
@@ -184,7 +191,8 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mfem::out << "No intersection no transfer!" << std::endl;
+      mfem::out << "Transfer failed! Use --verbose option for diagnostic!" <<
+                std::endl;
    }
 
    // Finalize transfer library context
