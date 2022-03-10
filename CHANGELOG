@@ -11,6 +11,9 @@
 Version 4.3.1 (development)
 ===========================
 
+- Add an new Example to demonstrate the solution of spectral fractional PDEs 
+  with MFEM. See Example 31/31p.
+
 - Add hipSPARSE support for sparse mat-vec multiplications.
 
 - Added support for using the HYPRE library built with HIP support. Similar to
