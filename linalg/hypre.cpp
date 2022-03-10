@@ -4925,7 +4925,8 @@ HypreAMS::HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_,
 
    MakeSolver(sdim, cycle_type);
 
-   HYPRE_AMSSetCoordinateVectors(ams, *x, *y, *z);
+   HYPRE_ParVector pz = z ? static_cast<HYPRE_ParVector>(*z) : NULL;
+   HYPRE_AMSSetCoordinateVectors(ams, *x, *y, pz);
    HYPRE_AMSSetDiscreteGradient(ams, *G);
 }
 

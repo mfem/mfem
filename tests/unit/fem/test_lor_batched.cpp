@@ -11,6 +11,7 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+#include "../../fem/lor/lor_ams.hpp"
 #include <unordered_map>
 
 using namespace mfem;
@@ -198,6 +199,88 @@ TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
 
    TestSameMatrices(A1, A2);
    TestSameMatrices(A2, A1);
+}
+
+TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
+{
+   auto mesh_fname = GENERATE(
+                        "../../data/star-q3.mesh",
+                        "../../data/fichera-q3.mesh"
+                     );
+   const int order = 5;
+
+   Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   const int dim = mesh.Dimension();
+
+   ND_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto,
+                       BasisType::IntegratedGLL);
+   ParFiniteElementSpace fespace(&mesh, &fec);
+
+   Array<int> ess_dofs;
+   fespace.GetBoundaryTrueDofs(ess_dofs);
+
+   ParLORDiscretization lor(fespace);
+   ParFiniteElementSpace &edge_fespace = lor.GetParFESpace();
+
+   H1_FECollection vert_fec(1, dim);
+   ParFiniteElementSpace vert_fespace(edge_fespace.GetParMesh(), &vert_fec);
+
+   ParDiscreteLinearOperator grad(&vert_fespace, &edge_fespace);
+   grad.AddDomainInterpolator(new GradientInterpolator);
+   grad.Assemble();
+   grad.Finalize();
+   HypreParMatrix *G = grad.ParallelAssemble();
+
+   ConstantCoefficient diff_coeff(M_PI);
+   ConstantCoefficient mass_coeff(1.0/M_PI);
+
+   ParBilinearForm a(&fespace);
+   a.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff));
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   BatchedLOR_AMS batched_lor(a, fespace, ess_dofs);
+
+   TestSameMatrices(*G, *batched_lor.GetGradientMatrix());
+
+   ParGridFunction x_coord(&vert_fespace);
+   ParGridFunction y_coord(&vert_fespace);
+   ParGridFunction z_coord(&vert_fespace);
+   for (int i = 0; i < edge_fespace.GetMesh()->GetNV(); i++)
+   {
+      const double *coord = edge_fespace.GetMesh()->GetVertex(i);
+      x_coord(i) = coord[0];
+      y_coord(i) = coord[1];
+      if (dim == 3) { z_coord(i) = coord[2]; }
+   }
+   HypreParVector *x = x_coord.ParallelProject();
+   HypreParVector *y = y_coord.ParallelProject();
+   HypreParVector *z = NULL;
+   if (dim == 3) { z = z_coord.ParallelProject(); }
+
+   *x -= *batched_lor.GetXCoordinate();
+   REQUIRE(x->Normlinf() == MFEM_Approx(0.0));
+   *y -= *batched_lor.GetYCoordinate();
+   REQUIRE(y->Normlinf() == MFEM_Approx(0.0));
+   if (dim == 3)
+   {
+      *z -= *batched_lor.GetZCoordinate();
+      REQUIRE(z->Normlinf() == MFEM_Approx(0.0));
+   }
+
+   // Clean up
+   delete batched_lor.GetAssembledMatrix();
+   delete batched_lor.GetCoordinateVector();
+   delete batched_lor.GetXCoordinate();
+   delete batched_lor.GetYCoordinate();
+   delete batched_lor.GetZCoordinate();
+   delete batched_lor.GetGradientMatrix();
+
+   delete G;
+   delete x;
+   delete y;
+   delete z;
 }
 
 #endif // MFEM_USE_MPI

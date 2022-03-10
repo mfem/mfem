@@ -268,6 +268,33 @@ public:
    ~LORSolver() { if (own_lor) { delete lor; } }
 };
 
+// Template specialization for batched LOR AMS (implementation in lor_ams.cpp)
+template <>
+class LORSolver<HypreAMS> : public Solver
+{
+protected:
+   OperatorHandle A;
+   Vector *xyz = nullptr;
+   HypreAMS *solver = nullptr;
+public:
+   LORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
+             int ref_type=BasisType::GaussLobatto);
+
+   /// Calls HypreAMS::SetOperator.
+   void SetOperator(const Operator &op);
+
+   /// Apply the action of the AMS preconditioner.
+   void Mult(const Vector &x, Vector &y) const;
+
+   /// Access the underlying solver.
+   HypreAMS &GetSolver();
+
+   /// Access the underlying solver (const version).
+   const HypreAMS &GetSolver() const;
+
+   ~LORSolver();
+};
+
 } // namespace mfem
 
 #endif
