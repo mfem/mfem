@@ -157,6 +157,8 @@ void BatchedLOR_AMS::FormGradientMatrix()
    G = RAP(edge_fes.Dof_TrueDof_Matrix(),
            G_diag.As<HypreParMatrix>(),
            vert_fes.Dof_TrueDof_Matrix());
+   G->CopyRowStarts();
+   G->CopyColStarts();
 }
 
 void BatchedLOR_AMS::FormCoordinateVectors()
