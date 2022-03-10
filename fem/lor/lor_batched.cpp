@@ -12,6 +12,7 @@
 #include "lor_batched.hpp"
 #include "lor_nodal_interp.hpp"
 #include "../../general/forall.hpp"
+#include <climits>
 
 // Specializations
 #include "lor_h1.hpp"
@@ -156,7 +157,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
    const Operator *op = fes_ho.GetElementRestriction(ordering);
    const ElementRestriction *el_restr =
       dynamic_cast<const ElementRestriction*>(op);
-   MFEM_VERIFY(el_restr != nullptr, "");
+   MFEM_VERIFY(el_restr != nullptr, "Bad element restriction");
 
    const Array<int> &el_dof_lex_ = el_restr->GatherMap();
    const Array<int> &dof_glob2loc_ = el_restr->Indices();
@@ -257,7 +258,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
    const Operator *op = fes_ho.GetElementRestriction(ordering);
    const ElementRestriction *el_restr =
       dynamic_cast<const ElementRestriction*>(op);
-   MFEM_VERIFY(el_restr != nullptr, "");
+   MFEM_VERIFY(el_restr != nullptr, "Bad element restriction");
 
    const Array<int> &el_dof_lex_ = el_restr->GatherMap();
    const Array<int> &dof_glob2loc_ = el_restr->Indices();
@@ -363,7 +364,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
                                  break;
                               }
                            }
-                           MFEM_ASSERT_KERNEL(j >= 0, "");
+                           MFEM_ASSERT_KERNEL(j >= 0, "Can't find nonzero");
                            val += sgn_2*V(j2, ii_el_2, iel_ho_2);
                         }
                      }
