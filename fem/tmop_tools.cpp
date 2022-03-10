@@ -401,12 +401,15 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    double scale = 1.0;
    if (surf_fit_max_threshold > 0.0)
    {
-      double avg_err, max_err;
+      double avg_err = 0.0, max_err = 0.0;
       GetSurfaceFittingError(avg_err, max_err);
       if (max_err < surf_fit_max_threshold)
       {
-         mfem::out << "TMOPNewtonSolver converged based on the surface fitting"
-                   "error.\n";
+         if (print_options.iterations)
+         {
+            mfem::out << "TMOPNewtonSolver converged "
+                         "based on the surface fitting error.\n";
+         }
          scale = 0.0;
          return scale;
       }
