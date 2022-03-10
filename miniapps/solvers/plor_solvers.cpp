@@ -195,23 +195,22 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_dofs, x, b, A, X, B);
 
    NVTX("ParLORDiscretization");
-   ParLORDiscretization lor(a, ess_dofs);
-   ParFiniteElementSpace &fes_lor = lor.GetParFESpace();
 
    unique_ptr<Solver> solv_lor;
    if (H1 || L2)
    {
       dbg("LORSolver<HypreBoomerAMG>");
       NVTX("LORSolver");
-      solv_lor.reset(new LORSolver<HypreBoomerAMG>(lor));
+      solv_lor.reset(new LORSolver<HypreBoomerAMG>(a, ess_dofs));
    }
    else if (RT && dim == 3)
    {
-      solv_lor.reset(new LORSolver<HypreADS>(lor, &fes_lor));
+      // solv_lor.reset(new LORSolver<HypreADS>(lor, &fes_lor));
+      MFEM_ABORT("");
    }
    else
    {
-      solv_lor.reset(new LORSolver<HypreAMS>(lor, &fes_lor));
+      solv_lor.reset(new LORSolver<HypreAMS>(a, ess_dofs));
    }
 
    CGSolver cg(MPI_COMM_WORLD);
