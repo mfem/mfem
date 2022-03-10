@@ -100,56 +100,57 @@ int main(int argc, char *argv[])
 
 #ifdef MFEM_USE_ALGOIM
    const int num_gauss_points=4;
-   for(int i=0;i<fespace.GetNE();i++)
+   for (int i=0; i<fespace.GetNE(); i++)
    {
-       const FiniteElement* el=fespace.GetFE(i);
-       //get the element transformation
-       trans = fespace.GetElementTransformation(i);
+      const FiniteElement* el=fespace.GetFE(i);
+      //get the element transformation
+      trans = fespace.GetElementTransformation(i);
 
-       //extract the element vector from the level-set
-       doftrans = fespace.GetElementVDofs(i,vdofs);
-       lsvec.GetSubVector(vdofs, lsfun);
+      //extract the element vector from the level-set
+      doftrans = fespace.GetElementVDofs(i,vdofs);
+      lsvec.GetSubVector(vdofs, lsfun);
 
-       //contruct Algoim integration object
-       AlgoimIntegrationRule* air=new AlgoimIntegrationRule(num_gauss_points,*el,*trans,lsfun);
+      //contruct Algoim integration object
+      AlgoimIntegrationRule* air=new AlgoimIntegrationRule(num_gauss_points,*el,
+                                                           *trans,lsfun);
 
-       //compute the volume contribution from the element
-       ir=air->GetVolumeIntegrationRule();
-       for (int i = 0; i < ir->GetNPoints(); i++)
-       {
-           const IntegrationPoint &ip = ir->IntPoint(i);
-           trans->SetIntPoint(&ip);
-           w = trans->Weight();
-           w = ip.weight * w;
-           vol=vol+w;
-       }
+      //compute the volume contribution from the element
+      ir=air->GetVolumeIntegrationRule();
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         trans->SetIntPoint(&ip);
+         w = trans->Weight();
+         w = ip.weight * w;
+         vol=vol+w;
+      }
 
-       //compute the perimeter/area contribution from the element
-       bmat.SetSize(el->GetDof(),el->GetDim());
-       pmat.SetSize(el->GetDof(),el->GetDim());
-       inormal.SetSize(el->GetDim());
-       tnormal.SetSize(el->GetDim());
+      //compute the perimeter/area contribution from the element
+      bmat.SetSize(el->GetDof(),el->GetDim());
+      pmat.SetSize(el->GetDof(),el->GetDim());
+      inormal.SetSize(el->GetDim());
+      tnormal.SetSize(el->GetDim());
 
-       ir=air->GetSurfaceIntegrationRule();
-       for (int i = 0; i < ir->GetNPoints(); i++)
-       {
-           const IntegrationPoint &ip = ir->IntPoint(i);
-           trans->SetIntPoint(&ip);
+      ir=air->GetSurfaceIntegrationRule();
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         trans->SetIntPoint(&ip);
 
-           el->CalcDShape(ip,bmat);
-           Mult(bmat, trans->AdjugateJacobian(), pmat);
-           //compute the normal to the LS in isoparametric space
-           bmat.MultTranspose(lsfun,inormal);
-           //compute the normal to the LS in physicsl space
-           pmat.MultTranspose(lsfun,tnormal);
-           w = ip.weight*tnormal.Norml2()/inormal.Norml2();
-           area=area+w;
-       }
+         el->CalcDShape(ip,bmat);
+         Mult(bmat, trans->AdjugateJacobian(), pmat);
+         //compute the normal to the LS in isoparametric space
+         bmat.MultTranspose(lsfun,inormal);
+         //compute the normal to the LS in physicsl space
+         pmat.MultTranspose(lsfun,tnormal);
+         w = ip.weight*tnormal.Norml2()/inormal.Norml2();
+         area=area+w;
+      }
 
-       //delete the Algoim integration rule object
-       //the integration rules are constructed for the
-       //particular element and level set
-       delete air;
+      //delete the Algoim integration rule object
+      //the integration rules are constructed for the
+      //particular element and level set
+      delete air;
    }
 #endif
    std::cout<<"Volume="<<vol<<std::endl;
