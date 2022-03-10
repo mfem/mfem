@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,62 +14,54 @@
 # Default options. To replace these, copy this file to user.cmake and modify it.
 
 if (NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING
+	set(CMAKE_BUILD_TYPE "Debug" CACHE STRING
       "Build type: Debug, Release, RelWithDebInfo, or MinSizeRel." FORCE)
 endif()
 
 # MFEM options. Set to mimic the default "defaults.mk" file.
-option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
+option(MFEM_USE_MPI "Enable MPI parallel build" ON)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
 option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)
 option(MFEM_USE_ZLIB "Enable zlib for compressed data streams." OFF)
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)
-option(MFEM_USE_LAPACK "Enable LAPACK usage" OFF)
+option(MFEM_USE_LAPACK "Enable LAPACK usage" ON)
 option(MFEM_THREAD_SAFE "Enable thread safety" OFF)
 option(MFEM_USE_OPENMP "Enable the OpenMP backend" OFF)
 option(MFEM_USE_LEGACY_OPENMP "Enable legacy OpenMP usage" OFF)
 option(MFEM_USE_MEMALLOC "Enable the internal MEMALLOC option." ON)
 option(MFEM_USE_SUNDIALS "Enable SUNDIALS usage" OFF)
 option(MFEM_USE_MESQUITE "Enable MESQUITE usage" OFF)
-option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
-option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
-option(MFEM_USE_SUPERLU5 "Use the old SuperLU_DIST 5.1 version" OFF)
-option(MFEM_USE_MUMPS "Enable MUMPS usage" OFF)
+option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" ON)
+option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" ON)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
-option(MFEM_USE_AMGX "Enable AmgX usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
-option(MFEM_USE_GSLIB "Enable GSLIB usage" OFF)
+option(MFEM_USE_GSLIB "Enable GSLIB usage" ON)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
-option(MFEM_USE_PETSC "Enable PETSc support." OFF)
-option(MFEM_USE_SLEPC "Enable SLEPc support." OFF)
+option(MFEM_USE_PETSC "Enable PETSc support." ON)
+option(MFEM_USE_SLEPC "Enable SLEPc support." ON)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
-option(MFEM_USE_FMS "Enable FMS usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
 option(MFEM_USE_HIOP "Enable HiOp" OFF)
 option(MFEM_USE_CUDA "Enable CUDA" OFF)
-option(MFEM_USE_HIP "Enable HIP" OFF)
 option(MFEM_USE_OCCA "Enable OCCA" OFF)
 option(MFEM_USE_RAJA "Enable RAJA" OFF)
 option(MFEM_USE_CEED "Enable CEED" OFF)
 option(MFEM_USE_UMPIRE "Enable Umpire" OFF)
 option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" OFF)
 option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
-option(MFEM_USE_CALIPER "Enable Caliper support" OFF)
-option(MFEM_USE_BLITZ "Enable Blitz support" OFF)
-option(MFEM_USE_ALGOIM "Enable Algoim support" OFF)
-option(MFEM_USE_MKL_CPARDISO "Enable MKL CPardiso" OFF)
+option(MFEM_USE_ADEPT "Enable AD using ADEPT" OFF)
+option(MFEM_USE_FADBADPP "Enable AD using FADBAD++" OFF)
+option(MFEM_USE_CODIPACK "Enable AD using CoDiPack" OFF)
+option(MFEM_USE_EIGEN "Enable Eigen" OFF)
 option(MFEM_USE_ADFORWARD "Enable forward mode for AD" OFF)
-option(MFEM_USE_CODIPACK "Enable automatic differentiation (AD) using CoDiPack" OFF)
-option(MFEM_USE_BENCHMARK "Enable Google Benchmark" OFF)
-option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
+option(MFEM_USE_CALIPER "Enable Caliper support" OFF)
+option(MFEM_USE_BLITZ   "Enable Blitz support" ON)
+option(MFEM_USE_ALGOIM  "Enable Algoim support" ON)
 
-# Optional overrides for autodetected MPIEXEC and MPIEXEC_NUMPROC_FLAG
-# set(MFEM_MPIEXEC "mpirun" CACHE STRING "Command for running MPI tests")
-# set(MFEM_MPIEXEC_NP "-np" CACHE STRING
-#     "Flag for setting the number of MPI tasks")
+
 
 set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 
@@ -80,19 +72,14 @@ set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 # or 'miniapps', respectively.
 option(MFEM_ENABLE_TESTING "Enable the ctest framework for testing" ON)
 option(MFEM_ENABLE_EXAMPLES "Build all of the examples" OFF)
-option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" OFF)
-option(MFEM_ENABLE_GOOGLE_BENCHMARKS "Build all of the Google benchmarks" OFF)
+option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" ON)
 
 # Setting CXX/MPICXX on the command line or in user.cmake will overwrite the
 # autodetected C++ compiler.
 # set(CXX g++)
-# set(MPICXX mpicxx)
 
 # Set the target CUDA architecture
 set(CUDA_ARCH "sm_60" CACHE STRING "Target CUDA architecture.")
-
-# Set the target HIP architecture
-set(HIP_ARCH "gfx900" CACHE STRING "Target HIP architecture.")
 
 set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -100,25 +87,19 @@ set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 # headers and library. If these fail, then standard cmake search is performed.
 # Note: if the variables are already in the cache, they are not overwritten.
 
-set(HYPRE_DIR "${MFEM_DIR}/../hypre/src/hypre" CACHE PATH
+set(HYPRE_DIR "/home/blaz/develop/dbg/petsc" CACHE PATH
     "Path to the hypre library.")
 # If hypre was compiled to depend on BLAS and LAPACK:
 # set(HYPRE_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
 #     "Packages that HYPRE depends on.")
-if (MFEM_USE_CUDA)
-   # This is only necessary when hypre is built with cuda:
-   set(HYPRE_REQUIRED_LIBRARIES "-lcusparse" "-lcurand" CACHE STRING
-       "Libraries that HYPRE depends on.")
-endif()
-# HIP dependency for HYPRE is handled in FindHYPRE.cmake.
 
-set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library.")
+set(METIS_DIR "/home/blaz/develop/dbg/petsc" CACHE PATH "Path to the METIS library.")
 
 set(LIBUNWIND_DIR "" CACHE PATH "Path to Libunwind.")
 
-# For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
+# For sundials_nvecparhyp and nvecparallel remember to build with MPI_ENABLED=ON
 # and modify cmake variables for hypre for sundials
-set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
+set(SUNDIALS_DIR "/home/blaz/develop/dbg/sundials" CACHE PATH
     "Path to the SUNDIALS library.")
 # The following may be necessary, if SUNDIALS was built with KLU:
 # set(SUNDIALS_REQUIRED_PACKAGES "SuiteSparse/KLU/AMD/BTF/COLAMD/config"
@@ -127,30 +108,21 @@ set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
 set(MESQUITE_DIR "${MFEM_DIR}/../mesquite-2.99" CACHE PATH
     "Path to the Mesquite library.")
 
-set(SuiteSparse_DIR "${MFEM_DIR}/../SuiteSparse" CACHE PATH
+set(SuiteSparse_DIR "/home/blaz/develop/dbg/petsc" CACHE PATH
     "Path to the SuiteSparse library.")
 set(SuiteSparse_REQUIRED_PACKAGES "BLAS" "METIS"
     CACHE STRING "Additional packages required by SuiteSparse.")
 
-set(ParMETIS_DIR "${MFEM_DIR}/../parmetis-4.0.3" CACHE PATH
+set(ParMETIS_DIR "/home/blaz/develop/dbg/petsc" CACHE PATH
     "Path to the ParMETIS library.")
 set(ParMETIS_REQUIRED_PACKAGES "METIS" CACHE STRING
     "Additional packages required by ParMETIS.")
 
-set(SuperLUDist_DIR "${MFEM_DIR}/../SuperLU_DIST_6.3.1" CACHE PATH
+set(SuperLUDist_DIR "/home/blaz/develop/dbg/petsc" CACHE PATH
     "Path to the SuperLU_DIST library.")
 # SuperLU_DIST may also depend on "OpenMP", depending on how it was compiled.
 set(SuperLUDist_REQUIRED_PACKAGES "MPI" "BLAS" "ParMETIS" CACHE STRING
     "Additional packages required by SuperLU_DIST.")
-
-set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.2.0" CACHE PATH
-    "Path to the MUMPS library.")
-# Packages required by MUMPS, depending on how it was compiled.
-set(MUMPS_REQUIRED_PACKAGES "MPI" "BLAS" "METIS" "ScaLAPACK" CACHE STRING
-    "Additional packages required by MUMPS.")
-# If the MPI package does not find all required Fortran libraries:
-# set(MUMPS_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
-#     "Additional libraries required by MUMPS.")
 
 set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
     "Path to the STRUMPACK library.")
@@ -165,7 +137,7 @@ set(STRUMPACK_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
 
 # The Scotch library, required by STRUMPACK <= v2.1.0, optional in STRUMPACK >=
 # v2.2.0.
-set(Scotch_DIR "${MFEM_DIR}/../scotch_6.0.4" CACHE PATH
+set(Scotch_DIR "/home/blaz/develop/dbg/petsc" CACHE PATH
     "Path to the Scotch and PT-Scotch libraries.")
 set(Scotch_REQUIRED_PACKAGES "Threads" CACHE STRING
     "Additional packages required by Scotch.")
@@ -182,31 +154,24 @@ set(ScaLAPACK_TARGET_NAMES scalapack)
 
 set(Ginkgo_DIR "${MFEM_DIR}/../ginkgo" CACHE PATH "Path to the Ginkgo library.")
 
-set(AMGX_DIR "${MFEM_DIR}/../amgx" CACHE PATH "Path to AmgX")
-
 set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 
-set(GSLIB_DIR "" CACHE PATH "Path to the GSLIB library.")
+set(GSLIB_DIR "/home/blaz/develop/dbg/gslib/build" CACHE PATH "Path to the GSLIB library.")
 
-set(NETCDF_DIR "" CACHE PATH "Path to the NetCDF library.")
-set(NetCDF_REQUIRED_PACKAGES "HDF5/C/HL" CACHE STRING
+set(NETCDF_DIR "/home/blaz/develop/dbg/petsc" CACHE PATH "Path to the NetCDF library.")
+# May need to add "HDF5" as requirement.
+set(NetCDF_REQUIRED_PACKAGES "" CACHE STRING
     "Additional packages required by NetCDF.")
 
-set(PETSC_DIR "${MFEM_DIR}/../petsc" CACHE PATH
+set(PETSC_DIR "/home/blaz/develop/dbg/petsc" CACHE PATH
     "Path to the PETSc main directory.")
-set(PETSC_ARCH "arch-linux2-c-debug" CACHE STRING "PETSc build architecture.")
+set(PETSC_ARCH "" CACHE STRING "PETSc build architecture.")
 
-set(SLEPC_DIR "${MFEM_DIR}/../slepc" CACHE PATH
+set(SLEPC_DIR "/home/blaz/develop/dbg/petsc" CACHE PATH
     "Path to the SLEPc main directory.")
-set(SLEPC_ARCH "arch-linux2-c-debug" CACHE STRING "SLEPC build architecture.")
+set(SLEPC_ARCH "" CACHE STRING "SLEPC build architecture.")
 
 set(MPFR_DIR "" CACHE PATH "Path to the MPFR library.")
-
-set(FMS_DIR "${MFEM_DIR}/../fms" CACHE PATH
-    "Path to the FMS library.")
-# If FMS is built with Conduit:
-# set(FMS_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
-#     "Additional packages required by FMS.")
 
 set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
     "Path to the Conduit library.")
@@ -224,41 +189,44 @@ set(HIOP_DIR "${MFEM_DIR}/../hiop/install" CACHE STRING
 set(HIOP_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
     "Packages that HiOp depends on.")
 
-set(MKL_CPARDISO_DIR "" CACHE STRING "MKL installation path.")
-set(MKL_MPI_WRAPPER_LIB "mkl_blacs_mpich_lp64" CACHE STRING "MKL MPI wrapper library")
-set(MKL_LIBRARY_DIR "" CACHE STRING "Custom library subdirectory")
+set(CODIPACK_DIR "/home/blaz/develop/opt/CoDiPack"  CACHE STRING
+	"Directory where CoDiPack is installed") 
+set(CODIPACK_INCLUDE_DIRS "/home/blaz/develop/opt/CoDiPack/include" 
+	CACHE STRING "Path to CoDiPack headers.")
 
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
-# If RAJA is built with external CAMP:
-# set(RAJA_REQUIRED_PACKAGES "camp"
-#     CACHE STRING "Packages that RAJA depends on.")
-# set(camp_DIR "${MFEM_DIR}/../camp/lib/cmake/camp"
-#     CACHE PATH "Path to CAMP CMake files.")
 set(CEED_DIR "${MFEM_DIR}/../libCEED" CACHE PATH "Path to libCEED")
 set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
-set(CALIPER_DIR "${MFEM_DIR}/../caliper" CACHE PATH "Path to Caliper")
-set(BLITZ_DIR "${MFEM_DIR}/../blitz" CACHE PATH "Path to Blitz")
-set(ALGOIM_DIR "${MFEM_DIR}/../algoim" CACHE PATH "Path to Algoim")
-set(BENCHMARK_DIR "${MFEM_DIR}/../google-benchmark" CACHE PATH
-    "Path to Google Benchmark")
-
-# Provide paths, since ParELAG is dependent on MFEM and MFEM needs to be
-# compiled (or at least cmake needs to succeed) before compiling ParELAG.
-set(PARELAG_DIR "${MFEM_DIR}/../parelag" CACHE PATH "Path to ParELAG")
-set(PARELAG_INCLUDE_DIRS "${PARELAG_DIR}/src;${PARELAG_DIR}/build/src" CACHE
-    STRING "Path to ParELAG headers.")
-set(PARELAG_LIBRARIES "${PARELAG_DIR}/build/src/libParELAG.a" CACHE STRING
-    "The ParELAG library.")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
-set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")
+set(BLAS_LIBRARIES "/home/blaz/develop/dbg/petsc/lib/libopenblas.so" CACHE STRING "The BLAS library.")
 set(LAPACK_INCLUDE_DIRS "" CACHE STRING "Path to LAPACK headers.")
 set(LAPACK_LIBRARIES "" CACHE STRING "The LAPACK library.")
 
-set(CODIPACK_INCLUDE_DIRS "${MFEM_DIR}/../CoDiPack/include" CACHE STRING
-    "Path to CoDiPack headers.")
-set(CODIPACK_LIBRARIES "")
+
+set(ZLIB_INCLUDE_DIR "/home/blaz/develop/dbg/petsc/include" CACHE STRING "Path to ZLIB headers.")
+set(ZLIB_LIBRARIES "/home/blaz/develop/dbg/petsc/lib/libz.a" CACHE STRING "The ZLIB library.")
+
+set(ADEPT_INCLUDE_DIRS "${MFEM_DIR}/../adept-1.1/include" CACHE STRING "Path to ADEPT headers.")
+set(ADEPT_LIBRARIES "-L${MFEM_DIR}/../adept-1.1/lib -ladept" CACHE STRING "The ADEPT library.")
+
+set(FADBADPP_INCLUDE_DIRS "${MFEM_DIR}/../FADBAD++" CACHE STRING "Path to FADBAD++ headers.")
+set(FADBADPP_LIBRARIES "")
+
+set(CALIPER_DIR "/home/blaz/develop/dbg/caliper" CACHE PATH "Path to Caliper")
+set(CALIPER_INCLUDE_DIRS "/home/blaz/develop/dbg/caliper/include" CACHE PATH "Path to Caliper headers.")
+set(CALIPER_LIBRARIES "/home/blaz/develop/dbg/caliper/lib/libcaliper.so" CACHE STRING "The Caliper library.")
+
+set(BLITZ_DIR "/home/blaz/develop/dbg/blitz" CACHE PATH "Path to Blitz")
+set(BLITZ_INCLUDE_DIRS  "/home/blaz/develop/dbg/blitz/include" CACHE PATH "Path to Blitz headers.")
+set(BLITZ_LIBRARIES "/home/blaz/develop/dbg/blitz/lib/libblitz.a" CACHE PATH "Path to Blitz library.")
+
+set(ALGOIM_DIR "/home/blaz/develop/wrk/algoim" CACHE PATH "Path to Algoim")
+set(ALGOIM_INCLUDE_DIRS "/home/blaz/develop/wrk/algoim/src" CACHE PATH "Path to Algoin headers.")
+set(ALGOIM_LIBRARIES "" CACHE STRING "The Algoim library.")
+
+
 
 # Some useful variables:
 set(CMAKE_SKIP_PREPROCESSED_SOURCE_RULES ON) # Skip *.i rules
