@@ -408,7 +408,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          if (print_options.iterations)
          {
             mfem::out << "TMOPNewtonSolver converged "
-                         "based on the surface fitting error.\n";
+                      "based on the surface fitting error.\n";
          }
          scale = 0.0;
          return scale;
