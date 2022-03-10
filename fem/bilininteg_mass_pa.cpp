@@ -467,7 +467,7 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
 }
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
-.{
+{
    if (DeviceCanUseCeed())
    {
       ceedOp->GetDiagonal(diag);
@@ -571,7 +571,6 @@ static void OccaPAMassApply3D(const int D1D,
 }
 #endif // MFEM_USE_OCCA
 
-#ifndef MFEM_USE_JIT
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassApply2D(const int NE,
                           const Array<double> &b_,
@@ -663,7 +662,6 @@ static void PAMassApply2D(const int NE,
       }
    });
 }
-#endif
 
 MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
@@ -789,7 +787,6 @@ static void SmemPAMassApply2D(const int NE,
    });
 }
 
-#ifndef MFEM_USE_JIT
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAMassApply3D(const int NE,
                           const Array<double> &b_,
@@ -930,7 +927,6 @@ static void PAMassApply3D(const int NE,
       }
    });
 }
-#endif
 
 MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -1186,74 +1182,79 @@ static void PAMassApply(const int dim,
       MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
    }
 #endif // MFEM_USE_OCCA
-#ifndef MFEM_USE_JIT
-   static const bool STD = getenv("STD");
+
    const int id = (D1D << 4) | Q1D;
 
-   if (dim == 2)
+   const bool use_jit = Device::IsJITEnabled();
+
+   if (!use_jit)
    {
-      if (STD) { return PAMassApply2D(NE,b,bt,d,x,y,D1D,Q1D); }
-      switch (id)
+      if (dim == 2)
       {
-         case 0x22: return SmemPAMassApply2D<2,2,16>(NE,B,D,X,Y);
-         case 0x24: return SmemPAMassApply2D<2,4,16>(NE,B,D,X,Y);
-         case 0x33: return SmemPAMassApply2D<3,3,16>(NE,B,D,X,Y);
-         case 0x34: return SmemPAMassApply2D<3,4,16>(NE,B,D,X,Y);
-         case 0x35: return SmemPAMassApply2D<3,5,16>(NE,B,D,X,Y);
-         case 0x36: return SmemPAMassApply2D<3,6,16>(NE,B,D,X,Y);
-         case 0x44: return SmemPAMassApply2D<4,4,8>(NE,B,D,X,Y);
-         case 0x46: return SmemPAMassApply2D<4,6,8>(NE,B,D,X,Y);
-         case 0x48: return SmemPAMassApply2D<4,8,4>(NE,B,D,X,Y);
-         case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,D,X,Y);
-         case 0x57: return SmemPAMassApply2D<5,7,8>(NE,B,D,X,Y);
-         case 0x58: return SmemPAMassApply2D<5,8,2>(NE,B,D,X,Y);
-         case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,D,X,Y);
-         case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,D,X,Y);
-         case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,D,X,Y);
-         case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,D,X,Y);
-         default:   return PAMassApply2D(NE,b,bt,d,x,y,D1D,Q1D);
+         switch (id)
+         {
+            /*
+              case 0x22: return SmemPAMassApply2D<2,2,16>(NE,B,D,X,Y);
+              case 0x24: return SmemPAMassApply2D<2,4,16>(NE,B,D,X,Y);
+              case 0x33: return SmemPAMassApply2D<3,3,16>(NE,B,D,X,Y);
+              case 0x34: return SmemPAMassApply2D<3,4,16>(NE,B,D,X,Y);
+              case 0x35: return SmemPAMassApply2D<3,5,16>(NE,B,D,X,Y);
+              case 0x36: return SmemPAMassApply2D<3,6,16>(NE,B,D,X,Y);
+              case 0x44: return SmemPAMassApply2D<4,4,8>(NE,B,D,X,Y);
+              case 0x46: return SmemPAMassApply2D<4,6,8>(NE,B,D,X,Y);
+              case 0x48: return SmemPAMassApply2D<4,8,4>(NE,B,D,X,Y);
+              case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,D,X,Y);
+              case 0x57: return SmemPAMassApply2D<5,7,8>(NE,B,D,X,Y);
+              case 0x58: return SmemPAMassApply2D<5,8,2>(NE,B,D,X,Y);
+              case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,D,X,Y);
+              case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,D,X,Y);
+              case 0x88: return SmemPAMassApply2D<8,8,2>(NE,B,D,X,Y);
+              case 0x99: return SmemPAMassApply2D<9,9,2>(NE,B,D,X,Y);*/
+            default:   return PAMassApply2D(NE,b,bt,d,x,y,D1D,Q1D);
+         }
+      }
+
+      if (dim == 3)
+      {
+         switch (id)
+         {
+            /*case 0x22: return SmemPAMassApply3D<2,2>(NE,B,D,X,Y);
+            case 0x23: return SmemPAMassApply3D<2,3>(NE,B,D,X,Y);
+            case 0x24: return SmemPAMassApply3D<2,4>(NE,B,D,X,Y);
+            case 0x26: return SmemPAMassApply3D<2,6>(NE,B,D,X,Y);
+            case 0x34: return SmemPAMassApply3D<3,4>(NE,B,D,X,Y);
+            case 0x35: return SmemPAMassApply3D<3,5>(NE,B,D,X,Y);
+            case 0x36: return SmemPAMassApply3D<3,6>(NE,B,D,X,Y);
+            case 0x37: return SmemPAMassApply3D<3,7>(NE,B,D,X,Y);
+            case 0x45: return SmemPAMassApply3D<4,5>(NE,B,D,X,Y);
+            case 0x46: return SmemPAMassApply3D<4,6>(NE,B,D,X,Y);
+            case 0x48: return SmemPAMassApply3D<4,8>(NE,B,D,X,Y);
+            case 0x56: return SmemPAMassApply3D<5,6>(NE,B,D,X,Y);
+            case 0x58: return SmemPAMassApply3D<5,8>(NE,B,D,X,Y);
+            case 0x67: return SmemPAMassApply3D<6,7>(NE,B,D,X,Y);
+            case 0x78: return SmemPAMassApply3D<7,8>(NE,B,D,X,Y);
+            case 0x89: return SmemPAMassApply3D<8,9>(NE,B,D,X,Y);
+            case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,D,X,Y);*/
+            default:   return PAMassApply3D(NE,b,bt,d,x,y,D1D,Q1D);
+         }
       }
    }
-   else if (dim == 3)
+   else // use_jit
    {
-      if (STD) { return PAMassApply3D(NE,b,bt,d,x,y,D1D,Q1D); }
-      switch (id)
+      MFEM_CONTRACT_VAR(bt);
+      if (dim == 2)
       {
-         case 0x22: return SmemPAMassApply3D<2,2>(NE,B,D,X,Y);
-         case 0x23: return SmemPAMassApply3D<2,3>(NE,B,D,X,Y);
-         case 0x24: return SmemPAMassApply3D<2,4>(NE,B,D,X,Y);
-         case 0x26: return SmemPAMassApply3D<2,6>(NE,B,D,X,Y);
-         case 0x34: return SmemPAMassApply3D<3,4>(NE,B,D,X,Y);
-         case 0x35: return SmemPAMassApply3D<3,5>(NE,B,D,X,Y);
-         case 0x36: return SmemPAMassApply3D<3,6>(NE,B,D,X,Y);
-         case 0x37: return SmemPAMassApply3D<3,7>(NE,B,D,X,Y);
-         case 0x45: return SmemPAMassApply3D<4,5>(NE,B,D,X,Y);
-         case 0x46: return SmemPAMassApply3D<4,6>(NE,B,D,X,Y);
-         case 0x48: return SmemPAMassApply3D<4,8>(NE,B,D,X,Y);
-         case 0x56: return SmemPAMassApply3D<5,6>(NE,B,D,X,Y);
-         case 0x58: return SmemPAMassApply3D<5,8>(NE,B,D,X,Y);
-         case 0x67: return SmemPAMassApply3D<6,7>(NE,B,D,X,Y);
-         case 0x78: return SmemPAMassApply3D<7,8>(NE,B,D,X,Y);
-         case 0x89: return SmemPAMassApply3D<8,9>(NE,B,D,X,Y);
-         case 0x9A: return SmemPAMassApply3D<9,10>(NE,B,D,X,Y);
-         default:   return PAMassApply3D(NE,b,bt,d,x,y,D1D,Q1D);
+         const int NBZ = (D1D==2 || D1D==3) ? 16:
+                         (D1D==4 || D1D==5) ? 8 :
+                         (D1D==6 || D1D==7) ? 4 :
+                         (D1D==8 || D1D==9) ? 2 : 1;
+         return SmemPAMassApply2D(NE,B,D,X,Y,D1D,Q1D,NBZ);
+      }
+      if (dim == 3)
+      {
+         return SmemPAMassApply3D(NE,B,D,X,Y,D1D,Q1D);
       }
    }
-#else // MFEM_USE_JIT
-   MFEM_CONTRACT_VAR(bt);
-   if (dim == 2)
-   {
-      const int NBZ = (D1D==2 || D1D==3) ? 16:
-                      (D1D==4 || D1D==5) ? 8 :
-                      (D1D==6 || D1D==7) ? 4 :
-                      (D1D==8 || D1D==9) ? 2 : 1;
-      return SmemPAMassApply2D(NE,B,D,X,Y,D1D,Q1D,NBZ);
-   }
-   if (dim == 3)
-   {
-      return SmemPAMassApply3D(NE,B,D,X,Y,D1D,Q1D);
-   }
-#endif
    MFEM_ABORT("Unknown kernel.");
 }
 

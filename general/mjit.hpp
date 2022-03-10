@@ -36,10 +36,10 @@ namespace jit
 // One character used as the kernel prefix
 #define MFEM_JIT_SYMBOL_PREFIX 'k'
 
-// command line option to launch a compilation
+// Command line option to launch a compilation
 #define MFEM_JIT_SHELL_COMMAND "-c"
 
-// base name of the cache library
+// Base name of the cache library
 #define MFEM_JIT_CACHE "libmjit"
 
 // Hash numbers used to combine arguments and its <const char*> specialization
@@ -414,7 +414,12 @@ public:
 
 } // namespace mfem
 
+// MJIT_FORALL can de set by the mjit preprocessor
+// in order to add these standalone MFEM foralls
 #ifdef MJIT_FORALL
+//#warning Should MJIT_FORALL support be removed ?
+
+#define MFEM_CONTRACT_VAR(x) (void)(x)
 
 const int MAX_D1D = 1;
 const int MAX_Q1D = 1;
