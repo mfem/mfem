@@ -46,7 +46,7 @@ public:
 
    bool assemble_mass_and_coupling_together{true};
 
-   int max_solver_iterations{400};
+   int max_solver_iterations{2000};
 
    bool is_vector_fe() const
    {
@@ -1132,12 +1132,16 @@ bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
    auto &P_source = *impl_->source->Dof_TrueDof_Matrix();
    auto &P_destination = *impl_->destination->Dof_TrueDof_Matrix();
 
-   CGSolver Dinv(impl_->comm);
-   Dinv.SetOperator(D);
+   // CGSolver Dinv(impl_->comm);
+   BiCGSTABSolver  Dinv(impl_->comm);
    Dinv.SetRelTol(1e-6);
+   Dinv.SetOperator(D);
    Dinv.SetMaxIter(impl_->max_solver_iterations);
-   
-   if(impl_->verbose) {
+
+   // BlockILU prec(D);
+   // Dinv.SetPreconditioner(prec);
+
+   if(verbose) {
       Dinv.SetPrintLevel(3);
    }
    
@@ -1158,7 +1162,8 @@ bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
    P_destination.Mult(R_x_dest_fun, dest_fun);
 
    dest_fun.Update();
-   return true;
+   
+   return Dinv.GetConverged() == 1;
 }
 
 bool ParMortarAssembler::Update()
