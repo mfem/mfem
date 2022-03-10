@@ -87,10 +87,11 @@ $(SUBDIRS_TPRINT):
 
 # Additional dependencies
 ex18: $(SRC)ex18.hpp
-ex42: $(SRC)ex31.hpp
+ex31: $(SRC)ex31.hpp
 
 ifeq ($(MFEM_USE_MPI),YES)
 ex18p: $(SRC)ex18.hpp
+ex31p: $(SRC)ex31.hpp
 endif
 
 MFEM_TESTS = EXAMPLES

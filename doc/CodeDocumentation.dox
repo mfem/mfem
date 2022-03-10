@@ -98,6 +98,10 @@ namespace mfem {
  * - <a class="el" href="ex28p_8cpp_source.html">Example 28p</a>: parallel sliding contact in elasticity
  * - <a class="el" href="ex29_8cpp_source.html">Example 29</a>: Laplace solve on a 3D-embedded surface
  * - <a class="el" href="ex29p_8cpp_source.html">Example 29p</a>: parallel Laplace solve on a 3D-embedded surface
+  * - <a class="el" href="ex30_8cpp_source.html">Example 30</a>: data oscillation mesh preprocessing
+ * - <a class="el" href="ex30p_8cpp_source.html">Example 30p</a>: parallel data oscillation mesh preprocessing
+  * - <a class="el" href="ex31_8cpp_source.html">Example 31</a>: nodal H1 FEM for the fractional Laplacian problem
+ * - <a class="el" href="ex31p_8cpp_source.html">Example 31p</a>: parallel nodal H1 FEM for the fractional Laplacian problem
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples

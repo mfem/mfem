@@ -7,7 +7,7 @@
 //               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2 -me 1e3
 //               mpirun -np 4 ex30p -m ../data/square-disc-nurbs.mesh -o 2
 //               mpirun -np 4 ex30p -m ../data/star.mesh -o 2 -eo 4
-//               mpirun -np 4 oscp -m ../data/fichera.mesh -o 2 -me 1e4
+//               mpirun -np 4 ex30p -m ../data/fichera.mesh -o 2 -me 1e4
 //               mpirun -np 4 ex30p -m ../data/disc-nurbs.mesh -o 2
 //               mpirun -np 4 ex30p -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2
 //               mpirun -np 4 ex30p -m ../data/star-surf.mesh -o 2
