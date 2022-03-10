@@ -10,14 +10,14 @@ using namespace mfem;
 double sphere_ls(const Vector &x)
 {
    double r2= x*x;
-   return sqrt(r2)-0.5;//the radius is 0.5
+   return -sqrt(r2)+0.5;//the radius is 0.5
 }
 
 
 int main(int argc, char *argv[])
 {
    //   Parse command-line options
-   const char *mesh_file = "../../data/beam-tet.mesh";
+   const char *mesh_file = "../../data/star-q3.mesh";
    int ser_ref_levels = 1;
    int order = 2;
    bool visualization = true;
