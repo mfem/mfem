@@ -6,6 +6,7 @@
 //               ex31 -m ../data/star.mesh -alpha 0.99 -o 3
 //               ex31 -m ../data/inline-quad.mesh -alpha 0.2 -o 3
 //               ex31 -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
+//               ex31 -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
 //
 //
 // Description:
