@@ -6,7 +6,8 @@
 //               mpirun -np 4 ex31p -m ../data/star.mesh -alpha 0.99 -o 3
 //               mpirun -np 4 ex31p -m ../data/inline-quad.mesh -alpha 0.2 -o 3
 //               mpirun -np 4 ex31p -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
-//p
+//               mpirun -np 4 ex31p -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
+//
 //
 // Description:
 //
