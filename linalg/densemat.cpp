@@ -3198,62 +3198,265 @@ void LUFactors::BlockBackSolve(int m, int n, int r, const double *U12,
 }
 
 
-
 bool CholeskyFactors::Factor(int m, double TOL)
 {
-   return 1;
+#ifdef MFEM_USE_LAPACK
+   int info = 0;
+   char uplo = 'L';
+   MFEM_VERIFY(data, "Matrix data not set");
+   if (m) {dpotrf_(&uplo, &m, data, &m, &info);}
+   return info == 0;
+#else
+   // Cholesky–Crout algorithm
+   for (int j = 0; j<m; j++)
+   {
+      double a = 0.;
+      for (int k = 0; k<j; k++)
+      {
+         a+=data[j+k*m]*data[j+k*m];
+      }
+      data[j+j*m] = std::sqrt(data[j+j*m] - a);
+
+      for (int i = j+1; i<m; i++)
+      {
+         a = 0.;
+         for (int k = 0; k<j; k++)
+         {
+            a+= data[i+k*m]*data[j+k*m];
+         }
+         data[i+j*m] = 1./data[j+m*j]*(data[i+j*m] - a);
+      }
+   }
+   return true; // success
+#endif
 }
 
 double CholeskyFactors::Det(int m) const
 {
-   return 0.;
+   double det = 1.0;
+   for (int i=0; i<m; i++)
+   {
+      det *=  data[i + i*m];
+   }
+   return det;
 }
 
 void CholeskyFactors::LMult(int m, int n, double * X) const
 {
-
+   // X <- L X
+   double *x = X;
+   for (int k = 0; k < n; k++)
+   {
+      for (int j = m-1; j >= 0; j--)
+      {
+         double x_j = x[j] * data[j+j*m];
+         for (int i = 0; i < j; i++)
+         {
+            x_j += x[i] * data[j+i*m];
+         }
+         x[j] = x_j;
+      }
+      x += m;
+   }
 }
 
 void CholeskyFactors::UMult(int m, int n, double * X) const
 {
-
+   double *x = X;
+   for (int k = 0; k < n; k++)
+   {
+      for (int i = 0; i < m; i++)
+      {
+         double x_i = x[i] * data[i+i*m];
+         for (int j = i+1; j < m; j++)
+         {
+            x_i += x[j] * data[j+i*m];
+         }
+         x[i] = x_i;
+      }
+      x += m;
+   }
 }
 
 void CholeskyFactors::LSolve(int m, int n, double * X) const
 {
 
+#ifdef MFEM_USE_LAPACK
+   char uplo = 'L';
+   char trans = 'N';
+   char diag = 'N';
+   int info = 0;
+
+   dtrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
+   MFEM_VERIFY(!info, "CholeskyFactors:LSolve:: info");
+
+#else
+   double *x = X;
+   for (int k = 0; k < n; k++)
+   {
+      // X <- L^{-1} X
+      for (int j = 0; j < m; j++)
+      {
+         const double x_j = (x[j] /= data[j+j*m]);
+         for (int i = j+1; i < m; i++)
+         {
+            x[i] -= data[i+j*m] * x_j;
+         }
+      }
+      x += m;
+   }
+#endif
+
 }
 
 void CholeskyFactors::USolve(int m, int n, double * X) const
 {
+#ifdef MFEM_USE_LAPACK
+
+   char uplo = 'L';
+   char trans = 'T';
+   char diag = 'N';
+   int info = 0;
+
+   dtrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
+   MFEM_VERIFY(!info, "CholeskyFactors:USolve:: info");
+
+#else
+   // X <- L^{-t} X
+   double *x = X;
+   for (int k = 0; k < n; k++)
+   {
+      for (int j = m-1; j >= 0; j--)
+      {
+         const double x_j = ( x[j] /= data[j+j*m] );
+         for (int i = 0; i < j; i++)
+         {
+            x[i] -= data[j+i*m] * x_j;
+         }
+      }
+      x += m;
+   }
+#endif
 
 }
 
 void CholeskyFactors::Solve(int m, int n, double * X) const
 {
+#ifdef MFEM_USE_LAPACK
+   char uplo = 'L';
+   int info = 0;
+   dpotrs_(&uplo, &m, &n, data, &m, X, &m, &info);
+   MFEM_VERIFY(!info, "CholeskyFactors:Solve:: info");
 
+#else
+   LSolve(m, n, X);
+   USolve(m, n, X);
+#endif
 }
 
 void CholeskyFactors::RightSolve(int m, int n, double * X) const
 {
+#ifdef MFEM_USE_LAPACK
+   char side = 'R';
+   char uplo = 'L';
+   char transt = 'T';
+   char trans = 'N';
+   char diag = 'N';
+
+   double alpha = 1.0;
+   if (m > 0 && n > 0)
+   {
+      dtrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,X,&n);
+      dtrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,X,&n);
+   }
+#else
+   // X <- X L^{-t}
+   double *x = X;
+   for (int k = 0; k < n; k++)
+   {
+      for (int j = 0; j < m; j++)
+      {
+         const double x_j = ( x[j*n] /= data[j+j*m]);
+         for (int i = j+1; i < m; i++)
+         {
+            x[i*n] -= data[i + j*m] * x_j;
+         }
+      }
+      ++x;
+   }
+
+   // X <- X L^{-1}
+   x = X;
+   for (int k = 0; k < n; k++)
+   {
+      for (int j = m-1; j >= 0; j--)
+      {
+         const double x_j = x[j*n];
+         for (int i = 0; i < j; i++)
+         {
+            x[i*n] -= data[j + i*m] * x_j;
+         }
+      }
+      ++x;
+   }
+
+
+
+#endif
+
 
 }
 
 void CholeskyFactors::GetInverseMatrix(int m, double * X) const
 {
-
+   // A^{-1} = L^{-t} L^{-1}
+   // X <- L^{-t} (set only the upper triangular part of X)
+   double *x = X;
+   for (int k = 0; k < m; k++)
+   {
+      const double minus_x_k = -( x[k] = 1.0/data[k+k*m] );
+      for (int i = 0; i < k; i++)
+      {
+         x[i] = data[k+i*m] * minus_x_k;
+      }
+      for (int j = k-1; j >= 0; j--)
+      {
+         const double x_j = ( x[j] /= data[j+j*m] );
+         for (int i = 0; i < j; i++)
+         {
+            x[i] -= data[j+i*m] * x_j;
+         }
+      }
+      x += m;
+   }
+   // X <- X L^{-1} (use input only from the upper triangular part of X)
+   {
+      int k = m-1;
+      for (int j = 0; j < k; j++)
+      {
+         const double minus_L_kj = -data[k+j*m];
+         for (int i = 0; i <= j; i++)
+         {
+            X[i+j*m] += X[i+k*m] * minus_L_kj;
+         }
+         for (int i = j+1; i < m; i++)
+         {
+            X[i+j*m] = X[i+k*m] * minus_L_kj;
+         }
+      }
+   }
+   for (int k = m-2; k >= 0; k--)
+   {
+      for (int j = 0; j < k; j++)
+      {
+         const double L_kj = data[k+j*m];
+         for (int i = 0; i < m; i++)
+         {
+            X[i+j*m] -= X[i+k*m] * L_kj;
+         }
+      }
+   }
 }
-
-
-
-
-
-
-
-
-
-
-
 
 
 DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix &mat)
