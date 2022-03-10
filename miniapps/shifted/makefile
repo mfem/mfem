@@ -34,12 +34,12 @@ EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
 ALGOIM_SRC = integ_algoim.cpp algoim_test.cpp
 ALGOIM_OBJ = $(DIFFUSION_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion extrapolate
+PAR_MINIAPPS = distance diffusion extrapolate algoim
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = algoim
+   MINIAPPS = 
 else
-   MINIAPPS = $(PAR_MINIAPPS) algoim
+   MINIAPPS = $(PAR_MINIAPPS)
 endif
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
@@ -99,7 +99,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion extrapolate
+	rm -f *.o *~ distance diffusion extrapolate algoim
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
