@@ -1574,8 +1574,17 @@ private:
    /// Constuct AMS solver from finite element space
    void Init(ParFiniteElementSpace *edge_space);
 
-   HYPRE_Solver ams;
+   /// Create the hypre solver object and set the default options, given the
+   /// space dimension @a sdim and cycle type @a cycle_type.
+   void MakeSolver(int sdim, int cycle_type);
 
+   /// Construct the gradient and interpolation matrices associated with
+   /// @a edge_fespace, and add them to the solver.
+   void MakeGradientAndInterpolation(ParFiniteElementSpace *edge_fespace,
+                                     int cycle_type);
+
+   /// The underlying hypre solver object
+   HYPRE_Solver ams;
    /// Vertex coordinates
    HypreParVector *x, *y, *z;
    /// Discrete gradient matrix
@@ -1584,9 +1593,21 @@ private:
    HypreParMatrix *Pi, *Pix, *Piy, *Piz;
 
 public:
+   /// @brief Construct the AMS solver on the given edge finite element space.
+   ///
+   /// HypreAMS::SetOperator must be called to set the system matrix.
    HypreAMS(ParFiniteElementSpace *edge_fespace);
 
+   /// Construct the AMS solver using the given matrix and finite element space.
    HypreAMS(const HypreParMatrix &A, ParFiniteElementSpace *edge_fespace);
+
+   /// @brief Construct the AMS solver using the provided discrete gradient
+   /// matrix @a G_ and the vertex coordinate vectors @a x_, @a y_, and @a z_.
+   ///
+   /// For 2D problems, @a z_ may be NULL. All other parameters must be
+   /// non-NULL. The solver assumes ownership of G_, x_, y_, and z_.
+   HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_, HypreParVector *x,
+            HypreParVector *y, HypreParVector *z=NULL);
 
    virtual void SetOperator(const Operator &op);
 

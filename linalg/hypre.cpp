@@ -4905,9 +4905,32 @@ HypreAMS::HypreAMS(const HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)
    Init(edge_fespace);
 }
 
-void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
+HypreAMS::HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_,
+                   HypreParVector *x_, HypreParVector *y_, HypreParVector *z_)
+   : HypreSolver(&A),
+     x(x_),
+     y(y_),
+     z(z_),
+     G(G_),
+     Pi(NULL),
+     Pix(NULL),
+     Piy(NULL),
+     Piz(NULL)
 {
-   int cycle_type       = 13;
+   MFEM_ASSERT(G != NULL, "");
+   MFEM_ASSERT(x != NULL, "");
+   MFEM_ASSERT(y != NULL, "");
+   int sdim = (z == NULL) ? 2 : 3;
+   int cycle_type = 13;
+
+   MakeSolver(sdim, cycle_type);
+
+   HYPRE_AMSSetCoordinateVectors(ams, *x, *y, *z);
+   HYPRE_AMSSetDiscreteGradient(ams, *G);
+}
+
+void HypreAMS::MakeSolver(int sdim, int cycle_type)
+{
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
@@ -4929,6 +4952,34 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int amg_Pmax         = 4;
 #endif
 
+   HYPRE_AMSCreate(&ams);
+
+   HYPRE_AMSSetDimension(ams, sdim); // 2D H(div) and 3D H(curl) problems
+   HYPRE_AMSSetTol(ams, 0.0);
+   HYPRE_AMSSetMaxIter(ams, 1); // use as a preconditioner
+   HYPRE_AMSSetCycleType(ams, cycle_type);
+   HYPRE_AMSSetPrintLevel(ams, 1);
+
+   // set additional AMS options
+   HYPRE_AMSSetSmoothingOptions(ams, rlx_type, rlx_sweeps, rlx_weight, rlx_omega);
+   HYPRE_AMSSetAlphaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
+                               theta, amg_interp_type, amg_Pmax);
+   HYPRE_AMSSetBetaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
+                              theta, amg_interp_type, amg_Pmax);
+
+   HYPRE_AMSSetAlphaAMGCoarseRelaxType(ams, amg_rlx_type);
+   HYPRE_AMSSetBetaAMGCoarseRelaxType(ams, amg_rlx_type);
+
+   // The AMS preconditioner may sometimes require inverting singular matrices
+   // with BoomerAMG, which are handled correctly in hypre's Solve method, but
+   // can produce hypre errors in the Setup (specifically in the l1 row norm
+   // computation). See the documentation of SetErrorMode() for more details.
+   error_mode = IGNORE_HYPRE_ERRORS;
+}
+
+void HypreAMS::MakeGradientAndInterpolation(
+   ParFiniteElementSpace *edge_fespace, int cycle_type)
+{
    int dim = edge_fespace->GetMesh()->Dimension();
    int sdim = edge_fespace->GetMesh()->SpaceDimension();
    const FiniteElementCollection *edge_fec = edge_fespace->FEColl();
@@ -4960,14 +5011,6 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       nd_tr_fec = new ND_Trace_FECollection(p, dim);
       edge_fespace = new ParFiniteElementSpace(pmesh, nd_tr_fec);
    }
-
-   HYPRE_AMSCreate(&ams);
-
-   HYPRE_AMSSetDimension(ams, sdim); // 2D H(div) and 3D H(curl) problems
-   HYPRE_AMSSetTol(ams, 0.0);
-   HYPRE_AMSSetMaxIter(ams, 1); // use as a preconditioner
-   HYPRE_AMSSetCycleType(ams, cycle_type);
-   HYPRE_AMSSetPrintLevel(ams, 1);
 
    // define the nodal linear finite element space associated with edge_fespace
    FiniteElementCollection *vert_fec;
@@ -5089,22 +5132,14 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       delete edge_fespace;
       delete nd_tr_fec;
    }
+}
 
-   // set additional AMS options
-   HYPRE_AMSSetSmoothingOptions(ams, rlx_type, rlx_sweeps, rlx_weight, rlx_omega);
-   HYPRE_AMSSetAlphaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
-                               theta, amg_interp_type, amg_Pmax);
-   HYPRE_AMSSetBetaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
-                              theta, amg_interp_type, amg_Pmax);
-
-   HYPRE_AMSSetAlphaAMGCoarseRelaxType(ams, amg_rlx_type);
-   HYPRE_AMSSetBetaAMGCoarseRelaxType(ams, amg_rlx_type);
-
-   // The AMS preconditioner may sometimes require inverting singular matrices
-   // with BoomerAMG, which are handled correctly in hypre's Solve method, but
-   // can produce hypre errors in the Setup (specifically in the l1 row norm
-   // computation). See the documentation of SetErrorMode() for more details.
-   error_mode = IGNORE_HYPRE_ERRORS;
+void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
+{
+   int cycle_type = 13;
+   int sdim = edge_fespace->GetMesh()->SpaceDimension();
+   MakeSolver(sdim, cycle_type);
+   MakeGradientAndInterpolation(edge_fespace, cycle_type);
 }
 
 void HypreAMS::SetOperator(const Operator &op)
