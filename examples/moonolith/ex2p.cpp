@@ -46,11 +46,13 @@ int main(int argc, char *argv[])
 
    int src_n_refinements = 0;
    int dest_n_refinements = 0;
-   int source_fe_order = 0;
-   int dest_fe_order = 1;
+
+   // Source fe order has to be greater or equal than destination order
+   int source_fe_order = 1;
+   int dest_fe_order = 0;
    bool visualization = true;
    bool verbose = false;
-   int max_iterations = 2000;
+   int max_iterations = 30000;
 
    OptionsParser args(argc, argv);
    args.AddOption(&source_mesh_file, "-s", "--source_mesh",
@@ -76,6 +78,15 @@ int main(int argc, char *argv[])
 
    args.Parse();
    check_options(args);
+
+   if (source_fe_order == 0 &&  dest_fe_order != 0)
+   {
+      mfem::out <<
+                "Source fe order should not be 0 unless destination fe order is also 0!\n";
+
+      FinalizeTransfer();
+      return MPI_Finalize();
+   }
 
    ///////////////////////////////////////////////////
 
@@ -166,8 +177,6 @@ int main(int argc, char *argv[])
 
    ParMortarAssembler assembler(src_fe, dest_fe);
    assembler.SetVerbose(verbose);
-
-
    assembler.SetMaxSolverIterations(max_iterations);
 
    assembler.AddMortarIntegrator(make_shared<L2MortarIntegrator>());

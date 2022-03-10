@@ -36,8 +36,10 @@ namespace mfem
  * integrate with to machine precision using the mfem::MortarIntegrator
  * interface. See https://doi.org/10.1137/15M1008361 for and in-depth
  * explanation. At this time curved elements are not supported. 
- * Convex non-affine elements are supported, however, high order (>3)
- * finite element discretizations might generate some undesidered oscillations.
+ * Convex non-affine elements are partially supported, however, high order (>3) 
+ * finite element discretizations or nonlinear geometric transformations might 
+ * generate undesidered oscillations. Discontinuos fields in general can only 
+ * be mapped to order 0 destination fields. 
  * For such cases localized versions of the projection will have to be developed.
  */
 class ParMortarAssembler
@@ -125,6 +127,12 @@ public:
     * @param max_solver_iterations the maximum number of iterations
     */
    void SetMaxSolverIterations(const int max_solver_iterations);
+
+   /*!
+    * @brief Changes the solver to be used for solving the mass-matrix linear system
+    * @param solver new strategy
+    */
+   void SetSolver(const std::shared_ptr<IterativeSolver> &solver);
 
 
    struct Impl;

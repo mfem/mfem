@@ -42,11 +42,20 @@ public:
    std::shared_ptr<HypreParMatrix> coupling_matrix;
    std::shared_ptr<HypreParMatrix> mass_matrix;
 
+   std::shared_ptr<IterativeSolver> solver;
+
    bool verbose{false};
 
    bool assemble_mass_and_coupling_together{true};
 
-   int max_solver_iterations{2000};
+   void ensure_solver()
+   {
+      if(!solver) {
+         solver = std::make_shared<BiCGSTABSolver>(comm);
+         solver->SetMaxIter(20000);
+         solver->SetRelTol(1e-6);
+      }
+   }
 
    bool is_vector_fe() const
    {
@@ -78,6 +87,11 @@ public:
 
 ParMortarAssembler::~ParMortarAssembler() = default;
 
+void ParMortarAssembler::SetSolver(const std::shared_ptr<IterativeSolver> &solver)
+{
+   impl_->solver = solver;
+}
+
 void ParMortarAssembler::SetAssembleMassAndCouplingTogether(const bool value)
 {
    impl_->assemble_mass_and_coupling_together = value;
@@ -85,7 +99,9 @@ void ParMortarAssembler::SetAssembleMassAndCouplingTogether(const bool value)
 
 void ParMortarAssembler::SetMaxSolverIterations(const int max_solver_iterations)
 {
-   impl_->max_solver_iterations = max_solver_iterations;
+   impl_->ensure_solver();
+
+   impl_->solver->SetMaxIter(max_solver_iterations);
 }
 
 void ParMortarAssembler::AddMortarIntegrator(
@@ -1115,7 +1131,6 @@ bool ParMortarAssembler::Transfer(const ParGridFunction &src_fun,
 bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
                                ParGridFunction &dest_fun)
 {
-
    const bool verbose = impl_->verbose;
 
    if (!impl_->coupling_matrix)
@@ -1132,20 +1147,17 @@ bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
    auto &P_source = *impl_->source->Dof_TrueDof_Matrix();
    auto &P_destination = *impl_->destination->Dof_TrueDof_Matrix();
 
-   // CGSolver Dinv(impl_->comm);
-   BiCGSTABSolver  Dinv(impl_->comm);
-   Dinv.SetRelTol(1e-6);
-   Dinv.SetOperator(D);
-   Dinv.SetMaxIter(impl_->max_solver_iterations);
-
+   impl_->ensure_solver();
+   
    // BlockILU prec(D);
-   // Dinv.SetPreconditioner(prec);
+   // impl_->solver->SetPreconditioner(prec);
+
+   impl_->solver->SetOperator(D);
 
    if(verbose) {
-      Dinv.SetPrintLevel(3);
+      impl_->solver->SetPrintLevel(3);
    }
    
-
    Vector P_x_src_fun(B.Width());
    P_source.MultTranspose(src_fun, P_x_src_fun);
 
@@ -1157,13 +1169,16 @@ bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
    Vector R_x_dest_fun(D.Height());
    R_x_dest_fun = 0.0;
 
-   Dinv.Mult(B_x_src_fun, R_x_dest_fun);
+   impl_->solver->Mult(B_x_src_fun, R_x_dest_fun);
 
    P_destination.Mult(R_x_dest_fun, dest_fun);
 
    dest_fun.Update();
    
-   return Dinv.GetConverged() == 1;
+   // Sanity check!
+   int converged = impl_->solver->GetFinalNorm() < 1e-5;
+   MPI_Allreduce(MPI_IN_PLACE, &converged, 1, MPI_INT, MPI_MIN, impl_->comm);
+   return converged;
 }
 
 bool ParMortarAssembler::Update()
