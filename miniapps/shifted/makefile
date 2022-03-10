@@ -31,13 +31,15 @@ DISTANCE_SRC = distance.cpp dist_solver.cpp
 DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
 EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
 EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
+ALGOIM_SRC = integ_algoim.cpp algoim_test.cpp
+ALGOIM_OBJ = $(DIFFUSION_SRC:.cpp=.o)
 
 PAR_MINIAPPS = distance diffusion extrapolate
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = algoim
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS) algoim
 endif
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
@@ -60,6 +62,9 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
+
+algoim: $(ALGOIM_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(ALGOIM_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 distance: $(DISTANCE_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DISTANCE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
