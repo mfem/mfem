@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -17,6 +17,11 @@ stages:
 opt_mpi_cuda_xl_16_1_1_8:
   variables:
     SPEC: "%xl@16.1.1.8 +mpi +cuda cuda_arch=70"
+  extends: .build_and_test_on_lassen
+
+opt_mpi_cuda_hypre_cuda_xl:
+  variables:
+    SPEC: "%xl@16.1.1.8 +mpi +cuda cuda_arch=70 ^hypre+cuda~shared cuda_arch=70"
   extends: .build_and_test_on_lassen
 
 # Jobs report
