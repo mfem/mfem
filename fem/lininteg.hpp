@@ -596,7 +596,7 @@ class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
    int seed;
 public:
 
-   /** @brief Sets the @a seed of the random number generator */
+   /** @brief Sets the @a seed_ of the random number generator */
    WhiteGaussianNoiseDomainLFIntegrator(int seed_ = 0)
       : LinearFormIntegrator(), seed(seed_)
    {
