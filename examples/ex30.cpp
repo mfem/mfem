@@ -4,12 +4,12 @@
 //
 // Sample runs:  ex30 -m ../data/square-disc.mesh -o 1
 //               ex30 -m ../data/square-disc.mesh -o 2
-//               ex30 -m ../data/square-disc.mesh -o 2 -me 1e3
+//               ex30 -m ../data/square-disc.mesh -o 2 -me 1e4
 //               ex30 -m ../data/square-disc-nurbs.mesh -o 2
 //               ex30 -m ../data/star.mesh -o 2 -eo 4
-//               ex30 -m ../data/fichera.mesh -o 2 -me 1e4
+//               ex30 -m ../data/fichera.mesh -o 2 -me 1e5 -e 5e-2 -no-vis
 //               ex30 -m ../data/disc-nurbs.mesh -o 2
-//               ex30 -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2 -me 1e4
+//               ex30 -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 5e-2 -me 1e5 -no-vis
 //               ex30 -m ../data/star-surf.mesh -o 2
 //               ex30 -m ../data/square-disc-surf.mesh -o 2
 //               ex30 -m ../data/amr-quad.mesh -l 2
