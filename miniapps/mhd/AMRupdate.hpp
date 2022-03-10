@@ -21,3 +21,11 @@ void AMRUpdateTrue(BlockVector &S,
                ParGridFunction &j,
                ParGridFunction *pre);
 
+//this is an update function for block vector of TureVSize
+void AMRUpdateTrue(BlockVector &S, 
+               Array<int> &true_offset,
+               ParGridFunction &phi,
+               ParGridFunction &psi,
+               ParGridFunction &w,
+               ParGridFunction &j);
+

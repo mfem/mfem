@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
+   srand(myid + 1);
    myid_rand=rand();
 
    //----Parse command-line options----

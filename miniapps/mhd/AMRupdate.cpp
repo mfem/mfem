@@ -85,3 +85,47 @@ void AMRUpdateTrue(BlockVector &S,
 
    H1FESpace->UpdatesFinished();
 }
+
+void AMRUpdateTrue(BlockVector &S, 
+               Array<int> &true_offset,
+               ParGridFunction &phi,
+               ParGridFunction &psi,
+               ParGridFunction &w,
+               ParGridFunction &j)
+{
+   FiniteElementSpace* H1FESpace = phi.FESpace();
+
+   //++++Update the GridFunctions so that they match S
+   phi.SetFromTrueDofs(S.GetBlock(0));
+   psi.SetFromTrueDofs(S.GetBlock(1));
+   w.SetFromTrueDofs(S.GetBlock(2));
+
+   //update fem space
+   H1FESpace->Update();
+
+   // Compute new dofs on the new mesh
+   phi.Update();
+   psi.Update();
+   w.Update();
+   
+   // Note j stores data as a regular gridfunction
+   j.Update();
+
+   int fe_size = H1FESpace->GetTrueVSize();
+
+   //update offset vector
+   true_offset[0] = 0;
+   true_offset[1] = fe_size;
+   true_offset[2] = 2*fe_size;
+   true_offset[3] = 3*fe_size;
+
+   // Resize S
+   S.Update(true_offset);
+
+   // Compute "true" dofs and store them in S
+   phi.GetTrueDofs(S.GetBlock(0));
+   psi.GetTrueDofs(S.GetBlock(1));
+     w.GetTrueDofs(S.GetBlock(2));
+
+   H1FESpace->UpdatesFinished();
+}
