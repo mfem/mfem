@@ -261,6 +261,12 @@ bool LORBase::HasSameDofNumbering() const
    return type == H1 || type == L2;
 }
 
+OperatorHandle &LORBase::GetAssembledSystem()
+{
+   MFEM_VERIFY(A.Ptr() != NULL, "No LOR system assembled");
+   return A;
+}
+
 const OperatorHandle &LORBase::GetAssembledSystem() const
 {
    MFEM_VERIFY(A.Ptr() != NULL, "No LOR system assembled");

@@ -66,6 +66,7 @@ public:
 protected:
    /// After assembling the "sparse IJ" format, convert it to CSR.
    SparseMatrix *SparseIJToCSR() const;
+
    /// Assemble the system without eliminating essential DOFs.
    SparseMatrix *AssembleWithoutBC();
 
@@ -73,6 +74,8 @@ protected:
    BatchedLORAssembly(BilinearForm &a,
                       FiniteElementSpace &fes_ho_,
                       const Array<int> &ess_dofs_);
+
+   virtual ~BatchedLORAssembly() { }
 
    /// Return the first domain integrator in the form @a i of type @a T.
    template <typename T>
@@ -92,21 +95,25 @@ protected:
       return nullptr;
    }
 
-   // compiler limitation: these should be protected, but contain MFEM_FORALL
+   // Compiler limitation: these should be protected, but they contain
+   // MFEM_FORALL kernels, and so they must be public.
 public:
    /// @brief Fill the I array of the sparse matrix @a A.
    ///
    /// @note AssemblyKernel must be called first to populate @a sparse_mapping.
    int FillI(SparseMatrix &A) const;
+
    /// @brief Fill the J and data arrays of the sparse matrix @a A.
    ///
    /// @note AssemblyKernel must be called first to populate @a sparse_mapping
    /// and @a sparse_ij.
    void FillJAndData(SparseMatrix &A) const;
+
 #ifdef MFEM_USE_MPI
    /// Assemble the system in parallel and place the result in @a A.
    void ParAssemble(OperatorHandle &A);
 #endif
+
    /// Assemble the system, and place the result in @a A.
    void Assemble(OperatorHandle &A);
 

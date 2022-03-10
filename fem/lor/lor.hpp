@@ -104,8 +104,11 @@ protected:
    LORBase(FiniteElementSpace &fes_ho_, int ref_type_);
 
 public:
-   /// Returns the assembled LOR system.
+   /// Returns the assembled LOR system (const version).
    const OperatorHandle &GetAssembledSystem() const;
+
+   /// Returns the assembled LOR system (non-const version).
+   OperatorHandle &GetAssembledSystem();
 
    /// Assembles the LOR system corresponding to @a a_ho.
    void AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
