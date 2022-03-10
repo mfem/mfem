@@ -595,7 +595,8 @@ class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
 
    int seed;
 public:
-   /// Constructs a domain integrator with a given seed
+
+   /** @brief Sets the @a seed of the random number generator */
    WhiteGaussianNoiseDomainLFIntegrator(int seed_ = 0)
       : LinearFormIntegrator(), seed(seed_)
    {
@@ -605,11 +606,10 @@ public:
       }
    }
 
+   using LinearFormIntegrator::AssembleRHSElementVect;
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
-
-   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 
