@@ -634,7 +634,7 @@ public:
 class CholeskyFactors
 {
 public:
-   double *data;
+   double *data = nullptr;
 
    /** With this constructor, the (public) data should be set
        explicitly before calling class methods. */
