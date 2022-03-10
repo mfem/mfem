@@ -401,7 +401,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    double scale = 1.0;
    if (surf_fit_max_threshold > 0.0)
    {
-      double avg_err = 0.0, max_err = 0.0;
+      double avg_err, max_err;
       GetSurfaceFittingError(avg_err, max_err);
       if (max_err < surf_fit_max_threshold)
       {
@@ -624,6 +624,8 @@ void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
    TMOP_Integrator *ti  = NULL;
    TMOPComboIntegrator *co = NULL;
 
+   err_avg = 0.0;
+   err_max = 0.0;
    double err_avg_loc, err_max_loc;
    for (int i = 0; i < integs.Size(); i++)
    {
