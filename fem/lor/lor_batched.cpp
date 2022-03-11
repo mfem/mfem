@@ -171,54 +171,53 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
    auto I = A.WriteI();
 
    MFEM_FORALL(ii, nvdof + 1, I[ii] = 0;);
-   MFEM_FORALL(iel_ho, nel_ho,
+   MFEM_FORALL(i, ndof_per_el*nel_ho,
    {
-      for (int ii_el = 0; ii_el < ndof_per_el; ++ii_el)
+      const int ii_el = i%ndof_per_el;
+      const int iel_ho = i/ndof_per_el;
+      const int sii = el_dof_lex(ii_el, iel_ho);
+      const int ii = (sii >= 0) ? sii : -1 -sii;
+      // Get number and list of elements containing this DOF
+      int i_elts[Max];
+      const int i_offset = K[ii];
+      const int i_next_offset = K[ii+1];
+      const int i_ne = i_next_offset - i_offset;
+      for (int e_i = 0; e_i < i_ne; ++e_i)
       {
-         // LDOF index of current row
-         const int sii = el_dof_lex(ii_el, iel_ho); // signed
-         const int ii = (sii >= 0) ? sii : -1 - sii;
-         // Get number and list of elements containing this DOF
-         int i_elts[Max];
-         const int i_offset = K[ii];
-         const int i_next_offset = K[ii+1];
-         const int i_ne = i_next_offset - i_offset;
-         for (int e_i = 0; e_i < i_ne; ++e_i)
+         const int si_E = dof_glob2loc[i_offset+e_i]; // signed
+         const int i_E = (si_E >= 0) ? si_E : -1 - si_E;
+         i_elts[e_i] = i_E/ndof_per_el;
+      }
+      for (int j = 0; j < nnz_per_row; ++j)
+      {
+         int jj_el = map(j, ii_el);
+         if (jj_el < 0) { continue; }
+         // LDOF index of column
+         const int sjj = el_dof_lex(jj_el, iel_ho); // signed
+         const int jj = (sjj >= 0) ? sjj : -1 - sjj;
+         const int j_offset = K[jj];
+         const int j_next_offset = K[jj+1];
+         const int j_ne = j_next_offset - j_offset;
+         if (i_ne == 1 || j_ne == 1) // no assembly required
          {
-            const int si_E = dof_glob2loc[i_offset+e_i]; // signed
-            const int i_E = (si_E >= 0) ? si_E : -1 - si_E;
-            i_elts[e_i] = i_E/ndof_per_el;
+            // AtomicAdd(I[ii], 1);
+            I[ii] += 1;
          }
-
-         for (int j = 0; j < nnz_per_row; ++j)
+         else // assembly required
          {
-            int jj_el = map(j, ii_el);
-            if (jj_el < 0) { continue; }
-            // LDOF index of column
-            const int sjj = el_dof_lex(jj_el, iel_ho); // signed
-            const int jj = (sjj >= 0) ? sjj : -1 - sjj;
-            const int j_offset = K[jj];
-            const int j_next_offset = K[jj+1];
-            const int j_ne = j_next_offset - j_offset;
-            if (i_ne == 1 || j_ne == 1) // no assembly required
+            int j_elts[Max];
+            for (int e_j = 0; e_j < j_ne; ++e_j)
             {
-               AtomicAdd(I[ii], 1);
+               const int sj_E = dof_glob2loc[j_offset+e_j]; // signed
+               const int j_E = (sj_E >= 0) ? sj_E : -1 - sj_E;
+               const int elt = j_E/ndof_per_el;
+               j_elts[e_j] = elt;
             }
-            else // assembly required
+            const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
+            if (iel_ho == min_e) // add the nnz only once
             {
-               int j_elts[Max];
-               for (int e_j = 0; e_j < j_ne; ++e_j)
-               {
-                  const int sj_E = dof_glob2loc[j_offset+e_j]; // signed
-                  const int j_E = (sj_E >= 0) ? sj_E : -1 - sj_E;
-                  const int elt = j_E/ndof_per_el;
-                  j_elts[e_j] = elt;
-               }
-               const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
-               if (iel_ho == min_e) // add the nnz only once
-               {
-                  AtomicAdd(I[ii], 1);
-               }
+               // AtomicAdd(I[ii], 1);
+               I[ii] += 1;
             }
          }
       }
@@ -284,95 +283,94 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
 
    static constexpr int Max = 16;
 
-   MFEM_FORALL(iel_ho, nel_ho,
+   MFEM_FORALL(i, ndof_per_el*nel_ho,
    {
-      for (int ii_el = 0; ii_el < ndof_per_el; ++ii_el)
+      const int ii_el = i%ndof_per_el;
+      const int iel_ho = i/ndof_per_el;
+      // LDOF index of current row
+      const int sii = el_dof_lex(ii_el, iel_ho); // signed
+      const int ii = (sii >= 0) ? sii : -1 - sii;
+      // Get number and list of elements containing this DOF
+      int i_elts[Max];
+      int i_B[Max];
+      const int i_offset = K[ii];
+      const int i_next_offset = K[ii+1];
+      const int i_ne = i_next_offset - i_offset;
+      for (int e_i = 0; e_i < i_ne; ++e_i)
       {
-         // LDOF index of current row
-         const int sii = el_dof_lex(ii_el, iel_ho); // signed
-         const int ii = (sii >= 0) ? sii : -1 - sii;
-         // Get number and list of elements containing this DOF
-         int i_elts[Max];
-         int i_B[Max];
-         const int i_offset = K[ii];
-         const int i_next_offset = K[ii+1];
-         const int i_ne = i_next_offset - i_offset;
-         for (int e_i = 0; e_i < i_ne; ++e_i)
+         const int si_E = dof_glob2loc[i_offset+e_i]; // signed
+         const bool plus = si_E >= 0;
+         const int i_E = plus ? si_E : -1 - si_E;
+         i_elts[e_i] = i_E/ndof_per_el;
+         const double i_Bi = i_E%ndof_per_el;
+         i_B[e_i] = plus ? i_Bi : -1 - i_Bi; // encode with sign
+      }
+      for (int j=0; j<nnz_per_row; ++j)
+      {
+         int jj_el = map(j, ii_el);
+         if (jj_el < 0) { continue; }
+         // LDOF index of column
+         const int sjj = el_dof_lex(jj_el, iel_ho); // signed
+         const int jj = (sjj >= 0) ? sjj : -1 - sjj;
+         const int sgn = ((sjj >=0 && sii >= 0) || (sjj < 0 && sii <0)) ? 1 : -1;
+         const int j_offset = K[jj];
+         const int j_next_offset = K[jj+1];
+         const int j_ne = j_next_offset - j_offset;
+         if (i_ne == 1 || j_ne == 1) // no assembly required
          {
-            const int si_E = dof_glob2loc[i_offset+e_i]; // signed
-            const bool plus = si_E >= 0;
-            const int i_E = plus ? si_E : -1 - si_E;
-            i_elts[e_i] = i_E/ndof_per_el;
-            const double i_Bi = i_E%ndof_per_el;
-            i_B[e_i] = plus ? i_Bi : -1 - i_Bi; // encode with sign
+            const int nnz = GetAndIncrementNnzIndex(ii, I);
+            J[nnz] = jj;
+            AV[nnz] = sgn*V(j, ii_el, iel_ho);
          }
-         for (int j=0; j<nnz_per_row; ++j)
+         else // assembly required
          {
-            int jj_el = map(j, ii_el);
-            if (jj_el < 0) { continue; }
-            // LDOF index of column
-            const int sjj = el_dof_lex(jj_el, iel_ho); // signed
-            const int jj = (sjj >= 0) ? sjj : -1 - sjj;
-            const int sgn = ((sjj >=0 && sii >= 0) || (sjj < 0 && sii <0)) ? 1 : -1;
-            const int j_offset = K[jj];
-            const int j_next_offset = K[jj+1];
-            const int j_ne = j_next_offset - j_offset;
-            if (i_ne == 1 || j_ne == 1) // no assembly required
+            int j_elts[Max];
+            int j_B[Max];
+            for (int e_j = 0; e_j < j_ne; ++e_j)
             {
-               const int nnz = GetAndIncrementNnzIndex(ii, I);
-               J[nnz] = jj;
-               AV[nnz] = sgn*V(j, ii_el, iel_ho);
+               const int sj_E = dof_glob2loc[j_offset+e_j]; // signed
+               const bool plus = sj_E >= 0;
+               const int j_E = plus ? sj_E : -1 - sj_E;
+               j_elts[e_j] = j_E/ndof_per_el;
+               const double j_Bj = j_E%ndof_per_el;
+               j_B[e_j] = plus ? j_Bj : -1 - j_Bj; // encode with sign
             }
-            else // assembly required
+            const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
+            if (iel_ho == min_e) // add the nnz only once
             {
-               int j_elts[Max];
-               int j_B[Max];
-               for (int e_j = 0; e_j < j_ne; ++e_j)
+               double val = 0.0;
+               for (int k = 0; k < i_ne; k++)
                {
-                  const int sj_E = dof_glob2loc[j_offset+e_j]; // signed
-                  const bool plus = sj_E >= 0;
-                  const int j_E = plus ? sj_E : -1 - sj_E;
-                  j_elts[e_j] = j_E/ndof_per_el;
-                  const double j_Bj = j_E%ndof_per_el;
-                  j_B[e_j] = plus ? j_Bj : -1 - j_Bj; // encode with sign
-               }
-               const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
-               if (iel_ho == min_e) // add the nnz only once
-               {
-                  double val = 0.0;
-                  for (int k = 0; k < i_ne; k++)
+                  const int iel_ho_2 = i_elts[k];
+                  const int sii_el_2 = i_B[k]; // signed
+                  const int ii_el_2 = (sii_el_2 >= 0) ? sii_el_2 : -1 -sii_el_2;
+                  for (int l = 0; l < j_ne; l++)
                   {
-                     const int iel_ho_2 = i_elts[k];
-                     const int sii_el_2 = i_B[k]; // signed
-                     const int ii_el_2 = (sii_el_2 >= 0) ? sii_el_2 : -1 -sii_el_2;
-                     for (int l = 0; l < j_ne; l++)
+                     const int jel_ho_2 = j_elts[l];
+                     if (iel_ho_2 == jel_ho_2)
                      {
-                        const int jel_ho_2 = j_elts[l];
-                        if (iel_ho_2 == jel_ho_2)
+                        const int sjj_el_2 = j_B[l]; // signed
+                        const int jj_el_2 = (sjj_el_2 >= 0) ? sjj_el_2 : -1 -sjj_el_2;
+                        const int sgn_2 = ((sjj_el_2 >=0 && sii_el_2 >= 0)
+                                           || (sjj_el_2 < 0 && sii_el_2 <0)) ? 1 : -1;
+                        int j2 = -1;
+                        // find nonzero in matrix of other element
+                        for (int m = 0; m < nnz_per_row; ++m)
                         {
-                           const int sjj_el_2 = j_B[l]; // signed
-                           const int jj_el_2 = (sjj_el_2 >= 0) ? sjj_el_2 : -1 -sjj_el_2;
-                           const int sgn_2 = ((sjj_el_2 >=0 && sii_el_2 >= 0)
-                                              || (sjj_el_2 < 0 && sii_el_2 <0)) ? 1 : -1;
-                           int j2 = -1;
-                           // find nonzero in matrix of other element
-                           for (int m = 0; m < nnz_per_row; ++m)
+                           if (map(m, ii_el_2) == jj_el_2)
                            {
-                              if (map(m, ii_el_2) == jj_el_2)
-                              {
-                                 j2 = m;
-                                 break;
-                              }
+                              j2 = m;
+                              break;
                            }
-                           MFEM_ASSERT_KERNEL(j >= 0, "Can't find nonzero");
-                           val += sgn_2*V(j2, ii_el_2, iel_ho_2);
                         }
+                        MFEM_ASSERT_KERNEL(j >= 0, "Can't find nonzero");
+                        val += sgn_2*V(j2, ii_el_2, iel_ho_2);
                      }
                   }
-                  const int nnz = GetAndIncrementNnzIndex(ii, I);
-                  J[nnz] = jj;
-                  AV[nnz] = val;
                }
+               const int nnz = GetAndIncrementNnzIndex(ii, I);
+               J[nnz] = jj;
+               AV[nnz] = val;
             }
          }
       }
