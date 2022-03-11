@@ -22,6 +22,9 @@
 namespace mfem
 {
 
+// Helper class for assembling the discrete gradient and coordinate vectors
+// needed by the AMS solver. Generally, this class should *not* be directly used
+// by users, instead use LORSolver<HypreAMS> (which internally uses this class).
 class BatchedLOR_AMS : public BatchedLOR_ND
 {
 protected:

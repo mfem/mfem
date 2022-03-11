@@ -154,9 +154,17 @@ void BatchedLOR_AMS::FormGradientMatrix()
                                    G_local);
 
    // Assemble the parallel gradient matrix, must be deleted by the caller
-   G = RAP(edge_fes.Dof_TrueDof_Matrix(),
-           G_diag.As<HypreParMatrix>(),
-           vert_fes.Dof_TrueDof_Matrix());
+   if (IsIdentityProlongation(vert_fes.GetProlongationMatrix()))
+   {
+      G = G_diag.As<HypreParMatrix>();
+      G_diag.SetOperatorOwner(false);
+   }
+   else
+   {
+      G = RAP(edge_fes.Dof_TrueDof_Matrix(),
+              G_diag.As<HypreParMatrix>(),
+              vert_fes.Dof_TrueDof_Matrix());
+   }
    G->CopyRowStarts();
    G->CopyColStarts();
 }
