@@ -210,7 +210,12 @@ int main(int argc, char *argv[])
    }
    else
    {
-      solv_lor.reset(new LORSolver<HypreAMS>(a, ess_dofs));
+      auto *ams = new LORSolver<HypreAMS>(a, ess_dofs);
+      {
+         NVTX("AMS Setup");
+         ams->GetSolver().Setup(b, x);
+      }
+      solv_lor.reset(ams);
    }
 
    CGSolver cg(MPI_COMM_WORLD);
