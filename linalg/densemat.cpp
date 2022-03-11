@@ -73,7 +73,8 @@ dpotrs_(char *, int *, int *, double *, int *, double *, int *, int *);
 extern "C" void
 dtrtrs_(char *, char*, char *, int *, int *, double *, int *, double *, int *,
         int *);
-
+extern "C" void
+dpotri_(char *, int *, double *, int*, int *);
 #endif
 
 
@@ -3399,63 +3400,39 @@ void CholeskyFactors::RightSolve(int m, int n, double * X) const
       }
       ++x;
    }
-
-
-
 #endif
-
 
 }
 
 void CholeskyFactors::GetInverseMatrix(int m, double * X) const
 {
    // A^{-1} = L^{-t} L^{-1}
-   // X <- L^{-t} (set only the upper triangular part of X)
    double *x = X;
-   for (int k = 0; k < m; k++)
+#ifndef MFEM_USE_LAPACK
+   // copy the lower triangular part of L to X
+   for (int i = 0; i<m; i++)
    {
-      const double minus_x_k = -( x[k] = 1.0/data[k+k*m] );
-      for (int i = 0; i < k; i++)
+      for (int j = i; j<m; j++)
       {
-         x[i] = data[k+i*m] * minus_x_k;
-      }
-      for (int j = k-1; j >= 0; j--)
-      {
-         const double x_j = ( x[j] /= data[j+j*m] );
-         for (int i = 0; i < j; i++)
-         {
-            x[i] -= data[j+i*m] * x_j;
-         }
-      }
-      x += m;
-   }
-   // X <- X L^{-1} (use input only from the upper triangular part of X)
-   {
-      int k = m-1;
-      for (int j = 0; j < k; j++)
-      {
-         const double minus_L_kj = -data[k+j*m];
-         for (int i = 0; i <= j; i++)
-         {
-            X[i+j*m] += X[i+k*m] * minus_L_kj;
-         }
-         for (int i = j+1; i < m; i++)
-         {
-            X[i+j*m] = X[i+k*m] * minus_L_kj;
-         }
+         x[j+i*m] = data[j+i*m];
       }
    }
-   for (int k = m-2; k >= 0; k--)
+   char uplo = 'L';
+   int info = 0;
+   dpotri_(&uplo, &m, x, &m, &info);
+   // fill in the upper triangular part
+   for (int i = 0; i<m; i++)
    {
-      for (int j = 0; j < k; j++)
+      for (int j = i+1; j<m; j++)
       {
-         const double L_kj = data[k+j*m];
-         for (int i = 0; i < m; i++)
-         {
-            X[i+j*m] -= X[i+k*m] * L_kj;
-         }
+         x[i+j*m] = x[j+i*m];
       }
    }
+
+#else
+
+
+#endif
 }
 
 
