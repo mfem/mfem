@@ -86,17 +86,25 @@ void BatchedLOR_AMS::Form3DEdgeToVertex(DenseMatrix &edge2vert)
 
 void BatchedLOR_AMS::FormGradientMatrix()
 {
+   // The gradient matrix maps from LOR vertices to LOR edges. Given an edge
+   // (defined by its two vertices) e_i = (v_j1, v_j2), the matrix has nonzeros
+   // A(i, j1) = -1 and A(i, j2) = 1, so there are always exactly two nonzeros
+   // per row.
    const int nedge_dof = fes_ho.GetNDofs();
    const int nvert_dof = vert_fes.GetNDofs();
 
    SparseMatrix *G_local = new SparseMatrix(nedge_dof, nvert_dof, 0);
 
    G_local->GetMemoryI().New(nedge_dof+1, G_local->GetMemoryI().GetMemoryType());
-   // Two nonzeros per row
+   // Each row always has two nonzeros
    const int nnz = 2*nedge_dof;
    auto I = G_local->WriteI();
    MFEM_FORALL(i, nedge_dof+1, I[i] = 2*i;);
 
+   // edge2vertex is a mapping of size (2, nedge_per_el), such that with a macro
+   // element, edge i (in lexicographic ordering) has vertices (also in
+   // lexicographic ordering) given by the entries (0, i) and (1, i) of the
+   // matrix.
    DenseMatrix edge2vertex;
    if (dim == 2) { Form2DEdgeToVertex(edge2vertex); }
    else { Form3DEdgeToVertex(edge2vertex); }
@@ -171,6 +179,19 @@ void BatchedLOR_AMS::FormGradientMatrix()
 
 void BatchedLOR_AMS::FormCoordinateVectors()
 {
+   // Create true-DOF vectors x, y, and z that contain the coordinates of the
+   // vertices of the LOR mesh. The vertex coordinates are already computed in
+   // E-vector format (and stored in X_vert) in the function (called already)
+   // BatchedLORAssembly::GetLORVertexCoordinates.
+   //
+   // In this function, we just need to convert X_vert (which has the shape
+   // (dim, ndof_per_el, nel_ho)) to T-DOF format.
+   //
+   // We place the results in the vector xyz_tvec, which has shape (ntdofs, dim)
+   // and then make the hypre vectors x, y, and z point to subvectors.
+   //
+   // In 2D, z is simply NULL.
+
    // Create the H1 vertex space and get the element restriction
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *op = vert_fes.GetElementRestriction(ordering);
