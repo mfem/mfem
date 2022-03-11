@@ -3200,13 +3200,12 @@ void LUFactors::BlockBackSolve(int m, int n, int r, const double *U12,
 
 #ifdef MFEM_USE_LAPACK
 
-void CholeskyFactors::Factor(char uplo_)
+void CholeskyFactors::Factor()
 {
    if (factorized)
    {
       return;
    }
-   uplo = uplo_;
    MFEM_VERIFY(uplo == 'U' ||
                uplo == 'L', "CholeskyFactors::Factor:invalid choice of uplo");
    dpotrf_(&uplo, &n, A->Data(), &n, &info);
@@ -3220,8 +3219,6 @@ void CholeskyFactors::Factor(char uplo_)
 
 void CholeskyFactors::GetL(DenseMatrix & L)
 {
-   MFEM_VERIFY(factorized,
-               "Matrix not factorized yet. Call CholeskyFactors::Factor()");
    MFEM_VERIFY(uplo == 'L', "Wrong code path. Use GetU");
    L.SetSize(n);
    L = 0.;
@@ -3237,8 +3234,6 @@ void CholeskyFactors::GetL(DenseMatrix & L)
 
 void CholeskyFactors::GetU(DenseMatrix & U)
 {
-   MFEM_VERIFY(factorized,
-               "Matrix not factorized yet. Call CholeskyFactors::Factor()");
    MFEM_VERIFY(uplo == 'U', "Wrong code path. Use GetL");
    U.SetSize(n);
    U = 0.;
@@ -3255,7 +3250,6 @@ void CholeskyFactors::LMult(const Vector & x, Vector & y) const
 {
    MFEM_VERIFY(x.Size() == n, "x has invalid size");
    MFEM_VERIFY(y.Size() == n, "y has invalid size");
-
    double * data = A->Data();
 
    if (uplo == 'L')

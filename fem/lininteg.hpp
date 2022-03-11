@@ -587,13 +587,14 @@ public:
 class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
 {
    MassIntegrator massinteg;
-   DenseMatrix M;
+   Array<DenseMatrix *> L;
 
    // Define random generator with Gaussian distribution
    std::default_random_engine generator;
    std::normal_distribution<double> dist;
 
    int seed;
+   bool save_factors = false;
 public:
 
    /** @brief Sets the @a seed_ of the random number generator */
@@ -610,6 +611,36 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
+   void SaveFactors(int NE)
+   {
+      save_factors = true;
+      ResetFactors(NE);
+   }
+
+   void ResetFactors(int NE)
+   {
+      for (int i = 0; i<L.Size(); i++)
+      {
+         delete L[i];
+      }
+      L.DeleteAll();
+
+      L.SetSize(NE);
+      for (int i = 0; i<NE; i++)
+      {
+         L[i] = nullptr;
+      }
+   }
+
+
+   ~WhiteGaussianNoiseDomainLFIntegrator()
+   {
+      for (int i = 0; i<L.Size(); i++)
+      {
+         delete L[i];
+      }
+      L.DeleteAll();
+   }
 };
 
 
