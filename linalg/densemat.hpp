@@ -644,7 +644,7 @@ class CholeskyFactors
    bool factorized = false;
 public:
 
-   CholeskyFactors(DenseMatrix & A_) : A(&A_)
+   CholeskyFactors(DenseMatrix & A_, char uplo_='L') : A(&A_), uplo(uplo_)
    {
       n = A->Height();
       MFEM_VERIFY(n == A->Width(), "CholeskyFactors::Matrix A has to be square")
@@ -654,7 +654,7 @@ public:
     * @brief Compute the Cholesky factorization of the current matrix
     */
    // A = L L^t or A = U^t U
-   void Factor(char uplo_ = 'U');
+   void Factor();
 
    void GetL(DenseMatrix & L);
 

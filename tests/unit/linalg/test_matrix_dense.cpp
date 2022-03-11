@@ -322,10 +322,10 @@ TEST_CASE("CholeskyFactors", "[DenseMatrix]")
              2.497813883310917e-01});
 
 
-   CholeskyFactors cholA(A);
-   CholeskyFactors cholB(B);
-   cholA.Factor('U');
-   cholB.Factor('L');
+   CholeskyFactors cholA(A,'U');
+   CholeskyFactors cholB(B,'L');
+   cholA.Factor();
+   cholB.Factor();
 
    DenseMatrix U, L;
    cholA.GetU(U);

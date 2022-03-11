@@ -976,30 +976,58 @@ void WhiteGaussianNoiseDomainLFIntegrator::AssembleRHSElementVect
  ElementTransformation &Tr,
  Vector &elvect)
 {
-
-   massinteg.AssembleElementMatrix(el, Tr, M);
-
-#ifdef MFEM_USE_LAPACK
-
-   CholeskyFactors chol(M);
-   chol.Factor('L');
-
    int n = el.GetDof();
    elvect.SetSize(n);
-
    Vector w(n);
    for (int i = 0; i < w.Size(); i++)
    {
       w(i) = dist(generator);
    }
 
-   chol.LMult(w,elvect);
+   int iel = Tr.ElementNo;
+
+#ifdef MFEM_USE_LAPACK
+   if (!save_factors || !L[iel])
+   {
+      DenseMatrix *M, m;
+      if (save_factors)
+      {
+         L[iel]=new DenseMatrix;
+         M = L[iel];
+      }
+      else
+      {
+         M = &m;
+      }
+      massinteg.AssembleElementMatrix(el, Tr, *M);
+      CholeskyFactors chol(*M);
+      chol.Factor();
+      chol.LMult(w,elvect);
+   }
+   else
+   {
+      CholeskyFactors chol(*L[iel]);
+      chol.LMult(w,elvect);
+   }
 
 #else
 
    MFEM_ABORT("TODO");
 
 #endif
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 }
 
