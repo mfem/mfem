@@ -429,5 +429,14 @@ TEST_CASE("CholeskyFactors", "[DenseMatrix]")
    y1 -= y2;
    REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
 
+   // DenseMatrix invA2(4);
+   // // invA2 = A;
+   // cholA.GetInverseMatrix(4,invA2.GetData());
+   // invA.PrintMatlab();
+   // invA2.PrintMatlab();
+   // invA2-=invA;
+   // REQUIRE(invA2.MaxMaxNorm() == MFEM_Approx(0.,tol));
+
+
 }
 
