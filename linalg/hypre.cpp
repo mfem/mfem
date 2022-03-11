@@ -5048,25 +5048,29 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       {
          coord = pmesh -> GetVertex(i);
          x_coord(i) = coord[0];
-         y_coord(i) = coord[1];
+         if (sdim >= 2) { y_coord(i) = coord[1]; }
          if (sdim == 3) { z_coord(i) = coord[2]; }
       }
       x = x_coord.ParallelProject();
-      y = y_coord.ParallelProject();
-
+      y = NULL;
+      z = NULL;
       x->HypreReadWrite();
-      y->HypreReadWrite();
-      if (sdim == 2)
+
+      if (sdim >= 2)
       {
-         z = NULL;
-         HYPRE_AMSSetCoordinateVectors(ams, *x, *y, NULL);
+         y = y_coord.ParallelProject();
+         y->HypreReadWrite();
       }
-      else
+      if (sdim == 3)
       {
          z = z_coord.ParallelProject();
          z->HypreReadWrite();
-         HYPRE_AMSSetCoordinateVectors(ams, *x, *y, *z);
       }
+
+      HYPRE_AMSSetCoordinateVectors(ams,
+                                    x ? (HYPRE_ParVector)(*x) : NULL,
+                                    y ? (HYPRE_ParVector)(*y) : NULL,
+                                    z ? (HYPRE_ParVector)(*z) : NULL);
    }
    else
    {
@@ -5121,7 +5125,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
          Array2D<HypreParMatrix *> Pi_blocks;
          id_ND->GetParBlocks(Pi_blocks);
          Pix = Pi_blocks(0,0);
-         Piy = Pi_blocks(0,1);
+         if (sdim >= 2) { Piy = Pi_blocks(0,1); }
          if (sdim == 3) { Piz = Pi_blocks(0,2); }
       }
 
