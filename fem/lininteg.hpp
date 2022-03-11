@@ -607,7 +607,7 @@ public:
       if (seed_ > 0) { SetSeed(seed_); }
    }
 
-   WhiteGaussianNoiseDomainLFIntegrator(MPI_Comm comm_, int seed_ = 0)
+   WhiteGaussianNoiseDomainLFIntegrator(MPI_Comm comm_, int seed_)
       : LinearFormIntegrator(), comm(comm_)
    {
       int myid;
