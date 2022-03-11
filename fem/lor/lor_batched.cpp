@@ -437,10 +437,18 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
                               pfes_ho->GetDofOffsets(),
                               A_local);
 
-   // Parallel matrix assembly using P^t A P
-   OperatorHandle P(Operator::Hypre_ParCSR);
-   P.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
-   A.MakePtAP(A_diag, P);
+   // Parallel matrix assembly using P^t A P (if needed)
+   if (IsIdentityProlongation(pfes_ho->GetProlongationMatrix()))
+   {
+      A_diag.SetOperatorOwner(false);
+      A.Reset(A_diag.Ptr());
+   }
+   else
+   {
+      OperatorHandle P(Operator::Hypre_ParCSR);
+      P.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
+      A.MakePtAP(A_diag, P);
+   }
 
    // Eliminate the boundary conditions
    HypreParMatrix *A_mat = A.As<HypreParMatrix>();
