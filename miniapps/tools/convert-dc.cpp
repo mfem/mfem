@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
    Mpi::Init();
-   if (!Mpi::Session().Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
    Hypre::Init();
 #endif
 

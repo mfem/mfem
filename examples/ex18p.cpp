@@ -111,10 +111,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (Mpi::Session().Root()) { args.PrintUsage(cout); }
+      if (Mpi::Root()) { args.PrintUsage(cout); }
       return 1;
    }
-   if (Mpi::Session().Root()) { args.PrintOptions(cout); }
+   if (Mpi::Root()) { args.PrintOptions(cout); }
 
    // 3. Read the mesh from the given mesh file. This example requires a 2D
    //    periodic mesh, such as ../data/periodic-square.mesh.
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
       case 4: ode_solver = new RK4Solver; break;
       case 6: ode_solver = new RK6Solver; break;
       default:
-         if (Mpi::Session().Root())
+         if (Mpi::Root())
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
 
    HYPRE_BigInt glob_size = vfes.GlobalTrueVSize();
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       cout << "Number of unknowns: " << glob_size << endl;
    }
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
    {
       ostringstream mesh_name;
       mesh_name << "vortex-mesh." << setfill('0')
-                << setw(6) << Mpi::Session().WorldRank();
+                << setw(6) << Mpi::WorldRank();
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(precision);
       mesh_ofs << pmesh;
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
          ostringstream sol_name;
          sol_name << "vortex-" << k << "-init."
                   << setfill('0') << setw(6)
-                  << Mpi::Session().WorldRank();
+                  << Mpi::WorldRank();
          ofstream sol_ofs(sol_name.str().c_str());
          sol_ofs.precision(precision);
          sol_ofs << uk;
@@ -243,26 +243,26 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
       if (!sout)
       {
-         if (Mpi::Session().Root())
+         if (Mpi::Root())
          {
             cout << "Unable to connect to GLVis server at "
                  << vishost << ':' << visport << endl;
          }
          visualization = false;
-         if (Mpi::Session().Root())
+         if (Mpi::Root())
          {
             cout << "GLVis visualization disabled.\n";
          }
       }
       else
       {
-         sout << "parallel " << Mpi::Session().WorldSize()
-              << " " << Mpi::Session().WorldRank() << "\n";
+         sout << "parallel " << Mpi::WorldSize()
+              << " " << Mpi::WorldRank() << "\n";
          sout.precision(precision);
          sout << "solution\n" << pmesh << mom;
          sout << "pause\n";
          sout << flush;
-         if (Mpi::Session().Root())
+         if (Mpi::Root())
          {
             cout << "GLVis visualization paused."
                  << " Press space (in the GLVis window) to resume it.\n";
@@ -331,22 +331,22 @@ int main(int argc, char *argv[])
       done = (t >= t_final - 1e-8*dt);
       if (done || ti % vis_steps == 0)
       {
-         if (Mpi::Session().Root())
+         if (Mpi::Root())
          {
             cout << "time step: " << ti << ", time: " << t << endl;
          }
          if (visualization)
          {
             MPI_Barrier(pmesh.GetComm());
-            sout << "parallel " << Mpi::Session().WorldSize()
-                 << " " << Mpi::Session().WorldRank() << "\n";
+            sout << "parallel " << Mpi::WorldSize()
+                 << " " << Mpi::WorldRank() << "\n";
             sout << "solution\n" << pmesh << mom << flush;
          }
       }
    }
 
    tic_toc.Stop();
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       cout << " done, " << tic_toc.RealTime() << "s." << endl;
    }
@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
       ParGridFunction uk(&fes, u_block.GetBlock(k));
       ostringstream sol_name;
       sol_name << "vortex-" << k << "-final."
-               << setfill('0') << setw(6) << Mpi::Session().WorldRank();
+               << setfill('0') << setw(6) << Mpi::WorldRank();
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(precision);
       sol_ofs << uk;
@@ -368,7 +368,7 @@ int main(int argc, char *argv[])
    if (t_final == 2.0)
    {
       const double error = sol.ComputeLpError(2, u0);
-      if (Mpi::Session().Root())
+      if (Mpi::Root())
       {
          cout << "Solution error: " << error << endl;
       }

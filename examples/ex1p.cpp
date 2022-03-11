@@ -65,8 +65,8 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
    Mpi::Init();
-   int num_procs = Mpi::Session().WorldSize();
-   int myid = Mpi::Session().WorldRank();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // 2. Parse command-line options.

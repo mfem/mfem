@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
    mfem::Mpi::Init();
-   bool root = mfem::Mpi::Session().Root();
+   bool root = mfem::Mpi::Root();
    mfem::Hypre::Init();
 #else
    bool root = true;

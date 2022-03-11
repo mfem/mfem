@@ -27,13 +27,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (Mpi::Session().Root()) { args.PrintUsage(cout); }
+      if (Mpi::Root()) { args.PrintUsage(cout); }
       return 1;
    }
-   if (Mpi::Session().Root()) { args.PrintOptions(cout); }
+   if (Mpi::Root()) { args.PrintOptions(cout); }
 
    Device device(device_config);
-   if (Mpi::Session().Root()) { device.Print(); }
+   if (Mpi::Root()) { device.Print(); }
 
    //-----------------------------------------------------------
    int width = 1000;
@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
       Vector v(width);
       v.UseDevice(true);
       v = 0.0;
-      cout << Mpi::Session().WorldRank() << ": v.HostRead() = "
+      cout << Mpi::WorldRank() << ": v.HostRead() = "
            << v.HostRead() << endl;
 
       v_r.MakeRef(v, 0, width/2);
@@ -52,12 +52,12 @@ int main(int argc, char *argv[])
    Vector w(width);
    w.UseDevice(true);
    w = 0.0;
-   cout << Mpi::Session().WorldRank() << ": w.HostRead() = "
+   cout << Mpi::WorldRank() << ": w.HostRead() = "
         << w.HostRead() << endl;
    Vector w_r, w_i;
 
    MPI_Barrier(MPI_COMM_WORLD);
-   cout << Mpi::Session().WorldRank() << ": == # START # ==" << endl;
+   cout << Mpi::WorldRank() << ": == # START # ==" << endl;
    MPI_Barrier(MPI_COMM_WORLD);
    w_r.MakeRef(w, 0, width/2);        // fails
    w_i.MakeRef(w, width/2, width/2);  // fails
@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
    //    ... in file: general/mem_manager.cpp:1377
    // 2) alias already exists with different base/offset!
    MPI_Barrier(MPI_COMM_WORLD);
-   cout << Mpi::Session().WorldRank() << ": == # END # ==" << endl;
+   cout << Mpi::WorldRank() << ": == # END # ==" << endl;
 
    return 0;
 }

@@ -2183,7 +2183,7 @@ static void sedov_tests(int myid)
 #ifndef MFEM_SEDOV_DEVICE
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-   sedov_tests(Mpi::Session().WorldRank());
+   sedov_tests(Mpi::WorldRank());
 }
 #else
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
@@ -2200,7 +2200,7 @@ TEST_CASE("Sedov", "[Sedov], [Parallel]")
    Device device;
    device.Configure(MFEM_SEDOV_DEVICE);
    device.Print();
-   sedov_tests(Mpi::Session().WorldRank());
+   sedov_tests(Mpi::WorldRank());
 }
 #endif
 #else

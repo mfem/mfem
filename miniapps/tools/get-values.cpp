@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
    Mpi::Init();
-   if (!Mpi::Session().Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
    Hypre::Init();
 #endif
 
@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
    ofstream ofs;
    if (strcmp(out_file_c_str,"") != 0
 #ifdef MFEM_USE_MPI
-       && Mpi::Session().Root()
+       && Mpi::Root()
 #endif
       )
    {

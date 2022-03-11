@@ -126,13 +126,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (Mpi::Session().Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(mfem::out);
       }
       return 1;
    }
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(mfem::out);
    }
@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
 
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
       if (error_est >= 1.0)
       {
          // Reject the time step
-         if (Mpi::Session().Root())
+         if (Mpi::Root())
          {
             std::cout
                   << "Step reached maximum CFL, retrying with smaller step size..."
@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
       err_u = u_gf->ComputeL2Error(u_excoeff);
       err_p = p_gf->ComputeL2Error(p_ex_gf_coeff);
 
-      if (Mpi::Session().Root())
+      if (Mpi::Root())
       {
          printf("%5s %8s %8s %8s %11s %11s\n",
                 "Order",
@@ -278,8 +278,8 @@ int main(int argc, char *argv[])
       int visport = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "parallel " << Mpi::Session().WorldSize() << " "
-               << Mpi::Session().WorldRank() << "\n";
+      sol_sock << "parallel " << Mpi::WorldSize() << " "
+               << Mpi::WorldRank() << "\n";
       sol_sock << "solution\n" << *pmesh << *u_ic << std::flush;
    }
 
@@ -292,7 +292,7 @@ int main(int argc, char *argv[])
       double tol_p = 1e-5;
       if (err_u > tol_u || err_p > tol_p)
       {
-         if (Mpi::Session().Root())
+         if (Mpi::Root())
          {
             mfem::out << "Result has a larger error than expected."
                       << std::endl;

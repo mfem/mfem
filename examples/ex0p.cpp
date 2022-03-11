@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, mesh.Dimension());
    ParFiniteElementSpace fespace(&mesh, &fec);
    HYPRE_BigInt total_num_dofs = fespace.GlobalTrueVSize();
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       cout << "Number of unknowns: " << total_num_dofs << endl;
    }

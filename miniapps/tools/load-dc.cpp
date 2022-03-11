@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
    Mpi::Init();
-   if (!Mpi::Session().Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
    Hypre::Init();
 #endif
 
@@ -106,8 +106,8 @@ int main(int argc, char *argv[])
          return 1;
       }
 #ifdef MFEM_USE_MPI
-      sol_sock << "parallel " << Mpi::Session().WorldSize() << " "
-               << Mpi::Session().WorldRank() << "\n";
+      sol_sock << "parallel " << Mpi::WorldSize() << " "
+               << Mpi::WorldRank() << "\n";
 #endif
       if (fields.begin() == fields.end())
       {
