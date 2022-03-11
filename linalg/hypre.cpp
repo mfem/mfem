@@ -3553,6 +3553,65 @@ HypreSolver::HypreSolver(const HypreParMatrix *A_)
    error_mode = ABORT_HYPRE_ERRORS;
 }
 
+void HypreSolver::Setup(const Vector &b, Vector &x)
+{
+   MFEM_ASSERT(b.Size() == NumCols(), "");
+   MFEM_ASSERT(x.Size() == NumRows(), "");
+
+   MFEM_VERIFY(A != NULL, "HypreParMatrix A is missing");
+
+   if (B == NULL)
+   {
+      B = new HypreParVector(A->GetComm(), A->GetGlobalNumRows(),
+                             nullptr, A->GetRowStarts());
+      X = new HypreParVector(A->GetComm(), A->GetGlobalNumCols(),
+                             nullptr, A->GetColStarts());
+   }
+
+   if (CanShallowCopy(b.GetMemory(), GetHypreMemoryClass()))
+   {
+      B->WrapMemoryRead(b.GetMemory());
+   }
+   else
+   {
+      if (auxB.Empty()) { auxB.New(NumCols(), GetHypreMemoryType()); }
+      auxB.CopyFrom(b.GetMemory(), auxB.Capacity());  // Deep copy
+      B->WrapMemoryRead(auxB);
+   }
+
+   if (CanShallowCopy(x.GetMemory(), GetHypreMemoryClass()))
+   {
+      if (iterative_mode) { X->WrapMemoryReadWrite(x.GetMemory()); }
+      else { X->WrapMemoryWrite(x.GetMemory()); }
+   }
+   else
+   {
+      if (auxX.Empty()) { auxX.New(NumRows(), GetHypreMemoryType()); }
+      if (iterative_mode)
+      {
+         auxX.CopyFrom(x.GetMemory(), x.Size());  // Deep copy
+         X->WrapMemoryReadWrite(auxX);
+      }
+      else
+      {
+         X->WrapMemoryWrite(auxX);
+      }
+   }
+
+   HYPRE_Int err_flag = SetupFcn()(*this, *A, *B, *X);
+   if (error_mode == WARN_HYPRE_ERRORS)
+   {
+      if (err_flag)
+      { MFEM_WARNING("Error during setup! Error code: " << err_flag); }
+   }
+   else if (error_mode == ABORT_HYPRE_ERRORS)
+   {
+      MFEM_VERIFY(!err_flag, "Error during setup! Error code: " << err_flag);
+   }
+   hypre_error_flag = 0;
+   setup_called = 1;
+}
+
 void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 {
    HYPRE_Int err_flag;

@@ -1037,6 +1037,8 @@ public:
    /// hypre's internal Solve function
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const = 0;
 
+   virtual void Setup(const Vector &b, Vector &x);
+
    virtual void SetOperator(const Operator &op)
    { mfem_error("HypreSolvers do not support SetOperator!"); }
 
