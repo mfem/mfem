@@ -26,12 +26,12 @@ TEST_CASE("WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh")
    const auto order = GENERATE(1, 2, 3);
    Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
    // Make the mesh NC
-   // mesh.EnsureNCMesh();
-   // {
-   //    Array<int> elements_to_refine(1);
-   //    elements_to_refine[0] = 1;
-   //    mesh.GeneralRefinement(elements_to_refine, 1, 0);
-   // }
+   mesh.EnsureNCMesh();
+   {
+      Array<int> elements_to_refine(1);
+      elements_to_refine[0] = 1;
+      mesh.GeneralRefinement(elements_to_refine, 1, 0);
+   }
 
    H1_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fec);
