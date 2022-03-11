@@ -267,12 +267,12 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (Mpi::Session().Root()) { args.PrintUsage(cout); }
+      if (Mpi::Root()) { args.PrintUsage(cout); }
       return 1;
    }
-   if (Mpi::Session().Root()) { args.PrintOptions(cout); }
+   if (Mpi::Root()) { args.PrintOptions(cout); }
 
-   if (Mpi::Session().Root() && par_ref_levels == 0)
+   if (Mpi::Root() && par_ref_levels == 0)
    {
       std::cout << "WARNING: DivFree solver is equivalent to BDPMinresSolver "
                 << "when par_ref_levels == 0.\n";
@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
    int ser_ref_lvls =
-      (int)ceil(log(Mpi::Session().WorldSize()/mesh->GetNE())/log(2.)/dim);
+      (int)ceil(log(Mpi::WorldSize()/mesh->GetNE())/log(2.)/dim);
    for (int i = 0; i < ser_ref_lvls; ++i)
    {
       mesh->UniformRefinement();
@@ -297,7 +297,7 @@ int main(int argc, char *argv[])
    }
    if (IsAllNeumannBoundary(ess_bdr))
    {
-      if (Mpi::Session().Root())
+      if (Mpi::Root())
       {
          cout << "\nSolution is not unique when Neumann boundary condition is "
               << "imposed on the entire boundary. \nPlease provide a different "
@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
    const DFSData& DFS_data = darcy.GetDFSData();
    delete mesh;
 
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       cout << line << "System assembled in " << chrono.RealTime() << "s.\n";
       cout << "Dimension of the physical space: " << dim << "\n";
@@ -362,7 +362,7 @@ int main(int argc, char *argv[])
       solver->Mult(darcy.GetRHS(), sol);
       chrono.Stop();
 
-      if (Mpi::Session().Root())
+      if (Mpi::Root())
       {
          cout << line << name << " solver:\n   Setup time: "
               << setup_time[solver] << "s.\n   Solve time: "
@@ -372,9 +372,9 @@ int main(int argc, char *argv[])
       }
       if (show_error && std::strcmp(coef_file, "") == 0)
       {
-         darcy.ShowError(sol, Mpi::Session().Root());
+         darcy.ShowError(sol, Mpi::Root());
       }
-      else if (show_error && Mpi::Session().Root())
+      else if (show_error && Mpi::Root())
       {
          cout << "Exact solution is unknown for coefficient '" << coef_file
               << "'.\nApproximation error is computed in this case!\n\n";

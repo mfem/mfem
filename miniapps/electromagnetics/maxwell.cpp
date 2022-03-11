@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
    Mpi::Init();
    Hypre::Init();
 
-   if ( Mpi::Session().Root() ) { display_banner(cout); }
+   if ( Mpi::Root() ) { display_banner(cout); }
 
    // Parse command-line options.
    const char *mesh_file = "../../data/ball-nurbs.mesh";
@@ -190,13 +190,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (Mpi::Session().Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
    ifstream imesh(mesh_file);
    if (!imesh)
    {
-      if (Mpi::Session().Root())
+      if (Mpi::Root())
       {
          cerr << "\nCan not open mesh file: " << mesh_file << '\n' << endl;
       }
@@ -267,7 +267,7 @@ int main(int argc, char *argv[])
 
    // Compute the energy of the initial fields
    double energy = Maxwell.GetEnergy();
-   if ( Mpi::Session().Root() )
+   if ( Mpi::Root() )
    {
       cout << "Energy(" << ti << "ns):  " << energy << "J" << endl;
    }
@@ -280,14 +280,14 @@ int main(int argc, char *argv[])
    tf *= tScale_;
    ts *= tScale_;
 
-   if ( Mpi::Session().Root() )
+   if ( Mpi::Root() )
    {
       cout << "Maximum Time Step:     " << dtmax / tScale_ << "ns" << endl;
    }
 
    // Round down the time step so that tf-ti is an integer multiple of dt
    int nsteps = SnapTimeStep(tf-ti, dtsf * dtmax, dt);
-   if ( Mpi::Session().Root() )
+   if ( Mpi::Root() )
    {
       cout << "Number of Time Steps:  " << nsteps << endl;
       cout << "Time Step Size:        " << dt / tScale_ << "ns" << endl;
@@ -337,7 +337,7 @@ int main(int argc, char *argv[])
 
       // Approximate the current energy if the fields
       energy = Maxwell.GetEnergy();
-      if ( Mpi::Session().Root() )
+      if ( Mpi::Root() )
       {
          cout << "Energy(" << t/tScale_ << "ns):  " << energy << "J" << endl;
       }

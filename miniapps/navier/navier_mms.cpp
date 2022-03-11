@@ -127,13 +127,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (Mpi::Session().Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(mfem::out);
       }
       return 1;
    }
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(mfem::out);
    }
@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
    }
@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
       err_u = u_gf->ComputeL2Error(u_excoeff);
       err_p = p_gf->ComputeL2Error(p_excoeff);
 
-      if (Mpi::Session().Root())
+      if (Mpi::Root())
       {
          printf("%11s %11s %11s %11s\n", "Time", "dt", "err_u", "err_p");
          printf("%.5E %.5E %.5E %.5E err\n", t, dt, err_u, err_p);
@@ -221,8 +221,8 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int visport = 19916;
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << Mpi::Session().WorldSize() << " "
-               << Mpi::Session().WorldRank() << "\n";
+      sol_sock << "parallel " << Mpi::WorldSize() << " "
+               << Mpi::WorldRank() << "\n";
       sol_sock << "solution\n" << *pmesh << *u_ic << std::flush;
    }
 
@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
       double tol = 1e-3;
       if (err_u > tol || err_p > tol)
       {
-         if (Mpi::Session().Root())
+         if (Mpi::Root())
          {
             mfem::out << "Result has a larger error than expected."
                       << std::endl;

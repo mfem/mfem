@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace fes(&mesh, fec.get());
    HYPRE_Int ndofs = fes.GlobalTrueVSize();
-   if (Mpi::Session().Root()) { cout << "Number of DOFs: " << ndofs << endl; }
+   if (Mpi::Root()) { cout << "Number of DOFs: " << ndofs << endl; }
 
    Array<int> ess_dofs;
    // In DG, boundary conditions are enforced weakly, so no essential DOFs.
@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
 
    double er =
       (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
-   if (Mpi::Session().Root()) { cout << "L2 error: " << er << endl; }
+   if (Mpi::Root()) { cout << "L2 error: " << er << endl; }
 
    if (visualization)
    {

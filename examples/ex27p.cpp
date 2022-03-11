@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
    Mpi::Init();
-   if (!Mpi::Session().Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
    Hypre::Init();
 
    // 2. Parse command-line options.
@@ -377,9 +377,9 @@ int main(int argc, char *argv[])
    {
       ostringstream mesh_name, sol_name;
       mesh_name << "mesh." << setfill('0')
-                << setw(6) << Mpi::Session().WorldRank();
+                << setw(6) << Mpi::WorldRank();
       sol_name << "sol." << setfill('0')
-               << setw(6) << Mpi::Session().WorldRank();
+               << setw(6) << Mpi::WorldRank();
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
@@ -397,8 +397,8 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << Mpi::Session().WorldSize()
-               << " " << Mpi::Session().WorldRank() << "\n";
+      sol_sock << "parallel " << Mpi::WorldSize()
+               << " " << Mpi::WorldRank() << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << u
                << "window_title '" << title_str << " Solution'"

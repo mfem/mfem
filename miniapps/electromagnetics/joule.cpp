@@ -128,11 +128,11 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int myid = Mpi::Session().WorldRank();
+   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // print the cool banner
-   if (Mpi::Session().Root()) { display_banner(cout); }
+   if (Mpi::Root()) { display_banner(cout); }
 
    // 2. Parse command-line options.
    const char *mesh_file = "cylinder-hex.mesh";
@@ -202,13 +202,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (Mpi::Session().Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
    sj_  = sigma;
    wj_  = 2.0*M_PI*freq;
 
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       cout << "\nSkin depth sqrt(2.0/(wj*mj*sj)) = " << sqrt(2.0/(wj_*mj_*sj_))
            << "\nSkin depth sqrt(2.0*dt/(mj*sj)) = " << sqrt(2.0*dt/(mj_*sj_))
@@ -361,7 +361,7 @@ int main(int argc, char *argv[])
       case 23: ode_solver = new SDIRK23Solver; break;
       case 34: ode_solver = new SDIRK34Solver; break;
       default:
-         if (Mpi::Session().Root())
+         if (Mpi::Root())
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
@@ -451,7 +451,7 @@ int main(int argc, char *argv[])
    HYPRE_BigInt glob_size_rt = HDivFESpace.GlobalTrueVSize();
    HYPRE_BigInt glob_size_h1 = HGradFESpace.GlobalTrueVSize();
 
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       cout << "Number of Temperature Flux unknowns:  " << glob_size_rt << endl;
       cout << "Number of Temperature unknowns:       " << glob_size_l2 << endl;
@@ -659,7 +659,7 @@ int main(int argc, char *argv[])
       {
          double el = oper.ElectricLosses(E_gf);
 
-         if (Mpi::Session().Root())
+         if (Mpi::Root())
          {
             cout << fixed;
             cout << "step " << setw(6) << ti << ",\tt = " << setw(6)

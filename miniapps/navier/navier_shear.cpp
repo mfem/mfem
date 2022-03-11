@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
    }
@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
          pvdc.Save();
       }
 
-      if (Mpi::Session().Root())
+      if (Mpi::Root())
       {
          printf("%11s %11s\n", "Time", "dt");
          printf("%.5E %.5E\n", t, dt);

@@ -65,8 +65,8 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int num_procs = Mpi::Session().WorldSize();
-   int myid = Mpi::Session().WorldRank();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // 2. Parse command-line options.
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
    HYPRE_Int total_num_dofs = fespace.GlobalTrueVSize();
-   if (Mpi::Session().Root())
+   if (Mpi::Root())
    {
       cout << "Number of unknowns: " << total_num_dofs << endl;
    }
