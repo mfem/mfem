@@ -15,7 +15,7 @@
  *      - Implements the serial and parallel @c mfem::System call.
  *
  *      - Produces the @c mjit executable, which can:
- *          - preprocess source files,
+ *          - pre-process MFEM source files,
  *          - spawn & fork in parallel to be able to @c system calls.
  *
  *  MFEM ranks which calls mfem::jit::System are { MPI Parents }.
@@ -35,15 +35,14 @@
 #include <cmath>
 #include <regex>
 #include <string>
-#include <cstring>
+#include <vector>
 #include <ciso646>
 #include <cassert>
 #include <fstream>
 #include <climits>
-#include <algorithm>
 #include <iostream>
+#include <algorithm>
 
-#include <dlfcn.h>
 #include <sys/select.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -57,20 +56,18 @@ using std::ostream;
 
 #include "../config/config.hpp"
 
-#include "error.hpp"
 #include "mjit.hpp"
+#include "error.hpp"
 #include "globals.hpp"
 
 #undef MFEM_DEBUG_COLOR
-#define MFEM_DEBUG_COLOR 198
+#define MFEM_DEBUG_COLOR 226
 #include "debug.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
-#include <sys/mman.h>
 #endif
 
-// *****************************************************************************
 #define MFEM_JIT_STR(...) #__VA_ARGS__
 #define MFEM_JIT_STRINGIFY(...) MFEM_JIT_STR(__VA_ARGS__)
 
@@ -80,17 +77,17 @@ namespace mfem
 namespace jit
 {
 
-static inline int argn(char *argv[], int argc = 0)
+static inline int argn(const char *argv[], int argc = 0)
 {
    while (argv[argc]) { argc += 1; }
    return argc;
 }
 
-// Implementation of mfem::jit::System
-#if !defined(MFEM_USE_MPI)
-// The serial implementation does nothing special but launching
-// the =system= command.
-static int System(char *argv[])
+// Serial implementation of mfem::jit::System
+#ifndef MFEM_USE_MPI
+
+// The serial implementation does nothing special but the =system= command.
+static int System(const char *argv[])
 {
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
@@ -107,22 +104,20 @@ static int System(char *argv[])
 
 bool Root() { return true; }
 
-static inline void FlushAndWait(const int fd)
+/// \brief CloseAndWait
+/// \param fd descriptor to be closed.
+static inline void CloseAndWait(int fd)
 {
-   if (::close(fd) < 0) { perror(strerror(errno)); }
-   wait(nullptr);
+   if (::close(fd) < 0) { ::perror(strerror(errno)); }
+   // block parent process until any of its children has finished
+   ::wait(nullptr);
 }
 
 // In-memory compilation
-static int InMemCompile(const char *imem,
-                        char *&omem,
-                        size_t &nw,
-                        char *argv[])
+static int CompileInMemory(const char *argv[],
+                           const char *input_mem,
+                           char *&output_mem, size_t &size)
 {
-   const size_t nbytes = std::strlen(imem);
-   dbg("imem:%p, nbytes:%d", (void*)imem, nbytes);
-   //dbg("kernel:\n%s", imem);
-
    const int argc = argn(argv);
    if (argc < 1) { return EXIT_FAILURE; }
 
@@ -143,40 +138,43 @@ static int InMemCompile(const char *imem,
    constexpr size_t PIPE_READ = 0;
    constexpr size_t PIPE_WRITE = 1;
 
-   if (pipe(ip) == -1) { perror("Input Pipe failed"); exit(1); }
-   if (pipe(op) == -1) { perror("Output Pipe failed"); exit(1); }
-   if (pipe(ep) == -1) { perror("Error Pipe failed"); exit(1); }
-
-   if (fork() == 0)           // Child process which calls the compiler
+   if (::pipe(ip)<0 || ::pipe(op)<0 || ::pipe(ep)<0)
    {
-      close(STDIN_FILENO);    // closing stdin
-      dup2(ip[PIPE_READ],0);  // replacing stdin with pipe read
-      close(ip[PIPE_READ]);   // close reading end
-      close(ip[PIPE_WRITE]);  // no longer needed
+      return ::perror(strerror(errno)), EXIT_FAILURE;
+   }
 
-      dup2(op[PIPE_WRITE],1); // send stdout to the output pipe
-      close(op[PIPE_READ]);   // no longer needed
-      close(op[PIPE_WRITE]);  // no longer needed
+   if (fork() == 0) // Child process which calls the compiler
+   {
+      ::close(STDIN_FILENO);    // closing stdin
+      ::dup2(ip[PIPE_READ],0);  // replacing stdin with pipe read
+      ::close(ip[PIPE_READ]);   // close reading end
+      ::close(ip[PIPE_WRITE]);  // no longer needed
 
-      dup2(ep[PIPE_WRITE],2); // send stderr to the error pipe
-      close(ep[PIPE_READ]);   // no longer needed
-      close(ep[PIPE_WRITE]);  // no longer needed
+      ::dup2(op[PIPE_WRITE],1); // send stdout to the output pipe
+      ::close(op[PIPE_READ]);   // no longer needed
+      ::close(op[PIPE_WRITE]);  // no longer needed
+
+      ::dup2(ep[PIPE_WRITE],2); // send stderr to the error pipe
+      ::close(ep[PIPE_READ]);   // no longer needed
+      ::close(ep[PIPE_WRITE]);  // no longer needed
 
       ::execvp(argv[0], const_cast<char* const*>(argv));
-      exit((perror("execvp failed"),1));
+      // only here if an error has occurred
+      return ::perror(strerror(errno)), EXIT_FAILURE;
    }
 
    // Parent process
 
    // close unused sides of the pipes
-   close(op[PIPE_WRITE]);
-   close(ep[PIPE_WRITE]);
+   ::close(op[PIPE_WRITE]);
+   ::close(ep[PIPE_WRITE]);
 
-   // write all source present in memory to the 'input' pipe
-   write(ip[PIPE_WRITE], imem, nbytes);
-   close(ip[PIPE_WRITE]);
+   // write all the source present in memory to the 'input' pipe
+   const size_t nbytes = std::strlen(input_mem);
+   ::write(ip[PIPE_WRITE], input_mem, nbytes);
+   ::close(ip[PIPE_WRITE]);
 
-   char buffer[8192];
+   char buffer[1<<16];
    constexpr size_t SIZE = sizeof(buffer);
    size_t nr, ne = 0, osize = 0; // number of read & error bytes
 
@@ -186,23 +184,21 @@ static int InMemCompile(const char *imem,
       struct timeval timeout {1, 0}; // one second
       FD_ZERO(&set); // clear the set
       FD_SET(ep[PIPE_READ], &set); // add the descriptor we need a timeout on
-      const int rv = select(ep[PIPE_READ]+1, &set, NULL, NULL, &timeout);
-      if (rv == -1) { return perror("select()"), EXIT_FAILURE; }
-      else if (rv == 0) { /* printf("No data within 1 seconds.\n"); */ }
+      const int rv = ::select(ep[PIPE_READ]+1, &set, NULL, NULL, &timeout);
+      if (rv == -1) { return perror(strerror(errno)), EXIT_FAILURE; }
+      else if (rv == 0) { dbg("No error found!"); }
       else
       {
-         dbg("Error data is available now.");
+         dbg("Error data is available now!");
          while ((nr = ::read(ep[PIPE_READ], buffer, SIZE)) > 0)
          {
-            const size_t nw = ::write(STDOUT_FILENO, buffer, nr);
-            dbg("buffer: %s, nw:%d",buffer,nw);
+            ::write(STDOUT_FILENO, buffer, nr);
             ne += nr;
          }
-         dbg("ne: %d",ne);
          ::close(ep[PIPE_READ]);
          if (ne > 0)
          {
-            FlushAndWait(op[PIPE_READ]);
+            CloseAndWait(op[PIPE_READ]);
             return perror("Compilation error!"), EXIT_FAILURE;
          }
       }
@@ -210,26 +206,26 @@ static int InMemCompile(const char *imem,
    }
 
    // then get the object from output pipe
-   nw = 0;
+   size = 0;
    osize = SIZE;
-   omem = (char*) ::realloc(nullptr, SIZE);
+   output_mem = (char*) ::realloc(nullptr, SIZE);
    while ((nr = ::read(op[PIPE_READ], buffer, SIZE)) > 0)
    {
-      nw += nr;
-      if (nw > osize)
+      size += nr;
+      if (size > osize)
       {
          dbg("omem.realloc(%d + %d);", osize, SIZE);
-         omem = (char*) ::realloc(omem, osize + SIZE);
+         output_mem = (char*) ::realloc(output_mem, osize + SIZE);
          osize += SIZE;
       }
-      ::memcpy(omem + nw - nr, buffer, nr);
+      ::memcpy(output_mem + size - nr, buffer, nr);
    }
-   dbg("object size:%d", nw);
-   FlushAndWait(op[PIPE_READ]);
+   dbg("object size: %d", size);
+   CloseAndWait(op[PIPE_READ]);
    return EXIT_SUCCESS;
 }
 
-#else
+#else // MFEM_USE_MPI
 // The parallel implementation will spawn the =mjit= binary on one mpi rank to
 // be able to run on one core and use MPI to broadcast the compilation output.
 
@@ -325,7 +321,7 @@ int System_Std(char *argv[])
 {
    dbg();
    MPI_Comm comm = MPI_COMM_WORLD;
-   MPI_Barrier(comm);
+   if (MPI_Inited()) { MPI_Barrier(comm); }
 
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
@@ -344,7 +340,7 @@ int System_Std(char *argv[])
       std::system(command_c_str);
    }
 
-   MPI_Barrier(comm);
+   if (MPI_Inited()) { MPI_Barrier(comm); }
    return EXIT_SUCCESS;
 }
 
@@ -482,8 +478,10 @@ static int ProcessFork(int argc, char *argv[])
 
 #endif // MFEM_USE_MPI
 
-// *****************************************************************************
-int GetCurrentRuntimeVersion(bool increment)
+/// \brief GetRuntimeVersion
+/// \param increment
+/// \return the current runtime version
+int GetRuntimeVersion(bool increment)
 {
    static int version = 0;
    const int actual = version;
@@ -491,162 +489,177 @@ int GetCurrentRuntimeVersion(bool increment)
    return actual;
 }
 
-// *****************************************************************************
-/// Compile the source file with PIC flags, updating the cache library.
-bool Compile(const char *imem, char *&omem,
-             char cc[21], char co[21], const char *cxx,
-             const char *flags, const char *msrc, const char *mins,
-             const bool check_for_ar)
+/// \brief Compile the source file with PIC flags, updating the cache library.
+/// \param input_mem
+/// \param cc
+/// \param co
+/// \param mfem_cxx
+/// \param mfem_cxxflags
+/// \param mfem_source_dir
+/// \param mfem_install_dir
+/// \param check_for_ar
+/// \return EXIT_SUCCESS or EXIT_FAILURE
+int Compile(const char *input_mem,
+            char cc[MFEM_JIT_FILENAME_SIZE],
+            char co[MFEM_JIT_FILENAME_SIZE],
+            const char *mfem_cxx,
+            const char *mfem_cxxflags,
+            const char *mfem_source_dir,
+            const char *mfem_install_dir,
+            const bool check_for_ar)
 {
-   if (Root()) { dbg("imem:%p, omem:%p", (void*)imem, (void*)omem); }
-   assert(omem == nullptr);
-   //if (Root()) { dbg("%s",imem); }
 #ifndef MFEM_USE_CUDA
-#define MFEM_JIT_DEVICE_CODE
+#define MFEM_JIT_DEVICE_CODE ""
 #define MFEM_JIT_COMPILER_OPTION
 #define MFEM_JIT_LINKER_OPTION "-Wl,"
 #else
-   // Compile each input file into an object file
-   // that contains relocatable device code
+   // Compile each input file into an relocatable device code object file
 #define MFEM_JIT_DEVICE_CODE "--device-c"
 #define MFEM_JIT_LINKER_OPTION "-Xlinker="
 #define MFEM_JIT_COMPILER_OPTION "-Xcompiler="
 #endif
 
 #ifndef __APPLE__
-   constexpr const char *beg_load = MFEM_JIT_LINKER_OPTION "--whole-archive";
-   constexpr const char *end_load = MFEM_JIT_LINKER_OPTION "--no-whole-archive";
+#define MFEM_JIT_INSTALL_BACKUP  "--backup=none"
+#define MFEM_JIT_AR_LOAD_PREFIX MFEM_JIT_LINKER_OPTION "--whole-archive"
+#define MFEM_JIT_AR_LOAD_POSTFIX  MFEM_JIT_LINKER_OPTION "--no-whole-archive";
 #else
-   constexpr const char *beg_load = "-all_load";
-   constexpr const char *end_load = "";
+#define MFEM_JIT_AR_LOAD_PREFIX  "-all_load"
+#define MFEM_JIT_AR_LOAD_POSTFIX  ""
+#define MFEM_JIT_INSTALL_BACKUP  ""
 #endif
+
+   constexpr const char *beg_load = MFEM_JIT_AR_LOAD_PREFIX;
+   constexpr const char *end_load = MFEM_JIT_AR_LOAD_POSTFIX;
 
    constexpr int PM = PATH_MAX;
    constexpr const char *fPIC = MFEM_JIT_COMPILER_OPTION "-fPIC";
-   constexpr const char *shell = MFEM_JIT_SHELL_COMMAND;
-   constexpr const char *libar = MFEM_JIT_CACHE ".a";
-   constexpr const char *libso = MFEM_JIT_CACHE ".so";
+   constexpr const char *system = MFEM_JIT_COMMAND_LINE_OPTION;
+   constexpr const char *libar = "lib" MFEM_JIT_LIB_NAME ".a";
+   constexpr const char *libso = "lib" MFEM_JIT_LIB_NAME ".so";
 
    // If there is already a JIT archive, use it and create the lib_so
-   if (check_for_ar && GetCurrentRuntimeVersion() == 0 && std::fstream(libar))
+   if (check_for_ar && GetRuntimeVersion() == 0 && std::fstream(libar))
    {
+      dbg();
       if (Root()) { dbg("Using JIT archive!"); }
       const char *argv_so[] =
       {
-         shell, cxx, "-shared", "-o", libso, beg_load, libar, end_load,
+         system, mfem_cxx, "-shared", "-o", libso, beg_load, libar, end_load,
          MFEM_JIT_LINKER_OPTION "-rpath,.", nullptr
       };
-      if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
-      delete imem;
-      return true;
+      if (mfem::jit::System(argv_so)) { return EXIT_FAILURE; }
+      delete input_mem;
+      return EXIT_SUCCESS;
    }
 
    // MFEM source path, include path & lib_so_v
-   const int version = GetCurrentRuntimeVersion(true);
-   char libso_v[PM], Imsrc[PM], Iminc[PM];
-   if (snprintf(Imsrc, PM, "-I%s ", msrc) < 0) { return false; }
-   if (snprintf(Iminc, PM, "-I%s/include ", mins) < 0) { return false; }
-   if (snprintf(libso_v, PM, "%s.so.%d", MFEM_JIT_CACHE, version) < 0)
-   { return false; }
+   constexpr bool increment = true;
+   const int version = GetRuntimeVersion(increment);
+   char libso_n[PM], Imsrc[PM], Iminc[PM];
+   if (snprintf(Imsrc, PM, "-I%s ", mfem_source_dir) < 0) { return EXIT_FAILURE; }
+   if (snprintf(Iminc, PM, "-I%s/include ", mfem_install_dir) < 0) { return EXIT_FAILURE; }
+   if (snprintf(libso_n, PM, "lib%s.so.%d", MFEM_JIT_LIB_NAME, version) < 0)
+   { return EXIT_FAILURE; }
 
-#if !defined(MFEM_USE_MPI)
-
-   dbg("Tokenizing MFEM_CXXFLAGS");
-   regex reg("\\s+");
-   string cxxflags(flags);
-   auto cxxargv =
-      vector<std::string>(
-         std::sregex_token_iterator{begin(cxxflags), end(cxxflags), reg, -1},
-         std::sregex_token_iterator{});
-   //for (auto a : cxxargv) { std::cout << a << std::endl; }
-
-   vector<const char *> argv;
-   argv.push_back(cxx);
-   for (auto &a : cxxargv)
+   // If there is an input_mem, do the compilation in memory
+   if (input_mem)
    {
-      // instead of: argv.push_back(strdup(a.data()));
-      using uptr = std::unique_ptr<char, decltype(&std::free)>;
-      uptr *t_copy = new uptr(strdup(a.data()), &std::free);
-      argv.push_back(t_copy->get());
-   }
+      dbg("Tokenizing MFEM_CXXFLAGS");
+      regex reg("\\s+");
+      string cxxflags(mfem_cxxflags);
+      auto cxxargv =
+         vector<std::string>(
+            std::sregex_token_iterator{begin(cxxflags), end(cxxflags), reg, -1},
+            std::sregex_token_iterator{});
+      //for (auto a : cxxargv) { std::cout << a << std::endl; }
 
-   argv.push_back(MFEM_JIT_COMPILER_OPTION "-Wno-unused-variable");
-   argv.push_back(fPIC);
-   argv.push_back("-c");
-   argv.push_back(MFEM_JIT_COMPILER_OPTION "-pipe");
-   // avoid redefinition, as with nvcc, the option -x cu is already present
+      vector<const char *> argv;
+      argv.push_back(mfem_cxx);
+      for (auto &a : cxxargv)
+      {
+         // instead of: argv.push_back(strdup(a.data()));
+         using uptr = std::unique_ptr<char, decltype(&std::free)>;
+         uptr *t_copy = new uptr(strdup(a.data()), &std::free);
+         argv.push_back(t_copy->get());
+      }
+
+      argv.push_back(MFEM_JIT_COMPILER_OPTION "-Wno-unused-variable");
+      argv.push_back(fPIC);
+      argv.push_back("-c");
+      argv.push_back(MFEM_JIT_COMPILER_OPTION "-pipe");
+      // avoid redefinition, as with nvcc, the option -x cu is already present
 #ifndef MFEM_USE_CUDA
-   argv.push_back("-x");
-   argv.push_back("c++");
+      argv.push_back("-x");
+      argv.push_back("c++");
 #else
-   argv.push_back(MFEM_JIT_DEVICE_CODE);
+      argv.push_back(MFEM_JIT_DEVICE_CODE);
 #endif // MFEM_USE_CUDA
-   //argv.push_back("-I.");
-   //argv.push_back(Imsrc);
-   //argv.push_back(Iminc);
-   argv.push_back("-o");
+      //argv.push_back("-I.");
+      //argv.push_back(Imsrc);
+      //argv.push_back(Iminc);
+      argv.push_back("-o");
 #ifdef __APPLE__
-   argv.push_back("/dev/stdout");
+      argv.push_back("/dev/stdout"); // through output fork/pipes
 #else
-   argv.push_back(co);
+      argv.push_back(co);
 #endif // __APPLE__
-   argv.push_back("-");
-   argv.push_back(nullptr);
+      argv.push_back("-");
+      argv.push_back(nullptr);
 
-   size_t nw = 0;
-   if (mfem::jit::InMemCompile(imem, omem, nw,
-                               const_cast<char**>(argv.data())) != 0)
-   {
-      return false;
-   }
-   delete imem;
+      size_t size = 0;
+      char *output_mem = nullptr;
+      if (CompileInMemory(argv.data(), input_mem, output_mem, size))
+      {
+         dbg("InMemCompile error!");
+         return EXIT_FAILURE;
+      }
+      delete input_mem;
 
 #ifdef __APPLE__
-   // saving on disk the object that is still in memory
-   dbg("nw:%d",nw);
-   assert(omem != nullptr && nw > 0);
-   const mode_t mode = S_IRUSR | S_IWUSR;
-   const int oflag = O_CREAT | O_RDWR | O_TRUNC;
-   int co_fd = ::open(co, oflag, mode);
-   const size_t written = ::write(co_fd, omem, nw);
-   if (written != nw) { return perror("!write object"), false; }
-   if (::close(co_fd) < 0) { return perror("!close object"), false; }
-   free(omem); // done with realloc
-#endif
-
-#else
-   // Compilation
-   const char *argv_co[] =
+      // Not possible to output directly in memory, saving on disk the object
+      assert(output_mem != nullptr && size > 0);
+      const mode_t mode = S_IRUSR | S_IWUSR;
+      const int oflag = O_CREAT | O_RDWR | O_TRUNC;
+      const int co_fd = ::open(co, oflag, mode);
+      const size_t written = ::write(co_fd, output_mem, size);
+      if (written != size) { return perror("!write object"), EXIT_FAILURE; }
+      if (::close(co_fd) < 0) { return perror("!close object"), EXIT_FAILURE; }
+      free(output_mem); // done with realloc
+#endif // __APPLE__
+   }
+   else // !in_memory_compilation
    {
-      shell, cxx, flags, fPIC, "-c",
-#ifdef MFEM_USE_CUDA
-      MFEM_JIT_DEVICE_CODE,
-#endif
-      Imsrc, Iminc, "-o", co, cc, nullptr
-   };
-   if (mfem::jit::System(const_cast<char**>(argv_co)) != 0) { return false; }
-   if (!getenv("MFEM_NUNLINK")) { ::unlink(cc); }
-#endif
+      const char *argv_co[] =
+      {
+         system, mfem_cxx, mfem_cxxflags, fPIC, "-c",
+         MFEM_JIT_DEVICE_CODE, Imsrc, Iminc, "-o", co, cc,
+         nullptr
+      };
+      if (mfem::jit::System(argv_co)) { return EXIT_FAILURE; }
+      if (!getenv("MFEM_NUNLINK")) { ::unlink(cc); }
+   }
 
-   if (Root()) { dbg("Update archive"); }
-   const char *argv_ar[] = { shell, "ar", "-rv", libar, co, nullptr };
-   if (mfem::jit::System(const_cast<char**>(argv_ar)) != 0) { return false; }
+   // Update archive
+   const char *argv_ar[] = { system, "ar", "-rv", libar, co, nullptr };
+   if (mfem::jit::System(argv_ar)) { return EXIT_FAILURE; }
    if (!getenv("MFEM_NUNLINK")) { ::unlink(co); }
 
-   if (Root()) { dbg("Create shared library"); }
-   const char *argv_so[] =
-   {shell, cxx, "-shared", "-o", libso, beg_load, libar, end_load, nullptr};
-   if (mfem::jit::System(const_cast<char**>(argv_so)) != 0) { return false; }
+   // Create shared library
+   const char *argv_so[] = { system,
+                             mfem_cxx, "-shared", "-o", libso,
+                             beg_load, libar, end_load,
+                             nullptr
+                           };
+   if (mfem::jit::System(argv_so)) { return EXIT_FAILURE; }
 
-   if (Root()) { dbg("Install shared library"); }
-   const char *install[] =
-#ifdef __APPLE__
-   { shell, "install", libso, libso_v, nullptr };
-#else
-      { shell, "install", "--backup=none", libso, libso_v, nullptr };
-#endif
-   if (mfem::jit::System(const_cast<char**>(install)) != 0) { return false; }
-   return true;
+   // Install shared library
+   const char *install[] = { system, "install",
+                             MFEM_JIT_INSTALL_BACKUP, libso, libso_n,
+                             nullptr
+                           };
+   if (mfem::jit::System(install)) { return EXIT_FAILURE; }
+   return EXIT_SUCCESS;
 }
 
 // *****************************************************************************
@@ -726,7 +739,7 @@ struct error_t
 int help(char* argv[])
 {
    std::cout << "MFEM mjit: ";
-   std::cout << argv[0] << " -o output input" << std::endl;
+   std::cout << argv[0] << " [-ch] [-o output] input" << std::endl;
    return ~0;
 }
 
@@ -1234,7 +1247,7 @@ void jitPostfix(context_t &pp)
    if (pp.block >= 0 && pp.in.peek() == '}') { pp.block--; }
    if (pp.block != -1) { return; }
    pp.out << "}\nextern \"C\" void "
-          << MFEM_JIT_SYMBOL_PREFIX << "%016lx("
+          << MFEM_JIT_PREFIX_CHAR << "%016lx("
           << "const bool use_dev, " << pp.ker.params << "){";
    pp.out << pp.ker.name << "_%016lx<" << pp.ker.Tformat << ">"
           << "(" << "use_dev, " << pp.ker.args_wo_amp << ");";
@@ -1736,8 +1749,8 @@ int main(const int argc, char* argv[])
       // -h lauches help
       if (argv[i] == string("-h")) { return mfem::jit::help(argv); }
 
-      // -c wil launch ProcessFork in parallel mode, nothing otherwise
-      if (argv[i] == string(MFEM_JIT_SHELL_COMMAND))
+      // Will launch ProcessFork in parallel mode, nothing otherwise
+      if (argv[i] == string(MFEM_JIT_COMMAND_LINE_OPTION))
       {
 #ifdef MFEM_USE_MPI
          dbg("Compilation requested, forking...");

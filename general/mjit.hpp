@@ -8,10 +8,10 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+
 #ifndef MFEM_JIT_HPP
 #define MFEM_JIT_HPP
 
-#include <vector>
 #include <cstdio>
 #include <cstring>
 #include <cassert>
@@ -34,20 +34,23 @@ namespace jit
 {
 
 // One character used as the kernel prefix
-#define MFEM_JIT_SYMBOL_PREFIX 'k'
+#define MFEM_JIT_PREFIX_CHAR 'k'
+// MFEM_JIT_PREFIX_CHAR + hash + \0
+#define MFEM_JIT_PREFIX_SIZE 1 + 16 + 1
+#define MFEM_JIT_FILENAME_SIZE MFEM_JIT_PREFIX_SIZE + 3
 
 // Command line option to launch a compilation
-#define MFEM_JIT_SHELL_COMMAND "-c"
+#define MFEM_JIT_COMMAND_LINE_OPTION "-c"
 
-// Base name of the cache library
-#define MFEM_JIT_CACHE "libmjit"
+// Library name of the cache
+#define MFEM_JIT_LIB_NAME "mjit"
 
 // Hash numbers used to combine arguments and its <const char*> specialization
 constexpr size_t M_PHI = 0x9e3779b9ull;
 constexpr size_t M_FNV_PRIME = 0x100000001b3ull;
 constexpr size_t M_FNV_BASIS = 0xcbf29ce484222325ull;
 
-// Generic templated hash function
+// Generic hash function
 template <typename T> struct hash
 {
    inline size_t operator()(const T& h) const noexcept
@@ -78,16 +81,15 @@ template<typename T> inline
 size_t hash_args(const size_t &seed, const T &that) noexcept
 { return hash_combine(seed, that); }
 
-// Templated hash arguments function
+// Hash arguments function
 template<typename T, typename... Args> inline
 size_t hash_args(const size_t &seed, const T &arg, Args... args)
 noexcept { return hash_args(hash_combine(seed, arg), args...); }
 
 // Union to hold either a double or a uint64_t
-typedef union {double d; uint64_t u;} union_du_t;
+typedef union { double d; uint64_t u; } union_du_t;
 
-// 32 bits hash to string function, shifted to offset which should be sized to
-// MFEM_JIT_SYMBOL_PREFIX
+// 32 bits hash to string function, shifted to offset
 inline void uint32str(uint64_t h, char *str, const size_t offset = 1)
 {
    h = ((h & 0xFFFFull) << 32) | ((h & 0xFFFF0000ull) >> 16);
@@ -101,9 +103,9 @@ inline void uint32str(uint64_t h, char *str, const size_t offset = 1)
 }
 
 // 64 bits hash to string function
-inline void uint64str(uint64_t hash, char *str, const char *ext = "")
+inline void uint64str(const uint64_t hash, char *str, const char *ext = "")
 {
-   str[0] = MFEM_JIT_SYMBOL_PREFIX;
+   str[0] = MFEM_JIT_PREFIX_CHAR;
    uint32str(hash >> 32, str);
    uint32str(hash & 0xFFFFFFFFull, str + 8);
    memcpy(str + 1 + 16, ext, strlen(ext));
@@ -114,8 +116,8 @@ inline void uint64str(uint64_t hash, char *str, const char *ext = "")
 bool Root();
 
 /// Returns the shared library version of the current run.
-/// Initialized at '0' and can be incremented by setting 'inc' to true.
-int GetCurrentRuntimeVersion(bool increment = false);
+/// Initialized at '0' and can be incremented by setting 'increment' to true.
+int GetRuntimeVersion(bool increment = false);
 
 /// Root MPI process file creation, outputing the source of the kernel.
 template<typename... Args>
@@ -229,15 +231,15 @@ inline bool CreateMappedSharedMemoryOutputFile(const char *output,
 template<typename... Args>
 inline bool CreateKernelSourceInMemory(const size_t hash,
                                        const char *src,
-                                       char *&cc,
+                                       char *&input_mem,
                                        Args... args)
 {
    if (!Root()) { return true; }
    dbg();
    const int size = // determine the necessary buffer size
       1 + std::snprintf(nullptr, 0, src, hash, hash, hash, args...);
-   cc = new char[size];
-   if (std::snprintf(cc, size, src, hash, hash, hash, args...) < 0)
+   input_mem = new char[size];
+   if (std::snprintf(input_mem, size, src, hash, hash, hash, args...) < 0)
    {
       return perror("snprintf error occured"), false;
    }
@@ -254,85 +256,93 @@ inline bool CreateKernelSourceInFile(const char *cc,
    dbg();
    const int fd = ::open(cc, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
    if (fd < 0) { return false; }
-   if (dprintf(fd, src, hash, hash, hash, args...) < 0) { return false; }
+   if (::dprintf(fd, src, hash, hash, hash, args...) < 0) { return false; }
    if (::close(fd) < 0) { return false; }
    return true;
 }
 
 /// Compile the source file with PIC flags, updating the cache library
-bool Compile(const char *imem,  // kernel source in memory
-             char *&omem,       // kernel object in memory
-             char cc[21],
-             char co[21],
-             const char *cxx,   // MFEM compiler
-             const char *flags, // MFEM_CXXFLAGS
-             const char *msrc,  // MFEM_SOURCE_DIR
-             const char *mins,  // MFEM_INSTALL_DIR
-             const bool check); // check for existing archive
+int Compile(const char *input_mem, // kernel source in memory
+            char cc[MFEM_JIT_FILENAME_SIZE],
+            char co[MFEM_JIT_FILENAME_SIZE],
+            const char *mfem_cxx, // MFEM compiler
+            const char *mfem_cxxflags, // MFEM_CXXFLAGS
+            const char *mfem_source_dir, // MFEM_SOURCE_DIR
+            const char *mfem_install_dir, // MFEM_INSTALL_DIR
+            const bool check_for_ar); // check for existing archive
 
 template<typename... Args>
-inline bool CreateAndCompile(const size_t hash, // kernel hash
-                             const bool check,  // check for existing archive
-                             const char *src,   // kernel source as a string
-                             const char *cxx,   // MFEM compiler
-                             const char *flags, // MFEM_CXXFLAGS
-                             const char *msrc,  // MFEM_SOURCE_DIR
-                             const char *mins,  // MFEM_INSTALL_DIR
+inline bool CreateAndCompile(const size_t hash,            // kernel hash
+                             const bool check_for_ar,      // check for existing archive
+                             const char *src,              // kernel source as a string
+                             const char *mfem_cxx,         // MFEM compiler
+                             const char *mfem_cxxflags,    // MFEM_CXXFLAGS
+                             const char *mfem_source_dir,  // MFEM_SOURCE_DIR
+                             const char *mfem_install_dir, // MFEM_INSTALL_DIR
                              Args... args)
 {
-   dbg("H:0x%x",hash);
-   char *imem, *omem = nullptr;
-
-   // MFEM_JIT_SYMBOL_PREFIX + hex64 string + extension + '\0': 1 + 16 + 3 + 1
-   char cc[21], co[21];
+   dbg("0x%x",hash);
+   char cc[MFEM_JIT_FILENAME_SIZE], co[MFEM_JIT_FILENAME_SIZE];
    uint64str(hash, co, ".co");
 
-#if defined(MFEM_USE_MPI)
-   uint64str(hash, cc, ".cc");
-   if (!CreateKernelSourceInFile(cc, hash, src, args...) !=0 ) { return false; }
-#else
-   if (!CreateKernelSourceInMemory(hash, src, imem, args...) != 0) { return false; }
-#endif
-   return Compile(imem, omem, cc, co, cxx, flags, msrc, mins, check);
+   char *input_mem = nullptr;
+   const bool in_memory_compilation = getenv("MFEM_JIT_MEM") != nullptr;
+
+   if (!in_memory_compilation)
+   {
+      dbg("CreateKernelSourceInFile");
+      uint64str(hash, cc, ".cc");
+      if (!CreateKernelSourceInFile(cc, hash, src, args...)) { return false; }
+   }
+   else
+   {
+      dbg("MFEM_JIT_MEM => CreateKernelSourceInMemory");
+      if (!CreateKernelSourceInMemory(hash, src, input_mem, args...)) { return false; }
+   }
+   return Compile(input_mem,
+                  cc, co,
+                  mfem_cxx,
+                  mfem_cxxflags,
+                  mfem_source_dir, mfem_install_dir,
+                  check_for_ar);
 }
 
 /// Lookup in the cache for the kernel with the given hash
 template<typename... Args>
 inline void *Lookup(const size_t hash, Args... args)
 {
-   dbg("H:0x%x",hash);
-   char symbol[18]; // MFEM_JIT_SYMBOL_PREFIX + hex64 string + '\0' = 18
+   dbg("0x%x ?",hash);
+   char symbol[18]; // MFEM_JIT_PREFIX_CHAR + hex64 string + '\0' = 18
    uint64str(hash, symbol);
    constexpr int mode = RTLD_NOW | RTLD_LOCAL;
-   constexpr const char *so_name = "./" MFEM_JIT_CACHE ".so";
-   dbg("so_name: %s",so_name);
+   constexpr const char *so_name = "./lib" MFEM_JIT_LIB_NAME ".so";
+   dbg("%s ?",so_name);
 
    constexpr int PM = PATH_MAX;
-   char so_version[PM];
-   const int version = GetCurrentRuntimeVersion();
-   if (snprintf(so_version,PM,"%s.so.%d",MFEM_JIT_CACHE,version)<0)
+   char so_name_n[PM];
+   const int rt_version = GetRuntimeVersion();
+   if (snprintf(so_name_n,PM,"lib%s.so.%d",MFEM_JIT_LIB_NAME,rt_version)<0)
    { dbg("Error in so_version"); return nullptr; }
-   dbg("so_version: %d",version);
 
    void *handle = nullptr;
-   const bool first_compilation = (version == 0);
-   // We first try to open the shared cache library
-   handle = ::dlopen(first_compilation ? so_name : so_version, mode);
-   // If no handle was found, fold back looking for the archive
+   const bool first_compilation = (rt_version == 0);
+   // First we try to open the shared cache library: libmjit.so
+   handle = ::dlopen(first_compilation ? so_name : so_name_n, mode);
+   // If no handle was found, fold back looking for the archive: libmjit.a
    if (!handle)
    {
-      dbg("!handle-1");
+      dbg("!handle");
       constexpr bool archive_check = true;
-      if (!CreateAndCompile(hash, archive_check, args...))
+      if (CreateAndCompile(hash, archive_check, args...))
       {
-         dbg("\033[31mCreateAndCompile-1 ERROR");
+         dbg("\033[31mCreateAndCompile ERROR");
          return nullptr;
       }
-      handle = ::dlopen(first_compilation ? so_name : so_version, mode);
+      handle = ::dlopen(first_compilation ? so_name : so_name_n, mode);
       assert(handle);
    }
-   else { dbg("Found MFEM JIT cache lib: %s", so_name); }
-   if (!handle) { dbg("!handle-2"); return nullptr; }
+   else { dbg("%s !", so_name); }
+   if (!handle) { dbg("!handle"); return nullptr; }
    dbg("Looking for symbol: %s",symbol);
    // Now look for the kernel symbol
    if (!::dlsym(handle, symbol))
@@ -343,23 +353,14 @@ inline void *Lookup(const size_t hash, Args... args)
       constexpr bool no_archive_check = false;
       if (!CreateAndCompile(hash, no_archive_check, args...))
       {
-
-         dbg("\033[31mCreateAndCompile-2 ERROR");
+         dbg("\033[31mCreateAndCompile ERROR");
          return nullptr;
       }
-      handle = ::dlopen(so_version, mode);
+      handle = ::dlopen(so_name_n, mode);
    }
-   if (!handle)
-   {
-      dbg("!handle-2");
-      return nullptr;
-   }
-   if (!::dlsym(handle, symbol))
-   {
-      dbg("!dlsym-1");
-      return nullptr;
-   }
-   if (!getenv("MFEM_NUNLINK")) { shm_unlink(so_version); }
+   if (!handle) { dbg("!handle"); return nullptr; }
+   if (!::dlsym(handle, symbol)) { dbg("!dlsym"); return nullptr; }
+   if (!::getenv("MFEM_NUNLINK")) { ::unlink(so_name_n); }
    assert(handle);
    return handle;
 }
@@ -368,7 +369,7 @@ inline void *Lookup(const size_t hash, Args... args)
 template<typename kernel_t>
 inline kernel_t Symbol(const size_t hash, void *handle)
 {
-   char symbol[18];
+   char symbol[MFEM_JIT_PREFIX_SIZE];
    uint64str(hash, symbol);
    return (kernel_t) dlsym(handle, symbol);
 }
