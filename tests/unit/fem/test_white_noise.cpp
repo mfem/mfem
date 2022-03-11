@@ -109,4 +109,102 @@ TEST_CASE("WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh")
    }
 }
 
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("Parallel WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh",
+          "[Parallel]")
+{
+
+   // Setup
+   const auto order = GENERATE(1, 2, 3);
+   Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
+   // Make the mesh NC
+   // mesh.EnsureNCMesh();
+   // {
+   //    Array<int> elements_to_refine(1);
+   //    elements_to_refine[0] = 1;
+   //    mesh.GeneralRefinement(elements_to_refine, 1, 0);
+   // }
+   ParMesh pmesh(MPI_COMM_WORLD,mesh);
+   mesh.Clear();
+
+   H1_FECollection fec(order, pmesh.Dimension());
+   ParFiniteElementSpace fespace(&pmesh, &fec);
+   const Operator * P = fespace.GetProlongationMatrix();
+
+   int ndofs = fespace.GetTrueVSize();
+   ParLinearForm b(&fespace);
+   int seed = 4000;
+   WhiteGaussianNoiseDomainLFIntegrator *WhiteNoise = new
+   WhiteGaussianNoiseDomainLFIntegrator(MPI_COMM_WORLD,seed);
+   WhiteNoise->SaveFactors(pmesh.GetNE());
+   b.AddDomainIntegrator(WhiteNoise);
+   Vector B;
+
+   SECTION("Mean")
+   {
+      // Compute population mean
+      Vector Bmean(ndofs);
+      Bmean = 0.0;
+      for (int i = 0; i < N; i++)
+      {
+         b.Assemble();
+         if (P)
+         {
+            B.SetSize(ndofs);
+            P->MultTranspose(b,B);
+         }
+         else
+         {
+            B.SetDataAndSize(b.GetData(),ndofs);
+         }
+         Bmean += B;
+      }
+      Bmean *= 1.0/(double)N;
+
+      // Compare population mean to the zero vector
+      REQUIRE(Bmean.Normlinf() < 5.0e-3);
+   }
+
+   // SECTION("Covariance")
+   // {
+   //    // Compute population covariance
+   //    DenseMatrix C(ndofs);
+   //    C = 0.0;
+   //    for (int i = 0; i < N; i++)
+   //    {
+   //       b.Assemble();
+   //       if (P)
+   //       {
+   //          B.SetSize(ndofs);
+   //          P->MultTranspose(b,B);
+   //       }
+   //       else
+   //       {
+   //          B.SetDataAndSize(b.GetData(),ndofs);
+   //       }
+   //       AddMultVVt(B, C);
+   //    }
+   //    C *= 1.0/(double)N;
+
+   //    // Compute mass matrix
+   //    BilinearForm a(&fespace);
+   //    a.AddDomainIntegrator(new MassIntegrator());
+   //    a.Assemble();
+
+   //    SparseMatrix M;
+   //    Array<int> empty;
+   //    a.FormSystemMatrix(empty,M);
+   //    DenseMatrix Mdense;
+   //    M.ToDenseMatrix(Mdense);
+
+   //    // Compare population covariance to mass matrix
+   //    Mdense -= C;
+   //    REQUIRE(Mdense.MaxMaxNorm() < 1.0e-3);
+   // }
+}
+#endif
+
+
 } // namespace white_noise

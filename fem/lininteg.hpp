@@ -586,6 +586,9 @@ public:
 /** Class for spatial white Gaussian noise integration L(v) := (Ẇ,v) */
 class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
 {
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+#endif
    MassIntegrator massinteg;
    Array<DenseMatrix *> L;
 
@@ -593,18 +596,37 @@ class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
    std::default_random_engine generator;
    std::normal_distribution<double> dist;
 
-   int seed;
    bool save_factors = false;
 public:
 
    /** @brief Sets the @a seed_ of the random number generator */
+#ifdef MFEM_USE_MPI
    WhiteGaussianNoiseDomainLFIntegrator(int seed_ = 0)
-      : LinearFormIntegrator(), seed(seed_)
+      : LinearFormIntegrator(), comm(MPI_COMM_NULL)
    {
-      if (seed > 0)
-      {
-         generator.seed(seed);
-      }
+      if (seed_ > 0) { SetSeed(seed_); }
+   }
+
+   WhiteGaussianNoiseDomainLFIntegrator(MPI_Comm comm_, int seed_ = 0)
+      : LinearFormIntegrator(), comm(comm_)
+   {
+      int myid;
+      MPI_Comm_rank(comm, &myid);
+
+      int seed = (seed_ > 0) ? seed_ + myid : time(0) + myid;
+      SetSeed(seed);
+   }
+#else
+   WhiteGaussianNoiseDomainLFIntegrator(int seed_ = 0)
+      : LinearFormIntegrator()
+   {
+      if (seed_ > 0) { SetSeed(seed_); }
+   }
+#endif
+
+   void SetSeed(int seed)
+   {
+      generator.seed(seed);
    }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
