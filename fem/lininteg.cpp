@@ -978,15 +978,13 @@ void WhiteGaussianNoiseDomainLFIntegrator::AssembleRHSElementVect
 {
    int n = el.GetDof();
    elvect.SetSize(n);
-   Vector w(n);
-   for (int i = 0; i < w.Size(); i++)
+   for (int i = 0; i < n; i++)
    {
-      w(i) = dist(generator);
+      elvect(i) = dist(generator);
    }
 
    int iel = Tr.ElementNo;
 
-#ifdef MFEM_USE_LAPACK
    if (!save_factors || !L[iel])
    {
       DenseMatrix *M, m;
@@ -1000,35 +998,15 @@ void WhiteGaussianNoiseDomainLFIntegrator::AssembleRHSElementVect
          M = &m;
       }
       massinteg.AssembleElementMatrix(el, Tr, *M);
-      CholeskyFactors chol(*M);
-      chol.Factor();
-      chol.LMult(w,elvect);
+      CholeskyFactors chol(M->Data());
+      chol.Factor(M->Height());
+      chol.LMult(n,1,elvect);
    }
    else
    {
-      CholeskyFactors chol(*L[iel]);
-      chol.LMult(w,elvect);
+      CholeskyFactors chol(L[iel]->Data());
+      chol.LMult(n,1,elvect);
    }
-
-#else
-
-   MFEM_ABORT("TODO");
-
-#endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 }
 
 }

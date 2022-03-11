@@ -267,102 +267,6 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
    REQUIRE(C.MaxMaxNorm() < tol);
 }
 
-#ifdef MFEM_USE_LAPACK
-
-TEST_CASE("CholeskyFactors", "[DenseMatrix]")
-{
-   double tol = 1e-10;
-
-   // Zero on diagonal forces non-trivial pivot
-   DenseMatrix A(
-   {
-      {
-         1.301716607311396e+00, 8.195754277510510e-01,
-         9.466682257346078e-01, 7.132759710010947e-01
-      },
-      {
-         8.195754277510510e-01, 1.683528526844726e+00,
-         1.232387426487729e+00, 1.051404276721910e+00
-      },
-      {
-         9.466682257346078e-01, 1.232387426487729e+00,
-         1.078953541036807e+00, 9.117981435221414e-01
-      },
-      {
-         7.132759710010947e-01, 1.051404276721910e+00,
-         9.117981435221414e-01, 8.000788535852293e-01
-      }
-   });
-
-   DenseMatrix B(A);
-
-   DenseMatrix Uref(
-   {
-      {
-         1.140927958861293e+00, 7.183410848911363e-01,
-         8.297353206064241e-01, 6.251717871065079e-01
-      },
-      {
-         0.000000000000000e+00, 1.080515901133413e+00,
-         5.889357624846686e-01, 5.574352920643616e-01
-      },
-      {
-         0.000000000000000e+00, 0.000000000000000e+00,
-         2.089198565037879e-01, 3.100588552446605e-01
-      },
-      {
-         0.000000000000000e+00, 0.000000000000000e+00,
-         0.000000000000000e+00, 4.866715151696373e-02
-      }
-   });
-
-   Vector x({1.920973609694743e-01,
-             2.483675821733969e-01,
-             2.753206172398688e-01,
-             2.497813883310917e-01});
-
-
-   CholeskyFactors cholA(A,'U');
-   CholeskyFactors cholB(B,'L');
-   cholA.Factor();
-   cholB.Factor();
-
-   DenseMatrix U, L;
-   cholA.GetU(U);
-   cholB.GetL(L);
-
-   U-=Uref;
-
-   Vector y1(4),y2(4);
-   Uref.Mult(x,y2);
-   cholA.UMult(x,y1);
-   y1-=y2;
-   REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
-
-   cholB.UMult(x,y1);
-   y1-=y2;
-   REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
-
-   REQUIRE(U.MaxMaxNorm() == MFEM_Approx(0.,tol));
-
-   Uref.Transpose();
-
-   Uref.Mult(x,y2);
-   cholA.LMult(x,y1);
-   y1-=y2;
-   REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
-
-   cholB.LMult(x,y1);
-   y1-=y2;
-   REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
-
-   L-=Uref;
-   REQUIRE(L.MaxMaxNorm() == MFEM_Approx(0.,tol));
-
-}
-
-#endif
-
 TEST_CASE("DenseTensor LinearSolve methods",
           "[DenseMatrix]")
 {
@@ -437,3 +341,93 @@ TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
       REQUIRE(t3.Data()[i] == t1.Data()[i]);
    }
 }
+
+TEST_CASE("CholeskyFactors", "[DenseMatrix]")
+{
+   double tol = 1e-10;
+
+   // Zero on diagonal forces non-trivial pivot
+   DenseMatrix A(
+   {
+      {
+         1.301716607311396e+00, 8.195754277510510e-01,
+         9.466682257346078e-01, 7.132759710010947e-01
+      },
+      {
+         8.195754277510510e-01, 1.683528526844726e+00,
+         1.232387426487729e+00, 1.051404276721910e+00
+      },
+      {
+         9.466682257346078e-01, 1.232387426487729e+00,
+         1.078953541036807e+00, 9.117981435221414e-01
+      },
+      {
+         7.132759710010947e-01, 1.051404276721910e+00,
+         9.117981435221414e-01, 8.000788535852293e-01
+      }
+   });
+
+   DenseMatrix B(A);
+
+   DenseMatrix Uref(
+   {
+      {
+         1.140927958861293e+00, 7.183410848911363e-01,
+         8.297353206064241e-01, 6.251717871065079e-01
+      },
+      {
+         0.000000000000000e+00, 1.080515901133413e+00,
+         5.889357624846686e-01, 5.574352920643616e-01
+      },
+      {
+         0.000000000000000e+00, 0.000000000000000e+00,
+         2.089198565037879e-01, 3.100588552446605e-01
+      },
+      {
+         0.000000000000000e+00, 0.000000000000000e+00,
+         0.000000000000000e+00, 4.866715151696373e-02
+      }
+   });
+
+   Vector x({1.920973609694743e-01,
+             2.483675821733969e-01,
+             2.753206172398688e-01,
+             2.497813883310917e-01});
+
+   DenseMatrix invA(A);
+   invA.Invert();
+   CholeskyFactors cholA(A.GetData());
+   cholA.Factor(A.Size());
+
+   Vector y2(4);
+   Uref.Mult(x,y2);
+   Vector y1(x);
+   cholA.UMult(y1.Size(),1,y1.GetData());
+
+   y1-=y2;
+
+   REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+
+   Uref.Transpose();
+
+   Uref.Mult(x,y2);
+   y1 = x;
+   cholA.LMult(y1.Size(),1,y1.GetData());
+   y1-=y2;
+   REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+
+   invA.Mult(x, y2);
+
+   y1 = x;
+   cholA.Solve(4,1,y1);
+   y1 -= y2;
+   REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+
+   y1 = x;
+   cholA.LSolve(4,1,y1.GetData());
+   cholA.USolve(4,1,y1.GetData());
+   y1 -= y2;
+   REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+
+}
+

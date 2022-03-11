@@ -1012,6 +1012,9 @@ public:
    void GetElementData(int geom, Array<int> &elem_vtx, Array<int> &attr) const
    { GetElementData(elements, geom, elem_vtx, attr); }
 
+   /// Checks if the mesh has boundary elements
+   virtual bool HasBoundaryElements() const { return (NumOfBdrElements > 0); }
+
    void GetBdrElementData(int geom, Array<int> &bdr_elem_vtx,
                           Array<int> &bdr_attr) const
    { GetElementData(boundary, geom, bdr_elem_vtx, bdr_attr); }

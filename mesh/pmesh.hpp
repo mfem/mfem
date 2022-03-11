@@ -282,6 +282,9 @@ public:
 
    void SetAttributes() override;
 
+   /// Checks if any rank in the mesh has boundary elements
+   bool HasBoundaryElements() const override;
+
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
    int GetMyRank() const { return MyRank; }
