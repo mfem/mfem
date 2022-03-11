@@ -40,6 +40,9 @@ protected:
    Vector *xyz_tvec;
    HypreParMatrix *G;
    HypreParVector *x, *y, *z;
+
+   void Form2DEdgeToVertex(DenseMatrix &edge2vert);
+   void Form3DEdgeToVertex(DenseMatrix &edge2vert);
 public:
    BatchedLOR_AMS(BilinearForm &a_,
                   ParFiniteElementSpace &pfes_ho_,
@@ -50,8 +53,7 @@ public:
    HypreParVector *GetXCoordinate() const { return x; };
    HypreParVector *GetYCoordinate() const { return y; };
    HypreParVector *GetZCoordinate() const { return z; };
-   void Form2DEdgeToVertex(DenseMatrix &edge2vert);
-   void Form3DEdgeToVertex(DenseMatrix &edge2vert);
+   // The following should be protected, but contain MFEM_FORALL kernels
    void FormCoordinateVectors();
    void FormGradientMatrix();
 };

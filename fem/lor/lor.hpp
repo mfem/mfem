@@ -263,15 +263,21 @@ public:
    ~LORSolver() { if (own_lor) { delete lor; } }
 };
 
+#ifdef MFEM_USE_MPI
+
 // Template specialization for batched LOR AMS (implementation in lor_ams.cpp)
 template <>
 class LORSolver<HypreAMS> : public Solver
 {
 protected:
-   OperatorHandle A;
-   Vector *xyz = nullptr;
-   HypreAMS *solver = nullptr;
+   OperatorHandle A; ///< The assembled system matrix.
+   Vector *xyz = nullptr; ///< Data for vertex coordinate vectors.
+   HypreAMS *solver = nullptr; ///< The underlying AMS solver.
 public:
+   /// @brief Creates the AMS solvers for the given form and essential DOFs.
+   ///
+   /// Assembles the LOR matrices for the form @a a_ho and the associated
+   /// discrete gradient matrix and vertex coordinate vectors.
    LORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
              int ref_type=BasisType::GaussLobatto);
 
@@ -289,6 +295,8 @@ public:
 
    ~LORSolver();
 };
+
+#endif
 
 } // namespace mfem
 
