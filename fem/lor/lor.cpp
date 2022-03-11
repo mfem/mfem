@@ -273,31 +273,6 @@ const OperatorHandle &LORBase::GetAssembledSystem() const
    return A;
 }
 
-void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
-{
-   a->UseExternalIntegrators();
-   AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
-                  &BilinearForm::AddDomainIntegrator, ir_el);
-   AddIntegrators(a_ho, *a, &BilinearForm::GetFBFI,
-                  &BilinearForm::AddInteriorFaceIntegrator, ir_face);
-   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBBFI,
-                            &BilinearForm::GetBBFI_Marker,
-                            &BilinearForm::AddBoundaryIntegrator,
-                            &BilinearForm::AddBoundaryIntegrator, ir_face);
-   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBFBFI,
-                            &BilinearForm::GetBFBFI_Marker,
-                            &BilinearForm::AddBdrFaceIntegrator,
-                            &BilinearForm::AddBdrFaceIntegrator, ir_face);
-
-   a->Assemble();
-   a->FormSystemMatrix(ess_dofs, A);
-
-   ResetIntegrationRules(&BilinearForm::GetDBFI);
-   ResetIntegrationRules(&BilinearForm::GetFBFI);
-   ResetIntegrationRules(&BilinearForm::GetBBFI);
-   ResetIntegrationRules(&BilinearForm::GetBFBFI);
-}
-
 void LORBase::SetupProlongationAndRestriction()
 {
    if (!HasSameDofNumbering())
@@ -394,7 +369,6 @@ void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
    if (BatchedLORAssembly::FormIsSupported(a_ho))
    {
       // Skip forming the space
-      mfem::out << "Batched.\n";
       a = nullptr;
       BatchedLORAssembly::Assemble(a_ho, fes_ho, ess_dofs, A);
    }
@@ -407,7 +381,6 @@ void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
 void LORBase::LegacyAssembleSystem(BilinearForm &a_ho,
                                    const Array<int> &ess_dofs)
 {
-   mfem::out << "Not batched.\n";
    // If the space is not formed already, it will be constructed lazily in
    // GetParFESpace
    FiniteElementSpace &fes = GetFESpace();
@@ -421,7 +394,28 @@ void LORBase::LegacyAssembleSystem(BilinearForm &a_ho,
    {
       a = new BilinearForm(&fes);
    }
-   AssembleSystem_(a_ho, ess_dofs);
+
+   a->UseExternalIntegrators();
+   AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
+                  &BilinearForm::AddDomainIntegrator, ir_el);
+   AddIntegrators(a_ho, *a, &BilinearForm::GetFBFI,
+                  &BilinearForm::AddInteriorFaceIntegrator, ir_face);
+   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBBFI,
+                            &BilinearForm::GetBBFI_Marker,
+                            &BilinearForm::AddBoundaryIntegrator,
+                            &BilinearForm::AddBoundaryIntegrator, ir_face);
+   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBFBFI,
+                            &BilinearForm::GetBFBFI_Marker,
+                            &BilinearForm::AddBdrFaceIntegrator,
+                            &BilinearForm::AddBdrFaceIntegrator, ir_face);
+
+   a->Assemble();
+   a->FormSystemMatrix(ess_dofs, A);
+
+   ResetIntegrationRules(&BilinearForm::GetDBFI);
+   ResetIntegrationRules(&BilinearForm::GetFBFI);
+   ResetIntegrationRules(&BilinearForm::GetBBFI);
+   ResetIntegrationRules(&BilinearForm::GetBFBFI);
 }
 
 LORBase::~LORBase()

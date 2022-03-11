@@ -94,11 +94,6 @@ protected:
    /// Returns the order of the LOR space. 1 for H1 or ND, 0 for L2 or RT.
    int GetLOROrder() const;
 
-   /// Assembles the LOR system (used internally by
-   /// LORDiscretization::AssembleSystem and
-   /// ParLORDiscretization::AssembleSystem).
-   void AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs);
-
    virtual void FormLORSpace() = 0;
 
    LORBase(FiniteElementSpace &fes_ho_, int ref_type_);
