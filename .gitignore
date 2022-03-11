@@ -265,6 +265,7 @@ miniapps/shifted/diffusion
 miniapps/shifted/diffusion.mesh
 miniapps/shifted/diffusion.gf
 miniapps/shifted/ParaViewDiffusion
+miniapps/shifted/algoim
 
 miniapps/tools/display-basis
 miniapps/tools/load-dc
