@@ -286,10 +286,9 @@ private:
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   int num_procs, myrank;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myrank = Mpi::WorldRank();
    Hypre::Init();
    // Define Caliper ConfigManager
 #ifdef MFEM_USE_CALIPER
@@ -369,7 +368,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(std::cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myrank == 0)
@@ -548,7 +546,6 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_CALIPER
    mgr.flush();
 #endif
-   MPI_Finalize();
 
    return 0;
 }

@@ -61,10 +61,9 @@ void F_exact(const Vector &p, Vector &F)
 int main (int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // Set the method's default parameters.
@@ -313,6 +312,5 @@ int main (int argc, char *argv[])
 
    delete fec;
 
-   MPI_Finalize();
    return 0;
 }

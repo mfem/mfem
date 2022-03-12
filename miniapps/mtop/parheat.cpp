@@ -50,10 +50,9 @@
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   int nprocs, myrank;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+   Mpi::Init(argc, argv);
+   int nprocs = Mpi::WorldSize();
+   int myrank = Mpi::WorldRank();
    mfem::Hypre::Init();
 
    // Parse command-line options.
@@ -109,7 +108,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(std::cout);
       }
-      MPI_Finalize();
       return 1;
    }
 
@@ -351,6 +349,5 @@ int main(int argc, char *argv[])
    delete loadco;
    delete diffco;
 
-   MPI_Finalize();
    return 0;
 }

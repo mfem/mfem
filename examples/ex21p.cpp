@@ -38,10 +38,9 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // 1. Parse command-line options.
@@ -71,7 +70,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -90,7 +88,6 @@ int main(int argc, char *argv[])
       cerr << "\nInput mesh should have at least two materials and "
            << "two boundary attributes! (See schematic in ex2.cpp)\n"
            << endl;
-      MPI_Finalize();
       return 3;
    }
 
@@ -362,6 +359,5 @@ int main(int argc, char *argv[])
       x.Save(x_out);
    }
 
-   MPI_Finalize();
    return 0;
 }

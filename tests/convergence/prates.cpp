@@ -70,10 +70,9 @@ int prob=0;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // 2. Parse command-line options.
@@ -115,7 +114,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (prob >3 || prob <0) { prob = 0; } // default problem = H1
@@ -338,8 +336,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

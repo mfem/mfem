@@ -39,7 +39,6 @@
 #define ParFiniteElementSpace FiniteElementSpace
 #define PFesGetParMeshGetComm(...)
 #define PFesGetParMeshGetComm0(...) 0
-#define MPI_Finalize()
 #define MPI_Allreduce(src,dst,...) *dst = *src
 #define MPI_Reduce(src, dst, n, T,...) *dst = *src
 #endif
