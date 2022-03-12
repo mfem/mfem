@@ -3218,6 +3218,11 @@ bool CholeskyFactors::Factor(int m, double TOL)
       }
       data[j+j*m] = std::sqrt(data[j+j*m] - a);
 
+      if (abs(data[j + j*m]) <= TOL)
+      {
+         return false; // failed
+      }
+
       for (int i = j+1; i<m; i++)
       {
          a = 0.;
@@ -3338,7 +3343,6 @@ void CholeskyFactors::USolve(int m, int n, double * X) const
       x += m;
    }
 #endif
-
 }
 
 void CholeskyFactors::Solve(int m, int n, double * X) const
@@ -3392,7 +3396,7 @@ void CholeskyFactors::RightSolve(int m, int n, double * X) const
    {
       for (int j = m-1; j >= 0; j--)
       {
-         const double x_j = x[j*n];
+         const double x_j = (x[j*n] /= data[j+j*m]);
          for (int i = 0; i < j; i++)
          {
             x[i*n] -= data[j + i*m] * x_j;
@@ -3407,52 +3411,95 @@ void CholeskyFactors::RightSolve(int m, int n, double * X) const
 void CholeskyFactors::GetInverseMatrix(int m, double * X) const
 {
    // A^{-1} = L^{-t} L^{-1}
-   double *x = X;
-#ifndef MFEM_USE_LAPACK
+#ifdef MFEM_USE_LAPACK
    // copy the lower triangular part of L to X
    for (int i = 0; i<m; i++)
    {
       for (int j = i; j<m; j++)
       {
-         x[j+i*m] = data[j+i*m];
+         X[j+i*m] = data[j+i*m];
       }
    }
    char uplo = 'L';
    int info = 0;
-   dpotri_(&uplo, &m, x, &m, &info);
+   dpotri_(&uplo, &m, X, &m, &info);
+   MFEM_VERIFY(!info, "CholeskyFactors:GetInverseMatrix:: info");
    // fill in the upper triangular part
    for (int i = 0; i<m; i++)
    {
       for (int j = i+1; j<m; j++)
       {
-         x[i+j*m] = x[j+i*m];
+         X[i+j*m] = X[j+i*m];
       }
    }
 
 #else
-
-
+   // compute L^-1
+   for (int k = 0; k<m; k++)
+   {
+      X[k+k*m] = 1./data[k+k*m];
+      for (int i = k+1; i < m; i++)
+      {
+         double s=0.;
+         for (int j=k; j<i; j++)
+         {
+            s -= data[i+j*m] * X[j+k*m]/data[i+i*m];
+         }
+         X[i+k*m] = s;
+      }
+   }
+   // L^-t * L^-1 (in place)
+   for (int i = 0; i < m; i++)
+   {
+      for (int j = i; j < m; j++)
+      {
+         double s = 0.;
+         for (int k=j; k<m; k++)
+         {
+            s += X[k+i*m] * X[k+j*m];
+         }
+         X[i+j*m] = X[j+i*m] = s;
+      }
+   }
 #endif
 }
 
 
-DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix &mat)
-   : MatrixInverse(mat)
+void DenseMatrixInverse::Init(int m)
+{
+   if (spd)
+   {
+      factors = new CholeskyFactors();
+   }
+   else
+   {
+      factors = new LUFactors();
+   }
+   if (m>0)
+   {
+      factors->data = new double[m*m];
+      if (!spd)
+      {
+         dynamic_cast<LUFactors *>(factors)->ipiv = new int[m];
+      }
+   }
+}
+
+DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix &mat, bool spd_)
+   : MatrixInverse(mat), spd(spd_)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = &mat;
-   lu.data = new double[width*width];
-   lu.ipiv = new int[width];
+   Init(width);
    Factor();
 }
 
-DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix *mat)
-   : MatrixInverse(*mat)
+DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix *mat, bool spd_)
+   : MatrixInverse(*mat), spd(spd_)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = mat;
-   lu.data = new double[width*width];
-   lu.ipiv = new int[width];
+   Init(width);
 }
 
 void DenseMatrixInverse::Factor()
@@ -3462,15 +3509,15 @@ void DenseMatrixInverse::Factor()
    const int s = width*width;
    for (int i = 0; i < s; i++)
    {
-      lu.data[i] = adata[i];
+      factors->data[i] = adata[i];
    }
-   lu.Factor(width);
+   factors->Factor(width);
 }
 
 void DenseMatrixInverse::GetInverseMatrix(DenseMatrix &Ainv) const
 {
    Ainv.SetSize(width);
-   lu.GetInverseMatrix(width, Ainv.Data());
+   factors->GetInverseMatrix(width,Ainv.Data());
 }
 
 void DenseMatrixInverse::Factor(const DenseMatrix &mat)
@@ -3479,10 +3526,15 @@ void DenseMatrixInverse::Factor(const DenseMatrix &mat)
    if (width != mat.width)
    {
       height = width = mat.width;
-      delete [] lu.data;
-      lu.data = new double[width*width];
-      delete [] lu.ipiv;
-      lu.ipiv = new int[width];
+      delete [] factors->data;
+      factors->data = new double[width*width];
+
+      if (!spd)
+      {
+         LUFactors * lu = dynamic_cast<LUFactors *>(factors);
+         delete [] lu->ipiv;
+         lu->ipiv = new int[width];
+      }
    }
    a = &mat;
    Factor();
@@ -3501,19 +3553,19 @@ void DenseMatrixInverse::Mult(const double *x, double *y) const
    {
       y[row] = x[row];
    }
-   lu.Solve(width, 1, y);
+   factors->Solve(width, 1, y);
 }
 
 void DenseMatrixInverse::Mult(const Vector &x, Vector &y) const
 {
    y = x;
-   lu.Solve(width, 1, y.GetData());
+   factors->Solve(width, 1, y.GetData());
 }
 
 void DenseMatrixInverse::Mult(const DenseMatrix &B, DenseMatrix &X) const
 {
    X = B;
-   lu.Solve(width, X.Width(), X.Data());
+   factors->Solve(width, X.Width(), X.Data());
 }
 
 void DenseMatrixInverse::TestInversion()
@@ -3529,10 +3581,13 @@ void DenseMatrixInverse::TestInversion()
 
 DenseMatrixInverse::~DenseMatrixInverse()
 {
-   delete [] lu.data;
-   delete [] lu.ipiv;
+   delete [] factors->data;
+   if (!spd)
+   {
+      delete [] dynamic_cast<LUFactors *>(factors)->ipiv;
+   }
+   delete factors;
 }
-
 
 DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    : mat(m)
