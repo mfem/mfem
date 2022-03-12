@@ -2849,16 +2849,16 @@ bool LUFactors::Factor(int m, double TOL)
    return info == 0;
 #else
    // compiling without LAPACK
-   double *data = this->data;
+   double *data_ptr = this->data;
    for (int i = 0; i < m; i++)
    {
       // pivoting
       {
          int piv = i;
-         double a = std::abs(data[piv+i*m]);
+         double a = std::abs(data_ptr[piv+i*m]);
          for (int j = i+1; j < m; j++)
          {
-            const double b = std::abs(data[j+i*m]);
+            const double b = std::abs(data_ptr[j+i*m]);
             if (b > a)
             {
                a = b;
@@ -2871,27 +2871,27 @@ bool LUFactors::Factor(int m, double TOL)
             // swap rows i and piv in both L and U parts
             for (int j = 0; j < m; j++)
             {
-               mfem::Swap<double>(data[i+j*m], data[piv+j*m]);
+               mfem::Swap<double>(data_ptr[i+j*m], data_ptr[piv+j*m]);
             }
          }
       }
 
-      if (abs(data[i + i*m]) <= TOL)
+      if (abs(data_ptr[i + i*m]) <= TOL)
       {
          return false; // failed
       }
 
-      const double a_ii_inv = 1.0 / data[i+i*m];
+      const double a_ii_inv = 1.0 / data_ptr[i+i*m];
       for (int j = i+1; j < m; j++)
       {
-         data[j+i*m] *= a_ii_inv;
+         data_ptr[j+i*m] *= a_ii_inv;
       }
       for (int k = i+1; k < m; k++)
       {
-         const double a_ik = data[i+k*m];
+         const double a_ik = data_ptr[i+k*m];
          for (int j = i+1; j < m; j++)
          {
-            data[j+k*m] -= a_ik * data[j+i*m];
+            data_ptr[j+k*m] -= a_ik * data_ptr[j+i*m];
          }
       }
    }
