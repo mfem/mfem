@@ -736,7 +736,7 @@ private:
    bool spd = false;
 
    void Init(int m);
-
+   bool own_data = false;
 public:
    /// Default constructor.
    DenseMatrixInverse(bool spd_=false) : a(NULL)
