@@ -3482,6 +3482,7 @@ void DenseMatrixInverse::Init(int m)
       {
          dynamic_cast<LUFactors *>(factors)->ipiv = new int[m];
       }
+      own_data = true;
    }
 }
 
@@ -3526,15 +3527,16 @@ void DenseMatrixInverse::Factor(const DenseMatrix &mat)
    if (width != mat.width)
    {
       height = width = mat.width;
-      delete [] factors->data;
+      if (own_data) { delete [] factors->data; }
       factors->data = new double[width*width];
 
       if (!spd)
       {
          LUFactors * lu = dynamic_cast<LUFactors *>(factors);
-         delete [] lu->ipiv;
+         if (own_data) { delete [] lu->ipiv; }
          lu->ipiv = new int[width];
       }
+      own_data = true;
    }
    a = &mat;
    Factor();
@@ -3581,10 +3583,13 @@ void DenseMatrixInverse::TestInversion()
 
 DenseMatrixInverse::~DenseMatrixInverse()
 {
-   delete [] factors->data;
-   if (!spd)
+   if (own_data)
    {
-      delete [] dynamic_cast<LUFactors *>(factors)->ipiv;
+      delete [] factors->data;
+      if (!spd)
+      {
+         delete [] dynamic_cast<LUFactors *>(factors)->ipiv;
+      }
    }
    delete factors;
 }
