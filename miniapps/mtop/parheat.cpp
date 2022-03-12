@@ -50,9 +50,8 @@
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
-   Mpi::Init(argc, argv);
-   int nprocs = Mpi::WorldSize();
-   int myrank = Mpi::WorldRank();
+   mfem::Mpi::Init(argc, argv);
+   int myrank = mfem::Mpi::WorldRank();
    mfem::Hypre::Init();
 
    // Parse command-line options.
