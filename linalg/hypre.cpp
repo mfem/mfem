@@ -42,12 +42,16 @@ Hypre::Hypre()
    SetDefaultOptions();
 }
 
-Hypre::~Hypre()
+void Hypre::Finalize()
 {
+   Hypre &hypre = Instance();
+   if (!hypre.finalized)
+   {
 #if MFEM_HYPRE_VERSION >= 21500
-   // Finalizing hypre
-   HYPRE_Finalize();
+      HYPRE_Finalize();
 #endif
+      hypre.finalized = true;
+   }
 }
 
 void Hypre::SetDefaultOptions()

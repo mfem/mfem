@@ -59,18 +59,38 @@ class HypreParMatrix;
 class Hypre
 {
 public:
-   /// Singleton creation with Hypre::Init();
-   static void Init() { static Hypre hypre; }
+   /// @brief Initialize hypre by calling HYPRE_Init() and set default options.
+   /// After calling Hypre::Init(), hypre will be finalized automatically at
+   /// program exit.
+   ///
+   /// Calling HYPRE_Finalize() manually is not compatible with this class.
+   static void Init() { Instance(); }
+
+   /// @brief Finalize hypre (called automatically at progam exit if
+   /// Hypre::Init() has been called).
+   ///
+   /// Multiple calls to Hypre::Finalize() have no effect. This function can be
+   /// called manually to more precisely control when hypre is finalized.
+   static void Finalize();
 
 private:
-   /// A single Hypre object should be created before any hypre calls.
+   /// Calls HYPRE_Init() when the singleton is constructed.
    Hypre();
 
-   /// The Hypre object should be destroyed after the last hypre call.
-   ~Hypre();
+   /// The singleton destructor (called at program exit) finalizes hypre.
+   ~Hypre() { Finalize(); }
 
-   /// Set the default hypre global options (mostly GPU-relevant)
+   /// Set the default hypre global options (mostly GPU-relevant).
    void SetDefaultOptions();
+
+   /// Create and return the Hypre singleton object.
+   static Hypre &Instance()
+   {
+      static Hypre hypre;
+      return hypre;
+   }
+
+   bool finalized = false; ///< Has Hypre::Finalize() been called already?
 };
 
 
