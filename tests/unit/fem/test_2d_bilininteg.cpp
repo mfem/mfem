@@ -80,6 +80,20 @@ void Curl_zf2(const Vector & x, Vector & df)
 double CurlF2(const Vector & x) { return 3.572 + 2.357; }
 double DivF2(const Vector & x) { return 1.234 + 4.321; }
 
+void Grad_F2(const Vector & x, DenseMatrix & df)
+{
+   df.SetSize(2);
+   df(0,0) =  1.234; df(0,1) = -2.357;
+   df(1,0) =  3.572; df(1,1) =  4.321;
+}
+
+void Grad_V2(const Vector & x, DenseMatrix & dv)
+{
+   dv.SetSize(2);
+   dv(0,0) = 2.234; dv(0,1) = 1.357;
+   dv(1,0) = 4.572; dv(1,1) = 3.321;
+}
+
 void qGrad_f2(const Vector & x, Vector & df)
 {
    Grad_f2(x, df);
@@ -156,6 +170,20 @@ void VcrossCurlF2(const Vector & x, Vector & VF)
 void VDivF2(const Vector & x, Vector & VF)
 {
    V2(x, VF); VF *= DivF2(x);
+}
+
+void GradVdotF2(const Vector & x, Vector & dvf)
+{
+   Vector V; V2(x, V);
+   Vector F; F2(x, F);
+   DenseMatrix dV; Grad_V2(x, dV);
+   DenseMatrix dF; Grad_F2(x, dF);
+   dvf.SetSize(2);
+   dV.MultTranspose(F, dvf);
+
+   Vector tmp(2);
+   dF.MultTranspose(V, tmp);
+   dvf += tmp;
 }
 
 const std::string MapTypeName(FiniteElement::MapType map_type)
@@ -3010,75 +3038,125 @@ TEST_CASE("2D Bilinear Weak Gradient Dot Product Integrators",
           "[BilinearFormIntegrator]"
           "[NonlinearFormIntegrator]")
 {
-   int order = 2, n = 1, dim = 2;
+   int order = 2, n = 2, dim = 2, vdim = 2;
+   double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
-
+   VectorFunctionCoefficient  F2_coef(dim, F2);
    VectorFunctionCoefficient  V2_coef(dim, V2);
+   FunctionCoefficient       VdotF2_coef(VdotF2);
+   VectorFunctionCoefficient   dVF2_coef(vdim, GradVdotF2);
 
-   SECTION("Operators on ND")
+   for (int type = (int)Element::TRIANGLE;
+        type <= (int)Element::QUADRILATERAL; type++)
    {
-      ND_FECollection    fec_nd(order, dim);
-      FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
-      SECTION("Mapping ND to RT")
+      SECTION("Operators on ND for element type " + std::to_string(type))
+      {
+         ND_FECollection    fec_nd(order, dim);
+         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+         GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F2_coef);
+
+         SECTION("Mapping ND to RT")
+         {
+            RT_FECollection    fec_rt(order - 1, dim);
+            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+
+            BilinearForm m_rt(&fespace_rt);
+            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+            m_rt.Assemble();
+            m_rt.Finalize();
+
+            GridFunction g_rt(&fespace_rt);
+
+            Vector tmp_rt(fespace_rt.GetNDofs());
+
+            SECTION("With Vector Coefficient")
+            {
+               MixedBilinearForm blf(&fespace_rt, &fespace_nd);
+               blf.AddDomainIntegrator(
+                  new MixedVectorDivergenceIntegrator(V2_coef));
+               blf.Assemble();
+               blf.Finalize();
+
+               MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
+               blfw.AddDomainIntegrator(
+                  new MixedWeakGradDotIntegrator(V2_coef));
+               blfw.Assemble();
+               blfw.Finalize();
+
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
+
+               REQUIRE( diff->MaxNorm() < tol );
+
+               delete blfT;
+               delete diff;
+
+               LinearForm lf(&fespace_rt);
+               lf.AddBoundaryIntegrator(
+                  new VectorFEBoundaryFluxLFIntegrator(VdotF2_coef, 1, 2));
+               lf.Assemble();
+
+               blfw.Mult(f_nd,tmp_rt); tmp_rt += lf; g_rt = 0.0;
+               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+               REQUIRE( g_rt.ComputeL2Error(dVF2_coef) < tol );
+            }
+         }
+      }
+      SECTION("Operators on RT for element type " + std::to_string(type))
       {
          RT_FECollection    fec_rt(order - 1, dim);
          FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-         SECTION("With Vector Coefficient")
+         GridFunction f_rt(&fespace_rt); f_rt.ProjectCoefficient(F2_coef);
+
+         SECTION("Mapping RT to RT")
          {
-            MixedBilinearForm blf(&fespace_rt, &fespace_nd);
-            blf.AddDomainIntegrator(
-               new MixedVectorDivergenceIntegrator(V2_coef));
-            blf.Assemble();
-            blf.Finalize();
+            BilinearForm m_rt(&fespace_rt);
+            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+            m_rt.Assemble();
+            m_rt.Finalize();
 
-            MixedBilinearForm blfw(&fespace_nd, &fespace_rt);
-            blfw.AddDomainIntegrator(
-               new MixedWeakGradDotIntegrator(V2_coef));
-            blfw.Assemble();
-            blfw.Finalize();
+            GridFunction g_rt(&fespace_rt);
 
-            SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
+            Vector tmp_rt(fespace_rt.GetNDofs());
 
-            REQUIRE( diff->MaxNorm() < tol );
+            SECTION("With Vector Coefficient")
+            {
+               MixedBilinearForm blf(&fespace_rt, &fespace_rt);
+               blf.AddDomainIntegrator(
+                  new MixedVectorDivergenceIntegrator(V2_coef));
+               blf.Assemble();
+               blf.Finalize();
 
-            delete blfT;
-            delete diff;
-         }
-      }
-   }
-   SECTION("Operators on RT")
-   {
-      RT_FECollection    fec_rt(order - 1, dim);
-      FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+               MixedBilinearForm blfw(&fespace_rt, &fespace_rt);
+               blfw.AddDomainIntegrator(
+                  new MixedWeakGradDotIntegrator(V2_coef));
+               blfw.Assemble();
+               blfw.Finalize();
 
-      SECTION("Mapping RT to RT")
-      {
-         SECTION("With Vector Coefficient")
-         {
-            MixedBilinearForm blf(&fespace_rt, &fespace_rt);
-            blf.AddDomainIntegrator(
-               new MixedVectorDivergenceIntegrator(V2_coef));
-            blf.Assemble();
-            blf.Finalize();
+               SparseMatrix * blfT = Transpose(blfw.SpMat());
+               SparseMatrix * diff = Add(1.0,blf.SpMat(),1.0,*blfT);
 
-            MixedBilinearForm blfw(&fespace_rt, &fespace_rt);
-            blfw.AddDomainIntegrator(
-               new MixedWeakGradDotIntegrator(V2_coef));
-            blfw.Assemble();
-            blfw.Finalize();
+               REQUIRE( diff->MaxNorm() < tol );
 
-            SparseMatrix * blfT = Transpose(blfw.SpMat());
-            SparseMatrix * diff = Add(1.0, blf.SpMat(), 1.0, *blfT);
+               delete blfT;
+               delete diff;
 
-            REQUIRE( diff->MaxNorm() < tol );
+               LinearForm lf(&fespace_rt);
+               lf.AddBoundaryIntegrator(
+                  new VectorFEBoundaryFluxLFIntegrator(VdotF2_coef, 1, 2));
+               lf.Assemble();
 
-            delete blfT;
-            delete diff;
+               blfw.Mult(f_rt,tmp_rt); tmp_rt += lf; g_rt = 0.0;
+               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+               REQUIRE( g_rt.ComputeL2Error(dVF2_coef) < tol );
+            }
          }
       }
    }

@@ -29,8 +29,8 @@ namespace mfem
 
     Here, k is called the asymptotic rate of convergence
 
-    For successive uniform h-refinements the rate can be estimated by
-    k = log(||u - u_h|| / ||u - u_{h/2}||)/log(2)
+    For successive h-refinements the rate can be estimated by
+    k = log(||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h})
 */
 class ConvergenceStudy
 {
