@@ -79,10 +79,10 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI (required by PUMI) and HYPRE.
-   int num_proc, myId;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myId);
+   Mpi::Init(argc, argv);
+   Hypre::Init();
+   int num_proc = Mpi::WorldSize();
+   int myId = Mpi::WorldRank();
    Hypre::Init();
 
    // 2. Parse command-line options.
@@ -419,8 +419,6 @@ int main(int argc, char *argv[])
    gmi_sim_stop();
    Sim_unregisterAllKeys();
 #endif
-
-   MPI_Finalize();
 
    return 0;
 }
