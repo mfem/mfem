@@ -11,7 +11,7 @@ Line(2) = {3,2};
 Line(3) = {2,1};
 Line(4) = {1,4};
 
-Transfinite Curve{1,2,3,4} = n/3 ;
+Transfinite Curve{1,2,3,4} = n;
 Line Loop(5) = {2,3,4,1};
 Plane Surface(6) = {5};
 Transfinite Surface{6};
@@ -38,7 +38,7 @@ Mesh.MshFileVersion = 2.2;
 // Mesh.RecombinationAlgorithm = 1;
 // RecombineMesh;
 
-Periodic Surface {28} = {6} Translate{0, 0, 3};
+Periodic Surface {28} = {6} Translate{0, 0, 1};
 Periodic Surface {23} = {15} Translate{-1, 0, 0};
 Periodic Surface {19} = {27} Translate{0,  -1, 0};
 //Save "period.msh";
