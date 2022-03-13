@@ -1024,6 +1024,12 @@ protected:
    /// How to treat hypre errors.
    mutable ErrorMode error_mode;
 
+   /// @brief Makes the internal HypreParVector%s @a B and @a X wrap the input
+   /// vectors @a b and @a x.
+   ///
+   /// Returns true if @a x can be shallow-copied, false otherwise.
+   bool WrapVectors(const Vector &b, Vector &x) const;
+
 public:
    HypreSolver();
 
@@ -1037,16 +1043,30 @@ public:
    /// hypre's internal Solve function
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const = 0;
 
-   virtual void Setup(const Vector &b, Vector &x);
+   ///@{
+
+   /// @brief Set up the solver (if not set up already, also called
+   /// automatically by HypreSolver::Mult).
+   virtual void Setup(const HypreParVector &b, HypreParVector &x) const;
+   /// @brief Set up the solver (if not set up already, also called
+   /// automatically by HypreSolver::Mult).
+   virtual void Setup(const Vector &b, Vector &x) const;
+
+   ///@}
 
    virtual void SetOperator(const Operator &op)
    { mfem_error("HypreSolvers do not support SetOperator!"); }
 
    virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
 
+   ///@{
+
    /// Solve the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
+   /// Solve the linear system Ax=b
    virtual void Mult(const Vector &b, Vector &x) const;
+
+   ///@}
 
    /** @brief Set the behavior for treating hypre errors, see the ErrorMode
        enum. The default mode in the base class is ABORT_HYPRE_ERRORS. */
