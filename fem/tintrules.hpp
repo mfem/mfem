@@ -19,8 +19,6 @@
 namespace mfem
 {
 
-static IntegrationRules LobattoIntRules(0, Quadrature1D::GaussLobatto);
-
 // Templated integration rules, cf. intrules.?pp
 
 template <Geometry::Type G, int Q, int Order, typename real_t>
@@ -54,7 +52,7 @@ public:
 
    static const IntegrationRule &GetIntRule()
    {
-      return LobattoIntRules.Get(geom, order);
+      return IntRules.Get(geom, order);
    }
 
    // Multi-component weight assignment. qpt_layout_t must be (qpts x n1 x ...)
@@ -203,10 +201,10 @@ public:
 
 template <int Dim, int Q, typename real_t>
 class GaussIntegrationRule
-   : public TProductIntegrationRule<Dim, Q, 2*Q-3, real_t>
+   : public TProductIntegrationRule<Dim, Q, 2*Q-1, real_t>
 {
 public:
-   typedef TProductIntegrationRule<Dim,Q,2*Q-3,real_t> base_class;
+   typedef TProductIntegrationRule<Dim,Q,2*Q-1,real_t> base_class;
 
    using base_class::geom;
    using base_class::order;
@@ -228,11 +226,11 @@ public:
 
    static const IntegrationRule &Get1DIntRule()
    {
-      return LobattoIntRules.Get(Geometry::SEGMENT, order);
+      return IntRules.Get(Geometry::SEGMENT, order);
    }
    static const IntegrationRule &GetIntRule()
    {
-      return LobattoIntRules.Get(geom, order);
+      return IntRules.Get(geom, order);
    }
 };
 
@@ -241,15 +239,15 @@ class TIntegrationRule;
 
 template <int Order, typename real_t>
 class TIntegrationRule<Geometry::SEGMENT, Order, real_t>
-   : public GaussIntegrationRule<1, Order/2+2, real_t> { };
+   : public GaussIntegrationRule<1, Order/2+1, real_t> { };
 
 template <int Order, typename real_t>
 class TIntegrationRule<Geometry::SQUARE, Order, real_t>
-   : public GaussIntegrationRule<2, Order/2+2, real_t> { };
+   : public GaussIntegrationRule<2, Order/2+1, real_t> { };
 
 template <int Order, typename real_t>
 class TIntegrationRule<Geometry::CUBE, Order, real_t>
-   : public GaussIntegrationRule<3, Order/2+2, real_t> { };
+   : public GaussIntegrationRule<3, Order/2+1, real_t> { };
 
 // Triangle integration rules (based on intrules.cpp)
 // These specializations define the number of quadrature points for each rule as
