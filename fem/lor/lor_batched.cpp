@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "lor_batched.hpp"
-#include "lor_nodal_interp.hpp"
+#include "../../fem/quadinterpolator.hpp"
 #include "../../general/forall.hpp"
 #include <climits>
 
@@ -83,7 +83,6 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
    const FiniteElementSpace *nodal_fes = nodal_gf->FESpace();
    const Operator *nodal_restriction = nodal_fes->GetElementRestriction(
                                           ElementDofOrdering::LEXICOGRAPHIC);
-   const int nodal_nd1d = nodal_fes->GetMaxElementOrder() + 1;
 
    // Map from nodal L-vector to E-vector
    Vector nodal_evec(nodal_restriction->Height());
@@ -93,33 +92,10 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    Geometry::Type geom = mesh_ho.GetElementGeometry(0);
    const IntegrationRule &ir = irs.Get(geom, 2*nd1d - 3);
-   const DofToQuad& maps =
-      nodal_fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
 
-   if (dim == 2)
-   {
-      switch (nodal_nd1d)
-      {
-         case 2: NodalInterpolation2D<2,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
-         case 4: NodalInterpolation2D<4,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
-         case 6: NodalInterpolation2D<6,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
-         default: MFEM_ABORT("Unsuported mesh order!");
-      }
-   }
-   else if (dim == 3)
-   {
-      switch (nodal_nd1d)
-      {
-         case 2: NodalInterpolation3D<2,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
-         case 4: NodalInterpolation3D<4,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
-         case 6: NodalInterpolation3D<6,Q1D>(nel_ho, nodal_evec, X_vert, maps.B); break;
-         default: MFEM_ABORT("Unsuported mesh order!");
-      }
-   }
-   else
-   {
-      MFEM_ABORT("Not supported.");
-   }
+   QuadratureInterpolator quad_interp(*nodal_fes, ir);
+   quad_interp.SetOutputLayout(QVectorLayout::byVDIM);
+   quad_interp.Values(nodal_evec, X_vert);
 }
 
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
