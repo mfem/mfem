@@ -21,8 +21,8 @@ struct s_NavierContext
 {
    int order = 2;
    double kin_vis = 0.1;
-   double t_final = 5.0;
-   double dt = 5e-4;
+   double t_final = 1.0;
+   double dt = 1e-4;
 } ctx;
 
 void vel(const Vector &x, double t, Vector &u)
@@ -50,21 +50,43 @@ public:
         cx=0.5;
         cy=0.5;
         cz=1.0;
-        R=0.1;
+        eta=0.1;
+        prtype=zero_one;
+        pttype=Ball;
 
     }
 
-    void SetCoord(double xx, double yy, double zz)
+    void SetBallCoord(double xx, double yy, double zz)
     {
         cx=xx;
         cy=yy;
         cz=zz;
     }
 
-    void SetR(double RR)
+    void SetBallR(double RR)
     {
-        R=RR;
+        eta=RR;
     }
+
+    void SetThreshold(double eta_)
+    {
+       eta=eta_;
+    }
+    
+    enum ProjectionType {zero_one, continuous}; 
+
+    void SetProjectionType(ProjectionType ptype_)
+    {
+       prtype=ptype_;
+    }
+
+    enum PatternType {Ball, Gyroid, SchwarzP, SchwarzD};
+
+    void SetPatternType(PatternType pttype_)
+    {
+      pttype=pttype_;
+    }
+
 
     virtual
     ~DensityCoeff()
@@ -75,25 +97,84 @@ public:
     virtual
     double Eval(ElementTransformation &T, const IntegrationPoint &ip)
     {
-        double x[3];
-        Vector transip(x, 3);
-        T.Transform(ip,transip);
-        double rr=(x[0]-cx)*(x[0]-cx);
-        rr=rr+(x[1]-cy)*(x[1]-cy);
-        if(T.GetDimension()==3)
-        {
-            rr=rr+(x[2]-cz)*(x[2]-cz);
+	if(pttype==Ball){	
+            double x[3];
+            Vector transip(x, 3);
+            T.Transform(ip,transip);
+            double rr=(x[0]-cx)*(x[0]-cx);
+            rr=rr+(x[1]-cy)*(x[1]-cy);
+            if(T.GetDimension()==3)
+            {
+                rr=rr+(x[2]-cz)*(x[2]-cz);
+            }
+            rr=std::sqrt(rr);
+            if(prtype==continuous){return rr;}
+
+            if(rr>eta){return 0.0;}
+            return 1.0;  
+        }else
+        if(pttype==Gyroid){
+            const double period = 2.0 * M_PI;
+            double xv[3];
+            mfem::Vector xx(xv,3);
+            T.Transform(ip,xx);
+            double x=xv[0]*period;
+            double y=xv[1]*period;
+            double z=xv[2]*period;
+   
+            double vv=std::sin(x)*std::cos(y) +
+                      std::sin(y)*std::cos(z) +
+                      std::sin(z)*std::cos(x);
+            if(prtype==continuous){return vv;}
+
+            if(fabs(vv)>eta){ return 0.0;}
+            else{return 1.0;}
+        }else
+        if(pttype==SchwarzD){
+            const double period = 2.0 * M_PI;
+            double xv[3];
+            mfem::Vector xx(xv,3);
+            T.Transform(ip,xx);
+            double x=xv[0]*period;
+            double y=xv[1]*period;
+            double z=xv[2]*period;
+            
+            double vv=sin(x)*sin(y)*sin(z) +
+                      sin(x)*cos(y)*cos(z) +
+                      cos(x)*sin(y)*cos(z) +
+                      cos(x)*cos(y)*sin(z);
+
+            if(prtype==continuous){return vv;}
+            
+            if(fabs(vv)>eta){ return 0.0;}
+            else{return 1.0;}		
+        }else{ //pttype=SchwarzP
+            const double period = 2.0 * M_PI;
+            double xv[3];
+            mfem::Vector xx(xv,3);
+            T.Transform(ip,xx);
+            double x=xv[0]*period;
+            double y=xv[1]*period;
+            double z=xv[2]*period;
+
+            double vv=std::cos(x)+std::cos(y)+std::cos(z);
+	    if(prtype==continuous){return vv;}
+
+            if(fabs(vv)>eta){ return 0.0;}
+            else{return 1.0;}
         }
-        rr=std::sqrt(rr);
-        if(rr>R){return 0.0;}
-        return 1.0;
+
     }
 
 private:
     double cx;
     double cy;
     double cz;
-    double R;
+    double eta;//threshold
+    ProjectionType prtype; 
+    PatternType    pttype;
+
+
 };
 
 
@@ -154,7 +235,7 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
-   int serial_refinements = 1;
+   int serial_refinements = 0;
 
    Mesh *mesh = new Mesh("bar3d.msh");
    //mesh->EnsureNCMesh(true);
@@ -177,8 +258,14 @@ int main(int argc, char *argv[])
    }
 
    DensityCoeff dens;
-   dens.SetCoord(0.5,0.5,1.0);
-   dens.SetR(0.1);
+   //dens.SetBallCoord(0.5,0.5,1.0);
+   //dens.SetBallR(0.1);
+   dens.SetThreshold(0.15);
+   dens.SetPatternType(DensityCoeff::PatternType::Gyroid);
+   dens.SetPatternType(DensityCoeff::PatternType::SchwarzP);
+   dens.SetPatternType(DensityCoeff::PatternType::SchwarzD);
+   dens.SetProjectionType(DensityCoeff::ProjectionType::zero_one);
+
 
    //Refine the mesh
    if(0)
@@ -267,8 +354,12 @@ int main(int argc, char *argv[])
 
    ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
    ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
+   ParGridFunction *d_gf = new ParGridFunction(*p_gf);
+   dens.SetProjectionType(DensityCoeff::ProjectionType::continuous);
+   d_gf->ProjectCoefficient(dens);
+   dens.SetProjectionType(DensityCoeff::ProjectionType::zero_one);
 
-   ParaViewDataCollection pvdc("3dfoc", pmesh);
+   ParaViewDataCollection pvdc("3dfoc1", pmesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
    pvdc.SetHighOrderOutput(true);
    pvdc.SetLevelsOfDetail(ctx.order);
@@ -276,6 +367,7 @@ int main(int argc, char *argv[])
    pvdc.SetTime(t);
    pvdc.RegisterField("velocity", u_gf);
    pvdc.RegisterField("pressure", p_gf);
+   pvdc.RegisterField("density",  d_gf);
    pvdc.Save();
 
    for (int step = 0; !last_step; ++step)
@@ -288,7 +380,7 @@ int main(int argc, char *argv[])
       flowsolver.Step(t, dt, step);
       bp.SetVel(flowsolver.GetCurrentVelocity());
       //bp.SetVel(flowsolver.GetProvisionalVelocity());
-      if (step % 10 == 0)
+      if (step % 3000 == 0)
       {
          pvdc.SetCycle(step);
          pvdc.SetTime(t);
@@ -304,7 +396,7 @@ int main(int argc, char *argv[])
    }
 
    flowsolver.PrintTimingData();
-
+   delete d_gf;
    delete pmesh;
 
    return 0;
