@@ -48,6 +48,7 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
    const FiniteElementCollection *fec = a.FESpace()->FEColl();
    // TODO: check for maximum supported orders
+   // TODO: check for supported coefficient types?
    // We want to support the following configurations:
    // H1, ND, and RT spaces: M, A, M + K
    if (dynamic_cast<const H1_FECollection*>(fec))
@@ -76,9 +77,6 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
 
    MFEM_VERIFY(nd1d == Q1D, "Bad template instantiation.");
 
-   X_vert.SetSize(dim*ndof_per_el*nel_ho);
-   X_vert.UseDevice(true);
-
    const GridFunction *nodal_gf = mesh_ho.GetNodes();
    const FiniteElementSpace *nodal_fes = nodal_gf->FESpace();
    const Operator *nodal_restriction = nodal_fes->GetElementRestriction(
@@ -86,13 +84,14 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
 
    // Map from nodal L-vector to E-vector
    Vector nodal_evec(nodal_restriction->Height());
-   nodal_evec.UseDevice(true);
    nodal_restriction->Mult(*nodal_gf, nodal_evec);
 
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    Geometry::Type geom = mesh_ho.GetElementGeometry(0);
    const IntegrationRule &ir = irs.Get(geom, 2*nd1d - 3);
 
+   // Map from nodal E-vector to Q-vector at the LOR vertex points
+   X_vert.SetSize(dim*ndof_per_el*nel_ho);
    QuadratureInterpolator quad_interp(*nodal_fes, ir);
    quad_interp.SetOutputLayout(QVectorLayout::byVDIM);
    quad_interp.Values(nodal_evec, X_vert);
@@ -176,8 +175,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
          const int j_ne = j_next_offset - j_offset;
          if (i_ne == 1 || j_ne == 1) // no assembly required
          {
-            // AtomicAdd(I[ii], 1);
-            I[ii] += 1;
+            AtomicAdd(I[ii], 1);
          }
          else // assembly required
          {
@@ -192,13 +190,12 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
             const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
             if (iel_ho == min_e) // add the nnz only once
             {
-               // AtomicAdd(I[ii], 1);
-               I[ii] += 1;
+               AtomicAdd(I[ii], 1);
             }
          }
       }
    });
-   // TODO: on device
+   // TODO: on device, this is a scan operation
    // We need to sum the entries of I, we do it on CPU as it is very sequential.
    auto h_I = A.HostReadWriteI();
    int sum = 0;

@@ -381,6 +381,9 @@ void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
 void LORBase::LegacyAssembleSystem(BilinearForm &a_ho,
                                    const Array<int> &ess_dofs)
 {
+   // TODO: use AssemblyLevel::FULL here instead of AssemblyLevel::LEGACY
+   // In that case, maybe "LegacyAssembleSystem" is not a very clear name.
+
    // If the space is not formed already, it will be constructed lazily in
    // GetParFESpace
    FiniteElementSpace &fes = GetFESpace();

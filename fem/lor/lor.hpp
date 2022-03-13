@@ -108,7 +108,7 @@ public:
    /// Assembles the LOR system corresponding to @a a_ho.
    void AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
 
-   /// Assembles the LOR system corresponding to @a a_ho using the legacy methodπ.
+   /// Assembles the LOR system corresponding to @a a_ho using the legacy method.
    void LegacyAssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs);
 
    /// @brief Returns the permutation that maps LOR DOFs to high-order DOFs.
