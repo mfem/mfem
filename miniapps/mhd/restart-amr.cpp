@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
    bool compute_pressure = false;
    bool compute_tau = false;
    const char *petscrc_file = "";
+   double t=0.;
 
    //----amr coefficients----
    int amr_levels=0;
@@ -89,7 +90,6 @@ int main(int argc, char *argv[])
    double   xright =.5;     //right of the fixed xrange
    int      xlevels=0;
    double error_norm=infinity();
-   double t=0.;
    //----end of amr----
    
    //----problem paramters----
@@ -100,6 +100,7 @@ int main(int argc, char *argv[])
    bool checkpt=false;
    bool visualization = true;
    int vis_steps = 10;
+   int restart_count=0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -208,6 +209,7 @@ int main(int argc, char *argv[])
    args.AddOption(&BgradJ, "-BgradJ", "--BgradJ",
                   "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
    args.AddOption(&t, "-t0", "--time", "Initial Time (for restart).");
+   args.AddOption(&restart_count, "-restart_count", "--restart_count", "number of restarts have been performed");
    args.AddOption(&checkpt, "-checkpt", "--check-pt",  "-no-checkpt", "--no-check-pt",
                   "Save check point");
    args.AddOption(&lumpedMass, "-lumpmass", "--lump-mass",  "-no-lumpmass", "--no-lump-mass",
@@ -288,9 +290,22 @@ int main(int argc, char *argv[])
    }
 
    //++++Load the mesh from checkpoint.    
-   ifstream ifs(MakeParFilename("checkpt-mesh.", myid));
-   MFEM_VERIFY(ifs.good(), "Mesh file not found.");
-   pmesh = new ParMesh(MPI_COMM_WORLD, ifs);
+   string mesh_name, phi_name, psi_name, w_name;
+   string rs = to_string(restart_count-1);
+   ifstream *ifs;
+   if (restart_count==0){
+       ifs = new ifstream(MakeParFilename("checkpt-mesh.", myid));
+   }
+   else if (restart_count==1){
+       ifs = new ifstream(MakeParFilename("restart-mesh.", myid));
+   }
+   else{
+       string mesh_name = "restart-mesh" + rs;
+       ifs = new ifstream(MakeParFilename(mesh_name, myid));
+   }
+   MFEM_VERIFY(ifs->good(), "Mesh file not found.");
+   pmesh = new ParMesh(MPI_COMM_WORLD, *ifs);
+   delete ifs;
    
    amr_levels+=par_ref_levels;
    if (xlevels>0) xlevels+=par_ref_levels;
@@ -330,17 +345,37 @@ int main(int argc, char *argv[])
    BlockVector vx(fe_offset3), vxold(fe_offset3);
    ParGridFunction *phi, *psi, *w, j(&fespace); 
 
-   ifstream ifs1(MakeParFilename("checkpt-psi.", myid));
-   MFEM_VERIFY(ifs1.good(), "Solution file not found.");
-   psi = new ParGridFunction(pmesh, ifs1);
-
-   ifstream ifs2(MakeParFilename("checkpt-phi.", myid));
-   MFEM_VERIFY(ifs2.good(), "Solution file not found.");
-   phi = new ParGridFunction(pmesh, ifs2);
-
-   ifstream ifs3(MakeParFilename("checkpt-w.", myid));
-   MFEM_VERIFY(ifs3.good(), "Solution file not found.");
-   w = new ParGridFunction(pmesh, ifs3);
+   // load mesh based on restart_count 0: start from an amr solver
+   //                                  1: restart from the old restart solver
+   //                                 >1: restart from the new restart solver
+   ifstream *ifs1, *ifs2, *ifs3;
+   if (restart_count==0){
+       ifs1 = new ifstream(MakeParFilename("checkpt-psi.", myid));
+       ifs2 = new ifstream(MakeParFilename("checkpt-phi.", myid));
+       ifs3 = new ifstream(MakeParFilename("checkpt-w."  , myid));
+   }
+   else if (restart_count==1){
+       ifs1 = new ifstream(MakeParFilename("restart-psi.", myid));
+       ifs2 = new ifstream(MakeParFilename("restart-phi.", myid));
+       ifs3 = new ifstream(MakeParFilename("restart-w."  , myid));
+   }
+   else{
+       string phi_name = "restart-phi" + rs;
+       string psi_name = "restart-psi" + rs;
+       string   w_name = "restart-w"   + rs;
+       ifs1 = new ifstream(MakeParFilename(psi_name, myid));
+       ifs2 = new ifstream(MakeParFilename(phi_name, myid));
+       ifs3 = new ifstream(MakeParFilename(  w_name, myid));
+   }
+   MFEM_VERIFY(ifs1->good(), "Solution psi file not found.");
+   MFEM_VERIFY(ifs2->good(), "Solution phi file not found.");
+   MFEM_VERIFY(ifs3->good(), "Solution w   file not found.");
+   psi = new ParGridFunction(pmesh, *ifs1);
+   phi = new ParGridFunction(pmesh, *ifs2);
+   w   = new ParGridFunction(pmesh, *ifs3);
+   delete ifs1;
+   delete ifs2;
+   delete ifs3;
 
    // Compute "true" dofs and store them in vx
    phi->GetTrueDofs(vx.GetBlock(0));
@@ -727,7 +762,8 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("restart-amr", pmesh);
+      string pd_name = "restart-amr"+rs;
+      pd = new ParaViewDataCollection(pd_name, pmesh);
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("psi", psi);
       pd->RegisterField("phi", phi);
@@ -742,7 +778,6 @@ int main(int argc, char *argv[])
           pd->RegisterField("grad mag pre", gradBP);
           pd->RegisterField("B.gradB", BgradB);
       }
-
       if(compute_tau){
         //visualize Tau value
         MyCoefficient velocity(phi, 2);
@@ -767,6 +802,7 @@ int main(int argc, char *argv[])
    double start = MPI_Wtime();
    bool reduced_step=false, meshChanged=false;
    int  success_step=0;
+   cout.precision(16);
 
    if (myid == 0) cout<<"Start time stepping..."<<endl;
 
@@ -1059,7 +1095,7 @@ int main(int argc, char *argv[])
          phi->SetFromTrueDofs(vx.GetBlock(0));
          psi->SetFromTrueDofs(vx.GetBlock(1));
          w->SetFromTrueDofs(vx.GetBlock(2));
-         checkpoint_rs(myid, t, *pmesh, *phi, *psi, *w);
+         checkpoint_rs(myid, t, *pmesh, *phi, *psi, *w, restart_count);
       }
 
       if ( (last_step || (ti % vis_steps) == 0) )
@@ -1302,7 +1338,7 @@ int main(int argc, char *argv[])
       phi->SetFromTrueDofs(vx.GetBlock(0));
       psi->SetFromTrueDofs(vx.GetBlock(1));
       w->SetFromTrueDofs(vx.GetBlock(2));
-      checkpoint_rs(myid, t, *pmesh, *phi, *psi, *w);
+      checkpoint_rs(myid, t, *pmesh, *phi, *psi, *w, restart_count);
    }
 
    if (myid == 0) 

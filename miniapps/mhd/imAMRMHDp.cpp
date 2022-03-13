@@ -860,6 +860,7 @@ int main(int argc, char *argv[])
 
    MPI_Barrier(MPI_COMM_WORLD); 
    double start = MPI_Wtime();
+   cout.precision(16);
 
    if (myid == 0) cout<<"Start time stepping..."<<endl;
 

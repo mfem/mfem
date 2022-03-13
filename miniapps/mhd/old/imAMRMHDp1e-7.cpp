@@ -898,6 +898,7 @@ int main(int argc, char *argv[])
    double start = MPI_Wtime();
    bool reduced_step=false;
    int  success_step=0;
+   cout.precision(16);
 
    if (myid == 0) cout<<"Start time stepping..."<<endl;
 

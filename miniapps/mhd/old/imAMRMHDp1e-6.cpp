@@ -882,6 +882,7 @@ int main(int argc, char *argv[])
 
    MPI_Barrier(MPI_COMM_WORLD); 
    double start = MPI_Wtime();
+   cout.precision(16);
 
    if (myid == 0) cout<<"Start time stepping..."<<endl;
 
@@ -969,7 +970,6 @@ int main(int argc, char *argv[])
           cout << "Number of total scalar unknowns: " << global_size << endl;
           cout << "step " << ti << ", t = " << t <<endl;
       }
-
       //----------------------------AMR---------------------------------
       
       //++++++Refine step++++++

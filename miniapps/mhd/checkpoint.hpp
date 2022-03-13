@@ -33,15 +33,24 @@ void checkpoint_rs(int myid, const double time,
                 const ParMesh & pmesh, 
                 const ParGridFunction & phi, 
                 const ParGridFunction & psi, 
-                const ParGridFunction & w
-                )
+                const ParGridFunction & w,
+                const int restart_count = 0)
 {
-    if (myid==0) cout << " Save checkpoints at t = "<<time<< endl;
+    if (myid==0) cout <<" Save checkpoints at t = "<<time
+                      <<" restart count = "<<restart_count<<endl;
 
-    ofstream ofs_mesh(MakeParFilename("restart-mesh.", myid));
-    ofstream ofs_phi(MakeParFilename("restart-phi.", myid));
-    ofstream ofs_psi(MakeParFilename("restart-psi.", myid));
-    ofstream   ofs_w(MakeParFilename("restart-w.", myid));
+    string mesh_name, phi_name, psi_name, w_name;
+    string rs = to_string(restart_count);
+
+    mesh_name = "restart-mesh" + rs;
+     phi_name = "restart-phi"  + rs;
+     psi_name = "restart-psi"  + rs;
+       w_name = "restart-w"    + rs;
+
+    ofstream ofs_mesh(MakeParFilename(mesh_name, myid));
+    ofstream  ofs_phi(MakeParFilename( phi_name, myid));
+    ofstream  ofs_psi(MakeParFilename( psi_name, myid));
+    ofstream    ofs_w(MakeParFilename(   w_name, myid));
 
     ofs_mesh.precision(16);
     ofs_phi.precision(16);
@@ -55,28 +64,3 @@ void checkpoint_rs(int myid, const double time,
       w.Save(ofs_w);
 }
 
-void checkpoint_rs_rs(int myid, const double time,
-                const ParMesh & pmesh, 
-                const ParGridFunction & phi, 
-                const ParGridFunction & psi, 
-                const ParGridFunction & w
-                )
-{
-    if (myid==0) cout << " Save checkpoints at t = "<<time<< endl;
-
-    ofstream ofs_mesh(MakeParFilename("rs-rs-mesh.", myid));
-    ofstream ofs_phi(MakeParFilename("rs-rs-phi.", myid));
-    ofstream ofs_psi(MakeParFilename("rs-rs-psi.", myid));
-    ofstream   ofs_w(MakeParFilename("rs-rs-w.", myid));
-
-    ofs_mesh.precision(16);
-    ofs_phi.precision(16);
-    ofs_psi.precision(16);
-      ofs_w.precision(16);
-
-    pmesh.ParPrint(ofs_mesh);
-
-    phi.Save(ofs_phi);
-    psi.Save(ofs_psi);
-      w.Save(ofs_w);
-}
