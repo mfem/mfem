@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -383,9 +383,9 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
    int order = -1;
    bool legacy_elem = false, lagrange_elem = false;
 
-   int j = 0;
    for (int i = 0; i < NumOfElements; i++)
    {
+      int j = (i > 0) ? cell_offsets[i-1] : 0;
       int ct = cell_types[i];
       Geometry::Type geom = VTKGeometry::GetMFEMGeometry(ct);
       elements[i] = NewElement(geom);
@@ -423,7 +423,28 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
                   "Mixing of legacy and Lagrange cell types is not supported");
       Dim = elem_dim;
       order = elem_order;
-      j = cell_offsets[i];
+   }
+
+   // determine spaceDim based on min/max differences detected each dimension
+   spaceDim = 0;
+   if (np > 0)
+   {
+      double min_value, max_value;
+      for (int d = 3; d > 0; --d)
+      {
+         min_value = max_value = points(3*0 + d-1);
+         for (int i = 1; i < np; i++)
+         {
+            min_value = std::min(min_value, points(3*i + d-1));
+            max_value = std::max(max_value, points(3*i + d-1));
+            if (min_value != max_value)
+            {
+               spaceDim = d;
+               break;
+            }
+         }
+         if (spaceDim > 0) { break; }
+      }
    }
 
    if (order == 1 && !lagrange_elem)
@@ -465,12 +486,12 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
       // canonical order
 
       // Keep the original ordering of the vertices
-      int i, n;
-      for (n = i = 0; i < np; i++)
+      NumOfVertices = 0;
+      for (int i = 0; i < np; i++)
       {
          if (pts_dof[i] != -1)
          {
-            pts_dof[i] = n++;
+            pts_dof[i] = NumOfVertices++;
          }
       }
       // update the element vertices
@@ -484,8 +505,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
          }
       }
       // Define the 'vertices' from the 'points' through the 'pts_dof' map
-      NumOfVertices = n;
-      vertices.SetSize(n);
+      vertices.SetSize(NumOfVertices);
       for (int i = 0; i < np; i++)
       {
          int j = pts_dof[i];
@@ -500,25 +520,6 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
       // No boundary is defined in a VTK mesh
       NumOfBdrElements = 0;
 
-      // determine spaceDim based on min/max differences detected each dimension
-      if (vertices.Size() > 0)
-      {
-         double min_value, max_value;
-         for (int d=0; d<3; ++d)
-         {
-            min_value = max_value = vertices[0](d);
-            for (int i = 1; i < vertices.Size(); i++)
-            {
-               min_value = std::min(min_value,vertices[i](d));
-               max_value = std::max(max_value,vertices[i](d));
-               if (min_value != max_value)
-               {
-                  spaceDim++;
-                  break;
-               }
-            }
-         }
-      }
       // Generate faces and edges so that we can define FE space on the mesh
       FinalizeTopology();
 
@@ -2634,8 +2635,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             if (ho_pyr[ord] != NULL) { delete [] ho_pyr[ord]; }
          }
 
-         MFEM_CONTRACT_VAR(n_partitions);
-         MFEM_CONTRACT_VAR(elem_domain);
+         // Suppress warnings (MFEM_CONTRACT_VAR does not work here with nvcc):
+         ++n_partitions;
+         ++elem_domain;
 
       } // section '$Elements'
       else if (buff == "$Periodic") // Reading master/slave node pairs
@@ -2651,7 +2653,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          }
          int num_per_ent;
          int num_nodes;
-         int slave, master;
          input >> num_per_ent;
          getline(input, buff); // Read end-of-line
          for (int i = 0; i < num_per_ent; i++)
@@ -2668,6 +2669,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             }
             for (int j=0; j<num_nodes; j++)
             {
+               int slave, master;
                input >> slave >> master;
                v2v[slave - 1] = master - 1;
             }

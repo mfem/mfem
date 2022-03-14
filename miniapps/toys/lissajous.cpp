@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -148,7 +148,7 @@ double u_function(const Vector &x)
 
 // Tubular Lissajous curve with the given parameters (a, b, theta)
 void lissajous_trans(const Vector &x, Vector &p,
-                     double a, double b, double delta)
+                     double a_, double b_, double delta_)
 {
    p.SetSize(3);
 
@@ -156,13 +156,13 @@ void lissajous_trans(const Vector &x, Vector &p,
    double theta = x[1];
    double t = phi;
 
-   double A = b; // Scaling of the curve along the x-axis
-   double B = a; // Scaling of the curve along the y-axis
+   double A = b_; // Scaling of the curve along the x-axis
+   double B = a_; // Scaling of the curve along the y-axis
 
    // Lissajous curve on a 3D cylinder
-   p[0] = B*cos(b*t);
-   p[1] = B*sin(b*t); // Y
-   p[2] = A*sin(a*t + delta); // X
+   p[0] = B*cos(b_*t);
+   p[1] = B*sin(b_*t); // Y
+   p[2] = A*sin(a_*t + delta_); // X
 
    // Turn the curve into a tubular surface
    {
@@ -170,14 +170,14 @@ void lissajous_trans(const Vector &x, Vector &p,
       double R = 0.02*(A+B);
 
       // normal to the cylinder at p(t)
-      double normal[3] = { cos(b*t), sin(b*t), 0 };
+      double normal[3] = { cos(b_*t), sin(b_*t), 0 };
 
       // tangent to the curve, dp/dt(t)
-      // double tangent[3] = { -b*B*sin(b*t), b*B*cos(b*t), A*a*cos(a*t+delta) };
+      // double tangent[3] = { -b_*B*sin(b_*t), b_*B*cos(b_*t), A*a_*cos(a_*t+delta_) };
 
       // normalized cross product of tangent and normal at p(t)
       double cn = 1e-128;
-      double cross[3] = { A*a*sin(b*t)*cos(a*t+delta), -A*a*cos(b*t)*cos(a*t+delta), b*B };
+      double cross[3] = { A*a_*sin(b_*t)*cos(a_*t+delta_), -A*a_*cos(b_*t)*cos(a_*t+delta_), b_*B };
       for (int i = 0; i < 3; i++) { cn += cross[i]*cross[i]; }
       for (int i = 0; i < 3; i++) { cross[i] /= sqrt(cn); }
 
