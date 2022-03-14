@@ -172,15 +172,17 @@ int main(int argc, char *argv[])
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
       // 13. Solve the linear system A X = B.
-      Solver *M = new OperatorJacobiSmoother(a, ess_tdof_list);;
+      HypreBoomerAMG * prec = new HypreBoomerAMG;
+      prec->SetPrintLevel(-1);
+
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(3);
-      cg.SetPreconditioner(*M);
+      cg.SetPreconditioner(*prec);
       cg.SetOperator(*A);
       cg.Mult(B, X);
-      delete M;
+      delete prec;
 
       // 14. Recover the solution as a finite element grid function.
       a.RecoverFEMSolution(X, b, x);
