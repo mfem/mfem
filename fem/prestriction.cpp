@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -42,6 +42,7 @@ ParNCH1FaceRestriction::ParNCH1FaceRestriction(const ParFiniteElementSpace &fes,
 
 void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
 {
+   if (nf==0) { return; }
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
@@ -125,6 +126,7 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
 
 void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 {
+   if (nf==0) { return; }
    if (x_interp.Size()==0)
    {
       x_interp.SetSize(x.Size());
@@ -199,7 +201,7 @@ void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 
 void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
    const ElementDofOrdering ordering,
-   const FaceType type)
+   const FaceType face_type)
 {
    Mesh &mesh = *fes.GetMesh();
 
@@ -220,7 +222,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
          // by the corresponding nonconforming fine faces.
          continue;
       }
-      else if (type==FaceType::Interior && face.IsInterior())
+      else if (face_type==FaceType::Interior && face.IsInterior())
       {
          if ( face.IsConforming() )
          {
@@ -246,7 +248,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
             f_ind++;
          }
       }
-      else if (type==FaceType::Boundary && face.IsBoundary())
+      else if (face_type==FaceType::Boundary && face.IsBoundary())
       {
          SetFaceDofsScatterIndices(face, f_ind, ordering);
          f_ind++;
@@ -266,7 +268,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
 
 void ParNCH1FaceRestriction::ComputeGatherIndices(
    const ElementDofOrdering ordering,
-   const FaceType type)
+   const FaceType face_type)
 {
    Mesh &mesh = *fes.GetMesh();
 
@@ -281,7 +283,7 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
          // by the corresponding nonconforming fine faces.
          continue;
       }
-      else if (face.IsOfFaceType(type))
+      else if (face.IsOfFaceType(face_type))
       {
          SetFaceDofsGatherIndices(face, f_ind, ordering);
          f_ind++;
@@ -377,6 +379,7 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
 
 void ParL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
+   if (nf==0) { return; }
    if (m==L2FaceValues::DoubleValued)
    {
       DoubleValuedConformingMult(x, y);
@@ -880,6 +883,7 @@ void ParNCL2FaceRestriction::DoubleValuedNonconformingMult(
 
 void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
+   if (nf==0) { return; }
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
       DoubleValuedNonconformingMult(x, y);
@@ -904,6 +908,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 
 void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y) const
 {
+   if (nf==0) { return; }
    if (type==FaceType::Interior)
    {
       if ( m==L2FaceValues::DoubleValued )

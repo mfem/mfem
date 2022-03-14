@@ -12,9 +12,13 @@ Version 4.3.1 (development)
 ===========================
 
 - Add an new Example to demonstrate the solution of spectral fractional PDEs 
-  with MFEM. See Example 31/31p.
+  with MFEM. See Example 33/33p.
 
 - Add hipSPARSE support for sparse mat-vec multiplications.
+- Added PA support for MixedScalarCurlIntegrator in 2D and
+  MixedVectorGradientIntegrator in 2D and 3D, as well as their transposes.
+
+- Added hipSPARSE support for sparse mat-vec multiplications.
 
 - Added support for using the HYPRE library built with HIP support. Similar to
   the HYPRE + CUDA support added earlier, most of the MFEM examples and miniapps
@@ -101,9 +105,14 @@ Version 4.3.1 (development)
 - The HPC versions of ex1 and ex1p (in miniapps/performance) now support
   runtime selection of either 2D or 3D meshes.
 
+- Added arbitrary order Nedelec and Raviart-Thomas basis functions for
+  wedge-shaped elements.
+
 - Added ParaView visualization of `QuadratureFunction` fields, through both
   `QuadratureFunction::SaveVTU` and `ParaViewDataCollection::RegisterQField`.
 
+- Added Nedelec and Raviart-Thomas basis functions for modeling three
+  dimensional vector fields in 1D or 2D domains.
 
 Version 4.3, released on July 29, 2021
 ======================================
@@ -144,8 +153,8 @@ Discretization improvements
 
 - Added support for nonscalar coefficient with VectorDiffusionIntegrator.
 
-- Added support for Partial Assembly with Discontinuous Galerkin methods on
-  nonconforming meshes.
+- Added support for Partial Assembly and Element Assembly with Discontinuous
+  Galerkin methods on nonconforming meshes.
 
 - Added a simpler interface to request face information: see
   `Mesh::FaceInformation` and `Mesh::GetFaceInformation`.
