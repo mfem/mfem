@@ -16,7 +16,7 @@ DOXYGEN_CONF = CodeDocumentation.conf
 # doxygen uses: graphviz, latex
 html: $(DOXYGEN_CONF)
 	@# Generate the html documentation
-	@( cat $(DOXYGEN_CONF) ; echo "$(MFEM_DOXY_FLAGS)" ) | doxygen -
+	@( cat $(DOXYGEN_CONF) ; echo "$(MFEM_DOXYGEN_FLAGS)" ) | doxygen -
 	@echo "<meta http-equiv=\"REFRESH\" content=\"0;URL=CodeDocumentation/html/index.html\">" > CodeDocumentation.html
 	@cat warnings.log 1>&2
 	@# Generate the log of undocumented methods
