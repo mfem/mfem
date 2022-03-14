@@ -1,6 +1,6 @@
-//                      MFEM Example 31
+//                      MFEM Example 33
 //
-// Compile with: make ex31
+// Compile with: make ex33
 //
 // Sample runs:  ex31 -m ../data/square-disc.mesh -alpha 0.33 -o 2
 //               ex31 -m ../data/star.mesh -alpha 0.99 -o 3
