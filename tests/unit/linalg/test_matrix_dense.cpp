@@ -342,7 +342,7 @@ TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
    }
 }
 
-TEST_CASE("CholeskyFactors", "[DenseMatrix]")
+TEST_CASE("MatrixInverse", "[DenseMatrix]")
 {
    double tol = 1e-10;
 
@@ -350,42 +350,40 @@ TEST_CASE("CholeskyFactors", "[DenseMatrix]")
    DenseMatrix A(
    {
       {
-         1.301716607311396e+00, 8.195754277510510e-01,
-         9.466682257346078e-01, 7.132759710010947e-01
+         1.559453389560368e+00, 5.965183717114262e-01,
+         1.903876670171460e+00, 1.384516640661015e+00
       },
       {
-         8.195754277510510e-01, 1.683528526844726e+00,
-         1.232387426487729e+00, 1.051404276721910e+00
+         5.965183717114262e-01, 3.656585217096903e-01,
+         7.317620734480207e-01, 4.653402963736278e-01
       },
       {
-         9.466682257346078e-01, 1.232387426487729e+00,
-         1.078953541036807e+00, 9.117981435221414e-01
+         1.903876670171460e+00, 7.317620734480207e-01,
+         2.706704015120572e+00, 1.697243809652791e+00
       },
       {
-         7.132759710010947e-01, 1.051404276721910e+00,
-         9.117981435221414e-01, 8.000788535852293e-01
+         1.384516640661015e+00, 4.653402963736278e-01,
+         1.697243809652791e+00, 1.320372849564658e+00
       }
    });
 
-   DenseMatrix B(A);
-
-   DenseMatrix Uref(
+   DenseMatrix B(
    {
       {
-         1.140927958861293e+00, 7.183410848911363e-01,
-         8.297353206064241e-01, 6.251717871065079e-01
+         6.175090593002799e-01, 9.989213039418627e-01,
+         1.691674567847143e-01, 6.774773197526213e-01
       },
       {
-         0.000000000000000e+00, 1.080515901133413e+00,
-         5.889357624846686e-01, 5.574352920643616e-01
+         7.162984888260597e-01, 4.577976465165907e-01,
+         8.477214625276694e-01, 3.907031906476549e-01
       },
       {
-         0.000000000000000e+00, 0.000000000000000e+00,
-         2.089198565037879e-01, 3.100588552446605e-01
+         5.953027962207859e-01, 1.037064248746427e-02,
+         7.764894404084814e-01, 2.585226682834829e-01
       },
       {
-         0.000000000000000e+00, 0.000000000000000e+00,
-         0.000000000000000e+00, 4.866715151696373e-02
+         3.675754332095076e-02, 9.507296088377276e-01,
+         3.587644396028470e-01, 5.723263850552165e-01
       }
    });
 
@@ -394,40 +392,282 @@ TEST_CASE("CholeskyFactors", "[DenseMatrix]")
              2.753206172398688e-01,
              2.497813883310917e-01});
 
-   DenseMatrix invA(A);
-   invA.Invert();
-   CholeskyFactors cholA(A.GetData());
-   cholA.Factor(A.Size());
 
-   Vector y2(4);
-   Uref.Mult(x,y2);
-   Vector y1(x);
-   cholA.UMult(y1.Size(),1,y1.GetData());
+   SECTION("DenseMatrixInverse")
+   {
+      DenseMatrixInverse lu(A);
+      DenseMatrixInverse chol(A,true);
 
-   y1-=y2;
+      // Check inverse
+      DenseMatrix invA1;
+      lu.GetInverseMatrix(invA1);
+      DenseMatrix invA2;
+      chol.GetInverseMatrix(invA2);
 
-   REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+      invA2-=invA1;
+      REQUIRE(invA2.MaxMaxNorm() == MFEM_Approx(0.,tol));
 
-   Uref.Transpose();
+      // check Mult
+      DenseMatrix B1(4), B2(4);
+      lu.Mult(B,B1);
+      chol.Mult(B,B2);
+      B1-=B2;
+      REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
 
-   Uref.Mult(x,y2);
-   y1 = x;
-   cholA.LMult(y1.Size(),1,y1.GetData());
-   y1-=y2;
-   REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+      Vector y1(4), y2(4);
+      lu.Mult(x,y1);
+      chol.Mult(x,y2);
+      y1-=y2;
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+   }
 
-   invA.Mult(x, y2);
+   SECTION("CholeskyFactors")
+   {
+      DenseMatrix A1(A);
+      Array<int> ipiv(4);
+      LUFactors lu(A1.GetData(), ipiv.GetData());
+      lu.Factor(4);
+      DenseMatrix B1(B);
+      lu.RightSolve(4,4,B1.Data());
 
-   y1 = x;
-   cholA.Solve(4,1,y1);
-   y1 -= y2;
-   REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
 
-   y1 = x;
-   cholA.LSolve(4,1,y1.GetData());
-   cholA.USolve(4,1,y1.GetData());
-   y1 -= y2;
-   REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+      DenseMatrix A2(A);
+      CholeskyFactors chol(A2.GetData());
+      chol.Factor(4);
+      DenseMatrix B2(B);
+      chol.RightSolve(4,4,B2.Data());
+
+      B1-=B2;
+      REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
+
+      DenseMatrix L(
+      {
+         {
+            1.248780761206853e+00, 0.000000000000000e+00,
+            0.000000000000000e+00, 0.000000000000000e+00
+         },
+         {
+            4.776806227659496e-01, 3.707826106273389e-01,
+            0.000000000000000e+00, 0.000000000000000e+00
+         },
+         {
+            1.524588405999709e+00, 9.427988552156243e-03,
+            6.182599133404151e-01, 0.000000000000000e+00
+         },
+         {
+            1.108694723422055e+00, -1.733136552957947e-01,
+            1.386906623495105e-02,  2.468580274379029e-01
+         }
+      });
+
+      B2 = B;
+      chol.LMult(4,4,B2.GetData());
+      Mult(L,B,B1);
+      B1-=B2;
+
+      REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
+      Vector y1(4);
+      Vector y2(x);
+
+      L.Mult(x,y1);
+      chol.LMult(4,1,y2.GetData());
+      y1-=y2;
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+
+      y2 = x;
+
+      L.MultTranspose(x,y1);
+      chol.UMult(4,1,y2.GetData());
+      y1-=y2;
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+
+      y2 = x;
+
+      L.Invert();
+      L.Mult(x,y1);
+      chol.LSolve(4,1,y2.GetData());
+      y1-=y2;
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+
+      y2 = x;
+
+      L.MultTranspose(x,y1);
+      chol.USolve(4,1,y2.GetData());
+      y1-=y2;
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+
+      B2 = B;
+      chol.LSolve(4,4,B2.GetData());
+      Mult(L,B,B1);
+      B1-=B2;
+      REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
+
+      B2 = B;
+      chol.USolve(4,4,B2.GetData());
+      MultAtB(L,B,B1);
+      B1-=B2;
+      REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
+
+   }
 
 }
+#ifdef MFEM_USE_LAPACK
 
+enum class TestCase { GenEigSPD, GenEigGE, SVD};
+std::string TestCaseName(TestCase testcase)
+{
+   switch (testcase)
+   {
+      case TestCase::GenEigSPD:
+         return "Generalized Eigenvalue problem for an SPD matrix";
+      case TestCase::GenEigGE:
+         return "Generalized Eigenvalue problem for a general matrix";
+      case TestCase::SVD:
+         return "Singular Value Decomposition for a general matrix";
+   }
+   return "";
+}
+
+TEST_CASE("Eigensystem Problems",
+          "[DenseMatrix]")
+{
+   auto testcase = GENERATE(TestCase::GenEigSPD, TestCase::GenEigGE,
+                            TestCase::SVD);
+
+   CAPTURE(TestCaseName(testcase));
+
+   DenseMatrix M({{0.279841, 0.844288, 0.498302, 0.323955},
+      {0.884680, 0.243511, 0.397405, 0.265708},
+      {0.649685, 0.700754, 0.586396, 0.023724},
+      {0.081588, 0.728236, 0.083123, 0.488041}
+   });
+
+   switch (testcase)
+   {
+      case TestCase::GenEigSPD:
+      {
+         DenseMatrix A({{0.56806, 0.29211, 0.48315, 0.70024},
+            {0.29211, 0.85147, 0.68123, 0.70689},
+            {0.48315, 0.68123, 1.07229, 1.02681},
+            {0.70024, 0.70689, 1.02681, 1.15468}});
+
+         DenseMatrixGeneralizedEigensystem geig(A,M,true,true);
+         geig.Eval();
+         Vector & Lambda = geig.EigenvaluesRealPart();
+         DenseMatrix & V = geig.RightEigenvectors();
+         DenseMatrix & W = geig.LeftEigenvectors();
+
+         // check A * V - M * V * L
+         DenseMatrix AV(4); Mult(A,V,AV);
+         DenseMatrix MV(4); Mult(M,V,MV);
+         MV.RightScaling(Lambda);  AV-=MV;
+
+         REQUIRE(AV.MaxMaxNorm() == MFEM_Approx(0.));
+
+         // check W^t * A - L * W^t * M
+         DenseMatrix WtA(4); MultAtB(W,A,WtA);
+         DenseMatrix WtM(4); MultAtB(W,M,WtM);
+         WtM.LeftScaling(Lambda); WtA-=WtM;
+
+         REQUIRE(WtA.MaxMaxNorm() == MFEM_Approx(0.));
+      }
+      break;
+      case TestCase::GenEigGE:
+      {
+         DenseMatrix A({{0.486278, 0.041135, 0.480727, 0.616026},
+            {0.523599, 0.119827, 0.087808, 0.415241},
+            {0.214454, 0.661631, 0.909626, 0.744259},
+            {0.107007, 0.630604, 0.077862, 0.221006}});
+
+         DenseMatrixGeneralizedEigensystem geig(A,M,true,true);
+         geig.Eval();
+         Vector & Lambda_r = geig.EigenvaluesRealPart();
+         Vector & Lambda_i = geig.EigenvaluesImagPart();
+         DenseMatrix & V = geig.RightEigenvectors();
+
+         DenseMatrix Vr(4), Vi(4);
+         Vr.SetCol(0,V.GetColumn(0));
+         Vr.SetCol(1,V.GetColumn(0));
+         Vr.SetCol(2,V.GetColumn(2));
+         Vr.SetCol(3,V.GetColumn(3));
+
+         // Imag part of eigenvectors
+         Vector vi(4); V.GetColumn(1,vi);
+         Vi.SetCol(0,vi); vi *= -1.;
+         Vi.SetCol(1,vi);
+         Vi.SetCol(2,0.);
+         Vi.SetCol(3,0.);
+
+         // check A * V -  M * V * L
+         // or  A * Vr = M*Vr * Lambda_r -  M*Vi * Lambda_i
+         // and A * Vi = M*Vr * Lambda_i +  M*Vi * Lambda_r
+         DenseMatrix AVr(4); Mult(A,Vr, AVr);
+         DenseMatrix AVi(4); Mult(A,Vi, AVi);
+         DenseMatrix MVr(4); Mult(M,Vr,MVr);
+         DenseMatrix MVi(4); Mult(M,Vi,MVi);
+
+         DenseMatrix MVrlr = MVr; MVrlr.RightScaling(Lambda_r);
+         DenseMatrix MVrli = MVr; MVrli.RightScaling(Lambda_i);
+         DenseMatrix MVilr = MVi; MVilr.RightScaling(Lambda_r);
+         DenseMatrix MVili = MVi; MVili.RightScaling(Lambda_i);
+
+         AVr -= MVrlr; AVr+= MVili;
+         AVi -= MVrli; AVi-= MVilr;
+
+         REQUIRE(AVr.MaxMaxNorm() == MFEM_Approx(0.));
+         REQUIRE(AVi.MaxMaxNorm() == MFEM_Approx(0.));
+
+         DenseMatrix & W = geig.LeftEigenvectors();
+         DenseMatrix Wr(4), Wi(4);
+         Wr.SetCol(0,W.GetColumn(0));
+         Wr.SetCol(1,W.GetColumn(0));
+         Wr.SetCol(2,W.GetColumn(2));
+         Wr.SetCol(3,W.GetColumn(3));
+
+         // Imag part of eigenvectors
+         Vector wi(4); W.GetColumn(1,wi);
+         Wi.SetCol(0,wi); wi *= -1.;
+         Wi.SetCol(1,wi);
+         Wi.SetCol(2,0.);
+         Wi.SetCol(3,0.);
+
+         // check W' * A - L * W' * M
+         // or  Wr^t * A = Lambda_r * Wr^t * M + Lambda_i * Wi^t * M
+         // and Wi^t * A = Lambda_r * Wi^t * M - Lambda_i * Wr^t * M
+         DenseMatrix WrtA(4); MultAtB(Wr,A, WrtA);
+         DenseMatrix WitA(4); MultAtB(Wi,A, WitA);
+         DenseMatrix WrtM(4); MultAtB(Wr,M,WrtM);
+         DenseMatrix WitM(4); MultAtB(Wi,M,WitM);
+
+         DenseMatrix lrWrtM = WrtM; lrWrtM.LeftScaling(Lambda_r);
+         DenseMatrix liWrtM = WrtM; liWrtM.LeftScaling(Lambda_i);
+         DenseMatrix lrWitM = WitM; lrWitM.LeftScaling(Lambda_r);
+         DenseMatrix liWitM = WitM; liWitM.LeftScaling(Lambda_i);
+
+         WrtA -= lrWrtM; WrtA-= liWitM;
+         WitA -= lrWitM; WitA+= liWrtM;
+
+         REQUIRE(WrtA.MaxMaxNorm() == MFEM_Approx(0.));
+         REQUIRE(WitA.MaxMaxNorm() == MFEM_Approx(0.));
+      }
+      break;
+      case TestCase::SVD:
+      {
+         DenseMatrixSVD svd(M,true,true);
+         svd.Eval(M);
+         Vector &sigma = svd.Singularvalues();
+         DenseMatrix &U = svd.LeftSingularvectors();
+         DenseMatrix &V = svd.RightSingularvectors();
+
+         DenseMatrix Vt(V); Vt.Transpose();
+         DenseMatrix USVt(4); MultADBt(U,sigma,Vt,USVt);
+
+         USVt -= M;
+
+         REQUIRE(USVt.MaxMaxNorm() == MFEM_Approx(0.));
+      }
+      break;
+   }
+}
+
+#endif // if MFEM_USE_LAPACK
