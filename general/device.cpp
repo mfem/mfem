@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -177,7 +177,7 @@ Device::~Device()
    Get().device_mem_class = MemoryClass::HOST;
 }
 
-void Device::Configure(const std::string &device, const int dev)
+void Device::Configure(const std::string &device, const int device_id)
 {
    // If a device was configured via the environment, skip the configuration,
    // and avoid the 'singleton_device' to destroy the mm.
@@ -240,7 +240,7 @@ void Device::Configure(const std::string &device, const int dev)
 #endif
 
    // Perform setup.
-   Get().Setup(dev);
+   Get().Setup(device_id);
 
    // Enable the device
    Enable();
@@ -276,35 +276,35 @@ void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
    // the call mm.Configure(...) in UpdateMemoryTypeAndClass()
 }
 
-void Device::Print(std::ostream &out)
+void Device::Print(std::ostream &os)
 {
-   out << "Device configuration: ";
+   os << "Device configuration: ";
    bool add_comma = false;
    for (int i = 0; i < Backend::NUM_BACKENDS; i++)
    {
       if (backends & internal::backend_list[i])
       {
-         if (add_comma) { out << ','; }
+         if (add_comma) { os << ','; }
          add_comma = true;
-         out << internal::backend_name[i];
+         os << internal::backend_name[i];
       }
    }
-   out << '\n';
+   os << '\n';
 #ifdef MFEM_USE_CEED
    if (Allows(Backend::CEED_MASK))
    {
       const char *ceed_backend;
       CeedGetResource(internal::ceed, &ceed_backend);
-      out << "libCEED backend: " << ceed_backend << '\n';
+      os << "libCEED backend: " << ceed_backend << '\n';
    }
 #endif
-   out << "Memory configuration: "
-       << MemoryTypeName[static_cast<int>(host_mem_type)];
+   os << "Memory configuration: "
+      << MemoryTypeName[static_cast<int>(host_mem_type)];
    if (Device::Allows(Backend::DEVICE_MASK))
    {
-      out << ',' << MemoryTypeName[static_cast<int>(device_mem_type)];
+      os << ',' << MemoryTypeName[static_cast<int>(device_mem_type)];
    }
-   out << std::endl;
+   os << std::endl;
 }
 
 void Device::UpdateMemoryTypeAndClass()
@@ -502,12 +502,12 @@ static void CeedDeviceSetup(const char* ceed_spec)
 #endif
 }
 
-void Device::Setup(const int device)
+void Device::Setup(const int device_id)
 {
    MFEM_VERIFY(ngpu == -1, "the mfem::Device is already configured!");
 
    ngpu = 0;
-   dev = device;
+   dev = device_id;
 #ifndef MFEM_USE_CUDA
    MFEM_VERIFY(!Allows(Backend::CUDA_MASK),
                "the CUDA backends require MFEM built with MFEM_USE_CUDA=YES");

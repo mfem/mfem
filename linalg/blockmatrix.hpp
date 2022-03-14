@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -89,7 +89,7 @@ public:
    //! Returns a monolithic CSR matrix that represents this operator.
    SparseMatrix * CreateMonolithic() const;
    //! Export the monolithic matrix to file.
-   void PrintMatlab(std::ostream & os = mfem::out) const;
+   virtual void PrintMatlab(std::ostream & os = mfem::out) const;
 
    /// @name Matrix interface
    ///@{

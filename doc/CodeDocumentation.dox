@@ -98,6 +98,9 @@ namespace mfem {
  * - <a class="el" href="ex28p_8cpp_source.html">Example 28p</a>: parallel sliding contact in elasticity
  * - <a class="el" href="ex29_8cpp_source.html">Example 29</a>: Laplace solve on a 3D-embedded surface
  * - <a class="el" href="ex29p_8cpp_source.html">Example 29p</a>: parallel Laplace solve on a 3D-embedded surface
+ * - <a class="el" href="ex31_8cpp_source.html">Example 31</a>: Nedelec H(curl) FEM for the definite anisotropic Maxwell problem
+ * - <a class="el" href="ex31p_8cpp_source.html">Example 31p</a>: parallel Nedelec H(curl) FEM for the definite anisotropic Maxwell problem
+ * - <a class="el" href="ex32p_8cpp_source.html">Example 32p</a>: parallel anisotropic Maxwell eigensolver
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples
@@ -194,6 +197,8 @@ namespace mfem {
  * - <a class="el" href="parheat_8cpp_source.html">Optimization gradients</a>: Gradients of PDE-constrained function
  * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
  * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
+ * - <a class="el" href="par__example_8cpp_source.html">Parallel pLaplacian example using AD</a>: Parallel pLaplacian example
+ * - <a class="el" href="seq__example_8cpp_source.html">Serial pLaplacian example using AD</a>: Serial pLaplacian example
  *
  * See also the <a class="el" href="https://mfem.org/examples/">examples documentation</a> online.
  */

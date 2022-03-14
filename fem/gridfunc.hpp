@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -126,6 +126,7 @@ public:
    FiniteElementCollection *OwnFEC() { return fec; }
 
    int VectorDim() const;
+   int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.
    /** Note that the returned Vector may be empty, if not previously allocated
@@ -310,6 +311,16 @@ public:
 
    void ProjectVectorFieldOn(GridFunction &vec_field, int comp = 0);
 
+   /** @brief Compute a certain derivative of a function's component.
+       Derivatives of the function are computed at the DOF locations of @a der,
+       and averaged over overlapping DOFs. Thus this function projects the
+       derivative to the FiniteElementSpace of @a der.
+       @param[in]  comp  Index of the function's component to be differentiated.
+                         The index is 1-based, i.e., use 1 for scalar functions.
+       @param[in]  der_comp  Use 0/1/2 for derivatives in x/y/z directions.
+       @param[out] der       The resulting derivative (scalar function). The
+                             FiniteElementSpace of this function must be set
+                             before the call. */
    void GetDerivative(int comp, int der_comp, GridFunction &der);
 
    double GetDivergence(ElementTransformation &tr) const;
@@ -410,6 +421,12 @@ protected:
        shared vdofs and counts in how many zones each vdof appears. */
    void AccumulateAndCountZones(VectorCoefficient &vcoeff, AvgType type,
                                 Array<int> &zones_per_vdof);
+
+   /** @brief Used for the serial and parallel implementations of the
+       GetDerivative() method; see its documentation. */
+   void AccumulateAndCountDerivativeValues(int comp, int der_comp,
+                                           GridFunction &der,
+                                           Array<int> &zones_per_dof);
 
    void AccumulateAndCountBdrValues(Coefficient *coeff[],
                                     VectorCoefficient *vcoeff, Array<int> &attr,
@@ -886,6 +903,22 @@ public:
 
    /// Write the QuadratureFunction to the stream @a out.
    void Save(std::ostream &out) const;
+
+   /// @brief Write the QuadratureFunction to @a out in VTU (ParaView) format.
+   ///
+   /// The data will be uncompressed if @a compression_level is zero, or if the
+   /// format is VTKFormat::ASCII. Otherwise, zlib compression will be used for
+   /// binary data.
+   void SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
+                int compression_level=0) const;
+
+   /// @brief Save the QuadratureFunction to a VTU (ParaView) file.
+   ///
+   /// The extension ".vtu" will be appended to @a filename.
+   /// @sa SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
+   ///             int compression_level=0)
+   void SaveVTU(const std::string &filename, VTKFormat format=VTKFormat::ASCII,
+                int compression_level=0) const;
 };
 
 /// Overload operator<< for std::ostream and QuadratureFunction.
