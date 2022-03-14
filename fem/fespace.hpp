@@ -952,6 +952,10 @@ public:
    QuadratureSpace(Mesh *mesh_, int order_)
       : mesh(mesh_), order(order_) { Construct(); }
 
+   /// @brief Create a QuadratureSpace with an IntegrationRule, valid only when
+   /// the mesh has one element type.
+   QuadratureSpace(Mesh &mesh_, const IntegrationRule &ir);
+
    /// Read a QuadratureSpace from the stream @a in.
    QuadratureSpace(Mesh *mesh_, std::istream &in);
 
