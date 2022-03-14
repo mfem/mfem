@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -113,6 +113,17 @@ void PAHcurlH1Apply2D(const int D1D,
                       const Vector &x,
                       Vector &y);
 
+void PAHcurlH1ApplyTranspose2D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const Array<double> &bc,
+                               const Array<double> &bo,
+                               const Array<double> &bct,
+                               const Array<double> &gct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y);
+
 void PAHcurlH1Apply3D(const int D1D,
                       const int Q1D,
                       const int NE,
@@ -123,6 +134,17 @@ void PAHcurlH1Apply3D(const int D1D,
                       const Vector &pa_data,
                       const Vector &x,
                       Vector &y);
+
+void PAHcurlH1ApplyTranspose3D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const Array<double> &bc,
+                               const Array<double> &bo,
+                               const Array<double> &bct,
+                               const Array<double> &gct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y);
 
 void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
@@ -739,7 +761,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
@@ -785,7 +807,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
    if (Q || DQ || MQ || SMQ)
    {
-      Vector D(DQ ? coeffDim : 0);
+      Vector DM(DQ ? coeffDim : 0);
       DenseMatrix M;
       DenseSymmetricMatrix SM;
 
@@ -832,10 +854,10 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
             }
             else if (DQ)
             {
-               DQ->Eval(D, *tr, ir->IntPoint(p));
+               DQ->Eval(DM, *tr, ir->IntPoint(p));
                for (int i=0; i<coeffDim; ++i)
                {
-                  coeffh(i, p, e) = D[i];
+                  coeffh(i, p, e) = DM[i];
                }
             }
             else
@@ -1123,6 +1145,21 @@ void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
    else if (dim == 2)
       PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
                        mapsO->Bt, mapsC->Bt, pa_data, x, y);
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void MixedVectorGradientIntegrator::AddMultTransposePA(const Vector &x,
+                                                       Vector &y) const
+{
+   if (dim == 3)
+      PAHcurlH1ApplyTranspose3D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
+                                mapsC->Bt, mapsC->Gt, pa_data, x, y);
+   else if (dim == 2)
+      PAHcurlH1ApplyTranspose2D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
+                                mapsC->Bt, mapsC->Gt, pa_data, x, y);
    else
    {
       MFEM_ABORT("Unsupported dimension!");
