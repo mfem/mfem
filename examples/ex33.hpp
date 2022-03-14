@@ -55,8 +55,7 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
    z.SetSize(0);
    f.SetSize(0);
    DenseMatrix C;
-   DenseMatrix *Cl = nullptr;
-   DenseMatrix *Cr = nullptr;
+   DenseMatrix *Ctemp = nullptr;
    DenseMatrix *A = nullptr;
    DenseMatrix *Am = nullptr;
 
@@ -67,15 +66,12 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
    // mean of the value vector
    Vector R(val.Size());
    double mean_val = val.Sum()/size;
-   for (int i = 0; i<R.Size(); i++)
-   {
-      R(i) = mean_val;
-   }
+
+   for (int i = 0; i<R.Size(); i++) { R(i) = mean_val; }
 
    for (int k = 0; k < max_order; k++)
    {
       // select next support point
-
       int idx = 0;
       double tmp_max = 0;
       for (int j = 0; j < size; j++)
@@ -97,7 +93,7 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
 
       // next column in Cauchy matrix
       Array<double> C_tmp(size);
-      // we might want to remove the inf
+
       for (int j = 0; j < size; j++)
       {
          C_tmp[j] = 1.0/(pt(j)-pt(idx));
@@ -109,16 +105,15 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
 
       // This will need some cleanup
       // temporary copies to perform the scalings
-      Cl = new DenseMatrix(C);
-      Cr = new DenseMatrix(C);
+      Ctemp = new DenseMatrix(C);
 
       f_vec.SetDataAndSize(f.GetData(),f.Size());
-      Cl->LeftScaling(val);
-      Cr->RightScaling(f_vec);
+      Ctemp->InvLeftScaling(val);
+      Ctemp->RightScaling(f_vec);
 
       A = new DenseMatrix(C.Height(), C.Width());
-      Add(*Cl,*Cr,-1.0,*A);
-
+      Add(C,*Ctemp,-1.0,*A);
+      A->LeftScaling(val);
 
       int h_Am = J.Size();
       int w_Am = A->Width();
@@ -158,14 +153,12 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
 
       Vector verr(val);
       verr-=R;
-      double err = verr.Normlinf();
 
-      delete Cl;
-      delete Cr;
+      delete Ctemp;
       delete A;
       delete Am;
 
-      if (err <= tol*val.Normlinf())
+      if (verr.Normlinf() <= tol*val.Normlinf())
       {
          break;
       }
