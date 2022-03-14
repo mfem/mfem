@@ -73,6 +73,9 @@ New and updated examples and miniapps
 - Added initial TMOP-based capabilities for surface fitting and tangential
   relaxation in the mesh-optimizer and pmesh-optimizer miniapps.
 
+- Added special Nedelec and Raviart-Thomas basis functions for modeling three
+  dimensional vector fields in 1D and 2D domains, see the new Example 31/31p.
+
 - Added new miniapps that use the ParELAG library, its hybrid smoothers, and the
   hierarchy of spaces created by the element-based AMG (AMGe) methodology in
   ParELAG to build multigrid solvers for H(curl) and H(div) forms. See the
@@ -118,8 +121,6 @@ Miscellaneous
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
-- Added Nedelec and Raviart-Thomas basis functions for modeling three
-  dimensional vector fields in 1D or 2D domains.
 
 Version 4.3, released on July 29, 2021
 ======================================
