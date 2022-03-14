@@ -1468,4 +1468,146 @@ double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
    return temp[0];
 }
 
+
+CoefficientVector::CoefficientVector(Coefficient *coeff, QuadratureSpace &qs,
+                                     bool compress)
+   : Vector(), vdim(1), qf(NULL)
+{
+   if (coeff == NULL)
+   {
+      SetConstant(1.0, compress ? 1 : qs.GetSize());
+   }
+   else
+   {
+      Project(*coeff, qs, compress);
+   }
+}
+
+CoefficientVector::CoefficientVector(Coefficient &coeff, QuadratureSpace &qs,
+                                     bool compress)
+   : Vector(), vdim(1), qf(NULL)
+{
+   Project(coeff, qs, compress);
+}
+
+CoefficientVector::CoefficientVector(VectorCoefficient &coeff,
+                                     QuadratureSpace &qs, bool compress)
+   : Vector(), vdim(1), qf(NULL)
+{
+   Project(coeff, qs, compress);
+}
+
+CoefficientVector::CoefficientVector(MatrixCoefficient &coeff,
+                                     QuadratureSpace &qs, bool compress)
+   : Vector(), vdim(1), qf(NULL)
+{
+   Project(coeff, qs, compress);
+}
+
+void CoefficientVector::Project(Coefficient &coeff, QuadratureSpace &qs,
+                                bool compress)
+{
+   vdim = 1;
+   if (auto *const_coeff = dynamic_cast<ConstantCoefficient*>(&coeff))
+   {
+      SetConstant(const_coeff->constant, compress ? 1 : qs.GetSize());
+   }
+   else if (auto *qf_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(&coeff))
+   {
+      QuadratureSpace *qs2 = qf_coeff->GetQuadFunction().GetSpace();
+      MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
+      MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
+      MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
+      QuadratureFunction &qf2 = const_cast<QuadratureFunction&>
+                                (qf_coeff->GetQuadFunction());
+      MakeRef(qf2, 0, qf2.Size());
+   }
+   else
+   {
+      delete qf;
+      qf = new QuadratureFunction(&qs);
+      qf->ProjectCoefficient(coeff);
+      MakeRef(*qf, 0, qf->Size());
+   }
+}
+
+void CoefficientVector::Project(VectorCoefficient &coeff, QuadratureSpace &qs,
+                                bool compress)
+{
+   vdim = coeff.GetVDim();
+   if (auto *const_coeff = dynamic_cast<VectorConstantCoefficient*>(&coeff))
+   {
+      SetConstant(const_coeff->GetVec(), compress ? 1 : qs.GetSize());
+   }
+   else
+   {
+      delete qf;
+      qf = new QuadratureFunction(&qs, vdim);
+      qf->ProjectCoefficient(coeff);
+      MakeRef(*qf, 0, qf->Size());
+   }
+}
+
+void CoefficientVector::Project(MatrixCoefficient &coeff, QuadratureSpace &qs,
+                                bool compress, bool transpose)
+{
+   delete qf;
+   vdim = coeff.GetWidth()*coeff.GetHeight();
+   qf = new QuadratureFunction(&qs, vdim);
+   qf->ProjectCoefficient(coeff, transpose);
+   MakeRef(*qf, 0, qf->Size());
+}
+
+void CoefficientVector::ProjectTranspose(MatrixCoefficient &coeff,
+                                         QuadratureSpace &qs,
+                                         bool compress)
+{
+   Project(coeff, qs, compress, true);
+}
+
+void CoefficientVector::SetConstant(double constant, int nq)
+{
+   vdim = 1;
+   SetSize(nq);
+   Vector::operator=(constant);
+}
+
+void CoefficientVector::SetConstant(const Vector &constant, int nq)
+{
+   vdim = constant.Size();
+   SetSize(nq*vdim);
+   for (int iq = 0; iq < nq; ++iq)
+   {
+      for (int vd = 0; vd<vdim; ++vd)
+      {
+         (*this)[vd + iq*vdim] = constant[vd];
+      }
+   }
+}
+
+void CoefficientVector::SetConstant(const DenseMatrix &constant, int nq)
+{
+   int width = constant.Width();
+   int height = constant.Height();
+   vdim = width*height;
+   SetSize(nq*vdim);
+   for (int iq = 0; iq < nq; ++iq)
+   {
+      for (int j = 0; j < width; ++j)
+      {
+         for (int i = 0; i < height; ++i)
+         {
+            (*this)[i + j*height + iq*vdim] = constant(i, j);
+         }
+      }
+   }
+}
+
+int CoefficientVector::GetVDim() const { return vdim; }
+
+CoefficientVector::~CoefficientVector()
+{
+   delete qf;
+}
+
 }
