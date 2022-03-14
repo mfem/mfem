@@ -800,7 +800,16 @@ public:
    /// Evaluate the given vector coefficient at each quadrature point.
    void ProjectCoefficient(VectorCoefficient &coeff);
 
-   /// Evaluate the given matrix coefficient at each quadrature point.
+   /// @brief Evaluate the given symmetric matrix coefficient at each
+   /// quadrature point, and store the values in "symmetric format".
+   ///
+   /// @sa DenseSymmetricMatrix
+   void ProjectCoefficient(SymmetricMatrixCoefficient &coeff);
+
+   /// @brief Evaluate the given matrix coefficient at each quadrature point.
+   ///
+   /// @note The coefficient is stored as a full (non-symmetric) matrix.
+   /// @sa ProjectCoefficient(SymmetricMatrixCoefficient&, bool).
    void ProjectCoefficient(MatrixCoefficient &coeff, bool transpose=false);
 
    /// Get the associated QuadratureSpace.

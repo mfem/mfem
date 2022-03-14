@@ -1469,48 +1469,56 @@ double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
 }
 
 
+CoefficientVector::CoefficientVector(CoefficientStorage storage_)
+   : Vector(), storage(storage_), vdim(0), qf(NULL)
+{
+   UseDevice(true);
+}
+
 CoefficientVector::CoefficientVector(Coefficient *coeff, QuadratureSpace &qs,
-                                     bool compress)
-   : Vector(), vdim(1), qf(NULL)
+                                     CoefficientStorage storage_)
+   : CoefficientVector(storage_)
 {
    if (coeff == NULL)
    {
-      SetConstant(1.0, compress ? 1 : qs.GetSize());
+      SetConstant(1.0, (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize());
    }
    else
    {
-      Project(*coeff, qs, compress);
+      Project(*coeff, qs);
    }
 }
 
 CoefficientVector::CoefficientVector(Coefficient &coeff, QuadratureSpace &qs,
-                                     bool compress)
-   : Vector(), vdim(1), qf(NULL)
+                                     CoefficientStorage storage_)
+   : CoefficientVector(storage_)
 {
-   Project(coeff, qs, compress);
+   Project(coeff, qs);
 }
 
 CoefficientVector::CoefficientVector(VectorCoefficient &coeff,
-                                     QuadratureSpace &qs, bool compress)
-   : Vector(), vdim(1), qf(NULL)
+                                     QuadratureSpace &qs,
+                                     CoefficientStorage storage_)
+   : CoefficientVector(storage_)
 {
-   Project(coeff, qs, compress);
+   Project(coeff, qs);
 }
 
 CoefficientVector::CoefficientVector(MatrixCoefficient &coeff,
-                                     QuadratureSpace &qs, bool compress)
-   : Vector(), vdim(1), qf(NULL)
+                                     QuadratureSpace &qs,
+                                     CoefficientStorage storage_)
+   : CoefficientVector(storage_)
 {
-   Project(coeff, qs, compress);
+   Project(coeff, qs);
 }
 
-void CoefficientVector::Project(Coefficient &coeff, QuadratureSpace &qs,
-                                bool compress)
+void CoefficientVector::Project(Coefficient &coeff, QuadratureSpace &qs)
 {
    vdim = 1;
    if (auto *const_coeff = dynamic_cast<ConstantCoefficient*>(&coeff))
    {
-      SetConstant(const_coeff->constant, compress ? 1 : qs.GetSize());
+      SetConstant(const_coeff->constant,
+                  (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize());
    }
    else if (auto *qf_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(&coeff))
    {
@@ -1531,13 +1539,13 @@ void CoefficientVector::Project(Coefficient &coeff, QuadratureSpace &qs,
    }
 }
 
-void CoefficientVector::Project(VectorCoefficient &coeff, QuadratureSpace &qs,
-                                bool compress)
+void CoefficientVector::Project(VectorCoefficient &coeff, QuadratureSpace &qs)
 {
    vdim = coeff.GetVDim();
    if (auto *const_coeff = dynamic_cast<VectorConstantCoefficient*>(&coeff))
    {
-      SetConstant(const_coeff->GetVec(), compress ? 1 : qs.GetSize());
+      SetConstant(const_coeff->GetVec(),
+                  (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize());
    }
    else
    {
@@ -1549,20 +1557,29 @@ void CoefficientVector::Project(VectorCoefficient &coeff, QuadratureSpace &qs,
 }
 
 void CoefficientVector::Project(MatrixCoefficient &coeff, QuadratureSpace &qs,
-                                bool compress, bool transpose)
+                                bool transpose)
 {
    delete qf;
-   vdim = coeff.GetWidth()*coeff.GetHeight();
-   qf = new QuadratureFunction(&qs, vdim);
-   qf->ProjectCoefficient(coeff, transpose);
+   auto *sym_coeff = dynamic_cast<SymmetricMatrixCoefficient*>(&coeff);
+   if (sym_coeff && (storage & CoefficientStorage::SYMMETRIC))
+   {
+      vdim = sym_coeff->GetSize()*(sym_coeff->GetSize() + 1)/2;
+      qf = new QuadratureFunction(&qs, vdim);
+      qf->ProjectCoefficient(*sym_coeff);
+   }
+   else
+   {
+      vdim = coeff.GetWidth()*coeff.GetHeight();
+      qf = new QuadratureFunction(&qs, vdim);
+      qf->ProjectCoefficient(coeff, transpose);
+   }
    MakeRef(*qf, 0, qf->Size());
 }
 
 void CoefficientVector::ProjectTranspose(MatrixCoefficient &coeff,
-                                         QuadratureSpace &qs,
-                                         bool compress)
+                                         QuadratureSpace &qs)
 {
-   Project(coeff, qs, compress, true);
+   Project(coeff, qs, true);
 }
 
 void CoefficientVector::SetConstant(double constant, int nq)

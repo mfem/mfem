@@ -926,7 +926,7 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(Q, qs, false);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
 
    if (el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
    {
@@ -1185,7 +1185,7 @@ VectorFEDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(Q, qs, false);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
 
    if (trial_el->GetDerivType() == mfem::FiniteElement::DIV && dim == 3)
    {

@@ -4023,6 +4023,27 @@ void QuadratureFunction::ProjectCoefficient(VectorCoefficient &coeff)
    }
 }
 
+void QuadratureFunction::ProjectCoefficient(SymmetricMatrixCoefficient &coeff)
+{
+   const int height = coeff.GetHeight();
+   const int width = coeff.GetWidth();
+   MFEM_ASSERT(height == width && vdim == height*(height+1)/2, "Wrong sizes.");
+   Mesh &mesh = *qspace->GetMesh();
+   DenseMatrix values;
+   DenseSymmetricMatrix matrix;
+   for (int iel = 0; iel < mesh.GetNE(); ++iel)
+   {
+      GetElementValues(iel, values);
+      const IntegrationRule &ir = qspace->GetElementIntRule(iel);
+      ElementTransformation& T = *mesh.GetElementTransformation(iel);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         matrix.UseExternalData(&values(0, iq), vdim);
+         coeff.Eval(matrix, T, ir[iq]);
+      }
+   }
+}
+
 void QuadratureFunction::ProjectCoefficient(MatrixCoefficient &coeff,
                                             bool transpose)
 {
