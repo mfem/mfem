@@ -62,6 +62,10 @@ dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
 extern "C" void
 dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
        double *alpha, double *a, int *lda, double *b, int *ldb);
+extern "C" void
+dggev_(char *jobvl, char *jobvr, int *n, double *a, int *lda, double *B,
+       int *ldb, double *alphar, double *alphai, double *beta, double *vl,
+       int * ldvl, double * vr, int * ldvr, double * work, int * lwork, int* info);
 #endif
 
 
@@ -2849,16 +2853,16 @@ bool LUFactors::Factor(int m, double TOL)
    return info == 0;
 #else
    // compiling without LAPACK
-   double *data = this->data;
+   double *data_ptr = this->data;
    for (int i = 0; i < m; i++)
    {
       // pivoting
       {
          int piv = i;
-         double a = std::abs(data[piv+i*m]);
+         double a = std::abs(data_ptr[piv+i*m]);
          for (int j = i+1; j < m; j++)
          {
-            const double b = std::abs(data[j+i*m]);
+            const double b = std::abs(data_ptr[j+i*m]);
             if (b > a)
             {
                a = b;
@@ -2871,27 +2875,27 @@ bool LUFactors::Factor(int m, double TOL)
             // swap rows i and piv in both L and U parts
             for (int j = 0; j < m; j++)
             {
-               mfem::Swap<double>(data[i+j*m], data[piv+j*m]);
+               mfem::Swap<double>(data_ptr[i+j*m], data_ptr[piv+j*m]);
             }
          }
       }
 
-      if (abs(data[i + i*m]) <= TOL)
+      if (abs(data_ptr[i + i*m]) <= TOL)
       {
          return false; // failed
       }
 
-      const double a_ii_inv = 1.0 / data[i+i*m];
+      const double a_ii_inv = 1.0 / data_ptr[i+i*m];
       for (int j = i+1; j < m; j++)
       {
-         data[j+i*m] *= a_ii_inv;
+         data_ptr[j+i*m] *= a_ii_inv;
       }
       for (int k = i+1; k < m; k++)
       {
-         const double a_ik = data[i+k*m];
+         const double a_ik = data_ptr[i+k*m];
          for (int j = i+1; j < m; j++)
          {
-            data[j+k*m] -= a_ik * data[j+i*m];
+            data_ptr[j+k*m] -= a_ik * data_ptr[j+i*m];
          }
       }
    }
@@ -3283,6 +3287,7 @@ DenseMatrixInverse::~DenseMatrixInverse()
    delete [] lu.ipiv;
 }
 
+#ifdef MFEM_USE_LAPACK
 
 DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    : mat(m)
@@ -3292,7 +3297,6 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    EVect.SetSize(n);
    ev.SetDataAndSize(NULL, n);
 
-#ifdef MFEM_USE_LAPACK
    jobz = 'V';
    uplo = 'U';
    lwork = -1;
@@ -3302,7 +3306,6 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
 
    lwork = (int) qwork;
    work = new double[lwork];
-#endif
 }
 
 DenseMatrixEigensystem::DenseMatrixEigensystem(
@@ -3310,13 +3313,11 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(
    : mat(other.mat), EVal(other.EVal), EVect(other.EVect), ev(NULL, other.n),
      n(other.n)
 {
-#ifdef MFEM_USE_LAPACK
    jobz = other.jobz;
    uplo = other.uplo;
    lwork = other.lwork;
 
    work = new double[lwork];
-#endif
 }
 
 void DenseMatrixEigensystem::Eval()
@@ -3328,7 +3329,6 @@ void DenseMatrixEigensystem::Eval()
    }
 #endif
 
-#ifdef MFEM_USE_LAPACK
    EVect = mat;
    dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
           work, &lwork, &info);
@@ -3339,41 +3339,126 @@ void DenseMatrixEigensystem::Eval()
                 << info << endl;
       mfem_error();
    }
-#else
-   mfem_error("DenseMatrixEigensystem::Eval(): Compiled without LAPACK");
-#endif
 }
 
 DenseMatrixEigensystem::~DenseMatrixEigensystem()
 {
-#ifdef MFEM_USE_LAPACK
    delete [] work;
-#endif
 }
 
 
-DenseMatrixSVD::DenseMatrixSVD(DenseMatrix &M)
+DenseMatrixGeneralizedEigensystem::DenseMatrixGeneralizedEigensystem(
+   DenseMatrix &a, DenseMatrix &b,
+   bool left_eigen_vectors,
+   bool right_eigen_vectors)
+   : A(a), B(b)
+{
+   MFEM_VERIFY(A.Height() == A.Width(), "A has to be a square matrix");
+   MFEM_VERIFY(B.Height() == B.Width(), "B has to be a square matrix");
+   n = A.Width();
+   MFEM_VERIFY(B.Height() == n, "A and B dimension mismatch");
+
+   jobvl = 'N';
+   jobvr = 'N';
+   A_copy.SetSize(n);
+   B_copy.SetSize(n);
+   if (left_eigen_vectors)
+   {
+      jobvl = 'V';
+      Vl.SetSize(n);
+   }
+   if (right_eigen_vectors)
+   {
+      jobvr = 'V';
+      Vr.SetSize(n);
+   }
+
+   lwork = -1;
+   double qwork;
+
+   alphar = new double[n];
+   alphai = new double[n];
+   beta = new double[n];
+
+   int nl = max(1,Vl.Height());
+   int nr = max(1,Vr.Height());
+
+   dggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
+          alphai, beta, Vl.Data(), &nl, Vr.Data(), &nr,
+          &qwork, &lwork, &info);
+
+   lwork = (int) qwork;
+   work = new double[lwork];
+
+}
+
+void DenseMatrixGeneralizedEigensystem::Eval()
+{
+   int nl = max(1,Vl.Height());
+   int nr = max(1,Vr.Height());
+
+   A_copy = A;
+   B_copy = B;
+   dggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
+          alphai, beta, Vl.Data(), &nl, Vr.Data(), &nr,
+          work, &lwork, &info);
+
+   if (info != 0)
+   {
+      mfem::err << "DenseMatrixGeneralizedEigensystem::Eval(): DGGEV error code: "
+                << info << endl;
+      mfem_error();
+   }
+   evalues_r.SetSize(n);
+   evalues_i.SetSize(n);
+   for (int i = 0; i<n; i++)
+   {
+      if (beta[i] != 0.)
+      {
+         evalues_r(i) = alphar[i]/beta[i];
+         evalues_i(i) = alphai[i]/beta[i];
+      }
+      else
+      {
+         evalues_r(i) = infinity();
+         evalues_i(i) = infinity();
+      }
+   }
+}
+
+DenseMatrixGeneralizedEigensystem::~DenseMatrixGeneralizedEigensystem()
+{
+   delete [] alphar;
+   delete [] alphai;
+   delete [] beta;
+   delete [] work;
+}
+
+DenseMatrixSVD::DenseMatrixSVD(DenseMatrix &M,
+                               bool left_singular_vectors,
+                               bool right_singular_vectors)
 {
    m = M.Height();
    n = M.Width();
+   jobu = (left_singular_vectors)? 'S' : 'N';
+   jobvt = (right_singular_vectors)? 'S' : 'N';
    Init();
 }
 
-DenseMatrixSVD::DenseMatrixSVD(int h, int w)
+DenseMatrixSVD::DenseMatrixSVD(int h, int w,
+                               bool left_singular_vectors,
+                               bool right_singular_vectors)
 {
    m = h;
    n = w;
+   jobu = (left_singular_vectors)? 'S' : 'N';
+   jobvt = (right_singular_vectors)? 'S' : 'N';
    Init();
 }
 
 void DenseMatrixSVD::Init()
 {
-#ifdef MFEM_USE_LAPACK
    sv.SetSize(min(m, n));
-
-   jobu  = 'N';
-   jobvt = 'N';
-
    double qwork;
    lwork = -1;
    dgesvd_(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(), NULL, &m,
@@ -3381,9 +3466,6 @@ void DenseMatrixSVD::Init()
 
    lwork = (int) qwork;
    work = new double[lwork];
-#else
-   mfem_error("DenseMatrixSVD::Init(): Compiled without LAPACK");
-#endif
 }
 
 void DenseMatrixSVD::Eval(DenseMatrix &M)
@@ -3394,27 +3476,35 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
       mfem_error("DenseMatrixSVD::Eval()");
    }
 #endif
-
-#ifdef MFEM_USE_LAPACK
-   dgesvd_(&jobu, &jobvt, &m, &n, M.Data(), &m, sv.GetData(), NULL, &m,
-           NULL, &n, work, &lwork, &info);
+   double * datau = nullptr;
+   double * datavt = nullptr;
+   if (jobu == 'S')
+   {
+      U.SetSize(m,min(m,n));
+      datau = U.Data();
+   }
+   if (jobvt == 'S')
+   {
+      Vt.SetSize(min(m,n),n);
+      datavt = Vt.Data();
+   }
+   Mc = M;
+   dgesvd_(&jobu, &jobvt, &m, &n, Mc.Data(), &m, sv.GetData(), datau, &m,
+           datavt, &n, work, &lwork, &info);
 
    if (info)
    {
       mfem::err << "DenseMatrixSVD::Eval() : info = " << info << endl;
       mfem_error();
    }
-#else
-   mfem_error("DenseMatrixSVD::Eval(): Compiled without LAPACK");
-#endif
 }
 
 DenseMatrixSVD::~DenseMatrixSVD()
 {
-#ifdef MFEM_USE_LAPACK
    delete [] work;
-#endif
 }
+
+#endif // if MFEM_USE_LAPACK
 
 
 void DenseTensor::AddMult(const Table &elem_dof, const Vector &x, Vector &y)
