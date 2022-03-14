@@ -376,10 +376,8 @@ int main(int argc, char *argv[])
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0')
-                << setw(6) << Mpi::WorldRank();
-      sol_name << "sol." << setfill('0')
-               << setw(6) << Mpi::WorldRank();
+      mesh_name << "mesh." << setfill('0') << setw(6) << Mpi::WorldRank();
+      sol_name << "sol." << setfill('0') << setw(6) << Mpi::WorldRank();
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);

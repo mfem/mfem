@@ -112,7 +112,7 @@ Version 4.3.1 (development)
   and miniapps to call Hypre::Init() where appropriate.
 
 - Added a simple singleton class, Mpi, as a replacement for MPI_Session. New
-  code should use Mpi::Init() and Mpi::Session() instead of MPI_Session.
+  code should use Mpi::Init() and other Mpi methods instead of MPI_Session.
 
 - Added Nedelec and Raviart-Thomas basis functions for modeling three
   dimensional vector fields in 1D or 2D domains.

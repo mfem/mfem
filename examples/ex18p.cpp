@@ -209,8 +209,7 @@ int main(int argc, char *argv[])
          ParGridFunction uk(&fes, u_block.GetBlock(k));
          ostringstream sol_name;
          sol_name << "vortex-" << k << "-init."
-                  << setfill('0') << setw(6)
-                  << Mpi::WorldRank();
+                  << setfill('0') << setw(6) << Mpi::WorldRank();
          ofstream sol_ofs(sol_name.str().c_str());
          sol_ofs.precision(precision);
          sol_ofs << uk;

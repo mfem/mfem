@@ -38,7 +38,7 @@ Hypre::Hypre()
    HYPRE_Init();
 #endif
 
-   // Global hypre options we set by default
+   // Global hypre options that we set by default
    SetDefaultOptions();
 }
 
@@ -69,7 +69,7 @@ void Hypre::SetDefaultOptions()
 #endif
 #endif
 
-   // The following options are the defaults as of hypre-2.24
+   // The following options are hypre's defaults as of hypre-2.24
 
    // Allocate hypre objects in GPU memory (default)
    // HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
