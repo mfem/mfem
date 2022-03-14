@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -94,7 +94,7 @@ public:
       {
          "Gauss-Legendre", "Gauss-Lobatto", "Positive (Bernstein)",
          "Open uniform", "Closed uniform", "Open half uniform",
-         "Seredipity", "Closed Gauss-Legendre",
+         "Serendipity", "Closed Gauss-Legendre",
          "Integrated Gauss-Lobatto indicator"
       };
       return name[Check(b_type)];
@@ -236,6 +236,8 @@ class FiniteElement
 {
 protected:
    int dim;      ///< Dimension of reference space
+   int vdim;     ///< Vector dimension of vector-valued basis functions
+   int cdim;     ///< Dimension of curl for vector-valued basis functions
    Geometry::Type geom_type; ///< Geometry::Type of the reference element
    int func_space, range_type, map_type,
        deriv_type, deriv_range_type, deriv_map_type;
@@ -245,7 +247,7 @@ protected:
    mutable int orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
-   mutable DenseMatrix vshape; // Dof x Dim
+   mutable DenseMatrix vshape; // Dof x VDim
 #endif
    /// Container for all DofToQuad objects created by the FiniteElement.
    /** Multiple DofToQuad objects may be needed when different quadrature rules
@@ -307,6 +309,12 @@ public:
 
    /// Returns the reference space dimension for the finite element
    int GetDim() const { return dim; }
+
+   /// Returns the vector dimension for vector-valued finite elements
+   int GetVDim() const { return vdim; }
+
+   /// Returns the dimension of the curl for vector-valued finite elements
+   int GetCurlDim() const { return cdim; }
 
    /// Returns the Geometry::Type of the reference element
    Geometry::Type GetGeomType() const { return geom_type; }
@@ -432,8 +440,8 @@ public:
        of the curl of one vector shape function. The size (#dof x CDim) of
        @a curl_shape must be set in advance, where CDim = 3 for #dim = 3 and
        CDim = 1 for #dim = 2. */
-   void CalcPhysCurlShape(ElementTransformation &Trans,
-                          DenseMatrix &curl_shape) const;
+   virtual void CalcPhysCurlShape(ElementTransformation &Trans,
+                                  DenseMatrix &curl_shape) const;
 
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
@@ -789,7 +797,7 @@ private:
 protected:
    bool is_nodal;
 #ifndef MFEM_THREAD_SAFE
-   mutable DenseMatrix J, Jinv;
+   mutable DenseMatrix JtJ;
    mutable DenseMatrix curlshape, curlshape_J;
 #endif
    void SetDerivMembers();
@@ -944,14 +952,7 @@ protected:
 
 public:
    VectorFiniteElement (int D, Geometry::Type G, int Do, int O, int M,
-                        int F = FunctionSpace::Pk) :
-#ifdef MFEM_THREAD_SAFE
-      FiniteElement(D, G, Do, O, F)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
-#else
-      FiniteElement(D, G, Do, O, F), Jinv(D)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
-#endif
+                        int F = FunctionSpace::Pk);
 };
 
 
@@ -1268,6 +1269,9 @@ public:
 
    ~VectorTensorFiniteElement();
 };
+
+void InvertLinearTrans(ElementTransformation &trans,
+                       const IntegrationPoint &pt, Vector &x);
 
 } // namespace mfem
 
