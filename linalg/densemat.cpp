@@ -3221,7 +3221,7 @@ bool CholeskyFactors::Factor(int m, double TOL)
          a+=data[j+k*m]*data[j+k*m];
       }
 
-      MFEM_VERIFY(data[j+j*m] - a < 0.,
+      MFEM_VERIFY(data[j+j*m] - a > 0.,
                   "CholeskyFactors::Factor: The matrix is not SPD");
 
       data[j+j*m] = std::sqrt(data[j+j*m] - a);
