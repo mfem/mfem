@@ -342,7 +342,6 @@ TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
    }
 }
 
-<<<<<<< HEAD
 TEST_CASE("MatrixInverse", "[DenseMatrix]")
 {
    double tol = 1e-10;
@@ -512,7 +511,6 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
    }
 
 }
-=======
 #ifdef MFEM_USE_LAPACK
 
 enum class TestCase { GenEigSPD, GenEigGE, SVD};
@@ -673,4 +671,3 @@ TEST_CASE("Eigensystem Problems",
 }
 
 #endif // if MFEM_USE_LAPACK
->>>>>>> master
