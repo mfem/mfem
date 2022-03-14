@@ -85,9 +85,9 @@ private:
    Mpi() { }
 };
 
-/** @brief A simple convenience class based on the MPI singleton class above.
+/** @brief A simple convenience class based on the Mpi singleton class above.
     Preserved for backward compatibility. New code should use Mpi::Init() and
-    Mpi::Session() instead. */
+    other Mpi methods instead. */
 class MPI_Session
 {
 public:

@@ -66,7 +66,7 @@ public:
    /// Calling HYPRE_Finalize() manually is not compatible with this class.
    static void Init() { Instance(); }
 
-   /// @brief Finalize hypre (called automatically at progam exit if
+   /// @brief Finalize hypre (called automatically at program exit if
    /// Hypre::Init() has been called).
    ///
    /// Multiple calls to Hypre::Finalize() have no effect. This function can be
