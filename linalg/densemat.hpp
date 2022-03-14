@@ -666,8 +666,9 @@ public:
                        const double *X2, double *Y1) const;
 };
 
-/** Class that can compute factorizations of external data and perform various
-    operations with the factored data. */
+
+/** Class that can compute Cholesky factorizations of external data of an
+    SPD matrix and perform various operations with the factored data. */
 class CholeskyFactors : public Factors
 {
 public:
@@ -720,14 +721,15 @@ public:
        for a matrix X of size (n x m). */
    void RightSolve(int m, int n, double *X) const;
 
-   /// Assuming L.L^t = P.A factored data of size (m x m), compute X <- A^{-1}.
+   /// Assuming L.L^t = A factored data of size (m x m), compute X <- A^{-1}.
    virtual void GetInverseMatrix(int m, double *X) const;
 
 };
 
 
 /** Data type for inverse of square dense matrix.
-    Stores LU factors */
+    Stores matrix factors, i.e.,  Cholesky factors if the matrix is SPD,
+    LU otherwise. */
 class DenseMatrixInverse : public MatrixInverse
 {
 private:
@@ -739,14 +741,10 @@ private:
    bool own_data = false;
 public:
    /// Default constructor.
-   DenseMatrixInverse(bool spd_=false) : a(NULL)
-   {
-      spd = spd_;
-      Init(0);
-   }
+   DenseMatrixInverse(bool spd_=false) : a(NULL), spd(spd_) { Init(0); }
 
    /** Creates square dense matrix. Computes factorization of mat
-       and stores LU factors. */
+       and stores its factors. */
    DenseMatrixInverse(const DenseMatrix &mat, bool spd_ = false);
 
    /// Same as above but does not factorize the matrix.

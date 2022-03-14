@@ -78,7 +78,7 @@ extern "C" void
 dtrtrs_(char *, char*, char *, int *, int *, double *, int *, double *, int *,
         int *);
 extern "C" void
-dpotri_(char *, int *, double *, int*, int *);       
+dpotri_(char *, int *, double *, int*, int *);
 #endif
 
 
@@ -3220,9 +3220,13 @@ bool CholeskyFactors::Factor(int m, double TOL)
       {
          a+=data[j+k*m]*data[j+k*m];
       }
+
+      MFEM_VERIFY(data[j+j*m] - a < 0.,
+                  "CholeskyFactors::Factor: The matrix is not SPD");
+
       data[j+j*m] = std::sqrt(data[j+j*m] - a);
 
-      if (abs(data[j + j*m]) <= TOL)
+      if (data[j + j*m] <= TOL)
       {
          return false; // failed
       }
@@ -3316,7 +3320,6 @@ void CholeskyFactors::LSolve(int m, int n, double * X) const
       x += m;
    }
 #endif
-
 }
 
 void CholeskyFactors::USolve(int m, int n, double * X) const
@@ -3393,7 +3396,6 @@ void CholeskyFactors::RightSolve(int m, int n, double * X) const
       }
       ++x;
    }
-
    // X <- X L^{-1}
    x = X;
    for (int k = 0; k < n; k++)
@@ -3409,7 +3411,6 @@ void CholeskyFactors::RightSolve(int m, int n, double * X) const
       ++x;
    }
 #endif
-
 }
 
 void CholeskyFactors::GetInverseMatrix(int m, double * X) const
@@ -3436,9 +3437,8 @@ void CholeskyFactors::GetInverseMatrix(int m, double * X) const
          X[i+j*m] = X[j+i*m];
       }
    }
-
 #else
-   // compute L^-1
+   // L^-t * L^-1 (in place)
    for (int k = 0; k<m; k++)
    {
       X[k+k*m] = 1./data[k+k*m];
@@ -3452,7 +3452,6 @@ void CholeskyFactors::GetInverseMatrix(int m, double * X) const
          X[i+k*m] = s;
       }
    }
-   // L^-t * L^-1 (in place)
    for (int i = 0; i < m; i++)
    {
       for (int j = i; j < m; j++)
@@ -3700,7 +3699,6 @@ DenseMatrixGeneralizedEigensystem::DenseMatrixGeneralizedEigensystem(
 
    lwork = (int) qwork;
    work = new double[lwork];
-
 }
 
 void DenseMatrixGeneralizedEigensystem::Eval()
