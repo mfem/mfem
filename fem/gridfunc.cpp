@@ -12,6 +12,7 @@
 // Implementation of GridFunction
 
 #include "gridfunc.hpp"
+#include "quadinterpolator.hpp"
 #include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
 
@@ -3964,6 +3965,84 @@ std::ostream &operator<<(std::ostream &os, const QuadratureFunction &qf)
 {
    qf.Save(os);
    return os;
+}
+
+void QuadratureFunction::ProjectCoefficient(Coefficient &coeff)
+{
+   Mesh &mesh = *qspace->GetMesh();
+   Vector values;
+   for (int iel = 0; iel < mesh.GetNE(); ++iel)
+   {
+      GetElementValues(iel, values);
+      const IntegrationRule &ir = qspace->GetElementIntRule(iel);
+      ElementTransformation& T = *mesh.GetElementTransformation(iel);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         values[iq] = coeff.Eval(T, ir[iq]);
+      }
+   }
+}
+
+void QuadratureFunction::ProjectCoefficient(VectorCoefficient &coeff)
+{
+   MFEM_ASSERT(vdim == coeff.GetVDim(), "Wrong sizes.");
+
+   if (auto *gf_coeff = dynamic_cast<VectorGridFunctionCoefficient*>(&coeff))
+   {
+      const GridFunction *gf = gf_coeff->GetGridFunction();
+      const FiniteElementSpace &gf_fes = *gf->FESpace();
+      const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*qspace));
+      const bool use_tensor_products = UsesTensorBasis(gf_fes);
+      const ElementDofOrdering ordering = use_tensor_products ?
+                                          ElementDofOrdering::LEXICOGRAPHIC :
+                                          ElementDofOrdering::NATIVE;
+      const Operator *R = gf_fes.GetElementRestriction(ordering);
+
+      Vector xe(R->Height());
+      R->Mult(*gf, xe);
+      qi->SetOutputLayout(QVectorLayout::byVDIM);
+      qi->DisableTensorProducts(!use_tensor_products);
+      qi->Values(xe, *this);
+   }
+   else
+   {
+      Mesh &mesh = *qspace->GetMesh();
+      DenseMatrix values;
+      Vector col;
+      for (int iel = 0; iel < mesh.GetNE(); ++iel)
+      {
+         GetElementValues(iel, values);
+         const IntegrationRule &ir = qspace->GetElementIntRule(iel);
+         ElementTransformation& T = *mesh.GetElementTransformation(iel);
+         for (int iq = 0; iq < ir.Size(); ++iq)
+         {
+            values.GetColumnReference(iq, col);
+            coeff.Eval(col, T, ir[iq]);
+         }
+      }
+   }
+}
+
+void QuadratureFunction::ProjectCoefficient(MatrixCoefficient &coeff,
+                                            bool transpose)
+{
+   const int height = coeff.GetHeight();
+   const int width = coeff.GetWidth();
+   MFEM_ASSERT(vdim == height*width, "Wrong sizes.");
+   Mesh &mesh = *qspace->GetMesh();
+   DenseMatrix values, matrix;
+   for (int iel = 0; iel < mesh.GetNE(); ++iel)
+   {
+      GetElementValues(iel, values);
+      const IntegrationRule &ir = qspace->GetElementIntRule(iel);
+      ElementTransformation& T = *mesh.GetElementTransformation(iel);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         matrix.UseExternalData(&values(0, iq), height, width);
+         coeff.Eval(matrix, T, ir[iq]);
+         if (transpose) { matrix.Transpose(); }
+      }
+   }
 }
 
 void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
