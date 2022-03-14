@@ -794,6 +794,15 @@ public:
 
    virtual ~QuadratureFunction() { if (own_qspace) { delete qspace; } }
 
+   /// Evaluate the given coefficient at each quadrature point.
+   void ProjectCoefficient(Coefficient &coeff);
+
+   /// Evaluate the given vector coefficient at each quadrature point.
+   void ProjectCoefficient(VectorCoefficient &coeff);
+
+   /// Evaluate the given matrix coefficient at each quadrature point.
+   void ProjectCoefficient(MatrixCoefficient &coeff, bool transpose=false);
+
    /// Get the associated QuadratureSpace.
    QuadratureSpace *GetSpace() const { return qspace; }
 
