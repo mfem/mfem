@@ -120,20 +120,21 @@ TEST_CASE("Parallel WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh",
    const auto order = GENERATE(1, 2, 3);
    Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
    // Make the mesh NC
-   // mesh.EnsureNCMesh();
-   // {
-   //    Array<int> elements_to_refine(1);
-   //    elements_to_refine[0] = 1;
-   //    mesh.GeneralRefinement(elements_to_refine, 1, 0);
-   // }
+   mesh.EnsureNCMesh();
+   {
+      Array<int> elements_to_refine(1);
+      elements_to_refine[0] = 1;
+      mesh.GeneralRefinement(elements_to_refine, 1, 0);
+   }
    ParMesh pmesh(MPI_COMM_WORLD,mesh);
    mesh.Clear();
 
    H1_FECollection fec(order, pmesh.Dimension());
    ParFiniteElementSpace fespace(&pmesh, &fec);
-   const Operator * P = fespace.GetProlongationMatrix();
+   HypreParMatrix * P = fespace.Dof_TrueDof_Matrix();
 
-   int ndofs = fespace.GetTrueVSize();
+   int ntdofs = fespace.GetTrueVSize();
+   int nvdofs = fespace.GetVSize();
    ParLinearForm b(&fespace);
    int seed = 4000;
    WhiteGaussianNoiseDomainLFIntegrator *WhiteNoise = new
@@ -145,64 +146,75 @@ TEST_CASE("Parallel WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh",
    SECTION("Mean")
    {
       // Compute population mean
-      Vector Bmean(ndofs);
-      Bmean = 0.0;
+      Vector bmean(nvdofs);
+      bmean = 0.0;
       for (int i = 0; i < N; i++)
       {
          b.Assemble();
-         if (P)
-         {
-            B.SetSize(ndofs);
-            P->MultTranspose(b,B);
-         }
-         else
-         {
-            B.SetDataAndSize(b.GetData(),ndofs);
-         }
-         Bmean += B;
+         bmean += b;
       }
-      Bmean *= 1.0/(double)N;
+      bmean *= 1.0/(double)N;
+
+      Vector Bmean(ntdofs);
+      P->MultTranspose(bmean,Bmean);
 
       // Compare population mean to the zero vector
       REQUIRE(Bmean.Normlinf() < 5.0e-3);
    }
 
-   // SECTION("Covariance")
-   // {
-   //    // Compute population covariance
-   //    DenseMatrix C(ndofs);
-   //    C = 0.0;
-   //    for (int i = 0; i < N; i++)
-   //    {
-   //       b.Assemble();
-   //       if (P)
-   //       {
-   //          B.SetSize(ndofs);
-   //          P->MultTranspose(b,B);
-   //       }
-   //       else
-   //       {
-   //          B.SetDataAndSize(b.GetData(),ndofs);
-   //       }
-   //       AddMultVVt(B, C);
-   //    }
-   //    C *= 1.0/(double)N;
+   SECTION("Covariance")
+   {
+      // Compute population covariance
+      DenseMatrix C(nvdofs);
+      C = 0.;
+      for (int i = 0; i < N; i++)
+      {
+         b.Assemble();
+         AddMultVVt(b, C);
+      }
+      C *= 1.0/(double)N;
 
-   //    // Compute mass matrix
-   //    BilinearForm a(&fespace);
-   //    a.AddDomainIntegrator(new MassIntegrator());
-   //    a.Assemble();
+      // Create a "sparse" matrix from C;
+      SparseMatrix S(nvdofs);
+      for (int i = 0; i<nvdofs; i++)
+      {
+         for (int j = 0; j<nvdofs; j++)
+         {
+            S.Set(i,j,C(i,j));
+         }
+      }
+      S.Finalize();
 
-   //    SparseMatrix M;
-   //    Array<int> empty;
-   //    a.FormSystemMatrix(empty,M);
-   //    DenseMatrix Mdense;
-   //    M.ToDenseMatrix(Mdense);
+      HypreParMatrix * BlockC = new HypreParMatrix(MPI_COMM_WORLD,
+                                                   fespace.GlobalVSize(),
+                                                   fespace.GetDofOffsets(), &S);
 
-   //    // Compare population covariance to mass matrix
-   //    Mdense -= C;
-   //    REQUIRE(Mdense.MaxMaxNorm() < 1.0e-3);
-   // }
+      HypreParMatrix * ParC = RAP(BlockC, P);
+      delete BlockC;
+
+      // Compute mass matrix
+      ParBilinearForm a(&fespace);
+      a.AddDomainIntegrator(new MassIntegrator());
+      a.Assemble();
+
+      HypreParMatrix M;
+      Array<int> empty;
+      a.FormSystemMatrix(empty,M);
+
+      // Compare population covariance to mass matrix
+      HypreParMatrix * diff = Add(1., *ParC, -1., M);
+
+      SparseMatrix diag, offd;
+      diff->GetDiag(diag);
+      HYPRE_BigInt * cmap;
+      diff->GetOffd(offd,cmap);
+
+      REQUIRE(diag.MaxNorm() < 1.0e-3);
+      REQUIRE(offd.MaxNorm() < 1.0e-3);
+
+      delete diff;
+      delete ParC;
+   }
 }
 #endif
 
