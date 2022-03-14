@@ -3637,6 +3637,34 @@ void QuadratureSpace::Construct()
    element_offsets[num_elem] = size = offset;
 }
 
+QuadratureSpace::QuadratureSpace(Mesh &mesh_, const IntegrationRule &ir)
+   : mesh(&mesh_)
+{
+   const int dim = mesh->Dimension();
+   MFEM_VERIFY(mesh->GetNumGeometries(dim) == 1, "");
+   Array<Geometry::Type> geoms;
+   mesh->GetGeometries(dim, geoms);
+
+   const int num_elem = mesh->GetNE();
+   element_offsets = new int[num_elem + 1];
+
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      int_rule[g] = NULL;
+   }
+   int_rule[geoms[0]] = &ir;
+
+   const int nq = ir.Size();
+
+   for (int i = 0; i < num_elem; i++)
+   {
+      element_offsets[i] = nq*i;
+   }
+
+   size = nq*num_elem;
+   element_offsets[num_elem] = size;
+}
+
 QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
    : mesh(mesh_)
 {
