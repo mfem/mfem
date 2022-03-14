@@ -3410,7 +3410,7 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    pa_data.SetSize(nq * ne, Device::GetMemoryType());
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(Q, qs, false);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
 
    if (dim == 2)
    {

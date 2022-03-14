@@ -2093,83 +2093,95 @@ public:
    virtual ~QuadratureFunctionCoefficient() { }
 };
 
+/// Flags that determine what storage optimizations to use in CoefficientVector
+enum class CoefficientStorage : int
+{
+   FULL = 0, ///< Store the coefficient as a full QuadratureFunction.
+   CONSTANTS = 1 << 0, ///< Store constants using only @a vdim entries.
+   SYMMETRIC = 1 << 1, ///< Store the triangular part of symmetric matrices.
+   COMPRESSED = CONSTANTS | SYMMETRIC ///< Enable all above compressions.
+};
+
+inline CoefficientStorage operator|(CoefficientStorage a, CoefficientStorage b)
+{
+   return CoefficientStorage(int(a) | int(b));
+}
+
+inline int operator&(CoefficientStorage a, CoefficientStorage b)
+{
+   return int(a) & int(b);
+}
+
+
 /// @brief Class to represent a coefficient evaluated at quadrature points.
 ///
 /// In the general case, a CoefficientVector is the same as a QuadratureFunction
 /// with a coefficient projected onto it.
 ///
-/// In special cases such as constant coefficients, a CoefficientVector is
-/// "compressed", meaning that only the constant value is stored.
-///
-/// @anchor compress
-/// Some of the member functions accept a @a compress argument. If this argument
-/// is true, and the given coefficient is a ConstantCoefficient (or
-/// VectorConstantCoefficient or MatrixConstantCoefficient), then the resulting
-/// vector will be of size @a vdim. Otherwise, it will be the size of a full
-/// QuadratureFunction defined on the given QuadratureSpace.
+/// This class allows for some "compression" of the coefficient data, according
+/// to the storage flags given by CoefficientStorage. For example, constant
+/// coefficients can be stored using only @a vdim values, and symmetric matrices
+/// can be stored using e.g. the upper triangular part of the matrix.
 class CoefficientVector : public Vector
 {
 protected:
-   int vdim;
-   QuadratureFunction *qf;
+   CoefficientStorage storage; ///< Storage optimizations (see CoefficientStorage).
+   int vdim; ///< Number of values per quadrature point.
+   QuadratureFunction *qf; ///< Internal QuadratureFunction (owned, may be NULL).
 public:
    /// Create an empty CoefficientVector.
-   CoefficientVector() : Vector(), vdim(0), qf(NULL) { }
+   CoefficientVector(CoefficientStorage storage_ = CoefficientStorage::FULL);
 
    /// @brief Create a CoefficientVector from the given Coefficient and
    /// QuadratureSpace.
    ///
    /// If @a coeff is NULL, it will be interpreted as a constant with value one.
-   /// @ref compress "See here" for a description of the @a compress argument.
+   /// @sa CoefficientStorage for a description of @a storage_.
    CoefficientVector(Coefficient *coeff, class QuadratureSpace &qs,
-                     bool compress=true);
+                     CoefficientStorage storage_ = CoefficientStorage::FULL);
 
    /// @brief Create a CoefficientVector from the given Coefficient and
    /// QuadratureSpace.
    ///
-   /// @ref compress "See here" for a description of the @a compress argument.
+   /// @sa CoefficientStorage for a description of @a storage_.
    CoefficientVector(Coefficient &coeff, class QuadratureSpace &qs,
-                     bool compress=true);
+                     CoefficientStorage storage_ = CoefficientStorage::FULL);
 
    /// @brief Create a CoefficientVector from the given VectorCoefficient and
    /// QuadratureSpace.
    ///
-   /// @sa CoefficientVector for a description of the @a compress argument.
+   /// @sa CoefficientStorage for a description of @a storage_.
    CoefficientVector(VectorCoefficient &coeff, class QuadratureSpace &qs,
-                     bool compress=true);
+                     CoefficientStorage storage_ = CoefficientStorage::FULL);
 
    /// @brief Create a CoefficientVector from the given MatrixCoefficient and
    /// QuadratureSpace.
    ///
-   /// @sa CoefficientVector for a description of the @a compress argument.
+   /// @sa CoefficientStorage for a description of @a storage_.
    CoefficientVector(MatrixCoefficient &coeff, class QuadratureSpace &qs,
-                     bool compress=true);
+                     CoefficientStorage storage_ = CoefficientStorage::FULL);
 
    /// @brief Evaluate the given Coefficient at the quadrature points defined by
    /// @a qs.
-   ///
-   /// @sa CoefficientVector for a description of the @a compress argument.
-   void Project(Coefficient &coeff, class QuadratureSpace &qs, bool compress=true);
+   void Project(Coefficient &coeff, class QuadratureSpace &qs);
 
    /// @brief Evaluate the given VectorCoefficient at the quadrature points
    /// defined by @a qs.
    ///
    /// @sa CoefficientVector for a description of the @a compress argument.
-   void Project(VectorCoefficient &coeff, class QuadratureSpace &qs,
-                bool compress=true);
+   void Project(VectorCoefficient &coeff, class QuadratureSpace &qs);
 
    /// @brief Evaluate the given MatrixCoefficient at the quadrature points
    /// defined by @a qs.
    ///
    /// @sa CoefficientVector for a description of the @a compress argument.
    void Project(MatrixCoefficient &coeff, class QuadratureSpace &qs,
-                bool compress=true, bool transpose=false);
+                bool transpose=false);
 
    /// @brief Project the tranpose of @a coeff.
    ///
    /// @sa Project(MatrixCoefficient&, QuadratureSpace&, bool, bool)
-   void ProjectTranspose(MatrixCoefficient &coeff, class QuadratureSpace &qs,
-                         bool compress=true);
+   void ProjectTranspose(MatrixCoefficient &coeff, class QuadratureSpace &qs);
 
    /// Set this vector to the given constant, repeated @a nq times.
    void SetConstant(double constant, int nq=1);

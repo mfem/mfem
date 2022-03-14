@@ -380,7 +380,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    quad1D = maps->nqpt;
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff;
+   CoefficientVector coeff(CoefficientStorage::COMPRESSED);
 
    if (MQ) { coeff.ProjectTranspose(*MQ, qs); }
    else if (VQ) { coeff.Project(*VQ, qs); }
