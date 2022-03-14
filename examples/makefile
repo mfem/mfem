@@ -92,7 +92,6 @@ ex33: $(SRC)ex33.hpp
 
 ifeq ($(MFEM_USE_MPI),YES)
 ex18p: $(SRC)ex18.hpp
-ex31p: $(SRC)ex31.hpp
 ex33p: $(SRC)ex33.hpp
 endif
 
