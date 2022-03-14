@@ -387,8 +387,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       coeffDim = symmDims;
       coeff.SetSize(symmDims * nq * ne);
 
-      DenseSymmetricMatrix M;
-      M.SetSize(dim);
+      DenseSymmetricMatrix sym_mat;
+      sym_mat.SetSize(dim);
 
       auto C = Reshape(coeff.HostWrite(), symmDims, nq, ne);
 
@@ -397,12 +397,12 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            SMQ->Eval(M, *tr, ir->IntPoint(p));
+            SMQ->Eval(sym_mat, *tr, ir->IntPoint(p));
             int cnt = 0;
             for (int i=0; i<dim; ++i)
                for (int j=i; j<dim; ++j, ++cnt)
                {
-                  C(cnt, p, e) = M(i,j);
+                  C(cnt, p, e) = sym_mat(i,j);
                }
          }
       }
@@ -416,8 +416,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
       coeff.SetSize(MQfullDim * nq * ne);
 
-      DenseMatrix M;
-      M.SetSize(dim);
+      DenseMatrix mat;
+      mat.SetSize(dim);
 
       auto C = Reshape(coeff.HostWrite(), MQfullDim, nq, ne);
       for (int e=0; e<ne; ++e)
@@ -425,11 +425,11 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            MQ->Eval(M, *tr, ir->IntPoint(p));
+            MQ->Eval(mat, *tr, ir->IntPoint(p));
             for (int i=0; i<dim; ++i)
                for (int j=0; j<dim; ++j)
                {
-                  C(j+(i*dim), p, e) = M(i,j);
+                  C(j+(i*dim), p, e) = mat(i,j);
                }
          }
       }
