@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -292,8 +292,7 @@ public:
    { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
 
    /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
-   virtual void MultTranspose(const Vector & x, Vector & y) const
-   { y = 0.0; AddMultTranspose (x, y); }
+   virtual void MultTranspose(const Vector & x, Vector & y) const;
 
    /// Compute \f$ y^T M x \f$
    double InnerProduct(const Vector &x, const Vector &y) const
