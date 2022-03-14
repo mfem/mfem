@@ -322,6 +322,7 @@ public:
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
+
 /// Arbitrary order, three component, Raviart-Thomas elements in 1D on a segment
 /** RT_R1D_SegmentElement provides a representation of a three component
     Raviart-Thomas basis where the vector components vary along only one

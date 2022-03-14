@@ -400,7 +400,8 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    int dof = el.GetDof();
-   int vdim = el.GetVDim();
+   int spaceDim = Tr.GetSpaceDim();
+   int vdim = std::max(spaceDim, el.GetVDim());
 
    vshape.SetSize(dof,vdim);
    vec.SetSize(vdim);

@@ -1,15 +1,15 @@
 
-//                       MFEM Example 31 - Parallel Version
+//                       MFEM Example 32 - Parallel Version
 //
-// Compile with: make ex31p
+// Compile with: make ex32p
 //
-// Sample runs:  mpirun -np 4 ex31p -m ../data/hexagon.mesh -o 2
-//               mpirun -np 4 ex31p -m ../data/star.mesh
-//               mpirun -np 4 ex31p -m ../data/square-disc.mesh -o 2 -n 4 -rs 1
-//               mpirun -np 4 ex31p -m ../data/square-disc-nurbs.mesh -rs 3 -o 3
-//               mpirun -np 4 ex31p -m ../data/amr-quad.mesh -o 2 -rs 1
-//               mpirun -np 4 ex31p -m ../data/amr-hex.mesh -rs 1
-//               mpirun -np 4 ex31p -m ../data/fichera.mesh -rs 1
+// Sample runs:  mpirun -np 4 ex32p -m ../data/hexagon.mesh -o 2
+//               mpirun -np 4 ex32p -m ../data/star.mesh
+//               mpirun -np 4 ex32p -m ../data/square-disc.mesh -o 2 -n 4 -rs 1
+//               mpirun -np 4 ex32p -m ../data/square-disc-nurbs.mesh -rs 3 -o 3
+//               mpirun -np 4 ex32p -m ../data/amr-quad.mesh -o 2 -rs 1
+//               mpirun -np 4 ex32p -m ../data/amr-hex.mesh -rs 1
+//               mpirun -np 4 ex32p -m ../data/fichera.mesh -rs 1
 //
 // Description:  This example code solves the Maxwell (electromagnetic)
 //               eigenvalue problem curl curl E = lambda epsilon E with
@@ -26,7 +26,7 @@
 //               GLVis visualization window for multiple eigenfunctions is also
 //               illustrated.
 //
-//               We recommend viewing examples 30 and 13 before viewing this
+//               We recommend viewing examples 31 and 13 before viewing this
 //               example.
 
 #include "mfem.hpp"
@@ -99,7 +99,6 @@ int main(int argc, char *argv[])
    {
       pmesh.UniformRefinement();
    }
-   pmesh.ReorientTetMesh();
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
@@ -446,13 +445,13 @@ int main(int argc, char *argv[])
          VectorConstantCoefficient zVecCoef(zVec);
 
          H1_FECollection fec_h1(order, dim);
-         ND_FECollection fec_nd(order, dim);
-         RT_FECollection fec_rt(order-1, dim);
+         ND_FECollection fec_nd_xy(order, dim);
+         RT_FECollection fec_rt_xy(order-1, dim);
          L2_FECollection fec_l2(order-1, dim);
 
          ParFiniteElementSpace fes_h1(&pmesh, &fec_h1);
-         ParFiniteElementSpace fes_nd(&pmesh, &fec_nd);
-         ParFiniteElementSpace fes_rt(&pmesh, &fec_rt);
+         ParFiniteElementSpace fes_nd(&pmesh, &fec_nd_xy);
+         ParFiniteElementSpace fes_rt(&pmesh, &fec_rt_xy);
          ParFiniteElementSpace fes_l2(&pmesh, &fec_l2);
 
          ParGridFunction xyComp(&fes_nd);

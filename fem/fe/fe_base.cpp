@@ -20,11 +20,11 @@ namespace mfem
 using namespace std;
 
 FiniteElement::FiniteElement(int D, Geometry::Type G,
-                             int Do, int O, int F, int VD, int CD)
+                             int Do, int O, int F)
    : Nodes(Do)
 {
    dim = D ; geom_type = G ; dof = Do ; order = O ; func_space = F;
-   vdim = VD ; cdim = CD;
+   vdim = 0 ; cdim = 0;
    range_type = SCALAR;
    map_type = VALUE;
    deriv_type = NONE;
@@ -752,7 +752,8 @@ void NodalFiniteElement::Project(
    }
    else
    {
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      DenseMatrix vshape(fe.GetDof(), std::max(Trans.GetSpaceDim(),
+                                               fe.GetVDim()));
 
       I.SetSize(vshape.Width()*dof, fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -832,6 +833,21 @@ void NodalFiniteElement::ProjectDiv(
    }
 }
 
+
+VectorFiniteElement::VectorFiniteElement(int D, Geometry::Type G,
+                                         int Do, int O, int M, int F)
+   : FiniteElement(D, G, Do, O, F)
+{
+   range_type = VECTOR;
+   map_type = M;
+   SetDerivMembers();
+   is_nodal = true;
+   vdim = dim;
+   if (map_type == H_CURL)
+   {
+      cdim = (dim == 3) ? 3 : 1;
+   }
+}
 
 void VectorFiniteElement::CalcShape (
    const IntegrationPoint &ip, Vector &shape ) const
@@ -1021,7 +1037,7 @@ void VectorFiniteElement::Project_RT(
    {
       int sdim = Trans.GetSpaceDim();
       double vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      DenseMatrix vshape(fe.GetDof(), sdim);
       Vector vshapenk(fe.GetDof());
       const bool square_J = (dim == sdim);
 
@@ -1206,7 +1222,7 @@ void VectorFiniteElement::Project_ND(
          Trans.SetIntPoint(&ip);
          // Transform ND edge tengents from reference to physical space
          // vk = J tk
-         Trans.Jacobian().Mult(tk + d2t[k]*vdim, vk);
+         Trans.Jacobian().Mult(tk + d2t[k]*dim, vk);
          if (fe.GetMapType() == INTEGRAL)
          {
             double w = 1.0/Trans.Weight();
@@ -1234,8 +1250,9 @@ void VectorFiniteElement::Project_ND(
    }
    else
    {
+      int sdim = Trans.GetSpaceDim();
       double vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      DenseMatrix vshape(fe.GetDof(), sdim);
       Vector vshapetk(fe.GetDof());
 
       I.SetSize(dof, fe.GetDof());
@@ -1272,7 +1289,7 @@ void VectorFiniteElement::ProjectGrad_ND(
    for (int k = 0; k < dof; k++)
    {
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
-      dshape.Mult(tk + d2t[k]*vdim, grad_k);
+      dshape.Mult(tk + d2t[k]*dim, grad_k);
       for (int j = 0; j < grad_k.Size(); j++)
       {
          grad(k,j) = (fabs(grad_k(j)) < 1e-12) ? 0.0 : grad_k(j);
@@ -2412,15 +2429,13 @@ void NodalTensorFiniteElement::SetMapType(const int map_type)
 }
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
-                                                     const int dimv,
-                                                     const int dimc,
                                                      const int d,
                                                      const int p,
                                                      const int cbtype,
                                                      const int obtype,
                                                      const int M,
                                                      const DofMapType dmtype)
-   : VectorFiniteElement(dims, dimv, dimc, GetTensorProductGeometry(dims), d,
+   : VectorFiniteElement(dims, GetTensorProductGeometry(dims), d,
                          p, M, FunctionSpace::Qk),
      TensorBasisElement(dims, p, VerifyNodal(cbtype), dmtype),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cbtype))),
@@ -2431,14 +2446,12 @@ VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
 }
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,
-                                                     const int dimv,
-                                                     const int dimc,
                                                      const int d,
                                                      const int p,
                                                      const int obtype,
                                                      const int M,
                                                      const DofMapType dmtype)
-   : VectorFiniteElement(dims, dimv, dimc, GetTensorProductGeometry(dims), d,
+   : VectorFiniteElement(dims, GetTensorProductGeometry(dims), d,
                          p, M, FunctionSpace::Pk),
      TensorBasisElement(dims, p, obtype, dmtype),
      cbasis1d(poly1d.GetBasis(p, VerifyOpen(obtype))),

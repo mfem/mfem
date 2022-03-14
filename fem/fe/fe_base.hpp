@@ -303,11 +303,9 @@ public:
        @param Do   Number of degrees of freedom in the FiniteElement
        @param O    Order/degree of the FiniteElement
        @param F    FunctionSpace type of the FiniteElement
-       @param VD   Vector dimension for vector-valued bases
-       @param CD   Curl dimension for vector-valued bases
     */
    FiniteElement(int D, Geometry::Type G, int Do, int O,
-                 int F = FunctionSpace::Pk, int VD = 0, int CD = 0);
+                 int F = FunctionSpace::Pk);
 
    /// Returns the reference space dimension for the finite element
    int GetDim() const { return dim; }
@@ -370,8 +368,7 @@ public:
    /** @brief Evaluate the values of all shape functions of a scalar finite
        element in physical space at the point described by @a Trans. */
    /** The size (#dof) of the result Vector @a shape must be set in advance. */
-   virtual void CalcPhysShape(ElementTransformation &Trans,
-                              Vector &shape) const;
+   void CalcPhysShape(ElementTransformation &Trans, Vector &shape) const;
 
    /** @brief Evaluate the gradients of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
@@ -954,10 +951,8 @@ protected:
    }
 
 public:
-   VectorFiniteElement (int D, int VD, int CD, Geometry::Type G, int Do,
-                        int O, int M, int F = FunctionSpace::Pk) :
-      FiniteElement(D, G, Do, O, F, VD, CD)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
+   VectorFiniteElement (int D, Geometry::Type G, int Do, int O, int M,
+                        int F = FunctionSpace::Pk);
 };
 
 
@@ -1253,14 +1248,12 @@ protected:
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
 public:
-   VectorTensorFiniteElement(const int dims, const int dimv, const int dimc,
-                             const int d, const int p,
+   VectorTensorFiniteElement(const int dims, const int d, const int p,
                              const int cbtype, const int obtype,
                              const int M, const DofMapType dmtype);
 
    // For 1D elements: there is only an "open basis", no "closed basis"
-   VectorTensorFiniteElement(const int dims, const int dimv, const int dimc,
-                             const int d, const int p,
+   VectorTensorFiniteElement(const int dims, const int d, const int p,
                              const int obtype, const int M,
                              const DofMapType dmtype);
 

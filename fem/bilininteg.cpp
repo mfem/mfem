@@ -485,6 +485,7 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
    MFEM_ASSERT(this->VerifyFiniteElementTypes(trial_fe, test_fe),
                this->FiniteElementTypeFailureMessage());
 
+   space_dim = Trans.GetSpaceDim();
    int     trial_nd = trial_fe.GetDof(), test_nd = test_fe.GetDof(), i;
    int    test_vdim = GetTestVDim(test_fe);
    int   trial_vdim = GetTrialVDim(trial_fe);
@@ -661,6 +662,7 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
    const FiniteElement * vec_fe = transpose?&trial_fe:&test_fe;
    const FiniteElement * sca_fe = transpose?&test_fe:&trial_fe;
 
+   space_dim = Trans.GetSpaceDim();
    int trial_nd = trial_fe.GetDof(), test_nd = test_fe.GetDof(), i;
    int sca_nd = sca_fe->GetDof();
    int vec_nd = vec_fe->GetDof();
@@ -2235,7 +2237,8 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
    DenseMatrix &elmat)
 {
    int dof = el.GetDof();
-   int vdim = el.GetVDim();
+   int spaceDim = Trans.GetSpaceDim();
+   int vdim = std::max(spaceDim, el.GetVDim());
 
    double w;
 
@@ -2303,7 +2306,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    {
       // assume test_fe is scalar FE and trial_fe is vector FE
       int spaceDim = Trans.GetSpaceDim();
-      int vdim = trial_fe.GetVDim();
+      int vdim = std::max(spaceDim, trial_fe.GetVDim());
       int trial_dof = trial_fe.GetDof();
       int test_dof = test_fe.GetDof();
       double w;
@@ -2400,8 +2403,9 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
             && trial_fe.GetRangeType() == FiniteElement::VECTOR)
    {
       // assume both test_fe and trial_fe are vector FE
-      int trial_vdim = trial_fe.GetVDim();
-      int test_vdim = test_fe.GetVDim();
+      int spaceDim = Trans.GetSpaceDim();
+      int trial_vdim = std::max(spaceDim, trial_fe.GetVDim());
+      int test_vdim = std::max(spaceDim, test_fe.GetVDim());
       int trial_dof = trial_fe.GetDof();
       int test_dof = test_fe.GetDof();
       double w;

@@ -1,14 +1,14 @@
-//                       MFEM Example 30 - Parallel Version
+//                       MFEM Example 31 - Parallel Version
 //
-// Compile with: make ex30p
+// Compile with: make ex31p
 //
-// Sample runs:  mpirun -np 4 ex30p -m ../data/hexagon.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/star.mesh
-//               mpirun -np 4 ex30p -m ../data/square-disc.mesh -o 2
-//               mpirun -np 4 ex30p -m ../data/fichera.mesh -o 3 -rs 1 -rp 0
-//               mpirun -np 4 ex30p -m ../data/square-disc-nurbs.mesh -o 3
-//               mpirun -np 4 ex30p -m ../data/amr-quad.mesh -o 2 -rs 1
-//               mpirun -np 4 ex30p -m ../data/amr-hex.mesh -rs 1
+// Sample runs:  mpirun -np 4 ex31p -m ../data/hexagon.mesh -o 2
+//               mpirun -np 4 ex31p -m ../data/star.mesh
+//               mpirun -np 4 ex31p -m ../data/square-disc.mesh -o 2
+//               mpirun -np 4 ex31p -m ../data/fichera.mesh -o 3 -rs 1 -rp 0
+//               mpirun -np 4 ex31p -m ../data/square-disc-nurbs.mesh -o 3
+//               mpirun -np 4 ex31p -m ../data/amr-quad.mesh -o 2 -rs 1
+//               mpirun -np 4 ex31p -m ../data/amr-hex.mesh -rs 1
 //
 // Description:  This example code solves a simple electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 1;
    int order = 1;
-   bool ams = true;
+   bool use_ams = true;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
-   args.AddOption(&ams, "-ams", "--hypre-ams", "-slu",
+   args.AddOption(&use_ams, "-ams", "--hypre-ams", "-slu",
                   "--superlu", "Use AMS or SuperLU solver.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -101,7 +101,6 @@ int main(int argc, char *argv[])
    {
       pmesh.UniformRefinement();
    }
-   pmesh.ReorientTetMesh();
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
@@ -180,7 +179,7 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, sol, b, A, X, B);
 
    // 12. Solve the system AX=B using PCG with the AMS preconditioner from hypre
-   if (ams)
+   if (use_ams)
    {
       if (mpi.Root())
       {
@@ -224,10 +223,10 @@ int main(int argc, char *argv[])
 
    // 14. Compute and print the H(Curl) norm of the error.
    {
-      double err = sol.ComputeHCurlError(&E, &CurlE);
+      double error = sol.ComputeHCurlError(&E, &CurlE);
       if (mpi.Root())
       {
-         cout << "\n|| E_h - E ||_{H(Curl)} = " << err << '\n' << endl;
+         cout << "\n|| E_h - E ||_{H(Curl)} = " << error << '\n' << endl;
       }
    }
 

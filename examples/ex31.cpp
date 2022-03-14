@@ -1,14 +1,14 @@
-//                                MFEM Example 30
+//                                MFEM Example 31
 //
-// Compile with: make ex30
+// Compile with: make ex31
 //
-// Sample runs:  ex30 -m ../data/inline-segment.mesh -o 2
-//               ex30 -m ../data/hexagon.mesh -o 2
-//               ex30 -m ../data/star.mesh -o 2
-//               ex30 -m ../data/fichera.mesh -o 3 -r 1
-//               ex30 -m ../data/square-disc-nurbs.mesh -o 3
-//               ex30 -m ../data/amr-quad.mesh -o 2 -r 1
-//               ex30 -m ../data/amr-hex.mesh -r 1
+// Sample runs:  ex31 -m ../data/inline-segment.mesh -o 2
+//               ex31 -m ../data/hexagon.mesh -o 2
+//               ex31 -m ../data/star.mesh -o 2
+//               ex31 -m ../data/fichera.mesh -o 3 -r 1
+//               ex31 -m ../data/square-disc-nurbs.mesh -o 3
+//               ex31 -m ../data/amr-quad.mesh -o 2 -r 1
+//               ex31 -m ../data/amr-hex.mesh -r 1
 //
 // Description:  This example code solves a simple electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
@@ -78,7 +78,6 @@ int main(int argc, char *argv[])
    {
       mesh.UniformRefinement();
    }
-   mesh.ReorientTetMesh();
 
    // 4. Define a finite element space on the mesh. Here we use the Nedelec
    //    finite elements of the specified order restricted to 1D, 2D, or 3D
@@ -178,8 +177,8 @@ int main(int argc, char *argv[])
 
    // 13. Compute and print the H(Curl) norm of the error.
    {
-      double err = sol.ComputeHCurlError(&E, &CurlE);
-      cout << "\n|| E_h - E ||_{H(Curl)} = " << err << '\n' << endl;
+      double error = sol.ComputeHCurlError(&E, &CurlE);
+      cout << "\n|| E_h - E ||_{H(Curl)} = " << error << '\n' << endl;
    }
 
 

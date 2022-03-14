@@ -391,6 +391,7 @@ public:
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 };
 
+
 /// A 0D Nedelec finite element for the boundary of a 1D domain
 /** ND_R1D_PointElement provides a representation of the trace of a three
     component Nedelec basis restricted to 1D.
