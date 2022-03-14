@@ -1,6 +1,6 @@
-//                      MFEM Example 31
+//                      MFEM Example 33
 //
-// Compile with: make ex31p
+// Compile with: make ex33p
 //
 // Sample runs:  mpirun -np 4 ex31p -m ../data/square-disc.mesh -alpha 0.33 -o 2
 //               mpirun -np 4 ex31p -m ../data/star.mesh -alpha 0.99 -o 3
