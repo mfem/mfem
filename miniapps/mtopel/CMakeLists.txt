@@ -17,6 +17,7 @@ list(APPEND SEQADIFF_COMMON_HEADERS)
 list(APPEND PARADIFF_COMMON_SOURCES
 	mtop_filters.cpp
 	mtop_solvers.cpp
+	mtop_coefficients.cpp
 	MMA.cpp)
 
 
@@ -24,6 +25,7 @@ list(APPEND PARADIFF_COMMON_SOURCES
 list(APPEND PARADIFF_COMMON_HEADERS
 	mtop_filters.hpp
 	mtop_solvers.hpp
+	mtop_coefficients.hpp
 	MMA.hpp)
 
 convert_filenames_to_full_paths(SEQADIFF_COMMON_SOURCES)
