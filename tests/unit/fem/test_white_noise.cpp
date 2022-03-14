@@ -105,7 +105,7 @@ TEST_CASE("WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh")
 
       // Compare population covariance to mass matrix
       Mdense -= C;
-      REQUIRE(Mdense.MaxMaxNorm() < 1.0e-3);
+      REQUIRE(Mdense.MaxMaxNorm() < 2.0e-3);
    }
 }
 
@@ -209,8 +209,8 @@ TEST_CASE("Parallel WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh",
       HYPRE_BigInt * cmap;
       diff->GetOffd(offd,cmap);
 
-      REQUIRE(diag.MaxNorm() < 1.0e-3);
-      REQUIRE(offd.MaxNorm() < 1.0e-3);
+      REQUIRE(diag.MaxNorm() < 2.0e-3);
+      REQUIRE(offd.MaxNorm() < 2.0e-3);
 
       delete diff;
       delete ParC;
