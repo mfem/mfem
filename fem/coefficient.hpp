@@ -2093,6 +2093,99 @@ public:
    virtual ~QuadratureFunctionCoefficient() { }
 };
 
+/// @brief Class to represent a coefficient evaluated at quadrature points.
+///
+/// In the general case, a CoefficientVector is the same as a QuadratureFunction
+/// with a coefficient projected onto it.
+///
+/// In special cases such as constant coefficients, a CoefficientVector is
+/// "compressed", meaning that only the constant value is stored.
+///
+/// @anchor compress
+/// Some of the member functions accept a @a compress argument. If this argument
+/// is true, and the given coefficient is a ConstantCoefficient (or
+/// VectorConstantCoefficient or MatrixConstantCoefficient), then the resulting
+/// vector will be of size @a vdim. Otherwise, it will be the size of a full
+/// QuadratureFunction defined on the given QuadratureSpace.
+class CoefficientVector : public Vector
+{
+protected:
+   int vdim;
+   QuadratureFunction *qf;
+public:
+   /// Create an empty CoefficientVector.
+   CoefficientVector() : Vector(), vdim(0), qf(NULL) { }
+
+   /// @brief Create a CoefficientVector from the given Coefficient and
+   /// QuadratureSpace.
+   ///
+   /// If @a coeff is NULL, it will be interpreted as a constant with value one.
+   /// @ref compress "See here" for a description of the @a compress argument.
+   CoefficientVector(Coefficient *coeff, class QuadratureSpace &qs,
+                     bool compress=true);
+
+   /// @brief Create a CoefficientVector from the given Coefficient and
+   /// QuadratureSpace.
+   ///
+   /// @ref compress "See here" for a description of the @a compress argument.
+   CoefficientVector(Coefficient &coeff, class QuadratureSpace &qs,
+                     bool compress=true);
+
+   /// @brief Create a CoefficientVector from the given VectorCoefficient and
+   /// QuadratureSpace.
+   ///
+   /// @sa CoefficientVector for a description of the @a compress argument.
+   CoefficientVector(VectorCoefficient &coeff, class QuadratureSpace &qs,
+                     bool compress=true);
+
+   /// @brief Create a CoefficientVector from the given MatrixCoefficient and
+   /// QuadratureSpace.
+   ///
+   /// @sa CoefficientVector for a description of the @a compress argument.
+   CoefficientVector(MatrixCoefficient &coeff, class QuadratureSpace &qs,
+                     bool compress=true);
+
+   /// @brief Evaluate the given Coefficient at the quadrature points defined by
+   /// @a qs.
+   ///
+   /// @sa CoefficientVector for a description of the @a compress argument.
+   void Project(Coefficient &coeff, class QuadratureSpace &qs, bool compress=true);
+
+   /// @brief Evaluate the given VectorCoefficient at the quadrature points
+   /// defined by @a qs.
+   ///
+   /// @sa CoefficientVector for a description of the @a compress argument.
+   void Project(VectorCoefficient &coeff, class QuadratureSpace &qs,
+                bool compress=true);
+
+   /// @brief Evaluate the given MatrixCoefficient at the quadrature points
+   /// defined by @a qs.
+   ///
+   /// @sa CoefficientVector for a description of the @a compress argument.
+   void Project(MatrixCoefficient &coeff, class QuadratureSpace &qs,
+                bool compress=true, bool transpose=false);
+
+   /// @brief Project the tranpose of @a coeff.
+   ///
+   /// @sa Project(MatrixCoefficient&, QuadratureSpace&, bool, bool)
+   void ProjectTranspose(MatrixCoefficient &coeff, class QuadratureSpace &qs,
+                         bool compress=true);
+
+   /// Set this vector to the given constant, repeated @a nq times.
+   void SetConstant(double constant, int nq=1);
+
+   /// Set this vector to the given constant vector, repeated @a nq times.
+   void SetConstant(const Vector &constant, int nq=1);
+
+   /// Set this vector to the given constant matrix, repeated @a nq times.
+   void SetConstant(const DenseMatrix &constant, int nq=1);
+
+   /// Return the number of values per quadrature point.
+   int GetVDim() const;
+
+   ~CoefficientVector();
+};
+
 /** @brief Compute the Lp norm of a function f.
     \f$ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} \f$ */
 double ComputeLpNorm(double p, Coefficient &coeff, Mesh &mesh,
