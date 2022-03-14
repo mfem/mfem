@@ -2,11 +2,11 @@
 //
 // Compile with: make ex33
 //
-// Sample runs:  ex31 -m ../data/square-disc.mesh -alpha 0.33 -o 2
-//               ex31 -m ../data/star.mesh -alpha 0.99 -o 3
-//               ex31 -m ../data/inline-quad.mesh -alpha 0.2 -o 3
-//               ex31 -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
-//               ex31 -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
+// Sample runs:  ex33 -m ../data/square-disc.mesh -alpha 0.33 -o 2
+//               ex33 -m ../data/star.mesh -alpha 0.99 -o 3
+//               ex33 -m ../data/inline-quad.mesh -alpha 0.2 -o 3
+//               ex33 -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
+//               ex33 -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
 //
 //
 // Description:

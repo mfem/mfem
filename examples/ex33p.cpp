@@ -2,11 +2,11 @@
 //
 // Compile with: make ex33p
 //
-// Sample runs:  mpirun -np 4 ex31p -m ../data/square-disc.mesh -alpha 0.33 -o 2
-//               mpirun -np 4 ex31p -m ../data/star.mesh -alpha 0.99 -o 3
-//               mpirun -np 4 ex31p -m ../data/inline-quad.mesh -alpha 0.2 -o 3
-//               mpirun -np 4 ex31p -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
-//               mpirun -np 4 ex31p -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
+// Sample runs:  mpirun -np 4 ex33p -m ../data/square-disc.mesh -alpha 0.33 -o 2
+//               mpirun -np 4 ex33p -m ../data/star.mesh -alpha 0.99 -o 3
+//               mpirun -np 4 ex33p -m ../data/inline-quad.mesh -alpha 0.2 -o 3
+//               mpirun -np 4 ex33p -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
+//               mpirun -np 4 ex33p -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
 //
 //
 // Description:
