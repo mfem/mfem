@@ -53,7 +53,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    pa_data.SetSize(ne*nq, mt);
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(Q, qs);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
    if (dim==2)
