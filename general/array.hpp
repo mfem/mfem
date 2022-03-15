@@ -1044,7 +1044,7 @@ void BlockArray<T>::Swap(BlockArray<T> &other)
 template<typename T>
 long BlockArray<T>::MemoryUsage() const
 {
-   return (unsigned int)blocks.Size()*(mask+1)*sizeof(T) + blocks.MemoryUsage();
+   return (mask+1)*sizeof(T)*blocks.Size() + blocks.MemoryUsage();
 }
 
 template<typename T>
