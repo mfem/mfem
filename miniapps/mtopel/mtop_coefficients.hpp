@@ -25,6 +25,9 @@ public:
         center.SetSize(cmin.Size());
         center=0.0;
 
+        tmpv.SetSize(cmin.Size());
+        tmpv=0.0;
+
         Sample();
     }
 
