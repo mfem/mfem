@@ -4027,6 +4027,8 @@ void QuadratureFunction::ProjectCoefficient(SymmetricMatrixCoefficient &coeff)
 {
    const int height = coeff.GetHeight();
    const int width = coeff.GetWidth();
+   MFEM_CONTRACT_VAR(height);
+   MFEM_CONTRACT_VAR(width);
    MFEM_ASSERT(height == width && vdim == height*(height+1)/2, "Wrong sizes.");
    Mesh &mesh = *qspace->GetMesh();
    DenseMatrix values;
