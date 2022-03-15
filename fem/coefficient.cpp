@@ -1469,56 +1469,56 @@ double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
 }
 
 
-CoefficientVector::CoefficientVector(CoefficientStorage storage_)
-   : Vector(), storage(storage_), vdim(0), qf(NULL)
+CoefficientVector::CoefficientVector(
+   QuadratureSpace &qs_, CoefficientStorage storage_)
+   : Vector(), storage(storage_), vdim(0), qs(qs_), qf(NULL)
 {
    UseDevice(true);
 }
 
-CoefficientVector::CoefficientVector(Coefficient *coeff, QuadratureSpace &qs,
+CoefficientVector::CoefficientVector(Coefficient *coeff, QuadratureSpace &qs_,
                                      CoefficientStorage storage_)
-   : CoefficientVector(storage_)
+   : CoefficientVector(qs_, storage_)
 {
    if (coeff == NULL)
    {
-      SetConstant(1.0, (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize());
+      SetConstant(1.0);
    }
    else
    {
-      Project(*coeff, qs);
+      Project(*coeff);
    }
 }
 
-CoefficientVector::CoefficientVector(Coefficient &coeff, QuadratureSpace &qs,
+CoefficientVector::CoefficientVector(Coefficient &coeff, QuadratureSpace &qs_,
                                      CoefficientStorage storage_)
-   : CoefficientVector(storage_)
+   : CoefficientVector(qs_, storage_)
 {
-   Project(coeff, qs);
+   Project(coeff);
 }
 
 CoefficientVector::CoefficientVector(VectorCoefficient &coeff,
-                                     QuadratureSpace &qs,
+                                     QuadratureSpace &qs_,
                                      CoefficientStorage storage_)
-   : CoefficientVector(storage_)
+   : CoefficientVector(qs_, storage_)
 {
-   Project(coeff, qs);
+   Project(coeff);
 }
 
 CoefficientVector::CoefficientVector(MatrixCoefficient &coeff,
-                                     QuadratureSpace &qs,
+                                     QuadratureSpace &qs_,
                                      CoefficientStorage storage_)
-   : CoefficientVector(storage_)
+   : CoefficientVector(qs_, storage_)
 {
-   Project(coeff, qs);
+   Project(coeff);
 }
 
-void CoefficientVector::Project(Coefficient &coeff, QuadratureSpace &qs)
+void CoefficientVector::Project(Coefficient &coeff)
 {
    vdim = 1;
    if (auto *const_coeff = dynamic_cast<ConstantCoefficient*>(&coeff))
    {
-      SetConstant(const_coeff->constant,
-                  (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize());
+      SetConstant(const_coeff->constant);
    }
    else if (auto *qf_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(&coeff))
    {
@@ -1540,13 +1540,12 @@ void CoefficientVector::Project(Coefficient &coeff, QuadratureSpace &qs)
    }
 }
 
-void CoefficientVector::Project(VectorCoefficient &coeff, QuadratureSpace &qs)
+void CoefficientVector::Project(VectorCoefficient &coeff)
 {
    vdim = coeff.GetVDim();
    if (auto *const_coeff = dynamic_cast<VectorConstantCoefficient*>(&coeff))
    {
-      SetConstant(const_coeff->GetVec(),
-                  (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize());
+      SetConstant(const_coeff->GetVec());
    }
    else if (auto *qf_coeff =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(&coeff))
@@ -1569,8 +1568,7 @@ void CoefficientVector::Project(VectorCoefficient &coeff, QuadratureSpace &qs)
    }
 }
 
-void CoefficientVector::Project(MatrixCoefficient &coeff, QuadratureSpace &qs,
-                                bool transpose)
+void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
 {
    delete qf;
    auto *sym_coeff = dynamic_cast<SymmetricMatrixCoefficient*>(&coeff);
@@ -1589,21 +1587,22 @@ void CoefficientVector::Project(MatrixCoefficient &coeff, QuadratureSpace &qs,
    MakeRef(*qf, 0, qf->Size());
 }
 
-void CoefficientVector::ProjectTranspose(MatrixCoefficient &coeff,
-                                         QuadratureSpace &qs)
+void CoefficientVector::ProjectTranspose(MatrixCoefficient &coeff)
 {
-   Project(coeff, qs, true);
+   Project(coeff, true);
 }
 
-void CoefficientVector::SetConstant(double constant, int nq)
+void CoefficientVector::SetConstant(double constant)
 {
+   const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
    vdim = 1;
    SetSize(nq);
    Vector::operator=(constant);
 }
 
-void CoefficientVector::SetConstant(const Vector &constant, int nq)
+void CoefficientVector::SetConstant(const Vector &constant)
 {
+   const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
    vdim = constant.Size();
    SetSize(nq*vdim);
    for (int iq = 0; iq < nq; ++iq)
@@ -1615,8 +1614,9 @@ void CoefficientVector::SetConstant(const Vector &constant, int nq)
    }
 }
 
-void CoefficientVector::SetConstant(const DenseMatrix &constant, int nq)
+void CoefficientVector::SetConstant(const DenseMatrix &constant)
 {
+   const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
    int width = constant.Width();
    int height = constant.Height();
    vdim = width*height;
