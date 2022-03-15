@@ -11,7 +11,10 @@
 Version 4.3.1 (development)
 ===========================
 
-- Add hipSPARSE support for sparse mat-vec multiplications.
+- Added PA support for MixedScalarCurlIntegrator in 2D and
+  MixedVectorGradientIntegrator in 2D and 3D, as well as their transposes.
+
+- Added hipSPARSE support for sparse mat-vec multiplications.
 
 - Added support for using the HYPRE library built with HIP support. Similar to
   the HYPRE + CUDA support added earlier, most of the MFEM examples and miniapps
@@ -111,6 +114,13 @@ Version 4.3.1 (development)
 
 - Added ParaView visualization of `QuadratureFunction` fields, through both
   `QuadratureFunction::SaveVTU` and `ParaViewDataCollection::RegisterQField`.
+
+- Updated the formulation for interface fitting with TMOP and introduced
+  a method to adaptively change the weight of the interface fitting term 
+  for r-adaptivity.
+
+- Added Nedelec and Raviart-Thomas basis functions for modeling three
+  dimensional vector fields in 1D or 2D domains.
 
 
 Version 4.3, released on July 29, 2021

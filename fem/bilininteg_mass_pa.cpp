@@ -1048,6 +1048,7 @@ static void PAMassApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
    const int id = (D1D << 4) | Q1D;
+
    if (dim == 2)
    {
       switch (id)
