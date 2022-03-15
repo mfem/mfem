@@ -172,7 +172,7 @@ void test_assembly_level(const char *meshname,
    delete fec;
 }
 
-TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
+TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
@@ -225,7 +225,7 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
    }
 } // H1 Assembly Levels test case
 
-TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
+TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
 {
    const bool dg = true;
    auto pb = GENERATE(Problem::Mass, Problem::Convection);
