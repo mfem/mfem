@@ -80,7 +80,6 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI (required by PUMI) and HYPRE.
    Mpi::Init(argc, argv);
-   Hypre::Init();
    int num_proc = Mpi::WorldSize();
    int myId = Mpi::WorldRank();
    Hypre::Init();
