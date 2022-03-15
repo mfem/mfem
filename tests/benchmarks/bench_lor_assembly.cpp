@@ -26,6 +26,7 @@ struct LORBench
 {
    static constexpr double EPS = 1e-14;
    static constexpr int RANDOM_SEED = 0x100001b3;
+   GeometricFactors::FactorFlags DETERMINANTS = GeometricFactors::DETERMINANTS;
    const int p, c, q, n, nx, ny, nz, dim = 3;
    const bool check_x, check_y, check_z, checked;
    Mesh mesh;
@@ -36,6 +37,7 @@ struct LORBench
    IntegrationRules irs;
    const IntegrationRule *ir;
    FiniteElementSpace &fes_lor;
+   const GeometricFactors *gf_ho, *gf_lor;
    ConstantCoefficient diff_coeff, mass_coeff;
    BilinearForm a_ho, a_lor_legacy, a_lor_full;
    OperatorHandle A_lor_legacy, A_lor_full;
@@ -64,6 +66,8 @@ struct LORBench
       irs(0, Quadrature1D::GaussLobatto),
       ir(&irs.Get(mesh.GetElementGeometry(0), 1)),
       fes_lor(lor.GetFESpace()),
+      gf_ho(mesh.GetGeometricFactors(*ir, DETERMINANTS)),
+      gf_lor(lor.GetFESpace().GetMesh()->GetGeometricFactors(*ir, DETERMINANTS)),
       diff_coeff(M_PI),
       mass_coeff(1.0/M_PI),
       a_ho(&fes_ho),
@@ -92,6 +96,9 @@ struct LORBench
 
       SetupRandomMesh();
 
+      MFEM_VERIFY(gf_ho->detJ.Min() > 0.0, "Invalid HO mesh!");
+      MFEM_VERIFY(gf_lor->detJ.Min() > 0.0, "Invalid LOR mesh!");
+
       x.Randomize(RANDOM_SEED);
       y.Randomize(RANDOM_SEED);
 
@@ -102,7 +109,7 @@ struct LORBench
    {
       mesh.SetNodalFESpace(&fes_mesh);
       mesh.SetNodalGridFunction(&mesh_coords);
-      const double jitter = 1./(M_PI*M_PI);
+      const double jitter = 0.000001;//1./(M_PI*M_PI);
       const double h0 = mesh.GetElementSize(0);
       GridFunction rdm(&fes_mesh);
       rdm.Randomize(RANDOM_SEED);
