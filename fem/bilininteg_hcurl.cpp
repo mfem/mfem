@@ -968,11 +968,11 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(CoefficientStorage::SYMMETRIC);
-   if (Q) { coeff.Project(*Q, qs); }
-   else if (MQ) { coeff.ProjectTranspose(*MQ, qs); }
-   else if (DQ) { coeff.Project(*DQ, qs); }
-   else { coeff.SetConstant(1.0, qs.GetSize()); }
+   CoefficientVector coeff(qs, CoefficientStorage::SYMMETRIC);
+   if (Q) { coeff.Project(*Q); }
+   else if (MQ) { coeff.ProjectTranspose(*MQ); }
+   else if (DQ) { coeff.Project(*DQ); }
+   else { coeff.SetConstant(1.0); }
 
    const int coeff_dim = coeff.GetVDim();
    symmetric = (coeff_dim != dim*dim);
@@ -3502,10 +3502,10 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(CoefficientStorage::FULL);
-   if (Q) { coeff.Project(*Q, qs); }
-   else if (DQ) { coeff.Project(*DQ, qs); }
-   else { coeff.SetConstant(1.0, qs.GetSize()); }
+   CoefficientVector coeff(qs, CoefficientStorage::FULL);
+   if (Q) { coeff.Project(*Q); }
+   else if (DQ) { coeff.Project(*DQ); }
+   else { coeff.SetConstant(1.0); }
 
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
@@ -4603,10 +4603,10 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
    pa_data.SetSize(coeffDim * nq * ne, Device::GetMemoryType());
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(CoefficientStorage::FULL);
-   if (Q) { coeff.Project(*Q, qs); }
-   else if (DQ) { coeff.Project(*DQ, qs); }
-   else { coeff.SetConstant(1.0, qs.GetSize()); }
+   CoefficientVector coeff(qs, CoefficientStorage::FULL);
+   if (Q) { coeff.Project(*Q); }
+   else if (DQ) { coeff.Project(*DQ); }
+   else { coeff.SetConstant(1.0); }
 
    testType = test_el->GetDerivType();
    trialType = trial_el->GetDerivType();

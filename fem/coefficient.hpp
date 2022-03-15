@@ -2127,10 +2127,12 @@ class CoefficientVector : public Vector
 protected:
    CoefficientStorage storage; ///< Storage optimizations (see CoefficientStorage).
    int vdim; ///< Number of values per quadrature point.
+   class QuadratureSpace &qs; ///< Associated QuadratureSpace.
    QuadratureFunction *qf; ///< Internal QuadratureFunction (owned, may be NULL).
 public:
    /// Create an empty CoefficientVector.
-   CoefficientVector(CoefficientStorage storage_ = CoefficientStorage::FULL);
+   CoefficientVector(class QuadratureSpace &qs_,
+                     CoefficientStorage storage_ = CoefficientStorage::FULL);
 
    /// @brief Create a CoefficientVector from the given Coefficient and
    /// QuadratureSpace.
@@ -2162,35 +2164,34 @@ public:
                      CoefficientStorage storage_ = CoefficientStorage::FULL);
 
    /// @brief Evaluate the given Coefficient at the quadrature points defined by
-   /// @a qs.
-   void Project(Coefficient &coeff, class QuadratureSpace &qs);
+   /// qs.
+   void Project(Coefficient &coeff);
 
    /// @brief Evaluate the given VectorCoefficient at the quadrature points
-   /// defined by @a qs.
+   /// defined by qs.
    ///
    /// @sa CoefficientVector for a description of the @a compress argument.
-   void Project(VectorCoefficient &coeff, class QuadratureSpace &qs);
+   void Project(VectorCoefficient &coeff);
 
    /// @brief Evaluate the given MatrixCoefficient at the quadrature points
-   /// defined by @a qs.
+   /// defined by qs.
    ///
    /// @sa CoefficientVector for a description of the @a compress argument.
-   void Project(MatrixCoefficient &coeff, class QuadratureSpace &qs,
-                bool transpose=false);
+   void Project(MatrixCoefficient &coeff, bool transpose=false);
 
    /// @brief Project the tranpose of @a coeff.
    ///
    /// @sa Project(MatrixCoefficient&, QuadratureSpace&, bool, bool)
-   void ProjectTranspose(MatrixCoefficient &coeff, class QuadratureSpace &qs);
+   void ProjectTranspose(MatrixCoefficient &coeff);
 
-   /// Set this vector to the given constant, repeated @a nq times.
-   void SetConstant(double constant, int nq=1);
+   /// Set this vector to the given constant.
+   void SetConstant(double constant);
 
-   /// Set this vector to the given constant vector, repeated @a nq times.
-   void SetConstant(const Vector &constant, int nq=1);
+   /// Set this vector to the given constant vector.
+   void SetConstant(const Vector &constant);
 
-   /// Set this vector to the given constant matrix, repeated @a nq times.
-   void SetConstant(const DenseMatrix &constant, int nq=1);
+   /// Set this vector to the given constant matrix.
+   void SetConstant(const DenseMatrix &constant);
 
    /// Return the number of values per quadrature point.
    int GetVDim() const;

@@ -789,11 +789,11 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    const bool test_div = (test_fetype == mfem::FiniteElement::DIV);
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(CoefficientStorage::SYMMETRIC);
-   if (Q) { coeff.Project(*Q, qs); }
-   else if (MQ) { coeff.ProjectTranspose(*MQ, qs); }
-   else if (DQ) { coeff.Project(*DQ, qs); }
-   else { coeff.SetConstant(1.0, qs.GetSize()); }
+   CoefficientVector coeff(qs, CoefficientStorage::SYMMETRIC);
+   if (Q) { coeff.Project(*Q); }
+   else if (MQ) { coeff.ProjectTranspose(*MQ); }
+   else if (DQ) { coeff.Project(*DQ); }
+   else { coeff.SetConstant(1.0); }
 
    const int coeff_dim = coeff.GetVDim();
    symmetric = (coeff_dim != dim*dim);
