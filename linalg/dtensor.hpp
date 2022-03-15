@@ -111,6 +111,9 @@ public:
       data = t.data;
    }
 
+   /// Copy assignment not supported
+   MFEM_HOST_DEVICE DeviceTensor& operator=(DeviceTensor&) = delete;
+
    /// Conversion to `Scalar *`.
    MFEM_HOST_DEVICE inline operator Scalar *() const { return data; }
 
