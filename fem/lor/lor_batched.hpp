@@ -13,7 +13,6 @@
 #define MFEM_LOR_BATCHED
 
 #include "lor.hpp"
-#include "lor_restriction.hpp"
 
 namespace mfem
 {
@@ -25,11 +24,10 @@ namespace mfem
 /// supported, currently:
 ///
 ///  - H1 diffusion + mass
-///  - H1 diffusion
+///  - ND curl-curl + mass (2D only)
 class BatchedLORAssembly
 {
 protected:
-   LORRestriction R; ///< LOR restriction used for sparse matrix assembly.
    FiniteElementSpace &fes_ho; ///< The high-order space.
    const Array<int> &ess_dofs; ///< Essential DOFs to eliminate.
 
@@ -38,35 +36,25 @@ protected:
    /// Get the vertices of the LOR mesh and place the result in @a X_vert.
    template <int Q1D> void GetLORVertexCoordinates();
 
-   DenseMatrix sparse_mapping;
+   /// @brief The elementwise LOR matrices in a sparse "ij" format.
+   ///
+   /// This is interpreted to have shape (nnz_per_row, ndof_per_el, nel_ho). For
+   /// index (i, j, k), this represents row @a j of the @a kth element matrix.
+   /// The column index is given by sparse_mapping(i, j).
    Vector sparse_ij;
 
-   // compiler limitation
-public:
-   /// After assembling the "sparse IJ" format, convert it to CSR.
-   void SparseIJToCSR(SparseMatrix &A);
-   /// Assemble the system without eliminating essential DOFs.
-   SparseMatrix *AssembleWithoutBC();
-#ifdef MFEM_USE_MPI
-   /// Assemble the system in parallel and place the result in @a A.
-   void ParAssemble(OperatorHandle &A);
-#endif
-   /// Assemble the system, and place the result in @a A.
-   void Assemble(OperatorHandle &A);
-
-   /// @brief Pure virtual function for the kernel actually performing the
-   /// assembly. Overridden in the derived classes.
-   virtual void AssemblyKernel() = 0;
-
-   /// Called by one of the specialized classes, e.g. BatchedLORDiffusion.
-   BatchedLORAssembly(BilinearForm &a,
-                      FiniteElementSpace &fes_ho_,
-                      const Array<int> &ess_dofs_);
+   /// @brief The sparsity pattern of the element matrices.
+   ///
+   /// For local DOF index @a j, sparse_mapping(i, j) is the column index of the
+   /// @a ith nonzero in the @a jth row. If the index is negative, that entry
+   /// should be skipped (there is no corresponding nonzero).
+   DenseMatrix sparse_mapping;
 
 public:
    /// Does the given form support batched assembly?
    static bool FormIsSupported(BilinearForm &a);
-   /// @brief Assembly the given form as a matrix and place the result in @a A.
+
+   /// @brief Assemble the given form as a matrix and place the result in @a A.
    ///
    /// In serial, the result will be a SparseMatrix. In parallel, the result
    /// will be a HypreParMatrix.
@@ -74,6 +62,64 @@ public:
                         FiniteElementSpace &fes_ho,
                         const Array<int> &ess_dofs,
                         OperatorHandle &A);
+
+protected:
+   /// After assembling the "sparse IJ" format, convert it to CSR.
+   SparseMatrix *SparseIJToCSR() const;
+
+   /// Assemble the system without eliminating essential DOFs.
+   SparseMatrix *AssembleWithoutBC();
+
+   /// Called by one of the specialized classes, e.g. BatchedLORDiffusion.
+   BatchedLORAssembly(BilinearForm &a,
+                      FiniteElementSpace &fes_ho_,
+                      const Array<int> &ess_dofs_);
+
+   virtual ~BatchedLORAssembly() { }
+
+   /// Return the first domain integrator in the form @a i of type @a T.
+   template <typename T>
+   static T *GetIntegrator(BilinearForm &a)
+   {
+      Array<BilinearFormIntegrator*> *integs = a.GetDBFI();
+      if (integs != NULL)
+      {
+         for (auto *i : *integs)
+         {
+            if (auto *ti = dynamic_cast<T*>(i))
+            {
+               return ti;
+            }
+         }
+      }
+      return nullptr;
+   }
+
+   // Compiler limitation: these should be protected, but they contain
+   // MFEM_FORALL kernels, and so they must be public.
+public:
+   /// @brief Fill the I array of the sparse matrix @a A.
+   ///
+   /// @note AssemblyKernel must be called first to populate @a sparse_mapping.
+   int FillI(SparseMatrix &A) const;
+
+   /// @brief Fill the J and data arrays of the sparse matrix @a A.
+   ///
+   /// @note AssemblyKernel must be called first to populate @a sparse_mapping
+   /// and @a sparse_ij.
+   void FillJAndData(SparseMatrix &A) const;
+
+#ifdef MFEM_USE_MPI
+   /// Assemble the system in parallel and place the result in @a A.
+   void ParAssemble(OperatorHandle &A);
+#endif
+
+   /// Assemble the system, and place the result in @a A.
+   void Assemble(OperatorHandle &A);
+
+   /// @brief Pure virtual function for the kernel actually performing the
+   /// assembly. Overridden in the derived classes.
+   virtual void AssemblyKernel() = 0;
 };
 
 }

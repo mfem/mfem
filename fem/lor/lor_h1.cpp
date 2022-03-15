@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "lor_diffusion.hpp"
+#include "lor_h1.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../general/forall.hpp"
 
@@ -17,7 +17,7 @@ namespace mfem
 {
 
 template <int ORDER>
-void BatchedLORDiffusion::AssembleDiffusion2D()
+void BatchedLOR_H1::Assemble2D()
 {
    const int nel_ho = fes_ho.GetNE();
 
@@ -219,7 +219,7 @@ void BatchedLORDiffusion::AssembleDiffusion2D()
 }
 
 template <int ORDER>
-void BatchedLORDiffusion::AssembleDiffusion3D()
+void BatchedLOR_H1::Assemble3D()
 {
    const int nel_ho = fes_ho.GetNE();
 
@@ -615,22 +615,21 @@ void BatchedLORDiffusion::AssembleDiffusion3D()
    }
 }
 
-void BatchedLORDiffusion::AssemblyKernel()
+void BatchedLOR_H1::AssemblyKernel()
 {
-   Mesh &mesh_ho = *fes_ho.GetMesh();
-   const int dim = mesh_ho.Dimension();
+   const int dim = fes_ho.GetMesh()->Dimension();
    const int order = fes_ho.GetMaxElementOrder();
 
    if (dim == 2)
    {
       switch (order)
       {
-         case 1: AssembleDiffusion2D<1>(); break;
-         case 2: AssembleDiffusion2D<2>(); break;
-         case 3: AssembleDiffusion2D<3>(); break;
-         case 4: AssembleDiffusion2D<4>(); break;
-         case 5: AssembleDiffusion2D<5>(); break;
-         case 6: AssembleDiffusion2D<6>(); break;
+         case 1: Assemble2D<1>(); break;
+         case 2: Assemble2D<2>(); break;
+         case 3: Assemble2D<3>(); break;
+         case 4: Assemble2D<4>(); break;
+         case 5: Assemble2D<5>(); break;
+         case 6: Assemble2D<6>(); break;
          default: MFEM_ABORT("No kernel.");
       }
    }
@@ -638,37 +637,20 @@ void BatchedLORDiffusion::AssemblyKernel()
    {
       switch (order)
       {
-         case 1: AssembleDiffusion3D<1>(); break;
-         case 2: AssembleDiffusion3D<2>(); break;
-         case 3: AssembleDiffusion3D<3>(); break;
-         case 4: AssembleDiffusion3D<4>(); break;
-         case 5: AssembleDiffusion3D<5>(); break;
-         case 6: AssembleDiffusion3D<6>(); break;
+         case 1: Assemble3D<1>(); break;
+         case 2: Assemble3D<2>(); break;
+         case 3: Assemble3D<3>(); break;
+         case 4: Assemble3D<4>(); break;
+         case 5: Assemble3D<5>(); break;
+         case 6: Assemble3D<6>(); break;
          default: MFEM_ABORT("No kernel.");
       }
    }
 }
 
-template <typename T>
-T *GetIntegrator(BilinearForm &a)
-{
-   Array<BilinearFormIntegrator*> *integs = a.GetDBFI();
-   if (integs != NULL)
-   {
-      for (auto *i : *integs)
-      {
-         if (auto *ti = dynamic_cast<T*>(i))
-         {
-            return ti;
-         }
-      }
-   }
-   return nullptr;
-}
-
-BatchedLORDiffusion::BatchedLORDiffusion(BilinearForm &a,
-                                         FiniteElementSpace &fes_ho_,
-                                         const Array<int> &ess_dofs_)
+BatchedLOR_H1::BatchedLOR_H1(BilinearForm &a,
+                             FiniteElementSpace &fes_ho_,
+                             const Array<int> &ess_dofs_)
    : BatchedLORAssembly(a, fes_ho_, ess_dofs_)
 {
    MassIntegrator *mass = GetIntegrator<MassIntegrator>(a);

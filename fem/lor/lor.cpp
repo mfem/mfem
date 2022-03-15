@@ -15,9 +15,6 @@
 #include "../pbilinearform.hpp"
 #include "../../general/forall.hpp"
 
-#define MFEM_DEBUG_COLOR 226
-#include "../../general/debug.hpp"
-
 namespace mfem
 {
 
@@ -69,10 +66,7 @@ void LORBase::ResetIntegrationRules(GetIntegratorsFn get_integrators)
    Array<BilinearFormIntegrator*> *integrators = (a->*get_integrators)();
    for (int i=0; i<integrators->Size(); ++i)
    {
-      BilinearFormIntegrator *bfi = (*integrators)[i];
-      const IntegrationRule *ir = ir_map[bfi];
-      if (!ir) { continue; }
-      bfi->SetIntegrationRule(*ir);
+      ((*integrators)[i])->SetIntegrationRule(*ir_map[(*integrators)[i]]);
    }
 }
 
@@ -267,35 +261,16 @@ bool LORBase::HasSameDofNumbering() const
    return type == H1 || type == L2;
 }
 
-const OperatorHandle &LORBase::GetAssembledSystem() const
+OperatorHandle &LORBase::GetAssembledSystem()
 {
-   MFEM_VERIFY(a != NULL || A.Ptr() != NULL, "No LOR system assembled");
+   MFEM_VERIFY(A.Ptr() != NULL, "No LOR system assembled");
    return A;
 }
 
-void LORBase::AssembleSystem_(BilinearForm &a_ho, const Array<int> &ess_dofs)
+const OperatorHandle &LORBase::GetAssembledSystem() const
 {
-   a->UseExternalIntegrators();
-   AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
-                  &BilinearForm::AddDomainIntegrator, ir_el);
-   AddIntegrators(a_ho, *a, &BilinearForm::GetFBFI,
-                  &BilinearForm::AddInteriorFaceIntegrator, ir_face);
-   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBBFI,
-                            &BilinearForm::GetBBFI_Marker,
-                            &BilinearForm::AddBoundaryIntegrator,
-                            &BilinearForm::AddBoundaryIntegrator, ir_face);
-   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBFBFI,
-                            &BilinearForm::GetBFBFI_Marker,
-                            &BilinearForm::AddBdrFaceIntegrator,
-                            &BilinearForm::AddBdrFaceIntegrator, ir_face);
-
-   a->Assemble();
-   a->FormSystemMatrix(ess_dofs, A);
-
-   ResetIntegrationRules(&BilinearForm::GetDBFI);
-   ResetIntegrationRules(&BilinearForm::GetFBFI);
-   ResetIntegrationRules(&BilinearForm::GetBBFI);
-   ResetIntegrationRules(&BilinearForm::GetBFBFI);
+   MFEM_VERIFY(A.Ptr() != NULL, "No LOR system assembled");
+   return A;
 }
 
 void LORBase::SetupProlongationAndRestriction()
@@ -388,6 +363,61 @@ FiniteElementSpace &LORBase::GetFESpace() const
    return *fes;
 }
 
+void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
+{
+   delete a;
+   if (BatchedLORAssembly::FormIsSupported(a_ho))
+   {
+      // Skip forming the space
+      a = nullptr;
+      BatchedLORAssembly::Assemble(a_ho, fes_ho, ess_dofs, A);
+   }
+   else
+   {
+      LegacyAssembleSystem(a_ho, ess_dofs);
+   }
+}
+
+void LORBase::LegacyAssembleSystem(BilinearForm &a_ho,
+                                   const Array<int> &ess_dofs)
+{
+   // If the space is not formed already, it will be constructed lazily in
+   // GetParFESpace
+   FiniteElementSpace &fes = GetFESpace();
+#ifdef MFEM_USE_MPI
+   if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes))
+   {
+      a = new ParBilinearForm(pfes);
+   }
+   else
+#endif
+   {
+      a = new BilinearForm(&fes);
+   }
+
+   a->UseExternalIntegrators();
+   AddIntegrators(a_ho, *a, &BilinearForm::GetDBFI,
+                  &BilinearForm::AddDomainIntegrator, ir_el);
+   AddIntegrators(a_ho, *a, &BilinearForm::GetFBFI,
+                  &BilinearForm::AddInteriorFaceIntegrator, ir_face);
+   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBBFI,
+                            &BilinearForm::GetBBFI_Marker,
+                            &BilinearForm::AddBoundaryIntegrator,
+                            &BilinearForm::AddBoundaryIntegrator, ir_face);
+   AddIntegratorsAndMarkers(a_ho, *a, &BilinearForm::GetBFBFI,
+                            &BilinearForm::GetBFBFI_Marker,
+                            &BilinearForm::AddBdrFaceIntegrator,
+                            &BilinearForm::AddBdrFaceIntegrator, ir_face);
+
+   a->Assemble();
+   a->FormSystemMatrix(ess_dofs, A);
+
+   ResetIntegrationRules(&BilinearForm::GetDBFI);
+   ResetIntegrationRules(&BilinearForm::GetFBFI);
+   ResetIntegrationRules(&BilinearForm::GetBBFI);
+   ResetIntegrationRules(&BilinearForm::GetBFBFI);
+}
+
 LORBase::~LORBase()
 {
    delete a;
@@ -411,7 +441,6 @@ LORDiscretization::LORDiscretization(FiniteElementSpace &fes_ho,
 {
    CheckBasisType(fes_ho);
    A.SetType(Operator::MFEM_SPARSEMAT);
-   FormLORSpace();
 }
 
 void LORDiscretization::FormLORSpace()
@@ -430,29 +459,6 @@ void LORDiscretization::FormLORSpace()
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
    fes = new FiniteElementSpace(mesh, fec);
    SetupProlongationAndRestriction();
-}
-
-void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
-                                       const Array<int> &ess_dofs)
-{
-   delete a;
-
-   if (BatchedLORAssembly::FormIsSupported(a_ho))
-   {
-      // Skip forming the space
-      mfem::out << "Batched.\n";
-      a = nullptr;
-      BatchedLORAssembly::Assemble(a_ho, fes_ho, ess_dofs, A);
-   }
-   else
-   {
-      dbg("Not batched");
-      mfem::out << "Not batched.\n";
-      // If the space is not formed already, it will be constructed lazily in
-      // GetParFESpace
-      a = new BilinearForm(&GetFESpace());
-      AssembleSystem_(a_ho, ess_dofs);
-   }
 }
 
 SparseMatrix &LORDiscretization::GetAssembledMatrix() const
@@ -478,7 +484,6 @@ ParLORDiscretization::ParLORDiscretization(
 {
    if (fes_ho.GetMyRank() == 0) { CheckBasisType(fes_ho); }
    A.SetType(Operator::Hypre_ParCSR);
-   FormLORSpace();
 }
 
 void ParLORDiscretization::FormLORSpace()
@@ -499,27 +504,6 @@ void ParLORDiscretization::FormLORSpace()
    ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
    fes = pfes;
    SetupProlongationAndRestriction();
-}
-
-void ParLORDiscretization::AssembleSystem(ParBilinearForm &a_ho,
-                                          const Array<int> &ess_dofs)
-{
-   delete a;
-   if (BatchedLORAssembly::FormIsSupported(a_ho))
-   {
-      // Skip forming the space
-      mfem::out << "Batched.\n";
-      a = nullptr;
-      BatchedLORAssembly::Assemble(a_ho, fes_ho, ess_dofs, A);
-   }
-   else
-   {
-      mfem::out << "Not batched.\n";
-      // If the space is not formed already, it will be constructed lazily in
-      // GetParFESpace
-      a = new ParBilinearForm(&GetParFESpace());
-      AssembleSystem_(a_ho, ess_dofs);
-   }
 }
 
 HypreParMatrix &ParLORDiscretization::GetAssembledMatrix() const
