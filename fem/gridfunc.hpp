@@ -794,6 +794,9 @@ public:
 
    virtual ~QuadratureFunction() { if (own_qspace) { delete qspace; } }
 
+   /// Evaluate a grid function at each quadrature point.
+   void ProjectGridFunction(const GridFunction &gf);
+
    /// Evaluate the given coefficient at each quadrature point.
    void ProjectCoefficient(Coefficient &coeff);
 

@@ -1527,8 +1527,8 @@ void CoefficientVector::Project(Coefficient &coeff)
       MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
       MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
       MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
-      QuadratureFunction &qf2 = const_cast<QuadratureFunction&>
-                                (qf_coeff->GetQuadFunction());
+      QuadratureFunction &qf2 =
+         const_cast<QuadratureFunction&>(qf_coeff->GetQuadFunction());
       MakeRef(qf2, 0, qf2.Size());
    }
    else
@@ -1555,8 +1555,8 @@ void CoefficientVector::Project(VectorCoefficient &coeff)
       MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
       MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
       MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
-      QuadratureFunction &qf2 = const_cast<QuadratureFunction&>
-                                (qf_coeff->GetQuadFunction());
+      QuadratureFunction &qf2 =
+         const_cast<QuadratureFunction&>(qf_coeff->GetQuadFunction());
       MakeRef(qf2, 0, qf2.Size());
    }
    else
