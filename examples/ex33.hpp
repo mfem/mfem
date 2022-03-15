@@ -54,14 +54,11 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
    for (int i = 0; i < size; i++) { J[i] = i; }
    z.SetSize(0);
    f.SetSize(0);
-   DenseMatrix C;
-   DenseMatrix *Ctemp = nullptr;
-   DenseMatrix *A = nullptr;
-   DenseMatrix *Am = nullptr;
 
+   DenseMatrix C, Ctemp, A, Am;
    // auxiliary arrays and vectors
    Vector f_vec;
-   Array<double> C_i;
+   Array<double> c_i;
 
    // mean of the value vector
    Vector R(val.Size());
@@ -93,43 +90,40 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
 
       // next column in Cauchy matrix
       Array<double> C_tmp(size);
-
       for (int j = 0; j < size; j++)
       {
          C_tmp[j] = 1.0/(pt(j)-pt(idx));
       }
-      C_i.Append(C_tmp);
+      c_i.Append(C_tmp);
       int h_C = C_tmp.Size();
       int w_C = k+1;
-      C.UseExternalData(C_i.GetData(),h_C,w_C);
+      C.UseExternalData(c_i.GetData(),h_C,w_C);
 
-      // This will need some cleanup
-      // temporary copies to perform the scalings
-      Ctemp = new DenseMatrix(C);
+      Ctemp = C;
 
       f_vec.SetDataAndSize(f.GetData(),f.Size());
-      Ctemp->InvLeftScaling(val);
-      Ctemp->RightScaling(f_vec);
+      Ctemp.InvLeftScaling(val);
+      Ctemp.RightScaling(f_vec);
 
-      A = new DenseMatrix(C.Height(), C.Width());
-      Add(C,*Ctemp,-1.0,*A);
-      A->LeftScaling(val);
+      A.SetSize(C.Height(), C.Width());
+      Add(C,Ctemp,-1.0,A);
+      A.LeftScaling(val);
 
       int h_Am = J.Size();
-      int w_Am = A->Width();
-      Am = new DenseMatrix(h_Am,w_Am);
+      int w_Am = A.Width();
+      Am.SetSize(h_Am,w_Am);
       for (int i = 0; i<h_Am; i++)
       {
          int ii = J[i];
          for (int j = 0; j<w_Am; j++)
          {
-            (*Am)(i,j) = (*A)(ii,j);
+            Am(i,j) = A(ii,j);
          }
       }
 
 #ifdef MFEM_USE_LAPACK
-      DenseMatrixSVD svd(*Am,false,true);
-      svd.Eval(*Am);
+      DenseMatrixSVD svd(Am,false,true);
+      svd.Eval(Am);
       DenseMatrix &v = svd.RightSingularvectors();
       v.GetRow(k,w);
 #else
@@ -154,14 +148,7 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
       Vector verr(val);
       verr-=R;
 
-      delete Ctemp;
-      delete A;
-      delete Am;
-
-      if (verr.Normlinf() <= tol*val.Normlinf())
-      {
-         break;
-      }
+      if (verr.Normlinf() <= tol*val.Normlinf()) { break; }
    }
 }
 
@@ -199,7 +186,6 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
    mfem_error("Compiled without LAPACK");
 #endif
    // compute the zeros
-
    B = 0.;
    E = 0.;
    for (int i = 1; i<=m; i++)
@@ -224,15 +210,10 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
 #else
    mfem_error("Compiled without LAPACK");
 #endif
-   double tmp1=0.0;
-   double tmp2=0.0;
-   for (int i = 0; i<m; i++)
-   {
-      tmp1 += w(i) * f(i);
-      tmp2 += w(i);
-   }
-   scale = tmp1/tmp2;
+
+   scale = w * f / w.Sum();
 }
+
 
 void PartialFractionExpansion(double scale, Array<double> & poles,
                               Array<double> & zeros, Array<double> & coeffs)
@@ -260,7 +241,6 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
 }
 
 
-
 // x^-a
 void ComputePartialFractionApproximation(double alpha,
                                          Array<double> & coeffs, Array<double> & poles,
@@ -268,8 +248,6 @@ void ComputePartialFractionApproximation(double alpha,
                                          double tol=1e-10,  int npoints = 1000,
                                          int max_order = 100)
 {
-
-
 #ifndef MFEM_USE_LAPACK
    mfem::out
          << "MFEM is compiled without LAPACK. Using precomputed PartialFractionApproximation"
@@ -277,26 +255,21 @@ void ComputePartialFractionApproximation(double alpha,
 
    if (alpha == 0.33)
    {
-      Array<double> temp_coeff({2002.55, 99.7691, 29.0575, 12.9842,
-                                6.90263, 3.96688, 2.36013, 1.42565,
-                                0.867623, 0.529436, 0.317975, 0.0891797});
-      Array<double> temp_poles({-47928., -3451.45, -996.636, -388.58,
-                                -168.228, -75.3162, -33.6235, -14.5403,
-                                -5.84563, -1.9975, -0.434608, 0.});
-
-      coeffs = temp_coeff;
-      poles = temp_poles;
+      coeffs = Array<double> ({2002.55,  99.7691,  29.0575,  12.9842,
+                               6.90263,  3.96688,  2.36013,  1.42565,
+                               0.867623, 0.529436, 0.317975, 0.0891797});
+      poles = Array<double> ({-47928.,  -3451.45, -996.636, -388.58,
+                              -168.228, -75.3162, -33.6235, -14.5403,
+                              -5.84563, -1.9975, -0.434608,  0.});
    }
    else if (alpha == 0.99)
    {
-      Array<double> temp_coeff({0.0292386, 0.0143338, 0.0109015, 0.00976958,
-                                0.00943417, 0.00948077, 0.00985799, 0.010889,
-                                0.0138588, 0.0263289, 0.96953});
-      Array<double> temp_poles({-10085.1, -1652.6, -524.342, -199.521,
-                                -80.2328, -32.3926, -12.7148, -4.63855,
-                                -1.39884, -0.221076, 0.});
-      coeffs = temp_coeff;
-      poles = temp_poles;
+      coeffs = Array<double>({0.0292386, 0.0143338, 0.0109015, 0.00976958,
+                              0.00943417, 0.00948077, 0.00985799, 0.010889,
+                              0.0138588, 0.0263289, 0.96953});
+      poles = Array<double> ({-10085.1, -1652.6, -524.342, -199.521,
+                              -80.2328, -32.3926, -12.7148, -4.63855,
+                              -1.39884, -0.221076, 0.});
    }
    else
    {
@@ -304,14 +277,12 @@ void ComputePartialFractionApproximation(double alpha,
       {
          mfem::out << "Using default value of alpha = 0.5" << std::endl;
       }
-      Array<double> temp_coeff({209.629, 24.2714, 9.24812, 4.93138,
-                                3.02653, 1.98265, 1.34293, 0.931714,
-                                0.664382, 0.492972, 0.39114, 0.177527});
-      Array<double> temp_poles({-26466.7, -2673.76, -800.03, -312.646,
-                                -134.551, -59.8651, -26.6607, -11.5603,
-                                -4.67241, -1.59503, -0.332738, 0.});
-      coeffs = temp_coeff;
-      poles = temp_poles;
+      coeffs = Array<double>({209.629, 24.2714, 9.24812, 4.93138,
+                              3.02653, 1.98265, 1.34293, 0.931714,
+                              0.664382, 0.492972, 0.39114, 0.177527});
+      poles = Array<double>({-26466.7, -2673.76, -800.03, -312.646,
+                             -134.551, -59.8651, -26.6607, -11.5603,
+                             -4.67241, -1.59503, -0.332738, 0.});
    }
    return;
 #endif
