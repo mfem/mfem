@@ -1293,7 +1293,8 @@ public:
    ///Construct using matrix @a m for the constant.
    SymmetricMatrixConstantCoefficient(const DenseSymmetricMatrix &m)
       : SymmetricMatrixCoefficient(m.Height()), mat(m) { }
-   using SymmetricMatrixCoefficient::Eval;
+
+   using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) { M = mat; }
@@ -1344,6 +1345,7 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
+   using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
