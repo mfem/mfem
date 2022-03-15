@@ -210,7 +210,7 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(Q, qs);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    PAGradientSetup(dim, trial_dofs1D, test_dofs1D, quad1D,
                    ne, ir->GetWeights(), geom->J, coeff, pa_data);

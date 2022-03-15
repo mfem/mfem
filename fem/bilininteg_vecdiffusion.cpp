@@ -168,7 +168,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                "Only scalar coefficient supported for partial assembly for VectorDiffusionIntegrator");
 
    QuadratureSpace qs(*mesh, *ir);
-   CoefficientVector coeff(Q, qs);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    const Array<double> &w = ir->GetWeights();
    const Vector &j = geom->J;
