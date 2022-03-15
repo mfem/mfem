@@ -113,7 +113,7 @@ double pa_divergence_testnd(int dim,
    return field2.Norml2();
 }
 
-TEST_CASE("PA VectorDivergence", "[PartialAssembly]")
+TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
 {
    SECTION("2D")
    {
@@ -205,7 +205,7 @@ double pa_gradient_testnd(int dim,
    return field2.Norml2();
 }
 
-TEST_CASE("PA Gradient", "[PartialAssembly]")
+TEST_CASE("PA Gradient", "[PartialAssembly], [CUDA]")
 {
    SECTION("2D")
    {
@@ -257,7 +257,7 @@ double test_nl_convection_nd(int dim)
    return difference;
 }
 
-TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA]")
+TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [CUDA]")
 {
    SECTION("2D")
    {
@@ -303,7 +303,7 @@ double test_vector_pa_integrator(int dim)
    return difference;
 }
 
-TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA]")
+TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [CUDA]")
 {
    SECTION("2D")
    {
@@ -316,7 +316,7 @@ TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA]")
    }
 }
 
-TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA]")
+TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA], [CUDA]")
 {
    SECTION("2D")
    {
@@ -443,7 +443,7 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 }
 
 // Basic unit tests for convection
-TEST_CASE("PA Convection", "[PartialAssembly]")
+TEST_CASE("PA Convection", "[PartialAssembly], [CUDA]")
 {
    // prob:
    // - 0: CG,
@@ -469,7 +469,7 @@ TEST_CASE("PA Convection", "[PartialAssembly]")
 } // test case
 
 // Advanced unit tests for convection
-TEST_CASE("PA Convection advanced", "[PartialAssembly][MFEMData]")
+TEST_CASE("PA Convection advanced", "[PartialAssembly], [MFEMData], [CUDA]")
 {
    if (launch_all_non_regression_tests)
    {
