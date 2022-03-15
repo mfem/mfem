@@ -436,7 +436,6 @@ void LORDiscretization::AssembleSystem(BilinearForm &a_ho,
                                        const Array<int> &ess_dofs)
 {
    delete a;
-#warning no batched
 
    if (BatchedLORAssembly::FormIsSupported(a_ho))
    {

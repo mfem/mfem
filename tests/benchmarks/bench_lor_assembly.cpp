@@ -29,19 +29,24 @@ struct LORBench
    GeometricFactors::FactorFlags DETERMINANTS = GeometricFactors::DETERMINANTS;
    const int p, c, q, n, nx, ny, nz, dim = 3;
    const bool check_x, check_y, check_z, checked;
-   Mesh mesh;
-   H1_FECollection fec;
-   FiniteElementSpace fes_mesh, fes_ho;
-   Array<int> ess_tdofs_ho;
-   LORDiscretization lor;
    IntegrationRules irs;
    const IntegrationRule *ir;
+   Mesh mesh;
+   H1_FECollection fec;
+   FiniteElementSpace fes_mesh;
+   GridFunction mesh_coords;
+   const bool postfix_mesh_coords;
+   FiniteElementSpace fes_ho;
+   Array<int> ess_tdofs;
+   const bool prefix_lor_setup;
+   BilinearForm a;
+   ConstantCoefficient diff_coeff, mass_coeff;
+   const bool a_ho_setup;
+   LORDiscretization lor;
    FiniteElementSpace &fes_lor;
    const GeometricFactors *gf_ho, *gf_lor;
-   ConstantCoefficient diff_coeff, mass_coeff;
-   BilinearForm a_ho, a_lor_legacy, a_lor_full;
+   BilinearForm a_lor_legacy, a_lor_full;
    OperatorHandle A_lor_legacy, A_lor_full;
-   GridFunction mesh_coords;
    const int nvdofs;
    double mdof;
    Vector x, y;
@@ -58,33 +63,35 @@ struct LORBench
       check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
       check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
       checked((assert(check_x && check_y && check_z), true)),
-      mesh(Mesh::MakeCartesian3D(nx,ny,nz, Element::HEXAHEDRON)),
-      fec(p, dim, BasisType::GaussLobatto),
-      fes_mesh(&mesh, &fec, dim),
-      fes_ho(&mesh, &fec),
-      lor(fes_ho, BasisType::GaussLobatto),
       irs(0, Quadrature1D::GaussLobatto),
-      ir(&irs.Get(mesh.GetElementGeometry(0), 1)),
-      fes_lor(lor.GetFESpace()),
-      gf_ho(mesh.GetGeometricFactors(*ir, DETERMINANTS)),
-      gf_lor(lor.GetFESpace().GetMesh()->GetGeometricFactors(*ir, DETERMINANTS)),
+      ir(&irs.Get(Geometry::CUBE, 1)),
+      mesh(Mesh::MakeCartesian3D(nx,ny,nz, Element::HEXAHEDRON)),
+      fec(p, dim),
+      fes_mesh(&mesh, &fec, dim),
+      mesh_coords(&fes_mesh),
+      postfix_mesh_coords((SetupRandomMesh(), true)),
+      fes_ho(&mesh, &fec),
+      prefix_lor_setup((fes_ho.GetBoundaryTrueDofs(ess_tdofs), true)),
+      a(&fes_ho),
       diff_coeff(M_PI),
       mass_coeff(1.0/M_PI),
-      a_ho(&fes_ho),
+      a_ho_setup((a.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff)),
+                  a.AddDomainIntegrator(new MassIntegrator(mass_coeff)),
+                  true)),
+      lor(a, ess_tdofs),
+      fes_lor(lor.GetFESpace()),
+      gf_ho(fes_mesh.GetMesh()->GetGeometricFactors(*ir, DETERMINANTS)),
+      gf_lor(fes_lor.GetMesh()->GetGeometricFactors(*ir, DETERMINANTS)),
       a_lor_legacy(&fes_lor),
       a_lor_full(&fes_lor),
       A_lor_legacy(),
       A_lor_full(),
-      mesh_coords(&fes_mesh),
       nvdofs(fes_ho.GetVSize()),
       mdof(0.0),
       x(nvdofs),
       y(nvdofs)
    {
       dbg("p:%d side:%d nvdofs:%d/%d", p, side, nvdofs, fes_lor.GetVSize());
-      a_ho.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
-      a_ho.AddDomainIntegrator(new MassIntegrator(mass_coeff));
-      fes_ho.GetBoundaryTrueDofs(ess_tdofs_ho);
 
       a_lor_legacy.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
       a_lor_legacy.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
@@ -93,8 +100,6 @@ struct LORBench
       a_lor_full.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
       a_lor_full.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
       a_lor_full.SetAssemblyLevel(AssemblyLevel::FULL);
-
-      SetupRandomMesh();
 
       MFEM_VERIFY(gf_ho->detJ.Min() > 0.0, "Invalid HO mesh!");
       MFEM_VERIFY(gf_lor->detJ.Min() > 0.0, "Invalid LOR mesh!");
@@ -109,64 +114,54 @@ struct LORBench
    {
       mesh.SetNodalFESpace(&fes_mesh);
       mesh.SetNodalGridFunction(&mesh_coords);
-      const double jitter = 0.000001;//1./(M_PI*M_PI);
+      const double jitter = 1e-2/(M_PI*M_PI);
       const double h0 = mesh.GetElementSize(0);
       GridFunction rdm(&fes_mesh);
       rdm.Randomize(RANDOM_SEED);
       rdm -= 0.5; // Shift to random values in [-0.5,0.5]
       rdm *= jitter * h0; // Scale the random values to be of same order
       mesh_coords -= rdm;
+      assert(mesh.GetGeometricFactors(*ir, DETERMINANTS)->detJ.Min() > 0.0);
    }
 
    void SanityChecks()
    {
-      dbg();
       a_lor_legacy = 0.0;
       MFEM_DEVICE_SYNC;
-      tic();
       a_lor_legacy.Assemble();
-      a_lor_legacy.EliminateVDofs(ess_tdofs_ho, Operator::DIAG_KEEP);
+      a_lor_legacy.EliminateVDofs(ess_tdofs, Operator::DIAG_KEEP);
       MFEM_DEVICE_SYNC;
-      dbg(" Legacy time = %f", toc());
       SparseMatrix &A_lor_legacy_sp = a_lor_legacy.SpMat();
       A_lor_legacy_sp.HostReadWriteI();
       A_lor_legacy_sp.HostReadWriteJ();
       A_lor_legacy_sp.HostReadWriteData();
       const double dot_legacy = A_lor_legacy_sp.InnerProduct(x,y);
-      dbg("dot_legacy:%.15e", dot_legacy);
 
       MFEM_DEVICE_SYNC;
-      tic();
       a_lor_full.Assemble();
-      a_lor_full.EliminateVDofs(ess_tdofs_ho, Operator::DIAG_KEEP);
+      a_lor_full.EliminateVDofs(ess_tdofs, Operator::DIAG_KEEP);
       MFEM_DEVICE_SYNC;
-      dbg("   Full time = %f", toc());
       SparseMatrix &A_lor_full_sp = a_lor_full.SpMat();
       A_lor_full_sp.HostReadWriteI();
       A_lor_full_sp.HostReadWriteJ();
       A_lor_full_sp.HostReadWriteData();
       const double dot_full = A_lor_full_sp.InnerProduct(x,y);
-      dbg("dot_full:%.15e",dot_full);
       MFEM_VERIFY(almost_equal(dot_legacy, dot_full), "dot_full error!");
       A_lor_full_sp.Add(-1.0, A_lor_legacy_sp);
       const double max_norm_full = a_lor_full.SpMat().MaxNorm();
       MFEM_VERIFY(max_norm_full < EPS, "max_norm_full error!");
 
       MFEM_DEVICE_SYNC;
-      tic();
-      lor.AssembleSystem(a_ho, ess_tdofs_ho);
+      lor.AssembleSystem(a, ess_tdofs);
       MFEM_DEVICE_SYNC;
-      dbg("Batched time = %f", toc());
       SparseMatrix &A_lor_batched_sp = lor.GetAssembledMatrix();
       A_lor_batched_sp.HostReadWriteI();
       A_lor_batched_sp.HostReadWriteJ();
       A_lor_batched_sp.HostReadWriteData();
       const double dot_batched = A_lor_batched_sp.InnerProduct(x,y);
-      dbg("dot_batched:%.15e",dot_batched);
       MFEM_VERIFY(almost_equal(dot_legacy, dot_batched), "dot_batched error!");
       A_lor_batched_sp.Add(-1.0, A_lor_legacy_sp);
       const double max_norm_batched = A_lor_batched_sp.MaxNorm();
-      dbg("max_norm_batched:%.15e",max_norm_batched);
       MFEM_VERIFY(max_norm_batched < EPS, "max_norm_batched");
    }
 
@@ -185,7 +180,7 @@ struct LORBench
    {
       MFEM_DEVICE_SYNC;
       tic();
-      lor.AssembleSystem(a_ho, ess_tdofs_ho);
+      lor.AssembleSystem(a, ess_tdofs);
       MFEM_DEVICE_SYNC;
       dbg(" Deviced time = %f",toc());
       dbg("Exiting!");
@@ -195,7 +190,7 @@ struct LORBench
    void Dump()
    {
       a_lor_legacy.Assemble();
-      a_lor_legacy.FormSystemMatrix(ess_tdofs_ho, A_lor_legacy);
+      a_lor_legacy.FormSystemMatrix(ess_tdofs, A_lor_legacy);
       a_lor_legacy.Finalize();
       SparseMatrix &A_lor_legacy_sp = *A_lor_legacy.As<SparseMatrix>();
       A_lor_legacy_sp.HostReadWriteI();
@@ -233,10 +228,10 @@ struct LORBench
 
    void KerLegacy()
    {
-      dbg();
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
       a_lor_legacy.Assemble();
+      a_lor_legacy.EliminateVDofs(ess_tdofs, Operator::DIAG_KEEP);
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
       mdof += 1e-6 * nvdofs;
@@ -244,10 +239,10 @@ struct LORBench
 
    void KerFull()
    {
-      dbg();
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
       a_lor_full.Assemble();
+      a_lor_full.EliminateVDofs(ess_tdofs, Operator::DIAG_KEEP);
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
       mdof += 1e-6 * nvdofs;
@@ -255,10 +250,9 @@ struct LORBench
 
    void KerBatched()
    {
-      dbg();
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      lor.AssembleSystem(a_ho, ess_tdofs_ho);
+      lor.AssembleSystem(a, ess_tdofs);
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
       mdof += 1e-6 * nvdofs;
@@ -266,7 +260,6 @@ struct LORBench
 
    void AllFull()
    {
-      dbg();
       BilinearForm bf_full(&fes_lor);
       bf_full.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, ir));
       bf_full.AddDomainIntegrator(new MassIntegrator(mass_coeff, ir));
@@ -287,7 +280,7 @@ struct LORBench
       bf_batched.AddDomainIntegrator(new MassIntegrator(mass_coeff));
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      lor.AssembleSystem(bf_batched, ess_tdofs_ho);
+      lor.AssembleSystem(bf_batched, ess_tdofs);
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
       mdof += 1e-6 * nvdofs;
@@ -312,15 +305,14 @@ static void Name(bm::State &state){\
    if (lor.nvdofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
    while (state.KeepRunning()) { lor.Name(); }\
    bm::Counter::Flags flags = bm::Counter::kIsIterationInvariantRate;\
-   state.counters["Ker_(Dofs/s)"] = bm::Counter(lor.nvdofs, flags);\
-   state.counters["All_(MDof/s)"] = bm::Counter(lor.Mdofs());\
+   state.counters["Dofs/s"] = bm::Counter(lor.nvdofs, flags);\
    state.counters["dofs"] = bm::Counter(lor.nvdofs);\
    state.counters["p"] = bm::Counter(p);\
 }\
 BENCHMARK(Name)\
             -> ArgsProduct({P_ORDERS,N_SIDES})\
             -> Unit(bm::kMillisecond)\
-            ->Iterations(4);
+            ->Iterations(10);
 
 Benchmark(SanityChecks)
 
