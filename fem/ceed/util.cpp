@@ -93,20 +93,20 @@ static CeedElemTopology GetCeedTopology(Geometry::Type geom)
    switch (geom)
    {
       case Geometry::SEGMENT:
-         return CEED_LINE;
+         return CEED_TOPOLOGY_LINE;
       case Geometry::TRIANGLE:
-         return CEED_TRIANGLE;
+         return CEED_TOPOLOGY_TRIANGLE;
       case Geometry::SQUARE:
-         return CEED_QUAD;
+         return CEED_TOPOLOGY_QUAD;
       case Geometry::TETRAHEDRON:
-         return CEED_TET;
+         return CEED_TOPOLOGY_TET;
       case Geometry::CUBE:
-         return CEED_HEX;
+         return CEED_TOPOLOGY_HEX;
       case Geometry::PRISM:
-         return CEED_PRISM;
+         return CEED_TOPOLOGY_PRISM;
       default:
          MFEM_ABORT("This type of element is not supported");
-         return CEED_PRISM; // Silence warning
+         return CEED_TOPOLOGY_PRISM; // Silence warning
    }
 }
 
