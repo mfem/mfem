@@ -413,6 +413,7 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 
    k_fa.Assemble();
    k_fa.Finalize();
+   k_fa.SpMat().EnsureMultTranspose();
 
    k_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    k_pa.Assemble();
@@ -443,7 +444,7 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 }
 
 // Basic unit tests for convection
-TEST_CASE("PA Convection", "[PartialAssembly]")
+TEST_CASE("PA Convection", "[PartialAssembly][CUDA]")
 {
    // prob:
    // - 0: CG,
@@ -469,7 +470,7 @@ TEST_CASE("PA Convection", "[PartialAssembly]")
 } // test case
 
 // Advanced unit tests for convection
-TEST_CASE("PA Convection advanced", "[PartialAssembly][MFEMData]")
+TEST_CASE("PA Convection advanced", "[PartialAssembly][MFEMData][CUDA]")
 {
    if (launch_all_non_regression_tests)
    {
