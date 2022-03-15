@@ -86,7 +86,8 @@ int CeedATPMGElemRestriction(int order,
    Ceed ceed;
    ierr = CeedElemRestrictionGetCeed(er_in, &ceed); CeedChk(ierr);
 
-   CeedInt numelem, numnodes, numcomp, elemsize;
+   CeedInt numelem, numcomp, elemsize;
+   CeedSize numnodes;
    ierr = CeedElemRestrictionGetNumElements(er_in, &numelem); CeedChk(ierr);
    ierr = CeedElemRestrictionGetLVectorSize(er_in, &numnodes); CeedChk(ierr);
    ierr = CeedElemRestrictionGetElementSize(er_in, &elemsize); CeedChk(ierr);
@@ -110,7 +111,7 @@ int CeedATPMGElemRestriction(int order,
    // by using it to map the L-vector indices to an E-vector
    CeedScalar * lvec_data;
    ierr = CeedVectorGetArray(in_lvec, CEED_MEM_HOST, &lvec_data); CeedChk(ierr);
-   for (int i = 0; i < numnodes; ++i)
+   for (CeedSize i = 0; i < numnodes; ++i)
    {
       lvec_data[i] = (CeedScalar) i;
    }
@@ -133,7 +134,7 @@ int CeedATPMGElemRestriction(int order,
    // low-order ldof indices, with -1 indicating no correspondence
    // (NOTE: it is the caller's responsibility to free dof_map)
    dof_map = new CeedInt[numnodes];
-   for (int i = 0; i < numnodes; ++i)
+   for (CeedSize i = 0; i < numnodes; ++i)
    {
       dof_map[i] = -1;
    }
@@ -584,6 +585,9 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
                       CeedBasis basis_ctof_in,
                       CeedOperator* out)
 {
+   (void)order_reduction;
+   (void)basis_ctof_in;
+
    int ierr;
    Ceed ceed;
    ierr = CeedOperatorGetCeed(oper, &ceed); CeedChk(ierr);

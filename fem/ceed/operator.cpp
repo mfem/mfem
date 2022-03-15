@@ -27,9 +27,10 @@ Operator::Operator(CeedOperator op)
    oper = op;
    CeedElemRestriction er;
    CeedOperatorGetActiveElemRestriction(oper, &er);
-   int s;
+   CeedSize s;
    CeedElemRestrictionGetLVectorSize(er, &s);
    height = width = s;
+   MFEM_VERIFY(height == s, "size overflow")
    CeedVectorCreate(internal::ceed, height, &v);
    CeedVectorCreate(internal::ceed, width, &u);
 }
