@@ -53,9 +53,9 @@ class ParFiniteElementSpace;
 class HypreParMatrix;
 
 
-/** @brief A simple singleton class for hypre's global settings, that 1) calls
-    HYPRE_Init() and sets some GPU-relevant options at construction and 2) calls
-    HYPRE_Finalize() at destruction. */
+/// @brief A simple singleton class for hypre's global settings, that 1) calls
+/// HYPRE_Init() and sets some GPU-relevant options at construction and 2) calls
+/// HYPRE_Finalize() at destruction.
 class Hypre
 {
 public:
