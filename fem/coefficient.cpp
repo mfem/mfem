@@ -1523,6 +1523,7 @@ void CoefficientVector::Project(Coefficient &coeff, QuadratureSpace &qs)
    else if (auto *qf_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(&coeff))
    {
       QuadratureSpace *qs2 = qf_coeff->GetQuadFunction().GetSpace();
+      MFEM_CONTRACT_VAR(qs2); // qs2 used only for asserts
       MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
       MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
       MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
@@ -1546,6 +1547,18 @@ void CoefficientVector::Project(VectorCoefficient &coeff, QuadratureSpace &qs)
    {
       SetConstant(const_coeff->GetVec(),
                   (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize());
+   }
+   else if (auto *qf_coeff =
+               dynamic_cast<VectorQuadratureFunctionCoefficient*>(&coeff))
+   {
+      QuadratureSpace *qs2 = qf_coeff->GetQuadFunction().GetSpace();
+      MFEM_CONTRACT_VAR(qs2); // qs2 used only for asserts
+      MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
+      MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
+      MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
+      QuadratureFunction &qf2 = const_cast<QuadratureFunction&>
+                                (qf_coeff->GetQuadFunction());
+      MakeRef(qf2, 0, qf2.Size());
    }
    else
    {
