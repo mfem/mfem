@@ -381,7 +381,10 @@ SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
       case 4: GetLORVertexCoordinates<4>(); break;
       case 5: GetLORVertexCoordinates<5>(); break;
       case 6: GetLORVertexCoordinates<6>(); break;
-      default: MFEM_ABORT("Unsupported order!")
+      case 7: GetLORVertexCoordinates<7>(); break;
+      case 8: GetLORVertexCoordinates<8>(); break;
+      case 9: GetLORVertexCoordinates<9>(); break;
+      default: MFEM_ABORT("Unsupported order " << order << "!");
    }
 
    // Assemble the matrix, using kernels from the derived classes

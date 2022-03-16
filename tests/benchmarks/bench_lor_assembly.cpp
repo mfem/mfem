@@ -249,10 +249,10 @@ struct LORBench
 };
 
 // The different orders the tests can run
-#define P_ORDERS bm::CreateDenseRange(1,5,1)
+#define P_ORDERS bm::CreateDenseRange(1,8,1)
 
 // The different sides of the mesh
-#define N_SIDES bm::CreateDenseRange(6,120,6)
+#define N_SIDES bm::CreateDenseRange(10,120,10)
 #define MAX_NDOFS 2*1024*1024
 
 /// Kernels definitions and registrations
@@ -264,7 +264,7 @@ static void Name(bm::State &state){\
    if (lor.nvdofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
    while (state.KeepRunning()) { lor.Name(); }\
    bm::Counter::Flags flags = bm::Counter::kIsIterationInvariantRate;\
-   state.counters["MDof"] = bm::Counter(1e-6*lor.nvdofs, flags);\
+   state.counters["MDof/s"] = bm::Counter(1e-6*lor.nvdofs, flags);\
    state.counters["dofs"] = bm::Counter(lor.nvdofs);\
    state.counters["p"] = bm::Counter(p);\
 }\
@@ -279,7 +279,7 @@ Benchmark(KerLegacy)
 Benchmark(KerFull)
 Benchmark(KerBatched)
 
-Benchmark(AllLegacy)
+//Benchmark(AllLegacy)
 Benchmark(AllFull)
 Benchmark(AllBatched)
 
