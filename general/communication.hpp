@@ -75,9 +75,11 @@ private:
    /// Initialize MPI
    static void Init_(int *argc, char ***argv)
    {
-      static Mpi mpi;
       MFEM_VERIFY(!IsInitialized(), "MPI already initialized!")
       MPI_Init(argc, argv);
+      // The "mpi" object below needs to be created after MPI_Init() for some
+      // MPI implementations
+      static Mpi mpi;
    }
    /// Finalize MPI
    ~Mpi() { Finalize(); }
