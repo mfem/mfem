@@ -71,7 +71,7 @@ New and updated examples and miniapps
 - Added a miniapp for PDE-based extrapolation of finite element functions. See
   miniapps/shifted/extrapolate.cpp.
 
-- Updated the mesh-optimizer and pmesh-optimizer miniapps to demonstrate the 
+- Updated the mesh-optimizer and pmesh-optimizer miniapps to demonstrate the
   hr-adaptivity and interface fitting capability.
 
 - Added special Nedelec and Raviart-Thomas basis functions for modeling three
