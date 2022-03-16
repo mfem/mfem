@@ -48,23 +48,26 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    CeedQFunction qf;
    ierr = CeedOperatorGetQFunction(op, &qf); CeedChk(ierr);
    CeedInt numinputfields, numoutputfields;
-   ierr= CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
    CeedChk(ierr);
    CeedVector assembledqf;
    CeedElemRestriction rstr_q;
    ierr = CeedOperatorLinearAssembleQFunction(
              op, &assembledqf, &rstr_q, CEED_REQUEST_IMMEDIATE); CeedChk(ierr);
 
-   CeedInt qflength;
+   CeedSize qflength;
    ierr = CeedVectorGetLength(assembledqf, &qflength); CeedChk(ierr);
 
    CeedOperatorField *input_fields;
    CeedOperatorField *output_fields;
-   ierr = CeedOperatorGetFields(op, &input_fields, &output_fields); CeedChk(ierr);
+   ierr = CeedOperatorGetFields(op, &numinputfields, &input_fields,
+                                &numoutputfields, &output_fields);
+   CeedChk(ierr);
 
    // Determine active input basis
    CeedQFunctionField *qffields;
-   ierr = CeedQFunctionGetFields(qf, &qffields, NULL); CeedChk(ierr);
+   ierr = CeedQFunctionGetFields(qf, &numinputfields, &qffields,
+                                 &numoutputfields, NULL);
+   CeedChk(ierr);
    CeedInt numemodein = 0, ncomp, dim = 1;
    CeedEvalMode *emodein = NULL;
    CeedBasis basisin = NULL;
@@ -109,7 +112,8 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    }
 
    // Determine active output basis
-   ierr = CeedQFunctionGetFields(qf, NULL, &qffields); CeedChk(ierr);
+   ierr = CeedQFunctionGetFields(qf, &numinputfields, NULL, &numoutputfields,
+                                 &qffields); CeedChk(ierr);
    CeedInt numemodeout = 0;
    CeedEvalMode *emodeout = NULL;
    CeedBasis basisout = NULL;
@@ -152,7 +156,8 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
       }
    }
 
-   CeedInt nnodes, nelem, elemsize, nqpts;
+   CeedInt nelem, elemsize, nqpts;
+   CeedSize nnodes;
    ierr = CeedElemRestrictionGetNumElements(rstrin, &nelem); CeedChk(ierr);
    ierr = CeedElemRestrictionGetElementSize(rstrin, &elemsize); CeedChk(ierr);
    ierr = CeedElemRestrictionGetLVectorSize(rstrin, &nnodes); CeedChk(ierr);
@@ -163,7 +168,7 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    ierr = CeedVectorCreate(ceed, nnodes, &index_vec); CeedChk(ierr);
    CeedScalar *array;
    ierr = CeedVectorGetArray(index_vec, CEED_MEM_HOST, &array); CeedChk(ierr);
-   for (CeedInt i = 0; i < nnodes; ++i)
+   for (CeedSize i = 0; i < nnodes; ++i)
    {
       array[i] = i;
    }
@@ -288,8 +293,9 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat)
 
    CeedElemRestriction er;
    ierr = CeedOperatorGetActiveElemRestriction(op, &er); CeedChk(ierr);
-   CeedInt nnodes;
+   CeedSize nnodes;
    ierr = CeedElemRestrictionGetLVectorSize(er, &nnodes); CeedChk(ierr);
+   MFEM_VERIFY(int(nnodes) == nnodes, "size overflow");
 
    SparseMatrix *out = new SparseMatrix(nnodes, nnodes);
 
