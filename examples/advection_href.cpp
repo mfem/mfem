@@ -18,6 +18,8 @@ void Hrefine(GridFunction &u, Coefficient &gf_ex, double min_thresh,
 void Hrefine2(GridFunction &u, Coefficient &gf_ex, double min_thresh,
               double max_thresh);
 
+void Refine(Array<int> ref_actions, GridFunction &u, int depth_limit = 100);
+
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
 
@@ -247,8 +249,8 @@ FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
 {
    Array<int> ess_tdof_list;
    M_prec = new OperatorJacobiSmoother(M, ess_tdof_list);
-   M_solver.SetOperator(M);
    M_solver.SetPreconditioner(*M_prec);
+   M_solver.SetOperator(M);
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
@@ -265,8 +267,8 @@ void FE_Evolution::Update()
    Array<int> ess_tdof_list;
    delete M_prec;
    M_prec = new OperatorJacobiSmoother(M, ess_tdof_list);
-   M_solver.SetOperator(M);
    M_solver.SetPreconditioner(*M_prec);
+   M_solver.SetOperator(M);
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
@@ -389,70 +391,228 @@ void Hrefine2(GridFunction &u, Coefficient & ex_coeff, double min_thresh,
    Vector errors(ne);
    u.ComputeElementL2Errors(ex_coeff,errors);
 
-   // construct a list of possible ref actions
    Array<int> actions(ne);
    for (int i = 0; i<ne; i++)
    {
       double error = errors(i);
-      if (error > max_thresh && mesh->ncmesh->GetElementDepth(i) < 1)
+      if (error > max_thresh)
       {
          actions[i] = 1;
+      }
+      else if (error < min_thresh)
+      {
+         actions[i] = -1;
       }
       else
       {
          actions[i] = 0;
       }
    }
+   Refine(actions,u,1);
 
-   // list of possible dref actions
-   Array<int> derefactions(ne); derefactions = 0;
+   // construct a list of possible ref actions
+   // Array<int> actions(ne);
+   // for (int i = 0; i<ne; i++)
+   // {
+   //    double error = errors(i);
+   //    if (error > max_thresh && mesh->ncmesh->GetElementDepth(i) < 1)
+   //    {
+   //       actions[i] = 1;
+   //    }
+   //    else
+   //    {
+   //       actions[i] = 0;
+   //    }
+   // }
+
+   // // list of possible dref actions
+   // Array<int> derefactions(ne); derefactions = 0;
+   // const Table & dref_table = mesh->ncmesh->GetDerefinementTable();
+   // for (int i = 0; i<dref_table.Size(); i++)
+   // {
+   //    int size = dref_table.RowSize(i);
+   //    const int * row = dref_table.GetRow(i);
+   //    double error = 0.;
+   //    for (int j = 0; j<size; j++)
+   //    {
+   //       error += errors[row[j]];
+   //    }
+   //    if (error < min_thresh)
+   //    {
+   //       for (int j = 0; j<size; j++)
+   //       {
+   //          actions[row[j]] += -1;
+   //       }
+   //    }
+   // }
+
+   // // now refine the elements that have score >0 and deref the elements that have score < 0
+   // Array<Refinement> elements_to_refine;
+   // for (int i = 0; i<ne; i++)
+   // {
+   //    if (actions[i] > 0)
+   //    {
+   //       elements_to_refine.Append(Refinement(i,0b01));
+   //    }
+   // }
+
+   // mesh->GeneralRefinement(elements_to_refine);
+   // fes->Update();
+   // u.Update();
+
+   // // map old actions to new mesh
+   // Array<int> new_actions(mesh->GetNE());
+   // if (mesh->GetLastOperation() == mesh->REFINE)
+   // {
+   //    const CoarseFineTransformations &tr = mesh->GetRefinementTransforms();
+   //    Table coarse2fine;
+   //    tr.MakeCoarseToFineTable(coarse2fine);
+   //    new_actions = 1;
+   //    for (int i = 0; i<coarse2fine.Size(); i++)
+   //    {
+   //       if (coarse2fine.RowSize(i) == 1)
+   //       {
+   //          int * el = coarse2fine.GetRow(i);
+   //          new_actions[el[0]] = actions[i];
+   //       }
+   //    }
+   // }
+   // else
+   // {
+   //    new_actions = actions;
+   // }
+
+   // // create a dummy error vector
+   // Vector new_errors(mesh->GetNE());
+   // new_errors = infinity();
+   // for (int i = 0; i< new_errors.Size(); i++)
+   // {
+   //    if (new_actions[i] < 0)
+   //    {
+   //       new_errors[i] = 0.;
+   //    }
+   // }
+
+   // // any threshold would do here
+   // mesh->DerefineByError(new_errors,min_thresh);
+
+   // fes->Update();
+   // u.Update();
+}
+
+
+void Refine(Array<int> ref_actions, GridFunction &u, int depth_limit)
+{
+   FiniteElementSpace * fes = u.FESpace();
+   Mesh * mesh = fes->GetMesh();
+   int ne = mesh->GetNE();
+
+
+   //  ovewrite to no action if an element is marked for refinement but it exceeds the depth limit
+   for (int i = 0; i<ne; i++)
+   {
+      int depth = mesh->ncmesh->GetElementDepth(i);
+      if (depth >= depth_limit && ref_actions[i] == 1)
+      {
+         ref_actions[i] = 0;
+      }
+   }
+
+   // current policy to map agent_actions to actions
+   // 1. All elements that are marked for refinement are to perform the refinement
+   // 2. All of the "siblings" (i) of a marked element for refinement are assigned action=max(0,agent_actions[i])
+   //   i.e., a) if the action is to be refined then they are refined
+   //         b) if the action is to be derefined or no action then they get no action
+   // 3. If among the "siblings" there is no refinement action then the group is marked
+   //    for derefinement if the majority (including a tie) of the siblings are marked for derefinement
+   //    otherwise they are marked for no action
+   //  h-refine:   action =  1
+   //  h-derefine: action = -1
+   //  do nothing: action =  0
+
+   Array<int> actions(ne);
+   Array<int> actions_marker(ne);
+   actions_marker = 0;
+
    const Table & dref_table = mesh->ncmesh->GetDerefinementTable();
+
    for (int i = 0; i<dref_table.Size(); i++)
    {
-      int size = dref_table.RowSize(i);
+      int n = dref_table.RowSize(i);
       const int * row = dref_table.GetRow(i);
-      double error = 0.;
-      for (int j = 0; j<size; j++)
+      int sum_of_actions = 0;
+      bool ref_flag = false;
+      for (int j = 0; j<n; j++)
       {
-         error += errors[row[j]];
-      }
-      if (error < min_thresh)
-      {
-         for (int j = 0; j<size; j++)
+         int action = ref_actions[row[j]];
+         sum_of_actions+=action;
+         if (action == 1)
          {
-            actions[row[j]] += -1;
+            ref_flag = true;
+            break;
+         }
+      }
+      if (ref_flag)
+      {
+         for (int j = 0; j<n; j++)
+         {
+            actions[row[j]] = max(0,ref_actions[row[j]]);
+            actions_marker[row[j]] = 1;
+         }
+      }
+      else
+      {
+         bool dref_flag = (2*abs(sum_of_actions) >= n) ? true : false;
+         for (int j = 0; j<n; j++)
+         {
+            actions[row[j]] = (dref_flag) ? -1 : 0;
+            actions_marker[row[j]] = 1;
          }
       }
    }
 
-   // now refine the elements that have score >0 and deref the elements that have score < 0
-   Array<Refinement> elements_to_refine;
    for (int i = 0; i<ne; i++)
    {
-      if (actions[i] > 0)
+      if (actions_marker[i] != 1)
       {
-         elements_to_refine.Append(Refinement(i,0b01));
+         if (ref_actions[i] == -1)
+         {
+            actions[i] = 0;
+         }
+         else
+         {
+            actions[i] = ref_actions[i];
+         }
       }
    }
 
-   mesh->GeneralRefinement(elements_to_refine);
+   // now the actions array holds feasible actions of -1,0,1
+   Array<Refinement> refinements;
+   for (int i = 0; i<ne; i++)
+   {
+      if (actions[i] == 1) {refinements.Append(Refinement(i,0b01));}
+   }
+   mesh->GeneralRefinement(refinements);
+
    fes->Update();
    u.Update();
 
-   // map old actions to new mesh
-   Array<int> new_actions(mesh->GetNE());
-   if (mesh->GetLastOperation() == mesh->REFINE)
+   ne = mesh->GetNE();
+   // now the derefinements
+   Array<int> new_actions(ne);
+   if (mesh->GetLastOperation() == mfem::Mesh::REFINE)
    {
-      const CoarseFineTransformations &tr = mesh->GetRefinementTransforms();
-      Table coarse2fine;
-      tr.MakeCoarseToFineTable(coarse2fine);
       new_actions = 1;
-      for (int i = 0; i<coarse2fine.Size(); i++)
+      const CoarseFineTransformations & tr = mesh->GetRefinementTransforms();
+      Table coarse_to_fine;
+      tr.MakeCoarseToFineTable(coarse_to_fine);
+      for (int i = 0; i<coarse_to_fine.Size(); i++)
       {
-         if (coarse2fine.RowSize(i) == 1)
+         int n = coarse_to_fine.RowSize(i);
+         if (n == 1)
          {
-            int * el = coarse2fine.GetRow(i);
-            new_actions[el[0]] = actions[i];
+            int * row = coarse_to_fine.GetRow(i);
+            new_actions[row[0]] = actions[i];
          }
       }
    }
@@ -461,19 +621,16 @@ void Hrefine2(GridFunction &u, Coefficient & ex_coeff, double min_thresh,
       new_actions = actions;
    }
 
-   // create a dummy error vector
-   Vector new_errors(mesh->GetNE());
-   new_errors = infinity();
-   for (int i = 0; i< new_errors.Size(); i++)
+   Vector dummy_errors(ne);
+   dummy_errors = 1.0;
+   for (int i = 0; i<ne; i++)
    {
       if (new_actions[i] < 0)
       {
-         new_errors[i] = 0.;
+         dummy_errors[i] = 0.;
       }
    }
-
-   // any threshold would do here
-   mesh->DerefineByError(new_errors,min_thresh);
+   mesh->DerefineByError(dummy_errors,0.5);
 
    fes->Update();
    u.Update();
