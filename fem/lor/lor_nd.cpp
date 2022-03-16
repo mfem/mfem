@@ -668,7 +668,9 @@ void BatchedLOR_ND::AssemblyKernel()
          case 4: Assemble2D<4>(); break;
          case 5: Assemble2D<5>(); break;
          case 6: Assemble2D<6>(); break;
-         default: MFEM_ABORT("No kernel.");
+         case 7: Assemble2D<7>(); break;
+         case 8: Assemble2D<8>(); break;
+         default: MFEM_ABORT("No kernel order " << order << "!");
       }
    }
    else if (dim == 3)
@@ -681,7 +683,9 @@ void BatchedLOR_ND::AssemblyKernel()
          case 4: Assemble3D<4>(); break;
          case 5: Assemble3D<5>(); break;
          case 6: Assemble3D<6>(); break;
-         default: MFEM_ABORT("No kernel.");
+         case 7: Assemble3D<7>(); break;
+         case 8: Assemble3D<8>(); break;
+         default: MFEM_ABORT("No kernel order " << order << "!");
       }
    }
 }
