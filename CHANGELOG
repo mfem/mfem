@@ -51,7 +51,8 @@ Meshing improvements
   pyramidal meshes in the data/ directory and support for the lowest order H1,
   Nedelec, Raviart-Thomas, and L2 basis functions on pyramids.
 
-- Added support for hr-adaptivity using TMOP-based error estimator.
+- Added TMOP-based methods for hr-adaptivity, and interface fitting and tangential
+  relaxation in high-order meshes.
 
 - Added ParMesh adjaceny set (adjset) creation support to the Conduit Mesh
   Blueprint MFEM wrapper functions in ConduitDataCollection.
@@ -70,8 +71,8 @@ New and updated examples and miniapps
 - Added a miniapp for PDE-based extrapolation of finite element functions. See
   miniapps/shifted/extrapolate.cpp.
 
-- Added initial TMOP-based capabilities for surface fitting and tangential
-  relaxation in the mesh-optimizer and pmesh-optimizer miniapps.
+- Updated the mesh-optimizer and pmesh-optimizer miniapps to demonstrate the 
+  hr-adaptivity and interface fitting capability.
 
 - Added special Nedelec and Raviart-Thomas basis functions for modeling three
   dimensional vector fields in 1D and 2D domains, see the new Example 31/31p.
