@@ -48,9 +48,9 @@ struct tensor<T>
    static constexpr int ndim      = 1;
    static constexpr int first_dim = 0;
    MFEM_HOST_DEVICE T& operator[](int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE T  operator[](int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
    MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE T  operator()(int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
    MFEM_HOST_DEVICE operator T() const { return values; }
    T values;
 };
@@ -62,9 +62,9 @@ struct tensor<T, n0>
    static constexpr int ndim      = 1;
    static constexpr int first_dim = n0;
    MFEM_HOST_DEVICE T& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE T  operator[](int i) const { return values[i]; }
+   MFEM_HOST_DEVICE const T& operator[](int i) const { return values[i]; }
    MFEM_HOST_DEVICE T& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE T  operator()(int i) const { return values[i]; }
+   MFEM_HOST_DEVICE const T& operator()(int i) const { return values[i]; }
    T values[n0];
 };
 
@@ -75,11 +75,11 @@ struct tensor<T, n0, n1>
    static constexpr int ndim      = 2;
    static constexpr int first_dim = n0;
    MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1 >  operator[](int i) const { return values[i]; }
+   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int i) const { return values[i]; }
    MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1 >  operator()(int i) const { return values[i]; }
+   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int i) const { return values[i]; }
    MFEM_HOST_DEVICE T& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE T  operator()(int i, int j) const { return values[i][j]; }
+   MFEM_HOST_DEVICE const T& operator()(int i, int j) const { return values[i][j]; }
    tensor < T, n1 > values[n0];
 };
 
@@ -90,13 +90,13 @@ struct tensor<T, n0, n1, n2>
    static constexpr int ndim      = 3;
    static constexpr int first_dim = n0;
    MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2 >  operator[](int i) const { return values[i]; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator[](int i) const { return values[i]; }
    MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2 >  operator()(int i) const { return values[i]; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator()(int i) const { return values[i]; }
    MFEM_HOST_DEVICE tensor< T, n2 >& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE tensor< T, n2 >  operator()(int i, int j) const { return values[i][j]; }
+   MFEM_HOST_DEVICE const tensor< T, n2 >& operator()(int i, int j) const { return values[i][j]; }
    MFEM_HOST_DEVICE T& operator()(int i, int j, int k) { return values[i][j][k]; }
-   MFEM_HOST_DEVICE T  operator()(int i, int j, int k) const { return values[i][j][k]; }
+   MFEM_HOST_DEVICE const T& operator()(int i, int j, int k) const { return values[i][j][k]; }
    tensor < T, n1, n2 > values[n0];
 };
 
@@ -107,15 +107,15 @@ struct tensor<T, n0, n1, n2, n3>
    static constexpr int ndim      = 4;
    static constexpr int first_dim = n0;
    MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >  operator[](int i) const { return values[i]; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator[](int i) const { return values[i]; }
    MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >  operator()(int i) const { return values[i]; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator()(int i) const { return values[i]; }
    MFEM_HOST_DEVICE tensor< T, n2, n3 >& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE tensor< T, n2, n3 >  operator()(int i, int j) const { return values[i][j]; }
+   MFEM_HOST_DEVICE const tensor< T, n2, n3 >& operator()(int i, int j) const { return values[i][j]; }
    MFEM_HOST_DEVICE tensor< T, n3 >& operator()(int i, int j, int k) { return values[i][j][k]; }
-   MFEM_HOST_DEVICE tensor< T, n3 >  operator()(int i, int j, int k) const { return values[i][j][k]; }
+   MFEM_HOST_DEVICE const tensor< T, n3 >& operator()(int i, int j, int k) const { return values[i][j][k]; }
    MFEM_HOST_DEVICE T& operator()(int i, int j, int k, int l) { return values[i][j][k][l]; }
-   MFEM_HOST_DEVICE T  operator()(int i, int j, int k, int l) const { return values[i][j][k][l]; }
+   MFEM_HOST_DEVICE const T&  operator()(int i, int j, int k, int l) const { return values[i][j][k][l]; }
    tensor < T, n1, n2, n3 > values[n0];
 };
 
@@ -126,17 +126,20 @@ struct tensor<T, n0, n1, n2, n3, n4>
    static constexpr int ndim      = 5;
    static constexpr int first_dim = n0;
    MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >  operator[](int i) const { return values[i]; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator[](int i) const { return values[i]; }
    MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >  operator()(int i) const { return values[i]; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator()(int i) const { return values[i]; }
    MFEM_HOST_DEVICE tensor< T, n2, n3, n4 >& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE tensor< T, n2, n3, n4 >  operator()(int i, int j) const { return values[i][j]; }
+   MFEM_HOST_DEVICE const tensor< T, n2, n3, n4 >& operator()(int i,
+                                                              int j) const { return values[i][j]; }
    MFEM_HOST_DEVICE tensor< T, n3, n4>& operator()(int i, int j, int k) { return values[i][j][k]; }
-   MFEM_HOST_DEVICE tensor< T, n3, n4>  operator()(int i, int j, int k) const { return values[i][j][k]; }
+   MFEM_HOST_DEVICE const tensor< T, n3, n4>& operator()(int i, int j,
+                                                         int k) const { return values[i][j][k]; }
    MFEM_HOST_DEVICE tensor< T, n4 >& operator()(int i, int j, int k, int l) { return values[i][j][k][l]; }
-   MFEM_HOST_DEVICE tensor< T, n4 >  operator()(int i, int j, int k, int l) const { return values[i][j][k][l]; }
+   MFEM_HOST_DEVICE const tensor< T, n4 >& operator()(int i, int j, int k,
+                                                      int l) const { return values[i][j][k][l]; }
    MFEM_HOST_DEVICE T& operator()(int i, int j, int k, int l, int m) { return values[i][j][k][l][m]; }
-   MFEM_HOST_DEVICE T  operator()(int i, int j, int k, int l, int m) const { return values[i][j][k][l][m]; }
+   MFEM_HOST_DEVICE const T& operator()(int i, int j, int k, int l, int m) const { return values[i][j][k][l][m]; }
    tensor < T, n1, n2, n3, n4 > values[n0];
 };
 
