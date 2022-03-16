@@ -18,7 +18,7 @@
 #include <ceed/hash.h>
 #include <ceed/backend.h>  // for CeedOperatorField
 #if !CEED_VERSION_GE(0,10,0)
-#error MFEM requires a libCEED version superior to 0.10.0
+#error MFEM requires a libCEED version >= 0.10.0
 #endif
 #endif
 #include <tuple>
