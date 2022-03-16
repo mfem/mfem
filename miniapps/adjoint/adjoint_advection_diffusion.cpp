@@ -202,9 +202,8 @@ double u_init(const Vector &x)
 int main(int argc, char *argv[])
 {
    // Initialize MPI.
-   int num_procs, myid;
+   int myid;
    MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // Parse command-line options.
