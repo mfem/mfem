@@ -583,7 +583,22 @@ public:
 };
 
 
-/** Class for spatial white Gaussian noise integration L(v) := (Ẇ,v) */
+/** Class for spatial white Gaussian noise integration.
+
+The target problem is the linear SPDE a(u,v) = F(v) with F(v) := <Ẇ,v>, where Ẇ
+is spatial white Gaussian noise. When the Galerkin method is used to discretize
+this problem into a linear system of equations Ax = b, the RHS is a Gaussian
+random vector b~N(0,M) whose covariance matrix is the same as the mass matrix
+M_ij = (v_i,v_j). This property can be ensured if b = H w, where HHᵀ = M and
+each component w_i~N(0,1).
+
+There is much flexibility in how we may wish to define H. In this PR, we define
+H = Pᵀ diag(L_e), where P is the local-to-global dof assembly matrix and
+diag(L_e) is a block-diagonal matrix with L_e L_eᵀ = M_e, where M_e is the
+element mass matrix for element e. A straightforward computation shows that
+HHᵀ = Pᵀ diag(M_e) P = M, as necessary.
+
+*/
 class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
 {
 #ifdef MFEM_USE_MPI
