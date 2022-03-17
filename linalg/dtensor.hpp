@@ -101,10 +101,10 @@ public:
    }
 
    /// Copy constructor (default)
-   MFEM_HOST_DEVICE DeviceTensor(const DeviceTensor& t) = default;
+   DeviceTensor(const DeviceTensor&) = default;
 
    /// Copy assignment (default)
-   MFEM_HOST_DEVICE DeviceTensor& operator=(const DeviceTensor&) = default;
+   DeviceTensor& operator=(const DeviceTensor&) = default;
 
    /// Conversion to `Scalar *`.
    MFEM_HOST_DEVICE inline operator Scalar *() const { return data; }
