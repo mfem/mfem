@@ -49,7 +49,7 @@ template <int dim> struct LinearElasticMaterial
    /**
     * @brief Compute the stress response.
     *
-    * @param dudx derivative of the displacement
+    * @param[in] dudx derivative of the displacement
     * @return tensor<double, dim, dim>
     */
    tensor<double, dim, dim>
@@ -77,7 +77,7 @@ template <int dim> struct LinearElasticMaterial
     * compute the gradient matrix entries of the current quadrature point,
     * instead of the action.
     *
-    * @param dudx
+    * @param[in] dudx
     * @return tensor<double, dim, dim, dim, dim>
     */
    tensor<double, dim, dim, dim, dim>
@@ -129,8 +129,8 @@ struct NeoHookeanMaterial
    /**
     * @brief Compute the stress response.
     *
-    * @param dudx derivative of the displacement
-    * @return tensor<double, dim, dim>
+    * @param[in] dudx derivative of the displacement
+    * @return
     */
    template <typename T>
    MFEM_HOST_DEVICE tensor<T, dim, dim>
@@ -148,10 +148,10 @@ struct NeoHookeanMaterial
     *
     * This is necessary for Enzyme to access the class pointer (self).
     *
-    * @param self
-    * @param dudx
-    * @param sigma
-    * @return MFEM_HOST_DEVICE
+    * @param[in] self
+    * @param[in] dudx
+    * @param[in] sigma
+    * @return stress
     */
    MFEM_HOST_DEVICE static void
    stress_wrapper(NeoHookeanMaterial<dim, gradient_type> *self,
@@ -168,8 +168,8 @@ struct NeoHookeanMaterial
     * compute the gradient matrix entries of the current quadrature point,
     * instead of the action.
     *
-    * @param dudx
-    * @return tensor<double, dim, dim, dim, dim>
+    * @param[in] dudx
+    * @return
     */
    MFEM_HOST_DEVICE tensor<double, dim, dim, dim, dim>
    gradient(tensor<double, dim, dim> dudx) const
@@ -193,6 +193,9 @@ struct NeoHookeanMaterial
    /**
     * @brief Apply the gradient of the stress.
     *
+    * @param[in] dudx
+    * @param[in] ddudx
+    * @return
     */
    MFEM_HOST_DEVICE tensor<double, dim, dim>
    action_of_gradient(const tensor<double, dim, dim> &dudx,
@@ -383,7 +386,9 @@ public:
    const int ne_;
    /// H1 finite element collection
    H1_FECollection h1_fec_;
+   /// H1 finite element space
    ParFiniteElementSpace h1_fes_;
+   // Integration rule
    IntegrationRule *ir_ = nullptr;
    /// Number of degrees of freedom in 1D
    int d1d_;
@@ -412,6 +417,13 @@ public:
    /// Temporary vector for the pertubation of the solution with essential
    /// boundaries eliminated. Defined as a T-vector.
    mutable Vector dX_ess_;
+
+   /// Flag to enable caching of the gradient. If enabled, during linear
+   /// iterations the operator only applies the gradient on each quadrature
+   /// point rather than recompute the action.
+   bool use_cache_ = true;
+   mutable bool recompute_cache_ = false;
+   Vector dsigma_cache_;
 
    /**
     * @brief Wrapper for the application of the residual R(U).
@@ -456,7 +468,7 @@ public:
     * material_type object.
     *
     * @tparam material_type
-    * @param material
+    * @param[in] material
     */
    template <typename material_type>
    void SetMaterial(const material_type &material);
@@ -478,7 +490,7 @@ public:
     * @brief Set the attributes which mark the degrees of freedom that have a
     * fixed displacement.
     *
-    * @param attr
+    * @param[in] attr
     */
    void SetDisplacedAttributes(const Array<int> attr)
    {
@@ -489,7 +501,7 @@ public:
     * @brief Return the T-vector degrees of freedom that have been marked as
     * displaced.
     *
-    * @return const Array<int>&
+    * @return T-vector degrees of freedom that have been marked as displaced
     */
    const Array<int> &GetDisplacedTDofs() { return displaced_tdof_list_; };
 };
@@ -1100,7 +1112,9 @@ void ApplyGradient3D(const int ne,
                      const Array<double> &B_, const Array<double> &G_,
                      const Array<double> &W_, const Vector &Jacobian_,
                      const Vector &detJ_, const Vector &dU_, Vector &dF_,
-                     const Vector &U_, const material_type &material)
+                     const Vector &U_, const material_type &material,
+                     const bool use_cache_, const bool recompute_cache_,
+                     Vector &dsigma_cache_)
 {
    constexpr int dim = dimension;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
@@ -1125,6 +1139,9 @@ void ApplyGradient3D(const int ne,
    // Input vector
    // d1d x d1d x d1d x vdim x ne
    const auto U = Reshape(U_.Read(), d1d, d1d, d1d, dim, ne);
+
+   auto dsigma_cache = Reshape(dsigma_cache_.ReadWrite(), ne, q1d, q1d, q1d,
+                               dim, dim, dim, dim);
 
    MFEM_FORALL_3D(e, ne, q1d, q1d, q1d,
    {
@@ -1154,10 +1171,45 @@ void ApplyGradient3D(const int ne,
                auto dudx = dudxi(qz, qy, qx) * invJqp;
                auto ddudx = ddudxi(qz, qy, qx) * invJqp;
 
-               auto dsigma = material.action_of_gradient(dudx, ddudx);
+               if (use_cache_)
+               {
+                  // C = dsigma/dudx
+                  tensor<double, dim, dim, dim, dim> C;
 
-               invJ_dsigma_detJw(qx, qy, qz) =
-                  invJqp * dsigma * detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
+                  auto C_cache = make_tensor<dim, dim, dim, dim>(
+                  [&](int i, int j, int k, int l) { return dsigma_cache(e, qx, qy, qz, i, j, k, l); });
+
+                  if (recompute_cache_)
+                  {
+                     C = material.gradient(dudx);
+                     for (int i = 0; i < dim; i++)
+                     {
+                        for (int j = 0; j < dim; j++)
+                        {
+                           for (int k = 0; k < dim; k++)
+                           {
+                              for (int l = 0; l < dim; l++)
+                              {
+                                 dsigma_cache(e, qx, qy, qz, i, j, k, l) = C(i, j, k, l);
+                              }
+                           }
+                        }
+                     }
+                     C_cache = C;
+                  }
+                  else
+                  {
+                     C = C_cache;
+                  }
+                  invJ_dsigma_detJw(qx, qy, qz) =
+                     invJqp * ddot(C, ddudx) * detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
+               }
+               else
+               {
+                  auto dsigma = material.action_of_gradient(dudx, ddudx);
+                  invJ_dsigma_detJw(qx, qy, qz) =
+                     invJqp * dsigma * detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
+               }
             }
          }
       }
@@ -1294,7 +1346,7 @@ ElasticityOperator::ElasticityOperator(ParMesh &mesh, const int order)
    int global_tdof_size = h1_fes_.GlobalTrueVSize();
    if (mesh.GetMyRank() == 0)
    {
-      cout << "#dofs: " << global_tdof_size << endl;
+      out << "#dofs: " << global_tdof_size << endl;
    }
 
    h1_element_restriction_ =
@@ -1331,6 +1383,11 @@ ElasticityOperator::ElasticityOperator(ParMesh &mesh, const int order)
    cstate_local_.UseDevice(true);
    cstate_local_.SetSize(h1_prolongation_->Height());
 
+   if (use_cache_)
+   {
+      dsigma_cache_.SetSize(ne_ * q1d_ * q1d_ * q1d_ * dim_ * dim_ * dim_ * dim_);
+   }
+
    gradient_ = new ElasticityGradientOperator(*this);
 }
 
@@ -1362,6 +1419,9 @@ void ElasticityOperator::Mult(const Vector &X, Vector &Y) const
 
 Operator &ElasticityOperator::GetGradient(const Vector &x) const
 {
+   // invalidate cache
+   recompute_cache_ = true;
+
    h1_prolongation_->Mult(x, cstate_local_);
    h1_element_restriction_->Mult(cstate_local_, cstate_el_);
    return *gradient_;
@@ -1401,6 +1461,8 @@ void ElasticityOperator::GradientMult(const Vector &dX, Vector &Y) const
       MFEM_FORALL(i, ess_tdof_list_.Size(),
                   d_Y[d_ess_tdof_list[i]] = d_dX[d_ess_tdof_list[i]];);
    }
+
+   recompute_cache_ = false;
 }
 
 void ElasticityOperator::AssembleGradientDiagonal(Vector &Ke_diag,
@@ -1510,15 +1572,18 @@ void ElasticityOperator::SetMaterial(const material_type &material)
       {
          case 0x22:
             ElasticityKernels::ApplyGradient3D<2, 2, material_type>(
-               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material, use_cache_,
+               recompute_cache_, dsigma_cache_);
             break;
          case 0x33:
             ElasticityKernels::ApplyGradient3D<3, 3, material_type>(
-               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material, use_cache_,
+               recompute_cache_, dsigma_cache_);
             break;
          case 0x44:
             ElasticityKernels::ApplyGradient3D<4, 4, material_type>(
-               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material);
+               ne, B_, G_, W_, Jacobian_, detJ_, dU_, dF_, U_, material, use_cache_,
+               recompute_cache_, dsigma_cache_);
             break;
          default:
             MFEM_ABORT("Not implemented: " << std::hex << id << std::dec);
