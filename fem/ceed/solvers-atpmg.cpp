@@ -110,7 +110,8 @@ int CeedATPMGElemRestriction(int order,
    // Create the elem_dof array from the given high-order ElemRestriction
    // by using it to map the L-vector indices to an E-vector
    CeedScalar * lvec_data;
-   ierr = CeedVectorGetArray(in_lvec, CEED_MEM_HOST, &lvec_data); CeedChk(ierr);
+   ierr = CeedVectorGetArrayWrite(in_lvec, CEED_MEM_HOST, &lvec_data);
+   CeedChk(ierr);
    for (CeedSize i = 0; i < numnodes; ++i)
    {
       lvec_data[i] = (CeedScalar) i;

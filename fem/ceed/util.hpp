@@ -13,6 +13,7 @@
 #define MFEM_LIBCEED_UTIL
 
 #include "../../config/config.hpp"
+#include "../../general/error.hpp"
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
 #include <ceed/hash.h>

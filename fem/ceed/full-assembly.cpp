@@ -167,7 +167,8 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    CeedVector index_vec;
    ierr = CeedVectorCreate(ceed, nnodes, &index_vec); CeedChk(ierr);
    CeedScalar *array;
-   ierr = CeedVectorGetArray(index_vec, CEED_MEM_HOST, &array); CeedChk(ierr);
+   ierr = CeedVectorGetArrayWrite(index_vec, CEED_MEM_HOST, &array);
+   CeedChk(ierr);
    for (CeedSize i = 0; i < nnodes; ++i)
    {
       array[i] = i;
@@ -291,11 +292,12 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat)
 {
    int ierr;
 
-   CeedElemRestriction er;
-   ierr = CeedOperatorGetActiveElemRestriction(op, &er); CeedChk(ierr);
-   CeedSize nnodes;
-   ierr = CeedElemRestrictionGetLVectorSize(er, &nnodes); CeedChk(ierr);
-   MFEM_VERIFY(int(nnodes) == nnodes, "size overflow");
+   CeedSize in_len, out_len;
+   ierr = CeedOperatorGetActiveVectorLengths(op, &in_len, &out_len);
+   CeedChk(ierr);
+   const int nnodes = in_len;
+   MFEM_VERIFY(in_len == out_len, "not a square CeedOperator");
+   MFEM_VERIFY(in_len == nnodes, "size overflow");
 
    SparseMatrix *out = new SparseMatrix(nnodes, nnodes);
 
