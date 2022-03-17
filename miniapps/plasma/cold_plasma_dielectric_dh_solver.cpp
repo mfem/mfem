@@ -2262,6 +2262,19 @@ CPDSolverDH::Solve()
       nxD01_->FormRectangularSystemMatrix(non_sbc_h1_tdofs_, dbc_nd_tdofs_, B);
       m0_->FormSystemMatrix(non_sbc_h1_tdofs_, D);
 
+      Vector diag_r;
+      D.As<ComplexHypreParMatrix>()->real().GetDiag(diag_r);
+
+      int size_h1 = diag_r.Size();
+      Vector diag0(2*size_h1);
+      for (int i=0; i<size_h1; i++)
+      {
+         diag0(i) = diag_r(i);
+         diag0(i+size_h1) = diag_r(i);
+      }
+
+      OperatorJacobiSmoother prec0(diag0, non_sbc_h1_tdofs_);
+
       {
          if (B.As<ComplexHypreParMatrix>()->hasRealPart())
          { B.As<ComplexHypreParMatrix>()->real().Print("nxD01_Re.mat"); }
@@ -2283,7 +2296,7 @@ CPDSolverDH::Solve()
       double phi_diff = std::numeric_limits<double>::max();
       GridFunctionCoefficient prevPhiReCoef(&prev_phi_->real());
       GridFunctionCoefficient prevPhiImCoef(&prev_phi_->imag());
-      while (H_iter < 1/*5*/)
+      while (H_iter < 15)
       {
          if ( phi_diff < 1e-3) {break;}
          nzD12_->Update();
@@ -2298,17 +2311,23 @@ CPDSolverDH::Solve()
             { C.As<ComplexHypreParMatrix>()->imag().Print("nzD12_Im.mat"); }
          }
 
-         SchurComplimentOperator schur(*AInv, *B, *C, *D);
+         SchurComplimentOperator schur(*AInv, &(*B), &(*C), *D);
+         // SchurComplimentOperator schur(*AInv, NULL, &(*C), *D);
 
          const Vector & RHS = schur.GetRHSVector(RHS1, RHS0);
+
+         IterativeSolver::PrintLevel gmres_print_level;
+         gmres_print_level.FirstAndLast();
 
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetKDim(50);
          gmres.SetRelTol(1e-8);
          gmres.SetAbsTol(1e-10);
          gmres.SetMaxIter(500);
-         gmres.SetPrintLevel(3);
+         gmres.SetPrintLevel(gmres_print_level);
+         // gmres.SetPrintLevel(1);
          gmres.SetOperator(schur);
+         gmres.SetPreconditioner(prec0);
 
          gmres.Mult(RHS, PHI);
 

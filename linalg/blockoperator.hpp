@@ -291,13 +291,13 @@ private:
 class SchurComplimentOperator : public Operator
 {
 private:
-   Operator * A;
-   Operator * B;
-   Operator * C;
-   Operator * D;
+   Operator * APtr;
+   Operator * BPtr;
+   Operator * CPtr;
+   Operator * DPtr;
 
-   Solver * AInv;
-   Solver * DInv;
+   Solver * AInvPtr;
+   Solver * DInvPtr;
 
    int sizeA, sizeD;
 
@@ -311,11 +311,11 @@ private:
    mutable Vector rhs2;
 
 public:
-   SchurComplimentOperator(Solver & _AInv, Operator & _B,
-                           Operator & _C, Operator & _D);
+   SchurComplimentOperator(Solver & AInv, Operator * B,
+                           Operator * C, Operator & D);
 
-   SchurComplimentOperator(Operator & _A, Operator & _B,
-                           Operator & _C, Solver & _DInv);
+   SchurComplimentOperator(Operator & A, Operator * B,
+                           Operator * C, Solver & DInv);
 
    const Vector & GetRHSVector(const Vector & a, const Vector & b);
 
