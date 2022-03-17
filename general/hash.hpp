@@ -93,6 +93,8 @@ public:
    HashTable(int block_size = 16*1024, int init_hash_size = 32*1024);
    /// @brief Deep copy
    HashTable(const HashTable& other);
+   /// @brief Copy assignment not supported
+   HashTable& operator=(HashTable&) = delete;
    ~HashTable();
 
    /** @brief Item accessor with key (or parents) the pair 'p1', 'p2'. Default

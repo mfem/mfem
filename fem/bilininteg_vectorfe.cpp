@@ -340,7 +340,7 @@ void PAHcurlHdivSetup2D(const int Q1D,
             const double J21 = J(qx,qy,1,0,e);
             const double J12 = J(qx,qy,0,1,e);
             const double J22 = J(qx,qy,1,1,e);
-            const double w_detJ = W(qx,qy) / (J11*J22) - (J21*J12);
+            const double w_detJ = W(qx,qy) / ((J11*J22) - (J21*J12));
 
             if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient version
             {

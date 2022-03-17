@@ -135,6 +135,9 @@ public:
    /// Deep copy of another instance.
    NCMesh(const NCMesh &other);
 
+   /// Copy assignment not supported
+   NCMesh& operator=(NCMesh&) = delete;
+
    virtual ~NCMesh();
 
    /// Return the dimension of the NCMesh.
