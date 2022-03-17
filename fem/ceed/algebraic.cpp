@@ -95,13 +95,12 @@ const mfem::Operator *ConstrainedOperator::GetProlongation() const
 /// to find separate active input and output fields/restrictions)
 int CeedOperatorGetSize(CeedOperator oper, CeedInt * size)
 {
-   int ierr;
-   CeedElemRestriction er;
-   ierr = CeedOperatorGetActiveElemRestriction(oper, &er); CeedChk(ierr);
-   CeedSize size_;
-   ierr = CeedElemRestrictionGetLVectorSize(er, &size_); CeedChk(ierr);
-   *size = (CeedInt)size_;
-   MFEM_VERIFY(size_ == *size, "size overflow");
+   CeedSize in_len, out_len;
+   int ierr = CeedOperatorGetActiveVectorLengths(oper, &in_len, &out_len);
+   CeedChk(ierr);
+   *size = (CeedInt)in_len;
+   MFEM_VERIFY(in_len == out_len, "not a square CeedOperator");
+   MFEM_VERIFY(in_len == *size, "size overflow");
    return 0;
 }
 
@@ -415,8 +414,8 @@ int AlgebraicInterpolation::Initialize(
 
    CeedScalar* fine_r_data;
    const CeedScalar* fine_data;
-   ierr = CeedVectorGetArray(fine_multiplicity_r, CEED_MEM_HOST,
-                             &fine_r_data); CeedChk(ierr);
+   ierr = CeedVectorGetArrayWrite(fine_multiplicity_r, CEED_MEM_HOST,
+                                  &fine_r_data); CeedChk(ierr);
    ierr = CeedVectorGetArrayRead(c_fine_multiplicity, CEED_MEM_HOST,
                                  &fine_data); CeedChk(ierr);
    for (CeedSize i = 0; i < height; ++i)
@@ -467,7 +466,8 @@ AlgebraicInterpolation::AlgebraicInterpolation(
    MFEM_VERIFY(ho_nldofs == height, "height overflow");
    MFEM_VERIFY(lo_nldofs == width, "width overflow");
    owns_basis_ = false;
-   Initialize(ceed, basisctof, erestrictu_coarse, erestrictu_fine);
+   ierr = Initialize(ceed, basisctof, erestrictu_coarse, erestrictu_fine);
+   PCeedChk(ierr);
 }
 
 AlgebraicInterpolation::~AlgebraicInterpolation()
@@ -584,7 +584,7 @@ void AlgebraicInterpolation::MultTranspose(const mfem::Vector& x,
    CeedScalar *workdata;
    ierr = CeedVectorGetArrayRead(fine_multiplicity_r, mem,
                                  &multiplicitydata); PCeedChk(ierr);
-   ierr = CeedVectorGetArray(fine_work, mem, &workdata); PCeedChk(ierr);
+   ierr = CeedVectorGetArrayWrite(fine_work, mem, &workdata); PCeedChk(ierr);
    MFEM_VERIFY((int)length == length, "length overflow");
    MFEM_FORALL(i, length,
    {workdata[i] = in_ptr[i] * multiplicitydata[i];});
@@ -888,7 +888,6 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
       else
       {
          HYPRE_BigInt global_tdof_number;
-         int g = ldof_group[i_ldof];
          if (HYPRE_AssumedPartitionCheck())
          {
             global_tdof_number
