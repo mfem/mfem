@@ -415,10 +415,10 @@ void nDotCurlIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
                                                 ElementTransformation &Trans,
                                                 DenseMatrix &elmat)
 {
+   int       sdim = Trans.GetSpaceDim();
    int    test_nd = test_fe.GetDof();
    int   trial_nd = trial_fe.GetDof();
-   int trial_cdim = trial_fe.GetCurlDim();
-   int       sdim = Trans.GetSpaceDim();
+   int trial_cdim = std::max(sdim, trial_fe.GetCurlDim());
    double w;
 
 #ifdef MFEM_THREAD_SAFE
@@ -2648,7 +2648,7 @@ void CPDSolverDH::prepareVisFields()
    if (phi_)
    {
       phi_v_.PrepareVisField(*phi_, kReCoef_, kImCoef_);
-
+      /*
       if (sbcs_.Size() > 0)
       {
          for (int i = 0; i< sbcs_.Size(); i++)
@@ -2658,6 +2658,7 @@ void CPDSolverDH::prepareVisFields()
                                  sbc.attr_marker);
          }
       }
+      */
    }
    /*
    prepareVectorVisField(*h_, *h_v_);
@@ -2744,7 +2745,7 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
    h_dbc_v_.RegisterVisItFields(visit_dc);
    d_v_.RegisterVisItFields(visit_dc);
    if (phi_) { phi_v_.RegisterVisItFields(visit_dc); }
-   if (phi_) { z_v_.RegisterVisItFields(visit_dc); }
+   // if (phi_) { z_v_.RegisterVisItFields(visit_dc); }
    /*
    h_v_ = new ComplexGridFunction(HCurlFESpace3D_);
    e_v_ = new ComplexGridFunction(L2VFESpace3D_);

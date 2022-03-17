@@ -2322,6 +2322,7 @@ void record_cmd_line(int argc, char *argv[])
           strcmp(argv[i], "-bpp"    ) == 0 ||
           strcmp(argv[i], "-dpp"    ) == 0 ||
           strcmp(argv[i], "-tpp"    ) == 0 ||
+          strcmp(argv[i], "-npp"    ) == 0 ||
           strcmp(argv[i], "-B"      ) == 0 ||
           strcmp(argv[i], "-k-vec"  ) == 0 ||
           strcmp(argv[i], "-q"      ) == 0 ||
