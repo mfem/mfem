@@ -161,8 +161,8 @@ void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       }
       coeff_ptr = ceedCoeff;
    }
-   else if (VectorGridFunctionCoefficient* gf_coeff
-            dynamic_cast<VectorGridFunctionCoefficient*>(VQ))
+   else if (VectorGridFunctionCoefficient* gf_coeff =
+               dynamic_cast<VectorGridFunctionCoefficient*>(VQ))
    {
       GridCoefficient *ceedCoeff =
          new GridCoefficient(*gf_coeff->GetGridFunction());
