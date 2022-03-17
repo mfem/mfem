@@ -34,13 +34,15 @@ BFieldAdvector::BFieldAdvector(ParMesh *pmesh_old, ParMesh *pmesh_new, int order
    L2FESpaceOld(nullptr),
    L2FESpaceNew(nullptr),
    grad(nullptr),
-   curl(nullptr),
+   curl_old(nullptr),
+   curl_new(nullptr),
    weakCurl(nullptr),
    WC(nullptr),
    m1(nullptr),
    curlCurl(nullptr),
    divFreeProj(nullptr),
    a(nullptr),
+   a_new(nullptr),
    curl_b(nullptr),
    clean_curl_b(nullptr),
    recon_b(nullptr)
@@ -57,6 +59,9 @@ void BFieldAdvector::SetMeshes(ParMesh *pmesh_old, ParMesh *pmesh_new)
 
    pmeshOld = pmesh_old;
    pmeshNew = pmesh_new;
+
+   pmeshOld->EnsureNodes();
+   pmeshNew->EnsureNodes();
 
    if (pmeshNew->GetNodes() == NULL) { pmeshNew->SetCurvature(1); }
    pmeshNewOrder = pmeshNew->GetNodes()->FESpace()->GetElementOrder(0);
@@ -75,9 +80,12 @@ void BFieldAdvector::SetMeshes(ParMesh *pmesh_old, ParMesh *pmesh_new)
    grad = new ParDiscreteGradOperator(H1FESpaceOld, HCurlFESpaceOld);
    grad->Assemble();
    grad->Finalize();
-   curl = new ParDiscreteCurlOperator(HCurlFESpaceOld, HDivFESpaceOld);
-   curl->Assemble();
-   curl->Finalize();
+   curl_old = new ParDiscreteCurlOperator(HCurlFESpaceOld, HDivFESpaceOld);
+   curl_old->Assemble();
+   curl_old->Finalize();   
+   curl_new = new ParDiscreteCurlOperator(HCurlFESpaceNew, HDivFESpaceNew);
+   curl_new->Assemble();
+   curl_new->Finalize();
 
    //Weak curl operator for taking the curl of B living in Hdiv
    ConstantCoefficient oneCoef(1.0);
@@ -124,7 +132,8 @@ void BFieldAdvector::CleanInternals()
    if (L2FESpaceNew != nullptr) delete L2FESpaceNew;
 
    if (grad != nullptr) delete grad;
-   if (curl != nullptr) delete curl;
+   if (curl_old != nullptr) delete curl_old;
+   if (curl_new != nullptr) delete curl_new;
 
    if (weakCurl != nullptr) delete weakCurl;
    if (divFreeProj != nullptr) delete divFreeProj;
@@ -142,7 +151,7 @@ void BFieldAdvector::Advect(ParGridFunction* b_old, ParGridFunction* b_new)
 {
    ComputeA(b_old);
    FindPtsInterpolateToTargetMesh(a, a_new, 1);
-   curl->Mult(*a_new, *b_new);
+   curl_new->Mult(*a_new, *b_new);
 }
 
 //Solve Curl Curl A = Curl B for A using AMS
@@ -188,12 +197,12 @@ void BFieldAdvector::ComputeA(ParGridFunction* b)
    curlCurl->RecoverFEMSolution(A, *clean_curl_b, *a);
 
    //Compute the reconstructed b field for comparison
-   curl->Mult(*a, *recon_b);
+   curl_old->Mult(*a, *recon_b);
 
    //
    Vector diff(*b);
    diff -= *recon_b;    //diff = b - recon_b
-   std::cout << "L2 Error in reconstructed B field:  " << diff.Norml2() << std::endl;
+   std::cout << "L2 Error in reconstructed B field on old mesh:  " << diff.Norml2() << std::endl;
 
 }
 

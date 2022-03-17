@@ -92,15 +92,18 @@ int main(int argc, char *argv[])
 
    ParGridFunction *b_recon = advector.GetReconstructedB();
    ParGridFunction *curl_b = advector.GetCurlB();
-   ParGridFunction *clean_curl_b = advector.GetCleanCurlB();
+   ParGridFunction *a = advector.GetA();
+   ParGridFunction *a_new = advector.GetANew();
 
    // Handle the visit visualization
    if (visit)
    {
       VisItDataCollection visit_dc("bfield-advect", &pmesh_old);
       visit_dc.RegisterField("B", b);
+      visit_dc.RegisterField("B_new", b_new);
       visit_dc.RegisterField("Curl_B", curl_b);
-      visit_dc.RegisterField("Clean_Curl_B", clean_curl_b);
+      visit_dc.RegisterField("A", a);
+      visit_dc.RegisterField("A_new", a_new);
       visit_dc.RegisterField("B_recon", b_recon);
       visit_dc.SetCycle(0);
       visit_dc.SetTime(0);

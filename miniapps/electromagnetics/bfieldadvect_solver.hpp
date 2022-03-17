@@ -37,6 +37,8 @@ class BFieldAdvector
    ParGridFunction* GetCurlB() {return curl_b;}
    ParGridFunction* GetCleanCurlB() {return clean_curl_b;}
    ParGridFunction* GetReconstructedB() {return recon_b;}
+   ParGridFunction* GetA() {return a;}
+   ParGridFunction* GetANew() {return a_new;}
 
    private:
    void CleanInternals();
@@ -57,7 +59,8 @@ class BFieldAdvector
    RT_ParFESpace *HDivFESpaceOld, *HDivFESpaceNew;
    L2_ParFESpace *L2FESpaceOld, *L2FESpaceNew;
    ParDiscreteGradOperator *grad;
-   ParDiscreteCurlOperator *curl;
+   ParDiscreteCurlOperator *curl_old;
+   ParDiscreteCurlOperator *curl_new;
    ParMixedBilinearForm *weakCurl;
    HypreParMatrix *WC;
    ParBilinearForm *m1;
