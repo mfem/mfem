@@ -109,9 +109,10 @@ void PrintIntegral(int myid, ParGridFunction &g, std::string text)
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   MPI_Session mpi;
-   int myid = mpi.WorldRank();
+   // Initialize MPI and HYPRE.
+   Mpi::Init();
+   int myid = Mpi::WorldRank();;
+   Hypre::Init();
 
    // Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
