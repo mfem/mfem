@@ -161,11 +161,11 @@ void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       }
       coeff_ptr = ceedCoeff;
    }
-   else if (VectorGridFunctionCoefficient* gf_coeff =
+   else if (VectorGridFunctionCoefficient* vgf_coeff =
                dynamic_cast<VectorGridFunctionCoefficient*>(VQ))
    {
       GridCoefficient *ceedCoeff =
-         new GridCoefficient(*gf_coeff->GetGridFunction());
+         new GridCoefficient(*vgf_coeff->GetGridFunction());
       coeff_ptr = ceedCoeff;
    }
    else if (VectorQuadratureFunctionCoefficient *cQ =
