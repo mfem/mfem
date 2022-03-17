@@ -185,11 +185,11 @@ void visualize(ostream &os, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-quad.mesh";
@@ -251,7 +251,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -295,7 +294,6 @@ int main(int argc, char *argv[])
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
-         MPI_Finalize();
          return 3;
    }
 
@@ -471,8 +469,6 @@ int main(int argc, char *argv[])
 
    // We finalize PETSc
    if (use_petsc) { MFEMFinalizePetsc(); }
-
-   MPI_Finalize();
 
    return 0;
 }
