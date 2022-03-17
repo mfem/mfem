@@ -386,8 +386,7 @@ void Hrefine2(GridFunction &u, Coefficient & ex_coeff, double min_thresh,
 {
    FiniteElementSpace * fes = u.FESpace();
    Mesh * mesh = fes->GetMesh();
-
-   int ne = fes->GetMesh()->GetNE();
+   int ne = mesh->GetNE();
    Vector errors(ne);
    u.ComputeElementL2Errors(ex_coeff,errors);
 
@@ -592,15 +591,16 @@ void Refine(Array<int> ref_actions, GridFunction &u, int depth_limit)
    {
       if (actions[i] == 1) {refinements.Append(Refinement(i,0b01));}
    }
-   mesh->GeneralRefinement(refinements);
-
-   fes->Update();
-   u.Update();
-
-   ne = mesh->GetNE();
+   if (refinements.Size())
+   {
+      mesh->GeneralRefinement(refinements);
+      fes->Update();
+      u.Update();
+      ne = mesh->GetNE();
+   }
    // now the derefinements
    Array<int> new_actions(ne);
-   if (mesh->GetLastOperation() == mfem::Mesh::REFINE)
+   if (refinements.Size())
    {
       new_actions = 1;
       const CoarseFineTransformations & tr = mesh->GetRefinementTransforms();
