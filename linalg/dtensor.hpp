@@ -100,19 +100,11 @@ public:
       data = (capacity > 0) ? data_ : NULL;
    }
 
-   /// Copy constructor
-   MFEM_HOST_DEVICE DeviceTensor(const DeviceTensor& t)
-   {
-      capacity = t.capacity;
-      for (int i = 0; i < Dim; ++i)
-      {
-         sizes[i] = t.sizes[i];
-      }
-      data = t.data;
-   }
+   /// Copy constructor (default)
+   MFEM_HOST_DEVICE DeviceTensor(const DeviceTensor& t) = default;
 
-   /// Copy assignment not supported
-   MFEM_HOST_DEVICE DeviceTensor& operator=(DeviceTensor&) = delete;
+   /// Copy assignment (default)
+   MFEM_HOST_DEVICE DeviceTensor& operator=(const DeviceTensor&) = default;
 
    /// Conversion to `Scalar *`.
    MFEM_HOST_DEVICE inline operator Scalar *() const { return data; }
