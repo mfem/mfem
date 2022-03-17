@@ -14,6 +14,10 @@
 
 using namespace mfem;
 
+// These unit tests use the Monte Carlo method to verify that
+//     E[b] = 0 and E[bbᵀ] = M,
+// where M is the mass matrix.
+
 namespace white_noise
 {
 
