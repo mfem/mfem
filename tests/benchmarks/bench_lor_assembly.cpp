@@ -258,8 +258,8 @@ struct LORBench
 /// Kernels definitions and registrations
 #define Benchmark(Name)\
 static void Name(bm::State &state){\
-   const int p = state.range(0);\
-   const int side = state.range(1);\
+   const int p = state.range(1);\
+   const int side = state.range(0);\
    LORBench lor(p, side);\
    if (lor.nvdofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
    while (state.KeepRunning()) { lor.Name(); }\
@@ -269,9 +269,9 @@ static void Name(bm::State &state){\
    state.counters["p"] = bm::Counter(p);\
 }\
 BENCHMARK(Name)\
-            -> ArgsProduct({P_ORDERS, N_SIDES})\
-            -> Unit(bm::kMillisecond)\
-            -> Iterations(10);
+            -> ArgsProduct({N_SIDES, P_ORDERS})\
+            -> Unit(bm::kMillisecond);
+//-> Iterations(10);
 
 Benchmark(SanityChecks)
 
