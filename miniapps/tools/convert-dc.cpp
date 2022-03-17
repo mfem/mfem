@@ -107,8 +107,9 @@ DataCollection *create_data_collection(const std::string &dc_name,
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
-   MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Mpi::Init();
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Hypre::Init();
 #endif
 
    // Parse command-line options.
