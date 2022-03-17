@@ -9,6 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+// DNS of a channel flow at Re_tau = 180 (variable). A detailed description of
+// the test case can be found at [1]. Like described in the reference, the
+// initial condition is based on the Reichardt function.
+//
+// [1] https://how5.cenaero.be/content/ws2-les-plane-channel-ret550
+
 #include "navier_solver.hpp"
 #include <fstream>
 #include <cmath>
@@ -85,11 +91,8 @@ int main(int argc, char *argv[])
 {
    MPI_Session mpi(argc, argv);
 
-   Device("ceed-cpu");
-
-   double delta = 1.0;
    double Lx = 2.0 * M_PI;
-   double Ly = 2.0;
+   double Ly = 1.0;
    double Lz = M_PI;
 
    int N = ctx.order + 1;
@@ -103,7 +106,7 @@ int main(int argc, char *argv[])
 
    double C = 1.8;
 
-   Mesh mesh = Mesh::MakeCartesian3D(NX, NY, NZ, Element::HEXAHEDRON, Lx, 1.0, Lz);
+   Mesh mesh = Mesh::MakeCartesian3D(NX, NY, NZ, Element::HEXAHEDRON, Lx, Ly, Lz);
 
    for (int i = 0; i < mesh.GetNV(); ++i)
    {

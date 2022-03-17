@@ -123,15 +123,12 @@ void NavierSolver::Setup(double dt)
    const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
                                                 2 * order - 1);
 
-   const IntegrationRule &ir = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
-                                             2 * order - 1);
-
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
    auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff);
    if (numerical_integ)
    {
-      nlc_nlfi->SetIntRule(&ir);
+      nlc_nlfi->SetIntRule(&ir_ni);
    }
    N->AddDomainIntegrator(nlc_nlfi);
    if (partial_assembly)
