@@ -201,10 +201,10 @@ double u_init(const Vector &x)
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   int myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // Parse command-line options.
    int ser_ref_levels = 0;
@@ -236,7 +236,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -408,7 +407,6 @@ int main(int argc, char *argv[])
    delete V;
    delete cvodes;
 
-   MPI_Finalize();
    return 0;
 }
 

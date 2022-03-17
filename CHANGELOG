@@ -24,12 +24,19 @@ Discretization improvements
 - Added GPU enabled partial assembly (PA) and element assembly (EA) support for
   discontinuous Galerkin methods on nonconforming meshes (NCMesh).
 
+- Added PA support for the action of MixedScalarCurlIntegrator in 2D and
+  MixedVectorGradientIntegrator in 2D and 3D, as well as their transposes.
+
 Linear and nonlinear solvers
 ----------------------------
 - Added support for using the hypre library built with HIP support. Similar to
   the existing hypre + CUDA support, most of the MFEM examples and miniapps
   work transparently with hypre + HIP builds. This includes the BoomerAMG, AMS,
   and ADS solvers.
+
+- Added a simple singleton class, Hypre, to automatically set hypre's global
+  parameters, particularly GPU-relevant options. Updated parallel example codes
+  and miniapps to call Hypre::Init() where appropriate.
 
 - Added hipSPARSE support for sparse matrix-vector multiplications.
 
@@ -51,7 +58,7 @@ Meshing improvements
   pyramidal meshes in the data/ directory and support for the lowest order H1,
   Nedelec, Raviart-Thomas, and L2 basis functions on pyramids.
 
-- Added TMOP-based methods for hr-adaptivity, and interface fitting and tangential
+- Added TMOP-based methods for hr-adaptivity, interface fitting, and tangential
   relaxation in high-order meshes.
 
 - Added ParMesh adjaceny set (adjset) creation support to the Conduit Mesh
@@ -89,6 +96,9 @@ Miscellaneous
 -------------
 - Doxygen documentation for previous releases is now available at docs.mfem.org.
 
+- Added a simple singleton class, Mpi, as a replacement for MPI_Session. New
+  code should use Mpi::Init() and other Mpi methods instead of MPI_Session.
+
 - Added initial support for Google Benchmark in the tests/benchmarks directory.
   It can be enabled with MFEM_USE_BENCHMARK=YES.
 
@@ -103,9 +113,6 @@ Miscellaneous
 
 - Added ParaView visualization of `QuadratureFunction` fields, through both
   `QuadratureFunction::SaveVTU` and `ParaViewDataCollection::RegisterQField`.
-
-- Added PA support for the action of MixedScalarCurlIntegrator in 2D and
-  MixedVectorGradientIntegrator in 2D and 3D, as well as their transposes.
 
 - Added 'double' atomicAdd implementation for previous versions of CUDA.
 
