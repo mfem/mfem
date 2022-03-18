@@ -1545,7 +1545,8 @@ public:
 
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',
-       new space dimension, 'space_dim' (if != -1), and 'ordering'. */
+       new space dimension, 'space_dim' (if != -1), and 'ordering' (byVDim by
+       default). */
    virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
                              int ordering = 1);
 
