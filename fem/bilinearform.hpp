@@ -91,7 +91,8 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<BilinearFormIntegrator*> domain_integs;
-   /// Element attribute marker (should be of length mesh->attributes)
+   /// Element attribute marker (should be of length mesh->attributes.Max() or
+   /// 0 if mesh->attributes is empty)
    /// Includes all by default.
    /// 0 - ignore attribute
    /// 1 - include attribute
