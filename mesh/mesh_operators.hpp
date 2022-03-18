@@ -133,7 +133,7 @@ protected:
    MeshOperatorSequence(const MeshOperatorSequence &) { }
 
    /// Do not allow copy assignment, due to assumed ownership.
-   MeshOperatorSequence& operator=(MeshOperatorSequence &s) = delete;
+   MeshOperatorSequence& operator=(const MeshOperatorSequence &s) = delete;
 
    /** @brief Apply the MeshOperatorSequence.
        @return ActionInfo value corresponding to the last applied operator from

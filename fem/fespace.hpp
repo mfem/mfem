@@ -427,7 +427,7 @@ public:
    { Constructor(mesh, ext, fec, vdim, ordering); }
 
    /// Copy assignment not supported
-   FiniteElementSpace& operator=(FiniteElementSpace&) = delete;
+   FiniteElementSpace& operator=(const FiniteElementSpace&) = delete;
 
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }

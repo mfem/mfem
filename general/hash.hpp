@@ -94,7 +94,7 @@ public:
    /// @brief Deep copy
    HashTable(const HashTable& other);
    /// @brief Copy assignment not supported
-   HashTable& operator=(HashTable&) = delete;
+   HashTable& operator=(const HashTable&) = delete;
    ~HashTable();
 
    /** @brief Item accessor with key (or parents) the pair 'p1', 'p2'. Default
