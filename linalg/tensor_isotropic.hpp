@@ -15,10 +15,6 @@
  * @brief Implementation of the isotropic tensor class
  */
 
-#pragma once
-
-#include "../general/backends.hpp"
-#include "tensor.hpp" // for zero, tensor
 #include <type_traits> // for std::false_type
 
 namespace mfem
@@ -165,7 +161,7 @@ auto dot(const tensor<S, n...>& A,
 -> tensor<decltype(S {} * T{}), n...>
 {
    constexpr int dimensions[sizeof...(n)] = {n...};
-   static_assert(dimensions[sizeof...(n) - 1] == m);
+   static_assert(dimensions[sizeof...(n) - 1] == m, "n-1 != m");
    return A * I.value;
 }
 
