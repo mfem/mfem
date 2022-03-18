@@ -49,6 +49,10 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
    const FiniteElementCollection *fec = a.FESpace()->FEColl();
    // TODO: check for maximum supported orders
    // TODO: check for supported coefficient types?
+
+   // Batched LOR requires all tensor elements
+   if (!UsesTensorBasis(*a.FESpace())) { return false; }
+
    // We want to support the following configurations:
    // H1, ND, and RT spaces: M, A, M + K
    if (dynamic_cast<const H1_FECollection*>(fec))
@@ -62,7 +66,6 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
    return false;
 }
 
-template <int Q1D>
 void BatchedLORAssembly::GetLORVertexCoordinates()
 {
    Mesh &mesh_ho = *fes_ho.GetMesh();
@@ -75,12 +78,10 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
    const int nd1d = order + 1;
    const int ndof_per_el = pow(nd1d, dim);
 
-   MFEM_VERIFY(nd1d == Q1D, "Bad template instantiation.");
-
    const GridFunction *nodal_gf = mesh_ho.GetNodes();
    const FiniteElementSpace *nodal_fes = nodal_gf->FESpace();
-   const Operator *nodal_restriction = nodal_fes->GetElementRestriction(
-                                          ElementDofOrdering::LEXICOGRAPHIC);
+   const Operator *nodal_restriction =
+      nodal_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
 
    // Map from nodal L-vector to E-vector
    Vector nodal_evec(nodal_restriction->Height());
@@ -92,9 +93,10 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
 
    // Map from nodal E-vector to Q-vector at the LOR vertex points
    X_vert.SetSize(dim*ndof_per_el*nel_ho);
-   QuadratureInterpolator quad_interp(*nodal_fes, ir);
-   quad_interp.SetOutputLayout(QVectorLayout::byVDIM);
-   quad_interp.Values(nodal_evec, X_vert);
+   const QuadratureInterpolator *quad_interp =
+      nodal_fes->GetQuadratureInterpolator(ir);
+   quad_interp->SetOutputLayout(QVectorLayout::byVDIM);
+   quad_interp->Values(nodal_evec, X_vert);
 }
 
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
@@ -368,25 +370,6 @@ SparseMatrix *BatchedLORAssembly::SparseIJToCSR() const
 
 SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
 {
-   MFEM_VERIFY(UsesTensorBasis(fes_ho),
-               "Batched LOR assembly requires tensor basis");
-
-   // Get the LOR vertex coordinates
-   const int order = fes_ho.GetMaxElementOrder();
-   const int nd1d = order + 1;
-   switch (nd1d)
-   {
-      case 2: GetLORVertexCoordinates<2>(); break;
-      case 3: GetLORVertexCoordinates<3>(); break;
-      case 4: GetLORVertexCoordinates<4>(); break;
-      case 5: GetLORVertexCoordinates<5>(); break;
-      case 6: GetLORVertexCoordinates<6>(); break;
-      case 7: GetLORVertexCoordinates<7>(); break;
-      case 8: GetLORVertexCoordinates<8>(); break;
-      case 9: GetLORVertexCoordinates<9>(); break;
-      default: MFEM_ABORT("Unsupported order " << order << "!");
-   }
-
    // Assemble the matrix, using kernels from the derived classes
    // This fills in the arrays sparse_ij and sparse_mapping
    AssemblyKernel();
@@ -642,7 +625,9 @@ BatchedLORAssembly::BatchedLORAssembly(BilinearForm &a,
                                        FiniteElementSpace &fes_ho_,
                                        const Array<int> &ess_dofs_)
    : fes_ho(fes_ho_), ess_dofs(ess_dofs_)
-{ }
+{
+   GetLORVertexCoordinates();
+}
 
 void BatchedLORAssembly::Assemble(BilinearForm &a,
                                   FiniteElementSpace &fes_ho,

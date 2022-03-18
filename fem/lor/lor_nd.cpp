@@ -253,8 +253,8 @@ void BatchedLOR_ND::Assemble3D()
 
    auto X = X_vert.Read();
 
-   static constexpr int GRID = 128; // TODO: ???
-   MFEM_FORALL_3D_GRID(iel_ho, nel_ho, ORDER, ORDER, ORDER, GRID,
+   // Last thread dimension is lowered to avoid "too many resources" error
+   MFEM_FORALL_3D(iel_ho, nel_ho, ORDER, ORDER, (ORDER>6)?4:ORDER,
    {
       MFEM_FOREACH_THREAD(iz,z,o)
       {

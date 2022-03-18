@@ -34,7 +34,7 @@ protected:
    Vector X_vert; ///< LOR vertex coordinates.
 
    /// Get the vertices of the LOR mesh and place the result in @a X_vert.
-   template <int Q1D> void GetLORVertexCoordinates();
+   void GetLORVertexCoordinates();
 
    /// @brief The elementwise LOR matrices in a sparse "ij" format.
    ///
