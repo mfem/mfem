@@ -319,6 +319,10 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    {
       prec = BuildPreconditioner();
    }
+   else
+   {
+      prec->SetOperator(*h_explicit_operator);
+   }
    if (!krylov)
    {
       krylov = BuildKrylov();
@@ -426,6 +430,10 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    if (!prec)
    {
       prec = BuildPreconditioner();
+   }
+   else
+   {
+      prec->SetOperator(*penalized_mat);
    }
    if (!krylov)
    {
