@@ -15,13 +15,13 @@
  * @brief Implementation of the tensor class
  */
 
-#pragma once
+#ifndef MFEM_INTERNAL_TENSOR_HPP
+#define MFEM_INTERNAL_TENSOR_HPP
 
 #include "dual.hpp"
 
 namespace mfem
 {
-
 namespace internal
 {
 
@@ -1361,7 +1361,8 @@ bool is_symmetric(tensor<double, n, n> A, double tolerance = 1.0e-8)
  * @param A The matrix to test for positive definiteness
  * @return Whether the matrix is positive definite
  */
-MFEM_HOST_DEVICE bool is_symmetric_and_positive_definite(tensor<double, 2, 2> A)
+inline MFEM_HOST_DEVICE
+bool is_symmetric_and_positive_definite(tensor<double, 2, 2> A)
 {
    if (!is_symmetric(A))
    {
@@ -1378,7 +1379,8 @@ MFEM_HOST_DEVICE bool is_symmetric_and_positive_definite(tensor<double, 2, 2> A)
    return true;
 }
 /// @overload
-MFEM_HOST_DEVICE bool is_symmetric_and_positive_definite(tensor<double, 3, 3> A)
+inline MFEM_HOST_DEVICE
+bool is_symmetric_and_positive_definite(tensor<double, 3, 3> A)
 {
    if (!is_symmetric(A))
    {
@@ -1468,7 +1470,7 @@ tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
  * @param[in] A The matrix to invert
  * @note Uses a shortcut for inverting a 2-by-2 matrix
  */
-MFEM_HOST_DEVICE tensor<double, 2, 2> inv(const tensor<double, 2, 2>& A)
+inline MFEM_HOST_DEVICE tensor<double, 2, 2> inv(const tensor<double, 2, 2>& A)
 {
    double inv_detA(1.0 / det(A));
 
@@ -1486,7 +1488,7 @@ MFEM_HOST_DEVICE tensor<double, 2, 2> inv(const tensor<double, 2, 2>& A)
  * @overload
  * @note Uses a shortcut for inverting a 3-by-3 matrix
  */
-MFEM_HOST_DEVICE tensor<double, 3, 3> inv(const tensor<double, 3, 3>& A)
+inline MFEM_HOST_DEVICE tensor<double, 3, 3> inv(const tensor<double, 3, 3>& A)
 {
    double inv_detA(1.0 / det(A));
 
@@ -1711,7 +1713,7 @@ using outer_product_t = typename detail::outer_prod<T1, T2>::type;
  * @brief Retrieves the gradient component of a double (which is nothing)
  * @return The sentinel, @see zero
  */
-MFEM_HOST_DEVICE zero get_gradient(double /* arg */) { return zero{}; }
+inline MFEM_HOST_DEVICE zero get_gradient(double /* arg */) { return zero{}; }
 
 /**
  * @brief get the gradient of type `tensor` (note: since its stored type is not a dual
@@ -1727,8 +1729,8 @@ MFEM_HOST_DEVICE zero get_gradient(const tensor<double, n...>& /* arg */)
 /**
  * @brief evaluate the change (to first order) in a function, f, given a small change in the input argument, dx.
  */
-MFEM_HOST_DEVICE zero chain_rule(const zero /* df_dx */,
-                                 const zero /* dx */) { return zero{}; }
+inline MFEM_HOST_DEVICE zero chain_rule(const zero /* df_dx */,
+                                        const zero /* dx */) { return zero{}; }
 
 /**
  * @overload
@@ -1756,8 +1758,8 @@ MFEM_HOST_DEVICE zero chain_rule(const T /* df_dx */,
  * @overload
  * @note for a scalar-valued function of a scalar, the chain rule is just multiplication
  */
-MFEM_HOST_DEVICE double chain_rule(const double df_dx,
-                                   const double dx) { return df_dx * dx; }
+inline MFEM_HOST_DEVICE double chain_rule(const double df_dx,
+                                          const double dx) { return df_dx * dx; }
 
 /**
  * @overload
@@ -1774,3 +1776,7 @@ decltype(df_dx * dx)
 } // namespace internal
 
 } // namespace mfem
+
+#include "tensor_isotropic.hpp"
+
+#endif
