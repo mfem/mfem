@@ -263,7 +263,7 @@ int main (int argc, char *argv[])
       {
          sout.precision(8);
          sout << "solution\n" << mesh << *field_vals_pref;
-         if (dim == 2) { sout << "keys RmjA*****\n"; }
+         if (dim == 2) { sout << "keys RmjA*****En\n"; }
          if (dim == 3) { sout << "keys mA\n"; }
          sout << flush;
       }

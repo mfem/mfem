@@ -33,7 +33,9 @@ namespace mfem
 {
 
 FindPointsGSLIB::FindPointsGSLIB()
-   : mesh(NULL), meshsplit(NULL), ir_simplex(NULL),
+   : mesh(NULL), meshsplit(NULL),
+     meshsplit_tri(NULL), meshsplit_tet(NULL), meshsplit_prism(NULL),
+     ir_simplex(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC)
@@ -55,13 +57,18 @@ FindPointsGSLIB::~FindPointsGSLIB()
 {
    delete gsl_comm;
    delete cr;
-   delete ir_simplex;
-   delete meshsplit;
+   if (meshsplit) { delete meshsplit; }
+   if (meshsplit_tri) { delete meshsplit_tri; }
+   if (meshsplit_tet) { delete meshsplit_tet; }
+   if (meshsplit_prism) { delete meshsplit_prism; }
+
 }
 
 #ifdef MFEM_USE_MPI
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
-   : mesh(NULL), meshsplit(NULL), ir_simplex(NULL),
+   : mesh(NULL), meshsplit(NULL),
+     meshsplit_tri(NULL), meshsplit_tet(NULL), meshsplit_prism(NULL),
+     ir_simplex(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC)
@@ -76,8 +83,8 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
                             const int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
-   MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
-               "Mixed meshes are not currently supported in FindPointsGSLIB.");
+//   MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
+//               "Mixed meshes are not currently supported in FindPointsGSLIB.");
    MFEM_VERIFY(!(m.GetNodes()->FESpace()->IsVariableOrder()),
                "Variable order mesh is not currently supported.");
 
@@ -89,21 +96,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    dim  = mesh->Dimension();
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
    unsigned dof1D = fe->GetOrder() + 1;
-   const int gt   = fe->GetGeomType();
-
-   if (gt == Geometry::TRIANGLE || gt == Geometry::TETRAHEDRON ||
-       gt == Geometry::PRISM)
-   {
-      GetSimplexNodalCoordinates();
-   }
-   else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
-   {
-      GetQuadHexNodalCoordinates();
-   }
-   else
-   {
-      MFEM_ABORT("Element type not currently supported in FindPointsGSLIB.");
-   }
+   GetNodalValues(mesh->GetNodes(), gsl_mesh);
 
    const int pts_cnt = gsl_mesh.Size()/dim,
              NEtot = pts_cnt/(int)pow(dof1D, dim);
@@ -491,87 +484,397 @@ void FindPointsGSLIB::GetSimplexNodalCoordinates()
    }
 }
 
+void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in, Vector &node_vals)
+{
+   const GridFunction *nodes     = gf_in;
+   const FiniteElementSpace *fes = nodes->FESpace();
+   const int NE                  = mesh->GetNE();
+   const int vdim                = gf_in->FESpace()->GetVDim();
+
+   int NEsplit;
+
+   // Find which elements will be split and create a mapping from split element
+   // to parent element
+   int NEsplittotal = 0;
+   splitElementMap.SetSize(0);
+   splitElementIndex.SetSize(0);
+   for (int e = 0; e < NE; e++)
+   {
+       const FiniteElement *fe   = nodes->FESpace()->GetFE(e);
+       const Geometry::Type gt   = fe->GetGeomType();
+       if (gt == Geometry::TRIANGLE || gt == Geometry::PRISM)
+       {
+           NEsplittotal += 3;
+           for (int i = 0; i < 3; i++) {
+               splitElementMap.Append(e);
+               splitElementIndex.Append(i);
+           }
+       }
+       else if (gt == Geometry::TETRAHEDRON)
+       {
+           NEsplittotal += 4;
+           for (int i = 0; i < 4; i++) {
+               splitElementMap.Append(e);
+               splitElementIndex.Append(i);
+           }
+       }
+       else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
+       {
+           NEsplittotal += 1;
+           splitElementMap.Append(e);
+           splitElementIndex.Append(0);
+       }
+       else
+       {
+           MFEM_ABORT("Unsupported geometry type.");
+       }
+   }
+
+   const int dof_1D =  nodes->FESpace()->GetFE(0)->GetOrder()+1;
+   const int pts_el = std::pow(dof_1D, dim);
+   const int pts_cnt = NEsplittotal * pts_el;
+   node_vals.SetSize(vdim * pts_cnt);
+   node_vals *= 0;
+
+   int split_element_index = 0;
+   int gsl_mesh_pt_index = 0;
+
+   for (int e = 0; e < NE; e++)
+   {
+       const FiniteElement *fe   = nodes->FESpace()->GetFE(e);
+       const Geometry::Type gt   = fe->GetGeomType();
+       bool el_to_split = true;
+
+       // Split the reference element into a reference submesh of quads or hexes.
+       if (gt == Geometry::TRIANGLE)
+       {
+          if (meshsplit_tri)
+          {
+              if (meshsplit) { delete meshsplit; meshsplit = NULL; }
+              meshsplit = new Mesh(*meshsplit_tri);
+              NEsplit = 3;
+          }
+          else
+          {
+              int Nvert = 7;
+              NEsplit = 3;
+              meshsplit_tri = new Mesh(2, Nvert, NEsplit, 0, 2);
+
+              const double quad_v[7][2] =
+              {
+                 {0, 0}, {0.5, 0}, {1, 0}, {0, 0.5},
+                 {1./3., 1./3.}, {0.5, 0.5}, {0, 1}
+              };
+              const int quad_e[3][4] =
+              {
+                 {3, 4, 1, 0}, {4, 5, 2, 1}, {6, 5, 4, 3}
+              };
+
+              for (int j = 0; j < Nvert; j++)
+              {
+                 meshsplit_tri->AddVertex(quad_v[j]);
+              }
+              for (int j = 0; j < NEsplit; j++)
+              {
+                 int attribute = j + 1;
+                 meshsplit_tri->AddQuad(quad_e[j], attribute);
+              }
+              meshsplit_tri->FinalizeQuadMesh(1, 1, true);
+              if (meshsplit) { delete meshsplit; meshsplit = NULL; }
+              meshsplit = new Mesh(*meshsplit_tri);
+          }
+       }
+       else if (gt == Geometry::TETRAHEDRON)
+       {
+          if (meshsplit_tet)
+          {
+              if (meshsplit) { delete meshsplit; meshsplit = NULL; }
+              meshsplit = new Mesh(*meshsplit_tet);
+              NEsplit = 4;
+          }
+          else
+          {
+              int Nvert = 15;
+              NEsplit = 4;
+              meshsplit_tet = new Mesh(3, Nvert, NEsplit, 0, 3);
+
+              const double hex_v[15][3] =
+              {
+                 {0, 0, 0.}, {1, 0., 0.}, {0., 1., 0.}, {0, 0., 1.},
+                 {0.5, 0., 0.}, {0.5, 0.5, 0.}, {0., 0.5, 0.},
+                 {0., 0., 0.5}, {0.5, 0., 0.5}, {0., 0.5, 0.5},
+                 {1./3., 0., 1./3.}, {1./3., 1./3., 1./3.}, {0, 1./3., 1./3.},
+                 {1./3., 1./3., 0}, {0.25, 0.25, 0.25}
+              };
+              const int hex_e[4][8] =
+              {
+                 {0, 4, 10, 7, 6, 13, 14, 12},
+                 {4, 1, 8, 10, 13, 5, 11, 14},
+                 {13, 5, 11, 14, 6, 2, 9, 12},
+                 {10, 8, 3, 7, 14, 11, 9, 12}
+              };
+
+              for (int j = 0; j < Nvert; j++)
+              {
+                 meshsplit_tet->AddVertex(hex_v[j]);
+              }
+              for (int j = 0; j < NEsplit; j++)
+              {
+                 int attribute = j + 1;
+                 meshsplit_tet->AddHex(hex_e[j], attribute);
+              }
+              meshsplit_tet->FinalizeHexMesh(1, 1, true);
+              if (meshsplit) { delete meshsplit; meshsplit = NULL; }
+              meshsplit = new Mesh(*meshsplit_tet);
+          }
+       }
+       else if (gt == Geometry::PRISM)
+       {
+          if (meshsplit_prism) {
+              if (meshsplit) { delete meshsplit; meshsplit = NULL; }
+              meshsplit = new Mesh(*meshsplit_prism);
+              NEsplit = 3;
+          }
+          else {
+              int Nvert = 14;
+              NEsplit = 3;
+              meshsplit_prism = new Mesh(3, Nvert, NEsplit, 0, 3);
+
+              const double hex_v[14][3] =
+              {
+                 {0, 0, 0}, {0.5, 0, 0}, {1, 0, 0}, {0, 0.5, 0},
+                 {1./3., 1./3., 0}, {0.5, 0.5, 0}, {0, 1, 0},
+                 {0, 0, 1}, {0.5, 0, 1}, {1, 0, 1}, {0, 0.5, 1},
+                 {1./3., 1./3., 1}, {0.5, 0.5, 1}, {0, 1, 1}
+              };
+              const int hex_e[3][8] =
+              {
+                 {3, 4, 1, 0, 10, 11, 8, 7},
+                 {4, 5, 2, 1, 11, 12, 9, 8},
+                 {6, 5, 4, 3, 13, 12, 11, 10}
+              };
+
+              for (int j = 0; j < Nvert; j++)
+              {
+                 meshsplit_prism->AddVertex(hex_v[j]);
+              }
+              for (int j = 0; j < NEsplit; j++)
+              {
+                 int attribute = j + 1;
+                 meshsplit_prism->AddHex(hex_e[j], attribute);
+              }
+              meshsplit_prism->FinalizeHexMesh(1, 1, true);
+              if (meshsplit) { delete meshsplit; meshsplit = NULL; }
+              meshsplit = new Mesh(*meshsplit_prism);
+          }
+       }
+       else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
+       {
+           el_to_split = false;
+       }
+       else if (gt == Geometry::PYRAMID)
+       {
+           MFEM_ABORT("Unsupported geometry type.");
+       }
+
+       if (el_to_split) // Triangle/Tet/Prism
+       {
+           H1_FECollection fec(fe->GetOrder(), dim);
+           FiniteElementSpace nodal_fes(meshsplit, &fec, dim);
+           meshsplit->SetNodalFESpace(&nodal_fes);
+
+           const int dof_cnt_split = nodal_fes.GetFE(0)->GetDof(),
+                     pts_cnt_split = NEsplit * dof_cnt_split;
+           Vector irlist(dim * pts_cnt_split);
+
+           const TensorBasisElement *tbe =
+              dynamic_cast<const TensorBasisElement *>(nodal_fes.GetFE(0));
+           MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
+           const Array<int> &dof_map = tbe->GetDofMap();
+
+           DenseMatrix pos(dof_cnt_split, dim);
+           Vector posV(pos.Data(), dof_cnt_split * dim);
+           Array<int> xdofs(dof_cnt_split * dim);
+
+           // Create an IntegrationRule on the nodes of the reference submesh.
+           ir_simplex = new IntegrationRule(pts_cnt_split);
+           GridFunction *nodesplit = meshsplit->GetNodes();
+           int pt_id = 0;
+           for (int i = 0; i < NEsplit; i++)
+           {
+              nodal_fes.GetElementVDofs(i, xdofs);
+              nodesplit->GetSubVector(xdofs, posV);
+              for (int j = 0; j < dof_cnt_split; j++)
+              {
+                 for (int d = 0; d < dim; d++)
+                 {
+                    irlist(pts_cnt_split * d + pt_id) = pos(dof_map[j], d);
+                 }
+                 ir_simplex->IntPoint(pt_id).x = irlist(pt_id);
+                 ir_simplex->IntPoint(pt_id).y = irlist(pts_cnt_split + pt_id);
+                 if (dim == 3)
+                 {
+                    ir_simplex->IntPoint(pt_id).z = irlist(2*pts_cnt_split + pt_id);
+                 }
+                 pt_id++;
+              }
+           }
+
+           // Fill gsl_mesh with location of split points.
+           Vector locval(vdim);
+           for (int i = 0; i < dof_cnt_split*NEsplit; i++)
+           {
+              const IntegrationPoint &ip = ir_simplex->IntPoint(i);
+              nodes->GetVectorValue(e, ip, locval);
+              for (int d = 0; d < vdim; d++)
+              {
+                 node_vals(pts_cnt*d + gsl_mesh_pt_index) = locval(d);
+              }
+              gsl_mesh_pt_index++;
+           }
+           split_element_index += NEsplit;
+           delete ir_simplex; ir_simplex = NULL;
+       }
+       else // Quad/Hex
+       {
+           const int dof_cnt_split = fe->GetDof();
+
+           const TensorBasisElement *tbe =
+              dynamic_cast<const TensorBasisElement *>(fes->GetFE(e));
+           MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
+           Array<int> dof_map(dof_cnt_split);
+           const Array<int> &dm = tbe->GetDofMap();
+           if (dm.Size() > 0) { dof_map = dm; }
+           else { for (int i = 0; i < dof_cnt_split; i++) { dof_map[i] = i; } }
+
+           DenseMatrix pos(dof_cnt_split, vdim);
+           Vector posV(pos.Data(), dof_cnt_split * vdim);
+           Array<int> xdofs(dof_cnt_split * vdim);
+
+           fes->GetElementVDofs(e, xdofs);
+           nodes->GetSubVector(xdofs, posV);
+           for (int j = 0; j < dof_cnt_split; j++)
+           {
+              for (int d = 0; d < vdim; d++)
+              {
+                 node_vals(pts_cnt * d + gsl_mesh_pt_index) = pos(dof_map[j], d);
+              }
+              gsl_mesh_pt_index++;
+           }
+           split_element_index += 1;
+       }
+       if (meshsplit) { delete meshsplit; meshsplit = NULL; }
+   }
+}
+
+
 void FindPointsGSLIB::MapRefPosAndElemIndices()
 {
    gsl_mfem_ref = gsl_ref;
    gsl_mfem_elem = gsl_elem;
-   const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
-   const Geometry::Type gt = fe->GetGeomType();
-   int NEsplit = 0;
 
    gsl_mfem_ref -= -1.;  // map  [-1, 1] to
    gsl_mfem_ref *= 0.5;  //      [0,  1]
-   if (gt == Geometry::SQUARE || gt == Geometry::CUBE) { return; }
+   int NEsplit = 0;
 
-   H1_FECollection feclin(1, dim);
-   FiniteElementSpace nodal_fes_lin(meshsplit, &feclin, dim);
-   GridFunction gf_lin(&nodal_fes_lin);
-
-   if (gt == Geometry::TRIANGLE)
-   {
-      const double quad_v[7][2] =
-      {
-         {0, 0}, {0.5, 0}, {1, 0}, {0, 0.5},
-         {1./3., 1./3.}, {0.5, 0.5}, {0, 1}
-      };
-      for (int k = 0; k < dim; k++)
-      {
-         for (int j = 0; j < gf_lin.Size()/dim; j++)
-         {
-            gf_lin(j+k*gf_lin.Size()/dim) = quad_v[j][k];
-         }
-      }
-      NEsplit = 3;
-   }
-   else if (gt == Geometry::TETRAHEDRON)
-   {
-      const double hex_v[15][3] =
-      {
-         {0, 0, 0.}, {1, 0., 0.}, {0., 1., 0.}, {0, 0., 1.},
-         {0.5, 0., 0.}, {0.5, 0.5, 0.}, {0., 0.5, 0.},
-         {0., 0., 0.5}, {0.5, 0., 0.5}, {0., 0.5, 0.5},
-         {1./3., 0., 1./3.}, {1./3., 1./3., 1./3.}, {0, 1./3., 1./3.},
-         {1./3., 1./3., 0}, {0.25, 0.25, 0.25}
-      };
-      for (int k = 0; k < dim; k++)
-      {
-         for (int j = 0; j < gf_lin.Size()/dim; j++)
-         {
-            gf_lin(j+k*gf_lin.Size()/dim) = hex_v[j][k];
-         }
-      }
-      NEsplit = 4;
-   }
-   else if (gt == Geometry::PRISM)
-   {
-      const double hex_v[14][3] =
-      {
-         {0, 0, 0}, {0.5, 0, 0}, {1, 0, 0}, {0, 0.5, 0},
-         {1./3., 1./3., 0}, {0.5, 0.5, 0}, {0, 1, 0},
-         {0, 0, 1}, {0.5, 0, 1}, {1, 0, 1}, {0, 0.5, 1},
-         {1./3., 1./3., 1}, {0.5, 0.5, 1}, {0, 1, 1}
-      };
-      for (int k = 0; k < dim; k++)
-      {
-         for (int j = 0; j < gf_lin.Size()/dim; j++)
-         {
-            gf_lin(j+k*gf_lin.Size()/dim) = hex_v[j][k];
-         }
-      }
-      NEsplit = 3;
-   }
-   else
-   {
-      MFEM_ABORT("Element type not currently supported.");
+   // If the mesh is all-quad or all-hex, return.
+   if (mesh->GetNumGeometries(mesh->Dimension()) == 1) {
+       const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
+       const Geometry::Type gt = fe->GetGeomType();
+       if (gt == Geometry::SQUARE || gt == Geometry::CUBE) { return; }
    }
 
-   // Simplices are split into quads/hexes for GSLIB. For MFEM, we need to find
-   // the original element number and map the rst from micro to macro element.
    for (int i = 0; i < points_cnt; i++)
    {
       if (gsl_code[i] == 2) { continue; }
-      int local_elem   = gsl_elem[i]%NEsplit;
-      gsl_mfem_elem[i] = (gsl_elem[i] - local_elem)/NEsplit; // macro element number
+      const int elem = gsl_elem[i];
+      const int mesh_elem = splitElementMap[elem];
+      const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(mesh_elem);
+      const Geometry::Type gt = fe->GetGeomType();
+      gsl_mfem_elem[i] = mesh_elem;
+      if (gt == Geometry::SQUARE || gt == Geometry::CUBE) { continue; }
+
+      if (meshsplit) { delete meshsplit; meshsplit = NULL; }
+      if (gt == Geometry::TRIANGLE)
+      {
+          meshsplit = new Mesh(*meshsplit_tri);
+      }
+      else if (gt == Geometry::TETRAHEDRON)
+      {
+          meshsplit = new Mesh(*meshsplit_tet);
+      }
+      else if (gt == Geometry::PRISM)
+      {
+          meshsplit = new Mesh(*meshsplit_prism);
+      }
+      else
+      {
+          MFEM_ABORT("Invalid element type");
+      }
+
+      H1_FECollection feclin(1, dim);
+      FiniteElementSpace nodal_fes_lin(meshsplit, &feclin, dim);
+      GridFunction gf_lin(&nodal_fes_lin);
+
+      if (gt == Geometry::TRIANGLE)
+      {
+          const double quad_v[7][2] =
+          {
+             {0, 0}, {0.5, 0}, {1, 0}, {0, 0.5},
+             {1./3., 1./3.}, {0.5, 0.5}, {0, 1}
+          };
+          for (int k = 0; k < dim; k++)
+          {
+             for (int j = 0; j < gf_lin.Size()/dim; j++)
+             {
+                gf_lin(j+k*gf_lin.Size()/dim) = quad_v[j][k];
+             }
+          }
+          NEsplit = 3;
+      }
+      else if (gt == Geometry::TETRAHEDRON)
+      {
+          const double hex_v[15][3] =
+          {
+             {0, 0, 0.}, {1, 0., 0.}, {0., 1., 0.}, {0, 0., 1.},
+             {0.5, 0., 0.}, {0.5, 0.5, 0.}, {0., 0.5, 0.},
+             {0., 0., 0.5}, {0.5, 0., 0.5}, {0., 0.5, 0.5},
+             {1./3., 0., 1./3.}, {1./3., 1./3., 1./3.}, {0, 1./3., 1./3.},
+             {1./3., 1./3., 0}, {0.25, 0.25, 0.25}
+          };
+          for (int k = 0; k < dim; k++)
+          {
+             for (int j = 0; j < gf_lin.Size()/dim; j++)
+             {
+                gf_lin(j+k*gf_lin.Size()/dim) = hex_v[j][k];
+             }
+          }
+          NEsplit = 4;
+      }
+      else if (gt == Geometry::PRISM)
+      {
+          const double hex_v[14][3] =
+          {
+             {0, 0, 0}, {0.5, 0, 0}, {1, 0, 0}, {0, 0.5, 0},
+             {1./3., 1./3., 0}, {0.5, 0.5, 0}, {0, 1, 0},
+             {0, 0, 1}, {0.5, 0, 1}, {1, 0, 1}, {0, 0.5, 1},
+             {1./3., 1./3., 1}, {0.5, 0.5, 1}, {0, 1, 1}
+          };
+          for (int k = 0; k < dim; k++)
+          {
+             for (int j = 0; j < gf_lin.Size()/dim; j++)
+             {
+                gf_lin(j+k*gf_lin.Size()/dim) = hex_v[j][k];
+             }
+          }
+          NEsplit = 3;
+      }
+      else
+      {
+          MFEM_ABORT("Invalid element type");
+      }
+
+      int local_elem = splitElementIndex[gsl_elem[i]];
 
       IntegrationPoint ip;
       Vector mfem_ref(gsl_mfem_ref.GetData()+i*dim, dim);
@@ -681,7 +984,8 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
       const int dataptrin  = i*points_fld,
                 dataptrout = i*points_cnt;
       field_in_scalar.NewDataAndSize(field_in.GetData()+dataptrin, points_fld);
-      GetNodeValues(field_in_scalar, node_vals);
+      //GetNodeValues(field_in_scalar, node_vals);
+      GetNodalValues(&field_in_scalar, node_vals);
 
       if (dim==2)
       {
@@ -871,21 +1175,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    dim  = mesh->Dimension();
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
    unsigned dof1D = fe->GetOrder() + 1;
-   int gt      = fe->GetGeomType();
-
-   if (gt == Geometry::TRIANGLE || gt == Geometry::TETRAHEDRON ||
-       gt == Geometry::PRISM)
-   {
-      GetSimplexNodalCoordinates();
-   }
-   else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
-   {
-      GetQuadHexNodalCoordinates();
-   }
-   else
-   {
-      MFEM_ABORT("Element type not currently supported in FindPointsGSLIB.");
-   }
+   GetNodalValues(mesh->GetNodes(), gsl_mesh);
 
    MFEM_ASSERT(meshid>=0, " The ID should be greater than or equal to 0.");
 
@@ -899,7 +1189,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    }
    else
    {
-      GetNodeValues(*gfmax, distfint);
+      GetNodalValues(gfmax, distfint);
    }
    u_meshid = (unsigned int)meshid;
 
