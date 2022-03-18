@@ -47,7 +47,7 @@ void Hypre::Finalize()
    Hypre &hypre = Instance();
    if (!hypre.finalized)
    {
-#if MFEM_HYPRE_VERSION >= 21500
+#if MFEM_HYPRE_VERSION >= 21900
       HYPRE_Finalize();
 #endif
       hypre.finalized = true;
