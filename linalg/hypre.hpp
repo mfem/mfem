@@ -1116,6 +1116,12 @@ public:
       num_iterations = internal::to_int(num_it);
    }
 
+   void GetFinalResidualNorm(double &final_res_norm) const
+   {
+      HYPRE_ParCSRPCGGetFinalRelativeResidualNorm(pcg_solver,
+                                                  &final_res_norm);
+   }
+
    /// The typecast to HYPRE_Solver returns the internal pcg_solver
    virtual operator HYPRE_Solver() const { return pcg_solver; }
 
@@ -1167,6 +1173,19 @@ public:
    /// non-hypre setting
    void SetZeroInitialIterate() { iterative_mode = false; }
 
+   void GetNumIterations(int &num_iterations) const
+   {
+      HYPRE_Int num_it;
+      HYPRE_ParCSRGMRESGetNumIterations(gmres_solver, &num_it);
+      num_iterations = internal::to_int(num_it);
+   }
+
+   void GetFinalResidualNorm(double &final_res_norm) const
+   {
+      HYPRE_ParCSRGMRESGetFinalRelativeResidualNorm(gmres_solver,
+                                                    &final_res_norm);
+   }
+
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
    virtual operator HYPRE_Solver() const  { return gmres_solver; }
 
@@ -1216,6 +1235,19 @@ public:
 
    /// non-hypre setting
    void SetZeroInitialIterate() { iterative_mode = false; }
+
+   void GetNumIterations(int &num_iterations) const
+   {
+      HYPRE_Int num_it;
+      HYPRE_ParCSRFlexGMRESGetNumIterations(fgmres_solver, &num_it);
+      num_iterations = internal::to_int(num_it);
+   }
+
+   void GetFinalResidualNorm(double &final_res_norm) const
+   {
+      HYPRE_ParCSRFlexGMRESGetFinalRelativeResidualNorm(fgmres_solver,
+                                                        &final_res_norm);
+   }
 
    /// The typecast to HYPRE_Solver returns the internal fgmres_solver
    virtual operator HYPRE_Solver() const  { return fgmres_solver; }
