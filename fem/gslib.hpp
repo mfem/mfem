@@ -50,7 +50,7 @@ public:
    enum AvgType {NONE, ARITHMETIC, HARMONIC}; // Average type for L2 functions
 
 protected:
-   Mesh *mesh, *meshsplit;
+   Mesh *mesh, *meshsplit, *meshsplit_tri, *meshsplit_tet, *meshsplit_prism;
    IntegrationRule *ir_simplex;    // IntegrationRule to split quads/hex -> simplex
    struct gslib::findpts_data_2 *fdata2D; // gslib's internal data
    struct gslib::findpts_data_3 *fdata3D; // gslib's internal data
@@ -62,6 +62,8 @@ protected:
    bool setupflag;              // flag to indicate whether gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
    AvgType avgtype;             // average type used for L2 functions
+   Array<int> splitElementMap;
+   Array<int> splitElementIndex;
 
    /// Get GridFunction from MFEM format to GSLIB format
    virtual void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
@@ -71,6 +73,7 @@ protected:
    /// Convert simplices to quad/hexes and then get nodal coordinates for each
    /// split element into format expected by GSLIB
    virtual void GetSimplexNodalCoordinates();
+   virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals);
 
    /// Use GSLIB for communication and interpolation
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);
