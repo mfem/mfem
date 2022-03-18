@@ -11,6 +11,7 @@
 
 #include "optparser.hpp"
 #include "../linalg/vector.hpp"
+#include "../general/communication.hpp"
 #include <cctype>
 
 namespace mfem
@@ -253,18 +254,14 @@ void OptionsParser::ParseCheck(std::ostream &os)
    Parse();
    int my_rank = 0;
 #ifdef MFEM_USE_MPI
-   int mpi_is_initialized;
-   int mpi_err = MPI_Initialized(&mpi_is_initialized);
-   if (mpi_err == MPI_SUCCESS && mpi_is_initialized)
-   {
-      MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-   }
+   int mpi_is_initialized = Mpi::IsInitialized();
+   if (mpi_is_initialized) { my_rank = Mpi::WorldRank(); }
 #endif
    if (!Good())
    {
       if (my_rank == 0) { PrintUsage(os); }
 #ifdef MFEM_USE_MPI
-      if (mpi_is_initialized) { MPI_Finalize(); }
+      Mpi::Finalize();
 #endif
       std::exit(1);
    }
