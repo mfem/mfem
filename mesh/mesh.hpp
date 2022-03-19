@@ -166,6 +166,10 @@ protected:
    Array<int> be_to_face;
    mutable Table *face_edge;
    mutable Table *edge_vertex;
+   Table *vertex_to_el;
+   Table *vertex_to_face;
+   Table *vertex_to_edge;
+
 
    IsoparametricTransformation Transformation, Transformation2;
    IsoparametricTransformation BdrTransformation;
@@ -1076,6 +1080,16 @@ public:
    /// Return the index and the orientation of the face of bdr element i. (3D)
    void GetBdrElementFace(int i, int *f, int *o) const;
 
+   /// Return the indices of the edges conected to vertex i.
+   void GetVertexEdges(int i, Array<int> &edges);
+
+   /// Return the indices of the faces connected to vertex i.
+   void GetVertexFaces(int i, Array<int> &faces);
+
+   // Return the indices of the elements connected to vertex i.
+   void GetVertexElements(int i, Array<int> &elems);
+
+
    /** Return the vertex index of boundary element i. (1D)
        Return the edge index of boundary element i. (2D)
        Return the face index of boundary element i. (3D) */
@@ -1234,8 +1248,14 @@ public:
 
    const Table &ElementToEdgeTable() const;
 
-   ///  The returned Table must be destroyed by the caller
-   Table *GetVertexToElementTable();
+   /// Returns the vertex-to-element Table 
+   Table *GetVertexToElementTable() const;
+
+   /// Returns the vertex-to-edge Table (3D)
+   Table *GetVertexToEdgeTable() const;
+
+   /// Returns the vertex-to-face Table (3D)
+   Table *GetVertexToFaceTable() const;
 
    /** Return the "face"-element Table. Here "face" refers to face (3D),
        edge (2D), or vertex (1D).

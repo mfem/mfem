@@ -334,6 +334,7 @@ void BFieldAdvector::FindPtsInterpolateToTargetMesh(const ParGridFunction *old_g
    }
    else // H(div) or H(curl)
    {
+      std::cout << "Writing data into H(curl)/H(Div) dofs" <<std::endl;
       Array<int> vdofs;
       Vector vals;
       int ivals_pos = 0;

@@ -1192,6 +1192,7 @@ void Mesh::InitTables()
 {
    el_to_edge =
       el_to_face = el_to_el = bel_to_edge = face_edge = edge_vertex = NULL;
+   vertex_to_el = vertex_to_face = vertex_to_edge = NULL;
 }
 
 void Mesh::SetEmpty()
@@ -1276,6 +1277,11 @@ void Mesh::ResetLazyData()
    delete el_to_el;     el_to_el = NULL;
    delete face_edge;    face_edge = NULL;
    delete edge_vertex;  edge_vertex = NULL;
+   delete vertex_edge;  vertex_edge = NULL;
+   delete vertex_face;  vertex_face = NULL;
+   delete vertex_el;    vertex_el = NULL;
+
+
    DeleteGeometricFactors();
    nbInteriorFaces = -1;
    nbBoundaryFaces = -1;
@@ -3350,6 +3356,11 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    // Do NOT copy the face-to-edge Table, face_edge
    face_edge = NULL;
+
+   // Do NOT copy the vertex to edge face and element tables
+   vertex_to_edge = NULL;
+   vertex_to_face = NULL;
+   vertex_to_el = NULL;
 
    // Copy the edge-to-vertex Table, edge_vertex
    edge_vertex = (mesh.edge_vertex) ? new Table(*mesh.edge_vertex) : NULL;
@@ -5776,25 +5787,59 @@ Table *Mesh::GetEdgeVertexTable() const
    return edge_vertex;
 }
 
-Table *Mesh::GetVertexToElementTable()
+
+Table *Mesh::GetVertexToEdgeTable() const
+{
+
+   if (vertex_to_edge) {return vertex_to_edge;}
+
+   Table *edge_to_vertex_table = GetEdgeVertexTable();
+   vertex_to_edge = Transpose(edge_to_vertex_table);
+   return vertex_to_edge;
+}
+
+Table *Mesh::GetVertexToFaceTable() const
+{
+   if (vertex_to_face) {return vertex_to_face;}
+   vertex_to_face = new Table;
+
+   vertex_to_face->MakeI(NumOfVertices);
+   for (i = 0; i < NumOfElements; i++)
+   {
+      nv = elements[i]->GetNVertices();
+      v  = elements[i]->GetVertices();
+      for (j = 0; j < nv; j++)
+      {
+         vertex_to_face->AddAColumnInRow(v[j]);
+      }
+   }
+
+   vertex_to_face->MakeJ();
+   //TODO: change this to faces
+   for (i = 0; i < NumOfElements; i++)
+   {
+      nv = elements[i]->GetNVertices();
+      v  = elements[i]->GetVertices();
+      for (j = 0; j < nv; j++)
+      {
+         vertex_to_face->AddConnection(v[j], i);
+      }
+   }
+
+   vertex_to_face->ShiftUpI();
+
+   return vertex_to_face;
+}
+
+
+Table *Mesh::GetVertexToElementTable() const
 {
    int i, j, nv, *v;
 
-   Table *vert_elem = new Table;
+   if (vertex_to_el) {return vertex_to_el;}
+   vertex_to_el = new Table;
 
-   vert_elem->MakeI(NumOfVertices);
-
-   for (i = 0; i < NumOfElements; i++)
-   {
-      nv = elements[i]->GetNVertices();
-      v  = elements[i]->GetVertices();
-      for (j = 0; j < nv; j++)
-      {
-         vert_elem->AddAColumnInRow(v[j]);
-      }
-   }
-
-   vert_elem->MakeJ();
+   vertex_to_el->MakeI(NumOfVertices);
 
    for (i = 0; i < NumOfElements; i++)
    {
@@ -5802,13 +5847,25 @@ Table *Mesh::GetVertexToElementTable()
       v  = elements[i]->GetVertices();
       for (j = 0; j < nv; j++)
       {
-         vert_elem->AddConnection(v[j], i);
+         vertex_to_el->AddAColumnInRow(v[j]);
       }
    }
 
-   vert_elem->ShiftUpI();
+   vertex_to_el->MakeJ();
 
-   return vert_elem;
+   for (i = 0; i < NumOfElements; i++)
+   {
+      nv = elements[i]->GetNVertices();
+      v  = elements[i]->GetVertices();
+      for (j = 0; j < nv; j++)
+      {
+         vertex_to_el->AddConnection(v[j], i);
+      }
+   }
+
+   vertex_to_el->ShiftUpI();
+
+   return vertex_to_el;
 }
 
 Table *Mesh::GetFaceToElementTable() const
@@ -5890,6 +5947,25 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
          MFEM_ABORT("invalid geometry");
    }
 }
+
+
+void Mesh::GetVertexEdges(int i, Array<int> &edges)
+{
+   Table *e_v = GetEdgeVertexTable();
+}
+
+
+void Mesh::GetVertexFaces(int i, Array<int> &faces)
+{
+
+}
+
+
+void Mesh::GetVertexElements(int i, Array<int> &elems)
+{
+
+}
+
 
 int Mesh::GetBdrElementEdgeIndex(int i) const
 {
