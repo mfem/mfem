@@ -24,7 +24,7 @@ IntegerSet::IntegerSet(IntegerSet &s)
    }
 }
 
-IntegerSet& IntegerSet::operator=(IntegerSet &s)
+IntegerSet& IntegerSet::operator=(const IntegerSet &s)
 {
    me.SetSize(s.me.Size());
    for (int i = 0; i < me.Size(); i++)

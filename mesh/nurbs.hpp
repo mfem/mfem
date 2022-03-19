@@ -116,7 +116,7 @@ public:
               const KnotVector *kv2, int dim_);
    NURBSPatch(Array<const KnotVector *> &kv, int dim_);
 
-   NURBSPatch& operator=(NURBSPatch&) = delete;
+   NURBSPatch& operator=(const NURBSPatch&) = delete;
 
    ~NURBSPatch();
 
@@ -322,7 +322,7 @@ public:
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
    /// Copy assignment not supported
-   NURBSExtension& operator=(NURBSExtension&) = delete;
+   NURBSExtension& operator=(const NURBSExtension&) = delete;
 
    // Generate connections between boundaries, such as periodic BCs
    void ConnectBoundaries(Array<int> &master, Array<int> &slave);
