@@ -18,7 +18,7 @@ void Hrefine(GridFunction &u, Coefficient &gf_ex, double min_thresh,
 void Hrefine2(GridFunction &u, Coefficient &gf_ex, double min_thresh,
               double max_thresh);
 
-void Refine(Array<int> ref_actions, GridFunction &u, int depth_limit = 100);
+Table * Refine(Array<int> ref_actions, GridFunction &u, int depth_limit = 100);
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
@@ -500,7 +500,7 @@ void Hrefine2(GridFunction &u, Coefficient & ex_coeff, double min_thresh,
 }
 
 
-void Refine(Array<int> ref_actions, GridFunction &u, int depth_limit)
+Table * Refine(Array<int> ref_actions, GridFunction &u, int depth_limit)
 {
    FiniteElementSpace * fes = u.FESpace();
    Mesh * mesh = fes->GetMesh();
@@ -533,12 +533,12 @@ void Refine(Array<int> ref_actions, GridFunction &u, int depth_limit)
    Array<int> actions_marker(ne);
    actions_marker = 0;
 
-   const Table & dref_table = mesh->ncmesh->GetDerefinementTable();
+   const Table & deref_table = mesh->ncmesh->GetDerefinementTable();
 
-   for (int i = 0; i<dref_table.Size(); i++)
+   for (int i = 0; i<deref_table.Size(); i++)
    {
-      int n = dref_table.RowSize(i);
-      const int * row = dref_table.GetRow(i);
+      int n = deref_table.RowSize(i);
+      const int * row = deref_table.GetRow(i);
       int sum_of_actions = 0;
       bool ref_flag = false;
       for (int j = 0; j<n; j++)
@@ -598,20 +598,23 @@ void Refine(Array<int> ref_actions, GridFunction &u, int depth_limit)
       u.Update();
       ne = mesh->GetNE();
    }
+
+   Table * ref_table = nullptr;
+   Table * dref_table = nullptr;
    // now the derefinements
    Array<int> new_actions(ne);
    if (refinements.Size())
    {
       new_actions = 1;
       const CoarseFineTransformations & tr = mesh->GetRefinementTransforms();
-      Table coarse_to_fine;
-      tr.MakeCoarseToFineTable(coarse_to_fine);
-      for (int i = 0; i<coarse_to_fine.Size(); i++)
+      ref_table = new Table();
+      tr.MakeCoarseToFineTable(*ref_table);
+      for (int i = 0; i<ref_table->Size(); i++)
       {
-         int n = coarse_to_fine.RowSize(i);
+         int n = ref_table->RowSize(i);
          if (n == 1)
          {
-            int * row = coarse_to_fine.GetRow(i);
+            int * row = ref_table->GetRow(i);
             new_actions[row[0]] = actions[i];
          }
       }
@@ -634,4 +637,38 @@ void Refine(Array<int> ref_actions, GridFunction &u, int depth_limit)
 
    fes->Update();
    u.Update();
+
+   if (mesh->GetNE() < ne)
+   {
+      const CoarseFineTransformations & tr =
+         mesh->ncmesh->GetDerefinementTransforms();
+      Table coarse_to_fine_table;
+      tr.MakeCoarseToFineTable(coarse_to_fine_table);
+      dref_table = Transpose(coarse_to_fine_table);
+   }
+
+   // Build combined table of mesh modifications
+   Table * T = nullptr;
+   if (ref_table && dref_table)
+   {
+      T = Mult(*ref_table, * dref_table);
+      delete dref_table;
+      delete ref_table;
+   }
+   else if (ref_table)
+   {
+      T = ref_table;
+      delete dref_table;
+   }
+   else if (dref_table)
+   {
+      T= dref_table;
+      delete ref_table;
+   }
+   else
+   {
+      // do nothing: no mesh modifications happened
+   }
+
+   return T;
 }
