@@ -1,7 +1,7 @@
 //                       MFEM Example 6 - Parallel Version
 //                              PUMI Modification
 //
-// Compile with: make ex1p
+// Compile with: make ex6p
 //
 // Sample runs:  mpirun -np 8 ex6p
 //
@@ -18,6 +18,13 @@
 //               is added to modify the "adapt_ratio" which is the fraction of
 //               allowable error that scales the output size field of the error
 //               estimator.
+//
+// NOTE:         Model/Mesh files for this example are in the (large) data file
+//               repository of MFEM here https://github.com/mfem/data under the
+//               folder named "pumi", which consists of the following sub-folders:
+//               a) geom -->  model files
+//               b) parallel --> parallel pumi mesh files
+//               c) serial --> serial pumi mesh files
 
 #include "mfem.hpp"
 #include <fstream>
@@ -35,16 +42,20 @@
 #include <gmi_mesh.h>
 #include <crv.h>
 
+#ifndef MFEM_USE_PUMI
+#error This example requires that MFEM is built with MFEM_USE_PUMI=YES
+#endif
+
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/pumi/parallel/Kova/Kova100k_8.smb";
@@ -88,7 +99,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -139,7 +149,7 @@ int main(int argc, char *argv[])
 
    if (ref_levels > 1)
    {
-      ma::Input* uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
+      auto uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
 
       if ( geom_order > 1)
       {
@@ -179,7 +189,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 1)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -242,7 +252,7 @@ int main(int argc, char *argv[])
 
    for (int Itr = 0; Itr < max_iter; Itr++)
    {
-      HYPRE_Int global_dofs = fespace->GlobalTrueVSize();
+      HYPRE_BigInt global_dofs = fespace->GlobalTrueVSize();
       if (myid == 1)
       {
          cout << "\nAMR iteration " << Itr << endl;
@@ -332,12 +342,9 @@ int main(int argc, char *argv[])
 
       apf::destroyField(Tmag_field);
       apf::destroyField(ipfield);
-      apf::destroyNumbering(pumi_mesh->findNumbering("LocalVertexNumbering"));
 
       // 18. Perform MesAdapt.
-      ma::Input* erinput = ma::configure(pumi_mesh, sizefield);
-      erinput->shouldFixShape = true;
-      erinput->maximumIterations = 2;
+      auto erinput = ma::configure(pumi_mesh, sizefield);
       if ( geom_order > 1)
       {
          crv::adapt(erinput);
@@ -380,8 +387,6 @@ int main(int argc, char *argv[])
    gmi_sim_stop();
    Sim_unregisterAllKeys();
 #endif
-
-   MPI_Finalize();
 
    return 0;
 }

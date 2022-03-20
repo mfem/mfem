@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //      ---------------------------------------------------------------
 //      Convert DC: Convert between different types of data collections
@@ -23,6 +23,10 @@
 //    conduit_json:         ConduitDataCollection w/ protocol conduit_json
 //    conduit_bin:          ConduitDataCollection w/ protocol conduit_bin
 //    hdf5:                 ConduitDataCollection w/ protocol hdf5
+//    fms:                  FMSDataCollection w/ protocol ascii
+//    fms_json:             FMSDataCollection w/ protocol json
+//    fms_yaml:             FMSDataCollection w/ protocol yaml
+//    fms_hdf5:             FMSDataCollection w/ protocol hdf5
 //
 // Compile with: make convert-dc
 //
@@ -77,6 +81,21 @@ DataCollection *create_data_collection(const std::string &dc_name,
       MFEM_ABORT("Must build with MFEM_USE_CONDUIT=YES for conduit support.");
 #endif
    }
+   else if ( dc_type.substr(0,3) == "fms")
+   {
+#ifdef MFEM_USE_FMS
+      auto fms_dc = new FMSDataCollection(dc_name);
+      std::string::size_type pos = dc_type.find("_");
+      if (pos != std::string::npos)
+      {
+         std::string fms_protocol(dc_type.substr(pos+1, dc_type.size()-pos-1));
+         fms_dc->SetProtocol(fms_protocol);
+      }
+      dc = fms_dc;
+#else
+      MFEM_ABORT("Must build with MFEM_USE_FMS=YES for FMS support.");
+#endif
+   }
    else
    {
       MFEM_ABORT("Unsupported Data Collection type:" << dc_type);
@@ -88,8 +107,9 @@ DataCollection *create_data_collection(const std::string &dc_name,
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
-   MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Mpi::Init();
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Hypre::Init();
 #endif
 
    // Parse command-line options.
@@ -113,7 +133,11 @@ int main(int argc, char *argv[])
                   "\t   json:                 ConduitDataCollection w/ protocol json\n"
                   "\t   conduit_json:         ConduitDataCollection w/ protocol conduit_json\n"
                   "\t   conduit_bin:          ConduitDataCollection w/ protocol conduit_bin\n"
-                  "\t   hdf5:                 ConduitDataCollection w/ protocol hdf5");
+                  "\t   hdf5:                 ConduitDataCollection w/ protocol hdf5\n"
+                  "\t   fms:                  FMSDataCollection w/ protocol ascii\n"
+                  "\t   fms_json:             FMSDataCollection w/ protocol json\n"
+                  "\t   fms_yaml:             FMSDataCollection w/ protocol yaml\n"
+                  "\t   fms_hdf5:             FMSDataCollection w/ protocol hdf5");
    args.AddOption(&out_coll_type, "-ot", "--output-type",
                   "Set the output data collection type. Options:\n"
                   "\t   visit:                VisItDataCollection (default)\n"
@@ -121,7 +145,11 @@ int main(int argc, char *argv[])
                   "\t   json:                 ConduitDataCollection w/ protocol json\n"
                   "\t   conduit_json:         ConduitDataCollection w/ protocol conduit_json\n"
                   "\t   conduit_bin:          ConduitDataCollection w/ protocol conduit_bin\n"
-                  "\t   hdf5:                 ConduitDataCollection w/ protocol hdf5");
+                  "\t   hdf5:                 ConduitDataCollection w/ protocol hdf5\n"
+                  "\t   fms:                  FMSDataCollection w/ protocol ascii\n"
+                  "\t   fms_json:             FMSDataCollection w/ protocol json\n"
+                  "\t   fms_yaml:             FMSDataCollection w/ protocol yaml\n"
+                  "\t   fms_hdf5:             FMSDataCollection w/ protocol hdf5");
    args.Parse();
    if (!args.Good())
    {
@@ -130,15 +158,15 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(mfem::out);
 
-   DataCollection *src = create_data_collection(std::string(src_coll_name),
-                                                std::string(src_coll_type));
+   DataCollection *src_dc = create_data_collection(std::string(src_coll_name),
+                                                   std::string(src_coll_type));
 
-   DataCollection *out = create_data_collection(std::string(out_coll_name),
-                                                std::string(out_coll_type));
+   DataCollection *out_dc = create_data_collection(std::string(out_coll_name),
+                                                   std::string(out_coll_type));
 
-   src->Load(src_cycle);
+   src_dc->Load(src_cycle);
 
-   if (src->Error() != DataCollection::NO_ERROR)
+   if (src_dc->Error() != DataCollection::NO_ERROR)
    {
       mfem::out << "Error loading data collection: "
                 << src_coll_name
@@ -149,33 +177,33 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   out->SetOwnData(false);
+   out_dc->SetOwnData(false);
 
    // add mesh from source dc to output dc
 #ifdef MFEM_USE_MPI
-   out->SetMesh(MPI_COMM_WORLD,src->GetMesh());
+   out_dc->SetMesh(MPI_COMM_WORLD,src_dc->GetMesh());
 #else
-   out->SetMesh(src->GetMesh());
+   out_dc->SetMesh(src_dc->GetMesh());
 #endif
 
    // propagate the basics
-   out->SetCycle(src->GetCycle());
-   out->SetTime(src->GetTime());
-   out->SetTimeStep(src->GetTimeStep());
+   out_dc->SetCycle(src_dc->GetCycle());
+   out_dc->SetTime(src_dc->GetTime());
+   out_dc->SetTimeStep(src_dc->GetTimeStep());
 
    // loop over all fields in the source dc, and add them to the output dc
-   const DataCollection::FieldMapType &src_fields = src->GetFieldMap();
+   const DataCollection::FieldMapType &src_fields = src_dc->GetFieldMap();
 
    for (DataCollection::FieldMapType::const_iterator it = src_fields.begin();
         it != src_fields.end();
         ++it)
    {
-      out->RegisterField(it->first,it->second);
+      out_dc->RegisterField(it->first,it->second);
    }
 
-   out->Save();
+   out_dc->Save();
 
-   if (out->Error() != DataCollection::NO_ERROR)
+   if (out_dc->Error() != DataCollection::NO_ERROR)
    {
       mfem::out << "Error saving data collection: "
                 << out_coll_name
@@ -187,8 +215,8 @@ int main(int argc, char *argv[])
    }
 
    // cleanup
-   delete src;
-   delete out;
+   delete src_dc;
+   delete out_dc;
 
    return 0;
 }

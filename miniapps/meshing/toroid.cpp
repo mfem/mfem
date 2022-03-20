@@ -1,19 +1,19 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //             ------------------------------------------------
 //             Toroid Miniapp:  Generate simple toroidal meshes
 //             ------------------------------------------------
 //
-// This miniapp generates two types of Toroidal meshes; one with triangular
+// This miniapp generates two types of toroidal meshes; one with triangular
 // cross sections and one with square cross sections.  It works by defining a
 // stack of individual elements and bending them so that the bottom and top of
 // the stack can be joined to form a torus.  The stack can also be twisted so
@@ -127,18 +127,20 @@ int main(int argc, char *argv[])
    }
 
    // Add Elements of the desired type
-   int v[8];
-   for (int i=0; i < nphi_; i++)
    {
-      if (el_type_ == Element::WEDGE)
+      int v[8];
+      for (int i=0; i < nphi_; i++)
       {
-         for (int j = 0; j < 6; j++) { v[j] = 3*i+j; }
-         mesh->AddWedge(v);
-      }
-      else
-      {
-         for (int j = 0; j < 8; j++) { v[j] = 4*i+j; }
-         mesh->AddHex(v);
+         if (el_type_ == Element::WEDGE)
+         {
+            for (int j = 0; j < 6; j++) { v[j] = 3*i+j; }
+            mesh->AddWedge(v);
+         }
+         else
+         {
+            for (int j = 0; j < 8; j++) { v[j] = 4*i+j; }
+            mesh->AddHex(v);
+         }
       }
    }
    mesh->FinalizeTopology();

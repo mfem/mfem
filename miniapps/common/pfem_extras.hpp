@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_PFEM_EXTRAS
 #define MFEM_PFEM_EXTRAS
@@ -21,7 +21,7 @@
 namespace mfem
 {
 
-namespace miniapps
+namespace common
 {
 
 /** The H1_ParFESpace class is a ParFiniteElementSpace which automatically
@@ -185,49 +185,23 @@ public:
 };
 
 
-class VisData
-{
-public:
-   VisData(const char *vishost, int visport, int max_width, int max_height,
-           int win_width, int win_height, int win_sep_x, int win_sep_y);
-
-   void IncrementWindow();
-
-   inline const char * GetVisHost() const { return host_.c_str(); }
-   inline int GetVisPort() const { return port_; }
-   inline int GetXPos() const
-   { return w_ * nx_ + ((nx_ > 0) ? (nx_ - 1) * sx_: 0); }
-   inline int GetYPos() const
-   { return h_ * ny_ + ((ny_ > 0) ? (ny_ - 1) * sy_: 0); }
-   inline int GetWidth() const { return w_; }
-   inline int GetHeight() const { return h_; }
-
-private:
-   std::string host_;
-   int port_;
-   int nx_;
-   int ny_;
-   int mnx_;
-   int mny_;
-   int mw_;
-   int mh_;
-   int w_;
-   int h_;
-   int sx_;
-   int sy_;
-};
+/// Visualize the given parallel mesh object, using a GLVis server on the
+/// specified host and port. Set the visualization window title, and optionally,
+/// its geometry.
+void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
+                   ParMesh &pmesh, const char *title,
+                   int x = 0, int y = 0, int w = 400, int h = 400,
+                   const char *keys = NULL);
 
 /// Visualize the given parallel grid function, using a GLVis server on the
 /// specified host and port. Set the visualization window title, and optionally,
 /// its geometry.
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
-                    ParGridFunction &gf, const char *title,
+                    const ParGridFunction &gf, const char *title,
                     int x = 0, int y = 0, int w = 400, int h = 400,
-                    bool vec = false);
-void VisualizeField(socketstream &sock, ParGridFunction &gf, const char *title,
-                    VisData & vd, bool vec = false);
+                    const char *keys = NULL, bool vec = false);
 
-} // namespace miniapps
+} // namespace common
 
 } // namespace mfem
 

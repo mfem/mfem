@@ -32,11 +32,11 @@ private:
    mutable DenseTensor flux;
    mutable Vector z;
 
-   void GetFlux(const DenseMatrix &state, DenseTensor &flux) const;
+   void GetFlux(const DenseMatrix &state_, DenseTensor &flux_) const;
 
 public:
-   FE_Evolution(FiniteElementSpace &_vfes,
-                Operator &_A, SparseMatrix &_Aflux);
+   FE_Evolution(FiniteElementSpace &vfes_,
+                Operator &A_, SparseMatrix &Aflux_);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -88,8 +88,6 @@ private:
    Vector funval2;
    Vector nor;
    Vector fluxN;
-   IntegrationPoint eip1;
-   IntegrationPoint eip2;
 
 public:
    FaceIntegrator(RiemannSolver &rsolver_, const int dim);
@@ -101,13 +99,13 @@ public:
 };
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(FiniteElementSpace &_vfes,
-                           Operator &_A, SparseMatrix &_Aflux)
-   : TimeDependentOperator(_A.Height()),
-     dim(_vfes.GetFE(0)->GetDim()),
-     vfes(_vfes),
-     A(_A),
-     Aflux(_Aflux),
+FE_Evolution::FE_Evolution(FiniteElementSpace &vfes_,
+                           Operator &A_, SparseMatrix &Aflux_)
+   : TimeDependentOperator(A_.Height()),
+     dim(vfes_.GetFE(0)->GetDim()),
+     vfes(vfes_),
+     A(A_),
+     Aflux(Aflux_),
      Me_inv(vfes.GetFE(0)->GetDof(), vfes.GetFE(0)->GetDof(), vfes.GetNE()),
      state(num_equation),
      f(num_equation, dim),
@@ -258,26 +256,26 @@ inline double ComputeMaxCharSpeed(const Vector &state, const int dim)
 }
 
 // Compute the flux at solution nodes.
-void FE_Evolution::GetFlux(const DenseMatrix &x, DenseTensor &flux) const
+void FE_Evolution::GetFlux(const DenseMatrix &x_, DenseTensor &flux_) const
 {
-   const int dof = flux.SizeI();
-   const int dim = flux.SizeJ();
+   const int flux_dof = flux_.SizeI();
+   const int flux_dim = flux_.SizeJ();
 
-   for (int i = 0; i < dof; i++)
+   for (int i = 0; i < flux_dof; i++)
    {
-      for (int k = 0; k < num_equation; k++) { state(k) = x(i, k); }
-      ComputeFlux(state, dim, f);
+      for (int k = 0; k < num_equation; k++) { state(k) = x_(i, k); }
+      ComputeFlux(state, flux_dim, f);
 
-      for (int d = 0; d < dim; d++)
+      for (int d = 0; d < flux_dim; d++)
       {
          for (int k = 0; k < num_equation; k++)
          {
-            flux(i, d, k) = f(k, d);
+            flux_(i, d, k) = f(k, d);
          }
       }
 
       // Update max char speed
-      const double mcs = ComputeMaxCharSpeed(state, dim);
+      const double mcs = ComputeMaxCharSpeed(state, flux_dim);
       if (mcs > max_char_speed) { max_char_speed = mcs; }
    }
 }
@@ -418,27 +416,24 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
    {
       intorder++;
    }
-   const IntegrationRule *ir = &IntRules.Get(Tr.FaceGeom, intorder);
+   const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      Tr.Loc1.Transform(ip, eip1);
-      Tr.Loc2.Transform(ip, eip2);
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
 
       // Calculate basis functions on both elements at the face
-      el1.CalcShape(eip1, shape1);
-      el2.CalcShape(eip2, shape2);
+      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+      el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
 
       // Interpolate elfun at the point
       elfun1_mat.MultTranspose(shape1, funval1);
       elfun2_mat.MultTranspose(shape2, funval2);
 
-      Tr.Face->SetIntPoint(&ip);
-
       // Get the normal vector and the flux on the face
-      CalcOrtho(Tr.Face->Jacobian(), nor);
+      CalcOrtho(Tr.Jacobian(), nor);
       const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN);
 
       // Update max char speed
