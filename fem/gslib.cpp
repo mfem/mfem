@@ -988,8 +988,8 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
                                    const int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
-   MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
-               "Mixed meshes are not currently supported in FindPointsGSLIB.");
+   //   MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
+   //               "Mixed meshes are not currently supported in FindPointsGSLIB.");
    MFEM_VERIFY(!(m.GetNodes()->FESpace()->IsVariableOrder()),
                "Variable order mesh is not currently supported.");
 
@@ -1001,6 +1001,25 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    dim  = mesh->Dimension();
    const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
    unsigned dof1D = fe->GetOrder() + 1;
+
+   SetupSplitMeshes();
+   if (dim == 2)
+   {
+      if (ir_tri) { delete ir_tri; ir_tri = NULL; }
+      ir_tri = new IntegrationRule(3*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(meshsplit_tri, ir_tri, fe->GetOrder());
+   }
+   else if (dim == 3)
+   {
+      if (ir_tet) { delete ir_tet; ir_tet = NULL; }
+      ir_tet = new IntegrationRule(4*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(meshsplit_tet, ir_tet, fe->GetOrder());
+
+      if (ir_prism) { delete ir_prism; ir_prism = NULL; }
+      ir_prism = new IntegrationRule(3*pow(dof1D, dim));
+      SetupIntegrationRuleForSplitMesh(meshsplit_prism, ir_prism, fe->GetOrder());
+   }
+
    GetNodalValues(mesh->GetNodes(), gsl_mesh);
 
    MFEM_ASSERT(meshid>=0, " The ID should be greater than or equal to 0.");
