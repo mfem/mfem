@@ -395,6 +395,42 @@ void FindPointsGSLIB::SetupSplitMeshes()
          }
       }
    }
+
+   NE_split_Total = 0;
+   splitElementMap.SetSize(0);
+   splitElementIndex.SetSize(0);
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const Geometry::Type gt   = mesh->GetElement(e)->GetGeometryType();
+      if (gt == Geometry::TRIANGLE || gt == Geometry::PRISM)
+      {
+         NE_split_Total += 3;
+         for (int i = 0; i < 3; i++)
+         {
+            splitElementMap.Append(e);
+            splitElementIndex.Append(i);
+         }
+      }
+      else if (gt == Geometry::TETRAHEDRON)
+      {
+         NE_split_Total += 4;
+         for (int i = 0; i < 4; i++)
+         {
+            splitElementMap.Append(e);
+            splitElementIndex.Append(i);
+         }
+      }
+      else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
+      {
+         NE_split_Total += 1;
+         splitElementMap.Append(e);
+         splitElementIndex.Append(0);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported geometry type.");
+      }
+   }
 }
 
 void FindPointsGSLIB::SetupIntegrationRuleForSplitMesh(Mesh *meshin,
@@ -453,51 +489,11 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
    const int NE                  = mesh->GetNE();
    const int vdim                = gf_in->FESpace()->GetVDim();
 
-   int NEsplit;
-
-   // Find which elements will be split and create a mapping from split element
-   // to parent element
-   int NEsplittotal = 0;
-   splitElementMap.SetSize(0);
-   splitElementIndex.SetSize(0);
    IntegrationRule *ir_simplex = NULL;
-   for (int e = 0; e < NE; e++)
-   {
-      const FiniteElement *fe   = nodes->FESpace()->GetFE(e);
-      const Geometry::Type gt   = fe->GetGeomType();
-      if (gt == Geometry::TRIANGLE || gt == Geometry::PRISM)
-      {
-         NEsplittotal += 3;
-         for (int i = 0; i < 3; i++)
-         {
-            splitElementMap.Append(e);
-            splitElementIndex.Append(i);
-         }
-      }
-      else if (gt == Geometry::TETRAHEDRON)
-      {
-         NEsplittotal += 4;
-         for (int i = 0; i < 4; i++)
-         {
-            splitElementMap.Append(e);
-            splitElementIndex.Append(i);
-         }
-      }
-      else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
-      {
-         NEsplittotal += 1;
-         splitElementMap.Append(e);
-         splitElementIndex.Append(0);
-      }
-      else
-      {
-         MFEM_ABORT("Unsupported geometry type.");
-      }
-   }
 
    const int dof_1D =  nodes->FESpace()->GetFE(0)->GetOrder()+1;
    const int pts_el = std::pow(dof_1D, dim);
-   const int pts_cnt = NEsplittotal * pts_el;
+   const int pts_cnt = NE_split_Total * pts_el;
    node_vals.SetSize(vdim * pts_cnt);
    node_vals *= 0;
 
@@ -510,17 +506,14 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
       bool el_to_split = true;
       if (gt == Geometry::TRIANGLE)
       {
-         NEsplit = 3;
          ir_simplex = ir_tri;
       }
       else if (gt == Geometry::TETRAHEDRON)
       {
-         NEsplit = 4;
          ir_simplex = ir_tet;
       }
       else if (gt == Geometry::PRISM)
       {
-         NEsplit = 3;
          ir_simplex = ir_prism;
       }
       else if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
