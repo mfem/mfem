@@ -702,6 +702,7 @@ signed char HypreParMatrix::CopyBoolCSR(Table *bool_csr,
 
 // Copy the j array of a MemoryIJData object to the given dst_J array,
 // converting the indices from HYPRE_Int to int.
+#ifdef HYPRE_BIGINT
 static void CopyCSR_J(const int nnz, const MemoryIJData &mem_csr,
                       Memory<int> &dst_J)
 {
@@ -710,6 +711,7 @@ static void CopyCSR_J(const int nnz, const MemoryIJData &mem_csr,
    auto dst_p = mfem::Write(dst_J, nnz);
    MFEM_FORALL(i, nnz, dst_p[i] = src_p[i];);
 }
+#endif
 
 // static method
 signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
