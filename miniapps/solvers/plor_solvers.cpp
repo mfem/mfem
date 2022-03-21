@@ -75,9 +75,8 @@ bool grad_div_problem = false;
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi;
-   const int num_procs = mpi.WorldSize();
-   const int myid = mpi.WorldRank();
+   Mpi::Init();
+   Hypre::Init();
 
    const char *mesh_file = "../../data/star.mesh";
    int ser_ref_levels = 1, par_ref_levels = 1;
@@ -145,7 +144,7 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace fes(&mesh, fec.get());
    HYPRE_Int ndofs = fes.GlobalTrueVSize();
-   if (mpi.Root()) { cout << "Number of DOFs: " << ndofs << endl; }
+   if (Mpi::Root()) { cout << "Number of DOFs: " << ndofs << endl; }
 
    Array<int> ess_dofs;
    // In DG, boundary conditions are enforced weakly, so no essential DOFs.
@@ -230,7 +229,7 @@ int main(int argc, char *argv[])
 
    double er =
       (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
-   if (mpi.Root()) { cout << "L2 error: " << er << endl; }
+   if (Mpi::Root()) { cout << "L2 error: " << er << endl; }
 
    if (visualization)
    {
