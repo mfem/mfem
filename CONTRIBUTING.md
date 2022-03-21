@@ -430,10 +430,10 @@ The Pull Request (PR) approval process in MFEM is similar to the approval of pap
 
 The current list of MFEM editors is:
 
-- @v-dobrev (Veselin Dobrev)
-- @tzanio (Tzanio Kolev)
-- @pazner (Will Pazner)
-- @mlstowell (Mark Stowell)
+- [@v-dobrev](https://github.com/v-dobrev) (Veselin Dobrev)
+- [@tzanio](https://github.com/tzanio) (Tzanio Kolev)
+- [@pazner](https://github.com/pazner) (Will Pazner)
+- [@mlstowell](https://github.com/mlstowell) (Mark Stowell)
 
 **The responsibilities of the editors are:**
 
