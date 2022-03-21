@@ -93,9 +93,10 @@ void BatchedLOR_AMS::FormGradientMatrix()
    const int nedge_dof = fes_ho.GetNDofs();
    const int nvert_dof = vert_fes.GetNDofs();
 
-   SparseMatrix *G_local = new SparseMatrix(nedge_dof, nvert_dof, 0);
+   SparseMatrix *G_local = new SparseMatrix;
+   G_local->OverrideSize(nedge_dof, nvert_dof);
 
-   G_local->GetMemoryI().New(nedge_dof+1, G_local->GetMemoryI().GetMemoryType());
+   G_local->GetMemoryI().New(nedge_dof+1, Device::GetDeviceMemoryType());
    // Each row always has two nonzeros
    const int nnz = 2*nedge_dof;
    auto I = G_local->WriteI();
@@ -127,8 +128,8 @@ void BatchedLOR_AMS::FormGradientMatrix()
    const auto e2v = Reshape(edge2vertex.Read(), 2, nedge_per_el);
 
    // Fill J and data
-   G_local->GetMemoryJ().New(nnz, G_local->GetMemoryJ().GetMemoryType());
-   G_local->GetMemoryData().New(nnz, G_local->GetMemoryData().GetMemoryType());
+   G_local->GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
+   G_local->GetMemoryData().New(nnz, Device::GetDeviceMemoryType());
 
    auto J = G_local->WriteJ();
    auto V = G_local->WriteData();

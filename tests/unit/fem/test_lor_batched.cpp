@@ -11,6 +11,7 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+#include "../../fem/lor/lor_ams.hpp"
 #include <unordered_map>
 
 using namespace mfem;
@@ -19,9 +20,12 @@ using namespace mfem;
 #define HYPRE_BigInt int
 #endif // MFEM_USE_MPI
 
+namespace lor_batched
+{
+
 void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
-                      HYPRE_BigInt *cmap1 = nullptr,
-                      std::unordered_map<HYPRE_BigInt,int> *cmap2inv = nullptr)
+                      HYPRE_BigInt *cmap1=nullptr,
+                      std::unordered_map<HYPRE_BigInt,int> *cmap2inv=nullptr)
 {
    REQUIRE(A1.Height() == A2.Height());
    int n = A1.Height();
@@ -57,18 +61,22 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
       }
    }
 
-   REQUIRE(error == MFEM_Approx(0.0));
+   REQUIRE(error == MFEM_Approx(0.0, 1e-10));
 }
 
 TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
 {
+   const bool all_tests = launch_all_non_regression_tests;
+
+   const int order = !all_tests ? 5 : GENERATE(1,3,5);
+
    auto mesh_fname = GENERATE(
                         "../../data/star-q3.mesh",
                         "../../data/fichera-q3.mesh"
                      );
-   const int order = 5;
 
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+
    H1_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace fespace(&mesh, &fec);
 
@@ -81,19 +89,52 @@ TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
    BilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
    a.AddDomainIntegrator(new MassIntegrator(mass_coeff));
-   LORDiscretization lor(a, ess_dofs);
 
-   BilinearForm a_lor(&lor.GetFESpace());
+   LORDiscretization lor(fespace);
+
+   // Sanity check that the LOR mesh is valid
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
-   a_lor.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, &ir));
-   a_lor.AddDomainIntegrator(new MassIntegrator(mass_coeff, &ir));
-   a_lor.Assemble();
-   a_lor.Finalize();
+   const GeometricFactors::FactorFlags dets = GeometricFactors::DETERMINANTS;
+   REQUIRE(lor.GetFESpace().GetMesh()->GetGeometricFactors(ir, dets)->detJ.Min()
+           > 0.0);
 
-   OperatorHandle A;
-   a_lor.FormSystemMatrix(ess_dofs, A);
-   SparseMatrix &A1 = *A.As<SparseMatrix>();
+   lor.LegacyAssembleSystem(a, ess_dofs);
+   SparseMatrix A1 = lor.GetAssembledMatrix(); // deep copy
+   lor.AssembleSystem(a, ess_dofs);
+   SparseMatrix &A2 = lor.GetAssembledMatrix();
+
+   TestSameMatrices(A1, A2);
+   TestSameMatrices(A2, A1);
+}
+
+TEST_CASE("LOR Batched ND", "[LOR][BatchedLOR][CUDA]")
+{
+   auto mesh_fname = GENERATE(
+                        "../../data/star-q3.mesh",
+                        "../../data/fichera-q3.mesh"
+                     );
+   const int order = 5;
+
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+   ND_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto,
+                       BasisType::IntegratedGLL);
+   FiniteElementSpace fespace(&mesh, &fec);
+
+   Array<int> ess_dofs;
+   fespace.GetBoundaryTrueDofs(ess_dofs);
+
+   ConstantCoefficient diff_coeff(M_PI);
+   ConstantCoefficient mass_coeff(1.0/M_PI);
+
+   BilinearForm a(&fespace);
+   a.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff));
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   LORDiscretization lor(fespace);
+
+   lor.LegacyAssembleSystem(a, ess_dofs);
+   SparseMatrix A1 = lor.GetAssembledMatrix(); // deep copy
+   lor.AssembleSystem(a, ess_dofs);
    SparseMatrix &A2 = lor.GetAssembledMatrix();
 
    TestSameMatrices(A1, A2);
@@ -116,9 +157,8 @@ void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
 
    if (cmap1)
    {
-      std::unordered_map<HYPRE_BigInt, int> cmap2inv;
+      std::unordered_map<HYPRE_BigInt,int> cmap2inv;
       for (int i=0; i<offd2.Width(); ++i) { cmap2inv[cmap2[i]] = i; }
-
       TestSameMatrices(offd1, offd2, cmap1, &cmap2inv);
    }
    else
@@ -150,23 +190,99 @@ TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
    ParBilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
    a.AddDomainIntegrator(new MassIntegrator(mass_coeff));
-   ParLORDiscretization lor(a, ess_dofs);
+   ParLORDiscretization lor(fespace);
 
-   ParBilinearForm a_lor(&lor.GetParFESpace());
-   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
-   a_lor.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff, &ir));
-   a_lor.AddDomainIntegrator(new MassIntegrator(mass_coeff, &ir));
-   a_lor.Assemble();
-   a_lor.Finalize();
-
-   OperatorHandle A;
-   a_lor.FormSystemMatrix(ess_dofs, A);
-   HypreParMatrix &A1 = *A.As<HypreParMatrix>();
+   lor.LegacyAssembleSystem(a, ess_dofs);
+   HypreParMatrix A1 = lor.GetAssembledMatrix(); // deep copy
+   lor.AssembleSystem(a, ess_dofs);
    HypreParMatrix &A2 = lor.GetAssembledMatrix();
 
    TestSameMatrices(A1, A2);
    TestSameMatrices(A2, A1);
 }
 
+TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
+{
+   auto mesh_fname = GENERATE(
+                        "../../data/star-q3.mesh",
+                        "../../data/fichera-q3.mesh"
+                     );
+   const int order = 5;
+
+   Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   const int dim = mesh.Dimension();
+
+   ND_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto,
+                       BasisType::IntegratedGLL);
+   ParFiniteElementSpace fespace(&mesh, &fec);
+
+   Array<int> ess_dofs;
+   fespace.GetBoundaryTrueDofs(ess_dofs);
+
+   ParLORDiscretization lor(fespace);
+   ParFiniteElementSpace &edge_fespace = lor.GetParFESpace();
+
+   H1_FECollection vert_fec(1, dim);
+   ParFiniteElementSpace vert_fespace(edge_fespace.GetParMesh(), &vert_fec);
+
+   ParDiscreteLinearOperator grad(&vert_fespace, &edge_fespace);
+   grad.AddDomainInterpolator(new GradientInterpolator);
+   grad.Assemble();
+   grad.Finalize();
+   HypreParMatrix *G = grad.ParallelAssemble();
+
+   ConstantCoefficient diff_coeff(M_PI);
+   ConstantCoefficient mass_coeff(1.0/M_PI);
+
+   ParBilinearForm a(&fespace);
+   a.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff));
+   a.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   BatchedLOR_AMS batched_lor(a, fespace, ess_dofs);
+
+   TestSameMatrices(*G, *batched_lor.GetGradientMatrix());
+
+   ParGridFunction x_coord(&vert_fespace);
+   ParGridFunction y_coord(&vert_fespace);
+   ParGridFunction z_coord(&vert_fespace);
+   for (int i = 0; i < edge_fespace.GetMesh()->GetNV(); i++)
+   {
+      const double *coord = edge_fespace.GetMesh()->GetVertex(i);
+      x_coord(i) = coord[0];
+      y_coord(i) = coord[1];
+      if (dim == 3) { z_coord(i) = coord[2]; }
+   }
+   HypreParVector *x = x_coord.ParallelProject();
+   HypreParVector *y = y_coord.ParallelProject();
+   HypreParVector *z = NULL;
+   if (dim == 3) { z = z_coord.ParallelProject(); }
+
+   *x -= *batched_lor.GetXCoordinate();
+   REQUIRE(x->Normlinf() == MFEM_Approx(0.0));
+   *y -= *batched_lor.GetYCoordinate();
+   REQUIRE(y->Normlinf() == MFEM_Approx(0.0));
+   if (dim == 3)
+   {
+      *z -= *batched_lor.GetZCoordinate();
+      REQUIRE(z->Normlinf() == MFEM_Approx(0.0));
+   }
+
+   // Clean up
+   delete batched_lor.GetAssembledMatrix();
+   delete batched_lor.GetCoordinateVector();
+   delete batched_lor.GetXCoordinate();
+   delete batched_lor.GetYCoordinate();
+   delete batched_lor.GetZCoordinate();
+   delete batched_lor.GetGradientMatrix();
+
+   delete G;
+   delete x;
+   delete y;
+   delete z;
+}
+
 #endif // MFEM_USE_MPI
+
+} // namespace lor_batched

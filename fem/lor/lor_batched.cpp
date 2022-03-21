@@ -48,6 +48,11 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
    const FiniteElementCollection *fec = a.FESpace()->FEColl();
    // TODO: check for maximum supported orders
+   // TODO: check for supported coefficient types?
+
+   // Batched LOR requires all tensor elements
+   if (!UsesTensorBasis(*a.FESpace())) { return false; }
+
    // We want to support the following configurations:
    // H1, ND, and RT spaces: M, A, M + K
    if (dynamic_cast<const H1_FECollection*>(fec))
@@ -61,7 +66,6 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
    return false;
 }
 
-template <int Q1D>
 void BatchedLORAssembly::GetLORVertexCoordinates()
 {
    Mesh &mesh_ho = *fes_ho.GetMesh();
@@ -74,28 +78,25 @@ void BatchedLORAssembly::GetLORVertexCoordinates()
    const int nd1d = order + 1;
    const int ndof_per_el = pow(nd1d, dim);
 
-   MFEM_VERIFY(nd1d == Q1D, "Bad template instantiation.");
-
-   X_vert.SetSize(dim*ndof_per_el*nel_ho);
-   X_vert.UseDevice(true);
-
    const GridFunction *nodal_gf = mesh_ho.GetNodes();
    const FiniteElementSpace *nodal_fes = nodal_gf->FESpace();
-   const Operator *nodal_restriction = nodal_fes->GetElementRestriction(
-                                          ElementDofOrdering::LEXICOGRAPHIC);
+   const Operator *nodal_restriction =
+      nodal_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
 
    // Map from nodal L-vector to E-vector
    Vector nodal_evec(nodal_restriction->Height());
-   nodal_evec.UseDevice(true);
    nodal_restriction->Mult(*nodal_gf, nodal_evec);
 
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    Geometry::Type geom = mesh_ho.GetElementGeometry(0);
    const IntegrationRule &ir = irs.Get(geom, 2*nd1d - 3);
 
-   QuadratureInterpolator quad_interp(*nodal_fes, ir);
-   quad_interp.SetOutputLayout(QVectorLayout::byVDIM);
-   quad_interp.Values(nodal_evec, X_vert);
+   // Map from nodal E-vector to Q-vector at the LOR vertex points
+   X_vert.SetSize(dim*ndof_per_el*nel_ho);
+   const QuadratureInterpolator *quad_interp =
+      nodal_fes->GetQuadratureInterpolator(ir);
+   quad_interp->SetOutputLayout(QVectorLayout::byVDIM);
+   quad_interp->Values(nodal_evec, X_vert);
 }
 
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
@@ -176,8 +177,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
          const int j_ne = j_next_offset - j_offset;
          if (i_ne == 1 || j_ne == 1) // no assembly required
          {
-            // AtomicAdd(I[ii], 1);
-            I[ii] += 1;
+            AtomicAdd(I[ii], 1);
          }
          else // assembly required
          {
@@ -192,13 +192,12 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
             const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
             if (iel_ho == min_e) // add the nnz only once
             {
-               // AtomicAdd(I[ii], 1);
-               I[ii] += 1;
+               AtomicAdd(I[ii], 1);
             }
          }
       }
    });
-   // TODO: on device
+   // TODO: on device, this is a scan operation
    // We need to sum the entries of I, we do it on CPU as it is very sequential.
    auto h_I = A.HostReadWriteI();
    int sum = 0;
@@ -353,51 +352,43 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
    });
 }
 
-SparseMatrix *BatchedLORAssembly::SparseIJToCSR() const
+void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
 {
    const int nvdof = fes_ho.GetVSize();
 
-   SparseMatrix *A = new SparseMatrix(nvdof, nvdof, 0);
-
-   A->GetMemoryI().New(nvdof+1, A->GetMemoryI().GetMemoryType());
-   int nnz = FillI(*A);
-
-   A->GetMemoryJ().New(nnz, A->GetMemoryJ().GetMemoryType());
-   A->GetMemoryData().New(nnz, A->GetMemoryData().GetMemoryType());
-   FillJAndData(*A);
-
-   return A;
-}
-
-SparseMatrix *BatchedLORAssembly::AssembleWithoutBC()
-{
-   MFEM_VERIFY(UsesTensorBasis(fes_ho),
-               "Batched LOR assembly requires tensor basis");
-
-   // Get the LOR vertex coordinates
-   const int order = fes_ho.GetMaxElementOrder();
-   const int nd1d = order + 1;
-   switch (nd1d)
+   // If A contains an existing SparseMatrix, reuse it (and try to reuse its
+   // I, J, A arrays if they are big enough)
+   SparseMatrix *A_mat = A.Is<SparseMatrix>();
+   if (!A_mat)
    {
-      case 2: GetLORVertexCoordinates<2>(); break;
-      case 3: GetLORVertexCoordinates<3>(); break;
-      case 4: GetLORVertexCoordinates<4>(); break;
-      case 5: GetLORVertexCoordinates<5>(); break;
-      case 6: GetLORVertexCoordinates<6>(); break;
-      default: MFEM_ABORT("Unsupported order!")
+      A_mat = new SparseMatrix;
+      A.Reset(A_mat);
    }
 
+   A_mat->OverrideSize(nvdof, nvdof);
+
+   A_mat->GetMemoryI().New(nvdof+1, Device::GetDeviceMemoryType());
+   int nnz = FillI(*A_mat);
+
+   A_mat->GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
+   A_mat->GetMemoryData().New(nnz, Device::GetDeviceMemoryType());
+   FillJAndData(*A_mat);
+}
+
+void BatchedLORAssembly::AssembleWithoutBC(OperatorHandle &A)
+{
    // Assemble the matrix, using kernels from the derived classes
    // This fills in the arrays sparse_ij and sparse_mapping
    AssemblyKernel();
-   return SparseIJToCSR();
+   return SparseIJToCSR(A);
 }
 
 #ifdef MFEM_USE_MPI
 void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
 {
    // Assemble the system matrix local to this partition
-   SparseMatrix *A_local = AssembleWithoutBC();
+   OperatorHandle A_local;
+   AssembleWithoutBC(A_local);
 
    ParFiniteElementSpace *pfes_ho =
       dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
@@ -409,19 +400,26 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
    A_diag.MakeSquareBlockDiag(pfes_ho->GetComm(),
                               pfes_ho->GlobalVSize(),
                               pfes_ho->GetDofOffsets(),
-                              A_local);
+                              A_local.As<SparseMatrix>());
 
    // Parallel matrix assembly using P^t A P (if needed)
    if (IsIdentityProlongation(pfes_ho->GetProlongationMatrix()))
    {
       A_diag.SetOperatorOwner(false);
       A.Reset(A_diag.Ptr());
+      // Let A take ownership of the CSR matrices
+      A.As<HypreParMatrix>()->SetOwnerFlags(2, 2, -1);
+      // We can now delete the local SparseMatrix A_local (making sure we don't
+      // delete the data arrays that now belong to A)
+      A_local.As<SparseMatrix>()->LoseData();
+      A_local.Clear();
    }
    else
    {
       OperatorHandle P(Operator::Hypre_ParCSR);
       P.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
       A.MakePtAP(A_diag, P);
+      A_local.Clear();
    }
 
    // Eliminate the boundary conditions
@@ -604,7 +602,8 @@ void BatchedLORAssembly::Assemble(OperatorHandle &A)
    }
 #endif
 
-   SparseMatrix *A_mat = AssembleWithoutBC();
+   AssembleWithoutBC(A);
+   SparseMatrix *A_mat = A.As<SparseMatrix>();
 
    // Eliminate essential DOFs (BCs) from the matrix (what we do here is
    // equivalent to  DiagonalPolicy::DIAG_KEEP).
@@ -634,15 +633,15 @@ void BatchedLORAssembly::Assemble(OperatorHandle &A)
          }
       }
    });
-
-   A.Reset(A_mat);
 }
 
 BatchedLORAssembly::BatchedLORAssembly(BilinearForm &a,
                                        FiniteElementSpace &fes_ho_,
                                        const Array<int> &ess_dofs_)
    : fes_ho(fes_ho_), ess_dofs(ess_dofs_)
-{ }
+{
+   GetLORVertexCoordinates();
+}
 
 void BatchedLORAssembly::Assemble(BilinearForm &a,
                                   FiniteElementSpace &fes_ho,

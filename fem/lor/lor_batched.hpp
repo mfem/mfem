@@ -34,7 +34,7 @@ protected:
    Vector X_vert; ///< LOR vertex coordinates.
 
    /// Get the vertices of the LOR mesh and place the result in @a X_vert.
-   template <int Q1D> void GetLORVertexCoordinates();
+   void GetLORVertexCoordinates();
 
    /// @brief The elementwise LOR matrices in a sparse "ij" format.
    ///
@@ -65,10 +65,10 @@ public:
 
 protected:
    /// After assembling the "sparse IJ" format, convert it to CSR.
-   SparseMatrix *SparseIJToCSR() const;
+   void SparseIJToCSR(OperatorHandle &A) const;
 
    /// Assemble the system without eliminating essential DOFs.
-   SparseMatrix *AssembleWithoutBC();
+   void AssembleWithoutBC(OperatorHandle &A);
 
    /// Called by one of the specialized classes, e.g. BatchedLORDiffusion.
    BatchedLORAssembly(BilinearForm &a,
@@ -121,6 +121,16 @@ public:
    /// assembly. Overridden in the derived classes.
    virtual void AssemblyKernel() = 0;
 };
+
+template <typename T>
+void EnsureCapacity(Memory<T> &mem, int capacity)
+{
+   if (mem.Capacity() < capacity)
+   {
+      mem.Delete();
+      mem.New(capacity, mem.GetMemoryType());
+   }
+}
 
 }
 

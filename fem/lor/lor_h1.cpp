@@ -238,15 +238,13 @@ void BatchedLOR_H1::Assemble3D()
    static constexpr int sz_mass_B = sz_mass_A*2;
    static constexpr int sz_local_mat = nv*nv;
 
-   static constexpr int GRID = 128;
-
    sparse_ij.SetSize(nel_ho*ndof_per_el*nnz_per_row);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nd1d, nel_ho);
 
    auto X = X_vert.Read();
 
-   // Last GRID dimension is lowered to avoid too many resources
-   MFEM_FORALL_3D_GRID(iel_ho, nel_ho, ORDER, ORDER, ORDER, GRID,
+   // Last thread dimension is lowered to avoid "too many resources" error
+   MFEM_FORALL_3D(iel_ho, nel_ho, ORDER, ORDER, (ORDER>6)?4:ORDER,
    {
       // Assemble a sparse matrix over the macro-element by looping over each
       // subelement.
@@ -257,7 +255,7 @@ void BatchedLOR_H1::Assemble3D()
          {
             MFEM_FOREACH_THREAD(ix,x,nd1d)
             {
-               //MFEM_UNROLL(27)
+               MFEM_UNROLL(nnz_per_row)
                for (int j=0; j<nnz_per_row; ++j)
                {
                   V(j,ix,iy,iz,iel_ho) = 0.0;
@@ -630,7 +628,9 @@ void BatchedLOR_H1::AssemblyKernel()
          case 4: Assemble2D<4>(); break;
          case 5: Assemble2D<5>(); break;
          case 6: Assemble2D<6>(); break;
-         default: MFEM_ABORT("No kernel.");
+         case 7: Assemble2D<7>(); break;
+         case 8: Assemble2D<8>(); break;
+         default: MFEM_ABORT("No kernel order " << order << "!");
       }
    }
    else if (dim == 3)
@@ -643,7 +643,9 @@ void BatchedLOR_H1::AssemblyKernel()
          case 4: Assemble3D<4>(); break;
          case 5: Assemble3D<5>(); break;
          case 6: Assemble3D<6>(); break;
-         default: MFEM_ABORT("No kernel.");
+         case 7: Assemble3D<7>(); break;
+         case 8: Assemble3D<8>(); break;
+         default: MFEM_ABORT("No kernel order " << order << "!");
       }
    }
 }

@@ -76,8 +76,8 @@ set(UNIT_TESTS_SRCS
   fem/test_lexicographic_ordering.cpp
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
-  fem/test_lor_batched.cpp
   fem/test_lor.cpp
+  fem/test_lor_batched.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_pa_coeff.cpp
   fem/test_pa_grad.cpp
