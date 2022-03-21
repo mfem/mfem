@@ -1307,23 +1307,22 @@ struct SolverProblem: public BakeOff
 
 } // namespace ceed
 
-// The different epsilons dividers
-#define P_EPSILONS {1,2,3}
 
-// The different orders the tests can run
-#define P_ORDERS bm::CreateDenseRange(1,6,1)
-
-// The different side sizes
+// [0] The different side sizes
 // 120 max for one rank when generating tex data
 #define P_SIDES bm::CreateDenseRange(12,540,6)
-
 // Maximum number of dofs
 #define MAX_NDOFS 8*1024*1024
 
+// [1] The different orders the tests can run
+#define P_ORDERS bm::CreateDenseRange(1,6,1)
+
+// [2] The different epsilons dividers
+#define P_EPSILONS {1,2,3}
 
 /// Bake-off Solvers (BPSs)
 /// Smoothness in 0, 1 or 2
-/// refinements is not used anymore
+/// refinements is not used anymore, should be toed to 0
 /// side is set from state.range(0)
 /// order is set from state.range(1)
 /// epsy = epsz, set from state.range(2)
@@ -1332,11 +1331,11 @@ static void BPS##i##_##Precond(bm::State &state){\
    const bool rhs_n = 3;\
    const bool rhs_1 = true;\
    const int smoothness = 0;\
-   const int refinements = 0;\
    const int nranks = mpiWorldSize;\
    const int side = state.range(0);\
    const int order = state.range(1);\
    const int epsilon = state.range(2);\
+   const int refinements = 0; assert(refinements==0);\
    const double eps = std::floor((1.0/epsilon)*10.0)/10.0;\
    ceed::SolverProblem<Kernel##Integrator> bps\
       (Precond, side, refinements, smoothness, eps,eps, rhs_1,rhs_n, order);\
