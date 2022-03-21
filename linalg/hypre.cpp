@@ -33,7 +33,7 @@ namespace mfem
 
 Hypre::Hypre()
 {
-#if MFEM_HYPRE_VERSION >= 21500
+#if MFEM_HYPRE_VERSION >= 21900
    // Initializing hypre
    HYPRE_Init();
 #endif

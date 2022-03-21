@@ -50,8 +50,11 @@ public:
    enum AvgType {NONE, ARITHMETIC, HARMONIC}; // Average type for L2 functions
 
 protected:
-   Mesh *mesh, *meshsplit, *meshsplit_tri, *meshsplit_tet, *meshsplit_prism;
-   IntegrationRule *ir_simplex;    // IntegrationRule to split quads/hex -> simplex
+   Mesh *mesh, *meshsplit_tri, *meshsplit_tet, *meshsplit_prism;
+   IntegrationRule *ir_tri, *ir_tet, *ir_prism;
+   FiniteElementCollection *fec_map_lin;
+   FiniteElementSpace *rst_map_tri, *rst_map_tet, *rst_map_prism;
+   GridFunction *gf_rst_map_tri, *gf_rst_map_tet, *gf_rst_map_prism;
    struct gslib::findpts_data_2 *fdata2D; // gslib's internal data
    struct gslib::findpts_data_3 *fdata3D; // gslib's internal data
    struct gslib::crystal *cr;             // gslib's internal data
@@ -65,14 +68,8 @@ protected:
    Array<int> splitElementMap;
    Array<int> splitElementIndex;
 
-   /// Get GridFunction from MFEM format to GSLIB format
-   virtual void GetNodeValues(const GridFunction &gf_in, Vector &node_vals);
-   /// Get nodal coordinates from mesh to the format expected by GSLIB for quads
-   /// and hexes
-   virtual void GetQuadHexNodalCoordinates();
    /// Convert simplices to quad/hexes and then get nodal coordinates for each
    /// split element into format expected by GSLIB
-   virtual void GetSimplexNodalCoordinates();
    virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals);
 
    /// Use GSLIB for communication and interpolation
@@ -85,6 +82,11 @@ protected:
    /// find the original element number (that was split into micro quads/hexes
    /// by GetSimplexNodalCoordinates())
    virtual void MapRefPosAndElemIndices();
+
+   virtual void SetupSplitMeshes();
+   virtual void SetupIntegrationRuleForSplitMesh(Mesh *mesh,
+                                                 IntegrationRule *irule,
+                                                 int order);
 
 public:
    FindPointsGSLIB();
