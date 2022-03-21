@@ -903,7 +903,8 @@ void FABilinearFormExtension::Assemble()
    }
    else // We create, compute the sparsity, and fill the sparse matrix
    {
-      mat = new SparseMatrix(height, width, 0);
+      mat = new SparseMatrix;
+      mat->OverrideSize(height, width);
       if (fes.IsDGSpace())
       {
          const L2ElementRestriction *restE =
