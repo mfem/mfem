@@ -407,19 +407,23 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
    {
       A_diag.SetOperatorOwner(false);
       A.Reset(A_diag.Ptr());
-      // Let A take ownership of the CSR matrices
-      A.As<HypreParMatrix>()->SetOwnerFlags(2, 2, -1);
-      // We can now delete the local SparseMatrix A_local (making sure we don't
-      // delete the data arrays that now belong to A)
-      A_local.As<SparseMatrix>()->LoseData();
-      A_local.Clear();
+      HypreParMatrix *A_hyp = A.As<HypreParMatrix>();
+      const char diag_owner = A_hyp->OwnsDiag();
+      if (diag_owner == 0)
+      {
+         // A_hyp is just borrowing the CSR memory fron A_local. We want to
+         // transfer ownership so that we can delete A_local.
+         A_hyp->SetOwnerFlags(3, A_hyp->OwnsOffd(), A_hyp->OwnsColMap());
+         // We can now delete the local SparseMatrix A_local (making sure we
+         // don't delete the CSR data arrays that now belong to A)
+         A_local.As<SparseMatrix>()->LoseData();
+      }
    }
    else
    {
       OperatorHandle P(Operator::Hypre_ParCSR);
       P.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
       A.MakePtAP(A_diag, P);
-      A_local.Clear();
    }
 
    // Eliminate the boundary conditions

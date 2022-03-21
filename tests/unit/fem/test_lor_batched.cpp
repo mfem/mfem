@@ -199,6 +199,8 @@ TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
 
    TestSameMatrices(A1, A2);
    TestSameMatrices(A2, A1);
+
+   lor.GetAssembledSystem().Clear();
 }
 
 TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
@@ -242,6 +244,8 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
    a.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
    BatchedLOR_AMS batched_lor(a, fespace, ess_dofs);
 
+
+
    TestSameMatrices(*G, *batched_lor.GetGradientMatrix());
 
    ParGridFunction x_coord(&vert_fespace);
@@ -270,13 +274,6 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
    }
 
    // Clean up
-   delete batched_lor.GetAssembledMatrix();
-   delete batched_lor.GetCoordinateVector();
-   delete batched_lor.GetXCoordinate();
-   delete batched_lor.GetYCoordinate();
-   delete batched_lor.GetZCoordinate();
-   delete batched_lor.GetGradientMatrix();
-
    delete G;
    delete x;
    delete y;
