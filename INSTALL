@@ -714,7 +714,7 @@ The specific libraries and their options are:
   Options: HIOP_OPT, HIOP_LIB.
   Versions: HIOP >= 0.4.6.
 
-- CoDiPack (optiobal), used with MFEM_USE_CODIPACK = YES
+- CoDiPack (optional), used with MFEM_USE_CODIPACK = YES
   URL: https://www.scicomp.uni-kl.de/codi/
   Options: CODIPACK_OPT
   Versions: 1.9.3

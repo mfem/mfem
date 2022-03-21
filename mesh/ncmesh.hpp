@@ -836,7 +836,7 @@ protected: // implementation
        In 3D, the orientation part of Elem2Inf is encoded in the point
        matrix.
 
-       The following transformation gives the relation betwen the
+       The following transformation gives the relation between the
        reference quad face coordinates (xi, eta) in [0,1]^2, and the fine quad
        face coordinates (x, y):
        x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
