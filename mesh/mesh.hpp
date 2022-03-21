@@ -1361,7 +1361,7 @@ public:
          return element[1].location == Mesh::ElementLocation::FaceNbr;
       }
 
-      /** @brief return true if the face is an interior face to the computaion
+      /** @brief return true if the face is an interior face to the computation
           domain, either a local or shared interior face (not a boundary face)
           which is NOT a master nonconforming face.
        */
