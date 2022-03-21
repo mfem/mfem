@@ -107,8 +107,20 @@ Version 4.3.1 (development)
 - Added ParaView visualization of `QuadratureFunction` fields, through both
   `QuadratureFunction::SaveVTU` and `ParaViewDataCollection::RegisterQField`.
 
+- Added a simple singleton class, Hypre, to automatically set hypre's global
+  parameters, particularly GPU-relevant options. Updated parallel example codes
+  and miniapps to call Hypre::Init() where appropriate.
+
+- Added a simple singleton class, Mpi, as a replacement for MPI_Session. New
+  code should use Mpi::Init() and other Mpi methods instead of MPI_Session.
+
+- Updated the formulation for interface fitting with TMOP and introduced
+  a method to adaptively change the weight of the interface fitting term 
+  for r-adaptivity.
+
 - Added Nedelec and Raviart-Thomas basis functions for modeling three
   dimensional vector fields in 1D or 2D domains.
+
 
 Version 4.3, released on July 29, 2021
 ======================================

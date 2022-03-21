@@ -94,10 +94,11 @@ void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
       ctx.coeff = coeff->constant;
       coeff_ptr = ceedCoeff;
    }
-   else if (GridFunctionCoefficient* coeff =
+   else if (GridFunctionCoefficient* gf_coeff =
                dynamic_cast<GridFunctionCoefficient*>(Q))
    {
-      GridCoefficient *ceedCoeff = new GridCoefficient(*coeff->GetGridFunction());
+      GridCoefficient *ceedCoeff =
+         new GridCoefficient(*gf_coeff->GetGridFunction());
       coeff_ptr = ceedCoeff;
    }
    else if (QuadratureFunctionCoefficient *cQ =
@@ -159,10 +160,11 @@ void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       }
       coeff_ptr = ceedCoeff;
    }
-   else if (VectorGridFunctionCoefficient* coeff =
+   else if (VectorGridFunctionCoefficient* vgf_coeff =
                dynamic_cast<VectorGridFunctionCoefficient*>(VQ))
    {
-      GridCoefficient *ceedCoeff = new GridCoefficient(*coeff->GetGridFunction());
+      GridCoefficient *ceedCoeff =
+         new GridCoefficient(*vgf_coeff->GetGridFunction());
       coeff_ptr = ceedCoeff;
    }
    else if (VectorQuadratureFunctionCoefficient *cQ =
