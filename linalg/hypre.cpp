@@ -700,23 +700,15 @@ signed char HypreParMatrix::CopyBoolCSR(Table *bool_csr,
           (mem_csr.data.OwnsHostPtr() ? 2 : 0);
 }
 
-void HypreParMatrix::CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J)
+// Copy the j array of a MemoryIJData object to the given dst_J array,
+// converting the indices from HYPRE_Int to int.
+static void CopyCSR_J(const int nnz, const MemoryIJData &mem_csr,
+                      Memory<int> &dst_J)
 {
-   HYPRE_Int nnz = hypre_CSRMatrixNumNonzeros(hypre_csr);
-#if MFEM_HYPRE_VERSION >= 21600
-   if (hypre_CSRMatrixBigJ(hypre_csr))
-   {
-      for (HYPRE_Int j = 0; j < nnz; j++)
-      {
-         J[j] = internal::to_int(hypre_CSRMatrixBigJ(hypre_csr)[j]);
-      }
-      return;
-   }
-#endif
-   for (HYPRE_Int j = 0; j < nnz; j++)
-   {
-      J[j] = internal::to_int(hypre_CSRMatrixJ(hypre_csr)[j]);
-   }
+   // Perform the copy using the configured mfem Device
+   auto src_p = mfem::Read(mem_csr.J, nnz);
+   auto dst_p = mfem::Write(dst_J, nnz);
+   MFEM_FORALL(i, nnz, dst_p[i] = src_p[i];);
 }
 
 // static method
@@ -814,11 +806,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
+   HypreReadWrite();
    hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-
-   // FIXME:
 #ifdef HYPRE_BIGINT
-   CopyCSR_J(A->diag, diag->GetJ());
+   if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
+   {
+      CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
+   }
 #endif
 
    hypre_MatvecCommPkgCreate(A);
@@ -856,10 +850,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
+      HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      // FIXME:
 #ifdef HYPRE_BIGINT
-      CopyCSR_J(A->diag, diag->GetJ());
+      if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
+      {
+         CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
+      }
 #endif
    }
 
@@ -908,10 +905,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
+      HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      // FIXME:
 #ifdef HYPRE_BIGINT
-      CopyCSR_J(A->diag, diag->GetJ());
+      if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
+      {
+         CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
+      }
 #endif
    }
 
@@ -1067,10 +1067,11 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
+      HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      // FIXME:
 #ifdef HYPRE_BIGINT
-      CopyCSR_J(A->diag, diag->GetJ());
+      // No need to sync the J array back to the Table diag.
+      // CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetJMemory());
 #endif
    }
 
