@@ -93,6 +93,8 @@ public:
    HashTable(int block_size = 16*1024, int init_hash_size = 32*1024);
    /// @brief Deep copy
    HashTable(const HashTable& other);
+   /// @brief Copy assignment not supported
+   HashTable& operator=(const HashTable&) = delete;
    ~HashTable();
 
    /** @brief Item accessor with key (or parents) the pair 'p1', 'p2'. Default
@@ -411,7 +413,7 @@ protected:
 
        @param[in] idx The bin/bucket index.
        @param[in] id The index of the item in the BlockArray<T>.
-       @param[in] item The item to insert at the begining of the linked list.
+       @param[in] item The item to insert at the beginning of the linked list.
 
        @warning The method only works with bin 'idx' and does not check the
                 overall fill factor of the hash table. If appropriate,

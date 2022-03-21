@@ -1,4 +1,3 @@
-
 //                       MFEM Example 32 - Parallel Version
 //
 // Compile with: make ex32p
@@ -12,8 +11,8 @@
 //               mpirun -np 4 ex32p -m ../data/fichera.mesh -rs 1
 //
 // Description:  This example code solves the Maxwell (electromagnetic)
-//               eigenvalue problem curl curl E = lambda epsilon E with
-//               an anisotropic dielectric tensor, epsilon, and homogeneous
+//               eigenvalue problem curl curl E = lambda epsilon E with an
+//               anisotropic dielectric tensor, epsilon, and homogeneous
 //               Dirichlet boundary conditions E x n = 0.
 //
 //               We compute a number of the lowest nonzero eigenmodes by
@@ -368,7 +367,7 @@ int main(int argc, char *argv[])
                dyComp.ProjectCoefficient(dyCoef);
                dzComp.ProjectCoefficient(dzCoef);
 
-               double min_d = max_r / bbMax[0] - bbMin[0];
+               double min_d = max_r / (bbMax[0] - bbMin[0]);
 
                max_y = GetScalarMax(dyComp);
                max_z = GetScalarMax(dzComp);
