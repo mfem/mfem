@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -70,14 +70,14 @@ FiniteElementSpace::FiniteElementSpace()
 { }
 
 FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
-                                       Mesh *mesh,
-                                       const FiniteElementCollection *fec)
+                                       Mesh *mesh_,
+                                       const FiniteElementCollection *fec_)
    : VDoFTrans(orig.vdim, orig.ordering)
 {
-   mesh = mesh ? mesh : orig.mesh;
-   fec = fec ? fec : orig.fec;
+   mesh_ = mesh_ ? mesh_ : orig.mesh;
+   fec_ = fec_ ? fec_ : orig.fec;
 
-   NURBSExtension *NURBSext = NULL;
+   NURBSExtension *nurbs_ext = NULL;
    if (orig.NURBSext && orig.NURBSext != orig.mesh->NURBSext)
    {
 #ifdef MFEM_USE_MPI
@@ -85,16 +85,16 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
          dynamic_cast<ParNURBSExtension *>(orig.NURBSext);
       if (pNURBSext)
       {
-         NURBSext = new ParNURBSExtension(*pNURBSext);
+         nurbs_ext = new ParNURBSExtension(*pNURBSext);
       }
       else
 #endif
       {
-         NURBSext = new NURBSExtension(*orig.NURBSext);
+         nurbs_ext = new NURBSExtension(*orig.NURBSext);
       }
    }
 
-   Constructor(mesh, NURBSext, fec, orig.vdim, orig.ordering);
+   Constructor(mesh_, nurbs_ext, fec_, orig.vdim, orig.ordering);
 }
 
 void FiniteElementSpace::CopyProlongationAndRestriction(
@@ -192,74 +192,74 @@ int FiniteElementSpace::GetElementOrderImpl(int i) const
    return elem_order.Size() ? elem_order[i] : fec->GetOrder();
 }
 
-void FiniteElementSpace::GetVDofs(int vd, Array<int>& dofs, int ndofs) const
+void FiniteElementSpace::GetVDofs(int vd, Array<int>& dofs, int ndofs_) const
 {
-   if (ndofs < 0) { ndofs = this->ndofs; }
+   if (ndofs_ < 0) { ndofs_ = this->ndofs; }
 
    if (ordering == Ordering::byNODES)
    {
       for (int i = 0; i < dofs.Size(); i++)
       {
-         dofs[i] = Ordering::Map<Ordering::byNODES>(ndofs, vdim, i, vd);
+         dofs[i] = Ordering::Map<Ordering::byNODES>(ndofs_, vdim, i, vd);
       }
    }
    else
    {
       for (int i = 0; i < dofs.Size(); i++)
       {
-         dofs[i] = Ordering::Map<Ordering::byVDIM>(ndofs, vdim, i, vd);
+         dofs[i] = Ordering::Map<Ordering::byVDIM>(ndofs_, vdim, i, vd);
       }
    }
 }
 
-void FiniteElementSpace::DofsToVDofs (Array<int> &dofs, int ndofs) const
-{
-   if (vdim == 1) { return; }
-   if (ndofs < 0) { ndofs = this->ndofs; }
-
-   if (ordering == Ordering::byNODES)
-   {
-      Ordering::DofsToVDofs<Ordering::byNODES>(ndofs, vdim, dofs);
-   }
-   else
-   {
-      Ordering::DofsToVDofs<Ordering::byVDIM>(ndofs, vdim, dofs);
-   }
-}
-
-void FiniteElementSpace::DofsToVDofs(int vd, Array<int> &dofs, int ndofs) const
+void FiniteElementSpace::DofsToVDofs (Array<int> &dofs, int ndofs_) const
 {
    if (vdim == 1) { return; }
-   if (ndofs < 0) { ndofs = this->ndofs; }
+   if (ndofs_ < 0) { ndofs_ = this->ndofs; }
+
+   if (ordering == Ordering::byNODES)
+   {
+      Ordering::DofsToVDofs<Ordering::byNODES>(ndofs_, vdim, dofs);
+   }
+   else
+   {
+      Ordering::DofsToVDofs<Ordering::byVDIM>(ndofs_, vdim, dofs);
+   }
+}
+
+void FiniteElementSpace::DofsToVDofs(int vd, Array<int> &dofs, int ndofs_) const
+{
+   if (vdim == 1) { return; }
+   if (ndofs_ < 0) { ndofs_ = this->ndofs; }
 
    if (ordering == Ordering::byNODES)
    {
       for (int i = 0; i < dofs.Size(); i++)
       {
-         dofs[i] = Ordering::Map<Ordering::byNODES>(ndofs, vdim, dofs[i], vd);
+         dofs[i] = Ordering::Map<Ordering::byNODES>(ndofs_, vdim, dofs[i], vd);
       }
    }
    else
    {
       for (int i = 0; i < dofs.Size(); i++)
       {
-         dofs[i] = Ordering::Map<Ordering::byVDIM>(ndofs, vdim, dofs[i], vd);
+         dofs[i] = Ordering::Map<Ordering::byVDIM>(ndofs_, vdim, dofs[i], vd);
       }
    }
 }
 
-int FiniteElementSpace::DofToVDof(int dof, int vd, int ndofs) const
+int FiniteElementSpace::DofToVDof(int dof, int vd, int ndofs_) const
 {
    if (vdim == 1) { return dof; }
-   if (ndofs < 0) { ndofs = this->ndofs; }
+   if (ndofs_ < 0) { ndofs_ = this->ndofs; }
 
    if (ordering == Ordering::byNODES)
    {
-      return Ordering::Map<Ordering::byNODES>(ndofs, vdim, dof, vd);
+      return Ordering::Map<Ordering::byNODES>(ndofs_, vdim, dof, vd);
    }
    else
    {
-      return Ordering::Map<Ordering::byVDIM>(ndofs, vdim, dof, vd);
+      return Ordering::Map<Ordering::byVDIM>(ndofs_, vdim, dof, vd);
    }
 }
 
@@ -713,8 +713,8 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
    DenseMatrix loc_restr;
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
 
-   int vdim = lfes->GetVDim();
-   R = new SparseMatrix (vdim * lfes -> GetNDofs(), vdim * ndofs);
+   int lvdim = lfes->GetVDim();
+   R = new SparseMatrix (lvdim * lfes -> GetNDofs(), lvdim * ndofs);
 
    Geometry::Type cached_geom = Geometry::INVALID;
    const FiniteElement *h_fe = NULL;
@@ -737,7 +737,7 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
          cached_geom = geom;
       }
 
-      for (int vd = 0; vd < vdim; vd++)
+      for (int vd = 0; vd < lvdim; vd++)
       {
          l_dofs.Copy(l_vdofs);
          lfes->DofsToVDofs(vd, l_vdofs);
@@ -894,9 +894,10 @@ int FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
 int FiniteElementSpace::GetNumBorderDofs(Geometry::Type geom, int order) const
 {
    // return the number of vertex and edge DOFs that precede inner DOFs
-   int nv = fec->GetNumDof(Geometry::POINT, order);
-   int ne = fec->GetNumDof(Geometry::SEGMENT, order);
-   return Geometry::NumVerts[geom] * (nv + ne);
+   const int nv = fec->GetNumDof(Geometry::POINT, order);
+   const int ne = fec->GetNumDof(Geometry::SEGMENT, order);
+
+   return Geometry::NumVerts[geom] * (geom == Geometry::SEGMENT ? nv : (nv + ne));
 }
 
 int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
@@ -933,6 +934,12 @@ void FiniteElementSpace::BuildConformingInterpolation() const
 
    if (cP_is_set) { return; }
    cP_is_set = true;
+
+   if (FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS)
+   {
+      cP = cR = cR_hp = NULL; // will be treated as identities
+      return;
+   }
 
    Array<int> master_dofs, slave_dofs, highest_dofs;
 
@@ -1054,6 +1061,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             // get lowest order variant DOFs and FE
             int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
             const auto *master_fe = fec->GetFE(geom, p);
+            if (!master_fe) { break; }
 
             // constrain all higher order DOFs: interpolate lowest order function
             for (int variant = 1; ; variant++)
@@ -1192,7 +1200,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       if (cR_hp) { MakeVDimMatrix(*cR_hp); }
    }
 
-   if (Device::IsEnabled()) { cP->BuildTranspose(); }
+   cP->EnsureMultTranspose();
 }
 
 void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
@@ -1300,7 +1308,14 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
       FaceRestriction *res;
       if (is_dg_space)
       {
-         res = new L2FaceRestriction(*this, e_ordering, type, m);
+         if (Conforming())
+         {
+            res = new L2FaceRestriction(*this, e_ordering, type, m);
+         }
+         else
+         {
+            res = new NCL2FaceRestriction(*this, e_ordering, type, m);
+         }
       }
       else
       {
@@ -1540,11 +1555,11 @@ void FiniteElementSpace::RefinementOperator
       old_DoFTrans[i] = NULL;
    }
 
-   const FiniteElementCollection *fec = fespace->FEColl();
-   if (dynamic_cast<const ND_FECollection*>(fec))
+   const FiniteElementCollection *fec_ref = fespace->FEColl();
+   if (dynamic_cast<const ND_FECollection*>(fec_ref))
    {
       const FiniteElement * nd_tri =
-         fec->FiniteElementForGeometry(Geometry::TRIANGLE);
+         fec_ref->FiniteElementForGeometry(Geometry::TRIANGLE);
       if (nd_tri)
       {
          old_DoFTrans[Geometry::TRIANGLE] =
@@ -1552,11 +1567,19 @@ void FiniteElementSpace::RefinementOperator
       }
 
       const FiniteElement * nd_tet =
-         fec->FiniteElementForGeometry(Geometry::TETRAHEDRON);
+         fec_ref->FiniteElementForGeometry(Geometry::TETRAHEDRON);
       if (nd_tet)
       {
          old_DoFTrans[Geometry::TETRAHEDRON] =
             new ND_TetDofTransformation(nd_tet->GetOrder());
+      }
+
+      const FiniteElement * nd_pri =
+         fec_ref->FiniteElementForGeometry(Geometry::PRISM);
+      if (nd_pri)
+      {
+         old_DoFTrans[Geometry::PRISM] =
+            new ND_WedgeDofTransformation(nd_pri->GetOrder());
       }
    }
 }
@@ -1564,20 +1587,21 @@ void FiniteElementSpace::RefinementOperator
 void FiniteElementSpace::RefinementOperator
 ::Mult(const Vector &x, Vector &y) const
 {
-   Mesh* mesh = fespace->GetMesh();
-   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+   Mesh* mesh_ref = fespace->GetMesh();
+   const CoarseFineTransformations &trans_ref =
+      mesh_ref->GetRefinementTransforms();
 
    Array<int> dofs, vdofs, old_dofs, old_vdofs, old_Fo;
 
-   int vdim = fespace->GetVDim();
-   int old_ndofs = width / vdim;
+   int rvdim = fespace->GetVDim();
+   int old_ndofs = width / rvdim;
 
    Vector subY, subX;
 
-   for (int k = 0; k < mesh->GetNE(); k++)
+   for (int k = 0; k < mesh_ref->GetNE(); k++)
    {
-      const Embedding &emb = rtrans.embeddings[k];
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
+      const Embedding &emb = trans_ref.embeddings[k];
+      const Geometry::Type geom = mesh_ref->GetElementBaseGeometry(k);
       const DenseMatrix &lP = localP[geom](emb.matrix);
 
       subY.SetSize(lP.Height());
@@ -1587,7 +1611,7 @@ void FiniteElementSpace::RefinementOperator
 
       if (!doftrans)
       {
-         for (int vd = 0; vd < vdim; vd++)
+         for (int vd = 0; vd < rvdim; vd++)
          {
             dofs.Copy(vdofs);
             fespace->DofsToVDofs(vd, vdofs);
@@ -1612,7 +1636,7 @@ void FiniteElementSpace::RefinementOperator
             doftrans = vdoftrans->GetDofTransformation();
          }
 
-         for (int vd = 0; vd < vdim; vd++)
+         for (int vd = 0; vd < rvdim; vd++)
          {
             dofs.Copy(vdofs);
             fespace->DofsToVDofs(vd, vdofs);
@@ -1638,23 +1662,24 @@ void FiniteElementSpace::RefinementOperator
 {
    y = 0.0;
 
-   Mesh* mesh = fespace->GetMesh();
-   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+   Mesh* mesh_ref = fespace->GetMesh();
+   const CoarseFineTransformations &trans_ref =
+      mesh_ref->GetRefinementTransforms();
 
    Array<char> processed(fespace->GetVSize());
    processed = 0;
 
    Array<int> f_dofs, c_dofs, f_vdofs, c_vdofs, old_Fo;
 
-   int vdim = fespace->GetVDim();
-   int old_ndofs = width / vdim;
+   int rvdim = fespace->GetVDim();
+   int old_ndofs = width / rvdim;
 
-   Vector subY, subX, subYt, subXt;
+   Vector subY, subX, subYt;
 
-   for (int k = 0; k < mesh->GetNE(); k++)
+   for (int k = 0; k < mesh_ref->GetNE(); k++)
    {
-      const Embedding &emb = rtrans.embeddings[k];
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
+      const Embedding &emb = trans_ref.embeddings[k];
+      const Geometry::Type geom = mesh_ref->GetElementBaseGeometry(k);
       const DenseMatrix &lP = localP[geom](emb.matrix);
 
       DofTransformation * doftrans = fespace->GetElementDofs(k, f_dofs);
@@ -1664,7 +1689,7 @@ void FiniteElementSpace::RefinementOperator
       {
          subY.SetSize(lP.Width());
 
-         for (int vd = 0; vd < vdim; vd++)
+         for (int vd = 0; vd < rvdim; vd++)
          {
             f_dofs.Copy(f_vdofs);
             fespace->DofsToVDofs(vd, f_vdofs);
@@ -1701,7 +1726,7 @@ void FiniteElementSpace::RefinementOperator
             doftrans = vdoftrans->GetDofTransformation();
          }
 
-         for (int vd = 0; vd < vdim; vd++)
+         for (int vd = 0; vd < rvdim; vd++)
          {
             f_dofs.Copy(f_vdofs);
             fespace->DofsToVDofs(vd, f_vdofs);
@@ -1709,8 +1734,7 @@ void FiniteElementSpace::RefinementOperator
             fespace->DofsToVDofs(vd, c_vdofs, old_ndofs);
 
             x.GetSubVector(f_vdofs, subX);
-            old_DoFTrans[geom]->InvTransformPrimal(subX);
-
+            doftrans->InvTransformDual(subX);
             for (int p = 0; p < f_dofs.Size(); ++p)
             {
                if (processed[DecodeDof(f_dofs[p])])
@@ -1719,9 +1743,9 @@ void FiniteElementSpace::RefinementOperator
                }
             }
 
-            lP.MultTranspose(subX, subY);
-            doftrans->TransformPrimal(subY);
-            y.AddElementVector(c_vdofs, subY);
+            lP.MultTranspose(subX, subYt);
+            old_DoFTrans[geom]->TransformDual(subYt);
+            y.AddElementVector(c_vdofs, subYt);
          }
 
          if (vdoftrans)
@@ -1961,15 +1985,16 @@ void FiniteElementSpace::DerefinementOperator
    Array<int> c_vdofs, f_vdofs;
    Vector loc_x, loc_y;
    DenseMatrix loc_x_mat, loc_y_mat;
-   const int vdim = fine_fes->GetVDim();
-   const int coarse_ndofs = height/vdim;
+   const int fine_vdim = fine_fes->GetVDim();
+   const int coarse_ndofs = height/fine_vdim;
    for (int coarse_el = 0; coarse_el < coarse_to_fine.Size(); coarse_el++)
    {
       coarse_elem_dof->GetRow(coarse_el, c_vdofs);
       fine_fes->DofsToVDofs(c_vdofs, coarse_ndofs);
       loc_y.SetSize(c_vdofs.Size());
       loc_y = 0.0;
-      loc_y_mat.UseExternalData(loc_y.GetData(), c_vdofs.Size()/vdim, vdim);
+      loc_y_mat.UseExternalData(loc_y.GetData(), c_vdofs.Size()/fine_vdim,
+                                fine_vdim);
       const int ref_type = coarse_to_ref_type[coarse_el];
       const Geometry::Type geom = ref_type_to_geom[ref_type];
       const int *fine_elems = coarse_to_fine.GetRow(coarse_el);
@@ -1980,7 +2005,8 @@ void FiniteElementSpace::DerefinementOperator
          const DenseMatrix &lR = localR[geom](lR_offset+s);
          fine_fes->GetElementVDofs(fine_elems[s], f_vdofs);
          x.GetSubVector(f_vdofs, loc_x);
-         loc_x_mat.UseExternalData(loc_x.GetData(), f_vdofs.Size()/vdim, vdim);
+         loc_x_mat.UseExternalData(loc_x.GetData(), f_vdofs.Size()/fine_vdim,
+                                   fine_vdim);
          AddMult(lR, loc_x_mat, loc_y_mat);
       }
       y.SetSubVector(c_vdofs, loc_y);
@@ -2112,14 +2138,14 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    }
 }
 
-void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
-                                     const FiniteElementCollection *fec,
-                                     int vdim, int ordering)
+void FiniteElementSpace::Constructor(Mesh *mesh_, NURBSExtension *NURBSext_,
+                                     const FiniteElementCollection *fec_,
+                                     int vdim_, int ordering_)
 {
-   this->mesh = mesh;
-   this->fec = fec;
-   this->vdim = vdim;
-   this->ordering = (Ordering::Type) ordering;
+   mesh = mesh_;
+   fec = fec_;
+   vdim = vdim_;
+   ordering = (Ordering::Type) ordering_;
 
    elem_dof = NULL;
    elem_fos = NULL;
@@ -2132,19 +2158,19 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    Th.SetType(Operator::ANY_TYPE);
 
    const NURBSFECollection *nurbs_fec =
-      dynamic_cast<const NURBSFECollection *>(fec);
+      dynamic_cast<const NURBSFECollection *>(fec_);
    if (nurbs_fec)
    {
-      MFEM_VERIFY(mesh->NURBSext, "NURBS FE space requires a NURBS mesh.");
+      MFEM_VERIFY(mesh_->NURBSext, "NURBS FE space requires a NURBS mesh.");
 
-      if (NURBSext == NULL)
+      if (NURBSext_ == NULL)
       {
-         this->NURBSext = mesh->NURBSext;
+         NURBSext = mesh_->NURBSext;
          own_ext = 0;
       }
       else
       {
-         this->NURBSext = NURBSext;
+         NURBSext = NURBSext_;
          own_ext = 1;
       }
       UpdateNURBS();
@@ -2155,7 +2181,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    }
    else
    {
-      this->NURBSext = NULL;
+      NURBSext = NULL;
       own_ext = 0;
       Construct();
    }
@@ -2190,6 +2216,14 @@ void FiniteElementSpace::ConstructDoFTrans()
       {
          DoFTrans[Geometry::TETRAHEDRON] =
             new ND_TetDofTransformation(nd_tet->GetOrder());
+      }
+
+      const FiniteElement * nd_pri =
+         fec->FiniteElementForGeometry(Geometry::PRISM);
+      if (nd_pri)
+      {
+         DoFTrans[Geometry::PRISM] =
+            new ND_WedgeDofTransformation(nd_pri->GetOrder());
       }
    }
 }
@@ -2252,8 +2286,8 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
    {
       int b = face_to_be[f];
       if (b == -1) { continue; }
-      // FIXME: this assumes the boundary element and the face element have the
-      //        same orientation.
+      // FIXME: this assumes that the boundary element and the face element have
+      //        the same orientation.
       if (dim > 1)
       {
          const Element *fe = mesh->GetFace(f);
@@ -3409,7 +3443,7 @@ void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
    mesh = new_mesh;
 }
 
-void FiniteElementSpace::Save(std::ostream &out) const
+void FiniteElementSpace::Save(std::ostream &os) const
 {
    int fes_format = 90; // the original format, v0.9
    bool nurbs_unit_weights = false;
@@ -3436,11 +3470,11 @@ void FiniteElementSpace::Save(std::ostream &out) const
       }
    }
 
-   out << (fes_format == 90 ?
-           "FiniteElementSpace\n" : "MFEM FiniteElementSpace v1.0\n")
-       << "FiniteElementCollection: " << fec->Name() << '\n'
-       << "VDim: " << vdim << '\n'
-       << "Ordering: " << ordering << '\n';
+   os << (fes_format == 90 ?
+          "FiniteElementSpace\n" : "MFEM FiniteElementSpace v1.0\n")
+      << "FiniteElementCollection: " << fec->Name() << '\n'
+      << "VDim: " << vdim << '\n'
+      << "Ordering: " << ordering << '\n';
 
    if (fes_format == 100) // v1.0
    {
@@ -3452,29 +3486,29 @@ void FiniteElementSpace::Save(std::ostream &out) const
       {
          if (NURBSext->GetOrder() != NURBSFECollection::VariableOrder)
          {
-            out << "NURBS_order\n" << NURBSext->GetOrder() << '\n';
+            os << "NURBS_order\n" << NURBSext->GetOrder() << '\n';
          }
          else
          {
-            out << "NURBS_orders\n";
+            os << "NURBS_orders\n";
             // 1 = do not write the size, just the entries:
-            NURBSext->GetOrders().Save(out, 1);
+            NURBSext->GetOrders().Save(os, 1);
          }
          // If periodic BCs are given, write connectivity
          if (NURBSext->GetMaster().Size() != 0 )
          {
-            out <<"NURBS_periodic\n";
-            NURBSext->GetMaster().Save(out);
-            NURBSext->GetSlave().Save(out);
+            os <<"NURBS_periodic\n";
+            NURBSext->GetMaster().Save(os);
+            NURBSext->GetSlave().Save(os);
          }
          // If the weights are not unit, write them to the output:
          if (!nurbs_unit_weights)
          {
-            out << "NURBS_weights\n";
-            NURBSext->GetWeights().Print(out, 1);
+            os << "NURBS_weights\n";
+            NURBSext->GetWeights().Print(os, 1);
          }
       }
-      out << "End: MFEM FiniteElementSpace v1.0\n";
+      os << "End: MFEM FiniteElementSpace v1.0\n";
    }
 }
 
@@ -3503,7 +3537,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    input >> ord;
 
    NURBSFECollection *nurbs_fec = dynamic_cast<NURBSFECollection*>(r_fec);
-   NURBSExtension *NURBSext = NULL;
+   NURBSExtension *nurbs_ext = NULL;
    if (fes_format == 90) // original format, v0.9
    {
       if (nurbs_fec)
@@ -3513,7 +3547,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
          if (order != m->NURBSext->GetOrder() &&
              order != NURBSFECollection::VariableOrder)
          {
-            NURBSext = new NURBSExtension(m->NURBSext, order);
+            nurbs_ext = new NURBSExtension(m->NURBSext, order);
          }
       }
    }
@@ -3530,18 +3564,18 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
             MFEM_VERIFY(nurbs_fec,
                         buff << ": NURBS FE collection is required!");
             MFEM_VERIFY(m->NURBSext, buff << ": NURBS mesh is required!");
-            MFEM_VERIFY(!NURBSext, buff << ": order redefinition!");
+            MFEM_VERIFY(!nurbs_ext, buff << ": order redefinition!");
             if (buff == "NURBS_order")
             {
                int order;
                input >> order;
-               NURBSext = new NURBSExtension(m->NURBSext, order);
+               nurbs_ext = new NURBSExtension(m->NURBSext, order);
             }
             else
             {
                Array<int> orders;
                orders.Load(m->NURBSext->GetNKV(), input);
-               NURBSext = new NURBSExtension(m->NURBSext, orders);
+               nurbs_ext = new NURBSExtension(m->NURBSext, orders);
             }
          }
          else if (buff == "NURBS_periodic")
@@ -3549,13 +3583,13 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
             Array<int> master, slave;
             master.Load(input);
             slave.Load(input);
-            NURBSext->ConnectBoundaries(master,slave);
+            nurbs_ext->ConnectBoundaries(master,slave);
          }
          else if (buff == "NURBS_weights")
          {
-            MFEM_VERIFY(NURBSext, "NURBS_weights: NURBS_orders have to be "
+            MFEM_VERIFY(nurbs_ext, "NURBS_weights: NURBS_orders have to be "
                         "specified before NURBS_weights!");
-            NURBSext->GetWeights().Load(input, NURBSext->GetNDof());
+            nurbs_ext->GetWeights().Load(input, nurbs_ext->GetNDof());
          }
          else if (buff == "element_orders")
          {
@@ -3574,7 +3608,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
       }
    }
 
-   Constructor(m, NURBSext, r_fec, vdim, ord);
+   Constructor(m, nurbs_ext, r_fec, vdim, ord);
 
    return r_fec;
 }
@@ -3626,11 +3660,11 @@ QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
    Construct();
 }
 
-void QuadratureSpace::Save(std::ostream &out) const
+void QuadratureSpace::Save(std::ostream &os) const
 {
-   out << "QuadratureSpace\n"
-       << "Type: default_quadrature\n"
-       << "Order: " << order << '\n';
+   os << "QuadratureSpace\n"
+      << "Type: default_quadrature\n"
+      << "Order: " << order << '\n';
 }
 
 } // namespace mfem

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,6 +43,15 @@ void TensorValues<QVectorLayout::byNODES>(const int NE,
 
    const int id = (vdim<<8) | (D1D<<4) | Q1D;
 
+   if (dim == 1)
+   {
+      MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
+                  << " are not supported!");
+      MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
+                  << MAX_Q1D << " 1D points are not supported!");
+      Values1D<L>(NE, B, X, Y, vdim, D1D, Q1D);
+      return;
+   }
    if (dim == 2)
    {
       switch (id)

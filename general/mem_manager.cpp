@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -470,7 +470,10 @@ public:
    void *HtoD(void *dst, const void *src, size_t bytes)
    { return HipMemcpyHtoD(dst, src, bytes); }
    void *DtoD(void* dst, const void* src, size_t bytes)
-   { return HipMemcpyDtoD(dst, src, bytes); }
+   // Unlike cudaMemcpy(DtoD), hipMemcpy(DtoD) causes a host-side synchronization so
+   // instead we use hipMemcpyAsync to get similar behavior.
+   // for more info see: https://github.com/mfem/mfem/pull/2780
+   { return HipMemcpyDtoDAsync(dst, src, bytes); }
    void *DtoH(void *dst, const void *src, size_t bytes)
    { return HipMemcpyDtoH(dst, src, bytes); }
 };
@@ -593,7 +596,10 @@ public:
       return CuMemcpyDtoD(dst, src, bytes);
 #endif
 #ifdef MFEM_USE_HIP
-      return HipMemcpyDtoD(dst, src, bytes);
+      // Unlike cudaMemcpy(DtoD), hipMemcpy(DtoD) causes a host-side synchronization so
+      // instead we use hipMemcpyAsync to get similar behavior.
+      // for more info see: https://github.com/mfem/mfem/pull/2780
+      return HipMemcpyDtoDAsync(dst, src, bytes);
 #endif
       // rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
@@ -1610,34 +1616,34 @@ void MemoryManager::RegisterCheck(void *ptr)
    }
 }
 
-int MemoryManager::PrintPtrs(std::ostream &out)
+int MemoryManager::PrintPtrs(std::ostream &os)
 {
    int n_out = 0;
    for (const auto& n : maps->memories)
    {
       const internal::Memory &mem = n.second;
-      out << "\nkey " << n.first << ", "
-          << "h_ptr " << mem.h_ptr << ", "
-          << "d_ptr " << mem.d_ptr;
+      os << "\nkey " << n.first << ", "
+         << "h_ptr " << mem.h_ptr << ", "
+         << "d_ptr " << mem.d_ptr;
       n_out++;
    }
-   if (maps->memories.size() > 0) { out << std::endl; }
+   if (maps->memories.size() > 0) { os << std::endl; }
    return n_out;
 }
 
-int MemoryManager::PrintAliases(std::ostream &out)
+int MemoryManager::PrintAliases(std::ostream &os)
 {
    int n_out = 0;
    for (const auto& n : maps->aliases)
    {
       const internal::Alias &alias = n.second;
-      out << "\nalias: key " << n.first << ", "
-          << "h_ptr " << alias.mem->h_ptr << ", "
-          << "offset " << alias.offset << ", "
-          << "counter " << alias.counter;
+      os << "\nalias: key " << n.first << ", "
+         << "h_ptr " << alias.mem->h_ptr << ", "
+         << "offset " << alias.offset << ", "
+         << "counter " << alias.counter;
       n_out++;
    }
-   if (maps->aliases.size() > 0) { out << std::endl; }
+   if (maps->aliases.size() > 0) { os << std::endl; }
    return n_out;
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,8 +32,15 @@
 #error "MFEM does not work with HYPRE's complex numbers support"
 #endif
 
+#if defined(HYPRE_USING_GPU) && \
+    !(defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP))
+#error "Unsupported GPU build of HYPRE! Only CUDA and HIP builds are supported."
+#endif
 #if defined(HYPRE_USING_CUDA) && !defined(MFEM_USE_CUDA)
 #error "MFEM_USE_CUDA=YES is required when HYPRE is built with CUDA!"
+#endif
+#if defined(HYPRE_USING_HIP) && !defined(MFEM_USE_HIP)
+#error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
 
 #include "sparsemat.hpp"
@@ -44,6 +51,48 @@ namespace mfem
 
 class ParFiniteElementSpace;
 class HypreParMatrix;
+
+
+/// @brief A simple singleton class for hypre's global settings, that 1) calls
+/// HYPRE_Init() and sets some GPU-relevant options at construction and 2) calls
+/// HYPRE_Finalize() at destruction.
+class Hypre
+{
+public:
+   /// @brief Initialize hypre by calling HYPRE_Init() and set default options.
+   /// After calling Hypre::Init(), hypre will be finalized automatically at
+   /// program exit.
+   ///
+   /// Calling HYPRE_Finalize() manually is not compatible with this class.
+   static void Init() { Instance(); }
+
+   /// @brief Finalize hypre (called automatically at program exit if
+   /// Hypre::Init() has been called).
+   ///
+   /// Multiple calls to Hypre::Finalize() have no effect. This function can be
+   /// called manually to more precisely control when hypre is finalized.
+   static void Finalize();
+
+private:
+   /// Calls HYPRE_Init() when the singleton is constructed.
+   Hypre();
+
+   /// The singleton destructor (called at program exit) finalizes hypre.
+   ~Hypre() { Finalize(); }
+
+   /// Set the default hypre global options (mostly GPU-relevant).
+   void SetDefaultOptions();
+
+   /// Create and return the Hypre singleton object.
+   static Hypre &Instance()
+   {
+      static Hypre hypre;
+      return hypre;
+   }
+
+   bool finalized = false; ///< Has Hypre::Finalize() been called already?
+};
+
 
 namespace internal
 {
@@ -74,7 +123,7 @@ inline int to_int(HYPRE_Int i)
 /// The MemoryClass used by Hypre objects.
 inline constexpr MemoryClass GetHypreMemoryClass()
 {
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
    return MemoryClass::HOST;
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryClass::MANAGED;
@@ -86,7 +135,7 @@ inline constexpr MemoryClass GetHypreMemoryClass()
 /// The MemoryType used by MFEM when allocating arrays for Hypre objects.
 inline MemoryType GetHypreMemoryType()
 {
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
    return Device::GetHostMemoryType();
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryType::MANAGED;
@@ -141,14 +190,20 @@ public:
        allocated in the memory location HYPRE_MEMORY_DEVICE. */
    HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, double *data_,
                   HYPRE_BigInt *col, bool is_device_ptr = false);
-   /// Creates vector compatible with y
+   /// Creates a deep copy of @a y
    HypreParVector(const HypreParVector &y);
+   /// Move constructor for HypreParVector. "Steals" data from its argument.
+   HypreParVector(HypreParVector&& other);
    /// Creates vector compatible with (i.e. in the domain of) A or A^T
    explicit HypreParVector(const HypreParMatrix &A, int transpose = 0);
    /// Creates vector wrapping y
    explicit HypreParVector(HYPRE_ParVector y);
    /// Create a true dof parallel vector on a given ParFiniteElementSpace
    explicit HypreParVector(ParFiniteElementSpace *pfes);
+
+   /// \brief Constructs a  @p HypreParVector *compatible* with the calling vector
+   /// - meaning that it will be the same size and have the same partitioning.
+   HypreParVector CreateCompatibleVector() const;
 
    /// MPI communicator
    MPI_Comm GetComm() const { return x->comm; }
@@ -192,6 +247,8 @@ public:
    HypreParVector& operator= (double d);
    /// Define '=' for hypre vectors.
    HypreParVector& operator= (const HypreParVector &y);
+   /// Move assignment
+   HypreParVector& operator= (HypreParVector &&y);
 
    using Vector::Read;
 
@@ -341,10 +398,6 @@ private:
    static signed char CopyBoolCSR(Table *bool_csr,
                                   MemoryIJData &mem_csr,
                                   hypre_CSRMatrix *hypre_csr);
-
-   // Copy the j array of a hypre_CSRMatrix to the given J array, converting
-   // the indices from HYPRE_Int/HYPRE_BigInt to int.
-   static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
 
    // Wrap the data from h_mat into mem with the given ownership flag.
    // If the new Memory arrays in mem are not suitable to be accessed via
@@ -911,7 +964,7 @@ public:
    enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
                GS = 6, OPFS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
              };
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
    static constexpr Type default_type = l1GS;
 #else
    static constexpr Type default_type = l1Jacobi;
