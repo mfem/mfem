@@ -14,9 +14,9 @@ Version 4.4, released on March 21, 2022
 Linear and nonlinear solvers
 ----------------------------
 - Added support for using the hypre library built with HIP support. Similar to
-  the existing hypre + CUDA support, most of the MFEM examples and miniapps
-  work transparently with hypre + HIP builds. This includes the BoomerAMG, AMS,
-  and ADS solvers.
+  the existing hypre + CUDA support, most of the MFEM examples and miniapps work
+  transparently with hypre + HIP builds. This includes the BoomerAMG, AMS, and
+  ADS solvers.
 
 - Added a simple singleton class, Hypre, to automatically set hypre's global
   parameters, particularly GPU-relevant options. Updated parallel example codes
@@ -29,18 +29,15 @@ Linear and nonlinear solvers
 
 Meshing improvements
 --------------------
+- New TMOP-based methods for hr-adaptivity, interface fitting, and tangential
+  relaxation of high-order meshes.
+
 - Added initial support for meshes with pyramidal elements, including several
   pyramidal meshes in the data/ directory and support for the lowest order H1,
   Nedelec, Raviart-Thomas, and L2 basis functions on pyramids.
 
-- Added TMOP-based methods for hr-adaptivity, interface fitting, and tangential
-  relaxation of high-order meshes.
-
-- Tetrahedral meshes no longer need to be reordered to support high order
-  Nedelec basis functions. This will allow future support for Nedelec basis
-  functions on wedges and pyramids which are not amenable to reordering. The
-  ReorientTetMesh method of the Mesh and ParMesh classes has been deprecated.
-  See the new DofTransformation class in fem/doftrans.hpp.
+- Added a simpler interface to access mesh face information, see FaceInformation
+  and GetFaceInformation in the Mesh class.
 
 - Gmsh meshes where all elements have zero physical tag (the default Gmsh output
   format if no physical groups are defined) are now successfully loaded, and
@@ -51,29 +48,30 @@ Meshing improvements
 
 Discretization improvements
 ---------------------------
-- Split the fem/fe.?pp files into separate files in the new fem/fe/ directory to
-  simplify and clarify the organization of FiniteElement classes.
+- Added general dof transformation to support high order Nedelec basis functions
+  on tetrahedral meshes without reordering. The ReorientTetMesh method of the
+  Mesh and ParMesh classes has been deprecated. See the new DofTransformation
+  class in fem/doftrans.hpp.
 
-- Added arbitrary order Nedelec and Raviart-Thomas basis functions for
-  wedge-shaped elements.
+- GPU-enabled partial (PA) and element (EA) assembly for discontinuous Galerkin
+  methods on nonconforming AMR meshes.
+
+- Support for arbitrary order Nedelec and Raviart-Thomas elements on wedges.
 
 - Added special Nedelec and Raviart-Thomas basis functions for modeling three
   dimensional vector fields in 1D and 2D domains, see the new Example 31/31p.
 
-- Added a simpler interface to request face information, see FaceInformation and
-  GetFaceInformation in the Mesh class.
-
-- Added GPU enabled partial assembly (PA) and element assembly (EA) support for
-  discontinuous Galerkin methods on nonconforming meshes (NCMesh).
+- GridFunctionCoefficient (and the related vector, gradient, divergence, and
+  curl classes) now work properly with LORDiscretization and LORSolver.
 
 - Added PA support for the action of MixedScalarCurlIntegrator in 2D and
   MixedVectorGradientIntegrator in 2D and 3D, as well as their transposes.
 
-- GridFunctionCoefficient (and the related vector, gradient, divergence, and
-  curl classes) now work properly with LORDiscretization and LORSolver.
-
 - Coefficient::SetTime now propagates the new time into internally stored
   Coefficient objects.
+
+- Split the fem/fe.?pp files into separate files in the new fem/fe/ directory to
+  simplify and clarify the organization of FiniteElement classes.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -111,7 +109,7 @@ New and updated examples and miniapps
 
 Integrations, testing and documentation
 ---------------------------------------
-- Doxygen documentation for previous releases is now available at docs.mfem.org.
+- Doxygen documentation for all releases is now available at docs.mfem.org.
 
 - The following integrations have updated minimum version requirements:
   * HIOP >= 0.4.6
