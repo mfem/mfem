@@ -67,6 +67,7 @@ protected:
    AvgType avgtype;             // average type used for L2 functions
    Array<int> splitElementMap;
    Array<int> splitElementIndex;
+   int        NE_split_Total;
 
    /// Convert simplices to quad/hexes and then get nodal coordinates for each
    /// split element into format expected by GSLIB
