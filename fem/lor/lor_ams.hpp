@@ -33,9 +33,6 @@ protected:
    const int order;
    H1_FECollection vert_fec;
    ParFiniteElementSpace vert_fes;
-   // *WARNING*: the following data members are allocated but not freed by
-   // this class. It is the responsibility of the caller to delete the
-   // following objects: *A, xyz_tvec, G, x, y, z
    OperatorHandle A;
    Vector *xyz_tvec;
    HypreParMatrix *G;
@@ -47,15 +44,21 @@ public:
    BatchedLOR_AMS(BilinearForm &a_,
                   ParFiniteElementSpace &pfes_ho_,
                   const Array<int> &ess_dofs_);
-   HypreParMatrix &GetAssembledMatrix() const { return *A.As<HypreParMatrix>(); }
+   HypreParMatrix *StealGradientMatrix();
+   Vector *StealCoordinateVector();
+   HypreParVector *StealXCoordinate();
+   HypreParVector *StealYCoordinate();
+   HypreParVector *StealZCoordinate();
+
    HypreParMatrix *GetGradientMatrix() const { return G; };
-   Vector *GetCoordinateVector() const { return xyz_tvec; };
    HypreParVector *GetXCoordinate() const { return x; };
    HypreParVector *GetYCoordinate() const { return y; };
    HypreParVector *GetZCoordinate() const { return z; };
+
    // The following should be protected, but contain MFEM_FORALL kernels
    void FormCoordinateVectors();
    void FormGradientMatrix();
+   ~BatchedLOR_AMS();
 };
 
 }
