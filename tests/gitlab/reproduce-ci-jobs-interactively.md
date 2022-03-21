@@ -42,7 +42,7 @@ patch.
 
 ## Install Dependencies
 
-### Option #1: Using the CI script
+### Option 1: Using the CI script
 
 ```bash
 ./tests/gitlab/build_and_test --deps-only --spec "%gcc@6.1.0 +sundials"
@@ -73,7 +73,7 @@ slightly differently. In case (b), it will build and install dependencies in
 the installation to persist. Installation will happen locally to the uberenv
 directory in case (a), i.e. if `--deps-only` is used.
 
-### Option #2: Calling uberenv directly
+### Option 2: Calling uberenv directly
 
 ```bash
 python ./tests/uberenv/uberenv.py --spec="%gcc@6.1.0 +sundials"

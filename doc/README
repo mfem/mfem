@@ -23,7 +23,6 @@ Alternatively, the (pre-build) documentation can be browsed directly online at
 
    https://docs.mfem.org
 
-
 Some building considerations:
 
 - To clean the (large) CodeDocumentation/ directory, type "make clean".
