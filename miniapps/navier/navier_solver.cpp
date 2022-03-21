@@ -27,8 +27,8 @@ void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
 }
 
 NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
-   : pmesh(mesh), order(order), gll_rules(0, Quadrature1D::GaussLobatto),
-     kin_vis(kin_vis)
+   : pmesh(mesh), order(order), kin_vis(kin_vis),
+     gll_rules(0, Quadrature1D::GaussLobatto)
 {
    vfec = new H1_FECollection(order, pmesh->Dimension());
    pfec = new H1_FECollection(order);
