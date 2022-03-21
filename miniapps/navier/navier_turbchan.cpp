@@ -104,8 +104,6 @@ int main(int argc, char *argv[])
    int NY = 2 * std::round(48.0 / N);
    int NZ = NL;
 
-   double C = 1.8;
-
    Mesh mesh = Mesh::MakeCartesian3D(NX, NY, NZ, Element::HEXAHEDRON, Lx, Ly, Lz);
 
    for (int i = 0; i < mesh.GetNV(); ++i)
