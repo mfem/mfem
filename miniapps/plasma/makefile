@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = stix1d stix2d stix3d braginskii transport2d dg_adv_diff
+PAR_MINIAPPS = braginskii transport2d dg_adv_diff
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else

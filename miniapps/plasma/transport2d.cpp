@@ -76,6 +76,8 @@ static double Tot_B_max_ = 5.0; // Maximum of total B field
 static double Pol_B_max_ = 0.5; // Maximum of poloidal B field
 static double v_max_ = 1e3;
 
+void set_mass_defaults(double &m_amu, double &m_kg, double m_def_amu);
+
 // Maximum characteristic speed (updated by integrators)
 //static double max_char_speed_;
 
@@ -924,6 +926,8 @@ public:
    }
 };
 
+Mesh * BuildSol1DMesh(const Vector &sol1d);
+
 void ErrorEstRange(ErrorEstimator & est, double &min_err, double &max_err);
 
 // Initial condition
@@ -973,6 +977,7 @@ int main(int argc, char *argv[])
    const char *ec_file = "";
    const char *es_file = "";
    const char *eqdsk_file = "";
+   Vector mesh_sol1d;
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    int nc_limit = 3;         // maximum level of hanging nodes
@@ -1020,11 +1025,13 @@ int main(int argc, char *argv[])
    int vis_steps = 10;
 
    PlasmaParams plasma;
-   plasma.lnLambda = 17.0;
-   plasma.m_n = 2.01410178; // (amu)
-   plasma.T_n = 3.0;        // (eV)
-   plasma.m_i = 2.01410178; // (amu)
-   plasma.z_i = 1;          // ion charge
+   plasma.m_n_amu = -1.0;
+   plasma.m_n_kg  = -1.0;
+   plasma.m_i_amu = -1.0;
+   plasma.m_i_kg  = -1.0;
+   plasma.v_n_m_per_s = 0.0;
+   plasma.T_n_eV  =  3.0;   // (eV)
+   plasma.z_i = 1;          // ion charge number
    /*
    int      ion_charge = 1;
    double     ion_mass = 2.01410178; // (amu)
@@ -1047,6 +1054,10 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&mesh_sol1d, "-m-sol1d", "--mesh-sol1d",
+                  "Build a mesh using the algortihm from sol1d."
+                  " Needs three parameters: number of elements, "
+                  " width of mesh, and beta");
    args.AddOption(&bc_file, "-bc", "--bc-file",
                   "Boundary condition input file.");
    args.AddOption(&ic_file, "-ic", "--ic-file",
@@ -1163,11 +1174,15 @@ int main(int argc, char *argv[])
    args.AddOption(&plasma.z_i, "-qi", "--ion-charge",
                   "Charge of the species "
                   "(in units of electron charge)");
-   args.AddOption(&plasma.m_i, "-mi", "--ion-mass",
+   args.AddOption(&plasma.m_i_amu, "-mi-amu", "--ion-mass-amu",
                   "Mass of the ion species (in amu)");
-   args.AddOption(&plasma.m_n, "-mn", "--neutral-mass",
+   args.AddOption(&plasma.m_n_amu, "-mn-amu", "--neutral-mass-amu",
                   "Mass of the neutral species (in amu)");
-   args.AddOption(&plasma.T_n, "-Tn", "--neutral-temp",
+   args.AddOption(&plasma.m_i_kg, "-mi-kg", "--ion-mass-kg",
+                  "Mass of the ion species (in kilograms)");
+   args.AddOption(&plasma.m_n_kg, "-mn-kg", "--neutral-mass-kg",
+                  "Mass of the neutral species (in kilograms)");
+   args.AddOption(&plasma.T_n_eV, "-Tn", "--neutral-temp",
                   "Temperature of the neutral species (in eV)");
    args.AddOption(&nn_min_, "-nn-min", "--min-neutral-density",
                   "Minimum of inital neutral density");
@@ -1240,6 +1255,10 @@ int main(int argc, char *argv[])
       if (mpi.Root()) { args.PrintUsage(cout); }
       return 1;
    }
+
+   set_mass_defaults(plasma.m_n_amu, plasma.m_n_kg, 2.01410178);
+   set_mass_defaults(plasma.m_i_amu, plasma.m_i_kg, 2.01410178);
+
    if (dg.kappa < 0.0)
    {
       dg.kappa = (double)(order+1)*(order+1);
@@ -1272,9 +1291,9 @@ int main(int argc, char *argv[])
       eqn_weights.SetSize(5);
       eqn_weights[     NEUTRAL_DENSITY] = 1e-15; // n_n ~ 1e15
       eqn_weights[         ION_DENSITY] = 1e-19; // n_i ~ 1e19
-      eqn_weights[   ION_PARA_VELOCITY] = 1e-22; // mom_i ~ 1e19 * 1e3
-      eqn_weights[     ION_TEMPERATURE] = 1e-20; // pres_i ~ 1e19 * 1e1
-      eqn_weights[ELECTRON_TEMPERATURE] = 1e-21; // pres_e ~ 1e19 * 1e2
+      eqn_weights[   ION_PARA_VELOCITY] = 1e+05; // mom_i ~ 1e-27 * 1e19 * 1e3
+      eqn_weights[     ION_TEMPERATURE] = 1e+02; // eng_i ~ 1e-27 * 1e19 * 1e6
+      eqn_weights[ELECTRON_TEMPERATURE] = 1e+02; // eng_e ~ 1e-27 * 1e19 * 1e6
    }
 
    if (amr_weights.Size() != 5)
@@ -1294,9 +1313,19 @@ int main(int argc, char *argv[])
       term_flags.SetSize(5);
       term_flags = -1; // Turn on default equation terms
    }
-   if (vis_flags.Size() != 5)
+   if (vis_flags.Size() == 5)
    {
-      vis_flags.SetSize(5);
+      Array<int> old_vis_flags = vis_flags;
+      vis_flags.SetSize(6);
+      for (int i=0; i<5; i++)
+      {
+         vis_flags[i] = old_vis_flags[i];
+      }
+      vis_flags[5] = -1;
+   }
+   if (vis_flags.Size() != 6)
+   {
+      vis_flags.SetSize(6);
       vis_flags = -1; // Turn on default visualization fields
    }
 
@@ -1337,7 +1366,8 @@ int main(int argc, char *argv[])
 
    // 3. Read the mesh from the given mesh file. This example requires a 2D
    //    periodic mesh, such as ../data/periodic-square.mesh.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   Mesh *mesh = (mesh_sol1d.Size() == 0) ? new Mesh(mesh_file, 1, 1) :
+                BuildSol1DMesh(mesh_sol1d);
    const int dim = mesh->Dimension();
    const int sdim = mesh->SpaceDimension();
 
@@ -1620,8 +1650,8 @@ int main(int argc, char *argv[])
 
    // Coefficients representing secondary fields
    ProductCoefficient      neCoef(plasma.z_i, niCoef);
-   ConstantCoefficient     vnCoef(sqrt(8.0 * plasma.T_n * J_per_eV_ /
-                                       (M_PI * plasma.m_n * kg_per_amu_)));
+   ConstantCoefficient     vnCoef(sqrt(8.0 * plasma.T_n_eV * J_per_eV_ /
+                                       (M_PI * plasma.m_n_kg)));
    GridFunctionCoefficient veCoef(&para_velocity); // TODO: define as vi - J/q
 
    /*
@@ -2187,7 +2217,7 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          ostringstream oss;
-         oss << "Parallel Ion Velocity at time " << t;
+         oss << "Ion Parallel Velocity at time " << t;
          VisualizeField(sout[2], vishost, visport, para_velocity, oss.str().c_str(),
                         Wx + 2 * (Ww + Dx), Wy + Wh + Dy, Ww, Wh);
       }
@@ -2493,6 +2523,80 @@ void record_cmd_line(int argc, char *argv[])
    }
    ofs << endl << flush;
    ofs.close();
+}
+
+void set_mass_defaults(double &m_amu, double &m_kg, double m_def_amu)
+{
+   if (m_amu < 0.0 && m_kg < 0.0)
+   {
+      m_amu = m_def_amu;
+      m_kg  = m_amu * kg_per_amu_;
+   }
+   else if (m_amu < 0.0)
+   {
+      m_amu = m_kg / kg_per_amu_;
+   }
+   else if (m_kg < 0.0)
+   {
+      m_kg = m_amu * kg_per_amu_;
+   }
+
+}
+
+Mesh * BuildSol1DMesh(const Vector &sol1d)
+{
+   MFEM_VERIFY(sol1d.Size() == 3, "Must have 3 sol1d mesh parameters.");
+   int NUMC = (int)sol1d(0);
+   double L0 = sol1d(1);
+   double beta = sol1d(2);
+
+   Mesh mesh = Mesh::MakeCartesian2D(NUMC, 1, Element::QUADRILATERAL);
+
+   double delx;
+
+   double * xn = new double[NUMC+1];
+
+   if (beta<0.0)
+   {
+      xn[0] = 0.0;
+      delx = L0/((double)(NUMC));
+      for (int i=1; i<=NUMC; i++) { xn[i]=xn[i-1]+delx; }
+      xn[NUMC+1]=xn[NUMC];
+   }
+   else
+   {
+      double ksi;
+
+      double * xtemp = new double[NUMC+1];
+      xtemp[0] = 0.0;
+      for (int i=1; i<=NUMC; i++)
+      {
+         ksi=(double)(i)/(double)(NUMC);
+         xtemp[i] =L0*( (beta+1.0)-(beta-1.0)*pow((beta+1.0)/(beta-1.0),1.0-ksi) )
+                   /( 1.0 + pow((beta+1.0)/(beta-1.0),1.0-ksi) );
+      }
+
+      for (int i=0; i<=NUMC; i++) { xn[i]=L0-xtemp[NUMC-i]; }
+      xn[NUMC+1]=xn[NUMC];
+
+      delete [] xtemp;
+   }
+
+   Vector vert_coord(4*(NUMC+1));
+
+   for (int i=0; i<=NUMC; i++)
+   {
+      vert_coord(0 * (NUMC + 1) + i) = xn[i];
+      vert_coord(1 * (NUMC + 1) + i) = xn[i];
+      vert_coord(2 * (NUMC + 1) + i) = 0.0;
+      vert_coord(3 * (NUMC + 1) + i) = 0.125 * L0;
+   }
+
+   delete [] xn;
+
+   mesh.SetVertices(vert_coord);
+
+   return new Mesh(mesh);
 }
 
 void ErrorEstRange(ErrorEstimator & est, double &min_err, double &max_err)

@@ -35,14 +35,15 @@ namespace plasma
    zi is the charge number of the ion species
    lnLambda is the Coulomb Logarithm
 */
+/*
 inline double tau_e(double Te, double zi, double ni, double lnLambda)
 {
-   // The factor of q_^{3/2} is included to convert Te from eV to Joules
-   return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-          sqrt(0.5 * me_kg_ * pow(q_ * Te, 3) / M_PI) /
-          (lnLambda * pow(q_, 4) * zi * zi * ni);
+ // The factor of q_^{3/2} is included to convert Te from eV to Joules
+ return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
+        sqrt(0.5 * me_kg_ * pow(q_ * Te, 3) / M_PI) /
+        (lnLambda * pow(q_, 4) * zi * zi * ni);
 }
-
+*/
 /**
    Returns the mean Ion-Ion mean collision time in seconds (see equation 2.5i)
    mi is the ion mass in a.m.u.
@@ -51,15 +52,16 @@ inline double tau_e(double Te, double zi, double ni, double lnLambda)
    Ti is the ion temperature in eV
    lnLambda is the Coulomb Logarithm
 */
+/*
 inline double tau_i(double mi, double zi, double ni, double Ti,
-                    double lnLambda)
+                 double lnLambda)
 {
-   // The factor of q_^{3/2} is included to convert Ti from eV to Joules
-   return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
-          sqrt(mi * kg_per_amu_ * pow(q_ * Ti, 3) / M_PI) /
-          (lnLambda * pow(q_ * zi, 4) * ni);
+// The factor of q_^{3/2} is included to convert Ti from eV to Joules
+return 0.75 * pow(4.0 * M_PI * epsilon0_, 2) *
+       sqrt(mi * kg_per_amu_ * pow(q_ * Ti, 3) / M_PI) /
+       (lnLambda * pow(q_ * zi, 4) * ni);
 }
-
+*/
 /**
    Many of the coefficients depend upon the charge of the ion species.  These
    dependencies are tabulated in Table 2 (pg. 251) of Braginskii.  The

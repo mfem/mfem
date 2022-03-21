@@ -19,6 +19,30 @@ namespace mfem
 namespace plasma
 {
 
+double lambda_ei(double Te, double ne, double zi)
+{
+   if (Te < 10.0 * zi * zi)
+   {
+      return 23.0 - log(1.0e-3 * zi * sqrt(ne / pow(Te, 3)));
+   }
+   else
+   {
+      return 23.0 - log(1.0e-3 * sqrt(0.1 * ne) / Te);
+   }
+}
+/// Derivative of lambda_ei wrt Te
+double dlambda_ei_dTe(double Te, double ne, double zi)
+{
+   if (Te < 10.0 * zi * zi)
+   {
+      return 1.5 / Te;
+   }
+   else
+   {
+      return 1.0 / Te;
+   }
+}
+
 G_EQDSK_Data::G_EQDSK_Data(istream &is)
 {
    double XDUM = 0.0;
