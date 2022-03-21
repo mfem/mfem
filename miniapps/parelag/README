@@ -152,31 +152,31 @@ References
 ParELAG: Parallel Element Agglomeration Algebraic Multigrid Upscaling and
  Solvers, http://github.com/LLNL/parelag
 
-D. Z. Kalchev, P. S. Vassilevski, and U. Villa, “On ParELAG's Parallel Element-
+D. Z. Kalchev, P. S. Vassilevski, and U. Villa, "On ParELAG's Parallel Element-
  based Algebraic Multigrid and its MFEM Miniapps for H(curl) and H(div)
  Problems: a report including lowest and next to the lowest order numerical
- results,” Technical report LLNL-TR-824455, Lawrence Livermore National
+ results," Technical report LLNL-TR-824455, Lawrence Livermore National
  Laboratory, Livermore, CA, USA, 2021, http://doi.org/10.2172/1807757
 
-D. Z. Kalchev, P. S. Vassilevski, and U. Villa, “Parallel Element-based
+D. Z. Kalchev, P. S. Vassilevski, and U. Villa, "Parallel Element-based
  Algebraic Multigrid for H(curl) and H(div) Problems Using the ParELAG
- Library,” 2021, http://arxiv.org/abs/2107.05613
+ Library," 2021, http://arxiv.org/abs/2107.05613
 
-T. V. Kolev and P. S. Vassilevski, “Parallel Auxiliary Space AMG for H(curl)
- Problems,” Journal of Computational Mathematics, vol. 27, no. 5, pp. 604–623,
+T. V. Kolev and P. S. Vassilevski, "Parallel Auxiliary Space AMG for H(curl)
+ Problems," Journal of Computational Mathematics, vol. 27, no. 5, pp. 604-623,
  2009, http://doi.org/10.4208/jcm.2009.27.5.013
 
-T. V. Kolev and P. S. Vassilevski, “Parallel Auxiliary Space AMG Solver for
- H(div) Problems,” SIAM Journal on Scientific Computing, vol. 34, no. 6,
- pp. A3079–A3098, 2012, http://doi.org/10.1137/110859361
+T. V. Kolev and P. S. Vassilevski, "Parallel Auxiliary Space AMG Solver for
+ H(div) Problems," SIAM Journal on Scientific Computing, vol. 34, no. 6,
+ pp. A3079-A3098, 2012, http://doi.org/10.1137/110859361
 
-V. Dobrev, T. Kolev, C. S. Lee, V. Tomov, and P. S. Vassilevski, “Algebraic
+V. Dobrev, T. Kolev, C. S. Lee, V. Tomov, and P. S. Vassilevski, "Algebraic
  Hybridization and Static Condensation with Application to Scalable H(div)
- Preconditioning,” SIAM Journal on Scientific Computing, vol. 41, no. 3,
- pp. B425–B447, 2019, http://doi.org/10.1137/17M1132562
+ Preconditioning," SIAM Journal on Scientific Computing, vol. 41, no. 3,
+ pp. B425-B447, 2019, http://doi.org/10.1137/17M1132562
 
-R. Hiptmair, “Multigrid Method for Maxwell’s Equations,” SIAM Journal on
- Numerical Analysis, vol. 36, no. 1, pp. 204–225, 1998,
+R. Hiptmair, "Multigrid Method for Maxwell's Equations," SIAM Journal on
+ Numerical Analysis, vol. 36, no. 1, pp. 204-225, 1998,
  http://doi.org/10.1137/S0036142997326203
 
 P. S. Vassilevski, Multilevel Block Factorization Preconditioners: Matrix-based

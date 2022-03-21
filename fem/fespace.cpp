@@ -2286,8 +2286,8 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
    {
       int b = face_to_be[f];
       if (b == -1) { continue; }
-      // FIXME: this assumes the boundary element and the face element have the
-      //        same orientation.
+      // FIXME: this assumes that the boundary element and the face element have
+      //        the same orientation.
       if (dim > 1)
       {
          const Element *fe = mesh->GetFace(f);
