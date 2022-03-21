@@ -356,13 +356,14 @@ SparseMatrix *BatchedLORAssembly::SparseIJToCSR() const
 {
    const int nvdof = fes_ho.GetVSize();
 
-   SparseMatrix *A = new SparseMatrix(nvdof, nvdof, 0);
+   SparseMatrix *A = new SparseMatrix;
+   A->OverrideSize(nvdof, nvdof);
 
-   A->GetMemoryI().New(nvdof+1, A->GetMemoryI().GetMemoryType());
+   A->GetMemoryI().New(nvdof+1, Device::GetDeviceMemoryType());
    int nnz = FillI(*A);
 
-   A->GetMemoryJ().New(nnz, A->GetMemoryJ().GetMemoryType());
-   A->GetMemoryData().New(nnz, A->GetMemoryData().GetMemoryType());
+   A->GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
+   A->GetMemoryData().New(nnz, Device::GetDeviceMemoryType());
    FillJAndData(*A);
 
    return A;
