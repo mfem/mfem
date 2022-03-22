@@ -378,6 +378,179 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
    delete aux_fec;
 }
 
+void ParaViewPrintAttributes(const string &fname,
+                             Mesh &mesh,
+                             int entity_dim,
+                             const Array<int> *el_number,
+                             const Array<int> *vert_number)
+{
+    ofstream out(fname + ".vtu");
+
+    out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\"";
+    out << " byte_order=\"" << VTKByteOrder() << "\">\n";
+    out << "<UnstructuredGrid>\n";
+
+    const string fmt_str = "ascii";
+
+    int dim = mesh.Dimension();
+    int ne = 0;
+    if (entity_dim == 1)
+    {
+        if (dim == 1) {
+            ne = mesh.GetNE();
+        }
+        else {
+            ne = mesh.GetNEdges();
+        }
+    }
+    else if (entity_dim == 2)
+    {
+        if (dim == 2) {
+            ne = mesh.GetNE();
+        }
+        else {
+            ne = mesh.GetNFaces();
+        }
+    }
+    else if (entity_dim == 3)
+    {
+        ne = mesh.GetNE();
+    }
+    int np = mesh.GetNV();
+
+    auto get_geom = [mesh,entity_dim,dim](int i)
+    {
+        if (entity_dim == 1) {
+            return Geometry::SEGMENT;
+        }
+        else if (entity_dim == 2 && dim > 2) {
+            return mesh.GetFaceGeometry(i);
+        }
+        else {
+            return mesh.GetElementGeometry(i);
+        }
+    };
+
+    auto get_verts = [mesh,entity_dim,dim](int i, Array<int> &v)
+    {
+        if (entity_dim == dim) {
+            mesh.GetElementVertices(i, v);
+        }
+        else if (entity_dim == 1) {
+            mesh.GetEdgeVertices(i, v);
+        }
+        else if (entity_dim == 2) {
+            mesh.GetFaceVertices(i, v);
+        }
+    };
+
+    out << "<Piece NumberOfPoints=\"" << np << "\" NumberOfCells=\""
+        << ne << "\">\n";
+
+    // print out the points
+    out << "<Points>\n";
+    out << "<DataArray type=\"" << "Float64"
+        << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
+    for (int i = 0; i < np; i++)
+    {
+        const double *v = mesh.GetVertex(i);
+        for (int d = 0; d < 3; ++ d)
+        {
+            if (d < mesh.SpaceDimension()) {
+                out << v[d] << " ";
+            }
+            else {
+                out << "0.0 ";
+            }
+        }
+        out << '\n';
+    }
+    out << "</DataArray>" << endl;
+    out << "</Points>" << endl;
+
+    out << "<Cells>" << endl;
+    out << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\""
+        << fmt_str << "\">" << endl;
+    for (int i = 0; i < ne; i++)
+    {
+        Array<int> v;
+        Geometry::Type geom = get_geom(i);
+        get_verts(i, v);
+        const int *p = VTKGeometry::VertexPermutation[geom];
+        for (int j = 0; j < v.Size(); ++j)
+        {
+            out << v[p ? p[j] : j] << " ";
+        }
+        out << '\n';
+    }
+    out << "</DataArray>" << endl;
+
+    out << "<DataArray type=\"Int32\" Name=\"offsets\" format=\""
+        << fmt_str << "\">" << endl;
+    // offsets
+    int coff = 0;
+    for (int i = 0; i < ne; ++i)
+    {
+        Array<int> v;
+        get_verts(i, v);
+        coff += v.Size();
+        out << coff << '\n';
+    }
+    out << "</DataArray>" << endl;
+    out << "<DataArray type=\"UInt8\" Name=\"types\" format=\""
+        << fmt_str << "\">" << endl;
+    // cell types
+    for (int i = 0; i < ne; i++)
+    {
+        Geometry::Type geom = get_geom(i);
+        out << VTKGeometry::Map[geom] << '\n';
+    }
+    out << "</DataArray>" << endl;
+    out << "</Cells>" << endl;
+
+    out << "<CellData Scalars=\"attribute\">" << endl;
+
+    if (el_number)
+    {
+        string array_name;
+        if (entity_dim == dim) {
+            array_name = "element number";
+        }
+        else if (entity_dim == 2) {
+            array_name = "face number";
+        }
+        else if (entity_dim == 1) {
+            array_name = "edge number";
+        }
+        out << "<DataArray type=\"Int32\" Name=\""
+            << array_name << "\" format=\""
+            << fmt_str << "\">" << endl;
+        for (int i = 0; i < ne; i++)
+        {
+            out << (*el_number)[i] << '\n';
+        }
+        out << "</DataArray>" << endl;
+    }
+    out << "</CellData>" << endl;
+
+    if (vert_number)
+    {
+        out << "<PointData>" << endl;
+        out << "<DataArray type=\"Int32\" Name=\"vertex number\" format=\""
+            << fmt_str << "\">" << endl;
+        for (int i = 0; i < np; i++)
+        {
+            out << (*vert_number)[i] << '\n';
+        }
+        out << "</DataArray>" << endl;
+        out << "</PointData>" << endl;
+    }
+
+    out << "</Piece>\n"; // need to close the piece open in the PrintVTU method
+    out << "</UnstructuredGrid>\n";
+    out << "</VTKFile>" << endl;
+}
+
 SparseBooleanMatrix::SparseBooleanMatrix(SparseBooleanMatrix const& M)
   : n(M.GetSize()), a(M.GetSize())
 {
@@ -758,6 +931,22 @@ int SetCoarseVertexLinePatches_GraphBased(ParMesh *pmesh, ParFiniteElementSpace 
 
       cdofToGlobalLine[dofs[0]] = (*pathFlags)[i];
     }
+
+  // ParaView output
+  bool paraview = false;
+  if (paraview)
+  {
+    Array<int> v(pmesh->GetNV()), edge(pmesh->GetNEdges());
+    v = 0;
+    edge = 0;
+
+    for (int i=0; i<v.Size(); ++i)
+      {
+	v[i] = (*pathFlags)[i];
+      }
+
+    ParaViewPrintAttributes("pv_patches", *pmesh, 1, &edge, &v);
+  }
 
   return npaths;
 }
