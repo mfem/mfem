@@ -93,13 +93,13 @@ void BatchedLOR_AMS::FormGradientMatrix()
    const int nedge_dof = fes_ho.GetNDofs();
    const int nvert_dof = vert_fes.GetNDofs();
 
-   SparseMatrix *G_local = new SparseMatrix;
-   G_local->OverrideSize(nedge_dof, nvert_dof);
+   SparseMatrix G_local;
+   G_local.OverrideSize(nedge_dof, nvert_dof);
 
-   G_local->GetMemoryI().New(nedge_dof+1, Device::GetDeviceMemoryType());
+   G_local.GetMemoryI().New(nedge_dof+1, Device::GetDeviceMemoryType());
    // Each row always has two nonzeros
    const int nnz = 2*nedge_dof;
-   auto I = G_local->WriteI();
+   auto I = G_local.WriteI();
    MFEM_FORALL(i, nedge_dof+1, I[i] = 2*i;);
 
    // edge2vertex is a mapping of size (2, nedge_per_el), such that with a macro
@@ -128,11 +128,11 @@ void BatchedLOR_AMS::FormGradientMatrix()
    const auto e2v = Reshape(edge2vertex.Read(), 2, nedge_per_el);
 
    // Fill J and data
-   G_local->GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
-   G_local->GetMemoryData().New(nnz, Device::GetDeviceMemoryType());
+   G_local.GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
+   G_local.GetMemoryData().New(nnz, Device::GetDeviceMemoryType());
 
-   auto J = G_local->WriteJ();
-   auto V = G_local->WriteData();
+   auto J = G_local.WriteJ();
+   auto V = G_local.WriteData();
 
    // Loop over Nedelec L-DOFs
    MFEM_FORALL(i, nedge_dof,
@@ -160,13 +160,14 @@ void BatchedLOR_AMS::FormGradientMatrix()
                                    vert_fes.GlobalVSize(),
                                    edge_fes.GetDofOffsets(),
                                    vert_fes.GetDofOffsets(),
-                                   G_local);
+                                   &G_local);
 
    // Assemble the parallel gradient matrix, must be deleted by the caller
    if (IsIdentityProlongation(vert_fes.GetProlongationMatrix()))
    {
       G = G_diag.As<HypreParMatrix>();
       G_diag.SetOperatorOwner(false);
+      HypreStealOwnership(*G, G_local);
    }
    else
    {
@@ -204,26 +205,27 @@ void BatchedLOR_AMS::FormCoordinateVectors()
    const int order = vert_fes.GetMaxElementOrder();
    const int ndp1 = order + 1;
    const int ndof_per_el = pow(ndp1, dim);
+   const int sdim = dim;
 
    const int ndofs = vert_fes.GetNDofs();
    const int ntdofs = R->Height();
 
    xyz_tvec = new Vector(ntdofs*dim);
 
-   auto xyz_t = Reshape(xyz_tvec->Write(), ntdofs, dim);
+   auto xyz_tv = Reshape(xyz_tvec->Write(), ntdofs, dim);
    const auto xyz_e = Reshape(X_vert.Read(), dim, ndof_per_el, nel_ho);
    const auto d_offsets = el_restr->Offsets().Read();
    const auto d_indices = el_restr->Indices().Read();
    const auto ltdof_ldof = R->ReadJ();
 
    // Go from E-vector format directly to T-vector format
-   MFEM_FORALL(i, ndofs,
+   MFEM_FORALL(i, ntdofs,
    {
       const int j = d_offsets[ltdof_ldof[i]];
-      for (int c = 0; c < dim; ++c)
+      for (int c = 0; c < sdim; ++c)
       {
          const int idx_j = d_indices[j];
-         xyz_t(i,c) = xyz_e(c, idx_j%ndof_per_el, idx_j/ndof_per_el);
+         xyz_tv(i,c) = xyz_e(c, idx_j%ndof_per_el, idx_j/ndof_per_el);
       }
    });
 
@@ -233,19 +235,56 @@ void BatchedLOR_AMS::FormCoordinateVectors()
 
    bool dev = Device::GetDeviceMemoryClass() == MemoryClass::DEVICE;
 
-   double *d_x_ptr = xyz_t + 0*ntdofs;
+   double *d_x_ptr = xyz_tv + 0*ntdofs;
    x = new HypreParVector(vert_fes.GetComm(), glob_size, d_x_ptr, cols, dev);
-   double *d_y_ptr = xyz_t + 1*ntdofs;
+   double *d_y_ptr = xyz_tv + 1*ntdofs;
    y = new HypreParVector(vert_fes.GetComm(), glob_size, d_y_ptr, cols, dev);
    if (dim == 3)
    {
-      double *d_z_ptr = xyz_t + 2*ntdofs;
+      double *d_z_ptr = xyz_tv + 2*ntdofs;
       z = new HypreParVector(vert_fes.GetComm(), glob_size, d_z_ptr, cols, dev);
    }
    else
    {
       z = NULL;
    }
+}
+
+template <typename T> T *StealPointer(T *&ptr)
+{
+   T *tmp = ptr;
+   ptr = nullptr;
+   return tmp;
+}
+
+HypreParMatrix *BatchedLOR_AMS::StealGradientMatrix()
+{
+   return StealPointer(G);
+};
+Vector *BatchedLOR_AMS::StealCoordinateVector()
+{
+   return StealPointer(xyz_tvec);
+};
+HypreParVector *BatchedLOR_AMS::StealXCoordinate()
+{
+   return StealPointer(x);
+};
+HypreParVector *BatchedLOR_AMS::StealYCoordinate()
+{
+   return StealPointer(y);
+};
+HypreParVector *BatchedLOR_AMS::StealZCoordinate()
+{
+   return StealPointer(z);
+};
+
+BatchedLOR_AMS::~BatchedLOR_AMS()
+{
+   delete x;
+   delete y;
+   delete z;
+   delete xyz_tvec;
+   delete G;
 }
 
 BatchedLOR_AMS::BatchedLOR_AMS(BilinearForm &a_,
@@ -258,9 +297,6 @@ BatchedLOR_AMS::BatchedLOR_AMS(BilinearForm &a_,
      vert_fec(order, dim),
      vert_fes(edge_fes.GetParMesh(), &vert_fec)
 {
-   // Assemble the system matrix, don't assume ownership of it
-   ParAssemble(A);
-   A.SetOperatorOwner(false);
    // Form the coordinate vectors (uses X_vert) and gradient matrix
    FormCoordinateVectors();
    FormGradientMatrix();
@@ -273,13 +309,13 @@ LORSolver<HypreAMS>::LORSolver(
    {
       ParFiniteElementSpace &pfes = *a_ho.ParFESpace();
       BatchedLOR_AMS batched_lor(a_ho, pfes, ess_tdof_list);
-      A.Reset(&batched_lor.GetAssembledMatrix());
-      xyz = batched_lor.GetCoordinateVector();
-      solver = new HypreAMS(batched_lor.GetAssembledMatrix(),
-                            batched_lor.GetGradientMatrix(),
-                            batched_lor.GetXCoordinate(),
-                            batched_lor.GetYCoordinate(),
-                            batched_lor.GetZCoordinate());
+      batched_lor.Assemble(A);
+      xyz = batched_lor.StealCoordinateVector();
+      solver = new HypreAMS(*A.As<HypreParMatrix>(),
+                            batched_lor.StealGradientMatrix(),
+                            batched_lor.StealXCoordinate(),
+                            batched_lor.StealYCoordinate(),
+                            batched_lor.StealZCoordinate());
    }
    else
    {

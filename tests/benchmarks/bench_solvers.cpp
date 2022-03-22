@@ -1349,8 +1349,8 @@ static void BPS##i##_##Precond(bm::State &state){\
    state.counters["Tsolve"] = bm::Counter(bps.TSolve(), bm::Counter::kAvgIterations);}\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_SIDES,P_ORDERS,P_EPSILONS})\
-    -> Unit(bm::kMillisecond)\
-    -> Iterations(10);
+    -> Unit(bm::kMillisecond);
+//-> Iterations(10);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 //BakeOff_Solver(3,Diffusion,None)
@@ -1369,7 +1369,7 @@ BakeOff_Solver(3,Diffusion,MGFAWavelets)
 
 /**
  * @brief main entry point
- * --benchmark_context=device=cuda
+ * --benchmark_context=device=cuda,debug=false
  * --benchmark_filter=BPS3_\(None\|Jacobi\|MGJacobi\)/4/2/1
  */
 int main(int argc, char *argv[])

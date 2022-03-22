@@ -44,6 +44,26 @@ bool HasIntegrators(BilinearForm &a)
    return false;
 }
 
+void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag)
+{
+#ifndef HYPRE_BIGINT
+   bool own_i = A_hyp.GetDiagMemoryI().OwnsHostPtr();
+   bool own_j = A_hyp.GetDiagMemoryJ().OwnsHostPtr();
+   MFEM_ASSERT((own_i && own_j) || (!own_i && !own_j),
+               "Inconsistent ownership");
+   if (!own_i)
+   {
+      std::swap(A_diag.GetMemoryI(), A_hyp.GetDiagMemoryI());
+      std::swap(A_diag.GetMemoryJ(), A_hyp.GetDiagMemoryJ());
+   }
+#endif
+   if (!A_hyp.GetDiagMemoryData().OwnsHostPtr())
+   {
+      std::swap(A_diag.GetMemoryData(), A_hyp.GetDiagMemoryData());
+   }
+   A_hyp.SetOwnerFlags(3, A_hyp.OwnsOffd(), A_hyp.OwnsColMap());
+}
+
 bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
    const FiniteElementCollection *fec = a.FESpace()->FEColl();
@@ -407,19 +427,13 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
    {
       A_diag.SetOperatorOwner(false);
       A.Reset(A_diag.Ptr());
-      // Let A take ownership of the CSR matrices
-      A.As<HypreParMatrix>()->SetOwnerFlags(2, 2, -1);
-      // We can now delete the local SparseMatrix A_local (making sure we don't
-      // delete the data arrays that now belong to A)
-      A_local.As<SparseMatrix>()->LoseData();
-      A_local.Clear();
+      HypreStealOwnership(*A.As<HypreParMatrix>(), *A_local.As<SparseMatrix>());
    }
    else
    {
       OperatorHandle P(Operator::Hypre_ParCSR);
       P.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
       A.MakePtAP(A_diag, P);
-      A_local.Clear();
    }
 
    // Eliminate the boundary conditions
