@@ -70,7 +70,7 @@ void AdvectionOper::Mult(const Vector &x, Vector &dx) const
       return;
    }
 
-   MFEM_VERIFY(adv_mode == HO, "Wrong input for avection mode (-dg).");
+   MFEM_VERIFY(adv_mode == HO, "Wrong input for advection mode (-dg).");
 
    Vector rhs(x.Size());
    K_mat->Mult(x, rhs);

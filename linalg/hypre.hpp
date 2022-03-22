@@ -412,10 +412,6 @@ private:
                                   MemoryIJData &mem_csr,
                                   hypre_CSRMatrix *hypre_csr);
 
-   // Copy the j array of a hypre_CSRMatrix to the given J array, converting
-   // the indices from HYPRE_Int/HYPRE_BigInt to int.
-   static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
-
    // Wrap the data from h_mat into mem with the given ownership flag.
    // If the new Memory arrays in mem are not suitable to be accessed via
    // GetHypreMemoryClass(), then mem will be re-allocated using the memory type

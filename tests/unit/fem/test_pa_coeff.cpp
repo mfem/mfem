@@ -19,6 +19,29 @@ namespace pa_coeff
 
 int dimension;
 
+Mesh MakeCartesianNonaligned(const int dim, const int ne)
+{
+   Mesh mesh;
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   }
+
+   // Remap vertices so that the mesh is not aligned with axes.
+   for (int i=0; i<mesh.GetNV(); ++i)
+   {
+      double *vcrd = mesh.GetVertex(i);
+      vcrd[1] += 0.2 * vcrd[0];
+      if (dim == 3) { vcrd[2] += 0.3 * vcrd[0]; }
+   }
+
+   return mesh;
+}
+
 double coeffFunction(const Vector& x)
 {
    if (dimension == 2)
@@ -141,17 +164,8 @@ TEST_CASE("H1 pa_coeff")
                       << "integrator " << integrator << std::endl;
             for (int order = 1; order < 4; ++order)
             {
-               Mesh mesh;
-               if (dimension == 2)
-               {
-                  mesh = Mesh::MakeCartesian2D(
-                            ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-               }
-               else
-               {
-                  mesh = Mesh::MakeCartesian3D(
-                            ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-               }
+               Mesh mesh = MakeCartesianNonaligned(dimension, ne);
+
                FiniteElementCollection* h1_fec =
                   new H1_FECollection(order, dimension);
                FiniteElementSpace h1_fespace(&mesh, h1_fec);
@@ -292,18 +306,8 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
-      Mesh mesh;
       const int ne = 3;
-      if (dimension == 2)
-      {
-         mesh = Mesh::MakeCartesian2D(
-                   ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-      }
-      else
-      {
-         mesh = Mesh::MakeCartesian3D(
-                   ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-      }
+      Mesh mesh = MakeCartesianNonaligned(dimension, ne);
 
       for (int coeffType = 3; coeffType < 5; ++coeffType)
       {
@@ -635,18 +639,8 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
-      Mesh mesh;
       const int ne = 3;
-      if (dimension == 2)
-      {
-         mesh = Mesh::MakeCartesian2D(
-                   ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-      }
-      else
-      {
-         mesh = Mesh::MakeCartesian3D(
-                   ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-      }
+      Mesh mesh = MakeCartesianNonaligned(dimension, ne);
 
       for (int coeffType = 0; coeffType < 3; ++coeffType)
       {
