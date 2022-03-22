@@ -14,6 +14,9 @@
 #include "gridfunc.hpp"
 #include "ceed/diffusion.hpp"
 
+#include "../linalg/tensor/factories/factories.hpp"
+#include "../linalg/tensor/operators/operators.hpp"
+
 using namespace std;
 
 namespace mfem
@@ -566,6 +569,38 @@ void PAVectorDiffusionApply3D(const int NE,
    });
 }
 
+template <int Dim,
+          int VDim,
+          bool IsTensor,
+          int Dofs = Dynamic,
+          int Quads = Dynamic,
+          int BatchSize = 1>
+static void ApplyDiff(const int ne,
+                      const Array<double> &b,
+                      const Array<double> &g,
+                      const Array<double> &bt,
+                      const Array<double> &gt,
+                      const Vector &d,
+                      const Vector &x,
+                      Vector &y,
+                      int dofs = Dofs,
+                      int quads = Quads)
+{
+   auto config  = MakeConfig(quads,
+                             config_dim_is<Dim>(),
+                             config_is_tensor<IsTensor>(),
+                             config_quads_is<Quads>());
+   auto B       = MakeBasis<Dofs>(config, dofs, quads, b.Read(), bt.Read(),
+                                  g.Read(), gt.Read());
+   const auto X = MakeDoFs<Dofs,VDim>(config, dofs, x.Read(), ne);
+   const auto D = MakeSymmQData<2>(config, d.Read(), ne);
+   auto Y       = MakeDoFs<Dofs,VDim>(config, dofs, y.ReadWrite(), ne);
+   MFEM_FORALL_CONFIG(config, e, ne,
+   {
+      Y(e) += transpose(grad(B)) * D(e) * grad(B) * X(e);
+   });
+}
+
 // PA Diffusion Apply kernel
 void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
@@ -582,24 +617,55 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       const Array<double> &Bt = maps->Bt;
       const Array<double> &Gt = maps->Gt;
       const Vector &D = pa_data;
+      const int ID = (D1D << 4) | Q1D;
 
       if (dim == 2 && sdim == 3)
       {
-         switch ((dofs1D << 4 ) | quad1D)
+         switch (ID)
          {
-            case 0x22: return PAVectorDiffusionApply2D<2,2,3>(ne,B,G,Bt,Gt,D,x,y);
-            case 0x33: return PAVectorDiffusionApply2D<3,3,3>(ne,B,G,Bt,Gt,D,x,y);
-            case 0x44: return PAVectorDiffusionApply2D<4,4,3>(ne,B,G,Bt,Gt,D,x,y);
-            case 0x55: return PAVectorDiffusionApply2D<5,5,3>(ne,B,G,Bt,Gt,D,x,y);
+            // case 0x22: return PAVectorDiffusionApply2D<2,2,3>(ne,B,G,Bt,Gt,D,x,y);
+            // case 0x33: return PAVectorDiffusionApply2D<3,3,3>(ne,B,G,Bt,Gt,D,x,y);
+            // case 0x44: return PAVectorDiffusionApply2D<4,4,3>(ne,B,G,Bt,Gt,D,x,y);
+            // case 0x55: return PAVectorDiffusionApply2D<5,5,3>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x22: return ApplyDiff<2,3,true,2,2>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x33: return ApplyDiff<2,3,true,3,3>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x44: return ApplyDiff<2,3,true,4,4>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x55: return ApplyDiff<2,3,true,5,5>(ne,B,G,Bt,Gt,D,x,y);
             default:
                return PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim);
          }
       }
       if (dim == 2 && sdim == 2)
-      { return PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim); }
+      {
+         switch (ID)
+         {
+            case 0x22: return ApplyDiff<2,2,true,2,2,16>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x33: return ApplyDiff<2,2,true,3,3,16>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x44: return ApplyDiff<2,2,true,4,4,8>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x55: return ApplyDiff<2,2,true,5,5,8>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x66: return ApplyDiff<2,2,true,6,6,4>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x77: return ApplyDiff<2,2,true,7,7,4>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x88: return ApplyDiff<2,2,true,8,8,2>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x99: return ApplyDiff<2,2,true,9,9,2>(ne,B,G,Bt,Gt,D,x,y);
+            default:   return PAVectorDiffusionApply2D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D,sdim);
+         }
+      }
 
       if (dim == 3 && sdim == 3)
-      { return PAVectorDiffusionApply3D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D); }
+      {
+         switch (ID)
+         {
+            case 0x23: return ApplyDiff<3,3,true,2,3>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x34: return ApplyDiff<3,3,true,3,4>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x45: return ApplyDiff<3,3,true,4,5>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x46: return ApplyDiff<3,3,true,4,6>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x56: return ApplyDiff<3,3,true,5,6>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x67: return ApplyDiff<3,3,true,6,7>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x78: return ApplyDiff<3,3,true,7,8>(ne,B,G,Bt,Gt,D,x,y);
+            case 0x89: return ApplyDiff<3,3,true,8,9>(ne,B,G,Bt,Gt,D,x,y);
+            default:   return PAVectorDiffusionApply3D(ne,B,G,Bt,Gt,D,x,y,D1D,Q1D);
+         }
+      }
 
       MFEM_ABORT("Unknown kernel.");
    }
