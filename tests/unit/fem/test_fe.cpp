@@ -717,7 +717,7 @@ TEST_CASE("Raviart-Thomas Wedge Finite Element",
       REQUIRE( fe.GetDof()            == (int)pow(p+1,2)*p/2 +
                /*                     */ (int)pow(p,2)*(p+2)     );
       REQUIRE( fe.GetOrder()          == p                       );
-      REQUIRE( fe.Space()             == (int) FunctionSpace::Pk       );
+      REQUIRE( fe.Space()             == (int) FunctionSpace::Qk       );
       REQUIRE( fe.GetRangeType()      == (int) FiniteElement::VECTOR   );
       REQUIRE( fe.GetMapType()        == (int) FiniteElement::H_DIV    );
       REQUIRE( fe.GetDerivType()      == (int) FiniteElement::DIV      );
