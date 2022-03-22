@@ -1382,12 +1382,23 @@ void HypreParMatrix::SetOwnerFlags(signed char diag, signed char offd,
 {
    diagOwner = diag;
    mem_diag.I.SetHostPtrOwner((diag >= 0) && (diag & 1));
+   mem_diag.I.SetDevicePtrOwner((diag >= 0) && (diag & 1));
+
    mem_diag.J.SetHostPtrOwner((diag >= 0) && (diag & 1));
+   mem_diag.J.SetDevicePtrOwner((diag >= 0) && (diag & 1));
+
    mem_diag.data.SetHostPtrOwner((diag >= 0) && (diag & 2));
+   mem_diag.data.SetDevicePtrOwner((diag >= 0) && (diag & 2));
+
    offdOwner = offd;
    mem_offd.I.SetHostPtrOwner((offd >= 0) && (offd & 1));
    mem_offd.J.SetHostPtrOwner((offd >= 0) && (offd & 1));
+
+   mem_offd.I.SetDevicePtrOwner((offd >= 0) && (offd & 1));
+   mem_offd.J.SetDevicePtrOwner((offd >= 0) && (offd & 1));
+
    mem_offd.data.SetHostPtrOwner((offd >= 0) && (offd & 2));
+   mem_offd.data.SetDevicePtrOwner((offd >= 0) && (offd & 2));
    colMapOwner = colmap;
 }
 
