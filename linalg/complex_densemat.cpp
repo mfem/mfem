@@ -108,9 +108,25 @@ ComplexDenseMatrix * ComplexDenseMatrix::ComputeInverse()
          data[i] = std::complex<double> (data_r[i], data_i[i]);
       }
    }
+   else if (hasRealPart())
+   {
+      double * data_r = real().Data();
+      for (int i = 0; i < h*w; i++)
+      {
+         data[i] = std::complex<double> (data_r[i], 0.);
+      }
+   }
+   else if (hasImagPart())
+   {
+      double * data_i = imag().Data();
+      for (int i = 0; i < h*w; i++)
+      {
+         data[i] = std::complex<double> (0., data_i[i]);
+      }
+   }
    else
    {
-      MFEM_ABORT("ComplexDenseMatrix has either only real or imag part");
+      MFEM_ABORT("ComplexDenseMatrix has neither only a real nor an imag part");
    }
 
 #ifdef MFEM_USE_LAPACK
