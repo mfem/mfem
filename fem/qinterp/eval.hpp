@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,6 +26,39 @@ namespace internal
 
 namespace quadrature_interpolator
 {
+
+template<QVectorLayout Q_LAYOUT>
+static void Values1D(const int NE,
+                     const double *b_,
+                     const double *x_,
+                     double *y_,
+                     const int vdim,
+                     const int d1d,
+                     const int q1d)
+{
+   const auto b = Reshape(b_, q1d, d1d);
+   const auto x = Reshape(x_, d1d, vdim, NE);
+   auto y = Q_LAYOUT == QVectorLayout::byNODES ?
+            Reshape(y_, q1d, vdim, NE):
+            Reshape(y_, vdim, q1d, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int c = 0; c < vdim; c++)
+      {
+         for (int q = 0; q < q1d; q++)
+         {
+            double u = 0.0;
+            for (int d = 0; d < d1d; d++)
+            {
+               u += b(q, d) * x(d, c, e);
+            }
+            if (Q_LAYOUT == QVectorLayout::byVDIM)  { y(c, q, e) = u; }
+            if (Q_LAYOUT == QVectorLayout::byNODES) { y(q, c, e) = u; }
+         }
+      }
+   });
+}
 
 // Template compute kernel for Values in 2D: tensor product version.
 template<QVectorLayout Q_LAYOUT,
