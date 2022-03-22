@@ -167,16 +167,7 @@ void BatchedLOR_AMS::FormGradientMatrix()
    {
       G = G_diag.As<HypreParMatrix>();
       G_diag.SetOperatorOwner(false);
-      const char diag_owner = G->OwnsDiag();
-      if (diag_owner == 0)
-      {
-         // G is just borrowing the CSR memory fron G_local. We want to
-         // transfer ownership so that we can delete G_local.
-         G->SetOwnerFlags(3, G->OwnsOffd(), G->OwnsColMap());
-         // We can now delete the local SparseMatrix G_local (making sure we
-         // don't delete the CSR data arrays that now belong to G)
-         G_local.LoseData();
-      }
+      HypreStealOwnership(*G, G_local);
    }
    else
    {
@@ -214,26 +205,27 @@ void BatchedLOR_AMS::FormCoordinateVectors()
    const int order = vert_fes.GetMaxElementOrder();
    const int ndp1 = order + 1;
    const int ndof_per_el = pow(ndp1, dim);
+   const int sdim = dim;
 
    const int ndofs = vert_fes.GetNDofs();
    const int ntdofs = R->Height();
 
    xyz_tvec = new Vector(ntdofs*dim);
 
-   auto xyz_t = Reshape(xyz_tvec->Write(), ntdofs, dim);
+   auto xyz_tv = Reshape(xyz_tvec->Write(), ntdofs, dim);
    const auto xyz_e = Reshape(X_vert.Read(), dim, ndof_per_el, nel_ho);
    const auto d_offsets = el_restr->Offsets().Read();
    const auto d_indices = el_restr->Indices().Read();
    const auto ltdof_ldof = R->ReadJ();
 
    // Go from E-vector format directly to T-vector format
-   MFEM_FORALL(i, ndofs,
+   MFEM_FORALL(i, ntdofs,
    {
       const int j = d_offsets[ltdof_ldof[i]];
-      for (int c = 0; c < dim; ++c)
+      for (int c = 0; c < sdim; ++c)
       {
          const int idx_j = d_indices[j];
-         xyz_t(i,c) = xyz_e(c, idx_j%ndof_per_el, idx_j/ndof_per_el);
+         xyz_tv(i,c) = xyz_e(c, idx_j%ndof_per_el, idx_j/ndof_per_el);
       }
    });
 
@@ -243,13 +235,13 @@ void BatchedLOR_AMS::FormCoordinateVectors()
 
    bool dev = Device::GetDeviceMemoryClass() == MemoryClass::DEVICE;
 
-   double *d_x_ptr = xyz_t + 0*ntdofs;
+   double *d_x_ptr = xyz_tv + 0*ntdofs;
    x = new HypreParVector(vert_fes.GetComm(), glob_size, d_x_ptr, cols, dev);
-   double *d_y_ptr = xyz_t + 1*ntdofs;
+   double *d_y_ptr = xyz_tv + 1*ntdofs;
    y = new HypreParVector(vert_fes.GetComm(), glob_size, d_y_ptr, cols, dev);
    if (dim == 3)
    {
-      double *d_z_ptr = xyz_t + 2*ntdofs;
+      double *d_z_ptr = xyz_tv + 2*ntdofs;
       z = new HypreParVector(vert_fes.GetComm(), glob_size, d_z_ptr, cols, dev);
    }
    else
