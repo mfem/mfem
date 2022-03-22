@@ -159,7 +159,7 @@ TEST_CASE("ParallelFormRectangular",
    }
 }
 
-TEST_CASE("HypreParMatrixBlocks",
+TEST_CASE("HypreParMatrixBlocksRectangular",
           "[Parallel], [BlockMatrix]")
 {
    SECTION("HypreParMatrixFromBlocks")
