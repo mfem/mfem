@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -107,8 +107,9 @@ DataCollection *create_data_collection(const std::string &dc_name,
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
-   MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Mpi::Init();
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Hypre::Init();
 #endif
 
    // Parse command-line options.

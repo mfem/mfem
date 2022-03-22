@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -232,9 +232,9 @@ CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
             // 0 2
             // 1 3
             const CeedScalar rho = c[i] * (J[i+Q*0]*J[i+Q*3] - J[i+Q*1]*J[i+Q*2]) * qw[i];
-            for (CeedInt c = 0; c < 2; c++)
+            for (CeedInt d = 0; d < 2; d++)
             {
-               v[i+c*Q] = rho * u[i+c*Q];
+               v[i+d*Q] = rho * u[i+d*Q];
             }
          }
          break;
@@ -259,9 +259,9 @@ CEED_QFUNCTION(f_apply_mass_mf_quad)(void *ctx, CeedInt Q,
             const CeedScalar rho = (J[i+Q*0]*(J[i+Q*4]*J[i+Q*8] - J[i+Q*5]*J[i+Q*7]) -
                                     J[i+Q*1]*(J[i+Q*3]*J[i+Q*8] - J[i+Q*5]*J[i+Q*6]) +
                                     J[i+Q*2]*(J[i+Q*3]*J[i+Q*7] - J[i+Q*4]*J[i+Q*6])) * c[i] * qw[i];
-            for (CeedInt c = 0; c < 3; c++)
+            for (CeedInt d = 0; d < 3; d++)
             {
-               v[i+c*Q] = rho * u[i+c*Q];
+               v[i+d*Q] = rho * u[i+d*Q];
             }
          }
          break;

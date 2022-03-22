@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -70,7 +70,7 @@ void AdvectionOper::Mult(const Vector &x, Vector &dx) const
       return;
    }
 
-   MFEM_VERIFY(adv_mode == HO, "Wrong input for avection mode (-dg).");
+   MFEM_VERIFY(adv_mode == HO, "Wrong input for advection mode (-dg).");
 
    Vector rhs(x.Size());
    K_mat->Mult(x, rhs);

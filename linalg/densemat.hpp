@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -685,6 +685,7 @@ public:
    virtual ~DenseMatrixInverse();
 };
 
+#ifdef MFEM_USE_LAPACK
 
 class DenseMatrixEigensystem
 {
@@ -693,13 +694,9 @@ class DenseMatrixEigensystem
    DenseMatrix EVect;
    Vector ev;
    int n;
-
-#ifdef MFEM_USE_LAPACK
    double *work;
    char jobz, uplo;
    int lwork, info;
-#endif
-
 public:
 
    DenseMatrixEigensystem(DenseMatrix &m);
@@ -716,10 +713,46 @@ public:
    ~DenseMatrixEigensystem();
 };
 
+class DenseMatrixGeneralizedEigensystem
+{
+   DenseMatrix &A;
+   DenseMatrix &B;
+   DenseMatrix A_copy;
+   DenseMatrix B_copy;
+   Vector evalues_r;
+   Vector evalues_i;
+   DenseMatrix Vr;
+   DenseMatrix Vl;
+   int n;
+
+   double *alphar;
+   double *alphai;
+   double *beta;
+   double *work;
+   char jobvl, jobvr;
+   int lwork, info;
+
+public:
+
+   DenseMatrixGeneralizedEigensystem(DenseMatrix &a, DenseMatrix &b,
+                                     bool left_eigen_vectors = false,
+                                     bool right_eigen_vectors = false);
+   void Eval();
+   Vector &EigenvaluesRealPart() { return evalues_r; }
+   Vector &EigenvaluesImagPart() { return evalues_i; }
+   double EigenvalueRealPart(int i) { return evalues_r(i); }
+   double EigenvalueImagPart(int i) { return evalues_i(i); }
+   DenseMatrix &LeftEigenvectors() { return Vl; }
+   DenseMatrix &RightEigenvectors() { return Vr; }
+   ~DenseMatrixGeneralizedEigensystem();
+};
+
 
 class DenseMatrixSVD
 {
+   DenseMatrix Mc;
    Vector sv;
+   DenseMatrix U,Vt;
    int m, n;
 
 #ifdef MFEM_USE_LAPACK
@@ -730,14 +763,22 @@ class DenseMatrixSVD
 
    void Init();
 public:
-
-   DenseMatrixSVD(DenseMatrix &M);
-   DenseMatrixSVD(int h, int w);
+   DenseMatrixSVD(DenseMatrix &M,
+                  bool left_singular_vectors=false,
+                  bool right_singlular_vectors=false);
+   DenseMatrixSVD(int h, int w,
+                  bool left_singular_vectors=false,
+                  bool right_singlular_vectors=false);
    void Eval(DenseMatrix &M);
    Vector &Singularvalues() { return sv; }
    double Singularvalue(int i) { return sv(i); }
+   DenseMatrix &LeftSingularvectors() { return U; }
+   DenseMatrix &RightSingularvectors() { return Vt; }
    ~DenseMatrixSVD();
 };
+
+#endif // if MFEM_USE_LAPACK
+
 
 class Table;
 
