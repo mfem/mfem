@@ -226,11 +226,11 @@ private:
    Vector &M_rowsums;
 
 public:
-   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
-                const Vector &_b, ParBilinearForm &_pbf, Vector &M_rs);
+   FE_Evolution(HypreParMatrix &M_, HypreParMatrix &K_,
+                const Vector &b_, ParBilinearForm &pbf_, Vector &M_rs);
 
-   void SetTimeStep(double _dt) { dt = _dt; }
-   void SetK(HypreParMatrix &_K) { K = _K; }
+   void SetTimeStep(double dt_) { dt = dt_; }
+   void SetK(HypreParMatrix &K_) { K = K_; }
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~FE_Evolution() { }
@@ -239,15 +239,15 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    problem = 0;
-   optimizer_type = 1;
+   optimizer_type = 2;
    const char *mesh_file = "../../data/periodic-hexagon.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
@@ -299,7 +299,6 @@ int main(int argc, char *argv[])
    if (!args.Good())
    {
       if (myid == 0) { args.PrintUsage(cout); }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
@@ -325,7 +324,6 @@ int main(int argc, char *argv[])
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
          delete mesh;
-         MPI_Finalize();
          return 3;
    }
 
@@ -358,7 +356,7 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim, BasisType::Positive);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
-   HYPRE_Int global_vSize = fes->GlobalTrueVSize();
+   HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << global_vSize << endl;
@@ -570,18 +568,17 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete dc;
 
-   MPI_Finalize();
    return 0;
 }
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
-                           const Vector &_b, ParBilinearForm &_pbf,
+FE_Evolution::FE_Evolution(HypreParMatrix &M_, HypreParMatrix &K_,
+                           const Vector &b_, ParBilinearForm &pbf_,
                            Vector &M_rs)
-   : TimeDependentOperator(_M.Height()),
-     M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height()),
-     pbf(_pbf), M_rowsums(M_rs)
+   : TimeDependentOperator(M_.Height()),
+     M(M_), K(K_), b(b_), M_solver(M.GetComm()), z(M_.Height()),
+     pbf(pbf_), M_rowsums(M_rs)
 {
    M_prec.SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(M_prec);

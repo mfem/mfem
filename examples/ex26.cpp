@@ -40,7 +40,7 @@ using namespace mfem;
 // in the FiniteElementSpaceHierarchy. The preconditioner uses a CG solver on
 // the coarsest level and second order Chebyshev accelerated smoothers on the
 // other levels.
-class DiffusionMultigrid : public Multigrid
+class DiffusionMultigrid : public GeometricMultigrid
 {
 private:
    ConstantCoefficient one;
@@ -49,7 +49,7 @@ public:
    // Constructs a diffusion multigrid for the given FiniteElementSpaceHierarchy
    // and the array of essential boundaries
    DiffusionMultigrid(FiniteElementSpaceHierarchy& fespaces, Array<int>& ess_bdr)
-      : Multigrid(fespaces), one(1.0)
+      : GeometricMultigrid(fespaces), one(1.0)
    {
       ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0), ess_bdr);
 
@@ -105,7 +105,7 @@ private:
       Vector diag(fespace.GetTrueVSize());
       bfs.Last()->AssembleDiagonal(diag);
 
-      Solver* smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag,
+      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag,
                                                        *essentialTrueDofs.Last(), 2);
       AddLevel(opr.Ptr(), smoother, true, true);
    }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,14 +10,21 @@
 // CONTRIBUTING.md for details.
 
 
-#include <cmath>
 #include "fem.hpp"
+#include <cmath>
 
 namespace mfem
 {
 
 void LinearFormIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
+}
+
+void LinearFormIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Tr, Vector &elvect)
 {
    mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
@@ -47,7 +54,7 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       Tr.SetIntPoint (&ip);
       double val = Tr.Weight() * Q.Eval(Tr, ip);
 
-      el.CalcShape(ip, shape);
+      el.CalcPhysShape(Tr, shape);
 
       add(elvect, ip.weight * val, shape, elvect);
    }
@@ -76,21 +83,21 @@ void DomainLFGradIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-       int intorder = 2 * el.GetOrder();
-       ir = &IntRules.Get(el.GetGeomType(), intorder);
+      int intorder = 2 * el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
-   
+
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
-       const IntegrationPoint &ip = ir->IntPoint(i);
-       
-       Tr.SetIntPoint(&ip);
-       el.CalcPhysDShape(Tr, dshape);
-       
-       Q.Eval(Qvec, Tr, ip);
-       Qvec *= ip.weight * Tr.Weight();
-       
-       dshape.AddMult(Qvec, elvect);
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint(&ip);
+      el.CalcPhysDShape(Tr, dshape);
+
+      Q.Eval(Qvec, Tr, ip);
+      Qvec *= ip.weight * Tr.Weight();
+
+      dshape.AddMult(Qvec, elvect);
    }
 }
 
@@ -235,7 +242,14 @@ void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint(&ip);
-      CalcOrtho(Tr.Jacobian(), nor);
+      if (dim > 1)
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+      else
+      {
+         nor[0] = 1.0;
+      }
       Q.Eval(Qvec, Tr, ip);
 
       el.CalcShape(ip, shape);
@@ -426,9 +440,10 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
 {
    int dof = el.GetDof();
    int spaceDim = Tr.GetSpaceDim();
+   int vdim = std::max(spaceDim, el.GetVDim());
 
-   vshape.SetSize(dof,spaceDim);
-   vec.SetSize(spaceDim);
+   vshape.SetSize(dof,vdim);
+   vec.SetSize(vdim);
 
    elvect.SetSize(dof);
    elvect = 0.0;
@@ -625,9 +640,14 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    int dof = el.GetDof();
-   DenseMatrix vshape(dof, 2);
+   int dim = el.GetDim();
+   int vdim = el.GetVDim();
+   DenseMatrix vshape(dof, vdim);
    Vector f_loc(3);
    Vector f_hat(2);
+
+   MFEM_VERIFY(vdim == 2, "VectorFEBoundaryTangentLFIntegrator "
+               "must be called with vector basis functions of dimension 2.");
 
    elvect.SetSize(dof);
    elvect = 0.0;
@@ -643,14 +663,31 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
+      el.CalcVShape(ip, vshape);
+
       Tr.SetIntPoint(&ip);
       f.Eval(f_loc, Tr, ip);
-      Tr.Jacobian().MultTranspose(f_loc, f_hat);
-      el.CalcVShape(ip, vshape);
+
+      if (dim == 2)
+      {
+         Tr.Jacobian().MultTranspose(f_loc, f_hat);
+      }
+      else if (dim == 1)
+      {
+         const DenseMatrix & J = Tr.Jacobian();
+         f_hat(0) = J(0,0) * f_loc(0) + J(1,0) * f_loc(1);
+         f_hat(1) = f_loc(2);
+      }
+      else
+      {
+         f_hat(0) = f_loc(1);
+         f_hat(1) = f_loc(2);
+      }
 
       Swap<double>(f_hat(0), f_hat(1));
       f_hat(0) = -f_hat(0);
       f_hat *= ip.weight;
+
       vshape.AddMult(f_hat, elvect);
    }
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,6 +53,193 @@ static void ReadPumiElement(apf::MeshEntity* Ent, /* ptr to pumi entity */
 
    // Assign attribute
    el->SetAttribute(Attr);
+}
+
+// 12 possible rotations of a tet
+static int const tet_rotation[12][4]=
+{
+   {0,1,2,3},
+   {0,2,3,1},
+   {0,3,1,2},
+   {1,0,3,2},
+   {1,3,2,0},
+   {1,2,0,3},
+   {2,0,1,3},
+   {2,1,3,0},
+   {2,3,0,1},
+   {3,0,2,1},
+   {3,2,1,0},
+   {3,1,0,2}
+};
+
+// inverse of tet_rotation
+static int const tet_inv_rotation[12][4]=
+{
+   {0,1,2,3}, //{0,1,2,3}
+   {0,3,1,2}, //{0,2,3,1}
+   {0,2,3,1}, //{0,3,1,2}
+   {1,0,3,2}, //{1,0,3,2}
+   {3,0,2,1}, //{1,3,2,0}
+   {2,0,1,3}, //{1,2,0,3}
+   {1,2,0,3}, //{2,0,1,3}
+   {3,1,0,2}, //{2,1,3,0}
+   {2,3,0,1}, //{2,3,0,1}
+   {1,3,2,0}, //{3,0,2,1}
+   {3,2,1,0}, //{3,2,1,0}
+   {2,1,3,0}  //{3,1,0,2}
+};
+
+// 6 possible rotations of a tri (including the flips)
+static int const tri_rotation[6][3]=
+{
+   {0,1,2},
+   {0,2,1},
+   {1,0,2},
+   {1,2,0},
+   {2,0,1},
+   {2,1,0}
+};
+
+// inverse of tri_rotation
+static int const tri_inv_rotation[6][3]=
+{
+   {0,1,2}, //{0,1,2}
+   {0,2,1}, //{0,2,1}
+   {1,0,2}, //{1,0,2}
+   {2,0,1}, //{1,2,0}
+   {1,2,0}, //{2,0,1}
+   {2,1,0}  //{2,1,0}
+};
+
+
+
+static bool same(int n,
+                 apf::MeshEntity** a,
+                 apf::MeshEntity** b)
+{
+   for (int i = 0; i < n; i++)
+   {
+      if (a[i] != b[i])
+      {
+         return false;
+      }
+   }
+   return true;
+}
+
+static void rotateSimplex(int type,
+                          int r,
+                          apf::MeshEntity** simplex_in,
+                          apf::MeshEntity** simplex_out)
+{
+   int n = -1;
+   if (type == apf::Mesh::TRIANGLE) // triangles
+   {
+      MFEM_ASSERT(r>=0 && r<6, "incorrect rotation");
+      n = 3;
+   }
+   else if (type == apf::Mesh::TET) // tets
+   {
+      MFEM_ASSERT(r>=0 && r<12, "incorrect rotation");
+      n = 4;
+   }
+   else
+   {
+      MFEM_ASSERT(0, "unsupported case!");
+   }
+
+   for (int i = 0; i < n; i++)
+      if (n == 3)
+      {
+         simplex_out[i] = simplex_in[tri_rotation[r][i]];
+      }
+      else
+      {
+         simplex_out[i] = simplex_in[tet_rotation[r][i]];
+      }
+}
+
+
+static int findSimplexRotation(apf::Mesh2* apf_mesh,
+                               apf::MeshEntity* simplex,
+                               apf::MeshEntity** vs)
+{
+   int type = apf_mesh->getType(simplex);
+   int dim = 0;
+   if (type == apf::Mesh::TET)
+   {
+      dim = 3;
+   }
+   else if (type == apf::Mesh::TRIANGLE)
+   {
+      dim = 2;
+   }
+   else
+   {
+      MFEM_ASSERT(0, "unsupported entity type");
+   }
+
+   apf::MeshEntity* dvs[12];
+   apf::MeshEntity* rotated_dvs[12];
+   int nd = apf_mesh->getDownward(simplex, 0, dvs);
+
+   int first = apf::findIn(dvs, nd, vs[0]);
+   int begin = first*dim;
+   int end   = first*dim + dim;
+   for (int r = begin; r < end; r++)
+   {
+      rotateSimplex(type, r, dvs, rotated_dvs);
+      if (same(nd, rotated_dvs, vs))
+      {
+         return r;
+      }
+   }
+   return -1;
+}
+
+static void rotateSimplexXi(apf::Vector3& xi, int dim, int rot)
+{
+   double a[4];
+   a[0] = 1.;
+   for (int i = 0; i < dim; i++)
+   {
+      a[0] -= xi[i];
+   }
+   a[1] = xi[0];
+   a[2] = xi[1];
+   a[3] = xi[2];
+   int const* inverseIdx = dim == 2 ? tri_inv_rotation[rot] :
+                           tet_inv_rotation[rot];
+   double b[4];
+   for (int i = 0; i <= dim; i++)
+   {
+      b[inverseIdx[i]] = a[i];
+   }
+   xi[0] = b[1];
+   xi[1] = b[2];
+   xi[2] = dim == 2 ? 1.-xi[0]-xi[1] : b[3];
+}
+
+static void unrotateSimplexXi(apf::Vector3& xi, int dim, int rot)
+{
+   double a[4];
+   a[0] = 1.;
+   for (int i = 0; i < dim; i++)
+   {
+      a[0] -= xi[i];
+   }
+   a[1] = xi[0];
+   a[2] = xi[1];
+   a[3] = xi[2];
+   int const* originalIdx = dim == 2 ? tri_rotation[rot] : tet_rotation[rot];
+   double b[4];
+   for (int i = 0; i <= dim; i++)
+   {
+      b[originalIdx[i]] = a[i];
+   }
+   xi[0] = b[1];
+   xi[1] = b[2];
+   xi[2] = dim == 2 ? 1.-xi[0]-xi[1] : b[3];
 }
 
 PumiMesh::PumiMesh(apf::Mesh2* apf_mesh, int generate_edges, int refine,
@@ -173,6 +360,10 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
    NumOfElements = countOwned(apf_mesh,Dim);
    elements.SetSize(NumOfElements);
 
+   // Look for the gmsh physical entity tag
+   const char* gmshTagName = "gmsh_physical_entity";
+   apf::MeshTag* gmshPhysEnt = apf_mesh->findTag(gmshTagName);
+
    // Read elements from SCOREC Mesh
    itr = apf_mesh->begin(Dim);
    unsigned int j=0;
@@ -181,8 +372,12 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
       // Get vertices
       apf::Downward verts;
       apf_mesh->getDownward(ent,0,verts); // num_vert
-      // Get attribute Tag vs Geometry
+      // Get attribute Tag from gmsh if it exists
       int attr = 1;
+      if ( gmshPhysEnt )
+      {
+         apf_mesh->getIntTag(ent,gmshPhysEnt,&attr);
+      }
 
       int geom_type = apf_mesh->getType(ent);
       elements[j] = NewElement(geom_type);
@@ -224,7 +419,7 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
 
    if (!curved)
    {
-      apf::MeshIterator* itr = apf_mesh->begin(0);
+      itr = apf_mesh->begin(0);
       spaceDim = Dim;
 
       while ((ent = apf_mesh->iterate(itr)))
@@ -324,6 +519,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
    NumOfElements = countOwned(apf_mesh,Dim);
    elements.SetSize(NumOfElements);
 
+   // Look for the gmsh physical entity tag
+   const char* gmshTagName = "gmsh_physical_entity";
+   apf::MeshTag* gmshPhysEnt = apf_mesh->findTag(gmshTagName);
+
    // Read elements from SCOREC Mesh
    itr = apf_mesh->begin(Dim);
    for (int j = 0; (ent = apf_mesh->iterate(itr)); j++)
@@ -331,9 +530,14 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
       // Get vertices
       apf::Downward verts;
       apf_mesh->getDownward(ent,0,verts);
+      // Get attribute Tag from gmsh if it exists
+      int attr = 1;
+      if ( gmshPhysEnt )
+      {
+         apf_mesh->getIntTag(ent,gmshPhysEnt,&attr);
+      }
 
       // Get attribute Tag vs Geometry
-      int attr = 1;
       int geom_type = apf_mesh->getType(ent);
       elements[j] = NewElement(geom_type);
       ReadPumiElement(ent, verts, attr, v_num_loc, elements[j]);
@@ -434,10 +638,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
          apf::Parts res;
          apf_mesh->getResidence(ent, res);
          int kk = 0;
-         for (std::set<int>::iterator itr = res.begin();
-              itr != res.end(); ++itr)
+         for (std::set<int>::iterator res_itr = res.begin();
+              res_itr != res.end(); ++res_itr)
          {
-            eleRanks[kk++] = *itr;
+            eleRanks[kk++] = *res_itr;
          }
 
          group.Recreate(2, eleRanks);
@@ -486,10 +690,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
 
          // Get the IDs
          int kk = 0;
-         for (std::set<int>::iterator itr = res.begin();
-              itr != res.end(); itr++)
+         for (std::set<int>::iterator res_itr = res.begin();
+              res_itr != res.end(); res_itr++)
          {
-            eleRanks[kk++] = *itr;
+            eleRanks[kk++] = *res_itr;
          }
 
          // Generate the group
@@ -529,10 +733,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
 
          // Get the IDs
          int kk = 0;
-         for (std::set<int>::iterator itr = res.begin();
-              itr != res.end(); itr++)
+         for (std::set<int>::iterator res_itr = res.begin();
+              res_itr != res.end(); res_itr++)
          {
-            eleRanks[kk++] = *itr;
+            eleRanks[kk++] = *res_itr;
          }
 
          group.Recreate(eleRanks.Size(), eleRanks);
@@ -744,7 +948,7 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
    }
    PumiM->end(itr);
 
-   sequence = 0;
+   fes_sequence = 0;
 }
 
 // Copy the adapted mesh to the original mesh and increase the sequence to be
@@ -910,13 +1114,15 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
 }
 
 int ParPumiMesh::RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
-                                    apf::MeshEntity* tet,
+                                    apf::MeshEntity* ent,
                                     int elemId)
 {
-   MFEM_ASSERT(apf_mesh->getType(tet) == apf::Mesh::TET, "");
+   int type = apf_mesh->getType(ent);
+   MFEM_ASSERT(apf::isSimplex(type),
+               "only implemented for simplex entity types");
    // get downward vertices of PUMI element
    apf::Downward vs;
-   int nv = apf_mesh->getDownward(tet,0,vs);
+   int nv = apf_mesh->getDownward(ent,0,vs);
    int pumi_vid[12];
    for (int i = 0; i < nv; i++)
    {
@@ -938,8 +1144,7 @@ int ParPumiMesh::RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
    {
       vs_rot[i] = vs[pumi_vid_rot[i]];
    }
-
-   return ma::findTetRotation(apf_mesh, tet, vs_rot);
+   return findSimplexRotation(apf_mesh, ent, vs_rot);
 }
 
 // Convert parent coordinate form a PUMI tet to an MFEM tet
@@ -949,6 +1154,9 @@ IntegrationRule ParPumiMesh::ParentXisPUMItoMFEM(apf::Mesh2* apf_mesh,
                                                  apf::NewArray<apf::Vector3>& pumi_xi,
                                                  bool checkOrientation)
 {
+   int type = apf_mesh->getType(tet);
+   MFEM_ASSERT(apf::isSimplex(type),
+               "only implemented for simplex entity types");
    int num_nodes = pumi_xi.size();
    IntegrationRule mfem_xi(num_nodes);
    int rotation = checkOrientation ? RotationPUMItoMFEM(apf_mesh, tet, elemId):0;
@@ -957,7 +1165,7 @@ IntegrationRule ParPumiMesh::ParentXisPUMItoMFEM(apf::Mesh2* apf_mesh,
       // for non zero "rotation", rotate the xi
       if (rotation)
       {
-         ma::unrotateTetXi(pumi_xi[i], rotation);
+         unrotateSimplexXi(pumi_xi[i], apf::Mesh::typeDimension[type], rotation);
       }
       IntegrationPoint& ip = mfem_xi.IntPoint(i);
       double tmp_xi[3];
@@ -975,6 +1183,9 @@ void ParPumiMesh::ParentXisMFEMtoPUMI(apf::Mesh2* apf_mesh,
                                       apf::NewArray<apf::Vector3>& pumi_xi,
                                       bool checkOrientation)
 {
+   int type = apf_mesh->getType(tet);
+   MFEM_ASSERT(apf::isSimplex(type),
+               "only implemented for simplex entity types");
    int num_nodes = mfem_xi.Size();
    if (!pumi_xi.allocated())
    {
@@ -994,7 +1205,7 @@ void ParPumiMesh::ParentXisMFEMtoPUMI(apf::Mesh2* apf_mesh,
       // for non zero "rotation", un-rotate the xi
       if (rotation)
       {
-         ma::rotateTetXi(pumi_xi[i], rotation);
+         rotateSimplexXi(pumi_xi[i], apf::Mesh::typeDimension[type], rotation);
       }
    }
 }

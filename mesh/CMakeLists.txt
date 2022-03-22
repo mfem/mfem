@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -19,6 +19,7 @@ set(SRCS
   ncmesh.cpp
   nurbs.cpp
   point.cpp
+  pyramid.cpp
   quadrilateral.cpp
   segment.cpp
   tetrahedron.cpp
@@ -38,6 +39,7 @@ set(HDRS
   ncmesh.hpp
   nurbs.hpp
   point.hpp
+  pyramid.hpp
   quadrilateral.hpp
   segment.hpp
   tetrahedron.hpp

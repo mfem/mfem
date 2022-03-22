@@ -41,11 +41,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    bool use_slepc = true;
    const char *slepcrc_file = "";
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -89,6 +90,8 @@ int main(int argc, char *argv[])
                   "--no-slepc","Use or not SLEPc to solve the eigenvalue problem");
    args.AddOption(&slepcrc_file, "-slepcopts", "--slepcopts",
                   "SlepcOptions file to use.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (slu_solver && sp_solver)
    {
@@ -108,7 +111,6 @@ int main(int argc, char *argv[])
          {
             args.PrintUsage(cout);
          }
-         MPI_Finalize();
          return 1;
       }
    }
@@ -117,7 +119,12 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 2b. We initialize SLEPc. This internally initializes PETSc as well.
+   // 2b. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 2c. We initialize SLEPc. This internally initializes PETSc as well.
    MFEMInitializeSlepc(NULL,NULL,slepcrc_file,NULL);
 
    // 3. Read the (serial) mesh from the given mesh file on all processors. We
@@ -162,7 +169,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << size << endl;
@@ -348,7 +355,6 @@ int main(int argc, char *argv[])
          {
             slepc->GetEigenvector(i,temp);
             x.Distribute(temp);
-
          }
 
          mode_name << "mode_" << setfill('0') << setw(2) << i << "."
@@ -429,7 +435,6 @@ int main(int argc, char *argv[])
 
    // We finalize SLEPc
    MFEMFinalizeSlepc();
-   MPI_Finalize();
 
    return 0;
 }

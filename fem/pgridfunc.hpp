@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -64,6 +64,11 @@ public:
     */
    ParGridFunction(ParFiniteElementSpace *pf, double *data) :
       GridFunction(pf, data), pfes(pf) { }
+
+   /** @brief Construct a ParGridFunction using previously allocated Vector
+       @a base starting at the given offset, @a base_offset. */
+   ParGridFunction(ParFiniteElementSpace *pf, Vector &base, int base_offset = 0)
+      : GridFunction(pf, base, base_offset), pfes(pf) { }
 
    /// Construct a ParGridFunction using a GridFunction as external data.
    /** The parallel space @a *pf and the space used by @a *gf should match. The
@@ -221,6 +226,15 @@ public:
                                const IntegrationPoint &ip,
                                Vector &val, Vector *tr = NULL) const;
 
+   /// Parallel version of GridFunction::GetDerivative(); see its documentation.
+   void GetDerivative(int comp, int der_comp, ParGridFunction &der);
+
+   /** Sets the output vector @a dof_vals to the values of the degrees of
+       freedom of element @a el. If @a el is greater than or equal to the number
+       of local elements, it will be interpreted as a shifted index of a face
+       neighbor element. */
+   virtual void GetElementDofValues(int el, Vector &dof_vals) const;
+
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);
 
@@ -314,7 +328,7 @@ public:
    /// Returns the Face Jumps error for L2 elements
    virtual double ComputeDGFaceJumpError(Coefficient *exsol,
                                          Coefficient *ell_coeff,
-                                         double Nu,
+                                         JumpScaling jump_scaling,
                                          const IntegrationRule *irs[]=NULL)
    const;
 
@@ -407,6 +421,15 @@ public:
        the local dofs. */
    virtual void Save(std::ostream &out) const;
 
+   /// Save the ParGridFunction to a single file (written using MPI rank 0). The
+   /// given @a precision will be used for ASCII output.
+   void SaveAsOne(const char *fname, int precision=16) const;
+
+   /// Save the ParGridFunction to files (one for each MPI rank). The files will
+   /// be given suffixes according to the MPI rank. The given @a precision will
+   /// be used for ASCII output.
+   virtual void Save(const char *fname, int precision=16) const;
+
 #ifdef MFEM_USE_ADIOS2
    /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
@@ -417,7 +440,7 @@ public:
 #endif
 
    /// Merge the local grid functions
-   void SaveAsOne(std::ostream &out = mfem::out);
+   void SaveAsOne(std::ostream &out = mfem::out) const;
 
    virtual ~ParGridFunction() { }
 };

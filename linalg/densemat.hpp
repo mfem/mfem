@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,6 +57,21 @@ public:
        not delete the array. */
    DenseMatrix(double *d, int h, int w)
       : Matrix(h, w) { UseExternalData(d, h, w); }
+
+   /// Create a dense matrix using a braced initializer list
+   /// The inner lists correspond to rows of the matrix
+   template <int M, int N>
+   explicit DenseMatrix(const double (&values)[M][N]) : DenseMatrix(M, N)
+   {
+      // DenseMatrix is column-major so copies have to be element-wise
+      for (int i = 0; i < M; i++)
+      {
+         for (int j = 0; j < N; j++)
+         {
+            (*this)(i,j) = values[i][j];
+         }
+      }
+   }
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
@@ -390,6 +405,8 @@ public:
    double *HostReadWrite()
    { return mfem::ReadWrite(data, Height()*Width(), false); }
 
+   void Swap(DenseMatrix &other);
+
    /// Destroys dense matrix.
    virtual ~DenseMatrix();
 };
@@ -668,6 +685,7 @@ public:
    virtual ~DenseMatrixInverse();
 };
 
+#ifdef MFEM_USE_LAPACK
 
 class DenseMatrixEigensystem
 {
@@ -676,13 +694,9 @@ class DenseMatrixEigensystem
    DenseMatrix EVect;
    Vector ev;
    int n;
-
-#ifdef MFEM_USE_LAPACK
    double *work;
    char jobz, uplo;
    int lwork, info;
-#endif
-
 public:
 
    DenseMatrixEigensystem(DenseMatrix &m);
@@ -699,10 +713,46 @@ public:
    ~DenseMatrixEigensystem();
 };
 
+class DenseMatrixGeneralizedEigensystem
+{
+   DenseMatrix &A;
+   DenseMatrix &B;
+   DenseMatrix A_copy;
+   DenseMatrix B_copy;
+   Vector evalues_r;
+   Vector evalues_i;
+   DenseMatrix Vr;
+   DenseMatrix Vl;
+   int n;
+
+   double *alphar;
+   double *alphai;
+   double *beta;
+   double *work;
+   char jobvl, jobvr;
+   int lwork, info;
+
+public:
+
+   DenseMatrixGeneralizedEigensystem(DenseMatrix &a, DenseMatrix &b,
+                                     bool left_eigen_vectors = false,
+                                     bool right_eigen_vectors = false);
+   void Eval();
+   Vector &EigenvaluesRealPart() { return evalues_r; }
+   Vector &EigenvaluesImagPart() { return evalues_i; }
+   double EigenvalueRealPart(int i) { return evalues_r(i); }
+   double EigenvalueImagPart(int i) { return evalues_i(i); }
+   DenseMatrix &LeftEigenvectors() { return Vl; }
+   DenseMatrix &RightEigenvectors() { return Vr; }
+   ~DenseMatrixGeneralizedEigensystem();
+};
+
 
 class DenseMatrixSVD
 {
+   DenseMatrix Mc;
    Vector sv;
+   DenseMatrix U,Vt;
    int m, n;
 
 #ifdef MFEM_USE_LAPACK
@@ -713,14 +763,22 @@ class DenseMatrixSVD
 
    void Init();
 public:
-
-   DenseMatrixSVD(DenseMatrix &M);
-   DenseMatrixSVD(int h, int w);
+   DenseMatrixSVD(DenseMatrix &M,
+                  bool left_singular_vectors=false,
+                  bool right_singlular_vectors=false);
+   DenseMatrixSVD(int h, int w,
+                  bool left_singular_vectors=false,
+                  bool right_singlular_vectors=false);
    void Eval(DenseMatrix &M);
    Vector &Singularvalues() { return sv; }
    double Singularvalue(int i) { return sv(i); }
+   DenseMatrix &LeftSingularvectors() { return U; }
+   DenseMatrix &RightSingularvectors() { return Vt; }
    ~DenseMatrixSVD();
 };
+
+#endif // if MFEM_USE_LAPACK
+
 
 class Table;
 
@@ -736,7 +794,6 @@ public:
    DenseTensor()
    {
       nk = 0;
-      tdata.Reset();
    }
 
    DenseTensor(int i, int j, int k)
@@ -744,6 +801,20 @@ public:
    {
       nk = k;
       tdata.New(i*j*k);
+   }
+
+   DenseTensor(double *d, int i, int j, int k)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata.Wrap(d, i*j*k, false);
+   }
+
+   DenseTensor(int i, int j, int k, MemoryType mt)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata.New(i*j*k, mt);
    }
 
    /// Copy constructor: deep copy
@@ -756,10 +827,6 @@ public:
          tdata.New(size, other.tdata.GetMemoryType());
          tdata.CopyFrom(other.tdata, size);
       }
-      else
-      {
-         tdata.Reset();
-      }
    }
 
    int SizeI() const { return Mk.Height(); }
@@ -768,9 +835,9 @@ public:
 
    int TotalSize() const { return SizeI()*SizeJ()*SizeK(); }
 
-   void SetSize(int i, int j, int k)
+   void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
    {
-      const MemoryType mt = tdata.GetMemoryType();
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ? tdata.GetMemoryType() : mt_;
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
       nk = k;
@@ -787,6 +854,9 @@ public:
 
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(double c);
+
+   /// Copy assignment operator (performs a deep copy)
+   DenseTensor &operator=(const DenseTensor &other);
 
    DenseMatrix &operator()(int k)
    {
@@ -858,6 +928,13 @@ public:
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
    double *HostReadWrite()
    { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
+
+   void Swap(DenseTensor &t)
+   {
+      mfem::Swap(tdata, t.tdata);
+      mfem::Swap(nk, t.nk);
+      Mk.Swap(t.Mk);
+   }
 
    ~DenseTensor() { tdata.Delete(); }
 };

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -137,7 +137,7 @@ TEST_CASE("1D GetValue",
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
-      Mesh mesh(n, 2.0);
+      Mesh mesh = Mesh::MakeCartesian1D(n, 2.0);
 
       FunctionCoefficient funcCoef(func_1D_lin);
 
@@ -419,9 +419,9 @@ TEST_CASE("1D GetValue in Parallel",
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
-      Mesh *mesh = new Mesh(n, 2.0);
-      ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian1D(n, 2.0);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
 
       FunctionCoefficient funcCoef(func_1D_lin);
 
@@ -584,7 +584,7 @@ TEST_CASE("2D GetValue",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
       FunctionCoefficient funcCoef(func_2D_lin);
 
@@ -902,9 +902,9 @@ TEST_CASE("2D GetValue in Parallel",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh *mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
-      ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
 
       FunctionCoefficient funcCoef(func_2D_lin);
 
@@ -1066,7 +1066,8 @@ TEST_CASE("3D GetValue",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       FunctionCoefficient funcCoef(func_3D_lin);
 
@@ -1420,9 +1421,10 @@ TEST_CASE("3D GetValue in Parallel",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
    {
-      Mesh *mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-      ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
 
       FunctionCoefficient funcCoef(func_3D_lin);
 
@@ -1591,7 +1593,7 @@ TEST_CASE("2D GetVectorValue",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
       VectorFunctionCoefficient funcCoef(dim, Func_2D_lin);
 
@@ -2130,9 +2132,9 @@ TEST_CASE("2D GetVectorValue in Parallel",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh *mesh = new Mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
-      ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
 
       VectorFunctionCoefficient funcCoef(dim, Func_2D_lin);
 
@@ -2430,9 +2432,10 @@ TEST_CASE("3D GetVectorValue",
    double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       VectorFunctionCoefficient funcCoef(dim, Func_3D_lin);
 
@@ -2492,6 +2495,12 @@ TEST_CASE("3D GetVectorValue",
          Vector dgv_gvv_val(dim); dgv_gvv_val = 0.0;
          Vector dgi_gvv_val(dim); dgi_gvv_val = 0.0;
 
+         Vector  nd_gvf_val(dim);  nd_gvf_val = 0.0;
+         Vector  rt_gvf_val(dim);  rt_gvf_val = 0.0;
+         DenseMatrix nd_gvf_vals;
+         DenseMatrix rt_gvf_vals;
+         DenseMatrix tr;
+
          SECTION("Domain Evaluation 3D")
          {
             std::cout << "Domain Evaluation 3D" << std::endl;
@@ -2516,6 +2525,12 @@ TEST_CASE("3D GetVectorValue",
                double dgv_gvv_err = 0.0;
                double dgi_gvv_err = 0.0;
 
+               double  nd_gvf_err = 0.0;
+               double  rt_gvf_err = 0.0;
+
+               nd_x.GetVectorFieldValues(e, ir, nd_gvf_vals, tr);
+               rt_x.GetVectorFieldValues(e, ir, rt_gvf_vals, tr);
+
                for (int j=0; j<ir.GetNPoints(); j++)
                {
                   npts++;
@@ -2538,6 +2553,9 @@ TEST_CASE("3D GetVectorValue",
                   dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
                   dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
 
+                  nd_gvf_vals.GetRow(j, nd_gvf_val);
+                  rt_gvf_vals.GetRow(j, rt_gvf_val);
+
                   double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
                   double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
                   double  rt_gfc_dist = Distance(f_val,  rt_gfc_val, dim);
@@ -2552,6 +2570,9 @@ TEST_CASE("3D GetVectorValue",
                   double dgv_gvv_dist = Distance(f_val, dgv_gvv_val, dim);
                   double dgi_gvv_dist = Distance(f_val, dgi_gvv_val, dim);
 
+                  double  nd_gvf_dist = Distance(f_val,  nd_gvf_val, dim);
+                  double  rt_gvf_dist = Distance(f_val,  rt_gvf_val, dim);
+
                   h1_gfc_err  +=  h1_gfc_dist;
                   nd_gfc_err  +=  nd_gfc_dist;
                   rt_gfc_err  +=  rt_gfc_dist;
@@ -2565,6 +2586,9 @@ TEST_CASE("3D GetVectorValue",
                   l2_gvv_err  +=  l2_gvv_dist;
                   dgv_gvv_err += dgv_gvv_dist;
                   dgi_gvv_err += dgi_gvv_dist;
+
+                  nd_gvf_err  +=  nd_gvf_dist;
+                  rt_gvf_err  +=  rt_gvf_dist;
 
                   if (log > 0 && h1_gfc_dist > tol)
                   {
@@ -2678,6 +2702,26 @@ TEST_CASE("3D GetVectorValue",
                                << dgi_gvv_val[2] << ") "
                                << dgi_gvv_dist << std::endl;
                   }
+                  if (log > 0 && nd_gvf_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " nd  gvf ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << nd_gvf_val[0] << ","
+                               << nd_gvf_val[1] << ","
+                               << nd_gvf_val[2] << ") "
+                               << nd_gvf_dist << std::endl;
+                  }
+                  if (log > 0 && rt_gvf_dist > tol)
+                  {
+                     std::cout << e << ":" << j << " rt  gvf ("
+                               << f_val[0] << "," << f_val[1] << ","
+                               << f_val[2] << ") vs. ("
+                               << rt_gvf_val[0] << ","
+                               << rt_gvf_val[1] << ","
+                               << rt_gvf_val[2] << ") "
+                               << rt_gvf_dist << std::endl;
+                  }
                }
 
                h1_gfc_err  /= ir.GetNPoints();
@@ -2694,6 +2738,9 @@ TEST_CASE("3D GetVectorValue",
                dgv_gvv_err /= ir.GetNPoints();
                dgi_gvv_err /= ir.GetNPoints();
 
+               nd_gvf_err  /= ir.GetNPoints();
+               rt_gvf_err  /= ir.GetNPoints();
+
                REQUIRE( h1_gfc_err == MFEM_Approx(0.0));
                REQUIRE( nd_gfc_err == MFEM_Approx(0.0));
                REQUIRE( rt_gfc_err == MFEM_Approx(0.0));
@@ -2707,6 +2754,9 @@ TEST_CASE("3D GetVectorValue",
                REQUIRE( l2_gvv_err == MFEM_Approx(0.0));
                REQUIRE(dgv_gvv_err == MFEM_Approx(0.0));
                REQUIRE(dgi_gvv_err == MFEM_Approx(0.0));
+
+               REQUIRE( nd_gvf_err == MFEM_Approx(0.0));
+               REQUIRE( rt_gvf_err == MFEM_Approx(0.0));
             }
          }
 
@@ -3046,21 +3096,18 @@ TEST_CASE("3D GetVectorValue in Parallel",
    int log = 1;
    int n = (int)ceil(pow(2*num_procs, 1.0 / 3.0));
    int dim = 3;
-   int order = 1;
+   int order = 2;
    int npts = 0;
 
    double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
-      Mesh *mesh = new Mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
-      ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-      if (type == Element::TETRAHEDRON)
-      {
-         pmesh.ReorientTetMesh();
-      }
-      delete mesh;
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
 
       VectorFunctionCoefficient funcCoef(dim, Func_3D_lin);
 
@@ -3111,6 +3158,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
          dgv_x.ExchangeFaceNbrData();
          dgi_x.ExchangeFaceNbrData();
 
+         Vector           x(dim);           x = 0.0;
          Vector       f_val(dim);       f_val = 0.0;
 
          Vector  h1_gfc_val(dim);  h1_gfc_val = 0.0;
@@ -3133,6 +3181,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
             {
                std::cout << "Shared Face Evaluation 3D" << std::endl;
             }
+
             for (int sf = 0; sf < pmesh.GetNSharedFaces(); sf++)
             {
                FaceElementTransformations *FET =
@@ -3163,6 +3212,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
+                  T->Transform(ip, x);
 
                   funcCoef.Eval(f_val, *T, ip);
 
@@ -3219,9 +3269,11 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   }
                   if (log > 0 && nd_gfc_dist > tol)
                   {
-                     std::cout << e << ":" << j << " nd  gfc ("
+                     std::cout << e << ":" << j
+                               << " x = (" << x[0] << "," << x[1] << ","
+                               << x[2] << ")\n nd  gfc ("
                                << f_val[0] << "," << f_val[1] << ","
-                               << f_val[2] << ") vs. ("
+                               << f_val[2] << ")\n vs. ("
                                << nd_gfc_val[0] << "," << nd_gfc_val[1] << ","
                                << nd_gfc_val[2] << ") "
                                << nd_gfc_dist << std::endl;
@@ -3353,6 +3405,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
          }
       }
    }
+
    std::cout << my_rank << ": Checked GridFunction::GetVectorValue at "
              << npts << " 3D points" << std::endl;
 }
@@ -3374,7 +3427,7 @@ TEST_CASE("1D GetGradient",
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::SEGMENT; type++)
    {
-      Mesh mesh(n, 2.0);
+      Mesh mesh = Mesh::MakeCartesian1D(n, 2.0);
 
       FunctionCoefficient funcCoef(func_1D_quad);
       VectorFunctionCoefficient dFuncCoef(dim, dfunc_1D_quad);
@@ -3578,7 +3631,7 @@ TEST_CASE("2D GetGradient",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
       FunctionCoefficient funcCoef(func_2D_quad);
       VectorFunctionCoefficient dFuncCoef(dim, dfunc_2D_quad);
@@ -3788,7 +3841,8 @@ TEST_CASE("3D GetGradient",
    for (int type = (int)Element::TETRAHEDRON;
         type <= (int)Element::WEDGE; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       FunctionCoefficient funcCoef(func_3D_quad);
       VectorFunctionCoefficient dFuncCoef(dim, dfunc_3D_quad);
@@ -4004,7 +4058,7 @@ TEST_CASE("2D GetCurl",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
       VectorFunctionCoefficient funcCoef(dim, Func_2D_quad);
       VectorFunctionCoefficient dFuncCoef(1, RotFunc_2D_quad);
@@ -4252,9 +4306,10 @@ TEST_CASE("3D GetCurl",
    double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       VectorFunctionCoefficient funcCoef(dim, Func_3D_quad);
       VectorFunctionCoefficient dFuncCoef(dim, CurlFunc_3D_quad);
@@ -4522,7 +4577,7 @@ TEST_CASE("2D GetDivergence",
    for (int type = (int)Element::TRIANGLE;
         type <= (int)Element::QUADRILATERAL; type++)
    {
-      Mesh mesh(n, n, (Element::Type)type, 1, 2.0, 3.0);
+      Mesh mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
 
       VectorFunctionCoefficient funcCoef(dim, Func_2D_quad);
       FunctionCoefficient dFuncCoef(DivFunc_2D_quad);
@@ -4752,9 +4807,10 @@ TEST_CASE("3D GetDivergence",
    double tol = 1e-6;
 
    for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
-      Mesh mesh(n, n, n, (Element::Type)type, 1, 2.0, 3.0, 5.0);
+      Mesh mesh = Mesh::MakeCartesian3D(
+                     n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
       VectorFunctionCoefficient funcCoef(dim, Func_3D_quad);
       FunctionCoefficient dFuncCoef(DivFunc_3D_quad);

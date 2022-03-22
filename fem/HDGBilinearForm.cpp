@@ -859,8 +859,8 @@ void HDGBilinearForm::compute_face_integrals_shared(const int elem,
 
    const FiniteElement &trial_face_fe = *fes2[0]->GetFaceElement(edge);
    const FiniteElement &testu1_fe1 = *fes1[0]->GetFE(tr->Elem1No);
-//    const FiniteElement &testu1_fe2 = *fes1[0]->GetFE(tr->Elem2No);
-//    const FiniteElement &testu1_fe2 = *pfes1->GetFaceNbrFE(tr->Elem2No);
+   //    const FiniteElement &testu1_fe2 = *fes1[0]->GetFE(tr->Elem2No);
+   //    const FiniteElement &testu1_fe2 = *pfes1->GetFaceNbrFE(tr->Elem2No);
    const FiniteElement &testu1_fe2 = *fes1[0]->GetFE(tr->Elem1No);
 
    // For parallel the element the processor owns is tr->Elem1No
@@ -884,8 +884,8 @@ void HDGBilinearForm::compute_face_integrals_shared(const int elem,
       {
          ParFiniteElementSpace* pfes2 = dynamic_cast<ParFiniteElementSpace*>(fes1[1]);
          const FiniteElement &testu2_fe1 = *fes1[1]->GetFE(tr->Elem1No);
-//          const FiniteElement &testu2_fe2 = *fes1[1]->GetFE(tr->Elem2No);
-//          const FiniteElement &testu2_fe2 = *pfes2->GetFaceNbrFE(tr->Elem2No);
+         //          const FiniteElement &testu2_fe2 = *fes1[1]->GetFE(tr->Elem2No);
+         //          const FiniteElement &testu2_fe2 = *pfes2->GetFaceNbrFE(tr->Elem2No);
          const FiniteElement &testu2_fe2 = *fes1[1]->GetFE(tr->Elem1No);
          hdg_fbfi[0]->AssembleFaceMatrixOneElement2and1FES(testu1_fe1, testu1_fe2,
                                                            testu2_fe1, testu2_fe2,

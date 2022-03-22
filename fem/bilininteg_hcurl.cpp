@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,12 +12,20 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "libceed/mass.hpp"
 
 using namespace std;
 
 namespace mfem
 {
+
+void PAHcurlHdivSetup3D(const int Q1D,
+                        const int coeffDim,
+                        const int NE,
+                        const bool transpose,
+                        const Array<double> &w_,
+                        const Vector &j,
+                        Vector &coeff_,
+                        Vector &op);
 
 void PAHcurlMassApply2D(const int D1D,
                         const int Q1D,
@@ -187,7 +195,7 @@ void PAHcurlMassAssembleDiagonal2D(const int D1D,
                   const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
 
                   mass[qx] += wy * wy * ((c == 0) ? op(qx,qy,0,e) :
-                  op(qx,qy,symmetric ? 2 : 3, e));
+                                         op(qx,qy,symmetric ? 2 : 3, e));
                }
             }
 
@@ -238,7 +246,7 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
          const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
-         (symmetric ? 5 : 8));
+                                         (symmetric ? 5 : 8));
 
          double mass[MAX_Q1D];
 
@@ -918,6 +926,26 @@ static void PACurlCurlSetup3D(const int Q1D,
    });
 }
 
+// PA H(curl)-L2 assemble 2D kernel
+static void PACurlL2Setup2D(const int Q1D,
+                            const int NE,
+                            const Array<double> &w,
+                            Vector &coeff,
+                            Vector &op)
+{
+   const int NQ = Q1D*Q1D;
+   auto W = w.Read();
+   auto C = Reshape(coeff.Read(), NQ, NE);
+   auto y = Reshape(op.Write(), NQ, NE);
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         y(q,e) = W[q] * C(q,e);
+      }
+   });
+}
+
 void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
@@ -931,10 +959,11 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const IntegrationRule *ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el,
                                                      *mesh->GetElementTransformation(0));
+
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
@@ -949,12 +978,12 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
-   const int MQsymmDim = MQ ? (MQ->GetWidth() * (MQ->GetWidth() + 1)) / 2 : 0;
+   const int MQsymmDim = SMQ ? (SMQ->GetSize() * (SMQ->GetSize() + 1)) / 2 : 0;
    const int MQfullDim = MQ ? (MQ->GetHeight() * MQ->GetWidth()) : 0;
-   const int MQdim = MQ ? (MQ->IsSymmetric() ? MQsymmDim : MQfullDim) : 0;
-   const int coeffDim = MQ ? MQdim : (DQ ? DQ->GetVDim() : 1);
+   const int MQdim = MQ ? MQfullDim : MQsymmDim;
+   const int coeffDim = (MQ || SMQ) ? MQdim : (DQ ? DQ->GetVDim() : 1);
 
-   symmetric = MQ ? MQ->IsSymmetric() : true;
+   symmetric = (MQ == NULL);
 
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int ndata = (dim == 2) ? 1 : (symmetric ? symmDims : MQfullDim);
@@ -963,22 +992,11 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Vector coeff(coeffDim * ne * nq);
    coeff = 1.0;
    auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || DQ || MQ)
+   if (Q || DQ || MQ || SMQ)
    {
-      Vector D(DQ ? coeffDim : 0);
-      DenseMatrix M;
-      Vector Msymm;
-      if (MQ)
-      {
-         if (symmetric)
-         {
-            Msymm.SetSize(MQsymmDim);
-         }
-         else
-         {
-            M.SetSize(dimc);
-         }
-      }
+      Vector DM(DQ ? coeffDim : 0);
+      DenseMatrix GM;
+      DenseSymmetricMatrix SM;
 
       if (DQ)
       {
@@ -986,8 +1004,14 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
       if (MQ)
       {
+         GM.SetSize(dimc);
          MFEM_VERIFY(coeffDim == MQdim, "");
          MFEM_VERIFY(MQ->GetHeight() == dimc && MQ->GetWidth() == dimc, "");
+      }
+      if (SMQ)
+      {
+         SM.SetSize(dimc);
+         MFEM_VERIFY(SMQ->GetSize() == dimc, "");
       }
 
       for (int e=0; e<ne; ++e)
@@ -997,32 +1021,33 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
          {
             if (MQ)
             {
-               if (MQ->IsSymmetric())
-               {
-                  MQ->EvalSymmetric(Msymm, *tr, ir->IntPoint(p));
+               MQ->Eval(GM, *tr, ir->IntPoint(p));
 
-                  for (int i=0; i<MQsymmDim; ++i)
+               for (int i=0; i<dimc; ++i)
+                  for (int j=0; j<dimc; ++j)
                   {
-                     coeffh(i, p, e) = Msymm[i];
+                     coeffh(j+(i*dimc), p, e) = GM(i,j);
                   }
-               }
-               else
-               {
-                  MQ->Eval(M, *tr, ir->IntPoint(p));
 
-                  for (int i=0; i<dimc; ++i)
-                     for (int j=0; j<dimc; ++j)
-                     {
-                        coeffh(j+(i*dimc), p, e) = M(i,j);
-                     }
-               }
+            }
+            else if (SMQ)
+            {
+               SMQ->Eval(SM, *tr, ir->IntPoint(p));
+
+               int cnt = 0;
+               for (int i=0; i<dimc; ++i)
+                  for (int j=i; j<dimc; ++j, ++cnt)
+                  {
+                     coeffh(cnt, p, e) = SM(i,j);
+                  }
+
             }
             else if (DQ)
             {
-               DQ->Eval(D, *tr, ir->IntPoint(p));
+               DQ->Eval(DM, *tr, ir->IntPoint(p));
                for (int i=0; i<coeffDim; ++i)
                {
-                  coeffh(i, p, e) = D[i];
+                  coeffh(i, p, e) = DM[i];
                }
             }
             else
@@ -1712,7 +1737,7 @@ static void SmemPACurlCurlApply3D(const int D1D,
 
    const int s = symmetric ? 6 : 9;
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
 
@@ -1991,6 +2016,240 @@ static void SmemPACurlCurlApply3D(const int D1D,
             }
          }
       } // qz
+   }; // end of element loop
+
+   auto host_kernel = [&] MFEM_LAMBDA (int)
+   {
+      MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
+   };
+
+   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
+}
+
+static void PACurlL2Apply2D(const int D1D,
+                            const int D1Dtest,
+                            const int Q1D,
+                            const int NE,
+                            const Array<double> &bo,
+                            const Array<double> &bot,
+                            const Array<double> &bt,
+                            const Array<double> &gc,
+                            const Vector &pa_data,
+                            const Vector &x, // trial = H(curl)
+                            Vector &y)  // test = L2 or H1
+{
+   constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+   const int H1 = (D1Dtest == D1D);
+
+   MFEM_VERIFY(y.Size() == NE*D1Dtest*D1Dtest, "Test vector of wrong dimension");
+
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1Dtest, D1Dtest, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double curl[MAX_Q1D][MAX_Q1D];
+
+      // curl[qy][qx] will be computed as du_y/dx - du_x/dy
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            curl[qy][qx] = 0.0;
+         }
+      }
+
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+      {
+         const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+         for (int dy = 0; dy < D1Dy; ++dy)
+         {
+            double gradX[MAX_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               gradX[qx] = 0;
+            }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               const double t = X(dx + (dy * D1Dx) + osc, e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  gradX[qx] += t * ((c == 0) ? Bo(qx,dx) : Gc(qx,dx));
+               }
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy = (c == 0) ? -Gc(qy,dy) : Bo(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  curl[qy][qx] += gradX[qx] * wy;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            curl[qy][qx] *= op(qx,qy,e);
+         }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         double sol_x[MAX_D1D];
+         for (int dx = 0; dx < D1Dtest; ++dx)
+         {
+            sol_x[dx] = 0.0;
+         }
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const double s = curl[qy][qx];
+            for (int dx = 0; dx < D1Dtest; ++dx)
+            {
+               sol_x[dx] += s * ((H1 == 1) ? Bt(dx,qx) : Bot(dx,qx));
+            }
+         }
+         for (int dy = 0; dy < D1Dtest; ++dy)
+         {
+            const double wy = (H1 == 1) ? Bt(dy,qy) : Bot(dy,qy);
+
+            for (int dx = 0; dx < D1Dtest; ++dx)
+            {
+               Y(dx,dy,e) += sol_x[dx] * wy;
+            }
+         }
+      }  // loop qy
+   }); // end of element loop
+}
+
+static void PACurlL2ApplyTranspose2D(const int D1D,
+                                     const int D1Dtest,
+                                     const int Q1D,
+                                     const int NE,
+                                     const Array<double> &bo,
+                                     const Array<double> &bot,
+                                     const Array<double> &b,
+                                     const Array<double> &gct,
+                                     const Vector &pa_data,
+                                     const Vector &x, // trial = H(curl)
+                                     Vector &y)  // test = L2 or H1
+{
+   constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+   const int H1 = (D1Dtest == D1D);
+
+   MFEM_VERIFY(x.Size() == NE*D1Dtest*D1Dtest, "Test vector of wrong dimension");
+
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Gct = Reshape(gct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, NE);
+   auto X = Reshape(x.Read(), D1Dtest, D1Dtest, NE);
+   auto Y = Reshape(y.ReadWrite(), 2*(D1D-1)*D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double mass[MAX_Q1D][MAX_Q1D];
+
+      // Zero-order term in L2 or H1 test space
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            mass[qy][qx] = 0.0;
+         }
+      }
+
+      for (int dy = 0; dy < D1Dtest; ++dy)
+      {
+         double sol_x[MAX_Q1D];
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            sol_x[qy] = 0.0;
+         }
+         for (int dx = 0; dx < D1Dtest; ++dx)
+         {
+            const double s = X(dx,dy,e);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               sol_x[qx] += s * ((H1 == 1) ? B(qx,dx) : Bo(qx,dx));
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            const double d2q = (H1 == 1) ? B(qy,dy) : Bo(qy,dy);
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               mass[qy][qx] += d2q * sol_x[qx];
+            }
+         }
+      }
+
+      // Apply D operator.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            mass[qy][qx] *= op(qx,qy,e);
+         }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         int osc = 0;
+
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+         {
+            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+            double gradX[MAX_D1D];
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               gradX[dx] = 0.0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  gradX[dx] += mass[qy][qx] * ((c == 0) ? Bot(dx,qx) : Gct(dx,qx));
+               }
+            }
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               const double wy = (c == 0) ? -Gct(dy,qy) : Bot(dy,qy);
+
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  Y(dx + (dy * D1Dx) + osc, e) += gradX[dx] * wy;
+               }
+            }
+
+            osc += D1Dx * D1Dy;
+         }  // loop c
+      }  // loop qy
    }); // end of element loop
 }
 
@@ -2709,6 +2968,205 @@ void PAHcurlH1Apply3D(const int D1D,
    }); // end of element loop
 }
 
+// Apply to x corresponding to DOF's in H(curl), integrated
+// against gradients of H^1 functions corresponding to y.
+void PAHcurlH1ApplyTranspose3D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const Array<double> &bc,
+                               const Array<double> &bo,
+                               const Array<double> &bct,
+                               const Array<double> &gct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y)
+{
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+
+   constexpr static int VDIM = 3;
+
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bt = Reshape(bct.Read(), D1D, Q1D);
+   auto Gt = Reshape(gct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, 6, NE);
+   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
+
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int c = 0; c < VDIM; ++c)
+               {
+                  mass[qz][qy][qx][c] = 0.0;
+               }
+            }
+         }
+      }
+
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+         const int D1Dz = (c == 2) ? D1D - 1 : D1D;
+         const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+         for (int dz = 0; dz < D1Dz; ++dz)
+         {
+            double massXY[MAX_Q1D][MAX_Q1D];
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  massXY[qy][qx] = 0.0;
+               }
+            }
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               double massX[MAX_Q1D];
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  massX[qx] = 0.0;
+               }
+
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  const double t = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     massX[qx] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
+                  }
+               }
+
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     const double wx = massX[qx];
+                     massXY[qy][qx] += wx * wy;
+                  }
+               }
+            }
+
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const double wz = (c == 2) ? Bo(qz,dz) : Bc(qz,dz);
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     mass[qz][qy][qx][c] += massXY[qy][qx] * wz;
+                  }
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy * D1Dz;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double O11 = op(qx,qy,qz,0,e);
+               const double O12 = op(qx,qy,qz,1,e);
+               const double O13 = op(qx,qy,qz,2,e);
+               const double O22 = op(qx,qy,qz,3,e);
+               const double O23 = op(qx,qy,qz,4,e);
+               const double O33 = op(qx,qy,qz,5,e);
+               const double massX = mass[qz][qy][qx][0];
+               const double massY = mass[qz][qy][qx][1];
+               const double massZ = mass[qz][qy][qx][2];
+               mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
+               mass[qz][qy][qx][1] = (O12*massX)+(O22*massY)+(O23*massZ);
+               mass[qz][qy][qx][2] = (O13*massX)+(O23*massY)+(O33*massZ);
+            }
+         }
+      }
+
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         double gradXY[MAX_D1D][MAX_D1D][3];
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               gradXY[dy][dx][0] = 0;
+               gradXY[dy][dx][1] = 0;
+               gradXY[dy][dx][2] = 0;
+            }
+         }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            double gradX[MAX_D1D][3];
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               gradX[dx][0] = 0;
+               gradX[dx][1] = 0;
+               gradX[dx][2] = 0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double gX = mass[qz][qy][qx][0];
+               const double gY = mass[qz][qy][qx][1];
+               const double gZ = mass[qz][qy][qx][2];
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double wx  = Bt(dx,qx);
+                  const double wDx = Gt(dx,qx);
+                  gradX[dx][0] += gX * wDx;
+                  gradX[dx][1] += gY * wx;
+                  gradX[dx][2] += gZ * wx;
+               }
+            }
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               const double wy  = Bt(dy,qy);
+               const double wDy = Gt(dy,qy);
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  gradXY[dy][dx][0] += gradX[dx][0] * wy;
+                  gradXY[dy][dx][1] += gradX[dx][1] * wDy;
+                  gradXY[dy][dx][2] += gradX[dx][2] * wy;
+               }
+            }
+         }
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            const double wz  = Bt(dz,qz);
+            const double wDz = Gt(dz,qz);
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  Y(dx,dy,dz,e) +=
+                     ((gradXY[dy][dx][0] * wz) +
+                      (gradXY[dy][dx][1] * wz) +
+                      (gradXY[dy][dx][2] * wDz));
+               }
+            }
+         }
+      }  // loop qz
+   }); // end of element loop
+}
+
 // Apply to x corresponding to DOF's in H^1 (trial), whose gradients are
 // integrated against H(curl) test functions corresponding to y.
 void PAHcurlH1Apply2D(const int D1D,
@@ -2807,7 +3265,7 @@ void PAHcurlH1Apply2D(const int D1D,
             double massX[MAX_D1D];
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               massX[dx] = 0.0;
+               massX[dx] = 0;
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
@@ -2833,7 +3291,132 @@ void PAHcurlH1Apply2D(const int D1D,
    }); // end of element loop
 }
 
-// PA H(curl) assemble kernel
+// Apply to x corresponding to DOF's in H(curl), integrated
+// against gradients of H^1 functions corresponding to y.
+void PAHcurlH1ApplyTranspose2D(const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const Array<double> &bc,
+                               const Array<double> &bo,
+                               const Array<double> &bct,
+                               const Array<double> &gct,
+                               const Vector &pa_data,
+                               const Vector &x,
+                               Vector &y)
+{
+   constexpr static int VDIM = 2;
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
+   auto Bt = Reshape(bct.Read(), D1D, Q1D);
+   auto Gt = Reshape(gct.Read(), D1D, Q1D);
+   auto op = Reshape(pa_data.Read(), Q1D, Q1D, 3, NE);
+   auto X = Reshape(x.Read(), 2*(D1D-1)*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      double mass[MAX_Q1D][MAX_Q1D][VDIM];
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            for (int c = 0; c < VDIM; ++c)
+            {
+               mass[qy][qx][c] = 0.0;
+            }
+         }
+      }
+
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+      {
+         const int D1Dy = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dx = (c == 0) ? D1D - 1 : D1D;
+
+         for (int dy = 0; dy < D1Dy; ++dy)
+         {
+            double massX[MAX_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               massX[qx] = 0.0;
+            }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               const double t = X(dx + (dy * D1Dx) + osc, e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  massX[qx] += t * ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
+               }
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  mass[qy][qx][c] += massX[qx] * wy;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const double O11 = op(qx,qy,0,e);
+            const double O12 = op(qx,qy,1,e);
+            const double O22 = op(qx,qy,2,e);
+            const double massX = mass[qy][qx][0];
+            const double massY = mass[qy][qx][1];
+            mass[qy][qx][0] = (O11*massX)+(O12*massY);
+            mass[qy][qx][1] = (O12*massX)+(O22*massY);
+         }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         double gradX[MAX_D1D][2];
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            gradX[dx][0] = 0;
+            gradX[dx][1] = 0;
+         }
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const double gX = mass[qy][qx][0];
+            const double gY = mass[qy][qx][1];
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double wx  = Bt(dx,qx);
+               const double wDx = Gt(dx,qx);
+               gradX[dx][0] += gX * wDx;
+               gradX[dx][1] += gY * wx;
+            }
+         }
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            const double wy  = Bt(dy,qy);
+            const double wDy = Gt(dy,qy);
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               Y(dx,dy,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
+            }
+         }
+      }
+   }); // end of element loop
+}
+
+// PA H(curl) Mass Assemble 3D kernel
 void PAHcurlL2Setup(const int NQ,
                     const int coeffDim,
                     const int NE,
@@ -2855,6 +3438,105 @@ void PAHcurlL2Setup(const int NQ,
          }
       }
    });
+}
+
+void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
+                                           const FiniteElementSpace &test_fes)
+{
+   // Assumes tensor-product elements
+   Mesh *mesh = trial_fes.GetMesh();
+   const FiniteElement *fel = trial_fes.GetFE(0); // In H(curl)
+   const FiniteElement *eltest = test_fes.GetFE(0); // In scalar space
+
+   const VectorTensorFiniteElement *el =
+      dynamic_cast<const VectorTensorFiniteElement*>(fel);
+   MFEM_VERIFY(el != NULL, "Only VectorTensorFiniteElement is supported!");
+
+   if (el->GetDerivType() != mfem::FiniteElement::CURL)
+   {
+      MFEM_ABORT("Unknown kernel.");
+   }
+
+   const IntegrationRule *ir
+      = IntRule ? IntRule : &MassIntegrator::GetRule(*eltest, *eltest,
+                                                     *mesh->GetElementTransformation(0));
+
+   const int dims = el->GetDim();
+   MFEM_VERIFY(dims == 2, "");
+
+   const int nq = ir->GetNPoints();
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2, "");
+
+   ne = test_fes.GetNE();
+   mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   dofs1D = mapsC->ndof;
+   quad1D = mapsC->nqpt;
+
+   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+
+   if (el->GetOrder() == eltest->GetOrder())
+   {
+      dofs1Dtest = dofs1D;
+   }
+   else
+   {
+      dofs1Dtest = dofs1D - 1;
+   }
+
+   pa_data.SetSize(nq * ne, Device::GetMemoryType());
+
+   Vector coeff(ne * nq);
+   coeff = 1.0;
+   auto coeffh = Reshape(coeff.HostWrite(), nq, ne);
+   if (Q)
+   {
+      for (int e=0; e<ne; ++e)
+      {
+         ElementTransformation *tr = mesh->GetElementTransformation(e);
+         for (int p=0; p<nq; ++p)
+         {
+            coeffh(p, e) = Q->Eval(*tr, ir->IntPoint(p));
+         }
+      }
+   }
+
+   if (dim == 2)
+   {
+      PACurlL2Setup2D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void MixedScalarCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (dim == 2)
+   {
+      PACurlL2Apply2D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B, mapsO->Bt,
+                      mapsC->Bt, mapsC->G, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void MixedScalarCurlIntegrator::AddMultTransposePA(const Vector &x,
+                                                   Vector &y) const
+{
+   if (dim == 2)
+   {
+      PACurlL2ApplyTranspose2D(dofs1D, dofs1Dtest, quad1D, ne, mapsO->B, mapsO->Bt,
+                               mapsC->B, mapsC->Gt, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
 }
 
 void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
@@ -2903,7 +3585,11 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    coeffDim = (DQ ? 3 : 1);
 
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   const bool curlSpaces = (testType == mfem::FiniteElement::CURL &&
+                            trialType == mfem::FiniteElement::CURL);
+
+   const int ndata = curlSpaces ? (coeffDim == 1 ? 1 : 9) : symmDims;
+   pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
    Vector coeff(coeffDim * nq * ne);
    coeff = 1.0;
@@ -2941,7 +3627,15 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      if (coeffDim == 1)
+      {
+         PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      }
+      else
+      {
+         PAHcurlHdivSetup3D(quad1D, coeffDim, ne, false, ir->GetWeights(), geom->J,
+                            coeff, pa_data);
+      }
    }
    else if (testType == mfem::FiniteElement::DIV &&
             trialType == mfem::FiniteElement::CURL && dim == 3 &&
@@ -3228,9 +3922,30 @@ static void PAHcurlL2Apply3D(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               for (int c = 0; c < VDIM; ++c)
+               const double O11 = op(0,qx,qy,qz,e);
+               if (coeffDim == 1)
                {
-                  curl[qz][qy][qx][c] *= op(coeffDim == 3 ? c : 0, qx,qy,qz,e);
+                  for (int c = 0; c < VDIM; ++c)
+                  {
+                     curl[qz][qy][qx][c] *= O11;
+                  }
+               }
+               else
+               {
+                  const double O21 = op(1,qx,qy,qz,e);
+                  const double O31 = op(2,qx,qy,qz,e);
+                  const double O12 = op(3,qx,qy,qz,e);
+                  const double O22 = op(4,qx,qy,qz,e);
+                  const double O32 = op(5,qx,qy,qz,e);
+                  const double O13 = op(6,qx,qy,qz,e);
+                  const double O23 = op(7,qx,qy,qz,e);
+                  const double O33 = op(8,qx,qy,qz,e);
+                  const double curlX = curl[qz][qy][qx][0];
+                  const double curlY = curl[qz][qy][qx][1];
+                  const double curlZ = curl[qz][qy][qx][2];
+                  curl[qz][qy][qx][0] = (O11*curlX)+(O12*curlY)+(O13*curlZ);
+                  curl[qz][qy][qx][1] = (O21*curlX)+(O22*curlY)+(O23*curlZ);
+                  curl[qz][qy][qx][2] = (O31*curlX)+(O32*curlY)+(O33*curlZ);
                }
             }
          }
@@ -3252,7 +3967,7 @@ static void PAHcurlL2Apply3D(const int D1D,
             {
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  massXY[dy][dx] = 0.0;
+                  massXY[dy][dx] = 0;
                }
             }
             for (int qy = 0; qy < Q1D; ++qy)
@@ -3269,6 +3984,7 @@ static void PAHcurlL2Apply3D(const int D1D,
                      massX[dx] += curl[qz][qy][qx][c] * ((c == 0) ? Bot(dx,qx) : Bct(dx,qx));
                   }
                }
+
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   const double wy = (c == 1) ? Bot(dy,qy) : Bct(dy,qy);
@@ -3321,10 +4037,10 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
-      constexpr int maxCoeffDim = 3;
+      constexpr int maxCoeffDim = 9;
 
       MFEM_SHARED double sBo[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
@@ -3534,13 +4250,28 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double O1 = sop[0][qx][qy];
-                        const double O2 = (coeffDim == 3) ? sop[1][qx][qy] : O1;
-                        const double O3 = (coeffDim == 3) ? sop[2][qx][qy] : O1;
-
-                        const double c1 = O1 * curl[qy][qx][0];
-                        const double c2 = O2 * curl[qy][qx][1];
-                        const double c3 = O3 * curl[qy][qx][2];
+                        const double O11 = sop[0][qx][qy];
+                        double c1, c2, c3;
+                        if (coeffDim == 1)
+                        {
+                           c1 = O11 * curl[qy][qx][0];
+                           c2 = O11 * curl[qy][qx][1];
+                           c3 = O11 * curl[qy][qx][2];
+                        }
+                        else
+                        {
+                           const double O21 = sop[1][qx][qy];
+                           const double O31 = sop[2][qx][qy];
+                           const double O12 = sop[3][qx][qy];
+                           const double O22 = sop[4][qx][qy];
+                           const double O32 = sop[5][qx][qy];
+                           const double O13 = sop[6][qx][qy];
+                           const double O23 = sop[7][qx][qy];
+                           const double O33 = sop[8][qx][qy];
+                           c1 = (O11*curl[qy][qx][0])+(O12*curl[qy][qx][1])+(O13*curl[qy][qx][2]);
+                           c2 = (O21*curl[qy][qx][0])+(O22*curl[qy][qx][1])+(O23*curl[qy][qx][2]);
+                           c3 = (O31*curl[qy][qx][0])+(O32*curl[qy][qx][1])+(O33*curl[qy][qx][2]);
+                        }
 
                         const double wcx = sBc[dx][qx];
 
@@ -3582,7 +4313,14 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
             }
          }
       } // qz
-   }); // end of element loop
+   }; // end of element loop
+
+   auto host_kernel = [&] MFEM_LAMBDA (int)
+   {
+      MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
+   };
+
+   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
 // Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
@@ -3894,7 +4632,7 @@ static void PAHcurlHdivApply3D(const int D1D,
             {
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  massXY[dy][dx] = 0.0;
+                  massXY[dy][dx] = 0;
                }
             }
             for (int qy = 0; qy < Q1D; ++qy)
@@ -3902,7 +4640,7 @@ static void PAHcurlHdivApply3D(const int D1D,
                double massX[HCURL_MAX_D1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  massX[dx] = 0.0;
+                  massX[dx] = 0;
                }
                for (int qx = 0; qx < Q1D; ++qx)
                {
@@ -3946,30 +4684,32 @@ void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
+      const int ndata = coeffDim == 1 ? 1 : 9;
+
       if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          switch (ID)
          {
-            case 0x23: return SmemPAHcurlL2Apply3D<2,3>(dofs1D, quad1D, coeffDim, ne,
+            case 0x23: return SmemPAHcurlL2Apply3D<2,3>(dofs1D, quad1D, ndata, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsC->G, pa_data, x, y);
-            case 0x34: return SmemPAHcurlL2Apply3D<3,4>(dofs1D, quad1D, coeffDim, ne,
+            case 0x34: return SmemPAHcurlL2Apply3D<3,4>(dofs1D, quad1D, ndata, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsC->G, pa_data, x, y);
-            case 0x45: return SmemPAHcurlL2Apply3D<4,5>(dofs1D, quad1D, coeffDim, ne,
+            case 0x45: return SmemPAHcurlL2Apply3D<4,5>(dofs1D, quad1D, ndata, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsC->G, pa_data, x, y);
-            case 0x56: return SmemPAHcurlL2Apply3D<5,6>(dofs1D, quad1D, coeffDim, ne,
+            case 0x56: return SmemPAHcurlL2Apply3D<5,6>(dofs1D, quad1D, ndata, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsC->G, pa_data, x, y);
-            default: return SmemPAHcurlL2Apply3D(dofs1D, quad1D, coeffDim, ne, mapsO->B,
-                                                    mapsC->B,
-                                                    mapsC->G, pa_data, x, y);
+            default: return SmemPAHcurlL2Apply3D(dofs1D, quad1D, ndata, ne,
+                                                    mapsO->B, mapsC->B, mapsC->G,
+                                                    pa_data, x, y);
          }
       }
       else
-         PAHcurlL2Apply3D(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
+         PAHcurlL2Apply3D(dofs1D, quad1D, ndata, ne, mapsO->B, mapsC->B,
                           mapsO->Bt, mapsC->Bt, mapsC->G, pa_data, x, y);
    }
    else if (testType == mfem::FiniteElement::DIV &&
@@ -4022,8 +4762,9 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
    coeffDim = DQ ? 3 : 1;
+   const int ndata = DQ ? 9 : 1;
 
-   pa_data.SetSize(coeffDim * nq * ne, Device::GetMemoryType());
+   pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
    Vector coeff(coeffDim * nq * ne);
    coeff = 1.0;
@@ -4063,7 +4804,15 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
 
    if (trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      if (coeffDim == 1)
+      {
+         PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      }
+      else
+      {
+         PAHcurlHdivSetup3D(quad1D, coeffDim, ne, false, ir->GetWeights(), geom->J,
+                            coeff, pa_data);
+      }
    }
    else
    {
@@ -4191,9 +4940,30 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               for (int c=0; c<VDIM; ++c)
+               const double O11 = op(0,qx,qy,qz,e);
+               if (coeffDim == 1)
                {
-                  mass[qz][qy][qx][c] *= op(coeffDim == 3 ? c : 0, qx,qy,qz,e);
+                  for (int c = 0; c < VDIM; ++c)
+                  {
+                     mass[qz][qy][qx][c] *= O11;
+                  }
+               }
+               else
+               {
+                  const double O12 = op(1,qx,qy,qz,e);
+                  const double O13 = op(2,qx,qy,qz,e);
+                  const double O21 = op(3,qx,qy,qz,e);
+                  const double O22 = op(4,qx,qy,qz,e);
+                  const double O23 = op(5,qx,qy,qz,e);
+                  const double O31 = op(6,qx,qy,qz,e);
+                  const double O32 = op(7,qx,qy,qz,e);
+                  const double O33 = op(8,qx,qy,qz,e);
+                  const double massX = mass[qz][qy][qx][0];
+                  const double massY = mass[qz][qy][qx][1];
+                  const double massZ = mass[qz][qy][qx][2];
+                  mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
+                  mass[qz][qy][qx][1] = (O21*massX)+(O22*massY)+(O23*massZ);
+                  mass[qz][qy][qx][2] = (O31*massX)+(O32*massY)+(O33*massZ);
                }
             }
          }
@@ -4437,10 +5207,10 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
-      constexpr int maxCoeffDim = 3;
+      constexpr int maxCoeffDim = 9;
 
       MFEM_SHARED double sBo[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
@@ -4585,13 +5355,29 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double O1 = sop[0][qx][qy];
-                        const double O2 = (coeffDim == 3) ? sop[1][qx][qy] : O1;
-                        const double O3 = (coeffDim == 3) ? sop[2][qx][qy] : O1;
+                        const double O11 = sop[0][qx][qy];
+                        double c1, c2, c3;
+                        if (coeffDim == 1)
+                        {
+                           c1 = O11 * mass[qy][qx][0];
+                           c2 = O11 * mass[qy][qx][1];
+                           c3 = O11 * mass[qy][qx][2];
+                        }
+                        else
+                        {
+                           const double O12 = sop[1][qx][qy];
+                           const double O13 = sop[2][qx][qy];
+                           const double O21 = sop[3][qx][qy];
+                           const double O22 = sop[4][qx][qy];
+                           const double O23 = sop[5][qx][qy];
+                           const double O31 = sop[6][qx][qy];
+                           const double O32 = sop[7][qx][qy];
+                           const double O33 = sop[8][qx][qy];
 
-                        const double c1 = O1 * mass[qy][qx][0];
-                        const double c2 = O2 * mass[qy][qx][1];
-                        const double c3 = O3 * mass[qy][qx][2];
+                           c1 = (O11*mass[qy][qx][0])+(O12*mass[qy][qx][1])+(O13*mass[qy][qx][2]);
+                           c2 = (O21*mass[qy][qx][0])+(O22*mass[qy][qx][1])+(O23*mass[qy][qx][2]);
+                           c3 = (O31*mass[qy][qx][0])+(O32*mass[qy][qx][1])+(O33*mass[qy][qx][2]);
+                        }
 
                         const double wcx = sBc[dx][qx];
                         const double wDx = sGc[dx][qx];
@@ -4635,7 +5421,14 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
             }
          }
       } // qz
-   }); // end of element loop
+   }; // end of element loop
+
+   auto host_kernel = [&] MFEM_LAMBDA (int)
+   {
+      MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
+   };
+
+   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
 void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
@@ -4643,35 +5436,1953 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
+      const int ndata = coeffDim == 1 ? 1 : 9;
       if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          switch (ID)
          {
-            case 0x23: return SmemPAHcurlL2Apply3DTranspose<2,3>(dofs1D, quad1D, coeffDim,
+            case 0x23: return SmemPAHcurlL2Apply3DTranspose<2,3>(dofs1D, quad1D, ndata,
                                                                     ne, mapsO->B, mapsC->B,
                                                                     mapsC->G, pa_data, x, y);
-            case 0x34: return SmemPAHcurlL2Apply3DTranspose<3,4>(dofs1D, quad1D, coeffDim,
+            case 0x34: return SmemPAHcurlL2Apply3DTranspose<3,4>(dofs1D, quad1D, ndata,
                                                                     ne, mapsO->B, mapsC->B,
                                                                     mapsC->G, pa_data, x, y);
-            case 0x45: return SmemPAHcurlL2Apply3DTranspose<4,5>(dofs1D, quad1D, coeffDim,
+            case 0x45: return SmemPAHcurlL2Apply3DTranspose<4,5>(dofs1D, quad1D, ndata,
                                                                     ne, mapsO->B, mapsC->B,
                                                                     mapsC->G, pa_data, x, y);
-            case 0x56: return SmemPAHcurlL2Apply3DTranspose<5,6>(dofs1D, quad1D, coeffDim,
+            case 0x56: return SmemPAHcurlL2Apply3DTranspose<5,6>(dofs1D, quad1D, ndata,
                                                                     ne, mapsO->B, mapsC->B,
                                                                     mapsC->G, pa_data, x, y);
-            default: return SmemPAHcurlL2Apply3DTranspose(dofs1D, quad1D, coeffDim, ne,
+            default: return SmemPAHcurlL2Apply3DTranspose(dofs1D, quad1D, ndata, ne,
                                                              mapsO->B, mapsC->B,
                                                              mapsC->G, pa_data, x, y);
          }
       }
       else
-         PAHcurlL2Apply3DTranspose(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
-                                   mapsO->Bt, mapsC->Bt, mapsC->Gt, pa_data, x, y);
+         PAHcurlL2Apply3DTranspose(dofs1D, quad1D, ndata, ne, mapsO->B,
+                                   mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->Gt, pa_data, x, y);
    }
    else
    {
       MFEM_ABORT("Unsupported dimension or space!");
+   }
+}
+
+// Apply to x corresponding to DOFs in H^1 (domain) the (topological) gradient
+// to get a dof in H(curl) (range). You can think of the range as the "test" space
+// and the domain as the "trial" space, but there's no integration.
+static void PAHcurlApplyGradient2D(const int c_dofs1D,
+                                   const int o_dofs1D,
+                                   const int NE,
+                                   const Array<double> &B_,
+                                   const Array<double> &G_,
+                                   const Vector &x_,
+                                   Vector &y_)
+{
+   auto B = Reshape(B_.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(x_.Read(), c_dofs1D, c_dofs1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w[MAX_D1D][MAX_D1D];
+
+      // horizontal part
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            w[dx][ey] = 0.0;
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               w[dx][ey] += B(ey, dy) * x(dx, dy, e);
+            }
+         }
+      }
+
+      for (int ey = 0; ey < c_dofs1D; ++ey)
+      {
+         for (int ex = 0; ex < o_dofs1D; ++ex)
+         {
+            double s = 0.0;
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               s += G(ex, dx) * w[dx][ey];
+            }
+            const int local_index = ey*o_dofs1D + ex;
+            y(local_index, e) += s;
+         }
+      }
+
+      // vertical part
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            w[dx][ey] = 0.0;
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               w[dx][ey] += G(ey, dy) * x(dx, dy, e);
+            }
+         }
+      }
+
+      for (int ey = 0; ey < o_dofs1D; ++ey)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            double s = 0.0;
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               s += B(ex, dx) * w[dx][ey];
+            }
+            const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
+            y(local_index, e) += s;
+         }
+      }
+   });
+}
+
+// Specialization of PAHcurlApplyGradient2D to the case where B is identity
+static void PAHcurlApplyGradient2DBId(const int c_dofs1D,
+                                      const int o_dofs1D,
+                                      const int NE,
+                                      const Array<double> &G_,
+                                      const Vector &x_,
+                                      Vector &y_)
+{
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(x_.Read(), c_dofs1D, c_dofs1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 2 * c_dofs1D * o_dofs1D, NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w[MAX_D1D][MAX_D1D];
+
+      // horizontal part
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            const int dy = ey;
+            w[dx][ey] = x(dx, dy, e);
+         }
+      }
+
+      for (int ey = 0; ey < c_dofs1D; ++ey)
+      {
+         for (int ex = 0; ex < o_dofs1D; ++ex)
+         {
+            double s = 0.0;
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               s += G(ex, dx) * w[dx][ey];
+            }
+            const int local_index = ey*o_dofs1D + ex;
+            y(local_index, e) += s;
+         }
+      }
+
+      // vertical part
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            w[dx][ey] = 0.0;
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               w[dx][ey] += G(ey, dy) * x(dx, dy, e);
+            }
+         }
+      }
+
+      for (int ey = 0; ey < o_dofs1D; ++ey)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            const int dx = ex;
+            const double s = w[dx][ey];
+            const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
+            y(local_index, e) += s;
+         }
+      }
+   });
+}
+
+static void PAHcurlApplyGradientTranspose2D(
+   const int c_dofs1D, const int o_dofs1D, const int NE,
+   const Array<double> &B_, const Array<double> &G_,
+   const Vector &x_, Vector &y_)
+{
+   auto B = Reshape(B_.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(x_.Read(), 2 * c_dofs1D * o_dofs1D, NE);
+   auto y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w[MAX_D1D][MAX_D1D];
+
+      // horizontal part (open x, closed y)
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int ex = 0; ex < o_dofs1D; ++ex)
+         {
+            w[dy][ex] = 0.0;
+            for (int ey = 0; ey < c_dofs1D; ++ey)
+            {
+               const int local_index = ey*o_dofs1D + ex;
+               w[dy][ex] += B(ey, dy) * x(local_index, e);
+            }
+         }
+      }
+
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            double s = 0.0;
+            for (int ex = 0; ex < o_dofs1D; ++ex)
+            {
+               s += G(ex, dx) * w[dy][ex];
+            }
+            y(dx, dy, e) += s;
+         }
+      }
+
+      // vertical part (open y, closed x)
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            w[dy][ex] = 0.0;
+            for (int ey = 0; ey < o_dofs1D; ++ey)
+            {
+               const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
+               w[dy][ex] += G(ey, dy) * x(local_index, e);
+            }
+         }
+      }
+
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            double s = 0.0;
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               s += B(ex, dx) * w[dy][ex];
+            }
+            y(dx, dy, e) += s;
+         }
+      }
+   });
+}
+
+// Specialization of PAHcurlApplyGradientTranspose2D to the case where
+// B is identity
+static void PAHcurlApplyGradientTranspose2DBId(
+   const int c_dofs1D, const int o_dofs1D, const int NE,
+   const Array<double> &G_,
+   const Vector &x_, Vector &y_)
+{
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(x_.Read(), 2 * c_dofs1D * o_dofs1D, NE);
+   auto y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w[MAX_D1D][MAX_D1D];
+
+      // horizontal part (open x, closed y)
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int ex = 0; ex < o_dofs1D; ++ex)
+         {
+            const int ey = dy;
+            const int local_index = ey*o_dofs1D + ex;
+            w[dy][ex] = x(local_index, e);
+         }
+      }
+
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            double s = 0.0;
+            for (int ex = 0; ex < o_dofs1D; ++ex)
+            {
+               s += G(ex, dx) * w[dy][ex];
+            }
+            y(dx, dy, e) += s;
+         }
+      }
+
+      // vertical part (open y, closed x)
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            w[dy][ex] = 0.0;
+            for (int ey = 0; ey < o_dofs1D; ++ey)
+            {
+               const int local_index = c_dofs1D * o_dofs1D + ey*c_dofs1D + ex;
+               w[dy][ex] += G(ey, dy) * x(local_index, e);
+            }
+         }
+      }
+
+      for (int dy = 0; dy < c_dofs1D; ++dy)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            const int ex = dx;
+            const double s = w[dy][ex];
+            y(dx, dy, e) += s;
+         }
+      }
+   });
+}
+
+static void PAHcurlApplyGradient3D(const int c_dofs1D,
+                                   const int o_dofs1D,
+                                   const int NE,
+                                   const Array<double> &B_,
+                                   const Array<double> &G_,
+                                   const Vector &x_,
+                                   Vector &y_)
+{
+   auto B = Reshape(B_.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(x_.Read(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
+   auto y = Reshape(y_.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w1[MAX_D1D][MAX_D1D][MAX_D1D];
+      double w2[MAX_D1D][MAX_D1D][MAX_D1D];
+
+      // ---
+      // dofs that point parallel to x-axis (open in x, closed in y, z)
+      // ---
+
+      // contract in z
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               w1[dx][dy][ez] = 0.0;
+               for (int dz = 0; dz < c_dofs1D; ++dz)
+               {
+                  w1[dx][dy][ez] += B(ez, dz) * x(dx, dy, dz, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               w2[dx][ey][ez] = 0.0;
+               for (int dy = 0; dy < c_dofs1D; ++dy)
+               {
+                  w2[dx][ey][ez] += B(ey, dy) * w1[dx][dy][ez];
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int ex = 0; ex < o_dofs1D; ++ex)
+            {
+               double s = 0.0;
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  s += G(ex, dx) * w2[dx][ey][ez];
+               }
+               const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
+               y(local_index, e) += s;
+            }
+         }
+      }
+
+      // ---
+      // dofs that point parallel to y-axis (open in y, closed in x, z)
+      // ---
+
+      // contract in z
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               w1[dx][dy][ez] = 0.0;
+               for (int dz = 0; dz < c_dofs1D; ++dz)
+               {
+                  w1[dx][dy][ez] += B(ez, dz) * x(dx, dy, dz, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               w2[dx][ey][ez] = 0.0;
+               for (int dy = 0; dy < c_dofs1D; ++dy)
+               {
+                  w2[dx][ey][ez] += G(ey, dy) * w1[dx][dy][ez];
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               double s = 0.0;
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  s += B(ex, dx) * w2[dx][ey][ez];
+               }
+               const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
+                                       ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+               y(local_index, e) += s;
+            }
+         }
+      }
+
+      // ---
+      // dofs that point parallel to z-axis (open in z, closed in x, y)
+      // ---
+
+      // contract in z
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               w1[dx][dy][ez] = 0.0;
+               for (int dz = 0; dz < c_dofs1D; ++dz)
+               {
+                  w1[dx][dy][ez] += G(ez, dz) * x(dx, dy, dz, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               w2[dx][ey][ez] = 0.0;
+               for (int dy = 0; dy < c_dofs1D; ++dy)
+               {
+                  w2[dx][ey][ez] += B(ey, dy) * w1[dx][dy][ez];
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               double s = 0.0;
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  s += B(ex, dx) * w2[dx][ey][ez];
+               }
+               const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
+                                       ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+               y(local_index, e) += s;
+            }
+         }
+      }
+   });
+}
+
+// Specialization of PAHcurlApplyGradient3D to the case where
+static void PAHcurlApplyGradient3DBId(const int c_dofs1D,
+                                      const int o_dofs1D,
+                                      const int NE,
+                                      const Array<double> &G_,
+                                      const Vector &x_,
+                                      Vector &y_)
+{
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(x_.Read(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
+   auto y = Reshape(y_.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w1[MAX_D1D][MAX_D1D][MAX_D1D];
+      double w2[MAX_D1D][MAX_D1D][MAX_D1D];
+
+      // ---
+      // dofs that point parallel to x-axis (open in x, closed in y, z)
+      // ---
+
+      // contract in z
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               const int dz = ez;
+               w1[dx][dy][ez] = x(dx, dy, dz, e);
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               const int dy = ey;
+               w2[dx][ey][ez] = w1[dx][dy][ez];
+            }
+         }
+      }
+
+      // contract in x
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int ex = 0; ex < o_dofs1D; ++ex)
+            {
+               double s = 0.0;
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  s += G(ex, dx) * w2[dx][ey][ez];
+               }
+               const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
+               y(local_index, e) += s;
+            }
+         }
+      }
+
+      // ---
+      // dofs that point parallel to y-axis (open in y, closed in x, z)
+      // ---
+
+      // contract in z
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               const int dz = ez;
+               w1[dx][dy][ez] = x(dx, dy, dz, e);
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               w2[dx][ey][ez] = 0.0;
+               for (int dy = 0; dy < c_dofs1D; ++dy)
+               {
+                  w2[dx][ey][ez] += G(ey, dy) * w1[dx][dy][ez];
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               const int dx = ex;
+               const double s = w2[dx][ey][ez];
+               const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
+                                       ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+               y(local_index, e) += s;
+            }
+         }
+      }
+
+      // ---
+      // dofs that point parallel to z-axis (open in z, closed in x, y)
+      // ---
+
+      // contract in z
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               w1[dx][dy][ez] = 0.0;
+               for (int dz = 0; dz < c_dofs1D; ++dz)
+               {
+                  w1[dx][dy][ez] += G(ez, dz) * x(dx, dy, dz, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               const int dy = ey;
+               w2[dx][ey][ez] = w1[dx][dy][ez];
+            }
+         }
+      }
+
+      // contract in x
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               const int dx = ex;
+               const double s = w2[dx][ey][ez];
+               const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
+                                       ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+               y(local_index, e) += s;
+            }
+         }
+      }
+   });
+}
+
+static void PAHcurlApplyGradientTranspose3D(
+   const int c_dofs1D, const int o_dofs1D, const int NE,
+   const Array<double> &B_, const Array<double> &G_,
+   const Vector &x_, Vector &y_)
+{
+   auto B = Reshape(B_.Read(), c_dofs1D, c_dofs1D);
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(x_.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+   auto y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w1[MAX_D1D][MAX_D1D][MAX_D1D];
+      double w2[MAX_D1D][MAX_D1D][MAX_D1D];
+      // ---
+      // dofs that point parallel to x-axis (open in x, closed in y, z)
+      // ---
+
+      // contract in z
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int ex = 0; ex < o_dofs1D; ++ex)
+         {
+            for (int ey = 0; ey < c_dofs1D; ++ey)
+            {
+               w1[ex][ey][dz] = 0.0;
+               for (int ez = 0; ez < c_dofs1D; ++ez)
+               {
+                  const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
+                  w1[ex][ey][dz] += B(ez, dz) * x(local_index, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int ex = 0; ex < o_dofs1D; ++ex)
+            {
+               w2[ex][dy][dz] = 0.0;
+               for (int ey = 0; ey < c_dofs1D; ++ey)
+               {
+                  w2[ex][dy][dz] += B(ey, dy) * w1[ex][ey][dz];
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               double s = 0.0;
+               for (int ex = 0; ex < o_dofs1D; ++ex)
+               {
+                  s += G(ex, dx) * w2[ex][dy][dz];
+               }
+               y(dx, dy, dz, e) += s;
+            }
+         }
+      }
+
+      // ---
+      // dofs that point parallel to y-axis (open in y, closed in x, z)
+      // ---
+
+      // contract in z
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            for (int ey = 0; ey < o_dofs1D; ++ey)
+            {
+               w1[ex][ey][dz] = 0.0;
+               for (int ez = 0; ez < c_dofs1D; ++ez)
+               {
+                  const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+                  w1[ex][ey][dz] += B(ez, dz) * x(local_index, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               w2[ex][dy][dz] = 0.0;
+               for (int ey = 0; ey < o_dofs1D; ++ey)
+               {
+                  w2[ex][dy][dz] += G(ey, dy) * w1[ex][ey][dz];
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               double s = 0.0;
+               for (int ex = 0; ex < c_dofs1D; ++ex)
+               {
+                  s += B(ex, dx) * w2[ex][dy][dz];
+               }
+               y(dx, dy, dz, e) += s;
+            }
+         }
+      }
+
+      // ---
+      // dofs that point parallel to z-axis (open in z, closed in x, y)
+      // ---
+
+      // contract in z
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            for (int ey = 0; ey < c_dofs1D; ++ey)
+            {
+               w1[ex][ey][dz] = 0.0;
+               for (int ez = 0; ez < o_dofs1D; ++ez)
+               {
+                  const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+                  w1[ex][ey][dz] += G(ez, dz) * x(local_index, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               w2[ex][dy][dz] = 0.0;
+               for (int ey = 0; ey < c_dofs1D; ++ey)
+               {
+                  w2[ex][dy][dz] += B(ey, dy) * w1[ex][ey][dz];
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               double s = 0.0;
+               for (int ex = 0; ex < c_dofs1D; ++ex)
+               {
+                  s += B(ex, dx) * w2[ex][dy][dz];
+               }
+               y(dx, dy, dz, e) += s;
+            }
+         }
+      }
+   });
+}
+
+// Specialization of PAHcurlApplyGradientTranspose3D to the case where
+static void PAHcurlApplyGradientTranspose3DBId(
+   const int c_dofs1D, const int o_dofs1D, const int NE,
+   const Array<double> &G_,
+   const Vector &x_, Vector &y_)
+{
+   auto G = Reshape(G_.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(x_.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+   auto y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w1[MAX_D1D][MAX_D1D][MAX_D1D];
+      double w2[MAX_D1D][MAX_D1D][MAX_D1D];
+      // ---
+      // dofs that point parallel to x-axis (open in x, closed in y, z)
+      // ---
+
+      // contract in z
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int ex = 0; ex < o_dofs1D; ++ex)
+         {
+            for (int ey = 0; ey < c_dofs1D; ++ey)
+            {
+               const int ez = dz;
+               const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
+               w1[ex][ey][dz] = x(local_index, e);
+            }
+         }
+      }
+
+      // contract in y
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int ex = 0; ex < o_dofs1D; ++ex)
+            {
+               const int ey = dy;
+               w2[ex][dy][dz] = w1[ex][ey][dz];
+            }
+         }
+      }
+
+      // contract in x
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               double s = 0.0;
+               for (int ex = 0; ex < o_dofs1D; ++ex)
+               {
+                  s += G(ex, dx) * w2[ex][dy][dz];
+               }
+               y(dx, dy, dz, e) += s;
+            }
+         }
+      }
+
+      // ---
+      // dofs that point parallel to y-axis (open in y, closed in x, z)
+      // ---
+
+      // contract in z
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            for (int ey = 0; ey < o_dofs1D; ++ey)
+            {
+               const int ez = dz;
+               const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
+                                       ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+               w1[ex][ey][dz] = x(local_index, e);
+            }
+         }
+      }
+
+      // contract in y
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               w2[ex][dy][dz] = 0.0;
+               for (int ey = 0; ey < o_dofs1D; ++ey)
+               {
+                  w2[ex][dy][dz] += G(ey, dy) * w1[ex][ey][dz];
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               const int ex = dx;
+               double s = w2[ex][dy][dz];
+               y(dx, dy, dz, e) += s;
+            }
+         }
+      }
+
+      // ---
+      // dofs that point parallel to z-axis (open in z, closed in x, y)
+      // ---
+
+      // contract in z
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            for (int ey = 0; ey < c_dofs1D; ++ey)
+            {
+               w1[ex][ey][dz] = 0.0;
+               for (int ez = 0; ez < o_dofs1D; ++ez)
+               {
+                  const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+                  w1[ex][ey][dz] += G(ez, dz) * x(local_index, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               const int ey = dy;
+               w2[ex][dy][dz] = w1[ex][ey][dz];
+            }
+         }
+      }
+
+      // contract in x
+      for (int dz = 0; dz < c_dofs1D; ++dz)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               const int ex = dx;
+               double s = w2[ex][dy][dz];
+               y(dx, dy, dz, e) += s;
+            }
+         }
+      }
+   });
+}
+
+void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
+                                      const FiniteElementSpace &test_fes)
+{
+   // Assumes tensor-product elements, with a vector test space and H^1 trial space.
+   Mesh *mesh = trial_fes.GetMesh();
+   const FiniteElement *trial_fel = trial_fes.GetFE(0);
+   const FiniteElement *test_fel = test_fes.GetFE(0);
+
+   const NodalTensorFiniteElement *trial_el =
+      dynamic_cast<const NodalTensorFiniteElement*>(trial_fel);
+   MFEM_VERIFY(trial_el != NULL, "Only NodalTensorFiniteElement is supported!");
+
+   const VectorTensorFiniteElement *test_el =
+      dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
+   MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
+
+   const int dims = trial_el->GetDim();
+   MFEM_VERIFY(dims == 2 || dims == 3, "Bad dimension!");
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2 || dim == 3, "Bad dimension!");
+   MFEM_VERIFY(trial_el->GetOrder() == test_el->GetOrder(),
+               "Orders do not match!");
+   ne = trial_fes.GetNE();
+
+   const int order = trial_el->GetOrder();
+   dofquad_fe = new H1_SegmentElement(order, trial_el->GetBasisType());
+   mfem::QuadratureFunctions1D qf1d;
+   mfem::IntegrationRule closed_ir;
+   closed_ir.SetSize(order + 1);
+   qf1d.GaussLobatto(order + 1, &closed_ir);
+   mfem::IntegrationRule open_ir;
+   open_ir.SetSize(order);
+   qf1d.GaussLegendre(order, &open_ir);
+
+   maps_O_C = &dofquad_fe->GetDofToQuad(open_ir, DofToQuad::TENSOR);
+   o_dofs1D = maps_O_C->nqpt;
+   if (trial_el->GetBasisType() == BasisType::GaussLobatto)
+   {
+      B_id = true;
+      c_dofs1D = maps_O_C->ndof;
+   }
+   else
+   {
+      B_id = false;
+      maps_C_C = &dofquad_fe->GetDofToQuad(closed_ir, DofToQuad::TENSOR);
+      c_dofs1D = maps_C_C->nqpt;
+   }
+}
+
+void GradientInterpolator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (dim == 3)
+   {
+      if (B_id)
+      {
+         PAHcurlApplyGradient3DBId(c_dofs1D, o_dofs1D, ne,
+                                   maps_O_C->G, x, y);
+      }
+      else
+      {
+         PAHcurlApplyGradient3D(c_dofs1D, o_dofs1D, ne, maps_C_C->B,
+                                maps_O_C->G, x, y);
+      }
+   }
+   else if (dim == 2)
+   {
+      if (B_id)
+      {
+         PAHcurlApplyGradient2DBId(c_dofs1D, o_dofs1D, ne,
+                                   maps_O_C->G, x, y);
+      }
+      else
+      {
+         PAHcurlApplyGradient2D(c_dofs1D, o_dofs1D, ne, maps_C_C->B, maps_O_C->G,
+                                x, y);
+      }
+   }
+   else
+   {
+      mfem_error("Bad dimension!");
+   }
+}
+
+void GradientInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   if (dim == 3)
+   {
+      if (B_id)
+      {
+         PAHcurlApplyGradientTranspose3DBId(c_dofs1D, o_dofs1D, ne,
+                                            maps_O_C->G, x, y);
+      }
+      else
+      {
+         PAHcurlApplyGradientTranspose3D(c_dofs1D, o_dofs1D, ne, maps_C_C->B,
+                                         maps_O_C->G, x, y);
+      }
+   }
+   else if (dim == 2)
+   {
+      if (B_id)
+      {
+         PAHcurlApplyGradientTranspose2DBId(c_dofs1D, o_dofs1D, ne,
+                                            maps_O_C->G, x, y);
+      }
+      else
+      {
+         PAHcurlApplyGradientTranspose2D(c_dofs1D, o_dofs1D, ne, maps_C_C->B,
+                                         maps_O_C->G, x, y);
+      }
+   }
+   else
+   {
+      mfem_error("Bad dimension!");
+   }
+}
+
+static void PAHcurlVecH1IdentityApply3D(const int c_dofs1D,
+                                        const int o_dofs1D,
+                                        const int NE,
+                                        const Array<double> &Bclosed,
+                                        const Array<double> &Bopen,
+                                        const Vector &pa_data,
+                                        const Vector &x_,
+                                        Vector &y_)
+{
+   auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
+   auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(x_.Read(), c_dofs1D, c_dofs1D, c_dofs1D, 3, NE);
+   auto y = Reshape(y_.ReadWrite(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+
+   auto vk = Reshape(pa_data.Read(), 3, (3 * c_dofs1D * c_dofs1D * o_dofs1D),
+                     NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w1[3][MAX_D1D][MAX_D1D][MAX_D1D];
+      double w2[3][MAX_D1D][MAX_D1D][MAX_D1D];
+
+      // dofs that point parallel to x-axis (open in x, closed in y, z)
+
+      // contract in z
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  w1[j][dx][dy][ez] = 0.0;
+                  for (int dz = 0; dz < c_dofs1D; ++dz)
+                  {
+                     w1[j][dx][dy][ez] += Bc(ez, dz) * x(dx, dy, dz, j, e);
+                  }
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  w2[j][dx][ey][ez] = 0.0;
+                  for (int dy = 0; dy < c_dofs1D; ++dy)
+                  {
+                     w2[j][dx][ey][ez] += Bc(ey, dy) * w1[j][dx][dy][ez];
+                  }
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int ex = 0; ex < o_dofs1D; ++ex)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  double s = 0.0;
+                  for (int dx = 0; dx < c_dofs1D; ++dx)
+                  {
+                     s += Bo(ex, dx) * w2[j][dx][ey][ez];
+                  }
+                  const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
+                  y(local_index, e) += s * vk(j, local_index, e);
+               }
+            }
+         }
+      }
+
+      // dofs that point parallel to y-axis (open in y, closed in x, z)
+
+      // contract in z
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  w1[j][dx][dy][ez] = 0.0;
+                  for (int dz = 0; dz < c_dofs1D; ++dz)
+                  {
+                     w1[j][dx][dy][ez] += Bc(ez, dz) * x(dx, dy, dz, j, e);
+                  }
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  w2[j][dx][ey][ez] = 0.0;
+                  for (int dy = 0; dy < c_dofs1D; ++dy)
+                  {
+                     w2[j][dx][ey][ez] += Bo(ey, dy) * w1[j][dx][dy][ez];
+                  }
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  double s = 0.0;
+                  for (int dx = 0; dx < c_dofs1D; ++dx)
+                  {
+                     s += Bc(ex, dx) * w2[j][dx][ey][ez];
+                  }
+                  const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+                  y(local_index, e) += s * vk(j, local_index, e);
+               }
+            }
+         }
+      }
+
+      // dofs that point parallel to z-axis (open in z, closed in x, y)
+
+      // contract in z
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  w1[j][dx][dy][ez] = 0.0;
+                  for (int dz = 0; dz < c_dofs1D; ++dz)
+                  {
+                     w1[j][dx][dy][ez] += Bo(ez, dz) * x(dx, dy, dz, j, e);
+                  }
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  w2[j][dx][ey][ez] = 0.0;
+                  for (int dy = 0; dy < c_dofs1D; ++dy)
+                  {
+                     w2[j][dx][ey][ez] += Bc(ey, dy) * w1[j][dx][dy][ez];
+                  }
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int ex = 0; ex < c_dofs1D; ++ex)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  double s = 0.0;
+                  for (int dx = 0; dx < c_dofs1D; ++dx)
+                  {
+                     s += Bc(ex, dx) * w2[j][dx][ey][ez];
+                  }
+                  const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+                  y(local_index, e) += s * vk(j, local_index, e);
+               }
+            }
+         }
+      }
+   });
+}
+
+static void PAHcurlVecH1IdentityApplyTranspose3D(const int c_dofs1D,
+                                                 const int o_dofs1D,
+                                                 const int NE,
+                                                 const Array<double> &Bclosed,
+                                                 const Array<double> &Bopen,
+                                                 const Vector &pa_data,
+                                                 const Vector &x_,
+                                                 Vector &y_)
+{
+   auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
+   auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(x_.Read(), (3 * c_dofs1D * c_dofs1D * o_dofs1D), NE);
+   auto y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, c_dofs1D, 3, NE);
+
+   auto vk = Reshape(pa_data.Read(), 3, (3 * c_dofs1D * c_dofs1D * o_dofs1D),
+                     NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w1[3][MAX_D1D][MAX_D1D][MAX_D1D];
+      double w2[3][MAX_D1D][MAX_D1D][MAX_D1D];
+
+      // dofs that point parallel to x-axis (open in x, closed in y, z)
+
+      // contract in x
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int j=0; j<3; ++j)
+            {
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  w2[j][dx][ey][ez] = 0.0;
+               }
+               for (int ex = 0; ex < o_dofs1D; ++ex)
+               {
+                  const int local_index = ez*c_dofs1D*o_dofs1D + ey*o_dofs1D + ex;
+                  const double xv = x(local_index, e) * vk(j, local_index, e);
+                  for (int dx = 0; dx < c_dofs1D; ++dx)
+                  {
+                     w2[j][dx][ey][ez] += xv * Bo(ex, dx);
+                  }
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  w1[j][dx][dy][ez] = 0.0;
+                  for (int ey = 0; ey < c_dofs1D; ++ey)
+                  {
+                     w1[j][dx][dy][ez] += w2[j][dx][ey][ez] * Bc(ey, dy);
+                  }
+               }
+            }
+         }
+      }
+
+      // contract in z
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dz = 0; dz < c_dofs1D; ++dz)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  double s = 0.0;
+                  for (int ez = 0; ez < c_dofs1D; ++ez)
+                  {
+                     s += w1[j][dx][dy][ez] * Bc(ez, dz);
+                  }
+                  y(dx, dy, dz, j, e) += s;
+               }
+            }
+         }
+      }
+
+      // dofs that point parallel to y-axis (open in y, closed in x, z)
+
+      // contract in x
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < o_dofs1D; ++ey)
+         {
+            for (int j=0; j<3; ++j)
+            {
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  w2[j][dx][ey][ez] = 0.0;
+               }
+               for (int ex = 0; ex < c_dofs1D; ++ex)
+               {
+                  const int local_index = c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+                  const double xv = x(local_index, e) * vk(j, local_index, e);
+                  for (int dx = 0; dx < c_dofs1D; ++dx)
+                  {
+                     w2[j][dx][ey][ez] += xv * Bc(ex, dx);
+                  }
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < c_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  w1[j][dx][dy][ez] = 0.0;
+                  for (int ey = 0; ey < o_dofs1D; ++ey)
+                  {
+                     w1[j][dx][dy][ez] += w2[j][dx][ey][ez] * Bo(ey, dy);
+                  }
+               }
+            }
+         }
+      }
+
+      // contract in z
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dz = 0; dz < c_dofs1D; ++dz)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  double s = 0.0;
+                  for (int ez = 0; ez < c_dofs1D; ++ez)
+                  {
+                     s += w1[j][dx][dy][ez] * Bc(ez, dz);
+                  }
+                  y(dx, dy, dz, j, e) += s;
+               }
+            }
+         }
+      }
+
+      // dofs that point parallel to z-axis (open in z, closed in x, y)
+
+      // contract in x
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int ey = 0; ey < c_dofs1D; ++ey)
+         {
+            for (int j=0; j<3; ++j)
+            {
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  w2[j][dx][ey][ez] = 0.0;
+               }
+               for (int ex = 0; ex < c_dofs1D; ++ex)
+               {
+                  const int local_index = 2*c_dofs1D*c_dofs1D*o_dofs1D +
+                                          ez*c_dofs1D*c_dofs1D + ey*c_dofs1D + ex;
+                  const double xv = x(local_index, e) * vk(j, local_index, e);
+                  for (int dx = 0; dx < c_dofs1D; ++dx)
+                  {
+                     w2[j][dx][ey][ez] += xv * Bc(ex, dx);
+                  }
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int ez = 0; ez < o_dofs1D; ++ez)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int dy = 0; dy < c_dofs1D; ++dy)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  w1[j][dx][dy][ez] = 0.0;
+                  for (int ey = 0; ey < c_dofs1D; ++ey)
+                  {
+                     w1[j][dx][dy][ez] += w2[j][dx][ey][ez] * Bc(ey, dy);
+                  }
+               }
+            }
+         }
+      }
+
+      // contract in z
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int dz = 0; dz < c_dofs1D; ++dz)
+            {
+               for (int j=0; j<3; ++j)
+               {
+                  double s = 0.0;
+                  for (int ez = 0; ez < o_dofs1D; ++ez)
+                  {
+                     s += w1[j][dx][dy][ez] * Bo(ez, dz);
+                  }
+                  y(dx, dy, dz, j, e) += s;
+               }
+            }
+         }
+      }
+   });
+}
+
+static void PAHcurlVecH1IdentityApply2D(const int c_dofs1D,
+                                        const int o_dofs1D,
+                                        const int NE,
+                                        const Array<double> &Bclosed,
+                                        const Array<double> &Bopen,
+                                        const Vector &pa_data,
+                                        const Vector &x_,
+                                        Vector &y_)
+{
+   auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
+   auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(x_.Read(), c_dofs1D, c_dofs1D, 2, NE);
+   auto y = Reshape(y_.ReadWrite(), (2 * c_dofs1D * o_dofs1D), NE);
+
+   auto vk = Reshape(pa_data.Read(), 2, (2 * c_dofs1D * o_dofs1D), NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w[2][MAX_D1D][MAX_D1D];
+
+      // dofs that point parallel to x-axis (open in x, closed in y)
+
+      // contract in y
+      for (int ey = 0; ey < c_dofs1D; ++ey)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int j=0; j<2; ++j)
+            {
+               w[j][dx][ey] = 0.0;
+               for (int dy = 0; dy < c_dofs1D; ++dy)
+               {
+                  w[j][dx][ey] += Bc(ey, dy) * x(dx, dy, j, e);
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int ey = 0; ey < c_dofs1D; ++ey)
+      {
+         for (int ex = 0; ex < o_dofs1D; ++ex)
+         {
+            for (int j=0; j<2; ++j)
+            {
+               double s = 0.0;
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  s += Bo(ex, dx) * w[j][dx][ey];
+               }
+               const int local_index = ey*o_dofs1D + ex;
+               y(local_index, e) += s * vk(j, local_index, e);
+            }
+         }
+      }
+
+      // dofs that point parallel to y-axis (open in y, closed in x)
+
+      // contract in y
+      for (int ey = 0; ey < o_dofs1D; ++ey)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int j=0; j<2; ++j)
+            {
+               w[j][dx][ey] = 0.0;
+               for (int dy = 0; dy < c_dofs1D; ++dy)
+               {
+                  w[j][dx][ey] += Bo(ey, dy) * x(dx, dy, j, e);
+               }
+            }
+         }
+      }
+
+      // contract in x
+      for (int ey = 0; ey < o_dofs1D; ++ey)
+      {
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            for (int j=0; j<2; ++j)
+            {
+               double s = 0.0;
+               for (int dx = 0; dx < c_dofs1D; ++dx)
+               {
+                  s += Bc(ex, dx) * w[j][dx][ey];
+               }
+               const int local_index = c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+               y(local_index, e) += s * vk(j, local_index, e);
+            }
+         }
+      }
+   });
+}
+
+static void PAHcurlVecH1IdentityApplyTranspose2D(const int c_dofs1D,
+                                                 const int o_dofs1D,
+                                                 const int NE,
+                                                 const Array<double> &Bclosed,
+                                                 const Array<double> &Bopen,
+                                                 const Vector &pa_data,
+                                                 const Vector &x_,
+                                                 Vector &y_)
+{
+   auto Bc = Reshape(Bclosed.Read(), c_dofs1D, c_dofs1D);
+   auto Bo = Reshape(Bopen.Read(), o_dofs1D, c_dofs1D);
+
+   auto x = Reshape(x_.Read(), (2 * c_dofs1D * o_dofs1D), NE);
+   auto y = Reshape(y_.ReadWrite(), c_dofs1D, c_dofs1D, 2, NE);
+
+   auto vk = Reshape(pa_data.Read(), 2, (2 * c_dofs1D * o_dofs1D), NE);
+
+   constexpr static int MAX_D1D = HCURL_MAX_D1D;
+   //constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
+
+   MFEM_VERIFY(c_dofs1D <= MAX_D1D && o_dofs1D <= c_dofs1D, "");
+
+   MFEM_FORALL(e, NE,
+   {
+      double w[2][MAX_D1D][MAX_D1D];
+
+      // dofs that point parallel to x-axis (open in x, closed in y)
+
+      // contract in x
+      for (int ey = 0; ey < c_dofs1D; ++ey)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int j=0; j<2; ++j) { w[j][dx][ey] = 0.0; }
+         }
+         for (int ex = 0; ex < o_dofs1D; ++ex)
+         {
+            const int local_index = ey*o_dofs1D + ex;
+            const double xd = x(local_index, e);
+
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               for (int j=0; j<2; ++j)
+               {
+                  w[j][dx][ey] += Bo(ex, dx) * xd * vk(j, local_index, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int j=0; j<2; ++j)
+            {
+               double s = 0.0;
+               for (int ey = 0; ey < c_dofs1D; ++ey)
+               {
+                  s += w[j][dx][ey] * Bc(ey, dy);
+               }
+               y(dx, dy, j, e) += s;
+            }
+         }
+      }
+
+      // dofs that point parallel to y-axis (open in y, closed in x)
+
+      // contract in x
+      for (int ey = 0; ey < o_dofs1D; ++ey)
+      {
+         for (int dx = 0; dx < c_dofs1D; ++dx)
+         {
+            for (int j=0; j<2; ++j) { w[j][dx][ey] = 0.0; }
+         }
+         for (int ex = 0; ex < c_dofs1D; ++ex)
+         {
+            const int local_index = c_dofs1D*o_dofs1D + ey*c_dofs1D + ex;
+            const double xd = x(local_index, e);
+            for (int dx = 0; dx < c_dofs1D; ++dx)
+            {
+               for (int j=0; j<2; ++j)
+               {
+                  w[j][dx][ey] += Bc(ex, dx) * xd * vk(j, local_index, e);
+               }
+            }
+         }
+      }
+
+      // contract in y
+      for (int dx = 0; dx < c_dofs1D; ++dx)
+      {
+         for (int dy = 0; dy < c_dofs1D; ++dy)
+         {
+            for (int j=0; j<2; ++j)
+            {
+               double s = 0.0;
+               for (int ey = 0; ey < o_dofs1D; ++ey)
+               {
+                  s += w[j][dx][ey] * Bo(ey, dy);
+               }
+               y(dx, dy, j, e) += s;
+            }
+         }
+      }
+   });
+}
+
+void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
+                                      const FiniteElementSpace &test_fes)
+{
+   // Assumes tensor-product elements, with a vector test space and H^1 trial space.
+   Mesh *mesh = trial_fes.GetMesh();
+   const FiniteElement *trial_fel = trial_fes.GetFE(0);
+   const FiniteElement *test_fel = test_fes.GetFE(0);
+
+   const NodalTensorFiniteElement *trial_el =
+      dynamic_cast<const NodalTensorFiniteElement*>(trial_fel);
+   MFEM_VERIFY(trial_el != NULL, "Only NodalTensorFiniteElement is supported!");
+
+   const VectorTensorFiniteElement *test_el =
+      dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
+   MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
+
+   const int dims = trial_el->GetDim();
+   MFEM_VERIFY(dims == 2 || dims == 3, "");
+
+   dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
+
+   MFEM_VERIFY(trial_el->GetOrder() == test_el->GetOrder(), "");
+
+   ne = trial_fes.GetNE();
+
+   const int order = trial_el->GetOrder();
+   dofquad_fe = new H1_SegmentElement(order);
+   mfem::QuadratureFunctions1D qf1d;
+   mfem::IntegrationRule closed_ir;
+   closed_ir.SetSize(order + 1);
+   qf1d.GaussLobatto(order + 1, &closed_ir);
+   mfem::IntegrationRule open_ir;
+   open_ir.SetSize(order);
+   qf1d.GaussLegendre(order, &open_ir);
+
+   maps_C_C = &dofquad_fe->GetDofToQuad(closed_ir, DofToQuad::TENSOR);
+   maps_O_C = &dofquad_fe->GetDofToQuad(open_ir, DofToQuad::TENSOR);
+
+   o_dofs1D = maps_O_C->nqpt;
+   c_dofs1D = maps_C_C->nqpt;
+   MFEM_VERIFY(maps_O_C->ndof == c_dofs1D &&
+               maps_C_C->ndof == c_dofs1D, "Discrepancy in the number of DOFs");
+
+   const int ndof_test = (dim == 3) ? 3 * c_dofs1D * c_dofs1D * o_dofs1D
+                         : 2 * c_dofs1D * o_dofs1D;
+
+   const IntegrationRule & Nodes = test_el->GetNodes();
+
+   pa_data.SetSize(dim * ndof_test * ne, Device::GetMemoryType());
+   auto op = Reshape(pa_data.HostWrite(), dim, ndof_test, ne);
+
+   const Array<int> &dofmap = test_el->GetDofMap();
+
+   if (dim == 3)
+   {
+      // Note that ND_HexahedronElement uses 6 vectors in tk rather than 3, with
+      // the last 3 having negative signs. Here the signs are all positive, as
+      // signs are applied in ElementRestriction.
+
+      const double tk[9] = { 1.,0.,0.,  0.,1.,0.,  0.,0.,1. };
+
+      for (int c=0; c<3; ++c)
+      {
+         for (int i=0; i<ndof_test/3; ++i)
+         {
+            const int d = (c*ndof_test/3) + i;
+            // ND_HexahedronElement sets dof2tk = (dofmap < 0) ? 3+c : c, but here
+            // no signs should be applied due to ElementRestriction.
+            const int dof2tk = c;
+            const int id = (dofmap[d] >= 0) ? dofmap[d] : -1 - dofmap[d];
+
+            for (int e=0; e<ne; ++e)
+            {
+               double v[3];
+               ElementTransformation *tr = mesh->GetElementTransformation(e);
+               tr->SetIntPoint(&Nodes.IntPoint(id));
+               tr->Jacobian().Mult(tk + dof2tk*dim, v);
+
+               for (int j=0; j<3; ++j)
+               {
+                  op(j,d,e) = v[j];
+               }
+            }
+         }
+      }
+   }
+   else // 2D case
+   {
+      const double tk[4] = { 1.,0.,  0.,1. };
+      for (int c=0; c<2; ++c)
+      {
+         for (int i=0; i<ndof_test/2; ++i)
+         {
+            const int d = (c*ndof_test/2) + i;
+            // ND_QuadrilateralElement sets dof2tk = (dofmap < 0) ? 2+c : c, but here
+            // no signs should be applied due to ElementRestriction.
+            const int dof2tk = c;
+            const int id = (dofmap[d] >= 0) ? dofmap[d] : -1 - dofmap[d];
+
+            for (int e=0; e<ne; ++e)
+            {
+               double v[2];
+               ElementTransformation *tr = mesh->GetElementTransformation(e);
+               tr->SetIntPoint(&Nodes.IntPoint(id));
+               tr->Jacobian().Mult(tk + dof2tk*dim, v);
+
+               for (int j=0; j<2; ++j)
+               {
+                  op(j,d,e) = v[j];
+               }
+            }
+         }
+      }
+   }
+}
+
+void IdentityInterpolator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (dim == 3)
+   {
+      PAHcurlVecH1IdentityApply3D(c_dofs1D, o_dofs1D, ne, maps_C_C->B, maps_O_C->B,
+                                  pa_data, x, y);
+   }
+   else if (dim == 2)
+   {
+      PAHcurlVecH1IdentityApply2D(c_dofs1D, o_dofs1D, ne, maps_C_C->B, maps_O_C->B,
+                                  pa_data, x, y);
+   }
+   else
+   {
+      mfem_error("Bad dimension!");
+   }
+}
+
+void IdentityInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   if (dim == 3)
+   {
+      PAHcurlVecH1IdentityApplyTranspose3D(c_dofs1D, o_dofs1D, ne, maps_C_C->B,
+                                           maps_O_C->B, pa_data, x, y);
+   }
+   else if (dim == 2)
+   {
+      PAHcurlVecH1IdentityApplyTranspose2D(c_dofs1D, o_dofs1D, ne, maps_C_C->B,
+                                           maps_O_C->B, pa_data, x, y);
+   }
+   else
+   {
+      mfem_error("Bad dimension!");
    }
 }
 

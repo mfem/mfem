@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,6 +26,7 @@
 //               mpirun -np 4 prates -m ../../data/inline-hex.mesh -sr 0 -pr 1 -prob 1 -o 3
 //               mpirun -np 4 prates -m ../../data/square-disc.mesh -sr 1 -pr 2 -prob 1 -o 2
 //               mpirun -np 4 prates -m ../../data/star.mesh -sr 1 -pr 2 -prob 3 -o 2
+//               mpirun -np 4 prates -m ../../data/star.mesh -sr 1 -pr 2 -prob 3 -o 2 -j 0
 //               mpirun -np 4 prates -m ../../data/inline-hex.mesh -sr 1 -pr 1 -prob 3 -o 2
 //
 // Description:  This example code demonstrates the use of MFEM to define and
@@ -68,11 +69,11 @@ int prob=0;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
@@ -80,6 +81,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    int sr = 1;
    int pr = 1;
+   int jump_scaling_type = 1;
    double sigma = -1.0;
    double kappa = -1.0;
    OptionsParser args(argc, argv);
@@ -95,6 +97,9 @@ int main(int argc, char *argv[])
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the two DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
+   args.AddOption(&jump_scaling_type, "-j", "--jump-scaling",
+                  "Scaling of the jump error for DG methods: "
+                  "0: no scaling, 1: 1/h, 2: p^2/h");
    args.AddOption(&sr, "-sr", "--serial_ref",
                   "Number of serial refinements.");
    args.AddOption(&pr, "-pr", "--parallel_ref",
@@ -109,10 +114,9 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
-   if (prob >3 || prob <0) prob = 0; // default problem = H1
+   if (prob >3 || prob <0) { prob = 0; } // default problem = H1
    if (prob == 3)
    {
       if (kappa < 0)
@@ -216,7 +220,7 @@ int main(int argc, char *argv[])
          gradu = new VectorFunctionCoefficient(dim,gradu_exact);
          b.AddDomainIntegrator(new DomainLFIntegrator(*f));
          b.AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(*scalar_u, one, sigma, kappa));
+            new DGDirichletLFIntegrator(*scalar_u, one, sigma, kappa));
          a.AddDomainIntegrator(new DiffusionIntegrator(one));
          a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
          a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
@@ -285,19 +289,22 @@ int main(int argc, char *argv[])
       delete solver;
 
       x = *X;
+      JumpScaling js(1.0, jump_scaling_type == 2 ? JumpScaling::P_SQUARED_OVER_H
+                     : jump_scaling_type == 1 ? JumpScaling::ONE_OVER_H
+                     : JumpScaling::CONSTANT);
       switch (prob)
       {
          case 0: rates.AddH1GridFunction(&x,scalar_u,gradu); break;
          case 1: rates.AddHcurlGridFunction(&x,vector_u,curlu); break;
          case 2: rates.AddHdivGridFunction(&x,vector_u,divu);  break;
-         case 3: rates.AddL2GridFunction(&x,scalar_u,gradu,&one); break;
+         case 3: rates.AddL2GridFunction(&x,scalar_u,gradu,&one,js); break;
       }
 
       delete X;
       delete B;
       delete A;
 
-      if (l==pr) break;
+      if (l==pr) { break; }
 
       pmesh->UniformRefinement();
       fespace->Update();
@@ -316,7 +323,7 @@ int main(int argc, char *argv[])
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << x <<
-               "window_title 'Numerical Pressure (real part)' "
+               "window_title 'Numerical Solution' "
                << flush;
    }
 
@@ -329,8 +336,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }
