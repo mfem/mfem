@@ -829,6 +829,14 @@ public:
        current data. */
    void HypreWrite() { Write(GetHypreMemoryClass()); }
 
+   Memory<HYPRE_Int> &GetDiagMemoryI() { return mem_diag.I; }
+   Memory<HYPRE_Int> &GetDiagMemoryJ() { return mem_diag.J; }
+   Memory<double> &GetDiagMemoryData() { return mem_diag.data; }
+
+   const Memory<HYPRE_Int> &GetDiagMemoryI() const { return mem_diag.I; }
+   const Memory<HYPRE_Int> &GetDiagMemoryJ() const { return mem_diag.J; }
+   const Memory<double> &GetDiagMemoryData() const { return mem_diag.data; }
+
    /// Prints the locally owned rows in parallel
    void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0) const;
    /// Reads the matrix from a file
