@@ -25,6 +25,29 @@ using namespace mfem;
 namespace pa_kernels
 {
 
+Mesh MakeCartesianNonaligned(const int dim, const int ne)
+{
+   Mesh mesh;
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   }
+
+   // Remap vertices so that the mesh is not aligned with axes.
+   for (int i=0; i<mesh.GetNV(); ++i)
+   {
+      double *vcrd = mesh.GetVertex(i);
+      vcrd[1] += 0.2 * vcrd[0];
+      if (dim == 3) { vcrd[2] += 0.3 * vcrd[0]; }
+   }
+
+   return mesh;
+}
+
 double zero_field(const Vector &x)
 {
    MFEM_CONTRACT_VAR(x);
@@ -71,16 +94,7 @@ double pa_divergence_testnd(int dim,
                             void (*f1)(const Vector &, Vector &),
                             double (*divf1)(const Vector &))
 {
-   Mesh mesh;
-   if (dim == 2)
-   {
-      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
-   }
-   if (dim == 3)
-   {
-      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-   }
-
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 4;
 
    // Vector valued
@@ -163,16 +177,7 @@ double pa_gradient_testnd(int dim,
                           double (*f1)(const Vector &),
                           void (*gradf1)(const Vector &, Vector &))
 {
-   Mesh mesh;
-   if (dim == 2)
-   {
-      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
-   }
-   if (dim == 3)
-   {
-      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-   }
-
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 4;
 
    // Scalar
@@ -222,17 +227,7 @@ TEST_CASE("PA Gradient", "[PartialAssembly]")
 
 double test_nl_convection_nd(int dim)
 {
-   Mesh mesh;
-
-   if (dim == 2)
-   {
-      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0);
-   }
-   if (dim == 3)
-   {
-      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-   }
-
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 2;
    H1_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec, dim);
@@ -273,11 +268,7 @@ TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA]")
 template <typename INTEGRATOR>
 double test_vector_pa_integrator(int dim)
 {
-   Mesh mesh =
-      (dim == 2) ?
-      Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, 0, 1.0, 1.0):
-      Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 2;
    H1_FECollection fec(order, dim);
    FiniteElementSpace fes(&mesh, &fec, dim);
@@ -413,6 +404,7 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 
    k_fa.Assemble();
    k_fa.Finalize();
+   k_fa.SpMat().EnsureMultTranspose();
 
    k_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    k_pa.Assemble();
@@ -443,7 +435,7 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 }
 
 // Basic unit tests for convection
-TEST_CASE("PA Convection", "[PartialAssembly]")
+TEST_CASE("PA Convection", "[PartialAssembly][CUDA]")
 {
    // prob:
    // - 0: CG,
@@ -469,7 +461,7 @@ TEST_CASE("PA Convection", "[PartialAssembly]")
 } // test case
 
 // Advanced unit tests for convection
-TEST_CASE("PA Convection advanced", "[PartialAssembly][MFEMData]")
+TEST_CASE("PA Convection advanced", "[PartialAssembly][MFEMData][CUDA]")
 {
    if (launch_all_non_regression_tests)
    {
