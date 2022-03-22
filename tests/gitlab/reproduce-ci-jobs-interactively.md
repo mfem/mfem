@@ -42,7 +42,7 @@ patch.
 
 ## Install Dependencies
 
-### Option #1: Using the CI script
+### Option 1: Using the CI script
 
 ```bash
 ./tests/gitlab/build_and_test --deps-only --spec "%gcc@6.1.0 +sundials"
@@ -56,7 +56,7 @@ through the `--spec` option.
 
 Virtually any spec can be provided, but you should check which compilers are
 defined in the spack configuration
-(`tests/uberenv/spack-configs/<sys_type>/compilers.yaml).
+(`tests/uberenv/spack-configs/<sys_type>/compilers.yaml`).
 
 As a result, dependencies will be installed under `uberenv_libs`.  The
 configuration files `spack-config.mk` and `spack_config.hpp` will be generated
@@ -69,11 +69,11 @@ those files were generated, otherwise `make all` would just regenerate them.
 When `build_and_test` needs to build the dependencies, i.e. (a) `--deps-only` is
 used, or (b) none of the `--XXX-only` options is used, then the script behaves
 slightly differently. In case (b), it will build and install dependencies in
-`/dev/shm` for better performance. However, this is only valid if we don’t want
+`/dev/shm` for better performance. However, this is only valid if we don't want
 the installation to persist. Installation will happen locally to the uberenv
 directory in case (a), i.e. if `--deps-only` is used.
 
-### Option #2: Calling uberenv directly
+### Option 2: Calling uberenv directly
 
 ```bash
 python ./tests/uberenv/uberenv.py --spec="%gcc@6.1.0 +sundials"
@@ -88,7 +88,7 @@ but still ready to use.
 
 ## Build and test MFEM
 
-### Option #1: Without using scripts
+### Option 1: Without using scripts
 
 ```bash
 \# optional: the spack config is saved in copies (in case you reconfigure MFEM
@@ -106,7 +106,7 @@ The key here is that the configuration files were generated during the spack
 run: they will point to the dependencies location, and apply any option
 selected with MFEM spec variants in Spack.
 
-### Option #2: Using the CI script
+### Option 2: Using the CI script
 
 ```bash
 ./tests/gitlab/build_and_test --build-only

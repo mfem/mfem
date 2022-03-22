@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -149,7 +149,7 @@ foreach my $sha (@commits) {
         # File was added
         $blob_size += int(`git cat-file -s $dst`); }
       elsif ($mode eq "DD") { }
-      elsif ($mode eq "MM") {
+      elsif ($mode eq "MM" || $mode eq "MR") {
         # File was modified, use the gzip'ed diff as a proxy of the required git
         # storage
         my $sz1 = int(`git diff -U0 --binary $src1 $dst | gzip -c | wc -c`);
