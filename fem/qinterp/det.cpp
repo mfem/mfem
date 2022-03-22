@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,6 +25,32 @@ namespace internal
 
 namespace quadrature_interpolator
 {
+
+static void Det1D(const int NE,
+                  const double *g,
+                  const double *x,
+                  double *y,
+                  const int d1d,
+                  const int q1d)
+{
+   const auto G = Reshape(g, q1d, d1d);
+   const auto X = Reshape(x, d1d, NE);
+
+   auto Y = Reshape(y, q1d, NE);
+
+   MFEM_FORALL(e, NE,
+   {
+      for (int q = 0; q < q1d; q++)
+      {
+         double u = 0.0;
+         for (int d = 0; d < d1d; d++)
+         {
+            u += G(q, d) * X(d, e);
+         }
+         Y(q, e) = u;
+      }
+   });
+}
 
 template<int T_D1D = 0, int T_Q1D = 0, int MAX_D1D = 0, int MAX_Q1D = 0>
 static void Det2D(const int NE,
@@ -166,6 +192,15 @@ void TensorDeterminants(const int NE,
 
    const int id = (vdim<<8) | (D1D<<4) | Q1D;
 
+   if (dim == 1)
+   {
+      MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
+                  << " are not supported!");
+      MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
+                  << MAX_Q1D << " 1D points are not supported!");
+      Det1D(NE, G, X, Y, D1D, Q1D);
+      return;
+   }
    if (dim == 2)
    {
       switch (id)

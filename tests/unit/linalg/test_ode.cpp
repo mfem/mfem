@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -90,13 +90,13 @@ TEST_CASE("First order ODE methods",
          dt = t_final/double(ti_steps);
       };
 
-      void init_hist(ODESolver* ode_solver,double dt)
+      void init_hist(ODESolver* ode_solver,double dt_)
       {
          int nstate = ode_solver->GetStateSize();
 
          for (int s = 0; s< nstate; s++)
          {
-            double t = -(s)*dt;
+            double t = -(s)*dt_;
             Vector uh(2);
             uh[0] = -cos(t) - sin(t);
             uh[1] =  cos(t) - sin(t);
@@ -106,42 +106,42 @@ TEST_CASE("First order ODE methods",
 
       double order(ODESolver* ode_solver, bool init_hist_ = false)
       {
-         double dt,t;
+         double dt_order,t;
          Vector u(2);
-         Vector err(levels);
+         Vector error(levels);
          int steps = ti_steps;
 
          t = 0.0;
-         dt = t_final/double(steps);
+         dt_order = t_final/double(steps);
          u = u0;
          ode_solver->Init(*oper);
-         if (init_hist_) { init_hist(ode_solver,dt); }
-         ode_solver->Run(u, t, dt, t_final - 1e-12);
+         if (init_hist_) { init_hist(ode_solver,dt_order); }
+         ode_solver->Run(u, t, dt_order, t_final - 1e-12);
          u +=u0;
-         err[0] = u.Norml2();
+         error[0] = u.Norml2();
 
          std::cout<<std::setw(12)<<"Error"
                   <<std::setw(12)<<"Ratio"
                   <<std::setw(12)<<"Order"<<std::endl;
-         std::cout<<std::setw(12)<<err[0]<<std::endl;
+         std::cout<<std::setw(12)<<error[0]<<std::endl;
 
          std::vector<Vector> uh(ode_solver->GetMaxStateSize());
          for (int l = 1; l < levels; l++)
          {
             int lvl = pow(2,l);
             t = 0.0;
-            dt *= 0.5;
+            dt_order *= 0.5;
             u = u0;
             ode_solver->Init(*oper);
-            if (init_hist_) { init_hist(ode_solver,dt); }
+            if (init_hist_) { init_hist(ode_solver,dt_order); }
 
             // Instead of single run command:
-            // ode_solver->Run(u, t, dt, t_final - 1e-12);
+            // ode_solver->Run(u, t, dt_order, t_final - 1e-12);
             // Chop-up sequence with Get/Set in between
             // in order to test these routines
             for (int ti = 0; ti < steps; ti++)
             {
-               ode_solver->Step(u, t, dt);
+               ode_solver->Step(u, t, dt_order);
             }
             int nstate = ode_solver->GetStateSize();
             for (int s = 0; s < nstate; s++)
@@ -157,7 +157,7 @@ TEST_CASE("First order ODE methods",
                }
                for (int ti = 0; ti < steps; ti++)
                {
-                  ode_solver->Step(u, t, dt);
+                  ode_solver->Step(u, t, dt_order);
                }
                nstate = ode_solver->GetStateSize();
                for (int s = 0; s< nstate; s++)
@@ -167,14 +167,15 @@ TEST_CASE("First order ODE methods",
             }
 
             u += u0;
-            err[l] = u.Norml2();
-            std::cout<<std::setw(12)<<err[l]
-                     <<std::setw(12)<<err[l-1]/err[l]
-                     <<std::setw(12)<<log(err[l-1]/err[l])/log(2) <<std::endl;
+            error[l] = u.Norml2();
+            std::cout<<std::setw(12)<<error[l]
+                     <<std::setw(12)<<error[l-1]/error[l]
+                     <<std::setw(12)<<log(error[l-1]/error[l])/log(2)
+                     <<std::endl;
          }
          delete ode_solver;
 
-         return log(err[levels-2]/err[levels-1])/log(2);
+         return log(error[levels-2]/error[levels-1])/log(2);
       }
       virtual ~CheckODE() {delete oper;};
    };

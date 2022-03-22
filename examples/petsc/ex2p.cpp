@@ -31,6 +31,10 @@
 //               also illustrated. The example also shows how to form a linear
 //               system using a PETSc matrix and solve with a PETSc solver.
 //
+//               The example also show how to use the non-overlapping feature of
+//               the ParBilinearForm class to obtain the linear operator in
+//               a format suitable for the BDDC preconditioner in PETSc.
+//
 //               We recommend viewing Example 1 before viewing this example.
 
 #include "mfem.hpp"
@@ -46,11 +50,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-tri.mesh";
@@ -61,10 +65,15 @@ int main(int argc, char *argv[])
    bool use_petsc = true;
    const char *petscrc_file = "";
    bool use_nonoverlapping = false;
+   int ser_ref_levels = -1, par_ref_levels = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&amg_elast, "-elast", "--amg-for-elasticity", "-sys",
@@ -92,7 +101,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -115,7 +123,6 @@ int main(int argc, char *argv[])
          cerr << "\nInput mesh should have at least two materials and "
               << "two boundary attributes! (See schematic in ex2.cpp)\n"
               << endl;
-      MPI_Finalize();
       return 3;
    }
 
@@ -131,8 +138,8 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = ser_ref_levels >= 0 ? ser_ref_levels :
+                       (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -145,7 +152,6 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 1;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -296,12 +302,20 @@ int main(int argc, char *argv[])
       PetscPreconditioner *prec = NULL;
       if (use_nonoverlapping)
       {
+         // Compute dofs belonging to the natural boundary
+         Array<int> nat_tdof_list, nat_bdr(pmesh->bdr_attributes.Max());
+         nat_bdr = 1;
+         nat_bdr[0] = 0;
+         fespace->GetEssentialTrueDofs(nat_bdr, nat_tdof_list);
+
          // Auxiliary class for BDDC customization
          PetscBDDCSolverParams opts;
          // Inform the solver about the finite element space
          opts.SetSpace(fespace);
          // Inform the solver about essential dofs
          opts.SetEssBdrDofs(&ess_tdof_list);
+         // Inform the solver about natural dofs
+         opts.SetNatBdrDofs(&nat_tdof_list);
          // Create a BDDC solver with parameters
          prec = new PetscBDDCSolver(A,opts);
          pcg->SetPreconditioner(*prec);
@@ -376,8 +390,6 @@ int main(int argc, char *argv[])
 
    // We finalize PETSc
    if (use_petsc) { MFEMFinalizePetsc(); }
-
-   MPI_Finalize();
 
    return 0;
 }
