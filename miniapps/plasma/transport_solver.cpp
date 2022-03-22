@@ -5472,15 +5472,15 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    }
    if (this->CheckTermFlag(IONIZATION_SOURCE_TERM))
    {
-     SetSourceTerm(SIZCoef_, 1.0);
+      SetSourceTerm(SIZCoef_, 1.0);
    }
    if (this->CheckTermFlag(RECOMBINATION_SINK_TERM))
    {
-     SetSourceTerm(SRCCoef_, -1.0);
+      SetSourceTerm(SRCCoef_, -1.0);
    }
    if (this->CheckTermFlag(CHARGE_EXCHANGE_SINK_TERM))
    {
-     SetSourceTerm(SCXCoef_, -1.0);
+      SetSourceTerm(SCXCoef_, -1.0);
    }
    if (this->CheckTermFlag(SOURCE_TERM) &&
        imcoefs_(IMCoefs::SOURCE_COEF) != NULL)

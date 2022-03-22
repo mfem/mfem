@@ -2789,17 +2789,17 @@ private:
 
 public:
    IonMomentumIonizationCoef(int z_i, double m_i_kg,
-			     Coefficient &nnCoef,
-			     Coefficient &niCoef,
-			     Coefficient &vnCoef,
-			     StateVariableCoef &izCoef)
+                             Coefficient &nnCoef,
+                             Coefficient &niCoef,
+                             Coefficient &vnCoef,
+                             StateVariableCoef &izCoef)
       : zi_(z_i), mi_(m_i_kg),
         nnCoef_(nnCoef), niCoef_(niCoef), vnCoef_(vnCoef), izCoef_(izCoef)
    {}
 
    IonMomentumIonizationCoef(const IonMomentumIonizationCoef &other)
       : nnCoef_(other.nnCoef_), niCoef_(other.niCoef_),
-	vnCoef_(other.vnCoef_), izCoef_(other.izCoef_)
+        vnCoef_(other.vnCoef_), izCoef_(other.izCoef_)
    {
       derivType_ = other.derivType_;
       zi_        = other.zi_;
@@ -3014,7 +3014,7 @@ public:
    IonMomentumChargeExchangeCoef(const IonMomentumChargeExchangeCoef &other)
       : nnCoef_(other.nnCoef_), niCoef_(other.niCoef_),
         vnCoef_(other.vnCoef_), viCoef_(other.viCoef_),
-	cxCoef_(other.cxCoef_)
+        cxCoef_(other.cxCoef_)
    {
       derivType_ = other.derivType_;
       mi_        = other.mi_;
@@ -3660,7 +3660,7 @@ public:
    double Eval_Func(ElementTransformation &T,
                     const IntegrationPoint &ip)
    {
-      double lnLambda = lnLambda_.Eval(T, ip);
+      double lnLambda = lnLambda_.Eval_Func(T, ip);
       double ni = niCoef_.Eval(T, ip);
       double Ti = TiCoef_.Eval(T, ip);
       double Te = TeCoef_.Eval(T, ip);
@@ -3673,7 +3673,7 @@ public:
    double Eval_dNi(ElementTransformation &T,
                    const IntegrationPoint &ip)
    {
-      double lnLambda = lnLambda_.Eval(T, ip);
+      double lnLambda = lnLambda_.Eval_Func(T, ip);
       double dl = lnLambda_.Eval_dNi(T, ip);
       double ni = niCoef_.Eval(T, ip);
       double Ti = TiCoef_.Eval(T, ip);
@@ -3703,7 +3703,7 @@ public:
    double Eval_dTe(ElementTransformation &T,
                    const IntegrationPoint &ip)
    {
-      double lnLambda = lnLambda_.Eval(T, ip);
+      double lnLambda = lnLambda_.Eval_Func(T, ip);
       double dl = lnLambda_.Eval_dTe(T, ip);
       double ni = niCoef_.Eval(T, ip);
       double Ti = TiCoef_.Eval(T, ip);
@@ -4939,14 +4939,14 @@ private:
    private:
       enum TermFlag {DIFFUSION_TERM = 0,
                      ADVECTION_TERM, GRADP_SOURCE_TERM,
-		     IONIZATION_SOURCE_TERM,
+                     IONIZATION_SOURCE_TERM,
                      RECOMBINATION_SINK_TERM, CHARGE_EXCHANGE_SINK_TERM,
                      SOURCE_TERM
                     };
       enum VisField {DIFFUSION_PARA_COEF = 0, DIFFUSION_PERP_COEF,
                      ADVECTION_COEF, GRADP_SOURCE_COEF,
-		     IONIZATION_SOURCE_COEF,
-		     RECOMBINATION_SINK_COEF, CHARGE_EXCHANGE_SINK_COEF,
+                     IONIZATION_SOURCE_COEF,
+                     RECOMBINATION_SINK_COEF, CHARGE_EXCHANGE_SINK_COEF,
                      SOURCE_COEF,
                      ION_PARA_MOMENTUM
                     };
