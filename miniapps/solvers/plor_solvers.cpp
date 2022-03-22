@@ -104,13 +104,7 @@ int main(int argc, char *argv[])
                   "Number of devices available on the node.");
    args.ParseCheck();
 
-   const int myid = Mpi::WorldRank();
-   const int num_procs = Mpi::WorldSize();
-
-   const int dev = myid % config_dev_modulo;
-   dbg("[MPI] rank: %d/%d, using device #%d", 1+myid, num_procs, dev);
-
-   Device device(device_config, dev);
+   Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
    bool H1 = false, ND = false, RT = false, L2 = false;
