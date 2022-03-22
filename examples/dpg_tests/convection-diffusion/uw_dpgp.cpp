@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
    int iprob = 0;
    int itest_norm = 0;
    double theta = 0.7;
+   bool static_cond = false;
    epsilon = 1e0;
 
    OptionsParser args(argc, argv);
@@ -103,7 +104,9 @@ int main(int argc, char *argv[])
    args.AddOption(&itest_norm, "-test-norm", "--test-norm", "Choice of test norm"
                   " 0: Standard, 1: Adjoint Graph, 2: Robust");     
    args.AddOption(&beta, "-beta", "--beta",
-                  "Vector Coefficient beta");                    
+                  "Vector Coefficient beta");          
+   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
+                  "--no-static-condensation", "Enable static condensation.");                            
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -352,6 +355,7 @@ int main(int argc, char *argv[])
 
    for (int i = 0; i<=ref; i++)
    {
+      if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
 
       Array<int> ess_tdof_list_uhat;
@@ -414,33 +418,31 @@ int main(int argc, char *argv[])
 
       BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
       M->owns_blocks = 1;
-      HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
-      HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
-      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(2,2));
-      amg0->SetPrintLevel(0);
-      amg1->SetPrintLevel(0);
+      int skip = 0;
+      if (!static_cond)
+      {
+         HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
+         HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
+         amg0->SetPrintLevel(0);
+         amg1->SetPrintLevel(0);
+         M->SetDiagonalBlock(0,amg0);
+         M->SetDiagonalBlock(1,amg1);
+         skip = 2;
+      }
+      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(skip,skip));
       amg2->SetPrintLevel(0);
-
-      M->SetDiagonalBlock(0,amg0);
-      M->SetDiagonalBlock(1,amg1);
-      M->SetDiagonalBlock(2,amg2);
+      M->SetDiagonalBlock(skip,amg2);
 
       HypreSolver * prec;
       if (dim == 2)
       {
-         prec = new HypreAMS((HypreParMatrix &)A->GetBlock(3,3), hatf_fes);
+         prec = new HypreAMS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatf_fes);
       }
       else
       {
-         prec = new HypreADS((HypreParMatrix &)A->GetBlock(3,3), hatf_fes);
+         prec = new HypreADS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatf_fes);
       }
-      M->SetDiagonalBlock(3,prec);
-      // for (int i = 0; i < A->NumRowBlocks(); i++)
-      // {
-      //    MUMPSSolver * mumps = new MUMPSSolver;
-      //    mumps->SetOperator(A->GetBlock(i,i));
-      //    M->SetDiagonalBlock(i,mumps);
-      // }
+      M->SetDiagonalBlock(skip+1,prec);
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
