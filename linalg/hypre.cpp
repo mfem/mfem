@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,6 +30,66 @@ using namespace std;
 
 namespace mfem
 {
+
+Hypre::Hypre()
+{
+#if MFEM_HYPRE_VERSION >= 21900
+   // Initializing hypre
+   HYPRE_Init();
+#endif
+
+   // Global hypre options that we set by default
+   SetDefaultOptions();
+}
+
+void Hypre::Finalize()
+{
+   Hypre &hypre = Instance();
+   if (!hypre.finalized)
+   {
+#if MFEM_HYPRE_VERSION >= 21900
+      HYPRE_Finalize();
+#endif
+      hypre.finalized = true;
+   }
+}
+
+void Hypre::SetDefaultOptions()
+{
+   // Global hypre options, see
+   // https://hypre.readthedocs.io/en/latest/solvers-boomeramg.html#gpu-supported-options
+
+#if MFEM_HYPRE_VERSION >= 22100
+#ifdef HYPRE_USING_CUDA
+   // Use hypre's SpGEMM instead of cuSPARSE for performance reasons
+   HYPRE_SetSpGemmUseCusparse(0);
+#elif defined(HYPRE_USING_HIP)
+   // Use rocSPARSE instead of hypre's SpGEMM for performance reasons (default)
+   // HYPRE_SetSpGemmUseCusparse(1);
+#endif
+#endif
+
+   // The following options are hypre's defaults as of hypre-2.24
+
+   // Allocate hypre objects in GPU memory (default)
+   // HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
+
+   // Where to execute when using UVM (default)
+   // HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
+
+   // Use GPU-based random number generator (default)
+   // HYPRE_SetUseGpuRand(1);
+
+   // The following options are to be used with UMPIRE memory pools
+
+   // Set Umpire names for device and UVM memory pools. If names are set by
+   // calling these functions, hypre doesn't own the pool and just uses it.If
+   // these functions are not called, hypre will allocate and own the pool
+   // (provided it is configured with --with-umpire).
+   // HYPRE_SetUmpireDevicePoolName("HYPRE_DEVICE_POOL");
+   // HYPRE_SetUmpireUMPoolName("HYPRE_UVM_POOL");
+}
+
 
 template<typename TargetT, typename SourceT>
 static TargetT *DuplicateAs(const SourceT *array, int size,
@@ -640,24 +700,18 @@ signed char HypreParMatrix::CopyBoolCSR(Table *bool_csr,
           (mem_csr.data.OwnsHostPtr() ? 2 : 0);
 }
 
-void HypreParMatrix::CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J)
+// Copy the j array of a MemoryIJData object to the given dst_J array,
+// converting the indices from HYPRE_Int to int.
+#ifdef HYPRE_BIGINT
+static void CopyCSR_J(const int nnz, const MemoryIJData &mem_csr,
+                      Memory<int> &dst_J)
 {
-   HYPRE_Int nnz = hypre_CSRMatrixNumNonzeros(hypre_csr);
-#if MFEM_HYPRE_VERSION >= 21600
-   if (hypre_CSRMatrixBigJ(hypre_csr))
-   {
-      for (HYPRE_Int j = 0; j < nnz; j++)
-      {
-         J[j] = internal::to_int(hypre_CSRMatrixBigJ(hypre_csr)[j]);
-      }
-      return;
-   }
-#endif
-   for (HYPRE_Int j = 0; j < nnz; j++)
-   {
-      J[j] = internal::to_int(hypre_CSRMatrixJ(hypre_csr)[j]);
-   }
+   // Perform the copy using the configured mfem Device
+   auto src_p = mfem::Read(mem_csr.J, nnz);
+   auto dst_p = mfem::Write(dst_J, nnz);
+   MFEM_FORALL(i, nnz, dst_p[i] = src_p[i];);
 }
+#endif
 
 // static method
 signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
@@ -754,11 +808,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
+   HypreReadWrite();
    hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-
-   // FIXME:
 #ifdef HYPRE_BIGINT
-   CopyCSR_J(A->diag, diag->GetJ());
+   if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
+   {
+      CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
+   }
 #endif
 
    hypre_MatvecCommPkgCreate(A);
@@ -796,10 +852,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
+      HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      // FIXME:
 #ifdef HYPRE_BIGINT
-      CopyCSR_J(A->diag, diag->GetJ());
+      if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
+      {
+         CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
+      }
 #endif
    }
 
@@ -848,10 +907,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
+      HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      // FIXME:
 #ifdef HYPRE_BIGINT
-      CopyCSR_J(A->diag, diag->GetJ());
+      if (CanShallowCopy(diag->GetMemoryData(), GetHypreMemoryClass()))
+      {
+         CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetMemoryJ());
+      }
 #endif
    }
 
@@ -1007,10 +1069,11 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    /* Make sure that the first entry in each row is the diagonal one. */
    if (row_starts == col_starts)
    {
+      HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      // FIXME:
 #ifdef HYPRE_BIGINT
-      CopyCSR_J(A->diag, diag->GetJ());
+      // No need to sync the J array back to the Table diag.
+      // CopyCSR_J(A->diag->num_nonzeros, mem_diag, diag->GetJMemory());
 #endif
    }
 
@@ -4484,11 +4547,11 @@ void HypreBoomerAMG::SetDefaultOptions()
    double theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
 
    // AMG interpolation options:
-   int interp_type  = 6;   // or 3 = direct
+   int interp_type  = 6;    // 6 = extended+i, or 18 = extended+e
    int Pmax         = 4;    // max number of elements per row in P
 
    // AMG relaxation options:
-   int relax_type   = 18;    // or 18 = l1-Jacobi
+   int relax_type   = 18;   // 18 = l1-Jacobi, or 16 = Chebyshev
    int relax_sweeps = 1;    // relaxation sweeps on each level
 
    // Additional options:
@@ -4992,25 +5055,29 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       {
          coord = pmesh -> GetVertex(i);
          x_coord(i) = coord[0];
-         y_coord(i) = coord[1];
+         if (sdim >= 2) { y_coord(i) = coord[1]; }
          if (sdim == 3) { z_coord(i) = coord[2]; }
       }
       x = x_coord.ParallelProject();
-      y = y_coord.ParallelProject();
-
+      y = NULL;
+      z = NULL;
       x->HypreReadWrite();
-      y->HypreReadWrite();
-      if (sdim == 2)
+
+      if (sdim >= 2)
       {
-         z = NULL;
-         HYPRE_AMSSetCoordinateVectors(ams, *x, *y, NULL);
+         y = y_coord.ParallelProject();
+         y->HypreReadWrite();
       }
-      else
+      if (sdim == 3)
       {
          z = z_coord.ParallelProject();
          z->HypreReadWrite();
-         HYPRE_AMSSetCoordinateVectors(ams, *x, *y, *z);
       }
+
+      HYPRE_AMSSetCoordinateVectors(ams,
+                                    x ? (HYPRE_ParVector)(*x) : NULL,
+                                    y ? (HYPRE_ParVector)(*y) : NULL,
+                                    z ? (HYPRE_ParVector)(*z) : NULL);
    }
    else
    {
@@ -5065,7 +5132,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
          Array2D<HypreParMatrix *> Pi_blocks;
          id_ND->GetParBlocks(Pi_blocks);
          Pix = Pi_blocks(0,0);
-         Piy = Pi_blocks(0,1);
+         if (sdim >= 2) { Piy = Pi_blocks(0,1); }
          if (sdim == 3) { Piz = Pi_blocks(0,2); }
       }
 

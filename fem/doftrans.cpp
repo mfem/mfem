@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -270,6 +270,9 @@ ND_TriDofTransformation::ND_TriDofTransformation(int p)
 
 void ND_TriDofTransformation::TransformPrimal(double *v) const
 {
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
    MFEM_VERIFY(Fo.Size() >= 1,
                "Face orientations are unset in ND_TriDofTransformation");
 
@@ -290,6 +293,9 @@ void ND_TriDofTransformation::TransformPrimal(double *v) const
 void
 ND_TriDofTransformation::InvTransformPrimal(double *v) const
 {
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
    MFEM_VERIFY(Fo.Size() >= 1,
                "Face orientations are unset in ND_TriDofTransformation");
 
@@ -310,6 +316,9 @@ ND_TriDofTransformation::InvTransformPrimal(double *v) const
 void
 ND_TriDofTransformation::TransformDual(double *v) const
 {
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
    MFEM_VERIFY(Fo.Size() >= 1,
                "Face orientations are unset in ND_TriDofTransformation");
 
@@ -354,6 +363,9 @@ ND_TetDofTransformation::ND_TetDofTransformation(int p)
 
 void ND_TetDofTransformation::TransformPrimal(double *v) const
 {
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
    MFEM_VERIFY(Fo.Size() >= 4,
                "Face orientations are unset in ND_TetDofTransformation");
 
@@ -374,6 +386,9 @@ void ND_TetDofTransformation::TransformPrimal(double *v) const
 void
 ND_TetDofTransformation::InvTransformPrimal(double *v) const
 {
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
    MFEM_VERIFY(Fo.Size() >= 4,
                "Face orientations are unset in ND_TetDofTransformation");
 
@@ -394,6 +409,9 @@ ND_TetDofTransformation::InvTransformPrimal(double *v) const
 void
 ND_TetDofTransformation::TransformDual(double *v) const
 {
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
    MFEM_VERIFY(Fo.Size() >= 4,
                "Face orientations are unset in ND_TetDofTransformation");
 
@@ -438,6 +456,9 @@ ND_WedgeDofTransformation::ND_WedgeDofTransformation(int p)
 
 void ND_WedgeDofTransformation::TransformPrimal(double *v) const
 {
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
    MFEM_VERIFY(Fo.Size() >= 2,
                "Face orientations are unset in ND_WedgeDofTransformation");
 
@@ -458,6 +479,9 @@ void ND_WedgeDofTransformation::TransformPrimal(double *v) const
 void
 ND_WedgeDofTransformation::InvTransformPrimal(double *v) const
 {
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
    MFEM_VERIFY(Fo.Size() >= 2,
                "Face orientations are unset in ND_WedgeDofTransformation");
 
@@ -478,6 +502,9 @@ ND_WedgeDofTransformation::InvTransformPrimal(double *v) const
 void
 ND_WedgeDofTransformation::TransformDual(double *v) const
 {
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
    MFEM_VERIFY(Fo.Size() >= 2,
                "Face orientations are unset in ND_WedgeDofTransformation");
 
@@ -498,6 +525,9 @@ ND_WedgeDofTransformation::TransformDual(double *v) const
 void
 ND_WedgeDofTransformation::InvTransformDual(double *v) const
 {
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
    MFEM_VERIFY(Fo.Size() >= 2,
                "Face orientations are unset in ND_WedgeDofTransformation");
 

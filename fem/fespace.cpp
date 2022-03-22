@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2286,8 +2286,8 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
    {
       int b = face_to_be[f];
       if (b == -1) { continue; }
-      // FIXME: this assumes the boundary element and the face element have the
-      //        same orientation.
+      // FIXME: this assumes that the boundary element and the face element have
+      //        the same orientation.
       if (dim > 1)
       {
          const Element *fe = mesh->GetFace(f);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -321,6 +321,202 @@ public:
                             DenseMatrix &curl) const
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
 };
+
+
+/// Arbitrary order, three component, Raviart-Thomas elements in 1D on a segment
+/** RT_R1D_SegmentElement provides a representation of a three component
+    Raviart-Thomas basis where the vector components vary along only one
+    dimension.
+*/
+class RT_R1D_SegmentElement : public VectorFiniteElement
+{
+   static const double nk[9];
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_cx, shape_ox;
+   mutable Vector dshape_cx;
+#endif
+   Array<int> dof_map, dof2nk;
+
+   Poly_1D::Basis &cbasis1d, &obasis1d;
+
+public:
+   /** @brief Construct the RT_R1D_SegmentElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
+   RT_R1D_SegmentElement(const int p,
+                         const int cb_type = BasisType::GaussLobatto,
+                         const int ob_type = BasisType::GaussLegendre);
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+
+   using FiniteElement::Project;
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void Project(const FiniteElement &fe,
+                        ElementTransformation &Trans,
+                        DenseMatrix &I) const;
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const;
+};
+
+
+/** RT_R2D_SegmentElement provides a representation of a 3D Raviart-Thomas
+    basis where the vector field is assumed constant in the third dimension.
+*/
+class RT_R2D_SegmentElement : public VectorFiniteElement
+{
+   static const double nk[2];
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_ox;
+#endif
+   Array<int> dof_map, dof2nk;
+
+   Poly_1D::Basis &obasis1d;
+
+private:
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
+
+public:
+   /** @brief Construct the RT_R2D_SegmentElement of order @a p and open
+       BasisType @a ob_type */
+   RT_R2D_SegmentElement(const int p,
+                         const int ob_type = BasisType::GaussLegendre);
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &div_shape) const;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation(*this, Trans, I); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { MFEM_ABORT("method is not overloaded"); }
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
+};
+
+class RT_R2D_FiniteElement : public VectorFiniteElement
+{
+protected:
+   const double *nk;
+   Array<int> dof_map, dof2nk;
+
+   RT_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *nk_fe);
+
+private:
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
+
+public:
+   using FiniteElement::CalcVShape;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation(*this, Trans, I); }
+
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const;
+
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
+
+   using FiniteElement::Project;
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const;
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const;
+};
+
+/// Arbitrary order Raviart-Thomas 3D elements in 2D on a triangle
+class RT_R2D_TriangleElement : public RT_R2D_FiniteElement
+{
+private:
+   static const double nk_t[12];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable DenseMatrix rt_shape;
+   mutable Vector      l2_shape;
+   mutable Vector      rt_dshape;
+#endif
+
+   RT_TriangleElement RT_FE;
+   L2_TriangleElement L2_FE;
+
+public:
+   /** @brief Construct the RT_R2D_TriangleElement of order @a p */
+   RT_R2D_TriangleElement(const int p);
+
+   using RT_R2D_FiniteElement::CalcVShape;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+};
+
+/// Arbitrary order Raviart-Thomas 3D elements in 2D on a square
+class RT_R2D_QuadrilateralElement : public RT_R2D_FiniteElement
+{
+private:
+   static const double nk_q[15];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
+   mutable Vector dshape_cx, dshape_cy;
+#endif
+
+   Poly_1D::Basis &cbasis1d, &obasis1d;
+
+public:
+   /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and
+       open BasisType @a cb_type and @a ob_type */
+   RT_R2D_QuadrilateralElement(const int p,
+                               const int cb_type = BasisType::GaussLobatto,
+                               const int ob_type = BasisType::GaussLegendre);
+
+   using RT_R2D_FiniteElement::CalcVShape;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+};
+
 
 } // namespace mfem
 

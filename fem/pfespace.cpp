@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -3541,7 +3541,6 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    const int tdofs = R->Height();
    MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
    ltdof_ldof = Array<int>(const_cast<int*>(R->HostReadJ()), tdofs);
-   ltdof_ldof.UseDevice();
    {
       Table nbr_ltdof;
       gc.GetNeighborLTDofTable(nbr_ltdof);

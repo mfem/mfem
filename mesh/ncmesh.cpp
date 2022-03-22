@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -652,22 +652,22 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    Element &el = elements[elem];
    MFEM_ASSERT(!el.ref_type, "element already refined.");
 
-   int* nodes = el.node;
+   int* el_nodes = el.node;
    if (el.Geom() == Geometry::CUBE)
    {
       // schedule the right split depending on face orientation
-      if ((CubeFaceLeft(vn1, nodes) && CubeFaceRight(vn2, nodes)) ||
-          (CubeFaceLeft(vn2, nodes) && CubeFaceRight(vn1, nodes)))
+      if ((CubeFaceLeft(vn1, el_nodes) && CubeFaceRight(vn2, el_nodes)) ||
+          (CubeFaceLeft(vn2, el_nodes) && CubeFaceRight(vn1, el_nodes)))
       {
          ref_stack.Append(Refinement(elem, 1)); // X split
       }
-      else if ((CubeFaceFront(vn1, nodes) && CubeFaceBack(vn2, nodes)) ||
-               (CubeFaceFront(vn2, nodes) && CubeFaceBack(vn1, nodes)))
+      else if ((CubeFaceFront(vn1, el_nodes) && CubeFaceBack(vn2, el_nodes)) ||
+               (CubeFaceFront(vn2, el_nodes) && CubeFaceBack(vn1, el_nodes)))
       {
          ref_stack.Append(Refinement(elem, 2)); // Y split
       }
-      else if ((CubeFaceBottom(vn1, nodes) && CubeFaceTop(vn2, nodes)) ||
-               (CubeFaceBottom(vn2, nodes) && CubeFaceTop(vn1, nodes)))
+      else if ((CubeFaceBottom(vn1, el_nodes) && CubeFaceTop(vn2, el_nodes)) ||
+               (CubeFaceBottom(vn2, el_nodes) && CubeFaceTop(vn1, el_nodes)))
       {
          ref_stack.Append(Refinement(elem, 4)); // Z split
       }
@@ -678,13 +678,13 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    }
    else if (el.Geom() == Geometry::PRISM)
    {
-      if ((PrismFaceTop(vn1, nodes) && PrismFaceBottom(vn4, nodes)) ||
-          (PrismFaceTop(vn4, nodes) && PrismFaceBottom(vn1, nodes)))
+      if ((PrismFaceTop(vn1, el_nodes) && PrismFaceBottom(vn4, el_nodes)) ||
+          (PrismFaceTop(vn4, el_nodes) && PrismFaceBottom(vn1, el_nodes)))
       {
          ref_stack.Append(Refinement(elem, 3)); // XY split
       }
-      else if ((PrismFaceTop(vn1, nodes) && PrismFaceBottom(vn2, nodes)) ||
-               (PrismFaceTop(vn2, nodes) && PrismFaceBottom(vn1, nodes)))
+      else if ((PrismFaceTop(vn1, el_nodes) && PrismFaceBottom(vn2, el_nodes)) ||
+               (PrismFaceTop(vn2, el_nodes) && PrismFaceBottom(vn1, el_nodes)))
       {
          ref_stack.Append(Refinement(elem, 4)); // Z split
       }
@@ -1257,7 +1257,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
          CheckAnisoFace(no[4], no[1], no[2], no[5], mid14, mid25);
          CheckAnisoFace(no[5], no[2], no[0], no[3], mid25, mid03);
       }
-      else if (ref_type > 4) // full isotropic refinement (split in 8 wedges)
+      else // ref_type > 4, full isotropic refinement (split in 8 wedges)
       {
          ref_type = Refinement::XYZ; // for consistence
 
@@ -1312,10 +1312,6 @@ void NCMesh::RefineElement(int elem, char ref_type)
          CheckIsoFace(no[0], no[1], no[4], no[3], mid01, mid14, mid34, mid03, midf2);
          CheckIsoFace(no[1], no[2], no[5], no[4], mid12, mid25, mid45, mid14, midf3);
          CheckIsoFace(no[2], no[0], no[3], no[5], mid20, mid03, mid53, mid25, midf4);
-      }
-      else
-      {
-         MFEM_ABORT("invalid refinement type.");
       }
 
       if (ref_type != Refinement::XYZ) { Iso = false; }
@@ -3041,9 +3037,9 @@ void NCMesh::BuildFaceList()
                   Master(fa.index, elem, j, fgeom, sb, se));
 
                // also, set the master index for the slaves
-               for (int i = sb; i < se; i++)
+               for (int ii = sb; ii < se; ii++)
                {
-                  face_list.slaves[i].master = fa.index;
+                  face_list.slaves[ii].master = fa.index;
                }
             }
          }
@@ -3161,9 +3157,9 @@ void NCMesh::BuildEdgeList()
                Master(nd.edge_index, elem, j, Geometry::SEGMENT, sb, se));
 
             // also, set the master index for the slaves
-            for (int i = sb; i < se; i++)
+            for (int ii = sb; ii < se; ii++)
             {
-               edge_list.slaves[i].master = nd.edge_index;
+               edge_list.slaves[ii].master = nd.edge_index;
             }
          }
          else
@@ -4134,7 +4130,7 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
                pm = PointMatrix(mid03, mid14, mid25, pm(3), pm(4), pm(5));
             }
          }
-         else if (ref_type > 4) // iso split
+         else // ref_type > 4, iso split
          {
             Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid20(pm(2), pm(0));
             Point mid34(pm(3), pm(4)), mid45(pm(4), pm(5)), mid53(pm(5), pm(3));
@@ -4920,24 +4916,24 @@ int NCMesh::GetElementSizeReduction(int i) const
    return reduction;
 }
 
-void NCMesh::GetElementFacesAttributes(int i,
-                                       Array<int> &faces,
-                                       Array<int> &fattr) const
+void NCMesh::GetElementFacesAttributes(int leaf_elem,
+                                       Array<int> &face_indices,
+                                       Array<int> &face_attribs) const
 {
-   const Element &el = elements[leaf_elements[i]];
+   const Element &el = elements[leaf_elements[leaf_elem]];
    const GeomInfo& gi = GI[el.Geom()];
 
-   faces.SetSize(gi.nf);
-   fattr.SetSize(gi.nf);
+   face_indices.SetSize(gi.nf);
+   face_attribs.SetSize(gi.nf);
 
    for (int i = 0; i < gi.nf; i++)
    {
       const int* fv = gi.faces[i];
-      const Face *face = this->faces.Find(el.node[fv[0]], el.node[fv[1]],
-                                          el.node[fv[2]], el.node[fv[3]]);
+      const Face *face = faces.Find(el.node[fv[0]], el.node[fv[1]],
+                                    el.node[fv[2]], el.node[fv[3]]);
       MFEM_ASSERT(face, "face not found");
-      faces[i] = face->index;
-      fattr[i] = face->attribute;
+      face_indices[i] = face->index;
+      face_attribs[i] = face->attribute;
    }
 }
 
@@ -5820,10 +5816,10 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved, int &is_nc)
       CheckSupportedGeom(type);
       GI[geom].InitGeom(type);
 
-      int id = AddElement(Element(type, attr));
-      MFEM_ASSERT(id == i, "");
+      int eid = AddElement(Element(type, attr));
+      MFEM_ASSERT(eid == i, "");
 
-      Element &el = elements[id];
+      Element &el = elements[eid];
       for (int j = 0; j < GI[geom].nv; j++)
       {
          int id;

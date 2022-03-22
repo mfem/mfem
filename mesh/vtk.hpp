@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -95,10 +95,10 @@ enum class VTKFormat
    /// Data arrays will be written in ASCII format.
    ASCII,
    /// Data arrays will be written in binary format. Floating point numbers will
-   /// be be output with 64 bits of precision.
+   /// be output with 64 bits of precision.
    BINARY,
    /// Data arrays will be written in binary format. Floating point numbers will
-   /// be be output with 32 bits of precision.
+   /// be output with 32 bits of precision.
    BINARY32
 };
 

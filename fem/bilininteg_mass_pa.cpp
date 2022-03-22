@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1179,6 +1179,7 @@ static void PAMassApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
    const int id = (D1D << 4) | Q1D;
+
    if (dim == 2)
    {
       switch (id)

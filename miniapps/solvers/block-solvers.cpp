@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -231,8 +231,9 @@ int main(int argc, char *argv[])
    return 242;
 #endif
 
-   // Initialize MPI.
-   MPI_Session mpi(argc, argv);
+   // Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   Hypre::Init();
 
    StopWatch chrono;
    auto ResetTimer = [&chrono]() { chrono.Clear(); chrono.Start(); };
@@ -266,12 +267,12 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root()) { args.PrintUsage(cout); }
+      if (Mpi::Root()) { args.PrintUsage(cout); }
       return 1;
    }
-   if (mpi.Root()) { args.PrintOptions(cout); }
+   if (Mpi::Root()) { args.PrintOptions(cout); }
 
-   if (mpi.Root() && par_ref_levels == 0)
+   if (Mpi::Root() && par_ref_levels == 0)
    {
       std::cout << "WARNING: DivFree solver is equivalent to BDPMinresSolver "
                 << "when par_ref_levels == 0.\n";
@@ -280,7 +281,8 @@ int main(int argc, char *argv[])
    // Initialize the mesh, boundary attributes, and solver parameters
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   int ser_ref_lvls = (int)ceil(log(mpi.WorldSize()/mesh->GetNE())/log(2.)/dim);
+   int ser_ref_lvls =
+      (int)ceil(log(Mpi::WorldSize()/mesh->GetNE())/log(2.)/dim);
    for (int i = 0; i < ser_ref_lvls; ++i)
    {
       mesh->UniformRefinement();
@@ -295,7 +297,7 @@ int main(int argc, char *argv[])
    }
    if (IsAllNeumannBoundary(ess_bdr))
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "\nSolution is not unique when Neumann boundary condition is "
               << "imposed on the entire boundary. \nPlease provide a different "
@@ -316,7 +318,7 @@ int main(int argc, char *argv[])
    const DFSData& DFS_data = darcy.GetDFSData();
    delete mesh;
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << line << "System assembled in " << chrono.RealTime() << "s.\n";
       cout << "Dimension of the physical space: " << dim << "\n";
@@ -360,7 +362,7 @@ int main(int argc, char *argv[])
       solver->Mult(darcy.GetRHS(), sol);
       chrono.Stop();
 
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << line << name << " solver:\n   Setup time: "
               << setup_time[solver] << "s.\n   Solve time: "
@@ -370,9 +372,9 @@ int main(int argc, char *argv[])
       }
       if (show_error && std::strcmp(coef_file, "") == 0)
       {
-         darcy.ShowError(sol, mpi.Root());
+         darcy.ShowError(sol, Mpi::Root());
       }
-      else if (show_error && mpi.Root())
+      else if (show_error && Mpi::Root())
       {
          cout << "Exact solution is unknown for coefficient '" << coef_file
               << "'.\nApproximation error is computed in this case!\n\n";

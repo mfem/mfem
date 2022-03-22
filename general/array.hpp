@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -473,6 +473,7 @@ class BlockArray
 public:
    BlockArray(int block_size = 16*1024);
    BlockArray(const BlockArray<T> &other); // deep copy
+   BlockArray& operator=(const BlockArray&) = delete; // not supported
    ~BlockArray() { Destroy(); }
 
    /// Allocate and construct a new item in the array, return its index.
@@ -1044,8 +1045,7 @@ void BlockArray<T>::Swap(BlockArray<T> &other)
 template<typename T>
 long BlockArray<T>::MemoryUsage() const
 {
-   return blocks.Size()*(mask+1)*sizeof(T) +
-          blocks.MemoryUsage();
+   return (mask+1)*sizeof(T)*blocks.Size() + blocks.MemoryUsage();
 }
 
 template<typename T>

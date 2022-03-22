@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -474,9 +474,10 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    else
    {
       int spaceDim = pfes->GetMesh()->SpaceDimension();
-      DenseMatrix vshape(dof, spaceDim);
+      int vdim = std::max(spaceDim, fe->GetVDim());
+      DenseMatrix vshape(dof, vdim);
       fe->CalcVShape(T, vshape);
-      val.SetSize(spaceDim);
+      val.SetSize(vdim);
       vshape.MultTranspose(loc_data, val);
    }
 }

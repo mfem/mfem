@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -285,11 +285,10 @@ private:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI
-   int num_procs, myrank;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int myrank = Mpi::WorldRank();
+   Hypre::Init();
    // Define Caliper ConfigManager
 #ifdef MFEM_USE_CALIPER
    cali::ConfigManager mgr;
@@ -368,7 +367,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(std::cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myrank == 0)
@@ -547,7 +545,6 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_CALIPER
    mgr.flush();
 #endif
-   MPI_Finalize();
 
    return 0;
 }

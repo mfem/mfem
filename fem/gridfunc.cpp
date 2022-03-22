@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -130,16 +130,16 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
       }
       else
       {
-         memcpy(g_data+vdim*vi, l_data, vdim*l_nvdofs*sizeof(double));
+         memcpy(g_data+vdim*vi, l_data, l_nvdofs*sizeof(double)*vdim);
          l_data += vdim*l_nvdofs;
          g_data += vdim*g_nvdofs;
-         memcpy(g_data+vdim*ei, l_data, vdim*l_nedofs*sizeof(double));
+         memcpy(g_data+vdim*ei, l_data, l_nedofs*sizeof(double)*vdim);
          l_data += vdim*l_nedofs;
          g_data += vdim*g_nedofs;
-         memcpy(g_data+vdim*fi, l_data, vdim*l_nfdofs*sizeof(double));
+         memcpy(g_data+vdim*fi, l_data, l_nfdofs*sizeof(double)*vdim);
          l_data += vdim*l_nfdofs;
          g_data += vdim*g_nfdofs;
-         memcpy(g_data+vdim*di, l_data, vdim*l_nddofs*sizeof(double));
+         memcpy(g_data+vdim*di, l_data, l_nddofs*sizeof(double)*vdim);
          l_data += vdim*l_nddofs;
          g_data += vdim*g_nddofs;
       }
@@ -337,7 +337,28 @@ int GridFunction::VectorDim() const
    {
       return fes->GetVDim();
    }
-   return fes->GetVDim()*fes->GetMesh()->SpaceDimension();
+   return fes->GetVDim()*std::max(fes->GetMesh()->SpaceDimension(),
+                                  fe->GetVDim());
+}
+
+int GridFunction::CurlDim() const
+{
+   const FiniteElement *fe;
+   if (!fes->GetNE())
+   {
+      static const Geometry::Type geoms[3] =
+      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
+      fe = fec->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
+   }
+   else
+   {
+      fe = fes->GetFE(0);
+   }
+   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return 2 * fes->GetMesh()->SpaceDimension() - 3;
+   }
+   return fes->GetVDim()*fe->GetCurlDim();
 }
 
 void GridFunction::GetTrueDofs(Vector &tv) const
@@ -476,12 +497,12 @@ void GridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    }
    else
    {
-      int spaceDim = fes->GetMesh()->SpaceDimension();
-      DenseMatrix vshape(dof, spaceDim);
+      int vdim = VectorDim();
+      DenseMatrix vshape(dof, vdim);
       ElementTransformation *Tr = fes->GetElementTransformation(i);
       Tr->SetIntPoint(&ip);
       FElem->CalcVShape(*Tr, vshape);
-      val.SetSize(spaceDim);
+      val.SetSize(vdim);
       vshape.MultTranspose(loc_data, val);
    }
 }
@@ -1009,9 +1030,10 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
    else
    {
       int spaceDim = fes->GetMesh()->SpaceDimension();
-      DenseMatrix vshape(dof, spaceDim);
+      int vdim = std::max(spaceDim, fe->GetVDim());
+      DenseMatrix vshape(dof, vdim);
       fe->CalcVShape(T, vshape);
-      val.SetSize(spaceDim);
+      val.SetSize(vdim);
       vshape.MultTranspose(loc_data, val);
    }
 }
@@ -1060,9 +1082,10 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
    else
    {
       int spaceDim = fes->GetMesh()->SpaceDimension();
-      DenseMatrix vshape(dof, spaceDim);
+      int vdim = std::max(spaceDim, FElem->GetVDim());
+      DenseMatrix vshape(dof, vdim);
 
-      vals.SetSize(spaceDim, nip);
+      vals.SetSize(vdim, nip);
       Vector val_j;
 
       for (int j = 0; j < nip; j++)
@@ -1563,20 +1586,9 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
             {
                doftrans->InvTransformPrimal(loc_data);
             }
-            DenseMatrix curl_shape(fe->GetDof(), fe->GetDim() == 3 ? 3 : 1);
-            fe->CalcCurlShape(T.GetIntPoint(), curl_shape);
-            curl.SetSize(curl_shape.Width());
-            if (curl_shape.Width() == 3)
-            {
-               double curl_hat[3];
-               curl_shape.MultTranspose(loc_data, curl_hat);
-               T.Jacobian().Mult(curl_hat, curl);
-            }
-            else
-            {
-               curl_shape.MultTranspose(loc_data, curl);
-            }
-            curl /= T.Weight();
+            DenseMatrix curl_shape(fe->GetDof(), fe->GetCurlDim());
+            fe->CalcPhysCurlShape(T, curl_shape);
+            curl_shape.MultTranspose(loc_data, curl);
          }
       }
       break;
@@ -2497,6 +2509,8 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, int attribute)
    Array<int> vdofs;
    Vector vals;
 
+   DofTransformation * doftrans = NULL;
+
    for (i = 0; i < fes->GetNE(); i++)
    {
       if (fes->GetAttribute(i) != attribute)
@@ -2504,9 +2518,13 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, int attribute)
          continue;
       }
 
-      fes->GetElementVDofs(i, vdofs);
+      doftrans = fes->GetElementVDofs(i, vdofs);
       vals.SetSize(vdofs.Size());
       fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+      if (doftrans)
+      {
+         doftrans->TransformPrimal(vals);
+      }
       SetSubVector(vdofs, vals);
    }
 }
@@ -2871,10 +2889,9 @@ double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
    const FiniteElement *fe;
    ElementTransformation *Tr;
    Array<int> dofs;
-   Vector curl;
    int intorder;
-   int dim = fes->GetMesh()->SpaceDimension();
-   int n = (dim == 3) ? dim : 1;
+   int n = CurlDim();
+   Vector curl(n);
    Vector vec(n);
 
    for (int i = 0; i < fes->GetNE(); i++)
@@ -3949,16 +3966,16 @@ std::ostream &operator<<(std::ostream &os, const QuadratureFunction &qf)
    return os;
 }
 
-void QuadratureFunction::SaveVTU(std::ostream &out, VTKFormat format,
+void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
                                  int compression_level) const
 {
-   out << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
+   os << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
    if (compression_level != 0)
    {
-      out << R"( compressor="vtkZLibDataCompressor")";
+      os << R"( compressor="vtkZLibDataCompressor")";
    }
-   out << " byte_order=\"" << VTKByteOrder() << "\">\n";
-   out << "<UnstructuredGrid>\n";
+   os << " byte_order=\"" << VTKByteOrder() << "\">\n";
+   os << "<UnstructuredGrid>\n";
 
    const char *fmt_str = (format == VTKFormat::ASCII) ? "ascii" : "binary";
    const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
@@ -3970,13 +3987,13 @@ void QuadratureFunction::SaveVTU(std::ostream &out, VTKFormat format,
 
    // For quadrature functions, each point is a vertex cell, so number of cells
    // is equal to number of points
-   out << "<Piece NumberOfPoints=\"" << np
-       << "\" NumberOfCells=\"" << np << "\">\n";
+   os << "<Piece NumberOfPoints=\"" << np
+      << "\" NumberOfCells=\"" << np << "\">\n";
 
    // print out the points
-   out << "<Points>\n";
-   out << "<DataArray type=\"" << type_str
-       << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
+   os << "<Points>\n";
+   os << "<DataArray type=\"" << type_str
+      << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
 
    Vector pt(sdim);
    for (int i = 0; i < ne; i++)
@@ -3986,60 +4003,60 @@ void QuadratureFunction::SaveVTU(std::ostream &out, VTKFormat format,
       for (int j = 0; j < ir.Size(); j++)
       {
          T.Transform(ir[j], pt);
-         WriteBinaryOrASCII(out, buf, pt[0], " ", format);
-         if (sdim > 1) { WriteBinaryOrASCII(out, buf, pt[1], " ", format); }
-         else { WriteBinaryOrASCII(out, buf, 0.0, " ", format); }
-         if (sdim > 2) { WriteBinaryOrASCII(out, buf, pt[2], "", format); }
-         else { WriteBinaryOrASCII(out, buf, 0.0, "", format); }
-         if (format == VTKFormat::ASCII) { out << '\n'; }
+         WriteBinaryOrASCII(os, buf, pt[0], " ", format);
+         if (sdim > 1) { WriteBinaryOrASCII(os, buf, pt[1], " ", format); }
+         else { WriteBinaryOrASCII(os, buf, 0.0, " ", format); }
+         if (sdim > 2) { WriteBinaryOrASCII(os, buf, pt[2], "", format); }
+         else { WriteBinaryOrASCII(os, buf, 0.0, "", format); }
+         if (format == VTKFormat::ASCII) { os << '\n'; }
       }
    }
    if (format != VTKFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(out, buf, compression_level);
+      WriteBase64WithSizeAndClear(os, buf, compression_level);
    }
-   out << "</DataArray>\n";
-   out << "</Points>\n";
+   os << "</DataArray>\n";
+   os << "</Points>\n";
 
    // Write cells (each cell is just a vertex)
-   out << "<Cells>\n";
+   os << "<Cells>\n";
    // Connectivity
-   out << R"(<DataArray type="Int32" Name="connectivity" format=")"
-       << fmt_str << "\">\n";
+   os << R"(<DataArray type="Int32" Name="connectivity" format=")"
+      << fmt_str << "\">\n";
 
-   for (int i=0; i<np; ++i) { WriteBinaryOrASCII(out, buf, i, "\n", format); }
+   for (int i=0; i<np; ++i) { WriteBinaryOrASCII(os, buf, i, "\n", format); }
    if (format != VTKFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(out, buf, compression_level);
+      WriteBase64WithSizeAndClear(os, buf, compression_level);
    }
-   out << "</DataArray>\n";
+   os << "</DataArray>\n";
    // Offsets
-   out << R"(<DataArray type="Int32" Name="offsets" format=")"
-       << fmt_str << "\">\n";
-   for (int i=0; i<np; ++i) { WriteBinaryOrASCII(out, buf, i, "\n", format); }
+   os << R"(<DataArray type="Int32" Name="offsets" format=")"
+      << fmt_str << "\">\n";
+   for (int i=0; i<np; ++i) { WriteBinaryOrASCII(os, buf, i, "\n", format); }
    if (format != VTKFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(out, buf, compression_level);
+      WriteBase64WithSizeAndClear(os, buf, compression_level);
    }
-   out << "</DataArray>\n";
+   os << "</DataArray>\n";
    // Types
-   out << R"(<DataArray type="UInt8" Name="types" format=")"
-       << fmt_str << "\">\n";
+   os << R"(<DataArray type="UInt8" Name="types" format=")"
+      << fmt_str << "\">\n";
    for (int i = 0; i < np; i++)
    {
       uint8_t vtk_cell_type = VTKGeometry::POINT;
-      WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", format);
+      WriteBinaryOrASCII(os, buf, vtk_cell_type, "\n", format);
    }
    if (format != VTKFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(out, buf, compression_level);
+      WriteBase64WithSizeAndClear(os, buf, compression_level);
    }
-   out << "</DataArray>\n";
-   out << "</Cells>\n";
+   os << "</DataArray>\n";
+   os << "</Cells>\n";
 
-   out << "<PointData>\n";
-   out << "<DataArray type=\"" << type_str << "\" Name=\"u\" format=\""
-       << fmt_str << "\" NumberOfComponents=\"" << vdim << "\">\n";
+   os << "<PointData>\n";
+   os << "<DataArray type=\"" << type_str << "\" Name=\"u\" format=\""
+      << fmt_str << "\" NumberOfComponents=\"" << vdim << "\">\n";
    for (int i = 0; i < ne; i++)
    {
       DenseMatrix vals;
@@ -4048,21 +4065,21 @@ void QuadratureFunction::SaveVTU(std::ostream &out, VTKFormat format,
       {
          for (int vd = 0; vd < vdim; ++vd)
          {
-            WriteBinaryOrASCII(out, buf, vals(vd, j), " ", format);
+            WriteBinaryOrASCII(os, buf, vals(vd, j), " ", format);
          }
-         if (format == VTKFormat::ASCII) { out << '\n'; }
+         if (format == VTKFormat::ASCII) { os << '\n'; }
       }
    }
    if (format != VTKFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(out, buf, compression_level);
+      WriteBase64WithSizeAndClear(os, buf, compression_level);
    }
-   out << "</DataArray>\n";
-   out << "</PointData>\n";
+   os << "</DataArray>\n";
+   os << "</PointData>\n";
 
-   out << "</Piece>\n";
-   out << "</UnstructuredGrid>\n";
-   out << "</VTKFile>" << std::endl;
+   os << "</Piece>\n";
+   os << "</UnstructuredGrid>\n";
+   os << "</VTKFile>" << std::endl;
 }
 
 void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,

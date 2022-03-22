@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -383,9 +383,9 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
    int order = -1;
    bool legacy_elem = false, lagrange_elem = false;
 
-   int j = 0;
    for (int i = 0; i < NumOfElements; i++)
    {
+      int j = (i > 0) ? cell_offsets[i-1] : 0;
       int ct = cell_types[i];
       Geometry::Type geom = VTKGeometry::GetMFEMGeometry(ct);
       elements[i] = NewElement(geom);
@@ -423,7 +423,6 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
                   "Mixing of legacy and Lagrange cell types is not supported");
       Dim = elem_dim;
       order = elem_order;
-      j = cell_offsets[i];
    }
 
    // determine spaceDim based on min/max differences detected each dimension
@@ -487,12 +486,12 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
       // canonical order
 
       // Keep the original ordering of the vertices
-      int i, n;
-      for (n = i = 0; i < np; i++)
+      NumOfVertices = 0;
+      for (int i = 0; i < np; i++)
       {
          if (pts_dof[i] != -1)
          {
-            pts_dof[i] = n++;
+            pts_dof[i] = NumOfVertices++;
          }
       }
       // update the element vertices
@@ -506,8 +505,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
          }
       }
       // Define the 'vertices' from the 'points' through the 'pts_dof' map
-      NumOfVertices = n;
-      vertices.SetSize(n);
+      vertices.SetSize(NumOfVertices);
       for (int i = 0; i < np; i++)
       {
          int j = pts_dof[i];
@@ -2655,7 +2653,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          }
          int num_per_ent;
          int num_nodes;
-         int slave, master;
          input >> num_per_ent;
          getline(input, buff); // Read end-of-line
          for (int i = 0; i < num_per_ent; i++)
@@ -2672,6 +2669,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             }
             for (int j=0; j<num_nodes; j++)
             {
+               int slave, master;
                input >> slave >> master;
                v2v[slave - 1] = master - 1;
             }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -909,17 +909,17 @@ void ParaViewDataCollection::Save()
    // Save the local part of the mesh and grid functions fields to the local
    // VTU file
    {
-      std::ofstream out(vtu_prefix + GenerateVTUFileName("proc", myid));
-      out.precision(precision);
-      SaveDataVTU(out, levels_of_detail);
+      std::ofstream os(vtu_prefix + GenerateVTUFileName("proc", myid));
+      os.precision(precision);
+      SaveDataVTU(os, levels_of_detail);
    }
 
    // Save the local part of the quadrature function fields
    for (const auto &qfield : q_field_map)
    {
       const std::string &field_name = qfield.first;
-      std::ofstream out(vtu_prefix + GenerateVTUFileName(field_name, myid));
-      qfield.second->SaveVTU(out, pv_data_format, compression);
+      std::ofstream os(vtu_prefix + GenerateVTUFileName(field_name, myid));
+      qfield.second->SaveVTU(os, pv_data_format, compression);
    }
 
    // MPI rank 0 also creates a "PVTU" file that points to all of the separately
