@@ -270,12 +270,12 @@ static void Name(bm::State &state){\
 }\
 BENCHMARK(Name)\
             -> ArgsProduct({N_SIDES, P_ORDERS})\
-            -> Unit(bm::kMillisecond);
-//-> Iterations(10);
+            -> Unit(bm::kMillisecond)\
+            -> Iterations(10);
 
 Benchmark(SanityChecks)
 
-Benchmark(KerLegacy)
+//Benchmark(KerLegacy)
 Benchmark(KerFull)
 Benchmark(KerBatched)
 

@@ -41,15 +41,13 @@ namespace mfem
 
 ////////////////////////////////////////////////////////////////////////////////
 #ifdef MFEM_USE_MPI
-static MPI_Session *mpi;
-#define mpiRoot mpi->Root()
-#define mpiWorldSize mpi->WorldSize()
-#define mpiWorldRank mpi->WorldRank()
+#define MpiRoot Mpi::Root()
+#define MpiWorldSize Mpi::WorldSize()
+#define MpiWorldRank Mpi::WorldRank()
 #else
-typedef int MPI_Session;
-#define mpiRoot true
-#define mpiWorldSize 1
-#define mpiWorldRank 0
+#define MpiRoot true
+#define MpiWorldSize 1
+#define MpiWorldRank 0
 #define GlobalTrueVSize GetVSize
 #define HYPRE_Int int
 #define MPI_COMM_WORLD
@@ -387,6 +385,7 @@ public:
       OperatorPtr A_prec;
       if (NeedsLOR(config))
       {
+         assert(false);
          ParMesh &mesh = *pfes.GetParMesh();
          int order = pfes.GetOrder(0); // <-- Assume uniform p
          lor_diffusion.reset(new LORDiffusion(mesh, order, coeff, ess_dofs));
@@ -814,7 +813,7 @@ struct CGMonitor : IterativeSolverMonitor
       MFEM_CONTRACT_VAR(norm);
       if (
 #ifdef MFEM_USE_MPI
-         mpi->Root() &&
+         MpiRoot &&
 #endif
          (it == 0 || final))
       {
@@ -981,8 +980,8 @@ struct BakeOff
            bool rhs_1, int rhs_n,
            int p, int vdim, bool GLL):
       mg_solver(preconditioner >= FinePrecondType::MGJacobi),
-      num_procs(mpiWorldSize),
-      myid(mpiWorldRank),
+      num_procs(MpiWorldSize),
+      myid(MpiWorldRank),
       p(p),
       c(side),
       q(2*p + (GLL?-1:3)),
@@ -1331,7 +1330,7 @@ static void BPS##i##_##Precond(bm::State &state){\
    const bool rhs_n = 3;\
    const bool rhs_1 = true;\
    const int smoothness = 0;\
-   const int nranks = mpiWorldSize;\
+   const int nranks = MpiWorldSize;\
    const int side = state.range(0);\
    const int order = state.range(1);\
    const int epsilon = state.range(2);\
@@ -1350,14 +1349,16 @@ static void BPS##i##_##Precond(bm::State &state){\
    state.counters["Tsolve"] = bm::Counter(bps.TSolve(), bm::Counter::kAvgIterations);}\
 BENCHMARK(BPS##i##_##Precond)\
     -> ArgsProduct({P_SIDES,P_ORDERS,P_EPSILONS})\
-    -> Unit(bm::kMillisecond);
-//    -> Iterations(10);
+    -> Unit(bm::kMillisecond)\
+    -> Iterations(10);
 
 /// BPS3: scalar PCG with stiffness matrix, q=p+2
 //BakeOff_Solver(3,Diffusion,None)
 BakeOff_Solver(3,Diffusion,Jacobi)
+
 //BakeOff_Solver(3,Diffusion,BoomerAMG)
 BakeOff_Solver(3,Diffusion,LORBatch)
+
 //BakeOff_Solver(3,Diffusion,MGJacobi)
 BakeOff_Solver(3,Diffusion,MGFAHypre)
 BakeOff_Solver(3,Diffusion,MGWavelets)
@@ -1374,8 +1375,8 @@ BakeOff_Solver(3,Diffusion,MGFAWavelets)
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
-   mfem::MPI_Session main_mpi(argc, argv);
-   mpi = &main_mpi;
+   Mpi::Init();
+   Hypre::Init();
 #endif
 
    bm::ConsoleReporter CR;
@@ -1409,13 +1410,13 @@ int main(int argc, char *argv[])
       bmi::FindInContext("caliper", use_caliper);
       bmi::FindInContext("dev_size", config_dev_size);
    }
-   const int mpi_rank = mpiWorldRank;
-   const int mpi_size = mpiWorldSize;
+   const int mpi_rank = MpiWorldRank;
+   const int mpi_size = MpiWorldSize;
    const int dev = mpi_rank % config_dev_size;
    dbg("[MPI] rank: %d/%d, using device #%d", 1+mpi_rank, mpi_size, dev);
 
    Device device(config_device.c_str(), dev);
-   if (mpiRoot) { device.Print(); }
+   if (MpiRoot) { device.Print(); }
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }
 
@@ -1433,7 +1434,7 @@ int main(int argc, char *argv[])
 #ifndef MFEM_USE_MPI
    bm::RunSpecifiedBenchmarks(&CR);
 #else
-   if (mpi->Root()) { bm::RunSpecifiedBenchmarks(&CR); }
+   if (MpiRoot) { bm::RunSpecifiedBenchmarks(&CR); }
    else
    {
       // No display_reporter and file_reporter

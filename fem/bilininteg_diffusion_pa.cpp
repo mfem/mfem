@@ -641,6 +641,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
       switch (id) // orders 1~8
       {
+         case 0x22: KoG=GetCollocatedGrad<2,2>; break; // 1
          case 0x23: KoG=GetCollocatedGrad<2,3>; break; // 1
          case 0x34: KoG=GetCollocatedGrad<3,4>; break; // 2
          case 0x45: KoG=GetCollocatedGrad<4,5>; break; // 3
