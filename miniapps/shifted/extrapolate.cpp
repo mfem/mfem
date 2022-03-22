@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//            ------------------------------------------------
-//            Extrapolation Miniapp: PDE-based extrapolation
-//            ------------------------------------------------
+//             ----------------------------------------------
+//             Extrapolation Miniapp: PDE-based extrapolation
+//             ----------------------------------------------
 //
 // This miniapp extrapolates a finite element function from a set of elements
 // (known values) to the rest of the domain. The set of elements that contains
