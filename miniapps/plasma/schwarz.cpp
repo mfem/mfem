@@ -378,6 +378,390 @@ VertexPatchInfo::VertexPatchInfo(ParMesh *pmesh_, int ref_levels_)
    delete aux_fec;
 }
 
+SparseBooleanMatrix::SparseBooleanMatrix(SparseBooleanMatrix const& M)
+  : n(M.GetSize()), a(M.GetSize())
+{
+  for (int row=0; row<n; ++row)
+    {
+      for (auto col : M.GetRow(row))
+	{
+	  a[row].push_back(col);
+	}
+    }
+}
+
+void SparseBooleanMatrix::SetEntry(int row, int col)
+{
+  bool found = false;
+  for (auto i : a[row])
+    {
+      if (i == col)
+	found = true;
+    }
+
+  if (!found)
+    a[row].push_back(col);
+}
+
+SparseBooleanMatrix* SparseBooleanMatrix::Transpose() const
+{
+  SparseBooleanMatrix *t = new SparseBooleanMatrix(n);
+  for (int r=0; r<n; ++r)
+    {
+      for (auto c : a[r])
+	{
+	  t->SetEntry(c, r);
+	}
+    }
+
+  return t;
+}
+
+SparseBooleanMatrix* SparseBooleanMatrix::Mult(SparseBooleanMatrix const& M) const
+{
+  MFEM_VERIFY(M.GetSize() == n, "");
+  SparseBooleanMatrix *p = new SparseBooleanMatrix(n);
+
+  // TODO: this could be optimized, but for now just using it for
+  // matrices with 2 nonzeros per row.
+
+  SparseBooleanMatrix *Mt = M.Transpose();
+
+  for (int r=0; r<n; ++r)
+    {
+      std::set<int> row;
+      for (auto c : a[r])
+	{
+	  row.insert(c);
+	}
+
+      // TODO: this is O(n^2), which can be improved.
+      for (int c=0; c<n; ++c)
+	{
+	  for (auto i : Mt->GetRow(c))  // entry (c,i) is in Mt, so (i,c) is in M
+	    {
+	      std::set<int>::iterator it = row.find(i);
+	      if (it != row.end())
+		{
+		  p->SetEntry(r, c);
+		}
+	    }
+	}
+    }
+
+  delete Mt;
+
+  return p;
+}
+
+SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
+{
+  const int distance = 2; // What is this?
+  double threshold = 1.01;
+
+  // TODO: generalize to 3D
+  const int dim = 2;
+
+  // TODO: generalize by allowing to use TotBFunc
+  Vector bvec(dim);
+  bvec[0] = 1.0;
+  bvec[1] = 0.0;
+
+  const int nv = pmesh->GetNV();
+
+  Array<bool> node_flag(nv);
+  node_flag = false;
+
+  // TODO: generalize for parallel case
+  SparseBooleanMatrix A(nv);
+  SparseMatrix *G = new SparseMatrix(nv);
+
+  // Set an entry of A for each edge in pmesh, connecting the two vertices
+  for (int i=0; i<pmesh->GetNEdges(); ++i)
+    {
+      Array<int> vert;
+      pmesh->GetEdgeVertices(i, vert);
+      MFEM_VERIFY(vert.Size() == 2, "");
+      A.SetEntry(vert[0], vert[1]);
+    }
+
+  SparseBooleanMatrix *dis_A = new SparseBooleanMatrix(A);
+  for (int i=0; i<distance-1; ++i)
+    {
+      SparseBooleanMatrix *prod = dis_A->Mult(A);
+      delete dis_A;
+      dis_A = prod;
+    }
+
+  // Loop over all nonzero entries in dis_A
+  for (int v0=0; v0<dis_A->GetSize(); ++v0)
+    {
+      for (auto v1 : dis_A->GetRow(v0))
+	{
+	  // Entry (v0,v1) is in dis_A
+	  Vector midpoint(dim);  // used for B-field calculation at midpoint
+	  Vector tang(dim);
+	  double *v0crd = pmesh->GetVertex(v0);
+	  double *v1crd = pmesh->GetVertex(v1);
+
+	  double bnorm = 0.0;
+	  double tnorm = 0.0;
+	  double ip = 0.0;
+	  for (int i=0; i<dim; ++i)
+	    {
+	      midpoint[i] = 0.5 * (v0crd[i] + v1crd[i]);
+	      tang = v1crd[i] - v0crd[i];
+
+	      bnorm += bvec[i] * bvec[i];
+	      tnorm += tang[i] * tang[i];
+
+	      ip += bvec[i] * tang[i];
+	    }
+
+	  bnorm = sqrt(bnorm);
+	  tnorm = sqrt(tnorm);
+
+	  const double cos_theta = ip / (bnorm * tnorm);
+	  const double edge_weight = 1.0 / (fabs(cos_theta) + 1.0e-6);
+	  if (edge_weight > threshold)
+	    {
+	      G->Set(v0, v1, edge_weight);
+	      node_flag[v0] = true;
+	      node_flag[v1] = true;
+	    }
+	  // TODO: you may need to rotate b?
+	}
+    }
+
+  delete dis_A;
+
+  // Find any nodes not in G
+  for (int i=0; i<nv; ++i)
+    {
+      if (!node_flag[i])
+	G->Set(i,i,-1.0);  // Weight -1 indicates it is not connected to another node
+    }
+
+  G->Finalize();
+  return G;
+}
+
+std::vector<int>* GetPathCover(SparseMatrix *G, int& npath)
+{
+  const int nnode = G->Size();
+  int nedge = 0;
+
+  // Set nedge = G.number_of_edges()
+
+  // TODO: keep it like this, or simplify by not storing -1 on diagonal for unflagged nodes?
+
+  for (int r=0; r<nnode; ++r)
+    {
+      const int s = G->RowSize(r);
+      int *cols = G->GetRowColumns(r);
+      for (int i=0; i<s; ++i)
+	{
+	  if (cols[i] != r)
+	    nedge++;
+	}
+    }
+
+  MFEM_VERIFY(nedge > 0, "");
+
+  std::vector<double> weight(nedge);
+  std::vector<std::vector<int>> edgeList(nedge);
+
+  std::vector<std::vector<int>> pathNeighbor(nnode);
+  std::vector<int> *pathFlag = new std::vector<int>();
+  pathFlag->assign(nnode, -2);
+
+  for (int r=0; r<nnode; ++r)
+    {
+      pathNeighbor[r].assign(2, -2);  // Initialize to -2
+    }
+
+  int cnt = 0;
+  for (int r=0; r<nnode; ++r)
+    {
+      const int s = G->RowSize(r);
+      int *cols = G->GetRowColumns(r);
+      double *vals = G->GetRowEntries(r);
+      for (int i=0; i<s; ++i)
+	{
+	  if (cols[i] != r)
+	    {
+	      weight[cnt] = vals[i];
+	      edgeList[cnt].resize(2);
+	      edgeList[cnt][0] = r;
+	      edgeList[cnt][1] = cols[i];
+	      cnt++;
+	    }
+	}
+    }
+
+  MFEM_VERIFY(nedge == cnt, "");
+
+  // Find edge indices in order of descending weight
+  std::vector<int> isort(nedge);
+  {
+    for (int i=0; i<nedge; ++i)
+      {
+	isort[i] = i;
+      }
+
+    std::sort(isort.begin(), isort.end(), [&](const int& a, const int& b) {
+      return (weight[a] > weight[b]);
+    }
+      );  // descending order
+  }
+
+  npath = 0;
+
+  // TODO: how can pathNeighbor[u][1] be set but not pathNeighbor[u][0]?
+
+  // Loop over edges in order of descending weight
+  for (int i=0; i<nedge; ++i)
+    {
+      const int e = isort[i];
+      const int u = edgeList[e][0];
+      const int v = edgeList[e][1];
+
+      // If neither node v0 nor node v1 is in a path, create a new path
+      if (pathNeighbor[u][0] == -2 && pathNeighbor[u][1] == -2 && pathNeighbor[v][0] == -2 && pathNeighbor[v][1] == -2)
+	{
+	  pathNeighbor[u][0] = v;
+	  pathNeighbor[v][0] = u;
+	  (*pathFlag)[u] = npath;
+	  (*pathFlag)[v] = npath;
+	  npath++;
+	}
+      // node u is the end point of a path && node v is not in any path, append node v
+      else if ((pathNeighbor[u][0] != -2 | pathNeighbor[u][1] != -2) && pathNeighbor[v][0] == -2 && pathNeighbor[v][1] == -2)
+	{
+	  if (pathNeighbor[u][0] == -2)
+	    {
+	      pathNeighbor[u][0] = v;
+	      pathNeighbor[v][0] = u;
+	      (*pathFlag)[v] = (*pathFlag)[u];
+	    }
+	  else
+	    {
+	      pathNeighbor[u][1] = v;
+	      pathNeighbor[v][0] = u;
+	      (*pathFlag)[v] = (*pathFlag)[u];
+	    }
+	}
+      // node v is the end point of a path and node u is not in any path, append node u
+      else if (pathNeighbor[u][0] == -2 && pathNeighbor[u][1] == -2 && (pathNeighbor[v][0] == -2 | pathNeighbor[v][1] == -2))
+	{
+	  if (pathNeighbor[v][0] == -2)
+	    {
+	      pathNeighbor[v][0] = u;
+	      pathNeighbor[u][0] = v;
+	      (*pathFlag)[u] = (*pathFlag)[v];
+	    }
+	  else
+	    {
+	      pathNeighbor[v][1] = u;
+	      pathNeighbor[u][0] = v;
+	      (*pathFlag)[u] = (*pathFlag)[v];
+	    }
+	}
+      // both node u and node v are the end points of a path
+      else if ((pathNeighbor[u][0] == -2 | pathNeighbor[u][1] == -2) && (pathNeighbor[v][0] == -2 | pathNeighbor[v][1] == -2))
+	{
+	  // node u and v are endpoints of different path, merge paths
+	  if ((*pathFlag)[u] != (*pathFlag)[v])
+	    {
+	      // connect node u and v
+                if (pathNeighbor[u][0] == -2 && pathNeighbor[v][0] == -2)
+		  {
+                    pathNeighbor[u][0] = v;
+                    pathNeighbor[v][0] = u;
+		  }
+		else if (pathNeighbor[u][0] == -2 && pathNeighbor[v][1] == -2)
+		  {
+		    pathNeighbor[u][0] = v;
+		    pathNeighbor[v][1] = u;
+		  }
+		else if (pathNeighbor[u][1] == -2 && pathNeighbor[v][0] == -2)
+		  {
+                    pathNeighbor[u][1] = v;
+                    pathNeighbor[v][0] = u;
+		  }
+                else
+		  {
+                    pathNeighbor[u][1] = v;
+                    pathNeighbor[v][1] = u;
+		  }
+
+		// Merge the paths
+		// TODO: more efficient implementation of this
+                //pathFlag[pathFlag == pathFlag[v]] = pathFlag[u] # this can be done more efficiently
+		const int pfv = (*pathFlag)[v];
+		for (int j=0; j<nnode; ++j)
+		  {
+		    if ((*pathFlag)[j] == pfv)
+		      (*pathFlag)[j] = (*pathFlag)[u];
+		  }
+	    }
+	}
+    } // loop over edges
+
+  // Find the number of unique paths
+  std::set<int> pathFlags;
+  for (int j=0; j<nnode; ++j)
+    {
+      pathFlags.insert((*pathFlag)[j]);
+    }
+
+  npath = pathFlags.size();
+
+  std::map<int, int> uniquePath;
+
+  cnt = 0;
+  for (auto p : pathFlags)
+    {
+      uniquePath[p] = cnt;
+      cnt++;
+    }
+
+  // Reset path indices to range from 0 to npath-1
+
+  int maxFlag = 0;
+  for (int j=0; j<nnode; ++j)
+    {
+      (*pathFlag)[j] = uniquePath[(*pathFlag)[j]];
+      maxFlag = std::max(maxFlag, (*pathFlag)[j]);
+    }
+
+  MFEM_VERIFY(npath == maxFlag + 1, "");
+
+  return pathFlag;
+}
+
+int SetCoarseVertexLinePatches_GraphBased(ParMesh *pmesh, ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
+{
+  SparseMatrix *G = GetAnisotropicGraph_with_distance(pmesh);
+  //G = solver.GetAnisotropicGraph_with_distance(mesh, Gmesh, coord, b, distance, threshold)
+
+  int npaths = 0;
+  std::vector<int> *pathFlags = GetPathCover(G, npaths);
+
+  MFEM_VERIFY(pathFlags->size() == pmesh->GetNV(), "");
+
+  for (int i=0; i<pmesh->GetNV(); ++i)
+    {
+      Array<int> dofs;
+      fespace->GetVertexDofs(i, dofs);
+      MFEM_VERIFY(dofs.Size() == 1, "");
+
+      cdofToGlobalLine[dofs[0]] = (*pathFlags)[i];
+    }
+
+  return npaths;
+}
+
 int SetCoarseVertexLinePatches_xline(ParMesh *pmesh, ParFiniteElementSpace *fespace, Array<int> & cdofToGlobalLine)
 {
   Vector linecrd;
@@ -534,7 +918,8 @@ LinePatchInfo::LinePatchInfo(ParMesh *pmesh_, int ref_levels_)
    //const int nlines = SetCoarseVertexLinePatches_xline(pmesh, aux_fespace, cdofToGlobalLine);
    //const int nlines = SetCoarseVertexLinePatches_xy45line(pmesh, aux_fespace, cdofToGlobalLine);
 
-   int nlines = SetCoarseVertexLinePatches_Matlab(pmesh, aux_fespace, cdofToGlobalLine);
+   //int nlines = SetCoarseVertexLinePatches_Matlab(pmesh, aux_fespace, cdofToGlobalLine);
+   int nlines = SetCoarseVertexLinePatches_GraphBased(pmesh, aux_fespace, cdofToGlobalLine);
 
    // 2. Store the cDofTrueDof Matrix. Required after the refinements
    HypreParMatrix *cDofTrueDof = new HypreParMatrix(
@@ -1557,7 +1942,7 @@ SchwarzSmoother::SchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,
 #else
          PatchInv[ip] = new GMRESSolver;
          PatchInv[ip]->iterative_mode = false;
-         std::cout << "SchwarzSmoother using GMRESSolver size " << P->PatchMat[ip]->Height() << " x " << P->PatchMat[ip]->Width() << " sym " << P->PatchMat[ip]->IsSymmetric() << std::endl;
+         std::cout << "SchwarzSmoother using GMRESSolver size " << P->PatchMat[ip]->Height() << " x " << P->PatchMat[ip]->Width() << " sym " << P->PatchMat[ip]->IsSymmetric() << ", global size " << A_->Height() << std::endl;
 	 PatchInv[ip]->SetRelTol(1e-12);
          PatchInv[ip]->SetMaxIter(100);
 #endif

@@ -133,6 +133,29 @@ public:
    virtual ~PatchRestriction() {}
 };
 
+class SparseBooleanMatrix
+{
+public:
+  SparseBooleanMatrix(int dim) : n(dim), a(dim) { };
+
+  SparseBooleanMatrix(SparseBooleanMatrix const& M);
+
+  void SetEntry(int row, int col);
+
+  int GetSize() const { return n; }
+
+  const std::vector<int>& GetRow(int row) const { return a[row]; }
+
+  SparseBooleanMatrix* Mult(SparseBooleanMatrix const& M) const;
+
+  SparseBooleanMatrix* Transpose() const;
+
+private:
+  const int n;
+
+  std::vector<std::vector<int>> a;
+};
+
 class SchwarzSmoother : public Solver
 {
 private:
