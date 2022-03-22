@@ -85,9 +85,8 @@ protected:
 
    bool store_matrices = false;
 
-   // Store the matrices G ^-1, B  and  Vector l
-   // for computing the residual
-   Array<DenseMatrix * > Ginv;
+   // Store the matrix L^-1 B  and Vector L^-1 l
+   // where G = L L^t
    Array<DenseMatrix * > Bmat;
    Array<Vector * > fvec;
    Vector residuals;
@@ -230,14 +229,12 @@ public:
    void StoreMatrices(bool store_matrices_ = true)
    {
       store_matrices = store_matrices_;
-      if (Ginv.Size() == 0)
+      if (Bmat.Size() == 0)
       {
-         Ginv.SetSize(mesh->GetNE());
          Bmat.SetSize(mesh->GetNE());
          fvec.SetSize(mesh->GetNE());
          for (int i =0; i<mesh->GetNE(); i++)
          {
-            Ginv[i] = nullptr;
             Bmat[i] = nullptr;
             fvec[i] = nullptr;
          }
@@ -247,7 +244,6 @@ public:
    void EnableStaticCondensation();
 
    Vector & ComputeResidual(const BlockVector & x);
-
 
    /// Destroys bilinear form.
    virtual ~NormalEquations();

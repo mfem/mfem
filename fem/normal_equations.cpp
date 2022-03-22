@@ -53,7 +53,6 @@ void NormalEquations::Init()
 
    if (store_matrices)
    {
-      Ginv.SetSize(mesh->GetNE());
       Bmat.SetSize(mesh->GetNE());
       fvec.SetSize(mesh->GetNE());
    }
@@ -377,44 +376,23 @@ void NormalEquations::Assemble(int skip_zeros)
          }
       }
 
-
-      // DenseMatrixInverse Ginv
-
-      // // scale G B and rhs
-      // Vector diag(G.Height());
-      // G.GetDiag(diag);
-      // for (int i = 0; i<diag.Size(); i++)
-      // {
-      //    diag(i) = sqrt(diag(i));
-      // }
-      // G.LeftScaling(diag);
-      // G.RightScaling(diag);
-      // B.LeftScaling(diag);
-      // vec *= diag;
-
-      DenseMatrixInverse luG(G);
-      luG.Factor();
-
       // Form Normal Equations B^T G^-1 B = B^T G^-1 l
       Gvec.SetSize(G.Height());
       b.SetSize(B.Width());
       A.SetSize(B.Width());
 
+      CholeskyFactors chol(G.GetData());
+      chol.Factor(G.Height());
+
+      chol.LSolve(B.Height(), B.Width(), B.GetData());
+      chol.LSolve(vec.Size(), 1, vec.GetData());
       if (store_matrices)
       {
-         // save G^-1, B, l
-         Ginv[iel] = new DenseMatrix(G.Size());
-         luG.GetInverseMatrix(*Ginv[iel]);
          Bmat[iel] = new DenseMatrix(B);
          fvec[iel] = new Vector(vec);
       }
-      DenseMatrix GinvB(G.Height(),B.Width());
-      Vector Ginvl(G.Height());
-      luG.Mult(B,GinvB);
-      luG.Mult(vec,Ginvl);
-      mfem::MultAtB(B,GinvB,A);
-      B.MultTranspose(Ginvl,b);
-
+      mfem::MultAtB(B,B,A);
+      B.MultTranspose(vec,b);
 
       if (static_cond)
       {
@@ -710,18 +688,15 @@ void NormalEquations::Update()
 
    if (store_matrices)
    {
-      for (int i = 0; i<Ginv.Size(); i++)
+      for (int i = 0; i<Bmat.Size(); i++)
       {
-         delete Ginv[i]; Ginv[i] = nullptr;
          delete Bmat[i]; Bmat[i] = nullptr;
          delete fvec[i]; fvec[i] = nullptr;
       }
-      Ginv.SetSize(mesh->GetNE());
       Bmat.SetSize(mesh->GetNE());
       fvec.SetSize(mesh->GetNE());
-      for (int i = 0; i<Ginv.Size(); i++)
+      for (int i = 0; i<Bmat.Size(); i++)
       {
-         Ginv[i] = nullptr;
          Bmat[i] = nullptr;
          fvec[i] = nullptr;
       }
@@ -811,11 +786,10 @@ Vector & NormalEquations::ComputeResidual(const BlockVector & x)
          }
       } // end of loop through trial spaces
 
-      // residual
       Vector v(Bmat[iel]->Height());
       Bmat[iel]->Mult(u,v);
       v -= *fvec[iel];
-      residuals[iel] = sqrt(Ginv[iel]->InnerProduct(v,v));
+      residuals[iel] = v.Norml2();
    } // end of loop through elements
    return residuals;
 }
@@ -841,7 +815,6 @@ NormalEquations::~NormalEquations()
    {
       for (int i = 0; i<mesh->GetNE(); i++)
       {
-         delete Ginv[i]; Ginv[i] = nullptr;
          delete Bmat[i]; Bmat[i] = nullptr;
          delete fvec[i]; fvec[i] = nullptr;
       }
