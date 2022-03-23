@@ -785,12 +785,14 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    trial_fetype = trial_el->GetDerivType();
    test_fetype = test_el->GetDerivType();
 
+   auto SMQ = dynamic_cast<SymmetricMatrixCoefficient *>(MQ);
+
    const int MQsymmDim = SMQ ? (SMQ->GetSize() * (SMQ->GetSize() + 1)) / 2 : 0;
    const int MQfullDim = MQ ? (MQ->GetHeight() * MQ->GetWidth()) : 0;
-   const int MQdim = MQ ? MQfullDim : MQsymmDim;
-   const int coeffDim = (MQ || SMQ) ? MQdim : (DQ ? DQ->GetVDim() : 1);
+   const int MQdim = SMQ ? MQsymmDim : MQfullDim;
+   const int coeffDim = MQ ? MQdim : (DQ ? DQ->GetVDim() : 1);
 
-   symmetric = (MQ == NULL);
+   symmetric = (SMQ || MQ == NULL);
 
    const bool trial_curl = (trial_fetype == mfem::FiniteElement::CURL);
    const bool trial_div = (trial_fetype == mfem::FiniteElement::DIV);
@@ -807,7 +809,7 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    Vector coeff(coeffDim * ne * nq);
    coeff = 1.0;
    auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || DQ || MQ || SMQ)
+   if (Q || DQ || MQ)
    {
       Vector DM(DQ ? coeffDim : 0);
       DenseMatrix M;
@@ -817,34 +819,25 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       {
          MFEM_VERIFY(coeffDim == dim, "");
       }
-      if (MQ)
-      {
-         MFEM_VERIFY(coeffDim == MQdim, "");
-         MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
-         M.SetSize(dim);
-      }
       if (SMQ)
       {
          MFEM_VERIFY(SMQ->GetSize() == dim, "");
          SM.SetSize(dim);
       }
+      else if (MQ)
+      {
+         MFEM_VERIFY(coeffDim == MQdim, "");
+         MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
+         M.SetSize(dim);
+      }
+
 
       for (int e=0; e<ne; ++e)
       {
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            if (MQ)
-            {
-               MQ->Eval(M, *tr, ir->IntPoint(p));
-
-               for (int i=0; i<dim; ++i)
-                  for (int j=0; j<dim; ++j)
-                  {
-                     coeffh(j+(i*dim), p, e) = M(i,j);
-                  }
-            }
-            else if (SMQ)
+            if (SMQ)
             {
                SMQ->Eval(SM, *tr, ir->IntPoint(p));
                int cnt = 0;
@@ -852,6 +845,16 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                   for (int j=i; j<dim; ++j, ++cnt)
                   {
                      coeffh(cnt, p, e) = SM(i,j);
+                  }
+            }
+            else if (MQ)
+            {
+               MQ->Eval(M, *tr, ir->IntPoint(p));
+
+               for (int i=0; i<dim; ++i)
+                  for (int j=0; j<dim; ++j)
+                  {
+                     coeffh(j+(i*dim), p, e) = M(i,j);
                   }
             }
             else if (DQ)
@@ -1024,14 +1027,14 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       else if (trial_curl && test_div)
       {
-         const bool scalarCoeff = !(DQ || MQ || SMQ);
+         const bool scalarCoeff = !(DQ || MQ);
          PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
                                 true, mapsO->B, mapsC->B, mapsOtest->Bt,
                                 mapsCtest->Bt, pa_data, x, y);
       }
       else if (trial_div && test_curl)
       {
-         const bool scalarCoeff = !(DQ || MQ || SMQ);
+         const bool scalarCoeff = !(DQ || MQ);
          PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
                                 false, mapsO->B, mapsC->B, mapsOtest->Bt,
                                 mapsCtest->Bt, pa_data, x, y);
@@ -1055,7 +1058,7 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       else if ((trial_curl && test_div) || (trial_div && test_curl))
       {
-         const bool scalarCoeff = !(DQ || MQ || SMQ);
+         const bool scalarCoeff = !(DQ || MQ);
          PAHcurlHdivMassApply2D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
                                 trial_curl, mapsO->B, mapsC->B, mapsOtest->Bt,
                                 mapsCtest->Bt, pa_data, x, y);

@@ -106,30 +106,6 @@ void asymmetricMatrixCoeffFunction(const Vector & x, DenseMatrix & f)
    }
 }
 
-void fullSymmetricMatrixCoeffFunction(const Vector & x, DenseMatrix & f)
-{
-   f = 0.0;
-   if (dimension == 2)
-   {
-      f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
-      f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
-      f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
-      f(1,0) = f(0,1);
-   }
-   else if (dimension == 3)
-   {
-      f(0,0) = sin(M_PI * x[1]);  // 1,1
-      f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
-      f(0,2) = sin(4.9 * M_PI * x[2]);  // 1,3
-      f(1,1) = sin(6.1 * M_PI * x[1]);  // 2,2
-      f(1,2) = cos(6.1 * M_PI * x[2]);  // 2,3
-      f(2,2) = sin(6.1 * M_PI * x[2]);  // 3,3
-      f(1,0) = f(0,1);
-      f(2,0) = f(0,2);
-      f(2,1) = f(1,2);
-   }
-}
-
 void symmetricMatrixCoeffFunction(const Vector & x, DenseSymmetricMatrix & f)
 {
    f = 0.0;
@@ -150,7 +126,7 @@ void symmetricMatrixCoeffFunction(const Vector & x, DenseSymmetricMatrix & f)
    }
 }
 
-TEST_CASE("H1 pa_coeff")
+TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
@@ -176,7 +152,6 @@ TEST_CASE("H1 pa_coeff")
                Coefficient* coeff = nullptr;
                VectorCoefficient* vcoeff = nullptr;
                MatrixCoefficient* mcoeff = nullptr;
-               SymmetricMatrixCoefficient* smcoeff = nullptr;
                if (coeffType == 0)
                {
                   coeff = new ConstantCoefficient(1.0);
@@ -199,10 +174,8 @@ TEST_CASE("H1 pa_coeff")
                }
                else if (coeffType == 4)
                {
-                  mcoeff = new MatrixFunctionCoefficient(dimension,
-                                                         &fullSymmetricMatrixCoeffFunction);
-                  smcoeff = new SymmetricMatrixFunctionCoefficient(dimension,
-                                                                   &symmetricMatrixCoeffFunction);
+                  mcoeff = new SymmetricMatrixFunctionCoefficient(dimension,
+                                                                  &symmetricMatrixCoeffFunction);
                }
                else if (coeffType == 5)
                {
@@ -219,7 +192,7 @@ TEST_CASE("H1 pa_coeff")
                   }
                   else if (coeffType == 4)
                   {
-                     paform.AddDomainIntegrator(new DiffusionIntegrator(*smcoeff));
+                     paform.AddDomainIntegrator(new DiffusionIntegrator(*mcoeff));
                   }
                   else if (coeffType == 5)
                   {
@@ -292,7 +265,6 @@ TEST_CASE("H1 pa_coeff")
                delete coeff;
                delete vcoeff;
                delete mcoeff;
-               delete smcoeff;
                delete coeffGridFunction;
                delete h1_fec;
             }
@@ -301,8 +273,8 @@ TEST_CASE("H1 pa_coeff")
    }
 }
 
-TEST_CASE("Hcurl/Hdiv pa_coeff",
-          "[CUDA]")
+TEST_CASE("Hcurl/Hdiv PA Coefficient",
+          "[CUDA][PartialAssembly][Coefficient]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
@@ -315,7 +287,6 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
          Coefficient* coeff2 = nullptr;
          VectorCoefficient* vcoeff = nullptr;
          MatrixCoefficient* mcoeff = nullptr;
-         SymmetricMatrixCoefficient* smcoeff = nullptr;
          if (coeffType == 0)
          {
             coeff = new ConstantCoefficient(12.34);
@@ -333,10 +304,8 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
          }
          else if (coeffType == 3)
          {
-            mcoeff = new MatrixFunctionCoefficient(dimension,
-                                                   &fullSymmetricMatrixCoeffFunction);
-            smcoeff = new SymmetricMatrixFunctionCoefficient(dimension,
-                                                             &symmetricMatrixCoeffFunction);
+            mcoeff = new SymmetricMatrixFunctionCoefficient(dimension,
+                                                            &symmetricMatrixCoeffFunction);
             coeff2 = new FunctionCoefficient(&linearFunction);
          }
          else if (coeffType == 4)
@@ -465,14 +434,9 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
                      y_pa.SetSize(testSize);
                      y_pa = 0.0;
 
-                     if (coeffType >= 4)
+                     if (coeffType >= 3)
                      {
                         paform->AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
-                        assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
-                     }
-                     else if (coeffType == 3)
-                     {
-                        paform->AddDomainIntegrator(new VectorFEMassIntegrator(*smcoeff));
                         assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
                      }
                      else if (coeffType == 2)
@@ -533,14 +497,9 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
 
                      if (integrator < 2)
                      {
-                        if (coeffType >= 4)
+                        if (coeffType >= 3)
                         {
                            paform->AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
-                           assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
-                        }
-                        else if (coeffType == 3)
-                        {
-                           paform->AddDomainIntegrator(new VectorFEMassIntegrator(*smcoeff));
                            assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*mcoeff));
                         }
                         else if (coeffType == 2)
@@ -563,14 +522,9 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
                            const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
                                                                                      *mesh.GetElementTransformation(0));
 
-                           if (coeffType >= 4 && dimension == 3)
+                           if (coeffType >= 3 && dimension == 3)
                            {
                               paform->AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
-                              assemblyform->AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
-                           }
-                           else if (coeffType == 3 && dimension == 3)
-                           {
-                              paform->AddDomainIntegrator(new CurlCurlIntegrator(*smcoeff, intRule));
                               assemblyform->AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
                            }
                            else if (coeffType == 2 && dimension == 3)
@@ -629,13 +583,12 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
          delete coeff2;
          delete vcoeff;
          delete mcoeff;
-         delete smcoeff;
       }
    }
 }
 
-TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
-          "[CUDA]")
+TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
+          "[CUDA][PartialAssembly][Coefficient]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
