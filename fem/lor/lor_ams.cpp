@@ -171,7 +171,15 @@ void BatchedLOR_AMS::FormGradientMatrix()
    }
    else
    {
-      G = RAP(edge_fes.Dof_TrueDof_Matrix(),
+      OperatorHandle Rt(Transpose(*edge_fes.GetRestrictionMatrix()));
+      OperatorHandle Rt_diag(Operator::Hypre_ParCSR);
+      Rt_diag.MakeRectangularBlockDiag(edge_fes.GetComm(),
+                                       edge_fes.GlobalVSize(),
+                                       edge_fes.GlobalTrueVSize(),
+                                       edge_fes.GetDofOffsets(),
+                                       edge_fes.GetTrueDofOffsets(),
+                                       Rt.As<SparseMatrix>());
+      G = RAP(Rt_diag.As<HypreParMatrix>(),
               G_diag.As<HypreParMatrix>(),
               vert_fes.Dof_TrueDof_Matrix());
    }
@@ -206,8 +214,6 @@ void BatchedLOR_AMS::FormCoordinateVectors()
    const int ndp1 = order + 1;
    const int ndof_per_el = pow(ndp1, dim);
    const int sdim = dim;
-
-   const int ndofs = vert_fes.GetNDofs();
    const int ntdofs = R->Height();
 
    xyz_tvec = new Vector(ntdofs*dim);
