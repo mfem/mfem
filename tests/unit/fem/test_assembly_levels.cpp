@@ -145,6 +145,7 @@ void test_assembly_level(const char *meshname,
 
    k_ref.Assemble();
    k_ref.Finalize();
+   k_ref.SpMat().EnsureMultTranspose();
 
    k_test.SetAssemblyLevel(assembly);
    k_test.Assemble();
