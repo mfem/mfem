@@ -486,17 +486,33 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
                         assemblyform->AddDomainIntegrator(new VectorFEMassIntegrator(*coeff));
                      }
 
-                     if (spaceType == HcurlHdiv && dimension == 3)
+                     if (dimension == 3 && (spaceType == HcurlHdiv || spaceType == HdivHcurl))
                      {
                         if (coeffType == 2)
                         {
-                           paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
-                           assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+                           if (spaceType == HcurlHdiv)
+                           {
+                              paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+                              assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*vcoeff));
+                           }
+                           else
+                           {
+                              paform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*vcoeff));
+                              assemblyform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*vcoeff));
+                           }
                         }
                         else if (coeffType < 2)
                         {
-                           paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
-                           assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+                           if (spaceType == HcurlHdiv)
+                           {
+                              paform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+                              assemblyform->AddDomainIntegrator(new MixedVectorCurlIntegrator(*coeff));
+                           }
+                           else
+                           {
+                              paform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+                              assemblyform->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(*coeff));
+                           }
                         }
                      }
 
@@ -517,7 +533,8 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
                      A_explicit->Mult(xin, y_mat);
 
                      // Test the transpose
-                     if (spaceType == HcurlHdiv && dimension == 3)
+                     if ((spaceType == HcurlHdiv || spaceType == HdivHcurl) &&
+                         dimension == 3)
                      {
                         Vector u(testSize);
                         u.Randomize();
