@@ -43,4 +43,8 @@
 #include "mesh/mesh_headers.hpp"
 #include "fem/fem.hpp"
 
+#ifdef MFEM_USE_MOONOLITH
+#include "fem/moonolith/transfer.hpp"
+#endif //MFEM_USE_MOONOLITH
+
 #endif
