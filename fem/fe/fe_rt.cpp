@@ -1177,7 +1177,7 @@ void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
                                    Vector &divshape) const
 {
 #ifdef MFEM_THREAD_SAFE
-   Vector      trt_dshape(RTSegmentFE.GetDof());
+   Vector      trt_dshape(RTTriangleFE.GetDof());
    Vector      tl2_shape(L2TriangleFE.GetDof());
    Vector      sl2_shape(L2SegmentFE.GetDof());
    DenseMatrix sh1_dshape(H1SegmentFE.GetDof(), 1);
