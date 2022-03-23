@@ -1899,6 +1899,7 @@ protected:
                            const FiniteElementSpace &test_fes);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
 
 private:
    // PA extension
@@ -2655,6 +2656,7 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
 };
 
