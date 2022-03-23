@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
       auto *ams = new LORSolver<HypreAMS>(a, ess_dofs);
       {
          NVTX("AMS Setup");
-         ams->GetSolver().Setup(b, x);
+         ams->GetSolver().Setup(B, X);
       }
       solv_lor.reset(ams);
    }
