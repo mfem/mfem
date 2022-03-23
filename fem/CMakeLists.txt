@@ -166,6 +166,11 @@ set(HDRS
   ceed/util.hpp
   linearform.hpp
   lininteg.hpp
+  lor/lor.hpp
+  lor/lor_ams.hpp
+  lor/lor_batched.hpp
+  lor/lor_h1.hpp
+  lor/lor_nd.hpp
   multigrid.hpp
   nonlinearform.hpp
   nonlinearform_ext.hpp
@@ -192,7 +197,6 @@ set(HDRS
   tmop_amr.hpp
   gslib.hpp
   transfer.hpp
-  lor.hpp
   )
 
 if (MFEM_USE_SIDRE)
