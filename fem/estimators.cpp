@@ -30,16 +30,16 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 }
 
-void NewZienkiewiczZhuEstimator::ComputeEstimates()
+void LSZienkiewiczZhuEstimator::ComputeEstimates()
 {
-   total_error = NewZZErrorEstimator(*integ,
-                                     *solution,
-                                     error_estimates,
-                                     subdomain_reconstruction,
-                                     with_coeff,
-                                     tichonov_coeff);
+   total_error = LSZZErrorEstimator(integ,
+                                    solution,
+                                    error_estimates,
+                                    subdomain_reconstruction,
+                                    with_coeff,
+                                    tichonov_coeff);
 
-   current_sequence = solution->FESpace()->GetMesh()->GetSequence();
+   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
 }
 
 #ifdef MFEM_USE_MPI
