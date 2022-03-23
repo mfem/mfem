@@ -152,7 +152,7 @@ protected:
 
    /// Compute the element error estimates. For a given element E in the mesh,
    /// error(E) = TMOPEnergy(parent_of_E)-TMOPEnergy(E). Children element of an
-   /// element are derefined if the mean TMOP energy of children is greated than
+   /// element are derefined if the mean TMOP energy of children is greater than
    /// the TMOP energy associated with their parent.
    void ComputeEstimates();
 
