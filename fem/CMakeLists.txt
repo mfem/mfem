@@ -70,6 +70,7 @@ set(SRCS
   linearform.cpp
   lininteg.cpp
   lor/lor.cpp
+  lor/lor_ams.cpp
   lor/lor_batched.cpp
   lor/lor_h1.cpp
   lor/lor_nd.cpp
