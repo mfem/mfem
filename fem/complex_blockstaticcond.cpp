@@ -416,6 +416,7 @@ ComplexDenseMatrix * ComplexBlockStaticCondensation::GetLocalShurComplement(
    // RHS
    lvec[el] = new Vector(2*idofs);
    invA_ii->Mult(y_i,*lvec[el]);
+   delete invA_ii;
 
    Vector rvect(2*rdofs);
    A_ti.Mult(*lvec[el], rvect);
@@ -550,6 +551,7 @@ void ComplexBlockStaticCondensation::AssembleReducedSystem(int el,
       y_i->GetBlock(skip_i).AddElementVector(vdofs_i,vec1_i);
       skip_i++;
    }
+   if (int_idx.Size()!=0) { delete rmat; }
 }
 
 void ComplexBlockStaticCondensation::BuildProlongation()

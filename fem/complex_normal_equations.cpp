@@ -501,7 +501,9 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
 
       ComplexDenseMatrix G(&G_r,&G_i,false,false);
       ComplexDenseMatrix B(&B_r,&B_i,false,false);
+
       ComplexDenseMatrix * invG = G.ComputeInverse();
+
 
       Vector vec(vec_i.Size()+vec_r.Size());
       vec.SetVector(vec_r,0);
@@ -509,7 +511,8 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
 
       if (store_matrices)
       {
-         Ginv[iel] = invG;
+         Ginv[iel] = new ComplexDenseMatrix(new DenseMatrix(invG->real()),
+                                            new DenseMatrix(invG->imag()),true,true);
          Bmat[iel] = new ComplexDenseMatrix(new DenseMatrix(B_r),
                                             new DenseMatrix(B_i),true,true);
          fvec[iel] = new Vector(vec);
@@ -521,10 +524,13 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
       ComplexDenseMatrix * GinvB = mfem::Mult(*invG,B);
       // B^H G^-1 B
       ComplexDenseMatrix * A = mfem::MultAtB(B,*GinvB);
+      delete GinvB;
 
       Vector Ginvl(G.Height());
       // G^-1 l
       invG->Mult(vec,Ginvl);
+      delete invG;
+
       // B^H G^-1 l
       Vector b(B.Width());
       B.MultTranspose(Ginvl,b);
@@ -615,7 +621,8 @@ void ComplexNormalEquations::Assemble(int skip_zeros)
             y_i->GetBlock(i).AddElementVector(vdofs_i,vec1_i);
          }
       }
-   }
+      delete A;
+   } // end of loop throuth elements
 }
 
 void ComplexNormalEquations::FormLinearSystem(const Array<int>
@@ -886,10 +893,12 @@ void ComplexNormalEquations::Update()
 {
    delete mat_e_r; mat_e_r = nullptr;
    delete mat_e_i; mat_e_i = nullptr;
+   delete mat; mat = nullptr;
    delete mat_r; mat_r = nullptr;
    delete mat_i; mat_i = nullptr;
-   delete mat; mat = nullptr;
-   delete y; y = nullptr; // same
+   delete y; y = nullptr;
+   delete y_r; y_r = nullptr;
+   delete y_i; y_i = nullptr;
 
    if (P)
    {
@@ -1048,8 +1057,12 @@ ComplexNormalEquations::~ComplexNormalEquations()
 {
    delete mat_e_r; mat_e_r = nullptr;
    delete mat_e_i; mat_e_i = nullptr;
-   delete mat; mat = nullptr; // owns real and imag part
-   delete y; y = nullptr; // same
+   delete mat; mat = nullptr;
+   delete mat_r; mat_r = nullptr;
+   delete mat_i; mat_i = nullptr;
+   delete y; y = nullptr;
+   delete y_r; y_r = nullptr;
+   delete y_i; y_i = nullptr;
 
    ReleaseInitMemory();
 

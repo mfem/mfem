@@ -355,15 +355,15 @@ int main(int argc, char *argv[])
       int n = ess_tdof_list_uhat.Size();
       int m = ess_tdof_list_fhat.Size();
       Array<int> ess_tdof_list(n+m);
-      for (int i = 0; i < n; i++)
+      for (int j = 0; j < n; j++)
       {
-         ess_tdof_list[i] = ess_tdof_list_uhat[i] 
+         ess_tdof_list[j] = ess_tdof_list_uhat[j] 
                           + u_fes->GetTrueVSize() 
                           + sigma_fes->GetTrueVSize();
       }
-      for (int i = 0; i < m; i++)
+      for (int j = 0; j < m; j++)
       {
-         ess_tdof_list[i+n] = ess_tdof_list_fhat[i] 
+         ess_tdof_list[j+n] = ess_tdof_list_fhat[j] 
                             + u_fes->GetTrueVSize() 
                             + sigma_fes->GetTrueVSize()
                             + hatu_fes->GetTrueVSize();
@@ -391,21 +391,21 @@ int main(int argc, char *argv[])
 
       BlockMatrix * A = Ah.As<BlockMatrix>();
 
-      BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
-      M->owns_blocks = 1;
-      for (int i=0; i<A->NumRowBlocks(); i++)
-      {
-         M->SetDiagonalBlock(i,new UMFPackSolver(A->GetBlock(i,i)));
-      }
+      // BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
+      // M->owns_blocks = 1;
+      // for (int i=0; i<A->NumRowBlocks(); i++)
+      // {
+      //    M->SetDiagonalBlock(i,new UMFPackSolver(A->GetBlock(i,i)));
+      // }
 
       CGSolver cg;
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(200000);
       cg.SetPrintLevel(0);
-      cg.SetPreconditioner(*M);
+      // cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
-      delete M;
+      // delete M;
 
       a->RecoverFEMSolution(X,x);
       Vector & residuals = a->ComputeResidual(x);
@@ -514,6 +514,8 @@ int main(int argc, char *argv[])
 
    }
 
+   delete coeff_fes;
+   delete coeff_fec;
    delete a;
    delete tau_fec;
    delete v_fec;
@@ -521,6 +523,7 @@ int main(int argc, char *argv[])
    delete hatf_fec;
    delete hatu_fes;
    delete hatu_fec;
+   delete sigma_fes;
    delete sigma_fec;
    delete u_fec;
    delete u_fes;

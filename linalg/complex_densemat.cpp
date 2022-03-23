@@ -243,7 +243,7 @@ ComplexDenseMatrix * ComplexDenseMatrix::ComputeInverse()
       datac_r[i] = data[i].real();
       datac_i[i] = data[i].imag();
    }
-
+   delete [] data;
    return new ComplexDenseMatrix(C_r,C_i,true,true);
 
 }
