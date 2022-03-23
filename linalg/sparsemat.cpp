@@ -1498,6 +1498,7 @@ int SparseMatrix::NumNonZeroElems() const
 {
    if (A != NULL)  // matrix is finalized
    {
+      HostReadI();
       return I[height];
    }
    else
