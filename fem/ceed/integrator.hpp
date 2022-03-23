@@ -144,7 +144,9 @@ public:
                      info.test_op
                     };
       CeedInt nqpts, nelem = mesh.GetNE();
-      CeedInt dim = mesh.SpaceDimension(), vdim = trial_fes.GetVDim();
+      CeedInt dim = mesh.SpaceDimension();
+      CeedInt trial_vdim = trial_fes.GetVDim();
+      CeedInt test_vdim = test_fes.GetVDim();
 
       mesh.EnsureNodes();
       if ( &trial_fes == &test_fes )
@@ -250,17 +252,22 @@ public:
       switch (op.trial_op)
       {
          case EvalMode::None:
-            CeedQFunctionAddInput(apply_qfunc, "u", vdim, CEED_EVAL_NONE);
+            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim,
+                                  CEED_EVAL_NONE);
             break;
          case EvalMode::Interp:
-            CeedQFunctionAddInput(apply_qfunc, "u", vdim, CEED_EVAL_INTERP);
+            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim,
+                                  CEED_EVAL_INTERP);
             break;
          case EvalMode::Grad:
-            CeedQFunctionAddInput(apply_qfunc, "gu", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddInput(apply_qfunc, "gu", trial_vdim*dim,
+                                  CEED_EVAL_GRAD);
             break;
          case EvalMode::InterpAndGrad:
-            CeedQFunctionAddInput(apply_qfunc, "u", vdim, CEED_EVAL_INTERP);
-            CeedQFunctionAddInput(apply_qfunc, "gu", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim,
+                                  CEED_EVAL_INTERP);
+            CeedQFunctionAddInput(apply_qfunc, "gu", trial_vdim*dim,
+                                  CEED_EVAL_GRAD);
             break;
       }
       // qdata
@@ -269,17 +276,22 @@ public:
       switch (op.test_op)
       {
          case EvalMode::None:
-            CeedQFunctionAddOutput(apply_qfunc, "v", vdim, CEED_EVAL_NONE);
+            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim,
+                                   CEED_EVAL_NONE);
             break;
          case EvalMode::Interp:
-            CeedQFunctionAddOutput(apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
+            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim,
+                                   CEED_EVAL_INTERP);
             break;
          case EvalMode::Grad:
-            CeedQFunctionAddOutput(apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddOutput(apply_qfunc, "gv", test_vdim*dim,
+                                   CEED_EVAL_GRAD);
             break;
          case EvalMode::InterpAndGrad:
-            CeedQFunctionAddOutput(apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
-            CeedQFunctionAddOutput(apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim,
+                                   CEED_EVAL_INTERP);
+            CeedQFunctionAddOutput(apply_qfunc, "gv", test_vdim*dim,
+                                   CEED_EVAL_GRAD);
             break;
       }
       CeedQFunctionSetContext(apply_qfunc, build_ctx);
@@ -334,8 +346,8 @@ public:
             break;
       }
 
-      CeedVectorCreate(ceed, vdim*trial_fes.GetNDofs(), &u);
-      CeedVectorCreate(ceed, vdim*test_fes.GetNDofs(), &v);
+      CeedVectorCreate(ceed, trial_vdim*trial_fes.GetNDofs(), &u);
+      CeedVectorCreate(ceed, test_vdim*test_fes.GetNDofs(), &v);
    }
 
    virtual ~PAIntegrator()
@@ -446,7 +458,9 @@ public:
                      info.test_op
                     };
       CeedInt nqpts, nelem = mesh.GetNE();
-      CeedInt dim = mesh.SpaceDimension(), vdim = trial_fes.GetVDim();
+      CeedInt dim = mesh.SpaceDimension();
+      CeedInt trial_vdim = trial_fes.GetVDim();
+      CeedInt test_vdim = test_fes.GetVDim();
 
       mesh.EnsureNodes();
       if ( &trial_fes == &test_fes )
@@ -501,17 +515,22 @@ public:
       switch (op.trial_op)
       {
          case EvalMode::None:
-            CeedQFunctionAddInput(apply_qfunc, "u", vdim, CEED_EVAL_NONE);
+            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim,
+                                  CEED_EVAL_NONE);
             break;
          case EvalMode::Interp:
-            CeedQFunctionAddInput(apply_qfunc, "u", vdim, CEED_EVAL_INTERP);
+            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim,
+                                  CEED_EVAL_INTERP);
             break;
          case EvalMode::Grad:
-            CeedQFunctionAddInput(apply_qfunc, "gu", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddInput(apply_qfunc, "gu", trial_vdim*dim,
+                                  CEED_EVAL_GRAD);
             break;
          case EvalMode::InterpAndGrad:
-            CeedQFunctionAddInput(apply_qfunc, "u", vdim, CEED_EVAL_INTERP);
-            CeedQFunctionAddInput(apply_qfunc, "gu", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim,
+                                  CEED_EVAL_INTERP);
+            CeedQFunctionAddInput(apply_qfunc, "gu", trial_vdim*dim,
+                                  CEED_EVAL_GRAD);
             break;
       }
       CeedQFunctionAddInput(apply_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
@@ -520,17 +539,22 @@ public:
       switch (op.test_op)
       {
          case EvalMode::None:
-            CeedQFunctionAddOutput(apply_qfunc, "v", vdim, CEED_EVAL_NONE);
+            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim,
+                                   CEED_EVAL_NONE);
             break;
          case EvalMode::Interp:
-            CeedQFunctionAddOutput(apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
+            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim,
+                                   CEED_EVAL_INTERP);
             break;
          case EvalMode::Grad:
-            CeedQFunctionAddOutput(apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddOutput(apply_qfunc, "gv", test_vdim*dim,
+                                   CEED_EVAL_GRAD);
             break;
          case EvalMode::InterpAndGrad:
-            CeedQFunctionAddOutput(apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
-            CeedQFunctionAddOutput(apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim,
+                                   CEED_EVAL_INTERP);
+            CeedQFunctionAddOutput(apply_qfunc, "gv", test_vdim*dim,
+                                   CEED_EVAL_GRAD);
             break;
       }
 
@@ -611,8 +635,8 @@ public:
             break;
       }
 
-      CeedVectorCreate(ceed, vdim*trial_fes.GetNDofs(), &u);
-      CeedVectorCreate(ceed, vdim*test_fes.GetNDofs(), &v);
+      CeedVectorCreate(ceed, trial_vdim*trial_fes.GetNDofs(), &u);
+      CeedVectorCreate(ceed, test_vdim*test_fes.GetNDofs(), &v);
    }
 
    virtual ~MFIntegrator()
