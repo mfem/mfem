@@ -12,6 +12,7 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 #include "../../fem/lor/lor_ams.hpp"
+#include <memory>
 #include <unordered_map>
 
 using namespace mfem;
@@ -234,7 +235,7 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
    grad.AddDomainInterpolator(new GradientInterpolator);
    grad.Assemble();
    grad.Finalize();
-   HypreParMatrix *G = grad.ParallelAssemble();
+   std::unique_ptr<HypreParMatrix> G(grad.ParallelAssemble());
 
    ConstantCoefficient diff_coeff(M_PI);
    ConstantCoefficient mass_coeff(1.0/M_PI);
@@ -243,8 +244,6 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
    a.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff));
    a.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
    BatchedLOR_AMS batched_lor(a, fespace, ess_dofs);
-
-
 
    TestSameMatrices(*G, *batched_lor.GetGradientMatrix());
 
@@ -258,10 +257,10 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
       y_coord(i) = coord[1];
       if (dim == 3) { z_coord(i) = coord[2]; }
    }
-   HypreParVector *x = x_coord.ParallelProject();
-   HypreParVector *y = y_coord.ParallelProject();
-   HypreParVector *z = NULL;
-   if (dim == 3) { z = z_coord.ParallelProject(); }
+   std::unique_ptr<HypreParVector> x(x_coord.ParallelProject());
+   std::unique_ptr<HypreParVector> y(y_coord.ParallelProject());
+   std::unique_ptr<HypreParVector> z;
+   if (dim == 3) { z.reset(z_coord.ParallelProject()); }
 
    *x -= *batched_lor.GetXCoordinate();
    REQUIRE(x->Normlinf() == MFEM_Approx(0.0));
@@ -272,12 +271,6 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
       *z -= *batched_lor.GetZCoordinate();
       REQUIRE(z->Normlinf() == MFEM_Approx(0.0));
    }
-
-   // Clean up
-   delete G;
-   delete x;
-   delete y;
-   delete z;
 }
 
 #endif // MFEM_USE_MPI
