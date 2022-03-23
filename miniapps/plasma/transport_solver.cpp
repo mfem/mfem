@@ -3922,6 +3922,7 @@ DGTransportTDO::TransportOp::SetAdvectionDiffusionTerm(
    blf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
    blf_[index_]->AddDomainIntegrator(new ConservativeConvectionIntegrator(
                                         *dtVCoef));
+
    blf_[index_]->AddInteriorFaceIntegrator(
       new DGAdvDiffIntegrator(*dtDCoef,
                               *dtVCoef,
@@ -4739,7 +4740,10 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
          Operator * gradIJ = op_[i]->GetGradientBlock(j);
          if (gradIJ)
          {
-            //cout << "Grad has block " << i << ", " << j << endl;
+            if ( mpi_.Root() && logging_ > 2)
+            {
+               cout << "Grad has block " << i << ", " << j << endl;
+            }
             grad_->SetBlock(i, j, gradIJ, wgts_[i]);
          }
       }
@@ -4833,7 +4837,6 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
             ? const_cast<Coefficient&>
             (*ndcoefs_(NDCoefs::DIFFUSION_COEF))
             : DDefCoef_),
-     ViCoef_(viCoef_, B3Coef_),
      SrcDefCoef_(neCoef_, niCoef_, rcCoef_),
      SizDefCoef_(neCoef_, nnCoef_, izCoef_),
      SrcCoef_((cmncoefs_(CmnCoefs::RECOMBINATION_COEF) != NULL)
@@ -7734,7 +7737,7 @@ double DGAdvDiffIntegrator::ComputeUpwindingParam(double epsilon,
                                                   double betaMag)
 {
    // Diffusion dominated
-   if (lambda * epsilon > betaMag) { return 0.1; }
+   if (lambda * epsilon >= betaMag) { return 0.1; }
 
    // Advection dominated
    if (lambda * epsilon < 1e-5 * betaMag) { return 0.8; }

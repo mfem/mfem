@@ -1644,6 +1644,15 @@ public:
       double Te = TeCoef_->Eval(T, ip);
       double ne = neCoef_->Eval(T, ip);
 
+      MFEM_VERIFY(ne > 0.0,
+                  "CoulombLogEICoef::Eval_Func: "
+                  "Electron density (" << ne << ") "
+                  "less than or equal to zero.");
+      MFEM_VERIFY(Te > 0.0,
+                  "CoulombLogEICoef::Eval_Func: "
+                  "Electron temperature (" << Te << ") "
+                  "less than or equal to zero.");
+
       return lambda_ei(Te, ne, (double)zi_);
    }
 
@@ -1652,6 +1661,11 @@ public:
    {
       double ne = neCoef_->Eval(T, ip);
 
+      MFEM_VERIFY(ne > 0.0,
+                  "CoulombLogEICoef::Eval_dNi: "
+                  "Electron density (" << ne << ") "
+                  "less than or equal to zero.");
+
       return dlambda_ei_dne(1.0, ne, (double)zi_) * (double)zi_;
    }
 
@@ -1659,6 +1673,11 @@ public:
                    const IntegrationPoint &ip)
    {
       double Te = TeCoef_->Eval(T, ip);
+
+      MFEM_VERIFY(Te > 0.0,
+                  "CoulombLogEICoef::Eval_dTe: "
+                  "Electron temperature (" << Te << ") "
+                  "less than or equal to zero.");
 
       return dlambda_ei_dne(Te, 1.0, (double)zi_);
    }
@@ -1711,6 +1730,9 @@ public:
       double ni = niCoef_.Eval(T, ip);
       double lnLambda = lnLambda_.Eval(T, ip);
 
+      MFEM_VERIFY(Ti >= 0.0, "IonCollisionTimeCoef::Eval_Func: "
+                  "Negative temperature found");
+
       return tau_i(m_i_, (double)z_i_, ni, Ti, lnLambda);
    }
 
@@ -1721,6 +1743,9 @@ public:
       double ni = niCoef_.Eval(T, ip);
       double lnLambda = lnLambda_.Eval(T, ip);
       double dl = lnLambda_.Eval_dNi(T, ip);
+
+      MFEM_VERIFY(Ti >= 0.0, "IonCollisionTimeCoef::Eval_dNi: "
+                  "Negative temperature found");
 
       double dtau_dn = dtau_i_dni(m_i_, (double)z_i_, ni, Ti, lnLambda);
       double dtau_dl = dtau_i_dlambda(m_i_, (double)z_i_, ni, Ti, lnLambda);
@@ -1735,6 +1760,9 @@ public:
       double ni = niCoef_.Eval(T, ip);
       double lnLambda = lnLambda_.Eval(T, ip);
 
+      MFEM_VERIFY(Ti >= 0.0, "IonCollisionTimeCoef::Eval_dTi: "
+                  "Negative temperature found");
+
       return dtau_i_dTi(m_i_, (double)z_i_, ni, Ti, lnLambda);
    }
 
@@ -1745,6 +1773,9 @@ public:
       double ni = niCoef_.Eval(T, ip);
       double lnLambda = lnLambda_.Eval(T, ip);
       double dl = lnLambda_.Eval_dTe(T, ip);
+
+      MFEM_VERIFY(Ti >= 0.0, "IonCollisionTimeCoef::Eval_dTe: "
+                  "Negative temperature found");
 
       double dtau_dl = dtau_i_dlambda(m_i_, (double)z_i_, ni, Ti, lnLambda);
 
@@ -1796,6 +1827,9 @@ public:
       double ni = niCoef_.Eval(T, ip);
       double lnLambda = lnLambda_.Eval(T, ip);
 
+      MFEM_VERIFY(Te >= 0.0, "ElectronCollisionTimeCoef::Eval_Func: "
+                  "Negative temperature found");
+
       return tau_e(Te, (double)z_i_, ni, lnLambda);
    }
 
@@ -1806,6 +1840,9 @@ public:
       double ni = niCoef_.Eval(T, ip);
       double lnLambda = lnLambda_.Eval(T, ip);
       double dl = lnLambda_.Eval_dNi(T, ip);
+
+      MFEM_VERIFY(Te >= 0.0, "ElectronCollisionTimeCoef::Eval_dNi: "
+                  "Negative temperature found");
 
       double dtau_dn = dtau_e_dni(Te, (double)z_i_, ni, lnLambda);
       double dtau_dl = dtau_e_dlambda(Te, (double)z_i_, ni, lnLambda);
@@ -1820,6 +1857,9 @@ public:
       double ni = niCoef_.Eval(T, ip);
       double lnLambda = lnLambda_.Eval(T, ip);
       double dl = lnLambda_.Eval_dTe(T, ip);
+
+      MFEM_VERIFY(Te >= 0.0, "ElectronCollisionTimeCoef::Eval_dTe: "
+                  "Negative temperature found");
 
       double dtau_dT = dtau_e_dTe(Te, (double)z_i_, ni, lnLambda);
       double dtau_dl = dtau_e_dlambda(Te, (double)z_i_, ni, lnLambda);
@@ -1868,6 +1908,9 @@ public:
       double Ti = TiCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
 
+      MFEM_VERIFY(Ti + Te >= 0.0,
+                  "SoundSpeedCoef::Eval_Func: Negative temperature found");
+
       return sqrt(J_per_eV_ * (Ti + Te) / mi_kg_);
    }
 
@@ -1877,6 +1920,9 @@ public:
       double Ti = TiCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
 
+      MFEM_VERIFY(Ti + Te >= 0.0,
+                  "SoundSpeedCoef::Eval_dTi: Negative temperature found");
+
       return 0.5 * sqrt(J_per_eV_ / (mi_kg_ * (Ti + Te)));
    }
 
@@ -1885,6 +1931,9 @@ public:
    {
       double Ti = TiCoef_->Eval(T, ip);
       double Te = TeCoef_->Eval(T, ip);
+
+      MFEM_VERIFY(Ti + Te >= 0.0,
+                  "SoundSpeedCoef::Eval_dTe: Negative temperature found");
 
       return 0.5 * sqrt(J_per_eV_ / (mi_kg_ * (Ti + Te)));
    }
@@ -1976,6 +2025,9 @@ public:
       double chi_c = 13.61;
       double E_ion = Ry;
 
+      MFEM_VERIFY(Te >= 0.0, "ApproxRecombinationRate::Eval_Func: "
+                  "Negative temperature found");
+
       return 5.2e-20 / 2.0 * sqrt(E_ion / Te)
              * (1.0 - exp(-chi_c / Te
                           * (1.0 + 1.0 / pqn_c * (xsi_c / pow(pqn_c, 2) - 1.0))))
@@ -1989,6 +2041,9 @@ public:
                    const IntegrationPoint &ip)
    {
       double Te = TeCoef_->Eval(T, ip);
+
+      MFEM_VERIFY(Te >= 0.0, "ApproxRecombinationRate::Eval_dTe: "
+                  "Negative temperature found");
 
       int    pqn_c = 1;
       int    xsi_c = 2;
@@ -2044,6 +2099,9 @@ public:
    {
       double Ti = TiCoef_->Eval(T, ip);
 
+      MFEM_VERIFY(Ti >= 0.0, "ApproxChargeExchangeRate::Eval_Func: "
+                  "Negative temperature found");
+
       return 1.0e-14 * pow(Ti, 0.318);
    }
 
@@ -2051,6 +2109,9 @@ public:
                    const IntegrationPoint &ip)
    {
       double Ti = TiCoef_->Eval(T, ip);
+
+      MFEM_VERIFY(Ti >= 0.0, "ApproxChargeExchangeRate::Eval_dTi: "
+                  "Negative temperature found");
 
       return 0.318 * 1.0e-14 * pow(Ti, 0.318 - 1.0);
    }
@@ -2546,6 +2607,10 @@ public:
    {
       double lnLambda = lnLambda_->Eval(T, ip);
       double Ti_J = TiCoef_->Eval_Func(T, ip) * J_per_eV_;
+
+      MFEM_VERIFY(Ti_J >= 0.0, "IonMomentumParaDiffusionCoef::Eval_Func: "
+                  "Negative temperature found");
+
       double EtaPara = a_ * sqrt(pow(Ti_J, 5)) / lnLambda;
       return EtaPara;
    }
@@ -2555,6 +2620,10 @@ public:
    {
       double lnLambda = lnLambda_->Eval(T, ip);
       double Ti_J = TiCoef_->Eval_Func(T, ip) * J_per_eV_;
+
+      MFEM_VERIFY(Ti_J >= 0.0, "IonMomentumParaDiffusionCoef::Eval_dTi: "
+                  "Negative temperature found");
+
       double dEtaPara = 2.5 * a_ * sqrt(pow(Ti_J, 3)) * J_per_eV_ / lnLambda;
       return dEtaPara;
    }
@@ -3665,6 +3734,9 @@ public:
       double Ti = TiCoef_.Eval(T, ip);
       double Te = TeCoef_.Eval(T, ip);
 
+      MFEM_VERIFY(Te >= 0.0, "IonElectronHeatExchangeCoef::Eval_Func: "
+                  "Negative temperature found");
+
       double tau = tau_e(Te, z_i_, ni, lnLambda);
 
       return 0.3 * (Te - Ti) * J_per_eV_ * me_kg_ * z_i_ * ni / (m_i_kg_ * tau);
@@ -3678,6 +3750,9 @@ public:
       double ni = niCoef_.Eval(T, ip);
       double Ti = TiCoef_.Eval(T, ip);
       double Te = TeCoef_.Eval(T, ip);
+
+      MFEM_VERIFY(Te >= 0.0, "IonElectronHeatExchangeCoef::Eval_dNi: "
+                  "Negative temperature found");
 
       double tau = tau_e(Te, z_i_, ni, lnLambda);
       double dtau_dn = dtau_e_dni(Te, z_i_, ni, lnLambda);
@@ -3695,6 +3770,9 @@ public:
       double ni = niCoef_.Eval(T, ip);
       double Te = TeCoef_.Eval(T, ip);
 
+      MFEM_VERIFY(Te >= 0.0, "IonElectronHeatExchangeCoef::Eval_dTi: "
+                  "Negative temperature found");
+
       double tau = tau_e(Te, z_i_, ni, lnLambda);
 
       return -0.3 * J_per_eV_ * me_kg_ * z_i_ * ni / (m_i_kg_ * tau);
@@ -3708,6 +3786,9 @@ public:
       double ni = niCoef_.Eval(T, ip);
       double Ti = TiCoef_.Eval(T, ip);
       double Te = TeCoef_.Eval(T, ip);
+
+      MFEM_VERIFY(Te >= 0.0, "IonElectronHeatExchangeCoef::Eval_dTe: "
+                  "Negative temperature found");
 
       double tau = tau_e(Te, z_i_, ni, lnLambda);
       double dtau_dT = dtau_e_dTe(Te, z_i_, ni, lnLambda);
@@ -3833,13 +3914,13 @@ public:
       double ne    = neCoef_->Eval(T, ip);
       double Te_eV = TeCoef_->Eval(T, ip);
       MFEM_VERIFY(ne > 0.0,
+                  "ElectronThermalParaDiffusionCoef::Eval_Func: "
                   "Electron density (" << ne << ") "
-                  "less than or equal to zero in "
-                  "ElectronThermalParaDiffusionCoef.");
+                  "less than or equal to zero.");
       MFEM_VERIFY(Te_eV > 0.0,
+                  "ElectronThermalParaDiffusionCoef::Eval_Func: "
                   "Electron temperature (" << Te_eV << ") "
-                  "less than or equal to zero in "
-                  "ElectronThermalParaDiffusionCoef.");
+                  "less than or equal to zero.");
 
       double lnLambda = lnLambda_->Eval(T, ip);
       double tau = tau_e(Te_eV, z_i_, ne, lnLambda);
@@ -4746,8 +4827,6 @@ private:
 
       NeutralDiffusionCoef      DDefCoef_; // Default diffusion coef
       StateVariableStandardCoef DCoef_;
-
-      IonAdvectionCoef          ViCoef_;
 
       RecombinationSinkCoef     SrcDefCoef_; // Default recomb coef
       IonizationSourceCoef      SizDefCoef_; // Default ionization coef
