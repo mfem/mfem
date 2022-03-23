@@ -132,6 +132,8 @@ void EnsureCapacity(Memory<T> &mem, int capacity)
    }
 }
 
+#ifdef MFEM_USE_MPI
+
 /// @brief Make @a A_hyp steal ownership of its diagonal part @a A_diag.
 ///
 /// If @a A_hyp does not own I and J, then they are aliases pointing to the I
@@ -143,6 +145,8 @@ void EnsureCapacity(Memory<T> &mem, int capacity)
 ///
 /// @note I and J can only be aliases when HYPRE_BIGINT is disabled.
 void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag);
+
+#endif
 
 }
 
