@@ -166,10 +166,9 @@ public:
 
    /** @brief Set the way the flux is averaged (smoothed) across elements.
 
-       When @a fa is zero (default), averaging is performed globally. When @a fa
-       is non-zero, the flux averaging is performed locally for each mesh
-       attribute, i.e. the flux is not averaged across interfaces between
-       different mesh attributes. */
+       When @a fa is zero (default), averaging is performed across interfaces
+       between different mesh attributes. When @a fa is non-zero, the flux is
+       not averaged across interfaces between different mesh attributes. */
    void SetFluxAveraging(int fa) { flux_averaging = fa; }
 
    /// Return the total error from the last error estimate.
@@ -200,6 +199,118 @@ public:
    {
       if (own_flux_fes) { delete flux_space; }
    }
+};
+
+
+/** @brief The LSZienkiewiczZhuEstimator class implements the Zienkiewicz-Zhu
+    error estimation procedure [1,2] using face-based patches [3].
+
+    [1] Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    and a posteriori error estimates. Part 1: The recovery technique.
+    Int. J. Num. Meth. Engng. 33, 1331-1364 (1992).
+
+    [2] Zienkiewicz, O.C. and Zhu, J.Z., The superconvergent patch recovery
+    and a posteriori error estimates. Part 2: Error estimates and adaptivity.
+    Int. J. Num. Meth. Engng. 33, 1365-1382 (1992).
+
+    [3] Bartels, S. and Carstensen, C., Each averaging technique yields reliable
+    a posteriori error control in FEM on unstructured grids. Part II: Higher
+    order FEM. Math. Comp. 71(239), 971-994 (2002)
+
+    The required BilinearFormIntegrator must implement the method
+    ComputeElementFlux().
+
+   COMMENTS:
+   *  The present implementation ignores all single-element patches corresponding
+      to boundary faces. This is appropriate for Dirichlet boundaries, but
+      suboptimal for Neumann boundaries. Reference 3 shows that a constrained
+      least-squares problem, where the reconstructed flux is constrained by the
+      Neumann boundary data, is appropriate to handle this case.
+      NOTE THAT THIS CONSTRAINED LS PROBLEM IS NOT YET IMPLEMENTED, so it is
+      possible that the local error estimates for elements on a Neumann boundary
+      are suboptimal.
+   *  The global polynomial basis used for the flux reconstruction is, by default,
+      aligned with the physical Cartesian axis. For patches with 2D elements, this
+      has been improved on so that the basis is aligned with the physical patch
+      orientation. Reorientation of the flux reconstruction basis is helpful to
+      maintain symmetry in the refinement pattern and could be extended to 3D.
+   *  This estimator is ONLY implemented IN SERIAL.
+   *  Anisotropic refinement is NOT YET SUPPORTED.
+
+ */
+class LSZienkiewiczZhuEstimator : public ErrorEstimator
+{
+protected:
+   long current_sequence;
+   Vector error_estimates;
+   double total_error;
+   bool subdomain_reconstruction = true;
+   double tichonov_coeff;
+
+   BilinearFormIntegrator &integ;
+   GridFunction &solution;
+   bool with_coeff;
+
+   /// Check if the mesh of the solution was modified.
+   bool MeshIsModified()
+   {
+      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+      return (mesh_sequence > current_sequence);
+   }
+
+   /// Compute the element error estimates.
+   void ComputeEstimates();
+
+public:
+   /** @brief Construct a new LSZienkiewiczZhuEstimator object.
+       @param integ    This BilinearFormIntegrator must implement only the
+                       method ComputeElementFlux().
+       @param sol      The solution field whose error is to be estimated.
+   */
+   LSZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol)
+      : current_sequence(-1),
+        total_error(-1.0),
+        subdomain_reconstruction(true),
+        tichonov_coeff(0.0),
+        integ(integ),
+        solution(sol),
+        with_coeff(false)
+   { }
+
+   /** @brief Consider the coefficient in BilinearFormIntegrator to calculate
+       the fluxes for the error estimator.*/
+   void SetWithCoeff(bool w_coeff = true) { with_coeff = w_coeff; }
+
+   /** @brief Disable reconstructing the flux in patches spanning different
+    *         subdomains. */
+   void DisableReconstructionAcrossSubdomains() { subdomain_reconstruction = false; }
+
+   /** @brief Solve a Tichonov-regularized least-squares problem for the
+    *         reconstructed fluxes. This is especially helpful for when not
+    *         using tensor product elements, which typically require fewer
+    *         integration points and, therefore, may lead to an
+    *         ill-conditioned linear system. */
+   void SetTichonovRegularization(double tcoeff = 1.0e-8)
+   {
+      MFEM_VERIFY(tcoeff >= 0.0, "Tichonov coefficient cannot be negative");
+      tichonov_coeff = tcoeff;
+   }
+
+   /// Return the total error from the last error estimate.
+   virtual double GetTotalError() const override { return total_error; }
+
+   /// Get a Vector with all element errors.
+   virtual const Vector &GetLocalErrors() override
+   {
+      if (MeshIsModified()) { ComputeEstimates(); }
+      return error_estimates;
+   }
+
+   /// Reset the error estimator.
+   virtual void Reset() override { current_sequence = -1; }
+
+   virtual ~LSZienkiewiczZhuEstimator() { }
 };
 
 
