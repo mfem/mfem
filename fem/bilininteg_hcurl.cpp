@@ -3633,8 +3633,8 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       }
       else
       {
-         PAHcurlHdivSetup3D(quad1D, coeffDim, ne, false, ir->GetWeights(), geom->J,
-                            coeff, pa_data);
+         PAHcurlHdivSetup3D(quad1D, coeffDim, ne, false, ir->GetWeights(),
+                            geom->J, coeff, pa_data);
       }
    }
    else if (testType == mfem::FiniteElement::DIV &&
@@ -5131,8 +5131,16 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
+   testType = test_el->GetDerivType();
+   trialType = trial_el->GetDerivType();
+
+   const bool curlSpaces = (testType == mfem::FiniteElement::CURL &&
+                            trialType == mfem::FiniteElement::CURL);
+
+   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+
    coeffDim = DQ ? 3 : 1;
-   const int ndata = DQ ? 9 : 1;
+   const int ndata = curlSpaces ? (DQ ? 9 : 1) : symmDims;
 
    pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
@@ -5169,9 +5177,6 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
       }
    }
 
-   testType = test_el->GetDerivType();
-   trialType = trial_el->GetDerivType();
-
    if (trialType == mfem::FiniteElement::CURL && dim == 3)
    {
       if (coeffDim == 1)
@@ -5180,9 +5185,15 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
       }
       else
       {
-         PAHcurlHdivSetup3D(quad1D, coeffDim, ne, false, ir->GetWeights(), geom->J,
-                            coeff, pa_data);
+         PAHcurlHdivSetup3D(quad1D, coeffDim, ne, false, ir->GetWeights(),
+                            geom->J, coeff, pa_data);
       }
+   }
+   else if (trialType == mfem::FiniteElement::DIV && dim == 3 &&
+            test_el->GetOrder() == trial_el->GetOrder())
+   {
+      PACurlCurlSetup3D(quad1D, coeffDim, ne, ir->GetWeights(), geom->J, coeff,
+                        pa_data);
    }
    else
    {
@@ -5832,6 +5843,29 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
       else
          PAHcurlL2Apply3DTranspose(dofs1D, quad1D, ndata, ne, mapsO->B,
                                    mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->Gt, pa_data, x, y);
+   }
+   else if (testType == mfem::FiniteElement::CURL &&
+            trialType == mfem::FiniteElement::DIV && dim == 3)
+   {
+      PAHcurlHdivApply3DTranspose(dofs1D, dofs1D, quad1D, ne, mapsO->B,
+                                  mapsC->B, mapsO->Bt, mapsC->Bt,
+                                  mapsC->Gt, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension or space!");
+   }
+}
+
+void MixedVectorWeakCurlIntegrator::AddMultTransposePA(const Vector &x,
+                                                       Vector &y) const
+{
+   if (testType == mfem::FiniteElement::CURL &&
+       trialType == mfem::FiniteElement::DIV && dim == 3)
+   {
+      PAHcurlHdivApply3D(dofs1D, dofs1D, quad1D, ne, mapsO->B,
+                         mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->G,
+                         pa_data, x, y);
    }
    else
    {
