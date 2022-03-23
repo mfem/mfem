@@ -207,8 +207,11 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
          auto order = !all_tests ? GENERATE(2) : GENERATE(1, 2, 3);
          test_assembly_level("../../data/periodic-cube.mesh",
                              order, q_order_inc, dg, pb, assembly);
-         test_assembly_level("../../data/fichera-q3.mesh",
-                             order, q_order_inc, dg, pb, assembly);
+         if ( Device::Allows(Backend::CPU_MASK))
+         {
+            test_assembly_level("../../data/fichera-q3.mesh",
+                                order, q_order_inc, dg, pb, assembly);
+         }
       }
    }
 
@@ -260,8 +263,11 @@ TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
          auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
          test_assembly_level("../../data/periodic-cube.mesh",
                              order, q_order_inc, dg, pb, assembly);
-         test_assembly_level("../../data/fichera-q3.mesh",
-                             order, q_order_inc, dg, pb, assembly);
+         if ( Device::Allows(Backend::CPU_MASK))
+         {
+            test_assembly_level("../../data/fichera-q3.mesh",
+                                order, q_order_inc, dg, pb, assembly);
+         }
       }
    }
 
