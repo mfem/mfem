@@ -4234,7 +4234,6 @@ void TensorProductLegendre(int dim,                // input
    // Map x to [0, 1] to use CalcLegendre since it uses shifted Legendre Polynomials.
    double x1 = (x(0) - xmin(0))/(xmax(0)-xmin(0)), x2, x3;
    Vector poly_x(order+1), poly_y(order+1), poly_z(order+1);
-   Poly_1D poly1d;
    poly1d.CalcLegendre(order, x1, poly_x);
    if (dim > 1)
    {
