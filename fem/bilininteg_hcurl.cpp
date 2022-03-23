@@ -1011,7 +1011,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
       else if (MQ)
       {
-         M.SetSize(dimc);
+         GM.SetSize(dimc);
          MFEM_VERIFY(coeffDim == MQdim, "");
          MFEM_VERIFY(MQ->GetHeight() == dimc && MQ->GetWidth() == dimc, "");
       }
@@ -1035,12 +1035,12 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
             }
             else if (MQ)
             {
-               MQ->Eval(M, *tr, ir->IntPoint(p));
+               MQ->Eval(GM, *tr, ir->IntPoint(p));
 
                for (int i=0; i<dimc; ++i)
                   for (int j=0; j<dimc; ++j)
                   {
-                     coeffh(j+(i*dimc), p, e) = M(i,j);
+                     coeffh(j+(i*dimc), p, e) = GM(i,j);
                   }
 
             }
