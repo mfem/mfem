@@ -58,4 +58,40 @@ static int RunCatchSession(int argc, char *argv[],
    return result;
 }
 
+static inline bool Root()
+{
+#ifdef MFEM_USE_MPI
+   return mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;
+#else
+   return true;
+#endif
+}
+
+#ifdef CATCH_CONFIG_NOSTDOUT
+
+namespace Catch
+{
+
+std::ofstream null_stream;
+
+std::ostream& cout()
+{
+   if (Root()) { return std::cout; }
+   else { return null_stream; }
+}
+std::ostream& cerr()
+{
+   if (Root()) { return std::cerr; }
+   else { return null_stream; }
+}
+std::ostream& clog()
+{
+   if (Root()) { return std::clog; }
+   else { return null_stream; }
+}
+
+} // namespace Catch
+
+#endif
+
 #endif
