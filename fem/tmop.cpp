@@ -2330,6 +2330,7 @@ TMOP_Integrator::~TMOP_Integrator()
    delete lim_func;
    delete adapt_lim_gf;
    delete surf_fit_gf;
+   delete surf_fit_limiter;
    for (int i = 0; i < ElemDer.Size(); i++)
    {
       delete ElemDer[i];
@@ -2402,6 +2403,10 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
                                            Coefficient &coeff,
                                            AdaptivityEvaluator &ae)
 {
+   // To have both we must duplicate the markers.
+   MFEM_VERIFY(surf_fit_pos == NULL,
+               "Using both fitting approaches is not supported.");
+
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
    surf_fit_marker = &smarker;
@@ -2414,12 +2419,31 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
 }
 
+void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
+                                           const Array<bool> &smarker,
+                                           Coefficient &coeff)
+{
+   // To have both we must duplicate the markers.
+   MFEM_VERIFY(surf_fit_gf == NULL,
+               "Using both fitting approaches is not supported.");
+
+   surf_fit_pos     = &pos;
+   surf_fit_marker  = &smarker;
+   surf_fit_coeff   = &coeff;
+   delete surf_fit_limiter;
+   surf_fit_limiter = new TMOP_QuadraticLimiter;
+}
+
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                            const Array<bool> &smarker,
                                            Coefficient &coeff,
                                            AdaptivityEvaluator &ae)
 {
+   // To have both we must duplicate the markers.
+   MFEM_VERIFY(surf_fit_pos == NULL,
+               "Using both fitting approaches is not supported.");
+
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
    surf_fit_marker = &smarker;
@@ -2500,7 +2524,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    // as part of a FD derivative computation (because we include the exact
    // derivatives of these terms in FD computations).
    const bool adaptive_limiting = (adapt_lim_gf && fd_call_flag == false);
-   const bool surface_fit = (surf_fit_gf && fd_call_flag == false);
+   const bool surface_fit = (surf_fit_marker && fd_call_flag == false);
 
    DSh.SetSize(dof, dim);
    Jrt.SetSize(dim);
@@ -2603,21 +2627,36 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    // Contribution from the surface fitting term.
    if (surface_fit)
    {
-      const IntegrationRule &ir_s =
-         surf_fit_gf->FESpace()->GetFE(el_id)->GetNodes();
-      Array<int> dofs;
-      Vector sigma_e;
-      surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
-      surf_fit_gf->GetSubVector(dofs, sigma_e);
-      for (int s = 0; s < dofs.Size(); s++)
+      // Scalar for surf_fit_gf, vector for surf_fit_pos, but that's ok.
+      const FiniteElementSpace *surf_fit_fes =
+         (surf_fit_gf) ? surf_fit_gf->FESpace() : surf_fit_pos->FESpace();
+      const IntegrationRule *ir_s = &surf_fit_fes->GetFE(el_id)->GetNodes();
+      Array<int> vdofs;
+      surf_fit_fes->GetElementVDofs(el_id, vdofs);
+
+      Vector sigma_e(dof);
+      if (surf_fit_gf) { surf_fit_gf->GetSubVector(vdofs, sigma_e); }
+
+      for (int s = 0; s < dof; s++)
       {
-         if ((*surf_fit_marker)[dofs[s]] == true)
+         if ((*surf_fit_marker)[vdofs[s]] == false) { continue; }
+
+         // Compute sigma when fitting to exact positions.
+         if (surf_fit_pos)
          {
-            const IntegrationPoint &ip_s = ir_s.IntPoint(s);
-            Tpr->SetIntPoint(&ip_s);
-            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
-                      sigma_e(s) * sigma_e(s);
+            Vector pos(dim), pos_target(dim);
+            for (int d = 0; d < dim; d++)
+            {
+               pos(d) = PMatI(s, d);
+               pos_target(d) = (*surf_fit_pos)(vdofs[d*dof + s]);
+            }
+            sigma_e(s) = surf_fit_limiter->Eval(pos, pos_target, 1.0);
          }
+
+         const IntegrationPoint &ip_s = ir_s->IntPoint(s);
+         Tpr->SetIntPoint(&ip_s);
+         energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+                   sigma_e(s) * sigma_e(s);
       }
    }
 
