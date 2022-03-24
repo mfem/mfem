@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -593,6 +593,27 @@ public:
 };
 
 /// 3D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_328 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_328(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_301),
+      sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_301 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual ~TMOP_Metric_328() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size (VS) metric (polyconvex).
 class TMOP_Metric_332 : public TMOP_Combo_QualityMetric
 {
 protected:
@@ -619,6 +640,7 @@ public:
 class TMOP_Metric_333 : public TMOP_Combo_QualityMetric
 {
 protected:
+   mutable InvariantsEvaluator2D<double> ie;
    double gamma;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
@@ -632,10 +654,28 @@ public:
       AddQualityMetric(sz_metric, gamma_);
    }
 
-   virtual int Id() const { return 333; }
-   double GetGamma() const { return gamma; }
-
    virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
+};
+
+/// 3D barrier Shape+Size (VS) metric (polyconvex).
+class TMOP_Metric_334 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_334(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_303),
+      sz_metric(new TMOP_Metric_316)
+   {
+      // (1-gamma) mu_303 + gamma mu_316
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+
+   virtual ~TMOP_Metric_334() { delete sh_metric; delete sz_metric; }
 };
 
 /// Shifted barrier form of 3D metric 16 (volume, ideal barrier metric), 3D
@@ -897,9 +937,6 @@ protected:
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
-   bool Parallel() const { return (comm != MPI_COMM_NULL); }
-#else
-   bool Parallel() const { return false; }
 #endif
 
    // should be called only if avg_volume == 0.0, i.e. avg_volume is not
@@ -935,6 +972,13 @@ public:
         uses_phys_coords(false), comm(mpicomm) { }
 #endif
    virtual ~TargetConstructor() { }
+
+#ifdef MFEM_USE_MPI
+   bool Parallel() const { return (comm != MPI_COMM_NULL); }
+   MPI_Comm GetComm() const { return comm; }
+#else
+   bool Parallel() const { return false; }
+#endif
 
    /** @brief Set the nodes to be used in the target-matrix construction.
 
@@ -1271,15 +1315,15 @@ protected:
    int integ_order;
 
    // Weight Coefficient multiplying the quality metric term.
-   Coefficient *coeff1; // not owned, if NULL -> coeff1 is 1.
+   Coefficient *metric_coeff; // not owned, if NULL -> metric_coeff is 1.
    // Normalization factor for the metric term.
    double metric_normal;
 
    // Nodes and weight Coefficient used for "limiting" the TMOP_Integrator.
    // These are both NULL when there is no limiting.
-   // The class doesn't own nodes0 and coeff0.
-   const GridFunction *nodes0;
-   Coefficient *coeff0;
+   // The class doesn't own lim_nodes0 and lim_coeff.
+   const GridFunction *lim_nodes0;
+   Coefficient *lim_coeff;
    // Limiting reference distance. Not owned.
    const GridFunction *lim_dist;
    // Limiting function. Owned.
@@ -1288,13 +1332,20 @@ protected:
    double lim_normal;
 
    // Adaptive limiting.
-   const GridFunction *zeta_0;       // Not owned.
+   const GridFunction *adapt_lim_gf0;    // Not owned.
 #ifdef MFEM_USE_MPI
-   const ParGridFunction *pzeta_0;
+   const ParGridFunction *adapt_lim_pgf0;
 #endif
-   GridFunction *zeta;               // Owned. Updated by adapt_eval.
-   Coefficient *coeff_zeta;          // Not owned.
-   AdaptivityEvaluator *adapt_eval;  // Not owned.
+   GridFunction *adapt_lim_gf;           // Owned. Updated by adapt_lim_eval.
+   Coefficient *adapt_lim_coeff;         // Not owned.
+   AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
+
+   // Surface fitting.
+   GridFunction *surf_fit_gf;       // Owned, Updated by surf_fit_eval.
+   const Array<bool> *surf_fit_marker;  // Not owned.
+   Coefficient *surf_fit_coeff;         // Not owned.
+   AdaptivityEvaluator *surf_fit_eval;  // Not owned.
+   double surf_fit_normal;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -1364,7 +1415,8 @@ protected:
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
-                                     double &metric_energy, double &lim_energy);
+                                     double &metric_energy, double &lim_energy,
+                                     double &surf_fit_gf_energy);
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
@@ -1383,12 +1435,24 @@ protected:
                               ElementTransformation &T,
                               const Vector &elfun, DenseMatrix &elmat);
 
-   void AssembleElemVecAdaptLim(const FiniteElement &el, const Vector &weights,
+   void AssembleElemVecAdaptLim(const FiniteElement &el,
                                 IsoparametricTransformation &Tpr,
-                                const IntegrationRule &ir, DenseMatrix &m);
-   void AssembleElemGradAdaptLim(const FiniteElement &el, const Vector &weights,
+                                const IntegrationRule &ir,
+                                const Vector &weights, DenseMatrix &mat);
+   void AssembleElemGradAdaptLim(const FiniteElement &el,
                                  IsoparametricTransformation &Tpr,
-                                 const IntegrationRule &ir, DenseMatrix &m);
+                                 const IntegrationRule &ir,
+                                 const Vector &weights, DenseMatrix &m);
+
+   // First derivative of the surface fitting term.
+   void AssembleElemVecSurfFit(const FiniteElement &el_x,
+                               IsoparametricTransformation &Tpr,
+                               DenseMatrix &mat);
+
+   // Second derivative of the surface fitting term.
+   void AssembleElemGradSurfFit(const FiniteElement &el_x,
+                                IsoparametricTransformation &Tpr,
+                                DenseMatrix &mat);
 
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
@@ -1406,7 +1470,7 @@ protected:
 
    void DisableLimiting()
    {
-      nodes0 = NULL; coeff0 = NULL; lim_dist = NULL;
+      lim_nodes0 = NULL; lim_coeff = NULL; lim_dist = NULL;
       delete lim_func; lim_func = NULL;
    }
 
@@ -1466,10 +1530,14 @@ public:
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
                    TMOP_QualityMetric *hm)
       : h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
-        integ_order(-1), coeff1(NULL), metric_normal(1.0),
-        nodes0(NULL), coeff0(NULL),
+        integ_order(-1), metric_coeff(NULL), metric_normal(1.0),
+        lim_nodes0(NULL), lim_coeff(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
-        zeta_0(NULL), zeta(NULL), coeff_zeta(NULL), adapt_eval(NULL),
+        adapt_lim_gf0(NULL), adapt_lim_gf(NULL), adapt_lim_coeff(NULL),
+        adapt_lim_eval(NULL),
+        surf_fit_gf(NULL), surf_fit_marker(NULL),
+        surf_fit_coeff(NULL),
+        surf_fit_eval(NULL), surf_fit_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
@@ -1481,7 +1549,7 @@ public:
 
    /// Release the device memory of large PA allocations. This will copy device
    /// memory back to the host before releasing.
-   void ReleasePADeviceMemory();
+   void ReleasePADeviceMemory(bool copy_to_host = true);
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** This function has priority over SetIntRule(), if both are called. */
@@ -1497,7 +1565,7 @@ public:
 
        Note that the Coefficient is evaluated in the physical configuration and
        not in the target configuration which may be undefined. */
-   void SetCoefficient(Coefficient &w1) { coeff1 = &w1; }
+   void SetCoefficient(Coefficient &w1) { metric_coeff = &w1; }
 
    /** @brief Limiting of the mesh displacements (general version).
 
@@ -1522,7 +1590,7 @@ public:
 
        Adds the term @f$ \int c (z(x) - z_0(x_0))^2 @f$, where z0(x0) is a given
        function on the starting mesh, and z(x) is its image on the new mesh.
-       Minimizing this, means that a node at x0 is allowed to move to a
+       Minimizing this term means that a node at x0 is allowed to move to a
        position x(x0) only if z(x) ~ z0(x0).
        Such term can be used for tangential mesh relaxation.
 
@@ -1537,8 +1605,35 @@ public:
                                AdaptivityEvaluator &ae);
 #endif
 
+   /** @brief Fitting of certain DOFs to the zero level set of a function.
+
+       Having a level set function s0(x0) on the starting mesh, and a set of
+       marked nodes (or DOFs), we move these nodes to the zero level set of s0.
+       If s(x) is the image of s0(x0) on the current mesh, this function adds to
+       the TMOP functional the term @f$ \int c \bar{s}(x))^2 @f$, where
+       @f$\bar{s}(x)@f$ is the restriction of s(x) on the aligned DOFs.
+       Minimizing this term means that a marked node at x0 is allowed to move to
+       a position x(x0) only if s(x) ~ 0.
+       Such term can be used for surface fitting and tangential relaxation.
+
+       @param[in] s0      The level set function on the initial mesh.
+       @param[in] smarker Indicates which DOFs will be aligned.
+       @param[in] coeff   Coefficient c for the above integral.
+       @param[in] ae      AdaptivityEvaluator to compute s(x) from s0(x0). */
+   void EnableSurfaceFitting(const GridFunction &s0,
+                             const Array<bool> &smarker, Coefficient &coeff,
+                             AdaptivityEvaluator &ae);
+#ifdef MFEM_USE_MPI
+   /// Parallel support for surface fitting.
+   void EnableSurfaceFitting(const ParGridFunction &s0,
+                             const Array<bool> &smarker, Coefficient &coeff,
+                             AdaptivityEvaluator &ae);
+#endif
+   void GetSurfaceFittingErrors(double &err_avg, double &err_max);
+   bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
+
    /// Update the original/reference nodes used for limiting.
-   void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }
+   void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
 
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone.
        @param[in] el     Type of FiniteElement.
@@ -1614,6 +1709,12 @@ public:
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
+
+   /// Update the surface fitting weight as surf_fit_coeff *= factor;
+   void UpdateSurfaceFittingWeight(double factor);
+
+   /// Get the surface fitting weight.
+   double GetSurfaceFittingWeight();
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -229,7 +229,8 @@ class PDEFilter
 {
 public:
    PDEFilter(ParMesh &mesh, double rh, int order = 2,
-             int maxiter=100, double rtol=1e-7, double atol=1e-15, int print_lv=0)
+             int maxiter = 100, double rtol = 1e-12,
+             double atol = 1e-15, int print_lv = 0)
       : rr(rh),
         fecp(order, mesh.Dimension()),
         fesp(&mesh, &fecp, 1),

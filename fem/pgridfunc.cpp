@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -474,10 +474,32 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    else
    {
       int spaceDim = pfes->GetMesh()->SpaceDimension();
-      DenseMatrix vshape(dof, spaceDim);
+      int vdim = std::max(spaceDim, fe->GetVDim());
+      DenseMatrix vshape(dof, vdim);
       fe->CalcVShape(T, vshape);
-      val.SetSize(spaceDim);
+      val.SetSize(vdim);
       vshape.MultTranspose(loc_data, val);
+   }
+}
+
+void ParGridFunction::GetDerivative(int comp, int der_comp,
+                                    ParGridFunction &der)
+{
+   Array<int> overlap;
+   AccumulateAndCountDerivativeValues(comp, der_comp, der, overlap);
+
+   // Count the zones globally.
+   GroupCommunicator &gcomm = der.ParFESpace()->GroupComm();
+   gcomm.Reduce<int>(overlap, GroupCommunicator::Sum);
+   gcomm.Bcast(overlap);
+
+   // Accumulate for all dofs.
+   gcomm.Reduce<double>(der.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast<double>(der.HostReadWrite());
+
+   for (int i = 0; i < overlap.Size(); i++)
+   {
+      der(i) /= overlap[i];
    }
 }
 
@@ -848,7 +870,7 @@ double ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
    return GlobalLpNorm(2.0, error, pfes->GetComm());
 }
 
-void ParGridFunction::Save(std::ostream &out) const
+void ParGridFunction::Save(std::ostream &os) const
 {
    double *data_  = const_cast<double*>(HostRead());
    for (int i = 0; i < size; i++)
@@ -856,7 +878,7 @@ void ParGridFunction::Save(std::ostream &out) const
       if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
    }
 
-   GridFunction::Save(out);
+   GridFunction::Save(os);
 
    for (int i = 0; i < size; i++)
    {
@@ -887,7 +909,7 @@ void ParGridFunction::SaveAsOne(const char *fname, int precision) const
 }
 
 #ifdef MFEM_USE_ADIOS2
-void ParGridFunction::Save(adios2stream &out,
+void ParGridFunction::Save(adios2stream &os,
                            const std::string& variable_name,
                            const adios2stream::data_type type) const
 {
@@ -897,7 +919,7 @@ void ParGridFunction::Save(adios2stream &out,
       if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
    }
 
-   GridFunction::Save(out, variable_name, type);
+   GridFunction::Save(os, variable_name, type);
 
    for (int i = 0; i < size; i++)
    {
@@ -906,7 +928,7 @@ void ParGridFunction::Save(adios2stream &out,
 }
 #endif
 
-void ParGridFunction::SaveAsOne(std::ostream &out) const
+void ParGridFunction::SaveAsOne(std::ostream &os) const
 {
    int i, p;
 
@@ -936,8 +958,8 @@ void ParGridFunction::SaveAsOne(std::ostream &out) const
 
    if (MyRank == 0)
    {
-      pfes -> Save(out);
-      out << '\n';
+      pfes -> Save(os);
+      os << '\n';
 
       for (p = 1; p < NRanks; p++)
       {
@@ -963,25 +985,25 @@ void ParGridFunction::SaveAsOne(std::ostream &out) const
             for (p = 0; p < NRanks; p++)
                for (i = 0; i < nvdofs[p]; i++)
                {
-                  out << *values[p]++ << '\n';
+                  os << *values[p]++ << '\n';
                }
 
             for (p = 0; p < NRanks; p++)
                for (i = 0; i < nedofs[p]; i++)
                {
-                  out << *values[p]++ << '\n';
+                  os << *values[p]++ << '\n';
                }
 
             for (p = 0; p < NRanks; p++)
                for (i = 0; i < nfdofs[p]; i++)
                {
-                  out << *values[p]++ << '\n';
+                  os << *values[p]++ << '\n';
                }
 
             for (p = 0; p < NRanks; p++)
                for (i = 0; i < nrdofs[p]; i++)
                {
-                  out << *values[p]++ << '\n';
+                  os << *values[p]++ << '\n';
                }
          }
       }
@@ -991,28 +1013,28 @@ void ParGridFunction::SaveAsOne(std::ostream &out) const
             for (i = 0; i < nvdofs[p]; i++)
                for (int d = 0; d < vdim; d++)
                {
-                  out << *values[p]++ << '\n';
+                  os << *values[p]++ << '\n';
                }
 
          for (p = 0; p < NRanks; p++)
             for (i = 0; i < nedofs[p]; i++)
                for (int d = 0; d < vdim; d++)
                {
-                  out << *values[p]++ << '\n';
+                  os << *values[p]++ << '\n';
                }
 
          for (p = 0; p < NRanks; p++)
             for (i = 0; i < nfdofs[p]; i++)
                for (int d = 0; d < vdim; d++)
                {
-                  out << *values[p]++ << '\n';
+                  os << *values[p]++ << '\n';
                }
 
          for (p = 0; p < NRanks; p++)
             for (i = 0; i < nrdofs[p]; i++)
                for (int d = 0; d < vdim; d++)
                {
-                  out << *values[p]++ << '\n';
+                  os << *values[p]++ << '\n';
                }
       }
 
@@ -1021,7 +1043,7 @@ void ParGridFunction::SaveAsOne(std::ostream &out) const
          values[p] -= nv[p];
          delete [] values[p];
       }
-      out.flush();
+      os.flush();
    }
    else
    {

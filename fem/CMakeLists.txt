@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -43,6 +43,15 @@ set(SRCS
   eltrans.cpp
   estimators.cpp
   fe.cpp
+  fe/fe_base.cpp
+  fe/fe_fixed_order.cpp
+  fe/fe_h1.cpp
+  fe/fe_l2.cpp
+  fe/fe_nd.cpp
+  fe/fe_nurbs.cpp
+  fe/fe_pos.cpp
+  fe/fe_rt.cpp
+  fe/fe_ser.cpp
   fe_coll.cpp
   fespace.cpp
   geom.cpp
@@ -124,6 +133,15 @@ set(HDRS
   eltrans.hpp
   estimators.hpp
   fe.hpp
+  fe/fe_base.hpp
+  fe/fe_fixed_order.hpp
+  fe/fe_h1.hpp
+  fe/fe_l2.hpp
+  fe/fe_nd.hpp
+  fe/fe_nurbs.hpp
+  fe/fe_pos.hpp
+  fe/fe_rt.hpp
+  fe/fe_ser.hpp
   fe_coll.hpp
   fem.hpp
   fespace.hpp

@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -103,7 +103,7 @@ sub formatSize {
 # Loop over each commit in this branch, and check for large diffs
 my $total_size = 0;
 foreach my $sha (@commits) {
-  my @blobs = `git diff-tree -r -c --root --no-commit-id $sha`;
+  my @blobs = `git diff-tree -r -c --root --no-commit-id --find-renames $sha`;
   my $nfiles_changed = scalar @blobs;
   if ($nfiles_changed > $commit_max_files_changed) {
     printf STDERR
@@ -133,7 +133,8 @@ foreach my $sha (@commits) {
       elsif ($mode eq "D") { }
       # File was modified, use the gzip'ed diff as a proxy of the required git storage
       elsif ($mode =~ m/M\d*/) { $blob_size += int(`git diff -U0 --binary $src $dst | gzip -c | wc -c`); }
-      elsif ($mode =~ m/R\d*/) { }
+      # File was renamed (at least 50% similarity)
+      elsif ($mode =~ m/R\d*/) { $blob_size += int(`git diff -U0 --binary $src $dst | gzip -c | wc -c`); }
       elsif ($mode eq "T") { }
       elsif ($mode eq "U") { }
       else { die "Unknown git status letter." }
@@ -148,7 +149,7 @@ foreach my $sha (@commits) {
         # File was added
         $blob_size += int(`git cat-file -s $dst`); }
       elsif ($mode eq "DD") { }
-      elsif ($mode eq "MM") {
+      elsif ($mode eq "MM" || $mode eq "MR") {
         # File was modified, use the gzip'ed diff as a proxy of the required git
         # storage
         my $sz1 = int(`git diff -U0 --binary $src1 $dst | gzip -c | wc -c`);
