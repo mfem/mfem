@@ -88,10 +88,11 @@ void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
       ctx.coeff = 1.0;
       coeff_ptr = ceedCoeff;
    }
-   else if (ConstantCoefficient *coeff = dynamic_cast<ConstantCoefficient*>(Q))
+   else if (ConstantCoefficient *const_coeff =
+               dynamic_cast<ConstantCoefficient*>(Q))
    {
       Coefficient *ceedCoeff = new Coefficient(1);
-      ctx.coeff = coeff->constant;
+      ctx.coeff = const_coeff->constant;
       coeff_ptr = ceedCoeff;
    }
    else if (GridFunctionCoefficient* gf_coeff =
@@ -148,11 +149,11 @@ void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
                      const mfem::IntegrationRule &ir,
                      Coefficient *&coeff_ptr, Context &ctx)
 {
-   if (VectorConstantCoefficient *coeff =
+   if (VectorConstantCoefficient *const_coeff =
           dynamic_cast<VectorConstantCoefficient*>(VQ))
    {
-      const int vdim = coeff->GetVDim();
-      const mfem::Vector &val = coeff->GetVec();
+      const int vdim = const_coeff->GetVDim();
+      const mfem::Vector &val = const_coeff->GetVec();
       Coefficient *ceedCoeff = new Coefficient(vdim);
       for (int i = 0; i < vdim; i++)
       {
