@@ -287,7 +287,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    // In parallel, the result is in 'py' which is an alias for 'aux2'.
 }
 
-Operator &NonlinearForm::GetGradient(const Vector &x) const
+Operator &NonlinearForm::GetGradient(const Vector &x, Operator **grad_e) const
 {
    if (ext)
    {

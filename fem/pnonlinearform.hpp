@@ -27,7 +27,7 @@ class ParNonlinearForm : public NonlinearForm
 {
 protected:
    mutable ParGridFunction X, Y;
-   mutable OperatorHandle pGrad;
+   mutable OperatorHandle pGrad, pGrad_e;
 
 public:
    ParNonlinearForm(ParFiniteElementSpace *pf);
@@ -55,7 +55,11 @@ public:
    /** The returned matrix does NOT have any boundary conditions imposed. */
    const SparseMatrix &GetLocalGradient(const Vector &x) const;
 
-   virtual Operator &GetGradient(const Vector &x) const;
+   Operator &GetGradient(const Vector &x, Operator **grad_e) const;
+   virtual Operator &GetGradient(const Vector &x) const
+   {
+       return GetGradient(x, nullptr);
+   }
 
    /// Set the operator type id for the parallel gradient matrix/operator.
    void SetGradientType(Operator::Type tid) { pGrad.SetType(tid); }

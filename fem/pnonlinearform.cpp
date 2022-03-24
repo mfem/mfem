@@ -20,7 +20,9 @@ namespace mfem
 {
 
 ParNonlinearForm::ParNonlinearForm(ParFiniteElementSpace *pf)
-   : NonlinearForm(pf), pGrad(Operator::Hypre_ParCSR)
+   : NonlinearForm(pf),
+     pGrad(Operator::Hypre_ParCSR),
+     pGrad_e(Operator::Hypre_ParCSR)
 {
    X.MakeRef(pf, NULL);
    Y.MakeRef(pf, NULL);
@@ -104,7 +106,7 @@ const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
    return *Grad;
 }
 
-Operator &ParNonlinearForm::GetGradient(const Vector &x) const
+Operator &ParNonlinearForm::GetGradient(const Vector &x, Operator **grad_e) const
 {
    if (NonlinearForm::ext) { return NonlinearForm::GetGradient(x); }
 
@@ -132,9 +134,12 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
    pGrad.MakePtAP(dA, Ph);
 
    // Impose b.c. on pGrad
-   OperatorHandle pGrad_e;
+   pGrad_e.Clear();
    pGrad_e.EliminateRowsCols(pGrad, ess_tdof_list);
-
+   if (grad_e != nullptr)
+   {
+      *grad_e = pGrad_e.Ptr();
+   }
    return *pGrad.Ptr();
 }
 
