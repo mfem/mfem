@@ -1024,7 +1024,7 @@ RT_WedgeElement::RT_WedgeElement(const int p)
    : VectorFiniteElement(3, Geometry::PRISM,
                          (p + 2) * ((p + 1) * (p + 2)) / 2 +
                          (p + 1) * (p + 1) * (p + 3), p + 1,
-                         H_DIV, FunctionSpace::Pk),
+                         H_DIV, FunctionSpace::Qk),
      dof2nk(dof),
      t_dof(dof),
      s_dof(dof),

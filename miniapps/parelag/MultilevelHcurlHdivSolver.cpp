@@ -8,7 +8,26 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
+//
+//           ---------------------------------------------------
+//           ParELAG Miniapp: AMGe solver for H(curl) and H(div)
+//           ---------------------------------------------------
+//
+// This miniapp employs MFEM and ParELAG to solve H(curl)- and H(div)-elliptic
+// forms by an element based algebraic multigrid (AMGe). It uses: a multilevel
+// hierarchy of de Rham complexes of finite element spaces, built by ParELAG;
+// Hiptmair-type smoothers, implemented in ParELAG; and AMS (Auxiliary-space
+// Maxwell Solver) or ADS (Auxiliary-space Divergence Solver), from HYPRE, for
+// preconditioning or solving on the coarsest levels. See the README file in
+// this directory for more details.
+//
+// Compile with: see README
+//
+// Sample runs:  MultilevelHcurlHdivSolver -curl -f \
+//                  MultilevelHcurlSolver_pipe_example_parameters.xml
+//               MultilevelHcurlHdivSolver -div -f \
+//                  MultilevelHdivSolver_pipe_example_parameters.xml
+//
 // We recommend viewing MFEM's examples 3 and 4 before viewing this miniapp.
 
 #include <fstream>
