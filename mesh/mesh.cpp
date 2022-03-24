@@ -12022,7 +12022,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    computed_factors = flags;
 
    MemoryType d_mt = Device::Allows(Backend::RAJA_CUDA) == true ?
-     mfem::MemoryType::DEVICE_UMPIRE_2 : mfem::MemoryType::HOST;
+                     mfem::MemoryType::DEVICE_UMPIRE_2 : mfem::MemoryType::HOST;
 
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
