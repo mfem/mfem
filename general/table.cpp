@@ -189,6 +189,9 @@ void Table::GetRow(int i, Array<int> &row) const
    MFEM_ASSERT(i >= 0 && i < size, "Row index " << i << " is out of range [0,"
                << size << ')');
 
+   HostReadJ();
+   HostReadI();
+
    row.SetSize(RowSize(i));
    row.Assign(GetRow(i));
 }
