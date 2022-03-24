@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1289,9 +1289,11 @@ static int Problem1(Opt &opt)
 int main(int argc, char *argv[])
 {
    Opt opt;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_rank(MPI_COMM_WORLD, &opt.id);
-   MPI_Comm_size(MPI_COMM_WORLD, &opt.sz);
+   Mpi::Init(argc, argv);
+   opt.id = Mpi::WorldRank();
+   opt.sz = Mpi::WorldSize();
+   Hypre::Init();
+
    // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&opt.pb, "-p", "--problem", "Problem to solve.");
@@ -1327,7 +1329,7 @@ int main(int argc, char *argv[])
    args.AddOption(&opt.snapshot, "-ss", "--snapshot", "-no-ss", "--no-snapshot",
                   "Enable or disable GLVis snapshot.");
    args.Parse();
-   if (!args.Good()) { args.PrintUsage(mfem::out); MPI_Finalize(); return 1; }
+   if (!args.Good()) { args.PrintUsage(mfem::out); return 1; }
    MFEM_VERIFY(opt.lambda >= 0.0 && opt.lambda <= 1.0,"");
    if (!opt.id) { args.PrintOptions(mfem::out); }
 
@@ -1339,6 +1341,5 @@ int main(int argc, char *argv[])
 
    if (opt.pb == 1) { Problem1(opt); }
 
-   MPI_Finalize();
    return 0;
 }

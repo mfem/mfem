@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -259,7 +259,7 @@ public:
    ParMesh& operator=(ParMesh &&mesh);
 
    /// Explicitly delete the copy assignment operator.
-   ParMesh& operator=(ParMesh &mesh) = delete;
+   ParMesh& operator=(const ParMesh &mesh) = delete;
 
    /// Create a uniformly refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
@@ -281,6 +281,9 @@ public:
    void Finalize(bool refine = false, bool fix_orientation = false) override;
 
    void SetAttributes() override;
+
+   /// Checks if any rank in the mesh has boundary elements
+   bool HasBoundaryElements() const override;
 
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }

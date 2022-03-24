@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -306,7 +306,7 @@ void TMOPRefinerEstimator::SetTetIntRules()
       Mesh mesh_ref(base_mesh_copy);
       for (int e = 0; e < mesh_ref.GetNE(); e++)
       {
-         marked_elements.Append(Refinement(e, i)); //ref_type will default to 7
+         marked_elements.Append(Refinement(e, i)); // ref_type will default to 7
       }
       mesh_ref.GeneralRefinement(marked_elements, 1, 0);
       TetIntRule[i] = SetIntRulesFromMesh(mesh_ref);
@@ -719,8 +719,8 @@ void TMOPHRSolver::Mult()
                }
                break;
             }
-         } //n_r limit
-      } //n_hr
+         } // n_r limit
+      } // n_hr
 #endif
    }
 }

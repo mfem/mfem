@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -132,6 +132,9 @@ protected:
    /// Do not allow copy construction, due to assumed ownership.
    MeshOperatorSequence(const MeshOperatorSequence &) { }
 
+   /// Do not allow copy assignment, due to assumed ownership.
+   MeshOperatorSequence& operator=(const MeshOperatorSequence &s) = delete;
+
    /** @brief Apply the MeshOperatorSequence.
        @return ActionInfo value corresponding to the last applied operator from
        the sequence. */
@@ -238,10 +241,10 @@ public:
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
        (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
+   void SetNCLimit(int nc_limit_)
    {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
+      MFEM_ASSERT(nc_limit_ >= 0, "Invalid NC limit");
+      nc_limit = nc_limit_;
    }
 
    /// Get the number of marked elements in the last Apply() call.
@@ -293,14 +296,14 @@ public:
    /// Set the de-refinement threshold. The default value is zero.
    void SetThreshold(double thresh) { threshold = thresh; }
 
-   void SetOp(int op) { this->op = op; }
+   void SetOp(int oper) { op = oper; }
 
    /** @brief Set the maximum ratio of refinement levels of adjacent elements
        (0 = unlimited). */
-   void SetNCLimit(int nc_limit)
+   void SetNCLimit(int nc_limit_)
    {
-      MFEM_ASSERT(nc_limit >= 0, "Invalid NC limit");
-      this->nc_limit = nc_limit;
+      MFEM_ASSERT(nc_limit_ >= 0, "Invalid NC limit");
+      nc_limit = nc_limit_;
    }
 
    /// Reset the associated estimator.

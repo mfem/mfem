@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -89,15 +89,16 @@ void mfem_backtrace(int mode, int depth)
    unw_word_t ip, offp;
    std::ostream &merr = internal::mfem_err_initialized ? mfem::err : std::cerr;
 
-   int err = unw_getcontext(&uc);
-   err = err ? err : unw_init_local(&cursor, &uc);
+   int err_flag = unw_getcontext(&uc);
+   err_flag = err_flag ? err_flag : unw_init_local(&cursor, &uc);
 
    Array<unw_word_t> addrs(MemoryType::HOST);
    while (unw_step(&cursor) > 0 && addrs.Size() != depth)
    {
-      err = err ? err : unw_get_proc_name(&cursor, name, UNW_NAME_LEN, &offp);
-      err = err ? err : unw_get_reg(&cursor, UNW_REG_IP, &ip);
-      if (err) { break; }
+      err_flag = err_flag ? err_flag :
+                 unw_get_proc_name(&cursor, name, UNW_NAME_LEN, &offp);
+      err_flag = err_flag ? err_flag : unw_get_reg(&cursor, UNW_REG_IP, &ip);
+      if (err_flag) { break; }
       char *name_p = name;
       int demangle_status;
 
@@ -126,8 +127,8 @@ void mfem_backtrace(int mode, int depth)
       for (int i = 0; i < addrs.Size(); i++)
       {
          Dl_info info;
-         err = !dladdr((void*)addrs[i], &info);
-         if (err)
+         err_flag = !dladdr((void*)addrs[i], &info);
+         if (err_flag)
          {
             fname = "<exe>";
          }
@@ -139,7 +140,7 @@ void mfem_backtrace(int mode, int depth)
             merr << "addr2line -C -e " << fname;
 #else
             merr << "atos -o " << fname << " -l "
-                 << (err ? 0 : info.dli_fbase);
+                 << (err_flag ? 0 : info.dli_fbase);
 #endif
          }
          merr << " 0x" << std::hex << addrs[i] << std::dec;

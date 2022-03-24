@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -88,16 +88,18 @@ void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
       ctx.coeff = 1.0;
       coeff_ptr = ceedCoeff;
    }
-   else if (ConstantCoefficient *coeff = dynamic_cast<ConstantCoefficient*>(Q))
+   else if (ConstantCoefficient *const_coeff =
+               dynamic_cast<ConstantCoefficient*>(Q))
    {
       Coefficient *ceedCoeff = new Coefficient(1);
-      ctx.coeff = coeff->constant;
+      ctx.coeff = const_coeff->constant;
       coeff_ptr = ceedCoeff;
    }
-   else if (GridFunctionCoefficient* coeff =
+   else if (GridFunctionCoefficient* gf_coeff =
                dynamic_cast<GridFunctionCoefficient*>(Q))
    {
-      GridCoefficient *ceedCoeff = new GridCoefficient(*coeff->GetGridFunction());
+      GridCoefficient *ceedCoeff =
+         new GridCoefficient(*gf_coeff->GetGridFunction());
       coeff_ptr = ceedCoeff;
    }
    else if (QuadratureFunctionCoefficient *cQ =
@@ -147,11 +149,11 @@ void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
                      const mfem::IntegrationRule &ir,
                      Coefficient *&coeff_ptr, Context &ctx)
 {
-   if (VectorConstantCoefficient *coeff =
+   if (VectorConstantCoefficient *const_coeff =
           dynamic_cast<VectorConstantCoefficient*>(VQ))
    {
-      const int vdim = coeff->GetVDim();
-      const mfem::Vector &val = coeff->GetVec();
+      const int vdim = const_coeff->GetVDim();
+      const mfem::Vector &val = const_coeff->GetVec();
       Coefficient *ceedCoeff = new Coefficient(vdim);
       for (int i = 0; i < vdim; i++)
       {
@@ -159,10 +161,11 @@ void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       }
       coeff_ptr = ceedCoeff;
    }
-   else if (VectorGridFunctionCoefficient* coeff =
+   else if (VectorGridFunctionCoefficient* vgf_coeff =
                dynamic_cast<VectorGridFunctionCoefficient*>(VQ))
    {
-      GridCoefficient *ceedCoeff = new GridCoefficient(*coeff->GetGridFunction());
+      GridCoefficient *ceedCoeff =
+         new GridCoefficient(*vgf_coeff->GetGridFunction());
       coeff_ptr = ceedCoeff;
    }
    else if (VectorQuadratureFunctionCoefficient *cQ =
