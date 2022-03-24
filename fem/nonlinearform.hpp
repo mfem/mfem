@@ -216,7 +216,11 @@ public:
        In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a true-dof vector. */
-   virtual Operator &GetGradient(const Vector &x) const;
+   Operator &GetGradient(const Vector &x, Operator **grad_e) const;
+   virtual Operator &GetGradient(const Vector &x) const
+   {
+      return GetGradient(x, nullptr);
+   }
 
    /// Update the NonlinearForm to propagate updates of the associated FE space.
    /** After calling this method, the essential boundary conditions need to be
