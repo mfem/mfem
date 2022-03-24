@@ -70,9 +70,10 @@ double f_exact(const Vector & X);
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 1. Parse command-line options.
    const char *mesh_file = "../../../data/inline-quad.mesh";
@@ -353,7 +354,7 @@ int main(int argc, char *argv[])
    }
 
 
-   for (int i = 0; i<=ref; i++)
+   for (int i = 0; i<ref; i++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -380,15 +381,15 @@ int main(int argc, char *argv[])
       int n = ess_tdof_list_uhat.Size();
       int m = ess_tdof_list_fhat.Size();
       Array<int> ess_tdof_list(n+m);
-      for (int i = 0; i < n; i++)
+      for (int j = 0; j < n; j++)
       {
-         ess_tdof_list[i] = ess_tdof_list_uhat[i] 
+         ess_tdof_list[j] = ess_tdof_list_uhat[j] 
                           + u_fes->GetTrueVSize() 
                           + sigma_fes->GetTrueVSize();
       }
-      for (int i = 0; i < m; i++)
+      for (int j = 0; j < m; j++)
       {
-         ess_tdof_list[i+n] = ess_tdof_list_fhat[i] 
+         ess_tdof_list[j+n] = ess_tdof_list_fhat[j] 
                             + u_fes->GetTrueVSize() 
                             + sigma_fes->GetTrueVSize()
                             + hatu_fes->GetTrueVSize();
@@ -535,7 +536,7 @@ int main(int argc, char *argv[])
          //       << flush;
       }
 
-      if (i == ref)
+      if (i == ref-1)
          break;
 
       pmesh.GeneralRefinement(elements_to_refine,1,1);
@@ -563,7 +564,8 @@ int main(int argc, char *argv[])
       }
    }
 
-
+   delete coeff_fes;
+   delete coeff_fec;
    delete a;
    delete tau_fec;
    delete v_fec;
@@ -572,6 +574,7 @@ int main(int argc, char *argv[])
    delete hatu_fes;
    delete hatu_fec;
    delete sigma_fec;
+   delete sigma_fes;
    delete u_fec;
    delete u_fes;
 
