@@ -24,6 +24,15 @@ IntegerSet::IntegerSet(IntegerSet &s)
    }
 }
 
+IntegerSet& IntegerSet::operator=(const IntegerSet &s)
+{
+   me.SetSize(s.me.Size());
+   for (int i = 0; i < me.Size(); i++)
+   {
+      me[i] = s.me[i];
+   }
+   return *this;
+}
 
 int IntegerSet::operator== (IntegerSet &s)
 {

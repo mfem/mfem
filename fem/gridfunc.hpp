@@ -126,6 +126,7 @@ public:
    FiniteElementCollection *OwnFEC() { return fec; }
 
    int VectorDim() const;
+   int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.
    /** Note that the returned Vector may be empty, if not previously allocated
