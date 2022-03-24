@@ -12021,6 +12021,9 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    IntRule = &ir;
    computed_factors = flags;
 
+   MemoryType d_mt = Device::Allows(Backend::RAJA_CUDA) == true ?
+     mfem::MemoryType::DEVICE_UMPIRE_2 : mfem::MemoryType::HOST;
+
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
    const int vdim = fespace->GetVDim();
@@ -12031,28 +12034,28 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
                                           ElementDofOrdering::LEXICOGRAPHIC,
                                           type,
                                           L2FaceValues::SingleValued );
-   Vector Fnodes(face_restr->Height());
+   Vector Fnodes(face_restr->Height(), d_mt);
    face_restr->Mult(*nodes, Fnodes);
 
    unsigned eval_flags = 0;
    if (flags & FaceGeometricFactors::COORDINATES)
    {
-      X.SetSize(vdim*NQ*NF);
+      X.SetSize(vdim*NQ*NF, d_mt);
       eval_flags |= FaceQuadratureInterpolator::VALUES;
    }
    if (flags & FaceGeometricFactors::JACOBIANS)
    {
-      J.SetSize(vdim*vdim*NQ*NF);
+      J.SetSize(vdim*vdim*NQ*NF, d_mt);
       eval_flags |= FaceQuadratureInterpolator::DERIVATIVES;
    }
    if (flags & FaceGeometricFactors::DETERMINANTS)
    {
-      detJ.SetSize(NQ*NF);
+      detJ.SetSize(NQ*NF, d_mt);
       eval_flags |= FaceQuadratureInterpolator::DETERMINANTS;
    }
    if (flags & FaceGeometricFactors::NORMALS)
    {
-      normal.SetSize(vdim*NQ*NF);
+      normal.SetSize(vdim*NQ*NF, d_mt);
       eval_flags |= FaceQuadratureInterpolator::NORMALS;
    }
 
