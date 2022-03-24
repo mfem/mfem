@@ -1192,7 +1192,7 @@ void Mesh::InitTables()
 {
    el_to_edge =
       el_to_face = el_to_el = bel_to_edge = face_edge = edge_vertex = NULL;
-   vertex_to_el = vertex_to_face = vertex_to_edge = NULL;
+   vertex_to_el = vertex_to_face = face_to_vertex = vertex_to_edge = NULL;
 }
 
 void Mesh::SetEmpty()
@@ -1274,12 +1274,13 @@ void Mesh::Destroy()
 
 void Mesh::ResetLazyData()
 {
-   delete el_to_el;     el_to_el = NULL;
-   delete face_edge;    face_edge = NULL;
-   delete edge_vertex;  edge_vertex = NULL;
-   delete vertex_edge;  vertex_edge = NULL;
-   delete vertex_face;  vertex_face = NULL;
-   delete vertex_el;    vertex_el = NULL;
+   delete el_to_el;        el_to_el = NULL;
+   delete face_edge;       face_edge = NULL;
+   delete edge_vertex;     edge_vertex = NULL;
+   delete vertex_to_edge;  vertex_to_edge = NULL;
+   delete vertex_to_face;  vertex_to_face = NULL;
+   delete face_to_vertex;  face_to_vertex = NULL;
+   delete vertex_to_el;    vertex_to_el = NULL;
 
 
    DeleteGeometricFactors();
@@ -3360,6 +3361,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    // Do NOT copy the vertex to edge face and element tables
    vertex_to_edge = NULL;
    vertex_to_face = NULL;
+   face_to_vertex = NULL;
    vertex_to_el = NULL;
 
    // Copy the edge-to-vertex Table, edge_vertex
@@ -5790,44 +5792,55 @@ Table *Mesh::GetEdgeVertexTable() const
 
 Table *Mesh::GetVertexToEdgeTable() const
 {
-
    if (vertex_to_edge) {return vertex_to_edge;}
-
-   Table *edge_to_vertex_table = GetEdgeVertexTable();
-   vertex_to_edge = Transpose(edge_to_vertex_table);
+   vertex_to_edge = Transpose(*GetEdgeVertexTable());
+   vertex_to_edge->Finalize();
    return vertex_to_edge;
 }
+
+Table *Mesh::GetFaceToVertexTable() const
+{
+   int i, j, nv, *v;
+
+   if (face_to_vertex) {return face_to_vertex;}
+   face_to_vertex = new Table;
+
+   face_to_vertex->MakeI(NumOfFaces);
+
+   for (i = 0; i < NumOfFaces; i++)
+   {
+      nv = faces[i]->GetNVertices();
+      v  = faces[i]->GetVertices();
+      for (j = 0; j < nv; j++)
+      {
+         face_to_vertex->AddAColumnInRow(v[j]);
+      }
+   }
+
+   face_to_vertex->MakeJ();
+
+   for (i = 0; i < NumOfFaces; i++)
+   {
+      nv = faces[i]->GetNVertices();
+      v  = faces[i]->GetVertices();
+      for (j = 0; j < nv; j++)
+      {
+         face_to_vertex->AddConnection(v[j], i);
+      }
+   }
+
+   face_to_vertex->ShiftUpI();
+   face_to_vertex->Finalize();   
+
+   return face_to_vertex;
+}
+
 
 Table *Mesh::GetVertexToFaceTable() const
 {
    if (vertex_to_face) {return vertex_to_face;}
-   vertex_to_face = new Table;
-
-   vertex_to_face->MakeI(NumOfVertices);
-   for (i = 0; i < NumOfElements; i++)
-   {
-      nv = elements[i]->GetNVertices();
-      v  = elements[i]->GetVertices();
-      for (j = 0; j < nv; j++)
-      {
-         vertex_to_face->AddAColumnInRow(v[j]);
-      }
-   }
-
-   vertex_to_face->MakeJ();
-   //TODO: change this to faces
-   for (i = 0; i < NumOfElements; i++)
-   {
-      nv = elements[i]->GetNVertices();
-      v  = elements[i]->GetVertices();
-      for (j = 0; j < nv; j++)
-      {
-         vertex_to_face->AddConnection(v[j], i);
-      }
-   }
-
-   vertex_to_face->ShiftUpI();
-
+   vertex_to_face = Transpose(*GetFaceToVertexTable());
+   vertex_to_face->Finalize();
    return vertex_to_face;
 }
 
@@ -5864,6 +5877,7 @@ Table *Mesh::GetVertexToElementTable() const
    }
 
    vertex_to_el->ShiftUpI();
+   vertex_to_el->Finalize();
 
    return vertex_to_el;
 }
@@ -5948,24 +5962,24 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
    }
 }
 
-
-void Mesh::GetVertexEdges(int i, Array<int> &edges)
+void Mesh::GetVertexEdges(int vi, Array<int> &edges) 
 {
-   Table *e_v = GetEdgeVertexTable();
+   if (!vertex_to_edge) {GetVertexToEdgeTable();}
+   vertex_to_edge->GetRow(vi, edges);
+}
+
+void Mesh::GetVertexFaces(int vi, Array<int> &faces_)
+{
+   if (!vertex_to_face) {GetVertexToFaceTable();}
+   vertex_to_face->GetRow(vi, faces_);
 }
 
 
-void Mesh::GetVertexFaces(int i, Array<int> &faces)
+void Mesh::GetVertexElements(int vi, Array<int> &elems)
 {
-
+   if (!vertex_to_el) {GetVertexToElementTable();}
+   vertex_to_el->GetRow(vi, elems);
 }
-
-
-void Mesh::GetVertexElements(int i, Array<int> &elems)
-{
-
-}
-
 
 int Mesh::GetBdrElementEdgeIndex(int i) const
 {
