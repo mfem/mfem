@@ -121,11 +121,11 @@ public:
             w *= Q->Eval(Trans, ip);
          }
 
-         for (int j = 0; j < nd; j++)
+         for (int jj = 0; jj < nd; jj++)
          {
-            for (int i = 0; i < nd; i++)
+            for (int ii = 0; ii < nd; ii++)
             {
-               elmat(i, j) += w*shape(i)*laplace(j);
+               elmat(ii, jj) += w*shape(ii)*laplace(jj);
             }
          }
       }
@@ -135,11 +135,11 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
@@ -181,7 +181,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (!strongBC & (kappa < 0))
@@ -433,8 +432,6 @@ int main(int argc, char *argv[])
    delete fespace;
    if (own_fec) { delete fec; }
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

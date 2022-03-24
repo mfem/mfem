@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -58,16 +58,19 @@ void AppendBytes(std::vector<char> &vec, const T &val)
    vec.insert(vec.end(), ptr, ptr + sizeof(T));
 }
 
-/// Given a buffer @a buf of length @a nbytes, encode the data in base-64
-/// format, and write the encoded data to the output stream @a out.
+/// @brief Given a buffer @a bytes of length @a nbytes, encode the data in
+/// base-64 format, and write the encoded data to the output stream @a out.
 void WriteBase64(std::ostream &out, const void *bytes, size_t nbytes);
 
-/// Decode @a len base-64 encoded characters in the buffer @a src, and store the
-/// resulting decoded data in @a buf. @a buf will be resized as needed.
+/// @brief Decode @a len base-64 encoded characters in the buffer @a src, and
+/// store the resulting decoded data in @a buf. @a buf will be resized as
+/// needed.
 void DecodeBase64(const char *src, size_t len, std::vector<char> &buf);
 
-/// Return the number of characters needed to encode @a nbytes in base-64. This
-/// is equal to 4*nbytes/3, rounded up to the nearest multiple of 4.
+/// @brief Return the number of characters needed to encode @a nbytes in
+/// base-64.
+///
+/// This is equal to 4*nbytes/3, rounded up to the nearest multiple of 4.
 size_t NumBase64Chars(size_t nbytes);
 
 } // namespace mfem::bin_io

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,6 +30,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/rt-2d-p4-tri.mesh -o 4
 //    mpirun -np 2 pfindpts -m ../../data/inline-tri.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3
+//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -hr
 //    mpirun -np 2 pfindpts -m ../../data/inline-tet.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-wedge.mesh -o 3
@@ -59,11 +60,11 @@ void F_exact(const Vector &p, Vector &F)
 
 int main (int argc, char *argv[])
 {
-   // Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // Set the method's default parameters.
    const char *mesh_file = "../../data/rt-2d-q3.mesh";
@@ -75,6 +76,7 @@ int main (int argc, char *argv[])
    int fieldtype         = 0;
    int ncomp             = 1;
    bool search_on_rank_0 = false;
+   bool hrefinement      = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -98,6 +100,10 @@ int main (int argc, char *argv[])
    args.AddOption(&search_on_rank_0, "-sr0", "--search-on-r0", "-no-sr0",
                   "--no-search-on-r0",
                   "Enable search only on rank 0 (disable to search points on all tasks).");
+   args.AddOption(&hrefinement, "-hr", "--h-refinement", "-no-hr",
+                  "--no-h-refinement",
+                  "Do random h refinements to mesh.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -134,9 +140,13 @@ int main (int argc, char *argv[])
    }
 
    // Distribute the mesh.
+   if (hrefinement) { mesh->EnsureNCMesh(); }
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++) { pmesh.UniformRefinement(); }
+
+   // Random h-refinements to mesh
+   if (hrefinement) { pmesh.RandomRefinement(0.5); }
 
    // Curve the mesh based on the chosen polynomial degree.
    H1_FECollection fecm(mesh_poly_deg, dim);
@@ -302,6 +312,5 @@ int main (int argc, char *argv[])
 
    delete fec;
 
-   MPI_Finalize();
    return 0;
 }

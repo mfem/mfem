@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,12 +21,12 @@ namespace mfem
 
 ParBilinearForm::ParBilinearForm(ParBilinearForm &&other)
    : BilinearForm(std::move(other)), pfes(other.pfes),
-     X(other.pfes, other.X.GetData()), Y(other.pfes, other.Y.GetData()),
+     Xaux(other.pfes, other.Xaux.GetData()), Yaux(other.pfes, other.Yaux.GetData()),
      Ytmp(std::move(other.Ytmp)), p_mat(other.p_mat), p_mat_e(other.p_mat_e),
      keep_nbr_block(other.keep_nbr_block)
 {
-   other.X.MakeRef(other.pfes, nullptr);
-   other.Y.MakeRef(other.pfes, nullptr);
+   other.Xaux.MakeRef(other.pfes, nullptr);
+   other.Yaux.MakeRef(other.pfes, nullptr);
 
    p_mat.SetOperatorOwner();
    other.p_mat.SetOperatorOwner(false);
@@ -45,10 +45,10 @@ ParBilinearForm& ParBilinearForm::operator=(ParBilinearForm &&other)
    {
       BilinearForm::operator=(std::move(other));
       pfes = other.pfes;
-      X.MakeRef(other.pfes, other.X.GetData());
-      other.X.MakeRef(other.pfes, nullptr);
-      Y.MakeRef(other.pfes, other.Y.GetData());
-      other.Y.MakeRef(other.pfes, nullptr);
+      Xaux.MakeRef(other.pfes, other.Xaux.GetData());
+      other.Xaux.MakeRef(other.pfes, nullptr);
+      Yaux.MakeRef(other.pfes, other.Yaux.GetData());
+      other.Yaux.MakeRef(other.pfes, nullptr);
 
       Ytmp = std::move(other.Ytmp);
 
@@ -366,26 +366,26 @@ ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
 void ParBilinearForm::TrueAddMult(const Vector &x, Vector &y, const double a)
 const
 {
-   if (X.ParFESpace() != pfes)
+   if (Xaux.ParFESpace() != pfes)
    {
-      X.SetSpace(pfes);
-      Y.SetSpace(pfes);
+      Xaux.SetSpace(pfes);
+      Yaux.SetSpace(pfes);
       Ytmp.SetSize(pfes->GetTrueVSize());
    }
 
-   X.Distribute(&x);
+   Xaux.Distribute(&x);
    if (ext)
    {
-      ext->Mult(X, Y);
+      ext->Mult(Xaux, Yaux);
    }
    else
    {
       MFEM_VERIFY(interior_face_integs.Size() == 0,
                   "the case of interior face integrators is not"
                   " implemented");
-      mat->Mult(X, Y);
+      mat->Mult(Xaux, Yaux);
    }
-   pfes->GetProlongationMatrix()->MultTranspose(Y, Ytmp);
+   pfes->GetProlongationMatrix()->MultTranspose(Yaux, Ytmp);
    y.Add(a,Ytmp);
 }
 
@@ -422,6 +422,7 @@ void ParBilinearForm::FormLinearSystem(
       P.MultTranspose(b, true_B);
       R.Mult(x, true_X);
       p_mat.EliminateBC(p_mat_e, ess_tdof_list, true_X, true_B);
+      R.EnsureMultTranspose();
       R.MultTranspose(true_B, b);
       hybridization->ReduceRHS(true_B, B);
       X.SetSize(B.Size());
@@ -586,15 +587,15 @@ void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
 void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
                                        const double a) const
 {
-   if (X.ParFESpace() != trial_pfes)
+   if (Xaux.ParFESpace() != trial_pfes)
    {
-      X.SetSpace(trial_pfes);
-      Y.SetSpace(test_pfes);
+      Xaux.SetSpace(trial_pfes);
+      Yaux.SetSpace(test_pfes);
    }
 
-   X.Distribute(&x);
-   mat->Mult(X, Y);
-   test_pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
+   Xaux.Distribute(&x);
+   mat->Mult(Xaux, Yaux);
+   test_pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Yaux, 1.0, y);
 }
 
 void ParMixedBilinearForm::FormRectangularSystemMatrix(

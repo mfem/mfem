@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -79,13 +79,13 @@ TEST_CASE("Second order ODE methods",
          dt = t_final/double(ti_steps);
       };
 
-      void init_hist(SecondOrderODESolver* ode_solver,double dt)
+      void init_hist(SecondOrderODESolver* ode_solver,double dt_)
       {
          int nstate = ode_solver->GetStateSize();
 
          for (int s = 0; s< nstate; s++)
          {
-            double t = -(s)*dt;
+            double t = -(s)*dt_;
             Vector uh(1);
             uh[0] = -cos(t) - sin(t);
             ode_solver->SetStateVector(s,uh);
@@ -95,7 +95,7 @@ TEST_CASE("Second order ODE methods",
 
       double order(SecondOrderODESolver* ode_solver, bool init_hist_ = false)
       {
-         double dt,t;
+         double dt_order,t;
          Vector u(1);
          Vector du(1);
          Vector err_u(levels);
@@ -103,12 +103,12 @@ TEST_CASE("Second order ODE methods",
          int steps = ti_steps;
 
          t = 0.0;
-         dt = t_final/double(steps);
+         dt_order = t_final/double(steps);
          u = u0;
          du = dudt0;
          ode_solver->Init(*oper);
-         if (init_hist_) { init_hist(ode_solver,dt); }
-         ode_solver->Run(u, du, t, dt,t_final - 1e-12);
+         if (init_hist_) { init_hist(ode_solver,dt_order); }
+         ode_solver->Run(u, du, t, dt_order, t_final - 1e-12);
 
          u -= u0;
          du -= dudt0;
@@ -130,19 +130,19 @@ TEST_CASE("Second order ODE methods",
          {
             int lvl = pow(2,l);
             t = 0.0;
-            dt *= 0.5;
+            dt_order *= 0.5;
             u = u0;
             du = dudt0;
             ode_solver->Init(*oper);
-            if (init_hist_) { init_hist(ode_solver,dt); }
+            if (init_hist_) { init_hist(ode_solver,dt_order); }
 
             // Instead of single run command:
-            // ode_solver->Run(u, du, t, dt, t_final - 1e-12);
+            // ode_solver->Run(u, du, t, dt_order, t_final - 1e-12);
             // Chop-up sequence with Get/Set in between
             // in order to test these routines
             for (int ti = 0; ti < steps; ti++)
             {
-               ode_solver->Step(u, du, t, dt);
+               ode_solver->Step(u, du, t, dt_order);
             }
 
             int nstate = ode_solver->GetStateSize();
@@ -159,7 +159,7 @@ TEST_CASE("Second order ODE methods",
                }
                for (int ti = 0; ti < steps; ti++)
                {
-                  ode_solver->Step(u, du, t, dt);
+                  ode_solver->Step(u, du, t, dt_order);
                }
                nstate = ode_solver->GetStateSize();
                for (int s = 0; s< nstate; s++)
