@@ -81,9 +81,10 @@ prob_type prob;
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    const char *mesh_file = "../../../data/inline-quad.mesh";
    int order = 1;
@@ -306,9 +307,9 @@ int main(int argc, char *argv[])
       }
 
       // shift the ess_tdofs
-      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      for (int j = 0; j < ess_tdof_list.Size(); j++)
       {
-         ess_tdof_list[i] += p_fes->GetTrueVSize() + u_fes->GetTrueVSize();
+         ess_tdof_list[j] += p_fes->GetTrueVSize() + u_fes->GetTrueVSize();
       }
 
       Array<int> offsets(5);
@@ -339,18 +340,18 @@ int main(int argc, char *argv[])
       Array2D<HypreParMatrix *> Ab_r(numblocks,numblocks);
       Array2D<HypreParMatrix *> Ab_i(numblocks,numblocks);
 
-      for (int i = 0; i<numblocks; i++)
+      for (int ii = 0; ii<numblocks; ii++)
       {
-         for (int j = 0; j<numblocks; j++)
+         for (int jj = 0; jj<numblocks; jj++)
          {
-            Ab_r(i,j) = dynamic_cast<HypreParMatrix*>(&BlockA_r->GetBlock(i,j));
-            Ab_i(i,j) = dynamic_cast<HypreParMatrix*>(&BlockA_i->GetBlock(i,j));
+            Ab_r(ii,jj) = dynamic_cast<HypreParMatrix*>(&BlockA_r->GetBlock(ii,jj));
+            Ab_i(ii,jj) = dynamic_cast<HypreParMatrix*>(&BlockA_i->GetBlock(ii,jj));
          }
       }
       HypreParMatrix * A_r = HypreParMatrixFromBlocks(Ab_r);
       HypreParMatrix * A_i = HypreParMatrixFromBlocks(Ab_i);
 
-      ComplexHypreParMatrix Ac(A_r,A_i,false,false);
+      ComplexHypreParMatrix Ac(A_r,A_i,true,true);
 
       HypreParMatrix * A = Ac.GetSystemMatrix();
 
@@ -359,10 +360,11 @@ int main(int argc, char *argv[])
          mfem::out << "Size of the linear system: " << A->Height() << std::endl;
       }
 
-      MUMPSSolver mumps;
-      mumps.SetOperator(*A);
-      mumps.Mult(B,X);
+      // MUMPSSolver mumps;
+      // mumps.SetOperator(*A);
+      // mumps.Mult(B,X);
 
+      delete A;
       a->RecoverFEMSolution(X,x);
 
       Vector & residuals = a->ComputeResidual(x);

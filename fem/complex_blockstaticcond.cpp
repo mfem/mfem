@@ -1141,6 +1141,8 @@ ComplexBlockStaticCondensation::~ComplexBlockStaticCondensation()
 
       delete pS_e_r; pS_e_r=nullptr;
       delete pS_e_i; pS_e_i=nullptr;
+      delete pS_r; pS_r=nullptr;
+      delete pS_i; pS_i=nullptr;
       for (int i = 0; i<rblocks; i++)
       {
          delete ess_tdofs[i];

@@ -254,7 +254,11 @@ void ComplexParNormalEquations::Update()
    delete p_mat_e_i;
    p_mat_e_r = nullptr;
    p_mat_e_i = nullptr;
-   delete p_mat; // owns real and imag part
+   delete p_mat_r;
+   delete p_mat_i;
+   p_mat_r = nullptr;
+   p_mat_i = nullptr;
+   delete p_mat;
    p_mat = nullptr;
    for (int i = 0; i<nblocks; i++)
    {
@@ -277,7 +281,7 @@ ComplexParNormalEquations::~ComplexParNormalEquations()
    delete p_mat_i;
    p_mat_r = nullptr;
    p_mat_i = nullptr;
-   delete p_mat; // owns real and imag parts
+   delete p_mat;
    p_mat = nullptr;
    for (int i = 0; i<nblocks; i++)
    {

@@ -56,9 +56,10 @@ double omega;
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 1. Parse command-line options.
    const char *mesh_file = "../../../data/inline-quad.mesh";
@@ -275,9 +276,9 @@ int main(int argc, char *argv[])
       }
 
       // shift the ess_tdofs
-      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      for (int j = 0; j < ess_tdof_list.Size(); j++)
       {
-         ess_tdof_list[i] += p_fes->GetTrueVSize() + u_fes->GetTrueVSize();
+         ess_tdof_list[j] += p_fes->GetTrueVSize() + u_fes->GetTrueVSize();
       }
 
       Array<int> offsets(5);
