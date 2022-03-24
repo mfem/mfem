@@ -101,7 +101,7 @@ public:
        is currently not supported.
 
        This method must be called before "assembly" with Setup(). */
-   void SetAssemblyLevel(AssemblyLevel assembly_level);
+   void SetAssemblyLevel(AssemblyLevel assembly_level, const ElementDofOrdering edf = ElementDofOrdering::LEXICOGRAPHIC);
 
    FiniteElementSpace *FESpace() { return fes; }
    const FiniteElementSpace *FESpace() const { return fes; }

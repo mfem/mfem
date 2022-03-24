@@ -121,6 +121,14 @@ void NonlinearFormIntegrator::AssembleGradPA(
               " is not overloaded!");
 }
 
+void NonlinearFormIntegrator::AssembleGradEA(const Vector &x,
+                                             const FiniteElementSpace &fes,
+                                             Vector &emat)
+{
+   mfem_error ("NonlinearFormIntegrator::AssembleGradEA(...)\n"
+               "   is not implemented for this class.");
+}
+
 void NonlinearFormIntegrator::AssembleEA(
    const FiniteElementSpace &fes, Vector &emat)
 {

@@ -15,7 +15,7 @@
 namespace mfem
 {
 
-void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
+void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level, const ElementDofOrdering edf)
 {
    if (ext)
    {
@@ -25,10 +25,16 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    switch (assembly)
    {
       case AssemblyLevel::NONE:
-         ext = new MFNonlinearFormExtension(this);
+         ext = new MFNonlinearFormExtension(this, edf);
          break;
       case AssemblyLevel::PARTIAL:
-         ext = new PANonlinearFormExtension(this);
+         ext = new PANonlinearFormExtension(this, edf);
+         break;
+      case AssemblyLevel::ELEMENT:
+         ext = new EANonlinearFormExtension(this, edf);
+         break;
+      case AssemblyLevel::FULL:
+         ext = new FANonlinearFormExtension(this, edf);
          break;
       case AssemblyLevel::LEGACY:
          // This is the default
