@@ -58,7 +58,7 @@ public:
    Operator &GetGradient(const Vector &x, Operator **grad_e) const;
    virtual Operator &GetGradient(const Vector &x) const
    {
-       return GetGradient(x, nullptr);
+      return GetGradient(x, nullptr);
    }
 
    /// Set the operator type id for the parallel gradient matrix/operator.

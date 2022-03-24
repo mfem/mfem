@@ -106,7 +106,8 @@ const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
    return *Grad;
 }
 
-Operator &ParNonlinearForm::GetGradient(const Vector &x, Operator **grad_e) const
+Operator &ParNonlinearForm::GetGradient(const Vector &x,
+                                        Operator **grad_e) const
 {
    if (NonlinearForm::ext) { return NonlinearForm::GetGradient(x); }
 
