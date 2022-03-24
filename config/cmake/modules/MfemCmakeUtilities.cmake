@@ -977,9 +977,11 @@ function(mfem_export_mk_files)
       string(REGEX REPLACE "^SCOREC::" "" libname ${pumilib})
       string(FIND "${pumilib}" ".a" staticlib)
       string(FIND "${pumilib}" ".so" sharedlib)
+      string(FIND "${pumilib}" ".dylib" dynamiclib)
       find_library(lib ${libname} PATHS ${PUMI_DIR}/lib NO_DEFAULT_PATH)
       if (NOT "${sharedlib}" MATCHES "-1" OR
-          NOT "${staticlib}" MATCHES "-1"   )
+          NOT "${staticlib}" MATCHES "-1" OR
+          NOT "${dynamiclib}" MATCHES "-1"  )
         set(MFEM_EXT_LIBS "${pumilib} ${MFEM_EXT_LIBS}")
       elseif (NOT "${lib}" MATCHES "lib-NOTFOUND")
         set(MFEM_EXT_LIBS "${lib} ${MFEM_EXT_LIBS}")
