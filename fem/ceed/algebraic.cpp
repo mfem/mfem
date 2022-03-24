@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -95,10 +95,12 @@ const mfem::Operator *ConstrainedOperator::GetProlongation() const
 /// to find separate active input and output fields/restrictions)
 int CeedOperatorGetSize(CeedOperator oper, CeedInt * size)
 {
-   int ierr;
-   CeedElemRestriction er;
-   ierr = CeedOperatorGetActiveElemRestriction(oper, &er); CeedChk(ierr);
-   ierr = CeedElemRestrictionGetLVectorSize(er, size); CeedChk(ierr);
+   CeedSize in_len, out_len;
+   int ierr = CeedOperatorGetActiveVectorLengths(oper, &in_len, &out_len);
+   CeedChk(ierr);
+   *size = (CeedInt)in_len;
+   MFEM_VERIFY(in_len == out_len, "not a square CeedOperator");
+   MFEM_VERIFY(in_len == *size, "size overflow");
    return 0;
 }
 
@@ -367,7 +369,7 @@ int AlgebraicInterpolation::Initialize(
 {
    int ierr = 0;
 
-   int height, width;
+   CeedSize height, width;
    ierr = CeedElemRestrictionGetLVectorSize(erestrictu_coarse, &width);
    CeedChk(ierr);
    ierr = CeedElemRestrictionGetLVectorSize(erestrictu_fine, &height);
@@ -412,11 +414,11 @@ int AlgebraicInterpolation::Initialize(
 
    CeedScalar* fine_r_data;
    const CeedScalar* fine_data;
-   ierr = CeedVectorGetArray(fine_multiplicity_r, CEED_MEM_HOST,
-                             &fine_r_data); CeedChk(ierr);
+   ierr = CeedVectorGetArrayWrite(fine_multiplicity_r, CEED_MEM_HOST,
+                                  &fine_r_data); CeedChk(ierr);
    ierr = CeedVectorGetArrayRead(c_fine_multiplicity, CEED_MEM_HOST,
                                  &fine_data); CeedChk(ierr);
-   for (int i = 0; i < height; ++i)
+   for (CeedSize i = 0; i < height; ++i)
    {
       fine_r_data[i] = 1.0 / fine_data[i];
    }
@@ -454,15 +456,18 @@ AlgebraicInterpolation::AlgebraicInterpolation(
    CeedElemRestriction erestrictu_fine)
 {
    int ierr;
-   int lo_nldofs, ho_nldofs;
+   CeedSize lo_nldofs, ho_nldofs;
    ierr = CeedElemRestrictionGetLVectorSize(erestrictu_coarse, &lo_nldofs);
    PCeedChk(ierr);
    ierr = CeedElemRestrictionGetLVectorSize(erestrictu_fine,
                                             &ho_nldofs); PCeedChk(ierr);
-   height = ho_nldofs;
-   width = lo_nldofs;
+   height = (int)ho_nldofs;
+   width = (int)lo_nldofs;
+   MFEM_VERIFY(ho_nldofs == height, "height overflow");
+   MFEM_VERIFY(lo_nldofs == width, "width overflow");
    owns_basis_ = false;
-   Initialize(ceed, basisctof, erestrictu_coarse, erestrictu_fine);
+   ierr = Initialize(ceed, basisctof, erestrictu_coarse, erestrictu_fine);
+   PCeedChk(ierr);
 }
 
 AlgebraicInterpolation::~AlgebraicInterpolation()
@@ -485,7 +490,7 @@ int CeedVectorPointwiseMult(CeedVector a, const CeedVector b)
    Ceed ceed;
    CeedVectorGetCeed(a, &ceed);
 
-   int length, length2;
+   CeedSize length, length2;
    ierr = CeedVectorGetLength(a, &length); CeedChk(ierr);
    ierr = CeedVectorGetLength(b, &length2); CeedChk(ierr);
    if (length != length2)
@@ -506,6 +511,7 @@ int CeedVectorPointwiseMult(CeedVector a, const CeedVector b)
    const CeedScalar *b_data;
    ierr = CeedVectorGetArray(a, mem, &a_data); CeedChk(ierr);
    ierr = CeedVectorGetArrayRead(b, mem, &b_data); CeedChk(ierr);
+   MFEM_VERIFY(int(length) == length, "length overflow");
    MFEM_FORALL(i, length,
    {a_data[i] *= b_data[i];});
 
@@ -571,14 +577,15 @@ void AlgebraicInterpolation::MultTranspose(const mfem::Vector& x,
    ierr = CeedVectorSetArray(u_, mem, CEED_USE_POINTER,
                              out_ptr); PCeedChk(ierr);
 
-   int length;
+   CeedSize length;
    ierr = CeedVectorGetLength(v_, &length); PCeedChk(ierr);
 
    const CeedScalar *multiplicitydata;
    CeedScalar *workdata;
    ierr = CeedVectorGetArrayRead(fine_multiplicity_r, mem,
                                  &multiplicitydata); PCeedChk(ierr);
-   ierr = CeedVectorGetArray(fine_work, mem, &workdata); PCeedChk(ierr);
+   ierr = CeedVectorGetArrayWrite(fine_work, mem, &workdata); PCeedChk(ierr);
+   MFEM_VERIFY((int)length == length, "length overflow");
    MFEM_FORALL(i, length,
    {workdata[i] = in_ptr[i] * multiplicitydata[i];});
    ierr = CeedVectorRestoreArrayRead(fine_multiplicity_r,
@@ -700,8 +707,12 @@ AlgebraicCoarseSpace::AlgebraicCoarseSpace(
    ierr = CeedBasisATPMGCoarseToFine(internal::ceed, order+1, dim,
                                      order_reduction, &coarse_to_fine);
    PCeedChk(ierr);
-   ierr = CeedElemRestrictionGetLVectorSize(ceed_elem_restriction, &ndofs);
+   CeedSize ndofs_;
+   ierr = CeedElemRestrictionGetLVectorSize(ceed_elem_restriction, &ndofs_);
    PCeedChk(ierr);
+   ndofs = ndofs_;
+   MFEM_VERIFY(ndofs == ndofs_, "ndofs overflow");
+
    mesh = fine_fes.GetMesh();
 }
 
@@ -724,10 +735,11 @@ ParAlgebraicCoarseSpace::ParAlgebraicCoarseSpace(
    GroupCommunicator *gc_fine)
    : AlgebraicCoarseSpace(fine_fes, fine_er, order, dim, order_reduction_)
 {
-   int lsize;
+   CeedSize lsize;
    CeedElemRestrictionGetLVectorSize(ceed_elem_restriction, &lsize);
    const Table &group_ldof_fine = gc_fine->GroupLDofTable();
 
+   MFEM_VERIFY((int)lsize == lsize, "size overflow");
    ldof_group.SetSize(lsize);
    ldof_group = 0;
 
@@ -876,7 +888,6 @@ HypreParMatrix *ParAlgebraicCoarseSpace::GetProlongationHypreParMatrix()
       else
       {
          HYPRE_BigInt global_tdof_number;
-         int g = ldof_group[i_ldof];
          if (HYPRE_AssumedPartitionCheck())
          {
             global_tdof_number

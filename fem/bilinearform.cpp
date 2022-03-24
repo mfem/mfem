@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -466,9 +466,9 @@ void BilinearForm::AssembleElementMatrix(
 }
 
 void BilinearForm::AssembleElementMatrix(
-   int i, const DenseMatrix &elmat, Array<int> &vdofs, int skip_zeros)
+   int i, const DenseMatrix &elmat, Array<int> &vdofs_, int skip_zeros)
 {
-   fes->GetElementVDofs(i, vdofs);
+   fes->GetElementVDofs(i, vdofs_);
    if (static_cond)
    {
       static_cond->AssembleMatrix(i, elmat);
@@ -479,7 +479,7 @@ void BilinearForm::AssembleElementMatrix(
       {
          AllocMat();
       }
-      mat->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
+      mat->AddSubMatrix(vdofs_, vdofs_, elmat, skip_zeros);
       if (hybridization)
       {
          hybridization->AssembleMatrix(i, elmat);
@@ -494,9 +494,9 @@ void BilinearForm::AssembleBdrElementMatrix(
 }
 
 void BilinearForm::AssembleBdrElementMatrix(
-   int i, const DenseMatrix &elmat, Array<int> &vdofs, int skip_zeros)
+   int i, const DenseMatrix &elmat, Array<int> &vdofs_, int skip_zeros)
 {
-   fes->GetBdrElementVDofs(i, vdofs);
+   fes->GetBdrElementVDofs(i, vdofs_);
    if (static_cond)
    {
       static_cond->AssembleBdrMatrix(i, elmat);
@@ -507,7 +507,7 @@ void BilinearForm::AssembleBdrElementMatrix(
       {
          AllocMat();
       }
-      mat->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
+      mat->AddSubMatrix(vdofs_, vdofs_, elmat, skip_zeros);
       if (hybridization)
       {
          hybridization->AssembleBdrMatrix(i, elmat);
@@ -548,8 +548,8 @@ void BilinearForm::Assemble(int skip_zeros)
       {
          if (domain_integs_marker[k] != NULL)
          {
-            MFEM_VERIFY(mesh->attributes.Size() ==
-                        domain_integs_marker[k]->Size(),
+            MFEM_VERIFY(domain_integs_marker[k]->Size() ==
+                        (mesh->attributes.Size() ? mesh->attributes.Max() : 0),
                         "invalid element marker for domain integrator #"
                         << k << ", counting from zero");
          }
@@ -1098,14 +1098,14 @@ void BilinearForm::EliminateEssentialBCDiag (const Array<int> &bdr_attr_is_ess,
    }
 }
 
-void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
+void BilinearForm::EliminateVDofs(const Array<int> &vdofs_,
                                   const Vector &sol, Vector &rhs,
                                   DiagonalPolicy dpolicy)
 {
-   vdofs.HostRead();
-   for (int i = 0; i < vdofs.Size(); i++)
+   vdofs_.HostRead();
+   for (int i = 0; i < vdofs_.Size(); i++)
    {
-      int vdof = vdofs[i];
+      int vdof = vdofs_[i];
       if ( vdof >= 0 )
       {
          mat -> EliminateRowCol (vdof, sol(vdof), rhs, dpolicy);
@@ -1117,7 +1117,7 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
    }
 }
 
-void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
+void BilinearForm::EliminateVDofs(const Array<int> &vdofs_,
                                   DiagonalPolicy dpolicy)
 {
    if (mat_e == NULL)
@@ -1125,9 +1125,9 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
       mat_e = new SparseMatrix(height);
    }
 
-   for (int i = 0; i < vdofs.Size(); i++)
+   for (int i = 0; i < vdofs_.Size(); i++)
    {
-      int vdof = vdofs[i];
+      int vdof = vdofs_[i];
       if ( vdof >= 0 )
       {
          mat -> EliminateRowCol (vdof, *mat_e, dpolicy);
@@ -1179,10 +1179,10 @@ void BilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int> &ess_dofs,
 }
 
 void BilinearForm::EliminateVDofsInRHS(
-   const Array<int> &vdofs, const Vector &x, Vector &b)
+   const Array<int> &vdofs_, const Vector &x, Vector &b)
 {
    mat_e->AddMult(x, b, -1.);
-   mat->PartMult(vdofs, x, b);
+   mat->PartMult(vdofs_, x, b);
 }
 
 void BilinearForm::Mult(const Vector &x, Vector &y) const
@@ -1194,6 +1194,19 @@ void BilinearForm::Mult(const Vector &x, Vector &y) const
    else
    {
       mat->Mult(x, y);
+   }
+}
+
+void BilinearForm::MultTranspose(const Vector & x, Vector & y) const
+{
+   if (ext)
+   {
+      ext->MultTranspose(x, y);
+   }
+   else
+   {
+      y = 0.0;
+      AddMultTranspose (x, y);
    }
 }
 
@@ -1786,16 +1799,16 @@ void MixedBilinearForm::AssembleElementMatrix(
 }
 
 void MixedBilinearForm::AssembleElementMatrix(
-   int i, const DenseMatrix &elmat, Array<int> &trial_vdofs,
-   Array<int> &test_vdofs, int skip_zeros)
+   int i, const DenseMatrix &elmat, Array<int> &trial_vdofs_,
+   Array<int> &test_vdofs_, int skip_zeros)
 {
-   trial_fes->GetElementVDofs(i, trial_vdofs);
-   test_fes->GetElementVDofs(i, test_vdofs);
+   trial_fes->GetElementVDofs(i, trial_vdofs_);
+   test_fes->GetElementVDofs(i, test_vdofs_);
    if (mat == NULL)
    {
       mat = new SparseMatrix(height, width);
    }
-   mat->AddSubMatrix(test_vdofs, trial_vdofs, elmat, skip_zeros);
+   mat->AddSubMatrix(test_vdofs_, trial_vdofs_, elmat, skip_zeros);
 }
 
 void MixedBilinearForm::AssembleBdrElementMatrix(
@@ -1805,16 +1818,16 @@ void MixedBilinearForm::AssembleBdrElementMatrix(
 }
 
 void MixedBilinearForm::AssembleBdrElementMatrix(
-   int i, const DenseMatrix &elmat, Array<int> &trial_vdofs,
-   Array<int> &test_vdofs, int skip_zeros)
+   int i, const DenseMatrix &elmat, Array<int> &trial_vdofs_,
+   Array<int> &test_vdofs_, int skip_zeros)
 {
-   trial_fes->GetBdrElementVDofs(i, trial_vdofs);
-   test_fes->GetBdrElementVDofs(i, test_vdofs);
+   trial_fes->GetBdrElementVDofs(i, trial_vdofs_);
+   test_fes->GetBdrElementVDofs(i, test_vdofs_);
    if (mat == NULL)
    {
       mat = new SparseMatrix(height, width);
    }
-   mat->AddSubMatrix(test_vdofs, trial_vdofs, elmat, skip_zeros);
+   mat->AddSubMatrix(test_vdofs_, trial_vdofs_, elmat, skip_zeros);
 }
 
 void MixedBilinearForm::EliminateTrialDofs (
