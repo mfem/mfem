@@ -133,7 +133,6 @@ public:
    int *HostReadWriteI()
    { return mfem::ReadWrite(I, I.Capacity(), false); }
 
-
    const int *ReadJ(bool on_dev = true) const
    { return mfem::Read(J, J.Capacity(), on_dev); }
    int *WriteJ(bool on_dev = true)
@@ -146,7 +145,6 @@ public:
    { return mfem::Write(J, J.Capacity(), false); }
    int *HostReadWriteJ()
    { return mfem::ReadWrite(J, J.Capacity(), false); }
-
 
    /// @brief Sort the column (TYPE II) indices in each row.
    void SortRows();
