@@ -113,6 +113,7 @@
 #include "cold_plasma_dielectric_coefs.hpp"
 #include "cold_plasma_dielectric_dh_solver.hpp"
 #include "../common/mesh_extras.hpp"
+#include "plasma.hpp"
 #include <fstream>
 #include <iostream>
 #include <cmath>
@@ -412,7 +413,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
             ParGridFunction & BField,
-            VectorCoefficient & BCoef,
+            VectorCoefficient * BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
             Coefficient & nuCoef,
@@ -523,6 +524,7 @@ int main(int argc, char *argv[])
    bool check_eps_inv = false;
    bool pa = false;
    const char *device_config = "cpu";
+   const char *eqdsk_file = "";
 
    OptionsParser args(argc, argv);
    args.AddOption(&logo, "-logo", "--print-logo", "-no-logo",
@@ -706,6 +708,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
+                    "G EQDSK input file.");
    args.Parse();
    if (!args.Good())
    {
@@ -1149,11 +1153,38 @@ int main(int argc, char *argv[])
    PlasmaProfile nuCoef(npt, npp);
    nu_gf.ProjectCoefficient(nuCoef);
     
-   BFieldProfile BCoef(bpt, bpp, false);
-   BField.ProjectCoefficient(BCoef);
+   //BFieldProfile BCoef(bpt, bpp, false);
+   //BFieldProfile BUnitCoef(bpt, bpp, true);
 
-   BFieldProfile BUnitCoef(bpt, bpp, true);
+   VectorCoefficient *BCoef = NULL;
+   VectorCoefficient *BUnitCoef = NULL;
+   G_EQDSK_Data *eqdsk = NULL;
+    
+    {
+       named_ifgzstream ieqdsk(eqdsk_file);
+       if (ieqdsk)
+       {
+          eqdsk = new G_EQDSK_Data(ieqdsk);
+          if (mpi.Root()){ eqdsk->PrintInfo();}
+       }
+    }
+    if (eqdsk)
+      {
+         if (mpi.Root())
+          {
+             cout << "Using B field from " << eqdsk_file << endl;
+          }
+          G_EQDSK_BField_VecCoefficient BCoef(*eqdsk, false);
+          G_EQDSK_BField_VecCoefficient BUnitCoef(*eqdsk, true);
+      }
+    else
+    {
+         BFieldProfile BCoef(bpt, bpp, false);
+         BFieldProfile BUnitCoef(bpt, bpp, true);
+    }
 
+   BField.ProjectCoefficient(*BCoef);
+    
    int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
 
@@ -1848,7 +1879,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
             ParGridFunction & BField,
-            VectorCoefficient & BCoef,
+            VectorCoefficient * BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
             Coefficient & nuCoef,
@@ -1868,7 +1899,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
    L2FESpace.Update();
 
    BField.Update();
-   BField.ProjectCoefficient(BCoef);
+   BField.ProjectCoefficient(*BCoef);
     
    nu_gf.Update();
    nu_gf.ProjectCoefficient(nuCoef);
