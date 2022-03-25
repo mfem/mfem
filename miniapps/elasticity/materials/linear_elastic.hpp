@@ -12,8 +12,8 @@
 #ifndef MFEM_ELASTICITY_MAT_LIN_ELAST_HPP
 #define MFEM_ELASTICITY_MAT_LIN_ELAST_HPP
 
-#include "mfem.hpp"
 #include "linalg/tensor.hpp"
+#include "mfem.hpp"
 
 using namespace mfem::internal;
 

@@ -155,7 +155,7 @@ void ElasticityOperator::AssembleGradientDiagonal(Vector &Ke_diag,
 
    element_kernel_assemble_diagonal_wrapper(
       ne_, maps_->B, maps_->G, ir_->GetWeights(), geometric_factors_->J,
-      geometric_factors_->detJ,  cstate_el_, Ke_diag);
+      geometric_factors_->detJ, cstate_el_, Ke_diag);
 
    // For each dimension, the H1 element restriction and H1 prolongation
    // transpose actions are applied separately.
@@ -170,7 +170,8 @@ void ElasticityOperator::AssembleGradientDiagonal(Vector &Ke_diag,
       vin_local.MakeRef(Ke_diag, i * sce_sz, sce_sz);
       vout_local.MakeRef(K_diag_local, i * scl_sz, scl_sz);
       h1_element_restriction_->MultTranspose(vin_local, vout_local);
-      vout_local.GetMemory().SyncAlias(K_diag_local.GetMemory(), vout_local.Size());
+      vout_local.GetMemory().SyncAlias(K_diag_local.GetMemory(),
+                                       vout_local.Size());
 
       // Scalar component T-size
       int sct_sz = h1_prolongation_->Width();
@@ -205,9 +206,6 @@ void ElasticityOperator::AssembleGradientDiagonal(Vector &Ke_diag,
    }
 }
 
-ElasticityOperator::~ElasticityOperator()
-{
-   delete gradient_;
-}
+ElasticityOperator::~ElasticityOperator() { delete gradient_; }
 
-}
+} // namespace mfem

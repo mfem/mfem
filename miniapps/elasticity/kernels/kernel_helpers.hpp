@@ -279,6 +279,9 @@ GradAllPhis(int qx, int qy, int qz,
    }
    return dphi_dx;
 }
+
 } // namespace KernelHelpers
-}
+
+} // namespace mfem
+
 #endif

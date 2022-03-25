@@ -12,10 +12,10 @@
 #ifndef MFEM_ELASTICITY_MAT_NEOHOOKEAN_HPP
 #define MFEM_ELASTICITY_MAT_NEOHOOKEAN_HPP
 
-#include "mfem.hpp"
-#include "linalg/tensor.hpp"
 #include "general/enzyme.hpp"
 #include "gradient_type.hpp"
+#include "linalg/tensor.hpp"
+#include "mfem.hpp"
 
 using namespace mfem::internal;
 
@@ -224,4 +224,5 @@ struct NeoHookeanMaterial
    double D1 = 100.0;
    double C1 = 50.0;
 };
+
 #endif

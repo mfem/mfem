@@ -16,6 +16,7 @@
 
 namespace mfem
 {
+
 namespace ElasticityKernels
 {
 
@@ -312,6 +313,9 @@ void AssembleGradientDiagonal3D(const int ne,
       }
    }); // for each element
 }
+
 } // namespace ElasticityKernels
-}
+
+} // namespace mfem
+
 #endif
