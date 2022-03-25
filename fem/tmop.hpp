@@ -1642,7 +1642,10 @@ public:
    void EnableSurfaceFitting(const GridFunction &pos,
                              const Array<bool> &smarker, Coefficient &coeff);
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
-   bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
+   bool IsSurfaceFittingEnabled()
+   {
+      return surf_fit_gf != NULL || surf_fit_pos != NULL;
+   }
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
