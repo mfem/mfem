@@ -73,7 +73,7 @@ public:
 
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points.
-   virtual void Eval(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf);
 
    virtual ~Coefficient() { }
 };
@@ -94,7 +94,7 @@ public:
    { return (constant); }
 
    /// Fill the QuadratureFunction @a qf with the constant value.
-   virtual void Eval(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf);
 };
 
 /** @brief A piecewise constant coefficient with the constants keyed
@@ -288,7 +288,7 @@ public:
    ///
    /// This function uses the efficient QuadratureFunction::ProjectGridFunction
    /// to fill the QuadratureFunction.
-   virtual void Eval(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf);
 };
 
 
@@ -491,7 +491,7 @@ public:
    ///
    /// The @a vdim of the VectorCoefficient should be equal to the @a vdim of
    /// the QuadratureFunction.
-   virtual void Eval(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf);
 
    virtual ~VectorCoefficient() { }
 };
@@ -715,7 +715,7 @@ public:
    ///
    /// This function uses the efficient QuadratureFunction::ProjectGridFunction
    /// to fill the QuadratureFunction.
-   virtual void Eval(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf);
 
    virtual ~VectorGridFunctionCoefficient() { }
 };
@@ -950,7 +950,7 @@ public:
    ///
    /// The @a vdim of the QuadratureFunction should be equal to the height times
    /// the width of the matrix.
-   virtual void Eval(QuadratureFunction &qf, bool transpose=false);
+   virtual void Project(QuadratureFunction &qf, bool transpose=false);
 
    /// (DEPRECATED) Evaluate a symmetric matrix coefficient.
    /** @brief Evaluate the upper triangular entries of the matrix coefficient
@@ -1299,10 +1299,6 @@ public:
    /// Get the size of the matrix.
    int GetSize() const { return height; }
 
-   using MatrixCoefficient::Eval;
-
-   using MatrixCoefficient::EvalSymmetric;
-
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points.
    ///
@@ -1310,7 +1306,7 @@ public:
    /// the @a symmetric part of the matrix at each quadrature point.
    ///
    /// The @a vdim of the coefficient should be equal to height*(height+1)/2.
-   virtual void EvalSymmetric(QuadratureFunction &qf);
+   virtual void ProjectSymmetric(QuadratureFunction &qf);
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result as a symmetric matrix @a K. */
@@ -2123,6 +2119,8 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
+   virtual void Project(QuadratureFunction &qf);
+
    virtual ~VectorQuadratureFunctionCoefficient() { }
 };
 
@@ -2141,6 +2139,8 @@ public:
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+
+   virtual void Project(QuadratureFunction &qf);
 
    virtual ~QuadratureFunctionCoefficient() { }
 };

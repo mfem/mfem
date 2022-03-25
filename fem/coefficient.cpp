@@ -48,7 +48,7 @@ ElementTransformation *RefinedToCoarse(
    return coarse_T;
 }
 
-void Coefficient::Eval(QuadratureFunction &qf)
+void Coefficient::Project(QuadratureFunction &qf)
 {
    QuadratureSpace &qspace = *qf.GetSpace();
    Mesh &mesh = *qspace.GetMesh();
@@ -65,7 +65,7 @@ void Coefficient::Eval(QuadratureFunction &qf)
    }
 }
 
-void ConstantCoefficient::Eval(QuadratureFunction &qf)
+void ConstantCoefficient::Project(QuadratureFunction &qf)
 {
    qf = constant;
 }
@@ -157,7 +157,7 @@ double GridFunctionCoefficient::Eval (ElementTransformation &T,
    }
 }
 
-void GridFunctionCoefficient::Eval(QuadratureFunction &qf)
+void GridFunctionCoefficient::Project(QuadratureFunction &qf)
 {
    qf.ProjectGridFunction(*GridF);
 }
@@ -230,7 +230,7 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
    }
 }
 
-void VectorCoefficient::Eval(QuadratureFunction &qf)
+void VectorCoefficient::Project(QuadratureFunction &qf)
 {
    QuadratureSpace &qspace = *qf.GetSpace();
    Mesh &mesh = *qspace.GetMesh();
@@ -414,7 +414,7 @@ void VectorGridFunctionCoefficient::Eval(
    }
 }
 
-void VectorGridFunctionCoefficient::Eval(QuadratureFunction &qf)
+void VectorGridFunctionCoefficient::Project(QuadratureFunction &qf)
 {
    qf.ProjectGridFunction(*GridFunc);
 }
@@ -568,7 +568,7 @@ void VectorRestrictedCoefficient::Eval(
    }
 }
 
-void MatrixCoefficient::Eval(QuadratureFunction &qf, bool transpose)
+void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
 {
    MFEM_ASSERT(qf.GetVDim() == height*width, "Wrong sizes.");
    QuadratureSpace &qspace = *qf.GetSpace();
@@ -740,7 +740,7 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
    }
 }
 
-void SymmetricMatrixCoefficient::EvalSymmetric(QuadratureFunction &qf)
+void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
 {
    const int vdim = qf.GetVDim();
    MFEM_ASSERT(vdim == height*(height+1)/2, "Wrong sizes.");
@@ -1545,6 +1545,11 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
    return;
 }
 
+void VectorQuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
+{
+   qf = QuadF;
+}
+
 QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
    QuadratureFunction &qf) : QuadF(qf)
 {
@@ -1558,6 +1563,11 @@ double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
    Vector temp(1);
    QuadF.GetElementValues(T.ElementNo, ip.index, temp);
    return temp[0];
+}
+
+void QuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
+{
+   qf = QuadF;
 }
 
 
