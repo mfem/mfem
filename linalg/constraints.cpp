@@ -589,6 +589,8 @@ void SchurConstrainedSolver::LagrangeSystemMult(const Vector& x,
 
    gmres->Mult(x, y);
    final_iter = gmres->GetNumIterations();
+   converged = gmres->GetConverged();
+   final_norm = gmres->GetFinalNorm();
    delete gmres;
 }
 
