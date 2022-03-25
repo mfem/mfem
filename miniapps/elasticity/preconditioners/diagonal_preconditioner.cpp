@@ -34,8 +34,7 @@ void ElasticityDiagonalPreconditioner::SetOperator(const Operator &op)
                   gradient_operator_->elasticity_op_.h1_fes_.GetVDim();
 }
 
-void ElasticityDiagonalPreconditioner::Mult(const Vector &x,
-                                            Vector &y) const
+void ElasticityDiagonalPreconditioner::Mult(const Vector &x, Vector &y) const
 {
    const int ns = num_submats_, sh = submat_height_, nsh = ns * sh;
 
@@ -51,25 +50,26 @@ void ElasticityDiagonalPreconditioner::Mult(const Vector &x,
       {
          const int s = si / sh;
          const int i = si % sh;
-         Y(s,i) = X(s,i) / K_diag_submats(s, i, i);
+         Y(s, i) = X(s, i) / K_diag_submats(s, i, i);
       });
    }
    else if (type_ == Type::BlockDiagonal)
    {
       MFEM_FORALL(s, ns,
       {
-         const auto submat = make_tensor<dim, dim>([&](int i, int j)
-         {
-            return K_diag_submats(s, i, j);
-         });
+         const auto submat = make_tensor<dim, dim>(
+         [&](int i, int j) { return K_diag_submats(s, i, j); });
 
          const auto submat_inv = inv(submat);
 
-         const auto x_block = make_tensor<dim>([&](int i) { return X(s,i); });
+         const auto x_block = make_tensor<dim>([&](int i) { return X(s, i); });
 
          tensor<double, dim> y_block = submat_inv * x_block;
 
-         for (int i = 0; i < dim; i++) { Y(s,i) = y_block(i); }
+         for (int i = 0; i < dim; i++)
+         {
+            Y(s, i) = y_block(i);
+         }
       });
    }
    else
@@ -77,4 +77,5 @@ void ElasticityDiagonalPreconditioner::Mult(const Vector &x,
       MFEM_ABORT("Unknwon ElasticityDiagonalPreconditioner::Type");
    }
 }
-}
+
+} // namespace mfem

@@ -34,5 +34,7 @@ public:
 
    ElasticityOperator &elasticity_op_;
 };
-}
+
+} // namespace mfem
+
 #endif

@@ -31,11 +31,7 @@ class ElasticityDiagonalPreconditioner : public Solver
    static constexpr int dim = 3;
 
 public:
-   enum Type
-   {
-      Diagonal = 0,
-      BlockDiagonal
-   };
+   enum Type { Diagonal = 0, BlockDiagonal };
 
    ElasticityDiagonalPreconditioner(Type type = Type::Diagonal)
       : Solver(), type_(type) {}
@@ -50,5 +46,7 @@ private:
    Vector Ke_diag_, K_diag_local_, K_diag_;
    Type type_;
 };
-}
+
+} // namespace mfem
+
 #endif

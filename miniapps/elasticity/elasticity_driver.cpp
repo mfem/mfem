@@ -11,10 +11,10 @@
 
 #include <mfem.hpp>
 
-#include "operators/elasticity_operator.hpp"
-#include "operators/elasticity_gradient_operator.hpp"
 #include "materials/linear_elastic.hpp"
 #include "materials/neohookean.hpp"
+#include "operators/elasticity_gradient_operator.hpp"
+#include "operators/elasticity_operator.hpp"
 #include "preconditioners/diagonal_preconditioner.hpp"
 
 using namespace std;
@@ -44,8 +44,8 @@ int main(int argc, char *argv[])
                   " (0:Diagonal, 1:BlockDiagonal).");
    args.AddOption(&serial_refinement_levels, "-rs", "--ref-serial",
                   "Number of uniform refinements on the serial mesh.");
-   args.AddOption(&paraview_save, "-pvs", "--paraview-save",
-                  "-no-pvs", "--no-paraview-save",
+   args.AddOption(&paraview_save, "-pvs", "--paraview-save", "-no-pvs",
+                  "--no-paraview-save",
                   "Enable or disable ParaView DataCollection save.");
    args.Parse();
    if (!args.Good())
@@ -88,8 +88,7 @@ int main(int argc, char *argv[])
 
    // Create and set the material type. We define it's GradientType during
    // instantiation.
-   const NeoHookeanMaterial<dimension, GradientType::DualNumbers>
-   material{};
+   const NeoHookeanMaterial<dimension, GradientType::DualNumbers> material{};
    elasticity_op.SetMaterial(material);
 
    // Define all essential boundaries. In this specific example, this includes
