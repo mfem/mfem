@@ -23,6 +23,7 @@ namespace mfem
 {
 
 class Mesh;
+class QuadratureFunction;
 
 #ifdef MFEM_USE_MPI
 class ParMesh;
@@ -70,6 +71,10 @@ public:
       return Eval(T, ip);
    }
 
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   virtual void Eval(QuadratureFunction &qf);
+
    virtual ~Coefficient() { }
 };
 
@@ -87,6 +92,9 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return (constant); }
+
+   /// Fill the QuadratureFunction @a qf with the constant value.
+   virtual void Eval(QuadratureFunction &qf);
 };
 
 /** @brief A piecewise constant coefficient with the constants keyed
@@ -274,6 +282,13 @@ public:
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   ///
+   /// This function uses the efficient QuadratureFunction::ProjectGridFunction
+   /// to fill the QuadratureFunction.
+   virtual void Eval(QuadratureFunction &qf);
 };
 
 
@@ -470,6 +485,13 @@ public:
    */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
+
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   ///
+   /// The @a vdim of the VectorCoefficient should be equal to the @a vdim of
+   /// the QuadratureFunction.
+   virtual void Eval(QuadratureFunction &qf);
 
    virtual ~VectorCoefficient() { }
 };
@@ -687,6 +709,13 @@ public:
        M. */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
+
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   ///
+   /// This function uses the efficient QuadratureFunction::ProjectGridFunction
+   /// to fill the QuadratureFunction.
+   virtual void Eval(QuadratureFunction &qf);
 
    virtual ~VectorGridFunctionCoefficient() { }
 };
@@ -914,6 +943,14 @@ public:
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
+
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points. The matrix will be transposed or not according to
+   /// the boolean argument @a transpose.
+   ///
+   /// The @a vdim of the QuadratureFunction should be equal to the height times
+   /// the width of the matrix.
+   virtual void Eval(QuadratureFunction &qf, bool transpose=false);
 
    /// (DEPRECATED) Evaluate a symmetric matrix coefficient.
    /** @brief Evaluate the upper triangular entries of the matrix coefficient
@@ -1146,6 +1183,8 @@ public:
        can be overridden with the @a own parameter. */
    void Set(int i, int j, Coefficient * c, bool own=true);
 
+   using MatrixCoefficient::Eval;
+
    /// Evaluate coefficient located at (i,j) in the matrix using integration
    /// point @a ip.
    double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip)
@@ -1259,6 +1298,19 @@ public:
 
    /// Get the size of the matrix.
    int GetSize() const { return height; }
+
+   using MatrixCoefficient::Eval;
+
+   using MatrixCoefficient::EvalSymmetric;
+
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   ///
+   /// @note As opposed to MatrixCoefficient::Eval, this function stores only
+   /// the @a symmetric part of the matrix at each quadrature point.
+   ///
+   /// The @a vdim of the coefficient should be equal to height*(height+1)/2.
+   virtual void EvalSymmetric(QuadratureFunction &qf);
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result as a symmetric matrix @a K. */
@@ -2047,8 +2099,6 @@ public:
 };
 ///@}
 
-class QuadratureFunction;
-
 /** @brief Vector quadrature function coefficient which requires that the
     quadrature rules used for this vector coefficient be the same as those that
     live within the supplied QuadratureFunction. */
@@ -2166,17 +2216,17 @@ public:
                      CoefficientStorage storage_ = CoefficientStorage::FULL);
 
    /// @brief Evaluate the given Coefficient at the quadrature points defined by
-   /// qs.
+   /// @ref qs.
    void Project(Coefficient &coeff);
 
    /// @brief Evaluate the given VectorCoefficient at the quadrature points
-   /// defined by qs.
+   /// defined by @ref qs.
    ///
    /// @sa CoefficientVector for a description of the @a compress argument.
    void Project(VectorCoefficient &coeff);
 
    /// @brief Evaluate the given MatrixCoefficient at the quadrature points
-   /// defined by qs.
+   /// defined by @ref qs.
    ///
    /// @sa CoefficientVector for a description of the @a compress argument.
    void Project(MatrixCoefficient &coeff, bool transpose=false);

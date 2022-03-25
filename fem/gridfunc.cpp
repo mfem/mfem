@@ -3991,27 +3991,7 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
 
 void QuadratureFunction::ProjectCoefficient(Coefficient &coeff)
 {
-   if (auto *gf_coeff = dynamic_cast<GridFunctionCoefficient*>(&coeff))
-   {
-      const GridFunction *gf = gf_coeff->GetGridFunction();
-      MFEM_ASSERT(gf != NULL, "GridFunction is NULL.")
-      ProjectGridFunction(*gf);
-   }
-   else
-   {
-      Mesh &mesh = *qspace->GetMesh();
-      Vector values;
-      for (int iel = 0; iel < mesh.GetNE(); ++iel)
-      {
-         GetElementValues(iel, values);
-         const IntegrationRule &ir = qspace->GetElementIntRule(iel);
-         ElementTransformation& T = *mesh.GetElementTransformation(iel);
-         for (int iq = 0; iq < ir.Size(); ++iq)
-         {
-            values[iq] = coeff.Eval(T, ir[iq]);
-         }
-      }
-   }
+   coeff.Eval(*this);
 }
 
 void QuadratureFunction::ProjectCoefficient(VectorCoefficient &coeff)
@@ -4019,75 +3999,19 @@ void QuadratureFunction::ProjectCoefficient(VectorCoefficient &coeff)
    // Should we automatically resize, or check the vdim?
    // MFEM_ASSERT(vdim == coeff.GetVDim(), "Wrong sizes.");
    SetVDim(coeff.GetVDim());
-
-   if (auto *gf_coeff = dynamic_cast<VectorGridFunctionCoefficient*>(&coeff))
-   {
-      const GridFunction *gf = gf_coeff->GetGridFunction();
-      MFEM_ASSERT(gf != NULL, "GridFunction is NULL.")
-      ProjectGridFunction(*gf);
-   }
-   else
-   {
-      Mesh &mesh = *qspace->GetMesh();
-      DenseMatrix values;
-      Vector col;
-      for (int iel = 0; iel < mesh.GetNE(); ++iel)
-      {
-         GetElementValues(iel, values);
-         const IntegrationRule &ir = qspace->GetElementIntRule(iel);
-         ElementTransformation& T = *mesh.GetElementTransformation(iel);
-         for (int iq = 0; iq < ir.Size(); ++iq)
-         {
-            values.GetColumnReference(iq, col);
-            coeff.Eval(col, T, ir[iq]);
-         }
-      }
-   }
+   coeff.Eval(*this);
 }
 
-void QuadratureFunction::ProjectCoefficient(SymmetricMatrixCoefficient &coeff)
+void QuadratureFunction::ProjectSymmetricCoefficient(
+   SymmetricMatrixCoefficient &coeff)
 {
-   const int height = coeff.GetHeight();
-   const int width = coeff.GetWidth();
-   MFEM_CONTRACT_VAR(height);
-   MFEM_CONTRACT_VAR(width);
-   MFEM_ASSERT(height == width && vdim == height*(height+1)/2, "Wrong sizes.");
-   Mesh &mesh = *qspace->GetMesh();
-   DenseMatrix values;
-   DenseSymmetricMatrix matrix;
-   for (int iel = 0; iel < mesh.GetNE(); ++iel)
-   {
-      GetElementValues(iel, values);
-      const IntegrationRule &ir = qspace->GetElementIntRule(iel);
-      ElementTransformation& T = *mesh.GetElementTransformation(iel);
-      for (int iq = 0; iq < ir.Size(); ++iq)
-      {
-         matrix.UseExternalData(&values(0, iq), vdim);
-         coeff.Eval(matrix, T, ir[iq]);
-      }
-   }
+   coeff.EvalSymmetric(*this);
 }
 
 void QuadratureFunction::ProjectCoefficient(MatrixCoefficient &coeff,
                                             bool transpose)
 {
-   const int height = coeff.GetHeight();
-   const int width = coeff.GetWidth();
-   MFEM_ASSERT(vdim == height*width, "Wrong sizes.");
-   Mesh &mesh = *qspace->GetMesh();
-   DenseMatrix values, matrix;
-   for (int iel = 0; iel < mesh.GetNE(); ++iel)
-   {
-      GetElementValues(iel, values);
-      const IntegrationRule &ir = qspace->GetElementIntRule(iel);
-      ElementTransformation& T = *mesh.GetElementTransformation(iel);
-      for (int iq = 0; iq < ir.Size(); ++iq)
-      {
-         matrix.UseExternalData(&values(0, iq), height, width);
-         coeff.Eval(matrix, T, ir[iq]);
-         if (transpose) { matrix.Transpose(); }
-      }
-   }
+   coeff.Eval(*this, transpose);
 }
 
 void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,

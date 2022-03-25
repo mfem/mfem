@@ -48,6 +48,28 @@ ElementTransformation *RefinedToCoarse(
    return coarse_T;
 }
 
+void Coefficient::Eval(QuadratureFunction &qf)
+{
+   QuadratureSpace &qspace = *qf.GetSpace();
+   Mesh &mesh = *qspace.GetMesh();
+   Vector values;
+   for (int iel = 0; iel < mesh.GetNE(); ++iel)
+   {
+      qf.GetElementValues(iel, values);
+      const IntegrationRule &ir = qspace.GetElementIntRule(iel);
+      ElementTransformation& T = *mesh.GetElementTransformation(iel);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         values[iq] = Eval(T, ir[iq]);
+      }
+   }
+}
+
+void ConstantCoefficient::Eval(QuadratureFunction &qf)
+{
+   qf = constant;
+}
+
 double PWConstCoefficient::Eval(ElementTransformation & T,
                                 const IntegrationPoint & ip)
 {
@@ -135,6 +157,11 @@ double GridFunctionCoefficient::Eval (ElementTransformation &T,
    }
 }
 
+void GridFunctionCoefficient::Eval(QuadratureFunction &qf)
+{
+   qf.ProjectGridFunction(*GridF);
+}
+
 void TransformedCoefficient::SetTime(double t)
 {
    if (Q1) { Q1->SetTime(t); }
@@ -200,6 +227,25 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
       const IntegrationPoint &ip = ir.IntPoint(i);
       T.SetIntPoint(&ip);
       Eval(Mi, T, ip);
+   }
+}
+
+void VectorCoefficient::Eval(QuadratureFunction &qf)
+{
+   QuadratureSpace &qspace = *qf.GetSpace();
+   Mesh &mesh = *qspace.GetMesh();
+   DenseMatrix values;
+   Vector col;
+   for (int iel = 0; iel < mesh.GetNE(); ++iel)
+   {
+      qf.GetElementValues(iel, values);
+      const IntegrationRule &ir = qspace.GetElementIntRule(iel);
+      ElementTransformation& T = *mesh.GetElementTransformation(iel);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         values.GetColumnReference(iq, col);
+         Eval(col, T, ir[iq]);
+      }
    }
 }
 
@@ -368,6 +414,11 @@ void VectorGridFunctionCoefficient::Eval(
    }
 }
 
+void VectorGridFunctionCoefficient::Eval(QuadratureFunction &qf)
+{
+   qf.ProjectGridFunction(*GridFunc);
+}
+
 GradientGridFunctionCoefficient::GradientGridFunctionCoefficient (
    const GridFunction *gf)
    : VectorCoefficient((gf) ?
@@ -514,6 +565,26 @@ void VectorRestrictedCoefficient::Eval(
    {
       M.SetSize(vdim, ir.GetNPoints());
       M = 0.0;
+   }
+}
+
+void MatrixCoefficient::Eval(QuadratureFunction &qf, bool transpose)
+{
+   MFEM_ASSERT(qf.GetVDim() == height*width, "Wrong sizes.");
+   QuadratureSpace &qspace = *qf.GetSpace();
+   Mesh &mesh = *qspace.GetMesh();
+   DenseMatrix values, matrix;
+   for (int iel = 0; iel < mesh.GetNE(); ++iel)
+   {
+      qf.GetElementValues(iel, values);
+      const IntegrationRule &ir = qspace.GetElementIntRule(iel);
+      ElementTransformation& T = *mesh.GetElementTransformation(iel);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         matrix.UseExternalData(&values(0, iq), height, width);
+         Eval(matrix, T, ir[iq]);
+         if (transpose) { matrix.Transpose(); }
+      }
    }
 }
 
@@ -666,6 +737,27 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
    if (Q)
    {
       K *= Q->Eval(T, ip, GetTime());
+   }
+}
+
+void SymmetricMatrixCoefficient::EvalSymmetric(QuadratureFunction &qf)
+{
+   const int vdim = qf.GetVDim();
+   MFEM_ASSERT(vdim == height*(height+1)/2, "Wrong sizes.");
+   QuadratureSpace &qspace = *qf.GetSpace();
+   Mesh &mesh = *qspace.GetMesh();
+   DenseMatrix values;
+   DenseSymmetricMatrix matrix;
+   for (int iel = 0; iel < mesh.GetNE(); ++iel)
+   {
+      qf.GetElementValues(iel, values);
+      const IntegrationRule &ir = qspace.GetElementIntRule(iel);
+      ElementTransformation& T = *mesh.GetElementTransformation(iel);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         matrix.UseExternalData(&values(0, iq), vdim);
+         Eval(matrix, T, ir[iq]);
+      }
    }
 }
 
@@ -1576,7 +1668,7 @@ void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
    {
       vdim = sym_coeff->GetSize()*(sym_coeff->GetSize() + 1)/2;
       qf = new QuadratureFunction(&qs, vdim);
-      qf->ProjectCoefficient(*sym_coeff);
+      qf->ProjectSymmetricCoefficient(*sym_coeff);
    }
    else
    {
