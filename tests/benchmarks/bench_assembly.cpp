@@ -126,12 +126,14 @@ struct Problem: public BakeOff
 static void SetupBP##i##assembly(bm::State &state){\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly,state.range(0));\
    while (state.KeepRunning()) { ker.setup(); }\
-   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
+   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
+   state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);}\
 BENCHMARK(SetupBP##i##assembly)->DenseRange(1,6)->Unit(bm::kMillisecond);\
 static void BP##i##assembly(bm::State &state){\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly,state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
-   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
+   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
+   state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);}\
 BENCHMARK(BP##i##assembly)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
 // PARTIAL:
@@ -228,7 +230,8 @@ struct Kernel: public BakeOff
 static void BK##i##assembly(bm::State &state){\
    Kernel<KER##Integrator,VDIM,GLL> ker(AssemblyLevel::assembly, state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
-   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
+   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
+   state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);}\
 BENCHMARK(BK##i##assembly)->DenseRange(1,6)->Unit(bm::kMillisecond);\
 
 // PARTIAL:
