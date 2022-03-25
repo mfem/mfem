@@ -3991,7 +3991,7 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
 
 void QuadratureFunction::ProjectCoefficient(Coefficient &coeff)
 {
-   coeff.Eval(*this);
+   coeff.Project(*this);
 }
 
 void QuadratureFunction::ProjectCoefficient(VectorCoefficient &coeff)
@@ -3999,19 +3999,19 @@ void QuadratureFunction::ProjectCoefficient(VectorCoefficient &coeff)
    // Should we automatically resize, or check the vdim?
    // MFEM_ASSERT(vdim == coeff.GetVDim(), "Wrong sizes.");
    SetVDim(coeff.GetVDim());
-   coeff.Eval(*this);
+   coeff.Project(*this);
 }
 
 void QuadratureFunction::ProjectSymmetricCoefficient(
    SymmetricMatrixCoefficient &coeff)
 {
-   coeff.EvalSymmetric(*this);
+   coeff.ProjectSymmetric(*this);
 }
 
 void QuadratureFunction::ProjectCoefficient(MatrixCoefficient &coeff,
                                             bool transpose)
 {
-   coeff.Eval(*this, transpose);
+   coeff.Project(*this, transpose);
 }
 
 void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
