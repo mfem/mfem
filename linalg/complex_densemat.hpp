@@ -90,7 +90,7 @@ public:
 
    void ResetComplexData(int m)
    {
-      delete data; data = nullptr;
+      delete [] data; data = nullptr;
       SetComplexData(m);
    }
 
@@ -116,10 +116,13 @@ public:
       mfem_error("Factors::GetInverseMatrix(...)");
    }
 
-   virtual ~ComplexFactors() {}
+   virtual ~ComplexFactors()
+   {
+      delete [] data; data = nullptr;
+   }
 };
 
-/** Class that can compute LU factorization of external data and perform various
+/** Class that computes factorization of external data and perform various
     operations with the factored data. */
 class ComplexLUFactors : public ComplexFactors
 {

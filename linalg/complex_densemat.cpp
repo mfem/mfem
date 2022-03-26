@@ -414,7 +414,7 @@ std::complex<double> * ComplexFactors::RealToComplex
    {
       for (int i = 0; i<m; i++)
       {
-         x[i] = std::complex<double>(0., data_i[i]);
+         x[i] = std::complex<double>(0., x_i[i]);
       }
    }
    else
@@ -446,9 +446,10 @@ void ComplexFactors::SetComplexData(int m)
 
 bool ComplexLUFactors::Factor(int m, double TOL)
 {
-   SetComplexData(m);
+   SetComplexData(m*m);
 #ifdef MFEM_USE_LAPACK
    int info = 0;
+   MFEM_VERIFY(data, "Matrix data not set");
    if (m) { zgetrf_(&m, &m, data, &m, ipiv, &info); }
    return info == 0;
 #else
@@ -559,7 +560,8 @@ void ComplexLUFactors::Mult(int m, int n, double *X_r, double * X_i) const
 
 void ComplexLUFactors::LSolve(int m, int n, double *X_r, double * X_i) const
 {
-   std::complex<double> *x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<double> *X = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<double> *x = X;
    for (int k = 0; k < n; k++)
    {
       // X <- P X
@@ -578,13 +580,14 @@ void ComplexLUFactors::LSolve(int m, int n, double *X_r, double * X_i) const
       }
       x += m;
    }
-   ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
-   delete [] x;
+   ComplexFactors::ComplexToReal(m*n,X,X_r,X_i);
+   delete [] X;
 }
 
 void ComplexLUFactors::USolve(int m, int n, double *X_r, double * X_i) const
 {
-   std::complex<double> *x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<double> *X = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<double> *x = X;
    // X <- U^{-1} X
    for (int k = 0; k < n; k++)
    {
@@ -598,8 +601,8 @@ void ComplexLUFactors::USolve(int m, int n, double *X_r, double * X_i) const
       }
       x += m;
    }
-   ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
-   delete [] x;
+   ComplexFactors::ComplexToReal(m*n,X,X_r,X_i);
+   delete [] X;
 }
 
 void ComplexLUFactors::Solve(int m, int n, double *X_r, double * X_i) const
@@ -738,12 +741,14 @@ void ComplexLUFactors::GetInverseMatrix(int m, double *X_r, double *X_i) const
          }
       }
    }
+   ComplexFactors::ComplexToReal(m*m,X,X_r,X_i);
+   delete [] X;
 }
 
 
 bool ComplexCholeskyFactors::Factor(int m, double TOL)
 {
-   SetComplexData(m);
+   SetComplexData(m*m);
 #ifdef MFEM_USE_LAPACK
    int info = 0;
    char uplo = 'L';
@@ -795,7 +800,8 @@ void ComplexCholeskyFactors::LMult(int m, int n, double * X_r,
                                    double * X_i) const
 {
    // X <- L X
-   std::complex<double> *x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<double> *X = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<double> *x = X;
    for (int k = 0; k < n; k++)
    {
       for (int j = m-1; j >= 0; j--)
@@ -809,14 +815,15 @@ void ComplexCholeskyFactors::LMult(int m, int n, double * X_r,
       }
       x += m;
    }
-   ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
-   delete [] x;
+   ComplexFactors::ComplexToReal(m*n,X,X_r,X_i);
+   delete [] X;
 }
 
 void ComplexCholeskyFactors::UMult(int m, int n, double * X_r,
                                    double * X_i) const
 {
-   std::complex<double> *x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<double> *X = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<double> *x = X;
    for (int k = 0; k < n; k++)
    {
       for (int i = 0; i < m; i++)
@@ -830,15 +837,16 @@ void ComplexCholeskyFactors::UMult(int m, int n, double * X_r,
       }
       x += m;
    }
-   ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
-   delete [] x;
+   ComplexFactors::ComplexToReal(m*n,X,X_r,X_i);
+   delete [] X;
 }
 
 void ComplexCholeskyFactors::LSolve(int m, int n, double * X_r,
                                     double * X_i) const
 {
-   std::complex<double> *x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
-#ifndef MFEM_USE_LAPACK
+   std::complex<double> *X = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<double> *x = X;
+#ifdef MFEM_USE_LAPACK
    char uplo = 'L';
    char trans = 'N';
    char diag = 'N';
@@ -861,18 +869,19 @@ void ComplexCholeskyFactors::LSolve(int m, int n, double * X_r,
       x += m;
    }
 #endif
-   ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
-   delete [] x;
+   ComplexFactors::ComplexToReal(m*n,X,X_r,X_i);
+   delete [] X;
 }
 
 void ComplexCholeskyFactors::USolve(int m, int n, double * X_r,
                                     double * X_i) const
 {
-   std::complex<double> *x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
-#ifndef MFEM_USE_LAPACK
+   std::complex<double> *X = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<double> *x = X;
+#ifdef MFEM_USE_LAPACK
 
    char uplo = 'L';
-   char trans = 'T';
+   char trans = 'C';
    char diag = 'N';
    int info = 0;
 
@@ -893,8 +902,8 @@ void ComplexCholeskyFactors::USolve(int m, int n, double * X_r,
       x += m;
    }
 #endif
-   ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
-   delete [] x;
+   ComplexFactors::ComplexToReal(m*n,X,X_r,X_i);
+   delete [] X;
 }
 
 void ComplexCholeskyFactors::Solve(int m, int n, double * X_r,
@@ -919,6 +928,7 @@ void ComplexCholeskyFactors::RightSolve(int m, int n, double * X_r,
 {
 
    std::complex<double> *X = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<double> *x = X;
 #ifdef MFEM_USE_LAPACK
    char side = 'R';
    char uplo = 'L';
@@ -929,12 +939,11 @@ void ComplexCholeskyFactors::RightSolve(int m, int n, double * X_r,
    std::complex<double> alpha(1.0,0.0);
    if (m > 0 && n > 0)
    {
-      ztrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,X,&n);
-      ztrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,X,&n);
+      ztrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,x,&n);
+      ztrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,x,&n);
    }
 #else
    // X <- X L^{-H}
-   std::complex<double> *x = X;
    for (int k = 0; k < n; k++)
    {
       for (int j = 0; j < m; j++)
@@ -970,33 +979,33 @@ void ComplexCholeskyFactors::GetInverseMatrix(int m, double * X_r,
                                               double * X_i) const
 {
    // A^{-1} = L^{-t} L^{-1}
-   std::complex<double> * x = new std::complex<double>[m*m];
+   std::complex<double> * X = new std::complex<double>[m*m];
 #ifdef MFEM_USE_LAPACK
    // copy the lower triangular part of L to X
    for (int i = 0; i<m; i++)
    {
       for (int j = i; j<m; j++)
       {
-         x[j+i*m] = data[j+i*m];
+         X[j+i*m] = data[j+i*m];
       }
    }
    char uplo = 'L';
    int info = 0;
-   zpotri_(&uplo, &m, x, &m, &info);
+   zpotri_(&uplo, &m, X, &m, &info);
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:GetInverseMatrix:: info");
    // fill in the upper triangular part
    for (int i = 0; i<m; i++)
    {
       for (int j = i+1; j<m; j++)
       {
-         x[i+j*m] = x[j+i*m];
+         X[i+j*m] = std::conj(X[j+i*m]);
       }
    }
 #else
    // L^-t * L^-1 (in place)
    for (int k = 0; k<m; k++)
    {
-      x[k+k*m] = 1./data[k+k*m];
+      X[k+k*m] = 1./data[k+k*m];
       for (int i = k+1; i < m; i++)
       {
          std::complex<double> s(0.,0.);
@@ -1004,7 +1013,7 @@ void ComplexCholeskyFactors::GetInverseMatrix(int m, double * X_r,
          {
             s -= data[i+j*m] * X[j+k*m]/data[i+i*m];
          }
-         x[i+k*m] = s;
+         X[i+k*m] = s;
       }
    }
    for (int i = 0; i < m; i++)
@@ -1014,15 +1023,15 @@ void ComplexCholeskyFactors::GetInverseMatrix(int m, double * X_r,
          std::complex<double> s(0.,0.);
          for (int k=j; k<m; k++)
          {
-            s += x[k+i*m] * X[k+j*m];
+            s += X[k+i*m] * std::conj(X[k+j*m]);
          }
-         X[i+j*m] = s;
-         X[j+i*m] = std::conj(s);
+         X[j+i*m] = s;
+         X[i+j*m] = std::conj(s);
       }
    }
 #endif
-   ComplexFactors::ComplexToReal(m*m,x,X_r,X_i);
-   delete [] x;
+   ComplexFactors::ComplexToReal(m*m,X,X_r,X_i);
+   delete [] X;
 }
 
 } // mfem namespace
