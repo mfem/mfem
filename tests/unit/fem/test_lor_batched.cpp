@@ -90,11 +90,15 @@ void TestBatchedLOR()
 {
    const int order = 5;
    const auto mesh_fname = GENERATE(
-                              "../../data/star-q3.mesh",
-                              "../../data/fichera-q3.mesh"
+                              "../../data/star-q3.mesh"
+                              , "../../data/fichera-q3.mesh"
                            );
 
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+
+   // TEMPORARY: disable 3D test for RT. Not implemented yet.
+   if (mesh.Dimension() == 3 && std::is_same<FE_COLL, RT_FECollection>::value)
+   { return; }
 
    std::unique_ptr<FE_COLL> fec(
       NewLOR_FE_Collection<FE_COLL>(order, mesh.Dimension()));
@@ -138,6 +142,11 @@ TEST_CASE("LOR Batched ND", "[LOR][BatchedLOR][CUDA]")
    TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>();
 }
 
+TEST_CASE("LOR Batched RT", "[LOR][BatchedLOR][CUDA]")
+{
+   TestBatchedLOR<RT_FECollection,VectorFEMassIntegrator,DivDivIntegrator>();
+}
+
 #ifdef MFEM_USE_MPI
 
 void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
@@ -175,6 +184,12 @@ void ParTestBatchedLOR()
                            );
 
    Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname);
+
+   // TEMPORARY: disable 3D test for RT. Not implemented yet.
+   if (serial_mesh.Dimension() == 3 &&
+       std::is_same<FE_COLL, RT_FECollection>::value)
+   { return; }
+
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
    std::unique_ptr<FE_COLL> fec(NewLOR_FE_Collection<FE_COLL>(order,
@@ -209,6 +224,11 @@ TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
 TEST_CASE("Parallel LOR Batched ND", "[LOR][BatchedLOR][Parallel][CUDA]")
 {
    ParTestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>();
+}
+
+TEST_CASE("Parallel LOR Batched RT", "[LOR][BatchedLOR][Parallel][CUDA]")
+{
+   ParTestBatchedLOR<RT_FECollection,VectorFEMassIntegrator,DivDivIntegrator>();
 }
 
 TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
