@@ -38,18 +38,19 @@ static int RunCatchSession(int argc, char *argv[],
    if (r != 0) { return r; }
 
    auto cfg = session.configData();
-   cfg.testsOrTags.insert(cfg.testsOrTags.end(), testsOrTags.begin(), testsOrTags.end());
+   cfg.testsOrTags.insert(cfg.testsOrTags.end(), testsOrTags.begin(),
+                          testsOrTags.end());
    if (mfem_data_dir == "") { cfg.testsOrTags.push_back("~[MFEMData]"); }
    session.useConfigData(cfg);
 
    if (root)
    {
-    std::cout << "INFO: Test filter: ";
-    for (std::string &filter : cfg.testsOrTags)
-    {
-        std::cout << filter << " ";
-    }
-    std::cout << std::endl;
+      std::cout << "INFO: Test filter: ";
+      for (std::string &filter : cfg.testsOrTags)
+      {
+         std::cout << filter << " ";
+      }
+      std::cout << std::endl;
    }
 
    int result = session.run();
