@@ -582,14 +582,14 @@ double SheathImpedance::Eval(ElementTransformation &T,
    CalcOrtho(T.Jacobian(), nor);
    double normag = nor.Norml2();
    double bn = (B * nor)/(normag*Bmag); // Unitless
-    
+
    // Setting up normalized V_RF:
    // Jim's newest parametrization (Myra et al 2017):
    double volt_norm = (phi_mag)/temp_val ; // Unitless: V zero-to-peak
-    
+
    // Jim's old parametrization (Kohno et al 2017):
    //double volt_norm = (2*phi_mag)/temp_val ; // Unitless: V peak-to-peak
-    
+
    //if ( volt_norm == 0){volt_norm = 190.5/temp_val;} // Initial Guess
    // This is only for old parameterization
    //if ( volt_norm > 20) {cout << "Warning: V_RF > Z Parameterization Limit!" << endl;}
@@ -597,10 +597,10 @@ double SheathImpedance::Eval(ElementTransformation &T,
    // Calculating Sheath Impedance:
    // Jim's newest parametrization (Myra et al 2017):
    complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
-   masses_[0], masses_[1]);
-    
+                                             masses_[0], masses_[1]);
+
    // Jim's old parametrization (Kohno et al 2017):
-    //complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
+   //complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
 
    // Fixed sheath impedance:
    //complex<double> zsheath_norm(0.6, 0.4);
@@ -1208,48 +1208,54 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          return pmax - (pmax - pmin) * r;
       }
       break;
-       case PEDESTAL:
-        {
-            double pmin = p_[0];
-            double pmax = p_[1];
-            double lambda_n = p_[2]; // Damping length
-            double nu = p_[3]; // Strength of decline
-            Vector x0(&p_[4], 3);
+      case PEDESTAL:
+      {
+         double pmin = p_[0];
+         double pmax = p_[1];
+         double lambda_n = p_[2]; // Damping length
+         double nu = p_[3]; // Strength of decline
+         Vector x0(&p_[4], 3);
 
-            x_ -= x0;
-            double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
-            return (pmax - pmin) * pow(cosh(pow((rho / lambda_n), nu)), -1.0) + pmin;
-            //return (pmax - pmin) * pow(cosh(pow((x_[0] / lambda_n), nu)), -1.0) + pmin;
-        }
+         x_ -= x0;
+         double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+         return (pmax - pmin) * pow(cosh(pow((rho / lambda_n), nu)), -1.0) + pmin;
+         //return (pmax - pmin) * pow(cosh(pow((x_[0] / lambda_n), nu)), -1.0) + pmin;
+      }
       break;
-       case CUSTOM1:
-       {
-           double nu0 = p_[0];
-           double decay = p_[1];
-           
-           return (nu0*exp(-x_[0]/decay));
-       }
-       break;
-       case CUSTOM2:
-       {
-           double rad_res_loc = p_[0];
-           double nu0 = p_[1];
-           double width = 3e-5;
-           double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
-           return nu0*exp(-pow(rho-rad_res_loc, 2)/width) + (1e14)*exp(-rho/0.1);
-       }
-       break;
+      case CUSTOM1:
+      {
+         double nu0 = p_[0];
+         double decay = p_[1];
+
+         return (nu0*exp(-x_[0]/decay));
+      }
+      break;
+      case CUSTOM2:
+      {
+         double rad_res_loc = p_[0];
+         double nu0 = p_[1];
+         double width = 3e-5;
+         double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+         return nu0*exp(-pow(rho-rad_res_loc, 2)/width) + (1e14)*exp(-rho/0.1);
+      }
+      break;
       default:
          return 0.0;
    }
 }
 
-BFieldProfile::BFieldProfile(Type type, const Vector & params, bool unit)
-   : VectorCoefficient(3), type_(type), p_(params), x_(3), unit_(unit)
+BFieldProfile::BFieldProfile(Type type, const Vector & params, bool unit,
+                             G_EQDSK_Data *eqdsk)
+   : VectorCoefficient(3), type_(type), p_(params), unit_(unit),
+     eqdsk_(eqdsk), x_(3)
 {
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
+
+   MFEM_VERIFY(type != B_EQDSK || eqdsk,
+               "BFieldProfile: Profile type B_EQDSK was chosen "
+               "but the G_EQDSK_Data object is NULL.");
 }
 
 void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
@@ -1306,59 +1312,109 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          }
       }
       break;
-       case B_TOPDOWN:
-       {
-          double bp_val = p_[0];
-          double a = p_[1];
-          double b = p_[2];
-          Vector x0(&p_[3], 3);
+      case B_TOPDOWN:
+      {
+         double bp_val = p_[0];
+         // double a = p_[1];
+         // double b = p_[2];
+         Vector x0(&p_[3], 3);
 
-          x_ -= x0;
-          double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
-          double theta = atan2(x_[1], x_[0]);
+         x_ -= x0;
+         // double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
+         double theta = atan2(x_[1], x_[0]);
 
-          if (unit_)
-          {
-             double bmag = pow( pow(bp_val, 2), 0.5);
-             V[0] = -bp_val * sin(theta) / bmag;
-             V[1] = bp_val * cos(theta) / bmag;
-             V[2] = 0 / bmag;
-          }
-          else
-          {
-             V[0] = -bp_val * sin(theta);
-             V[1] = bp_val * cos(theta);
-             V[2] = 0;
-          }
-       }
-       break;
-       case B_P_KOHNO:
-       {
-          double rmin = p_[0]; // Minor radius
-          double rmaj = p_[1]; // Major radius
-          double q0 = p_[2]; // Safety factor on magnetic axis
-          double qa = p_[3]; // Edge safety factor
-          Vector x0(&p_[4], 3); // Magnetic field axis
-          double bz0 = p_[7]; // B toroidal
+         if (unit_)
+         {
+            double bmag = pow( pow(bp_val, 2), 0.5);
+            V[0] = -bp_val * sin(theta) / bmag;
+            V[1] = bp_val * cos(theta) / bmag;
+            V[2] = 0 / bmag;
+         }
+         else
+         {
+            V[0] = -bp_val * sin(theta);
+            V[1] = bp_val * cos(theta);
+            V[2] = 0;
+         }
+      }
+      break;
+      case B_P_KOHNO:
+      {
+         double rmin = p_[0]; // Minor radius
+         double rmaj = p_[1]; // Major radius
+         double q0 = p_[2]; // Safety factor on magnetic axis
+         double qa = p_[3]; // Edge safety factor
+         Vector x0(&p_[4], 3); // Magnetic field axis
+         double bz0 = p_[7]; // B toroidal
 
-          x_ -= x0;
-          double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
-          double bp_coef = ((bz0 / rmaj) * pow(rmin, 2.0)) / (pow(rmin, 2.0)*q0 + (qa - q0)*pow(rho, 2.0));
+         x_ -= x0;
+         double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
+         double bp_coef = ((bz0 / rmaj) * pow(rmin, 2.0)) / (pow(rmin,
+                                                                 2.0)*q0 + (qa - q0)*pow(rho, 2.0));
 
-          if (unit_)
-          {
-             double bmag = pow( pow(bp_coef * x_[1], 2) + pow(-bp_coef * x_[0], 2) + pow(bz0, 2), 0.5);
-             V[0] = bp_coef * x_[1] / bmag;
-             V[1] = -bp_coef * x_[0] / bmag;
-             V[2] = bz0 / bmag;
-          }
-          else
-          {
-             V[0] = bp_coef * x_[1];
-             V[1] = -bp_coef * x_[0];
-             V[2] = bz0;
-          }
-       }
+         if (unit_)
+         {
+            double bmag = pow( pow(bp_coef * x_[1], 2) + pow(-bp_coef * x_[0], 2) + pow(bz0,
+                                                                                        2), 0.5);
+            V[0] = bp_coef * x_[1] / bmag;
+            V[1] = -bp_coef * x_[0] / bmag;
+            V[2] = bz0 / bmag;
+         }
+         else
+         {
+            V[0] = bp_coef * x_[1];
+            V[1] = -bp_coef * x_[0];
+            V[2] = bz0;
+         }
+      }
+      break;
+      case B_EQDSK:
+      {
+         // Step 0: Extract parameters
+         double u0 = p_[0];
+         double v0 = p_[1];
+         double z0 = p_[2];
+         double theta = M_PI * p_[3] / 180.0;
+         double st = sin(theta);
+         double ct = cos(theta);
+
+         // Step 1: Compute coordinates in 3D the Tokamak geometry
+         double x_tok = x_[0] - u0;
+         double y_tok = (x_[1] - v0) * st;
+         double z_tok = (x_[1] - v0) * ct + z0;
+         double r_tok = sqrt(x_tok * x_tok + y_tok * y_tok);
+
+         // Step 2: Interpolate B field in poloidal cross section
+         double x_tok_data[3];
+         Vector xTokVec(x_tok_data, 3);
+         xTokVec[0] = r_tok; xTokVec[1] = z_tok; xTokVec[2] = 0.0;
+
+         double b_pol_data[2];
+         Vector b_pol(b_pol_data, 2); b_pol = 0.0;
+         double b_tor = 0.0;
+
+         eqdsk_->InterpNxGradVar(xTokVec, b_pol, eqdsk_->GetPsi());
+         b_tor = eqdsk_->InterpVar(xTokVec, eqdsk_->GetBtor());
+
+         // Step 3: Rotate B field back to coordinates of computational domain
+         //    Done in two substeps; rotate the cross section into full Tokamak
+         //    geometry, rotate into a tilted computational domain.
+         double b_tok_data[3];
+         Vector b_tok(b_tok_data, 3);
+         b_tok[0] = (b_pol[0] * x_tok - b_tor * y_tok) / r_tok;
+         b_tok[1] = (b_pol[0] * y_tok + b_tor * x_tok) / r_tok;
+         b_tok[2] = b_pol[1];
+
+         V[0] = b_tok[0];
+         V[1] = b_tok[2] * ct - b_tok[1] * st;
+         V[2] = b_tok[2] * st + b_tok[1] * ct;
+
+         if (unit_)
+         {
+            double vmag = sqrt(V * V);
+            V /= vmag;
+         }
+      }
       break;
       default:
          if (unit_)

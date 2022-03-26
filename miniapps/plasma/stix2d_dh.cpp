@@ -342,67 +342,67 @@ public:
       T.Transform(ip, x_);
       for (int i=0; i<num_straps_; i++)
       {
-          double x0  = params_[10 * i + 0];
-          double y0  = params_[10 * i + 1];
-          double x1  = params_[10 * i + 2];
-          double y1  = params_[10 * i + 3];
-          double x2  = params_[10 * i + 4];
-          double y2  = params_[10 * i + 5];
-          double x3  = params_[10 * i + 6];
-          double y3  = params_[10 * i + 7];
+         double x0  = params_[10 * i + 0];
+         double y0  = params_[10 * i + 1];
+         double x1  = params_[10 * i + 2];
+         double y1  = params_[10 * i + 3];
+         double x2  = params_[10 * i + 4];
+         double y2  = params_[10 * i + 5];
+         double x3  = params_[10 * i + 6];
+         double y3  = params_[10 * i + 7];
 
-          double ReI = params_[10 * i + 8];
-          double ImI = params_[10 * i + 9];
+         double ReI = params_[10 * i + 8];
+         double ImI = params_[10 * i + 9];
 
-          double d01 = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2));
-          double d12 = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
-          double d23 = sqrt(pow(x3 - x2, 2) + pow(y3 - y2, 2));
-          double d30 = sqrt(pow(x0 - x3, 2) + pow(y0 - y3, 2));
+         double d01 = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2));
+         double d12 = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
+         double d23 = sqrt(pow(x3 - x2, 2) + pow(y3 - y2, 2));
+         double d30 = sqrt(pow(x0 - x3, 2) + pow(y0 - y3, 2));
 
-          double   H = (real_part_ ? ReI : ImI) / (d01 + d12 + d23 + d30);
-          
-          // *** The following will break on any vertical sides ***
-           // Bottom of Antenna Strap:
-           double s1 = (y1-y0)/(x1-x0);
-           double b1 = y1 - s1*x1;
-           // Right of Antenna Strap:
-           double s2 = (y2-y1)/(x2-x1);
-           double b2 = y2 - s2*x2;
-           // Top of Antenna Strap:
-           double s3 = (y3-y2)/(x3-x2);
-           double b3 = y3 - s3*x3;
-           // Left of Antenna Strap:
-           double s4 = (y3-y0)/(x3-x0);
-           double b4 = y3 - s4*x3;
+         double   H = (real_part_ ? ReI : ImI) / (d01 + d12 + d23 + d30);
 
-           if (fabs(x_[1] - (s1*x_[0]+b1)) <= tol_
-               && x_[0] >= x0 && x_[0] <= x1)
-           {
-              V[0] = (x1 - x0) * H / d01;
-              V[1] = (y1 - y0) * H / d01;
-              break;
-           }
-           else if (fabs(x_[1] - (s2*x_[0]+b2)) <= tol_
-                    && x_[1] >= y1 && x_[1] <= y2)
-           {
-              V[0] = (x2 - x1) * H / d12;
-              V[1] = (y2 - y1) * H / d12;
-              break;
-           }
-           else if (fabs(x_[1] - (s3*x_[0]+b3)) <= tol_
-                    && x_[0] >= x3 && x_[0] <= x2)
-           {
-              V[0] = (x3 - x2) * H / d23;
-              V[1] = (y3 - y2) * H / d23;
-              break;
-           }
-           else if (fabs(x_[1] - (s4*x_[0]+b4)) <= tol_
-                    && x_[1] >= y0 && x_[1] <= y3)
-           {
-              V[0] = (x0 - x3) * H / d30;
-              V[1] = (y0 - y3) * H / d30;
-              break;
-           }
+         // *** The following will break on any vertical sides ***
+         // Bottom of Antenna Strap:
+         double s1 = (y1-y0)/(x1-x0);
+         double b1 = y1 - s1*x1;
+         // Right of Antenna Strap:
+         double s2 = (y2-y1)/(x2-x1);
+         double b2 = y2 - s2*x2;
+         // Top of Antenna Strap:
+         double s3 = (y3-y2)/(x3-x2);
+         double b3 = y3 - s3*x3;
+         // Left of Antenna Strap:
+         double s4 = (y3-y0)/(x3-x0);
+         double b4 = y3 - s4*x3;
+
+         if (fabs(x_[1] - (s1*x_[0]+b1)) <= tol_
+             && x_[0] >= x0 && x_[0] <= x1)
+         {
+            V[0] = (x1 - x0) * H / d01;
+            V[1] = (y1 - y0) * H / d01;
+            break;
+         }
+         else if (fabs(x_[1] - (s2*x_[0]+b2)) <= tol_
+                  && x_[1] >= y1 && x_[1] <= y2)
+         {
+            V[0] = (x2 - x1) * H / d12;
+            V[1] = (y2 - y1) * H / d12;
+            break;
+         }
+         else if (fabs(x_[1] - (s3*x_[0]+b3)) <= tol_
+                  && x_[0] >= x3 && x_[0] <= x2)
+         {
+            V[0] = (x3 - x2) * H / d23;
+            V[1] = (y3 - y2) * H / d23;
+            break;
+         }
+         else if (fabs(x_[1] - (s4*x_[0]+b4)) <= tol_
+                  && x_[1] >= y0 && x_[1] <= y3)
+         {
+            V[0] = (x0 - x3) * H / d30;
+            V[1] = (y0 - y3) * H / d30;
+            break;
+         }
       }
    }
 };
@@ -413,7 +413,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
             ParGridFunction & BField,
-            VectorCoefficient * BCoef,
+            VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
             Coefficient & nuCoef,
@@ -465,7 +465,7 @@ int main(int argc, char *argv[])
    const char * wave_type = " ";
 
    Vector BVec(3);
-   BVec = 0.0; BVec(0) = 0.1;
+   BVec = 0.0;
 
    bool phase_shift = false;
    Vector kVec;
@@ -577,17 +577,17 @@ int main(int argc, char *argv[])
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
    args.AddOption((int*)&npt, "-np", "--collision-profile",
-                   "Collisions Profile Type: \n"
-                   "0 - Constant, 1 - Constant Gradient, "
-                   "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
+                  "Collisions Profile Type: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
    args.AddOption(&npp, "-npp", "--collisions-profile-params",
-                   "Collisions Profile Parameters: \n"
-                   "   CONSTANT: temperature value \n"
-                   "   GRADIENT: value, location, gradient (7 params)\n"
-                   "   TANH:     value at 0, value at 1, skin depth, "
-                   "location of 0 point, unit vector along gradient, "
-                   "   ELLIPTIC_COS: value at -1, value at 1, "
-                   "radius in x, radius in y, location of center.");
+                  "Collisions Profile Parameters: \n"
+                  "   CONSTANT: temperature value \n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
    args.AddOption(&nuprof, "-nuprof", "--collisional-profile",
                   "Temperature Profile Type: \n"
                   "0 - Standard e-i Collision Freq, 1 - Custom Freq.");
@@ -597,8 +597,8 @@ int main(int argc, char *argv[])
                   "'O' - Ordinary, 'X' - Extraordinary, "
                   "'J' - Current Slab (in conjunction with -slab), "
                   "'Z' - Zero");
-   args.AddOption(&BVec, "-B", "--magnetic-flux",
-                  "Background magnetic flux vector");
+   // args.AddOption(&BVec, "-B", "--magnetic-flux",
+   //                "Background magnetic flux vector");
    args.AddOption(&kVec, "-k-vec", "--phase-vector",
                   "Phase shift vector across periodic directions."
                   " For complex phase shifts input 3 real phase shifts "
@@ -674,8 +674,8 @@ int main(int argc, char *argv[])
                   "Dirichlet Boundary Condition Value 2 (v_x v_y v_z)"
                   " or (Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
    args.AddOption(&dbcas, "-dbcs-msa", "--dirichlet-bc-straps",
-                   "Dirichlet Boundary Condition Surfaces Using "
-                   "Multi-Strap Antenna");
+                  "Dirichlet Boundary Condition Surfaces Using "
+                  "Multi-Strap Antenna");
    args.AddOption(&nbca1, "-nbcs1", "--neumann-bc-1-surf",
                   "Neumann Boundary Condition Surfaces Using Value 1");
    args.AddOption(&nbca2, "-nbcs2", "--neumann-bc-2-surf",
@@ -709,7 +709,7 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
-                    "G EQDSK input file.");
+                  "G EQDSK input file.");
    args.Parse();
    if (!args.Good())
    {
@@ -734,12 +734,23 @@ int main(int argc, char *argv[])
       dpp.SetSize(1);
       dpp[0] = 1.0e19;
    }
-    
-    if (npp.Size() == 0)
-    {
-       npp.SetSize(1);
-       npp[0] = 0;
-    }
+
+   if (npp.Size() == 0)
+   {
+      npp.SetSize(1);
+      npp[0] = 0;
+   }
+
+   if (bpp.Size() == 0)
+   {
+      bpt = BFieldProfile::CONSTANT;
+      bpp.SetSize(3);
+      bpp[0] = 0.0; bpp[1] = 0.1; bpp[2] = 0.0;
+   }
+   if (bpt == BFieldProfile::CONSTANT)
+   {
+      BVec = bpp;
+   }
 
    if (charges.Size() == 0)
    {
@@ -1149,42 +1160,40 @@ int main(int argc, char *argv[])
    ParGridFunction temperature_gf;
    ParGridFunction density_gf;
    ParGridFunction nu_gf(&H1FESpace);
-    
+
    PlasmaProfile nuCoef(npt, npp);
    nu_gf.ProjectCoefficient(nuCoef);
-    
-   //BFieldProfile BCoef(bpt, bpp, false);
-   //BFieldProfile BUnitCoef(bpt, bpp, true);
 
-   VectorCoefficient *BCoef = NULL;
-   VectorCoefficient *BUnitCoef = NULL;
    G_EQDSK_Data *eqdsk = NULL;
-    
-    {
-       named_ifgzstream ieqdsk(eqdsk_file);
-       if (ieqdsk)
-       {
-          eqdsk = new G_EQDSK_Data(ieqdsk);
-          if (mpi.Root()){ eqdsk->PrintInfo();}
-       }
-    }
-    if (eqdsk)
+   {
+      named_ifgzstream ieqdsk(eqdsk_file);
+      if (ieqdsk)
       {
-         if (mpi.Root())
-          {
-             cout << "Using B field from " << eqdsk_file << endl;
-          }
-          G_EQDSK_BField_VecCoefficient BCoef(*eqdsk, false);
-          G_EQDSK_BField_VecCoefficient BUnitCoef(*eqdsk, true);
+         eqdsk = new G_EQDSK_Data(ieqdsk);
+         if (mpi.Root()) { eqdsk->PrintInfo();}
       }
-    else
-    {
-         BFieldProfile BCoef(bpt, bpp, false);
-         BFieldProfile BUnitCoef(bpt, bpp, true);
-    }
+   }
+   /*
+   if (eqdsk)
+     {
+        if (mpi.Root())
+         {
+            cout << "Using B field from " << eqdsk_file << endl;
+         }
+         G_EQDSK_BField_VecCoefficient BCoef(*eqdsk, false);
+         G_EQDSK_BField_VecCoefficient BUnitCoef(*eqdsk, true);
+     }
+   else
+   {
+        BFieldProfile BCoef(bpt, bpp, false);
+        BFieldProfile BUnitCoef(bpt, bpp, true);
+   }
+   */
+   BFieldProfile BCoef(bpt, bpp, false, eqdsk);
+   BFieldProfile BUnitCoef(bpt, bpp, true, eqdsk);
 
-   BField.ProjectCoefficient(*BCoef);
-    
+   BField.ProjectCoefficient(BCoef);
+
    int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
 
@@ -1253,7 +1262,7 @@ int main(int argc, char *argv[])
    SheathImpedance z_i(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, false);
-   
+
    MultiStrapAntennaH HReStrapCoef(msa_n, msa_p, true);
    MultiStrapAntennaH HImStrapCoef(msa_n, msa_p, false);
 
@@ -1485,10 +1494,10 @@ int main(int argc, char *argv[])
    }
 
    // Setup coefficients for Dirichlet BC
-    int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
-                      (dbcas.Size() > 0) + (dbcaw.Size() > 0);
+   int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
+                  (dbcas.Size() > 0) + (dbcaw.Size() > 0);
 
-  Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
+   Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
 
    Vector zeroVec(3); zeroVec = 0.0;
    Vector dbc1ReVec;
@@ -1563,13 +1572,13 @@ int main(int argc, char *argv[])
          c++;
       }
       if (dbcas.Size() > 0)
-       {
-           dbcs[c] = new ComplexVectorCoefficientByAttr;
-           dbcs[c]->attr = dbcas;
-           dbcs[c]->real = &HReStrapCoef;
-           dbcs[c]->imag = &HImStrapCoef;
-           c++;
-       }
+      {
+         dbcs[c] = new ComplexVectorCoefficientByAttr;
+         dbcs[c]->attr = dbcas;
+         dbcs[c]->real = &HReStrapCoef;
+         dbcs[c]->imag = &HImStrapCoef;
+         c++;
+      }
       if (dbcaw.Size() > 0)
       {
          dbcs[c] = new ComplexVectorCoefficientByAttr;
@@ -1724,7 +1733,7 @@ int main(int argc, char *argv[])
 
       density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
       visit_dc.RegisterField("Electron_Density", &density_gf);
-       
+
       //nu_gf *= 1/omega;
       visit_dc.RegisterField("Collisional Profile", &nu_gf);
 
@@ -1879,7 +1888,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
             ParFiniteElementSpace & HDivFESpace,
             ParFiniteElementSpace & L2FESpace,
             ParGridFunction & BField,
-            VectorCoefficient * BCoef,
+            VectorCoefficient & BCoef,
             Coefficient & rhoCoef,
             Coefficient & TCoef,
             Coefficient & nuCoef,
@@ -1899,8 +1908,8 @@ void Update(ParFiniteElementSpace & H1FESpace,
    L2FESpace.Update();
 
    BField.Update();
-   BField.ProjectCoefficient(*BCoef);
-    
+   BField.ProjectCoefficient(BCoef);
+
    nu_gf.Update();
    nu_gf.ProjectCoefficient(nuCoef);
 
@@ -2215,7 +2224,7 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
 
    beta_r_ = 0.0;
    beta_i_ = 0.0;
-    
+
    double nu_ = 0;
 
    S_ = S_cold_plasma(omega_, Bmag_, nu_, numbers_, charges_, masses_, temps_,
@@ -2461,7 +2470,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
 
    beta_r_ = 0.0;
    beta_i_ = 0.0;
-    
+
    double nu_ = 0;
 
    S_ = S_cold_plasma(omega_, Bmag_, nu_, numbers_, charges_, masses_, temps_,

@@ -61,17 +61,19 @@ class G_EQDSK_Data
 public:
    G_EQDSK_Data(std::istream &is);
 
-   std::vector<double> GetPsi(){ return PSIRZ_ ;}
-   std::vector<double> FPoltoBtor();
-    
-   void PrintInfo(std::ostream & out = std::cout) const;
+   std::vector<double> & GetPsi() { return PSIRZ_ ;}
+   std::vector<double> & GetBtor() { return BTOR_; }
+
+   void PrintInfo(std::ostream &out = std::cout) const;
    void DumpGnuPlotData(const std::string &file) const;
 
-   double InterpVar(const Vector &x, std::vector<double> VarField_);
-   void InterpNxGradVar(const Vector &x, Vector &b, std::vector<double> VarField_);
+   double InterpVar(const Vector &x, std::vector<double> &VarField);
+   void InterpNxGradVar(const Vector &x, Vector &b,
+                        std::vector<double> &VarField);
 
 private:
    //void initInterpolation();
+   void updateBtor();
 
    std::vector<std::string> CASE_; // Identification character string
 
@@ -107,9 +109,12 @@ private:
 
    // q values on uniform flux grid from axis to boundary
    std::vector<double> QPSI_;
-    
+
    // Arbitrary field to use as argument in interpolation functions
-   std::vector<double> VarField_;
+   // std::vector<double> VarField_;
+
+   // Toroidal B field dervided from FPOL_
+   std::vector<double> BTOR_;
 
    int                 NBBBS_;  // Number of boundary points
    std::vector<double> RBBBS_;  // R of boundary points in meter
@@ -164,7 +169,7 @@ public:
 
       T.Transform(ip, transip);
 
-      return eqdsk.InterpVar(transip, eqdsk.FPoltoBtor());
+      return eqdsk.InterpVar(transip, eqdsk.GetBtor());
    }
 };
 
@@ -199,35 +204,31 @@ private:
 
 public:
 
-    G_EQDSK_BField_VecCoefficient(G_EQDSK_Data &g_eqdsk, bool unit)
-      : VectorCoefficient(3), unit_(unit), eqdsk(g_eqdsk) {}
+   G_EQDSK_BField_VecCoefficient(G_EQDSK_Data &g_eqdsk, bool unit)
+      : VectorCoefficient(3), eqdsk(g_eqdsk), unit_(unit) {}
 
    void Eval(Vector &V, ElementTransformation & T,
              const IntegrationPoint & ip)
    {
-     V.SetSize(3);
-     Vector b;
-     b.SetSize(2);
-     double x[3];
-     Vector transip(x, 3);
+      V.SetSize(3);
+      Vector b;
+      b.SetSize(2);
+      double x[3];
+      Vector transip(x, 3);
 
-     T.Transform(ip, transip);
+      T.Transform(ip, transip);
 
-     eqdsk.InterpNxGradVar(transip, b, eqdsk.GetPsi());
-     double btor = eqdsk.InterpVar(transip, eqdsk.FPoltoBtor());
- 
-     if ( unit_ )
-     {
-        V[0] = b[0];
-        V[1] = b[1];
-        V[2] = btor;
-     }
-     else
-     {
-        double bmag = pow( pow(b[0],2.0) + pow(b[1],2.0) + pow(btor,2.0), 0.5 );
-        V[0] = b[0] / bmag;
-        V[1] = b[1] / bmag;
-        V[2] = btor / bmag;
+      eqdsk.InterpNxGradVar(transip, b, eqdsk.GetPsi());
+      double btor = eqdsk.InterpVar(transip, eqdsk.GetBtor());
+
+      V[0] = b[0];
+      V[1] = b[1];
+      V[2] = btor;
+
+      if ( unit_ )
+      {
+         double bmag = sqrt(V * V);
+         V /= bmag;
       }
    }
 };
