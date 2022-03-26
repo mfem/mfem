@@ -168,7 +168,7 @@ void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
          {
             const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
             dofValue += (d_indices[j] >= 0) ? d_x(idx_j % nd, c,
-            idx_j / nd) : -d_x(idx_j % nd, c, idx_j / nd);
+                                                  idx_j / nd) : -d_x(idx_j % nd, c, idx_j / nd);
          }
          d_y(t?c:i,t?i:c) = dofValue;
       }

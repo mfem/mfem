@@ -703,7 +703,7 @@ status info:
 
 ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
-ASTYLE_VER = "Artistic Style Version 2.05.1"
+ASTYLE_VER = "Artistic Style Version 3.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
 FORMAT_FILES += tests/unit/*.cpp
 UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed

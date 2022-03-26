@@ -679,7 +679,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
    if ( sbcs_->Size() > 0 )
    {
-       if ( myid_ == 0 && logging_ > 0 ){cout << "Building nxD01_" << endl;}
+      if ( myid_ == 0 && logging_ > 0 ) {cout << "Building nxD01_" << endl;}
       nxD01_ = new ParMixedSesquilinearForm(H1FESpace_, HCurlFESpace_, conv_);
       nxD01_->AddBoundaryIntegrator(NULL,
                                     new nxGradIntegrator(*omegaCoef_),
@@ -694,7 +694,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                                                          *negOmegaCoef_) : NULL,
                                        sbc_bdr_marker_);
       }
-       if ( myid_ == 0 && logging_ > 0 ){cout << "Done Building nxD01_" << endl;}
+      if ( myid_ == 0 && logging_ > 0 ) {cout << "Done Building nxD01_" << endl;}
    }
 
    // Setup various coefficients
