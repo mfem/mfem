@@ -295,7 +295,7 @@ public:
    void SetOmega(double omega) { omega_ = omega; }
    double GetOmega() const { return omega_; }
 
-   void SetNu(int nuprof) { nuprof_ = nuprof; }
+   void SetNuProf(int nuprof) { nuprof_ = nuprof; }
    double GetNuProf() const { return nuprof_; }
 
    const ParGridFunction & GetBField() const { return B_; }

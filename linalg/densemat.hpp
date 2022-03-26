@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -753,7 +753,6 @@ public:
    DenseTensor()
    {
       nk = 0;
-      tdata.Reset();
    }
 
    DenseTensor(int i, int j, int k)
@@ -761,6 +760,13 @@ public:
    {
       nk = k;
       tdata.New(i*j*k);
+   }
+
+   DenseTensor(double *d, int i, int j, int k)
+      : Mk(NULL, i, j)
+   {
+      nk = k;
+      tdata.Wrap(d, i*j*k, false);
    }
 
    DenseTensor(int i, int j, int k, MemoryType mt)
@@ -779,10 +785,6 @@ public:
       {
          tdata.New(size, other.tdata.GetMemoryType());
          tdata.CopyFrom(other.tdata, size);
-      }
-      else
-      {
-         tdata.Reset();
       }
    }
 

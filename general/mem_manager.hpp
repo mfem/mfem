@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,7 +18,7 @@
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
 #ifdef MFEM_USE_MPI
-#include <HYPRE_config.h> // HYPRE_USING_CUDA
+#include <HYPRE_config.h> // HYPRE_USING_GPU
 #endif
 
 namespace mfem
@@ -175,8 +175,9 @@ protected:
    // Copy{From,To}, {ReadWrite,Read,Write}.
 
 public:
-   /// Default constructor: no initialization.
-   Memory() { }
+   /** Default constructor, sets the host pointer to nullptr and the metadata to
+       meaningful default values. */
+   Memory() { Reset(); }
 
    /// Copy constructor: default.
    Memory(const Memory &orig) = default;
@@ -368,8 +369,7 @@ public:
        be updated as described above. */
    inline void SetDeviceMemoryType(MemoryType d_mt);
 
-   /** @brief Delete the owned pointers. The Memory is not reset by this method,
-       i.e. it will, generally, not be Empty() after this call. */
+   /** @brief Delete the owned pointers and reset the Memory object. */
    inline void Delete();
 
    /** @brief Delete the device pointer, if owned. If @a copy_to_host is true
@@ -494,8 +494,7 @@ public:
    /// Copy @a size entries from @a *this to @a dest.
    /** The given @a size should not exceed the Capacity() of @a *this and the
        destination, @a dest. */
-   inline void CopyTo(Memory &dest, int size) const
-   { dest.CopyFrom(*this, size); }
+   inline void CopyTo(Memory &dest, int size) const;
 
    /// Copy @a size entries from @a *this to the host pointer @a dest.
    /** The given @a size should not exceed the Capacity() of @a *this. */
@@ -850,13 +849,14 @@ inline void Memory<T>::New(int size, MemoryType mt)
 }
 
 template <typename T>
-inline void Memory<T>::New(int size, MemoryType h_mt, MemoryType d_mt)
+inline void Memory<T>::New(int size, MemoryType host_mt, MemoryType device_mt)
 {
    capacity = size;
    const size_t bytes = size*sizeof(T);
-   this->h_mt = h_mt;
-   T *h_tmp = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
-   h_ptr = (T*)MemoryManager::New_(h_tmp, bytes, h_mt, d_mt, VALID_HOST, flags);
+   this->h_mt = host_mt;
+   T *h_tmp = (host_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
+   h_ptr = (T*)MemoryManager::New_(h_tmp, bytes, host_mt, device_mt,
+                                   VALID_HOST, flags);
 }
 
 template <typename T>
@@ -923,18 +923,23 @@ inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
 template <typename T>
 inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
+   MFEM_ASSERT(0 <= offset, "invalid offset = " << offset);
+   MFEM_ASSERT(0 <= size, "invalid size = " << size);
+   MFEM_ASSERT(offset + size <= base.capacity,
+               "invalid offset + size = " << offset + size
+               << " > base capacity = " << base.capacity);
    capacity = size;
    h_mt = base.h_mt;
    h_ptr = base.h_ptr + offset;
    if (!(base.flags & REGISTERED))
    {
       if (
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
          // If the following condition is true then MemoryManager::Exists()
          // should also be true:
          IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
 #else
-         // When HYPRE_USING_CUDA is defined we always register the 'base' if
+         // When HYPRE_USING_GPU is defined we always register the 'base' if
          // the MemoryManager::Exists():
          MemoryManager::Exists()
 #endif
@@ -982,6 +987,7 @@ inline void Memory<T>::Delete()
    {
       if (flags & OWNS_HOST) { delete [] h_ptr; }
    }
+   Reset(h_mt);
 }
 
 template <typename T>
@@ -1136,6 +1142,7 @@ inline bool Memory<T>::DeviceIsValid() const
 template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
+   MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
    if (!(flags & REGISTERED) && !(src.flags & REGISTERED))
    {
       if (h_ptr != src.h_ptr && size != 0)
@@ -1155,6 +1162,7 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
 template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
+   MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (!(flags & REGISTERED))
    {
       if (h_ptr != src && size != 0)
@@ -1172,8 +1180,16 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
 }
 
 template <typename T>
+inline void Memory<T>::CopyTo(Memory &dest, int size) const
+{
+   MFEM_VERIFY(capacity>=size, "Incorrect size");
+   dest.CopyFrom(*this, size);
+}
+
+template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
+   MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (!(flags & REGISTERED))
    {
       if (h_ptr != dest && size != 0)

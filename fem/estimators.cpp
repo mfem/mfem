@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -329,7 +329,7 @@ void KellyErrorEstimator::ComputeEstimates()
          error_estimates(e) = sqrt(factor * error_estimates(e));
       }
 
-      total_error = error_estimates.Sum();
+      total_error = error_estimates.Norml2();
       delete flux;
       return;
    }
@@ -452,9 +452,10 @@ void KellyErrorEstimator::ComputeEstimates()
    auto pfes = dynamic_cast<ParFiniteElementSpace*>(xfes);
    MFEM_VERIFY(pfes, "xfes is not a ParFiniteElementSpace pointer");
 
-   double process_local_error = error_estimates.Sum();
+   double process_local_error = pow(error_estimates.Norml2(),2.0);
    MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
                  MPI_SUM, pfes->GetComm());
+   total_error = sqrt(total_error);
 #endif // MFEM_USE_MPI
 }
 

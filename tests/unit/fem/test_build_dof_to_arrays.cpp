@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -71,10 +71,6 @@ TEST_CASE("Build Dof To Arrays",
           mt == MeshType::MIXED3D8 )
       {
          mesh->UniformRefinement();
-      }
-      if (dim == 3)
-      {
-         mesh->ReorientTetMesh();
       }
 
       for (int bt = (int)BasisType::H1; bt <= (int)BasisType::L2; bt++)
@@ -177,10 +173,6 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
       }
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
       delete mesh;
-      if (dim == 3)
-      {
-         pmesh.ReorientTetMesh();
-      }
 
       for (int bt = (int)BasisType::H1; bt <= (int)BasisType::L2; bt++)
       {

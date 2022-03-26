@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -159,10 +159,6 @@ TEST_CASE("Domain Integration (Vector Field)",
       int  dim = mesh->Dimension();
       int sdim = mesh->SpaceDimension();
       mesh->UniformRefinement();
-      if (dim == 3)
-      {
-         mesh->ReorientTetMesh();
-      }
 
       Vector f1(sdim); f1 = 1.0;
       Vector fx(sdim); fx = 0.0; fx[0] = 1.0;
@@ -353,10 +349,6 @@ TEST_CASE("Domain Integration in Parallel (Vector Field)",
       }
       ParMesh pmesh(MPI_COMM_WORLD, *mesh);
       delete mesh;
-      if (dim == 3)
-      {
-         pmesh.ReorientTetMesh();
-      }
 
       Vector f1(sdim); f1 = 1.0;
       Vector fx(sdim); fx = 0.0; fx[0] = 1.0;

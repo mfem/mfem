@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -82,9 +82,9 @@ jobs:
       uses: mfem/github-actions/build-mfem@v2.0
       with:
         os: ${{ runner.os }}
-        target: optim
+        target: opt
         codecov: NO
-        mpi: parallel
+        mpi: par
         build-system: make
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}

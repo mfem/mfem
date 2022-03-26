@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -64,6 +64,11 @@ public:
     */
    ParGridFunction(ParFiniteElementSpace *pf, double *data) :
       GridFunction(pf, data), pfes(pf) { }
+
+   /** @brief Construct a ParGridFunction using previously allocated Vector
+       @a base starting at the given offset, @a base_offset. */
+   ParGridFunction(ParFiniteElementSpace *pf, Vector &base, int base_offset = 0)
+      : GridFunction(pf, base, base_offset), pfes(pf) { }
 
    /// Construct a ParGridFunction using a GridFunction as external data.
    /** The parallel space @a *pf and the space used by @a *gf should match. The
@@ -220,6 +225,9 @@ public:
    virtual void GetVectorValue(ElementTransformation &T,
                                const IntegrationPoint &ip,
                                Vector &val, Vector *tr = NULL) const;
+
+   /// Parallel version of GridFunction::GetDerivative(); see its documentation.
+   void GetDerivative(int comp, int der_comp, ParGridFunction &der);
 
    /** Sets the output vector @a dof_vals to the values of the degrees of
        freedom of element @a el. If @a el is greater than or equal to the number

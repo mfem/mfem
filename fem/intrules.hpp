@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -323,6 +323,7 @@ private:
    Array<IntegrationRule *> TriangleIntRules;
    Array<IntegrationRule *> SquareIntRules;
    Array<IntegrationRule *> TetrahedronIntRules;
+   Array<IntegrationRule *> PyramidIntRules;
    Array<IntegrationRule *> PrismIntRules;
    Array<IntegrationRule *> CubeIntRules;
 
@@ -351,6 +352,7 @@ private:
    IntegrationRule *TriangleIntegrationRule(int Order);
    IntegrationRule *SquareIntegrationRule(int Order);
    IntegrationRule *TetrahedronIntegrationRule(int Order);
+   IntegrationRule *PyramidIntegrationRule(int Order);
    IntegrationRule *PrismIntegrationRule(int Order);
    IntegrationRule *CubeIntegrationRule(int Order);
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,11 +21,14 @@ cd tests/uberenv
 git apply upstream-permission.patch
 cd -
 
+# Get the hostname
+hostid=${HOSTNAME//[[:digit:]]/}
+
 # call uberenv for all specs in CI
-git grep -e "^[^#]" .gitlab | grep "SPEC" \
-                            | cut -d' ' -f6- \
-                            | sed 's/"//g' \
-                            | while read -r line; do
+git grep -e "^[^#]" .gitlab/$hostid* | grep "SPEC" \
+                                     | cut -d' ' -f6- \
+                                     | sed 's/"//g' \
+                                     | while read -r line; do
   python ./tests/uberenv/uberenv.py --spec="$line"
 done
 

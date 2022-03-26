@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -306,7 +306,7 @@ TEST_CASE("ParaView restart mode", "[ParaView]")
    VerifyDataset(dataset, 1.0);
    dataset = dataset->NextSiblingElement();
    VerifyDataset(dataset, 1.5);
-   REQUIRE(dataset->NextSiblingElement() == NULL);
+   REQUIRE(dataset->NextSiblingElement() == nullptr);
 
    // Clean up
    for (int c=0; c<=2; ++c)

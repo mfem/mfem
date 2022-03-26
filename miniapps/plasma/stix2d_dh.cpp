@@ -606,12 +606,12 @@ int main(int argc, char *argv[])
    args.AddOption(&msa_n, "-ns", "--num-straps","");
    args.AddOption(&msa_p, "-sp", "--strap-params","");
    //args.AddOption(&numbers, "-num", "--number-densites",
-   //"Number densities of the various species");
+   //               "Number densities of the various species");
    args.AddOption(&charges, "-q", "--charges",
                   "Charges of the various species "
                   "(in units of electron charge)");
    //args.AddOption(&masses, "-mass", "--masses",
-   //"Masses of the various species (in amu)");
+   //               "Masses of the various species (in amu)");
    args.AddOption(&minority, "-min", "--minority",
                   "Minority Ion Species: charge, mass (amu), concentration."
                   " Concentration being: n_min/n_e");

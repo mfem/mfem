@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -298,12 +298,12 @@ void ParNCMesh::BuildVertexList()
    // NOTE: entity_index_rank[0] is not deleted until CalculatePMatrixGroups
 }
 
-void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner)
+void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner_)
 {
-   entity_owner.SetSize(num);
+   entity_owner_.SetSize(num);
    for (int i = 0; i < num; i++)
    {
-      entity_owner[i] =
+      entity_owner_[i] =
          (tmp_owner[i] != INT_MAX) ? GetSingletonGroup(tmp_owner[i]) : 0;
    }
 }
@@ -1339,6 +1339,37 @@ void ParNCMesh::LimitNCLevel(int max_nc_level)
    }
 }
 
+void ParNCMesh::GetFineToCoarsePartitioning(const Array<int> &derefs,
+                                            Array<int> &new_ranks) const
+{
+   new_ranks.SetSize(leaf_elements.Size()-GetNGhostElements());
+   for (int i = 0; i < leaf_elements.Size()-GetNGhostElements(); i++)
+   {
+      new_ranks[i] = elements[leaf_elements[i]].rank;
+   }
+
+   for (int i = 0; i < derefs.Size(); i++)
+   {
+      int row = derefs[i];
+      MFEM_VERIFY(row >= 0 && row < derefinements.Size(),
+                  "invalid derefinement number.");
+
+      const int* fine = derefinements.GetRow(row);
+      int size = derefinements.RowSize(row);
+
+      int coarse_rank = INT_MAX;
+      for (int j = 0; j < size; j++)
+      {
+         int fine_rank = elements[leaf_elements[fine[j]]].rank;
+         coarse_rank = std::min(coarse_rank, fine_rank);
+      }
+      for (int j = 0; j < size; j++)
+      {
+         new_ranks[fine[j]] = coarse_rank;
+      }
+   }
+}
+
 void ParNCMesh::Derefine(const Array<int> &derefs)
 {
    MFEM_VERIFY(Dim < 3 || Iso,
@@ -1957,9 +1988,9 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
          {
             if (RebalanceMessage::TestAllSent(send_elems))
             {
-               int err = MPI_Ibarrier(MyComm, &barrier);
+               int mpi_err = MPI_Ibarrier(MyComm, &barrier);
 
-               MFEM_VERIFY(err == MPI_SUCCESS, "");
+               MFEM_VERIFY(mpi_err == MPI_SUCCESS, "");
                MFEM_VERIFY(barrier != MPI_REQUEST_NULL, "");
             }
          }
@@ -2343,8 +2374,8 @@ void ParNCMesh::ChangeVertexMeshIdElement(NCMesh::MeshId &id, int elem)
 void ParNCMesh::ChangeEdgeMeshIdElement(NCMesh::MeshId &id, int elem)
 {
    Element &old = elements[id.element];
-   const int *ev = GI[old.Geom()].edges[(int) id.local];
-   Node* node = nodes.Find(old.node[ev[0]], old.node[ev[1]]);
+   const int *old_ev = GI[old.Geom()].edges[(int) id.local];
+   Node* node = nodes.Find(old.node[old_ev[0]], old.node[old_ev[1]]);
    MFEM_ASSERT(node != NULL, "Edge not found.");
 
    Element &el = elements[elem];
@@ -2523,7 +2554,7 @@ void ParNCMesh::EncodeGroups(std::ostream &os, const Array<GroupId> &ids)
 void ParNCMesh::DecodeGroups(std::istream &is, Array<GroupId> &ids)
 {
    int ngroups = read<short>(is);
-   Array<GroupId> groups(ngroups);
+   Array<GroupId> sgroups(ngroups);
 
    // read stream groups, convert to our groups
    CommGroup ranks;
@@ -2535,15 +2566,15 @@ void ParNCMesh::DecodeGroups(std::istream &is, Array<GroupId> &ids)
       if (size >= 0)
       {
          ranks.resize(size);
-         for (int i = 0; i < size; i++)
+         for (int ii = 0; ii < size; ii++)
          {
-            ranks[i] = read<int>(is);
+            ranks[ii] = read<int>(is);
          }
-         groups[id] = GetGroupId(ranks);
+         sgroups[id] = GetGroupId(ranks);
       }
       else
       {
-         groups[id] = -1; // forwarded
+         sgroups[id] = -1; // forwarded
       }
    }
 
@@ -2551,7 +2582,7 @@ void ParNCMesh::DecodeGroups(std::istream &is, Array<GroupId> &ids)
    ids.SetSize(read<int>(is));
    for (int i = 0; i < ids.Size(); i++)
    {
-      ids[i] = groups[read<GroupId>(is)];
+      ids[i] = sgroups[read<GroupId>(is)];
    }
 }
 

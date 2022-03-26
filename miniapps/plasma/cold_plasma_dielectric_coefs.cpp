@@ -521,7 +521,7 @@ double RectifiedSheathPotential::Eval(ElementTransformation &T,
    double density_val = EvalIonDensity(T, ip);
    double temp_val = EvalElectronTemp(T, ip);
 
-   //double Te = temp_val * q_; // Electron temperature, Units: J
+   // double Te = temp_val * q_; // Electron temperature, Units: J
 
    double wpi = omega_p(density_val, charges_[1], masses_[1]);
    double w_norm = omega_ / wpi;
@@ -529,7 +529,7 @@ double RectifiedSheathPotential::Eval(ElementTransformation &T,
    complex<double> phi = EvalSheathPotential(T, ip);
    double phi_mag = sqrt(pow(phi.real(), 2) + pow(phi.imag(), 2));
    double volt_norm = (phi_mag)/temp_val ; // New: V zero-to-peak
-   //double volt_norm = (2*phi_mag)/temp_val ; // Old: V peak-to-peak
+   // double volt_norm = (2.*phi_mag)/temp_val ; // Old: V peak-to-peak
 
    double phiRec = phi0avg(w_norm, volt_norm);
 
@@ -1219,7 +1219,6 @@ double PlasmaProfile::Eval(ElementTransformation &T,
          x_ -= x0;
          double rho = pow(pow(x_[0], 2) + pow(x_[1], 2), 0.5);
          return (pmax - pmin) * pow(cosh(pow((rho / lambda_n), nu)), -1.0) + pmin;
-         //return (pmax - pmin) * pow(cosh(pow((x_[0] / lambda_n), nu)), -1.0) + pmin;
       }
       break;
       case CUSTOM1:

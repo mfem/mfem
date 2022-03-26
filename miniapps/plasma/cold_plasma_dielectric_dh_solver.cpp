@@ -1586,8 +1586,11 @@ CPDSolverDH::Solve()
          {
             attr_marker[(*dbcs_)[i]->attr[j] - 1] = 1;
          }
-         h_->ProjectCoefficient(*(*dbcs_)[i]->real,
-                                *(*dbcs_)[i]->imag);
+	 h_->ProjectCoefficient(*(*dbcs_)[i]->real,
+				*(*dbcs_)[i]->imag);
+	 // h_->ProjectBdrCoefficientTangent(*(*dbcs_)[i]->real,
+	 //                                  *(*dbcs_)[i]->imag,
+	 //                                  attr_marker);
       }
       if (logging_ > 1)
       {
@@ -1620,6 +1623,17 @@ CPDSolverDH::Solve()
       nxD01_->FormRectangularSystemMatrix(non_sbc_h1_tdofs_, dbc_nd_tdofs_, B);
       m0_->FormSystemMatrix(non_sbc_h1_tdofs_, D);
 
+      {
+         if (B.As<ComplexHypreParMatrix>()->hasRealPart())
+         { B.As<ComplexHypreParMatrix>()->real().Print("nxD01_Re.mat"); }
+         if (B.As<ComplexHypreParMatrix>()->hasImagPart())
+         { B.As<ComplexHypreParMatrix>()->imag().Print("nxD01_Im.mat"); }
+         if (D.As<ComplexHypreParMatrix>()->hasRealPart())
+         { D.As<ComplexHypreParMatrix>()->real().Print("m0_Re.mat"); }
+         if (D.As<ComplexHypreParMatrix>()->hasImagPart())
+         { D.As<ComplexHypreParMatrix>()->imag().Print("m0_Im.mat"); }
+      }
+
       rhs0_->real() = 0.0;
       rhs0_->imag() = 0.0;
 
@@ -1638,6 +1652,12 @@ CPDSolverDH::Solve()
          nzD12_->Finalize();
          nzD12_->FormRectangularSystemMatrix(dbc_nd_tdofs_,
                                              non_sbc_h1_tdofs_, C);
+         {
+            if (C.As<ComplexHypreParMatrix>()->hasRealPart())
+            { C.As<ComplexHypreParMatrix>()->real().Print("nzD12_Re.mat"); }
+            if (C.As<ComplexHypreParMatrix>()->hasImagPart())
+            { C.As<ComplexHypreParMatrix>()->imag().Print("nzD12_Im.mat"); }
+         }
 
          SchurComplimentOperator schur(AInv, *B, *C, *D);
 

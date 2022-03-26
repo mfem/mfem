@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -103,9 +103,8 @@ void LinearForm::Assemble()
 {
    Array<int> vdofs;
    ElementTransformation *eltrans;
+   DofTransformation *doftrans;
    Vector elemvect;
-
-   int i;
 
    Vector::operator=(0.0);
 
@@ -126,7 +125,7 @@ void LinearForm::Assemble()
          }
       }
 
-      for (i = 0; i < fes -> GetNE(); i++)
+      for (int i = 0; i < fes -> GetNE(); i++)
       {
          int elem_attr = fes->GetMesh()->GetAttribute(i);
          for (int k = 0; k < domain_integs.Size(); k++)
@@ -134,10 +133,14 @@ void LinearForm::Assemble()
             if ( domain_integs_marker[k] == NULL ||
                  (*(domain_integs_marker[k]))[elem_attr-1] == 1 )
             {
-               fes -> GetElementVDofs (i, vdofs);
+               doftrans = fes -> GetElementVDofs (i, vdofs);
                eltrans = fes -> GetElementTransformation (i);
                domain_integs[k]->AssembleRHSElementVect(*fes->GetFE(i),
                                                         *eltrans, elemvect);
+               if (doftrans)
+               {
+                  doftrans->TransformDual(elemvect);
+               }
                AddElementVector (vdofs, elemvect);
             }
          }
@@ -170,11 +173,11 @@ void LinearForm::Assemble()
          }
       }
 
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
-         fes -> GetBdrElementVDofs (i, vdofs);
+         doftrans = fes -> GetBdrElementVDofs (i, vdofs);
          eltrans = fes -> GetBdrElementTransformation (i);
          for (int k=0; k < boundary_integs.Size(); k++)
          {
@@ -184,6 +187,10 @@ void LinearForm::Assemble()
             boundary_integs[k]->AssembleRHSElementVect(*fes->GetBE(i),
                                                        *eltrans, elemvect);
 
+            if (doftrans)
+            {
+               doftrans->TransformDual(elemvect);
+            }
             AddElementVector (vdofs, elemvect);
          }
       }
@@ -214,7 +221,7 @@ void LinearForm::Assemble()
          }
       }
 
-      for (i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < mesh->GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -244,7 +251,7 @@ void LinearForm::Assemble()
 
       for (int k = 0; k < interior_face_integs.Size(); k++)
       {
-         for (i = 0; i < mesh->GetNumFaces(); i++)
+         for (int i = 0; i < mesh->GetNumFaces(); i++)
          {
             FaceElementTransformations *tr = NULL;
             tr = mesh->GetInteriorFaceTransformations (i);
