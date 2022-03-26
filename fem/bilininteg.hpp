@@ -2744,6 +2744,7 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Integrator for

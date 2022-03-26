@@ -624,16 +624,16 @@ void BatchedLOR_ND::Assemble3D()
                                      ? ((i2 < o) ? i2 : i2-1)
                                      : ((i2 < o) ? i2+1 : i2);
 
-                  int jj_lex[3];
                   for (int j0=j0_begin; j0<=j0_end; ++j0)
                   {
-                     int d0 = j0 - i0;
+                     const int d0 = j0 - i0;
                      for (int j1=j1_begin; j1<=j1_end; ++j1)
                      {
-                        int d1 = j1 - i1 + 1;
+                        const int d1 = j1 - i1 + 1;
                         for (int j2=j2_begin; j2<=j2_end; ++j2)
                         {
-                           int d2 = j2 - i2 + 1;
+                           const int d2 = j2 - i2 + 1;
+                           int jj_lex[3];
                            jj_lex[id0] = j0;
                            jj_lex[id1] = j1;
                            jj_lex[id2] = j2;

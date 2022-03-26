@@ -17,6 +17,7 @@
 // Specializations
 #include "lor_h1.hpp"
 #include "lor_nd.hpp"
+#include "lor_rt.hpp"
 
 namespace mfem
 {
@@ -76,8 +77,6 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
    // Batched LOR requires all tensor elements
    if (!UsesTensorBasis(*a.FESpace())) { return false; }
 
-   // We want to support the following configurations:
-   // H1, ND, and RT spaces: M, A, M + K
    if (dynamic_cast<const H1_FECollection*>(fec))
    {
       if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a)) { return true; }
@@ -85,6 +84,10 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
    else if (dynamic_cast<const ND_FECollection*>(fec))
    {
       if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a)) { return true; }
+   }
+   else if (dynamic_cast<const RT_FECollection*>(fec))
+   {
+      if (HasIntegrators<DivDivIntegrator, VectorFEMassIntegrator>(a)) { return true; }
    }
    return false;
 }
@@ -678,6 +681,13 @@ void BatchedLORAssembly::Assemble(BilinearForm &a,
       if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a))
       {
          BatchedLOR_ND(a, fes_ho, ess_dofs).Assemble(A);
+      }
+   }
+   else if (dynamic_cast<const RT_FECollection*>(fec))
+   {
+      if (HasIntegrators<DivDivIntegrator, VectorFEMassIntegrator>(a))
+      {
+         BatchedLOR_RT(a, fes_ho, ess_dofs).Assemble(A);
       }
    }
 }
