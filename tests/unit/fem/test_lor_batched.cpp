@@ -65,21 +65,40 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
    REQUIRE(error == MFEM_Approx(0.0, 1e-10));
 }
 
-TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
+template <typename FE_COLL>
+FE_COLL *NewLOR_FE_Collection(int order, int dim)
 {
-   const bool all_tests = launch_all_non_regression_tests;
+   return new FE_COLL(order, dim);
+}
 
-   const int order = !all_tests ? 5 : GENERATE(1,3,5);
+template <>
+ND_FECollection *NewLOR_FE_Collection<ND_FECollection>(int order, int dim)
+{
+   int b1 = BasisType::GaussLobatto, b2 = BasisType::IntegratedGLL;
+   return new ND_FECollection(order, dim, b1, b2);
+}
 
-   auto mesh_fname = GENERATE(
-                        "../../data/star-q3.mesh",
-                        "../../data/fichera-q3.mesh"
-                     );
+template <>
+RT_FECollection *NewLOR_FE_Collection<RT_FECollection>(int order, int dim)
+{
+   int b1 = BasisType::GaussLobatto, b2 = BasisType::IntegratedGLL;
+   return new RT_FECollection(order-1, dim, b1, b2);
+}
+
+template <typename FE_COLL, typename INTEG_1, typename INTEG_2>
+void TestBatchedLOR()
+{
+   const int order = 5;
+   const auto mesh_fname = GENERATE(
+                              "../../data/star-q3.mesh",
+                              "../../data/fichera-q3.mesh"
+                           );
 
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
 
-   H1_FECollection fec(order, mesh.Dimension());
-   FiniteElementSpace fespace(&mesh, &fec);
+   std::unique_ptr<FE_COLL> fec(
+      NewLOR_FE_Collection<FE_COLL>(order, mesh.Dimension()));
+   FiniteElementSpace fespace(&mesh, fec.get());
 
    Array<int> ess_dofs;
    fespace.GetBoundaryTrueDofs(ess_dofs);
@@ -88,8 +107,8 @@ TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
    ConstantCoefficient mass_coeff(1.0/M_PI);
 
    BilinearForm a(&fespace);
-   a.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
-   a.AddDomainIntegrator(new MassIntegrator(mass_coeff));
+   a.AddDomainIntegrator(new INTEG_1(mass_coeff));
+   a.AddDomainIntegrator(new INTEG_2(diff_coeff));
 
    LORDiscretization lor(fespace);
 
@@ -109,37 +128,14 @@ TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
    TestSameMatrices(A2, A1);
 }
 
+TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
+{
+   TestBatchedLOR<H1_FECollection,MassIntegrator,DiffusionIntegrator>();
+}
+
 TEST_CASE("LOR Batched ND", "[LOR][BatchedLOR][CUDA]")
 {
-   auto mesh_fname = GENERATE(
-                        "../../data/star-q3.mesh",
-                        "../../data/fichera-q3.mesh"
-                     );
-   const int order = 5;
-
-   Mesh mesh = Mesh::LoadFromFile(mesh_fname);
-   ND_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto,
-                       BasisType::IntegratedGLL);
-   FiniteElementSpace fespace(&mesh, &fec);
-
-   Array<int> ess_dofs;
-   fespace.GetBoundaryTrueDofs(ess_dofs);
-
-   ConstantCoefficient diff_coeff(M_PI);
-   ConstantCoefficient mass_coeff(1.0/M_PI);
-
-   BilinearForm a(&fespace);
-   a.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff));
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
-   LORDiscretization lor(fespace);
-
-   lor.LegacyAssembleSystem(a, ess_dofs);
-   SparseMatrix A1 = lor.GetAssembledMatrix(); // deep copy
-   lor.AssembleSystem(a, ess_dofs);
-   SparseMatrix &A2 = lor.GetAssembledMatrix();
-
-   TestSameMatrices(A1, A2);
-   TestSameMatrices(A2, A1);
+   TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>();
 }
 
 #ifdef MFEM_USE_MPI
@@ -168,19 +164,22 @@ void TestSameMatrices(HypreParMatrix &A1, const HypreParMatrix &A2)
    }
 }
 
-TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
+template <typename FE_COLL, typename INTEG_1, typename INTEG_2>
+void ParTestBatchedLOR()
 {
-   auto mesh_fname = GENERATE(
-                        "../../data/star-q3.mesh",
-                        "../../data/fichera-q3.mesh"
-                     );
-   const int order = 5;
+   const bool all_tests = launch_all_non_regression_tests;
+   const int order = !all_tests ? 5 : GENERATE(1,3,5);
+   const auto mesh_fname = GENERATE(
+                              "../../data/star-q3.mesh",
+                              "../../data/fichera-q3.mesh"
+                           );
 
    Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname);
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
-   H1_FECollection fec(order, mesh.Dimension());
-   ParFiniteElementSpace fespace(&mesh, &fec);
+   std::unique_ptr<FE_COLL> fec(NewLOR_FE_Collection<FE_COLL>(order,
+                                                              mesh.Dimension()));
+   ParFiniteElementSpace fespace(&mesh, fec.get());
 
    Array<int> ess_dofs;
    fespace.GetBoundaryTrueDofs(ess_dofs);
@@ -189,8 +188,8 @@ TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
    ConstantCoefficient mass_coeff(1.0/M_PI);
 
    ParBilinearForm a(&fespace);
-   a.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
-   a.AddDomainIntegrator(new MassIntegrator(mass_coeff));
+   a.AddDomainIntegrator(new INTEG_1(diff_coeff));
+   a.AddDomainIntegrator(new INTEG_2(mass_coeff));
    ParLORDiscretization lor(fespace);
 
    lor.LegacyAssembleSystem(a, ess_dofs);
@@ -200,8 +199,16 @@ TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
 
    TestSameMatrices(A1, A2);
    TestSameMatrices(A2, A1);
+}
 
-   lor.GetAssembledSystem().Clear();
+TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
+{
+   ParTestBatchedLOR<H1_FECollection,MassIntegrator,DiffusionIntegrator>();
+}
+
+TEST_CASE("Parallel LOR Batched ND", "[LOR][BatchedLOR][Parallel][CUDA]")
+{
+   ParTestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>();
 }
 
 TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
