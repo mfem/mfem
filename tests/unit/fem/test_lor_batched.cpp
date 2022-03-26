@@ -90,15 +90,11 @@ void TestBatchedLOR()
 {
    const int order = 5;
    const auto mesh_fname = GENERATE(
-                              "../../data/star-q3.mesh"
-                              , "../../data/fichera-q3.mesh"
+                              "../../data/star-q3.mesh",
+                              "../../data/fichera-q3.mesh"
                            );
 
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
-
-   // TEMPORARY: disable 3D test for RT. Not implemented yet.
-   if (mesh.Dimension() == 3 && std::is_same<FE_COLL, RT_FECollection>::value)
-   { return; }
 
    std::unique_ptr<FE_COLL> fec(
       NewLOR_FE_Collection<FE_COLL>(order, mesh.Dimension()));
@@ -184,11 +180,6 @@ void ParTestBatchedLOR()
                            );
 
    Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname);
-
-   // TEMPORARY: disable 3D test for RT. Not implemented yet.
-   if (serial_mesh.Dimension() == 3 &&
-       std::is_same<FE_COLL, RT_FECollection>::value)
-   { return; }
 
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();

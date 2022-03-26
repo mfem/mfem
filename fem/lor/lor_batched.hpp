@@ -48,6 +48,8 @@ protected:
    /// For local DOF index @a j, sparse_mapping(i, j) is the column index of the
    /// @a ith nonzero in the @a jth row. If the index is negative, that entry
    /// should be skipped (there is no corresponding nonzero).
+   ///
+   /// @todo Store these as integers rather than doubles?
    DenseMatrix sparse_mapping;
 
 public:
