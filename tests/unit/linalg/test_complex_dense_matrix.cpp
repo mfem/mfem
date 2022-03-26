@@ -383,7 +383,7 @@ TEST_CASE("ComplexDenseMatrix", "[ComplexDenseMatrix]")
    });
 
    // P matrix where P * A = L * U
-   DenseMatrix P(
+   DenseMatrix P_r(
    {
       {
          0.0, 1.0, 0.0, 0.0
@@ -573,19 +573,221 @@ TEST_CASE("ComplexDenseMatrix", "[ComplexDenseMatrix]")
       REQUIRE(norm == MFEM_Approx(0.));
 
       delete sinvA;
+      delete invA;
       delete sA;
    }
 
+   double norm_r = 0.;
+   double norm_i = 0.;
+   DenseMatrix diff_r;
+   DenseMatrix diff_i;
+   ComplexCholeskyFactors chol(B.real().Data(),B.imag().Data());
+   int m = B.real().Height();
+   chol.Factor(m);
 
-   // TODO
-   // 1. Det a) lu b) cholesky
-   // 2. LMult  - cholesky
-   // 3. UMult  - cholesky
-   // 4. LSolve a) lu b) cholesky
-   // 5. USolve a) lu b) cholesky
-   // 6. Solve a) lu b) cholesky
-   // 7. Right a) lu b) cholesky
-   // 8. GetInverseMatrix a) lu b) cholesky
+   SECTION("ComplexCholeskyFactors::Inverse")
+   {
+      DenseMatrix Binv_r(m);
+      DenseMatrix Binv_i(m);
+      chol.GetInverseMatrix(m,Binv_r.Data(), Binv_i.Data());
 
+      diff_r = invB_r; diff_r-=Binv_r;
+      diff_i = invB_i; diff_i-=Binv_i;
+      norm_r = diff_r.MaxMaxNorm();
+      norm_i = diff_i.MaxMaxNorm();
+      REQUIRE(norm_r == MFEM_Approx(0.));
+      REQUIRE(norm_i == MFEM_Approx(0.));
+   }
+   SECTION("ComplexCholeskyFactors::LMult")
+   {
+      ComplexDenseMatrix exactL(&BL_r, &BL_i, false,false);
+      ComplexDenseMatrix A(&A_r, &A_i, false,false);
+      ComplexDenseMatrix * LA = mfem::Mult(exactL,A);
+
+      DenseMatrix LA_r(A_r);
+      DenseMatrix LA_i(A_i);
+      chol.LMult(m,m,LA_r.Data(),LA_i.Data());
+
+
+      diff_r = LA->real(); diff_r-=LA_r;
+      diff_i = LA->imag(); diff_i-=LA_i;
+      norm_r = diff_r.MaxMaxNorm();
+      norm_i = diff_i.MaxMaxNorm();
+      REQUIRE(norm_r == MFEM_Approx(0.));
+      REQUIRE(norm_i == MFEM_Approx(0.));
+      delete LA;
+   }
+   SECTION("ComplexCholeskyFactors::UMult")
+   {
+      ComplexDenseMatrix exactL(&BL_r, &BL_i, false,false);
+      ComplexDenseMatrix * UA = mfem::MultAtB(exactL,A);
+      DenseMatrix LtA_r(A_r);
+      DenseMatrix LtA_i(A_i);
+      chol.UMult(m,m,LtA_r.Data(),LtA_i.Data());
+
+      diff_r = UA->real(); diff_r-=LtA_r;
+      diff_i = UA->imag(); diff_i-=LtA_i;
+      norm_r = diff_r.MaxMaxNorm();
+      norm_i = diff_i.MaxMaxNorm();
+      REQUIRE(norm_r == MFEM_Approx(0.));
+      REQUIRE(norm_i == MFEM_Approx(0.));
+      delete UA;
+   }
+   SECTION("ComplexCholeskyFactors::LSolve")
+   {
+
+      ComplexDenseMatrix exactinvL(&invBL_r, &invBL_i, false,false);
+      ComplexDenseMatrix * invLA = mfem::Mult(exactinvL,A);
+
+      DenseMatrix invLA_r(A_r);
+      DenseMatrix invLA_i(A_i);
+      chol.LSolve(m,m,invLA_r.Data(),invLA_i.Data());
+
+      diff_r = invLA->real(); diff_r-=invLA_r;
+      diff_i = invLA->imag(); diff_i-=invLA_i;
+      norm_r = diff_r.MaxMaxNorm();
+      norm_i = diff_i.MaxMaxNorm();
+      REQUIRE(norm_r == MFEM_Approx(0.));
+      REQUIRE(norm_i == MFEM_Approx(0.));
+      delete invLA;
+   }
+   SECTION("ComplexCholeskyFactors::USolve")
+   {
+      ComplexDenseMatrix exactinvL(&invBL_r, &invBL_i, false,false);
+      ComplexDenseMatrix * invUA = mfem::MultAtB(exactinvL,A);
+      DenseMatrix invUA_r(A_r);
+      DenseMatrix invUA_i(A_i);
+      chol.USolve(m,m,invUA_r.Data(),invUA_i.Data());
+
+      diff_r = invUA->real(); diff_r-=invUA_r;
+      diff_i = invUA->imag(); diff_i-=invUA_i;
+      norm_r = diff_r.MaxMaxNorm();
+      norm_i = diff_i.MaxMaxNorm();
+      REQUIRE(norm_r == MFEM_Approx(0.));
+      REQUIRE(norm_i == MFEM_Approx(0.));
+      delete invUA;
+   }
+   SECTION("ComplexCholeskyFactors::Solve")
+   {
+      ComplexDenseMatrix invB(&invB_r,&invB_i,false,false);
+      ComplexDenseMatrix * invBA = mfem::Mult(invB,A);
+
+      DenseMatrix invBA_r(A_r);
+      DenseMatrix invBA_i(A_i);
+      chol.Solve(m,m,invBA_r.Data(),invBA_i.Data());
+
+      diff_r = invBA->real(); diff_r-=invBA_r;
+      diff_i = invBA->imag(); diff_i-=invBA_i;
+      norm_r = diff_r.MaxMaxNorm();
+      norm_i = diff_i.MaxMaxNorm();
+      REQUIRE(norm_r == MFEM_Approx(0.));
+      REQUIRE(norm_i == MFEM_Approx(0.));
+      delete invBA;
+   }
+   SECTION("ComplexCholeskyFactors::RightSolve")
+   {
+      ComplexDenseMatrix invB(&invB_r,&invB_i,false,false);
+      ComplexDenseMatrix * AinvB = mfem::Mult(A,invB);
+
+      DenseMatrix AinvB_r(A_r);
+      DenseMatrix AinvB_i(A_i);
+      chol.RightSolve(m,m,AinvB_r.Data(),AinvB_i.Data());
+
+      diff_r = AinvB->real(); diff_r-=AinvB_r;
+      diff_i = AinvB->imag(); diff_i-=AinvB_i;
+      norm_r = diff_r.MaxMaxNorm();
+      norm_i = diff_i.MaxMaxNorm();
+      REQUIRE(norm_r == MFEM_Approx(0.));
+      REQUIRE(norm_i == MFEM_Approx(0.));
+      delete AinvB;
+   }
+
+   int ipiv[m];
+   ComplexLUFactors lu(A.real().Data(),A.imag().Data(), ipiv);
+   lu.Factor(m);
+
+   SECTION("ComplexLUFactors::Inverse")
+   {
+      DenseMatrix Ainv_r(m);
+      DenseMatrix Ainv_i(m);
+      lu.GetInverseMatrix(m,Ainv_r.Data(), Ainv_i.Data());
+
+      diff_r = invA_r; diff_r-=Ainv_r;
+      diff_i = invA_i; diff_i-=Ainv_i;
+      norm_r = diff_r.MaxMaxNorm();
+      norm_i = diff_i.MaxMaxNorm();
+      REQUIRE(norm_r == MFEM_Approx(0.));
+      REQUIRE(norm_i == MFEM_Approx(0.));
+   }
+   SECTION("ComplexLUFactors::LSolve")
+   {
+      ComplexDenseMatrix P(&P_r,nullptr, false,false);
+      ComplexDenseMatrix *PB = mfem::Mult(P,B);
+      ComplexDenseMatrix exactinvL(&invAL_r, &invAL_i, false,false);
+      ComplexDenseMatrix * invLB = mfem::Mult(exactinvL,*PB);
+
+      DenseMatrix invLB_r(B_r);
+      DenseMatrix invLB_i(B_i);
+      lu.LSolve(m,m,invLB_r.Data(),invLB_i.Data());
+
+      diff_r = invLB->real(); diff_r-=invLB_r;
+      diff_i = invLB->imag(); diff_i-=invLB_i;
+      norm_r = diff_r.MaxMaxNorm();
+      norm_i = diff_i.MaxMaxNorm();
+      REQUIRE(norm_r == MFEM_Approx(0.));
+      REQUIRE(norm_i == MFEM_Approx(0.));
+      delete PB;
+      delete invLB;
+   }
+   SECTION("ComplexLUFactors::USolve")
+   {
+      ComplexDenseMatrix exactinvU(&invAU_r, &invAU_i, false,false);
+      ComplexDenseMatrix * invUB = mfem::Mult(exactinvU,B);
+      DenseMatrix invUB_r(B_r);
+      DenseMatrix invUB_i(B_i);
+      lu.USolve(m,m,invUB_r.Data(),invUB_i.Data());
+
+      diff_r = invUB->real(); diff_r-=invUB_r;
+      diff_i = invUB->imag(); diff_i-=invUB_i;
+      norm_r = diff_r.MaxMaxNorm();
+      norm_i = diff_i.MaxMaxNorm();
+      REQUIRE(norm_r == MFEM_Approx(0.));
+      REQUIRE(norm_i == MFEM_Approx(0.));
+      delete invUB;
+   }
+   SECTION("ComplexLUFactors::Solve")
+   {
+      ComplexDenseMatrix invA(&invA_r,&invA_i,false,false);
+      ComplexDenseMatrix * invAB = mfem::Mult(invA,B);
+
+      DenseMatrix invAB_r(B_r);
+      DenseMatrix invAB_i(B_i);
+      lu.Solve(m,m,invAB_r.Data(),invAB_i.Data());
+
+      diff_r = invAB->real(); diff_r-=invAB_r;
+      diff_i = invAB->imag(); diff_i-=invAB_i;
+      norm_r = diff_r.MaxMaxNorm();
+      norm_i = diff_i.MaxMaxNorm();
+      REQUIRE(norm_r == MFEM_Approx(0.));
+      REQUIRE(norm_i == MFEM_Approx(0.));
+      delete invAB;
+   }
+   SECTION("ComplexLUFactors::RightSolve")
+   {
+      ComplexDenseMatrix invA(&invA_r,&invA_i,false,false);
+      ComplexDenseMatrix * BinvA = mfem::Mult(B,invA);
+
+      DenseMatrix BinvA_r(B_r);
+      DenseMatrix BinvA_i(B_i);
+      lu.RightSolve(m,m,BinvA_r.Data(),BinvA_i.Data());
+
+      diff_r = BinvA->real(); diff_r-=BinvA_r;
+      diff_i = BinvA->imag(); diff_i-=BinvA_i;
+      norm_r = diff_r.MaxMaxNorm();
+      norm_i = diff_i.MaxMaxNorm();
+      REQUIRE(norm_r == MFEM_Approx(0.));
+      REQUIRE(norm_i == MFEM_Approx(0.));
+      delete BinvA;
+   }
 }
 
