@@ -62,14 +62,15 @@ struct BakeOff
       const long long int gB = 1073741824/8;
       const int mem_size = Device::IsEnabled()?8:256;
       const long long int max_mem = mem_size * gB;
-      long long int mem = N * pow(p+1, dim+1) * 8;
+      const int num_elems = fes.GetNE();
+      long long int mem = num_elems * pow(p+1, dim+1) * 8;
       if (assembly == AssemblyLevel::ELEMENT)
       {
-         mem += 2 * N * pow(p+1, 2*dim) * 8;
+         mem += 2 * num_elems * pow(p+1, 2*dim) * 8;
       }
       if (assembly == AssemblyLevel::FULL)
       {
-         mem += 3 * 2 * N * pow(p+1, 2*dim) * 8;
+         mem += 3 * 2 * num_elems * pow(p+1, 2*dim) * 8;
       }
       // std::cout << "mem = " << mem << " , max_mem = " << max_mem << std::endl;
       return mem < max_mem;
