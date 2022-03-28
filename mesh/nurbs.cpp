@@ -1737,9 +1737,9 @@ void NURBSExtension::Print(std::ostream &os) const
 
       if (master.Size() > 0)
       {
-         out << "\nperiodic\n";
-         master.Save(out);
-         slave.Save(out);
+         os << "\nperiodic\n";
+         master.Save(os);
+         slave.Save(os);
       }
 
    }

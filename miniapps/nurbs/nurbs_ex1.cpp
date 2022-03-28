@@ -290,15 +290,15 @@ int main(int argc, char *argv[])
       {
          ess_bdr = 0;
       }
-      if ( NURBSext)
+      if (NURBSext)
       {
-         Array<int> master = NURBSext->GetMaster();
-         Array<int> slave = NURBSext->GetSlave();
+         Array<int> master_idx = NURBSext->GetMaster();
+         Array<int> slave_idx = NURBSext->GetSlave();
          // Remove periodic BCs
          for (int i = 0; i < master.Size(); i++)
          {
-            ess_bdr[master[i]-1] = 0;
-            ess_bdr[slave[i]-1] = 0;
+            ess_bdr[master_idx[i]-1] = 0;
+            ess_bdr[slave_idx[i]-1] = 0;
          }
       }
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
