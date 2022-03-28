@@ -402,7 +402,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    if (surf_fit_max_threshold > 0.0)
    {
       double avg_err, max_err;
-      GetSurfaceFittingError(avg_err, max_err);
+      GetSurfaceFittingError(x_out_loc, avg_err, max_err);
       if (max_err < surf_fit_max_threshold)
       {
          if (print_options.iterations)
@@ -616,7 +616,8 @@ void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
    }
 }
 
-void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
+void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
+                                              double &err_avg,
                                               double &err_max) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
@@ -634,7 +635,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
       {
          if (ti->IsSurfaceFittingEnabled())
          {
-            ti->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+            ti->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
             err_avg = std::fmax(err_avg_loc, err_avg);
             err_max = std::fmax(err_max_loc, err_max);
          }
@@ -647,7 +648,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
          {
             if (ati[j]->IsSurfaceFittingEnabled())
             {
-               ati[j]->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+               ati[j]->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
                err_avg = std::fmax(err_avg_loc, err_avg);
                err_max = std::fmax(err_max_loc, err_max);
             }
@@ -686,13 +687,14 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       }
    }
 
+   Vector x_loc;
    if (parallel)
    {
 #ifdef MFEM_USE_MPI
       const ParNonlinearForm *pnlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
       const ParFiniteElementSpace *pfesc = pnlf->ParFESpace();
-      Vector x_loc(pfesc->GetVSize());
+      x_loc.SetSize(pfesc->GetVSize());
       pfesc->GetProlongationMatrix()->Mult(x, x_loc);
       for (int i = 0; i < integs.Size(); i++)
       {
@@ -721,7 +723,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    {
       const FiniteElementSpace *fesc = nlf->FESpace();
       const Operator *P = nlf->GetProlongation();
-      Vector x_loc;
       if (P)
       {
          x_loc.SetSize(P->Height());
@@ -763,7 +764,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       double surf_fit_err_max = -10;
       double surf_fit_err_avg = -10;
       // Get surface fitting errors.
-      GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
+      GetSurfaceFittingError(x_loc, surf_fit_err_avg, surf_fit_err_max);
       // Get array with surface fitting weights.
       Array<double> weights;
       GetSurfaceFittingWeight(weights);

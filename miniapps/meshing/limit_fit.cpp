@@ -91,7 +91,7 @@ int main (int argc, char *argv[])
       const int nd = pfes_mesh.GetBE(e)->GetDof();
       const int attr = pmesh.GetBdrElement(e)->GetAttribute();
       pfes_mesh.GetBdrElementVDofs(e, vdofs);
-      if (attr == 1) // Fix x components.
+      if (attr == 1) // vertical boundary
       {
          for (int j = 0; j < nd; j++)
          {
@@ -113,16 +113,12 @@ int main (int argc, char *argv[])
    TMOP_Metric_002 metric;
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
-   ConstantCoefficient one(1.0);
+   ConstantCoefficient one(5.0);
    auto integ = new TMOP_Integrator(&metric, &target, nullptr);
    integ->EnableSurfaceFitting(x_target, fit_marker, one);
 
    ParNonlinearForm a(&pfes_mesh);
    a.AddDomainIntegrator(integ);
-
-   std::cout << a.GetParGridFunctionEnergy(x) << endl;
-
-   return 0;
 
    MINRESSolver minres(pfes_mesh.GetComm());
    minres.SetMaxIter(100);
@@ -135,9 +131,10 @@ int main (int argc, char *argv[])
    solver.SetOperator(a);
    solver.SetPreconditioner(minres);
    solver.SetPrintLevel(1);
-   solver.SetMaxIter(20);
+   solver.SetMaxIter(200);
    solver.SetRelTol(1e-10);
    solver.SetAbsTol(0.0);
+   solver.EnableAdaptiveSurfaceFitting();
 
    Vector b(0);
    x.SetTrueVector();

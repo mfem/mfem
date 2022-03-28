@@ -1641,7 +1641,8 @@ public:
        @param[in] coeff   Coefficient c for the above integral. */
    void EnableSurfaceFitting(const GridFunction &pos,
                              const Array<bool> &smarker, Coefficient &coeff);
-   void GetSurfaceFittingErrors(double &err_avg, double &err_max);
+   void GetSurfaceFittingErrors(const Vector &pos,
+                                double &err_avg, double &err_max);
    bool IsSurfaceFittingEnabled()
    {
       return surf_fit_gf != NULL || surf_fit_pos != NULL;
