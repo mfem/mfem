@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,6 +38,10 @@ template <> struct AutoSIMD<double,8,64>
       __m512d m512d;
       double vec[size];
    };
+
+   AutoSIMD() = default;
+
+   AutoSIMD(const AutoSIMD &) = default;
 
    inline MFEM_ALWAYS_INLINE double &operator[](int i)
    {
@@ -118,6 +122,11 @@ template <> struct AutoSIMD<double,8,64>
       r.m512d = _mm512_sub_pd(_mm512_set1_pd(0.0), m512d);
 #endif
       return r;
+   }
+
+   inline MFEM_ALWAYS_INLINE AutoSIMD operator+() const
+   {
+      return *this;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const AutoSIMD &v) const

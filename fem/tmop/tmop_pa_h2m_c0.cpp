@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,8 +68,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
             double Xh[2];
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ,Xh);
 
-            double B[4];
-            DeviceMatrix H(B,2,2);
+            double H_data[4];
+            DeviceMatrix H(H_data,2,2);
             for (int i = 0; i < DIM; i++)
             {
                for (int j = 0; j < DIM; j++)
@@ -78,9 +78,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
                }
             }
 
-            // p2 = B . Xh
+            // p2 = H . Xh
             double p2[2];
-            kernels::Mult(2,2,B,Xh,p2);
+            kernels::Mult(2,2,H_data,Xh,p2);
             kernels::internal::PushEval<MQ1,NBZ>(Q1D,qx,qy,p2,QQ);
          }
       }

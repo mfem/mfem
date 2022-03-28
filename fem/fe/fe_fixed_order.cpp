@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1757,7 +1757,6 @@ void RT0TriangleFiniteElement::GetLocalInterpolation (
    int k, j;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, dim);
-   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -1783,7 +1782,8 @@ void RT0TriangleFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear
    // set Jinv = |J| J^{-t} = adj(J)^t
-   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
+
    double vk[2];
    Vector xk (vk, 2);
 
@@ -1809,15 +1809,12 @@ void RT0TriangleFiniteElement::Project (
 {
    double vk[2];
    Vector xk (vk, 2);
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(dim);
-#endif
 
    for (int k = 0; k < 3; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       // set Jinv = |J| J^{-t} = adj(J)^t
-      CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+      const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
       vc.Eval (xk, Trans, Nodes.IntPoint (k));
       //  xk^t |J| J^{-t} nk
@@ -1827,7 +1824,8 @@ void RT0TriangleFiniteElement::Project (
 }
 
 RT0QuadFiniteElement::RT0QuadFiniteElement()
-   : VectorFiniteElement(2, Geometry::SQUARE, 4, 1, H_DIV, FunctionSpace::Qk)
+   : VectorFiniteElement(2, Geometry::SQUARE, 4, 1, H_DIV,
+                         FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.0;
@@ -1872,7 +1870,6 @@ void RT0QuadFiniteElement::GetLocalInterpolation (
    int k, j;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, dim);
-   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -1898,7 +1895,8 @@ void RT0QuadFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear (more to have embedding?)
    // set Jinv = |J| J^{-t} = adj(J)^t
-   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
+
    double vk[2];
    Vector xk (vk, 2);
 
@@ -1924,15 +1922,12 @@ void RT0QuadFiniteElement::Project (
 {
    double vk[2];
    Vector xk (vk, 2);
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(dim);
-#endif
 
    for (int k = 0; k < 4; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       // set Jinv = |J| J^{-t} = adj(J)^t
-      CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+      const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
       vc.Eval (xk, Trans, Nodes.IntPoint (k));
       //  xk^t |J| J^{-t} nk
@@ -2014,7 +2009,6 @@ void RT1TriangleFiniteElement::GetLocalInterpolation (
    int k, j;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, dim);
-   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -2040,7 +2034,8 @@ void RT1TriangleFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear (more to have embedding?)
    // set Jinv = |J| J^{-t} = adj(J)^t
-   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
+
    double vk[2];
    Vector xk (vk, 2);
 
@@ -2065,15 +2060,12 @@ void RT1TriangleFiniteElement::Project (
 {
    double vk[2];
    Vector xk (vk, 2);
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(dim);
-#endif
 
    for (int k = 0; k < 8; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       // set Jinv = |J| J^{-t} = adj(J)^t
-      CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+      const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
       vc.Eval (xk, Trans, Nodes.IntPoint (k));
       //  xk^t |J| J^{-t} nk
@@ -2084,7 +2076,8 @@ void RT1TriangleFiniteElement::Project (
 }
 
 RT1QuadFiniteElement::RT1QuadFiniteElement()
-   : VectorFiniteElement(2, Geometry::SQUARE, 12, 2, H_DIV, FunctionSpace::Qk)
+   : VectorFiniteElement(2, Geometry::SQUARE, 12, 2, H_DIV,
+                         FunctionSpace::Qk)
 {
    // y = 0
    Nodes.IntPoint(0).x  = 1./3.;
@@ -2196,7 +2189,6 @@ void RT1QuadFiniteElement::GetLocalInterpolation (
    int k, j;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, dim);
-   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -2222,7 +2214,8 @@ void RT1QuadFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear (more to have embedding?)
    // set Jinv = |J| J^{-t} = adj(J)^t
-   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
+
    double vk[2];
    Vector xk (vk, 2);
 
@@ -2247,15 +2240,12 @@ void RT1QuadFiniteElement::Project (
 {
    double vk[2];
    Vector xk (vk, 2);
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(dim);
-#endif
 
    for (int k = 0; k < 12; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       // set Jinv = |J| J^{-t} = adj(J)^t
-      CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+      const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
       vc.Eval (xk, Trans, Nodes.IntPoint (k));
       //  xk^t |J| J^{-t} nk
@@ -2410,7 +2400,8 @@ const double RT2QuadFiniteElement::pt[4] = {0.,1./3.,2./3.,1.};
 const double RT2QuadFiniteElement::dpt[3] = {0.25,0.5,0.75};
 
 RT2QuadFiniteElement::RT2QuadFiniteElement()
-   : VectorFiniteElement(2, Geometry::SQUARE, 24, 3, H_DIV, FunctionSpace::Qk)
+   : VectorFiniteElement(2, Geometry::SQUARE, 24, 3, H_DIV,
+                         FunctionSpace::Qk)
 {
    // y = 0 (pt[0])
    Nodes.IntPoint(0).x  = dpt[0];  Nodes.IntPoint(0).y  =  pt[0];
@@ -2650,7 +2641,6 @@ void RT2QuadFiniteElement::GetLocalInterpolation (
    int k, j;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, dim);
-   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -2676,7 +2666,8 @@ void RT2QuadFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear (more to have embedding?)
    // set Jinv = |J| J^{-t} = adj(J)^t
-   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
+
    double vk[2];
    Vector xk (vk, 2);
 
@@ -2701,15 +2692,12 @@ void RT2QuadFiniteElement::Project (
 {
    double vk[2];
    Vector xk (vk, 2);
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(dim);
-#endif
 
    for (int k = 0; k < 24; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       // set Jinv = |J| J^{-t} = adj(J)^t
-      CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+      const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
       vc.Eval (xk, Trans, Nodes.IntPoint (k));
       //  xk^t |J| J^{-t} nk
@@ -4152,7 +4140,8 @@ void RefinedTriLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 Nedelec1HexFiniteElement::Nedelec1HexFiniteElement()
-   : VectorFiniteElement(3, Geometry::CUBE, 12, 1, H_CURL, FunctionSpace::Qk)
+   : VectorFiniteElement(3, Geometry::CUBE, 12, 1, H_CURL,
+                         FunctionSpace::Qk)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
@@ -4601,7 +4590,7 @@ void Nedelec1TetFiniteElement::ProjectGrad(const FiniteElement &fe,
 
 
 Nedelec1WdgFiniteElement::Nedelec1WdgFiniteElement()
-   : VectorFiniteElement(3, Geometry::PRISM, 9, 1, H_CURL)
+   : VectorFiniteElement(3, Geometry::PRISM, 9, 1, H_CURL, FunctionSpace::Qk)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
@@ -5208,7 +5197,6 @@ void RT0HexFiniteElement::GetLocalInterpolation (
    int k, j;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, dim);
-   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -5235,7 +5223,8 @@ void RT0HexFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear
    // set Jinv = |J| J^{-t} = adj(J)^t
-   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
+
    double vk[3];
    Vector xk (vk, 3);
 
@@ -5263,15 +5252,12 @@ void RT0HexFiniteElement::Project (
 {
    double vk[3];
    Vector xk (vk, 3);
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(dim);
-#endif
 
    for (int k = 0; k < 6; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       // set Jinv = |J| J^{-t} = adj(J)^t
-      CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+      const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
       vc.Eval (xk, Trans, Nodes.IntPoint (k));
       //  xk^t |J| J^{-t} nk
@@ -5283,7 +5269,8 @@ void RT0HexFiniteElement::Project (
 }
 
 RT1HexFiniteElement::RT1HexFiniteElement()
-   : VectorFiniteElement(3, Geometry::CUBE, 36, 2, H_DIV, FunctionSpace::Qk)
+   : VectorFiniteElement(3, Geometry::CUBE, 36, 2, H_DIV,
+                         FunctionSpace::Qk)
 {
    // z = 0
    Nodes.IntPoint(2).x  = 1./3.;
@@ -5597,7 +5584,6 @@ void RT1HexFiniteElement::GetLocalInterpolation (
    int k, j;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, dim);
-   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -5624,7 +5610,8 @@ void RT1HexFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear
    // set Jinv = |J| J^{-t} = adj(J)^t
-   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
+
    double vk[3];
    Vector xk (vk, 3);
 
@@ -5652,15 +5639,12 @@ void RT1HexFiniteElement::Project (
 {
    double vk[3];
    Vector xk (vk, 3);
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(dim);
-#endif
 
    for (int k = 0; k < 36; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       // set Jinv = |J| J^{-t} = adj(J)^t
-      CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+      const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
       vc.Eval (xk, Trans, Nodes.IntPoint (k));
       //  xk^t |J| J^{-t} nk
@@ -5732,7 +5716,6 @@ void RT0TetFiniteElement::GetLocalInterpolation (
    int k, j;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, dim);
-   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -5759,7 +5742,8 @@ void RT0TetFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear
    // set Jinv = |J| J^{-t} = adj(J)^t
-   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
+
    double vk[3];
    Vector xk (vk, 3);
 
@@ -5787,15 +5771,12 @@ void RT0TetFiniteElement::Project (
 {
    double vk[3];
    Vector xk (vk, 3);
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(dim);
-#endif
 
    for (int k = 0; k < 4; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       // set Jinv = |J| J^{-t} = adj(J)^t
-      CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+      const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
       vc.Eval (xk, Trans, Nodes.IntPoint (k));
       //  xk^t |J| J^{-t} nk
@@ -5807,7 +5788,7 @@ void RT0TetFiniteElement::Project (
 }
 
 RT0WdgFiniteElement::RT0WdgFiniteElement()
-   : VectorFiniteElement(3, Geometry::PRISM, 5, 1, H_DIV)
+   : VectorFiniteElement(3, Geometry::PRISM, 5, 1, H_DIV, FunctionSpace::Pk)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.33333333333333333333;
@@ -5876,7 +5857,6 @@ void RT0WdgFiniteElement::GetLocalInterpolation (
    int k, j;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, dim);
-   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -5903,7 +5883,8 @@ void RT0WdgFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear
    // set Jinv = |J| J^{-t} = adj(J)^t
-   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
+
    double vk[3];
    Vector xk (vk, 3);
 
@@ -5931,15 +5912,12 @@ void RT0WdgFiniteElement::Project (
 {
    double vk[3];
    Vector xk (vk, 3);
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(dim);
-#endif
 
    for (int k = 0; k < 5; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       // set Jinv = |J| J^{-t} = adj(J)^t
-      CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+      const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
       vc.Eval (xk, Trans, Nodes.IntPoint (k));
       //  xk^t |J| J^{-t} nk
@@ -6101,7 +6079,6 @@ void RT0PyrFiniteElement::GetLocalInterpolation (
    int k, j;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, dim);
-   DenseMatrix Jinv(dim);
 #endif
 
 #ifdef MFEM_DEBUG
@@ -6128,7 +6105,8 @@ void RT0PyrFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear
    // set Jinv = |J| J^{-t} = adj(J)^t
-   CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+   const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
+
    double vk[3];
    Vector xk (vk, 3);
 
@@ -6156,15 +6134,12 @@ void RT0PyrFiniteElement::Project (
 {
    double vk[3];
    Vector xk (vk, 3);
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix Jinv(dim);
-#endif
 
    for (int k = 0; k < dof; k++)
    {
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       // set Jinv = |J| J^{-t} = adj(J)^t
-      CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
+      const DenseMatrix &Jinv = Trans.TransposeAdjugateJacobian();
 
       vc.Eval (xk, Trans, Nodes.IntPoint (k));
       //  xk^t |J| J^{-t} nk

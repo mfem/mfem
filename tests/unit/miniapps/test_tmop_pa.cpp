@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,13 +27,11 @@
 #endif
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
-extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetComm()
 #define SetDiscreteTargetSize SetParDiscreteTargetSize
 #define SetDiscreteTargetAspectRatio SetParDiscreteTargetAspectRatio
 #define GradientClass HypreParMatrix
 #else
-typedef int MPI_Session;
 #define ParMesh Mesh
 #define ParGridFunction GridFunction
 #define ParNonlinearForm NonlinearForm
@@ -332,12 +330,13 @@ int tmop(int id, Req &res, int argc, char *argv[])
       he_nlf_integ2->SetIntegrationRule(*ir);
       if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
       he_nlf_integ2->SetExactActionFlag(exactaction);
-      TMOPComboIntegrator *combo = new TMOPComboIntegrator;
-      combo->AddTMOPIntegrator(he_nlf_integ);
-      combo->AddTMOPIntegrator(he_nlf_integ2);
-      if (normalization) { combo->ParEnableNormalization(x0); }
-      if (lim_const != 0.0) { combo->EnableLimiting(x0, dist, lim_coeff); }
-      nlf.AddDomainIntegrator(combo);
+      TMOPComboIntegrator *combo_integ = new TMOPComboIntegrator;
+      combo_integ->AddTMOPIntegrator(he_nlf_integ);
+      combo_integ->AddTMOPIntegrator(he_nlf_integ2);
+      if (normalization) { combo_integ->ParEnableNormalization(x0); }
+      if (lim_const != 0.0)
+      { combo_integ->EnableLimiting(x0, dist, lim_coeff); }
+      nlf.AddDomainIntegrator(combo_integ);
    }
    else
    {
@@ -471,7 +470,6 @@ int tmop(int id, Req &res, int argc, char *argv[])
       dist *= 0.93;
       if (normalization == 1) { dist = small_phys_size; }
 
-      ConstantCoefficient lim_coeff(lim_const);
       if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
       if (normalization == 1) { he_nlf_integ->ParEnableNormalization(x); }
@@ -710,9 +708,9 @@ public:
 // id: MPI rank, nr: launch all non-regression tests
 static void tmop_tests(int id = 0, bool all = false)
 {
-#if defined(MFEM_TMOP_MPI) && defined(HYPRE_USING_CUDA)
+#if defined(MFEM_TMOP_MPI) && defined(HYPRE_USING_GPU)
    cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
-        << "is NOT supported with the CUDA version of hypre.\n\n";
+        << "is NOT supported with the GPU version of hypre.\n\n";
    return;
 #endif
 
@@ -862,7 +860,7 @@ static void tmop_tests(int id = 0, bool all = false)
 #ifndef MFEM_TMOP_DEVICE
 TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
 {
-   tmop_tests(GlobalMPISession->WorldRank(), launch_all_non_regression_tests);
+   tmop_tests(Mpi::WorldRank(), launch_all_non_regression_tests);
 }
 #else
 TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
@@ -870,7 +868,7 @@ TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
    Device device;
    device.Configure(MFEM_TMOP_DEVICE);
    device.Print();
-   tmop_tests(GlobalMPISession->WorldRank(), launch_all_non_regression_tests);
+   tmop_tests(Mpi::WorldRank(), launch_all_non_regression_tests);
 }
 #endif
 #else

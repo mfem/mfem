@@ -21,8 +21,7 @@ create the file CodeDocumentation.html, which can be viewed in any web browser.
 
 Alternatively, the (pre-build) documentation can be browsed directly online at
 
-   https://mfem.github.io/doxygen/html/index.html
-
+   https://docs.mfem.org
 
 Some building considerations:
 

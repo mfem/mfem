@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,10 +13,14 @@
 #define MFEM_LIBCEED_UTIL
 
 #include "../../config/config.hpp"
+#include "../../general/error.hpp"
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
 #include <ceed/hash.h>
 #include <ceed/backend.h>  // for CeedOperatorField
+#if !CEED_VERSION_GE(0,10,0)
+#error MFEM requires a libCEED version >= 0.10.0
+#endif
 #endif
 #include <tuple>
 #include <unordered_map>
@@ -78,9 +82,6 @@ void InitTensorRestriction(const FiniteElementSpace &fes,
                            Ceed ceed, CeedElemRestriction *restr);
 
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
-
-int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
-                                         CeedElemRestriction* restr_out);
 
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();

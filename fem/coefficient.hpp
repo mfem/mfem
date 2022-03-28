@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1605,22 +1605,22 @@ public:
    void SetTime(double t);
 
    /// Reset the first vector coefficient
-   void SetACoef(VectorCoefficient &A) { ACoef = &A; }
+   void SetACoef(VectorCoefficient &A_) { ACoef = &A_; }
    /// Return the first vector coefficient
    VectorCoefficient * GetACoef() const { return ACoef; }
 
    /// Reset the second vector coefficient
-   void SetBCoef(VectorCoefficient &B) { BCoef = &B; }
+   void SetBCoef(VectorCoefficient &B_) { BCoef = &B_; }
    /// Return the second vector coefficient
    VectorCoefficient * GetBCoef() const { return BCoef; }
 
    /// Reset the factor in front of the first vector coefficient
-   void SetAlphaCoef(Coefficient &A) { alphaCoef = &A; }
+   void SetAlphaCoef(Coefficient &A_) { alphaCoef = &A_; }
    /// Return the factor in front of the first vector coefficient
    Coefficient * GetAlphaCoef() const { return alphaCoef; }
 
    /// Reset the factor in front of the second vector coefficient
-   void SetBetaCoef(Coefficient &B) { betaCoef = &B; }
+   void SetBetaCoef(Coefficient &B_) { betaCoef = &B_; }
    /// Return the factor in front of the second vector coefficient
    Coefficient * GetBetaCoef() const { return betaCoef; }
 
@@ -1845,6 +1845,35 @@ public:
    void SetBeta(double beta_) { beta = beta_; }
    /// Return the factor in front of the second matrix coefficient
    double GetBeta() const { return beta; }
+
+   /// Evaluate the matrix coefficient at @a ip.
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
+/// Matrix coefficient defined as the product of two matrices
+class MatrixProductCoefficient : public MatrixCoefficient
+{
+private:
+   MatrixCoefficient * a;
+   MatrixCoefficient * b;
+
+   mutable DenseMatrix ma;
+   mutable DenseMatrix mb;
+
+public:
+   /// Construct with the two coefficients.  Result is A * B.
+   MatrixProductCoefficient(MatrixCoefficient &A, MatrixCoefficient &B);
+
+   /// Reset the first matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   /// Return the first matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Reset the second matrix coefficient
+   void SetBCoef(MatrixCoefficient &B) { b = &B; }
+   /// Return the second matrix coefficient
+   MatrixCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
