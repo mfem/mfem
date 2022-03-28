@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -72,6 +72,8 @@
 //  Adaptive surface fitting:
 //    mesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor
 //    mesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
+//  Surface fitting with weight adaptation and termination based on fitting error
+//    mesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -sft 1e-5
 //
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
@@ -144,6 +146,8 @@ int main(int argc, char *argv[])
    bool pa               = false;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
+   bool surface_fit_adapt = false;
+   double surface_fit_threshold = -10;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -267,6 +271,12 @@ int main(int argc, char *argv[])
    args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
                   "Number of h-adaptivity iterations per r-adaptivity"
                   "iteration.");
+   args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit", "-no-sfa",
+                  "--no-adaptive-surface-fit",
+                  "Enable or disable adaptive surface fitting.");
+   args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
+                  "Set threshold for surface fitting. TMOP solver will"
+                  "terminate when max surface fitting error is below this limit");
    args.Parse();
    if (!args.Good())
    {
@@ -1059,6 +1069,11 @@ int main(int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(ir, solver_type);
+   if (surface_fit_adapt) { solver.EnableAdaptiveSurfaceFitting(); }
+   if (surface_fit_threshold > 0)
+   {
+      solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
+   }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)

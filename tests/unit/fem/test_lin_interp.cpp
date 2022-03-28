@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -142,7 +142,7 @@ TEST_CASE("Identity Linear Interpolators",
    double tol = 1e-9;
 
    for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh;
 
@@ -521,7 +521,7 @@ TEST_CASE("Derivative Linear Interpolators",
    double tol = 1e-9;
 
    for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh;
 
@@ -741,7 +741,7 @@ TEST_CASE("Product Linear Interpolators",
    double tol = 1e-9;
 
    for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::HEXAHEDRON; type++)
+        type <= (int)Element::WEDGE; type++)
    {
       Mesh mesh;
 

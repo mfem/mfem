@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -55,8 +55,8 @@ public:
    {
 #ifdef _WIN32
       WSADATA wsaData;
-      int err = WSAStartup(MAKEWORD(2,2), &wsaData);
-      if (err != 0)
+      int err_flag = WSAStartup(MAKEWORD(2,2), &wsaData);
+      if (err_flag != 0)
       {
          mfem::out << "Error occured during initialization of WinSock."
                    << std::endl;
@@ -149,9 +149,9 @@ int socketbuf::close()
    if (is_open())
    {
       pubsync();
-      int err = closesocket(socket_descriptor);
+      int err_flag = closesocket(socket_descriptor);
       socket_descriptor = -1;
-      return err;
+      return err_flag;
    }
    return 0;
 }
@@ -335,9 +335,9 @@ int socketserver::close()
    {
       return 0;
    }
-   int err = closesocket(listen_socket);
+   int err_flag = closesocket(listen_socket);
    listen_socket = -1;
-   return err;
+   return err_flag;
 }
 
 int socketserver::accept()
@@ -552,11 +552,11 @@ void GnuTLS_socketbuf::handshake()
 #endif
 
    // Called at the end of start_session.
-   int err;
+   int err_flag;
    do
    {
-      err = gnutls_handshake(session);
-      status.set_result(err);
+      err_flag = gnutls_handshake(session);
+      status.set_result(err_flag);
       if (status.good())
       {
 #if 0
@@ -567,7 +567,7 @@ void GnuTLS_socketbuf::handshake()
          return;
       }
    }
-   while (err == GNUTLS_E_INTERRUPTED || err == GNUTLS_E_AGAIN);
+   while (err_flag == GNUTLS_E_INTERRUPTED || err_flag == GNUTLS_E_AGAIN);
 #ifdef MFEM_DEBUG
    status.print_on_error("gnutls_handshake");
 #endif
@@ -681,14 +681,14 @@ void GnuTLS_socketbuf::start_session()
       status.set_result(mfem_gnutls_verify_callback(session));
       if (!status.good())
       {
-         int err;
+         int err_flag;
          do
          {
             // Close the connection without waiting for close reply, i.e. we
             // use GNUTLS_SHUT_WR.
-            err = gnutls_bye(session, GNUTLS_SHUT_WR);
+            err_flag = gnutls_bye(session, GNUTLS_SHUT_WR);
          }
-         while (err == GNUTLS_E_AGAIN || err == GNUTLS_E_INTERRUPTED);
+         while (err_flag == GNUTLS_E_AGAIN || err_flag == GNUTLS_E_INTERRUPTED);
       }
    }
 #endif
@@ -723,14 +723,15 @@ void GnuTLS_socketbuf::end_session()
 #ifdef MFEM_USE_GNUTLS_DEBUG
       mfem::out << "[GnuTLS_socketbuf::end_session: gnutls_bye]" << std::endl;
 #endif
-      int err;
+      int err_flag;
       do
       {
-         // err = gnutls_bye(session, GNUTLS_SHUT_RDWR);
-         err = gnutls_bye(session, GNUTLS_SHUT_WR); // does not wait for reply
-         status.set_result(err);
+         // err_flag = gnutls_bye(session, GNUTLS_SHUT_RDWR);
+         err_flag = gnutls_bye(session,
+                               GNUTLS_SHUT_WR); // does not wait for reply
+         status.set_result(err_flag);
       }
-      while (err == GNUTLS_E_AGAIN || err == GNUTLS_E_INTERRUPTED);
+      while (err_flag == GNUTLS_E_AGAIN || err_flag == GNUTLS_E_INTERRUPTED);
       status.print_on_error("gnutls_bye");
    }
 
@@ -759,8 +760,8 @@ int GnuTLS_socketbuf::open(const char hostname[], int port)
    mfem::out << "[GnuTLS_socketbuf::open]" << std::endl;
 #endif
 
-   int err = socketbuf::open(hostname, port); // calls close()
-   if (err) { return err; }
+   int err_flag = socketbuf::open(hostname, port); // calls close()
+   if (err_flag) { return err_flag; }
 
    start_session();
 
@@ -775,9 +776,9 @@ int GnuTLS_socketbuf::close()
 
    end_session();
 
-   int err = socketbuf::close();
+   int err_flag = socketbuf::close();
 
-   return status.good() ? err : -100;
+   return status.good() ? err_flag : -100;
 }
 
 int GnuTLS_socketbuf::sync()
@@ -1048,8 +1049,8 @@ socketstream::socketstream(int s, bool secure) : std::iostream(0)
 
 int socketstream::open(const char hostname[], int port)
 {
-   int err = buf__->open(hostname, port);
-   if (err)
+   int err_flag = buf__->open(hostname, port);
+   if (err_flag)
    {
       setstate(std::ios::failbit);
    }
@@ -1057,7 +1058,7 @@ int socketstream::open(const char hostname[], int port)
    {
       clear();
    }
-   return err;
+   return err_flag;
 }
 
 socketstream::~socketstream()
