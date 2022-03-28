@@ -164,7 +164,7 @@ BENCHMARK(BP##i##assembly)->ArgsProduct({\
       benchmark::CreateDenseRange(1, 6, /*step=*/1)\
     })->Unit(bm::kMillisecond);
 
-const int maxN = 16;
+const int maxN = 64;
 // Device::IsEnabled()?32:8
 // const int maxDofs = 1e6;
 // auto pa_N = [](int p, int MaxSize)
