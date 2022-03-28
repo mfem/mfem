@@ -27,7 +27,7 @@ add_custom_command(OUTPUT data_is_copied
 add_custom_target(copy_miniapps_gslib_data DEPENDS data_is_copied)
 
 if (MFEM_USE_GSLIB)
- add_mfem_miniapp(schwarz_ex1
+  add_mfem_miniapp(schwarz_ex1
     MAIN schwarz_ex1.cpp
     LIBRARIES mfem)
 
