@@ -57,6 +57,24 @@ struct BakeOff
       a(&fes),
       mdofs(0.0) {}
 
+   bool is_runnable() const
+   {
+      const long long int gB = 1073741824/8;
+      const int mem_size = Device::IsEnabled()?16:256;
+      const long long int max_mem = mem_size * gB;
+      long long int mem = N * pow(p+1, dim+1) * 8;
+      if (assembly == AssemblyLevel::ELEMENT)
+      {
+         mem += N * pow(p+1, 2*dim) * 8;
+      }
+      if (assembly == AssemblyLevel::FULL)
+      {
+         mem += 2 * N * pow(p+1, 2*dim) * 8;
+      }
+      // std::cout << "mem = " << mem << " , max_mem = " << max_mem << std::endl;
+      return mem < max_mem;
+   }
+
    virtual void setup() = 0;
 
    virtual void benchmark() = 0;
@@ -125,18 +143,22 @@ struct Problem: public BakeOff
 #define BakeOff_Problem(assembly,i,Kernel,VDIM,MaxN,p_eq_q)\
 static void SetupBP##i##assembly(bm::State &state){\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly, state.range(1), state.range(0));\
+   if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
    while (state.KeepRunning()) { ker.setup(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
-   state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);}\
+   state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
+   state.counters["Order"] = bm::Counter(ker.p);}\
 BENCHMARK(SetupBP##i##assembly)->ArgsProduct({\
       benchmark::CreateDenseRange(1, MaxN, /*step=*/1),\
       benchmark::CreateDenseRange(1, 6, /*step=*/1)\
     })->Unit(bm::kMillisecond);\
 static void BP##i##assembly(bm::State &state){\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly, state.range(1), state.range(0));\
+   if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
-   state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);}\
+   state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
+   state.counters["Order"] = bm::Counter(ker.p);}\
 BENCHMARK(BP##i##assembly)->ArgsProduct({\
       benchmark::CreateDenseRange(1, MaxN, /*step=*/1),\
       benchmark::CreateDenseRange(1, 6, /*step=*/1)\
@@ -244,9 +266,11 @@ struct Kernel: public BakeOff
 #define BakeOff_Kernel(assembly,i,KER,VDIM,MaxN,GLL)\
 static void BK##i##assembly(bm::State &state){\
    Kernel<KER##Integrator,VDIM,GLL> ker(AssemblyLevel::assembly, state.range(1), state.range(0));\
+   if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
-   state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);}\
+   state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
+   state.counters["Order"] = bm::Counter(ker.p);}\
 BENCHMARK(BK##i##assembly)->ArgsProduct({\
       benchmark::CreateDenseRange(1, MaxN, /*step=*/1),\
       benchmark::CreateDenseRange(1, 6, /*step=*/1)\
