@@ -2457,20 +2457,42 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
 }
 #endif
 
-void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
+void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
+                                              double &err_avg, double &err_max)
 {
-   MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
+   MFEM_VERIFY(surf_fit_marker, "Surface fitting has not been enabled.");
 
-   int loc_cnt = 0;
-   double loc_max = 0.0, loc_sum = 0.0;
-   for (int i = 0; i < surf_fit_marker->Size(); i++)
+   int dim;
+   if (surf_fit_pos)
    {
-      if ((*surf_fit_marker)[i] == true)
+      MFEM_VERIFY(surf_fit_pos->FESpace()->GetOrdering() == Ordering::byNODES,
+                  "Not supported below.");
+      dim = surf_fit_pos->FESpace()->GetMesh()->Dimension();
+   }
+
+   int loc_cnt = 0, node_cnt = surf_fit_marker->Size();
+   double loc_max = 0.0, loc_sum = 0.0;
+   for (int s = 0; s < node_cnt; s++)
+   {
+      if ((*surf_fit_marker)[s] == false) { continue; }
+
+      loc_cnt++;
+
+      double sigma_s = 0.0;
+      if (surf_fit_gf) { sigma_s = fabs((*surf_fit_gf)(s)); }
+      if (surf_fit_pos)
       {
-         loc_cnt++;
-         loc_max  = std::max(loc_max, std::abs((*surf_fit_gf)(i)));
-         loc_sum += std::abs((*surf_fit_gf)(i));
+         Vector pos_s(dim), pos_s_target(dim);
+         for (int d = 0; d < dim; d++)
+         {
+            pos_s(d) = pos(d*node_cnt + s);
+            pos_s_target(d) = (*surf_fit_pos)(d*node_cnt + s);
+         }
+         sigma_s = surf_fit_limiter->Eval(pos_s, pos_s_target, 1.0);
       }
+
+      loc_max  = fmax(loc_max, sigma_s);
+      loc_sum += sigma_s;
    }
    err_avg = loc_sum / loc_cnt;
    err_max = loc_max;
@@ -3275,7 +3297,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    }
    if (count == 0) { return; }
 
-   Vector sigma_e;
+   Vector sigma_e(dof_s);
    DenseMatrix surf_fit_grad_e(dof_s, dim);
    DenseMatrix surf_fit_hess_e(dof_s, dim*dim);
    if (surf_fit_gf)
