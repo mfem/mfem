@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,13 +33,6 @@ using namespace std;
 
 namespace mfem
 {
-
-void MPI_Session::GetRankAndSize()
-{
-   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-}
-
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),
@@ -265,27 +258,27 @@ void GroupTopology::Create(ListOfIntegerSets &groups, int mpitag)
    // debug barrier: MPI_Barrier(MyComm);
 }
 
-void GroupTopology::Save(ostream &out) const
+void GroupTopology::Save(ostream &os) const
 {
-   out << "\ncommunication_groups\n";
-   out << "number_of_groups " << NGroups() << "\n\n";
+   os << "\ncommunication_groups\n";
+   os << "number_of_groups " << NGroups() << "\n\n";
 
-   out << "# number of entities in each group, followed by group ids in group\n";
+   os << "# number of entities in each group, followed by group ids in group\n";
    for (int group_id = 0; group_id < NGroups(); ++group_id)
    {
       int group_size = GetGroupSize(group_id);
       const int * group_ptr = GetGroup(group_id);
-      out << group_size;
+      os << group_size;
       for ( int group_member_index = 0; group_member_index < group_size;
             ++group_member_index)
       {
-         out << " " << GetNeighborRank( group_ptr[group_member_index] );
+         os << " " << GetNeighborRank( group_ptr[group_member_index] );
       }
-      out << "\n";
+      os << "\n";
    }
 
    // For future use, optional ownership strategy.
-   // out << "# ownership";
+   // os << "# ownership";
 }
 
 void GroupTopology::Load(istream &in)
@@ -1164,7 +1157,7 @@ void GroupCommunicator::BitOR(OpData<T> opd)
    }
 }
 
-void GroupCommunicator::PrintInfo(std::ostream &out) const
+void GroupCommunicator::PrintInfo(std::ostream &os) const
 {
    char c = '\0';
    const int tag = 46800;
@@ -1250,36 +1243,36 @@ void GroupCommunicator::PrintInfo(std::ostream &out) const
    }
    else
    {
-      out << "\nGroupCommunicator:\n";
+      os << "\nGroupCommunicator:\n";
    }
-   out << "Rank " << myid << ":\n"
-       "   mode             = " <<
-       (mode == byGroup ? "byGroup" : "byNeighbor") << "\n"
-       "   number of sends  = " << num_sends <<
-       " (" << mem_sends << " bytes)\n"
-       "   number of recvs  = " << num_recvs <<
-       " (" << mem_recvs << " bytes)\n";
-   out <<
-       "   num groups       = " << group_ldof.Size() << " = " <<
-       num_master_groups << " + " <<
-       group_ldof.Size()-num_master_groups-num_empty_groups << " + " <<
-       num_empty_groups << " (master + slave + empty)\n";
+   os << "Rank " << myid << ":\n"
+      "   mode             = " <<
+      (mode == byGroup ? "byGroup" : "byNeighbor") << "\n"
+      "   number of sends  = " << num_sends <<
+      " (" << mem_sends << " bytes)\n"
+      "   number of recvs  = " << num_recvs <<
+      " (" << mem_recvs << " bytes)\n";
+   os <<
+      "   num groups       = " << group_ldof.Size() << " = " <<
+      num_master_groups << " + " <<
+      group_ldof.Size()-num_master_groups-num_empty_groups << " + " <<
+      num_empty_groups << " (master + slave + empty)\n";
    if (mode == byNeighbor)
    {
-      out <<
-          "   num neighbors    = " << nbr_send_groups.Size() << " = " <<
-          num_active_neighbors << " + " <<
-          nbr_send_groups.Size()-num_active_neighbors <<
-          " (active + inactive)\n";
+      os <<
+         "   num neighbors    = " << nbr_send_groups.Size() << " = " <<
+         num_active_neighbors << " + " <<
+         nbr_send_groups.Size()-num_active_neighbors <<
+         " (active + inactive)\n";
    }
    if (myid != gtopo.NRanks()-1)
    {
-      out << std::flush;
+      os << std::flush;
       MPI_Send(&c, 1, MPI_CHAR, myid+1, tag, gtopo.GetComm());
    }
    else
    {
-      out << std::endl;
+      os << std::endl;
    }
    MPI_Barrier(gtopo.GetComm());
 }
