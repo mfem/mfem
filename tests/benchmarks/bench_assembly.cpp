@@ -65,11 +65,11 @@ struct BakeOff
       long long int mem = N * pow(p+1, dim+1) * 8;
       if (assembly == AssemblyLevel::ELEMENT)
       {
-         mem += N * pow(p+1, 2*dim) * 8;
+         mem += 2 * N * pow(p+1, 2*dim) * 8;
       }
       if (assembly == AssemblyLevel::FULL)
       {
-         mem += 2 * N * pow(p+1, 2*dim) * 8;
+         mem += 3 * 2 * N * pow(p+1, 2*dim) * 8;
       }
       // std::cout << "mem = " << mem << " , max_mem = " << max_mem << std::endl;
       return mem < max_mem;
