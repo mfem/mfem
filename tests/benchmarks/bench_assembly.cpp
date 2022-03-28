@@ -60,7 +60,7 @@ struct BakeOff
    bool is_runnable() const
    {
       const long long int gB = 1073741824/8;
-      const int mem_size = Device::IsEnabled()?16:256;
+      const int mem_size = Device::IsEnabled()?8:256;
       const long long int max_mem = mem_size * gB;
       long long int mem = N * pow(p+1, dim+1) * 8;
       if (assembly == AssemblyLevel::ELEMENT)
@@ -145,7 +145,8 @@ static void SetupBP##i##assembly(bm::State &state){\
    const int dim = 3;\
    const int p = state.range(1);\
    const int target_dofs = state.range(0);\
-   const int N = pow(target_dofs / pow(p+1, dim), 1.0/dim) + 1;\
+   const int elem_dofs = pow(p+1, dim);\
+   const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly, p, N);\
    if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
    while (state.KeepRunning()) { ker.setup(); }\
@@ -160,7 +161,8 @@ static void BP##i##assembly(bm::State &state){\
    const int dim = 3;\
    const int p = state.range(1);\
    const int target_dofs = state.range(0);\
-   const int N = pow(target_dofs / pow(p+1, dim), 1.0/dim) + 1;\
+   const int elem_dofs = pow(p+1, dim);\
+   const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly, p, N);\
    if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
    while (state.KeepRunning()) { ker.benchmark(); }\
@@ -276,7 +278,8 @@ static void BK##i##assembly(bm::State &state){\
    const int dim = 3;\
    const int p = state.range(1);\
    const int target_dofs = state.range(0);\
-   const int N = pow(target_dofs / pow(p+1, dim), 1.0/dim) + 1;\
+   const int elem_dofs = pow(p+1, dim);\
+   const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;\
    Kernel<KER##Integrator,VDIM,GLL> ker(AssemblyLevel::assembly, p, N);\
    if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
    while (state.KeepRunning()) { ker.benchmark(); }\
