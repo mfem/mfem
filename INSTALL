@@ -769,6 +769,11 @@ The specific libraries and their options are:
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
   Versions: RAJA >= 0.14.0.
 
+- Moonolith (optional), use when MFEM_USE_MOONOLITH = YES.
+  URL: https://bitbucket.org/zulianp/par_moonolith/
+  Options: MOONOLITH_DIR
+  Versions: MOONOLITH >= 1.1.0.
+
 - Caliper (optional), used when MFEM_USE_CALIPER = YES.
   URL: https://github.com/LLNL/Caliper
   Options: CALIPER_DIR
@@ -942,6 +947,7 @@ MFEM_USE_CEED
 MFEM_USE_RAJA
 MFEM_USE_UMPIRE
 MFEM_USE_SIDRE
+MFEM_USE_MOONOLITH
 MFEM_USE_CALIPER
 MFEM_USE_FMS
 MFEM_USE_BENCHMARK
@@ -1000,6 +1006,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - RAJA
  - UMPIRE
  - AXOM - Used when MFEM_USE_SIDRE is enabled
+ - MOONOLITH
  - CALIPER
  - FMS
  - BENCHMARK
