@@ -138,7 +138,7 @@
 // Enable MFEM functionality based on the PUMI library
 // #define MFEM_USE_PUMI
 
-// Enable Moonolith-based general interpolation between different finite element spaces.
+// Enable Moonolith-based general interpolation between finite element spaces.
 // #define MFEM_USE_MOONOLITH
 
 // Enable MFEM functionality based on the HIOP library.
