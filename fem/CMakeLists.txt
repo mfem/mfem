@@ -70,6 +70,7 @@ set(SRCS
   linearform.cpp
   lininteg.cpp
   lor/lor.cpp
+  lor/lor_ads.cpp
   lor/lor_ams.cpp
   lor/lor_batched.cpp
   lor/lor_h1.cpp
@@ -168,6 +169,7 @@ set(HDRS
   linearform.hpp
   lininteg.hpp
   lor/lor.hpp
+  lor/lor_ads.hpp
   lor/lor_ams.hpp
   lor/lor_batched.hpp
   lor/lor_h1.hpp
