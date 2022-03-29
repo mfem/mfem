@@ -5279,9 +5279,32 @@ HypreADS::HypreADS(const HypreParMatrix &A, ParFiniteElementSpace *face_fespace)
    Init(face_fespace);
 }
 
-void HypreADS::Init(ParFiniteElementSpace *face_fespace)
+HypreADS::HypreADS(
+   const HypreParMatrix &A, HypreParMatrix *C_, HypreParMatrix *G_,
+   HypreParVector *x_, HypreParVector *y_, HypreParVector *z_)
+   : HypreSolver(&A),
+     x(x_), y(y_), z(z_),
+     G(G_), C(C_),
+     ND_Pi(NULL), ND_Pix(NULL), ND_Piy(NULL), ND_Piz(NULL),
+     RT_Pi(NULL), RT_Pix(NULL), RT_Piy(NULL), RT_Piz(NULL)
 {
-   int cycle_type       = 11;
+   MFEM_ASSERT(C != NULL, "");
+   MFEM_ASSERT(G != NULL, "");
+   MFEM_ASSERT(x != NULL, "");
+   MFEM_ASSERT(y != NULL, "");
+   MFEM_ASSERT(z != NULL, "");
+   int cycle_type = 11;
+   int ams_cycle_type = 14;
+
+   MakeSolver(cycle_type, ams_cycle_type);
+
+   HYPRE_ADSSetCoordinateVectors(ads, *x, *y, *z);
+   HYPRE_ADSSetDiscreteCurl(ads, *C);
+   HYPRE_ADSSetDiscreteGradient(ads, *G);
+}
+
+void HypreADS::MakeSolver(int cycle_type, int ams_cycle_type)
+{
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
@@ -5302,8 +5325,33 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    int amg_interp_type  = 6;
    int amg_Pmax         = 4;
 #endif
-   int ams_cycle_type   = 14;
 
+   HYPRE_ADSCreate(&ads);
+
+   HYPRE_ADSSetTol(ads, 0.0);
+   HYPRE_ADSSetMaxIter(ads, 1); // use as a preconditioner
+   HYPRE_ADSSetCycleType(ads, cycle_type);
+   HYPRE_ADSSetPrintLevel(ads, 1);
+
+   // set additional ADS options
+   HYPRE_ADSSetSmoothingOptions(ads, rlx_type, rlx_sweeps, rlx_weight, rlx_omega);
+   HYPRE_ADSSetAMGOptions(ads, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
+                          theta, amg_interp_type, amg_Pmax);
+   HYPRE_ADSSetAMSOptions(ads, ams_cycle_type, amg_coarsen_type, amg_agg_levels,
+                          amg_rlx_type, theta, amg_interp_type, amg_Pmax);
+
+   // The ADS preconditioner requires inverting singular matrices with BoomerAMG,
+   // which are handled correctly in hypre's Solve method, but can produce hypre
+   // errors in the Setup (specifically in the l1 row norm computation). See the
+   // documentation of SetErrorMode() for more details.
+   error_mode = IGNORE_HYPRE_ERRORS;
+}
+
+void HypreADS::MakeDiscreteMatrices(
+   ParFiniteElementSpace *face_fespace,
+   int cycle_type,
+   int ams_cycle_type)
+{
    const FiniteElementCollection *face_fec = face_fespace->FEColl();
    bool trace_space =
       (dynamic_cast<const RT_Trace_FECollection*>(face_fec) != NULL);
@@ -5320,13 +5368,6 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
          p = face_fespace->GetElementOrder(0);
       }
    }
-
-   HYPRE_ADSCreate(&ads);
-
-   HYPRE_ADSSetTol(ads, 0.0);
-   HYPRE_ADSSetMaxIter(ads, 1); // use as a preconditioner
-   HYPRE_ADSSetCycleType(ads, cycle_type);
-   HYPRE_ADSSetPrintLevel(ads, 1);
 
    // define the nodal and edge finite element spaces associated with face_fespace
    ParMesh *pmesh = (ParMesh *) face_fespace->GetMesh();
@@ -5501,19 +5542,14 @@ void HypreADS::Init(ParFiniteElementSpace *face_fespace)
    delete vert_fespace;
    delete edge_fec;
    delete edge_fespace;
+}
 
-   // set additional ADS options
-   HYPRE_ADSSetSmoothingOptions(ads, rlx_type, rlx_sweeps, rlx_weight, rlx_omega);
-   HYPRE_ADSSetAMGOptions(ads, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
-                          theta, amg_interp_type, amg_Pmax);
-   HYPRE_ADSSetAMSOptions(ads, ams_cycle_type, amg_coarsen_type, amg_agg_levels,
-                          amg_rlx_type, theta, amg_interp_type, amg_Pmax);
-
-   // The ADS preconditioner requires inverting singular matrices with BoomerAMG,
-   // which are handled correctly in hypre's Solve method, but can produce hypre
-   // errors in the Setup (specifically in the l1 row norm computation). See the
-   // documentation of SetErrorMode() for more details.
-   error_mode = IGNORE_HYPRE_ERRORS;
+void HypreADS::Init(ParFiniteElementSpace *face_fespace)
+{
+   int cycle_type = 11;
+   int ams_cycle_type = 14;
+   MakeSolver(cycle_type, ams_cycle_type);
+   MakeDiscreteMatrices(face_fespace, cycle_type, ams_cycle_type);
 }
 
 void HypreADS::SetOperator(const Operator &op)
