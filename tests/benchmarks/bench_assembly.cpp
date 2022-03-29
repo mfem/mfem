@@ -105,24 +105,27 @@ struct Problem: public BakeOff
       ess_bdr(mesh.bdr_attributes.Max()),
       b(&fes)
    {
-      ess_bdr = 1;
-      fes.GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
-      b.AddDomainIntegrator(new DomainLFIntegrator(one));
-      b.Assemble();
+      if (is_runnable())
+      {
+         ess_bdr = 1;
+         fes.GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+         b.AddDomainIntegrator(new DomainLFIntegrator(one));
+         b.Assemble();
 
-      a.SetAssemblyLevel(assembly);
-      a.AddDomainIntegrator(new BFI(one, GLL?irGLL:ir));
-      a.Assemble();
-      a.Mult(x, y);
+         a.SetAssemblyLevel(assembly);
+         a.AddDomainIntegrator(new BFI(one, GLL?irGLL:ir));
+         a.Assemble();
+         a.Mult(x, y);
 
-      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+         a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-      cg.SetRelTol(rtol);
-      cg.SetOperator(*A);
-      cg.SetMaxIter(max_it);
-      cg.SetPrintLevel(print_lvl);
-      cg.iterative_mode = false;
-      MFEM_DEVICE_SYNC;
+         cg.SetRelTol(rtol);
+         cg.SetOperator(*A);
+         cg.SetMaxIter(max_it);
+         cg.SetPrintLevel(print_lvl);
+         cg.iterative_mode = false;
+         MFEM_DEVICE_SYNC;
+      }
    }
 
    void setup() override
@@ -250,12 +253,15 @@ struct Kernel: public BakeOff
    Kernel(AssemblyLevel assembly, int order, int N)
    : BakeOff(assembly,order,N,VDIM,GLL), y(&fes)
    {
-      x.Randomize(1);
-      a.SetAssemblyLevel(assembly);
-      a.AddDomainIntegrator(new BFI(one, GLL?irGLL:ir));
-      a.Assemble();
-      a.Mult(x, y);
-      MFEM_DEVICE_SYNC;
+      if (is_runnable())
+      {
+         x.Randomize(1);
+         a.SetAssemblyLevel(assembly);
+         a.AddDomainIntegrator(new BFI(one, GLL?irGLL:ir));
+         a.Assemble();
+         a.Mult(x, y);
+         MFEM_DEVICE_SYNC;
+      }
    }
 
    void setup() override
