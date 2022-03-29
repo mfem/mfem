@@ -207,8 +207,7 @@ int main(int argc, char *argv[])
    }
    else if (RT && dim == 3)
    {
-      // solv_lor.reset(new LORSolver<HypreADS>(lor, &fes_lor));
-      MFEM_ABORT("");
+      solv_lor.reset(new LORSolver<HypreADS>(a, ess_dofs));
    }
    else
    {
