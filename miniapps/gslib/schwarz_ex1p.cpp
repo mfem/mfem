@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
 
    // Check number of mpi ranks specified for each mesh. If individual mpi ranks
    // are not specified for all the meshes, set some default values.
-   MFEM_VERIFY(num_procs > nmeshes, "Not enough MPI ranks.");
+   MFEM_VERIFY(num_procs >= nmeshes, "Not enough MPI ranks.");
    if (np_list.Sum() == 0)
    {
       int np_per_mesh = num_procs/nmeshes;
