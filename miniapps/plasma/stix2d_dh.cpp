@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 //
 //   -----------------------------------------------------------------------
 //       Stix2D_DH Miniapp: Cold Plasma Electromagnetic Simulation Code
@@ -114,6 +114,7 @@
 #include "cold_plasma_dielectric_dh_solver.hpp"
 #include "../common/mesh_extras.hpp"
 #include "plasma.hpp"
+#include "g_eqdsk_data.hpp"
 #include <fstream>
 #include <iostream>
 #include <cmath>
@@ -1126,7 +1127,10 @@ int main(int argc, char *argv[])
    }
 
    // Ensure that quad and hex meshes are treated as non-conforming.
-   mesh->EnsureNCMesh();
+   if (maxit > 1)
+   {
+      mesh->EnsureNCMesh();
+   }
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
@@ -1170,7 +1174,14 @@ int main(int argc, char *argv[])
       if (ieqdsk)
       {
          eqdsk = new G_EQDSK_Data(ieqdsk);
-         if (mpi.Root()) { eqdsk->PrintInfo();}
+         if (mpi.Root())
+         {
+            eqdsk->PrintInfo();
+            if (logging > 0)
+            {
+               eqdsk->DumpGnuPlotData("stix2d_dh_eqdsk");
+            }
+         }
       }
    }
    /*
@@ -1737,6 +1748,10 @@ int main(int argc, char *argv[])
       //nu_gf *= 1/omega;
       visit_dc.RegisterField("Collisional Profile", &nu_gf);
 
+      visit_dc.RegisterField("B_background", &BField);
+
+      visit_dc.SetCycle(0);
+      visit_dc.Save();
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
