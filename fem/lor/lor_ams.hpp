@@ -25,11 +25,7 @@ namespace mfem
 // Helper class for assembling the discrete gradient and coordinate vectors
 // needed by the AMS solver. Generally, this class should *not* be directly used
 // by users, instead use LORSolver<HypreAMS> (which internally uses this class).
-
-// TODO: separate BatchedLOR_AMS from BatchedLOR_ND
-// perhaps make friend class so can steal Xvert, but that's it
-
-class BatchedLOR_AMS : public BatchedLOR_ND
+class BatchedLOR_AMS
 {
 protected:
    ParFiniteElementSpace &edge_fes;
@@ -45,9 +41,8 @@ protected:
    void Form2DEdgeToVertex(DenseMatrix &edge2vert);
    void Form3DEdgeToVertex(DenseMatrix &edge2vert);
 public:
-   BatchedLOR_AMS(BilinearForm &a_,
-                  ParFiniteElementSpace &pfes_ho_,
-                  const Array<int> &ess_dofs_);
+   BatchedLOR_AMS(ParFiniteElementSpace &pfes_ho_,
+                  const Vector &X_vert);
    HypreParMatrix *StealGradientMatrix();
    Vector *StealCoordinateVector();
    HypreParVector *StealXCoordinate();
@@ -60,7 +55,7 @@ public:
    HypreParVector *GetZCoordinate() const { return z; };
 
    // The following should be protected, but contain MFEM_FORALL kernels
-   void FormCoordinateVectors();
+   void FormCoordinateVectors(const Vector &X_vert);
    void FormGradientMatrix();
    ~BatchedLOR_AMS();
 };

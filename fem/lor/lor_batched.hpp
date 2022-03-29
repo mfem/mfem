@@ -33,9 +33,6 @@ protected:
 
    Vector X_vert; ///< LOR vertex coordinates.
 
-   /// Get the vertices of the LOR mesh and place the result in @a X_vert.
-   void GetLORVertexCoordinates();
-
    /// @brief The elementwise LOR matrices in a sparse "ij" format.
    ///
    /// This is interpreted to have shape (nnz_per_row, ndof_per_el, nel_ho). For
@@ -65,7 +62,15 @@ public:
                         const Array<int> &ess_dofs,
                         OperatorHandle &A);
 
+   /// Compute the vertices of the LOR mesh and place the result in @a X_vert.
+   static void FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
+                                        Vector &X_vert);
+
+   /// Return the vertices of the LOR mesh in E-vector format
+   const Vector &GetLORVertexCoordinates() { return X_vert; }
+
 protected:
+
    /// After assembling the "sparse IJ" format, convert it to CSR.
    void SparseIJToCSR(OperatorHandle &A) const;
 

@@ -18,15 +18,14 @@ namespace mfem
 
 #ifdef MFEM_USE_MPI
 
-BatchedLOR_ADS::BatchedLOR_ADS(BilinearForm &a,
-                               ParFiniteElementSpace &pfes_ho_,
-                               const Array<int> &ess_dofs)
+BatchedLOR_ADS::BatchedLOR_ADS(ParFiniteElementSpace &pfes_ho_,
+                               const Vector &X_vert)
    : face_fes(pfes_ho_),
      dim(face_fes.GetParMesh()->Dimension()),
      order(face_fes.GetMaxElementOrder()),
      edge_fec(order, dim),
      edge_fes(face_fes.GetParMesh(), &edge_fec),
-     ams(a, edge_fes, ess_dofs)
+     ams(edge_fes, X_vert)
 {
    FormCurlMatrix();
 }
@@ -46,10 +45,10 @@ LORSolver<HypreADS>::LORSolver(
 {
    if (BatchedLORAssembly::FormIsSupported(a_ho))
    {
-      // ParFiniteElementSpace &pfes = *a_ho.ParFESpace();
-      // BatchedLOR_ADS lor_ads(a_ho, pfes, ess_tdof_list);
-      // BatchedLOR_RT lor_rt(a_ho, pfes, ess_tdof_list);
-      // lor_rt.Assemble(A);
+      ParFiniteElementSpace &pfes = *a_ho.ParFESpace();
+      BatchedLOR_RT lor_rt(a_ho, pfes, ess_tdof_list);
+      BatchedLOR_ADS lor_ads(pfes, lor_rt.GetLORVertexCoordinates());
+      lor_rt.Assemble(A);
       // xyz = batched_lor.StealCoordinateVector();
       // solver = new HypreADS(*A.As<HypreParMatrix>(),
       //                       batched_lor.StealGradientMatrix(),
