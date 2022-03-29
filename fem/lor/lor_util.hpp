@@ -167,6 +167,19 @@ MFEM_HOST_DEVICE inline void Jacobian3D(
             + x*(1-y)*vz[5] + x*y*vz[6] + (1-x)*y*vz[7];
 }
 
+MFEM_HOST_DEVICE inline void Adjugate3D(const DeviceMatrix &J, DeviceMatrix &A)
+{
+   A(0,0) = (J(1,1) * J(2,2)) - (J(1,2) * J(2,1));
+   A(0,1) = (J(2,1) * J(0,2)) - (J(0,1) * J(2,2));
+   A(0,2) = (J(0,1) * J(1,2)) - (J(1,1) * J(0,2));
+   A(1,0) = (J(2,0) * J(1,2)) - (J(1,0) * J(2,2));
+   A(1,1) = (J(0,0) * J(2,2)) - (J(0,2) * J(2,0));
+   A(1,2) = (J(1,0) * J(0,2)) - (J(0,0) * J(1,2));
+   A(2,0) = (J(1,0) * J(2,1)) - (J(2,0) * J(1,1));
+   A(2,1) = (J(2,0) * J(0,1)) - (J(0,0) * J(2,1));
+   A(2,2) = (J(0,0) * J(1,1)) - (J(0,1) * J(1,0));
+}
+
 MFEM_HOST_DEVICE inline double Det2D(DeviceMatrix &J)
 {
    return J(0,0)*J(1,1) - J(1,0)*J(0,1);

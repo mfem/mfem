@@ -290,22 +290,16 @@ void BatchedLOR_ND::Assemble3D()
                         const double w_detJ = w/detJ;
 
                         // adj(J)
-                        const double A11 = (J(1,1) * J(2,2)) - (J(1,2) * J(2,1));
-                        const double A12 = (J(2,1) * J(0,2)) - (J(0,1) * J(2,2));
-                        const double A13 = (J(0,1) * J(1,2)) - (J(1,1) * J(0,2));
-                        const double A21 = (J(2,0) * J(1,2)) - (J(1,0) * J(2,2));
-                        const double A22 = (J(0,0) * J(2,2)) - (J(0,2) * J(2,0));
-                        const double A23 = (J(1,0) * J(0,2)) - (J(0,0) * J(1,2));
-                        const double A31 = (J(1,0) * J(2,1)) - (J(2,0) * J(1,1));
-                        const double A32 = (J(2,0) * J(0,1)) - (J(0,0) * J(2,1));
-                        const double A33 = (J(0,0) * J(1,1)) - (J(0,1) * J(1,0));
+                        double A_[3*3];
+                        DeviceTensor<2> A(A_, 3, 3);
+                        Adjugate3D(J, A);
 
-                        Q(0,iqz,iqy,iqx) = w_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
-                        Q(1,iqz,iqy,iqx) = w_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
-                        Q(2,iqz,iqy,iqx) = w_detJ * (A11*A31 + A12*A32 + A13*A33); // 3,1
-                        Q(3,iqz,iqy,iqx) = w_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
-                        Q(4,iqz,iqy,iqx) = w_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
-                        Q(5,iqz,iqy,iqx) = w_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
+                        Q(0,iqz,iqy,iqx) = w_detJ*(A(0,0)*A(0,0)+A(0,1)*A(0,1)+A(0,2)*A(0,2)); // 1,1
+                        Q(1,iqz,iqy,iqx) = w_detJ*(A(0,0)*A(1,0)+A(0,1)*A(1,1)+A(0,2)*A(1,2)); // 2,1
+                        Q(2,iqz,iqy,iqx) = w_detJ*(A(0,0)*A(2,0)+A(0,1)*A(2,1)+A(0,2)*A(2,2)); // 3,1
+                        Q(3,iqz,iqy,iqx) = w_detJ*(A(1,0)*A(1,0)+A(1,1)*A(1,1)+A(1,2)*A(1,2)); // 2,2
+                        Q(4,iqz,iqy,iqx) = w_detJ*(A(1,0)*A(2,0)+A(1,1)*A(2,1)+A(1,2)*A(2,2)); // 3,2
+                        Q(5,iqz,iqy,iqx) = w_detJ*(A(2,0)*A(2,0)+A(2,1)*A(2,1)+A(2,2)*A(2,2)); // 3,3
 
                         // w J^T J / det(J)
                         Q(6,iqz,iqy,iqx)  = w_detJ*(J(0,0)*J(0,0)+J(1,0)*J(1,0)+J(2,0)*J(2,0)); // 1,1
