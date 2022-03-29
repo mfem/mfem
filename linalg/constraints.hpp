@@ -325,6 +325,9 @@ public:
    PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B,
                             double penalty_);
 
+   PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B,
+                            Vector& penalty_);
+
    ~PenaltyConstrainedSolver();
 
    void Mult(const Vector& x, Vector& y) const override;
@@ -343,7 +346,7 @@ protected:
    /// Select krylov solver for penalized system
    virtual IterativeSolver* BuildKrylov() const = 0;
 
-   double penalty;
+   Vector penalty;
    Operator& constraintB;
    HypreParMatrix * penalized_mat;
    mutable IterativeSolver * krylov;
@@ -362,6 +365,12 @@ public:
    { }
 
    PenaltyPCGSolver(HypreParMatrix& A, HypreParMatrix& B, double penalty_,
+                    int dimension=0, bool reorder=false) :
+      PenaltyConstrainedSolver(A, B, penalty_),
+      dimension_(dimension), reorder_(reorder)
+   { }
+
+   PenaltyPCGSolver(HypreParMatrix& A, HypreParMatrix& B, Vector& penalty_,
                     int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)
@@ -395,6 +404,12 @@ public:
    { }
 
    PenaltyGMRESSolver(HypreParMatrix& A, HypreParMatrix& B, double penalty_,
+                    int dimension=0, bool reorder=false) :
+      PenaltyConstrainedSolver(A, B, penalty_),
+      dimension_(dimension), reorder_(reorder)
+   { }
+
+   PenaltyGMRESSolver(HypreParMatrix& A, HypreParMatrix& B, Vector& penalty_,
                     int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)

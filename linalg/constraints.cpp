@@ -366,7 +366,7 @@ void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
    HypreParMatrix * hBTB = ParMult(hBT, &B, true);
    // this matrix doesn't get cleanly deleted?
    // (hypre comm pkg)
-   (*hBTB) *= penalty;
+   hBTB->ScaleRows(penalty);
    penalized_mat = ParAdd(&A, hBTB);
    delete hBTB;
    delete hBT;
@@ -376,7 +376,7 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    HypreParMatrix& A, SparseMatrix& B, double penalty_)
    :
    ConstrainedSolver(A.GetComm(), A, B),
-   penalty(penalty_),
+   penalty(B.Height()),
    constraintB(B),
    krylov(nullptr),
    prec(nullptr)
@@ -404,10 +404,24 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    hB.CopyRowStarts();
    hB.CopyColStarts();
    Initialize(A, hB);
+   penalty=penalty_;
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    HypreParMatrix& A, HypreParMatrix& B, double penalty_)
+   :
+   ConstrainedSolver(A.GetComm(), A, B),
+   penalty(B.Height()),
+   constraintB(B),
+   krylov(nullptr),
+   prec(nullptr)
+{
+   Initialize(A, B);
+   penalty=penalty_;
+}
+
+PenaltyConstrainedSolver::PenaltyConstrainedSolver(
+   HypreParMatrix& A, HypreParMatrix& B, Vector& penalty_)
    :
    ConstrainedSolver(A.GetComm(), A, B),
    penalty(penalty_),
