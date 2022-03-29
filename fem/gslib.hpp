@@ -50,11 +50,13 @@ public:
    enum AvgType {NONE, ARITHMETIC, HARMONIC}; // Average type for L2 functions
 
 protected:
-   Mesh *mesh, *meshsplit_tri, *meshsplit_tet, *meshsplit_prism;
-   IntegrationRule *ir_tri, *ir_tet, *ir_prism;
+   Mesh *mesh, *meshsplit_tri, *meshsplit_tet, *meshsplit_prism, *meshsplit_pyr;
+   IntegrationRule *ir_tri, *ir_tet, *ir_prism, *ir_pyr;
    FiniteElementCollection *fec_map_lin;
-   FiniteElementSpace *rst_map_tri, *rst_map_tet, *rst_map_prism;
-   GridFunction *gf_rst_map_tri, *gf_rst_map_tet, *gf_rst_map_prism;
+   FiniteElementSpace *fes_rst_map_tri, *fes_rst_map_tet, *fes_rst_map_prism,
+                      *fes_rst_map_pyr;
+   GridFunction *gf_rst_map_tri, *gf_rst_map_tet, *gf_rst_map_prism,
+                *gf_rst_map_pyr;
    struct gslib::findpts_data_2 *fdata2D; // gslib's internal data
    struct gslib::findpts_data_3 *fdata3D; // gslib's internal data
    struct gslib::crystal *cr;             // gslib's internal data
@@ -69,25 +71,30 @@ protected:
    Array<int> splitElementIndex;
    int        NE_split_Total;
 
-   /// Convert simplices to quad/hexes and then get nodal coordinates for each
-   /// split element into format expected by GSLIB
-   virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals);
-
    /// Use GSLIB for communication and interpolation
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);
    /// Uses GSLIB Crystal Router for communication followed by MFEM's
    /// interpolation functions
    virtual void InterpolateGeneral(const GridFunction &field_in,
                                    Vector &field_out);
-   /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices mesh
-   /// find the original element number (that was split into micro quads/hexes
-   /// by GetSimplexNodalCoordinates())
-   virtual void MapRefPosAndElemIndices();
 
+   /// Since GSLIB is designed to work with quads/hexes, we split every
+   /// triangle/tet/prism/pyramid element into quads/hexes.
    virtual void SetupSplitMeshes();
+
+   /// Setup integration points that will be used to interpolate the nodal
+   /// location at points expected by GSLIB.
    virtual void SetupIntegrationRuleForSplitMesh(Mesh *mesh,
                                                  IntegrationRule *irule,
                                                  int order);
+
+   /// Get GridFunction value at the points expected by GSLIB.
+   virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals);
+
+   /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices,
+   /// find the original element number (that was split into micro quads/hexes
+   /// by GetSimplexNodalCoordinates())
+   virtual void MapRefPosAndElemIndices();
 
 public:
    FindPointsGSLIB();
