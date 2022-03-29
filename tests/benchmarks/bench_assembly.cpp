@@ -65,6 +65,7 @@ struct BakeOff
       a(&fes),
       mdofs(0.0) {}
 
+   /// @brief Heuristic to evaluate if the case will run out of memory
    bool is_runnable() const
    {
       const long long int gB = 1073741824/8;
@@ -164,7 +165,8 @@ static void SetupBP##i##assembly(bm::State &state){\
    while (state.KeepRunning()) { ker.setup(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
-   state.counters["Order"] = bm::Counter(ker.p);}\
+   state.counters["Order"] = bm::Counter(ker.p);\
+   state.counters["Assembly"] = (int)AssemblyLevel::assembly;}\
 BENCHMARK(SetupBP##i##assembly)->ArgsProduct({\
       benchmark::CreateRange(1024, max_dofs, /*step=*/2),\
       benchmark::CreateDenseRange(1, max_order, /*step=*/1)\
@@ -180,7 +182,8 @@ static void BP##i##assembly(bm::State &state){\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
-   state.counters["Order"] = bm::Counter(ker.p);}\
+   state.counters["Order"] = bm::Counter(ker.p);\
+   state.counters["Assembly"] = (int)AssemblyLevel::assembly;}\
 BENCHMARK(BP##i##assembly)->ArgsProduct({\
       benchmark::CreateRange(1024, max_dofs, /*step=*/2),\
       benchmark::CreateDenseRange(1, max_order, /*step=*/1)\
@@ -291,7 +294,8 @@ static void BK##i##assembly(bm::State &state){\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
-   state.counters["Order"] = bm::Counter(ker.p);}\
+   state.counters["Order"] = bm::Counter(ker.p);\
+   state.counters["Assembly"] = (int)AssemblyLevel::assembly;}\
 BENCHMARK(BK##i##assembly)->ArgsProduct({\
       benchmark::CreateRange(1024, max_dofs, /*step=*/2),\
       benchmark::CreateDenseRange(1, max_order, /*step=*/1)\
