@@ -1168,7 +1168,7 @@ int main(int argc, char *argv[])
                                 900, 900, 300, 300);
       }
       double err_avg, err_max;
-      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      tmop_integ->GetSurfaceFittingErrors(x, err_avg, err_max);
       std::cout << "Avg fitting error: " << err_avg << std::endl
                 << "Max fitting error: " << err_max << std::endl;
    }
