@@ -225,6 +225,8 @@ TEST_CASE("Parallel LOR Batched RT", "[LOR][BatchedLOR][Parallel][CUDA]")
 
 TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
 {
+   enum SpaceType { ND, RT };
+   auto space_type = GENERATE(ND, RT);
    auto mesh_fname = GENERATE(
                         "../../data/star-q3.mesh",
                         "../../data/fichera-q3.mesh"
@@ -237,9 +239,15 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
 
    const int dim = mesh.Dimension();
 
-   ND_FECollection fec(order, dim, BasisType::GaussLobatto,
-                       BasisType::IntegratedGLL);
-   ParFiniteElementSpace fespace(&mesh, &fec);
+   // Only test RT spaces in 2D
+   if (space_type == RT && dim == 3) { return; }
+
+   std::unique_ptr<FiniteElementCollection> fec;
+   int b1 = BasisType::GaussLobatto, b2 = BasisType::IntegratedGLL;
+   if (space_type == ND) { fec.reset(new ND_FECollection(order, dim, b1, b2)); }
+   else { fec.reset(new RT_FECollection(order-1, dim, b1, b2)); }
+
+   ParFiniteElementSpace fespace(&mesh, fec.get());
 
    ParLORDiscretization lor(fespace);
    ParFiniteElementSpace &edge_fespace = lor.GetParFESpace();

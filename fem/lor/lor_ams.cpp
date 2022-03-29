@@ -20,6 +20,23 @@ namespace mfem
 
 void BatchedLOR_AMS::Form2DEdgeToVertex(DenseMatrix &edge2vert)
 {
+   const FiniteElementCollection *fec = edge_fes.FEColl();
+   if (dynamic_cast<const ND_FECollection*>(fec))
+   {
+      Form2DEdgeToVertex_ND(edge2vert);
+   }
+   else if (dynamic_cast<const RT_FECollection*>(fec))
+   {
+      Form2DEdgeToVertex_RT(edge2vert);
+   }
+   else
+   {
+      MFEM_ABORT("Bad finite element type.")
+   }
+}
+
+void BatchedLOR_AMS::Form2DEdgeToVertex_ND(DenseMatrix &edge2vert)
+{
    const int o = order;
    const int op1 = o + 1;
    const int nedge = dim*o*pow(op1, dim-1);
@@ -47,6 +64,38 @@ void BatchedLOR_AMS::Form2DEdgeToVertex(DenseMatrix &edge2vert)
             edge2vert(0, iedge) = iv0;
             edge2vert(1, iedge) = iv1;
          }
+      }
+   }
+}
+
+void BatchedLOR_AMS::Form2DEdgeToVertex_RT(DenseMatrix &edge2vert)
+{
+   const int o = order;
+   const int op1 = o + 1;
+   const int nedge = dim*o*pow(op1, dim-1);
+
+   edge2vert.SetSize(2, nedge);
+
+   for (int c=0; c<dim; ++c)
+   {
+      const int nx = (c == 0) ? op1 : o;
+      for (int i=0; i<o*op1; ++i)
+      {
+         const int ix = i%nx;
+         const int iy = i/nx;
+
+         const int iedge = ix + iy*nx + c*o*op1;
+
+         const int ix1 = (c == 0) ? ix : ix + 1;
+         const int iy1 = (c == 1) ? iy : iy + 1;
+
+         const int iv0 = ix + iy*op1;
+         const int iv1 = ix1 + iy1*op1;
+
+         // Rotated gradient in 2D (-dy, dx), so flip the sign for the first
+         // component (c == 0).
+         edge2vert(0, iedge) = (c == 1) ? iv0 : iv1;
+         edge2vert(1, iedge) = (c == 1) ? iv1 : iv0;
       }
    }
 }
@@ -200,7 +249,7 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    // We place the results in the vector xyz_tvec, which has shape (ntdofs, dim)
    // and then make the hypre vectors x, y, and z point to subvectors.
    //
-   // In 2D, z is simply NULL.
+   // In 2D, z is NULL.
 
    // Create the H1 vertex space and get the element restriction
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -304,9 +353,10 @@ LORSolver<HypreAMS>::LORSolver(
    if (BatchedLORAssembly::FormIsSupported(a_ho))
    {
       ParFiniteElementSpace &pfes = *a_ho.ParFESpace();
-      BatchedLOR_ND lor_nd(a_ho, pfes, ess_tdof_list);
-      lor_nd.Assemble(A);
-      BatchedLOR_AMS lor_ams(pfes, lor_nd.GetLORVertexCoordinates());
+      BatchedLORAssembly::Assemble(a_ho, pfes, ess_tdof_list, A);
+      Vector X_vert;
+      BatchedLORAssembly::FormLORVertexCoordinates(pfes, X_vert);
+      BatchedLOR_AMS lor_ams(pfes, X_vert);
       xyz = lor_ams.StealCoordinateVector();
       solver = new HypreAMS(*A.As<HypreParMatrix>(),
                             lor_ams.StealGradientMatrix(),
