@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1081,8 +1081,7 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
    // Order is one of {RealOrder-1,RealOrder}
    AllocIntRule(SegmentIntRules, RealOrder);
 
-   IntegrationRule tmp, *ir;
-   ir = refined ? &tmp : new IntegrationRule;
+   IntegrationRule *ir = new IntegrationRule;
 
    int n = 0;
    // n is the number of points to achieve the exact integral of a
@@ -1132,14 +1131,16 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
    if (refined)
    {
       // Effectively passing memory management to SegmentIntegrationRules
-      ir = new IntegrationRule(2*n);
+      IntegrationRule *refined_ir = new IntegrationRule(2*n);
       for (int j = 0; j < n; j++)
       {
-         ir->IntPoint(j).x = tmp.IntPoint(j).x/2.0;
-         ir->IntPoint(j).weight = tmp.IntPoint(j).weight/2.0;
-         ir->IntPoint(j+n).x = 0.5 + tmp.IntPoint(j).x/2.0;
-         ir->IntPoint(j+n).weight = tmp.IntPoint(j).weight/2.0;
+         refined_ir->IntPoint(j).x = ir->IntPoint(j).x/2.0;
+         refined_ir->IntPoint(j).weight = ir->IntPoint(j).weight/2.0;
+         refined_ir->IntPoint(j+n).x = 0.5 + ir->IntPoint(j).x/2.0;
+         refined_ir->IntPoint(j+n).weight = ir->IntPoint(j).weight/2.0;
       }
+      delete ir;
+      ir = refined_ir;
    }
    SegmentIntRules[RealOrder-1] = SegmentIntRules[RealOrder] = ir;
    return ir;

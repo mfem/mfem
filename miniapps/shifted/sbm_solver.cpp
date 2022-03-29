@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -233,7 +233,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
    Vector D(vD->GetVDim());
    // Assemble: -< \nabla u.n, w >
    //           -< u + \nabla u.d + h.o.t, \nabla w.n>
-   //           -<alpha h^{-1} (u + \nabla u.d + h.o.t), w + \nabla w.d + h.o.t>
+   //           +<alpha h^{-1} (u + \nabla u.d + h.o.t), w + \nabla w.d + h.o.t>
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
@@ -324,10 +324,9 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       w = ip.weight*alpha*hinvdx;
       // + <alpha * hinv * u + grad u.d + h.o.t, w + grad w.d + h.o.t> - Term 4
       AddMult_a_VVt(w, wrk, temp_elmat);
-
-      int offset = elem1f ? 0 : ndof1;
-      elmat.CopyMN(temp_elmat, offset, offset);
    } // p < ir->GetNPoints()
+   int offset = elem1f ? 0 : ndof1;
+   elmat.CopyMN(temp_elmat, offset, offset);
 
    for (int i = 0; i < dkphi_dxk.Size(); i++)
    {
@@ -436,8 +435,8 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       }
    }
 
-   temp_elvect.SetSize(ndof);
-   temp_elvect = 0.0;
+   int offset = elem1f ? 0 : ndof1;
+   temp_elvect.SetDataAndSize(elvect.GetData()+offset, ndof);
 
    nor.SetSize(dim);
    nh.SetSize(dim);
@@ -541,10 +540,9 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
    Vector D(vD->GetVDim());
    Vector wrk = shape;
    // Assemble: -< u_D, \nabla w.n >
-   //           -<alpha h^{-1} u_D, w + \nabla w.d + h.o.t>
+   //           +<alpha h^{-1} u_D, w + \nabla w.d + h.o.t>
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
-
       const IntegrationPoint &ip = ir->IntPoint(p);
 
       // Set the integration point in the face and the neighboring element
@@ -636,12 +634,6 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       wrk += dshape_dd; // \grad w .d
       wrk += q_hess_dot_d;
       temp_elvect.Add(w, wrk); // <u, gradw.d>
-
-      int offset = elem1f ? 0 : ndof1;
-      for (int i = 0; i < temp_elvect.Size(); i++)
-      {
-         elvect(i+offset) = temp_elvect(i);
-      }
    }
 
    for (int i = 0; i < dkphi_dxk.Size(); i++)
@@ -927,9 +919,9 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
       wrk *= ip.weight * n_dot_ntilde;
 
       AddMult_a_VWt(1., shape, wrk, temp_elmat);
-      int offset = elem1f ? 0 : ndof1;
-      elmat.CopyMN(temp_elmat, offset, offset);
    } //p < ir->GetNPoints()
+   int offset = elem1f ? 0 : ndof1;
+   elmat.CopyMN(temp_elmat, offset, offset);
 
    for (int i = 0; i < dkphi_dxk.Size(); i++)
    {
@@ -1036,8 +1028,8 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
       }
    }
 
-   temp_elvect.SetSize(ndof);
-   temp_elvect = 0.0;
+   int offset = elem1f ? 0 : ndof1;
+   temp_elvect.SetDataAndSize(elvect.GetData()+offset, ndof);
 
    nor.SetSize(dim);
    shape.SetSize(ndof);
@@ -1094,12 +1086,6 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
       wrk.Set(n_dot_ntilde*w, shape);
       //<w, (nhat.n)t_n)
       temp_elvect.Add(1., wrk);
-
-      int offset = elem1f ? 0 : ndof1;
-      for (int i = 0; i < temp_elvect.Size(); i++)
-      {
-         elvect(i+offset) = temp_elvect(i);
-      }
    }
 }
 
