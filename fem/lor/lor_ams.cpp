@@ -90,7 +90,7 @@ void BatchedLOR_AMS::FormGradientMatrix()
    // (defined by its two vertices) e_i = (v_j1, v_j2), the matrix has nonzeros
    // A(i, j1) = -1 and A(i, j2) = 1, so there are always exactly two nonzeros
    // per row.
-   const int nedge_dof = fes_ho.GetNDofs();
+   const int nedge_dof = edge_fes.GetNDofs();
    const int nvert_dof = vert_fes.GetNDofs();
 
    SparseMatrix G_local;
@@ -114,10 +114,10 @@ void BatchedLOR_AMS::FormGradientMatrix()
    const auto *R_v = dynamic_cast<const ElementRestriction*>(
                         vert_fes.GetElementRestriction(ordering));
    const auto *R_e = dynamic_cast<const ElementRestriction*>(
-                        fes_ho.GetElementRestriction(ordering));
+                        edge_fes.GetElementRestriction(ordering));
    MFEM_VERIFY(R_v != NULL && R_e != NULL, "");
 
-   const int nel_ho = fes_ho.GetNE();
+   const int nel_ho = edge_fes.GetNE();
    const int nedge_per_el = dim*order*pow(order + 1, dim - 1);
    const int nvert_per_el = pow(order + 1, dim);
 
@@ -187,7 +187,7 @@ void BatchedLOR_AMS::FormGradientMatrix()
    G->CopyColStarts();
 }
 
-void BatchedLOR_AMS::FormCoordinateVectors()
+void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
 {
    // Create true-DOF vectors x, y, and z that contain the coordinates of the
    // vertices of the LOR mesh. The vertex coordinates are already computed in
@@ -293,18 +293,15 @@ BatchedLOR_AMS::~BatchedLOR_AMS()
    delete G;
 }
 
-BatchedLOR_AMS::BatchedLOR_AMS(BilinearForm &a_,
-                               ParFiniteElementSpace &pfes_ho_,
-                               const Array<int> &ess_dofs_)
-   : BatchedLOR_ND(a_, pfes_ho_, ess_dofs_),
-     edge_fes(pfes_ho_),
+BatchedLOR_AMS::BatchedLOR_AMS(ParFiniteElementSpace &pfes_ho_,
+                               const Vector &X_vert)
+   : edge_fes(pfes_ho_),
      dim(edge_fes.GetParMesh()->Dimension()),
      order(edge_fes.GetMaxElementOrder()),
      vert_fec(order, dim),
      vert_fes(edge_fes.GetParMesh(), &vert_fec)
 {
-   // Form the coordinate vectors (uses X_vert) and gradient matrix
-   FormCoordinateVectors();
+   FormCoordinateVectors(X_vert);
    FormGradientMatrix();
 }
 
@@ -314,14 +311,15 @@ LORSolver<HypreAMS>::LORSolver(
    if (BatchedLORAssembly::FormIsSupported(a_ho))
    {
       ParFiniteElementSpace &pfes = *a_ho.ParFESpace();
-      BatchedLOR_AMS batched_lor(a_ho, pfes, ess_tdof_list);
-      batched_lor.Assemble(A);
-      xyz = batched_lor.StealCoordinateVector();
+      BatchedLOR_ND lor_nd(a_ho, pfes, ess_tdof_list);
+      lor_nd.Assemble(A);
+      BatchedLOR_AMS lor_ams(pfes, lor_nd.GetLORVertexCoordinates());
+      xyz = lor_ams.StealCoordinateVector();
       solver = new HypreAMS(*A.As<HypreParMatrix>(),
-                            batched_lor.StealGradientMatrix(),
-                            batched_lor.StealXCoordinate(),
-                            batched_lor.StealYCoordinate(),
-                            batched_lor.StealZCoordinate());
+                            lor_ams.StealGradientMatrix(),
+                            lor_ams.StealXCoordinate(),
+                            lor_ams.StealYCoordinate(),
+                            lor_ams.StealZCoordinate());
    }
    else
    {

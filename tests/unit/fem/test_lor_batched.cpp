@@ -255,13 +255,9 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
    grad.Finalize();
    std::unique_ptr<HypreParMatrix> G(grad.ParallelAssemble());
 
-   ConstantCoefficient diff_coeff(M_PI);
-   ConstantCoefficient mass_coeff(1.0/M_PI);
-
-   ParBilinearForm a(&fespace);
-   a.AddDomainIntegrator(new CurlCurlIntegrator(diff_coeff));
-   a.AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
-   BatchedLOR_AMS batched_lor(a, fespace, ess_dofs);
+   Vector X_vert;
+   BatchedLORAssembly::FormLORVertexCoordinates(fespace, X_vert);
+   BatchedLOR_AMS batched_lor(fespace, X_vert);
 
    TestSameMatrices(*G, *batched_lor.GetGradientMatrix());
 

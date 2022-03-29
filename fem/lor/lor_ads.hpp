@@ -37,9 +37,8 @@ protected:
    BatchedLOR_AMS ams;
    HypreParMatrix *C;
 public:
-   BatchedLOR_ADS(BilinearForm &a_,
-                  ParFiniteElementSpace &pfes_ho_,
-                  const Array<int> &ess_dofs_);
+   BatchedLOR_ADS(ParFiniteElementSpace &pfes_ho_,
+                  const Vector &X_vert);
    HypreParMatrix *StealGradientMatrix();
    HypreParMatrix *GetCurlMatrix() const { return C; };
    BatchedLOR_AMS &GetAMS() { return ams; }

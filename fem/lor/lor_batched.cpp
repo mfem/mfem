@@ -92,7 +92,8 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
    return false;
 }
 
-void BatchedLORAssembly::GetLORVertexCoordinates()
+void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
+                                                  Vector &X_vert)
 {
    Mesh &mesh_ho = *fes_ho.GetMesh();
    mesh_ho.EnsureNodes();
@@ -660,7 +661,7 @@ BatchedLORAssembly::BatchedLORAssembly(BilinearForm &a,
                                        const Array<int> &ess_dofs_)
    : fes_ho(fes_ho_), ess_dofs(ess_dofs_)
 {
-   GetLORVertexCoordinates();
+   FormLORVertexCoordinates(fes_ho, X_vert);
 }
 
 void BatchedLORAssembly::Assemble(BilinearForm &a,
