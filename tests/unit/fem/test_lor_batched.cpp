@@ -11,6 +11,7 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+#include "../../fem/lor/lor_ads.hpp"
 #include "../../fem/lor/lor_ams.hpp"
 #include <memory>
 #include <unordered_map>
@@ -236,12 +237,9 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
 
    const int dim = mesh.Dimension();
 
-   ND_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto,
+   ND_FECollection fec(order, dim, BasisType::GaussLobatto,
                        BasisType::IntegratedGLL);
    ParFiniteElementSpace fespace(&mesh, &fec);
-
-   Array<int> ess_dofs;
-   fespace.GetBoundaryTrueDofs(ess_dofs);
 
    ParLORDiscretization lor(fespace);
    ParFiniteElementSpace &edge_fespace = lor.GetParFESpace();
@@ -285,6 +283,46 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
       *z -= *batched_lor.GetZCoordinate();
       REQUIRE(z->Normlinf() == MFEM_Approx(0.0));
    }
+}
+
+TEST_CASE("LOR ADS", "[LOR][BatchedLOR][ADS][Parallel][CUDA]")
+{
+   // Only need to test ADS in 3D
+   auto mesh_fname = GENERATE("../../data/fichera-q3.mesh");
+   const int order = 5;
+
+   Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   const int dim = mesh.Dimension();
+
+   RT_FECollection fec(order-1, dim, BasisType::GaussLobatto,
+                       BasisType::IntegratedGLL);
+   ParFiniteElementSpace fespace(&mesh, &fec);
+
+   ND_FECollection fec_nd(order, dim, BasisType::GaussLobatto,
+                          BasisType::IntegratedGLL);
+   ParFiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+   // Note: the LOR fespaces include the DOF permutations built into R and P
+   ParLORDiscretization lor_face(fespace);
+   ParFiniteElementSpace &face_fespace = lor_face.GetParFESpace();
+
+   ParLORDiscretization lor_edge(fespace_nd);
+   ParFiniteElementSpace &edge_fespace = lor_edge.GetParFESpace();
+
+   ParDiscreteLinearOperator curl(&edge_fespace, &face_fespace);
+   curl.AddDomainInterpolator(new CurlInterpolator);
+   curl.Assemble();
+   curl.Finalize();
+   std::unique_ptr<HypreParMatrix> C(curl.ParallelAssemble());
+
+   Vector X_vert;
+   BatchedLORAssembly::FormLORVertexCoordinates(fespace, X_vert);
+   BatchedLOR_ADS batched_lor(fespace, X_vert);
+
+   TestSameMatrices(*C, *batched_lor.GetCurlMatrix());
 }
 
 #endif // MFEM_USE_MPI
