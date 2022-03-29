@@ -21,6 +21,9 @@
   See: ceed.exascaleproject.org/bps and github.com/CEED/benchmarks
 */
 
+// The maximum number of dofs for benchmarking
+const int maxDofs = 1e7;
+
 struct BakeOff
 {
    const AssemblyLevel assembly;
@@ -177,15 +180,6 @@ BENCHMARK(BP##i##assembly)->ArgsProduct({\
       benchmark::CreateRange(1024, MaxDofs, /*step=*/2),\
       benchmark::CreateDenseRange(1, 6, /*step=*/1)\
     })->Unit(bm::kMillisecond);
-
-const int maxDofs = 1e7;
-// Device::IsEnabled()?32:8
-// const int maxDofs = 1e6;
-// auto pa_N = [](int p, int MaxSize)
-// {
-//    int dofs_per_elem = (p+1)*(p+1)*(p+1);
-//    return MaxSize/dofs_per_elem;
-// };
 
 // PARTIAL:
 /// BP1: scalar PCG with mass matrix, q=p+2
