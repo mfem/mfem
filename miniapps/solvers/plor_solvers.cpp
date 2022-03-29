@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
    args.ParseCheck();
 
    Device device(device_config);
-   device.Print();
+   if (Mpi::Root()) { device.Print(); }
 
    bool H1 = false, ND = false, RT = false, L2 = false;
    if (string(fe) == "h") { H1 = true; }

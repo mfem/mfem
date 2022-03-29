@@ -69,6 +69,11 @@ public:
    template <typename OpType>
    explicit OperatorHandle(OpType *A, bool own_A = true) { pSet(A, own_A); }
 
+   /// Shallow copy. The ownership flag of the target is set to false.
+   OperatorHandle(const OperatorHandle &other) :
+      oper(other.oper), type_id(other.type_id), own_oper(false)
+   {  }
+
    ~OperatorHandle() { if (own_oper) { delete oper; } }
 
    /// Shallow copy. The ownership flag of the target is set to false.
