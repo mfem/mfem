@@ -2732,7 +2732,8 @@ void NURBSExtension::UpdateKVRed()
       {
 
          // Check order
-         int dorder = KnotVecRed(edges[e[i]])->GetOrder() - knotVectorsExt[Dimension()*p+i]->GetOrder();
+         int dorder = KnotVecRed(edges[e[i]])->GetOrder() - knotVectorsExt[Dimension()*p
+                                                                           +i]->GetOrder();
          if (dorder)
          {
             if (ifupd[KnotIndRed(edges[e[i]])] == 1)
@@ -2808,12 +2809,14 @@ void NURBSExtension::CheckKVRedKVExt()
 
       for ( int i = 0; i < Dimension(); i++)
       {
-         int dorder = KnotVecRed(edges[e[i]])->GetOrder() - knotVectorsExt[Dimension()*p+i]->GetOrder();
+         int dorder = KnotVecRed(edges[e[i]])->GetOrder() - knotVectorsExt[Dimension()*p
+                                                                           +i]->GetOrder();
          if (dorder)
          {
-            mfem::out << "\nOrder of knotvector of extended array " << i << " of patch " << p;
-            mfem::out << " do not agree with order of knotvector of reduced array " << KnotIndRed(
-                         edges[e[i]]) << "\n";
+            mfem::out << "\nOrder of knotvector of extended array " << i << " of patch " <<
+                      p;
+            mfem::out << " do not agree with order of knotvector of reduced array " <<
+                      KnotIndRed(edges[e[i]]) << "\n";
          }
 
          if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
@@ -2822,9 +2825,10 @@ void NURBSExtension::CheckKVRedKVExt()
 
          if (diff.Size() > 0)
          {
-            mfem::out << "\nKnots of knotvector of extended array " << i << " of patch " << p;
-            mfem::out << " do not agree with knots of knotvector of reduced array " << KnotIndRed(
-                         edges[e[i]]) << "\n";
+            mfem::out << "\nKnots of knotvector of extended array " << i << " of patch " <<
+                      p;
+            mfem::out << " do not agree with knots of knotvector of reduced array " <<
+                      KnotIndRed(edges[e[i]]) << "\n";
 
             PrintKnotvectors();
 
