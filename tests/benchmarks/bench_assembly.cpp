@@ -21,8 +21,10 @@
   See: ceed.exascaleproject.org/bps and github.com/CEED/benchmarks
 */
 
+// The maximum polynomial order used for benchmarking
+const int max_order = 6;
 // The maximum number of dofs for benchmarking
-const int maxDofs = 1e7;
+const int max_dofs = 1e7;
 
 struct BakeOff
 {
@@ -147,7 +149,7 @@ struct Problem: public BakeOff
 };
 
 /// Bake-off Problems (BPs)
-#define BakeOff_Problem(assembly,i,Kernel,VDIM,MaxDofs,p_eq_q)\
+#define BakeOff_Problem(assembly,i,Kernel,VDIM,p_eq_q)\
 static void SetupBP##i##assembly(bm::State &state){\
    const int dim = 3;\
    const int p = state.range(1);\
@@ -161,8 +163,8 @@ static void SetupBP##i##assembly(bm::State &state){\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
    state.counters["Order"] = bm::Counter(ker.p);}\
 BENCHMARK(SetupBP##i##assembly)->ArgsProduct({\
-      benchmark::CreateRange(1024, MaxDofs, /*step=*/2),\
-      benchmark::CreateDenseRange(1, 6, /*step=*/1)\
+      benchmark::CreateRange(1024, max_dofs, /*step=*/2),\
+      benchmark::CreateDenseRange(1, max_order, /*step=*/1)\
     })->Unit(bm::kMillisecond);\
 static void BP##i##assembly(bm::State &state){\
    const int dim = 3;\
@@ -177,66 +179,66 @@ static void BP##i##assembly(bm::State &state){\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
    state.counters["Order"] = bm::Counter(ker.p);}\
 BENCHMARK(BP##i##assembly)->ArgsProduct({\
-      benchmark::CreateRange(1024, MaxDofs, /*step=*/2),\
-      benchmark::CreateDenseRange(1, 6, /*step=*/1)\
+      benchmark::CreateRange(1024, max_dofs, /*step=*/2),\
+      benchmark::CreateDenseRange(1, max_order, /*step=*/1)\
     })->Unit(bm::kMillisecond);
 
 // PARTIAL:
 /// BP1: scalar PCG with mass matrix, q=p+2
-BakeOff_Problem(PARTIAL,1,Mass,1,maxDofs,false)
+BakeOff_Problem(PARTIAL,1,Mass,1,false)
 
 /// BP2: vector PCG with mass matrix, q=p+2
-BakeOff_Problem(PARTIAL,2,VectorMass,3,maxDofs,false)
+BakeOff_Problem(PARTIAL,2,VectorMass,3,false)
 
 /// BP3: scalar PCG with stiffness matrix, q=p+2
-BakeOff_Problem(PARTIAL,3,Diffusion,1,maxDofs,false)
+BakeOff_Problem(PARTIAL,3,Diffusion,1,false)
 
 /// BP4: vector PCG with stiffness matrix, q=p+2
-BakeOff_Problem(PARTIAL,4,VectorDiffusion,3,maxDofs,false)
+BakeOff_Problem(PARTIAL,4,VectorDiffusion,3,false)
 
 /// BP5: scalar PCG with stiffness matrix, q=p+1
-BakeOff_Problem(PARTIAL,5,Diffusion,1,maxDofs,true)
+BakeOff_Problem(PARTIAL,5,Diffusion,1,true)
 
 /// BP6: vector PCG with stiffness matrix, q=p+1
-BakeOff_Problem(PARTIAL,6,VectorDiffusion,3,maxDofs,true)
+BakeOff_Problem(PARTIAL,6,VectorDiffusion,3,true)
 
 // ELEMENT:
 /// BP1: scalar PCG with mass matrix, q=p+2
-BakeOff_Problem(ELEMENT,1,Mass,1,maxDofs,false)
+BakeOff_Problem(ELEMENT,1,Mass,1,false)
 
 /// BP2: vector PCG with mass matrix, q=p+2
-// BakeOff_Problem(ELEMENT,2,VectorMass,3,maxDofs,false)
+// BakeOff_Problem(ELEMENT,2,VectorMass,3,false)
 
 /// BP3: scalar PCG with stiffness matrix, q=p+2
-BakeOff_Problem(ELEMENT,3,Diffusion,1,maxDofs,false)
+BakeOff_Problem(ELEMENT,3,Diffusion,1,false)
 
 /// BP4: vector PCG with stiffness matrix, q=p+2
-// BakeOff_Problem(ELEMENT,4,VectorDiffusion,3,maxDofs,false)
+// BakeOff_Problem(ELEMENT,4,VectorDiffusion,3,false)
 
 /// BP5: scalar PCG with stiffness matrix, q=p+1
-BakeOff_Problem(ELEMENT,5,Diffusion,1,maxDofs,true)
+BakeOff_Problem(ELEMENT,5,Diffusion,1,true)
 
 /// BP6: vector PCG with stiffness matrix, q=p+1
-// BakeOff_Problem(ELEMENT,6,VectorDiffusion,3,maxDofs,true)
+// BakeOff_Problem(ELEMENT,6,VectorDiffusion,3,true)
 
 // FULL:
 /// BP1: scalar PCG with mass matrix, q=p+2
-BakeOff_Problem(FULL,1,Mass,1,maxDofs,false)
+BakeOff_Problem(FULL,1,Mass,1,false)
 
 /// BP2: vector PCG with mass matrix, q=p+2
-// BakeOff_Problem(FULL,2,VectorMass,3,maxDofs,false)
+// BakeOff_Problem(FULL,2,VectorMass,3,false)
 
 /// BP3: scalar PCG with stiffness matrix, q=p+2
-BakeOff_Problem(FULL,3,Diffusion,1,maxDofs,false)
+BakeOff_Problem(FULL,3,Diffusion,1,false)
 
 /// BP4: vector PCG with stiffness matrix, q=p+2
-// BakeOff_Problem(FULL,4,VectorDiffusion,3,maxDofs,false)
+// BakeOff_Problem(FULL,4,VectorDiffusion,3,false)
 
 /// BP5: scalar PCG with stiffness matrix, q=p+1
-BakeOff_Problem(FULL,5,Diffusion,1,maxDofs,true)
+BakeOff_Problem(FULL,5,Diffusion,1,true)
 
 /// BP6: vector PCG with stiffness matrix, q=p+1
-// BakeOff_Problem(FULL,6,VectorDiffusion,3,maxDofs,true)
+// BakeOff_Problem(FULL,6,VectorDiffusion,3,true)
 
 /// Bake-off Kernels (BKs)
 template <typename BFI, int VDIM = 1, bool GLL = false>
@@ -274,7 +276,7 @@ struct Kernel: public BakeOff
 };
 
 /// Generic CEED BKi
-#define BakeOff_Kernel(assembly,i,KER,VDIM,MaxDofs,GLL)\
+#define BakeOff_Kernel(assembly,i,KER,VDIM,GLL)\
 static void BK##i##assembly(bm::State &state){\
    const int dim = 3;\
    const int p = state.range(1);\
@@ -288,66 +290,66 @@ static void BK##i##assembly(bm::State &state){\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
    state.counters["Order"] = bm::Counter(ker.p);}\
 BENCHMARK(BK##i##assembly)->ArgsProduct({\
-      benchmark::CreateRange(1024, MaxDofs, /*step=*/2),\
-      benchmark::CreateDenseRange(1, 6, /*step=*/1)\
+      benchmark::CreateRange(1024, max_dofs, /*step=*/2),\
+      benchmark::CreateDenseRange(1, max_order, /*step=*/1)\
     })->Unit(bm::kMillisecond);\
 
 // PARTIAL:
 /// BK1PARTIAL: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
-BakeOff_Kernel(PARTIAL,1,Mass,1,maxDofs,false)
+BakeOff_Kernel(PARTIAL,1,Mass,1,false)
 
 /// BK2PARTIAL: vector E-vector-to-E-vector evaluation of mass matrix, q=p+2
-BakeOff_Kernel(PARTIAL,2,VectorMass,3,maxDofs,false)
+BakeOff_Kernel(PARTIAL,2,VectorMass,3,false)
 
 /// BK3PARTIAL: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-BakeOff_Kernel(PARTIAL,3,Diffusion,1,maxDofs,false)
+BakeOff_Kernel(PARTIAL,3,Diffusion,1,false)
 
 /// BK4PARTIAL: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-BakeOff_Kernel(PARTIAL,4,VectorDiffusion,3,maxDofs,false)
+BakeOff_Kernel(PARTIAL,4,VectorDiffusion,3,false)
 
 /// BK5PARTIAL: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-BakeOff_Kernel(PARTIAL,5,Diffusion,1,maxDofs,true)
+BakeOff_Kernel(PARTIAL,5,Diffusion,1,true)
 
 /// BK6PARTIAL: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-BakeOff_Kernel(PARTIAL,6,VectorDiffusion,3,maxDofs,true)
+BakeOff_Kernel(PARTIAL,6,VectorDiffusion,3,true)
 
 // ELEMENT
 /// BK1ELEMENT: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
-BakeOff_Kernel(ELEMENT,1,Mass,1,maxDofs,false)
+BakeOff_Kernel(ELEMENT,1,Mass,1,false)
 
 /// BK2ELEMENT: vector E-vector-to-E-vector evaluation of mass matrix, q=p+2
-// BakeOff_Kernel(ELEMENT,2,VectorMass,3,maxDofs,false)
+// BakeOff_Kernel(ELEMENT,2,VectorMass,3,false)
 
 /// BK3ELEMENT: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-BakeOff_Kernel(ELEMENT,3,Diffusion,1,maxDofs,false)
+BakeOff_Kernel(ELEMENT,3,Diffusion,1,false)
 
 /// BK4ELEMENT: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-// BakeOff_Kernel(ELEMENT,4,VectorDiffusion,3,maxDofs,false)
+// BakeOff_Kernel(ELEMENT,4,VectorDiffusion,3,false)
 
 /// BK5ELEMENT: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-BakeOff_Kernel(ELEMENT,5,Diffusion,1,maxDofs,true)
+BakeOff_Kernel(ELEMENT,5,Diffusion,1,true)
 
 /// BK6ELEMENT: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-// BakeOff_Kernel(ELEMENT,6,VectorDiffusion,3,maxDofs,true)
+// BakeOff_Kernel(ELEMENT,6,VectorDiffusion,3,true)
 
 // FULL
 /// BK1FULL: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
-BakeOff_Kernel(FULL,1,Mass,1,maxDofs,false)
+BakeOff_Kernel(FULL,1,Mass,1,false)
 
 /// BK2FULL: vector E-vector-to-E-vector evaluation of mass matrix, q=p+2
-// BakeOff_Kernel(FULL,2,VectorMass,3,maxDofs,false)
+// BakeOff_Kernel(FULL,2,VectorMass,3,false)
 
 /// BK3FULL: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-BakeOff_Kernel(FULL,3,Diffusion,1,maxDofs,false)
+BakeOff_Kernel(FULL,3,Diffusion,1,false)
 
 /// BK4FULL: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+2
-// BakeOff_Kernel(FULL,4,VectorDiffusion,3,maxDofs,false)
+// BakeOff_Kernel(FULL,4,VectorDiffusion,3,false)
 
 /// BK5FULL: scalar E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-BakeOff_Kernel(FULL,5,Diffusion,1,maxDofs,true)
+BakeOff_Kernel(FULL,5,Diffusion,1,true)
 
 /// BK6FULL: vector E-vector-to-E-vector evaluation of stiffness matrix, q=p+1
-// BakeOff_Kernel(FULL,6,VectorDiffusion,3,maxDofs,true)
+// BakeOff_Kernel(FULL,6,VectorDiffusion,3,true)
 /**
  * @brief main entry point
  * --benchmark_filter=BK1/6
