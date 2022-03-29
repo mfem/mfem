@@ -17,17 +17,23 @@
 namespace mfem
 {
 
-class BatchedLOR_ND : public BatchedLORAssembly
+class BatchedLOR_ND
 {
 protected:
+   FiniteElementSpace &fes_ho;
+   Vector &X_vert;
+   Vector &sparse_ij;
+   DenseMatrix &sparse_mapping;
+
    double mass_coeff, curl_curl_coeff;
 public:
    template <int ORDER> void Assemble2D();
    template <int ORDER> void Assemble3D();
-   void AssemblyKernel() override;
-   BatchedLOR_ND(BilinearForm &a_,
+   BatchedLOR_ND(BilinearForm &a,
                  FiniteElementSpace &fes_ho_,
-                 const Array<int> &ess_dofs_);
+                 Vector &X_vert_,
+                 Vector &sparse_ij_,
+                 DenseMatrix &sparse_mapping_);
 };
 
 }

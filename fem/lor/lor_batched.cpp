@@ -402,20 +402,83 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
    FillJAndData(*A_mat);
 }
 
-void BatchedLORAssembly::AssembleWithoutBC(OperatorHandle &A)
+template <typename LOR_KERNEL>
+void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
 {
-   // Assemble the matrix, using kernels from the derived classes
-   // This fills in the arrays sparse_ij and sparse_mapping
-   AssemblyKernel();
+   LOR_KERNEL kernel(a, fes_ho, X_vert, sparse_ij, sparse_mapping);
+
+   const int dim = fes_ho.GetMesh()->Dimension();
+   const int order = fes_ho.GetMaxElementOrder();
+
+   if (dim == 2)
+   {
+      switch (order)
+      {
+         case 1: kernel.template Assemble2D<1>(); break;
+         case 2: kernel.template Assemble2D<2>(); break;
+         case 3: kernel.template Assemble2D<3>(); break;
+         case 4: kernel.template Assemble2D<4>(); break;
+         case 5: kernel.template Assemble2D<5>(); break;
+         case 6: kernel.template Assemble2D<6>(); break;
+         case 7: kernel.template Assemble2D<7>(); break;
+         case 8: kernel.template Assemble2D<8>(); break;
+         default: MFEM_ABORT("No kernel order " << order << "!");
+      }
+   }
+   else if (dim == 3)
+   {
+      switch (order)
+      {
+         case 1: kernel.template Assemble3D<1>(); break;
+         case 2: kernel.template Assemble3D<2>(); break;
+         case 3: kernel.template Assemble3D<3>(); break;
+         case 4: kernel.template Assemble3D<4>(); break;
+         case 5: kernel.template Assemble3D<5>(); break;
+         case 6: kernel.template Assemble3D<6>(); break;
+         case 7: kernel.template Assemble3D<7>(); break;
+         case 8: kernel.template Assemble3D<8>(); break;
+         default: MFEM_ABORT("No kernel order " << order << "!");
+      }
+   }
+}
+
+void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)
+{
+   // Assemble the matrix, depending on what the form is.
+   // This fills in the arrays sparse_ij and sparse_mapping.
+   const FiniteElementCollection *fec = fes_ho.FEColl();
+   if (dynamic_cast<const H1_FECollection*>(fec))
+   {
+      if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
+      {
+         AssemblyKernel<BatchedLOR_H1>(a);
+      }
+   }
+   else if (dynamic_cast<const ND_FECollection*>(fec))
+   {
+      if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a))
+      {
+         AssemblyKernel<BatchedLOR_ND>(a);
+      }
+   }
+   else if (dynamic_cast<const RT_FECollection*>(fec))
+   {
+      if (HasIntegrators<DivDivIntegrator, VectorFEMassIntegrator>(a))
+      {
+         AssemblyKernel<BatchedLOR_RT>(a);
+      }
+   }
+
    return SparseIJToCSR(A);
 }
 
 #ifdef MFEM_USE_MPI
-void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
+void BatchedLORAssembly::ParAssemble(
+   BilinearForm &a, const Array<int> &ess_dofs, OperatorHandle &A)
 {
    // Assemble the system matrix local to this partition
    OperatorHandle A_local;
-   AssembleWithoutBC(A_local);
+   AssembleWithoutBC(a, A_local);
 
    ParFiniteElementSpace *pfes_ho =
       dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
@@ -614,16 +677,17 @@ void BatchedLORAssembly::ParAssemble(OperatorHandle &A)
 }
 #endif
 
-void BatchedLORAssembly::Assemble(OperatorHandle &A)
+void BatchedLORAssembly::Assemble(
+   BilinearForm &a, const Array<int> ess_dofs, OperatorHandle &A)
 {
 #ifdef MFEM_USE_MPI
    if (dynamic_cast<ParFiniteElementSpace*>(&fes_ho))
    {
-      return ParAssemble(A);
+      return ParAssemble(a, ess_dofs, A);
    }
 #endif
 
-   AssembleWithoutBC(A);
+   AssembleWithoutBC(a, A);
    SparseMatrix *A_mat = A.As<SparseMatrix>();
 
    // Eliminate essential DOFs (BCs) from the matrix (what we do here is
@@ -656,41 +720,10 @@ void BatchedLORAssembly::Assemble(OperatorHandle &A)
    });
 }
 
-BatchedLORAssembly::BatchedLORAssembly(BilinearForm &a,
-                                       FiniteElementSpace &fes_ho_,
-                                       const Array<int> &ess_dofs_)
-   : fes_ho(fes_ho_), ess_dofs(ess_dofs_)
+BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)
+   : fes_ho(fes_ho_)
 {
    FormLORVertexCoordinates(fes_ho, X_vert);
-}
-
-void BatchedLORAssembly::Assemble(BilinearForm &a,
-                                  FiniteElementSpace &fes_ho,
-                                  const Array<int> &ess_dofs,
-                                  OperatorHandle &A)
-{
-   const FiniteElementCollection *fec = fes_ho.FEColl();
-   if (dynamic_cast<const H1_FECollection*>(fec))
-   {
-      if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
-      {
-         BatchedLOR_H1(a, fes_ho, ess_dofs).Assemble(A);
-      }
-   }
-   else if (dynamic_cast<const ND_FECollection*>(fec))
-   {
-      if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a))
-      {
-         BatchedLOR_ND(a, fes_ho, ess_dofs).Assemble(A);
-      }
-   }
-   else if (dynamic_cast<const RT_FECollection*>(fec))
-   {
-      if (HasIntegrators<DivDivIntegrator, VectorFEMassIntegrator>(a))
-      {
-         BatchedLOR_RT(a, fes_ho, ess_dofs).Assemble(A);
-      }
-   }
 }
 
 } // namespace mfem

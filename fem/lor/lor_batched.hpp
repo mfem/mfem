@@ -29,7 +29,6 @@ class BatchedLORAssembly
 {
 protected:
    FiniteElementSpace &fes_ho; ///< The high-order space.
-   const Array<int> &ess_dofs; ///< Essential DOFs to eliminate.
 
    Vector X_vert; ///< LOR vertex coordinates.
 
@@ -50,6 +49,9 @@ protected:
    DenseMatrix sparse_mapping;
 
 public:
+   /// Construct the batched assembly object corresponding to @a fes_ho_.
+   BatchedLORAssembly(FiniteElementSpace &fes_ho_);
+
    /// Does the given form support batched assembly?
    static bool FormIsSupported(BilinearForm &a);
 
@@ -57,10 +59,7 @@ public:
    ///
    /// In serial, the result will be a SparseMatrix. In parallel, the result
    /// will be a HypreParMatrix.
-   static void Assemble(BilinearForm &a,
-                        FiniteElementSpace &fes_ho,
-                        const Array<int> &ess_dofs,
-                        OperatorHandle &A);
+   void Assemble(BilinearForm &a, const Array<int> ess_dofs, OperatorHandle &A);
 
    /// Compute the vertices of the LOR mesh and place the result in @a X_vert.
    static void FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
@@ -75,32 +74,13 @@ protected:
    void SparseIJToCSR(OperatorHandle &A) const;
 
    /// Assemble the system without eliminating essential DOFs.
-   void AssembleWithoutBC(OperatorHandle &A);
+   void AssembleWithoutBC(BilinearForm &a, OperatorHandle &A);
 
-   /// Called by one of the specialized classes, e.g. BatchedLORDiffusion.
-   BatchedLORAssembly(BilinearForm &a,
-                      FiniteElementSpace &fes_ho_,
-                      const Array<int> &ess_dofs_);
-
-   virtual ~BatchedLORAssembly() { }
-
-   /// Return the first domain integrator in the form @a i of type @a T.
-   template <typename T>
-   static T *GetIntegrator(BilinearForm &a)
-   {
-      Array<BilinearFormIntegrator*> *integs = a.GetDBFI();
-      if (integs != NULL)
-      {
-         for (auto *i : *integs)
-         {
-            if (auto *ti = dynamic_cast<T*>(i))
-            {
-               return ti;
-            }
-         }
-      }
-      return nullptr;
-   }
+   /// @brief Fill in @a sparse_ij and @a sparse_mapping using one of the
+   /// specialized LOR assembly kernel classes.
+   ///
+   /// @sa Specialization classes: BatchedLOR_H1, BatchedLOR_ND, BatchedLOR_RT
+   template <typename LOR_KERNEL> void AssemblyKernel(BilinearForm &a);
 
    // Compiler limitation: these should be protected, but they contain
    // MFEM_FORALL kernels, and so they must be public.
@@ -118,17 +98,15 @@ public:
 
 #ifdef MFEM_USE_MPI
    /// Assemble the system in parallel and place the result in @a A.
-   void ParAssemble(OperatorHandle &A);
+   void ParAssemble(BilinearForm &a, const Array<int> &ess_dofs,
+                    OperatorHandle &A);
 #endif
-
-   /// Assemble the system, and place the result in @a A.
-   void Assemble(OperatorHandle &A);
-
-   /// @brief Pure virtual function for the kernel actually performing the
-   /// assembly. Overridden in the derived classes.
-   virtual void AssemblyKernel() = 0;
 };
 
+/// @brief Ensure that @a mem has at least capacity @a capacity.
+///
+/// If the capacity of @a mem is not large enough, delete it and allocate new
+/// memory with size @a capacity.
 template <typename T>
 void EnsureCapacity(Memory<T> &mem, int capacity)
 {
@@ -137,6 +115,24 @@ void EnsureCapacity(Memory<T> &mem, int capacity)
       mem.Delete();
       mem.New(capacity, mem.GetMemoryType());
    }
+}
+
+/// Return the first domain integrator in the form @a i of type @a T.
+template <typename T>
+static T *GetIntegrator(BilinearForm &a)
+{
+   Array<BilinearFormIntegrator*> *integs = a.GetDBFI();
+   if (integs != NULL)
+   {
+      for (auto *i : *integs)
+      {
+         if (auto *ti = dynamic_cast<T*>(i))
+         {
+            return ti;
+         }
+      }
+   }
+   return nullptr;
 }
 
 #ifdef MFEM_USE_MPI

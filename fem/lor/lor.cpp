@@ -371,7 +371,11 @@ void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
    {
       // Skip forming the space
       a = nullptr;
-      BatchedLORAssembly::Assemble(a_ho, fes_ho, ess_dofs, A);
+      if (batched_lor == nullptr)
+      {
+         batched_lor = new BatchedLORAssembly(fes_ho);
+      }
+      batched_lor->Assemble(a_ho, ess_dofs, A);
    }
    else
    {
@@ -424,6 +428,7 @@ void LORBase::LegacyAssembleSystem(BilinearForm &a_ho,
 
 LORBase::~LORBase()
 {
+   delete batched_lor;
    delete a;
    delete fes;
    delete fec;
