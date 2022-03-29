@@ -176,8 +176,9 @@ void BatchedLOR_ND::Assemble2D()
       }
    });
 
-   sparse_mapping.SetSize(nnz_per_row, ndof_per_el);
+   sparse_mapping.SetSize(nnz_per_row*ndof_per_el);
    sparse_mapping = -1;
+   auto map = Reshape(sparse_mapping.HostReadWrite(), nnz_per_row, ndof_per_el);
    for (int ci=0; ci<2; ++ci)
    {
       for (int i1=0; i1<o; ++i1)
@@ -198,7 +199,7 @@ void BatchedLOR_ND::Assemble2D()
                   {
                      const int jj_el = (cj == 0) ? j1 + j2*o : j2 + j1*op1 + o*op1;
                      int jj_off = (ci == cj) ? (j2-i2+1) : 3 + (j2-i1) + 2*(j1-i2+1);
-                     sparse_mapping(jj_off, ii_el) = jj_el;
+                     map(jj_off, ii_el) = jj_el;
                   }
                }
             }
@@ -472,9 +473,9 @@ void BatchedLOR_ND::Assemble3D()
       }
    });
 
-   sparse_mapping.SetSize(nnz_per_row, ndof_per_el);
+   sparse_mapping.SetSize(nnz_per_row*ndof_per_el);
    sparse_mapping = -1;
-
+   auto map = Reshape(sparse_mapping.HostReadWrite(), nnz_per_row, ndof_per_el);
    for (int ci=0; ci<dim; ++ci)
    {
       const int i_off = ci*o*op1*op1;
@@ -534,7 +535,7 @@ void BatchedLOR_ND::Assemble3D()
                            if (cj_rel == 0) { jj_off = d1 + 3*d2; }
                            else if (cj_rel == 1) { jj_off = 9 + d0 + 2*d1 + 4*d2; }
                            else /* if (cj_rel == 2) */ { jj_off = 21 + d0 + 2*d1 + 6*d2; }
-                           sparse_mapping(jj_off, ii_el) = jj_el;
+                           map(jj_off, ii_el) = jj_el;
                         }
                      }
                   }
@@ -568,7 +569,7 @@ BatchedLOR_ND::BatchedLOR_ND(BilinearForm &a,
                              FiniteElementSpace &fes_ho_,
                              Vector &X_vert_,
                              Vector &sparse_ij_,
-                             DenseMatrix &sparse_mapping_)
+                             Array<int> &sparse_mapping_)
    : fes_ho(fes_ho_), X_vert(X_vert_), sparse_ij(sparse_ij_),
      sparse_mapping(sparse_mapping_)
 {

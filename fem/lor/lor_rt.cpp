@@ -172,8 +172,9 @@ void BatchedLOR_RT::Assemble2D()
       }
    });
 
-   sparse_mapping.SetSize(nnz_per_row, ndof_per_el);
+   sparse_mapping.SetSize(nnz_per_row*ndof_per_el);
    sparse_mapping = -1;
+   auto map = Reshape(sparse_mapping.HostReadWrite(), nnz_per_row, ndof_per_el);
    for (int ci=0; ci<2; ++ci)
    {
       const int i_off = (ci == 0) ? 0 : o*op1;
@@ -215,7 +216,7 @@ void BatchedLOR_RT::Assemble2D()
                      jj_lex[id1] = j1;
                      const int jj_el = j_off + jj_lex[0] + jj_lex[1]*nxj;
                      const int jj_off = (cj_rel == 0) ? d0 : 3 + d0 + 2*d1;
-                     sparse_mapping(jj_off, ii_el) = jj_el;
+                     map(jj_off, ii_el) = jj_el;
                   }
                }
             }
@@ -458,8 +459,9 @@ void BatchedLOR_RT::Assemble3D()
       }
    });
 
-   sparse_mapping.SetSize(nnz_per_row, ndof_per_el);
+   sparse_mapping.SetSize(nnz_per_row*ndof_per_el);
    sparse_mapping = -1;
+   auto map = Reshape(sparse_mapping.HostReadWrite(), nnz_per_row, ndof_per_el);
    for (int ci=0; ci<dim; ++ci)
    {
       const int i_off = ci*o*o*op1;
@@ -517,7 +519,7 @@ void BatchedLOR_RT::Assemble3D()
                            if (cj_rel == 0) { jj_off = d0; }
                            else if (cj_rel == 1) { jj_off = 3 + d0 + 2*d1; }
                            else /* if (cj_rel == 2) */ { jj_off = 7 + d0 + 2*d2; }
-                           sparse_mapping(jj_off, ii_el) = jj_el;
+                           map(jj_off, ii_el) = jj_el;
                         }
                      }
                   }
@@ -551,7 +553,7 @@ BatchedLOR_RT::BatchedLOR_RT(BilinearForm &a,
                              FiniteElementSpace &fes_ho_,
                              Vector &X_vert_,
                              Vector &sparse_ij_,
-                             DenseMatrix &sparse_mapping_)
+                             Array<int> &sparse_mapping_)
    : fes_ho(fes_ho_), X_vert(X_vert_), sparse_ij(sparse_ij_),
      sparse_mapping(sparse_mapping_)
 {

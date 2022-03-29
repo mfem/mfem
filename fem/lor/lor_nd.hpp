@@ -23,7 +23,7 @@ protected:
    FiniteElementSpace &fes_ho;
    Vector &X_vert;
    Vector &sparse_ij;
-   DenseMatrix &sparse_mapping;
+   Array<int> &sparse_mapping;
 
    double mass_coeff, curl_curl_coeff;
 public:
@@ -33,7 +33,7 @@ public:
                  FiniteElementSpace &fes_ho_,
                  Vector &X_vert_,
                  Vector &sparse_ij_,
-                 DenseMatrix &sparse_mapping_);
+                 Array<int> &sparse_mapping_);
 };
 
 }
