@@ -15,6 +15,7 @@
 #include "../../config/config.hpp"
 #include "../../general/backends.hpp"
 #include "../../general/globals.hpp"
+#include "../../linalg/dtensor.hpp"
 
 namespace mfem
 {
@@ -109,6 +110,73 @@ MFEM_HOST_DEVICE inline void LORVertexCoordinates3D(
    vx[7] = X[e7 + 0];
    vy[7] = X[e7 + 1];
    vz[7] = X[e7 + 2];
+}
+
+MFEM_HOST_DEVICE inline void Jacobian2D(
+   const double x, const double y, const double vx[4], const double vy[4],
+   DeviceMatrix &J)
+{
+   J(0,0) = -(1-y)*vx[0] + (1-y)*vx[1] + y*vx[2] - y*vx[3];
+   J(0,1) = -(1-x)*vx[0] - x*vx[1] + x*vx[2] + (1-x)*vx[3];
+
+   J(1,0) = -(1-y)*vy[0] + (1-y)*vy[1] + y*vy[2] - y*vy[3];
+   J(1,1) = -(1-x)*vy[0] - x*vy[1] + x*vy[2] + (1-x)*vy[3];
+}
+
+MFEM_HOST_DEVICE inline void Jacobian3D(
+   const double x, const double y, const double z,
+   const double vx[8], const double vy[8], const double vz[8],
+   DeviceMatrix &J)
+{
+   // c: (1-x)(1-y)(1-z)v0[c] + x (1-y)(1-z)v1[c] + x y (1-z)v2[c] + (1-x) y (1-z)v3[c]
+   //  + (1-x)(1-y) z   v4[c] + x (1-y) z   v5[c] + x y z    v6[c] + (1-x) y z    v7[c]
+   J(0,0) = -(1-y)*(1-z)*vx[0]
+            + (1-y)*(1-z)*vx[1] + y*(1-z)*vx[2] - y*(1-z)*vx[3]
+            - (1-y)*z*vx[4] + (1-y)*z*vx[5] + y*z*vx[6] - y*z*vx[7];
+
+   J(0,1) = -(1-x)*(1-z)*vx[0]
+            - x*(1-z)*vx[1] + x*(1-z)*vx[2] + (1-x)*(1-z)*vx[3]
+            - (1-x)*z*vx[4] - x*z*vx[5] + x*z*vx[6] + (1-x)*z*vx[7];
+
+   J(0,2) = -(1-x)*(1-y)*vx[0] - x*(1-y)*vx[1]
+            - x*y*vx[2] - (1-x)*y*vx[3] + (1-x)*(1-y)*vx[4]
+            + x*(1-y)*vx[5] + x*y*vx[6] + (1-x)*y*vx[7];
+
+   J(1,0) = -(1-y)*(1-z)*vy[0] + (1-y)*(1-z)*vy[1]
+            + y*(1-z)*vy[2] - y*(1-z)*vy[3] - (1-y)*z*vy[4]
+            + (1-y)*z*vy[5] + y*z*vy[6] - y*z*vy[7];
+
+   J(1,1) = -(1-x)*(1-z)*vy[0] - x*(1-z)*vy[1]
+            + x*(1-z)*vy[2] + (1-x)*(1-z)*vy[3]- (1-x)*z*vy[4] -
+            x*z*vy[5] + x*z*vy[6] + (1-x)*z*vy[7];
+
+   J(1,2) = -(1-x)*(1-y)*vy[0] - x*(1-y)*vy[1]
+            - x*y*vy[2] - (1-x)*y*vy[3] + (1-x)*(1-y)*vy[4]
+            + x*(1-y)*vy[5] + x*y*vy[6] + (1-x)*y*vy[7];
+
+   J(2,0) = -(1-y)*(1-z)*vz[0] + (1-y)*(1-z)*vz[1]
+            + y*(1-z)*vz[2] - y*(1-z)*vz[3]- (1-y)*z*vz[4] +
+            (1-y)*z*vz[5] + y*z*vz[6] - y*z*vz[7];
+
+   J(2,1) = -(1-x)*(1-z)*vz[0] - x*(1-z)*vz[1]
+            + x*(1-z)*vz[2] + (1-x)*(1-z)*vz[3] - (1-x)*z*vz[4]
+            - x*z*vz[5] + x*z*vz[6] + (1-x)*z*vz[7];
+
+   J(2,2) = -(1-x)*(1-y)*vz[0] - x*(1-y)*vz[1]
+            - x*y*vz[2] - (1-x)*y*vz[3] + (1-x)*(1-y)*vz[4]
+            + x*(1-y)*vz[5] + x*y*vz[6] + (1-x)*y*vz[7];
+}
+
+MFEM_HOST_DEVICE inline double Det2D(DeviceMatrix &J)
+{
+   return J(0,0)*J(1,1) - J(1,0)*J(0,1);
+}
+
+MFEM_HOST_DEVICE inline double Det3D(DeviceMatrix &J)
+{
+   return J(0,0) * (J(1,1) * J(2,2) - J(2,1) * J(1,2)) -
+          J(1,0) * (J(0,1) * J(2,2) - J(2,1) * J(0,2)) +
+          J(2,0) * (J(0,1) * J(1,2) - J(1,1) * J(0,2));
 }
 
 }

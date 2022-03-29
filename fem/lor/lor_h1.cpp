@@ -79,18 +79,17 @@ void BatchedLOR_H1::Assemble2D()
                   const double y = iqy;
                   const double w = 1.0/4.0;
 
-                  const double J11 = -(1-y)*vx[0] + (1-y)*vx[1] + y*vx[2] - y*vx[3];
-                  const double J12 = -(1-x)*vx[0] - x*vx[1] + x*vx[2] + (1-x)*vx[3];
+                  double J_[2*2];
+                  DeviceTensor<2> J(J_, 2, 2);
 
-                  const double J21 = -(1-y)*vy[0] + (1-y)*vy[1] + y*vy[2] - y*vy[3];
-                  const double J22 = -(1-x)*vy[0] - x*vy[1] + x*vy[2] + (1-x)*vy[3];
+                  Jacobian2D(x, y, vx, vy, J);
 
-                  const double detJ = J11*J22 - J21*J12;
+                  const double detJ = Det2D(J);
                   const double w_detJ = w/detJ;
 
-                  Q(0,iqy,iqx) = w_detJ * (J12*J12 + J22*J22); // 1,1
-                  Q(1,iqy,iqx) = -w_detJ * (J12*J11 + J22*J21); // 1,2
-                  Q(2,iqy,iqx) = w_detJ * (J11*J11 + J21*J21); // 2,2
+                  Q(0,iqy,iqx) = w_detJ * (J(0,1)*J(0,1) + J(1,1)*J(1,1)); // 1,1
+                  Q(1,iqy,iqx) = -w_detJ * (J(0,1)*J(0,0) + J(1,1)*J(1,0)); // 1,2
+                  Q(2,iqy,iqx) = w_detJ * (J(0,0)*J(0,0) + J(1,0)*J(1,0)); // 2,2
                   Q(3,iqy,iqx) = w*detJ;
                }
             }
@@ -294,59 +293,24 @@ void BatchedLOR_H1::Assemble3D()
                         const double z = iqz;
                         const double w = 1.0/8.0;
 
-                        // c: (1-x)(1-y)(1-z)v0[c] + x (1-y)(1-z)v1[c] + x y (1-z)v2[c] + (1-x) y (1-z)v3[c]
-                        //  + (1-x)(1-y) z   v4[c] + x (1-y) z   v5[c] + x y z    v6[c] + (1-x) y z    v7[c]
-                        const double J11 = -(1-y)*(1-z)*vx[0]
-                                           + (1-y)*(1-z)*vx[1] + y*(1-z)*vx[2] - y*(1-z)*vx[3]
-                                           - (1-y)*z*vx[4] + (1-y)*z*vx[5] + y*z*vx[6] - y*z*vx[7];
+                        double J_[3*3];
+                        DeviceTensor<2> J(J_, 3, 3);
 
-                        const double J12 = -(1-x)*(1-z)*vx[0]
-                                           - x*(1-z)*vx[1] + x*(1-z)*vx[2] + (1-x)*(1-z)*vx[3]
-                                           - (1-x)*z*vx[4] - x*z*vx[5] + x*z*vx[6] + (1-x)*z*vx[7];
+                        Jacobian3D(x, y, z, vx, vy, vz, J);
 
-                        const double J13 = -(1-x)*(1-y)*vx[0] - x*(1-y)*vx[1]
-                                           - x*y*vx[2] - (1-x)*y*vx[3] + (1-x)*(1-y)*vx[4]
-                                           + x*(1-y)*vx[5] + x*y*vx[6] + (1-x)*y*vx[7];
-
-                        const double J21 = -(1-y)*(1-z)*vy[0] + (1-y)*(1-z)*vy[1]
-                                           + y*(1-z)*vy[2] - y*(1-z)*vy[3] - (1-y)*z*vy[4]
-                                           + (1-y)*z*vy[5] + y*z*vy[6] - y*z*vy[7];
-
-                        const double J22 = -(1-x)*(1-z)*vy[0] - x*(1-z)*vy[1]
-                                           + x*(1-z)*vy[2] + (1-x)*(1-z)*vy[3]- (1-x)*z*vy[4] -
-                                           x*z*vy[5] + x*z*vy[6] + (1-x)*z*vy[7];
-
-                        const double J23 = -(1-x)*(1-y)*vy[0] - x*(1-y)*vy[1]
-                                           - x*y*vy[2] - (1-x)*y*vy[3] + (1-x)*(1-y)*vy[4]
-                                           + x*(1-y)*vy[5] + x*y*vy[6] + (1-x)*y*vy[7];
-
-                        const double J31 = -(1-y)*(1-z)*vz[0] + (1-y)*(1-z)*vz[1]
-                                           + y*(1-z)*vz[2] - y*(1-z)*vz[3]- (1-y)*z*vz[4] +
-                                           (1-y)*z*vz[5] + y*z*vz[6] - y*z*vz[7];
-
-                        const double J32 = -(1-x)*(1-z)*vz[0] - x*(1-z)*vz[1]
-                                           + x*(1-z)*vz[2] + (1-x)*(1-z)*vz[3] - (1-x)*z*vz[4]
-                                           - x*z*vz[5] + x*z*vz[6] + (1-x)*z*vz[7];
-
-                        const double J33 = -(1-x)*(1-y)*vz[0] - x*(1-y)*vz[1]
-                                           - x*y*vz[2] - (1-x)*y*vz[3] + (1-x)*(1-y)*vz[4]
-                                           + x*(1-y)*vz[5] + x*y*vz[6] + (1-x)*y*vz[7];
-
-                        const double detJ = J11 * (J22 * J33 - J32 * J23) -
-                                            J21 * (J12 * J33 - J32 * J13) +
-                                            J31 * (J12 * J23 - J22 * J13);
+                        const double detJ = Det3D(J);
                         const double w_detJ = w/detJ;
 
                         // adj(J)
-                        const double A11 = (J22 * J33) - (J23 * J32);
-                        const double A12 = (J32 * J13) - (J12 * J33);
-                        const double A13 = (J12 * J23) - (J22 * J13);
-                        const double A21 = (J31 * J23) - (J21 * J33);
-                        const double A22 = (J11 * J33) - (J13 * J31);
-                        const double A23 = (J21 * J13) - (J11 * J23);
-                        const double A31 = (J21 * J32) - (J31 * J22);
-                        const double A32 = (J31 * J12) - (J11 * J32);
-                        const double A33 = (J11 * J22) - (J12 * J21);
+                        const double A11 = (J(1,1) * J(2,2)) - (J(1,2) * J(2,1));
+                        const double A12 = (J(2,1) * J(0,2)) - (J(0,1) * J(2,2));
+                        const double A13 = (J(0,1) * J(1,2)) - (J(1,1) * J(0,2));
+                        const double A21 = (J(2,0) * J(1,2)) - (J(1,0) * J(2,2));
+                        const double A22 = (J(0,0) * J(2,2)) - (J(0,2) * J(2,0));
+                        const double A23 = (J(1,0) * J(0,2)) - (J(0,0) * J(1,2));
+                        const double A31 = (J(1,0) * J(2,1)) - (J(2,0) * J(1,1));
+                        const double A32 = (J(2,0) * J(0,1)) - (J(0,0) * J(2,1));
+                        const double A33 = (J(0,0) * J(1,1)) - (J(0,1) * J(1,0));
 
                         Q(0,iqz,iqy,iqx) = w_detJ * (A11*A11 + A12*A12 + A13*A13); // 1,1
                         Q(1,iqz,iqy,iqx) = w_detJ * (A11*A21 + A12*A22 + A13*A23); // 2,1
