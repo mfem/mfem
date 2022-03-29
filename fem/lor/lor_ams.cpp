@@ -256,13 +256,6 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    }
 }
 
-template <typename T> T *StealPointer(T *&ptr)
-{
-   T *tmp = ptr;
-   ptr = nullptr;
-   return tmp;
-}
-
 HypreParMatrix *BatchedLOR_AMS::StealGradientMatrix()
 {
    return StealPointer(G);
@@ -323,6 +316,7 @@ LORSolver<HypreAMS>::LORSolver(
    }
    else
    {
+      // TODO: is deleting this safe here?
       ParLORDiscretization lor(a_ho, ess_tdof_list, ref_type);
       // Assume ownership of the system matrix so that `lor` can be safely
       // deleted

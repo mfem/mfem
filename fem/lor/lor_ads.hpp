@@ -23,23 +23,26 @@
 namespace mfem
 {
 
-// Helper class for assembling the discrete gradient and coordinate vectors
-// needed by the ADS solver. Generally, this class should *not* be directly used
-// by users, instead use LORSolver<HypreADS> (which internally uses this class).
+// Helper class for assembling the discrete curl, gradient and coordinate
+// vectors needed by the ADS solver. Generally, this class should *not* be
+// directly used by users, instead use LORSolver<HypreADS> (which internally
+// uses this class).
 class BatchedLOR_ADS
 {
 protected:
    ParFiniteElementSpace &face_fes;
-   const int dim;
+   static constexpr int dim = 3;
    const int order;
    ND_FECollection edge_fec;
    ParFiniteElementSpace edge_fes;
    BatchedLOR_AMS ams;
    HypreParMatrix *C;
+
+   void Form3DFaceToEdge(DenseMatrix &face2edge);
 public:
    BatchedLOR_ADS(ParFiniteElementSpace &pfes_ho_,
                   const Vector &X_vert);
-   HypreParMatrix *StealGradientMatrix();
+   HypreParMatrix *StealCurlMatrix();
    HypreParMatrix *GetCurlMatrix() const { return C; };
    BatchedLOR_AMS &GetAMS() { return ams; }
    void FormCurlMatrix();

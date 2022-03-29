@@ -60,6 +60,13 @@ public:
    ~BatchedLOR_AMS();
 };
 
+template <typename T> T *StealPointer(T *&ptr)
+{
+   T *tmp = ptr;
+   ptr = nullptr;
+   return tmp;
+}
+
 }
 
 #endif
