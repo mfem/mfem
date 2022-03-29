@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "lor_h1.hpp"
+#include "lor_util.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../general/forall.hpp"
 
@@ -62,35 +63,13 @@ void BatchedLOR_H1::Assemble2D()
          {
             double Q_[(ddm2 + 1)*nv];
             double local_mat_[sz_local_mat];
-
             DeviceTensor<3> Q(Q_, ddm2 + 1, 2, 2);
             DeviceTensor<2> local_mat(local_mat_, nv, nv);
 
-            // local_mat is the local (dense) stiffness matrix
             for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
-            const int v0 = kx + nd1d*ky;
-            const int v1 = kx + 1 + nd1d*ky;
-            const int v2 = kx + 1 + nd1d*(ky + 1);
-            const int v3 = kx + nd1d*(ky + 1);
-
-            const int e0 = dim*(v0 + ndof_per_el*iel_ho);
-            const int e1 = dim*(v1 + ndof_per_el*iel_ho);
-            const int e2 = dim*(v2 + ndof_per_el*iel_ho);
-            const int e3 = dim*(v3 + ndof_per_el*iel_ho);
-
-            // Vertex coordinates
-            const double v0x = X[e0 + 0];
-            const double v0y = X[e0 + 1];
-
-            const double v1x = X[e1 + 0];
-            const double v1y = X[e1 + 1];
-
-            const double v2x = X[e2 + 0];
-            const double v2y = X[e2 + 1];
-
-            const double v3x = X[e3 + 0];
-            const double v3y = X[e3 + 1];
+            double vx[4], vy[4];
+            LORVertexCoordinates2D<ORDER>(X, iel_ho, kx, ky, vx, vy);
 
             for (int iqy=0; iqy<2; ++iqy)
             {
@@ -100,11 +79,11 @@ void BatchedLOR_H1::Assemble2D()
                   const double y = iqy;
                   const double w = 1.0/4.0;
 
-                  const double J11 = -(1-y)*v0x + (1-y)*v1x + y*v2x - y*v3x;
-                  const double J12 = -(1-x)*v0x - x*v1x + x*v2x + (1-x)*v3x;
+                  const double J11 = -(1-y)*vx[0] + (1-y)*vx[1] + y*vx[2] - y*vx[3];
+                  const double J12 = -(1-x)*vx[0] - x*vx[1] + x*vx[2] + (1-x)*vx[3];
 
-                  const double J21 = -(1-y)*v0y + (1-y)*v1y + y*v2y - y*v3y;
-                  const double J22 = -(1-x)*v0y - x*v1y + x*v2y + (1-x)*v3y;
+                  const double J21 = -(1-y)*vy[0] + (1-y)*vy[1] + y*vy[2] - y*vy[3];
+                  const double J22 = -(1-x)*vy[0] - x*vy[1] + x*vy[2] + (1-x)*vy[3];
 
                   const double detJ = J11*J22 - J21*J12;
                   const double w_detJ = w/detJ;
