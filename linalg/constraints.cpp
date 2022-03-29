@@ -598,6 +598,7 @@ void SchurConstrainedSolver::LagrangeSystemMult(const Vector& x,
 SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm,
                                                          HypreParMatrix& hA_,
                                                          HypreParMatrix& hB_,
+                                                         Solver * prec,
                                                          int dimension,
                                                          bool reorder)
    :
@@ -605,13 +606,20 @@ SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm,
    hA(hA_),
    hB(hB_)
 {
-   auto h_primal_pc = new HypreBoomerAMG(hA);
-   h_primal_pc->SetPrintLevel(0);
-   if (dimension > 0)
+   if (prec == nullptr)
    {
-      h_primal_pc->SetSystemsOptions(dimension, reorder);
+      auto h_primal_pc = new HypreBoomerAMG(hA);
+      h_primal_pc->SetPrintLevel(0);
+      if (dimension > 0)
+      {
+         h_primal_pc->SetSystemsOptions(dimension, reorder);
+      }
+      primal_pc = h_primal_pc;
    }
-   primal_pc = h_primal_pc;
+   else
+   {
+      primal_pc = prec;
+   }
 
    HypreParMatrix * scaledB = new HypreParMatrix(hB);
    Vector diagA;

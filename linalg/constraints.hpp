@@ -475,8 +475,8 @@ class SchurConstrainedHypreSolver : public SchurConstrainedSolver
 {
 public:
    SchurConstrainedHypreSolver(MPI_Comm comm, HypreParMatrix& hA_,
-                               HypreParMatrix& hB_, int dimension=0,
-                               bool reorder=false);
+                               HypreParMatrix& hB_, Solver * prec = nullptr,
+                               int dimension=0, bool reorder=false);
    virtual ~SchurConstrainedHypreSolver();
 
 private:
