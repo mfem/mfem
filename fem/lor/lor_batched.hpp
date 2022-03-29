@@ -41,12 +41,12 @@ protected:
 
    /// @brief The sparsity pattern of the element matrices.
    ///
-   /// For local DOF index @a j, sparse_mapping(i, j) is the column index of the
-   /// @a ith nonzero in the @a jth row. If the index is negative, that entry
-   /// should be skipped (there is no corresponding nonzero).
-   ///
-   /// @todo TODO: Store these as integers rather than doubles?
-   DenseMatrix sparse_mapping;
+   /// This array should be interpreted as having shape (nnz_per_row,
+   /// ndof_per_el). For local DOF index @a j, sparse_mapping(i, j) is the
+   /// column index of the @a ith nonzero in the @a jth row. If the index is
+   /// negative, that entry should be skipped (there is no corresponding
+   /// nonzero).
+   Array<int> sparse_mapping;
 
 public:
    /// Construct the batched assembly object corresponding to @a fes_ho_.

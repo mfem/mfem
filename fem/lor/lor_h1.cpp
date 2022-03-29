@@ -172,8 +172,9 @@ void BatchedLOR_H1::Assemble2D()
       }
    });
 
-   sparse_mapping.SetSize(nnz_per_row, ndof_per_el);
+   sparse_mapping.SetSize(nnz_per_row*ndof_per_el);
    sparse_mapping = -1;
+   auto map = Reshape(sparse_mapping.HostReadWrite(), nnz_per_row, ndof_per_el);
    for (int iy=0; iy<nd1d; ++iy)
    {
       const int jy_begin = (iy > 0) ? iy - 1 : 0;
@@ -189,7 +190,7 @@ void BatchedLOR_H1::Assemble2D()
             {
                const int jj_off = (jx-ix+1) + 3*(jy-iy+1);
                const int jj_el = jx + nd1d*jy;
-               sparse_mapping(jj_off, ii_el) = jj_el;
+               map(jj_off, ii_el) = jj_el;
             }
          }
       }
@@ -469,8 +470,9 @@ void BatchedLOR_H1::Assemble3D()
       }
    });
 
-   sparse_mapping.SetSize(nnz_per_row, ndof_per_el);
+   sparse_mapping.SetSize(nnz_per_row*ndof_per_el);
    sparse_mapping = -1;
+   auto map = Reshape(sparse_mapping.HostReadWrite(), nnz_per_row, ndof_per_el);
    for (int iz=0; iz<nd1d; ++iz)
    {
       const int jz_begin = (iz > 0) ? iz - 1 : 0;
@@ -494,7 +496,7 @@ void BatchedLOR_H1::Assemble3D()
                   {
                      const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);
                      const int jj_el = jx + nd1d*(jy + nd1d*jz);
-                     sparse_mapping(jj_off, ii_el) = jj_el;
+                     map(jj_off, ii_el) = jj_el;
                   }
                }
             }
@@ -526,7 +528,7 @@ BatchedLOR_H1::BatchedLOR_H1(BilinearForm &a,
                              FiniteElementSpace &fes_ho_,
                              Vector &X_vert_,
                              Vector &sparse_ij_,
-                             DenseMatrix &sparse_mapping_)
+                             Array<int> &sparse_mapping_)
    : fes_ho(fes_ho_), X_vert(X_vert_), sparse_ij(sparse_ij_),
      sparse_mapping(sparse_mapping_)
 {

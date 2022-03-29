@@ -155,7 +155,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
 
    const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
    const int nel_ho = fes_ho.GetNE();
-   const int nnz_per_row = sparse_mapping.Height();
+   const int nnz_per_row = sparse_mapping.Size()/ndof_per_el;
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *op = fes_ho.GetElementRestriction(ordering);
@@ -253,7 +253,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
    const int nvdof = fes_ho.GetVSize();
    const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
    const int nel_ho = fes_ho.GetNE();
-   const int nnz_per_row = sparse_mapping.Height();
+   const int nnz_per_row = sparse_mapping.Size()/ndof_per_el;
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *op = fes_ho.GetElementRestriction(ordering);
