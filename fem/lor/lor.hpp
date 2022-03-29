@@ -296,6 +296,37 @@ public:
    ~LORSolver();
 };
 
+// Template specialization for batched LOR ADS (implementation in lor_ads.cpp)
+template <>
+class LORSolver<HypreADS> : public Solver
+{
+protected:
+   OperatorHandle A; ///< The assembled system matrix.
+   Vector *xyz = nullptr; ///< Data for vertex coordinate vectors.
+   HypreADS *solver = nullptr; ///< The underlying ADS solver.
+public:
+   /// @brief Creates the ADS solvers for the given form and essential DOFs.
+   ///
+   /// Assembles the LOR matrices for the form @a a_ho and the associated
+   /// discrete gradient matrix and vertex coordinate vectors.
+   LORSolver(ParBilinearForm &a_ho, const Array<int> &ess_tdof_list,
+             int ref_type=BasisType::GaussLobatto);
+
+   /// Calls HypreADS::SetOperator.
+   void SetOperator(const Operator &op);
+
+   /// Apply the action of the AMS preconditioner.
+   void Mult(const Vector &x, Vector &y) const;
+
+   /// Access the underlying solver.
+   HypreADS &GetSolver();
+
+   /// Access the underlying solver (const version).
+   const HypreADS &GetSolver() const;
+
+   ~LORSolver();
+};
+
 #endif
 
 } // namespace mfem
