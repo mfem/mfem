@@ -38,10 +38,10 @@ protected:
    HypreParMatrix *G;
    HypreParVector *x, *y, *z;
 
-   void Form2DEdgeToVertex(DenseMatrix &edge2vert);
-   void Form2DEdgeToVertex_ND(DenseMatrix &edge2vert);
-   void Form2DEdgeToVertex_RT(DenseMatrix &edge2vert);
-   void Form3DEdgeToVertex(DenseMatrix &edge2vert);
+   void Form2DEdgeToVertex(Array<int> &edge2vert);
+   void Form2DEdgeToVertex_ND(Array<int> &edge2vert);
+   void Form2DEdgeToVertex_RT(Array<int> &edge2vert);
+   void Form3DEdgeToVertex(Array<int> &edge2vert);
 public:
    BatchedLOR_AMS(ParFiniteElementSpace &pfes_ho_,
                   const Vector &X_vert);

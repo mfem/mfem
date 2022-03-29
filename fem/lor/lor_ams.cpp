@@ -18,7 +18,7 @@ namespace mfem
 
 #ifdef MFEM_USE_MPI
 
-void BatchedLOR_AMS::Form2DEdgeToVertex(DenseMatrix &edge2vert)
+void BatchedLOR_AMS::Form2DEdgeToVertex(Array<int> &edge2vert)
 {
    const FiniteElementCollection *fec = edge_fes.FEColl();
    if (dynamic_cast<const ND_FECollection*>(fec))
@@ -35,13 +35,14 @@ void BatchedLOR_AMS::Form2DEdgeToVertex(DenseMatrix &edge2vert)
    }
 }
 
-void BatchedLOR_AMS::Form2DEdgeToVertex_ND(DenseMatrix &edge2vert)
+void BatchedLOR_AMS::Form2DEdgeToVertex_ND(Array<int> &edge2vert)
 {
    const int o = order;
    const int op1 = o + 1;
    const int nedge = dim*o*pow(op1, dim-1);
 
-   edge2vert.SetSize(2, nedge);
+   edge2vert.SetSize(2*nedge);
+   auto e2v = Reshape(edge2vert.HostWrite(), 2, nedge);
 
    for (int c=0; c<dim; ++c)
    {
@@ -61,20 +62,21 @@ void BatchedLOR_AMS::Form2DEdgeToVertex_ND(DenseMatrix &edge2vert)
             const int iv0 = ix + iy*op1;
             const int iv1 = ix1 + iy1*op1;
 
-            edge2vert(0, iedge) = iv0;
-            edge2vert(1, iedge) = iv1;
+            e2v(0, iedge) = iv0;
+            e2v(1, iedge) = iv1;
          }
       }
    }
 }
 
-void BatchedLOR_AMS::Form2DEdgeToVertex_RT(DenseMatrix &edge2vert)
+void BatchedLOR_AMS::Form2DEdgeToVertex_RT(Array<int> &edge2vert)
 {
    const int o = order;
    const int op1 = o + 1;
    const int nedge = dim*o*pow(op1, dim-1);
 
-   edge2vert.SetSize(2, nedge);
+   edge2vert.SetSize(2*nedge);
+   auto e2v = Reshape(edge2vert.HostWrite(), 2, nedge);
 
    for (int c=0; c<dim; ++c)
    {
@@ -94,19 +96,20 @@ void BatchedLOR_AMS::Form2DEdgeToVertex_RT(DenseMatrix &edge2vert)
 
          // Rotated gradient in 2D (-dy, dx), so flip the sign for the first
          // component (c == 0).
-         edge2vert(0, iedge) = (c == 1) ? iv0 : iv1;
-         edge2vert(1, iedge) = (c == 1) ? iv1 : iv0;
+         e2v(0, iedge) = (c == 1) ? iv0 : iv1;
+         e2v(1, iedge) = (c == 1) ? iv1 : iv0;
       }
    }
 }
 
-void BatchedLOR_AMS::Form3DEdgeToVertex(DenseMatrix &edge2vert)
+void BatchedLOR_AMS::Form3DEdgeToVertex(Array<int> &edge2vert)
 {
    const int o = order;
    const int op1 = o + 1;
    const int nedge = dim*o*pow(op1, dim-1);
 
-   edge2vert.SetSize(2, nedge);
+   edge2vert.SetSize(2*nedge);
+   auto e2v = Reshape(edge2vert.HostWrite(), 2, nedge);
 
    for (int c=0; c<dim; ++c)
    {
@@ -127,8 +130,8 @@ void BatchedLOR_AMS::Form3DEdgeToVertex(DenseMatrix &edge2vert)
          const int iv0 = ix + iy*op1 + iz*op1*op1;
          const int iv1 = ix1 + iy1*op1 + iz1*op1*op1;
 
-         edge2vert(0, iedge) = iv0;
-         edge2vert(1, iedge) = iv1;
+         e2v(0, iedge) = iv0;
+         e2v(1, iedge) = iv1;
       }
    }
 }
@@ -155,7 +158,7 @@ void BatchedLOR_AMS::FormGradientMatrix()
    // element, edge i (in lexicographic ordering) has vertices (also in
    // lexicographic ordering) given by the entries (0, i) and (1, i) of the
    // matrix.
-   DenseMatrix edge2vertex;
+   Array<int> edge2vertex;
    if (dim == 2) { Form2DEdgeToVertex(edge2vertex); }
    else { Form3DEdgeToVertex(edge2vertex); }
 

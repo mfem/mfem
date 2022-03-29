@@ -38,7 +38,7 @@ protected:
    BatchedLOR_AMS ams;
    HypreParMatrix *C;
 
-   void Form3DFaceToEdge(DenseMatrix &face2edge);
+   void Form3DFaceToEdge(Array<int> &face2edge);
 public:
    BatchedLOR_ADS(ParFiniteElementSpace &pfes_ho_,
                   const Vector &X_vert);
