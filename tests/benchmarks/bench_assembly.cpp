@@ -19,6 +19,9 @@
   of high-order codes.
 
   See: ceed.exascaleproject.org/bps and github.com/CEED/benchmarks
+
+   * --benchmark_filter=[SetupBP/BP/BK][1-6][PARTIAL/ELEMENT/FULL]/[1-max_order]
+   * --benchmark_context=device=[cpu/cuda/hip]
 */
 
 // The maximum polynomial order used for benchmarking
