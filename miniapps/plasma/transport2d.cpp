@@ -28,6 +28,7 @@
 
 #include "../common/pfem_extras.hpp"
 #include "transport_solver.hpp"
+#include "g_eqdsk_data.hpp"
 
 using namespace std;
 using namespace mfem;
