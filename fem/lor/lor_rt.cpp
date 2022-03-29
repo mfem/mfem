@@ -238,7 +238,6 @@ void BatchedLOR_RT::Assemble3D()
    static constexpr int o = ORDER;
    static constexpr int op1 = ORDER + 1;
    static constexpr int ndof_per_el = dim*o*o*op1;
-   static constexpr int nlor_vert_per_el = op1*op1*op1;
    static constexpr int nnz_per_row = 11;
    static constexpr int sz_local_mat = nf*nf;
 
@@ -286,57 +285,8 @@ void BatchedLOR_RT::Assemble3D()
                DeviceTensor<2> local_mat(local_mat_, nf, nf);
                for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
-               // TODO: refactor this into host device function that gets
-               // the vertices of the mesh and entries of the Jacobian matrix
-               const int v0 = kx + op1*(ky + op1*kz);
-               const int v1 = kx + 1 + op1*(ky + op1*kz);
-               const int v2 = kx + 1 + op1*(ky + 1 + op1*kz);
-               const int v3 = kx + op1*(ky + 1 + op1*kz);
-               const int v4 = kx + op1*(ky + op1*(kz + 1));
-               const int v5 = kx + 1 + op1*(ky + op1*(kz + 1));
-               const int v6 = kx + 1 + op1*(ky + 1 + op1*(kz + 1));
-               const int v7 = kx + op1*(ky + 1 + op1*(kz + 1));
-
-               const int e0 = dim*(v0 + nlor_vert_per_el*iel_ho);
-               const int e1 = dim*(v1 + nlor_vert_per_el*iel_ho);
-               const int e2 = dim*(v2 + nlor_vert_per_el*iel_ho);
-               const int e3 = dim*(v3 + nlor_vert_per_el*iel_ho);
-               const int e4 = dim*(v4 + nlor_vert_per_el*iel_ho);
-               const int e5 = dim*(v5 + nlor_vert_per_el*iel_ho);
-               const int e6 = dim*(v6 + nlor_vert_per_el*iel_ho);
-               const int e7 = dim*(v7 + nlor_vert_per_el*iel_ho);
-
-               const double v0x = X[e0 + 0];
-               const double v0y = X[e0 + 1];
-               const double v0z = X[e0 + 2];
-
-               const double v1x = X[e1 + 0];
-               const double v1y = X[e1 + 1];
-               const double v1z = X[e1 + 2];
-
-               const double v2x = X[e2 + 0];
-               const double v2y = X[e2 + 1];
-               const double v2z = X[e2 + 2];
-
-               const double v3x = X[e3 + 0];
-               const double v3y = X[e3 + 1];
-               const double v3z = X[e3 + 2];
-
-               const double v4x = X[e4 + 0];
-               const double v4y = X[e4 + 1];
-               const double v4z = X[e4 + 2];
-
-               const double v5x = X[e5 + 0];
-               const double v5y = X[e5 + 1];
-               const double v5z = X[e5 + 2];
-
-               const double v6x = X[e6 + 0];
-               const double v6y = X[e6 + 1];
-               const double v6z = X[e6 + 2];
-
-               const double v7x = X[e7 + 0];
-               const double v7y = X[e7 + 1];
-               const double v7z = X[e7 + 2];
+               double vx[8], vy[8], vz[8];
+               LORVertexCoordinates3D<ORDER>(X, iel_ho, kx, ky, kz, vx, vy, vz);
 
                for (int iqz=0; iqz<2; ++iqz)
                {
@@ -349,41 +299,41 @@ void BatchedLOR_RT::Assemble3D()
                         const double z = iqz;
                         const double w = 1.0/8.0;
 
-                        const double J11 = -(1-y)*(1-z)*v0x
-                                           + (1-y)*(1-z)*v1x + y*(1-z)*v2x - y*(1-z)*v3x
-                                           - (1-y)*z*v4x + (1-y)*z*v5x + y*z*v6x - y*z*v7x;
+                        const double J11 = -(1-y)*(1-z)*vx[0]
+                                           + (1-y)*(1-z)*vx[1] + y*(1-z)*vx[2] - y*(1-z)*vx[3]
+                                           - (1-y)*z*vx[4] + (1-y)*z*vx[5] + y*z*vx[6] - y*z*vx[7];
 
-                        const double J12 = -(1-x)*(1-z)*v0x
-                                           - x*(1-z)*v1x + x*(1-z)*v2x + (1-x)*(1-z)*v3x
-                                           - (1-x)*z*v4x - x*z*v5x + x*z*v6x + (1-x)*z*v7x;
+                        const double J12 = -(1-x)*(1-z)*vx[0]
+                                           - x*(1-z)*vx[1] + x*(1-z)*vx[2] + (1-x)*(1-z)*vx[3]
+                                           - (1-x)*z*vx[4] - x*z*vx[5] + x*z*vx[6] + (1-x)*z*vx[7];
 
-                        const double J13 = -(1-x)*(1-y)*v0x - x*(1-y)*v1x
-                                           - x*y*v2x - (1-x)*y*v3x + (1-x)*(1-y)*v4x
-                                           + x*(1-y)*v5x + x*y*v6x + (1-x)*y*v7x;
+                        const double J13 = -(1-x)*(1-y)*vx[0] - x*(1-y)*vx[1]
+                                           - x*y*vx[2] - (1-x)*y*vx[3] + (1-x)*(1-y)*vx[4]
+                                           + x*(1-y)*vx[5] + x*y*vx[6] + (1-x)*y*vx[7];
 
-                        const double J21 = -(1-y)*(1-z)*v0y + (1-y)*(1-z)*v1y
-                                           + y*(1-z)*v2y - y*(1-z)*v3y - (1-y)*z*v4y
-                                           + (1-y)*z*v5y + y*z*v6y - y*z*v7y;
+                        const double J21 = -(1-y)*(1-z)*vy[0] + (1-y)*(1-z)*vy[1]
+                                           + y*(1-z)*vy[2] - y*(1-z)*vy[3] - (1-y)*z*vy[4]
+                                           + (1-y)*z*vy[5] + y*z*vy[6] - y*z*vy[7];
 
-                        const double J22 = -(1-x)*(1-z)*v0y - x*(1-z)*v1y
-                                           + x*(1-z)*v2y + (1-x)*(1-z)*v3y- (1-x)*z*v4y -
-                                           x*z*v5y + x*z*v6y + (1-x)*z*v7y;
+                        const double J22 = -(1-x)*(1-z)*vy[0] - x*(1-z)*vy[1]
+                                           + x*(1-z)*vy[2] + (1-x)*(1-z)*vy[3]- (1-x)*z*vy[4] -
+                                           x*z*vy[5] + x*z*vy[6] + (1-x)*z*vy[7];
 
-                        const double J23 = -(1-x)*(1-y)*v0y - x*(1-y)*v1y
-                                           - x*y*v2y - (1-x)*y*v3y + (1-x)*(1-y)*v4y
-                                           + x*(1-y)*v5y + x*y*v6y + (1-x)*y*v7y;
+                        const double J23 = -(1-x)*(1-y)*vy[0] - x*(1-y)*vy[1]
+                                           - x*y*vy[2] - (1-x)*y*vy[3] + (1-x)*(1-y)*vy[4]
+                                           + x*(1-y)*vy[5] + x*y*vy[6] + (1-x)*y*vy[7];
 
-                        const double J31 = -(1-y)*(1-z)*v0z + (1-y)*(1-z)*v1z
-                                           + y*(1-z)*v2z - y*(1-z)*v3z- (1-y)*z*v4z +
-                                           (1-y)*z*v5z + y*z*v6z - y*z*v7z;
+                        const double J31 = -(1-y)*(1-z)*vz[0] + (1-y)*(1-z)*vz[1]
+                                           + y*(1-z)*vz[2] - y*(1-z)*vz[3]- (1-y)*z*vz[4] +
+                                           (1-y)*z*vz[5] + y*z*vz[6] - y*z*vz[7];
 
-                        const double J32 = -(1-x)*(1-z)*v0z - x*(1-z)*v1z
-                                           + x*(1-z)*v2z + (1-x)*(1-z)*v3z - (1-x)*z*v4z
-                                           - x*z*v5z + x*z*v6z + (1-x)*z*v7z;
+                        const double J32 = -(1-x)*(1-z)*vz[0] - x*(1-z)*vz[1]
+                                           + x*(1-z)*vz[2] + (1-x)*(1-z)*vz[3] - (1-x)*z*vz[4]
+                                           - x*z*vz[5] + x*z*vz[6] + (1-x)*z*vz[7];
 
-                        const double J33 = -(1-x)*(1-y)*v0z - x*(1-y)*v1z
-                                           - x*y*v2z - (1-x)*y*v3z + (1-x)*(1-y)*v4z
-                                           + x*(1-y)*v5z + x*y*v6z + (1-x)*y*v7z;
+                        const double J33 = -(1-x)*(1-y)*vz[0] - x*(1-y)*vz[1]
+                                           - x*y*vz[2] - (1-x)*y*vz[3] + (1-x)*(1-y)*vz[4]
+                                           + x*(1-y)*vz[5] + x*y*vz[6] + (1-x)*y*vz[7];
 
                         const double detJ = J11 * (J22 * J33 - J32 * J23) -
                                             J21 * (J12 * J33 - J32 * J13) +
