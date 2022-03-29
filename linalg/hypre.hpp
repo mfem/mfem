@@ -1674,8 +1674,8 @@ public:
    ///
    /// For 2D problems, @a z_ may be NULL. All other parameters must be
    /// non-NULL. The solver assumes ownership of G_, x_, y_, and z_.
-   HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_, HypreParVector *x,
-            HypreParVector *y, HypreParVector *z=NULL);
+   HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_, HypreParVector *x_,
+            HypreParVector *y_, HypreParVector *z_=NULL);
 
    virtual void SetOperator(const Operator &op);
 
@@ -1702,6 +1702,16 @@ private:
    /// Constuct ADS solver from finite element space
    void Init(ParFiniteElementSpace *face_fespace);
 
+   /// Create the hypre solver object and set the default options, given the
+   /// cycle type @a cycle_type and AMS cycle type @a ams_cycle_type.
+   void MakeSolver(int cycle_type, int ams_cycle_type);
+
+   /// Construct the discrete curl, gradient and interpolation matrices
+   /// associated with @a face_fespace, and add them to the solver.
+   void MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace,
+                             int cycle_type,
+                             int ams_cycle_type);
+
    HYPRE_Solver ads;
 
    /// Vertex coordinates
@@ -1719,6 +1729,15 @@ public:
    HypreADS(ParFiniteElementSpace *face_fespace);
 
    HypreADS(const HypreParMatrix &A, ParFiniteElementSpace *face_fespace);
+
+   /// @brief Construct the ADS solver using the provided discrete curl matrix
+   /// @a C, discrete gradient matrix @a G_ and vertex coordinate vectors @a x_,
+   /// @a y_, and @a z_.
+   ///
+   /// None of the inputs may be NULL. The solver assumes ownership of C_, G_,
+   /// x_, y_, and z_.
+   HypreADS(const HypreParMatrix &A, HypreParMatrix *C_, HypreParMatrix *G_,
+            HypreParVector *x_, HypreParVector *y_, HypreParVector *z_);
 
    virtual void SetOperator(const Operator &op);
 
