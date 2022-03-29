@@ -240,11 +240,10 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
 {
    // Create true-DOF vectors x, y, and z that contain the coordinates of the
    // vertices of the LOR mesh. The vertex coordinates are already computed in
-   // E-vector format (and stored in X_vert) in the function (called already)
-   // BatchedLORAssembly::GetLORVertexCoordinates.
+   // E-vector format and passed in in X_vert.
    //
-   // In this function, we just need to convert X_vert (which has the shape
-   // (dim, ndof_per_el, nel_ho)) to T-DOF format.
+   // In this function, we need to convert X_vert (which has the shape (dim,
+   // ndof_per_el, nel_ho)) to T-DOF format.
    //
    // We place the results in the vector xyz_tvec, which has shape (ntdofs, dim)
    // and then make the hypre vectors x, y, and z point to subvectors.
@@ -353,10 +352,9 @@ LORSolver<HypreAMS>::LORSolver(
    if (BatchedLORAssembly::FormIsSupported(a_ho))
    {
       ParFiniteElementSpace &pfes = *a_ho.ParFESpace();
-      BatchedLORAssembly::Assemble(a_ho, pfes, ess_tdof_list, A);
-      Vector X_vert;
-      BatchedLORAssembly::FormLORVertexCoordinates(pfes, X_vert);
-      BatchedLOR_AMS lor_ams(pfes, X_vert);
+      BatchedLORAssembly batched_lor(pfes);
+      batched_lor.Assemble(a_ho, ess_tdof_list, A);
+      BatchedLOR_AMS lor_ams(pfes, batched_lor.GetLORVertexCoordinates());
       xyz = lor_ams.StealCoordinateVector();
       solver = new HypreAMS(*A.As<HypreParMatrix>(),
                             lor_ams.StealGradientMatrix(),

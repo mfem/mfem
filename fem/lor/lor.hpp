@@ -68,6 +68,7 @@ protected:
    FiniteElementCollection *fec = nullptr;
    FiniteElementSpace *fes = nullptr;
    BilinearForm *a = nullptr;
+   class BatchedLORAssembly *batched_lor = nullptr;
    OperatorHandle A;
    mutable Array<int> perm;
 

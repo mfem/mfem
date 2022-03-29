@@ -196,10 +196,10 @@ LORSolver<HypreADS>::LORSolver(
    if (BatchedLORAssembly::FormIsSupported(a_ho))
    {
       ParFiniteElementSpace &pfes = *a_ho.ParFESpace();
-      BatchedLOR_RT lor_rt(a_ho, pfes, ess_tdof_list);
-      BatchedLOR_ADS lor_ads(pfes, lor_rt.GetLORVertexCoordinates());
+      BatchedLORAssembly batched_lor(pfes);
+      BatchedLOR_ADS lor_ads(pfes, batched_lor.GetLORVertexCoordinates());
       BatchedLOR_AMS &lor_ams = lor_ads.GetAMS();
-      lor_rt.Assemble(A);
+      batched_lor.Assemble(a_ho, ess_tdof_list, A);
       xyz = lor_ams.StealCoordinateVector();
       solver = new HypreADS(*A.As<HypreParMatrix>(),
                             lor_ads.StealCurlMatrix(),

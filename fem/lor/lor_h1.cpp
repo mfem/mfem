@@ -613,47 +613,32 @@ void BatchedLOR_H1::Assemble3D()
    }
 }
 
-void BatchedLOR_H1::AssemblyKernel()
-{
-   const int dim = fes_ho.GetMesh()->Dimension();
-   const int order = fes_ho.GetMaxElementOrder();
+// Explicit template instantiations
+template void BatchedLOR_H1::Assemble2D<1>();
+template void BatchedLOR_H1::Assemble2D<2>();
+template void BatchedLOR_H1::Assemble2D<3>();
+template void BatchedLOR_H1::Assemble2D<4>();
+template void BatchedLOR_H1::Assemble2D<5>();
+template void BatchedLOR_H1::Assemble2D<6>();
+template void BatchedLOR_H1::Assemble2D<7>();
+template void BatchedLOR_H1::Assemble2D<8>();
 
-   if (dim == 2)
-   {
-      switch (order)
-      {
-         case 1: Assemble2D<1>(); break;
-         case 2: Assemble2D<2>(); break;
-         case 3: Assemble2D<3>(); break;
-         case 4: Assemble2D<4>(); break;
-         case 5: Assemble2D<5>(); break;
-         case 6: Assemble2D<6>(); break;
-         case 7: Assemble2D<7>(); break;
-         case 8: Assemble2D<8>(); break;
-         default: MFEM_ABORT("No kernel order " << order << "!");
-      }
-   }
-   else if (dim == 3)
-   {
-      switch (order)
-      {
-         case 1: Assemble3D<1>(); break;
-         case 2: Assemble3D<2>(); break;
-         case 3: Assemble3D<3>(); break;
-         case 4: Assemble3D<4>(); break;
-         case 5: Assemble3D<5>(); break;
-         case 6: Assemble3D<6>(); break;
-         case 7: Assemble3D<7>(); break;
-         case 8: Assemble3D<8>(); break;
-         default: MFEM_ABORT("No kernel order " << order << "!");
-      }
-   }
-}
+template void BatchedLOR_H1::Assemble3D<1>();
+template void BatchedLOR_H1::Assemble3D<2>();
+template void BatchedLOR_H1::Assemble3D<3>();
+template void BatchedLOR_H1::Assemble3D<4>();
+template void BatchedLOR_H1::Assemble3D<5>();
+template void BatchedLOR_H1::Assemble3D<6>();
+template void BatchedLOR_H1::Assemble3D<7>();
+template void BatchedLOR_H1::Assemble3D<8>();
 
 BatchedLOR_H1::BatchedLOR_H1(BilinearForm &a,
                              FiniteElementSpace &fes_ho_,
-                             const Array<int> &ess_dofs_)
-   : BatchedLORAssembly(a, fes_ho_, ess_dofs_)
+                             Vector &X_vert_,
+                             Vector &sparse_ij_,
+                             DenseMatrix &sparse_mapping_)
+   : fes_ho(fes_ho_), X_vert(X_vert_), sparse_ij(sparse_ij_),
+     sparse_mapping(sparse_mapping_)
 {
    MassIntegrator *mass = GetIntegrator<MassIntegrator>(a);
    DiffusionIntegrator *diffusion = GetIntegrator<DiffusionIntegrator>(a);
