@@ -30,13 +30,14 @@ BatchedLOR_ADS::BatchedLOR_ADS(ParFiniteElementSpace &pfes_ho_,
    FormCurlMatrix();
 }
 
-void BatchedLOR_ADS::Form3DFaceToEdge(DenseMatrix &face2edge)
+void BatchedLOR_ADS::Form3DFaceToEdge(Array<int> &face2edge)
 {
    const int o = order;
    const int op1 = o + 1;
    const int nface = dim*o*o*op1;
 
-   face2edge.SetSize(4, nface);
+   face2edge.SetSize(4*nface);
+   auto f2e = Reshape(face2edge.HostWrite(), 4, nface);
 
    for (int c=0; c<dim; ++c)
    {
@@ -69,10 +70,10 @@ void BatchedLOR_ADS::Form3DFaceToEdge(DenseMatrix &face2edge)
          const int ie2 = c2*o*op1*op1 + ix + iy*nx_e2 + iz*nx_e2*ny_e2;
          const int ie3 = c2*o*op1*op1 + i2[0] + i2[1]*nx_e2 + i2[2]*nx_e2*ny_e2;
 
-         face2edge(0, iface) = ie0;
-         face2edge(1, iface) = ie1;
-         face2edge(2, iface) = ie2;
-         face2edge(3, iface) = ie3;
+         f2e(0, iface) = ie0;
+         f2e(1, iface) = ie1;
+         f2e(2, iface) = ie2;
+         f2e(3, iface) = ie3;
       }
    }
 }
@@ -98,7 +99,7 @@ void BatchedLOR_ADS::FormCurlMatrix()
    // face2edge is a mapping of size (4, nface_per_el), such that with a macro
    // element, face i (in lexicographic ordering) has four edges given by the
    // entries (k, i), for k=1,2,3,4.
-   DenseMatrix face2edge;
+   Array<int> face2edge;
    Form3DFaceToEdge(face2edge);
 
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
