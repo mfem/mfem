@@ -53,8 +53,6 @@ examples/ex2[0-9]
 examples/ex2[0-9]p
 examples/ex3[0-9]
 examples/ex3[0-9]p
-examples/ex4[0-9]
-examples/ex4[0-9]p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -80,6 +78,7 @@ examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
 examples/mode_*
+examples/mode_deriv_*
 examples/ex5-p-*.bp
 examples/ex9-p-*.bp
 examples/ex12-p-*.bp
@@ -261,6 +260,8 @@ miniapps/performance/sol.*
 
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
+miniapps/shifted/extrapolate
+miniapps/shifted/ParaViewExtrapolate
 miniapps/shifted/diffusion
 miniapps/shifted/diffusion.mesh
 miniapps/shifted/diffusion.gf
@@ -302,6 +303,8 @@ miniapps/solvers/sol.*
 
 miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
+
+miniapps/elasticity/elasticity
 
 # Unit test binary and outputs
 tests/unit/output_meshes

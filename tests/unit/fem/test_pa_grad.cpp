@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,29 @@
 #include "unit_tests.hpp"
 
 using namespace mfem;
+
+Mesh MakeCartesianNonaligned(const int dim, const int ne)
+{
+   Mesh mesh;
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   }
+
+   // Remap vertices so that the mesh is not aligned with axes.
+   for (int i=0; i<mesh.GetNV(); ++i)
+   {
+      double *vcrd = mesh.GetVertex(i);
+      vcrd[1] += 0.2 * vcrd[0];
+      if (dim == 3) { vcrd[2] += 0.3 * vcrd[0]; }
+   }
+
+   return mesh;
+}
 
 double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
 {
@@ -31,17 +54,9 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    }
    else
    {
-      if (dim == 2)
-      {
-         mesh = Mesh::MakeCartesian2D(num_elements, num_elements, Element::QUADRILATERAL,
-                                      true);
-      }
-      else
-      {
-         mesh = Mesh::MakeCartesian3D(num_elements, num_elements, num_elements,
-                                      Element::HEXAHEDRON);
-      }
+      mesh = MakeCartesianNonaligned(dim, num_elements);
    }
+
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);
    FiniteElementCollection *nd_fec = new ND_FECollection(order, dim);
    FiniteElementSpace h1_fespace(&mesh, h1_fec);
@@ -78,7 +93,7 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    xv.Randomize();
    if (transpose)
    {
-      assembled_grad_mat.BuildTranspose();
+      assembled_grad_mat.EnsureMultTranspose();
       assembled_grad_mat.MultTranspose(xv, assembled_y);
       pa_grad.MultTranspose(xv, pa_y);
    }
@@ -120,17 +135,7 @@ double par_compare_pa_assembly(int dim, int num_elements, int order,
    int size;
    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-   Mesh smesh;
-   if (dim == 2)
-   {
-      smesh = Mesh::MakeCartesian2D(
-                 num_elements, num_elements, Element::QUADRILATERAL, true);
-   }
-   else
-   {
-      smesh = Mesh::MakeCartesian3D(
-                 num_elements, num_elements, num_elements, Element::HEXAHEDRON);
-   }
+   Mesh smesh = MakeCartesianNonaligned(dim, num_elements);
    ParMesh * mesh = new ParMesh(MPI_COMM_WORLD, smesh);
    smesh.Clear();
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);

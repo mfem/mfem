@@ -15,7 +15,8 @@
  * @brief This file contains the declaration of a dual number class
  */
 
-#pragma once
+#ifndef MFEM_INTERNAL_DUAL_HPP
+#define MFEM_INTERNAL_DUAL_HPP
 
 #include <cmath>
 #include "../general/backends.hpp"
@@ -408,3 +409,5 @@ struct is_dual_number<dual<value_type, gradient_type> >
 
 } // namespace internal
 } // namespace mfem
+
+#endif

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,7 +18,7 @@
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
 #ifdef MFEM_USE_MPI
-#include <HYPRE_config.h> // HYPRE_USING_CUDA
+#include <HYPRE_config.h> // HYPRE_USING_GPU
 #endif
 
 namespace mfem
@@ -934,12 +934,12 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    if (!(base.flags & REGISTERED))
    {
       if (
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
          // If the following condition is true then MemoryManager::Exists()
          // should also be true:
          IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
 #else
-         // When HYPRE_USING_CUDA is defined we always register the 'base' if
+         // When HYPRE_USING_GPU is defined we always register the 'base' if
          // the MemoryManager::Exists():
          MemoryManager::Exists()
 #endif
