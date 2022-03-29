@@ -37,6 +37,8 @@
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -o 2
 //    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -ft 1 -no-vis -sr0
+//    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 2
+//    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
 
 #include "mfem.hpp"
 
@@ -224,7 +226,7 @@ int main (int argc, char *argv[])
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
-   const int pts_cnt_1D = 10;
+   const int pts_cnt_1D = 25;
    int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
    if (dim == 2)
