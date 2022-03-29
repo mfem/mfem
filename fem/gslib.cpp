@@ -35,6 +35,7 @@ namespace mfem
 FindPointsGSLIB::FindPointsGSLIB()
    : mesh(NULL),
      meshsplit_tri(NULL), meshsplit_tet(NULL), meshsplit_prism(NULL),
+     meshsplit_pyr(NULL),
      ir_tri(NULL), ir_tet(NULL), ir_prism(NULL), ir_pyr(NULL),
      fec_map_lin(NULL),
      fes_rst_map_tri(NULL), fes_rst_map_tet(NULL), fes_rst_map_prism(NULL),
@@ -81,6 +82,7 @@ FindPointsGSLIB::~FindPointsGSLIB()
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
    : mesh(NULL),
      meshsplit_tri(NULL), meshsplit_tet(NULL), meshsplit_prism(NULL),
+     meshsplit_pyr(NULL),
      ir_tri(NULL), ir_tet(NULL), ir_prism(NULL), ir_pyr(NULL),
      fec_map_lin(NULL),
      fes_rst_map_tri(NULL), fes_rst_map_tet(NULL), fes_rst_map_prism(NULL),

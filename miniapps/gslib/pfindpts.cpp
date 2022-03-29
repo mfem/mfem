@@ -39,18 +39,21 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -ft 1 -no-vis -sr0
 //    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 2
 //    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
+//    mpirun -np 2 pfindpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
 
 #include "mfem.hpp"
 
 using namespace mfem;
 using namespace std;
 
+double func_order;
+
 // Scalar function to project
 double field_func(const Vector &x)
 {
    const int dim = x.Size();
    double res = 0.0;
-   for (int d = 0; d < dim; d++) { res += x(d) * x(d); }
+   for (int d = 0; d < dim; d++) { res += std::pow(x(d), func_order); }
    return res;
 }
 
@@ -113,6 +116,8 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+
+   func_order = std::min(order, 2);
 
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);

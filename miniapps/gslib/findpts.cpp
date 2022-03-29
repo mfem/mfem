@@ -36,6 +36,9 @@
 //    findpts -m ../../data/inline-wedge.mesh -o 3
 //    findpts -m ../../data/amr-quad.mesh -o 2
 //    findpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
+//    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2
+//    findpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
+//    findpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
 
 #include "mfem.hpp"
 
@@ -99,12 +102,14 @@ GridFunction* ProlongToMaxOrder(const GridFunction *x, const int fieldtype)
    return xInt;
 }
 
+double func_order;
+
 // Scalar function to project
 double field_func(const Vector &x)
 {
    const int dim = x.Size();
    double res = 0.0;
-   for (int d = 0; d < dim; d++) { res += x(d) * x(d); }
+   for (int d = 0; d < dim; d++) { res += std::pow(x(d), func_order); }
    return res;
 }
 
@@ -158,6 +163,8 @@ int main (int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   func_order = std::min(order, 2);
 
    // Initialize and refine the starting mesh.
    Mesh mesh(mesh_file, 1, 1, false);
@@ -263,7 +270,7 @@ int main (int argc, char *argv[])
       {
          sout.precision(8);
          sout << "solution\n" << mesh << *field_vals_pref;
-         if (dim == 2) { sout << "keys RmjA*****En\n"; }
+         if (dim == 2) { sout << "keys RmjA*****n\n"; }
          if (dim == 3) { sout << "keys mA\n"; }
          sout << flush;
       }
