@@ -175,6 +175,7 @@ set(HDRS
   lor/lor_h1.hpp
   lor/lor_nd.hpp
   lor/lor_rt.hpp
+  lor/lor_util.hpp
   multigrid.hpp
   nonlinearform.hpp
   nonlinearform_ext.hpp
