@@ -31,13 +31,13 @@ int main (int argc, char *argv[])
 {
    // 0. Initialize MPI.
    Mpi::Init();
-   int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
 
    const char *mesh_file = "square01.mesh";
-   int rs_levels = 2;
+   int rs_levels     = 2;
    int mesh_poly_deg = 2;
    int quad_order    = 8;
+   bool fin_diff     = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -51,6 +51,9 @@ int main (int argc, char *argv[])
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
+   args.AddOption(&fin_diff, "-fd", "--fd_approximation",
+                  "-no-fd", "--no-fd-approx",
+                  "Enable finite difference based derivative computations.");
    args.Parse();
    if (!args.Good())
    {
@@ -91,16 +94,32 @@ int main (int argc, char *argv[])
       const int nd = pfes_mesh.GetBE(e)->GetDof();
       const int attr = pmesh.GetBdrElement(e)->GetAttribute();
       pfes_mesh.GetBdrElementVDofs(e, vdofs);
-      if (attr == 1) // vertical boundary
+      for (int j = 0; j < nd; j++)
       {
-         for (int j = 0; j < nd; j++)
+         int idx = vdofs[j], idy = vdofs[nd+j];
+         fit_marker[idx] = true;
+         fit_marker_vis_gf(idx) = 1.0;
+         x_target(idx) = x(idx);
+         if (attr == 2) // horizontal.
          {
-            int idx = vdofs[j], idy = vdofs[nd+j];
-            fit_marker[idx] = true;
-            fit_marker_vis_gf(idx) = 1.0;
-            x_target(idx) = 1.2 * x(idx);
-            x_target(idy) = 1.2 * x(idy);
+            if (x(idy) < 0.5)
+            {
+               x_target(idy) = 0.1*std::sin(4 * M_PI * x(idx));
+            }
+            else
+            {
+               if (x(idx) < 0.5)
+               {
+                  x_target(idy) = 1.0 + 0.2*std::sin(2 * M_PI * x(idx));
+               }
+               else
+               {
+                  x_target(idy) = 1.0 + 0.2*std::sin(2 * M_PI * (x(idx)+0.5));
+               }
+
+            }
          }
+         else { x_target(idy) = x(idy); }
       }
    }
    // Show the target positions.
@@ -113,9 +132,10 @@ int main (int argc, char *argv[])
    TMOP_Metric_002 metric;
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
-   ConstantCoefficient one(5.0);
+   ConstantCoefficient one(1.0);
    auto integ = new TMOP_Integrator(&metric, &target, nullptr);
    integ->EnableSurfaceFitting(x_target, fit_marker, one);
+   if (fin_diff) { integ->EnableFiniteDifferences(x); }
 
    ParNonlinearForm a(&pfes_mesh);
    a.AddDomainIntegrator(integ);
@@ -135,6 +155,7 @@ int main (int argc, char *argv[])
    solver.SetRelTol(1e-10);
    solver.SetAbsTol(0.0);
    solver.EnableAdaptiveSurfaceFitting();
+   solver.SetTerminationWithMaxSurfaceFittingError(1e-8);
 
    Vector b(0);
    x.SetTrueVector();

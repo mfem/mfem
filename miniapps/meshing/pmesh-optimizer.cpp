@@ -1216,7 +1216,7 @@ int main (int argc, char *argv[])
                                 "Surface dof", 900, 900, 300, 300);
       }
       double err_avg, err_max;
-      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      tmop_integ->GetSurfaceFittingErrors(x, err_avg, err_max);
       if (myid == 0)
       {
          std::cout << "Avg fitting error: " << err_avg << std::endl
