@@ -147,8 +147,8 @@ struct Problem: public BakeOff
 #define BakeOff_Problem(assembly,i,Kernel,VDIM,MaxDofs,p_eq_q)\
 static void SetupBP##i##assembly(bm::State &state){\
    const int dim = 3;\
-   const int p = state.range(0);\
-   const int target_dofs = state.range(1);\
+   const int p = state.range(1);\
+   const int target_dofs = state.range(0);\
    const int elem_dofs = pow(p+1, dim);\
    const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly, p, N);\
@@ -158,13 +158,13 @@ static void SetupBP##i##assembly(bm::State &state){\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
    state.counters["Order"] = bm::Counter(ker.p);}\
 BENCHMARK(SetupBP##i##assembly)->ArgsProduct({\
-      benchmark::CreateDenseRange(1, 6, /*step=*/1),\
-      benchmark::CreateRange(1024, MaxDofs, /*step=*/2)\
+      benchmark::CreateRange(1024, MaxDofs, /*step=*/2),\
+      benchmark::CreateDenseRange(1, 6, /*step=*/1)\
     })->Unit(bm::kMillisecond);\
 static void BP##i##assembly(bm::State &state){\
    const int dim = 3;\
-   const int p = state.range(0);\
-   const int target_dofs = state.range(1);\
+   const int p = state.range(1);\
+   const int target_dofs = state.range(0);\
    const int elem_dofs = pow(p+1, dim);\
    const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly, p, N);\
@@ -174,8 +174,8 @@ static void BP##i##assembly(bm::State &state){\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
    state.counters["Order"] = bm::Counter(ker.p);}\
 BENCHMARK(BP##i##assembly)->ArgsProduct({\
-      benchmark::CreateDenseRange(1, 6, /*step=*/1),\
-      benchmark::CreateRange(1024, MaxDofs, /*step=*/2)\
+      benchmark::CreateRange(1024, MaxDofs, /*step=*/2),\
+      benchmark::CreateDenseRange(1, 6, /*step=*/1)\
     })->Unit(bm::kMillisecond);
 
 const int maxDofs = 1e7;
@@ -283,8 +283,8 @@ struct Kernel: public BakeOff
 #define BakeOff_Kernel(assembly,i,KER,VDIM,MaxDofs,GLL)\
 static void BK##i##assembly(bm::State &state){\
    const int dim = 3;\
-   const int p = state.range(0);\
-   const int target_dofs = state.range(1);\
+   const int p = state.range(1);\
+   const int target_dofs = state.range(0);\
    const int elem_dofs = pow(p+1, dim);\
    const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;\
    Kernel<KER##Integrator,VDIM,GLL> ker(AssemblyLevel::assembly, p, N);\
@@ -294,8 +294,8 @@ static void BK##i##assembly(bm::State &state){\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
    state.counters["Order"] = bm::Counter(ker.p);}\
 BENCHMARK(BK##i##assembly)->ArgsProduct({\
-      benchmark::CreateDenseRange(1, 6, /*step=*/1),\
-      benchmark::CreateRange(1024, MaxDofs, /*step=*/2)\
+      benchmark::CreateRange(1024, MaxDofs, /*step=*/2),\
+      benchmark::CreateDenseRange(1, 6, /*step=*/1)\
     })->Unit(bm::kMillisecond);\
 
 // PARTIAL:
