@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -454,12 +454,12 @@ CEED_QFUNCTION(f_apply_diff_mf_quad)(void *ctx, CeedInt Q,
             qd[0] =   coeff * w * (J12 * J12 + J22 * J22);
             qd[1] = - coeff * w * (J11 * J12 + J21 * J22);
             qd[2] =   coeff * w * (J11 * J11 + J21 * J21);
-            for (CeedInt c = 0; c < 2; c++)
+            for (CeedInt d = 0; d < 2; d++)
             {
-               const CeedScalar ug0 = ug[i + Q * (c+2*0)];
-               const CeedScalar ug1 = ug[i + Q * (c+2*1)];
-               vg[i + Q * (c+2*0)] = qd[0] * ug0 + qd[1] * ug1;
-               vg[i + Q * (c+2*1)] = qd[1] * ug0 + qd[2] * ug1;
+               const CeedScalar ug0 = ug[i + Q * (d+2*0)];
+               const CeedScalar ug1 = ug[i + Q * (d+2*1)];
+               vg[i + Q * (d+2*0)] = qd[0] * ug0 + qd[1] * ug1;
+               vg[i + Q * (d+2*1)] = qd[1] * ug0 + qd[2] * ug1;
             }
          }
          break;
@@ -537,14 +537,14 @@ CEED_QFUNCTION(f_apply_diff_mf_quad)(void *ctx, CeedInt Q,
             qd[3] = coeff * w * (A21 * A21 + A22 * A22 + A23 * A23);
             qd[4] = coeff * w * (A21 * A31 + A22 * A32 + A23 * A33);
             qd[5] = coeff * w * (A31 * A31 + A32 * A32 + A33 * A33);
-            for (CeedInt c = 0; c < 3; c++)
+            for (CeedInt d = 0; d < 3; d++)
             {
-               const CeedScalar ug0 = ug[i + Q * (c+3*0)];
-               const CeedScalar ug1 = ug[i + Q * (c+3*1)];
-               const CeedScalar ug2 = ug[i + Q * (c+3*2)];
-               vg[i + Q * (c+3*0)] = qd[0] * ug0 + qd[1] * ug1 + qd[2] * ug2;
-               vg[i + Q * (c+3*1)] = qd[1] * ug0 + qd[3] * ug1 + qd[4] * ug2;
-               vg[i + Q * (c+3*2)] = qd[2] * ug0 + qd[4] * ug1 + qd[5] * ug2;
+               const CeedScalar ug0 = ug[i + Q * (d+3*0)];
+               const CeedScalar ug1 = ug[i + Q * (d+3*1)];
+               const CeedScalar ug2 = ug[i + Q * (d+3*2)];
+               vg[i + Q * (d+3*0)] = qd[0] * ug0 + qd[1] * ug1 + qd[2] * ug2;
+               vg[i + Q * (d+3*1)] = qd[1] * ug0 + qd[3] * ug1 + qd[4] * ug2;
+               vg[i + Q * (d+3*2)] = qd[2] * ug0 + qd[4] * ug1 + qd[5] * ug2;
             }
          }
          break;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -96,14 +96,14 @@ SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
                                const SparseMatrix& agg_elem,
                                const SparseMatrix& elem_dof,
                                const HypreParMatrix& dof_truedof,
-                               Array<HYPRE_Int>& agg_starts)
+                               Array<HYPRE_BigInt>& agg_starts)
 {
    OperatorPtr agg_dof(Mult(agg_elem, elem_dof));
    SparseMatrix& agg_dof_ref = *agg_dof.As<SparseMatrix>();
    OperatorPtr agg_tdof(dof_truedof.LeftDiagMult(agg_dof_ref, agg_starts));
    OperatorPtr agg_tdof_T(agg_tdof.As<HypreParMatrix>()->Transpose());
    SparseMatrix tdof_agg, is_shared;
-   HYPRE_Int* trash;
+   HYPRE_BigInt* trash;
    agg_tdof_T.As<HypreParMatrix>()->GetDiag(tdof_agg);
    agg_tdof_T.As<HypreParMatrix>()->GetOffd(is_shared, trash);
 
@@ -131,7 +131,8 @@ SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
 
 void DFSSpaces::MakeDofRelationTables(int level)
 {
-   Array<HYPRE_Int> agg_starts(Array<HYPRE_Int>(l2_0_fes_->GetDofOffsets(), 2));
+   Array<HYPRE_BigInt> agg_starts(Array<HYPRE_BigInt>(l2_0_fes_->GetDofOffsets(),
+                                                      2));
    auto& elem_agg = (const SparseMatrix&)*l2_0_fes_->GetUpdateOperator();
    OperatorPtr agg_elem(Transpose(elem_agg));
    SparseMatrix& agg_el = *agg_elem.As<SparseMatrix>();

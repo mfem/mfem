@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -107,8 +107,9 @@ DataCollection *create_data_collection(const std::string &dc_name,
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
-   MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Mpi::Init();
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Hypre::Init();
 #endif
 
    // Parse command-line options.
@@ -157,15 +158,15 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(mfem::out);
 
-   DataCollection *src = create_data_collection(std::string(src_coll_name),
-                                                std::string(src_coll_type));
+   DataCollection *src_dc = create_data_collection(std::string(src_coll_name),
+                                                   std::string(src_coll_type));
 
-   DataCollection *out = create_data_collection(std::string(out_coll_name),
-                                                std::string(out_coll_type));
+   DataCollection *out_dc = create_data_collection(std::string(out_coll_name),
+                                                   std::string(out_coll_type));
 
-   src->Load(src_cycle);
+   src_dc->Load(src_cycle);
 
-   if (src->Error() != DataCollection::NO_ERROR)
+   if (src_dc->Error() != DataCollection::NO_ERROR)
    {
       mfem::out << "Error loading data collection: "
                 << src_coll_name
@@ -176,33 +177,33 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   out->SetOwnData(false);
+   out_dc->SetOwnData(false);
 
    // add mesh from source dc to output dc
 #ifdef MFEM_USE_MPI
-   out->SetMesh(MPI_COMM_WORLD,src->GetMesh());
+   out_dc->SetMesh(MPI_COMM_WORLD,src_dc->GetMesh());
 #else
-   out->SetMesh(src->GetMesh());
+   out_dc->SetMesh(src_dc->GetMesh());
 #endif
 
    // propagate the basics
-   out->SetCycle(src->GetCycle());
-   out->SetTime(src->GetTime());
-   out->SetTimeStep(src->GetTimeStep());
+   out_dc->SetCycle(src_dc->GetCycle());
+   out_dc->SetTime(src_dc->GetTime());
+   out_dc->SetTimeStep(src_dc->GetTimeStep());
 
    // loop over all fields in the source dc, and add them to the output dc
-   const DataCollection::FieldMapType &src_fields = src->GetFieldMap();
+   const DataCollection::FieldMapType &src_fields = src_dc->GetFieldMap();
 
    for (DataCollection::FieldMapType::const_iterator it = src_fields.begin();
         it != src_fields.end();
         ++it)
    {
-      out->RegisterField(it->first,it->second);
+      out_dc->RegisterField(it->first,it->second);
    }
 
-   out->Save();
+   out_dc->Save();
 
-   if (out->Error() != DataCollection::NO_ERROR)
+   if (out_dc->Error() != DataCollection::NO_ERROR)
    {
       mfem::out << "Error saving data collection: "
                 << out_coll_name
@@ -214,8 +215,8 @@ int main(int argc, char *argv[])
    }
 
    // cleanup
-   delete src;
-   delete out;
+   delete src_dc;
+   delete out_dc;
 
    return 0;
 }
