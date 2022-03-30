@@ -10,6 +10,21 @@
 
 Version 4.4, released on March 21, 2022
 =======================================
+New and updated examples and miniapps
+-------------------------------------
+- New elasticity miniapp that showcases a lower level approach of using MFEM.
+  Leveraging the transparent concept of the fundamental finite element operator
+  decomposition, a nonlinear elasticity problem is solved. This miniapp also
+  integrates with automatic differentiation tools like a native dual number
+  implementation or a third party approach using Enzyme.
+
+Integrations, testing and documentation
+---------------------------------------
+- Support for the automatic differentiation LLVM plugin Enzyme
+  (https://github.com/EnzymeAD/Enzyme). Includes build system flags and a
+  convenience header. The functionality and interaction is demonstrated in the
+  new elasticity miniapp.
+
 
 Linear and nonlinear solvers
 ----------------------------
