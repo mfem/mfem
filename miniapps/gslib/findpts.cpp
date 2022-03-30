@@ -38,6 +38,7 @@
 //    findpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
+//    findpts -m ../../data/fichera-mixed.mesh -o 3 -mo 2
 //    findpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
 
 #include "mfem.hpp"
@@ -270,7 +271,7 @@ int main (int argc, char *argv[])
       {
          sout.precision(8);
          sout << "solution\n" << mesh << *field_vals_pref;
-         if (dim == 2) { sout << "keys RmjA*****n\n"; }
+         if (dim == 2) { sout << "keys RmjA*****\n"; }
          if (dim == 3) { sout << "keys mA\n"; }
          sout << flush;
       }
