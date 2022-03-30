@@ -47,14 +47,13 @@ using namespace std;
 namespace mfem
 {
 
-/*
-void MPI_Session::GetRankAndSize()
+#ifdef MFEM_USE_JIT
+
+void MPI_JIT_Session::GetRankAndSize()
 {
    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 }
-
-#ifdef MFEM_USE_JIT
 
 template <typename Op>
 bool MPI_JIT_Session::Acknowledge(const int check)
@@ -98,9 +97,9 @@ MPI_JIT_Session::MPI_JIT_Session()
    {
       MFEM_VERIFY(*state == NOP, "Child init error!");
       AcknowledgeEQ();// get world_rank
-      const int world_rank = *state;
+      const int rank = *state;
       *state = NOP;
-      dbg("\033[33m[child] rank %d\033[m", world_rank);
+      dbg("\033[33m[child] rank %d\033[m", rank);
 
       auto work = [&]()
       {
@@ -113,19 +112,13 @@ MPI_JIT_Session::MPI_JIT_Session()
       // only rank 0 is kept for compilation
       if (world_rank == 0)
       {
-         dbg("\033[33m[child] WORK %d\033[m", world_rank);
+         dbg("\033[33m[child] WORK %d\033[m", rank);
          std::thread thread(work);
          thread.join();
       }
-      dbg("\033[33m[child] exit %d\033[m", world_rank);
+      dbg("\033[33m[child] exit %d\033[m", rank);
       exit(0);
    }
-}
-
-void MPI_JIT_Session::GetRankAndSize()
-{
-   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 }
 
 MPI_JIT_Session::~MPI_JIT_Session()
@@ -147,8 +140,8 @@ MPI_JIT_Session::~MPI_JIT_Session()
 }
 
 #endif // MFEM_USE_JIT
-*/
-   
+
+
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),
      group_lproc(gt.group_lproc)

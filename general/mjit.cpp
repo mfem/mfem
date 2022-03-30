@@ -77,7 +77,8 @@ namespace mfem
 namespace jit
 {
 
-static inline int argn(const char *argv[], int argc = 0)
+template<typename T>
+static inline int argn(T argv[], int argc = 0)
 {
    while (argv[argc]) { argc += 1; }
    return argc;
@@ -104,6 +105,7 @@ static int System(const char *argv[])
 
 bool Root() { return true; }
 
+#else // MFEM_USE_MPI
 /// \brief CloseAndWait
 /// \param fd descriptor to be closed.
 static inline void CloseAndWait(int fd)
@@ -225,7 +227,6 @@ static int CompileInMemory(const char *argv[],
    return EXIT_SUCCESS;
 }
 
-#else // MFEM_USE_MPI
 // The parallel implementation will spawn the =mjit= binary on one mpi rank to
 // be able to run on one core and use MPI to broadcast the compilation output.
 
@@ -317,7 +318,7 @@ int System_MPISpawn(char *argv[])
 }
 
 // Just launch the std::system
-int System_Std(char *argv[])
+int System_Std(const char *argv[])
 {
    dbg();
    MPI_Comm comm = MPI_COMM_WORLD;
@@ -374,7 +375,7 @@ int System_MPI_JIT_Session(char *argv[])
 }
 
 // Entry point toward System_MPISpawn or System_MPI_JIT_Session
-int System(char *argv[])
+int System(const char *argv[])
 {
    return System_Std(argv);
    //return System_MPISpawn(argv);
