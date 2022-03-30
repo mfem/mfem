@@ -1749,10 +1749,10 @@ int main(int argc, char *argv[])
          if (es != NULL)
          {
             es->SetTime(t_init);
-            double err = yGF[i]->ComputeL2Error(*es);
+            double error = yGF[i]->ComputeL2Error(*es);
             if (mpi.Root())
             {
-               ofserr << '\t' << err;
+               ofserr << '\t' << error;
             }
          }
          else
@@ -2016,7 +2016,7 @@ int main(int argc, char *argv[])
    // Finite element space for a scalar (thermodynamic quantity)
    ParFiniteElementSpace fes_l2_o0(&pmesh, &fec_l2_o0);
 
-   ParGridFunction err(&fes_l2_o0, (double *)NULL);
+   ParGridFunction err_est(&fes_l2_o0, (double *)NULL);
 
    // 11. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
    //     with L2 projection in the smoothing step to better handle hanging
@@ -2174,10 +2174,10 @@ int main(int argc, char *argv[])
             if (es != NULL)
             {
                es->SetTime(t);
-               double err = yGF[i]->ComputeL2Error(*es);
+               double error = yGF[i]->ComputeL2Error(*es);
                if (mpi.Root())
                {
-                  ofserr << '\t' << err;
+                  ofserr << '\t' << error;
                }
             }
             else
@@ -2286,11 +2286,11 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            const Vector & err_est = estimator.GetLocalErrors();
-            err.MakeRef(&fes_l2_o0, const_cast<double*>(&err_est[0]));
+            const Vector & loc_err_est = estimator.GetLocalErrors();
+            err_est.MakeRef(&fes_l2_o0, const_cast<double*>(&loc_err_est[0]));
             ostringstream oss;
             oss << "Error estimate at time " << t;
-            VisualizeField(eout, vishost, visport, err, oss.str().c_str(),
+            VisualizeField(eout, vishost, visport, err_est, oss.str().c_str(),
                            Wx, Wy + 2 * (Wh + Dy), Ww, Wh);
          }
 

@@ -909,9 +909,9 @@ void EqnCoefficients::ReadCoefs(std::istream &input)
       ord[i] = nCoefs;
    }
 
-   enum CoefType {INVALID = -1, SCALAR, VECTOR, MATRIX};
+   enum CoefType {INVALID_COEF_TYPE = -1, SCALAR, VECTOR, MATRIX};
    Array<CoefType> typ(nCoefs);
-   typ = CoefType::INVALID;
+   typ = CoefType::INVALID_COEF_TYPE;
 
    int c = 0;
    while (input >> buff)
@@ -2192,9 +2192,9 @@ CG2DG::CG2DG(const ParFiniteElementSpace &fes_dg_,
 {
    width = fes_cg.GetTrueVSize();
 
-   int ndof_dg = fes_dg.GetNDofs();
-   int ndof_cg = fes_cg.GetNDofs();
-   SparseMatrix mat(ndof_dg, ndof_cg);
+   int nldof_dg = fes_dg.GetNDofs();
+   int nldof_cg = fes_cg.GetNDofs();
+   SparseMatrix mat(nldof_dg, nldof_cg);
 
    // Assembly
    DenseMatrix elmat;
@@ -2225,7 +2225,7 @@ CG2DG::CG2DG(const ParFiniteElementSpace &fes_dg_,
 
    // Zero out the boundary for homogeneous Dirichlet BC
 
-   Vector column_scaling(ndof_cg);
+   Vector column_scaling(nldof_cg);
    column_scaling = 1.0;
    for (auto it = cg_ess_tdof_list.begin(); it != cg_ess_tdof_list.end(); ++it)
    {
@@ -2515,17 +2515,17 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
    }
    op_.SetTimeStep(dt);
 
-   Vector zero;
-   newton_solver_.Mult(zero, k);
+   Vector zeroVec;
+   newton_solver_.Mult(zeroVec, k);
 
    if (kMax_.Size() == kGF_.Size())
    {
-      ConstantCoefficient zero(0.0);
+      ConstantCoefficient zeroCoef(0.0);
       for (int i=0; i<kGF_.Size(); i++)
       {
          if ((op_flag_ >> i) & 1)
          {
-            double kNrm = kGF_[i]->ComputeL2Error(zero);
+            double kNrm = kGF_[i]->ComputeL2Error(zeroCoef);
             kMax_[i] = std::max(kMax_[i], kNrm);
 
             ss_[i] = kNrm < tol_.ss_abs_tol ||
@@ -2625,7 +2625,8 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
    for (int i=0; i<yGF_.Size(); i++)
    {
       yCoefPtrs_[i] = new StateVariableGridFunctionCoef(yGF_[i], (FieldType)i);
-      kCoefPtrs_[i] = new StateVariableGridFunctionCoef(kGF_[i], INVALID);
+      kCoefPtrs_[i] = new StateVariableGridFunctionCoef(kGF_[i],
+                                                        INVALID_FIELD_TYPE);
 
       // y + dt k
       // Note that dt_ has not been set yet but we use it here for emphasis
@@ -2732,14 +2733,12 @@ void DGTransportTDO::NLOperator::Mult(const Vector &, Vector &r) const
 
    r = 0.0;
 
-   ElementTransformation *eltrans = NULL;
-
    for (int i=0; i < fes_.GetNE(); i++)
    {
       fes_.GetElementVDofs(i, vdofs_);
 
       const FiniteElement &fe = *fes_.GetFE(i);
-      eltrans = fes_.GetElementTransformation(i);
+      ElementTransformation *eltrans = fes_.GetElementTransformation(i);
 
       int ndof = vdofs_.Size();
 

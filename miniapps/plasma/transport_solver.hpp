@@ -784,7 +784,7 @@ public:
    }
 };
 
-enum FieldType {INVALID = -1,
+enum FieldType {INVALID_FIELD_TYPE   = -1,
                 NEUTRAL_DENSITY      = 0,
                 ION_DENSITY          = 1,
                 ION_PARA_VELOCITY    = 2,
@@ -819,7 +819,8 @@ public:
    FieldType GetDerivType() const { return derivType_; }
 
 protected:
-   StateVariableFunc(FieldType deriv = INVALID) : derivType_(deriv) {}
+   StateVariableFunc(FieldType deriv = INVALID_FIELD_TYPE)
+      : derivType_(deriv) {}
 
    FieldType derivType_;
 };
@@ -836,7 +837,7 @@ public:
    {
       switch (derivType_)
       {
-         case INVALID:
+         case INVALID_FIELD_TYPE:
             return Eval_Func(T, ip);
          case NEUTRAL_DENSITY:
             return Eval_dNn(T, ip);
@@ -894,7 +895,8 @@ public:
    }
 
 protected:
-   StateVariableCoef(FieldType deriv = INVALID) : StateVariableFunc(deriv) {}
+   StateVariableCoef(FieldType deriv = INVALID_FIELD_TYPE)
+      : StateVariableFunc(deriv) {}
 };
 
 class StateVariableVecCoef : public StateVariableFunc,
@@ -911,7 +913,7 @@ public:
 
       switch (derivType_)
       {
-         case INVALID:
+         case INVALID_FIELD_TYPE:
             return Eval_Func(V, T, ip);
          case NEUTRAL_DENSITY:
             return Eval_dNn(V, T, ip);
@@ -954,7 +956,7 @@ public:
                          const IntegrationPoint &ip) { V = 0.0; }
 
 protected:
-   StateVariableVecCoef(int dim, FieldType deriv = INVALID)
+   StateVariableVecCoef(int dim, FieldType deriv = INVALID_FIELD_TYPE)
       : StateVariableFunc(deriv), VectorCoefficient(dim) {}
 };
 
@@ -973,7 +975,7 @@ public:
 
       switch (derivType_)
       {
-         case INVALID:
+         case INVALID_FIELD_TYPE:
             return Eval_Func(M, T, ip);
          case NEUTRAL_DENSITY:
             return Eval_dNn(M, T, ip);
@@ -1016,10 +1018,10 @@ public:
                          const IntegrationPoint &ip) { M = 0.0; }
 
 protected:
-   StateVariableMatCoef(int dim, FieldType deriv = INVALID)
+   StateVariableMatCoef(int dim, FieldType deriv = INVALID_FIELD_TYPE)
       : StateVariableFunc(deriv), MatrixCoefficient(dim) {}
 
-   StateVariableMatCoef(int h, int w, FieldType deriv = INVALID)
+   StateVariableMatCoef(int h, int w, FieldType deriv = INVALID_FIELD_TYPE)
       : StateVariableFunc(deriv), MatrixCoefficient(h, w) {}
 };
 
@@ -1044,7 +1046,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID);
+      return (deriv == INVALID_FIELD_TYPE);
    }
 
    virtual double Eval_Func(ElementTransformation &T,
@@ -1075,7 +1077,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID);
+      return (deriv == INVALID_FIELD_TYPE);
    }
 
    virtual void Eval_Func(Vector & V, ElementTransformation &T,
@@ -1106,7 +1108,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID);
+      return (deriv == INVALID_FIELD_TYPE);
    }
 
    virtual double Eval_Func(ElementTransformation &T,
@@ -1152,7 +1154,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID || deriv == fieldType_);
+      return (deriv == INVALID_FIELD_TYPE || deriv == fieldType_);
    }
 
    virtual double Eval_Func(ElementTransformation &T,
@@ -1633,7 +1635,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_DENSITY ||
               deriv == ELECTRON_TEMPERATURE);
    }
@@ -1717,7 +1719,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_DENSITY ||
               deriv == ION_TEMPERATURE ||
               deriv == ELECTRON_TEMPERATURE);
@@ -1815,7 +1817,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_DENSITY ||
               deriv == ELECTRON_TEMPERATURE);
    }
@@ -1897,7 +1899,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_TEMPERATURE ||
               deriv == ELECTRON_TEMPERATURE);
    }
@@ -1965,7 +1967,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
+      return (deriv == INVALID_FIELD_TYPE || deriv == ELECTRON_TEMPERATURE);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -2011,7 +2013,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
+      return (deriv == INVALID_FIELD_TYPE || deriv == ELECTRON_TEMPERATURE);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -2091,7 +2093,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID || deriv == ION_TEMPERATURE);
+      return (deriv == INVALID_FIELD_TYPE || deriv == ION_TEMPERATURE);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -2162,7 +2164,7 @@ public:
       bool dvn = (vn_sv_) ? vn_sv_->NonTrivialValue(deriv) : false;
       bool diz = (iz_sv_) ? iz_sv_->NonTrivialValue(deriv) : false;
 
-      return (deriv == INVALID || dne || dvn || diz);
+      return (deriv == INVALID_FIELD_TYPE || dne || dvn || diz);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -2200,9 +2202,9 @@ public:
       double dvn_df = (vn_sv_) ? vn_sv_->Eval(T, ip) : 0.0;
       double diz_df = (iz_sv_) ? iz_sv_->Eval(T, ip) : 0.0;
 
-      if (ne_sv_) { ne_sv_->SetDerivType(INVALID); }
-      if (vn_sv_) { vn_sv_->SetDerivType(INVALID); }
-      if (iz_sv_) { iz_sv_->SetDerivType(INVALID); }
+      if (ne_sv_) { ne_sv_->SetDerivType(INVALID_FIELD_TYPE); }
+      if (vn_sv_) { vn_sv_->SetDerivType(INVALID_FIELD_TYPE); }
+      if (iz_sv_) { iz_sv_->SetDerivType(INVALID_FIELD_TYPE); }
 
       // vn * vn / (3.0 * ne * iz);
       return (2.0 * dvn_df - vn * (dne_df / ne + diz_df / iz ))
@@ -2224,7 +2226,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID);
+      return (deriv == INVALID_FIELD_TYPE);
    }
 
    void Eval_Func(DenseMatrix & M,
@@ -2281,7 +2283,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID || deriv == ION_PARA_VELOCITY);
+      return (deriv == INVALID_FIELD_TYPE || deriv == ION_PARA_VELOCITY);
    }
 
    void Eval_Func(Vector & V,
@@ -2358,7 +2360,7 @@ public:
       bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
       bool diz = (iz_sv_) ? iz_sv_->NonTrivialValue(deriv) : false;
 
-      return (deriv == INVALID || deriv == NEUTRAL_DENSITY || dne || diz);
+      return (deriv == INVALID_FIELD_TYPE || deriv == NEUTRAL_DENSITY || dne || diz);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -2398,8 +2400,8 @@ public:
       double dne_df = (ne_sv_) ? ne_sv_->Eval(T, ip) : 0.0;
       double diz_df = (iz_sv_) ? iz_sv_->Eval(T, ip) : 0.0;
 
-      if (ne_sv_) { ne_sv_->SetDerivType(INVALID); }
-      if (iz_sv_) { iz_sv_->SetDerivType(INVALID); }
+      if (ne_sv_) { ne_sv_->SetDerivType(INVALID_FIELD_TYPE); }
+      if (iz_sv_) { iz_sv_->SetDerivType(INVALID_FIELD_TYPE); }
 
       //  s_ * ne * nn * iz;
       return dne_df * nn * iz + ne * dnn_df * iz + ne * nn * diz_df;
@@ -2450,7 +2452,7 @@ public:
       bool dne = (ne_sv_) ? ne_sv_->NonTrivialValue(deriv) : false;
       bool drc = (rc_sv_) ? rc_sv_->NonTrivialValue(deriv) : false;
 
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_DENSITY || dne || drc);
    }
 
@@ -2492,8 +2494,8 @@ public:
       double dne_df = (ne_sv_) ? ne_sv_->Eval(T, ip) : 0.0;
       double drc_df = (rc_sv_) ? rc_sv_->Eval(T, ip) : 0.0;
 
-      if (ne_sv_) { ne_sv_->SetDerivType(INVALID); }
-      if (rc_sv_) { rc_sv_->SetDerivType(INVALID); }
+      if (ne_sv_) { ne_sv_->SetDerivType(INVALID_FIELD_TYPE); }
+      if (rc_sv_) { rc_sv_->SetDerivType(INVALID_FIELD_TYPE); }
 
       /// ne * ni * rc
       return dne_df * ni * rc + ne * dni_df * rc + ne * ni * drc_df;
@@ -2528,7 +2530,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_DENSITY || deriv == ION_PARA_VELOCITY);
    }
 
@@ -2599,7 +2601,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID || deriv == ION_TEMPERATURE);
+      return (deriv == INVALID_FIELD_TYPE || deriv == ION_TEMPERATURE);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -2659,7 +2661,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID || deriv == ION_DENSITY);
+      return (deriv == INVALID_FIELD_TYPE || deriv == ION_DENSITY);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -2709,7 +2711,7 @@ public:
 
    bool NonTrivialValue(DerivType deriv) const
    {
-      return (deriv == INVALID);
+      return (deriv == INVALID_FIELD_TYPE);
    }
 
    void Eval_Func(DenseMatrix & M,
@@ -2804,7 +2806,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID);
+      return (deriv == INVALID_FIELD_TYPE);
    }
 
    void Eval_Func(Vector & V,
@@ -2882,7 +2884,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == NEUTRAL_DENSITY ||
               deriv == ION_DENSITY ||
               izCoef_.NonTrivialValue(deriv) );
@@ -2990,7 +2992,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_DENSITY ||
               deriv == ION_PARA_VELOCITY ||
               rcCoef_.NonTrivialValue(deriv) );
@@ -3096,7 +3098,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == NEUTRAL_DENSITY ||
               deriv == ION_DENSITY ||
               deriv == ION_PARA_VELOCITY ||
@@ -3215,7 +3217,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_DENSITY || deriv == fieldType_);
    }
 
@@ -3307,7 +3309,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID);
+      return (deriv == INVALID_FIELD_TYPE);
    }
 
    void Eval_Func(Vector & V,
@@ -3375,7 +3377,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_DENSITY ||
               deriv == ION_PARA_VELOCITY || deriv == fieldType_);
    }
@@ -3475,7 +3477,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_DENSITY ||
               deriv == ION_PARA_VELOCITY);
    }
@@ -3566,7 +3568,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_DENSITY ||
               deriv == ION_PARA_VELOCITY || deriv == fieldType_);
    }
@@ -3720,7 +3722,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_DENSITY ||
               deriv == ION_TEMPERATURE ||
               deriv == ELECTRON_TEMPERATURE);
@@ -3842,7 +3844,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID);
+      return (deriv == INVALID_FIELD_TYPE);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -3882,7 +3884,7 @@ public:
                                     Coefficient &lnLambda,
                                     Coefficient &neCoef,
                                     Coefficient &TeCoef,
-                                    FieldType deriv = INVALID)
+                                    FieldType deriv = INVALID_FIELD_TYPE)
       : StateVariableCoef(deriv),
         z_i_(ion_charge), lnLambda_(&lnLambda),
         neCoef_(&neCoef), TeCoef_(&TeCoef)
@@ -3905,7 +3907,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID || deriv == ELECTRON_TEMPERATURE);
+      return (deriv == INVALID_FIELD_TYPE || deriv == ELECTRON_TEMPERATURE);
    }
 
    double Eval_Func(ElementTransformation &T,
@@ -4019,7 +4021,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID);
+      return (deriv == INVALID_FIELD_TYPE);
    }
 
    void Eval_Func(DenseMatrix & M,
@@ -4131,7 +4133,7 @@ public:
 
    virtual bool NonTrivialValue(FieldType deriv) const
    {
-      return (deriv == INVALID ||
+      return (deriv == INVALID_FIELD_TYPE ||
               deriv == ION_DENSITY || deriv == ION_TEMPERATURE ||
               deriv == ELECTRON_TEMPERATURE);
    }
