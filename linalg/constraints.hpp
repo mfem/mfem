@@ -339,7 +339,7 @@ public:
    { prec = precond; }
 
 protected:
-   void Initialize(HypreParMatrix& A, HypreParMatrix& B);
+   void Initialize(HypreParMatrix& A, HypreParMatrix& B, HypreParMatrix& D);
 
    /// Build preconditioner for penalized system
    virtual Solver* BuildPreconditioner() const = 0;

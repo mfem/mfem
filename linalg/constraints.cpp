@@ -360,16 +360,13 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    sol += rtilde;
 }
 
-void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
+void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B, HypreParMatrix& D)
 {
-   HypreParMatrix * hBT = B.Transpose();
-   HypreParMatrix * hBTB = ParMult(hBT, &B, true);
+   HypreParMatrix * hBTB = RAP(&D, &B);
    // this matrix doesn't get cleanly deleted?
    // (hypre comm pkg)
-   hBTB->ScaleRows(penalty);
    penalized_mat = ParAdd(&A, hBTB);
    delete hBTB;
-   delete hBT;
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
@@ -403,8 +400,12 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
                      row_starts, col_starts, &B);
    hB.CopyRowStarts();
    hB.CopyColStarts();
-   Initialize(A, hB);
    penalty=penalty_;
+   SparseMatrix D(penalty);
+   HypreParMatrix hD(hB.GetComm(), hB.M(), hB.RowPart(), &D);
+   hD.CopyRowStarts();
+   hD.CopyColStarts();
+   Initialize(A, hB, hD);
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
@@ -416,8 +417,12 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    krylov(nullptr),
    prec(nullptr)
 {
-   Initialize(A, B);
    penalty=penalty_;
+   SparseMatrix D(penalty);
+   HypreParMatrix hD(B.GetComm(), B.M(), B.RowPart(), &D);
+   hD.CopyRowStarts();
+   hD.CopyColStarts();
+   Initialize(A, B, hD);
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
@@ -429,7 +434,11 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    krylov(nullptr),
    prec(nullptr)
 {
-   Initialize(A, B);
+   SparseMatrix D(penalty_);
+   HypreParMatrix hD(B.GetComm(), B.M(), B.RowPart(), &D);
+   hD.CopyRowStarts();
+   hD.CopyColStarts();
+   Initialize(A, B, hD);
 }
 
 PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
@@ -460,9 +469,10 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    Vector penalized_rhs(b);
    if (constraint_rhs.Size() > 0)
    {
+      Vector temp_rhs(constraint_rhs.Size());
+      temp_rhs = penalty*constraint_rhs;
       Vector temp(x.Size());
-      constraintB.MultTranspose(constraint_rhs, temp);
-      temp *= penalty;
+      constraintB.MultTranspose(temp_rhs, temp);
       penalized_rhs += temp;
    }
 
