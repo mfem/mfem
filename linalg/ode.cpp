@@ -1499,9 +1499,9 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
    }
 }
 
-void ODEController::SetTolerance(double tol)
+void ODEController::SetTolerance(double tolerance)
 {
-   this->tol = tol;
+   tol = tolerance;
 
    if (this->acc) { this->acc->SetTolerance(tol); }
    if (this->rej) { this->rej->SetTolerance(tol); }
@@ -1698,37 +1698,37 @@ double ParL2AbsRelDiffMeasure::Eval(Vector &x, Vector &e)
 }
 #endif
 
-double StdAdjFactor::operator()(double err) const
+double StdAdjFactor::operator()(double err_msr) const
 {
-   if (err == 0.0) { return 1.0; }
+   if (err_msr == 0.0) { return 1.0; }
 
-   return gamma * pow(tol / err, kI);
+   return gamma * pow(tol / err_msr, kI);
 }
 
-double PIAdjFactor::operator()(double err) const
+double PIAdjFactor::operator()(double err_msr) const
 {
-   if (err == 0.0) { return 1.0; }
+   if (err_msr == 0.0) { return 1.0; }
 
-   double theta = pow(tol / err, kI) *
+   double theta = pow(tol / err_msr, kI) *
                   ((prev_err > 0.0) ?
-                   pow(prev_err / err, kP) : 1.0);
-   prev_err = err;
+                   pow(prev_err / err_msr, kP) : 1.0);
+   prev_err = err_msr;
 
    return theta;
 }
 
-double PIDAdjFactor::operator()(double err) const
+double PIDAdjFactor::operator()(double err_msr) const
 {
-   if (err == 0.0) { return 1.0; }
+   if (err_msr == 0.0) { return 1.0; }
 
-   double theta = pow(tol / err, kI) *
+   double theta = pow(tol / err_msr, kI) *
                   ((prev_err1 > 0.0) ?
-                   pow(prev_err1 / err, kP) : 1.0) *
+                   pow(prev_err1 / err_msr, kP) : 1.0) *
                   ((prev_err2 > 0.0) ?
-                   pow(prev_err1 * prev_err1 / (err * prev_err2), kD) : 1.0);
+                   pow(prev_err1 * prev_err1 / (err_msr * prev_err2), kD) : 1.0);
 
    prev_err2 = prev_err1;
-   prev_err1 = err;
+   prev_err1 = err_msr;
 
    return theta;
 }
