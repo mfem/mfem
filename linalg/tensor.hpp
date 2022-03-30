@@ -1348,7 +1348,7 @@ bool is_symmetric(tensor<double, n, n> A, double tolerance = 1.0e-8)
          if (std::abs(A(i, j) - A(j, i)) > tolerance)
          {
             return false;
-         };
+         }
       }
    }
    return true;
@@ -1606,19 +1606,19 @@ dual<value_type, gradient_type> inv(
  * Output format uses braces and comma separators to mimic C syntax for multidimensional array
  * initialization.
  *
- * @param[in] out The stream to work with standard output streams
+ * @param[in] os The stream to work with standard output streams
  * @param[in] A The tensor to write out
  */
 template <typename T, int... n>
-std::ostream& operator<<(std::ostream& out, const tensor<T, n...>& A)
+std::ostream& operator<<(std::ostream& os, const tensor<T, n...>& A)
 {
-   out << '{' << A[0];
+   os << '{' << A[0];
    for (int i = 1; i < tensor<T, n...>::first_dim; i++)
    {
-      out << ", " << A[i];
+      os << ", " << A[i];
    }
-   out << '}';
-   return out;
+   os << '}';
+   return os;
 }
 
 /**

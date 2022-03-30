@@ -43,7 +43,7 @@ SHARED = NO
 
 # CUDA configuration options
 #
-# If you set MFEM_USE_ENZYME=YES, this has to be configured to use cuda with
+# If you set MFEM_USE_ENZYME=YES, CUDA_CXX has to be configured to use cuda with
 # clang as it's host compiler.
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
@@ -508,7 +508,7 @@ PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
 PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 
 # Enzyme configuration
-ENZYME_DIR ?=
+ENZYME_DIR ?= @MFEM_DIR@/../enzyme
 ENZYME_VERSION ?= 14
 ifeq ($(MFEM_USE_ENZYME),YES)
    BASE_FLAGS += -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so
