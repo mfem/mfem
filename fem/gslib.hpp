@@ -50,13 +50,12 @@ public:
    enum AvgType {NONE, ARITHMETIC, HARMONIC}; // Average type for L2 functions
 
 protected:
-   Mesh *mesh, *meshsplit_tri, *meshsplit_tet, *meshsplit_prism, *meshsplit_pyr;
-   IntegrationRule *ir_tri, *ir_tet, *ir_prism, *ir_pyr;
+   Mesh *mesh;
+   Array<Mesh *> mesh_split;  // Meshes used to split simplices.
+   Array<IntegrationRule *> ir_split; // IntegrationRules for simplex->Quad/Hex
+   Array<FiniteElementSpace *> fes_rst_map; // FESpaces to map info Quad/Hex->Simplex
+   Array<GridFunction *> gf_rst_map; // GridFunctions to map info Quad/Hex->Simplex
    FiniteElementCollection *fec_map_lin;
-   FiniteElementSpace *fes_rst_map_tri, *fes_rst_map_tet, *fes_rst_map_prism,
-                      *fes_rst_map_pyr;
-   GridFunction *gf_rst_map_tri, *gf_rst_map_tet, *gf_rst_map_prism,
-                *gf_rst_map_pyr;
    struct gslib::findpts_data_2 *fdata2D; // gslib's internal data
    struct gslib::findpts_data_3 *fdata3D; // gslib's internal data
    struct gslib::crystal *cr;             // gslib's internal data
