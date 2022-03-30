@@ -21,6 +21,14 @@
 //   fixed --->|                     |<--- constant displacement
 //             |                     |
 //             +----------+----------+
+//
+// This miniapp uses an elasticity operator that allows for a custom material.
+// By default the NeoHookeanMaterial is used. A linear elastic material is also
+// provided. Based on these examples, other materials could be implemented.
+//
+// The implementation of NeoHookeanMaterial also demenstrates the use of
+// automatic differentiation using either a native dual number implementation or
+// leveraging the Enzyme third party library.
 
 #include <mfem.hpp>
 
@@ -45,7 +53,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    int diagpc_type = ElasticityDiagonalPreconditioner::Type::Diagonal;
    int serial_refinement_levels = 0;
-   bool paraview_save = false;
+   bool paraview = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -57,9 +65,9 @@ int main(int argc, char *argv[])
                   " (0:Diagonal, 1:BlockDiagonal).");
    args.AddOption(&serial_refinement_levels, "-rs", "--ref-serial",
                   "Number of uniform refinements on the serial mesh.");
-   args.AddOption(&paraview_save, "-pvs", "--paraview-save", "-no-pvs",
-                  "--no-paraview-save",
-                  "Enable or disable ParaView DataCollection save.");
+   args.AddOption(&paraview, "-pv", "--paraview", "-no-pv",
+                  "--no-paraview",
+                  "Enable or disable ParaView DataCollection.");
    args.Parse();
    if (!args.Good())
    {
@@ -81,7 +89,7 @@ int main(int argc, char *argv[])
    }
 
    auto mesh =
-      Mesh::MakeCartesian3D(8, 1, 1, Element::HEXAHEDRON, 8.0, 1.0, 1.0);
+      Mesh::MakeCartesian3D(8, 2, 2, Element::HEXAHEDRON, 8.0, 1.0, 1.0);
    if (mesh.Dimension() != dimension)
    {
       MFEM_ABORT("This example only works in 3D.");
@@ -101,6 +109,14 @@ int main(int argc, char *argv[])
 
    // Create and set the material type. We define it's GradientType during
    // instantiation.
+
+   // As seen in materials/gradient_type.hpp there is a choice of the
+   // GradientType with either
+   // * Symbolic
+   // * EnzymeFwd
+   // * EnzymeRev
+   // * FiniteDiff
+   // * DualNumbers
    const NeoHookeanMaterial<dimension, GradientType::DualNumbers> material{};
    elasticity_op.SetMaterial(material);
 
@@ -158,10 +174,10 @@ int main(int argc, char *argv[])
 
    U_gf.Distribute(U);
 
-   if (paraview_save)
+   if (paraview)
    {
       ParaViewDataCollection *pd = NULL;
-      pd = new ParaViewDataCollection("ex42_output", &pmesh);
+      pd = new ParaViewDataCollection("elasticity_output", &pmesh);
       pd->RegisterField("solution", &U_gf);
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
