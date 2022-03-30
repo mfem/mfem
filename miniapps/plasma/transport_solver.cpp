@@ -6110,6 +6110,9 @@ TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                  term_flag, vis_flag, logging, log_prefix),
      QiCoef_(plasma.z_i, plasma.m_i_kg, lnLambda_,
              niCoef_, TiCoef_, TeCoef_),
+     kBCoef_(J_per_eV_),
+     phiIZCoef_(13.6),
+     kBphiIZCoef_(kBCoef_, phiIZCoef_),
      BSVCoef_(BxyCoef_)
 {
    if ( mpi_.Root() && logging_ > 1)
@@ -6182,7 +6185,7 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                   niCoef_, viCoef_, TiCoef_, B3Coef),
      aniViCoef_(niCoef_, viCoef_, 2.5 * J_per_eV_, B3Coef_),
      ChiParaCoef_(plasma.z_i, plasma.m_i_kg, lnLambda_, niCoef_, TiCoef_),
-     ChiPerpCoef_(ChiPerpConst_ * J_per_eV_),
+     ChiPerpCoef_(ChiPerpConst_),
      ChiParaCoefPtr_((itecoefs_(ITECoefs::PARA_DIFFUSION_COEF) != NULL)
                      ? const_cast<Coefficient*>
                      (itecoefs_(ITECoefs::PARA_DIFFUSION_COEF))
@@ -6195,7 +6198,10 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
               ChiPerpCoefPtr_, B3Coef_),
      nChiParaCoef_(niCoef_, *ChiParaCoefPtr_),
      nChiPerpCoef_(niCoef_, *ChiPerpCoefPtr_),
+     nkChiParaCoef_(kBCoef_, nChiParaCoef_),
+     nkChiPerpCoef_(kBCoef_, nChiPerpCoef_),
      nChiCoef_(niCoef_, ChiCoef_),
+     nkChiCoef_(kBCoef_, nChiCoef_),
      keVCoef_(kinEnergyCoef_, BSVCoef_),
      ChiParaGF_(NULL),
      ChiPerpGF_(NULL),
@@ -6222,15 +6228,16 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
        this->CheckTermFlag(ADVECTION_TERM))
    {
       // Advection-Diffusion term: -Div(n_i Chi_i Grad T_i - 2.5 n_i T_i v_i)
-      SetAdvectionDiffusionTerm(nChiCoef_, aniViCoef_,
-                                &nChiParaCoef_, &nChiPerpCoef_);
+      SetAdvectionDiffusionTerm(nkChiCoef_, aniViCoef_,
+                                &nkChiParaCoef_, &nkChiPerpCoef_);
    }
    else
    {
       if (this->CheckTermFlag(DIFFUSION_TERM))
       {
          // Diffusion term: -Div(n_i Chi_i Grad T_i)
-         SetAnisotropicDiffusionTerm(nChiCoef_, &nChiParaCoef_, &nChiPerpCoef_);
+         SetAnisotropicDiffusionTerm(nkChiCoef_,
+                                     &nkChiParaCoef_, &nkChiPerpCoef_);
       }
 
       if (this->CheckTermFlag(ADVECTION_TERM))
@@ -6446,7 +6453,7 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                   niCoef_, viCoef_, TeCoef_, B3Coef),
      aneViCoef_(neCoef_, viCoef_, 2.5 * J_per_eV_, B3Coef_),
      ChiParaCoef_(plasma.z_i, lnLambda_, neCoef_, TeCoef_),
-     ChiPerpCoef_(ChiPerpConst_ * J_per_eV_),
+     ChiPerpCoef_(ChiPerpConst_),
      ChiParaCoefPtr_((etecoefs_(ETECoefs::PARA_DIFFUSION_COEF) != NULL)
                      ? const_cast<Coefficient*>
                      (etecoefs_(ETECoefs::PARA_DIFFUSION_COEF))
@@ -6459,7 +6466,10 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
               ChiPerpCoefPtr_, B3Coef_),
      nChiParaCoef_(neCoef_, *ChiParaCoefPtr_),
      nChiPerpCoef_(neCoef_, *ChiPerpCoefPtr_),
+     nkChiParaCoef_(kBCoef_, nChiParaCoef_),
+     nkChiPerpCoef_(kBCoef_, nChiPerpCoef_),
      nChiCoef_(neCoef_, ChiCoef_),
+     nkChiCoef_(kBCoef_, nChiCoef_),
      keVCoef_(kinEnergyCoef_, BSVCoef_),
      ChiParaGF_(NULL),
      ChiPerpGF_(NULL),
@@ -6486,15 +6496,16 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
        this->CheckTermFlag(ADVECTION_TERM))
    {
       // Advection-Diffusion term: -Div(n_e Chi_i Grad T_i - 2.5 n_e T_e v_i)
-      SetAdvectionDiffusionTerm(nChiCoef_, aneViCoef_,
-                                &nChiParaCoef_, &nChiPerpCoef_);
+      SetAdvectionDiffusionTerm(nkChiCoef_, aneViCoef_,
+                                &nkChiParaCoef_, &nkChiPerpCoef_);
    }
    else
    {
       if (this->CheckTermFlag(DIFFUSION_TERM))
       {
          // Diffusion term: -Div(n_e Chi_i Grad T_i)
-         SetAnisotropicDiffusionTerm(nChiCoef_, &nChiParaCoef_, &nChiPerpCoef_);
+         SetAnisotropicDiffusionTerm(nkChiCoef_,
+                                     &nkChiParaCoef_, &nkChiPerpCoef_);
       }
 
       if (this->CheckTermFlag(ADVECTION_TERM))

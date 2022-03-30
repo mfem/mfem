@@ -3225,7 +3225,7 @@ public:
                     const IntegrationPoint &ip)
    {
       double ni = niCoef_.Eval(T, ip);
-      double Ts = TCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip) * J_per_eV_;
 
       return 1.5 * z_i_ * ni * Ts;
    }
@@ -3233,7 +3233,7 @@ public:
    double Eval_dNi(ElementTransformation &T,
                    const IntegrationPoint &ip)
    {
-      double Ts = TCoef_.Eval(T, ip);
+      double Ts = TCoef_.Eval(T, ip) * J_per_eV_;
 
       return 1.5 * z_i_ * Ts;
    }
@@ -3245,7 +3245,7 @@ public:
       {
          double ni = niCoef_.Eval(T, ip);
 
-         return 1.5 * z_i_ * ni;
+         return 1.5 * z_i_ * ni * J_per_eV_;
       }
       else
       {
@@ -3260,7 +3260,7 @@ public:
       {
          double ni = niCoef_.Eval(T, ip);
 
-         return 1.5 * z_i_ * ni;
+         return 1.5 * z_i_ * ni * J_per_eV_;
       }
       else
       {
@@ -3865,7 +3865,7 @@ public:
       double tau = tau_i(m_i_kg_, z_i_, ni, Ti_eV, lnLambda);
       // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * J_per_eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
-      return 3.9 * Ti_eV * J_per_eV_ * J_per_eV_ * tau / m_i_kg_;
+      return 3.9 * Ti_eV * J_per_eV_ * tau / m_i_kg_;
    }
 
 };
@@ -3928,7 +3928,7 @@ public:
       double tau = tau_e(Te_eV, z_i_, ne, lnLambda);
       // std::cout << "Chi_e parallel: " << 3.16 * ne * Te * J_per_eV_ * tau / me_kg_
       // << ", n_e: " << ne << ", T_e: " << Te << std::endl;
-      return 3.16 * Te_eV * J_per_eV_ * J_per_eV_ * tau / me_kg_;
+      return 3.16 * Te_eV * J_per_eV_ * tau / me_kg_;
    }
    /*
    double Eval_dTe(ElementTransformation &T,
@@ -5257,6 +5257,9 @@ private:
 
       IonElectronHeatExchangeCoef QiCoef_;
 
+      StateVariableConstantCoef kBCoef_;
+      StateVariableConstantCoef phiIZCoef_;
+      StateVariableProductCoef kBphiIZCoef_;
       StateVariableStandardVectorCoef BSVCoef_;
 
       TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
@@ -5309,7 +5312,10 @@ private:
       Aniso2DDiffusionCoef             ChiCoef_;
       ProductCoefficient               nChiParaCoef_;
       ProductCoefficient               nChiPerpCoef_;
+      ProductCoefficient               nkChiParaCoef_;
+      ProductCoefficient               nkChiPerpCoef_;
       StateVariableScalarMatrixProductCoef nChiCoef_;
+      StateVariableScalarMatrixProductCoef nkChiCoef_;
       StateVariableScalarVectorProductCoef keVCoef_;
 
       ParGridFunction * ChiParaGF_;
@@ -5374,7 +5380,10 @@ private:
       Aniso2DDiffusionCoef             ChiCoef_;
       ProductCoefficient               nChiParaCoef_;
       ProductCoefficient               nChiPerpCoef_;
+      ProductCoefficient               nkChiParaCoef_;
+      ProductCoefficient               nkChiPerpCoef_;
       StateVariableScalarMatrixProductCoef nChiCoef_;
+      StateVariableScalarMatrixProductCoef nkChiCoef_;
       StateVariableScalarVectorProductCoef keVCoef_;
 
       ParGridFunction * ChiParaGF_;
