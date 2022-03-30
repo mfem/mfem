@@ -209,20 +209,20 @@ VectorFieldVisObject::VectorFieldVisObject(const std::string & field_name,
       case 1:
          MFEM_VERIFY(sfes != NULL, "VectorFieldVisObject: "
                      "sfes must be non NULL in 1D.");
-         v_   = new ComplexGridFunction(sfes);
-         v_y_ = new ComplexGridFunction(sfes);
-         v_z_ = new ComplexGridFunction(sfes);
+         v_   = new GridFunction(sfes);
+         v_y_ = new GridFunction(sfes);
+         v_z_ = new GridFunction(sfes);
          break;
       case 2:
          MFEM_VERIFY(vfes != NULL && sfes != NULL, "VectorFieldVisObject: "
                      "vfes and sfes must be non NULL in 2D.");
-         v_   = new ComplexGridFunction(vfes);
-         v_z_ = new ComplexGridFunction(sfes);
+         v_   = new GridFunction(vfes);
+         v_z_ = new GridFunction(sfes);
          break;
       case 3:
          MFEM_VERIFY(vfes != NULL, "VectorFieldVisObject: "
                      "vfes must be non NULL in 3D.");
-         v_   = new ComplexGridFunction(vfes);
+         v_   = new GridFunction(vfes);
          break;
    }
 }
@@ -235,6 +235,153 @@ VectorFieldVisObject::~VectorFieldVisObject()
 }
 
 void VectorFieldVisObject::RegisterVisItFields(VisItDataCollection & visit_dc)
+{
+   switch (dim_)
+   {
+      case 1:
+      {
+         ostringstream oss_x;
+         ostringstream oss_y;
+         ostringstream oss_z;
+
+         oss_x << field_name_ << "x";
+         oss_y << field_name_ << "y";
+         oss_z << field_name_ << "z";
+
+         visit_dc.RegisterField(oss_x.str(), v_);
+         visit_dc.RegisterField(oss_y.str(), v_y_);
+         visit_dc.RegisterField(oss_z.str(), v_z_);
+      }
+      break;
+      case 2:
+      {
+         ostringstream oss_xy;
+         ostringstream oss_z;
+
+         oss_xy << field_name_;
+         oss_z  << field_name_;
+
+         if (!cyl_)
+         {
+            oss_xy << "xy";
+            oss_z << "z";
+
+            visit_dc.RegisterField(oss_xy.str(), v_);
+            visit_dc.RegisterField(oss_z.str(), v_z_);
+         }
+         else
+         {
+            oss_xy << "zr";
+            oss_z << "phi";
+
+            visit_dc.RegisterField(oss_xy.str(), v_);
+            visit_dc.RegisterField(oss_z.str(), v_z_);
+         }
+      }
+      break;
+      case 3:
+      {
+         visit_dc.RegisterField(field_name_, v_);
+      }
+      break;
+   }
+}
+
+void VectorFieldVisObject::PrepareVisField(const ParGridFunction &u)
+{
+   VectorGridFunctionCoefficient uCoef(&u);
+
+   this->PrepareVisField(uCoef);
+}
+
+void VectorFieldVisObject::PrepareVisField(VectorCoefficient &u)
+{
+   switch (dim_)
+   {
+      case 1:
+      {}
+      break;
+      case 2:
+      {
+         VectorXYCoef uxy(u, pseudo_ && cyl_);
+         VectorZCoef   uz(u, !pseudo_ && cyl_);
+
+         v_->ProjectCoefficient(uxy);
+         if (v_z_) { v_z_->ProjectCoefficient(uz); }
+      }
+      break;
+      case 3:
+      {}
+      break;
+   }
+}
+
+void VectorFieldVisObject::Update()
+{
+   if (v_) { v_->Update(); }
+   if (v_y_) { v_y_->Update(); }
+   if (v_z_) { v_z_->Update(); }
+}
+
+ComplexVectorFieldVisObject
+::ComplexVectorFieldVisObject(const std::string & field_name,
+                              L2_ParFESpace *vfes,
+                              L2_ParFESpace *sfes,
+                              bool cyl,
+                              bool pseudo)
+   : cyl_(cyl),
+     pseudo_(pseudo),
+     dim_(-1),
+     field_name_(field_name),
+     v_(NULL),
+     v_y_(NULL),
+     v_z_(NULL)
+{
+   MFEM_VERIFY(vfes != NULL || sfes != NULL, "ComplexVectorFieldVisObject: "
+               "Either vfes or sfes must be non NULL.");
+
+   if (vfes)
+   {
+      dim_ = vfes->GetParMesh()->SpaceDimension();
+   }
+   else
+   {
+      dim_ = sfes->GetParMesh()->SpaceDimension();
+   }
+
+   switch (dim_)
+   {
+      case 1:
+         MFEM_VERIFY(sfes != NULL, "ComplexVectorFieldVisObject: "
+                     "sfes must be non NULL in 1D.");
+         v_   = new ComplexGridFunction(sfes);
+         v_y_ = new ComplexGridFunction(sfes);
+         v_z_ = new ComplexGridFunction(sfes);
+         break;
+      case 2:
+         MFEM_VERIFY(vfes != NULL && sfes != NULL,
+                     "ComplexVectorFieldVisObject: "
+                     "vfes and sfes must be non NULL in 2D.");
+         v_   = new ComplexGridFunction(vfes);
+         v_z_ = new ComplexGridFunction(sfes);
+         break;
+      case 3:
+         MFEM_VERIFY(vfes != NULL, "ComplexVectorFieldVisObject: "
+                     "vfes must be non NULL in 3D.");
+         v_   = new ComplexGridFunction(vfes);
+         break;
+   }
+}
+
+ComplexVectorFieldVisObject::~ComplexVectorFieldVisObject()
+{
+   delete v_;
+   delete v_y_;
+   delete v_z_;
+}
+
+void ComplexVectorFieldVisObject
+::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
    switch (dim_)
    {
@@ -315,9 +462,10 @@ void VectorFieldVisObject::RegisterVisItFields(VisItDataCollection & visit_dc)
    }
 }
 
-void VectorFieldVisObject::PrepareVisField(const ParComplexGridFunction &u,
-                                           VectorCoefficient * kReCoef,
-                                           VectorCoefficient * kImCoef)
+void ComplexVectorFieldVisObject
+::PrepareVisField(const ParComplexGridFunction &u,
+                  VectorCoefficient * kReCoef,
+                  VectorCoefficient * kImCoef)
 {
    VectorGridFunctionCoefficient u_r(&u.real());
    VectorGridFunctionCoefficient u_i(&u.imag());
@@ -325,10 +473,10 @@ void VectorFieldVisObject::PrepareVisField(const ParComplexGridFunction &u,
    this->PrepareVisField(u_r, u_i, kReCoef, kImCoef);
 }
 
-void VectorFieldVisObject::PrepareVisField(VectorCoefficient &u_r,
-                                           VectorCoefficient &u_i,
-                                           VectorCoefficient * kReCoef,
-                                           VectorCoefficient * kImCoef)
+void ComplexVectorFieldVisObject::PrepareVisField(VectorCoefficient &u_r,
+                                                  VectorCoefficient &u_i,
+                                                  VectorCoefficient * kReCoef,
+                                                  VectorCoefficient * kImCoef)
 {
    if (kReCoef || kImCoef)
    {
@@ -383,7 +531,7 @@ void VectorFieldVisObject::PrepareVisField(VectorCoefficient &u_r,
    }
 }
 
-void VectorFieldVisObject::Update()
+void ComplexVectorFieldVisObject::Update()
 {
    if (v_) { v_->Update(); }
    if (v_y_) { v_y_->Update(); }

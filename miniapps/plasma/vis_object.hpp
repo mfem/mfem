@@ -103,9 +103,9 @@ protected:
 
    std::string field_name_;
 
-   ComplexGridFunction * v_; // Complex field in problem domain (L2^d)
-   ComplexGridFunction * v_y_; // Complex field y component in 1D (L2)
-   ComplexGridFunction * v_z_; // Complex field z component in 1D or 2D (L2)
+   GridFunction * v_; // field in problem domain (L2^d)
+   GridFunction * v_y_; // field y component in 1D (L2)
+   GridFunction * v_z_; // field z component in 1D or 2D (L2)
 
 public:
    VectorFieldVisObject(const std::string & field_name,
@@ -113,6 +113,36 @@ public:
                         bool cyl, bool pseudo);
 
    ~VectorFieldVisObject();
+
+   virtual void RegisterVisItFields(VisItDataCollection & visit_dc);
+
+   virtual void PrepareVisField(const ParGridFunction &u);
+
+   virtual void PrepareVisField(VectorCoefficient &uCoef);
+
+   virtual void Update();
+};
+
+class ComplexVectorFieldVisObject
+{
+protected:
+   bool cyl_;
+   bool pseudo_;
+
+   int dim_;
+
+   std::string field_name_;
+
+   ComplexGridFunction * v_; // Complex field in problem domain (L2^d)
+   ComplexGridFunction * v_y_; // Complex field y component in 1D (L2)
+   ComplexGridFunction * v_z_; // Complex field z component in 1D or 2D (L2)
+
+public:
+   ComplexVectorFieldVisObject(const std::string & field_name,
+                               L2_ParFESpace *vfes, L2_ParFESpace *sfes,
+                               bool cyl, bool pseudo);
+
+   ~ComplexVectorFieldVisObject();
 
    virtual void RegisterVisItFields(VisItDataCollection & visit_dc);
 

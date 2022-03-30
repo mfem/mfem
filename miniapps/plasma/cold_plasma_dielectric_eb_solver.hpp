@@ -837,11 +837,11 @@ public:
                         Coefficient &muInv);
 };
 
-class PoyntingVectorVisObject : public VectorFieldVisObject
+class PoyntingVectorVisObject : public ComplexVectorFieldVisObject
 {
 private:
 
-   using VectorFieldVisObject::PrepareVisField;
+   using ComplexVectorFieldVisObject::PrepareVisField;
 
 public:
    PoyntingVectorVisObject(const std::string & field_name,
@@ -853,11 +853,11 @@ public:
                         Coefficient & muInvCoef);
 };
 
-class MinkowskiMomentumDensityVisObject : public VectorFieldVisObject
+class MinkowskiMomentumDensityVisObject : public ComplexVectorFieldVisObject
 {
 private:
 
-   using VectorFieldVisObject::PrepareVisField;
+   using ComplexVectorFieldVisObject::PrepareVisField;
 
 public:
    MinkowskiMomentumDensityVisObject(const std::string & field_name,
@@ -1024,13 +1024,13 @@ private:
    ParComplexGridFunction   e_;   // Complex electric field (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
-   VectorFieldVisObject e_v_;
-   VectorFieldVisObject b_v_;
+   ComplexVectorFieldVisObject e_v_;
+   ComplexVectorFieldVisObject b_v_;
    ScalarFieldVisObject db_v_; // Complex divergence of magnetic flux (L2)
-   VectorFieldVisObject d_v_;
+   ComplexVectorFieldVisObject d_v_;
    ScalarFieldVisObject dd_v_; // Complex divergence of electric flux (L2)
-   VectorFieldVisObject j_v_;
-   VectorFieldVisObject k_v_;
+   ComplexVectorFieldVisObject j_v_;
+   ComplexVectorFieldVisObject k_v_;
    ElectricEnergyDensityVisObject ue_v_;
    MagneticEnergyDensityVisObject ub_v_;
    EnergyDensityVisObject u_v_;
