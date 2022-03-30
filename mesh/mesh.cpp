@@ -31,6 +31,7 @@
 #include <functional>
 #include <map>
 #include <set>
+#include <unordered_set>
 
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.
@@ -5962,24 +5963,163 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
    }
 }
 
-void Mesh::GetVertexEdges(int vi, Array<int> &edges) 
+void Mesh::ElemsWithVert(Array<int> &elems, int vi)
 {
-   if (!vertex_to_edge) {GetVertexToEdgeTable();}
-   vertex_to_edge->GetRow(vi, edges);
+   if (!vertex_to_el) {GetVertexToElementTable();}
+   vertex_to_el->GetRow(vi, elems);
 }
 
-void Mesh::GetVertexFaces(int vi, Array<int> &faces_)
+void Mesh::FacesWithVert(Array<int> &faces_, int vi)
 {
    if (!vertex_to_face) {GetVertexToFaceTable();}
    vertex_to_face->GetRow(vi, faces_);
 }
 
+void Mesh::EdgesWithVert(Array<int> &edges, int vi) 
+{
+   if (!vertex_to_edge) {GetVertexToEdgeTable();}
+   vertex_to_edge->GetRow(vi, edges);
+}
 
-void Mesh::GetVertexElements(int vi, Array<int> &elems)
+
+void Mesh::ElemsWithAllVerts(Array<int> &elems, const Array<int> &verts)
 {
    if (!vertex_to_el) {GetVertexToElementTable();}
-   vertex_to_el->GetRow(vi, elems);
+   //elems.Reserve(verts.Size());
+
+   //Find all the elements touched by the vertices
+   std::set<int> touched_elems;
+   for (int i = 0; i < verts.Size(); ++i)
+   {
+      int row_sz = vertex_to_el->RowSize(verts[i]);
+      const int *row = vertex_to_el->GetRow(verts[i]);
+      for (int j = 0; j < row_sz; ++j)
+      {
+         touched_elems.insert(row[j]);
+      }
+   }
+
+   //Put the verts into a hashing set for fast finding
+   std::unordered_set<int> vert_set(verts.begin(), verts.end());
+
+   //Run through the touched elems and put the ones that fully covered in
+   int num_elems = 0;
+   elems.SetSize(touched_elems.size());
+   for (auto ei = touched_elems.begin(); ei != touched_elems.end(); ++ei)
+   {
+      Element *elem = elements[*ei];
+      bool elem_covered = true;
+      int *elem_verts = elem->GetVertices();
+      for (int j = 0; j < elem->GetNVertices(); ++j)
+      {
+         if (vert_set.count(elem_verts[j]) < 1)
+         {
+            elem_covered = false;
+            break;
+         }
+      }
+
+      if (elem_covered)
+      {
+         elems[num_elems] = *ei;
+         num_elems ++;
+      }      
+   }
+   elems.SetSize(num_elems);
 }
+
+void Mesh::FacesWithAllVerts(Array<int> &faces_, const Array<int> &verts)
+{
+   if (!vertex_to_face) {GetVertexToFaceTable();}
+   if (!face_to_vertex) {GetFaceToVertexTable();}
+
+   //Find all the elements touched by the vertices
+   std::set<int> touched_faces;
+   for (int i = 0; i < verts.Size(); ++i)
+   {
+      int row_sz = vertex_to_face->RowSize(verts[i]);
+      const int *row = vertex_to_face->GetRow(verts[i]);
+      for (int j = 0; j < row_sz; ++j)
+      {
+         touched_faces.insert(row[j]);
+      }
+   }
+
+   //Put the verts into a hashing set for fast finding
+   std::unordered_set<int> vert_set(verts.begin(), verts.end());
+
+   //Run through the touched faces and put the ones that fully covered in
+   int num_faces = 0;
+   faces_.SetSize(touched_faces.size());
+   for (auto fi = touched_faces.begin(); fi != touched_faces.end(); ++fi)
+   {
+      int row_sz = face_to_vertex->RowSize(*fi);
+      const int *row = face_to_vertex->GetRow(*fi);
+      bool face_covered = true;
+      for (int j = 0; j < row_sz; ++j)
+      {
+         if (vert_set.count(row[j]) < 1)
+         {
+            face_covered = false;
+            break;
+         }
+      }
+
+      if (face_covered)
+      {
+         faces_[num_faces] = *fi;
+         num_faces ++;
+      }      
+   }
+   faces_.SetSize(num_faces);
+}
+
+void Mesh::EdgesWithAllVerts(Array<int> &edges, const Array<int> &verts)
+{
+   if (!vertex_to_edge) {GetVertexToEdgeTable();}
+   if (!edge_vertex) {GetEdgeVertexTable();}
+
+   //Find all the elements touched by the vertices
+   std::set<int> touched_edges;
+   for (int i = 0; i < verts.Size(); ++i)
+   {
+      int row_sz = vertex_to_edge->RowSize(verts[i]);
+      const int *row = vertex_to_edge->GetRow(verts[i]);
+      for (int j = 0; j < row_sz; ++j)
+      {
+         touched_edges.insert(row[j]);
+      }
+   }
+
+   //Put the verts into a hashing set for fast finding
+   std::unordered_set<int> vert_set(verts.begin(), verts.end());
+
+   //Run through the touched faces and put the ones that fully covered in
+   int num_edges = 0;
+   edges.SetSize(touched_edges.size());
+   for (auto ei = touched_edges.begin(); ei != touched_edges.end(); ++ei)
+   {
+      int row_sz = edge_vertex->RowSize(*ei);
+      const int *row = edge_vertex->GetRow(*ei);
+      bool edge_covered = true;
+      for (int j = 0; j < row_sz; ++j)
+      {
+         if (vert_set.count(row[j]) < 1)
+         {
+            edge_covered = false;
+            break;
+         }
+      }
+
+      if (edge_covered)
+      {
+         edges[num_edges] = *ei;
+         num_edges ++;
+      }      
+   }
+   edges.SetSize(num_edges);
+}
+
 
 int Mesh::GetBdrElementEdgeIndex(int i) const
 {

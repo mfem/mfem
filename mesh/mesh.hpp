@@ -1081,14 +1081,18 @@ public:
    /// Return the index and the orientation of the face of bdr element i. (3D)
    void GetBdrElementFace(int i, int *f, int *o) const;
 
-   /// Return the indices of the edges conected to vertex vi.
-   void GetVertexEdges(int vi, Array<int> &edges);
-
    /// Return the indices of the faces connected to vertex vi.
-   void GetVertexFaces(int vi, Array<int> &faces);
+   void FacesWithVert(Array<int> &faces, int vi);
 
-   // Return the indices of the elements connected to vertex vi.
-   void GetVertexElements(int vi, Array<int> &elems);
+   /// Return the indices of the elements connected to vertex vi.
+   void ElemsWithVert(Array<int> &elems, int vi);
+
+   /// Return the indices of the edges conected to vertex vi.
+   void EdgesWithVert(Array<int> &edges, int vi);
+
+   void ElemsWithAllVerts(Array<int> &elems, const Array<int> &verts);
+   void FacesWithAllVerts(Array<int> &faces, const Array<int> &verts);
+   void EdgesWithAllVerts(Array<int> &edges, const Array<int> &verts);
 
 
    /** Return the vertex index of boundary element i. (1D)
