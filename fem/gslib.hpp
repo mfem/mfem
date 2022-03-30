@@ -53,7 +53,8 @@ protected:
    Mesh *mesh;
    Array<Mesh *> mesh_split;  // Meshes used to split simplices.
    Array<IntegrationRule *> ir_split; // IntegrationRules for simplex->Quad/Hex
-   Array<FiniteElementSpace *> fes_rst_map; // FESpaces to map info Quad/Hex->Simplex
+   Array<FiniteElementSpace *>
+   fes_rst_map; // FESpaces to map info Quad/Hex->Simplex
    Array<GridFunction *> gf_rst_map; // GridFunctions to map info Quad/Hex->Simplex
    FiniteElementCollection *fec_map_lin;
    struct gslib::findpts_data_2 *fdata2D; // gslib's internal data
