@@ -7,6 +7,7 @@
 using namespace std;
 using namespace mfem;
 
+double sx, sy;
 
 void Prefine(FiniteElementSpace & fes_old,
              GridFunction &u, Coefficient &gf_ex, GridFunction &orders_gf,
@@ -57,8 +58,10 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 1;
-   double t_final = 10.0;
-   double dt = 0.0005;
+   sx = 2.0;
+   sy = 1.0;
+   double t_final = 1.0;
+   double dt = 0.002;
    bool visualization = true;
    int vis_steps = 5;
 
@@ -76,6 +79,10 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption(&sx, "-sx", "--sx",
+                  "mesh length in x direction");
+   args.AddOption(&sy, "-sy", "--sy",
+                  "mesh length in y direction");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -89,11 +96,12 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh mesh0 = Mesh::MakeCartesian2D(64, 1, mfem::Element::QUADRILATERAL,false, 2,
-                                      1);
+   Mesh mesh0 = Mesh::MakeCartesian2D(64, 1, mfem::Element::QUADRILATERAL,false,
+                                      sx,
+                                      sy);
 
 
-   std::vector<Vector> translations = {Vector({2.0,0.0}), };
+   std::vector<Vector> translations = {Vector({sx,0.0}), };
 
 
    Mesh mesh = Mesh::MakePeriodic(mesh0,
@@ -156,13 +164,13 @@ int main(int argc, char *argv[])
    for (int i = 0; i<mesh.GetNE(); i++) { orders_gf(i) = order; }
 
    socketstream sout;
-   socketstream meshout;
+   // socketstream meshout;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
       sout.open(vishost, visport);
-      meshout.open(vishost, visport);
+      // meshout.open(vishost, visport);
       if (!sout)
       {
          cout << "Unable to connect to GLVis server at "
@@ -175,11 +183,11 @@ int main(int argc, char *argv[])
          sout.precision(precision);
          sout << "solution\n" << mesh << u;
          sout << flush;
-         meshout.precision(precision);
+         // meshout.precision(precision);
          // meshout << "solution\n" << mesh << orders_gf;
-         meshout << "mesh\n" << mesh ;
-         meshout << flush;
-         cin.get();
+         // meshout << "mesh\n" << mesh ;
+         // meshout << flush;
+         // cin.get();
       }
    }
 
@@ -212,8 +220,10 @@ int main(int argc, char *argv[])
          cout << "time step: " << ti << ", time: " << t << endl;
          u_ex.SetTime(t);
          // Prefine(fes_old,u,u_ex, orders_gf, 5e-5, 5e-4);
+
+         mfem::out << "Global L2 Error = " << u.ComputeL2Error(u_ex) << std::endl;
          Hrefine2(u,u_ex, 5e-5, 5e-4);
-         mfem::out << "number of elements = " << mesh.GetNE() << endl;
+         // mfem::out << "number of elements = " << mesh.GetNE() << endl;
 
 
          m.Update();
@@ -231,7 +241,7 @@ int main(int argc, char *argv[])
             GridFunction * pr_u = ProlongToMaxOrder(&u);
             sout << "solution\n" << mesh << *pr_u << flush;
             // meshout << "solution\n" << mesh << orders_gf << flush;
-            meshout << "mesh\n" << mesh << flush;
+            // meshout << "mesh\n" << mesh << flush;
          }
       }
    }
@@ -308,17 +318,17 @@ double u0_function(const Vector &x, double t)
    double ds = c*t;
 
    double xx = x(0) - ds;
-   double yy = x(1) - ds;
+   // double yy = x(1) - ds;
 
    double tol = 1e-6;
-   if (xx>= 2.0+tol || xx<= 0.0-tol)
+   if (xx>= sx+tol || xx<= 0.0-tol)
    {
-      xx -= (int)xx;
+      xx -= floor(xx/sx) * sx;
    }
-   if (yy>= 1.0+tol || yy<= 0.0-tol)
-   {
-      yy -= (int)yy;
-   }
+   // if (yy>= sy+tol || yy<= 0.0-tol)
+   // {
+   //    yy -= floor(yy/sy) * sy;
+   // }
 
    double dr2 = (xx-x0)*(xx-x0);
    return 1. + exp(-w*dr2);
