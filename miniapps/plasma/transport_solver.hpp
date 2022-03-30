@@ -4322,7 +4322,8 @@ struct PlasmaParams
 {
    double m_n_amu;
    double m_n_kg;
-   double v_n_m_per_s;
+   double v_n_avg_m_per_s; // Magnitude of average neutral velocity
+   double v_n_bar_m_per_s; // Average neutral speed
    double T_n_eV;
    double m_i_amu;
    double m_i_kg;
@@ -4661,7 +4662,8 @@ private:
       StateVariableCoef &TiCoef_;
       StateVariableCoef &TeCoef_;
 
-      StateVariableConstantCoef vnCoef_;
+      StateVariableConstantCoef vnAvgCoef_; // Magnitude of average velocity
+      StateVariableConstantCoef vnBarCoef_; // Average speed of neutrals
       StateVariableConstantCoef ziCoef_;
       StateVariableProductCoef  neCoef_;
 

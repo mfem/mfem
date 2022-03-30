@@ -1030,7 +1030,8 @@ int main(int argc, char *argv[])
    plasma.m_n_kg  = -1.0;
    plasma.m_i_amu = -1.0;
    plasma.m_i_kg  = -1.0;
-   plasma.v_n_m_per_s = 0.0;
+   plasma.v_n_avg_m_per_s = 0.0;
+   plasma.v_n_bar_m_per_s = 0.0;
    plasma.T_n_eV  =  3.0;   // (eV)
    plasma.z_i = 1;          // ion charge number
    /*
@@ -1259,6 +1260,10 @@ int main(int argc, char *argv[])
 
    set_mass_defaults(plasma.m_n_amu, plasma.m_n_kg, 2.01410178);
    set_mass_defaults(plasma.m_i_amu, plasma.m_i_kg, 2.01410178);
+
+   // Reset average neutral speed based on new mass and temperature of neutrals
+   plasma.v_n_bar_m_per_s = sqrt(8.0 * plasma.T_n_eV * J_per_eV_ /
+                                 (M_PI * plasma.m_n_kg));
 
    if (dg.kappa < 0.0)
    {
