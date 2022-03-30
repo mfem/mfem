@@ -20,13 +20,13 @@
 
 #include "general/forall.hpp"
 #include "linalg/kernels.hpp"
-#include "linalg/tensor.hpp"
-
-#include "miniapps/elasticity/materials/neohookean.hpp"
-#include "miniapps/elasticity/kernels/elasticity_kernels.hpp"
-//#include "miniapps/elasticity/kernels/kernel_helpers.hpp"
 
 using namespace mfem::internal;
+
+#include "linalg/tensor.hpp"
+using mfem::internal::tensor;
+#include "miniapps/elasticity/materials/neohookean.hpp"
+#include "miniapps/elasticity/kernels/elasticity_kernels.hpp"
 
 constexpr int DIM = 3;
 
@@ -87,12 +87,14 @@ const tensor<double, q1d, d1d> &AsTensorG(const Array<double> &A)
    return G;
 }
 
-template <int d1d, int q1d> static inline
+template <int d1d, int q1d, typename material_type> static inline
 void ApplyGradient3D(const int ne,
                      const Array<double> &B_, const Array<double> &G_,
                      const Array<double> &W_, const Vector &Jacobian_,
                      const Vector &detJ_, const Vector &dU_, Vector &dF_,
-                     const Vector &U_)
+                     const Vector &U_, const material_type &material,
+                     const bool use_cache, const bool recompute_cache,
+                     Vector &dsigma_cache_)
 {
    NVTX("ApplyGradient3D");
    constexpr int dim = DIM;
@@ -117,6 +119,9 @@ void ApplyGradient3D(const int ne,
    // Input vector
    // d1d x d1d x d1d x vdim x ne
    const auto U = Reshape(U_.Read(), d1d, d1d, d1d, dim, ne);
+
+   auto dsigma_cache = Reshape(dsigma_cache_.ReadWrite(),
+                               ne, q1d, q1d, q1d, dim, dim, dim, dim);
 
    MFEM_FORALL_3D(e, ne, q1d, q1d, q1d,
    {
@@ -146,10 +151,45 @@ void ApplyGradient3D(const int ne,
                auto dudx = dudxi(qz, qy, qx) * invJqp;
                auto ddudx = ddudxi(qz, qy, qx) * invJqp;
 
-               auto dsigma = material_action_of_gradient_dual(dudx, ddudx);
+               if (use_cache)
+               {
+                  // C = dsigma/dudx
+                  tensor<double, dim, dim, dim, dim> C;
 
-               invJ_dsigma_detJw(qx, qy, qz) =
-                  invJqp * dsigma * detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
+                  auto C_cache = make_tensor<dim, dim, dim, dim>(
+                  [&](int i, int j, int k, int l) { return dsigma_cache(e, qx, qy, qz, i, j, k, l); });
+
+                  if (recompute_cache)
+                  {
+                     C = material.gradient(dudx);
+                     for (int i = 0; i < dim; i++)
+                     {
+                        for (int j = 0; j < dim; j++)
+                        {
+                           for (int k = 0; k < dim; k++)
+                           {
+                              for (int l = 0; l < dim; l++)
+                              {
+                                 dsigma_cache(e, qx, qy, qz, i, j, k, l) = C(i, j, k, l);
+                              }
+                           }
+                        }
+                     }
+                     C_cache = C;
+                  }
+                  else
+                  {
+                     C = C_cache;
+                  }
+                  invJ_dsigma_detJw(qx, qy, qz) =
+                     invJqp * ddot(C, ddudx) * detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
+               }
+               else
+               {
+                  auto dsigma = material.action_of_gradient(dudx, ddudx);
+                  invJ_dsigma_detJw(qx, qy, qz) =
+                     invJqp * dsigma * detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
+               }
             }
          }
       }
@@ -191,16 +231,14 @@ struct ElasticityBench
                       const Vector&, Vector&, const Vector&)>
    ApplyGradient3D_wrapper_with_static_BG,
    ApplyGradient3D_wrapper;
-
-   bool use_cache = false; // true ?
+   bool use_cache;
    mutable bool recompute_cache = false;
    Vector dsigma_cache;
-
    const int dofs;
    double mdof;
    const Nvtx Ready_nvtx = {"Ready"};
 
-   ElasticityBench(int p, int side):
+   ElasticityBench(int p, int side, bool use_cache):
       p(p),
       c(side),
       q(2*p + 1),
@@ -237,14 +275,23 @@ struct ElasticityBench
                                                  Vector &dF,
                                                  const Vector &U)
    {
+      void (*ker)(const int ne,
+                  const Array<double> &B_, const Array<double> &G_,
+                  const Array<double> &W_, const Vector &Jacobian_,
+                  const Vector &detJ_, const Vector &dU_, Vector &dF_,
+                  const Vector &U_, const material_type &material,
+                  const bool use_cache_, const bool recompute_cache_,
+                  Vector &dsigma_cache_) = nullptr;
       const int id = (d1d << 4) | q1d;
       switch (id)
       {
-         case 0x22: return WithStaticBG::ApplyGradient3D<2,2>(NE,B,G,W,J,detJ,dU,dF,U);
-         case 0x33: return WithStaticBG::ApplyGradient3D<3,3>(NE,B,G,W,J,detJ,dU,dF,U);
-         case 0x44: return WithStaticBG::ApplyGradient3D<4,4>(NE,B,G,W,J,detJ,dU,dF,U);
+         case 0x22: ker = WithStaticBG::ApplyGradient3D<2,2,material_type>; break;
+         case 0x33: ker = WithStaticBG::ApplyGradient3D<3,3,material_type>; break;
+         case 0x44: ker = WithStaticBG::ApplyGradient3D<4,4,material_type>; break;
          default: MFEM_ABORT("Unknown kernel: 0x" << std::hex << id << std::dec);
       }
+      ker(NE,B,G,W,J,detJ,dU,dF,U,
+          material, use_cache, recompute_cache, dsigma_cache);
    }),
    ApplyGradient3D_wrapper([=](const int NE,
                                const Array<double> &B,
@@ -266,17 +313,16 @@ struct ElasticityBench
       const int id = (d1d << 4) | q1d;
       switch (id)
       {
-         case 0x22:
-            ker = ElasticityKernels::ApplyGradient3D<2,2,material_type>; break;
-         case 0x33:
-            ker = ElasticityKernels::ApplyGradient3D<3,3,material_type>; break;
-         case 0x44:
-            ker = ElasticityKernels::ApplyGradient3D<4,4,material_type>; break;
+         case 0x22: ker = ElasticityKernels::ApplyGradient3D<2,2,material_type>; break;
+         case 0x33: ker = ElasticityKernels::ApplyGradient3D<3,3,material_type>; break;
+         case 0x44: ker = ElasticityKernels::ApplyGradient3D<4,4,material_type>; break;
          default: MFEM_ABORT("Unknown kernel: 0x" << std::hex << id << std::dec);
       }
       ker(NE,B,G,W,J,detJ,dU,dF,U,
-          material,use_cache, recompute_cache, dsigma_cache);
+          material, use_cache, recompute_cache, dsigma_cache);
    }),
+   use_cache(use_cache),
+   dsigma_cache(use_cache ? ne*q1d*q1d*q1d*dim*dim*dim*dim:0),
    dofs(fes.GetVSize()),
    mdof(0.0)
    {
@@ -302,15 +348,11 @@ struct ElasticityBench
          { NVTX("Yr"); Y.Read();}
          { NVTX("Sr"); S.Read();}
       }
-
-      tic_toc.Clear();
    }
-
 
    void ApplyGradient3D_with_static_BG()
    {
       MFEM_DEVICE_SYNC;
-      tic_toc.Start();
       ApplyGradient3D_wrapper_with_static_BG(ne,
                                              maps->B,
                                              maps->G,
@@ -318,15 +360,12 @@ struct ElasticityBench
                                              geometric_factors->J,
                                              geometric_factors->detJ,
                                              X, Y, S);
-      MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
       mdof += 1e-6 * dofs;
    }
 
    void ApplyGradient3D()
    {
       MFEM_DEVICE_SYNC;
-      tic_toc.Start();
       ApplyGradient3D_wrapper(ne,
                               maps->B,
                               maps->G,
@@ -334,12 +373,9 @@ struct ElasticityBench
                               geometric_factors->J,
                               geometric_factors->detJ,
                               X, Y, S);
-      MFEM_DEVICE_SYNC;
-      tic_toc.Stop();
       mdof += 1e-6 * dofs;
    }
 
-   double Mdofs() const { return mdof / tic_toc.RealTime(); }
 };
 
 /// The different orders the tests can run
@@ -349,22 +385,26 @@ struct ElasticityBench
 #define N_SIDES bm::CreateDenseRange(10,120,10)
 #define MAX_NDOFS 8*1024*1024
 
+/// The different cache options
+#define USE_CACHE {true, false}
+
 /// Kernels definitions and registrations
 #define Benchmark(Name)\
 static void Name(bm::State &state){\
    const int p = state.range(0);\
    const int side = state.range(1);\
-   ElasticityBench nle(p, side);\
+   const bool use_cache = state.range(2);\
+   ElasticityBench nle(p, side, use_cache);\
    if (nle.dofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
    while (state.KeepRunning()) { nle.Name(); }\
-   bm::Counter::Flags flags = bm::Counter::kIsIterationInvariantRate;\
-   state.counters["MDof"] = bm::Counter(1e-6*nle.dofs, flags);\
-   state.counters["MDof/s"] = bm::Counter(nle.Mdofs());\
+   bm::Counter::Flags invrt_rate = bm::Counter::kIsIterationInvariantRate;\
+   state.counters["MDof"] = bm::Counter(1e-6*nle.dofs, invrt_rate);\
    state.counters["dofs"] = bm::Counter(nle.dofs);\
    state.counters["p"] = bm::Counter(p);\
+   state.counters["use_cache"] = bm::Counter(use_cache);\
 }\
 BENCHMARK(Name)\
-            -> ArgsProduct({P_ORDERS, N_SIDES})\
+            -> ArgsProduct({P_ORDERS, N_SIDES, USE_CACHE})\
             -> Unit(bm::kMillisecond);
 // -> Iterations(500);
 
@@ -374,7 +414,7 @@ Benchmark(ApplyGradient3D_with_static_BG)
 
 /**
  * @brief main entry point
- * --benchmark_filter=KerGrad/4/20
+ * --benchmark_filter=ApplyGradient3D/3/30
  * --benchmark_context=device=cuda
  */
 int main(int argc, char *argv[])
