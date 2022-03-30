@@ -53,6 +53,7 @@ list(APPEND HDRS
   tmatrix.hpp
   ttensor.hpp
   tensor.hpp
+  dual.hpp
   vector.hpp
   )
 

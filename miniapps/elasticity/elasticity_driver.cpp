@@ -46,8 +46,7 @@ constexpr int dimension = 3;
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi;
-   int myid = mpi.WorldRank();
+   Mpi::Init(argc, argv);
 
    int order = 1;
    const char *device_config = "cpu";
@@ -67,23 +66,11 @@ int main(int argc, char *argv[])
                   "Number of uniform refinements on the serial mesh.");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv",
                   "--no-paraview",
-                  "Enable or disable ParaView DataCollection.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
-      return 1;
-   }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+                  "Enable or disable ParaView DataCollection output.");
+   args.ParseCheck();
 
    Device device(device_config);
-   if (myid == 0)
+   if (Mpi::Root())
    {
       device.Print();
    }
@@ -176,16 +163,14 @@ int main(int argc, char *argv[])
 
    if (paraview)
    {
-      ParaViewDataCollection *pd = NULL;
-      pd = new ParaViewDataCollection("elasticity_output", &pmesh);
-      pd->RegisterField("solution", &U_gf);
-      pd->SetLevelsOfDetail(order);
-      pd->SetDataFormat(VTKFormat::BINARY);
-      pd->SetHighOrderOutput(true);
-      pd->SetCycle(0);
-      pd->SetTime(0.0);
-      pd->Save();
-      delete pd;
+      ParaViewDataCollection pd("elasticity_output", &pmesh);
+      pd.RegisterField("solution", &U_gf);
+      pd.SetLevelsOfDetail(order);
+      pd.SetDataFormat(VTKFormat::BINARY);
+      pd.SetHighOrderOutput(true);
+      pd.SetCycle(0);
+      pd.SetTime(0.0);
+      pd.Save();
    }
 
    return 0;

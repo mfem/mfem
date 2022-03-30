@@ -366,10 +366,10 @@ dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a, double b)
 
 /** @brief overload of operator<< for `dual` to work with work with standard output streams */
 template <typename value_type, typename gradient_type, int... n>
-std::ostream& operator<<(std::ostream& out, dual<value_type, gradient_type> A)
+std::ostream& operator<<(std::ostream& os, dual<value_type, gradient_type> A)
 {
-   out << '(' << A.value << ' ' << A.gradient << ')';
-   return out;
+   os << '(' << A.value << ' ' << A.gradient << ')';
+   return os;
 }
 
 /** @brief promote a value to a dual number of the appropriate type */
