@@ -82,7 +82,7 @@ FindPointsGSLIB::~FindPointsGSLIB()
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
    : mesh(NULL),
      fec_map_lin(NULL),
-     gsl_comm(NULL),
+     fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC)
 {
@@ -296,7 +296,7 @@ void FindPointsGSLIB::SetupSplitMeshes()
       };
       const int quad_e[3][4] =
       {
-         {0, 1, 4, 3}, {1, 2, 5, 5}, {3, 4, 5, 6}
+         {0, 1, 4, 3}, {1, 2, 5, 4}, {3, 4, 5, 6}
       };
 
       for (int j = 0; j < Nvert; j++)
