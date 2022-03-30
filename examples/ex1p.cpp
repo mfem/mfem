@@ -63,15 +63,12 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-
-#ifndef MFEM_USE_JIT
-   MPI_Session mpi;
-#else
-   MPI_JIT_Session mpi;
-#endif
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
+   // MPI_JIT_Session mpi;
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";

@@ -1361,7 +1361,7 @@ public:
          return element[1].location == Mesh::ElementLocation::FaceNbr;
       }
 
-      /** @brief return true if the face is an interior face to the computaion
+      /** @brief return true if the face is an interior face to the computation
           domain, either a local or shared interior face (not a boundary face)
           which is NOT a master nonconforming face.
        */
@@ -1545,7 +1545,8 @@ public:
 
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',
-       new space dimension, 'space_dim' (if != -1), and 'ordering'. */
+       new space dimension, 'space_dim' (if != -1), and 'ordering' (byVDim by
+       default). */
    virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
                              int ordering = 1);
 

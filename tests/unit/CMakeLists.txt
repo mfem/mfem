@@ -50,6 +50,8 @@ set(UNIT_TESTS_SRCS
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
+  fem/test_r1d_bilininteg.cpp
+  fem/test_r2d_bilininteg.cpp
   fem/test_assemblediagonalpa.cpp
   fem/test_assembly_levels.cpp
   fem/test_bilinearform.cpp

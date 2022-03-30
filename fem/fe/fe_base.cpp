@@ -19,10 +19,12 @@ namespace mfem
 
 using namespace std;
 
-FiniteElement::FiniteElement(int D, Geometry::Type G, int Do, int O, int F)
+FiniteElement::FiniteElement(int D, Geometry::Type G,
+                             int Do, int O, int F)
    : Nodes(Do)
 {
    dim = D ; geom_type = G ; dof = Do ; order = O ; func_space = F;
+   vdim = 0 ; cdim = 0;
    range_type = SCALAR;
    map_type = VALUE;
    deriv_type = NONE;
@@ -750,7 +752,8 @@ void NodalFiniteElement::Project(
    }
    else
    {
-      DenseMatrix vshape(fe.GetDof(), Trans.GetSpaceDim());
+      DenseMatrix vshape(fe.GetDof(), std::max(Trans.GetSpaceDim(),
+                                               fe.GetVDim()));
 
       I.SetSize(vshape.Width()*dof, fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -830,6 +833,21 @@ void NodalFiniteElement::ProjectDiv(
    }
 }
 
+
+VectorFiniteElement::VectorFiniteElement(int D, Geometry::Type G,
+                                         int Do, int O, int M, int F)
+   : FiniteElement(D, G, Do, O, F)
+{
+   range_type = VECTOR;
+   map_type = M;
+   SetDerivMembers();
+   is_nodal = true;
+   vdim = dim;
+   if (map_type == H_CURL)
+   {
+      cdim = (dim == 3) ? 3 : 1;
+   }
+}
 
 void VectorFiniteElement::CalcShape (
    const IntegrationPoint &ip, Vector &shape ) const
