@@ -52,7 +52,7 @@ public:
    /// Construct the batched assembly object corresponding to @a fes_ho_.
    BatchedLORAssembly(FiniteElementSpace &fes_ho_);
 
-   /// Does the given form support batched assembly?
+   /// Returns true if the form @a a supports batched assembly, false otherwise.
    static bool FormIsSupported(BilinearForm &a);
 
    /// @brief Assemble the given form as a matrix and place the result in @a A.
@@ -69,7 +69,6 @@ public:
    const Vector &GetLORVertexCoordinates() { return X_vert; }
 
 protected:
-
    /// After assembling the "sparse IJ" format, convert it to CSR.
    void SparseIJToCSR(OperatorHandle &A) const;
 
