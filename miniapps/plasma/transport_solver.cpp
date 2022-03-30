@@ -1041,10 +1041,11 @@ ElectronTotalEnergyCoefs::ElectronTotalEnergyCoefs()
 CommonCoefs::CommonCoefs()
    : EqnCoefficients(sCoefNames::NUM_SCALAR_COEFS, vCoefNames::NUM_VECTOR_COEFS)
 {
-   sCoefNames_[IONIZATION_COEF]    = "ionization_coef";
-   sCoefNames_[RECOMBINATION_COEF] = "recombination_coef";
+   sCoefNames_[IONIZATION_COEF]      = "ionization_coef";
+   sCoefNames_[RECOMBINATION_COEF]   = "recombination_coef";
+   sCoefNames_[CHARGE_EXCHANGE_COEF] = "charge_exchange_coef";
 
-   vCoefNames_[MAGNETIC_FIELD_COEF] = "magnetic_field_coef";
+   vCoefNames_[MAGNETIC_FIELD_COEF]  = "magnetic_field_coef";
 }
 
 TransportCoefFactory::TransportCoefFactory(
@@ -1152,6 +1153,12 @@ TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 
       coef_idx = sCoefs.Append(new ApproxRecombinationRate(*TeCoef));
    }
+   else if (name == "ApproxChargeExchangeRate")
+   {
+      Coefficient * TiCoef = this->GetScalarCoef(input);
+
+      coef_idx = sCoefs.Append(new ApproxRecombinationRate(*TiCoef));
+   }
    else if (name == "IonizationSourceCoef")
    {
       Coefficient * neCoef = this->GetScalarCoef(input);
@@ -1175,6 +1182,15 @@ TransportCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
 
       coef_idx = sCoefs.Append(new RecombinationSinkCoef(*neCoef, *niCoef,
                                                          *rcCoef, ni0));
+   }
+   else if (name == "ChargeExchangeSinkCoef")
+   {
+      Coefficient * nnCoef = this->GetScalarCoef(input);
+      Coefficient * niCoef = this->GetScalarCoef(input);
+      Coefficient * cxCoef = this->GetScalarCoef(input);
+
+      coef_idx = sCoefs.Append(new RecombinationSinkCoef(*nnCoef, *niCoef,
+                                                         *cxCoef));
    }
    else
    {
@@ -3270,6 +3286,7 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
      TeCoef_(*ykCoefPtrs_[ELECTRON_TEMPERATURE]),
      vnAvgCoef_(plasma.v_n_avg_m_per_s),
      vnBarCoef_(plasma.v_n_bar_m_per_s),
+     TnCoef_(plasma.T_n_eV),
      ziCoef_((double)z_i_),
      neCoef_(ziCoef_, niCoef_),
      dTe0Coef_(*kCoefPtrs_[ELECTRON_TEMPERATURE]),
@@ -3289,6 +3306,7 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
      cxCoef_(TiCoef_),
      SizDefCoef_(neCoef_, nnCoef_, izCoef_),
      SrcDefCoef_(neCoef_, niCoef_, rcCoef_),
+     ScxDefCoef_(nnCoef_, niCoef_, cxCoef_),
      SizCoef_((cmncoefs_(CmnCoefs::IONIZATION_COEF) != NULL)
               ? const_cast<Coefficient&>
               (*cmncoefs_(CmnCoefs::IONIZATION_COEF))
@@ -3296,7 +3314,11 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
      SrcCoef_((cmncoefs_(CmnCoefs::RECOMBINATION_COEF) != NULL)
               ? const_cast<Coefficient&>
               (*cmncoefs_(CmnCoefs::RECOMBINATION_COEF))
-              : SrcDefCoef_)
+              : SrcDefCoef_),
+     ScxCoef_((cmncoefs_(CmnCoefs::CHARGE_EXCHANGE_COEF) != NULL)
+              ? const_cast<Coefficient&>
+              (*cmncoefs_(CmnCoefs::CHARGE_EXCHANGE_COEF))
+              : ScxDefCoef_)
 {
 }
 
@@ -4842,7 +4864,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
                  NULL, NULL, yGF, kGF, bcs, cbcs, cmncoefs, B3Coef,
                  term_flag, vis_flag, logging, log_prefix),
      ndcoefs_(ndcoefs),
-     DDefCoef_(neCoef_, vnCoef_, izCoef_),
+     DDefCoef_(neCoef_, vnBarCoef_, izCoef_, cxCoef_),
      DCoef_((ndcoefs_(NDCoefs::DIFFUSION_COEF) != NULL)
             ? const_cast<Coefficient&>
             (*ndcoefs_(NDCoefs::DIFFUSION_COEF))
@@ -5462,9 +5484,9 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    {
       SetSourceTerm(SRCCoef_, -1.0);
    }
-   if (this->CheckTermFlag(CHARGE_EXCHANGE_SINK_TERM))
+   if (this->CheckTermFlag(CHARGE_EXCHANGE_SOURCE_TERM))
    {
-      SetSourceTerm(SCXCoef_, -1.0);
+      SetSourceTerm(SCXCoef_, 1.0);
    }
    if (this->CheckTermFlag(SOURCE_TERM) &&
        imcoefs_(IMCoefs::SOURCE_COEF) != NULL)
@@ -5497,7 +5519,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    {
       SRCGF_ = new ParGridFunction(&fes_);
    }
-   if (this->CheckVisFlag(CHARGE_EXCHANGE_SINK_COEF))
+   if (this->CheckVisFlag(CHARGE_EXCHANGE_SOURCE_COEF))
    {
       SCXGF_ = new ParGridFunction(&fes_);
    }
@@ -5579,10 +5601,10 @@ IonMomentumOp::RegisterDataFields(DataCollection & dc)
       oss << eqn_name_ << " Recombination Sink";
       dc.RegisterField(oss.str(), SRCGF_);
    }
-   if (this->CheckVisFlag(CHARGE_EXCHANGE_SINK_COEF))
+   if (this->CheckVisFlag(CHARGE_EXCHANGE_SOURCE_COEF))
    {
       ostringstream oss;
-      oss << eqn_name_ << " Charge Exchange Sink";
+      oss << eqn_name_ << " Charge Exchange Source";
       dc.RegisterField(oss.str(), SCXGF_);
    }
    if (this->CheckVisFlag(SOURCE_COEF) && SGF_ != NULL)
@@ -5640,7 +5662,7 @@ IonMomentumOp::PrepareDataFields()
    {
       SRCGF_->ProjectCoefficient(SRCCoef_);
    }
-   if (this->CheckVisFlag(CHARGE_EXCHANGE_SINK_COEF))
+   if (this->CheckVisFlag(CHARGE_EXCHANGE_SOURCE_COEF))
    {
       SCXGF_->ProjectCoefficient(SCXCoef_);
    }
@@ -6204,6 +6226,9 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      nChiCoef_(niCoef_, ChiCoef_),
      nkChiCoef_(kBCoef_, nChiCoef_),
      keVCoef_(kinEnergyCoef_, BSVCoef_),
+     SIZCoef_(m_n_kg_, m_i_kg_, vnAvgCoef_, TnCoef_, SizCoef_),
+     SRCCoef_(m_i_kg_, viCoef_, SrcCoef_),
+     SCXCoef_(m_i_kg_, vnAvgCoef_, viCoef_, ScxCoef_),
      ChiParaGF_(NULL),
      ChiPerpGF_(NULL),
      AdvGF_(NULL),
@@ -6264,6 +6289,24 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
       SetSourceTerm(QiCoef_, 1.0);
    }
 
+   if (this->CheckTermFlag(IONIZATION_SOURCE_TERM))
+   {
+      // Source term: Siz * (3/2 m_i/m_n k_B T_n + 1/2 m_i v_n^2)
+      SetSourceTerm(SIZCoef_, 1.0);
+   }
+
+   if (this->CheckTermFlag(RECOMBINATION_SINK_TERM))
+   {
+      // Sink term: Src * (1/2 m_i v_i^2)
+      SetSourceTerm(SRCCoef_, -1.0);
+   }
+
+   if (this->CheckTermFlag(CHARGE_EXCHANGE_SOURCE_TERM))
+   {
+      // Source term: Scx * (1/2 m_i v_n^2 - 1/2 m_i v_i^2)
+      SetSourceTerm(SCXCoef_, 1.0);
+   }
+
    if (this->CheckTermFlag(SOURCE_TERM) &&
        itecoefs_(ITECoefs::SOURCE_COEF) != NULL)
    {
@@ -6289,6 +6332,18 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
    {
       SGF_ = new ParGridFunction(&fes_);
    }
+   if (this->CheckVisFlag(IONIZATION_SOURCE_COEF))
+   {
+      SIZGF_ = new ParGridFunction(&fes_);
+   }
+   if (this->CheckVisFlag(RECOMBINATION_SINK_COEF))
+   {
+      SRCGF_ = new ParGridFunction(&fes_);
+   }
+   if (this->CheckVisFlag(CHARGE_EXCHANGE_SOURCE_COEF))
+   {
+      SCXGF_ = new ParGridFunction(&fes_);
+   }
    if (this->CheckVisFlag(EQUIPARTITION_SOURCE_COEF))
    {
       QiGF_ = new ParGridFunction(&fes_);
@@ -6308,6 +6363,9 @@ DGTransportTDO::IonTotalEnergyOp::~IonTotalEnergyOp()
    delete ChiPerpGF_;
    delete ChiParaGF_;
    delete AdvGF_;
+   delete SIZGF_;
+   delete SRCGF_;
+   delete SCXGF_;
    delete SGF_;
    delete QiGF_;
    delete totEnergyGF_;
@@ -6325,6 +6383,9 @@ void DGTransportTDO::IonTotalEnergyOp::Update()
    if (ChiParaGF_   != NULL) { ChiParaGF_->Update(); }
    if (ChiPerpGF_   != NULL) { ChiPerpGF_->Update(); }
    if (AdvGF_       != NULL) { AdvGF_->Update(); }
+   if (SIZGF_       != NULL) { SIZGF_->Update(); }
+   if (SRCGF_       != NULL) { SRCGF_->Update(); }
+   if (SCXGF_       != NULL) { SCXGF_->Update(); }
    if (SGF_         != NULL) { SGF_->Update(); }
    if (QiGF_        != NULL) { QiGF_->Update(); }
    if (totEnergyGF_ != NULL) { totEnergyGF_->Update(); }
@@ -6350,6 +6411,18 @@ void DGTransportTDO::IonTotalEnergyOp::RegisterDataFields(DataCollection & dc)
    if (this->CheckVisFlag(ADVECTION_COEF) && AdvGF_ != NULL)
    {
       dc.RegisterField("Ion Energy Advection", AdvGF_);
+   }
+   if (this->CheckVisFlag(IONIZATION_SOURCE_COEF) && SIZGF_ != NULL)
+   {
+      dc.RegisterField("Ion Energy Ionization Source", SIZGF_);
+   }
+   if (this->CheckVisFlag(RECOMBINATION_SINK_COEF) && SRCGF_ != NULL)
+   {
+      dc.RegisterField("Ion Energy Recombination Sink", SRCGF_);
+   }
+   if (this->CheckVisFlag(CHARGE_EXCHANGE_SOURCE_COEF) && SCXGF_ != NULL)
+   {
+      dc.RegisterField("Ion Energy Charge Exchange Source", SCXGF_);
    }
    if (this->CheckVisFlag(SOURCE_COEF) && SGF_ != NULL)
    {
@@ -6404,6 +6477,39 @@ void DGTransportTDO::IonTotalEnergyOp::PrepareDataFields()
          SGF_->ProjectCoefficient
          (const_cast<Coefficient&>
           (*itecoefs_(ITECoefs::SOURCE_COEF)));
+      }
+   }
+   if (this->CheckVisFlag(IONIZATION_SOURCE_COEF))
+   {
+      if (this->CheckTermFlag(IONIZATION_SOURCE_TERM))
+      {
+         SIZGF_->ProjectCoefficient(SIZCoef_);
+      }
+      else
+      {
+         *SIZGF_ = 0.0;
+      }
+   }
+   if (this->CheckVisFlag(RECOMBINATION_SINK_COEF))
+   {
+      if (this->CheckTermFlag(RECOMBINATION_SINK_TERM))
+      {
+         SRCGF_->ProjectCoefficient(SRCCoef_);
+      }
+      else
+      {
+         *SRCGF_ = 0.0;
+      }
+   }
+   if (this->CheckVisFlag(CHARGE_EXCHANGE_SOURCE_COEF))
+   {
+      if (this->CheckTermFlag(CHARGE_EXCHANGE_SOURCE_TERM))
+      {
+         SCXGF_->ProjectCoefficient(SCXCoef_);
+      }
+      else
+      {
+         *SCXGF_ = 0.0;
       }
    }
    if (this->CheckVisFlag(EQUIPARTITION_SOURCE_COEF))
@@ -6472,6 +6578,8 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      nChiCoef_(neCoef_, ChiCoef_),
      nkChiCoef_(kBCoef_, nChiCoef_),
      keVCoef_(kinEnergyCoef_, BSVCoef_),
+     SIZCoef_(m_n_kg_, phiIZCoef_, vnAvgCoef_, TnCoef_, SizCoef_),
+     SRCCoef_(viCoef_, SrcCoef_),
      ChiParaGF_(NULL),
      ChiPerpGF_(NULL),
      AdvGF_(NULL),
@@ -6532,6 +6640,18 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
       SetSourceTerm(QiCoef_, -1.0);
    }
 
+   if (this->CheckTermFlag(IONIZATION_SINK_TERM))
+   {
+      // Source term: Siz * (phi_iz - 3/2 m_e/m_n k_B T_n - 1/2 m_e v_n^2)
+      SetSourceTerm(SIZCoef_, -1.0);
+   }
+
+   if (this->CheckTermFlag(RECOMBINATION_SINK_TERM))
+   {
+      // Sink term: Src * (1/2 m_e v_i^2)
+      SetSourceTerm(SRCCoef_, -1.0);
+   }
+
    if (this->CheckTermFlag(SOURCE_TERM) &&
        etecoefs_(ETECoefs::SOURCE_COEF) != NULL)
    {
@@ -6557,6 +6677,14 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
    {
       SGF_ = new ParGridFunction(&fes_);
    }
+   if (this->CheckVisFlag(IONIZATION_SINK_COEF))
+   {
+      SIZGF_ = new ParGridFunction(&fes_);
+   }
+   if (this->CheckVisFlag(RECOMBINATION_SINK_COEF))
+   {
+      SRCGF_ = new ParGridFunction(&fes_);
+   }
    if (this->CheckVisFlag(EQUIPARTITION_SOURCE_COEF))
    {
       QiGF_ = new ParGridFunction(&fes_);
@@ -6576,6 +6704,8 @@ DGTransportTDO::ElectronTotalEnergyOp::~ElectronTotalEnergyOp()
    delete ChiPerpGF_;
    delete ChiParaGF_;
    delete AdvGF_;
+   delete SIZGF_;
+   delete SRCGF_;
    delete SGF_;
    delete QiGF_;
    delete totEnergyGF_;
@@ -6593,6 +6723,8 @@ void DGTransportTDO::ElectronTotalEnergyOp::Update()
    if (ChiParaGF_   != NULL) { ChiParaGF_->Update(); }
    if (ChiPerpGF_   != NULL) { ChiPerpGF_->Update(); }
    if (AdvGF_       != NULL) { AdvGF_->Update(); }
+   if (SIZGF_       != NULL) { SIZGF_->Update(); }
+   if (SRCGF_       != NULL) { SRCGF_->Update(); }
    if (SGF_         != NULL) { SGF_->Update(); }
    if (QiGF_        != NULL) { QiGF_->Update(); }
    if (totEnergyGF_ != NULL) { totEnergyGF_->Update(); }
@@ -6619,6 +6751,14 @@ void DGTransportTDO::ElectronTotalEnergyOp::RegisterDataFields(
    if (this->CheckVisFlag(ADVECTION_COEF) && AdvGF_ != NULL)
    {
       dc.RegisterField("Electron Energy Advection", AdvGF_);
+   }
+   if (this->CheckVisFlag(IONIZATION_SINK_COEF) && SIZGF_ != NULL)
+   {
+      dc.RegisterField("Ion Energy Ionization Sink", SIZGF_);
+   }
+   if (this->CheckVisFlag(RECOMBINATION_SINK_COEF) && SRCGF_ != NULL)
+   {
+      dc.RegisterField("Ion Energy Recombination Sink", SRCGF_);
    }
    if (this->CheckVisFlag(SOURCE_COEF) && SGF_ != NULL)
    {
@@ -6673,6 +6813,28 @@ void DGTransportTDO::ElectronTotalEnergyOp::PrepareDataFields()
          SGF_->ProjectCoefficient
          (const_cast<Coefficient&>
           (*etecoefs_(ETECoefs::SOURCE_COEF)));
+      }
+   }
+   if (this->CheckVisFlag(IONIZATION_SINK_COEF))
+   {
+      if (this->CheckTermFlag(IONIZATION_SINK_TERM))
+      {
+         SIZGF_->ProjectCoefficient(SIZCoef_);
+      }
+      else
+      {
+         *SIZGF_ = 0.0;
+      }
+   }
+   if (this->CheckVisFlag(RECOMBINATION_SINK_COEF))
+   {
+      if (this->CheckTermFlag(RECOMBINATION_SINK_TERM))
+      {
+         SRCGF_->ProjectCoefficient(SRCCoef_);
+      }
+      else
+      {
+         *SRCGF_ = 0.0;
       }
    }
    if (this->CheckVisFlag(EQUIPARTITION_SOURCE_COEF))
