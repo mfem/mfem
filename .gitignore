@@ -18,6 +18,10 @@ mjit
 CMakeCache.txt
 CMakeFiles/
 
+# JIT library files
+libmjit.a
+libmjit.so
+
 # Backup files
 *~
 

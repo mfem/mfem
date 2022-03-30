@@ -350,7 +350,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD\
  MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS\
  MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER MFEM_USE_BENCHMARK\
- MFEM_USE_PARELAG MFEM_USE_JIT MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_PARELAG MFEM_SOURCE_DIR MFEM_INSTALL_DIR\
+ MFEM_USE_JIT MFEM_JIT_CXX MFEM_JIT_BUILD_FLAGS
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -378,6 +379,9 @@ MFEM_LIB_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(CONFIG_FILE_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
+
+MFEM_JIT_CXX = $(MFEM_CXX)
+MFEM_JIT_BUILD_FLAGS = $(strip $(MFEM_BUILD_FLAGS))
 
 MFEM_SOURCE_DIR  = $(MFEM_REAL_DIR)
 MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
@@ -421,7 +425,8 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh fem fem/fe fem/ceed fem/qinterp fem/tmop
+DIRS = general general/jit linalg linalg/simd mesh \
+		 fem fem/fe fem/ceed fem/qinterp fem/tmop
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
@@ -457,18 +462,19 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
                    $(SRC)fem/bilininteg_mass_pa.cpp
 
 # Definitions to compile the preprocessor and grab the MFEM compiler
+JIT_LIB = $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 ifeq ($(shell uname -s),Linux)
-JIT_LIB = -lrt
+JIT_LIB += -lrt
 endif
-JIT_DEFINES  = -DMFEM_JIT_MAIN
-JIT_DEFINES += -DMFEM_CXX="$(MFEM_CXX)"
-JIT_DEFINES += -DMFEM_BUILD_FLAGS="$(strip $(MFEM_BUILD_FLAGS))"
-$(BLD)$(MFEM_JIT): $(SRC)general/$(MFEM_JIT).cpp \
-                   $(SRC)general/$(MFEM_JIT).hpp $(THIS_MK)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(<) $(JIT_DEFINES) $(JIT_LIB)
+$(BLD)$(MFEM_JIT): $(SRC)general/jit/main.cpp \
+                   $(SRC)general/jit/jit.hpp \
+                   $(SRC)general/jit/compile.hpp \
+						 $(SRC)general/jit/parser.hpp $(THIS_MK)
+	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -o $(@) $(<) $(JIT_LIB)
 
 # Filtering out the objects that will be compiled through the preprocessor
 JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
+STD_OBJECTS_FILES = $(filter-out $(BLD)./general/jit/main.o),$(OBJECT_FILES))
 STD_OBJECTS_FILES = $(filter-out $(JIT_OBJECTS_FILES),$(OBJECT_FILES))
 
 $(STD_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
@@ -723,6 +729,8 @@ status info:
 	$(info MFEM_USE_CALIPER       = $(MFEM_USE_CALIPER))
 	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
 	$(info MFEM_USE_JIT           = $(MFEM_USE_JIT))
+	$(info MFEM_JIT_CXX           = $(MFEM_CXX))
+	$(info MFEM_JIT_BUILD_FLAGS   = $(MFEM_BUILD_FLAGS))
 	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))
