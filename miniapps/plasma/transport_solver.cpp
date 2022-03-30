@@ -3282,7 +3282,20 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
      diffusionCoef_(NULL),
      diffusionMatrixCoef_(NULL),
      advectionCoef_(NULL),
-     sourceCoef_(NULL)
+     sourceCoef_(NULL),
+     izCoef_(TeCoef_),
+     rcCoef_(TeCoef_),
+     cxCoef_(TiCoef_),
+     SizDefCoef_(neCoef_, nnCoef_, izCoef_),
+     SrcDefCoef_(neCoef_, niCoef_, rcCoef_),
+     SizCoef_((cmncoefs_(CmnCoefs::IONIZATION_COEF) != NULL)
+              ? const_cast<Coefficient&>
+              (*cmncoefs_(CmnCoefs::IONIZATION_COEF))
+              : SizDefCoef_),
+     SrcCoef_((cmncoefs_(CmnCoefs::RECOMBINATION_COEF) != NULL)
+              ? const_cast<Coefficient&>
+              (*cmncoefs_(CmnCoefs::RECOMBINATION_COEF))
+              : SrcDefCoef_)
 {
 }
 
@@ -4828,24 +4841,11 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
                  NULL, NULL, yGF, kGF, bcs, cbcs, cmncoefs, B3Coef,
                  term_flag, vis_flag, logging, log_prefix),
      ndcoefs_(ndcoefs),
-     vnCoef_(v_n_),
-     izCoef_(TeCoef_),
-     rcCoef_(TeCoef_),
      DDefCoef_(neCoef_, vnCoef_, izCoef_),
      DCoef_((ndcoefs_(NDCoefs::DIFFUSION_COEF) != NULL)
             ? const_cast<Coefficient&>
             (*ndcoefs_(NDCoefs::DIFFUSION_COEF))
             : DDefCoef_),
-     SrcDefCoef_(neCoef_, niCoef_, rcCoef_),
-     SizDefCoef_(neCoef_, nnCoef_, izCoef_),
-     SrcCoef_((cmncoefs_(CmnCoefs::RECOMBINATION_COEF) != NULL)
-              ? const_cast<Coefficient&>
-              (*cmncoefs_(CmnCoefs::RECOMBINATION_COEF))
-              : SrcDefCoef_),
-     SizCoef_((cmncoefs_(CmnCoefs::IONIZATION_COEF) != NULL)
-              ? const_cast<Coefficient&>
-              (*cmncoefs_(CmnCoefs::IONIZATION_COEF))
-              : SizDefCoef_),
      DGF_(NULL),
      SrcGF_(NULL),
      SizGF_(NULL),
@@ -5080,8 +5080,6 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
                  &vfes, &h1_fes, yGF, kGF, bcs, cbcs, cmncoefs, B3Coef,
                  term_flag, vis_flag, logging, log_prefix),
      idcoefs_(idcoefs),
-     izCoef_(TeCoef_),
-     rcCoef_(TeCoef_),
      DPerpConstCoef_(DPerp),
      DParaCoefPtr_((idcoefs_(IDCoefs::PARA_DIFFUSION_COEF) != NULL)
                    ? const_cast<Coefficient*>
@@ -5094,16 +5092,6 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      DCoef_(DParaCoefPtr_,
             DPerpCoefPtr_, B3Coef_),
      ViCoef_(viCoef_, B3Coef_),
-     SizDefCoef_(neCoef_, nnCoef_, izCoef_),
-     SrcDefCoef_(neCoef_, niCoef_, rcCoef_),
-     SizCoef_((cmncoefs_(CmnCoefs::IONIZATION_COEF) != NULL)
-              ? const_cast<Coefficient&>
-              (*cmncoefs_(CmnCoefs::IONIZATION_COEF))
-              : SizDefCoef_),
-     SrcCoef_((cmncoefs_(CmnCoefs::RECOMBINATION_COEF) != NULL)
-              ? const_cast<Coefficient&>
-              (*cmncoefs_(CmnCoefs::RECOMBINATION_COEF))
-              : SrcDefCoef_),
      DParaGF_(NULL),
      DPerpGF_(NULL),
      AdvGF_(NULL),
@@ -5389,13 +5377,6 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
               EtaPerpCoefPtr_, B3Coef_),
      miniViCoef_(niCoef_, viCoef_, m_i_kg_, DPerpCoef_, B3Coef_),
      gradPCoef_(yGF, kGF, z_i_, B3Coef_),
-     izCoef_(TeCoef_),
-     rcCoef_(TeCoef_),
-     cxCoef_(TiCoef_),
-     // SizCoef_(neCoef_, nnCoef_, izCoef_),
-     // negSizCoef_(-1.0, SizCoef_),
-     // nnizCoef_(nnCoef_, izCoef_),
-     // niizCoef_(niCoef_, izCoef_),
      SIZCoef_(z_i_, m_i_kg_, nnCoef_, niCoef_, vnCoef_, izCoef_),
      SRCCoef_(z_i_, m_i_kg_, niCoef_, viCoef_, rcCoef_),
      SCXCoef_(m_i_kg_, nnCoef_, niCoef_, vnCoef_, viCoef_, cxCoef_),
@@ -5718,7 +5699,6 @@ IonStaticPressureOp(const MPI_Session & mpi,
                  term_flag, vis_flag, logging, log_prefix),
      ispcoefs_(ispcoefs),
      ChiPerpConst_(ChiPerp),
-     izCoef_(*yCoefPtrs_[ELECTRON_TEMPERATURE]),
      presCoef_(niCoef_, TiCoef_),
      aniViCoef_(niCoef_, viCoef_, 2.5, B3Coef_),
      ChiParaCoef_(plasma.z_i, plasma.m_i_kg, lnLambda_, niCoef_, TiCoef_),
@@ -5925,7 +5905,6 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
                  logging, log_prefix),
      espcoefs_(espcoefs),
      ChiPerpConst_(ChiPerp),
-     izCoef_(TeCoef_),
      presCoef_(z_i_, niCoef_, TeCoef_),
      aneViCoef_(neCoef_, viCoef_, 2.5, B3Coef_),
      ChiParaCoef_(plasma.z_i, lnLambda_, neCoef_, TeCoef_),

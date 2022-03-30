@@ -4683,6 +4683,16 @@ private:
       VectorCoefficient * advectionCoef_;
       Coefficient       * sourceCoef_;
 
+      ApproxIonizationRate    izCoef_;
+      ApproxRecombinationRate rcCoef_;
+      ApproxChargeExchangeRate cxCoef_;
+
+      IonizationSourceCoef    SizDefCoef_;
+      RecombinationSinkCoef   SrcDefCoef_;
+
+      Coefficient & SizCoef_;
+      Coefficient & SrcCoef_;
+
       TransportOp(const MPI_Session & mpi, const DGParams & dg,
                   const PlasmaParams & plasma, int index,
                   const std::string &eqn_name,
@@ -4823,18 +4833,8 @@ private:
 
       const NeutralDensityCoefs & ndcoefs_;
 
-      ConstantCoefficient       vnCoef_;
-      ApproxIonizationRate      izCoef_;
-      ApproxRecombinationRate   rcCoef_;
-
       NeutralDiffusionCoef      DDefCoef_; // Default diffusion coef
       StateVariableStandardCoef DCoef_;
-
-      RecombinationSinkCoef     SrcDefCoef_; // Default recomb coef
-      IonizationSourceCoef      SizDefCoef_; // Default ionization coef
-
-      Coefficient & SrcCoef_;
-      Coefficient & SizCoef_;
 
       ParGridFunction * DGF_;
       ParGridFunction * SrcGF_;
@@ -4928,21 +4928,12 @@ private:
 
       const IonDensityCoefs & idcoefs_;
 
-      ApproxIonizationRate    izCoef_;
-      ApproxRecombinationRate rcCoef_;
-
       ConstantCoefficient     DPerpConstCoef_;
       Coefficient *           DParaCoefPtr_;
       Coefficient *           DPerpCoefPtr_;
       Aniso2DDiffusionCoef    DCoef_;
 
       IonAdvectionCoef        ViCoef_;
-
-      IonizationSourceCoef    SizDefCoef_;
-      RecombinationSinkCoef   SrcDefCoef_;
-
-      Coefficient & SizCoef_;
-      Coefficient & SrcCoef_;
 
       ParGridFunction * DParaGF_;
       ParGridFunction * DPerpGF_;
@@ -5048,16 +5039,6 @@ private:
 
       GradPressureCoefficient gradPCoef_;
 
-      ApproxIonizationRate     izCoef_;
-      ApproxRecombinationRate  rcCoef_;
-      ApproxChargeExchangeRate cxCoef_;
-
-      // IonizationSourceCoef    SizCoef_;
-      // ProductCoefficient   negSizCoef_;
-
-      // ProductCoefficient nnizCoef_;
-      // ProductCoefficient niizCoef_;
-
       IonMomentumIonizationCoef     SIZCoef_;
       IonMomentumRecombinationCoef  SRCCoef_;
       IonMomentumChargeExchangeCoef SCXCoef_;
@@ -5082,7 +5063,6 @@ private:
                     const IMCoefs & imcoefs,
                     const CmnCoefs & cmncoefs,
                     VectorCoefficient & B3Coef,
-                    // int ion_charge, double ion_mass,
                     double DPerp,
                     int term_flag, int vis_flag, int logging,
                     const std::string & log_prefix);
@@ -5142,8 +5122,6 @@ private:
       const IonStaticPressureCoefs & ispcoefs_;
 
       double ChiPerpConst_;
-
-      ApproxIonizationRate     izCoef_;
 
       StaticPressureCoef               presCoef_;
       StaticPressureAdvectionCoef      aniViCoef_;
@@ -5229,8 +5207,6 @@ private:
       const ElectronStaticPressureCoefs & espcoefs_;
 
       double ChiPerpConst_;
-
-      ApproxIonizationRate     izCoef_;
 
       StaticPressureCoef               presCoef_;
       StaticPressureAdvectionCoef      aneViCoef_;
@@ -5478,13 +5454,7 @@ private:
       ParFiniteElementSpace &fes_;
       // ParGridFunctionArray  &yGF_;
       ParGridFunctionArray  &kGF_;
-      /*
-       NeutralDensityOp n_n_op_;
-       IonDensityOp     n_i_op_;
-       DummyOp          v_i_op_;
-       DummyOp          t_i_op_;
-       DummyOp          t_e_op_;
-      */
+
       Array<TransportOp*> op_;
 
       const Vector &wgts_;
@@ -5503,16 +5473,9 @@ private:
                  const TransportBCs & bcs,
                  const TransportCoefs & coefs,
                  Array<int> & offsets,
-                 // int ion_charge, double ion_mass,
-                 // double neutral_mass, double neutral_temp,
                  double DiPerp, double XiPerp, double XePerp,
-                 // VectorCoefficient & B3Coef,
-                 // std::vector<CoefficientByAttr> & Ti_dbc,
-                 // std::vector<CoefficientByAttr> & Te_dbc,
                  const Array<int> & term_flags,
                  const Array<int> & vis_flags,
-                 // VectorCoefficient & bHatCoef,
-                 // MatrixCoefficient & PerpCoef,
                  unsigned int op_flag = 31, int logging = 0);
 
       ~CombinedOp();
