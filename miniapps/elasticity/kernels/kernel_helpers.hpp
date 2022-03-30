@@ -15,10 +15,10 @@
 #include "general/forall.hpp"
 #include "linalg/tensor.hpp"
 
+using mfem::internal::tensor;
+
 namespace mfem
 {
-
-using namespace mfem::internal;
 
 namespace KernelHelpers
 {
