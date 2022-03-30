@@ -296,7 +296,6 @@ TEST_CASE("BlockMatrix", "[BlockMatrix]")
       delete C;
 
       REQUIRE(err < tol );
-
    }
 
    delete A;

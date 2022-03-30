@@ -203,11 +203,11 @@ int main(int argc, char *argv[])
    nf->SetParamFields(prmbv); //set the density
 
    // Compute the stiffness/tangent matrix for density prmbv=0.5.
-   mfem::BlockOperator& A=nf->GetGradient(solbv);
+   mfem::BlockOperator *A = &nf->GetGradient(solbv);
    mfem::HypreBoomerAMG* prec=new mfem::HypreBoomerAMG();
    prec->SetPrintLevel(print_level);
    // Use only block (0,0) as in this case we have a single field.
-   prec->SetOperator(A.GetBlock(0,0));
+   prec->SetOperator(A->GetBlock(0,0));
 
    // Construct block preconditioner for the BNLForm.
    mfem::BlockDiagonalPreconditioner *blpr = new mfem::BlockDiagonalPreconditioner(
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
    gmres->SetMaxIter(100);
    gmres->SetPrintLevel(print_level);
    gmres->SetPreconditioner(*blpr);
-   gmres->SetOperator(A);
+   gmres->SetOperator(*A);
 
 
    // Solve the problem.
@@ -319,10 +319,10 @@ int main(int argc, char *argv[])
          // Solve the physics.
          solbv=0.0;
          nf->Mult(solbv,resbv); resbv.Neg(); //compute RHS
-         A=nf->GetGradient(solbv);
+         A = &nf->GetGradient(solbv);
          prec->SetPrintLevel(0);
-         prec->SetOperator(A.GetBlock(0,0));
-         gmres->SetOperator(A);
+         prec->SetOperator(A->GetBlock(0,0));
+         gmres->SetOperator(*A);
          gmres->SetPrintLevel(0);
          gmres->Mult(resbv,solbv);
          // Compute the objective.

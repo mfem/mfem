@@ -72,6 +72,9 @@ public:
     */
    BlockVector(double *data, const Array<int> & bOffsets);
 
+   /// Wrap a Vector as a BlockVector
+   BlockVector(Vector &v, const Array<int> &bOffsets);
+
    //! Return the number of blocks
    int NumBlocks() const { return numBlocks; }
 
@@ -117,6 +120,21 @@ public:
        - currently, the block-vector does not own its data, or
        - currently, the block-vector does not use MemoryType @a mt. */
    void Update(const Array<int> &bOffsets, MemoryType mt);
+
+   /** @brief Synchronize the memory location flags (i.e. the memory validity
+       flags) of the big/monolithic block-vector with its sub-vector blocks. The
+       big/monolithic vector has the correct memory location flags. */
+   /** This method will copy the data validity flags from the big/monolithic
+       block-vector to its sub-vector block. */
+   void SyncToBlocks() const;
+
+   /** @brief Synchronize the memory location flags (i.e. the memory validity
+       flags) of the big/monolithic block-vector with its sub-vector blocks. The
+       sub-vector blocks have the correct memory location flags. */
+   /** This method will copy/move the data of the sub-vector blocks (if
+       necessary) so that each block matches the memory location flags of the
+       big/monolithic block-vector. */
+   void SyncFromBlocks() const;
 };
 
 }

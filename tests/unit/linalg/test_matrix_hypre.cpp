@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
+#include "general/forall.hpp"
 #include "unit_tests.hpp"
 
 namespace mfem
@@ -47,16 +48,33 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       hypre_ParCSRMatrix * AparCSR = *Aabs;
 
       int nnzd = AparCSR->diag->num_nonzeros;
+#ifndef HYPRE_USING_CUDA
       for (int j = 0; j < nnzd; j++)
       {
          AparCSR->diag->data[j] = fabs(AparCSR->diag->data[j]);
       }
+#else
+      Aabs->HypreReadWrite();
+      double *d_diag_data = AparCSR->diag->data;
+      CuWrap1D(nnzd, [=] MFEM_DEVICE (int i)
+      {
+         d_diag_data[i] = fabs(d_diag_data[i]);
+      });
+#endif
 
       int nnzoffd = AparCSR->offd->num_nonzeros;
+#ifndef HYPRE_USING_CUDA
       for (int j = 0; j < nnzoffd; j++)
       {
          AparCSR->offd->data[j] = fabs(AparCSR->offd->data[j]);
       }
+#else
+      double *d_offd_data = AparCSR->offd->data;
+      CuWrap1D(nnzoffd, [=] MFEM_DEVICE (int i)
+      {
+         d_offd_data[i] = fabs(d_offd_data[i]);
+      });
+#endif
 
       Vector X0(n), X1(n);
       Vector Y0(m), Y1(m);

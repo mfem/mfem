@@ -351,6 +351,8 @@ static void PADiffusionSetup(const int dim,
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
@@ -371,7 +373,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    const int sdim = mesh->SpaceDimension();
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
@@ -488,8 +490,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       }
    }
-   pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne,
-                   Device::GetDeviceMemoryType());
+   pa_data.SetSize((symmetric ? symmDims : MQfullDim) * nq * ne, mt);
    PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeffDim, ne, ir->GetWeights(),
                     geom->J, coeff, pa_data);
 }

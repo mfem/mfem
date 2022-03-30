@@ -51,6 +51,12 @@ public:
     */
    BlockOperator(const Array<int> & row_offsets, const Array<int> & col_offsets);
 
+   /// Copy assignment is not supported
+   BlockOperator &operator=(const BlockOperator &) = delete;
+
+   /// Move assignment is not supported
+   BlockOperator &operator=(BlockOperator &&) = delete;
+
    //! Add block op in the block-entry (iblock, iblock).
    /**
     * iblock: The block will be inserted in location (iblock, iblock).

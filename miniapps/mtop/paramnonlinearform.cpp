@@ -339,7 +339,7 @@ double ParametricBNLForm::GetEnergyBlocked(const BlockVector &bx,
 
 void ParametricBNLForm::SetStateFields(const Vector &xv) const
 {
-   BlockVector bx(xv.GetData(), block_trueOffsets);
+   BlockVector bx(const_cast<Vector&>(xv), block_trueOffsets);
    if (needs_prolongation)
    {
       for (int s = 0; s < fes.Size(); s++)
@@ -355,7 +355,7 @@ void ParametricBNLForm::SetStateFields(const Vector &xv) const
 
 void ParametricBNLForm::SetAdjointFields(const Vector &av) const
 {
-   BlockVector bx(av.GetData(), block_trueOffsets);
+   BlockVector bx(const_cast<Vector&>(av), block_trueOffsets);
    if (needs_prolongation)
    {
       for (int s = 0; s < fes.Size(); s++)
@@ -372,7 +372,7 @@ void ParametricBNLForm::SetAdjointFields(const Vector &av) const
 
 void ParametricBNLForm::SetParamFields(const Vector &dv) const
 {
-   BlockVector bx(dv.GetData(), paramblock_trueOffsets);
+   BlockVector bx(const_cast<Vector&>(dv), paramblock_trueOffsets);
    if (prmneeds_prolongation)
    {
       for (int s = 0; s < paramfes.Size(); s++)
@@ -388,7 +388,7 @@ void ParametricBNLForm::SetParamFields(const Vector &dv) const
 
 double ParametricBNLForm::GetEnergy(const Vector &x) const
 {
-   xs.Update(x.GetData(),block_offsets);
+   xs.Update(const_cast<Vector&>(x),block_offsets);
    return GetEnergyBlocked(xs,xdv);
 }
 
@@ -898,8 +898,8 @@ const
 
 void ParametricBNLForm::ParamMult(const Vector &x, Vector &y) const
 {
-   BlockVector bx(x.GetData(), paramblock_trueOffsets);
-   BlockVector by(y.GetData(), paramblock_trueOffsets);
+   BlockVector bx(const_cast<Vector&>(x), paramblock_trueOffsets);
+   BlockVector by(y, paramblock_trueOffsets);
 
    const BlockVector &pbx = ParamProlongate(bx);
 
@@ -909,8 +909,8 @@ void ParametricBNLForm::ParamMult(const Vector &x, Vector &y) const
    }
    BlockVector &pby = prmneeds_prolongation ? prmaux2 : by;
 
-   xs.Update(pbx.GetData(), paramblock_offsets);
-   ys.Update(pby.GetData(), paramblock_offsets);
+   xs.Update(const_cast<BlockVector&>(pbx), paramblock_offsets);
+   ys.Update(pby, paramblock_offsets);
 
    MultParamBlocked(xsv,adv,xs,ys);
 
@@ -928,8 +928,8 @@ void ParametricBNLForm::ParamMult(const Vector &x, Vector &y) const
 void ParametricBNLForm::Mult(const Vector &x, Vector &y) const
 {
 
-   BlockVector bx(x.GetData(), block_trueOffsets);
-   BlockVector by(y.GetData(), block_trueOffsets);
+   BlockVector bx(const_cast<Vector&>(x), block_trueOffsets);
+   BlockVector by(y, block_trueOffsets);
 
    const BlockVector &pbx = Prolongate(bx);
 
@@ -939,8 +939,8 @@ void ParametricBNLForm::Mult(const Vector &x, Vector &y) const
    }
    BlockVector &pby = needs_prolongation ? aux2 : by;
 
-   xs.Update(pbx.GetData(), block_offsets);
-   ys.Update(pby.GetData(), block_offsets);
+   xs.Update(const_cast<BlockVector&>(pbx), block_offsets);
+   ys.Update(pby, block_offsets);
    MultBlocked(xs,xdv,ys);
 
    for (int s = 0; s < fes.Size(); s++)
@@ -1198,7 +1198,7 @@ void ParametricBNLForm::ComputeGradientBlocked(const BlockVector &bx,
 
 BlockOperator& ParametricBNLForm::GetGradient(const Vector &x) const
 {
-   BlockVector bx(x.GetData(), block_trueOffsets);
+   BlockVector bx(const_cast<Vector&>(x), block_trueOffsets);
    const BlockVector &pbx = Prolongate(bx);
 
    ComputeGradientBlocked(pbx, xdv);

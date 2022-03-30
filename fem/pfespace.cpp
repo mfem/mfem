@@ -515,7 +515,7 @@ const FiniteElement *ParFiniteElementSpace::GetFE(int i) const
    else { return FiniteElementSpace::GetFE(i); }
 }
 
-const Operator *ParFiniteElementSpace::GetFaceRestriction(
+const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
    ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
 {
    const bool is_dg_space = IsDGSpace();
@@ -529,7 +529,7 @@ const Operator *ParFiniteElementSpace::GetFaceRestriction(
    }
    else
    {
-      Operator* res;
+      FaceRestriction *res;
       if (is_dg_space)
       {
          res = new ParL2FaceRestriction(*this, e_ordering, type, m);
@@ -2885,19 +2885,10 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
    HypreParMatrix* R;
    R = new HypreParMatrix(MyComm, dof_offsets[nrk], old_dof_offsets[nrk],
-                          dof_offsets, old_dof_offsets, diag, offd, cmap);
+                          dof_offsets, old_dof_offsets, diag, offd, cmap,
+                          true);
 
-#ifndef HYPRE_BIGINT
-   diag->LoseData();
-   offd->LoseData();
-#else
-   diag->SetDataOwner(false);
-   offd->SetDataOwner(false);
-#endif
-   delete diag;
-   delete offd;
-
-   R->SetOwnerFlags(3, 3, 1);
+   R->SetOwnerFlags(R->OwnsDiag(), R->OwnsOffd(), 1);
 
    return R;
 }

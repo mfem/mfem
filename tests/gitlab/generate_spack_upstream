@@ -14,7 +14,7 @@
 # This script is meant be launched in the root directory of MFEM to compile all
 # the dependencies of MFEM for all the specs in CI. By doing so, we obtain a
 # Spack instance that can be used as an upstream.
-# Note: needs mfem-uberenv in MFEM repo (run tests/gitlab/get_mfem_uberenv)
+# Note: needs mfem-uberenv in MFEM repo (run tests/gitlab/get_mfem_uberenv)
 
 # This patch applies shared permissions to Spack installations.
 cd tests/uberenv

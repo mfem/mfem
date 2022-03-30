@@ -23,6 +23,10 @@
 //    conduit_json:         ConduitDataCollection w/ protocol conduit_json
 //    conduit_bin:          ConduitDataCollection w/ protocol conduit_bin
 //    hdf5:                 ConduitDataCollection w/ protocol hdf5
+//    fms:                  FMSDataCollection w/ protocol ascii
+//    fms_json:             FMSDataCollection w/ protocol json
+//    fms_yaml:             FMSDataCollection w/ protocol yaml
+//    fms_hdf5:             FMSDataCollection w/ protocol hdf5
 //
 // Compile with: make convert-dc
 //
@@ -77,6 +81,21 @@ DataCollection *create_data_collection(const std::string &dc_name,
       MFEM_ABORT("Must build with MFEM_USE_CONDUIT=YES for conduit support.");
 #endif
    }
+   else if ( dc_type.substr(0,3) == "fms")
+   {
+#ifdef MFEM_USE_FMS
+      auto fms_dc = new FMSDataCollection(dc_name);
+      std::string::size_type pos = dc_type.find("_");
+      if (pos != std::string::npos)
+      {
+         std::string fms_protocol(dc_type.substr(pos+1, dc_type.size()-pos-1));
+         fms_dc->SetProtocol(fms_protocol);
+      }
+      dc = fms_dc;
+#else
+      MFEM_ABORT("Must build with MFEM_USE_FMS=YES for FMS support.");
+#endif
+   }
    else
    {
       MFEM_ABORT("Unsupported Data Collection type:" << dc_type);
@@ -113,7 +132,11 @@ int main(int argc, char *argv[])
                   "\t   json:                 ConduitDataCollection w/ protocol json\n"
                   "\t   conduit_json:         ConduitDataCollection w/ protocol conduit_json\n"
                   "\t   conduit_bin:          ConduitDataCollection w/ protocol conduit_bin\n"
-                  "\t   hdf5:                 ConduitDataCollection w/ protocol hdf5");
+                  "\t   hdf5:                 ConduitDataCollection w/ protocol hdf5\n"
+                  "\t   fms:                  FMSDataCollection w/ protocol ascii\n"
+                  "\t   fms_json:             FMSDataCollection w/ protocol json\n"
+                  "\t   fms_yaml:             FMSDataCollection w/ protocol yaml\n"
+                  "\t   fms_hdf5:             FMSDataCollection w/ protocol hdf5");
    args.AddOption(&out_coll_type, "-ot", "--output-type",
                   "Set the output data collection type. Options:\n"
                   "\t   visit:                VisItDataCollection (default)\n"
@@ -121,7 +144,11 @@ int main(int argc, char *argv[])
                   "\t   json:                 ConduitDataCollection w/ protocol json\n"
                   "\t   conduit_json:         ConduitDataCollection w/ protocol conduit_json\n"
                   "\t   conduit_bin:          ConduitDataCollection w/ protocol conduit_bin\n"
-                  "\t   hdf5:                 ConduitDataCollection w/ protocol hdf5");
+                  "\t   hdf5:                 ConduitDataCollection w/ protocol hdf5\n"
+                  "\t   fms:                  FMSDataCollection w/ protocol ascii\n"
+                  "\t   fms_json:             FMSDataCollection w/ protocol json\n"
+                  "\t   fms_yaml:             FMSDataCollection w/ protocol yaml\n"
+                  "\t   fms_hdf5:             FMSDataCollection w/ protocol hdf5");
    args.Parse();
    if (!args.Good())
    {

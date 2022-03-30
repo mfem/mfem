@@ -14,10 +14,10 @@ using namespace mfem;
 
 #include "unit_tests.hpp"
 
-//You typically want to start by testing things one object at a time.
+// You typically want to start by testing things one object at a time.
 TEST_CASE("IntegrationRules of Different Types", "[IntegrationRules]")
 {
-   //This code is automatically re-executed for all of the sections.
+   // This code is automatically re-executed for all of the sections.
    IntegrationRules gauss_intrules(0, Quadrature1D::GaussLegendre);
    IntegrationRules lobatto_intrules(0, Quadrature1D::GaussLobatto);
    IntegrationRules oes_intrules(0, Quadrature1D::OpenUniform);
@@ -25,9 +25,9 @@ TEST_CASE("IntegrationRules of Different Types", "[IntegrationRules]")
 
 
 
-   //The tests will be reported in these sections.
-   //Each REQUIRE counts as an assertion.
-   //true = pass, false = fail
+   // The tests will be reported in these sections.
+   // Each REQUIRE counts as an assertion.
+   // true = pass, false = fail
    SECTION("Expected Number of points for GaussLegendre exactness")
    {
       // polynomial degree we want to exactly integrate

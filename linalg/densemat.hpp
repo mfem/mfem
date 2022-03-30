@@ -812,6 +812,9 @@ public:
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(double c);
 
+   /// Copy assignment operator (performs a deep copy)
+   DenseTensor &operator=(const DenseTensor &other);
+
    DenseMatrix &operator()(int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());

@@ -103,6 +103,7 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
+      // HYPRE_Finalize();
       MPI_Finalize();
       return 1;
    }

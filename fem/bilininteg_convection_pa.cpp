@@ -768,6 +768,8 @@ void SmemPAConvectionApply3D(const int ne,
 
 void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetFE(0);
@@ -784,11 +786,11 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   pa_data.SetSize(symmDims * nq * ne, Device::GetMemoryType());
+   pa_data.SetSize(symmDims * nq * ne, mt);
    Vector vel;
    if (VectorConstantCoefficient *cQ =
           dynamic_cast<VectorConstantCoefficient*>(Q))
@@ -798,7 +800,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    else if (VectorGridFunctionCoefficient *vgfQ =
                dynamic_cast<VectorGridFunctionCoefficient*>(Q))
    {
-      vel.SetSize(dim * nq * ne);
+      vel.SetSize(dim * nq * ne, mt);
 
       const GridFunction *gf = vgfQ->GetGridFunction();
       const FiniteElementSpace &gf_fes = *gf->FESpace();
@@ -809,7 +811,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                                           ElementDofOrdering::NATIVE;
       const Operator *R = gf_fes.GetElementRestriction(ordering);
 
-      Vector xe(R->Height(), Device::GetMemoryType());
+      Vector xe(R->Height(), mt);
       xe.UseDevice(true);
 
       R->Mult(*gf, xe);

@@ -58,6 +58,7 @@ following package managers:
 
 - Spack, https://github.com/spack/spack
 - OpenHPC, http://openhpc.community
+- Conda-forge, https://conda-forge.org (pre-built binaries linked with OpenMPI/MPICH, hypre, and METIS)
 - Homebrew/Science, https://github.com/Homebrew/homebrew-science (deprecated)
 
 We also recommend downloading and building the MFEM-based GLVis visualization
@@ -473,7 +474,7 @@ MFEM_USE_HIP = YES/NO
    Enables support for AMD devices in MFEM. HIP is a heterogeneous-compute
    interface for portability developed by AMD that can target both AMD and
    NVIDIA GPUs. The variable HIP_ARCH is used to specify the AMD GPU processor
-   used during compilation (by default, HIP_ARCH=gfx900).  When enabled, this
+   used during compilation (by default, HIP_ARCH=gfx900). When enabled, this
    option uses the HIP_* build options, see below.
 
 MFEM_USE_RAJA = YES/NO
@@ -515,6 +516,13 @@ MFEM_USE_CALIPER = YES/NO
    profiling at runtime with Caliper's configuration API. Alternatively, one
    can configure Caliper through environment variables or config files.
 
+MFEM_USE_FMS = YES/NO
+   Enables support for the FMS library which consists of the DataCollection
+   sub-class mfem::FMSDataCollection for I/O in FMS formats, see the header file
+   fem/fmsdatacollection.hpp. In addition, this option enables in-memory
+   convetion routines between FMS's FmsDataCollection structure and MFEM's
+   DataCollection class, see the header file fem/fmsconvert.hpp.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
@@ -539,8 +547,9 @@ The specific libraries and their options are:
   See also the "Specific options for hypre" section at the end of this file.
   URL: https://github.com/hypre-space/hypre and https://www.llnl.gov/casc/hypre
   Options: HYPRE_OPT, HYPRE_LIB.
-  Versions: HYPRE >= 2.10.0b,
-            HYPRE >= 2.20.0 for '--enable-mixedint' support.
+  Versions: HYPRE >= 2.10.0b  (HYPRE built without CUDA)
+            HYPRE >= 2.20.0   (HYPRE built with '--enable-mixedint')
+            HYPRE >= 2.22.0   (HYPRE built with CUDA)
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4).
@@ -614,7 +623,7 @@ The specific libraries and their options are:
   and dependencies of specific modules, see the Ginkgo webpage below.
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or Debug).
-  Versions: Ginkgo >= 1.4.0. 
+  Versions: Ginkgo >= 1.4.0.
 
 - AmgX (optional), used when MFEM_USE_AMGX = YES.
   URL: https://github.com/NVIDIA/AMGX
@@ -752,6 +761,11 @@ The specific libraries and their options are:
   URL: https://zlib.net
   Options: ZLIB_OPT, ZLIB_LIB.
 
+- FMS (optional), used when MFEM_USE_FMS = YES.
+  URL: https://github.com/CEED/FMS
+  Options: FMS_OPT, FMS_LIB.
+  Versions: FMS >= 0.2.
+
 Building with CMake
 ===================
 The MFEM build system consists of two steps: configuration and compilation.
@@ -883,6 +897,7 @@ MFEM_USE_RAJA
 MFEM_USE_UMPIRE
 MFEM_USE_SIDRE
 MFEM_USE_CALIPER
+MFEM_USE_FMS
 
 The following options are CMake specific:
 
@@ -937,6 +952,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - UMPIRE
  - AXOM - Used when MFEM_USE_SIDRE is enabled
  - CALIPER
+ - FMS
 
 The following built-in CMake packages are also used:
 
@@ -954,7 +970,7 @@ config/config.hpp.in:
 
    cp config/config.hpp.in config/_config.hpp
 
-The file config/_config.hpp can then be edited to enable desired options.  The
+The file config/_config.hpp can then be edited to enable desired options. The
 MFEM library is simply a combination of all object files obtained by compiling
 the .cpp source files in the source directories: general, linalg, mesh, and fem.
 
@@ -962,7 +978,7 @@ the .cpp source files in the source directories: general, linalg, mesh, and fem.
 Specifying an MPI job launcher
 ==============================
 By default, MFEM will use 'mpirun -np #' to launch any of its parallel tests or
-miniapps, where # is the number of MPI tasks.  An alternate MPI launcher can be
+miniapps, where # is the number of MPI tasks. An alternate MPI launcher can be
 provided by setting the MFEM_MPIEXEC and MFEM_MPIEXEC_NP config variables.
 
 MFEM will expect the launcher command, plus the command line option to allow it

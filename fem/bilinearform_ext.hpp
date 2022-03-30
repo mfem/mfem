@@ -72,8 +72,8 @@ protected:
    mutable Vector faceIntX, faceIntY;
    mutable Vector faceBdrX, faceBdrY;
    const Operator *elem_restrict; // Not owned
-   const Operator *int_face_restrict_lex; // Not owned
-   const Operator *bdr_face_restrict_lex; // Not owned
+   const FaceRestriction *int_face_restrict_lex; // Not owned
+   const FaceRestriction *bdr_face_restrict_lex; // Not owned
 
 public:
    PABilinearFormExtension(BilinearForm*);
@@ -143,8 +143,8 @@ protected:
    mutable Vector faceIntX, faceIntY;
    mutable Vector faceBdrX, faceBdrY;
    const Operator *elem_restrict; // Not owned
-   const Operator *int_face_restrict_lex; // Not owned
-   const Operator *bdr_face_restrict_lex; // Not owned
+   const FaceRestriction *int_face_restrict_lex; // Not owned
+   const FaceRestriction *bdr_face_restrict_lex; // Not owned
 
 public:
    MFBilinearFormExtension(BilinearForm *form);

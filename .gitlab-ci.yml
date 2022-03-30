@@ -48,39 +48,58 @@ variables:
   TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
   TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
   AUTOTEST_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/autotest.git
+  MFEM_DATA_REPO: https://github.com/mfem/data.git
   ARTIFACTS_DIR: artifacts
 
-# The pipeline is divided into stages. Usually, these are also synchronization
-# points, however, we use "needs" keyword to express the DAG of jobs for more
-# efficiency.
-# - We use setup phase to download content outside of mfem directory.
+# The pipeline is divided into stages. Usually, jobs in a given stage wait for
+# the preceding stages to complete before to start. However, we sometimes use
+# the "needs" keyword and express the DAG of jobs for more efficiency.
+# - We use setup and setup_baseline phases to download content outside of mfem
+#   directory.
 # - Allocate/Release is where quartz resources are allocated/released once for all.
 # - Build and Test is where we build and MFEM for multiple toolchains.
 # - Baseline_checks gathers baseline-type test suites execution
 # - Baseline_publish, only available on master, allows to update baseline
 #   results
 stages:
+  - setup
   - q_allocate_resources
   - q_build_and_test
   - q_release_resources
   - l_build_and_test
   - c_build_and_test
-  - setup
+  - setup_baseline
   - baseline_check
   - baseline_to_autotest
   - baseline_publish
 
-# The setup job in setup stage don't rely on MFEM git repo. It prepares a
-# pipeline-wide working directory downloading/updating external repos.
-# TODO: updating tests and tpls is not necessary anymore since pipelines are
-# now using unique directories so repo are never shared with another pipeline.
-# This is not memory efficient (we keep a lot of data), hence this reminder.
-# Setup
+# setup clones the mfem/data repo in ${BUILD_ROOT}. The build_and_test script
+# then symlinks the repo to the parent directory of the MFEM source directory.
+# Unit tests that depend on the mfem/data repo will then detect that this
+# directory is present and be enabled.
 setup:
   tags:
     - shell
     - quartz
   stage: setup
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - mkdir -p ${BUILD_ROOT} && cd ${BUILD_ROOT}
+    - if [ ! -d data ]; then git clone ${MFEM_DATA_REPO}; fi
+
+# The setup_baseline job in setup stage_baseline doesn't rely on MFEM git repo.
+# It prepares a pipeline-wide working directory downloading/updating external
+# repos. TODO: updating tests and tpls is not necessary anymore since pipelines
+# are now using unique directories so repo are never shared with another
+# pipeline. This is not memory efficient (we keep a lot of data), hence this
+# reminder.
+# Note: This job can start immediately.
+setup_baseline:
+  tags:
+    - shell
+    - quartz
+  stage: setup_baseline
   variables:
     GIT_STRATEGY: none
   script:
@@ -106,10 +125,10 @@ setup:
   script:
     - srun -p mi60 -t 15 -N 1 tests/gitlab/build_and_test
 
-# Lassen uses a different job scheduler (spectrum lsf) that does not
-# allow pre-allocation the same way slurm does.
-# We use pdebug queue on lassen to speed-up the allocation.
-# However this would not be scalable to multiple builds.
+# Lassen uses a different job scheduler (spectrum lsf) that does not allow
+# pre-allocation the same way slurm does.  We use pdebug queue on lassen to
+# speed-up the allocation.  However this would not be scalable to multiple
+# builds.
 .build_blueos_3_ppc64le_ib_script:
   script:
     - lalloc 1 -W 30 -q pdebug tests/gitlab/build_and_test
@@ -157,7 +176,7 @@ setup:
   then
     echo "${BASELINE_TEST}: Relevant differences (filtered diff) ..."
     cat ${_base_diff}
-    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}.txt
+    cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/${_base_diff}
     # We create a .err file, because that's how we signal that there was a diff.
     cp ${_base_diff} ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/gitlab-${BASELINE_TEST}-${SYS_TYPE}.err
   fi

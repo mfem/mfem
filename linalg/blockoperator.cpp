@@ -97,11 +97,6 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
    {
       yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
-
-   // Destroy alias vectors to prevent dangling aliases when the base vectors
-   // are deleted
-   for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
-   for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
 }
 
 // Action of the transpose operator
@@ -133,11 +128,6 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
    {
       yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
-
-   // Destroy alias vectors to prevent dangling aliases when the base vectors
-   // are deleted
-   for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
-   for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
 }
 
 BlockOperator::~BlockOperator()
@@ -208,11 +198,6 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
    {
       yblock.GetBlock(i).SyncAliasMemory(y);
    }
-
-   // Destroy alias vectors to prevent dangling aliases when the base vectors
-   // are deleted
-   for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
-   for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
 }
 
 // Action of the transpose operator
@@ -244,11 +229,6 @@ void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
    {
       yblock.GetBlock(i).SyncAliasMemory(y);
    }
-
-   // Destroy alias vectors to prevent dangling aliases when the base vectors
-   // are deleted
-   for (int i=0; i < xblock.NumBlocks(); ++i) { xblock.GetBlock(i).Destroy(); }
-   for (int i=0; i < yblock.NumBlocks(); ++i) { yblock.GetBlock(i).Destroy(); }
 }
 
 BlockDiagonalPreconditioner::~BlockDiagonalPreconditioner()

@@ -150,9 +150,49 @@ void EvalH_077(const int e, const int qx, const int qy,
    }
 }
 
+static MFEM_HOST_DEVICE inline
+void EvalH_080(const int e, const int qx, const int qy,
+               const double weight, const double gamma, const double *Jpt,
+               DeviceTensor<7,double> H)
+{
+   // h_80 = (1-gamma) h_2 + gamma h_77.
+
+   constexpr int DIM = 2;
+   double ddI1[4], ddI1b[4], dI2[4], dI2b[4], ddI2[4];
+   kernels::InvariantsEvaluator2D ie(Args()
+                                     .J(Jpt)
+                                     .dI2(dI2)
+                                     .ddI1(ddI1)
+                                     .ddI1b(ddI1b)
+                                     .dI2b(dI2b)
+                                     .ddI2(ddI2));
+
+   const double I2 = ie.Get_I2(), I2inv_sq = 1.0 / (I2 * I2);
+   ConstDeviceMatrix di2(ie.Get_dI2(),DIM,DIM);
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = 0; j < DIM; j++)
+      {
+         ConstDeviceMatrix ddi1b(ie.Get_ddI1b(i,j),DIM,DIM);
+         ConstDeviceMatrix ddi2(ie.Get_ddI2(i,j),DIM,DIM);
+         for (int r = 0; r < DIM; r++)
+         {
+            for (int c = 0; c < DIM; c++)
+            {
+               H(r,c,i,j,qx,qy,e) =
+                  (1.0 - gamma) * 0.5 * weight * ddi1b(r,c) +
+                  gamma * ( weight * 0.5 * (1.0 - I2inv_sq) * ddi2(r,c) +
+                            weight * (I2inv_sq / I2) * di2(r,c) * di2(i,j) );
+            }
+         }
+      }
+   }
+}
+
 MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
                            const Vector &x_,
                            const double metric_normal,
+                           const double metric_param,
                            const int mid,
                            const int NE,
                            const Array<double> &w_,
@@ -163,7 +203,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77,
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77 || mid == 80,
                "Metric not yet implemented!");
 
    constexpr int DIM = 2;
@@ -222,6 +262,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
             if (mid ==  2) { EvalH_002(e,qx,qy,weight,Jpt,H); }
             if (mid ==  7) { EvalH_007(e,qx,qy,weight,Jpt,H); }
             if (mid == 77) { EvalH_077(e,qx,qy,weight,Jpt,H); }
+            if (mid == 80) { EvalH_080(e,qx,qy,weight,metric_param,Jpt,H); }
          } // qx
       } // qy
    });
@@ -241,7 +282,10 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
    const Array<double> &G = PA.maps->G;
    Vector &H = PA.H;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_2D,id,X,mn,M,N,W,B,G,J,H);
+   double mp = 0.0;
+   if (auto m = dynamic_cast<TMOP_Metric_080 *>(metric)) { mp = m->GetGamma(); }
+
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_2D,id,X,mn,mp,M,N,W,B,G,J,H);
 }
 
 } // namespace mfem
