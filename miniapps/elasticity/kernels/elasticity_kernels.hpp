@@ -13,6 +13,10 @@
 #define MFEM_ELASTICITY_KERNELS_HPP
 
 #include "kernel_helpers.hpp"
+#include "linalg/vector.hpp"
+
+using mfem::internal::tensor;
+using mfem::internal::make_tensor;
 
 namespace mfem
 {

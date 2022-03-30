@@ -13,10 +13,10 @@
 #include "general/forall.hpp"
 #include "linalg/tensor.hpp"
 
+using mfem::internal::tensor;
+
 namespace mfem
 {
-
-using namespace mfem::internal;
 
 void ElasticityDiagonalPreconditioner::SetOperator(const Operator &op)
 {
