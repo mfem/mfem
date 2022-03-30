@@ -570,8 +570,7 @@ BatchedLOR_ND::BatchedLOR_ND(BilinearForm &a,
                              Vector &X_vert_,
                              Vector &sparse_ij_,
                              Array<int> &sparse_mapping_)
-   : fes_ho(fes_ho_), X_vert(X_vert_), sparse_ij(sparse_ij_),
-     sparse_mapping(sparse_mapping_)
+   : BatchedLORKernel(fes_ho_, X_vert_, sparse_ij_, sparse_mapping_)
 {
    VectorFEMassIntegrator *mass = GetIntegrator<VectorFEMassIntegrator>(a);
    if (mass != nullptr)
