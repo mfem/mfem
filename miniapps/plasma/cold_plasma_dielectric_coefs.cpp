@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "cold_plasma_dielectric_coefs.hpp"
 
@@ -1246,7 +1246,7 @@ double PlasmaProfile::Eval(ElementTransformation &T,
 BFieldProfile::BFieldProfile(Type type, const Vector & params, bool unit,
                              G_EQDSK_Data *eqdsk)
    : VectorCoefficient(3), type_(type), p_(params), unit_(unit),
-     eqdsk_(eqdsk), x_(3)
+     eqdsk_(eqdsk), x3_(3), x_(x3_.GetData(), 3)
 {
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
@@ -1263,6 +1263,7 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
    V.SetSize(3);
    if (type_ != CONSTANT)
    {
+      x3_ = 0.0;
       T.Transform(ip, x_);
    }
    switch (type_)
@@ -1384,35 +1385,44 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          double r_tok = sqrt(x_tok * x_tok + y_tok * y_tok);
 
          // Step 2: Interpolate B field in poloidal cross section
-         double x_tok_data[3];
-         Vector xTokVec(x_tok_data, 3);
-         xTokVec[0] = r_tok; xTokVec[1] = z_tok; xTokVec[2] = 0.0;
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r_tok; xTokVec[1] = z_tok;
 
          double b_pol_data[2];
          Vector b_pol(b_pol_data, 2); b_pol = 0.0;
          double b_tor = 0.0;
 
-         eqdsk_->InterpNxGradVar(xTokVec, b_pol, eqdsk_->GetPsi());
-         b_tor = eqdsk_->InterpVar(xTokVec, eqdsk_->GetBtor());
+         eqdsk_->InterpNxGradPsiRZ(xTokVec, b_pol);
+         b_tor = eqdsk_->InterpBTor(xTokVec[0]);
 
-         // Step 3: Rotate B field back to coordinates of computational domain
-         //    Done in two substeps; rotate the cross section into full Tokamak
-         //    geometry, rotate into a tilted computational domain.
+         // Step 3: Rotate B field from a poloidal cross section into
+         //         the full Tokamak
          double b_tok_data[3];
          Vector b_tok(b_tok_data, 3);
          b_tok[0] = (b_pol[0] * x_tok - b_tor * y_tok) / r_tok;
          b_tok[1] = (b_pol[0] * y_tok + b_tor * x_tok) / r_tok;
          b_tok[2] = b_pol[1];
 
+         // Step 4: Rotate B field into the slanted computational plane
          V[0] = b_tok[0];
-         V[1] = b_tok[2] * ct - b_tok[1] * st;
-         V[2] = b_tok[2] * st + b_tok[1] * ct;
+         V[1] = b_tok[2] * ct + b_tok[1] * st;
+         V[2] = b_tok[2] * st - b_tok[1] * ct;
 
          if (unit_)
          {
             double vmag = sqrt(V * V);
             V /= vmag;
          }
+      }
+      break;
+      case B_WHAM:
+      {
+         double a = p_[0];
+         double b = p_[1];
+         V[0] = a + b * pow(x_[0], 4);
+         V[1] = -2.0 * b * x_[1] * pow(x_[0], 3);
+         V[2] = 0.0;
       }
       break;
       default:
