@@ -886,7 +886,7 @@ PoyntingVectorVisObject::PoyntingVectorVisObject(const std::string & field_name,
                                                  L2_ParFESpace *vfes,
                                                  L2_ParFESpace *sfes,
                                                  bool cyl, bool pseudo)
-   : VectorFieldVisObject(field_name, vfes, sfes, cyl, pseudo)
+   : ComplexVectorFieldVisObject(field_name, vfes, sfes, cyl, pseudo)
 {}
 
 void PoyntingVectorVisObject::PrepareVisField(const ParComplexGridFunction &e,
@@ -909,7 +909,7 @@ MinkowskiMomentumDensityVisObject::MinkowskiMomentumDensityVisObject(
    L2_ParFESpace *vfes,
    L2_ParFESpace *sfes,
    bool cyl, bool pseudo)
-   : VectorFieldVisObject(field_name, vfes, sfes, cyl, pseudo)
+   : ComplexVectorFieldVisObject(field_name, vfes, sfes, cyl, pseudo)
 {}
 
 void MinkowskiMomentumDensityVisObject::PrepareVisField(

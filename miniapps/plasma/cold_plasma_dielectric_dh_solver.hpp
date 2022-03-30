@@ -1259,9 +1259,9 @@ private:
    ParComplexLinearForm   * rhs1_; // RHS of magnetic field eqn (HCurl)
    ParComplexLinearForm   * rhs0_; // RHS of sheath potential eqn (H1)
    ParGridFunction        * h_t_; // Time dependent magnetic field
-   VectorFieldVisObject h_v_;
-   VectorFieldVisObject d_v_;
-   VectorFieldVisObject h_dbc_v_;
+   ComplexVectorFieldVisObject h_v_;
+   ComplexVectorFieldVisObject d_v_;
+   ComplexVectorFieldVisObject h_dbc_v_;
    ScalarFieldVisObject phi_v_;
    ScalarFieldBdrVisObject z_v_;
    // ComplexGridFunction    * e_b_v_; // Complex parallel electric field (L2)

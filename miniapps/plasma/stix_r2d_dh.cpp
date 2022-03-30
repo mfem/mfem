@@ -113,6 +113,7 @@
 #include "cold_plasma_dielectric_coefs.hpp"
 #include "cold_plasma_dielectric_dh_solver.hpp"
 #include "../common/mesh_extras.hpp"
+#include "g_eqdsk_data.hpp"
 #include <fstream>
 #include <iostream>
 #include <cmath>
@@ -627,6 +628,7 @@ int main(int argc, char *argv[])
    bool check_eps_inv = false;
    bool pa = false;
    const char *device_config = "cpu";
+   const char *eqdsk_file = "";
 
    OptionsParser args(argc, argv);
    args.AddOption(&logo, "-logo", "--print-logo", "-no-logo",
@@ -832,6 +834,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&eqdsk_file, "-eqdsk", "--eqdsk-file",
+                  "G EQDSK input file.");
    args.Parse();
    if (!args.Good())
    {
@@ -1349,6 +1353,8 @@ int main(int argc, char *argv[])
    ND_R2D_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
    RT_R2D_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
+   L2_ParFESpace L2VFESpace(&pmesh, order, pmesh.Dimension(),
+                            pmesh.SpaceDimension());
 
    ParGridFunction BField(&HDivFESpace);
    ParGridFunction temperature_gf;
@@ -1358,8 +1364,25 @@ int main(int argc, char *argv[])
    PlasmaProfile nuCoef(npt, npp);
    nu_gf.ProjectCoefficient(nuCoef);
 
-   BFieldProfile BCoef(bpt, bpp, false);
-   BFieldProfile BUnitCoef(bpt, bpp, true);
+   G_EQDSK_Data *eqdsk = NULL;
+   {
+      named_ifgzstream ieqdsk(eqdsk_file);
+      if (ieqdsk)
+      {
+         eqdsk = new G_EQDSK_Data(ieqdsk);
+         if (mpi.Root())
+         {
+            eqdsk->PrintInfo();
+            if (logging > 0)
+            {
+               eqdsk->DumpGnuPlotData("stix_r2d_dh_eqdsk");
+            }
+         }
+      }
+   }
+
+   BFieldProfile BCoef(bpt, bpp, false, eqdsk);
+   BFieldProfile BUnitCoef(bpt, bpp, true, eqdsk);
    BField.ProjectCoefficient(BCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -1901,6 +1924,7 @@ int main(int argc, char *argv[])
                                 &pmesh);
 
    Array<ParComplexGridFunction*> auxFields;
+   VectorFieldVisObject b_v("B_background", &L2VFESpace, &L2FESpace, cyl, true);
 
    if ( visit )
    {
@@ -1914,6 +1938,10 @@ int main(int argc, char *argv[])
 
       //nu_gf *= 1/omega;
       visit_dc.RegisterField("Collisional Profile", &nu_gf);
+
+      // visit_dc.RegisterField("B_background", &BField);
+      b_v.RegisterVisItFields(visit_dc);
+      b_v.PrepareVisField(BField);
 
       if (false)
       {
@@ -1930,6 +1958,9 @@ int main(int argc, char *argv[])
          visit_dc.RegisterField("Re_E_Exact", &auxFields[1]->real());
          visit_dc.RegisterField("Im_E_Exact", &auxFields[1]->imag());
       }
+
+      visit_dc.SetCycle(0);
+      visit_dc.Save();
    }
    if (mpi.Root()) { cout << "Initialization done." << endl; }
 
