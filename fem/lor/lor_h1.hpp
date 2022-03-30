@@ -17,14 +17,9 @@
 namespace mfem
 {
 
-class BatchedLOR_H1
+class BatchedLOR_H1 : BatchedLORKernel
 {
 protected:
-   FiniteElementSpace &fes_ho;
-   Vector &X_vert;
-   Vector &sparse_ij;
-   Array<int> &sparse_mapping;
-
    // TODO: for now only supporting constant coefficients
    double mass_coeff, diffusion_coeff;
 public:

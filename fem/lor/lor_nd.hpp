@@ -17,14 +17,9 @@
 namespace mfem
 {
 
-class BatchedLOR_ND
+class BatchedLOR_ND : BatchedLORKernel
 {
 protected:
-   FiniteElementSpace &fes_ho;
-   Vector &X_vert;
-   Vector &sparse_ij;
-   Array<int> &sparse_mapping;
-
    double mass_coeff, curl_curl_coeff;
 public:
    template <int ORDER> void Assemble2D();

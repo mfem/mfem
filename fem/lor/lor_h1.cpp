@@ -529,8 +529,7 @@ BatchedLOR_H1::BatchedLOR_H1(BilinearForm &a,
                              Vector &X_vert_,
                              Vector &sparse_ij_,
                              Array<int> &sparse_mapping_)
-   : fes_ho(fes_ho_), X_vert(X_vert_), sparse_ij(sparse_ij_),
-     sparse_mapping(sparse_mapping_)
+   : BatchedLORKernel(fes_ho_, X_vert_, sparse_ij_, sparse_mapping_)
 {
    MassIntegrator *mass = GetIntegrator<MassIntegrator>(a);
    DiffusionIntegrator *diffusion = GetIntegrator<DiffusionIntegrator>(a);
