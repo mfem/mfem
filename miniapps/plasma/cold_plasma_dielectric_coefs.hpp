@@ -14,6 +14,7 @@
 
 #include "../common/pfem_extras.hpp"
 #include "plasma.hpp"
+#include "g_eqdsk_data.hpp"
 #include <complex>
 
 #ifdef MFEM_USE_MPI
@@ -600,21 +601,23 @@ public:
 class BFieldProfile : public VectorCoefficient
 {
 public:
-   enum Type {CONSTANT, B_P, B_TOPDOWN, B_P_KOHNO, B_WHAM};
+   enum Type {CONSTANT, B_P, B_TOPDOWN, B_P_KOHNO, B_EQDSK, B_WHAM};
 
 private:
    Type type_;
    Vector p_;
    bool unit_;
 
+   G_EQDSK_Data *eqdsk_;
 
-   const int np_[5] = {3, 7, 6, 8, 2};
+   const int np_[6] = {3, 7, 6, 8, 4, 2};
 
    mutable Vector x3_;
    mutable Vector x_;
 
 public:
-   BFieldProfile(Type type, const Vector & params, bool unit);
+   BFieldProfile(Type type, const Vector & params, bool unit,
+                 G_EQDSK_Data *eqdsk = NULL);
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip);

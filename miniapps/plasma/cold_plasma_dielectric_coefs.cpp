@@ -1296,13 +1296,18 @@ double PlasmaProfile::Eval(ElementTransformation &T,
    }
 }
 
-BFieldProfile::BFieldProfile(Type type, const Vector & params, bool unit)
+BFieldProfile::BFieldProfile(Type type, const Vector & params, bool unit,
+                             G_EQDSK_Data *eqdsk)
    : VectorCoefficient(3), type_(type), p_(params), unit_(unit),
-     x3_(3), x_(x3_.GetData(), 3)
+     eqdsk_(eqdsk), x3_(3), x_(x3_.GetData(), 3)
 {
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
+
+   MFEM_VERIFY(type != B_EQDSK || eqdsk,
+               "BFieldProfile: Profile type B_EQDSK was chosen "
+               "but the G_EQDSK_Data object is NULL.");
 }
 
 void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
@@ -1363,12 +1368,12 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
       case B_TOPDOWN:
       {
          double bp_val = p_[0];
-         double a = p_[1];
-         double b = p_[2];
+         // double a = p_[1];
+         // double b = p_[2];
          Vector x0(&p_[3], 3);
 
          x3_ -= x0;
-         double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
+         // double r = pow(x_[0] / a, 2) + pow(x_[1] / b, 2);
          double theta = atan2(x_[1], x_[0]);
 
          if (unit_)
@@ -1413,6 +1418,54 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             V[0] = bp_coef * x_[1];
             V[1] = -bp_coef * x_[0];
             V[2] = bz0;
+         }
+      }
+      break;
+      case B_EQDSK:
+      {
+         // Step 0: Extract parameters
+         double u0 = p_[0];
+         double v0 = p_[1];
+         double z0 = p_[2];
+         double theta = M_PI * p_[3] / 180.0;
+         double st = sin(theta);
+         double ct = cos(theta);
+
+         // Step 1: Compute coordinates in 3D the Tokamak geometry
+         double x_tok = x_[0] - u0;
+         double y_tok = (x_[1] - v0) * st;
+         double z_tok = (x_[1] - v0) * ct + z0;
+         double r_tok = sqrt(x_tok * x_tok + y_tok * y_tok);
+
+         // Step 2: Interpolate B field in poloidal cross section
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r_tok; xTokVec[1] = z_tok;
+
+         double b_pol_data[2];
+         Vector b_pol(b_pol_data, 2); b_pol = 0.0;
+         double b_tor = 0.0;
+
+         eqdsk_->InterpNxGradPsiRZ(xTokVec, b_pol);
+         b_tor = eqdsk_->InterpBTor(xTokVec[0]);
+
+         // Step 3: Rotate B field from a poloidal cross section into
+         //         the full Tokamak
+         double b_tok_data[3];
+         Vector b_tok(b_tok_data, 3);
+         b_tok[0] = (b_pol[0] * x_tok - b_tor * y_tok) / r_tok;
+         b_tok[1] = (b_pol[0] * y_tok + b_tor * x_tok) / r_tok;
+         b_tok[2] = b_pol[1];
+
+         // Step 4: Rotate B field into the slanted computational plane
+         V[0] = b_tok[0];
+         V[1] = b_tok[2] * ct + b_tok[1] * st;
+         V[2] = b_tok[2] * st - b_tok[1] * ct;
+
+         if (unit_)
+         {
+            double vmag = sqrt(V * V);
+            V /= vmag;
          }
       }
       break;
