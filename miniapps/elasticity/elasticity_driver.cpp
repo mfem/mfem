@@ -9,6 +9,19 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+// This miniapp solves a quasistatic solid mechanics problem assuming an elastic
+// material and no body forces.
+//
+// The equation
+//                   ∇⋅σ(∇u) = 0
+//
+// with stress σ is solved for displacement u.
+//
+//             +----------+----------+
+//   fixed --->|                     |<--- constant displacement
+//             |                     |
+//             +----------+----------+
+
 #include <mfem.hpp>
 
 #include "materials/linear_elastic.hpp"
