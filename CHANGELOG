@@ -10,6 +10,11 @@
 
 Version 4.4.1 (development)
 ===========================
+Mesh improvements
+-----------------
+- New classes, SubMesh and ParSubMesh, that allow to define a subset of a parent
+  Mesh. Both classes allow for the same functionality as Mesh and ParMesh and
+  work with all existing interfaces like finite element spaces etc.
 
 
 Version 4.4, released on March 21, 2022
