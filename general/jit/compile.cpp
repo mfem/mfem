@@ -259,7 +259,7 @@ int Compile(const char *input_mem,
          vector<std::string>(
             std::sregex_token_iterator{begin(cxxflags), end(cxxflags), reg, -1},
             std::sregex_token_iterator{});
-      //for (auto a : cxxargv) { std::cout << a << std::endl; }
+      //for (auto a : cxxargv) { mfem::out << a << std::endl; }
 
       vector<const char *> argv;
       argv.push_back(mfem_cxx);

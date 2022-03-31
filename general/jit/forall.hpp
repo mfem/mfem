@@ -23,16 +23,6 @@ const int MAX_Q1D = 1;
 
 #include <iostream>
 
-#define MFEM_VERIFY(x, msg) \
-    if (!(x)) { \
-    std::cerr << "Verification failed: (" << #x << ") is false:\n --> " \
-              << msg << std::endl; }
-
-#define MFEM_ASSERT(x, msg) \
-    if (!(x)) { \
-    std::cerr << "Verification failed: (" << #x << ") is false:\n --> " \
-              << msg << std::endl; }
-
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_CUDA
