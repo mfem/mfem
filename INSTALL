@@ -19,10 +19,10 @@ requires an MPI C++ compiler, as well as the following external libraries:
   http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
 
 The hypre dependency can be downloaded as a tarball from GitHub or from the
-project webpage https://www.llnl.gov/casc/hypre. For example, the 2.20.0 release
+project webpage https://www.llnl.gov/casc/hypre. For example, the 2.24.0 release
 of hypre is available at
 
-   https://github.com/hypre-space/hypre/archive/v2.20.0.tar.gz
+   https://github.com/hypre-space/hypre/archive/v2.24.0.tar.gz
 
 The METIS dependency can be disabled but that is not generally recommended, see
 the option MFEM_USE_METIS.
@@ -60,7 +60,6 @@ following package managers:
 - OpenHPC, http://openhpc.community
 - Conda-forge, https://conda-forge.org (pre-built binaries linked with
   OpenMPI/MPICH, hypre, and METIS)
-- Homebrew/Science, https://github.com/Homebrew/homebrew-science (deprecated)
 
 We also recommend downloading and building the MFEM-based GLVis visualization
 tool which can be used to visualize the meshes and solution in MFEM's examples
@@ -567,7 +566,8 @@ The specific libraries and their options are:
   Options: HYPRE_OPT, HYPRE_LIB.
   Versions: HYPRE >= 2.10.0b  (HYPRE built without CUDA)
             HYPRE >= 2.20.0   (HYPRE built with '--enable-mixedint')
-            HYPRE >= 2.22.1   (HYPRE built with CUDA or HIP)
+            HYPRE >= 2.22.1   (HYPRE built with CUDA)
+            HYPRE >= 2.23.0   (HYPRE built with HIP)
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4).
@@ -713,7 +713,7 @@ The specific libraries and their options are:
   Options: HIOP_OPT, HIOP_LIB.
   Versions: HIOP >= 0.4.6.
 
-- CoDiPack (optiobal), used with MFEM_USE_CODIPACK = YES
+- CoDiPack (optional), used with MFEM_USE_CODIPACK = YES
   URL: https://www.scicomp.uni-kl.de/codi/
   Options: CODIPACK_OPT
   Versions: 1.9.3
@@ -751,7 +751,7 @@ The specific libraries and their options are:
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED >= 0.8.
+  Versions: libCEED >= 0.10.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.3, only RAJA v0.14.0+ is supported.

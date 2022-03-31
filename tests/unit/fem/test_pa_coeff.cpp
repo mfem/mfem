@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,6 +18,29 @@ namespace pa_coeff
 {
 
 int dimension;
+
+Mesh MakeCartesianNonaligned(const int dim, const int ne)
+{
+   Mesh mesh;
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   }
+
+   // Remap vertices so that the mesh is not aligned with axes.
+   for (int i=0; i<mesh.GetNV(); ++i)
+   {
+      double *vcrd = mesh.GetVertex(i);
+      vcrd[1] += 0.2 * vcrd[0];
+      if (dim == 3) { vcrd[2] += 0.3 * vcrd[0]; }
+   }
+
+   return mesh;
+}
 
 double coeffFunction(const Vector& x)
 {
@@ -141,17 +164,8 @@ TEST_CASE("H1 pa_coeff")
                       << "integrator " << integrator << std::endl;
             for (int order = 1; order < 4; ++order)
             {
-               Mesh mesh;
-               if (dimension == 2)
-               {
-                  mesh = Mesh::MakeCartesian2D(
-                            ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-               }
-               else
-               {
-                  mesh = Mesh::MakeCartesian3D(
-                            ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-               }
+               Mesh mesh = MakeCartesianNonaligned(dimension, ne);
+
                FiniteElementCollection* h1_fec =
                   new H1_FECollection(order, dimension);
                FiniteElementSpace h1_fespace(&mesh, h1_fec);
@@ -292,18 +306,8 @@ TEST_CASE("Hcurl/Hdiv pa_coeff",
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
-      Mesh mesh;
       const int ne = 3;
-      if (dimension == 2)
-      {
-         mesh = Mesh::MakeCartesian2D(
-                   ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-      }
-      else
-      {
-         mesh = Mesh::MakeCartesian3D(
-                   ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-      }
+      Mesh mesh = MakeCartesianNonaligned(dimension, ne);
 
       for (int coeffType = 3; coeffType < 5; ++coeffType)
       {
@@ -635,18 +639,8 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
-      Mesh mesh;
       const int ne = 3;
-      if (dimension == 2)
-      {
-         mesh = Mesh::MakeCartesian2D(
-                   ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-      }
-      else
-      {
-         mesh = Mesh::MakeCartesian3D(
-                   ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-      }
+      Mesh mesh = MakeCartesianNonaligned(dimension, ne);
 
       for (int coeffType = 0; coeffType < 3; ++coeffType)
       {
@@ -665,21 +659,27 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
             dcoeff = new VectorFunctionCoefficient(dimension, &vectorCoeffFunction);
          }
 
-         enum MixedSpaces {HcurlH1, HcurlL2, HdivL2, NumSpaceTypes};
-
+         enum MixedSpaces {HcurlH1, HcurlL2, HdivL2, HcurlH1_2D, NumSpaceTypes};
          for (int spaceType = 0; spaceType < NumSpaceTypes; ++spaceType)
          {
             if (spaceType == HdivL2 && coeffType == 1)
             {
                continue;  // This case fails, maybe because of insufficient quadrature.
             }
-            if ((spaceType != HcurlL2 && coeffType == 2) || (spaceType == HcurlL2 &&
-                                                             dimension == 2))
+            if ((spaceType != HcurlL2 && coeffType == 2))
+            {
+               continue;  // Case not implemented yet
+            }
+            if (spaceType == HcurlL2 && dimension == 2 && coeffType == 2)
+            {
+               continue;  // Case not implemented yet
+            }
+            if (spaceType == HcurlH1_2D && dimension != 2)
             {
                continue;  // Case not implemented yet
             }
 
-            const int numIntegrators = (spaceType == HcurlL2) ? 2 : 1;
+            const int numIntegrators = (spaceType == HcurlL2 && dimension == 3) ? 2 : 1;
             for (int integrator = 0; integrator < numIntegrators; ++integrator)
             {
                if (spaceType == HcurlH1)
@@ -697,14 +697,26 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
 
                for (int order = 1; order < 4; ++order)
                {
-                  FiniteElementCollection* vec_fec = (spaceType == HcurlH1 ||
-                                                      spaceType == HcurlL2) ?
-                                                     (FiniteElementCollection*) new ND_FECollection(order, dimension) :
-                                                     (FiniteElementCollection*) new RT_FECollection(order-1, dimension);
+                  FiniteElementCollection* vec_fec = nullptr;
+                  if (spaceType == HcurlH1 || spaceType == HcurlL2 || spaceType == HcurlH1_2D)
+                  {
+                     vec_fec = (FiniteElementCollection*) new ND_FECollection(order, dimension);
+                  }
+                  else
+                  {
+                     vec_fec = (FiniteElementCollection*) new RT_FECollection(order-1, dimension);
+                  }
 
-                  FiniteElementCollection* scalar_fec = (spaceType == HcurlH1) ?
-                                                        (FiniteElementCollection*) new H1_FECollection(order, dimension) :
-                                                        (FiniteElementCollection*) new L2_FECollection(order-1, dimension);
+                  FiniteElementCollection* scalar_fec = nullptr;
+                  if (spaceType == HcurlH1 || spaceType == HcurlH1_2D)
+                  {
+                     scalar_fec = (FiniteElementCollection*) new H1_FECollection(order, dimension);
+                  }
+                  else
+                  {
+                     scalar_fec = (FiniteElementCollection*) new L2_FECollection(order-1,
+                                                                                 dimension);
+                  }
 
                   FiniteElementSpace v_fespace(&mesh, vec_fec);
                   FiniteElementSpace s_fespace(&mesh, scalar_fec);
@@ -723,7 +735,7 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                      paform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
                      paform->AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
                   }
-                  else if (spaceType == HcurlL2)
+                  else if (spaceType == HcurlL2 && dimension == 3)
                   {
                      assemblyform = new MixedBilinearForm(&v_fespace, &v_fespace);
                      paform = new MixedBilinearForm(&v_fespace, &v_fespace);
@@ -756,6 +768,15 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                         }
                      }
                   }
+                  else if (spaceType == HcurlH1_2D || (spaceType == HcurlL2 && dimension == 2))
+                  {
+                     assemblyform = new MixedBilinearForm(&v_fespace, &s_fespace);
+                     paform = new MixedBilinearForm(&v_fespace, &s_fespace);
+                     paform->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+                     paform->AddDomainIntegrator(new MixedScalarCurlIntegrator(*coeff));
+                     assemblyform->AddDomainIntegrator(new MixedScalarCurlIntegrator(*coeff));
+                  }
                   else
                   {
                      assemblyform = new MixedBilinearForm(&v_fespace, &s_fespace);
@@ -773,10 +794,12 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
 
                   const SparseMatrix& A_explicit = assemblyform->SpMat();
 
-                  Vector *xin = new Vector((spaceType == 0) ? s_fespace.GetTrueVSize() :
+                  Vector *xin = new Vector((spaceType == HcurlH1) ? s_fespace.GetTrueVSize() :
                                            v_fespace.GetTrueVSize());
                   xin->Randomize();
-                  Vector y_mat((spaceType == HdivL2) ? s_fespace.GetTrueVSize() :
+                  Vector y_mat((spaceType == HdivL2 || spaceType == HcurlH1_2D ||
+                                (spaceType == HcurlL2 &&
+                                 dimension == 2)) ? s_fespace.GetTrueVSize() :
                                v_fespace.GetTrueVSize());
                   y_mat = 0.0;
                   Vector y_assembly(y_mat.Size());
@@ -802,14 +825,15 @@ TEST_CASE("Hcurl/Hdiv mixed pa_coeff",
                   REQUIRE(assembly_error < 1.e-12);
 
                   delete xin;
-                  if (spaceType == HdivL2)
+                  if (spaceType == HdivL2 || spaceType == HcurlH1_2D ||
+                      spaceType == HcurlH1 || (spaceType == HcurlL2 && dimension == 2))
                   {
                      // Test the transpose.
-                     xin = new Vector((spaceType == 0) ? v_fespace.GetTrueVSize() :
+                     xin = new Vector(spaceType == HcurlH1 ? v_fespace.GetTrueVSize() :
                                       s_fespace.GetTrueVSize());
                      xin->Randomize();
 
-                     y_mat.SetSize((spaceType == 0) ? s_fespace.GetTrueVSize() :
+                     y_mat.SetSize(spaceType == HcurlH1 ? s_fespace.GetTrueVSize() :
                                    v_fespace.GetTrueVSize());
                      y_assembly.SetSize(y_mat.Size());
                      y_pa.SetSize(y_mat.Size());

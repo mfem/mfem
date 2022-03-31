@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -588,8 +588,8 @@ public:
    /// Destroys vector.
    ~TAutoDiffVector() { delete[] data; }
 
-   /// Prints vector to stream out.
-   void Print(std::ostream &out = mfem::out, int width = 8) const
+   /// Prints vector to stream @a os with @a width entries per line.
+   void Print(std::ostream &os = mfem::out, int width = 8) const
    {
       if (!size)
       {
@@ -597,7 +597,7 @@ public:
       }
       for (int i = 0; 1;)
       {
-         out << data[i];
+         os << data[i];
          i++;
          if (i == size)
          {
@@ -605,14 +605,14 @@ public:
          }
          if (i % width == 0)
          {
-            out << '\n';
+            os << '\n';
          }
          else
          {
-            out << ' ';
+            os << ' ';
          }
       }
-      out << '\n';
+      os << '\n';
    }
 
    /// Set random values in the vector.

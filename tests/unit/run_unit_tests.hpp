@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,23 +38,60 @@ static int RunCatchSession(int argc, char *argv[],
    if (r != 0) { return r; }
 
    auto cfg = session.configData();
-   cfg.testsOrTags.insert(cfg.testsOrTags.end(), testsOrTags.begin(), testsOrTags.end());
+   cfg.testsOrTags.insert(cfg.testsOrTags.end(), testsOrTags.begin(),
+                          testsOrTags.end());
    if (mfem_data_dir == "") { cfg.testsOrTags.push_back("~[MFEMData]"); }
    session.useConfigData(cfg);
 
    if (root)
    {
-    std::cout << "INFO: Test filter: ";
-    for (std::string &filter : cfg.testsOrTags)
-    {
-        std::cout << filter << " ";
-    }
-    std::cout << std::endl;
+      std::cout << "INFO: Test filter: ";
+      for (std::string &filter : cfg.testsOrTags)
+      {
+         std::cout << filter << " ";
+      }
+      std::cout << std::endl;
    }
 
    int result = session.run();
 
    return result;
 }
+
+static inline bool Root()
+{
+#ifdef MFEM_USE_MPI
+   return mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;
+#else
+   return true;
+#endif
+}
+
+#ifdef CATCH_CONFIG_NOSTDOUT
+
+namespace Catch
+{
+
+std::ofstream null_stream;
+
+std::ostream& cout()
+{
+   if (Root()) { return std::cout; }
+   else { return null_stream; }
+}
+std::ostream& cerr()
+{
+   if (Root()) { return std::cerr; }
+   else { return null_stream; }
+}
+std::ostream& clog()
+{
+   if (Root()) { return std::clog; }
+   else { return null_stream; }
+}
+
+} // namespace Catch
+
+#endif
 
 #endif

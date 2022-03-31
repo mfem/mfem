@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1133,7 +1133,7 @@ protected:
 
    // Evaluation of the discrete target specification on different meshes.
    // Owned.
-   AdaptivityEvaluator *adapt_lim_eval;
+   AdaptivityEvaluator *adapt_eval;
 
    void SetDiscreteTargetBase(const GridFunction &tspec_);
    void SetTspecAtIndex(int idx, const GridFunction &tspec_);
@@ -1156,7 +1156,7 @@ public:
 #endif
         amr_el(-1), lim_min_size(-0.1),
         good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
-        adapt_lim_eval(NULL) { }
+        adapt_eval(NULL) { }
 
    virtual ~DiscreteAdaptTC();
 
@@ -1232,8 +1232,8 @@ public:
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
    {
-      if (adapt_lim_eval) { delete adapt_lim_eval; }
-      adapt_lim_eval = ae;
+      if (adapt_eval) { delete adapt_eval; }
+      adapt_eval = ae;
    }
 
    const Vector &GetTspecPert1H()   { return tspec_pert1h; }
@@ -1341,8 +1341,7 @@ protected:
    AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
 
    // Surface fitting.
-   GridFunction *surf_fit_gf,
-                *surf_fit_gf_bar;       // Owned, Updated by surf_fit_eval.
+   GridFunction *surf_fit_gf;       // Owned, Updated by surf_fit_eval.
    const Array<bool> *surf_fit_marker;  // Not owned.
    Coefficient *surf_fit_coeff;         // Not owned.
    AdaptivityEvaluator *surf_fit_eval;  // Not owned.
@@ -1448,13 +1447,12 @@ protected:
    // First derivative of the surface fitting term.
    void AssembleElemVecSurfFit(const FiniteElement &el_x,
                                IsoparametricTransformation &Tpr,
-                               const IntegrationRule &ir_quad,
-                               const Vector &weights, DenseMatrix &mat);
+                               DenseMatrix &mat);
+
    // Second derivative of the surface fitting term.
    void AssembleElemGradSurfFit(const FiniteElement &el_x,
                                 IsoparametricTransformation &Tpr,
-                                const IntegrationRule &ir_quad,
-                                const Vector &weights, DenseMatrix &mat);
+                                DenseMatrix &mat);
 
    double GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
@@ -1537,7 +1535,7 @@ public:
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         adapt_lim_gf0(NULL), adapt_lim_gf(NULL), adapt_lim_coeff(NULL),
         adapt_lim_eval(NULL),
-        surf_fit_gf(NULL), surf_fit_gf_bar(NULL), surf_fit_marker(NULL),
+        surf_fit_gf(NULL), surf_fit_marker(NULL),
         surf_fit_coeff(NULL),
         surf_fit_eval(NULL), surf_fit_normal(1.0),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
@@ -1551,7 +1549,7 @@ public:
 
    /// Release the device memory of large PA allocations. This will copy device
    /// memory back to the host before releasing.
-   void ReleasePADeviceMemory();
+   void ReleasePADeviceMemory(bool copy_to_host = true);
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
    /** This function has priority over SetIntRule(), if both are called. */
@@ -1632,6 +1630,7 @@ public:
                              AdaptivityEvaluator &ae);
 #endif
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
+   bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
@@ -1710,6 +1709,12 @@ public:
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
+
+   /// Update the surface fitting weight as surf_fit_coeff *= factor;
+   void UpdateSurfaceFittingWeight(double factor);
+
+   /// Get the surface fitting weight.
+   double GetSurfaceFittingWeight();
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator
