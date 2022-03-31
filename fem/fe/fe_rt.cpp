@@ -1024,7 +1024,7 @@ RT_WedgeElement::RT_WedgeElement(const int p)
    : VectorFiniteElement(3, Geometry::PRISM,
                          (p + 2) * ((p + 1) * (p + 2)) / 2 +
                          (p + 1) * (p + 1) * (p + 3), p + 1,
-                         H_DIV, FunctionSpace::Pk),
+                         H_DIV, FunctionSpace::Qk),
      dof2nk(dof),
      t_dof(dof),
      s_dof(dof),
@@ -1177,7 +1177,7 @@ void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
                                    Vector &divshape) const
 {
 #ifdef MFEM_THREAD_SAFE
-   Vector      trt_dshape(RTSegmentFE.GetDof());
+   Vector      trt_dshape(RTTriangleFE.GetDof());
    Vector      tl2_shape(L2TriangleFE.GetDof());
    Vector      sl2_shape(L2SegmentFE.GetDof());
    DenseMatrix sh1_dshape(H1SegmentFE.GetDof(), 1);

@@ -47,6 +47,9 @@ public:
    /// Return the value of a random element of the set.
    int PickRandomElement();
 
+   /// Create a copy of set 's'.
+   IntegerSet& operator=(const IntegerSet &s);
+
    /// Return 1 if the sets are equal and 0 otherwise.
    int operator==(IntegerSet &s);
 

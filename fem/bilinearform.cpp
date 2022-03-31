@@ -415,8 +415,8 @@ void BilinearForm::Assemble(int skip_zeros)
       {
          if (domain_integs_marker[k] != NULL)
          {
-            MFEM_VERIFY(mesh->attributes.Size() ==
-                        domain_integs_marker[k]->Size(),
+            MFEM_VERIFY(domain_integs_marker[k]->Size() ==
+                        (mesh->attributes.Size() ? mesh->attributes.Max() : 0),
                         "invalid element marker for domain integrator #"
                         << k << ", counting from zero");
          }

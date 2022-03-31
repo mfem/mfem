@@ -14,9 +14,9 @@
 //               problem corresponding to the second order definite Maxwell
 //               equation curl curl E + sigma E = f with boundary condition
 //               E x n = <given tangential field>. In this example sigma is an
-//               anisotropic 3x3 tensor. Here, we use a given exact
-//               solution E and compute the corresponding r.h.s. f.
-//               We discretize with Nedelec finite elements in 1D, 2D, or 3D.
+//               anisotropic 3x3 tensor. Here, we use a given exact solution E
+//               and compute the corresponding r.h.s. f.  We discretize with
+//               Nedelec finite elements in 1D, 2D, or 3D.
 //
 //               The example demonstrates the use of restricted H(curl) finite
 //               element spaces with the curl-curl and the (vector finite

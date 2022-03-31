@@ -4590,7 +4590,7 @@ void Nedelec1TetFiniteElement::ProjectGrad(const FiniteElement &fe,
 
 
 Nedelec1WdgFiniteElement::Nedelec1WdgFiniteElement()
-   : VectorFiniteElement(3, Geometry::PRISM, 9, 1, H_CURL)
+   : VectorFiniteElement(3, Geometry::PRISM, 9, 1, H_CURL, FunctionSpace::Qk)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
@@ -5788,7 +5788,7 @@ void RT0TetFiniteElement::Project (
 }
 
 RT0WdgFiniteElement::RT0WdgFiniteElement()
-   : VectorFiniteElement(3, Geometry::PRISM, 5, 1, H_DIV)
+   : VectorFiniteElement(3, Geometry::PRISM, 5, 1, H_DIV, FunctionSpace::Pk)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.33333333333333333333;

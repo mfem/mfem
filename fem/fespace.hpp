@@ -426,6 +426,9 @@ public:
                       int vdim = 1, int ordering = Ordering::byNODES)
    { Constructor(mesh, ext, fec, vdim, ordering); }
 
+   /// Copy assignment not supported
+   FiniteElementSpace& operator=(const FiniteElementSpace&) = delete;
+
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
 
