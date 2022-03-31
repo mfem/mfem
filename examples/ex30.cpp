@@ -4,12 +4,12 @@
 //
 // Sample runs:  ex30 -m ../data/square-disc.mesh -o 1
 //               ex30 -m ../data/square-disc.mesh -o 2
-//               ex30 -m ../data/square-disc.mesh -o 2 -me 1e3
+//               ex30 -m ../data/square-disc.mesh -o 2 -me 1e+4
 //               ex30 -m ../data/square-disc-nurbs.mesh -o 2
 //               ex30 -m ../data/star.mesh -o 2 -eo 4
-//               ex30 -m ../data/fichera.mesh -o 2 -me 1e4
+//               ex30 -m ../data/fichera.mesh -o 2 -me 1e+5 -e 5e-2
 //               ex30 -m ../data/disc-nurbs.mesh -o 2
-//               ex30 -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 1e-2 -me 1e4
+//               ex30 -m ../data/ball-nurbs.mesh -o 2 -eo 3 -e 5e-2 -me 1e+5
 //               ex30 -m ../data/star-surf.mesh -o 2
 //               ex30 -m ../data/square-disc-surf.mesh -o 2
 //               ex30 -m ../data/amr-quad.mesh -l 2
@@ -22,13 +22,13 @@
 //               nonconforming meshes is demonstrated in example 6. In some
 //               problems, the material data or loading data is not sufficiently
 //               resolved on the initial mesh. This missing fine scale data
-//               reduces the accuracy of the solution as well as the accuracy
-//               of some local error estimators. By preprocessing the mesh
-//               before solving the PDE, many issues can be avoided.
+//               reduces the accuracy of the solution as well as the accuracy of
+//               some local error estimators. By preprocessing the mesh before
+//               solving the PDE, many issues can be avoided.
 //
-//               [1] Morin, P., Nochetto, R. H., & Siebert, K. G. (2000).
-//                   Data oscillation and convergence of adaptive FEM. SIAM
-//                   Journal on Numerical Analysis, 38(2), 466-488.
+//               [1] Morin, P., Nochetto, R. H., & Siebert, K. G. (2000). Data
+//                   oscillation and convergence of adaptive FEM. SIAM Journal
+//                   on Numerical Analysis, 38(2), 466-488.
 //
 //               [2] Mitchell, W. F. (2013). A collection of 2D elliptic
 //                   problems for testing adaptive grid refinement algorithms.
@@ -58,12 +58,18 @@ double affine_function(const Vector &p)
 // Piecewise-constant function which is never mesh-conforming
 double jump_function(const Vector &p)
 {
-   if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6) { return 1.0; }
-   return 5.0;
+   if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6)
+   {
+      return 1.0;
+   }
+   else
+   {
+      return 5.0;
+   }
 }
 
-// Singular function derived from the Laplacian of the "steep wavefront"
-// problem in [2].
+// Singular function derived from the Laplacian of the "steep wavefront" problem
+// in [2].
 double singular_function(const Vector &p)
 {
    double x = p(0), y = p(1);
@@ -99,14 +105,13 @@ int main(int argc, char *argv[])
                   "Maximum level of hanging nodes.");
    args.AddOption(&double_max_elems, "-me", "--max-elems",
                   "Stop after reaching this many elements.");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
    args.AddOption(&osc_threshold, "-e", "--error",
                   "relative data oscillation threshold.");
    args.AddOption(&enriched_order, "-eo", "--enriched_order",
                   "Enriched quadrature order.");
-
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -120,7 +125,7 @@ int main(int argc, char *argv[])
 
    // 2. Since a NURBS mesh can currently only be refined uniformly, we need to
    //    convert it to a piecewise-polynomial curved mesh. First we refine the
-   //    NURBS mesh a bit more and then project the curvature to quadratic Nodes.
+   //    NURBS mesh a bit and then project the curvature to quadratic Nodes.
    if (mesh.NURBSext)
    {
       for (int i = 0; i < 2; i++)
@@ -134,7 +139,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient affine_coeff(affine_function);
    FunctionCoefficient jump_coeff(jump_function);
    FunctionCoefficient singular_coeff(singular_function);
-   CoefficientRefiner coeffrefiner(affine_coeff, order);
+   CoefficientRefiner  coeffrefiner(affine_coeff, order);
 
    // 4. Connect to GLVis.
    char vishost[] = "localhost";
@@ -160,12 +165,12 @@ int main(int argc, char *argv[])
    coeffrefiner.SetNCLimit(nc_limit);
    coeffrefiner.PrintWarnings();
 
-   // 7. Preprocess mesh to control osc (piecewise-affine function).
-   //    This is mostly just a verification check. The oscillation should
-   //    be zero if the function is mesh-conforming and order > 0.
+   // 7. Preprocess mesh to control osc (piecewise-affine function). This is
+   //    mostly just a verification check. The oscillation should be zero if the
+   //    function is mesh-conforming and order > 0.
    coeffrefiner.PreprocessMesh(mesh);
 
-   mfem::out  << "\n";
+   mfem::out << "\n";
    mfem::out << "Function 0 (affine) \n";
    mfem::out << "Number of Elements " << mesh.GetNE() << "\n";
    mfem::out << "Osc error " << coeffrefiner.GetOsc() << "\n";
@@ -174,7 +179,7 @@ int main(int argc, char *argv[])
    coeffrefiner.ResetCoefficient(jump_coeff);
    coeffrefiner.PreprocessMesh(mesh);
 
-   mfem::out  << "\n";
+   mfem::out << "\n";
    mfem::out << "Function 1 (discontinuous) \n";
    mfem::out << "Number of Elements " << mesh.GetNE() << "\n";
    mfem::out << "Osc error " << coeffrefiner.GetOsc() << "\n";
@@ -183,13 +188,16 @@ int main(int argc, char *argv[])
    coeffrefiner.ResetCoefficient(singular_coeff);
    coeffrefiner.PreprocessMesh(mesh);
 
-   mfem::out  << "\n";
+   mfem::out << "\n";
    mfem::out << "Function 2 (singular) \n";
    mfem::out << "Number of Elements " << mesh.GetNE() << "\n";
    mfem::out << "Osc error " << coeffrefiner.GetOsc() << "\n";
 
-   sol_sock.precision(8);
-   sol_sock << "mesh\n" << mesh << flush;
+   if (visualization)
+   {
+      sol_sock.precision(8);
+      sol_sock << "mesh\n" << mesh << flush;
+   }
 
    return 0;
 }

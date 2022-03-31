@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -106,9 +106,10 @@ void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+   Mpi::Init(argc, argv);
+   Hypre::Init();
 
-   if ( mpi.Root() ) { display_banner(cout); }
+   if ( Mpi::Root() ) { display_banner(cout); }
 
    // Parse command-line options.
    const char *mesh_file = "../../data/ball-nurbs.mesh";
@@ -161,13 +162,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
@@ -177,7 +178,7 @@ int main(int argc, char *argv[])
    // and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Starting initialization." << endl;
    }
@@ -221,7 +222,7 @@ int main(int argc, char *argv[])
         ( kbcs.Size() > 0 && vbcs.Size() == 0 ) ||
         ( vbcv.Size() < vbcs.Size() ) )
    {
-      if ( mpi.Root() )
+      if ( Mpi::Root() )
       {
          cout << "The surface current (K) boundary condition requires "
               << "surface current boundary condition surfaces (with -kbcs), "
@@ -255,7 +256,7 @@ int main(int argc, char *argv[])
    {
       Tesla.RegisterVisItFields(visit_dc);
    }
-   if (mpi.Root()) { cout << "Initialization done." << endl; }
+   if (Mpi::Root()) { cout << "Initialization done." << endl; }
 
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
@@ -265,7 +266,7 @@ int main(int argc, char *argv[])
    const int max_dofs = 10000000;
    for (int it = 1; it <= maxit; it++)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "\nAMR Iteration " << it << endl;
       }
@@ -294,7 +295,7 @@ int main(int argc, char *argv[])
          Tesla.DisplayToGLVis();
       }
 
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "AMR iteration " << it << " complete." << endl;
       }
@@ -302,7 +303,7 @@ int main(int argc, char *argv[])
       // Check stopping criteria
       if (prob_size > max_dofs)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Reached maximum number of dofs, exiting..." << endl;
          }
@@ -315,7 +316,7 @@ int main(int argc, char *argv[])
 
       // Wait for user input. Ask every 10th iteration.
       char c = 'c';
-      if (mpi.Root() && (it % 10 == 0))
+      if (Mpi::Root() && (it % 10 == 0))
       {
          cout << "press (q)uit or (c)ontinue --> " << flush;
          cin >> c;
@@ -340,15 +341,15 @@ int main(int argc, char *argv[])
       // maximum element error.
       const double frac = 0.5;
       double threshold = frac * global_max_err;
-      if (mpi.Root()) { cout << "Refining ..." << endl; }
+      if (Mpi::Root()) { cout << "Refining ..." << endl; }
       pmesh.RefineByError(errors, threshold);
 
       // Update the magnetostatic solver to reflect the new state of the mesh.
       Tesla.Update();
 
-      if (pmesh.Nonconforming() && mpi.WorldSize() > 1)
+      if (pmesh.Nonconforming() && Mpi::WorldSize() > 1)
       {
-         if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
+         if (Mpi::Root()) { cout << "Rebalancing ..." << endl; }
          pmesh.Rebalance();
 
          // Update again after rebalancing

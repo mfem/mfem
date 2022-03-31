@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -93,20 +93,20 @@ static CeedElemTopology GetCeedTopology(Geometry::Type geom)
    switch (geom)
    {
       case Geometry::SEGMENT:
-         return CEED_LINE;
+         return CEED_TOPOLOGY_LINE;
       case Geometry::TRIANGLE:
-         return CEED_TRIANGLE;
+         return CEED_TOPOLOGY_TRIANGLE;
       case Geometry::SQUARE:
-         return CEED_QUAD;
+         return CEED_TOPOLOGY_QUAD;
       case Geometry::TETRAHEDRON:
-         return CEED_TET;
+         return CEED_TOPOLOGY_TET;
       case Geometry::CUBE:
-         return CEED_HEX;
+         return CEED_TOPOLOGY_HEX;
       case Geometry::PRISM:
-         return CEED_PRISM;
+         return CEED_TOPOLOGY_PRISM;
       default:
          MFEM_ABORT("This type of element is not supported");
-         return CEED_PRISM; // Silence warning
+         return CEED_TOPOLOGY_PRISM; // Silence warning
    }
 }
 
@@ -346,11 +346,13 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    CeedOperatorField *inputfields;
    if (isComposite)
    {
-      ierr = CeedOperatorGetFields(subops[0], &inputfields, NULL); CeedChk(ierr);
+      ierr = CeedOperatorGetFields(subops[0], &numinputfields, &inputfields,
+                                   &numoutputfields, NULL); CeedChk(ierr);
    }
    else
    {
-      ierr = CeedOperatorGetFields(oper, &inputfields, NULL); CeedChk(ierr);
+      ierr = CeedOperatorGetFields(oper, &numinputfields, &inputfields,
+                                   &numoutputfields, NULL); CeedChk(ierr);
    }
 
    CeedVector if_vector;
@@ -374,20 +376,6 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
       return CeedError(ceed, 1, "No active vector in CeedOperator!");
    }
    *field = inputfields[found_index];
-
-   return 0;
-}
-
-int CeedOperatorGetActiveElemRestriction(CeedOperator oper,
-                                         CeedElemRestriction* restr_out)
-{
-   int ierr;
-
-   CeedOperatorField active_field;
-   ierr = CeedOperatorGetActiveField(oper, &active_field); CeedChk(ierr);
-   CeedElemRestriction er;
-   ierr = CeedOperatorFieldGetElemRestriction(active_field, &er); CeedChk(ierr);
-   *restr_out = er;
 
    return 0;
 }

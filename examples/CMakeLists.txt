@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -38,6 +38,7 @@ list(APPEND ALL_EXE_SRCS
   ex28.cpp
   ex29.cpp
   ex30.cpp
+  ex31.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -72,6 +73,8 @@ if (MFEM_USE_MPI)
     ex28p.cpp
     ex29p.cpp
     ex30p.cpp
+    ex31p.cpp
+    ex32p.cpp
     )
 endif()
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -256,8 +256,10 @@ const DenseTensor ND_DofTransformation
 ::TInv(const_cast<double*>(TInv_data), 2, 2, 6);
 
 ND_DofTransformation::ND_DofTransformation(int size, int p)
-   : DofTransformation(size),
-     order(p)
+   : DofTransformation(size)
+   , order(p)
+   , nedofs(p)
+   , nfdofs(p*(p-1))
 {
 }
 
@@ -268,8 +270,11 @@ ND_TriDofTransformation::ND_TriDofTransformation(int p)
 
 void ND_TriDofTransformation::TransformPrimal(double *v) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
+   MFEM_VERIFY(Fo.Size() >= 1,
+               "Face orientations are unset in ND_TriDofTransformation");
 
    double data[2];
    Vector v2(data, 2);
@@ -288,8 +293,11 @@ void ND_TriDofTransformation::TransformPrimal(double *v) const
 void
 ND_TriDofTransformation::InvTransformPrimal(double *v) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
+   MFEM_VERIFY(Fo.Size() >= 1,
+               "Face orientations are unset in ND_TriDofTransformation");
 
    double data[2];
    Vector v2(data, 2);
@@ -308,8 +316,11 @@ ND_TriDofTransformation::InvTransformPrimal(double *v) const
 void
 ND_TriDofTransformation::TransformDual(double *v) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
+   MFEM_VERIFY(Fo.Size() >= 1,
+               "Face orientations are unset in ND_TriDofTransformation");
 
    double data[2];
    Vector v2(data, 2);
@@ -352,8 +363,11 @@ ND_TetDofTransformation::ND_TetDofTransformation(int p)
 
 void ND_TetDofTransformation::TransformPrimal(double *v) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
+   MFEM_VERIFY(Fo.Size() >= 4,
+               "Face orientations are unset in ND_TetDofTransformation");
 
    double data[2];
    Vector v2(data, 2);
@@ -372,8 +386,11 @@ void ND_TetDofTransformation::TransformPrimal(double *v) const
 void
 ND_TetDofTransformation::InvTransformPrimal(double *v) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
+   MFEM_VERIFY(Fo.Size() >= 4,
+               "Face orientations are unset in ND_TetDofTransformation");
 
    double data[2];
    Vector v2(data, 2);
@@ -392,8 +409,11 @@ ND_TetDofTransformation::InvTransformPrimal(double *v) const
 void
 ND_TetDofTransformation::TransformDual(double *v) const
 {
-   int nedofs = order; // number of DoFs per edge
-   int nfdofs = order*(order-1); // number of DoFs per face
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
+   MFEM_VERIFY(Fo.Size() >= 4,
+               "Face orientations are unset in ND_TetDofTransformation");
 
    double data[2];
    Vector v2(data, 2);
@@ -425,6 +445,102 @@ ND_TetDofTransformation::InvTransformDual(double *v) const
       {
          v2 = &v[6*nedofs + f*nfdofs + 2*i];
          T(Fo[f]).MultTranspose(v2, &v[6*nedofs + f*nfdofs + 2*i]);
+      }
+   }
+}
+
+ND_WedgeDofTransformation::ND_WedgeDofTransformation(int p)
+   : ND_DofTransformation(3 * p * ((p + 1) * (p + 2))/2, p)
+{
+}
+
+void ND_WedgeDofTransformation::TransformPrimal(double *v) const
+{
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
+   MFEM_VERIFY(Fo.Size() >= 2,
+               "Face orientations are unset in ND_WedgeDofTransformation");
+
+   double data[2];
+   Vector v2(data, 2);
+
+   // Transform triangular face DoFs
+   for (int f=0; f<2; f++)
+   {
+      for (int i=0; i<nfdofs/2; i++)
+      {
+         v2 = &v[9*nedofs + f*nfdofs + 2*i];
+         T(Fo[f]).Mult(v2, &v[9*nedofs + f*nfdofs + 2*i]);
+      }
+   }
+}
+
+void
+ND_WedgeDofTransformation::InvTransformPrimal(double *v) const
+{
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
+   MFEM_VERIFY(Fo.Size() >= 2,
+               "Face orientations are unset in ND_WedgeDofTransformation");
+
+   double data[2];
+   Vector v2(data, 2);
+
+   // Transform triangular face DoFs
+   for (int f=0; f<2; f++)
+   {
+      for (int i=0; i<nfdofs/2; i++)
+      {
+         v2 = &v[9*nedofs + f*nfdofs + 2*i];
+         TInv(Fo[f]).Mult(v2, &v[9*nedofs + f*nfdofs + 2*i]);
+      }
+   }
+}
+
+void
+ND_WedgeDofTransformation::TransformDual(double *v) const
+{
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
+   MFEM_VERIFY(Fo.Size() >= 2,
+               "Face orientations are unset in ND_WedgeDofTransformation");
+
+   double data[2];
+   Vector v2(data, 2);
+
+   // Transform triangular face DoFs
+   for (int f=0; f<2; f++)
+   {
+      for (int i=0; i<nfdofs/2; i++)
+      {
+         v2 = &v[9*nedofs + f*nfdofs + 2*i];
+         TInv(Fo[f]).MultTranspose(v2, &v[9*nedofs + f*nfdofs + 2*i]);
+      }
+   }
+}
+
+void
+ND_WedgeDofTransformation::InvTransformDual(double *v) const
+{
+   // Return immediately when no face DoFs are present
+   if (nfdofs < 2) { return; }
+
+   MFEM_VERIFY(Fo.Size() >= 2,
+               "Face orientations are unset in ND_WedgeDofTransformation");
+
+   double data[2];
+   Vector v2(data, 2);
+
+   // Transform triangular face DoFs
+   for (int f=0; f<2; f++)
+   {
+      for (int i=0; i<nfdofs/2; i++)
+      {
+         v2 = &v[9*nedofs + f*nfdofs + 2*i];
+         T(Fo[f]).MultTranspose(v2, &v[9*nedofs + f*nfdofs + 2*i]);
       }
    }
 }

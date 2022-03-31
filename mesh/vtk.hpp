@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -95,10 +95,10 @@ enum class VTKFormat
    /// Data arrays will be written in ASCII format.
    ASCII,
    /// Data arrays will be written in binary format. Floating point numbers will
-   /// be be output with 64 bits of precision.
+   /// be output with 64 bits of precision.
    BINARY,
    /// Data arrays will be written in binary format. Floating point numbers will
-   /// be be output with 32 bits of precision.
+   /// be output with 32 bits of precision.
    BINARY32
 };
 
@@ -115,7 +115,7 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom,
 /// The binary data will be base 64 encoded, and compressed if @a
 /// compression_level is not zero. The proper header will be prepended to the
 /// data.
-void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
+void WriteVTKEncodedCompressed(std::ostream &os, const void *bytes,
                                uint32_t nbytes, int compression_level);
 
 /// @brief Return the VTK node index of the barycentric point @a b in a
@@ -139,7 +139,7 @@ const char *VTKByteOrder();
 /// value rather than a character), and for @a float and @a double values to use
 /// the precision specified by @a format.
 template <typename T>
-void WriteBinaryOrASCII(std::ostream &out, std::vector<char> &buf, const T &val,
+void WriteBinaryOrASCII(std::ostream &os, std::vector<char> &buf, const T &val,
                         const char *suffix, VTKFormat format)
 {
    if (format == VTKFormat::ASCII) { out << val << suffix; }
@@ -149,7 +149,7 @@ void WriteBinaryOrASCII(std::ostream &out, std::vector<char> &buf, const T &val,
 /// @brief Specialization of @ref WriteBinaryOrASCII for @a uint8_t to ensure
 /// ASCII output is numeric (rather than interpreting @a val as a character.)
 template <>
-void WriteBinaryOrASCII<uint8_t>(std::ostream &out, std::vector<char> &buf,
+void WriteBinaryOrASCII<uint8_t>(std::ostream &os, std::vector<char> &buf,
                                  const uint8_t &val, const char *suffix,
                                  VTKFormat format);
 
@@ -159,7 +159,7 @@ void WriteBinaryOrASCII<uint8_t>(std::ostream &out, std::vector<char> &buf,
 /// float and written as 32 bits. Subnormals are rounded to zero in ASCII
 /// output.
 template <>
-void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
+void WriteBinaryOrASCII<double>(std::ostream &os, std::vector<char> &buf,
                                 const double &val, const char *suffix,
                                 VTKFormat format);
 
@@ -169,7 +169,7 @@ void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
 /// double and written as 64 bits. Subnormals are rounded to zero in ASCII
 /// output.
 template <>
-void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
+void WriteBinaryOrASCII<float>(std::ostream &os, std::vector<char> &buf,
                                const float &val, const char *suffix,
                                VTKFormat format);
 
@@ -177,7 +177,7 @@ void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
 /// to the output stream (with a header) and clear the buffer.
 ///
 /// @sa WriteVTKEncodedCompressed.
-void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
+void WriteBase64WithSizeAndClear(std::ostream &os, std::vector<char> &buf,
                                  int compression_level);
 
 } // namespace mfem

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -411,7 +411,9 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                                << " and coeffType " << coeffType << ": "
                                << std::pow(ne, dimension) << " elements." << std::endl;
 
-                  for (int order = 1; order < 4; ++order)
+                  int max_order = (dimension == 3) ? 2 : 3;
+
+                  for (int order = 1; order <= max_order; ++order)
                   {
                      Mesh mesh;
                      if (dimension == 2)
