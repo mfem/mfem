@@ -478,23 +478,6 @@ double in_propeller(double a, double b, double d, const Vector &x, double theta)
    return val < 0.0 ? 1.0 : -1.0;
 }
 
-double geometric_primitive(const Vector &x)
-{
-   const double xc = x(0), yc = x(1);
-   // Rectangle
-   if (0.4 <= xc && xc <= 0.6 && 0.3 <= yc && yc <= 0.6) { return 1.0; }
-   // Circle
-   Vector x_circle(x.Size());
-   x_circle(0) = 0.5;
-   x_circle(1) = 0.6;
-   double circle_radius = 0.15;
-   if (in_circle(x, x_circle, circle_radius))
-   {
-      return 1.0;
-   }
-   return -1.0;
-}
-
 double snowman(const Vector &x)
 {
    // Base
@@ -654,20 +637,6 @@ double reactor(const Vector &x)
    double in_rectangle_val2 = in_rectangle(x, 1.0, 0.5, 0.12, 0.28);
    return_val = max(return_val, in_rectangle_val2);
    return return_val;
-   return return_val;
-
-   //   double h = 0.4;
-   //   double k = 1.2;
-   //   double t = 0.12;
-   //   double in_parabola_val = in_parabola(x, h, k, t);
-   return_val = max(return_val, in_parabola_val);
-
-   h = 0.7;
-   k = 2;
-   t = 0.12;
-   in_parabola_val = in_parabola(x, h, k, t);
-
-   return max(return_val, in_parabola_val);
 }
 
 double in_parabola_xy(const Vector &x,
@@ -691,87 +660,6 @@ double in_parabola_xy(const Vector &x,
       return 1.0;
    }
    return -1.0;
-}
-
-double propeller2(const Vector &x)
-{
-   // big circle
-   Vector x_circle1(2);
-   x_circle1(0) = 0.5;
-   x_circle1(1) = 0.5;
-   double rad = 0.151;
-   double in_circle1_val = in_circle(x, x_circle1, rad);
-
-   double thickness = 0.1;
-
-   double kx = 5;
-   double ky = 1.0;
-   double ty = thickness;
-   double tx = 0.0;
-   double hx = 0.5+rad;
-   double hy = 0.5;
-   double xmin = 0.5+rad-rad/4;
-   double xmax = 0.825;
-   double powerx = 2.0;
-   double powery = 1.0;
-   int idir = 0;
-   int check_flip = 0;
-   double in_parabola_val1 = in_parabola_xy(x, hx, hy, kx, ky, tx, ty,
-                                            powerx, powery, xmin, xmax,
-                                            idir, check_flip);
-   double return_val = max(in_circle1_val, in_parabola_val1);
-
-   kx = 1.0;
-   ky = -5.0;
-   tx = thickness;
-   ty = 0.0;
-   hx = 0.5;
-   hy = 0.5+rad;
-   powerx = 1.0;
-   powery = 2.0;
-   idir = 1;
-   check_flip = 1;
-
-   in_parabola_val1 = in_parabola_xy(x, hx, hy, kx, ky, tx, ty,
-                                     powerx, powery, xmin, xmax,
-                                     idir, check_flip);
-   return_val = max(return_val, in_parabola_val1);
-
-   kx = -5.0;
-   ky = 1.0;
-   tx = 0.0;
-   ty = thickness;
-   hx = 0.5-rad;
-   hy = 0.5;
-   powerx = 2.0;
-   powery = 1.0;
-   idir = 0;
-   check_flip = 0;
-   xmax = 0.5-rad+rad/4;
-   xmin = 0.5-(0.825-0.5);
-
-   in_parabola_val1 = in_parabola_xy(x, hx, hy, kx, ky, tx, ty,
-                                     powerx, powery, xmin, xmax,
-                                     idir, check_flip);
-   return_val = max(return_val, in_parabola_val1);
-
-   kx = 1.0;
-   ky = 5.0;
-   tx = thickness;
-   ty = 0.0;
-   hx = 0.5;
-   hy = 0.5-rad;
-   powerx = 1.0;
-   powery = 2.0;
-   idir = 1;
-   check_flip = 1;
-
-   in_parabola_val1 = in_parabola_xy(x, hx, hy, kx, ky, tx, ty,
-                                     powerx, powery, xmin, xmax,
-                                     idir, check_flip);
-   return_val = max(return_val, in_parabola_val1);
-
-   return return_val;
 }
 
 int material_id(int el_id, const GridFunction &g)

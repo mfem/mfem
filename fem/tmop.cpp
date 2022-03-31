@@ -2347,8 +2347,6 @@ TMOP_Integrator::~TMOP_Integrator()
    delete surf_fit_gf_bar;
    delete surf_fit_grad;
    delete surf_fit_hess;
-   delete surf_fit_eval_bg_grad;
-   delete surf_fit_eval_bg_hess;
    for (int i = 0; i < ElemDer.Size(); i++)
    {
       delete ElemDer[i];
@@ -2459,8 +2457,10 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
                                                      AdaptivityEvaluator &ae,
                                                      const ParGridFunction &s0_bg_grad,
                                                      ParGridFunction &s0_grad,
+                                                     AdaptivityEvaluator &age,
                                                      const ParGridFunction &s0_bg_hess,
-                                                     ParGridFunction &s0_hess)
+                                                     ParGridFunction &s0_hess,
+                                                     AdaptivityEvaluator &ahe)
 {
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
@@ -2475,15 +2475,8 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
    (*s0_bg.FESpace()->GetMesh()->GetNodes(), s0_bg);
 
    // Setup gradient and Hessian on background mesh
-   delete surf_fit_eval_bg_grad;
-   delete surf_fit_eval_bg_hess;
-#ifdef MFEM_USE_GSLIB
-   surf_fit_eval_bg_grad = new InterpolatorFP;
-   surf_fit_eval_bg_hess = new InterpolatorFP;
-#else
-   MFEM_ABORT("MFEM must be built with GSLIB support for surface fitting "
-              "with a source mesh!");
-#endif
+   surf_fit_eval_bg_grad = &age;
+   surf_fit_eval_bg_hess = &ahe;
    surf_fit_eval_bg_grad->SetParMetaInfo(*s0_bg_grad.ParFESpace()->GetParMesh(),
                                          *s0_bg_grad.ParFESpace()->FEColl(),
                                          s0_bg_grad.ParFESpace()->GetVDim());

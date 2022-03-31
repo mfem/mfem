@@ -40,25 +40,19 @@
 //  Interface fitting
 //  mpirun -np 4 tmop_surface -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor -sapp 1 -slstype 1
 //  mpirun -np 4 tmop_surface -m square01-tri.mesh -o 2 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor -sapp 1 -slstype 1
-//  mpirun -np 4 tmop_surface -m square01-tri.mesh -o 2 -rs 2 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor -sapp 1 -slstype 3
-
-// Snowman
-//
-//
-// Keyhole
-// mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e9 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 7 -sapp 1 -smtype 1
-// Trim on the inside and fit the boundary
-// mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e9 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 7 -sapp 1 -smtype 2 -trim
-
-// Propeller1
-// mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 3 -mid 2 -tid 1 -vl 2 -sfc 1e12 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 8 -sapp 1 -smtype 2 -trim
-// mpirun -np 6 tmop_surface -m square01-tri.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e12 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 8 -sapp 1 -smtype 1
-
-// Reactor fin
-// mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 3 -mid 2 -tid 1 -vl 2 -sfc 1e12 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -sbgmesh -slstype 9 -sapp 1 -smtype 1 -st 0
-
-// Propeller2
-// mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 1e12 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 10 -sapp 1 -smtype 1
+//  Snowman
+//  mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e9 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 5 -sapp 1 -smtype 1
+//  Mickey mouse
+//  mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e9 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 6 -sapp 1 -smtype 1
+//  Keyhole
+//  mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e9 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 7 -sapp 1 -smtype 1
+//  Trim on the inside and fit the boundary
+//  mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e9 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 7 -sapp 1 -smtype 2 -trim
+//  Propeller1
+//  mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 3 -mid 2 -tid 1 -vl 2 -sfc 1e12 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 8 -sapp 1 -smtype 2 -trim
+//  mpirun -np 6 tmop_surface -m square01-tri.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 1e12 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -fix-bnd -sbgmesh -slstype 8 -sapp 1 -smtype 1
+//  Reactor fin
+//  mpirun -np 6 tmop_surface -m square01.mesh -o 2 -rs 3 -mid 2 -tid 1 -vl 2 -sfc 1e12 -rtol 1e-12 -ni 100 -sni 10 -oi 2 -ae 1 -sbgmesh -slstype 9 -sapp 1 -smtype 1 -st 0
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -84,8 +78,6 @@ int main (int argc, char *argv[])
    double jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
-
-
    double surface_fit_const = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
@@ -98,7 +90,6 @@ int main (int argc, char *argv[])
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
-   int combomet          = 0;
    bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
@@ -201,11 +192,6 @@ int main (int argc, char *argv[])
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
                   "--fix-boundary",
                   "Enable motion along horizontal and vertical boundaries.");
-   args.AddOption(&combomet, "-cmb", "--combo-type",
-                  "Combination of metrics options:\n\t"
-                  "0: Use single metric\n\t"
-                  "1: Shape + space-dependent size given analytically\n\t"
-                  "2: Shape + adapted size given discretely; shared target");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
@@ -261,7 +247,7 @@ int main (int argc, char *argv[])
    }
    const int dim = mesh->Dimension();
 
-   // Trim the mesh based on level-set
+   // Define level-set coefficient
    FunctionCoefficient *ls_coeff = NULL;
    if (surf_ls_type == 1) //Circle
    {
@@ -270,14 +256,6 @@ int main (int argc, char *argv[])
    else if (surf_ls_type == 2) // Squircle
    {
       ls_coeff = new FunctionCoefficient(squircle_level_set);
-   }
-   else if (surf_ls_type == 3) // Butterfly
-   {
-      ls_coeff = new FunctionCoefficient(butterfly_level_set);
-   }
-   else if (surf_ls_type == 4) //
-   {
-      ls_coeff = new FunctionCoefficient(geometric_primitive);
    }
    else if (surf_ls_type == 5) // snowman
    {
@@ -298,10 +276,6 @@ int main (int argc, char *argv[])
    else if (surf_ls_type == 9) // reactor
    {
       ls_coeff = new FunctionCoefficient(reactor);
-   }
-   else if (surf_ls_type == 10) // propeller
-   {
-      ls_coeff = new FunctionCoefficient(propeller2);
    }
    else
    {
@@ -579,6 +553,8 @@ int main (int argc, char *argv[])
    Array<bool> surf_fit_marker(surf_fit_gf0.Size());
    ConstantCoefficient surf_fit_coeff(surface_fit_const);
    AdaptivityEvaluator *adapt_surface = NULL;
+   AdaptivityEvaluator *adapt_grad_surface = NULL;
+   AdaptivityEvaluator *adapt_hess_surface = NULL;
 
    // Background mesh FECollection, FESpace, and GridFunction
    H1_FECollection *surf_fit_bg_fec = NULL;
@@ -709,11 +685,17 @@ int main (int argc, char *argv[])
       if (adapt_eval == 0)
       {
          adapt_surface = new AdvectorCG;
+         MFEM_VERIFY(surf_bg_mesh, "MFEM must be built with GSLIB support for"
+                                   "surface fitting with a source mesh!");
       }
       else if (adapt_eval == 1)
       {
 #ifdef MFEM_USE_GSLIB
          adapt_surface = new InterpolatorFP;
+         if (surf_bg_mesh) {
+             adapt_grad_surface = new InterpolatorFP;
+             adapt_hess_surface = new InterpolatorFP;
+         }
 #else
          MFEM_ABORT("MFEM is not built with GSLIB support!");
 #endif
@@ -736,8 +718,8 @@ int main (int argc, char *argv[])
                                                                     surf_fit_gf0,
                                                                     surf_fit_marker, surf_fit_coeff,
                                                                     *adapt_surface,
-                                                                    *surf_fit_bg_grad, *surf_fit_grad,
-                                                                    *surf_fit_bg_hess, *surf_fit_hess);
+                                                                    *surf_fit_bg_grad, *surf_fit_grad, *adapt_grad_surface,
+                                                                    *surf_fit_bg_hess, *surf_fit_hess, *adapt_hess_surface);
 
       }
 
@@ -1130,6 +1112,8 @@ int main (int argc, char *argv[])
    delete S_prec;
    delete a_surf;
    delete adapt_surface;
+   delete adapt_grad_surface;
+   delete adapt_hess_surface;
    delete ls_coeff;
    delete surf_fit_hess;
    delete surf_fit_hess_fes;

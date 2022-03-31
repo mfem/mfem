@@ -1659,8 +1659,10 @@ public:
                                        AdaptivityEvaluator &ae,
                                        const ParGridFunction &s0_bg_grad,
                                        ParGridFunction &s0_grad,
+                                       AdaptivityEvaluator &age,
                                        const ParGridFunction &s0_bg_hess,
-                                       ParGridFunction &s0_hess);
+                                       ParGridFunction &s0_hess,
+                                       AdaptivityEvaluator &ahe);
 #endif
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
 
