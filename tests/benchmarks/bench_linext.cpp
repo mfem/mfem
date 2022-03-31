@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -49,10 +49,8 @@ struct Test: public LinearFormExtTest
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-constexpr int _2D = 2;
-constexpr int _3D = 3;
-constexpr int _GL = false; // Gauss-Legendre, q=p+2
-constexpr int _GLL = true; // Gauss-Legendre-Lobatto, q=p+1
+constexpr int GL = false; // Gauss-Legendre, q=p+2
+constexpr int GLL = true; // Gauss-Legendre-Lobatto, q=p+1
 constexpr int VDIM = 24;
 
 /// Scalar Linear Form Extension Tests
@@ -65,36 +63,36 @@ static void TEST_##Problem##dim##gll(bm::State &state){\
 BENCHMARK(TEST_##Problem##dim##gll)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
 /// Scalar linear form tests & Gauss-Legendre-Lobatto, q=p+1
-LinExtTest(DomainLF,_2D,1,_GLL)
-LinExtTest(DomainLF,_3D,1,_GLL)
+LinExtTest(DomainLF,2,1,GLL)
+LinExtTest(DomainLF,3,1,GLL)
 
 /// Vector linear form tests & Gauss-Legendre-Lobatto, q=p+1
-LinExtTest(VectorDomainLF,_2D,VDIM,_GLL)
-LinExtTest(VectorDomainLF,_3D,VDIM,_GLL)
+LinExtTest(VectorDomainLF,2,VDIM,GLL)
+LinExtTest(VectorDomainLF,3,VDIM,GLL)
 
 /// Grad linear form tests & Gauss-Legendre-Lobatto, q=p+1
-LinExtTest(DomainLFGrad,_2D,1,_GLL)
-LinExtTest(DomainLFGrad,_3D,1,_GLL)
+LinExtTest(DomainLFGrad,2,1,GLL)
+LinExtTest(DomainLFGrad,3,1,GLL)
 
 /// Vector Grad linear form tests & Gauss-Legendre-Lobatto, q=p+1
-LinExtTest(VectorDomainLFGrad,_2D,VDIM,_GLL)
-LinExtTest(VectorDomainLFGrad,_3D,VDIM,_GLL)
+LinExtTest(VectorDomainLFGrad,2,VDIM,GLL)
+LinExtTest(VectorDomainLFGrad,3,VDIM,GLL)
 
 /// Scalar linear form tests & Gauss-Legendre, q=p+2
-LinExtTest(DomainLF,_2D,1,_GL)
-LinExtTest(DomainLF,_3D,1,_GL)
+LinExtTest(DomainLF,2,1,GL)
+LinExtTest(DomainLF,3,1,GL)
 
 /// Vector linear form tests & Gauss-Legendre, q=p+2
-LinExtTest(VectorDomainLF,_2D,VDIM,_GL)
-LinExtTest(VectorDomainLF,_3D,VDIM,_GL)
+LinExtTest(VectorDomainLF,2,VDIM,GL)
+LinExtTest(VectorDomainLF,3,VDIM,GL)
 
 /// Grad linear form tests & Gauss-Legendre, q=p+2
-LinExtTest(DomainLFGrad,_2D,1,_GL)
-LinExtTest(DomainLFGrad,_3D,1,_GL)
+LinExtTest(DomainLFGrad,2,1,GL)
+LinExtTest(DomainLFGrad,3,1,GL)
 
 /// Vector Grad linear form tests & Gauss-Legendre, q=p+2
-LinExtTest(VectorDomainLFGrad,_2D,VDIM,_GL)
-LinExtTest(VectorDomainLFGrad,_3D,VDIM,_GL)
+LinExtTest(VectorDomainLFGrad,2,VDIM,GL)
+LinExtTest(VectorDomainLFGrad,3,VDIM,GL)
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,52 +128,52 @@ static void BENCH_##lal##_##Problem##dim##gll(bm::State &state){\
 BENCHMARK(BENCH_##lal##_##Problem##dim##gll)->DenseRange(1,6)->Unit(bm::kMicrosecond);
 
 /// Scalar linear form bench & Gauss-Legendre-Lobatto, q=p+1
-LinExtBench(DomainLF,LEGACY,_2D,1,_GLL)
-LinExtBench(DomainLF,  FULL,_2D,1,_GLL)
-LinExtBench(DomainLF,LEGACY,_3D,1,_GLL)
-LinExtBench(DomainLF,  FULL,_3D,1,_GLL)
+LinExtBench(DomainLF,LEGACY,2,1,GLL)
+LinExtBench(DomainLF,  FULL,2,1,GLL)
+LinExtBench(DomainLF,LEGACY,3,1,GLL)
+LinExtBench(DomainLF,  FULL,3,1,GLL)
 
 /// Vector linear form bench & Gauss-Legendre-Lobatto, q=p+1
-LinExtBench(VectorDomainLF,LEGACY,_2D,VDIM,_GLL)
-LinExtBench(VectorDomainLF,  FULL,_2D,VDIM,_GLL)
-LinExtBench(VectorDomainLF,LEGACY,_3D,VDIM,_GLL)
-LinExtBench(VectorDomainLF,  FULL,_3D,VDIM,_GLL)
+LinExtBench(VectorDomainLF,LEGACY,2,VDIM,GLL)
+LinExtBench(VectorDomainLF,  FULL,2,VDIM,GLL)
+LinExtBench(VectorDomainLF,LEGACY,3,VDIM,GLL)
+LinExtBench(VectorDomainLF,  FULL,3,VDIM,GLL)
 
 /// Grad Scalar linear form bench & Gauss-Legendre-Lobatto, q=p+1
-LinExtBench(DomainLFGrad,LEGACY,_2D,1,_GLL)
-LinExtBench(DomainLFGrad,  FULL,_2D,1,_GLL)
-LinExtBench(DomainLFGrad,LEGACY,_3D,1,_GLL)
-LinExtBench(DomainLFGrad,  FULL,_3D,1,_GLL)
+LinExtBench(DomainLFGrad,LEGACY,2,1,GLL)
+LinExtBench(DomainLFGrad,  FULL,2,1,GLL)
+LinExtBench(DomainLFGrad,LEGACY,3,1,GLL)
+LinExtBench(DomainLFGrad,  FULL,3,1,GLL)
 
 /// Vector Grad linear form bench & Gauss-Legendre-Lobatto, q=p+1
-LinExtBench(VectorDomainLFGrad,LEGACY,_2D,VDIM,_GLL)
-LinExtBench(VectorDomainLFGrad,  FULL,_2D,VDIM,_GLL)
-LinExtBench(VectorDomainLFGrad,LEGACY,_3D,VDIM,_GLL)
-LinExtBench(VectorDomainLFGrad,  FULL,_3D,VDIM,_GLL)
+LinExtBench(VectorDomainLFGrad,LEGACY,2,VDIM,GLL)
+LinExtBench(VectorDomainLFGrad,  FULL,2,VDIM,GLL)
+LinExtBench(VectorDomainLFGrad,LEGACY,3,VDIM,GLL)
+LinExtBench(VectorDomainLFGrad,  FULL,3,VDIM,GLL)
 
 /// Scalar linear form bench & Gauss-Legendre, q=p+2
-LinExtBench(DomainLF,LEGACY,_2D,1,_GL)
-LinExtBench(DomainLF,  FULL,_2D,1,_GL)
-LinExtBench(DomainLF,LEGACY,_3D,1,_GL)
-LinExtBench(DomainLF,  FULL,_3D,1,_GL)
+LinExtBench(DomainLF,LEGACY,2,1,GL)
+LinExtBench(DomainLF,  FULL,2,1,GL)
+LinExtBench(DomainLF,LEGACY,3,1,GL)
+LinExtBench(DomainLF,  FULL,3,1,GL)
 
 /// Vector linear form bench & Gauss-Legendre, q=p+2
-LinExtBench(VectorDomainLF,LEGACY,_2D,VDIM,_GL)
-LinExtBench(VectorDomainLF,  FULL,_2D,VDIM,_GL)
-LinExtBench(VectorDomainLF,LEGACY,_3D,VDIM,_GL)
-LinExtBench(VectorDomainLF,  FULL,_3D,VDIM,_GL)
+LinExtBench(VectorDomainLF,LEGACY,2,VDIM,GL)
+LinExtBench(VectorDomainLF,  FULL,2,VDIM,GL)
+LinExtBench(VectorDomainLF,LEGACY,3,VDIM,GL)
+LinExtBench(VectorDomainLF,  FULL,3,VDIM,GL)
 
 /// Grad Scalar linear form bench & Gauss-Legendre, q=p+2
-LinExtBench(DomainLFGrad,LEGACY,_2D,1,_GL)
-LinExtBench(DomainLFGrad,  FULL,_2D,1,_GL)
-LinExtBench(DomainLFGrad,LEGACY,_3D,1,_GL)
-LinExtBench(DomainLFGrad,  FULL,_3D,1,_GL)
+LinExtBench(DomainLFGrad,LEGACY,2,1,GL)
+LinExtBench(DomainLFGrad,  FULL,2,1,GL)
+LinExtBench(DomainLFGrad,LEGACY,3,1,GL)
+LinExtBench(DomainLFGrad,  FULL,3,1,GL)
 
 /// Vector Grad linear form bench & Gauss-Legendre, q=p+2
-LinExtBench(VectorDomainLFGrad,LEGACY,_2D,VDIM,_GL)
-LinExtBench(VectorDomainLFGrad,  FULL,_2D,VDIM,_GL)
-LinExtBench(VectorDomainLFGrad,LEGACY,_3D,VDIM,_GL)
-LinExtBench(VectorDomainLFGrad,  FULL,_3D,VDIM,_GL)
+LinExtBench(VectorDomainLFGrad,LEGACY,2,VDIM,GL)
+LinExtBench(VectorDomainLFGrad,  FULL,2,VDIM,GL)
+LinExtBench(VectorDomainLFGrad,LEGACY,3,VDIM,GL)
+LinExtBench(VectorDomainLFGrad,  FULL,3,VDIM,GL)
 
 } // namespace linearform_ext_tests
 
