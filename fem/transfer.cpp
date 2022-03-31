@@ -1650,9 +1650,12 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
       switch (id) // orders 1~8
       {
          case 0x23: Ker=TransferKernels::FastProlongation3D<2,3>; break; // 1
+         case 0x24: Ker=TransferKernels::FastProlongation3D<2,4>; break;
          case 0x34: Ker=TransferKernels::FastProlongation3D<3,4>; break; // 2
          case 0x35: Ker=TransferKernels::FastProlongation3D<3,5>; break;
+         case 0x37: Ker=TransferKernels::FastProlongation3D<3,7>; break;
          case 0x45: Ker=TransferKernels::FastProlongation3D<4,5>; break; // 3
+         case 0x47: Ker=TransferKernels::FastProlongation3D<4,7>; break;
          case 0x56: Ker=TransferKernels::FastProlongation3D<5,6>; break; // 4
          case 0x57: Ker=TransferKernels::FastProlongation3D<5,7>; break;
          case 0x67: Ker=TransferKernels::FastProlongation3D<6,7>; break; // 5
@@ -1722,9 +1725,12 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
       switch (id) // orders 1~8
       {
          case 0x23: Ker=TransferKernels::FastRestriction3D<2,3>; break; // 1
+         case 0x24: Ker=TransferKernels::FastRestriction3D<2,4>; break;
          case 0x34: Ker=TransferKernels::FastRestriction3D<3,4>; break; // 2
          case 0x35: Ker=TransferKernels::FastRestriction3D<3,5>; break;
+         case 0x37: Ker=TransferKernels::FastRestriction3D<3,7>; break;
          case 0x45: Ker=TransferKernels::FastRestriction3D<4,5>; break; // 3
+         case 0x47: Ker=TransferKernels::FastRestriction3D<4,7>; break;
          case 0x56: Ker=TransferKernels::FastRestriction3D<5,6>; break; // 4
          case 0x57: Ker=TransferKernels::FastRestriction3D<5,7>; break;
          case 0x67: Ker=TransferKernels::FastRestriction3D<6,7>; break; // 5

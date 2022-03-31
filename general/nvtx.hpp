@@ -17,8 +17,17 @@
 #ifndef MFEM_NVVP_HPP
 #define MFEM_NVVP_HPP
 
+#if 1
+
+#warning No NVTX
+namespace mfem { struct Nvtx { Nvtx(const char*) {} }; }
+#define NVTX(...)
+#define MFEM_NVTX NVTX()
+
+#else // Empty nvtx
+
+#warning NVTX
 #include <string>
-#include <cstring>
 #include <cassert>
 
 #include "globals.hpp"
@@ -184,7 +193,6 @@ public:
    // used through MFEM_NVTX
    inline void operator()() const noexcept
    {
-      if (!nvtx) { return; }
       event.message.ascii = ascii.c_str();
       nvtxRangePushEx(&event); // push
    }
@@ -305,10 +313,12 @@ private:
 #define NVTX(...) \
     mfem::Nvtx NVTX_PRIVATE_NAME(nvtx) = \
     mfem::Nvtx::Set(__FILE__,__LINE__,__FUNCTION__,MFEM_NVTX_COLOR);\
-    NVTX_PRIVATE_NAME(nvtx).operator()(__VA_ARGS__)
+    NVTX_PRIVATE_NAME(nvtx).operator()(__VA_ARGS__);
 
 #define MFEM_NVTX NVTX()
 
 } // namespace mfem
+
+#endif  // Empty nvtx
 
 #endif // MFEM_NVVP_HPP
