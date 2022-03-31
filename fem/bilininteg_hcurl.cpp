@@ -18,6 +18,15 @@ using namespace std;
 namespace mfem
 {
 
+void PAHcurlHdivSetup3D(const int Q1D,
+                        const int coeffDim,
+                        const int NE,
+                        const bool transpose,
+                        const Array<double> &w_,
+                        const Vector &j,
+                        Vector &coeff_,
+                        Vector &op);
+
 void PAHcurlMassApply2D(const int D1D,
                         const int Q1D,
                         const int NE,
@@ -3498,7 +3507,7 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    const bool curlSpaces = (testType == mfem::FiniteElement::CURL &&
                             trialType == mfem::FiniteElement::CURL);
 
-   const int ndata = curlSpaces ? coeffDim : symmDims;
+   const int ndata = curlSpaces ? (coeffDim == 1 ? 1 : 9) : symmDims;
    pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
    QuadratureSpace qs(*mesh, *ir);
@@ -3510,7 +3519,15 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      if (coeffDim == 1)
+      {
+         PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      }
+      else
+      {
+         PAHcurlHdivSetup3D(quad1D, coeffDim, ne, false, ir->GetWeights(), geom->J,
+                            coeff, pa_data);
+      }
    }
    else if (testType == mfem::FiniteElement::DIV &&
             trialType == mfem::FiniteElement::CURL && dim == 3 &&
@@ -3797,9 +3814,30 @@ static void PAHcurlL2Apply3D(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               for (int c = 0; c < VDIM; ++c)
+               const double O11 = op(0,qx,qy,qz,e);
+               if (coeffDim == 1)
                {
-                  curl[qz][qy][qx][c] *= op(coeffDim == 3 ? c : 0, qx,qy,qz,e);
+                  for (int c = 0; c < VDIM; ++c)
+                  {
+                     curl[qz][qy][qx][c] *= O11;
+                  }
+               }
+               else
+               {
+                  const double O21 = op(1,qx,qy,qz,e);
+                  const double O31 = op(2,qx,qy,qz,e);
+                  const double O12 = op(3,qx,qy,qz,e);
+                  const double O22 = op(4,qx,qy,qz,e);
+                  const double O32 = op(5,qx,qy,qz,e);
+                  const double O13 = op(6,qx,qy,qz,e);
+                  const double O23 = op(7,qx,qy,qz,e);
+                  const double O33 = op(8,qx,qy,qz,e);
+                  const double curlX = curl[qz][qy][qx][0];
+                  const double curlY = curl[qz][qy][qx][1];
+                  const double curlZ = curl[qz][qy][qx][2];
+                  curl[qz][qy][qx][0] = (O11*curlX)+(O12*curlY)+(O13*curlZ);
+                  curl[qz][qy][qx][1] = (O21*curlX)+(O22*curlY)+(O23*curlZ);
+                  curl[qz][qy][qx][2] = (O31*curlX)+(O32*curlY)+(O33*curlZ);
                }
             }
          }
@@ -3894,7 +3932,7 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
    auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
-      constexpr int maxCoeffDim = 3;
+      constexpr int maxCoeffDim = 9;
 
       MFEM_SHARED double sBo[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
@@ -4104,13 +4142,28 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double O1 = sop[0][qx][qy];
-                        const double O2 = (coeffDim == 3) ? sop[1][qx][qy] : O1;
-                        const double O3 = (coeffDim == 3) ? sop[2][qx][qy] : O1;
-
-                        const double c1 = O1 * curl[qy][qx][0];
-                        const double c2 = O2 * curl[qy][qx][1];
-                        const double c3 = O3 * curl[qy][qx][2];
+                        const double O11 = sop[0][qx][qy];
+                        double c1, c2, c3;
+                        if (coeffDim == 1)
+                        {
+                           c1 = O11 * curl[qy][qx][0];
+                           c2 = O11 * curl[qy][qx][1];
+                           c3 = O11 * curl[qy][qx][2];
+                        }
+                        else
+                        {
+                           const double O21 = sop[1][qx][qy];
+                           const double O31 = sop[2][qx][qy];
+                           const double O12 = sop[3][qx][qy];
+                           const double O22 = sop[4][qx][qy];
+                           const double O32 = sop[5][qx][qy];
+                           const double O13 = sop[6][qx][qy];
+                           const double O23 = sop[7][qx][qy];
+                           const double O33 = sop[8][qx][qy];
+                           c1 = (O11*curl[qy][qx][0])+(O12*curl[qy][qx][1])+(O13*curl[qy][qx][2]);
+                           c2 = (O21*curl[qy][qx][0])+(O22*curl[qy][qx][1])+(O23*curl[qy][qx][2]);
+                           c3 = (O31*curl[qy][qx][0])+(O32*curl[qy][qx][1])+(O33*curl[qy][qx][2]);
+                        }
 
                         const double wcx = sBc[dx][qx];
 
@@ -4523,30 +4576,32 @@ void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
+      const int ndata = coeffDim == 1 ? 1 : 9;
+
       if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          switch (ID)
          {
-            case 0x23: return SmemPAHcurlL2Apply3D<2,3>(dofs1D, quad1D, coeffDim, ne,
+            case 0x23: return SmemPAHcurlL2Apply3D<2,3>(dofs1D, quad1D, ndata, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsC->G, pa_data, x, y);
-            case 0x34: return SmemPAHcurlL2Apply3D<3,4>(dofs1D, quad1D, coeffDim, ne,
+            case 0x34: return SmemPAHcurlL2Apply3D<3,4>(dofs1D, quad1D, ndata, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsC->G, pa_data, x, y);
-            case 0x45: return SmemPAHcurlL2Apply3D<4,5>(dofs1D, quad1D, coeffDim, ne,
+            case 0x45: return SmemPAHcurlL2Apply3D<4,5>(dofs1D, quad1D, ndata, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsC->G, pa_data, x, y);
-            case 0x56: return SmemPAHcurlL2Apply3D<5,6>(dofs1D, quad1D, coeffDim, ne,
+            case 0x56: return SmemPAHcurlL2Apply3D<5,6>(dofs1D, quad1D, ndata, ne,
                                                            mapsO->B, mapsC->B,
                                                            mapsC->G, pa_data, x, y);
-            default: return SmemPAHcurlL2Apply3D(dofs1D, quad1D, coeffDim, ne, mapsO->B,
-                                                    mapsC->B,
-                                                    mapsC->G, pa_data, x, y);
+            default: return SmemPAHcurlL2Apply3D(dofs1D, quad1D, ndata, ne,
+                                                    mapsO->B, mapsC->B, mapsC->G,
+                                                    pa_data, x, y);
          }
       }
       else
-         PAHcurlL2Apply3D(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
+         PAHcurlL2Apply3D(dofs1D, quad1D, ndata, ne, mapsO->B, mapsC->B,
                           mapsO->Bt, mapsC->Bt, mapsC->G, pa_data, x, y);
    }
    else if (testType == mfem::FiniteElement::DIV &&
@@ -4599,8 +4654,9 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
    coeffDim = DQ ? 3 : 1;
+   const int ndata = DQ ? 9 : 1;
 
-   pa_data.SetSize(coeffDim * nq * ne, Device::GetMemoryType());
+   pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::FULL);
@@ -4613,7 +4669,15 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
 
    if (trialType == mfem::FiniteElement::CURL && dim == 3)
    {
-      PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      if (coeffDim == 1)
+      {
+         PAHcurlL2Setup(nq, coeffDim, ne, ir->GetWeights(), coeff, pa_data);
+      }
+      else
+      {
+         PAHcurlHdivSetup3D(quad1D, coeffDim, ne, false, ir->GetWeights(), geom->J,
+                            coeff, pa_data);
+      }
    }
    else
    {
@@ -4741,9 +4805,30 @@ static void PAHcurlL2Apply3DTranspose(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               for (int c=0; c<VDIM; ++c)
+               const double O11 = op(0,qx,qy,qz,e);
+               if (coeffDim == 1)
                {
-                  mass[qz][qy][qx][c] *= op(coeffDim == 3 ? c : 0, qx,qy,qz,e);
+                  for (int c = 0; c < VDIM; ++c)
+                  {
+                     mass[qz][qy][qx][c] *= O11;
+                  }
+               }
+               else
+               {
+                  const double O12 = op(1,qx,qy,qz,e);
+                  const double O13 = op(2,qx,qy,qz,e);
+                  const double O21 = op(3,qx,qy,qz,e);
+                  const double O22 = op(4,qx,qy,qz,e);
+                  const double O23 = op(5,qx,qy,qz,e);
+                  const double O31 = op(6,qx,qy,qz,e);
+                  const double O32 = op(7,qx,qy,qz,e);
+                  const double O33 = op(8,qx,qy,qz,e);
+                  const double massX = mass[qz][qy][qx][0];
+                  const double massY = mass[qz][qy][qx][1];
+                  const double massZ = mass[qz][qy][qx][2];
+                  mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
+                  mass[qz][qy][qx][1] = (O21*massX)+(O22*massY)+(O23*massZ);
+                  mass[qz][qy][qx][2] = (O31*massX)+(O32*massY)+(O33*massZ);
                }
             }
          }
@@ -4990,7 +5075,7 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
    auto device_kernel = [=] MFEM_DEVICE (int e)
    {
       constexpr int VDIM = 3;
-      constexpr int maxCoeffDim = 3;
+      constexpr int maxCoeffDim = 9;
 
       MFEM_SHARED double sBo[MAX_D1D][MAX_Q1D];
       MFEM_SHARED double sBc[MAX_D1D][MAX_Q1D];
@@ -5135,13 +5220,29 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double O1 = sop[0][qx][qy];
-                        const double O2 = (coeffDim == 3) ? sop[1][qx][qy] : O1;
-                        const double O3 = (coeffDim == 3) ? sop[2][qx][qy] : O1;
+                        const double O11 = sop[0][qx][qy];
+                        double c1, c2, c3;
+                        if (coeffDim == 1)
+                        {
+                           c1 = O11 * mass[qy][qx][0];
+                           c2 = O11 * mass[qy][qx][1];
+                           c3 = O11 * mass[qy][qx][2];
+                        }
+                        else
+                        {
+                           const double O12 = sop[1][qx][qy];
+                           const double O13 = sop[2][qx][qy];
+                           const double O21 = sop[3][qx][qy];
+                           const double O22 = sop[4][qx][qy];
+                           const double O23 = sop[5][qx][qy];
+                           const double O31 = sop[6][qx][qy];
+                           const double O32 = sop[7][qx][qy];
+                           const double O33 = sop[8][qx][qy];
 
-                        const double c1 = O1 * mass[qy][qx][0];
-                        const double c2 = O2 * mass[qy][qx][1];
-                        const double c3 = O3 * mass[qy][qx][2];
+                           c1 = (O11*mass[qy][qx][0])+(O12*mass[qy][qx][1])+(O13*mass[qy][qx][2]);
+                           c2 = (O21*mass[qy][qx][0])+(O22*mass[qy][qx][1])+(O23*mass[qy][qx][2]);
+                           c3 = (O31*mass[qy][qx][0])+(O32*mass[qy][qx][1])+(O33*mass[qy][qx][2]);
+                        }
 
                         const double wcx = sBc[dx][qx];
                         const double wDx = sGc[dx][qx];
@@ -5200,31 +5301,32 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::CURL && dim == 3)
    {
+      const int ndata = coeffDim == 1 ? 1 : 9;
       if (Device::Allows(Backend::DEVICE_MASK))
       {
          const int ID = (dofs1D << 4) | quad1D;
          switch (ID)
          {
-            case 0x23: return SmemPAHcurlL2Apply3DTranspose<2,3>(dofs1D, quad1D, coeffDim,
+            case 0x23: return SmemPAHcurlL2Apply3DTranspose<2,3>(dofs1D, quad1D, ndata,
                                                                     ne, mapsO->B, mapsC->B,
                                                                     mapsC->G, pa_data, x, y);
-            case 0x34: return SmemPAHcurlL2Apply3DTranspose<3,4>(dofs1D, quad1D, coeffDim,
+            case 0x34: return SmemPAHcurlL2Apply3DTranspose<3,4>(dofs1D, quad1D, ndata,
                                                                     ne, mapsO->B, mapsC->B,
                                                                     mapsC->G, pa_data, x, y);
-            case 0x45: return SmemPAHcurlL2Apply3DTranspose<4,5>(dofs1D, quad1D, coeffDim,
+            case 0x45: return SmemPAHcurlL2Apply3DTranspose<4,5>(dofs1D, quad1D, ndata,
                                                                     ne, mapsO->B, mapsC->B,
                                                                     mapsC->G, pa_data, x, y);
-            case 0x56: return SmemPAHcurlL2Apply3DTranspose<5,6>(dofs1D, quad1D, coeffDim,
+            case 0x56: return SmemPAHcurlL2Apply3DTranspose<5,6>(dofs1D, quad1D, ndata,
                                                                     ne, mapsO->B, mapsC->B,
                                                                     mapsC->G, pa_data, x, y);
-            default: return SmemPAHcurlL2Apply3DTranspose(dofs1D, quad1D, coeffDim, ne,
+            default: return SmemPAHcurlL2Apply3DTranspose(dofs1D, quad1D, ndata, ne,
                                                              mapsO->B, mapsC->B,
                                                              mapsC->G, pa_data, x, y);
          }
       }
       else
-         PAHcurlL2Apply3DTranspose(dofs1D, quad1D, coeffDim, ne, mapsO->B, mapsC->B,
-                                   mapsO->Bt, mapsC->Bt, mapsC->Gt, pa_data, x, y);
+         PAHcurlL2Apply3DTranspose(dofs1D, quad1D, ndata, ne, mapsO->B,
+                                   mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->Gt, pa_data, x, y);
    }
    else
    {

@@ -546,7 +546,8 @@ Subgraph::optimize(uint p)
    // Initialize subgraph.
    const Float q = g->node[g->perm[p]].pos - g->node[g->perm[p]].hlen;
    min = WeightedSum(GECKO_FLOAT_MAX, 1);
-   for (Subnode::Index k = 0; k < n; k++)
+   // Subnode::Index's "k" is unsigned char, "n" is unsigned int
+   for (Subnode::Index k = 0; (uint) k < n; k++)
    {
       best[k] = perm[k] = k;
       Node::Index i = g->perm[p + k];
@@ -563,7 +564,7 @@ Subgraph::optimize(uint p)
       {
          Node::Index j = g->adj[a];
          Subnode::Index l;
-         for (l = 0; l < n && g->perm[p + l] != j; l++);
+         for (l = 0; (uint) l < n && g->perm[p + l] != j; l++);
          if (l == n)
          {
             external.push_back(a);
@@ -603,7 +604,7 @@ Subgraph::optimize(uint p)
          {
             Subnode* s = cache + (k << n) + m;
             s->pos = q + g->node[i].hlen;
-            for (Subnode::Index l = 0; l < n; l++)
+            for (Subnode::Index l = 0; (uint) l < n; l++)
                if (l != k && !(m & (1u << l)))
                {
                   s->pos += 2 * g->node[g->perm[p + l]].hlen;

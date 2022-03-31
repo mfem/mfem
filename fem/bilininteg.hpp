@@ -1091,7 +1091,7 @@ public:
    }
 
    inline virtual int GetTestVDim(const FiniteElement & test_fe)
-   { return test_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1141,7 +1141,7 @@ public:
    }
 
    inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
-   { return trial_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
@@ -1149,7 +1149,7 @@ public:
    { trial_fe.CalcPhysDShape(Trans, shape); }
 
    inline virtual int GetTestVDim(const FiniteElement & test_fe)
-   { return test_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1183,7 +1183,7 @@ public:
    }
 
    inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
-   { return trial_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
@@ -1191,7 +1191,7 @@ public:
    { trial_fe.CalcPhysDShape(Trans, shape); }
 
    inline virtual int GetTestVDim(const FiniteElement & test_fe)
-   { return test_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1327,7 +1327,7 @@ public:
    { trial_fe.CalcPhysCurlShape(Trans, shape); }
 
    inline virtual int GetTestVDim(const FiniteElement & test_fe)
-   { return test_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1362,7 +1362,7 @@ public:
    }
 
    inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
-   { return trial_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
@@ -1475,7 +1475,7 @@ public:
    }
 
    inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
-   { return trial_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
@@ -1584,7 +1584,7 @@ public:
    }
 
    inline int GetVDim(const FiniteElement & vector_fe)
-   { return vector_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
@@ -1672,7 +1672,7 @@ public:
    }
 
    inline virtual int GetVDim(const FiniteElement & vector_fe)
-   { return vector_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
@@ -1706,7 +1706,7 @@ public:
    }
 
    inline virtual int GetVDim(const FiniteElement & vector_fe)
-   { return vector_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
@@ -1746,7 +1746,7 @@ public:
    }
 
    inline virtual int GetVDim(const FiniteElement & vector_fe)
-   { return vector_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
@@ -1784,7 +1784,7 @@ public:
    }
 
    inline int GetVDim(const FiniteElement & vector_fe)
-   { return vector_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
@@ -1826,7 +1826,7 @@ protected:
    }
 
    inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
-   { return trial_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
@@ -1998,7 +1998,7 @@ protected:
    }
 
    inline virtual int GetTestVDim(const FiniteElement & test_fe)
-   { return test_fe.GetDim(); }
+   { return space_dim; }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,

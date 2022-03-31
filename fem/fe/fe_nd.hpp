@@ -540,6 +540,8 @@ public:
                                   DenseMatrix &I) const
    { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
 
+   using FiniteElement::Project;
+
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;
 };
@@ -578,6 +580,8 @@ public:
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
    { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
+
+   using FiniteElement::Project;
 
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const;

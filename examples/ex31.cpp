@@ -14,9 +14,9 @@
 //               problem corresponding to the second order definite Maxwell
 //               equation curl curl E + sigma E = f with boundary condition
 //               E x n = <given tangential field>. In this example sigma is an
-//               anisotropic 3x3 tensor. Here, we use a given exact
-//               solution E and compute the corresponding r.h.s. f.
-//               We discretize with Nedelec finite elements in 1D, 2D, or 3D.
+//               anisotropic 3x3 tensor. Here, we use a given exact solution E
+//               and compute the corresponding r.h.s. f.  We discretize with
+//               Nedelec finite elements in 1D, 2D, or 3D.
 //
 //               The example demonstrates the use of restricted H(curl) finite
 //               element spaces with the curl-curl and the (vector finite
@@ -130,9 +130,9 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient CurlE(3, CurlE_exact);
    sol.ProjectCoefficient(E);
 
-   // 8. Set up the parallel bilinear form corresponding to the EM diffusion
-   //    operator curl muinv curl + sigma I, by adding the curl-curl and the
-   //    mass domain integrators.
+   // 8. Set up the bilinear form corresponding to the EM diffusion operator
+   //    curl muinv curl + sigma I, by adding the curl-curl and the mass domain
+   //    integrators.
    DenseMatrix sigmaMat(3);
    sigmaMat(0,0) = 2.0; sigmaMat(1,1) = 2.0; sigmaMat(2,2) = 2.0;
    sigmaMat(0,2) = 0.0; sigmaMat(2,0) = 0.0;
