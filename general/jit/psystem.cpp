@@ -154,9 +154,13 @@ int System_MPI_JIT_Session(char *argv[])
 /// Entry point toward System_MPISpawn or System_MPI_JIT_Session
 int System(const char *argv[])
 {
-   return System_Std(argv);
-   //return System_MPISpawn(argv);
-   //return System_MPI_JIT_Session(argv);
+   const bool spawn = getenv("MFEM_JIT_MPI_SPAWN") != nullptr;
+   if (spawn) { return System_MPISpawn(const_cast<char**>(argv)); }
+
+   const bool thread = getenv("MFEM_JIT_MPI_FORK") != nullptr;
+   if (thread) { return System_MPI_JIT_Session(const_cast<char**>(argv)); }
+
+   return  System_Std(argv);
 }
 
 } // namespace jit

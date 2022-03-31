@@ -1556,6 +1556,8 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 #if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
    mfem::out << "Refined " << refinements.Size() << " + " << nforced
              << " elements" << std::endl;
+#else
+   MFEM_CONTRACT_VAR(nforced);
 #endif
 
    ref_stack.DeleteAll();

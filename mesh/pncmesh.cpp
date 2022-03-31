@@ -2805,6 +2805,7 @@ long ParNCMesh::MemoryUsage(bool with_base) const
                              entity_pmat_group[i].MemoryUsage() +
                              entity_index_rank[i].MemoryUsage();
    }
+   MFEM_CONTRACT_VAR(total_groups_owners);
 
    return (with_base ? NCMesh::MemoryUsage() : 0) +
           GroupsMemoryUsage() +
