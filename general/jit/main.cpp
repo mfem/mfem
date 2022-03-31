@@ -78,8 +78,8 @@ namespace jit
 
 static int help(char* argv[])
 {
-   mfem::out << "MFEM mjit: ";
-   mfem::out << argv[0] << " [-ch] [-o output] input" << std::endl;
+   std::cout << "MFEM mjit: ";
+   std::cout << argv[0] << " [-ch] [-o output] input" << std::endl;
    return ~0;
 }
 
@@ -240,12 +240,12 @@ int main(const int argc, char* argv[])
    assert(!in.fail());
    assert(in.is_open());
    if (output_file) {assert(out.is_open());}
-   ostream &mfem_out(mfem::out);
+   ostream &mfem_out(std::cout);
    mfem::jit::context_t pp(in, output_file ? out : mfem_out, file);
    try { mfem::jit::preprocess(pp); }
    catch (mfem::jit::error_t err)
    {
-      mfem::err << std::endl << err.file << ":" << err.line << ":"
+      std::cerr << std::endl << err.file << ":" << err.line << ":"
                 << " mpp error" << (err.msg?": ":"") << (err.msg?err.msg:"")
                 << std::endl;
       remove(output.c_str());

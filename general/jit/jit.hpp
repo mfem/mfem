@@ -32,9 +32,9 @@
 // One character used as the kernel prefix
 #define MFEM_JIT_PREFIX_CHAR 'k'
 
-// MFEM_JIT_PREFIX_CHAR + hash + \0
-#define MFEM_JIT_PREFIX_SIZE 1 + 16 + 1
-#define MFEM_JIT_FILENAME_SIZE MFEM_JIT_PREFIX_SIZE + 3
+// MFEM_JIT_PREFIX_CHAR + hash size + null character
+#define MFEM_JIT_SYMBOL_SIZE 1 + 16 + 1
+#define MFEM_JIT_FILENAME_SIZE MFEM_JIT_SYMBOL_SIZE + 3
 
 // Command line option to launch a compilation
 #define MFEM_JIT_COMMAND_LINE_OPTION "-c"
@@ -79,12 +79,19 @@ template <typename T> inline
 size_t hash_combine(const size_t &s, const T &v) noexcept
 { return s ^ (mfem::jit::hash<T> {}(v) + M_PHI + (s<<6) + (s>>2));}
 
-// Terminal hash arguments function
+/// \brief hash_args Terminal hash arguments function
+/// \param seed
+/// \param that
+/// \return
 template<typename T> inline
 size_t hash_args(const size_t &seed, const T &that) noexcept
 { return hash_combine(seed, that); }
 
-// Hash arguments function
+/// \brief hash_args Hash arguments function
+/// \param seed
+/// \param arg
+/// \param args
+/// \return
 template<typename T, typename... Args> inline
 size_t hash_args(const size_t &seed, const T &arg, Args... args)
 noexcept { return hash_args(hash_combine(seed, arg), args...); }
@@ -92,7 +99,10 @@ noexcept { return hash_args(hash_combine(seed, arg), args...); }
 // Union to hold either a double or a uint64_t
 typedef union { double d; uint64_t u; } union_du_t;
 
-// 32 bits hash to string function, shifted to offset
+/// \brief uint32str 32 bits hash to string function, shifted to offset
+/// \param h
+/// \param str
+/// \param offset
 inline void uint32str(uint64_t h, char *str, const size_t offset = 1)
 {
    h = ((h & 0xFFFFull) << 32) | ((h & 0xFFFF0000ull) >> 16);
@@ -125,9 +135,8 @@ int Compile(const char *input_mem, // kernel source in memory
             const char *mfem_install_dir, // MFEM_INSTALL_DIR
             const bool check_for_ar); // check for existing archive
 
-/// Returns the shared library version of the current run.
-/// Initialized at '0' and can be incremented by setting 'increment' to true.
-/// \brief GetRuntimeVersion
+/// \brief GetRuntimeVersion Returns the library version of the current run.
+///        Initialized at '0', can be incremented by setting increment to true.
 /// \param increment
 /// \return the current runtime version
 int GetRuntimeVersion(bool increment = false);
@@ -167,23 +176,23 @@ inline bool CreateKernelSourceInFile(const char *file,
 }
 
 /// \brief CreateAndCompile
-/// \param hash
-/// \param check_for_ar
-/// \param src
-/// \param mfem_cxx
-/// \param mfem_cxxflags
-/// \param mfem_source_dir
-/// \param mfem_install_dir
+/// \param hash kernel hash
+/// \param check_for_ar check for existing archive
+/// \param src kernel source as a string
+/// \param mfem_cxx MFEM compiler
+/// \param mfem_cxxflags MFEM_CXXFLAGS
+/// \param mfem_source_dir MFEM_SOURCE_DIR
+/// \param mfem_install_dir MFEM_INSTALL_DIR
 /// \param args
 /// \return
 template<typename... Args>
-inline bool CreateAndCompile(const size_t hash,            // kernel hash
-                             const bool check_for_ar,      // check for existing archive
-                             const char *src,              // kernel source as a string
-                             const char *mfem_cxx,         // MFEM compiler
-                             const char *mfem_cxxflags,    // MFEM_CXXFLAGS
-                             const char *mfem_source_dir,  // MFEM_SOURCE_DIR
-                             const char *mfem_install_dir, // MFEM_INSTALL_DIR
+inline bool CreateAndCompile(const size_t hash,
+                             const bool check_for_ar,
+                             const char *src,
+                             const char *mfem_cxx,
+                             const char *mfem_cxxflags,
+                             const char *mfem_source_dir,
+                             const char *mfem_install_dir,
                              Args... args)
 {
    dbg("0x%x",hash);
@@ -191,7 +200,8 @@ inline bool CreateAndCompile(const size_t hash,            // kernel hash
    uint64str(hash, co, ".co");
 
    char *input_mem = nullptr;
-   const bool in_memory_compilation = getenv("MFEM_JIT_MEM") != nullptr;
+   const bool in_memory_compilation =
+      getenv("MFEM_JIT_COMPILE_IN_MEMORY") != nullptr;
 
    if (!in_memory_compilation)
    {
@@ -201,15 +211,17 @@ inline bool CreateAndCompile(const size_t hash,            // kernel hash
    }
    else
    {
-      dbg("MFEM_JIT_MEM => CreateKernelSourceInMemory");
-      if (!CreateKernelSourceInMemory(hash, src, input_mem, args...)) { return false; }
+      dbg("MFEM_JIT_COMPILE_IN_MEMORY => CreateKernelSourceInMemory");
+      if (!CreateKernelSourceInMemory(hash, src, input_mem, args...))
+      {
+         dbg("Error in CreateKernelSourceInMemory!");
+         return false;
+      }
    }
-   return Compile(input_mem,
-                  cc, co,
-                  mfem_cxx,
-                  mfem_cxxflags,
-                  mfem_source_dir, mfem_install_dir,
-                  check_for_ar);
+   const int compiled = Compile(input_mem, cc, co, mfem_cxx, mfem_cxxflags,
+                                mfem_source_dir, mfem_install_dir, check_for_ar);
+   assert(compiled == EXIT_SUCCESS);
+   return compiled;
 }
 
 /// Lookup in the cache for the kernel with the given hash
@@ -256,7 +268,7 @@ inline void *Lookup(const size_t hash, Args... args)
       // If not found, avoid using the archive and update the shared objects
       ::dlclose(handle);
       constexpr bool no_archive_check = false;
-      if (!CreateAndCompile(hash, no_archive_check, args...))
+      if (CreateAndCompile(hash, no_archive_check, args...) != EXIT_SUCCESS)
       {
          dbg("\033[31mCreateAndCompile ERROR");
          return nullptr;
@@ -274,7 +286,7 @@ inline void *Lookup(const size_t hash, Args... args)
 template<typename kernel_t>
 inline kernel_t Symbol(const size_t hash, void *handle)
 {
-   char symbol[MFEM_JIT_PREFIX_SIZE];
+   char symbol[MFEM_JIT_SYMBOL_SIZE];
    uint64str(hash, symbol);
    return (kernel_t) dlsym(handle, symbol);
 }
@@ -286,18 +298,21 @@ template<typename kernel_t> class kernel
    const char *name;
    void *handle;
    kernel_t ker;
-   char symbol[18];
+   char symbol[MFEM_JIT_SYMBOL_SIZE];
    const char *cxx, *src, *flags, *msrc, *mins;
 
 public:
+   /// \brief kernel
+   /// \param name kernel name
+   /// \param cxx compiler
+   /// \param src kernel source filename
+   /// \param flags MFEM_CXXFLAGS
+   /// \param msrc MFEM_SOURCE_DIR
+   /// \param mins MFEM_INSTALL_DIR
+   /// \param args other arguments
    template<typename... Args>
-   kernel(const char *name,  // kernel name
-          const char *cxx,   // compiler
-          const char *src,   // kernel source filename
-          const char *flags, // MFEM_CXXFLAGS
-          const char *msrc,  // MFEM_SOURCE_DIR
-          const char* mins,  // MFEM_INSTALL_DIR
-          Args... args):
+   kernel(const char *name, const char *cxx, const char *src,
+          const char *flags, const char *msrc, const char* mins, Args... args):
       seed(jit::hash<const char*>()(src)),
       hash(hash_args(seed, cxx, flags, msrc, mins, args...)),
       name((uint64str(hash, symbol), name)),
@@ -313,7 +328,7 @@ public:
    template<typename T, typename... Args>
    T operator()(const T type, Args... args) { return ker(type, args...); }
 
-   ~kernel() { dlclose(handle); }
+   ~kernel() { ::dlclose(handle); }
 };
 
 } // namespace jit

@@ -771,7 +771,7 @@ FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'\
- '^general/debug\.hpp'
+ '^general/debug\.hpp' '^general/jit/main\.cpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\

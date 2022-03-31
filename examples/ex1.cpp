@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(new MassIntegrator(one));
-   for (int q = 3; q < 5; q += 2)
+   for (int q = 3; q < 7; q += 2)
    {
       const Geometry::Type geom_type(fespace.GetFE(0)->GetGeomType());
       const IntegrationRule *ir = &IntRules.Get(geom_type, 2*order + q);

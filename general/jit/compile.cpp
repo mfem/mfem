@@ -140,7 +140,7 @@ static int CompileInMemory(const char *argv[],
       else if (rv == 0) { dbg("No error found!"); }
       else
       {
-         dbg("Error data is available now!");
+         //dbg("Error data is available now!");
          while ((nr = ::read(ep[PIPE_READ], buffer, SIZE)) > 0)
          {
             ::write(STDOUT_FILENO, buffer, nr);
@@ -304,7 +304,7 @@ int Compile(const char *input_mem,
       delete input_mem;
 
 #ifdef __APPLE__
-      // Not possible to output directly in memory, saving on disk the object
+      dbg("Not possible to output directly in memory, saving on disk the object");
       assert(output_mem != nullptr && size > 0);
       const mode_t mode = S_IRUSR | S_IWUSR;
       const int oflag = O_CREAT | O_RDWR | O_TRUNC;
@@ -313,6 +313,7 @@ int Compile(const char *input_mem,
       if (written != size) { return perror("!write object"), EXIT_FAILURE; }
       if (::close(co_fd) < 0) { return perror("!close object"), EXIT_FAILURE; }
       free(output_mem); // done with realloc
+      fflush(0);
 #endif // __APPLE__
    }
    else // !in_memory_compilation
@@ -327,10 +328,14 @@ int Compile(const char *input_mem,
       if (!getenv("MFEM_NUNLINK")) { ::unlink(cc); }
    }
 
-   // Update archive
+   dbg("Updating archive");
    const char *argv_ar[] = { system, "ar", "-rv", libar, co, nullptr };
-   if (mfem::jit::System(argv_ar)) { return EXIT_FAILURE; }
-   if (!getenv("MFEM_NUNLINK")) { ::unlink(co); }
+   if (mfem::jit::System(argv_ar))
+   {
+      dbg("EXIT_FAILURE");
+      return EXIT_FAILURE;
+   }
+   if (!getenv("MFEM_NUNLINK")) { dbg("unlinking %s", co); ::unlink(co); }
 
    // Create shared library
    const char *argv_so[] = { system,
@@ -345,7 +350,12 @@ int Compile(const char *input_mem,
                              MFEM_JIT_INSTALL_BACKUP, libso, libso_n,
                              nullptr
                            };
-   if (mfem::jit::System(install)) { return EXIT_FAILURE; }
+   if (mfem::jit::System(install))
+   {
+      dbg("EXIT_FAILURE");
+      return EXIT_FAILURE;
+   }
+   dbg("Compilation SUCCESS!");
    return EXIT_SUCCESS;
 }
 
