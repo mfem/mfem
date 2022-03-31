@@ -381,7 +381,7 @@ MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 MFEM_CONFIG_EXTRA ?= $(if $(CONFIG_FILE_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 
 MFEM_JIT_CXX = $(MFEM_CXX)
-MFEM_JIT_BUILD_FLAGS = $(strip $(MFEM_BUILD_FLAGS))
+MFEM_JIT_BUILD_FLAGS = $(strip $(CPPFLAGS) $(CXXFLAGS))
 
 MFEM_SOURCE_DIR  = $(MFEM_REAL_DIR)
 MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
@@ -444,8 +444,8 @@ OKL_DIRS = fem
 %:	%.cpp
 
 # Default rule.
-lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
-     $(if $(jit),$(BLD)$(MFEM_JIT))
+lib: $(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(if $(static),$(BLD)libmfem.a) \
+$(if $(jit),$(BLD)$(MFEM_JIT))
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -462,20 +462,18 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
                    $(SRC)fem/bilininteg_mass_pa.cpp
 
 # Definitions to compile the preprocessor and grab the MFEM compiler
-JIT_LIB = $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+#JIT_LIB = $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 ifeq ($(shell uname -s),Linux)
-JIT_LIB += -lrt
+JIT_LIB = -lrt
 endif
-$(BLD)$(MFEM_JIT): $(SRC)general/jit/main.cpp \
-                   $(SRC)general/jit/jit.hpp \
+$(BLD)$(MFEM_JIT): $(SRC)general/jit/jit.hpp \
                    $(SRC)general/jit/compile.hpp \
 						 $(SRC)general/jit/parser.hpp $(THIS_MK)
-	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -o $(@) $(<) $(JIT_LIB)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(BLD)general/jit/*.o $(JIT_LIB) 
 
 # Filtering out the objects that will be compiled through the preprocessor
 JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
-STD_OBJECTS_FILES = $(filter-out $(BLD)./general/jit/main.o),$(OBJECT_FILES))
-STD_OBJECTS_FILES = $(filter-out $(JIT_OBJECTS_FILES),$(OBJECT_FILES))
+STD_OBJECTS_FILES = $(filter-out $(JIT_OBJECTS_FILES), $(OBJECT_FILES))
 
 $(STD_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
@@ -729,8 +727,6 @@ status info:
 	$(info MFEM_USE_CALIPER       = $(MFEM_USE_CALIPER))
 	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
 	$(info MFEM_USE_JIT           = $(MFEM_USE_JIT))
-	$(info MFEM_JIT_CXX           = $(MFEM_CXX))
-	$(info MFEM_JIT_BUILD_FLAGS   = $(MFEM_BUILD_FLAGS))
 	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))
@@ -775,7 +771,7 @@ FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'\
- '^general/$(MFEM_JIT)\.[ch]pp' '^general/debug\.hpp'
+ '^general/debug\.hpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\

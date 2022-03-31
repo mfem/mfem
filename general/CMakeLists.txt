@@ -19,6 +19,12 @@ list(APPEND SRCS
   globals.cpp
   hash.cpp
   isockstream.cpp
+  jit/compile.cpp
+  jit/main.cpp
+  jit/parser.cpp
+  jit/psystem.cpp
+  jit/system.cpp
+  jit/tools.cpp
   mem_manager.cpp
   occa.cpp
   optparser.cpp
@@ -46,6 +52,10 @@ list(APPEND HDRS
   zstr.hpp
   hash.hpp
   isockstream.hpp
+  jit/compile.hpp
+  jit/jit.hpp
+  jit/parser.hpp
+  jit/tools.hpp
   mem_alloc.hpp
   mem_manager.hpp
   occa.hpp

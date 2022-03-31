@@ -16,13 +16,12 @@
 #include <string>
 using std::string;
 
-#include "general/jit/jit.hpp"
-#include "general/jit/tools.hpp"
-#include "general/jit/system.hpp"
+#include "jit.hpp"
+#include "tools.hpp"
 
 #undef MFEM_DEBUG_COLOR
 #define MFEM_DEBUG_COLOR 226
-#include "debug.hpp"
+#include "../debug.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
