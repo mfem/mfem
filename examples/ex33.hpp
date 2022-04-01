@@ -316,9 +316,12 @@ void ComputePartialFractionApproximation(double alpha,
 #ifndef MFEM_USE_LAPACK
    mfem::out
          << "MFEM is compiled without LAPACK. Using precomputed values for PartialFractionApproximation"
+         << "Only alpha = 0.33, 0.5, and 0.99 are available. The default is alpha = 0.5."
          << std::endl;
 
-   if (alpha == 0.33)
+   const double eps = std::numeric_limits<double>::epsilon();
+
+   if (abs(alpha - 0.33) < eps)
    {
       coeffs = Array<double> ({2002.55,  99.7691,  29.0575,  12.9842,
                                6.90263,  3.96688,  2.36013,  1.42565,
@@ -327,7 +330,7 @@ void ComputePartialFractionApproximation(double alpha,
                               -168.228, -75.3162, -33.6235, -14.5403,
                               -5.84563, -1.9975, -0.434608,  0.});
    }
-   else if (alpha == 0.99)
+   else if (abs(alpha - 0.99) < eps)
    {
       coeffs = Array<double>({0.0292386, 0.0143338, 0.0109015, 0.00976958,
                               0.00943417, 0.00948077, 0.00985799, 0.010889,
@@ -338,7 +341,7 @@ void ComputePartialFractionApproximation(double alpha,
    }
    else
    {
-      if (alpha != 0.5)
+      if (abs(alpha - 0.5) > eps)
       {
          mfem::out << "Using default value of alpha = 0.5" << std::endl;
       }
