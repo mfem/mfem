@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,10 +10,10 @@
 // CONTRIBUTING.md for details.
 //
 // Sample runs:
-//   mpirun -np 4 smoother -p 0
-//   mpirun -np 4 smoother -p 1
-//   mpirun -np 4 smoother -p 2 -rs 3 -ds 2
-//
+//   mpirun -np 4 limit_fit
+//   mpirun -np 4 limit_fit -m square01-tri.mesh
+//   mpirun -np 4 limit_fit -m ./cube.mesh
+//   mpirun -np 4 limit_fit -m ./cube01_tet.mesh -rs 1
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -36,7 +36,7 @@ int main (int argc, char *argv[])
    const char *mesh_file = "square01.mesh";
    int rs_levels     = 2;
    int mesh_poly_deg = 2;
-   int quad_order    = 8;
+   int quad_order    = 5;
    bool fin_diff     = false;
 
    // 2. Parse command-line options.
@@ -77,17 +77,17 @@ int main (int argc, char *argv[])
    else { fec_mesh = new H1_FECollection(mesh_poly_deg, dim); }
    ParFiniteElementSpace pfes_mesh(&pmesh, fec_mesh, dim);
    pmesh.SetNodalFESpace(&pfes_mesh);
-   ParGridFunction x(&pfes_mesh);
-   pmesh.SetNodalGridFunction(&x);
-   ParGridFunction x0(x);
+   ParGridFunction coord(&pfes_mesh);
+   pmesh.SetNodalGridFunction(&coord);
+   ParGridFunction x0(coord);
 
    // Pick which nodes to fit and select the target positions.
    Array<bool> fit_marker(pfes_mesh.GetNDofs());
    ParGridFunction fit_marker_vis_gf(&pfes_mesh);
-   ParGridFunction x_target(&pfes_mesh);
+   ParGridFunction coord_target(&pfes_mesh);
    Array<int> vdofs;
    fit_marker = false;
-   x_target = x;
+   coord_target = coord;
    fit_marker_vis_gf = 0.0;
    for (int e = 0; e < pmesh.GetNBE(); e++)
    {
@@ -96,46 +96,50 @@ int main (int argc, char *argv[])
       pfes_mesh.GetBdrElementVDofs(e, vdofs);
       for (int j = 0; j < nd; j++)
       {
-         int idx = vdofs[j], idy = vdofs[nd+j];
-         fit_marker[idx] = true;
-         fit_marker_vis_gf(idx) = 1.0;
-         x_target(idx) = x(idx);
-         if (attr == 2) // horizontal.
+         int j_x = vdofs[j], j_y = vdofs[nd+j];
+         const double x = coord(j_x), y = coord(j_y),
+                      z = (dim == 2) ? 0.0 : coord(vdofs[2*nd + j]);
+         fit_marker[j_x] = true;
+         fit_marker_vis_gf(j_x) = 1.0;
+         if (attr == 2)
          {
-            if (x(idy) < 0.5)
+            if (coord(j_y) < 0.5)
             {
-               x_target(idy) = 0.1*std::sin(4 * M_PI * x(idx));
+               coord_target(j_y) = 0.1 * std::sin(4 * M_PI * x) *
+                                         std::cos(M_PI * z);
             }
             else
             {
-               if (x(idx) < 0.5)
+               if (coord(j_x) < 0.5)
                {
-                  x_target(idy) = 1.0 + 0.2*std::sin(2 * M_PI * x(idx));
+                  coord_target(j_y) = 1.0 + 0.1 * std::sin(2 * M_PI * x);
                }
                else
                {
-                  x_target(idy) = 1.0 + 0.2*std::sin(2 * M_PI * (x(idx)+0.5));
+                  coord_target(j_y) = 1.0 + 0.1 * std::sin(2 * M_PI * (x + 0.5));
                }
 
             }
          }
-         else { x_target(idy) = x(idy); }
+         else { coord_target(j_y) = y; }
       }
    }
    // Show the target positions.
    socketstream vis1;
-   x = x_target;
+   coord = coord_target;
    common::VisualizeField(vis1, "localhost", 19916, fit_marker_vis_gf,
                           "Marked dofs", 0, 0, 300, 300);
-   x = x0;
+   coord = x0;
 
-   TMOP_Metric_002 metric;
+   TMOP_QualityMetric *metric;
+   if (dim == 2) { metric = new TMOP_Metric_002; }
+   else          { metric = new TMOP_Metric_302; }
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
    ConstantCoefficient one(1.0);
-   auto integ = new TMOP_Integrator(&metric, &target, nullptr);
-   integ->EnableSurfaceFitting(x_target, fit_marker, one);
-   if (fin_diff) { integ->EnableFiniteDifferences(x); }
+   auto integ = new TMOP_Integrator(metric, &target, nullptr);
+   integ->EnableSurfaceFitting(coord_target, fit_marker, one);
+   if (fin_diff) { integ->EnableFiniteDifferences(coord); }
 
    ParNonlinearForm a(&pfes_mesh);
    a.AddDomainIntegrator(integ);
@@ -155,32 +159,24 @@ int main (int argc, char *argv[])
    solver.SetRelTol(1e-10);
    solver.SetAbsTol(0.0);
    solver.EnableAdaptiveSurfaceFitting();
-   solver.SetTerminationWithMaxSurfaceFittingError(1e-8);
+   solver.SetTerminationWithMaxSurfaceFittingError(1e-5);
 
    Vector b(0);
-   x.SetTrueVector();
-   solver.Mult(b, x.GetTrueVector());
-   x.SetFromTrueVector();
+   coord.SetTrueVector();
+   solver.Mult(b, coord.GetTrueVector());
+   coord.SetFromTrueVector();
 
    char title[] = "Final metric values";
-   vis_tmop_metric_p(mesh_poly_deg, metric, target, pmesh, title, 600);
-
-//   socketstream sock_j, sock_jj;
-//   common::VisualizeField(sock_j, vishost, visport, du_jumps,
-//                          "smoo indicator grad",
-//                          wsize, 0, wsize, wsize, "Rjmc***");
-//   common::VisualizeField(sock_jj, vishost, visport, ddu_jumps,
-//                          "smoo indicator hess",
-//                          2*wsize, 0, wsize, wsize, "Rjmc***");
+   vis_tmop_metric_p(mesh_poly_deg, *metric, target, pmesh, title, 600);
 
    Vector zvec(dim); zvec = 0.0;
    VectorConstantCoefficient zero(zvec);
-   double norm = x.ComputeL1Error(zero);
+   double norm = coord.ComputeL1Error(zero);
    if (myid == 0)
    {
       std::cout << setprecision(12) << "L1 norm = " << norm << std::endl;
    }
 
-   MPI_Finalize();
+   delete metric;
    return 0;
 }
