@@ -308,8 +308,8 @@ void ComputePartialFractionApproximation(double alpha,
          << "MFEM is compiled without LAPACK. Using precomputed PartialFractionApproximation"
          << std::endl;
 
-   MFEM_ASSERT(alpha < 1, "alpha must be less than 1");
-   MFEM_ASSERT(alpha > 0, "alpha must be greater than 0");
+   MFEM_ASSERT(alpha < 1., "alpha must be less than 1");
+   MFEM_ASSERT(alpha > 0., "alpha must be greater than 0");
 
    if (alpha == 0.33)
    {
