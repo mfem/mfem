@@ -22,6 +22,8 @@
 #include "coefficient.hpp"
 // PA or MF Operator using libCEED.
 #include "integrator.hpp"
+// PA Operator supporting mixed finite element spaces.
+#include "mixed_integrator.hpp"
 // Utility functions
 #include "util.hpp"
 // Wrapper to include <ceed.h>
