@@ -254,7 +254,6 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
  *
  *  OUTPUT: @a coeffs = coefficients c_i
  *
- * See pg. A1501 of Nakatsukasa et al. [1].
  */
 void PartialFractionExpansion(double scale, Array<double> & poles,
                               Array<double> & zeros, Array<double> & coeffs)
