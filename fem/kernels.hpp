@@ -262,7 +262,7 @@ MFEM_HOST_DEVICE inline void Yt(const int D1D, const int Q1D,
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
          double u = 0.0;
-         for (int qx = 0; qx < Q1D; ++qx) { u += QQ(qy,qx) * B(qx,dx); }
+         for (int qx = 0; qx < Q1D; ++qx) { u += QQ(qy,qx) * B(dx,qx); }
          QD(qy,dx) = u;
       }
    }
@@ -282,7 +282,7 @@ MFEM_HOST_DEVICE inline void Xt(const int D1D, const int Q1D,
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
          double u = 0.0;
-         for (int qy = 0; qy < Q1D; ++qy) { u += Q(qy,dx) * B(qy,dy); }
+         for (int qy = 0; qy < Q1D; ++qy) { u += Q(qy,dx) * B(dy,qy); }
          Y(dx,dy,c,e) += u;
       }
    }
@@ -477,6 +477,76 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
       }
    }
    MFEM_SYNC_THREAD;
+}
+
+/// 2D Scalar Transposed Gradient, 1/2
+MFEM_HOST_DEVICE inline void Yt(const int D1D, const int Q1D,
+                                const DeviceMatrix &Bt,
+                                const DeviceMatrix &Gt,
+                                const DeviceMatrix &QQ0,
+                                const DeviceMatrix &QQ1,
+                                const DeviceMatrix &DQ0,
+                                const DeviceMatrix &DQ1)
+{
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double u = 0.0, v = 0.0;
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            u += Gt(qx,dx) * QQ0(qy,qx);
+            v += Bt(qx,dx) * QQ1(qy,qx);
+         }
+         DQ0(dx,qy) = u;
+         DQ1(dx,qy) = v;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D scalar Transposed Gradient, 2/2
+MFEM_HOST_DEVICE inline void Xt(const int D1D, const int Q1D,
+                                const DeviceMatrix &Bt,
+                                const DeviceMatrix &Gt,
+                                const DeviceMatrix &DQ0,
+                                const DeviceMatrix &DQ1,
+                                const DeviceTensor<4> &Y,
+                                const int c,
+                                const int e)
+{
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double u = 0.0, v = 0.0;
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            u += DQ0(dx,qy) * Bt(qy,dy);
+            v += DQ1(dx,qy) * Gt(qy,dy);
+         }
+         const double sum = u + v;
+         Y(dx,dy,c,e) += sum;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D scalar Transposed Gradient: 1/2 & 2/2
+MFEM_HOST_DEVICE inline
+void MultTranspose2D(const int D1D, const int Q1D,
+                     const DeviceMatrix &Bt,
+                     const DeviceMatrix &Gt,
+                     const DeviceMatrix &QQ0,
+                     const DeviceMatrix &QQ1,
+                     const DeviceMatrix &DQ0,
+                     const DeviceMatrix &DQ1,
+                     const DeviceTensor<4> &Y,
+                     const int c,
+                     const int e)
+{
+   Yt(D1D,Q1D,Bt,Gt,QQ0,QQ1,DQ0,DQ1);
+   Xt(D1D,Q1D,Bt,Gt,DQ0,DQ1,Y,c,e);
 }
 
 /// 2D Gradient, 1/2
@@ -864,6 +934,94 @@ MFEM_HOST_DEVICE inline void PullEval(const int Q1D,
    PullEval(x,y,z,QQQ,X);
 }
 
+/// 3D scalar Transposed Evaluation, 1/3
+MFEM_HOST_DEVICE inline void Zt(const int D1D, const int Q1D,
+                                double *u,
+                                const DeviceMatrix &B,
+                                const DeviceCube &Q)
+{
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         for (int dz = 0; dz < D1D; ++dz) { u[dz] = 0.0; }
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            const double ZYX = Q(qz,qy,qx);
+            for (int dz = 0; dz < D1D; ++dz) { u[dz] += ZYX * B(dz,qz); }
+         }
+         for (int dz = 0; dz < D1D; ++dz) { Q(dz,qy,qx) = u[dz]; }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D Transposed Evaluation, 2/3
+MFEM_HOST_DEVICE inline void Yt(const int D1D, const int Q1D,
+                                double *u,
+                                const DeviceMatrix &B,
+                                const DeviceCube &Q)
+{
+   MFEM_FOREACH_THREAD(dz,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         for (int dy = 0; dy < D1D; ++dy) { u[dy] = 0.0; }
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            const double zYX = Q(dz,qy,qx);
+            for (int dy = 0; dy < D1D; ++dy) { u[dy] += zYX * B(dy,qy); }
+         }
+         for (int dy = 0; dy < D1D; ++dy) { Q(dz,dy,qx) = u[dy]; }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D Transposed Evaluation, 3/3
+MFEM_HOST_DEVICE inline void Xt(const int D1D, const int Q1D,
+                                double *u,
+                                const DeviceMatrix &B,
+                                const DeviceCube &Q,
+                                const DeviceTensor<5> &Y,
+                                const int c,
+                                const int e)
+{
+   MFEM_FOREACH_THREAD(dz,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,x,D1D)
+      {
+         for (int dx = 0; dx < D1D; ++dx) { u[dx] = 0.0; }
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const double zyX = Q(dz,dy,qx);
+            for (int dx = 0; dx < D1D; ++dx) { u[dx] += zyX * B(dx,qx); }
+         }
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            const double val = u[dx];
+            Y(dx,dy,dz,c,e) += val;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+MFEM_HOST_DEVICE inline
+void Transpose3D(const int D1D,
+                 const int Q1D,
+                 double *u,
+                 const DeviceMatrix &B,
+                 const DeviceCube &Q,
+                 const DeviceTensor<5> &Y,
+                 const int c,
+                 const int e)
+{
+   Zt(D1D,Q1D,u,B,Q);
+   Yt(D1D,Q1D,u,B,Q);
+   Xt(D1D,Q1D,u,B,Q,Y,c,e);
+}
+
 /// Load 3D input vector into shared memory
 template<int MD1>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
@@ -1145,6 +1303,125 @@ MFEM_HOST_DEVICE inline void EvalZt(const int D1D, const int Q1D,
          }
       }
    }
+}
+
+/// 3D scalar Transposed Gradient, 1/3
+MFEM_HOST_DEVICE inline void Zt(const int D1D, const int Q1D,
+                                const DeviceMatrix &Bt,
+                                const DeviceMatrix &Gt,
+                                const DeviceCube &QQQ0,
+                                const DeviceCube &QQQ1,
+                                const DeviceCube &QQQ2,
+                                const DeviceCube &QQD0,
+                                const DeviceCube &QQD1,
+                                const DeviceCube &QQD2)
+{
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u = 0.0, v = 0.0, w = 0.0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               u += QQQ0(qz,qy,qx) * Gt(qx,dx);
+               v += QQQ1(qz,qy,qx) * Bt(qx,dx);
+               w += QQQ2(qz,qy,qx) * Bt(qx,dx);
+            }
+            QQD0(qz,qy,dx) = u;
+            QQD1(qz,qy,dx) = v;
+            QQD2(qz,qy,dx) = w;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D scalar Transposed Gradient, 2/3
+MFEM_HOST_DEVICE inline void Yt(const int D1D, const int Q1D,
+                                const DeviceMatrix &Bt,
+                                const DeviceMatrix &Gt,
+                                const DeviceCube &QQD0,
+                                const DeviceCube &QQD1,
+                                const DeviceCube &QQD2,
+                                const DeviceCube &QDD0,
+                                const DeviceCube &QDD1,
+                                const DeviceCube &QDD2)
+{
+   MFEM_FOREACH_THREAD(qz,z,Q1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u = 0.0, v = 0.0, w = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               u += QQD0(qz,qy,dx) * Bt(qy,dy);
+               v += QQD1(qz,qy,dx) * Gt(qy,dy);
+               w += QQD2(qz,qy,dx) * Bt(qy,dy);
+            }
+            QDD0(qz,dy,dx) = u;
+            QDD1(qz,dy,dx) = v;
+            QDD2(qz,dy,dx) = w;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D scalar Transposed Gradient, 3/3
+MFEM_HOST_DEVICE inline void Xt(const int D1D, const int Q1D,
+                                const DeviceMatrix &Bt,
+                                const DeviceMatrix &Gt,
+                                const DeviceCube &QDD0,
+                                const DeviceCube &QDD1,
+                                const DeviceCube &QDD2,
+                                const DeviceTensor<5> &Y,
+                                const int c,
+                                const int e)
+{
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double u = 0.0, v = 0.0, w = 0.0;
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               u += QDD0(qz,dy,dx) * Bt(qz,dz);
+               v += QDD1(qz,dy,dx) * Bt(qz,dz);
+               w += QDD2(qz,dy,dx) * Gt(qz,dz);
+            }
+            const double sum = u + v + w;
+            Y(dx,dy,dz,c,e) += sum;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+MFEM_HOST_DEVICE inline void MultTranspose3D(const int D1D, const int Q1D,
+                                             const DeviceMatrix &Bt,
+                                             const DeviceMatrix &Gt,
+                                             const DeviceCube &QQ0,
+                                             const DeviceCube &QQ1,
+                                             const DeviceCube &QQ2,
+                                             const DeviceCube &QD0,
+                                             const DeviceCube &QD1,
+                                             const DeviceCube &QD2,
+                                             const DeviceCube &DD0,
+                                             const DeviceCube &DD1,
+                                             const DeviceCube &DD2,
+                                             const DeviceTensor<5> &Y,
+                                             const int c,
+                                             const int e)
+{
+   Zt(D1D,Q1D,Bt,Gt,QQ0,QQ1,QQ2,QD0,QD1,QD2);
+   Yt(D1D,Q1D,Bt,Gt,QD0,QD1,QD2,DD0,DD1,DD2);
+   Xt(D1D,Q1D,Bt,Gt,DD0,DD1,DD2,Y,c,e);
 }
 
 /// 3D Gradient, 1/3

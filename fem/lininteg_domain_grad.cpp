@@ -14,7 +14,6 @@
 #include "../fem/kernels.hpp"
 #include "../linalg/kernels.hpp"
 #include "../general/forall.hpp"
-#include "../fem/kernels_addon.hpp"
 
 namespace mfem
 {
@@ -59,14 +58,13 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
       constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int D = T_D1D ? T_D1D : MAX_D1D;
 
-      MFEM_SHARED double sBt[Q*D];
-      MFEM_SHARED double sGt[Q*D];
+      MFEM_SHARED double sBGt[2][Q*D];
       MFEM_SHARED double sQQ[2][Q*Q];
       MFEM_SHARED double sDQ[2][D*Q];
 
-      const DeviceMatrix Bt(sBt, d,q);
-      const DeviceMatrix Gt(sGt, d,q);
-      kernels::internal::load::BGt(d,q,B,G,Bt,Gt);
+      const DeviceMatrix Bt(sBGt[0], q,d);
+      const DeviceMatrix Gt(sBGt[1], q,d);
+      kernels::internal::LoadBGt<D,Q>(d,q,B,G,sBGt);
 
       const DeviceMatrix QQ0(sQQ[0], q,q);
       const DeviceMatrix QQ1(sQQ[1], q,q);
@@ -100,8 +98,7 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::grad::MultTranspose2D(d,q,Bt,Gt,
-                                                  QQ0,QQ1,DQ0,DQ1,Y,c,e);
+         kernels::internal::MultTranspose2D(d,q,Bt,Gt,QQ0,QQ1,DQ0,DQ1,Y,c,e);
       }
    });
 }
@@ -144,14 +141,13 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
       constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int D = T_D1D ? T_D1D : MAX_D1D;
 
-      MFEM_SHARED double sBt[Q*D];
-      MFEM_SHARED double sGt[Q*D];
+      MFEM_SHARED double sBGt[2][Q*D];
       MFEM_SHARED double sQQ[3][Q*Q*Q];
       MFEM_SHARED double sQD[3][Q*Q*D];
 
-      const DeviceMatrix Bt(sBt, d,q);
-      const DeviceMatrix Gt(sGt, d,q);
-      kernels::internal::load::BGt(d,q,B,G,Bt,Gt);
+      const DeviceMatrix Bt(sBGt[0], q,d);
+      const DeviceMatrix Gt(sBGt[1], q,d);
+      kernels::internal::LoadBGt<D,Q>(d,q,B,G,sBGt);
 
       const DeviceCube QQ0(sQQ[0], q,q,q);
       const DeviceCube QQ1(sQQ[1], q,q,q);
@@ -203,11 +199,11 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::grad::MultTranspose3D(d,q,Bt,Gt,
-                                                  QQ0,QQ1,QQ2,
-                                                  QD0,QD1,QD2,
-                                                  DD0,DD1,DD2,
-                                                  Y,c,e);
+         kernels::internal::MultTranspose3D(d,q,Bt,Gt,
+                                            QQ0,QQ1,QQ2,
+                                            QD0,QD1,QD2,
+                                            DD0,DD1,DD2,
+                                            Y,c,e);
       }
    });
 }
