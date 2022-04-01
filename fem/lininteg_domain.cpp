@@ -72,7 +72,8 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Transpose2D(d,q,Bt,QQ,QD,Y,c,e);
+         kernels::internal::EvalYt(d,q,Bt,QQ,QD);
+         kernels::internal::EvalXt(d,q,Bt,QD,Y,c,e);
       }
    });
 }
@@ -135,7 +136,9 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::Transpose3D(d,q,u,Bt,QQQ,Y,c,e);
+         kernels::internal::EvalZt(d,q,u,Bt,QQQ);
+         kernels::internal::EvalYt(d,q,u,Bt,QQQ);
+         kernels::internal::EvalXt(d,q,u,Bt,QQQ,Y,c,e);
       }
    });
 }

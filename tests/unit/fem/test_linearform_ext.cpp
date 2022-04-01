@@ -61,8 +61,11 @@ void LinearFormExtTest::Run()
 
 TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
 {
+   const bool all = launch_all_non_regression_tests;
+
    const auto N = GENERATE(3,4);
-   const auto p = GENERATE(1,3,6); // limitations: 2D:11, 3D:6
+   // limitations: 2D:11, 3D:6
+   const auto p = all ? GENERATE(1,2,3,4,5,6) : GENERATE(1,3,6);
    const auto dim = GENERATE(2,3);
    const auto gll = GENERATE(false,true); // q=p+2, q=p+1
 
@@ -77,7 +80,7 @@ TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
 
    SECTION("Vector")
    {
-      const auto vdim = GENERATE(1,5);
+      const auto vdim = all ? GENERATE(1,5,24) : GENERATE(1,5);
       const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
       const auto problem = GENERATE(LinearFormExtTest::VectorDomainLF,
                                     LinearFormExtTest::VectorDomainLFGrad);
