@@ -36,6 +36,8 @@ static CeedElemTopology GetCeedTopology(Geometry::Type geom)
          return CEED_TOPOLOGY_HEX;
       case Geometry::PRISM:
          return CEED_TOPOLOGY_PRISM;
+      case Geometry::PYRAMID:
+         return CEED_TOPOLOGY_PYRAMID;
       default:
          MFEM_ABORT("This type of element is not supported");
          return CEED_TOPOLOGY_PRISM; // Silence warning
