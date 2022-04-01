@@ -42,13 +42,6 @@ void InitRestriction(const FiniteElementSpace &fes,
 void InitTensorRestriction(const FiniteElementSpace &fes,
                            Ceed ceed, CeedElemRestriction *restr);
 
-void InitRestrictionWithIndices(const FiniteElementSpace &fes,
-                                int nelem,
-                                const int* indices,
-                                Ceed ceed,
-                                CeedElemRestriction *restr);
-
-
 #endif
 
 } // namespace ceed

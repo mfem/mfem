@@ -127,39 +127,6 @@ void InitBasis(const FiniteElementSpace &fes,
    }
 }
 
-void InitBasisWithIndices(const FiniteElementSpace &fes,
-                          const IntegrationRule &irm,
-                          int nelem,
-                          const int* indices,
-                          Ceed ceed, CeedBasis *basis)
-{
-   // Check for FES -> basis, restriction in hash tables
-   const mfem::FiniteElement *fe = fes.GetFE(indices[0]);
-   const int P = fe->GetDof();
-   const int Q = irm.GetNPoints();
-   const int ncomp = fes.GetVDim();
-   BasisKey basis_key(&fes, &irm, ncomp, P, Q);
-   auto basis_itr = mfem::internal::ceed_basis_map.find(basis_key);
-
-   // Init or retreive key values
-   if (basis_itr == mfem::internal::ceed_basis_map.end())
-   {
-      if (UsesTensorBasis(fes))
-      {
-         InitTensorBasis(fes, irm, ceed, basis);
-      }
-      else
-      {
-         InitNonTensorBasis(fes, irm, ceed, basis);
-      }
-      mfem::internal::ceed_basis_map[basis_key] = *basis;
-   }
-   else
-   {
-      *basis = basis_itr->second;
-   }
-}
-
 #endif
 
 } // namespace ceed

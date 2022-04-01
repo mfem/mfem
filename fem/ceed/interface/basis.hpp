@@ -26,12 +26,6 @@ void InitBasis(const FiniteElementSpace &fes,
                const IntegrationRule &irm,
                Ceed ceed, CeedBasis *basis);
 
-void InitBasisWithIndices(const FiniteElementSpace &fes,
-                          const IntegrationRule &irm,
-                          int nelem,
-                          const int* indices,
-                          Ceed ceed, CeedBasis *basis);
-
 #endif
 
 } // namespace ceed
