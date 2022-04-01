@@ -282,34 +282,41 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
 
 
 /**
- * ComputePartialFractionApproximation : computes a rational approximation (RA) of the function
- * f(z) = z^{-a}, 0 < a < 1, in partial fraction form f(z) ≈ Σ_i c_i / (z - p_i).
+ * ComputePartialFractionApproximation : computes a rational approximation (RA) in partial fraction
+ * form, e.g., f(z) ≈ Σ_i c_i / (z - p_i), from sampled values of the function f(z) = z^{-a}, 0 < a < 1.
  *
- *  INPUT:  @a alpha     = exponent in f(z) = z^-a
- *          @a lmin, @a lmax, @a npoints
- *                       = f(z) is uniformly sampled @a npoints times on
- *                         the interval [ @a lmin, @a lmax]
+ *  INPUT:  @a alpha     = exponent a in f(z) = z^-a
+ *          @a lmax, @a npoints
+ *                       = f(z) is uniformly sampled @a npoints times in the interval [ 0, @a lmax ]
  *          @a tol       = relative tolerance
  *          @a max_order = maximum number of terms (order) of the RA
  *
  *  OUTPUT: @a coeffs = coefficients c_i
  *          @a poles  = poles p_i
  *
+ *
+ *  NOTES:  When LAPACK is not compiled, only @a alpha = 0.33, 0.5, and 0.99 are possible.
+ *          In this case, if @a alpha != 0.33 and @a alpha != 0.99, then @a alpha = 0.5 is used
+ *          by default.
+ *
  * See pg. A1501 of Nakatsukasa et al. [1].
  */
 void ComputePartialFractionApproximation(double alpha,
                                          Array<double> & coeffs, Array<double> & poles,
-                                         double lmin = 1., double lmax = 1000.,
-                                         double tol=1e-10,  int npoints = 1000,
+                                         double lmax = 1000.,
+                                         double tol=1e-10, int npoints = 1000,
                                          int max_order = 100)
 {
+   MFEM_VERIFY(alpha < 1., "alpha must be less than 1");
+   MFEM_VERIFY(alpha > 0., "alpha must be greater than 0");
+   MFEM_VERIFY(npoints > 2, "npoints must be greater than 2");
+   MFEM_VERIFY(lmax > 0,  "lmin must be greater than 0");
+   MFEM_VERIFY(tol > 0,  "tol must be greater than 0");
+
 #ifndef MFEM_USE_LAPACK
    mfem::out
-         << "MFEM is compiled without LAPACK. Using precomputed PartialFractionApproximation"
+         << "MFEM is compiled without LAPACK. Using precomputed values for PartialFractionApproximation"
          << std::endl;
-
-   MFEM_ASSERT(alpha < 1., "alpha must be less than 1");
-   MFEM_ASSERT(alpha > 0., "alpha must be greater than 0");
 
    if (alpha == 0.33)
    {
@@ -347,9 +354,10 @@ void ComputePartialFractionApproximation(double alpha,
 
    Vector x(npoints);
    Vector val(npoints);
+   double dx = lmax / (double)(npoints-1);
    for (int i = 0; i<npoints; i++)
    {
-      x(i) = (double)i+1.0;
+      x(i) = dx * (double)i;
       val(i) = pow(x(i),1.-alpha);
    }
 
@@ -367,9 +375,8 @@ void ComputePartialFractionApproximation(double alpha,
    Array<double> zeros;
    ComputePolesAndZeros(vecz, vecf, w, poles, zeros, scale);
 
-   // Introduce one extra pole at x=0, thus, delivering a
-   // RA for f(x) = x^{-a}
-   poles.Append(0.0);
+   // Remove the zero at x=0, thus, delivering a RA for f(x) = x^{-a}
+   zeros.DeleteFirst(0.0);
 
    // Compute partial fraction approximation of f(x) = x^{-a}
    PartialFractionExpansion(scale, poles, zeros, coeffs);
