@@ -38,8 +38,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      // ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
-      ceedOp = new ceed::MixedPAMassIntegrator(*this, fes, Q);
+      ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
       return;
    }
    int map_type = el.GetMapType();
