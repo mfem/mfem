@@ -125,7 +125,6 @@ void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
 }
 
 void InitRestriction(const FiniteElementSpace &fes,
-                     const IntegrationRule &irm,
                      Ceed ceed,
                      CeedElemRestriction *restr)
 {
