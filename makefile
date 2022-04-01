@@ -409,7 +409,11 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh fem fem/fe fem/ceed fem/qinterp fem/tmop
+DIRS = general linalg linalg/simd mesh fem fem/fe \
+fem/ceed/interface fem/ceed/solvers \
+fem/ceed/integrators/mass fem/ceed/integrators/convection \
+fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
+fem/qinterp fem/tmop
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))

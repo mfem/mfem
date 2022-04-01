@@ -12,7 +12,7 @@
 #include "forall.hpp"
 #include "occa.hpp"
 #ifdef MFEM_USE_CEED
-#include "../fem/ceed/util.hpp"
+#include "../fem/ceed/interface/util.hpp"
 #endif
 
 #include <unordered_map>

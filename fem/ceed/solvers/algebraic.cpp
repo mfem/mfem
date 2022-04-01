@@ -11,12 +11,14 @@
 
 #include "algebraic.hpp"
 
-#include "../bilinearform.hpp"
-#include "../fespace.hpp"
-#include "../ceed/solvers-atpmg.hpp"
-#include "../ceed/full-assembly.hpp"
-#include "../pfespace.hpp"
-#include "../../general/forall.hpp"
+#include "../../bilinearform.hpp"
+#include "../../fespace.hpp"
+#include "../../pfespace.hpp"
+#include "../../../general/forall.hpp"
+#include "solvers-atpmg.hpp"
+#include "full-assembly.hpp"
+#include "../interface/restriction.hpp"
+#include "../interface/ceed.hpp"
 
 namespace mfem
 {
