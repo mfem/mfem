@@ -199,6 +199,9 @@ void DomainLFIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
    const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    const int d = maps.ndof;
    const int q = maps.nqpt;
+
+   MFEM_VERIFY(q < 16, "Unsupported quadrature order!");
+   MFEM_VERIFY(d < 16, "Unsupported polynomial order!");
    const int id = (dim << 8) | (d << 4) | q;
 
    void (*ker)(const int vdim,
@@ -316,6 +319,8 @@ void VectorDomainLFIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
    const int d = maps.ndof;
    const int q = maps.nqpt;
 
+   MFEM_VERIFY(q < 16, "Unsupported quadrature order!");
+   MFEM_VERIFY(d < 16, "Unsupported polynomial order!");
    const int id = (dim << 8) | (d << 4) | q;
 
    void (*ker)(const int vdim,

@@ -185,7 +185,6 @@ public:
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble(bool use_device = true);
-   bool AssembleCanUseDevice();
 
    /// Assembles delta functions of the linear form
    void AssembleDelta();

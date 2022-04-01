@@ -100,24 +100,47 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
    interior_face_integs.Append(lfi);
 }
 
-bool LinearForm::AssembleCanUseDevice()
+static bool LinearIntegratorsCanUseDevice(LinearForm *lf)
 {
-   bool can_use_device = true;
    // scan domain integrator to verify all can support device assembly
-   if (domain_integs.Size())
+   const Array<LinearFormIntegrator*> &domain_integs = *lf->GetDLFI();
+   if (domain_integs.Size() > 0)
    {
       for (int k = 0; k < domain_integs.Size(); k++)
       {
-         can_use_device &= domain_integs[k]->UseDevice();
+         if (!domain_integs[k]->UseDevice()) { return false; }
       }
    }
 
-   // no boundary and interior integretors are supported yet
+   // no boundary and face integrators are supported yet
+   const Array<LinearFormIntegrator*> &boundary_integs = *lf->GetBLFI();
+   const Array<LinearFormIntegrator*> &boundary_face_integs = *lf->GetFLFI();
+   const Array<LinearFormIntegrator*> &interior_face_integs = *lf->GetIFLFI();
    if (boundary_integs.Size() > 0 ||
        boundary_face_integs.Size() > 0 ||
-       interior_face_integs.Size()>0) { can_use_device = false; }
+       interior_face_integs.Size()>0) { return false; }
 
-   return can_use_device;
+   const FiniteElementSpace *fes = lf->FESpace();
+   const Mesh &mesh = *fes->GetMesh();
+
+   // test_var_order fails
+   if (!fes->Conforming()) { return false; }
+
+   // test_surf_blf fails
+   if (mesh.Dimension() != mesh.SpaceDimension()) { return false; }
+
+   if (mesh.Dimension() == 1) { return false; }
+
+   for (int e = 0; e < fes->GetNE(); ++e)
+   {
+      const FiniteElement *fe = fes->GetFE(e);
+      if (fe->GetMapType() != FiniteElement::VALUE) { return false; }
+
+      // test_domain_int fails
+      if (!dynamic_cast<const TensorBasisElement*>(fe)) { return false; }
+   }
+
+   return true;
 }
 
 void LinearForm::Assemble(bool use_device)
@@ -128,7 +151,7 @@ void LinearForm::Assemble(bool use_device)
    Vector elemvect;
 
 
-   if (use_device && AssembleCanUseDevice())
+   if (use_device && LinearIntegratorsCanUseDevice(this))
    {
       ext = new LinearFormExtension(this);
    }

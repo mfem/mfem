@@ -17,6 +17,7 @@
 #include "device.hpp"
 #include "error.hpp"
 #include "globals.hpp"
+#include "forall.hpp" // for MFEM_FORALL_SWITCH
 
 #include <iostream>
 #include <cstdlib>
@@ -893,10 +894,11 @@ inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa) const
 template <class T>
 inline void Array<T>::operator=(const T &a)
 {
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = a;
-   }
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = mfem::Write(data, size, use_dev);
+   const T value = a;
+   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = value;);
 }
 
 template <class T>

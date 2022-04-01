@@ -24,11 +24,11 @@ LinearFormExtension::LinearFormExtension(LinearForm *lf):
    constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    elem_restrict = fes.GetElementRestriction(ordering);
 
-   MFEM_VERIFY(dynamic_cast<const ElementRestriction*>(elem_restrict),
-               "Not supported!?");
-
-   Ye.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
-   Ye.UseDevice(true);
+   if (elem_restrict)
+   {
+      Ye.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
+      Ye.UseDevice(true);
+   }
 
    markers.UseDevice(true);
    Update();
@@ -77,26 +77,21 @@ void LinearFormExtension::Assemble()
                      "integrator #" << k << ", counting from zero");
       }
 
-      const int NE = fes.GetNE();
-      auto markers_w = markers.Write();
-
       // if there are no markers, just use the whole linear form (1)
-      if (!has_markers_k)
-      {
-         // done this way as operator= for array is still done on the host
-         MFEM_FORALL(e, NE, markers_w[e] = 1;);
-      }
+      if (!has_markers_k) { markers = 1; }
       else
       {
          // otherwise, scan the attributes to set the markers to 0 or 1
+         const int NE = fes.GetNE();
          const auto attr = attributes.Read();
          const auto dimk = domain_integs_marker_k->Read();
+         auto markers_w = markers.Write();
          MFEM_FORALL(e, NE, markers_w[e] = dimk[attr[e]-1] == 1;);
       }
 
       Ye = 0.0;
       domain_integs[k]->DeviceAssemble(fes, markers, Ye);
-      elem_restrict->MultTranspose(Ye, *lf);
+      if (elem_restrict) { elem_restrict->MultTranspose(Ye, *lf); }
    }
 }
 
