@@ -156,14 +156,13 @@ struct LinearFormExtTest
       lf_full.AddDomainIntegrator(integ_full, elem_marker);
       lf_legacy.AddDomainIntegrator(integ_legacy, elem_marker);
 
-      lf_full.SetAssemblyLevel(AssemblyLevel::FULL);
-      lf_legacy.SetAssemblyLevel(AssemblyLevel::LEGACY);
    }
 
    void AssembleBoth()
    {
       lf_full.Assemble();
-      lf_legacy.Assemble();
+      const bool use_device = false;
+      lf_legacy.Assemble(use_device);
    }
 
    virtual void Run();

@@ -68,7 +68,7 @@ TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
 
    SECTION("Scalar")
    {
-      const auto vdim = 1;
+      constexpr auto vdim = 1;
       const auto ordering = Ordering::byNODES;
       const auto problem = GENERATE(LinearFormExtTest::DomainLF,
                                     LinearFormExtTest::DomainLFGrad);

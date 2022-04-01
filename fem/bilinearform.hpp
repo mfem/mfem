@@ -33,17 +33,12 @@ enum class AssemblyLevel
    /// form, i.e. a global sparse matrix in MFEM, Hypre or PETSC format.
    /// In the case of a NonlinearForm LEGACY corresponds to an operator that
    /// is fully evaluated on the fly.
-   /// In the case of a LinearForm LEGACY corresponds to a legacy assembled
-   /// form, i.e. a global vector in MFEM format.
    /// This assembly level is ALWAYS performed on the host.
    LEGACY = 0,
    /// @deprecated Use LEGACY instead.
    LEGACYFULL = 0,
-   /// In the case of a BilinearForm FULL corresponds to a fully assembled form,
-   /// i.e. a global sparse matrix in MFEM format.
-   /// In the case of a LinearForm FULL corresponds to a fully assembled form,
-   /// i.e. a global vector in MFEM format.
-   /// This assembly is compatible with device execution.
+   /// Fully assembled form, i.e. a global sparse matrix in MFEM format. This
+   /// assembly is compatible with device execution.
    FULL,
    /// Form assembled at element level, which computes and stores dense element
    /// matrices.

@@ -54,11 +54,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
       MFEM_SHARED double DQ[2][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ[2][NBZ][MQ1*MQ1];
 
-      kernels::internal::load::Data<MD1,NBZ>(e,D1D,R,XY);
-      kernels::internal::load::B<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,R,XY);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
 
-      kernels::internal::eval::X<MD1,MQ1,NBZ>(D1D,Q1D,B,XY,DQ);
-      kernels::internal::eval::Y<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
+      kernels::internal::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,XY,DQ);
+      kernels::internal::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,QQ);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -66,7 +66,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
          {
             // Xh = X^T . Sh
             double Xh[2];
-            kernels::internal::pull::Eval<MQ1,NBZ>(Q1D,qx,qy,QQ,Xh);
+            kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ,Xh);
 
             double H_data[4];
             DeviceMatrix H(H_data,2,2);
@@ -81,13 +81,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_2D,
             // p2 = H . Xh
             double p2[2];
             kernels::Mult(2,2,H_data,Xh,p2);
-            kernels::internal::push::Eval<MQ1,NBZ>(Q1D,qx,qy,p2,QQ);
+            kernels::internal::PushEval<MQ1,NBZ>(Q1D,qx,qy,p2,QQ);
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::internal::load::Bt<MD1,MQ1>(D1D,Q1D,b,B);
-      kernels::internal::eval::Xt<MD1,MQ1,NBZ>(D1D,Q1D,B,QQ,DQ);
-      kernels::internal::eval::Yt<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,Y,e);
+      kernels::internal::LoadBt<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::EvalXt<MD1,MQ1,NBZ>(D1D,Q1D,B,QQ,DQ);
+      kernels::internal::EvalYt<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ,Y,e);
    });
 }
 

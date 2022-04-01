@@ -14,14 +14,11 @@
 
 #include "../config/config.hpp"
 #include "lininteg.hpp"
-#include "bilinearform.hpp"
 #include "linearform_ext.hpp"
 #include "gridfunc.hpp"
 
 namespace mfem
 {
-
-enum class AssemblyLevel;
 
 /// Vector with associated FE space and LinearFormIntegrators.
 class LinearForm : public Vector
@@ -31,9 +28,6 @@ class LinearForm : public Vector
 protected:
    /// FE space on which the LinearForm lives. Not owned.
    FiniteElementSpace *fes;
-
-   /// The assembly level of the form (legacy or full)
-   AssemblyLevel assembly;
 
    /** @brief Extension for supporting different assembly levels. */
    LinearFormExtension *ext;
@@ -172,7 +166,7 @@ public:
    Array<Array<int>*> *GetDLFIM() { return &domain_integs_marker; }
 
    /** @brief Access all integrators added with AddDomainIntegrator() which are
-       DeltaLFIntegrator%s with delta coefficients. */
+     DeltaLFIntegrator%s with delta coefficients. */
    Array<DeltaLFIntegrator*> *GetDLFI_Delta() { return &domain_delta_integs; }
 
    /// Access all integrators added with AddBoundaryIntegrator().
@@ -189,12 +183,9 @@ public:
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetFLFI_Marker() { return &boundary_face_integs_marker; }
 
-   /// Set the desired assembly level, default is AssemblyLevel::LEGACY.
-   /** This method must be called before assembly. */
-   void SetAssemblyLevel(AssemblyLevel);
-
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
-   void Assemble();
+   void Assemble(bool use_device = true);
+   bool AssembleCanUseDevice();
 
    /// Assembles delta functions of the linear form
    void AssembleDelta();
@@ -207,7 +198,7 @@ public:
    void Update();
 
    /// Associate a new FE space, @a *f, with this object and Update() it. */
-   void Update(FiniteElementSpace *f);
+   void Update(FiniteElementSpace *f) { fes = f; Update(); }
 
    /** @brief Associate a new FE space, @a *f, with this object and use the data
        of @a v, offset by @a v_offset, to initialize this object's Vector::data.

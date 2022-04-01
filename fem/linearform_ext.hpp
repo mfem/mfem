@@ -13,57 +13,47 @@
 #define MFEM_LINEARFORM_EXT
 
 #include "../general/array.hpp"
+#include "../linalg/vector.hpp"
 
 namespace mfem
 {
 
+class Operator;
 class LinearForm;
-class FullLinearFormExtension;
 
 /// Class extending the LinearForm class to support different AssemblyLevels.
 class LinearFormExtension
 {
-protected:
-   /// Linear form from which this extension depends. Not owned.
-   LinearForm *lf;
-
-public:
-   LinearFormExtension(LinearForm *lf): lf(lf) { }
-
-   virtual ~LinearFormExtension() { }
-
-   /// Updates the linear form extension
-   virtual void Update() = 0;
-
-   /// Assemble at the level given for the linear form extension
-   virtual void Assemble() = 0;
-
-   /// Assembles delta functions of the linear form extension
-   virtual void AssembleDelta() = 0;
-};
-
-/// Data and methods for fully-assembled linear forms
-class FullLinearFormExtension : public LinearFormExtension
-{
-private:
    /// Attributes of all mesh elements.
    Array<int> attributes;
 
    /// Temporary markers for device kernels.
    Array<int> markers;
 
-public:
-   FullLinearFormExtension(LinearForm *lf);
+   /// Linear form from which this extension depends. Not owned.
+   LinearForm *lf;
 
+   /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
+   const Operator *elem_restrict; // Not owned
+   mutable Vector Ye;
+
+public:
+   LinearFormExtension(LinearForm *lf);
+
+   ~LinearFormExtension() { }
+
+   /// Updates the linear form extension
+   void Update();
+
+   /// Assemble at the level given for the linear form extension
    /// Fully assembles the linear form, compatible with device execution.
    /// Only integrators added with AddDomainIntegrator are supported.
-   void Assemble() override;
+   void Assemble();
 
+   /// Assembles delta functions of the linear form extension
    /// Fully assembles the delta functions of the linear form.
    /// Not yet supported.
-   void AssembleDelta() override { MFEM_ABORT("Not yet supported!"); }
-
-   void Update() override;
+   void AssembleDelta() { MFEM_ABORT("AssembleDelta not implemented!"); }
 };
 
 } // namespace mfem

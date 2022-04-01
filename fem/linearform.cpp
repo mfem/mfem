@@ -100,31 +100,38 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
    interior_face_integs.Append(lfi);
 }
 
-void LinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
+bool LinearForm::AssembleCanUseDevice()
 {
-   if (ext)
+   bool can_use_device = true;
+   // scan domain integrator to verify all can support device assembly
+   if (domain_integs.Size())
    {
-      MFEM_ABORT("the assembly level has already been set!");
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         can_use_device &= domain_integs[k]->UseDevice();
+      }
    }
-   assembly = assembly_level;
-   switch (assembly)
-   {
-      case AssemblyLevel::LEGACY:
-         break;
-      case AssemblyLevel::FULL:
-         ext = new FullLinearFormExtension(this);
-         break;
-      default:
-         mfem_error("Unknown assembly level");
-   }
+
+   // no boundary and interior integretors are supported yet
+   if (boundary_integs.Size() > 0 ||
+       boundary_face_integs.Size() > 0 ||
+       interior_face_integs.Size()>0) { can_use_device = false; }
+
+   return can_use_device;
 }
 
-void LinearForm::Assemble()
+void LinearForm::Assemble(bool use_device)
 {
    Array<int> vdofs;
    ElementTransformation *eltrans;
    DofTransformation *doftrans;
    Vector elemvect;
+
+
+   if (use_device && AssembleCanUseDevice())
+   {
+      ext = new LinearFormExtension(this);
+   }
 
    Vector::operator=(0.0);
 
@@ -132,7 +139,7 @@ void LinearForm::Assemble()
    // The first use of AddElementVector() below will move it back to host
    // because both 'vdofs' and 'elemvect' are on host.
 
-   if (ext) { return ext->Assemble(); }
+   if (ext != nullptr) { return ext->Assemble(); }
 
    if (domain_integs.Size())
    {
@@ -301,12 +308,6 @@ void LinearForm::Update()
    if (ext) { ext->Update(); }
 }
 
-void LinearForm::Update(FiniteElementSpace *f)
-{
-   fes = f;
-   Update();
-}
-
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
@@ -326,7 +327,8 @@ void LinearForm::AssembleDelta()
 {
    if (domain_delta_integs.Size() == 0) { return; }
 
-   if (ext) { return ext->AssembleDelta(); }
+#warning ext AssembleDelta not supported
+   //if (ext) { return ext->AssembleDelta(); }
 
    if (!HaveDeltaLocations())
    {

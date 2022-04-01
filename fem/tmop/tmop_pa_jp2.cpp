@@ -52,18 +52,18 @@ MFEM_REGISTER_TMOP_KERNELS(double, MinDetJpr_Kernel_2D,
       MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
 
-      kernels::internal::load::Data<MD1,NBZ>(e,D1D,X,XY);
-      kernels::internal::load::BG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
 
-      kernels::internal::grad::X<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
-      kernels::internal::grad::Y<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
+      kernels::internal::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
+      kernels::internal::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             double J[4];
-            kernels::internal::pull::Grad<MQ1,NBZ>(Q1D,qx,qy,QQ,J);
+            kernels::internal::PullGrad<MQ1,NBZ>(Q1D,qx,qy,QQ,J);
             E(qx,qy,e) = kernels::Det<2>(J);
          }
       }

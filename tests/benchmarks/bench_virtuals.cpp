@@ -86,8 +86,4 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-#else // MFEM_USE_BENCHMARK
-
-int main(int, char *[]) { return 0; }
-
 #endif // MFEM_USE_BENCHMARK
