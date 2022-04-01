@@ -11,7 +11,7 @@
 
 #include "diffusion.hpp"
 
-#include "../../config/config.hpp"
+#include "../../../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include "diffusion_qf.h"
 #endif

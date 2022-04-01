@@ -12,19 +12,16 @@
 #ifndef MFEM_LIBCEED_UTIL
 #define MFEM_LIBCEED_UTIL
 
-#include "../../config/config.hpp"
-#include "../../general/error.hpp"
-#ifdef MFEM_USE_CEED
-#include <ceed.h>
-#include <ceed/hash.h>
-#include <ceed/backend.h>  // for CeedOperatorField
-#if !CEED_VERSION_GE(0,10,0)
-#error MFEM requires a libCEED version >= 0.10.0
-#endif
-#endif
+#include "../../../config/config.hpp"
 #include <tuple>
 #include <unordered_map>
 #include <string>
+
+#include "ceed.hpp"
+#ifdef MFEM_USE_CEED
+#include <ceed/hash.h>
+#include <ceed/backend.h>  // for CeedOperatorField
+#endif
 
 namespace mfem
 {
@@ -58,19 +55,6 @@ void RemoveBasisAndRestriction(const mfem::FiniteElementSpace *fes);
 /// Initialize a CeedVector from an mfem::Vector
 void InitVector(const mfem::Vector &v, CeedVector &cv);
 
-/// @brief Initialize a strided CeedElemRestriction
-/** @a nelem is the number of elements,
-    @a nqpts is the total number of quadrature points
-    @a qdatasize is the number of data per quadrature point
-    @a strides Array for strides between [nodes, components, elements].
-    Data for node i, component j, element k can be found in the L-vector at
-    index i*strides[0] + j*strides[1] + k*strides[2]. CEED_STRIDES_BACKEND may
-    be used with vectors created by a Ceed backend. */
-void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
-                            CeedInt nelem, CeedInt nqpts, CeedInt qdatasize,
-                            const CeedInt *strides,
-                            CeedElemRestriction *restr);
-
 /** Initialize a CeedBasis and a CeedElemRestriction based on an
     mfem::FiniteElementSpace @a fes, and an mfem::IntegrationRule @a ir. */
 void InitBasisAndRestriction(const mfem::FiniteElementSpace &fes,
@@ -78,8 +62,12 @@ void InitBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                              Ceed ceed, CeedBasis *basis,
                              CeedElemRestriction *restr);
 
-void InitTensorRestriction(const FiniteElementSpace &fes,
-                           Ceed ceed, CeedElemRestriction *restr);
+void InitBasisAndRestrictionWithIndices(const FiniteElementSpace &fes,
+                                        const IntegrationRule &irm,
+                                        int nelem,
+                                        const int* indices,
+                                        Ceed ceed, CeedBasis *basis,
+                                        CeedElemRestriction *restr);
 
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
 
@@ -134,12 +122,13 @@ using RestrMap =
 
 namespace internal
 {
+
 #ifdef MFEM_USE_CEED
-extern Ceed ceed;
 extern ceed::BasisMap ceed_basis_map;
 extern ceed::RestrMap ceed_restr_map;
 #endif
-}
+
+} // namespace internal
 
 } // namespace mfem
 

@@ -11,7 +11,7 @@
 
 #include "mass.hpp"
 
-#include "../../config/config.hpp"
+#include "../../../../config/config.hpp"
 #ifdef MFEM_USE_CEED
 #include "mass_qf.h"
 #endif

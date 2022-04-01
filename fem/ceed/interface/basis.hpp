@@ -9,14 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_CEED_ASSEMBLE_HPP
-#define MFEM_CEED_ASSEMBLE_HPP
+#ifndef MFEM_LIBCEED_BASIS
+#define MFEM_LIBCEED_BASIS
 
-#include "../../config/config.hpp"
-
-#ifdef MFEM_USE_CEED
-#include <ceed.h>
-#include "../../linalg/sparsemat.hpp"
+#include "ceed.hpp"
 
 namespace mfem
 {
@@ -24,18 +20,22 @@ namespace mfem
 namespace ceed
 {
 
-/** @brief Assembles a CeedOperator as an mfem::SparseMatrix
+#ifdef MFEM_USE_CEED
 
-    In parallel, this assembles independently on each processor, that is, it
-    assembles at the L-vector level. The assembly procedure is always performed
-    on the host, but this works also for operators stored on device by copying
-    memory. */
-int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat);
+void InitBasis(const FiniteElementSpace &fes,
+               const IntegrationRule &irm,
+               Ceed ceed, CeedBasis *basis);
+
+void InitBasisWithIndices(const FiniteElementSpace &fes,
+                          const IntegrationRule &irm,
+                          int nelem,
+                          const int* indices,
+                          Ceed ceed, CeedBasis *basis);
+
+#endif
 
 } // namespace ceed
 
 } // namespace mfem
 
-#endif
-
-#endif
+#endif // MFEM_LIBCEED_BASIS
