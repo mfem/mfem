@@ -98,7 +98,8 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::MultTranspose2D(d,q,Bt,Gt,QQ0,QQ1,DQ0,DQ1,Y,c,e);
+         kernels::internal::GradYt(d,q,Bt,Gt,QQ0,QQ1,DQ0,DQ1);
+         kernels::internal::GradXt(d,q,Bt,Gt,DQ0,DQ1,Y,c,e);
       }
    });
 }
@@ -119,6 +120,10 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
 {
    constexpr int DIM = 3;
 
+   constexpr int MAX_Q = 9;
+   const int Q = T_Q1D ? T_Q1D : q;
+   MFEM_VERIFY(Q <= MAX_Q, "Q order max " << MAX_Q << "!");
+
    const bool cst_coeff = coeff.Size() == vdim*DIM;
 
    const auto F = coeff.Read();
@@ -138,8 +143,8 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
    {
       if (M(e) == 0) { return; } // ignore
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q;
+      constexpr int D = T_D1D ? T_D1D : MAX_Q;
 
       MFEM_SHARED double sBGt[2][Q*D];
       MFEM_SHARED double sQQ[3][Q*Q*Q];
@@ -199,11 +204,9 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::MultTranspose3D(d,q,Bt,Gt,
-                                            QQ0,QQ1,QQ2,
-                                            QD0,QD1,QD2,
-                                            DD0,DD1,DD2,
-                                            Y,c,e);
+         kernels::internal::GradZt(d,q,Bt,Gt,QQ0,QQ1,QQ2,QD0,QD1,QD2);
+         kernels::internal::GradYt(d,q,Bt,Gt,QD0,QD1,QD2,DD0,DD1,DD2);
+         kernels::internal::GradXt(d,q,Bt,Gt,DD0,DD1,DD2,Y,c,e);
       }
    });
 }
