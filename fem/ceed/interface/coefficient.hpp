@@ -12,13 +12,13 @@
 #ifndef MFEM_LIBCEED_COEFF
 #define MFEM_LIBCEED_COEFF
 
-#include "ceed.hpp"
-#include "util.hpp"
 #include "../../../config/config.hpp"
 #include "../../../linalg/vector.hpp"
 #include "../../../linalg/dtensor.hpp"
 #include "../../../mesh/mesh.hpp"
 #include "../../gridfunc.hpp"
+#include "util.hpp"
+#include "ceed.hpp"
 
 namespace mfem
 {
