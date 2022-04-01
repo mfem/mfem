@@ -175,5 +175,6 @@ int main(int argc, char *argv[])
          uout << "solution\n" << mesh << u << flush;
       }
    }
+   delete fec;
    return 0;
 }
