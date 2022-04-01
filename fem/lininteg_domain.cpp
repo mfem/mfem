@@ -13,7 +13,6 @@
 
 #include "../fem/kernels.hpp"
 #include "../general/forall.hpp"
-#include "../fem/kernels_addon.hpp"
 
 namespace mfem
 {
@@ -26,8 +25,6 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
                                         const int q,
                                         const int *markers,
                                         const double *b,
-                                        const double *, // g
-                                        const double *, // jacobians
                                         const double *detJ,
                                         const double *weights,
                                         const Vector &coeff,
@@ -56,9 +53,8 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
       MFEM_SHARED double sQQ[Q*Q];
       MFEM_SHARED double sQD[Q*D];
 
-      const DeviceMatrix Bt(sBt, q,d);
-      //kernels::internal::LoadB<D,Q>(d,q,B,sBt);
-      kernels::internal::load::B(d,q,B,Bt);
+      const DeviceMatrix Bt(sBt, d,q);
+      kernels::internal::LoadB<D,Q>(d,q,B,sBt);
 
       const DeviceMatrix QQ(sQQ, q,q);
       const DeviceMatrix QD(sQD, q,d);
@@ -76,7 +72,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::eval::Transpose2D(d,q,Bt,QQ,QD,Y,c,e);
+         kernels::internal::Transpose2D(d,q,Bt,QQ,QD,Y,c,e);
       }
    });
 }
@@ -89,8 +85,6 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
                                         const int q,
                                         const int *markers,
                                         const double *b,
-                                        const double *, // g
-                                        const double *, // jacobians
                                         const double *detJ,
                                         const double *weights,
                                         const Vector &coeff,
@@ -119,8 +113,8 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
       double u[Q];
 
       MFEM_SHARED double sBt[Q*D];
-      const DeviceMatrix Bt(sBt, q,d);
-      kernels::internal::load::B(d,q,B,Bt);
+      const DeviceMatrix Bt(sBt, d,q);
+      kernels::internal::LoadB<D,Q>(d,q,B,sBt);
 
       MFEM_SHARED double sQQQ[Q*Q*Q];
       const DeviceCube QQQ(sQQQ, q,q,q);
@@ -141,7 +135,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::eval::Transpose3D(d,q,u,Bt,QQQ,Y,c,e);
+         kernels::internal::Transpose3D(d,q,u,Bt,QQQ,Y,c,e);
       }
    });
 }
@@ -210,8 +204,6 @@ void DomainLFIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
                const int q,
                const int *markers,
                const double *b,
-               const double *g,
-               const double *J,
                const double *detJ,
                const double *weights,
                const Vector &coeff,
@@ -257,13 +249,11 @@ void DomainLFIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
 
    const int *M = markers.Read();
    const double *B = maps.B.Read();
-   const double *G = maps.G.Read();
-   const double *J = geom->J.Read();
    const double *detJ = geom->detJ.Read();
    const double *W = ir->GetWeights().Read();
    double *Y = y.ReadWrite();
 
-   ker(vdim, NE, d, q, M, B, G, J, detJ, W, coeff, Y);
+   ker(vdim, NE, d, q, M, B, detJ, W, coeff, Y);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -331,8 +321,6 @@ void VectorDomainLFIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
                const int q,
                const int *markers,
                const double *b,
-               const double *g,
-               const double *J,
                const double *detJ,
                const double *weights,
                const Vector &coeff,
@@ -376,13 +364,11 @@ void VectorDomainLFIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
 
    const int *M = markers.Read();
    const double *B = maps.B.Read();
-   const double *G = maps.G.Read();
-   const double *J = geom->J.Read();
    const double *detJ = geom->detJ.Read();
    const double *W = ir->GetWeights().Read();
    double *Y = y.ReadWrite();
 
-   ker(vdim, NE, d, q, M, B, G, J, detJ, W, coeff, Y);
+   ker(vdim, NE, d, q, M, B, detJ, W, coeff, Y);
 }
 
 } // namespace mfem
