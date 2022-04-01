@@ -6,7 +6,7 @@
 //          p(z)/q(z) ≈ f(z).
 //
 //   In this file, we always assume f(z) = z^{-α}. The triple-A algorithm
-//   provides a robust, accurate approximation in rational barycentric from.
+//   provides a robust, accurate approximation in rational barycentric form.
 //   This representation must be transformed into a partial fraction
 //   representation in order to be used to solve a spectral FPDE.
 //
@@ -40,6 +40,21 @@
 using namespace std;
 using namespace mfem;
 
+/**
+ * RationalApproximation_AAA : compute the rational approximation (RA) of
+ * data @a val at the set of points @a pt.
+ *
+ *  INPUT:  @a val       = vector of data values
+ *          @a pt        = vector of sample points
+ *          @a tol       = relative tolerance
+ *          @a max_order = maximum number of terms (order) of the RA
+ *
+ *  OUTPUT: @a z = support points of the RA in rational barycentric form
+ *          @a f = data values at support points @a z
+ *          @a w = weights of the RA in rational barycentric form
+ *
+ * See pg. A1501 of Nakatsukasa et al. [1].
+ */
 void RationalApproximation_AAA(const Vector &val, const Vector &pt,
                                Array<double> &z, Array<double> &f, Vector &w,
                                double tol, int max_order)
@@ -152,6 +167,20 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
    }
 }
 
+/**
+ * ComputePolesAndZeros : computes the @a poles and @a zeros of the rational
+ * rational function f(z) = C p(z)/q(z) from its ration barycentric form.
+ *
+ *  INPUT:  @a z = support points in rational barycentric form
+ *          @a f = data values at support points @a z
+ *          @a w = weights in rational barycentric form
+ *
+ *  OUTPUT: @a poles = array of poles (roots of p(z))
+ *          @a zeros = array of zeros (roots of q(z))
+ *          @a scale = scaling constant in f(z) = C p(z)/q(z)
+ *
+ * See pg. A1501 of Nakatsukasa et al. [1].
+ */
 void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
                           Array<double> & poles, Array<double> & zeros, double &scale)
 {
@@ -214,7 +243,19 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
    scale = w * f / w.Sum();
 }
 
-
+/**
+ * PartialFractionExpansion : computes the partial fraction expansion
+ * of the rational rational function f(z) = Σ_i c_i / (z - p_i) from its
+ * @a poles and @a zeros.
+ *
+ *  INPUT:  @a poles = array of poles (same as p_i above)
+ *          @a zeros = array of zeros
+ *          @a scale = scaling constant
+ *
+ *  OUTPUT: @a coeffs = coefficients c_i
+ *
+ * See pg. A1501 of Nakatsukasa et al. [1].
+ */
 void PartialFractionExpansion(double scale, Array<double> & poles,
                               Array<double> & zeros, Array<double> & coeffs)
 {
@@ -241,7 +282,22 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
 }
 
 
-// x^-a
+/**
+ * ComputePartialFractionApproximation : computes a rational approximation (RA) of the function
+ * f(z) = z^{-a}, 0 < a < 1, in partial fraction form f(z) ≈ Σ_i c_i / (z - p_i).
+ *
+ *  INPUT:  @a alpha     = exponent in f(z) = z^-a
+ *          @a lmin, @a lmax, @a npoints
+ *                       = f(z) is uniformly sampled @a npoints times on
+ *                         the interval [ @a lmin, @a lmax]
+ *          @a tol       = relative tolerance
+ *          @a max_order = maximum number of terms (order) of the RA
+ *
+ *  OUTPUT: @a coeffs = coefficients c_i
+ *          @a poles  = poles p_i
+ *
+ * See pg. A1501 of Nakatsukasa et al. [1].
+ */
 void ComputePartialFractionApproximation(double alpha,
                                          Array<double> & coeffs, Array<double> & poles,
                                          double lmin = 1., double lmax = 1000.,
@@ -252,6 +308,9 @@ void ComputePartialFractionApproximation(double alpha,
    mfem::out
          << "MFEM is compiled without LAPACK. Using precomputed PartialFractionApproximation"
          << std::endl;
+
+   MFEM_ASSERT(alpha < 1, "alpha must be less than 1");
+   MFEM_ASSERT(alpha > 0, "alpha must be greater than 0");
 
    if (alpha == 0.33)
    {
