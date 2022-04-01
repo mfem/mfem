@@ -251,7 +251,17 @@ MFEM_HOST_DEVICE inline void PullEval(const int Q1D,
    PullEval(qx,qy,QQ,P);
 }
 
-/// 2D Scalar Transposed Evaluation, 1/2
+
+/** @brief 2D Scalar Transposed Evaluation, 1/2
+First contraction for the transposed evaluation at quadrature points of a 2D
+finite element function.
+@param[in] D1D The number of degrees of freedom per dimension.
+@param[in] Q1D The number of quadrature points per dimension.
+@param[in] B The matrix containing the evaluation of the basis functions at quadrature points.
+@param[in] QQ 2D tensor containing the quadrature points.
+@param[out] QD Contraction of the first dimension of B with the first dimension of DD.
+
+Note: All `DeviceTensor` have to be `const` for compatibility with non-mutable lambda capture. */
 MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
                                     const DeviceMatrix &B,
                                     const DeviceMatrix &QQ,
@@ -269,10 +279,19 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// 2D Scalar Transposed Evaluation, 2/2
+/** @brief 2D Scalar Transposed Evaluation, 2/2
+Second contraction for the transposed evaluation at quadrature points of a 2D
+finite element function.
+@param[in] D1D The number of degrees of freedom per dimension.
+@param[in] Q1D The number of quadrature points per dimension.
+@param[in] B The matrix containing the evaluation of the basis functions at quadrature points.
+@param[in] QQ 2D tensor containing the quadrature points.
+@param[out] Y output.
+
+Note: All `DeviceTensor` have to be `const` for compatibility with non-mutable lambda capture. */
 MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
                                     const DeviceMatrix &B,
-                                    const DeviceMatrix &Q,
+                                    const DeviceMatrix &QQ,
                                     const DeviceTensor<4> &Y,
                                     const int c,
                                     const int e)
@@ -282,14 +301,13 @@ MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
       MFEM_FOREACH_THREAD(dx,x,D1D)
       {
          double u = 0.0;
-         for (int qy = 0; qy < Q1D; ++qy) { u += Q(qy,dx) * B(dy,qy); }
+         for (int qy = 0; qy < Q1D; ++qy) { u += QQ(qy,dx) * B(dy,qy); }
          Y(dx,dy,c,e) += u;
       }
    }
    MFEM_SYNC_THREAD;
 }
 
-/// Load 2D input vector into shared memory
 template<int MD1, int NBZ>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
                                    const DeviceTensor<4, const double> &X,
@@ -465,7 +483,23 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// 2D Scalar Transposed Gradient, 1/2
+
+/**
+ * @brief GradYt
+ * @param D1D The number of degrees of freedom per dimension.
+ * @param Q1D The number of quadrature points per dimension.
+ * @param Bt The matrix containing the evaluation of the basis functions at
+ *           quadrature points.
+ * @param Gt The matrix containing the evaluation of the gradient functions at
+ *           quadrature points.
+ * @param QQ0
+ * @param QQ1
+ * @param DQ0
+ * @param DQ1
+ *
+ * Note: All `DeviceMatrix` have to be `const` for compatibility with
+ *       non-mutable lambda capture.
+ */
 MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
                                     const DeviceMatrix &Bt,
                                     const DeviceMatrix &Gt,
@@ -491,7 +525,21 @@ MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// 2D Scalar Transposed Gradient, 2/2
+/**
+ * @brief GradXt 2D Scalar Transposed Gradient, 2/2
+ * @param D1D
+ * @param Q1D
+ * @param Bt
+ * @param Gt
+ * @param DQ0
+ * @param DQ1
+ * @param Y
+ * @param c
+ * @param e
+ *
+ * Note: All `DeviceMatrix` have to be `const` for compatibility with
+ *       non-mutable lambda capture.
+ */
 MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                                     const DeviceMatrix &Bt,
                                     const DeviceMatrix &Gt,
@@ -903,7 +951,14 @@ MFEM_HOST_DEVICE inline void PullEval(const int Q1D,
    PullEval(x,y,z,QQQ,X);
 }
 
-/// 3D Scalar Transposed Evaluation, 1/3
+/**
+ * @brief 3D Scalar Transposed Evaluation, 1/3
+ * @param D1D
+ * @param Q1D
+ * @param u
+ * @param B
+ * @param Q
+ */
 MFEM_HOST_DEVICE inline void EvalZt(const int D1D, const int Q1D,
                                     double *u,
                                     const DeviceMatrix &B,
@@ -925,7 +980,14 @@ MFEM_HOST_DEVICE inline void EvalZt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// 3D Scalar Transposed Evaluation, 2/3
+/**
+ * @brief 3D Scalar Transposed Evaluation, 2/3
+ * @param D1D
+ * @param Q1D
+ * @param u
+ * @param B
+ * @param Q
+ */
 MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
                                     double *u,
                                     const DeviceMatrix &B,
@@ -947,7 +1009,17 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// 3D Scalar Transposed Evaluation, 3/3
+/**
+ * @brief 3D Scalar Transposed Evaluation, 3/3
+ * @param D1D
+ * @param Q1D
+ * @param u
+ * @param B
+ * @param Q
+ * @param Y
+ * @param c
+ * @param e
+ */
 MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
                                     double *u,
                                     const DeviceMatrix &B,
@@ -1259,7 +1331,19 @@ MFEM_HOST_DEVICE inline void EvalZt(const int D1D, const int Q1D,
    }
 }
 
-/// 3D Scalar Transposed Gradient, 1/3
+/**
+ * @brief 3D Scalar Transposed Gradient, 1/3
+ * @param D1D
+ * @param Q1D
+ * @param Bt
+ * @param Gt
+ * @param QQQ0
+ * @param QQQ1
+ * @param QQQ2
+ * @param QQD0
+ * @param QQD1
+ * @param QQD2
+ */
 MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
                                     const DeviceMatrix &Bt,
                                     const DeviceMatrix &Gt,
@@ -1292,7 +1376,19 @@ MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// 3D Scalar Transposed Gradient, 2/3
+/**
+ * @brief 3D Scalar Transposed Gradient, 2/3
+ * @param D1D
+ * @param Q1D
+ * @param Bt
+ * @param Gt
+ * @param QQD0
+ * @param QQD1
+ * @param QQD2
+ * @param QDD0
+ * @param QDD1
+ * @param QDD2
+ */
 MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
                                     const DeviceMatrix &Bt,
                                     const DeviceMatrix &Gt,
@@ -1325,7 +1421,19 @@ MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/// 3D Scalar Transposed Gradient, 3/3
+/**
+ * @brief 3D Scalar Transposed Gradient, 3/3
+ * @param D1D
+ * @param Q1D
+ * @param Bt
+ * @param Gt
+ * @param QDD0
+ * @param QDD1
+ * @param QDD2
+ * @param Y
+ * @param c
+ * @param e
+ */
 MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                                     const DeviceMatrix &Bt,
                                     const DeviceMatrix &Gt,
