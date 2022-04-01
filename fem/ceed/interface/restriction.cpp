@@ -263,11 +263,13 @@ void InitRestrictionWithIndices(const FiniteElementSpace &fes,
    const int ncomp = fes.GetVDim();
    RestrKey restr_key(&fes, nelem, P, ncomp, restr_type::Standard);
    auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
+   const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>
+                       (fe) != nullptr;
 
    // Init or retreive key values
    if (restr_itr == mfem::internal::ceed_restr_map.end())
    {
-      if (UsesTensorBasis(fes))
+      if (tensor)
       {
          InitTensorRestrictionWithIndices(fes, nelem, indices, ceed, restr);
       }

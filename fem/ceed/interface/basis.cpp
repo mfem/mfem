@@ -140,11 +140,13 @@ void InitBasisWithIndices(const FiniteElementSpace &fes,
    const int ncomp = fes.GetVDim();
    BasisKey basis_key(&fes, &irm, ncomp, P, Q);
    auto basis_itr = mfem::internal::ceed_basis_map.find(basis_key);
+   const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>
+                       (fe) != nullptr;
 
    // Init or retreive key values
    if (basis_itr == mfem::internal::ceed_basis_map.end())
    {
-      if (UsesTensorBasis(fes))
+      if (tensor)
       {
          InitTensorBasis(fes, irm, ceed, basis);
       }
