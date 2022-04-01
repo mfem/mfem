@@ -58,15 +58,17 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
-  ceed/algebraic.cpp
-  ceed/full-assembly.cpp
-  ceed/solvers-atpmg.cpp
-  ceed/convection.cpp
-  ceed/diffusion.cpp
-  ceed/nlconvection.cpp
-  ceed/mass.cpp
-  ceed/operator.cpp
-  ceed/util.cpp
+  ceed/interface/basis.cpp
+  ceed/interface/restriction.cpp
+  ceed/interface/operator.cpp
+  ceed/interface/util.cpp
+  ceed/integrators/convection.cpp
+  ceed/integrators/diffusion.cpp
+  ceed/integrators/nlconvection.cpp
+  ceed/integrators/mass.cpp
+  ceed/solvers/algebraic.cpp
+  ceed/solvers/full-assembly.cpp
+  ceed/solvers/solvers-atpmg.cpp
   linearform.cpp
   lininteg.cpp
   multigrid.cpp
@@ -149,17 +151,20 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
-  ceed/algebraic.hpp
-  ceed/full-assembly.hpp
-  ceed/solvers-atpmg.hpp
-  ceed/coefficient.hpp
-  ceed/convection.hpp
-  ceed/diffusion.hpp
-  ceed/integrator.hpp
-  ceed/mass.hpp
-  ceed/nlconvection.hpp
-  ceed/operator.hpp
-  ceed/util.hpp
+  ceed/interface/basis.hpp
+  ceed/interface/integrator.hpp
+  ceed/interface/interface.hpp
+  ceed/interface/operator.hpp
+  ceed/interface/restriction.hpp
+  ceed/interface/util.hpp
+  ceed/integrators/convection.hpp
+  ceed/integrators/diffusion.hpp
+  ceed/integrators/mass.hpp
+  ceed/integrators/nlconvection.hpp
+  ceed/interface/coefficient.hpp
+  ceed/solvers/algebraic.hpp
+  ceed/solvers/full-assembly.hpp
+  ceed/solvers/solvers-atpmg.hpp
   linearform.hpp
   lininteg.hpp
   multigrid.hpp
