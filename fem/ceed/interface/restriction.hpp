@@ -34,10 +34,22 @@ void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
                             const CeedInt *strides,
                             CeedElemRestriction *restr);
 
+/** @brief Initialize a CeedElemRestriction.
+ *
+ * @param[in] fes Input finite element space.
+ * @param[in] ceed Input Ceed object.
+   @param[out] restr The address of the initialized CeedElemRestriction object.
+*/
 void InitRestriction(const FiniteElementSpace &fes,
                      Ceed ceed,
                      CeedElemRestriction *restr);
 
+/** @brief Initialize a CeedElemRestriction.
+ *
+ * @param[in] fes Input finite element space.
+ * @param[in] ceed Input Ceed object.
+   @param[out] restr The address of the initialized CeedElemRestriction object.
+*/
 void InitTensorRestriction(const FiniteElementSpace &fes,
                            Ceed ceed, CeedElemRestriction *restr);
 

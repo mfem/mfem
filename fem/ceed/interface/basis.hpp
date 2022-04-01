@@ -22,6 +22,13 @@ namespace ceed
 
 #ifdef MFEM_USE_CEED
 
+/** @brief Initialize a CeedBasis.
+
+   @param[in] fes Input finite element space.
+   @param[in] irm Input integration rule.
+   @param[in] ceed Input Ceed object.
+   @param[out] basis The address of the initialized CeedBasis object.
+*/
 void InitBasis(const FiniteElementSpace &fes,
                const IntegrationRule &irm,
                Ceed ceed, CeedBasis *basis);
