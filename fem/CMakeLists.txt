@@ -62,10 +62,10 @@ set(SRCS
   ceed/interface/restriction.cpp
   ceed/interface/operator.cpp
   ceed/interface/util.cpp
-  ceed/integrators/convection.cpp
-  ceed/integrators/diffusion.cpp
-  ceed/integrators/nlconvection.cpp
-  ceed/integrators/mass.cpp
+  ceed/integrators/convection/convection.cpp
+  ceed/integrators/diffusion/diffusion.cpp
+  ceed/integrators/nlconvection/nlconvection.cpp
+  ceed/integrators/mass/mass.cpp
   ceed/solvers/algebraic.cpp
   ceed/solvers/full-assembly.cpp
   ceed/solvers/solvers-atpmg.cpp
@@ -157,10 +157,10 @@ set(HDRS
   ceed/interface/operator.hpp
   ceed/interface/restriction.hpp
   ceed/interface/util.hpp
-  ceed/integrators/convection.hpp
-  ceed/integrators/diffusion.hpp
-  ceed/integrators/mass.hpp
-  ceed/integrators/nlconvection.hpp
+  ceed/integrators/convection/convection.hpp
+  ceed/integrators/diffusion/diffusion.hpp
+  ceed/integrators/mass/mass.hpp
+  ceed/integrators/nlconvection/nlconvection.hpp
   ceed/interface/coefficient.hpp
   ceed/solvers/algebraic.hpp
   ceed/solvers/full-assembly.hpp
