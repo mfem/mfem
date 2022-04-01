@@ -9,66 +9,73 @@ class MeshConnections
 
    public:
    //Queries
-   bool IsFaceInElem(int face, int elem);
-   bool IsEdgeInElem(int edge, int elem);
-   bool IsVertInElem(int vert, int elem);
-   bool IsEdgeInFace(int edge, int face);
-   bool IsVertInFace(int face, int elem);
-   bool IsVertInEdge(int edge, int elem);
-   
+   bool IsFaceInElem(int elem, int face);
+   bool IsEdgeInElem(int elem, int edge);
+   bool IsVertInElem(int elem, int vert);
+   bool IsEdgeInFace(int face, int edge);
+   bool IsVertInFace(int face, int vert);
+   bool IsVertInEdge(int edge, int vert);
+
    //Neighbor mappings
+   void NDNeighbors(int nd, int id, Array<int> &neighbors);
    void NeighborsToElem(int elem, Array<int> &elems);
    void NeighborsToFace(int face, Array<int> &faces);
    void NeighborsToEdge(int edge, Array<int> &edges);
    void NeighborsToVert(int vert, Array<int> &verts);
 
    //Singular forward mappings
-   void FacesInElem(Array<int> &faces, int elem);
-   void EdgesInElem(Array<int> &edges, int elem);
-   void VertsInElem(Array<int> &verts, int elem);
-   void EdgesInFace(Array<int> &edges, int face);
-   void VertsInFace(Array<int> &verts, int face);
-   void VertsInEdge(Array<int> &verts, int edge);
+   void NDPartsInMDPart(int nd, int md, int mdpart, Array<int> &ndparts);
+   void FacesInElem(int elem, Array<int> &faces);
+   void EdgesInElem(int elem, Array<int> &edges);
+   void VertsInElem(int elem, Array<int> &verts);
+   void EdgesInFace(int face, Array<int> &edges);
+   void VertsInFace(int face, Array<int> &verts);
+   void VertsInEdge(int edge, Array<int> &verts);
 
    //Mutiple forward mappings
-   void FacesInElems(Array<int> &faces, const Array<int> &elems);  
-   void EdgesInElems(Array<int> &edges, const Array<int> &elems);
-   void VertsInElems(Array<int> &verts, const Array<int> &elems);
-   void EdgesInFaces(Array<int> &edges, const Array<int> &faces);
-   void VertsInFaces(Array<int> &verts, const Array<int> &edges);
-   void VertsInEdges(Array<int> &verts, const Array<int> &edges);
+   void NDPartsInMDParts(int nd, int md, const Array<int> &mdparts, Array<int> &ndparts);
+   void FacesInElems(const Array<int> &elems, Array<int> &faces);
+   void EdgesInElems(const Array<int> &elems, Array<int> &edges);
+   void VertsInElems(const Array<int> &elems, Array<int> &verts);
+   void EdgesInFaces(const Array<int> &faces, Array<int> &edges);
+   void VertsInFaces(const Array<int> &edges, Array<int> &verts);
+   void VertsInEdges(const Array<int> &edges, Array<int> &verts);
       
    //Singular reverse mappings
-   void ElemsWithFace(Array<int> &elems, int face);
-   void ElemsWithEdge(Array<int> &elems, int edge);
-   void ElemsWithVert(Array<int> &elems, int vert);
-   void FacesWithEdge(Array<int> &faces, int edge);
-   void FacesWithVert(Array<int> &faces, int vert);
-   void EdgesWithVert(Array<int> &edges, int vert);
+   void NDPartsWithMDPart(int nd, int md, int mdpart, Array<int> &ndparts);
+   void ElemsWithFace(int face, Array<int> &elems);
+   void ElemsWithEdge(int edge, Array<int> &elems);
+   void ElemsWithVert(int vert, Array<int> &elems);
+   void FacesWithEdge(int edge, Array<int> &faces);
+   void FacesWithVert(int vert, Array<int> &faces);
+   void EdgesWithVert(int vert, Array<int> &edges);
 
    //Multiple Reverse mappings for the bigger containing
    //ANY instances in the smaller
    //E.G.  ElemsWithAnyFaces will return the elements
    //      that have ANY of their faces denoted in the "faces" array
-   void ElemsTouchedByFaces(Array<int> &elems, const Array<int> &faces);
-   void ElemsTouchedByEdges(Array<int> &elems, const Array<int> &edges);
-   void ElemsTouchedByVerts(Array<int> &elems, const Array<int> &verts);
-   void FacesTouchedByEdges(Array<int> &faces, const Array<int> &edges);
-   void FacesTouchedByVerts(Array<int> &faces, const Array<int> &verts);
-   void EdgesTouchedByVerts(Array<int> &edges, const Array<int> &verts);   
+   void NDPartsTouchedByMDParts(int nd, int md, const Array<int> &mdparts, Array<int> &ndparts);
+   void ElemsTouchedByFaces(const Array<int> &faces, Array<int> &elems);
+   void ElemsTouchedByEdges(const Array<int> &edges, Array<int> &elems);
+   void ElemsTouchedByVerts(const Array<int> &verts, Array<int> &elems);
+   void FacesTouchedByEdges(const Array<int> &edges, Array<int> &faces);
+   void FacesTouchedByVerts(const Array<int> &verts, Array<int> &faces);
+   void EdgesTouchedByVerts(const Array<int> &verts, Array<int> &edges);   
 
    //Multiple Reverse mappings for the bigger containing
    //ANY instances in the smaller
    //E.G.  ElemsWithAllFaces will return the elements
    //      that have ALL of their faces denoted in the "faces" array
-   void ElemsContainedByFaces(Array<int> &elems, const Array<int> &faces);
-   void ElemsContainedByEdges(Array<int> &elems, const Array<int> &edges);
-   void ElemsContainedByVerts(Array<int> &elems, const Array<int> &verts);
-   void FacesContainedByEdges(Array<int> &faces, const Array<int> &edges);
-   void FacesContainedByVerts(Array<int> &faces, const Array<int> &verts);
-   void EdgesContainedByVerts(Array<int> &edges, const Array<int> &verts);
+   void NDPartsContainedByMDParts(int nd, int md, const Array<int> &mdparts, Array<int> &ndparts);
+   void ElemsContainedByFaces(const Array<int> &faces, Array<int> &elems);
+   void ElemsContainedByEdges(const Array<int> &edges, Array<int> &elems);
+   void ElemsContainedByVerts(const Array<int> &verts, Array<int> &elems);
+   void FacesContainedByEdges(const Array<int> &edges, Array<int> &faces);
+   void FacesContainedByVerts(const Array<int> &verts, Array<int> &faces);
+   void EdgesContainedByVerts(const Array<int> &verts, Array<int> &edges);
 
    //Raw table access
+   //Make these private???
    Table *ElemToVertTable();
    Table *ElemToFaceTable();
    Table *ElemToEdgeTable();
