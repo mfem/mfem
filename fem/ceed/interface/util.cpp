@@ -96,19 +96,7 @@ void InitBasisAndRestriction(const FiniteElementSpace &fes,
                              CeedElemRestriction *restr)
 {
    InitBasis(fes, irm, ceed, basis);
-   InitRestriction(fes, irm, ceed, restr);
-}
-
-
-void InitBasisAndRestrictionWithIndices(const FiniteElementSpace &fes,
-                                        const IntegrationRule &irm,
-                                        int nelem,
-                                        const int* indices,
-                                        Ceed ceed, CeedBasis *basis,
-                                        CeedElemRestriction *restr)
-{
-   InitBasisWithIndices(fes, irm, nelem, indices, ceed, basis);
-   InitRestrictionWithIndices(fes, nelem, indices, ceed, restr);
+   InitRestriction(fes, ceed, restr);
 }
 
 // Assumes a tensor-product operator with one active field
