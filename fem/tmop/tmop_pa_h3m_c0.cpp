@@ -53,12 +53,12 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_3D,
       MFEM_SHARED double DQQ[3][MD1*MQ1*MQ1];
       MFEM_SHARED double QQQ[3][MQ1*MQ1*MQ1];
 
-      kernels::internal::load::Data<MD1>(e,D1D,R,DDD);
-      kernels::internal::load::B<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::LoadX<MD1>(e,D1D,R,DDD);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
 
-      kernels::internal::eval::X<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
-      kernels::internal::eval::Y<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
-      kernels::internal::eval::Z<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
+      kernels::internal::EvalX<MD1,MQ1>(D1D,Q1D,B,DDD,DDQ);
+      kernels::internal::EvalY<MD1,MQ1>(D1D,Q1D,B,DDQ,DQQ);
+      kernels::internal::EvalZ<MD1,MQ1>(D1D,Q1D,B,DQQ,QQQ);
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -68,7 +68,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_3D,
             {
                // Xh = X^T . Sh
                double Xh[3];
-               kernels::internal::pull::Eval<MQ1>(Q1D,qx,qy,qz,QQQ,Xh);
+               kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ,Xh);
 
                double H_data[9];
                DeviceMatrix H(H_data,3,3);
@@ -83,15 +83,15 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_3D,
                // p2 = H . Xh
                double p2[3];
                kernels::Mult(3,3,H_data,Xh,p2);
-               kernels::internal::push::Eval<MQ1>(Q1D,qx,qy,qz,p2,QQQ);
+               kernels::internal::PushEval<MQ1>(Q1D,qx,qy,qz,p2,QQQ);
             }
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::internal::load::Bt<MD1,MQ1>(D1D,Q1D,b,B);
-      kernels::internal::eval::Xt<MD1,MQ1>(D1D,Q1D,B,QQQ,DQQ);
-      kernels::internal::eval::Yt<MD1,MQ1>(D1D,Q1D,B,DQQ,DDQ);
-      kernels::internal::eval::Zt<MD1,MQ1>(D1D,Q1D,B,DDQ,Y,e);
+      kernels::internal::LoadBt<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::EvalXt<MD1,MQ1>(D1D,Q1D,B,QQQ,DQQ);
+      kernels::internal::EvalYt<MD1,MQ1>(D1D,Q1D,B,DQQ,DDQ);
+      kernels::internal::EvalZt<MD1,MQ1>(D1D,Q1D,B,DDQ,Y,e);
    });
 }
 

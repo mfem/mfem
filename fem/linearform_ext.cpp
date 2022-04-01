@@ -17,14 +17,24 @@
 namespace mfem
 {
 
-FullLinearFormExtension::FullLinearFormExtension(LinearForm *lf):
-   LinearFormExtension(lf)
+LinearFormExtension::LinearFormExtension(LinearForm *lf):
+   lf(lf)
 {
+   const FiniteElementSpace &fes = *lf->FESpace();
+   constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   elem_restrict = fes.GetElementRestriction(ordering);
+
+   MFEM_VERIFY(dynamic_cast<const ElementRestriction*>(elem_restrict),
+               "Not supported!?");
+
+   Ye.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
+   Ye.UseDevice(true);
+
    markers.UseDevice(true);
    Update();
 }
 
-void FullLinearFormExtension::Assemble()
+void LinearFormExtension::Assemble()
 {
    MFEM_VERIFY(lf->Size() == lf->FESpace()->GetVSize(), "");
 
@@ -84,11 +94,13 @@ void FullLinearFormExtension::Assemble()
          MFEM_FORALL(e, NE, markers_w[e] = dimk[attr[e]-1] == 1;);
       }
 
-      domain_integs[k]->AssembleFull(fes, markers, *lf);
+      Ye = 0.0;
+      domain_integs[k]->DeviceAssemble(fes, markers, Ye);
+      elem_restrict->MultTranspose(Ye, *lf);
    }
 }
 
-void FullLinearFormExtension::Update()
+void LinearFormExtension::Update()
 {
    MFEM_VERIFY(lf->Size() == lf->FESpace()->GetVSize(), "");
 

@@ -77,21 +77,21 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
       MFEM_SHARED double DQ1[2][NBZ][MD1*MQ1];
       MFEM_SHARED double QQ1[2][NBZ][MQ1*MQ1];
 
-      kernels::internal::load::Data<MD1,NBZ>(e,D1D,LD,XY);
-      kernels::internal::load::Data<MD1,NBZ>(e,D1D,X0,XY0);
-      kernels::internal::load::Data<MD1,NBZ>(e,D1D,X1,XY1);
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,LD,XY);
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,X0,XY0);
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,X1,XY1);
 
-      kernels::internal::load::B<MD1,MQ1>(D1D,Q1D,b,B);
-      kernels::internal::load::B<MD1,MQ1>(D1D,Q1D,bld,BLD);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,BLD);
 
-      kernels::internal::eval::X<MD1,MQ1,NBZ>(D1D,Q1D,BLD,XY,DQ);
-      kernels::internal::eval::Y<MD1,MQ1,NBZ>(D1D,Q1D,BLD,DQ,QQ);
+      kernels::internal::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,BLD,XY,DQ);
+      kernels::internal::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,BLD,DQ,QQ);
 
-      kernels::internal::eval::X<MD1,MQ1,NBZ>(D1D,Q1D,B,XY0,DQ0);
-      kernels::internal::eval::Y<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ0,QQ0);
+      kernels::internal::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,XY0,DQ0);
+      kernels::internal::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ0,QQ0);
 
-      kernels::internal::eval::X<MD1,MQ1,NBZ>(D1D,Q1D,B,XY1,DQ1);
-      kernels::internal::eval::Y<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ1,QQ1);
+      kernels::internal::EvalX<MD1,MQ1,NBZ>(D1D,Q1D,B,XY1,DQ1);
+      kernels::internal::EvalY<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ1,QQ1);
 
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -103,9 +103,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
 
             double ld, p0[2], p1[2];
             const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
-            kernels::internal::pull::Eval<MQ1,NBZ>(Q1D,qx,qy,QQ,ld);
-            kernels::internal::pull::Eval<MQ1,NBZ>(Q1D,qx,qy,QQ0,p0);
-            kernels::internal::pull::Eval<MQ1,NBZ>(Q1D,qx,qy,QQ1,p1);
+            kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ,ld);
+            kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ0,p0);
+            kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ1,p1);
 
             const double dist = ld; // GetValues, default comp set to 0
 
@@ -117,13 +117,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
             const double a = 1.0 / (dist * dist);
             const double w = weight * lim_normal * coeff0;
             kernels::Subtract<2>(w*a, p1, p0, d1);
-            kernels::internal::push::Eval<MQ1,NBZ>(Q1D,qx,qy,d1,QQ0);
+            kernels::internal::PushEval<MQ1,NBZ>(Q1D,qx,qy,d1,QQ0);
          }
       }
       MFEM_SYNC_THREAD;
-      kernels::internal::load::Bt<MD1,MQ1>(D1D,Q1D,b,B);
-      kernels::internal::eval::Xt<MD1,MQ1,NBZ>(D1D,Q1D,B,QQ0,DQ0);
-      kernels::internal::eval::Yt<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ0,Y,e);
+      kernels::internal::LoadBt<MD1,MQ1>(D1D,Q1D,b,B);
+      kernels::internal::EvalXt<MD1,MQ1,NBZ>(D1D,Q1D,B,QQ0,DQ0);
+      kernels::internal::EvalYt<MD1,MQ1,NBZ>(D1D,Q1D,B,DQ0,Y,e);
    });
 }
 

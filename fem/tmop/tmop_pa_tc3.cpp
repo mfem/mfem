@@ -24,7 +24,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL,
                            const int NE,
                            const DenseMatrix &w_,
                            DenseTensor &j_,
-                           const int /*d1d*/, // unused
+                           const int d1d,
                            const int q1d)
 {
    constexpr int DIM = 3;
@@ -87,12 +87,12 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
       MFEM_SHARED double DQQ[9][MD1*MQ1*MQ1];
       MFEM_SHARED double QQQ[9][MQ1*MQ1*MQ1];
 
-      kernels::internal::load::Data<MD1>(e,D1D,X,DDD);
-      kernels::internal::load::BG<MD1,MQ1>(D1D,Q1D,b,g,BG);
+      kernels::internal::LoadX<MD1>(e,D1D,X,DDD);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
 
-      kernels::internal::grad::X<MD1,MQ1>(D1D,Q1D,BG,DDD,DDQ);
-      kernels::internal::grad::Y<MD1,MQ1>(D1D,Q1D,BG,DDQ,DQQ);
-      kernels::internal::grad::Z<MD1,MQ1>(D1D,Q1D,BG,DQQ,QQQ);
+      kernels::internal::GradX<MD1,MQ1>(D1D,Q1D,BG,DDD,DDQ);
+      kernels::internal::GradY<MD1,MQ1>(D1D,Q1D,BG,DDQ,DQQ);
+      kernels::internal::GradZ<MD1,MQ1>(D1D,Q1D,BG,DQQ,QQQ);
 
       MFEM_FOREACH_THREAD(qz,z,Q1D)
       {
@@ -102,7 +102,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
             {
                double Jtr[9];
                const double *Wid = &W(0,0);
-               kernels::internal::pull::Grad<MQ1>(Q1D,qx,qy,qz,QQQ,Jtr);
+               kernels::internal::PullGrad<MQ1>(Q1D,qx,qy,qz,QQQ,Jtr);
                const double detJ = kernels::Det<3>(Jtr);
                const double alpha = std::pow(detJ/detW,1./3);
                kernels::Set(DIM,DIM,alpha,Wid,&J(0,0,qx,qy,qz,e));

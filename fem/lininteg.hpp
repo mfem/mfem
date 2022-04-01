@@ -27,10 +27,14 @@ protected:
    LinearFormIntegrator(const IntegrationRule *ir = NULL) { IntRule = ir; }
 
 public:
-   /// Method defining full assembly
-   virtual void AssembleFull(const FiniteElementSpace &fes,
-                             const Array<int> &markers,
-                             Vector &b);
+
+   /// Method probing for assembly on device
+   virtual bool UseDevice() { return false; }
+
+   /// Method defining assembly on device
+   virtual void DeviceAssemble(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element vector, elvect. */
@@ -115,9 +119,10 @@ public:
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
       : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
 
-   virtual void AssembleFull(const FiniteElementSpace &fes,
-                             const Array<int> &markers,
-                             Vector &b);
+   virtual bool UseDevice() { return true; }
+   virtual void DeviceAssemble(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -145,9 +150,10 @@ public:
    DomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual void AssembleFull(const FiniteElementSpace &fes,
-                             const Array<int> &markers,
-                             Vector &b);
+   virtual bool UseDevice() { return true; }
+   virtual void DeviceAssemble(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -236,9 +242,10 @@ public:
    VectorDomainLFIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual void AssembleFull(const FiniteElementSpace &fes,
-                             const Array<int> &markers,
-                             Vector &b);
+   virtual bool UseDevice() { return true; }
+   virtual void DeviceAssemble(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -267,9 +274,10 @@ public:
    VectorDomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual void AssembleFull(const FiniteElementSpace &fes,
-                             const Array<int> &markers,
-                             Vector &b) override;
+   virtual bool UseDevice() override { return true; }
+   virtual void DeviceAssemble(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b) override;
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */

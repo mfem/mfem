@@ -9,39 +9,31 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+
 #include "fem.hpp"
 #include <cmath>
 
 namespace mfem
 {
 
-void LinearFormIntegrator::AssembleFull(const FiniteElementSpace&,
-                                        const Array<int> &markers,
-                                        Vector &b)
+void LinearFormIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
+                                          const Array<int> &markers,
+                                          Vector &b)
 {
-   MFEM_CONTRACT_VAR(b);
-   MFEM_CONTRACT_VAR(markers);
-   mfem_error("LinearFormIntegrator::AssembleFull(...)");
+   mfem_error("LinearFormIntegrator::DeviceAssemble(...)");
 }
 
 void LinearFormIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {
-   MFEM_CONTRACT_VAR(el);
-   MFEM_CONTRACT_VAR(Tr);
-   MFEM_CONTRACT_VAR(elvect);
-   MFEM_ABORT("LinearFormIntegrator::AssembleRHSElementVect(...)");
+   mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
 void LinearFormIntegrator::AssembleRHSElementVect(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Tr, Vector &elvect)
 {
-   MFEM_CONTRACT_VAR(el1);
-   MFEM_CONTRACT_VAR(el2);
-   MFEM_CONTRACT_VAR(Tr);
-   MFEM_CONTRACT_VAR(elvect);
-   MFEM_ABORT("LinearFormIntegrator::AssembleRHSElementVect(...)");
+   mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
@@ -302,11 +294,12 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
       val = Tr.Weight();
 
       el.CalcShape(ip, shape);
-      Q.Eval(Qvec, Tr, ip);
+      Q.Eval (Qvec, Tr, ip);
 
       for (int k = 0; k < vdim; k++)
       {
          cf = val * Qvec(k);
+
          for (int s = 0; s < dof; s++)
          {
             elvect(dof*k+s) += ip.weight * cf * shape(s);
@@ -718,10 +711,7 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
 void BoundaryFlowIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   MFEM_CONTRACT_VAR(el);
-   MFEM_CONTRACT_VAR(Tr);
-   MFEM_CONTRACT_VAR(elvect);
-   MFEM_ABORT("BoundaryFlowIntegrator::AssembleRHSElementVect\n"
+   mfem_error("BoundaryFlowIntegrator::AssembleRHSElementVect\n"
               "  is not implemented as boundary integrator!\n"
               "  Use LinearForm::AddBdrFaceIntegrator instead of\n"
               "  LinearForm::AddBoundaryIntegrator.");
@@ -787,10 +777,7 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
 void DGDirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   MFEM_CONTRACT_VAR(el);
-   MFEM_CONTRACT_VAR(Tr);
-   MFEM_CONTRACT_VAR(elvect);
-   MFEM_ABORT("DGDirichletLFIntegrator::AssembleRHSElementVect");
+   mfem_error("DGDirichletLFIntegrator::AssembleRHSElementVect");
 }
 
 void DGDirichletLFIntegrator::AssembleRHSElementVect(
@@ -881,10 +868,7 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
 void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   MFEM_CONTRACT_VAR(el);
-   MFEM_CONTRACT_VAR(Tr);
-   MFEM_CONTRACT_VAR(elvect);
-   MFEM_ABORT("DGElasticityDirichletLFIntegrator::AssembleRHSElementVect");
+   mfem_error("DGElasticityDirichletLFIntegrator::AssembleRHSElementVect");
 }
 
 void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(

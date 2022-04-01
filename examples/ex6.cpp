@@ -125,7 +125,6 @@ int main(int argc, char *argv[])
    BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
    a.AddDomainIntegrator(integ);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
-   if (Device::IsEnabled()) { b.SetAssemblyLevel(AssemblyLevel::FULL); }
 
    // 7. The solution vector x and the associated finite element grid function
    //    will be maintained over the AMR iterations. We initialize it to zero.
