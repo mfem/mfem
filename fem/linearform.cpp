@@ -350,7 +350,7 @@ void LinearForm::AssembleDelta()
 {
    if (domain_delta_integs.Size() == 0) { return; }
 
-#warning ext AssembleDelta not supported
+   // ext AssembleDelta not supported
    //if (ext) { return ext->AssembleDelta(); }
 
    if (!HaveDeltaLocations())
