@@ -614,14 +614,20 @@ class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
    bool save_factors = false;
 public:
 
-   /** @brief Sets the @a seed_ of the random number generator */
 #ifdef MFEM_USE_MPI
+   /** @brief Sets the @a seed_ of the random number generator.
+    *  A fixed seed allows for a reproducible sequence of white noise vectors.
+    */
    WhiteGaussianNoiseDomainLFIntegrator(int seed_ = 0)
       : LinearFormIntegrator(), comm(MPI_COMM_NULL)
    {
       if (seed_ > 0) { SetSeed(seed_); }
    }
 
+   /** @brief Sets the MPI communicator @a comm_ and the @a seed_ of the random
+    *  number generator. A fixed seed allows for a reproducible sequence of white
+    *  noise vectors.
+    */
    WhiteGaussianNoiseDomainLFIntegrator(MPI_Comm comm_, int seed_)
       : LinearFormIntegrator(), comm(comm_)
    {
@@ -632,13 +638,16 @@ public:
       SetSeed(seed);
    }
 #else
+   /** @brief Sets the @a seed_ of the random number generator.
+    *  A fixed seed allows for a reproducible sequence of white noise vectors.
+    */
    WhiteGaussianNoiseDomainLFIntegrator(int seed_ = 0)
       : LinearFormIntegrator()
    {
       if (seed_ > 0) { SetSeed(seed_); }
    }
 #endif
-
+   /// @brief Sets/resets the @a seed of the random number generator.
    void SetSeed(int seed)
    {
       generator.seed(seed);
@@ -648,12 +657,19 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
+   
+   /** @brief Saves the lower triangular matrices in the element-wise Cholesky
+    *  decomposition. The parameter @a NE should be the number of elements in the mesh.
+    */
    void SaveFactors(int NE)
    {
       save_factors = true;
       ResetFactors(NE);
    }
 
+   /** @brief Resets the array of saved lower triangular Cholesky decomposition matrices.
+    *  The parameter @a NE should be the number of elements in the mesh.
+    */
    void ResetFactors(int NE)
    {
       for (int i = 0; i<L.Size(); i++)
