@@ -16,11 +16,11 @@
 namespace mfem
 {
 
-void LinearFormIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
-                                          const Array<int> &markers,
-                                          Vector &b)
+void LinearFormIntegrator::Assemble(const FiniteElementSpace &fes,
+                                    const Array<int> &markers,
+                                    Vector &b)
 {
-   mfem_error("LinearFormIntegrator::DeviceAssemble(...)");
+   mfem_error("LinearFormIntegrator::Assemble(...)");
 }
 
 void LinearFormIntegrator::AssembleRHSElementVect(

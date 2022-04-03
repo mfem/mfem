@@ -212,9 +212,9 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
 }
 
 
-void DomainLFGradIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
-                                            const Array<int> &markers,
-                                            Vector &y)
+void DomainLFGradIntegrator::Assemble(const FiniteElementSpace &fes,
+                                      const Array<int> &markers,
+                                      Vector &y)
 {
    MFEM_VERIFY(fes.GetVDim()==1, "vdim != 1");
 
@@ -340,9 +340,9 @@ void DomainLFGradIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
 
 }
 
-void VectorDomainLFGradIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
-                                                  const Array<int> &markers,
-                                                  Vector &y)
+void VectorDomainLFGradIntegrator::Assemble(const FiniteElementSpace &fes,
+                                            const Array<int> &markers,
+                                            Vector &y)
 {
    const int vdim = fes.GetVDim();
 

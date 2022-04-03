@@ -20,17 +20,8 @@ namespace mfem
 LinearFormExtension::LinearFormExtension(LinearForm *lf):
    lf(lf)
 {
-   const FiniteElementSpace &fes = *lf->FESpace();
-   constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   elem_restrict = fes.GetElementRestriction(ordering);
-
-   if (elem_restrict)
-   {
-      Ye.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
-      Ye.UseDevice(true);
-   }
-
    markers.UseDevice(true);
+   y.UseDevice(true);
    Update();
 }
 
@@ -78,7 +69,10 @@ void LinearFormExtension::Assemble()
       }
 
       // if there are no markers, just use the whole linear form (1)
-      if (!has_markers_k) { markers = 1; }
+      if (!has_markers_k)
+      {
+         markers = 1;
+      }
       else
       {
          // otherwise, scan the attributes to set the markers to 0 or 1
@@ -89,24 +83,33 @@ void LinearFormExtension::Assemble()
          MFEM_FORALL(e, NE, markers_w[e] = dimk[attr[e]-1] == 1;);
       }
 
-      Ye = 0.0;
-      domain_integs[k]->DeviceAssemble(fes, markers, Ye);
-      if (elem_restrict) { elem_restrict->MultTranspose(Ye, *lf); }
+      y = 0.0;
+      domain_integs[k]->Assemble(fes, markers, y);
+      if (elem_restrict) { elem_restrict->MultTranspose(y, *lf); }
    }
 }
 
 void LinearFormExtension::Update()
 {
-   MFEM_VERIFY(lf->Size() == lf->FESpace()->GetVSize(), "");
+   const FiniteElementSpace &fes = *lf->FESpace();
+   const Mesh &mesh = *fes.GetMesh();
+   const int NE = fes.GetNE();
 
-   const int ne = lf->FESpace()->GetNE();
-   const Mesh &mesh = *lf->FESpace()->GetMesh();
+   MFEM_VERIFY(lf->Size() == fes.GetVSize(), "");
 
-   markers.SetSize(ne);
+   markers.SetSize(NE);
 
    // Gather the attributes on the host from all the elements
-   attributes.SetSize(ne);
-   for (int i = 0; i < ne; ++i) { attributes[i] = mesh.GetAttribute(i); }
+   attributes.SetSize(NE);
+   for (int i = 0; i < NE; ++i) { attributes[i] = mesh.GetAttribute(i); }
+
+   constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   elem_restrict = fes.GetElementRestriction(ordering);
+
+   if (elem_restrict)
+   {
+      y.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
+   }
 }
 
 } // namespace mfem

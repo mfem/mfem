@@ -153,6 +153,7 @@ void LinearForm::Assemble(bool use_device)
 
    if (use_device && LinearIntegratorsCanUseDevice(this))
    {
+      MFEM_VERIFY(ext == nullptr, "LinearFormExtension already exists!");
       ext = new LinearFormExtension(this);
    }
 
@@ -351,7 +352,7 @@ void LinearForm::AssembleDelta()
    if (domain_delta_integs.Size() == 0) { return; }
 
    // ext AssembleDelta not supported
-   //if (ext) { return ext->AssembleDelta(); }
+   if (ext) { mfem_error("Not implemented with LinearFormExtension!"); }
 
    if (!HaveDeltaLocations())
    {
