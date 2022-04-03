@@ -151,9 +151,8 @@ void LinearForm::Assemble(bool use_device)
    Vector elemvect;
 
 
-   if (use_device && LinearIntegratorsCanUseDevice(this))
+   if (ext==nullptr && use_device && LinearIntegratorsCanUseDevice(this))
    {
-      MFEM_VERIFY(ext == nullptr, "LinearFormExtension already exists!");
       ext = new LinearFormExtension(this);
    }
 
