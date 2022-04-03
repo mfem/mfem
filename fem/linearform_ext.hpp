@@ -21,7 +21,7 @@ namespace mfem
 class Operator;
 class LinearForm;
 
-/// Class extending the LinearForm class to support different AssemblyLevels.
+/// Class extending the LinearForm class to support assembly on devices.
 class LinearFormExtension
 {
    /// Attributes of all mesh elements.
@@ -35,25 +35,22 @@ class LinearFormExtension
 
    /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
    const Operator *elem_restrict; // Not owned
-   mutable Vector Ye;
+
+   /// Internal E-vectors.
+   mutable Vector y;
 
 public:
+
    LinearFormExtension(LinearForm *lf);
 
    ~LinearFormExtension() { }
 
-   /// Updates the linear form extension
-   void Update();
-
-   /// Assemble at the level given for the linear form extension
-   /// Fully assembles the linear form, compatible with device execution.
+   /// Assembles the linear form, compatible with device execution.
    /// Only integrators added with AddDomainIntegrator are supported.
    void Assemble();
 
-   /// Assembles delta functions of the linear form extension
-   /// Fully assembles the delta functions of the linear form.
-   /// Not yet supported.
-   void AssembleDelta() { MFEM_ABORT("AssembleDelta not implemented!"); }
+   /// Updates the linear form extension
+   void Update();
 };
 
 } // namespace mfem

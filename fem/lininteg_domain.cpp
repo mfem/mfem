@@ -43,7 +43,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
 
    auto Y = Reshape(y, d,d, vdim, NE);
 
-   MFEM_FORALL_3D(e, NE, q,q, NBZ,
+   MFEM_FORALL_2D(e, NE, q,q, NBZ,
    {
       if (M(e) == 0) { return; } // ignore
 
@@ -104,7 +104,7 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
 
    auto Y = Reshape(y, d,d,d, vdim, NE);
 
-   MFEM_FORALL_3D(e, NE, q,q, NBZ,
+   MFEM_FORALL_2D(e, NE, q,q, NBZ,
    {
       if (M(e) == 0) { return; } // ignore
 
@@ -143,9 +143,9 @@ void VectorDomainLFIntegratorAssemble3D(const int vdim,
    });
 }
 
-void DomainLFIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
-                                        const Array<int> &markers,
-                                        Vector &y)
+void DomainLFIntegrator::Assemble(const FiniteElementSpace &fes,
+                                  const Array<int> &markers,
+                                  Vector &y)
 {
    const int vdim = fes.GetVDim();
 
@@ -263,9 +263,9 @@ void DomainLFIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void VectorDomainLFIntegrator::DeviceAssemble(const FiniteElementSpace &fes,
-                                              const Array<int> &markers,
-                                              Vector &y)
+void VectorDomainLFIntegrator::Assemble(const FiniteElementSpace &fes,
+                                        const Array<int> &markers,
+                                        Vector &y)
 {
    const int vdim = fes.GetVDim();
 

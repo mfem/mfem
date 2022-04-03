@@ -32,9 +32,9 @@ public:
    virtual bool UseDevice() { return false; }
 
    /// Method defining assembly on device
-   virtual void DeviceAssemble(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b);
+   virtual void Assemble(const FiniteElementSpace &fes,
+                         const Array<int> &markers,
+                         Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element vector, elvect. */
@@ -120,9 +120,11 @@ public:
       : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
 
    virtual bool UseDevice() { return true; }
-   virtual void DeviceAssemble(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b);
+
+   /// Method defining assembly on device
+   virtual void Assemble(const FiniteElementSpace &fes,
+                         const Array<int> &markers,
+                         Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -151,9 +153,11 @@ public:
       : DeltaLFIntegrator(QF), Q(QF) { }
 
    virtual bool UseDevice() { return true; }
-   virtual void DeviceAssemble(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b);
+
+   /// Method defining assembly on device
+   virtual void Assemble(const FiniteElementSpace &fes,
+                         const Array<int> &markers,
+                         Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -243,9 +247,11 @@ public:
       : DeltaLFIntegrator(QF), Q(QF) { }
 
    virtual bool UseDevice() { return true; }
-   virtual void DeviceAssemble(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b);
+
+   /// Method defining assembly on device
+   virtual void Assemble(const FiniteElementSpace &fes,
+                         const Array<int> &markers,
+                         Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -275,9 +281,11 @@ public:
       : DeltaLFIntegrator(QF), Q(QF) { }
 
    virtual bool UseDevice() override { return true; }
-   virtual void DeviceAssemble(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b) override;
+
+   /// Method defining assembly on device
+   virtual void Assemble(const FiniteElementSpace &fes,
+                         const Array<int> &markers,
+                         Vector &b) override;
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
