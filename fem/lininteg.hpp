@@ -657,7 +657,7 @@ public:
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
-   
+
    /** @brief Saves the lower triangular matrices in the element-wise Cholesky
     *  decomposition. The parameter @a NE should be the number of elements in the mesh.
     */
