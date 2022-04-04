@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "fem.hpp"
-
 #include "../fem/kernels.hpp"
 #include "../linalg/kernels.hpp"
 #include "../general/forall.hpp"
@@ -19,48 +18,20 @@ namespace mfem
 {
 
 template<int T_D1D = 0, int T_Q1D = 0> static
-void VectorDomainLFGradIntegratorAssemble(const int vdim,
-                                          const int ne,
-                                          const int d,
-                                          const int q,
-                                          const int *markers,
-                                          const double *b,
-                                          const double *g,
-                                          const double *jacobians,
-                                          const double *detJ,
-                                          const double *weights,
-                                          const Vector &coeff,
-                                          double *y);
-
-using kernel_t = decltype(&VectorDomainLFGradIntegratorAssemble<>);
-
-template<int T_D1D = 0, int T_Q1D = 0> static
-void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
-                                            const int ne,
-                                            const int d,
-                                            const int q,
-                                            const int *markers,
-                                            const double *b,
-                                            const double *g,
-                                            const double *jacobians,
-                                            const double *detJ,
-                                            const double *weights,
-                                            const Vector &coeff,
-                                            double *y)
+void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
+                       const int *markers, const double *b, const double *g,
+                       const double *jacobians, const double *detJ,
+                       const double *weights, const Vector &coeff, double *y)
 {
-   constexpr int DIM = 2;
-
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);
    const auto B = Reshape(b, q, d);
    const auto G = Reshape(g, q, d);
-   const auto J = Reshape(jacobians, q, q, DIM,DIM, ne);
+   const auto J = Reshape(jacobians, q, q, 2,2, ne);
    const auto DetJ = Reshape(detJ, q, q, ne);
    const auto W = Reshape(weights, q, q);
-   const bool cst_coeff = coeff.Size() == vdim*DIM;
-   const auto C =
-      cst_coeff ? Reshape(F,DIM,vdim,1,1,1) : Reshape(F,DIM,vdim,q,q,ne);
-
+   const bool cst = coeff.Size() == vdim*2;
+   const auto C = cst ? Reshape(F,2,vdim,1,1,1) : Reshape(F,2,vdim,q,q,ne);
    auto Y = Reshape(y, d,d, vdim, ne);
 
    MFEM_FORALL_2D(e, ne, q, q, 1,
@@ -74,15 +45,15 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
       MFEM_SHARED double sQQ[2][Q*Q];
       MFEM_SHARED double sDQ[2][D*Q];
 
-      const DeviceMatrix Bt(sBGt[0], q,d);
-      const DeviceMatrix Gt(sBGt[1], q,d);
-      kernels::internal::LoadBGt<D,Q>(d,q,B,G,sBGt);
+      const DeviceMatrix Bt(sBGt[0], q, d);
+      const DeviceMatrix Gt(sBGt[1], q, d);
+      kernels::internal::LoadBGt<D,Q>(d, q, B, G, sBGt);
 
-      const DeviceMatrix QQ0(sQQ[0], q,q);
-      const DeviceMatrix QQ1(sQQ[1], q,q);
+      const DeviceMatrix QQ0(sQQ[0], q, q);
+      const DeviceMatrix QQ1(sQQ[1], q, q);
 
-      const DeviceMatrix DQ0(sDQ[0], d,q);
-      const DeviceMatrix DQ1(sDQ[1], d,q);
+      const DeviceMatrix DQ0(sDQ[0], d, q);
+      const DeviceMatrix DQ1(sDQ[1], d, q);
 
       for (int c = 0; c < vdim; ++c)
       {
@@ -101,8 +72,8 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
                const double detJ = DetJ(x,y,e);
                kernels::CalcInverse<2>(Jloc, Jinv);
                const double weight = W(x,y);
-               const double u = cst_coeff ? cst_val0 : C(0,c,x,y,e);
-               const double v = cst_coeff ? cst_val1 : C(1,c,x,y,e);
+               const double u = cst ? cst_val0 : C(0,c,x,y,e);
+               const double v = cst ? cst_val1 : C(1,c,x,y,e);
                QQ0(y,x) = Jinv[0]*u + Jinv[2]*v;
                QQ1(y,x) = Jinv[1]*u + Jinv[3]*v;
                QQ0(y,x) *= weight * detJ;
@@ -117,31 +88,21 @@ void VectorDomainLFGradIntegratorAssemble2D(const int vdim,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0> static
-void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
-                                            const int ne,
-                                            const int d,
-                                            const int q,
-                                            const int *markers,
-                                            const double *b,
-                                            const double *g,
-                                            const double *jacobians,
-                                            const double *detJ,
-                                            const double *weights,
-                                            const Vector &coeff,
-                                            double *output)
+void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
+                       const int *markers, const double *b, const double *g,
+                       const double *jacobians, const double *detJ,
+                       const double *weights, const Vector &coeff,
+                       double *output)
 {
-   constexpr int DIM = 3;
-
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);
    const auto B = Reshape(b, q,d);
    const auto G = Reshape(g, q,d);
-   const auto J = Reshape(jacobians, q,q,q, DIM,DIM, ne);
+   const auto J = Reshape(jacobians, q,q,q, 3,3, ne);
    const auto DetJ = Reshape(detJ, q,q,q, ne);
    const auto W = Reshape(weights, q,q,q);
-   const bool cst_coeff = coeff.Size() == vdim*DIM;
-   const auto C =
-      cst_coeff ? Reshape(F,DIM,vdim,1,1,1,1) : Reshape(F,DIM,vdim,q,q,q,ne);
+   const bool cst = coeff.Size() == vdim*3;
+   const auto C = cst ? Reshape(F,3,vdim,1,1,1,1) : Reshape(F,3,vdim,q,q,q,ne);
 
    auto Y = Reshape(output, d,d,d, vdim, ne);
 
@@ -149,30 +110,19 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
    {
       if (M(e) == 0) { return; } // ignore
 
-#warning MAX_Q = 9
-      constexpr int MAX_Q = 9;
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q;
-      constexpr int D = T_D1D ? T_D1D : MAX_Q;
+      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : MAX_D1D;
 
       MFEM_SHARED double sBGt[2][Q*D];
-      MFEM_SHARED double sQQ[3][Q*Q*Q];
-      MFEM_SHARED double sQD[3][Q*Q*D];
+      MFEM_SHARED double sQQQ[Q*Q*Q];
+      MFEM_SHARED double sQQD[Q*Q*D];
 
-      const DeviceMatrix Bt(sBGt[0], q,d);
-      const DeviceMatrix Gt(sBGt[1], q,d);
+      const DeviceMatrix Bt(sBGt[0], q,d), Gt(sBGt[1], q,d);
       kernels::internal::LoadBGt<D,Q>(d,q,B,G,sBGt);
 
-      const DeviceCube QQ0(sQQ[0], q,q,q);
-      const DeviceCube QQ1(sQQ[1], q,q,q);
-      const DeviceCube QQ2(sQQ[2], q,q,q);
-
-      const DeviceCube QD0(sQD[0], q,q,d);
-      const DeviceCube QD1(sQD[1], q,q,d);
-      const DeviceCube QD2(sQD[2], q,q,d);
-
-      const DeviceCube DD0(QQ0, q,d,d);
-      const DeviceCube DD1(QQ1, q,d,d);
-      const DeviceCube DD2(QQ2, q,d,d);
+      const DeviceCube QQQ(sQQQ, q,q,q);
+      const DeviceCube QQD(sQQD, q,q,d);
+      const DeviceCube QDD(sQQQ, q,d,d);
 
       for (int c = 0; c < vdim; ++c)
       {
@@ -180,42 +130,89 @@ void VectorDomainLFGradIntegratorAssemble3D(const int vdim,
          const double cst_val_1 = C(1,c,0,0,0,0);
          const double cst_val_2 = C(2,c,0,0,0,0);
 
-         MFEM_FOREACH_THREAD(x,x,q)
+         for (int k = 0; k < 3; ++k)
          {
-            MFEM_FOREACH_THREAD(y,y,q)
+            for (int z = 0; z < q; ++z)
             {
-               for (int z = 0; z < q; ++z)
+               MFEM_FOREACH_THREAD(y,y,q)
                {
-                  double Jloc[9], Jinv[9];
-                  for (int j = 0; j < 3; j++)
+                  MFEM_FOREACH_THREAD(x,x,q)
                   {
-                     for (int i = 0; i < 3; i++)
+                     double Jloc[9], Jinv[9];
+                     for (int j = 0; j < 3; j++)
                      {
-                        Jloc[i+3*j] = J(x,y,z,i,j,e);
+                        for (int i = 0; i < 3; i++)
+                        {
+                           Jloc[i+3*j] = J(x,y,z,i,j,e);
+                        }
                      }
+                     kernels::CalcInverse<3>(Jloc, Jinv);
+
+                     const double u = cst ? cst_val_0 : C(0,c,x,y,z,e);
+                     const double v = cst ? cst_val_1 : C(1,c,x,y,z,e);
+                     const double w = cst ? cst_val_2 : C(2,c,x,y,z,e);
+                     QQQ(z,y,x) = (k==0) ? Jinv[0]*u + Jinv[3]*v + Jinv[6]*w:
+                                  (k==1) ? Jinv[1]*u + Jinv[4]*v + Jinv[7]*w:
+                                  /*  */   Jinv[2]*u + Jinv[5]*v + Jinv[8]*w;
+                     const double dJ = DetJ(x,y,z,e);
+                     const double weight = W(x,y,z);
+                     QQQ(z,y,x) *= weight * dJ;
                   }
-                  kernels::CalcInverse<3>(Jloc, Jinv);
-
-                  const double u = cst_coeff ? cst_val_0 : C(0,c,x,y,z,e);
-                  const double v = cst_coeff ? cst_val_1 : C(1,c,x,y,z,e);
-                  const double w = cst_coeff ? cst_val_2 : C(2,c,x,y,z,e);
-                  QQ0(z,y,x) = Jinv[0]*u + Jinv[3]*v + Jinv[6]*w;
-                  QQ1(z,y,x) = Jinv[1]*u + Jinv[4]*v + Jinv[7]*w;
-                  QQ2(z,y,x) = Jinv[2]*u + Jinv[5]*v + Jinv[8]*w;
-
-                  const double dJ = DetJ(x,y,z,e);
-                  const double weight = W(x,y,z);
-                  QQ0(z,y,x) *= weight * dJ;
-                  QQ1(z,y,x) *= weight * dJ;
-                  QQ2(z,y,x) *= weight * dJ;
                }
+               MFEM_SYNC_THREAD;
             }
-         }
-         MFEM_SYNC_THREAD;
-         kernels::internal::GradZt(d,q,Bt,Gt,QQ0,QQ1,QQ2,QD0,QD1,QD2);
-         kernels::internal::GradYt(d,q,Bt,Gt,QD0,QD1,QD2,DD0,DD1,DD2);
-         kernels::internal::GradXt(d,q,Bt,Gt,DD0,DD1,DD2,Y,c,e);
-      }
+
+            for (int qz = 0; qz < q; ++qz)
+            {
+               MFEM_FOREACH_THREAD(qy,y,q)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,d)
+                  {
+                     double u = 0.0;
+                     for (int qx = 0; qx < q; ++qx)
+                     {
+                        u += (k == 0 ? Gt(qx,dx) : Bt(qx,dx)) * QQQ(qz,qy,qx);
+                     }
+                     QQD(qz,qy,dx) = u;
+                  }
+               }
+               MFEM_SYNC_THREAD;
+            }
+
+            for (int qz = 0; qz < q; ++qz)
+            {
+               MFEM_FOREACH_THREAD(dy,y,d)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,d)
+                  {
+                     double u = 0.0;
+                     for (int qy = 0; qy < q; ++qy)
+                     {
+                        u += (k == 1 ? Gt(qy,dy) : Bt(qy,dy)) * QQD(qz,qy,dx);
+                     }
+                     QDD(qz,dy,dx) = u;
+                  }
+               }
+               MFEM_SYNC_THREAD;
+            }
+            for (int dz = 0; dz < d; ++dz)
+            {
+               MFEM_FOREACH_THREAD(dy,y,d)
+               {
+                  MFEM_FOREACH_THREAD(dx,x,d)
+                  {
+                     double u = 0.0;
+                     for (int qz = 0; qz < q; ++qz)
+                     {
+                        u += (k == 2 ? Gt(qz,dz) : Bt(qz,dz)) * QDD(qz,dy,dx);
+                     }
+                     Y(dx,dy,dz,c,e) += u;
+                  }
+               }
+               MFEM_SYNC_THREAD;
+            }
+         } // dim
+      } // vdim
    });
 }
 
@@ -225,43 +222,40 @@ static void LaunchDeviceKernel(const FiniteElementSpace &fes,
                                const Vector &coeff,
                                Vector &y)
 {
-   kernel_t ker = nullptr;
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
    const FiniteElement &el = *fes.GetFE(0);
    const MemoryType mt = Device::GetDeviceMemoryType();
    const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   const int d = maps.ndof, q = maps.nqpt;
    constexpr int flags =
       GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS;
    const GeometricFactors *geom = mesh->GetGeometricFactors(*ir, flags, mt);
-
-   const int d = maps.ndof, q = maps.nqpt;
-
-   if (dim==2) { ker=VectorDomainLFGradIntegratorAssemble2D; }
-   if (dim==3) { ker=VectorDomainLFGradIntegratorAssemble3D; }
+   decltype(&DLFGradAssemble2D<>) ker =
+      dim == 2 ? DLFGradAssemble2D<> :  DLFGradAssemble3D<>;
 
    if (dim==2)
    {
-      if (d==2 && q==2) { ker=VectorDomainLFGradIntegratorAssemble2D<2,2>; }
-      if (d==3 && q==3) { ker=VectorDomainLFGradIntegratorAssemble2D<3,3>; }
-      if (d==4 && q==4) { ker=VectorDomainLFGradIntegratorAssemble2D<4,4>; }
-      if (d==5 && q==5) { ker=VectorDomainLFGradIntegratorAssemble2D<5,5>; }
-      if (d==2 && q==3) { ker=VectorDomainLFGradIntegratorAssemble2D<2,3>; }
-      if (d==3 && q==4) { ker=VectorDomainLFGradIntegratorAssemble2D<3,4>; }
-      if (d==4 && q==5) { ker=VectorDomainLFGradIntegratorAssemble2D<4,5>; }
-      if (d==5 && q==6) { ker=VectorDomainLFGradIntegratorAssemble2D<5,6>; }
+      if (d==2 && q==2) { ker=DLFGradAssemble2D<2,2>; }
+      if (d==3 && q==3) { ker=DLFGradAssemble2D<3,3>; }
+      if (d==4 && q==4) { ker=DLFGradAssemble2D<4,4>; }
+      if (d==5 && q==5) { ker=DLFGradAssemble2D<5,5>; }
+      if (d==2 && q==3) { ker=DLFGradAssemble2D<2,3>; }
+      if (d==3 && q==4) { ker=DLFGradAssemble2D<3,4>; }
+      if (d==4 && q==5) { ker=DLFGradAssemble2D<4,5>; }
+      if (d==5 && q==6) { ker=DLFGradAssemble2D<5,6>; }
    }
 
    if (dim==3)
    {
-      if (d==2 && q==2) { ker=VectorDomainLFGradIntegratorAssemble3D<2,2>; }
-      if (d==3 && q==3) { ker=VectorDomainLFGradIntegratorAssemble3D<3,3>; }
-      if (d==4 && q==4) { ker=VectorDomainLFGradIntegratorAssemble3D<4,4>; }
-      if (d==5 && q==5) { ker=VectorDomainLFGradIntegratorAssemble3D<5,5>; }
-      if (d==2 && q==3) { ker=VectorDomainLFGradIntegratorAssemble3D<2,3>; }
-      if (d==3 && q==4) { ker=VectorDomainLFGradIntegratorAssemble3D<3,4>; }
-      if (d==4 && q==5) { ker=VectorDomainLFGradIntegratorAssemble3D<4,5>; }
-      if (d==5 && q==6) { ker=VectorDomainLFGradIntegratorAssemble3D<5,6>; }
+      if (d==2 && q==2) { ker=DLFGradAssemble3D<2,2>; }
+      if (d==3 && q==3) { ker=DLFGradAssemble3D<3,3>; }
+      if (d==4 && q==4) { ker=DLFGradAssemble3D<4,4>; }
+      if (d==5 && q==5) { ker=DLFGradAssemble3D<5,5>; }
+      if (d==2 && q==3) { ker=DLFGradAssemble3D<2,3>; }
+      if (d==3 && q==4) { ker=DLFGradAssemble3D<3,4>; }
+      if (d==4 && q==5) { ker=DLFGradAssemble3D<4,5>; }
+      if (d==5 && q==6) { ker=DLFGradAssemble3D<5,6>; }
    }
 
    MFEM_VERIFY(ker, "No kernel ndof " << d << " nqpt " << q);

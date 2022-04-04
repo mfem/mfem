@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "fem.hpp"
-
 #include "../fem/kernels.hpp"
 #include "../general/forall.hpp"
 
@@ -18,39 +17,17 @@ namespace mfem
 {
 
 template<int T_D1D = 0, int T_Q1D = 0> static
-void VectorDomainLFIntegratorAssemble(const int vdim,
-                                      const int ne,
-                                      const int d,
-                                      const int q,
-                                      const int *markers,
-                                      const double *b,
-                                      const double *detJ,
-                                      const double *weights,
-                                      const Vector &coeff,
-                                      double *y);
-
-using kernel_t = decltype(&VectorDomainLFIntegratorAssemble<>);
-
-template<int T_D1D = 0, int T_Q1D = 0> static
-void VectorDomainLFIntegratorAssemble2D(const int vdim,
-                                        const int ne,
-                                        const int d,
-                                        const int q,
-                                        const int *markers,
-                                        const double *b,
-                                        const double *detJ,
-                                        const double *weights,
-                                        const Vector &coeff,
-                                        double *y)
+void DLFEvalAssemble2D(const int vdim, const int ne, const int d, const int q,
+                       const int *markers, const double *b, const double *detJ,
+                       const double *weights, const Vector &coeff, double *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);
    const auto B = Reshape(b, q, d);
    const auto DetJ = Reshape(detJ, q, q, ne);
    const auto W = Reshape(weights, q, q);
-   const bool cst_coeff = coeff.Size() == vdim;
-   const auto C = cst_coeff ? Reshape(F,vdim,1,1,1) : Reshape(F,vdim,q,q,ne);
-
+   const bool cst = coeff.Size() == vdim;
+   const auto C = cst ? Reshape(F,vdim,1,1,1) : Reshape(F,vdim,q,q,ne);
    auto Y = Reshape(y, d,d, vdim, ne);
 
    MFEM_FORALL_2D(e, ne, q, q, 1,
@@ -64,11 +41,11 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
       MFEM_SHARED double sQQ[Q*Q];
       MFEM_SHARED double sQD[Q*D];
 
-      const DeviceMatrix Bt(sBt, d,q);
-      kernels::internal::LoadB<D,Q>(d,q,B,sBt);
+      const DeviceMatrix Bt(sBt, d, q);
+      kernels::internal::LoadB<D,Q>(d, q, B, sBt);
 
-      const DeviceMatrix QQ(sQQ, q,q);
-      const DeviceMatrix QD(sQD, q,d);
+      const DeviceMatrix QQ(sQQ, q, q);
+      const DeviceMatrix QD(sQD, q, d);
 
       for (int c = 0; c < vdim; ++c)
       {
@@ -78,7 +55,7 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
             MFEM_FOREACH_THREAD(y,y,q)
             {
                const double detJ = DetJ(x,y,e);
-               const double coeff_val = cst_coeff ? cst_val : C(c,x,y,e);
+               const double coeff_val = cst ? cst_val : C(c,x,y,e);
                QQ(y,x) = W(x,y) * coeff_val * detJ;
             }
          }
@@ -90,16 +67,9 @@ void VectorDomainLFIntegratorAssemble2D(const int vdim,
 }
 
 template<int T_D1D = 0, int T_Q1D = 0> static
-void VectorDomainLFIntegratorAssemble3D(const int vdim,
-                                        const int ne,
-                                        const int d,
-                                        const int q,
-                                        const int *markers,
-                                        const double *b,
-                                        const double *detJ,
-                                        const double *weights,
-                                        const Vector &coeff,
-                                        double *y)
+void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
+                       const int *markers, const double *b, const double *detJ,
+                       const double *weights, const Vector &coeff, double *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);
@@ -156,43 +126,40 @@ static void LaunchDeviceKernel(const FiniteElementSpace &fes,
                                const Vector &coeff,
                                Vector &y)
 {
-   kernel_t ker = nullptr;
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
    const FiniteElement &el = *fes.GetFE(0);
    const MemoryType mt = Device::GetDeviceMemoryType();
    const DofToQuad &maps = el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   const int d = maps.ndof, q = maps.nqpt;
    constexpr int flags =
       GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS;
    const GeometricFactors *geom = mesh->GetGeometricFactors(*ir, flags, mt);
-
-   const int d = maps.ndof, q = maps.nqpt;
-
-   if (dim==2) { ker = VectorDomainLFIntegratorAssemble2D<>; }
-   if (dim==3) { ker = VectorDomainLFIntegratorAssemble3D<>; }
+   decltype(&DLFEvalAssemble2D<>) ker =
+      dim == 2 ? DLFEvalAssemble2D<> : DLFEvalAssemble3D<>;
 
    if (dim==2)
    {
-      if (d==2 && q==2) { ker=VectorDomainLFIntegratorAssemble2D<2,2>; }
-      if (d==3 && q==3) { ker=VectorDomainLFIntegratorAssemble2D<3,3>; }
-      if (d==4 && q==4) { ker=VectorDomainLFIntegratorAssemble2D<4,4>; }
-      if (d==5 && q==5) { ker=VectorDomainLFIntegratorAssemble2D<5,5>; }
-      if (d==2 && q==3) { ker=VectorDomainLFIntegratorAssemble2D<2,3>; }
-      if (d==3 && q==4) { ker=VectorDomainLFIntegratorAssemble2D<3,4>; }
-      if (d==4 && q==5) { ker=VectorDomainLFIntegratorAssemble2D<4,5>; }
-      if (d==5 && q==6) { ker=VectorDomainLFIntegratorAssemble2D<5,6>; }
+      if (d==2 && q==2) { ker=DLFEvalAssemble2D<2,2>; }
+      if (d==3 && q==3) { ker=DLFEvalAssemble2D<3,3>; }
+      if (d==4 && q==4) { ker=DLFEvalAssemble2D<4,4>; }
+      if (d==5 && q==5) { ker=DLFEvalAssemble2D<5,5>; }
+      if (d==2 && q==3) { ker=DLFEvalAssemble2D<2,3>; }
+      if (d==3 && q==4) { ker=DLFEvalAssemble2D<3,4>; }
+      if (d==4 && q==5) { ker=DLFEvalAssemble2D<4,5>; }
+      if (d==5 && q==6) { ker=DLFEvalAssemble2D<5,6>; }
    }
 
    if (dim==3)
    {
-      if (d==2 && q==2) { ker=VectorDomainLFIntegratorAssemble3D<2,2>; }
-      if (d==3 && q==3) { ker=VectorDomainLFIntegratorAssemble3D<3,3>; }
-      if (d==4 && q==4) { ker=VectorDomainLFIntegratorAssemble3D<4,4>; }
-      if (d==5 && q==5) { ker=VectorDomainLFIntegratorAssemble3D<5,5>; }
-      if (d==2 && q==3) { ker=VectorDomainLFIntegratorAssemble3D<2,3>; }
-      if (d==3 && q==4) { ker=VectorDomainLFIntegratorAssemble3D<3,4>; }
-      if (d==4 && q==5) { ker=VectorDomainLFIntegratorAssemble3D<4,5>; }
-      if (d==5 && q==6) { ker=VectorDomainLFIntegratorAssemble3D<5,6>; }
+      if (d==2 && q==2) { ker=DLFEvalAssemble3D<2,2>; }
+      if (d==3 && q==3) { ker=DLFEvalAssemble3D<3,3>; }
+      if (d==4 && q==4) { ker=DLFEvalAssemble3D<4,4>; }
+      if (d==5 && q==5) { ker=DLFEvalAssemble3D<5,5>; }
+      if (d==2 && q==3) { ker=DLFEvalAssemble3D<2,3>; }
+      if (d==3 && q==4) { ker=DLFEvalAssemble3D<3,4>; }
+      if (d==4 && q==5) { ker=DLFEvalAssemble3D<4,5>; }
+      if (d==5 && q==6) { ker=DLFEvalAssemble3D<5,6>; }
    }
 
    MFEM_VERIFY(ker, "No kernel ndof " << d << " nqpt " << q);
