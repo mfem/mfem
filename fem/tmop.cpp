@@ -2330,6 +2330,8 @@ TMOP_Integrator::~TMOP_Integrator()
    delete lim_func;
    delete adapt_lim_gf;
    delete surf_fit_gf;
+   delete surf_fit_grad;
+   delete surf_fit_hess;
    for (int i = 0; i < ElemDer.Size(); i++)
    {
       delete ElemDer[i];
@@ -2430,6 +2432,54 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                  *s0.ParFESpace()->FEColl(), 1);
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
+}
+
+void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
+                                                     &s0_bg,
+                                                     ParGridFunction &s0,
+                                                     const Array<bool> &smarker,
+                                                     Coefficient &coeff,
+                                                     AdaptivityEvaluator &ae,
+                                                     const ParGridFunction &s0_bg_grad,
+                                                     ParGridFunction &s0_grad,
+                                                     AdaptivityEvaluator &age,
+                                                     const ParGridFunction &s0_bg_hess,
+                                                     ParGridFunction &s0_hess,
+                                                     AdaptivityEvaluator &ahe)
+{
+   delete surf_fit_gf;
+   surf_fit_gf = new GridFunction(s0);
+   surf_fit_marker = &smarker;
+   surf_fit_coeff = &coeff;
+   surf_fit_eval = &ae;
+
+   surf_fit_gf_bg = true;
+   surf_fit_eval->SetParMetaInfo(*s0_bg.ParFESpace()->GetParMesh(),
+                                 *s0_bg.ParFESpace()->FEColl(), 1);
+   surf_fit_eval->SetInitialField
+   (*s0_bg.FESpace()->GetMesh()->GetNodes(), s0_bg);
+
+   // Setup gradient and Hessian on background mesh
+   surf_fit_eval_bg_grad = &age;
+   surf_fit_eval_bg_hess = &ahe;
+   surf_fit_eval_bg_grad->SetParMetaInfo(*s0_bg_grad.ParFESpace()->GetParMesh(),
+                                         *s0_bg_grad.ParFESpace()->FEColl(),
+                                         s0_bg_grad.ParFESpace()->GetVDim());
+   surf_fit_eval_bg_grad->SetInitialField
+   (*s0_bg_grad.FESpace()->GetMesh()->GetNodes(), s0_bg_grad);
+
+   delete surf_fit_grad;
+   surf_fit_grad = new GridFunction(s0_grad);
+
+   // Setup Hessian on background mesh
+   surf_fit_eval_bg_hess->SetParMetaInfo(*s0_bg_hess.ParFESpace()->GetParMesh(),
+                                         *s0_bg_hess.ParFESpace()->FEColl(),
+                                         s0_bg_hess.ParFESpace()->GetVDim());
+   surf_fit_eval_bg_hess->SetInitialField
+   (*s0_bg_hess.FESpace()->GetMesh()->GetNodes(), s0_bg_hess);
+
+   delete surf_fit_hess;
+   surf_fit_hess = new GridFunction(s0_hess);
 }
 #endif
 
@@ -3167,8 +3217,16 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
    DenseMatrix surf_fit_grad_e(dof_s, dim);
    Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
    DenseMatrix grad_phys; // This will be (dof x dim, dof).
-   el_s.ProjectGrad(el_s, Tpr, grad_phys);
-   grad_phys.Mult(sigma_e, grad_ptr);
+   if (surf_fit_gf_bg)
+   {
+      surf_fit_grad->FESpace()->GetElementVDofs(el_id, dofs);
+      surf_fit_grad->GetSubVector(dofs, grad_ptr);
+   }
+   else
+   {
+      el_s.ProjectGrad(el_s, Tpr, grad_phys);
+      grad_phys.Mult(sigma_e, grad_ptr);
+   }
 
    Vector shape_x(dof_x), shape_s(dof_s);
    const IntegrationRule &ir = el_s.GetNodes();
@@ -3219,14 +3277,30 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    DenseMatrix surf_fit_grad_e(dof_s, dim);
    Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
    DenseMatrix grad_phys;
-   el_s.ProjectGrad(el_s, Tpr, grad_phys);
-   grad_phys.Mult(sigma_e, grad_ptr);
+   if (surf_fit_gf_bg)
+   {
+      surf_fit_grad->FESpace()->GetElementVDofs(el_id, dofs);
+      surf_fit_grad->GetSubVector(dofs, grad_ptr);
+   }
+   else
+   {
+      el_s.ProjectGrad(el_s, Tpr, grad_phys);
+      grad_phys.Mult(sigma_e, grad_ptr);
+   }
 
    DenseMatrix surf_fit_hess_e(dof_s, dim*dim);
    Vector hess_ptr(surf_fit_hess_e.GetData(), dof_s*dim*dim);
-   surf_fit_hess_e.SetSize(dof_s*dim, dim);
-   Mult(grad_phys, surf_fit_grad_e, surf_fit_hess_e);
-   surf_fit_hess_e.SetSize(dof_s, dim * dim);
+   if (surf_fit_gf_bg)
+   {
+      surf_fit_hess->FESpace()->GetElementVDofs(el_id, dofs);
+      surf_fit_hess->GetSubVector(dofs, hess_ptr);
+   }
+   else
+   {
+      surf_fit_hess_e.SetSize(dof_s*dim, dim);
+      Mult(grad_phys, surf_fit_grad_e, surf_fit_hess_e);
+      surf_fit_hess_e.SetSize(dof_s, dim * dim);
+   }
 
    const IntegrationRule &ir = el_s.GetNodes();
    Vector shape_x(dof_x), shape_s(dof_s);
@@ -3618,6 +3692,11 @@ void TMOP_Integrator::UpdateAfterMeshPositionChange(const Vector &new_x)
    if (surf_fit_gf)
    {
       surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf);
+      if (surf_fit_gf_bg)
+      {
+         surf_fit_eval_bg_grad->ComputeAtNewPosition(new_x, *surf_fit_grad);
+         surf_fit_eval_bg_hess->ComputeAtNewPosition(new_x, *surf_fit_hess);
+      }
    }
 }
 
