@@ -88,7 +88,7 @@ void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
       constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int D = T_D1D ? T_D1D : MAX_D1D;
 
-      double u[Q];
+      double u[D];
 
       MFEM_SHARED double sBt[Q*D];
       const DeviceMatrix Bt(sBt, d,q);
