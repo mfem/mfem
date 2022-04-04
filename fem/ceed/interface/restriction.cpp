@@ -20,8 +20,8 @@ namespace ceed
 
 #ifdef MFEM_USE_CEED
 
-static void InitNonTensorRestriction(const mfem::FiniteElementSpace &fes,
-                                     Ceed ceed, CeedElemRestriction *restr)
+static void InitRestrictionImpl(const mfem::FiniteElementSpace &fes,
+                                Ceed ceed, CeedElemRestriction *restr)
 {
    const mfem::FiniteElement *fe = fes.GetFE(0);
    const int P = fe->GetDof();
@@ -59,7 +59,7 @@ static void InitNonTensorRestriction(const mfem::FiniteElementSpace &fes,
                              tp_el_dof.GetData(), restr);
 }
 
-static void InitNonTensorRestrictionWithIndices(
+static void InitRestrictionWithIndicesImpl(
    const mfem::FiniteElementSpace &fes,
    int nelem,
    const int* indices,
@@ -106,97 +106,6 @@ static void InitNonTensorRestrictionWithIndices(
                              tp_el_dof.GetData(), restr);
 }
 
-// TODO fuse Tensor and NonTensor Restriction
-void InitTensorRestriction(const mfem::FiniteElementSpace &fes,
-                           Ceed ceed, CeedElemRestriction *restr)
-{
-   const mfem::FiniteElement *fe = fes.GetFE(0);
-   const mfem::TensorBasisElement * tfe =
-      dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   MFEM_VERIFY(tfe, "invalid FE");
-   const mfem::Array<int>& dof_map = tfe->GetDofMap();
-
-   CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
-   const mfem::Table &el_dof = fes.GetElementToDofTable();
-   mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
-   const int dof = fe->GetDof();
-   const int stride = compstride == 1 ? fes.GetVDim() : 1;
-   if (dof_map.Size()>0)
-   {
-      for (int i = 0; i < fes.GetNE(); i++)
-      {
-         const int el_offset = dof * i;
-         for (int j = 0; j < dof; j++)
-         {
-            tp_el_dof[j+el_offset] = stride*el_dof.GetJ()[dof_map[j]+el_offset];
-         }
-      }
-   }
-   else // dof_map.Size == 0, means dof_map[j]==j;
-   {
-      for (int i = 0; i < fes.GetNE(); i++)
-      {
-         const int el_offset = dof * i;
-         for (int j = 0; j < dof; j++)
-         {
-            tp_el_dof[j+el_offset] = stride*el_dof.GetJ()[j+el_offset];
-         }
-      }
-   }
-   CeedElemRestrictionCreate(ceed, fes.GetNE(), dof, fes.GetVDim(),
-                             compstride, (fes.GetVDim())*(fes.GetNDofs()),
-                             CEED_MEM_HOST, CEED_COPY_VALUES,
-                             tp_el_dof.GetData(), restr);
-}
-
-void InitTensorRestrictionWithIndices(const mfem::FiniteElementSpace &fes,
-                                      int nelem,
-                                      const int* indices,
-                                      Ceed ceed, CeedElemRestriction *restr)
-{
-   const mfem::FiniteElement *fe = fes.GetFE(indices[0]);
-   const mfem::TensorBasisElement * tfe =
-      dynamic_cast<const mfem::TensorBasisElement *>(fe);
-   MFEM_VERIFY(tfe, "invalid FE");
-   const mfem::Array<int>& dof_map = tfe->GetDofMap();
-
-   CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
-   const int dof = fe->GetDof();
-   mfem::Array<int> tp_el_dof(nelem*dof);
-   const int stride = compstride == 1 ? fes.GetVDim() : 1;
-   Array<int> dofs;
-   if (dof_map.Size()>0)
-   {
-      for (int i = 0; i < nelem; i++)
-      {
-         const int elem_index = indices[i];
-         fes.GetElementDofs(elem_index, dofs);
-         const int el_offset = dof * i;
-         for (int j = 0; j < dof; j++)
-         {
-            tp_el_dof[j+el_offset] = stride*dofs[dof_map[j]];
-         }
-      }
-   }
-   else // dof_map.Size == 0, means dof_map[j]==j;
-   {
-      for (int i = 0; i < nelem; i++)
-      {
-         const int elem_index = indices[i];
-         fes.GetElementDofs(elem_index, dofs);
-         const int el_offset = dof * i;
-         for (int j = 0; j < dof; j++)
-         {
-            tp_el_dof[j+el_offset] = stride*dofs[j];
-         }
-      }
-   }
-   CeedElemRestrictionCreate(ceed, nelem, dof, fes.GetVDim(),
-                             compstride, (fes.GetVDim())*(fes.GetNDofs()),
-                             CEED_MEM_HOST, CEED_COPY_VALUES,
-                             tp_el_dof.GetData(), restr);
-}
-
 void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
                             CeedInt nelem, CeedInt nqpts, CeedInt qdatasize,
                             const CeedInt *strides,
@@ -235,14 +144,7 @@ void InitRestriction(const FiniteElementSpace &fes,
    // Init or retreive key values
    if (restr_itr == mfem::internal::ceed_restr_map.end())
    {
-      if (UsesTensorBasis(fes))
-      {
-         InitTensorRestriction(fes, ceed, restr);
-      }
-      else
-      {
-         InitNonTensorRestriction(fes, ceed, restr);
-      }
+      InitRestrictionImpl(fes, ceed, restr);
       mfem::internal::ceed_restr_map[restr_key] = *restr;
    }
    else
@@ -263,20 +165,11 @@ void InitRestrictionWithIndices(const FiniteElementSpace &fes,
    const int ncomp = fes.GetVDim();
    RestrKey restr_key(&fes, nelem, P, ncomp, restr_type::Standard);
    auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
-   const bool tensor = dynamic_cast<const mfem::TensorBasisElement *>
-                       (fe) != nullptr;
 
    // Init or retreive key values
    if (restr_itr == mfem::internal::ceed_restr_map.end())
    {
-      if (tensor)
-      {
-         InitTensorRestrictionWithIndices(fes, nelem, indices, ceed, restr);
-      }
-      else
-      {
-         InitNonTensorRestrictionWithIndices(fes, nelem, indices, ceed, restr);
-      }
+      InitRestrictionWithIndicesImpl(fes, nelem, indices, ceed, restr);
       mfem::internal::ceed_restr_map[restr_key] = *restr;
    }
    else
