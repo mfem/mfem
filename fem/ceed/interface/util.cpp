@@ -170,6 +170,26 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    return 0;
 }
 
+template <>
+const IntegrationRule & GetRule<MassIntegrator>(
+   const MassIntegrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &trans)
+{
+   return MassIntegrator::GetRule(trial_fe, test_fe, trans);
+}
+
+template <>
+const IntegrationRule & GetRule<DiffusionIntegrator>(
+   const DiffusionIntegrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &trans)
+{
+   return DiffusionIntegrator::GetRule(trial_fe, test_fe);
+}
+
 std::string ceed_path;
 
 const std::string &GetCeedPath()
