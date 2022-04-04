@@ -1346,6 +1346,9 @@ protected:
    Coefficient *surf_fit_coeff;         // Not owned.
    AdaptivityEvaluator *surf_fit_eval;  // Not owned.
    double surf_fit_normal;
+   bool surf_fit_gf_bg;
+   GridFunction *surf_fit_grad, *surf_fit_hess;
+   AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -1538,6 +1541,8 @@ public:
         surf_fit_gf(NULL), surf_fit_marker(NULL),
         surf_fit_coeff(NULL),
         surf_fit_eval(NULL), surf_fit_normal(1.0),
+        surf_fit_gf_bg(false), surf_fit_grad(NULL), surf_fit_hess(NULL),
+        surf_fit_eval_bg_grad(NULL), surf_fit_eval_bg_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
    { PA.enabled = false; }
@@ -1623,6 +1628,18 @@ public:
    void EnableSurfaceFitting(const GridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
+   void EnableSurfaceFittingFromSource(const ParGridFunction &s0_bg,
+                                       ParGridFunction &s0,
+                                       const Array<bool> &smarker,
+                                       Coefficient &coeff,
+                                       AdaptivityEvaluator &ae,
+                                       const ParGridFunction &s0_bg_grad,
+                                       ParGridFunction &s0_grad,
+                                       AdaptivityEvaluator &age,
+                                       const ParGridFunction &s0_bg_hess,
+                                       ParGridFunction &s0_hess,
+                                       AdaptivityEvaluator &ahe);
+
 #ifdef MFEM_USE_MPI
    /// Parallel support for surface fitting.
    void EnableSurfaceFitting(const ParGridFunction &s0,
