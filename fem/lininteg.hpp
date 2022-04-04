@@ -32,9 +32,9 @@ public:
    virtual bool UseDevice() { return false; }
 
    /// Method defining assembly on device
-   virtual void Assemble(const FiniteElementSpace &fes,
-                         const Array<int> &markers,
-                         Vector &b);
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element vector, elvect. */
@@ -122,9 +122,9 @@ public:
    virtual bool UseDevice() { return true; }
 
    /// Method defining assembly on device
-   virtual void Assemble(const FiniteElementSpace &fes,
-                         const Array<int> &markers,
-                         Vector &b);
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -155,9 +155,9 @@ public:
    virtual bool UseDevice() { return true; }
 
    /// Method defining assembly on device
-   virtual void Assemble(const FiniteElementSpace &fes,
-                         const Array<int> &markers,
-                         Vector &b);
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -249,9 +249,9 @@ public:
    virtual bool UseDevice() { return true; }
 
    /// Method defining assembly on device
-   virtual void Assemble(const FiniteElementSpace &fes,
-                         const Array<int> &markers,
-                         Vector &b);
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b);
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
@@ -283,9 +283,9 @@ public:
    virtual bool UseDevice() override { return true; }
 
    /// Method defining assembly on device
-   virtual void Assemble(const FiniteElementSpace &fes,
-                         const Array<int> &markers,
-                         Vector &b) override;
+   virtual void AssembleDevice(const FiniteElementSpace &fes,
+                               const Array<int> &markers,
+                               Vector &b) override;
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
