@@ -76,7 +76,6 @@
 #include "sbm_aux.hpp"
 #include "sbm_solver.hpp"
 #include "marking.hpp"
-#include "dist_solver.hpp"
 
 using namespace mfem;
 using namespace std;
