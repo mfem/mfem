@@ -279,16 +279,16 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
-/** @brief 2D Scalar Transposed Evaluation, 2/2
-Second contraction for the transposed evaluation at quadrature points of a 2D
-finite element function.
-@param[in] D1D The number of degrees of freedom per dimension.
-@param[in] Q1D The number of quadrature points per dimension.
-@param[in] B The matrix containing the evaluation of the basis functions at quadrature points.
-@param[in] QQ 2D tensor containing the quadrature points.
-@param[out] Y output.
-
-Note: All `DeviceTensor` have to be `const` for compatibility with non-mutable lambda capture. */
+/** @brief 2D Scalar Transposed Evaluation. Second contraction of the transposed
+ *  evaluation at quadrature points of a 2D finite element function.
+ * @param[in] D1D The number of degrees of freedom per dimension.
+ * @param[in] Q1D The number of quadrature points per dimension.
+ * @param[in] B The matrix containing the evaluation of the basis functions at quadrature points.
+ * @param[in] QQ 2D tensor containing the quadrature points.
+ * @param[out] Output vector.
+ *
+ * Note: All `DeviceTensor` have to be `const` for compatibility with
+ * non-mutable lambda capture. */
 MFEM_HOST_DEVICE inline void EvalXt(const int D1D, const int Q1D,
                                     const DeviceMatrix &B,
                                     const DeviceMatrix &QQ,
@@ -492,10 +492,10 @@ MFEM_HOST_DEVICE inline void EvalYt(const int D1D, const int Q1D,
  * functions at quadrature points.
  * @param[in] Gt The matrix containing the transposed gradient of the basis
  * functions at quadrature points.
- * @param[in] QQ0
- * @param[in] QQ1
- * @param[out] DQ0
- * @param[out] DQ1
+ * @param[in] QQ0 auxiliary share memory space of size Q1D*Q1D.
+ * @param[in] QQ1 auxiliary share memory space of size Q1D*Q1D.
+ * @param[out] DQ0 auxiliary share memory space of size D1D*Q1D.
+ * @param[out] DQ1 auxiliary share memory space of size D1D*Q1D.
  *
  * Note: All `DeviceMatrix` have to be `const` for compatibility with
  * non-mutable lambda capture.*/
@@ -505,18 +505,18 @@ void GradYt(const int D1D, const int Q1D,
             const DeviceMatrix &QQ0, const DeviceMatrix &QQ1,
             const DeviceMatrix &DQ0, const DeviceMatrix &DQ1)
 {
-   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
-      MFEM_FOREACH_THREAD(dx,x,D1D)
+      MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          double u = 0.0, v = 0.0;
-         for (int qx = 0; qx < Q1D; ++qx)
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            u += Gt(qx,dx) * QQ0(qy,qx);
-            v += Bt(qx,dx) * QQ1(qy,qx);
+            u += QQ0(qy,qx) * Bt(qy,dy);
+            v += QQ1(qy,qx) * Gt(qy,dy);
          }
-         DQ0(dx,qy) = u;
-         DQ1(dx,qy) = v;
+         DQ0(dy,qx) = u;
+         DQ1(dy,qx) = v;
       }
    }
    MFEM_SYNC_THREAD;
@@ -531,11 +531,11 @@ void GradYt(const int D1D, const int Q1D,
  * functions at quadrature points.
  * @param[in] Gt The matrix containing the transposed gradient of the basis
  * functions at quadrature points.
- * @param DQ0
- * @param DQ1
- * @param Y
- * @param c
- * @param e
+ * @param[in] DQ0 auxiliary share memory space of size D1D*Q1D.
+ * @param[in] DQ1 auxiliary share memory space of size D1D*Q1D.
+ * @param[out] Output vector.
+ * @param[in] vdim component.
+ * @param[in] element index.
  *
  * Note: All `DeviceMatrix` have to be `const` for compatibility with
  * non-mutable lambda capture.*/
@@ -545,18 +545,17 @@ void GradXt(const int D1D, const int Q1D,
             const DeviceMatrix &DQ0, const DeviceMatrix &DQ1,
             const DeviceTensor<4> &Y, const int c, const int e)
 {
-   MFEM_FOREACH_THREAD(dy,y,D1D)
+   MFEM_FOREACH_THREAD(dx,x,D1D)
    {
-      MFEM_FOREACH_THREAD(dx,x,D1D)
+      MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          double u = 0.0, v = 0.0;
-         for (int qy = 0; qy < Q1D; ++qy)
+         for (int qx = 0; qx < Q1D; ++qx)
          {
-            u += DQ0(dx,qy) * Bt(qy,dy);
-            v += DQ1(dx,qy) * Gt(qy,dy);
+            u += DQ0(dy,qx) * Gt(qx,dx);
+            v += DQ1(dy,qx) * Bt(qx,dx);
          }
-         const double sum = u + v;
-         Y(dx,dy,c,e) += sum;
+         Y(dx,dy,c,e) += u + v;
       }
    }
    MFEM_SYNC_THREAD;
@@ -951,17 +950,16 @@ MFEM_HOST_DEVICE inline void PullEval(const int Q1D,
  * evaluation at quadrature points of a 3D finite element function.
  * @param[in] D1D The number of degrees of freedom per dimension.
  * @param[in] Q1D The number of quadrature points per dimension.
- * @param u
+ * @param[in,out] u auxiliary space of size D1D.
  * @param[in] B The matrix containing the evaluation of the basis functions at
  * quadrature points.
- * @param B
- * @param QQQ
+ * @param[output] QQQ auxiliary share memory space of size Q1D*Q1D*Q1D.
  *
  * Note: All `DeviceTensor` have to be `const` for compatibility with
  * non-mutable lambda capture. */
 MFEM_HOST_DEVICE inline
-void EvalZt(const int D1D, const int Q1D,
-            double *u, const DeviceMatrix &B,const DeviceCube &QQQ)
+void EvalZt(const int D1D, const int Q1D, double *u,
+            const DeviceMatrix &B, const DeviceCube &QQQ)
 {
    MFEM_FOREACH_THREAD(qx,x,Q1D)
    {
@@ -983,16 +981,18 @@ void EvalZt(const int D1D, const int Q1D,
  * evaluation at quadrature points of a 3D finite element function.
  * @param[in] D1D The number of degrees of freedom per dimension.
  * @param[in] Q1D The number of quadrature points per dimension.
- * @param u
+ * @param[in,out] u auxiliary space of size D1D.
  * @param[in] B The matrix containing the evaluation of the basis functions at
  * quadrature points.
- * @param DQQ
+ * @param[out] DQQ auxiliary share memory space of size D1D*Q1D*Q1D.
  *
  * Note: All `DeviceTensor` have to be `const` for compatibility with
  * non-mutable lambda capture. */
 MFEM_HOST_DEVICE inline
 void EvalYt(const int D1D, const int Q1D,
-            double *u, const DeviceMatrix &B, const DeviceCube &DQQ)
+            double *u,
+            const DeviceMatrix &B,
+            const DeviceCube &DQQ)
 {
    MFEM_FOREACH_THREAD(dz,y,D1D)
    {
@@ -1014,13 +1014,13 @@ void EvalYt(const int D1D, const int Q1D,
  * evaluation at quadrature points of a 3D finite element function.
  * @param[in] D1D The number of degrees of freedom per dimension.
  * @param[in] Q1D The number of quadrature points per dimension.
- * @param u
+ * @param[in,out] u auxiliary space of size D1D.
  * @param[in] B The matrix containing the evaluation of the basis functions at
  * quadrature points.
- * @param[in] DDQ
- * @param[out] Y
- * @param[in] c
- * @param[in] e
+ * @param[in] DDQ  auxiliary share memory space of size D1D*Q1D*Q1D.
+ * @param[out] Output vector.
+ * @param[in] vdim component.
+ * @param[in] element index.
  *
  * Note: All `DeviceTensor` have to be `const` for compatibility with
  * non-mutable lambda capture. */
@@ -1039,11 +1039,7 @@ void EvalXt(const int D1D, const int Q1D,
             const double zyX = DDQ(dz,dy,qx);
             for (int dx = 0; dx < D1D; ++dx) { u[dx] += zyX * B(dx,qx); }
          }
-         for (int dx = 0; dx < D1D; ++dx)
-         {
-            const double val = u[dx];
-            Y(dx,dy,dz,c,e) += val;
-         }
+         for (int dx = 0; dx < D1D; ++dx) { Y(dx,dy,dz,c,e) += u[dx]; }
       }
    }
    MFEM_SYNC_THREAD;
@@ -1330,142 +1326,6 @@ MFEM_HOST_DEVICE inline void EvalZt(const int D1D, const int Q1D,
          }
       }
    }
-}
-
-/**
- * @brief 3D Scalar Transposed Gradient, 1/3
- * @param D1D
- * @param Q1D
- * @param Bt
- * @param Gt
- * @param QQQ0
- * @param QQQ1
- * @param QQQ2
- * @param QQD0
- * @param QQD1
- * @param QQD2
- */
-MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
-                                    const DeviceMatrix &Bt,
-                                    const DeviceMatrix &Gt,
-                                    const DeviceCube &QQQ0,
-                                    const DeviceCube &QQQ1,
-                                    const DeviceCube &QQQ2,
-                                    const DeviceCube &QQD0,
-                                    const DeviceCube &QQD1,
-                                    const DeviceCube &QQD2)
-{
-   MFEM_FOREACH_THREAD(qz,z,Q1D)
-   {
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double u = 0.0, v = 0.0, w = 0.0;
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               u += QQQ0(qz,qy,qx) * Gt(qx,dx);
-               v += QQQ1(qz,qy,qx) * Bt(qx,dx);
-               w += QQQ2(qz,qy,qx) * Bt(qx,dx);
-            }
-            QQD0(qz,qy,dx) = u;
-            QQD1(qz,qy,dx) = v;
-            QQD2(qz,qy,dx) = w;
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
-}
-
-/**
- * @brief 3D Vector Transposed Evaluation. First contraction for the transposed
- *  gradient at quadrature points of a 3D finite element vector function.
- * @param[in] D1D The number of degrees of freedom per dimension.
- * @param[in] Q1D The number of quadrature points per dimension.
- * @param[in] Bt The matrix containing the transposed evaluation of the basis
- * functions at quadrature points.
- * @param[in] Gt The matrix containing the transposed gradient of the basis
- * functions at quadrature points.
- * @param[in] QQD0
- * @param[in] QQD1
- * @param[in] QQD2
- * @param[out] QDD0
- * @param[out] QDD1
- * @param[out] QDD2
- */
-MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
-                                    const DeviceMatrix &Bt,
-                                    const DeviceMatrix &Gt,
-                                    const DeviceCube &QQD0,
-                                    const DeviceCube &QQD1,
-                                    const DeviceCube &QQD2,
-                                    const DeviceCube &QDD0,
-                                    const DeviceCube &QDD1,
-                                    const DeviceCube &QDD2)
-{
-   MFEM_FOREACH_THREAD(qz,z,Q1D)
-   {
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double u = 0.0, v = 0.0, w = 0.0;
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               u += QQD0(qz,qy,dx) * Bt(qy,dy);
-               v += QQD1(qz,qy,dx) * Gt(qy,dy);
-               w += QQD2(qz,qy,dx) * Bt(qy,dy);
-            }
-            QDD0(qz,dy,dx) = u;
-            QDD1(qz,dy,dx) = v;
-            QDD2(qz,dy,dx) = w;
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
-}
-
-/**
- * @brief 3D Vector Transposed Evaluation. Third contraction for the transposed
- *  gradient at quadrature points of a 3D finite element vector function.
- * @param[in] D1D The number of degrees of freedom per dimension.
- * @param[in] Q1D The number of quadrature points per dimension.
- * @param[in] Bt The matrix containing the transposed evaluation of the basis
- * functions at quadrature points.
- * @param[in] Gt The matrix containing the transposed gradient of the basis
- * functions at quadrature points.
- * @param[in] QDD0
- * @param[in] QDD1
- * @param[in] QDD2
- * @param Y
- * @param c
- * @param e
- */
-MFEM_HOST_DEVICE inline
-void GradXt(const int D1D, const int Q1D,
-            const DeviceMatrix &Bt, const DeviceMatrix &Gt,
-            const DeviceCube &QDD0, const DeviceCube &QDD1, const DeviceCube &QDD2,
-            const DeviceTensor<5> &Y, const int c, const int e)
-{
-   MFEM_FOREACH_THREAD(dz,z,D1D)
-   {
-      MFEM_FOREACH_THREAD(dy,y,D1D)
-      {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
-         {
-            double u = 0.0, v = 0.0, w = 0.0;
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               u += QDD0(qz,dy,dx) * Bt(qz,dz);
-               v += QDD1(qz,dy,dx) * Bt(qz,dz);
-               w += QDD2(qz,dy,dx) * Gt(qz,dz);
-            }
-            const double sum = u + v + w;
-            Y(dx,dy,dz,c,e) += sum;
-         }
-      }
-   }
-   MFEM_SYNC_THREAD;
 }
 
 /// 3D Gradient, 1/3
