@@ -34,22 +34,23 @@ class LinearFormExtension
    LinearForm *lf;
 
    /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
-   const Operator *elem_restrict; // Not owned
+   const Operator *elem_restrict_lex; // Not owned
 
    /// Internal E-vectors.
-   mutable Vector y;
+   mutable Vector b;
 
 public:
 
+   /// \brief Create a LinearForm extension of @a lf.
    LinearFormExtension(LinearForm *lf);
 
    ~LinearFormExtension() { }
 
-   /// Assembles the linear form, compatible with device execution.
-   /// Only integrators added with AddDomainIntegrator are supported.
+   /// Assemble the linear form, compatible with device execution.
+   /// Only integrators added with AddDomainIntegrator are supported for now.
    void Assemble();
 
-   /// Updates the linear form extension
+   /// Update the linear form extension.
    void Update();
 };
 

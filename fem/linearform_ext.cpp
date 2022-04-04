@@ -12,42 +12,36 @@
 #include "linearform.hpp"
 #include "../general/forall.hpp"
 
-// Implementations of FullLinearFormExtension.
-
 namespace mfem
 {
 
-LinearFormExtension::LinearFormExtension(LinearForm *lf):
-   lf(lf)
-{
-   markers.UseDevice(true);
-   y.UseDevice(true);
-   Update();
-}
+LinearFormExtension::LinearFormExtension(LinearForm *lf): lf(lf) { Update(); }
 
 void LinearFormExtension::Assemble()
 {
-   MFEM_VERIFY(lf->Size() == lf->FESpace()->GetVSize(), "");
+   const FiniteElementSpace &fes = *lf->FESpace();
+
+   MFEM_VERIFY(lf->Size() == fes.GetVSize(), "LinearForm size does not "
+               "match number of vector dofs!");
 
    // Filter out the unsupported integrators
    MFEM_VERIFY(lf->GetBLFI()->Size() == 0,
                "Integrators added with AddBoundaryIntegrator() "
-               "are not supported!");
+               "do not support Assemble on device!");
 
    MFEM_VERIFY(lf->GetDLFI_Delta()->Size() == 0, ""
                "Integrators added with AddDomainIntegrator() which are "
                "DeltaLFIntegrators with delta coefficients "
-               "are not supported!");
+               "do not support Assemble on device!");
 
    MFEM_VERIFY(lf->GetIFLFI()->Size() == 0,
                "Integrators added with AddInteriorFaceIntegrator() "
-               "are not supported!");
+               "do not support Assemble on device!");
 
    MFEM_VERIFY(lf->GetFLFI()->Size() == 0,
                "Integrators added with AddBdrFaceIntegrator() "
-               " are not supported!");
+               "do not support Assemble on device!");
 
-   const FiniteElementSpace &fes = *lf->FESpace();
    const Array<Array<int>*> &domain_integs_marker = *lf->GetDLFIM();
    const int mesh_attributes_size = fes.GetMesh()->attributes.Size();
    const Array<LinearFormIntegrator*> &domain_integs = *lf->GetDLFI();
@@ -69,13 +63,10 @@ void LinearFormExtension::Assemble()
       }
 
       // if there are no markers, just use the whole linear form (1)
-      if (!has_markers_k)
-      {
-         markers = 1;
-      }
+      if (!has_markers_k) { markers = 1; }
       else
       {
-         // otherwise, scan the attributes to set the markers to 0 or 1
+         // scan the attributes to set the markers to 0 or 1
          const int NE = fes.GetNE();
          const auto attr = attributes.Read();
          const auto dimk = domain_integs_marker_k->Read();
@@ -83,9 +74,10 @@ void LinearFormExtension::Assemble()
          MFEM_FORALL(e, NE, markers_w[e] = dimk[attr[e]-1] == 1;);
       }
 
-      y = 0.0;
-      domain_integs[k]->Assemble(fes, markers, y);
-      if (elem_restrict) { elem_restrict->MultTranspose(y, *lf); }
+      // Assemble the linear form
+      b = 0.0;
+      domain_integs[k]->AssembleDevice(fes, markers, b);
+      elem_restrict_lex->MultTranspose(b, *lf);
    }
 }
 
@@ -98,18 +90,17 @@ void LinearFormExtension::Update()
    MFEM_VERIFY(lf->Size() == fes.GetVSize(), "");
 
    markers.SetSize(NE);
+   markers.UseDevice(true);
 
    // Gather the attributes on the host from all the elements
    attributes.SetSize(NE);
    for (int i = 0; i < NE; ++i) { attributes[i] = mesh.GetAttribute(i); }
 
    constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   elem_restrict = fes.GetElementRestriction(ordering);
-
-   if (elem_restrict)
-   {
-      y.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
-   }
+   elem_restrict_lex = fes.GetElementRestriction(ordering);
+   MFEM_VERIFY(elem_restrict_lex, "Element restriction not available");
+   b.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+   b.UseDevice(true);
 }
 
 } // namespace mfem

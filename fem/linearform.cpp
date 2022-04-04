@@ -102,7 +102,7 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
 
 static bool LinearIntegratorsCanUseDevice(LinearForm *lf)
 {
-   // scan domain integrator to verify all can support device assembly
+   // scan domain integrator to verify that all can use device assembly
    const Array<LinearFormIntegrator*> &domain_integs = *lf->GetDLFI();
    if (domain_integs.Size() > 0)
    {
@@ -112,31 +112,26 @@ static bool LinearIntegratorsCanUseDevice(LinearForm *lf)
       }
    }
 
-   // no boundary and face integrators are supported yet
-   const Array<LinearFormIntegrator*> &boundary_integs = *lf->GetBLFI();
-   const Array<LinearFormIntegrator*> &boundary_face_integs = *lf->GetFLFI();
-   const Array<LinearFormIntegrator*> &interior_face_integs = *lf->GetIFLFI();
-   if (boundary_integs.Size() > 0 ||
-       boundary_face_integs.Size() > 0 ||
-       interior_face_integs.Size()>0) { return false; }
+   // boundary, delta and face integrators are not supported yet
+   if (lf->GetBLFI()->Size() > 0 || lf->GetDLFI_Delta()->Size() > 0 ||
+       lf->GetFLFI()->Size() > 0 || lf->GetIFLFI()->Size() > 0) { return false; }
 
    const FiniteElementSpace *fes = lf->FESpace();
    const Mesh &mesh = *fes->GetMesh();
 
-   // test_var_order fails
-   if (!fes->Conforming()) { return false; }
+   // no support for elements with varying polynomial orders
+   if (fes->IsVariableOrder()) { return false; }
 
-   // test_surf_blf fails
-   if (mesh.Dimension() != mesh.SpaceDimension()) { return false; }
+   // no support for 1D and embedded meshes
+   const int mesh_dim = mesh.Dimension();
+   if (mesh_dim == 1 || mesh_dim != mesh.SpaceDimension()) { return false; }
 
-   if (mesh.Dimension() == 1) { return false; }
-
+   // tensor-product finite element space only
+   // with point values preserving scalar fields
    for (int e = 0; e < fes->GetNE(); ++e)
    {
       const FiniteElement *fe = fes->GetFE(e);
       if (fe->GetMapType() != FiniteElement::VALUE) { return false; }
-
-      // test_domain_int fails
       if (!dynamic_cast<const TensorBasisElement*>(fe)) { return false; }
    }
 
@@ -151,7 +146,7 @@ void LinearForm::Assemble(bool use_device)
    Vector elemvect;
 
 
-   if (ext==nullptr && use_device && LinearIntegratorsCanUseDevice(this))
+   if (!ext && use_device && LinearIntegratorsCanUseDevice(this))
    {
       ext = new LinearFormExtension(this);
    }
@@ -162,7 +157,7 @@ void LinearForm::Assemble(bool use_device)
    // The first use of AddElementVector() below will move it back to host
    // because both 'vdofs' and 'elemvect' are on host.
 
-   if (ext != nullptr) { return ext->Assemble(); }
+   if (ext) { return ext->Assemble(); }
 
    if (domain_integs.Size())
    {
@@ -349,9 +344,6 @@ void LinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
 void LinearForm::AssembleDelta()
 {
    if (domain_delta_integs.Size() == 0) { return; }
-
-   // ext AssembleDelta not supported
-   if (ext) { mfem_error("Not implemented with LinearFormExtension!"); }
 
    if (!HaveDeltaLocations())
    {
