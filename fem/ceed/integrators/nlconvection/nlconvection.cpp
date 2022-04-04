@@ -28,7 +28,7 @@ struct NLConvectionOperatorInfo : public OperatorInfo
    NLConvectionContext ctx;
    NLConvectionOperatorInfo(int dim)
    {
-      header = "/nlconvection/nlconvection_qf.h";
+      header = "/integrators/nlconvection/nlconvection_qf.h";
       build_func_const = ":f_build_conv_const";
       build_qf_const = &f_build_conv_const;
       build_func_quad = ":f_build_conv_quad";
