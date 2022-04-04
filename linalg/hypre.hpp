@@ -1325,6 +1325,11 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
+   void SetParams(double threshold, int max_levels);
+   void SetFilter(double filter);
+   void SetLoadBal(double loadbal);
+   void SetReuse(int reuse);
+   void SetFilter(int logging);
    void SetSymmetry(int sym);
 
    /// The typecast to HYPRE_Solver returns the internal sai_precond
@@ -1363,6 +1368,12 @@ public:
    HypreEuclid(MPI_Comm comm);
 
    HypreEuclid(const HypreParMatrix &A);
+
+   void SetLevel(int level);
+   void SetStats(int stats);
+   void SetMemory(int mem);
+   void SetBJ(int bj);
+   void SetRowScale(int row_scale);
 
    virtual void SetOperator(const Operator &op);
 
@@ -1414,6 +1425,11 @@ public:
 
    /// Set the fill level for ILU(k); the default is k=1.
    void SetLevelOfFill(HYPRE_Int lev_fill);
+
+   void SetType(HYPRE_Int ilu_type);
+   void SetMaxIter(HYPRE_Int max_iter);
+   void SetTol(HYPRE_Real tol);
+   void SetLocalReordering(HYPRE_Int reorder_type);
 
    /// Set the print level: 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
    void SetPrintLevel(HYPRE_Int print_level);
