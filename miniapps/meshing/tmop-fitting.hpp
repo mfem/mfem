@@ -16,6 +16,124 @@
 using namespace std;
 using namespace mfem;
 
+// Used for exact surface alignment
+double circle_level_set(const Vector &x)
+{
+   const int dim = x.Size();
+   if (dim == 2)
+   {
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc);
+      return r-0.2; // circle of radius 0.1
+   }
+   else
+   {
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+      const double r = sqrt(xc*xc + yc*yc + zc*zc);
+      return std::tanh(2.0*(r-0.3));
+   }
+}
+
+double squircle_level_set(const Vector &x)
+{
+   double power = 4.0;
+   const int dim = x.Size();
+   if (dim == 2)
+   {
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+      const double r2 = pow(xc, power) + pow(yc, power);
+      return r2 - pow(0.1, power);
+   }
+   else
+   {
+      MFEM_ABORT("Squircle level set implemented for only 2D right now.");
+      return 0.0;
+   }
+}
+
+double in_circle(const Vector &x, const Vector &x_center, double radius)
+{
+   Vector x_current = x;
+   x_current -= x_center;
+   double dist = x_current.Norml2();
+   if (dist < radius)
+   {
+      return 1.0;
+   }
+   else if (dist == radius)
+   {
+      return 0.0;
+   }
+   else
+   {
+      return -1.0;
+   }
+   return 0.0;
+}
+
+double in_trapezium(const Vector &x, double a, double b, double l)
+{
+   double phi_t = x(1) + (a-b)*x(0)/l - a;
+   if (phi_t <= 0.0)
+   {
+      return 1.0;
+   }
+   return -1.0;
+}
+
+double in_parabola(const Vector &x, double h, double k, double t)
+{
+   double phi_p1 = (x(0)-h-t/2) - k*x(1)*x(1);
+   double phi_p2 = (x(0)-h+t/2) - k*x(1)*x(1);
+   if (phi_p1 <= 0.0 && phi_p2 >= 0.0)
+   {
+      return 1.0;
+   }
+   return -1.0;
+}
+
+double in_rectangle(const Vector &x, double xc, double yc, double w, double h)
+{
+   double dx = fabs(x(0) - xc);
+   double dy = fabs(x(1) - yc);
+   if (dx <= w/2 && dy <= h/2)
+   {
+      return 1.0;
+   }
+   else
+   {
+      return -1.0;
+   }
+}
+
+double reactor(const Vector &x)
+{
+   // Circle
+   Vector x_circle1(2);
+   x_circle1(0) = 0.0;
+   x_circle1(1) = 0.0;
+   double in_circle1_val = in_circle(x, x_circle1, 0.2);
+
+   double r1 = 0.2;
+   double r2 = 1.0;
+   double in_trapezium_val = in_trapezium(x,0.05, 0.1, r2-r1);
+
+   double return_val = max(in_circle1_val, in_trapezium_val);
+
+   double h = 0.4;
+   double k = 2;
+   double t = 0.15;
+   double in_parabola_val = in_parabola(x, h, k, t);
+   return_val = max(return_val, in_parabola_val);
+
+   double in_rectangle_val = in_rectangle(x, 1.0, 0.0, 0.12, 0.35);
+   return_val = max(return_val, in_rectangle_val);
+
+   double in_rectangle_val2 = in_rectangle(x, 1.0, 0.5, 0.12, 0.28);
+   return_val = max(return_val, in_rectangle_val2);
+   return return_val;
+}
+
 void ModifyAttributeForMarkingDOFS(Mesh *mesh, GridFunction &mat,
                                    int attr_to_switch)
 {
@@ -89,6 +207,7 @@ void ModifyAttributeForMarkingDOFS(Mesh *mesh, GridFunction &mat,
    mesh->SetAttributes();
 }
 
+#ifdef MFEM_USE_MPI
 Mesh* TrimMesh(Mesh &mesh, FunctionCoefficient &ls_coeff, int order,
                int attr_to_trim)
 {
@@ -448,3 +567,151 @@ void ModifyAttributeForMarkingDOFS(ParMesh *pmesh, ParGridFunction &mat,
    mat.ExchangeFaceNbrData();
    pmesh->SetAttributes();
 }
+
+void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
+                                       FunctionCoefficient &ls_coeff,
+                                       int amr_iter, ParGridFunction &distance_s)
+{
+   mfem::H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
+                               pmesh.Dimension());
+   mfem::ParFiniteElementSpace h1fespace(&pmesh, &h1fec);
+   mfem::ParGridFunction x(&h1fespace);
+
+   mfem::L2_FECollection l2fec(0, pmesh.Dimension());
+   mfem::ParFiniteElementSpace l2fespace(&pmesh, &l2fec);
+   mfem::ParGridFunction el_to_refine(&l2fespace);
+
+   mfem::H1_FECollection lhfec(1, pmesh.Dimension());
+   mfem::ParFiniteElementSpace lhfespace(&pmesh, &lhfec);
+   mfem::ParGridFunction lhx(&lhfespace);
+
+   x.ProjectCoefficient(ls_coeff);
+   x.ExchangeFaceNbrData();
+
+   for (int iter = 0; iter < amr_iter; iter++)
+   {
+      el_to_refine = 0.0;
+      for (int e = 0; e < pmesh.GetNE(); e++)
+      {
+         Array<int> dofs;
+         Vector x_vals;
+         h1fespace.GetElementDofs(e, dofs);
+         x.GetSubVector(dofs, x_vals);
+         int refine = 0;
+         double min_val = 100;
+         double max_val = -100;
+         for (int j = 0; j < x_vals.Size(); j++)
+         {
+            double x_dof_val = x_vals(j);
+            min_val = min(x_dof_val, min_val);
+            max_val = max(x_dof_val, max_val);
+         }
+         if (min_val < 0 && max_val > 0)
+         {
+            refine = 1;
+            el_to_refine(e) = 1.0;
+         }
+      }
+
+      //Refine an element if its neighbor will be refined
+      el_to_refine.ExchangeFaceNbrData();
+      GridFunctionCoefficient field_in_dg(&el_to_refine);
+      lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
+      for (int e = 0; e < pmesh.GetNE(); e++)
+      {
+         Array<int> dofs;
+         Vector x_vals;
+         lhfespace.GetElementDofs(e, dofs);
+         lhx.GetSubVector(dofs, x_vals);
+         int refine = 0;
+         double max_val = -100;
+         for (int j = 0; j < x_vals.Size(); j++)
+         {
+            double x_dof_val = x_vals(j);
+            max_val = max(x_dof_val, max_val);
+         }
+         if (max_val > 0)
+         {
+            refine = 1;
+            el_to_refine(e) = 1.0;
+         }
+      }
+
+      //make the list of elements to be refined
+      Array<int> el_to_refine_list;
+      for (int e = 0; e < el_to_refine.Size(); e++)
+      {
+         if (el_to_refine(e) > 0.0)
+         {
+            el_to_refine_list.Append(e);
+         }
+      }
+
+      int loc_count = el_to_refine_list.Size();
+      int glob_count = loc_count;
+      MPI_Allreduce(&loc_count, &glob_count, 1, MPI_INT, MPI_SUM,
+                    pmesh.GetComm());
+      MPI_Barrier(pmesh.GetComm());
+      if (glob_count > 0)
+      {
+         pmesh.GeneralRefinement(el_to_refine_list, 1);
+      }
+      h1fespace.Update();
+      x.Update();
+      x.ProjectCoefficient(ls_coeff);
+
+      l2fespace.Update();
+      el_to_refine.Update();
+
+      lhfespace.Update();
+      lhx.Update();
+
+      distance_s.ParFESpace()->Update();
+      distance_s.Update();
+   }
+
+   //Now determine distance
+   const double dx = AvgElementSize(pmesh);
+   DistanceSolver *dist_solver = NULL;
+   int solver_type = 1;
+   double t_param = 1.0;
+
+   if (solver_type == 0)
+   {
+      auto ds = new HeatDistanceSolver(t_param * dx * dx);
+      ds->smooth_steps = 0;
+      ds->vis_glvis = false;
+      dist_solver = ds;
+   }
+   else if (solver_type == 1)
+   {
+      const int p = 5;
+      const int newton_iter = 50;
+      auto ds = new PLapDistanceSolver(p, newton_iter);
+      dist_solver = ds;
+   }
+   else { MFEM_ABORT("Wrong solver option."); }
+   dist_solver->print_level = 1;
+
+   ParFiniteElementSpace pfes_s(*distance_s.ParFESpace());
+
+   // Smooth-out Gibbs oscillations from the input level set. The smoothing
+   // parameter here is specified to be mesh dependent with length scale dx.
+   ParGridFunction filt_gf(&pfes_s);
+   PDEFilter filter(pmesh, 1.0 * dx);
+   filter.Filter(ls_coeff, filt_gf);
+   GridFunctionCoefficient ls_filt_coeff(&filt_gf);
+
+   dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
+   distance_s.SetTrueVector();
+   distance_s.SetFromTrueVector();
+
+   DiffuseField(distance_s, 5);
+   distance_s.SetTrueVector();
+   distance_s.SetFromTrueVector();
+   for (int i = 0; i < distance_s.Size(); i++)
+   {
+      distance_s(i) *= distance_s(i);
+   }
+}
+#endif

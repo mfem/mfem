@@ -81,7 +81,6 @@ int main (int argc, char *argv[])
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
-   bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
    bool fdscheme         = false;
@@ -93,6 +92,12 @@ int main (int argc, char *argv[])
    double surface_fit_threshold = -10;
    bool adapt_marking     = false;
    bool split_case        = false;
+   bool surf_bg_mesh     = false;
+   int surf_approach     = 1;
+   int surf_ls_type      = 1;
+   int marking_type      = 1;
+   bool mod_bndr_attr    = false;
+   bool trim_mesh        = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -179,9 +184,6 @@ int main (int argc, char *argv[])
    args.AddOption(&move_bnd, "-bnd", "--move-boundary", "-fix-bnd",
                   "--fix-boundary",
                   "Enable motion along horizontal and vertical boundaries.");
-   args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
-                  "--no-normalization",
-                  "Make all terms in the optimization functional unitless.");
    args.AddOption(&fdscheme, "-fd", "--fd_approximation",
                   "-no-fd", "--no-fd-approx",
                   "Enable finite difference based derivative computations.");
@@ -211,6 +213,17 @@ int main (int argc, char *argv[])
    args.AddOption(&split_case, "-split", "--split", "-no-split",
                   "--no-split",
                   "Split case with predefined marking.");
+   args.AddOption(&surf_bg_mesh, "-sbgmesh", "--surf-bg-mesh",
+                  "-no-sbgmesh","--no-surf-bg-mesh", "Use background mesh for surface fitting.");
+   args.AddOption(&surf_ls_type, "-slstype", "--surf-ls-type",
+                  "1 - Circle (DEFAULT), 2 - Squircle, 3 - Butterfly.");
+   args.AddOption(&marking_type, "-smtype", "--surf-marking-type",
+                  "1 - Interface (DEFAULT), 2 - Boundary attribute.");
+   args.AddOption(&mod_bndr_attr, "-mod-bndr-attr", "--modify-boundary-attribute",
+                  "-fix-bndr-attr", "--fix-boundary-attribute",
+                  "Change boundary attribue based on alignment with Cartesian axes.");
+   args.AddOption(&trim_mesh, "-trim", "--trim",
+                  "-no-trim","--no-trim", "trim the mesh or not.");
    args.Parse();
    if (!args.Good())
    {
@@ -230,12 +243,59 @@ int main (int argc, char *argv[])
    }
    const int dim = mesh->Dimension();
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   // Define level-set coefficient
+   FunctionCoefficient *ls_coeff = NULL;
+   if (surf_ls_type == 1) //Circle
+   {
+      ls_coeff = new FunctionCoefficient(circle_level_set);
+   }
+   else if (surf_ls_type == 2) // Squircle
+   {
+      ls_coeff = new FunctionCoefficient(squircle_level_set);
+   }
+   else if (surf_ls_type == 3) // reactor
+   {
+      ls_coeff = new FunctionCoefficient(reactor);
+   }
+   else
+   {
+      MFEM_ABORT("Surface fitting level set type not implemented yet.")
+   }
 
+   // Trim the mesh based on material attribute and set boundary attribute for fitting to 3
+   if (trim_mesh)
+   {
+      Mesh *mesh_trim = TrimMesh(*mesh, *ls_coeff, mesh_poly_deg, 2);
+      delete mesh;
+      mesh = new Mesh(*mesh_trim);
+      delete mesh_trim;
+   }
+
+   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+
    for (int lev = 0; lev < rp_levels; lev++)
    {
       pmesh->UniformRefinement();
+   }
+
+   // Setup background mesh for surface fitting
+   ParMesh *pmesh_surf_fit_bg = NULL;
+   if (surf_bg_mesh)
+   {
+      Mesh *mesh_surf_fit_bg = NULL;
+      if (dim == 2)
+      {
+         mesh_surf_fit_bg =  new Mesh("../../data/inline-quad.mesh", 1, 1, false);
+      }
+      else if (dim == 3)
+      {
+         mesh_surf_fit_bg =  new Mesh("../../data/inline-hex.mesh", 1, 1, false);
+      }
+      //for (int lev = 0; lev < 5; lev++) { mesh_surf_fit_bg->UniformRefinement(); }
+      mesh_surf_fit_bg->EnsureNCMesh();
+      pmesh_surf_fit_bg = new ParMesh(MPI_COMM_WORLD, *mesh_surf_fit_bg);
+      delete mesh_surf_fit_bg;
    }
 
    // 4. Define a finite element space on the mesh. Here we use vector finite
@@ -447,13 +507,12 @@ int main (int argc, char *argv[])
            << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
    }
 
-   // Limit the node movement.
-   // The limiting distances can be given by a general function of space.
-   ParFiniteElementSpace dist_pfespace(pmesh, fec); // scalar space
-   ParGridFunction dist(&dist_pfespace);
-   dist = 1.0;
-   // The small_phys_size is relevant only with proper normalization.
-   if (normalization) { dist = small_phys_size; }
+   // Modify boundary attribute for surface node movement
+   if (mod_bndr_attr)
+   {
+      ModifyBoundaryAttributesForNodeMovement(pmesh, x);
+      pmesh->SetAttributes();
+   }
 
    // Surface fitting.
    L2_FECollection mat_coll(0, dim);
@@ -466,40 +525,118 @@ int main (int argc, char *argv[])
    Array<bool> surf_fit_marker(surf_fit_gf0.Size());
    ConstantCoefficient surf_fit_coeff(surface_fit_const);
    AdaptivityEvaluator *adapt_surface = NULL;
+   AdaptivityEvaluator *adapt_grad_surface = NULL;
+   AdaptivityEvaluator *adapt_hess_surface = NULL;
+
+   // Background mesh FECollection, FESpace, and GridFunction
+   H1_FECollection *surf_fit_bg_fec = NULL;
+   ParFiniteElementSpace *surf_fit_bg_fes = NULL;
+   ParGridFunction *surf_fit_bg_gf0 = NULL;
+   ParFiniteElementSpace *surf_fit_bg_grad_fes = NULL;
+   ParGridFunction *surf_fit_bg_grad = NULL;
+   ParFiniteElementSpace *surf_fit_grad_fes = NULL;
+   ParGridFunction *surf_fit_grad = NULL;
+   ParFiniteElementSpace *surf_fit_bg_hess_fes = NULL;
+   ParGridFunction *surf_fit_bg_hess = NULL;
+   ParFiniteElementSpace *surf_fit_hess_fes = NULL;
+   ParGridFunction *surf_fit_hess = NULL;
+   if (surf_bg_mesh)
+   {
+      pmesh_surf_fit_bg->SetCurvature(mesh_poly_deg);
+
+      surf_fit_bg_fec = new H1_FECollection(mesh_poly_deg, dim);
+      surf_fit_bg_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec);
+      surf_fit_bg_gf0 = new ParGridFunction(surf_fit_bg_fes);
+   }
+
    if (surface_fit_const > 0.0)
    {
       MFEM_VERIFY(pa == false,
                   "Surface fitting with PA is not implemented yet.");
 
-      FunctionCoefficient ls_coeff(surface_level_set);
-      surf_fit_gf0.ProjectCoefficient(ls_coeff);
+      surf_fit_gf0.ProjectCoefficient(*ls_coeff);
+      if (surf_bg_mesh)
+      {
+         ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, *ls_coeff, 7,
+                                           *surf_fit_bg_gf0);
+
+         surf_fit_bg_grad_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg,
+                                                          surf_fit_bg_fec,
+                                                          pmesh_surf_fit_bg->Dimension());
+         surf_fit_bg_grad = new ParGridFunction(surf_fit_bg_grad_fes);
+         surf_fit_grad_fes = new ParFiniteElementSpace(pmesh, &surf_fit_fec,
+                                                       pmesh->Dimension());
+         surf_fit_grad = new ParGridFunction(surf_fit_grad_fes);
+
+         int n_hessian_bg = pow(pmesh_surf_fit_bg->Dimension(), 2);
+         surf_fit_bg_hess_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg,
+                                                          surf_fit_bg_fec,
+                                                          n_hessian_bg);
+         surf_fit_bg_hess = new ParGridFunction(surf_fit_bg_hess_fes);
+         surf_fit_hess_fes = new ParFiniteElementSpace(pmesh, &surf_fit_fec,
+                                                       pmesh->Dimension()*pmesh->Dimension());
+         surf_fit_hess = new ParGridFunction(surf_fit_hess_fes);
+
+         //Setup gradient of the background mesh
+         surf_fit_bg_grad->ReorderByNodes();
+         for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
+         {
+            ParGridFunction surf_fit_bg_grad_comp(surf_fit_bg_fes,
+                                                  surf_fit_bg_grad->GetData()+d*surf_fit_bg_gf0->Size());
+            surf_fit_bg_gf0->GetDerivative(1, d, surf_fit_bg_grad_comp);
+         }
+
+         //Setup Hessian on background mesh
+         surf_fit_bg_hess->ReorderByNodes();
+         int id = 0;
+         for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
+         {
+            for (int idir = 0; idir < pmesh_surf_fit_bg->Dimension(); idir++)
+            {
+               ParGridFunction surf_fit_bg_grad_comp(surf_fit_bg_fes,
+                                                     surf_fit_bg_grad->GetData()+d*surf_fit_bg_gf0->Size());
+               ParGridFunction surf_fit_bg_hess_comp(surf_fit_bg_fes,
+                                                     surf_fit_bg_hess->GetData()+id*surf_fit_bg_gf0->Size());
+               surf_fit_bg_grad_comp.GetDerivative(1, idir, surf_fit_bg_hess_comp);
+               id++;
+            }
+         }
+      }
 
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          mat(i) = material_id(i, surf_fit_gf0);
-         if (split_case) {
-             Vector center(pmesh->Dimension());
-             pmesh->GetElementCenter(i, center);
-             if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 && center(1) < 0.75)
-             {
-                 mat(i) = 0;
-             }
-             else {
-                 mat(i) = 1;
-             }
-             pmesh->SetAttribute(i, mat(i) + 1);
-          }
-         pmesh->SetAttribute(i, mat(i) + 1);
+         if (split_case)
+         {
+            Vector center(pmesh->Dimension());
+            pmesh->GetElementCenter(i, center);
+            if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
+                center(1) < 0.75)
+            {
+               mat(i) = 0;
+            }
+            else
+            {
+               mat(i) = 1;
+            }
+            pmesh->SetAttribute(i, mat(i) + 1);
+         }
+         else
+         {
+            pmesh->SetAttribute(i, mat(i) + 1);
+         }
       }
 
       // Fix attributes for marking
-      if (adapt_marking) {
-          ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
-          ModifyAttributeForMarkingDOFS(pmesh, mat, 1);
+      if (adapt_marking)
+      {
+         ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
+         ModifyAttributeForMarkingDOFS(pmesh, mat, 1);
       }
 
       GridFunctionCoefficient coeff_mat(&mat);
       surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
+
       for (int j = 0; j < surf_fit_marker.Size(); j++)
       {
          if (surf_fit_mat_gf(j) > 0.1 && surf_fit_mat_gf(j) < 0.9)
@@ -519,17 +656,37 @@ int main (int argc, char *argv[])
       {
 #ifdef MFEM_USE_GSLIB
          adapt_surface = new InterpolatorFP;
+         if (surf_bg_mesh)
+         {
+            adapt_grad_surface = new InterpolatorFP;
+            adapt_hess_surface = new InterpolatorFP;
+         }
 #else
          MFEM_ABORT("MFEM is not built with GSLIB support!");
 #endif
       }
       else { MFEM_ABORT("Bad interpolation option."); }
 
-      tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker, surf_fit_coeff,
-                                       *adapt_surface);
+      if (!surf_bg_mesh)
+      {
+         tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
+                                          surf_fit_coeff,
+                                          *adapt_surface);
+      }
+      else
+      {
+         tmop_integ->EnableSurfaceFittingFromSource(*surf_fit_bg_gf0,
+                                                    surf_fit_gf0,
+                                                    surf_fit_marker, surf_fit_coeff,
+                                                    *adapt_surface,
+                                                    *surf_fit_bg_grad, *surf_fit_grad, *adapt_grad_surface,
+                                                    *surf_fit_bg_hess, *surf_fit_hess, *adapt_hess_surface);
+
+      }
+
       if (visualization)
       {
-         socketstream vis1, vis2, vis3;
+         socketstream vis1, vis2, vis3, vis4, vis5;
          common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0, "Level Set 0",
                                 300, 600, 300, 300);
          common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
@@ -537,12 +694,17 @@ int main (int argc, char *argv[])
          common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
                                 "Dofs to Move",
                                 900, 600, 300, 300);
+         if (surf_bg_mesh)
+         {
+            common::VisualizeField(vis4, "localhost", 19916, *surf_fit_bg_gf0,
+                                   "Level Set 0 Source",
+                                   300, 600, 300, 300);
+            common::VisualizeField(vis5, "localhost", 19916, *surf_fit_bg_grad,
+                                   "Level Set Gradient",
+                                   600, 600, 300, 300);
+         }
       }
    }
-
-   // Has to be after the enabling of the limiting / alignment, as it computes
-   // normalization factors for these terms as well.
-   if (normalization) { tmop_integ->ParEnableNormalization(x0); }
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -623,6 +785,10 @@ int main (int argc, char *argv[])
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
+      if (surf_approach == 1 && marking_type > 0)
+      {
+         ess_bdr[marking_type] = 0;
+      }
       a.SetEssentialBC(ess_bdr);
    }
    else
@@ -831,6 +997,20 @@ int main (int argc, char *argv[])
    delete S_prec;
    delete metric_coeff1;
    delete adapt_surface;
+   delete adapt_grad_surface;
+   delete adapt_hess_surface;
+   delete ls_coeff;
+   delete surf_fit_hess;
+   delete surf_fit_hess_fes;
+   delete surf_fit_bg_hess;
+   delete surf_fit_bg_hess_fes;
+   delete surf_fit_grad;
+   delete surf_fit_grad_fes;
+   delete surf_fit_bg_grad;
+   delete surf_fit_bg_grad_fes;
+   delete surf_fit_bg_gf0;
+   delete surf_fit_bg_fes;
+   delete surf_fit_bg_fec;
    delete target_c;
    delete metric;
    delete pfespace;
