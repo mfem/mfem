@@ -89,7 +89,7 @@ public:
          MFEM_ASSERT(!integ.GetIntegrationRule(),
                      "Mixed mesh integrators should not have an"
                      " IntegrationRule.");
-         const IntegrationRule &ir = integ.GetRule(el,el,T);
+         const IntegrationRule &ir = GetRule(integ, el, el, T);
          auto sub_op = new PAIntegrator();
          int nelem = *count[value.first];
          // mfem::out << "Indices for element type=" << value.first.first

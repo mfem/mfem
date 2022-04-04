@@ -26,7 +26,9 @@
 namespace mfem
 {
 
+class FiniteElement;
 class FiniteElementSpace;
+class ElementTransformation;
 class IntegrationRule;
 class Vector;
 
@@ -70,6 +72,14 @@ void InitBasisAndRestrictionWithIndices(const FiniteElementSpace &fes,
                                         CeedElemRestriction *restr);
 
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
+
+
+template <typename Integrator>
+const IntegrationRule & GetRule(
+   const Integrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &Trans);
 
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();
