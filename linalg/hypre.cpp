@@ -3032,22 +3032,35 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
       }
    }
 
+   MFEM_VERIFY(HYPRE_AssumedPartitionCheck(),
+               "only 'assumed partition' mode is supported");
+
    std::vector<HYPRE_BigInt> rowStarts2(2);
    rowStarts2[0] = first_loc_row;
    rowStarts2[1] = first_loc_row + all_num_loc_rows[rank];
 
-   std::vector<HYPRE_BigInt> colStarts2(2);
-   colStarts2[0] = first_loc_col;
-   colStarts2[1] = first_loc_col + all_num_loc_cols[rank];
+   int square = std::equal(all_num_loc_rows.begin(), all_num_loc_rows.end(),
+                           all_num_loc_cols.begin());
+   if (square)
+   {
+      return new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols,
+                                opI.data(), opJ.data(),
+                                data.data(),
+                                rowStarts2.data(),
+                                rowStarts2.data());
+   }
+   else
+   {
+      std::vector<HYPRE_BigInt> colStarts2(2);
+      colStarts2[0] = first_loc_col;
+      colStarts2[1] = first_loc_col + all_num_loc_cols[rank];
 
-   MFEM_VERIFY(HYPRE_AssumedPartitionCheck(),
-               "only 'assumed partition' mode is supported");
-
-   return new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols,
-                             opI.data(), opJ.data(),
-                             data.data(),
-                             rowStarts2.data(),
-                             colStarts2.data());
+      return new HypreParMatrix(comm, num_loc_rows, glob_nrows, glob_ncols,
+                                opI.data(), opJ.data(),
+                                data.data(),
+                                rowStarts2.data(),
+                                colStarts2.data());
+   }
 }
 
 void EliminateBC(const HypreParMatrix &A, const HypreParMatrix &Ae,
