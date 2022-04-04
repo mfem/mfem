@@ -13,6 +13,7 @@
 #define MFEM_LIBCEED_DIFF_HPP
 
 #include "../../interface/integrator.hpp"
+#include "../../interface/mixed_integrator.hpp"
 #include "../../../fespace.hpp"
 
 namespace mfem
@@ -28,6 +29,14 @@ public:
    PADiffusionIntegrator(const mfem::FiniteElementSpace &fes,
                          const mfem::IntegrationRule &irm,
                          mfem::Coefficient *Q);
+};
+
+class MixedPADiffusionIntegrator : public MixedPAIntegrator
+{
+public:
+   MixedPADiffusionIntegrator(const DiffusionIntegrator &integ,
+                              const mfem::FiniteElementSpace &fes,
+                              mfem::Coefficient *Q);
 };
 
 /// Represent a DiffusionIntegrator with AssemblyLevel::None using libCEED.
