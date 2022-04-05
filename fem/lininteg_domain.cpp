@@ -60,8 +60,26 @@ void DLFEvalAssemble2D(const int vdim, const int ne, const int d, const int q,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::EvalYt(d,q,Bt,QQ,QD);
-         kernels::internal::EvalXt(d,q,Bt,QD,Y,c,e);
+         MFEM_FOREACH_THREAD(qy,y,q)
+         {
+            MFEM_FOREACH_THREAD(dx,x,d)
+            {
+               double u = 0.0;
+               for (int qx = 0; qx < q; ++qx) { u += QQ(qy,qx) * Bt(dx,qx); }
+               QD(qy,dx) = u;
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dy,y,d)
+         {
+            MFEM_FOREACH_THREAD(dx,x,d)
+            {
+               double u = 0.0;
+               for (int qy = 0; qy < q; ++qy) { u += QD(qy,dx) * Bt(dy,qy); }
+               Y(dx,dy,c,e) += u;
+            }
+         }
+         MFEM_SYNC_THREAD;
       }
    });
 }
@@ -113,9 +131,48 @@ void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::EvalZt(d,q,u,Bt,QQQ);
-         kernels::internal::EvalYt(d,q,u,Bt,QQQ);
-         kernels::internal::EvalXt(d,q,u,Bt,QQQ,Y,c,e);
+         MFEM_FOREACH_THREAD(qx,x,q)
+         {
+            MFEM_FOREACH_THREAD(qy,y,q)
+            {
+               for (int dz = 0; dz < d; ++dz) { u[dz] = 0.0; }
+               for (int qz = 0; qz < q; ++qz)
+               {
+                  const double ZYX = QQQ(qz,qy,qx);
+                  for (int dz = 0; dz < d; ++dz) { u[dz] += ZYX * Bt(dz,qz); }
+               }
+               for (int dz = 0; dz < d; ++dz) { QQQ(dz,qy,qx) = u[dz]; }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,y,d)
+         {
+            MFEM_FOREACH_THREAD(qx,x,q)
+            {
+               for (int dy = 0; dy < d; ++dy) { u[dy] = 0.0; }
+               for (int qy = 0; qy < q; ++qy)
+               {
+                  const double zYX = QQQ(dz,qy,qx);
+                  for (int dy = 0; dy < d; ++dy) { u[dy] += zYX * Bt(dy,qy); }
+               }
+               for (int dy = 0; dy < d; ++dy) { QQQ(dz,dy,qx) = u[dy]; }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,y,d)
+         {
+            MFEM_FOREACH_THREAD(dy,x,d)
+            {
+               for (int dx = 0; dx < d; ++dx) { u[dx] = 0.0; }
+               for (int qx = 0; qx < q; ++qx)
+               {
+                  const double zyX = QQQ(dz,dy,qx);
+                  for (int dx = 0; dx < d; ++dx) { u[dx] += zyX * Bt(dx,qx); }
+               }
+               for (int dx = 0; dx < d; ++dx) { Y(dx,dy,dz,c,e) += u[dx]; }
+            }
+         }
+         MFEM_SYNC_THREAD;
       }
    });
 }
