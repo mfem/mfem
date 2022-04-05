@@ -107,10 +107,21 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
     * When destroyed, a Memory object does NOT automatically delete any
       allocated memory.
     * Only the method Delete() will deallocate a Memory object.
-    * Other methods that modify the object (e.g. New(), Wrap(), etc) will simply
-      overwrite the old contents.
-    * One difference with a pointer is that a const Memory object does not allow
-      modification of the content (unlike e.g. a const pointer).
+    * Other methods that modify the object (e.g. `New()`, `Wrap()`, etc) will
+      simply overwrite the old contents.
+    In other aspects this class differs from a pointer:
+    * Pointer arithmetic is not supported, `Wrap()` should be used instead.
+    * Const Memory object does not allow modification of the content
+      (unlike e.g. a const pointer).
+    * Move constructor and assignement will transfer ownership flags, and
+      `Reset()` the moved Memory object.
+    * Copy constructor and assignement copy flags. This may result in two Memory
+      objects owning the data which is an invalid state. This invalid state MUST
+      be resolved by users manually using `SetHostPtrOwner()`,
+      `SetDevicePtrOwner()`, or `ClearOwnerFlags()`.
+    * When creating alias memory objects, the consistency of memory flags have
+      to be manually taken care of using either `Sync()` or `SyncAlias`. Failure
+      to do so will result in silent misuse of unsynchronized data.
 
     A Memory object stores up to two different pointers: one host pointer (with
     MemoryType from MemoryClass::HOST) and one device pointer (currently one of
