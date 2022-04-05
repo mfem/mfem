@@ -376,8 +376,9 @@ public:
       else if (QuadCoefficient *quadCoeff =
                   dynamic_cast<QuadCoefficient*>(coeff))
       {
-         InitRestrictionWithIndices(*mesh_fes, nelem, indices, ceed,
-                                    &quadCoeff->restr);
+         const int ncomp = quadCoeff->ncomp;
+         InitCoeffRestrictionWithIndices(*mesh_fes, nelem, indices, nqpts,
+                                         ncomp, ceed, &quadCoeff->restr);
          CeedOperatorSetField(build_oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
       }
