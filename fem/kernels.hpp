@@ -251,6 +251,7 @@ MFEM_HOST_DEVICE inline void PullEval(const int Q1D,
    PullEval(qx,qy,QQ,P);
 }
 
+/// Load 2D input vector into shared memory
 template<int MD1, int NBZ>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
                                    const DeviceTensor<4, const double> &X,

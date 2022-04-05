@@ -14,10 +14,11 @@
 
 #include "mfem.hpp"
 
-using namespace mfem;
-
 #ifdef MFEM_USE_BENCHMARK
+
 #include "benchmark/benchmark.h"
+
+using namespace mfem;
 namespace bm = benchmark;
 namespace bmi = benchmark::internal;
 
@@ -29,26 +30,11 @@ extern std::map<std::string, std::string> *global_context;
 }
 }
 
-#endif // MFEM_USE_BENCHMARK
-
 namespace mfem
 {
 
-template<class T>
-typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
-almost_equal(T x, T y, T tolerance = 1e-14)
-{
-   const T neg = std::abs(x - y);
-   constexpr T min = std::numeric_limits<T>::min();
-   constexpr T eps = std::numeric_limits<T>::epsilon();
-   const T min_abs = std::min(std::abs(x), std::abs(y));
-   if (std::abs(min_abs)==0.0) { return neg < eps; }
-   return (neg/std::max(min, min_abs)) < tolerance;
-}
-
 constexpr std::size_t KB = (1<<10);
 
-#ifdef MFEM_USE_BENCHMARK
 // Specific MFEM Reporter
 class Reporter : public benchmark::BenchmarkReporter
 {
@@ -80,8 +66,9 @@ public:
       }
    }
 };
-#endif // MFEM_USE_BENCHMARK
 
 } // namespace mfem
+
+#endif // MFEM_USE_BENCHMARK
 
 #endif // MFEM_TESTS_BENCH_HPP

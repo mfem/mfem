@@ -9,81 +9,192 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "mfem.hpp"
 #include "unit_tests.hpp"
 
-#include "fem/test_linearform_ext.hpp"
-
 using namespace mfem;
-using namespace linearform_ext_tests;
 
-namespace mfem
+struct LinearFormExtTest
 {
+   enum
+   {
+      DomainLF,
+      DomainLFGrad,
+      VectorDomainLF,
+      VectorDomainLFGrad
+   };
+   const int SEED = 0x100001b3;
+   const char *mesh_filename;
+   const int vdim, ordering;
+   const bool gll;
+   const int problem, p, q;
+   Mesh mesh;
+   const int dim;
+   H1_FECollection fec;
+   FiniteElementSpace vfes, mfes;
+   GridFunction x;
+   const Geometry::Type geom_type;
+   IntegrationRules IntRulesGLL;
+   const IntegrationRule *irGLL, *ir;
 
-namespace linearform_ext_tests
-{
+   Array<int> elem_marker;
+   Vector one_vec, dim_vec, vdim_vec, vdim_dim_vec;
+   ConstantCoefficient cst_coeff;
+   VectorConstantCoefficient dim_cst_coeff;
+   VectorConstantCoefficient vdim_cst_coeff;
+   VectorConstantCoefficient vdim_dim_cst_coeff;
+   std::function<void(const Vector&, Vector&)>
+   vdim_vector_function = [&](const Vector&, Vector &y)
+   {
+      y.SetSize(vdim);
+      y.Randomize(SEED);
+   };
+   std::function<void(const Vector&, Vector&)> vector_f;
+   VectorFunctionCoefficient vdim_function_coeff;
+   LinearForm lf_dev, lf_std;
+   LinearFormIntegrator *lfi_dev, *lfi_std;
 
-void LinearFormExtTest::Description()
-{
-   const bool scalar = problem == LinearFormExtTest::DomainLF ||
-                       problem == LinearFormExtTest::DomainLFGrad;
-   if (scalar) { MFEM_VERIFY(vdim == 1, "VDIM should be 1"); }
-   const bool grad = problem == LinearFormExtTest::DomainLFGrad ||
-                     problem == LinearFormExtTest::VectorDomainLFGrad;
+   LinearFormExtTest(const char *mesh_filename,
+                     int vdim, int ordering, bool gll, int problem, int order):
+      mesh_filename(mesh_filename),
+      vdim(vdim),
+      ordering(ordering),
+      gll(gll),
+      problem(problem),
+      p(order),
+      q(2*p + (gll?-1:3)),
+      mesh(Mesh::LoadFromFile(mesh_filename)),
+      dim(mesh.Dimension()),
+      fec(p, dim),
+      vfes(&mesh, &fec, vdim, ordering),
+      mfes(&mesh, &fec, dim),
+      x(&mfes),
+      geom_type(vfes.GetFE(0)->GetGeomType()),
+      IntRulesGLL(0, Quadrature1D::GaussLobatto),
+      irGLL(&IntRulesGLL.Get(geom_type, q)),
+      ir(&IntRules.Get(geom_type, q)),
+      elem_marker(),
+      one_vec(1),
+      dim_vec(dim),
+      vdim_vec(vdim),
+      vdim_dim_vec(vdim*dim),
+      cst_coeff(M_PI),
+      dim_cst_coeff((dim_vec.Randomize(SEED), dim_vec)),
+      vdim_cst_coeff((vdim_vec.Randomize(SEED), vdim_vec)),
+      vdim_dim_cst_coeff((vdim_dim_vec.Randomize(SEED), vdim_dim_vec)),
+      vector_f(vdim_vector_function),
+      vdim_function_coeff(vdim, vector_f),
+      lf_dev(&vfes),
+      lf_std(&vfes),
+      lfi_dev(nullptr),
+      lfi_std(nullptr)
+   {
+      // Initial mesh from MakeCartesian has attributes size of 1
+      REQUIRE(mesh.attributes.Size() == 1);
+      for (int e = 0; e < mesh.GetNE(); e++) { mesh.SetAttribute(e, e%2?1:2); }
+      mesh.SetAttributes();
+      REQUIRE(mesh.attributes.Size() == 2);
+      elem_marker.SetSize(2);
+      elem_marker[0] = 0;
+      elem_marker[1] = 1;
 
-   mfem::out << "[LinearFormExt]"
-             << " p=" << p
-             << " q=" << q
-             << (ordering==Ordering::byNODES ? " byNODES" : " byVDIM ")
-             << " "<< dim << "D"
-             << " "<< vdim << "-"
-             << (scalar ? "Scalar" : "Vector")
-             << (grad ? "Grad" : "")
-             << std::endl;
-}
+      switch (problem)
+      {
+         case DomainLF:
+         {
+            lfi_dev = new DomainLFIntegrator(cst_coeff);
+            lfi_std = new DomainLFIntegrator(cst_coeff);
+            break;
+         }
+         case DomainLFGrad:
+         {
+            lfi_dev = new DomainLFGradIntegrator(dim_cst_coeff);
+            lfi_std = new DomainLFGradIntegrator(dim_cst_coeff);
+            break;
+         }
+         case VectorDomainLF:
+         {
+            lfi_dev = new VectorDomainLFIntegrator(vdim_function_coeff);
+            lfi_std = new VectorDomainLFIntegrator(vdim_function_coeff);
+            break;
+         }
+         case VectorDomainLFGrad:
+         {
+            lfi_dev = new VectorDomainLFGradIntegrator(vdim_dim_cst_coeff);
+            lfi_std = new VectorDomainLFGradIntegrator(vdim_dim_cst_coeff);
+            break;
+         }
+         default: { MFEM_ABORT("Unknown Problem!"); }
+      }
 
-void LinearFormExtTest::Run()
-{
-   Description();
+      lfi_dev->SetIntRule(gll ? irGLL : ir);
+      lfi_std->SetIntRule(gll ? irGLL : ir);
 
-   AssembleBoth();
+      lf_dev.AddDomainIntegrator(lfi_dev, elem_marker);
+      lf_std.AddDomainIntegrator(lfi_std, elem_marker);
+   }
 
-   // Test the difference to verify the orderings
-   Vector difference = lf_legacy;
-   difference -= lf_full;
-   REQUIRE(0.0 == MFEM_Approx(difference * difference));
+   void Run()
+   {
+      const bool scalar = problem == LinearFormExtTest::DomainLF ||
+                          problem == LinearFormExtTest::DomainLFGrad;
+      if (scalar) { REQUIRE(vdim == 1); }
 
-   REQUIRE(lf_full * lf_full == MFEM_Approx(lf_legacy * lf_legacy));
-}
+      const bool grad = problem == LinearFormExtTest::DomainLFGrad ||
+                        problem == LinearFormExtTest::VectorDomainLFGrad;
 
-} // namespace linearform_ext_tests
+      mfem::out << "[LinearFormExt] "
+                << dim << "D "
+                << mesh_filename
+                << " p=" << p
+                << " q=" << q
+                << (ordering == Ordering::byNODES ? " byNODES " : " byVDIM  ")
+                << vdim << "-"
+                << (scalar ? "Scalar" : "Vector")
+                << (grad ? "Grad" : "Eval")
+                << std::endl;
 
-} // namespace mfem
+      lf_dev.Assemble();
+      const bool use_device = false;
+      lf_std.Assemble(use_device);
+
+      REQUIRE(lf_dev * lf_dev == MFEM_Approx(lf_std * lf_std));
+
+      // Test also the difference to verify the orderings
+      lf_std -= lf_dev;
+      REQUIRE(0.0 == MFEM_Approx(lf_std * lf_std));
+   }
+};
 
 TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
 {
    const bool all = launch_all_non_regression_tests;
 
-   const auto N = all ? GENERATE(3,4,5) : GENERATE(3,4);
+   const auto mesh = GENERATE("../../data/star.mesh",
+                              "../../data/star-q2.mesh",
+                              "../../data/star-q3.mesh",
+                              "../../data/fichera.mesh",
+                              "../../data/fichera-q2.mesh",
+                              "../../data/fichera-q3.mesh");
    const auto p = all ? GENERATE(1,2,3,4,5,6) : GENERATE(1,3,6);
-   const auto dim = GENERATE(2,3);
    const auto gll = GENERATE(false,true); // q=p+2, q=p+1
 
    SECTION("Scalar")
    {
-      constexpr auto vdim = 1;
-      const auto ordering = Ordering::byNODES;
+      const auto vdim = 1;
+      const auto ordering = mfem::Ordering::byNODES;
       const auto problem = GENERATE(LinearFormExtTest::DomainLF,
                                     LinearFormExtTest::DomainLFGrad);
-      LinearFormExtTest(N, dim, vdim, ordering, gll, problem, p, true).Run();
+      LinearFormExtTest(mesh, vdim, ordering, gll, problem, p).Run();
    }
 
    SECTION("Vector")
    {
-      const auto vdim = all ? GENERATE(1,5,13,24) : GENERATE(1,5);
+      const auto vdim = all ? GENERATE(1,5,7,24) : GENERATE(1,5);
       const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
       const auto problem = GENERATE(LinearFormExtTest::VectorDomainLF,
                                     LinearFormExtTest::VectorDomainLFGrad);
-      LinearFormExtTest(N, dim, vdim, ordering, gll, problem, p, true).Run();
+      LinearFormExtTest(mesh, vdim, ordering, gll, problem, p).Run();
    }
 } // test case
 
