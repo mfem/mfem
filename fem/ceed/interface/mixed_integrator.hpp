@@ -21,7 +21,6 @@ namespace mfem
 
 namespace ceed
 {
-
 class MixedPAIntegrator : public ceed::Operator
 {
 #ifdef MFEM_USE_CEED

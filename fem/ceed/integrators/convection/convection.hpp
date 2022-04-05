@@ -13,6 +13,7 @@
 #define MFEM_LIBCEED_CONV_HPP
 
 #include "../../interface/integrator.hpp"
+#include "../../interface/mixed_integrator.hpp"
 #include "../../../fespace.hpp"
 
 namespace mfem
@@ -29,6 +30,15 @@ public:
                           const mfem::IntegrationRule &irm,
                           mfem::VectorCoefficient *Q,
                           const double alpha);
+};
+
+class MixedPAConvectionIntegrator : public MixedPAIntegrator
+{
+public:
+   MixedPAConvectionIntegrator(const ConvectionIntegrator &integ,
+                               const mfem::FiniteElementSpace &fes,
+                               mfem::VectorCoefficient *Q,
+                               const double alpha);
 };
 
 /// Represent a ConvectionIntegrator with AssemblyLevel::None using libCEED.
