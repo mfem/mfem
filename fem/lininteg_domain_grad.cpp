@@ -81,8 +81,35 @@ void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
             }
          }
          MFEM_SYNC_THREAD;
-         kernels::internal::GradYt(d,q,Bt,Gt,QQ0,QQ1,DQ0,DQ1);
-         kernels::internal::GradXt(d,q,Bt,Gt,DQ0,DQ1,Y,c,e);
+         MFEM_FOREACH_THREAD(qx,x,q)
+         {
+            MFEM_FOREACH_THREAD(dy,y,d)
+            {
+               double u = 0.0, v = 0.0;
+               for (int qy = 0; qy < q; ++qy)
+               {
+                  u += QQ0(qy,qx) * Bt(qy,dy);
+                  v += QQ1(qy,qx) * Gt(qy,dy);
+               }
+               DQ0(dy,qx) = u;
+               DQ1(dy,qx) = v;
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dx,x,d)
+         {
+            MFEM_FOREACH_THREAD(dy,y,d)
+            {
+               double u = 0.0, v = 0.0;
+               for (int qx = 0; qx < q; ++qx)
+               {
+                  u += DQ0(dy,qx) * Gt(qx,dx);
+                  v += DQ1(dy,qx) * Bt(qx,dx);
+               }
+               Y(dx,dy,c,e) += u + v;
+            }
+         }
+         MFEM_SYNC_THREAD;
       }
    });
 }
