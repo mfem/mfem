@@ -25,6 +25,7 @@ struct LinearFormExtTest
       VectorDomainLFGrad
    };
    const double abs_tol = 1e-14, rel_tol = 1e-14;
+   const char *mesh_filename;
    Mesh mesh;
    const int dim, vdim, ordering, gll, problem, p, q, SEED = 0x100001b3;
    H1_FECollection fec;
@@ -46,6 +47,7 @@ struct LinearFormExtTest
 
    LinearFormExtTest(const char *mesh_filename,
                      int vdim, int ordering, int gll, int problem, int p):
+      mesh_filename(mesh_filename),
       mesh(Mesh::LoadFromFile(mesh_filename)),
       dim(mesh.Dimension()),
       vdim(vdim),
@@ -123,8 +125,8 @@ struct LinearFormExtTest
       const bool grad = problem == LinearFormExtTest::DomainLFGrad ||
                         problem == LinearFormExtTest::VectorDomainLFGrad;
 
-      mfem::out << "[LinearFormExt] "
-                << dim << "D " << " p=" << p << " q=" << q
+      mfem::out << "[LinearFormExt] " << dim << "D " << mesh_filename
+                << " p=" << p << " q=" << q
                 << (ordering == Ordering::byNODES ? " byNODES " : " byVDIM  ")
                 << vdim << "-"
                 << (scalar ? "Scalar" : "Vector") << (grad ? "Grad" : "Eval")
@@ -151,7 +153,7 @@ TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
       all ? GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
                      "../../data/fichera.mesh", "../../data/fichera-q3.mesh") :
       GENERATE("../../data/star-q3.mesh", "../../data/fichera-q3.mesh") ;
-   const auto p = all ? GENERATE(1,2,3,4,5,6) : GENERATE(1,3,6);
+   const auto p = all ? GENERATE(1,2,3,4,5,6/*,7*/) : GENERATE(1,3,6);
    const auto gll = GENERATE(0,1);
 
    SECTION("Scalar")
