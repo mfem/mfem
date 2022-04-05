@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    int max_dofs = 50000;
+   bool LSZZ = false;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -68,6 +69,9 @@ int main(int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&max_dofs, "-md", "--max-dofs",
                   "Stop after reaching this many degrees of freedom.");
+   args.AddOption(&LSZZ, "-ls", "--ls-zz", "-no-ls",
+                  "--no-ls-zz",
+                  "Switch to least-squares ZZ estimator.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -151,15 +155,29 @@ int main(int argc, char *argv[])
    //     recover a smoothed flux (gradient) that is subtracted from the element
    //     flux to get an error indicator. We need to supply the space for the
    //     smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
-   FiniteElementSpace flux_fespace(&mesh, &fec, sdim);
-   ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
-   estimator.SetAnisotropic();
+   ErrorEstimator *estimator{nullptr};
+
+   if (LSZZ)
+   {
+      estimator = new LSZienkiewiczZhuEstimator(*integ, x);
+      if (dim == 3 && mesh.GetElementType(0) != Element::HEXAHEDRON)
+      {
+         dynamic_cast<LSZienkiewiczZhuEstimator *>
+         (estimator)->SetTichonovRegularization();
+      }
+   }
+   else
+   {
+      auto flux_fes = new FiniteElementSpace(&mesh, &fec, sdim);
+      estimator = new ZienkiewiczZhuEstimator(*integ, x, flux_fes);
+      dynamic_cast<ZienkiewiczZhuEstimator *>(estimator)->SetAnisotropic();
+   }
 
    // 11. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
-   ThresholdRefiner refiner(estimator);
+   ThresholdRefiner refiner(*estimator);
    refiner.SetTotalErrorFraction(0.7);
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
@@ -256,5 +274,6 @@ int main(int argc, char *argv[])
       b.Update();
    }
 
+   delete estimator;
    return 0;
 }
