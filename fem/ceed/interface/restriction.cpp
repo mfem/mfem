@@ -20,8 +20,8 @@ namespace ceed
 
 #ifdef MFEM_USE_CEED
 
-static void InitRestrictionImpl(const mfem::FiniteElementSpace &fes,
-                                Ceed ceed, CeedElemRestriction *restr)
+static void InitNativeRestr(const mfem::FiniteElementSpace &fes,
+                            Ceed ceed, CeedElemRestriction *restr)
 {
    const mfem::FiniteElement *fe = fes.GetFE(0);
    const int P = fe->GetDof();
@@ -31,35 +31,72 @@ static void InitRestrictionImpl(const mfem::FiniteElementSpace &fes,
    const mfem::TensorBasisElement * tfe =
       dynamic_cast<const mfem::TensorBasisElement *>(fe);
    const int stride = compstride == 1 ? fes.GetVDim() : 1;
-   if (tfe) // Lexicographic ordering using dof_map
+   const mfem::Array<int>& dof_map = tfe->GetDofMap();
+
+   for (int i = 0; i < fes.GetNE(); i++)
    {
-      const mfem::Array<int>& dof_map = tfe->GetDofMap();
-      for (int i = 0; i < fes.GetNE(); i++)
+      const int el_offset = P * i;
+      for (int j = 0; j < P; j++)
       {
-         const int el_offset = P * i;
-         for (int j = 0; j < P; j++)
-         {
-            tp_el_dof[j+el_offset] = stride*el_dof.GetJ()[dof_map[j]+el_offset];
-         }
+         tp_el_dof[j+el_offset] = stride*el_dof.GetJ()[dof_map[j]+el_offset];
       }
    }
-   else  // Native ordering
-   {
-      for (int e = 0; e < fes.GetNE(); e++)
-      {
-         for (int i = 0; i < P; i++)
-         {
-            tp_el_dof[i + e*P] = stride*el_dof.GetJ()[i + e*P];
-         }
-      }
-   }
+
    CeedElemRestrictionCreate(ceed, fes.GetNE(), P, fes.GetVDim(),
                              compstride, (fes.GetVDim())*(fes.GetNDofs()),
                              CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
 }
 
-static void InitRestrictionWithIndicesImpl(
+static void InitLexicoRestr(const mfem::FiniteElementSpace &fes,
+                            Ceed ceed, CeedElemRestriction *restr)
+{
+   const mfem::FiniteElement *fe = fes.GetFE(0);
+   const int P = fe->GetDof();
+   CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
+   const mfem::Table &el_dof = fes.GetElementToDofTable();
+   mfem::Array<int> tp_el_dof(el_dof.Size_of_connections());
+   const int stride = compstride == 1 ? fes.GetVDim() : 1;
+
+   for (int e = 0; e < fes.GetNE(); e++)
+   {
+      for (int i = 0; i < P; i++)
+      {
+         tp_el_dof[i + e*P] = stride*el_dof.GetJ()[i + e*P];
+      }
+   }
+
+   CeedElemRestrictionCreate(ceed, fes.GetNE(), P, fes.GetVDim(),
+                             compstride, (fes.GetVDim())*(fes.GetNDofs()),
+                             CEED_MEM_HOST, CEED_COPY_VALUES,
+                             tp_el_dof.GetData(), restr);
+}
+
+static void InitRestrictionImpl(const mfem::FiniteElementSpace &fes,
+                                Ceed ceed, CeedElemRestriction *restr)
+{
+   const mfem::FiniteElement *fe = fes.GetFE(0);
+   const mfem::TensorBasisElement * tfe =
+      dynamic_cast<const mfem::TensorBasisElement *>(fe);
+   if (tfe)
+   {
+      const mfem::Array<int>& dof_map = tfe->GetDofMap();
+      if (dof_map.Size()>0) // Native ordering using dof_map
+      {
+         InitNativeRestr(fes, ceed, restr);
+      }
+      else  // Lexicographic ordering
+      {
+         InitLexicoRestr(fes, ceed, restr);
+      }
+   }
+   else  // Lexicographic ordering
+   {
+      InitLexicoRestr(fes, ceed, restr);
+   }
+}
+
+static void InitNativeRestrWithIndices(
    const mfem::FiniteElementSpace &fes,
    int nelem,
    const int* indices,
@@ -73,39 +110,81 @@ static void InitRestrictionWithIndicesImpl(
       dynamic_cast<const mfem::TensorBasisElement *>(fe);
    Array<int> dofs;
    const int stride = compstride == 1 ? fes.GetVDim() : 1;
-   if (tfe) // Lexicographic ordering using dof_map
+   const mfem::Array<int>& dof_map = tfe->GetDofMap();
+
+   for (int i = 0; i < nelem; i++)
    {
-      const mfem::Array<int>& dof_map = tfe->GetDofMap();
-      for (int i = 0; i < nelem; i++)
+      const int elem_index = indices[i];
+      fes.GetElementDofs(elem_index, dofs);
+      const int el_offset = P * i;
+      for (int j = 0; j < P; j++)
       {
-         const int elem_index = indices[i];
-         fes.GetElementDofs(elem_index, dofs);
-         const int el_offset = P * i;
-         for (int j = 0; j < P; j++)
-         {
-            tp_el_dof[j + el_offset] = stride*dofs[dof_map[j]];
-         }
+         tp_el_dof[j + el_offset] = stride*dofs[dof_map[j]];
       }
    }
-   else  // Native ordering
-   {
-      for (int i = 0; i < nelem; i++)
-      {
-         const int elem_index = indices[i];
-         fes.GetElementDofs(elem_index, dofs);
-         const int el_offset = P * i;
-         for (int j = 0; j < P; j++)
-         {
-            tp_el_dof[j + el_offset] = stride*dofs[j];
-         }
-      }
-   }
+
    CeedElemRestrictionCreate(ceed, nelem, P, fes.GetVDim(),
                              compstride, (fes.GetVDim())*(fes.GetNDofs()),
                              CEED_MEM_HOST, CEED_COPY_VALUES,
                              tp_el_dof.GetData(), restr);
 }
 
+static void InitLexicoRestrWithIndices(
+   const mfem::FiniteElementSpace &fes,
+   int nelem,
+   const int* indices,
+   Ceed ceed, CeedElemRestriction *restr)
+{
+   const mfem::FiniteElement *fe = fes.GetFE(indices[0]);
+   const int P = fe->GetDof();
+   CeedInt compstride = fes.GetOrdering()==Ordering::byVDIM ? 1 : fes.GetNDofs();
+   mfem::Array<int> tp_el_dof(nelem*P);
+   Array<int> dofs;
+   const int stride = compstride == 1 ? fes.GetVDim() : 1;
+
+   for (int i = 0; i < nelem; i++)
+   {
+      const int elem_index = indices[i];
+      fes.GetElementDofs(elem_index, dofs);
+      const int el_offset = P * i;
+      for (int j = 0; j < P; j++)
+      {
+         tp_el_dof[j + el_offset] = stride*dofs[j];
+      }
+   }
+
+   CeedElemRestrictionCreate(ceed, nelem, P, fes.GetVDim(),
+                             compstride, (fes.GetVDim())*(fes.GetNDofs()),
+                             CEED_MEM_HOST, CEED_COPY_VALUES,
+                             tp_el_dof.GetData(), restr);
+}
+
+static void InitRestrictionWithIndicesImpl(
+   const mfem::FiniteElementSpace &fes,
+   int nelem,
+   const int* indices,
+   Ceed ceed, CeedElemRestriction *restr)
+{
+   const mfem::FiniteElement *fe = fes.GetFE(indices[0]);
+   const mfem::TensorBasisElement * tfe =
+      dynamic_cast<const mfem::TensorBasisElement *>(fe);
+   if (tfe)
+   {
+      const mfem::Array<int>& dof_map = tfe->GetDofMap();
+      if (dof_map.Size() > 0) // Native ordering using dof_map
+      {
+         InitNativeRestrWithIndices(fes, nelem, indices, ceed, restr);
+      }
+      else  // Lexicographic ordering
+      {
+         InitLexicoRestrWithIndices(fes, nelem, indices, ceed, restr);
+      }
+   }
+   else  // Lexicographic ordering
+   {
+      InitLexicoRestrWithIndices(fes, nelem, indices, ceed, restr);
+   }
+}
 
 static void InitCoeffRestrictionWithIndicesImpl(
    const mfem::FiniteElementSpace &fes,
