@@ -47,6 +47,13 @@ void InitRestrictionWithIndices(const FiniteElementSpace &fes,
                                 Ceed ceed,
                                 CeedElemRestriction *restr);
 
+void InitCoeffRestrictionWithIndices(const FiniteElementSpace &fes,
+                                     int nelem,
+                                     const int* indices,
+                                     int nquads,
+                                     int ncomp,
+                                     Ceed ceed,
+                                     CeedElemRestriction *restr);
 
 #endif
 

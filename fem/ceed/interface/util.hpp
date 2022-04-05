@@ -104,7 +104,7 @@ struct BasisHash
 };
 using BasisMap = std::unordered_map<const BasisKey, CeedBasis, BasisHash>;
 
-enum restr_type {Standard, Strided};
+enum restr_type {Standard, Strided, Coeff};
 
 // Hash table for CeedElemRestriction
 using RestrKey =
@@ -134,6 +134,8 @@ namespace internal
 {
 
 #ifdef MFEM_USE_CEED
+/** @warning These maps have a tendency to create bugs when adding new "types"
+ * of CeedBasis and CeedElemRestriction. */
 extern ceed::BasisMap ceed_basis_map;
 extern ceed::RestrMap ceed_restr_map;
 #endif

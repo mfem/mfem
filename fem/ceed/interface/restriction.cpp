@@ -106,6 +106,35 @@ static void InitRestrictionWithIndicesImpl(
                              tp_el_dof.GetData(), restr);
 }
 
+
+static void InitCoeffRestrictionWithIndicesImpl(
+   const mfem::FiniteElementSpace &fes,
+   int nelem,
+   const int* indices,
+   int nquads,
+   int ncomp,
+   Ceed ceed,
+   CeedElemRestriction *restr)
+{
+   mfem::Array<int> tp_el_dof(nelem*nquads);
+   const int stride_quad = ncomp;
+   const int stride_elem = ncomp*nquads;
+   // TODO generalize to support different #quads
+   for (int i = 0; i < nelem; i++)
+   {
+      const int elem_index = indices[i];
+      const int el_offset = elem_index * stride_elem;
+      for (int j = 0; j < nquads; j++)
+      {
+         tp_el_dof[j + nquads * i] = j * stride_quad + el_offset;
+      }
+   }
+   CeedElemRestrictionCreate(ceed, nelem, nquads, ncomp, 1,
+                             ncomp*fes.GetNE()*nquads,
+                             CEED_MEM_HOST, CEED_COPY_VALUES,
+                             tp_el_dof.GetData(), restr);
+}
+
 void InitStridedRestriction(const mfem::FiniteElementSpace &fes,
                             CeedInt nelem, CeedInt nqpts, CeedInt qdatasize,
                             const CeedInt *strides,
@@ -169,6 +198,31 @@ void InitRestrictionWithIndices(const FiniteElementSpace &fes,
    if (restr_itr == mfem::internal::ceed_restr_map.end())
    {
       InitRestrictionWithIndicesImpl(fes, nelem, indices, ceed, restr);
+      mfem::internal::ceed_restr_map[restr_key] = *restr;
+   }
+   else
+   {
+      *restr = restr_itr->second;
+   }
+}
+
+void InitCoeffRestrictionWithIndices(const FiniteElementSpace &fes,
+                                     int nelem,
+                                     const int* indices,
+                                     int nquads,
+                                     int ncomp,
+                                     Ceed ceed,
+                                     CeedElemRestriction *restr)
+{
+   // Check for FES -> basis, restriction in hash tables
+   RestrKey restr_key(&fes, nelem, nquads, ncomp, restr_type::Coeff);
+   auto restr_itr = mfem::internal::ceed_restr_map.find(restr_key);
+
+   // Init or retreive key values
+   if (restr_itr == mfem::internal::ceed_restr_map.end())
+   {
+      InitCoeffRestrictionWithIndicesImpl(fes, nelem, indices, nquads, ncomp,
+                                          ceed, restr);
       mfem::internal::ceed_restr_map[restr_key] = *restr;
    }
    else
