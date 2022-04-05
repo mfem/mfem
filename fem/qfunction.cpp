@@ -28,27 +28,52 @@ QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
    Load(in, vdim*qspace->GetSize());
 }
 
-QuadratureFunction & QuadratureFunction::operator=(double value)
+void QuadratureFunction::SetSpace(QuadratureSpace *qspace_, int vdim_)
+{
+   if (qspace_ != qspace)
+   {
+      if (own_qspace) { delete qspace; }
+      qspace = qspace_;
+      own_qspace = false;
+   }
+   vdim = (vdim_ < 0) ? vdim : vdim_;
+   SetSize(vdim*qspace->GetSize());
+}
+
+void QuadratureFunction::SetSpace(
+   QuadratureSpace *qspace_, double *qf_data, int vdim_)
+{
+   if (qspace_ != qspace)
+   {
+      if (own_qspace) { delete qspace; }
+      qspace = qspace_;
+      own_qspace = false;
+   }
+   vdim = (vdim_ < 0) ? vdim : vdim_;
+   NewDataAndSize(qf_data, vdim*qspace->GetSize());
+}
+
+QuadratureFunction &QuadratureFunction::operator=(double value)
 {
    Vector::operator=(value);
    return *this;
 }
 
-QuadratureFunction & QuadratureFunction::operator=(const Vector &v)
+QuadratureFunction &QuadratureFunction::operator=(const Vector &v)
 {
    MFEM_ASSERT(qspace && v.Size() == this->Size(), "");
    Vector::operator=(v);
    return *this;
 }
 
-QuadratureFunction & QuadratureFunction::operator=(const QuadratureFunction &v)
+QuadratureFunction &QuadratureFunction::operator=(const QuadratureFunction &v)
 {
    return this->operator=((const Vector &)v);
 }
 
 void QuadratureFunction::Save(std::ostream &os) const
 {
-   qspace->Save(os);
+   GetSpace()->Save(os);
    os << "VDim: " << vdim << '\n'
       << '\n';
    Vector::Print(os, vdim);
@@ -76,9 +101,11 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
    std::vector<char> buf;
 
+   Mesh &mesh = *qspace->GetMesh();
+
    int np = qspace->GetSize();
-   int ne = qspace->GetNE();
-   int sdim = qspace->GetMesh()->SpaceDimension();
+   int ne = mesh.GetNE();
+   int sdim = mesh.SpaceDimension();
 
    // For quadrature functions, each point is a vertex cell, so number of cells
    // is equal to number of points
@@ -93,7 +120,7 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    Vector pt(sdim);
    for (int i = 0; i < ne; i++)
    {
-      ElementTransformation &T = *qspace->GetMesh()->GetElementTransformation(i);
+      ElementTransformation &T = *mesh.GetElementTransformation(i);
       const IntegrationRule &ir = GetElementIntRule(i);
       for (int j = 0; j < ir.Size(); j++)
       {
@@ -182,6 +209,26 @@ void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
 {
    std::ofstream f(filename + ".vtu");
    SaveVTU(f, format, compression_level);
+}
+
+
+FaceQuadratureFunction &FaceQuadratureFunction::operator=(double value)
+{
+   Vector::operator=(value);
+   return *this;
+}
+
+FaceQuadratureFunction &FaceQuadratureFunction::operator=(const Vector &v)
+{
+   MFEM_ASSERT(qspace && v.Size() == this->Size(), "");
+   Vector::operator=(v);
+   return *this;
+}
+
+FaceQuadratureFunction &FaceQuadratureFunction::operator=(
+   const FaceQuadratureFunction &v)
+{
+   return this->operator=((const Vector &)v);
 }
 
 }
