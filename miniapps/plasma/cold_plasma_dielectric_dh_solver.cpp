@@ -980,7 +980,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       phi_->ProjectCoefficient(rhoCoef, rhoCoef);
        */
 
-      rectPot_ = new ParComplexGridFunction(H1FESpace_);
+      rectPot_ = new ParGridFunction(H1FESpace_);
       *rectPot_ = 0.0;
 
       for (int i=0; i<sbcs_->Size(); i++)
@@ -1955,8 +1955,7 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
 
    if ( rectPot_ )
    {
-      visit_dc.RegisterField("Rec_Re_Phi", &rectPot_->real());
-      visit_dc.RegisterField("Rec_Im_Phi", &rectPot_->imag());
+      visit_dc.RegisterField("Rec_Phi", rectPot_);
    }
 
    if ( BCoef_)
@@ -2047,10 +2046,8 @@ CPDSolverDH::WriteVisItFields(int it)
 
          if (sb != NULL)
          {
-            RectifiedSheathPotential rectPotCoefR(*sb, true);
-            RectifiedSheathPotential rectPotCoefI(*sb, false);
-
-            rectPot_->ProjectCoefficient(rectPotCoefR, rectPotCoefI);
+            RectifiedSheathPotential rectPotCoef(*sb, true);
+            rectPot_->ProjectCoefficient(rectPotCoef);
          }
 
       }
