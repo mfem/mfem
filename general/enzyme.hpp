@@ -21,10 +21,10 @@
  * documentation (https://enzyme.mit.edu) for more information.
  */
 
-int enzyme_dup;
-int enzyme_dupnoneed;
-int enzyme_out;
-int enzyme_const;
+extern int enzyme_dup;
+extern int enzyme_dupnoneed;
+extern int enzyme_out;
+extern int enzyme_const;
 
 template <typename return_type, typename... Args>
 return_type __enzyme_autodiff(Args...);
