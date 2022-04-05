@@ -12,13 +12,14 @@
 #ifndef MFEM_LIBCEED_COEFF
 #define MFEM_LIBCEED_COEFF
 
-#include "ceed.hpp"
-#include "util.hpp"
+#include "../../../general/forall.hpp"
 #include "../../../config/config.hpp"
 #include "../../../linalg/vector.hpp"
 #include "../../../linalg/dtensor.hpp"
 #include "../../../mesh/mesh.hpp"
 #include "../../gridfunc.hpp"
+#include "util.hpp"
+#include "ceed.hpp"
 
 namespace mfem
 {
@@ -247,7 +248,6 @@ void InitCoefficientWithIndices(mfem::Coefficient *Q, mfem::Mesh &mesh,
    else if (QuadratureFunctionCoefficient *cQ =
                dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
-      MFEM_ABORT("Not yet supported.");
       QuadCoefficient *ceedCoeff = new QuadCoefficient(1);
       const int ne = mesh.GetNE();
       const int nq = ir.GetNPoints();
@@ -258,8 +258,19 @@ void InitCoefficientWithIndices(mfem::Coefficient *Q, mfem::Mesh &mesh,
       MFEM_VERIFY(&ir == &qFun.GetSpace()->GetElementIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
-      qFun.Read();
-      ceedCoeff->coeff.MakeRef(const_cast<mfem::QuadratureFunction &>(qFun),0);
+      ceedCoeff->coeff.SetSize(nq * nelem);
+      Memory<int> m_indices((int*)indices, nelem, false);
+      auto in = Reshape(qFun.Read(), nq, ne);
+      auto d_indices = Read(m_indices, nelem);
+      auto out = Reshape(ceedCoeff->coeff.Write(), nq, nelem);
+      MFEM_FORALL(i, nelem * nq,
+      {
+         const int q = i%nq;
+         const int sub_e = i/nq;
+         const int e = d_indices[sub_e];
+         out(q, sub_e) = in(q, e);
+      });
+      m_indices.DeleteDevice();
       InitVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
       coeff_ptr = ceedCoeff;
    }
@@ -316,8 +327,6 @@ void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
    else if (VectorQuadratureFunctionCoefficient *cQ =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(VQ))
    {
-      MFEM_ABORT("Not yet implemented.");
-      // TODO
       QuadCoefficient *ceedCoeff = new QuadCoefficient(cQ->GetVDim());
       const int dim = mesh.Dimension();
       const int ne = mesh.GetNE();
@@ -329,8 +338,22 @@ void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
       MFEM_VERIFY(&ir == &qFun.GetSpace()->GetElementIntRule(0),
                   "IntegrationRule used within integrator and in"
                   " QuadratureFunction appear to be different");
-      qFun.Read();
-      ceedCoeff->coeff.MakeRef(const_cast<mfem::QuadratureFunction &>(qFun),0);
+      ceedCoeff->coeff.SetSize(dim * nq * nelem);
+      Memory<int> m_indices((int*)indices, nelem, false);
+      auto in = Reshape(qFun.Read(), dim, nq, ne);
+      auto d_indices = Read(m_indices, nelem);
+      auto out = Reshape(ceedCoeff->coeff.Write(), dim, nq, nelem);
+      MFEM_FORALL(i, nelem * nq,
+      {
+         const int q = i%nq;
+         const int sub_e = i/nq;
+         const int e = d_indices[sub_e];
+         for (int d = 0; d < dim; d++)
+         {
+            out(d, q, sub_e) = in(d, q, e);
+         }
+      });
+      m_indices.DeleteDevice();
       InitVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
       coeff_ptr = ceedCoeff;
    }
