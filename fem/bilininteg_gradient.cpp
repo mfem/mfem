@@ -12,6 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
+#include "qfunction.hpp"
 
 using namespace std;
 
@@ -865,4 +866,3 @@ void GradientIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 }
 
 } // namespace mfem
-
