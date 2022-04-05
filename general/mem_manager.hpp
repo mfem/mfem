@@ -106,11 +106,11 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
     In many respects this class behaves like a pointer:
     * When destroyed, a Memory object does NOT automatically delete any
       allocated memory.
-    * Only the method Delete() will deallocate a Memory object.
+    * Only the method `Delete()` will deallocate a Memory object.
     * Other methods that modify the object (e.g. `New()`, `Wrap()`, etc) will
       simply overwrite the old contents.
     In other aspects this class differs from a pointer:
-    * Pointer arithmetic is not supported, `Wrap()` should be used instead.
+    * Pointer arithmetic is not supported, `MakeAlias()` should be used instead.
     * Const Memory object does not allow modification of the content
       (unlike e.g. a const pointer).
     * Move constructor and assignement will transfer ownership flags, and
