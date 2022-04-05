@@ -29,7 +29,8 @@ protected:
    QuadratureFunctionBase() : qspace(nullptr), own_qspace(false), vdim(0) { }
 
    QuadratureFunctionBase(QuadratureSpaceBase *qspace_, int vdim_ = 1)
-      : qspace(qspace_), own_qspace(false), vdim(vdim_)
+      : Vector(vdim_*qspace_->GetSize()),
+        qspace(qspace_), own_qspace(false), vdim(vdim_)
    { }
 
 public:
@@ -152,6 +153,27 @@ public:
        The data array is replaced by calling Vector::NewDataAndSize(). */
    inline void SetSpace(QuadratureSpace *qspace_, double *qf_data,
                         int vdim_ = -1);
+
+   /// Evaluate a grid function at each quadrature point.
+   void ProjectGridFunction(const GridFunction &gf);
+
+   /// Evaluate the given coefficient at each quadrature point.
+   void ProjectCoefficient(Coefficient &coeff);
+
+   /// Evaluate the given vector coefficient at each quadrature point.
+   void ProjectCoefficient(VectorCoefficient &coeff);
+
+   /// @brief Evaluate the given symmetric matrix coefficient at each
+   /// quadrature point, and store the values in "symmetric format".
+   ///
+   /// @sa DenseSymmetricMatrix
+   void ProjectSymmetricCoefficient(SymmetricMatrixCoefficient &coeff);
+
+   /// @brief Evaluate the given matrix coefficient at each quadrature point.
+   ///
+   /// @note The coefficient is stored as a full (non-symmetric) matrix.
+   /// @sa ProjectSymmetricCoefficient.
+   void ProjectCoefficient(MatrixCoefficient &coeff, bool transpose=false);
 
    /// Redefine '=' for QuadratureFunction = constant.
    QuadratureFunction &operator=(double value);

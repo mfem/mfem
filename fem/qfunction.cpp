@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "qfunction.hpp"
+#include "quadinterpolator.hpp"
 
 namespace mfem
 {
@@ -78,6 +79,53 @@ void QuadratureFunction::Save(std::ostream &os) const
       << '\n';
    Vector::Print(os, vdim);
    os.flush();
+}
+
+void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
+{
+   SetVDim(gf.VectorDim());
+
+   const FiniteElementSpace &gf_fes = *gf.FESpace();
+   const bool use_tensor_products = UsesTensorBasis(gf_fes);
+   const ElementDofOrdering ordering = use_tensor_products ?
+                                       ElementDofOrdering::LEXICOGRAPHIC :
+                                       ElementDofOrdering::NATIVE;
+
+   // Use element restriction to go from L-vector to E-vector
+   const Operator *R = gf_fes.GetElementRestriction(ordering);
+   Vector e_vec(R->Height());
+   R->Mult(gf, e_vec);
+
+   // Use quadrature interpolator to go from E-vector to Q-vector
+   const QuadratureInterpolator *qi(gf_fes.GetQuadratureInterpolator(*GetSpace()));
+   qi->SetOutputLayout(QVectorLayout::byVDIM);
+   qi->DisableTensorProducts(!use_tensor_products);
+   qi->Values(e_vec, *this);
+}
+
+void QuadratureFunction::ProjectCoefficient(Coefficient &coeff)
+{
+   coeff.Project(*this);
+}
+
+void QuadratureFunction::ProjectCoefficient(VectorCoefficient &coeff)
+{
+   // Should we automatically resize, or check the vdim?
+   // MFEM_ASSERT(vdim == coeff.GetVDim(), "Wrong sizes.");
+   SetVDim(coeff.GetVDim());
+   coeff.Project(*this);
+}
+
+void QuadratureFunction::ProjectSymmetricCoefficient(
+   SymmetricMatrixCoefficient &coeff)
+{
+   coeff.ProjectSymmetric(*this);
+}
+
+void QuadratureFunction::ProjectCoefficient(MatrixCoefficient &coeff,
+                                            bool transpose)
+{
+   coeff.Project(*this, transpose);
 }
 
 std::ostream &operator<<(std::ostream &os, const QuadratureFunction &qf)

@@ -69,6 +69,9 @@ public:
    /// Change the size of the DenseSymmetricMatrix to s x s.
    void SetSize(int s);
 
+   /// Return the number of stored nonzeros in the matrix.
+   int GetStoredSize() const { return Height()*(Height()+1)/2; }
+
    /// Returns the matrix data array.
    inline double *Data() const
    { return const_cast<double*>((const double*)data);}

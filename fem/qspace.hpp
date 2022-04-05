@@ -27,11 +27,15 @@ protected:
    int order;
    int size;
    Array<int> offsets;
-
    const IntegrationRule *int_rule[Geometry::NumGeom];
 
    QuadratureSpaceBase(Mesh &mesh_, int order_ = 0)
       : mesh(mesh_), order(order_) { }
+
+   QuadratureSpaceBase(Mesh &mesh_, Geometry::Type geom,
+                       const IntegrationRule &ir);
+
+   void ConstructIntRules(int dim);
 
 public:
    /// Return the total number of quadrature points.
@@ -51,13 +55,16 @@ public:
 class QuadratureSpace : public QuadratureSpaceBase
 {
 protected:
-   // Assuming mesh and order are set, construct the members: int_rule,
-   // element_offsets, and size.
+   void ConstructOffsets();
    void Construct();
 public:
    /// Create a QuadratureSpace based on the global rules from #IntRules.
    QuadratureSpace(Mesh *mesh_, int order_)
       : QuadratureSpaceBase(*mesh_, order_) { Construct(); }
+
+   /// @brief Create a QuadratureSpace with an IntegrationRule, valid only when
+   /// the mesh has one element type.
+   QuadratureSpace(Mesh &mesh_, const IntegrationRule &ir);
 
    /// Read a QuadratureSpace from the stream @a in.
    QuadratureSpace(Mesh *mesh_, std::istream &in);
@@ -76,14 +83,17 @@ public:
 /// Class representing the storage layout of a FaceQuadratureFunction.
 class FaceQuadratureSpace : public QuadratureSpaceBase
 {
-   // Assuming mesh and order are set, construct the members: int_rule,
-   // element_offsets, and size.
+   void ConstructOffsets();
    void Construct();
 
 public:
    /// Create a FaceQuadratureSpace based on the global rules from #IntRules.
    FaceQuadratureSpace(Mesh &mesh_, int order_)
       : QuadratureSpaceBase(mesh_, order_) { Construct(); }
+
+   /// @brief Create a FaceQuadratureSpace with an IntegrationRule, valid only
+   /// when the mesh has one type of face geometry.
+   FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir);
 
    /// Returns number of faces in the mesh.
    inline int GetNumFaces() const { return mesh.GetNumFaces(); }

@@ -190,11 +190,7 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
                   {
                      paform.AddDomainIntegrator(new DiffusionIntegrator(*vcoeff));
                   }
-                  else if (coeffType == 4)
-                  {
-                     paform.AddDomainIntegrator(new DiffusionIntegrator(*mcoeff));
-                  }
-                  else if (coeffType == 5)
+                  else if (coeffType >= 4)
                   {
                      paform.AddDomainIntegrator(new DiffusionIntegrator(*mcoeff));
                   }
@@ -237,7 +233,7 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
                const SparseMatrix& A_explicit = assemblyform.SpMat();
 
                Vector xin(h1_fespace.GetTrueVSize());
-               xin.Randomize();
+               xin.Randomize(1);
                Vector y_mat(xin);
                y_mat = 0.0;
                Vector y_assembly(xin);
@@ -404,7 +400,7 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
                   }
 
                   Vector xin(fespace.GetTrueVSize());
-                  xin.Randomize();
+                  xin.Randomize(1);
 
                   Vector y_mat, y_assembly, y_pa;
 
@@ -749,7 +745,7 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
 
                   Vector *xin = new Vector((spaceType == HcurlH1) ? s_fespace.GetTrueVSize() :
                                            v_fespace.GetTrueVSize());
-                  xin->Randomize();
+                  xin->Randomize(1);
                   Vector y_mat((spaceType == HdivL2 || spaceType == HcurlH1_2D ||
                                 (spaceType == HcurlL2 &&
                                  dimension == 2)) ? s_fespace.GetTrueVSize() :
@@ -784,7 +780,7 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
                      // Test the transpose.
                      xin = new Vector(spaceType == HcurlH1 ? v_fespace.GetTrueVSize() :
                                       s_fespace.GetTrueVSize());
-                     xin->Randomize();
+                     xin->Randomize(1);
 
                      y_mat.SetSize(spaceType == HcurlH1 ? s_fespace.GetTrueVSize() :
                                    v_fespace.GetTrueVSize());
