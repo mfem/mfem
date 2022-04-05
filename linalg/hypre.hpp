@@ -1329,7 +1329,7 @@ public:
    void SetFilter(double filter);
    void SetLoadBal(double loadbal);
    void SetReuse(int reuse);
-   void SetFilter(int logging);
+   void SetLogging(int logging);
    void SetSymmetry(int sym);
 
    /// The typecast to HYPRE_Solver returns the internal sai_precond

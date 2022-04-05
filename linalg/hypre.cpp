@@ -4304,7 +4304,7 @@ void HypreParaSails::SetReuse(int reuse)
    HYPRE_ParaSailsSetReuse(sai_precond, reuse);
 }
 
-void HypreParaSails::SetFilter(int logging)
+void HypreParaSails::SetLogging(int logging)
 {
    HYPRE_ParaSailsSetLogging(sai_precond, logging);
 }
