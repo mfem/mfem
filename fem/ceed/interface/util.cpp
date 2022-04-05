@@ -96,7 +96,7 @@ void InitBasisAndRestriction(const FiniteElementSpace &fes,
                              CeedElemRestriction *restr)
 {
    InitBasis(fes, irm, ceed, basis);
-   InitRestriction(fes, irm, ceed, restr);
+   InitRestriction(fes, ceed, restr);
 }
 
 
