@@ -32,7 +32,7 @@
 // Compile with: make tmop-fitting
 //
 // Base example with triangles
-// mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
+// mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
 // Impact of marking with triangles
 // mpirun -np 4 tmop-fitting -m ../../data/inline-tri.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -fix-bnd -marking
 // mpirun -np 4 tmop-fitting -m ../../data/inline-tri.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -fix-bnd
@@ -46,6 +46,9 @@
 //    mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
 //  Surface fitting with weight adaptation and termination based on fitting error
 //    mpirun -np 4 tmop-fitting -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -sft 1e-5
+
+// mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -fix-bnd -sbgmesh -slstype 1 -smtype 2 -trim -sfa
+// mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -fix-bnd -sbgmesh -slstype 3 -smtype 0 -sfa
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -93,9 +96,8 @@ int main (int argc, char *argv[])
    bool adapt_marking     = false;
    bool split_case        = false;
    bool surf_bg_mesh     = false;
-   int surf_approach     = 1;
    int surf_ls_type      = 1;
-   int marking_type      = 1;
+   int marking_type      = 0;
    bool mod_bndr_attr    = false;
    bool trim_mesh        = false;
 
@@ -265,7 +267,7 @@ int main (int argc, char *argv[])
    // Trim the mesh based on material attribute and set boundary attribute for fitting to 3
    if (trim_mesh)
    {
-      Mesh *mesh_trim = TrimMesh(*mesh, *ls_coeff, mesh_poly_deg, 2);
+      Mesh *mesh_trim = TrimMesh(*mesh, *ls_coeff, mesh_poly_deg, 1);
       delete mesh;
       mesh = new Mesh(*mesh_trim);
       delete mesh_trim;
@@ -348,7 +350,6 @@ int main (int argc, char *argv[])
    }
    double vol_glb;
    MPI_Allreduce(&vol_loc, &vol_glb, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   const double small_phys_size = pow(vol_glb, 1.0 / dim) / 100.0;
 
    // 9. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -627,6 +628,11 @@ int main (int argc, char *argv[])
          }
       }
 
+      if (!surf_bg_mesh)
+      {
+         ComputeScalarDistanceFromLevelSet(*pmesh, *ls_coeff, 0, surf_fit_gf0);
+      }
+
       // Fix attributes for marking
       if (adapt_marking)
       {
@@ -637,17 +643,41 @@ int main (int argc, char *argv[])
       GridFunctionCoefficient coeff_mat(&mat);
       surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
 
-      for (int j = 0; j < surf_fit_marker.Size(); j++)
+      if (marking_type == 0)
       {
-         if (surf_fit_mat_gf(j) > 0.1 && surf_fit_mat_gf(j) < 0.9)
+         for (int j = 0; j < surf_fit_marker.Size(); j++)
          {
-            surf_fit_marker[j] = true;
-            surf_fit_mat_gf(j) = 1.0;
+            if (surf_fit_mat_gf(j) > 0.1 && surf_fit_mat_gf(j) < 0.9)
+            {
+               surf_fit_marker[j] = true;
+               surf_fit_mat_gf(j) = 1.0;
+            }
+            else
+            {
+               surf_fit_marker[j] = false;
+               surf_fit_mat_gf(j) = 0.0;
+            }
          }
-         else
+      }
+      else if (marking_type > 0)
+      {
+         for (int j = 0; j < surf_fit_marker.Size(); j++)
          {
             surf_fit_marker[j] = false;
-            surf_fit_mat_gf(j) = 0.0;
+         }
+         surf_fit_mat_gf = 0.0;
+         for (int i = 0; i < pmesh->GetNBE(); i++)
+         {
+            const int attr = pmesh->GetBdrElement(i)->GetAttribute();
+            if (attr == marking_type)
+            {
+               surf_fit_fes.GetBdrElementVDofs(i, vdofs);
+               for (int j = 0; j < vdofs.Size(); j++)
+               {
+                  surf_fit_marker[vdofs[j]] = true;
+                  surf_fit_mat_gf(vdofs[j]) = 1.0;
+               }
+            }
          }
       }
 
@@ -785,9 +815,9 @@ int main (int argc, char *argv[])
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
-      if (surf_approach == 1 && marking_type > 0)
+      if (marking_type > 0)
       {
-         ess_bdr[marking_type] = 0;
+         ess_bdr[marking_type-1] = 0;
       }
       a.SetEssentialBC(ess_bdr);
    }

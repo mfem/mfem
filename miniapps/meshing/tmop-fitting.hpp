@@ -24,7 +24,7 @@ double circle_level_set(const Vector &x)
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
-      return r-0.2; // circle of radius 0.1
+      return r-0.3; // circle of radius 0.1
    }
    else
    {
