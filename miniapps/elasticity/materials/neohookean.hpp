@@ -18,6 +18,7 @@
 #include "mfem.hpp"
 
 using mfem::internal::tensor;
+using mfem::internal::make_tensor;
 
 /**
  * @brief Neo-Hookean material
@@ -50,7 +51,7 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<T, dim, dim>
    stress(const tensor<T, dim, dim> &__restrict__ dudx) const
    {
-      constexpr auto I = IsotropicIdentity<dim>();
+      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       T J = det(I + dudx);
       T p = -2.0 * D1 * J * (J - 1);
       auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
@@ -89,7 +90,7 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<double, dim, dim, dim, dim>
    gradient(tensor<double, dim, dim> dudx) const
    {
-      constexpr auto I = IsotropicIdentity<dim>();
+      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
 
       tensor<double, dim, dim> F = I + dudx;
       tensor<double, dim, dim> invF = inv(F);
@@ -97,7 +98,8 @@ struct NeoHookeanMaterial
          dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
       double J = det(F);
       double coef = (C1 / pow(J, 5.0 / 3.0));
-      return make_tensor<dim, dim, dim, dim>([&](int i, int j, int k, int l)
+      return make_tensor<dim, dim, dim, dim>([&](int i, int j, int k,
+                                                 int l)
       {
          return 2.0 * (D1 * J * (i == j) - (5.0 / 3.0) * coef * devB[i][j]) *
                 invF[l][k] +
@@ -148,7 +150,7 @@ struct NeoHookeanMaterial
    {
       auto sigma = stress(make_tensor<dim, dim>([&](int i, int j)
       {
-         return dual<double, double> {dudx[i][j], ddudx[i][j]};
+         return mfem::internal::dual<double, double> {dudx[i][j], ddudx[i][j]};
       }));
       return make_tensor<dim, dim>(
       [&](int i, int j) { return sigma[i][j].gradient; });
@@ -204,7 +206,7 @@ struct NeoHookeanMaterial
    action_of_gradient_symbolic(const tensor<double, dim, dim> &du_dx,
                                const tensor<double, dim, dim> &ddu_dx) const
    {
-      constexpr auto I = IsotropicIdentity<dim>();
+      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
 
       tensor<double, dim, dim> F = I + du_dx;
       tensor<double, dim, dim> invFT = inv(transpose(F));
