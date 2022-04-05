@@ -213,12 +213,18 @@ public:
                              of the method may choose not to scale the "flux"
                              function by any coefficients describing the
                              integrator.
+       @param[in] ir  If passed (the default value is NULL), the implementation
+                        of the method will ignore the integration rule provided
+                        by the @a fluxelem parameter and, instead, compute the
+                        discrete flux at the points specified by the integration
+                        rule @a ir.
     */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true) { }
+                                   Vector &flux, bool with_coef = true,
+                                   const IntegrationRule *ir = NULL) { }
 
    /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
 
@@ -2128,7 +2134,8 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true);
+                                   Vector &flux, bool with_coef = true,
+                                   const IntegrationRule *ir = NULL);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
@@ -2545,7 +2552,8 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef);
+                                   Vector &flux, bool with_coef,
+                                   const IntegrationRule *ir = NULL);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
@@ -2860,12 +2868,14 @@ public:
        of the stress components is: s_xx, s_yy, s_xy. In 3D, it is: s_xx, s_yy,
        s_zz, s_xy, s_xz, s_yz. In other words, @a flux is the local vector for
        a FE space with dim*(dim+1)/2 vector components, based on the finite
-       element @a fluxelem. */
+       element @a fluxelem. The integration rule is taken from @a fluxelem.
+       @a ir exists to specific an alternative integration rule. */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true);
+                                   Vector &flux, bool with_coef = true,
+                                   const IntegrationRule *ir = NULL);
 
    /** Compute the element energy (integral of the strain energy density)
        corresponding to the stress represented by @a flux which is a vector of
