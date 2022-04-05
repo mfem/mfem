@@ -14,27 +14,46 @@
 namespace mfem
 {
 
-void QuadratureSpace::Construct()
+QuadratureSpaceBase::QuadratureSpaceBase(Mesh &mesh_, Geometry::Type geom,
+                                         const IntegrationRule &ir)
+   : mesh(mesh_)
 {
-   // protected method
-   int offset = 0;
-   const int num_elem = mesh.GetNE();
-   offsets.SetSize(num_elem + 1);
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       int_rule[g] = NULL;
    }
+   int_rule[geom] = &ir;
+}
+
+void QuadratureSpaceBase::ConstructIntRules(int dim)
+{
+   Array<Geometry::Type> geoms;
+   mesh.GetGeometries(dim, geoms);
+   for (Geometry::Type geom : geoms)
+   {
+      int_rule[geom] = &IntRules.Get(geom, order);
+   }
+}
+
+void QuadratureSpace::ConstructOffsets()
+{
+   const int num_elem = mesh.GetNE();
+   offsets.SetSize(num_elem + 1);
+   int offset = 0;
    for (int i = 0; i < num_elem; i++)
    {
       offsets[i] = offset;
       int geom = mesh.GetElementBaseGeometry(i);
-      if (int_rule[geom] == NULL)
-      {
-         int_rule[geom] = &IntRules.Get(geom, order);
-      }
+      MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule.");
       offset += int_rule[geom]->GetNPoints();
    }
    offsets[num_elem] = size = offset;
+}
+
+void QuadratureSpace::Construct()
+{
+   ConstructIntRules(mesh.Dimension());
+   ConstructOffsets();
 }
 
 QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
@@ -60,6 +79,12 @@ QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
    Construct();
 }
 
+QuadratureSpace::QuadratureSpace(Mesh &mesh_, const IntegrationRule &ir)
+   : QuadratureSpaceBase(mesh_, mesh_.GetElementGeometry(0), ir)
+{
+   ConstructOffsets();
+}
+
 void QuadratureSpace::Save(std::ostream &os) const
 {
    os << "QuadratureSpace\n"
@@ -67,26 +92,31 @@ void QuadratureSpace::Save(std::ostream &os) const
       << "Order: " << order << '\n';
 }
 
-void FaceQuadratureSpace::Construct()
+FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir)
+   : QuadratureSpaceBase(mesh_, mesh_.GetFaceGeometry(0), ir)
 {
-   int offset = 0;
+   ConstructOffsets();
+}
+
+void FaceQuadratureSpace::ConstructOffsets()
+{
    const int num_faces = mesh.GetNumFaces();
    offsets.SetSize(num_faces + 1);
-   for (int g = 0; g < Geometry::NumGeom; g++)
-   {
-      int_rule[g] = NULL;
-   }
+   int offset = 0;
    for (int i = 0; i < num_faces; i++)
    {
       offsets[i] = offset;
       Geometry::Type geom = mesh.GetFaceGeometry(i);
-      if (int_rule[geom] == NULL)
-      {
-         int_rule[geom] = &IntRules.Get(geom, order);
-      }
+      MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule");
       offset += int_rule[geom]->GetNPoints();
    }
    offsets[num_faces] = size = offset;
+}
+
+void FaceQuadratureSpace::Construct()
+{
+   ConstructIntRules(mesh.Dimension() - 1);
+   ConstructOffsets();
 }
 
 } // namespace mfem

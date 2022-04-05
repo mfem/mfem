@@ -48,6 +48,28 @@ ElementTransformation *RefinedToCoarse(
    return coarse_T;
 }
 
+void Coefficient::Project(QuadratureFunction &qf)
+{
+   QuadratureSpace &qspace = *qf.GetSpace();
+   Mesh &mesh = *qspace.GetMesh();
+   Vector values;
+   for (int iel = 0; iel < mesh.GetNE(); ++iel)
+   {
+      qf.GetElementValues(iel, values);
+      const IntegrationRule &ir = qspace.GetElementIntRule(iel);
+      ElementTransformation& T = *mesh.GetElementTransformation(iel);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         values[iq] = Eval(T, ir[iq]);
+      }
+   }
+}
+
+void ConstantCoefficient::Project(QuadratureFunction &qf)
+{
+   qf = constant;
+}
+
 double PWConstCoefficient::Eval(ElementTransformation & T,
                                 const IntegrationPoint & ip)
 {
@@ -135,6 +157,11 @@ double GridFunctionCoefficient::Eval (ElementTransformation &T,
    }
 }
 
+void GridFunctionCoefficient::Project(QuadratureFunction &qf)
+{
+   qf.ProjectGridFunction(*GridF);
+}
+
 void TransformedCoefficient::SetTime(double t)
 {
    if (Q1) { Q1->SetTime(t); }
@@ -200,6 +227,25 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
       const IntegrationPoint &ip = ir.IntPoint(i);
       T.SetIntPoint(&ip);
       Eval(Mi, T, ip);
+   }
+}
+
+void VectorCoefficient::Project(QuadratureFunction &qf)
+{
+   QuadratureSpace &qspace = *qf.GetSpace();
+   Mesh &mesh = *qspace.GetMesh();
+   DenseMatrix values;
+   Vector col;
+   for (int iel = 0; iel < mesh.GetNE(); ++iel)
+   {
+      qf.GetElementValues(iel, values);
+      const IntegrationRule &ir = qspace.GetElementIntRule(iel);
+      ElementTransformation& T = *mesh.GetElementTransformation(iel);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         values.GetColumnReference(iq, col);
+         Eval(col, T, ir[iq]);
+      }
    }
 }
 
@@ -368,6 +414,11 @@ void VectorGridFunctionCoefficient::Eval(
    }
 }
 
+void VectorGridFunctionCoefficient::Project(QuadratureFunction &qf)
+{
+   qf.ProjectGridFunction(*GridFunc);
+}
+
 GradientGridFunctionCoefficient::GradientGridFunctionCoefficient (
    const GridFunction *gf)
    : VectorCoefficient((gf) ?
@@ -514,6 +565,26 @@ void VectorRestrictedCoefficient::Eval(
    {
       M.SetSize(vdim, ir.GetNPoints());
       M = 0.0;
+   }
+}
+
+void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
+{
+   MFEM_ASSERT(qf.GetVDim() == height*width, "Wrong sizes.");
+   QuadratureSpace &qspace = *qf.GetSpace();
+   Mesh &mesh = *qspace.GetMesh();
+   DenseMatrix values, matrix;
+   for (int iel = 0; iel < mesh.GetNE(); ++iel)
+   {
+      qf.GetElementValues(iel, values);
+      const IntegrationRule &ir = qspace.GetElementIntRule(iel);
+      ElementTransformation& T = *mesh.GetElementTransformation(iel);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         matrix.UseExternalData(&values(0, iq), height, width);
+         Eval(matrix, T, ir[iq]);
+         if (transpose) { matrix.Transpose(); }
+      }
    }
 }
 
@@ -666,6 +737,27 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
    if (Q)
    {
       K *= Q->Eval(T, ip, GetTime());
+   }
+}
+
+void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
+{
+   const int vdim = qf.GetVDim();
+   MFEM_ASSERT(vdim == height*(height+1)/2, "Wrong sizes.");
+   QuadratureSpace &qspace = *qf.GetSpace();
+   Mesh &mesh = *qspace.GetMesh();
+   DenseMatrix values;
+   DenseSymmetricMatrix matrix;
+   for (int iel = 0; iel < mesh.GetNE(); ++iel)
+   {
+      qf.GetElementValues(iel, values);
+      const IntegrationRule &ir = qspace.GetElementIntRule(iel);
+      ElementTransformation& T = *mesh.GetElementTransformation(iel);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         matrix.UseExternalData(&values(0, iq), vdim);
+         Eval(matrix, T, ir[iq]);
+      }
    }
 }
 
@@ -1453,6 +1545,11 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
    return;
 }
 
+void VectorQuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
+{
+   qf = QuadF;
+}
+
 QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
    QuadratureFunction &qf) : QuadF(qf)
 {
@@ -1466,6 +1563,183 @@ double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
    Vector temp(1);
    QuadF.GetElementValues(T.ElementNo, ip.index, temp);
    return temp[0];
+}
+
+void QuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
+{
+   qf = QuadF;
+}
+
+
+CoefficientVector::CoefficientVector(
+   QuadratureSpace &qs_, CoefficientStorage storage_)
+   : Vector(), storage(storage_), vdim(0), qs(qs_), qf(NULL)
+{
+   UseDevice(true);
+}
+
+CoefficientVector::CoefficientVector(Coefficient *coeff, QuadratureSpace &qs_,
+                                     CoefficientStorage storage_)
+   : CoefficientVector(qs_, storage_)
+{
+   if (coeff == NULL)
+   {
+      SetConstant(1.0);
+   }
+   else
+   {
+      Project(*coeff);
+   }
+}
+
+CoefficientVector::CoefficientVector(Coefficient &coeff, QuadratureSpace &qs_,
+                                     CoefficientStorage storage_)
+   : CoefficientVector(qs_, storage_)
+{
+   Project(coeff);
+}
+
+CoefficientVector::CoefficientVector(VectorCoefficient &coeff,
+                                     QuadratureSpace &qs_,
+                                     CoefficientStorage storage_)
+   : CoefficientVector(qs_, storage_)
+{
+   Project(coeff);
+}
+
+CoefficientVector::CoefficientVector(MatrixCoefficient &coeff,
+                                     QuadratureSpace &qs_,
+                                     CoefficientStorage storage_)
+   : CoefficientVector(qs_, storage_)
+{
+   Project(coeff);
+}
+
+void CoefficientVector::Project(Coefficient &coeff)
+{
+   vdim = 1;
+   if (auto *const_coeff = dynamic_cast<ConstantCoefficient*>(&coeff))
+   {
+      SetConstant(const_coeff->constant);
+   }
+   else if (auto *qf_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(&coeff))
+   {
+      QuadratureSpace *qs2 = qf_coeff->GetQuadFunction().GetSpace();
+      MFEM_CONTRACT_VAR(qs2); // qs2 used only for asserts
+      MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
+      MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
+      MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
+      QuadratureFunction &qf2 =
+         const_cast<QuadratureFunction&>(qf_coeff->GetQuadFunction());
+      MakeRef(qf2, 0, qf2.Size());
+   }
+   else
+   {
+      delete qf;
+      qf = new QuadratureFunction(&qs);
+      qf->ProjectCoefficient(coeff);
+      MakeRef(*qf, 0, qf->Size());
+   }
+}
+
+void CoefficientVector::Project(VectorCoefficient &coeff)
+{
+   vdim = coeff.GetVDim();
+   if (auto *const_coeff = dynamic_cast<VectorConstantCoefficient*>(&coeff))
+   {
+      SetConstant(const_coeff->GetVec());
+   }
+   else if (auto *qf_coeff =
+               dynamic_cast<VectorQuadratureFunctionCoefficient*>(&coeff))
+   {
+      QuadratureSpace *qs2 = qf_coeff->GetQuadFunction().GetSpace();
+      MFEM_CONTRACT_VAR(qs2); // qs2 used only for asserts
+      MFEM_ASSERT(qs2 != NULL, "Invalid QuadratureSpace.")
+      MFEM_ASSERT(qs2->GetMesh() == qs.GetMesh(), "Meshes differ.");
+      MFEM_ASSERT(qs2->GetOrder() == qs.GetOrder(), "Orders differ.");
+      QuadratureFunction &qf2 =
+         const_cast<QuadratureFunction&>(qf_coeff->GetQuadFunction());
+      MakeRef(qf2, 0, qf2.Size());
+   }
+   else
+   {
+      delete qf;
+      qf = new QuadratureFunction(&qs, vdim);
+      qf->ProjectCoefficient(coeff);
+      MakeRef(*qf, 0, qf->Size());
+   }
+}
+
+void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
+{
+   delete qf;
+   auto *sym_coeff = dynamic_cast<SymmetricMatrixCoefficient*>(&coeff);
+   if (sym_coeff && (storage & CoefficientStorage::SYMMETRIC))
+   {
+      vdim = sym_coeff->GetSize()*(sym_coeff->GetSize() + 1)/2;
+      qf = new QuadratureFunction(&qs, vdim);
+      qf->ProjectSymmetricCoefficient(*sym_coeff);
+   }
+   else
+   {
+      vdim = coeff.GetWidth()*coeff.GetHeight();
+      qf = new QuadratureFunction(&qs, vdim);
+      qf->ProjectCoefficient(coeff, transpose);
+   }
+   MakeRef(*qf, 0, qf->Size());
+}
+
+void CoefficientVector::ProjectTranspose(MatrixCoefficient &coeff)
+{
+   Project(coeff, true);
+}
+
+void CoefficientVector::SetConstant(double constant)
+{
+   const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
+   vdim = 1;
+   SetSize(nq);
+   Vector::operator=(constant);
+}
+
+void CoefficientVector::SetConstant(const Vector &constant)
+{
+   const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
+   vdim = constant.Size();
+   SetSize(nq*vdim);
+   for (int iq = 0; iq < nq; ++iq)
+   {
+      for (int vd = 0; vd<vdim; ++vd)
+      {
+         (*this)[vd + iq*vdim] = constant[vd];
+      }
+   }
+}
+
+void CoefficientVector::SetConstant(const DenseMatrix &constant)
+{
+   const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
+   int width = constant.Width();
+   int height = constant.Height();
+   vdim = width*height;
+   SetSize(nq*vdim);
+   for (int iq = 0; iq < nq; ++iq)
+   {
+      for (int j = 0; j < width; ++j)
+      {
+         for (int i = 0; i < height; ++i)
+         {
+            (*this)[i + j*height + iq*vdim] = constant(i, j);
+         }
+      }
+   }
+}
+
+int CoefficientVector::GetVDim() const { return vdim; }
+
+CoefficientVector::~CoefficientVector()
+{
+   delete qf;
 }
 
 }
