@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//            ------------------------------------------------
-//            Extrapolation Miniapp: PDE-based extrapolation
-//            ------------------------------------------------
+//             ----------------------------------------------
+//             Extrapolation Miniapp: PDE-based extrapolation
+//             ----------------------------------------------
 //
 // This miniapp extrapolates a finite element function from a set of elements
 // (known values) to the rest of the domain. The set of elements that contains
@@ -109,9 +109,10 @@ void PrintIntegral(int myid, ParGridFunction &g, std::string text)
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   MPI_Session mpi;
-   int myid = mpi.WorldRank();
+   // Initialize MPI and HYPRE.
+   Mpi::Init();
+   int myid = Mpi::WorldRank();;
+   Hypre::Init();
 
    // Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";

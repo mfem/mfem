@@ -579,8 +579,8 @@ void SmemPADGTraceApply3D(const int NF,
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            u0[tidz][d1][d2] = x(d1,d2,0,f+tidz);
-            u1[tidz][d1][d2] = x(d1,d2,1,f+tidz);
+            u0[tidz][d1][d2] = x(d1,d2,0,f);
+            u1[tidz][d1][d2] = x(d1,d2,1,f);
          }
       }
       MFEM_SYNC_THREAD;
@@ -627,8 +627,8 @@ void SmemPADGTraceApply3D(const int NF,
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
          {
-            DBBu[tidz][q1][q2] = op(q1,q2,0,0,f+tidz)*BBu0[tidz][q1][q2] +
-                                 op(q1,q2,1,0,f+tidz)*BBu1[tidz][q1][q2];
+            DBBu[tidz][q1][q2] = op(q1,q2,0,0,f)*BBu0[tidz][q1][q2] +
+                                 op(q1,q2,1,0,f)*BBu1[tidz][q1][q2];
          }
       }
       MFEM_SYNC_THREAD;
@@ -657,8 +657,8 @@ void SmemPADGTraceApply3D(const int NF,
                const double b = Bt(d1,q1);
                BBDBBu_ += b*BDBBu[tidz][q1][d2];
             }
-            y(d1,d2,0,f+tidz) +=  BBDBBu_;
-            y(d1,d2,1,f+tidz) += -BBDBBu_;
+            y(d1,d2,0,f) +=  BBDBBu_;
+            y(d1,d2,1,f) += -BBDBBu_;
          }
       }
    });
@@ -995,8 +995,8 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            u0[tidz][d1][d2] = x(d1,d2,0,f+tidz);
-            u1[tidz][d1][d2] = x(d1,d2,1,f+tidz);
+            u0[tidz][d1][d2] = x(d1,d2,0,f);
+            u1[tidz][d1][d2] = x(d1,d2,1,f);
          }
       }
       MFEM_SYNC_THREAD;
@@ -1044,10 +1044,10 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
          {
-            const double D00 = op(q1,q2,0,0,f+tidz);
-            const double D01 = op(q1,q2,0,1,f+tidz);
-            const double D10 = op(q1,q2,1,0,f+tidz);
-            const double D11 = op(q1,q2,1,1,f+tidz);
+            const double D00 = op(q1,q2,0,0,f);
+            const double D01 = op(q1,q2,0,1,f);
+            const double D10 = op(q1,q2,1,0,f);
+            const double D11 = op(q1,q2,1,1,f);
             const double u0q = BBu0[tidz][q1][q2];
             const double u1q = BBu1[tidz][q1][q2];
             DBBu0[tidz][q1][q2] = D00*u0q + D01*u1q;
@@ -1086,8 +1086,8 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
                BBDBBu0_ += b*BDBBu0[tidz][q1][d2];
                BBDBBu1_ += b*BDBBu1[tidz][q1][d2];
             }
-            y(d1,d2,0,f+tidz) += BBDBBu0_;
-            y(d1,d2,1,f+tidz) += BBDBBu1_;
+            y(d1,d2,0,f) += BBDBBu0_;
+            y(d1,d2,1,f) += BBDBBu1_;
          }
       }
    });

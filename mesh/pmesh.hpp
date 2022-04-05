@@ -259,7 +259,7 @@ public:
    ParMesh& operator=(ParMesh &&mesh);
 
    /// Explicitly delete the copy assignment operator.
-   ParMesh& operator=(ParMesh &mesh) = delete;
+   ParMesh& operator=(const ParMesh &mesh) = delete;
 
    /// Create a uniformly refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.

@@ -25,11 +25,13 @@ namespace ceed
 Operator::Operator(CeedOperator op)
 {
    oper = op;
-   CeedElemRestriction er;
-   CeedOperatorGetActiveElemRestriction(oper, &er);
-   int s;
-   CeedElemRestrictionGetLVectorSize(er, &s);
-   height = width = s;
+   CeedSize in_len, out_len;
+   int ierr = CeedOperatorGetActiveVectorLengths(oper, &in_len, &out_len);
+   PCeedChk(ierr);
+   height = out_len;
+   width = in_len;
+   MFEM_VERIFY(height == out_len, "height overflow");
+   MFEM_VERIFY(width == in_len, "width overflow");
    CeedVectorCreate(internal::ceed, height, &v);
    CeedVectorCreate(internal::ceed, width, &u);
 }
