@@ -439,7 +439,7 @@ TEST_CASE("CEED mass & diffusion", "[CEED]")
    test_ceed_operator(mesh, order, coeff_type, pb, assembly);
 } // test case
 
-TEST_CASE("CEED convection", "[CEED],[Convection]")
+TEST_CASE("CEED convection low", "[CEED],[Convection]")
 {
    auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
    auto coeff_type = GENERATE(CeedCoeffType::VecConst,CeedCoeffType::VecGrid,
@@ -449,12 +449,25 @@ TEST_CASE("CEED convection", "[CEED],[Convection]")
                         "../../data/star-q2.mesh",
                         "../../data/fichera-q2.mesh",
                         "../../data/amr-quad.mesh",
-                        "../../data/fichera-amr.mesh");
+                        "../../data/fichera-amr.mesh",
+                        "../../data/square-mixed.mesh",
+                        "../../data/fichera-mixed.mesh");
    Problem pb = Problem::Convection;
 
    // Test that the CEED and MFEM integrators give the same answer
    int low_order = 1;
    test_ceed_operator(mesh, low_order, coeff_type, pb, assembly);
+} // test case
+
+TEST_CASE("CEED convection high", "[CEED],[Convection]")
+{
+   auto assembly = GENERATE(AssemblyLevel::PARTIAL,AssemblyLevel::NONE);
+   auto mesh = GENERATE("../../data/inline-quad.mesh",
+                        "../../data/inline-hex.mesh",
+                        "../../data/star-q2.mesh",
+                        "../../data/fichera-q2.mesh",
+                        "../../data/amr-quad.mesh",
+                        "../../data/fichera-amr.mesh");
 
    // Apply the CEED convection integrator applied to a vector quantity, check
    // that we get the exact answer (with sufficiently high polynomial degree)
