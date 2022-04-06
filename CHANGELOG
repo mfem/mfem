@@ -10,7 +10,8 @@
 
 Version 4.4.1 (development)
 ===========================
-
+- Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
+  spatial Gaussian white noise.
 
 Version 4.4, released on March 21, 2022
 =======================================
