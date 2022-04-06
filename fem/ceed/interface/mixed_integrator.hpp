@@ -97,12 +97,6 @@ public:
          const IntegrationRule &ir = GetRule(integ, el, el, T);
          auto sub_op = new CeedInteg();
          int nelem = *count[value.first];
-         // mfem::out << "Indices for element type=" << value.first.first
-         //           << " and order=" << value.first.second << std::endl;
-         // for (size_t i = 0; i < nelem; i++)
-         // {
-         //    mfem::out << indices[i] << std::endl;
-         // }
          sub_op->Assemble(info, fes, ir, nelem, indices, Q);
          sub_ops.push_back(sub_op); // TODO delete
          CeedCompositeOperatorAddSub(oper, sub_op->GetCeedOperator());
