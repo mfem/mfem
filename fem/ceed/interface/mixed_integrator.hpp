@@ -25,8 +25,7 @@ template <typename CeedInteg>
 class MixedIntegrator : public ceed::Operator
 {
 #ifdef MFEM_USE_CEED
-   // using ElementKey = std::pair<Element::Type, int>;
-   using ElementKey = std::pair<int, int>;
+   using ElementKey = std::pair<int, int>; //< Element::Type, Order >
    struct key_hash
    {
       std::size_t operator()(const ElementKey& k) const
@@ -98,13 +97,21 @@ public:
          auto sub_op = new CeedInteg();
          int nelem = *count[value.first];
          sub_op->Assemble(info, fes, ir, nelem, indices, Q);
-         sub_ops.push_back(sub_op); // TODO delete
+         sub_ops.push_back(sub_op);
          CeedCompositeOperatorAddSub(oper, sub_op->GetCeedOperator());
       }
 
       const int ndofs = fes.GetVDim() * fes.GetNDofs();
       CeedVectorCreate(internal::ceed, ndofs, &u);
       CeedVectorCreate(internal::ceed, ndofs, &v);
+   }
+
+   virtual ~MixedIntegrator()
+   {
+      for (auto sub_op : sub_ops)
+      {
+         delete sub_op;
+      }
    }
 #endif
 };
