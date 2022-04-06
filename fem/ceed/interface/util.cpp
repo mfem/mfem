@@ -217,6 +217,16 @@ const IntegrationRule & GetRule<ConvectionIntegrator>(
 }
 
 template <>
+const IntegrationRule & GetRule<VectorConvectionNLFIntegrator>(
+   const VectorConvectionNLFIntegrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &trans)
+{
+   return VectorConvectionNLFIntegrator::GetRule(trial_fe, trans);
+}
+
+template <>
 const IntegrationRule & GetRule<DiffusionIntegrator>(
    const DiffusionIntegrator &integ,
    const FiniteElement &trial_fe,
