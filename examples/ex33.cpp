@@ -67,8 +67,8 @@ int main(int argc, char* argv[])
    BilinearForm Pform(&sfes);
    ConstantCoefficient abs(.1);
    Pform.AddDomainIntegrator(new MassIntegrator(abs));
-   Pform.AddInteriorFaceIntegrator(new DGPenaltyIntegrator(kappa));
-   Pform.AddBdrFaceIntegrator(new DGPenaltyIntegrator(pow(p+1,2)));
+   Pform.AddInteriorFaceIntegrator(new DGJumpJumpIntegrator(kappa));
+   Pform.AddBdrFaceIntegrator(new DGJumpJumpIntegrator(pow(p+1,2)));
    Pform.Assemble();
    Pform.Finalize();
    SparseMatrix P(Pform.SpMat());

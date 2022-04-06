@@ -74,8 +74,8 @@ int main(int argc, char* argv[])
    ParBilinearForm Pform(&sfes);
    ConstantCoefficient abs(.1);
    Pform.AddDomainIntegrator(new MassIntegrator(abs));
-   Pform.AddInteriorFaceIntegrator(new DGPenaltyIntegrator(kappa));
-   Pform.AddBdrFaceIntegrator(new DGPenaltyIntegrator(pow(p+1,2), false));
+   Pform.AddInteriorFaceIntegrator(new DGJumpJumpIntegrator(kappa));
+   Pform.AddBdrFaceIntegrator(new DGJumpJumpIntegrator(pow(p+1,2), false));
    Pform.Assemble();
    Pform.Finalize();
    HypreParMatrix *P = Pform.ParallelAssemble();

@@ -3137,14 +3137,14 @@ public:
     penalty parameter. When scale=true, kappa is scaled by 1/h with
     h the characteristic length of the element.
 */
-class DGPenaltyIntegrator : public BilinearFormIntegrator
+class DGJumpJumpIntegrator : public BilinearFormIntegrator
 {
 protected:
    double kappa;
    Coefficient *c =nullptr;
    bool scale = false;
 public:
-   DGPenaltyIntegrator(double k, bool s=false) : kappa(k), scale(s) { }
+   DGJumpJumpIntegrator(double k, bool s=false) : kappa(k), scale(s) { }
    void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
                            FaceElementTransformations &T, DenseMatrix &elmat);
 };

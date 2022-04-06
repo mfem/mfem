@@ -3492,9 +3492,10 @@ void LDGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
    }
 }
 
-void DGPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
-                                             const FiniteElement &el2,
-                                             FaceElementTransformations &T, DenseMatrix &elmat)
+void DGJumpJumpIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
+                                              const FiniteElement &el2,
+                                              FaceElementTransformations &T,
+                                              DenseMatrix &elmat)
 {
    int ndof1 = el1.GetDof();
    int ndofs, ndof2;
