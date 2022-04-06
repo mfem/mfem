@@ -64,12 +64,12 @@ void InitBasisAndRestriction(const mfem::FiniteElementSpace &fes,
                              Ceed ceed, CeedBasis *basis,
                              CeedElemRestriction *restr);
 
-void InitBasisAndRestrictionWithIndices(const FiniteElementSpace &fes,
-                                        const IntegrationRule &irm,
-                                        int nelem,
-                                        const int* indices,
-                                        Ceed ceed, CeedBasis *basis,
-                                        CeedElemRestriction *restr);
+void InitBasisAndRestriction(const FiniteElementSpace &fes,
+                             const IntegrationRule &irm,
+                             int nelem,
+                             const int* indices,
+                             Ceed ceed, CeedBasis *basis,
+                             CeedElemRestriction *restr);
 
 int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field);
 
