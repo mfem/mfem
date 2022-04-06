@@ -119,6 +119,8 @@ public:
    {
       Ceed ceed(internal::ceed);
       mfem::Mesh &mesh = *fes.GetMesh();
+      MFEM_VERIFY(!(!indices && mesh.GetNumGeometries(mesh.Dimension()) > 1),
+                  "Use ceed::MixedIntegrator on mixed meshes.");
       InitCoefficient(Q, mesh, irm, nelem, indices, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
       std::string build_func = const_coeff ? info.build_func_const
@@ -383,6 +385,8 @@ public:
    {
       Ceed ceed(internal::ceed);
       Mesh &mesh = *fes.GetMesh();
+      MFEM_VERIFY(!(!indices && mesh.GetNumGeometries(mesh.Dimension()) > 1),
+                  "Use ceed::MixedIntegrator on mixed meshes.");
       InitCoefficient(Q, mesh, irm, nelem, indices, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
       std::string apply_func = const_coeff ? info.apply_func_mf_const
