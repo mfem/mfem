@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -158,22 +158,22 @@ int main(int argc, char *argv[])
                const int s = sd+1;
                if (dim == 2)
                {
-                  for (int j = 0; j <= sd; j++)
-                     for (int i = 0; i < sd; i++)
+                  for (int jj = 0; jj <= sd; jj++)
+                     for (int ii = 0; ii < sd; ii++)
                      {
-                        dx += abs(mat[j*s + i+1] - mat[j*s + i]);
-                        dy += abs(mat[(i+1)*s + j] - mat[i*s + j]);
+                        dx += abs(mat[jj*s + ii+1] - mat[jj*s + ii]);
+                        dy += abs(mat[(ii+1)*s + jj] - mat[ii*s + jj]);
                      }
                }
                else if (dim == 3)
                {
-                  for (int k = 0; k <= sd; k++)
-                     for (int j = 0; j <= sd; j++)
-                        for (int i = 0; i < sd; i++)
+                  for (int kk = 0; kk <= sd; kk++)
+                     for (int jj = 0; jj <= sd; jj++)
+                        for (int ii = 0; ii < sd; ii++)
                         {
-                           dx += abs(mat[(k*s + j)*s + i+1] - mat[(k*s + j)*s + i]);
-                           dy += abs(mat[(k*s + i+1)*s + j] - mat[(k*s + i)*s + j]);
-                           dz += abs(mat[((i+1)*s + j)*s + k] - mat[(i*s + j)*s + k]);
+                           dx += abs(mat[(kk*s + jj)*s + ii+1] - mat[(kk*s + jj)*s + ii]);
+                           dy += abs(mat[(kk*s + ii+1)*s + jj] - mat[(kk*s + ii)*s + jj]);
+                           dz += abs(mat[((ii+1)*s + jj)*s + kk] - mat[(ii*s + jj)*s + kk]);
                         }
                }
                type = 0;

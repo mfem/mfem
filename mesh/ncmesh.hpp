@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,49 +34,61 @@ namespace mfem
     in the X, Y and Z directions, respectively (Z is ignored for quads). */
 struct Refinement
 {
+   enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
    int index; ///< Mesh element number
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
 
    Refinement() = default;
 
-   Refinement(int index, int type = 7) : index(index), ref_type(type) {}
+   Refinement(int index, int type = Refinement::XYZ)
+      : index(index), ref_type(type) {}
 };
+
 
 /// Defines the position of a fine element within a coarse element.
 struct Embedding
 {
-   /// %Element index in the coarse mesh.
+   /// Coarse %Element index in the coarse mesh.
    int parent;
-   /** @brief Index into the DenseTensor corresponding to the parent
-       Geometry::Type stored in CoarseFineTransformations::point_matrices. */
-   int matrix;
+
+   /** The (geom, matrix) pair determines the sub-element transformation for the
+       fine element: CoarseFineTransformations::point_matrices[geom](matrix) is
+       the point matrix of the region within the coarse element reference domain.*/
+   unsigned geom : 4;
+   unsigned matrix : 27;
+
+   /// For internal use: 0 if regular fine element, 1 if parallel ghost element.
+   unsigned ghost : 1;
 
    Embedding() = default;
-
-   Embedding(int elem, int matrix = 0) : parent(elem), matrix(matrix) {}
+   Embedding(int elem, Geometry::Type geom, int matrix = 0, bool ghost = false)
+      : parent(elem), geom(geom), matrix(matrix), ghost(ghost) {}
 };
+
 
 /// Defines the coarse-fine transformations of all fine elements.
 struct CoarseFineTransformations
 {
-   /// Matrices for IsoparametricTransformation organized by Geometry::Type
-   DenseTensor point_matrices[Geometry::NumGeom];
    /// Fine element positions in their parents.
    Array<Embedding> embeddings;
 
-   void GetCoarseToFineMap(const Mesh &fine_mesh,
-                           Table &coarse_to_fine,
-                           Array<int> &coarse_to_ref_type,
-                           Table &ref_type_to_matrix,
-                           Array<Geometry::Type> &ref_type_to_geom,
-                           bool get_coarse_to_fine_only = false) const;
+   /** A "dictionary" of matrices for IsoparametricTransformation. Use
+       Embedding::{geom,matrix} to access a fine element point matrix. */
+   DenseTensor point_matrices[Geometry::NumGeom];
 
-   void GetCoarseToFineMap(const Mesh &fine_mesh,
-                           Table &coarse_to_fine) const;
+   /** Invert the 'embeddings' array: create a Table with coarse elements as
+       rows and fine elements as columns. If 'want_ghosts' is false, parallel
+       ghost fine elements are not included in the table. */
+   void MakeCoarseToFineTable(Table &coarse_to_fine,
+                              bool want_ghosts = false) const;
 
    void Clear();
    bool IsInitialized() const;
    long MemoryUsage() const;
+
+   MFEM_DEPRECATED
+   void GetCoarseToFineMap(const Mesh &fine_mesh, Table &coarse_to_fine) const
+   { MakeCoarseToFineTable(coarse_to_fine, true); (void) fine_mesh; }
 };
 
 void Swap(CoarseFineTransformations &a, CoarseFineTransformations &b);
@@ -123,13 +135,21 @@ public:
    /// Deep copy of another instance.
    NCMesh(const NCMesh &other);
 
+   /// Copy assignment not supported
+   NCMesh& operator=(NCMesh&) = delete;
+
    virtual ~NCMesh();
 
+   /// Return the dimension of the NCMesh.
    int Dimension() const { return Dim; }
+   /// Return the space dimension of the NCMesh.
    int SpaceDimension() const { return spaceDim; }
 
+   /// Return the number of vertices in the NCMesh.
    int GetNVertices() const { return NVertices; }
+   /// Return the number of edges in the NCMesh.
    int GetNEdges() const { return NEdges; }
+   /// Return the number of (2D) faces in the NCMesh.
    int GetNFaces() const { return NFaces; }
    virtual int GetNGhostElements() const { return 0; }
 
@@ -522,8 +542,34 @@ protected: // implementation
    Table element_vertex; ///< leaf-element to vertex table, see FindSetNeighbors
 
 
+   /// Update the leaf elements indices in leaf_elements
    void UpdateLeafElements();
+
+   /** @brief This method assigns indices to vertices (Node::vert_index) that
+       will be seen by the Mesh class and the rest of MFEM.
+
+       We must be careful to:
+       1. Stay compatible with the conforming code, which expects top-level
+          (original) vertices to be indexed first, otherwise GridFunctions
+          defined on a conforming mesh would no longer be valid when the
+          mesh is converted to an NC mesh.
+
+       2. Make sure serial NCMesh is compatible with the parallel ParNCMesh,
+          so it is possible to read parallel partial solutions in serial code
+          (e.g., serial GLVis). This means handling ghost elements, if present.
+
+       3. Assign vertices in a globally consistent order for parallel meshes:
+          if two vertices i,j are shared by two ranks r1,r2, and i<j on r1,
+          then i<j on r2 as well. This is true for top-level vertices but also
+          for the remaining shared vertices thanks to the globally consistent
+          SFC ordering of the leaf elements. This property reduces communication
+          and simplifies ParNCMesh. */
    void UpdateVertices(); ///< update Vertex::index and vertex_nodeId
+
+   /** Collect the leaf elements in leaf_elements, and the ghost elements in
+       ghosts. Compute and set the element indices of @a elements. On quad and
+       hex refined elements tries to order leaf elements along a space-filling
+       curve according to the given @a state variable. */
    void CollectLeafElements(int elem, int state, Array<int> &ghosts,
                             int &counter);
 
@@ -533,11 +579,17 @@ protected: // implementation
        Mesh::GetGeckoElementOrdering. */
    void InitRootState(int root_count);
 
+   /** Compute the Geometry::Type present in the root elements (coarse elements)
+       and set @a Geoms bitmask accordingly. */
    void InitGeomFlags();
 
+   /// Return true if the mesh contains prism elements.
    bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
+
+   /// Return true if the mesh contains tetrahedral elements.
    bool HaveTets() const   { return Geoms & (1 << Geometry::TETRAHEDRON); }
 
+   /// Return true if the Element @a el is a ghost element.
    bool IsGhost(const Element &el) const { return el.rank != MyRank; }
 
 
@@ -549,9 +601,14 @@ protected: // implementation
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
+   /** Refine the element @a elem with the refinement @a ref_type
+       (c.f. Refinement::enum) */
    void RefineElement(int elem, char ref_type);
+
+   /// Derefine the element @a elem, does nothing on leaf elements.
    void DerefineElement(int elem);
 
+   // Add an Element @a el to the NCMesh, optimized to reuse freed elements.
    int AddElement(const Element &el)
    {
       if (free_element_ids.Size())
@@ -563,6 +620,8 @@ protected: // implementation
       }
       return elements.Append(el);
    }
+
+   // Free the element with index @a id.
    void FreeElement(int id)
    {
       free_element_ids.Append(id);
@@ -728,6 +787,8 @@ protected: // implementation
 
       Point() { dim = 0; }
 
+      Point(const Point &) = default;
+
       Point(double x)
       { dim = 1; coord[0] = x; }
 
@@ -765,6 +826,22 @@ protected: // implementation
       }
    };
 
+   /** @brief The PointMatrix stores the coordinates of the slave face using the
+       master face coordinate as reference.
+
+       In 2D, the point matrix has the orientation of the parent
+       edge, so its columns need to be flipped when applying it, see
+       ApplyLocalSlaveTransformation.
+
+       In 3D, the orientation part of Elem2Inf is encoded in the point
+       matrix.
+
+       The following transformation gives the relation between the
+       reference quad face coordinates (xi, eta) in [0,1]^2, and the fine quad
+       face coordinates (x, y):
+       x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
+       y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta
+   */
    struct PointMatrix
    {
       int np;

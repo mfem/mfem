@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,6 +33,10 @@ template <> struct AutoSIMD<double,4,32>
       vector4double vd;
       double vec[size];
    };
+
+   AutoSIMD() = default;
+
+   AutoSIMD(const AutoSIMD &) = default;
 
    inline __ATTRS_ai double &operator[](int i) { return vec[i]; }
 
@@ -103,6 +107,11 @@ template <> struct AutoSIMD<double,4,32>
       AutoSIMD r;
       r.vd = vec_neg(vd);
       return r;
+   }
+
+   inline __ATTRS_ai AutoSIMD operator+() const
+   {
+      return *this;
    }
 
    inline __ATTRS_ai AutoSIMD operator+(const AutoSIMD &v) const

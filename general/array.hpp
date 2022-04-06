@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -69,6 +69,10 @@ public:
    /// Creates array of @a asize elements
    explicit inline Array(int asize)
       : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
+
+   /// Creates array of @a asize elements with a given MemoryType
+   inline Array(int asize, MemoryType mt)
+      : size(asize) { asize > 0 ? data.New(asize, mt) : data.Reset(mt); }
 
    /** @brief Creates array using an existing c-array of asize elements;
        allocsize is set to -asize to indicate that the data will not
@@ -393,10 +397,10 @@ public:
           0 - write the number of rows and columns, followed by all entries
           1 - write only the entries, using row-major layout
    */
-   void Save(std::ostream &out, int fmt = 0) const
+   void Save(std::ostream &os, int fmt = 0) const
    {
-      if (fmt == 0) { out << NumRows() << ' ' << NumCols() << '\n'; }
-      array1d.Save(out, 1);
+      if (fmt == 0) { os << NumRows() << ' ' << NumCols() << '\n'; }
+      array1d.Save(os, 1);
    }
 
    /** @brief Read an Array2D from the stream @a in using format @a fmt.
@@ -469,6 +473,7 @@ class BlockArray
 public:
    BlockArray(int block_size = 16*1024);
    BlockArray(const BlockArray<T> &other); // deep copy
+   BlockArray& operator=(const BlockArray&) = delete; // not supported
    ~BlockArray() { Destroy(); }
 
    /// Allocate and construct a new item in the array, return its index.
@@ -1040,8 +1045,7 @@ void BlockArray<T>::Swap(BlockArray<T> &other)
 template<typename T>
 long BlockArray<T>::MemoryUsage() const
 {
-   return blocks.Size()*(mask+1)*sizeof(T) +
-          blocks.MemoryUsage();
+   return (mask+1)*sizeof(T)*blocks.Size() + blocks.MemoryUsage();
 }
 
 template<typename T>

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -69,6 +69,12 @@
 //   Adaptive limiting through FD (requires GSLIB):
 //   * mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
+//  Adaptive surface fitting:
+//    mesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor
+//    mesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
+//  Surface fitting with weight adaptation and termination based on fitting error
+//    mesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -sft 1e-5
+//
 //   Blade shape:
 //     mesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //   Blade shape with FD-based solver:
@@ -96,7 +102,6 @@
 //     mesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
 //   * mesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
-//
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -117,7 +122,8 @@ int main(int argc, char *argv[])
    int metric_id         = 1;
    int target_id         = 1;
    double lim_const      = 0.0;
-   double adapt_lim_const = 0.0;
+   double adapt_lim_const   = 0.0;
+   double surface_fit_const = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
@@ -140,6 +146,8 @@ int main(int argc, char *argv[])
    bool pa               = false;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
+   bool surface_fit_adapt = false;
+   double surface_fit_threshold = -10;
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -195,6 +203,8 @@ int main(int argc, char *argv[])
    args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
    args.AddOption(&adapt_lim_const, "-alc", "--adapt-limit-const",
                   "Adaptive limiting coefficient constant.");
+   args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
+                  "Surface preservation constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
                   "Quadrature rule type:\n\t"
                   "1: Gauss-Lobatto\n\t"
@@ -261,6 +271,12 @@ int main(int argc, char *argv[])
    args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
                   "Number of h-adaptivity iterations per r-adaptivity"
                   "iteration.");
+   args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit", "-no-sfa",
+                  "--no-adaptive-surface-fit",
+                  "Enable or disable adaptive surface fitting.");
+   args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
+                  "Set threshold for surface fitting. TMOP solver will"
+                  "terminate when max surface fitting error is below this limit");
    args.Parse();
    if (!args.Good())
    {
@@ -283,10 +299,6 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
-   cout << "Mesh curvature: ";
-   if (mesh->GetNodes()) { cout << mesh->GetNodes()->OwnFEC()->Name(); }
-   else { cout << "(NONE)"; }
-   cout << endl;
 
    if (hradaptivity) { mesh->EnsureNCMesh(); }
 
@@ -324,7 +336,7 @@ int main(int argc, char *argv[])
    //    In addition, compute average mesh size and total volume.
    Vector h0(fespace->GetNDofs());
    h0 = infinity();
-   double volume = 0.0;
+   double mesh_volume = 0.0;
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -336,9 +348,9 @@ int main(int argc, char *argv[])
       {
          h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
-      volume += mesh->GetElementVolume(i);
+      mesh_volume += mesh->GetElementVolume(i);
    }
-   const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
+   const double small_phys_size = pow(mesh_volume, 1.0 / dim) / 100.0;
 
    // 8. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -411,6 +423,10 @@ int main(int argc, char *argv[])
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
       case 321: metric = new TMOP_Metric_321; break;
+      case 328: metric = new TMOP_Metric_328(0.5); break;
+      case 332: metric = new TMOP_Metric_332(0.5); break;
+      case 333: metric = new TMOP_Metric_333(0.5); break;
+      case 334: metric = new TMOP_Metric_334(0.5); break;
       // case 352: metric = new TMOP_Metric_352(tauval); break;
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
@@ -459,7 +475,7 @@ int main(int argc, char *argv[])
    H1_FECollection ind_fec(mesh_poly_deg, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
-   GridFunction size(&ind_fes), aspr(&ind_fes), disc(&ind_fes), ori(&ind_fes);
+   GridFunction size(&ind_fes), aspr(&ind_fes), ori(&ind_fes);
    GridFunction aspr3d(&ind_fesv);
 
    const AssemblyLevel al =
@@ -497,13 +513,13 @@ int main(int argc, char *argv[])
          }
          if (dim == 2)
          {
-            FunctionCoefficient ind_coeff(discrete_size_2d);
-            size.ProjectCoefficient(ind_coeff);
+            FunctionCoefficient size_coeff(discrete_size_2d);
+            size.ProjectCoefficient(size_coeff);
          }
          else if (dim == 3)
          {
-            FunctionCoefficient ind_coeff(discrete_size_3d);
-            size.ProjectCoefficient(ind_coeff);
+            FunctionCoefficient size_coeff(discrete_size_3d);
+            size.ProjectCoefficient(size_coeff);
          }
          tc->SetSerialDiscreteTargetSize(size);
          target_c = tc;
@@ -511,12 +527,12 @@ int main(int argc, char *argv[])
       }
       case 6: // Discrete size + aspect ratio - 2D
       {
-         GridFunction d_x(&ind_fes), d_y(&ind_fes);
+         GridFunction d_x(&ind_fes), d_y(&ind_fes), disc(&ind_fes);
 
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-         FunctionCoefficient ind_coeff(material_indicator_2d);
-         disc.ProjectCoefficient(ind_coeff);
+         FunctionCoefficient mat_coeff(material_indicator_2d);
+         disc.ProjectCoefficient(mat_coeff);
          if (adapt_eval == 0)
          {
             tc->SetAdaptivityEvaluator(new AdvectorCG(al));
@@ -646,8 +662,8 @@ int main(int argc, char *argv[])
 
          if (metric_id == 14 || metric_id == 36)
          {
-            ConstantCoefficient ind_coeff(0.1*0.1);
-            size.ProjectCoefficient(ind_coeff);
+            ConstantCoefficient size_coeff(0.1*0.1);
+            size.ProjectCoefficient(size_coeff);
             tc->SetSerialDiscreteTargetSize(size);
          }
 
@@ -684,16 +700,16 @@ int main(int argc, char *argv[])
       target_c = new TargetConstructor(target_t);
    }
    target_c->SetNodes(x0);
-   TMOP_Integrator *he_nlf_integ = new TMOP_Integrator(metric, target_c,
-                                                       h_metric);
+   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric, target_c,
+                                                     h_metric);
 
    // Finite differences for computations of derivatives.
    if (fdscheme)
    {
       MFEM_VERIFY(pa == false, "PA for finite differences is not implemented.");
-      he_nlf_integ->EnableFiniteDifferences(x);
+      tmop_integ->EnableFiniteDifferences(x);
    }
-   he_nlf_integ->SetExactActionFlag(exactaction);
+   tmop_integ->SetExactActionFlag(exactaction);
 
    // Setup the quadrature rules for the TMOP integrator.
    IntegrationRules *irules = NULL;
@@ -704,7 +720,7 @@ int main(int argc, char *argv[])
       case 3: irules = &IntRulesCU; break;
       default: cout << "Unknown quad_type: " << quad_type << endl; return 3;
    }
-   he_nlf_integ->SetIntegrationRules(*irules, quad_order);
+   tmop_integ->SetIntegrationRules(*irules, quad_order);
    if (dim == 2)
    {
       cout << "Triangle quadrature points: "
@@ -722,8 +738,6 @@ int main(int argc, char *argv[])
            << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
    }
 
-   if (normalization) { he_nlf_integ->EnableNormalization(x0); }
-
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
    FiniteElementSpace dist_fespace(mesh, fec); // scalar space
@@ -732,38 +746,112 @@ int main(int argc, char *argv[])
    // The small_phys_size is relevant only with proper normalization.
    if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
-   if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
+   if (lim_const != 0.0) { tmop_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // Adaptive limiting.
-   GridFunction zeta_0(&ind_fes);
-   ConstantCoefficient coef_zeta(adapt_lim_const);
-   AdaptivityEvaluator *adapt_evaluator = NULL;
+   GridFunction adapt_lim_gf0(&ind_fes);
+   ConstantCoefficient adapt_lim_coeff(adapt_lim_const);
+   AdaptivityEvaluator *adapt_lim_eval = NULL;
    if (adapt_lim_const > 0.0)
    {
       MFEM_VERIFY(pa == false, "PA is not implemented for adaptive limiting");
 
-      FunctionCoefficient alim_coeff(adapt_lim_fun);
-      zeta_0.ProjectCoefficient(alim_coeff);
+      FunctionCoefficient adapt_lim_gf0_coeff(adapt_lim_fun);
+      adapt_lim_gf0.ProjectCoefficient(adapt_lim_gf0_coeff);
 
-      if (adapt_eval == 0) { adapt_evaluator = new AdvectorCG(al); }
+      if (adapt_eval == 0) { adapt_lim_eval = new AdvectorCG(al); }
       else if (adapt_eval == 1)
       {
 #ifdef MFEM_USE_GSLIB
-         adapt_evaluator = new InterpolatorFP;
+         adapt_lim_eval = new InterpolatorFP;
 #else
          MFEM_ABORT("MFEM is not built with GSLIB support!");
 #endif
       }
       else { MFEM_ABORT("Bad interpolation option."); }
 
-      he_nlf_integ->EnableAdaptiveLimiting(zeta_0, coef_zeta, *adapt_evaluator);
+      tmop_integ->EnableAdaptiveLimiting(adapt_lim_gf0, adapt_lim_coeff,
+                                         *adapt_lim_eval);
       if (visualization)
       {
          socketstream vis1;
-         common::VisualizeField(vis1, "localhost", 19916, zeta_0, "Zeta 0",
+         common::VisualizeField(vis1, "localhost", 19916, adapt_lim_gf0, "Zeta 0",
                                 300, 600, 300, 300);
       }
    }
+
+   // Surface fitting.
+   L2_FECollection mat_coll(0, dim);
+   H1_FECollection surf_fit_fec(mesh_poly_deg, dim);
+   FiniteElementSpace surf_fit_fes(mesh, &surf_fit_fec);
+   FiniteElementSpace mat_fes(mesh, &mat_coll);
+   GridFunction mat(&mat_fes);
+   GridFunction surf_fit_mat_gf(&surf_fit_fes);
+   GridFunction surf_fit_gf0(&surf_fit_fes);
+   Array<bool> surf_fit_marker(surf_fit_gf0.Size());
+   ConstantCoefficient surf_fit_coeff(surface_fit_const);
+   AdaptivityEvaluator *adapt_surface = NULL;
+   if (surface_fit_const > 0.0)
+   {
+      MFEM_VERIFY(hradaptivity == false,
+                  "Surface fitting with HR is not implemented yet.");
+      MFEM_VERIFY(pa == false,
+                  "Surface fitting with PA is not implemented yet.");
+
+      FunctionCoefficient ls_coeff(surface_level_set);
+      surf_fit_gf0.ProjectCoefficient(ls_coeff);
+
+      for (int i = 0; i < mesh->GetNE(); i++)
+      {
+         mat(i) = material_id(i, surf_fit_gf0);
+         mesh->SetAttribute(i, mat(i) + 1);
+      }
+
+      GridFunctionCoefficient mat_coeff(&mat);
+      surf_fit_mat_gf.ProjectDiscCoefficient(mat_coeff, GridFunction::ARITHMETIC);
+      for (int j = 0; j < surf_fit_marker.Size(); j++)
+      {
+         if (surf_fit_mat_gf(j) > 0.1 && surf_fit_mat_gf(j) < 0.9)
+         {
+            surf_fit_marker[j] = true;
+            surf_fit_mat_gf(j) = 1.0;
+         }
+         else
+         {
+            surf_fit_marker[j] = false;
+            surf_fit_mat_gf(j) = 0.0;
+         }
+      }
+
+      if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
+      else if (adapt_eval == 1)
+      {
+#ifdef MFEM_USE_GSLIB
+         adapt_surface = new InterpolatorFP;
+#else
+         MFEM_ABORT("MFEM is not built with GSLIB support!");
+#endif
+      }
+      else { MFEM_ABORT("Bad interpolation option."); }
+
+      tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
+                                       surf_fit_coeff, *adapt_surface);
+      if (visualization)
+      {
+         socketstream vis1, vis2, vis3;
+         common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0, "Level Set 0",
+                                300, 600, 300, 300);
+         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
+                                600, 600, 300, 300);
+         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
+                                "Dofs to Move",
+                                900, 600, 300, 300);
+      }
+   }
+
+   // Has to be after the enabling of the limiting / alignment, as it computes
+   // normalization factors for these terms as well.
+   if (normalization) { tmop_integ->EnableNormalization(x0); }
 
    // 12. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -773,39 +861,39 @@ int main(int argc, char *argv[])
    //     metric; one should update those in the code.
    NonlinearForm a(fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   ConstantCoefficient *coeff1 = NULL;
+   ConstantCoefficient *metric_coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
-   FunctionCoefficient coeff2(weight_fun);
+   FunctionCoefficient metric_coeff2(weight_fun);
 
    // Explicit combination of metrics.
    if (combomet > 0)
    {
       // First metric.
-      coeff1 = new ConstantCoefficient(1.0);
-      he_nlf_integ->SetCoefficient(*coeff1);
+      metric_coeff1 = new ConstantCoefficient(1.0);
+      tmop_integ->SetCoefficient(*metric_coeff1);
 
       // Second metric.
       if (dim == 2) { metric2 = new TMOP_Metric_077; }
       else          { metric2 = new TMOP_Metric_315; }
-      TMOP_Integrator *he_nlf_integ2 = NULL;
+      TMOP_Integrator *tmop_integ2 = NULL;
       if (combomet == 1)
       {
          target_c2 = new TargetConstructor(
             TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE);
          target_c2->SetVolumeScale(0.01);
          target_c2->SetNodes(x0);
-         he_nlf_integ2 = new TMOP_Integrator(metric2, target_c2, h_metric);
-         he_nlf_integ2->SetCoefficient(coeff2);
+         tmop_integ2 = new TMOP_Integrator(metric2, target_c2, h_metric);
+         tmop_integ2->SetCoefficient(metric_coeff2);
       }
-      else { he_nlf_integ2 = new TMOP_Integrator(metric2, target_c, h_metric); }
-      he_nlf_integ2->SetIntegrationRules(*irules, quad_order);
-      if (fdscheme) { he_nlf_integ2->EnableFiniteDifferences(x); }
-      he_nlf_integ2->SetExactActionFlag(exactaction);
+      else { tmop_integ2 = new TMOP_Integrator(metric2, target_c, h_metric); }
+      tmop_integ2->SetIntegrationRules(*irules, quad_order);
+      if (fdscheme) { tmop_integ2->EnableFiniteDifferences(x); }
+      tmop_integ2->SetExactActionFlag(exactaction);
 
       TMOPComboIntegrator *combo = new TMOPComboIntegrator;
-      combo->AddTMOPIntegrator(he_nlf_integ);
-      combo->AddTMOPIntegrator(he_nlf_integ2);
+      combo->AddTMOPIntegrator(tmop_integ);
+      combo->AddTMOPIntegrator(tmop_integ2);
       if (normalization) { combo->EnableNormalization(x0); }
       if (lim_const != 0.0) { combo->EnableLimiting(x0, dist, lim_coeff); }
 
@@ -813,7 +901,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      a.AddDomainIntegrator(he_nlf_integ);
+      a.AddDomainIntegrator(tmop_integ);
    }
 
    if (pa) { a.Setup(); }
@@ -855,6 +943,18 @@ int main(int argc, char *argv[])
    // For HR tests, the energy is normalized by the number of elements.
    const double init_energy = a.GetGridFunctionEnergy(x) /
                               (hradaptivity ? mesh->GetNE() : 1);
+   double init_metric_energy = init_energy;
+   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
+   {
+      lim_coeff.constant = 0.0;
+      adapt_lim_coeff.constant = 0.0;
+      surf_fit_coeff.constant   = 0.0;
+      init_metric_energy = a.GetGridFunctionEnergy(x) /
+                           (hradaptivity ? mesh->GetNE() : 1);
+      lim_coeff.constant = lim_const;
+      adapt_lim_coeff.constant = adapt_lim_const;
+      surf_fit_coeff.constant   = surface_fit_const;
+   }
 
    // Visualize the starting mesh and metric values.
    // Note that for combinations of metrics, this only shows the first metric.
@@ -889,7 +989,7 @@ int main(int argc, char *argv[])
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
-      Array<int> ess_vdofs(n), vdofs;
+      Array<int> ess_vdofs(n);
       n = 0;
       for (int i = 0; i < mesh->GetNBE(); i++)
       {
@@ -950,11 +1050,15 @@ int main(int argc, char *argv[])
          if (pa)
          {
             MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
-            S_prec = new OperatorJacobiSmoother;
+            auto js = new OperatorJacobiSmoother;
+            js->SetPositiveDiagonal(true);
+            S_prec = js;
          }
          else
          {
-            S_prec = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
+            auto ds = new DSmoother((lin_solver == 3) ? 0 : 1, 1.0, 1);
+            ds->SetPositiveDiagonal(true);
+            S_prec = ds;
          }
          minres->SetPreconditioner(*S_prec);
       }
@@ -965,6 +1069,11 @@ int main(int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(ir, solver_type);
+   if (surface_fit_adapt) { solver.EnableAdaptiveSurfaceFitting(); }
+   if (surface_fit_threshold > 0)
+   {
+      solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
+   }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    if (solver_type == 0)
@@ -997,7 +1106,7 @@ int main(int argc, char *argv[])
    hr_solver.AddGridFunctionForUpdate(&x0);
    if (adapt_lim_const > 0.)
    {
-      hr_solver.AddGridFunctionForUpdate(&zeta_0);
+      hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);
       hr_solver.AddFESpaceForUpdate(&ind_fes);
    }
    hr_solver.Mult();
@@ -1012,23 +1121,26 @@ int main(int argc, char *argv[])
 
    const double fin_energy = a.GetGridFunctionEnergy(x) /
                              (hradaptivity ? mesh->GetNE() : 1);
-   double metric_part = fin_energy;
+   double fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
-      coef_zeta.constant = 0.0;
-      metric_part = a.GetGridFunctionEnergy(x) /
-                    (hradaptivity ? mesh->GetNE() : 1);
+      adapt_lim_coeff.constant = 0.0;
+      surf_fit_coeff.constant  = 0.0;
+      fin_metric_energy = a.GetGridFunctionEnergy(x) /
+                          (hradaptivity ? mesh->GetNE() : 1);
       lim_coeff.constant = lim_const;
-      coef_zeta.constant = adapt_lim_const;
+      adapt_lim_coeff.constant = adapt_lim_const;
+      surf_fit_coeff.constant  = surface_fit_const;
    }
+   std::cout << std::scientific << std::setprecision(4);
    cout << "Initial strain energy: " << init_energy
-        << " = metrics: " << init_energy
-        << " + limiting term: " << 0.0 << endl;
+        << " = metrics: " << init_metric_energy
+        << " + extra terms: " << init_energy - init_metric_energy << endl;
    cout << "  Final strain energy: " << fin_energy
-        << " = metrics: " << metric_part
-        << " + limiting term: " << fin_energy - metric_part << endl;
-   cout << "The strain energy decreased by: " << setprecision(12)
+        << " = metrics: " << fin_metric_energy
+        << " + extra terms: " << fin_energy - fin_metric_energy << endl;
+   cout << "The strain energy decreased by: "
         << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
 
    // 16. Visualize the final mesh and metric values.
@@ -1041,8 +1153,24 @@ int main(int argc, char *argv[])
    if (adapt_lim_const > 0.0 && visualization)
    {
       socketstream vis0;
-      common::VisualizeField(vis0, "localhost", 19916, zeta_0, "Xi 0",
+      common::VisualizeField(vis0, "localhost", 19916, adapt_lim_gf0, "Xi 0",
                              600, 600, 300, 300);
+   }
+
+   if (surface_fit_const > 0.0)
+   {
+      if (visualization)
+      {
+         socketstream vis2, vis3;
+         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
+                                600, 900, 300, 300);
+         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf, "Surface dof",
+                                900, 900, 300, 300);
+      }
+      double err_avg, err_max;
+      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      std::cout << "Avg fitting error: " << err_avg << std::endl
+                << "Max fitting error: " << err_max << std::endl;
    }
 
    // 17. Visualize the mesh displacement.
@@ -1064,8 +1192,9 @@ int main(int argc, char *argv[])
    delete S_prec;
    delete target_c2;
    delete metric2;
-   delete coeff1;
-   delete adapt_evaluator;
+   delete metric_coeff1;
+   delete adapt_lim_eval;
+   delete adapt_surface;
    delete target_c;
    delete hr_adapt_coeff;
    delete adapt_coeff;
