@@ -15,25 +15,21 @@ double ExactFunction(const Vector &x)
 
 int main(int argc, char* argv[])
 {
-   MPI_Init(NULL, NULL);
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   Mpi::Init(argc, argv);
+   Hypre::Init();
+
    int Ne = 10;
    int p = 1;
    double kappa = 0;
    bool use_beta = true;
+
    OptionsParser args(argc, argv);
    args.AddOption(&Ne, "-n", "--Ne", "number of elements");
    args.AddOption(&p, "-p", "--fe_order", "finite element order");
    args.AddOption(&kappa, "-k", "--kappa", "penalty parameter");
    args.AddOption(&use_beta, "-m", "--mdldg", "-l", "--ldg", "use MDLDG");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (rank==0) { args.PrintUsage(cout); }
-      return 1;
-   }
-   if (rank==0) { args.PrintOptions(cout); }
+   args.ParseCheck();
+
    Mesh smesh(Ne, Ne, Element::QUADRILATERAL);
    int dim = smesh.Dimension();
    ParMesh mesh(MPI_COMM_WORLD, smesh);
@@ -98,8 +94,8 @@ int main(int argc, char* argv[])
 
    FunctionCoefficient Tex(ExactFunction);
    double err = T.ComputeL2Error(Tex);
-   if (rank==0) { printf("err = %.3e\n", err); }
-   if (rank==0) { printf("cg iter = %d, final norm = %.3e\n", cg.GetNumIterations(), cg.GetFinalNorm()); }
+   if (Mpi::Root()) { printf("err = %.3e\n", err); }
+   if (Mpi::Root()) { printf("cg iter = %d, final norm = %.3e\n", cg.GetNumIterations(), cg.GetFinalNorm()); }
 
    ParaViewDataCollection dc("solution", &mesh);
    dc.RegisterField("T", &T);
