@@ -64,7 +64,6 @@ MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
    const DiffusionIntegrator &integ,
    const mfem::FiniteElementSpace &fes,
    mfem::Coefficient *Q)
-   : MixedPAIntegrator()
 {
 #ifdef MFEM_USE_CEED
    DiffusionOperatorInfo info(fes.GetMesh()->Dimension());
@@ -78,7 +77,6 @@ MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
    const VectorDiffusionIntegrator &integ,
    const mfem::FiniteElementSpace &fes,
    mfem::Coefficient *Q)
-   : MixedPAIntegrator()
 {
 #ifdef MFEM_USE_CEED
    DiffusionOperatorInfo info(fes.GetMesh()->Dimension());
@@ -97,6 +95,32 @@ MFDiffusionIntegrator::MFDiffusionIntegrator(
 #ifdef MFEM_USE_CEED
    DiffusionOperatorInfo info(fes.GetMesh()->Dimension());
    Assemble(info, fes, irm, Q);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+MixedMFDiffusionIntegrator::MixedMFDiffusionIntegrator(
+   const DiffusionIntegrator &integ,
+   const mfem::FiniteElementSpace &fes,
+   mfem::Coefficient *Q)
+{
+#ifdef MFEM_USE_CEED
+   DiffusionOperatorInfo info(fes.GetMesh()->Dimension());
+   Assemble(integ, info, fes, Q);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+MixedMFDiffusionIntegrator::MixedMFDiffusionIntegrator(
+   const VectorDiffusionIntegrator &integ,
+   const mfem::FiniteElementSpace &fes,
+   mfem::Coefficient *Q)
+{
+#ifdef MFEM_USE_CEED
+   DiffusionOperatorInfo info(fes.GetMesh()->Dimension());
+   Assemble(integ, info, fes, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

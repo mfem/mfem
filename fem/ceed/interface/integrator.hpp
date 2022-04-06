@@ -351,6 +351,7 @@ protected:
    Coefficient *coeff;
    CeedQFunctionContext build_ctx;
 
+public:
    MFIntegrator()
       : Operator(), basis(nullptr), mesh_basis(nullptr),
         restr(nullptr), mesh_restr(nullptr),
@@ -358,7 +359,6 @@ protected:
         apply_qfunc(nullptr), node_coords(nullptr),
         qdata(nullptr), coeff(nullptr), build_ctx(nullptr) { }
 
-public:
    /** This method assembles the MFIntegrator with the given CeedOperatorInfo
        @a info, an mfem::FiniteElementSpace @a fes, an mfem::IntegrationRule
        @a ir, and mfem::Coefficient or mfem::VectorCoefficient @a Q.
@@ -370,9 +370,20 @@ public:
                  const mfem::IntegrationRule &irm,
                  CoeffType *Q)
    {
+      Assemble(info, fes, irm, fes.GetNE(), nullptr, Q);
+   }
+
+   template <typename CeedOperatorInfo, typename CoeffType>
+   void Assemble(CeedOperatorInfo &info,
+                 const mfem::FiniteElementSpace &fes,
+                 const mfem::IntegrationRule &irm,
+                 int nelem,
+                 const int* indices,
+                 CoeffType *Q)
+   {
       Ceed ceed(internal::ceed);
       Mesh &mesh = *fes.GetMesh();
-      InitCoefficient(Q, mesh, irm, coeff, info.ctx);
+      InitCoefficient(Q, mesh, irm, nelem, indices, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
       std::string apply_func = const_coeff ? info.apply_func_mf_const
                                : info.apply_func_mf_quad;
@@ -383,17 +394,17 @@ public:
                      info.trial_op,
                      info.test_op
                     };
-      CeedInt nqpts, nelem = mesh.GetNE();
       CeedInt dim = mesh.SpaceDimension(), vdim = fes.GetVDim();
 
       mesh.EnsureNodes();
-      InitBasisAndRestriction(fes, irm, ceed, &basis, &restr);
+      InitBasisAndRestriction(fes, irm, nelem, indices, ceed, &basis, &restr);
 
       const mfem::FiniteElementSpace *mesh_fes = mesh.GetNodalFESpace();
       MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-      InitBasisAndRestriction(*mesh_fes, irm, ceed, &mesh_basis,
+      InitBasisAndRestriction(*mesh_fes, irm, nelem, indices, ceed, &mesh_basis,
                               &mesh_restr);
 
+      CeedInt nqpts;
       CeedBasisGetNumQuadraturePoints(basis, &nqpts);
 
       InitVector(*mesh.GetNodes(), node_coords);
@@ -465,8 +476,8 @@ public:
       // coefficient
       if (GridCoefficient *gridCoeff = dynamic_cast<GridCoefficient*>(coeff))
       {
-         InitBasisAndRestriction(*gridCoeff->gf.FESpace(), irm, ceed,
-                                 &gridCoeff->basis, &gridCoeff->restr);
+         InitBasisAndRestriction(*gridCoeff->gf.FESpace(), irm, nelem, indices,
+                                 ceed, &gridCoeff->basis, &gridCoeff->restr);
          CeedOperatorSetField(oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
       }

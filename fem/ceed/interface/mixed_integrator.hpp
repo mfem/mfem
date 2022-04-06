@@ -21,7 +21,8 @@ namespace mfem
 
 namespace ceed
 {
-class MixedPAIntegrator : public ceed::Operator
+template <typename CeedInteg>
+class MixedIntegrator : public ceed::Operator
 {
 #ifdef MFEM_USE_CEED
    // using ElementKey = std::pair<Element::Type, int>;
@@ -34,7 +35,7 @@ class MixedPAIntegrator : public ceed::Operator
       }
    };
    using ElementsMap = std::unordered_map<const ElementKey, int*, key_hash>;
-   std::vector<PAIntegrator*> sub_ops;
+   std::vector<CeedInteg*> sub_ops;
 
 public:
    template <typename Integrator, typename CeedOperatorInfo, typename CoeffType>
@@ -89,7 +90,7 @@ public:
                      "Mixed mesh integrators should not have an"
                      " IntegrationRule.");
          const IntegrationRule &ir = GetRule(integ, el, el, T);
-         auto sub_op = new PAIntegrator();
+         auto sub_op = new CeedInteg();
          int nelem = *count[value.first];
          // mfem::out << "Indices for element type=" << value.first.first
          //           << " and order=" << value.first.second << std::endl;
