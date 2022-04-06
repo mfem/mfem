@@ -286,7 +286,7 @@ void InitCoefficientWithIndices(mfem::Coefficient *Q, mfem::Mesh &mesh,
          mfem::ElementTransformation &T = *mesh.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)
          {
-            C(q,e) = Q->Eval(T, ir.IntPoint(q));
+            C(q, i) = Q->Eval(T, ir.IntPoint(q));
          }
       }
       InitVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
@@ -374,7 +374,7 @@ void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
          {
             for (int d = 0; d < dim; ++d)
             {
-               C(d,q,e) = Q_ir(d,q);
+               C(d, q, i) = Q_ir(d, q);
             }
          }
       }
