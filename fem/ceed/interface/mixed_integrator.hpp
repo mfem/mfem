@@ -45,6 +45,9 @@ public:
                  CoeffType *Q)
    {
       ElementsMap count;
+      ElementsMap element_indices;
+      ElementsMap offsets;
+
       // Count the number of elements of each type
       for (int i = 0; i < fes.GetNE(); i++)
       {
@@ -59,14 +62,14 @@ public:
             (*value->second)++;
          }
       }
-      ElementsMap element_indices;
-      ElementsMap offsets;
+
       // Initialization of the arrays
       for ( const auto& value : count )
       {
          element_indices[value.first] = new int[*value.second];
          offsets[value.first] = new int(0);
       }
+
       // Populates the indices arrays for each element type
       for (int i = 0; i < fes.GetNE(); i++)
       {
@@ -76,8 +79,10 @@ public:
          indices_array[offset] = i;
          offset++;
       }
+
       // Create composite CeedOperator
       CeedCompositeOperatorCreate(internal::ceed, &oper);
+
       // Create each sub-CeedOperator
       sub_ops.reserve(element_indices.size());
       for (const auto& value : element_indices)
@@ -102,6 +107,7 @@ public:
          sub_ops.push_back(sub_op); // TODO delete
          CeedCompositeOperatorAddSub(oper, sub_op->GetCeedOperator());
       }
+
       const int ndofs = fes.GetVDim() * fes.GetNDofs();
       CeedVectorCreate(internal::ceed, ndofs, &u);
       CeedVectorCreate(internal::ceed, ndofs, &v);
