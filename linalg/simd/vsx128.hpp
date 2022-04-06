@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,10 @@
 
 #include "../../config/tconfig.hpp"
 #include <altivec.h>
+
+#ifdef __GNUC__
+#undef bool
+#endif
 
 namespace mfem
 {
@@ -111,7 +115,11 @@ template <> struct AutoSIMD<double,2,16>
    inline MFEM_ALWAYS_INLINE AutoSIMD operator-() const
    {
       AutoSIMD r;
+#ifndef __GNUC__
       r.vd = vec_neg(vd);
+#else
+      r.vd = vec_splats(0.0) - vd;
+#endif
       return r;
    }
 

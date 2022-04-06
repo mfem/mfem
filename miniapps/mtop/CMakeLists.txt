@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -43,8 +43,8 @@ set(PARMTOP_COMMON_FILES
 	EXTRA_SOURCES ${PARMTOP_COMMON_SOURCES} ${SEQMTOP_COMMON_SOURCES}
 	EXTRA_HEADERS ${PARMTOP_COMMON_HEADERS} ${SEQMTOP_COMMON_HEADERS})
 
-message(STATUS "PARMTOP_COMMON_FILES: ${PARMTOP_COMMON_FILES}")
-message(STATUS "SEQMTOP_COMMON_FILES: ${SEQMTOP_COMMON_FILES}")
+# message(STATUS "PARMTOP_COMMON_FILES: ${PARMTOP_COMMON_FILES}")
+# message(STATUS "SEQMTOP_COMMON_FILES: ${SEQMTOP_COMMON_FILES}")
 
 add_mfem_miniapp(parheat
      MAIN parheat.cpp

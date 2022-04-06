@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -759,7 +759,615 @@ void SmemPAConvectionApply3D(const int ne,
                   const double w = Bt(dx,qx);
                   BBBDGu += w * BBDGu[dz][dy][qx];
                }
-               y(dx,dy,dz,e) = BBBDGu;
+               y(dx,dy,dz,e) += BBBDGu;
+            }
+         }
+      }
+   });
+}
+
+// PA Convection Apply 2D kernel
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PAConvectionApplyT2D(const int ne,
+                          const Array<double> &b,
+                          const Array<double> &g,
+                          const Array<double> &bt,
+                          const Array<double> &gt,
+                          const Vector &op_,
+                          const Vector &x_,
+                          Vector &y_,
+                          const int d1d = 0,
+                          const int q1d = 0)
+{
+   const int NE = ne;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      double u[max_D1D][max_D1D];
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            u[dy][dx] = x(dx,dy,e);
+         }
+      }
+      double Bu[max_D1D][max_Q1D];
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            Bu[dy][qx] = 0.0;
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double bx = B(qx,dx);
+               const double x = u[dy][dx];
+               Bu[dy][qx] += bx * x;
+            }
+         }
+      }
+      double BBu[max_Q1D][max_Q1D];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            BBu[qy][qx] = 0.0;
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               const double bx = B(qy,dy);
+               BBu[qy][qx] += bx * Bu[dy][qx];
+            }
+         }
+      }
+      // Calculate Dxy, xDy in plane
+      double DBu[max_Q1D][max_Q1D][2];
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const double O1 = op(qx,qy,0,e);
+            const double O2 = op(qx,qy,1,e);
+
+            const double X = BBu[qy][qx];
+
+            DBu[qy][qx][0] = O1 * X;
+            DBu[qy][qx][1] = O2 * X;
+         }
+      }
+      double GDBu[max_D1D][max_Q1D][2];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            GDBu[dy][qx][0] = 0.0;
+            GDBu[dy][qx][1] = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double by = Bt(dy,qy);
+               const double gy = Gt(dy,qy);
+               GDBu[dy][qx][0] += by * DBu[qy][qx][0];
+               GDBu[dy][qx][1] += gy * DBu[qy][qx][1];
+            }
+         }
+      }
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            double res = 0.0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double bx = Bt(dx,qx);
+               const double gx = Gt(dx,qx);
+               res += gx * GDBu[dy][qx][0] + bx * GDBu[dy][qx][1];
+            }
+            y(dx,dy,e) += res;
+         }
+      }
+   });
+}
+
+// Optimized PA Convection Apply 2D kernel
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
+void SmemPAConvectionApplyT2D(const int ne,
+                              const Array<double> &b,
+                              const Array<double> &g,
+                              const Array<double> &bt,
+                              const Array<double> &gt,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_,
+                              const int d1d = 0,
+                              const int q1d = 0)
+{
+   const int NE = ne;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      MFEM_SHARED double u[NBZ][max_D1D][max_D1D];
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            // e is really equal to e+tidz
+            u[tidz][dy][dx] = x(dx,dy,e);
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_SHARED double Bu[NBZ][max_D1D][max_Q1D];
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            Bu[tidz][dy][qx] = 0.0;
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               const double bx = B(qx,dx);
+               const double x = u[tidz][dy][dx];
+               Bu[tidz][dy][qx] += bx * x;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_SHARED double BBu[NBZ][max_Q1D][max_Q1D];
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            BBu[tidz][qy][qx] = 0.0;
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               const double bx = B(qy,dy);
+               BBu[tidz][qy][qx] += bx * Bu[tidz][dy][qx];
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Calculate Dxy, xDy in plane
+      MFEM_SHARED double DBu[NBZ][max_Q1D][max_Q1D][2];
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            const double O1 = op(qx,qy,0,e);
+            const double O2 = op(qx,qy,1,e);
+
+            const double X = BBu[tidz][qy][qx];
+
+            DBu[tidz][qy][qx][0] = O1 * X;
+            DBu[tidz][qy][qx][1] = O2 * X;
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_SHARED double GDBu[NBZ][max_D1D][max_Q1D][2];
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            GDBu[tidz][dy][qx][0] = 0.0;
+            GDBu[tidz][dy][qx][1] = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const double by = Bt(dy,qy);
+               const double gy = Gt(dy,qy);
+               GDBu[tidz][dy][qx][0] += by * DBu[tidz][qy][qx][0];
+               GDBu[tidz][dy][qx][1] += gy * DBu[tidz][qy][qx][1];
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            double res = 0.0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double bx = Bt(dx,qx);
+               const double gx = Gt(dx,qx);
+               res += gx * GDBu[tidz][dy][qx][0] + bx * GDBu[tidz][dy][qx][1];
+            }
+            y(dx,dy,e) += res;
+         }
+      }
+   });
+}
+
+// PA Convection Apply 3D kernel
+template<int T_D1D = 0, int T_Q1D = 0> static
+void PAConvectionApplyT3D(const int ne,
+                          const Array<double> &b,
+                          const Array<double> &g,
+                          const Array<double> &bt,
+                          const Array<double> &gt,
+                          const Vector &op_,
+                          const Vector &x_,
+                          Vector &y_,
+                          const int d1d = 0,
+                          const int q1d = 0)
+{
+   const int NE = ne;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   MFEM_FORALL(e, NE,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+
+      double u[max_D1D][max_D1D][max_D1D];
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               u[dz][dy][dx] = x(dx,dy,dz,e);
+            }
+         }
+      }
+      double Bu[max_D1D][max_D1D][max_Q1D];
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               Bu[dz][dy][qx] = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double bx = B(qx,dx);
+                  const double x = u[dz][dy][dx];
+                  Bu[dz][dy][qx] += bx * x;
+               }
+            }
+         }
+      }
+      double BBu[max_D1D][max_Q1D][max_Q1D];
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               BBu[dz][qy][qx] = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  const double bx = B(qy,dy);
+                  BBu[dz][qy][qx] += bx * Bu[dz][dy][qx];
+               }
+            }
+         }
+      }
+      double BBBu[max_Q1D][max_Q1D][max_Q1D];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               BBBu[qz][qy][qx] = 0.0;
+               for (int dz = 0; dz < D1D; ++dz)
+               {
+                  const double bx = B(qz,dz);
+                  BBBu[qz][qy][qx] += bx * BBu[dz][qy][qx];
+               }
+            }
+         }
+      }
+      // Calculate Dxy, xDy in plane
+      double DBu[max_Q1D][max_Q1D][max_Q1D][3];
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const double O1 = op(qx,qy,qz,0,e);
+               const double O2 = op(qx,qy,qz,1,e);
+               const double O3 = op(qx,qy,qz,2,e);
+
+               const double X = BBBu[qz][qy][qx];
+
+               DBu[qz][qy][qx][0] = O1 * X;
+               DBu[qz][qy][qx][1] = O2 * X;
+               DBu[qz][qy][qx][2] = O3 * X;
+            }
+         }
+      }
+      double GDBu[max_D1D][max_Q1D][max_Q1D][3];
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               GDBu[dz][qy][qx][0] = 0.0;
+               GDBu[dz][qy][qx][1] = 0.0;
+               GDBu[dz][qy][qx][2] = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  const double bz = Bt(dz,qz);
+                  const double gz = Gt(dz,qz);
+                  GDBu[dz][qy][qx][0] += bz * DBu[qz][qy][qx][0];
+                  GDBu[dz][qy][qx][1] += bz * DBu[qz][qy][qx][1];
+                  GDBu[dz][qy][qx][2] += gz * DBu[qz][qy][qx][2];
+               }
+            }
+         }
+      }
+      double GGDBu[max_D1D][max_D1D][max_Q1D][3];
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            for (int dy = 0; dy < D1D; ++dy)
+            {
+               GGDBu[dz][dy][qx][0] = 0.0;
+               GGDBu[dz][dy][qx][1] = 0.0;
+               GGDBu[dz][dy][qx][2] = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const double by = Bt(dy,qy);
+                  const double gy = Gt(dy,qy);
+                  GGDBu[dz][dy][qx][0] += by * GDBu[dz][qy][qx][0];
+                  GGDBu[dz][dy][qx][1] += gy * GDBu[dz][qy][qx][1];
+                  GGDBu[dz][dy][qx][2] += by * GDBu[dz][qy][qx][2];
+               }
+            }
+         }
+      }
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               double res = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const double bx = Bt(dx,qx);
+                  const double gx = Gt(dx,qx);
+                  res += gx * GGDBu[dz][dy][qx][0];
+                  res += bx * GGDBu[dz][dy][qx][1];
+                  res += bx * GGDBu[dz][dy][qx][2];
+               }
+               y(dx,dy,dz,e) += res;
+            }
+         }
+      }
+   });
+}
+
+// Optimized PA Convection Apply 3D kernel
+template<int T_D1D = 0, int T_Q1D = 0> static
+void SmemPAConvectionApplyT3D(const int ne,
+                              const Array<double> &b,
+                              const Array<double> &g,
+                              const Array<double> &bt,
+                              const Array<double> &gt,
+                              const Vector &op_,
+                              const Vector &x_,
+                              Vector &y_,
+                              const int d1d = 0,
+                              const int q1d = 0)
+{
+   const int NE = ne;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto Bt = Reshape(bt.Read(), D1D, Q1D);
+   auto Gt = Reshape(gt.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
+   auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_DQ = (max_Q1D > max_D1D) ? max_Q1D : max_D1D;
+      MFEM_SHARED double sm0[3*max_DQ*max_DQ*max_DQ];
+      MFEM_SHARED double sm1[3*max_DQ*max_DQ*max_DQ];
+
+      double (*u)[max_D1D][max_D1D] = (double (*)[max_D1D][max_D1D]) sm0;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               u[dz][dy][dx] = x(dx,dy,dz,e);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      double (*Bu)[max_D1D][max_Q1D] = (double (*)[max_D1D][max_Q1D])sm1;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double Bu_ = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double bx = B(qx,dx);
+                  const double x = u[dz][dy][dx];
+                  Bu_ += bx * x;
+               }
+               Bu[dz][dy][qx] = Bu_;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      double (*BBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm0;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               double BBu_ = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  const double bx = B(qy,dy);
+                  BBu_ += bx * Bu[dz][dy][qx];
+               }
+               BBu[dz][qy][qx] = BBu_;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      double (*BBBu)[max_Q1D][max_Q1D] = (double (*)[max_Q1D][max_Q1D])sm1;
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qz,z,Q1D)
+            {
+               double BBBu_ = 0.0;
+               for (int dz = 0; dz < D1D; ++dz)
+               {
+                  const double bx = B(qz,dz);
+                  BBBu_ += bx * BBu[dz][qy][qx];
+               }
+               BBBu[qz][qy][qx] = BBBu_;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      double (*DBu)[max_Q1D][max_Q1D][3] = (double (*)[max_Q1D][max_Q1D][3])sm0;
+      MFEM_FOREACH_THREAD(qz,z,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               const double O1 = op(qx,qy,qz,0,e);
+               const double O2 = op(qx,qy,qz,1,e);
+               const double O3 = op(qx,qy,qz,2,e);
+
+               const double X = BBBu[qz][qy][qx];
+
+               DBu[qz][qy][qx][0] = O1 * X;
+               DBu[qz][qy][qx][1] = O2 * X;
+               DBu[qz][qy][qx][2] = O3 * X;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      double (*GDBu)[max_Q1D][max_Q1D][3] = (double (*)[max_Q1D][max_Q1D][3])sm1;
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dz,z,D1D)
+            {
+               double GDBu0 = 0.0;
+               double GDBu1 = 0.0;
+               double GDBu2 = 0.0;
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  const double bz = Bt(dz,qz);
+                  const double gz = Gt(dz,qz);
+                  GDBu0 += bz * DBu[qz][qy][qx][0];
+                  GDBu1 += bz * DBu[qz][qy][qx][1];
+                  GDBu2 += gz * DBu[qz][qy][qx][2];
+               }
+               GDBu[dz][qy][qx][0] = GDBu0;
+               GDBu[dz][qy][qx][1] = GDBu1;
+               GDBu[dz][qy][qx][2] = GDBu2;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      double (*GGDBu)[max_D1D][max_Q1D][3] = (double (*)[max_D1D][max_Q1D][3])sm0;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               double GGDBu0 = 0.0;
+               double GGDBu1 = 0.0;
+               double GGDBu2 = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const double by = Bt(dy,qy);
+                  const double gy = Gt(dy,qy);
+                  GGDBu0 += by * GDBu[dz][qy][qx][0];
+                  GGDBu1 += gy * GDBu[dz][qy][qx][1];
+                  GGDBu2 += by * GDBu[dz][qy][qx][2];
+               }
+               GGDBu[dz][dy][qx][0] = GGDBu0;
+               GGDBu[dz][dy][qx][1] = GGDBu1;
+               GGDBu[dz][dy][qx][2] = GGDBu2;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               double res = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const double bx = Bt(dx,qx);
+                  const double gx = Gt(dx,qx);
+                  res += gx * GGDBu[dz][dy][qx][0];
+                  res += bx * GGDBu[dz][dy][qx][1];
+                  res += bx * GGDBu[dz][dy][qx][2];
+               }
+               y(dx,dy,dz,e) += res;
             }
          }
       }
@@ -783,7 +1391,7 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    const int dims = el.GetDim();
    const int symmDims = dims;
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
@@ -819,10 +1427,10 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       qi->DisableTensorProducts(!use_tensor_products);
       qi->Values(xe,vel);
    }
-   else if (VectorQuadratureFunctionCoefficient* cQ =
+   else if (VectorQuadratureFunctionCoefficient* vqfQ =
                dynamic_cast<VectorQuadratureFunctionCoefficient*>(Q))
    {
-      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      const QuadratureFunction &qFun = vqfQ->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == dim * nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -837,16 +1445,16 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       vel.SetSize(dim * nq * ne);
       auto C = Reshape(vel.HostWrite(), dim, nq, ne);
-      DenseMatrix Q_ir;
+      DenseMatrix MQ_ir;
       for (int e = 0; e < ne; ++e)
       {
          ElementTransformation& T = *fes.GetElementTransformation(e);
-         Q->Eval(Q_ir, T, *ir);
+         Q->Eval(MQ_ir, T, *ir);
          for (int q = 0; q < nq; ++q)
          {
             for (int i = 0; i < dim; ++i)
             {
-               C(i,q,e) = Q_ir(i,q);
+               C(i,q,e) = MQ_ir(i,q);
             }
          }
       }
@@ -906,6 +1514,57 @@ static void PAConvectionApply(const int dim,
    MFEM_ABORT("Unknown kernel.");
 }
 
+static void PAConvectionApplyT(const int dim,
+                               const int D1D,
+                               const int Q1D,
+                               const int NE,
+                               const Array<double> &B,
+                               const Array<double> &G,
+                               const Array<double> &Bt,
+                               const Array<double> &Gt,
+                               const Vector &op,
+                               const Vector &x,
+                               Vector &y)
+{
+   if (dim == 2)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x22: return SmemPAConvectionApplyT2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x33: return SmemPAConvectionApplyT2D<3,3,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x34: return SmemPAConvectionApplyT2D<3,4,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x44: return SmemPAConvectionApplyT2D<4,4,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x46: return SmemPAConvectionApplyT2D<4,6,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x55: return SmemPAConvectionApplyT2D<5,5,2>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x58: return SmemPAConvectionApplyT2D<5,8,2>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x66: return SmemPAConvectionApplyT2D<6,6,1>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x77: return SmemPAConvectionApplyT2D<7,7,1>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x88: return SmemPAConvectionApplyT2D<8,8,1>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x99: return SmemPAConvectionApplyT2D<9,9,1>(NE,B,G,Bt,Gt,op,x,y);
+         default:   return PAConvectionApplyT2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+      }
+   }
+   else if (dim == 3)
+   {
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x23: return SmemPAConvectionApplyT3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x24: return SmemPAConvectionApplyT3D<2,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x26: return SmemPAConvectionApplyT3D<2,6>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x34: return SmemPAConvectionApplyT3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x35: return SmemPAConvectionApplyT3D<3,5>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x45: return SmemPAConvectionApplyT3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x48: return SmemPAConvectionApplyT3D<4,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x56: return SmemPAConvectionApplyT3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x67: return SmemPAConvectionApplyT3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x78: return SmemPAConvectionApplyT3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
+         case 0x89: return SmemPAConvectionApplyT3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
+         default:   return PAConvectionApplyT3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
+      }
+   }
+   MFEM_ABORT("Unknown kernel.");
+}
+
 // PA Convection Apply kernel
 void ConvectionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
@@ -918,6 +1577,22 @@ void ConvectionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       PAConvectionApply(dim, dofs1D, quad1D, ne,
                         maps->B, maps->G, maps->Bt, maps->Gt,
                         pa_data, x, y);
+   }
+}
+
+// PA Convection Apply transpose kernel
+void ConvectionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      MFEM_ABORT("AddMultPA not yet implemented with libCEED for"
+                 " ConvectionIntegrator.");
+   }
+   else
+   {
+      PAConvectionApplyT(dim, dofs1D, quad1D, ne,
+                         maps->B, maps->G, maps->Bt, maps->Gt,
+                         pa_data, x, y);
    }
 }
 

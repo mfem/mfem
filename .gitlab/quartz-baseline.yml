@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -64,8 +64,8 @@ report_baseline:
     - |
       (
         date
-        echo "Waiting to aquire lock on '$PWD/autotest.lock' ..."
-        # try to get an excusive lock on fd 9 (autotest.lock) repeating the try
+        echo "Waiting to acquire lock on '$PWD/autotest.lock' ..."
+        # try to get an exclusive lock on fd 9 (autotest.lock) repeating the try
         # every 5 seconds; simply using no timeout, i.e. 'flock 9', causes the
         # command to hang indefinitely sometimes, so we use the timeout & retry
         # as a workaround; we may want to add a counter for the number of
@@ -73,7 +73,7 @@ report_baseline:
         while ! flock -w 5 9; do
           true
         done
-        echo "Aquired lock on '$PWD/autotest.lock'"
+        echo "Acquired lock on '$PWD/autotest.lock'"
         date
         # ----------------------
         cd ${AUTOTEST_ROOT}/autotest || \
