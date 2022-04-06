@@ -12,6 +12,9 @@ Version 4.4.1 (development)
 ===========================
 - Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
   spatial Gaussian white noise.
+- Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error
+  estimator; see fem/estimators.hpp.
+
 
 Version 4.4, released on March 21, 2022
 =======================================
