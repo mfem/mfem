@@ -216,7 +216,7 @@ protected:
    /// Matrix and eliminated matrix
    OperatorHandle p_mat, p_mat_e;
 
-   bool keep_nbr_block = false; 
+   bool keep_nbr_block = false;
 
    // Allocate mat - called when (mat == NULL && interior_face_integs.Size() > 0)
    void pAllocMat();
@@ -265,7 +265,7 @@ public:
 
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
-   void Assemble(int skip_zeros = 1); 
+   void Assemble(int skip_zeros = 1);
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
    HypreParMatrix *ParallelAssemble();

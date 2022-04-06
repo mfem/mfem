@@ -158,14 +158,14 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   /** Abstract method used for assembling InteriorFaceIntegrators in a 
-       MixedBilinearForm. */ 
-   virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1, 
-                                   const FiniteElement &trial_fe2, 
-                                   const FiniteElement &test_fe1, 
-                                   const FiniteElement &test_fe2, 
-                                   FaceElementTransformations &Trans, 
-                                   DenseMatrix &elmat); 
+   /** Abstract method used for assembling InteriorFaceIntegrators in a
+       MixedBilinearForm. */
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                                   const FiniteElement &trial_fe2,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
 
    /// @brief Perform the local action of the BilinearFormIntegrator.
    /// Note that the default implementation in the base class is general but not
@@ -3003,47 +3003,48 @@ public:
                                    DenseMatrix &elmat);
 };
 
-/** Integrator for the DG form: 
-    < [u], {q.n} + gamma [q.n] > 
-    where u is a scalar DG test function, q a vector DG trial function, 
-    and gamma = sgn(beta . n)/2 with beta an arbitrary vector. 
-    This defines an arbitrary but consistent upwinding of q. When beta is NULL, 
-    gamma = 0. 
+/** Integrator for the DG form:
+    < [u], {q.n} + gamma [q.n] >
+    where u is a scalar DG test function, q a vector DG trial function,
+    and gamma = sgn(beta . n)/2 with beta an arbitrary vector.
+    This defines an arbitrary but consistent upwinding of q. When beta is NULL,
+    gamma = 0.
 
-    The intended use case is a Local Discontinuous Galerkin discretization 
-    of the Poisson equation. With gamma = sgn(beta . n)/2, the discretization 
-    is stable without a penalty term. When gamma=0, penalization is required. 
-    Note that Dirichlet boundary conditions require a penalty term 
-    on the boundary when gamma=sgn(beta.n)/2 or gamma=0. 
-*/ 
+    The intended use case is a Local Discontinuous Galerkin discretization
+    of the Poisson equation. With gamma = sgn(beta . n)/2, the discretization
+    is stable without a penalty term. When gamma=0, penalization is required.
+    Note that Dirichlet boundary conditions require a penalty term
+    on the boundary when gamma=sgn(beta.n)/2 or gamma=0.
+*/
 class LDGTraceIntegrator : public BilinearFormIntegrator
 {
 protected:
-  Vector *beta = nullptr; 
+   Vector *beta = nullptr;
 public:
-  LDGTraceIntegrator(Vector *b=nullptr) { beta = b; }
-  void AssembleFaceMatrix(const FiniteElement &tr_fe1, const FiniteElement &tr_fe2, 
-                          const FiniteElement &te_fe1, const FiniteElement &te_fe2,
-                          FaceElementTransformations &T, DenseMatrix &elmat); 
-}; 
+   LDGTraceIntegrator(Vector *b=nullptr) { beta = b; }
+   void AssembleFaceMatrix(const FiniteElement &tr_fe1,
+                           const FiniteElement &tr_fe2,
+                           const FiniteElement &te_fe1, const FiniteElement &te_fe2,
+                           FaceElementTransformations &T, DenseMatrix &elmat);
+};
 
-/** Integrator for the DG form: 
-    < kappa [u], [v] > 
-    with u a DG trial function, v a DG test function, and kappa the 
-    penalty parameter. When scale=true, kappa is scaled by 1/h with 
-    h the characteristic length of the element. 
-*/ 
+/** Integrator for the DG form:
+    < kappa [u], [v] >
+    with u a DG trial function, v a DG test function, and kappa the
+    penalty parameter. When scale=true, kappa is scaled by 1/h with
+    h the characteristic length of the element.
+*/
 class DGPenaltyIntegrator : public BilinearFormIntegrator
 {
 protected:
-  double kappa; 
-  Coefficient *c =nullptr; 
-  bool scale = false; 
+   double kappa;
+   Coefficient *c =nullptr;
+   bool scale = false;
 public:
-  DGPenaltyIntegrator(double k, bool s=false) : kappa(k), scale(s) { }
-  void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
-                          FaceElementTransformations &T, DenseMatrix &elmat); 
-}; 
+   DGPenaltyIntegrator(double k, bool s=false) : kappa(k), scale(s) { }
+   void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
+                           FaceElementTransformations &T, DenseMatrix &elmat);
+};
 
 /** Integrator for the DG elasticity form, for the formulations see:
     - PhD Thesis of Jonas De Basabe, High-Order Finite %Element Methods for

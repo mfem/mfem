@@ -555,10 +555,10 @@ void ParMixedBilinearForm::AssembleSharedFaces(int skip_zeros)
       for (int k = 0; k < interior_face_integs.Size(); k++)
       {
          interior_face_integs[k]->AssembleFaceMatrix(*trial_pfes->GetFE(T->Elem1No),
-                                     *trial_pfes->GetFE(Elem2NbrNo),
-                                     *test_pfes->GetFE(T->Elem1No),
-                                     *test_pfes->GetFE(Elem2NbrNo),
-                                     *T, elemmat);
+                                                     *trial_pfes->GetFE(Elem2NbrNo),
+                                                     *test_pfes->GetFE(T->Elem1No),
+                                                     *test_pfes->GetFE(Elem2NbrNo),
+                                                     *T, elemmat);
          if (keep_nbr_block)
          {
             mat->AddSubMatrix(te_vdofs_all, tr_vdofs_all, elemmat, skip_zeros);
@@ -590,7 +590,7 @@ void ParMixedBilinearForm::Assemble(int skip_zeros)
 
 HypreParMatrix *ParMixedBilinearForm::ParallelAssemble()
 {
-   if (interior_face_integs.Size()==0) 
+   if (interior_face_integs.Size()==0)
    {
       // construct the block-diagonal matrix A
       HypreParMatrix *A =
@@ -609,8 +609,8 @@ HypreParMatrix *ParMixedBilinearForm::ParallelAssemble()
       return rap;
    }
 
-   // parallel matrix has off-diagonal blocks 
-   else 
+   // parallel matrix has off-diagonal blocks
+   else
    {
       int tr_lvsize = trial_pfes->GetVSize();
       int te_lvsize = test_pfes->GetVSize();
