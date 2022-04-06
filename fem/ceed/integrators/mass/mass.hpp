@@ -37,6 +37,10 @@ public:
    MixedPAMassIntegrator(const MassIntegrator &integ,
                          const mfem::FiniteElementSpace &fes,
                          mfem::Coefficient *Q);
+
+   MixedPAMassIntegrator(const VectorMassIntegrator &integ,
+                         const mfem::FiniteElementSpace &fes,
+                         mfem::Coefficient *Q);
 };
 
 /// Represent a MassIntegrator with AssemblyLevel::None using libCEED.

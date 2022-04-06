@@ -72,6 +72,19 @@ MixedPAMassIntegrator::MixedPAMassIntegrator(const MassIntegrator &integ,
 #endif
 }
 
+MixedPAMassIntegrator::MixedPAMassIntegrator(const VectorMassIntegrator &integ,
+                                             const mfem::FiniteElementSpace &fes,
+                                             mfem::Coefficient *Q)
+   : MixedPAIntegrator()
+{
+#ifdef MFEM_USE_CEED
+   MassOperatorInfo info;
+   Assemble(integ, info, fes, Q);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
 MFMassIntegrator::MFMassIntegrator(const mfem::FiniteElementSpace &fes,
                                    const mfem::IntegrationRule &irm,
                                    mfem::Coefficient *Q)

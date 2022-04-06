@@ -181,6 +181,16 @@ const IntegrationRule & GetRule<MassIntegrator>(
 }
 
 template <>
+const IntegrationRule & GetRule<VectorMassIntegrator>(
+   const VectorMassIntegrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &trans)
+{
+   return MassIntegrator::GetRule(trial_fe, test_fe, trans);
+}
+
+template <>
 const IntegrationRule & GetRule<ConvectionIntegrator>(
    const ConvectionIntegrator &integ,
    const FiniteElement &trial_fe,
@@ -193,6 +203,16 @@ const IntegrationRule & GetRule<ConvectionIntegrator>(
 template <>
 const IntegrationRule & GetRule<DiffusionIntegrator>(
    const DiffusionIntegrator &integ,
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &trans)
+{
+   return DiffusionIntegrator::GetRule(trial_fe, test_fe);
+}
+
+template <>
+const IntegrationRule & GetRule<VectorDiffusionIntegrator>(
+   const VectorDiffusionIntegrator &integ,
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,
    ElementTransformation &trans)
