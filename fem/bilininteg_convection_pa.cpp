@@ -27,7 +27,6 @@ static void PAConvectionSetup2D(const int NQ,
                                 const Vector &j,
                                 const Vector &vel,
                                 const double alpha,
-
                                 Vector &op)
 {
    constexpr int DIM = 2;
