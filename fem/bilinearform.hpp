@@ -674,7 +674,7 @@ protected:
    /// Entries are not owned.
    Array<Array<int>*> boundary_trace_face_integs_marker;
 
-   /// Set of nterior face integrators.
+   /// Set of interior face integrators.
    Array<BilinearFormIntegrator*> interior_face_integs;
    /// Set of boundary face Integrators to be applied.
    Array<BilinearFormIntegrator*> boundary_face_integs;
