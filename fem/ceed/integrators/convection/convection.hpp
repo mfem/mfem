@@ -51,6 +51,15 @@ public:
                           const double alpha);
 };
 
+class MixedMFConvectionIntegrator : public MixedIntegrator<MFIntegrator>
+{
+public:
+   MixedMFConvectionIntegrator(const ConvectionIntegrator &integ,
+                               const mfem::FiniteElementSpace &fes,
+                               mfem::VectorCoefficient *Q,
+                               const double alpha);
+};
+
 }
 
 }

@@ -91,6 +91,20 @@ MFConvectionIntegrator::MFConvectionIntegrator(
 #endif
 }
 
+MixedMFConvectionIntegrator::MixedMFConvectionIntegrator(
+   const ConvectionIntegrator &integ,
+   const mfem::FiniteElementSpace &fes,
+   mfem::VectorCoefficient *Q,
+   const double alpha)
+{
+#ifdef MFEM_USE_CEED
+   ConvectionOperatorInfo info(fes.GetMesh()->Dimension(), alpha);
+   Assemble(integ, info, fes, Q);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
 } // namespace ceed
 
 } // namespace mfem
