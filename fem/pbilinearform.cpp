@@ -591,7 +591,7 @@ void ParMixedBilinearForm::Assemble(int skip_zeros)
 
 HypreParMatrix *ParMixedBilinearForm::ParallelAssemble()
 {
-   if (interior_face_integs.Size()==0)
+   if (interior_face_integs.Size() == 0)
    {
       // construct the block-diagonal matrix A
       HypreParMatrix *A =
@@ -609,10 +609,9 @@ HypreParMatrix *ParMixedBilinearForm::ParallelAssemble()
 
       return rap;
    }
-
-   // parallel matrix has off-diagonal blocks
    else
    {
+      // parallel matrix has off-diagonal blocks
       int tr_lvsize = trial_pfes->GetVSize();
       int te_lvsize = test_pfes->GetVSize();
       const HYPRE_Int *tr_face_nbr_glob_ldof = trial_pfes->GetFaceNbrGlobalDofMap();
@@ -650,7 +649,7 @@ HypreParMatrix *ParMixedBilinearForm::ParallelAssemble()
 
 void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
 {
-   if (interior_face_integs.Size()>0) { MFEM_ABORT("parallel assemble not implemented for interior faces"); }
+   MFEM_VERIFY(interior_face_integs.Size() == 0, "Not implemented.");
    // construct the rectangular block-diagonal matrix dA
    OperatorHandle dA(A.Type());
    dA.MakeRectangularBlockDiag(trial_pfes->GetComm(),

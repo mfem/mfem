@@ -263,8 +263,13 @@ public:
       test_pfes  = test_fes;
    }
 
+   /** When set to true and the ParBilinearForm has interior face integrators,
+       the local SparseMatrix will include the rows (in addition to the columns)
+       corresponding to face-neighbor dofs. The default behavior is to disregard
+       those rows. Must be called before the first Assemble call. */
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
+   /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
