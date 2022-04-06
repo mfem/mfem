@@ -383,6 +383,21 @@ void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
    }
 }
 
+template <typename Coeff, typename Context>
+void InitCoefficient(Coeff *Q, mfem::Mesh &mesh,
+                     const mfem::IntegrationRule &ir, int nelem,
+                     const int* indices, Coefficient *&coeff_ptr, Context &ctx)
+{
+   if (indices)
+   {
+      InitCoefficientWithIndices(Q, mesh, ir, nelem, indices, coeff_ptr, ctx);
+   }
+   else
+   {
+      InitCoefficient(Q, mesh, ir, coeff_ptr, ctx);
+   }
+}
+
 #endif
 
 } // namespace ceed
