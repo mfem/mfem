@@ -31,7 +31,7 @@ public:
                          mfem::Coefficient *Q);
 };
 
-class MixedPADiffusionIntegrator : public MixedPAIntegrator
+class MixedPADiffusionIntegrator : public MixedIntegrator<PAIntegrator>
 {
 public:
    MixedPADiffusionIntegrator(const DiffusionIntegrator &integ,
@@ -50,6 +50,18 @@ public:
    MFDiffusionIntegrator(const mfem::FiniteElementSpace &fes,
                          const mfem::IntegrationRule &ir,
                          mfem::Coefficient *Q);
+};
+
+class MixedMFDiffusionIntegrator : public MixedIntegrator<MFIntegrator>
+{
+public:
+   MixedMFDiffusionIntegrator(const DiffusionIntegrator &integ,
+                              const mfem::FiniteElementSpace &fes,
+                              mfem::Coefficient *Q);
+
+   MixedMFDiffusionIntegrator(const VectorDiffusionIntegrator &integ,
+                              const mfem::FiniteElementSpace &fes,
+                              mfem::Coefficient *Q);
 };
 
 }

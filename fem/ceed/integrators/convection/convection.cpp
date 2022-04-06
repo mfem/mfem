@@ -67,7 +67,6 @@ MixedPAConvectionIntegrator::MixedPAConvectionIntegrator(
    const mfem::FiniteElementSpace &fes,
    mfem::VectorCoefficient *Q,
    const double alpha)
-   : MixedPAIntegrator()
 {
 #ifdef MFEM_USE_CEED
    ConvectionOperatorInfo info(fes.GetMesh()->Dimension(), alpha);

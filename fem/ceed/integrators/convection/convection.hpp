@@ -32,7 +32,7 @@ public:
                           const double alpha);
 };
 
-class MixedPAConvectionIntegrator : public MixedPAIntegrator
+class MixedPAConvectionIntegrator : public MixedIntegrator<PAIntegrator>
 {
 public:
    MixedPAConvectionIntegrator(const ConvectionIntegrator &integ,

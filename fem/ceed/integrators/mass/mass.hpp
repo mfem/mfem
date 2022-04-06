@@ -31,7 +31,7 @@ public:
                     mfem::Coefficient *Q);
 };
 
-class MixedPAMassIntegrator : public MixedPAIntegrator
+class MixedPAMassIntegrator : public MixedIntegrator<PAIntegrator>
 {
 public:
    MixedPAMassIntegrator(const MassIntegrator &integ,
@@ -50,6 +50,18 @@ public:
    MFMassIntegrator(const mfem::FiniteElementSpace &fes,
                     const mfem::IntegrationRule &ir,
                     mfem::Coefficient *Q);
+};
+
+class MixedMFMassIntegrator : public MixedIntegrator<MFIntegrator>
+{
+public:
+   MixedMFMassIntegrator(const MassIntegrator &integ,
+                         const mfem::FiniteElementSpace &fes,
+                         mfem::Coefficient *Q);
+
+   MixedMFMassIntegrator(const VectorMassIntegrator &integ,
+                         const mfem::FiniteElementSpace &fes,
+                         mfem::Coefficient *Q);
 };
 
 }
