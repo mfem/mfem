@@ -486,7 +486,9 @@ TEST_CASE("CEED non-linear convection", "[CEED],[NLConvection]")
                         "../../data/inline-hex.mesh",
                         "../../data/periodic-square.mesh",
                         "../../data/star-q2.mesh",
-                        "../../data/fichera.mesh");
+                        "../../data/fichera.mesh",
+                        "../../data/square-mixed.mesh",
+                        "../../data/fichera-mixed.mesh");
    test_ceed_nloperator(mesh, order, coeff_type, pb, assembly);
 } // test case
 
