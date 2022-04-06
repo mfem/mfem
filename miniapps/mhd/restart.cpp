@@ -82,10 +82,9 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&t_change, "-tchange", "--t-change",
                   "dt change time; reduce to half.");
-   args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step.");
-   args.AddOption(&t, "-t0", "--time",
-                  "Initial Time (for restart).");
+   args.AddOption(&dt, "-dt", "--time-step", "Time step.");
+   args.AddOption(&t, "-t0", "--time", "Initial Time (for restart).");
+   args.AddOption(&restart_count, "-restart_count", "--restart_count", "number of restarts have been performed");
    args.AddOption(&icase, "-i", "--icase",
                   "Icase: 1 - wave propagation; 2 - Tearing mode.");
    args.AddOption(&itau_, "-itau", "--itau",

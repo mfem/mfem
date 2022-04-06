@@ -434,7 +434,7 @@ int main(int argc, char *argv[])
    fe_offset3[2] = 2*fe_size;
    fe_offset3[3] = 3*fe_size;
 
-   BlockVector vx(fe_offset3);
+   BlockVector vx(fe_offset3), vk;
    ParGridFunction phi, psi, w, j(&fespace); 
    phi.MakeTRef(&fespace, vx, fe_offset3[0]);
    psi.MakeTRef(&fespace, vx, fe_offset3[1]);
@@ -650,7 +650,7 @@ int main(int argc, char *argv[])
    
    //++++recover pressure and vector fields++++
    ParFiniteElementSpace *vfes;
-   ParGridFunction *vel, *mag, *gradP, *BgradB, *gradBP, *gfv, *pre=NULL;
+   ParGridFunction *vel, *mag, *gradP, *BgradB, *gradBP, *gfv, *pre=NULL, *dpsidt=NULL;
    ParMixedBilinearForm *grad, *div;
    ParBilinearForm *a;
    ParNonlinearForm *convect;
@@ -678,6 +678,7 @@ int main(int argc, char *argv[])
       gradBP = new ParGridFunction(vfes);
       gfv = new ParGridFunction(vfes);
       pre = new ParGridFunction(&fespace);
+      dpsidt = new ParGridFunction(&fespace);
       grad = new ParMixedBilinearForm(&fespace, vfes);
       div = new ParMixedBilinearForm(vfes, &fespace);
       convect = new ParNonlinearForm(vfes);
@@ -804,6 +805,7 @@ int main(int argc, char *argv[])
       zscalar.Add(1.0, zscalar2);
       K_pcg->Mult(zscalar, zscalar2);
       pre->SetFromTrueDofs(zscalar2);
+      *dpsidt = 0.0;
 
       //compute grad P
       zv=0.0;
@@ -846,6 +848,7 @@ int main(int argc, char *argv[])
           pd->RegisterField("V", vel);
           pd->RegisterField("B", mag);
           pd->RegisterField("pre", pre);
+          pd->RegisterField("dpsidt", dpsidt);
           pd->RegisterField("grad pre", gradP);
           pd->RegisterField("grad mag pre", gradBP);
           pd->RegisterField("B.gradB", BgradB);
@@ -946,7 +949,16 @@ int main(int argc, char *argv[])
                break;
            }
 
-           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre);
+           // this will update dpsidt through AMRupdate (only needed in the first its)
+           if (compute_pressure && its==0){
+               // Get dpsi/dt function
+               ode_solver->GetStateVector(0, vk);
+               int sc = fespace.TrueVSize();
+               Vector v_dpsidt(vk.GetData() +  sc, sc);
+               dpsidt->SetFromTrueDofs(v_dpsidt);
+           }
+
+           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre, dpsidt);
            oper.UpdateGridFunction();
            if (compute_pressure) {
                vfes->Update();
@@ -974,7 +986,7 @@ int main(int argc, char *argv[])
            }
 
            //---Update solutions after rebalancing---
-           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre);
+           AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre, dpsidt);
            oper.UpdateGridFunction();
            if (compute_pressure) {
                vfes->Update();
@@ -1024,8 +1036,18 @@ int main(int argc, char *argv[])
                  break;
              }
 
+             // Update dpsidt if it is not updated in refiner 
+             // It is needed only when refine is false and derefine is true (very rare)
+             if (!(refiner.Refined() && its==0){
+                // Get dpsi/dt function
+                ode_solver->GetStateVector(0, vk);
+                int sc = fespace.TrueVSize();
+                Vector v_dpsidt(vk.GetData() +  sc, sc);
+                dpsidt->SetFromTrueDofs(v_dpsidt);
+             }
+
              //---Update solutions first---
-             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre);
+             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre, dpsidt);
              oper.UpdateGridFunction();
              if (compute_pressure) {
                 vfes->Update();
@@ -1054,7 +1076,7 @@ int main(int argc, char *argv[])
              }
 
              //---Update solutions after rebalancing---
-             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre);
+             AMRUpdateTrue(vx, fe_offset3, phi, psi, w, j, pre, dpsidt);
              oper.UpdateGridFunction();
              if (compute_pressure) {
                 vfes->Update();
@@ -1102,6 +1124,15 @@ int main(int argc, char *argv[])
 
            if(compute_pressure && paraview)
            {
+              if (!refineMesh)
+              {
+                // Get dpsi/dt function
+                ode_solver->GetStateVector(0, vk);
+                int sc = fespace.TrueVSize();
+                Vector v_dpsidt(vk.GetData() +  sc, sc);
+                dpsidt->SetFromTrueDofs(v_dpsidt);
+              }
+
               if (!vfes_match){
                 delete grad;     
                 delete div ;     
@@ -1433,6 +1464,7 @@ int main(int argc, char *argv[])
       delete gfv;       
       delete zLFscalar; 
       delete pre;      
+      delete dpsidt;      
       delete grad;     
       delete div ;     
       delete convect;  

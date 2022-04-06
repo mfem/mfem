@@ -395,6 +395,8 @@ public:
    void Init(TimeDependentOperator &_f) override;
 
    void Step(Vector &x, double &t, double &dt) override;
+
+   void GetStateVector(int i, Vector &_k){_k = k;};
 };
 
 
@@ -408,6 +410,8 @@ public:
    void Init(TimeDependentOperator &_f) override;
 
    void Step(Vector &x, double &t, double &dt) override;
+
+   void GetStateVector(int i, Vector &_k){_k = k;};
 };
 
 
@@ -429,6 +433,8 @@ public:
    void Init(TimeDependentOperator &_f) override;
 
    void Step(Vector &x, double &t, double &dt) override;
+
+   void GetStateVector(int i, Vector &_k){_k = k;};
 };
 
 
@@ -443,6 +449,8 @@ public:
    void Init(TimeDependentOperator &_f) override;
 
    void Step(Vector &x, double &t, double &dt) override;
+
+   void GetStateVector(int i, Vector &_k){_k = k;};
 };
 
 
@@ -457,6 +465,8 @@ public:
    void Init(TimeDependentOperator &_f) override;
 
    void Step(Vector &x, double &t, double &dt) override;
+
+   void GetStateVector(int i, Vector &_k){_k = k;};
 };
 
 

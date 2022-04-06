@@ -42,10 +42,10 @@ void checkpoint_rs(int myid, const double time,
     string mesh_name, phi_name, psi_name, w_name;
     string rs = to_string(restart_count);
 
-    mesh_name = "restart-mesh" + rs;
-     phi_name = "restart-phi"  + rs;
-     psi_name = "restart-psi"  + rs;
-       w_name = "restart-w"    + rs;
+    mesh_name = "restart-mesh" + rs + ".";
+     phi_name = "restart-phi"  + rs + ".";
+     psi_name = "restart-psi"  + rs + ".";
+       w_name = "restart-w"    + rs + ".";
 
     ofstream ofs_mesh(MakeParFilename(mesh_name, myid));
     ofstream  ofs_phi(MakeParFilename( phi_name, myid));
