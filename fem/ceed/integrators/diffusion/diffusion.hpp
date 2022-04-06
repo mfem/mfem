@@ -37,6 +37,10 @@ public:
    MixedPADiffusionIntegrator(const DiffusionIntegrator &integ,
                               const mfem::FiniteElementSpace &fes,
                               mfem::Coefficient *Q);
+
+   MixedPADiffusionIntegrator(const VectorDiffusionIntegrator &integ,
+                              const mfem::FiniteElementSpace &fes,
+                              mfem::Coefficient *Q);
 };
 
 /// Represent a DiffusionIntegrator with AssemblyLevel::None using libCEED.
