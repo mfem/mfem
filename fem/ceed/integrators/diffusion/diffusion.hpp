@@ -27,7 +27,7 @@ class PADiffusionIntegrator : public PAIntegrator
 {
 public:
    PADiffusionIntegrator(const mfem::FiniteElementSpace &fes,
-                         const mfem::IntegrationRule &irm,
+                         const mfem::IntegrationRule &ir,
                          mfem::Coefficient *Q);
 };
 
@@ -44,7 +44,7 @@ class MFDiffusionIntegrator : public MFIntegrator
 {
 public:
    MFDiffusionIntegrator(const mfem::FiniteElementSpace &fes,
-                         const mfem::IntegrationRule &irm,
+                         const mfem::IntegrationRule &ir,
                          mfem::Coefficient *Q);
 };
 

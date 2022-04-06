@@ -27,7 +27,7 @@ class PAMassIntegrator : public PAIntegrator
 {
 public:
    PAMassIntegrator(const mfem::FiniteElementSpace &fes,
-                    const mfem::IntegrationRule &irm,
+                    const mfem::IntegrationRule &ir,
                     mfem::Coefficient *Q);
 };
 
@@ -44,7 +44,7 @@ class MFMassIntegrator : public MFIntegrator
 {
 public:
    MFMassIntegrator(const mfem::FiniteElementSpace &fes,
-                    const mfem::IntegrationRule &irm,
+                    const mfem::IntegrationRule &ir,
                     mfem::Coefficient *Q);
 };
 

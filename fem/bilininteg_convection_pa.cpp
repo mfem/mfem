@@ -27,6 +27,7 @@ static void PAConvectionSetup2D(const int NQ,
                                 const Vector &j,
                                 const Vector &vel,
                                 const double alpha,
+
                                 Vector &op)
 {
    constexpr int DIM = 2;
@@ -1386,7 +1387,15 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
-      ceedOp = new ceed::PAConvectionIntegrator(fes, *ir, Q, alpha);
+      const bool mixed = mesh->GetNumGeometries(mesh->Dimension()) > 1;
+      if (mixed)
+      {
+         ceedOp = new ceed::MixedPAConvectionIntegrator(*this, fes, Q, alpha);
+      }
+      else
+      {
+         ceedOp = new ceed::PAConvectionIntegrator(fes, *ir, Q, alpha);
+      }
       return;
    }
    const int dims = el.GetDim();
