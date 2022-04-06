@@ -377,8 +377,9 @@ public:
                   dynamic_cast<QuadCoefficient*>(coeff))
       {
          const int ncomp = quadCoeff->ncomp;
-         InitCoeffRestrictionWithIndices(*mesh_fes, nelem, indices, nqpts,
-                                         ncomp, ceed, &quadCoeff->restr);
+         CeedInt strides[3] = {ncomp, 1, ncomp*nqpts};
+         InitStridedRestriction(*mesh_fes, nelem, nqpts, ncomp, strides,
+                                &quadCoeff->restr);
          CeedOperatorSetField(build_oper, "coeff", quadCoeff->restr,
                               CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
       }
