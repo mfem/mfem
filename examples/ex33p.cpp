@@ -2,9 +2,9 @@
 //
 // Compile with: make ex33p
 //
-// Sample runs:  mpirun -np 4 ex33p -m ../data/square-disc.mesh -alpha 0.33 -o 2
-//               mpirun -np 4 ex33p -m ../data/star.mesh -alpha 0.99 -o 3
-//               mpirun -np 4 ex33p -m ../data/inline-quad.mesh -alpha 0.2 -o 3
+// Sample runs:  mpirun -np 4 ex33p -sr 2 -m ../data/square-disc.mesh -alpha 0.33 -o 2
+//               mpirun -np 4 ex33p -sr 4 -m ../data/star.mesh -alpha 0.99 -o 3
+//               mpirun -np 4 ex33p -sr 3 -m ../data/inline-quad.mesh -alpha 0.2 -o 3
 //               mpirun -np 4 ex33p -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
 //               mpirun -np 4 ex33p -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
 //
@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
    int num_refs = 3;
    bool visualization = true;
    double alpha = 0.5;
+   int solver_ranks=1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -77,6 +78,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&num_refs, "-r", "--refs",
                   "Number of uniform refinements");
+   args.AddOption(&solver_ranks, "-sr", "--solver-ranks",
+                  "Number of MPI ranks within each solve");
    args.AddOption(&alpha, "-alpha", "--alpha",
                   "Fractional exponent");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -88,9 +91,44 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   if (myid == 0)
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
+   }
+
+   int n = max(num_procs/solver_ranks,1);
+
+   if (num_procs%n !=0)
+   {
+      if (Mpi::Root())
+      {
+         mfem::out << "Changing partitioning of MPI ranks:"
+                   << "Number of mpi ranks within the solve = 1"
+                   << endl;
+      }
+      n = 1;
+   }
+
+   int row_color = myid / n; // Determine color based on row
+   int col_color = myid % n; // Determine color based on col
+
+   MPI_Comm row_comm;
+   MPI_Comm_split(MPI_COMM_WORLD, row_color, myid, &row_comm);
+   int row_rank, row_size;
+   MPI_Comm_rank(row_comm, &row_rank);
+   MPI_Comm_size(row_comm, &row_size);
+
+   MPI_Comm col_comm;
+   MPI_Comm_split(MPI_COMM_WORLD, col_color, myid, &col_comm);
+   int col_rank, col_size;
+   MPI_Comm_rank(col_comm, &col_rank);
+   MPI_Comm_size(col_comm, &col_size);
+
+   if (Mpi::Root())
+   {
+      mfem::out << "Total number of ranks = " << num_procs << endl;
+      mfem::out << "Number of independent parallel solves = " << col_size << endl;
+      mfem::out << "Number of mpi ranks within each solve = " << row_size << endl;
    }
 
    Array<double> coeffs, poles;
@@ -108,13 +146,13 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
 
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   ParMesh pmesh(row_comm, mesh);
    mesh.Clear();
 
    // 5. Define a finite element space on the mesh.
    FiniteElementCollection *fec = new H1_FECollection(order, dim);
    ParFiniteElementSpace fespace(&pmesh, fec);
-   if (myid == 0)
+   if (Mpi::Root())
    {
       cout << "Number of finite element unknowns: "
            << fespace.GetTrueVSize() << endl;
@@ -139,21 +177,22 @@ int main(int argc, char *argv[])
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream xout;
-   socketstream uout;
    if (visualization)
    {
       xout.open(vishost, visport);
       xout.precision(8);
-      uout.open(vishost, visport);
-      uout.precision(8);
    }
 
-   for (int i = 0; i<coeffs.Size(); i++)
+   int my_coeff_size = coeffs.Size()/col_size;
+   int ibeg = col_rank*my_coeff_size;
+   int iend = (col_rank == col_size-1) ? coeffs.Size() : ibeg+my_coeff_size;
+
+   for (int i = ibeg; i<iend; i++)
    {
       // 9. Set up the linear form b(.) for integer-order PDE solve.
       ParLinearForm b(&fespace);
-      ProductCoefficient cf(coeffs[i], f);
-      b.AddDomainIntegrator(new DomainLFIntegrator(cf));
+      ProductCoefficient c_i(coeffs[i], f);
+      b.AddDomainIntegrator(new DomainLFIntegrator(c_i));
       b.Assemble();
 
       // 10. Define GridFunction for integer-order PDE solve.
@@ -163,8 +202,8 @@ int main(int argc, char *argv[])
       // 11. Set up the bilinear form a(.,.) for integer-order PDE solve.
       ParBilinearForm a(&fespace);
       a.AddDomainIntegrator(new DiffusionIntegrator(one));
-      ConstantCoefficient c2(-poles[i]);
-      a.AddDomainIntegrator(new MassIntegrator(c2));
+      ConstantCoefficient d_i(-poles[i]);
+      a.AddDomainIntegrator(new MassIntegrator(d_i));
       a.Assemble();
 
       // 12. Assemble the bilinear form and the corresponding linear system.
@@ -176,10 +215,10 @@ int main(int argc, char *argv[])
       HypreBoomerAMG * prec = new HypreBoomerAMG;
       prec->SetPrintLevel(-1);
 
-      CGSolver cg(MPI_COMM_WORLD);
+      CGSolver cg(row_comm);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
-      cg.SetPrintLevel(3);
+      cg.SetPrintLevel(0);
       cg.SetPreconditioner(*prec);
       cg.SetOperator(*A);
       cg.Mult(B, X);
@@ -194,10 +233,27 @@ int main(int argc, char *argv[])
       // 16. Send the solutions by socket to a GLVis server.
       if (visualization)
       {
-         xout << "parallel " << num_procs << " " << myid << "\n";
-         xout << "solution\n" << pmesh << x << flush;
-         uout << "parallel " << num_procs << " " << myid << "\n";
-         uout << "solution\n" << pmesh << u << flush;
+         ostringstream oss;
+         oss << "Solution x for d_"<<i<<" = " << -poles[i]
+             << " and c_"<<i<<" = " << coeffs[i];
+         xout << "parallel " << row_size << " " << row_rank << "\n";
+         xout << "solution\n" << pmesh << x
+              << "window_title '" << oss.str() << "'" << flush;
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, u.GetData(), u.Size(),
+                 MPI_DOUBLE, MPI_SUM,col_comm);
+
+   if (visualization)
+   {
+      if (col_rank == 0)
+      {
+         socketstream uout(vishost, visport);
+         uout.precision(8);
+         uout << "parallel " << row_size << " " << row_rank << "\n";
+         uout << "solution\n" << pmesh << u
+              << "window_title 'Final Solution u'"
+              << flush;
       }
    }
 
