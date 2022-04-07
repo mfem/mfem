@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
    bool checkpt=false;
    bool visualization = true;
    int vis_steps = 10;
-   int restart_count=0;
+   int restart_count=0;                 // restart_count for multiple restart
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
    if (myid == 0) args.PrintOptions(cout);
 
    if (t<1e-10){
-       cout<<"In restart time should be updated!"<<endl;
+       if (myid == 0) cout<<"In restart time should be updated!"<<endl;
        MPI_Finalize();
        return 3;
    }
@@ -289,7 +289,7 @@ int main(int argc, char *argv[])
          return 3;
    }
 
-   //++++Load the mesh from checkpoint.    
+   //---- Load the mesh from checkpoint ----
    string mesh_name, phi_name, psi_name, w_name;
    string rs = to_string(restart_count-1);
    ifstream *ifs;
@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
        ifs = new ifstream(MakeParFilename("restart-mesh.", myid));
    }
    else{
-       string mesh_name = "restart-mesh" + rs;
+       string mesh_name = "restart-mesh" + rs + ".";
        ifs = new ifstream(MakeParFilename(mesh_name, myid));
    }
    MFEM_VERIFY(ifs->good(), "Mesh file not found.");
@@ -342,7 +342,7 @@ int main(int argc, char *argv[])
    fe_offset3[2] = 2*fe_size;
    fe_offset3[3] = 3*fe_size;
 
-   BlockVector vx(fe_offset3), vxold(fe_offset3);
+   BlockVector vx(fe_offset3), vxold(fe_offset3), vk;
    ParGridFunction *phi, *psi, *w, j(&fespace); 
 
    // load mesh based on restart_count 0: start from an amr solver
@@ -360,9 +360,9 @@ int main(int argc, char *argv[])
        ifs3 = new ifstream(MakeParFilename("restart-w."  , myid));
    }
    else{
-       string phi_name = "restart-phi" + rs;
-       string psi_name = "restart-psi" + rs;
-       string   w_name = "restart-w"   + rs;
+       string phi_name = "restart-phi" + rs + ".";
+       string psi_name = "restart-psi" + rs + ".";
+       string   w_name = "restart-w"   + rs + ".";
        ifs1 = new ifstream(MakeParFilename(psi_name, myid));
        ifs2 = new ifstream(MakeParFilename(phi_name, myid));
        ifs3 = new ifstream(MakeParFilename(  w_name, myid));
@@ -389,7 +389,6 @@ int main(int argc, char *argv[])
    phi->MakeTRef(&fespace, vx, fe_offset3[0]);
    psi->MakeTRef(&fespace, vx, fe_offset3[1]);
      w->MakeTRef(&fespace, vx, fe_offset3[2]);
-
 
    //++++Initialize the MHD operator, the GLVis visualization    
    ResistiveMHDOperator oper(fespace, ess_bdr, visc, resi, use_petsc, use_factory);
@@ -446,10 +445,11 @@ int main(int argc, char *argv[])
        levels3=par_ref_levels+3, 
        levels4=par_ref_levels+4, 
        levels5=par_ref_levels+5,
+       levels6=par_ref_levels+6,
        levels7=par_ref_levels+7;
    ThresholdRefiner refiner(*estimator_used);
    refiner.SetTotalErrorFraction(err_fraction);   // here 0.0 means we use local threshold; default is 0.5
-   refiner.SetTotalErrorGoal(0.0);       // this is likely not used in the current example
+   refiner.SetTotalErrorGoal(0.0);       // this error goal is likely not used in the current example
    refiner.SetLocalErrorGoal(ltol_amr);  // local error goal (stop criterion)
    refiner.SetTotalErrorNormP(error_norm);
    refiner.SetMaxElements(10000000);
@@ -577,7 +577,7 @@ int main(int argc, char *argv[])
 
    //++++recover pressure and vector fields++++
    ParFiniteElementSpace *vfes;
-   ParGridFunction *vel, *mag, *gradP, *BgradB, *gradBP, *gfv, *pre=NULL;
+   ParGridFunction *vel, *mag, *gradP, *BgradB, *gradBP, *gfv, *pre=NULL, *dpsidt=NULL;
    ParMixedBilinearForm *grad, *div;
    ParBilinearForm *a;
    ParNonlinearForm *convect;
@@ -605,6 +605,7 @@ int main(int argc, char *argv[])
       gradBP = new ParGridFunction(vfes);
       gfv = new ParGridFunction(vfes);
       pre = new ParGridFunction(&fespace);
+      dpsidt = new ParGridFunction(&fespace);
       grad = new ParMixedBilinearForm(&fespace, vfes);
       div = new ParMixedBilinearForm(vfes, &fespace);
       convect = new ParNonlinearForm(vfes);
@@ -731,6 +732,7 @@ int main(int argc, char *argv[])
       zscalar.Add(1.0, zscalar2);
       K_pcg->Mult(zscalar, zscalar2);
       pre->SetFromTrueDofs(zscalar2);
+      *dpsidt = 0.0;
 
       //compute grad P
       zv=0.0;
@@ -774,20 +776,21 @@ int main(int argc, char *argv[])
           pd->RegisterField("V", vel);
           pd->RegisterField("B", mag);
           pd->RegisterField("pre", pre);
+          pd->RegisterField("dpsidt", dpsidt);
           pd->RegisterField("grad pre", gradP);
           pd->RegisterField("grad mag pre", gradBP);
           pd->RegisterField("B.gradB", BgradB);
       }
       if(compute_tau){
-        //visualize Tau value
-        MyCoefficient velocity(phi, 2);
-        computeTau = new ParLinearForm(&pw_const_fes);
-        //need to multiply a time-step factor for SDIRK(2)!!
-        computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt, resi, velocity, itau_));
-        computeTau->Assemble(); 
-        tauv=computeTau->ParallelAssemble();
-        tau_value.SetFromTrueDofs(*tauv);
-        pd->RegisterField("Tau", &tau_value);
+          //visualize Tau value
+          MyCoefficient velocity(phi, 2);
+          computeTau = new ParLinearForm(&pw_const_fes);
+          //need to multiply a time-step factor for SDIRK(2)!!
+          computeTau->AddDomainIntegrator(new CheckTauIntegrator(0.29289321881*dt, resi, velocity, itau_));
+          computeTau->Assemble(); 
+          tauv=computeTau->ParallelAssemble();
+          tau_value.SetFromTrueDofs(*tauv);
+          pd->RegisterField("Tau", &tau_value);
       }
 
       pd->SetLevelsOfDetail(order);
@@ -851,15 +854,13 @@ int main(int argc, char *argv[])
           dt_real*=0.25;
       }
 
-      if ((ti % ref_steps) == 0)
-      {
+      if ((ti % ref_steps) == 0){
           refineMesh=true;
           refiner.Reset();
           derefineMesh=true;
           derefiner.Reset();
       }
-      else
-      {
+      else{
           refineMesh=false;
           derefineMesh=false;
       }
@@ -870,7 +871,7 @@ int main(int argc, char *argv[])
       //---the main solve step---
       ode_solver->Step(vx, t, dt_real);
 
-      //reduce time step by half if problem is too stiff
+      //---reduce time step by half if it is too stiff---
       if (!oper.getConverged())
       {
          t=told;
@@ -938,7 +939,16 @@ int main(int argc, char *argv[])
            }
            meshChanged=true;
 
-           AMRUpdateTrue(vx, fe_offset3, *phi, *psi, *w, j, pre);
+           // this will update dpsidt through AMRupdate (only needed in the first its)
+           if (compute_pressure && its==0){
+               // Get dpsi/dt function
+               ode_solver->GetStateVector(0, vk);
+               int sc = fespace.TrueVSize();
+               Vector v_dpsidt(vk.GetData() +  sc, sc);
+               dpsidt->SetFromTrueDofs(v_dpsidt);
+           }
+
+           AMRUpdateTrue(vx, fe_offset3, *phi, *psi, *w, j, pre, dpsidt);
            oper.UpdateGridFunction();
            if (compute_pressure) {
                vfes->Update();
@@ -968,7 +978,7 @@ int main(int argc, char *argv[])
            }
 
            //---Update solutions after rebalancing---
-           AMRUpdateTrue(vx, fe_offset3, *phi, *psi, *w, j, pre);
+           AMRUpdateTrue(vx, fe_offset3, *phi, *psi, *w, j, pre, dpsidt);
            oper.UpdateGridFunction();
            if (compute_pressure) {
                vfes->Update();
@@ -1021,8 +1031,18 @@ int main(int argc, char *argv[])
              }
              meshChanged=true;
 
+             // Update dpsidt if it is not updated in refiner 
+             // It is needed only when refine is false and derefine is true (very rare)
+             if (!(refiner.Refined()) && its==0){
+                // Get dpsi/dt function
+                ode_solver->GetStateVector(0, vk);
+                int sc = fespace.TrueVSize();
+                Vector v_dpsidt(vk.GetData() +  sc, sc);
+                dpsidt->SetFromTrueDofs(v_dpsidt);
+             }
+
              //---Update solutions first---
-             AMRUpdateTrue(vx, fe_offset3, *phi, *psi, *w, j, pre);
+             AMRUpdateTrue(vx, fe_offset3, *phi, *psi, *w, j, pre, dpsidt);
              oper.UpdateGridFunction();
              if (compute_pressure) {
                 vfes->Update();
@@ -1053,7 +1073,7 @@ int main(int argc, char *argv[])
              }
 
              //---Update solutions after rebalancing---
-             AMRUpdateTrue(vx, fe_offset3, *phi, *psi, *w, j, pre);
+             AMRUpdateTrue(vx, fe_offset3, *phi, *psi, *w, j, pre, dpsidt);
              oper.UpdateGridFunction();
              if (compute_pressure) {
                 vfes->Update();
@@ -1090,8 +1110,7 @@ int main(int argc, char *argv[])
       }
       //----------------------------AMR---------------------------------
 
-      if ((ti % check_steps) == 0 && checkpt)
-      {
+      if ((ti % check_steps) == 0 && checkpt){
          phi->SetFromTrueDofs(vx.GetBlock(0));
          psi->SetFromTrueDofs(vx.GetBlock(1));
          w->SetFromTrueDofs(vx.GetBlock(2));
@@ -1109,6 +1128,14 @@ int main(int argc, char *argv[])
 
            if(compute_pressure && paraview)
            {
+              if (!refineMesh){
+                // Get dpsi/dt function
+                ode_solver->GetStateVector(0, vk);
+                int sc = fespace.TrueVSize();
+                Vector v_dpsidt(vk.GetData() +  sc, sc);
+                dpsidt->SetFromTrueDofs(v_dpsidt);
+              }
+
               if (!vfes_match){
                 delete grad;     
                 delete div ;     
@@ -1364,6 +1391,7 @@ int main(int argc, char *argv[])
       delete gfv;       
       delete zLFscalar; 
       delete pre;      
+      delete dpsidt;      
       delete grad;     
       delete div ;     
       delete convect;  
