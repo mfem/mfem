@@ -21,6 +21,9 @@ namespace mfem
 
 namespace ceed
 {
+
+/** @brief This class wraps a `ceed::PAIntegrator` or `ceed::MFIntegrator` to
+    support mixed finite element spaces. */
 template <typename CeedInteg>
 class MixedIntegrator : public ceed::Operator
 {

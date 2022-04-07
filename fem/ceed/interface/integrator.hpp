@@ -95,24 +95,46 @@ public:
         qdata(nullptr), coeff(nullptr), build_ctx(nullptr), build_oper(nullptr)
    { }
 
-   /** This method assembles the PAIntegrator with the given CeedOperatorInfo
-       @a info, an mfem::FiniteElementSpace @a fes, an mfem::IntegrationRule
-       @a ir, and mfem::Coefficient or mfem::VectorCoefficient @a Q.
-       The CeedOperatorInfo type is expected to inherit from OperatorInfo and
-       contain a Context type relevant to the qFunctions. */
+   /** @brief This method assembles the `PAIntegrator` with the given
+       `CeedOperatorInfo` @a info, an `mfem::FiniteElementSpace` @a fes, an
+       `mfem::IntegrationRule` @a ir, and `mfem::Coefficient` or
+       `mfem::VectorCoefficient` @a Q.
+       The `CeedOperatorInfo` type is expected to inherit from `OperatorInfo`,
+       and contain a `Context` type relevant to the qFunctions.
+
+       @param[in] info is the structure describing the CeedOperator to assemble.
+       @param[in] fes is the finite element space.
+       @param[in] ir is the integration rule for the operator.
+       @param[in] Q is the coefficient from the `Integrator`. */
    template <typename CeedOperatorInfo, typename CoeffType>
    void Assemble(CeedOperatorInfo &info,
                  const mfem::FiniteElementSpace &fes,
-                 const mfem::IntegrationRule &irm,
+                 const mfem::IntegrationRule &ir,
                  CoeffType *Q)
    {
-      Assemble(info, fes, irm, fes.GetNE(), nullptr, Q);
+      Assemble(info, fes, ir, fes.GetNE(), nullptr, Q);
    }
 
+   /** @brief This method assembles the `PAIntegrator` with the given
+       `CeedOperatorInfo` @a info, an `mfem::FiniteElementSpace` @a fes, an
+       `mfem::IntegrationRule` @a ir, and `mfem::Coefficient` or
+       `mfem::VectorCoefficient` @a Q for the elements given by the indices
+       @a indices.
+       The `CeedOperatorInfo` type is expected to inherit from `OperatorInfo`,
+       and contain a `Context` type relevant to the qFunctions.
+
+       @param[in] info is the structure describing the CeedOperator to assemble.
+       @param[in] fes is the finite element space.
+       @param[in] ir is the integration rule for the operator.
+       @param[in] nelem The number of elements.
+       @param[in] indices The indices of the elements of same type in the
+                          `FiniteElementSpace`. If `indices == nullptr`, assumes
+                          that the `FiniteElementSpace` is not mixed.
+       @param[in] Q is the coefficient from the `Integrator`. */
    template <typename CeedOperatorInfo, typename CoeffType>
    void Assemble(CeedOperatorInfo &info,
                  const mfem::FiniteElementSpace &fes,
-                 const mfem::IntegrationRule &irm,
+                 const mfem::IntegrationRule &ir,
                  int nelem,
                  const int* indices,
                  CoeffType *Q)
@@ -121,7 +143,7 @@ public:
       mfem::Mesh &mesh = *fes.GetMesh();
       MFEM_VERIFY(!(!indices && mesh.GetNumGeometries(mesh.Dimension()) > 1),
                   "Use ceed::MixedIntegrator on mixed meshes.");
-      InitCoefficient(Q, mesh, irm, nelem, indices, coeff, info.ctx);
+      InitCoefficient(Q, mesh, ir, nelem, indices, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
       std::string build_func = const_coeff ? info.build_func_const
                                : info.build_func_quad;
@@ -136,11 +158,11 @@ public:
       CeedInt dim = mesh.SpaceDimension(), vdim = fes.GetVDim();
 
       mesh.EnsureNodes();
-      InitBasisAndRestriction(fes, irm, nelem, indices, ceed, &basis, &restr);
+      InitBasisAndRestriction(fes, ir, nelem, indices, ceed, &basis, &restr);
 
       const mfem::FiniteElementSpace *mesh_fes = mesh.GetNodalFESpace();
       MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-      InitBasisAndRestriction(*mesh_fes, irm, nelem, indices, ceed, &mesh_basis,
+      InitBasisAndRestriction(*mesh_fes, ir, nelem, indices, ceed, &mesh_basis,
                               &mesh_restr);
 
       CeedInt nqpts;
@@ -188,7 +210,7 @@ public:
       CeedOperatorCreate(ceed, build_qfunc, NULL, NULL, &build_oper);
       if (GridCoefficient *gridCoeff = dynamic_cast<GridCoefficient*>(coeff))
       {
-         InitBasisAndRestriction(*gridCoeff->gf.FESpace(), irm,
+         InitBasisAndRestriction(*gridCoeff->gf.FESpace(), ir,
                                  nelem, indices, ceed,
                                  &gridCoeff->basis,
                                  &gridCoeff->restr);
@@ -361,24 +383,46 @@ public:
         apply_qfunc(nullptr), node_coords(nullptr),
         qdata(nullptr), coeff(nullptr), build_ctx(nullptr) { }
 
-   /** This method assembles the MFIntegrator with the given CeedOperatorInfo
-       @a info, an mfem::FiniteElementSpace @a fes, an mfem::IntegrationRule
-       @a ir, and mfem::Coefficient or mfem::VectorCoefficient @a Q.
-       The CeedOperatorInfo type is expected to inherit from OperatorInfo and
-       contain a Context type relevant to the qFunctions. */
+   /** @brief This method assembles the `MFIntegrator` with the given
+       `CeedOperatorInfo` @a info, an `mfem::FiniteElementSpace` @a fes, an
+       `mfem::IntegrationRule` @a ir, and `mfem::Coefficient` or
+       `mfem::VectorCoefficient` @a Q.
+       The `CeedOperatorInfo` type is expected to inherit from `OperatorInfo`,
+       and contain a `Context` type relevant to the qFunctions.
+
+       @param[in] info is the structure describing the CeedOperator to assemble.
+       @param[in] fes is the finite element space.
+       @param[in] ir is the integration rule for the operator.
+       @param[in] Q is the coefficient from the `Integrator`. */
    template <typename CeedOperatorInfo, typename CoeffType>
    void Assemble(CeedOperatorInfo &info,
                  const mfem::FiniteElementSpace &fes,
-                 const mfem::IntegrationRule &irm,
+                 const mfem::IntegrationRule &ir,
                  CoeffType *Q)
    {
-      Assemble(info, fes, irm, fes.GetNE(), nullptr, Q);
+      Assemble(info, fes, ir, fes.GetNE(), nullptr, Q);
    }
 
+   /** @brief This method assembles the `MFIntegrator` with the given
+       `CeedOperatorInfo` @a info, an `mfem::FiniteElementSpace` @a fes, an
+       `mfem::IntegrationRule` @a ir, and `mfem::Coefficient` or
+       `mfem::VectorCoefficient` @a Q for the elements given by the indices
+       @a indices.
+       The `CeedOperatorInfo` type is expected to inherit from `OperatorInfo`,
+       and contain a `Context` type relevant to the qFunctions.
+
+       @param[in] info is the structure describing the CeedOperator to assemble.
+       @param[in] fes is the finite element space.
+       @param[in] ir is the integration rule for the operator.
+       @param[in] nelem The number of elements.
+       @param[in] indices The indices of the elements of same type in the
+                          `FiniteElementSpace`. If `indices == nullptr`, assumes
+                          that the `FiniteElementSpace` is not mixed.
+       @param[in] Q is the coefficient from the `Integrator`. */
    template <typename CeedOperatorInfo, typename CoeffType>
    void Assemble(CeedOperatorInfo &info,
                  const mfem::FiniteElementSpace &fes,
-                 const mfem::IntegrationRule &irm,
+                 const mfem::IntegrationRule &ir,
                  int nelem,
                  const int* indices,
                  CoeffType *Q)
@@ -387,7 +431,7 @@ public:
       Mesh &mesh = *fes.GetMesh();
       MFEM_VERIFY(!(!indices && mesh.GetNumGeometries(mesh.Dimension()) > 1),
                   "Use ceed::MixedIntegrator on mixed meshes.");
-      InitCoefficient(Q, mesh, irm, nelem, indices, coeff, info.ctx);
+      InitCoefficient(Q, mesh, ir, nelem, indices, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
       std::string apply_func = const_coeff ? info.apply_func_mf_const
                                : info.apply_func_mf_quad;
@@ -401,11 +445,11 @@ public:
       CeedInt dim = mesh.SpaceDimension(), vdim = fes.GetVDim();
 
       mesh.EnsureNodes();
-      InitBasisAndRestriction(fes, irm, nelem, indices, ceed, &basis, &restr);
+      InitBasisAndRestriction(fes, ir, nelem, indices, ceed, &basis, &restr);
 
       const mfem::FiniteElementSpace *mesh_fes = mesh.GetNodalFESpace();
       MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
-      InitBasisAndRestriction(*mesh_fes, irm, nelem, indices, ceed, &mesh_basis,
+      InitBasisAndRestriction(*mesh_fes, ir, nelem, indices, ceed, &mesh_basis,
                               &mesh_restr);
 
       CeedInt nqpts;
@@ -480,7 +524,7 @@ public:
       // coefficient
       if (GridCoefficient *gridCoeff = dynamic_cast<GridCoefficient*>(coeff))
       {
-         InitBasisAndRestriction(*gridCoeff->gf.FESpace(), irm, nelem, indices,
+         InitBasisAndRestriction(*gridCoeff->gf.FESpace(), ir, nelem, indices,
                                  ceed, &gridCoeff->basis, &gridCoeff->restr);
          CeedOperatorSetField(oper, "coeff", gridCoeff->restr,
                               gridCoeff->basis, gridCoeff->coeffVector);
