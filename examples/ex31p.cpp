@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    }
    ParFiniteElementSpace fespace(&pmesh, fec);
    HYPRE_Int size = fespace.GlobalTrueVSize();
-   if (mpi.Root()) { cout << "Number of H(Curl) unknowns: " << size << endl; }
+   if (myid == 0) { cout << "Number of H(Curl) unknowns: " << size << endl; }
 
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
    // 12. Solve the system AX=B using PCG with the AMS preconditioner from hypre
    if (use_ams)
    {
-      if (mpi.Root())
+      if (myid == 0)
       {
          cout << "Size of linear system: "
               << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
    else
 #ifdef MFEM_USE_SUPERLU
    {
-      if (mpi.Root())
+      if (myid == 0)
       {
          cout << "Size of linear system: "
               << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
    }
 #else
    {
-      if (mpi.Root()) { cout << "No solvers available." << endl; }
+      if (myid == 0) { cout << "No solvers available." << endl; }
       return 1;
    }
 #endif
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
    // 14. Compute and print the H(Curl) norm of the error.
    {
       double error = sol.ComputeHCurlError(&E, &CurlE);
-      if (mpi.Root())
+      if (myid == 0)
       {
          cout << "\n|| E_h - E ||_{H(Curl)} = " << error << '\n' << endl;
       }
