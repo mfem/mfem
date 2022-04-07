@@ -533,6 +533,34 @@ double RectifiedSheathPotential::Eval(ElementTransformation &T,
    return phi0avg(w_norm, volt_norm) * temp_val;
 }
 
+BFieldAngle::BFieldAngle(
+   const ParGridFunction & B,
+   const BlockVector & density,
+   const BlockVector & temp,
+   const ParFiniteElementSpace & L2FESpace,
+   const ParFiniteElementSpace & H1FESpace,
+   double omega,
+   const Vector & charges,
+   const Vector & masses,
+   bool realPart)
+   : SheathBase(density, temp, L2FESpace, H1FESpace,
+                omega, charges, masses, realPart),
+     B_(B)
+{}
+
+double BFieldAngle::Eval(ElementTransformation &T,
+                                      const IntegrationPoint &ip)
+{
+   Vector B(3);
+   B_.GetVectorValue(T, ip, B);
+   Vector nor(T.GetSpaceDim());
+   CalcOrtho(T.Jacobian(), nor);
+   double normag = nor.Norml2();
+   double bn = (B * nor)/(normag);
+
+   return bn;
+}
+
 SheathImpedance::SheathImpedance(const ParGridFunction & B,
                                  const BlockVector & density,
                                  const BlockVector & temp,
@@ -566,13 +594,12 @@ double SheathImpedance::Eval(ElementTransformation &T,
    double w_norm = omega_ / wpi; // Unitless
    double wci_norm = wci / wpi;  // Unitless
    double phi_mag = sqrt(pow(phi.real(), 2) + pow(phi.imag(), 2));
-   //double temp_val = 10.0; // 10 eV
    double debye_length = debye(temp_val, density_val); // Units: m
    Vector nor(T.GetSpaceDim());
    CalcOrtho(T.Jacobian(), nor);
    double normag = nor.Norml2();
    double bn = (B * nor)/(normag*Bmag); // Unitless
-
+    
    // Setting up normalized V_RF:
    // Jim's newest parametrization (Myra et al 2017):
    double volt_norm = (phi_mag)/temp_val ; // Unitless: V zero-to-peak

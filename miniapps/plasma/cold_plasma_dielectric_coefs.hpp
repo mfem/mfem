@@ -198,7 +198,6 @@ public:
 
    virtual void SetPotential(ParComplexGridFunction & potential)
    { potential_ = &potential; }
-
    double               EvalIonDensity(ElementTransformation &T,
                                        const IntegrationPoint &ip);
    double               EvalElectronTemp(ElementTransformation &T,
@@ -244,6 +243,31 @@ public:
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip);
 private:
+};
+
+class BFieldAngle : public SheathBase
+{
+public:
+    BFieldAngle(const ParGridFunction & B,
+                const BlockVector & density,
+                const BlockVector & temp,
+                const ParFiniteElementSpace & L2FESpace,
+                const ParFiniteElementSpace & H1FESpace,
+                double omega,
+                const Vector & charges,
+                const Vector & masses,
+                bool realPart);
+
+    BFieldAngle(const SheathBase &sb,
+                const ParGridFunction & B,
+                bool realPart)
+      : SheathBase(sb, realPart), B_(B)
+   {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+private:
+    const ParGridFunction & B_;
 };
 
 class SheathImpedance: public SheathBase

@@ -656,6 +656,7 @@ private:
    // ParGridFunction * temp_; // Temporary grid function (HCurl)
    // ParComplexGridFunction * phi_tmp_; // Complex sheath potential temporary (H1)
    ParGridFunction * rectPot_; // Real valued rectified potential (H1)
+   ParGridFunction * Bn_; // Real valued angle of B field into boundary(H1)
    // ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs1_; // RHS of magnetic field eqn (HCurl)
    ParComplexLinearForm   * rhs0_; // RHS of sheath potential eqn (H1)
