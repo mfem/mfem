@@ -60,7 +60,6 @@ int main(int argc, char *argv[])
    bool use_factory = false;
    bool useStab = false; //use a stabilized formulation (explicit case only)
    bool initial_refine = false;
-   bool yRange = false; //fix a refinement region along y direction
    bool compute_pressure = false;
    const char *petscrc_file = "";
 
@@ -80,6 +79,7 @@ int main(int argc, char *argv[])
    int deref_its=1;
    double t_refs=1e10;
    int    t_refs_steps=2;
+   bool   yRange = false; //fix a refinement region along y direction
    double error_norm=infinity();
    //----end of amr----
    
@@ -917,15 +917,13 @@ int main(int argc, char *argv[])
       }
 
       //update J and psi as it is needed in the refine or derefine step
-      if (refineMesh || derefineMesh)
-      {
+      if (refineMesh || derefineMesh){
           phi.SetFromTrueDofs(vx.GetBlock(0));
           psi.SetFromTrueDofs(vx.GetBlock(1));
           w.SetFromTrueDofs(vx.GetBlock(2));
       }
 
-      if (myid == 0)
-      {
+      if (myid == 0){
           global_size = fespace.GlobalTrueVSize();
           cout << "Number of total scalar unknowns: " << global_size << endl;
           cout << "step " << ti << ", t = " << t <<endl;
@@ -939,7 +937,6 @@ int main(int argc, char *argv[])
          if (myid == 0) cout<<"Refine mesh iterations..."<<endl;
 
          int its;
-         //here can we skip replacing??
          for (its=0; its<ref_its; its++)
          {
            oper.UpdateJ(vx, &j);
@@ -1038,7 +1035,7 @@ int main(int argc, char *argv[])
 
              // Update dpsidt if it is not updated in refiner 
              // It is needed only when refine is false and derefine is true (very rare)
-             if (!(refiner.Refined() && its==0){
+             if (!(refiner.Refined()) && its==0){
                 // Get dpsi/dt function
                 ode_solver->GetStateVector(0, vk);
                 int sc = fespace.TrueVSize();
@@ -1124,8 +1121,7 @@ int main(int argc, char *argv[])
 
            if(compute_pressure && paraview)
            {
-              if (!refineMesh)
-              {
+              if (!refineMesh){
                 // Get dpsi/dt function
                 ode_solver->GetStateVector(0, vk);
                 int sc = fespace.TrueVSize();
@@ -1480,7 +1476,6 @@ int main(int argc, char *argv[])
    delete dc;
    delete pd;
    delete estimator_used;
-
    oper.DestroyHypre();
 
    if (use_petsc) { MFEMFinalizePetsc(); }
