@@ -78,7 +78,14 @@ struct QuadCoefficient : VariableCoefficient
 
 /** @brief Initializes an mfem::ceed::Coefficient @a coeff_ptr from an
     mfem::Coefficient @a Q, an mfem::Mesh @a mesh, and an mfem::IntegrationRule
-    @a ir. */
+    @a ir.
+
+    @param[in] Q is the coefficient from the `Integrator`.
+    @param[in] mesh is the mesh.
+    @param[in] ir is the integration rule.
+    @param[out] coeff_ptr is the structure to store the coefficient for the
+                          `CeedOperator`.
+    @param[out] ctx is the Context associated to the QFunction. */
 template <typename Context>
 void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
                      const mfem::IntegrationRule &ir,
@@ -144,8 +151,15 @@ void InitCoefficient(mfem::Coefficient *Q, mfem::Mesh &mesh,
 
 
 /** @brief Initializes an mfem::ceed::Coefficient @a coeff_ptr from an
-    mfem::VectorCoefficient @a Q, an mfem::Mesh @a mesh, and an
-    mfem::IntegrationRule @a ir. */
+    mfem::VectorCoefficient @a VQ, an mfem::Mesh @a mesh, and an
+    mfem::IntegrationRule @a ir.
+
+    @param[in] VQ is the vector coefficient from the `Integrator`.
+    @param[in] mesh is the mesh.
+    @param[in] ir is the integration rule.
+    @param[out] coeff_ptr is the structure to store the coefficient for the
+                          `CeedOperator`.
+    @param[out] ctx is the Context associated to the QFunction. */
 template <typename Context>
 void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
                      const mfem::IntegrationRule &ir,
@@ -217,7 +231,18 @@ void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
 
 /** @brief Initializes an mfem::ceed::Coefficient @a coeff_ptr from an
     mfem::Coefficient @a Q, an mfem::Mesh @a mesh, and an mfem::IntegrationRule
-    @a ir. */
+    @a ir for the elements given by the indices @a indices.
+
+    @param[in] Q is the coefficient from the `Integrator`.
+    @param[in] mesh is the mesh.
+    @param[in] ir is the integration rule.
+    @param[in] nelem The number of elements.
+    @param[in] indices The indices of the elements of same type in the
+                       `FiniteElementSpace`. If `indices == nullptr`, assumes
+                       that the `FiniteElementSpace` is not mixed.
+    @param[out] coeff_ptr is the structure to store the coefficient for the
+                          `CeedOperator`.
+    @param[out] ctx is the Context associated to the QFunction. */
 template <typename Context>
 void InitCoefficientWithIndices(mfem::Coefficient *Q, mfem::Mesh &mesh,
                                 const mfem::IntegrationRule &ir,
@@ -297,7 +322,18 @@ void InitCoefficientWithIndices(mfem::Coefficient *Q, mfem::Mesh &mesh,
 
 /** @brief Initializes an mfem::ceed::Coefficient @a coeff_ptr from an
     mfem::VectorCoefficient @a Q, an mfem::Mesh @a mesh, and an
-    mfem::IntegrationRule @a ir. */
+    mfem::IntegrationRule @a ir for the elements given by the indices @a indices.
+
+    @param[in] VQ is the vector coefficient from the `Integrator`.
+    @param[in] mesh is the mesh.
+    @param[in] ir is the integration rule.
+    @param[in] nelem The number of elements.
+    @param[in] indices The indices of the elements of same type in the
+                       `FiniteElementSpace`. If `indices == nullptr`, assumes
+                       that the `FiniteElementSpace` is not mixed.
+    @param[out] coeff_ptr is the structure to store the coefficient for the
+                          `CeedOperator`.
+    @param[out] ctx is the Context associated to the QFunction. */
 template <typename Context>
 void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
                                 const mfem::IntegrationRule &ir,

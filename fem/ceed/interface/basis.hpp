@@ -22,12 +22,27 @@ namespace ceed
 
 #ifdef MFEM_USE_CEED
 
+/** @brief Initialize a CeedBasis for non-mixed meshes.
+
+    @param[in] fes The finite element space.
+    @param[in] ir is the integration rule for the operator.
+    @param[in] ceed The Ceed object.
+    @param[out] basis The `CeedBasis` to initialize. */
 void InitBasis(const FiniteElementSpace &fes,
-               const IntegrationRule &irm,
+               const IntegrationRule &ir,
                Ceed ceed, CeedBasis *basis);
 
+/** @brief Initialize a CeedBasis for mixed meshes.
+
+    @param[in] fes The finite element space.
+    @param[in] ir is the integration rule for the operator.
+    @param[in] nelem The number of elements.
+    @param[in] indices The indices of the elements of same type in the
+                       `FiniteElementSpace`.
+    @param[in] ceed The Ceed object.
+    @param[out] basis The `CeedBasis` to initialize. */
 void InitBasisWithIndices(const FiniteElementSpace &fes,
-                          const IntegrationRule &irm,
+                          const IntegrationRule &ir,
                           int nelem,
                           const int* indices,
                           Ceed ceed, CeedBasis *basis);
