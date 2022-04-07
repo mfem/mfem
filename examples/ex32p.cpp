@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace_rt(&pmesh, fec_rt);
    HYPRE_Int size_nd = fespace_nd.GlobalTrueVSize();
    HYPRE_Int size_rt = fespace_rt.GlobalTrueVSize();
-   if (myid == 0)
+   if (Mpi::Root())
    {
       cout << "Number of H(Curl) unknowns: " << size_nd << endl;
       cout << "Number of H(Div) unknowns: " << size_rt << endl;
@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
          // closed surface.
          a.AddDomainIntegrator(new VectorFEMassIntegrator(epsilon));
          shift = 1.0;
-         if (myid == 0)
+         if (Mpi::Root())
          {
             cout << "Computing eigenvalues shifted by " << shift << endl;
          }
@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
 
          for (int i=0; i<nev; i++)
          {
-            if (myid == 0)
+            if (Mpi::Root())
             {
                cout << "Eigenmode " << i+1 << '/' << nev
                     << ", Lambda = " << eigenvalues[i] - shift << endl;
@@ -409,7 +409,7 @@ int main(int argc, char *argv[])
                MPI_Barrier(MPI_COMM_WORLD);
             }
             char c;
-            if (myid == 0)
+            if (Mpi::Root())
             {
                cout << "press (q)uit or (c)ontinue --> " << flush;
                cin >> c;
@@ -462,7 +462,7 @@ int main(int argc, char *argv[])
 
          for (int i=0; i<nev; i++)
          {
-            if (myid == 0)
+            if (Mpi::Root())
             {
                cout << "Eigenmode " << i+1 << '/' << nev
                     << ", Lambda = " << eigenvalues[i] - shift << endl;
@@ -566,7 +566,7 @@ int main(int argc, char *argv[])
                MPI_Barrier(MPI_COMM_WORLD);
             }
             char c;
-            if (myid == 0)
+            if (Mpi::Root())
             {
                cout << "press (q)uit or (c)ontinue --> " << flush;
                cin >> c;
@@ -592,7 +592,7 @@ int main(int argc, char *argv[])
 
          for (int i=0; i<nev; i++)
          {
-            if (myid == 0)
+            if (Mpi::Root())
             {
                cout << "Eigenmode " << i+1 << '/' << nev
                     << ", Lambda = " << eigenvalues[i] - shift << endl;
@@ -621,7 +621,7 @@ int main(int argc, char *argv[])
             MPI_Barrier(MPI_COMM_WORLD);
 
             char c;
-            if (myid == 0)
+            if (Mpi::Root())
             {
                cout << "press (q)uit or (c)ontinue --> " << flush;
                cin >> c;
