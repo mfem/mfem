@@ -3825,7 +3825,7 @@ public:
 
       double tau = tau_e(Te, z_i_, ni, lnLambda);
 
-      return 0.3 * (Te - Ti) * J_per_eV_ * me_kg_ * z_i_ * ni / (m_i_kg_ * tau);
+      return 3.0 * (Te - Ti) * J_per_eV_ * me_kg_ * z_i_ * ni / (m_i_kg_ * tau);
    }
 
    double Eval_dNi(ElementTransformation &T,
@@ -3844,7 +3844,7 @@ public:
       double dtau_dn = dtau_e_dni(Te, z_i_, ni, lnLambda);
       double dtau_dl = dtau_e_dlambda(Te, z_i_, ni, lnLambda);
 
-      double a = 0.3 * (Te - Ti) * J_per_eV_ * me_kg_ * z_i_ / m_i_kg_;
+      double a = 3.0 * (Te - Ti) * J_per_eV_ * me_kg_ * z_i_ / m_i_kg_;
 
       return a * (tau - ni * (dtau_dn + dtau_dl * dl)) / (tau * tau);
    }
@@ -3861,7 +3861,7 @@ public:
 
       double tau = tau_e(Te, z_i_, ni, lnLambda);
 
-      return -0.3 * J_per_eV_ * me_kg_ * z_i_ * ni / (m_i_kg_ * tau);
+      return -3.0 * J_per_eV_ * me_kg_ * z_i_ * ni / (m_i_kg_ * tau);
    }
 
    double Eval_dTe(ElementTransformation &T,
@@ -3880,7 +3880,7 @@ public:
       double dtau_dT = dtau_e_dTe(Te, z_i_, ni, lnLambda);
       double dtau_dl = dtau_e_dlambda(Te, z_i_, ni, lnLambda);
 
-      double a = 0.3 * me_kg_ * z_i_ * ni * J_per_eV_ / m_i_kg_;
+      double a = 3.0 * me_kg_ * z_i_ * ni * J_per_eV_ / m_i_kg_;
 
       return a * (tau - (Te - Ti) * (dtau_dT + dtau_dl * dl)) / (tau * tau);
    }
