@@ -56,16 +56,12 @@ int main(int argc, char *argv[])
    args.AddOption(&dest_fe_order, "-do", "--dest_fe_order",
                   "Order of the dest finite elements");
    args.AddOption(&verbose, "-verb", "--verbose", "--no-verb", "--no-verbose",
-                  "Eanble/Disable verbose output");
+                  "Enable/Disable verbose output");
    args.AddOption(&use_vector_fe, "-vfe", "--use_vector_fe", "-no-vfe",
                   "--no-vector_fe", "Use vector finite elements");
-
    args.Parse();
    check_options(args);
 
-   ///////////////////////////////////////////////////
-
-   ///////////////////////////////////////////////////
    shared_ptr<Mesh> src_mesh, dest_mesh;
 
    ifstream imesh;
@@ -137,8 +133,6 @@ int main(int argc, char *argv[])
       dest_mesh->UniformRefinement();
    }
 
-   ///////////////////////////////////////////////////
-
    shared_ptr<FiniteElementCollection> src_fe_coll, dest_fe_coll;
 
    if (use_vector_fe)
@@ -161,8 +155,6 @@ int main(int argc, char *argv[])
 
    auto dest_fe =
       make_shared<FiniteElementSpace>(dest_mesh.get(), dest_fe_coll.get());
-
-   ///////////////////////////////////////////////////
 
    GridFunction src_fun(src_fe.get());
    GridFunction dest_fun(dest_fe.get());

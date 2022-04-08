@@ -33,7 +33,7 @@ void InitTransfer(int argc, char *argv[]);
 
 /*!
  * @brief Finalize the par_moonolith library.
- * @return Zero if everything has succeded.
+ * @return Zero if everything has succeeded.
  */
 int FinalizeTransfer();
 

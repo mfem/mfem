@@ -14,7 +14,7 @@
 //               domain methods for fluid-structure interaction or general
 //               multi-physics applications.
 //
-//               This particular example concerns discontinuos Galerkin FEM with
+//               This particular example concerns discontinuous Galerkin FEM with
 //               adaptive mesh refinement for parallel runtimes.
 
 #include "example_utils.hpp"
@@ -71,11 +71,9 @@ int main(int argc, char *argv[])
    args.AddOption(&dest_fe_order, "-do", "--dest_fe_order",
                   "Order of the dest finite elements");
    args.AddOption(&verbose, "-verb", "--verbose", "--no-verb", "--no-verbose",
-                  "Eanble/Disable verbose output");
-
+                  "Enable/Disable verbose output");
    args.AddOption(&max_iterations, "-m", "--max_iterations",
                   "Max number of solver iterations");
-
    args.Parse();
    check_options(args);
 
@@ -87,8 +85,6 @@ int main(int argc, char *argv[])
       FinalizeTransfer();
       return MPI_Finalize();
    }
-
-   ///////////////////////////////////////////////////
 
    ifstream imesh(source_mesh_file);
    shared_ptr<Mesh> src_mesh, dest_mesh;
@@ -153,8 +149,6 @@ int main(int argc, char *argv[])
    auto p_src_mesh = make_shared<ParMesh>(MPI_COMM_WORLD, *src_mesh);
    auto p_dest_mesh = make_shared<ParMesh>(MPI_COMM_WORLD, *dest_mesh);
 
-   ///////////////////////////////////////////////////
-
    auto src_fe_coll =
       make_shared<DG_FECollection>(source_fe_order, p_src_mesh->Dimension());
    auto src_fe =
@@ -164,8 +158,6 @@ int main(int argc, char *argv[])
       make_shared<DG_FECollection>(dest_fe_order, p_dest_mesh->Dimension());
    auto dest_fe =
       make_shared<ParFiniteElementSpace>(p_dest_mesh.get(), dest_fe_coll.get());
-
-   ///////////////////////////////////////////////////
 
    ParGridFunction src_fun(src_fe.get());
    FunctionCoefficient coeff(example_fun);

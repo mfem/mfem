@@ -679,7 +679,7 @@ static bool Assemble(moonolith::Communicator &comm,
    predicate->add(0, 1);
 
    MOONOLITH_EVENT_BEGIN("create_adapters");
-   /////////////////////////////////////////////////////////////////////////////
+
    std::shared_ptr<NTreeT> tree = NTreeT::New(predicate, maxNElements, maxDepth);
    tree->reserve(n_elements);
 
@@ -707,7 +707,7 @@ static bool Assemble(moonolith::Communicator &comm,
    }
 
    tree->root()->bound().static_bound().enlarge(1e-6);
-   /////////////////////////////////////////////////////////////////////////////
+
    MOONOLITH_EVENT_END("create_adapters");
 
    // Just to have an indexed-storage
@@ -824,8 +824,9 @@ static bool Assemble(moonolith::Communicator &comm,
    return true;
 }
 
-static void add_matrix(const Array<int> &destination_vdofs, const Array<int> &source_vdofs, const DenseMatrix &elem_mat, moonolith::SparseMatrix<double> &mat_buffer){
-
+static void add_matrix(const Array<int> &destination_vdofs, const Array<int> &source_vdofs,
+                       const DenseMatrix &elem_mat, moonolith::SparseMatrix<double> &mat_buffer)
+{
    for (int i = 0; i < destination_vdofs.Size(); ++i)
    {
       long dof_I = destination_vdofs[i];
@@ -856,7 +857,7 @@ static void add_matrix(const Array<int> &destination_vdofs, const Array<int> &so
 }
 
 std::shared_ptr<HypreParMatrix> convert_to_hypre_matrix(
-   const std::vector<moonolith::Integer> &destination_ranges, 
+   const std::vector<moonolith::Integer> &destination_ranges,
     HYPRE_BigInt *s_offsets,
     HYPRE_BigInt *m_offsets,
    moonolith::SparseMatrix<double> &mat_buffer)  {
@@ -928,17 +929,13 @@ Assemble(moonolith::Communicator &comm,
       return false;
    }
 
-   //////////////////////////////////////////////////
    Array<int> source_vdofs, destination_vdofs;
    DenseMatrix elemmat;
    DenseMatrix cumulative_elemmat;
    IntegrationRule src_ir;
    IntegrationRule dest_ir;
-   //////////////////////////////////////////////////
 
    double local_element_matrices_sum = 0.0;
-
-   /////////////////////////////////////////////////
 
    const auto m_global_n_dofs = source->GlobalVSize();
    auto *m_offsets = source->GetDofOffsets();
@@ -1071,7 +1068,7 @@ Assemble(moonolith::Communicator &comm,
                    moonolith::MPIMax());
 
    pmat = convert_to_hypre_matrix(
-      destination_ranges, 
+      destination_ranges,
       s_offsets,
        m_offsets,
       mat_buffer);
@@ -1148,7 +1145,7 @@ bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
    auto &P_destination = *impl_->destination->Dof_TrueDof_Matrix();
 
    impl_->ensure_solver();
-   
+
    // BlockILU prec(D);
    // impl_->solver->SetPreconditioner(prec);
 
@@ -1157,7 +1154,7 @@ bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
    if(verbose) {
       impl_->solver->SetPrintLevel(3);
    }
-   
+
    Vector P_x_src_fun(B.Width());
    P_source.MultTranspose(src_fun, P_x_src_fun);
 
@@ -1174,7 +1171,7 @@ bool ParMortarAssembler::Apply(const ParGridFunction &src_fun,
    P_destination.Mult(R_x_dest_fun, dest_fun);
 
    dest_fun.Update();
-   
+
    // Sanity check!
    int converged = impl_->solver->GetFinalNorm() < 1e-5;
    MPI_Allreduce(MPI_IN_PLACE, &converged, 1, MPI_INT, MPI_MIN, impl_->comm);
@@ -1285,4 +1282,5 @@ bool ParMortarAssembler::Update()
 
    return true;
 }
+
 } // namespace mfem

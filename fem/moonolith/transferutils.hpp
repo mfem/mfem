@@ -20,7 +20,7 @@ namespace mfem
 {
 
 // These methods are to be used exclusively inside the routines inside the
-// transfer functionalties
+// transfer functionalities
 namespace internal
 {
 

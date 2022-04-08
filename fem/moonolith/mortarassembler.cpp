@@ -191,10 +191,10 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
       return false;
    }
 
-   //////////////////////////////////////////////////
+
    IntegrationRule source_ir;
    IntegrationRule destination_ir;
-   //////////////////////////////////////////////////
+
    int skip_zeros = 1;
    B = make_shared<SparseMatrix>(impl_->destination->GetNDofs(),
                                  impl_->source->GetNDofs());
@@ -211,7 +211,6 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    Array<int> source_vdofs, destination_vdofs;
    DenseMatrix elemmat;
    DenseMatrix cumulative_elemmat;
-   //////////////////////////////////////////////////
    double local_element_matrices_sum = 0.0;
 
    long n_intersections = 0;
@@ -225,7 +224,7 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
    }
 
    bool intersected = false;
-   for (auto it = begin(pairs); it != end(pairs); /*inside*/)
+   for (auto it = begin(pairs); it != end(pairs); /* inside */)
    {
       const int source_index = *it++;
       const int destination_index = *it++;
@@ -244,7 +243,7 @@ bool MortarAssembler::Assemble(std::shared_ptr<SparseMatrix> &B)
       const int dest_order = dest_order_mult * destination_fe.GetOrder();
 
       int contraction_order = src_order + dest_order;
-    
+
      if(impl_->assemble_mass_and_coupling_together) {
         contraction_order = std::max(contraction_order, 2 * dest_order);
      }
@@ -353,7 +352,7 @@ bool MortarAssembler::Apply(const GridFunction &src_fun,
    if(impl_->verbose) {
       Dinv.SetPrintLevel(3);
    }
-   
+
    Dinv.SetOperator(*impl_->mass_matrix);
    Dinv.SetRelTol(1e-6);
    Dinv.SetMaxIter(80);
