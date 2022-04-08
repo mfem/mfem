@@ -3523,9 +3523,26 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
                                 dg_.sigma,
                                 dg_.kappa));
 
+   if (h1_fes_ != NULL)
+   {
+      if (cgblf_[index_] == NULL)
+      {
+         cgblf_[index_] = new ParBilinearForm(h1_fes_);
+      }
+      cgblf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
+   }
+
+   Array<int> ess_bdr(pmesh_.bdr_attributes.Max());
+   ess_bdr = 0;
+
    const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
    for (int i=0; i<dbc.Size(); i++)
    {
+      for (int j=0; j<dbc[i]->attr.Size(); ++j)
+      {
+         ess_bdr[dbc[i]->attr[j] - 1] = 1;
+      }
+
       bfbfi_marker_[index_].Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
                    *bfbfi_marker_[index_].Last());
@@ -3545,6 +3562,11 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
                                                                    dg_.sigma,
                                                                    dg_.kappa),
                                          *bfbfi_marker_[index_].Last());
+   }
+
+   if (h1_fes_ != NULL)
+   {
+      h1_fes_->GetEssentialTrueDofs(ess_bdr, cg_ess_tdof_list);
    }
 
    const Array<CoefficientByAttr*> & nbc = bcs_.GetNeumannBCs();
@@ -3608,9 +3630,26 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
                                 dg_.sigma,
                                 dg_.kappa));
 
+   if (h1_fes_ != NULL)
+   {
+      if (cgblf_[index_] == NULL)
+      {
+         cgblf_[index_] = new ParBilinearForm(h1_fes_);
+      }
+      cgblf_[index_]->AddDomainIntegrator(new DiffusionIntegrator(*dtDCoef));
+   }
+
+   Array<int> ess_bdr(pmesh_.bdr_attributes.Max());
+   ess_bdr = 0;
+
    const Array<CoefficientByAttr*> & dbc = bcs_.GetDirichletBCs();
    for (int i=0; i<dbc.Size(); i++)
    {
+      for (int j=0; j<dbc[i]->attr.Size(); ++j)
+      {
+         ess_bdr[dbc[i]->attr[j] - 1] = 1;
+      }
+
       bfbfi_marker_[index_].Append(new Array<int>);
       AttrToMarker(pmesh_.bdr_attributes.Max(), dbc[i]->attr,
                    *bfbfi_marker_[index_].Last());
@@ -3629,6 +3668,11 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
                                                                    dg_.sigma,
                                                                    dg_.kappa),
                                          *bfbfi_marker_[index_].Last());
+   }
+
+   if (h1_fes_ != NULL)
+   {
+      h1_fes_->GetEssentialTrueDofs(ess_bdr, cg_ess_tdof_list);
    }
 
    const Array<CoefficientByAttr*> & nbc = bcs_.GetNeumannBCs();
@@ -4100,6 +4144,15 @@ void DGTransportTDO::TransportOp::SetAdvectionTerm(StateVariableVecCoef
       new ConservativeConvectionIntegrator(*dtVCoef, 1.0));
    blf_[index_]->AddInteriorFaceIntegrator(new DGTraceIntegrator(*dtVCoef,
                                                                  1.0, -0.5));
+   if (h1_fes_ != NULL)
+   {
+      if (cgblf_[index_] == NULL)
+      {
+         cgblf_[index_] = new ParBilinearForm(h1_fes_);
+      }
+      cgblf_[index_]->AddDomainIntegrator(
+         new ConservativeConvectionIntegrator(*dtVCoef, 1.0));
+   }
    /*
    if (bc)
    {
@@ -4459,7 +4512,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 0) & 1)
    {
-      op_[0] = new NeutralDensityOp(mpi, dg, plasma, yGF, kGF,
+      op_[0] = new NeutralDensityOp(mpi, dg, plasma, h1_fes, yGF, kGF,
                                     bcs[0], bcs.GetCoupledBCs(),
                                     coefs.GetNeutralDensityCoefs(),
                                     coefs.GetCommonCoefs(), *B3Coef,
@@ -4497,7 +4550,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 2) & 1)
    {
-      op_[2] = new IonMomentumOp(mpi, dg, plasma, vfes, yGF, kGF,
+      op_[2] = new IonMomentumOp(mpi, dg, plasma, vfes, h1_fes, yGF, kGF,
                                  bcs[2], bcs.GetCoupledBCs(),
                                  coefs.GetIonMomentumCoefs(),
                                  coefs.GetCommonCoefs(), *B3Coef, DiPerp,
@@ -4554,7 +4607,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    */
    if ((op_flag >> 3) & 1)
    {
-      op_[3] = new IonTotalEnergyOp(mpi, dg, plasma, vfes, yGF, kGF,
+      op_[3] = new IonTotalEnergyOp(mpi, dg, plasma, vfes, h1_fes, yGF, kGF,
                                     bcs[3], bcs.GetCoupledBCs(),
                                     coefs.GetIonTotalEnergyCoefs(),
                                     coefs.GetCommonCoefs(), *B3Coef, XiPerp,
@@ -4573,7 +4626,8 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 4) & 1)
    {
-      op_[4] = new ElectronTotalEnergyOp(mpi, dg, plasma, vfes, yGF, kGF,
+      op_[4] = new ElectronTotalEnergyOp(mpi, dg, plasma, vfes, h1_fes,
+                                         yGF, kGF,
                                          bcs[4], bcs.GetCoupledBCs(),
                                          coefs.GetElectronTotalEnergyCoefs(),
                                          coefs.GetCommonCoefs(), *B3Coef, XePerp,
@@ -4849,6 +4903,7 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &r) const
 DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
                                                    const DGParams & dg,
                                                    const PlasmaParams & plasma,
+                                                   ParFiniteElementSpace & h1_fes,
                                                    ParGridFunctionArray & yGF,
                                                    ParGridFunctionArray & kGF,
                                                    const AdvectionDiffusionBC & bcs,
@@ -4861,7 +4916,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
                                                    int logging,
                                                    const string & log_prefix)
    : TransportOp(mpi, dg, plasma, 0, "Neutral Density", "Neutral Density",
-                 NULL, NULL, yGF, kGF, bcs, cbcs, cmncoefs, B3Coef,
+                 NULL, &h1_fes, yGF, kGF, bcs, cbcs, cmncoefs, B3Coef,
                  term_flag, vis_flag, logging, log_prefix),
      ndcoefs_(ndcoefs),
      DDefCoef_(neCoef_, vnBarCoef_, izCoef_, cxCoef_),
@@ -5367,6 +5422,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                                              const DGParams & dg,
                                              const PlasmaParams & plasma,
                                              ParFiniteElementSpace & vfes,
+                                             ParFiniteElementSpace & h1_fes,
                                              ParGridFunctionArray & yGF,
                                              ParGridFunctionArray & kGF,
                                              const AdvectionDiffusionBC & bcs,
@@ -5379,7 +5435,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                                              int logging,
                                              const string & log_prefix)
    : TransportOp(mpi, dg, plasma, 2, "Ion Parallel Momentum",
-                 "Ion Parallel Velocity", &vfes, NULL, yGF, kGF,
+                 "Ion Parallel Velocity", &vfes, &h1_fes, yGF, kGF,
                  bcs, cbcs, cmncoefs, B3Coef, term_flag, vis_flag,
                  logging, log_prefix),
      imcoefs_(imcoefs),
@@ -6118,7 +6174,7 @@ TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
               const std::string &eqn_name,
               const std::string &field_name,
               ParFiniteElementSpace & vfes,
-              ParFiniteElementSpace * h1_fes,
+              ParFiniteElementSpace & h1_fes,
               ParGridFunctionArray & yGF,
               ParGridFunctionArray & kGF,
               const AdvectionDiffusionBC & bcs,
@@ -6129,7 +6185,7 @@ TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
               int logging,
               const std::string & log_prefix)
    : TransportOp(mpi, dg, plasma, index, eqn_name, field_name,
-                 &vfes, NULL, yGF, kGF, bcs, cbcs, common_coefs, B3Coef,
+                 &vfes, &h1_fes, yGF, kGF, bcs, cbcs, common_coefs, B3Coef,
                  term_flag, vis_flag, logging, log_prefix),
      QiCoef_(plasma.z_i, plasma.m_i_kg, lnLambda_,
              niCoef_, TiCoef_, TeCoef_),
@@ -6185,6 +6241,7 @@ DGTransportTDO::IonTotalEnergyOp::
 IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                  const PlasmaParams & plasma,
                  ParFiniteElementSpace & vfes,
+                 ParFiniteElementSpace & h1_fes,
                  ParGridFunctionArray & yGF,
                  ParGridFunctionArray & kGF,
                  const AdvectionDiffusionBC & bcs,
@@ -6197,7 +6254,7 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                  int logging,
                  const std::string & log_prefix)
    : TotalEnergyOp(mpi, dg, plasma, 3, "Total Ion Energy", "Ion Temperature",
-                   vfes, NULL, yGF, kGF, bcs, cbcs, cmncoefs, B3Coef,
+                   vfes, h1_fes, yGF, kGF, bcs, cbcs, cmncoefs, B3Coef,
                    term_flag, vis_flag, logging, log_prefix),
      itecoefs_(itecoefs),
      ChiPerpConst_(ChiPerp),
@@ -6537,6 +6594,7 @@ DGTransportTDO::ElectronTotalEnergyOp::
 ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                       const PlasmaParams & plasma,
                       ParFiniteElementSpace & vfes,
+                      ParFiniteElementSpace & h1_fes,
                       ParGridFunctionArray & yGF,
                       ParGridFunctionArray & kGF,
                       const AdvectionDiffusionBC & bcs,
@@ -6550,7 +6608,7 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                       const std::string & log_prefix)
    : TotalEnergyOp(mpi, dg, plasma, 4, "Total Electron Energy",
                    "Electron Temperature",
-                   vfes, NULL, yGF, kGF, bcs, cbcs, cmncoefs, B3Coef,
+                   vfes, h1_fes, yGF, kGF, bcs, cbcs, cmncoefs, B3Coef,
                    term_flag, vis_flag, logging, log_prefix),
      etecoefs_(etecoefs),
      ChiPerpConst_(ChiPerp),
