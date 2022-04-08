@@ -3406,17 +3406,18 @@ public:
 
    The test problem only evolves the ion total energy with the ion
    density, ion parallel velocity and electron temperature remaining
-   constant at values of 1e19, 0, and 10 respectively.
+   constant at values set in the constructor.
 
-   The ion thermal parallel diffusion coefficient can be adjusted as
-   can the 'a' and 'b' factors in the Robin BC which is applied on the
-   right hand boundary. The Robin BC is defined as:
+   The ion thermal parallel diffusion coefficient can be adjusted as can the
+   'al', 'bl', 'ar', and 'br' factors in the Robin BC which is applied on the
+   'left' and 'right' hand boundaries. The Robin BC is defined as:
 
-      -qi.n + a Ti = b
+      -qi.{-1,0,0} + al Ti = bl
+      -qi.{ 1,0,0} + ar Ti = br
 
    Where the flux 'qi' is given by:
 
-      qi = - ni chi Grad Ti + (5/2 ni Ti + 1/2 mi ni vi^2) vi b_hat
+      qi = - ni chi kB Grad Ti + (5/2 ni kB Ti + 1/2 mi ni vi^2) vi b_hat
 
    The argument 'q' is the constant appearing in the temperature balance term:
 
@@ -3424,19 +3425,10 @@ public:
 
    Given by:
 
-      q = 3 (me ne) / (mi tau_e)
-
-   Three different cases are supported which are distinguished by the
-   choice of boundary condition on the left hand end of the 1D
-   domain. The first assumes that the total energy flux is zero, the
-   second that the thermal flux is zero, and finally that the same
-   Robin BC is applied on the left as on the right.
+      q = 3 (me ne) kB / (mi tau_e)
 */
 class RobinBCTestSol : public Coefficient
 {
-public:
-   enum LeftBCType { ZERO_ENERGY_FLUX, ZERO_THERMAL_FLUX, ROBIN};
-
 private:
    const double mi_;
    const double ni_;
@@ -3444,53 +3436,63 @@ private:
    const double vi_;
    const double chi_;
    const double q_;
-   const double a_;
-   const double b_;
+   const double al_, bl_;
+   const double ar_, br_;
 
    double alpha0_;
    double alpha1_;
    double kappa_;
    double nu_;
 
-   const LeftBCType type_;
-
    mutable Vector x_;
 
 public:
-   RobinBCTestSol(LeftBCType t, double mi, double ni, double Te, double vi,
-                  double chi, double q, double a, double b)
-      : mi_(mi * kg_per_amu_ / J_per_eV_), ni_(ni), Te_(Te), vi_(vi),
-        chi_(chi), q_(q), a_(a), b_(b),
-        type_(t), x_(2)
+   RobinBCTestSol(double mi, double ni, double Te, double vi, double chi,
+                  double q, double al, double bl, double ar, double br)
+      : mi_(mi * kg_per_amu_), ni_(ni), Te_(Te), vi_(vi),
+        chi_(chi), q_(q), al_(al), bl_(bl), ar_(ar), br_(br),
+        x_(2)
    {
       MFEM_VERIFY(mi_ > 0.0 && ni_ > 0.0 && chi_ > 0.0 && q_ > 0.0,
                   "RobinBCTestSol: parameters mi, ni, chi, and q "
                   "must be positive");
 
+      const double kB = J_per_eV_;
+      const double zeta = ni_ * vi_ * (2.5 * kB * Te_ + 0.5 * mi_ * vi_ * vi_);
 
       nu_ = 1.25 * vi_ / chi;
-      kappa_ = sqrt(q_ / (ni_ * chi_) + nu_ * nu_);
+      kappa_ = sqrt(q_ / (ni_ * chi_ * kB) + nu_ * nu_);
 
       const double ev0 = exp(-nu_);
       const double ev1 = exp(nu_);
-      const double ek = exp(kappa_);
-      const double ck = cosh(kappa_);
-      const double sk = sinh(kappa_);
+      const double ek0 = exp(-kappa_);
+      const double ek1 = exp(kappa_);
 
-      const double zeta = ni_ * vi_ * (2.5 * Te_ + 0.5 * mi_ * vi_ * vi_);
+      const double al0 = al_ - (kappa_ - nu_) * chi_;
+      const double al1 = al_ + (kappa_ + nu_) * chi_;
+      const double ar0 = ar_ - (kappa_ + nu_) * chi_;
+      const double ar1 = ar_ + (kappa_ - nu_) * chi_;
 
+      const double br0 = br_ - ar_ * ni_ * kB * Te_ + zeta;
+      const double bl0 = bl_ - al_ * ni_ * kB * Te_ - zeta;
+
+      const double d = kB * ni_ * (ar1 * al1 * ek1 - al0 * ar0 * ek0);
+
+      alpha0_ = (bl0 * ar1 * ek1 - br0 * al0 * ev0) / d;
+      alpha1_ = (br0 * al1 * ek1 - bl0 * ar0 * ev1) / d;
+      /*
       switch (type_)
       {
          case ZERO_ENERGY_FLUX:
          {
-            const double d = 2.0 * ((ni_ * nu_ * a_ + q_) * sk +
-                                    a_ * kappa_ * ni_ * ck);
+            const double d = 2.0 * ((ni_ * nu_ * kB * a_ + q_) * sk +
+                                    kB * a_ * kappa_ * ni_ * ck);
 
             alpha0_ = ((b_ + zeta - ni_ * Te_ * a_) * (kappa_ - nu_) * ev0 -
                        zeta * (a_ / chi_ + kappa_ - nu_) * ek) / d;
-            alpha1_ = (zeta * (ni_ * a_ * (kappa_ - nu_) - q_) * ev1 +
+            alpha1_ = (zeta * (ni_ * kB * a_ * (kappa_ - nu_) - q_) * ev1 +
                        q_ * (b_ + zeta - ni_ * Te_ * a_) * ek
-                      ) / (chi_ * ni_ * (kappa_ - nu_) * d);
+                      ) / (kB * chi_ * ni_ * (kappa_ - nu_) * d);
          }
          break;
          case ZERO_THERMAL_FLUX:
@@ -3515,6 +3517,7 @@ public:
                        ek * c1 * ((kappa_ + nu_) * chi_ + a_))/ d;
             break;
       }
+      */
    }
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
@@ -3667,12 +3670,10 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
    }
    else if (name == "RobinBCTestSol")
    {
-      int t;
-      double mi, ni, Te, vi, chi, q, a, b;
-      input >> t >> mi >> ni >> Te >> vi >> chi >> q >> a >> b;
-      RobinBCTestSol::LeftBCType type = (RobinBCTestSol::LeftBCType)t;
-      coef_idx = sCoefs.Append(new RobinBCTestSol(type, mi, ni, Te, vi,
-                                                  chi, q, a, b));
+      double mi, ni, Te, vi, chi, q, al, bl, ar, br;
+      input >> mi >> ni >> Te >> vi >> chi >> q >> al >> bl >> ar >> br;
+      coef_idx = sCoefs.Append(new RobinBCTestSol(mi, ni, Te, vi, chi, q,
+                                                  al, bl, ar, br));
    }
    else
    {
