@@ -25,9 +25,9 @@ namespace mfem
  * @brief This class implements the parallel variational transfer between finite
  * element spaces. Variational transfer has been shown to have better
  * approximation properties than standard interpolation. This facilities can be
- * used for supporting applications wich require the handling of non matching
+ * used for supporting applications which require the handling of non matching
  * meshes. For instance: General multi-physics problems, fluid structure
- * interaction, or even visulization of average quanties within subvolumes. This
+ * interaction, or even visualization of average quantities within subvolumes. This
  * particular code is also used with LLNL for large scale multilevel Monte Carlo
  * simulations.
  * This algorithm allows to perform quadrature in the intersection of elements
@@ -35,11 +35,11 @@ namespace mfem
  * It generates quadrature rules in the intersection which allows us to
  * integrate with to machine precision using the mfem::MortarIntegrator
  * interface. See https://doi.org/10.1137/15M1008361 for and in-depth
- * explanation. At this time curved elements are not supported. 
- * Convex non-affine elements are partially supported, however, high order (>3) 
- * finite element discretizations or nonlinear geometric transformations might 
- * generate undesidered oscillations. Discontinuos fields in general can only 
- * be mapped to order 0 destination fields. 
+ * explanation. At this time curved elements are not supported.
+ * Convex non-affine elements are partially supported, however, high order (>3)
+ * finite element discretizations or nonlinear geometric transformations might
+ * generate undesired oscillations. Discontinuous fields in general can only
+ * be mapped to order 0 destination fields.
  * For such cases localized versions of the projection will have to be developed.
  */
 class ParMortarAssembler
@@ -84,7 +84,7 @@ public:
     * the Update function is called before
     * @param src_fun the function associated with the source finite element space
     * @param[out] dest_fun the function associated with the destination finite element space
-    * @return true if the transfer was succesfull, fale otherwise.
+    * @return true if the transfer was successful, fail otherwise.
     */
    bool Apply(const ParGridFunction &src_fun, ParGridFunction &dest_fun);
 
@@ -115,21 +115,25 @@ public:
 
 
    /*!
-    * @brief Control if the Mass matrix is computed together with the coupling operator every time.
-    * @param value is set to true for computing the mass matrix operator with the coupling operator, false otherwise.
-    * The option is true by default, set to false if only the coupling operator is needed.
+    * @brief Control if the Mass matrix is computed together with the coupling
+    * operator every time.
+    * @param value is set to true for computing the mass matrix operator with
+    * the coupling operator, false otherwise.  The option is true by default,
+    * set to false if only the coupling operator is needed.
     */
    void SetAssembleMassAndCouplingTogether(const bool value);
 
 
    /*!
-    * @brief Control the maximum numbers of conjugate gradients steps for mass matrix inversion 
+    * @brief Control the maximum numbers of conjugate gradients steps for mass
+    * matrix inversion
     * @param max_solver_iterations the maximum number of iterations
     */
    void SetMaxSolverIterations(const int max_solver_iterations);
 
    /*!
-    * @brief Changes the solver to be used for solving the mass-matrix linear system
+    * @brief Changes the solver to be used for solving the mass-matrix linear
+    * system
     * @param solver new strategy
     */
    void SetSolver(const std::shared_ptr<IterativeSolver> &solver);

@@ -13,6 +13,7 @@
 
 namespace mfem
 {
+
 void L2MortarIntegrator::AssembleElementMatrix(
    const FiniteElement &trial, const IntegrationRule &trial_ir,
    ElementTransformation &trial_Trans, const FiniteElement &test,

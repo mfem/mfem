@@ -73,16 +73,13 @@ int main(int argc, char *argv[])
                   "Enable/Disable verbose output");
    args.AddOption(&use_vector_fe, "-vfe", "--use_vector_fe", "-no-vfe",
                   "--no-vector_fe", "Use vector finite elements (Experimental)");
-
    args.AddOption(&assemble_mass_and_coupling_together, "-act",
                   "--assemble_mass_and_coupling_together", "-no-act",
                   "--no-assemble_mass_and_coupling_together",
                   "Assemble mass and coupling operators together (better for non-affine elements)");
-
    args.Parse();
    check_options(args);
 
-   ///////////////////////////////////////////////////
    shared_ptr<Mesh> src_mesh, dest_mesh;
 
    ifstream imesh;
@@ -161,8 +158,6 @@ int main(int argc, char *argv[])
    auto p_src_mesh = make_shared<ParMesh>(MPI_COMM_WORLD, *src_mesh);
    auto p_dest_mesh = make_shared<ParMesh>(MPI_COMM_WORLD, *dest_mesh);
 
-   ///////////////////////////////////////////////////
-
    shared_ptr<FiniteElementCollection> src_fe_coll, dest_fe_coll;
 
    if (use_vector_fe)
@@ -185,8 +180,6 @@ int main(int argc, char *argv[])
 
    auto dest_fe =
       make_shared<ParFiniteElementSpace>(p_dest_mesh.get(), dest_fe_coll.get());
-
-   ///////////////////////////////////////////////////
 
    ParGridFunction src_fun(src_fe.get());
 

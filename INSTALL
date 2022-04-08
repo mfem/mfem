@@ -770,7 +770,7 @@ The specific libraries and their options are:
   Versions: RAJA >= 0.14.0.
 
 - Moonolith (optional), use when MFEM_USE_MOONOLITH = YES.
-  URL: https://bitbucket.org/zulianp/par_moonolith/
+  URL: https://bitbucket.org/zulianp/par_moonolith
   Options: MOONOLITH_DIR
   Versions: MOONOLITH >= 1.1.0.
 

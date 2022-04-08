@@ -381,19 +381,17 @@ endif()
 
 # Moonolith
 if(MFEM_USE_MOONOLITH)
-        find_package(ParMoonolith REQUIRED)
-        if(ParMoonolith_FOUND)
-            get_target_property(
-                MOONOLITH_INCLUDE_DIRS ParMoonolith::par_moonolith
-                INTERFACE_INCLUDE_DIRECTORIES)
-
-            set(MOONOLITH_FOUND TRUE)
-            set(MOONOLITH_LIBRARIES ParMoonolith::par_moonolith)
-            message(
-                STATUS
-                    "MOONOLITH_LIBRARIES=${MOONOLITH_LIBRARIES}, MOONOLITH_INCLUDE_DIRS=${MOONOLITH_INCLUDE_DIRS}"
-            )
-        endif()
+  find_package(ParMoonolith REQUIRED)
+  if(ParMoonolith_FOUND)
+    get_target_property(
+      MOONOLITH_INCLUDE_DIRS ParMoonolith::par_moonolith
+      INTERFACE_INCLUDE_DIRECTORIES)
+    set(MOONOLITH_FOUND TRUE)
+    set(MOONOLITH_LIBRARIES ParMoonolith::par_moonolith)
+    message(
+      STATUS
+      "MOONOLITH_LIBRARIES=${MOONOLITH_LIBRARIES}, MOONOLITH_INCLUDE_DIRS=${MOONOLITH_INCLUDE_DIRS}")
+  endif()
 endif()
 
 # HiOp optimizer
@@ -515,10 +513,10 @@ set(HEADERS "")
 set(MFEM_SOURCE_DIRS general linalg mesh fem)
 
 if(MFEM_USE_MOONOLITH)
-    set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} fem/moonolith)
-    if(MFEM_USE_MPI)
-      set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} fem/moonolith/parallel)
-    endif()
+  set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} fem/moonolith)
+  if(MFEM_USE_MPI)
+    set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} fem/moonolith/parallel)
+  endif()
 endif()
 
 foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
