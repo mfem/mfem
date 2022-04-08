@@ -1800,6 +1800,7 @@ MixedBilinearForm::~MixedBilinearForm()
       for (i = 0; i < bbfi.Size(); i++) { delete bbfi[i]; }
       for (i = 0; i < tfbfi.Size(); i++) { delete tfbfi[i]; }
       for (i = 0; i < btfbfi.Size(); i++) { delete btfbfi[i]; }
+      for (i = 0; i < fbfi.Size(); i++) { delete fbfi[i]; }
    }
    delete ext;
 }
