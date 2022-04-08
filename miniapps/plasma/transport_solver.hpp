@@ -5974,7 +5974,7 @@ private:
       void DisplayToGLVis();
    };
 
-   class TransportPrec : public BlockDiagonalPreconditioner
+   class TransportLeftPrec : public BlockDiagonalPreconditioner
    {
    private:
       Array<Operator*> diag_prec_;
@@ -5986,18 +5986,121 @@ private:
       TransPrecParams p_;
 
    public:
-      TransportPrec(const Array<int> &offsets, const TransPrecParams &p,
-                    CombinedOp &combOp);
-      ~TransportPrec();
+      TransportLeftPrec(const Array<int> &offsets, const TransPrecParams &p,
+                        CombinedOp &combOp);
+      ~TransportLeftPrec();
 
       virtual void SetOperator(const Operator &op);
    };
 
+   class RightPreconditioner
+   {
+   public:
+      virtual void Mult(const Vector&x, Vector &y) = 0;
+      virtual void InverseMult(const Vector&y, Vector &x) = 0;
+   };
+
+   class RightBlockDiagonalPreconditioner : public RightPreconditioner
+   {
+   protected:
+      const Array<int> &offsets_;
+      const Vector &scale_factors_;
+
+   public:
+      RightBlockDiagonalPreconditioner(const Array<int> &offsets,
+                                       const Vector &scale_factors)
+         :offsets_(offsets), scale_factors_(scale_factors)
+      {
+         MFEM_VERIFY(offsets.Size() - 1 == scale_factors.Size(),
+                     "RightBlockDiagonalPreconditioner: "
+                     "Incompatible numbers of offsets and scale factors.");
+      }
+
+      virtual void Mult(const Vector&x, Vector &y)
+      {
+         for (int i=0; i<offsets_.Size() - 1; i++)
+         {
+            for (int j=offsets_[i]; j<offsets_[i+1]; j++)
+            {
+               y[j] = scale_factors_[i] * x[j];
+            }
+         }
+      }
+
+      virtual void InverseMult(const Vector&y, Vector &x)
+      {
+         for (int i=0; i<offsets_.Size() - 1; i++)
+         {
+            for (int j=offsets_[i]; j<offsets_[i+1]; j++)
+            {
+               x[j] = y[j] / scale_factors_[i];
+            }
+         }
+      }
+   };
+
+   class TransportRightPrec : public RightBlockDiagonalPreconditioner
+   {
+   private:
+
+
+      // DGTransportTDO::CombinedOp & comb_op_;
+
+      // TransPrecParams p_;
+
+   public:
+      TransportRightPrec(const Array<int> &offsets,
+                         const Vector &scale_factors,
+                         const TransPrecParams &p,
+                         CombinedOp &combOp)
+         : RightBlockDiagonalPreconditioner(offsets, scale_factors)//, p_(p)
+      {}
+
+      ~TransportRightPrec() {}
+
+      // virtual void SetOperator(const Operator &op) {}
+   };
+
+   /// GMRES method with right preconditioner
+   class GMRESRPCSolver : public IterativeSolver
+   {
+   protected:
+      int m; // see SetKDim()
+
+      RightPreconditioner *r_prec;
+
+      static inline void GeneratePlaneRotation(double &dx, double &dy,
+                                               double &cs, double &sn);
+
+      static inline void ApplyPlaneRotation(double &dx, double &dy,
+                                            double &cs, double &sn);
+
+      static inline void Update(Vector &x, int k, DenseMatrix &h, Vector &s,
+                                Array<Vector*> &v);
+
+   public:
+      GMRESRPCSolver() { m = 50; r_prec = NULL; }
+
+#ifdef MFEM_USE_MPI
+      GMRESRPCSolver(MPI_Comm comm_)
+         : IterativeSolver(comm_) { m = 50; r_prec = NULL; }
+#endif
+
+      /// Set the number of iteration to perform between restarts, default is 50.
+      void SetKDim(int dim) { m = dim; }
+
+      virtual void SetRightPreconditioner(RightPreconditioner &pr)
+      { r_prec = &pr; }
+
+      virtual void Mult(const Vector &b, Vector &x) const;
+   };
+
    CombinedOp op_;
 
-   TransportPrec newton_op_prec_;
-   GMRESSolver   newton_op_solver_;
-   NewtonSolver  newton_solver_;
+   TransportLeftPrec  newton_op_l_prec_;
+   TransportRightPrec newton_op_r_prec_;
+   GMRESRPCSolver     newton_op_solver_;
+   NewtonSolver       newton_solver_;
 
    mutable Vector x_;
    mutable Vector y_;
@@ -6009,6 +6112,7 @@ public:
                   const PlasmaParams & plasma,
                   const SolverParams & tol,
                   const Vector &eqn_weights,
+                  const Vector &fld_weights,
                   ParFiniteElementSpace &fes,
                   ParFiniteElementSpace &vfes,
                   ParFiniteElementSpace &ffes,

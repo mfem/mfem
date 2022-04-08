@@ -2131,9 +2131,10 @@ void DGAdvectionDiffusionTDO::Update()
    X_.SetSize(fes_->GetTrueVSize());
 }
 
-DGTransportTDO::TransportPrec::TransportPrec(const Array<int> &offsets,
-                                             const TransPrecParams &p,
-                                             DGTransportTDO::CombinedOp &combOp)
+DGTransportTDO::
+TransportLeftPrec::TransportLeftPrec(const Array<int> &offsets,
+                                     const TransPrecParams &p,
+                                     DGTransportTDO::CombinedOp &combOp)
    : BlockDiagonalPreconditioner(offsets),
      diag_prec_(5),
 #ifdef MFEM_USE_SUPERLU
@@ -2148,7 +2149,7 @@ DGTransportTDO::TransportPrec::TransportPrec(const Array<int> &offsets,
 #endif
 }
 
-DGTransportTDO::TransportPrec::~TransportPrec()
+DGTransportTDO::TransportLeftPrec::~TransportLeftPrec()
 {
    for (int i=0; i<diag_prec_.Size(); i++)
    {
@@ -2159,7 +2160,7 @@ DGTransportTDO::TransportPrec::~TransportPrec()
    }
 }
 
-void DGTransportTDO::TransportPrec::SetOperator(const Operator &op)
+void DGTransportTDO::TransportLeftPrec::SetOperator(const Operator &op)
 {
    height = width = op.Height();
 
@@ -2322,12 +2323,303 @@ void DiscontPSCPreconditioner::Mult(const Vector &b, Vector &x) const
    x += x_z;
 }
 
+inline void DGTransportTDO::GMRESRPCSolver::
+GeneratePlaneRotation(double &dx, double &dy,
+                      double &cs, double &sn)
+{
+   if (dy == 0.0)
+   {
+      cs = 1.0;
+      sn = 0.0;
+   }
+   else if (fabs(dy) > fabs(dx))
+   {
+      double temp = dx / dy;
+      sn = 1.0 / sqrt( 1.0 + temp*temp );
+      cs = temp * sn;
+   }
+   else
+   {
+      double temp = dy / dx;
+      cs = 1.0 / sqrt( 1.0 + temp*temp );
+      sn = temp * cs;
+   }
+}
+
+inline void DGTransportTDO::GMRESRPCSolver::
+ApplyPlaneRotation(double &dx, double &dy, double &cs, double &sn)
+{
+   double temp = cs * dx + sn * dy;
+   dy = -sn * dx + cs * dy;
+   dx = temp;
+}
+
+inline void DGTransportTDO::GMRESRPCSolver::
+Update(Vector &x, int k, DenseMatrix &h, Vector &s,
+       Array<Vector*> &v)
+{
+   Vector y(s);
+
+   // Backsolve:
+   for (int i = k; i >= 0; i--)
+   {
+      y(i) /= h(i,i);
+      for (int j = i - 1; j >= 0; j--)
+      {
+         y(j) -= h(j,i) * y(i);
+      }
+   }
+
+   for (int j = 0; j <= k; j++)
+   {
+      x.Add(y(j), *v[j]);
+   }
+}
+
+void DGTransportTDO::GMRESRPCSolver::Mult(const Vector &b, Vector &x) const
+{
+   // Generalized Minimum Residual method following the algorithm
+   // on p. 20 of the SIAM Templates book.
+
+   int n = width;
+
+   DenseMatrix H(m+1, m);
+   Vector s(m+1), cs(m+1), sn(m+1);
+   Vector r(n), y(n), u(n), w(n);
+   Array<Vector *> v;
+
+   double resid;
+   int i, j, k;
+
+   if (iterative_mode)
+   {
+      oper->Mult(x, r);
+
+      if (r_prec)
+      {
+         r_prec->Mult(x, y);
+      }
+      else
+      {
+         y = x;
+      }
+   }
+   else
+   {
+      y = 0.0;
+   }
+
+   if (prec)
+   {
+      if (iterative_mode)
+      {
+         subtract(b, r, w);
+         prec->Mult(w, r);    // r = M (b - A x)
+      }
+      else
+      {
+         prec->Mult(b, r);
+      }
+   }
+   else
+   {
+      if (iterative_mode)
+      {
+         subtract(b, r, r);
+      }
+      else
+      {
+         r = b;
+      }
+   }
+   double beta = Norm(r);  // beta = ||r||
+   MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
+
+   final_norm = std::max(rel_tol*beta, abs_tol);
+
+   if (beta <= final_norm)
+   {
+      final_norm = beta;
+      final_iter = 0;
+      converged = true;
+      goto finish;
+   }
+
+   if (print_options.iterations || print_options.first_and_last)
+   {
+      mfem::out << "   Pass : " << setw(2) << 1
+                << "   Iteration : " << setw(3) << 0
+                << "  ||B r|| = " << beta
+                << (print_options.first_and_last ? " ...\n" : "\n");
+   }
+
+   if (r_prec)
+   {
+      r_prec->InverseMult(y, x);
+   }
+   else
+   {
+      x = y;
+   }
+   Monitor(0, beta, r, x);
+
+   v.SetSize(m+1, NULL);
+
+   for (j = 1; j <= max_iter; )
+   {
+      if (v[0] == NULL) { v[0] = new Vector(n); }
+      v[0]->Set(1.0/beta, r);
+      s = 0.0; s(0) = beta;
+
+      for (i = 0; i < m && j <= max_iter; i++, j++)
+      {
+         if (r_prec)
+         {
+            r_prec->InverseMult(*v[i], u);
+         }
+         else
+         {
+            u = *v[i];
+         }
+         if (prec)
+         {
+            oper->Mult(u, r);
+            prec->Mult(r, w);        // w = M A v[i]
+         }
+         else
+         {
+            oper->Mult(u, w);
+         }
+
+         for (k = 0; k <= i; k++)
+         {
+            H(k,i) = Dot(w, *v[k]);  // H(k,i) = w * v[k]
+            w.Add(-H(k,i), *v[k]);   // w -= H(k,i) * v[k]
+         }
+
+         H(i+1,i) = Norm(w);           // H(i+1,i) = ||w||
+         MFEM_ASSERT(IsFinite(H(i+1,i)), "Norm(w) = " << H(i+1,i));
+         if (v[i+1] == NULL) { v[i+1] = new Vector(n); }
+         v[i+1]->Set(1.0/H(i+1,i), w); // v[i+1] = w / H(i+1,i)
+
+         for (k = 0; k < i; k++)
+         {
+            ApplyPlaneRotation(H(k,i), H(k+1,i), cs(k), sn(k));
+         }
+
+         GeneratePlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
+         ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
+         ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
+
+         resid = fabs(s(i+1));
+         MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+
+         if (resid <= final_norm)
+         {
+            Update(y, i, H, s, v);
+            final_norm = resid;
+            final_iter = j;
+            converged = true;
+            goto finish;
+         }
+
+         if (print_options.iterations)
+         {
+            mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
+                      << "   Iteration : " << setw(3) << j
+                      << "  ||B r|| = " << resid << '\n';
+         }
+
+         if (r_prec)
+         {
+            r_prec->InverseMult(y, x);
+         }
+         else
+         {
+            x = y;
+         }
+         Monitor(j, resid, r, x);
+      }
+
+      if (print_options.iterations && j <= max_iter)
+      {
+         mfem::out << "Restarting..." << '\n';
+      }
+
+      Update(y, i-1, H, s, v);
+
+      if (r_prec)
+      {
+         r_prec->InverseMult(y, u);
+      }
+      else
+      {
+         u = y;
+      }
+      oper->Mult(u, r);
+      if (prec)
+      {
+         subtract(b, r, w);
+         prec->Mult(w, r);    // r = M (b - A x)
+      }
+      else
+      {
+         subtract(b, r, r);
+      }
+      beta = Norm(r);         // beta = ||r||
+      MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
+      if (beta <= final_norm)
+      {
+         final_norm = beta;
+         final_iter = j;
+         converged = true;
+         goto finish;
+      }
+   }
+
+   final_norm = beta;
+   final_iter = max_iter;
+   converged = false;
+
+finish:
+   if ((print_options.iterations && converged) || print_options.first_and_last)
+   {
+      mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
+                << "   Iteration : " << setw(3) << final_iter
+                << "  ||B r|| = " << resid << '\n';
+   }
+   if (print_options.summary || (print_options.warnings && !converged))
+   {
+      mfem::out << "GMRES: Number of iterations: " << final_iter << '\n';
+   }
+   if (print_options.warnings && !converged)
+   {
+      mfem::out << "GMRES: No convergence!\n";
+   }
+
+   if (r_prec)
+   {
+      r_prec->InverseMult(y, x);
+   }
+   else
+   {
+      x = y;
+   }
+   Monitor(final_iter, final_norm, r, x, true);
+
+   for (i = 0; i < v.Size(); i++)
+   {
+      delete v[i];
+   }
+}
+
 void DiscontPSCPreconditioner::SetOperator(const Operator &op) { }
 
 DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
                                const PlasmaParams &plasma,
                                const SolverParams & tol,
                                const Vector &eqn_weights,
+                               const Vector &fld_weights,
                                ParFiniteElementSpace &fes,
                                ParFiniteElementSpace &vfes,
                                ParFiniteElementSpace &ffes,
@@ -2355,7 +2647,8 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
          bcs, coefs, offsets_,
          Di_perp, Xi_perp, Xe_perp,
          term_flags, vis_flags, op_flag, logging),
-     newton_op_prec_(offsets, tol.prec, op_),
+     newton_op_l_prec_(offsets, tol.prec, op_),
+     newton_op_r_prec_(offsets, fld_weights, tol.prec, op_),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm())
 {
@@ -2368,7 +2661,8 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
    newton_op_solver_.SetAbsTol(tol_.lin_abs_tol);
    newton_op_solver_.SetMaxIter(tol_.lin_max_iter);
    newton_op_solver_.SetPrintLevel(tol_.lin_log_lvl);
-   newton_op_solver_.SetPreconditioner(newton_op_prec_);
+   newton_op_solver_.SetPreconditioner(newton_op_l_prec_);
+   newton_op_solver_.SetRightPreconditioner(newton_op_r_prec_);
 
    newton_solver_.iterative_mode = false;
    newton_solver_.SetSolver(newton_op_solver_);

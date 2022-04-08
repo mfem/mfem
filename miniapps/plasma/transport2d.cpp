@@ -1049,6 +1049,7 @@ int main(int argc, char *argv[])
    Vector amr_weights;
    Vector ode_weights;
    Vector field_mags;
+   Vector fld_weights;
 
    int precision = 8;
    cout.precision(precision);
@@ -1290,6 +1291,11 @@ int main(int argc, char *argv[])
       field_mags[   ION_PARA_VELOCITY] = 1e3;  // v_i ~ 1e3
       field_mags[     ION_TEMPERATURE] = 1e1;  // T_i ~ 1e1
       field_mags[ELECTRON_TEMPERATURE] = 1e2;  // T_e ~ 1e2
+   }
+   fld_weights.SetSize(field_mags.Size());
+   for (int i=0; i<field_mags.Size(); i++)
+   {
+      fld_weights[i] = 1.0 / field_mags[i];
    }
 
    if (eqn_weights.Size() != 5)
@@ -1970,7 +1976,7 @@ int main(int argc, char *argv[])
    }
    */
 
-   DGTransportTDO oper(mpi, dg, plasma, ttol, eqn_weights,
+   DGTransportTDO oper(mpi, dg, plasma, ttol, eqn_weights, fld_weights,
                        fes, vfes, ffes, fes_h1,
                        offsets, yGF, kGF,
                        bcs, eqnCoefs, Di_perp, Xi_perp, Xe_perp,
