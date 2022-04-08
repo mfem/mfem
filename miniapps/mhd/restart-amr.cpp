@@ -291,16 +291,13 @@ int main(int argc, char *argv[])
 
    //---- Load the mesh from checkpoint ----
    string mesh_name, phi_name, psi_name, w_name;
-   string rs = to_string(restart_count-1);
+   string rstr = to_string(restart_count-1);
    ifstream *ifs;
    if (restart_count==0){
        ifs = new ifstream(MakeParFilename("checkpt-mesh.", myid));
    }
-   else if (restart_count==1){
-       ifs = new ifstream(MakeParFilename("restart-mesh.", myid));
-   }
    else{
-       string mesh_name = "restart-mesh" + rs + ".";
+       string mesh_name = "restart-mesh" + rstr + ".";
        ifs = new ifstream(MakeParFilename(mesh_name, myid));
    }
    MFEM_VERIFY(ifs->good(), "Mesh file not found.");
@@ -354,15 +351,10 @@ int main(int argc, char *argv[])
        ifs2 = new ifstream(MakeParFilename("checkpt-phi.", myid));
        ifs3 = new ifstream(MakeParFilename("checkpt-w."  , myid));
    }
-   else if (restart_count==1){
-       ifs1 = new ifstream(MakeParFilename("restart-psi.", myid));
-       ifs2 = new ifstream(MakeParFilename("restart-phi.", myid));
-       ifs3 = new ifstream(MakeParFilename("restart-w."  , myid));
-   }
    else{
-       string phi_name = "restart-phi" + rs + ".";
-       string psi_name = "restart-psi" + rs + ".";
-       string   w_name = "restart-w"   + rs + ".";
+       string phi_name = "restart-phi" + rstr + ".";
+       string psi_name = "restart-psi" + rstr + ".";
+       string   w_name = "restart-w"   + rstr + ".";
        ifs1 = new ifstream(MakeParFilename(psi_name, myid));
        ifs2 = new ifstream(MakeParFilename(phi_name, myid));
        ifs3 = new ifstream(MakeParFilename(  w_name, myid));
@@ -764,7 +756,8 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      string pd_name = "restart-amr"+rs;
+      rstr = to_string(restart_count);
+      string pd_name = "restart-amr"+rstr;
       pd = new ParaViewDataCollection(pd_name, pmesh);
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("psi", psi);
