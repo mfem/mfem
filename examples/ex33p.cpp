@@ -171,9 +171,15 @@ int main(int argc, char *argv[])
    ConstantCoefficient f(1.0);
    ConstantCoefficient one(1.0);
    ParGridFunction u(&fespace);
-   u = 0.;
+   ParGridFunction x(&fespace);
+   u = 0.0;
 
-   // 8. Prepare for visualization.
+   // 8. Set up the linear form b(.) for integer-order PDE solves.
+   ParLinearForm b(&fespace);
+   b.AddDomainIntegrator(new DomainLFIntegrator(f));
+   b.Assemble();
+
+   // 9. Prepare for visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream xout;
@@ -189,14 +195,7 @@ int main(int argc, char *argv[])
 
    for (int i = ibeg; i<iend; i++)
    {
-      // 9. Set up the linear form b(.) for integer-order PDE solve.
-      ParLinearForm b(&fespace);
-      ProductCoefficient c_i(coeffs[i], f);
-      b.AddDomainIntegrator(new DomainLFIntegrator(c_i));
-      b.Assemble();
-
-      // 10. Define GridFunction for integer-order PDE solve.
-      ParGridFunction x(&fespace);
+      // 10. Reset GridFunction for integer-order PDE solve.
       x = 0.0;
 
       // 11. Set up the bilinear form a(.,.) for integer-order PDE solve.
@@ -228,6 +227,7 @@ int main(int argc, char *argv[])
       a.RecoverFEMSolution(X, b, x);
 
       // 15. Accumulate integer-order PDE solutions.
+      x*=coeffs[i];
       u+=x;
 
       // 16. Send the solutions by socket to a GLVis server.
