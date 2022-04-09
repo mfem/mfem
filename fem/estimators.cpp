@@ -22,14 +22,25 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
    GridFunction flux(flux_space);
 
    if (!anisotropic) { aniso_flags.SetSize(0); }
-   total_error = ZZErrorEstimator(*integ, *solution, flux, error_estimates,
+   total_error = ZZErrorEstimator(integ, solution, flux, error_estimates,
                                   anisotropic ? &aniso_flags : NULL,
                                   flux_averaging,
                                   with_coeff);
 
-   current_sequence = solution->FESpace()->GetMesh()->GetSequence();
+   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
 }
 
+void LSZienkiewiczZhuEstimator::ComputeEstimates()
+{
+   total_error = LSZZErrorEstimator(integ,
+                                    solution,
+                                    error_estimates,
+                                    subdomain_reconstruction,
+                                    with_coeff,
+                                    tichonov_coeff);
+
+   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
+}
 
 #ifdef MFEM_USE_MPI
 
@@ -41,11 +52,11 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
    // TODO: move these parameters in the class, and add Set* methods.
    const double solver_tol = 1e-12;
    const int solver_max_it = 200;
-   total_error = L2ZZErrorEstimator(*integ, *solution, *smooth_flux_space,
+   total_error = L2ZZErrorEstimator(integ, solution, *smooth_flux_space,
                                     *flux_space, error_estimates,
                                     local_norm_p, solver_tol, solver_max_it);
 
-   current_sequence = solution->FESpace()->GetMesh()->GetSequence();
+   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
 }
 
 #endif // MFEM_USE_MPI

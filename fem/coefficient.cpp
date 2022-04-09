@@ -669,10 +669,24 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
    }
 }
 
+void SymmetricMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
+                                      const IntegrationPoint &ip)
+{
+   mat.SetSize(height);
+   Eval(mat, T, ip);
+   for (int j = 0; j < width; ++j)
+   {
+      for (int i = 0; i < height; ++ i)
+      {
+         K(i, j) = mat(i, j);
+      }
+   }
+}
+
 void SymmetricMatrixFunctionCoefficient::SetTime(double t)
 {
    if (Q) { Q->SetTime(t); }
-   this->SymmetricMatrixCoefficient::SetTime(t);
+   MatrixCoefficient::SetTime(t);
 }
 
 void SymmetricMatrixFunctionCoefficient::Eval(DenseSymmetricMatrix &K,
@@ -684,7 +698,7 @@ void SymmetricMatrixFunctionCoefficient::Eval(DenseSymmetricMatrix &K,
 
    T.Transform(ip, transip);
 
-   K.SetSize(dim);
+   K.SetSize(height);
 
    if (Function)
    {
