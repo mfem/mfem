@@ -213,12 +213,18 @@ public:
                              of the method may choose not to scale the "flux"
                              function by any coefficients describing the
                              integrator.
+       @param[in] ir  If passed (the default value is NULL), the implementation
+                        of the method will ignore the integration rule provided
+                        by the @a fluxelem parameter and, instead, compute the
+                        discrete flux at the points specified by the integration
+                        rule @a ir.
     */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true) { }
+                                   Vector &flux, bool with_coef = true,
+                                   const IntegrationRule *ir = NULL) { }
 
    /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
 
@@ -2068,7 +2074,6 @@ protected:
    Coefficient *Q;
    VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
-   SymmetricMatrixCoefficient *SMQ;
 
 private:
    Vector vec, vecdxt, pointflux, shape;
@@ -2090,30 +2095,24 @@ public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator(const IntegrationRule *ir = nullptr)
       : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL) { }
+        Q(NULL), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a scalar coefficient q
    DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr)
       : BilinearFormIntegrator(ir),
-        Q(&q), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL) { }
+        Q(&q), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a vector coefficient q
    DiffusionIntegrator(VectorCoefficient &q,
                        const IntegrationRule *ir = nullptr)
       : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(&q), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL) { }
+        Q(NULL), VQ(&q), MQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator(MatrixCoefficient &q,
                        const IntegrationRule *ir = nullptr)
       : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(NULL), MQ(&q), SMQ(NULL), maps(NULL), geom(NULL) { }
-
-   /// Construct a diffusion integrator with a symmetric matrix coefficient q
-   DiffusionIntegrator(SymmetricMatrixCoefficient &q,
-                       const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(NULL), MQ(NULL), SMQ(&q), maps(NULL), geom(NULL) { }
+        Q(NULL), VQ(NULL), MQ(&q), maps(NULL), geom(NULL) { }
 
    /** Given a particular Finite Element computes the element stiffness matrix
        elmat. */
@@ -2135,7 +2134,8 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true);
+                                   Vector &flux, bool with_coef = true,
+                                   const IntegrationRule *ir = NULL);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
@@ -2523,7 +2523,6 @@ protected:
    Coefficient *Q;
    DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
-   SymmetricMatrixCoefficient *SMQ;
 
    // PA extension
    Vector pa_data;
@@ -2534,18 +2533,15 @@ protected:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
-   CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; SMQ = NULL; }
+   CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; }
    /// Construct a bilinear form integrator for Nedelec elements
    CurlCurlIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(&q), DQ(NULL), MQ(NULL), SMQ(NULL) { }
+      BilinearFormIntegrator(ir), Q(&q), DQ(NULL), MQ(NULL) { }
    CurlCurlIntegrator(DiagonalMatrixCoefficient &dq,
                       const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(NULL), DQ(&dq), MQ(NULL), SMQ(NULL) { }
+      BilinearFormIntegrator(ir), Q(NULL), DQ(&dq), MQ(NULL) { }
    CurlCurlIntegrator(MatrixCoefficient &mq, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq), SMQ(NULL) { }
-   CurlCurlIntegrator(SymmetricMatrixCoefficient &smq,
-                      const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(NULL), SMQ(&smq) { }
+      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq) { }
 
    /* Given a particular Finite Element, compute the
       element curl-curl matrix elmat */
@@ -2556,7 +2552,8 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef);
+                                   Vector &flux, bool with_coef,
+                                   const IntegrationRule *ir = NULL);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
@@ -2602,9 +2599,8 @@ public:
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
 private:
-   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq,
-             SymmetricMatrixCoefficient *smq)
-   { Q = q; DQ = dq; MQ = mq; SMQ = smq; }
+   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq)
+   { Q = q; DQ = dq; MQ = mq; }
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
@@ -2619,7 +2615,6 @@ protected:
    Coefficient *Q;
    DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
-   SymmetricMatrixCoefficient *SMQ;
 
    // PA extension
    Vector pa_data;
@@ -2632,15 +2627,13 @@ protected:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
-   VectorFEMassIntegrator() { Init(NULL, NULL, NULL, NULL); }
-   VectorFEMassIntegrator(Coefficient *q_) { Init(q_, NULL, NULL, NULL); }
-   VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL, NULL); }
-   VectorFEMassIntegrator(DiagonalMatrixCoefficient *dq_) { Init(NULL, dq_, NULL, NULL); }
-   VectorFEMassIntegrator(DiagonalMatrixCoefficient &dq) { Init(NULL, &dq, NULL, NULL); }
-   VectorFEMassIntegrator(MatrixCoefficient *mq_) { Init(NULL, NULL, mq_, NULL); }
-   VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq, NULL); }
-   VectorFEMassIntegrator(SymmetricMatrixCoefficient &smq) { Init(NULL, NULL, NULL, &smq); }
-   VectorFEMassIntegrator(SymmetricMatrixCoefficient *smq) { Init(NULL, NULL, NULL, smq); }
+   VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient *q_) { Init(q_, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient *dq_) { Init(NULL, dq_, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient &dq) { Init(NULL, &dq, NULL); }
+   VectorFEMassIntegrator(MatrixCoefficient *mq_) { Init(NULL, NULL, mq_); }
+   VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq); }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -2875,12 +2868,14 @@ public:
        of the stress components is: s_xx, s_yy, s_xy. In 3D, it is: s_xx, s_yy,
        s_zz, s_xy, s_xz, s_yz. In other words, @a flux is the local vector for
        a FE space with dim*(dim+1)/2 vector components, based on the finite
-       element @a fluxelem. */
+       element @a fluxelem. The integration rule is taken from @a fluxelem.
+       @a ir exists to specific an alternative integration rule. */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true);
+                                   Vector &flux, bool with_coef = true,
+                                   const IntegrationRule *ir = NULL);
 
    /** Compute the element energy (integral of the strain energy density)
        corresponding to the stress represented by @a flux which is a vector of
