@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -13,27 +13,48 @@ if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
         dist_solver.cpp
         sbm_solver.cpp
-        marking.cpp)
+        marking.cpp
+        extrapolator.cpp)
   list(APPEND DIST_COMMON_HEADERS
         dist_solver.hpp
         sbm_solver.hpp
-        marking.hpp)
+        sbm_aux.hpp
+        marking.hpp
+        extrapolator.hpp)
 
-convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
-convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
+  convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
+  convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
 
-set(DIST_COMMON_FILES
-        EXTRA_SOURCES ${DIST_COMMON_SOURCES}
-        EXTRA_HEADERS ${DIST_COMMON_HEADERS})
+  set(DIST_COMMON_FILES
+      EXTRA_SOURCES ${DIST_COMMON_SOURCES}
+      EXTRA_HEADERS ${DIST_COMMON_HEADERS})
 
-add_mfem_miniapp(distance
+  add_mfem_miniapp(distance
     MAIN distance.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
-add_mfem_miniapp(diffusion
+  add_mfem_miniapp(diffusion
     MAIN diffusion.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
+  add_mfem_miniapp(extrapolate
+    MAIN extrapolate.cpp
+    ${DIST_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+
+  if (MFEM_ENABLE_TESTING)
+    add_test(NAME shifted_distance_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:distance> -no-vis
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME shifted_diffusion_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:diffusion> -no-vis
+      ${MPIEXEC_POSTFLAGS})
+  endif()
 endif ()

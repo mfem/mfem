@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,7 +19,11 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
+// External GSLIB header (the MFEM header is gslib.hpp)
+namespace gslib
+{
 #include "gslib.h"
+}
 
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic pop
@@ -34,13 +38,13 @@ FindPointsGSLIB::FindPointsGSLIB()
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC)
 {
-   gsl_comm = new comm;
-   cr       = new crystal;
+   gsl_comm = new gslib::comm;
+   cr       = new gslib::crystal;
 #ifdef MFEM_USE_MPI
    int initialized;
    MPI_Initialized(&initialized);
    if (!initialized) { MPI_Init(NULL, NULL); }
-   MPI_Comm comm = MPI_COMM_WORLD;;
+   MPI_Comm comm = MPI_COMM_WORLD;
    comm_init(gsl_comm, comm);
 #else
    comm_init(gsl_comm, 0);
@@ -62,8 +66,8 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC)
 {
-   gsl_comm = new comm;
-   cr      = new crystal;
+   gsl_comm = new gslib::comm;
+   cr      = new gslib::crystal;
    comm_init(gsl_comm, comm_);
 }
 #endif
@@ -74,6 +78,8 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
    MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
                "Mixed meshes are not currently supported in FindPointsGSLIB.");
+   MFEM_VERIFY(!(m.GetNodes()->FESpace()->IsVariableOrder()),
+               "Variable order mesh is not currently supported.");
 
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
@@ -586,7 +592,8 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
    const L2_FECollection *fec_l2 = dynamic_cast<const L2_FECollection *>(fec_in);
 
    if (fec_h1 && gf_order == mesh_order &&
-       fec_h1->GetBasisType() == BasisType::GaussLobatto)
+       fec_h1->GetBasisType() == BasisType::GaussLobatto &&
+       !field_in.FESpace()->IsVariableOrder())
    {
       InterpolateH1(field_in, field_out);
       return;
@@ -606,7 +613,12 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       {
          if (gsl_code[i] == 1) { indl2.Append(i); }
       }
-      if (indl2.Size() == 0) { return; } // no points on element borders
+      int borderPts = indl2.Size();
+#ifdef MFEM_USE_MPI
+      MPI_Allreduce(MPI_IN_PLACE, &borderPts, 1, MPI_INT, MPI_SUM, gsl_comm->c);
+#endif
+      if (borderPts == 0) { return; } // no points on element borders
+
 
       Vector field_out_l2(field_out.Size());
       VectorGridFunctionCoefficient field_in_dg(&field_in);
@@ -728,7 +740,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
       }
 
       // Pack data to send via crystal router
-      struct array *outpt = new array;
+      struct gslib::array *outpt = new gslib::array;
       struct out_pt { double r[3], ival; uint index, el, proc; };
       struct out_pt *pt;
       array_init(struct out_pt, outpt, nptsend);
@@ -788,7 +800,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          }
 
          // Save index and proc data in a struct
-         struct array *savpt = new array;
+         struct gslib::array *savpt = new gslib::array;
          struct sav_pt { uint index, proc; };
          struct sav_pt *spt;
          array_init(struct sav_pt, savpt, npt);
@@ -806,7 +818,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          delete outpt;
 
          // Copy data from save struct to send struct and send component wise
-         struct array *sendpt = new array;
+         struct gslib::array *sendpt = new gslib::array;
          struct send_pt { double ival; uint index, proc; };
          struct send_pt *sdpt;
          for (int j = 0; j < ncomp; j++)
@@ -848,6 +860,8 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
    MFEM_VERIFY(m.GetNumGeometries(m.Dimension()) == 1,
                "Mixed meshes are not currently supported in FindPointsGSLIB.");
+   MFEM_VERIFY(!(m.GetNodes()->FESpace()->IsVariableOrder()),
+               "Variable order mesh is not currently supported.");
 
    // FreeData if OversetFindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,8 +16,55 @@
 
 using namespace mfem;
 
-namespace ea_kernels
+namespace assembly_levels
 {
+
+enum class Problem { Mass,
+                     Convection,
+                     Diffusion
+                   };
+
+std::string getString(Problem pb)
+{
+   switch (pb)
+   {
+      case Problem::Mass:
+         return "Mass";
+         break;
+      case Problem::Convection:
+         return "Convection";
+         break;
+      case Problem::Diffusion:
+         return "Diffusion";
+         break;
+   }
+   MFEM_ABORT("Unknown Problem.");
+   return "";
+}
+
+std::string getString(AssemblyLevel assembly)
+{
+   switch (assembly)
+   {
+      case AssemblyLevel::NONE:
+         return "None";
+         break;
+      case AssemblyLevel::PARTIAL:
+         return "Partial";
+         break;
+      case AssemblyLevel::ELEMENT:
+         return "Element";
+         break;
+      case AssemblyLevel::FULL:
+         return "Full";
+         break;
+      case AssemblyLevel::LEGACY:
+         return "Legacy";
+         break;
+   }
+   MFEM_ABORT("Unknown assembly level.");
+   return "";
+}
 
 void velocity_function(const Vector &x, Vector &v)
 {
@@ -44,11 +91,15 @@ void AddConvectionIntegrators(BilinearForm &k, VectorCoefficient &velocity,
    }
 }
 
-void test_assembly_level(const char *meshname, int order, bool dg, const int pb,
-                         const AssemblyLevel assembly)
+void test_assembly_level(const char *meshname,
+                         int order, int q_order_inc, bool dg,
+                         const Problem pb, const AssemblyLevel assembly)
 {
-   INFO("mesh=" << meshname << ", order=" << order << ", DG=" << dg
-        << ", pb=" << pb << ", assembly=" << int(assembly));
+   const int q_order = 2*order + q_order_inc;
+
+   INFO("mesh=" << meshname
+        << ", order=" << order << ", q_order=" << q_order << ", DG=" << dg
+        << ", pb=" << getString(pb) << ", assembly=" << getString(assembly));
    Mesh mesh(meshname, 1, 1);
    mesh.EnsureNodes();
    int dim = mesh.Dimension();
@@ -71,20 +122,25 @@ void test_assembly_level(const char *meshname, int order, bool dg, const int pb,
    ConstantCoefficient one(1.0);
    VectorFunctionCoefficient vel_coeff(dim, velocity_function);
 
-   if (pb==0) // Mass
+   // Don't use a special integration rule if q_order_inc == 0
+   const bool use_ir = q_order_inc > 0;
+   const IntegrationRule *ir =
+      use_ir ? &IntRules.Get(mesh.GetElementGeometry(0), q_order) : nullptr;
+
+   switch (pb)
    {
-      k_ref.AddDomainIntegrator(new MassIntegrator(one));
-      k_test.AddDomainIntegrator(new MassIntegrator(one));
-   }
-   else if (pb==1) // Convection
-   {
-      AddConvectionIntegrators(k_ref, vel_coeff, dg);
-      AddConvectionIntegrators(k_test, vel_coeff, dg);
-   }
-   else if (pb==2) // Diffusion
-   {
-      k_ref.AddDomainIntegrator(new DiffusionIntegrator(one));
-      k_test.AddDomainIntegrator(new DiffusionIntegrator(one));
+      case Problem::Mass:
+         k_ref.AddDomainIntegrator(new MassIntegrator(one,ir));
+         k_test.AddDomainIntegrator(new MassIntegrator(one,ir));
+         break;
+      case Problem::Convection:
+         AddConvectionIntegrators(k_ref, vel_coeff, dg);
+         AddConvectionIntegrators(k_test, vel_coeff, dg);
+         break;
+      case Problem::Diffusion:
+         k_ref.AddDomainIntegrator(new DiffusionIntegrator(one,ir));
+         k_test.AddDomainIntegrator(new DiffusionIntegrator(one,ir));
+         break;
    }
 
    k_ref.Assemble();
@@ -97,8 +153,17 @@ void test_assembly_level(const char *meshname, int order, bool dg, const int pb,
 
    x.Randomize(1);
 
+   // Test Mult
    k_ref.Mult(x,y_ref);
    k_test.Mult(x,y_test);
+
+   y_test -= y_ref;
+
+   REQUIRE(y_test.Norml2() < 1.e-12);
+
+   // Test MultTranspose
+   k_ref.MultTranspose(x,y_ref);
+   k_test.MultTranspose(x,y_test);
 
    y_test -= y_ref;
 
@@ -107,44 +172,113 @@ void test_assembly_level(const char *meshname, int order, bool dg, const int pb,
    delete fec;
 }
 
-TEST_CASE("Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
+TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
 {
-   auto assembly = GENERATE(AssemblyLevel::PARTIAL, AssemblyLevel::ELEMENT,
+   const bool all_tests = launch_all_non_regression_tests;
+
+   const bool dg = false;
+   auto pb = GENERATE(Problem::Mass, Problem::Convection, Problem::Diffusion);
+   auto assembly = GENERATE(AssemblyLevel::PARTIAL,
+                            AssemblyLevel::ELEMENT,
                             AssemblyLevel::FULL);
-   auto pb = GENERATE(0, 1, 2);
-   auto dg = GENERATE(true, false);
-   auto order_2d = GENERATE(2, 3, 4);
-   auto order_3d = GENERATE(2);
+   // '0' will use the default integration rule
+   auto q_order_inc = !all_tests ? 0 : GENERATE(0, 1, 3);
 
-   SECTION("2D")
+   SECTION("Conforming")
    {
-      test_assembly_level("../../data/periodic-square.mesh",
-                          order_2d, dg, pb, assembly);
-      test_assembly_level("../../data/periodic-hexagon.mesh",
-                          order_2d, dg, pb, assembly);
-      test_assembly_level("../../data/star-q3.mesh",
-                          order_2d, dg, pb, assembly);
+      SECTION("2D")
+      {
+         auto order = !all_tests ? GENERATE(2, 3) : GENERATE(1, 2, 3);
+         test_assembly_level("../../data/periodic-square.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+         test_assembly_level("../../data/periodic-hexagon.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+         test_assembly_level("../../data/star-q3.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+      }
+
+      SECTION("3D")
+      {
+         auto order = !all_tests ? GENERATE(2) : GENERATE(1, 2, 3);
+         test_assembly_level("../../data/periodic-cube.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+         test_assembly_level("../../data/fichera-q3.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+      }
    }
 
-   SECTION("3D")
+   SECTION("Nonconforming")
    {
-      test_assembly_level("../../data/periodic-cube.mesh",
-                          order_3d, dg, pb, assembly);
-      test_assembly_level("../../data/fichera-q3.mesh",
-                          order_3d, dg, pb, assembly);
+      // Test AMR cases (DG not implemented)
+      SECTION("AMR 2D")
+      {
+         auto order = !all_tests ? GENERATE(2, 3) : GENERATE(1, 2, 3);
+         test_assembly_level("../../data/amr-quad.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+      }
+      SECTION("AMR 3D")
+      {
+         auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+         test_assembly_level("../../data/fichera-amr.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+      }
+   }
+} // H1 Assembly Levels test case
+
+TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
+{
+   const bool dg = true;
+   auto pb = GENERATE(Problem::Mass, Problem::Convection);
+   const bool all_tests = launch_all_non_regression_tests;
+   // '0' will use the default integration rule
+   auto q_order_inc = !all_tests ? 0 : GENERATE(0, 1, 3);
+
+   SECTION("Conforming")
+   {
+      auto assembly = GENERATE(AssemblyLevel::PARTIAL,
+                               AssemblyLevel::ELEMENT,
+                               AssemblyLevel::FULL);
+
+      SECTION("2D")
+      {
+         auto order = !all_tests ? GENERATE(2, 3) : GENERATE(1, 2, 3);
+         test_assembly_level("../../data/periodic-square.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+         test_assembly_level("../../data/periodic-hexagon.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+         test_assembly_level("../../data/star-q3.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+      }
+
+      SECTION("3D")
+      {
+         auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+         test_assembly_level("../../data/periodic-cube.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+         test_assembly_level("../../data/fichera-q3.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+      }
    }
 
-   // Test AMR cases (DG not implemented)
-   SECTION("AMR 2D")
+   SECTION("Nonconforming")
    {
-      test_assembly_level("../../data/amr-quad.mesh",
-                          order_2d, false, 0, assembly);
-   }
-   SECTION("AMR 3D")
-   {
-      test_assembly_level("../../data/fichera-amr.mesh",
-                          order_3d, false, 0, assembly);
-   }
-} // test case
+      // Full assembly DG not implemented on NCMesh
+      auto assembly = GENERATE(AssemblyLevel::PARTIAL,
+                               AssemblyLevel::ELEMENT);
 
-} // namespace pa_kernels
+      SECTION("AMR 2D")
+      {
+         auto order = !all_tests ? GENERATE(2, 3) : GENERATE(1, 2, 3);
+         test_assembly_level("../../data/amr-quad.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+      }
+      SECTION("AMR 3D")
+      {
+         auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+         test_assembly_level("../../data/fichera-amr.mesh",
+                             order, q_order_inc, dg, pb, assembly);
+      }
+   }
+} // L2 Assembly Levels test case
+
+} // namespace assembly_levels

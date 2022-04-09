@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -42,8 +42,10 @@ add_mfem_miniapp(performance_ex1
   LIBRARIES mfem
   EXTRA_OPTIONS ${PERFORMANCE_CXX_OPTIONS})
 
-add_test(NAME performance_ex1_ser
-  COMMAND performance_ex1 -no-vis -r 2)
+if (MFEM_ENABLE_TESTING)
+  add_test(NAME performance_ex1_ser
+    COMMAND performance_ex1 -no-vis -r 2)
+endif()
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(performance_ex1p
@@ -51,8 +53,10 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem
     EXTRA_OPTIONS ${PERFORMANCE_CXX_OPTIONS})
 
-  add_test(NAME performance_ex1p_np=4
-    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:performance_ex1p> -no-vis -rs 2
-    ${MPIEXEC_POSTFLAGS})
+  if (MFEM_ENABLE_TESTING)
+    add_test(NAME performance_ex1p_np=${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:performance_ex1p> -no-vis -rs 2
+      ${MPIEXEC_POSTFLAGS})
+  endif()
 endif()

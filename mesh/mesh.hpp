@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -91,6 +91,65 @@ protected:
    Array<Element *> boundary;
    Array<Element *> faces;
 
+   /** @brief This structure stores the low level information necessary to
+       interpret the configuration of elements on a specific face. This
+       information can be accessed using methods like GetFaceElements(),
+       GetFaceInfos(), FaceIsInterior(), etc.
+
+       For accessing higher level deciphered information look at
+       Mesh::FaceInformation, and its accessor Mesh::GetFaceInformation().
+
+       Each face contains information on the indices, local reference faces,
+       orientations, and potential nonconformity for the two neighboring
+       elements on a face.
+       Each face can either be an interior, boundary, or shared interior face.
+       Each interior face is shared by two elements referred as Elem1 and Elem2.
+       For boundary faces only the information on Elem1 is relevant.
+       Shared interior faces correspond to faces where Elem1 and Elem2 are
+       distributed on different MPI ranks.
+       Regarding conformity, three cases are distinguished, conforming faces,
+       nonconforming slave faces, and nonconforming master faces. Master and
+       slave referring to the coarse and fine elements respectively on a
+       nonconforming face.
+       Nonconforming slave faces always have the slave element as Elem1 and
+       the master element as Elem2. On the other side, nonconforming master
+       faces always have the master element as Elem1, and one of the slave
+       element as Elem2. Except for ghost nonconforming slave faces, where
+       Elem1 is the master side and Elem2 is the slave side.
+
+       The indices of Elem1 and Elem2 can be indirectly extracted from
+       FaceInfo::Elem1No and FaceInfo::Elem2No, read the note below for special
+       cases on the index of Elem2.
+
+       The local face identifiers are deciphered from FaceInfo::Elem1Inf and
+       FaceInfo::Elem2Inf through the formula: LocalFaceIndex = ElemInf/64,
+       the semantic of the computed local face identifier can be found in
+       fem/geom.cpp. The local face identifier corresponds to an index
+       in the Constants<Geometry>::Edges arrays for 2D element geometries, and
+       to an index in the Constants<Geometry>::FaceVert arrays for 3D element
+       geometries.
+
+       The orientation of each element relative to a face is obtained through
+       the formula: Orientation = ElemInf%64, the semantic of the orientation
+       can also be found in fem/geom.cpp. The orientation corresponds to
+       an index in the Constants<Geometry>::Orient arrays, providing the
+       sequence of vertices identifying the orientation of an edge/face. By
+       convention the orientation of Elem1 is always set to 0, serving as the
+       reference orientation. The orientation of Elem2 relatively to Elem1 is
+       therefore determined just by using the orientation of Elem2. An important
+       special case is the one of nonconforming faces, the orientation should
+       be composed with the PointMatrix, which also contains orientation
+       information. A special treatment should be done for 2D, the orientation
+       in the PointMatrix is not included, therefore when applying the
+       PointMatrix transformation, the PointMatrix should be flipped, except for
+       shared nonconforming slave faces where the transformation can be applied
+       as is.
+
+       Another special case is the case of shared nonconforming faces. Ghost
+       faces use a different design based on so called "ghost" faces.
+       Ghost faces, as their name suggest are very well hidden, and they
+       usually have a separate interface from "standard" faces.
+   */
    struct FaceInfo
    {
       // Inf = 64 * LocalFaceIndex + FaceOrientation
@@ -104,23 +163,28 @@ protected:
    //
    // A local face is one generated from a local element and has index i in
    // faces_info such that i < GetNumFaces(). Also, Elem1No always refers to the
-   // element (slave or master, in the non-conforming case) that generated the
+   // element (slave or master, in the nonconforming case) that generated the
    // face.
    // Classification of a local (non-ghost) face based on its FaceInfo:
-   // - Elem2No >= 0 --> local internal face; can be either:
+   // - Elem2No >= 0 --> local interior face; can be either:
    //    - NCFace == -1 --> conforming face, or
-   //    - NCFace >= 0 --> non-conforming slave face.
+   //    - NCFace >= 0 --> nonconforming slave face; Elem2No is the index of
+   //      the master volume element; Elem2Inf%64 is 0, see the note in
+   //      Mesh::GenerateNCFaceInfo().
    // - Elem2No < 0 --> local "boundary" face; can be one of:
    //    - NCFace == -1 --> conforming face; can be either:
    //       - Elem2Inf < 0 --> true boundary face (no element on side 2)
    //       - Elem2Inf >= 0 --> shared face where element 2 is a face-neighbor
    //         element with index -1-Elem2No. This state is initialized by
    //         ParMesh::ExchangeFaceNbrData().
-   //    - NCFace >= 0 --> non-conforming master face. Elem2No is -1 or, in the
-   //      case of a shared face, -1-Elem2No is the index of one of the adjacent
-   //      (the last one?) slave ghost elements. Elem2Inf is -1.
+   //    - NCFace >= 0 --> nonconforming face; can be one of:
+   //       - Elem2Inf < 0 --> master nonconforming face, interior or shared;
+   //         In this case, Elem2No is -1; see GenerateNCFaceInfo().
+   //       - Elem2Inf >= 0 --> shared slave nonconforming face where element 2
+   //         is the master face-neighbor element with index -1-Elem2No; see
+   //         ParNCMesh::GetFaceNeighbors().
    //
-   // A ghost face is a non-conforming face that is generated by a non-local,
+   // A ghost face is a nonconforming face that is generated by a non-local,
    // i.e. ghost, element. A ghost face has index i in faces_info such that
    // i >= GetNumFaces().
    // Classification of a ghost (non-local) face based on its FaceInfo:
@@ -130,7 +194,7 @@ protected:
    //   master side element, i.e. side 1 IS NOT the side that generated the
    //   face. Elem2No is < 0 and -1-Elem2No is the index of the ghost
    //   face-neighbor element that generated this slave ghost face. In this
-   //   case, Elem2Inf >= 0.
+   //   case, Elem2Inf >= 0 and NCFace >= 0.
    // Relevant methods: GenerateFaces(), GenerateNCFaceInfo(),
    //                   ParNCMesh::GetFaceNeighbors(),
    //                   ParMesh::ExchangeFaceNbrData()
@@ -177,6 +241,7 @@ protected:
    int own_nodes;
 
    static const int vtk_quadratic_tet[10];
+   static const int vtk_quadratic_pyramid[13];
    static const int vtk_quadratic_wedge[18];
    static const int vtk_quadratic_hex[27];
 
@@ -195,6 +260,7 @@ public:
    typedef Geometry::Constants<Geometry::TETRAHEDRON> tet_t;
    typedef Geometry::Constants<Geometry::CUBE>        hex_t;
    typedef Geometry::Constants<Geometry::PRISM>       pri_t;
+   typedef Geometry::Constants<Geometry::PYRAMID>     pyr_t;
 
    enum Operation { NONE, REFINE, DEREFINE, REBALANCE };
 
@@ -204,7 +270,7 @@ public:
    Array<int> bdr_attributes;
 
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
-   NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
+   NCMesh *ncmesh;           ///< Optional nonconforming mesh extension.
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
    Array<FaceGeometricFactors*>
    face_geom_factors; ///< Optional face geometric factors.
@@ -373,10 +439,16 @@ protected:
    void GetLocalTriToWdgTransformation (IsoparametricTransformation &loc,
                                         int i);
    /// Used in GetFaceElementTransformations (...)
+   void GetLocalTriToPyrTransformation (IsoparametricTransformation &loc,
+                                        int i);
+   /// Used in GetFaceElementTransformations (...)
    void GetLocalQuadToHexTransformation (IsoparametricTransformation &loc,
                                          int i);
    /// Used in GetFaceElementTransformations (...)
    void GetLocalQuadToWdgTransformation (IsoparametricTransformation &loc,
+                                         int i);
+   /// Used in GetFaceElementTransformations (...)
+   void GetLocalQuadToPyrTransformation (IsoparametricTransformation &loc,
                                          int i);
 
    /** Used in GetFaceElementTransformations to account for the fact that a
@@ -503,7 +575,7 @@ public:
    Mesh& operator=(Mesh &&mesh);
 
    /// Explicitly delete the copy assignment operator.
-   Mesh& operator=(Mesh &mesh) = delete;
+   Mesh& operator=(const Mesh &mesh) = delete;
 
    /** @name Named mesh constructors.
 
@@ -638,7 +710,7 @@ public:
 
    int AddVertex(double x, double y = 0.0, double z = 0.0);
    int AddVertex(const double *coords);
-   /// Mark vertex @a i as non-conforming, with parent vertices @a p1 and @a p2.
+   /// Mark vertex @a i as nonconforming, with parent vertices @a p1 and @a p2.
    void AddVertexParents(int i, int p1, int p2);
 
    int AddSegment(int v1, int v2, int attr = 1);
@@ -657,11 +729,15 @@ public:
    int AddWedge(int v1, int v2, int v3, int v4, int v5, int v6, int attr = 1);
    int AddWedge(const int *vi, int attr = 1);
 
+   int AddPyramid(int v1, int v2, int v3, int v4, int v5, int attr = 1);
+   int AddPyramid(const int *vi, int attr = 1);
+
    int AddHex(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8,
               int attr = 1);
    int AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
    void AddHexAsWedges(const int *vi, int attr = 1);
+   void AddHexAsPyramids(const int *vi, int attr = 1);
 
    /// The parameter @a elem should be allocated using the NewElement() method
    int AddElement(Element *elem);
@@ -811,11 +887,6 @@ public:
    MFEM_DEPRECATED
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
-   /// A version of the above constructor for non-uniform refinement.
-   /** The input array @a ref_factors contains one refinement factor per element
-       of the input mesh. */
-   Mesh(Mesh *orig_mesh, const Array<int> &ref_factors, int ref_type);
-
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
        stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0
@@ -834,10 +905,16 @@ public:
 
    /** @brief Get the mesh generator/type.
 
+       The purpose of this is to be able to quickly tell what type of elements
+       one has in the mesh. Examination of this bitmask along with knowledge
+       of the mesh dimension can be used to identify which element types are
+       present.
+
        @return A bitmask:
        - bit 0 - simplices are present in the mesh (triangles, tets),
        - bit 1 - tensor product elements are present in the mesh (quads, hexes),
        - bit 2 - the mesh has wedge elements.
+       - bit 3 - the mesh has pyramid elements.
 
        In parallel, the result takes into account elements on all processors.
    */
@@ -862,13 +939,19 @@ public:
    /// Return the number of faces (3D), edges (2D) or vertices (1D).
    int GetNumFaces() const;
 
-   /// Returns the number of faces according to the requested type.
-   /** If type==Boundary returns only the "true" number of boundary faces
-       contrary to GetNBE() that returns "fake" boundary faces associated to
-       visualization for GLVis.
-       Similarly, if type==Interior, the "fake" boundary faces associated to
-       visualization are counted as interior faces. */
-   int GetNFbyType(FaceType type) const;
+   /** @brief Return the number of faces (3D), edges (2D) or vertices (1D)
+       including ghost faces. */
+   int GetNumFacesWithGhost() const;
+
+   /** @brief Returns the number of faces according to the requested type, does
+       not count master nonconforming faces.
+
+       If type==Boundary returns only the number of true boundary faces
+       contrary to GetNBE() that returns all "boundary" elements which may
+       include actual interior faces.
+       Similarly, if type==Interior, only the true interior faces are counted
+       excluding all master nonconforming faces. */
+   virtual int GetNFbyType(FaceType type) const;
 
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const { return value; }
@@ -877,17 +960,26 @@ public:
    long GetGlobalNE() const { return ReduceInt(NumOfElements); }
 
    /** @brief Return the mesh geometric factors corresponding to the given
-       integration rule. */
-   /** If the device MemoryType parameter @a d_mt is specified, then the
-       returned object will use that type unless it was previously allocated
-       with a different type. */
+       integration rule.
+
+       The IntegrationRule used with GetGeometricFactors needs to remain valid
+       until the internally stored GeometricFactors objects are destroyed (by
+       either calling Mesh::DeleteGeometricFactors or the Mesh destructor). If
+       the device MemoryType parameter @a d_mt is specified, then the returned
+       object will use that type unless it was previously allocated with a
+       different type. */
    const GeometricFactors* GetGeometricFactors(
       const IntegrationRule& ir,
       const int flags,
       MemoryType d_mt = MemoryType::DEFAULT);
 
    /** @brief Return the mesh geometric factors for the faces corresponding
-        to the given integration rule. */
+       to the given integration rule.
+
+       The IntegrationRule used with GetFaceGeometricFactors needs to remain
+       valid until the internally stored FaceGeometricFactors objects are
+       destroyed (by either calling Mesh::DeleteGeometricFactors or the Mesh
+       destructor). */
    const FaceGeometricFactors* GetFaceGeometricFactors(const IntegrationRule& ir,
                                                        const int flags,
                                                        FaceType type);
@@ -919,6 +1011,9 @@ public:
 
    void GetElementData(int geom, Array<int> &elem_vtx, Array<int> &attr) const
    { GetElementData(elements, geom, elem_vtx, attr); }
+
+   /// Checks if the mesh has boundary elements
+   virtual bool HasBoundaryElements() const { return (NumOfBdrElements > 0); }
 
    void GetBdrElementData(int geom, Array<int> &bdr_elem_vtx,
                           Array<int> &bdr_attr) const
@@ -1143,8 +1238,9 @@ public:
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
    /// These mask values are defined in the ConfigMasks enum type as part of the
    /// FaceElementTransformations class in fem/eltrans.hpp.
-   FaceElementTransformations *GetFaceElementTransformations(int FaceNo,
-                                                             int mask = 31);
+   virtual FaceElementTransformations *GetFaceElementTransformations(
+      int FaceNo,
+      int mask = 31);
 
    FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
    {
@@ -1162,6 +1258,172 @@ public:
    {
       return (faces_info[FaceNo].Elem2No >= 0);
    }
+
+   /** This enumerated type describes the three main face topologies:
+       - Boundary, for faces on the boundary of the computational domain,
+       - Conforming, for conforming faces interior to the computational domain,
+       - Nonconforming, for nonconforming faces interior to the computational
+         domain. */
+   enum class FaceTopology { Boundary,
+                             Conforming,
+                             Nonconforming,
+                             NA
+                           };
+
+   /** This enumerated type describes the location of the two elements sharing a
+       face, Local meaning that the element is local to the MPI rank, FaceNbr
+       meaning that the element is distributed on a different MPI rank, this
+       typically means that methods with FaceNbr should be used to access the
+       relevant information, e.g., ParFiniteElementSpace::GetFaceNbrElementVDofs.
+    */
+   enum class ElementLocation { Local, FaceNbr, NA };
+
+   /** This enumerated type describes the topological relation of an element to
+       a face:
+       - Coincident meaning that the element's face is topologically equal to
+         the mesh face.
+       - Superset meaning that the element's face is topologically coarser than
+         the mesh face, i.e., the element's face contains the mesh face.
+       - Subset meaning that the element's face is topologically finer than the
+         mesh face, i.e., the element's face is contained in the mesh face.
+       Superset and Subset are only relevant for nonconforming faces.
+       Master nonconforming faces have a conforming element on one side, and a
+       fine element on the other side. Slave nonconforming faces have a
+       conforming element on one side, and a coarse element on the other side.
+    */
+   enum class ElementConformity { Coincident, Superset, Subset, NA };
+
+   /** This enumerated type describes the corresponding FaceInfo internal
+       representation (encoded cases), c.f. FaceInfo's documentation:
+       Classification of a local (non-ghost) face based on its FaceInfo:
+         - Elem2No >= 0 --> local interior face; can be either:
+            - NCFace == -1 --> LocalConforming,
+            - NCFace >= 0 --> LocalSlaveNonconforming,
+         - Elem2No < 0 --> local "boundary" face; can be one of:
+            - NCFace == -1 --> conforming face; can be either:
+               - Elem2Inf < 0 --> Boundary,
+               - Elem2Inf >= 0 --> SharedConforming,
+            - NCFace >= 0 --> nonconforming face; can be one of:
+               - Elem2Inf < 0 --> MasterNonconforming (shared or not shared),
+               - Elem2Inf >= 0 --> SharedSlaveNonconforming.
+       Classification of a ghost (non-local) face based on its FaceInfo:
+         - Elem1No == -1 --> GhostMaster (includes other unused ghost faces),
+         - Elem1No >= 0 --> GhostSlave.
+    */
+   enum class FaceInfoTag { Boundary,
+                            LocalConforming,
+                            LocalSlaveNonconforming,
+                            SharedConforming,
+                            SharedSlaveNonconforming,
+                            MasterNonconforming,
+                            GhostSlave,
+                            GhostMaster
+                          };
+
+   /** @brief This structure is used as a human readable output format that
+       decipheres the information contained in Mesh::FaceInfo when using the
+       Mesh::GetFaceInformation() method.
+
+       The element indices in this structure don't need further processing,
+       contrary to the ones obtained through Mesh::GetFacesElements and can
+       directly be used, e.g., Elem1 and Elem2 indices.
+       Likewise the orientations for Elem1 and Elem2 already take into account
+       special cases and can be used as is.
+   */
+   struct FaceInformation
+   {
+      FaceTopology topology;
+
+      struct
+      {
+         ElementLocation location;
+         ElementConformity conformity;
+         int index;
+         int local_face_id;
+         int orientation;
+      } element[2];
+
+      FaceInfoTag tag;
+      int ncface;
+      const DenseMatrix* point_matrix;
+
+      /** @brief Return true if the face is a local interior face which is NOT
+          a master nonconforming face. */
+      bool IsLocal() const
+      {
+         return element[1].location == Mesh::ElementLocation::Local;
+      }
+
+      /** @brief Return true if the face is a shared interior face which is NOT
+          a master nonconforming face. */
+      bool IsShared() const
+      {
+         return element[1].location == Mesh::ElementLocation::FaceNbr;
+      }
+
+      /** @brief return true if the face is an interior face to the computation
+          domain, either a local or shared interior face (not a boundary face)
+          which is NOT a master nonconforming face.
+       */
+      bool IsInterior() const
+      {
+         return topology == FaceTopology::Conforming ||
+                topology == FaceTopology::Nonconforming;
+      }
+
+      /** @brief Return true if the face is a boundary face. */
+      bool IsBoundary() const
+      {
+         return topology == FaceTopology::Boundary;
+      }
+
+      /// @brief Return true if the face is of the same type as @a type.
+      bool IsOfFaceType(FaceType type) const
+      {
+         switch (type)
+         {
+            case FaceType::Interior:
+               return IsInterior();
+            case FaceType::Boundary:
+               return IsBoundary();
+            default:
+               return false;
+         }
+      }
+
+      /// @brief Return true if the face is a conforming face.
+      bool IsConforming() const
+      {
+         return topology == FaceTopology::Conforming;
+      }
+
+      /// @brief Return true if the face is a nonconforming fine face.
+      bool IsNonconformingFine() const
+      {
+         return topology == FaceTopology::Nonconforming &&
+                (element[0].conformity == ElementConformity::Superset ||
+                 element[1].conformity == ElementConformity::Superset);
+      }
+
+      /// @brief Return true if the face is a nonconforming coarse face.
+      /** Note that ghost nonconforming master faces cannot be clearly
+          identified as such with the currently available information, so this
+          method will return false for such faces. */
+      bool IsNonconformingCoarse() const
+      {
+         return topology == FaceTopology::Nonconforming &&
+                element[1].conformity == ElementConformity::Subset;
+      }
+
+      /// @brief cast operator from FaceInformation to FaceInfo.
+      operator Mesh::FaceInfo() const;
+   };
+
+   /** This method aims to provide face information in a deciphered format, i.e.
+       Mesh::FaceInformation, compared to the raw encoded information returned
+       by Mesh::GetFaceElements() and Mesh::GetFaceInfos(). */
+   FaceInformation GetFaceInformation(int f) const;
+
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
@@ -1223,7 +1485,7 @@ public:
        satisfy: v0 < min(v1, v2).
 
        @note Refinement does not work after a call to this method! */
-   virtual void ReorientTetMesh();
+   MFEM_DEPRECATED virtual void ReorientTetMesh();
 
    int *CartesianPartitioning(int nxyz[]);
    int *GeneratePartitioning(int nparts, int part_method = 1);
@@ -1283,7 +1545,8 @@ public:
 
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',
-       new space dimension, 'space_dim' (if != -1), and 'ordering'. */
+       new space dimension, 'space_dim' (if != -1), and 'ordering' (byVDim by
+       default). */
    virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
                              int ordering = 1);
 
@@ -1302,7 +1565,7 @@ public:
 
    /** Refine selected mesh elements. Refinement type can be specified for each
        element. The function can do conforming refinement of triangles and
-       tetrahedra and non-conforming refinement (i.e., with hanging-nodes) of
+       tetrahedra and nonconforming refinement (i.e., with hanging-nodes) of
        triangles, quadrilaterals and hexahedra. If 'nonconforming' = -1,
        suitable refinement method is selected automatically (namely, conforming
        refinement for triangles). Use nonconforming = 0/1 to force the method.
@@ -1354,9 +1617,9 @@ public:
    void DegreeElevate(int rel_degree, int degree = 16);
    ///@}
 
-   /** Make sure that a quad/hex mesh is considered to be non-conforming (i.e.,
+   /** Make sure that a quad/hex mesh is considered to be nonconforming (i.e.,
        has an associated NCMesh object). Simplex meshes can be both conforming
-       (default) or non-conforming. */
+       (default) or nonconforming. */
    void EnsureNCMesh(bool simplices_nonconforming = false);
 
    bool Conforming() const { return ncmesh == NULL; }
@@ -1376,11 +1639,11 @@ public:
    long GetSequence() const { return sequence; }
 
    /// Print the mesh to the given stream using Netgen/Truegrid format.
-   virtual void PrintXG(std::ostream &out = mfem::out) const;
+   virtual void PrintXG(std::ostream &os = mfem::out) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
-   virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
+   virtual void Print(std::ostream &os = mfem::out) const { Printer(os); }
 
    /// Save the mesh to a file using Mesh::Print. The given @a precision will be
    /// used for ASCII output.
@@ -1388,22 +1651,22 @@ public:
 
    /// Print the mesh to the given stream using the adios2 bp format
 #ifdef MFEM_USE_ADIOS2
-   virtual void Print(adios2stream &out) const;
+   virtual void Print(adios2stream &os) const;
 #endif
    /// Print the mesh in VTK format (linear and quadratic meshes only).
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
-   void PrintVTK(std::ostream &out);
+   void PrintVTK(std::ostream &os);
    /** Print the mesh in VTK format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If the optional field_data is set, we also add a FIELD section in the
        beginning of the file with additional dataset information. */
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
-   void PrintVTK(std::ostream &out, int ref, int field_data=0);
+   void PrintVTK(std::ostream &os, int ref, int field_data=0);
    /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If @a bdr_elements is true, then output (only) the boundary elements,
        otherwise output only the non-boundary elements. */
-   void PrintVTU(std::ostream &out,
+   void PrintVTU(std::ostream &os,
                  int ref=1,
                  VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
@@ -1429,7 +1692,7 @@ public:
        attribute i+1. */
    /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
    void PrintWithPartitioning (int *partitioning,
-                               std::ostream &out, int elem_attr = 0) const;
+                               std::ostream &os, int elem_attr = 0) const;
 
    void PrintElementsWithPartitioning (int *partitioning,
                                        std::ostream &out,
@@ -1485,14 +1748,14 @@ public:
    /** If @a Vh or @a Vk are not NULL, return the element sizes and aspect
        ratios for all elements in the given Vector%s. */
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
-                             std::ostream &out = mfem::out);
+                             std::ostream &os = mfem::out);
 
    /** @brief In serial, this method calls PrintCharacteristics(). In parallel,
        additional information about the parallel decomposition is also printed.
    */
-   virtual void PrintInfo(std::ostream &out = mfem::out)
+   virtual void PrintInfo(std::ostream &os = mfem::out)
    {
-      PrintCharacteristics(NULL, NULL, out);
+      PrintCharacteristics(NULL, NULL, os);
    }
 
    void MesquiteSmooth(const int mesquite_option = 0);
@@ -1682,6 +1945,9 @@ inline void ShiftRight(int &a, int &b, int &c)
    int t = a;
    a = c;  c = b;  b = t;
 }
+
+/// @brief Print function for Mesh::FaceInformation.
+std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info);
 
 }
 

@@ -9,6 +9,7 @@
 //               ex1 -m ../data/fichera.mesh
 //               ex1 -m ../data/fichera-mixed.mesh
 //               ex1 -m ../data/toroid-wedge.mesh
+//               ex1 -m ../data/octahedron.mesh -o 1
 //               ex1 -m ../data/periodic-annulus-sector.msh
 //               ex1 -m ../data/periodic-torus-sector.msh
 //               ex1 -m ../data/square-disc-p2.vtk -o 2

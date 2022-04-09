@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -46,6 +46,8 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 
    double ratio = global_sum / static_cast<double>(global_size);
    v_ortho.SetSize(v.Size());
+   v.HostRead();
+   v_ortho.HostWrite();
    for (int i = 0; i < v_ortho.Size(); ++i)
    {
       v_ortho(i) = v(i) - ratio;

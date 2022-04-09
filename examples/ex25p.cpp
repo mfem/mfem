@@ -92,7 +92,7 @@ class PMLDiagMatrixCoefficient : public VectorCoefficient
 {
 private:
    CartesianPML * pml = nullptr;
-   void (*Function)(const Vector &, CartesianPML * , Vector &);
+   void (*Function)(const Vector &, CartesianPML *, Vector &);
 public:
    PMLDiagMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
                                               Vector &),
@@ -154,11 +154,11 @@ prob_type prob;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = nullptr;
@@ -257,7 +257,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -315,9 +314,6 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-
-   // 7a. Reorient mesh in case of a tet mesh
-   pmesh->ReorientTetMesh();
 
    // 8. Set element attributes in order to distinguish elements in the PML
    pml->SetAttributes(pmesh);
@@ -695,7 +691,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-   MPI_Finalize();
    return 0;
 }
 

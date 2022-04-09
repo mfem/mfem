@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -832,6 +832,12 @@ public:
    /// Set the maximum number of linear solver restarts
    /** @note Only valid in combination with JFNK */
    void SetLSMaxRestarts(int m) { maxlrs = m; }
+
+   /// Set the print level for the KINSetPrintLevel function.
+   virtual void SetPrintLevel(int print_lvl) { print_level = print_lvl; }
+
+   /// This method is not supported and will throw an error.
+   virtual void SetPrintLevel(PrintLevel);
 
    /// Solve the nonlinear system \f$ F(x) = 0 \f$.
    /** This method computes the x_scale and fx_scale vectors and calls the

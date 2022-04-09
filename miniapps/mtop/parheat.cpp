@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -49,11 +49,10 @@
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   int nprocs, myrank;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+   // 1. Initialize MPI and HYPRE.
+   mfem::Mpi::Init(argc, argv);
+   int myrank = mfem::Mpi::WorldRank();
+   mfem::Hypre::Init();
 
    // Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
@@ -108,7 +107,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(std::cout);
       }
-      MPI_Finalize();
       return 1;
    }
 
@@ -203,11 +201,11 @@ int main(int argc, char *argv[])
    nf->SetParamFields(prmbv); //set the density
 
    // Compute the stiffness/tangent matrix for density prmbv=0.5.
-   mfem::BlockOperator& A=nf->GetGradient(solbv);
+   mfem::BlockOperator *A = &nf->GetGradient(solbv);
    mfem::HypreBoomerAMG* prec=new mfem::HypreBoomerAMG();
    prec->SetPrintLevel(print_level);
    // Use only block (0,0) as in this case we have a single field.
-   prec->SetOperator(A.GetBlock(0,0));
+   prec->SetOperator(A->GetBlock(0,0));
 
    // Construct block preconditioner for the BNLForm.
    mfem::BlockDiagonalPreconditioner *blpr = new mfem::BlockDiagonalPreconditioner(
@@ -222,7 +220,7 @@ int main(int argc, char *argv[])
    gmres->SetMaxIter(100);
    gmres->SetPrintLevel(print_level);
    gmres->SetPreconditioner(*blpr);
-   gmres->SetOperator(A);
+   gmres->SetOperator(*A);
 
 
    // Solve the problem.
@@ -319,10 +317,10 @@ int main(int argc, char *argv[])
          // Solve the physics.
          solbv=0.0;
          nf->Mult(solbv,resbv); resbv.Neg(); //compute RHS
-         A=nf->GetGradient(solbv);
+         A = &nf->GetGradient(solbv);
          prec->SetPrintLevel(0);
-         prec->SetOperator(A.GetBlock(0,0));
-         gmres->SetOperator(A);
+         prec->SetOperator(A->GetBlock(0,0));
+         gmres->SetOperator(*A);
          gmres->SetPrintLevel(0);
          gmres->Mult(resbv,solbv);
          // Compute the objective.
@@ -350,6 +348,5 @@ int main(int argc, char *argv[])
    delete loadco;
    delete diffco;
 
-   MPI_Finalize();
    return 0;
 }

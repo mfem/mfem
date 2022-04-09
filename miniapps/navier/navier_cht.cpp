@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -100,8 +100,8 @@ protected:
    HypreParMatrix *T; // T = M + dt K
    double current_dt;
 
-   mutable CGSolver M_solver;    // Krylov solver for inverting the mass matrix M
-   HypreSmoother M_prec; // Preconditioner for the mass matrix M
+   mutable CGSolver M_solver; // Krylov solver for inverting the mass matrix M
+   HypreSmoother M_prec;      // Preconditioner for the mass matrix M
 
    CGSolver T_solver;    // Implicit solver for T = M + dt K
    HypreSmoother T_prec; // Preconditioner for the implicit solver
@@ -132,11 +132,11 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // Parse command-line options.
    int lim_meshes = 2; // should be greater than nmeshes
@@ -404,8 +404,6 @@ int main(int argc, char *argv[])
    delete pmesh;
    delete comml;
 
-   MPI_Finalize();
-
    return 0;
 }
 
@@ -421,10 +419,10 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
    Array<int> ess_bdr(f.GetParMesh()->bdr_attributes.Max());
    // Dirichlet boundary condition on inlet and isothermal section of wall.
    ess_bdr = 0;
-   ess_bdr[0] = 1; //inlet
-   ess_bdr[1] = 1; //homogeneous isothermal section of bottom wall
-   ess_bdr[2] = 0; //top wall
-   ess_bdr[3] = 0; //inhomogeneous isothermal section of bottom wall
+   ess_bdr[0] = 1; // inlet
+   ess_bdr[1] = 1; // homogeneous isothermal section of bottom wall
+   ess_bdr[2] = 0; // top wall
+   ess_bdr[3] = 0; // inhomogeneous isothermal section of bottom wall
    f.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    M = new ParBilinearForm(&fespace);
