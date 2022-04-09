@@ -100,7 +100,8 @@ ostream &operator<<(ostream &v, void (*f)(VisMan&));
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+   Mpi::Init(argc, argv);
+   Hypre::Init();
 
    // 1. Define and parse command-line options.
    const char *mesh_file = "../data/beam-tri.mesh";
@@ -139,14 +140,14 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root()) { args.PrintUsage(cout); }
+      if (Mpi::Root()) { args.PrintUsage(cout); }
       return 1;
    }
    if (kappa < 0)
    {
       kappa = (order+1)*(order+1);
    }
-   if (mpi.Root()) { args.PrintOptions(cout); }
+   if (Mpi::Root()) { args.PrintOptions(cout); }
 
    // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -154,7 +155,7 @@ int main(int argc, char *argv[])
 
    if (mesh.attributes.Max() < 2 || mesh.bdr_attributes.Max() < 2)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cerr << "\nInput mesh should have at least two materials and "
               << "two boundary attributes! (See schematic in ex17p.cpp)\n"
@@ -191,7 +192,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace(&pmesh, &fec, dim, Ordering::byVDIM);
 
    HYPRE_BigInt glob_size = fespace.GlobalTrueVSize();
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Number of finite element unknowns: " << glob_size
            << "\nAssembling: " << flush;
@@ -235,7 +236,7 @@ int main(int argc, char *argv[])
    //    VectorFunctionCoefficient 'x_init' which in turn is based on the
    //    function 'InitDisplacement'.
    ParLinearForm b(&fespace);
-   if (mpi.Root()) { cout << "r.h.s. ... " << flush; }
+   if (Mpi::Root()) { cout << "r.h.s. ... " << flush; }
    b.AddBdrFaceIntegrator(
       new DGElasticityDirichletLFIntegrator(
          init_x, lambda_c, mu_c, alpha, kappa), dir_bdr);
@@ -256,13 +257,13 @@ int main(int argc, char *argv[])
       new DGElasticityIntegrator(lambda_c, mu_c, alpha, kappa), dir_bdr);
 
    // 10. Assemble the bilinear form and the corresponding linear system.
-   if (mpi.Root()) { cout << "matrix ... " << flush; }
+   if (Mpi::Root()) { cout << "matrix ... " << flush; }
    a.Assemble();
 
    HypreParMatrix A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-   if (mpi.Root()) { cout << "done." << endl; }
+   if (Mpi::Root()) { cout << "done." << endl; }
 
    // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system Ax=b with PCG for the symmetric formulation, or GMRES
@@ -307,8 +308,8 @@ int main(int argc, char *argv[])
       x.Neg(); // x = -x
 
       ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << mpi.WorldRank();
-      sol_name << "sol." << setfill('0') << setw(6) << mpi.WorldRank();
+      mesh_name << "mesh." << setfill('0') << setw(6) << Mpi::WorldRank();
+      sol_name << "sol." << setfill('0') << setw(6) << Mpi::WorldRank();
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);

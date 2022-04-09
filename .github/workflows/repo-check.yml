@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -28,49 +28,24 @@ jobs:
         access_token: ${{ github.token }}
     - name: checkout mfem
       uses: actions/checkout@v2
-      with:
-        path: mfem
 
     - name: copyright check
       id: copyright
       run: |
-        cd mfem
-        if git grep -l "^\(#\|//\).*\(\-2020\|\ 2010,\)" > matches.txt
-        then
-          echo "Please update the following files to Copyright (c) 2010-2021:"
-          cat matches.txt
-          exit 1
-        else
-          echo "No outdated copyright found."
-        fi
+        ./config/githooks/pre-push --copyright
+
       continue-on-error: true
 
     - name: license check
       id: license
       run: |
-        cd mfem
-        if git grep -li "^\(#\|//\).*GNU\ Lesser\ General\ Public\ License" > matches.txt
-        then
-          echo "Please update the following files to the BSD-3 license:"
-          cat matches.txt
-          exit 1
-        else
-          echo "No GNU GPL license found."
-        fi
+        ./config/githooks/pre-push --license
       continue-on-error: true
 
     - name: release check
       id: release
       run: |
-        cd mfem
-        if git grep -l "^\(#\|//\).*LLNL\-CODE\-443211" > matches.txt
-        then
-          echo "Please update the following files to LLNL-CODE-806117:"
-          cat matches.txt
-          exit 1
-        else
-          echo "No outdated release number found."
-        fi
+        ./config/githooks/pre-push --release
       continue-on-error: true
 
     - name: wrap-up
@@ -88,7 +63,7 @@ jobs:
         exit 1
 
   code-style:
-    runs-on: ubuntu-16.04 # needed for astyle 2.05.1
+    runs-on: ubuntu-18.04
 
     steps:
     - name: checkout mfem
@@ -96,12 +71,11 @@ jobs:
 
     - name: get astyle
       run: |
-        sudo apt-get install astyle=2.05.1-0ubuntu1
+        sudo apt-get install astyle=3.1-1ubuntu2
 
     - name: style check
       run: |
-        cd tests/scripts
-        ./runtest code-style
+        ./config/githooks/pre-push --style
 
   documentation:
     runs-on: ubuntu-18.04
@@ -131,7 +105,9 @@ jobs:
 
     - name: branch-history
       run: |
-        git fetch origin master:master
+        # We override origin to make sure we point to the main repo.
+        # This is to have consistent test results on PRs from forks.
+        git remote remove origin
+        git remote add origin https://github.com/mfem/mfem.git
         git checkout -b gh-actions-branch-history
-        cd tests/scripts
-        ./runtest branch-history
+        ./config/githooks/pre-push --history

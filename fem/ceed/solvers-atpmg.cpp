@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -86,7 +86,8 @@ int CeedATPMGElemRestriction(int order,
    Ceed ceed;
    ierr = CeedElemRestrictionGetCeed(er_in, &ceed); CeedChk(ierr);
 
-   CeedInt numelem, numnodes, numcomp, elemsize;
+   CeedInt numelem, numcomp, elemsize;
+   CeedSize numnodes;
    ierr = CeedElemRestrictionGetNumElements(er_in, &numelem); CeedChk(ierr);
    ierr = CeedElemRestrictionGetLVectorSize(er_in, &numnodes); CeedChk(ierr);
    ierr = CeedElemRestrictionGetElementSize(er_in, &elemsize); CeedChk(ierr);
@@ -109,8 +110,9 @@ int CeedATPMGElemRestriction(int order,
    // Create the elem_dof array from the given high-order ElemRestriction
    // by using it to map the L-vector indices to an E-vector
    CeedScalar * lvec_data;
-   ierr = CeedVectorGetArray(in_lvec, CEED_MEM_HOST, &lvec_data); CeedChk(ierr);
-   for (int i = 0; i < numnodes; ++i)
+   ierr = CeedVectorGetArrayWrite(in_lvec, CEED_MEM_HOST, &lvec_data);
+   CeedChk(ierr);
+   for (CeedSize i = 0; i < numnodes; ++i)
    {
       lvec_data[i] = (CeedScalar) i;
    }
@@ -133,7 +135,7 @@ int CeedATPMGElemRestriction(int order,
    // low-order ldof indices, with -1 indicating no correspondence
    // (NOTE: it is the caller's responsibility to free dof_map)
    dof_map = new CeedInt[numnodes];
-   for (int i = 0; i < numnodes; ++i)
+   for (CeedSize i = 0; i < numnodes; ++i)
    {
       dof_map[i] = -1;
    }
@@ -178,10 +180,10 @@ int CeedATPMGElemRestriction(int order,
                   {
                      left_in_edof = i*P1d + 0;
                      right_in_edof = i*P1d + (P1d - 1);
-                     left_in_ldof = in_elem_dof[left_in_edof*in_layout[0]
-                                                + e*in_layout[2]] + rounding_guard;
-                     right_in_ldof = in_elem_dof[right_in_edof*in_layout[0]
-                                                 + e*in_layout[2]] + rounding_guard;
+                     left_in_ldof = in_elem_dof[left_in_edof*in_layout[0]+e*in_layout[2]]
+                                    + rounding_guard;
+                     right_in_ldof = in_elem_dof[right_in_edof*in_layout[0]+e*in_layout[2]]
+                                     + rounding_guard;
                      coarse_i = coarse_1d_edof(i, P1d, coarse_P1d);
                      coarse_j = (left_in_ldof < right_in_ldof) ?
                                 coarse_1d_edof(j, P1d, coarse_P1d) : reverse_coarse_1d_edof(j, P1d, coarse_P1d);
@@ -190,10 +192,10 @@ int CeedATPMGElemRestriction(int order,
                   {
                      left_in_edof = 0*P1d + j;
                      right_in_edof = (P1d - 1)*P1d + j;
-                     left_in_ldof = in_elem_dof[left_in_edof*in_layout[0]
-                                                + e*in_layout[2]] + rounding_guard;
-                     right_in_ldof = in_elem_dof[right_in_edof*in_layout[0]
-                                                 + e*in_layout[2]] + rounding_guard;
+                     left_in_ldof = in_elem_dof[left_in_edof*in_layout[0]+e*in_layout[2]]
+                                    + rounding_guard;
+                     right_in_ldof = in_elem_dof[right_in_edof*in_layout[0]+e*in_layout[2]]
+                                     + rounding_guard;
                      coarse_i = (left_in_ldof < right_in_ldof) ?
                                 coarse_1d_edof(i, P1d, coarse_P1d) : reverse_coarse_1d_edof(i, P1d, coarse_P1d);
                      coarse_j = coarse_1d_edof(j, P1d, coarse_P1d);
@@ -234,8 +236,8 @@ int CeedATPMGElemRestriction(int order,
                   // Determine topology; is this edof on the outside of the element
                   // in the i, j, or k direction?
                   int in_edof = i*P1d*P1d + j*P1d + k;
-                  int in_ldof = in_elem_dof[in_edof*in_layout[0] +
-                                            e*in_layout[2]] + rounding_guard;
+                  int in_ldof = in_elem_dof[in_edof*in_layout[0]+e*in_layout[2]]
+                                + rounding_guard;
                   bool i_edge = (i == 0 || i == P1d - 1);
                   bool j_edge = (j == 0 || j == P1d - 1);
                   bool k_edge = (k == 0 || k == P1d - 1);
@@ -265,10 +267,10 @@ int CeedATPMGElemRestriction(int order,
                      {
                         left_in_edof = 0*P1d*P1d + j*P1d + k;
                         right_in_edof = (P1d - 1)*P1d*P1d + j*P1d + k;
-                        left_in_ldof = in_elem_dof[left_in_edof*in_layout[0] +
-                                                   e*in_layout[2]] + rounding_guard;
-                        right_in_ldof = in_elem_dof[right_in_edof*in_layout[0] +
-                                                    e*in_layout[2]] + rounding_guard;
+                        left_in_ldof = in_elem_dof[left_in_edof*in_layout[0]+e*in_layout[2]]
+                                       + rounding_guard;
+                        right_in_ldof = in_elem_dof[right_in_edof*in_layout[0]+e*in_layout[2]]
+                                        + rounding_guard;
                         coarse_i = (left_in_ldof < right_in_ldof) ?
                                    coarse_1d_edof(i, P1d, coarse_P1d) : reverse_coarse_1d_edof(i, P1d, coarse_P1d);
                         coarse_j = coarse_1d_edof(j, P1d, coarse_P1d);
@@ -278,10 +280,10 @@ int CeedATPMGElemRestriction(int order,
                      {
                         left_in_edof = i*P1d*P1d + 0*P1d + k;
                         right_in_edof = i*P1d*P1d + (P1d - 1)*P1d + k;
-                        left_in_ldof = in_elem_dof[left_in_edof*in_layout[0] +
-                                                   e*in_layout[2]] + rounding_guard;
-                        right_in_ldof = in_elem_dof[right_in_edof*in_layout[0] +
-                                                    e*in_layout[2]] + rounding_guard;
+                        left_in_ldof = in_elem_dof[left_in_edof*in_layout[0]+e*in_layout[2]]
+                                       + rounding_guard;
+                        right_in_ldof = in_elem_dof[right_in_edof*in_layout[0]+e*in_layout[2]]
+                                        + rounding_guard;
                         coarse_i = coarse_1d_edof(i, P1d, coarse_P1d);
                         coarse_j = (left_in_ldof < right_in_ldof) ?
                                    coarse_1d_edof(j, P1d, coarse_P1d) : reverse_coarse_1d_edof(j, P1d, coarse_P1d);
@@ -296,10 +298,10 @@ int CeedATPMGElemRestriction(int order,
                         }
                         left_in_edof = i*P1d*P1d + j*P1d + 0;
                         right_in_edof = i*P1d*P1d + j*P1d + (P1d - 1);
-                        left_in_ldof = in_elem_dof[left_in_edof*in_layout[0] +
-                                                   e*in_layout[2]] + rounding_guard;
-                        right_in_ldof = in_elem_dof[right_in_edof*in_layout[0] +
-                                                    e*in_layout[2]] + rounding_guard;
+                        left_in_ldof = in_elem_dof[left_in_edof*in_layout[0]+e*in_layout[2]]
+                                       + rounding_guard;
+                        right_in_ldof = in_elem_dof[right_in_edof*in_layout[0]+e*in_layout[2]]
+                                        + rounding_guard;
                         coarse_i = coarse_1d_edof(i, P1d, coarse_P1d);
                         coarse_j = coarse_1d_edof(j, P1d, coarse_P1d);
                         coarse_k = (left_in_ldof < right_in_ldof) ?
@@ -323,14 +325,14 @@ int CeedATPMGElemRestriction(int order,
                         bottom_right_edof = i*P1d*P1d + 0*P1d + (P1d - 1);
                         top_right_edof = i*P1d*P1d + (P1d - 1)*P1d + (P1d - 1);
                         top_left_edof = i*P1d*P1d + (P1d - 1)*P1d + 0;
-                        bottom_left_ldof = in_elem_dof[bottom_left_edof*in_layout[0] +
-                                                       e*in_layout[2]] + rounding_guard;
-                        bottom_right_ldof = in_elem_dof[bottom_right_edof*in_layout[0] +
-                                                        e*in_layout[2]] + rounding_guard;
-                        top_right_ldof = in_elem_dof[top_right_edof*in_layout[0] +
-                                                     e*in_layout[2]] + rounding_guard;
-                        top_left_ldof = in_elem_dof[top_left_edof*in_layout[0] +
-                                                    e*in_layout[2]] + rounding_guard;
+                        bottom_left_ldof = in_elem_dof[bottom_left_edof*in_layout[0]+e*in_layout[2]]
+                                           + rounding_guard;
+                        bottom_right_ldof = in_elem_dof[bottom_right_edof*in_layout[0]+e*in_layout[2]]
+                                            + rounding_guard;
+                        top_right_ldof = in_elem_dof[top_right_edof*in_layout[0]+e*in_layout[2]]
+                                         + rounding_guard;
+                        top_left_ldof = in_elem_dof[top_left_edof*in_layout[0]+e*in_layout[2]]
+                                        + rounding_guard;
                         int m = min4(bottom_left_ldof, bottom_right_ldof, top_right_ldof,
                                      top_left_ldof);
                         coarse_i = coarse_1d_edof(i, P1d, coarse_P1d);
@@ -361,14 +363,14 @@ int CeedATPMGElemRestriction(int order,
                         bottom_right_edof = 0*P1d*P1d + j*P1d + (P1d - 1);
                         top_right_edof = (P1d - 1)*P1d*P1d + j*P1d + (P1d - 1);
                         top_left_edof = (P1d - 1)*P1d*P1d + j*P1d + 0;
-                        bottom_left_ldof = in_elem_dof[bottom_left_edof*in_layout[0] +
-                                                       e*in_layout[2]] + rounding_guard;
-                        bottom_right_ldof = in_elem_dof[bottom_right_edof*in_layout[0] +
-                                                        e*in_layout[2]] + rounding_guard;
-                        top_right_ldof = in_elem_dof[top_right_edof*in_layout[0] +
-                                                     e*in_layout[2]] + rounding_guard;
-                        top_left_ldof = in_elem_dof[top_left_edof*in_layout[0] +
-                                                    e*in_layout[2]] + rounding_guard;
+                        bottom_left_ldof = in_elem_dof[bottom_left_edof*in_layout[0]+e*in_layout[2]]
+                                           + rounding_guard;
+                        bottom_right_ldof = in_elem_dof[bottom_right_edof*in_layout[0]+e*in_layout[2]]
+                                            + rounding_guard;
+                        top_right_ldof = in_elem_dof[top_right_edof*in_layout[0]+e*in_layout[2]]
+                                         + rounding_guard;
+                        top_left_ldof = in_elem_dof[top_left_edof*in_layout[0]+e*in_layout[2]]
+                                        + rounding_guard;
                         int m = min4(bottom_left_ldof, bottom_right_ldof, top_right_ldof,
                                      top_left_ldof);
                         coarse_j = coarse_1d_edof(j, P1d, coarse_P1d);
@@ -404,14 +406,14 @@ int CeedATPMGElemRestriction(int order,
                         bottom_right_edof = 0*P1d*P1d + (P1d - 1)*P1d + k;
                         top_right_edof = (P1d - 1)*P1d*P1d + (P1d - 1)*P1d + k;
                         top_left_edof = (P1d - 1)*P1d*P1d + 0*P1d + k;
-                        bottom_left_ldof = in_elem_dof[bottom_left_edof*in_layout[0] +
-                                                       e*in_layout[2]] + rounding_guard;
-                        bottom_right_ldof = in_elem_dof[bottom_right_edof*in_layout[0] +
-                                                        e*in_layout[2]] + rounding_guard;
-                        top_right_ldof = in_elem_dof[top_right_edof*in_layout[0] +
-                                                     e*in_layout[2]] + rounding_guard;
-                        top_left_ldof = in_elem_dof[top_left_edof*in_layout[0] +
-                                                    e*in_layout[2]] + rounding_guard;
+                        bottom_left_ldof = in_elem_dof[bottom_left_edof*in_layout[0]+e*in_layout[2]]
+                                           + rounding_guard;
+                        bottom_right_ldof = in_elem_dof[bottom_right_edof*in_layout[0]+e*in_layout[2]]
+                                            + rounding_guard;
+                        top_right_ldof = in_elem_dof[top_right_edof*in_layout[0]+e*in_layout[2]]
+                                         + rounding_guard;
+                        top_left_ldof = in_elem_dof[top_left_edof*in_layout[0]+e*in_layout[2]]
+                                        + rounding_guard;
                         int m = min4(bottom_left_ldof, bottom_right_ldof,
                                      top_right_ldof, top_left_ldof);
                         coarse_k = coarse_1d_edof(k, P1d, coarse_P1d);
@@ -584,6 +586,9 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
                       CeedBasis basis_ctof_in,
                       CeedOperator* out)
 {
+   (void)order_reduction;
+   (void)basis_ctof_in;
+
    int ierr;
    Ceed ceed;
    ierr = CeedOperatorGetCeed(oper, &ceed); CeedChk(ierr);
@@ -591,11 +596,14 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
    CeedQFunction qf;
    ierr = CeedOperatorGetQFunction(oper, &qf); CeedChk(ierr);
    CeedInt numinputfields, numoutputfields;
-   ierr = CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
    CeedQFunctionField *inputqfields, *outputqfields;
-   ierr = CeedQFunctionGetFields(qf, &inputqfields, &outputqfields); CeedChk(ierr);
+   ierr = CeedQFunctionGetFields(qf, &numinputfields, &inputqfields,
+                                 &numoutputfields, &outputqfields);
+   CeedChk(ierr);
    CeedOperatorField *inputfields, *outputfields;
-   ierr = CeedOperatorGetFields(oper, &inputfields, &outputfields); CeedChk(ierr);
+   ierr = CeedOperatorGetFields(oper, &numinputfields, &inputfields,
+                                &numoutputfields, &outputfields);
+   CeedChk(ierr);
 
    CeedElemRestriction * er_input = new CeedElemRestriction[numinputfields];
    CeedElemRestriction * er_output = new CeedElemRestriction[numoutputfields];
@@ -692,54 +700,6 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
    return 0;
 }
 
-int CeedOperatorGetActiveBasis(CeedOperator oper, CeedBasis *basis)
-{
-   int ierr;
-   Ceed ceed;
-   ierr = CeedOperatorGetCeed(oper, &ceed); CeedChk(ierr);
-   CeedQFunction qf;
-   ierr = CeedOperatorGetQFunction(oper, &qf); CeedChk(ierr);
-   CeedInt numinputfields, numoutputfields;
-   ierr = CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
-   CeedOperatorField *inputfields, *outputfields;
-   ierr = CeedOperatorGetFields(oper, &inputfields, &outputfields); CeedChk(ierr);
-
-   *basis = NULL;
-   for (int i = 0; i < numinputfields; ++i)
-   {
-      CeedVector if_vector;
-      CeedBasis basis_in;
-      ierr = CeedOperatorFieldGetVector(inputfields[i], &if_vector); CeedChk(ierr);
-      ierr = CeedOperatorFieldGetBasis(inputfields[i], &basis_in); CeedChk(ierr);
-      if (if_vector == CEED_VECTOR_ACTIVE)
-      {
-         if (*basis == NULL)
-         {
-            *basis = basis_in;
-         }
-         else if (*basis != basis_in)
-         {
-            return CeedError(ceed, 1, "Two different active input basis!");
-         }
-      }
-   }
-   for (int i = 0; i < numoutputfields; ++i)
-   {
-      CeedVector of_vector;
-      CeedBasis basis_out;
-      ierr = CeedOperatorFieldGetVector(outputfields[i], &of_vector); CeedChk(ierr);
-      ierr = CeedOperatorFieldGetBasis(outputfields[i], &basis_out); CeedChk(ierr);
-      if (of_vector == CEED_VECTOR_ACTIVE)
-      {
-         if (*basis != basis_out)
-         {
-            return CeedError(ceed, 1, "Input and output basis do not match!");
-         }
-      }
-   }
-   return 0;
-}
-
 int CeedATPMGOperator(CeedOperator oper, int order_reduction,
                       CeedElemRestriction coarse_er,
                       CeedBasis *coarse_basis_out,
@@ -751,9 +711,10 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
    CeedQFunction qf;
    ierr = CeedOperatorGetQFunction(oper, &qf); CeedChk(ierr);
    CeedInt numinputfields, numoutputfields;
-   ierr = CeedQFunctionGetNumArgs(qf, &numinputfields, &numoutputfields);
    CeedOperatorField *inputfields;
-   ierr = CeedOperatorGetFields(oper, &inputfields, NULL); CeedChk(ierr);
+   ierr = CeedOperatorGetFields(oper, &numinputfields, &inputfields,
+                                &numoutputfields, NULL);
+   CeedChk(ierr);
 
    CeedBasis basis;
    ierr = CeedOperatorGetActiveBasis(oper, &basis); CeedChk(ierr);

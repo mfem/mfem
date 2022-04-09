@@ -13,6 +13,8 @@
 //               ex22 -m ../data/inline-hex.mesh -o 2 -p 1
 //               ex22 -m ../data/inline-hex.mesh -o 2 -p 2
 //               ex22 -m ../data/inline-hex.mesh -o 2 -p 2 -pa
+//               ex22 -m ../data/inline-wedge.mesh -o 1
+//               ex22 -m ../data/inline-pyramid.mesh -o 1
 //               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0
 //
 // Device sample runs:

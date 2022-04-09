@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -73,11 +73,11 @@ void GetInterdomainBoundaryPoints(OversetFindPointsGSLIB &finder,
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // Parse command-line options.
    int lim_meshes = 3; // should be greater than nmeshes
@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
       {
          bnd(i+d*number_boundary) = vxyz(idx + d*number_true);
       }
-      n      colorv[i] = (unsigned int)color;
+      colorv[i] = (unsigned int)color;
    }
    Vector interp_vals1(number_boundary);
    finder.Interpolate(bnd, colorv, x, interp_vals1);
@@ -428,8 +428,6 @@ int main(int argc, char *argv[])
    delete pmesh;
    delete comml;
 
-
-   MPI_Finalize();
 
    return 0;
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -55,6 +55,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
       MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
       MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
 
+      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
+
       ConstDeviceMatrix B(sB, D1D, Q1D);
       DeviceCube DDD(sm0, MD1,MD1,MD1);
       DeviceCube DDQ(sm1, MD1,MD1,MQ1);
@@ -88,7 +90,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
       }
       min = min_size[0];
 
-      kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
       kernels::internal::EvalX(D1D,Q1D,B,DDD,DDQ);
       kernels::internal::EvalY(D1D,Q1D,B,DDQ,DQQ);
       kernels::internal::EvalZ(D1D,Q1D,B,DQQ,QQQ);

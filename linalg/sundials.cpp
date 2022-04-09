@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1677,7 +1677,7 @@ int KINSolver::GradientMult(N_Vector v, N_Vector Jv, N_Vector u,
 
 // Wrapper for evaluating linear systems J u = b
 int KINSolver::LinSysSetup(N_Vector u, N_Vector, SUNMatrix J,
-                           void *, N_Vector , N_Vector )
+                           void *, N_Vector, N_Vector )
 {
    const SundialsNVector mfem_u(u);
    KINSolver *self = static_cast<KINSolver*>(GET_CONTENT(J));
@@ -1974,6 +1974,11 @@ void KINSolver::SetMAA(int m_aa)
       flag = KINSetMAA(sundials_mem, maa);
       MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
    }
+}
+
+void KINSolver::SetPrintLevel(PrintLevel)
+{
+   MFEM_ABORT("this method is not supported! Use SetPrintLevel(int) instead.");
 }
 
 // Compute the scaling vectors and solve nonlinear system
