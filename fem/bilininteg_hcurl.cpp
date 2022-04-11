@@ -978,12 +978,14 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
 
+   auto SMQ = dynamic_cast<SymmetricMatrixCoefficient *>(MQ);
+
    const int MQsymmDim = SMQ ? (SMQ->GetSize() * (SMQ->GetSize() + 1)) / 2 : 0;
    const int MQfullDim = MQ ? (MQ->GetHeight() * MQ->GetWidth()) : 0;
-   const int MQdim = MQ ? MQfullDim : MQsymmDim;
-   const int coeffDim = (MQ || SMQ) ? MQdim : (DQ ? DQ->GetVDim() : 1);
+   const int MQdim = SMQ ? MQsymmDim : MQfullDim;
+   const int coeffDim = MQ ? MQdim : (DQ ? DQ->GetVDim() : 1);
 
-   symmetric = (MQ == NULL);
+   symmetric = (SMQ || MQ == NULL);
 
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int ndata = (dim == 2) ? 1 : (symmetric ? symmDims : MQfullDim);
@@ -992,7 +994,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Vector coeff(coeffDim * ne * nq);
    coeff = 1.0;
    auto coeffh = Reshape(coeff.HostWrite(), coeffDim, nq, ne);
-   if (Q || DQ || MQ || SMQ)
+   if (Q || DQ || MQ)
    {
       Vector DM(DQ ? coeffDim : 0);
       DenseMatrix GM;
@@ -1002,16 +1004,16 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
       {
          MFEM_VERIFY(coeffDim == dimc, "");
       }
-      if (MQ)
-      {
-         GM.SetSize(dimc);
-         MFEM_VERIFY(coeffDim == MQdim, "");
-         MFEM_VERIFY(MQ->GetHeight() == dimc && MQ->GetWidth() == dimc, "");
-      }
       if (SMQ)
       {
          SM.SetSize(dimc);
          MFEM_VERIFY(SMQ->GetSize() == dimc, "");
+      }
+      else if (MQ)
+      {
+         GM.SetSize(dimc);
+         MFEM_VERIFY(coeffDim == MQdim, "");
+         MFEM_VERIFY(MQ->GetHeight() == dimc && MQ->GetWidth() == dimc, "");
       }
 
       for (int e=0; e<ne; ++e)
@@ -1019,18 +1021,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
          ElementTransformation *tr = mesh->GetElementTransformation(e);
          for (int p=0; p<nq; ++p)
          {
-            if (MQ)
-            {
-               MQ->Eval(GM, *tr, ir->IntPoint(p));
-
-               for (int i=0; i<dimc; ++i)
-                  for (int j=0; j<dimc; ++j)
-                  {
-                     coeffh(j+(i*dimc), p, e) = GM(i,j);
-                  }
-
-            }
-            else if (SMQ)
+            if (SMQ)
             {
                SMQ->Eval(SM, *tr, ir->IntPoint(p));
 
@@ -1039,6 +1030,17 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   for (int j=i; j<dimc; ++j, ++cnt)
                   {
                      coeffh(cnt, p, e) = SM(i,j);
+                  }
+
+            }
+            else if (MQ)
+            {
+               MQ->Eval(GM, *tr, ir->IntPoint(p));
+
+               for (int i=0; i<dimc; ++i)
+                  for (int j=0; j<dimc; ++j)
+                  {
+                     coeffh(j+(i*dimc), p, e) = GM(i,j);
                   }
 
             }
