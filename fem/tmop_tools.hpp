@@ -129,10 +129,13 @@ protected:
    bool parallel;
 
    // Surface fitting variables.
-   bool adaptive_surf_fit = false;
    mutable double surf_fit_err_avg_prvs = 10000.0;
+   mutable double surf_fit_err_avg, surf_fit_err_max;
    mutable bool update_surf_fit_coeff = false;
    double surf_fit_max_threshold = -1.0;
+   double surf_fit_scale_factor = 0.0;
+   mutable int adapt_inc_count = 0;
+   mutable int max_adapt_inc_count = 10;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
@@ -210,9 +213,17 @@ public:
    virtual void ProcessNewState(const Vector &x) const;
 
    /** @name Methods for adaptive surface fitting weight. (Experimental) */
-   /// Enable adaptive surface fitting weight.
+   /// Enable/Disable adaptive surface fitting weight.
    /// The weight is modified after each TMOPNewtonSolver iteration.
-   void EnableAdaptiveSurfaceFitting() { adaptive_surf_fit = true; }
+   void EnableAdaptiveSurfaceFitting() { surf_fit_scale_factor = 10.0; }
+   void SetAdaptiveSurfaceFittingScalingFactor(double factor)
+   {
+      surf_fit_scale_factor = factor;
+   }
+   void SetMaxNumberofIncrementsForAdaptiveFitting(int count)
+   {
+      max_adapt_inc_count = count;
+   }
 
    /// Set the termination criterion for mesh optimization based on
    /// the maximum surface fitting error.

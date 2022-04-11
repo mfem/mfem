@@ -34,10 +34,10 @@
 // Base example with triangles
 // mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
 // Impact of marking with triangles
-// mpirun -np 4 tmop-fitting -m ../../data/inline-tri.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -fix-bnd -marking
-// mpirun -np 4 tmop-fitting -m ../../data/inline-tri.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -fix-bnd
+// mpirun -np 4 tmop-fitting -m ../../data/inline-tri.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -fix-bnd -marking
+// mpirun -np 4 tmop-fitting -m ../../data/inline-tri.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -fix-bnd
 // Impact of splitting with quadrilaterals
-// mpirun -np 4 tmop-fitting -m quad-split.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -fix-bnd -marking -split
+// mpirun -np 4 tmop-fitting -m quad-split.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -fix-bnd -marking -split
 //
 //
 // Sample runs:
@@ -45,10 +45,10 @@
 //    mpirun -np 4 tmop-fitting -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5 -nor
 //    mpirun -np 4 tmop-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5 -nor
 //  Surface fitting with weight adaptation and termination based on fitting error
-//    mpirun -np 4 tmop-fitting -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -sft 1e-5
+//    mpirun -np 4 tmop-fitting -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-5
 
-// mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -fix-bnd -sbgmesh -slstype 1 -smtype 2 -trim -sfa
-// mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -fix-bnd -sbgmesh -slstype 3 -smtype 0 -sfa
+// mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -fix-bnd -sbgmesh -slstype 1 -smtype 2 -trim -sfa 10.0
+// mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 3 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -bnd -sbgmesh -slstype 3 -smtype 0 -sfa 10.0 -sft 1e-4
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -91,7 +91,7 @@ int main (int argc, char *argv[])
    bool exactaction      = false;
    const char *devopt    = "cpu";
    bool pa               = false;
-   bool surface_fit_adapt = false;
+   double surface_fit_adapt = 0.0;
    double surface_fit_threshold = -10;
    bool adapt_marking     = false;
    bool split_case        = false;
@@ -203,8 +203,7 @@ int main (int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit", "-no-sfa",
-                  "--no-adaptive-surface-fit",
+   args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit",
                   "Enable or disable adaptive surface fitting.");
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
@@ -628,7 +627,7 @@ int main (int argc, char *argv[])
          }
       }
 
-      if (!surf_bg_mesh)
+      if (!surf_bg_mesh && surf_ls_type == 3)
       {
          ComputeScalarDistanceFromLevelSet(*pmesh, *ls_coeff, 0, surf_fit_gf0);
       }
@@ -917,7 +916,10 @@ int main (int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
-   if (surface_fit_adapt) { solver.EnableAdaptiveSurfaceFitting(); }
+   if (surface_fit_adapt > 0.0)
+   {
+      solver.SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
+   }
    if (surface_fit_threshold > 0)
    {
       solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);

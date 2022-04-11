@@ -670,6 +670,20 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
       distance_s.Update();
    }
 
+   {
+      ostringstream mesh_name;
+      mesh_name << "background.mesh";
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh.PrintAsOne(mesh_ofs);
+
+      ostringstream gf_name;
+      gf_name << "background.gf";
+      ofstream gf_ofs(gf_name.str().c_str());
+      gf_ofs.precision(8);
+      x.SaveAsOne(gf_ofs);
+   }
+
    //Now determine distance
    const double dx = AvgElementSize(pmesh);
    DistanceSolver *dist_solver = NULL;
@@ -711,7 +725,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    distance_s.SetFromTrueVector();
    for (int i = 0; i < distance_s.Size(); i++)
    {
-      distance_s(i) *= distance_s(i);
+      distance_s(i) = std::fabs(distance_s(i));
    }
 }
 #endif
