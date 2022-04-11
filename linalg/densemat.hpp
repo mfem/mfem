@@ -726,7 +726,6 @@ public:
 
 };
 
-
 /** Data type for inverse of square dense matrix.
     Stores matrix factors, i.e.,  Cholesky factors if the matrix is SPD,
     LU otherwise. */

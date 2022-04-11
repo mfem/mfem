@@ -10,8 +10,11 @@
 
 Version 4.4.1 (development)
 ===========================
-- Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error
-  estimator; see fem/estimators.hpp.
+- Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
+  spatial Gaussian white noise.
+
+- Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
+  See fem/estimators.hpp.
 
 - Added support for parallel non-conforming, non-matching, variational, volumetric
   mesh information transfer using ParMoonolith (https://bitbucket.org/zulianp/par_moonolith).
