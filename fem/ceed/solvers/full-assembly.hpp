@@ -19,8 +19,6 @@
 namespace mfem
 {
 
-class SparseMatrix;
-
 namespace ceed
 {
 
