@@ -2,9 +2,9 @@
 //
 // Compile with: make ex33p
 //
-// Sample runs:  mpirun -np 4 ex33p -sr 2 -m ../data/square-disc.mesh -alpha 0.33 -o 2
-//               mpirun -np 4 ex33p -sr 4 -m ../data/star.mesh -alpha 0.99 -o 3
-//               mpirun -np 4 ex33p -sr 3 -m ../data/inline-quad.mesh -alpha 0.2 -o 3
+// Sample runs:  mpirun -np 4 ex33p -m ../data/square-disc.mesh -alpha 0.33 -o 2
+//               mpirun -np 4 ex33p -m ../data/star.mesh -alpha 0.99 -o 3
+//               mpirun -np 4 ex33p -m ../data/inline-quad.mesh -alpha 0.2 -o 3
 //               mpirun -np 4 ex33p -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
 //               mpirun -np 4 ex33p -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
 //
@@ -67,8 +67,8 @@ int main(int argc, char *argv[])
    int order = 1;
    int num_refs = 3;
    bool visualization = true;
+   bool visualize_x = false;
    double alpha = 0.5;
-   int solver_ranks=1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -78,13 +78,14 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&num_refs, "-r", "--refs",
                   "Number of uniform refinements");
-   args.AddOption(&solver_ranks, "-sr", "--solver-ranks",
-                  "Number of MPI ranks within each solve");
    args.AddOption(&alpha, "-alpha", "--alpha",
                   "Fractional exponent");
+   args.AddOption(&visualize_x, "-vis_x", "--visualize_x", "-no-vis_x",
+                  "--no-visualization_x",
+                  "Enable or disable GLVis visualization of each integer-order PDE solution.");               
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
-                  "Enable or disable GLVis visualization.");
+                  "Enable or disable GLVis visualization of the fractional PDE solution.");
    args.Parse();
    if (!args.Good())
    {
@@ -96,51 +97,49 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   int n = max(num_procs/solver_ranks,1);
+   Array<double> coeffs, poles;
+   // 3. Compute the coefficients that define the integer-order PDEs.
+   ComputePartialFractionApproximation(alpha,coeffs,poles);
 
-   if (num_procs%n !=0)
+   int num_par_solves;
+   for (num_par_solves=num_procs/2; num_par_solves>0; num_par_solves--)
    {
-      if (Mpi::Root())
-      {
-         mfem::out << "Changing partitioning of MPI ranks:"
-                   << "Number of mpi ranks within the solve = 1"
-                   << endl;
+      if (num_procs%num_par_solves==0 && num_par_solves<coeffs.Size()) 
+      { 
+         break;
       }
-      n = 1;
    }
+   if (num_par_solves == 1) {num_par_solves = num_procs;}
 
-   int row_color = myid / n; // Determine color based on row
-   int col_color = myid % n; // Determine color based on col
+   int solver_ranks = num_procs/num_par_solves;
+   // 2. Split communicator 
+   //    row_comm is used for parallel partition of the mesh
+   //    col_comm is used for independent integer-order solves
+   int row_color = myid / solver_ranks; // Determine color based on row
+   int col_color = myid % solver_ranks; // Determine color based on col
 
-   MPI_Comm row_comm;
+   MPI_Comm row_comm, col_comm;
    MPI_Comm_split(MPI_COMM_WORLD, row_color, myid, &row_comm);
-   int row_rank, row_size;
+   MPI_Comm_split(MPI_COMM_WORLD, col_color, myid, &col_comm);
+
+   int row_rank, row_size, col_rank, col_size;
    MPI_Comm_rank(row_comm, &row_rank);
    MPI_Comm_size(row_comm, &row_size);
-
-   MPI_Comm col_comm;
-   MPI_Comm_split(MPI_COMM_WORLD, col_color, myid, &col_comm);
-   int col_rank, col_size;
    MPI_Comm_rank(col_comm, &col_rank);
    MPI_Comm_size(col_comm, &col_size);
 
    if (Mpi::Root())
    {
-      mfem::out << "Total number of ranks = " << num_procs << endl;
+      mfem::out << "\nTotal number of ranks = " << num_procs << endl;
       mfem::out << "Number of independent parallel solves = " << col_size << endl;
-      mfem::out << "Number of mpi ranks within each solve = " << row_size << endl;
+      mfem::out << "Number of mpi ranks within each solve = " << row_size <<"\n" << endl;
    }
 
-   Array<double> coeffs, poles;
-
-   // 2. Compute the coefficients that define the integer-order PDEs.
-   ComputePartialFractionApproximation(alpha,coeffs,poles);
-
-   // 3. Read the mesh from the given mesh file.
+   // 4. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   // 4. Refine the mesh to increase the resolution.
+   // 5. Refine the mesh to increase the resolution.
    for (int i = 0; i < num_refs; i++)
    {
       mesh.UniformRefinement();
@@ -149,16 +148,16 @@ int main(int argc, char *argv[])
    ParMesh pmesh(row_comm, mesh);
    mesh.Clear();
 
-   // 5. Define a finite element space on the mesh.
-   FiniteElementCollection *fec = new H1_FECollection(order, dim);
-   ParFiniteElementSpace fespace(&pmesh, fec);
+   // 6. Define a finite element space on the mesh.
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace fespace(&pmesh, &fec);
    if (Mpi::Root())
    {
       cout << "Number of finite element unknowns: "
            << fespace.GetTrueVSize() << endl;
    }
 
-   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
+   // 7. Determine the list of true (i.e. conforming) essential boundary dofs.
    Array<int> ess_tdof_list;
    if (pmesh.bdr_attributes.Size())
    {
@@ -167,31 +166,31 @@ int main(int argc, char *argv[])
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 7. Define diffusion coefficient, load, and solution GridFunction.
+   // 8. Define diffusion coefficient, load, and solution GridFunction.
    ConstantCoefficient f(1.0);
    ConstantCoefficient one(1.0);
    ParGridFunction u(&fespace);
    ParGridFunction x(&fespace);
    u = 0.0;
 
-   // 8. Set up the linear form b(.) for integer-order PDE solves.
+   // 9. Set up the linear form b(.) for integer-order PDE solves.
    ParLinearForm b(&fespace);
    b.AddDomainIntegrator(new DomainLFIntegrator(f));
    b.Assemble();
 
-   // 9. Prepare for visualization.
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream xout;
-   if (visualization)
-   {
-      xout.open(vishost, visport);
-      xout.precision(8);
-   }
-
-   int my_coeff_size = coeffs.Size()/col_size;
+   int my_coeff_size = max(coeffs.Size()/col_size,1);
    int ibeg = col_rank*my_coeff_size;
-   int iend = (col_rank == col_size-1) ? coeffs.Size() : ibeg+my_coeff_size;
+   if (ibeg + 2*my_coeff_size > coeffs.Size())
+   {
+      my_coeff_size = coeffs.Size()-col_rank*my_coeff_size;
+   }
+   else if (ibeg > coeffs.Size() - 1)
+   {
+      my_coeff_size = 0;
+   }
+   
+   int iend = ibeg+my_coeff_size;
+
 
    for (int i = ibeg; i<iend; i++)
    {
@@ -230,33 +229,50 @@ int main(int argc, char *argv[])
       x*=coeffs[i];
       u+=x;
 
-      // 16. Send the solutions by socket to a GLVis server.
-      if (visualization)
+      // 16. Send integer-order PDE solutions to a GLVis server.
+      if (visualize_x)
       {
+         if (col_rank > 0 && i<iend-1)
+         {
+            MPI_Status status;
+            MPI_Recv(nullptr,0,MPI_INT, col_rank-1,0,col_comm,&status);
+         }
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream xout(vishost, visport);
+         xout.precision(8);
          ostringstream oss;
-         oss << "Solution x for d_"<<i<<" = " << -poles[i]
-             << " and c_"<<i<<" = " << coeffs[i];
+         oss << "Solution of PDE -Δ u + "<<-poles[i]<< " u = " << coeffs[i] << " f" ;
          xout << "parallel " << row_size << " " << row_rank << "\n";
          xout << "solution\n" << pmesh << x
-              << "window_title '" << oss.str() << "'" << flush;
+               << "window_title '" << oss.str() << "'" << flush;
+         if (col_rank < col_size-1)
+         {
+            MPI_Send(nullptr,0,MPI_INT,col_rank+1,0,col_comm);
+         }     
       }
    }
+
+   // 17. Accumulate for the fractional PDE solution
    MPI_Allreduce(MPI_IN_PLACE, u.GetData(), u.Size(),
                  MPI_DOUBLE, MPI_SUM,col_comm);
 
+   // 18. Send fractional PDE solution to a GLVis server.
    if (visualization)
    {
       if (col_rank == 0)
       {
+         ostringstream oss;
+         oss << "Solution of fractional PDE -Δ^"<<alpha<< " u = f" ;
+         char vishost[] = "localhost";
+         int  visport   = 19916;
          socketstream uout(vishost, visport);
          uout.precision(8);
          uout << "parallel " << row_size << " " << row_rank << "\n";
          uout << "solution\n" << pmesh << u
-              << "window_title 'Final Solution u'"
-              << flush;
+              << "window_title '" << oss.str() << "'" << flush;
       }
    }
 
-   delete fec;
    return 0;
 }
