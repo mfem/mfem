@@ -1094,7 +1094,7 @@ void VectorFEMassIntegrator::AddMultTransposePA(const Vector &x,
 
    if (dim == 3 && ((trial_div && test_curl) || (trial_curl && test_div)))
    {
-      const bool scalarCoeff = !(DQ || MQ || SMQ);
+      const bool scalarCoeff = !(DQ || MQ);
       PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
                              trial_div, true, mapsO->B, mapsC->B, mapsOtest->Bt,
                              mapsCtest->Bt, pa_data, x, y);
@@ -1102,7 +1102,7 @@ void VectorFEMassIntegrator::AddMultTransposePA(const Vector &x,
    }
    else if (dim == 2 && ((trial_curl && test_div) || (trial_div && test_curl)))
    {
-      const bool scalarCoeff = !(DQ || MQ || SMQ);
+      const bool scalarCoeff = !(DQ || MQ);
       PAHcurlHdivMassApply2D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
                              !trial_curl, true, mapsO->B, mapsC->B, mapsOtest->Bt,
                              mapsCtest->Bt, pa_data, x, y);
