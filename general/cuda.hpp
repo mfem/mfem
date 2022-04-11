@@ -19,7 +19,6 @@
 #define MFEM_CUDA_BLOCKS 256
 
 #ifdef MFEM_USE_CUDA
-#define MFEM_GLOBAL __global__
 #define MFEM_USE_CUDA_OR_HIP
 #define MFEM_DEVICE __device__
 #define MFEM_LAMBDA __host__

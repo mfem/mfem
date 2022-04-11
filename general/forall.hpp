@@ -38,10 +38,8 @@ const int MAX_Q1D = 14;
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
 #if defined(MFEM_USE_CUDA)
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
-#elif defined(__clang__)
-#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
-#elif __GNUC__ >= 8
-#define MFEM_UNROLL(N) MFEM_PRAGMA(GCC unroll N)
+#else
+#define MFEM_UNROLL(N)
 #endif
 
 // MFEM_GPU_FORALL: "parallel for" executed with CUDA or HIP based on the MFEM
