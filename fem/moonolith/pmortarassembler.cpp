@@ -9,10 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "pmortarassembler.hpp"
-#include "../transferutils.hpp"
+#include "../../config/config.hpp"
 
-#include "../cut.hpp"
+#ifdef MFEM_USE_MPI
+
+#include "pmortarassembler.hpp"
+#include "transferutils.hpp"
+
+#include "cut.hpp"
 
 #include "moonolith_bounding_volume_with_span.hpp"
 #include "moonolith_n_tree_mutator_factory.hpp"
@@ -1284,3 +1288,5 @@ bool ParMortarAssembler::Update()
 }
 
 } // namespace mfem
+
+#endif // MFEM_USE_MPI

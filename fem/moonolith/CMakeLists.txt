@@ -25,6 +25,16 @@ list(APPEND HDRS
   transfer.hpp
   )
 
+if(MFEM_USE_MPI)
+  list(APPEND SRCS
+    pmortarassembler.cpp
+    )
+
+  list(APPEND HDRS
+    pmortarassembler.hpp
+    )
+endif()
+
 convert_filenames_to_full_paths(SRCS)
 convert_filenames_to_full_paths(HDRS)
 

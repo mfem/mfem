@@ -12,11 +12,15 @@
 #ifndef MFEM_L2P_PAR_MORTAR_ASSEMBLER_HPP
 #define MFEM_L2P_PAR_MORTAR_ASSEMBLER_HPP
 
+#include "../../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
+
 #include <memory>
 #include <vector>
 
-#include "../../fem.hpp"
-#include "../mortarintegrator.hpp"
+#include "../fem.hpp"
+#include "mortarintegrator.hpp"
 
 namespace mfem
 {
@@ -147,4 +151,5 @@ public:
 
 } // namespace mfem
 
+#endif // MFEM_USE_MPI
 #endif // MFEM_L2P_PAR_MORTAR_ASSEMBLER_HPP
