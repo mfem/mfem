@@ -12,6 +12,8 @@
 #ifndef MFEM_LIBCEED_COEFF
 #define MFEM_LIBCEED_COEFF
 
+#ifdef MFEM_USE_CEED
+
 #include "../../../config/config.hpp"
 #include "../../../linalg/vector.hpp"
 #include "../../../linalg/dtensor.hpp"
@@ -31,8 +33,6 @@ class GridFunction;
 
 namespace ceed
 {
-
-#ifdef MFEM_USE_CEED
 
 struct Coefficient
 {
@@ -214,10 +214,10 @@ void InitCoefficient(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
    }
 }
 
-#endif
-
 } // namespace ceed
 
 } // namespace mfem
+
+#endif
 
 #endif // MFEM_LIBCEED_COEFF
