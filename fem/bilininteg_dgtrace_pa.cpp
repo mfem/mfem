@@ -43,9 +43,10 @@ static void PADGTraceSetup2D(const int Q1D,
    auto W = w.Read();
    auto qd = Reshape(op.Write(), Q1D, 2, 2, NF);
 
-   MFEM_FORALL(f, NF, // can be optimized with Q1D thread for NF blocks
+   MFEM_FORALL(tid, Q1D*NF,
    {
-      for (int q = 0; q < Q1D; ++q)
+      const int f = tid / Q1D;
+      const int q = tid % Q1D;
       {
          const double r = const_r ? R(0,0) : R(q,f);
          const double v0 = const_v ? V(0,0,0) : V(0,q,f);
@@ -85,11 +86,12 @@ static void PADGTraceSetup3D(const int Q1D,
    auto W = w.Read();
    auto qd = Reshape(op.Write(), Q1D, Q1D, 2, 2, NF);
 
-   MFEM_FORALL(f, NF, // can be optimized with Q1D*Q1D threads for NF blocks
+   MFEM_FORALL(tid, Q1D*Q1D*NF,
    {
-      for (int q1 = 0; q1 < Q1D; ++q1)
+      int f = tid / (Q1D * Q1D);
+      int q2 = (tid / Q1D) % Q1D;
+      int q1 = tid % Q1D;
       {
-         for (int q2 = 0; q2 < Q1D; ++q2)
          {
             const double r = const_r ? R(0,0,0) : R(q1,q2,f);
             const double v0 = const_v ? V(0,0,0,0) : V(0,q1,q2,f);
