@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
                   "Fractional exponent");
    args.AddOption(&visualize_x, "-vis_x", "--visualize_x", "-no-vis_x",
                   "--no-visualization_x",
-                  "Enable or disable GLVis visualization of each integer-order PDE solution.");               
+                  "Enable or disable GLVis visualization of each integer-order PDE solution.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization of the fractional PDE solution.");
@@ -104,15 +104,16 @@ int main(int argc, char *argv[])
    int num_par_solves;
    for (num_par_solves=num_procs/2; num_par_solves>0; num_par_solves--)
    {
-      if (num_procs%num_par_solves==0 && num_par_solves<coeffs.Size()) 
-      { 
+      if (num_procs%num_par_solves==0 && num_par_solves<coeffs.Size())
+      {
          break;
       }
    }
    if (num_par_solves == 1) {num_par_solves = num_procs;}
 
    int solver_ranks = num_procs/num_par_solves;
-   // 2. Split communicator 
+
+   // 2. Split communicator
    //    row_comm is used for parallel partition of the mesh
    //    col_comm is used for independent integer-order solves
    int row_color = myid / solver_ranks; // Determine color based on row
@@ -132,7 +133,8 @@ int main(int argc, char *argv[])
    {
       mfem::out << "\nTotal number of ranks = " << num_procs << endl;
       mfem::out << "Number of independent parallel solves = " << col_size << endl;
-      mfem::out << "Number of mpi ranks within each solve = " << row_size <<"\n" << endl;
+      mfem::out << "Number of mpi ranks within each solve = " << row_size
+                <<"\n" << endl;
    }
 
    // 4. Read the mesh from the given mesh file.
@@ -188,7 +190,7 @@ int main(int argc, char *argv[])
    {
       my_coeff_size = 0;
    }
-   
+
    int iend = ibeg+my_coeff_size;
 
 
@@ -245,11 +247,11 @@ int main(int argc, char *argv[])
          oss << "Solution of PDE -Δ u + "<<-poles[i]<< " u = " << coeffs[i] << " f" ;
          xout << "parallel " << row_size << " " << row_rank << "\n";
          xout << "solution\n" << pmesh << x
-               << "window_title '" << oss.str() << "'" << flush;
+              << "window_title '" << oss.str() << "'" << flush;
          if (col_rank < col_size-1)
          {
             MPI_Send(nullptr,0,MPI_INT,col_rank+1,0,col_comm);
-         }     
+         }
       }
    }
 
