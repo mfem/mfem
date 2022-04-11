@@ -52,7 +52,6 @@ public:
 
 #ifdef MFEM_USE_CEED
    CeedOperator& GetCeedOperator() { return oper; }
-   operator CeedOperator() const { return oper; }
 #endif
 };
 
