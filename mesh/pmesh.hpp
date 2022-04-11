@@ -458,7 +458,7 @@ public:
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */
-   void Print(std::ostream &out = mfem::out) const override;
+   void Print(std::ostream &out = mfem::out, bool print_shared = true) const;
 
    /// Save the ParMesh to files (one for each MPI rank). The files will be
    /// given suffixes according to the MPI rank. The mesh will be written to the
