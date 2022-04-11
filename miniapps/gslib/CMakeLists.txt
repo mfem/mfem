@@ -47,7 +47,7 @@ if (MFEM_USE_GSLIB)
 
   if (MFEM_ENABLE_TESTING)
     foreach (test "schwarz_ex1" "field-diff" "findpts" "field-interp")
-      add_test(NAME ${test}}
+      add_test(NAME ${test}
         COMMAND $<TARGET_FILE:${test}> -no-vis)
     endforeach()
   endif()
