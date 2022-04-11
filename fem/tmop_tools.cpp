@@ -414,6 +414,17 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          return scale;
       }
    }
+   if (adapt_inc_count >= max_adapt_inc_count)
+   {
+      if (print_options.iterations)
+      {
+         mfem::out << "TMOPNewtonSolver converged "
+                   "based on max number of times surface fitting weight can"
+                   "be increased. \n";
+      }
+      scale = 0.0;
+      return scale;
+   }
 
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
@@ -556,7 +567,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    if (x_out_ok == false) { scale = 0.0; }
 
-   if (adaptive_surf_fit) { update_surf_fit_coeff = true; }
+   if (surf_fit_scale_factor > 0.0) { update_surf_fit_coeff = true; }
 
    return scale;
 }
@@ -760,8 +771,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    // decrease between subsequent TMOPNewtonSolver iterations.
    if (update_surf_fit_coeff)
    {
-      double surf_fit_err_max = -10;
-      double surf_fit_err_avg = -10;
       // Get surface fitting errors.
       GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
       // Get array with surface fitting weights.
@@ -783,7 +792,12 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       // does not decrease sufficiently.
       if (rel_change_surf_fit_err < 1.e-2)
       {
-         UpdateSurfaceFittingWeight(10);
+         UpdateSurfaceFittingWeight(surf_fit_scale_factor);
+         adapt_inc_count += 1;
+      }
+      else
+      {
+         adapt_inc_count = 0;
       }
       surf_fit_err_avg_prvs = surf_fit_err_avg;
       update_surf_fit_coeff = false;
