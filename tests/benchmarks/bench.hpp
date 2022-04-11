@@ -33,18 +33,6 @@ extern std::map<std::string, std::string> *global_context;
 namespace mfem
 {
 
-template<class T>
-typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
-almost_equal(T x, T y, T tolerance = 1e-14)
-{
-   const T neg = std::abs(x - y);
-   constexpr T min = std::numeric_limits<T>::min();
-   constexpr T eps = std::numeric_limits<T>::epsilon();
-   const T min_abs = std::min(std::abs(x), std::abs(y));
-   if (std::abs(min_abs)==0.0) { return neg < eps; }
-   return (neg/std::max(min, min_abs)) < tolerance;
-}
-
 constexpr std::size_t KB = (1<<10);
 
 // Specific MFEM Reporter
