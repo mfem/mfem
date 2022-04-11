@@ -68,13 +68,13 @@ struct Backend
           backend. Enabled when MFEM_USE_CEED = YES and MFEM_USE_HIP = YES. */
       CEED_HIP = 1 << 13,
       /// [host] SYCL backend. Enabled when MFEM_USE_SYCL = YES.
-      SYCL = 1 << 13,
+      SYCL = 1 << 14,
       /** @brief [device] Debug backend: host memory is READ/WRITE protected
           while a device is in use. It allows to test the "device" code-path
           (using separate host/device memory pools and host <-> device
           transfers) without any GPU hardware. As 'DEBUG' is sometimes used
           as a macro, `_DEVICE` has been added to avoid conflicts. */
-      DEBUG_DEVICE = 1 << 14
+      DEBUG_DEVICE = 1 << 15
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -82,7 +82,7 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 15,
+      NUM_BACKENDS = 16,
 
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | CEED_CPU,

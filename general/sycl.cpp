@@ -16,12 +16,12 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_SYCL
 // This variable is defined in device.cpp:
 namespace internal { extern sycl::queue syclQueue; }
 
 sycl::queue &SyclQueue() { return internal::syclQueue; }
 
-#ifdef MFEM_USE_SYCL
 static bool SyGetplatformsInfo(const bool out = false)
 {
    bool at_least_one = false;
@@ -56,10 +56,10 @@ static bool SyGetplatformsInfo(const bool out = false)
 
 int SyGetDeviceCount()
 {
-   const bool out = false;
    int num_gpus = -1;
 #ifdef MFEM_USE_SYCL
-   const bool at_least_one = SyGetplatformsInfo(out);
+   const bool debug = false;
+   const bool at_least_one = SyGetplatformsInfo(debug);
    if (!at_least_one) { return num_gpus; }
 
    // {default, cpu, gpu, accelerator}_selector
@@ -73,18 +73,18 @@ int SyGetDeviceCount()
       const auto device_name = device.template get_info<sycl::info::device::name>();
       mfem::out << "Device configuration: " << device_name << std::endl;
       auto wgroup_size = device.get_info<sycl::info::device::max_work_group_size>();
-      if (out) { mfem::out << "WGroup_size: " << wgroup_size << std::endl; }
+      if (debug) { mfem::out << "WGroup_size: " << wgroup_size << std::endl; }
       auto has_local_mem = device.is_host()
                            || (device.get_info<sycl::info::device::local_mem_type>()
                                != sycl::info::local_mem_type::none);
       auto local_mem_size = device.get_info<sycl::info::device::local_mem_size>();
-      if (out && has_local_mem)
+      if (debug && has_local_mem)
       {
          mfem::out << "local_mem_size: " << local_mem_size << std::endl;
       }
       auto cacheLineSize =
          device.get_info<cl::sycl::info::device::global_mem_cache_line_size>();
-      if (out)
+      if (debug)
       {
          mfem::out << "cacheLineSize: " << cacheLineSize;
          mfem::out << std::endl;
