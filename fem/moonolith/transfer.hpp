@@ -17,7 +17,7 @@
 #ifdef MFEM_USE_MOONOLITH
 #include "mortarassembler.hpp"
 #ifdef MFEM_USE_MPI
-#include "parallel/pmortarassembler.hpp"
+#include "pmortarassembler.hpp"
 #endif // MFEM_USE_MPI
 #endif // MFEM_USE_MOONOLITH
 

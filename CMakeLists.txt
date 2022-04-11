@@ -514,9 +514,6 @@ set(MFEM_SOURCE_DIRS general linalg mesh fem)
 
 if(MFEM_USE_MOONOLITH)
   set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} fem/moonolith)
-  if(MFEM_USE_MPI)
-    set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} fem/moonolith/parallel)
-  endif()
 endif()
 
 foreach(DIR IN LISTS MFEM_SOURCE_DIRS)

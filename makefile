@@ -416,11 +416,6 @@ ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_INCFLAGS += -I$(MFEM_DIR)/fem/moonolith $(MOONOLITH_INCLUDES)
    MFEM_TPLFLAGS += $(MOONOLITH_INCLUDES)
    DIRS += fem/moonolith
-
-   ifeq ($(MFEM_USE_MPI),YES)
-      MFEM_INCFLAGS += -I$(MFEM_DIR)/fem/moonolith/parallel
-      DIRS += fem/moonolith/parallel
-   endif
 endif
 
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
