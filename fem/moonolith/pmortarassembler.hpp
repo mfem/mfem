@@ -98,7 +98,6 @@ public:
     * changed, after previous call. Works with L2_FECollection, H1_FECollection
     * and DG_FECollection (experimental with RT_FECollection and
     * ND_FECollection).
-    * @param B the assembled coupling operator. B can be passed uninitialized.
     * @return true if there was an intersection and the operator has been
     * assembled. False otherwise.
     */
@@ -113,7 +112,7 @@ public:
 
    /*!
     * @brief Expose process details with verbose output
-    * @param verbose, set to true for verbose output
+    * @param verbose set to true for verbose output
     */
    void SetVerbose(const bool verbose);
 
