@@ -462,9 +462,9 @@ void FindPointsGSLIB::SetupSplitMeshes()
       }
    }
 
-   NE_split_Total = 0;
-   splitElementMap.SetSize(0);
-   splitElementIndex.SetSize(0);
+   NE_split_total = 0;
+   split_element_map.SetSize(0);
+   split_element_index.SetSize(0);
    int NEsplit = 0;
    for (int e = 0; e < mesh->GetNE(); e++)
    {
@@ -489,11 +489,11 @@ void FindPointsGSLIB::SetupSplitMeshes()
       {
          MFEM_ABORT("Unsupported geometry type.");
       }
-      NE_split_Total += NEsplit;
+      NE_split_total += NEsplit;
       for (int i = 0; i < NEsplit; i++)
       {
-         splitElementMap.Append(e);
-         splitElementIndex.Append(i);
+         split_element_map.Append(e);
+         split_element_index.Append(i);
       }
    }
 }
@@ -558,7 +558,7 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
 
    const int dof_1D =  nodes->FESpace()->GetFE(0)->GetOrder()+1;
    const int pts_el = std::pow(dof_1D, dim);
-   const int pts_cnt = NE_split_Total * pts_el;
+   const int pts_cnt = NE_split_total * pts_el;
    node_vals.SetSize(vdim * pts_cnt);
    node_vals *= 0;
 
@@ -696,7 +696,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
       IntegrationPoint ip;
       ip.Set3(&pt->r[0]);
       const int elem = pt->el;
-      const int mesh_elem = splitElementMap[elem];
+      const int mesh_elem = split_element_map[elem];
       const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(mesh_elem);
       const Geometry::Type gt = fe->GetGeomType();
       pt->el = mesh_elem;
@@ -719,7 +719,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
          gf_rst_map_temp = gf_rst_map[3];
       }
 
-      int local_elem = splitElementIndex[elem];
+      int local_elem = split_element_index[elem];
       Vector mfem_ref(dim);
       // map to rst of macro element
       gf_rst_map_temp->GetVectorValue(local_elem, ip, mfem_ref);
@@ -755,7 +755,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
       if (gsl_code[index] != 2 && gsl_proc[index] == gsl_comm->id)
       {
          const int elem = gsl_elem[index];
-         const int mesh_elem = splitElementMap[elem];
+         const int mesh_elem = split_element_map[elem];
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(mesh_elem);
          const Geometry::Type gt = fe->GetGeomType();
          gsl_mfem_elem[index] = mesh_elem;
@@ -777,7 +777,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
             gf_rst_map_temp = gf_rst_map[3];
          }
 
-         int local_elem = splitElementIndex[elem];
+         int local_elem = split_element_index[elem];
          IntegrationPoint ip;
          Vector mfem_ref(gsl_mfem_ref.GetData()+index*dim, dim);
          ip.Set2(mfem_ref.GetData());

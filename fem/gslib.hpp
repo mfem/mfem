@@ -67,9 +67,9 @@ protected:
    bool setupflag;              // flag to indicate whether gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
    AvgType avgtype;             // average type used for L2 functions
-   Array<int> splitElementMap;
-   Array<int> splitElementIndex;
-   int        NE_split_Total;
+   Array<int> split_element_map;
+   Array<int> split_element_index;
+   int        NE_split_total;
 
    /// Use GSLIB for communication and interpolation
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);
@@ -92,8 +92,8 @@ protected:
    virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals);
 
    /// Map {r,s,t} coordinates from [-1,1] to [0,1] for MFEM. For simplices,
-   /// find the original element number (that was split into micro quads/hexes
-   /// by GetSimplexNodalCoordinates())
+   /// find the original element number (that was split into micro quads/hexes)
+   /// during the setup phase.
    virtual void MapRefPosAndElemIndices();
 
 public:
