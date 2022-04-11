@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40301
+MFEM_VERSION = 40401
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -123,7 +123,7 @@ EXAMPLE_SUBDIRS = amgx caliper ginkgo hiop petsc pumi sundials superlu
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools toys nurbs gslib adjoint solvers shifted mtop parelag
+MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools toys nurbs gslib adjoint solvers shifted mtop parelag autodiff
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools toys shifted)
@@ -340,9 +340,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
  MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD\
  MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS\
- MFEM_USE_CALIPER MFEM_USE_BENCHMARK MFEM_USE_PARELAG\
- MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_USE_SYCL
-
+ MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER MFEM_USE_BENCHMARK\
+ MFEM_USE_PARELAG MFEM_USE_SYCL MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -681,6 +680,8 @@ status info:
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))
 	$(info MFEM_USE_MKL_CPARDISO  = $(MFEM_USE_MKL_CPARDISO))
+	$(info MFEM_USE_ADFORWARD     = $(MFEM_USE_ADFORWARD))
+	$(info MFEM_USE_CODIPACK      = $(MFEM_USE_CODIPACK))
 	$(info MFEM_USE_BENCHMARK     = $(MFEM_USE_BENCHMARK))
 	$(info MFEM_USE_PARELAG       = $(MFEM_USE_PARELAG))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
@@ -710,10 +711,11 @@ ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 3.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
-FORMAT_FILES += tests/unit/*.cpp
+FORMAT_FILES += tests/unit/*.?pp
 UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed
 FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
-FORMAT_LIST = $(filter-out general/tinyxml2.cpp,$(wildcard $(FORMAT_FILES)))
+FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp
+FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'

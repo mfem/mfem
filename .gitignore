@@ -51,8 +51,8 @@ examples/ex1[04-9]
 examples/ex1[0-9]p
 examples/ex2[0-9]
 examples/ex2[0-9]p
-examples/ex30
-examples/ex30p
+examples/ex3[0-9]
+examples/ex3[0-9]p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -78,6 +78,7 @@ examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
 examples/mode_*
+examples/mode_deriv_*
 examples/ex5-p-*.bp
 examples/ex9-p-*.bp
 examples/ex12-p-*.bp
@@ -225,12 +226,21 @@ miniapps/mtop/ParHeat*
 miniapps/mtop/seqheat
 miniapps/mtop/SeqHeat*
 
+miniapps/autodiff/paradiff
+miniapps/autodiff/seqadiff
+miniapps/autodiff/seqtest
+miniapps/autodiff/par_example
+miniapps/autodiff/seq_example
+miniapps/autodiff/seq_test
+miniapps/autodiff/Exampl*
+
 miniapps/navier/navier_mms
 miniapps/navier/navier_kovasznay
 miniapps/navier/navier_kovasznay_vs
 miniapps/navier/navier_tgv
 miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
+miniapps/navier/navier_turbchan
 miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
 
@@ -251,6 +261,8 @@ miniapps/performance/sol.*
 
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
+miniapps/shifted/extrapolate
+miniapps/shifted/ParaViewExtrapolate
 miniapps/shifted/diffusion
 miniapps/shifted/diffusion.mesh
 miniapps/shifted/diffusion.gf

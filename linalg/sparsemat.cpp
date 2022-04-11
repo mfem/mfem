@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,55 +23,75 @@
 #include <limits>
 #include <cstring>
 
+#if defined(MFEM_USE_CUDA)
+#define MFEM_cu_or_hip(stub) cu##stub
+#define MFEM_Cu_or_Hip(stub) Cu##stub
+#define MFEM_CU_or_HIP(stub) CU##stub
+#define MFEM_CUDA_or_HIP(stub) CUDA##stub
+
+#if CUSPARSE_VERSION >=  11400
+#define MFEM_GPUSPARSE_ALG CUSPARSE_SPMV_CSR_ALG1
+#else // CUSPARSE_VERSION >= 11400
+#define MFEM_GPUSPARSE_ALG CUSPARSE_CSRMV_ALG1
+#endif // CUSPARSE_VERSION >= 11400
+
+#elif defined(MFEM_USE_HIP)
+#define MFEM_cu_or_hip(stub) hip##stub
+#define MFEM_Cu_or_Hip(stub) Hip##stub
+#define MFEM_CU_or_HIP(stub) HIP##stub
+#define MFEM_CUDA_or_HIP(stub) HIP##stub
+
+// https://hipsparse.readthedocs.io/en/latest/usermanual.html#hipsparsespmvalg-t
+#define MFEM_GPUSPARSE_ALG HIPSPARSE_CSRMV_ALG1
+#endif // defined(MFEM_USE_CUDA)
+
 namespace mfem
 {
 
 using namespace std;
 
-#ifdef MFEM_USE_CUDA
+#ifdef MFEM_USE_CUDA_OR_HIP
 int SparseMatrix::SparseMatrixCount = 0;
-cusparseHandle_t SparseMatrix::handle = nullptr;
+// doxygen doesn't like the macro-assisted typename so let's skip parsing it:
+// \cond false
+MFEM_cu_or_hip(sparseHandle_t) SparseMatrix::handle = nullptr;
+// \endcond
 size_t SparseMatrix::bufferSize = 0;
 void * SparseMatrix::dBuffer = nullptr;
-#  if CUSPARSE_VERSION >=  11400
-#    define MFEM_CUSPARSE_ALG CUSPARSE_SPMV_CSR_ALG1
-#  else
-#    define MFEM_CUSPARSE_ALG CUSPARSE_CSRMV_ALG1
-#  endif // CUSPARSE_VERSION >= 11400
-#endif // MFEM_USE_CUDA
+#endif // MFEM_USE_CUDA_OR_HIP
 
-void SparseMatrix::InitCuSparse()
+void SparseMatrix::InitGPUSparse()
 {
-   // Initialize cuSPARSE library
-#ifdef MFEM_USE_CUDA
-   if (Device::Allows(Backend::CUDA_MASK))
+   // Initialize cuSPARSE/hipSPARSE library
+#ifdef MFEM_USE_CUDA_OR_HIP
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      if (!handle) { cusparseCreate(&handle); }
-      useCuSparse=true;
+      if (!handle) { MFEM_cu_or_hip(sparseCreate)(&handle); }
+      useGPUSparse=true;
       SparseMatrixCount++;
    }
    else
    {
-      useCuSparse=false;
+      useGPUSparse=false;
    }
-#endif
+#endif // MFEM_USE_CUDA_OR_HIP
 }
 
-void SparseMatrix::ClearCuSparse()
+void SparseMatrix::ClearGPUSparse()
 {
-#ifdef MFEM_USE_CUDA
+#ifdef MFEM_USE_CUDA_OR_HIP
    if (initBuffers)
    {
-#if CUDA_VERSION >= 10010
-      cusparseDestroySpMat(matA_descr);
-      cusparseDestroyDnVec(vecX_descr);
-      cusparseDestroyDnVec(vecY_descr);
+#if CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
+      MFEM_cu_or_hip(sparseDestroySpMat)(matA_descr);
+      MFEM_cu_or_hip(sparseDestroyDnVec)(vecX_descr);
+      MFEM_cu_or_hip(sparseDestroyDnVec)(vecY_descr);
 #else
       cusparseDestroyMatDescr(matA_descr);
-#endif
+#endif // CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
       initBuffers = false;
    }
-#endif
+#endif // MFEM_USE_CUDA_OR_HIP
 }
 
 SparseMatrix::SparseMatrix(int nrows, int ncols)
@@ -97,7 +117,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
    NodesMem = new RowNodeAlloc;
 #endif
 
-   InitCuSparse();
+   InitGPUSparse();
 }
 
 SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
@@ -116,7 +136,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
    NodesMem = NULL;
 #endif
 
-   InitCuSparse();
+   InitGPUSparse();
 }
 
 SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
@@ -143,13 +163,13 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
    {
       const int nnz = I[height];
       A.New(nnz);
-      for (int i=0; i<nnz; ++i)
+      for (int ii=0; ii<nnz; ++ii)
       {
-         A[i] = 0.0;
+         A[ii] = 0.0;
       }
    }
 
-   InitCuSparse();
+   InitGPUSparse();
 }
 
 SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
@@ -172,7 +192,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
       I[i] = i * rowsize;
    }
 
-   InitCuSparse();
+   InitGPUSparse();
 }
 
 SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
@@ -240,7 +260,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
    At = NULL;
    isSorted = mat.isSorted;
 
-   InitCuSparse();
+   InitGPUSparse();
 }
 
 SparseMatrix::SparseMatrix(const Vector &v)
@@ -269,7 +289,13 @@ SparseMatrix::SparseMatrix(const Vector &v)
       A[r] = v[r];
    }
 
-   InitCuSparse();
+   InitGPUSparse();
+}
+
+void SparseMatrix::OverrideSize(int height_, int width_)
+{
+   height = height_;
+   width = width_;
 }
 
 SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
@@ -310,7 +336,7 @@ void SparseMatrix::SetEmpty()
 #endif
    isSorted = false;
 
-   ClearCuSparse();
+   ClearGPUSparse();
 }
 
 int SparseMatrix::RowSize(const int i) const
@@ -338,14 +364,14 @@ int SparseMatrix::RowSize(const int i) const
 
 int SparseMatrix::MaxRowSize() const
 {
-   int out=0;
+   int max_row_size=0;
    int rowSize=0;
    if (I)
    {
       for (int i=0; i < height; ++i)
       {
          rowSize = I[i+1]-I[i];
-         out = (out > rowSize) ? out : rowSize;
+         max_row_size = (max_row_size > rowSize) ? max_row_size : rowSize;
       }
    }
    else
@@ -353,11 +379,11 @@ int SparseMatrix::MaxRowSize() const
       for (int i=0; i < height; ++i)
       {
          rowSize = RowSize(i);
-         out = (out > rowSize) ? out : rowSize;
+         max_row_size = (max_row_size > rowSize) ? max_row_size : rowSize;
       }
    }
 
-   return out;
+   return max_row_size;
 }
 
 int *SparseMatrix::GetRowColumns(const int row)
@@ -559,21 +585,21 @@ void SparseMatrix::GetDiag(Vector & d) const
 
    d.SetSize(height);
 
-   const auto I = this->ReadI();
-   const auto J = this->ReadJ();
-   const auto A = this->ReadData();
+   const auto II = this->ReadI();
+   const auto JJ = this->ReadJ();
+   const auto AA = this->ReadData();
    auto dd = d.Write();
 
    MFEM_FORALL(i, height,
    {
-      const int begin = I[i];
-      const int end = I[i+1];
+      const int begin = II[i];
+      const int end = II[i+1];
       int j;
       for (j = begin; j < end; j++)
       {
-         if (J[j] == i)
+         if (JJ[j] == i)
          {
-            dd[i] = A[j];
+            dd[i] = AA[j];
             break;
          }
       }
@@ -660,65 +686,100 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    // Skip if matrix has no non-zeros
    if (nnz == 0) {return;}
-   if (Device::Allows(Backend::CUDA_MASK) && useCuSparse)
+   if ((Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK)) && useGPUSparse)
    {
-#ifdef MFEM_USE_CUDA
+#ifdef MFEM_USE_CUDA_OR_HIP
       const double alpha = a;
       const double beta  = 1.0;
 
       // Setup descriptors
       if (!initBuffers)
       {
-#if CUDA_VERSION >= 10010
+#if CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
          // Setup matrix descriptor
-         cusparseCreateCsr(&matA_descr,Height(), Width(), J.Capacity(),
-                           const_cast<int *>(d_I),
-                           const_cast<int *>(d_J), const_cast<double *>(d_A), CUSPARSE_INDEX_32I,
-                           CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
+         MFEM_cu_or_hip(sparseCreateCsr)(
+            &matA_descr,Height(),
+            Width(),
+            J.Capacity(),
+            const_cast<int *>(d_I),
+            const_cast<int *>(d_J),
+            const_cast<double *>(d_A),
+            MFEM_CU_or_HIP(SPARSE_INDEX_32I),
+            MFEM_CU_or_HIP(SPARSE_INDEX_32I),
+            MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
+            MFEM_CUDA_or_HIP(_R_64F));
 
          // Create handles for input/output vectors
-         cusparseCreateDnVec(&vecX_descr, x.Size(), const_cast<double *>(d_x),
-                             CUDA_R_64F);
-         cusparseCreateDnVec(&vecY_descr, y.Size(), d_y, CUDA_R_64F);
+         MFEM_cu_or_hip(sparseCreateDnVec)(&vecX_descr,
+                                           x.Size(),
+                                           const_cast<double *>(d_x),
+                                           MFEM_CUDA_or_HIP(_R_64F));
+         MFEM_cu_or_hip(sparseCreateDnVec)(&vecY_descr, y.Size(), d_y,
+                                           MFEM_CUDA_or_HIP(_R_64F));
 #else
          cusparseCreateMatDescr(&matA_descr);
          cusparseSetMatIndexBase(matA_descr, CUSPARSE_INDEX_BASE_ZERO);
          cusparseSetMatType(matA_descr, CUSPARSE_MATRIX_TYPE_GENERAL);
-#endif
+#endif // CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
          initBuffers = true;
       }
       // Allocate kernel space. Buffer is shared between different sparsemats
       size_t newBufferSize = 0;
 
-      cusparseSpMV_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
-                              matA_descr,
-                              vecX_descr, &beta, vecY_descr, CUDA_R_64F,
-                              MFEM_CUSPARSE_ALG, &newBufferSize);
+      MFEM_cu_or_hip(sparseSpMV_bufferSize)(
+         handle,
+         MFEM_CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE),
+         &alpha,
+         matA_descr,
+         vecX_descr,
+         &beta,
+         vecY_descr,
+         MFEM_CUDA_or_HIP(_R_64F),
+         MFEM_GPUSPARSE_ALG,
+         &newBufferSize);
 
       // Check if we need to resize
       if (newBufferSize > bufferSize)
       {
          bufferSize = newBufferSize;
-         if (dBuffer != nullptr) { CuMemFree(dBuffer); }
-         CuMemAlloc(&dBuffer, bufferSize);
+         if (dBuffer != nullptr) { MFEM_Cu_or_Hip(MemFree)(dBuffer); }
+         MFEM_Cu_or_Hip(MemAlloc)(&dBuffer, bufferSize);
       }
 
-#if CUDA_VERSION >= 10010
+#if CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
       // Update input/output vectors
-      cusparseDnVecSetValues(vecX_descr, const_cast<double *>(d_x));
-      cusparseDnVecSetValues(vecY_descr, d_y);
+      MFEM_cu_or_hip(sparseDnVecSetValues)(vecX_descr,
+                                           const_cast<double *>(d_x));
+      MFEM_cu_or_hip(sparseDnVecSetValues)(vecY_descr, d_y);
 
       // Y = alpha A * X + beta * Y
-      cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA_descr,
-                   vecX_descr, &beta, vecY_descr, CUDA_R_64F, MFEM_CUSPARSE_ALG, dBuffer);
+      MFEM_cu_or_hip(sparseSpMV)(
+         handle,
+         MFEM_CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE),
+         &alpha,
+         matA_descr,
+         vecX_descr,
+         &beta,
+         vecY_descr,
+         MFEM_CUDA_or_HIP(_R_64F),
+         MFEM_GPUSPARSE_ALG,
+         dBuffer);
 #else
-      cusparseDcsrmv(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
-                     Height(), Width(), J.Capacity(),
-                     &alpha, matA_descr,
-                     const_cast<double *>(d_A), const_cast<int *>(d_I), const_cast<int *>(d_J),
-                     const_cast<double *>(d_x), &beta, d_y);
-#endif // CUDA_VERSION >= 10010
-#endif // MFEM_USE_CUDA
+      cusparseDcsrmv(handle,
+                     CUSPARSE_OPERATION_NON_TRANSPOSE,
+                     Height(),
+                     Width(),
+                     J.Capacity(),
+                     &alpha,
+                     matA_descr,
+                     const_cast<double *>(d_A),
+                     const_cast<int *>(d_I),
+                     const_cast<int *>(d_J),
+                     const_cast<double *>(d_x),
+                     &beta,
+                     d_y);
+#endif // CUDA_VERSION >= 10010 || defined(MFEM_USE_HIP)
+#endif // MFEM_USE_CUDA_OR_HIP
    }
    else
    {
@@ -736,7 +797,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    }
 
-#else
+#else // MFEM_USE_LEGACY_OPENMP
    const double *Ap = A, *xp = x.GetData();
    double *yp = y.GetData();
    const int *Jp = J, *Ip = I;
@@ -752,7 +813,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
       }
       yp[i] += a * d;
    }
-#endif
+#endif // MFEM_USE_LEGACY_OPENMP
 }
 
 void SparseMatrix::MultTranspose(const Vector &x, Vector &y) const
@@ -772,12 +833,13 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
 
    if (!Finalized())
    {
-      double *yp = y.GetData();
+      double *yp = y.HostReadWrite();
+      const double *xp = x.HostRead();
       // The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
       {
          RowNode *row = Rows[i];
-         double b = a * x(i);
+         double b = a * xp[i];
          for ( ; row != NULL; row = row->Prev)
          {
             yp[row->Column] += row->Value * b;
@@ -792,8 +854,9 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    }
    else
    {
-      MFEM_VERIFY(Device::IsDisabled(), "transpose action on device is not "
-                  "enabled; see BuildTranspose() for details.");
+      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
+                  "this backend is not enabled; see EnsureMultTranspose() for "
+                  "details.");
       for (int i = 0; i < height; i++)
       {
          const double xi = a * x[i];
@@ -819,6 +882,14 @@ void SparseMatrix::ResetTranspose() const
 {
    delete At;
    At = NULL;
+}
+
+void SparseMatrix::EnsureMultTranspose() const
+{
+   if (Device::Allows(~Backend::CPU_MASK))
+   {
+      BuildTranspose();
+   }
 }
 
 void SparseMatrix::PartMult(
@@ -998,8 +1069,9 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_VERIFY(Device::IsDisabled(), "transpose action on device is not "
-                  "enabled; see BuildTranspose() for details.");
+      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
+                  "this backend is not enabled; see EnsureMultTranspose() for "
+                  "details.");
       for (int i = 0; i < height; i++)
       {
          const double xi = x[i];
@@ -1920,11 +1992,11 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 
    if (Rows == NULL)
    {
-      const auto &I = this->I; // only use const access for I
-      const auto &J = this->J; // only use const access for J
-      for (int j = I[rc]; j < I[rc+1]; j++)
+      const auto &II = this->I; // only use const access for I
+      const auto &JJ = this->J; // only use const access for J
+      for (int j = II[rc]; j < II[rc+1]; j++)
       {
-         const int col = J[j];
+         const int col = JJ[j];
          if (col == rc)
          {
             if (dpolicy == DIAG_ONE)
@@ -1939,13 +2011,13 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
          else
          {
             A[j] = 0.0;
-            for (int k = I[col]; 1; k++)
+            for (int k = II[col]; 1; k++)
             {
-               if (k == I[col+1])
+               if (k == II[col+1])
                {
                   mfem_error("SparseMatrix::EliminateRowCol() #2");
                }
-               else if (J[k] == rc)
+               else if (JJ[k] == rc)
                {
                   A[k] = 0.0;
                   break;
@@ -2382,7 +2454,7 @@ double SparseMatrix::GetJacobiScaling() const
 }
 
 void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
-                          double sc) const
+                          double sc, bool use_abs_diag) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
@@ -2403,7 +2475,8 @@ void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
       }
       if (d >= 0 && A[d] != 0.0)
       {
-         x1(i) = sc * (sum / A[d]) + (1.0 - sc) * x0(i);
+         const double diag = (use_abs_diag) ? fabs(A[d]) : A[d];
+         x1(i) = sc * (sum / diag) + (1.0 - sc) * x0(i);
       }
       else
       {
@@ -2412,7 +2485,8 @@ void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
    }
 }
 
-void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
+void SparseMatrix::DiagScale(const Vector &b, Vector &x,
+                             double sc, bool use_abs_diag) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
@@ -2438,11 +2512,12 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
          }
          if (Jp[j] == i)
          {
-            if (!(std::abs(Ap[j]) > 0.0))
+            const double diag = (use_abs_diag) ? fabs(Ap[j]) : Ap[j];
+            if (diag == 0.0)
             {
                MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::DiagScale");
             }
-            xp[i] = sc * bp[i] / Ap[j];
+            xp[i] = sc * bp[i] / diag;
             break;
          }
       }
@@ -2558,9 +2633,9 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
    }
 }
 
-void SparseMatrix::Set(const int i, const int j, const double A)
+void SparseMatrix::Set(const int i, const int j, const double val)
 {
-   double a = A;
+   double a = val;
    int gi, gj, s, t;
 
    if ((gi=i) < 0) { gi = -1-gi, s = -1; }
@@ -2577,10 +2652,10 @@ void SparseMatrix::Set(const int i, const int j, const double A)
    _Set_(gi, gj, a);
 }
 
-void SparseMatrix::Add(const int i, const int j, const double A)
+void SparseMatrix::Add(const int i, const int j, const double val)
 {
    int gi, gj, s, t;
-   double a = A;
+   double a = val;
 
    if ((gi=i) < 0) { gi = -1-gi, s = -1; }
    else { s = 1; }
@@ -3034,7 +3109,7 @@ SparseMatrix &SparseMatrix::operator*=(double a)
    return (*this);
 }
 
-void SparseMatrix::Print(std::ostream & out, int width_) const
+void SparseMatrix::Print(std::ostream & os, int width_) const
 {
    int i, j;
 
@@ -3043,18 +3118,18 @@ void SparseMatrix::Print(std::ostream & out, int width_) const
       RowNode *nd;
       for (i = 0; i < height; i++)
       {
-         out << "[row " << i << "]\n";
+         os << "[row " << i << "]\n";
          for (nd = Rows[i], j = 0; nd != NULL; nd = nd->Prev, j++)
          {
-            out << " (" << nd->Column << "," << nd->Value << ")";
+            os << " (" << nd->Column << "," << nd->Value << ")";
             if ( !((j+1) % width_) )
             {
-               out << '\n';
+               os << '\n';
             }
          }
          if (j % width_)
          {
-            out << '\n';
+            os << '\n';
          }
       }
       return;
@@ -3066,116 +3141,116 @@ void SparseMatrix::Print(std::ostream & out, int width_) const
    HostReadData();
    for (i = 0; i < height; i++)
    {
-      out << "[row " << i << "]\n";
+      os << "[row " << i << "]\n";
       for (j = I[i]; j < I[i+1]; j++)
       {
-         out << " (" << J[j] << "," << A[j] << ")";
+         os << " (" << J[j] << "," << A[j] << ")";
          if ( !((j+1-I[i]) % width_) )
          {
-            out << '\n';
+            os << '\n';
          }
       }
       if ((j-I[i]) % width_)
       {
-         out << '\n';
+         os << '\n';
       }
    }
 }
 
-void SparseMatrix::PrintMatlab(std::ostream & out) const
+void SparseMatrix::PrintMatlab(std::ostream & os) const
 {
-   out << "% size " << height << " " << width << "\n";
-   out << "% Non Zeros " << NumNonZeroElems() << "\n";
+   os << "% size " << height << " " << width << "\n";
+   os << "% Non Zeros " << NumNonZeroElems() << "\n";
    int i, j;
-   ios::fmtflags old_fmt = out.flags();
-   out.setf(ios::scientific);
-   std::streamsize old_prec = out.precision(14);
+   ios::fmtflags old_fmt = os.flags();
+   os.setf(ios::scientific);
+   std::streamsize old_prec = os.precision(14);
 
    for (i = 0; i < height; i++)
    {
       for (j = I[i]; j < I[i+1]; j++)
       {
-         out << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
+         os << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
       }
    }
    // Write a zero entry at (m,n) to make sure MATLAB doesn't shrink the matrix
-   out << height << " " << width << " 0.0\n";
-   out.precision(old_prec);
-   out.flags(old_fmt);
+   os << height << " " << width << " 0.0\n";
+   os.precision(old_prec);
+   os.flags(old_fmt);
 }
 
-void SparseMatrix::PrintMM(std::ostream & out) const
+void SparseMatrix::PrintMM(std::ostream & os) const
 {
    int i, j;
-   ios::fmtflags old_fmt = out.flags();
-   out.setf(ios::scientific);
-   std::streamsize old_prec = out.precision(14);
+   ios::fmtflags old_fmt = os.flags();
+   os.setf(ios::scientific);
+   std::streamsize old_prec = os.precision(14);
 
-   out << "%%MatrixMarket matrix coordinate real general" << '\n'
-       << "% Generated by MFEM" << '\n';
+   os << "%%MatrixMarket matrix coordinate real general" << '\n'
+      << "% Generated by MFEM" << '\n';
 
-   out << height << " " << width << " " << NumNonZeroElems() << '\n';
+   os << height << " " << width << " " << NumNonZeroElems() << '\n';
    for (i = 0; i < height; i++)
    {
       for (j = I[i]; j < I[i+1]; j++)
       {
-         out << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
+         os << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
       }
    }
-   out.precision(old_prec);
-   out.flags(old_fmt);
+   os.precision(old_prec);
+   os.flags(old_fmt);
 }
 
-void SparseMatrix::PrintCSR(std::ostream & out) const
+void SparseMatrix::PrintCSR(std::ostream & os) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    int i;
 
-   out << height << '\n';  // number of rows
+   os << height << '\n';  // number of rows
 
    for (i = 0; i <= height; i++)
    {
-      out << I[i]+1 << '\n';
+      os << I[i]+1 << '\n';
    }
 
    for (i = 0; i < I[height]; i++)
    {
-      out << J[i]+1 << '\n';
+      os << J[i]+1 << '\n';
    }
 
    for (i = 0; i < I[height]; i++)
    {
-      out << A[i] << '\n';
+      os << A[i] << '\n';
    }
 }
 
-void SparseMatrix::PrintCSR2(std::ostream & out) const
+void SparseMatrix::PrintCSR2(std::ostream & os) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    int i;
 
-   out << height << '\n'; // number of rows
-   out << width << '\n';  // number of columns
+   os << height << '\n'; // number of rows
+   os << width << '\n';  // number of columns
 
    for (i = 0; i <= height; i++)
    {
-      out << I[i] << '\n';
+      os << I[i] << '\n';
    }
 
    for (i = 0; i < I[height]; i++)
    {
-      out << J[i] << '\n';
+      os << J[i] << '\n';
    }
 
    for (i = 0; i < I[height]; i++)
    {
-      out << A[i] << '\n';
+      os << A[i] << '\n';
    }
 }
 
-void SparseMatrix::PrintInfo(std::ostream &out) const
+void SparseMatrix::PrintInfo(std::ostream &os) const
 {
    const double MiB = 1024.*1024;
    int nnz = NumNonZeroElems();
@@ -3188,25 +3263,25 @@ void SparseMatrix::PrintInfo(std::ostream &out) const
    int ns15 = CountSmallElems(1e-15*max_norm);
    int ns18 = CountSmallElems(1e-18*max_norm);
 
-   out <<
-       "SparseMatrix statistics:\n"
-       "  Format                      : " <<
-       (Empty() ? "(empty)" : (Finalized() ? "CSR" : "LIL")) << "\n"
-       "  Dimensions                  : " << height << " x " << width << "\n"
-       "  Number of entries (total)   : " << nnz << "\n"
-       "  Number of entries (per row) : " << 1.*nnz/Height() << "\n"
-       "  Number of stored zeros      : " << nz*pz << "% (" << nz << ")\n"
-       "  Number of Inf/Nan entries   : " << nnf*pz << "% ("<< nnf << ")\n"
-       "  Norm, max |a_ij|            : " << max_norm << "\n"
-       "  Symmetry, max |a_ij-a_ji|   : " << symm << "\n"
-       "  Number of small entries:\n"
-       "    |a_ij| <= 1e-12*Norm      : " << ns12*pz << "% (" << ns12 << ")\n"
-       "    |a_ij| <= 1e-15*Norm      : " << ns15*pz << "% (" << ns15 << ")\n"
-       "    |a_ij| <= 1e-18*Norm      : " << ns18*pz << "% (" << ns18 << ")\n";
+   os <<
+      "SparseMatrix statistics:\n"
+      "  Format                      : " <<
+      (Empty() ? "(empty)" : (Finalized() ? "CSR" : "LIL")) << "\n"
+      "  Dimensions                  : " << height << " x " << width << "\n"
+      "  Number of entries (total)   : " << nnz << "\n"
+      "  Number of entries (per row) : " << 1.*nnz/Height() << "\n"
+      "  Number of stored zeros      : " << nz*pz << "% (" << nz << ")\n"
+      "  Number of Inf/Nan entries   : " << nnf*pz << "% ("<< nnf << ")\n"
+      "  Norm, max |a_ij|            : " << max_norm << "\n"
+      "  Symmetry, max |a_ij-a_ji|   : " << symm << "\n"
+      "  Number of small entries:\n"
+      "    |a_ij| <= 1e-12*Norm      : " << ns12*pz << "% (" << ns12 << ")\n"
+      "    |a_ij| <= 1e-15*Norm      : " << ns15*pz << "% (" << ns15 << ")\n"
+      "    |a_ij| <= 1e-18*Norm      : " << ns18*pz << "% (" << ns18 << ")\n";
    if (Finalized())
    {
-      out << "  Memory used by CSR          : " <<
-          (sizeof(int)*(height+1+nnz)+sizeof(double)*nnz)/MiB << " MiB\n";
+      os << "  Memory used by CSR          : " <<
+         (sizeof(int)*(height+1+nnz)+sizeof(double)*nnz)/MiB << " MiB\n";
    }
    if (Rows != NULL)
    {
@@ -3222,7 +3297,7 @@ void SparseMatrix::PrintInfo(std::ostream &out) const
          }
       }
 #endif
-      out << "  Memory used by LIL          : " << used_mem/MiB << " MiB\n";
+      os << "  Memory used by LIL          : " << used_mem/MiB << " MiB\n";
    }
 }
 
@@ -3256,7 +3331,7 @@ void SparseMatrix::Destroy()
 #endif
    delete At;
 
-   ClearCuSparse();
+   ClearGPUSparse();
 }
 
 int SparseMatrix::ActualWidth() const
@@ -3715,9 +3790,9 @@ SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
    SparseMatrix * R = Transpose(Rt);
    SparseMatrix * RA = Mult(*R,A);
    delete R;
-   SparseMatrix * out = Mult(*RA, P);
+   SparseMatrix * RAP_ = Mult(*RA, P);
    delete RA;
-   return out;
+   return RAP_;
 }
 
 SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
@@ -3990,6 +4065,31 @@ void SparseMatrix::Swap(SparseMatrix &other)
 #endif
 
    mfem::Swap(isSorted, other.isSorted);
+}
+
+SparseMatrix::~SparseMatrix()
+{
+   Destroy();
+#ifdef MFEM_USE_CUDA_OR_HIP
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   {
+      if (SparseMatrixCount==1)
+      {
+         if (handle)
+         {
+            MFEM_cu_or_hip(sparseDestroy)(handle);
+            handle = nullptr;
+         }
+         if (dBuffer)
+         {
+            MFEM_Cu_or_Hip(MemFree)(dBuffer);
+            dBuffer = nullptr;
+            bufferSize = 0;
+         }
+      }
+      SparseMatrixCount--;
+   }
+#endif // MFEM_USE_CUDA_OR_HIP
 }
 
 }

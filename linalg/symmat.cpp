@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -89,7 +89,7 @@ MatrixInverse *DenseSymmetricMatrix::Inverse() const
    return nullptr;
 }
 
-void DenseSymmetricMatrix::Print (std::ostream & out, int width_) const
+void DenseSymmetricMatrix::Print (std::ostream & os, int width_) const
 {
    mfem_error("DenseSymmetricMatrix::Print() not implemented!");
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -49,12 +49,12 @@ TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
       right.Randomize(seed + 2);
 
       // test that x^T S y = y^T S x
-      Vector out(n);
-      out = 0.0;
-      smoother->Mult(right, out);
-      double forward_val = left * out;
-      smoother->Mult(left, out);
-      double transpose_val = right * out;
+      Vector smooth(n);
+      smooth = 0.0;
+      smoother->Mult(right, smooth);
+      double forward_val = left * smooth;
+      smoother->Mult(left, smooth);
+      double transpose_val = right * smooth;
 
       double error = fabs(forward_val - transpose_val) / fabs(forward_val);
       std::cout << "Order " << order << " symmetry error: " << error << std::endl;

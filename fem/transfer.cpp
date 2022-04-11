@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -903,7 +903,8 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
                                    const FiniteElementSpace& hFESpace_)
    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize())
 {
-   if (lFESpace_.FEColl() == hFESpace_.FEColl())
+   bool isvar_order = lFESpace_.IsVariableOrder() || hFESpace_.IsVariableOrder();
+   if (lFESpace_.FEColl() == hFESpace_.FEColl() && !isvar_order)
    {
       OperatorPtr P(Operator::ANY_TYPE);
       hFESpace_.GetTransferOperator(lFESpace_, P);
@@ -912,8 +913,15 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
    }
    else if (lFESpace_.GetMesh()->GetNE() > 0
             && hFESpace_.GetMesh()->GetNE() > 0
+            && lFESpace_.GetVDim() == 1
+            && hFESpace_.GetVDim() == 1
             && dynamic_cast<const TensorBasisElement*>(lFESpace_.GetFE(0))
-            && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetFE(0)))
+            && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetFE(0))
+            && !isvar_order
+            && (hFESpace_.FEColl()->GetContType() ==
+                mfem::FiniteElementCollection::CONTINUOUS ||
+                hFESpace_.FEColl()->GetContType() ==
+                mfem::FiniteElementCollection::DISCONTINUOUS))
    {
       opr = new TensorProductPRefinementTransferOperator(lFESpace_, hFESpace_);
    }
@@ -941,6 +949,7 @@ PRefinementTransferOperator::PRefinementTransferOperator(
    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), lFESpace(lFESpace_),
      hFESpace(hFESpace_)
 {
+   isvar_order = lFESpace_.IsVariableOrder() || hFESpace_.IsVariableOrder();
 }
 
 PRefinementTransferOperator::~PRefinementTransferOperator() {}
@@ -961,11 +970,11 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      hFESpace.GetElementDofs(i, h_dofs);
-      lFESpace.GetElementDofs(i, l_dofs);
+      DofTransformation * doftrans_h = hFESpace.GetElementDofs(i, h_dofs);
+      DofTransformation * doftrans_l = lFESpace.GetElementDofs(i, l_dofs);
 
       const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-      if (geom != cached_geom)
+      if (geom != cached_geom || isvar_order)
       {
          h_fe = hFESpace.GetFE(i);
          l_fe = lFESpace.GetFE(i);
@@ -982,7 +991,15 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
          h_dofs.Copy(h_vdofs);
          hFESpace.DofsToVDofs(vd, h_vdofs);
          x.GetSubVector(l_vdofs, subX);
+         if (doftrans_l)
+         {
+            doftrans_l->InvTransformPrimal(subX);
+         }
          loc_prol.Mult(subX, subY);
+         if (doftrans_h)
+         {
+            doftrans_h->TransformPrimal(subY);
+         }
          y.SetSubVector(h_vdofs, subY);
       }
    }
@@ -1010,11 +1027,11 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
 
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      hFESpace.GetElementDofs(i, h_dofs);
-      lFESpace.GetElementDofs(i, l_dofs);
+      DofTransformation * doftrans_h = hFESpace.GetElementDofs(i, h_dofs);
+      DofTransformation * doftrans_l = lFESpace.GetElementDofs(i, l_dofs);
 
       const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-      if (geom != cached_geom)
+      if (geom != cached_geom || isvar_order)
       {
          h_fe = hFESpace.GetFE(i);
          l_fe = lFESpace.GetFE(i);
@@ -1033,6 +1050,10 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
          hFESpace.DofsToVDofs(vd, h_vdofs);
 
          x.GetSubVector(h_vdofs, subX);
+         if (doftrans_h)
+         {
+            doftrans_h->InvTransformDual(subX);
+         }
          for (int p = 0; p < h_dofs.Size(); ++p)
          {
             if (processed[lFESpace.DecodeDof(h_dofs[p])])
@@ -1042,6 +1063,10 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
          }
 
          loc_prol.Mult(subX, subY);
+         if (doftrans_l)
+         {
+            doftrans_l->TransformDual(subY);
+         }
          y.AddElementVector(l_vdofs, subY);
       }
 
@@ -1085,7 +1110,8 @@ TensorProductPRefinementTransferOperator(
    // must be sorted in lexicographical order
    for (int i = 0; i < ir.GetNPoints(); ++i)
    {
-      irLex.IntPoint(i) = ir.IntPoint(hdofmap[i]);
+      int j = hdofmap[i] >=0 ? hdofmap[i] : -1 - hdofmap[i];
+      irLex.IntPoint(i) = ir.IntPoint(j);
    }
 
    NE = lFESpace.GetNE();
@@ -1403,20 +1429,36 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
    elem_restrict_lex_l->MultTranspose(localL, y);
 }
 
-#ifdef MFEM_USE_MPI
-TrueTransferOperator::TrueTransferOperator(const
-                                           ParFiniteElementSpace& lFESpace_,
-                                           const ParFiniteElementSpace& hFESpace_)
+
+TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
+                                           const FiniteElementSpace& hFESpace_)
    : Operator(hFESpace_.GetTrueVSize(), lFESpace_.GetTrueVSize()),
      lFESpace(lFESpace_),
      hFESpace(hFESpace_)
 {
    localTransferOperator = new TransferOperator(lFESpace_, hFESpace_);
 
-   tmpL.SetSize(lFESpace_.GetVSize());
-   tmpH.SetSize(hFESpace_.GetVSize());
+   P = lFESpace.GetProlongationMatrix();
+   R = hFESpace.IsVariableOrder() ? hFESpace.GetHpRestrictionMatrix() :
+       hFESpace.GetRestrictionMatrix();
 
-   hFESpace.GetRestrictionMatrix()->BuildTranspose();
+   // P and R can be both null
+   // P can be null and R not null
+   // If P is not null it is assumed that R is not null as well
+   if (P) { MFEM_VERIFY(R, "Both P and R have to be not NULL") }
+
+   if (P)
+   {
+      tmpL.SetSize(lFESpace_.GetVSize());
+      tmpH.SetSize(hFESpace_.GetVSize());
+      R->EnsureMultTranspose();
+   }
+   // P can be null and R not null
+   else if (R)
+   {
+      tmpH.SetSize(hFESpace_.GetVSize());
+      R->EnsureMultTranspose();
+   }
 }
 
 TrueTransferOperator::~TrueTransferOperator()
@@ -1426,17 +1468,40 @@ TrueTransferOperator::~TrueTransferOperator()
 
 void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 {
-   lFESpace.GetProlongationMatrix()->Mult(x, tmpL);
-   localTransferOperator->Mult(tmpL, tmpH);
-   hFESpace.GetRestrictionMatrix()->Mult(tmpH, y);
+   if (P)
+   {
+      P->Mult(x, tmpL);
+      localTransferOperator->Mult(tmpL, tmpH);
+      R->Mult(tmpH, y);
+   }
+   else if (R)
+   {
+      localTransferOperator->Mult(x, tmpH);
+      R->Mult(tmpH, y);
+   }
+   else
+   {
+      localTransferOperator->Mult(x, y);
+   }
 }
 
 void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
-   hFESpace.GetRestrictionMatrix()->MultTranspose(x, tmpH);
-   localTransferOperator->MultTranspose(tmpH, tmpL);
-   lFESpace.GetProlongationMatrix()->MultTranspose(tmpL, y);
+   if (P)
+   {
+      R->MultTranspose(x, tmpH);
+      localTransferOperator->MultTranspose(tmpH, tmpL);
+      P->MultTranspose(tmpL, y);
+   }
+   else if (R)
+   {
+      R->MultTranspose(x, tmpH);
+      localTransferOperator->MultTranspose(tmpH, y);
+   }
+   else
+   {
+      localTransferOperator->MultTranspose(x, y);
+   }
 }
-#endif
 
 } // namespace mfem

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -47,6 +47,11 @@ Vector::Vector(const Vector &v)
       data.CopyFrom(v.data, s);
    }
    UseDevice(v.UseDevice());
+}
+
+Vector::Vector(Vector &&v)
+{
+   *this = std::move(v);
 }
 
 void Vector::Load(std::istream **in, int np, int *dim)
@@ -138,6 +143,15 @@ Vector &Vector::operator=(const Vector &v)
    data.CopyFrom(v.data, v.Size());
    v.UseDevice(vuse);
 #endif
+   return *this;
+}
+
+Vector &Vector::operator=(Vector &&v)
+{
+   data = std::move(v.data);
+   size = v.size;
+   v.data.Reset();
+   v.size = 0;
    return *this;
 }
 
@@ -694,13 +708,13 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
    MFEM_FORALL_SWITCH(use_dev, i, n, d_data[d_dofs[i]] = d_dofs_vals[i];);
 }
 
-void Vector::Print(std::ostream &out, int width) const
+void Vector::Print(std::ostream &os, int width) const
 {
    if (!size) { return; }
    data.Read(MemoryClass::HOST, size);
    for (int i = 0; 1; )
    {
-      out << ZeroSubnormal(data[i]);
+      os << ZeroSubnormal(data[i]);
       i++;
       if (i == size)
       {
@@ -708,51 +722,51 @@ void Vector::Print(std::ostream &out, int width) const
       }
       if ( i % width == 0 )
       {
-         out << '\n';
+         os << '\n';
       }
       else
       {
-         out << ' ';
+         os << ' ';
       }
    }
-   out << '\n';
+   os << '\n';
 }
 
 #ifdef MFEM_USE_ADIOS2
-void Vector::Print(adios2stream &out,
+void Vector::Print(adios2stream &os,
                    const std::string& variable_name) const
 {
    if (!size) { return; }
    data.Read(MemoryClass::HOST, size);
-   out.engine.Put(variable_name, &data[0] );
+   os.engine.Put(variable_name, &data[0] );
 }
 #endif
 
-void Vector::Print_HYPRE(std::ostream &out) const
+void Vector::Print_HYPRE(std::ostream &os) const
 {
    int i;
-   std::ios::fmtflags old_fmt = out.flags();
-   out.setf(std::ios::scientific);
-   std::streamsize old_prec = out.precision(14);
+   std::ios::fmtflags old_fmt = os.flags();
+   os.setf(std::ios::scientific);
+   std::streamsize old_prec = os.precision(14);
 
-   out << size << '\n';  // number of rows
+   os << size << '\n';  // number of rows
 
    data.Read(MemoryClass::HOST, size);
    for (i = 0; i < size; i++)
    {
-      out << ZeroSubnormal(data[i]) << '\n';
+      os << ZeroSubnormal(data[i]) << '\n';
    }
 
-   out.precision(old_prec);
-   out.flags(old_fmt);
+   os.precision(old_prec);
+   os.flags(old_fmt);
 }
 
-void Vector::PrintHash(std::ostream &out) const
+void Vector::PrintHash(std::ostream &os) const
 {
-   out << "size: " << size << '\n';
+   os << "size: " << size << '\n';
    HashFunction hf;
    hf.AppendDoubles(HostRead(), size);
-   out << "hash: " << hf.GetHash() << '\n';
+   os << "hash: " << hf.GetHash() << '\n';
 }
 
 void Vector::Randomize(int seed)
@@ -1151,13 +1165,13 @@ double Vector::operator*(const Vector &v) const
    if (Device::Allows(Backend::DEBUG_DEVICE))
    {
       const int N = size;
-      auto v_data = v.Read();
-      auto m_data = Read();
+      auto v_data_ = v.Read();
+      auto m_data_ = Read();
       Vector dot(1);
       dot.UseDevice(true);
       auto d_dot = dot.Write();
       dot = 0.0;
-      MFEM_FORALL(i, N, d_dot[0] += m_data[i] * v_data[i];);
+      MFEM_FORALL(i, N, d_dot[0] += m_data_[i] * v_data_[i];);
       dot.HostReadWrite();
       return dot[0];
    }
@@ -1211,12 +1225,12 @@ double Vector::Min() const
    if (Device::Allows(Backend::DEBUG_DEVICE))
    {
       const int N = size;
-      auto m_data = Read();
+      auto m_data_ = Read();
       Vector min(1);
       min = infinity();
       min.UseDevice(true);
       auto d_min = min.ReadWrite();
-      MFEM_FORALL(i, N, d_min[0] = (d_min[0]<m_data[i])?d_min[0]:m_data[i];);
+      MFEM_FORALL(i, N, d_min[0] = (d_min[0]<m_data_[i])?d_min[0]:m_data_[i];);
       min.HostReadWrite();
       return min[0];
    }

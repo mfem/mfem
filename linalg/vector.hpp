@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -72,6 +72,9 @@ public:
 
    /// Copy constructor. Allocates a new data array and copies the data.
    Vector(const Vector &);
+
+   /// Move constructor. "Steals" data from its argument.
+   Vector(Vector&& v);
 
    /// @brief Creates vector of size s.
    /// @warning Entries are not initialized to zero!
@@ -278,6 +281,9 @@ public:
    /** @note Defining this method overwrites the implicitly defined copy
        assignment operator. */
    Vector &operator=(const Vector &v);
+
+   /// Move assignment
+   Vector &operator=(Vector&& v);
 
    /// Redefine '=' for vector = constant.
    Vector &operator=(double value);

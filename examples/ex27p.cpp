@@ -75,13 +75,14 @@ Mesh * GenerateSerialMesh(int ref);
 // alpha*n.Grad(sol) + beta*sol - gamma over the same boundary.
 double IntegrateBC(const ParGridFunction &sol, const Array<int> &bdr_marker,
                    double alpha, double beta, double gamma,
-                   double &err);
+                   double &error);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init();
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Hypre::Init();
 
    // 2. Parse command-line options.
    int ser_ref_levels = 2;
@@ -321,26 +322,26 @@ int main(int argc, char *argv[])
    {
       // Integrate the solution on the Dirichlet boundary and compare to the
       // expected value.
-      double err, avg = IntegrateBC(u, dbc_bdr, 0.0, 1.0, dbc_val, err);
+      double error, avg = IntegrateBC(u, dbc_bdr, 0.0, 1.0, dbc_val, error);
 
       bool hom_dbc = (dbc_val == 0.0);
-      err /=  hom_dbc ? 1.0 : fabs(dbc_val);
+      error /=  hom_dbc ? 1.0 : fabs(dbc_val);
       mfem::out << "Average of solution on Gamma_dbc:\t"
                 << avg << ", \t"
                 << (hom_dbc ? "absolute" : "relative")
-                << " error " << err << endl;
+                << " error " << error << endl;
    }
    {
       // Integrate n.Grad(u) on the inhomogeneous Neumann boundary and compare
       // to the expected value.
-      double err, avg = IntegrateBC(u, nbc_bdr, 1.0, 0.0, nbc_val, err);
+      double error, avg = IntegrateBC(u, nbc_bdr, 1.0, 0.0, nbc_val, error);
 
       bool hom_nbc = (nbc_val == 0.0);
-      err /=  hom_nbc ? 1.0 : fabs(nbc_val);
+      error /=  hom_nbc ? 1.0 : fabs(nbc_val);
       mfem::out << "Average of n.Grad(u) on Gamma_nbc:\t"
                 << avg << ", \t"
                 << (hom_nbc ? "absolute" : "relative")
-                << " error " << err << endl;
+                << " error " << error << endl;
    }
    {
       // Integrate n.Grad(u) on the homogeneous Neumann boundary and compare to
@@ -349,33 +350,34 @@ int main(int argc, char *argv[])
       nbc0_bdr = 0;
       nbc0_bdr[3] = 1;
 
-      double err, avg = IntegrateBC(u, nbc0_bdr, 1.0, 0.0, 0.0, err);
+      double error, avg = IntegrateBC(u, nbc0_bdr, 1.0, 0.0, 0.0, error);
 
       bool hom_nbc = true;
       mfem::out << "Average of n.Grad(u) on Gamma_nbc0:\t"
                 << avg << ", \t"
                 << (hom_nbc ? "absolute" : "relative")
-                << " error " << err << endl;
+                << " error " << error << endl;
    }
    {
       // Integrate n.Grad(u) + a * u on the Robin boundary and compare to the
       // expected value.
-      double err, avg = IntegrateBC(u, rbc_bdr, 1.0, rbc_a_val, rbc_b_val, err);
+      double error, avg = IntegrateBC(u, rbc_bdr, 1.0, rbc_a_val, rbc_b_val,
+                                      error);
 
       bool hom_rbc = (rbc_b_val == 0.0);
-      err /=  hom_rbc ? 1.0 : fabs(rbc_b_val);
+      error /=  hom_rbc ? 1.0 : fabs(rbc_b_val);
       mfem::out << "Average of n.Grad(u)+a*u on Gamma_rbc:\t"
                 << avg << ", \t"
                 << (hom_rbc ? "absolute" : "relative")
-                << " error " << err << endl;
+                << " error " << error << endl;
    }
 
    // 15. Save the refined mesh and the solution in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << mpi.WorldRank();
-      sol_name << "sol." << setfill('0') << setw(6) << mpi.WorldRank();
+      mesh_name << "mesh." << setfill('0') << setw(6) << Mpi::WorldRank();
+      sol_name << "sol." << setfill('0') << setw(6) << Mpi::WorldRank();
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
@@ -393,8 +395,8 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << mpi.WorldSize()
-               << " " << mpi.WorldRank() << "\n";
+      sol_sock << "parallel " << Mpi::WorldSize()
+               << " " << Mpi::WorldRank() << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << u
                << "window_title '" << title_str << " Solution'"
@@ -667,11 +669,11 @@ double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
    double loc_vals[3];
    double &nrm = loc_vals[0];
    double &avg = loc_vals[1];
-   double &err = loc_vals[2];
+   double &error = loc_vals[2];
 
    nrm = 0.0;
    avg = 0.0;
-   err = 0.0;
+   error = 0.0;
 
    const bool a_is_zero = alpha == 0.0;
    const bool b_is_zero = beta == 0.0;
@@ -735,7 +737,7 @@ double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
 
          // Integrate |alpha * n.Grad(x) + beta * x - gamma|^2
          val -= gamma;
-         err += (val*val) * ip.weight * face_weight;
+         error += (val*val) * ip.weight * face_weight;
       }
    }
 
@@ -754,7 +756,7 @@ double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
    }
 
    // Compute l2 norm of the error in the boundary condition (negative
-   // quadrature weights may produce negative 'err')
+   // quadrature weights may produce negative 'error')
    glb_err = (glb_err >= 0.0) ? sqrt(glb_err) : -sqrt(-glb_err);
 
    // Return the average value of alpha * n.Grad(x) + beta * x
