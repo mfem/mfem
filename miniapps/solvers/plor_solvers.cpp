@@ -84,7 +84,6 @@ int main(int argc, char *argv[])
    const char *fe = "h";
    const char *device_config = "cpu";
    bool visualization = false;
-   int config_dev_modulo = 4;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -100,17 +99,9 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&config_dev_modulo, "-dm", "--device-modulo",
-                  "Number of devices available on the node.");
    args.ParseCheck();
 
-   const int myid = Mpi::WorldRank();
-   const int num_procs = Mpi::WorldSize();
-
-   const int dev = myid % config_dev_modulo;
-   dbg("[MPI] rank: %d/%d, using device #%d", 1+myid, num_procs, dev);
-
-   Device device(device_config, dev);
+   Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
    bool H1 = false, ND = false, RT = false, L2 = false;
@@ -123,7 +114,6 @@ int main(int argc, char *argv[])
    if (RT) { grad_div_problem = true; }
    double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
 
-   NVTX("Mesh");
    Mesh serial_mesh(mesh_file, 1, 1);
    int dim = serial_mesh.Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "Spatial dimension must be 2 or 3.");
@@ -153,7 +143,6 @@ int main(int argc, char *argv[])
    // In DG, boundary conditions are enforced weakly, so no essential DOFs.
    if (!L2) { fes.GetBoundaryTrueDofs(ess_dofs); }
 
-   NVTX("a");
    ParBilinearForm a(&fes);
    if (H1 || L2)
    {
@@ -176,16 +165,16 @@ int main(int argc, char *argv[])
    if (!L2) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.Assemble();
 
-   NVTX("b");
    ParLinearForm b(&fes);
-   if (H1 || L2) { b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff)); }
-   else { b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_vec_coeff)); }
-   if (L2)
-   {
-      // DG boundary conditions are enforced weakly with this integrator.
-      b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(u_coeff, -1.0, kappa));
-   }
-   b.Assemble();
+   // if (H1 || L2) { b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff)); }
+   // else { b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_vec_coeff)); }
+   // if (L2)
+   // {
+   //    // DG boundary conditions are enforced weakly with this integrator.
+   //    b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(u_coeff, -1.0, kappa));
+   // }
+   // b.Assemble();
+   b = 1.0;
 
    ParGridFunction x(&fes);
    if (H1 || L2) { x.ProjectCoefficient(u_coeff);}
@@ -193,15 +182,12 @@ int main(int argc, char *argv[])
 
    Vector X, B;
    OperatorHandle A;
-   NVTX("FormLinearSystem");
    a.FormLinearSystem(ess_dofs, x, b, A, X, B);
 
-   NVTX("ParLORDiscretization");
 
    unique_ptr<Solver> solv_lor;
    if (H1 || L2)
    {
-      dbg("LORSolver<HypreBoomerAMG>");
       NVTX("LORSolver");
       solv_lor.reset(new LORSolver<HypreBoomerAMG>(a, ess_dofs));
    }
@@ -230,12 +216,6 @@ int main(int argc, char *argv[])
       NVTX("CG");
       cg.Mult(B, X);
    }
-
-   a.RecoverFEMSolution(X, b, x);
-
-   double er =
-      (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
-   if (Mpi::Root()) { cout << "L2 error: " << er << endl; }
 
    if (visualization)
    {

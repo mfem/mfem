@@ -14,6 +14,9 @@
 #include "../../general/forall.hpp"
 #include <climits>
 
+#define MFEM_NVTX_COLOR Purple
+#include "../../general/nvtx.hpp"
+
 // Specializations
 #include "lor_h1.hpp"
 #include "lor_nd.hpp"
@@ -476,6 +479,7 @@ void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)
 void BatchedLORAssembly::ParAssemble(
    BilinearForm &a, const Array<int> &ess_dofs, OperatorHandle &A)
 {
+   MFEM_NVTX;
    // Assemble the system matrix local to this partition
    OperatorHandle A_local;
    AssembleWithoutBC(a, A_local);
@@ -501,6 +505,7 @@ void BatchedLORAssembly::ParAssemble(
    }
    else
    {
+      NVTX("RAP");
       OperatorHandle P(Operator::Hypre_ParCSR);
       P.ConvertFrom(pfes_ho->Dof_TrueDof_Matrix());
       A.MakePtAP(A_diag, P);
