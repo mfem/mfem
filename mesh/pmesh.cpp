@@ -4681,9 +4681,8 @@ bool ParMesh::WantSkipSharedMaster(const NCMesh::Master &master) const
    return false;
 }
 
-void ParMesh::Print(std::ostream &os) const
+void ParMesh::Print(std::ostream &os, bool print_shared) const
 {
-   bool print_shared = true;
    int shared_bdr_attr;
    Array<int> nc_shared_faces;
 
