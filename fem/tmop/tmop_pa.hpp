@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -181,9 +181,9 @@ template<int T_D1D, int T_Q1D, int T_MAX> return_t kernel(__VA_ARGS__)
 if (K##kernel.Find(id)) { return K##kernel.At(id)(__VA_ARGS__,0,0); }\
 else {\
    constexpr int T_MAX = 4;\
-   const int D1D = (id>>4)&0xF, Q1D = id&0xF;\
-   MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");\
-   return kernel<0,0,T_MAX>(__VA_ARGS__,D1D,Q1D); }
+   const int d1d = (id>>4)&0xF, q1d = id&0xF;\
+   MFEM_VERIFY(d1d <= MAX_D1D && q1d <= MAX_Q1D, "Max size error!");\
+   return kernel<0,0,T_MAX>(__VA_ARGS__,d1d,q1d); }
 
 } // namespace kernels
 

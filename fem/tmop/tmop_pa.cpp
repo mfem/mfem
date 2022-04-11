@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,13 +38,13 @@ void TMOP_Integrator::AssembleGradPA(const Vector &xe,
    if (PA.dim == 2)
    {
       AssembleGradPA_2D(xe);
-      if (coeff0) { AssembleGradPA_C0_2D(xe); }
+      if (lim_coeff) { AssembleGradPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
       AssembleGradPA_3D(xe);
-      if (coeff0) { AssembleGradPA_C0_3D(xe); }
+      if (lim_coeff) { AssembleGradPA_C0_3D(xe); }
    }
 }
 
@@ -53,8 +53,8 @@ void TMOP_Integrator::AssemblePA_Limiting()
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
    // Return immediately if limiting is not enabled
-   if (coeff0 == nullptr) { return; }
-   MFEM_VERIFY(nodes0, "internal error");
+   if (lim_coeff == nullptr) { return; }
+   MFEM_VERIFY(lim_nodes0, "internal error");
 
    MFEM_VERIFY(PA.enabled, "AssemblePA_Limiting but PA is not enabled!");
    MFEM_VERIFY(lim_func, "No TMOP_LimiterFunction specification!")
@@ -68,14 +68,14 @@ void TMOP_Integrator::AssemblePA_Limiting()
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
-   // H0 for coeff0, (dim x dim) Q-vector
+   // H0 for lim_coeff, (dim x dim) Q-vector
    PA.H0.UseDevice(true);
    PA.H0.SetSize(PA.dim * PA.dim * PA.nq * NE, mt);
 
-   // coeff0 -> PA.C0 (Q-vector)
+   // lim_coeff -> PA.C0 (Q-vector)
    PA.C0.UseDevice(true);
    if (ConstantCoefficient* cQ =
-          dynamic_cast<ConstantCoefficient*>(coeff0))
+          dynamic_cast<ConstantCoefficient*>(lim_coeff))
    {
       PA.C0.SetSize(1, Device::GetMemoryType());
       PA.C0.HostWrite();
@@ -90,17 +90,17 @@ void TMOP_Integrator::AssemblePA_Limiting()
          ElementTransformation& T = *fes->GetElementTransformation(e);
          for (int q = 0; q < ir.GetNPoints(); ++q)
          {
-            C0(q,e) = coeff0->Eval(T, ir.IntPoint(q));
+            C0(q,e) = lim_coeff->Eval(T, ir.IntPoint(q));
          }
       }
    }
 
-   // nodes0 -> PA.X0 (E-vector)
-   MFEM_VERIFY(nodes0->FESpace() == fes, "");
+   // lim_nodes0 -> PA.X0 (E-vector)
+   MFEM_VERIFY(lim_nodes0->FESpace() == fes, "");
    const Operator *n0_R = fes->GetElementRestriction(ordering);
    PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
    PA.X0.UseDevice(true);
-   n0_R->Mult(*nodes0, PA.X0);
+   n0_R->Mult(*lim_nodes0, PA.X0);
 
    // Limiting distances: lim_dist -> PA.LD (E-vector)
    // TODO: remove the hack for the case lim_dist == NULL.
@@ -217,8 +217,8 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.Jtr_needs_update = true;
    PA.Jtr_debug_grad = false;
 
-   // Limiting: coeff0 -> PA.C0, nodes0 -> PA.X0, lim_dist -> PA.LD, PA.H0
-   if (coeff0) { AssemblePA_Limiting(); }
+   // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.X0, lim_dist -> PA.LD, PA.H0
+   if (lim_coeff) { AssemblePA_Limiting(); }
 }
 
 void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
@@ -236,13 +236,13 @@ void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
    if (PA.dim == 2)
    {
       AssembleDiagonalPA_2D(de);
-      if (coeff0) { AssembleDiagonalPA_C0_2D(de); }
+      if (lim_coeff) { AssembleDiagonalPA_C0_2D(de); }
    }
 
    if (PA.dim == 3)
    {
       AssembleDiagonalPA_3D(de);
-      if (coeff0) { AssembleDiagonalPA_C0_3D(de); }
+      if (lim_coeff) { AssembleDiagonalPA_C0_3D(de); }
    }
 }
 
@@ -258,13 +258,13 @@ void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
    if (PA.dim == 2)
    {
       AddMultPA_2D(xe,ye);
-      if (coeff0) { AddMultPA_C0_2D(xe,ye); }
+      if (lim_coeff) { AddMultPA_C0_2D(xe,ye); }
    }
 
    if (PA.dim == 3)
    {
       AddMultPA_3D(xe,ye);
-      if (coeff0) { AddMultPA_C0_3D(xe,ye); }
+      if (lim_coeff) { AddMultPA_C0_3D(xe,ye); }
    }
 }
 
@@ -283,13 +283,13 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
    if (PA.dim == 2)
    {
       AddMultGradPA_2D(re,ce);
-      if (coeff0) { AddMultGradPA_C0_2D(re,ce); }
+      if (lim_coeff) { AddMultGradPA_C0_2D(re,ce); }
    }
 
    if (PA.dim == 3)
    {
       AddMultGradPA_3D(re,ce);
-      if (coeff0) { AddMultGradPA_C0_3D(re,ce); }
+      if (lim_coeff) { AddMultGradPA_C0_3D(re,ce); }
    }
 }
 
@@ -307,13 +307,13 @@ double TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
    if (PA.dim == 2)
    {
       energy = GetLocalStateEnergyPA_2D(xe);
-      if (coeff0) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
+      if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
       energy = GetLocalStateEnergyPA_3D(xe);
-      if (coeff0) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
+      if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
    }
 
    return energy;

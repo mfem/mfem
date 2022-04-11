@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -166,6 +166,111 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
             delete fec;
          }
       }
+   }
+}
+
+TEST_CASE("HypreParMatrixBlocksSquare",
+          "[Parallel], [BlockMatrix]")
+{
+   SECTION("HypreParMatrixFromBlocks")
+   {
+      int rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      int dim = mesh.Dimension();
+      int order = 2;
+
+      int nattr = mesh.bdr_attributes.Max();
+      Array<int> ess_trial_tdof_list, ess_test_tdof_list;
+
+      Array<int> ess_bdr(nattr);
+      ess_bdr = 0;
+      ess_bdr[0] = 1;
+
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+      FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
+      FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
+
+      ParFiniteElementSpace R_space(&pmesh, hdiv_coll);
+      ParFiniteElementSpace W_space(&pmesh, l2_coll);
+
+      ParBilinearForm RmVarf(&R_space);
+      ParBilinearForm WmVarf(&W_space);
+      ParMixedBilinearForm bVarf(&R_space, &W_space);
+
+      HypreParMatrix *MR, *MW, *B;
+
+      RmVarf.AddDomainIntegrator(new VectorFEMassIntegrator());
+      RmVarf.Assemble();
+      RmVarf.Finalize();
+      MR = RmVarf.ParallelAssemble();
+
+      WmVarf.AddDomainIntegrator(new MassIntegrator());
+      WmVarf.Assemble();
+      WmVarf.Finalize();
+      MW = WmVarf.ParallelAssemble();
+
+      bVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+      bVarf.Assemble();
+      bVarf.Finalize();
+      B = bVarf.ParallelAssemble();
+      (*B) *= -1;
+
+      HypreParMatrix *BT = B->Transpose();
+
+      Array<int> blockRow_trueOffsets(3); // number of variables + 1
+      blockRow_trueOffsets[0] = 0;
+      blockRow_trueOffsets[1] = R_space.TrueVSize();
+      blockRow_trueOffsets[2] = W_space.TrueVSize();
+      blockRow_trueOffsets.PartialSum();
+
+      BlockOperator blockOper(blockRow_trueOffsets, blockRow_trueOffsets);
+      blockOper.SetBlock(0, 0, MR);
+      blockOper.SetBlock(0, 1, BT);
+      blockOper.SetBlock(1, 0, B);
+      blockOper.SetBlock(1, 1, MW, 3.14);
+
+      Array2D<HypreParMatrix*> hBlocks(2,2);
+      hBlocks = NULL;
+      hBlocks(0, 0) = MR;
+      hBlocks(0, 1) = BT;
+      hBlocks(1, 0) = B;
+      hBlocks(1, 1) = MW;
+
+      Array2D<double> blockCoeff(2,2);
+      blockCoeff = 1.0;
+      blockCoeff(1, 1) = 3.14;
+      HypreParMatrix *H = HypreParMatrixFromBlocks(hBlocks, &blockCoeff);
+
+      Vector yB(blockRow_trueOffsets[2]);
+      Vector yH(blockRow_trueOffsets[2]);
+      Vector yBR(yB, 0, R_space.TrueVSize());
+      Vector yBW(yB, R_space.TrueVSize(), W_space.TrueVSize());
+
+      yB = 0.0;
+      yH = 0.0;
+
+      MR->GetDiag(yBR);
+      MW->GetDiag(yBW);
+      yBW *= 3.14;
+      H->GetDiag(yH);
+
+      yH -= yB;
+      double error = yH.Norml2();
+      std::cout << "  order: " << order
+                << ", block matrix error norm on rank " << rank << ": " << error << std::endl;
+      REQUIRE(error < EPS);
+
+      delete H;
+      delete BT;
+      delete B;
+      delete MW;
+      delete MR;
+      delete l2_coll;
+      delete hdiv_coll;
    }
 }
 
