@@ -124,8 +124,8 @@ int main(int argc, char *argv[])
    // 8. Prepare for visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream xout;
-   socketstream uout;
+   socketstream xout, uout;
+   ostringstream oss_x, oss_u;
    if (visualization)
    {
       xout.open(vishost, visport);
@@ -171,8 +171,17 @@ int main(int argc, char *argv[])
       // 16. Send the solutions by socket to a GLVis server.
       if (visualization)
       {
-         xout << "solution\n" << mesh << x << flush;
-         uout << "solution\n" << mesh << u << flush;
+         oss_x.str("");
+         oss_x.clear();
+         oss_x << "Solution of PDE -Δ u + "<<-poles[i]<< " u = " << coeffs[i] << " f" ;
+         xout << "solution\n" << mesh << x
+              << "window_title '" << oss_x.str() << "'" << flush;
+
+         oss_u.str("");
+         oss_u.clear();
+         oss_u << "Solution of fractional PDE -Δ^"<<alpha<< " u = f" ;
+         uout << "solution\n" << mesh << u
+              << "window_title '" << oss_u.str() << "'" << flush;
       }
    }
    delete fec;
