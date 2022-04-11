@@ -189,7 +189,7 @@ static void BP##i(bm::State &state){\
 BENCHMARK(BP##i)\
        -> Apply(OrderSideArgs)\
        -> Unit(bm::kMillisecond)\
-       -> Iterations(50);
+       -> Iterations(100);
 
 /// BP1: scalar PCG with mass matrix, q=p+2
 BakeOff_Problem(1,Mass,1,false)
