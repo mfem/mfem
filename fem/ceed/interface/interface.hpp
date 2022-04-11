@@ -27,15 +27,4 @@
 // Wrapper to include <ceed.h>
 #include "ceed.hpp"
 
-namespace mfem
-{
-
-namespace ceed
-{
-
-
-} // namespace ceed
-
-} // namespace mfem
-
 #endif // MFEM_LIBCEED_INTERFACE
