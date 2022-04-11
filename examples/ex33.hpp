@@ -301,7 +301,7 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
  *
  * See pg. A1501 of Nakatsukasa et al. [1].
  */
-void ComputePartialFractionApproximation(double alpha,
+void ComputePartialFractionApproximation(double & alpha,
                                          Array<double> & coeffs, Array<double> & poles,
                                          double lmax = 1000.,
                                          double tol=1e-10, int npoints = 1000,
@@ -351,6 +351,7 @@ void ComputePartialFractionApproximation(double alpha,
       if (abs(alpha - 0.5) > eps && print_warning)
       {
          mfem::out << "Using default value of alpha = 0.5" << std::endl;
+         alpha = 0.5;
       }
       coeffs = Array<double>({209.629, 24.2714, 9.24812, 4.93138,
                               3.02653, 1.98265, 1.34293, 0.931714,
