@@ -86,7 +86,6 @@ protected:
    CeedQFunctionContext build_ctx;
    CeedOperator build_oper;
 
-public:
    PAIntegrator()
       : Operator(), basis(nullptr), mesh_basis(nullptr),
         restr(nullptr), mesh_restr(nullptr),
@@ -95,6 +94,7 @@ public:
         qdata(nullptr), coeff(nullptr), build_ctx(nullptr), build_oper(nullptr)
    { }
 
+public:
    /** This method assembles the PAIntegrator with the given CeedOperatorInfo
        @a info, an mfem::FiniteElementSpace @a fes, an mfem::IntegrationRule
        @a ir, and mfem::Coefficient or mfem::VectorCoefficient @a Q.
