@@ -21,12 +21,19 @@
 #define MFEM_DEBUG_COLOR 118
 #include "../debug.hpp"
 
+#include "../../config/config.hpp"
 
 namespace mfem
 {
 
 namespace jit
 {
+
+const char* strrnc(const char *s, const unsigned char c, int n = 1);
+
+#ifdef MFEM_USE_MPI
+int ProcessFork(int argc, char *argv[]);
+#endif // MFEM_USE_MPI
 
 // Different commands that can be broadcasted
 enum Command
@@ -108,60 +115,8 @@ inline bool CreateMappedSharedMemoryInputFile(const char *input,
    return true;
 }
 
-
 /// Root MPI process file creation, outputing the source of the kernel.
-/// ipcrm -a
-/// ipcs -m
-inline bool CreateMappedSharedMemoryOutputFile(const char *output,
-                                               int &fd,
-                                               char *&pmap)
-{
-   if (!Root()) { return true; }
-
-   dbg("output: (/dev/shm/) %s",output);
-
-   constexpr int SHM_MAX_SIZE = 2*1024*1024;
-
-   // Remove shared memory segment if it already exists.
-   ::shm_unlink(output);
-
-   // Attempt to create shared  memory segment
-   const mode_t mode = S_IRUSR | S_IWUSR;
-   const int oflag = O_CREAT | O_RDWR | O_TRUNC;
-   fd = ::shm_open(output, oflag, mode);
-   if (fd < 0)
-   {
-      exit(EXIT_FAILURE|
-           printf("\033[31;1m[shmOpen] Shared memory failed: %s\033[m\n",
-                  strerror(errno)));
-      return false;
-   }
-
-   // resize shm to the right size
-   if (::ftruncate(fd, SHM_MAX_SIZE) < 0)
-   {
-      ::shm_unlink(output);
-      dbg("!ftruncate");
-      return false;
-   }
-
-   // Map the shared memory segment into the process address space
-   const int prot = PROT_READ | PROT_WRITE;
-   const int flags = MAP_SHARED;
-   pmap = (char*) mmap(nullptr,      // Most of the time set to nullptr
-                       SHM_MAX_SIZE, // Size of memory mapping
-                       prot,         // Allows reading and writing operations
-                       flags,        // Segment visible by other processes
-                       fd,           // File descriptor
-                       0x0);         // Offset from beggining of file
-   if (pmap == MAP_FAILED) { dbg("!pmap"); return false; }
-
-
-   dbg("ofd:%d",fd);
-   if (::close(fd) < 0) { dbg("!close"); return false; }
-
-   return true;
-}
+bool CreateMappedSharedMemoryOutputFile(const char *out, int &fd, char *&pmap);
 
 } // namespace jit
 

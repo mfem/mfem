@@ -32,9 +32,9 @@
 // One character used as the kernel prefix
 #define MFEM_JIT_PREFIX_CHAR 'k'
 
-// MFEM_JIT_PREFIX_CHAR + hash size + null character
+// MFEM_JIT_PREFIX_CHAR + hash size + null character, extra .c[c|o] for the file
 #define MFEM_JIT_SYMBOL_SIZE 1 + 16 + 1
-#define MFEM_JIT_FILENAME_SIZE MFEM_JIT_SYMBOL_SIZE + 3
+#define MFEM_JIT_FILENAME_SIZE (MFEM_JIT_SYMBOL_SIZE + 3)
 
 // Command line option to launch a compilation
 #define MFEM_JIT_COMMAND_LINE_OPTION "-c"
@@ -42,18 +42,13 @@
 // Library name of the cache
 #define MFEM_JIT_LIB_NAME "mjit"
 
-// Hash numbers used to combine arguments and its <const char*> specialization
-#define M_PHI 0x9e3779b9ull
-#define M_FNV_PRIME 0x100000001b3ull
-#define M_FNV_BASIS 0xcbf29ce484222325ull
-
 namespace mfem
 {
 
 namespace jit
 {
 
-// Generic hash function
+/// Generic hash function
 template <typename T> struct hash
 {
    inline size_t operator()(const T& h) const noexcept
@@ -62,22 +57,22 @@ template <typename T> struct hash
    }
 };
 
-// Specialized <const char*> hash function
+/// Specialized <const char*> hash function
 template<> struct hash<const char*>
 {
    inline size_t operator()(const char *s) const noexcept
    {
-      size_t hash = M_FNV_BASIS;
+      size_t hash = 0xcbf29ce484222325ull;
       for (size_t n = strlen(s); n; n--)
-      { hash = (hash * M_FNV_PRIME) ^ static_cast<size_t>(s[n]); }
+      { hash = (hash * 0x100000001b3ull) ^ static_cast<size_t>(s[n]); }
       return hash;
    }
 };
 
-// Hash combine function
+/// Hash combine function
 template <typename T> inline
 size_t hash_combine(const size_t &s, const T &v) noexcept
-{ return s ^ (mfem::jit::hash<T> {}(v) + M_PHI + (s<<6) + (s>>2));}
+{ return s ^ (mfem::jit::hash<T> {}(v) + 0x9e3779b9ull + (s<<6) + (s>>2));}
 
 /// \brief hash_args Terminal hash arguments function
 /// \param seed
@@ -95,9 +90,6 @@ size_t hash_args(const size_t &seed, const T &that) noexcept
 template<typename T, typename... Args> inline
 size_t hash_args(const size_t &seed, const T &arg, Args... args)
 noexcept { return hash_args(hash_combine(seed, arg), args...); }
-
-// Union to hold either a double or a uint64_t
-typedef union { double d; uint64_t u; } union_du_t;
 
 /// \brief uint32str 32 bits hash to string function, shifted to offset
 /// \param h
@@ -142,18 +134,15 @@ int Compile(const char *input_mem, // kernel source in memory
 int GetRuntimeVersion(bool increment = false);
 
 /// Root MPI process file creation, outputing the source of the kernel
-template<typename... Args>
-inline bool CreateKernelSourceInMemory(const size_t hash,
-                                       const char *src,
-                                       char *&input_mem,
-                                       Args... args)
+template<typename... Args> inline
+bool CreateKernelSourceInMemory(const size_t h, const char *src,
+                                char *&input, Args... args)
 {
    if (!Root()) { return true; }
    dbg();
-   const int size = // determine the necessary buffer size
-      1 + std::snprintf(nullptr, 0, src, hash, hash, hash, args...);
-   input_mem = new char[size];
-   if (std::snprintf(input_mem, size, src, hash, hash, hash, args...) < 0)
+   const int size = 1 + std::snprintf(nullptr, 0, src, h, h, h, args...);
+   input = new char[size];
+   if (std::snprintf(input, size, src, h, h, h, args...) < 0)
    {
       return perror("snprintf error occured"), false;
    }
@@ -162,15 +151,14 @@ inline bool CreateKernelSourceInMemory(const size_t hash,
 
 /// Root MPI process file creation, outputing the source of the kernel
 template<typename... Args>
-inline bool CreateKernelSourceInFile(const char *file,
-                                     const size_t hash,
+inline bool CreateKernelSourceInFile(const char *file, const size_t h,
                                      const char *src, Args... args)
 {
    if (!Root()) { return true; }
    dbg();
    const int fd = ::open(file, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
    if (fd < 0) { return false; }
-   if (::dprintf(fd, src, hash, hash, hash, args...) < 0) { return false; }
+   if (::dprintf(fd, src, h, h, h, args...) < 0) { return false; }
    if (::close(fd) < 0) { return false; }
    return true;
 }
@@ -229,7 +217,7 @@ template<typename... Args>
 inline void *Lookup(const size_t hash, Args... args)
 {
    dbg("0x%x ?",hash);
-   char symbol[18]; // MFEM_JIT_PREFIX_CHAR + hex64 string + '\0' = 18
+   char symbol[MFEM_JIT_SYMBOL_SIZE];
    uint64str(hash, symbol);
    constexpr int mode = RTLD_NOW | RTLD_LOCAL;
    constexpr const char *so_name = "./lib" MFEM_JIT_LIB_NAME ".so";
@@ -330,6 +318,8 @@ public:
 
    ~kernel() { ::dlclose(handle); }
 };
+
+int preprocess(std::istream &in, std::ostream &out, std::string &file);
 
 } // namespace jit
 

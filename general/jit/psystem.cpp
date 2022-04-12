@@ -13,6 +13,19 @@
 
 #ifdef MFEM_USE_MPI
 
+/**
+ *  MFEM ranks which calls mfem::jit::System are { MPI Parents }.
+ *  The root of { MPI Parents } calls the binary mjit through MPI_Comm_spawn,
+ *  which calls fork to create one { THREAD Worker } and { MPI Spawned }.
+ *  The { THREAD Worker } is created before MPI_Init of the { MPI Spawned }.
+ *  The { MPI Spawned } waits for MAGIC cookie check through the intercomm.
+ *  The { MPI Spawned } triggers the { THREAD Worker } through mapped memory.
+ *  The { THREAD Worker } waits for the SYSTEM_CALL order and calls system,
+ *  which passes the command to the shell.
+ *  The return status goes back through mapped memory and back to the
+ *  { MPI Parents } with a broadcast.
+ */
+
 #include <string>
 using std::string;
 

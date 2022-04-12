@@ -19,18 +19,13 @@
 #include "device.hpp"
 #include "../linalg/dtensor.hpp"
 
+#define MFEM_JIT
 #ifdef MFEM_USE_JIT
 #include "../general/jit/jit.hpp"
-#endif // MFEM_USE_JIT
+#endif
 
 namespace mfem
 {
-
-// MFEM kernel attributes used by the mpp preprocessor
-#define MFEM_JIT
-#define MFEM_EMBED
-#define MFEM_TEMPLATE
-#define MFEM_RANGE(...)
 
 // Maximum size of dofs and quads in 1D.
 #ifdef MFEM_USE_HIP

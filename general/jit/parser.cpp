@@ -9,12 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include <list>
 #include <regex>
+#include <string>
 #include <ciso646>
 #include <cassert>
+#include <iostream>
 
 #include "../../config/config.hpp"
-#include "parser.hpp"
 #include "jit.hpp"
 
 using std::regex;
@@ -24,6 +26,71 @@ namespace mfem
 
 namespace jit
 {
+
+struct argument_t
+{
+   int default_value = 0;
+   std::string type, name;
+   bool is_ptr = false, is_amp = false, is_cst = false,
+        is_restrict = false, is_tpl = false, has_default_value = false;
+   std::list<int> range;
+   bool operator==(const argument_t &arg) { return name == arg.name; }
+   argument_t() {}
+   argument_t(std::string id): name(id) {}
+};
+
+typedef std::list<argument_t>::iterator argument_it;
+
+struct forall_t { int d; std::string e, N, X, Y, Z, body; };
+
+struct kernel_t
+{
+   bool is_jit = false;
+   bool is_prefix = false;
+   bool is_forall = false;
+   std::string mfem_jit_cxx;         // holds MFEM_JIT_CXX
+   std::string mfem_jit_build_flags; // holds MFEM_JIT_BUILD_FLAGS
+   std::string mfem_source_dir;      // holds MFEM_SOURCE_DIR
+   std::string mfem_install_dir;     // holds MFEM_INSTALL_DIR
+   std::string name;                 // kernel name
+   std::string space;                // kernel namespace
+   // Templates: format, arguments and parameters
+   std::string Tformat;              // template format, as in printf
+   std::string Targs;                // template arguments, for hash and call
+   std::string Tparams;              // template parameters, for the declaration
+   std::string Tparams_src;          // template parameters, from original source
+   // Arguments and parameter for the standard calls
+   // We need two kinds of arguments because of the '& <=> *' transformation
+   // (This might be no more the case as we are getting rid of Array/Vector).
+   std::string params;
+   std::string args;
+   std::string args_wo_amp;
+   std::string d2u, u2d;             // double to unsigned place holders
+   struct forall_t forall;           // source of the lambda forall
+   std::string prefix;
+};
+
+
+struct error_t
+{
+   int line;
+   std::string file;
+   const char *msg;
+   error_t(int l, std::string f, const char *m): line(l), file(f), msg(m) {}
+};
+
+struct context_t
+{
+   kernel_t ker;
+   std::istream &in;
+   std::ostream &out;
+   std::string &file;
+   std::list<argument_t> args;
+   int line, block, parenthesis;
+public:
+   context_t(std::istream& i, std::ostream& o, std::string &f)
+      : in(i), out(o), file(f), line(1), block(-2), parenthesis(-2) {}
+};
 
 void check(context_t &pp, const bool test, const char *msg = nullptr)
 {
@@ -226,6 +293,7 @@ void PrepareJitArgs(context_t &pp)
       {
          //DBG(" => 1")
          const bool is_double = strcmp(type,"double")==0;
+         assert(!is_double);
          // Tformat
          addComa(pp.ker.Tformat);
          if (!has_default_value)
@@ -383,9 +451,10 @@ void GenerateJitPrefix(context_t &pp)
  */
 void JitPostfix(context_t &pp)
 {
-   if (not pp.ker.is_jit) { return; }
+   if (!pp.ker.is_jit) { return; }
    if (pp.block >= 0 && pp.in.peek() == '{') { pp.block++; }
    if (pp.block >= 0 && pp.in.peek() == '}') { pp.block--; }
+   // nothing to do while we have not went out of last block statement
    if (pp.block != -1) { return; }
    pp.out << "}\nextern \"C\" void "
           << MFEM_JIT_PREFIX_CHAR << "%016lx("
@@ -419,36 +488,9 @@ void JitPostfix(context_t &pp)
           << pp.ker.args << ");";
    pp.out << "\n\treturn;";
    pp.out << "\n";
-   // Should check MFEM_USE_CUDA and push the right MFEM_FORALL
-   pp.out << pp.ker.prefix;
-   pp.out << "for (int " << pp.ker.forall.e << " = 0; "
-          << pp.ker.forall.e << " < " << pp.ker.forall.N.c_str() << "; "
-          << pp.ker.forall.e<<"++){";
-   pp.out << pp.ker.forall.body.c_str();
-   pp.out << "}\n";
    // Stop counting the blocks and flush the kernel status
    pp.block--;
    pp.ker.is_jit = false;
-}
-
-// *****************************************************************************
-std::string arg_get_array_type(context_t &pp)
-{
-   std::string type;
-   skip_space(pp);
-   check(pp,pp.in.peek()=='<',"no '<' while in get_array_type");
-   put(pp);
-   type += "<";
-   skip_space(pp);
-   check(pp,is_id(pp),"no type found while in get_array_type");
-   std::string id = get_id(pp);
-   pp.out << id.c_str();
-   type += id;
-   skip_space(pp);
-   check(pp,pp.in.peek()=='>',"no '>' while in get_array_type");
-   put(pp);
-   type += ">";
-   return type;
 }
 
 // *****************************************************************************
@@ -484,18 +526,7 @@ bool jitGetArgs(context_t &pp)
       if (id=="float") { pp.out << id; arg.type = id; continue; }
       if (id=="double") { pp.out << id; arg.type = id; continue; }
       if (id=="size_t") { pp.out << id; arg.type = id; continue; }
-      if (id=="Array")
-      {
-         assert(false); // not supported anymore
-         pp.out << id; arg.type = id;
-         arg.type += arg_get_array_type(pp);
-         continue;
-      }
-      if (id=="Vector") { assert(false); pp.out << id; arg.type = id; continue; }
-      if (id=="DofToQuad") { assert(false); pp.out << id; arg.type = id; continue; }
-      //const bool is_pointer = arg.is_ptr || arg.is_amp;
-      //const bool underscore = is_pointer;
-      pp.out << /*(underscore?"_":"") <<*/ id;
+      pp.out << id;
       // focus on the name, we should have qual & type
       arg.name = id;
       // now check for a possible default value
@@ -565,6 +596,10 @@ void jitAmpFromPtr(context_t &pp)
    }
 }
 
+/**
+ * @brief jit
+ * @param pp
+ */
 void jit(context_t &pp)
 {
    pp.ker.is_jit = true;
@@ -595,6 +630,7 @@ void jit(context_t &pp)
    // 'static' check
    if (is_static(pp)) { pp.out << get_id(pp); }
    next(pp);
+   assert(is_void(pp)); // make sure the returm type is void
    const std::string void_return_type = get_id(pp);
    pp.out << void_return_type;
    // Get kernel's name or namespace
@@ -606,6 +642,7 @@ void jit(context_t &pp)
    pp.ker.name = name;
    if (is_namespace(pp))
    {
+      assert(false);
       check(pp,pp.in.peek()==':',"no 1st ':' in namespaced kernel");
       put(pp);
       check(pp,pp.in.peek()==':',"no 2st ':' in namespaced kernel");
@@ -630,9 +667,7 @@ void jit(context_t &pp)
    put(pp);
    // Generate the kernel prefix for this kernel
    GenerateJitPrefix(pp);
-   // Generate the & <=> * transformations
-   // jitAmpFromPtr(pp);
-   // Push the right #line directive
+   // Push the preprocessor #line directive
    pp.out << "\n#line " << pp.line
           << " \"" //<< pp.ker.mfem_source_dir << "/"
           << pp.file << "\"";
@@ -781,13 +816,13 @@ void Tokens(context_t &pp)
    if (peekn(pp, 4) != "MFEM") { return; }
    const std::string &id = get_id(pp);
    if (is_token(id, "JIT")) { return jit(pp); }
-   if (is_token(id, "UNROLL")) { return unroll(pp); }
-   if (is_token(id, "FORALL_2D")) { return forall(id,pp); }
-   if (is_token(id, "FORALL_3D")) { return forall(id,pp); }
+   //if (is_token(id, "UNROLL")) { return unroll(pp); }
+   //if (is_token(id, "FORALL_2D")) { return forall(id,pp); }
+   //if (is_token(id, "FORALL_3D")) { return forall(id,pp); }
    // During the kernel prefix, add MFEM_* id tokens
    if (pp.ker.is_prefix) { pp.ker.prefix += id; }
    // During the forall body, add MFEM_* id tokens
-   if (pp.ker.is_forall) { pp.ker.forall.body += id; return; }
+   if (pp.ker.is_forall) { assert(false); pp.ker.forall.body += id; return; }
    pp.out << id;
 }
 
@@ -799,16 +834,30 @@ bool eof(context_t &pp)
    return false;
 }
 
-int preprocess(context_t &pp)
+int preprocess(std::istream &in, std::ostream &out, std::string &file)
 {
-   do
+   mfem::jit::context_t pp(in, out, file);
+   try
    {
-      Tokens(pp);
-      Comments(pp);
-      JitPostfix(pp);
-      forallPostfix(pp);
+      do
+      {
+         Tokens(pp);
+         Comments(pp);
+         JitPostfix(pp);
+         forallPostfix(pp);
+      }
+      while (!eof(pp));
    }
-   while (!eof(pp));
+   catch (mfem::jit::error_t err)
+   {
+      std::cerr << std::endl << err.file << ":" << err.line << ":"
+                << " mjit error"
+                << (err.msg ? ": " : "")
+                << (err.msg ? err.msg : "")
+                << std::endl;
+      //remove(out.c_str());
+      return ~0;
+   }
    return 0;
 }
 
