@@ -629,7 +629,7 @@ SparseBooleanMatrix* SparseBooleanMatrix::Mult(SparseBooleanMatrix const& M) con
 
 SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
 {
-  const int distance = 2; // What is this?
+  const int distance = 1; // What is this?
   double threshold = 1.01;
 
   // TODO: generalize to 3D
@@ -639,6 +639,8 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
   Vector bvec(dim);
   bvec[0] = 1.0;
   bvec[1] = 0.0;
+
+  bvec = 0.0;
 
   const int nv = pmesh->GetNV();
 
@@ -656,6 +658,7 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
       pmesh->GetEdgeVertices(i, vert);
       MFEM_VERIFY(vert.Size() == 2, "");
       A.SetEntry(vert[0], vert[1]);
+      A.SetEntry(vert[1], vert[0]);
     }
 
   SparseBooleanMatrix *dis_A = new SparseBooleanMatrix(A);
@@ -672,8 +675,10 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
       for (auto v1 : dis_A->GetRow(v0))
 	{
 	  // Entry (v0,v1) is in dis_A
-	  Vector midpoint(dim);  // used for B-field calculation at midpoint
-	  Vector tang(dim);
+	  Vector midpoint(3);  // used for B-field calculation at midpoint
+	  midpoint = 0.0;
+
+	  //Vector tang(dim);
 	  double *v0crd = pmesh->GetVertex(v0);
 	  double *v1crd = pmesh->GetVertex(v1);
 
@@ -683,12 +688,25 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
 	  for (int i=0; i<dim; ++i)
 	    {
 	      midpoint[i] = 0.5 * (v0crd[i] + v1crd[i]);
-	      tang = v1crd[i] - v0crd[i];
+	    }
+
+	  TotBFunc(midpoint, bvec);
+
+	  { // Rotate bvec
+	    const double tmp = bvec[0];
+	    bvec[0] = -bvec[1];
+	    bvec[1] = tmp;
+	  }
+
+	  for (int i=0; i<dim; ++i)
+	    {
+	      midpoint[i] = 0.5 * (v0crd[i] + v1crd[i]);
+	      const double tang_i = v1crd[i] - v0crd[i];
 
 	      bnorm += bvec[i] * bvec[i];
-	      tnorm += tang[i] * tang[i];
+	      tnorm += tang_i * tang_i;
 
-	      ip += bvec[i] * tang[i];
+	      ip += bvec[i] * tang_i;
 	    }
 
 	  bnorm = sqrt(bnorm);
