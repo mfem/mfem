@@ -10,8 +10,14 @@
 
 Version 4.4.1 (development)
 ===========================
-- Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error
-  estimator; see fem/estimators.hpp.
+- Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator;
+  see fem/estimators.hpp.
+
+- Added support for ParMoonolith, https://bitbucket.org/zulianp/par_moonolith,
+  which provides parallel non-conforming, non-matching, variational, volumetric
+  mesh information transfer. With ParMortarAssember, fields can be exchanged
+  between arbitrarily distributed and unrelated finite element meshes in a
+  variationally consistent way.
 
 - Added support for mixed meshes and pyramids in GSLIBFindPoints.
 
