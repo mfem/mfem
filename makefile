@@ -119,7 +119,7 @@ $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
    describe --all --long --abbrev=40 --dirty --always 2> /dev/null)
 
-EXAMPLE_SUBDIRS = amgx caliper ginkgo hiop petsc pumi sundials superlu
+EXAMPLE_SUBDIRS = amgx caliper ginkgo hiop petsc pumi sundials superlu moonolith
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
@@ -283,7 +283,7 @@ endif
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
  SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF PETSC SLEPC MPFR PUMI HIOP GSLIB\
- OCCA CEED RAJA UMPIRE MKL_CPARDISO AMGX CALIPER PARELAG BENCHMARK
+ OCCA CEED RAJA UMPIRE MKL_CPARDISO AMGX CALIPER PARELAG BENCHMARK MOONOLITH
 
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 SLEPC_ERROR_MSG = $(if $(SLEPC_FOUND),,. SLEPC config not found: $(SLEPC_VARS))
@@ -347,7 +347,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
  MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS MFEM_USE_CONDUIT\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
- MFEM_USE_OCCA MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD\
+ MFEM_USE_OCCA MFEM_USE_MOONOLITH MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE MFEM_USE_SIMD\
  MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS\
  MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER MFEM_USE_BENCHMARK\
  MFEM_USE_PARELAG MFEM_SOURCE_DIR MFEM_INSTALL_DIR\
@@ -398,7 +398,6 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    endif
    # Allow changing the PREFIX during install with: make install PREFIX=<dir>
    PREFIX := $(MFEM_PREFIX)
-   PREFIX_BIN   := $(PREFIX)/bin
    PREFIX_INC   := $(PREFIX)/include
    PREFIX_LIB   := $(PREFIX)/lib
    PREFIX_SHARE := $(PREFIX)/share/mfem
@@ -425,6 +424,14 @@ endif
 # Source dirs in logical order
 DIRS = general general/jit linalg linalg/simd mesh \
 		 fem fem/fe fem/ceed fem/qinterp fem/tmop
+
+ifeq ($(MFEM_USE_MOONOLITH),YES)
+   MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
+   MFEM_INCFLAGS += -I$(MFEM_DIR)/fem/moonolith $(MOONOLITH_INCLUDES)
+   MFEM_TPLFLAGS += $(MOONOLITH_INCLUDES)
+   DIRS += fem/moonolith
+endif
+
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
@@ -607,11 +614,7 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 
-install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
-			$(if $(jit),$(BLD)$(MFEM_JIT))
-# install binaries
-	mkdir -p $(PREFIX_BIN)
-	$(if $(jit),$(INSTALL) -m 750 $(MFEM_JIT) $(PREFIX_BIN))
+install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	mkdir -p $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
@@ -732,6 +735,7 @@ status info:
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))
 	$(info MFEM_USE_MKL_CPARDISO  = $(MFEM_USE_MKL_CPARDISO))
+	$(info MFEM_USE_MOONOLITH     = $(MFEM_USE_MOONOLITH))
 	$(info MFEM_USE_ADFORWARD     = $(MFEM_USE_ADFORWARD))
 	$(info MFEM_USE_CODIPACK      = $(MFEM_USE_CODIPACK))
 	$(info MFEM_USE_BENCHMARK     = $(MFEM_USE_BENCHMARK))
@@ -771,7 +775,7 @@ FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'\
- '^general/debug\.hpp' '^general/jit/main\.cpp'
+ '^general/jit/main\.cpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\
