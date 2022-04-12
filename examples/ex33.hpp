@@ -42,16 +42,15 @@ using namespace mfem;
 
 /**
  * RationalApproximation_AAA : compute the rational approximation (RA) of
- * data @a val at the set of points @a pt.
+ * data @a val [in] at the set of points @a pt [in].
  *
- *  INPUT:  @a val       = vector of data values
- *          @a pt        = vector of sample points
- *          @a tol       = relative tolerance
- *          @a max_order = maximum number of terms (order) of the RA
- *
- *  OUTPUT: @a z = support points of the RA in rational barycentric form
- *          @a f = data values at support points @a z
- *          @a w = weights of the RA in rational barycentric form
+ *  @param[in]  val        Vector of data values
+ *  @param[in]  pt         Vector of sample points
+ *  @param[in]  tol        Relative tolerance
+ *  @param[in]  max_order  Maximum number of terms (order) of the RA
+ *  @param[out] z          Support points of the RA in rational barycentric form
+ *  @param[out] f          Data values at support points @a z
+ *  @param[out] w          Weights of the RA in rational barycentric form
  *
  * See pg. A1501 of Nakatsukasa et al. [1].
  */
@@ -168,16 +167,15 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
 }
 
 /**
- * ComputePolesAndZeros : computes the @a poles and @a zeros of the rational
+ * ComputePolesAndZeros : computes the @a poles [out] and @a zeros [out] of the rational
  * rational function f(z) = C p(z)/q(z) from its ration barycentric form.
  *
- *  INPUT:  @a z = support points in rational barycentric form
- *          @a f = data values at support points @a z
- *          @a w = weights in rational barycentric form
- *
- *  OUTPUT: @a poles = array of poles (roots of p(z))
- *          @a zeros = array of zeros (roots of q(z))
- *          @a scale = scaling constant in f(z) = C p(z)/q(z)
+ *  @param[in]  z      Support points in rational barycentric form
+ *  @param[in]  f      Data values at support points @a z
+ *  @param[in]  w      Weights in rational barycentric form
+ *  @param[out] poles  Array of poles (roots of p(z))
+ *  @param[out] zeros  Array of zeros (roots of q(z))
+ *  @param[out] scale  Scaling constant in f(z) = C p(z)/q(z)
  *
  * See pg. A1501 of Nakatsukasa et al. [1].
  */
@@ -246,13 +244,12 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
 /**
  * PartialFractionExpansion : computes the partial fraction expansion
  * of the rational rational function f(z) = Σ_i c_i / (z - p_i) from its
- * @a poles and @a zeros.
+ * @a poles [in] and @a zeros [in].
  *
- *  INPUT:  @a poles = array of poles (same as p_i above)
- *          @a zeros = array of zeros
- *          @a scale = scaling constant
- *
- *  OUTPUT: @a coeffs = coefficients c_i
+ *  @param[in]  poles   Array of poles (same as p_i above)
+ *  @param[in]  zeros   Array of zeros
+ *  @param[in]  scale   Scaling constant
+ *  @param[out] coeffs  Coefficients c_i
  *
  */
 void PartialFractionExpansion(double scale, Array<double> & poles,
@@ -285,14 +282,13 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
  * ComputePartialFractionApproximation : computes a rational approximation (RA) in partial fraction
  * form, e.g., f(z) ≈ Σ_i c_i / (z - p_i), from sampled values of the function f(z) = z^{-a}, 0 < a < 1.
  *
- *  INPUT:  @a alpha     = exponent a in f(z) = z^-a
- *          @a lmax, @a npoints
- *                       = f(z) is uniformly sampled @a npoints times in the interval [ 0, @a lmax ]
- *          @a tol       = relative tolerance
- *          @a max_order = maximum number of terms (order) of the RA
- *
- *  OUTPUT: @a coeffs = coefficients c_i
- *          @a poles  = poles p_i
+ *  @param[in]  alpha      Exponent a in f(z) = z^-a
+ *  @param[in]  lmax, npoints
+ *                         f(z) is uniformly sampled @a npoints times in the interval [ 0, @a lmax ]
+ *  @param[in]  tol        Relative tolerance
+ *  @param[in]  max_order  Maximum number of terms (order) of the RA
+ *  @param[out] coeffs     Coefficients c_i
+ *  @param[out] poles      Poles p_i
  *
  *
  *  NOTES:  When LAPACK is not compiled, only @a alpha = 0.33, 0.5, and 0.99 are possible.
