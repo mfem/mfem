@@ -91,8 +91,6 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
       *Nodes = *pmesh.Nodes;
       own_nodes = 1;
    }
-
-   print_shared = true;
 }
 
 ParMesh::ParMesh(ParMesh &&mesh) : ParMesh()
@@ -298,8 +296,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    }
 
    have_face_nbr_data = false;
-
-   print_shared = true;
 }
 
 
@@ -867,7 +863,6 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    Mesh::InitFromNCMesh(pncmesh);
    ReduceMeshGen();
    have_face_nbr_data = false;
-   print_shared = true;
 }
 
 void ParMesh::ComputeGlobalElementOffset() const
@@ -941,8 +936,6 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    const int gen_edges = 1;
 
    Load(input, gen_edges, refine, true);
-
-   print_shared = true;
 }
 
 void ParMesh::Load(istream &input, int generate_edges, int refine,
@@ -1133,7 +1126,6 @@ void ParMesh::LoadSharedEntities(istream &input)
 ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
 {
    MakeRefined_(*orig_mesh, ref_factor, ref_type);
-   print_shared = true;
 }
 
 void ParMesh::MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type)
