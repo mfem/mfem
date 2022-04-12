@@ -19,6 +19,10 @@
 #include "device.hpp"
 #include "../linalg/dtensor.hpp"
 
+#ifdef MFEM_USE_JIT
+#include "../general/jit/jit.hpp"
+#endif // MFEM_USE_JIT
+
 namespace mfem
 {
 

@@ -13,30 +13,11 @@
 #include <ciso646>
 #include <cassert>
 
-#include <sys/select.h>
-#include <sys/types.h>
-#include <sys/wait.h>
+#include "../../config/config.hpp"
+#include "parser.hpp"
+#include "jit.hpp"
 
 using std::regex;
-
-#include "../../config/config.hpp"
-
-#include "../error.hpp"
-#include "../globals.hpp"
-
-#include "jit.hpp"
-#include "parser.hpp"
-
-#undef MFEM_DEBUG_COLOR
-#define MFEM_DEBUG_COLOR 47
-#include "../debug.hpp"
-
-#ifdef MFEM_USE_MPI
-#include <mpi.h>
-#endif
-
-#define MFEM_JIT_STR(...) #__VA_ARGS__
-#define MFEM_JIT_STRINGIFY(...) MFEM_JIT_STR(__VA_ARGS__)
 
 namespace mfem
 {
@@ -46,41 +27,40 @@ namespace jit
 
 void check(context_t &pp, const bool test, const char *msg = nullptr)
 {
-   if (not test) { throw error_t(pp.line, pp.file,msg); }
+   if (!test) { throw error_t(pp.line, pp.file,msg); }
 }
 
-void addComa(std::string &arg) { if (not arg.empty()) { arg += ",";  } }
+void addComa(std::string &arg) { if (!arg.empty()) { arg += ",";  } }
 
-void addArg(std::string &list, const char *arg) { addComa(list); list += arg; }
+void addArg(std::string &args, const char *arg) { addComa(args); args += arg; }
 
-bool is_newline(const int ch) { return static_cast<unsigned char>(ch) == '\n'; }
+bool is_newline(const char c) { return c == '\n'; }
 
 bool good(context_t &pp) { pp.in.peek(); return pp.in.good(); }
 
 char get(context_t &pp) { return static_cast<char>(pp.in.get()); }
 
-int put(const char c, context_t &pp)
+char put(const char c, context_t &pp)
 {
    if (is_newline(c)) { pp.line++; }
-   if (pp.ker.is_embed) { pp.ker.embed += c; }
    // if we are storing the lambda body, just save it w/o output
    if (pp.ker.is_forall) { pp.ker.forall.body += c; return c;}
-   // if we are not yet in the forall, just store all the prefix
+   // if we are not yet in the forall, just store in the prefix
    if (pp.ker.is_jit && pp.ker.is_prefix) { pp.ker.prefix += c; }
    pp.out.put(c);
    return c;
 }
 
-int put(context_t &pp) { return put(get(pp),pp); }
+char put(context_t &pp) { return put(get(pp), pp); }
 
 void skip_space(context_t &pp, std::string &out)
 {
-   while (isspace(pp.in.peek())) { out += get(pp); }
+   while (std::isspace(pp.in.peek())) { out += get(pp); }
 }
 
-void skip_space(context_t &pp, bool keep=true)
+void skip_space(context_t &pp, bool keep = true)
 {
-   while (isspace(pp.in.peek())) { keep?put(pp):get(pp); }
+   while (std::isspace(pp.in.peek())) { keep ? put(pp) : get(pp); }
 }
 
 void drop_space(context_t &pp) { while (isspace(pp.in.peek())) { get(pp); } }
@@ -96,70 +76,63 @@ bool is_comments(context_t &pp)
    return false;
 }
 
-void singleLineComments(context_t &pp, bool keep=true)
+void singleLineComments(context_t &pp, bool keep = true)
 {
-   while (!is_newline(pp.in.peek())) { keep?put(pp):get(pp); }
+   while (!is_newline(pp.in.peek())) { keep ? put(pp) : get(pp); }
 }
 
-void blockComments(context_t &pp, bool keep=true)
+void blockComments(context_t &pp, bool keep = true)
 {
    for (char c; pp.in.get(c);)
    {
       if (keep) { put(c,pp); }
       if (c == '*' && pp.in.peek() == '/')
       {
-         keep?put(pp):get(pp);
+         keep ? put(pp) : get(pp);
          skip_space(pp, keep);
          return;
       }
    }
 }
 
-void comments(context_t &pp, bool keep=true)
+void Comments(context_t &pp, bool keep = true)
 {
-   if (not is_comments(pp)) { return; }
-   keep?put(pp):get(pp);
-   if (keep?put(pp):get(pp) == '/') { return singleLineComments(pp,keep); }
-   return blockComments(pp,keep);
+   if (!is_comments(pp)) { return; }
+   keep ? put(pp) : get(pp);
+   if (keep ? put(pp) : get(pp) == '/') { return singleLineComments(pp, keep); }
+   return blockComments(pp, keep);
 }
 
-void next(context_t &pp, bool keep=true)
+void next(context_t &pp, bool keep = true)
 {
-   keep?skip_space(pp):drop_space(pp);
-   comments(pp,keep);
+   keep ? skip_space(pp) : drop_space(pp);
+   Comments(pp, keep);
 }
 
 void drop(context_t &pp) { next(pp, false); }
 
 bool is_id(context_t &pp)
 {
-   const int c = pp.in.peek();
-   return isalnum(c) or c == '_';
-}
-
-bool is_semicolon(context_t &pp)
-{
-   skip_space(pp);
-   const int c = pp.in.peek();
-   return c == ';';
+   const char c = pp.in.peek();
+   return std::isalnum(c) or c == '_';
 }
 
 std::string get_id(context_t &pp)
 {
    std::string id;
-   check(pp,is_id(pp),"name w/o alnum 1st letter");
+   check(pp, is_id(pp), "name w/o alnum 1st letter");
    while (is_id(pp)) { id += get(pp); }
    return id;
 }
 
-bool is_digit(context_t &pp) { return isdigit(static_cast<char>(pp.in.peek())); }
+bool is_digit(context_t &pp) { return std::isdigit(static_cast<char>(pp.in.peek())); }
 
 int get_digit(context_t &pp)
 {
-   std::string digit;
-   check(pp,is_digit(pp),"unknown number");
-   while (is_digit(pp)) { digit += get(pp); }
-   return atoi(digit.c_str());
+   std::string digits;
+   check(pp, is_digit(pp), "unknown number");
+   while (is_digit(pp)) { digits += get(pp); }
+   return atoi(digits.c_str());
 }
 
 std::string peekn(context_t &pp, const int n)
@@ -168,7 +141,7 @@ std::string peekn(context_t &pp, const int n)
    assert(n < 64);
    static char c[64];
    for (k = 0; k <= n; k++) { c[k] = 0; }
-   for (k = 0; k < n and good(pp); k++) { c[k] = get(pp); }
+   for (k = 0; k < n && good(pp); k++) { c[k] = get(pp); }
    std::string rtn(c);
    assert(!pp.in.fail());
    for (int l = 0; l < k; l++) { pp.in.unget(); }
@@ -183,9 +156,9 @@ std::string peekid(context_t &pp)
    for (k = 0; k < n; k++) { c[k] = 0; }
    for (k = 0; k < n; k++)
    {
-      if (not is_id(pp)) { break; }
+      if (!is_id(pp)) { break; }
       c[k] = get(pp);
-      assert(not pp.in.eof());
+      assert(!pp.in.eof());
    }
    std::string rtn(c);
    for (int l = 0; l < k; l++) { pp.in.unget(); }
@@ -194,108 +167,39 @@ std::string peekid(context_t &pp)
 
 void drop_name(context_t &pp) { while (is_id(pp)) { get(pp); } }
 
-bool is_void(context_t &pp)
+bool is_string(context_t &pp, const char *str)
 {
    skip_space(pp);
-   const std::string void_peek = peekn(pp,4);
+   const std::string peek_str = peekn(pp, strlen(str));
    assert(not pp.in.eof());
-   if (void_peek == "void") { return true; }
-   return false;
+   return peek_str == str;
 }
 
-bool is_namespace(context_t &pp)
-{
-   skip_space(pp);
-   const std::string namespace_peek = peekn(pp,2);
-   assert(not pp.in.eof());
-   if (namespace_peek == "::") { return true; }
-   return false;
-}
+bool is_template(context_t &pp) { return is_string(pp, "template"); }
+bool is_static(context_t &pp) { return is_string(pp, "static"); }
+bool is_namespace(context_t &pp) { return is_string(pp, "::"); }
+bool is_void(context_t &pp) { return is_string(pp, "void"); }
 
-bool is_static(context_t &pp)
-{
-   skip_space(pp);
-   const std::string void_peek = peekn(pp,6);
-   assert(not pp.in.eof());
-   if (void_peek == "static") { return true; }
-   return false;
-}
+template <unsigned char UCHR>
+bool is_char(context_t &pp) { skip_space(pp); return pp.in.peek() == UCHR; }
 
-bool is_template(context_t &pp)
-{
-   skip_space(pp);
-   const std::string void_peek = peekn(pp,8);
-   assert(not pp.in.eof());
-   if (void_peek == "template") { return true; }
-   return false;
-}
+bool is_eq(context_t &pp) { return is_char<'='>(pp); }
+bool is_amp(context_t &pp) { return is_char<'&'>(pp); }
+bool is_coma(context_t &pp) { return is_char<','>(pp); }
+bool is_star(context_t &pp) { return is_char<'*'>(pp); }
+bool is_semicolon(context_t &pp) { return is_char<';'>(pp); }
+bool is_left_parenthesis(context_t &pp) { return is_char<'('>(pp); }
+bool is_right_parenthesis(context_t &pp) { return is_char<')'>(pp); }
 
-bool is_star(context_t &pp)
+/**
+ * @brief PrepareJitArgs
+ * @param pp
+ */
+void PrepareJitArgs(context_t &pp)
 {
-   skip_space(pp);
-   if (pp.in.peek() == '*') { return true; }
-   return false;
-}
-
-bool is_amp(context_t &pp)
-{
-   skip_space(pp);
-   if (pp.in.peek() == '&') { return true; }
-   return false;
-}
-
-bool is_left_parenthesis(context_t &pp)
-{
-   skip_space(pp);
-   if (pp.in.peek() == '(') { return true; }
-   return false;
-}
-
-bool is_right_parenthesis(context_t &pp)
-{
-   skip_space(pp);
-   if (pp.in.peek() == ')') { return true; }
-   return false;
-}
-
-bool is_coma(context_t &pp)
-{
-   skip_space(pp);
-   if (pp.in.peek() == ',') { return true; }
-   return false;
-}
-
-bool is_eq(context_t &pp)
-{
-   skip_space(pp);
-   if (pp.in.peek() == '=') { return true; }
-   return false;
-}
-
-// *****************************************************************************
-void jitHeader(context_t &pp)
-{
-   pp.out << "#include \"general/jit/jit.hpp\"\n";
-   pp.out << "#line 1 \"" << pp.file <<"\"\n";
-}
-
-// *****************************************************************************
-void ppKerDbg(context_t &pp)
-{
-   pp.ker.Targs += "\033[33mTargs\033[m";
-   pp.ker.Tparams += "\033[33mTparams\033[m";
-   pp.ker.Tformat += "\033[33mTformat\033[m";
-   pp.ker.args += "\033[33margs\033[m";
-   pp.ker.params += "\033[33mparams\033[m";
-   pp.ker.args_wo_amp += "\033[33margs_wo_amp\033[m";
-}
-
-// *****************************************************************************
-void jitArgs(context_t &pp)
-{
-   if (! pp.ker.is_jit) { return; }
-   pp.ker.mfem_jit_cxx = MFEM_JIT_STRINGIFY(MFEM_JIT_CXX);
-   pp.ker.mfem_jit_build_flags = MFEM_JIT_STRINGIFY(MFEM_JIT_BUILD_FLAGS);
+   assert(pp.ker.is_jit);
+   pp.ker.mfem_jit_cxx = "\"" MFEM_JIT_CXX "\"";
+   pp.ker.mfem_jit_build_flags = "\"" MFEM_JIT_BUILD_FLAGS "\"";
    pp.ker.mfem_source_dir = MFEM_SOURCE_DIR;
    pp.ker.mfem_install_dir = MFEM_INSTALL_DIR;
    pp.ker.Targs.clear();
@@ -306,28 +210,25 @@ void jitArgs(context_t &pp)
    pp.ker.args_wo_amp.clear();
    pp.ker.d2u.clear();
    pp.ker.u2d.clear();
-   const bool single_source = pp.ker.is_single_source;
-   //ppKerDbg(pp);
-   //DBG("%s",single_source?"single_source":"");
+
    for (argument_it ia = pp.args.begin(); ia != pp.args.end() ; ia++)
    {
       const argument_t &arg = *ia;
-      const bool is_const = arg.is_const;
+      const bool is_cst = arg.is_cst;
       const bool is_amp = arg.is_amp;
       const bool is_ptr = arg.is_ptr;
-      const bool is_pointer = is_ptr or is_amp;
+      const bool is_ref = is_ptr or is_amp;
       const char *type = arg.type.c_str();
       const char *name = arg.name.c_str();
       const bool has_default_value = arg.has_default_value;
-      //DBG("\narg: %s %s %s%s", is_const?"const":"", type, is_pointer?"*|& ":"",name)
-      // const and not is_pointer => add it to the template args
-      if (is_const and not is_pointer and (has_default_value or not single_source))
+      // const and not reference/pointer => add it to the template args
+      if (is_cst and not is_ref and has_default_value)
       {
          //DBG(" => 1")
          const bool is_double = strcmp(type,"double")==0;
          // Tformat
          addComa(pp.ker.Tformat);
-         if (! has_default_value)
+         if (!has_default_value)
          {
             pp.ker.Tformat += is_double ? "0x%lx" : "%d";
          }
@@ -337,7 +238,7 @@ void jitArgs(context_t &pp)
          }
          // Targs
          addComa(pp.ker.Targs);
-         pp.ker.Targs += is_double?"u":"";
+         pp.ker.Targs += is_double ? "u" : "";
          //pp.ker.Targs += is_pointer?"_":"";
          pp.ker.Targs += name;
          // Tparams
@@ -381,7 +282,7 @@ void jitArgs(context_t &pp)
       }
 
       //
-      if (is_const and not is_pointer and not has_default_value and single_source)
+      if (is_cst and not is_ref and not has_default_value)
       {
          //DBG(" => 2")
          addArg(pp.ker.args, name);
@@ -393,7 +294,7 @@ void jitArgs(context_t &pp)
       }
 
       // !const && !pointer => std args
-      if (not is_const and not is_pointer)
+      if (not is_cst and not is_ref)
       {
          //DBG(" => 3")
          addArg(pp.ker.args, name);
@@ -403,7 +304,7 @@ void jitArgs(context_t &pp)
          pp.ker.params += name;
       }
       //
-      if (is_const and not is_pointer and has_default_value)
+      if (is_cst and not is_ref and has_default_value)
       {
          //DBG(" => 4")
          // other_parameters
@@ -418,7 +319,7 @@ void jitArgs(context_t &pp)
       }
 
       // pointer
-      if (is_pointer)
+      if (is_ref)
       {
          //DBG(" => 5")
          // other_arguments
@@ -432,35 +333,32 @@ void jitArgs(context_t &pp)
          pp.ker.args_wo_amp += name;
          // other_parameters
          if (not pp.ker.params.empty()) { pp.ker.params += ",";  }
-         pp.ker.params += is_const?"const ":"";
+         pp.ker.params += is_cst ? "const ":"";
          pp.ker.params += type;
          pp.ker.params += " *";
          //pp.ker.params += is_pointer?"_":"";
          pp.ker.params += name;
       }
    }
-   if (pp.ker.is_single_source)
-   {
-      //DBG(" => 6")
-      addComa(pp.ker.Tparams);
-      pp.ker.Tparams += pp.ker.Tparams_src;
-   }
+   addComa(pp.ker.Tparams);
+   pp.ker.Tparams += pp.ker.Tparams_src;
 }
 
-// *****************************************************************************
-void jitPrefix(context_t &pp)
+/**
+ * @brief GenerateJitPrefix
+ * @param pp
+ */
+void GenerateJitPrefix(context_t &pp)
 {
-   if (not pp.ker.is_jit) { return; }
+   assert(pp.ker.is_jit);
    pp.ker.is_prefix = true;
    pp.ker.prefix.clear();
-   pp.out << "\n\tconst bool use_jit = Device::IsJITEnabled();";
    pp.out << "\n\tconst char *src=R\"_(";
    pp.out << "#include <cstdint>\n";
    pp.out << "#include <limits>\n";
    pp.out << "#include <cstring>\n";
    pp.out << "#include <stdbool.h>\n";
 
-   //pp.out << "#define MJIT_FORALL\n";
    pp.out << "#include \""
           << pp.ker.mfem_install_dir
           << "/include/mfem/general/jit/jit.hpp\"\n";
@@ -469,14 +367,6 @@ void jitPrefix(context_t &pp)
           << pp.ker.mfem_install_dir
           << "/include/mfem/general/forall.hpp\"\n";
 
-   if (not pp.ker.embed.empty())
-   {
-      // push to suppress 'declared but never referenced' warnings
-      pp.out << "\n#pragma push";
-      pp.out << "\n#pragma diag_suppress 177\n";
-      pp.out << pp.ker.embed.c_str();
-      pp.out << "\n#pragma pop";
-   }
    pp.out << "\nusing namespace mfem;\n";
    pp.out << "\ntemplate<" << pp.ker.Tparams << ">";
    pp.out << "\nvoid " << pp.ker.name << "_%016lx(";
@@ -487,8 +377,11 @@ void jitPrefix(context_t &pp)
    pp.block = 0;
 }
 
-// *****************************************************************************
-void jitPostfix(context_t &pp)
+/**
+ * @brief JitPostfix
+ * @param pp
+ */
+void JitPostfix(context_t &pp)
 {
    if (not pp.ker.is_jit) { return; }
    if (pp.block >= 0 && pp.in.peek() == '{') { pp.block++; }
@@ -500,8 +393,6 @@ void jitPostfix(context_t &pp)
    pp.out << pp.ker.name << "_%016lx<" << pp.ker.Tformat << ">"
           << "(" << "use_dev, " << pp.ker.args_wo_amp << ");";
    pp.out << "})_\";";
-
-   pp.out << "\n\tif (use_jit){";
 
    // typedef, hash map and launch
    pp.out << "\n\ttypedef void (*kernel_t)(const bool use_dev, "
@@ -527,7 +418,6 @@ void jitPostfix(context_t &pp)
           << "Device::Allows(Backend::CUDA_MASK), "
           << pp.ker.args << ");";
    pp.out << "\n\treturn;";
-   pp.out << "\n\t} // use_jit";
    pp.out << "\n";
    // Should check MFEM_USE_CUDA and push the right MFEM_FORALL
    pp.out << pp.ker.prefix;
@@ -567,40 +457,21 @@ bool jitGetArgs(context_t &pp)
    bool empty = true;
    argument_t arg;
    pp.args.clear();
-   // Go to first possible argument
-   skip_space(pp);
+
+   skip_space(pp); // Go to first possible argument
 
    if (is_void(pp)) { drop_name(pp); return true; }
 
-   for (int p=0; true; empty=false)
+   for (int argc = 0; true; empty=false)
    {
-      if (is_star(pp))
-      {
-         arg.is_ptr = true;
-         put(pp);
-         continue;
-      }
-      if (is_amp(pp))
-      {
-         arg.is_amp = true;
-         put(pp);
-         continue;
-      }
-      if (is_coma(pp))
-      {
-         put(pp);
-         continue;
-      }
-      if (is_left_parenthesis(pp))
-      {
-         p+=1;
-         put(pp);
-         continue;
-      }
+      if (is_star(pp)) { arg.is_ptr = true; put(pp); continue; }
+      if (is_amp(pp)) { arg.is_amp = true; put(pp); continue; }
+      if (is_coma(pp)) { put(pp); continue; }
+      if (is_left_parenthesis(pp)) { argc += 1; put(pp); continue; }
       const std::string &id = peekid(pp);
       drop_name(pp);
       // Qualifiers
-      if (id=="const") { pp.out << id; arg.is_const = true; continue; }
+      if (id=="const") { pp.out << id; arg.is_cst = true; continue; }
       if (id=="restrict") { pp.out << id; arg.is_restrict = true; continue; }
       if (id=="__restrict") { pp.out << id; arg.is_restrict = true; continue; }
       // Types
@@ -615,12 +486,13 @@ bool jitGetArgs(context_t &pp)
       if (id=="size_t") { pp.out << id; arg.type = id; continue; }
       if (id=="Array")
       {
+         assert(false); // not supported anymore
          pp.out << id; arg.type = id;
          arg.type += arg_get_array_type(pp);
          continue;
       }
-      if (id=="Vector") { pp.out << id; arg.type = id; continue; }
-      if (id=="DofToQuad") { pp.out << id; arg.type = id; continue; }
+      if (id=="Vector") { assert(false); pp.out << id; arg.type = id; continue; }
+      if (id=="DofToQuad") { assert(false); pp.out << id; arg.type = id; continue; }
       //const bool is_pointer = arg.is_ptr || arg.is_amp;
       //const bool underscore = is_pointer;
       pp.out << /*(underscore?"_":"") <<*/ id;
@@ -633,6 +505,7 @@ bool jitGetArgs(context_t &pp)
          put(pp);
          next(pp);
          arg.has_default_value = true;
+         assert(is_digit(pp)); // verify next token is a digit
          arg.default_value = get_digit(pp);
          pp.out << arg.default_value;
       }
@@ -651,16 +524,15 @@ bool jitGetArgs(context_t &pp)
       }
       pp.args.push_back(arg);
       arg = argument_t();
-      int c = pp.in.peek();
       assert(not pp.in.eof());
-      if (c == ')') { p-=1; if (p>=0) { put(pp); continue; } }
+      if (is_right_parenthesis(pp)) { argc -= 1; if (argc >= 0) { put(pp); continue; } }
       // end of the arguments
-      if (p<0) { break; }
+      if (argc < 0) { break; }
       check(pp, pp.in.peek()==',', "no coma while in args");
       put(pp);
    }
    // Prepare the kernel strings from the arguments
-   jitArgs(pp);
+   PrepareJitArgs(pp);
    return empty;
 }
 
@@ -671,7 +543,7 @@ void jitAmpFromPtr(context_t &pp)
    for (argument_it ia = pp.args.begin(); ia != pp.args.end() ; ia++)
    {
       const argument_t a = *ia;
-      const bool is_const = a.is_const;
+      const bool is_const = a.is_cst;
       const bool is_ptr = a.is_ptr;
       const bool is_amp = a.is_amp;
       const bool is_pointer = is_ptr || is_amp;
@@ -693,7 +565,6 @@ void jitAmpFromPtr(context_t &pp)
    }
 }
 
-// *****************************************************************************
 void jit(context_t &pp)
 {
    pp.ker.is_jit = true;
@@ -708,8 +579,6 @@ void jit(context_t &pp)
    {
       // copy the 'template<...>' in Tparams_src
       pp.out << get_id(pp);
-      // tag our kernel as a '__single_source' one
-      pp.ker.is_single_source = true;
       next(pp);
       check(pp, pp.in.peek()=='<',"no '<' in single source kernel!");
       put(pp);
@@ -760,39 +629,13 @@ void jit(context_t &pp)
    check(pp,pp.in.peek()=='{',"no compound statement found");
    put(pp);
    // Generate the kernel prefix for this kernel
-   jitPrefix(pp);
+   GenerateJitPrefix(pp);
    // Generate the & <=> * transformations
    // jitAmpFromPtr(pp);
    // Push the right #line directive
    pp.out << "\n#line " << pp.line
           << " \"" //<< pp.ker.mfem_source_dir << "/"
           << pp.file << "\"";
-}
-
-// *****************************************************************************
-// * MFEM_EMBED
-// *****************************************************************************
-void embed(context_t &pp)
-{
-   pp.ker.is_embed = true;
-   // Goto first '{'
-   while ('{' != put(pp));
-   // Starts counting the compound statements
-   pp.block = 0;
-}
-
-// *****************************************************************************
-void embedPostfix(context_t &pp)
-{
-   if (not pp.ker.is_embed) { return; }
-   if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
-   if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
-   if (pp.block!=-1) { return; }
-   check(pp,pp.in.peek()=='}',"no compound statements found");
-   put(pp);
-   pp.block--;
-   pp.ker.is_embed = false;
-   pp.ker.embed += "\n";
 }
 
 // *****************************************************************************
@@ -886,7 +729,6 @@ void forall(const std::string &id, context_t &pp)
    pp.parenthesis = 0;
 }
 
-// *****************************************************************************
 void forallPostfix(context_t &pp)
 {
    if (not pp.ker.is_forall) { return; }
@@ -927,25 +769,21 @@ void forallPostfix(context_t &pp)
 #endif
 }
 
-// *****************************************************************************
-static bool token(const std::string &id, const char *token)
+bool is_token(const std::string &id, const char *token)
 {
    if (strncmp(id.c_str(), "MFEM_", 5) != 0 ) { return false; }
    if (strcmp(id.c_str() + 5, token) != 0 ) { return false; }
    return true;
 }
 
-// *****************************************************************************
-static void tokens(context_t &pp)
+void Tokens(context_t &pp)
 {
    if (peekn(pp, 4) != "MFEM") { return; }
    const std::string &id = get_id(pp);
-   if (token(id, "JIT")) { return jit(pp); }
-   if (token(id, "EMBED")) { return embed(pp); }
-   if (token(id, "UNROLL")) { return unroll(pp); }
-   if (token(id, "FORALL_2D")) { return forall(id,pp); }
-   if (token(id, "FORALL_3D")) { return forall(id,pp); }
-   if (pp.ker.is_embed) { pp.ker.embed += id; }
+   if (is_token(id, "JIT")) { return jit(pp); }
+   if (is_token(id, "UNROLL")) { return unroll(pp); }
+   if (is_token(id, "FORALL_2D")) { return forall(id,pp); }
+   if (is_token(id, "FORALL_3D")) { return forall(id,pp); }
    // During the kernel prefix, add MFEM_* id tokens
    if (pp.ker.is_prefix) { pp.ker.prefix += id; }
    // During the forall body, add MFEM_* id tokens
@@ -953,8 +791,7 @@ static void tokens(context_t &pp)
    pp.out << id;
 }
 
-// *****************************************************************************
-inline bool eof(context_t &pp)
+bool eof(context_t &pp)
 {
    const char c = get(pp);
    if (pp.in.eof()) { return true; }
@@ -962,24 +799,16 @@ inline bool eof(context_t &pp)
    return false;
 }
 
-// *****************************************************************************
 int preprocess(context_t &pp)
 {
-   jitHeader(pp);
-   //pp.ker.is_jit = false;
-   //pp.ker.is_embed = false;
-   //pp.ker.is_prefix = false;
-   //pp.ker.is_forall = false;
-   //pp.ker.is_single_source = false;
    do
    {
-      tokens(pp);
-      comments(pp);
-      jitPostfix(pp);
-      embedPostfix(pp);
+      Tokens(pp);
+      Comments(pp);
+      JitPostfix(pp);
       forallPostfix(pp);
    }
-   while (not eof(pp));
+   while (!eof(pp));
    return 0;
 }
 

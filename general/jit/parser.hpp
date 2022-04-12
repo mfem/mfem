@@ -23,7 +23,7 @@ struct argument_t
 {
    int default_value = 0;
    std::string type, name;
-   bool is_ptr = false, is_amp = false, is_const = false,
+   bool is_ptr = false, is_amp = false, is_cst = false,
         is_restrict = false, is_tpl = false, has_default_value = false;
    std::list<int> range;
    bool operator==(const argument_t &arg) { return name == arg.name; }
@@ -38,10 +38,8 @@ struct forall_t { int d; std::string e, N, X, Y, Z, body; };
 struct kernel_t
 {
    bool is_jit = false;
-   bool is_embed = false;
    bool is_prefix = false;
    bool is_forall = false;
-   bool is_single_source = false;
    std::string mfem_jit_cxx;         // holds MFEM_JIT_CXX
    std::string mfem_jit_build_flags; // holds MFEM_JIT_BUILD_FLAGS
    std::string mfem_source_dir;      // holds MFEM_SOURCE_DIR
@@ -60,7 +58,6 @@ struct kernel_t
    std::string args;
    std::string args_wo_amp;
    std::string d2u, u2d;             // double to unsigned place holders
-   std::string embed;                // source of the embed function
    struct forall_t forall;           // source of the lambda forall
    std::string prefix;
 };

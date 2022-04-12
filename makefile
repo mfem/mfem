@@ -373,7 +373,6 @@ MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
-MFEM_BIN_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_INC_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_LIB_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
@@ -415,7 +414,6 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
       endif
    endif
    MFEM_PREFIX := $(abspath $(PREFIX))
-   MFEM_BIN_DIR = $(abspath $(PREFIX_BIN))
    MFEM_INC_DIR = $(abspath $(PREFIX_INC))
    MFEM_LIB_DIR = $(abspath $(PREFIX_LIB))
    MFEM_TEST_MK = $(abspath $(PREFIX_SHARE)/test.mk)
@@ -466,10 +464,13 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
 ifeq ($(shell uname -s),Linux)
 JIT_LIB = -lrt
 endif
-$(BLD)$(MFEM_JIT): $(SRC)general/jit/jit.hpp \
-                   $(SRC)general/jit/compile.hpp \
-						 $(SRC)general/jit/parser.hpp $(THIS_MK)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(BLD)general/jit/*.o $(JIT_LIB) 
+$(BLD)$(MFEM_JIT): $(BLD)general/jit/compile.o \
+						 $(BLD)general/jit/main.o \
+						 $(BLD)general/jit/parser.o \
+						 $(BLD)general/jit/psystem.o \
+						 $(BLD)general/jit/system.o \
+						 $(BLD)general/jit/tools.o
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(^) $(JIT_LIB) 
 
 # Filtering out the objects that will be compiled through the preprocessor
 JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
@@ -748,7 +749,6 @@ status info:
 	$(info MFEM_LIB_FILE          = $(value MFEM_LIB_FILE))
 	$(info MFEM_BUILD_TAG         = $(value MFEM_BUILD_TAG))
 	$(info MFEM_PREFIX            = $(value MFEM_PREFIX))
-	$(info MFEM_BIN_DIR           = $(value MFEM_BIN_DIR))
 	$(info MFEM_INC_DIR           = $(value MFEM_INC_DIR))
 	$(info MFEM_LIB_DIR           = $(value MFEM_LIB_DIR))
 	$(info MFEM_STATIC            = $(MFEM_STATIC))

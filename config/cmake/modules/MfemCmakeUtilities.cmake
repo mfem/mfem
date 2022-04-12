@@ -1029,7 +1029,6 @@ function(mfem_export_mk_files)
     "${PROJECT_BINARY_DIR}/config/test.mk" COPYONLY)
 
   # Update variables for the install-tree version of 'config.mk'
-  set(MFEM_BIN_DIR "${CMAKE_INSTALL_PREFIX}/bin")
   set(MFEM_INC_DIR "${CMAKE_INSTALL_PREFIX}/include")
   set(MFEM_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
   set(MFEM_TEST_MK "${CMAKE_INSTALL_PREFIX}/share/mfem/test.mk")

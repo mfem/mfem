@@ -184,13 +184,6 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.AddDomainIntegrator(new MassIntegrator(one));
-   for (int q = 3; q < 7; q += 2)
-   {
-      const Geometry::Type geom_type(fespace.GetFE(0)->GetGeomType());
-      const IntegrationRule *ir = &IntRules.Get(geom_type, 2*order + q);
-      a.AddDomainIntegrator(new MassIntegrator(one, ir));
-   }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 10. Assemble the bilinear form and the corresponding linear system,

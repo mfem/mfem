@@ -1166,13 +1166,14 @@ static void SmemPADiffusionApply2D(const int NE,
                                    const double *d_,
                                    const double *x_,
                                    double *y_,
-                                   const int d1d = 0,
-                                   const int q1d = 0,
-                                   const int nbz = 0)
+                                   const int t_d1d = 0,
+                                   const int t_q1d = 0,
+                                   const int t_nbz = 0)
 {
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   MFEM_CONTRACT_VAR(t_nbz);
+   const int D1D = T_D1D ? T_D1D : t_d1d;
+   const int Q1D = T_Q1D ? T_Q1D : t_q1d;
+   const int NBZ = T_NBZ ? T_NBZ : 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
@@ -1185,8 +1186,8 @@ static void SmemPADiffusionApply2D(const int NE,
    MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
    {
       const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int D1D = T_D1D ? T_D1D : t_d1d;
+      const int Q1D = T_Q1D ? T_Q1D : t_q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
@@ -1519,11 +1520,11 @@ static void SmemPADiffusionApply3D(const int NE,
                                    const double *d_,
                                    const double *x_,
                                    double *y_,
-                                   const int d1d = 0,
-                                   const int q1d = 0)
+                                   const int t_d1d = 0,
+                                   const int t_q1d = 0)
 {
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int D1D = T_D1D ? T_D1D : t_d1d;
+   const int Q1D = T_Q1D ? T_Q1D : t_q1d;
    constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");
@@ -1535,8 +1536,8 @@ static void SmemPADiffusionApply3D(const int NE,
    auto y = Reshape(y_, D1D, D1D, D1D, NE);
    MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int D1D = T_D1D ? T_D1D : t_d1d;
+      const int Q1D = T_Q1D ? T_Q1D : t_q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
@@ -1734,9 +1735,9 @@ static void SmemPADiffusionApply3D(const int NE,
 }
 
 static void PADiffusionApply(const int dim,
-                             const int D1D,
-                             const int Q1D,
-                             const int NE,
+                             const int d1d,
+                             const int q1d,
+                             const int ne,
                              const bool symm,
                              const Array<double> &b,
                              const Array<double> &g,
@@ -1773,61 +1774,56 @@ static void PADiffusionApply(const int dim,
    MFEM_CONTRACT_VAR(Gt);
 #endif // MFEM_USE_OCCA
 
-   const int id = (D1D << 4) | Q1D;
+   const int id = (d1d << 4) | q1d;
 
-   const bool use_jit = Device::IsJITEnabled();
-
-   if (!use_jit)
+#ifndef MFEM_USE_JIT
+   if (dim == 2)
    {
-      if (dim == 2)
+      switch (id)
       {
-         switch (id)
-         {
-            /*case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
-            case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
-            case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
-            case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
-            case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,D,X,Y);
-            case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
-            case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
-            case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);*/
-            default:   return PADiffusionApply2D(NE,symm,b,g,bt,gt,d,x,y,D1D,Q1D);
-         }
-      }
-
-      if (dim == 3)
-      {
-         switch (id)
-         {
-            /*case 0x22: return SmemPADiffusionApply3D<2,2>(NE,symm,B,G,D,X,Y);
-            case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
-            case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
-            case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
-            case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
-            case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
-            case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
-            case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
-            case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
-            case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);*/
-            default:   return PADiffusionApply3D(NE,symm,b,g,bt,gt,d,x,y,D1D,Q1D);
-         }
+         /*case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
+         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
+         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
+         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
+         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,D,X,Y);
+         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
+         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
+         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);*/
+         default:   return PADiffusionApply2D(ne,symm,b,g,bt,gt,d,x,y,d1d,q1d);
       }
    }
-   else // use_jit
+
+   if (dim == 3)
    {
-      if (dim == 2)
+      switch (id)
       {
-         const int NBZ = (D1D==2 || D1D==3) ? 16:
-                         (D1D==4 || D1D==5) ? 8 :
-                         (D1D==6 || D1D==7) ? 4 :
-                         (D1D==8 || D1D==9) ? 2 : 1;
-         return SmemPADiffusionApply2D(NE,symm,B,G,D,X,Y,D1D,Q1D,NBZ);
-      }
-      if (dim == 3)
-      {
-         return SmemPADiffusionApply3D(NE,symm,B,G,D,X,Y,D1D,Q1D);
+         /*case 0x22: return SmemPADiffusionApply3D<2,2>(NE,symm,B,G,D,X,Y);
+         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
+         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
+         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
+         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
+         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
+         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
+         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
+         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
+         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);*/
+         default:   return PADiffusionApply3D(ne,symm,b,g,bt,gt,d,x,y,d1d,q1d);
       }
    }
+#else // MFEM_USE_JIT
+   if (dim == 2)
+   {
+      const int nbz = (d1d < 4)  ? 16:
+                      (d1d < 6)  ? 8 :
+                      (d1d < 8)  ? 4 :
+                      (d1d < 10) ? 2 : 1;
+      return SmemPADiffusionApply2D(ne,symm,B,G,D,X,Y,d1d,q1d,nbz);
+   }
+   if (dim == 3)
+   {
+      return SmemPADiffusionApply3D(ne,symm,B,G,D,X,Y,d1d,q1d);
+   }
+#endif // MFEM_USE_JIT
    MFEM_ABORT("Unknown kernel: 0x"<<std::hex << id << std::dec);
 }
 

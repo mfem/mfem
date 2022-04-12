@@ -363,12 +363,6 @@ void Device::UpdateMemoryTypeAndClass()
       device_mem_type = MemoryType::MANAGED;
    }
 
-   // Enable the JIT shortcut when requested
-   if (device_option && !strncmp(device_option, "jit", 3))
-   {
-      kernel_mode = KERNEL_MODES::JIT;
-   }
-
    // Enable the DEBUG mode when requested
    if (debug)
    {
