@@ -241,6 +241,7 @@ ifeq ($(MFEM_USE_CUDA),YES)
       $(error Incompatible config: MFEM_USE_CUDA can not be combined with MFEM_USE_HIP)
    endif
 else
+   # The '-x' is required when input is from standard input
    JIT_LANG = -x c++
 endif
 
@@ -474,7 +475,6 @@ endif
 $(BLD)$(MFEM_JIT): $(BLD)general/jit/compile.o \
 						 $(BLD)general/jit/main.o \
 						 $(BLD)general/jit/parser.o \
-						 $(BLD)general/jit/psystem.o \
 						 $(BLD)general/jit/system.o \
 						 $(BLD)general/jit/tools.o
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(^) $(JIT_LIB) 
@@ -487,7 +487,7 @@ $(STD_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 JIT_BUILD_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
-JIT_BUILD_FLAGS += $(JIT_LANG) -I. -I$(patsubst %/,%,$(<D))
+JIT_BUILD_FLAGS += $(JIT_LANG) -I$(patsubst %/,%,$(<D))
 $(JIT_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)$(MFEM_JIT)
 	$(BLD)./$(MFEM_JIT) $(<) | $(MFEM_CXX) $(JIT_BUILD_FLAGS) -c -o $(@) -
 endif

@@ -41,7 +41,6 @@ using std::ostream;
 #include "tools.hpp"
 
 #include <fcntl.h>
-//#include "compile.hpp"
 
 #undef MFEM_DEBUG_COLOR
 #define MFEM_DEBUG_COLOR 226
