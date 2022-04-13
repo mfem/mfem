@@ -24,7 +24,11 @@ namespace mfem
 /// supported, currently:
 ///
 ///  - H1 diffusion + mass
-///  - ND curl-curl + mass (2D only)
+///  - ND curl-curl + mass
+///  - RT div-div + mass
+///
+/// Whether a form is supported can be checked with the static member function
+/// BatchedLORAssembly::FormIsSupported.
 class BatchedLORAssembly
 {
 protected:
@@ -81,9 +85,13 @@ protected:
    /// @sa Specialization classes: BatchedLOR_H1, BatchedLOR_ND, BatchedLOR_RT
    template <typename LOR_KERNEL> void AssemblyKernel(BilinearForm &a);
 
-   // Compiler limitation: these should be protected, but they contain
-   // MFEM_FORALL kernels, and so they must be public.
 public:
+   /// @name GPU kernel functions
+   /// These functions should be considered protected, but they contain
+   /// MFEM_FORALL kernels, and so they must be public (this is a compiler
+   /// limitation).
+   ///@{
+
    /// @brief Fill the I array of the sparse matrix @a A.
    ///
    /// @note AssemblyKernel must be called first to populate @a sparse_mapping.
@@ -100,6 +108,7 @@ public:
    void ParAssemble(BilinearForm &a, const Array<int> &ess_dofs,
                     OperatorHandle &A);
 #endif
+   ///@}
 };
 
 /// @brief Ensure that @a mem has at least capacity @a capacity.

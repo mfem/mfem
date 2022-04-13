@@ -125,16 +125,19 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    quad_interp->Values(nodal_evec, X_vert);
 }
 
-static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
-                                      const int *nbr_elts, const int nbrNbElts)
+// The following two functions (GetMinElt and GetAndIncrementNnzIndex) are
+// copied from restriction.cpp. Should they be factored out?
+
+// Return the minimal value found in both my_elts and nbr_elts
+static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int n_my_elts,
+                                      const int *nbr_elts, const int n_nbr_elts)
 {
-   // Find the minimal element index found in both my_elts[] and nbr_elts[]
    int min_el = INT_MAX;
-   for (int i = 0; i < nbElts; i++)
+   for (int i = 0; i < n_my_elts; i++)
    {
       const int e_i = my_elts[i];
       if (e_i >= min_el) { continue; }
-      for (int j = 0; j < nbrNbElts; j++)
+      for (int j = 0; j < n_nbr_elts; j++)
       {
          if (e_i==nbr_elts[j])
          {
@@ -144,6 +147,14 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
       }
    }
    return min_el;
+}
+
+// Returns the index where a non-zero entry should be added and increment the
+// number of non-zeros for the row i_L.
+static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
+{
+   int ind = AtomicAdd(I[i_L],1);
+   return ind;
 }
 
 int BatchedLORAssembly::FillI(SparseMatrix &A) const
@@ -237,14 +248,6 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
 
    // Return the number of nnz
    return h_I[nvdof];
-}
-
-// Returns the index where a non-zero entry should be added and increment the
-// number of non-zeros for the row i_L.
-static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
-{
-   int ind = AtomicAdd(I[i_L],1);
-   return ind;
 }
 
 void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
