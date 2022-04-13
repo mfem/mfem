@@ -309,23 +309,27 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
 HypreParMatrix *BatchedLOR_AMS::StealGradientMatrix()
 {
    return StealPointer(G);
-};
+}
+
 Vector *BatchedLOR_AMS::StealCoordinateVector()
 {
    return StealPointer(xyz_tvec);
-};
+}
+
 HypreParVector *BatchedLOR_AMS::StealXCoordinate()
 {
    return StealPointer(x);
-};
+}
+
 HypreParVector *BatchedLOR_AMS::StealYCoordinate()
 {
    return StealPointer(y);
-};
+}
+
 HypreParVector *BatchedLOR_AMS::StealZCoordinate()
 {
    return StealPointer(z);
-};
+}
 
 BatchedLOR_AMS::~BatchedLOR_AMS()
 {
