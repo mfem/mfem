@@ -52,6 +52,7 @@ void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag)
 #ifndef HYPRE_BIGINT
    bool own_i = A_hyp.GetDiagMemoryI().OwnsHostPtr();
    bool own_j = A_hyp.GetDiagMemoryJ().OwnsHostPtr();
+   MFEM_CONTRACT_VAR(own_j);
    MFEM_ASSERT(own_i == own_j, "Inconsistent ownership");
    if (!own_i)
    {
