@@ -36,7 +36,7 @@ namespace jit
 // https://www.open-mpi.org/faq/?category=openfabrics#ofa-fork
 static int System_Serial(const char *argv[])
 {
-   assert(Root());
+   assert(MpiRoot());
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
    std::string command(argv[1]);

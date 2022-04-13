@@ -117,14 +117,6 @@ inline void uint64str(const uint64_t hash, char *str, const char *ext = "")
    str[1 + 16 + strlen(ext)] = 0;
 }
 
-/// Forward declaration to Compile
-int Compile(const int n, char *cc, const char co[MFEM_JIT_FILENAME_SIZE],
-            const char *mfem_cxx, // MFEM compiler
-            const char *mfem_cxxflags, // MFEM_CXXFLAGS
-            const char *mfem_source_dir, // MFEM_SOURCE_DIR
-            const char *mfem_install_dir, // MFEM_INSTALL_DIR
-            const bool check_for_ar); // check for existing archive
-
 /// \brief CreateAndCompile
 /// \param hash kernel hash
 /// \param check_for_ar check for existing archive
@@ -181,11 +173,7 @@ inline void *Lookup(const char *name, const size_t hash, Args... args)
    {
       dbg("[lib] %s",ar_name);
       constexpr bool check_for_ar = true;
-      if (CreateAndCompile(hash, check_for_ar, args...) != EXIT_SUCCESS)
-      {
-         dbg("\033[31mCreateAndCompile ERROR");
-         return nullptr;
-      }
+      if (CreateAndCompile(hash, check_for_ar, args...)) { return nullptr; }
       handle = ::dlopen(first_compilation ? so_name : so_name_n, mode);
       assert(handle);
    }
@@ -199,11 +187,7 @@ inline void *Lookup(const char *name, const size_t hash, Args... args)
       // If not found, avoid using the archive and update the shared objects
       ::dlclose(handle);
       constexpr bool no_archive_check = false;
-      if (CreateAndCompile(hash, no_archive_check, args...) != EXIT_SUCCESS)
-      {
-         dbg("\033[33mCreateAndCompile ERROR");
-         return nullptr;
-      }
+      if (CreateAndCompile(hash, no_archive_check, args...)) { return nullptr; }
       handle = ::dlopen(so_name_n, mode);
    }
    if (!handle) { dbg("!handle"); return nullptr; }

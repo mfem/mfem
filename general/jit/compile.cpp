@@ -177,7 +177,7 @@ static int CompileInMemory(const char *argv[], const int n, const char *src,
 /// \param mfem_install_dir
 /// \param check_for_ar
 /// \return EXIT_SUCCESS or EXIT_FAILURE
-int Compile(const int n, char *cc, const char co[MFEM_JIT_FILENAME_SIZE],
+int Compile(const int n, char *cc, const char *co,
             const char *mfem_cxx, const char *mfem_cxxflags,
             const char *mfem_source_dir, const char *mfem_install_dir,
             const bool check_for_ar)
@@ -224,7 +224,7 @@ int Compile(const int n, char *cc, const char co[MFEM_JIT_FILENAME_SIZE],
       };
       if (mfem::jit::System(argv_so)) { return EXIT_FAILURE; }
       delete cc;
-      MPI_Sync();
+      //MPI_Sync();
       return EXIT_SUCCESS;
    }
 
@@ -236,7 +236,7 @@ int Compile(const int n, char *cc, const char co[MFEM_JIT_FILENAME_SIZE],
    if (snprintf(Iminc, PM, "-I%s/include ", mfem_install_dir) < 0) { return EXIT_FAILURE; }
    if (snprintf(libso_n, PM, "lib%s.so.%d", MFEM_JIT_LIB_NAME, version) < 0) { return EXIT_FAILURE; }
 
-   if (Root())
+   if (MpiRoot())
    {
       std::regex reg("\\s+");
       std::string cxxflags(mfem_cxxflags);
@@ -287,16 +287,22 @@ int Compile(const int n, char *cc, const char co[MFEM_JIT_FILENAME_SIZE],
       free(obj); // done with realloc
       fflush(0);
    }
-   MPI_Sync();
+   //MPI_Sync();
 
    // Update archive
-   const char *argv_ar[] = { system, "ar", "-rv", lib_ar, co, nullptr };
+   const char *argv_ar[] = { system,
+                             "ar", "-rv", lib_ar, co,
+                             nullptr
+                           };
    if (mfem::jit::System(argv_ar)) { return EXIT_FAILURE; }
    if (!getenv("MFEM_NUNLINK")) { ::unlink(co); }
 
    // Create shared library
-   const char *argv_so[] =
-   { system, mfem_cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load, nullptr };
+   const char *argv_so[] = { system,
+                             mfem_cxx, "-shared", "-o", lib_so,
+                             beg_load, lib_ar, end_load,
+                             nullptr
+                           };
    if (mfem::jit::System(argv_so)) { return EXIT_FAILURE; }
 
    // Install shared library

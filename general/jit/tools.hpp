@@ -29,13 +29,38 @@ namespace mfem
 namespace jit
 {
 
+/**
+ * @brief strrnc Reverse locate the nth occurence of a character in a string.
+ * @param str the string to look into.
+ * @param chr the character to locate.
+ * @param n the occurence before returning.
+ * @return the remaining string.
+ */
+const char* strrnc(const char *str, const unsigned char chr, int n = 1);
+
 /// \brief GetRuntimeVersion Returns the library version of the current run.
 ///        Initialized at '0', can be incremented by setting increment to true.
 /// \param increment
 /// \return the current runtime version
 int GetRuntimeVersion(bool increment = false);
 
-const char* strrnc(const char *s, const unsigned char c, int n = 1);
+/**
+ * @brief Compile
+ * @param n
+ * @param cc
+ * @param co
+ * @param mfem_cxx MFEM compiler
+ * @param mfem_cxxflags MFEM_CXXFLAGS
+ * @param mfem_source_dir MFEM_SOURCE_DIR
+ * @param mfem_install_dir MFEM_INSTALL_DIR
+ * @param check_for_ar check for existing libmjit.a archive
+ * @return
+ */
+int Compile(const int n, char *cc, const char *co,
+            const char *mfem_cxx, const char *mfem_cxxflags,
+            const char *mfem_source_dir, const char *mfem_install_dir,
+            const bool check_for_ar);
+
 
 #ifdef MFEM_USE_MPI
 int ProcessFork(int argc, char *argv[]);
@@ -53,12 +78,9 @@ enum Command
 int System(const char *argv[]);
 
 /// Returns true if MPI world rank is zero.
-bool Root();
-
-void MPI_Sync();
-int MPI_Size();
-
-bool MPI_Inited();
+bool MpiRoot();
+void MpiSync();
+int MpiSize();
 
 template<typename T>
 static inline int argn(T argv[], int argc = 0)
@@ -80,7 +102,7 @@ inline bool CreateMappedSharedMemoryInputFile(const char *input,
                                               int &fd,
                                               char *&pmap, Args... args)
 {
-   if (!Root()) { return true; }
+   if (!MpiRoot()) { return true; }
    const int size = 1 + std::snprintf(nullptr, 0, src, h, h, h, args...);
    CreateMapSMemInputFile(input, size, fd, pmap);
    if (std::snprintf(pmap, size, src, h, h, h, args...) < 0)

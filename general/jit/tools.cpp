@@ -25,14 +25,13 @@ namespace mfem
 namespace jit
 {
 
-const char* strrnc(const char *s, const unsigned char c, int n)
+const char* strrnc(const char *str, const unsigned char c, int n)
 {
-   size_t len = strlen(s);
-   char* p = const_cast<char*>(s)+len-1;
+   size_t len = strlen(str);
+   char* p = const_cast<char*>(str) + len - 1;
    for (; n; n--,p--,len--)
    {
-      for (; len; p--,len--)
-         if (*p == c) { break; }
+      for (; len; p--,len--) if (*p == c) { break; }
       if (!len) { return nullptr; }
       if (n == 1) { return p; }
    }
@@ -130,32 +129,30 @@ int ProcessFork(int argc, char *argv[])
 #endif // MFEM_USE_MPI
 
 
-#ifndef MFEM_USE_MPI
-bool Root() { return true;}
-#else // MFEM_USE_MPI
-bool Root()
+void MpiSync()
+{
+#ifdef MFEM_USE_MPI
+   if (MPI_Inited()) { MPI_Barrier(MPI_COMM_WORLD); }
+#endif
+}
+
+bool MpiRoot()
 {
    int world_rank = 0;
-   if (MPI_Inited()) { MPI_Comm_rank(MPI_COMM_WORLD, &world_rank); }
+#ifdef MFEM_USE_MPI
+   if (Mpi::IsInitialized()) { world_rank = Mpi::WorldRank(); }
+#endif
    return world_rank == 0;
 }
 
-void MPI_Sync() { if (MPI_Inited()) { MPI_Barrier(MPI_COMM_WORLD); } }
-
-int MPI_Size()
+int MpiSize()
 {
-   int size = 1;
-   if (MPI_Inited()) { MPI_Comm_size(MPI_COMM_WORLD, &size); }
-   return size;
+   int world_size = 1;
+#ifdef MFEM_USE_MPI
+   if (Mpi::IsInitialized()) { world_size = Mpi::WorldSize(); }
+#endif
+   return world_size;
 }
-
-bool MPI_Inited()
-{
-   int ini = false;
-   MPI_Initialized(&ini);
-   return ini ? true : false;
-}
-#endif // MFEM_USE_MPI
 
 /// \brief GetRuntimeVersion
 /// \param increment
@@ -180,7 +177,7 @@ int GetRuntimeVersion(bool increment)
  */
 bool CreateMappedSharedMemoryOutputFile(const char *out, int &fd, char *&pmap)
 {
-   if (!Root()) { return true; }
+   if (!MpiRoot()) { return true; }
 
    dbg("output: (/dev/shm/) %s",out);
 
