@@ -367,7 +367,6 @@ LORSolver<HypreAMS>::LORSolver(
    }
    else
    {
-      // TODO: is deleting this safe here?
       ParLORDiscretization lor(a_ho, ess_tdof_list, ref_type);
       // Assume ownership of the system matrix so that `lor` can be safely
       // deleted

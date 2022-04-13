@@ -72,7 +72,6 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
    const FiniteElementCollection *fec = a.FESpace()->FEColl();
    // TODO: check for maximum supported orders
-   // TODO: check for supported coefficient types?
 
    // Batched LOR requires all tensor elements
    if (!UsesTensorBasis(*a.FESpace())) { return false; }

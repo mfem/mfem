@@ -194,6 +194,8 @@ BatchedLOR_ADS::~BatchedLOR_ADS()
 LORSolver<HypreADS>::LORSolver(
    ParBilinearForm &a_ho, const Array<int> &ess_tdof_list, int ref_type)
 {
+   MFEM_VERIFY(a_ho.FESpace()->GetMesh()->Dimension() == 3,
+               "The ADS solver is only valid in 3D.");
    if (BatchedLORAssembly::FormIsSupported(a_ho))
    {
       ParFiniteElementSpace &pfes = *a_ho.ParFESpace();
@@ -211,7 +213,6 @@ LORSolver<HypreADS>::LORSolver(
    }
    else
    {
-      // TODO: is deleting this safe here?
       ParLORDiscretization lor(a_ho, ess_tdof_list, ref_type);
       // Assume ownership of the system matrix so that `lor` can be safely
       // deleted
