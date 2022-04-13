@@ -95,8 +95,10 @@ protected:
    /// Returns the order of the LOR space. 1 for H1 or ND, 0 for L2 or RT.
    int GetLOROrder() const;
 
+   /// Construct the LOR space (overriden for serial and parallel versions).
    virtual void FormLORSpace() = 0;
 
+   /// Construct the LORBase object for the given FE space and refinement type.
    LORBase(FiniteElementSpace &fes_ho_, int ref_type_);
 
 public:

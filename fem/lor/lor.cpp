@@ -100,7 +100,7 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
       return tfe->GetDofMap();
    };
 
-   FiniteElementSpace &fes_lor = *fes;
+   FiniteElementSpace &fes_lor = GetFESpace();
    Mesh &mesh_lor = *fes_lor.GetMesh();
    int dim = mesh_lor.Dimension();
    const CoarseFineTransformations &cf_tr = mesh_lor.GetRefinementTransforms();
@@ -212,7 +212,7 @@ void LORBase::ConstructDofPermutation() const
    if (type == H1 || type == L2)
    {
       // H1 and L2: no permutation necessary, return identity
-      perm.SetSize(fes->GetTrueVSize());
+      perm.SetSize(fes_ho.GetTrueVSize());
       for (int i=0; i<perm.Size(); ++i) { perm[i] = i; }
       return;
    }
@@ -359,7 +359,7 @@ FiniteElementSpace &LORBase::GetFESpace() const
    // In the case of "batched assembly", the creation of the LOR mesh and
    // space can be completely omitted (for efficiency). In this case, the
    // fes object is NULL, and we need to create it when requested.
-   if (fes == NULL) { const_cast<LORBase&>(*this).FormLORSpace(); }
+   if (fes == NULL) { const_cast<LORBase*>(this)->FormLORSpace(); }
    return *fes;
 }
 
@@ -386,11 +386,12 @@ void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
 void LORBase::LegacyAssembleSystem(BilinearForm &a_ho,
                                    const Array<int> &ess_dofs)
 {
-   // TODO: use AssemblyLevel::FULL here instead of AssemblyLevel::LEGACY
+   // TODO: use AssemblyLevel::FULL here instead of AssemblyLevel::LEGACY.
+   // This is waiting for parallel assembly + BCs with AssemblyLevel::FULL.
    // In that case, maybe "LegacyAssembleSystem" is not a very clear name.
 
    // If the space is not formed already, it will be constructed lazily in
-   // GetParFESpace
+   // GetFESpace.
    FiniteElementSpace &fes = GetFESpace();
 #ifdef MFEM_USE_MPI
    if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes))
