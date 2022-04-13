@@ -261,7 +261,6 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    const SparseMatrix *R = vert_fes.GetRestrictionMatrix();
 
    const int nel_ho = vert_fes.GetNE();
-   const int order = vert_fes.GetMaxElementOrder();
    const int ndp1 = order + 1;
    const int ndof_per_el = pow(ndp1, dim);
    const int sdim = dim;

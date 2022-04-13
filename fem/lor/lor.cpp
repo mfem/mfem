@@ -392,16 +392,16 @@ void LORBase::LegacyAssembleSystem(BilinearForm &a_ho,
 
    // If the space is not formed already, it will be constructed lazily in
    // GetFESpace.
-   FiniteElementSpace &fes = GetFESpace();
+   FiniteElementSpace &fes_lor = GetFESpace();
 #ifdef MFEM_USE_MPI
-   if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes))
+   if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes_lor))
    {
       a = new ParBilinearForm(pfes);
    }
    else
 #endif
    {
-      a = new BilinearForm(&fes);
+      a = new BilinearForm(&fes_lor);
    }
 
    a->UseExternalIntegrators();
