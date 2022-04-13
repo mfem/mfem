@@ -22,9 +22,9 @@ namespace mfem
  * @brief This class implements the serial variational transfer between finite
  * element spaces. Variational transfer has been shown to have better
  * approximation properties than standard interpolation. This facilities can be
- * used for supporting applications wich require the handling of non matching
+ * used for supporting applications which require the handling of non matching
  * meshes. For instance: General multi-physics problems, fluid structure
- * interaction, or even visulization of average quanties within subvolumes
+ * interaction, or even visualization of average quantities within subvolumes
  * This algorithm allows to perform quadrature in the intersection of elements
  * of two separate and unrelated meshes. It generates quadrature rules in
  * the intersection which allows us to integrate-with to machine precision using
@@ -74,7 +74,7 @@ public:
     * @param src_fun the function associated with the source finite element space
     * @param[out] dest_fun the function associated with the destination finite
     * element space
-    * @return true if the transfer was succesfull, fale otherwise.
+    * @return true if the transfer was successful, fail otherwise.
     */
    bool Apply(const GridFunction &src_fun, GridFunction &dest_fun);
 
@@ -104,14 +104,17 @@ public:
 
 
    /*!
-    * @brief Control if the Mass matrix is computed together with the coupling operator every time.
-    * @param value is set to true for computing the mass matrix operator with the coupling operator, false otherwise.
-    * The option is true by default, set to false if only the coupling operator is needed.
+    * @brief Control if the Mass matrix is computed together with the coupling
+    * operator every time.
+    * @param value is set to true for computing the mass matrix operator with
+    * the coupling operator, false otherwise.  The option is true by default,
+    * set to false if only the coupling operator is needed.
     */
    void SetAssembleMassAndCouplingTogether(const bool value);
 
    /*!
-    * @brief Control the maximum numbers of conjugate gradients steps for mass matrix inversion 
+    * @brief Control the maximum numbers of conjugate gradients steps for mass
+    * matrix inversion
     * @param max_solver_iterations the maximum number of iterations
     */
    void SetMaxSolverIterations(const int max_solver_iterations);

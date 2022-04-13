@@ -52,7 +52,7 @@ public:
                                       DenseMatrix &elemmat) = 0;
 
    /*!
-    * @return the additional orders of quadarture required by the integrator.
+    * @return the additional orders of quadrature required by the integrator.
     * It is 0 by default, override method to change that.
     */
    virtual int GetQuadratureOrder() const { return 0; }

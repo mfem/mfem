@@ -84,6 +84,10 @@ protected:
    mutable long glob_elem_offset, glob_offset_sequence;
    void ComputeGlobalElementOffset() const;
 
+   // Enable Print() to add the parallel interface as boundary (typically used
+   // for visualization purposes)
+   bool print_shared = true;
+
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
 
@@ -456,8 +460,13 @@ public:
    /// Save the mesh in a parallel mesh format.
    void ParPrint(std::ostream &out) const;
 
-   /** Print the part of the mesh in the calling processor adding the interface
-       as boundary (for visualization purposes) using the mfem v1.0 format. */
+   // Enable Print() to add the parallel interface as boundary (typically used
+   // for visualization purposes)
+   void SetPrintShared(bool print) { print_shared = print; }
+
+   /** Print the part of the mesh in the calling processor using the mfem v1.0
+       format. Depending on SetPrintShared(), the parallel interface can be
+       added as boundary for visualization (true by default) . */
    void Print(std::ostream &out = mfem::out) const override;
 
    /// Save the ParMesh to files (one for each MPI rank). The files will be

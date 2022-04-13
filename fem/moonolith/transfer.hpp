@@ -17,7 +17,7 @@
 #ifdef MFEM_USE_MOONOLITH
 #include "mortarassembler.hpp"
 #ifdef MFEM_USE_MPI
-#include "parallel/pmortarassembler.hpp"
+#include "pmortarassembler.hpp"
 #endif // MFEM_USE_MPI
 #endif // MFEM_USE_MOONOLITH
 
@@ -33,7 +33,7 @@ void InitTransfer(int argc, char *argv[]);
 
 /*!
  * @brief Finalize the par_moonolith library.
- * @return Zero if everything has succeded.
+ * @return Zero if everything has succeeded.
  */
 int FinalizeTransfer();
 

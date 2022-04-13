@@ -16,19 +16,19 @@ Version 4.4.1 (development)
 - Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
   See fem/estimators.hpp.
 
-- Added support for parallel non-conforming, non-matching, variational, volumetric
-  mesh information transfer using ParMoonolith (https://bitbucket.org/zulianp/par_moonolith).
-  With ParMortarAssember fields can be exchanged between arbitrarily distributed and unrelated
-  finite element meshes in a variationally consistent way.
+- Added support for ParMoonolith, https://bitbucket.org/zulianp/par_moonolith,
+  which provides parallel non-conforming, non-matching, variational, volumetric
+  mesh information transfer. With ParMortarAssember, fields can be exchanged
+  between arbitrarily distributed and unrelated finite element meshes in a
+  variationally consistent way.
 
-- Add an new Example to demonstrate the solution of spectral fractional PDEs 
+- Add an new Example to demonstrate the solution of spectral fractional PDEs
   with MFEM. See Example 33/33p.
 
 - Add hipSPARSE support for sparse mat-vec multiplications.
 - Added PA support for MixedScalarCurlIntegrator in 2D and
   MixedVectorGradientIntegrator in 2D and 3D, as well as their transposes.
 
->>>>>>> gh/pr/2832
 
 Version 4.4, released on March 21, 2022
 =======================================
