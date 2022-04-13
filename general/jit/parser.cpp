@@ -282,75 +282,30 @@ void PrepareJitArgs(context_t &pp)
    {
       const argument_t &arg = *ia;
       const bool is_cst = arg.is_cst;
-      const bool is_amp = arg.is_amp;
       const bool is_ptr = arg.is_ptr;
-      const bool is_ref = is_ptr or is_amp;
       const char *type = arg.type.c_str();
       const char *name = arg.name.c_str();
       const bool has_default_value = arg.has_default_value;
       // const and not reference/pointer => add it to the template args
-      if (is_cst and not is_ref and has_default_value)
+      if (not is_ptr and has_default_value)
       {
          //DBG(" => 1")
-         const bool is_double = strcmp(type,"double")==0;
-         assert(!is_double);
-         // Tformat
          addComa(pp.ker.Tformat);
-         if (!has_default_value)
-         {
-            pp.ker.Tformat += is_double ? "0x%lx" : "%d";
-         }
-         else
-         {
-            pp.ker.Tformat += "%d";
-         }
-         // Targs
+         pp.ker.Tformat += "%d";
          addComa(pp.ker.Targs);
-         pp.ker.Targs += is_double ? "u" : "";
-         //pp.ker.Targs += is_pointer?"_":"";
          pp.ker.Targs += name;
-         // Tparams
          if (!has_default_value)
          {
             addComa(pp.ker.Tparams);
             pp.ker.Tparams += "const ";
-            pp.ker.Tparams += is_double?"uint64_t":type;
+            pp.ker.Tparams += type;
             pp.ker.Tparams += " ";
-            pp.ker.Tparams += is_double?"t":"";
-            //pp.ker.Tparams += is_pointer?"_":"";
             pp.ker.Tparams += name;
-         }
-         if (is_double)
-         {
-            {
-               pp.ker.d2u += "\n\tconst union_du_t union_";
-               pp.ker.d2u += name;
-               pp.ker.d2u += " = (union_du_t){u:t";
-               //pp.ker.d2u += is_pointer?"_":"";
-               pp.ker.d2u += name;
-               pp.ker.d2u += "};";
-
-               pp.ker.d2u += "\n\tconst double ";
-               //pp.ker.d2u += is_pointer?"_":"";
-               pp.ker.d2u += name;
-               pp.ker.d2u += " = union_";
-               pp.ker.d2u += name;
-               pp.ker.d2u += ".d;";
-            }
-            {
-               pp.ker.u2d += "\n\tconst uint64_t u";
-               //pp.ker.u2d += is_pointer?"_":"";
-               pp.ker.u2d += name;
-               pp.ker.u2d += " = (union_du_t){";
-               //pp.ker.u2d += is_pointer?"_":"";
-               pp.ker.u2d += name;
-               pp.ker.u2d += "}.u;";
-            }
          }
       }
 
       //
-      if (is_cst and not is_ref and not has_default_value)
+      if (is_cst and not is_ptr and not has_default_value)
       {
          //DBG(" => 2")
          addArg(pp.ker.args, name);
@@ -362,7 +317,7 @@ void PrepareJitArgs(context_t &pp)
       }
 
       // !const && !pointer => std args
-      if (not is_cst and not is_ref)
+      if (not is_cst and not is_ptr)
       {
          //DBG(" => 3")
          addArg(pp.ker.args, name);
@@ -372,10 +327,9 @@ void PrepareJitArgs(context_t &pp)
          pp.ker.params += name;
       }
       //
-      if (is_cst and not is_ref and has_default_value)
+      if (is_cst and not is_ptr and has_default_value)
       {
          //DBG(" => 4")
-         // other_parameters
          addArg(pp.ker.params, " const ");
          pp.ker.params += type;
          pp.ker.params += " ";
@@ -387,24 +341,20 @@ void PrepareJitArgs(context_t &pp)
       }
 
       // pointer
-      if (is_ref)
+      if (is_ptr)
       {
          //DBG(" => 5")
          // other_arguments
-         if (! pp.ker.args.empty()) { pp.ker.args += ","; }
-         pp.ker.args += is_amp?"&":"";
-         //pp.ker.args += is_pointer?"_":"";
+         if (!pp.ker.args.empty()) { pp.ker.args += ","; }
          pp.ker.args += name;
          // other_arguments_wo_amp
          if (! pp.ker.args_wo_amp.empty()) {  pp.ker.args_wo_amp += ","; }
-         //pp.ker.args_wo_amp += is_pointer?"_":"";
          pp.ker.args_wo_amp += name;
          // other_parameters
          if (not pp.ker.params.empty()) { pp.ker.params += ",";  }
          pp.ker.params += is_cst ? "const ":"";
          pp.ker.params += type;
          pp.ker.params += " *";
-         //pp.ker.params += is_pointer?"_":"";
          pp.ker.params += name;
       }
    }
@@ -565,35 +515,6 @@ bool jitGetArgs(context_t &pp)
    // Prepare the kernel strings from the arguments
    PrepareJitArgs(pp);
    return empty;
-}
-
-// *****************************************************************************
-// not used anymore
-void jitAmpFromPtr(context_t &pp)
-{
-   for (argument_it ia = pp.args.begin(); ia != pp.args.end() ; ia++)
-   {
-      const argument_t a = *ia;
-      const bool is_const = a.is_cst;
-      const bool is_ptr = a.is_ptr;
-      const bool is_amp = a.is_amp;
-      const bool is_pointer = is_ptr || is_amp;
-      const char *type = a.type.c_str();
-      const char *name = a.name.c_str();
-      const bool underscore = is_pointer;
-      if (is_const && underscore)
-      {
-         pp.out << "\n\tconst " << type << (is_amp?"&":"*") << name
-                << " = " <<  (is_amp?"*":"")
-                << " _" << name << ";";
-      }
-      if (!is_const && underscore)
-      {
-         pp.out << "\n\t" << type << (is_amp?"&":"*") << name
-                << " = " << (is_amp?"*":"")
-                << " _" << name << ";";
-      }
-   }
 }
 
 /**

@@ -50,6 +50,7 @@ int System(const char *argv[])
 }
 
 #else // MFEM_USE_MPI
+
 /**
  *  MFEM ranks which calls mfem::jit::System are { MPI Parents }.
  *  The root of { MPI Parents } calls the binary mjit through MPI_Comm_spawn,
@@ -70,6 +71,7 @@ int System(const char *argv[])
 ///   - THREAD_Worker waits for commands and does the std::system call
 static int System_MPISpawn(char *argv[])
 {
+   dbg();
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
    // Point to the 'mjit' binary
@@ -122,35 +124,24 @@ static int System_MPISpawn(char *argv[])
    return status;
 }
 
-
-/// Just launch the std::system
+/// Just launch the std::system on the Root MPI process
 static int System_Std(const char *argv[])
 {
-   dbg();
-   MPI_Comm comm = MPI_COMM_WORLD;
-   if (MPI_Inited()) { MPI_Barrier(comm); }
-
+   assert(Root());
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
-
    // https://www.open-mpi.org/faq/?category=openfabrics#ofa-fork
-   if (Root())
+   string command(argv[1]);
+   for (int k = 2; k < argc && argv[k]; k++)
    {
-      string command(argv[1]);
-      for (int k = 2; k < argc && argv[k]; k++)
-      {
-         command.append(" ");
-         command.append(argv[k]);
-      }
-      const char *command_c_str = command.c_str();
-      dbg(command_c_str);
-      std::system(command_c_str);
+      command.append(" ");
+      command.append(argv[k]);
    }
-
-   if (MPI_Inited()) { MPI_Barrier(comm); }
+   const char *command_c_str = command.c_str();
+   dbg(command_c_str);
+   std::system(command_c_str);
    return EXIT_SUCCESS;
 }
-
 
 /// launch the std::system through:
 ///   - child (jit_compiler_pid) of MPI_JIT_Session in communication.hpp

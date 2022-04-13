@@ -51,7 +51,7 @@ static inline int nsleep(const long us)
 
 static int THREAD_Worker(char *argv[], int *status)
 {
-   string command(argv[2]);
+   std::string command(argv[2]);
    for (int k = 3; argv[k]; k++)
    {
       command.append(" ");
@@ -169,6 +169,13 @@ int GetRuntimeVersion(bool increment)
 /// Root MPI process file creation, outputing the source of the kernel.
 /// ipcrm -a
 /// ipcs -m
+/**
+ * @brief CreateMappedSharedMemoryOutputFile
+ * @param out
+ * @param fd
+ * @param pmap
+ * @return
+ */
 bool CreateMappedSharedMemoryOutputFile(const char *out, int &fd, char *&pmap)
 {
    if (!Root()) { return true; }
@@ -216,6 +223,49 @@ bool CreateMappedSharedMemoryOutputFile(const char *out, int &fd, char *&pmap)
    if (::close(fd) < 0) { dbg("!close"); return false; }
 
    return true;
+}
+
+/**
+ * @brief CreateMapSMemInputFile
+ * @param input
+ * @param size
+ * @param fd
+ * @param pmap
+ */
+void CreateMapSMemInputFile(const char *input, int size, int &fd, char *&pmap)
+{
+   dbg("input: (/dev/shm/) %s", input);
+
+   // Remove shared memory segment if it already exists.
+   ::shm_unlink(input);
+
+   // Attempt to create shared memory segment
+   const mode_t mode = S_IRUSR | S_IWUSR;
+   const int oflag = O_CREAT | O_RDWR | O_EXCL;
+   fd = ::shm_open(input, oflag, mode);
+   if (fd < 0) { perror(strerror(errno)); }
+
+   // determine the necessary buffer size
+   dbg("size:%d", size);
+
+   // resize the shared memory segment to the right size
+   if (::ftruncate(fd, size) < 0)
+   {
+      ::shm_unlink(input); // ipcs -m
+      dbg("!ftruncate");
+      perror("Could not ftruncate!");
+   }
+
+   // Map the shared memory segment into the process address space
+   const int prot = PROT_READ | PROT_WRITE;
+   const int flags = MAP_SHARED;
+   pmap = (char*) mmap(nullptr, // Most of the time set to nullptr
+                       size,    // Size of memory mapping
+                       prot,    // Allows reading and writing operations
+                       flags,   // Segment visible by other processes
+                       fd,      // File descriptor
+                       0x00);   // Offset from beggining of file
+   if (pmap == MAP_FAILED) { perror(strerror(errno)); }
 }
 
 } // namespace jit

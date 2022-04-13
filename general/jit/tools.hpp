@@ -60,6 +60,10 @@ static inline int argn(T argv[], int argc = 0)
    return argc;
 }
 
+/// Root MPI process file creation, outputing the source of the kernel.
+bool CreateMappedSharedMemoryOutputFile(const char *out, int &fd, char *&pmap);
+
+void CreateMapSMemInputFile(const char *input, int size, int &fd, char *&pmap);
 
 /// Root MPI process file creation, outputing the source of the kernel.
 template<typename... Args>
@@ -70,53 +74,15 @@ inline bool CreateMappedSharedMemoryInputFile(const char *input,
                                               char *&pmap, Args... args)
 {
    if (!Root()) { return true; }
-
-   dbg("input: (/dev/shm/) %s", input);
-
-   // Remove shared memory segment if it already exists.
-   ::shm_unlink(input);
-
-   // Attempt to create shared memory segment
-   const mode_t mode = S_IRUSR | S_IWUSR;
-   const int oflag = O_CREAT | O_RDWR | O_EXCL;
-   fd = ::shm_open(input, oflag, mode);
-   if (fd < 0) { return perror(strerror(errno)), false; }
-
-   // determine the necessary buffer size
    const int size = 1 + std::snprintf(nullptr, 0, src, h, h, h, args...);
-   dbg("size:%d", size);
-
-   // resize the shared memory segment to the right size
-   if (::ftruncate(fd, size) < 0)
-   {
-      ::shm_unlink(input); // ipcs -m
-      dbg("!ftruncate");
-      return false;
-   }
-
-   // Map the shared memory segment into the process address space
-   const int prot = PROT_READ | PROT_WRITE;
-   const int flags = MAP_SHARED;
-   pmap = (char*) mmap(nullptr, // Most of the time set to nullptr
-                       size,    // Size of memory mapping
-                       prot,    // Allows reading and writing operations
-                       flags,   // Segment visible by other processes
-                       fd,      // File descriptor
-                       0x00);   // Offset from beggining of file
-   if (pmap == MAP_FAILED) { return perror(strerror(errno)), false; }
-
+   CreateMapSMemInputFile(input, size, fd, pmap);
    if (std::snprintf(pmap, size, src, h, h, h, args...) < 0)
    {
-      return perror("snprintf error occured"), false;
+      return perror(strerror(errno)), false;
    }
-
    if (::close(fd) < 0) { return perror(strerror(errno)), false; }
-
    return true;
 }
-
-/// Root MPI process file creation, outputing the source of the kernel.
-bool CreateMappedSharedMemoryOutputFile(const char *out, int &fd, char *&pmap);
 
 } // namespace jit
 

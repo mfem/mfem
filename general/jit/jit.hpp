@@ -12,11 +12,11 @@
 #ifndef MFEM_JIT_HPP
 #define MFEM_JIT_HPP
 
-#include <cstdio>
-#include <cstring>
+//#include <cstdio>
+//#include <cstring>
 #include <cassert>
-#include <climits>
-#include <functional>
+//#include <climits>
+//#include <functional>
 
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -134,15 +134,13 @@ int Compile(const char *input_mem, // kernel source in memory
 int GetRuntimeVersion(bool increment = false);
 
 /// Root MPI process file creation, outputing the source of the kernel
-template<typename... Args> inline
-bool CreateKernelSourceInMemory(const size_t h, const char *src,
-                                char *&input, Args... args)
+template<typename... Args>
+inline bool CreateKerSrcInMem(char *&mem, const size_t h,
+                              const char *src, Args... args)
 {
-   if (!Root()) { return true; }
-   dbg();
    const int size = 1 + std::snprintf(nullptr, 0, src, h, h, h, args...);
-   input = new char[size];
-   if (std::snprintf(input, size, src, h, h, h, args...) < 0)
+   mem = new char[size];
+   if (std::snprintf(mem, size, src, h, h, h, args...) < 0)
    {
       return perror("snprintf error occured"), false;
    }
@@ -151,8 +149,8 @@ bool CreateKernelSourceInMemory(const size_t h, const char *src,
 
 /// Root MPI process file creation, outputing the source of the kernel
 template<typename... Args>
-inline bool CreateKernelSourceInFile(const char *file, const size_t h,
-                                     const char *src, Args... args)
+inline bool CreateKerSrcInFile(const char *file, const size_t h,
+                               const char *src, Args... args)
 {
    if (!Root()) { return true; }
    dbg();
@@ -183,30 +181,28 @@ inline bool CreateAndCompile(const size_t hash,
                              const char *mfem_install_dir,
                              Args... args)
 {
-   dbg("0x%x",hash);
    char cc[MFEM_JIT_FILENAME_SIZE], co[MFEM_JIT_FILENAME_SIZE];
    uint64str(hash, co, ".co");
 
-   char *input_mem = nullptr;
-   const bool in_memory_compilation =
-      getenv("MFEM_JIT_COMPILE_IN_MEMORY") != nullptr;
+   char *mem = nullptr;
+   const bool compile_in_mem = getenv("MFEM_JIT_SRC_MEM") != nullptr;
 
-   if (!in_memory_compilation)
+   if (!compile_in_mem)
    {
-      dbg("CreateKernelSourceInFile");
       uint64str(hash, cc, ".cc");
-      if (!CreateKernelSourceInFile(cc, hash, src, args...)) { return false; }
+      if (!CreateKerSrcInFile(cc, hash, src, args...))
+      {
+         return perror("error!"), false;
+      }
    }
    else
    {
-      dbg("MFEM_JIT_COMPILE_IN_MEMORY => CreateKernelSourceInMemory");
-      if (!CreateKernelSourceInMemory(hash, src, input_mem, args...))
+      if (!CreateKerSrcInMem(mem, hash, src, args...))
       {
-         dbg("Error in CreateKernelSourceInMemory!");
-         return false;
+         return perror("error!"), false;
       }
    }
-   const int compiled = Compile(input_mem, cc, co, mfem_cxx, mfem_cxxflags,
+   const int compiled = Compile(mem, cc, co, mfem_cxx, mfem_cxxflags,
                                 mfem_source_dir, mfem_install_dir, check_for_ar);
    assert(compiled == EXIT_SUCCESS);
    return compiled;
@@ -214,9 +210,9 @@ inline bool CreateAndCompile(const size_t hash,
 
 /// Lookup in the cache for the kernel with the given hash
 template<typename... Args>
-inline void *Lookup(const size_t hash, Args... args)
+inline void *Lookup(const char *name, const size_t hash, Args... args)
 {
-   dbg("0x%x ?",hash);
+   dbg("%s (0x%x) ?",name, hash);
    char symbol[MFEM_JIT_SYMBOL_SIZE];
    uint64str(hash, symbol);
    constexpr int mode = RTLD_NOW | RTLD_LOCAL;
@@ -304,7 +300,7 @@ public:
       seed(jit::hash<const char*>()(src)),
       hash(hash_args(seed, cxx, flags, msrc, mins, args...)),
       name((uint64str(hash, symbol), name)),
-      handle(Lookup(hash, src, cxx, flags, msrc, mins, args...)),
+      handle(Lookup(name, hash, src, cxx, flags, msrc, mins, args...)),
       ker(Symbol<kernel_t>(hash, handle)),
       cxx(cxx), src(src), flags(flags), msrc(msrc), mins(mins)
    { assert(handle); }
