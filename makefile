@@ -352,14 +352,14 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS\
  MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER MFEM_USE_BENCHMARK\
  MFEM_USE_PARELAG MFEM_SOURCE_DIR MFEM_INSTALL_DIR\
- MFEM_USE_JIT MFEM_JIT_CXX MFEM_JIT_BUILD_FLAGS
+ MFEM_USE_JIT MFEM_JIT_CXX MFEM_JIT_BUILD_FLAGS MFEM_JIT_MPI_FORK MFEM_JIT_MPI_SPAWN
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
  MFEM_INC_DIR MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_FLAGS MFEM_LIB_DIR\
  MFEM_EXT_LIBS MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG\
  MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP\
- MFEM_TEST_MK
+ MFEM_TEST_MK MFEM_BIN_DIR
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -374,6 +374,7 @@ MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
+MFEM_BIN_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_INC_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_LIB_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
@@ -399,6 +400,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    endif
    # Allow changing the PREFIX during install with: make install PREFIX=<dir>
    PREFIX := $(MFEM_PREFIX)
+	PREFIX_BIN   := $(PREFIX)/bin
    PREFIX_INC   := $(PREFIX)/include
    PREFIX_LIB   := $(PREFIX)/lib
    PREFIX_SHARE := $(PREFIX)/share/mfem
@@ -414,6 +416,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
       endif
    endif
    MFEM_PREFIX := $(abspath $(PREFIX))
+	MFEM_BIN_DIR = $(abspath $(PREFIX_BIN))
    MFEM_INC_DIR = $(abspath $(PREFIX_INC))
    MFEM_LIB_DIR = $(abspath $(PREFIX_LIB))
    MFEM_TEST_MK = $(abspath $(PREFIX_SHARE)/test.mk)
@@ -472,12 +475,13 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
 ifeq ($(shell uname -s),Linux)
 JIT_LIB = -lrt
 endif
+$(BLD)$(MFEM_JIT): $(SRC)general/jit/jit.hpp
 $(BLD)$(MFEM_JIT): $(BLD)general/jit/compile.o \
 						 $(BLD)general/jit/main.o \
 						 $(BLD)general/jit/parser.o \
 						 $(BLD)general/jit/system.o \
 						 $(BLD)general/jit/tools.o
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(^) $(JIT_LIB) 
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(filter-out $(SRC)general/jit/jit.hpp,$(^)) $(JIT_LIB) 
 
 # Filtering out the objects that will be compiled through the preprocessor
 JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
@@ -650,6 +654,9 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	rm -f $(BLD)config/config-install.mk
 # install test.mk in $(PREFIX_SHARE)
 	$(INSTALL) -m 640 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
+# install binaries
+	mkdir -p $(PREFIX_BIN)
+	$(if $(jit),$(INSTALL) -m 750 $(BLD)$(MFEM_JIT) $(PREFIX_BIN))
 
 $(CONFIG_MK):
 # Skip the error message when '-B' make flag is used (unconditionally
@@ -731,6 +738,8 @@ status info:
 	$(info MFEM_USE_CALIPER       = $(MFEM_USE_CALIPER))
 	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
 	$(info MFEM_USE_JIT           = $(MFEM_USE_JIT))
+	$(info MFEM_JIT_MPI_FORK      = $(MFEM_JIT_MPI_FORK))
+	$(info MFEM_JIT_MPI_SPAWN     = $(MFEM_JIT_MPI_SPAWN))
 	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))
@@ -753,6 +762,7 @@ status info:
 	$(info MFEM_LIB_FILE          = $(value MFEM_LIB_FILE))
 	$(info MFEM_BUILD_TAG         = $(value MFEM_BUILD_TAG))
 	$(info MFEM_PREFIX            = $(value MFEM_PREFIX))
+	$(info MFEM_BIN_DIR           = $(value MFEM_BIN_DIR))
 	$(info MFEM_INC_DIR           = $(value MFEM_INC_DIR))
 	$(info MFEM_LIB_DIR           = $(value MFEM_LIB_DIR))
 	$(info MFEM_STATIC            = $(MFEM_STATIC))

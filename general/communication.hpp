@@ -72,16 +72,9 @@ public:
    static bool Root() { return WorldRank() == 0; }
 private:
    /// Initialize MPI
-   static void Init_(int *argc, char ***argv)
-   {
-      MFEM_VERIFY(!IsInitialized(), "MPI already initialized!")
-      MPI_Init(argc, argv);
-      // The "mpi" object below needs to be created after MPI_Init() for some
-      // MPI implementations
-      static Mpi mpi;
-   }
+   static void Init_(int *argc, char ***argv);
    /// Finalize MPI
-   ~Mpi() { Finalize(); }
+   ~Mpi();
    /// Prevent direct construction of objects of this class
    Mpi() { }
 };
@@ -101,32 +94,6 @@ public:
    /// Return true if WorldRank() == 0.
    bool Root() const { return Mpi::Root(); }
 };
-
-#ifdef MFEM_USE_JIT
-/** @brief A class that forks before calls MPI_Init() */
-class MPI_JIT_Session
-{
-protected:
-   int *state;
-   pid_t jit_compiler_pid;
-   void GetRankAndSize();
-   int world_rank, world_size;
-   constexpr static int NOP = ~0;
-public:
-   MPI_JIT_Session();
-   ~MPI_JIT_Session();
-   /// Return MPI_COMM_WORLD's rank.
-   int WorldRank() const { return world_rank; }
-   /// Return MPI_COMM_WORLD's size.
-   int WorldSize() const { return world_size; }
-   /// Return true if WorldRank() == 0.
-   bool Root() const { return world_rank == 0; }
-private:
-   template <typename> bool Acknowledge(const int check = NOP);
-   bool AcknowledgeEQ(const int check = NOP);
-   bool AcknowledgeNE(const int check = NOP);
-};
-#endif
 
 /** The shared entities (e.g. vertices, faces and edges) are split into groups,
     each group determined by the set of participating processors. They are
@@ -572,8 +539,8 @@ struct VarMessage
    }
 
 protected:
-   virtual void Encode(int rank) {}
-   virtual void Decode(int rank) {}
+   virtual void Encode(int rank) { MFEM_CONTRACT_VAR(rank); }
+   virtual void Decode(int rank) { MFEM_CONTRACT_VAR(rank); }
 };
 
 

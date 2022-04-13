@@ -25,13 +25,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-using std::list;
-using std::regex;
-using std::vector;
-using std::string;
-using std::istream;
-using std::ostream;
-
 #include "../../config/config.hpp"
 
 #include "../error.hpp"
@@ -58,7 +51,7 @@ namespace jit
 
 /// \brief CloseAndWait
 /// \param fd descriptor to be closed.
-static inline void CloseAndWait(int fd)
+static void CloseAndWait(int fd)
 {
    if (::close(fd) < 0) { ::perror(strerror(errno)); }
    // block parent process until any of its children has finished
@@ -66,19 +59,19 @@ static inline void CloseAndWait(int fd)
 }
 
 /// In-memory compilation
-static int CompileInMemory(const char *argv[], const char *mem,
-                           char *&output_mem, size_t &size)
+static int CompileInMemory(const char *argv[], const int n, const char *src,
+                           char *&obj, size_t &size)
 {
    const int argc = argn(argv);
    if (argc < 1) { return EXIT_FAILURE; }
 
    // debug command line
    {
-      string command(argv[0]);
+      std::string command(argv[0]);
       for (int k = 1; k < argc && argv[k]; k++)
       {
-         command.append(" ");
-         command.append(argv[k]);
+         command += " ";
+         command += argv[k];
       }
       const char *command_c_str = command.c_str();
       dbg(command_c_str);
@@ -121,13 +114,12 @@ static int CompileInMemory(const char *argv[], const char *mem,
    ::close(ep[PIPE_WRITE]);
 
    // write all the source present in memory to the 'input' pipe
-   const size_t nbytes = std::strlen(mem);
-   ::write(ip[PIPE_WRITE], mem, nbytes);
+   ::write(ip[PIPE_WRITE], src, n-1);
    ::close(ip[PIPE_WRITE]);
 
    char buffer[1<<16];
    constexpr size_t SIZE = sizeof(buffer);
-   size_t nr, ne = 0, osize = 0; // number of read & error bytes
+   size_t nr, ne = 0, no = 0; // number of read, error & output bytes
 
    // Scan error pipe with timeout
    {
@@ -136,11 +128,11 @@ static int CompileInMemory(const char *argv[], const char *mem,
       FD_ZERO(&set); // clear the set
       FD_SET(ep[PIPE_READ], &set); // add the descriptor we need a timeout on
       const int rv = ::select(ep[PIPE_READ]+1, &set, NULL, NULL, &timeout);
-      if (rv == -1) { return perror(strerror(errno)), EXIT_FAILURE; }
+      if (rv == -1) { return ::perror(strerror(errno)), EXIT_FAILURE; }
       else if (rv == 0) { dbg("No error found!"); }
       else
       {
-         //dbg("Error data is available now!");
+         dbg("Error data is available!");
          while ((nr = ::read(ep[PIPE_READ], buffer, SIZE)) > 0)
          {
             ::write(STDOUT_FILENO, buffer, nr);
@@ -157,19 +149,17 @@ static int CompileInMemory(const char *argv[], const char *mem,
    }
 
    // then get the object from output pipe
-   size = 0;
-   osize = SIZE;
-   output_mem = (char*) ::realloc(nullptr, SIZE);
+   size = 0, no = SIZE, obj = (char*) ::realloc(nullptr, SIZE);
    while ((nr = ::read(op[PIPE_READ], buffer, SIZE)) > 0)
    {
       size += nr;
-      if (size > osize)
+      if (size > no)
       {
-         dbg("omem.realloc(%d + %d);", osize, SIZE);
-         output_mem = (char*) ::realloc(output_mem, osize + SIZE);
-         osize += SIZE;
+         //dbg("omem.realloc(%d + %d);", no, SIZE);
+         obj = (char*) ::realloc(obj, no + SIZE);
+         no += SIZE;
       }
-      ::memcpy(output_mem + size - nr, buffer, nr);
+      ::memcpy(obj + size - nr, buffer, nr);
    }
    dbg("object size: %d", size);
    CloseAndWait(op[PIPE_READ]);
@@ -177,6 +167,7 @@ static int CompileInMemory(const char *argv[], const char *mem,
 }
 
 /// \brief Compile the source file with PIC flags, updating the cache library.
+///        Requirement: all MPI ranks should see through nfs.
 /// \param input_mem
 /// \param cc
 /// \param co
@@ -186,15 +177,12 @@ static int CompileInMemory(const char *argv[], const char *mem,
 /// \param mfem_install_dir
 /// \param check_for_ar
 /// \return EXIT_SUCCESS or EXIT_FAILURE
-int Compile(const char *mem,
-            char cc[MFEM_JIT_FILENAME_SIZE],
-            char co[MFEM_JIT_FILENAME_SIZE],
-            const char *mfem_cxx,
-            const char *mfem_cxxflags,
-            const char *mfem_source_dir,
-            const char *mfem_install_dir,
+int Compile(const int n, char *cc, const char co[MFEM_JIT_FILENAME_SIZE],
+            const char *mfem_cxx, const char *mfem_cxxflags,
+            const char *mfem_source_dir, const char *mfem_install_dir,
             const bool check_for_ar)
 {
+   assert(cc);
 #ifndef MFEM_USE_CUDA
 #define MFEM_JIT_DEVICE_CODE ""
 #define MFEM_JIT_COMPILER_OPTION
@@ -222,21 +210,21 @@ int Compile(const char *mem,
    constexpr int PM = PATH_MAX;
    constexpr const char *fPIC = MFEM_JIT_COMPILER_OPTION "-fPIC";
    constexpr const char *system = MFEM_JIT_COMMAND_LINE_OPTION;
-   constexpr const char *libar = "lib" MFEM_JIT_LIB_NAME ".a";
-   constexpr const char *libso = "lib" MFEM_JIT_LIB_NAME ".so";
+   constexpr const char *lib_ar = "lib" MFEM_JIT_LIB_NAME ".a";
+   constexpr const char *lib_so = "lib" MFEM_JIT_LIB_NAME ".so";
 
    // If there is already a JIT archive, use it and create the lib_so
-   if (check_for_ar && GetRuntimeVersion() == 0 && std::fstream(libar))
+   if (check_for_ar && GetRuntimeVersion()==0 && std::fstream(lib_ar))
    {
-      dbg();
-      if (Root()) { dbg("Using JIT archive!"); }
+      dbg("Using JIT archive!");
       const char *argv_so[] =
       {
-         system, mfem_cxx, "-shared", "-o", libso, beg_load, libar, end_load,
+         system, mfem_cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load,
          MFEM_JIT_LINKER_OPTION "-rpath,.", nullptr
       };
       if (mfem::jit::System(argv_so)) { return EXIT_FAILURE; }
-      delete mem;
+      delete cc;
+      MPI_Sync();
       return EXIT_SUCCESS;
    }
 
@@ -246,29 +234,21 @@ int Compile(const char *mem,
    char libso_n[PM], Imsrc[PM], Iminc[PM];
    if (snprintf(Imsrc, PM, "-I%s ", mfem_source_dir) < 0) { return EXIT_FAILURE; }
    if (snprintf(Iminc, PM, "-I%s/include ", mfem_install_dir) < 0) { return EXIT_FAILURE; }
-   if (snprintf(libso_n, PM, "lib%s.so.%d", MFEM_JIT_LIB_NAME, version) < 0)
-   { return EXIT_FAILURE; }
+   if (snprintf(libso_n, PM, "lib%s.so.%d", MFEM_JIT_LIB_NAME, version) < 0) { return EXIT_FAILURE; }
 
-   // If there is an mem, do the compilation in memory
-   const bool compile_in_mem = mem != nullptr;
-   if (MPI_Inited()) { MPI_Barrier(MPI_COMM_WORLD); }
-
-   if (compile_in_mem && Root())
+   if (Root())
    {
-      dbg("Tokenizing MFEM_CXXFLAGS");
-      regex reg("\\s+");
-      string cxxflags(mfem_cxxflags);
-      auto cxxargv =
-         vector<std::string>(
+      std::regex reg("\\s+");
+      std::string cxxflags(mfem_cxxflags);
+      const auto cxxargv =
+         std::vector<std::string>(
             std::sregex_token_iterator{begin(cxxflags), end(cxxflags), reg, -1},
             std::sregex_token_iterator{});
-      //for (auto a : cxxargv) { mfem::out << a << std::endl; }
 
-      vector<const char *> argv;
+      std::vector<const char*> argv;
       argv.push_back(mfem_cxx);
       for (auto &a : cxxargv)
       {
-         // instead of: argv.push_back(strdup(a.data()));
          using uptr = std::unique_ptr<char, decltype(&std::free)>;
          uptr *t_copy = new uptr(strdup(a.data()), &std::free);
          argv.push_back(t_copy->get());
@@ -286,74 +266,43 @@ int Compile(const char *mem,
       argv.push_back(MFEM_JIT_DEVICE_CODE);
 #endif // MFEM_USE_CUDA
       argv.push_back("-o");
-#ifdef __APPLE__
-      argv.push_back("/dev/stdout"); // through output fork/pipes
-#else
-      argv.push_back(co);
-#endif // __APPLE__
-      argv.push_back("-");
+      argv.push_back("/dev/stdout"); // output
+      argv.push_back("-"); // input
       argv.push_back(nullptr);
 
+      // compile in memory
       size_t size = 0;
-      char *output_mem = nullptr;
-      if (CompileInMemory(argv.data(), mem, output_mem, size))
-      {
-         dbg("InMemCompile error!");
-         return EXIT_FAILURE;
-      }
-      delete mem;
+      char *obj = nullptr;
+      if (CompileInMemory(argv.data(), n, cc, obj, size)) { return EXIT_FAILURE; }
+      delete cc;
 
-#ifdef __APPLE__
-      dbg("Not possible to output directly in memory, saving on disk the object");
-      assert(output_mem != nullptr && size > 0);
+      // security issues, => write back object into output file
+      assert(obj && size > 0);
       const mode_t mode = S_IRUSR | S_IWUSR;
       const int oflag = O_CREAT | O_RDWR | O_TRUNC;
       const int co_fd = ::open(co, oflag, mode);
-      const size_t written = ::write(co_fd, output_mem, size);
+      const size_t written = ::write(co_fd, obj, size);
       if (written != size) { return perror("!write object"), EXIT_FAILURE; }
       if (::close(co_fd) < 0) { return perror("!close object"), EXIT_FAILURE; }
-      free(output_mem); // done with realloc
+      free(obj); // done with realloc
       fflush(0);
-#endif // __APPLE__
    }
+   MPI_Sync();
 
-   if (!compile_in_mem && Root()) // !in_memory_compilation
-   {
-      dbg();
-      const char *argv_co[] =
-      {
-         system, mfem_cxx, mfem_cxxflags, fPIC, "-c",
-         MFEM_JIT_DEVICE_CODE, Imsrc, Iminc, "-o", co, cc,
-         nullptr
-      };
-      if (mfem::jit::System(argv_co)) { return EXIT_FAILURE; }
-      if (!getenv("MFEM_NUNLINK")) { ::unlink(cc); }
-   }
+   // Update archive
+   const char *argv_ar[] = { system, "ar", "-rv", lib_ar, co, nullptr };
+   if (mfem::jit::System(argv_ar)) { return EXIT_FAILURE; }
+   if (!getenv("MFEM_NUNLINK")) { ::unlink(co); }
 
-   if (Root())
-   {
-      dbg();
-      // Update archive, options: -rv
-      const char *argv_ar[] = { system, "ar", "-rv", libar, co, nullptr };
-      if (mfem::jit::System(argv_ar)) { return perror("Error!"), EXIT_FAILURE; }
+   // Create shared library
+   const char *argv_so[] =
+   { system, mfem_cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load, nullptr };
+   if (mfem::jit::System(argv_so)) { return EXIT_FAILURE; }
 
-      if (!getenv("MFEM_NUNLINK")) { ::unlink(co); }
+   // Install shared library
+   const char *install[] = { system, "install", MFEM_JIT_INSTALL_BACKUP, lib_so, libso_n, nullptr };
+   if (mfem::jit::System(install)) { return EXIT_FAILURE; }
 
-      // Create shared library
-      const char *argv_so[] = { system,
-                                mfem_cxx, "-shared", "-o", libso,
-                                beg_load, libar, end_load,
-                                nullptr
-                              };
-      if (mfem::jit::System(argv_so)) { return perror("Error!"), EXIT_FAILURE; }
-
-      // Install shared library
-      const char *install[] =
-      { system, "install", MFEM_JIT_INSTALL_BACKUP, libso, libso_n, nullptr };
-      if (mfem::jit::System(install)) { return perror("Error!"), EXIT_FAILURE; }
-   }
-
-   if (MPI_Inited()) { MPI_Barrier(MPI_COMM_WORLD); }
    return EXIT_SUCCESS;
 }
 

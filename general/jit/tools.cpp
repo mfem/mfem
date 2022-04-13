@@ -140,6 +140,8 @@ bool Root()
    return world_rank == 0;
 }
 
+void MPI_Sync() { if (MPI_Inited()) { MPI_Barrier(MPI_COMM_WORLD); } }
+
 int MPI_Size()
 {
    int size = 1;

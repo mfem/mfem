@@ -47,100 +47,88 @@ using namespace std;
 namespace mfem
 {
 
-#ifdef MFEM_USE_JIT
+#ifdef MFEM_JIT_MPI_FORK
+int *jit_state;
 
-void MPI_JIT_Session::GetRankAndSize()
-{
-   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-}
+pid_t jit_compiler_pid;
 
-template <typename Op>
-bool MPI_JIT_Session::Acknowledge(const int check)
+static constexpr int ACK = ~0;
+
+template <typename Op> bool Ack(const int check)
 {
    const long ms = 100L;
    const struct timespec rqtp = {0, ms*1000000L};
-   while (Op()(*state, check)) { ::nanosleep(&rqtp, nullptr); }
+   while (Op()(*jit_state, check)) { ::nanosleep(&rqtp, nullptr); }
    return true;
 }
 
-bool MPI_JIT_Session::AcknowledgeEQ(const int check)
-{
-   return Acknowledge<std::equal_to<int>>(check);
-}
+bool AckEQ(const int check = ACK) { return Ack<std::equal_to<int>>(check); }
 
-bool MPI_JIT_Session::AcknowledgeNE(const int check)
-{
-   return Acknowledge<std::not_equal_to<int>>(check);
-}
+bool AckNE(const int check = ACK) { return Ack<std::not_equal_to<int>>(check); }
 
+#endif // MFEM_JIT_MPI_FORK
 
-MPI_JIT_Session::MPI_JIT_Session()
+void Mpi::Init_(int *argc, char ***argv)
 {
+   MFEM_VERIFY(!IsInitialized(), "MPI already initialized!")
+#ifndef MFEM_JIT_MPI_FORK
+   MPI_Init(argc, argv);
+#else // MFEM_JIT_MPI_FORK
    constexpr int prot = PROT_READ | PROT_WRITE;
    constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
 
    // One integer in memory to exchange the status
-   state = (int*) ::mmap(nullptr, sizeof(int), prot, flags, -1, 0);
-   MFEM_VERIFY(state, "");
+   jit_state = (int*) ::mmap(nullptr, sizeof(int), prot, flags, -1, 0);
+   assert(jit_state);
 
-   *state = NOP;
+   *jit_state = ACK; // flush state
 
-   if ((jit_compiler_pid = fork()) != 0) // parent
+   if ((jit_compiler_pid = ::fork()) != 0) // parent
    {
-      MPI_Init(nullptr, nullptr);//&argc, &argv);
-      GetRankAndSize();
-      *state = world_rank; // set world_rank
-      AcknowledgeNE(); // wait for the jit_compiler to acknowledge
+      MPI_Init(argc, argv);
+      *jit_state = Mpi::WorldRank(); // tell the child which rank we are
+      AckNE(); // wait for the child to acknowledge
    }
    else // JIT compiler child
    {
-      MFEM_VERIFY(*state == NOP, "Child init error!");
-      AcknowledgeEQ();// get world_rank
-      const int rank = *state;
-      *state = NOP;
-      dbg("\033[33m[child] rank %d\033[m", rank);
+      MFEM_VERIFY(*jit_state == ACK, "Child init error!");
+      AckEQ(); // wait for parent's MPI rank
+      const int rank = *jit_state;
+      *jit_state = ACK; // acknowledge
 
       auto work = [&]()
       {
-         dbg("\033[33mwait...\033[m");
-         AcknowledgeEQ();
-         dbg("\033[33mdone\033[m");
-         *state = NOP;
+         AckEQ();
+         // could do some work here...
+         *jit_state = ACK;
       };
 
-      // only rank 0 is kept for compilation
-      if (world_rank == 0)
-      {
-         dbg("\033[33m[child] WORK %d\033[m", rank);
-         std::thread thread(work);
-         thread.join();
-      }
-      dbg("\033[33m[child] exit %d\033[m", rank);
-      exit(0);
+      // only root is kept for compilation
+      if (rank == 0) { std::thread (work).join(); }
+      exit(EXIT_SUCCESS);
    }
+#endif // MFEM_JIT_MPI_FORK
+   // The "mpi" object below needs to be created after MPI_Init()
+   // for some MPI implementations
+   static Mpi mpi;
 }
 
-MPI_JIT_Session::~MPI_JIT_Session()
+Mpi::~Mpi()
 {
-#ifdef MFEM_USE_JIT
-   MFEM_VERIFY(*state == ~0, "Parent finalize error!");
-   if (world_rank == 0)
+#ifdef MFEM_JIT_MPI_FORK
+   MFEM_VERIFY(*jit_state == ACK, "Parent finalize error!");
+   if (Root())
    {
       int status;
-      *state = 0;
-      AcknowledgeNE();
+      *jit_state = 0; // forcing something else than ACK to wake thread
+      AckNE();
       ::waitpid(jit_compiler_pid, &status, WUNTRACED | WCONTINUED);
-      dbg("status: %d", status);
-      MFEM_VERIFY(status == 0, "Error waiting for JIT compiler!")
+      MFEM_VERIFY(status == 0, "Error with JIT compiler thread!")
    }
-   if (::munmap(state, sizeof(int)) != 0) { MFEM_ABORT("munmap error!"); }
-#endif
-   MPI_Finalize();
+   if (::munmap(jit_state, sizeof(int)) != 0) { MFEM_ABORT("munmap error!"); }
+#endif // MFEM_JIT_MPI_FORK
+   Finalize();
 }
-
-#endif // MFEM_USE_JIT
-
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),

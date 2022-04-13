@@ -29,6 +29,12 @@ namespace mfem
 namespace jit
 {
 
+/// \brief GetRuntimeVersion Returns the library version of the current run.
+///        Initialized at '0', can be incremented by setting increment to true.
+/// \param increment
+/// \return the current runtime version
+int GetRuntimeVersion(bool increment = false);
+
 const char* strrnc(const char *s, const unsigned char c, int n = 1);
 
 #ifdef MFEM_USE_MPI
@@ -49,6 +55,7 @@ int System(const char *argv[]);
 /// Returns true if MPI world rank is zero.
 bool Root();
 
+void MPI_Sync();
 int MPI_Size();
 
 bool MPI_Inited();

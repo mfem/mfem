@@ -16,7 +16,7 @@
 #endif
 
 #include <string>
-using std::string;
+#include <fstream>
 
 #include "jit.hpp"
 #include "tools.hpp"
@@ -31,25 +31,26 @@ namespace mfem
 namespace jit
 {
 
-#ifndef MFEM_USE_MPI
-
 // The serial implementation does nothing special but the =system= command.
-int System(const char *argv[])
+// Just launch the std::system on the Root MPI process
+// https://www.open-mpi.org/faq/?category=openfabrics#ofa-fork
+static int System_Serial(const char *argv[])
 {
+   assert(Root());
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
-   string command(argv[1]);
+   std::string command(argv[1]);
    for (int k = 2; k < argc && argv[k]; k++)
    {
-      command.append(" ");
-      command.append(argv[k]);
+      command += " ";
+      command += argv[k];
    }
    const char *command_c_str = command.c_str();
    dbg(command_c_str);
    return ::system(command_c_str);
 }
 
-#else // MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
 
 /**
  *  MFEM ranks which calls mfem::jit::System are { MPI Parents }.
@@ -69,122 +70,79 @@ int System(const char *argv[])
 ///   - mjit => ProcessFork: MPI_Spawned and THREAD_Worker
 ///   - MPI_Spawned drives the working thread, provides the arguments and wait
 ///   - THREAD_Worker waits for commands and does the std::system call
-static int System_MPISpawn(char *argv[])
+/// MPI_ERR_SPAWN: could not spawn processes if not enough ranks
+static int System_MPISpawn(const char *argv[], MPI_Comm comm = MPI_COMM_WORLD)
 {
-   dbg();
+   constexpr int PM = PATH_MAX;
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
    // Point to the 'mjit' binary
-   char mjit[PATH_MAX];
-   if (snprintf(mjit, PATH_MAX, "%s/bin/mjit", MFEM_INSTALL_DIR) < 0)
-   { return EXIT_FAILURE; }
+   char mjit[PM];
+   if (snprintf(mjit, PM, "%s/bin/mjit", MFEM_INSTALL_DIR) < 0) { return EXIT_FAILURE; }
    dbg(mjit);
+   assert(std::fstream(mjit)); // make sure the mjit executable exists
+
    // If we have not been launch with mpirun, just fold back to serial case,
    // which has a shift in the arguments
-   if (!MPI_Inited() || MPI_Size()==1)
-   {
-      string command(argv[1]);
-      for (int k = 2; k < argc && argv[k]; k++)
-      {
-         command.append(" ");
-         command.append(argv[k]);
-      }
-      const char *command_c_str = command.c_str();
-      dbg(command_c_str);
-      return system(command_c_str);
-   }
+   if (!MPI_Inited() || MPI_Size()==1) { return System_Serial(argv); }
 
    // Debug our command
-   string command(argv[0]);
+   std::string dbg_command(argv[0]);
    for (int k = 1; k < argc && argv[k]; k++)
    {
-      command.append(" ");
-      command.append(argv[k]);
+      dbg_command.append(" ");
+      dbg_command.append(argv[k]);
    }
-   const char *command_c_str = command.c_str();
-   dbg(command_c_str);
+   const char *dbg_command_c_str = dbg_command.c_str();
+   dbg(dbg_command_c_str);
 
    // Spawn the sub MPI group
    constexpr int root = 0;
+   constexpr int maxprocs = 1;
    int errcode = EXIT_FAILURE;
    const MPI_Info info = MPI_INFO_NULL;
-   MPI_Comm comm = MPI_COMM_WORLD, intercomm = MPI_COMM_NULL;
+   MPI_Comm intercomm = MPI_COMM_NULL;
    MPI_Barrier(comm);
-   const int spawned = // Now spawn one binary
-      MPI_Comm_spawn(mjit, argv, 1, info, root, comm, &intercomm, &errcode);
-   if (spawned != MPI_SUCCESS) { return EXIT_FAILURE; }
-   if (errcode != EXIT_SUCCESS) { return EXIT_FAILURE; }
-   // Broadcast READY through intercomm, and wait for return
+   const int spawned =
+      MPI_Comm_spawn(mjit, const_cast<char**>(argv),
+                     maxprocs, info, root, comm, &intercomm, &errcode);
+   if (spawned != MPI_SUCCESS) { return dbg("spawned"), EXIT_FAILURE; }
+   if (errcode != EXIT_SUCCESS) { return dbg("errcode"), EXIT_FAILURE; }
    int status = mfem::jit::READY;
    // MPI_ROOT stands as a special value for intercomms
-   MPI_Bcast(&status, 1, MPI_INT, MPI_ROOT, intercomm);
-   MPI_Bcast(&status, 1, MPI_INT, root, intercomm);
+   MPI_Bcast(&status, 1, MPI_INT, MPI_ROOT, intercomm); // Broadcast READY
+   MPI_Bcast(&status, 1, MPI_INT, root, intercomm); // Wait for return
    MPI_Barrier(comm);
    MPI_Comm_free(&intercomm);
    return status;
 }
 
-/// Just launch the std::system on the Root MPI process
-static int System_Std(const char *argv[])
-{
-   assert(Root());
-   const int argc = argn(argv);
-   if (argc < 2) { return EXIT_FAILURE; }
-   // https://www.open-mpi.org/faq/?category=openfabrics#ofa-fork
-   string command(argv[1]);
-   for (int k = 2; k < argc && argv[k]; k++)
-   {
-      command.append(" ");
-      command.append(argv[k]);
-   }
-   const char *command_c_str = command.c_str();
-   dbg(command_c_str);
-   std::system(command_c_str);
-   return EXIT_SUCCESS;
-}
-
 /// launch the std::system through:
 ///   - child (jit_compiler_pid) of MPI_JIT_Session in communication.hpp
-int System_MPI_JIT_Session(char *argv[])
+int System_MPI_JIT_Session(const char *argv[], MPI_Comm comm = MPI_COMM_WORLD)
 {
    dbg();
-   MPI_Comm comm = MPI_COMM_WORLD;
    MPI_Barrier(comm);
-
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
-
-   // https://www.open-mpi.org/faq/?category=openfabrics#ofa-fork
-   if (Root())
-   {
-      string command(argv[1]);
-      for (int k = 2; k < argc && argv[k]; k++)
-      {
-         command.append(" ");
-         command.append(argv[k]);
-      }
-      const char *command_c_str = command.c_str();
-      dbg(command_c_str);
-      std::system(command_c_str);
-   }
-
+   if (Root()) { System_Serial(argv); }
    MPI_Barrier(comm);
    return EXIT_SUCCESS;
-}
-
-/// Entry point toward System_MPISpawn or System_MPI_JIT_Session
-int System(const char *argv[])
-{
-   const bool spawn = getenv("MFEM_JIT_MPI_SPAWN") != nullptr;
-   if (spawn) { return System_MPISpawn(const_cast<char**>(argv)); }
-
-   const bool thread = getenv("MFEM_JIT_MPI_FORK") != nullptr;
-   if (thread) { return System_MPI_JIT_Session(const_cast<char**>(argv)); }
-
-   return  System_Std(argv);
 }
 
 #endif // MFEM_USE_MPI
+
+/// Entry point toward System_[Serial|MPISpawn|MPI_JIT_Session]
+int System(const char *argv[])
+{
+#if defined(MFEM_JIT_MPI_SPAWN)
+   return System_MPISpawn(argv);
+#elif defined(MFEM_JIT_MPI_FORK)
+   return System_MPI_JIT_Session(argv);
+#else
+   return  System_Serial(argv);
+#endif
+}
 
 } // namespace jit
 

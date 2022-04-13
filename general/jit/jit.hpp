@@ -12,11 +12,11 @@
 #ifndef MFEM_JIT_HPP
 #define MFEM_JIT_HPP
 
-//#include <cstdio>
-//#include <cstring>
+#include <cstdio>
+#include <cstring>
 #include <cassert>
-//#include <climits>
-//#include <functional>
+#include <climits>
+#include <functional>
 
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -117,49 +117,13 @@ inline void uint64str(const uint64_t hash, char *str, const char *ext = "")
    str[1 + 16 + strlen(ext)] = 0;
 }
 
-/// Compile the source file with PIC flags, updating the cache library
-int Compile(const char *input_mem, // kernel source in memory
-            char cc[MFEM_JIT_FILENAME_SIZE],
-            char co[MFEM_JIT_FILENAME_SIZE],
+/// Forward declaration to Compile
+int Compile(const int n, char *cc, const char co[MFEM_JIT_FILENAME_SIZE],
             const char *mfem_cxx, // MFEM compiler
             const char *mfem_cxxflags, // MFEM_CXXFLAGS
             const char *mfem_source_dir, // MFEM_SOURCE_DIR
             const char *mfem_install_dir, // MFEM_INSTALL_DIR
             const bool check_for_ar); // check for existing archive
-
-/// \brief GetRuntimeVersion Returns the library version of the current run.
-///        Initialized at '0', can be incremented by setting increment to true.
-/// \param increment
-/// \return the current runtime version
-int GetRuntimeVersion(bool increment = false);
-
-/// Root MPI process file creation, outputing the source of the kernel
-template<typename... Args>
-inline bool CreateKerSrcInMem(char *&mem, const size_t h,
-                              const char *src, Args... args)
-{
-   const int size = 1 + std::snprintf(nullptr, 0, src, h, h, h, args...);
-   mem = new char[size];
-   if (std::snprintf(mem, size, src, h, h, h, args...) < 0)
-   {
-      return perror("snprintf error occured"), false;
-   }
-   return true;
-}
-
-/// Root MPI process file creation, outputing the source of the kernel
-template<typename... Args>
-inline bool CreateKerSrcInFile(const char *file, const size_t h,
-                               const char *src, Args... args)
-{
-   if (!Root()) { return true; }
-   dbg();
-   const int fd = ::open(file, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
-   if (fd < 0) { return false; }
-   if (::dprintf(fd, src, h, h, h, args...) < 0) { return false; }
-   if (::close(fd) < 0) { return false; }
-   return true;
-}
 
 /// \brief CreateAndCompile
 /// \param hash kernel hash
@@ -172,52 +136,35 @@ inline bool CreateKerSrcInFile(const char *file, const size_t h,
 /// \param args
 /// \return
 template<typename... Args>
-inline bool CreateAndCompile(const size_t hash,
-                             const bool check_for_ar,
-                             const char *src,
-                             const char *mfem_cxx,
-                             const char *mfem_cxxflags,
-                             const char *mfem_source_dir,
-                             const char *mfem_install_dir,
-                             Args... args)
+inline int CreateAndCompile(const size_t h,
+                            const bool check_for_ar,
+                            const char *src,
+                            const char *mfem_cxx,
+                            const char *mfem_cxxflags,
+                            const char *mfem_source_dir,
+                            const char *mfem_install_dir,
+                            Args... args)
 {
-   char cc[MFEM_JIT_FILENAME_SIZE], co[MFEM_JIT_FILENAME_SIZE];
-   uint64str(hash, co, ".co");
-
-   char *mem = nullptr;
-   const bool compile_in_mem = getenv("MFEM_JIT_SRC_MEM") != nullptr;
-
-   if (!compile_in_mem)
-   {
-      uint64str(hash, cc, ".cc");
-      if (!CreateKerSrcInFile(cc, hash, src, args...))
-      {
-         return perror("error!"), false;
-      }
-   }
-   else
-   {
-      if (!CreateKerSrcInMem(mem, hash, src, args...))
-      {
-         return perror("error!"), false;
-      }
-   }
-   const int compiled = Compile(mem, cc, co, mfem_cxx, mfem_cxxflags,
-                                mfem_source_dir, mfem_install_dir, check_for_ar);
-   assert(compiled == EXIT_SUCCESS);
-   return compiled;
+   char *cc = nullptr, co[MFEM_JIT_FILENAME_SIZE];
+   uint64str(h, co, ".co");
+   const int n = 1 + std::snprintf(nullptr, 0, src, h, h, h, args...);
+   cc = new char[n];
+   if (std::snprintf(cc, n, src, h, h, h, args...) < 0) { return EXIT_FAILURE; }
+   return Compile(n, cc, co, mfem_cxx, mfem_cxxflags,
+                  mfem_source_dir, mfem_install_dir, check_for_ar);
 }
 
 /// Lookup in the cache for the kernel with the given hash
 template<typename... Args>
 inline void *Lookup(const char *name, const size_t hash, Args... args)
 {
-   dbg("%s (0x%x) ?",name, hash);
+   dbg("[ker] %s",name);
    char symbol[MFEM_JIT_SYMBOL_SIZE];
    uint64str(hash, symbol);
    constexpr int mode = RTLD_NOW | RTLD_LOCAL;
    constexpr const char *so_name = "./lib" MFEM_JIT_LIB_NAME ".so";
-   dbg("%s ?",so_name);
+   constexpr const char *ar_name = "./lib" MFEM_JIT_LIB_NAME ".a";
+   dbg("[lib] %s",so_name);
 
    constexpr int PM = PATH_MAX;
    char so_name_n[PM];
@@ -232,9 +179,9 @@ inline void *Lookup(const char *name, const size_t hash, Args... args)
    // If no handle was found, fold back looking for the archive: libmjit.a
    if (!handle)
    {
-      dbg("!handle");
-      constexpr bool archive_check = true;
-      if (CreateAndCompile(hash, archive_check, args...))
+      dbg("[lib] %s",ar_name);
+      constexpr bool check_for_ar = true;
+      if (CreateAndCompile(hash, check_for_ar, args...) != EXIT_SUCCESS)
       {
          dbg("\033[31mCreateAndCompile ERROR");
          return nullptr;
@@ -254,7 +201,7 @@ inline void *Lookup(const char *name, const size_t hash, Args... args)
       constexpr bool no_archive_check = false;
       if (CreateAndCompile(hash, no_archive_check, args...) != EXIT_SUCCESS)
       {
-         dbg("\033[31mCreateAndCompile ERROR");
+         dbg("\033[33mCreateAndCompile ERROR");
          return nullptr;
       }
       handle = ::dlopen(so_name_n, mode);
