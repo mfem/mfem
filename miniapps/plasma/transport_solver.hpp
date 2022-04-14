@@ -5104,7 +5104,6 @@ private:
       Coefficient       * diffusionCoef_;
       MatrixCoefficient * diffusionMatrixCoef_;
       VectorCoefficient * advectionCoef_;
-      Coefficient       * sourceCoef_;
 
       ApproxIonizationRate    izCoef_;
       ApproxRecombinationRate rcCoef_;
@@ -5200,7 +5199,6 @@ private:
       inline MatrixCoefficient * GetDiffusionMatrixCoef()
       { return diffusionMatrixCoef_; }
       inline VectorCoefficient * GetAdvectionCoef() { return advectionCoef_; }
-      inline Coefficient       * GetSourceCoef() { return sourceCoef_; }
    };
 
    /** The NeutralDensityOp is an mfem::Operator designed to work with

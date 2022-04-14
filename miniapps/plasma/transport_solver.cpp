@@ -3594,7 +3594,6 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
      diffusionCoef_(NULL),
      diffusionMatrixCoef_(NULL),
      advectionCoef_(NULL),
-     sourceCoef_(NULL),
      izCoef_(TeCoef_),
      rcCoef_(TeCoef_),
      cxCoef_(TiCoef_),
@@ -3717,7 +3716,6 @@ void DGTransportTDO::TransportOp::SetTime(double t)
    if (diffusionCoef_) { diffusionCoef_->SetTime(t); }
    if (diffusionMatrixCoef_) { diffusionMatrixCoef_->SetTime(t); }
    if (advectionCoef_) { advectionCoef_->SetTime(t); }
-   if (sourceCoef_) { sourceCoef_->SetTime(t); }
 }
 
 void DGTransportTDO::TransportOp::SetTimeStep(double dt)
@@ -4465,16 +4463,15 @@ void DGTransportTDO::TransportOp::SetSourceTerm(Coefficient &SCoef, double s)
 
    if (s == 1.0)
    {
-      sourceCoef_ = &SCoef;
+      sCoefs_.Append(&SCoef);
    }
    else
    {
       Coefficient * coef = new ProductCoefficient(s, SCoef);
       sCoefs_.Append(coef);
-      sourceCoef_ = coef;
    }
 
-   dlfi_.Append(new DomainLFIntegrator(*sourceCoef_));
+   dlfi_.Append(new DomainLFIntegrator(SCoef));
 
    StateVariableCoef *SVCoef = dynamic_cast<StateVariableCoef*>(&SCoef);
    if (SVCoef)
