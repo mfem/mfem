@@ -40,6 +40,8 @@ const char* strrnc(const char *str, const unsigned char chr, int n = 1);
 
 /// \brief GetRuntimeVersion Returns the library version of the current run.
 ///        Initialized at '0', can be incremented by setting increment to true.
+///        Used when multiple kernels have to be compiled and the shared library
+///        updated.
 /// \param increment
 /// \return the current runtime version
 int GetRuntimeVersion(bool increment = false);

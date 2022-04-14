@@ -224,7 +224,6 @@ int Compile(const int n, char *cc, const char *co,
       };
       if (mfem::jit::System(argv_so)) { return EXIT_FAILURE; }
       delete cc;
-      //MPI_Sync();
       return EXIT_SUCCESS;
    }
 
@@ -287,7 +286,7 @@ int Compile(const int n, char *cc, const char *co,
       free(obj); // done with realloc
       fflush(0);
    }
-   //MPI_Sync();
+   MpiSync();
 
    // Update archive
    const char *argv_ar[] = { system,
@@ -295,7 +294,7 @@ int Compile(const int n, char *cc, const char *co,
                              nullptr
                            };
    if (mfem::jit::System(argv_ar)) { return EXIT_FAILURE; }
-   if (!getenv("MFEM_NUNLINK")) { ::unlink(co); }
+   ::unlink(co);
 
    // Create shared library
    const char *argv_so[] = { system,

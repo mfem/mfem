@@ -20,6 +20,7 @@
 
 #include "jit.hpp"
 #include "tools.hpp"
+#include "../communication.hpp"
 
 #undef MFEM_DEBUG_COLOR
 #define MFEM_DEBUG_COLOR 226
@@ -36,7 +37,6 @@ namespace jit
 // https://www.open-mpi.org/faq/?category=openfabrics#ofa-fork
 static int System_Serial(const char *argv[])
 {
-   assert(MpiRoot());
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
    std::string command(argv[1]);
@@ -71,7 +71,7 @@ static int System_Serial(const char *argv[])
 ///   - MPI_Spawned drives the working thread, provides the arguments and wait
 ///   - THREAD_Worker waits for commands and does the std::system call
 /// MPI_ERR_SPAWN: could not spawn processes if not enough ranks
-static int System_MPISpawn(const char *argv[], MPI_Comm comm = MPI_COMM_WORLD)
+/*static int System_MPISpawn(const char *argv[], MPI_Comm comm = MPI_COMM_WORLD)
 {
    constexpr int PM = PATH_MAX;
    const int argc = argn(argv);
@@ -84,7 +84,7 @@ static int System_MPISpawn(const char *argv[], MPI_Comm comm = MPI_COMM_WORLD)
 
    // If we have not been launch with mpirun, just fold back to serial case,
    // which has a shift in the arguments
-   if (!MPI_Inited() || MPI_Size()==1) { return System_Serial(argv); }
+   if (!Mpi::IsInitialized() || MpiSize()==1) { return System_Serial(argv); }
 
    // Debug our command
    std::string dbg_command(argv[0]);
@@ -125,23 +125,21 @@ int System_MPI_JIT_Session(const char *argv[], MPI_Comm comm = MPI_COMM_WORLD)
    MPI_Barrier(comm);
    const int argc = argn(argv);
    if (argc < 2) { return EXIT_FAILURE; }
-   if (Root()) { System_Serial(argv); }
+   if (Mpi::Root()) { System_Serial(argv); }
    MPI_Barrier(comm);
    return EXIT_SUCCESS;
-}
+}*/
 
 #endif // MFEM_USE_MPI
 
 /// Entry point toward System_[Serial|MPISpawn|MPI_JIT_Session]
 int System(const char *argv[])
 {
-#if defined(MFEM_JIT_MPI_SPAWN)
-   return System_MPISpawn(argv);
-#elif defined(MFEM_JIT_MPI_FORK)
-   return System_MPI_JIT_Session(argv);
-#else
-   return  System_Serial(argv);
-#endif
+   //return System_MPISpawn(argv);
+   //return System_MPI_JIT_Session(argv);
+   if (MpiRoot()) { System_Serial(argv); }
+   MpiSync();
+   return EXIT_SUCCESS;
 }
 
 } // namespace jit

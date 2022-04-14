@@ -47,7 +47,7 @@ using namespace std;
 namespace mfem
 {
 
-#ifdef MFEM_JIT_MPI_FORK
+#ifdef MFEM_USE_JIT
 int *jit_state;
 
 pid_t jit_compiler_pid;
@@ -66,14 +66,14 @@ bool AckEQ(const int check = ACK) { return Ack<std::equal_to<int>>(check); }
 
 bool AckNE(const int check = ACK) { return Ack<std::not_equal_to<int>>(check); }
 
-#endif // MFEM_JIT_MPI_FORK
+#endif // MFEM_USE_JIT
 
 void Mpi::Init_(int *argc, char ***argv)
 {
    MFEM_VERIFY(!IsInitialized(), "MPI already initialized!")
-#ifndef MFEM_JIT_MPI_FORK
+#ifndef MFEM_USE_JIT
    MPI_Init(argc, argv);
-#else // MFEM_JIT_MPI_FORK
+#else // MFEM_USE_JIT
    constexpr int prot = PROT_READ | PROT_WRITE;
    constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
 
@@ -107,7 +107,7 @@ void Mpi::Init_(int *argc, char ***argv)
       if (rank == 0) { std::thread (work).join(); }
       exit(EXIT_SUCCESS);
    }
-#endif // MFEM_JIT_MPI_FORK
+#endif // MFEM_USE_JIT
    // The "mpi" object below needs to be created after MPI_Init()
    // for some MPI implementations
    static Mpi mpi;
@@ -115,7 +115,7 @@ void Mpi::Init_(int *argc, char ***argv)
 
 Mpi::~Mpi()
 {
-#ifdef MFEM_JIT_MPI_FORK
+#ifdef MFEM_USE_JIT
    MFEM_VERIFY(*jit_state == ACK, "Parent finalize error!");
    if (Root())
    {
@@ -126,7 +126,7 @@ Mpi::~Mpi()
       MFEM_VERIFY(status == 0, "Error with JIT compiler thread!")
    }
    if (::munmap(jit_state, sizeof(int)) != 0) { MFEM_ABORT("munmap error!"); }
-#endif // MFEM_JIT_MPI_FORK
+#endif // MFEM_USE_JIT
    Finalize();
 }
 

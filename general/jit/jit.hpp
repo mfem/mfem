@@ -48,6 +48,15 @@ namespace mfem
 namespace jit
 {
 
+/**
+ * @brief preprocess
+ * @param in input source
+ * @param out output source
+ * @param file
+ * @return EXIT_SUCCESS or EXIT_FAILURE
+ */
+int preprocess(std::istream &in, std::ostream &out, std::string &file);
+
 /// Generic hash function
 template <typename T> struct hash
 {
@@ -108,13 +117,14 @@ inline void uint32str(uint64_t h, char *str, const size_t offset = 1)
 }
 
 /// 64 bits hash to string function
-inline void uint64str(const uint64_t hash, char *str, const char *ext = "")
+inline char *uint64str(const uint64_t hash, char *str, const char *ext = "")
 {
    str[0] = MFEM_JIT_PREFIX_CHAR;
    uint32str(hash >> 32, str);
    uint32str(hash & 0xFFFFFFFFull, str + 8);
    memcpy(str + 1 + 16, ext, strlen(ext));
    str[1 + 16 + strlen(ext)] = 0;
+   return str;
 }
 
 /// \brief CreateAndCompile
@@ -148,52 +158,42 @@ inline int CreateAndCompile(const size_t h,
 
 /// Lookup in the cache for the kernel with the given hash
 template<typename... Args>
-inline void *Lookup(const char *name, const size_t hash, Args... args)
+inline void *Handle(const char *name, const size_t hash, Args... args)
 {
-   dbg("[ker] %s",name);
-   char symbol[MFEM_JIT_SYMBOL_SIZE];
-   uint64str(hash, symbol);
-   constexpr int mode = RTLD_NOW | RTLD_LOCAL;
-   constexpr const char *so_name = "./lib" MFEM_JIT_LIB_NAME ".so";
-   constexpr const char *ar_name = "./lib" MFEM_JIT_LIB_NAME ".a";
-   dbg("[lib] %s",so_name);
-
-   constexpr int PM = PATH_MAX;
-   char so_name_n[PM];
-   const int rt_version = GetRuntimeVersion();
-   if (snprintf(so_name_n,PM,"lib%s.so.%d",MFEM_JIT_LIB_NAME,rt_version)<0)
-   { dbg("Error in so_version"); return nullptr; }
-
    void *handle = nullptr;
+   constexpr int PM = PATH_MAX;
+   constexpr int mode = RTLD_NOW | RTLD_LOCAL;
+   const int rt_version = GetRuntimeVersion();
    const bool first_compilation = (rt_version == 0);
-   // First we try to open the shared cache library: libmjit.so
-   handle = ::dlopen(first_compilation ? so_name : so_name_n, mode);
-   // If no handle was found, fold back looking for the archive: libmjit.a
+   char so_name_n[PM], symbol[MFEM_JIT_SYMBOL_SIZE];
+   constexpr const char *ar_name = "./lib" MFEM_JIT_LIB_NAME ".a";
+   constexpr const char *so_name = "./lib" MFEM_JIT_LIB_NAME ".so";
+   snprintf(so_name_n, PM, "lib%s.so.%d", MFEM_JIT_LIB_NAME, rt_version);
+   const char *so_lib = first_compilation ? so_name : so_name_n;
+   // First we try to open the current shared cache library: libmjit.so.*
+   dbg("[ker] 0x%x:%s in %s ?",hash,name,so_lib);
+   handle = ::dlopen(so_lib, mode);
+   // If no handle was found, continue looking for the archive: libmjit.a
+   // If no archive is found, it will continue by launching the compilation
    if (!handle)
    {
-      dbg("[lib] %s",ar_name);
+      dbg("[lib] %s ?",ar_name);
       constexpr bool check_for_ar = true;
       if (CreateAndCompile(hash, check_for_ar, args...)) { return nullptr; }
-      handle = ::dlopen(first_compilation ? so_name : so_name_n, mode);
-      assert(handle);
+      handle = ::dlopen(so_lib, mode);
    }
-   else { dbg("%s !", so_name); }
-   if (!handle) { dbg("!handle"); return nullptr; }
-   dbg("Looking for symbol: %s",symbol);
+   assert(handle); // we should now have in all cases a handle
    // Now look for the kernel symbol
-   if (!::dlsym(handle, symbol))
+   if (!::dlsym(handle, uint64str(hash, symbol)))
    {
-      dbg("Not found!");
       // If not found, avoid using the archive and update the shared objects
       ::dlclose(handle);
       constexpr bool no_archive_check = false;
       if (CreateAndCompile(hash, no_archive_check, args...)) { return nullptr; }
       handle = ::dlopen(so_name_n, mode);
    }
-   if (!handle) { dbg("!handle"); return nullptr; }
-   if (!::dlsym(handle, symbol)) { dbg("!dlsym"); return nullptr; }
-   if (!::getenv("MFEM_NUNLINK")) { ::unlink(so_name_n); }
-   assert(handle);
+   assert(handle); // we should again have a handle
+   ::unlink(so_name_n);
    return handle;
 }
 
@@ -202,19 +202,15 @@ template<typename kernel_t>
 inline kernel_t Symbol(const size_t hash, void *handle)
 {
    char symbol[MFEM_JIT_SYMBOL_SIZE];
-   uint64str(hash, symbol);
-   return (kernel_t) dlsym(handle, symbol);
+   return (kernel_t) ::dlsym(handle, uint64str(hash, symbol));
 }
 
 /// Kernel class
 template<typename kernel_t> class kernel
 {
    const size_t seed, hash;
-   const char *name;
    void *handle;
    kernel_t ker;
-   char symbol[MFEM_JIT_SYMBOL_SIZE];
-   const char *cxx, *src, *flags, *msrc, *mins;
 
 public:
    /// \brief kernel
@@ -230,23 +226,14 @@ public:
           const char *flags, const char *msrc, const char* mins, Args... args):
       seed(jit::hash<const char*>()(src)),
       hash(hash_args(seed, cxx, flags, msrc, mins, args...)),
-      name((uint64str(hash, symbol), name)),
-      handle(Lookup(name, hash, src, cxx, flags, msrc, mins, args...)),
-      ker(Symbol<kernel_t>(hash, handle)),
-      cxx(cxx), src(src), flags(flags), msrc(msrc), mins(mins)
-   { assert(handle); }
+      handle(Handle(name, hash, src, cxx, flags, msrc, mins, args...)),
+      ker(Symbol<kernel_t>(hash, handle))
+   { assert(handle); assert(ker); }
 
-   /// Kernel launch without return type
-   template<typename... Args> void operator_void(Args... args) { ker(args...); }
-
-   /// Kernel launch with return type
-   template<typename T, typename... Args>
-   T operator()(const T type, Args... args) { return ker(type, args...); }
+   template<typename... Args> void operator()(Args... args) { ker(args...); }
 
    ~kernel() { ::dlclose(handle); }
 };
-
-int preprocess(std::istream &in, std::ostream &out, std::string &file);
 
 } // namespace jit
 

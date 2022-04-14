@@ -352,7 +352,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_AMGX MFEM_USE_MUMPS\
  MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER MFEM_USE_BENCHMARK\
  MFEM_USE_PARELAG MFEM_SOURCE_DIR MFEM_INSTALL_DIR\
- MFEM_USE_JIT MFEM_JIT_CXX MFEM_JIT_BUILD_FLAGS MFEM_JIT_MPI_FORK MFEM_JIT_MPI_SPAWN
+ MFEM_USE_JIT MFEM_JIT_CXX MFEM_JIT_BUILD_FLAGS
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -654,9 +654,6 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	rm -f $(BLD)config/config-install.mk
 # install test.mk in $(PREFIX_SHARE)
 	$(INSTALL) -m 640 $(SRC)config/test.mk $(PREFIX_SHARE)/test.mk
-# install binaries
-	mkdir -p $(PREFIX_BIN)
-	$(if $(jit),$(INSTALL) -m 750 $(BLD)$(MFEM_JIT) $(PREFIX_BIN))
 
 $(CONFIG_MK):
 # Skip the error message when '-B' make flag is used (unconditionally
@@ -738,8 +735,6 @@ status info:
 	$(info MFEM_USE_CALIPER       = $(MFEM_USE_CALIPER))
 	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
 	$(info MFEM_USE_JIT           = $(MFEM_USE_JIT))
-	$(info MFEM_JIT_MPI_FORK      = $(MFEM_JIT_MPI_FORK))
-	$(info MFEM_JIT_MPI_SPAWN     = $(MFEM_JIT_MPI_SPAWN))
 	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))

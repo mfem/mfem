@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "tools.hpp"
+#include "../communication.hpp"
 
 #undef MFEM_DEBUG_COLOR
 #define MFEM_DEBUG_COLOR 206
@@ -36,6 +37,14 @@ const char* strrnc(const char *str, const unsigned char c, int n)
       if (n == 1) { return p; }
    }
    return nullptr;
+}
+
+int GetRuntimeVersion(bool increment)
+{
+   static int version = 0;
+   const int actual = version;
+   if (increment) { version += 1; }
+   return actual;
 }
 
 #ifdef MFEM_USE_MPI
@@ -132,7 +141,7 @@ int ProcessFork(int argc, char *argv[])
 void MpiSync()
 {
 #ifdef MFEM_USE_MPI
-   if (MPI_Inited()) { MPI_Barrier(MPI_COMM_WORLD); }
+   if (Mpi::IsInitialized()) { MPI_Barrier(MPI_COMM_WORLD); }
 #endif
 }
 
@@ -154,16 +163,6 @@ int MpiSize()
    return world_size;
 }
 
-/// \brief GetRuntimeVersion
-/// \param increment
-/// \return the current runtime version
-int GetRuntimeVersion(bool increment)
-{
-   static int version = 0;
-   const int actual = version;
-   if (increment) { version += 1; }
-   return actual;
-}
 
 /// Root MPI process file creation, outputing the source of the kernel.
 /// ipcrm -a
@@ -178,14 +177,10 @@ int GetRuntimeVersion(bool increment)
 bool CreateMappedSharedMemoryOutputFile(const char *out, int &fd, char *&pmap)
 {
    if (!MpiRoot()) { return true; }
-
    dbg("output: (/dev/shm/) %s",out);
-
    constexpr int SHM_MAX_SIZE = 2*1024*1024;
-
    // Remove shared memory segment if it already exists.
    ::shm_unlink(out);
-
    // Attempt to create shared  memory segment
    const mode_t mode = S_IRUSR | S_IWUSR;
    const int oflag = O_CREAT | O_RDWR | O_TRUNC;
@@ -197,7 +192,6 @@ bool CreateMappedSharedMemoryOutputFile(const char *out, int &fd, char *&pmap)
                   strerror(errno)));
       return false;
    }
-
    // resize shm to the right size
    if (::ftruncate(fd, SHM_MAX_SIZE) < 0)
    {
@@ -205,7 +199,6 @@ bool CreateMappedSharedMemoryOutputFile(const char *out, int &fd, char *&pmap)
       dbg("!ftruncate");
       return false;
    }
-
    // Map the shared memory segment into the process address space
    const int prot = PROT_READ | PROT_WRITE;
    const int flags = MAP_SHARED;
@@ -216,11 +209,8 @@ bool CreateMappedSharedMemoryOutputFile(const char *out, int &fd, char *&pmap)
                        fd,           // File descriptor
                        0x0);         // Offset from beggining of file
    if (pmap == MAP_FAILED) { dbg("!pmap"); return false; }
-
-
    dbg("ofd:%d",fd);
    if (::close(fd) < 0) { dbg("!close"); return false; }
-
    return true;
 }
 
@@ -234,19 +224,15 @@ bool CreateMappedSharedMemoryOutputFile(const char *out, int &fd, char *&pmap)
 void CreateMapSMemInputFile(const char *input, int size, int &fd, char *&pmap)
 {
    dbg("input: (/dev/shm/) %s", input);
-
    // Remove shared memory segment if it already exists.
    ::shm_unlink(input);
-
    // Attempt to create shared memory segment
    const mode_t mode = S_IRUSR | S_IWUSR;
    const int oflag = O_CREAT | O_RDWR | O_EXCL;
    fd = ::shm_open(input, oflag, mode);
    if (fd < 0) { perror(strerror(errno)); }
-
    // determine the necessary buffer size
    dbg("size:%d", size);
-
    // resize the shared memory segment to the right size
    if (::ftruncate(fd, size) < 0)
    {
@@ -254,7 +240,6 @@ void CreateMapSMemInputFile(const char *input, int size, int &fd, char *&pmap)
       dbg("!ftruncate");
       perror("Could not ftruncate!");
    }
-
    // Map the shared memory segment into the process address space
    const int prot = PROT_READ | PROT_WRITE;
    const int flags = MAP_SHARED;

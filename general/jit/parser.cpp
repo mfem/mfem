@@ -8,18 +8,13 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
 #include <list>
-#include <regex>
 #include <string>
 #include <ciso646>
 #include <cassert>
 #include <iostream>
 
-#include "../../config/config.hpp"
 #include "jit.hpp"
-
-using std::regex;
 
 namespace mfem
 {
@@ -47,7 +42,6 @@ struct kernel_t
 {
    bool is_jit = false;
    bool is_prefix = false;
-   bool is_forall = false;
    std::string mfem_jit_cxx;         // holds MFEM_JIT_CXX
    std::string mfem_jit_build_flags; // holds MFEM_JIT_BUILD_FLAGS
    std::string mfem_source_dir;      // holds MFEM_SOURCE_DIR
@@ -65,8 +59,6 @@ struct kernel_t
    std::string params;
    std::string args;
    std::string args_wo_amp;
-   std::string d2u, u2d;             // double to unsigned place holders
-   struct forall_t forall;           // source of the lambda forall
    std::string prefix;
 };
 
@@ -110,9 +102,6 @@ char get(context_t &pp) { return static_cast<char>(pp.in.get()); }
 char put(const char c, context_t &pp)
 {
    if (is_newline(c)) { pp.line++; }
-   // if we are storing the lambda body, just save it w/o output
-   if (pp.ker.is_forall) { pp.ker.forall.body += c; return c;}
-   // if we are not yet in the forall, just store in the prefix
    if (pp.ker.is_jit && pp.ker.is_prefix) { pp.ker.prefix += c; }
    pp.out.put(c);
    return c;
@@ -259,10 +248,84 @@ bool is_left_parenthesis(context_t &pp) { return is_char<'('>(pp); }
 bool is_right_parenthesis(context_t &pp) { return is_char<')'>(pp); }
 
 /**
- * @brief PrepareJitArgs
+ * @brief Postfix
  * @param pp
  */
-void PrepareJitArgs(context_t &pp)
+void Postfix(context_t &pp)
+{
+   if (!pp.ker.is_jit) { return; }
+   if (pp.block >= 0 && pp.in.peek() == '{') { pp.block++; }
+   if (pp.block >= 0 && pp.in.peek() == '}') { pp.block--; }
+   // nothing to do while we have not went out of last block statement
+   if (pp.block != -1) { return; }
+   pp.out << "}\nextern \"C\" void "
+          << MFEM_JIT_PREFIX_CHAR << "%016lx("
+          << "const bool use_dev, " << pp.ker.params << "){";
+   pp.out << pp.ker.name << "_%016lx<" << pp.ker.Tformat << ">"
+          << "(" << "use_dev, " << pp.ker.args_wo_amp << ");";
+   pp.out << "})_\";";
+
+   // typedef, hash map and launch
+   pp.out << "\n\ttypedef void (*kernel_t)(const bool use_dev, "
+          << pp.ker.params << ");";
+   pp.out << "\n\tstatic std::unordered_map<size_t,jit::kernel<kernel_t>*> ks;";
+   pp.out << "\n\tconst char *cxx = " << pp.ker.mfem_jit_cxx << ";";
+   pp.out << "\n\tconst char *mfem_build_flags = "
+          << pp.ker.mfem_jit_build_flags <<  ";";
+   pp.out << "\n\tconst char *mfem_source_dir = \""
+          << pp.ker.mfem_source_dir <<  "\";";
+   pp.out << "\n\tconst char *mfem_install_dir = \""
+          << pp.ker.mfem_install_dir <<  "\";";
+   pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
+   pp.out << "\n\tconst size_t args_hash = jit::hash_args(args_seed,"
+          << pp.ker.Targs << ");";
+   pp.out << "\n\tif (!ks[args_hash]) ";
+   pp.out << "ks[args_hash] = new jit::kernel<kernel_t>"
+          << "(\"" << pp.ker.name << "\", "
+          << "cxx, src, mfem_build_flags, mfem_source_dir, mfem_install_dir, "
+          << pp.ker.Targs << ");";
+   pp.out << "\n\tks[args_hash]->operator()("
+          << "Device::Allows(Backend::CUDA_MASK), "
+          << pp.ker.args << ");";
+   pp.out << "\n\treturn;";
+   pp.out << "\n";
+   // Stop counting the blocks and flush the kernel status
+   pp.block--;
+   pp.ker.is_jit = false;
+}
+
+/**
+ * @brief JitTokenPrefix
+ * @param pp
+ */
+void JitTokenPrefix(context_t &pp)
+{
+   assert(pp.ker.is_jit);
+   pp.ker.is_prefix = true;
+   pp.ker.prefix.clear();
+   pp.out << "\n\tconst char *src=R\"_(";
+   pp.out << "#include <cstdint>\n";
+   pp.out << "#include <limits>\n";
+   pp.out << "#include <cstring>\n";
+   pp.out << "#include <stdbool.h>\n";
+   pp.out << "#include \"" << pp.ker.mfem_install_dir
+          << "/include/mfem/general/jit/jit.hpp\"\n";
+   pp.out << "#include \"" << pp.ker.mfem_install_dir
+          << "/include/mfem/general/forall.hpp\"\n";
+   pp.out << "\nusing namespace mfem;\n";
+   pp.out << "\ntemplate<" << pp.ker.Tparams << ">";
+   pp.out << "\nvoid " << pp.ker.name << "_%016lx(";
+   pp.out << "const bool use_dev,";
+   pp.out << pp.ker.params << "){";
+   // Starts counting the block depth
+   pp.block = 0;
+}
+
+/**
+ * @brief JitTokenArgsString
+ * @param pp
+ */
+void JitTokenArgsString(context_t &pp)
 {
    assert(pp.ker.is_jit);
    pp.ker.mfem_jit_cxx = "\"" MFEM_JIT_CXX "\"";
@@ -275,8 +338,6 @@ void PrepareJitArgs(context_t &pp)
    pp.ker.args.clear();
    pp.ker.params.clear();
    pp.ker.args_wo_amp.clear();
-   pp.ker.d2u.clear();
-   pp.ker.u2d.clear();
 
    for (argument_it ia = pp.args.begin(); ia != pp.args.end() ; ia++)
    {
@@ -287,7 +348,7 @@ void PrepareJitArgs(context_t &pp)
       const char *name = arg.name.c_str();
       const bool has_default_value = arg.has_default_value;
       // const and not reference/pointer => add it to the template args
-      if (not is_ptr and has_default_value)
+      if (! is_ptr && has_default_value)
       {
          //DBG(" => 1")
          addComa(pp.ker.Tformat);
@@ -305,7 +366,7 @@ void PrepareJitArgs(context_t &pp)
       }
 
       //
-      if (is_cst and not is_ptr and not has_default_value)
+      if (is_cst && !is_ptr && !has_default_value)
       {
          //DBG(" => 2")
          addArg(pp.ker.args, name);
@@ -317,7 +378,7 @@ void PrepareJitArgs(context_t &pp)
       }
 
       // !const && !pointer => std args
-      if (not is_cst and not is_ptr)
+      if (!is_cst && !is_ptr)
       {
          //DBG(" => 3")
          addArg(pp.ker.args, name);
@@ -327,7 +388,7 @@ void PrepareJitArgs(context_t &pp)
          pp.ker.params += name;
       }
       //
-      if (is_cst and not is_ptr and has_default_value)
+      if (is_cst && !is_ptr && has_default_value)
       {
          //DBG(" => 4")
          addArg(pp.ker.params, " const ");
@@ -363,88 +424,11 @@ void PrepareJitArgs(context_t &pp)
 }
 
 /**
- * @brief GenerateJitPrefix
+ * @brief JitTokenArgs
  * @param pp
+ * @return
  */
-void GenerateJitPrefix(context_t &pp)
-{
-   assert(pp.ker.is_jit);
-   pp.ker.is_prefix = true;
-   pp.ker.prefix.clear();
-   pp.out << "\n\tconst char *src=R\"_(";
-   pp.out << "#include <cstdint>\n";
-   pp.out << "#include <limits>\n";
-   pp.out << "#include <cstring>\n";
-   pp.out << "#include <stdbool.h>\n";
-
-   pp.out << "#include \""
-          << pp.ker.mfem_install_dir
-          << "/include/mfem/general/jit/jit.hpp\"\n";
-
-   pp.out << "#include \""
-          << pp.ker.mfem_install_dir
-          << "/include/mfem/general/forall.hpp\"\n";
-
-   pp.out << "\nusing namespace mfem;\n";
-   pp.out << "\ntemplate<" << pp.ker.Tparams << ">";
-   pp.out << "\nvoid " << pp.ker.name << "_%016lx(";
-   pp.out << "const bool use_dev,";
-   pp.out << pp.ker.params << "){";
-   if (not pp.ker.d2u.empty()) { pp.out << "\n\t" << pp.ker.d2u; }
-   // Starts counting the block depth
-   pp.block = 0;
-}
-
-/**
- * @brief JitPostfix
- * @param pp
- */
-void JitPostfix(context_t &pp)
-{
-   if (!pp.ker.is_jit) { return; }
-   if (pp.block >= 0 && pp.in.peek() == '{') { pp.block++; }
-   if (pp.block >= 0 && pp.in.peek() == '}') { pp.block--; }
-   // nothing to do while we have not went out of last block statement
-   if (pp.block != -1) { return; }
-   pp.out << "}\nextern \"C\" void "
-          << MFEM_JIT_PREFIX_CHAR << "%016lx("
-          << "const bool use_dev, " << pp.ker.params << "){";
-   pp.out << pp.ker.name << "_%016lx<" << pp.ker.Tformat << ">"
-          << "(" << "use_dev, " << pp.ker.args_wo_amp << ");";
-   pp.out << "})_\";";
-
-   // typedef, hash map and launch
-   pp.out << "\n\ttypedef void (*kernel_t)(const bool use_dev, "
-          << pp.ker.params << ");";
-   pp.out << "\n\tstatic std::unordered_map<size_t,jit::kernel<kernel_t>*> ks;";
-   if (not pp.ker.u2d.empty()) { pp.out << "\n\t" << pp.ker.u2d; }
-   pp.out << "\n\tconst char *cxx = " << pp.ker.mfem_jit_cxx << ";";
-   pp.out << "\n\tconst char *mfem_build_flags = "
-          << pp.ker.mfem_jit_build_flags <<  ";";
-   pp.out << "\n\tconst char *mfem_source_dir = \""
-          << pp.ker.mfem_source_dir <<  "\";";
-   pp.out << "\n\tconst char *mfem_install_dir = \""
-          << pp.ker.mfem_install_dir <<  "\";";
-   pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
-   pp.out << "\n\tconst size_t args_hash = jit::hash_args(args_seed,"
-          << pp.ker.Targs << ");";
-   pp.out << "\n\tif (!ks[args_hash]) ";
-   pp.out << "ks[args_hash] = new jit::kernel<kernel_t>"
-          << "(\"" << pp.ker.name << "\", "
-          << "cxx, src, mfem_build_flags, mfem_source_dir, mfem_install_dir, "
-          << pp.ker.Targs << ");";
-   pp.out << "\n\tks[args_hash]->operator_void("
-          << "Device::Allows(Backend::CUDA_MASK), "
-          << pp.ker.args << ");";
-   pp.out << "\n\treturn;";
-   pp.out << "\n";
-   // Stop counting the blocks and flush the kernel status
-   pp.block--;
-   pp.ker.is_jit = false;
-}
-
-// *****************************************************************************
-bool jitGetArgs(context_t &pp)
+bool JitTokenArgs(context_t &pp)
 {
    bool empty = true;
    argument_t arg;
@@ -513,24 +497,23 @@ bool jitGetArgs(context_t &pp)
       put(pp);
    }
    // Prepare the kernel strings from the arguments
-   PrepareJitArgs(pp);
+   JitTokenArgsString(pp);
    return empty;
 }
 
 /**
- * @brief jit
+ * @brief JitToken
  * @param pp
  */
-void jit(context_t &pp)
+void JitToken(context_t &pp)
 {
    pp.ker.is_jit = true;
    pp.ker.is_prefix = false;
    next(pp);
-   // return type should be void for now, or we could hit a 'static'
-   // or even a 'template' which triggers the '__single_source' case
+   // return type should be void for now, can hit a 'static' or 'template'
    const bool check_next_id = is_void(pp) or is_static(pp) or is_template(pp);
    // first check for the template
-   check(pp,  check_next_id, "kernel w/o void, static or template");
+   check(pp, check_next_id, "kernel w/o void, static or template");
    if (is_template(pp))
    {
       // copy the 'template<...>' in Tparams_src
@@ -561,24 +544,12 @@ void jit(context_t &pp)
    const std::string name = get_id(pp);
    pp.out << name;
    pp.ker.name = name;
-   if (is_namespace(pp))
-   {
-      assert(false);
-      check(pp,pp.in.peek()==':',"no 1st ':' in namespaced kernel");
-      put(pp);
-      check(pp,pp.in.peek()==':',"no 2st ':' in namespaced kernel");
-      put(pp);
-      const std::string real_name = get_id(pp);
-      pp.out << real_name;
-      pp.ker.name = real_name;
-      pp.ker.space = name;
-   }
    next(pp);
    // check we are at the left parenthesis
    check(pp,pp.in.peek()=='(',"no 1st '(' in kernel");
    put(pp);
    // Get the arguments
-   jitGetArgs(pp);
+   JitTokenArgs(pp);
    // Make sure we have hit the last ')' of the arguments
    check(pp,pp.in.peek()==')',"no last ')' in kernel");
    put(pp);
@@ -587,163 +558,29 @@ void jit(context_t &pp)
    check(pp,pp.in.peek()=='{',"no compound statement found");
    put(pp);
    // Generate the kernel prefix for this kernel
-   GenerateJitPrefix(pp);
+   JitTokenPrefix(pp);
    // Push the preprocessor #line directive
    pp.out << "\n#line " << pp.line
           << " \"" //<< pp.ker.mfem_source_dir << "/"
           << pp.file << "\"";
 }
 
-// *****************************************************************************
-// * MFEM_UNROLL
-// *****************************************************************************
-void unroll(context_t &pp)
-{
-   //DBG("__unroll")
-   while ('(' != get(pp)) { assert(not pp.in.eof()); }
-   drop(pp);
-   std::string depth = get_id(pp);
-   //DBG("(%s)",depth.c_str());
-   drop(pp);
-   check(pp,is_right_parenthesis(pp),"no last right parenthesis found");
-   get(pp);
-   drop(pp); // ')'
-   //check(pp,is_newline(pp.in.peek()),"no newline after unroll");
-   //put(pp);
-   // check(pp,is_semicolon(pp),"no last semicolon found");
-   // get(pp);
-   // only if we are in a forall, we push the unrolling
-   if (pp.ker.is_forall)
-   {
-      pp.ker.forall.body += "#pragma unroll ";
-      pp.ker.forall.body += depth.c_str();
-      pp.ker.forall.body += "\n";
-   }
-}
-
-// *****************************************************************************
-// * MFEM_FORALL_[2|3]D
-// *****************************************************************************
-void forall(const std::string &id, context_t &pp)
-{
-   const int d = pp.ker.forall.d = id.c_str()[12] - 0x30;
-   if (not pp.ker.is_jit)
-   {
-      //DBG("id:%s, d:%d",id.c_str(),d)
-      if (d == 2) { pp.out << "MFEM_FORALL_2D"; }
-      if (d == 3) { pp.out << "MFEM_FORALL_3D"; }
-      return;
-   }
-   //DBG("is_forall")
-   // Switch from prefix capturing, to the forall one
-   pp.ker.is_prefix = false;
-   pp.ker.is_forall = true;
-   pp.ker.forall.body.clear();
-
-   check(pp,is_left_parenthesis(pp),"no 1st '(' in MFEM_FORALL");
-   get(pp); // drop '('
-   pp.ker.forall.e = get_id(pp);
-   //DBG("iterator:'%s'", pp.ker.forall.e.c_str());
-
-   check(pp,is_coma(pp),"no 1st coma in MFEM_FORALL");
-   get(pp); // drop ','
-
-   drop(pp);
-   check(pp,is_id(pp),"no 1st id(N) in MFEM_FORALL");
-   pp.ker.forall.N = get_id(pp);
-   //DBG("N:'%s'", pp.ker.forall.N.c_str());
-   drop(pp);
-   check(pp,is_coma(pp),"no 2nd coma in MFEM_FORALL");
-   get(pp); // drop ','
-
-   drop(pp);
-   check(pp,is_id(pp),"no 2st id (X) in MFEM_FORALL");
-   pp.ker.forall.X = get_id(pp);
-   //DBG("X:'%s'", pp.ker.forall.X.c_str());
-   drop(pp);
-   //DBG(">%c<", put(pp));
-   check(pp,is_coma(pp),"no 3rd coma in MFEM_FORALL");
-   get(pp); // drop ','
-
-   drop(pp);
-   check(pp,is_id(pp),"no 3rd id (Y) in MFEM_FORALL");
-   pp.ker.forall.Y = get_id(pp);
-   //DBG("Y:'%s'", pp.ker.forall.Y.c_str());
-   drop(pp);
-   check(pp,is_coma(pp),"no 4th coma in MFEM_FORALL");
-   get(pp); // drop ','
-
-   drop(pp);
-   check(pp,is_id(pp),"no 4th id (Y) in MFEM_FORALL");
-   pp.ker.forall.Z = get_id(pp);
-   //DBG("Z:'%s'", pp.ker.forall.Z.c_str());
-   drop(pp);
-   check(pp,is_coma(pp),"no last coma in MFEM_FORALL");
-   get(pp); // drop ','
-
-   // Starts counting the parentheses
-   pp.parenthesis = 0;
-}
-
-void forallPostfix(context_t &pp)
-{
-   if (not pp.ker.is_forall) { return; }
-   //DBG("forallPostfix 1")
-   if (pp.parenthesis >= 0 && pp.in.peek() == '(') { pp.parenthesis++; }
-   if (pp.parenthesis >= 0 && pp.in.peek() == ')') { pp.parenthesis--; }
-   if (pp.parenthesis != -1) { return; }
-   //DBG("forall2ostfix 2")
-   drop(pp);
-   check(pp,is_right_parenthesis(pp),"no last right parenthesis found");
-   get(pp);
-   drop(pp);
-   check(pp,is_semicolon(pp),"no last semicolon found");
-   get(pp);
-   pp.parenthesis--;
-   pp.ker.is_forall = false;
-#ifdef MFEM_USE_CUDA
-   pp.out << "if (use_dev){";
-   const char *ND = pp.ker.forall.d == 2 ? "2D" : "3D";
-   pp.out << "\n\tCuWrap" << ND << "(" << pp.ker.forall.N.c_str() << ", ";
-   pp.out << "[=] MFEM_DEVICE (int " << pp.ker.forall.e <<")";
-   pp.out << pp.ker.forall.body.c_str() << ",";
-   pp.out << pp.ker.forall.X.c_str() << ",";
-   pp.out << pp.ker.forall.Y.c_str() << ",";
-   pp.out << pp.ker.forall.Z.c_str() << ");";
-   pp.out << "\n} else {";
-   pp.out << "for (int k=0; k<" << pp.ker.forall.N.c_str() << ";k++) {";
-   pp.out << "[&] (int " << pp.ker.forall.e <<")";
-   pp.out << pp.ker.forall.body.c_str() << "(k);";
-   pp.out << "}";
-   pp.out << "}";
-#else
-   pp.out << "for (int " << pp.ker.forall.e << " = 0; "
-          << pp.ker.forall.e << " < " << pp.ker.forall.N.c_str() << "; "
-          << pp.ker.forall.e<<"++) {";
-   pp.out << pp.ker.forall.body.c_str();
-   pp.out << "}";
-#endif
-}
-
-bool is_token(const std::string &id, const char *token)
-{
-   if (strncmp(id.c_str(), "MFEM_", 5) != 0 ) { return false; }
-   if (strcmp(id.c_str() + 5, token) != 0 ) { return false; }
-   return true;
-}
-
 void Tokens(context_t &pp)
 {
+   struct
+   {
+      bool token(const std::string &id, const char *token)
+      {
+         if (strncmp(id.c_str(), "MFEM_", 5) != 0 ) { return false; }
+         if (strcmp(id.c_str() + 5, token) != 0 ) { return false; }
+         return true;
+      }
+   } is;
    if (peekn(pp, 4) != "MFEM") { return; }
    const std::string &id = get_id(pp);
-   if (is_token(id, "JIT")) { return jit(pp); }
-   //if (is_token(id, "UNROLL")) { return unroll(pp); }
-   //if (is_token(id, "FORALL_2D")) { return forall(id,pp); }
-   //if (is_token(id, "FORALL_3D")) { return forall(id,pp); }
+   if (is.token(id, "JIT")) { return JitToken(pp); }
    // During the kernel prefix, add MFEM_* id tokens
    if (pp.ker.is_prefix) { pp.ker.prefix += id; }
-   // During the forall body, add MFEM_* id tokens
-   if (pp.ker.is_forall) { assert(false); pp.ker.forall.body += id; return; }
    pp.out << id;
 }
 
@@ -758,17 +595,7 @@ bool eof(context_t &pp)
 int preprocess(std::istream &in, std::ostream &out, std::string &file)
 {
    mfem::jit::context_t pp(in, out, file);
-   try
-   {
-      do
-      {
-         Tokens(pp);
-         Comments(pp);
-         JitPostfix(pp);
-         forallPostfix(pp);
-      }
-      while (!eof(pp));
-   }
+   try { do { Tokens(pp); Comments(pp); Postfix(pp); } while (!eof(pp)); }
    catch (mfem::jit::error_t err)
    {
       std::cerr << std::endl << err.file << ":" << err.line << ":"
@@ -777,9 +604,9 @@ int preprocess(std::istream &in, std::ostream &out, std::string &file)
                 << (err.msg ? err.msg : "")
                 << std::endl;
       //remove(out.c_str());
-      return ~0;
+      return EXIT_FAILURE;
    }
-   return 0;
+   return EXIT_SUCCESS;
 }
 
 } // namespace jit
