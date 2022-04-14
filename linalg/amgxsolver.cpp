@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -208,11 +208,14 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     " \"config_version\": 2, \n"
                     " \"solver\": { \n"
                     "   \"solver\": \"AMG\", \n"
+                    "   \"scope\": \"main\", \n"
+                    "   \"smoother\": \"JACOBI_L1\", \n"
                     "   \"presweeps\": 1, \n"
-                    "   \"postsweeps\": 1, \n"
                     "   \"interpolator\": \"D2\", \n"
-                    "   \"max_iters\": 2, \n"
-                    "   \"convergence\": \"ABSOLUTE\", \n"
+                    "   \"max_row_sum\" : 0.9, \n"
+                    "   \"strength_threshold\" : 0.25, \n"
+                    "   \"postsweeps\": 1, \n"
+                    "   \"max_iters\": 1, \n"
                     "   \"cycle\": \"V\"";
       if (verbose)
       {
@@ -239,22 +242,21 @@ void AmgXSolver::DefaultParameters(const AMGX_MODE amgxMode_,
                     "     \"solver\": \"AMG\", \n"
                     "     \"smoother\": { \n"
                     "     \"scope\": \"jacobi\", \n"
-                    "     \"solver\": \"BLOCK_JACOBI\", \n"
-                    "     \"relaxation_factor\": 0.7 \n"
+                    "     \"solver\": \"JACOBI_L1\" \n"
                     "       }, \n"
                     "     \"presweeps\": 1, \n"
                     "     \"interpolator\": \"D2\", \n"
                     "     \"max_row_sum\" : 0.9, \n"
                     "     \"strength_threshold\" : 0.25, \n"
-                    "     \"max_iters\": 2, \n"
+                    "     \"max_iters\": 1, \n"
                     "     \"scope\": \"amg\", \n"
                     "     \"max_levels\": 100, \n"
                     "     \"cycle\": \"V\", \n"
                     "     \"postsweeps\": 1 \n"
                     "    }, \n"
                     "  \"solver\": \"PCG\", \n"
-                    "  \"max_iters\": 100, \n"
-                    "  \"convergence\": \"RELATIVE_MAX\", \n"
+                    "  \"max_iters\": 150, \n"
+                    "  \"convergence\": \"RELATIVE_INI_CORE\", \n"
                     "  \"scope\": \"main\", \n"
                     "  \"tolerance\": 1e-12, \n"
                     "  \"monitor_residual\": 1, \n"
@@ -602,10 +604,15 @@ void AmgXSolver::SetMatrix(const HypreParMatrix &A, const bool update_mat)
    mfem_error("Hypre version 2.16+ is required when using AmgX \n");
 #endif
 
+   // Ensure HypreParMatrix is on the host
+   A.HostRead();
+
    hypre_ParCSRMatrix * A_ptr =
       (hypre_ParCSRMatrix *)const_cast<HypreParMatrix&>(A);
 
    hypre_CSRMatrix *A_csr = hypre_MergeDiagAndOffd(A_ptr);
+
+   A.HypreRead();
 
    Array<double> loc_A(A_csr->data, (int)A_csr->num_nonzeros);
    const Array<HYPRE_Int> loc_I(A_csr->i, (int)A_csr->num_rows+1);

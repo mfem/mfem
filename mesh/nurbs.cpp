@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -123,14 +123,14 @@ void KnotVector::Flip()
    }
 }
 
-void KnotVector::Print(std::ostream &out) const
+void KnotVector::Print(std::ostream &os) const
 {
-   out << Order << ' ' << NumOfControlPoints << ' ';
-   knot.Print(out, knot.Size());
+   os << Order << ' ' << NumOfControlPoints << ' ';
+   knot.Print(os, knot.Size());
 }
 
 
-void KnotVector::PrintFunctions(std::ostream &out, int samples) const
+void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 {
    Vector shape(Order+1);
 
@@ -141,17 +141,17 @@ void KnotVector::PrintFunctions(std::ostream &out, int samples) const
       for (int j = 0; j <samples; j++)
       {
          x =j*dx;
-         out<< x + i;
+         os<< x + i;
 
          CalcShape ( shape, i, x);
-         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
+         for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
 
          CalcDShape ( shape, i, x);
-         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
+         for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
 
          CalcD2Shape ( shape, i, x);
-         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
-         out<<endl;
+         for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
+         os<<endl;
       }
    }
 }
@@ -585,27 +585,27 @@ NURBSPatch::~NURBSPatch()
    }
 }
 
-void NURBSPatch::Print(std::ostream &out) const
+void NURBSPatch::Print(std::ostream &os) const
 {
    int size = 1;
 
-   out << "knotvectors\n" << kv.Size() << '\n';
+   os << "knotvectors\n" << kv.Size() << '\n';
    for (int i = 0; i < kv.Size(); i++)
    {
-      kv[i]->Print(out);
+      kv[i]->Print(os);
       size *= kv[i]->GetNCP();
    }
 
-   out << "\ndimension\n" << Dim - 1
-       << "\n\ncontrolpoints\n";
+   os << "\ndimension\n" << Dim - 1
+      << "\n\ncontrolpoints\n";
    for (int j = 0, i = 0; i < size; i++)
    {
-      out << data[j++];
+      os << data[j++];
       for (int d = 1; d < Dim; d++)
       {
-         out << ' ' << data[j++];
+         os << ' ' << data[j++];
       }
-      out << '\n';
+      os << '\n';
    }
 }
 
@@ -1698,81 +1698,81 @@ NURBSExtension::~NURBSExtension()
    }
 }
 
-void NURBSExtension::Print(std::ostream &out) const
+void NURBSExtension::Print(std::ostream &os) const
 {
-   patchTopo->PrintTopo(out, edge_to_knot);
+   patchTopo->PrintTopo(os, edge_to_knot);
    if (patches.Size() == 0)
    {
-      out << "\nknotvectors\n" << NumOfKnotVectors << '\n';
+      os << "\nknotvectors\n" << NumOfKnotVectors << '\n';
       for (int i = 0; i < NumOfKnotVectors; i++)
       {
-         knotVectors[i]->Print(out);
+         knotVectors[i]->Print(os);
       }
 
       if (NumOfActiveElems < NumOfElements)
       {
-         out << "\nmesh_elements\n" << NumOfActiveElems << '\n';
+         os << "\nmesh_elements\n" << NumOfActiveElems << '\n';
          for (int i = 0; i < NumOfElements; i++)
             if (activeElem[i])
             {
-               out << i << '\n';
+               os << i << '\n';
             }
       }
 
-      out << "\nweights\n";
-      weights.Print(out, 1);
+      os << "\nweights\n";
+      weights.Print(os, 1);
    }
    else
    {
-      out << "\npatches\n";
+      os << "\npatches\n";
       for (int p = 0; p < patches.Size(); p++)
       {
-         out << "\n# patch " << p << "\n\n";
-         patches[p]->Print(out);
+         os << "\n# patch " << p << "\n\n";
+         patches[p]->Print(os);
       }
    }
 }
 
-void NURBSExtension::PrintCharacteristics(std::ostream &out) const
+void NURBSExtension::PrintCharacteristics(std::ostream &os) const
 {
-   out <<
-       "NURBS Mesh entity sizes:\n"
-       "Dimension           = " << Dimension() << "\n"
-       "Unique Orders       = ";
+   os <<
+      "NURBS Mesh entity sizes:\n"
+      "Dimension           = " << Dimension() << "\n"
+      "Unique Orders       = ";
    Array<int> unique_orders(mOrders);
    unique_orders.Sort();
    unique_orders.Unique();
-   unique_orders.Print(out, unique_orders.Size());
-   out <<
-       "NumOfKnotVectors    = " << GetNKV() << "\n"
-       "NumOfPatches        = " << GetNP() << "\n"
-       "NumOfBdrPatches     = " << GetNBP() << "\n"
-       "NumOfVertices       = " << GetGNV() << "\n"
-       "NumOfElements       = " << GetGNE() << "\n"
-       "NumOfBdrElements    = " << GetGNBE() << "\n"
-       "NumOfDofs           = " << GetNTotalDof() << "\n"
-       "NumOfActiveVertices = " << GetNV() << "\n"
-       "NumOfActiveElems    = " << GetNE() << "\n"
-       "NumOfActiveBdrElems = " << GetNBE() << "\n"
-       "NumOfActiveDofs     = " << GetNDof() << '\n';
+   unique_orders.Print(os, unique_orders.Size());
+   os <<
+      "NumOfKnotVectors    = " << GetNKV() << "\n"
+      "NumOfPatches        = " << GetNP() << "\n"
+      "NumOfBdrPatches     = " << GetNBP() << "\n"
+      "NumOfVertices       = " << GetGNV() << "\n"
+      "NumOfElements       = " << GetGNE() << "\n"
+      "NumOfBdrElements    = " << GetGNBE() << "\n"
+      "NumOfDofs           = " << GetNTotalDof() << "\n"
+      "NumOfActiveVertices = " << GetNV() << "\n"
+      "NumOfActiveElems    = " << GetNE() << "\n"
+      "NumOfActiveBdrElems = " << GetNBE() << "\n"
+      "NumOfActiveDofs     = " << GetNDof() << '\n';
    for (int i = 0; i < NumOfKnotVectors; i++)
    {
-      out << ' ' << i + 1 << ") ";
-      knotVectors[i]->Print(out);
+      os << ' ' << i + 1 << ") ";
+      knotVectors[i]->Print(os);
    }
-   out << endl;
+   os << endl;
 }
 
 void NURBSExtension::PrintFunctions(const char *basename, int samples) const
 {
-   std::ofstream out;
+   std::ofstream os;
    for (int i = 0; i < NumOfKnotVectors; i++)
    {
       std::ostringstream filename;
       filename << basename<<"_"<<i<<".dat";
-      out.open(filename.str().c_str());
-      knotVectors[i]->PrintFunctions(out,samples);
-      out.close();
+      os.open(filename.str().c_str());
+      knotVectors[i]->PrintFunctions(os,samples);
+      os.close();
    }
 }
 
@@ -3048,7 +3048,7 @@ void NURBSExtension::LoadSolution(std::istream &input, GridFunction &sol) const
    }
 }
 
-void NURBSExtension::PrintSolution(const GridFunction &sol, std::ostream &out)
+void NURBSExtension::PrintSolution(const GridFunction &sol, std::ostream &os)
 const
 {
    const FiniteElementSpace *fes = sol.FESpace();
@@ -3060,7 +3060,7 @@ const
 
    for (int p = 0; p < GetNP(); p++)
    {
-      out << "\n# patch " << p << "\n\n";
+      os << "\n# patch " << p << "\n\n";
 
       p2g.SetPatchDofMap(p, kv);
       const int nx = kv[0]->GetNCP();
@@ -3074,12 +3074,12 @@ const
             {
                const int ll = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k);
                const int l  = DofMap(ll);
-               out << sol(fes->DofToVDof(l,0));
+               os << sol(fes->DofToVDof(l,0));
                for (int vd = 1; vd < vdim; vd++)
                {
-                  out << ' ' << sol(fes->DofToVDof(l,vd));
+                  os << ' ' << sol(fes->DofToVDof(l,vd));
                }
-               out << '\n';
+               os << '\n';
             }
          }
       }

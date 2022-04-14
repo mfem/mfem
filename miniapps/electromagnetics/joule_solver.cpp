@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -678,22 +678,22 @@ void MagneticDiffusionEOperator::buildA1(double muInv,
    dt_A1 = dt;
 }
 
-void MagneticDiffusionEOperator::buildA2(MeshDependentCoefficient &InvTcond,
-                                         MeshDependentCoefficient &InvTcap,
-                                         double dt)
+void MagneticDiffusionEOperator::buildA2(MeshDependentCoefficient &InvTcond_,
+                                         MeshDependentCoefficient &InvTcap_,
+                                         double dt_)
 {
    if ( a2 != NULL ) { delete a2; }
 
-   InvTcap.SetScaleFactor(dt);
+   InvTcap_.SetScaleFactor(dt_);
    a2 = new ParBilinearForm(&HDivFESpace);
-   a2->AddDomainIntegrator(new VectorFEMassIntegrator(InvTcond));
-   a2->AddDomainIntegrator(new DivDivIntegrator(InvTcap));
+   a2->AddDomainIntegrator(new VectorFEMassIntegrator(InvTcond_));
+   a2->AddDomainIntegrator(new DivDivIntegrator(InvTcap_));
    if (STATIC_COND == 1) { a2->EnableStaticCondensation(); }
    a2->Assemble();
 
    // Don't finalize or parallel assemble this is done in FormLinearSystem.
 
-   dt_A2 = dt;
+   dt_A2 = dt_;
 }
 
 void MagneticDiffusionEOperator::buildM1(MeshDependentCoefficient &Sigma)
@@ -719,13 +719,13 @@ void MagneticDiffusionEOperator::buildM2(MeshDependentCoefficient &Alpha)
    // Don't finalize or parallel assemble this is done in FormLinearSystem.
 }
 
-void MagneticDiffusionEOperator::buildM3(MeshDependentCoefficient &Tcapacity)
+void MagneticDiffusionEOperator::buildM3(MeshDependentCoefficient &Tcapacity_)
 {
    if ( m3 != NULL ) { delete m3; }
 
    // ConstantCoefficient Sigma(sigma);
    m3 = new ParBilinearForm(&L2FESpace);
-   m3->AddDomainIntegrator(new MassIntegrator(Tcapacity));
+   m3->AddDomainIntegrator(new MassIntegrator(Tcapacity_));
    m3->Assemble();
    m3->Finalize();
    M3 = m3->ParallelAssemble();
@@ -741,13 +741,13 @@ void MagneticDiffusionEOperator::buildS1(double muInv)
    s1->Assemble();
 }
 
-void MagneticDiffusionEOperator::buildS2(MeshDependentCoefficient &InvTcap)
+void MagneticDiffusionEOperator::buildS2(MeshDependentCoefficient &InvTcap_)
 {
    if ( s2 != NULL ) { delete s2; }
 
    // ConstantCoefficient param(a);
    s2 = new ParBilinearForm(&HDivFESpace);
-   s2->AddDomainIntegrator(new DivDivIntegrator(InvTcap));
+   s2->AddDomainIntegrator(new DivDivIntegrator(InvTcap_));
    s2->Assemble();
 }
 
@@ -768,13 +768,13 @@ void MagneticDiffusionEOperator::buildCurl(double muInv)
    // no ParallelAssemble since this will be applied to GridFunctions
 }
 
-void MagneticDiffusionEOperator::buildDiv(MeshDependentCoefficient &InvTcap)
+void MagneticDiffusionEOperator::buildDiv(MeshDependentCoefficient &InvTcap_)
 {
    if ( weakDiv != NULL ) { delete weakDiv; }
    if ( weakDivC != NULL ) { delete weakDivC; }
 
    weakDivC = new ParMixedBilinearForm(&HDivFESpace, &L2FESpace);
-   weakDivC->AddDomainIntegrator(new VectorFEDivergenceIntegrator(InvTcap));
+   weakDivC->AddDomainIntegrator(new VectorFEDivergenceIntegrator(InvTcap_));
    weakDivC->Assemble();
 
    weakDiv = new ParMixedBilinearForm(&HDivFESpace, &L2FESpace);

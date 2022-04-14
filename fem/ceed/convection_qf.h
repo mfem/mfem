@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -439,11 +439,11 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             const CeedScalar wy = w * c[i + Q * 1];
             const CeedScalar qd0 =  wx * J22 - wy * J12;
             const CeedScalar qd1 = -wx * J21 + wy * J11;
-            for (CeedInt c = 0; c < 2; c++)
+            for (CeedInt d = 0; d < 2; d++)
             {
-               const CeedScalar ug0 = ug[i + Q * (c+2*0)];
-               const CeedScalar ug1 = ug[i + Q * (c+2*1)];
-               vg[i + Q * c] = qd0 * ug0 + qd1 * ug1;
+               const CeedScalar ug0 = ug[i + Q * (d+2*0)];
+               const CeedScalar ug1 = ug[i + Q * (d+2*1)];
+               vg[i + Q * d] = qd0 * ug0 + qd1 * ug1;
             }
          }
          break;
@@ -515,12 +515,12 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             const CeedScalar qd0 = wx * A11 + wy * A12 + wz * A13;
             const CeedScalar qd1 = wx * A21 + wy * A22 + wz * A23;
             const CeedScalar qd2 = wx * A31 + wy * A32 + wz * A33;
-            for (CeedInt c = 0; c < 3; c++)
+            for (CeedInt d = 0; d < 3; d++)
             {
-               const CeedScalar ug0 = ug[i + Q * (c+3*0)];
-               const CeedScalar ug1 = ug[i + Q * (c+3*1)];
-               const CeedScalar ug2 = ug[i + Q * (c+3*2)];
-               vg[i + Q * c] = qd0 * ug0 + qd1 * ug1 + qd2 * ug2;
+               const CeedScalar ug0 = ug[i + Q * (d+3*0)];
+               const CeedScalar ug1 = ug[i + Q * (d+3*1)];
+               const CeedScalar ug2 = ug[i + Q * (d+3*2)];
+               vg[i + Q * d] = qd0 * ug0 + qd1 * ug1 + qd2 * ug2;
             }
          }
          break;

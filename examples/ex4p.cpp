@@ -19,6 +19,8 @@
 //               mpirun -np 3 ex4p -m ../data/amr-quad.mesh -o 2 -hb
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -sc
 //               mpirun -np 4 ex4p -m ../data/amr-hex.mesh -o 2 -hb
+//               mpirun -np 4 ex4p -m ../data/ref-prism.mesh -o 1
+//               mpirun -np 4 ex4p -m ../data/octahedron.mesh -o 1
 //               mpirun -np 4 ex4p -m ../data/star-surf.mesh -o 3 -hb
 //
 // Device sample runs:
@@ -56,11 +58,11 @@ double freq = 1.0, kappa;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -99,7 +101,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -135,9 +136,7 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
-   //    meshes need to be reoriented before we can define high-order Nedelec
-   //    spaces on them (this is needed in the ADS solver below).
+   //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
@@ -147,7 +146,6 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Raviart-Thomas finite elements of the specified order.
@@ -257,10 +255,10 @@ int main(int argc, char *argv[])
 
    // 15. Compute and print the L^2 norm of the error.
    {
-      double err = x.ComputeL2Error(F);
+      double error = x.ComputeL2Error(F);
       if (myid == 0)
       {
-         cout << "\n|| F_h - F ||_{L^2} = " << err << '\n' << endl;
+         cout << "\n|| F_h - F ||_{L^2} = " << error << '\n' << endl;
       }
    }
 
@@ -303,8 +301,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }
