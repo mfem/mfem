@@ -120,7 +120,7 @@ public:
    /// Return a reference to the Memory object used by the Array, const version.
    const Memory<T> &GetMemory() const { return data; }
 
-   /// Enable execution of Vector operations using the mfem::Device.
+   /// Enable execution of Array operations using the mfem::Device.
    void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
 
    /// Return the device flag of the Memory object used by the Array

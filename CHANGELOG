@@ -24,7 +24,6 @@ Version 4.4.1 (development)
   * VectorDomainLF: ((f1,...,fn), (v1,...,vn))
   * DomainLFGrad: (f, grad(v))
   * VectorDomainLFGrad: ((f1x,f1y,f1z,...,fnx,fny,fnz), grad(v1,...,vn))
-  To enable, call LinearForm::SetAssemblyLevel with AssemblyLevel::FULL.
 
 
 Version 4.4, released on March 21, 2022

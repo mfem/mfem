@@ -100,23 +100,21 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
    interior_face_integs.Append(lfi);
 }
 
-static bool LinearIntegratorsCanUseDevice(LinearForm *lf)
+bool LinearForm::SupportsDevice()
 {
    // scan domain integrator to verify that all can use device assembly
-   const Array<LinearFormIntegrator*> &domain_integs = *lf->GetDLFI();
    if (domain_integs.Size() > 0)
    {
       for (int k = 0; k < domain_integs.Size(); k++)
       {
-         if (!domain_integs[k]->UseDevice()) { return false; }
+         if (!domain_integs[k]->SupportsDevice()) { return false; }
       }
    }
 
    // boundary, delta and face integrators are not supported yet
-   if (lf->GetBLFI()->Size() > 0 || lf->GetDLFI_Delta()->Size() > 0 ||
-       lf->GetFLFI()->Size() > 0 || lf->GetIFLFI()->Size() > 0) { return false; }
+   if (GetBLFI()->Size() > 0 || GetFLFI()->Size() > 0 ||
+       GetDLFI_Delta()->Size() > 0 || GetIFLFI()->Size() > 0) { return false; }
 
-   const FiniteElementSpace *fes = lf->FESpace();
    const Mesh &mesh = *fes->GetMesh();
 
    // no support for elements with varying polynomial orders
@@ -145,8 +143,7 @@ void LinearForm::Assemble(bool use_device)
    DofTransformation *doftrans;
    Vector elemvect;
 
-
-   if (!ext && use_device && LinearIntegratorsCanUseDevice(this))
+   if (!ext && use_device && SupportsDevice())
    {
       ext = new LinearFormExtension(this);
    }
