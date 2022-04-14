@@ -29,7 +29,7 @@ protected:
 public:
 
    /// Method probing for assembly on device
-   virtual bool UseDevice() { return false; }
+   virtual bool SupportsDevice() { return false; }
 
    /// Method defining assembly on device
    virtual void AssembleDevice(const FiniteElementSpace &fes,
@@ -119,7 +119,7 @@ public:
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
       : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
 
-   virtual bool UseDevice() { return true; }
+   virtual bool SupportsDevice() { return true; }
 
    /// Method defining assembly on device
    virtual void AssembleDevice(const FiniteElementSpace &fes,
@@ -152,7 +152,7 @@ public:
    DomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual bool UseDevice() { return true; }
+   virtual bool SupportsDevice() { return true; }
 
    /// Method defining assembly on device
    virtual void AssembleDevice(const FiniteElementSpace &fes,
@@ -246,7 +246,7 @@ public:
    VectorDomainLFIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual bool UseDevice() { return true; }
+   virtual bool SupportsDevice() { return true; }
 
    /// Method defining assembly on device
    virtual void AssembleDevice(const FiniteElementSpace &fes,
@@ -280,7 +280,7 @@ public:
    VectorDomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual bool UseDevice() override { return true; }
+   virtual bool SupportsDevice() override { return true; }
 
    /// Method defining assembly on device
    virtual void AssembleDevice(const FiniteElementSpace &fes,

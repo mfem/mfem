@@ -20,29 +20,11 @@ LinearFormExtension::LinearFormExtension(LinearForm *lf): lf(lf) { Update(); }
 void LinearFormExtension::Assemble()
 {
    const FiniteElementSpace &fes = *lf->FESpace();
-
+   MFEM_VERIFY(lf->SupportsDevice(), "Not supported.");
    MFEM_VERIFY(lf->Size() == fes.GetVSize(), "LinearForm size does not "
-               "match number of vector dofs!");
+               "match the number of vector dofs!");
 
-   // Filter out the unsupported integrators
-   MFEM_VERIFY(lf->GetBLFI()->Size() == 0,
-               "Integrators added with AddBoundaryIntegrator() "
-               "do not support Assemble on device!");
-
-   MFEM_VERIFY(lf->GetDLFI_Delta()->Size() == 0, ""
-               "Integrators added with AddDomainIntegrator() which are "
-               "DeltaLFIntegrators with delta coefficients "
-               "do not support Assemble on device!");
-
-   MFEM_VERIFY(lf->GetIFLFI()->Size() == 0,
-               "Integrators added with AddInteriorFaceIntegrator() "
-               "do not support Assemble on device!");
-
-   MFEM_VERIFY(lf->GetFLFI()->Size() == 0,
-               "Integrators added with AddBdrFaceIntegrator() "
-               "do not support Assemble on device!");
-
-   const Array<Array<int>*> &domain_integs_marker = *lf->GetDLFIM();
+   const Array<Array<int>*> &domain_integs_marker = *lf->GetDLFI_Marker();
    const int mesh_attributes_size = fes.GetMesh()->attributes.Size();
    const Array<LinearFormIntegrator*> &domain_integs = *lf->GetDLFI();
 

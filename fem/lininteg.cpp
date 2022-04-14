@@ -20,7 +20,7 @@ void LinearFormIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                           const Array<int> &markers,
                                           Vector &b)
 {
-   mfem_error("LinearFormIntegrator::AssembleDevice(...)");
+   MFEM_ABORT("Not supported.");
 }
 
 void LinearFormIntegrator::AssembleRHSElementVect(

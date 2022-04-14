@@ -192,11 +192,11 @@ void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
    });
 }
 
-static void LaunchDeviceKernel(const FiniteElementSpace &fes,
-                               const IntegrationRule *ir,
-                               const Array<int> &markers,
-                               const Vector &coeff,
-                               Vector &y)
+static void DLFEvalAssemble(const FiniteElementSpace &fes,
+                            const IntegrationRule *ir,
+                            const Array<int> &markers,
+                            const Vector &coeff,
+                            Vector &y)
 {
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
@@ -287,7 +287,7 @@ void DomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
          }
       }
    }
-   LaunchDeviceKernel(fes, ir, markers, coeff, b);
+   DLFEvalAssemble(fes, ir, markers, coeff, b);
 }
 
 void VectorDomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
@@ -333,7 +333,7 @@ void VectorDomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
          }
       }
    }
-   LaunchDeviceKernel(fes, ir, markers, Qvec, b);
+   DLFEvalAssemble(fes, ir, markers, Qvec, b);
 }
 
 } // namespace mfem

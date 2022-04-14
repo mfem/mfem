@@ -163,7 +163,7 @@ public:
    Array<LinearFormIntegrator*> *GetDLFI() { return &domain_integs; }
 
    /// Access the element attribute marker (of length mesh->attributes)
-   Array<Array<int>*> *GetDLFIM() { return &domain_integs_marker; }
+   Array<Array<int>*> *GetDLFI_Marker() { return &domain_integs_marker; }
 
    /** @brief Access all integrators added with AddDomainIntegrator() which are
        DeltaLFIntegrator%s with delta coefficients. */
@@ -187,6 +187,9 @@ public:
    /// When @a use_device is set to true and the linearform assembly is
    /// compatible with device execution, it will be executed on the device.
    void Assemble(bool use_device = true);
+
+   /// Return true if assembly on device is supported, false otherwise.
+   bool SupportsDevice();
 
    /// Assembles delta functions of the linear form
    void AssembleDelta();
