@@ -104,17 +104,93 @@ const SparseMatrix &ParNonlinearForm::GetLocalGradient(const Vector &x) const
    return *Grad;
 }
 
+void ParNonlinearForm::AssembleGradientOnSharedFaces(int skip_zeros) const
+{
+   ParFiniteElementSpace *pfes = this->ParFESpace();
+   ParMesh *pmesh = pfes->GetParMesh();
+   FaceElementTransformations *T;
+   const FiniteElement *fe1, *fe2;
+   Array<int> vdofs1, vdofs2, vdofs_all;
+   Vector el_x;
+   DenseMatrix elemmat;
+
+   aux1.HostReadWrite();
+   X.MakeRef(aux1, 0); // aux1 contains P.x
+   X.ExchangeFaceNbrData();
+
+   int nfaces = pmesh->GetNSharedFaces();
+   for (int i = 0; i < nfaces; i++)
+   {
+      T = pmesh->GetSharedFaceTransformations(i, true);
+      int Elem2NbrNo = T->Elem2No - pmesh->GetNE();
+
+      fe1 = pfes->GetFE(T->Elem1No);
+      fe2 = pfes->GetFaceNbrFE(Elem2NbrNo);
+
+      pfes->GetElementVDofs(T->Elem1No, vdofs1);
+      pfes->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs2);
+
+      el_x.SetSize(vdofs1.Size() + vdofs2.Size());
+      X.GetSubVector(vdofs1, el_x.GetData());
+      X.FaceNbrData().GetSubVector(vdofs2, el_x.GetData() + vdofs1.Size());
+
+      vdofs1.Copy(vdofs_all);
+      for (int j = 0; j < vdofs2.Size(); j++)
+      {
+         if (vdofs2[j] >= 0)
+         {
+            vdofs2[j] += height;
+         }
+         else
+         {
+            vdofs2[j] -= height;
+         }
+      }
+      vdofs_all.Append(vdofs2);
+
+      for (int k = 0; k < fnfi.Size(); k++)
+      {
+         fnfi[k]->AssembleFaceGrad(*fe1, *fe2, *T, el_x, elemmat);
+         Grad->AddSubMatrix(vdofs1, vdofs_all, elemmat, skip_zeros);
+      }
+   }
+}
+
 Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 {
+   if (fnfi.Size())
+   {
+      MFEM_VERIFY(!NonlinearForm::ext, "Not implemented (extensions + faces");
+   }
+
    if (NonlinearForm::ext) { return NonlinearForm::GetGradient(x); }
 
    ParFiniteElementSpace *pfes = ParFESpace();
 
    pGrad.Clear();
 
+   // Alloc Grad here to ensure space for shared faces (when relevant)
+   if (Grad == NULL)
+   {
+      int nbr_size = 0;
+      if (fnfi.Size()) nbr_size = pfes->GetFaceNbrVSize();
+      Grad = new SparseMatrix(fes->GetVSize(), fes->GetVSize()+nbr_size);
+   }
+
    NonlinearForm::GetGradient(x); // (re)assemble Grad, no b.c.
 
-   OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
+   OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type()), hdA;
+
+   const int skip_zeros = 0;
+   if (fnfi.Size() > 0)
+   {
+      AssembleGradientOnSharedFaces(skip_zeros);
+   }
+
+   if (!Grad->Finalized())
+   {
+      Grad->Finalize(skip_zeros);
+   }
 
    if (fnfi.Size() == 0)
    {
@@ -123,7 +199,35 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
    }
    else
    {
-      MFEM_ABORT("TODO: assemble contributions from shared face terms");
+      // handle the case when Grad contains off-diagonal
+      int lvsize = pfes->GetVSize();
+      const HYPRE_BigInt *face_nbr_glob_ldof = pfes->GetFaceNbrGlobalDofMap();
+      HYPRE_BigInt ldof_offset = pfes->GetMyDofOffset();
+
+      Array<HYPRE_BigInt> glob_J(Grad->NumNonZeroElems());
+      int *J = Grad->GetJ();
+      for (int i = 0; i < glob_J.Size(); i++)
+      {
+         if (J[i] < lvsize)
+         {
+            glob_J[i] = J[i] + ldof_offset;
+         }
+         else
+         {
+            glob_J[i] = face_nbr_glob_ldof[J[i] - lvsize];
+         }
+      }
+
+      // TODO - construct dA directly in the A format
+      hdA.Reset(
+         new HypreParMatrix(pfes->GetComm(), lvsize, pfes->GlobalVSize(),
+                            pfes->GlobalVSize(), Grad->GetI(), glob_J,
+                            Grad->GetData(), pfes->GetDofOffsets(),
+                            pfes->GetDofOffsets()));
+      // - hdA owns the new HypreParMatrix
+      // - the above constructor copies all input arrays
+      glob_J.DeleteAll();
+      dA.ConvertFrom(hdA);
    }
 
    // RAP the local gradient dA.
