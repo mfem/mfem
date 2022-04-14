@@ -317,10 +317,10 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    {
       I[i_L] = 0;
    });
-   MFEM_FORALL(dof, ne*elt_dofs,
+   MFEM_FORALL(l_dof, ne*elt_dofs,
    {
-      const int e = dof/elt_dofs;
-      const int i = dof%elt_dofs;
+      const int e = l_dof/elt_dofs;
+      const int i = l_dof%elt_dofs;
 
       int i_elts[Max];
       const int i_gm = e*elt_dofs + i;
@@ -394,10 +394,10 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    auto d_indices = indices.Read();
    auto d_gather_map = gather_map.Read();
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
-   MFEM_FORALL(dof, ne*elt_dofs,
+   MFEM_FORALL(l_dof, ne*elt_dofs,
    {
-      const int e = dof/elt_dofs;
-      const int i = dof%elt_dofs;
+      const int e = l_dof/elt_dofs;
+      const int i = l_dof%elt_dofs;
 
       int i_elts[Max];
       int i_B[Max];
