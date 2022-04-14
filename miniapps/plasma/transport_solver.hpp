@@ -2121,6 +2121,17 @@ public:
 
 };
 
+/** Diffusion coefficient used in the Neutral density equation
+
+   Dn = v_n^2 / [3 n_e (<sigma nu>_{iz} + <sigma nu>_{cx})]
+
+   Where:
+      v_n is the average speed of the Neutrals often labeled \bar{v}_n and
+          given by the formula \bar{v}_n = sqrt{8 T_n / (pi m_n)}
+      n_e is the electron density
+      <sigma nu>_{iz} is the ionization rate
+      <sigma nu>_{cx} is the charge exchange rate
+*/
 class NeutralDiffusionCoef : public StateVariableCoef
 {
 private:
@@ -2135,9 +2146,9 @@ private:
    StateVariableCoef * cx_sv_;
 
 public:
-   NeutralDiffusionCoef(Coefficient &neCoef, Coefficient &vnCoef,
+   NeutralDiffusionCoef(Coefficient &neCoef, Coefficient &vnBarCoef,
                         Coefficient &izCoef, Coefficient &cxCoef)
-      : ne_(&neCoef), vn_(&vnCoef), iz_(&izCoef), cx_(&cxCoef)
+      : ne_(&neCoef), vn_(&vnBarCoef), iz_(&izCoef), cx_(&cxCoef)
    {
       ne_sv_ = dynamic_cast<StateVariableCoef*>(ne_);
       vn_sv_ = dynamic_cast<StateVariableCoef*>(vn_);
