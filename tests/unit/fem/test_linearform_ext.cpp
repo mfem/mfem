@@ -19,13 +19,12 @@ using namespace mfem;
 struct LinearFormExtTest
 {
    enum { DLFEval, QLFEval, DLFGrad, VDLFEval, VQLFEval, VDLFGrad };
-   using vector_fct_t = void(const Vector&, Vector&);
    const double abs_tol = 1e-14, rel_tol = 1e-14;
    const char *mesh_filename;
    Mesh mesh;
    const int dim, vdim, ordering, gll, problem, p, q, SEED = 0x100001b3;
    H1_FECollection fec;
-   FiniteElementSpace vfes, mfes;
+   FiniteElementSpace vfes;
    const Geometry::Type geom_type;
    IntegrationRules IntRulesGLL;
    const IntegrationRule *irGLL, *ir;
@@ -33,10 +32,6 @@ struct LinearFormExtTest
    Vector one_vec, dim_vec, vdim_vec, vdim_dim_vec;
    ConstantCoefficient cst_coeff;
    VectorConstantCoefficient dim_cst_coeff, vdim_cst_coeff, vdim_dim_cst_coeff;
-   std::function<vector_fct_t> vdim_vec_function =
-   [&](const Vector&, Vector &y) { y.SetSize(vdim); y.Randomize(SEED);};
-   std::function<vector_fct_t> vector_fct;
-   VectorFunctionCoefficient vdim_fct_coeff;
    QuadratureSpace qspace;
    QuadratureFunction q_function, q_vdim_function;
    QuadratureFunctionCoefficient qfc;
@@ -50,7 +45,7 @@ struct LinearFormExtTest
       mesh(Mesh::LoadFromFile(mesh_filename)),
       dim(mesh.Dimension()), vdim(vdim), ordering(ordering), gll(gll),
       problem(problem), p(p), q(2*p + (gll?-1:3)), fec(p, dim),
-      vfes(&mesh, &fec, vdim, ordering), mfes(&mesh, &fec, dim),
+      vfes(&mesh, &fec, vdim, ordering),
       geom_type(vfes.GetFE(0)->GetGeomType()),
       IntRulesGLL(0, Quadrature1D::GaussLobatto),
       irGLL(&IntRulesGLL.Get(geom_type, q)), ir(&IntRules.Get(geom_type, q)),
@@ -58,7 +53,6 @@ struct LinearFormExtTest
       cst_coeff(M_PI), dim_cst_coeff((dim_vec.Randomize(SEED), dim_vec)),
       vdim_cst_coeff((vdim_vec.Randomize(SEED), vdim_vec)),
       vdim_dim_cst_coeff((vdim_dim_vec.Randomize(SEED), vdim_dim_vec)),
-      vector_fct(vdim_vec_function), vdim_fct_coeff(vdim, vector_fct),
       qspace(&mesh, q),
       q_function(&qspace, 1),
       q_vdim_function(&qspace, vdim),
@@ -90,8 +84,8 @@ struct LinearFormExtTest
       }
       else if (problem == VDLFEval)
       {
-         lfi_dev = new VectorDomainLFIntegrator(vdim_fct_coeff);
-         lfi_std = new VectorDomainLFIntegrator(vdim_fct_coeff);
+         lfi_dev = new VectorDomainLFIntegrator(vdim_cst_coeff);
+         lfi_std = new VectorDomainLFIntegrator(vdim_cst_coeff);
       }
       else if (problem == VQLFEval)
       {
@@ -125,7 +119,7 @@ struct LinearFormExtTest
       const bool grad = problem == LinearFormExtTest::DLFGrad ||
                         problem == LinearFormExtTest::VDLFGrad;
 
-      CAPTURE(dim, p, q, ordering, vdim, scalar, grad);
+      CAPTURE(mesh_filename, dim, p, q, ordering, vdim, scalar, grad);
 
       const bool use_device = true;
       lf_dev.Assemble(use_device);
@@ -167,4 +161,3 @@ TEST_CASE("Linear Form Extension", "[LinearformExt], [CUDA]")
       LinearFormExtTest(mesh, vdim, ordering, gll, problem, p).Run();
    }
 }
-
