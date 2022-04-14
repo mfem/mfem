@@ -5782,7 +5782,7 @@ private:
 
       void Update();
 
-      virtual int GetDefaultVisFlag() { return 31; }
+      virtual int GetDefaultVisFlag() { return 255; }
 
       virtual void RegisterDataFields(DataCollection & dc);
 
@@ -6165,7 +6165,8 @@ private:
                   TAU_E,
                   IONIZATION_RATE,
                   RECOMBINATION_RATE,
-                  CHARGE_EXCHANGE_RATE
+                  CHARGE_EXCHANGE_RATE,
+                  ION_SOUND_SPEED
                  };
 
    // VectorCoefficient & B3Coef_;
@@ -6178,6 +6179,7 @@ private:
    ApproxIonizationRate      SigmaIZCoef_;
    ApproxRecombinationRate   SigmaRCCoef_;
    ApproxChargeExchangeRate  SigmaCXCoef_;
+   SoundSpeedCoef            CsCoef_;
 
    ParGridFunction * BxyGF_;
    ParGridFunction * BzGF_;
@@ -6187,6 +6189,7 @@ private:
    ParGridFunction * SigmaIZGF_;
    ParGridFunction * SigmaRCGF_;
    ParGridFunction * SigmaCXGF_;
+   ParGridFunction * CsGF_;
 
 public:
    VisualizationOp(const MPI_Session & mpi, const DGParams & dg,

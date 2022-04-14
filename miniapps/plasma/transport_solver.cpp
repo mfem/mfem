@@ -7103,11 +7103,11 @@ void DGTransportTDO::ElectronTotalEnergyOp::RegisterDataFields(
    }
    if (this->CheckVisFlag(IONIZATION_SINK_COEF) && SIZGF_ != NULL)
    {
-      dc.RegisterField("Ion Energy Ionization Sink", SIZGF_);
+      dc.RegisterField("Electron Energy Ionization Sink", SIZGF_);
    }
    if (this->CheckVisFlag(RECOMBINATION_SINK_COEF) && SRCGF_ != NULL)
    {
-      dc.RegisterField("Ion Energy Recombination Sink", SRCGF_);
+      dc.RegisterField("Electron Energy Recombination Sink", SRCGF_);
    }
    if (this->CheckVisFlag(SOURCE_COEF) && SGF_ != NULL)
    {
@@ -7275,6 +7275,7 @@ DGTransportTDO::VisualizationOp::VisualizationOp(const MPI_Session & mpi,
      SigmaIZCoef_(TeCoef_),
      SigmaRCCoef_(TeCoef_),
      SigmaCXCoef_(TiCoef_),
+     CsCoef_(plasma.m_i_kg, TiCoef_, TeCoef_),
      BxyGF_(NULL),
      BzGF_(NULL),
      lnLambdaGF_(),
@@ -7282,7 +7283,8 @@ DGTransportTDO::VisualizationOp::VisualizationOp(const MPI_Session & mpi,
      TauEGF_(NULL),
      SigmaIZGF_(NULL),
      SigmaRCGF_(NULL),
-     SigmaCXGF_(NULL)
+     SigmaCXGF_(NULL),
+     CsGF_(NULL)
 {
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -7327,6 +7329,10 @@ DGTransportTDO::VisualizationOp::VisualizationOp(const MPI_Session & mpi,
    {
       SigmaCXGF_ = new ParGridFunction(&fes_);
    }
+   if (this->CheckVisFlag(ION_SOUND_SPEED))
+   {
+      CsGF_ = new ParGridFunction(&fes_);
+   }
 
    if ( mpi_.Root() && logging_ > 1)
    {
@@ -7344,6 +7350,7 @@ DGTransportTDO::VisualizationOp::~VisualizationOp()
    delete SigmaIZGF_;
    delete SigmaRCGF_;
    delete SigmaCXGF_;
+   delete CsGF_;
 }
 
 void DGTransportTDO::VisualizationOp::Update()
@@ -7363,6 +7370,7 @@ void DGTransportTDO::VisualizationOp::Update()
    if (SigmaIZGF_  != NULL) { SigmaIZGF_->Update(); }
    if (SigmaRCGF_  != NULL) { SigmaRCGF_->Update(); }
    if (SigmaCXGF_  != NULL) { SigmaCXGF_->Update(); }
+   if (CsGF_       != NULL) { CsGF_->Update(); }
 
    if (mpi_.Root() && logging_ > 1)
    {
@@ -7413,6 +7421,10 @@ void DGTransportTDO::VisualizationOp::RegisterDataFields(DataCollection & dc)
    {
       dc.RegisterField("Charge Exchange Rate",SigmaCXGF_);
    }
+   if (this->CheckVisFlag(ION_SOUND_SPEED))
+   {
+      dc.RegisterField("Ion Sound Speed", CsGF_);
+   }
 }
 
 void DGTransportTDO::VisualizationOp::PrepareDataFields()
@@ -7448,6 +7460,10 @@ void DGTransportTDO::VisualizationOp::PrepareDataFields()
    if (this->CheckVisFlag(CHARGE_EXCHANGE_RATE))
    {
       SigmaCXGF_->ProjectCoefficient(SigmaCXCoef_);
+   }
+   if (this->CheckVisFlag(ION_SOUND_SPEED))
+   {
+      CsGF_->ProjectCoefficient(CsCoef_);
    }
 }
 
