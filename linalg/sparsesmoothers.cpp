@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -65,7 +65,7 @@ void DSmoother::Mult(const Vector &x, Vector &y) const
 {
    if (!iterative_mode && type == 0 && iterations == 1)
    {
-      oper->DiagScale(x, y, scale);
+      oper->DiagScale(x, y, scale, use_abs_diag);
       return;
    }
 
@@ -90,7 +90,7 @@ void DSmoother::Mult(const Vector &x, Vector &y) const
    {
       if (type == 0)
       {
-         oper->Jacobi(x, *p, *r, scale);
+         oper->Jacobi(x, *p, *r, scale, use_abs_diag);
       }
       else if (type == 1)
       {

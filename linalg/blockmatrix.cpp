@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -571,6 +571,8 @@ void BlockMatrix::PrintMatlab(std::ostream & os) const
          os << i+1 << " " << row_ind[j]+1 << " " << row_data[j] << std::endl;
       }
    }
+   // Write a zero entry at (m,n) to make sure MATLAB doesn't shrink the matrix
+   os << row_offsets.Last() << " " << col_offsets.Last () << " 0.0\n";
 
    os.precision(old_prec);
    os.flags(old_fmt);

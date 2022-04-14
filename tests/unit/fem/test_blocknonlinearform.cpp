@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -102,7 +102,7 @@ TEST_CASE("ParBlockNonlinearForm",
    FunctionCoefficient r0_coef(rf0);
 
    for (int type = (int) Element::TETRAHEDRON;
-        type <= (int) Element::HEXAHEDRON;
+        type <= (int) Element::WEDGE;
         type++)
    {
       int n = 4;
@@ -152,7 +152,8 @@ TEST_CASE("ParBlockNonlinearForm",
 
       std::cout << "Rank " << my_rank
                 << ": ParBlockNonlinearForm::GetEnergy = " << A4
-                << " Expected" << M_PI / 6.0 << " diff=" << (A4 - M_PI / 6.0)
+                << ", expected = " << M_PI / 6.0
+                << ", diff = " << (A4 - M_PI / 6.0)
                 << std::endl;
 
       REQUIRE(fabs(A4 - M_PI / 6.0) < 1e-2);
