@@ -412,15 +412,18 @@ TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [CUDA]")
    ParGridFunction x(&fespace);
    ParLinearForm b(&fespace);
 
-   x = 0.0;
-   b = 0.0;
+   x.Randomize(1);
+   b.Randomize(2);
 
-   Vector X, B;
+   Vector X, B1, B2;
 
-   a_fa.FormLinearSystem(ess_tdof_list, x, b, A_fa, X, B);
-   a_legacy.FormLinearSystem(ess_tdof_list, x, b, A_legacy, X, B);
+   a_fa.FormLinearSystem(ess_tdof_list, x, b, A_fa, X, B1);
+   a_legacy.FormLinearSystem(ess_tdof_list, x, b, A_legacy, X, B2);
 
    TestSameHypreMatrices(A_fa, A_legacy);
+
+   B1 -= B2;
+   REQUIRE(B1.Normlinf() == MFEM_Approx(0.0));
 }
 
 #endif
