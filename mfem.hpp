@@ -27,7 +27,7 @@
 #include "general/annotation.hpp"
 #ifdef MFEM_USE_ADIOS2
 #include "general/adios2stream.hpp"
-#endif
+#endif // MFEM_USE_ADIOS2
 #include "general/isockstream.hpp"
 #include "general/osockstream.hpp"
 #include "general/socketstream.hpp"
@@ -37,10 +37,15 @@
 #include "general/globals.hpp"
 #ifdef MFEM_USE_MPI
 #include "general/communication.hpp"
-#endif
+#endif // MFEM_USE_MPI
 
 #include "linalg/linalg.hpp"
+
 #include "mesh/mesh_headers.hpp"
+
 #include "fem/fem.hpp"
+#ifdef MFEM_USE_MOONOLITH
+#include "fem/moonolith/transfer.hpp"
+#endif // MFEM_USE_MOONOLITH
 
 #endif
