@@ -162,7 +162,9 @@ public:
        coefficients. */
    Array<LinearFormIntegrator*> *GetDLFI() { return &domain_integs; }
 
-   /// Access the element attribute marker (of length mesh->attributes)
+   /** @brief Access all boundary markers added with AddDomainIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetDLFI_Marker() { return &domain_integs_marker; }
 
    /** @brief Access all integrators added with AddDomainIntegrator() which are
