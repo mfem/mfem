@@ -326,6 +326,12 @@ int Jit::ThreadCompile(const char *argv[], const int n, const char *src,
    // however we would loose the input source from stdin and memory compilation
    static bool initialized = false;
    if (!initialized) { Jit::Init(); initialized = true;}
+#else
+   if (!Mpi::IsInitialized())
+   {
+      static bool initialized = false;
+      if (!initialized) { Jit::Init(); initialized = true;}
+   }
 #endif
 
    assert(Jit::Root()); // make sure we are the JIT root
