@@ -313,7 +313,11 @@ static std::string CreateCommandLine(const char *argv[])
 int Jit::ThreadSystem(const char *argv[])
 {
    // #warning should use the JIT thread
-   if (Jit::Root()) { ::system(CreateCommandLine(argv).c_str()); }
+   if (Jit::Root())
+   {
+      int status = ::system(CreateCommandLine(argv).c_str());
+      assert(status == EXIT_SUCCESS);
+   }
    Jit::Sync();
    return EXIT_SUCCESS;
 }
