@@ -601,7 +601,7 @@ L2_TetrahedronElement::L2_TetrahedronElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::TETRAHEDRON, ((p + 1)*(p + 2)*(p + 3))/6,
                         p, FunctionSpace::Pk)
 {
-   const double *op = poly1d.OpenPoints(p, VerifyNodal(VerifyOpen(btype)));
+   const double *op = poly1d.OpenPoints(p, VerifyOpen(btype));
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
