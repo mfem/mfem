@@ -116,7 +116,7 @@ double reactor(const Vector &x)
 
    double r1 = 0.2;
    double r2 = 1.0;
-   double in_trapezium_val = in_trapezium(x,0.05, 0.1, r2-r1);
+   double in_trapezium_val = in_trapezium(x, 0.05, 0.1, r2-r1);
 
    double return_val = max(in_circle1_val, in_trapezium_val);
 
@@ -468,7 +468,7 @@ void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
          }
          else
          {
-            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 3);
+            pmesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 4);
          }
       }
       else if (dim == 3)

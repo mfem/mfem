@@ -133,6 +133,7 @@ protected:
    mutable double surf_fit_err_avg, surf_fit_err_max;
    mutable bool update_surf_fit_coeff = false;
    double surf_fit_max_threshold = -1.0;
+   double surf_fit_rel_change_threshold = 0.0;
    double surf_fit_scale_factor = 0.0;
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
@@ -214,19 +215,29 @@ public:
 
    /** @name Methods for adaptive surface fitting weight. (Experimental) */
    /// Enable/Disable adaptive surface fitting weight.
-   /// The weight is modified after each TMOPNewtonSolver iteration.
-   void EnableAdaptiveSurfaceFitting() { surf_fit_scale_factor = 10.0; }
+   /// The weight is modified after each TMOPNewtonSolver iteration as:
+   /// w_{k+1} = w_{k} * @surf_fit_scale_factor if relative change in
+   /// max surface fitting error < @surf_fit_rel_change_threshold.
+   /// The solver terminates if the maximum surface fitting error does
+   /// not sufficiently decrease for @max_adapt_inc_count consecutive
+   /// solver iterations or if the max error falls below @surf_fit_max_threshold.
+   void EnableAdaptiveSurfaceFitting()
+   {
+      surf_fit_scale_factor = 10.0;
+      surf_fit_rel_change_threshold = 0.01;
+   }
    void SetAdaptiveSurfaceFittingScalingFactor(double factor)
    {
       surf_fit_scale_factor = factor;
+   }
+   void SetAdaptiveSurfaceFittingRelativeChangeThreshold(double threshold)
+   {
+      surf_fit_rel_change_threshold = threshold;
    }
    void SetMaxNumberofIncrementsForAdaptiveFitting(int count)
    {
       max_adapt_inc_count = count;
    }
-
-   /// Set the termination criterion for mesh optimization based on
-   /// the maximum surface fitting error.
    void SetTerminationWithMaxSurfaceFittingError(double max_error)
    {
       surf_fit_max_threshold = max_error;
