@@ -13,7 +13,7 @@
 
 #include "fe_l2.hpp"
 #include "fe_h1.hpp"
-#include "../eltrans.hpp"
+#include "../coefficient.hpp"
 
 namespace mfem
 {
@@ -212,18 +212,18 @@ void L2_QuadrilateralElement::ProjectDiv(const FiniteElement &fe,
                IntegrationPoint ip = ir[iq];
                ip.x = gll_pts[ix] + hx*ip.x;
                ip.y = gll_pts[iy] + hy*ip.y;
-               ip.weight *= hx*hy;
-
+               Trans.SetIntPoint(&ip);
                fe.CalcDivShape(ip, div_shape);
-
                double w = ip.weight;
                if (map_type == VALUE)
                {
-                  Trans.SetIntPoint(&ip);
                   const double detJ = Trans.Weight();
                   w /= detJ;
                }
-
+               else if (map_type == INTEGRAL)
+               {
+                  w *= hx*hy;
+               }
                for (int j = 0; j < fe_ndof; j++)
                {
                   const double div_j = div_shape(j);
@@ -245,6 +245,48 @@ void L2_QuadrilateralElement::ProjectDiv(const FiniteElement &fe,
    {
       // Fall back on standard nodal interpolation
       NodalFiniteElement::ProjectDiv(fe, Trans, div);
+   }
+}
+
+void L2_QuadrilateralElement::Project(Coefficient &coeff,
+                                      ElementTransformation &Trans,
+                                      Vector &dofs) const
+{
+   if (basis1d.IsIntegratedType())
+   {
+      const IntegrationRule &ir = IntRules.Get(geom_type, order);
+      const double *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
+
+      dofs = 0.0;
+      // Loop over subcells
+      for (int iy = 0; iy < order+1; ++iy)
+      {
+         double hy = gll_pts[iy+1] - gll_pts[iy];
+         for (int ix = 0; ix < order+1; ++ix)
+         {
+            const int i = ix + iy*(order+1);
+            double hx = gll_pts[ix+1] - gll_pts[ix];
+            // Loop over subcell quadrature points
+            for (int iq = 0; iq < ir.Size(); ++iq)
+            {
+               IntegrationPoint ip = ir[iq];
+               ip.x = gll_pts[ix] + hx*ip.x;
+               ip.y = gll_pts[iy] + hy*ip.y;
+               Trans.SetIntPoint(&ip);
+               double val = coeff.Eval(Trans, ip);
+               double w = ip.weight;
+               if (map_type == INTEGRAL)
+               {
+                  w *= hx*hy*Trans.Weight();
+               }
+               dofs[i] += val*w;
+            }
+         }
+      }
+   }
+   else
+   {
+      NodalFiniteElement::Project(coeff, Trans, dofs);
    }
 }
 
@@ -433,18 +475,18 @@ void L2_HexahedronElement::ProjectDiv(const FiniteElement &fe,
                   ip.x = gll_pts[ix] + hx*ip.x;
                   ip.y = gll_pts[iy] + hy*ip.y;
                   ip.z = gll_pts[iz] + hz*ip.z;
-                  ip.weight *= hx*hy*hz;
-
+                  Trans.SetIntPoint(&ip);
                   fe.CalcDivShape(ip, div_shape);
-
                   double w = ip.weight;
                   if (map_type == VALUE)
                   {
-                     Trans.SetIntPoint(&ip);
                      const double detJ = Trans.Weight();
                      w /= detJ;
                   }
-
+                  else if (map_type == INTEGRAL)
+                  {
+                     w *= hx*hy*hz;
+                  }
                   for (int j = 0; j < fe_ndof; j++)
                   {
                      const double div_j = div_shape(j);
@@ -470,6 +512,53 @@ void L2_HexahedronElement::ProjectDiv(const FiniteElement &fe,
    }
 }
 
+void L2_HexahedronElement::Project(Coefficient &coeff,
+                                   ElementTransformation &Trans,
+                                   Vector &dofs) const
+{
+   if (basis1d.IsIntegratedType())
+   {
+      const IntegrationRule &ir = IntRules.Get(geom_type, order);
+      const double *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
+
+      dofs = 0.0;
+      // Loop over subcells
+      for (int iz = 0; iz < order+1; ++iz)
+      {
+         double hz = gll_pts[iz+1] - gll_pts[iz];
+         for (int iy = 0; iy < order+1; ++iy)
+         {
+            double hy = gll_pts[iy+1] - gll_pts[iy];
+            for (int ix = 0; ix < order+1; ++ix)
+            {
+               double hx = gll_pts[ix+1] - gll_pts[ix];
+               const int i = ix + iy*(order+1) + iz*(order+1)*(order+1);
+               // Loop over subcell quadrature points
+               for (int iq = 0; iq < ir.Size(); ++iq)
+               {
+                  IntegrationPoint ip = ir[iq];
+                  ip.x = gll_pts[ix] + hx*ip.x;
+                  ip.y = gll_pts[iy] + hy*ip.y;
+                  ip.z = gll_pts[iz] + hz*ip.z;
+                  Trans.SetIntPoint(&ip);
+                  double val = coeff.Eval(Trans, ip);
+                  double w = ip.weight;
+                  if (map_type == INTEGRAL)
+                  {
+                     const double detJ = Trans.Weight();
+                     w *= detJ*hx*hy*hz;
+                  }
+                  dofs[i] += val*w;
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+      NodalFiniteElement::Project(coeff, Trans, dofs);
+   }
+}
 
 
 L2_TriangleElement::L2_TriangleElement(const int p, const int btype)

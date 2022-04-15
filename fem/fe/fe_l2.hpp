@@ -58,6 +58,8 @@ public:
    virtual void ProjectDiv(const FiniteElement &fe,
                            ElementTransformation &Trans,
                            DenseMatrix &div) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 
@@ -80,6 +82,8 @@ public:
    virtual void ProjectDiv(const FiniteElement &fe,
                            ElementTransformation &Trans,
                            DenseMatrix &div) const;
+   virtual void Project(Coefficient &coeff,
+                        ElementTransformation &Trans, Vector &dofs) const;
 };
 
 
