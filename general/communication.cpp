@@ -46,7 +46,7 @@ void Mpi::Init_(int *argc, char ***argv)
 #ifndef MFEM_USE_JIT
    MPI_Init(argc, argv);
 #else
-   Jit::JIT_Init(argc, argv);
+   Jit::Init(argc, argv);
 #endif
    // The "mpi" object below needs to be created after MPI_Init()
    // for some MPI implementations
