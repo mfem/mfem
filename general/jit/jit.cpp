@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../config/config.hpp"
+
+#ifdef MFEM_USE_JIT
 #include <regex>
 #include <thread>
 #include <cstdio>
@@ -19,12 +22,11 @@
 #include <algorithm>
 
 #include <fcntl.h>
-#include <sys/select.h>
+#include <sys/select.h> // not available with _MSC_VER
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
 
-#include "../../config/config.hpp"
 #include "../communication.hpp"
 #include "../globals.hpp"
 #include "../error.hpp"
@@ -506,3 +508,4 @@ int Jit::GetRuntimeVersion(bool increment)
 
 } // namespace mfem
 
+#endif // MFEM_USE_JIT

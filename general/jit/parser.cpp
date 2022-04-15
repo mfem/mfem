@@ -9,13 +9,16 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../config/config.hpp"
+
+#ifdef MFEM_USE_JIT
+
 #include <list>
 #include <string>
 #include <iostream>
 #include <algorithm>
 
 #include "jit.hpp"
-#include "../../config/config.hpp"
 
 #define MFEM_JIT_STR(...) #__VA_ARGS__
 #define MFEM_JIT_STRINGIFY(...) MFEM_JIT_STR(__VA_ARGS__)
@@ -615,3 +618,4 @@ int preprocess(std::istream &in, std::ostream &out, std::string &file)
 
 } // namespace mfem
 
+#endif // MFEM_USE_JIT

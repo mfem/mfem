@@ -81,10 +81,10 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       auto C = Reshape(coeff.HostWrite(), nq, ne);
       for (int e = 0; e < ne; ++e)
       {
-         ElementTransformation &Tr = *fes.GetElementTransformation(e);
+         ElementTransformation& T = *fes.GetElementTransformation(e);
          for (int q = 0; q < nq; ++q)
          {
-            C(q,e) = Q->Eval(Tr, ir->IntPoint(q));
+            C(q,e) = Q->Eval(T, ir->IntPoint(q));
          }
       }
    }

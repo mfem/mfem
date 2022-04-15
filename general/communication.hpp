@@ -96,6 +96,7 @@ public:
    bool Root() const { return Mpi::Root(); }
 };
 
+
 /** The shared entities (e.g. vertices, faces and edges) are split into groups,
     each group determined by the set of participating processors. They are
     numbered locally in lproc. Assumptions:
@@ -540,8 +541,8 @@ struct VarMessage
    }
 
 protected:
-   virtual void Encode(int rank) { MFEM_CONTRACT_VAR(rank); }
-   virtual void Decode(int rank) { MFEM_CONTRACT_VAR(rank); }
+   virtual void Encode(int rank) {}
+   virtual void Decode(int rank) {}
 };
 
 

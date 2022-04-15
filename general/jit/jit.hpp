@@ -12,12 +12,16 @@
 #ifndef MFEM_JIT_HPP
 #define MFEM_JIT_HPP
 
+#include "../../config/config.hpp"
+
+#ifdef MFEM_USE_JIT
+
 #include <string>
 #include <cstring> // strlen, memcpy, strncmp
 #include <cassert>
 #include <climits>
 
-#include <dlfcn.h> // for dlsym dlopen and dlclose
+#include <dlfcn.h> // for dlsym dlopen and dlclose, not available with _MSC_VER
 #include <unistd.h> // for unlink
 
 // main and cache library name
@@ -281,5 +285,7 @@ public:
 } // namespace jit
 
 } // namespace mfem
+
+#endif // MFEM_USE_JIT
 
 #endif // MFEM_JIT_HPP
