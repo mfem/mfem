@@ -1499,10 +1499,8 @@ int SparseMatrix::NumNonZeroElems() const
 
    if ( Finalized() )
    {
-      Memory<int> nnz_mem(I, height, 1);
-      const int nnz = *nnz_mem.Read(MemoryClass::HOST, 1);
-      nnz_mem.Delete();
-      return nnz;
+      HostReadI();
+      return I[height];
    }
    else
    {
