@@ -21,7 +21,7 @@
 
 #define MFEM_JIT
 #ifdef MFEM_USE_JIT
-#include "../general/jit/jit.hpp"
+#include "jit/jit.hpp"
 #endif
 
 namespace mfem

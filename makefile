@@ -359,7 +359,7 @@ MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
  MFEM_INC_DIR MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_FLAGS MFEM_LIB_DIR\
  MFEM_EXT_LIBS MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG\
  MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP\
- MFEM_TEST_MK MFEM_BIN_DIR
+ MFEM_TEST_MK
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -374,7 +374,6 @@ MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
-MFEM_BIN_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_INC_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_LIB_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
@@ -400,7 +399,6 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    endif
    # Allow changing the PREFIX during install with: make install PREFIX=<dir>
    PREFIX := $(MFEM_PREFIX)
-	PREFIX_BIN   := $(PREFIX)/bin
    PREFIX_INC   := $(PREFIX)/include
    PREFIX_LIB   := $(PREFIX)/lib
    PREFIX_SHARE := $(PREFIX)/share/mfem
@@ -416,7 +414,6 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
       endif
    endif
    MFEM_PREFIX := $(abspath $(PREFIX))
-	MFEM_BIN_DIR = $(abspath $(PREFIX_BIN))
    MFEM_INC_DIR = $(abspath $(PREFIX_INC))
    MFEM_LIB_DIR = $(abspath $(PREFIX_LIB))
    MFEM_TEST_MK = $(abspath $(PREFIX_SHARE)/test.mk)
@@ -755,7 +752,6 @@ status info:
 	$(info MFEM_LIB_FILE          = $(value MFEM_LIB_FILE))
 	$(info MFEM_BUILD_TAG         = $(value MFEM_BUILD_TAG))
 	$(info MFEM_PREFIX            = $(value MFEM_PREFIX))
-	$(info MFEM_BIN_DIR           = $(value MFEM_BIN_DIR))
 	$(info MFEM_INC_DIR           = $(value MFEM_INC_DIR))
 	$(info MFEM_LIB_DIR           = $(value MFEM_LIB_DIR))
 	$(info MFEM_STATIC            = $(MFEM_STATIC))

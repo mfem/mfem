@@ -13,6 +13,7 @@
 #define MFEM_JIT_HPP
 
 #include <string>
+#include <cstring> // strlen, memcpy, strncmp
 #include <cassert>
 #include <climits>
 
@@ -41,6 +42,9 @@ struct Jit
 
    /// Return true if the rank in MPI_COMM_WORLD is zero.
    static bool Root();
+
+   /// Return the MPI rank in MPI_COMM_WORLD.
+   static int Rank();
 
    /// Return the size of MPI_COMM_WORLD.
    static int Size();

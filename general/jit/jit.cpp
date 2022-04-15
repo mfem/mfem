@@ -48,7 +48,8 @@ static struct
 {
    pid_t pid;
    uintptr_t pagesize;
-   int *ack, *isz, *osz; // status, source length, obj size
+   int *ack;
+   size_t *isz, *osz; // status, source length, obj size
    char *cmd, *src, *obj; // command, source, *obj
 } Smem;
 
@@ -82,7 +83,7 @@ static void CloseAndWait(int fd)
 
 /// In-memory compilation
 static int CompileInMemory(const char *cmd, const int isz, const char *src,
-                           char *obj, int *osz)
+                           char *obj, size_t *osz)
 {
    // input, output and error pipes
    int ip[2], op[2], ep[2];
@@ -155,11 +156,10 @@ static int CompileInMemory(const char *cmd, const int isz, const char *src,
       ::close(ep[PIPE_READ]);
    }
    // then get the object from output pipe
-   const int MAX_OBJ_SIZE = OBJ_FACTOR*Smem.pagesize;
    for (*osz = 0; (nr = ::read(op[PIPE_READ], buffer, SIZE)) > 0;)
    {
       *osz += nr;
-      assert(*osz < MAX_OBJ_SIZE);
+      assert(*osz < OBJ_FACTOR*Smem.pagesize);
       ::memcpy(obj + *osz - nr, buffer, nr);
    }
    CloseAndWait(op[PIPE_READ]);
@@ -193,8 +193,8 @@ int Jit::JIT_MPI_Init(int *argc, char ***argv)
 
    //int *status, *n, *size;
    Smem.ack = (int*) Mmap(sizeof(int));
-   Smem.isz = (int*) Mmap(sizeof(int));
-   Smem.osz = (int*) Mmap(sizeof(int));
+   Smem.isz = (size_t*) Mmap(sizeof(size_t));
+   Smem.osz = (size_t*) Mmap(sizeof(size_t));
 
    //char *command, *src, *obj;
    Smem.cmd = (char*) Mmap(Smem.pagesize);
@@ -205,8 +205,13 @@ int Jit::JIT_MPI_Init(int *argc, char ***argv)
 
    if ((Smem.pid = ::fork()) != 0) // parent
    {
+#ifdef MFEM_USE_MPI
       ::MPI_Init(argc, argv); // from mpi.h
-      *Smem.ack = Mpi::WorldRank(); // inform the child about the rank
+#else
+      MFEM_CONTRACT_VAR(argc);
+      MFEM_CONTRACT_VAR(argv);
+#endif
+      *Smem.ack = Jit::Rank(); // inform the child about the rank
       AckNE(); // wait for the child to acknowledge
    }
    else // JIT compiler child process
@@ -224,9 +229,7 @@ int Jit::JIT_MPI_Init(int *argc, char ***argv)
             AckEQ(); // waiting for somebody to wake us...
             if (*Smem.ack == COMPILE)
             {
-               int rtn = CompileInMemory(Smem.cmd, *Smem.isz, Smem.src,
-                                         Smem.obj, Smem.osz);
-               assert(rtn == EXIT_SUCCESS);
+               CompileInMemory(Smem.cmd, *Smem.isz, Smem.src, Smem.obj, Smem.osz);
             }
             if (*Smem.ack == EXIT) { return;}
             *Smem.ack = ACK; // send back ACK
@@ -244,7 +247,7 @@ int Jit::JIT_MPI_Init(int *argc, char ***argv)
 void Jit::Finalize()
 {
    assert(*Smem.ack == ACK); // Parent finalize error!
-   if (Mpi::Root())
+   if (Jit::Root())
    {
       int status;
       //dbg("[mpi:0] send thd:0 exit");
@@ -261,13 +264,15 @@ void Jit::Finalize()
    if (::munmap(Smem.obj, OBJ_FACTOR*Smem.pagesize) != 0) { assert(false); }
 }
 
-bool Jit::Root()
+bool Jit::Root() { return Rank() == 0; }
+
+int Jit::Rank()
 {
    int world_rank = 0;
 #ifdef MFEM_USE_MPI
    if (Mpi::IsInitialized()) { world_rank = Mpi::WorldRank(); }
 #endif
-   return world_rank == 0;
+   return world_rank;
 }
 
 int Jit::Size()
@@ -315,7 +320,7 @@ int Jit::ThreadSystem(const char *argv[])
 int Jit::ThreadCompile(const char *argv[], const int n, const char *src,
                        char *&obj, size_t &size)
 {
-   assert(Mpi::Root()); // make sure we are the MPI root
+   assert(Jit::Root()); // make sure we are the JIT root
 
    const std::string cmd = CreateCommandLine(argv);
    const char *cmd_c_str = cmd.c_str();
@@ -453,7 +458,7 @@ int Jit::RootCompile(const int n, char *src, const char *co,
    Jit::Sync();
 
    // Update archive
-   const char *argv_ar[] = { "ar", "-rv", lib_ar, co, nullptr };
+   const char *argv_ar[] = { "ar", "-r", lib_ar, co, nullptr };
    if (Jit::ThreadSystem(argv_ar)) { return EXIT_FAILURE; }
    ::unlink(co);
 
