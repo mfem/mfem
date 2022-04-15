@@ -216,10 +216,17 @@ int main(int argc, char *argv[])
       HypreBoomerAMG * prec = new HypreBoomerAMG;
       prec->SetPrintLevel(-1);
 
+
+      int print_level = (col_rank==0) ? 3 : 0;
+      if (Mpi::Root())
+      {
+         mfem::out<< "\nMPI rank " <<  myid <<": Solving PDE -Δ u + "<<-poles[i]<<
+                  " u = " << coeffs[i] << " f " << endl;
+      }
       CGSolver cg(row_comm);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
-      cg.SetPrintLevel(2);
+      cg.SetPrintLevel(print_level);
       cg.SetPreconditioner(*prec);
       cg.SetOperator(*A);
       cg.Mult(B, X);
