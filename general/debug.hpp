@@ -118,9 +118,9 @@ public:
                           int COLOR = 0)
    {
       // if we have forked, we need to refresh these setup values
-      /*static*/ int mpi_dbg = 0, mpi_rank = -1;
-      /*static*/ bool env_mpi = false, env_dbg = false;
-      /*static*/ bool ini_dbg = false;
+      static int mpi_dbg = 0, mpi_rank = -1;
+      static bool env_mpi = false, env_dbg = false;
+      static bool ini_dbg = false;
       if (!ini_dbg)
       {
          const char *DBG = getenv("MFEM_DEBUG");

@@ -33,9 +33,6 @@
 #include "jit/jit.hpp"
 #endif
 
-#define MFEM_DEBUG_COLOR 206
-#include "debug.hpp"
-
 #include <functional>
 
 using namespace std;
@@ -49,7 +46,7 @@ void Mpi::Init_(int *argc, char ***argv)
 #ifndef MFEM_USE_JIT
    MPI_Init(argc, argv);
 #else
-   Jit::JIT_MPI_Init(argc, argv);
+   Jit::JIT_Init(argc, argv);
 #endif
    // The "mpi" object below needs to be created after MPI_Init()
    // for some MPI implementations

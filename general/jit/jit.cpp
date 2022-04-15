@@ -176,7 +176,7 @@ using namespace jit;
  * @param argv
  * @return
  */
-int Jit::JIT_MPI_Init(int *argc, char ***argv)
+int Jit::Init(int *argc, char ***argv)
 {
    Smem.pagesize = (uintptr_t) sysconf(_SC_PAGE_SIZE);
 
@@ -191,22 +191,20 @@ int Jit::JIT_MPI_Init(int *argc, char ***argv)
       }
    } Mmap;
 
-   //int *status, *n, *size;
    Smem.ack = (int*) Mmap(sizeof(int));
    Smem.isz = (size_t*) Mmap(sizeof(size_t));
    Smem.osz = (size_t*) Mmap(sizeof(size_t));
 
-   //char *command, *src, *obj;
    Smem.cmd = (char*) Mmap(Smem.pagesize);
    Smem.src = (char*) Mmap(SRC_FACTOR*Smem.pagesize);
    Smem.obj = (char*) Mmap(OBJ_FACTOR*Smem.pagesize);
 
-   *Smem.ack = jit::ACK; // flush state
+   *Smem.ack = jit::ACK; // initialize state
 
    if ((Smem.pid = ::fork()) != 0) // parent
    {
 #ifdef MFEM_USE_MPI
-      ::MPI_Init(argc, argv); // from mpi.h
+      ::MPI_Init(argc, argv);
 #else
       MFEM_CONTRACT_VAR(argc);
       MFEM_CONTRACT_VAR(argv);
@@ -216,7 +214,7 @@ int Jit::JIT_MPI_Init(int *argc, char ***argv)
    }
    else // JIT compiler child process
    {
-      assert(*Smem.ack == ACK); // Child init error
+      //assert(*Smem.ack == ACK); // Child init error
       AckEQ(); // wait for parent's rank
 
       const int rank = *Smem.ack;
@@ -246,6 +244,7 @@ int Jit::JIT_MPI_Init(int *argc, char ***argv)
 
 void Jit::Finalize()
 {
+   dbg();
    assert(*Smem.ack == ACK); // Parent finalize error!
    if (Jit::Root())
    {
@@ -320,6 +319,15 @@ int Jit::ThreadSystem(const char *argv[])
 int Jit::ThreadCompile(const char *argv[], const int n, const char *src,
                        char *&obj, size_t &size)
 {
+#ifndef MFEM_USE_MPI
+   // In serial mode, JIT/MPI has not been initialized: do it once here
+   // The Finalized is not done yet in serial!
+   // Maybe foldback to standard ::system call here,
+   // however we would loose the input source from stdin and memory compilation
+   static bool initialized = false;
+   if (!initialized) { Jit::Init(); initialized = true;}
+#endif
+
    assert(Jit::Root()); // make sure we are the JIT root
 
    const std::string cmd = CreateCommandLine(argv);
@@ -331,7 +339,7 @@ int Jit::ThreadCompile(const char *argv[], const int n, const char *src,
    ::memcpy(Smem.cmd, cmd_c_str, std::strlen(cmd_c_str));
 
    // write the src in shared mem
-   assert(n == static_cast<int>(1+std::strlen(src)));
+   assert(n == static_cast<int>(1 + std::strlen(src)));
    assert(n < static_cast<int>(SRC_FACTOR*Smem.pagesize));
    ::memcpy(Smem.src, src, n);
 
@@ -458,7 +466,7 @@ int Jit::RootCompile(const int n, char *src, const char *co,
    Jit::Sync();
 
    // Update archive
-   const char *argv_ar[] = { "ar", "-r", lib_ar, co, nullptr };
+   const char *argv_ar[] = { "ar", "-rv", lib_ar, co, nullptr };
    if (Jit::ThreadSystem(argv_ar)) { return EXIT_FAILURE; }
    ::unlink(co);
 

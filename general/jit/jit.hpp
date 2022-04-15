@@ -34,8 +34,9 @@ namespace mfem
 
 struct Jit
 {
-   /// Initialize JIT and MPI
-   static int JIT_MPI_Init(int *argc, char ***argv);
+   /// Initialize JIT (and MPI, depending on the configuration)
+   static int Init(int *argc, char ***argv);
+   static int Init() { return Init(nullptr, nullptr); }
 
    /// Finalize JIT
    static void Finalize();
@@ -209,7 +210,6 @@ inline void *Handle(const char */*name*/, const size_t hash, Args... args)
    const int rt_version = Jit::GetRuntimeVersion();
    const bool first_compilation = (rt_version == 0);
    char so_name_n[PM], symbol[MFEM_JIT_SYMBOL_SIZE];
-   //constexpr const char *ar_name = "./lib" MFEM_JIT_LIB_NAME ".a";
    constexpr const char *so_name = "./lib" MFEM_JIT_LIB_NAME ".so";
    snprintf(so_name_n, PM, "lib%s.so.%d", MFEM_JIT_LIB_NAME, rt_version);
    const char *so_lib = first_compilation ? so_name : so_name_n;
@@ -235,7 +235,8 @@ inline void *Handle(const char */*name*/, const size_t hash, Args... args)
    }
    assert(handle); // we should again have a handle
    assert(::dlsym(handle, symbol)); // we should have the symbol
-   ::unlink(so_name_n);
+   ::unlink(so_name_n); // remove the so libs after use, (could be kept)
+   ::unlink(so_name); // remove the so lib after use, (could be kept)
    return handle;
 }
 
