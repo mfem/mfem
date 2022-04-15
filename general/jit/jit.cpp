@@ -84,7 +84,6 @@ static void CloseAndWait(int fd)
 static int CompileInMemory(const char *cmd, const int isz, const char *src,
                            char *obj, int *osz)
 {
-   dbg(cmd);
    // input, output and error pipes
    int ip[2], op[2], ep[2];
    constexpr size_t PIPE_READ = 0;
@@ -110,13 +109,8 @@ static int CompileInMemory(const char *cmd, const int isz, const char *src,
       ::close(ep[PIPE_READ]);   // no longer needed
       ::close(ep[PIPE_WRITE]);  // no longer needed
 
-      /* The system() function returns the exit status of the shell as
-       *  returned by waitpid(2), or -1 if an error occurred when invoking
-       *  fork(2) or waitpid(2).
-       *  A return value of 127  means the execution of the shell failed. */
       const int status = std::system(cmd);
-      assert(status == EXIT_SUCCESS);
-      return status;
+      return (assert(status == EXIT_SUCCESS), status);
    }
 
    // Parent process
@@ -241,7 +235,7 @@ int Jit::JIT_MPI_Init(int *argc, char ***argv)
 
       // only root is kept for compilation
       if (rank == 0) { std::thread (work).join(); }
-      dbg("[thd:%d] EXIT_SUCCESS",rank);
+      //dbg("[thd:%d] EXIT_SUCCESS",rank);
       exit(EXIT_SUCCESS);
    }
    return EXIT_SUCCESS;
@@ -253,7 +247,7 @@ void Jit::Finalize()
    if (Mpi::Root())
    {
       int status;
-      dbg("[mpi:0] send thd:0 exit");
+      //dbg("[mpi:0] send thd:0 exit");
       ThreadExit();
       ::waitpid(Smem.pid, &status, WUNTRACED | WCONTINUED);
       assert(status == 0); // Error with JIT compiler thread!
@@ -312,11 +306,9 @@ static std::string CreateCommandLine(const char *argv[])
 
 int Jit::ThreadSystem(const char *argv[])
 {
-   dbg();
    // #warning should use the JIT thread
    if (Jit::Root()) { ::system(CreateCommandLine(argv).c_str()); }
    Jit::Sync();
-   dbg("done");
    return EXIT_SUCCESS;
 }
 
@@ -327,7 +319,7 @@ int Jit::ThreadCompile(const char *argv[], const int n, const char *src,
 
    const std::string cmd = CreateCommandLine(argv);
    const char *cmd_c_str = cmd.c_str();
-   dbg(cmd_c_str);
+   //dbg(cmd_c_str);
 
    // write the command in shared mem
    assert(std::strlen(cmd_c_str) < Smem.pagesize);
