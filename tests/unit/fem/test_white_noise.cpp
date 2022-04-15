@@ -206,7 +206,8 @@ TEST_CASE("Parallel WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh",
       a.FormSystemMatrix(empty,M);
 
       // Compare population covariance to mass matrix
-      HypreParMatrix * diff = Add(1., *ParC, -1., M);
+      M *= -1.;
+      HypreParMatrix * diff = ParAdd(ParC, &M);
 
       SparseMatrix diag, offd;
       diff->GetDiag(diag);
