@@ -17,6 +17,9 @@
 #include "jit.hpp"
 #include "../../config/config.hpp"
 
+#define MFEM_JIT_STR(...) #__VA_ARGS__
+#define MFEM_JIT_STRINGIFY(...) MFEM_JIT_STR(__VA_ARGS__)
+
 namespace mfem
 {
 
@@ -328,8 +331,8 @@ void JitTokenPrefix(context_t &pp)
 void JitTokenArgsString(context_t &pp)
 {
    assert(pp.ker.is_jit);
-   pp.ker.mfem_jit_cxx = "\"" MFEM_JIT_CXX "\"";
-   pp.ker.mfem_jit_build_flags = "\"" MFEM_JIT_BUILD_FLAGS "\"";
+   pp.ker.mfem_jit_cxx = MFEM_JIT_STRINGIFY(MFEM_JIT_CXX);
+   pp.ker.mfem_jit_build_flags = MFEM_JIT_STRINGIFY(MFEM_JIT_BUILD_FLAGS);
    pp.ker.mfem_source_dir = MFEM_SOURCE_DIR;
    pp.ker.mfem_install_dir = MFEM_INSTALL_DIR;
    pp.ker.Targs.clear();
