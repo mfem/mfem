@@ -123,7 +123,7 @@ static int CompileInMemory(const char *cmd, const size_t isz, const char *src,
 
    // write all the source present in memory to the 'input' pipe
    size_t ni_w = ::write(ip[PIPE_WRITE], src, isz-1);
-   assert(ni_w == isz - 1);
+   if (ni_w != isz - 1) { return EXIT_FAILURE; }
    ::close(ip[PIPE_WRITE]);
 
    char buffer[1<<16];
@@ -145,7 +145,7 @@ static int CompileInMemory(const char *cmd, const size_t isz, const char *src,
          while ((nr = ::read(ep[PIPE_READ], buffer, SIZE)) > 0)
          {
             size_t nr_w = ::write(STDOUT_FILENO, buffer, nr);
-            assert(nr_w == nr);
+            if (nr_w != nr) { return EXIT_FAILURE; }
             ne += nr;
          }
          ::close(ep[PIPE_READ]);
@@ -316,7 +316,7 @@ int Jit::ThreadSystem(const char *argv[])
    if (Jit::Root())
    {
       int status = ::system(CreateCommandLine(argv).c_str());
-      assert(status == EXIT_SUCCESS);
+      if (status != EXIT_SUCCESS) { return EXIT_FAILURE; }
    }
    Jit::Sync();
    return EXIT_SUCCESS;
