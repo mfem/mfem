@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
       CGSolver cg(row_comm);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
-      cg.SetPrintLevel(0);
+      cg.SetPrintLevel(2);
       cg.SetPreconditioner(*prec);
       cg.SetOperator(*A);
       cg.Mult(B, X);

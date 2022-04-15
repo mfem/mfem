@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
 
       // 13. Solve the linear system A X = B.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, -1, 200, 1e-12, 0.0);
+      PCG(*A, M, B, X, 2, 200, 1e-12, 0.0);
 
       // 14. Recover the solution as a finite element grid function.
       a.RecoverFEMSolution(X, b, x);
