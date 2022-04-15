@@ -881,11 +881,15 @@ static void PADiffusionAssembleDiagonal(const int dim,
                                         const int Q1D,
                                         const int NE,
                                         const bool symm,
-                                        const Array<double> &B,
-                                        const Array<double> &G,
-                                        const Vector &D,
-                                        Vector &Y)
+                                        const Array<double> &b,
+                                        const Array<double> &g,
+                                        const Vector &d,
+                                        Vector &y)
 {
+   const auto B = b.Read();
+   const auto G = g.Read();
+   const auto D = d.Read();
+   auto Y = y.ReadWrite();
 #ifndef MFEM_USE_JIT
    if (dim == 2)
    {
@@ -899,7 +903,7 @@ static void PADiffusionAssembleDiagonal(const int dim,
          case 0x77: return SmemPADiffusionDiagonal2D<7,7,2>(NE,symm,B,G,D,Y);
          case 0x88: return SmemPADiffusionDiagonal2D<8,8,1>(NE,symm,B,G,D,Y);
          case 0x99: return SmemPADiffusionDiagonal2D<9,9,1>(NE,symm,B,G,D,Y);
-         default: return PADiffusionDiagonal2D(NE,symm,B,G,D,Y,D1D,Q1D);
+         default: return PADiffusionDiagonal2D(NE,symm,b,g,d,y,D1D,Q1D);
       }
    }
    else if (dim == 3)
@@ -916,7 +920,7 @@ static void PADiffusionAssembleDiagonal(const int dim,
          case 0x78: return SmemPADiffusionDiagonal3D<7,8>(NE,symm,B,G,D,Y);
          case 0x89: return SmemPADiffusionDiagonal3D<8,9>(NE,symm,B,G,D,Y);
          case 0x9A: return SmemPADiffusionDiagonal3D<9,10>(NE,symm,B,G,D,Y);
-         default: return PADiffusionDiagonal3D(NE,symm,B,G,D,Y,D1D,Q1D);
+         default: return PADiffusionDiagonal3D(NE,symm,b,g,d,y,D1D,Q1D);
       }
    }
 #else // MFEM_USE_JIT
