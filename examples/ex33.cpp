@@ -159,7 +159,10 @@ int main(int argc, char *argv[])
 
       // 13. Solve the linear system A X = B.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 2, 200, 1e-12, 0.0);
+
+      mfem::out<< "\nSolving PDE -Δ u + "<<-poles[i]<< " u = " << coeffs[i] << " f "
+               << endl;
+      PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
 
       // 14. Recover the solution as a finite element grid function.
       a.RecoverFEMSolution(X, b, x);
