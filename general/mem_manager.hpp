@@ -124,9 +124,9 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
     - Copy constructor and assignement copy flags. This may result in two Memory
       objects owning the data which is an invalid state. This invalid state MUST
       be resolved by users manually using SetHostPtrOwner(),
-      SetDevicePtrOwner(), or ClearOwnerFlags(). One can also just NOT use
-      Delete() on one of the two Memory objects, however this is discouraged
-      since ownership can be tracked by internal flags.
+      SetDevicePtrOwner(), or ClearOwnerFlags(). It is also possible to call
+      Delete() on only one of the two Memory objects, however this is
+      discouraged because it bypasses the internal ownership flags.
     - When moving or copying (between host and device) alias Memory objects
       and/or their base Memory objects, the consistency of memory flags have
       to be manually taken care of using either Sync() or SyncAlias(). Failure
