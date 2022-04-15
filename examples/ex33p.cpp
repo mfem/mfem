@@ -98,11 +98,12 @@ int main(int argc, char *argv[])
    }
 
    Array<double> coeffs, poles;
-   // 3. Compute the coefficients that define the integer-order PDEs.
+   // 2. Compute the coefficients that define the integer-order PDEs.
    ComputePartialFractionApproximation(alpha,coeffs,poles);
 
    int num_par_solves;
-   for (num_par_solves=num_procs/2; num_par_solves>0; num_par_solves--)
+   int max_par_solves = max(1,num_procs/2);
+   for (num_par_solves=max_par_solves; num_par_solves>0; num_par_solves--)
    {
       if (num_procs%num_par_solves==0 && num_par_solves<coeffs.Size())
       {
@@ -113,7 +114,7 @@ int main(int argc, char *argv[])
 
    int solver_ranks = num_procs/num_par_solves;
 
-   // 2. Split communicator
+   // 3. Split communicator
    //    row_comm is used for parallel partition of the mesh
    //    col_comm is used for independent integer-order solves
    int row_color = myid / solver_ranks; // Determine color based on row
