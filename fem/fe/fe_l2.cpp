@@ -39,6 +39,7 @@ L2_SegmentElement::L2_SegmentElement(const int p, const int btype)
 void L2_SegmentElement::CalcShape(const IntegrationPoint &ip,
                                   Vector &shape) const
 {
+   basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape);
 }
 
@@ -50,6 +51,7 @@ void L2_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 #else
    dshape_x.SetData(dshape.Data());
 #endif
+   basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape_x, dshape_x);
 }
 
@@ -105,6 +107,7 @@ void L2_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1);
 #endif
 
+   basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape_x);
    basis1d.Eval(ip.y, shape_y);
 
@@ -124,6 +127,7 @@ void L2_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1);
 #endif
 
+   basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape_x, dshape_x);
    basis1d.Eval(ip.y, shape_y, dshape_y);
 
@@ -322,6 +326,7 @@ void L2_HexahedronElement::CalcShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1), shape_z(p+1);
 #endif
 
+   basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape_x);
    basis1d.Eval(ip.y, shape_y);
    basis1d.Eval(ip.z, shape_z);
@@ -344,6 +349,7 @@ void L2_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
    Vector dshape_x(p+1), dshape_y(p+1), dshape_z(p+1);
 #endif
 
+   basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape_x, dshape_x);
    basis1d.Eval(ip.y, shape_y, dshape_y);
    basis1d.Eval(ip.z, shape_z, dshape_z);
