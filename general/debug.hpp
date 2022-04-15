@@ -117,9 +117,10 @@ public:
    static const Debug Set(const char *FILE, const int LINE, const char *FUNC,
                           int COLOR = 0)
    {
-      static int mpi_dbg = 0, mpi_rank = 0;
-      static bool env_mpi = false, env_dbg = false;
-      static bool ini_dbg = false;
+      // if we have forked, we need to refresh these setup values
+      /*static*/ int mpi_dbg = 0, mpi_rank = -1;
+      /*static*/ bool env_mpi = false, env_dbg = false;
+      /*static*/ bool ini_dbg = false;
       if (!ini_dbg)
       {
          const char *DBG = getenv("MFEM_DEBUG");

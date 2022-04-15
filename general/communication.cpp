@@ -28,13 +28,9 @@
 
 #include <iostream>
 #include <map>
-#include <thread>
 
 #ifdef MFEM_USE_JIT
-#include <unistd.h>
-#include <sys/wait.h>
-#include <sys/mman.h>
-#include <sys/types.h>
+#include "jit/jit.hpp"
 #endif
 
 #define MFEM_DEBUG_COLOR 206
@@ -47,67 +43,14 @@ using namespace std;
 namespace mfem
 {
 
-#ifdef MFEM_USE_JIT
-int *jit_state;
-
-pid_t jit_compiler_pid;
-
-static constexpr int ACK = ~0;
-
-template <typename Op> bool Ack(const int check)
-{
-   const long ms = 100L;
-   const struct timespec rqtp = {0, ms*1000000L};
-   while (Op()(*jit_state, check)) { ::nanosleep(&rqtp, nullptr); }
-   return true;
-}
-
-bool AckEQ(const int check = ACK) { return Ack<std::equal_to<int>>(check); }
-
-bool AckNE(const int check = ACK) { return Ack<std::not_equal_to<int>>(check); }
-
-#endif // MFEM_USE_JIT
-
 void Mpi::Init_(int *argc, char ***argv)
 {
    MFEM_VERIFY(!IsInitialized(), "MPI already initialized!")
 #ifndef MFEM_USE_JIT
    MPI_Init(argc, argv);
-#else // MFEM_USE_JIT
-   constexpr int prot = PROT_READ | PROT_WRITE;
-   constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
-
-   // One integer in memory to exchange the status
-   jit_state = (int*) ::mmap(nullptr, sizeof(int), prot, flags, -1, 0);
-   assert(jit_state);
-
-   *jit_state = ACK; // flush state
-
-   if ((jit_compiler_pid = ::fork()) != 0) // parent
-   {
-      MPI_Init(argc, argv);
-      *jit_state = Mpi::WorldRank(); // tell the child which rank we are
-      AckNE(); // wait for the child to acknowledge
-   }
-   else // JIT compiler child
-   {
-      MFEM_VERIFY(*jit_state == ACK, "Child init error!");
-      AckEQ(); // wait for parent's MPI rank
-      const int rank = *jit_state;
-      *jit_state = ACK; // acknowledge
-
-      auto work = [&]()
-      {
-         AckEQ();
-         // could do some work here...
-         *jit_state = ACK;
-      };
-
-      // only root is kept for compilation
-      if (rank == 0) { std::thread (work).join(); }
-      exit(EXIT_SUCCESS);
-   }
-#endif // MFEM_USE_JIT
+#else
+   Jit::JIT_MPI_Init(argc, argv);
+#endif
    // The "mpi" object below needs to be created after MPI_Init()
    // for some MPI implementations
    static Mpi mpi;
@@ -116,17 +59,8 @@ void Mpi::Init_(int *argc, char ***argv)
 Mpi::~Mpi()
 {
 #ifdef MFEM_USE_JIT
-   MFEM_VERIFY(*jit_state == ACK, "Parent finalize error!");
-   if (Root())
-   {
-      int status;
-      *jit_state = 0; // forcing something else than ACK to wake thread
-      AckNE();
-      ::waitpid(jit_compiler_pid, &status, WUNTRACED | WCONTINUED);
-      MFEM_VERIFY(status == 0, "Error with JIT compiler thread!")
-   }
-   if (::munmap(jit_state, sizeof(int)) != 0) { MFEM_ABORT("munmap error!"); }
-#endif // MFEM_USE_JIT
+   Jit::Finalize();
+#endif
    Finalize();
 }
 

@@ -12,38 +12,77 @@
 #ifndef MFEM_JIT_HPP
 #define MFEM_JIT_HPP
 
-#include <cstdio>
-#include <cstring>
+#include <string>
 #include <cassert>
 #include <climits>
-#include <functional>
 
-#include <dlfcn.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
+#include <dlfcn.h> // for dlsym dlopen and dlclose
+#include <unistd.h> // for unlink
 
-#define MFEM_DEBUG_COLOR 118
-#include "../debug.hpp"
-
-#include "tools.hpp"
+// main and cache library name
+#define MFEM_JIT_LIB_NAME "mjit"
 
 // One character used as the kernel prefix
 #define MFEM_JIT_PREFIX_CHAR 'k'
 
-// MFEM_JIT_PREFIX_CHAR + hash size + null character, extra .c[c|o] for the file
+// MFEM_JIT_PREFIX_CHAR + hash size + null character
 #define MFEM_JIT_SYMBOL_SIZE 1 + 16 + 1
-#define MFEM_JIT_FILENAME_SIZE (MFEM_JIT_SYMBOL_SIZE + 3)
-
-// Command line option to launch a compilation
-#define MFEM_JIT_COMMAND_LINE_OPTION "-c"
-
-// Library name of the cache
-#define MFEM_JIT_LIB_NAME "mjit"
 
 namespace mfem
 {
+
+struct Jit
+{
+   /// Initialize JIT and MPI
+   static int JIT_MPI_Init(int *argc, char ***argv);
+
+   /// Finalize JIT
+   static void Finalize();
+
+   /// Return true if the rank in MPI_COMM_WORLD is zero.
+   static bool Root();
+
+   /// Return the size of MPI_COMM_WORLD.
+   static int Size();
+
+   /// Do a MPI_Barrier if MPI has been initialized.
+   static void Sync();
+
+   /// Ask the JIT thread to exit.
+   static void ThreadExit();
+
+   /// Ask the JIT thread to launch a system call.
+   static int ThreadSystem(const char *argv[]);
+
+   /// Ask the JIT thread to do a compilation.
+   static int ThreadCompile(const char *argv[], const int n, const char *src,
+                            char *&obj, size_t &size);
+
+   /**
+    * @brief RootCompile
+    * @param n
+    * @param cc
+    * @param co
+    * @param mfem_cxx MFEM compiler
+    * @param mfem_cxxflags MFEM_CXXFLAGS
+    * @param mfem_source_dir MFEM_SOURCE_DIR
+    * @param mfem_install_dir MFEM_INSTALL_DIR
+    * @param check_for_ar check for existing libmjit.a archive
+    * @return
+    */
+   static int RootCompile(const int n, char *cc, const char *co,
+                          const char *mfem_cxx, const char *mfem_cxxflags,
+                          const char *mfem_source_dir, const char *mfem_install_dir,
+                          const bool check_for_ar);
+
+   /// \brief GetRuntimeVersion Returns the library version of the current run.
+   ///        Initialized at '0', can be incremented by setting increment to true.
+   ///        Used when multiple kernels have to be compiled and the shared library
+   ///        updated.
+   /// \param increment
+   /// \return the current runtime version
+   static int GetRuntimeVersion(bool increment = false);
+};
 
 namespace jit
 {
@@ -138,48 +177,46 @@ inline char *uint64str(const uint64_t hash, char *str, const char *ext = "")
 /// \param args
 /// \return
 template<typename... Args>
-inline int CreateAndCompile(const size_t h,
-                            const bool check_for_ar,
-                            const char *src,
-                            const char *mfem_cxx,
-                            const char *mfem_cxxflags,
-                            const char *mfem_source_dir,
-                            const char *mfem_install_dir,
-                            Args... args)
+inline int Compile(const size_t h,
+                   const bool check_for_ar,
+                   const char *src,
+                   const char *mfem_cxx,
+                   const char *mfem_cxxflags,
+                   const char *mfem_source_dir,
+                   const char *mfem_install_dir,
+                   Args... args)
 {
-   char *cc = nullptr, co[MFEM_JIT_FILENAME_SIZE];
+   char *cc = nullptr, co[MFEM_JIT_SYMBOL_SIZE+3];
    uint64str(h, co, ".co");
    const int n = 1 + std::snprintf(nullptr, 0, src, h, h, h, args...);
    cc = new char[n];
    if (std::snprintf(cc, n, src, h, h, h, args...) < 0) { return EXIT_FAILURE; }
-   return Compile(n, cc, co, mfem_cxx, mfem_cxxflags,
-                  mfem_source_dir, mfem_install_dir, check_for_ar);
+   return Jit::RootCompile(n, cc, co, mfem_cxx, mfem_cxxflags,
+                           mfem_source_dir, mfem_install_dir, check_for_ar);
 }
 
 /// Lookup in the cache for the kernel with the given hash
 template<typename... Args>
-inline void *Handle(const char *name, const size_t hash, Args... args)
+inline void *Handle(const char */*name*/, const size_t hash, Args... args)
 {
    void *handle = nullptr;
    constexpr int PM = PATH_MAX;
    constexpr int mode = RTLD_NOW | RTLD_LOCAL;
-   const int rt_version = GetRuntimeVersion();
+   const int rt_version = Jit::GetRuntimeVersion();
    const bool first_compilation = (rt_version == 0);
    char so_name_n[PM], symbol[MFEM_JIT_SYMBOL_SIZE];
-   constexpr const char *ar_name = "./lib" MFEM_JIT_LIB_NAME ".a";
+   //constexpr const char *ar_name = "./lib" MFEM_JIT_LIB_NAME ".a";
    constexpr const char *so_name = "./lib" MFEM_JIT_LIB_NAME ".so";
    snprintf(so_name_n, PM, "lib%s.so.%d", MFEM_JIT_LIB_NAME, rt_version);
    const char *so_lib = first_compilation ? so_name : so_name_n;
    // First we try to open the current shared cache library: libmjit.so.*
-   dbg("[ker] 0x%x:%s in %s ?",hash,name,so_lib);
    handle = ::dlopen(so_lib, mode);
    // If no handle was found, continue looking for the archive: libmjit.a
    // If no archive is found, it will continue by launching the compilation
    if (!handle)
    {
-      dbg("[lib] %s ?",ar_name);
       constexpr bool check_for_ar = true;
-      if (CreateAndCompile(hash, check_for_ar, args...)) { return nullptr; }
+      if (Compile(hash, check_for_ar, args...)) { return nullptr; }
       handle = ::dlopen(so_lib, mode);
    }
    assert(handle); // we should now have in all cases a handle
@@ -189,10 +226,11 @@ inline void *Handle(const char *name, const size_t hash, Args... args)
       // If not found, avoid using the archive and update the shared objects
       ::dlclose(handle);
       constexpr bool no_archive_check = false;
-      if (CreateAndCompile(hash, no_archive_check, args...)) { return nullptr; }
+      if (Compile(hash, no_archive_check, args...)) { return nullptr; }
       handle = ::dlopen(so_name_n, mode);
    }
    assert(handle); // we should again have a handle
+   assert(::dlsym(handle, symbol)); // we should have the symbol
    ::unlink(so_name_n);
    return handle;
 }

@@ -476,11 +476,9 @@ ifeq ($(shell uname -s),Linux)
 JIT_LIB = -lrt
 endif
 $(BLD)$(MFEM_JIT): $(SRC)general/jit/jit.hpp
-$(BLD)$(MFEM_JIT): $(BLD)general/jit/compile.o \
+$(BLD)$(MFEM_JIT): $(BLD)general/jit/jit.o \
 						 $(BLD)general/jit/main.o \
-						 $(BLD)general/jit/parser.o \
-						 $(BLD)general/jit/system.o \
-						 $(BLD)general/jit/tools.o
+						 $(BLD)general/jit/parser.o
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(filter-out $(SRC)general/jit/jit.hpp,$(^)) $(JIT_LIB) 
 
 # Filtering out the objects that will be compiled through the preprocessor
@@ -780,7 +778,7 @@ FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'\
- '^general/jit/main\.cpp'
+ '^general/debug\.hpp' '^general/jit/main\.cpp' '^general/jit/parser\.cpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\

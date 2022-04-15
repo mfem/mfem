@@ -8,13 +8,13 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+
 #include <list>
 #include <string>
-#include <ciso646>
-#include <cassert>
 #include <iostream>
 
 #include "jit.hpp"
+#include "../../config/config.hpp"
 
 namespace mfem
 {
@@ -61,7 +61,6 @@ struct kernel_t
    std::string args_wo_amp;
    std::string prefix;
 };
-
 
 struct error_t
 {
@@ -603,7 +602,6 @@ int preprocess(std::istream &in, std::ostream &out, std::string &file)
                 << (err.msg ? ": " : "")
                 << (err.msg ? err.msg : "")
                 << std::endl;
-      //remove(out.c_str());
       return EXIT_FAILURE;
    }
    return EXIT_SUCCESS;
