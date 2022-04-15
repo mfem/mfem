@@ -1771,7 +1771,7 @@ void MixedBilinearForm::FormRectangularSystemMatrix(
    }
    else if (test_P)
    {
-      SparseMatrix *m = mfem::Mult(*test_P, *mat);
+      SparseMatrix *m = TransposeMult(*test_P, *mat);
       delete mat;
       mat = m;
    }
