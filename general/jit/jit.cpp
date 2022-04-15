@@ -82,7 +82,7 @@ static void CloseAndWait(int fd)
 }
 
 /// In-memory compilation
-static int CompileInMemory(const char *cmd, const int isz, const char *src,
+static int CompileInMemory(const char *cmd, const size_t isz, const char *src,
                            char *obj, size_t *osz)
 {
    // input, output and error pipes
@@ -122,12 +122,13 @@ static int CompileInMemory(const char *cmd, const int isz, const char *src,
    ::close(ep[PIPE_WRITE]);
 
    // write all the source present in memory to the 'input' pipe
-   ::write(ip[PIPE_WRITE], src, isz-1);
+   size_t ni_w = ::write(ip[PIPE_WRITE], src, isz-1);
+   assert(ni_w == isz - 1);
    ::close(ip[PIPE_WRITE]);
 
    char buffer[1<<16];
    constexpr int SIZE = sizeof(buffer);
-   int nr, ne = 0; // number of read, error & output bytes
+   size_t nr, ne = 0; // number of read, error & output bytes
 
    // Scan error pipe with timeout
    {
@@ -143,7 +144,8 @@ static int CompileInMemory(const char *cmd, const int isz, const char *src,
          dbg("Error data is available!");
          while ((nr = ::read(ep[PIPE_READ], buffer, SIZE)) > 0)
          {
-            ::write(STDOUT_FILENO, buffer, nr);
+            size_t nr_w = ::write(STDOUT_FILENO, buffer, nr);
+            assert(nr_w == nr);
             ne += nr;
          }
          ::close(ep[PIPE_READ]);

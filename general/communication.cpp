@@ -33,8 +33,6 @@
 #include "jit/jit.hpp"
 #endif
 
-#include <functional>
-
 using namespace std;
 
 namespace mfem

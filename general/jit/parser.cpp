@@ -12,6 +12,7 @@
 #include <list>
 #include <string>
 #include <iostream>
+#include <algorithm>
 
 #include "jit.hpp"
 #include "../../config/config.hpp"
