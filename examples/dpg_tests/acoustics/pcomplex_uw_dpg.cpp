@@ -336,6 +336,51 @@ int main(int argc, char *argv[])
       ComplexOperator * Ahc = Ah.As<ComplexOperator>();
       BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
       BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
+
+
+
+      MFEM_VERIFY(static_cond, "preconditioner not implemented for the non-static condensation case");
+
+
+
+      Array<int> tdof_offsets(5);
+      tdof_offsets[0] = 0;
+      tdof_offsets[1] = hatp_fes->GetTrueVSize();
+      tdof_offsets[2] = hatu_fes->GetTrueVSize();
+      tdof_offsets[3] = hatp_fes->GetTrueVSize();
+      tdof_offsets[4] = hatu_fes->GetTrueVSize();
+
+      tdof_offsets.PartialSum();
+
+      BlockOperator blockA(tdof_offsets);
+      blockA.SetBlock(0,0, &BlockA_r->GetBlock(0,0));
+      blockA.SetBlock(0,1, &BlockA_r->GetBlock(0,1));
+      blockA.SetBlock(1,0, &BlockA_r->GetBlock(1,0));
+      blockA.SetBlock(1,1, &BlockA_r->GetBlock(1,1));
+
+      blockA.SetBlock(0,2, &BlockA_i->GetBlock(0,0),-1);
+      blockA.SetBlock(0,3, &BlockA_i->GetBlock(0,1),-1);
+      blockA.SetBlock(1,2, &BlockA_i->GetBlock(1,0),-1);
+      blockA.SetBlock(1,3, &BlockA_i->GetBlock(1,1),-1);
+
+
+      blockA.SetBlock(2,2, &BlockA_r->GetBlock(0,0));
+      blockA.SetBlock(2,3, &BlockA_r->GetBlock(0,1));
+      blockA.SetBlock(3,2, &BlockA_r->GetBlock(1,0));
+      blockA.SetBlock(3,3, &BlockA_r->GetBlock(1,1));
+
+
+      blockA.SetBlock(2,0, &BlockA_i->GetBlock(0,0));
+      blockA.SetBlock(2,1, &BlockA_i->GetBlock(0,1));
+      blockA.SetBlock(3,0, &BlockA_i->GetBlock(1,0));
+      blockA.SetBlock(3,1, &BlockA_i->GetBlock(1,1));
+
+
+
+
+
+
+
       int numblocks = BlockA_r->NumRowBlocks();
       Array2D<HypreParMatrix *> Ab_r(numblocks,numblocks);
       Array2D<HypreParMatrix *> Ab_i(numblocks,numblocks);
@@ -360,9 +405,34 @@ int main(int argc, char *argv[])
          mfem::out << "Size of the linear system: " << A->Height() << std::endl;
       }
       X = 0.;
-      MUMPSSolver mumps;
-      mumps.SetOperator(*A);
-      mumps.Mult(B,X);
+
+
+
+      BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(tdof_offsets);
+      HypreBoomerAMG * amg = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(0,0));
+      amg->SetPrintLevel(0);
+      HypreAMS * ams = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(1,1), hatu_fes);
+      ams->SetPrintLevel(0);
+
+      M->SetDiagonalBlock(0,amg);
+      M->SetDiagonalBlock(1,ams);
+      M->SetDiagonalBlock(2,amg);
+      M->SetDiagonalBlock(3,ams);
+
+      
+      MINRESSolver gmres(MPI_COMM_WORLD);
+      gmres.SetRelTol(1e-6);
+      gmres.SetMaxIter(2000);
+      gmres.SetPrintLevel(3);
+      gmres.SetPreconditioner(*M); 
+      // gmres.SetOperator(*A);
+      gmres.SetOperator(blockA);
+      gmres.Mult(B, X);
+      // delete prec;
+
+      // MUMPSSolver mumps;
+      // mumps.SetOperator(*A);
+      // mumps.Mult(B,X);
 
       delete A;
       a->RecoverFEMSolution(X,x);
