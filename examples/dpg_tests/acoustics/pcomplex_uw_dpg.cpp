@@ -359,10 +359,10 @@ int main(int argc, char *argv[])
       {   
          mfem::out << "Size of the linear system: " << A->Height() << std::endl;
       }
-
-      // MUMPSSolver mumps;
-      // mumps.SetOperator(*A);
-      // mumps.Mult(B,X);
+      X = 0.;
+      MUMPSSolver mumps;
+      mumps.SetOperator(*A);
+      mumps.Mult(B,X);
 
       delete A;
       a->RecoverFEMSolution(X,x);

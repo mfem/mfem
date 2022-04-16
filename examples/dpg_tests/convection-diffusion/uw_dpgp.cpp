@@ -346,7 +346,8 @@ int main(int argc, char *argv[])
                << "  L2 Error  |" 
                << "  Rate  |" 
                << "  Residual  |" 
-               << "  Rate  |" << endl;
+               << "  Rate  |" 
+               << "  CG iter  |" << endl;
       mfem::out << " --------------------"      
                <<  "-------------------"    
                <<  "-------------------"    
@@ -448,10 +449,11 @@ int main(int argc, char *argv[])
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-6);
       cg.SetMaxIter(200000);
-      cg.SetPrintLevel(0);
+      cg.SetPrintLevel(-1);
       cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
+      int num_iter = cg.GetNumIterations();
       delete M;
 
       a->RecoverFEMSolution(X,x);
@@ -510,6 +512,7 @@ int main(int argc, char *argv[])
                   << std::setw(10) << std::scientific <<  res0 << " | " 
                   << std::setprecision(2) 
                   << std::setw(6) << std::fixed << rate_res << " | " 
+                  << std::setw(6) << std::fixed << num_iter << " | " 
                   << std::resetiosflags(std::ios::showbase)
                   << std::endl;
       }

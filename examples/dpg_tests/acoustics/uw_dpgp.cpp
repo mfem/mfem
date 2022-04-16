@@ -67,9 +67,11 @@ int main(int argc, char *argv[])
    int delta_order = 1;
    bool visualization = true;
    double rnum=1.0;
-   int ref = 1;
+   int sr = 0;
+   int pr = 1;
    double theta = 0.0;
    bool adjoint_graph_norm = false;
+   bool static_cond = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -87,9 +89,13 @@ int main(int argc, char *argv[])
                   "Theta parameter for AMR");                    
    args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
                   "-no-graph-norm", "--no-adjoint-graph-norm",
-                  "Enable or disable Adjoint Graph Norm on the test space");                                
-   args.AddOption(&ref, "-ref", "--serial_ref",
-                  "Number of serial refinements.");  
+                  "Enable or disable Adjoint Graph Norm on the test space");      
+   args.AddOption(&sr, "-sref", "--serial_ref",
+                  "Number of parallel refinements.");                                              
+   args.AddOption(&pr, "-pref", "--parallel_ref",
+                  "Number of parallel refinements.");  
+   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
+                  "--no-static-condensation", "Enable static condensation.");                    
    args.Parse();
    if (!args.Good())
    {
@@ -107,6 +113,10 @@ int main(int argc, char *argv[])
    omega = 2.0 * M_PI * rnum;
 
    Mesh mesh(mesh_file, 1, 1);
+   for (int i = 0; i<sr; i++)
+   {
+      mesh.UniformRefinement();
+   }
    dim = mesh.Dimension();
 
    mesh.EnsureNCMesh();
@@ -250,20 +260,24 @@ int main(int argc, char *argv[])
    {
       mfem::out << " Refinement |" 
                << "    Dofs    |" 
+               << "   ω   |" 
                << "  L2 Error  |" 
                << " Relative % |" 
                << "  Rate  |" 
                << "  Residual  |" 
-               << "  Rate  |" << endl;
+               << "  Rate  |" 
+               << " PCG it |" << endl;
       mfem::out << " --------------------"      
-               <<  "-------------------"    
-               <<  "-------------------"    
+               <<  "---------------------"    
+               <<  "---------------------"    
+               <<  "---------------------"    
                <<  "-------------------" << endl;   
    }
 
 
-   for (int i = 0; i<ref; i++)
+   for (int i = 0; i<pr; i++)
    {
+      if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
 
       Array<int> ess_tdof_list;
@@ -302,44 +316,52 @@ int main(int argc, char *argv[])
       BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
       M->owns_blocks = 1;
 
-      HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
-      HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
-      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(2,2));
-      amg0->SetPrintLevel(0);
-      amg1->SetPrintLevel(0);
-      amg2->SetPrintLevel(0);
-      amg0->SetRelaxType(16);
-      amg1->SetRelaxType(16);
-      amg2->SetRelaxType(16);
-
-      M->SetDiagonalBlock(0,amg0);
-      M->SetDiagonalBlock(1,amg1);
-      M->SetDiagonalBlock(2,amg2);
-      // for (int i = 0; i < 3; i++)
+       // for (int i = 0; i < 3; i++)
       // {
       //    MUMPSSolver * mumps = new MUMPSSolver;
       //    mumps->SetOperator(A->GetBlock(i,i));
       //    M->SetDiagonalBlock(i,mumps);
       // }
+ 
+ 
+      int skip = 0;
+      if (!static_cond)
+      {
+         HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
+         HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
+         amg0->SetPrintLevel(0);
+         amg1->SetPrintLevel(0);
+         // amg0->SetRelaxType(16);
+         // amg1->SetRelaxType(16);
+         M->SetDiagonalBlock(0,amg0);
+         M->SetDiagonalBlock(1,amg1);
+         skip = 2;
+      }
+
+      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(skip,skip));
+      amg2->SetPrintLevel(0);
+      // amg2->SetRelaxType(16);
+      M->SetDiagonalBlock(skip,amg2);
 
       HypreSolver * prec;
       if (dim == 2)
       {
-         prec = new HypreAMS((HypreParMatrix &)A->GetBlock(3,3), hatu_fes);
+         prec = new HypreAMS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatu_fes);
       }
       else
       {
-         prec = new HypreADS((HypreParMatrix &)A->GetBlock(3,3), hatu_fes);
+         prec = new HypreADS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatu_fes);
       }
-      M->SetDiagonalBlock(3,prec);
+      M->SetDiagonalBlock(skip+1,prec);
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-10);
+      cg.SetRelTol(1e-6);
       cg.SetMaxIter(20000);
-      cg.SetPrintLevel(-1);
+      cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M);
       cg.SetOperator(*A);
       cg.Mult(B, X);
+      int num_iter = cg.GetNumIterations();
       delete M;
 
       a->RecoverFEMSolution(X,x);
@@ -406,6 +428,7 @@ int main(int argc, char *argv[])
       {
          mfem::out << std::right << std::setw(11) << i << " | " 
                    << std::setw(10) <<  dof0 << " | " 
+                   << std::setw(2) <<  2*rnum << " π  | " 
                    << std::setprecision(3) 
                    << std::setw(10) << std::scientific <<  err0 << " | " 
                    << std::setprecision(3) 
@@ -416,6 +439,7 @@ int main(int argc, char *argv[])
                    << std::setw(10) << std::scientific <<  res0 << " | " 
                    << std::setprecision(2) 
                    << std::setw(6) << std::fixed << rate_res << " | " 
+                   << std::setw(6) << std::fixed << num_iter << " | " 
                    << std::setprecision(5) 
                    << std::scientific 
                    << std::endl;
@@ -430,7 +454,7 @@ int main(int argc, char *argv[])
                   << flush;
       }
 
-      if (i == ref)
+      if (i == pr)
          break;
 
       pmesh.GeneralRefinement(elements_to_refine,1,1);
