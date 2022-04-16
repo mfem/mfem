@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,7 +12,7 @@
 #include "../general/forall.hpp"
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
-#include "libceed/mass.hpp"
+#include "ceed/mass.hpp"
 
 using namespace std;
 
@@ -25,29 +25,32 @@ namespace mfem
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
+
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation *T = mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
+   ElementTransformation *T0 = mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
    if (DeviceCanUseCeed())
    {
-      delete ceedDataPtr;
-      ceedDataPtr = new CeedData;
-      InitCeedCoeff(Q, *mesh, *ir, ceedDataPtr);
-      return CeedPAMassAssemble(fes, *ir, *ceedDataPtr);
+      delete ceedOp;
+      ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
+      return;
    }
+   int map_type = el.GetMapType();
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::COORDINATES |
-                                    GeometricFactors::JACOBIANS);
+                                    GeometricFactors::JACOBIANS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
-   pa_data.SetSize(ne*nq, Device::GetDeviceMemoryType());
+   pa_data.SetSize(ne*nq, mt);
    Vector coeff;
    if (Q == nullptr)
    {
@@ -59,10 +62,10 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
    }
-   else if (QuadratureFunctionCoefficient* cQ =
+   else if (QuadratureFunctionCoefficient* qfQ =
                dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
-      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      const QuadratureFunction &qFun = qfQ->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -91,6 +94,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NE = ne;
       const int Q1D = quad1D;
       const bool const_c = coeff.Size() == 1;
+      const bool by_val = map_type == FiniteElement::VALUE;
       const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D);
       const auto J = Reshape(geom->J.Read(), Q1D,Q1D,2,2,NE);
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
@@ -108,7 +112,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                const double J22 = J(qx,qy,1,1,e);
                const double detJ = (J11*J22)-(J21*J12);
                const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
-               v(qx,qy,e) =  W(qx,qy) * coeff * detJ;
+               v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
             }
          }
       });
@@ -118,6 +122,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NE = ne;
       const int Q1D = quad1D;
       const bool const_c = coeff.Size() == 1;
+      const bool by_val = map_type == FiniteElement::VALUE;
       const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D,Q1D);
       const auto J = Reshape(geom->J.Read(), Q1D,Q1D,Q1D,3,3,NE);
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1,1) :
@@ -144,7 +149,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   /* */               J21 * (J12 * J33 - J32 * J13) +
                   /* */               J31 * (J12 * J23 - J22 * J13);
                   const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
-                  v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * detJ;
+                  v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * (by_val ? detJ : 1.0/detJ);
                }
             }
          }
@@ -445,8 +450,12 @@ static void PAMassAssembleDiagonal(const int dim, const int D1D,
       switch ((D1D << 4 ) | Q1D)
       {
          case 0x23: return SmemPAMassAssembleDiagonal3D<2,3>(NE,B,D,Y);
+         case 0x24: return SmemPAMassAssembleDiagonal3D<2,4>(NE,B,D,Y);
+         case 0x26: return SmemPAMassAssembleDiagonal3D<2,6>(NE,B,D,Y);
          case 0x34: return SmemPAMassAssembleDiagonal3D<3,4>(NE,B,D,Y);
+         case 0x35: return SmemPAMassAssembleDiagonal3D<3,5>(NE,B,D,Y);
          case 0x45: return SmemPAMassAssembleDiagonal3D<4,5>(NE,B,D,Y);
+         case 0x48: return SmemPAMassAssembleDiagonal3D<4,8>(NE,B,D,Y);
          case 0x56: return SmemPAMassAssembleDiagonal3D<5,6>(NE,B,D,Y);
          case 0x67: return SmemPAMassAssembleDiagonal3D<6,7>(NE,B,D,Y);
          case 0x78: return SmemPAMassAssembleDiagonal3D<7,8>(NE,B,D,Y);
@@ -461,7 +470,7 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    if (DeviceCanUseCeed())
    {
-      CeedAssembleDiagonal(ceedDataPtr, diag);
+      ceedOp->GetDiagonal(diag);
    }
    else
    {
@@ -1170,6 +1179,7 @@ static void PAMassApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
    const int id = (D1D << 4) | Q1D;
+
    if (dim == 2)
    {
       switch (id)
@@ -1178,10 +1188,13 @@ static void PAMassApply(const int dim,
          case 0x24: return SmemPAMassApply2D<2,4,16>(NE,B,Bt,D,X,Y);
          case 0x33: return SmemPAMassApply2D<3,3,16>(NE,B,Bt,D,X,Y);
          case 0x34: return SmemPAMassApply2D<3,4,16>(NE,B,Bt,D,X,Y);
+         case 0x35: return SmemPAMassApply2D<3,5,16>(NE,B,Bt,D,X,Y);
          case 0x36: return SmemPAMassApply2D<3,6,16>(NE,B,Bt,D,X,Y);
          case 0x44: return SmemPAMassApply2D<4,4,8>(NE,B,Bt,D,X,Y);
+         case 0x46: return SmemPAMassApply2D<4,6,8>(NE,B,Bt,D,X,Y);
          case 0x48: return SmemPAMassApply2D<4,8,4>(NE,B,Bt,D,X,Y);
          case 0x55: return SmemPAMassApply2D<5,5,8>(NE,B,Bt,D,X,Y);
+         case 0x57: return SmemPAMassApply2D<5,7,8>(NE,B,Bt,D,X,Y);
          case 0x58: return SmemPAMassApply2D<5,8,2>(NE,B,Bt,D,X,Y);
          case 0x66: return SmemPAMassApply2D<6,6,4>(NE,B,Bt,D,X,Y);
          case 0x77: return SmemPAMassApply2D<7,7,4>(NE,B,Bt,D,X,Y);
@@ -1194,10 +1207,14 @@ static void PAMassApply(const int dim,
    {
       switch (id)
       {
+         case 0x22: return SmemPAMassApply3D<2,2>(NE,B,Bt,D,X,Y);
          case 0x23: return SmemPAMassApply3D<2,3>(NE,B,Bt,D,X,Y);
          case 0x24: return SmemPAMassApply3D<2,4>(NE,B,Bt,D,X,Y);
+         case 0x26: return SmemPAMassApply3D<2,6>(NE,B,Bt,D,X,Y);
          case 0x34: return SmemPAMassApply3D<3,4>(NE,B,Bt,D,X,Y);
+         case 0x35: return SmemPAMassApply3D<3,5>(NE,B,Bt,D,X,Y);
          case 0x36: return SmemPAMassApply3D<3,6>(NE,B,Bt,D,X,Y);
+         case 0x37: return SmemPAMassApply3D<3,7>(NE,B,Bt,D,X,Y);
          case 0x45: return SmemPAMassApply3D<4,5>(NE,B,Bt,D,X,Y);
          case 0x46: return SmemPAMassApply3D<4,6>(NE,B,Bt,D,X,Y);
          case 0x48: return SmemPAMassApply3D<4,8>(NE,B,Bt,D,X,Y);
@@ -1218,7 +1235,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      CeedAddMult(ceedDataPtr, x, y);
+      ceedOp->AddMult(x, y);
    }
    else
    {

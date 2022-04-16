@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -192,6 +192,8 @@ TEST_CASE("Point mesh with linear grid function",
    int idx[1] = {0};
    mesh.AddElement(new mfem::Point(idx, attrib));
 
+   mesh.FinalizeMesh();
+
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
    REQUIRE( mesh.Dimension() == dim);
@@ -233,6 +235,8 @@ TEST_CASE("Segment mesh with linear grid function",
 
    int idx[2] = {0,1};
    mesh.AddElement(new Segment(idx, attrib));
+
+   mesh.FinalizeMesh();
 
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
@@ -276,6 +280,8 @@ TEST_CASE("Triangle mesh with linear grid function",
    int idx[3] = {0,1,2};
    mesh.AddElement(new Triangle(idx, attrib));
 
+   mesh.FinalizeMesh();
+
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
    REQUIRE( mesh.Dimension() == dim);
@@ -318,6 +324,8 @@ TEST_CASE("Quad mesh with linear grid function",
 
    int idx[4] = {0,1,2,3};
    mesh.AddElement(new Quadrilateral(idx, attrib));
+
+   mesh.FinalizeMesh();
 
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
@@ -363,6 +371,56 @@ TEST_CASE("Tet mesh with linear grid function",
 
    int idx[4] = {0,1,2,3};
    mesh.AddElement(new Tetrahedron(idx, attrib));
+
+   mesh.FinalizeMesh();
+
+   REQUIRE( mesh.GetNV() == nv);
+   REQUIRE( mesh.GetNE() == ne);
+   REQUIRE( mesh.Dimension() == dim);
+   REQUIRE( mesh.SpaceDimension() == sdim);
+
+   SECTION("GridFunction with LinearFECollection")
+   {
+      LinearFECollection fec;
+      testGridFunctions(fec, mesh, nv);
+   }
+
+   SECTION("GridFunction with order 1 H1_FECollection")
+   {
+      H1_FECollection fec(order,dim);
+      testGridFunctions(fec, mesh, nv);
+   }
+
+   SECTION("GridFunction with L2_FECollection")
+   {
+      L2_FECollection fec(0,dim);
+      testGridFunctions(fec, mesh, 1);
+   }
+
+}
+
+TEST_CASE("Prism mesh with linear grid function",
+          "[LinearFECollection]"
+          "[H1_FECollection]"
+          "[L2_FECollection]"
+          "[FiniteElementSpace]"
+          "[GridFunction]")
+{
+   // Create a simple one element hex mesh
+   int dim = 3, nv = 6, ne = 1, nb = 0, sdim = 3, order =1, attrib = 1;
+   Mesh mesh(dim, nv, ne, nb, sdim);
+
+   mesh.AddVertex(Vertex(0.,0.,0.)());
+   mesh.AddVertex(Vertex(1.,0.,0.)());
+   mesh.AddVertex(Vertex(0.,1.,0.)());
+   mesh.AddVertex(Vertex(0.,0.,1.)());
+   mesh.AddVertex(Vertex(1.,0.,1.)());
+   mesh.AddVertex(Vertex(0.,1.,1.)());
+
+   int idx[6] = {0,1,2,3,4,5};
+   mesh.AddElement(new Wedge(idx, attrib));
+
+   mesh.FinalizeMesh();
 
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);
@@ -411,6 +469,8 @@ TEST_CASE("Hex mesh with linear grid function",
 
    int idx[8] = {0,1,2,3,4,5,6,7};
    mesh.AddElement(new Hexahedron(idx, attrib));
+
+   mesh.FinalizeMesh();
 
    REQUIRE( mesh.GetNV() == nv);
    REQUIRE( mesh.GetNE() == ne);

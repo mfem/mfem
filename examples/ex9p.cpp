@@ -16,6 +16,8 @@
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
 //    mpirun -np 4 ex9p -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8
+//    mpirun -np 4 ex9p -m ../data/periodic-square.msh -p 0 -rs 2 -dt 0.005 -tf 2
+//    mpirun -np 4 ex9p -m ../data/periodic-cube.msh -p 0 -rs 1 -o 2 -tf 2
 //    mpirun -np 3 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
 //
 // Device sample runs:
@@ -26,6 +28,7 @@
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh -d cuda
 //    mpirun -np 4 ex9p -ea -m ../data/periodic-cube.mesh -d cuda
 //    mpirun -np 4 ex9p -fa -m ../data/periodic-cube.mesh -d cuda
+//    mpirun -np 4 ex9p -pa -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9 -d cuda
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -217,7 +220,7 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b,
+   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
                 PrecType prec_type);
 
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -229,10 +232,11 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    problem = 0;
@@ -313,19 +317,19 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
 
    Device device(device_config);
-   if (mpi.Root()) { device.Print(); }
+   if (Mpi::Root()) { device.Print(); }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
@@ -352,7 +356,7 @@ int main(int argc, char *argv[])
       case 23: ode_solver = new SDIRK23Solver; break;
       case 24: ode_solver = new SDIRK34Solver; break;
       default:
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
@@ -389,8 +393,8 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
-   HYPRE_Int global_vSize = fes->GlobalTrueVSize();
-   if (mpi.Root())
+   HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
+   if (Mpi::Root())
    {
       cout << "Number of unknowns: " << global_vSize << endl;
    }
@@ -531,11 +535,11 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
       if (!sout)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
             cout << "Unable to connect to GLVis server at "
                  << vishost << ':' << visport << endl;
          visualization = false;
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "GLVis visualization disabled.\n";
          }
@@ -547,7 +551,7 @@ int main(int argc, char *argv[])
          sout << "solution\n" << *pmesh << *u;
          sout << "pause\n";
          sout << flush;
-         if (mpi.Root())
+         if (Mpi::Root())
             cout << "GLVis visualization paused."
                  << " Press space (in the GLVis window) to resume it.\n";
       }
@@ -573,7 +577,7 @@ int main(int argc, char *argv[])
 
       if (done || ti % vis_steps == 0)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "time step: " << ti << ", time: " << t << endl;
          }
@@ -649,38 +653,38 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
-                           const Vector &_b, PrecType prec_type)
-   : TimeDependentOperator(_M.Height()), b(_b),
-     M_solver(_M.ParFESpace()->GetComm()),
-     z(_M.Height())
+FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
+                           const Vector &b_, PrecType prec_type)
+   : TimeDependentOperator(M_.Height()), b(b_),
+     M_solver(M_.ParFESpace()->GetComm()),
+     z(M_.Height())
 {
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
-      M.Reset(_M.ParallelAssemble(), true);
-      K.Reset(_K.ParallelAssemble(), true);
+      M.Reset(M_.ParallelAssemble(), true);
+      K.Reset(K_.ParallelAssemble(), true);
    }
    else
    {
-      M.Reset(&_M, false);
-      K.Reset(&_K, false);
+      M.Reset(&M_, false);
+      K.Reset(&K_, false);
    }
 
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
       HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
       HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
       M_prec = hypre_prec;
 
-      dg_solver = new DG_Solver(M_mat, K_mat, *_M.FESpace(), prec_type);
+      dg_solver = new DG_Solver(M_mat, K_mat, *M_.FESpace(), prec_type);
    }
    else
    {
-      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
+      M_prec = new OperatorJacobiSmoother(M_, ess_tdof_list);
       dg_solver = NULL;
    }
 

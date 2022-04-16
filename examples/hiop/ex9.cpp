@@ -201,11 +201,11 @@ private:
    Vector &M_rowsums;
 
 public:
-   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b,
-                BilinearForm &_bf, Vector &M_rs);
+   FE_Evolution(SparseMatrix &M_, SparseMatrix &K_, const Vector &b_,
+                BilinearForm &bf_, Vector &M_rs);
 
-   void SetTimeStep(double _dt) { dt = _dt; }
-   void SetK(SparseMatrix &_K) { K = _K; }
+   void SetTimeStep(double dt_) { dt = dt_; }
+   void SetK(SparseMatrix &K_) { K = K_; }
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~FE_Evolution() { }
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   optimizer_type = 1;
+   optimizer_type = 2;
    const char *mesh_file = "../../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;
@@ -474,11 +474,11 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K,
-                           const Vector &_b, BilinearForm &_bf, Vector &M_rs)
-   : TimeDependentOperator(_M.Size()),
-     M(_M), K(_K), b(_b), M_prec(), M_solver(), z(_M.Size()),
-     bf(_bf), M_rowsums(M_rs)
+FE_Evolution::FE_Evolution(SparseMatrix &M_, SparseMatrix &K_,
+                           const Vector &b_, BilinearForm &bf_, Vector &M_rs)
+   : TimeDependentOperator(M_.Size()),
+     M(M_), K(K_), b(b_), M_prec(), M_solver(), z(M_.Size()),
+     bf(bf_), M_rowsums(M_rs)
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);

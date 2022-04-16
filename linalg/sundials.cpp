@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -280,8 +280,8 @@ SundialsNVector::SundialsNVector()
    own_NVector = 1;
 }
 
-SundialsNVector::SundialsNVector(double *_data, int _size)
-   : Vector(_data, _size)
+SundialsNVector::SundialsNVector(double *data_, int size_)
+   : Vector(data_, size_)
 {
    UseDevice(Device::IsAvailable());
    x = MakeNVector(UseDevice());
@@ -314,9 +314,9 @@ SundialsNVector::SundialsNVector(MPI_Comm comm, int loc_size, long glob_size)
    _SetNvecDataAndSize_(glob_size);
 }
 
-SundialsNVector::SundialsNVector(MPI_Comm comm, double *_data, int loc_size,
+SundialsNVector::SundialsNVector(MPI_Comm comm, double *data_, int loc_size,
                                  long glob_size)
-   : Vector(_data, loc_size)
+   : Vector(data_, loc_size)
 {
    UseDevice(Device::IsAvailable());
    x = MakeNVector(comm, UseDevice());
@@ -1677,7 +1677,7 @@ int KINSolver::GradientMult(N_Vector v, N_Vector Jv, N_Vector u,
 
 // Wrapper for evaluating linear systems J u = b
 int KINSolver::LinSysSetup(N_Vector u, N_Vector, SUNMatrix J,
-                           void *, N_Vector , N_Vector )
+                           void *, N_Vector, N_Vector )
 {
    const SundialsNVector mfem_u(u);
    KINSolver *self = static_cast<KINSolver*>(GET_CONTENT(J));
@@ -1974,6 +1974,11 @@ void KINSolver::SetMAA(int m_aa)
       flag = KINSetMAA(sundials_mem, maa);
       MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
    }
+}
+
+void KINSolver::SetPrintLevel(PrintLevel)
+{
+   MFEM_ABORT("this method is not supported! Use SetPrintLevel(int) instead.");
 }
 
 // Compute the scaling vectors and solve nonlinear system

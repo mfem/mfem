@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,7 +18,137 @@
 namespace mfem
 {
 
-const int vtk_prism_perm[6] = {0, 2, 1, 3, 5, 4};
+const int VTKGeometry::Map[Geometry::NUM_GEOMETRIES] =
+{
+   POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM
+};
+
+const int VTKGeometry::QuadraticMap[Geometry::NUM_GEOMETRIES] =
+{
+   POINT, QUADRATIC_SEGMENT, QUADRATIC_TRIANGLE, BIQUADRATIC_SQUARE,
+   QUADRATIC_TETRAHEDRON, TRIQUADRATIC_CUBE, BIQUADRATIC_QUADRATIC_PRISM
+};
+
+const int VTKGeometry::HighOrderMap[Geometry::NUM_GEOMETRIES] =
+{
+   POINT, LAGRANGE_SEGMENT, LAGRANGE_TRIANGLE, LAGRANGE_SQUARE,
+   LAGRANGE_TETRAHEDRON, LAGRANGE_CUBE, LAGRANGE_PRISM
+};
+
+const int VTKGeometry::PrismMap[6] = {0, 2, 1, 3, 5, 4};
+
+const int *VTKGeometry::VertexPermutation[Geometry::NUM_GEOMETRIES] =
+{
+   NULL, NULL, NULL, NULL, NULL, NULL, VTKGeometry::PrismMap
+};
+
+Geometry::Type VTKGeometry::GetMFEMGeometry(int vtk_geom)
+{
+   switch (vtk_geom)
+   {
+      case POINT:
+         return Geometry::POINT;
+      case SEGMENT:
+      case QUADRATIC_SEGMENT:
+      case LAGRANGE_SEGMENT:
+         return Geometry::SEGMENT;
+      case TRIANGLE:
+      case QUADRATIC_TRIANGLE:
+      case LAGRANGE_TRIANGLE:
+         return Geometry::TRIANGLE;
+      case SQUARE:
+      case BIQUADRATIC_SQUARE:
+      case LAGRANGE_SQUARE:
+         return Geometry::SQUARE;
+      case TETRAHEDRON:
+      case QUADRATIC_TETRAHEDRON:
+      case LAGRANGE_TETRAHEDRON:
+         return Geometry::TETRAHEDRON;
+      case CUBE:
+      case TRIQUADRATIC_CUBE:
+      case LAGRANGE_CUBE:
+         return Geometry::CUBE;
+      case PRISM:
+      case BIQUADRATIC_QUADRATIC_PRISM:
+      case LAGRANGE_PRISM:
+         return Geometry::PRISM;
+      default:
+         return Geometry::INVALID;
+   }
+}
+
+bool VTKGeometry::IsLagrange(int vtk_geom)
+{
+   return vtk_geom >= LAGRANGE_SEGMENT && vtk_geom <= LAGRANGE_PRISM;
+}
+
+bool VTKGeometry::IsQuadratic(int vtk_geom)
+{
+   return vtk_geom >= QUADRATIC_SEGMENT
+          && vtk_geom <= BIQUADRATIC_QUADRATIC_PRISM;
+}
+
+int VTKGeometry::GetOrder(int vtk_geom, int npoints)
+{
+   if (IsQuadratic(vtk_geom))
+   {
+      return 2;
+   }
+   else if (IsLagrange(vtk_geom))
+   {
+      switch (vtk_geom)
+      {
+         case LAGRANGE_SEGMENT:
+            return npoints - 1;
+         case LAGRANGE_TRIANGLE:
+            return (std::sqrt(8*npoints + 1) - 3)/2;
+         case LAGRANGE_SQUARE:
+            return std::round(std::sqrt(npoints)) - 1;
+         case LAGRANGE_TETRAHEDRON:
+            switch (npoints)
+            {
+               // Note that for given order, npoints is given by
+               // npoints_order = (order + 1)*(order + 2)*(order + 3)/6,
+               case 4: return 1;
+               case 10: return 2;
+               case 20: return 3;
+               case 35: return 4;
+               case 56: return 5;
+               case 84: return 6;
+               case 120: return 7;
+               case 165: return 8;
+               case 220: return 9;
+               case 286: return 10;
+               default:
+               {
+                  constexpr int max_order = 20;
+                  int order = 11, npoints_order;
+                  for (; order<max_order; ++order)
+                  {
+                     npoints_order = (order + 1)*(order + 2)*(order + 3)/6;
+                     if (npoints_order == npoints) { break; }
+                  }
+                  MFEM_VERIFY(npoints == npoints_order, "");
+                  return order;
+               }
+            }
+         case LAGRANGE_CUBE:
+            return std::round(std::cbrt(npoints)) - 1;
+         case LAGRANGE_PRISM:
+         {
+            const double n = npoints;
+            static const double third = 1.0/3.0;
+            static const double ninth = 1.0/9.0;
+            static const double twentyseventh = 1.0/27.0;
+            const double term =
+               std::cbrt(third*sqrt(third)*sqrt((27.0*n - 2.0)*n) + n
+                         - twentyseventh);
+            return std::round(term + ninth / term - 4*third);
+         }
+      }
+   }
+   return 1;
+}
 
 int BarycentricToVTKTriangle(int *b, int ref)
 {
@@ -379,15 +509,12 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom, int ref)
    {
       int idx = 0;
       int b[4];
-      for (int k=0; k<=ref; k++)
+      for (b[2]=0; b[2]<=ref; b[2]++)
       {
-         for (int j=0; j<=k; j++)
+         for (b[1]=0; b[1]<=ref-b[2]; b[1]++)
          {
-            for (int i=0; i<=j; i++)
+            for (b[0]=0; b[0]<=ref-b[1]-b[2]; b[0]++)
             {
-               b[0] = k-j;
-               b[1] = i;
-               b[2] = j-i;
                b[3] = ref-b[0]-b[1]-b[2];
                con[BarycentricToVTKTetra(b, ref)] = idx++;
             }
@@ -417,15 +544,15 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom, int ref)
    }
 }
 
-void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
+void WriteVTKEncodedCompressed(std::ostream &os, const void *bytes,
                                uint32_t nbytes, int compression_level)
 {
    if (compression_level == 0)
    {
       // First write size of buffer (as uint32_t), encoded with base 64
-      bin_io::WriteBase64(out, &nbytes, sizeof(nbytes));
+      bin_io::WriteBase64(os, &nbytes, sizeof(nbytes));
       // Then write all the bytes in the buffer, encoded with base 64
-      bin_io::WriteBase64(out, bytes, nbytes);
+      bin_io::WriteBase64(os, bytes, nbytes);
    }
    else
    {
@@ -443,9 +570,9 @@ void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
       header[1] = nbytes; // uncompressed size
       header[2] = 0; // size of partial block
       header[3] = buf_sz; // compressed size
-      bin_io::WriteBase64(out, header.data(), header.size()*sizeof(uint32_t));
+      bin_io::WriteBase64(os, header.data(), header.size()*sizeof(uint32_t));
       // Write the compressed data
-      bin_io::WriteBase64(out, buf.data(), buf_sz);
+      bin_io::WriteBase64(os, buf.data(), buf_sz);
 #else
       MFEM_ABORT("MFEM must be compiled with ZLib support to output "
                  "compressed binary data.")
@@ -471,6 +598,53 @@ const char *VTKByteOrder()
       return "LittleEndian";
    }
 
+}
+
+// Ensure ASCII output of uint8_t to stream is integer rather than character
+template <>
+void WriteBinaryOrASCII<uint8_t>(std::ostream &os, std::vector<char> &buf,
+                                 const uint8_t &val, const char *suffix,
+                                 VTKFormat format)
+{
+   if (format == VTKFormat::ASCII) { os << static_cast<int>(val) << suffix; }
+   else { bin_io::AppendBytes(buf, val); }
+}
+
+template <>
+void WriteBinaryOrASCII<double>(std::ostream &os, std::vector<char> &buf,
+                                const double &val, const char *suffix,
+                                VTKFormat format)
+{
+   if (format == VTKFormat::BINARY32)
+   {
+      bin_io::AppendBytes<float>(buf, float(val));
+   }
+   else if (format == VTKFormat::BINARY)
+   {
+      bin_io::AppendBytes(buf, val);
+   }
+   else
+   {
+      os << ZeroSubnormal(val) << suffix;
+   }
+}
+
+template <>
+void WriteBinaryOrASCII<float>(std::ostream &os, std::vector<char> &buf,
+                               const float &val, const char *suffix,
+                               VTKFormat format)
+{
+   if (format == VTKFormat::BINARY) { bin_io::AppendBytes<double>(buf, val); }
+   else if (format == VTKFormat::BINARY32) { bin_io::AppendBytes(buf, val); }
+   else { os << ZeroSubnormal(val) << suffix; }
+}
+
+void WriteBase64WithSizeAndClear(std::ostream &os, std::vector<char> &buf,
+                                 int compression_level)
+{
+   WriteVTKEncodedCompressed(os, buf.data(), buf.size(), compression_level);
+   os << '\n';
+   buf.clear();
 }
 
 } // namespace mfem

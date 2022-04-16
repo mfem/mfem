@@ -92,10 +92,10 @@ class Exception
    : public std::exception
 {
 public:
-   Exception(const std::string& msg) : _msg(msg) {}
-   const char * what() const noexcept { return _msg.c_str(); }
+   Exception(const std::string& msg_) : msg(msg_) {}
+   const char * what() const noexcept { return msg.c_str(); }
 private:
-   std::string _msg;
+   std::string msg;
 }; // class Exception
 
 namespace detail
@@ -268,38 +268,38 @@ class Exception
 {
 public:
    Exception(z_stream *zstrm_p, int ret)
-      : _msg("zlib: ")
+      : msg("zlib: ")
    {
       switch (ret)
       {
          case Z_STREAM_ERROR:
-            _msg += "Z_STREAM_ERROR: ";
+            msg += "Z_STREAM_ERROR: ";
             break;
          case Z_DATA_ERROR:
-            _msg += "Z_DATA_ERROR: ";
+            msg += "Z_DATA_ERROR: ";
             break;
          case Z_MEM_ERROR:
-            _msg += "Z_MEM_ERROR: ";
+            msg += "Z_MEM_ERROR: ";
             break;
          case Z_VERSION_ERROR:
-            _msg += "Z_VERSION_ERROR: ";
+            msg += "Z_VERSION_ERROR: ";
             break;
          case Z_BUF_ERROR:
-            _msg += "Z_BUF_ERROR: ";
+            msg += "Z_BUF_ERROR: ";
             break;
          default:
             std::ostringstream oss;
             oss << ret;
-            _msg += "[" + oss.str() + "]: ";
+            msg += "[" + oss.str() + "]: ";
             break;
       }
-      _msg += zstrm_p->msg;
+      msg += zstrm_p->msg;
    }
-   Exception(const std::string msg) : _msg(msg) {}
-   const char *what() const noexcept { return _msg.c_str(); }
+   Exception(const std::string msg_) : msg(msg_) {}
+   const char *what() const noexcept { return msg.c_str(); }
 
 private:
-   std::string _msg;
+   std::string msg;
 }; // class Exception
 #endif
 
@@ -310,8 +310,8 @@ class z_stream_wrapper
    : public z_stream
 {
 public:
-   z_stream_wrapper(bool _is_input = true, int _level = Z_DEFAULT_COMPRESSION)
-      : is_input(_is_input)
+   z_stream_wrapper(bool is_input_ = true, int level_ = Z_DEFAULT_COMPRESSION)
+      : is_input(is_input_)
    {
       this->zalloc = Z_NULL;
       this->zfree = Z_NULL;
@@ -325,7 +325,7 @@ public:
       }
       else
       {
-         ret = deflateInit2(this, _level, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY);
+         ret = deflateInit2(this, level_, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY);
       }
       if (ret != Z_OK)
       {
@@ -354,12 +354,12 @@ class istreambuf
    : public std::streambuf
 {
 public:
-   istreambuf(std::streambuf *_sbuf_p,
-              std::size_t _buff_size = default_buff_size, bool _auto_detect = true)
-      : sbuf_p(_sbuf_p),
+   istreambuf(std::streambuf *sbuf_p_,
+              std::size_t buff_size_ = default_buff_size, bool auto_detect_ = true)
+      : sbuf_p(sbuf_p_),
         zstrm_p(nullptr),
-        buff_size(_buff_size),
-        auto_detect(_auto_detect),
+        buff_size(buff_size_),
+        auto_detect(auto_detect_),
         auto_detect_run(false),
         is_text(false)
    {
@@ -491,11 +491,11 @@ class ostreambuf
    : public std::streambuf
 {
 public:
-   ostreambuf(std::streambuf *_sbuf_p,
-              std::size_t _buff_size = default_buff_size, int _level = Z_DEFAULT_COMPRESSION)
-      : sbuf_p(_sbuf_p),
-        zstrm_p(new detail::z_stream_wrapper(false, _level)),
-        buff_size(_buff_size)
+   ostreambuf(std::streambuf *sbuf_p_,
+              std::size_t buff_size_ = default_buff_size, int level_ = Z_DEFAULT_COMPRESSION)
+      : sbuf_p(sbuf_p_),
+        zstrm_p(new detail::z_stream_wrapper(false, level_)),
+        buff_size(buff_size_)
    {
       assert(sbuf_p);
       in_buff = new char[buff_size];
@@ -647,10 +647,10 @@ struct strict_fstream_holder
 {
    strict_fstream_holder(const std::string &filename,
                          std::ios_base::openmode mode = std::ios_base::in)
-      : _fs(filename, mode)
+      : fs_(filename, mode)
    {
    }
-   FStream_Type _fs;
+   FStream_Type fs_;
 }; // class strict_fstream_holder
 
 } // namespace detail
@@ -664,7 +664,7 @@ public:
    explicit ifstream(const std::string &filename,
                      std::ios_base::openmode mode = std::ios_base::in)
       : detail::strict_fstream_holder<strict_fstream::ifstream>(filename, mode),
-        std::istream(new istreambuf(_fs.rdbuf()))
+        std::istream(new istreambuf(fs_.rdbuf()))
    {
       exceptions(std::ios_base::badbit);
    }
@@ -686,7 +686,7 @@ public:
                      std::ios_base::openmode mode = std::ios_base::out)
       : detail::strict_fstream_holder<strict_fstream::ofstream>(filename,
                                                                 mode | std::ios_base::binary),
-        std::ostream(new ostreambuf(_fs.rdbuf()))
+        std::ostream(new ostreambuf(fs_.rdbuf()))
    {
       exceptions(std::ios_base::badbit);
    }
@@ -722,13 +722,13 @@ public:
 #ifdef MFEM_USE_ZLIB
       if (compression)
       {
-         strbuf = new zstr::ostreambuf(_fs.rdbuf());
+         strbuf = new zstr::ostreambuf(fs_.rdbuf());
          rdbuf(strbuf);
       }
       else
 #endif
       {
-         rdbuf(_fs.rdbuf());
+         rdbuf(fs_.rdbuf());
       }
       exceptions(std::ios_base::badbit);
    }
@@ -746,15 +746,15 @@ public:
       // level (it is always set to 6).
       if (std::string(open_mode_chars).find('z') != std::string::npos)
       {
-         strbuf = new zstr::ostreambuf(_fs.rdbuf());
+         strbuf = new zstr::ostreambuf(fs_.rdbuf());
          rdbuf(strbuf);
       }
       else
 #endif
       {
-         rdbuf(_fs.rdbuf());
+         rdbuf(fs_.rdbuf());
       }
-      setstate(_fs.rdstate());
+      setstate(fs_.rdstate());
       exceptions(std::ios_base::badbit);
    }
 
@@ -777,12 +777,12 @@ public:
         std::istream(nullptr)
    {
 #ifdef MFEM_USE_ZLIB
-      strbuf = new zstr::istreambuf(_fs.rdbuf());
+      strbuf = new zstr::istreambuf(fs_.rdbuf());
       rdbuf(strbuf);
 #else
-      rdbuf(_fs.rdbuf());
+      rdbuf(fs_.rdbuf());
 #endif
-      setstate(_fs.rdstate());
+      setstate(fs_.rdstate());
       exceptions(std::ios_base::badbit);
    }
 

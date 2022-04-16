@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,7 +53,7 @@ protected:
 
 public:
    /// Creates an empty table
-   Table() { size = -1; I.Reset(); J.Reset(); }
+   Table() { size = -1; }
 
    /// Copy constructor
    Table(const Table &);
@@ -66,7 +66,7 @@ public:
 
    /** Create a table from a list of connections, see MakeFromList(). */
    Table(int nrows, Array<Connection> &list) : size(-1)
-   { I.Reset(); J.Reset(); MakeFromList(nrows, list); }
+   { MakeFromList(nrows, list); }
 
    /** Create a table with one entry per row with column indices given
        by 'partitioning'. */
@@ -181,11 +181,11 @@ template <> inline void Swap<Table>(Table &a, Table &b)
 }
 
 ///  Transpose a Table
-void Transpose (const Table &A, Table &At, int _ncols_A = -1);
+void Transpose (const Table &A, Table &At, int ncols_A_ = -1);
 Table * Transpose (const Table &A);
 
 ///  Transpose an Array<int>
-void Transpose(const Array<int> &A, Table &At, int _ncols_A = -1);
+void Transpose(const Array<int> &A, Table &At, int ncols_A_ = -1);
 
 ///  C = A * B  (as boolean matrices)
 void Mult (const Table &A, const Table &B, Table &C);
