@@ -1,4 +1,4 @@
-//                      MFEM Example 33
+//                                MFEM Example 33
 //
 // Compile with: make ex33
 //
@@ -8,7 +8,6 @@
 //               ex33 -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
 //               ex33 -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
 //
-//
 // Description:
 //
 //  In this example we solve the following fractional PDE with MFEM:
@@ -16,7 +15,7 @@
 //    ( - Δ )^α u = f  in Ω,      u = 0  on ∂Ω,      0 < α < 1,
 //
 //  To solve this FPDE, we rely on a rational approximation [2] of the normal
-//  linear operator A^{-α}, where A = - Δ (with associated homogenous
+//  linear operator A^{-α}, where A = - Δ (with associated homogeneous
 //  boundary conditions). Namely, we first approximate the operator
 //
 //    A^{-α} ≈ Σ_{i=0}^N c_i (A + d_i I)^{-1},      d_0 = 0,   d_i > 0,
@@ -33,7 +32,6 @@
 //
 //    u ≈ Σ_{i=0}^N u_i.
 //
-//
 // References:
 //
 // [1] Nakatsukasa, Y., Sète, O., & Trefethen, L. N. (2018). The AAA algorithm
@@ -49,6 +47,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+
 #include "ex33.hpp"
 
 using namespace std;
@@ -133,7 +132,7 @@ int main(int argc, char *argv[])
       uout.precision(8);
    }
 
-   for (int i = 0; i<coeffs.Size(); i++)
+   for (int i = 0; i < coeffs.Size(); i++)
    {
       // 9. Set up the linear form b(.) for integer-order PDE solve.
       LinearForm b(&fespace);
@@ -160,8 +159,8 @@ int main(int argc, char *argv[])
       // 13. Solve the linear system A X = B.
       GSSmoother M((SparseMatrix&)(*A));
 
-      mfem::out<< "\nSolving PDE -Δ u + "<<-poles[i]<< " u = " << coeffs[i] << " f "
-               << endl;
+      mfem::out << "\nSolving PDE -Δ u + " << -poles[i]
+                << " u = " << coeffs[i] << " f " << endl;
       PCG(*A, M, B, X, 3, 200, 1e-12, 0.0);
 
       // 14. Recover the solution as a finite element grid function.
@@ -173,19 +172,21 @@ int main(int argc, char *argv[])
       // 16. Send the solutions by socket to a GLVis server.
       if (visualization)
       {
-         oss_x.str("");
-         oss_x.clear();
-         oss_x << "Solution of PDE -Δ u + "<<-poles[i]<< " u = " << coeffs[i] << " f" ;
+         oss_x.str(""); oss_x.clear();
+         oss_x << "Solution of PDE -Δ u + " << -poles[i]
+               << " u = " << coeffs[i] << " f";
          xout << "solution\n" << mesh << x
               << "window_title '" << oss_x.str() << "'" << flush;
 
-         oss_u.str("");
-         oss_u.clear();
-         oss_u << "Solution of fractional PDE -Δ^"<<alpha<< " u = f" ;
+         oss_u.str(""); oss_u.clear();
+         oss_u << "Solution of fractional PDE -Δ^" << alpha
+               << " u = f";
          uout << "solution\n" << mesh << u
               << "window_title '" << oss_u.str() << "'" << flush;
       }
    }
+
+   // 17. Free the used memory.
    delete fec;
    return 0;
 }
