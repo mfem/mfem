@@ -1,4 +1,4 @@
-//                                MFEM Example 21
+//                       MFEM Example 21 - Parallel Version
 //
 // Compile with: make ex21p
 //
