@@ -1,4 +1,4 @@
-//                      MFEM Example 33
+//                       MFEM Example 33 - Parallel Version
 //
 // Compile with: make ex33p
 //
@@ -8,7 +8,6 @@
 //               mpirun -np 4 ex33p -m ../data/disc-nurbs.mesh -alpha 0.33 -o 3
 //               mpirun -np 4 ex33p -m ../data/l-shape.mesh -alpha 0.33 -o 3 -r 4
 //
-//
 // Description:
 //
 //  In this example we solve the following fractional PDE with MFEM:
@@ -16,7 +15,7 @@
 //    ( - Δ )^α u = f  in Ω,      u = 0  on ∂Ω,      0 < α < 1,
 //
 //  To solve this FPDE, we rely on a rational approximation [2] of the normal
-//  linear operator A^{-α}, where A = - Δ (with associated homogenous
+//  linear operator A^{-α}, where A = - Δ (with associated homogeneous
 //  boundary conditions). Namely, we first approximate the operator
 //
 //    A^{-α} ≈ Σ_{i=0}^N c_i (A + d_i I)^{-1},      d_0 = 0,   d_i > 0,
@@ -33,7 +32,6 @@
 //
 //    u ≈ Σ_{i=0}^N u_i.
 //
-//
 // References:
 //
 // [1] Nakatsukasa, Y., Sète, O., & Trefethen, L. N. (2018). The AAA algorithm
@@ -49,6 +47,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+
 #include "ex33.hpp"
 
 using namespace std;
@@ -98,6 +97,7 @@ int main(int argc, char *argv[])
    }
 
    Array<double> coeffs, poles;
+
    // 2. Compute the coefficients that define the integer-order PDEs.
    ComputePartialFractionApproximation(alpha,coeffs,poles);
 
@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
 
    int solver_ranks = num_procs/num_par_solves;
 
-   // 3. Split communicator
+   // 3. Split the MPI communicator:
    //    row_comm is used for parallel partition of the mesh
    //    col_comm is used for independent integer-order solves
    int row_color = myid / solver_ranks; // Determine color based on row
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
    int iend = ibeg+my_coeff_size;
 
 
-   for (int i = ibeg; i<iend; i++)
+   for (int i = ibeg; i < iend; i++)
    {
       // 10. Reset GridFunction for integer-order PDE solve.
       x = 0.0;
@@ -216,12 +216,12 @@ int main(int argc, char *argv[])
       HypreBoomerAMG * prec = new HypreBoomerAMG;
       prec->SetPrintLevel(-1);
 
-
       int print_level = (col_rank==0) ? 3 : 0;
       if (Mpi::Root())
       {
-         mfem::out<< "\nMPI rank " <<  myid <<": Solving PDE -Δ u + "<<-poles[i]<<
-                  " u = " << coeffs[i] << " f " << endl;
+         mfem::out << "\nMPI rank " <<  myid
+                   << ": Solving PDE -Δ u + " << -poles[i]
+                   << " u = " << coeffs[i] << " f " << endl;
       }
       CGSolver cg(row_comm);
       cg.SetRelTol(1e-12);
@@ -236,13 +236,13 @@ int main(int argc, char *argv[])
       a.RecoverFEMSolution(X, b, x);
 
       // 15. Accumulate integer-order PDE solutions.
-      x*=coeffs[i];
-      u+=x;
+      x *= coeffs[i];
+      u += x;
 
       // 16. Send integer-order PDE solutions to a GLVis server.
       if (visualize_x)
       {
-         if (col_rank > 0 && i<iend-1)
+         if (col_rank > 0 && i < iend-1)
          {
             MPI_Status status;
             MPI_Recv(nullptr,0,MPI_INT, col_rank-1,0,col_comm,&status);
@@ -252,7 +252,8 @@ int main(int argc, char *argv[])
          socketstream xout(vishost, visport);
          xout.precision(8);
          ostringstream oss;
-         oss << "Solution of PDE -Δ u + "<<-poles[i]<< " u = " << coeffs[i] << " f" ;
+         oss << "Solution of PDE -Δ u + " << -poles[i]
+             << " u = " << coeffs[i] << " f" ;
          xout << "parallel " << row_size << " " << row_rank << "\n";
          xout << "solution\n" << pmesh << x
               << "window_title '" << oss.str() << "'" << flush;
@@ -272,12 +273,13 @@ int main(int argc, char *argv[])
    {
       if (col_rank == 0)
       {
-         ostringstream oss;
-         oss << "Solution of fractional PDE -Δ^"<<alpha<< " u = f" ;
          char vishost[] = "localhost";
          int  visport   = 19916;
          socketstream uout(vishost, visport);
          uout.precision(8);
+         ostringstream oss;
+         oss << "Solution of fractional PDE -Δ^" << alpha
+             << " u = f" ;
          uout << "parallel " << row_size << " " << row_rank << "\n";
          uout << "solution\n" << pmesh << u
               << "window_title '" << oss.str() << "'" << flush;
