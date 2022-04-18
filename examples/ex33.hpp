@@ -279,7 +279,7 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
     @param[out] coeffs        Coefficients c_i
     @param[out] poles         Poles p_i
 
-    NOTES: When MFEM is not build with LAPACK support, only @a alpha = 0.33,
+    NOTES: When MFEM is not built with LAPACK support, only @a alpha = 0.33,
            0.5, and 0.99 are possible. In this case, if @a alpha != 0.33 and
            @a alpha != 0.99, then @a alpha = 0.5 is used by default.
 
@@ -305,44 +305,57 @@ void ComputePartialFractionApproximation(double & alpha,
    if (print_warning)
    {
       mfem::out
-            << "\nMFEM is compiled without LAPACK.\nUsing precomputed values for PartialFractionApproximation"
-            << "Only alpha = 0.33, 0.5, and 0.99 are available.\nThe default is alpha = 0.5.\n"
+            << "\nMFEM is compiled without LAPACK.\nUsing precomputed values for PartialFractionApproximation. \n"
+            << "Only alpha = 0.33, 0.5, and 0.99 are available.\nThe default is alpha = 0.5."
             << std::endl;
    }
    const double eps = std::numeric_limits<double>::epsilon();
 
    if (abs(alpha - 0.33) < eps)
    {
-      coeffs = Array<double> ({2002.55,  99.7691,  29.0575,  12.9842,
-                               6.90263,  3.96688,  2.36013,  1.42565,
-                               0.867623, 0.529436, 0.317975, 0.0891797});
-      poles = Array<double> ({-47928.,  -3451.45, -996.636, -388.58,
-                              -168.228, -75.3162, -33.6235, -14.5403,
-                              -5.84563, -1.9975, -0.434608,  0.});
+      coeffs = Array<double> ({1.821898e+03, 9.101221e+01, 2.650611e+01,
+                               1.174937e+01, 6.140444e+00, 3.441713e+00,
+                               1.985735e+00, 1.162634e+00, 6.891560e-01,
+                               4.111574e-01, 2.298736e-01});
+      poles = Array<double> ({-4.155583e+04, -2.956285e+03, -8.331715e+02,
+                              -3.139332e+02, -1.303448e+02, -5.563385e+01,
+                              -2.356255e+01, -9.595516e+00, -3.552160e+00,
+                              -1.032136e+00, -1.241480e-01});
    }
    else if (abs(alpha - 0.99) < eps)
    {
-      coeffs = Array<double>({0.0292386, 0.0143338, 0.0109015, 0.00976958,
-                              0.00943417, 0.00948077, 0.00985799, 0.010889,
-                              0.0138588, 0.0263289, 0.96953});
-      poles = Array<double> ({-10085.1, -1652.6, -524.342, -199.521,
-                              -80.2328, -32.3926, -12.7148, -4.63855,
-                              -1.39884, -0.221076, 0.});
+      coeffs = Array<double>({2.919591e-02, 1.419750e-02, 1.065798e-02,
+                              9.395094e-03, 8.915329e-03, 8.822991e-03,
+                              9.058247e-03, 9.814521e-03, 1.180396e-02,
+                              1.834554e-02, 9.840482e-01});
+      poles = Array<double> ({-1.069683e+04, -1.769370e+03, -5.718374e+02,
+                              -2.242095e+02, -9.419132e+01, -4.031012e+01,
+                              -1.701525e+01, -6.810088e+00, -2.382810e+00,
+                              -5.700059e-01, -1.384324e-03});
    }
    else
    {
       if (abs(alpha - 0.5) > eps && print_warning)
       {
-         mfem::out << "Using default value of alpha = 0.5" << std::endl;
          alpha = 0.5;
       }
-      coeffs = Array<double>({209.629, 24.2714, 9.24812, 4.93138,
-                              3.02653, 1.98265, 1.34293, 0.931714,
-                              0.664382, 0.492972, 0.39114, 0.177527});
-      poles = Array<double>({-26466.7, -2673.76, -800.03, -312.646,
-                             -134.551, -59.8651, -26.6607, -11.5603,
-                             -4.67241, -1.59503, -0.332738, 0.});
+      coeffs = Array<double>({2.290262e+02, 2.641819e+01, 1.005566e+01,
+                              5.390411e+00, 3.340725e+00, 2.211205e+00,
+                              1.508883e+00, 1.049474e+00, 7.462709e-01,
+                              5.482686e-01, 4.232510e-01, 3.578967e-01});
+      poles = Array<double>({-3.168211e+04, -3.236077e+03, -9.868287e+02,
+                             -3.945597e+02, -1.738889e+02, -7.925178e+01,
+                             -3.624992e+01, -1.629196e+01, -6.982956e+00,
+                             -2.679984e+00, -7.782607e-01, -7.649166e-02});
    }
+
+   if (print_warning)
+   {
+      mfem::out << "Using precomputed values for alpha = "
+                << alpha << "\n" << std::endl;
+   }
+
+
    return;
 #endif
 
