@@ -132,9 +132,9 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      mfem::out << "\nTotal number of ranks = " << num_procs << endl;
+      mfem::out << "\nTotal number of MPI ranks = " << num_procs << endl;
       mfem::out << "Number of independent parallel solves = " << col_size << endl;
-      mfem::out << "Number of mpi ranks within each solve = " << row_size
+      mfem::out << "Number of MPI ranks within each solve = " << row_size
                 <<"\n" << endl;
    }
 
