@@ -416,6 +416,95 @@ TEST_CASE("ParSubMesh", "[Parallel],[ParSubMesh]")
               transfer_type, from);
    }
 }
+
+TEST_CASE("ParSubMeshDirectTransfer", "[Parallel],[ParSubMeshDirectTransfer]")
+{
+   // Circle: sideset 1
+   // Domain boundary: sideset 2
+   Mesh *serial_parent_mesh = new Mesh("test.e");
+   ParMesh parent_mesh(MPI_COMM_WORLD, *serial_parent_mesh);
+   delete serial_parent_mesh;
+
+   Array<int> cylinder_domain_attributes(1);
+   cylinder_domain_attributes[0] = 1;
+
+   Array<int> outer_domain_attributes(1);
+   outer_domain_attributes[0] = 2;
+
+   Array<int> cylinder_surface_attributes(1);
+   cylinder_surface_attributes[0] = 9;
+
+   auto cylinder_submesh = ParSubMesh::CreateFromDomain(parent_mesh,
+                                                        cylinder_domain_attributes);
+
+   auto outer_submesh = ParSubMesh::CreateFromDomain(parent_mesh,
+                                                     outer_domain_attributes);
+
+   auto cylinder_surface_submesh = ParSubMesh::CreateFromBoundary(parent_mesh,
+                                                                  cylinder_surface_attributes);
+
+   FiniteElementCollection *fec = create_fec(FECType::H1, 2, 3);
+
+   ParFiniteElementSpace parent_fes(&parent_mesh, fec);
+   ParGridFunction parent_gf(&parent_fes);
+
+   ParFiniteElementSpace cylinder_fes(&cylinder_submesh, fec);
+   ParGridFunction cylinder_gf(&cylinder_fes);
+
+   ParFiniteElementSpace outer_fes(&outer_submesh, fec);
+   ParGridFunction outer_gf(&outer_fes);
+
+   ParFiniteElementSpace cylinder_surface_fes(&cylinder_surface_submesh, fec);
+   ParGridFunction cylinder_surface_gf(&cylinder_surface_fes);
+
+   auto coeff = FunctionCoefficient([](const Vector &coords)
+   {
+      double x = coords(0);
+      double y = coords(1);
+      double z = coords(2);
+      return y + 0.05 * sin(x * 2.0 * M_PI) + z;
+   });
+
+   auto flipped_coeff = FunctionCoefficient([](const Vector &coords)
+   {
+      double x = coords(0);
+      double y = coords(1);
+      double z = coords(2);
+      return -(y + 0.05 * sin(x * 2.0 * M_PI) + z);
+   });
+
+   parent_gf.ProjectCoefficient(coeff);
+   outer_gf = 0.0;
+
+   ParSubMesh::Transfer(parent_gf, cylinder_gf);
+   ParSubMesh::Transfer(cylinder_gf, cylinder_surface_gf);
+   ParSubMesh::Transfer(cylinder_surface_gf, outer_gf);
+
+   char vishost[] = "128.15.198.77";
+   int  visport   = 19916;
+
+   socketstream parent_mesh_socket(vishost, visport);
+   parent_mesh_socket.precision(8);
+   parent_mesh_socket << "solution\n" << parent_mesh << parent_gf;
+   parent_mesh_socket << "keys ml" << std::flush;
+
+   socketstream cylinder_domain_socket(vishost, visport);
+   cylinder_domain_socket.precision(8);
+   cylinder_domain_socket << "solution\n" << cylinder_submesh << cylinder_gf;
+   cylinder_domain_socket << "keys ml" << std::flush;
+
+   socketstream outer_domain_socket(vishost, visport);
+   outer_domain_socket.precision(8);
+   outer_domain_socket << "solution\n" << outer_submesh << outer_gf;
+   outer_domain_socket << "keys ml" << std::flush;
+
+   socketstream cylinder_surface_socket(vishost, visport);
+   cylinder_surface_socket.precision(8);
+   cylinder_surface_socket << "solution\n" << cylinder_surface_submesh <<
+                           cylinder_surface_gf;
+   cylinder_surface_socket << "keys ml" << std::flush;
+}
+
 } // namespace ParSubMeshTests
 
 #endif // MFEM_USE_MPI

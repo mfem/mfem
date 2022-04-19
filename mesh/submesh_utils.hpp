@@ -13,6 +13,7 @@
 #ifndef MFEM_SUBMESH_UTILS
 #define MFEM_SUBMESH_UTILS
 
+#include <type_traits>
 #include <unordered_map>
 #include "submesh.hpp"
 
@@ -81,7 +82,27 @@ AddElementsToMesh(const Mesh& parent,
  */
 Array<int> BuildFaceMap(const Mesh& parent, const Mesh& mesh,
                         const Array<int> &parent_element_ids);
+
+
+template <class T>
+const Mesh* GetRootParent(T &mesh)
+{
+   const Mesh* parent = mesh.GetParent();
+   while (true)
+   {
+      const T* next = dynamic_cast<const T*>(parent);
+      if (next == nullptr)
+      {
+         return parent;
+      }
+      else
+      {
+         parent = next->GetParent();
+      }
+   }
 }
-}
+
+} // namespace SubMeshUtils
+} // namespace mfem
 
 #endif

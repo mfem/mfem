@@ -1435,6 +1435,17 @@ Element::Type Mesh::GetFaceElementType(int Face) const
    return (Dim == 1) ? Element::POINT : faces[Face]->GetType();
 }
 
+Array<int> Mesh::GetFaceToBdrElMap() const
+{
+   Array<int> face_to_be(NumOfFaces);
+   face_to_be = -1;
+   for (int i = 0; i < NumOfBdrElements; i++)
+   {
+      face_to_be[GetBdrElementEdgeIndex(i)] = i;
+   }
+   return face_to_be;
+}
+
 void Mesh::Init()
 {
    // in order of declaration:
