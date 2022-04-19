@@ -205,11 +205,11 @@ void L2_QuadrilateralElement::ProjectDiv(const FiniteElement &fe,
       // Loop over subcells
       for (int iy = 0; iy < order+1; ++iy)
       {
-         double hy = gll_pts[iy+1] - gll_pts[iy];
+         const double hy = gll_pts[iy+1] - gll_pts[iy];
          for (int ix = 0; ix < order+1; ++ix)
          {
             const int i = ix + iy*(order+1);
-            double hx = gll_pts[ix+1] - gll_pts[ix];
+            const double hx = gll_pts[ix+1] - gll_pts[ix];
             // Loop over subcell quadrature points
             for (int iq = 0; iq < ir.Size(); ++iq)
             {
@@ -265,11 +265,11 @@ void L2_QuadrilateralElement::Project(Coefficient &coeff,
       // Loop over subcells
       for (int iy = 0; iy < order+1; ++iy)
       {
-         double hy = gll_pts[iy+1] - gll_pts[iy];
+         const double hy = gll_pts[iy+1] - gll_pts[iy];
          for (int ix = 0; ix < order+1; ++ix)
          {
             const int i = ix + iy*(order+1);
-            double hx = gll_pts[ix+1] - gll_pts[ix];
+            const double hx = gll_pts[ix+1] - gll_pts[ix];
             // Loop over subcell quadrature points
             for (int iq = 0; iq < ir.Size(); ++iq)
             {
@@ -277,7 +277,7 @@ void L2_QuadrilateralElement::Project(Coefficient &coeff,
                ip.x = gll_pts[ix] + hx*ip.x;
                ip.y = gll_pts[iy] + hy*ip.y;
                Trans.SetIntPoint(&ip);
-               double val = coeff.Eval(Trans, ip);
+               const double val = coeff.Eval(Trans, ip);
                double w = ip.weight;
                if (map_type == INTEGRAL)
                {
@@ -466,14 +466,14 @@ void L2_HexahedronElement::ProjectDiv(const FiniteElement &fe,
       // Loop over subcells
       for (int iz = 0; iz < order+1; ++iz)
       {
-         double hz = gll_pts[iz+1] - gll_pts[iz];
+         const double hz = gll_pts[iz+1] - gll_pts[iz];
          for (int iy = 0; iy < order+1; ++iy)
          {
-            double hy = gll_pts[iy+1] - gll_pts[iy];
+            const double hy = gll_pts[iy+1] - gll_pts[iy];
             for (int ix = 0; ix < order+1; ++ix)
             {
                const int i = ix + iy*(order+1) + iz*(order+1)*(order+1);
-               double hx = gll_pts[ix+1] - gll_pts[ix];
+               const double hx = gll_pts[ix+1] - gll_pts[ix];
                // Loop over subcell quadrature points
                for (int iq = 0; iq < ir.Size(); ++iq)
                {
@@ -531,13 +531,13 @@ void L2_HexahedronElement::Project(Coefficient &coeff,
       // Loop over subcells
       for (int iz = 0; iz < order+1; ++iz)
       {
-         double hz = gll_pts[iz+1] - gll_pts[iz];
+         const double hz = gll_pts[iz+1] - gll_pts[iz];
          for (int iy = 0; iy < order+1; ++iy)
          {
-            double hy = gll_pts[iy+1] - gll_pts[iy];
+            const double hy = gll_pts[iy+1] - gll_pts[iy];
             for (int ix = 0; ix < order+1; ++ix)
             {
-               double hx = gll_pts[ix+1] - gll_pts[ix];
+               const double hx = gll_pts[ix+1] - gll_pts[ix];
                const int i = ix + iy*(order+1) + iz*(order+1)*(order+1);
                // Loop over subcell quadrature points
                for (int iq = 0; iq < ir.Size(); ++iq)
@@ -547,7 +547,7 @@ void L2_HexahedronElement::Project(Coefficient &coeff,
                   ip.y = gll_pts[iy] + hy*ip.y;
                   ip.z = gll_pts[iz] + hz*ip.z;
                   Trans.SetIntPoint(&ip);
-                  double val = coeff.Eval(Trans, ip);
+                  const double val = coeff.Eval(Trans, ip);
                   double w = ip.weight;
                   if (map_type == INTEGRAL)
                   {
