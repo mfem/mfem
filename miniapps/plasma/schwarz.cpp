@@ -629,16 +629,15 @@ SparseBooleanMatrix* SparseBooleanMatrix::Mult(SparseBooleanMatrix const& M) con
 
 SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
 {
-  const int distance = 1; // What is this?
-  double threshold = 1.01;
+  const int distance = 1;
+  double threshold = 1.5;
 
   // TODO: generalize to 3D
   const int dim = 2;
 
-  // TODO: generalize by allowing to use TotBFunc
   Vector bvec(dim);
   bvec[0] = 1.0;
-  bvec[1] = 0.0;
+  bvec[1] = 1.0;
 
   bvec = 0.0;
 
@@ -659,6 +658,22 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
       MFEM_VERIFY(vert.Size() == 2, "");
       A.SetEntry(vert[0], vert[1]);
       A.SetEntry(vert[1], vert[0]);
+    }
+
+  if (distance == 1)  // Not using algebraic distance
+    {
+      // Connect vertices of quadrilateral elements not sharing an edge
+      for (int i=0; i<pmesh->GetNE(); ++i)
+	{
+	  Array<int> vert;
+	  pmesh->GetElementVertices(i, vert);
+	  MFEM_VERIFY(vert.Size() == 4, "");
+	  for (int j=0; j<2; ++j) // Loop over diagonals
+	    {
+	      A.SetEntry(vert[j], vert[j+2]);
+	      A.SetEntry(vert[j+2], vert[j]);
+	    }
+	}
     }
 
   SparseBooleanMatrix *dis_A = new SparseBooleanMatrix(A);
@@ -720,7 +735,6 @@ SparseMatrix* GetAnisotropicGraph_with_distance(ParMesh *pmesh)
 	      node_flag[v0] = true;
 	      node_flag[v1] = true;
 	    }
-	  // TODO: you may need to rotate b?
 	}
     }
 
