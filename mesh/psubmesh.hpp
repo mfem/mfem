@@ -80,7 +80,7 @@ public:
    /**
     * @brief Get the parent ParMesh object
     */
-   const ParMesh* GetParent()
+   const ParMesh* GetParent() const
    {
       return &parent_;
    }
@@ -114,6 +114,11 @@ public:
    const Array<int>& GetParentVertexIDMap() const
    {
       return parent_vertex_ids_;
+   }
+
+   const Array<int>& GetParentFaceIDMap() const
+   {
+      return parent_face_ids_;
    }
 
    /**

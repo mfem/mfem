@@ -360,3 +360,89 @@ TEST_CASE("SubMesh", "[SubMesh]")
               transfer_type, from);
    }
 }
+
+TEST_CASE("SubMeshDirectTransfer", "[SubMeshDirectTransfer]")
+{
+   // Circle: sideset 1
+   // Domain boundary: sideset 2
+   Mesh parent_mesh("test.e");
+
+   Array<int> cylinder_domain_attributes(1);
+   cylinder_domain_attributes[0] = 1;
+
+   Array<int> outer_domain_attributes(1);
+   outer_domain_attributes[0] = 2;
+
+   Array<int> cylinder_surface_attributes(1);
+   cylinder_surface_attributes[0] = 9;
+
+   auto cylinder_submesh = SubMesh::CreateFromDomain(parent_mesh,
+                                                     cylinder_domain_attributes);
+
+   auto outer_submesh = SubMesh::CreateFromDomain(parent_mesh,
+                                                  outer_domain_attributes);
+
+   auto cylinder_surface_submesh = SubMesh::CreateFromBoundary(parent_mesh,
+                                                               cylinder_surface_attributes);
+
+   FiniteElementCollection *fec = create_fec(FECType::H1, 2, 3);
+
+   FiniteElementSpace parent_fes(&parent_mesh, fec);
+   GridFunction parent_gf(&parent_fes);
+
+   FiniteElementSpace cylinder_fes(&cylinder_submesh, fec);
+   GridFunction cylinder_gf(&cylinder_fes);
+
+   FiniteElementSpace outer_fes(&outer_submesh, fec);
+   GridFunction outer_gf(&outer_fes);
+
+   FiniteElementSpace cylinder_surface_fes(&cylinder_surface_submesh, fec);
+   GridFunction cylinder_surface_gf(&cylinder_surface_fes);
+
+   auto coeff = FunctionCoefficient([](const Vector &coords)
+   {
+      double x = coords(0);
+      double y = coords(1);
+      double z = coords(2);
+      return y + 0.05 * sin(x * 2.0 * M_PI) + z;
+   });
+
+   auto flipped_coeff = FunctionCoefficient([](const Vector &coords)
+   {
+      double x = coords(0);
+      double y = coords(1);
+      double z = coords(2);
+      return -(y + 0.05 * sin(x * 2.0 * M_PI) + z);
+   });
+
+   parent_gf.ProjectCoefficient(coeff);
+   outer_gf = 0.0;
+
+   SubMesh::Transfer(parent_gf, cylinder_gf);
+   SubMesh::Transfer(cylinder_gf, cylinder_surface_gf);
+   SubMesh::Transfer(cylinder_surface_gf, outer_gf);
+
+   // char vishost[] = "128.15.198.77";
+   // int  visport   = 19916;
+
+   // socketstream parent_mesh_socket(vishost, visport);
+   // parent_mesh_socket.precision(8);
+   // parent_mesh_socket << "solution\n" << parent_mesh << parent_gf;
+   // parent_mesh_socket << "keys ml" << std::flush;
+
+   // socketstream cylinder_domain_socket(vishost, visport);
+   // cylinder_domain_socket.precision(8);
+   // cylinder_domain_socket << "solution\n" << cylinder_submesh << cylinder_gf;
+   // cylinder_domain_socket << "keys ml" << std::flush;
+
+   // socketstream outer_domain_socket(vishost, visport);
+   // outer_domain_socket.precision(8);
+   // outer_domain_socket << "solution\n" << outer_submesh << outer_gf;
+   // outer_domain_socket << "keys ml" << std::flush;
+
+   // socketstream cylinder_surface_socket(vishost, visport);
+   // cylinder_surface_socket.precision(8);
+   // cylinder_surface_socket << "solution\n" << cylinder_surface_submesh <<
+   //                         cylinder_surface_gf;
+   // cylinder_surface_socket << "keys ml" << std::flush;
+}

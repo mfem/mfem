@@ -1431,6 +1431,8 @@ public:
    Geometry::Type GetFaceGeometryType(int Face) const;
    Element::Type  GetFaceElementType(int Face) const;
 
+   Array<int> GetFaceToBdrElMap() const;
+
    /// Check (and optionally attempt to fix) the orientation of the elements
    /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
                           elements: triangles, quads, and tets.

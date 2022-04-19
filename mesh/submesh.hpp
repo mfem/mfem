@@ -13,6 +13,7 @@
 #define MFEM_SUBMESH
 
 #include "mesh.hpp"
+#include <unordered_map>
 
 namespace mfem
 {
@@ -45,6 +46,8 @@ public:
       Domain,
       Boundary
    };
+
+   static const int GENERATED_ATTRIBUTE = 900;
 
    SubMesh() = delete;
 
@@ -79,7 +82,7 @@ public:
     * @brief Get the parent Mesh object
     *
     */
-   const Mesh* GetParent()
+   const Mesh* GetParent() const
    {
       return &parent_;
    }
@@ -90,7 +93,7 @@ public:
     * Indicates whether the SubMesh has been created from a domain or
     * surface.
     */
-   const From GetFrom()
+   const From GetFrom() const
    {
       return from_;
    }
@@ -103,6 +106,11 @@ public:
    const Array<int>& GetParentElementIDMap() const
    {
       return parent_element_ids_;
+   }
+
+   const Array<int>& GetParentFaceIDMap() const
+   {
+      return parent_face_ids_;
    }
 
    /**
@@ -162,6 +170,12 @@ private:
    /// Mapping from submesh vertex ids (index of the array), to the parent
    /// vertex ids.
    Array<int> parent_vertex_ids_;
+
+   /// Mapping from SubMesh face ids (index of the array), to the parent Mesh
+   /// face ids.
+   Array<int> parent_face_ids_;
+
+   Array<int> face_to_be;
 };
 }
 

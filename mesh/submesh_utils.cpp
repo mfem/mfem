@@ -51,7 +51,7 @@ AddElementsToMesh(const Mesh& parent,
 {
    Array<int> parent_vertex_ids, parent_element_ids;
    UniqueIndexGenerator vertex_ids;
-   int ne = from_boundary ? parent.GetNBE() : parent.GetNE();
+   const int ne = from_boundary ? parent.GetNBE() : parent.GetNE();
    for (int i = 0; i < ne; i++)
    {
       const Element *pel = from_boundary ?
@@ -109,5 +109,6 @@ Array<int> BuildFaceMap(const Mesh& parent, const Mesh& mesh,
    }
    return parent_face_ids;
 }
-}
-}
+
+} // namespace SubMeshUtils
+} // namespace mfem
