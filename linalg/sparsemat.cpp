@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -163,9 +163,9 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
    {
       const int nnz = I[height];
       A.New(nnz);
-      for (int i=0; i<nnz; ++i)
+      for (int ii=0; ii<nnz; ++ii)
       {
-         A[i] = 0.0;
+         A[ii] = 0.0;
       }
    }
 
@@ -292,6 +292,12 @@ SparseMatrix::SparseMatrix(const Vector &v)
    InitGPUSparse();
 }
 
+void SparseMatrix::OverrideSize(int height_, int width_)
+{
+   height = height_;
+   width = width_;
+}
+
 SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
 {
    Clear();
@@ -358,14 +364,14 @@ int SparseMatrix::RowSize(const int i) const
 
 int SparseMatrix::MaxRowSize() const
 {
-   int out=0;
+   int max_row_size=0;
    int rowSize=0;
    if (I)
    {
       for (int i=0; i < height; ++i)
       {
          rowSize = I[i+1]-I[i];
-         out = (out > rowSize) ? out : rowSize;
+         max_row_size = (max_row_size > rowSize) ? max_row_size : rowSize;
       }
    }
    else
@@ -373,11 +379,11 @@ int SparseMatrix::MaxRowSize() const
       for (int i=0; i < height; ++i)
       {
          rowSize = RowSize(i);
-         out = (out > rowSize) ? out : rowSize;
+         max_row_size = (max_row_size > rowSize) ? max_row_size : rowSize;
       }
    }
 
-   return out;
+   return max_row_size;
 }
 
 int *SparseMatrix::GetRowColumns(const int row)
@@ -579,21 +585,21 @@ void SparseMatrix::GetDiag(Vector & d) const
 
    d.SetSize(height);
 
-   const auto I = this->ReadI();
-   const auto J = this->ReadJ();
-   const auto A = this->ReadData();
+   const auto II = this->ReadI();
+   const auto JJ = this->ReadJ();
+   const auto AA = this->ReadData();
    auto dd = d.Write();
 
    MFEM_FORALL(i, height,
    {
-      const int begin = I[i];
-      const int end = I[i+1];
+      const int begin = II[i];
+      const int end = II[i+1];
       int j;
       for (j = begin; j < end; j++)
       {
-         if (J[j] == i)
+         if (JJ[j] == i)
          {
-            dd[i] = A[j];
+            dd[i] = AA[j];
             break;
          }
       }
@@ -848,8 +854,9 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    }
    else
    {
-      MFEM_VERIFY(Device::IsDisabled(), "transpose action on device is not "
-                  "enabled; see BuildTranspose() for details.");
+      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
+                  "this backend is not enabled; see EnsureMultTranspose() for "
+                  "details.");
       for (int i = 0; i < height; i++)
       {
          const double xi = a * x[i];
@@ -875,6 +882,14 @@ void SparseMatrix::ResetTranspose() const
 {
    delete At;
    At = NULL;
+}
+
+void SparseMatrix::EnsureMultTranspose() const
+{
+   if (Device::Allows(~Backend::CPU_MASK))
+   {
+      BuildTranspose();
+   }
 }
 
 void SparseMatrix::PartMult(
@@ -1054,8 +1069,9 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
    }
    else
    {
-      MFEM_VERIFY(Device::IsDisabled(), "transpose action on device is not "
-                  "enabled; see BuildTranspose() for details.");
+      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
+                  "this backend is not enabled; see EnsureMultTranspose() for "
+                  "details.");
       for (int i = 0; i < height; i++)
       {
          const double xi = x[i];
@@ -1976,11 +1992,11 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 
    if (Rows == NULL)
    {
-      const auto &I = this->I; // only use const access for I
-      const auto &J = this->J; // only use const access for J
-      for (int j = I[rc]; j < I[rc+1]; j++)
+      const auto &II = this->I; // only use const access for I
+      const auto &JJ = this->J; // only use const access for J
+      for (int j = II[rc]; j < II[rc+1]; j++)
       {
-         const int col = J[j];
+         const int col = JJ[j];
          if (col == rc)
          {
             if (dpolicy == DIAG_ONE)
@@ -1995,13 +2011,13 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
          else
          {
             A[j] = 0.0;
-            for (int k = I[col]; 1; k++)
+            for (int k = II[col]; 1; k++)
             {
-               if (k == I[col+1])
+               if (k == II[col+1])
                {
                   mfem_error("SparseMatrix::EliminateRowCol() #2");
                }
-               else if (J[k] == rc)
+               else if (JJ[k] == rc)
                {
                   A[k] = 0.0;
                   break;
@@ -2617,9 +2633,9 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
    }
 }
 
-void SparseMatrix::Set(const int i, const int j, const double A)
+void SparseMatrix::Set(const int i, const int j, const double val)
 {
-   double a = A;
+   double a = val;
    int gi, gj, s, t;
 
    if ((gi=i) < 0) { gi = -1-gi, s = -1; }
@@ -2636,10 +2652,10 @@ void SparseMatrix::Set(const int i, const int j, const double A)
    _Set_(gi, gj, a);
 }
 
-void SparseMatrix::Add(const int i, const int j, const double A)
+void SparseMatrix::Add(const int i, const int j, const double val)
 {
    int gi, gj, s, t;
-   double a = A;
+   double a = val;
 
    if ((gi=i) < 0) { gi = -1-gi, s = -1; }
    else { s = 1; }
@@ -3093,7 +3109,7 @@ SparseMatrix &SparseMatrix::operator*=(double a)
    return (*this);
 }
 
-void SparseMatrix::Print(std::ostream & out, int width_) const
+void SparseMatrix::Print(std::ostream & os, int width_) const
 {
    int i, j;
 
@@ -3102,18 +3118,18 @@ void SparseMatrix::Print(std::ostream & out, int width_) const
       RowNode *nd;
       for (i = 0; i < height; i++)
       {
-         out << "[row " << i << "]\n";
+         os << "[row " << i << "]\n";
          for (nd = Rows[i], j = 0; nd != NULL; nd = nd->Prev, j++)
          {
-            out << " (" << nd->Column << "," << nd->Value << ")";
+            os << " (" << nd->Column << "," << nd->Value << ")";
             if ( !((j+1) % width_) )
             {
-               out << '\n';
+               os << '\n';
             }
          }
          if (j % width_)
          {
-            out << '\n';
+            os << '\n';
          }
       }
       return;
@@ -3125,116 +3141,116 @@ void SparseMatrix::Print(std::ostream & out, int width_) const
    HostReadData();
    for (i = 0; i < height; i++)
    {
-      out << "[row " << i << "]\n";
+      os << "[row " << i << "]\n";
       for (j = I[i]; j < I[i+1]; j++)
       {
-         out << " (" << J[j] << "," << A[j] << ")";
+         os << " (" << J[j] << "," << A[j] << ")";
          if ( !((j+1-I[i]) % width_) )
          {
-            out << '\n';
+            os << '\n';
          }
       }
       if ((j-I[i]) % width_)
       {
-         out << '\n';
+         os << '\n';
       }
    }
 }
 
-void SparseMatrix::PrintMatlab(std::ostream & out) const
+void SparseMatrix::PrintMatlab(std::ostream & os) const
 {
-   out << "% size " << height << " " << width << "\n";
-   out << "% Non Zeros " << NumNonZeroElems() << "\n";
+   os << "% size " << height << " " << width << "\n";
+   os << "% Non Zeros " << NumNonZeroElems() << "\n";
    int i, j;
-   ios::fmtflags old_fmt = out.flags();
-   out.setf(ios::scientific);
-   std::streamsize old_prec = out.precision(14);
+   ios::fmtflags old_fmt = os.flags();
+   os.setf(ios::scientific);
+   std::streamsize old_prec = os.precision(14);
 
    for (i = 0; i < height; i++)
    {
       for (j = I[i]; j < I[i+1]; j++)
       {
-         out << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
+         os << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
       }
    }
    // Write a zero entry at (m,n) to make sure MATLAB doesn't shrink the matrix
-   out << height << " " << width << " 0.0\n";
-   out.precision(old_prec);
-   out.flags(old_fmt);
+   os << height << " " << width << " 0.0\n";
+   os.precision(old_prec);
+   os.flags(old_fmt);
 }
 
-void SparseMatrix::PrintMM(std::ostream & out) const
+void SparseMatrix::PrintMM(std::ostream & os) const
 {
    int i, j;
-   ios::fmtflags old_fmt = out.flags();
-   out.setf(ios::scientific);
-   std::streamsize old_prec = out.precision(14);
+   ios::fmtflags old_fmt = os.flags();
+   os.setf(ios::scientific);
+   std::streamsize old_prec = os.precision(14);
 
-   out << "%%MatrixMarket matrix coordinate real general" << '\n'
-       << "% Generated by MFEM" << '\n';
+   os << "%%MatrixMarket matrix coordinate real general" << '\n'
+      << "% Generated by MFEM" << '\n';
 
-   out << height << " " << width << " " << NumNonZeroElems() << '\n';
+   os << height << " " << width << " " << NumNonZeroElems() << '\n';
    for (i = 0; i < height; i++)
    {
       for (j = I[i]; j < I[i+1]; j++)
       {
-         out << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
+         os << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
       }
    }
-   out.precision(old_prec);
-   out.flags(old_fmt);
+   os.precision(old_prec);
+   os.flags(old_fmt);
 }
 
-void SparseMatrix::PrintCSR(std::ostream & out) const
+void SparseMatrix::PrintCSR(std::ostream & os) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    int i;
 
-   out << height << '\n';  // number of rows
+   os << height << '\n';  // number of rows
 
    for (i = 0; i <= height; i++)
    {
-      out << I[i]+1 << '\n';
+      os << I[i]+1 << '\n';
    }
 
    for (i = 0; i < I[height]; i++)
    {
-      out << J[i]+1 << '\n';
+      os << J[i]+1 << '\n';
    }
 
    for (i = 0; i < I[height]; i++)
    {
-      out << A[i] << '\n';
+      os << A[i] << '\n';
    }
 }
 
-void SparseMatrix::PrintCSR2(std::ostream & out) const
+void SparseMatrix::PrintCSR2(std::ostream & os) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    int i;
 
-   out << height << '\n'; // number of rows
-   out << width << '\n';  // number of columns
+   os << height << '\n'; // number of rows
+   os << width << '\n';  // number of columns
 
    for (i = 0; i <= height; i++)
    {
-      out << I[i] << '\n';
+      os << I[i] << '\n';
    }
 
    for (i = 0; i < I[height]; i++)
    {
-      out << J[i] << '\n';
+      os << J[i] << '\n';
    }
 
    for (i = 0; i < I[height]; i++)
    {
-      out << A[i] << '\n';
+      os << A[i] << '\n';
    }
 }
 
-void SparseMatrix::PrintInfo(std::ostream &out) const
+void SparseMatrix::PrintInfo(std::ostream &os) const
 {
    const double MiB = 1024.*1024;
    int nnz = NumNonZeroElems();
@@ -3247,25 +3263,25 @@ void SparseMatrix::PrintInfo(std::ostream &out) const
    int ns15 = CountSmallElems(1e-15*max_norm);
    int ns18 = CountSmallElems(1e-18*max_norm);
 
-   out <<
-       "SparseMatrix statistics:\n"
-       "  Format                      : " <<
-       (Empty() ? "(empty)" : (Finalized() ? "CSR" : "LIL")) << "\n"
-       "  Dimensions                  : " << height << " x " << width << "\n"
-       "  Number of entries (total)   : " << nnz << "\n"
-       "  Number of entries (per row) : " << 1.*nnz/Height() << "\n"
-       "  Number of stored zeros      : " << nz*pz << "% (" << nz << ")\n"
-       "  Number of Inf/Nan entries   : " << nnf*pz << "% ("<< nnf << ")\n"
-       "  Norm, max |a_ij|            : " << max_norm << "\n"
-       "  Symmetry, max |a_ij-a_ji|   : " << symm << "\n"
-       "  Number of small entries:\n"
-       "    |a_ij| <= 1e-12*Norm      : " << ns12*pz << "% (" << ns12 << ")\n"
-       "    |a_ij| <= 1e-15*Norm      : " << ns15*pz << "% (" << ns15 << ")\n"
-       "    |a_ij| <= 1e-18*Norm      : " << ns18*pz << "% (" << ns18 << ")\n";
+   os <<
+      "SparseMatrix statistics:\n"
+      "  Format                      : " <<
+      (Empty() ? "(empty)" : (Finalized() ? "CSR" : "LIL")) << "\n"
+      "  Dimensions                  : " << height << " x " << width << "\n"
+      "  Number of entries (total)   : " << nnz << "\n"
+      "  Number of entries (per row) : " << 1.*nnz/Height() << "\n"
+      "  Number of stored zeros      : " << nz*pz << "% (" << nz << ")\n"
+      "  Number of Inf/Nan entries   : " << nnf*pz << "% ("<< nnf << ")\n"
+      "  Norm, max |a_ij|            : " << max_norm << "\n"
+      "  Symmetry, max |a_ij-a_ji|   : " << symm << "\n"
+      "  Number of small entries:\n"
+      "    |a_ij| <= 1e-12*Norm      : " << ns12*pz << "% (" << ns12 << ")\n"
+      "    |a_ij| <= 1e-15*Norm      : " << ns15*pz << "% (" << ns15 << ")\n"
+      "    |a_ij| <= 1e-18*Norm      : " << ns18*pz << "% (" << ns18 << ")\n";
    if (Finalized())
    {
-      out << "  Memory used by CSR          : " <<
-          (sizeof(int)*(height+1+nnz)+sizeof(double)*nnz)/MiB << " MiB\n";
+      os << "  Memory used by CSR          : " <<
+         (sizeof(int)*(height+1+nnz)+sizeof(double)*nnz)/MiB << " MiB\n";
    }
    if (Rows != NULL)
    {
@@ -3281,7 +3297,7 @@ void SparseMatrix::PrintInfo(std::ostream &out) const
          }
       }
 #endif
-      out << "  Memory used by LIL          : " << used_mem/MiB << " MiB\n";
+      os << "  Memory used by LIL          : " << used_mem/MiB << " MiB\n";
    }
 }
 
@@ -3774,9 +3790,9 @@ SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
    SparseMatrix * R = Transpose(Rt);
    SparseMatrix * RA = Mult(*R,A);
    delete R;
-   SparseMatrix * out = Mult(*RA, P);
+   SparseMatrix * RAP_ = Mult(*RA, P);
    delete RA;
-   return out;
+   return RAP_;
 }
 
 SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,

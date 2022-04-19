@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -169,6 +169,15 @@ public:
 
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
+
+   /// @brief Sets the height and width of the matrix.
+   /** @warning This does not modify in any way the underlying CSR or LIL
+       representation of the matrix.
+
+       This function should generally be called when manually constructing the
+       CSR #I, #J, and #A arrays in conjunction with the
+       SparseMatrix::SparseMatrix() constructor. */
+   void OverrideSize(int height_, int width_);
 
    /** @brief Runtime option to use cuSPARSE or hipSPARSE. Only valid when using
        a CUDA or HIP backend.
@@ -346,29 +355,44 @@ public:
                          const double a = 1.0) const;
 
    /** @brief Build and store internally the transpose of this matrix which will
-       be used in the methods AddMultTranspose() and MultTranspose(). */
+       be used in the methods AddMultTranspose(), MultTranspose(), and
+       AbsMultTranspose(). */
    /** If this method has been called, the internal transpose matrix will be
        used to perform the action of the transpose matrix in AddMultTranspose(),
-       and MultTranspose().
+       MultTranspose(), and AbsMultTranspose().
 
        Warning: any changes in this matrix will invalidate the internal
        transpose. To rebuild the transpose, call ResetTranspose() followed by a
        call to this method. If the internal transpose is already built, this
        method has no effect.
 
-       When any non-default backend is enabled, i.e. Device::IsEnabled() is
-       true, the methods AddMultTranspose(), and MultTranspose(), require the
-       internal transpose to be built. If that is not the case (i.e. the
-       internal transpose is not built), these methods will raise an error with
-       an appropriate message pointing to this method. When using the default
-       backend, calling this method is optional.
+       When any non-serial-CPU backend is enabled, i.e. the call
+       Device::Allows(~ Backend::CPU_MASK) returns true, the above methods
+       require the internal transpose to be built. If that is not the case (i.e.
+       the internal transpose is not built), these methods will raise an error
+       with an appropriate message pointing to EnsureMultTranspose(). When using
+       any backend from Backend::CPU_MASK, calling this method is optional.
 
-       This method can only be used when the sparse matrix is finalized. */
+       This method can only be used when the sparse matrix is finalized.
+
+       @sa EnsureMultTranspose(), ResetTranspose(). */
    void BuildTranspose() const;
 
    /** Reset (destroy) the internal transpose matrix. See BuildTranspose() for
        more details. */
    void ResetTranspose() const;
+
+   /** @brief Ensures that the matrix is capable of performing MultTranspose(),
+       AddMultTranspose(), and AbsMultTranspose(). */
+   /** For non-serial-CPU backends (e.g. GPU, OpenMP), multiplying by the
+       transpose requires that the internal transpose matrix be already built.
+       When such a backend is enabled, this function will build the internal
+       transpose matrix, see BuildTranspose().
+
+       For the serial CPU backends, the internal transpose is not required, and
+       this function is a no-op. This allows for significant memory savings
+       when the internal transpose matrix is not required. */
+   void EnsureMultTranspose() const;
 
    void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
    void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
@@ -550,8 +574,8 @@ public:
    inline void _Set_(const int row, const int col, const double a)
    { SearchRow(row, col) = a; }
 
-   void Set(const int i, const int j, const double a);
-   void Add(const int i, const int j, const double a);
+   void Set(const int i, const int j, const double val);
+   void Add(const int i, const int j, const double val);
 
    void SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,12 +27,10 @@
 #endif
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
-extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
 #define HYPRE_BigInt int
-typedef int MPI_Session;
 #define ParMesh Mesh
 #define GetParMesh GetMesh
 #define GlobalTrueVSize GetVSize
@@ -41,7 +39,6 @@ typedef int MPI_Session;
 #define ParFiniteElementSpace FiniteElementSpace
 #define PFesGetParMeshGetComm(...)
 #define PFesGetParMeshGetComm0(...) 0
-#define MPI_Finalize()
 #define MPI_Allreduce(src,dst,...) *dst = *src
 #define MPI_Reduce(src, dst, n, T,...) *dst = *src
 #endif
@@ -2185,7 +2182,7 @@ static void sedov_tests(int myid)
 #ifndef MFEM_SEDOV_DEVICE
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-   sedov_tests(GlobalMPISession->WorldRank());
+   sedov_tests(Mpi::WorldRank());
 }
 #else
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
@@ -2202,7 +2199,7 @@ TEST_CASE("Sedov", "[Sedov], [Parallel]")
    Device device;
    device.Configure(MFEM_SEDOV_DEVICE);
    device.Print();
-   sedov_tests(GlobalMPISession->WorldRank());
+   sedov_tests(Mpi::WorldRank());
 }
 #endif
 #else

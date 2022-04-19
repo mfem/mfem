@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,8 +25,8 @@ namespace mfem
 
 // Maximum size of dofs and quads in 1D.
 #ifdef MFEM_USE_HIP
-const int MAX_D1D = 11;
-const int MAX_Q1D = 11;
+const int MAX_D1D = 10;
+const int MAX_Q1D = 10;
 #else
 const int MAX_D1D = 14;
 const int MAX_Q1D = 14;

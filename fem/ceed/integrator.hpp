@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -76,8 +76,8 @@ class PAIntegrator : public ceed::Operator
 {
 #ifdef MFEM_USE_CEED
 protected:
-   CeedBasis basis, mesh_basis;
-   CeedElemRestriction restr, mesh_restr, restr_i;
+   CeedBasis  trial_basis, test_basis, mesh_basis;
+   CeedElemRestriction trial_restr, test_restr, mesh_restr, restr_i;
    CeedQFunction build_qfunc, apply_qfunc;
    CeedVector node_coords, qdata;
    Coefficient *coeff;
@@ -85,27 +85,52 @@ protected:
    CeedOperator build_oper;
 
    PAIntegrator()
-      : Operator(), basis(nullptr), mesh_basis(nullptr),
-        restr(nullptr), mesh_restr(nullptr),
+      : Operator(),
+        trial_basis(nullptr), test_basis(nullptr), mesh_basis(nullptr),
+        trial_restr(nullptr), test_restr(nullptr), mesh_restr(nullptr),
         restr_i(nullptr),
         build_qfunc(nullptr), apply_qfunc(nullptr), node_coords(nullptr),
         qdata(nullptr), coeff(nullptr), build_ctx(nullptr), build_oper(nullptr)
    { }
 
 public:
-   /** This method assembles the PAIntegrator with the given CeedOperatorInfo
-       @a info, an mfem::FiniteElementSpace @a fes, an mfem::IntegrationRule
-       @a ir, and mfem::Coefficient or mfem::VectorCoefficient @a Q.
-       The CeedOperatorInfo type is expected to inherit from OperatorInfo and
-       contain a Context type relevant to the qFunctions. */
+   /** This method assembles the PAIntegrator.
+
+       @param[in] info the `CeedOperatorInfo` describing the `CeedOperator`,
+                       the `CeedOperatorInfo` type is expected to inherit from
+                       `OperatorInfo` and contain a `Context` type relevant to
+                       the qFunctions.
+       @param[in] fes the `FiniteElementSpace` for the form,
+       @param[in] ir the `IntegrationRule` for the numerical integration,
+       @param[in] Q `Coefficient` or `VectorCoefficient`. */
    template <typename CeedOperatorInfo, typename CoeffType>
    void Assemble(CeedOperatorInfo &info,
                  const mfem::FiniteElementSpace &fes,
                  const mfem::IntegrationRule &irm,
                  CoeffType *Q)
    {
+      Assemble(info, fes, fes, irm, Q);
+   }
+
+   /** This method assembles the PAIntegrator for mixed forms.
+
+       @param[in] info the `CeedOperatorInfo` describing the `CeedOperator`,
+                       the `CeedOperatorInfo` type is expected to inherit from
+                       `OperatorInfo` and contain a `Context` type relevant to
+                       the qFunctions.
+       @param[in] trial_fes the trial `FiniteElementSpace` for the form,
+       @param[in] test_fes the test `FiniteElementSpace` for the form,
+       @param[in] ir the `IntegrationRule` for the numerical integration,
+       @param[in] Q `Coefficient` or `VectorCoefficient`. */
+   template <typename CeedOperatorInfo, typename CoeffType>
+   void Assemble(CeedOperatorInfo &info,
+                 const mfem::FiniteElementSpace &trial_fes,
+                 const mfem::FiniteElementSpace &test_fes,
+                 const mfem::IntegrationRule &irm,
+                 CoeffType *Q)
+   {
       Ceed ceed(internal::ceed);
-      mfem::Mesh &mesh = *fes.GetMesh();
+      mfem::Mesh &mesh = *trial_fes.GetMesh();
       InitCoefficient(Q, mesh, irm, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
       std::string build_func = const_coeff ? info.build_func_const
@@ -119,17 +144,38 @@ public:
                      info.test_op
                     };
       CeedInt nqpts, nelem = mesh.GetNE();
-      CeedInt dim = mesh.SpaceDimension(), vdim = fes.GetVDim();
+      CeedInt dim = mesh.SpaceDimension();
+      CeedInt trial_vdim = trial_fes.GetVDim();
+      CeedInt test_vdim = test_fes.GetVDim();
 
       mesh.EnsureNodes();
-      InitBasisAndRestriction(fes, irm, ceed, &basis, &restr);
+      if ( &trial_fes == &test_fes )
+      {
+         InitBasisAndRestriction(trial_fes, irm, ceed,
+                                 &trial_basis, &trial_restr);
+         test_basis = trial_basis;
+         test_restr = trial_restr;
+      }
+      else
+      {
+         InitBasisAndRestriction(trial_fes, irm, ceed,
+                                 &trial_basis, &trial_restr);
+         InitBasisAndRestriction(test_fes, irm, ceed,
+                                 &test_basis, &test_restr);
+      }
 
       const mfem::FiniteElementSpace *mesh_fes = mesh.GetNodalFESpace();
       MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
       InitBasisAndRestriction(*mesh_fes, irm, ceed, &mesh_basis,
                               &mesh_restr);
 
-      CeedBasisGetNumQuadraturePoints(basis, &nqpts);
+      CeedInt trial_nqpts, test_nqpts;
+      CeedBasisGetNumQuadraturePoints(trial_basis, &trial_nqpts);
+      CeedBasisGetNumQuadraturePoints(test_basis, &test_nqpts);
+      MFEM_VERIFY(trial_nqpts == test_nqpts,
+                  "Trial and test basis must have the same number of quadrature"
+                  " points.");
+      nqpts = trial_nqpts;
 
       const int qdatasize = op.qdatasize;
       InitStridedRestriction(*mesh_fes, nelem, nqpts, qdatasize,
@@ -143,7 +189,7 @@ public:
       // Context data to be passed to the Q-function.
       info.ctx.dim = mesh.Dimension();
       info.ctx.space_dim = mesh.SpaceDimension();
-      info.ctx.vdim = fes.GetVDim();
+      info.ctx.vdim = trial_fes.GetVDim();
 
       std::string qf_file = GetCeedPath() + op.header;
       std::string qf = qf_file + op.build_func;
@@ -206,17 +252,22 @@ public:
       switch (op.trial_op)
       {
          case EvalMode::None:
-            CeedQFunctionAddInput(apply_qfunc, "u", vdim, CEED_EVAL_NONE);
+            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim,
+                                  CEED_EVAL_NONE);
             break;
          case EvalMode::Interp:
-            CeedQFunctionAddInput(apply_qfunc, "u", vdim, CEED_EVAL_INTERP);
+            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim,
+                                  CEED_EVAL_INTERP);
             break;
          case EvalMode::Grad:
-            CeedQFunctionAddInput(apply_qfunc, "gu", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddInput(apply_qfunc, "gu", trial_vdim*dim,
+                                  CEED_EVAL_GRAD);
             break;
          case EvalMode::InterpAndGrad:
-            CeedQFunctionAddInput(apply_qfunc, "u", vdim, CEED_EVAL_INTERP);
-            CeedQFunctionAddInput(apply_qfunc, "gu", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim,
+                                  CEED_EVAL_INTERP);
+            CeedQFunctionAddInput(apply_qfunc, "gu", trial_vdim*dim,
+                                  CEED_EVAL_GRAD);
             break;
       }
       // qdata
@@ -225,17 +276,22 @@ public:
       switch (op.test_op)
       {
          case EvalMode::None:
-            CeedQFunctionAddOutput(apply_qfunc, "v", vdim, CEED_EVAL_NONE);
+            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim,
+                                   CEED_EVAL_NONE);
             break;
          case EvalMode::Interp:
-            CeedQFunctionAddOutput(apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
+            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim,
+                                   CEED_EVAL_INTERP);
             break;
          case EvalMode::Grad:
-            CeedQFunctionAddOutput(apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddOutput(apply_qfunc, "gv", test_vdim*dim,
+                                   CEED_EVAL_GRAD);
             break;
          case EvalMode::InterpAndGrad:
-            CeedQFunctionAddOutput(apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
-            CeedQFunctionAddOutput(apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim,
+                                   CEED_EVAL_INTERP);
+            CeedQFunctionAddOutput(apply_qfunc, "gv", test_vdim*dim,
+                                   CEED_EVAL_GRAD);
             break;
       }
       CeedQFunctionSetContext(apply_qfunc, build_ctx);
@@ -246,18 +302,22 @@ public:
       switch (op.trial_op)
       {
          case EvalMode::None:
-            CeedOperatorSetField(oper, "u", restr,
+            CeedOperatorSetField(oper, "u", trial_restr,
                                  CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Interp:
-            CeedOperatorSetField(oper, "u", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "u", trial_restr, trial_basis,
+                                 CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Grad:
-            CeedOperatorSetField(oper, "gu", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "gu", trial_restr, trial_basis,
+                                 CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::InterpAndGrad:
-            CeedOperatorSetField(oper, "u", restr, basis, CEED_VECTOR_ACTIVE);
-            CeedOperatorSetField(oper, "gu", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "u", trial_restr, trial_basis,
+                                 CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "gu", trial_restr, trial_basis,
+                                 CEED_VECTOR_ACTIVE);
             break;
       }
       // qdata
@@ -267,23 +327,27 @@ public:
       switch (op.test_op)
       {
          case EvalMode::None:
-            CeedOperatorSetField(oper, "v", restr,
+            CeedOperatorSetField(oper, "v", test_restr,
                                  CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Interp:
-            CeedOperatorSetField(oper, "v", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "v", test_restr, test_basis,
+                                 CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Grad:
-            CeedOperatorSetField(oper, "gv", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "gv", test_restr, test_basis,
+                                 CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::InterpAndGrad:
-            CeedOperatorSetField(oper, "v", restr, basis, CEED_VECTOR_ACTIVE);
-            CeedOperatorSetField(oper, "gv", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "v", test_restr, test_basis,
+                                 CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "gv", test_restr, test_basis,
+                                 CEED_VECTOR_ACTIVE);
             break;
       }
 
-      CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &u);
-      CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &v);
+      CeedVectorCreate(ceed, trial_vdim*trial_fes.GetNDofs(), &u);
+      CeedVectorCreate(ceed, test_vdim*test_fes.GetNDofs(), &v);
    }
 
    virtual ~PAIntegrator()
@@ -329,34 +393,59 @@ class MFIntegrator : public ceed::Operator
 {
 #ifdef MFEM_USE_CEED
 protected:
-   CeedBasis basis, mesh_basis;
-   CeedElemRestriction restr, mesh_restr, restr_i;
+   CeedBasis trial_basis, test_basis, mesh_basis;
+   CeedElemRestriction trial_restr, test_restr, mesh_restr, restr_i;
    CeedQFunction apply_qfunc;
    CeedVector node_coords, qdata;
    Coefficient *coeff;
    CeedQFunctionContext build_ctx;
 
    MFIntegrator()
-      : Operator(), basis(nullptr), mesh_basis(nullptr),
-        restr(nullptr), mesh_restr(nullptr),
+      : Operator(),
+        trial_basis(nullptr), test_basis(nullptr), mesh_basis(nullptr),
+        trial_restr(nullptr), test_restr(nullptr), mesh_restr(nullptr),
         restr_i(nullptr),
         apply_qfunc(nullptr), node_coords(nullptr),
         qdata(nullptr), coeff(nullptr), build_ctx(nullptr) { }
 
 public:
-   /** This method assembles the MFIntegrator with the given CeedOperatorInfo
-       @a info, an mfem::FiniteElementSpace @a fes, an mfem::IntegrationRule
-       @a ir, and mfem::Coefficient or mfem::VectorCoefficient @a Q.
-       The CeedOperatorInfo type is expected to inherit from OperatorInfo and
-       contain a Context type relevant to the qFunctions. */
+   /** This method assembles the MFIntegrator.
+
+       @param[in] info the `CeedOperatorInfo` describing the `CeedOperator`,
+                       the `CeedOperatorInfo` type is expected to inherit from
+                       `OperatorInfo` and contain a `Context` type relevant to
+                       the qFunctions.
+       @param[in] fes the `FiniteElementSpace` for the form,
+       @param[in] ir the `IntegrationRule` for the numerical integration,
+       @param[in] Q `Coefficient` or `VectorCoefficient`. */
    template <typename CeedOperatorInfo, typename CoeffType>
    void Assemble(CeedOperatorInfo &info,
                  const mfem::FiniteElementSpace &fes,
                  const mfem::IntegrationRule &irm,
                  CoeffType *Q)
    {
+      Assemble(info, fes, fes, irm, Q);
+   }
+
+   /** This method assembles the MFIntegrator for mixed forms.
+
+       @param[in] info the `CeedOperatorInfo` describing the `CeedOperator`,
+                       the `CeedOperatorInfo` type is expected to inherit from
+                       `OperatorInfo` and contain a `Context` type relevant to
+                       the qFunctions.
+       @param[in] trial_fes the trial `FiniteElementSpace` for the form,
+       @param[in] test_fes the test `FiniteElementSpace` for the form,
+       @param[in] ir the `IntegrationRule` for the numerical integration,
+       @param[in] Q `Coefficient` or `VectorCoefficient`. */
+   template <typename CeedOperatorInfo, typename CoeffType>
+   void Assemble(CeedOperatorInfo &info,
+                 const mfem::FiniteElementSpace &trial_fes,
+                 const mfem::FiniteElementSpace &test_fes,
+                 const mfem::IntegrationRule &irm,
+                 CoeffType *Q)
+   {
       Ceed ceed(internal::ceed);
-      Mesh &mesh = *fes.GetMesh();
+      Mesh &mesh = *trial_fes.GetMesh();
       InitCoefficient(Q, mesh, irm, coeff, info.ctx);
       bool const_coeff = coeff->IsConstant();
       std::string apply_func = const_coeff ? info.apply_func_mf_const
@@ -369,24 +458,45 @@ public:
                      info.test_op
                     };
       CeedInt nqpts, nelem = mesh.GetNE();
-      CeedInt dim = mesh.SpaceDimension(), vdim = fes.GetVDim();
+      CeedInt dim = mesh.SpaceDimension();
+      CeedInt trial_vdim = trial_fes.GetVDim();
+      CeedInt test_vdim = test_fes.GetVDim();
 
       mesh.EnsureNodes();
-      InitBasisAndRestriction(fes, irm, ceed, &basis, &restr);
+      if ( &trial_fes == &test_fes )
+      {
+         InitBasisAndRestriction(trial_fes, irm, ceed,
+                                 &trial_basis, &trial_restr);
+         test_basis = trial_basis;
+         test_restr = trial_restr;
+      }
+      else
+      {
+         InitBasisAndRestriction(trial_fes, irm, ceed,
+                                 &trial_basis, &trial_restr);
+         InitBasisAndRestriction(test_fes, irm, ceed,
+                                 &test_basis, &test_restr);
+      }
 
       const mfem::FiniteElementSpace *mesh_fes = mesh.GetNodalFESpace();
       MFEM_VERIFY(mesh_fes, "the Mesh has no nodal FE space");
       InitBasisAndRestriction(*mesh_fes, irm, ceed, &mesh_basis,
                               &mesh_restr);
 
-      CeedBasisGetNumQuadraturePoints(basis, &nqpts);
+      CeedInt trial_nqpts, test_nqpts;
+      CeedBasisGetNumQuadraturePoints(trial_basis, &trial_nqpts);
+      CeedBasisGetNumQuadraturePoints(trial_basis, &test_nqpts);
+      MFEM_VERIFY(trial_nqpts == test_nqpts,
+                  "Trial and test basis must have the same number of quadrature"
+                  " points.");
+      nqpts = trial_nqpts;
 
       InitVector(*mesh.GetNodes(), node_coords);
 
       // Context data to be passed to the Q-function.
       info.ctx.dim = mesh.Dimension();
       info.ctx.space_dim = mesh.SpaceDimension();
-      info.ctx.vdim = fes.GetVDim();
+      info.ctx.vdim = trial_fes.GetVDim();
 
       std::string qf_file = GetCeedPath() + op.header;
       std::string qf = qf_file + op.apply_func;
@@ -405,17 +515,22 @@ public:
       switch (op.trial_op)
       {
          case EvalMode::None:
-            CeedQFunctionAddInput(apply_qfunc, "u", vdim, CEED_EVAL_NONE);
+            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim,
+                                  CEED_EVAL_NONE);
             break;
          case EvalMode::Interp:
-            CeedQFunctionAddInput(apply_qfunc, "u", vdim, CEED_EVAL_INTERP);
+            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim,
+                                  CEED_EVAL_INTERP);
             break;
          case EvalMode::Grad:
-            CeedQFunctionAddInput(apply_qfunc, "gu", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddInput(apply_qfunc, "gu", trial_vdim*dim,
+                                  CEED_EVAL_GRAD);
             break;
          case EvalMode::InterpAndGrad:
-            CeedQFunctionAddInput(apply_qfunc, "u", vdim, CEED_EVAL_INTERP);
-            CeedQFunctionAddInput(apply_qfunc, "gu", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddInput(apply_qfunc, "u", trial_vdim,
+                                  CEED_EVAL_INTERP);
+            CeedQFunctionAddInput(apply_qfunc, "gu", trial_vdim*dim,
+                                  CEED_EVAL_GRAD);
             break;
       }
       CeedQFunctionAddInput(apply_qfunc, "dx", dim * dim, CEED_EVAL_GRAD);
@@ -424,17 +539,22 @@ public:
       switch (op.test_op)
       {
          case EvalMode::None:
-            CeedQFunctionAddOutput(apply_qfunc, "v", vdim, CEED_EVAL_NONE);
+            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim,
+                                   CEED_EVAL_NONE);
             break;
          case EvalMode::Interp:
-            CeedQFunctionAddOutput(apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
+            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim,
+                                   CEED_EVAL_INTERP);
             break;
          case EvalMode::Grad:
-            CeedQFunctionAddOutput(apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddOutput(apply_qfunc, "gv", test_vdim*dim,
+                                   CEED_EVAL_GRAD);
             break;
          case EvalMode::InterpAndGrad:
-            CeedQFunctionAddOutput(apply_qfunc, "v", vdim, CEED_EVAL_INTERP);
-            CeedQFunctionAddOutput(apply_qfunc, "gv", vdim*dim, CEED_EVAL_GRAD);
+            CeedQFunctionAddOutput(apply_qfunc, "v", test_vdim,
+                                   CEED_EVAL_INTERP);
+            CeedQFunctionAddOutput(apply_qfunc, "gv", test_vdim*dim,
+                                   CEED_EVAL_GRAD);
             break;
       }
 
@@ -470,18 +590,22 @@ public:
       switch (op.trial_op)
       {
          case EvalMode::None:
-            CeedOperatorSetField(oper, "u", restr,
+            CeedOperatorSetField(oper, "u", trial_restr,
                                  CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Interp:
-            CeedOperatorSetField(oper, "u", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "u", trial_restr, trial_basis,
+                                 CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Grad:
-            CeedOperatorSetField(oper, "gu", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "gu", trial_restr, trial_basis,
+                                 CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::InterpAndGrad:
-            CeedOperatorSetField(oper, "u", restr, basis, CEED_VECTOR_ACTIVE);
-            CeedOperatorSetField(oper, "gu", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "u", trial_restr, trial_basis,
+                                 CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "gu", trial_restr, trial_basis,
+                                 CEED_VECTOR_ACTIVE);
             break;
       }
       CeedOperatorSetField(oper, "dx", mesh_restr,
@@ -492,23 +616,27 @@ public:
       switch (op.test_op)
       {
          case EvalMode::None:
-            CeedOperatorSetField(oper, "v", restr,
+            CeedOperatorSetField(oper, "v", test_restr,
                                  CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Interp:
-            CeedOperatorSetField(oper, "v", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "v", test_restr, test_basis,
+                                 CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Grad:
-            CeedOperatorSetField(oper, "gv", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "gv", test_restr, test_basis,
+                                 CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::InterpAndGrad:
-            CeedOperatorSetField(oper, "v", restr, basis, CEED_VECTOR_ACTIVE);
-            CeedOperatorSetField(oper, "gv", restr, basis, CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "v", test_restr, test_basis,
+                                 CEED_VECTOR_ACTIVE);
+            CeedOperatorSetField(oper, "gv", test_restr, test_basis,
+                                 CEED_VECTOR_ACTIVE);
             break;
       }
 
-      CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &u);
-      CeedVectorCreate(ceed, vdim*fes.GetNDofs(), &v);
+      CeedVectorCreate(ceed, trial_vdim*trial_fes.GetNDofs(), &u);
+      CeedVectorCreate(ceed, test_vdim*test_fes.GetNDofs(), &v);
    }
 
    virtual ~MFIntegrator()

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1451,13 +1451,13 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
    {
       tmpL.SetSize(lFESpace_.GetVSize());
       tmpH.SetSize(hFESpace_.GetVSize());
-      R->BuildTranspose();
+      R->EnsureMultTranspose();
    }
    // P can be null and R not null
    else if (R)
    {
       tmpH.SetSize(hFESpace_.GetVSize());
-      R->BuildTranspose();
+      R->EnsureMultTranspose();
    }
 }
 

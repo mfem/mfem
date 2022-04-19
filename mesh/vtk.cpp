@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,26 +20,27 @@ namespace mfem
 
 const int VTKGeometry::Map[Geometry::NUM_GEOMETRIES] =
 {
-   POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM
+   POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM, PYRAMID
 };
 
 const int VTKGeometry::QuadraticMap[Geometry::NUM_GEOMETRIES] =
 {
    POINT, QUADRATIC_SEGMENT, QUADRATIC_TRIANGLE, BIQUADRATIC_SQUARE,
-   QUADRATIC_TETRAHEDRON, TRIQUADRATIC_CUBE, BIQUADRATIC_QUADRATIC_PRISM
+   QUADRATIC_TETRAHEDRON, TRIQUADRATIC_CUBE, BIQUADRATIC_QUADRATIC_PRISM,
+   QUADRATIC_PYRAMID
 };
 
 const int VTKGeometry::HighOrderMap[Geometry::NUM_GEOMETRIES] =
 {
    POINT, LAGRANGE_SEGMENT, LAGRANGE_TRIANGLE, LAGRANGE_SQUARE,
-   LAGRANGE_TETRAHEDRON, LAGRANGE_CUBE, LAGRANGE_PRISM
+   LAGRANGE_TETRAHEDRON, LAGRANGE_CUBE, LAGRANGE_PRISM, LAGRANGE_PYRAMID
 };
 
 const int VTKGeometry::PrismMap[6] = {0, 2, 1, 3, 5, 4};
 
 const int *VTKGeometry::VertexPermutation[Geometry::NUM_GEOMETRIES] =
 {
-   NULL, NULL, NULL, NULL, NULL, NULL, VTKGeometry::PrismMap
+   NULL, NULL, NULL, NULL, NULL, NULL, VTKGeometry::PrismMap, NULL
 };
 
 Geometry::Type VTKGeometry::GetMFEMGeometry(int vtk_geom)
@@ -72,6 +73,10 @@ Geometry::Type VTKGeometry::GetMFEMGeometry(int vtk_geom)
       case BIQUADRATIC_QUADRATIC_PRISM:
       case LAGRANGE_PRISM:
          return Geometry::PRISM;
+      case PYRAMID:
+      case QUADRATIC_PYRAMID:
+      case LAGRANGE_PYRAMID:
+         return Geometry::PYRAMID;
       default:
          return Geometry::INVALID;
    }
@@ -79,7 +84,7 @@ Geometry::Type VTKGeometry::GetMFEMGeometry(int vtk_geom)
 
 bool VTKGeometry::IsLagrange(int vtk_geom)
 {
-   return vtk_geom >= LAGRANGE_SEGMENT && vtk_geom <= LAGRANGE_PRISM;
+   return vtk_geom >= LAGRANGE_SEGMENT && vtk_geom <= LAGRANGE_PYRAMID;
 }
 
 bool VTKGeometry::IsQuadratic(int vtk_geom)
@@ -145,6 +150,9 @@ int VTKGeometry::GetOrder(int vtk_geom, int npoints)
                          - twentyseventh);
             return std::round(term + ninth / term - 4*third);
          }
+         case LAGRANGE_PYRAMID:
+            MFEM_ABORT("Lagrange pyramids not currently supported in VTK.");
+            return 0;
       }
    }
    return 1;
@@ -535,6 +543,10 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom, int ref)
          }
       }
    }
+   else if (geom == Geometry::PYRAMID)
+   {
+      MFEM_ABORT("Lagrange pyramid elements not currently supported in VTK.");
+   }
    else
    {
       for (int idx=0; idx<nnodes; ++idx)
@@ -544,15 +556,15 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom, int ref)
    }
 }
 
-void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
+void WriteVTKEncodedCompressed(std::ostream &os, const void *bytes,
                                uint32_t nbytes, int compression_level)
 {
    if (compression_level == 0)
    {
       // First write size of buffer (as uint32_t), encoded with base 64
-      bin_io::WriteBase64(out, &nbytes, sizeof(nbytes));
+      bin_io::WriteBase64(os, &nbytes, sizeof(nbytes));
       // Then write all the bytes in the buffer, encoded with base 64
-      bin_io::WriteBase64(out, bytes, nbytes);
+      bin_io::WriteBase64(os, bytes, nbytes);
    }
    else
    {
@@ -570,9 +582,9 @@ void WriteVTKEncodedCompressed(std::ostream &out, const void *bytes,
       header[1] = nbytes; // uncompressed size
       header[2] = 0; // size of partial block
       header[3] = buf_sz; // compressed size
-      bin_io::WriteBase64(out, header.data(), header.size()*sizeof(uint32_t));
+      bin_io::WriteBase64(os, header.data(), header.size()*sizeof(uint32_t));
       // Write the compressed data
-      bin_io::WriteBase64(out, buf.data(), buf_sz);
+      bin_io::WriteBase64(os, buf.data(), buf_sz);
 #else
       MFEM_ABORT("MFEM must be compiled with ZLib support to output "
                  "compressed binary data.")
@@ -602,16 +614,16 @@ const char *VTKByteOrder()
 
 // Ensure ASCII output of uint8_t to stream is integer rather than character
 template <>
-void WriteBinaryOrASCII<uint8_t>(std::ostream &out, std::vector<char> &buf,
+void WriteBinaryOrASCII<uint8_t>(std::ostream &os, std::vector<char> &buf,
                                  const uint8_t &val, const char *suffix,
                                  VTKFormat format)
 {
-   if (format == VTKFormat::ASCII) { out << static_cast<int>(val) << suffix; }
+   if (format == VTKFormat::ASCII) { os << static_cast<int>(val) << suffix; }
    else { bin_io::AppendBytes(buf, val); }
 }
 
 template <>
-void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
+void WriteBinaryOrASCII<double>(std::ostream &os, std::vector<char> &buf,
                                 const double &val, const char *suffix,
                                 VTKFormat format)
 {
@@ -625,25 +637,25 @@ void WriteBinaryOrASCII<double>(std::ostream &out, std::vector<char> &buf,
    }
    else
    {
-      out << ZeroSubnormal(val) << suffix;
+      os << ZeroSubnormal(val) << suffix;
    }
 }
 
 template <>
-void WriteBinaryOrASCII<float>(std::ostream &out, std::vector<char> &buf,
+void WriteBinaryOrASCII<float>(std::ostream &os, std::vector<char> &buf,
                                const float &val, const char *suffix,
                                VTKFormat format)
 {
    if (format == VTKFormat::BINARY) { bin_io::AppendBytes<double>(buf, val); }
    else if (format == VTKFormat::BINARY32) { bin_io::AppendBytes(buf, val); }
-   else { out << ZeroSubnormal(val) << suffix; }
+   else { os << ZeroSubnormal(val) << suffix; }
 }
 
-void WriteBase64WithSizeAndClear(std::ostream &out, std::vector<char> &buf,
+void WriteBase64WithSizeAndClear(std::ostream &os, std::vector<char> &buf,
                                  int compression_level)
 {
-   WriteVTKEncodedCompressed(out, buf.data(), buf.size(), compression_level);
-   out << '\n';
+   WriteVTKEncodedCompressed(os, buf.data(), buf.size(), compression_level);
+   os << '\n';
    buf.clear();
 }
 

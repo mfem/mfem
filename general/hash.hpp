@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -93,6 +93,8 @@ public:
    HashTable(int block_size = 16*1024, int init_hash_size = 32*1024);
    /// @brief Deep copy
    HashTable(const HashTable& other);
+   /// @brief Copy assignment not supported
+   HashTable& operator=(const HashTable&) = delete;
    ~HashTable();
 
    /** @brief Item accessor with key (or parents) the pair 'p1', 'p2'. Default
@@ -359,8 +361,8 @@ protected:
 
        NOTE: the constants are arbitrary
        @warning This method should only be called if T inherits from Hashed2. */
-   inline int Hash(int p1, int p2) const
-   { return (984120265*p1 + 125965121*p2) & mask; }
+   inline int Hash(size_t p1, size_t p2) const
+   { return (984120265ul*p1 + 125965121ul*p2) & mask; }
 
    /** @brief hash function for Hashed4 items.
 
@@ -372,8 +374,8 @@ protected:
        NOTE: The constants are arbitrary.
        NOTE: p4 is not hashed nor stored as p1, p2, p3 identify a face uniquely.
        @warning This method should only be called if T inherits from Hashed4. */
-   inline int Hash(int p1, int p2, int p3) const
-   { return (984120265*p1 + 125965121*p2 + 495698413*p3) & mask; }
+   inline int Hash(size_t p1, size_t p2, size_t p3) const
+   { return (984120265ul*p1 + 125965121ul*p2 + 495698413ul*p3) & mask; }
 
    // Delete() and Reparent() use one of these:
    /// @brief Hash function for items of type T that inherit from Hashed2.
@@ -411,7 +413,7 @@ protected:
 
        @param[in] idx The bin/bucket index.
        @param[in] id The index of the item in the BlockArray<T>.
-       @param[in] item The item to insert at the begining of the linked list.
+       @param[in] item The item to insert at the beginning of the linked list.
 
        @warning The method only works with bin 'idx' and does not check the
                 overall fill factor of the hash table. If appropriate,
