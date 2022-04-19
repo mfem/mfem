@@ -103,6 +103,8 @@ namespace mfem {
  * - <a class="el" href="ex31_8cpp_source.html">Example 31</a>: Nedelec H(curl) FEM for the definite anisotropic Maxwell problem
  * - <a class="el" href="ex31p_8cpp_source.html">Example 31p</a>: parallel Nedelec H(curl) FEM for the definite anisotropic Maxwell problem
  * - <a class="el" href="ex32p_8cpp_source.html">Example 32p</a>: parallel anisotropic Maxwell eigensolver
+ * - <a class="el" href="ex33_8cpp_source.html">Example 33</a>: nodal H1 FEM for the fractional Laplacian problem
+ * - <a class="el" href="ex33p_8cpp_source.html">Example 33p</a>: parallel nodal H1 FEM for the fractional Laplacian problem
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples
