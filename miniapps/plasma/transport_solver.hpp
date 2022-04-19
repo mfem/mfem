@@ -5292,6 +5292,7 @@ private:
 
       virtual ~NeutralDensityOp();
 
+      virtual void SetTime(double t);
       virtual void SetTimeStep(double dt);
 
       void Update();
@@ -5395,6 +5396,7 @@ private:
 
       virtual ~IonDensityOp();
 
+      virtual void SetTime(double t);
       virtual void SetTimeStep(double dt);
 
       void Update();
@@ -5505,6 +5507,7 @@ private:
 
       virtual ~IonMomentumOp();
 
+      virtual void SetTime(double t);
       virtual void SetTimeStep(double dt);
 
       void Update();
@@ -5718,6 +5721,7 @@ private:
 
       void SetKineticEnergyAdvectionTerm(StateVariableVecCoef &VCoef);
 
+      virtual void SetTime(double t);
    };
 
    class IonTotalEnergyOp : public TotalEnergyOp
@@ -5790,6 +5794,8 @@ private:
                        const std::string & log_prefix);
 
       virtual ~IonTotalEnergyOp();
+
+      virtual void SetTime(double t);
 
       void Update();
 
@@ -5866,6 +5872,8 @@ private:
                             const std::string & log_prefix);
 
       virtual ~ElectronTotalEnergyOp();
+
+      virtual void SetTime(double t);
 
       void Update();
 

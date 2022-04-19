@@ -3671,7 +3671,7 @@ void DGTransportTDO::TransportOp::SetTime(double t)
 {
    if (mpi_.Root() && logging_ > 1)
    {
-      cout << "Setting time: " << t << " in TransportOp"
+      cout << "Setting time: " << t << " in TransportOp (" << eqn_name_ << ")"
            << endl;
    }
 
@@ -3722,7 +3722,8 @@ void DGTransportTDO::TransportOp::SetTimeStep(double dt)
 {
    if (mpi_.Root() && logging_ > 1)
    {
-      cout << "Setting time step: " << dt << " in TransportOp"
+      cout << "Setting time step: " << dt << " in TransportOp ("
+           << eqn_name_ << ")"
            << endl;
    }
 
@@ -4461,11 +4462,7 @@ void DGTransportTDO::TransportOp::SetSourceTerm(Coefficient &SCoef, double s)
       cout << eqn_name_ << ": Adding source term" << endl;
    }
 
-   if (s == 1.0)
-   {
-      sCoefs_.Append(&SCoef);
-   }
-   else
+   if (s != 1.0)
    {
       Coefficient * coef = new ProductCoefficient(s, SCoef);
       sCoefs_.Append(coef);
@@ -5327,6 +5324,17 @@ DGTransportTDO::NeutralDensityOp::~NeutralDensityOp()
    delete SGF_;
 }
 
+void DGTransportTDO::NeutralDensityOp::SetTime(double t)
+{
+   if (mpi_.Root() && logging_)
+   {
+      cout << "Setting time: " << t << " in NeutralDensityOp" << endl;
+   }
+   TransportOp::SetTime(t);
+
+   DDefCoef_.SetTime(t);
+}
+
 void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
 {
    if (mpi_.Root() && logging_)
@@ -5568,6 +5576,18 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    }
 }
 
+
+void DGTransportTDO::IonDensityOp::SetTime(double t)
+{
+   if (mpi_.Root() && logging_)
+   {
+      cout << "Setting time: " << t << " in IonDensityOp" << endl;
+   }
+   TransportOp::SetTime(t);
+
+   DCoef_.SetTime(t);
+   ViCoef_.SetTime(t);
+}
 
 void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
 {
@@ -5896,6 +5916,25 @@ DGTransportTDO::IonMomentumOp::~IonMomentumOp()
    delete SRCGF_;
    delete SCXGF_;
    delete SGF_;
+}
+
+void DGTransportTDO::IonMomentumOp::SetTime(double t)
+{
+   if (mpi_.Root() && logging_)
+   {
+      cout << "Setting time: " << t << " in IonMomentumOp" << endl;
+   }
+   TransportOp::SetTime(t);
+
+   momCoef_.SetTime(t);
+   EtaParaCoef_.SetTime(t);
+   EtaPerpCoef_.SetTime(t);
+   EtaCoef_.SetTime(t);
+   miniViCoef_.SetTime(t);
+   gradPCoef_.SetTime(t);
+   SIZCoef_.SetTime(t);
+   SRCCoef_.SetTime(t);
+   SCXCoef_.SetTime(t);
 }
 
 void DGTransportTDO::IonMomentumOp::SetTimeStep(double dt)
@@ -6497,6 +6536,22 @@ TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
    }
 }
 
+void DGTransportTDO::TotalEnergyOp::SetTime(double t)
+{
+   if (mpi_.Root() && logging_)
+   {
+      cout << "Setting time: " << t << " in TotalEnergyOp (" << eqn_name_
+           << ")" << endl;
+   }
+   TransportOp::SetTime(t);
+
+   QiCoef_.SetTime(t);
+   kBCoef_.SetTime(t);
+   phiIZCoef_.SetTime(t);
+   kBphiIZCoef_.SetTime(t);
+   BSVCoef_.SetTime(t);
+}
+
 void
 DGTransportTDO::TotalEnergyOp::
 SetKineticEnergyAdvectionTerm(StateVariableVecCoef &VCoef)
@@ -6717,6 +6772,33 @@ DGTransportTDO::IonTotalEnergyOp::~IonTotalEnergyOp()
    delete SGF_;
    delete QiGF_;
    delete totEnergyGF_;
+}
+
+void DGTransportTDO::IonTotalEnergyOp::SetTime(double t)
+{
+   if (mpi_.Root() && logging_)
+   {
+      cout << "Setting time: " << t << " in IonTotalEnergyOp" << endl;
+   }
+   TotalEnergyOp::SetTime(t);
+
+   totEnergyCoef_.SetTime(t);
+   kinEnergyCoef_.SetTime(t);
+   advFluxCoef_.SetTime(t);
+   aniViCoef_.SetTime(t);
+   ChiParaCoef_.SetTime(t);
+   ChiPerpCoef_.SetTime(t);
+   ChiCoef_.SetTime(t);
+   nChiParaCoef_.SetTime(t);
+   nChiPerpCoef_.SetTime(t);
+   nkChiParaCoef_.SetTime(t);
+   nkChiPerpCoef_.SetTime(t);
+   nChiCoef_.SetTime(t);
+   nkChiCoef_.SetTime(t);
+   keVCoef_.SetTime(t);
+   SIZCoef_.SetTime(t);
+   SRCCoef_.SetTime(t);
+   SCXCoef_.SetTime(t);
 }
 
 void DGTransportTDO::IonTotalEnergyOp::Update()
@@ -7058,6 +7140,32 @@ DGTransportTDO::ElectronTotalEnergyOp::~ElectronTotalEnergyOp()
    delete SGF_;
    delete QiGF_;
    delete totEnergyGF_;
+}
+
+void DGTransportTDO::ElectronTotalEnergyOp::SetTime(double t)
+{
+   if (mpi_.Root() && logging_)
+   {
+      cout << "Setting time: " << t << " in ElectronTotalEnergyOp" << endl;
+   }
+   TotalEnergyOp::SetTime(t);
+
+   totEnergyCoef_.SetTime(t);
+   kinEnergyCoef_.SetTime(t);
+   advFluxCoef_.SetTime(t);
+   aneViCoef_.SetTime(t);
+   ChiParaCoef_.SetTime(t);
+   ChiPerpCoef_.SetTime(t);
+   ChiCoef_.SetTime(t);
+   nChiParaCoef_.SetTime(t);
+   nChiPerpCoef_.SetTime(t);
+   nkChiParaCoef_.SetTime(t);
+   nkChiPerpCoef_.SetTime(t);
+   nChiCoef_.SetTime(t);
+   nkChiCoef_.SetTime(t);
+   keVCoef_.SetTime(t);
+   SIZCoef_.SetTime(t);
+   SRCCoef_.SetTime(t);
 }
 
 void DGTransportTDO::ElectronTotalEnergyOp::Update()
