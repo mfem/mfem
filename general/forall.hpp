@@ -17,7 +17,6 @@
 #include "error.hpp"
 #include "backends.hpp"
 #include "device.hpp"
-#include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
 
 #define MFEM_JIT

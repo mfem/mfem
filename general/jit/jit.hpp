@@ -38,7 +38,7 @@ namespace mfem
 
 struct Jit
 {
-   /// Initialize JIT (and MPI, depending on the configuration)
+   /// Initialize JIT (and MPI, depending on MFEM's configuration)
    static int Init(int *argc, char ***argv);
    static int Init() { return Init(nullptr, nullptr); }
 
@@ -57,15 +57,15 @@ struct Jit
    /// Do a MPI_Barrier if MPI has been initialized.
    static void Sync();
 
-   /// Ask the JIT thread to exit.
-   static void ThreadExit();
+   /// Ask the JIT process to exit.
+   static void Exit();
 
-   /// Ask the JIT thread to launch a system call.
-   static int ThreadSystem(const char *argv[]);
+   /// Ask the JIT process to launch a system call.
+   static int System(const char *argv[]);
 
-   /// Ask the JIT thread to do a compilation.
-   static int ThreadCompile(const char *argv[], const int n, const char *src,
-                            char *&obj, size_t &size);
+   /// Ask the JIT process to do a compilation.
+   static int Compile(const char *argv[], const int n, const char *src,
+                      char *&obj, size_t &size);
 
    /**
     * @brief RootCompile
@@ -79,7 +79,7 @@ struct Jit
     * @param check_for_ar check for existing libmjit.a archive
     * @return
     */
-   static int RootCompile(const int n, char *cc, const char *co,
+   static int RootCompile(const int n, char *src, const char *cc, const char *co,
                           const char *mfem_cxx, const char *mfem_cxxflags,
                           const char *mfem_source_dir, const char *mfem_install_dir,
                           const bool check_for_ar);
@@ -128,15 +128,19 @@ template<> struct hash<const char*>
 
 /// Hash combine function
 template <typename T> inline
-size_t hash_combine(const size_t &s, const T &v) noexcept
-{ return s ^ (mfem::jit::hash<T> {}(v) + 0x9e3779b9ull + (s<<6) + (s>>2));}
+size_t hash_combine(const size_t &h, const T &v) noexcept
+{ return h ^ (mfem::jit::hash<T> {}(v) + 0x9e3779b9ull + (h<<6) + (h>>2));}
 
 /// \brief hash_args Terminal hash arguments function
 /// \param seed
 /// \param that
 /// \return
 template<typename T> inline
-size_t hash_args(const size_t &seed, const T &that) noexcept
+size_t hash_args(const size_t &hash, const T &args) noexcept
+{ return hash_combine(hash, args); }
+
+template<typename T> inline
+size_t hash_pp(const size_t &seed, const T &that) noexcept
 { return hash_combine(seed, that); }
 
 /// \brief hash_args Hash arguments function
@@ -188,19 +192,20 @@ inline char *uint64str(const uint64_t hash, char *str, const char *ext = "")
 template<typename... Args>
 inline int Compile(const size_t h,
                    const bool check_for_ar,
-                   const char *src,
+                   const char *mfem_src,
                    const char *mfem_cxx,
                    const char *mfem_cxxflags,
                    const char *mfem_source_dir,
                    const char *mfem_install_dir,
                    Args... args)
 {
-   char *cc = nullptr, co[MFEM_JIT_SYMBOL_SIZE+3];
+   char *src = nullptr, cc[MFEM_JIT_SYMBOL_SIZE+3], co[MFEM_JIT_SYMBOL_SIZE+3];
+   uint64str(h, cc, ".cc");
    uint64str(h, co, ".co");
-   const int n = 1 + std::snprintf(nullptr, 0, src, h, h, h, args...);
-   cc = new char[n];
-   if (std::snprintf(cc, n, src, h, h, h, args...) < 0) { return EXIT_FAILURE; }
-   return Jit::RootCompile(n, cc, co, mfem_cxx, mfem_cxxflags,
+   const int n = 1 + std::snprintf(nullptr, 0, mfem_src, h, h, h, args...);
+   src = new char[n];
+   if (std::snprintf(src, n, mfem_src, h, h, h, args...) < 0) { return EXIT_FAILURE; }
+   return Jit::RootCompile(n, src, cc, co, mfem_cxx, mfem_cxxflags,
                            mfem_source_dir, mfem_install_dir, check_for_ar);
 }
 
@@ -264,15 +269,16 @@ public:
    /// \param name kernel name
    /// \param cxx compiler
    /// \param src kernel source filename
+   /// \param src_h src hash, to compare with the pre-computed one during prefix
    /// \param flags MFEM_CXXFLAGS
    /// \param msrc MFEM_SOURCE_DIR
    /// \param mins MFEM_INSTALL_DIR
    /// \param args other arguments
    template<typename... Args>
-   kernel(const char *name, const char *cxx, const char *src,
+   kernel(const char *name, const char *cxx, const char *src, const size_t src_h,
           const char *flags, const char *msrc, const char* mins, Args... args):
       seed(jit::hash<const char*>()(src)),
-      hash(hash_args(seed, cxx, flags, msrc, mins, args...)),
+      hash((assert(seed == src_h), hash_args(seed, cxx, flags, msrc, mins, args...))),
       handle(Handle(name, hash, src, cxx, flags, msrc, mins, args...)),
       ker(Symbol<kernel_t>(hash, handle))
    { assert(handle); assert(ker); }

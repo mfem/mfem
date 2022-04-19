@@ -218,11 +218,12 @@ int Jit::Init(int *argc, char ***argv)
    }
    else // JIT compiler child process
    {
-      //assert(*Smem.ack == ACK); // Child init error
+      assert(*Smem.ack == ACK); // Child init error
       AckEQ(); // wait for parent's rank
 
       const int rank = *Smem.ack;
       *Smem.ack = ACK; // now acknowledge back
+      dbg("[thd:%d] entering",rank);
 
       auto work = [&]() // looping working thread
       {
@@ -240,7 +241,7 @@ int Jit::Init(int *argc, char ***argv)
 
       // only root is kept for compilation
       if (rank == 0) { std::thread (work).join(); }
-      //dbg("[thd:%d] EXIT_SUCCESS",rank);
+      dbg("[thd:%d] EXIT_SUCCESS",rank);
       exit(EXIT_SUCCESS);
    }
    return EXIT_SUCCESS;
@@ -253,8 +254,8 @@ void Jit::Finalize()
    if (Jit::Root())
    {
       int status;
-      //dbg("[mpi:0] send thd:0 exit");
-      ThreadExit();
+      dbg("[mpi:0] send thd:0 exit");
+      Jit::Exit();
       ::waitpid(Smem.pid, &status, WUNTRACED | WCONTINUED);
       assert(status == 0); // Error with JIT compiler thread!
    }
@@ -301,7 +302,7 @@ static int Send(const int code)
    return EXIT_SUCCESS;
 }
 
-void Jit::ThreadExit() { Send(jit::EXIT); }
+void Jit::Exit() { Send(jit::EXIT); }
 
 static std::string CreateCommandLine(const char *argv[])
 {
@@ -312,11 +313,12 @@ static std::string CreateCommandLine(const char *argv[])
    return cmd;
 }
 
-int Jit::ThreadSystem(const char *argv[])
+// #warning should use the JIT thread
+int Jit::System(const char *argv[])
 {
-   // #warning should use the JIT thread
    if (Jit::Root())
    {
+      dbg(CreateCommandLine(argv).c_str());
       int status = ::system(CreateCommandLine(argv).c_str());
       if (status != EXIT_SUCCESS) { return EXIT_FAILURE; }
    }
@@ -324,8 +326,8 @@ int Jit::ThreadSystem(const char *argv[])
    return EXIT_SUCCESS;
 }
 
-int Jit::ThreadCompile(const char *argv[], const int n, const char *src,
-                       char *&obj, size_t &size)
+int Jit::Compile(const char *argv[], const int n, const char *src,
+                 char *&obj, size_t &size)
 {
 #ifndef MFEM_USE_MPI
    // In serial mode, JIT/MPI has not been initialized: do it once here
@@ -346,7 +348,6 @@ int Jit::ThreadCompile(const char *argv[], const int n, const char *src,
 
    const std::string cmd = CreateCommandLine(argv);
    const char *cmd_c_str = cmd.c_str();
-   //dbg(cmd_c_str);
 
    // write the command in shared mem
    assert(std::strlen(cmd_c_str) < Smem.pagesize);
@@ -371,7 +372,17 @@ int Jit::ThreadCompile(const char *argv[], const int n, const char *src,
    return EXIT_SUCCESS;
 }
 
-int Jit::RootCompile(const int n, char *src, const char *co,
+inline int CreateKernelSourceFile(const char *cc, const char *src)
+{
+   if (!Jit::Root()) { return EXIT_SUCCESS; }
+   const int fd = ::open(cc, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
+   if (fd < 0) { return false; }
+   if (::dprintf(fd, "%s", src) < 0) { return EXIT_FAILURE; }
+   if (::close(fd) < 0) { return EXIT_FAILURE; }
+   return EXIT_SUCCESS;
+}
+
+int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
                      const char *mfem_cxx, const char *mfem_cxxflags,
                      const char *mfem_source_dir, const char *mfem_install_dir,
                      const bool check_for_ar)
@@ -415,7 +426,7 @@ int Jit::RootCompile(const int n, char *src, const char *co,
          mfem_cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load,
          MFEM_JIT_LINKER_OPTION "-rpath,.", nullptr
       };
-      if (Jit::ThreadSystem(argv_so)) { return EXIT_FAILURE; }
+      if (Jit::System(argv_so)) { return EXIT_FAILURE; }
       delete src;
       return EXIT_SUCCESS;
    }
@@ -436,8 +447,7 @@ int Jit::RootCompile(const int n, char *src, const char *co,
          std::vector<std::string>(
             std::sregex_token_iterator{begin(cxxflags), end(cxxflags), reg, -1},
             std::sregex_token_iterator{});
-
-      std::vector<const char*> argv;
+      std::vector<const char*> argv, argv_files;
       argv.push_back(mfem_cxx);
       for (auto &a : cxxargv)
       {
@@ -445,27 +455,38 @@ int Jit::RootCompile(const int n, char *src, const char *co,
          uptr *t_copy = new uptr(strdup(a.data()), &std::free);
          argv.push_back(t_copy->get());
       }
-
       argv.push_back(MFEM_JIT_COMPILER_OPTION "-Wno-unused-variable");
       argv.push_back(fPIC);
       argv.push_back("-c");
       argv.push_back(MFEM_JIT_COMPILER_OPTION "-pipe");
       // avoid redefinition, as with nvcc, the option -x cu is already present
-#ifndef MFEM_USE_CUDA
-      argv.push_back("-x");
-      argv.push_back("c++");
-#else
+#ifdef MFEM_USE_CUDA
       argv.push_back(MFEM_JIT_DEVICE_CODE);
 #endif // MFEM_USE_CUDA
+      argv_files = argv;
+
+#if 1
+      argv_files.push_back("-o");
+      argv_files.push_back(co); // output
+      argv_files.push_back(cc); // input
+      argv_files.push_back(nullptr);
+
+      // dump src in file k****************.cc
+      if (CreateKernelSourceFile(cc,src)) { return EXIT_FAILURE; }
+      if (Jit::System(argv_files.data())) { return EXIT_FAILURE; }
+#else
       argv.push_back("-o");
       argv.push_back("/dev/stdout"); // output
       argv.push_back("-"); // input
+      argv.push_back("-x");
+      argv.push_back("c++");
       argv.push_back(nullptr);
 
-      // compile in memory
+      dbg("%s", CreateCommandLine(argv.data()).c_str()); // debug output
+      compile in memory
       size_t size = 0;
       char *obj = nullptr;
-      if (Jit::ThreadCompile(argv.data(), n, src, obj, size)) { return EXIT_FAILURE; }
+      if (Jit::Compile(argv.data(), n, src, obj, size)) { return EXIT_FAILURE; }
       delete src;
 
       // security issues, => write back object into output file
@@ -476,12 +497,13 @@ int Jit::RootCompile(const int n, char *src, const char *co,
       const size_t written = ::write(co_fd, obj, size);
       if (written != size) { return perror("!write object"), EXIT_FAILURE; }
       if (::close(co_fd) < 0) { return perror("!close object"), EXIT_FAILURE; }
+#endif
    }
    Jit::Sync();
 
    // Update archive
    const char *argv_ar[] = { "ar", "-rv", lib_ar, co, nullptr };
-   if (Jit::ThreadSystem(argv_ar)) { return EXIT_FAILURE; }
+   if (Jit::System(argv_ar)) { return EXIT_FAILURE; }
    ::unlink(co);
 
    // Create shared library
@@ -489,11 +511,11 @@ int Jit::RootCompile(const int n, char *src, const char *co,
                              beg_load, lib_ar, end_load,
                              nullptr
                            };
-   if (Jit::ThreadSystem(argv_so)) { return EXIT_FAILURE; }
+   if (Jit::System(argv_so)) { return EXIT_FAILURE; }
 
    // Install shared library
    const char *install[] = { "install", MFEM_JIT_INSTALL_BACKUP, lib_so, libso_n, nullptr };
-   if (Jit::ThreadSystem(install)) { return EXIT_FAILURE; }
+   if (Jit::System(install)) { return EXIT_FAILURE; }
 
    return EXIT_SUCCESS;
 }

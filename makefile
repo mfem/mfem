@@ -464,8 +464,7 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 else
 # JIT compilation rules
 # Files that will be preprocessed
-JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp \
-                   $(SRC)fem/bilininteg_mass_pa.cpp
+JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp
 
 # Definitions to compile the preprocessor and grab the MFEM compiler
 #JIT_LIB = $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
@@ -476,7 +475,7 @@ $(BLD)$(MFEM_JIT): $(SRC)general/jit/jit.hpp
 $(BLD)$(MFEM_JIT): $(BLD)general/jit/jit.o \
 						 $(BLD)general/jit/main.o \
 						 $(BLD)general/jit/parser.o
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -o $(@) $(filter-out $(SRC)general/jit/jit.hpp,$(^)) $(JIT_LIB) 
+	$(MFEM_CXX) $(filter-out -x=cu,$(MFEM_BUILD_FLAGS)) -o $(@) $(filter-out $(SRC)general/jit/jit.hpp,$(^)) $(JIT_LIB) 
 
 # Filtering out the objects that will be compiled through the preprocessor
 JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
