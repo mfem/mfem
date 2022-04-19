@@ -95,10 +95,10 @@ enum class VTKFormat
    /// Data arrays will be written in ASCII format.
    ASCII,
    /// Data arrays will be written in binary format. Floating point numbers will
-   /// be be output with 64 bits of precision.
+   /// be output with 64 bits of precision.
    BINARY,
    /// Data arrays will be written in binary format. Floating point numbers will
-   /// be be output with 32 bits of precision.
+   /// be output with 32 bits of precision.
    BINARY32
 };
 

@@ -1594,6 +1594,15 @@ void ParMesh::SetAttributes()
    }
 }
 
+bool ParMesh::HasBoundaryElements() const
+{
+   // maximum number of boundary elements over all ranks
+   int maxNumOfBdrElements;
+   MPI_Allreduce(&NumOfBdrElements, &maxNumOfBdrElements, 1,
+                 MPI_INT, MPI_MAX, MyComm);
+   return (maxNumOfBdrElements > 0);
+}
+
 void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
 {
    int sedge = group_sedge.GetRow(group-1)[i];

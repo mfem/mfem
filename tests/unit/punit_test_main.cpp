@@ -16,18 +16,16 @@
 bool launch_all_non_regression_tests = false;
 std::string mfem_data_dir;
 
-#ifdef MFEM_USE_MPI
-mfem::MPI_Session *GlobalMPISession;
-#else
+#ifndef MFEM_USE_MPI
 #error "This test should be disabled without MFEM_USE_MPI!"
 #endif
 
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
-   mfem::MPI_Session mpi;
-   GlobalMPISession = &mpi;
-   bool root = mpi.Root();
+   mfem::Mpi::Init();
+   bool root = mfem::Mpi::Root();
+   mfem::Hypre::Init();
 #else
    bool root = true;
 #endif

@@ -96,12 +96,12 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   Hypre::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    MPI_Comm comm = MPI_COMM_WORLD;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(comm, &num_procs);
-   MPI_Comm_rank(comm, &myid);
 
    // 2. Parse command-line options.
    int order  = 1;
@@ -140,7 +140,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -317,8 +316,6 @@ int main(int argc, char *argv[])
            << "window_title 'Energy in Phase Space'\n"
            << "keys\n maac\n" << "axis_labels 'q' 'p' 't'\n"<< flush;
    }
-
-   MPI_Finalize();
 }
 
 double hamiltonian(double q, double p, double t)
