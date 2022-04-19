@@ -9,6 +9,8 @@ using namespace mfem;
 
 double sx, sy;
 
+Vector vel;
+
 void Prefine(FiniteElementSpace & fes_old,
              GridFunction &u, Coefficient &gf_ex, GridFunction &orders_gf,
              double min_thresh, double max_thresh);
@@ -58,7 +60,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 1;
-   sx = 2.0;
+   sx = 1.0;
    sy = 1.0;
    double t_final = 1.0;
    double dt = 0.002;
@@ -96,12 +98,12 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Mesh mesh0 = Mesh::MakeCartesian2D(64, 1, mfem::Element::QUADRILATERAL,false,
+   Mesh mesh0 = Mesh::MakeCartesian2D(32, 32, mfem::Element::QUADRILATERAL,false,
                                       sx,
                                       sy);
 
 
-   std::vector<Vector> translations = {Vector({sx,0.0}), };
+   std::vector<Vector> translations = {Vector({sx,0.0}), Vector({0.0,sy})};
 
 
    Mesh mesh = Mesh::MakePeriodic(mesh0,
@@ -183,6 +185,7 @@ int main(int argc, char *argv[])
          sout.precision(precision);
          sout << "solution\n" << mesh << u;
          sout << flush;
+         cin.get();
          // meshout.precision(precision);
          // meshout << "solution\n" << mesh << orders_gf;
          // meshout << "mesh\n" << mesh ;
@@ -200,7 +203,6 @@ int main(int argc, char *argv[])
    double t = 0.0;
    adv.SetTime(t);
 
-   GridFunction gf_ex(&fes);
    FunctionCoefficient u_ex(u0_function);
 
    ode_solver->Init(adv);
@@ -238,8 +240,11 @@ int main(int argc, char *argv[])
          ode_solver->Init(adv);
          if (visualization)
          {
+            // GridFunction gf_ex(&fes);
+            // gf_ex.ProjectCoefficient(u_ex);
             GridFunction * pr_u = ProlongToMaxOrder(&u);
             sout << "solution\n" << mesh << *pr_u << flush;
+
             // meshout << "solution\n" << mesh << orders_gf << flush;
             // meshout << "mesh\n" << mesh << flush;
          }
@@ -304,34 +309,51 @@ void velocity_function(const Vector &x, Vector &v)
 {
    v.SetSize(2);
    v(0) = 1.;
-   v(1) = 0.;
+   v(1) = 1.;
 }
 
 // Initial condition
 double u0_function(const Vector &x, double t)
 {
    // give x0, y0;
+
+   // Rotation matrix
+   double theta = M_PI/4;
+   //
+
    double x0 = 0.5;
-   // double y0 = 0.5;
+   double y0 = 0.5;
    double w = 100.;
    double c = 1.;
    double ds = c*t;
-
+   Vector a(2);
+   a(0) = cos(theta);
+   a(1) = sin(theta);
+   // double xx = x(0) - a(0)*ds;
+   // double yy = x(1) - a(1)*ds;
    double xx = x(0) - ds;
-   // double yy = x(1) - ds;
+   double yy = x(1) - ds;
 
    double tol = 1e-6;
    if (xx>= sx+tol || xx<= 0.0-tol)
    {
       xx -= floor(xx/sx) * sx;
    }
-   // if (yy>= sy+tol || yy<= 0.0-tol)
-   // {
-   //    yy -= floor(yy/sy) * sy;
-   // }
+   if (yy>= sy+tol || yy<= 0.0-tol)
+   {
+      yy -= floor(yy/sy) * sy;
+   }
 
-   double dr2 = (xx-x0)*(xx-x0);
-   return 1. + exp(-w*dr2);
+
+
+   // double d = (xx-x0)*a(0) + (yy-y0)*a(1);
+   // double d1 = (xx-x0-0.5)*a(0) + (yy-y0-0.5)*a(1);
+   // double d2 = (xx-x0+0.5)*a(0) + (yy-y0+0.5)*a(1);
+   // return 1. + exp(-w*(d*d)) + exp(-w*(d1*d1)) + exp(-w*(d2*d2));
+   double dr_x = (xx-x0)*(xx-x0);
+   double dr_y = (yy-y0)*(yy-y0);
+   return 1. + exp(-w*(dr_x+dr_y));
+   // return 1. + exp(-w*(dr_x));
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
@@ -599,7 +621,7 @@ Table * Refine(Array<int> ref_actions, GridFunction &u, int depth_limit)
    Array<Refinement> refinements;
    for (int i = 0; i<ne; i++)
    {
-      if (actions[i] == 1) {refinements.Append(Refinement(i,0b01));}
+      if (actions[i] == 1) {refinements.Append(Refinement(i,0b11));}
    }
    if (refinements.Size())
    {
