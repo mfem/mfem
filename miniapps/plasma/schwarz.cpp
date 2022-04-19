@@ -2166,11 +2166,31 @@ SchwarzSmoother::SchwarzSmoother(ParMesh * cpmesh_, int ref_levels_,
          std::cout << "SchwarzSmoother using GMRESSolver size " << P->PatchMat[ip]->Height() << " x " << P->PatchMat[ip]->Width() << " sym " << P->PatchMat[ip]->IsSymmetric() << ", global size " << A_->Height() << std::endl;
 	 PatchInv[ip]->SetRelTol(1e-12);
          PatchInv[ip]->SetMaxIter(100);
+
+	 HypreParMatrix *hmat = nullptr;
+	 { // Set preconditioner based on hypre
+	   HYPRE_BigInt *row_starts = new HYPRE_BigInt(2);
+	   HYPRE_BigInt *col_starts = new HYPRE_BigInt(2);
+	   row_starts[0] = 0;
+	   row_starts[1] = P->PatchMat[ip]->NumRows();
+
+	   col_starts[0] = 0;
+	   col_starts[1] = P->PatchMat[ip]->NumCols();
+
+	   //hmat = new HypreParMatrix(MPI_COMM_WORLD, row_starts, col_starts, P->PatchMat[ip]);
+	   hmat = new HypreParMatrix(MPI_COMM_WORLD, P->PatchMat[ip]->NumRows(), row_starts, P->PatchMat[ip]);
+
+	   HypreILU *hilu = new HypreILU();
+	   PatchInv[ip]->SetPreconditioner(*hilu);
+	 }
+
 #endif
-         PatchInv[ip]->SetOperator(*P->PatchMat[ip]);
+         //PatchInv[ip]->SetOperator(*P->PatchMat[ip]);
+         PatchInv[ip]->SetOperator(*hmat);
+
          //CheckSPD(P->PatchMat[ip]);
          //MFEM_VERIFY(P->PatchMat[ip]->IsSymmetric() < 1.0e-12, "");
-         //PatchInv[ip]->SetPrintLevel(1);
+	 //PatchInv[ip]->SetPrintLevel(1);
       }
    }
    R = new PatchRestriction(P);
