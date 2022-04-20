@@ -132,6 +132,9 @@ Integrations, testing and documentation
 - Switched from Artistic Style (astyle) version 2.05.1 to version 3.1 for code
   formatting. See the "make style" target.
 
+- New benchmark for the different assembly levels inspired by the CEED
+  Back-Off Problems.
+
 Miscellaneous
 -------------
 - Added a simple singleton class, Mpi, as a replacement for MPI_Session. New
