@@ -69,6 +69,7 @@ void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
                const double J22 = J(x,y,1,1,e);
                const double u = cst ? cst_val0 : C(0,c,x,y,e);
                const double v = cst ? cst_val1 : C(1,c,x,y,e);
+               // QQ = w * det(J) * J^{-1} . C = w * adj(J) . { u, v }
                QQ0(y,x) = w * (J22*u - J12*v);
                QQ1(y,x) = w * (J11*v - J21*u);
             }
