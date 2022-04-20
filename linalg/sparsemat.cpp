@@ -292,6 +292,12 @@ SparseMatrix::SparseMatrix(const Vector &v)
    InitGPUSparse();
 }
 
+void SparseMatrix::OverrideSize(int height_, int width_)
+{
+   height = height_;
+   width = width_;
+}
+
 SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
 {
    Clear();
