@@ -33,6 +33,10 @@
 // MFEM_JIT_PREFIX_CHAR + hash size + null character
 #define MFEM_JIT_SYMBOL_SIZE 1 + 16 + 1
 
+#undef MFEM_DEBUG_COLOR
+#define MFEM_DEBUG_COLOR 219
+#include "../debug.hpp"
+
 namespace mfem
 {
 
@@ -82,15 +86,7 @@ struct Jit
    static int RootCompile(const int n, char *src, const char *cc, const char *co,
                           const char *mfem_cxx, const char *mfem_cxxflags,
                           const char *mfem_source_dir, const char *mfem_install_dir,
-                          const bool check_for_ar);
-
-   /// \brief GetRuntimeVersion Returns the library version of the current run.
-   ///        Initialized at '0', can be incremented by setting increment to true.
-   ///        Used when multiple kernels have to be compiled and the shared library
-   ///        updated.
-   /// \param increment
-   /// \return the current runtime version
-   static int GetRuntimeVersion(bool increment = false);
+                          void *&handle);
 };
 
 namespace jit
@@ -191,7 +187,7 @@ inline char *uint64str(const uint64_t hash, char *str, const char *ext = "")
 /// \return
 template<typename... Args>
 inline int Compile(const size_t h,
-                   const bool check_for_ar,
+                   void *&handle,
                    const char *mfem_src,
                    const char *mfem_cxx,
                    const char *mfem_cxxflags,
@@ -206,84 +202,57 @@ inline int Compile(const size_t h,
    src = new char[n];
    if (std::snprintf(src, n, mfem_src, h, h, h, args...) < 0) { return EXIT_FAILURE; }
    return Jit::RootCompile(n, src, cc, co, mfem_cxx, mfem_cxxflags,
-                           mfem_source_dir, mfem_install_dir, check_for_ar);
+                           mfem_source_dir, mfem_install_dir, handle);
+}
+
+/// Symbol search from a given handle
+template<typename kernel_t = void*>
+inline kernel_t Symbol(const size_t hash, void *handle)
+{
+   ::dlerror(); // flush dl error
+   char symbol[MFEM_JIT_SYMBOL_SIZE];
+   return (kernel_t) ::dlsym(handle, uint64str(hash, symbol));
 }
 
 /// Lookup in the cache for the kernel with the given hash
 template<typename... Args>
-inline void *Handle(const char */*name*/, const size_t hash, Args... args)
+inline void *Handle(const size_t hash, Args... args)
 {
-   void *handle = nullptr;
-   constexpr int PM = PATH_MAX;
-   constexpr int mode = RTLD_NOW | RTLD_LOCAL;
-   const int rt_version = Jit::GetRuntimeVersion();
-   const bool first_compilation = (rt_version == 0);
-   char so_name_n[PM], symbol[MFEM_JIT_SYMBOL_SIZE];
-   constexpr const char *so_name = "./lib" MFEM_JIT_LIB_NAME ".so";
-   snprintf(so_name_n, PM, "lib%s.so.%d", MFEM_JIT_LIB_NAME, rt_version);
-   const char *so_lib = first_compilation ? so_name : so_name_n;
-   // First we try to open the current shared cache library: libmjit.so.*
-   handle = ::dlopen(so_lib, mode);
-   // If no handle was found, continue looking for the archive: libmjit.a
-   // If no archive is found, it will continue by launching the compilation
-   if (!handle)
-   {
-      constexpr bool check_for_ar = true;
-      if (Compile(hash, check_for_ar, args...)) { return nullptr; }
-      handle = ::dlopen(so_lib, mode);
-   }
-   assert(handle); // we should now have in all cases a handle
-   // Now look for the kernel symbol
-   if (!::dlsym(handle, uint64str(hash, symbol)))
-   {
-      // If not found, avoid using the archive and update the shared objects
-      ::dlclose(handle);
-      constexpr bool no_archive_check = false;
-      if (Compile(hash, no_archive_check, args...)) { return nullptr; }
-      handle = ::dlopen(so_name_n, mode);
-   }
-   assert(handle); // we should again have a handle
-   assert(::dlsym(handle, symbol)); // we should have the symbol
-   ::unlink(so_name_n); // remove the so libs after use, (could be kept)
-   ::unlink(so_name); // remove the so lib after use, (could be kept)
+   // First we try to open the current shared cache library: libmjit.so
+   void *handle = ::dlopen("./lib" MFEM_JIT_LIB_NAME ".so", RTLD_NOW | RTLD_LOCAL);
+   // If no handle was found, continue by launching the compilation
+   if (!handle) { if (Compile(hash, handle, args...)) { return nullptr; } }
+   // Now look for the symbol, continue by updating the shared library
+   if (!Symbol(hash, handle)) { if (Compile(hash, handle, args...)) { return nullptr; } }
+   assert(Symbol(hash, handle));
    return handle;
-}
-
-/// Symbol search from a given handle
-template<typename kernel_t>
-inline kernel_t Symbol(const size_t hash, void *handle)
-{
-   char symbol[MFEM_JIT_SYMBOL_SIZE];
-   return (kernel_t) ::dlsym(handle, uint64str(hash, symbol));
 }
 
 /// Kernel class
 template<typename kernel_t> class kernel
 {
-   const size_t seed, hash;
+   const size_t hash;
    void *handle;
-   kernel_t ker;
 
 public:
    /// \brief kernel
-   /// \param name kernel name
+   /// \param hash src hash, to compare with the pre-computed one during prefix
    /// \param cxx compiler
    /// \param src kernel source filename
-   /// \param src_h src hash, to compare with the pre-computed one during prefix
    /// \param flags MFEM_CXXFLAGS
    /// \param msrc MFEM_SOURCE_DIR
    /// \param mins MFEM_INSTALL_DIR
    /// \param args other arguments
    template<typename... Args>
-   kernel(const char *name, const char *cxx, const char *src, const size_t src_h,
+   kernel(const size_t src_h, const char *src, const char *cxx,
           const char *flags, const char *msrc, const char* mins, Args... args):
-      seed(jit::hash<const char*>()(src)),
-      hash((assert(seed == src_h), hash_args(seed, cxx, flags, msrc, mins, args...))),
-      handle(Handle(name, hash, src, cxx, flags, msrc, mins, args...)),
-      ker(Symbol<kernel_t>(hash, handle))
-   { assert(handle); assert(ker); }
+      hash((assert(jit::hash<const char*>()(src) == src_h),
+            hash_args(src_h, cxx, flags, msrc, mins, args...))),
+      handle(Handle(hash, src, cxx, flags, msrc, mins, args...))
+   { assert(handle); assert(Symbol<kernel_t>(hash, handle)); }
 
-   template<typename... Args> void operator()(Args... args) { ker(args...); }
+   template<typename... Args>
+   void operator()(Args... args) { Symbol<kernel_t>(hash, handle)(args...); }
 
    ~kernel() { ::dlclose(handle); }
 };

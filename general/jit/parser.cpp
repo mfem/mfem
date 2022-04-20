@@ -280,31 +280,21 @@ void JitPostfix(context_t &pp)
    pp.out << ")_\";"; // eos
    pp.ker.is_kernel = false;
 
-   // typedef, hash map and launch
-   pp.out << "\ttypedef void (*kernel_t)(const bool use_dev, "
+   pp.out << "\n\ttypedef void (*kernel_t)(const bool use_dev,"
           << pp.ker.params << ");";
-   pp.out << "\n\tstatic std::unordered_map<size_t,jit::kernel<kernel_t>*> ks;";
-   pp.out << "\n\tconst char *cxx = " << pp.ker.mfem_jit_cxx;
-   pp.out << ";\n\tconst char *mfem_build_flags = " << pp.ker.mfem_jit_build_flags;
-   pp.out << ";\n\tconst char *mfem_source_dir = \""
-          << pp.ker.mfem_source_dir <<  "\";";
-   pp.out << "\n\tconst char *mfem_install_dir = \""
-          << pp.ker.mfem_install_dir <<  "\";";
-   pp.out << "\n\tconst size_t src_h = 0x"
-          << std::hex
-          << jit::hash<const char*>()(pp.ker.src.c_str())
-          << std::dec
-          << "ul;";
-   pp.out << "\n\tconst size_t args_h = jit::hash_args(0," << pp.ker.Targs << ");";
-   pp.out << "\n\tif (!ks[args_h]) ks[args_h] = new jit::kernel<kernel_t>"
-          << "(\"" << pp.ker.name << "\", " << "cxx, src, src_h, "
-          "mfem_build_flags, mfem_source_dir, mfem_install_dir, "
-          << pp.ker.Targs << ");";
-   pp.out << "\n\tks[args_h]->operator()("
-          << "Device::Allows(Backend::CUDA_MASK), "
-          << pp.ker.args << ");";
-   pp.out << "\n\treturn;";
-   pp.out << "\n";
+
+   // #warning should be CUDA dependent
+   pp.out << "\n\tconst bool use_dev = Device::Allows(Backend::CUDA_MASK);";
+
+   pp.out << "\n\tjit::kernel<kernel_t>("<< std::hex
+          << "0x" << jit::hash<const char*>()(pp.ker.src.c_str())
+          << "ul" << std::dec << ", pp_ker_src"
+          << ", " << pp.ker.mfem_jit_cxx
+          << ", " << pp.ker.mfem_jit_build_flags
+          << ", " << pp.ker.mfem_source_dir
+          << ", \"" << pp.ker.mfem_install_dir << "\""
+          << ", " << pp.ker.Targs
+          << ").operator()(use_dev," << pp.ker.args << ");\n";
    // Stop counting the blocks and flush the kernel status
    pp.block--;
    pp.ker.is_jit = false;
@@ -318,23 +308,21 @@ void JitPrefix(context_t &pp)
 {
    assert(pp.ker.is_jit);
    pp.ker.src.clear();
-   pp.out << "\n\tconst char *src=R\"_(";
+   pp.out << "\n\tconst char *pp_ker_src = R\"_(";
+   // switching from pp.out to pp.ker.src to compute the hash
    pp.ker.src += "#include <cstdint>\n";
    pp.ker.src += "#include <limits>\n";
    pp.ker.src += "#include <cstring>\n";
    pp.ker.src += "#include <stdbool.h>\n";
-   pp.ker.src += "#include \"";
-   pp.ker.src += pp.ker.mfem_install_dir;
-   pp.ker.src += "/include/mfem/general/jit/jit.hpp\"\n";
-   //pp.out << "#define MFEM_USE_CUDA\n";
-   //pp.out << "#define MFEM_CONFIG_HPP\n";
-   pp.ker.src += "#undef MFEM_USE_MPI\n";
-   //pp.out << "#define MFEM_DEVICE_HPP\n";
-   //pp.out << "#define MFEM_BACKENDS_HPP\n";
+
+   pp.ker.src += "#define MFEM_JIT_FORALL_COMPILATION\n";
+   pp.ker.src += "#define MFEM_DEVICE_HPP\n";
+
    pp.ker.src += "#include \"";
    pp.ker.src += pp.ker.mfem_install_dir;
    pp.ker.src += "/include/mfem/general/forall.hpp\"\n";
    pp.ker.src += "\nusing namespace mfem;\n";
+
    pp.ker.src += "\ntemplate<";
    pp.ker.src += pp.ker.Tparams;
    pp.ker.src += ">";
@@ -344,6 +332,7 @@ void JitPrefix(context_t &pp)
    pp.ker.src += "const bool use_dev,";
    pp.ker.src += pp.ker.params;
    pp.ker.src += "){";
+
    // Push the preprocessor #line directive
    pp.ker.src += "\n#line ";
    pp.ker.src += std::to_string(pp.line);
@@ -361,7 +350,7 @@ void JitArgsString(context_t &pp)
    assert(pp.ker.is_jit);
    pp.ker.mfem_jit_cxx = MFEM_JIT_STRINGIFY(MFEM_JIT_CXX);
    pp.ker.mfem_jit_build_flags = MFEM_JIT_STRINGIFY(MFEM_JIT_BUILD_FLAGS);
-   pp.ker.mfem_source_dir = MFEM_SOURCE_DIR;
+   pp.ker.mfem_source_dir = MFEM_JIT_STRINGIFY(MFEM_SOURCE_DIR);
    pp.ker.mfem_install_dir = MFEM_INSTALL_DIR;
    pp.ker.Targs.clear();
    pp.ker.Tparams.clear();

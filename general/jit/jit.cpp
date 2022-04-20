@@ -385,9 +385,10 @@ inline int CreateKernelSourceFile(const char *cc, const char *src)
 int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
                      const char *mfem_cxx, const char *mfem_cxxflags,
                      const char *mfem_source_dir, const char *mfem_install_dir,
-                     const bool check_for_ar)
+                     void *&handle)
 {
    assert(src);
+   constexpr int ld_mode = RTLD_NOW | RTLD_LOCAL;
 #ifndef MFEM_USE_CUDA
 #define MFEM_JIT_DEVICE_CODE ""
 #define MFEM_JIT_COMPILER_OPTION
@@ -400,7 +401,8 @@ int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
 #endif
 
 #ifndef __APPLE__
-#define MFEM_JIT_INSTALL_BACKUP  "--backup=none"
+#define MFEM_JIT_INSTALL_BACKUP ""
+   //#define MFEM_JIT_INSTALL_BACKUP  "--backup=none"
 #define MFEM_JIT_AR_LOAD_PREFIX MFEM_JIT_LINKER_OPTION "--whole-archive"
 #define MFEM_JIT_AR_LOAD_POSTFIX  MFEM_JIT_LINKER_OPTION "--no-whole-archive";
 #else
@@ -415,29 +417,34 @@ int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
    constexpr int PM = PATH_MAX;
    constexpr const char *fPIC = MFEM_JIT_COMPILER_OPTION "-fPIC";
    constexpr const char *lib_ar = "lib" MFEM_JIT_LIB_NAME ".a";
-   constexpr const char *lib_so = "lib" MFEM_JIT_LIB_NAME ".so";
+   constexpr const char *lib_so = "./lib" MFEM_JIT_LIB_NAME ".so";
+   constexpr const char *lib_to = "lib" MFEM_JIT_LIB_NAME ".to";
 
    // If there is already a JIT archive, use it and create the lib_so
-   if (check_for_ar && GetRuntimeVersion()==0 && std::fstream(lib_ar))
+   if (!handle && std::fstream(lib_ar))
    {
-      dbg("Using JIT archive!");
+      dbg("%s => %s", lib_ar, lib_so);
       const char *argv_so[] =
       {
          mfem_cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load,
          MFEM_JIT_LINKER_OPTION "-rpath,.", nullptr
       };
       if (Jit::System(argv_so)) { return EXIT_FAILURE; }
-      delete src;
+      delete[] src;
+      handle = ::dlopen(lib_so, ld_mode);
+      assert(handle);
       return EXIT_SUCCESS;
    }
 
+   if (handle)
+   {
+      while (::dlclose(handle) != -1) { dbg("dlclose:%d",::dlclose(handle)); }
+   }
+
    // MFEM source path, include path & lib_so_v
-   constexpr bool increment = true;
-   const int version = GetRuntimeVersion(increment);
-   char libso_n[PM], Imsrc[PM], Iminc[PM];
+   char Imsrc[PM], Iminc[PM];
    if (snprintf(Imsrc, PM, "-I%s ", mfem_source_dir) < 0) { return EXIT_FAILURE; }
    if (snprintf(Iminc, PM, "-I%s/include ", mfem_install_dir) < 0) { return EXIT_FAILURE; }
-   if (snprintf(libso_n, PM, "lib%s.so.%d", MFEM_JIT_LIB_NAME, version) < 0) { return EXIT_FAILURE; }
 
    if (Jit::Root())
    {
@@ -455,13 +462,14 @@ int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
          uptr *t_copy = new uptr(strdup(a.data()), &std::free);
          argv.push_back(t_copy->get());
       }
-      argv.push_back(MFEM_JIT_COMPILER_OPTION "-Wno-unused-variable");
+      //argv.push_back(MFEM_JIT_COMPILER_OPTION "-Wno-unused-variable");
       argv.push_back(fPIC);
       argv.push_back("-c");
-      argv.push_back(MFEM_JIT_COMPILER_OPTION "-pipe");
       // avoid redefinition, as with nvcc, the option -x cu is already present
 #ifdef MFEM_USE_CUDA
       argv.push_back(MFEM_JIT_DEVICE_CODE);
+#else
+      argv.push_back(MFEM_JIT_COMPILER_OPTION "-pipe");
 #endif // MFEM_USE_CUDA
       argv_files = argv;
 
@@ -474,6 +482,7 @@ int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
       // dump src in file k****************.cc
       if (CreateKernelSourceFile(cc,src)) { return EXIT_FAILURE; }
       if (Jit::System(argv_files.data())) { return EXIT_FAILURE; }
+      MFEM_CONTRACT_VAR(n);
 #else
       argv.push_back("-o");
       argv.push_back("/dev/stdout"); // output
@@ -487,7 +496,7 @@ int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
       size_t size = 0;
       char *obj = nullptr;
       if (Jit::Compile(argv.data(), n, src, obj, size)) { return EXIT_FAILURE; }
-      delete src;
+      delete[] src;
 
       // security issues, => write back object into output file
       assert(obj && size > 0);
@@ -503,29 +512,29 @@ int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
 
    // Update archive
    const char *argv_ar[] = { "ar", "-rv", lib_ar, co, nullptr };
-   if (Jit::System(argv_ar)) { return EXIT_FAILURE; }
+   if (Jit::System(argv_ar)) { dbg("ar error"); return EXIT_FAILURE; }
    ::unlink(co);
 
    // Create shared library
-   const char *argv_so[] = { mfem_cxx, "-shared", "-o", lib_so,
+   const char *argv_so[] = { mfem_cxx, "-shared", "-o", lib_to,
                              beg_load, lib_ar, end_load,
                              nullptr
                            };
-   if (Jit::System(argv_so)) { return EXIT_FAILURE; }
+   if (Jit::System(argv_so)) { dbg("shared error"); return EXIT_FAILURE; }
 
    // Install shared library
-   const char *install[] = { "install", MFEM_JIT_INSTALL_BACKUP, lib_so, libso_n, nullptr };
-   if (Jit::System(install)) { return EXIT_FAILURE; }
+   const char *install[] =
+   { "install", "-v", MFEM_JIT_INSTALL_BACKUP, lib_to, lib_so, nullptr };
+   if (Jit::System(install)) { dbg("install error"); return EXIT_FAILURE; }
+   ::unlink(lib_to); // remove the temporary shared lib after use
 
+   Jit::Sync();
+
+   handle = ::dlopen(lib_so, ld_mode);
+   assert(handle);
+
+   dbg("EXIT_SUCCESS");
    return EXIT_SUCCESS;
-}
-
-int Jit::GetRuntimeVersion(bool increment)
-{
-   static int version = 0;
-   const int actual = version;
-   if (increment) { version += 1; }
-   return actual;
 }
 
 } // namespace mfem
