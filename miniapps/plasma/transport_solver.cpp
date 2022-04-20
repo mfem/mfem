@@ -4462,13 +4462,14 @@ void DGTransportTDO::TransportOp::SetSourceTerm(Coefficient &SCoef, double s)
       cout << eqn_name_ << ": Adding source term" << endl;
    }
 
+   Coefficient * coef = &SCoef;
    if (s != 1.0)
    {
-      Coefficient * coef = new ProductCoefficient(s, SCoef);
+      coef = new ProductCoefficient(s, SCoef);
       sCoefs_.Append(coef);
    }
 
-   dlfi_.Append(new DomainLFIntegrator(SCoef));
+   dlfi_.Append(new DomainLFIntegrator(*coef));
 
    StateVariableCoef *SVCoef = dynamic_cast<StateVariableCoef*>(&SCoef);
    if (SVCoef)
