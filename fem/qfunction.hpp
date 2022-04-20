@@ -41,11 +41,44 @@ public:
    void SetVDim(int vdim_)
    { vdim = vdim_; SetSize(vdim*qspace->GetSize()); }
 
+   /// Get the associated QuadratureSpaceBase object.
+   QuadratureSpaceBase *GetSpace() { return qspace; }
+
+   /// Get the associated QuadratureSpaceBase object (const version).
+   const QuadratureSpaceBase *GetSpace() const { return qspace; }
+
    /// Get the QuadratureSpaceBase ownership flag.
    bool OwnsSpace() { return own_qspace; }
 
    /// Set the QuadratureSpaceBase ownership flag.
    void SetOwnsSpace(bool own) { own_qspace = own; }
+
+   /// Set this equal to a constant value.
+   QuadratureFunctionBase &operator=(double value);
+
+   /// Copy the data from @a v.
+   /** The size of @a v must be equal to the size of the associated
+       QuadratureSpaceBase #qspace times the QuadratureFunctionBase vector
+       dimension i.e. QuadratureFunction::Size(). */
+   QuadratureFunctionBase &operator=(const Vector &v);
+
+   /// Evaluate the given coefficient at each quadrature point.
+   virtual void ProjectCoefficient(Coefficient &coeff) = 0;
+
+   /// Evaluate the given vector coefficient at each quadrature point.
+   virtual void ProjectCoefficient(VectorCoefficient &coeff) = 0;
+
+   /// @brief Evaluate the given symmetric matrix coefficient at each
+   /// quadrature point, and store the values in "symmetric format".
+   ///
+   /// @sa DenseSymmetricMatrix
+   virtual void ProjectSymmetricCoefficient(SymmetricMatrixCoefficient &coeff) = 0;
+
+   /// @brief Evaluate the given matrix coefficient at each quadrature point.
+   ///
+   /// @note The coefficient is stored as a full (non-symmetric) matrix.
+   /// @sa ProjectSymmetricCoefficient.
+   virtual void ProjectCoefficient(MatrixCoefficient &coeff, bool transpose=false) = 0;
 
    /// Return all values associated with mesh element @a idx in a Vector.
    /** The result is stored in the Vector @a values as a reference to the
@@ -175,23 +208,6 @@ public:
    /// @sa ProjectSymmetricCoefficient.
    void ProjectCoefficient(MatrixCoefficient &coeff, bool transpose=false);
 
-   /// Redefine '=' for QuadratureFunction = constant.
-   QuadratureFunction &operator=(double value);
-
-   /// Copy the data from @a v.
-   /** The size of @a v must be equal to the size of the associated
-       QuadratureSpace #qspace times the QuadratureFunction dimension
-       i.e. QuadratureFunction::Size(). */
-   QuadratureFunction &operator=(const Vector &v);
-
-   /// Copy assignment. Only the data of the base class Vector is copied.
-   /** The QuadratureFunctions @a v and @a *this must have QuadratureSpaces with
-       the same size.
-
-       @note Defining this method overwrites the implicitly defined copy
-       assignment operator. */
-   QuadratureFunction &operator=(const QuadratureFunction &v);
-
    /// Get the IntegrationRule associated with mesh element @a idx.
    const IntegrationRule &GetElementIntRule(int idx) const
    { return GetSpace()->GetElementIntRule(idx); }
@@ -301,22 +317,23 @@ public:
        The data size is updated by calling Vector::SetSize(). */
    inline void SetSpace(FaceQuadratureSpace *qspace_, int vdim_ = -1);
 
-   /// Set equal to a constant value.
-   FaceQuadratureFunction &operator=(double value);
+   /// Evaluate the given coefficient at each quadrature point.
+   void ProjectCoefficient(Coefficient &coeff);
 
-   /// Copy the data from @a v.
-   /** The size of @a v must be equal to the size of the associated
-       FaceQuadratureSpace #qspace times the FaceQuadratureFunction dimension
-       i.e. FaceQuadratureFunction::Size(). */
-   FaceQuadratureFunction &operator=(const Vector &v);
+   /// Evaluate the given vector coefficient at each quadrature point.
+   void ProjectCoefficient(VectorCoefficient &coeff);
 
-   /// Copy assignment. Only the data of the base class Vector is copied.
-   /** The FaceQuadratureFunctions @a v and @a *this must have
-       FaceQuadratureSpace%s with the same size.
+   /// @brief Evaluate the given symmetric matrix coefficient at each
+   /// quadrature point, and store the values in "symmetric format".
+   ///
+   /// @sa DenseSymmetricMatrix
+   void ProjectSymmetricCoefficient(SymmetricMatrixCoefficient &coeff);
 
-       @note Defining this method overwrites the implicitly defined copy
-       assignment operator. */
-   FaceQuadratureFunction &operator=(const FaceQuadratureFunction &v);
+   /// @brief Evaluate the given matrix coefficient at each quadrature point.
+   ///
+   /// @note The coefficient is stored as a full (non-symmetric) matrix.
+   /// @sa ProjectSymmetricCoefficient.
+   void ProjectCoefficient(MatrixCoefficient &coeff, bool transpose=false);
 
    /// Get the IntegrationRule associated with mesh face @a idx.
    const IntegrationRule &GetFaceIntRule(int idx) const

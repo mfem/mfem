@@ -15,6 +15,20 @@
 namespace mfem
 {
 
+QuadratureFunctionBase &QuadratureFunctionBase::operator=(double value)
+{
+   Vector::operator=(value);
+   return *this;
+}
+
+QuadratureFunctionBase &QuadratureFunctionBase::operator=(const Vector &v)
+{
+   MFEM_ASSERT(qspace && v.Size() == this->Size(), "");
+   Vector::operator=(v);
+   return *this;
+}
+
+
 QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
 {
    const char *msg = "invalid input stream";
@@ -52,24 +66,6 @@ void QuadratureFunction::SetSpace(
    }
    vdim = (vdim_ < 0) ? vdim : vdim_;
    NewDataAndSize(qf_data, vdim*qspace->GetSize());
-}
-
-QuadratureFunction &QuadratureFunction::operator=(double value)
-{
-   Vector::operator=(value);
-   return *this;
-}
-
-QuadratureFunction &QuadratureFunction::operator=(const Vector &v)
-{
-   MFEM_ASSERT(qspace && v.Size() == this->Size(), "");
-   Vector::operator=(v);
-   return *this;
-}
-
-QuadratureFunction &QuadratureFunction::operator=(const QuadratureFunction &v)
-{
-   return this->operator=((const Vector &)v);
 }
 
 void QuadratureFunction::Save(std::ostream &os) const
@@ -259,24 +255,29 @@ void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
    SaveVTU(f, format, compression_level);
 }
 
-
-FaceQuadratureFunction &FaceQuadratureFunction::operator=(double value)
+void FaceQuadratureFunction::ProjectCoefficient(Coefficient &coeff)
 {
-   Vector::operator=(value);
-   return *this;
+   coeff.Project(*this);
 }
 
-FaceQuadratureFunction &FaceQuadratureFunction::operator=(const Vector &v)
+void FaceQuadratureFunction::ProjectCoefficient(VectorCoefficient &coeff)
 {
-   MFEM_ASSERT(qspace && v.Size() == this->Size(), "");
-   Vector::operator=(v);
-   return *this;
+   // Should we automatically resize, or check the vdim?
+   // MFEM_ASSERT(vdim == coeff.GetVDim(), "Wrong sizes.");
+   SetVDim(coeff.GetVDim());
+   coeff.Project(*this);
 }
 
-FaceQuadratureFunction &FaceQuadratureFunction::operator=(
-   const FaceQuadratureFunction &v)
+void FaceQuadratureFunction::ProjectSymmetricCoefficient(
+   SymmetricMatrixCoefficient &coeff)
 {
-   return this->operator=((const Vector &)v);
+   coeff.ProjectSymmetric(*this);
+}
+
+void FaceQuadratureFunction::ProjectCoefficient(MatrixCoefficient &coeff,
+                                            bool transpose)
+{
+   coeff.Project(*this, transpose);
 }
 
 }
