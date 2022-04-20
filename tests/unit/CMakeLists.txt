@@ -9,6 +9,8 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+project(mfem-unit-tests NONE)
+
 # Include the top mfem source directory - needed by some tests, e.g. to
 # #include "general/text.hpp".
 include_directories(BEFORE ${PROJECT_SOURCE_DIR})
