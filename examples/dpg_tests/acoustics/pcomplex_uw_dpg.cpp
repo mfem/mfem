@@ -91,11 +91,12 @@ int main(int argc, char *argv[])
    int delta_order = 1;
    bool visualization = true;
    double rnum=1.0;
-   int ref = 1;
    double theta = 0.0;
    bool adjoint_graph_norm = false;
    bool static_cond = false;
    int iprob = 0;
+   int sr = 0;
+   int pr = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -116,8 +117,10 @@ int main(int argc, char *argv[])
    args.AddOption(&adjoint_graph_norm, "-graph-norm", "--adjoint-graph-norm",
                   "-no-graph-norm", "--no-adjoint-graph-norm",
                   "Enable or disable Adjoint Graph Norm on the test space");                                
-   args.AddOption(&ref, "-ref", "--serial_ref",
-                  "Number of serial refinements.");       
+   args.AddOption(&sr, "-sref", "--serial_ref",
+                  "Number of parallel refinements.");                                              
+   args.AddOption(&pr, "-pref", "--parallel_ref",
+                  "Number of parallel refinements.");  
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");                                            
    args.Parse();
@@ -142,6 +145,10 @@ int main(int argc, char *argv[])
 
 
    Mesh mesh(mesh_file, 1, 1);
+   for (int i = 0; i<sr; i++)
+   {
+      mesh.UniformRefinement();
+   }
    dim = mesh.Dimension();
    mesh.EnsureNCMesh();
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -170,13 +177,13 @@ int main(int argc, char *argv[])
    FiniteElementCollection * v_fec = new RT_FECollection(test_order-1, dim);
 
 
-   if (myid == 0)
-   {
-      mfem::out << "p_fes space true dofs = " << p_fes->GetTrueVSize() << endl;
-      mfem::out << "u_fes space true dofs = " << u_fes->GetTrueVSize() << endl;
-      mfem::out << "hatp_fes space true dofs = " << hatp_fes->GetTrueVSize() << endl;
-      mfem::out << "hatu_fes space true dofs = " << hatu_fes->GetTrueVSize() << endl;
-   }
+   // if (myid == 0)
+   // {
+   //    mfem::out << "p_fes space true dofs = " << p_fes->GetTrueVSize() << endl;
+   //    mfem::out << "u_fes space true dofs = " << u_fes->GetTrueVSize() << endl;
+   //    mfem::out << "hatp_fes space true dofs = " << hatp_fes->GetTrueVSize() << endl;
+   //    mfem::out << "hatu_fes space true dofs = " << hatu_fes->GetTrueVSize() << endl;
+   // }
 
    // Coefficients
    ConstantCoefficient one(1.0);
@@ -258,6 +265,9 @@ int main(int argc, char *argv[])
 
    FunctionCoefficient hatpex_r(hatp_exact_r);
    FunctionCoefficient hatpex_i(hatp_exact_i);
+
+   VectorFunctionCoefficient hatuex_r(dim,hatu_exact_r);
+   VectorFunctionCoefficient hatuex_i(dim,hatu_exact_i);
    Array<int> elements_to_refine;
 
    socketstream p_out_r;
@@ -276,21 +286,24 @@ int main(int argc, char *argv[])
    int dof0;
    if (myid == 0)
    {
-      mfem::out << " Refinement |" 
-             << "    Dofs    |" 
-             << "  L2 Error  |" 
-             << " Relative % |" 
-             << "  Rate  |" 
-             << "  Residual  |" 
-             << "  Rate  |" << endl;
+      mfem::out << "\n Refinement |" 
+               << "    Dofs    |" 
+               << "   ω   |" 
+               << "  L2 Error  |" 
+               << " Relative % |" 
+               << "  Rate  |" 
+               << "  Residual  |" 
+               << "  Rate  |" 
+               << " PCG it |" << endl;
       mfem::out << " --------------------"      
-             <<  "-------------------"    
-             <<  "-------------------"    
-             <<  "-------------------" << endl;   
+               <<  "---------------------"    
+               <<  "---------------------"    
+               <<  "---------------------"    
+               <<  "----------------" << endl;   
    }
 
 
-   for (int i = 0; i<ref; i++)
+   for (int i = 0; i<pr; i++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
       a->Assemble();
@@ -304,12 +317,14 @@ int main(int argc, char *argv[])
          // ess_bdr[1] = 0;
          // ess_bdr[2] = 0;
          hatp_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         // hatu_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
 
       // shift the ess_tdofs
       for (int j = 0; j < ess_tdof_list.Size(); j++)
       {
          ess_tdof_list[j] += p_fes->GetTrueVSize() + u_fes->GetTrueVSize();
+                           //   + hatp_fes->GetTrueVSize(); 
       }
 
       Array<int> offsets(5);
@@ -328,6 +343,10 @@ int main(int argc, char *argv[])
       hatp_gf.real().MakeRef(hatp_fes,&xdata[offsets[2]]);
       hatp_gf.imag().MakeRef(hatp_fes,&xdata[offsets.Last()+ offsets[2]]);
       hatp_gf.ProjectBdrCoefficient(hatpex_r,hatpex_i, ess_bdr);
+      // ParComplexGridFunction hatu_gf(hatu_fes);
+      // hatu_gf.real().MakeRef(hatu_fes,&xdata[offsets[3]]);
+      // hatu_gf.imag().MakeRef(hatu_fes,&xdata[offsets.Last()+ offsets[3]]);
+      // hatu_gf.ProjectCoefficientNormal(hatuex_r,hatuex_i, ess_bdr);
 
       OperatorPtr Ah;
       Vector X,B;
@@ -338,10 +357,7 @@ int main(int argc, char *argv[])
       BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
 
 
-
       MFEM_VERIFY(static_cond, "preconditioner not implemented for the non-static condensation case");
-
-
 
       Array<int> tdof_offsets(5);
       tdof_offsets[0] = 0;
@@ -358,17 +374,16 @@ int main(int argc, char *argv[])
       blockA.SetBlock(1,0, &BlockA_r->GetBlock(1,0));
       blockA.SetBlock(1,1, &BlockA_r->GetBlock(1,1));
 
-      blockA.SetBlock(0,2, &BlockA_i->GetBlock(0,0),-1);
-      blockA.SetBlock(0,3, &BlockA_i->GetBlock(0,1),-1);
-      blockA.SetBlock(1,2, &BlockA_i->GetBlock(1,0),-1);
-      blockA.SetBlock(1,3, &BlockA_i->GetBlock(1,1),-1);
+      blockA.SetBlock(0,2, &BlockA_i->GetBlock(0,0),-1.0);
+      blockA.SetBlock(0,3, &BlockA_i->GetBlock(0,1),-1.0);
+      blockA.SetBlock(1,2, &BlockA_i->GetBlock(1,0),-1.0);
+      blockA.SetBlock(1,3, &BlockA_i->GetBlock(1,1),-1.0);
 
 
       blockA.SetBlock(2,2, &BlockA_r->GetBlock(0,0));
       blockA.SetBlock(2,3, &BlockA_r->GetBlock(0,1));
       blockA.SetBlock(3,2, &BlockA_r->GetBlock(1,0));
       blockA.SetBlock(3,3, &BlockA_r->GetBlock(1,1));
-
 
       blockA.SetBlock(2,0, &BlockA_i->GetBlock(0,0));
       blockA.SetBlock(2,1, &BlockA_i->GetBlock(0,1));
@@ -377,36 +392,30 @@ int main(int argc, char *argv[])
 
 
 
+      // int numblocks = BlockA_r->NumRowBlocks();
+      // Array2D<HypreParMatrix *> Ab_r(numblocks,numblocks);
+      // Array2D<HypreParMatrix *> Ab_i(numblocks,numblocks);
 
+      // for (int ii = 0; ii<numblocks; ii++)
+      // {
+      //    for (int jj = 0; jj<numblocks; jj++)
+      //    {
+      //       Ab_r(ii,jj) = dynamic_cast<HypreParMatrix*>(&BlockA_r->GetBlock(ii,jj));
+      //       Ab_i(ii,jj) = dynamic_cast<HypreParMatrix*>(&BlockA_i->GetBlock(ii,jj));
+      //    }
+      // }
+      // HypreParMatrix * A_r = HypreParMatrixFromBlocks(Ab_r);
+      // HypreParMatrix * A_i = HypreParMatrixFromBlocks(Ab_i);
 
+      // ComplexHypreParMatrix Ac(A_r,A_i,true,true);
 
+      // HypreParMatrix * A = Ac.GetSystemMatrix();
 
-      int numblocks = BlockA_r->NumRowBlocks();
-      Array2D<HypreParMatrix *> Ab_r(numblocks,numblocks);
-      Array2D<HypreParMatrix *> Ab_i(numblocks,numblocks);
-
-      for (int ii = 0; ii<numblocks; ii++)
-      {
-         for (int jj = 0; jj<numblocks; jj++)
-         {
-            Ab_r(ii,jj) = dynamic_cast<HypreParMatrix*>(&BlockA_r->GetBlock(ii,jj));
-            Ab_i(ii,jj) = dynamic_cast<HypreParMatrix*>(&BlockA_i->GetBlock(ii,jj));
-         }
-      }
-      HypreParMatrix * A_r = HypreParMatrixFromBlocks(Ab_r);
-      HypreParMatrix * A_i = HypreParMatrixFromBlocks(Ab_i);
-
-      ComplexHypreParMatrix Ac(A_r,A_i,true,true);
-
-      HypreParMatrix * A = Ac.GetSystemMatrix();
-
-      if (myid == 0)
-      {   
-         mfem::out << "Size of the linear system: " << A->Height() << std::endl;
-      }
+      // if (myid == 0)
+      // {   
+      //    mfem::out << "Size of the (condensed) linear system: " << A->Height() << std::endl;
+      // }
       X = 0.;
-
-
 
       BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(tdof_offsets);
       HypreBoomerAMG * amg = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(0,0));
@@ -420,32 +429,29 @@ int main(int argc, char *argv[])
       M->SetDiagonalBlock(3,ams);
 
       
-      MINRESSolver gmres(MPI_COMM_WORLD);
-      gmres.SetRelTol(1e-6);
-      gmres.SetMaxIter(2000);
-      gmres.SetPrintLevel(3);
-      gmres.SetPreconditioner(*M); 
-      // gmres.SetOperator(*A);
-      gmres.SetOperator(blockA);
-      gmres.Mult(B, X);
-      // delete prec;
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-7);
+      cg.SetAbsTol(1e-7);
+      cg.SetMaxIter(10000);
+      cg.SetPrintLevel(0);
+      cg.SetPreconditioner(*M); 
+      cg.SetOperator(blockA);
+      cg.Mult(B, X);
+      int num_iter = cg.GetNumIterations();
+      delete M;
+      // delete A;
 
-      // MUMPSSolver mumps;
-      // mumps.SetOperator(*A);
-      // mumps.Mult(B,X);
-
-      delete A;
       a->RecoverFEMSolution(X,x);
 
       Vector & residuals = a->ComputeResidual(x);
 
       double residual = residuals.Norml2();
       double maxresidual = residuals.Max(); 
-      double gresidual = residual * residual; 
+      double globalresidual = residual * residual; 
       MPI_Allreduce(MPI_IN_PLACE,&maxresidual,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
-      MPI_Allreduce(MPI_IN_PLACE,&gresidual,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE,&globalresidual,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 
-      gresidual = sqrt(gresidual);
+      globalresidual = sqrt(globalresidual);
 
       elements_to_refine.SetSize(0);
       for (int iel = 0; iel<pmesh.GetNE(); iel++)
@@ -460,47 +466,77 @@ int main(int argc, char *argv[])
       p.real().MakeRef(p_fes,x.GetData());
       p.imag().MakeRef(p_fes,&x.GetData()[offsets.Last()]);
 
+      ParComplexGridFunction u(u_fes);
+      u.real().MakeRef(u_fes,&x.GetData()[offsets[1]]);
+      u.imag().MakeRef(u_fes,&x.GetData()[offsets.Last()+offsets[1]]);
+
+
+      // Error in pressure 
       ParComplexGridFunction pgf_ex(p_fes);
       FunctionCoefficient p_ex_r(p_exact_r);
       FunctionCoefficient p_ex_i(p_exact_i);
       pgf_ex.ProjectCoefficient(p_ex_r, p_ex_i);
 
+      double p_err_r = p.real().ComputeL2Error(p_ex_r);
+      double p_err_i = p.imag().ComputeL2Error(p_ex_i);
+      double p_error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i);
+      double p_norm_r = pgf_ex.real().ComputeL2Error(zero);
+      double p_norm_i = pgf_ex.imag().ComputeL2Error(zero);
+      double p_norm = sqrt(p_norm_r*p_norm_r + p_norm_i*p_norm_i);
+
+      // Error in velocity
+      ParComplexGridFunction ugf_ex(u_fes);
+      VectorFunctionCoefficient u_ex_r(dim,u_exact_r);
+      VectorFunctionCoefficient u_ex_i(dim,u_exact_i);
+
+      double u_err_r = u.real().ComputeL2Error(u_ex_r);
+      double u_err_i = u.imag().ComputeL2Error(u_ex_i);
+      double u_error = sqrt(u_err_r*u_err_r + u_err_i*u_err_i);
+      double u_norm_r = pgf_ex.real().ComputeL2Error(vzero);
+      double u_norm_i = pgf_ex.imag().ComputeL2Error(vzero);
+      double u_norm = sqrt(u_norm_r*u_norm_r + u_norm_i*u_norm_i);
+
+
+      double L2Error = sqrt(p_error*p_error + u_error*u_error);
+      double L2norm = sqrt(p_norm*p_norm + u_norm*u_norm);
+
+      double rel_error = L2Error/L2norm;
+
       int dofs = p_fes->GlobalTrueVSize()
                + u_fes->GlobalTrueVSize()
                + hatp_fes->GlobalTrueVSize()
                + hatu_fes->GlobalTrueVSize();
-      dofs/=2;         
 
-      double p_err_r = p.real().ComputeL2Error(p_ex_r);
-      double p_err_i = p.imag().ComputeL2Error(p_ex_i);
-
-      double L2Error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i);
 
       double rate_err = (i) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
       double rate_res = (i) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
 
       err0 = L2Error;
-      res0 = residual;
+      res0 = globalresidual;
       dof0 = dofs;
 
+      std::ios oldState(nullptr);
       if (myid == 0)
       {
          mfem::out << std::right << std::setw(11) << i << " | " 
-            << std::setw(10) <<  dof0 << " | " 
-            << std::setprecision(3) 
-            << std::setw(10) << std::scientific <<  err0 << " | " 
-            << std::setprecision(3) 
-            << std::setw(10) << std::fixed <<  0.0 << " | " 
-            << std::setprecision(2) 
-            << std::setw(6) << std::fixed << rate_err << " | " 
-            << std::setprecision(3) 
-            << std::setw(10) << std::scientific <<  res0 << " | " 
-            << std::setprecision(2) 
-            << std::setw(6) << std::fixed << rate_res << " | " 
-            << std::resetiosflags(std::ios::showbase)
-            << std::setw(10) << std::scientific 
-            << std::endl;
-      }
+                   << std::setw(10) <<  dof0 << " | " 
+                   << std::setprecision(0) << std::fixed
+                   << std::setw(2) <<  2*rnum << " π  | " 
+                   << std::setprecision(3) 
+                   << std::setw(10) << std::scientific <<  err0 << " | " 
+                   << std::setprecision(3) 
+                   << std::setw(10) << std::fixed <<  rel_error * 100. << " | " 
+                   << std::setprecision(2) 
+                   << std::setw(6) << std::fixed << rate_err << " | " 
+                   << std::setprecision(3) 
+                   << std::setw(10) << std::scientific <<  res0 << " | " 
+                   << std::setprecision(2) 
+                   << std::setw(6) << std::fixed << rate_res << " | " 
+                   << std::setw(6) << std::fixed << num_iter << " | " 
+                   << std::setprecision(5) 
+                   << std::scientific 
+                   << std::endl;
+      }   
 
       if (visualization)
       {
@@ -517,7 +553,7 @@ int main(int argc, char *argv[])
                   << flush;         
       }
 
-      if (i == ref)
+      if (i == pr)
          break;
 
       pmesh.GeneralRefinement(elements_to_refine,1,1);

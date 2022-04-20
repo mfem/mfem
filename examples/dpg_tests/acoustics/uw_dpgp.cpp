@@ -316,14 +316,6 @@ int main(int argc, char *argv[])
       BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
       M->owns_blocks = 1;
 
-       // for (int i = 0; i < 3; i++)
-      // {
-      //    MUMPSSolver * mumps = new MUMPSSolver;
-      //    mumps->SetOperator(A->GetBlock(i,i));
-      //    M->SetDiagonalBlock(i,mumps);
-      // }
- 
- 
       int skip = 0;
       if (!static_cond)
       {
@@ -423,7 +415,7 @@ int main(int argc, char *argv[])
       res0 = globalresidual;
       dof0 = dofs;
 
-         std::ios oldState(nullptr);
+      std::ios oldState(nullptr);
       if (myid == 0)
       {
          mfem::out << std::right << std::setw(11) << i << " | " 
