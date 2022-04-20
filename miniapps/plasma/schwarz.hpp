@@ -24,8 +24,6 @@ void GetOffdColumnValues(const Array<int> & tdof_i, const Array<int> & tdof_j,
 void GetArrayIntersection(const Array<int> & A, const Array<int> & B,
                           Array<int>  & C);
 
-
-
 int GetNumColumns(const int tdof_i, const Array<int> & tdof_j,
                   SparseMatrix & diag,
                   SparseMatrix & offd, const int * cmap, const int * row_start);

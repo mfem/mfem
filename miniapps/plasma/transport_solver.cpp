@@ -3597,37 +3597,12 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 
                D_schwarz_ = new SchwarzSmoother(cgblf_[i]->ParFESpace()->GetParMesh(),
                                                 0, cgblf_[i]->ParFESpace(), D_cg_);  // TODO: delete this pointer
-               /*
-               D_cg_->GetDiag(D_diag_);
-               D_schwarz_ = new OperatorJacobiSmoother(D_diag_, cg_ess_tdof_list);
-               */
-               // TODO: does the order of D_amg_, D_schwarz_ matter?
                D_mult_ = new MultiplicativePreconditioner(*D_amg_, *D_schwarz_);  // TODO: delete this pointer
-               //D_mult_ = new MultiplicativePreconditioner(*D_schwarz_, *D_amg_);  // TODO: delete this pointer
-	       /*
-               D_mult_ = new AdditivePreconditioner(*D_schwarz_,
-                                                    *D_amg_);  // TODO: delete this pointer
-						    */
 
                D_mult_->SetOperator(*D_cg_);
                dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_mult_, *D_smoother_);
                //dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_schwarz_, *D_smoother_);
                //dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *D_amg_, *D_smoother_);
-               /*
-               {
-                 CGSolver *A_solver = new CGSolver(D_cg_->GetComm());
-                 A_solver->SetOperator(*D_cg_);
-                 A_solver->SetPreconditioner(*D_schwarz_);
-
-                 A_solver->iterative_mode = false;
-                 A_solver->SetRelTol(1e-4);
-                 A_solver->SetAbsTol(0.0);
-                 A_solver->SetMaxIter(100);
-                 A_solver->SetPrintLevel(0);
-
-                 dg_precond_ = new DiscontPSCPreconditioner(*cg2dg_, *A_solver, *D_smoother_);
-               }
-               */
             }
             else
             {

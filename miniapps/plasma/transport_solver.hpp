@@ -4889,7 +4889,6 @@ struct DiscontPSCPreconditioner : Solver
    const CG2DG &cg2dg;
    const Solver &cg_solver;
    const Solver &smoother;
-   //SparseMatrix Z; // TODO: is this used?
 
    mutable Vector x_z, b_cg, x_cg;
    mutable Vector x_sm;
