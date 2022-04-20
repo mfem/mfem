@@ -178,7 +178,8 @@ jobs:
 
     # MFEM build and test
     - name: build
-      uses: mfem/github-actions/build-mfem@v2.1
+      # TODO: change this when merged upstream
+      uses: kanye-quest/mfem-gh-actions/build-mfem@master
       with:
         os: ${{ matrix.os }}
         target: ${{ matrix.target }}

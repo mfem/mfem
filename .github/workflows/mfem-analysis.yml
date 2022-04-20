@@ -79,7 +79,8 @@ jobs:
 
     # MFEM build and test
     - name: build-mfem
-      uses: mfem/github-actions/build-mfem@v2.0
+      # TODO: change this when merged upstream
+      uses: kanye-quest/mfem-gh-actions/build-mfem@master
       with:
         os: ${{ runner.os }}
         target: opt
