@@ -89,6 +89,7 @@ set(UNIT_TESTS_SRCS
   fem/test_tet_reorder.cpp
   fem/test_transfer.cpp
   fem/test_var_order.cpp
+  fem/test_white_noise.cpp
   # The following are tested separately (keep the comment as a reminder):
   # miniapps/test_debug_device.cpp
   # miniapps/test_sedov.cpp
