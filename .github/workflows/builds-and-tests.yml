@@ -76,6 +76,18 @@ jobs:
             mpi: par
             build-system: make
             hypre-target: int64
+          - os: windows-2022
+            target: dbg
+            codecov: NO
+            mpi: seq
+            build-system: cmake
+            hypre-target: int64
+          - os: windows-2022
+            target: opt
+            codecov: NO
+            mpi: seq
+            build-system: cmake
+            hypre-target: int64
     name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
 
     runs-on: ${{ matrix.os }}
