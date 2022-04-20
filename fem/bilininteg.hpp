@@ -3240,12 +3240,33 @@ public:
                                    DenseMatrix &elmat);
 };
 
+/** Integrator for the DPG form: < v, w > over all faces (the interface) where
+    the trial variable v is defined on the interface
+    (H^-1/2 i.e., v:=u⋅n normal trace of H(div))
+    and the test variable w is defined inside the elements in H1 space. */
 class TraceIntegrator : public BilinearFormIntegrator
 {
 private:
    Vector face_shape, shape;
 public:
    TraceIntegrator() { }
+   void AssembleTraceFaceMatrix(int elem,
+                                const FiniteElement &trial_face_fe,
+                                const FiniteElement &test_fe,
+                                FaceElementTransformations &Trans,
+                                DenseMatrix &elmat);
+};
+
+/** (in 3D only) Integrator for the DPG form: < v, w > over all faces (the interface) where
+    the trial variable v is defined on the interface
+    (H^-1/2(curl) i.e., v:=n×u tangential trace of H(curl))
+    and the test variable w is defined inside the elements in H(curl) space. */
+class VectorFETraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   DenseMatrix face_shape, shape;
+public:
+   VectorFETraceIntegrator() { }
    void AssembleTraceFaceMatrix(int elem,
                                 const FiniteElement &trial_face_fe,
                                 const FiniteElement &test_fe,
@@ -3272,6 +3293,9 @@ public:
                                    DenseMatrix &elmat);
 };
 
+/** Integrator for the form: < v, w.n > over all faces (the interface) where
+    the trial variable v is defined on the interface (H^1/2, i.e., trace of H1)
+    and the test variable w is in an H(div)-conforming space. */
 class NormalTraceIntegrator : public BilinearFormIntegrator
 {
 private:

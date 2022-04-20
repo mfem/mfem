@@ -3907,6 +3907,61 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
    }
 }
 
+void VectorFETraceIntegrator::AssembleTraceFaceMatrix(int elem,
+                                                      const FiniteElement &trial_face_fe,
+                                                      const FiniteElement &test_fe,
+                                                      FaceElementTransformations & Trans,
+                                                      DenseMatrix &elmat)
+{
+   int i, j, face_ndof, ndof, dim;
+   int order;
+
+   MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::H_CURL, "");
+   MFEM_VERIFY(test_fe.GetMapType() == FiniteElement::H_CURL, "");
+
+   dim = test_fe.GetDim();
+
+   face_ndof = trial_face_fe.GetDof();
+   ndof = test_fe.GetDof();
+
+   face_shape.SetSize(face_ndof,dim);
+   shape.SetSize(ndof,dim);
+
+   elmat.SetSize(ndof, face_ndof);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      order = test_fe.GetOrder();
+      order += trial_face_fe.GetOrder();
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   int iel = Trans.Elem1->ElementNo;
+   if (iel != elem)
+   {
+      MFEM_VERIFY(elem == Trans.Elem2->ElementNo, "Elem != Trans.Elem2->ElementNo");
+   }
+
+   double scale = 1.0;
+   if (iel != elem) { scale = -1.; }
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+      // Trace finite element shape function
+      trial_face_fe.CalcVShape(Trans,face_shape);
+      // Finite element shape function
+      ElementTransformation * eltrans = (iel == elem) ? Trans.Elem1 : Trans.Elem2;
+      test_fe.CalcVShape(*eltrans, shape);
+      face_shape *= Trans.Weight()*ip.weight;
+      MultABt(shape, face_shape, elmat);
+   }
+}
+
+
 void NormalTraceIntegrator::AssembleTraceFaceMatrix(int elem,
                                                     const FiniteElement &trial_face_fe,
                                                     const FiniteElement &test_fe,
