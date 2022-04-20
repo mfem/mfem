@@ -44,8 +44,17 @@ public:
    /// Return the order of the quadrature rule(s) used by all elements.
    int GetOrder() const { return order; }
 
+   int GetNGroups() const { return offsets.Size() - 1; }
+
    /// Returns the mesh
    inline Mesh *GetMesh() const { return &mesh; }
+
+   virtual ElementTransformation *GetTransformation(int idx) = 0;
+
+   virtual Geometry::Type GetGeometry(int idx) const = 0;
+
+   const IntegrationRule &GetIntRule(int idx) const
+   { return *int_rule[GetGeometry(idx)]; }
 
    virtual ~QuadratureSpaceBase() { }
 };
@@ -72,6 +81,12 @@ public:
    /// Returns number of elements in the mesh.
    inline int GetNE() const { return mesh.GetNE(); }
 
+   ElementTransformation *GetTransformation(int idx) override
+   { return mesh.GetElementTransformation(idx); }
+
+   Geometry::Type GetGeometry(int idx) const override
+   { return mesh.GetElementGeometry(idx); }
+
    /// Get the IntegrationRule associated with mesh element @a idx.
    const IntegrationRule &GetElementIntRule(int idx) const
    { return *int_rule[mesh.GetElementBaseGeometry(idx)]; }
@@ -97,6 +112,12 @@ public:
 
    /// Returns number of faces in the mesh.
    inline int GetNumFaces() const { return mesh.GetNumFaces(); }
+
+   ElementTransformation *GetTransformation(int idx) override
+   { return mesh.GetFaceTransformation(idx); }
+
+   Geometry::Type GetGeometry(int idx) const override
+   { return mesh.GetFaceGeometry(idx); }
 
    /// Get the IntegrationRule associated with mesh element @a idx.
    const IntegrationRule &GetFaceIntRule(int idx) const
