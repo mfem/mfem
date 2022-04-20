@@ -35,7 +35,8 @@ inline std::complex<double> omega_c(double Bmag, double charge,
 inline std::complex<double> omega_p(double number, double charge,
                                     std::complex<double> mass)
 {
-   return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass * kg_per_amu_));
+   return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass *
+                                                   kg_per_amu_));
 }
 
 // Coulomb logarithm

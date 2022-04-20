@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -8,7 +8,26 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
+//
+//           ---------------------------------------------------
+//           ParELAG Miniapp: AMGe solver for H(curl) and H(div)
+//           ---------------------------------------------------
+//
+// This miniapp employs MFEM and ParELAG to solve H(curl)- and H(div)-elliptic
+// forms by an element based algebraic multigrid (AMGe). It uses: a multilevel
+// hierarchy of de Rham complexes of finite element spaces, built by ParELAG;
+// Hiptmair-type smoothers, implemented in ParELAG; and AMS (Auxiliary-space
+// Maxwell Solver) or ADS (Auxiliary-space Divergence Solver), from HYPRE, for
+// preconditioning or solving on the coarsest levels. See the README file in
+// this directory for more details.
+//
+// Compile with: see README
+//
+// Sample runs:  MultilevelHcurlHdivSolver -curl -f \
+//                  MultilevelHcurlSolver_pipe_example_parameters.xml
+//               MultilevelHcurlHdivSolver -div -f \
+//                  MultilevelHdivSolver_pipe_example_parameters.xml
+//
 // We recommend viewing MFEM's examples 3 and 4 before viewing this miniapp.
 
 #include <fstream>
@@ -32,12 +51,11 @@ void rhsfunc(const Vector &, Vector &);
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   mpi_session session(argc, argv);
-   MPI_Comm comm = MPI_COMM_WORLD;
-   int num_ranks, myid;
-   MPI_Comm_size(comm, &num_ranks);
-   MPI_Comm_rank(comm, &myid);
+   // Initialize MPI and HYPRE.
+   Mpi::Init();
+   int num_ranks = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    Timer total_timer = TimeManager::AddTimer("Program Execution -- Total");
    Timer init_timer = TimeManager::AddTimer("Initial Setup");
@@ -226,7 +244,7 @@ int main(int argc, char *argv[])
                   << "*      Coarse mesh size: " << mesh->GetNE() << "\n*\n";
       }
 
-      pmesh = make_shared<ParMesh>(comm, *mesh);
+      pmesh = make_shared<ParMesh>(MPI_COMM_WORLD, *mesh);
    }
 
    // Mark essential boundary attributes.
@@ -336,7 +354,7 @@ int main(int argc, char *argv[])
    {
       size_t local_num_elmts = pmesh->GetNE(), global_num_elmts;
       MPI_Reduce(&local_num_elmts, &global_num_elmts, 1, GetMPIType<size_t>(0),
-                 MPI_SUM, 0, comm);
+                 MPI_SUM, 0, MPI_COMM_WORLD);
       if (!myid)
       {
          mesh_msg << "*  Parallel refinements: " << par_ref_levels << '\n'
@@ -699,7 +717,7 @@ int main(int argc, char *argv[])
          local_norm *= local_norm;
          double global_norm;
          MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm),
-                    MPI_SUM, 0, comm);
+                    MPI_SUM, 0, MPI_COMM_WORLD);
          if (!myid)
          {
             cout << "Initial residual l2 norm: " << sqrt(global_norm) << '\n';
@@ -727,7 +745,7 @@ int main(int argc, char *argv[])
          local_norm *= local_norm;
          double global_norm;
          MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm),
-                    MPI_SUM, 0, comm);
+                    MPI_SUM, 0, MPI_COMM_WORLD);
          if (!myid)
          {
             cout << "Final residual l2 norm: " << sqrt(global_norm) << '\n';

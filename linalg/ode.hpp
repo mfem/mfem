@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -163,44 +163,48 @@ public:
 
    /// Define the particulars of the ODE step-size control process
    /** The various pieces are:
-        sol - Computes a possible update of the field at the next time step
-        msr - Computes relative change in the field from two sucessive steps
-        acc - Computes a new step size when the previous step was accepted
-        rej - Computes a new step size when the previous step was rejected
-        lim - Imposes limits on the next time step
+        emb_sol - Computes a possible update of the field at the next time step
+        err_msr - Computes relative change in the field from two sucessive steps
+        acc_fac - Computes a new step size when the previous step was accepted
+        rej_fac - Computes a new step size when the previous step was rejected
+        adj_lim - Imposes limits on the next time step
    */
-   void Init(ODEEmbeddedSolver &sol, ODERelativeErrorMeasure &msr,
-             ODEStepAdjustmentFactor &acc, ODEStepAdjustmentFactor &rej,
-             ODEStepAdjustmentLimiter &lim)
+   void Init(ODEEmbeddedSolver &emb_sol,
+             ODERelativeErrorMeasure &err_msr,
+             ODEStepAdjustmentFactor &acc_fac,
+             ODEStepAdjustmentFactor &rej_fac,
+             ODEStepAdjustmentLimiter &adj_lim)
    {
-      this->sol = &sol; this->msr = &msr;
-      this->acc = &acc; this->rej = &rej;
-      this->lim = &lim;
+      sol = &emb_sol;
+      msr = &err_msr;
+      acc = &acc_fac;
+      rej = &rej_fac;
+      lim = &adj_lim;
    }
 
    // Returns the current time step
    double GetTimeStep() const { return this->dt; }
 
    /// Sets (or resets) the initial time step
-   void SetTimeStep(double dt) { this->dt = dt; }
+   void SetTimeStep(double time_step) { dt = time_step; }
 
    /// Sets the minimum allowable time step
-   void SetMinTimeStep(double min_dt) { this->min_dt = min_dt; }
+   void SetMinTimeStep(double min_allowed_dt) { min_dt = min_allowed_dt; }
 
    /// Sets the error target for the control process
    void SetTolerance(double tol);
 
    /// Sets the threshold for rejection of a time step to be rho * tol
-   void SetRejectionLimit(double rho) { this->rho = rho; }
+   void SetRejectionLimit(double rej_limit) { rho = rej_limit; }
 
    /// Sets the maximum number of successively rejected steps
-   void SetMaxRejectCount(int max_nrejs) { this->max_nrejs = max_nrejs; }
+   void SetMaxRejectCount(int max_num_rejs) { max_nrejs = max_num_rejs; }
 
    bool GetErrorPerUnitStep() const { return this->epus; }
    void SetErrorPerStep() { epus = false; }
    void SetErrorPerUnitStep() { epus = true; }
 
-   void SetOutputFrequency(int ofreq) { this->ofreq = ofreq; }
+   void SetOutputFrequency(int output_freq) { ofreq = output_freq; }
 
    void SetOutput(std::ostream & os, bool log_sol = false)
    { this->out = &os; log_sol_ = log_sol; }
@@ -233,11 +237,11 @@ protected:
 public:
    virtual ~ODEStepAdjustmentFactor() {}
 
-   void SetTolerance(double tol) { this->tol = tol; }
+   void SetTolerance(double tolerance) { tol = tolerance; }
 
    virtual void Reset() {}
 
-   virtual double operator()(double err) const = 0;
+   virtual double operator()(double err_msr) const = 0;
 };
 
 class ODEStepAdjustmentLimiter
@@ -388,6 +392,7 @@ public:
    ~AdamsBashforthSolver()
    {
       if (RKsolver) { delete RKsolver; }
+      delete [] k;
    }
 };
 
@@ -469,6 +474,7 @@ public:
    ~AdamsMoultonSolver()
    {
       if (RKsolver) { delete RKsolver; }
+      delete [] k;
    };
 };
 
@@ -1025,7 +1031,7 @@ private:
 public:
    StdAdjFactor(double _gamma, double _kI) : gamma(_gamma), kI(_kI) {}
 
-   double operator()(double err) const;
+   double operator()(double err_msr) const;
 };
 
 class IntegralAdjFactor : public StdAdjFactor
@@ -1049,7 +1055,7 @@ public:
 
    void Reset() { prev_err = -1.0; }
 
-   double operator()(double err) const;
+   double operator()(double err_msr) const;
 };
 
 class PIDAdjFactor : public ODEStepAdjustmentFactor
@@ -1068,7 +1074,7 @@ public:
 
    void Reset() { prev_err1 = -1.0; prev_err2 = -1.0; }
 
-   double operator()(double err) const;
+   double operator()(double err_msr) const;
 };
 
 class DeadZoneLimiter : public ODEStepAdjustmentLimiter

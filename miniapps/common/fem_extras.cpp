@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -239,6 +239,16 @@ Coefficient * CoefFactory::GetScalarCoef(std::string &name,
       }
       coef_idx = sCoefs.Append(new RestrictedCoefficient(*rc, attr));
    }
+   else if (name == "SumCoefficient")
+   {
+      Coefficient * a = this->GetScalarCoef(input);
+      Coefficient * b = this->GetScalarCoef(input);
+
+      if (a != NULL && b != NULL)
+      {
+         coef_idx = sCoefs.Append(new SumCoefficient(*a, *b));
+      }
+   }
    else if (name == "ProductCoefficient")
    {
       Coefficient * a = this->GetScalarCoef(input);
@@ -247,6 +257,16 @@ Coefficient * CoefFactory::GetScalarCoef(std::string &name,
       if (a != NULL && b != NULL)
       {
          coef_idx = sCoefs.Append(new ProductCoefficient(*a, *b));
+      }
+   }
+   else if (name == "RatioCoefficient")
+   {
+      Coefficient * a = this->GetScalarCoef(input);
+      Coefficient * b = this->GetScalarCoef(input);
+
+      if (a != NULL && b != NULL)
+      {
+         coef_idx = sCoefs.Append(new RatioCoefficient(*a, *b));
       }
    }
    else

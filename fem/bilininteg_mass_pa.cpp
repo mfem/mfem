@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,14 +33,15 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    if (mesh->GetNE() == 0) { return; }
    const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation *T = mesh->GetElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T);
+   ElementTransformation *T0 = mesh->GetElementTransformation(0);
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
       ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
       return;
    }
+   int map_type = el.GetMapType();
    dim = mesh->Dimension();
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
@@ -61,10 +62,10 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       coeff.SetSize(1);
       coeff(0) = cQ->constant;
    }
-   else if (QuadratureFunctionCoefficient* cQ =
+   else if (QuadratureFunctionCoefficient* qfQ =
                dynamic_cast<QuadratureFunctionCoefficient*>(Q))
    {
-      const QuadratureFunction &qFun = cQ->GetQuadFunction();
+      const QuadratureFunction &qFun = qfQ->GetQuadFunction();
       MFEM_VERIFY(qFun.Size() == nq * ne,
                   "Incompatible QuadratureFunction dimension \n");
 
@@ -93,6 +94,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NE = ne;
       const int Q1D = quad1D;
       const bool const_c = coeff.Size() == 1;
+      const bool by_val = map_type == FiniteElement::VALUE;
       const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D);
       const auto J = Reshape(geom->J.Read(), Q1D,Q1D,2,2,NE);
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
@@ -110,7 +112,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                const double J22 = J(qx,qy,1,1,e);
                const double detJ = (J11*J22)-(J21*J12);
                const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
-               v(qx,qy,e) =  W(qx,qy) * coeff * detJ;
+               v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
             }
          }
       });
@@ -120,6 +122,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const int NE = ne;
       const int Q1D = quad1D;
       const bool const_c = coeff.Size() == 1;
+      const bool by_val = map_type == FiniteElement::VALUE;
       const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D,Q1D);
       const auto J = Reshape(geom->J.Read(), Q1D,Q1D,Q1D,3,3,NE);
       const auto C = const_c ? Reshape(coeff.Read(), 1,1,1,1) :
@@ -146,7 +149,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   /* */               J21 * (J12 * J33 - J32 * J13) +
                   /* */               J31 * (J12 * J23 - J22 * J13);
                   const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
-                  v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * detJ;
+                  v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * (by_val ? detJ : 1.0/detJ);
                }
             }
          }
@@ -1176,6 +1179,7 @@ static void PAMassApply(const int dim,
    }
 #endif // MFEM_USE_OCCA
    const int id = (D1D << 4) | Q1D;
+
    if (dim == 2)
    {
       switch (id)
