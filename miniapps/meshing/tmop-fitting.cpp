@@ -50,6 +50,10 @@
 // mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 2 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -fix-bnd -sbgmesh -slstype 1 -smtype 2 -trim -sfa 10.0
 // mpirun -np 6 tmop-fitting -m square01.mesh -o 2 -rs 3 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -bnd -sbgmesh -slstype 3 -smtype 0 -sfa 10.0 -sft 1e-4
 
+// fit to line with split
+// mpirun -np 6 tmop-fitting -m quad-split2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 1000 -rtol 1e-20 -st 0 -sfa 10.0 -bnd -marking -slstype 5 -mat
+// mpirun -np 6 tmop-fitting -m quad-8x8-mat.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 1000 -rtol 1e-20 -st 0 -sfa 10.0 -bnd -marking -slstype 5 -mat -qo 8
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -100,6 +104,7 @@ int main (int argc, char *argv[])
    int marking_type      = 0;
    bool mod_bndr_attr    = false;
    bool trim_mesh        = false;
+   bool material         = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -225,6 +230,8 @@ int main (int argc, char *argv[])
                   "Change boundary attribue based on alignment with Cartesian axes.");
    args.AddOption(&trim_mesh, "-trim", "--trim",
                   "-no-trim","--no-trim", "trim the mesh or not.");
+   args.AddOption(&material, "-mat", "--mat",
+                  "-no-mat","--no-mat", "Use specified material attributes.");
    args.Parse();
    if (!args.Good())
    {
@@ -257,6 +264,14 @@ int main (int argc, char *argv[])
    else if (surf_ls_type == 3) // reactor
    {
       ls_coeff = new FunctionCoefficient(reactor);
+   }
+   else if (surf_ls_type == 4) // donut
+   {
+      ls_coeff = new FunctionCoefficient(donut_level_set);
+   }
+   else if (surf_ls_type == 5) // donut
+   {
+      ls_coeff = new FunctionCoefficient(linear_level_set);
    }
    else
    {
@@ -458,6 +473,7 @@ int main (int argc, char *argv[])
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+      case 4: target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE; break;
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
@@ -605,7 +621,14 @@ int main (int argc, char *argv[])
 
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
-         mat(i) = material_id(i, surf_fit_gf0);
+         if (material)
+         {
+            mat(i) = pmesh->GetAttribute(i)-1;
+         }
+         else
+         {
+            mat(i) = material_id(i, surf_fit_gf0);
+         }
          if (split_case)
          {
             Vector center(pmesh->Dimension());
@@ -680,7 +703,11 @@ int main (int argc, char *argv[])
          }
       }
 
-      if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
+      if (adapt_eval == 0)
+      {
+         adapt_surface = new AdvectorCG;
+         MFEM_ASSERT(!surf_bg_mesh, "Background meshes require GSLIB.");
+      }
       else if (adapt_eval == 1)
       {
 #ifdef MFEM_USE_GSLIB
@@ -936,6 +963,7 @@ int main (int argc, char *argv[])
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
+   solver.SetMinimumDeterminantThreshold(0.001*tauval);
    if (solver_art_type > 0)
    {
       solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);

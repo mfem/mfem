@@ -469,7 +469,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(x_out_loc, *fes);
-      if (untangling == false && min_detT_out < 0.0)
+      if (untangling == false && min_detT_out <= min_detJ_threshold)
       {
          // No untangling, and detJ got negative -- no good.
          if (print_options.iterations)
