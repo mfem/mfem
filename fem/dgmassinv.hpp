@@ -13,27 +13,35 @@
 #define MFEM_DG_MASS_INVERSE
 
 #include "../linalg/operator.hpp"
+#include "fespace.hpp"
 
 namespace mfem
 {
 
-class Coefficient;
-class FiniteElementSpace;
+// class Coefficient;
 class MassIntegrator;
 
 class DGMassInverse : public Solver
 {
 protected:
-   FiniteElementSpace &fes;
-   MassIntegrator *m;
-   Vector diag_inv;
-   double rel_tol = 1e-12;
-   double abs_tol = 1e-12;
-   int max_iter = 100;
+   FiniteElementSpace &fes_orig; ///< The original finite element space.
+   DG_FECollection fec; ///< FE collection in requested basis.
+   FiniteElementSpace fes; ///< FE space in requested basis.
+   MassIntegrator *m; ///< Owned.
+   Vector diag_inv; ///< Jacobi preconditioner.
+   double rel_tol = 1e-12; ///< Relative CG tolerance.
+   double abs_tol = 1e-12; ///< Absolute CG tolerance.
+   int max_iter = 100; ///> Maximum number of CG iterations;
+
+   /// @name Intermediate vectors needed for CG three-term recurrence.
+   ///@{
    mutable Vector r, d, z;
+   ///@}
 
 public:
-   DGMassInverse(FiniteElementSpace &fes_, Coefficient *coeff=nullptr);
+   DGMassInverse(FiniteElementSpace &fes_, Coefficient *coeff,
+                 int btype=BasisType::GaussLegendre);
+   DGMassInverse(FiniteElementSpace &fes_, int btype=BasisType::GaussLegendre);
    void Mult(const Vector &Mu, Vector &u) const;
    void SetOperator(const Operator &op);
    void SetRelTol(const double rel_tol_);

@@ -16,13 +16,15 @@ using namespace mfem;
 
 TEST_CASE("DG Mass Inverse", "[CUDA]")
 {
-   auto mesh_filename = "../../data/inline-quad.mesh";
-   auto order = 1;
-   // auto mesh_filename = GENERATE(
-   //    "../../data/star.mesh",
-   //    "../../data/fichera.mesh"
-   // );
-   // auto order = GENERATE(2, 3);
+   auto mesh_filename = GENERATE(
+      "../../data/star.mesh",
+      "../../data/star-q3.mesh",
+      "../../data/fichera.mesh",
+      "../../data/fichera-q3.mesh"
+   );
+   auto order = GENERATE(2, 3);
+
+   CAPTURE(mesh_filename, order);
 
    Mesh mesh = Mesh::LoadFromFile(mesh_filename);
    // DG_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
@@ -45,7 +47,7 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
 
    CGSolver cg;
    cg.SetAbsTol(tol);
-   cg.SetRelTol(tol);
+   cg.SetRelTol(0.0);
    // cg.SetPrintLevel(IterativeSolver::PrintLevel().None());
    cg.SetPrintLevel(IterativeSolver::PrintLevel().All());
    cg.SetOperator(m);
@@ -55,12 +57,12 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
    cg.Mult(B, X1);
 
    DGMassInverse m_inv(fes);
+   m_inv.SetAbsTol(tol);
+   m_inv.SetRelTol(0.0);
    X2 = 0.0;
    m_inv.Mult(B, X2);
 
-   X1.Print(std::cout, 1);
-
    X2 -= X1;
 
-   REQUIRE(X2.Normlinf() == MFEM_Approx(0.0, tol, tol));
+   REQUIRE(X2.Normlinf() == MFEM_Approx(0.0, 100*tol, 100*tol));
 }
