@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
    double t_final = 5.0;
    double t_change = 0.;
    double dt = 0.0001;
+   double dt_min=0.0002;
    double visc = 1e-3;
    double resi = 1e-3;
    bool visit = false;
@@ -109,25 +110,20 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&par_ref_levels, "-rp", "--refineP",
                   "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption(&amr_levels, "-amrl", "--amr-levels",
-                  "AMR refine level.");
-   args.AddOption(&order, "-o", "--order",
-                  "Order (degree) of the finite elements.");
+   args.AddOption(&amr_levels, "-amrl", "--amr-levels", "AMR refine level.");
+   args.AddOption(&order, "-o", "--order", "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Backward Euler, 3 - L-stable SDIRK23, 4 - L-stable SDIRK33,\n\t"
                   "            22 - Implicit Midpoint, 23 - SDIRK23, 24 - SDIRK34.");
-   args.AddOption(&t_final, "-tf", "--t-final",
-                  "Final time; start time is 0.");
-   args.AddOption(&t_change, "-tchange", "--t-change",
-                  "dt change time; reduce to half.");
-   args.AddOption(&t_refs, "-t-refs", "--t-refs",
-                  "Time a quick refine/derefine is turned on.");
+   args.AddOption(&t_final, "-tf", "--t-final", "Final time; start time is 0.");
+   args.AddOption(&t_change, "-tchange", "--t-change", "dt change time; reduce to half.");
+   args.AddOption(&t_refs, "-t-refs", "--t-refs", "Time a quick refine/derefine is turned on.");
    args.AddOption(&t_refs_steps, "-t-refs-steps", "--t-refs-steps",
                   "Refine steps for a quick refine/derefine after t_refs.");
-   args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step.");
+   args.AddOption(&dt, "-dt", "--time-step", "Time step.");
+   args.AddOption(&dt_min, "-dt-min", "--minimal-time-step", "Minimal time step.");
    args.AddOption(&icase, "-i", "--icase",
-                  "Icase: 1 - wave propagation; 2 - Tearing mode.");
+                  "Icase: 1 - wave propagation; 2 - Tearing mode; 3 - Island coleasence");
    args.AddOption(&ijacobi, "-ijacobi", "--ijacobi",
                   "Number of jacobi iteration in preconditioner");
    args.AddOption(&im_supg, "-im_supg", "--im_supg",
@@ -224,8 +220,7 @@ int main(int argc, char *argv[])
    args.AddOption(&deref_its, "-deref-its", "--deref-its","refinement iterations.");
    args.Parse();
 
-   if (!args.Good())
-   {
+   if (!args.Good()){
       if (myid == 0)
       {
          args.PrintUsage(cout);
@@ -519,7 +514,7 @@ int main(int argc, char *argv[])
    }
 
    double told=t;
-   double dt0=dt, dt_min=0.0005;
+   double dt0=dt;
    oper.SetTime(t);
    ode_solver->Init(oper);
 
@@ -865,8 +860,7 @@ int main(int argc, char *argv[])
       ode_solver->Step(vx, t, dt_real);
 
       //---reduce time step by half if it is too stiff---
-      if (!oper.getConverged())
-      {
+      if (!oper.getConverged()){
          t=told;
          if (dt<=dt_min)
          {
