@@ -48,6 +48,7 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
    CGSolver cg;
    cg.SetAbsTol(tol);
    cg.SetRelTol(0.0);
+   cg.SetMaxIter(100);
    // cg.SetPrintLevel(IterativeSolver::PrintLevel().None());
    cg.SetPrintLevel(IterativeSolver::PrintLevel().All());
    cg.SetOperator(m);

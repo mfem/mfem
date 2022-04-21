@@ -37,8 +37,10 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient *coeff, int b
    diag_inv.SetSize(height);
    M.AssembleDiagonal(diag_inv);
 
-   auto dinv = diag_inv.ReadWrite();
-   MFEM_FORALL(i, height, dinv[i] = 1.0/dinv[i]; );
+   // auto dinv = diag_inv.ReadWrite();
+   //MFEM_FORALL(i, height, dinv[i] = 1.0/dinv[i]; );
+   auto dinv = diag_inv.HostReadWrite();
+   for (int i = 0; i < height; ++i) { dinv[i] = 1.0/dinv[i]; }
 
    r.SetSize(height);
    d.SetSize(height);
@@ -62,13 +64,13 @@ void PAMassApply2D(const int e,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b_, Q1D, D1D);
-   auto Bt = Reshape(bt_, D1D, Q1D);
-   auto D = Reshape(d_, Q1D, Q1D, NE);
-   auto X = Reshape(x_, D1D, D1D, NE);
-   auto Y = Reshape(y_, D1D, D1D, NE);
+   MFEM_VERIFY_KERNEL(D1D <= MAX_D1D, "Size too large");
+   MFEM_VERIFY_KERNEL(Q1D <= MAX_Q1D, "Size too large");
+   auto B = ConstDeviceMatrix(b_, Q1D, D1D);
+   auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
+   auto D = ConstDeviceCube(d_, Q1D, Q1D, NE);
+   auto X = ConstDeviceCube(x_, D1D, D1D, NE);
+   auto Y = DeviceCube(y_, D1D, D1D, NE);
 
    for (int dy = 0; dy < D1D; ++dy)
    {
@@ -159,13 +161,13 @@ void PAMassApply3D(const int e,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b_, Q1D, D1D);
-   auto Bt = Reshape(bt_, D1D, Q1D);
-   auto D = Reshape(d_, Q1D, Q1D, Q1D, NE);
-   auto X = Reshape(x_, D1D, D1D, D1D, NE);
-   auto Y = Reshape(y_, D1D, D1D, D1D, NE);
+   MFEM_VERIFY_KERNEL(D1D <= MAX_D1D, "Size too large");
+   MFEM_VERIFY_KERNEL(Q1D <= MAX_Q1D, "Size too large");
+   auto B = ConstDeviceMatrix(b_, Q1D, D1D);
+   auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
+   auto D = DeviceTensor<4,const double>(d_, Q1D, Q1D, Q1D, NE);
+   auto X = DeviceTensor<4,const double>(x_, D1D, D1D, D1D, NE);
+   auto Y = DeviceTensor<4,double>(y_, D1D, D1D, D1D, NE);
 
    for (int dz = 0; dz < D1D; ++dz)
    {
@@ -317,7 +319,7 @@ void DGMassApply(const int e,
    }
    else
    {
-      MFEM_ABORT("Unsupported dimension.");
+      MFEM_ABORT_KERNEL("Unsupported dimension.");
    }
 }
 
@@ -329,9 +331,9 @@ void DGMassPreconditioner(const int e,
                           const double *x,
                           double *y)
 {
-   auto X = Reshape(x, ND, NE);
-   auto D = Reshape(dinv, ND, NE);
-   auto Y = Reshape(y, ND, NE);
+   auto X = ConstDeviceMatrix(x, ND, NE);
+   auto D = ConstDeviceMatrix(dinv, ND, NE);
+   auto Y = DeviceMatrix(y, ND, NE);
    for (int i = 0; i < ND; ++i)
    {
       Y(i, e) = D(i, e)*X(i, e);
@@ -348,9 +350,9 @@ void DGMassAxpy(const int e,
                 const double *y,
                 double *z)
 {
-   auto X = Reshape(x, ND, NE);
-   auto Y = Reshape(y, ND, NE);
-   auto Z = Reshape(z, ND, NE);
+   auto X = ConstDeviceMatrix(x, ND, NE);
+   auto Y = ConstDeviceMatrix(y, ND, NE);
+   auto Z = DeviceMatrix(z, ND, NE);
    for (int i = 0; i < ND; ++i) { Z(i, e) = a*X(i, e) + b*Y(i, e); }
 }
 
@@ -361,8 +363,8 @@ double DGMassDot(const int e,
                  const double *x,
                  const double *y)
 {
-   auto X = Reshape(x, ND, NE);
-   auto Y = Reshape(y, ND, NE);
+   auto X = ConstDeviceMatrix(x, ND, NE);
+   auto Y = ConstDeviceMatrix(y, ND, NE);
 
    double dot = 0.0;
    for (int i = 0; i < ND; ++i)
@@ -471,7 +473,7 @@ static void DGMassCGIteration(const int NE,
       {
          return; // Not positive definite...
       }
-      double r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+      double r0 = max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
       if (nom <= r0)
       {
          // converged = true;
@@ -485,10 +487,9 @@ static void DGMassCGIteration(const int NE,
       if (den <= 0.0)
       {
          const double d2 = DGMassDot(e, NE, ND, d, d);
-         if (d2 > 0.0 /* dot product */ && print_options.warnings)
+         if (d2 > 0.0 && print_options.warnings)
          {
-            mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
-                        << den << '\n';
+            printf("Not positive definite.\n");
          }
          if (den == 0.0)
          {
@@ -510,13 +511,11 @@ static void DGMassCGIteration(const int NE,
          DGMassPreconditioner(e, NE, ND, dinv, r, z);
 
          double betanom = DGMassDot(e, NE, ND, r, z);
-         MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
          if (betanom < 0.0)
          {
             if (print_options.warnings)
             {
-               mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
-                           << betanom << '\n';
+               printf("Not positive definite.\n");
             }
             // converged = false;
             // final_iter = i;
@@ -541,14 +540,12 @@ static void DGMassCGIteration(const int NE,
          DGMassAxpy(e, NE, ND, 1.0, z, beta, d, d); // d = z + beta*d
          DGMassApply<DIM, T_D1D, T_Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d); // z = A d
          den = DGMassDot(e, NE, ND, d, z);
-         MFEM_ASSERT(IsFinite(den), "den = " << den);
          if (den <= 0.0)
          {
             const double d2 = DGMassDot(e, NE, ND, d, d);
             if (d2 && print_options.warnings)
             {
-               mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
-                           << den << '\n';
+               printf("Not positive definite.\n");
             }
             if (den == 0.0)
             {
