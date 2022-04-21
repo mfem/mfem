@@ -276,19 +276,20 @@ void JitPostfix(context_t &pp)
    pp.ker.src += ">(use_dev, ";
    pp.ker.src += pp.ker.args_wo_amp;
    pp.ker.src += ");}";
+
+   const size_t hash = jit::Hash<const char*>()(pp.ker.src.c_str());
+
    pp.out << pp.ker.src; // output all kernel source, after having computed its hash
    pp.out << ")_\";"; // eos
    pp.ker.is_kernel = false;
 
-   pp.out << "\n\ttypedef void (*kernel_t)(const bool use_dev,"
-          << pp.ker.params << ");";
+   pp.out << "\n\ttypedef void (*kernel_t)(bool use_dev," << pp.ker.params << ");";
 
    // #warning should be CUDA dependent
    pp.out << "\n\tconst bool use_dev = Device::Allows(Backend::CUDA_MASK);";
 
-   pp.out << "\n\tjit::kernel<kernel_t>("<< std::hex
-          << "0x" << jit::hash<const char*>()(pp.ker.src.c_str())
-          << "ul" << std::dec << ", pp_ker_src"
+   pp.out << "\n\tconst size_t seed = 0x" << std::hex << hash << "ul;" << std::dec;
+   pp.out << "\n\tjit::Kernel<kernel_t>(seed, src"
           << ", " << pp.ker.mfem_jit_cxx
           << ", " << pp.ker.mfem_jit_build_flags
           << ", " << pp.ker.mfem_source_dir
@@ -308,7 +309,7 @@ void JitPrefix(context_t &pp)
 {
    assert(pp.ker.is_jit);
    pp.ker.src.clear();
-   pp.out << "\n\tconst char *pp_ker_src = R\"_(";
+   pp.out << "\n\tconst char *src = R\"_(";
    // switching from pp.out to pp.ker.src to compute the hash
    pp.ker.src += "#include <cstdint>\n";
    pp.ker.src += "#include <limits>\n";

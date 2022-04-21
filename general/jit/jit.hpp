@@ -71,22 +71,34 @@ struct Jit
    static int Compile(const char *argv[], const int n, const char *src,
                       char *&obj, size_t &size);
 
-   /**
-    * @brief RootCompile
-    * @param n
-    * @param cc
-    * @param co
-    * @param mfem_cxx MFEM compiler
-    * @param mfem_cxxflags MFEM_CXXFLAGS
-    * @param mfem_source_dir MFEM_SOURCE_DIR
-    * @param mfem_install_dir MFEM_INSTALL_DIR
-    * @param check_for_ar check for existing libmjit.a archive
-    * @return
-    */
-   static int RootCompile(const int n, char *src, const char *cc, const char *co,
-                          const char *mfem_cxx, const char *mfem_cxxflags,
-                          const char *mfem_source_dir, const char *mfem_install_dir,
-                          void *&handle);
+   /// Ask the JIT process to update the cache with a kernel compilation.
+   static int Update(const size_t hash, const size_t n, char *src,
+                     const char *cxx, const char *flags, const char *msrc, const char *mins,
+                     void *&handle);
+
+   /// \brief uint32str 32 bits hash to string function, shifted to offset
+   static inline void uint32str(uint64_t h, char *str, const size_t offset = 1)
+   {
+      h = ((h & 0xFFFFull) << 32) | ((h & 0xFFFF0000ull) >> 16);
+      h = ((h & 0x0000FF000000FF00ull) >> 8) | (h & 0x000000FF000000FFull) << 16;
+      h = ((h & 0x00F000F000F000F0ull) >> 4) | (h & 0x000F000F000F000Full) << 8;
+      constexpr uint64_t odds = 0x0101010101010101ull;
+      const uint64_t mask = ((h + 0x0606060606060606ull) >> 4) & odds;
+      h |= 0x3030303030303030ull;
+      h += 0x27ull * mask;
+      memcpy(str + offset, &h, sizeof(h));
+   }
+
+   /// 64 bits hash to string function
+   static inline char *uint64str(uint64_t hash, char *str, const char *ext = "")
+   {
+      str[0] = MFEM_JIT_PREFIX_CHAR;
+      uint32str(hash >> 32, str, 1);
+      uint32str(hash & 0xFFFFFFFFull, str + 8);
+      memcpy(str + 1 + 16, ext, strlen(ext));
+      str[1 + 16 + strlen(ext)] = 0;
+      return str;
+   }
 };
 
 namespace jit
@@ -101,17 +113,14 @@ namespace jit
  */
 int preprocess(std::istream &in, std::ostream &out, std::string &file);
 
-/// Generic hash function
-template <typename T> struct hash
+/// \brief Generic hash function
+template <typename T> struct Hash
 {
-   inline size_t operator()(const T& h) const noexcept
-   {
-      return std::hash<T> {}(h);
-   }
+   inline size_t operator()(const T& h) const noexcept { return std::hash<T> {}(h); }
 };
 
-/// Specialized <const char*> hash function
-template<> struct hash<const char*>
+/// \brief Specialized <const char*> hash function
+template<> struct Hash<const char*>
 {
    inline size_t operator()(const char *s) const noexcept
    {
@@ -122,116 +131,26 @@ template<> struct hash<const char*>
    }
 };
 
-/// Hash combine function
+/// \brief Hash combine function
 template <typename T> inline
-size_t hash_combine(const size_t &h, const T &v) noexcept
-{ return h ^ (mfem::jit::hash<T> {}(v) + 0x9e3779b9ull + (h<<6) + (h>>2));}
+size_t Combine(const size_t &h, const T &v) noexcept
+{ return h ^ (mfem::jit::Hash<T> {}(v) + 0x9e3779b9ull + (h<<6) + (h>>2));}
 
-/// \brief hash_args Terminal hash arguments function
-/// \param seed
-/// \param that
-/// \return
+/// \brief Terminal hash arguments function
 template<typename T> inline
-size_t hash_args(const size_t &hash, const T &args) noexcept
-{ return hash_combine(hash, args); }
+size_t Args(const size_t &hash, const T &args) noexcept
+{ return Combine(hash, args); }
 
-template<typename T> inline
-size_t hash_pp(const size_t &seed, const T &that) noexcept
-{ return hash_combine(seed, that); }
-
-/// \brief hash_args Hash arguments function
-/// \param seed
-/// \param arg
-/// \param args
-/// \return
+/// \brief Hash arguments function
 template<typename T, typename... Args> inline
-size_t hash_args(const size_t &seed, const T &arg, Args... args)
-noexcept { return hash_args(hash_combine(seed, arg), args...); }
-
-/// \brief uint32str 32 bits hash to string function, shifted to offset
-/// \param h
-/// \param str
-/// \param offset
-inline void uint32str(uint64_t h, char *str, const size_t offset = 1)
-{
-   h = ((h & 0xFFFFull) << 32) | ((h & 0xFFFF0000ull) >> 16);
-   h = ((h & 0x0000FF000000FF00ull) >> 8) | (h & 0x000000FF000000FFull) << 16;
-   h = ((h & 0x00F000F000F000F0ull) >> 4) | (h & 0x000F000F000F000Full) << 8;
-   constexpr uint64_t odds = 0x0101010101010101ull;
-   const uint64_t mask = ((h + 0x0606060606060606ull) >> 4) & odds;
-   h |= 0x3030303030303030ull;
-   h += 0x27ull * mask;
-   memcpy(str + offset, &h, sizeof(h));
-}
-
-/// 64 bits hash to string function
-inline char *uint64str(const uint64_t hash, char *str, const char *ext = "")
-{
-   str[0] = MFEM_JIT_PREFIX_CHAR;
-   uint32str(hash >> 32, str);
-   uint32str(hash & 0xFFFFFFFFull, str + 8);
-   memcpy(str + 1 + 16, ext, strlen(ext));
-   str[1 + 16 + strlen(ext)] = 0;
-   return str;
-}
-
-/// \brief CreateAndCompile
-/// \param hash kernel hash
-/// \param check_for_ar check for existing archive
-/// \param src kernel source as a string
-/// \param mfem_cxx MFEM compiler
-/// \param mfem_cxxflags MFEM_CXXFLAGS
-/// \param mfem_source_dir MFEM_SOURCE_DIR
-/// \param mfem_install_dir MFEM_INSTALL_DIR
-/// \param args
-/// \return
-template<typename... Args>
-inline int Compile(const size_t h,
-                   void *&handle,
-                   const char *mfem_src,
-                   const char *mfem_cxx,
-                   const char *mfem_cxxflags,
-                   const char *mfem_source_dir,
-                   const char *mfem_install_dir,
-                   Args... args)
-{
-   char *src = nullptr, cc[MFEM_JIT_SYMBOL_SIZE+3], co[MFEM_JIT_SYMBOL_SIZE+3];
-   uint64str(h, cc, ".cc");
-   uint64str(h, co, ".co");
-   const int n = 1 + std::snprintf(nullptr, 0, mfem_src, h, h, h, args...);
-   src = new char[n];
-   if (std::snprintf(src, n, mfem_src, h, h, h, args...) < 0) { return EXIT_FAILURE; }
-   return Jit::RootCompile(n, src, cc, co, mfem_cxx, mfem_cxxflags,
-                           mfem_source_dir, mfem_install_dir, handle);
-}
-
-/// Symbol search from a given handle
-template<typename kernel_t = void*>
-inline kernel_t Symbol(const size_t hash, void *handle)
-{
-   ::dlerror(); // flush dl error
-   char symbol[MFEM_JIT_SYMBOL_SIZE];
-   return (kernel_t) ::dlsym(handle, uint64str(hash, symbol));
-}
-
-/// Lookup in the cache for the kernel with the given hash
-template<typename... Args>
-inline void *Handle(const size_t hash, Args... args)
-{
-   // First we try to open the current shared cache library: libmjit.so
-   void *handle = ::dlopen("./lib" MFEM_JIT_LIB_NAME ".so", RTLD_NOW | RTLD_LOCAL);
-   // If no handle was found, continue by launching the compilation
-   if (!handle) { if (Compile(hash, handle, args...)) { return nullptr; } }
-   // Now look for the symbol, continue by updating the shared library
-   if (!Symbol(hash, handle)) { if (Compile(hash, handle, args...)) { return nullptr; } }
-   assert(Symbol(hash, handle));
-   return handle;
-}
+size_t Args(const size_t &seed, const T &arg, Args... args)
+noexcept { return Args(Combine(seed, arg), args...); }
 
 /// Kernel class
-template<typename kernel_t> class kernel
+template<typename kernel_t> class Kernel
 {
    const size_t hash;
+   char symbol[MFEM_JIT_SYMBOL_SIZE];
    void *handle;
 
 public:
@@ -244,17 +163,51 @@ public:
    /// \param mins MFEM_INSTALL_DIR
    /// \param args other arguments
    template<typename... Args>
-   kernel(const size_t src_h, const char *src, const char *cxx,
-          const char *flags, const char *msrc, const char* mins, Args... args):
-      hash((assert(jit::hash<const char*>()(src) == src_h),
-            hash_args(src_h, cxx, flags, msrc, mins, args...))),
-      handle(Handle(hash, src, cxx, flags, msrc, mins, args...))
-   { assert(handle); assert(Symbol<kernel_t>(hash, handle)); }
+   Kernel(const size_t seed, const char *src, const char *cxx, const char *flags,
+          const char *msrc, const char* mins, Args... Targs):
+      hash(jit::Args(seed, cxx, flags, msrc, mins, Targs...))
+   {
+      Jit::uint64str(hash, symbol);
+      Handle(src, cxx, flags, msrc, mins, Targs...);
+      assert(Symbol());
+   }
 
+   template<typename... Args> void operator()(Args... args) { Symbol()(args...); }
+
+   ~Kernel() { ::dlclose(handle); }
+
+   /// Lookup in the cache for the kernel with the given hash
+   template<typename... Args> void Handle(Args... args)
+   {
+      // First we try to open the current shared cache library: libmjit.so
+      handle = ::dlopen("./lib" MFEM_JIT_LIB_NAME ".so", RTLD_NOW | RTLD_LOCAL);
+      // If no handle was found, continue by launching the compilation
+      if (!handle) { if (Compile(args...)) { assert(false); } }
+      // Now look for the symbol, continue by updating the shared library
+      if (!Symbol()) { if (Compile(args...)) { assert(false); } }
+   }
+
+   /// Symbol search from a given handle
+   kernel_t Symbol() { return (kernel_t) ::dlsym(handle, symbol); }
+
+private:
+   /// \brief Compile
+   /// \param src kernel source as a string
+   /// \param cxx MFEM compiler
+   /// \param flags MFEM_CXXFLAGS
+   /// \param mfem_source_dir MFEM_SOURCE_DIR
+   /// \param mfem_install_dir MFEM_INSTALL_DIR
+   /// \param args
+   /// \return EXIT_FAILURE or EXIT_SUCCESS
    template<typename... Args>
-   void operator()(Args... args) { Symbol<kernel_t>(hash, handle)(args...); }
-
-   ~kernel() { ::dlclose(handle); }
+   int Compile(const char *src, const char *cxx, const char *flags,
+               const char *msrc, const char *mins, Args... Targs)
+   {
+      const int n = 1 + std::snprintf(nullptr, 0, src, hash, hash, hash, Targs...);
+      char *ksrc = new char[n];
+      if (std::snprintf(ksrc, n, src, hash, hash, hash, Targs...) < 0) { return EXIT_FAILURE; }
+      return Jit::Update(hash, n, ksrc, cxx, flags, msrc, mins, handle);
+   }
 };
 
 } // namespace jit

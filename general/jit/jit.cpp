@@ -87,6 +87,7 @@ static void CloseAndWait(int fd)
 static int CompileInMemory(const char *cmd, const size_t isz, const char *src,
                            char *obj, size_t *osz)
 {
+   dbg();
    // input, output and error pipes
    int ip[2], op[2], ep[2];
    constexpr size_t PIPE_READ = 0;
@@ -99,6 +100,7 @@ static int CompileInMemory(const char *cmd, const size_t isz, const char *src,
 
    if (::fork() == 0) // Child process which calls the compiler
    {
+      //dbg("child fork cmd:'%s', isz:%d",cmd,isz);
       ::close(STDIN_FILENO);    // closing stdin
       ::dup2(ip[PIPE_READ],0);  // replacing stdin with pipe read
       ::close(ip[PIPE_READ]);   // close reading end
@@ -125,7 +127,7 @@ static int CompileInMemory(const char *cmd, const size_t isz, const char *src,
 
    // write all the source present in memory to the 'input' pipe
    size_t ni_w = ::write(ip[PIPE_WRITE], src, isz-1);
-   if (ni_w != isz - 1) { return EXIT_FAILURE; }
+   if (ni_w != isz - 1) { return CloseAndWait(op[PIPE_READ]), EXIT_FAILURE; }
    ::close(ip[PIPE_WRITE]);
 
    char buffer[1<<16];
@@ -135,19 +137,22 @@ static int CompileInMemory(const char *cmd, const size_t isz, const char *src,
    // Scan error pipe with timeout
    {
       fd_set set;
-      struct timeval timeout {1, 0}; // one second
+      //#warning should be {1,0}
+      struct timeval timeout {0, 0}; // one second
       FD_ZERO(&set); // clear the set
       FD_SET(ep[PIPE_READ], &set); // add the descriptor we need a timeout on
       const int rv = ::select(ep[PIPE_READ]+1, &set, NULL, NULL, &timeout);
-      if (rv == -1) { return ::perror(strerror(errno)), EXIT_FAILURE; }
+      //assert(false);
+      if (rv == -1) { assert(false); return CloseAndWait(op[PIPE_READ]), EXIT_FAILURE; }
       else if (rv == 0) { assert(true); /*dbg("No error found!");*/ }
       else
       {
+         assert(false);
          dbg("Error data is available!");
          while ((nr = ::read(ep[PIPE_READ], buffer, SIZE)) > 0)
          {
             size_t nr_w = ::write(STDOUT_FILENO, buffer, nr);
-            if (nr_w != nr) { return EXIT_FAILURE; }
+            if (nr_w != nr) { return CloseAndWait(op[PIPE_READ]), EXIT_FAILURE; }
             ne += nr;
          }
          ::close(ep[PIPE_READ]);
@@ -232,9 +237,13 @@ int Jit::Init(int *argc, char ***argv)
             AckEQ(); // waiting for somebody to wake us...
             if (*Smem.ack == COMPILE)
             {
-               CompileInMemory(Smem.cmd, *Smem.isz, Smem.src, Smem.obj, Smem.osz);
+               dbg("COMPILE, isz:%d", *Smem.isz);
+               const int status =
+                  CompileInMemory(Smem.cmd, *Smem.isz, Smem.src,
+                                  Smem.obj, Smem.osz);
+               if (status != EXIT_SUCCESS) { dbg("ERROR"); return; }
             }
-            if (*Smem.ack == EXIT) { return;}
+            if (*Smem.ack == EXIT) { dbg("EXIT"); return;}
             *Smem.ack = ACK; // send back ACK
          }
       };
@@ -329,6 +338,7 @@ int Jit::System(const char *argv[])
 int Jit::Compile(const char *argv[], const int n, const char *src,
                  char *&obj, size_t &size)
 {
+   dbg();
 #ifndef MFEM_USE_MPI
    // In serial mode, JIT/MPI has not been initialized: do it once here
    // The Finalized is not done yet in serial!
@@ -339,6 +349,7 @@ int Jit::Compile(const char *argv[], const int n, const char *src,
 #else
    if (!Mpi::IsInitialized())
    {
+      dbg("Initializing...");
       static bool initialized = false;
       if (!initialized) { Jit::Init(); initialized = true;}
    }
@@ -360,12 +371,16 @@ int Jit::Compile(const char *argv[], const int n, const char *src,
 
    // write the size of src in shared mem
    *Smem.isz = n;
+   dbg("Smem.isz:%d",*Smem.isz);
+   *Smem.osz = 4;
 
    Send(COMPILE);
    AckNE(); // wait for the child to acknowledge
 
    // read back the object's size
    size = *Smem.osz;
+   dbg("size:%d",size);
+   assert(*Smem.osz != 4);
    assert(size < OBJ_FACTOR*Smem.pagesize);
    // set back the object from child's memory
    obj = Smem.obj;
@@ -382,12 +397,15 @@ inline int CreateKernelSourceFile(const char *cc, const char *src)
    return EXIT_SUCCESS;
 }
 
-int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
-                     const char *mfem_cxx, const char *mfem_cxxflags,
-                     const char *mfem_source_dir, const char *mfem_install_dir,
-                     void *&handle)
+int Jit::Update(const size_t hash, const size_t n, char *src,
+                const char *cxx, const char *cxxflags,
+                const char *mfem_source_dir, const char *mfem_install_dir,
+                void *&handle)
 {
    assert(src);
+   char co[MFEM_JIT_SYMBOL_SIZE+3];
+   Jit::uint64str(hash, co, ".co");
+
    constexpr int ld_mode = RTLD_NOW | RTLD_LOCAL;
 #ifndef MFEM_USE_CUDA
 #define MFEM_JIT_DEVICE_CODE ""
@@ -426,10 +444,11 @@ int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
       dbg("%s => %s", lib_ar, lib_so);
       const char *argv_so[] =
       {
-         mfem_cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load,
+         cxx, "-shared", "-o", lib_so, beg_load, lib_ar, end_load,
          MFEM_JIT_LINKER_OPTION "-rpath,.", nullptr
       };
       if (Jit::System(argv_so)) { return EXIT_FAILURE; }
+      Jit::Sync();
       delete[] src;
       handle = ::dlopen(lib_so, ld_mode);
       assert(handle);
@@ -449,13 +468,13 @@ int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
    if (Jit::Root())
    {
       std::regex reg("\\s+");
-      std::string cxxflags(mfem_cxxflags);
+      std::string flags(cxxflags);
       const auto cxxargv =
          std::vector<std::string>(
-            std::sregex_token_iterator{begin(cxxflags), end(cxxflags), reg, -1},
+            std::sregex_token_iterator{begin(flags), end(flags), reg, -1},
             std::sregex_token_iterator{});
       std::vector<const char*> argv, argv_files;
-      argv.push_back(mfem_cxx);
+      argv.push_back(cxx);
       for (auto &a : cxxargv)
       {
          using uptr = std::unique_ptr<char, decltype(&std::free)>;
@@ -473,7 +492,9 @@ int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
 #endif // MFEM_USE_CUDA
       argv_files = argv;
 
-#if 1
+#if 0
+      char cc[MFEM_JIT_SYMBOL_SIZE+3];
+      Jit::uint64str(hash, cc, ".cc");
       argv_files.push_back("-o");
       argv_files.push_back(co); // output
       argv_files.push_back(cc); // input
@@ -482,23 +503,27 @@ int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
       // dump src in file k****************.cc
       if (CreateKernelSourceFile(cc,src)) { return EXIT_FAILURE; }
       if (Jit::System(argv_files.data())) { return EXIT_FAILURE; }
-      MFEM_CONTRACT_VAR(n);
 #else
-      argv.push_back("-o");
-      argv.push_back("/dev/stdout"); // output
-      argv.push_back("-"); // input
-      argv.push_back("-x");
-      argv.push_back("c++");
+      // error: -E or -x required when input is from standard input
+      argv.push_back("-x"); argv.push_back("c++");
+      argv.push_back("-o"); argv.push_back("/dev/stdout"); // stdout output
+      argv.push_back("-"); // stdin input
       argv.push_back(nullptr);
 
       dbg("%s", CreateCommandLine(argv.data()).c_str()); // debug output
-      compile in memory
+      // compile in memory
       size_t size = 0;
       char *obj = nullptr;
-      if (Jit::Compile(argv.data(), n, src, obj, size)) { return EXIT_FAILURE; }
+      //dbg("\033[33m'%s', n:%d\033[m",src,n);
+      if (Jit::Compile(argv.data(), n, src, obj, size))
+      {
+         dbg("EXIT_FAILURE"); return EXIT_FAILURE;
+      }
+      dbg("done");
       delete[] src;
 
       // security issues, => write back object into output file
+      dbg("size:%d",size);
       assert(obj && size > 0);
       const mode_t mode = S_IRUSR | S_IWUSR;
       const int oflag = O_CREAT | O_RDWR | O_TRUNC;
@@ -513,10 +538,10 @@ int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
    // Update archive
    const char *argv_ar[] = { "ar", "-rv", lib_ar, co, nullptr };
    if (Jit::System(argv_ar)) { dbg("ar error"); return EXIT_FAILURE; }
-   ::unlink(co);
+   if (Jit::Root()) { ::unlink(co); }
 
    // Create shared library
-   const char *argv_so[] = { mfem_cxx, "-shared", "-o", lib_to,
+   const char *argv_so[] = { cxx, "-shared", "-o", lib_to,
                              beg_load, lib_ar, end_load,
                              nullptr
                            };
@@ -526,7 +551,7 @@ int Jit::RootCompile(const int n, char *src, const char *cc, const char *co,
    const char *install[] =
    { "install", "-v", MFEM_JIT_INSTALL_BACKUP, lib_to, lib_so, nullptr };
    if (Jit::System(install)) { dbg("install error"); return EXIT_FAILURE; }
-   ::unlink(lib_to); // remove the temporary shared lib after use
+   if (Jit::Root()) { ::unlink(lib_to); } // remove the temporary shared lib after use
 
    Jit::Sync();
 
