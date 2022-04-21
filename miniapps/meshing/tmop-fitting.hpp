@@ -30,8 +30,28 @@ double circle_level_set(const Vector &x)
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
       const double r = sqrt(xc*xc + yc*yc + zc*zc);
-      return std::tanh(2.0*(r-0.3));
+      return r-0.3;
    }
+}
+
+double donut_level_set(const Vector &coord)
+{
+   MFEM_VERIFY(coord.Size() == 3,"Donut level set for 3D only.");
+   // map [0,1] to [-1,1].
+   double x = 2*coord(0)-1.0, y = 2*coord(1)-1.0, z = 2*coord(2)-1.0;
+
+   bool doughnut;
+   const double R = 0.8, r = 0.15;
+   const double t = R - std::sqrt(x*x + y*y);
+   doughnut = t*t + z*z - r*r <= 0;
+
+   return (doughnut) ? 1.0 : -1.0;
+}
+
+double linear_level_set(const Vector &x)
+{
+   double y_line = 0.75 - 0.5*x(0);
+   return std::pow(y_line-x(1),1.0);
 }
 
 double squircle_level_set(const Vector &x)

@@ -128,12 +128,16 @@ protected:
    int solver_type;
    bool parallel;
 
+   // Minimum detJ.
+   // Line search step is rejected if min(detJ) <= min_detJ_threshold
+   double min_detJ_threshold = 0.0;
+
    // Surface fitting variables.
    mutable double surf_fit_err_avg_prvs = 10000.0;
    mutable double surf_fit_err_avg, surf_fit_err_max;
    mutable bool update_surf_fit_coeff = false;
    double surf_fit_max_threshold = -1.0;
-   double surf_fit_rel_change_threshold = 0.0;
+   double surf_fit_rel_change_threshold = 0.001;
    double surf_fit_scale_factor = 0.0;
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
@@ -224,7 +228,7 @@ public:
    void EnableAdaptiveSurfaceFitting()
    {
       surf_fit_scale_factor = 10.0;
-      surf_fit_rel_change_threshold = 0.01;
+      surf_fit_rel_change_threshold = 0.001;
    }
    void SetAdaptiveSurfaceFittingScalingFactor(double factor)
    {
@@ -241,6 +245,10 @@ public:
    void SetTerminationWithMaxSurfaceFittingError(double max_error)
    {
       surf_fit_max_threshold = max_error;
+   }
+   void SetMinimumDeterminantThreshold(double threshold)
+   {
+      min_detJ_threshold = threshold;
    }
 
    virtual void Mult(const Vector &b, Vector &x) const
