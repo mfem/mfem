@@ -38,6 +38,8 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient *coeff,
    diag_inv.SetSize(height);
    M.AssembleDiagonal(diag_inv);
 
+   // TODO: need to move this FORALL into its own function, can't have a
+   // FORALL loop in constructor.
    // auto dinv = diag_inv.ReadWrite();
    //MFEM_FORALL(i, height, dinv[i] = 1.0/dinv[i]; );
    auto dinv = diag_inv.HostReadWrite();
@@ -551,11 +553,11 @@ void SmemPAMassApply3D(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(d,y,D1D)
+   MFEM_FOREACH_THREAD(di,y,D1D)
    {
       MFEM_FOREACH_THREAD(q,x,Q1D)
       {
-         Bt[d][q] = b(q,d);
+         Bt[di][q] = b(q,di);
       }
    }
    MFEM_SYNC_THREAD;
@@ -838,7 +840,7 @@ static void DGMassCGIteration(const int NE,
       {
          return; // Not positive definite...
       }
-      double r0 = max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+      double r0 = fmax(nom*rel_tol*rel_tol, abs_tol*abs_tol);
       if (nom <= r0)
       {
          // converged = true;
