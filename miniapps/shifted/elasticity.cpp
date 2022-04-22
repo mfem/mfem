@@ -3,6 +3,25 @@
 
 using namespace mfem;
 
+void DispFunctionLL(const mfem::Vector &xx, mfem::Vector &uu)
+{
+    double a=3.0;
+    double b=2.0;
+    double c=3.0;
+    double d=2.0;
+
+    if(xx.Size()==2)
+    {
+        uu[0] = sin(a*xx[0])+cos(b*xx[1]);
+        uu[1] = cos(c*xx[0]+d*xx[1]);
+    }else{//size==3
+        uu[0] = sin(a*xx[0])+cos(b*xx[1]);
+        uu[1] = sin(a*xx[1])+cos(b*xx[2]);
+        uu[2] = sin(c*xx[2])+cos(d*xx[0]);
+    }
+
+}
+
 ElasticitySolver::ElasticitySolver(mfem::ParMesh* mesh_, int vorder)
 {
     pmesh=mesh_;
@@ -98,6 +117,11 @@ void ElasticitySolver::AddDispBC(int id, int dir, Coefficient &val)
     {
         bccz.clear();
     }
+}
+
+void ElasticitySolver::AddDispBC(int id, mfem::VectorCoefficient& val)
+{
+    bcca[id]=&val;
 }
 
 void ElasticitySolver::SetVolForce(double fx, double fy, double fz)
@@ -197,6 +221,24 @@ void ElasticitySolver::FSolve()
                 }
             }
             ess_tdofv.Append(ess_tdofz);
+        }
+
+        //set vector coefficients
+        for(auto it=bcca.begin();it!=bcca.end();it++)
+        {
+            mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+            ess_bdr=0;
+            ess_bdr[it->first -1]=1;
+            mfem::Array<int> ess_tdof_list;
+            vfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+            fdisp.ProjectBdrCoefficient(*(it->second), ess_bdr);
+            //copy tdofs from velocity grid function
+            fdisp.GetTrueDofs(rhs); // use the rhs vector as a tmp vector
+            for(int ii=0;ii<ess_tdof_list.Size();ii++)
+            {
+                sol[ess_tdof_list[ii]]=rhs[ess_tdof_list[ii]];
+            }
+            ess_tdofv.Append(ess_tdof_list);
         }
     }
 
@@ -782,11 +824,454 @@ double SBM2ELIntegrator::GetElementEnergy(const FiniteElement &el,
 }
 
 void SBM2ELIntegrator::AssembleElementVector(const FiniteElement &el,
+                                              ElementTransformation &Tr,
+                                              const Vector &elfun, Vector &elvect)
+{
+    elvect.SetSize(elfun.Size());
+    elvect=0.0;
+
+    if((*elem_attributes)[Tr.ElementNo]==mfem::ElementMarker::SBElementType::INSIDE){
+        elint->AssembleElementVector(el,Tr,elfun,elvect);
+    }
+
+    //If the element is not inside there isn't anything to integrate - the contribution is zero
+    if((*elem_attributes)[Tr.ElementNo]!=mfem::ElementMarker::SBElementType::INSIDE){return;}
+    //get dimensionality of the problem
+    const int dim=Tr.GetSpaceDim();
+
+    std::vector<int> bfaces;
+
+    if(dim==3){
+        const mfem::Table& elem_face=pmesh->ElementToFaceTable();
+        int num_faces=elem_face.RowSize(Tr.ElementNo);
+        const int* faces=elem_face.GetRow(Tr.ElementNo);
+        for(int facei=0;facei<num_faces;facei++)
+        {
+            if((*face_attributes)[faces[facei]]==ElementMarker::SBFaceType::SURROGATE)
+            {
+                bfaces.push_back(faces[facei]);
+            }
+        }
+    }else{
+        //dim==2
+        const mfem::Table& elem_edge=pmesh->ElementToEdgeTable();
+        int num_edges=elem_edge.RowSize(Tr.ElementNo);
+        const int* faces=elem_edge.GetRow(Tr.ElementNo);
+        for(int facei=0;facei<num_edges;facei++)
+        {
+            if((*face_attributes)[faces[facei]]==ElementMarker::SBFaceType::SURROGATE)
+            {
+                bfaces.push_back(faces[facei]);
+            }
+        }
+    }
+
+    if(bfaces.size()==0){return;} //no crossed edges/faces return
+
+    mfem::Vector nnor; nnor.SetSize(dim); //surrogate normal vector
+    mfem::Vector nnor_n; nnor_n.SetSize(dim); //surrogate normal vector normalized
+    mfem::Vector nvec; nvec.SetSize(dim); //true normal vector
+    const int dof=el.GetDof();
+    const IntegrationRule *ir;
+
+    //computes the gradient at the nodal points of the element
+    DenseMatrix grad_phys;
+    el.ProjectGrad(el,Tr,grad_phys);
+
+    DenseMatrix shift_op; shift_op.SetSize(dof);
+    DenseMatrix shift_ts; shift_ts.SetSize(dof);
+    Vector shape; shape.SetSize(dof);
+    Vector shape_sh; shape_sh.SetSize(dof);
+    Vector shape_ts; shape_ts.SetSize(dof);
+    DenseMatrix bdrstress_op;//boundary stress operator
+    bdrstress_op.SetSize(dim,dim*dof); bdrstress_op=0.0;
+    DenseMatrix disp_op; disp_op.SetSize(dim,dim*dof);
+    DenseMatrix B; B.SetSize(dof,dim);
+    DenseMatrix D; //elasticity matrix
+    Vector strain_v;
+    if(dim==3){D.SetSize(6); strain_v.SetSize(6); strain_v=0.0;}
+    else{D.SetSize(3);strain_v.SetSize(3); strain_v=0.0;}
+
+    Vector dispx(elfun.GetData()+0*dof,dof);
+    Vector dispy(elfun.GetData()+1*dof,dof);
+    Vector dispz;
+    if(dim==3){
+        dispz.SetDataAndSize(elfun.GetData()+2*dof,dof);
+    }
+
+    mfem::Vector bdisp; bdisp.SetSize(dim); //boundary displacements
+    mfem::Vector tract; tract.SetSize(dim); //tractions
+    mfem::Vector ddist; ddist.SetSize(dim); //[LS unit normal]*distance
+
+    mfem::Vector rvec(dim*dof); //tmp residual vector
+
+    int elmNo=Tr.ElementNo;
+    ElementTransformation* ltr;
+
+    // we need the element number to figure out if we
+    // will be working with element 1 or 2 in the integration
+
+    // all element faces are stored in bfaces
+    for(unsigned int i=0;i<bfaces.size();i++)
+    {
+        mfem::FaceElementTransformations *fctr;
+        // the original element transformation is invalidated
+        fctr=pmesh->GetInteriorFaceTransformations(bfaces[i]);
+        if(fctr==nullptr){
+            fctr=pmesh->GetFaceElementTransformations(bfaces[i]);
+        }
+        int order = 4*el.GetOrder();
+        ir = &IntRules.Get(fctr->GetGeometryType(), order);
+
+        // the original element transformation is invalidated
+        // after the call to GetInteriorFaceTransformations
+        if(fctr->Elem1No==elmNo){
+            ltr=fctr->Elem1;
+        }else{
+            ltr=fctr->Elem2;
+        }
+
+        double facei=0.0;
+
+        // integrate over the face
+        for (int p = 0; p < ir->GetNPoints(); p++)
+        {
+           const IntegrationPoint &ip = ir->IntPoint(p);
+           fctr->SetAllIntPoints(&ip); // sets the integration for the element as well
+           //calculate the surrogate normal
+           // Note: this normal accounts for the weight of the surface transformation
+           // Jacobian i.e. nnor = nhat*det(J)
+           CalcOrtho(fctr->Jacobian(),nnor);
+           // Make sure the normal vector is pointing outside the domain.
+           if(fctr->Elem2No==elmNo){nnor*=-1.0;}//reverse the normal
+           //normalize nnor
+           {
+               double nn0=nnor.Norml2();
+               if(nn0>std::numeric_limits<double>::epsilon()){nnor_n=nnor; nnor_n/=nn0;}
+               else{nnor_n=0.0;}
+           }
+
+           //calculate the distance
+           double d=dist_coeff->Eval(*fctr,ip);
+           //calculate the gradient of the SDF
+           dist_grad->Eval(nvec,*fctr,ip);
+           //normalize nvec - the true normal
+           double nn=nvec.Norml2();
+           if(nn>std::numeric_limits<double>::epsilon()){nvec/=nn;}
+           else{nvec=0.0;}
+
+           //compute boundary displacements
+           {
+               if(bdr_disp==nullptr){
+                   bdisp=0.0;
+               }else{
+                   ddist=nvec; ddist*=d;
+                   bdr_disp->Eval(bdisp,*fctr,ip,ddist);
+               }
+           }
+           std::cout<<"bdisp :"; bdisp.Print(std::cout);
+           /*
+           std::cout<<"d="<<d<<" tnor="; nvec.Print(std::cout);
+           std::cout<<"nnor :"; nnor.Print(std::cout);
+           std::cout<<"dot :"<<nnor*nvec<<std::endl;
+           */
+
+           //evaluate the shift operators
+           EvalShiftOperator(grad_phys,d,nvec,shift_order,shift_op,shift_ts);
+
+           //evaluate the shape functions
+           el.CalcPhysShape(*ltr, shape);
+           el.CalcPhysDShape(*ltr, B);
+           shift_op.MultTranspose(shape,shape_sh); //now we have the shifted shape functions
+           shift_ts.MultTranspose(shape,shape_ts); //now we have the shifted test functions
+
+           double helm=std::pow(ltr->Weight(),1./dim); //the element size
+           //evaluate the displacement constr i.e. shifted_disp-prescribed_disp
+           bdisp(0)=-bdisp(0)+shape_sh*dispx;
+           bdisp(1)=-bdisp(1)+shape_sh*dispy;
+           if(dim==3){
+               bdisp(2)=-bdisp(2)+shape_sh*dispz;
+           }
+
+           std::cout<<"bdisp :"; bdisp.Print(std::cout);
+
+           //compute the boundary stress operator bdrstress_op
+           elco->EvalStiffness(D, strain_v, *fctr,ip);
+           BndrStressOperator(dim,B,D,nnor_n,bdrstress_op);
+           //compute the traction to the surogate bdr
+           bdrstress_op.Mult(elfun,tract);
+
+           for(int dd=0;dd<dim;dd++){
+           for(int ii=0;ii<dof;ii++){
+               elvect(dd*dof+ii)=elvect(dd*dof+ii)-shape(ii)*tract(dd)*ip.weight*nnor.Norml2();
+           }}
+
+
+           bdrstress_op.MultTranspose(bdisp,rvec);
+           for(int ii=0;ii<dim*dof;ii++){
+               elvect(ii)=elvect(ii)-rvec(ii)*ip.weight*nnor.Norml2();
+           }
+
+           for(int dd=0;dd<dim;dd++){
+           for(int ii=0;ii<dof;ii++){
+               elvect(dd*dof+ii)=elvect(dd*dof+ii)+alpha*bdisp(dd)*shape_ts(ii)*ip.weight*nnor.Norml2()/helm;
+               //elvect(dd*dof+ii)=elvect(dd*dof+ii)+alpha*bdisp(dd)*shape_sh(ii)*ip.weight*nnor.Norml2()/helm;
+           }}
+
+           facei=facei+ip.weight*nnor.Norml2();
+
+        }
+
+        //std::cout<<"length/area="<<facei<<std::endl;
+
+
+
+    }
+
+}
+
+
+void SBM2ELIntegrator::AssembleElementVectorI(const FiniteElement &el,
                                                    ElementTransformation &Tr,
                                                    const Vector &elfun, Vector &elvect)
 {
     elvect.SetSize(elfun.Size());
     elvect=0.0;
+
+    if((*elem_attributes)[Tr.ElementNo]==mfem::ElementMarker::SBElementType::INSIDE){
+        elint->AssembleElementVector(el,Tr,elfun,elvect);
+    }
+
+    //If the element is not inside there isn't anything to integrate - the contribution is zero
+    if((*elem_attributes)[Tr.ElementNo]!=mfem::ElementMarker::SBElementType::INSIDE){return;}
+    //get dimensionality of the problem
+    const int dim=Tr.GetSpaceDim();
+
+    std::vector<int> bfaces;
+
+    if(dim==3){
+        const mfem::Table& elem_face=pmesh->ElementToFaceTable();
+        int num_faces=elem_face.RowSize(Tr.ElementNo);
+        const int* faces=elem_face.GetRow(Tr.ElementNo);
+        for(int facei=0;facei<num_faces;facei++)
+        {
+            if((*face_attributes)[faces[facei]]==ElementMarker::SBFaceType::SURROGATE)
+            {
+                bfaces.push_back(faces[facei]);
+            }
+        }
+    }else{
+        //dim==2
+        const mfem::Table& elem_edge=pmesh->ElementToEdgeTable();
+        int num_edges=elem_edge.RowSize(Tr.ElementNo);
+        const int* faces=elem_edge.GetRow(Tr.ElementNo);
+        for(int facei=0;facei<num_edges;facei++)
+        {
+            if((*face_attributes)[faces[facei]]==ElementMarker::SBFaceType::SURROGATE)
+            {
+                bfaces.push_back(faces[facei]);
+            }
+        }
+    }
+
+    if(bfaces.size()==0){return;} //no crossed edges/faces return
+
+    mfem::Vector nnor; nnor.SetSize(dim); //surrogate normal vector
+    mfem::Vector nnor_n; nnor_n.SetSize(dim); //surrogate normal vector normalized
+    mfem::Vector nvec; nvec.SetSize(dim); //true normal vector
+    const int dof=el.GetDof();
+    const IntegrationRule *ir;
+
+    //computes the gradient at the nodal points of the element
+    DenseMatrix grad_phys;
+    el.ProjectGrad(el,Tr,grad_phys);
+    /*
+    {
+        DenseMatrix B; B.SetSize(dof,dim);
+        grad_phys.SetSize(dim*dof,dof);
+        const IntegrationRule& ir=el.GetNodes();
+
+        for(int ii=0;ii<dof;ii++){
+            const IntegrationPoint &ip = ir.IntPoint(ii);
+            Tr.SetIntPoint(&ip);
+            el.CalcPhysDShape(Tr, B);
+            for(int jj=0;jj<dof;jj++){
+            for(int di=0;di<dim;di++){
+                grad_phys(ii+dof*di,jj)=B(jj,di);
+            }}
+        }
+
+    }*/
+
+    DenseMatrix shift_op; shift_op.SetSize(dof);
+    DenseMatrix shift_ts; shift_ts.SetSize(dof);
+    Vector shape; shape.SetSize(dof);
+    Vector shape_sh; shape_sh.SetSize(dof);
+    Vector shape_ts; shape_ts.SetSize(dof);
+    DenseMatrix bdrstress_op;//boundary stress operator
+    bdrstress_op.SetSize(dim,dim*dof); bdrstress_op=0.0;
+    DenseMatrix disp_op; disp_op.SetSize(dim,dim*dof);
+    DenseMatrix B; B.SetSize(dof,dim);
+    DenseMatrix D; //elasticity matrix
+    Vector strain_v;
+    if(dim==3){D.SetSize(6); strain_v.SetSize(6); strain_v=0.0;}
+    else{D.SetSize(3);strain_v.SetSize(3); strain_v=0.0;}
+
+    Vector dispx(elfun.GetData()+0*dof,dof);
+    Vector dispy(elfun.GetData()+1*dof,dof);
+    Vector dispz;
+    if(dim==3){
+        dispz.SetDataAndSize(elfun.GetData()+2*dof,dof);
+    }
+
+    mfem::Vector bdisp; bdisp.SetSize(dim); //boundary displacements
+    mfem::Vector tract; tract.SetSize(dim); //tractions
+    mfem::Vector ddist; ddist.SetSize(dim); //[LS unit normal]*distance
+
+    mfem::Vector rvec(dim*dof); //tmp residual vector
+
+
+    ElementTransformation* ltr;
+    int elmNo=Tr.ElementNo;
+    // we need the element number to figure out if we
+    // will be working with element 1 or 2 in the integration
+
+    // all element faces are stored in bfaces
+    for(unsigned int i=0;i<bfaces.size();i++)
+    {
+        mfem::FaceElementTransformations *fctr;
+        // the original element transformation is invalidated
+        fctr=pmesh->GetInteriorFaceTransformations(bfaces[i]);
+        if(fctr==nullptr){
+            fctr=pmesh->GetFaceElementTransformations(bfaces[i]);
+        }
+        int order = 4*el.GetOrder();
+        ir = &IntRules.Get(fctr->GetGeometryType(), order);
+
+        // the original element transformation is invalidated
+        // after the call to GetInteriorFaceTransformations
+
+        if(fctr->Elem1No==elmNo){
+            ltr=fctr->Elem1;
+        }else{
+            ltr=fctr->Elem2;
+        }
+
+        double facei=0.0;
+
+        // integrate over the face
+        for (int p = 0; p < ir->GetNPoints(); p++)
+        {
+           const IntegrationPoint &ip = ir->IntPoint(p);
+           fctr->SetAllIntPoints(&ip); // sets the integration for the element as well
+           //calculate the surrogate normal
+           // Note: this normal accounts for the weight of the surface transformation
+           // Jacobian i.e. nnor = nhat*det(J)
+           CalcOrtho(fctr->Jacobian(),nnor);
+           // Make sure the normal vector is pointing outside the domain.
+           if(fctr->Elem2No==elmNo){nnor*=-1.0;}//reverse the normal
+           //normalize nnor
+           {
+               double nn0=nnor.Norml2();
+               if(nn0>std::numeric_limits<double>::epsilon()){nnor_n=nnor; nnor_n/=nn0;}
+               else{nnor_n=0.0;}
+           }
+           //calculate the distance
+           double d=dist_coeff->Eval(*fctr,ip);
+           //calculate the gradient of the SDF
+           dist_grad->Eval(nvec,*fctr,ip);
+           //normalize nvec - the true normal
+           double nn=nvec.Norml2();
+           if(nn>std::numeric_limits<double>::epsilon()){nvec/=nn;}
+           else{nvec=0.0;}
+
+           //compute boundary displacements
+           {
+               if(bdr_disp==nullptr){
+                   bdisp=0.0;
+               }else{
+                   ddist=nvec; ddist*=d;
+                   bdr_disp->Eval(bdisp,*fctr,ip,ddist);
+                   //bdr_disp->Eval(bdisp,*fctr,ip);
+               }
+           }
+
+           /*
+           {
+               std::cout<<"d="<<d<<" "; nvec.Print(std::cout);
+               Vector bbla(dim);
+               fctr->Transform(ip,bbla);
+               bbla(0)=bbla(0)+d*nvec(0);
+               bbla(1)=bbla(1)+d*nvec(1);
+               Vector uul(dim);
+               DispFunctionLL(bbla,uul);
+               std::cout<<"r="<<bbla.Norml2()<<" "; uul.Print(std::cout);
+
+               Vector uuc(dim);
+               uuc(0)=shape_sh*dispx;
+               uuc(1)=shape_sh*dispy;
+               uuc.Print(std::cout);
+           }*/
+
+
+           //evaluate the shift operators
+           EvalShiftOperator(grad_phys,d,nvec,shift_order,shift_op,shift_ts);
+           //evaluate the shape functions
+           el.CalcPhysShape(*ltr, shape);
+           el.CalcPhysDShape(*ltr, B);
+           shift_op.MultTranspose(shape,shape_sh); //now we have the shifted shape functions
+           shift_ts.MultTranspose(shape,shape_ts); //now we have the shifted test functions
+
+           /*
+           Vector shift_shape;
+           EvalShiftShapes(shape,B,d,nvec,shift_shape);
+           std::cout<<"True shift: ";shift_shape.Print(std::cout);
+           std::cout<<"Appr shift: ";shape_sh.Print(std::cout);
+           */
+           //const DenseMatrix& J= ltr->Jacobian();
+           //J.Print(std::cout);
+
+           double helm=std::pow(ltr->Weight(),1./dim); //the element size
+           //evaluate the displacement constr i.e. shifted_disp-prescribed_disp
+           bdisp(0)=-bdisp(0)+shape_sh*dispx;
+           bdisp(1)=-bdisp(1)+shape_sh*dispy;
+           if(dim==3){
+               bdisp(2)=-bdisp(2)+shape_sh*dispz;
+           }
+           //compute the boundary stress operator bdrstress_op
+           elco->EvalStiffness(D, strain_v, *fctr,ip);
+           BndrStressOperator(dim,B,D,nnor_n,bdrstress_op);
+           //compute the traction to the surogate bdr
+           bdrstress_op.Mult(elfun,tract);
+
+
+           for(int dd=0;dd<dim;dd++){
+           for(int ii=0;ii<dof;ii++){
+               elvect(dd*dof+ii)=elvect(dd*dof+ii)-shape(ii)*tract(dd)*ip.weight*nnor.Norml2();
+           }}
+
+
+           bdrstress_op.MultTranspose(bdisp,rvec);
+           for(int ii=0;ii<dim*dof;ii++){
+               elvect(ii)=elvect(ii)-rvec(ii)*ip.weight*nnor.Norml2();
+           }
+
+           for(int dd=0;dd<dim;dd++){
+           for(int ii=0;ii<dof;ii++){
+               elvect(dd*dof+ii)=elvect(dd*dof+ii)+alpha*bdisp(dd)*shape_ts(ii)*ip.weight*nnor.Norml2()/helm;
+               //elvect(dd*dof+ii)=elvect(dd*dof+ii)+alpha*bdisp(dd)*shape_sh(ii)*ip.weight*nnor.Norml2()/helm;
+           }}
+
+
+
+           facei=facei+ip.weight*nnor.Norml2();
+
+        }
+
+        //std::cout<<"length/area="<<facei<<std::endl;
+
+    }
+
 }
 
 void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
@@ -796,11 +1281,184 @@ void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
 {
     elmat.SetSize(elfun.Size());
     elmat=0.0;
+    if((*elem_attributes)[Tr.ElementNo]==mfem::ElementMarker::SBElementType::INSIDE){
+        elint->AssembleElementGrad(el,Tr,elfun,elmat);
+    }
 
-    //If the element is inside there isn't anything to integrate - the contribution is zero
-    if((*elem_attributes)[Tr.ElementNo]!=mfem::ShiftedFaceMarker::SBElementType::INSIDE){return;}
+    //If the element is not inside there isn't anything to integrate - the contribution is zero
+    if((*elem_attributes)[Tr.ElementNo]!=mfem::ElementMarker::SBElementType::INSIDE){return;}
+
     //get dimensionality of the problem
-    const int dim=Tr.GetDimension();
+    const int dim=Tr.GetSpaceDim();
+    std::vector<int> bfaces;
+    if(dim==3){
+        const mfem::Table& elem_face=pmesh->ElementToFaceTable();
+        int num_faces=elem_face.RowSize(Tr.ElementNo);
+        const int* faces=elem_face.GetRow(Tr.ElementNo);
+        for(int facei=0;facei<num_faces;facei++)
+        {
+            if((*face_attributes)[faces[facei]]==mfem::ElementMarker::SBFaceType::SURROGATE)
+            {
+                bfaces.push_back(faces[facei]);
+            }
+        }
+    }else{
+        //dim==2
+        const mfem::Table& elem_edge=pmesh->ElementToEdgeTable();
+        int num_edges=elem_edge.RowSize(Tr.ElementNo);
+        const int* faces=elem_edge.GetRow(Tr.ElementNo);
+        for(int facei=0;facei<num_edges;facei++)
+        {
+            if((*face_attributes)[faces[facei]]==mfem::ElementMarker::SBFaceType::SURROGATE)
+            {
+                bfaces.push_back(faces[facei]);
+            }
+        }
+    }
+
+    if(bfaces.size()==0){return;}
+
+
+    mfem::Vector nnor; nnor.SetSize(dim); //surrogate normal vector
+    mfem::Vector nnor_n; nnor_n.SetSize(dim); //surrogate normal vector normalized
+    mfem::Vector nvec; nvec.SetSize(dim); //true normal vector
+    const int dof=el.GetDof();
+    const IntegrationRule *ir;
+
+    //computes the gradient at the nodal points of the element
+    DenseMatrix grad_phys;
+    el.ProjectGrad(el,Tr,grad_phys);
+
+    DenseMatrix shift_op; shift_op.SetSize(dof);
+    DenseMatrix shift_ts; shift_ts.SetSize(dof);
+    Vector shape; shape.SetSize(dof);
+    Vector shape_sh; shape_sh.SetSize(dof);
+    Vector shape_ts; shape_ts.SetSize(dof);
+    DenseMatrix mtmp; mtmp.SetSize(dof);
+    DenseMatrix btmp; btmp.SetSize(dim*dof);
+    DenseMatrix bdrstress_op;//boundary stress operator
+    bdrstress_op.SetSize(dim,dim*dof); bdrstress_op=0.0;
+    DenseMatrix disp_op; disp_op.SetSize(dim,dim*dof);
+    DenseMatrix B; B.SetSize(dof,dim);
+    DenseMatrix D; //elasticity matrix
+    Vector strain_v;
+    if(dim==3){D.SetSize(6); strain_v.SetSize(6); strain_v=0.0;}
+    else{D.SetSize(3);strain_v.SetSize(3); strain_v=0.0;}
+
+    ElementTransformation *ltr;
+    int elmNo=Tr.ElementNo;
+    // we need the element number to figure out if we
+    // will be working with element 1 or 2 in the integration
+
+
+    // all element faces are stored in bfaces
+    for(unsigned int i=0;i<bfaces.size();i++)
+    {
+        mfem::FaceElementTransformations *fctr;
+        // the original element transformation is invalidated
+        fctr=pmesh->GetInteriorFaceTransformations(bfaces[i]);
+        if(fctr==nullptr){
+            fctr=pmesh->GetFaceElementTransformations(bfaces[i]);
+        }
+        int order = 4*el.GetOrder();
+        ir = &IntRules.Get(fctr->GetGeometryType(), order);
+
+        // the original element transformation is invalidated
+        // after the call to GetInteriorFaceTransformations
+        if(fctr->Elem1No==elmNo){
+            ltr=(fctr->Elem1);
+        }else{
+            ltr=(fctr->Elem2);
+        }
+
+        // integrate over the face
+        for (int p = 0; p < ir->GetNPoints(); p++)
+        {
+           const IntegrationPoint &ip = ir->IntPoint(p);
+           fctr->SetAllIntPoints(&ip); // sets the integration for the element as well
+           //calculate the surrogate normal
+           // Note: this normal accounts for the weight of the surface transformation
+           // Jacobian i.e. nnor = nhat*det(J)
+           CalcOrtho(fctr->Jacobian(),nnor);
+           // Make sure the normal vector is pointing outside the domain.
+           if(fctr->Elem2No==elmNo){nnor*=-1.0;}//reverse the normal
+           //normalize nnor
+           {
+               double nn0=nnor.Norml2();
+               if(nn0>std::numeric_limits<double>::epsilon()){nnor_n=nnor; nnor_n/=nn0;}
+               else{nnor_n=0.0;}
+           }
+           //calculate the distance
+           double d=dist_coeff->Eval(*fctr,ip);
+           //calculate the gradient of the SDF
+           dist_grad->Eval(nvec,*fctr,ip);
+           //normalize nvec - the true normal
+           double nn=nvec.Norml2();
+           if(nn>std::numeric_limits<double>::epsilon()){nvec/=nn;}
+           else{nvec=0.0;}
+
+           //evaluate the shift operators
+           EvalShiftOperator(grad_phys,d,nvec,shift_order,shift_op,shift_ts);
+           //evaluate the shape functions
+           el.CalcPhysShape(*ltr, shape);
+           el.CalcPhysDShape(*ltr, B);
+           shift_op.MultTranspose(shape,shape_sh); //now we have the shifted shape functions
+           shift_ts.MultTranspose(shape,shape_ts); //now we have the shifted test functions
+
+           //add the penalization term
+           MultVWt(shape_ts,shape_sh,mtmp);
+           //MultVWt(shape_sh,shape_sh,mtmp);
+           double helm=std::pow(ltr->Weight(),1./dim); //the element size
+           //add mtmp to elmat
+           for(int ii=0;ii<dof;ii++){
+           for(int jj=0;jj<dof;jj++){
+           for(int di=0;di<dim;di++){
+               elmat(ii+di*dof,jj+di*dof)=elmat(ii+di*dof,jj+di*dof)+mtmp(ii,jj)*alpha*ip.weight*nnor.Norml2()/helm;
+           }}}
+
+           //compute \sigma_n where n is the surrogate normal nnor
+           //compute the boundary stress operator bdrstress_op
+           elco->EvalStiffness(D, strain_v, *fctr,ip);
+           BndrStressOperator(dim,B,D,nnor_n,bdrstress_op);
+
+           //compute shifted disp_op
+           EvalDispOp(dim,shape_sh,disp_op);
+           MultAtB(bdrstress_op,disp_op,btmp);
+           for(int ii=0;ii<dim*dof;ii++){
+           for(int jj=0;jj<dim*dof;jj++){
+               elmat(ii,jj)=elmat(ii,jj)-btmp(ii,jj)*ip.weight*nnor.Norml2();
+           }}
+
+           //compute true disp_op
+           EvalDispOp(dim,shape,disp_op);
+           MultAtB(disp_op,bdrstress_op,btmp);
+           for(int ii=0;ii<dim*dof;ii++){
+           for(int jj=0;jj<dim*dof;jj++){
+               elmat(ii,jj)=elmat(ii,jj)-btmp(ii,jj)*ip.weight*nnor.Norml2();
+           }}
+
+        }
+    }
+
+}
+
+void SBM2ELIntegrator::AssembleElementGradI(const FiniteElement &el,
+                                           ElementTransformation &Tr,
+                                           const Vector &elfun,
+                                           DenseMatrix &elmat)
+{
+    elmat.SetSize(elfun.Size());
+    elmat=0.0;
+    if((*elem_attributes)[Tr.ElementNo]==mfem::ElementMarker::SBElementType::INSIDE){
+        elint->AssembleElementGrad(el,Tr,elfun,elmat);
+    }
+
+    //If the element is not inside there isn't anything to integrate - the contribution is zero
+    if((*elem_attributes)[Tr.ElementNo]!=mfem::ElementMarker::SBElementType::INSIDE){return;}
+    //get dimensionality of the problem
+    const int dim=Tr.GetSpaceDim();
+
+
 
     std::vector<int> bfaces;
 
@@ -810,12 +1468,7 @@ void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
             const int* faces=elem_face.GetRow(Tr.ElementNo);
             for(int facei=0;facei<num_faces;facei++)
             {
-                /*
-                if(pmesh->FaceIsInterior(faces[facei])){
-                    bfaces.push_back(faces[facei]);
-                }
-                */
-                if((*face_attributes)[faces[facei]]==ShiftedFaceMarker::SBFaceType::SURROGATE)
+                if((*face_attributes)[faces[facei]]==ElementMarker::SBFaceType::SURROGATE)
                 {
                     bfaces.push_back(faces[facei]);
                 }
@@ -827,13 +1480,7 @@ void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
             const int* faces=elem_edge.GetRow(Tr.ElementNo);
             for(int facei=0;facei<num_edges;facei++)
             {
-                /*
-                if(pmesh->FaceIsInterior(faces[facei]))
-                {
-                    bfaces.push_back(faces[facei]);
-                }
-                */
-                if((*face_attributes)[faces[facei]]==ShiftedFaceMarker::SBFaceType::SURROGATE)
+                if((*face_attributes)[faces[facei]]==ElementMarker::SBFaceType::SURROGATE)
                 {
                     bfaces.push_back(faces[facei]);
                 }
@@ -867,9 +1514,11 @@ void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
         if(dim==3){D.SetSize(6); strain_v.SetSize(6); strain_v=0.0;}
         else{D.SetSize(3);strain_v.SetSize(3); strain_v=0.0;}
 
+        ElementTransformation *ltr;
         int elmNo=Tr.ElementNo;
         // we need the element number to figure out if we
         // will be working with element 1 or 2 in the integration
+
 
         // all element faces are stored in bfaces
         for(unsigned int i=0;i<bfaces.size();i++)
@@ -877,18 +1526,19 @@ void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
             mfem::FaceElementTransformations *fctr;
             // the original element transformation is invalidated
             fctr=pmesh->GetInteriorFaceTransformations(bfaces[i]);
+            if(fctr==nullptr){
+                fctr=pmesh->GetFaceElementTransformations(bfaces[i]);
+            }
             int order = 4*el.GetOrder();
             ir = &IntRules.Get(fctr->GetGeometryType(), order);
 
             // the original element transformation is invalidated
             // after the call to GetInteriorFaceTransformations
             if(fctr->Elem1No==elmNo){
-                Tr=*(fctr->Elem1);
+                ltr=(fctr->Elem1);
             }else{
-                Tr=*(fctr->Elem2);
+                ltr=(fctr->Elem2);
             }
-
-            std::cout<<"Face="<<bfaces[i]<<std::endl;
 
             double facei=0.0;
 
@@ -901,14 +1551,14 @@ void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
                // Note: this normal accounts for the weight of the surface transformation
                // Jacobian i.e. nnor = nhat*det(J)
                CalcOrtho(fctr->Jacobian(),nnor);
+               // Make sure the normal vector is pointing outside the domain.
+               if(fctr->Elem2No==elmNo){nnor*=-1.0;}//reverse the normal
                //normalize nnor
                {
                    double nn0=nnor.Norml2();
                    if(nn0>std::numeric_limits<double>::epsilon()){nnor_n=nnor; nnor_n/=nn0;}
                    else{nnor_n=0.0;}
                }
-               // Make sure the normal vector is pointing outside the domain.
-               if(fctr->Elem2No==elmNo){nnor*=-1.0;}//reverse the normal
                //calculate the distance
                double d=dist_coeff->Eval(*fctr,ip);
                //calculate the gradient of the SDF
@@ -917,17 +1567,26 @@ void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
                double nn=nvec.Norml2();
                if(nn>std::numeric_limits<double>::epsilon()){nvec/=nn;}
                else{nvec=0.0;}
+
                //evaluate the shift operators
                EvalShiftOperator(grad_phys,d,nvec,shift_order,shift_op,shift_ts);
                //evaluate the shape functions
-               el.CalcPhysShape(Tr, shape);
-               el.CalcPhysDShape(Tr, B);
+               el.CalcPhysShape(*ltr, shape);
+               el.CalcPhysDShape(*ltr, B);
                shift_op.MultTranspose(shape,shape_sh); //now we have the shifted shape functions
                shift_ts.MultTranspose(shape,shape_ts); //now we have the shifted test functions
 
+               /*
+               Vector shift_shape;
+               EvalShiftShapes(shape,B,d,nvec,shift_shape);
+               std::cout<<"True shift: ";shift_shape.Print(std::cout);
+               std::cout<<"Appr shift: ";shape_sh.Print(std::cout);
+               */
+
                //add the penalization term
                MultVWt(shape_ts,shape_sh,mtmp);
-               double helm=std::pow(Tr.Weight(),1./dim); //the element size
+               //MultVWt(shape_sh,shape_sh,mtmp);
+               double helm=std::pow(ltr->Weight(),1./dim); //the element size
                //add mtmp to elmat
                for(int ii=0;ii<dof;ii++){
                for(int jj=0;jj<dof;jj++){
@@ -939,6 +1598,7 @@ void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
                //compute the boundary stress operator bdrstress_op
                elco->EvalStiffness(D, strain_v, *fctr,ip);
                BndrStressOperator(dim,B,D,nnor_n,bdrstress_op);
+
 
                //compute shifted disp_op
                EvalDispOp(dim,shape_sh,disp_op);
@@ -956,16 +1616,55 @@ void SBM2ELIntegrator::AssembleElementGrad(const FiniteElement &el,
                    elmat(ii,jj)=elmat(ii,jj)-btmp(ii,jj)*ip.weight*nnor.Norml2();
                }}
 
-               facei=facei+ip.weight*nnor.Norml2();
+
+               //facei=facei+ip.weight*nnor.Norml2();
 
             }
 
-            std::cout<<"length/area="<<facei<<std::endl;
+            //std::cout<<"length/area="<<facei<<std::endl;
 
 
         }
 
 
+}
+
+void SBM2ELIntegrator:: EvalShiftShapes(mfem::Vector& shape, mfem::DenseMatrix& grad, double dist,
+                                          mfem::Vector& dir, mfem::Vector& shift_shape)
+{
+    shift_shape.SetSize(shape.Size());
+    shift_shape=shape;
+    const int dim=dir.Size();
+    for(int ii=0;ii<shape.Size();ii++){
+        shift_shape[ii]=0.0;
+        for(int di=0;di<dim;di++){
+            shift_shape[ii]=shift_shape[ii]+grad(ii,di)*dir(di);
+        }
+        shift_shape[ii]=dist*shift_shape[ii]+shape[ii];
+    }
+}
+
+
+void SBM2ELIntegrator::EvalTestShiftOperator(mfem::DenseMatrix &grad_phys, double dist,
+                                             mfem::Vector &dir,
+                                             mfem::DenseMatrix &shift_test)
+{
+    int ndofs=grad_phys.Width();
+    int nrows=grad_phys.Height();
+    int dim=nrows/ndofs;
+
+    shift_test.SetSize(ndofs);
+
+    mfem::DenseMatrix mat00;
+    mat00.SetSize(ndofs);
+    mat00=0.0;
+
+    for(int di=0;di<dim;di++){
+        shift_test.CopyRows(grad_phys,di*ndofs,(di+1)*ndofs-1);
+        mat00.Add(dist*dir(di),shift_test);
+    }
+    shift_test.Diag(1.0,ndofs);
+    shift_test.Add(1.0,mat00);
 }
 
 void SBM2ELIntegrator::EvalShiftOperator(mfem::DenseMatrix& grad_phys, double dist,
@@ -988,7 +1687,7 @@ void SBM2ELIntegrator::EvalShiftOperator(mfem::DenseMatrix& grad_phys, double di
         mat00.Add(dist*dir(di),shift_op);
     }
     shift_op.Diag(1.0,ndofs);
-    shift_op.Add(1.0,mat00);
+    if(order>0){shift_op.Add(1.0,mat00);}
     shift_test=shift_op;
 
     if(order>1)
@@ -1135,4 +1834,613 @@ void SBM2ELIntegrator::BndrStressOperator(int dim, mfem::DenseMatrix &B,
     MultAtB(G,stress_op,bdrstress_op);
 }
 
+void SBM2NNIntegrator::AssembleElementVector(const FiniteElement &el,
+                                             ElementTransformation &Tr,
+                                             const Vector &elfun,
+                                             Vector &elvect)
+{
+    elvect.SetSize(elfun.Size());
+    elvect=0.0;
 
+    if((*elem_attributes)[Tr.ElementNo]==mfem::ElementMarker::SBElementType::INSIDE){
+        elint->AssembleElementVector(el,Tr,elfun,elvect);
+    }
+
+    //If the element is not inside there isn't anything to integrate - the contribution is zero
+    if((*elem_attributes)[Tr.ElementNo]!=mfem::ElementMarker::SBElementType::INSIDE){return;}
+    //get dimensionality of the problem
+    const int dim=Tr.GetSpaceDim();
+
+    std::vector<int> bfaces;
+
+    if(dim==3){
+        const mfem::Table& elem_face=pmesh->ElementToFaceTable();
+        int num_faces=elem_face.RowSize(Tr.ElementNo);
+        const int* faces=elem_face.GetRow(Tr.ElementNo);
+        for(int facei=0;facei<num_faces;facei++)
+        {
+            if((*face_attributes)[faces[facei]]==ElementMarker::SBFaceType::SURROGATE)
+            {
+                bfaces.push_back(faces[facei]);
+            }
+        }
+    }else{
+        //dim==2
+        const mfem::Table& elem_edge=pmesh->ElementToEdgeTable();
+        int num_edges=elem_edge.RowSize(Tr.ElementNo);
+        const int* faces=elem_edge.GetRow(Tr.ElementNo);
+        for(int facei=0;facei<num_edges;facei++)
+        {
+            if((*face_attributes)[faces[facei]]==ElementMarker::SBFaceType::SURROGATE)
+            {
+                bfaces.push_back(faces[facei]);
+            }
+        }
+    }
+
+    if(bfaces.size()==0){return;} //no crossed edges/faces return
+
+
+    mfem::Vector nnor; nnor.SetSize(dim); //surrogate normal vector
+    mfem::Vector nnor_n; nnor_n.SetSize(dim); //surrogate normal vector normalized
+    mfem::Vector nvec; nvec.SetSize(dim); //true normal vector
+    const int dof=el.GetDof();
+    const IntegrationRule *ir;
+
+    //computes the gradient at the nodal points of the element
+    DenseMatrix grad_phys;
+    //el.ProjectGrad(el,Tr,grad_phys);
+    FormL2Grad(el,Tr,grad_phys);
+
+    DenseMatrix shift_op; shift_op.SetSize(dof);
+    DenseMatrix shift_ts; shift_ts.SetSize(dof);
+    Vector shape; shape.SetSize(dof);
+    Vector shape_sh; shape_sh.SetSize(dof);
+    Vector shape_ts; shape_ts.SetSize(dof);
+    DenseMatrix bdrstress_op;//boundary stress operator
+    bdrstress_op.SetSize(dim,dim*dof); bdrstress_op=0.0;
+    DenseMatrix disp_op; disp_op.SetSize(dim,dim*dof);
+    DenseMatrix B; B.SetSize(dof,dim);
+    DenseMatrix Bsh; Bsh.SetSize(dof,dim);
+    DenseMatrix D; //elasticity matrix
+    Vector strain_v;
+    if(dim==3){D.SetSize(6); strain_v.SetSize(6); strain_v=0.0;}
+    else{D.SetSize(3);strain_v.SetSize(3); strain_v=0.0;}
+
+    Vector dispx(elfun.GetData()+0*dof,dof);
+    Vector dispy(elfun.GetData()+1*dof,dof);
+    Vector dispz;
+    if(dim==3){
+        dispz.SetDataAndSize(elfun.GetData()+2*dof,dof);
+    }
+
+    mfem::Vector tract; tract.SetSize(dim); //tractions
+    mfem::Vector tmpve; tmpve.SetSize(dim);
+    mfem::Vector ddist; ddist.SetSize(dim); //[LS unit normal]*distance
+
+    mfem::Vector rvec(dim*dof); //tmp residual vector
+
+    int elmNo=Tr.ElementNo;
+    ElementTransformation* ltr;
+
+    // we need the element number to figure out if we
+    // will be working with element 1 or 2 in the integration
+
+    // all element faces are stored in bfaces
+    for(unsigned int i=0;i<bfaces.size();i++)
+    {
+        mfem::FaceElementTransformations *fctr;
+        // the original element transformation is invalidated
+        fctr=pmesh->GetInteriorFaceTransformations(bfaces[i]);
+        if(fctr==nullptr){
+            fctr=pmesh->GetFaceElementTransformations(bfaces[i]);
+        }
+        int order = 4*el.GetOrder();
+        ir = &IntRules.Get(fctr->GetGeometryType(), order);
+
+        // the original element transformation is invalidated
+        // after the call to GetInteriorFaceTransformations
+        if(fctr->Elem1No==elmNo){
+            ltr=fctr->Elem1;
+        }else{
+            ltr=fctr->Elem2;
+        }
+
+        double facei=0.0;
+
+        // integrate over the face
+        for (int p = 0; p < ir->GetNPoints(); p++)
+        {
+           const IntegrationPoint &ip = ir->IntPoint(p);
+           fctr->SetAllIntPoints(&ip); // sets the integration for the element as well
+           //calculate the surrogate normal
+           // Note: this normal accounts for the weight of the surface transformation
+           // Jacobian i.e. nnor = nhat*det(J)
+           CalcOrtho(fctr->Jacobian(),nnor);
+           // Make sure the normal vector is pointing outside the domain.
+           if(fctr->Elem2No==elmNo){nnor*=-1.0;}//reverse the normal
+           //normalize nnor
+           {
+               double nn0=nnor.Norml2();
+               if(nn0>std::numeric_limits<double>::epsilon()){nnor_n=nnor; nnor_n/=nn0;}
+               else{nnor_n=0.0;}
+           }
+
+           //calculate the distance
+           double d=dist_coeff->Eval(*fctr,ip);
+           //calculate the gradient of the SDF
+           dist_grad->Eval(nvec,*fctr,ip);
+           //normalize nvec - the true normal
+           double nn=nvec.Norml2();
+           if(nn>std::numeric_limits<double>::epsilon()){nvec/=nn;}
+           else{nvec=0.0;}
+
+           //compute traction
+           {
+               if(bdr_force==nullptr)
+               {
+                   tmpve=0.0;
+               }else{
+                   ddist=nvec; ddist*=d;
+                   bdr_force->Eval(tmpve,*fctr,ip,ddist);
+               }
+           }
+
+           //evaluate the shift operators
+           EvalShiftOperator(grad_phys,d,nvec,shift_order,shift_op,shift_ts);
+
+           //evaluate the shape functions
+           el.CalcPhysShape(*ltr, shape);
+           el.CalcPhysDShape(*ltr, B);
+           shift_op.MultTranspose(shape,shape_sh); //now we have the shifted shape functions
+           shift_ts.MultTranspose(shape,shape_ts); //now we have the shifted test functions
+
+           double dp=nnor_n*nvec;
+
+           for(int dd=0;dd<dim;dd++){
+           for(int ii=0;ii<dof;ii++){
+               elvect(dd*dof+ii)=elvect(dd*dof+ii)-shape(ii)*tmpve(dd)*ip.weight*nnor.Norml2()*dp;
+           }}
+
+           //compute shifted B and shifted stress operator
+           elco->EvalStiffness(D, strain_v, *fctr,ip);
+           MultAtB(shift_op,B,Bsh);
+           BndrStressOperator(dim,Bsh,D,nvec,bdrstress_op);
+           bdrstress_op.Mult(elfun,tract);
+           for(int dd=0;dd<dim;dd++){
+           for(int ii=0;ii<dof;ii++){
+               elvect(dd*dof+ii)=elvect(dd*dof+ii)+shape(ii)*tract(dd)*ip.weight*nnor.Norml2()*dp;
+           }}
+
+           //add the penalty term
+           for(int ii=0;ii<dim;ii++){tract[ii]=tract[ii]-tmpve[ii];}
+           std::cout<<"rtract="<<tract.Norml2()<<"  "; tract.Print(std::cout);
+           bdrstress_op.MultTranspose(tract,rvec);
+           for(int dd=0;dd<dof*dim;dd++){
+               elvect(dd)=elvect(dd)+rvec(dd)*alpha*ip.weight*nnor.Norml2();
+           }
+
+           //compute the boundary stress operator bdrstress_op
+           BndrStressOperator(dim,B,D,nnor_n,bdrstress_op);
+           //compute the traction to the surogate bdr
+           bdrstress_op.Mult(elfun,tract);
+
+           for(int dd=0;dd<dim;dd++){
+           for(int ii=0;ii<dof;ii++){
+               elvect(dd*dof+ii)=elvect(dd*dof+ii)-shape(ii)*tract(dd)*ip.weight*nnor.Norml2();
+           }}
+
+           facei=facei+ip.weight*nnor.Norml2();
+        }
+
+        //std::cout<<"length/area="<<facei<<std::endl;
+
+    }
+
+
+}
+
+void SBM2NNIntegrator::AssembleElementGrad(const FiniteElement &el,
+                                           ElementTransformation &Tr,
+                                           const Vector &elfun,
+                                           DenseMatrix &elmat)
+{
+    elmat.SetSize(elfun.Size());
+    elmat=0.0;
+    if((*elem_attributes)[Tr.ElementNo]==mfem::ElementMarker::SBElementType::INSIDE){
+        elint->AssembleElementGrad(el,Tr,elfun,elmat);
+    }
+
+    //If the element is not inside there isn't anything to integrate - the contribution is zero
+    if((*elem_attributes)[Tr.ElementNo]!=mfem::ElementMarker::SBElementType::INSIDE){return;}
+
+    //get dimensionality of the problem
+    const int dim=Tr.GetSpaceDim();
+    std::vector<int> bfaces;
+    if(dim==3){
+        const mfem::Table& elem_face=pmesh->ElementToFaceTable();
+        int num_faces=elem_face.RowSize(Tr.ElementNo);
+        const int* faces=elem_face.GetRow(Tr.ElementNo);
+        for(int facei=0;facei<num_faces;facei++)
+        {
+            if((*face_attributes)[faces[facei]]==mfem::ElementMarker::SBFaceType::SURROGATE)
+            {
+                bfaces.push_back(faces[facei]);
+            }
+        }
+    }else{
+        //dim==2
+        const mfem::Table& elem_edge=pmesh->ElementToEdgeTable();
+        int num_edges=elem_edge.RowSize(Tr.ElementNo);
+        const int* faces=elem_edge.GetRow(Tr.ElementNo);
+        for(int facei=0;facei<num_edges;facei++)
+        {
+            if((*face_attributes)[faces[facei]]==mfem::ElementMarker::SBFaceType::SURROGATE)
+            {
+                bfaces.push_back(faces[facei]);
+            }
+        }
+    }
+
+    if(bfaces.size()==0){return;}
+
+
+    mfem::Vector nnor; nnor.SetSize(dim); //surrogate normal vector
+    mfem::Vector nnor_n; nnor_n.SetSize(dim); //surrogate normal vector normalized
+    mfem::Vector nvec; nvec.SetSize(dim); //true normal vector
+    const int dof=el.GetDof();
+    const IntegrationRule *ir;
+
+    //computes the gradient at the nodal points of the element
+    DenseMatrix grad_phys;
+    el.ProjectGrad(el,Tr,grad_phys);
+    /*
+    FormL2Grad(el,Tr,grad_phys);
+    {
+        DenseMatrix grad1;
+        DenseMatrix C; C.SetSize(dim*dof,dof); C=0.0;
+        el.ProjectGrad(el,Tr,grad1);
+        Add(grad_phys,grad1,-1.0,C);
+
+        std::cout<<"NormC="<<C.FNorm()<<std::endl;
+    }
+    */
+
+
+
+    DenseMatrix shift_op; shift_op.SetSize(dof);
+    DenseMatrix shift_ts; shift_ts.SetSize(dof);
+    Vector shape; shape.SetSize(dof);
+    Vector shape_sh; shape_sh.SetSize(dof);
+    Vector shape_ts; shape_ts.SetSize(dof);
+    DenseMatrix btmp; btmp.SetSize(dim*dof);
+    DenseMatrix bdrstress_op;//boundary stress operator
+    bdrstress_op.SetSize(dim,dim*dof); bdrstress_op=0.0;
+    DenseMatrix disp_op; disp_op.SetSize(dim,dim*dof);
+    DenseMatrix B; B.SetSize(dof,dim);
+    DenseMatrix Bsh; Bsh.SetSize(dof,dim);
+    DenseMatrix D; //elasticity matrix
+    Vector strain_v;
+    if(dim==3){D.SetSize(6); strain_v.SetSize(6); strain_v=0.0;}
+    else{D.SetSize(3);strain_v.SetSize(3); strain_v=0.0;}
+
+    ElementTransformation *ltr;
+    int elmNo=Tr.ElementNo;
+    // we need the element number to figure out if we
+    // will be working with element 1 or 2 in the integration
+
+
+    // all element faces are stored in bfaces
+    for(unsigned int i=0;i<bfaces.size();i++)
+    {
+        mfem::FaceElementTransformations *fctr;
+        // the original element transformation is invalidated
+        fctr=pmesh->GetInteriorFaceTransformations(bfaces[i]);
+        if(fctr==nullptr){
+            fctr=pmesh->GetFaceElementTransformations(bfaces[i]);
+        }
+        int order = 4*el.GetOrder();
+        ir = &IntRules.Get(fctr->GetGeometryType(), order);
+
+        // the original element transformation is invalidated
+        // after the call to GetInteriorFaceTransformations
+        if(fctr->Elem1No==elmNo){
+            ltr=(fctr->Elem1);
+        }else{
+            ltr=(fctr->Elem2);
+        }
+
+        // integrate over the face
+        for (int p = 0; p < ir->GetNPoints(); p++)
+        {
+           const IntegrationPoint &ip = ir->IntPoint(p);
+           fctr->SetAllIntPoints(&ip); // sets the integration for the element as well
+           //calculate the surrogate normal
+           // Note: this normal accounts for the weight of the surface transformation
+           // Jacobian i.e. nnor = nhat*det(J)
+           CalcOrtho(fctr->Jacobian(),nnor);
+           // Make sure the normal vector is pointing outside the domain.
+           if(fctr->Elem2No==elmNo){nnor*=-1.0;}//reverse the normal
+           //normalize nnor
+           {
+               double nn0=nnor.Norml2();
+               if(nn0>std::numeric_limits<double>::epsilon()){nnor_n=nnor; nnor_n/=nn0;}
+               else{nnor_n=0.0;}
+           }
+           //calculate the distance
+           double d=dist_coeff->Eval(*fctr,ip);
+           //calculate the gradient of the SDF
+           dist_grad->Eval(nvec,*fctr,ip);
+           //normalize nvec - the true normal
+           double nn=nvec.Norml2();
+           if(nn>std::numeric_limits<double>::epsilon()){nvec/=nn;}
+           else{nvec=0.0;}
+           //std::cout<<"d="<<d<<std::endl;
+
+           //evaluate the shift operators
+           EvalShiftOperator(grad_phys,d,nvec,shift_order,shift_op,shift_ts);
+           //evaluate the shape functions
+           el.CalcPhysShape(*ltr, shape);
+           el.CalcPhysDShape(*ltr, B);
+           shift_op.MultTranspose(shape,shape_sh); //now we have the shifted shape functions
+           shift_ts.MultTranspose(shape,shape_ts); //now we have the shifted test functions
+
+           /*
+           {
+               Vector  shape_nn; shape_nn.SetSize(shape.Size());
+               EvalShiftShapes(shape,B,d,nvec,shape_nn);
+               std::cout<<"SHe="<<std::sqrt(shape_nn*shape_sh)/shape_nn.Norml2()<<" "<<shape_sh.Norml2()<<" "<<shape_nn.Norml2()<<std::endl;
+           }
+           */
+
+
+           //compute \sigma_n where n is the surrogate normal nnor
+           //compute the boundary stress operator bdrstress_op
+           elco->EvalStiffness(D, strain_v, *fctr,ip);
+           BndrStressOperator(dim,B,D,nnor_n,bdrstress_op);
+
+           //compute disp_op
+           if(assembly_interior==false){
+           EvalDispOp(dim,shape,disp_op);
+           MultAtB(disp_op,bdrstress_op,btmp);
+           for(int ii=0;ii<dim*dof;ii++){
+           for(int jj=0;jj<dim*dof;jj++){
+               elmat(ii,jj)=elmat(ii,jj)-btmp(ii,jj)*ip.weight*nnor.Norml2();
+           }}
+           }
+
+
+           //compute shifted B
+           MultAtB(shift_op,B,Bsh);
+           BndrStressOperator(dim,Bsh,D,nvec,bdrstress_op);
+           double dp=nvec*nnor_n;
+           if(assembly_interior==false){
+           MultAtB(disp_op,bdrstress_op,btmp);
+           for(int ii=0;ii<dim*dof;ii++){
+           for(int jj=0;jj<dim*dof;jj++){
+               elmat(ii,jj)=elmat(ii,jj)+btmp(ii,jj)*ip.weight*nnor.Norml2()*dp;
+           }}
+           }
+
+           //compute the penalty
+           //MultAAt(bdrstress_op,btmp);
+           MultAtB(bdrstress_op,bdrstress_op,btmp);
+           for(int ii=0;ii<dim*dof;ii++){
+           for(int jj=0;jj<dim*dof;jj++){
+               elmat(ii,jj)=elmat(ii,jj)+btmp(ii,jj)*ip.weight*nnor.Norml2()*alpha;
+           }}
+
+        }
+    }
+
+}
+
+void SBM2NNIntegrator::EvalShiftOperator(mfem::DenseMatrix& grad_phys, double dist,
+                                         mfem::Vector& dir, int order,
+                                         mfem::DenseMatrix& shift_op, mfem::DenseMatrix& shift_test)
+{
+    int ndofs=grad_phys.Width();
+    int nrows=grad_phys.Height();
+    int dim=nrows/ndofs;
+
+    shift_op.SetSize(ndofs);
+    shift_test.SetSize(ndofs);
+
+    mfem::DenseMatrix mat00;
+    mat00.SetSize(ndofs);
+    mat00=0.0;
+
+    for(int di=0;di<dim;di++){
+        shift_op.CopyRows(grad_phys,di*ndofs,(di+1)*ndofs-1);
+        mat00.Add(dist*dir(di),shift_op);
+    }
+    shift_op.Diag(1.0,ndofs);
+    if(order>0){shift_op.Add(1.0,mat00);}
+    shift_test=shift_op;
+
+    if(order>1)
+    {
+        mfem::DenseMatrix mat01;
+        mfem::DenseMatrix mat02;
+        mat01.SetSize(ndofs);
+        mat02.SetSize(ndofs);
+
+        mat02=mat00;
+        mat02.Transpose();
+
+        double facti=1.0;
+        for(int i=2;i<order+1;i++)
+        {
+            facti=facti*i;
+            MultABt(mat00,mat02,mat01);
+            shift_op.Add(1.0/facti,mat01);
+            mat00.Swap(mat01);
+        }
+    }
+}
+
+void SBM2NNIntegrator::StrainOperator(int dim, mfem::DenseMatrix &B, mfem::DenseMatrix &strain_op)
+{
+    int ndofs=B.Height();
+    if(dim==3){
+        strain_op.SetSize(6,3*ndofs);
+        strain_op=0.0;
+        mfem::DenseMatrix Bx, By, Bz;
+        Bx.Reset(B.GetData()+ndofs*0,1,ndofs);
+        By.Reset(B.GetData()+ndofs*1,1,ndofs);
+        Bz.Reset(B.GetData()+ndofs*2,1,ndofs);
+
+        strain_op.CopyMN(Bx,0,ndofs*0);
+        strain_op.CopyMN(By,1,ndofs*1);
+        strain_op.CopyMN(Bz,2,ndofs*2);
+        strain_op.CopyMN(Bz,3,ndofs*1); strain_op.CopyMN(By,3,ndofs*2);
+        strain_op.CopyMN(Bz,4,ndofs*0); strain_op.CopyMN(Bx,4,ndofs*2);
+        strain_op.CopyMN(By,5,ndofs*0); strain_op.CopyMN(Bx,5,ndofs*1);
+    }else{
+        strain_op.SetSize(3,2*ndofs);
+        strain_op=0.0;
+        mfem::DenseMatrix Bx, By;
+        Bx.Reset(B.GetData()+ndofs*0,1,ndofs);
+        By.Reset(B.GetData()+ndofs*1,1,ndofs);
+        strain_op.CopyMN(Bx,0,ndofs*0);
+        strain_op.CopyMN(By,1,ndofs*1);
+        strain_op.CopyMN(By,2,ndofs*0); strain_op.CopyMN(Bx,2,ndofs*1);
+    }
+
+}
+
+void SBM2NNIntegrator::StressOperator(int dim, mfem::DenseMatrix &B,
+                                      mfem::DenseMatrix &D, mfem::DenseMatrix &stress_op)
+{
+    int ndofs=B.Height();
+    if(dim==3){
+        stress_op.SetSize(6,3*ndofs);}
+    else{
+        stress_op.SetSize(3,2*ndofs);}
+    DenseMatrix strain_op;
+    StrainOperator(dim,B,strain_op);
+    MultAtB(D,strain_op,stress_op);
+}
+
+void SBM2NNIntegrator::EvalG(int dim, mfem::Vector &normv, mfem::DenseMatrix& G)
+{
+    if(dim==3){
+        G.SetSize(6,3);
+        G=0.0;
+        G(0,0)=normv[0];
+        G(1,1)=normv[1];
+        G(2,2)=normv[2];
+        G(3,1)=normv[2]; G(3,2)=normv[1];
+        G(4,0)=normv[2]; G(4,2)=normv[0];
+        G(5,0)=normv[1]; G(5,1)=normv[0];
+    }else{
+        G.SetSize(3,2);
+        G=0.0;
+        G(0,0)=normv[0];
+        G(1,1)=normv[1];
+        G(2,0)=normv[1]; G(2,1)=normv[0];
+    }
+
+}
+
+void SBM2NNIntegrator::BndrStressOperator(int dim, mfem::DenseMatrix &B,
+                                          mfem::DenseMatrix &D, mfem::Vector &normv,
+                                          mfem::DenseMatrix &bdrstress_op)
+{
+    int ndofs=B.Height();
+    if(dim==3){
+        bdrstress_op.SetSize(3,3*ndofs);
+    }else{
+        bdrstress_op.SetSize(2,2*ndofs);
+    }
+    mfem::DenseMatrix stress_op;
+    mfem::DenseMatrix G;
+    EvalG(dim,normv,G);
+    StressOperator(dim,B,D,stress_op);
+    MultAtB(G,stress_op,bdrstress_op);
+}
+
+void SBM2NNIntegrator:: EvalShiftShapes(mfem::Vector& shape, mfem::DenseMatrix& grad, double dist,
+                                          mfem::Vector& dir, mfem::Vector& shift_shape)
+{
+    shift_shape.SetSize(shape.Size());
+    //shift_shape=shape;
+    const int dim=dir.Size();
+    for(int ii=0;ii<shape.Size();ii++){
+        shift_shape[ii]=0.0;
+        for(int di=0;di<dim;di++){
+            shift_shape[ii]=shift_shape[ii]+grad(ii,di)*dir(di);
+        }
+        shift_shape[ii]=dist*shift_shape[ii]+shape[ii];
+    }
+}
+
+void SBM2NNIntegrator::FormL2Grad(const FiniteElement &el, ElementTransformation &Tr, DenseMatrix &gradop)
+{
+
+    int dof=el.GetDof();
+    int dim=Tr.GetSpaceDim();
+    int order = 4*el.GetOrder();
+    const IntegrationRule *ir;
+    ir = &IntRules.Get(Tr.GetGeometryType(), order);
+
+    Vector shape; shape.SetSize(dof);
+    DenseMatrix B; B.SetSize(dof,dim);
+    DenseMatrix Rx; Rx.SetSize(dof); Rx=0.0;
+    DenseMatrix Ry; Ry.SetSize(dof); Ry=0.0;
+    DenseMatrix Rz;
+    if(dim==3){
+        Rz.SetSize(dof);
+        Rz=0.0;
+    }
+    DenseMatrix M; M.SetSize(dof); M=0.0;
+    DenseMatrix T; T.SetSize(dof); T=0.0;
+    gradop.SetSize(dim*dof,dof); gradop=0.0;
+    Vector bdir;
+
+    double w;
+
+    for (int p = 0; p < ir->GetNPoints(); p++)
+    {
+       const IntegrationPoint &ip = ir->IntPoint(p);
+       Tr.SetIntPoint(&ip);
+       el.CalcPhysShape(Tr,shape);
+       el.CalcPhysDShape(Tr,B);
+
+       w=ip.weight * Tr.Weight();
+
+
+       bdir.SetDataAndSize(B.GetData()+0*dof,dof);
+       AddMult_a_VWt(w,shape,bdir,Rx);
+       bdir.SetDataAndSize(B.GetData()+1*dof,dof);
+       AddMult_a_VWt(w,shape,bdir,Ry);
+       if(dim==3){
+           bdir.SetDataAndSize(B.GetData()+2*dof,dof);
+           AddMult_a_VWt(w,shape,bdir,Rz);
+       }
+
+       AddMult_a_VVt(w,shape,M);
+    }
+
+    DenseMatrixInverse iM(M);
+    iM.Mult(Rx,T);
+    gradop.AddMatrix(T,dof*0,0);
+    iM.Mult(Ry,T);
+    gradop.AddMatrix(T,dof*1,0);
+    if(dim==3){
+        iM.Mult(Rz,T);
+        gradop.AddMatrix(T,dof*2,0);
+    }
+}
+
+void LevelSetElasticitySolver::SetLSF(mfem::ParGridFunction *lf)
+{
+    lsfunc=lf;
+    ess_tdof_list.DeleteAll();
+    //mark the elements including the crossed ones
+    mfem::ElementMarker smarker(*pmesh,true);
+    smarker.SetLevelSetFunction(*lsfunc);
+    smarker.MarkElements(element_markers);
+    smarker.MarkFaces(face_markers);
+    smarker.ListEssentialTDofs(element_markers,*vfes,ess_tdof_list);
+}

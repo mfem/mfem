@@ -4,6 +4,57 @@
 
 #include "elasticity.hpp"
 
+void DispFunction(const mfem::Vector &xx, mfem::Vector &uu)
+{
+    double a=3.0;
+    double b=2.0;
+    double c=3.0;
+    double d=2.0;
+
+    if(xx.Size()==2)
+    {
+        uu[0] = sin(a*xx[0])+cos(b*xx[1]);
+        uu[1] = cos(c*xx[0]+d*xx[1]);
+    }else{//size==3
+        uu[0] = sin(a*xx[0])+cos(b*xx[1]);
+        uu[1] = sin(a*xx[1])+cos(b*xx[2]);
+        uu[2] = sin(c*xx[2])+cos(d*xx[0]);
+    }
+
+}
+
+void VolForceFunction(const mfem::Vector &xx, mfem::Vector &ff)
+{
+    double a=3.0;
+    double b=2.0;
+    double c=3.0;
+    double d=2.0;
+
+    double E=1.0;
+    double nnu=0.2;
+
+    if(xx.Size()==2){
+        ff[0] = 2.0*E/(2.0+2.0*nnu)*a*a*sin(a*xx[0])
+                -E*nnu/(1.0+nnu)/(1.0-2.0*nnu)*(-a*a*sin(a*xx[0])
+                -d*c*cos(c*xx[0]+d*xx[1]))
+                +E*(b*b*cos(b*xx[1])+d*c*cos(c*xx[0]+d*xx[1]))/(2.0+2.0*nnu);
+        ff[1] = E*c*c*cos(c*xx[0]+d*xx[1])/(2.0+2.0*nnu)
+                +2.0*E/(2.0+2.0*nnu)*d*d*cos(c*xx[0]+d*xx[1])
+                +E*nnu/(1.0+nnu)/(1.0-2.0*nnu)*d*d*cos(c*xx[0]+d*xx[1]);
+    }else{//Size()=3
+        ff[0] = 2.0*E/(2.0+2.0*nnu)*a*a*sin(a*xx[0])
+                +E*nnu/(1.0+nnu)/(1.0-2.0*nnu)*a*a*sin(a*xx[0])
+                +E/(2.0+2.0*nnu)*b*b*cos(b*xx[1]);
+        ff[1] = 2.0*E/(2.0+2.0*nnu)*a*a*sin(a*xx[1])
+                +E*nnu/(1.0+nnu)/(1.0-2.0*nnu)*a*a*sin(a*xx[1])
+                +E/(2.0+2.0*nnu)*b*b*cos(b*xx[2]);
+        ff[2] = E/(2.0+2.0*nnu)*d*d*cos(d*xx[0])
+                +2.0*E/(2.0+2.0*nnu)*c*c*sin(c*xx[2])
+                +E*nnu/(1.0+nnu)/(1.0-2.0*nnu)*c*c*sin(c*xx[2]);
+    }
+}
+
+
 int main(int argc, char *argv[])
 {
    // Initialize MPI.
@@ -91,12 +142,13 @@ int main(int argc, char *argv[])
    // more than 10,000 elements.
    {
       int ref_levels =
-         (int)floor(log(1000./mesh.GetNE())/log(2.)/dim);
+         (int)floor(log(100000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
       }
    }
+   std::cout<<"Step 1"<<std::endl;
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
@@ -104,16 +156,27 @@ int main(int argc, char *argv[])
    mfem::ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
+   std::cout<<"Step 2"<<std::endl;
+
    mfem::ElasticitySolver* solver=new mfem::ElasticitySolver(&pmesh,1);
 
 
-   solver->AddMaterial(new mfem::LinIsoElasticityCoefficient(1.0,0.3));
+   solver->AddMaterial(new mfem::LinIsoElasticityCoefficient(1.0,0.2));
 
-   solver->AddDispBC(2,4,0.0);
+   //solver->AddDispBC(2,4,0.0);
    //solver->AddDispBC(3,1,1.0);
    //solver->AddDispBC(3,0,0.0);
    //solver->AddDispBC(3,2,0.0);
-   solver->SetVolForce(1.0,0.0,0.0);
+   //solver->SetVolForce(1.0,0.0,0.0);
+
+   mfem::VectorFunctionCoefficient vfun(dim,VolForceFunction);
+   solver->SetVolForce(vfun);
+
+   mfem::VectorFunctionCoefficient dfun(dim,DispFunction);
+   solver->AddDispBC(2,dfun);
+   solver->AddDispBC(1,dfun);
+   solver->AddDispBC(3,dfun);
+   //solver->AddDispBC(4,dfun);
 
    solver->FSolve();
 

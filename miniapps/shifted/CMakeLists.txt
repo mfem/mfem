@@ -49,5 +49,10 @@ add_mfem_miniapp(elast_eltest
         ${DIST_COMMON_FILES}
         LIBRARIES mfem mfem-common)
 
+add_mfem_miniapp(elast_nntest
+        MAIN elast_nntest.cpp
+        ${DIST_COMMON_FILES}
+        LIBRARIES mfem mfem-common)
+
 
 endif ()

@@ -17,6 +17,54 @@
 namespace mfem
 {
 
+class ElementMarker{
+public:
+    ElementMarker(ParMesh& mesh, bool include_cut=false)
+    {
+        pmesh=&mesh;
+        const int dim=pmesh->SpaceDimension();
+        elfec=new L2_FECollection(0,dim);
+        elfes=new ParFiniteElementSpace(pmesh,elfec,1);
+        elgf.SetSpace(elfes);
+        include_cut_elements=include_cut;
+        ls_func=nullptr;
+    }
+
+    ~ElementMarker()
+    {
+        delete elfes;
+        delete elfec;
+    }
+
+    enum SBElementType {INSIDE = 0, OUTSIDE = 1};
+
+    enum SBFaceType {UNDEFINED = 0, SURROGATE = 1};
+
+    void SetLevelSetFunction(const ParGridFunction& ls_fun);
+
+    /// Mark all the elements in the mesh using the @a SBElementType
+    void MarkElements(Array<int> &elem_marker);
+
+    /// Mark all faces in the mesh using  the @a SBFaceType
+    void MarkFaces(Array<int> &face_marker);
+
+    /// Lists ll inactive dofs.
+    void ListEssentialTDofs(const Array<int> &elem_marker,
+                            ParFiniteElementSpace &lfes,
+                            Array<int> &ess_tdof_list) const;
+
+private:
+    const ParGridFunction* ls_func;
+    ParMesh* pmesh;
+    FiniteElementCollection* elfec;
+    ParFiniteElementSpace* elfes;
+    ParGridFunction elgf;
+
+    bool include_cut_elements;
+
+};
+
+
 // Marking operations for elements, faces, dofs, etc, related to shifted
 // boundary and interface methods.
 class ShiftedFaceMarker
@@ -78,6 +126,13 @@ public:
                            const Array<int> &sface_dof_list,
                            Array<int> &ess_tdof_list,
                            Array<int> &ess_shift_bdr) const;
+
+   /// Lists ll inactive dofs.
+   void ListEssentialTDofs(const Array<int> &elem_marker,
+                           ParFiniteElementSpace &lfes,
+                           Array<int> &ess_tdof_list) const;
+
+
 };
 
 } // namespace mfem

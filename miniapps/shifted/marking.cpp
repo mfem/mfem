@@ -14,6 +14,111 @@
 namespace mfem
 {
 
+
+void ElementMarker::SetLevelSetFunction(const ParGridFunction &ls_fun)
+{
+    ParFiniteElementSpace* pfes_sltn=ls_fun.ParFESpace();
+    Vector vals;
+    Array<int> vdofs;
+
+    if(include_cut_elements){
+        elgf=(double)(SBElementType::INSIDE);
+        for(int e=0;e<pmesh->GetNE();e++){
+            const IntegrationRule &ir = pfes_sltn->GetFE(e)->GetNodes();
+            ls_fun.GetValues(e, ir, vals);
+            int count = 0;
+            for (int j = 0; j < ir.GetNPoints(); j++){
+                if (vals(j)<0.0) { count++; }
+            }
+            if (count == ir.GetNPoints()) // completely outside
+            {
+                elfes->GetElementVDofs(e,vdofs);
+                elgf[vdofs[0]] = SBElementType::OUTSIDE;
+            }
+        }
+    }else{//DEFAULT - do not include cuts
+        elgf=(double)(SBElementType::OUTSIDE);
+        for(int e=0;e<pmesh->GetNE();e++){
+            const IntegrationRule &ir = pfes_sltn->GetFE(e)->GetNodes();
+            ls_fun.GetValues(e, ir, vals);
+            int count = 0;
+            for (int j = 0; j < ir.GetNPoints(); j++){
+                if (vals(j)>0.0) { count++; }
+            }
+            if (count == ir.GetNPoints()) // completely inside
+            {
+                elfes->GetElementVDofs(e,vdofs);
+                elgf[vdofs[0]] = SBElementType::INSIDE;
+            }
+        }
+
+    }
+    elgf.ExchangeFaceNbrData();
+}
+
+void ElementMarker::MarkElements(Array<int> &elem_marker)
+{
+    elem_marker.SetSize(pmesh->GetNE());
+    for(int e=0;e<pmesh->GetNE();e++)
+    {
+        ElementTransformation* tr=elfes->GetElementTransformation(e);
+        IntegrationPoint ip; ip.Init(0);
+        elem_marker[e] = elgf.GetValue(*tr, ip);
+    }
+}
+
+void ElementMarker::MarkFaces(Array<int> &face_marker)
+{
+    face_marker.SetSize(pmesh->GetNumFaces());
+    face_marker=SBFaceType::UNDEFINED;
+    IntegrationPoint ip; ip.Init(0);
+
+    for(int f=0;f<pmesh->GetNumFaces();f++){
+        auto *ft = pmesh->GetFaceElementTransformations(f, 3);
+        if (ft->Elem2No < 0) { continue; } //do not mark boundary faces
+        const int attr1 = elgf.GetValue(*ft->Elem1,ip);
+        const int attr2 = elgf.GetValue(*ft->Elem2,ip);
+        if(attr1!=attr2){
+            face_marker[f]=SBFaceType::SURROGATE;
+        }
+    }
+
+    elgf.ExchangeFaceNbrData();
+    for (int f = 0; f < pmesh->GetNSharedFaces(); f++)
+    {
+          auto *ftr = pmesh->GetSharedFaceTransformations(f, true);
+          const int attr1 = elgf.GetValue(*ftr->Elem1, ip);
+          const int attr2 = elgf.GetValue(*ftr->Elem2, ip);
+          int faceno = pmesh->GetSharedFace(f);
+          if(attr1!=attr2){
+              face_marker[faceno]=SBFaceType::SURROGATE;
+          }
+    }
+}
+
+void ElementMarker::ListEssentialTDofs(const Array<int> &elem_marker,
+                                       ParFiniteElementSpace &lfes,
+                                       Array<int> &ess_tdof_list) const
+{
+    Array<int> vdof_mark; vdof_mark.SetSize(lfes.GetVSize()); vdof_mark=1;
+    Array<int> dofs;
+
+    for(int i=0;i<lfes.GetNE();i++)
+    {
+        if(elem_marker[i]==SBElementType::INSIDE){
+            lfes.GetElementVDofs(i,dofs);
+            for(int j=0;j<dofs.Size();j++){
+                vdof_mark[dofs[j]]=0;
+            }
+        }
+    }
+
+    Array<int> tdof_mark;
+    lfes.GetRestrictionMatrix()->BooleanMult(vdof_mark,tdof_mark);
+    lfes.MarkerToList(tdof_mark, ess_tdof_list);
+}
+
+
 void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,
                                      Array<int> &elem_marker)
 {
@@ -106,36 +211,79 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,
 void ShiftedFaceMarker::MarkFaces(mfem::Array<int> &elem_marker, mfem::Array<int> &face_marker)
 {
     pmesh.ExchangeFaceNbrNodes();
-
+    pmesh.ExchangeFaceNbrData();
     face_marker.SetSize(pmesh.GetNumFaces());
     face_marker=SBFaceType::UNDEFINED;
-    // Set face_attribute = attr to faces that are on the border between INSIDE and CUT elements.
-    for (int f = 0; f < pmesh.GetNumFaces(); f++)
-    {
-        auto *ft = pmesh.GetFaceElementTransformations(f, 3);
-        if (ft->Elem2No > 0){
-        if(elem_marker[ft->Elem1No] != elem_marker[ft->Elem2No]){
-            if(elem_marker[ft->Elem1No] == SBElementType::INSIDE){
-                face_marker[f]=SBFaceType::SURROGATE;
-            }else
-            if(elem_marker[ft->Elem2No] == SBElementType::INSIDE){
-                face_marker[f]=SBFaceType::SURROGATE;
-            }
-        }}
-    }
 
-    for (int f = 0; f < pmesh.GetNSharedFaces(); f++)
-    {
-        auto *ftr = pmesh.GetSharedFaceTransformations(f, 3);
-        int faceno = pmesh.GetSharedFace(f);
-        int attr1 = elem_marker[ftr->Elem1No];
-        int attr2 = elem_marker[ftr->Elem2No];
-        if (attr1 != attr2) {
-        if((attr1==SBElementType::INSIDE)||(attr2==SBElementType::INSIDE)){
-            face_marker[faceno]= SBFaceType::SURROGATE;
-        }}
+    if(include_cut_cell==false){
+        // Set face_attribute = attr to faces that are on the border between INSIDE and CUT elements.
+        for (int f = 0; f < pmesh.GetNumFaces(); f++)
+        {
+            FaceElementTransformations *ft=pmesh.GetInteriorFaceTransformations(f);
+            if(ft!=nullptr){//we have interior face
+            if (ft->Elem2No > 0){
+                if(elem_marker[ft->Elem1No] != elem_marker[ft->Elem2No]){
+                    if(elem_marker[ft->Elem1No] == SBElementType::INSIDE){
+                        face_marker[f]=SBFaceType::SURROGATE;
+                    }
+                    else if(elem_marker[ft->Elem2No] == SBElementType::INSIDE)
+                    {
+                        face_marker[f]=SBFaceType::SURROGATE;
+                    }
+                }
+            }}
+        }
+        //we don't want any boundary faces to be surrogate
+        //they should be set separately as boundry conditions
+
+        for (int f = 0; f < pmesh.GetNSharedFaces(); f++)
+        {
+            FaceElementTransformations *ftr = pmesh.GetSharedFaceTransformations(f);
+            if(ftr!=nullptr){
+                int faceno = pmesh.GetSharedFace(f);
+                int attr1 = elem_marker[ftr->Elem1No];
+                int attr2 = elem_marker[f+pmesh.GetNE()]; //ftr->Elem2No
+                if (attr1 != attr2) {
+                    if((attr1==SBElementType::INSIDE)||(attr2==SBElementType::INSIDE)){
+                        face_marker[faceno]= SBFaceType::SURROGATE;
+                    }
+                }
+            }
+        }
+
+    }else{//include cut cells
+        // Set face_attribute = attr to faces that are on the border between OUTSIDE and CUT elements.
+        for (int f = 0; f < pmesh.GetNumFaces(); f++)
+        {
+            auto *ft = pmesh.GetFaceElementTransformations(f, 3);
+            if (ft->Elem2No > 0){
+                if(elem_marker[ft->Elem1No] != elem_marker[ft->Elem2No]){
+                    if(elem_marker[ft->Elem1No] == SBElementType::OUTSIDE){
+                        face_marker[f]=SBFaceType::SURROGATE;
+                    }
+                    else if(elem_marker[ft->Elem2No] == SBElementType::OUTSIDE)
+                    {
+                            face_marker[f]=SBFaceType::SURROGATE;
+                    }
+                }
+            }
+        }
+
+        for (int f = 0; f < pmesh.GetNSharedFaces(); f++)
+        {
+            auto *ftr = pmesh.GetSharedFaceTransformations(f, 3);
+            int faceno = pmesh.GetSharedFace(f);
+            int attr1 = elem_marker[ftr->Elem1No];
+            int attr2 = elem_marker[ftr->Elem2No];
+            if (attr1 != attr2) {
+                if((attr1==SBElementType::OUTSIDE)||(attr2==SBElementType::OUTSIDE)){
+                    face_marker[faceno]= SBFaceType::SURROGATE;
+                }
+            }
+        }
     }
 }
+
 
 void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
                                             Array<int> &sface_dof_list) const
@@ -228,6 +376,44 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
       }
    }
 }
+
+/// Lists all inactive dofs
+void ShiftedFaceMarker::ListEssentialTDofs(const Array<int> &elem_marker,
+                                           ParFiniteElementSpace &lfes,
+                                           Array<int> &ess_tdof_list) const
+{
+    Array<int> vdof_mark; vdof_mark.SetSize(lfes.GetVSize()); vdof_mark=1;
+    Array<int> dofs;
+    if(include_cut_cell==false)
+    {
+        for(int i=0;i<lfes.GetNE();i++)
+        {
+            if(elem_marker[i]==SBElementType::INSIDE){
+                lfes.GetElementVDofs(i,dofs);
+                std::cout<<"difs.size="<<dofs.Size()<<std::endl;
+                for(int j=0;j<dofs.Size();j++){
+                    vdof_mark[dofs[j]]=0;
+                }
+            }
+
+        }
+    }else{
+        for(int i=0;i<lfes.GetNE();i++)
+        {
+            if(elem_marker[i]!=SBElementType::OUTSIDE){
+                lfes.GetElementVDofs(i,dofs);
+                for(int j=0;j<dofs.Size();j++){
+                    vdof_mark[dofs[j]]=0;
+                }
+            }
+        }
+    }
+
+    Array<int> tdof_mark;
+    lfes.GetRestrictionMatrix()->BooleanMult(vdof_mark,tdof_mark);
+    lfes.MarkerToList(tdof_mark, ess_tdof_list);
+}
+
 
 // Determine the list of true (i.e. conforming) essential boundary dofs. To do
 // this, we first make a list of all dofs that are on the real boundary of the
