@@ -209,7 +209,10 @@ jobs:
     - name: cmake unit tests
       if: matrix.build-system == 'cmake'
       run: |
-        cd ${{ env.MFEM_TOP_DIR }}/build/tests/unit && ctest --output-on-failure
+        CTEST_CONFIG="Release"
+        [[ ${{ matrix.target }} == 'dbg' ]] && CTEST_CONFIG="Debug"
+        cd ${{ env.MFEM_TOP_DIR }}/build/tests/unit && ctest --output-on-failure -C ${CTEST_CONFIG}
+      shell: bash
 
     # Code coverage (process and upload reports)
     - name: codecov
