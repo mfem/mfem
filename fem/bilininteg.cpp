@@ -2010,6 +2010,84 @@ void CurlCurlIntegrator::AssembleElementMatrix
    }
 }
 
+
+void CurlCurlIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                                const FiniteElement &test_fe,
+                                                ElementTransformation &Trans,
+                                                DenseMatrix &elmat)
+{
+   int tr_nd = trial_fe.GetDof();
+   int te_nd = test_fe.GetDof();
+   dim = trial_fe.GetDim();
+   int dimc = trial_fe.GetCurlDim();
+   double w;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector D;
+   DenseMatrix curlshape(tr_nd,dimc), curlshape_dFt(tr_nd,dimc), M;
+   DenseMatrix te_curlshape(te_nd,dimc), te_curlshape_dFt(te_nd,dimc), M;
+#else
+   curlshape.SetSize(tr_nd,dimc);
+   curlshape_dFt.SetSize(tr_nd,dimc);
+   te_curlshape.SetSize(te_nd,dimc);
+   te_curlshape_dFt.SetSize(te_nd,dimc);
+#endif
+   elmat.SetSize(te_nd, tr_nd);
+
+   if (MQ) { M.SetSize(dimc); }
+   if (DQ) { D.SetSize(dimc); }
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order;
+      if (trial_fe.Space() == FunctionSpace::Pk)
+      {
+         order = test_fe.GetOrder() + trial_fe.GetOrder() - 2;
+      }
+      else
+      {
+         order = test_fe.GetOrder() + trial_fe.GetOrder() + trial_fe.GetDim() - 1;
+      }
+      ir = &IntRules.Get(trial_fe.GetGeomType(), order);
+   }
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Trans.SetIntPoint(&ip);
+
+      w = ip.weight * Trans.Weight();
+      trial_fe.CalcPhysCurlShape(Trans, curlshape_dFt);
+      test_fe.CalcPhysCurlShape(Trans, te_curlshape_dFt);
+
+      if (MQ)
+      {
+         MQ->Eval(M, Trans, ip);
+         M *= w;
+         Mult(te_curlshape_dFt, M, te_curlshape);
+         AddMultABt(te_curlshape, curlshape_dFt, elmat);
+      }
+      else if (DQ)
+      {
+         DQ->Eval(D, Trans, ip);
+         D *= w;
+         AddMultADBt(te_curlshape_dFt,D,curlshape_dFt,elmat);
+      }
+      else
+      {
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+         curlshape_dFt *= w;
+         AddMultABt(te_curlshape_dFt, curlshape_dFt, elmat);
+      }
+   }
+}
+
 void CurlCurlIntegrator
 ::ComputeElementFlux(const FiniteElement &el, ElementTransformation &Trans,
                      Vector &u, const FiniteElement &fluxelem, Vector &flux,
@@ -3907,17 +3985,19 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
    }
 }
 
-void VectorFETraceIntegrator::AssembleTraceFaceMatrix(int elem,
-                                                      const FiniteElement &trial_face_fe,
-                                                      const FiniteElement &test_fe,
-                                                      FaceElementTransformations & Trans,
-                                                      DenseMatrix &elmat)
+void VectorFETraceTangentIntegrator::AssembleTraceFaceMatrix(int elem,
+                                                             const FiniteElement &trial_face_fe,
+                                                             const FiniteElement &test_fe,
+                                                             FaceElementTransformations & Trans,
+                                                             DenseMatrix &elmat)
 {
-   int i, j, face_ndof, ndof, dim;
+   int face_ndof, ndof, dim;
    int order;
 
    MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::H_CURL, "");
    MFEM_VERIFY(test_fe.GetMapType() == FiniteElement::H_CURL, "");
+   MFEM_VERIFY(trial_face_fe.GetDim() == 2 && test_fe.GetDim() == 3,
+               "Trial space should be vector filed in 2D and test space should be a vector field in 3D ");
 
    dim = test_fe.GetDim();
 
@@ -3925,7 +4005,9 @@ void VectorFETraceIntegrator::AssembleTraceFaceMatrix(int elem,
    ndof = test_fe.GetDof();
 
    face_shape.SetSize(face_ndof,dim);
+   face_shape_n.SetSize(face_ndof,dim);
    shape.SetSize(ndof,dim);
+   normal.SetSize(dim);
 
    elmat.SetSize(ndof, face_ndof);
    elmat = 0.0;
@@ -3953,11 +4035,25 @@ void VectorFETraceIntegrator::AssembleTraceFaceMatrix(int elem,
       Trans.SetAllIntPoints(&ip);
       // Trace finite element shape function
       trial_face_fe.CalcVShape(Trans,face_shape);
+
+      CalcOrtho(Trans.Jacobian(),normal);
+
+      // rotate
+      for (int j=0; j<face_ndof; ++j)
+      {
+         face_shape_n(j, 0) = (normal[1] * face_shape(j, 2)) - (normal[2] * face_shape(j,
+                                                                                       1));
+         face_shape_n(j, 1) = (normal[2] * face_shape(j, 0)) - (normal[0] * face_shape(j,
+                                                                                       2));
+         face_shape_n(j, 2) = (normal[0] * face_shape(j, 1)) - (normal[1] * face_shape(j,
+                                                                                       0));
+      }
+
       // Finite element shape function
       ElementTransformation * eltrans = (iel == elem) ? Trans.Elem1 : Trans.Elem2;
       test_fe.CalcVShape(*eltrans, shape);
-      face_shape *= Trans.Weight()*ip.weight;
-      MultABt(shape, face_shape, elmat);
+      const double w = scale*ip.weight;
+      AddMult_a_ABt(w,shape, face_shape_n, elmat);
    }
 }
 

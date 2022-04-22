@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
    ND_Trace_FECollection trace_fec(order, mesh.Dimension());
    FiniteElementSpace NDtrace_fes(&mesh, &trace_fec);
 
-   int test_order = order+2;
+   int test_order = order+1;
 
    ND_FECollection test_fec(test_order,mesh.Dimension());
 
@@ -73,11 +73,11 @@ int main(int argc, char *argv[])
 
 
    ConstantCoefficient one(1.0);
-   a->AddTrialIntegrator(new MixedCurlCurlIntegrator(one),0,0);
+   a->AddTrialIntegrator(new CurlCurlIntegrator(one),0,0);
    a->AddTrialIntegrator(new VectorFEMassIntegrator(one),0,0);
-   a->AddTrialIntegrator(new VectorFETraceIntegrator,1,0);
+   a->AddTrialIntegrator(new VectorFETraceTangentIntegrator,1,0);
 
-   a->AddTestIntegrator(new MixedCurlCurlIntegrator(one),0,0);
+   a->AddTestIntegrator(new CurlCurlIntegrator(one),0,0);
    a->AddTestIntegrator(new VectorFEMassIntegrator(one),0,0);
 
    VectorFunctionCoefficient f(sdim, f_exact);
@@ -96,6 +96,8 @@ int main(int argc, char *argv[])
       NDfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
    // shift the ess_tdofs
+
+
    Vector X,B;
    OperatorPtr Ah;
 
@@ -120,8 +122,11 @@ int main(int argc, char *argv[])
    a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
 
 
-   SparseMatrix * A = ((BlockMatrix *)(Ah.Ptr()))->CreateMonolithic();
-   UMFPackSolver umf(*A);
+   BlockMatrix * A = (BlockMatrix *)(Ah.Ptr());
+   SparseMatrix * SA = A->CreateMonolithic();
+
+
+   UMFPackSolver umf(*SA);
    umf.Mult(B,X);
 
    // BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
@@ -131,8 +136,8 @@ int main(int argc, char *argv[])
    //    M->SetDiagonalBlock(i,new UMFPackSolver(A->GetBlock(i,i)));
    // }
 
-   // CGSolver cg;
-   // cg.SetRelTol(1e-6);
+   // GMRESSolver cg;
+   // cg.SetRelTol(1e-8);
    // cg.SetMaxIter(2000);
    // cg.SetPrintLevel(3);
    // cg.SetPreconditioner(*M);
@@ -143,6 +148,10 @@ int main(int argc, char *argv[])
    a->RecoverFEMSolution(X,x);
 
    E_gf.MakeRef(&NDfes,x.GetData());
+
+   double L2Error = E_gf.ComputeL2Error(E);
+   mfem::out << "L2_error = " << L2Error << endl;
+
 
    char vishost[] = "localhost";
    int  visport   = 19916;

@@ -2522,6 +2522,7 @@ private:
 #ifndef MFEM_THREAD_SAFE
    Vector D;
    DenseMatrix curlshape, curlshape_dFt, M;
+   DenseMatrix te_curlshape, te_curlshape_dFt;
    DenseMatrix vshape, projcurl;
 #endif
 
@@ -2558,6 +2559,11 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
 
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
@@ -3257,16 +3263,17 @@ public:
                                 DenseMatrix &elmat);
 };
 
-/** (in 3D only) Integrator for the DPG form: < v, w > over all faces (the interface) where
-    the trial variable v is defined on the interface
-    (H^-1/2(curl) i.e., v:=n×u tangential trace of H(curl))
+/** (in 3D only) Integrator for the DPG form: <n × v, w > over all faces (the interface) where
+    the trial variable v is the tangential trace of an H(curl) field variable
+    (H^-1/2(curl) i.e., n × v is the "rotated" tangential trace of H(curl))
     and the test variable w is defined inside the elements in H(curl) space. */
-class VectorFETraceIntegrator : public BilinearFormIntegrator
+class VectorFETraceTangentIntegrator : public BilinearFormIntegrator
 {
 private:
-   DenseMatrix face_shape, shape;
+   DenseMatrix face_shape, shape, face_shape_n;
+   Vector normal;
 public:
-   VectorFETraceIntegrator() { }
+   VectorFETraceTangentIntegrator() { }
    void AssembleTraceFaceMatrix(int elem,
                                 const FiniteElement &trial_face_fe,
                                 const FiniteElement &test_fe,
