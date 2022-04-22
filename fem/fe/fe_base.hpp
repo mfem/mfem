@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -657,7 +657,7 @@ public:
    /** @brief Set the FiniteElement::MapType of the element to either VALUE or
        INTEGRAL. Also sets the FiniteElement::DerivType to GRAD if the
        FiniteElement::MapType is VALUE. */
-   void SetMapType(int M)
+   virtual void SetMapType(int M)
    {
       MFEM_VERIFY(M == VALUE || M == INTEGRAL, "unknown MapType");
       map_type = M;
@@ -789,7 +789,7 @@ private:
 protected:
    bool is_nodal;
 #ifndef MFEM_THREAD_SAFE
-   mutable DenseMatrix J, Jinv;
+   mutable DenseMatrix JtJ;
    mutable DenseMatrix curlshape, curlshape_J;
 #endif
    void SetDerivMembers();
@@ -945,51 +945,73 @@ protected:
 public:
    VectorFiniteElement (int D, Geometry::Type G, int Do, int O, int M,
                         int F = FunctionSpace::Pk) :
-#ifdef MFEM_THREAD_SAFE
       FiniteElement(D, G, Do, O, F)
    { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
-#else
-      FiniteElement(D, G, Do, O, F), Jinv(D)
-   { range_type = VECTOR; map_type = M; SetDerivMembers(); is_nodal = true; }
-#endif
 };
 
 
-/// Class for computing 1D special polynomials and their associated basis
+/// @brief Class for computing 1D special polynomials and their associated basis
 /// functions
 class Poly_1D
 {
 public:
+   /// One-dimensional basis evaluation type
    enum EvalType
    {
-      ChangeOfBasis = 0, // Use change of basis, O(p^2) Evals
-      Barycentric   = 1, // Use barycentric Lagrangian interpolation, O(p) Evals
-      Positive      = 2, // Fast evaluation of Bernstein polynomials
-      Integrated    = 3, // Integrated indicator functions (cf. Gerritsma)
-      NumEvalTypes  = 4  // Keep count of the number of eval types
+      ChangeOfBasis = 0, ///< Use change of basis, O(p^2) Evals
+      Barycentric   = 1, ///< Use barycentric Lagrangian interpolation, O(p) Evals
+      Positive      = 2, ///< Fast evaluation of Bernstein polynomials
+      Integrated    = 3, ///< Integrated indicator functions (cf. Gerritsma)
+      NumEvalTypes  = 4  ///< Keep count of the number of eval types
    };
 
+   /// @brief Class for evaluating 1D nodal, positive (Bernstein), or integrated
+   /// (Gerritsma) bases.
    class Basis
    {
    private:
-      int etype;
+      EvalType etype; ///< Determines how the basis functions should be evaluated.
       DenseMatrixInverse Ai;
       mutable Vector x, w;
-      // The following data members are used for "integrated basis type", which
-      // is defined in terms of nodal basis of one degree higher.
+      /// The following data members are used for "integrated basis type", which
+      /// is defined in terms of nodal basis of one degree higher.
+      ///@{
       mutable Vector u_aux, d_aux, d2_aux;
-      Basis *auxiliary_basis; // Non-NULL only for etype == Integrated
+      ///@}
+      /// @brief An auxiliary nodal basis used to evaluate the integrated basis.
+      /// This member variable is NULL whenever etype != Integrated.
+      Basis *auxiliary_basis;
+      /// Should the integrated basis functions be scaled? See ScaleIntegrated.
+      bool scale_integrated;
 
    public:
-      /// Create a nodal or positive (Bernstein) basis
+      /// Create a nodal or positive (Bernstein) basis of degree @a p
       Basis(const int p, const double *nodes, EvalType etype = Barycentric);
+      /// Evaluate the basis functions at point @a x in [0,1]
       void Eval(const double x, Vector &u) const;
+      /// @brief Evaluate the basis functions and their derivatives at point @a
+      /// x in [0,1]
       void Eval(const double x, Vector &u, Vector &d) const;
+      /// @brief Evaluate the basis functions and their first two derivatives at
+      /// point @a x in [0,1]
       void Eval(const double x, Vector &u, Vector &d, Vector &d2) const;
-      /// Evaluate the "integrated" basis, which is given by the negative
-      /// partial sum of the corresponding closed basis derivatives. The closed
-      /// basis derivatives are given by @a d, and the result is stored in @a i.
+      /// @brief Evaluate the "integrated" basis type using pre-computed closed
+      /// basis derivatives.
+      ///
+      /// This basis is given by the negative partial sum of the corresponding
+      /// closed basis derivatives. The closed basis derivatives are given by @a
+      /// d, and the result is stored in @a i.
       void EvalIntegrated(const Vector &d, Vector &i) const;
+      /// @brief Set whether the "integrated" basis should be scaled by the
+      /// subcell sizes. Has no effect for non-integrated bases.
+      ///
+      /// Generally, this should be true for mfem::FiniteElement::MapType VALUE
+      /// and false for all other map types. If this option is enabled, the
+      /// basis functions will be scaled by the widths of the subintervals, so
+      /// that the basis functions represent mean values. Otherwise, the basis
+      /// functions represent integrated values.
+      void ScaleIntegrated(bool scale_integrated_);
+      /// Returns true if the basis is "integrated", false otherwise.
       bool IsIntegratedType() const { return etype == Integrated; }
       ~Basis();
    };
@@ -1192,6 +1214,8 @@ public:
              ScalarFiniteElement::GetDofToQuad(ir, mode) :
              ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
    }
+
+   virtual void SetMapType(const int map_type_);
 
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,

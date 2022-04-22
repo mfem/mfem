@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2311,13 +2311,17 @@ AdaptivityEvaluator::~AdaptivityEvaluator()
 #endif
 }
 
-void TMOP_Integrator::ReleasePADeviceMemory()
+void TMOP_Integrator::ReleasePADeviceMemory(bool copy_to_host)
 {
    if (PA.enabled)
    {
-      PA.H.GetMemory().DeleteDevice();
-      PA.H0.GetMemory().DeleteDevice();
-      PA.Jtr.GetMemory().DeleteDevice();
+      PA.H.GetMemory().DeleteDevice(copy_to_host);
+      PA.H0.GetMemory().DeleteDevice(copy_to_host);
+      if (!copy_to_host && !PA.Jtr.GetMemory().HostIsValid())
+      {
+         PA.Jtr_needs_update = true;
+      }
+      PA.Jtr.GetMemory().DeleteDevice(copy_to_host);
    }
 }
 

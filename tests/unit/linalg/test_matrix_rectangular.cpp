@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,7 +27,7 @@ void gradf1(const Vector &x, Vector &u)
 {
    u(0) = 2*x(0);
    if (x.Size() >= 2) { u(1) = 3*pow(x(1), 2); }
-   if (x.Size() >= 3) { u(2) = 4*pow(x(1), 3); }
+   if (x.Size() >= 3) { u(2) = 4*pow(x(2), 3); }
 }
 
 TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")

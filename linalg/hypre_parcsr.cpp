@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -302,9 +302,9 @@ void hypre_ParCSRMatrixEliminateAXB(hypre_ParCSRMatrix *A,
                                        rowscols_to_elim);
 
    /* set boundary values in the rhs */
-   for (int i = 0; i < num_rowscols_to_elim; i++)
+   for (int ii = 0; ii < num_rowscols_to_elim; ii++)
    {
-      irow = rowscols_to_elim[i];
+      irow = rowscols_to_elim[ii];
       Bdata[irow] = Xdata[irow];
    }
 
@@ -781,9 +781,9 @@ void hypre_CSRMatrixSplit(hypre_CSRMatrix *A,
       HYPRE_Int* B_i = hypre_CSRMatrixI(B);
 
       HYPRE_Int nnz = 0, rs;
-      for (int k = 1; k <= hypre_CSRMatrixNumRows(B); k++)
+      for (int kk = 1; kk <= hypre_CSRMatrixNumRows(B); kk++)
       {
-         rs = B_i[k], B_i[k] = nnz, nnz += rs;
+         rs = B_i[kk], B_i[kk] = nnz, nnz += rs;
       }
 
       hypre_CSRMatrixJ(B) = mfem_hypre_TAlloc_host(HYPRE_Int, nnz);

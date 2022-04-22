@@ -259,10 +259,13 @@ miniapps/performance/sol.*
 
 miniapps/shifted/distance
 miniapps/shifted/ParaViewDistance
+miniapps/shifted/extrapolate
+miniapps/shifted/ParaViewExtrapolate
 miniapps/shifted/diffusion
 miniapps/shifted/diffusion.mesh
 miniapps/shifted/diffusion.gf
 miniapps/shifted/ParaViewDiffusion
+miniapps/shifted/algoim
 
 miniapps/tools/display-basis
 miniapps/tools/load-dc

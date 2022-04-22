@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,8 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#include <cmath>
+#endif
+
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+
 #include <fstream>
 #include <iostream>
 
@@ -21,6 +27,7 @@ namespace pa_kernels
 
 double zero_field(const Vector &x)
 {
+   MFEM_CONTRACT_VAR(x);
    return 0.0;
 }
 
@@ -349,18 +356,25 @@ void AddConvectionIntegrators(BilinearForm &k, Coefficient &rho,
    }
 }
 
-void test_pa_convection(const char *meshname, int order, int prob)
+void test_pa_convection(const std::string &meshname, int order, int prob,
+                        int refinement)
 {
-   INFO("mesh=" << meshname << ", order=" << order << ", prob=" << prob);
-   Mesh mesh(meshname, 1, 1);
+   INFO("mesh=" << meshname << ", order=" << order << ", prob=" << prob
+        << ", refinement=" << refinement );
+   Mesh mesh(meshname.c_str(), 1, 1);
    mesh.EnsureNodes();
    mesh.SetCurvature(mesh.GetNodalFESpace()->GetElementOrder(0));
+   for (int r = 0; r < refinement; r++)
+   {
+      mesh.RandomRefinement(0.6,false,1,4);
+   }
    int dim = mesh.Dimension();
 
    FiniteElementCollection *fec;
    if (prob)
    {
-      fec = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      auto basis = prob==3 ? BasisType::Positive : BasisType::GaussLobatto;
+      fec = new L2_FECollection(order, dim, basis);
    }
    else
    {
@@ -380,7 +394,7 @@ void test_pa_convection(const char *meshname, int order, int prob)
    Coefficient *rho;
 
    // prob: 0: CG, 1: DG continuous coeff, 2: DG discontinuous coeff
-   if (prob == 2)
+   if (prob >= 2)
    {
       vel_gf.Randomize(1);
       vel_coeff = new VectorGridFunctionCoefficient(&vel_gf);
@@ -407,8 +421,17 @@ void test_pa_convection(const char *meshname, int order, int prob)
 
    x.Randomize(1);
 
+   // Testing Mult
    k_fa.Mult(x,y_fa);
    k_pa.Mult(x,y_pa);
+
+   y_pa -= y_fa;
+
+   REQUIRE(y_pa.Norml2() < 1.e-12);
+
+   // Testing MultTranspose
+   k_fa.MultTranspose(x,y_fa);
+   k_pa.MultTranspose(x,y_pa);
 
    y_pa -= y_fa;
 
@@ -419,38 +442,120 @@ void test_pa_convection(const char *meshname, int order, int prob)
    delete fec;
 }
 
-// Basic unit test for convection
+// Basic unit tests for convection
 TEST_CASE("PA Convection", "[PartialAssembly]")
 {
-   // prob: 0: CG, 1: DG continuous coeff, 2: DG discontinuous coeff
-   auto prob = GENERATE(0, 1, 2);
-   auto order_2d = GENERATE(2, 3, 4);
-   auto order_3d = GENERATE(2);
+   // prob:
+   // - 0: CG,
+   // - 1: DG continuous coeff,
+   // - 2: DG discontinuous coeff,
+   // - 3: DG Bernstein discontinuous coeff.
+   auto prob = GENERATE(0, 1, 2, 3);
+   auto order = GENERATE(2);
+   // refinement > 0 => Non-conforming mesh
+   auto refinement = GENERATE(0,1);
 
    SECTION("2D")
    {
-      test_pa_convection("../../data/periodic-square.mesh", order_2d, prob);
-      test_pa_convection("../../data/periodic-hexagon.mesh", order_2d, prob);
-      test_pa_convection("../../data/star-q3.mesh", order_2d, prob);
+      test_pa_convection("../../data/periodic-square.mesh", order, prob,
+                         refinement);
    }
 
    SECTION("3D")
    {
-      test_pa_convection("../../data/periodic-cube.mesh", order_3d, prob);
-      test_pa_convection("../../data/fichera-q3.mesh", order_3d, prob);
+      test_pa_convection("../../data/periodic-cube.mesh", order, prob,
+                         refinement);
    }
-
-   // Test AMR cases (DG not implemented)
-   SECTION("AMR 2D")
-   {
-      test_pa_convection("../../data/amr-quad.mesh", order_2d, 0);
-   }
-
-   SECTION("AMR 3D")
-   {
-      test_pa_convection("../../data/fichera-amr.mesh", order_3d, 0);
-   }
-
 } // test case
+
+// Advanced unit tests for convection
+TEST_CASE("PA Convection advanced", "[PartialAssembly][MFEMData]")
+{
+   if (launch_all_non_regression_tests)
+   {
+      // prob:
+      // - 0: CG,
+      // - 1: DG continuous coeff,
+      // - 2: DG discontinuous coeff,
+      // - 3: DG Bernstein discontinuous coeff.
+      auto prob = GENERATE(0, 1, 2, 3);
+      auto order = GENERATE(2);
+      // refinement > 0 => Non-conforming mesh
+      auto refinement = GENERATE(0,1);
+
+      SECTION("2D")
+      {
+         test_pa_convection("../../data/periodic-hexagon.mesh", order, prob,
+                            refinement);
+         test_pa_convection("../../data/star-q3.mesh", order, prob,
+                            refinement);
+         test_pa_convection(mfem_data_dir+"/gmsh/v22/unstructured_quad.v22.msh",
+                            order, prob, refinement);
+      }
+
+      SECTION("3D")
+      {
+         test_pa_convection("../../data/fichera-q3.mesh", order, prob,
+                            refinement);
+         test_pa_convection(mfem_data_dir+"/gmsh/v22/unstructured_hex.v22.msh",
+                            order, prob, refinement);
+      }
+   }
+} // PA Convection test case
+
+template <typename INTEGRATOR>
+static void test_pa_integrator()
+{
+   const bool all_tests = launch_all_non_regression_tests;
+
+   auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
+                         "../../data/fichera.mesh", "../../data/fichera-q3.mesh");
+   auto map_type = GENERATE(FiniteElement::VALUE, FiniteElement::INTEGRAL);
+
+   auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+   auto q_order_inc = !all_tests ? 0 : GENERATE(0, 1, 3);
+
+   Mesh mesh(fname);
+   int dim = mesh.Dimension();
+   L2_FECollection fec(order, dim, BasisType::GaussLobatto, map_type);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   const int q_order = 2*order + q_order_inc;
+   // Don't use a special integration rule if q_order_inc == 0
+   const bool use_ir = q_order_inc > 0;
+   const IntegrationRule *ir =
+      use_ir ? &IntRules.Get(mesh.GetElementGeometry(0), q_order) : nullptr;
+
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   ConstantCoefficient pi(M_PI);
+
+   BilinearForm blf_fa(&fes);
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(pi,ir));
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   blf_fa.Mult(x, y_fa);
+
+   BilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(pi,ir));
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   y_fa -= y_pa;
+
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("PA Mass", "[PartialAssembly], [CUDA]")
+{
+   test_pa_integrator<MassIntegrator>();
+} // PA Mass test case
+
+TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
+{
+   test_pa_integrator<DiffusionIntegrator>();
+} // PA Diffusion test case
 
 } // namespace pa_kernels

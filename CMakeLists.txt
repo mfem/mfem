@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -16,9 +16,6 @@ set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
 
 # Require C++11 and disable compiler-specific extensions
 set(CMAKE_CXX_STANDARD 11)
-if (MFEM_USE_GINKGO)
-  set(CMAKE_CXX_STANDARD 14)
-endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -83,6 +80,9 @@ endif()
 if (MFEM_USE_STRUMPACK)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
+endif()
+if (MFEM_USE_GINKGO AND ("${CMAKE_CXX_STANDARD}" LESS "14"))
+  set(CMAKE_CXX_STANDARD 14)
 endif()
 
 # Include xSDK default CMake file.
@@ -178,6 +178,19 @@ if (CMAKE_BUILD_TYPE MATCHES "Debug|debug|DEBUG")
   set(MFEM_DEBUG ON)
 else()
   set(MFEM_DEBUG OFF)
+endif()
+
+# AMD HIP
+if (MFEM_USE_HIP)
+  if (HIP_ARCH)
+    message(STATUS "Using HIP architecture: ${HIP_ARCH}")
+    set(GPU_TARGETS "${HIP_ARCH}" CACHE STRING "HIP targets to compile for")
+  endif()
+  if (ROCM_PATH)
+    list(INSERT CMAKE_PREFIX_PATH 0 ${ROCM_PATH})
+  endif()
+  find_package(HIP REQUIRED)
+  find_package(HIPSPARSE REQUIRED)
 endif()
 
 # MPI -> hypre; PETSc (optional)
@@ -403,16 +416,14 @@ if (MFEM_USE_CALIPER)
   find_package(Caliper REQUIRED)
 endif()
 
-# AMD HIP
-if (MFEM_USE_HIP)
-  find_package(HIP REQUIRED)
-  if (HIP_ARCH)
-    message(STATUS "Using HIP architecture: ${HIP_ARCH}")
-    list(APPEND HIP_HIPCC_FLAGS "--amdgpu-target=${HIP_ARCH}")
-    if (MFEM_USE_GINKGO)
-      list(APPEND HIP_HIPCC_FLAGS "-std=c++14")
-    endif()
-  endif()
+# Blitz
+if (MFEM_USE_BLITZ)
+  find_package(Blitz REQUIRED)
+endif()
+
+# Algoim
+if (MFEM_USE_ALGOIM)
+  find_package(Algoim REQUIRED)
 endif()
 
 # ADIOS2 for parallel I/O
@@ -454,10 +465,11 @@ endif()
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS PETSC
-    SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB NETCDF
-    MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE ADIOS2
-    CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG MPI_CXX)
+set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS
+    PETSC SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
+    NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
+    ADIOS2 CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG
+    MPI_CXX HIP HIPSPARSE BLITZ ALGOIM)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -500,8 +512,6 @@ endforeach()
 
 if (MFEM_USE_CUDA)
   set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CUDA)
-elseif(MFEM_USE_HIP)
-  set_source_files_properties(${SOURCES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
 
 add_subdirectory(config)

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -29,11 +29,15 @@ DIFFUSION_SRC = diffusion.cpp dist_solver.cpp sbm_solver.cpp marking.cpp
 DIFFUSION_OBJ = $(DIFFUSION_SRC:.cpp=.o)
 DISTANCE_SRC = distance.cpp dist_solver.cpp
 DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
+EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
+EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
+ALGOIM_SRC = integ_algoim.cpp algoim_test.cpp
+ALGOIM_OBJ = $(DIFFUSION_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion
+PAR_MINIAPPS = distance diffusion extrapolate algoim
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = 
 else
    MINIAPPS = $(PAR_MINIAPPS)
 endif
@@ -53,16 +57,23 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 %: %.cpp
 %.o: %.cpp
 
-%.o: $(SRC)%.cpp sbm_aux.hpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+%.o: $(SRC)%.cpp $(SRC)sbm_aux.hpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
+ $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
+
+algoim: $(ALGOIM_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(ALGOIM_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 distance: $(DISTANCE_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DISTANCE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 diffusion: $(DIFFUSION_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DIFFUSION_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+extrapolate: $(EXTRAPOLATE_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EXTRAPOLATE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:
@@ -88,9 +99,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion
+	rm -f *.o *~ distance diffusion extrapolate algoim
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f diffusion.mesh diffusion.gf
-	@rm -rf ParaViewDistance ParaViewDiffusion
+	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate

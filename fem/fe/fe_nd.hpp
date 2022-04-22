@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_FE_ND
 
 #include "fe_base.hpp"
+#include "fe_h1.hpp"
 
 namespace mfem
 {
@@ -319,6 +320,75 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &grad) const
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+};
+
+class ND_WedgeElement : public VectorFiniteElement
+{
+private:
+   static const double tk[15];
+
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector      t1_shape, s1_shape;
+   mutable DenseMatrix tn_shape, sn_shape;
+   mutable DenseMatrix t1_dshape, s1_dshape, tn_dshape;
+#endif
+   Array<int> dof2tk, t_dof, s_dof;
+
+   H1_TriangleElement H1TriangleFE;
+   ND_TriangleElement NDTriangleFE;
+   H1_SegmentElement  H1SegmentFE;
+   ND_SegmentElement  NDSegmentFE;
+
+public:
+   ND_WedgeElement(const int p,
+                   const int cb_type = BasisType::GaussLobatto,
+                   const int ob_type = BasisType::GaussLegendre);
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_ND(tk, dof2tk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+
+   using FiniteElement::Project;
+
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const
+   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
+
+   virtual void Project(const FiniteElement &fe,
+                        ElementTransformation &Trans,
+                        DenseMatrix &I) const
+   { Project_ND(tk, dof2tk, fe, Trans, I); }
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const
+   { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 };
 
 } // namespace mfem

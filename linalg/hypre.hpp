@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,8 +32,15 @@
 #error "MFEM does not work with HYPRE's complex numbers support"
 #endif
 
+#if defined(HYPRE_USING_GPU) && \
+    !(defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP))
+#error "Unsupported GPU build of HYPRE! Only CUDA and HIP builds are supported."
+#endif
 #if defined(HYPRE_USING_CUDA) && !defined(MFEM_USE_CUDA)
 #error "MFEM_USE_CUDA=YES is required when HYPRE is built with CUDA!"
+#endif
+#if defined(HYPRE_USING_HIP) && !defined(MFEM_USE_HIP)
+#error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
 
 #include "sparsemat.hpp"
@@ -74,7 +81,7 @@ inline int to_int(HYPRE_Int i)
 /// The MemoryClass used by Hypre objects.
 inline constexpr MemoryClass GetHypreMemoryClass()
 {
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
    return MemoryClass::HOST;
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryClass::MANAGED;
@@ -86,7 +93,7 @@ inline constexpr MemoryClass GetHypreMemoryClass()
 /// The MemoryType used by MFEM when allocating arrays for Hypre objects.
 inline MemoryType GetHypreMemoryType()
 {
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
    return Device::GetHostMemoryType();
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryType::MANAGED;
@@ -919,7 +926,7 @@ public:
    enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
                GS = 6, OPFS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
              };
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
    static constexpr Type default_type = l1GS;
 #else
    static constexpr Type default_type = l1Jacobi;

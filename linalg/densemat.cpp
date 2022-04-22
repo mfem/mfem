@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1810,75 +1810,75 @@ void DenseMatrix::Threshold(double eps)
    }
 }
 
-void DenseMatrix::Print(std::ostream &out, int width_) const
+void DenseMatrix::Print(std::ostream &os, int width_) const
 {
    // save current output flags
-   ios::fmtflags old_flags = out.flags();
+   ios::fmtflags old_flags = os.flags();
    // output flags = scientific + show sign
-   out << setiosflags(ios::scientific | ios::showpos);
+   os << setiosflags(ios::scientific | ios::showpos);
    for (int i = 0; i < height; i++)
    {
-      out << "[row " << i << "]\n";
+      os << "[row " << i << "]\n";
       for (int j = 0; j < width; j++)
       {
-         out << (*this)(i,j);
+         os << (*this)(i,j);
          if (j+1 == width || (j+1) % width_ == 0)
          {
-            out << '\n';
+            os << '\n';
          }
          else
          {
-            out << ' ';
+            os << ' ';
          }
       }
    }
    // reset output flags to original values
-   out.flags(old_flags);
+   os.flags(old_flags);
 }
 
-void DenseMatrix::PrintMatlab(std::ostream &out) const
+void DenseMatrix::PrintMatlab(std::ostream &os) const
 {
    // save current output flags
-   ios::fmtflags old_flags = out.flags();
+   ios::fmtflags old_flags = os.flags();
    // output flags = scientific + show sign
-   out << setiosflags(ios::scientific | ios::showpos);
+   os << setiosflags(ios::scientific | ios::showpos);
    for (int i = 0; i < height; i++)
    {
       for (int j = 0; j < width; j++)
       {
-         out << (*this)(i,j);
-         out << ' ';
+         os << (*this)(i,j);
+         os << ' ';
       }
-      out << "\n";
+      os << "\n";
    }
    // reset output flags to original values
-   out.flags(old_flags);
+   os.flags(old_flags);
 }
 
-void DenseMatrix::PrintT(std::ostream &out, int width_) const
+void DenseMatrix::PrintT(std::ostream &os, int width_) const
 {
    // save current output flags
-   ios::fmtflags old_flags = out.flags();
+   ios::fmtflags old_flags = os.flags();
    // output flags = scientific + show sign
-   out << setiosflags(ios::scientific | ios::showpos);
+   os << setiosflags(ios::scientific | ios::showpos);
    for (int j = 0; j < width; j++)
    {
-      out << "[col " << j << "]\n";
+      os << "[col " << j << "]\n";
       for (int i = 0; i < height; i++)
       {
-         out << (*this)(i,j);
+         os << (*this)(i,j);
          if (i+1 == height || (i+1) % width_ == 0)
          {
-            out << '\n';
+            os << '\n';
          }
          else
          {
-            out << ' ';
+            os << ' ';
          }
       }
    }
    // reset output flags to original values
-   out.flags(old_flags);
+   os.flags(old_flags);
 }
 
 void DenseMatrix::TestInversion()
@@ -2919,8 +2919,6 @@ double LUFactors::Det(int m) const
 
 void LUFactors::Mult(int m, int n, double *X) const
 {
-   const double *data = this->data;
-   const int *ipiv = this->ipiv;
    double *x = X;
    for (int k = 0; k < n; k++)
    {
@@ -2955,8 +2953,6 @@ void LUFactors::Mult(int m, int n, double *X) const
 
 void LUFactors::LSolve(int m, int n, double *X) const
 {
-   const double *data = this->data;
-   const int *ipiv = this->ipiv;
    double *x = X;
    for (int k = 0; k < n; k++)
    {
@@ -2980,7 +2976,6 @@ void LUFactors::LSolve(int m, int n, double *X) const
 
 void LUFactors::USolve(int m, int n, double *X) const
 {
-   const double *data = this->data;
    double *x = X;
    // X <- U^{-1} X
    for (int k = 0; k < n; k++)
@@ -3069,8 +3064,6 @@ void LUFactors::RightSolve(int m, int n, double *X) const
 void LUFactors::GetInverseMatrix(int m, double *X) const
 {
    // A^{-1} = U^{-1} L^{-1} P
-   const double *data = this->data;
-   const int *ipiv = this->ipiv;
    // X <- U^{-1} (set only the upper triangular part of X)
    double *x = X;
    for (int k = 0; k < m; k++)
@@ -3151,7 +3144,6 @@ void LUFactors::SubMult(int m, int n, int r, const double *A21,
 void LUFactors::BlockFactor(
    int m, int n, double *A12, double *A21, double *A22) const
 {
-   const double *data = this->data;
    // A12 <- L^{-1} P A12
    LSolve(m, n, A12);
    // A21 <- A21 U^{-1}

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1117,7 +1117,7 @@ public:
    { return (GeomType == GeomType_) ? Local_Element : NULL; }
    virtual int DofForGeometry(Geometry::Type GeomType_) const
    { return (GeomType == GeomType_) ? Local_Element->GetDof() : 0; }
-   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType_,
                                              int Or) const
    { return NULL; }
    virtual const char *Name() const { return d_name; }

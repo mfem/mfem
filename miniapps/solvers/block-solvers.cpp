@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,8 +33,8 @@
 //
 // Sample runs:
 //
-//    mpirun -np 8 block-solvers-compare -r 2 -o 0
-//    mpirun -np 8 block-solvers-compare -m anisotropic.mesh -c anisotropic.coeff -be anisotropic.bdr
+//    mpirun -np 8 block-solvers -r 2 -o 0
+//    mpirun -np 8 block-solvers -m anisotropic.mesh -c anisotropic.coeff -be anisotropic.bdr
 //
 //
 // NOTE:  The coefficient file (provided through -c) defines a piecewise constant
@@ -225,6 +225,12 @@ bool IsAllNeumannBoundary(const Array<int>& ess_bdr_attr)
 
 int main(int argc, char *argv[])
 {
+#ifdef HYPRE_USING_GPU
+   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this miniapp\n"
+        << "is NOT supported with the GPU version of hypre.\n\n";
+   return 242;
+#endif
+
    // Initialize MPI.
    MPI_Session mpi(argc, argv);
 

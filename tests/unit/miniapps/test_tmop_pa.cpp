@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -710,9 +710,9 @@ public:
 // id: MPI rank, nr: launch all non-regression tests
 static void tmop_tests(int id = 0, bool all = false)
 {
-#if defined(MFEM_TMOP_MPI) && defined(HYPRE_USING_CUDA)
+#if defined(MFEM_TMOP_MPI) && defined(HYPRE_USING_GPU)
    cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
-        << "is NOT supported with the CUDA version of hypre.\n\n";
+        << "is NOT supported with the GPU version of hypre.\n\n";
    return;
 #endif
 

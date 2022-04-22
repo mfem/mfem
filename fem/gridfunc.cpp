@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -323,10 +323,11 @@ int GridFunction::VectorDim() const
    const FiniteElement *fe;
    if (!fes->GetNE())
    {
-      const FiniteElementCollection *fec = fes->FEColl();
+      const FiniteElementCollection *fe_coll = fes->FEColl();
       static const Geometry::Type geoms[3] =
       { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fec->FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
+      fe = fe_coll->
+           FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
    }
    else
    {
@@ -605,11 +606,11 @@ const
       ET->SetIntPoint(&ip);
       FElem->CalcPhysHessian(*ET, DofHes);
 
-      for (int i = 0; i < size; i++)
+      for (int j = 0; j < size; j++)
       {
          for (int d = 0; d < dof; d++)
          {
-            hess(k,i) += DofHes(d,i) * loc_data[d];
+            hess(k,j) += DofHes(d,j) * loc_data[d];
          }
       }
    }
@@ -3298,23 +3299,23 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double err = fabs(vals(j) - exsol.Eval(*T, ip));
+         double diff = fabs(vals(j) - exsol.Eval(*T, ip));
          if (p < infinity())
          {
-            err = pow(err, p);
+            diff = pow(diff, p);
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               diff *= weight->Eval(*T, ip);
             }
-            error += ip.weight * T->Weight() * err;
+            error += ip.weight * T->Weight() * diff;
          }
          else
          {
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               diff *= weight->Eval(*T, ip);
             }
-            error = std::max(error, err);
+            error = std::max(error, diff);
          }
       }
    }
@@ -3367,23 +3368,23 @@ void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double err = fabs(vals(j) - exsol.Eval(*T, ip));
+         double diff = fabs(vals(j) - exsol.Eval(*T, ip));
          if (p < infinity())
          {
-            err = pow(err, p);
+            diff = pow(diff, p);
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               diff *= weight->Eval(*T, ip);
             }
-            error[i] += ip.weight * T->Weight() * err;
+            error[i] += ip.weight * T->Weight() * diff;
          }
          else
          {
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               diff *= weight->Eval(*T, ip);
             }
-            error[i] = std::max(error[i], err);
+            error[i] = std::max(error[i], diff);
          }
       }
       if (p < infinity())
@@ -3443,35 +3444,35 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
          // vector weight (in exact_vals)
          for (int j = 0; j < vals.Width(); j++)
          {
-            double err = 0.0;
+            double errj = 0.0;
             for (int d = 0; d < vals.Height(); d++)
             {
-               err += vals(d,j)*exact_vals(d,j);
+               errj += vals(d,j)*exact_vals(d,j);
             }
-            loc_errs(j) = fabs(err);
+            loc_errs(j) = fabs(errj);
          }
       }
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double err = loc_errs(j);
+         double errj = loc_errs(j);
          if (p < infinity())
          {
-            err = pow(err, p);
+            errj = pow(errj, p);
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               errj *= weight->Eval(*T, ip);
             }
-            error += ip.weight * T->Weight() * err;
+            error += ip.weight * T->Weight() * errj;
          }
          else
          {
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               errj *= weight->Eval(*T, ip);
             }
-            error = std::max(error, err);
+            error = std::max(error, errj);
          }
       }
    }
@@ -3539,35 +3540,35 @@ void GridFunction::ComputeElementLpErrors(const double p,
          // weight (in exact_vals)
          for (int j = 0; j < vals.Width(); j++)
          {
-            double err = 0.0;
+            double errj = 0.0;
             for (int d = 0; d < vals.Height(); d++)
             {
-               err += vals(d,j)*exact_vals(d,j);
+               errj += vals(d,j)*exact_vals(d,j);
             }
-            loc_errs(j) = fabs(err);
+            loc_errs(j) = fabs(errj);
          }
       }
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double err = loc_errs(j);
+         double errj = loc_errs(j);
          if (p < infinity())
          {
-            err = pow(err, p);
+            errj = pow(errj, p);
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               errj *= weight->Eval(*T, ip);
             }
-            error[i] += ip.weight * T->Weight() * err;
+            error[i] += ip.weight * T->Weight() * errj;
          }
          else
          {
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               errj *= weight->Eval(*T, ip);
             }
-            error[i] = std::max(error[i], err);
+            error[i] = std::max(error[i], errj);
          }
       }
       if (p < infinity())
@@ -3598,29 +3599,29 @@ GridFunction & GridFunction::operator=(const Vector &v)
    return *this;
 }
 
-void GridFunction::Save(std::ostream &out) const
+void GridFunction::Save(std::ostream &os) const
 {
-   fes->Save(out);
-   out << '\n';
+   fes->Save(os);
+   os << '\n';
 #if 0
    // Testing: write NURBS GridFunctions using "NURBS_patches" format.
    if (fes->GetNURBSext())
    {
-      out << "NURBS_patches\n";
-      fes->GetNURBSext()->PrintSolution(*this, out);
-      out.flush();
+      os << "NURBS_patches\n";
+      fes->GetNURBSext()->PrintSolution(*this, os);
+      os.flush();
       return;
    }
 #endif
    if (fes->GetOrdering() == Ordering::byNODES)
    {
-      Vector::Print(out, 1);
+      Vector::Print(os, 1);
    }
    else
    {
-      Vector::Print(out, fes->GetVDim());
+      Vector::Print(os, fes->GetVDim());
    }
-   out.flush();
+   os.flush();
 }
 
 void GridFunction::Save(const char *fname, int precision) const
@@ -3631,15 +3632,15 @@ void GridFunction::Save(const char *fname, int precision) const
 }
 
 #ifdef MFEM_USE_ADIOS2
-void GridFunction::Save(adios2stream &out,
+void GridFunction::Save(adios2stream &os,
                         const std::string& variable_name,
                         const adios2stream::data_type type) const
 {
-   out.Save(*this, variable_name, type);
+   os.Save(*this, variable_name, type);
 }
 #endif
 
-void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
+void GridFunction::SaveVTK(std::ostream &os, const std::string &field_name,
                            int ref)
 {
    Mesh *mesh = fes->GetMesh();
@@ -3651,8 +3652,8 @@ void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
    if (vec_dim == 1)
    {
       // scalar data
-      out << "SCALARS " << field_name << " double 1\n"
-          << "LOOKUP_TABLE default\n";
+      os << "SCALARS " << field_name << " double 1\n"
+         << "LOOKUP_TABLE default\n";
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
@@ -3662,14 +3663,14 @@ void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
 
          for (int j = 0; j < val.Size(); j++)
          {
-            out << val(j) << '\n';
+            os << val(j) << '\n';
          }
       }
    }
    else if ( (vec_dim == 2 || vec_dim == 3) && mesh->SpaceDimension() > 1)
    {
       // vector data
-      out << "VECTORS " << field_name << " double\n";
+      os << "VECTORS " << field_name << " double\n";
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
@@ -3681,16 +3682,16 @@ void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
 
          for (int j = 0; j < vval.Width(); j++)
          {
-            out << vval(0, j) << ' ' << vval(1, j) << ' ';
+            os << vval(0, j) << ' ' << vval(1, j) << ' ';
             if (vval.Height() == 2)
             {
-               out << 0.0;
+               os << 0.0;
             }
             else
             {
-               out << vval(2, j);
+               os << vval(2, j);
             }
-            out << '\n';
+            os << '\n';
          }
       }
    }
@@ -3699,8 +3700,8 @@ void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
       // other data: save the components as separate scalars
       for (int vd = 0; vd < vec_dim; vd++)
       {
-         out << "SCALARS " << field_name << vd << " double 1\n"
-             << "LOOKUP_TABLE default\n";
+         os << "SCALARS " << field_name << vd << " double 1\n"
+            << "LOOKUP_TABLE default\n";
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             RefG = GlobGeometryRefiner.Refine(
@@ -3710,15 +3711,15 @@ void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
 
             for (int j = 0; j < val.Size(); j++)
             {
-               out << val(j) << '\n';
+               os << val(j) << '\n';
             }
          }
       }
    }
-   out.flush();
+   os.flush();
 }
 
-void GridFunction::SaveSTLTri(std::ostream &out, double p1[], double p2[],
+void GridFunction::SaveSTLTri(std::ostream &os, double p1[], double p2[],
                               double p3[])
 {
    double v1[3] = { p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2] };
@@ -3730,15 +3731,15 @@ void GridFunction::SaveSTLTri(std::ostream &out, double p1[], double p2[],
    double rl = 1.0 / sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
    n[0] *= rl; n[1] *= rl; n[2] *= rl;
 
-   out << " facet normal " << n[0] << ' ' << n[1] << ' ' << n[2]
-       << "\n  outer loop"
-       << "\n   vertex " << p1[0] << ' ' << p1[1] << ' ' << p1[2]
-       << "\n   vertex " << p2[0] << ' ' << p2[1] << ' ' << p2[2]
-       << "\n   vertex " << p3[0] << ' ' << p3[1] << ' ' << p3[2]
-       << "\n  endloop\n endfacet\n";
+   os << " facet normal " << n[0] << ' ' << n[1] << ' ' << n[2]
+      << "\n  outer loop"
+      << "\n   vertex " << p1[0] << ' ' << p1[1] << ' ' << p1[2]
+      << "\n   vertex " << p2[0] << ' ' << p2[1] << ' ' << p2[2]
+      << "\n   vertex " << p3[0] << ' ' << p3[1] << ' ' << p3[2]
+      << "\n  endloop\n endfacet\n";
 }
 
-void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
+void GridFunction::SaveSTL(std::ostream &os, int TimesToRefine)
 {
    Mesh *mesh = fes->GetMesh();
 
@@ -3753,7 +3754,7 @@ void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
    RefinedGeometry * RefG;
    double pts[4][3], bbox[3][2];
 
-   out << "solid GridFunction\n";
+   os << "solid GridFunction\n";
 
    bbox[0][0] = bbox[0][1] = bbox[1][0] = bbox[1][1] =
                                              bbox[2][0] = bbox[2][1] = 0.0;
@@ -3776,12 +3777,12 @@ void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
 
          if (n == 3)
          {
-            SaveSTLTri(out, pts[0], pts[1], pts[2]);
+            SaveSTLTri(os, pts[0], pts[1], pts[2]);
          }
          else
          {
-            SaveSTLTri(out, pts[0], pts[1], pts[2]);
-            SaveSTLTri(out, pts[0], pts[2], pts[3]);
+            SaveSTLTri(os, pts[0], pts[1], pts[2]);
+            SaveSTLTri(os, pts[0], pts[2], pts[3]);
          }
       }
 
@@ -3829,13 +3830,13 @@ void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
              << "[zmin,zmax] = [" << bbox[2][0] << ',' << bbox[2][1] << ']'
              << endl;
 
-   out << "endsolid GridFunction" << endl;
+   os << "endsolid GridFunction" << endl;
 }
 
-std::ostream &operator<<(std::ostream &out, const GridFunction &sol)
+std::ostream &operator<<(std::ostream &os, const GridFunction &sol)
 {
-   sol.Save(out);
-   return out;
+   sol.Save(os);
+   return os;
 }
 
 void GridFunction::LegacyNCReorder()
@@ -3933,19 +3934,142 @@ QuadratureFunction & QuadratureFunction::operator=(const QuadratureFunction &v)
    return this->operator=((const Vector &)v);
 }
 
-void QuadratureFunction::Save(std::ostream &out) const
+void QuadratureFunction::Save(std::ostream &os) const
 {
-   qspace->Save(out);
-   out << "VDim: " << vdim << '\n'
-       << '\n';
-   Vector::Print(out, vdim);
-   out.flush();
+   qspace->Save(os);
+   os << "VDim: " << vdim << '\n'
+      << '\n';
+   Vector::Print(os, vdim);
+   os.flush();
 }
 
-std::ostream &operator<<(std::ostream &out, const QuadratureFunction &qf)
+std::ostream &operator<<(std::ostream &os, const QuadratureFunction &qf)
 {
-   qf.Save(out);
-   return out;
+   qf.Save(os);
+   return os;
+}
+
+void QuadratureFunction::SaveVTU(std::ostream &out, VTKFormat format,
+                                 int compression_level) const
+{
+   out << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
+   if (compression_level != 0)
+   {
+      out << R"( compressor="vtkZLibDataCompressor")";
+   }
+   out << " byte_order=\"" << VTKByteOrder() << "\">\n";
+   out << "<UnstructuredGrid>\n";
+
+   const char *fmt_str = (format == VTKFormat::ASCII) ? "ascii" : "binary";
+   const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
+   std::vector<char> buf;
+
+   int np = qspace->GetSize();
+   int ne = qspace->GetNE();
+   int sdim = qspace->GetMesh()->SpaceDimension();
+
+   // For quadrature functions, each point is a vertex cell, so number of cells
+   // is equal to number of points
+   out << "<Piece NumberOfPoints=\"" << np
+       << "\" NumberOfCells=\"" << np << "\">\n";
+
+   // print out the points
+   out << "<Points>\n";
+   out << "<DataArray type=\"" << type_str
+       << "\" NumberOfComponents=\"3\" format=\"" << fmt_str << "\">\n";
+
+   Vector pt(sdim);
+   for (int i = 0; i < ne; i++)
+   {
+      ElementTransformation &T = *qspace->GetMesh()->GetElementTransformation(i);
+      const IntegrationRule &ir = GetElementIntRule(i);
+      for (int j = 0; j < ir.Size(); j++)
+      {
+         T.Transform(ir[j], pt);
+         WriteBinaryOrASCII(out, buf, pt[0], " ", format);
+         if (sdim > 1) { WriteBinaryOrASCII(out, buf, pt[1], " ", format); }
+         else { WriteBinaryOrASCII(out, buf, 0.0, " ", format); }
+         if (sdim > 2) { WriteBinaryOrASCII(out, buf, pt[2], "", format); }
+         else { WriteBinaryOrASCII(out, buf, 0.0, "", format); }
+         if (format == VTKFormat::ASCII) { out << '\n'; }
+      }
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>\n";
+   out << "</Points>\n";
+
+   // Write cells (each cell is just a vertex)
+   out << "<Cells>\n";
+   // Connectivity
+   out << R"(<DataArray type="Int32" Name="connectivity" format=")"
+       << fmt_str << "\">\n";
+
+   for (int i=0; i<np; ++i) { WriteBinaryOrASCII(out, buf, i, "\n", format); }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>\n";
+   // Offsets
+   out << R"(<DataArray type="Int32" Name="offsets" format=")"
+       << fmt_str << "\">\n";
+   for (int i=0; i<np; ++i) { WriteBinaryOrASCII(out, buf, i, "\n", format); }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>\n";
+   // Types
+   out << R"(<DataArray type="UInt8" Name="types" format=")"
+       << fmt_str << "\">\n";
+   for (int i = 0; i < np; i++)
+   {
+      uint8_t vtk_cell_type = VTKGeometry::POINT;
+      WriteBinaryOrASCII(out, buf, vtk_cell_type, "\n", format);
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>\n";
+   out << "</Cells>\n";
+
+   out << "<PointData>\n";
+   out << "<DataArray type=\"" << type_str << "\" Name=\"u\" format=\""
+       << fmt_str << "\" NumberOfComponents=\"" << vdim << "\">\n";
+   for (int i = 0; i < ne; i++)
+   {
+      DenseMatrix vals;
+      GetElementValues(i, vals);
+      for (int j = 0; j < vals.Size(); ++j)
+      {
+         for (int vd = 0; vd < vdim; ++vd)
+         {
+            WriteBinaryOrASCII(out, buf, vals(vd, j), " ", format);
+         }
+         if (format == VTKFormat::ASCII) { out << '\n'; }
+      }
+   }
+   if (format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(out, buf, compression_level);
+   }
+   out << "</DataArray>\n";
+   out << "</PointData>\n";
+
+   out << "</Piece>\n";
+   out << "</UnstructuredGrid>\n";
+   out << "</VTKFile>" << std::endl;
+}
+
+void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
+                                 int compression_level) const
+{
+   std::ofstream f(filename + ".vtu");
+   SaveVTU(f, format, compression_level);
 }
 
 
@@ -4002,11 +4126,11 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
 
          fl -= fla;
 
-         double err = blfi.ComputeFluxEnergy(*ffes->GetFE(i), *Transf, fl,
+         double eng = blfi.ComputeFluxEnergy(*ffes->GetFE(i), *Transf, fl,
                                              (aniso_flags ? &d_xyz : NULL));
 
-         error_estimates(i) = std::sqrt(err);
-         total_error += err;
+         error_estimates(i) = std::sqrt(eng);
+         total_error += eng;
 
          if (aniso_flags)
          {
@@ -4068,15 +4192,15 @@ double ComputeElementLpDistance(double p, int i,
       gf2.GetVectorValue(i, ip, val2);
 
       val1 -= val2;
-      double err = val1.Norml2();
+      double errj = val1.Norml2();
       if (p < infinity())
       {
-         err = pow(err, p);
-         norm += ip.weight * T->Weight() * err;
+         errj = pow(errj, p);
+         norm += ip.weight * T->Weight() * errj;
       }
       else
       {
-         norm = std::max(norm, err);
+         norm = std::max(norm, errj);
       }
    }
 
