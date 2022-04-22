@@ -744,9 +744,9 @@ double DGMassDot(const int e,
    const auto Y = ConstDeviceMatrix(y, ND, NE);
 
    const int tid = MFEM_THREAD_ID(x) + MFEM_THREAD_SIZE(x)*MFEM_THREAD_ID(y);
-   constexpr int bxy = NB*NB;
+   const int bxy = MFEM_THREAD_SIZE(x)*MFEM_THREAD_SIZE(y);
 
-   MFEM_SHARED double s_dot[bxy];
+   MFEM_SHARED double s_dot[NB*NB];
    s_dot[tid] = 0.0;
 
    for (int i = tid; i < ND; i += bxy) { s_dot[tid] += X(i,e)*Y(i,e); }
