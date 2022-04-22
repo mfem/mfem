@@ -17,11 +17,11 @@ using namespace mfem;
 TEST_CASE("DG Mass Inverse", "[CUDA]")
 {
    auto mesh_filename = GENERATE(
-      "../../data/star.mesh",
-      "../../data/star-q3.mesh",
-      "../../data/fichera.mesh",
-      "../../data/fichera-q3.mesh"
-   );
+                           "../../data/star.mesh",
+                           "../../data/star-q3.mesh",
+                           "../../data/fichera.mesh",
+                           "../../data/fichera-q3.mesh"
+                        );
    auto order = GENERATE(2, 3);
 
    CAPTURE(mesh_filename, order);

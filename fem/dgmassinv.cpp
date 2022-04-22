@@ -16,7 +16,8 @@
 namespace mfem
 {
 
-DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient *coeff, int btype)
+DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient *coeff,
+                             int btype)
    : Solver(fes_.GetTrueVSize()),
      fes_orig(fes_),
      fec(fes_.GetMaxElementOrder(), fes_.GetMesh()->Dimension(), btype),
@@ -48,7 +49,7 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient *coeff, int b
 }
 
 DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, int btype)
-: DGMassInverse(fes_, nullptr, btype) { }
+   : DGMassInverse(fes_, nullptr, btype) { }
 
 MFEM_HOST_DEVICE inline
 void PAMassApply2D(const int e,
@@ -700,7 +701,7 @@ void DGMassPreconditioner(const int e,
    const int tid = MFEM_THREAD_ID(x) + MFEM_THREAD_SIZE(x)*MFEM_THREAD_ID(y);
    const int bxy = MFEM_THREAD_SIZE(x)*MFEM_THREAD_SIZE(y);
 
-   for(int i = tid; i < ND; i += bxy)
+   for (int i = tid; i < ND; i += bxy)
    {
       Y(i, e) = D(i, e)*X(i, e);
    }
@@ -723,7 +724,7 @@ void DGMassAxpy(const int e,
    const int tid = MFEM_THREAD_ID(x) + MFEM_THREAD_SIZE(x)*MFEM_THREAD_ID(y);
    const int bxy = MFEM_THREAD_SIZE(x)*MFEM_THREAD_SIZE(y);
 
-   for(int i = tid; i < ND; i += bxy)
+   for (int i = tid; i < ND; i += bxy)
    {
       Z(i, e) = a*X(i, e) + b*Y(i, e);
    }
@@ -746,7 +747,7 @@ double DGMassDot(const int e,
    MFEM_SHARED double s_dot[bxy];
    s_dot[tid] = 0.0;
 
-   for(int i = tid; i < ND; i += bxy) { s_dot[tid] += X(i,e)*Y(i,e); }
+   for (int i = tid; i < ND; i += bxy) { s_dot[tid] += X(i,e)*Y(i,e); }
    MFEM_SYNC_THREAD;
 
    if (bxy > 512 && tid + 512 < bxy) { s_dot[tid] += s_dot[tid + 512]; }
@@ -928,24 +929,32 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
    {
       switch (id)
       {
-         case 0x22: return DGMassCGIteration<2,2,2>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x33: return DGMassCGIteration<2,3,3>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x44: return DGMassCGIteration<2,4,4>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x22: return DGMassCGIteration<2,2,2>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x33: return DGMassCGIteration<2,3,3>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x44: return DGMassCGIteration<2,4,4>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          default:
             mfem::out << "Fallback\n";
-            return DGMassCGIteration<2>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+            return DGMassCGIteration<2>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol,
+                                        max_iter, Mu, r, d, z, u, d1d, q1d);
       }
    }
    else if (dim == 3)
    {
       switch (id)
       {
-         case 0x22: return DGMassCGIteration<3,2,2>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x33: return DGMassCGIteration<3,3,3>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x44: return DGMassCGIteration<3,4,4>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x22: return DGMassCGIteration<3,2,2>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x33: return DGMassCGIteration<3,3,3>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x44: return DGMassCGIteration<3,4,4>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          default:
             mfem::out << "Fallback\n";
-            return DGMassCGIteration<3>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+            return DGMassCGIteration<3>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol,
+                                        max_iter, Mu, r, d, z, u, d1d, q1d);
       }
    }
 }
