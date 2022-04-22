@@ -50,7 +50,6 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient *coeff, int b
 DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, int btype)
 : DGMassInverse(fes_, nullptr, btype) { }
 
-template<int T_D1D = 0, int T_Q1D = 0>
 MFEM_HOST_DEVICE inline
 void PAMassApply2D(const int e,
                    const int NE,
@@ -62,8 +61,8 @@ void PAMassApply2D(const int e,
                    const int d1d = 0,
                    const int q1d = 0)
 {
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int D1D = d1d;
+   const int Q1D = q1d;
    MFEM_VERIFY_KERNEL(D1D <= MAX_D1D, "Size too large");
    MFEM_VERIFY_KERNEL(Q1D <= MAX_Q1D, "Size too large");
    auto B = ConstDeviceMatrix(b_, Q1D, D1D);
@@ -80,8 +79,8 @@ void PAMassApply2D(const int e,
       }
    }
 
-   constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-   constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int max_D1D = MAX_D1D;
+   constexpr int max_Q1D = MAX_Q1D;
    double sol_xy[max_Q1D][max_Q1D];
    for (int qy = 0; qy < Q1D; ++qy)
    {
@@ -149,6 +148,128 @@ void PAMassApply2D(const int e,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 MFEM_HOST_DEVICE inline
+void SmemPAMassApply2D(const int e,
+                       const int NE,
+                       const double *b_,
+                       const double *bt_,
+                       const double *d_,
+                       const double *x_,
+                       double *y_)
+{
+   const int d1d = 0;
+   const int q1d = 0;
+
+   MFEM_CONTRACT_VAR(bt_);
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int NBZ = 1;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+   MFEM_VERIFY_KERNEL(D1D <= MD1, "Size too large");
+   MFEM_VERIFY_KERNEL(Q1D <= MQ1, "Size too large");
+
+   auto b = ConstDeviceMatrix(b_, Q1D, D1D);
+   auto D = ConstDeviceCube(d_, Q1D, Q1D, NE);
+   auto x = ConstDeviceCube(x_, D1D, D1D, NE);
+   auto Y = DeviceCube(y_, D1D, D1D, NE);
+
+   const int tidz = MFEM_THREAD_ID(z);
+
+   MFEM_SHARED double BBt[MQ1*MD1];
+   double (*B)[MD1] = (double (*)[MD1]) BBt;
+   double (*Bt)[MQ1] = (double (*)[MQ1]) BBt;
+   MFEM_SHARED double sm0[NBZ][MDQ*MDQ];
+   MFEM_SHARED double sm1[NBZ][MDQ*MDQ];
+   double (*X)[MD1] = (double (*)[MD1]) (sm0 + tidz);
+   double (*DQ)[MQ1] = (double (*)[MQ1]) (sm1 + tidz);
+   double (*QQ)[MQ1] = (double (*)[MQ1]) (sm0 + tidz);
+   double (*QD)[MD1] = (double (*)[MD1]) (sm1 + tidz);
+
+
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         X[dy][dx] = x(dx,dy,e);
+      }
+   }
+   if (tidz == 0)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(q,x,Q1D)
+         {
+            B[q][dy] = b(q,dy);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double dq = 0.0;
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            dq += X[dy][dx] * B[qx][dx];
+         }
+         DQ[dy][qx] = dq;
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double qq = 0.0;
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            qq += DQ[dy][qx] * B[qy][dy];
+         }
+         QQ[qy][qx] = qq * D(qx, qy, e);
+      }
+   }
+   MFEM_SYNC_THREAD;
+   if (tidz == 0)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(q,x,Q1D)
+         {
+            Bt[dy][q] = b(q,dy);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double dq = 0.0;
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            dq += QQ[qy][qx] * Bt[dx][qx];
+         }
+         QD[qy][dx] = dq;
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double dd = 0.0;
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            dd += (QD[qy][dx] * Bt[dy][qy]);
+         }
+         Y(dx, dy, e) = dd; // changed from += to =
+      }
+   }
+}
+
+MFEM_HOST_DEVICE inline
 void PAMassApply3D(const int e,
                    const int NE,
                    const double *b_,
@@ -156,11 +277,11 @@ void PAMassApply3D(const int e,
                    const double *d_,
                    const double *x_,
                    double *y_,
-                   const int d1d = 0,
-                   const int q1d = 0)
+                   const int d1d,
+                   const int q1d)
 {
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int D1D = d1d;
+   const int Q1D = q1d;
    MFEM_VERIFY_KERNEL(D1D <= MAX_D1D, "Size too large");
    MFEM_VERIFY_KERNEL(Q1D <= MAX_Q1D, "Size too large");
    auto B = ConstDeviceMatrix(b_, Q1D, D1D);
@@ -180,8 +301,8 @@ void PAMassApply3D(const int e,
       }
    }
 
-   constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-   constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int max_D1D = MAX_D1D;
+   constexpr int max_Q1D = MAX_Q1D;
    double sol_xyz[max_Q1D][max_Q1D][max_Q1D];
    for (int qz = 0; qz < Q1D; ++qz)
    {
@@ -297,6 +418,228 @@ void PAMassApply3D(const int e,
    }
 }
 
+template<int T_D1D, int T_Q1D>
+MFEM_HOST_DEVICE inline
+void SmemPAMassApply3D(const int e,
+                       const int NE,
+                       const double *b_,
+                       const double *bt_,
+                       const double *d_,
+                       const double *x_,
+                       double *y_)
+{
+   MFEM_CONTRACT_VAR(bt_);
+   constexpr int D1D = T_D1D ? T_D1D : 1;
+   constexpr int Q1D = T_Q1D ? T_Q1D : 1;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+   MFEM_VERIFY_KERNEL(D1D <= MD1, "Size too large.");
+   MFEM_VERIFY_KERNEL(Q1D <= MQ1, "Size too large.");
+
+   auto b = ConstDeviceMatrix(b_, Q1D, D1D);
+   auto d = DeviceTensor<4,const double>(d_, Q1D, Q1D, Q1D, NE);
+   auto x = DeviceTensor<4,const double>(x_, D1D, D1D, D1D, NE);
+   auto y = DeviceTensor<4,double>(y_, D1D, D1D, D1D, NE);
+
+   MFEM_SHARED double sDQ[MQ1*MD1];
+   double (*B)[MD1] = (double (*)[MD1]) sDQ;
+   double (*Bt)[MQ1] = (double (*)[MQ1]) sDQ;
+   MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
+   MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
+   double (*X)[MD1][MD1]   = (double (*)[MD1][MD1]) sm0;
+   double (*DDQ)[MD1][MQ1] = (double (*)[MD1][MQ1]) sm1;
+   double (*DQQ)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) sm0;
+   double (*QQQ)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) sm1;
+   double (*QQD)[MQ1][MD1] = (double (*)[MQ1][MD1]) sm0;
+   double (*QDD)[MD1][MD1] = (double (*)[MD1][MD1]) sm1;
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         MFEM_UNROLL(MD1)
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            X[dz][dy][dx] = x(dx,dy,dz,e);
+         }
+      }
+      MFEM_FOREACH_THREAD(dx,x,Q1D)
+      {
+         B[dx][dy] = b(dx,dy);
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double u[D1D];
+         MFEM_UNROLL(MD1)
+         for (int dz = 0; dz < D1D; dz++)
+         {
+            u[dz] = 0;
+         }
+         MFEM_UNROLL(MD1)
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            MFEM_UNROLL(MD1)
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               u[dz] += X[dz][dy][dx] * B[qx][dx];
+            }
+         }
+         MFEM_UNROLL(MD1)
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            DDQ[dz][dy][qx] = u[dz];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double u[D1D];
+         MFEM_UNROLL(MD1)
+         for (int dz = 0; dz < D1D; dz++)
+         {
+            u[dz] = 0;
+         }
+         MFEM_UNROLL(MD1)
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            MFEM_UNROLL(MD1)
+            for (int dz = 0; dz < D1D; dz++)
+            {
+               u[dz] += DDQ[dz][dy][qx] * B[qy][dy];
+            }
+         }
+         MFEM_UNROLL(MD1)
+         for (int dz = 0; dz < D1D; dz++)
+         {
+            DQQ[dz][qy][qx] = u[dz];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      {
+         double u[Q1D];
+         MFEM_UNROLL(MQ1)
+         for (int qz = 0; qz < Q1D; qz++)
+         {
+            u[qz] = 0;
+         }
+         MFEM_UNROLL(MD1)
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < Q1D; qz++)
+            {
+               u[qz] += DQQ[dz][qy][qx] * B[qz][dz];
+            }
+         }
+         MFEM_UNROLL(MQ1)
+         for (int qz = 0; qz < Q1D; qz++)
+         {
+            QQQ[qz][qy][qx] = u[qz] * d(qx,qy,qz,e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(d,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(q,x,Q1D)
+      {
+         Bt[d][q] = b(q,d);
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qy,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double u[Q1D];
+         MFEM_UNROLL(MQ1)
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            u[qz] = 0;
+         }
+         MFEM_UNROLL(MQ1)
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               u[qz] += QQQ[qz][qy][qx] * Bt[dx][qx];
+            }
+         }
+         MFEM_UNROLL(MQ1)
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            QQD[qz][qy][dx] = u[qz];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double u[Q1D];
+         MFEM_UNROLL(MQ1)
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            u[qz] = 0;
+         }
+         MFEM_UNROLL(MQ1)
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               u[qz] += QQD[qz][qy][dx] * Bt[dy][qy];
+            }
+         }
+         MFEM_UNROLL(MQ1)
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            QDD[qz][dy][dx] = u[qz];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         double u[D1D];
+         MFEM_UNROLL(MD1)
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            u[dz] = 0;
+         }
+         MFEM_UNROLL(MQ1)
+         for (int qz = 0; qz < Q1D; ++qz)
+         {
+            MFEM_UNROLL(MD1)
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               u[dz] += QDD[qz][dy][dx] * Bt[dz][qz];
+            }
+         }
+         MFEM_UNROLL(MD1)
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            y(dx,dy,dz,e) = u[dz]; // changed from += to =
+         }
+      }
+   }
+}
+
 template <int DIM, int D1D, int Q1D>
 MFEM_HOST_DEVICE inline
 void DGMassApply(const int e,
@@ -309,17 +652,36 @@ void DGMassApply(const int e,
                  const int d1d = 0,
                  const int q1d = 0)
 {
-   if (DIM == 2)
+   constexpr bool use_smem = (D1D > 0 && Q1D > 0);
+   if (use_smem)
    {
-      PAMassApply2D<D1D, Q1D>(e, NE, B, Bt, pa_data, x, y, d1d, q1d);
-   }
-   else if (DIM == 3)
-   {
-      PAMassApply3D<D1D, Q1D>(e, NE, B, Bt, pa_data, x, y, d1d, q1d);
+      if (DIM == 2)
+      {
+         SmemPAMassApply2D<D1D,Q1D>(e, NE, B, Bt, pa_data, x, y);
+      }
+      else if (DIM == 3)
+      {
+         SmemPAMassApply3D<D1D,Q1D>(e, NE, B, Bt, pa_data, x, y);
+      }
+      else
+      {
+         MFEM_ABORT_KERNEL("Unsupported dimension.");
+      }
    }
    else
    {
-      MFEM_ABORT_KERNEL("Unsupported dimension.");
+      if (DIM == 2)
+      {
+         PAMassApply2D(e, NE, B, Bt, pa_data, x, y, d1d, q1d);
+      }
+      else if (DIM == 3)
+      {
+         PAMassApply3D(e, NE, B, Bt, pa_data, x, y, d1d, q1d);
+      }
+      else
+      {
+         MFEM_ABORT_KERNEL("Unsupported dimension.");
+      }
    }
 }
 
@@ -331,10 +693,14 @@ void DGMassPreconditioner(const int e,
                           const double *x,
                           double *y)
 {
-   auto X = ConstDeviceMatrix(x, ND, NE);
-   auto D = ConstDeviceMatrix(dinv, ND, NE);
+   const auto X = ConstDeviceMatrix(x, ND, NE);
+   const auto D = ConstDeviceMatrix(dinv, ND, NE);
    auto Y = DeviceMatrix(y, ND, NE);
-   for (int i = 0; i < ND; ++i)
+
+   const int tid = MFEM_THREAD_ID(x) + MFEM_THREAD_SIZE(x)*MFEM_THREAD_ID(y);
+   const int bxy = MFEM_THREAD_SIZE(x)*MFEM_THREAD_SIZE(y);
+
+   for(int i = tid; i < ND; i += bxy)
    {
       Y(i, e) = D(i, e)*X(i, e);
    }
@@ -350,12 +716,20 @@ void DGMassAxpy(const int e,
                 const double *y,
                 double *z)
 {
-   auto X = ConstDeviceMatrix(x, ND, NE);
-   auto Y = ConstDeviceMatrix(y, ND, NE);
+   const auto X = ConstDeviceMatrix(x, ND, NE);
+   const auto Y = ConstDeviceMatrix(y, ND, NE);
    auto Z = DeviceMatrix(z, ND, NE);
-   for (int i = 0; i < ND; ++i) { Z(i, e) = a*X(i, e) + b*Y(i, e); }
+
+   const int tid = MFEM_THREAD_ID(x) + MFEM_THREAD_SIZE(x)*MFEM_THREAD_ID(y);
+   const int bxy = MFEM_THREAD_SIZE(x)*MFEM_THREAD_SIZE(y);
+
+   for(int i = tid; i < ND; i += bxy)
+   {
+      Z(i, e) = a*X(i, e) + b*Y(i, e);
+   }
 }
 
+template <int NB>
 MFEM_HOST_DEVICE inline
 double DGMassDot(const int e,
                  const int NE,
@@ -363,65 +737,52 @@ double DGMassDot(const int e,
                  const double *x,
                  const double *y)
 {
-   auto X = ConstDeviceMatrix(x, ND, NE);
-   auto Y = ConstDeviceMatrix(y, ND, NE);
+   const auto X = ConstDeviceMatrix(x, ND, NE);
+   const auto Y = ConstDeviceMatrix(y, ND, NE);
 
-   double dot = 0.0;
-   for (int i = 0; i < ND; ++i)
-   {
-      dot += X(i, e)*Y(i, e);
-   }
-   return dot;
+   const int tid = MFEM_THREAD_ID(x) + MFEM_THREAD_SIZE(x)*MFEM_THREAD_ID(y);
+   constexpr int bxy = NB*NB;
 
-   //    MFEM_SHARED double s_dot[MAX_D1D*MAX_D1D*MAX_D1D];
+   MFEM_SHARED double s_dot[bxy];
+   s_dot[tid] = 0.0;
 
-   //     for(int t=0;t<p_blockSize;++t){
-   //       dlong id = t + b*p_blockSize;
-   //       s_dot[t] = 0.0;
-   //       while (id<N) {
-   //         s_dot[t] += x[id]*y[id];
-   //         id += p_blockSize*Nblocks;
-   //       }
-   //     }
+   for(int i = tid; i < ND; i += bxy) { s_dot[tid] += X(i,e)*Y(i,e); }
+   MFEM_SYNC_THREAD;
 
-   //     MFEM_SYNC_THREAD;
+   if (bxy > 512 && tid + 512 < bxy) { s_dot[tid] += s_dot[tid + 512]; }
+   MFEM_SYNC_THREAD;
 
-   // #if p_blockSize>512
-   //     for(int t=0;t<p_blockSize;++t) if(t<512) s_dot[t] += s_dot[t+512];
-   //     MFEM_SYNC_THREAD;
-   // #endif
+   if (bxy > 256 && tid < 256 && tid + 256 < bxy) { s_dot[tid] += s_dot[tid + 256]; }
+   MFEM_SYNC_THREAD;
 
-   // #if p_blockSize>256
-   //     for(int t=0;t<p_blockSize;++t) if(t<256) s_dot[t] += s_dot[t+256];
-   //     MFEM_SYNC_THREAD;
-   // #endif
+   if (bxy > 128 && tid < 128 && tid + 128 < bxy) { s_dot[tid] += s_dot[tid + 128]; }
+   MFEM_SYNC_THREAD;
 
-   //     for(int t=0;t<p_blockSize;++t) if(t<128) s_dot[t] += s_dot[t+128];
-   //     MFEM_SYNC_THREAD;
+   if (bxy > 64 && tid < 64 && tid + 64 < bxy) { s_dot[tid] += s_dot[tid + 64]; }
+   MFEM_SYNC_THREAD;
 
-   //     for(int t=0;t<p_blockSize;++t) if(t< 64) s_dot[t] += s_dot[t+ 64];
-   //     MFEM_SYNC_THREAD;
+   if (bxy > 32 && tid < 32 && tid + 32 < bxy) { s_dot[tid] += s_dot[tid + 32]; }
+   MFEM_SYNC_THREAD;
 
-   //     for(int t=0;t<p_blockSize;++t) if(t< 32) s_dot[t] += s_dot[t+ 32];
-   //     MFEM_SYNC_THREAD;
+   if (bxy > 16 && tid < 16 && tid + 16 < bxy) { s_dot[tid] += s_dot[tid + 16]; }
+   MFEM_SYNC_THREAD;
 
-   //     for(int t=0;t<p_blockSize;++t) if(t< 16) s_dot[t] += s_dot[t+ 16];
-   //     // MFEM_SYNC_THREAD;
+   if (bxy > 8 && tid < 8 && tid + 8 < bxy) { s_dot[tid] += s_dot[tid + 8]; }
+   MFEM_SYNC_THREAD;
 
-   //     for(int t=0;t<p_blockSize;++t) if(t<  8) s_dot[t] += s_dot[t+  8];
-   //     // MFEM_SYNC_THREAD;
+   if (bxy > 4 && tid < 4 && tid + 4 < bxy) { s_dot[tid] += s_dot[tid + 4]; }
+   MFEM_SYNC_THREAD;
 
-   //     for(int t=0;t<p_blockSize;++t) if(t<  4) s_dot[t] += s_dot[t+  4];
-   //     // MFEM_SYNC_THREAD;
+   if (bxy > 2 && tid < 2 && tid + 2 < bxy) { s_dot[tid] += s_dot[tid + 2]; }
+   MFEM_SYNC_THREAD;
 
-   //     for(int t=0;t<p_blockSize;++t) if(t<  2) s_dot[t] += s_dot[t+  2];
-   //     // MFEM_SYNC_THREAD;
+   if (bxy > 1 && tid < 1 && tid + 1 < bxy) { s_dot[tid] += s_dot[tid + 1]; }
+   MFEM_SYNC_THREAD;
 
-   //     for(int t=0;t<p_blockSize;++t) if(t<  1) dot[b] = s_dot[0] + s_dot[1];
-   //   }
+   return s_dot[0];
 }
 
-template<int DIM, bool USE_SMEM = false, int T_D1D = 0, int T_Q1D = 0>
+template<int DIM, int D1D = 0, int Q1D = 0>
 static void DGMassCGIteration(const int NE,
                               const Array<double> &B_,
                               const Array<double> &Bt_,
@@ -450,22 +811,25 @@ static void DGMassCGIteration(const int NE,
    auto z = z_.Write();
    auto u = u_.ReadWrite();
 
+   const int NB = Q1D ? Q1D : 1; // block size
+
    printf("  El.     It.    (Br,r)\n");
    printf("=============================\n");
-   MFEM_FORALL(e, NE,
+   MFEM_FORALL_2D(e, NE, NB, NB, 1,
    {
+      const int tid = MFEM_THREAD_ID(x) + NB*MFEM_THREAD_ID(y);
       // int final_iter;
       // double final_norm;
       // bool converged;
-      auto print_options = IterativeSolver::PrintLevel().All();
 
-      DGMassApply<DIM, T_D1D, T_Q1D>(e, NE, B, Bt, pa_data, u, r, d1d, q1d);
+      DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, u, r, d1d, q1d);
       DGMassAxpy(e, NE, ND, 1.0, b, -1.0, r, r); // r = b - r
 
+      // TODO: get rid of extra memory usage for z
       DGMassPreconditioner(e, NE, ND, dinv, r, z);
       DGMassAxpy(e, NE, ND, 1.0, z, 0.0, z, d); // d = z
 
-      double nom0 = DGMassDot(e, NE, ND, d, r);
+      double nom0 = DGMassDot<NB>(e, NE, ND, d, r);
       double nom = nom0;
       // MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
 
@@ -482,15 +846,12 @@ static void DGMassCGIteration(const int NE,
          return;
       }
 
-      DGMassApply<DIM, T_D1D, T_Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d);
-      double den = DGMassDot(e, NE, ND, z, d);
+      DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d);
+      double den = DGMassDot<NB>(e, NE, ND, z, d);
       if (den <= 0.0)
       {
-         const double d2 = DGMassDot(e, NE, ND, d, d);
-         if (d2 > 0.0 && print_options.warnings)
-         {
-            printf("Not positive definite.\n");
-         }
+         const double d2 = DGMassDot<NB>(e, NE, ND, d, d);
+         if (d2 > 0.0) { printf("Not positive definite.\n"); }
          if (den == 0.0)
          {
             // converged = false;
@@ -510,22 +871,16 @@ static void DGMassCGIteration(const int NE,
 
          DGMassPreconditioner(e, NE, ND, dinv, r, z);
 
-         double betanom = DGMassDot(e, NE, ND, r, z);
+         double betanom = DGMassDot<NB>(e, NE, ND, r, z);
          if (betanom < 0.0)
          {
-            if (print_options.warnings)
-            {
-               printf("Not positive definite.\n");
-            }
+            printf("Not positive definite.\n");
             // converged = false;
             // final_iter = i;
             return;
          }
 
-         if (print_options.iterations)
-         {
-            printf(" %4d    %4d    %10.6e\n", e, i, betanom);
-         }
+         if (tid == 0) { printf(" %4d    %4d    %10.6e\n", e, i, betanom); }
 
          if (betanom <= r0)
          {
@@ -538,15 +893,12 @@ static void DGMassCGIteration(const int NE,
 
          const double beta = betanom/nom;
          DGMassAxpy(e, NE, ND, 1.0, z, beta, d, d); // d = z + beta*d
-         DGMassApply<DIM, T_D1D, T_Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d); // z = A d
-         den = DGMassDot(e, NE, ND, d, z);
+         DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d); // z = A d
+         den = DGMassDot<NB>(e, NE, ND, d, z);
          if (den <= 0.0)
          {
-            const double d2 = DGMassDot(e, NE, ND, d, d);
-            if (d2 && print_options.warnings)
-            {
-               printf("Not positive definite.\n");
-            }
+            const double d2 = DGMassDot<NB>(e, NE, ND, d, d);
+            if (d2 > 0.0) { printf("Not positive definite.\n"); }
             if (den == 0.0)
             {
                // final_iter = i;
@@ -568,15 +920,33 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
    const auto &B = m->maps->B;
    const auto &Bt = m->maps->Bt;
 
+   const int id = (d1d << 4) | q1d;
+
+   printf("id = %x\n", id);
+
    if (dim == 2)
    {
-      DGMassCGIteration<2>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter,
-                           Mu, r, d, z, u, d1d, q1d);
+      switch (id)
+      {
+         case 0x22: return DGMassCGIteration<2,2,2>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x33: return DGMassCGIteration<2,3,3>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x44: return DGMassCGIteration<2,4,4>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         default:
+            mfem::out << "Fallback\n";
+            return DGMassCGIteration<2>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+      }
    }
    else if (dim == 3)
    {
-      DGMassCGIteration<3>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter,
-                           Mu, r, d, z, u, d1d, q1d);
+      switch (id)
+      {
+         case 0x22: return DGMassCGIteration<3,2,2>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x33: return DGMassCGIteration<3,3,3>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x44: return DGMassCGIteration<3,4,4>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         default:
+            mfem::out << "Fallback\n";
+            return DGMassCGIteration<3>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+      }
    }
 }
 

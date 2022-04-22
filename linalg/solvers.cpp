@@ -861,7 +861,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       nom = betanom;
    }
-   if (print_options.first_and_last)
+   if (print_options.first_and_last && !print_options.iterations)
    {
       mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
                 << betanom << '\n';
