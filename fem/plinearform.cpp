@@ -51,7 +51,7 @@ void ParLinearForm::Assemble(bool use_device)
    {
       bool supports_device = SupportsDevice();
       MPI_Allreduce(&supports_device, &all_supports_device, 1,
-                    MPI_CXX_BOOL, MPI_LAND, pfes->GetComm());
+                    MPI_C_BOOL, MPI_LAND, pfes->GetComm());
    }
 
    LinearForm::Assemble(all_supports_device);
