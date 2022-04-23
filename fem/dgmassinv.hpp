@@ -24,9 +24,9 @@ class MassIntegrator;
 class DGMassInverse : public Solver
 {
 protected:
-   FiniteElementSpace &fes_orig; ///< The original finite element space.
    DG_FECollection fec; ///< FE collection in requested basis.
    FiniteElementSpace fes; ///< FE space in requested basis.
+   const DofToQuad *d2q; ///< Change of basis. Not owned.
    MassIntegrator *m; ///< Owned.
    Vector diag_inv; ///< Jacobi preconditioner.
    double rel_tol = 1e-12; ///< Relative CG tolerance.
