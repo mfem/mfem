@@ -59,9 +59,9 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    auto dinv = diag_inv.HostReadWrite();
    for (int i = 0; i < height; ++i) { dinv[i] = 1.0/dinv[i]; }
 
-   r.SetSize(height);
-   d.SetSize(height);
-   z.SetSize(height);
+   r_.SetSize(height);
+   d_.SetSize(height);
+   z_.SetSize(height);
 }
 
 DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, int btype)
@@ -83,34 +83,43 @@ DGMassInverse::~DGMassInverse()
    delete m;
 }
 
-template<int DIM, int D1D = 0, int Q1D = 0>
-static void DGMassCGIteration(const int NE,
-                              const Array<double> &B_,
-                              const Array<double> &Bt_,
-                              const Vector &pa_data_,
-                              const Vector &dinv_,
-                              const double rel_tol,
-                              const double abs_tol,
-                              const int max_iter,
-                              const Vector &b_,
-                              Vector &r_,
-                              Vector &d_,
-                              Vector &z_,
-                              Vector &u_,
-                              const int d1d = 0,
-                              const int q1d = 0)
+template<int DIM, int D1D, int Q1D>
+void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 {
+   const int NE = fes.GetNE();
+   const int d1d = m->dofs1D;
+   const int q1d = m->quad1D;
+
    const int ND = pow(d1d, DIM);
 
-   const auto B = B_.Read();
-   const auto Bt = Bt_.Read();
-   const auto pa_data = pa_data_.Read();
-   const auto dinv = dinv_.Read();
-   const auto b = b_.Read();
+   const auto B = m->maps->B.Read();
+   const auto Bt = m->maps->Bt.Read();
+   const auto pa_data = m->pa_data.Read();
+   const auto dinv = diag_inv.Read();
    auto r = r_.Write();
    auto d = d_.Write();
    auto z = z_.Write();
    auto u = u_.ReadWrite();
+
+   const double RELTOL = rel_tol;
+   const double ABSTOL = abs_tol;
+   const double MAXIT = max_iter;
+
+   // const bool change_basis = (d2q != nullptr);
+
+   // const double *b, *b_orig;
+   // if (change_basis)
+   // {
+   //    b = b2_.Write();
+   //    b_orig = b_.Read();
+   // }
+   // else
+   // {
+   //    b = b_.Read();
+   //    b_orig = nullptr;
+   // }
+
+   const double *b = b_.Read();
 
    const int NB = Q1D ? Q1D : 1; // block size
 
@@ -138,7 +147,7 @@ static void DGMassCGIteration(const int NE,
       {
          return; // Not positive definite...
       }
-      double r0 = fmax(nom*rel_tol*rel_tol, abs_tol*abs_tol);
+      double r0 = fmax(nom*RELTOL*RELTOL, ABSTOL*ABSTOL);
       if (nom <= r0)
       {
          // converged = true;
@@ -190,7 +199,7 @@ static void DGMassCGIteration(const int NE,
             return;
          }
 
-         if (++i > max_iter) { return; }
+         if (++i > MAXIT) { return; }
 
          const double beta = betanom/nom;
          DGMassAxpy(e, NE, ND, 1.0, z, beta, d, d); // d = z + beta*d
@@ -214,12 +223,8 @@ static void DGMassCGIteration(const int NE,
 void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
 {
    const int dim = fes.GetMesh()->Dimension();
-   const int NE = fes.GetNE();
    const int d1d = m->dofs1D;
    const int q1d = m->quad1D;
-   const auto &pa_data = m->pa_data;
-   const auto &B = m->maps->B;
-   const auto &Bt = m->maps->Bt;
 
    const int id = (d1d << 4) | q1d;
 
@@ -228,56 +233,37 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
    {
       switch (id)
       {
-         case 0x22: return DGMassCGIteration<2,2,2>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x33: return DGMassCGIteration<2,3,3>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x35: return DGMassCGIteration<2,3,5>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x44: return DGMassCGIteration<2,4,4>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x55: return DGMassCGIteration<2,5,5>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x66: return DGMassCGIteration<2,6,6>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x22: return DGMassCGIteration<2,2,2>(Mu, u);
+         case 0x33: return DGMassCGIteration<2,3,3>(Mu, u);
+         case 0x35: return DGMassCGIteration<2,3,5>(Mu, u);
+         case 0x44: return DGMassCGIteration<2,4,4>(Mu, u);
+         case 0x55: return DGMassCGIteration<2,5,5>(Mu, u);
+         case 0x66: return DGMassCGIteration<2,6,6>(Mu, u);
          default:
             // printf("id = 0x%x\n", id);
             // MFEM_ABORT("Fallback");
-            return DGMassCGIteration<2>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol,
-                                        max_iter, Mu, r, d, z, u, d1d, q1d);
+            return DGMassCGIteration<2>(Mu, u);
       }
    }
    else if (dim == 3)
    {
       switch (id)
       {
-         case 0x22: return DGMassCGIteration<3,2,2>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x23: return DGMassCGIteration<3,2,3>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x33: return DGMassCGIteration<3,3,3>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x34: return DGMassCGIteration<3,3,4>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x44: return DGMassCGIteration<3,4,4>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x45: return DGMassCGIteration<3,4,5>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x55: return DGMassCGIteration<3,5,5>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x56: return DGMassCGIteration<3,5,6>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x58: return DGMassCGIteration<3,5,8>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x66: return DGMassCGIteration<3,6,6>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
-         case 0x67: return DGMassCGIteration<3,6,7>(NE, B, Bt, pa_data, diag_inv,
-                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x22: return DGMassCGIteration<3,2,2>(Mu, u);
+         case 0x23: return DGMassCGIteration<3,2,3>(Mu, u);
+         case 0x33: return DGMassCGIteration<3,3,3>(Mu, u);
+         case 0x34: return DGMassCGIteration<3,3,4>(Mu, u);
+         case 0x44: return DGMassCGIteration<3,4,4>(Mu, u);
+         case 0x45: return DGMassCGIteration<3,4,5>(Mu, u);
+         case 0x55: return DGMassCGIteration<3,5,5>(Mu, u);
+         case 0x56: return DGMassCGIteration<3,5,6>(Mu, u);
+         case 0x58: return DGMassCGIteration<3,5,8>(Mu, u);
+         case 0x66: return DGMassCGIteration<3,6,6>(Mu, u);
+         case 0x67: return DGMassCGIteration<3,6,7>(Mu, u);
          default:
             // printf("id = 0x%x\n", id);
             // MFEM_ABORT("Fallback");
-            return DGMassCGIteration<3>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol,
-                                        max_iter, Mu, r, d, z, u, d1d, q1d);
+            return DGMassCGIteration<3>(Mu, u);
       }
    }
 }

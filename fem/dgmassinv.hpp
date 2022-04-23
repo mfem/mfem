@@ -35,7 +35,7 @@ protected:
 
    /// @name Intermediate vectors needed for CG three-term recurrence.
    ///@{
-   mutable Vector r, d, z;
+   mutable Vector r_, d_, z_;
    ///@}
 
 public:
@@ -48,6 +48,10 @@ public:
    void SetAbsTol(const double abs_tol_);
    void SetMaxIter(const double max_iter_);
    ~DGMassInverse();
+
+   // Not part of the public interface
+   template<int DIM, int D1D = 0, int Q1D = 0>
+   void DGMassCGIteration(const Vector &b_, Vector &u_) const;
 };
 
 } // namespace mfem
