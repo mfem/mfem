@@ -925,8 +925,6 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
 
    const int id = (d1d << 4) | q1d;
 
-   printf("id = %x\n", id);
-
    if (dim == 2)
    {
       switch (id)
@@ -938,7 +936,8 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
          case 0x44: return DGMassCGIteration<2,4,4>(NE, B, Bt, pa_data, diag_inv,
                                                        rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          default:
-            mfem::out << "Fallback\n";
+            printf("id = %x\n", id);
+            MFEM_ABORT("Fallback");
             return DGMassCGIteration<2>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol,
                                         max_iter, Mu, r, d, z, u, d1d, q1d);
       }
@@ -949,12 +948,27 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
       {
          case 0x22: return DGMassCGIteration<3,2,2>(NE, B, Bt, pa_data, diag_inv,
                                                        rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x23: return DGMassCGIteration<3,2,3>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          case 0x33: return DGMassCGIteration<3,3,3>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x34: return DGMassCGIteration<3,3,4>(NE, B, Bt, pa_data, diag_inv,
                                                        rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          case 0x44: return DGMassCGIteration<3,4,4>(NE, B, Bt, pa_data, diag_inv,
                                                        rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x45: return DGMassCGIteration<3,4,5>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x55: return DGMassCGIteration<3,5,5>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x56: return DGMassCGIteration<3,5,6>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x66: return DGMassCGIteration<3,6,6>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x67: return DGMassCGIteration<3,6,7>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          default:
-            mfem::out << "Fallback\n";
+            printf("id = 0x%x\n", id);
+            MFEM_ABORT("Fallback");
             return DGMassCGIteration<3>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol,
                                         max_iter, Mu, r, d, z, u, d1d, q1d);
       }
