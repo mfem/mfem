@@ -816,11 +816,11 @@ static void DGMassCGIteration(const int NE,
 
    const int NB = Q1D ? Q1D : 1; // block size
 
-   printf("  El.     It.    (Br,r)\n");
-   printf("=============================\n");
+   // printf("  El.     It.    (Br,r)\n");
+   // printf("=============================\n");
    MFEM_FORALL_2D(e, NE, NB, NB, 1,
    {
-      const int tid = MFEM_THREAD_ID(x) + NB*MFEM_THREAD_ID(y);
+      // const int tid = MFEM_THREAD_ID(x) + NB*MFEM_THREAD_ID(y);
       // int final_iter;
       // double final_norm;
       // bool converged;
@@ -883,7 +883,7 @@ static void DGMassCGIteration(const int NE,
             return;
          }
 
-         if (tid == 0) { printf(" %4d    %4d    %10.6e\n", e, i, betanom); }
+         // if (tid == 0) { printf(" %4d    %4d    %10.6e\n", e, i, betanom); }
 
          if (betanom <= r0)
          {
