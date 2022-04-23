@@ -20,6 +20,13 @@
 
 #include "jit.hpp"
 
+namespace mfem
+{
+
+int JitPreProcess(std::istream &in, std::ostream &out, std::string &file);
+
+} // namespace mfem
+
 int main(const int argc, char* argv[])
 {
    std::string input, output, file;
@@ -27,7 +34,7 @@ int main(const int argc, char* argv[])
    {
       int operator()(char* argv[])
       {
-         std::cout << "MFEM " << MFEM_JIT_LIB_NAME << ": ";
+         std::cout << "mjit: ";
          std::cout << argv[0] << " [-h] [-o output] input" << std::endl;
          return EXIT_SUCCESS;
       }
@@ -54,7 +61,7 @@ int main(const int argc, char* argv[])
    assert(!in.fail());
    assert(in.is_open());
    if (output_file) { assert(out.is_open()); }
-   mfem::jit::preprocess(in, output_file ? out : std::cout, file);
+   mfem::JitPreProcess(in, output_file ? out : std::cout, file);
    in.close();
    out.close();
    return EXIT_SUCCESS;

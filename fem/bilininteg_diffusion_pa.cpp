@@ -1533,15 +1533,15 @@ static void PADiffusionApply3D(const int NE,
 
 // Shared memory PA Diffusion Apply 3D kernel
 MFEM_JIT template<int T_D1D = 0, int T_Q1D = 0>
-static void SmemPADiffusionApply3D(const int NE,
-                                   const bool symmetric,
-                                   const double *b_,
-                                   const double *g_,
-                                   const double *d_,
-                                   const double *x_,
-                                   double *y_,
-                                   int d1d = 0,
-                                   int q1d = 0)
+void SmemPADiffusionApply3D(const int NE,
+                            const bool symmetric,
+                            const double *b_,
+                            const double *g_,
+                            const double *d_,
+                            const double *x_,
+                            double *y_,
+                            int d1d = 0,
+                            int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;

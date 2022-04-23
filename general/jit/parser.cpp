@@ -15,618 +15,552 @@
 
 #include <list>
 #include <string>
+#include <cassert>
 #include <iostream>
 #include <algorithm>
 
 #include "jit.hpp"
 
-#define MFEM_JIT_STR(...) #__VA_ARGS__
-#define MFEM_JIT_STRINGIFY(...) MFEM_JIT_STR(__VA_ARGS__)
-
 namespace mfem
 {
 
-namespace jit
+struct JitPreProcessor
 {
+   struct argument_t
+   {
+      int default_value = 0;
+      std::string type, name;
+      bool is_ptr = false, is_cst = false,
+           is_restrict = false, is_tpl = false, has_default_value = false;
+      argument_t() {}
+   };
 
-struct argument_t
-{
-   int default_value = 0;
-   std::string type, name;
-   bool is_ptr = false, is_amp = false, is_cst = false,
-        is_restrict = false, is_tpl = false, has_default_value = false;
-   std::list<int> range;
-   bool operator==(const argument_t &arg) { return name == arg.name; }
-   argument_t() {}
-   argument_t(std::string id): name(id) {}
-};
+   typedef std::list<argument_t>::iterator argument_it;
 
-typedef std::list<argument_t>::iterator argument_it;
+   struct kernel_t
+   {
+      bool is_jit = false;
+      bool is_kernel = false;
+      std::string name;                 // kernel name
+      // Templates: format, arguments and parameters
+      std::string Tformat;              // template format, as in printf
+      std::string Targs;                // template arguments, for hash and call
+      std::string Tparams;              // template parameters, for the declaration
+      std::string Tparams_src;          // template parameters, original source
+      // Arguments and parameter for the standard calls
+      // We need two kinds of arguments because of the '& <=> *' transformation
+      // (This might be no more the case as we are getting rid of Array/Vector).
+      std::string params;
+      std::string args;
+      std::string args_wo_amp;
+      std::string src;
+   };
 
-struct forall_t { int d; std::string e, N, X, Y, Z, body; };
+   struct error_t
+   {
+      int line;
+      std::string file;
+      const char *error;
+      error_t(int l, std::string f, const char *e): line(l), file(f), error(e) {}
+   };
 
-struct kernel_t
-{
-   bool is_jit = false;
-   bool is_kernel = false;
-   std::string mfem_jit_cxx;         // holds MFEM_JIT_CXX
-   std::string mfem_jit_build_flags; // holds MFEM_JIT_BUILD_FLAGS
-   std::string mfem_source_dir;      // holds MFEM_SOURCE_DIR
-   std::string mfem_install_dir;     // holds MFEM_INSTALL_DIR
-   std::string name;                 // kernel name
-   std::string space;                // kernel namespace
-   // Templates: format, arguments and parameters
-   std::string Tformat;              // template format, as in printf
-   std::string Targs;                // template arguments, for hash and call
-   std::string Tparams;              // template parameters, for the declaration
-   std::string Tparams_src;          // template parameters, from original source
-   // Arguments and parameter for the standard calls
-   // We need two kinds of arguments because of the '& <=> *' transformation
-   // (This might be no more the case as we are getting rid of Array/Vector).
-   std::string params;
-   std::string args;
-   std::string args_wo_amp;
-   std::string src;
-};
+   void check(const bool test, const char *error)
+   {
+      if (!test) { throw error_t(line, file, error); }
+   }
 
-struct error_t
-{
-   int line;
-   std::string file;
-   const char *msg;
-   error_t(int l, std::string f, const char *m): line(l), file(f), msg(m) {}
-};
+   void add_coma(std::string &arg) { if (!arg.empty()) { arg += ",";  } }
 
-struct context_t
-{
+   void add_arg(std::string &as, const char *a) { add_coma(as); as += a; }
+
+   bool is_newline(const char c) { return c == '\n'; }
+
+   bool good() { in.peek(); return in.good(); }
+
+   char get() { return static_cast<char>(in.get()); }
+
+   char put_char(const char c)
+   {
+      if (is_newline(c)) { line++; }
+      if (ker.is_kernel) { ker.src += c; }
+      else { out.put(c); }
+      return c;
+   }
+
+   char put() { return put_char(get()); }
+
+   void skip_space(bool keep = true)
+   {
+      while (std::isspace(in.peek())) { keep ? put() : get(); }
+   }
+
+   void drop_space() { while (isspace(in.peek())) { get(); } }
+
+   bool is_comments()
+   {
+      if (in.peek() != '/') { return false; }
+      in.get();
+      assert(!in.eof());
+      const int c = in.peek();
+      in.unget();
+      if (c == '/' || c == '*') { return true; }
+      return false;
+   }
+
+   void single_line_comments(bool keep = true)
+   {
+      while (!is_newline(in.peek())) { keep ? put() : get(); }
+   }
+
+   void block_comments(bool keep = true)
+   {
+      for (char c; in.get(c);)
+      {
+         if (keep) { put(); }
+         if (c == '*' && in.peek() == '/')
+         {
+            keep ? put() : get();
+            skip_space(keep);
+            return;
+         }
+      }
+   }
+
+   void comments(bool keep = true)
+   {
+      if (!is_comments()) { return; }
+      keep ? put() : get();
+      if (keep ? put() : get() == '/') { return single_line_comments(keep); }
+      return block_comments(keep);
+   }
+
+   void next(bool keep = true)
+   {
+      keep ? skip_space() : drop_space();
+      comments(keep);
+   }
+
+   bool is_id()
+   {
+      const char c = in.peek();
+      return std::isalnum(c) || c == '_';
+   }
+
+   std::string get_id()
+   {
+      std::string id;
+      check(is_id(), "name w/o alnum 1st letter");
+      while (is_id()) { id += get(); }
+      return id;
+   }
+
+   bool is_digit() { return std::isdigit(static_cast<char>(in.peek())); }
+
+   int get_digit()
+   {
+      std::string digits;
+      check(is_digit(), "unknown number");
+      while (is_digit()) { digits += get(); }
+      return atoi(digits.c_str());
+   }
+
+   std::string peek_n(const int n)
+   {
+      int k = 0;
+      assert(n < 64);
+      static char c[64];
+      for (k = 0; k <= n; k++) { c[k] = 0; }
+      for (k = 0; k < n && good(); k++) { c[k] = get(); }
+      std::string rtn(c);
+      assert(!in.fail());
+      for (int l = 0; l < k; l++) { in.unget(); }
+      return rtn;
+   }
+
+   std::string peek_id()
+   {
+      int k = 0;
+      constexpr int n = 64;
+      static char c[64];
+      for (k = 0; k < n; k++) { c[k] = 0; }
+      for (k = 0; k < n; k++)
+      {
+         if (!is_id()) { break; }
+         c[k] = get();
+         assert(!in.eof());
+      }
+      std::string str(c);
+      for (int l = 0; l < k; l++) { in.unget(); }
+      return str;
+   }
+
+   void drop_name() { while (is_id()) { get(); } }
+
+   bool is_string(const char *str) { skip_space(); return peek_n(std::strlen(str)) == str; }
+   bool is_template() { return is_string("template"); }
+   bool is_static() { return is_string("static"); }
+   bool is_namespace() { return is_string("::"); }
+   bool is_void() { return is_string("void"); }
+
+   bool is_char(const unsigned char c) { skip_space(); return in.peek() == c; }
+   bool is_eq() { return is_char('='); }
+   bool is_amp() { return is_char('&'); }
+   bool is_coma() { return is_char(','); }
+   bool is_star() { return is_char('*'); }
+   bool is_semicolon() { return is_char(';'); }
+   bool is_left_parenthesis() { return is_char('('); }
+   bool is_right_parenthesis() { return is_char(')'); }
+
+   bool args()
+   {
+      bool empty = true;
+      argument_t arg;
+      std::list<argument_t> args;
+      args.clear();
+
+      skip_space(); // Go to first possible argument
+
+      if (is_void()) { drop_name(); return true; }
+
+      for (int argc = 0; true; empty = false)
+      {
+         if (is_star()) { arg.is_ptr = true; put(); continue; }
+         if (is_coma()) { put(); continue; }
+         if (is_left_parenthesis()) { argc += 1; put(); continue; }
+         const std::string &id = peek_id();
+         drop_name();
+         // Qualifiers
+         if (id=="const") { out << id; arg.is_cst = true; continue; }
+         if (id=="restrict") { out << id; arg.is_restrict = true; continue; }
+         if (id=="__restrict") { out << id; arg.is_restrict = true; continue; }
+         // Types
+         if (id=="char") { out << id; arg.type = id; continue; }
+         if (id=="int") { out << id; arg.type = id; continue; }
+         if (id=="short") { out << id; arg.type = id; continue; }
+         if (id=="unsigned") { out << id; arg.type = id; continue; }
+         if (id=="long") { out << id; arg.type = id; continue; }
+         if (id=="bool") { out << id; arg.type = id; continue; }
+         if (id=="float") { out << id; arg.type = id; continue; }
+         if (id=="double") { out << id; arg.type = id; continue; }
+         if (id=="size_t") { out << id; arg.type = id; continue; }
+         out << id;
+         // focus on the name, we should have qual & type
+         arg.name = id;
+         // now check for a possible default value
+         next();
+         if (is_eq()) // found a default value after a '='
+         {
+            put();
+            next();
+            arg.has_default_value = true;
+            assert(is_digit()); // verify next token is a digit
+            arg.default_value = get_digit();
+            out << arg.default_value;
+         }
+         else
+         {
+            // check if id has a T_id in ker.Tparams_src
+            std::string t_id("t_");
+            t_id += id;
+            std::transform(t_id.begin(), t_id.end(), t_id.begin(), ::toupper);
+            // if we have a hit, fake it has_default_value to trig the args to <>
+            if (ker.Tparams_src.find(t_id) != std::string::npos)
+            {
+               arg.has_default_value = true;
+               arg.default_value = 0;
+            }
+         }
+         args.push_back(arg);
+         arg = argument_t();
+         assert(not in.eof());
+         if (is_right_parenthesis()) { argc -= 1; if (argc >= 0) { put(); continue; } }
+         // end of the arguments
+         if (argc < 0) { break; }
+         check(in.peek()==',', "no coma while in args");
+         put();
+      }
+
+      // Prepare the kernel strings from the arguments
+      assert(ker.is_jit);
+      ker.Targs.clear();
+      ker.Tparams.clear();
+      ker.Tformat.clear();
+      ker.args.clear();
+      ker.params.clear();
+      ker.args_wo_amp.clear();
+
+      for (argument_it ia = args.begin(); ia != args.end() ; ia++)
+      {
+         //const argument_t &arg = *ia;
+         arg = *ia;
+         const bool is_cst = arg.is_cst;
+         const bool is_ptr = arg.is_ptr;
+         const char *type = arg.type.c_str();
+         const char *name = arg.name.c_str();
+         const bool has_default_value = arg.has_default_value;
+         // const and not reference/pointer => add it to the template args
+         if (! is_ptr && has_default_value)
+         {
+            //DBG(" => 1")
+            add_coma(ker.Tformat);
+            ker.Tformat += "%d";
+            add_coma(ker.Targs);
+            ker.Targs += name;
+            if (!has_default_value)
+            {
+               add_coma(ker.Tparams);
+               ker.Tparams += "const ";
+               ker.Tparams += type;
+               ker.Tparams += " ";
+               ker.Tparams += name;
+            }
+         }
+
+         //
+         if (is_cst && !is_ptr && !has_default_value)
+         {
+            //DBG(" => 2")
+            add_arg(ker.args, name);
+            add_arg(ker.args_wo_amp, name);
+            add_arg(ker.params, "const ");
+            ker.params += type;
+            ker.params += " ";
+            ker.params += name;
+         }
+
+         // !const && !pointer => std args
+         if (!is_cst && !is_ptr)
+         {
+            //DBG(" => 3")
+            add_arg(ker.args, name);
+            add_arg(ker.args_wo_amp, name);
+            add_arg(ker.params, type);
+            ker.params += " ";
+            ker.params += name;
+         }
+         //
+         if (is_cst && !is_ptr && has_default_value)
+         {
+            //DBG(" => 4")
+            add_arg(ker.params, " const ");
+            ker.params += type;
+            ker.params += " ";
+            ker.params += name;
+            // other_arguments_wo_amp
+            add_arg(ker.args_wo_amp, "0");
+            // other_arguments
+            add_arg(ker.args, "0");
+         }
+
+         // pointer
+         if (is_ptr)
+         {
+            //DBG(" => 5")
+            // other_arguments
+            if (!ker.args.empty()) { ker.args += ","; }
+            ker.args += name;
+            // other_arguments_wo_amp
+            if (! ker.args_wo_amp.empty()) {  ker.args_wo_amp += ","; }
+            ker.args_wo_amp += name;
+            // other_parameters
+            if (not ker.params.empty()) { ker.params += ",";  }
+            ker.params += is_cst ? "const ":"";
+            ker.params += type;
+            ker.params += " *";
+            ker.params += name;
+         }
+      }
+      add_coma(ker.Tparams);
+      ker.Tparams += ker.Tparams_src;
+
+      return empty;
+   }
+
+   void mfem_jit()
+   {
+      ker.is_jit = true;
+      next();
+      check(is_template(), "kernel is missing the 'template' token");
+
+      // copy the 'template<...>' in Tparams_src
+      out << get_id();
+      next();
+      check(in.peek()=='<',"no '<' in single source kernel!");
+      put();
+      ker.Tparams_src.clear();
+      while (in.peek() != '>')
+      {
+         assert(not in.eof());
+         char c = get();
+         put_char(c);
+         ker.Tparams_src += c;
+      }
+      put();
+
+      // 'static' check
+      if (is_static()) { out << get_id(); }
+      next();
+      check(is_void(), "kernel return type should be void");
+      assert(is_void()); // make sure the returm type is void
+      const std::string void_return_type = get_id();
+      out << void_return_type;
+      // Get kernel's name or namespace
+      ker.name.clear();
+      next();
+      const std::string name = get_id();
+      out << name;
+      ker.name = name;
+      next();
+      // check we are at the left parenthesis
+      check(in.peek()=='(',"no 1st '(' in kernel");
+      put();
+      // Get the arguments
+      args();
+      // Make sure we have hit the last ')' of the arguments
+      check(in.peek()==')',"no last ')' in kernel");
+      put();
+      next();
+      // Make sure we are about to start a compound statement
+      check(in.peek()=='{',"no compound statement found");
+      put();
+      // Generate the kernel prefix for this kernel
+      assert(ker.is_jit);
+      ker.src.clear();
+      out << "\n\tconst char *src = R\"_(";
+
+      // switching from out to ker.src to compute the hash
+      ker.src += "#include <cstdint>\n";
+      ker.src += "#include <limits>\n";
+      ker.src += "#include <cstring>\n";
+      ker.src += "#include <stdbool.h>\n";
+
+      ker.src += "#define MFEM_JIT_FORALL_COMPILATION\n";
+      ker.src += "#define MFEM_DEVICE_HPP\n";
+
+      ker.src += "#include \"";
+      ker.src += MFEM_INSTALL_DIR;
+      ker.src += "/include/mfem/general/forall.hpp\"\n";
+      ker.src += "\nusing namespace mfem;\n";
+
+      ker.src += "\ntemplate<";
+      ker.src += ker.Tparams;
+      ker.src += ">";
+      ker.src += "\nvoid ";
+      ker.src += ker.name;
+      ker.src += "_%016lx(";
+      ker.src += "const bool use_dev,";
+      ker.src += ker.params;
+      ker.src += "){";
+
+      // Push the preprocessor #line directive
+      ker.src += "\n#line ";
+      ker.src += std::to_string(line);
+      ker.src += " \"";
+      ker.src += file;
+      ker.src += "\"";
+
+      // Starts counting the block depth
+      block = 0;
+      ker.is_kernel = true;
+   }
+
+   void postfix()
+   {
+      if (!ker.is_jit) { return; }
+      if (block >= 0 && in.peek() == '{') { block++; }
+      if (block >= 0 && in.peek() == '}') { block--; }
+      // nothing to do while we have not went out of last block statement
+      if (block != -1) { return; }
+      ker.src += "}\nextern \"C\" void k%016lx(";
+      ker.src += "const bool use_dev, ";
+      ker.src += ker.params;
+      ker.src += "){";
+      ker.src += ker.name;
+      ker.src += "_%016lx<";
+      ker.src += ker.Tformat;
+      ker.src += ">(use_dev, ";
+      ker.src += ker.args_wo_amp;
+      ker.src += ");}";
+
+      out << ker.src; // output all kernel source, after having computed its hash
+      out << ")_\";"; // eos
+      ker.is_kernel = false;
+
+      const size_t seed = std::hash<std::string> {}(ker.src);
+      const size_t hash = Jit::Hash(seed, std::string(MFEM_JIT_CXX),
+                                    std::string(MFEM_JIT_BUILD_FLAGS),
+                                    std::string(MFEM_SOURCE_DIR),
+                                    std::string(MFEM_INSTALL_DIR));
+
+      out << "\n\ttypedef void (*kernel_t)(bool use_dev," << ker.params << ");";
+
+      // #warning should be CUDA dependent
+      out << "\n\tconst bool use_dev = Device::Allows(Backend::CUDA_MASK);";
+
+      out << "\n\tJit::Kernel<kernel_t>("
+          << "0x" << std::hex << hash << std::dec << "ul, src, "
+          << ker.Targs << ").operator()(use_dev," << ker.args << ");\n";
+      // Stop counting the blocks and flush the kernel status
+      block--;
+      ker.is_jit = false;
+   }
+
+   void tokens()
+   {
+      struct
+      {
+         bool token(const std::string &id, const char *token)
+         {
+            if (strncmp(id.c_str(), "MFEM_", 5) != 0 ) { return false; }
+            if (strcmp(id.c_str() + 5, token) != 0 ) { return false; }
+            return true;
+         }
+      } mfem;
+      if (peek_n(4) != "MFEM") { return; }
+      const std::string &id = get_id();
+      if (mfem.token(id, "JIT")) { return mfem_jit(); }
+      if (ker.is_kernel) { ker.src += id; }
+      else { out << id; }
+   }
+
+   bool eof()
+   {
+      const char c = get();
+      if (in.eof()) { return true; }
+      put_char(c);
+      return false;
+   }
+
+   JitPreProcessor(std::istream &in, std::ostream &out, std::string &file) :
+      in(in), out(out), file(file), line(2), block(-2) {}
+
+   int operator()()
+   {
+      try { do { tokens(); comments(); postfix(); } while (!eof()); }
+      catch (error_t err)
+      {
+         std::cerr << std::endl << err.file << ":" << err.line << ":"
+                   << " mjit error"
+                   << (err.error ? ": " : "")
+                   << (err.error ? err.error : "")
+                   << std::endl;
+         return EXIT_FAILURE;
+      }
+      return EXIT_SUCCESS;
+   }
+
+private:
    kernel_t ker;
    std::istream &in;
    std::ostream &out;
    std::string &file;
-   std::list<argument_t> args;
-   int line, block, parenthesis;
-public:
-   context_t(std::istream& i, std::ostream& o, std::string &f)
-      : in(i), out(o), file(f), line(1), block(-2), parenthesis(-2) {}
+   int line, block;
 };
 
-void check(context_t &pp, const bool test, const char *msg = nullptr)
+int JitPreProcess(std::istream &in, std::ostream &out, std::string &file)
 {
-   if (!test) { throw error_t(pp.line, pp.file,msg); }
+   return JitPreProcessor(in,out,file).operator()();
 }
-
-void addComa(std::string &arg) { if (!arg.empty()) { arg += ",";  } }
-
-void addArg(std::string &args, const char *arg) { addComa(args); args += arg; }
-
-bool is_newline(const char c) { return c == '\n'; }
-
-bool good(context_t &pp) { pp.in.peek(); return pp.in.good(); }
-
-char get(context_t &pp) { return static_cast<char>(pp.in.get()); }
-
-char put(const char c, context_t &pp)
-{
-   if (is_newline(c)) { pp.line++; }
-   if (pp.ker.is_kernel) { pp.ker.src += c; }
-   else { pp.out.put(c); }
-   return c;
-}
-
-char put(context_t &pp) { return put(get(pp), pp); }
-
-void skip_space(context_t &pp, std::string &out)
-{
-   while (std::isspace(pp.in.peek())) { out += get(pp); }
-}
-
-void skip_space(context_t &pp, bool keep = true)
-{
-   while (std::isspace(pp.in.peek())) { keep ? put(pp) : get(pp); }
-}
-
-void drop_space(context_t &pp) { while (isspace(pp.in.peek())) { get(pp); } }
-
-bool is_comments(context_t &pp)
-{
-   if (pp.in.peek() != '/') { return false; }
-   pp.in.get();
-   assert(!pp.in.eof());
-   const int c = pp.in.peek();
-   pp.in.unget();
-   if (c == '/' || c == '*') { return true; }
-   return false;
-}
-
-void singleLineComments(context_t &pp, bool keep = true)
-{
-   while (!is_newline(pp.in.peek())) { keep ? put(pp) : get(pp); }
-}
-
-void blockComments(context_t &pp, bool keep = true)
-{
-   for (char c; pp.in.get(c);)
-   {
-      if (keep) { put(c,pp); }
-      if (c == '*' && pp.in.peek() == '/')
-      {
-         keep ? put(pp) : get(pp);
-         skip_space(pp, keep);
-         return;
-      }
-   }
-}
-
-void Comments(context_t &pp, bool keep = true)
-{
-   if (!is_comments(pp)) { return; }
-   keep ? put(pp) : get(pp);
-   if (keep ? put(pp) : get(pp) == '/') { return singleLineComments(pp, keep); }
-   return blockComments(pp, keep);
-}
-
-void next(context_t &pp, bool keep = true)
-{
-   keep ? skip_space(pp) : drop_space(pp);
-   Comments(pp, keep);
-}
-
-void drop(context_t &pp) { next(pp, false); }
-
-bool is_id(context_t &pp)
-{
-   const char c = pp.in.peek();
-   return std::isalnum(c) or c == '_';
-}
-
-std::string get_id(context_t &pp)
-{
-   std::string id;
-   check(pp, is_id(pp), "name w/o alnum 1st letter");
-   while (is_id(pp)) { id += get(pp); }
-   return id;
-}
-
-bool is_digit(context_t &pp) { return std::isdigit(static_cast<char>(pp.in.peek())); }
-
-int get_digit(context_t &pp)
-{
-   std::string digits;
-   check(pp, is_digit(pp), "unknown number");
-   while (is_digit(pp)) { digits += get(pp); }
-   return atoi(digits.c_str());
-}
-
-std::string peekn(context_t &pp, const int n)
-{
-   int k = 0;
-   assert(n < 64);
-   static char c[64];
-   for (k = 0; k <= n; k++) { c[k] = 0; }
-   for (k = 0; k < n && good(pp); k++) { c[k] = get(pp); }
-   std::string rtn(c);
-   assert(!pp.in.fail());
-   for (int l = 0; l < k; l++) { pp.in.unget(); }
-   return rtn;
-}
-
-std::string peekid(context_t &pp)
-{
-   int k = 0;
-   const int n = 64;
-   static char c[64];
-   for (k = 0; k < n; k++) { c[k] = 0; }
-   for (k = 0; k < n; k++)
-   {
-      if (!is_id(pp)) { break; }
-      c[k] = get(pp);
-      assert(!pp.in.eof());
-   }
-   std::string rtn(c);
-   for (int l = 0; l < k; l++) { pp.in.unget(); }
-   return rtn;
-}
-
-void drop_name(context_t &pp) { while (is_id(pp)) { get(pp); } }
-
-bool is_string(context_t &pp, const char *str)
-{
-   skip_space(pp);
-   const std::string peek_str = peekn(pp, strlen(str));
-   assert(not pp.in.eof());
-   return peek_str == str;
-}
-
-bool is_template(context_t &pp) { return is_string(pp, "template"); }
-bool is_static(context_t &pp) { return is_string(pp, "static"); }
-bool is_namespace(context_t &pp) { return is_string(pp, "::"); }
-bool is_void(context_t &pp) { return is_string(pp, "void"); }
-
-template <unsigned char UCHR>
-bool is_char(context_t &pp) { skip_space(pp); return pp.in.peek() == UCHR; }
-
-bool is_eq(context_t &pp) { return is_char<'='>(pp); }
-bool is_amp(context_t &pp) { return is_char<'&'>(pp); }
-bool is_coma(context_t &pp) { return is_char<','>(pp); }
-bool is_star(context_t &pp) { return is_char<'*'>(pp); }
-bool is_semicolon(context_t &pp) { return is_char<';'>(pp); }
-bool is_left_parenthesis(context_t &pp) { return is_char<'('>(pp); }
-bool is_right_parenthesis(context_t &pp) { return is_char<')'>(pp); }
-
-/**
- * @brief Postfix
- * @param pp
- */
-void JitPostfix(context_t &pp)
-{
-   if (!pp.ker.is_jit) { return; }
-   if (pp.block >= 0 && pp.in.peek() == '{') { pp.block++; }
-   if (pp.block >= 0 && pp.in.peek() == '}') { pp.block--; }
-   // nothing to do while we have not went out of last block statement
-   if (pp.block != -1) { return; }
-   pp.ker.src += "}\nextern \"C\" void ";
-   pp.ker.src += std::string(1,MFEM_JIT_PREFIX_CHAR);
-   pp.ker.src += "%016lx(";
-   pp.ker.src += "const bool use_dev, ";
-   pp.ker.src += pp.ker.params;
-   pp.ker.src += "){";
-   pp.ker.src += pp.ker.name;
-   pp.ker.src += "_%016lx<";
-   pp.ker.src += pp.ker.Tformat;
-   pp.ker.src += ">(use_dev, ";
-   pp.ker.src += pp.ker.args_wo_amp;
-   pp.ker.src += ");}";
-
-   const size_t hash = jit::Hash<const char*>()(pp.ker.src.c_str());
-
-   pp.out << pp.ker.src; // output all kernel source, after having computed its hash
-   pp.out << ")_\";"; // eos
-   pp.ker.is_kernel = false;
-
-   pp.out << "\n\ttypedef void (*kernel_t)(bool use_dev," << pp.ker.params << ");";
-
-   // #warning should be CUDA dependent
-   pp.out << "\n\tconst bool use_dev = Device::Allows(Backend::CUDA_MASK);";
-
-   pp.out << "\n\tconst size_t seed = 0x" << std::hex << hash << "ul;" << std::dec;
-   pp.out << "\n\tjit::Kernel<kernel_t>(seed, src"
-          << ", " << pp.ker.mfem_jit_cxx
-          << ", " << pp.ker.mfem_jit_build_flags
-          << ", " << pp.ker.mfem_source_dir
-          << ", \"" << pp.ker.mfem_install_dir << "\""
-          << ", " << pp.ker.Targs
-          << ").operator()(use_dev," << pp.ker.args << ");\n";
-   // Stop counting the blocks and flush the kernel status
-   pp.block--;
-   pp.ker.is_jit = false;
-}
-
-/**
- * @brief JitTokenPrefix
- * @param pp
- */
-void JitPrefix(context_t &pp)
-{
-   assert(pp.ker.is_jit);
-   pp.ker.src.clear();
-   pp.out << "\n\tconst char *src = R\"_(";
-   // switching from pp.out to pp.ker.src to compute the hash
-   pp.ker.src += "#include <cstdint>\n";
-   pp.ker.src += "#include <limits>\n";
-   pp.ker.src += "#include <cstring>\n";
-   pp.ker.src += "#include <stdbool.h>\n";
-
-   pp.ker.src += "#define MFEM_JIT_FORALL_COMPILATION\n";
-   pp.ker.src += "#define MFEM_DEVICE_HPP\n";
-
-   pp.ker.src += "#include \"";
-   pp.ker.src += pp.ker.mfem_install_dir;
-   pp.ker.src += "/include/mfem/general/forall.hpp\"\n";
-   pp.ker.src += "\nusing namespace mfem;\n";
-
-   pp.ker.src += "\ntemplate<";
-   pp.ker.src += pp.ker.Tparams;
-   pp.ker.src += ">";
-   pp.ker.src += "\nvoid ";
-   pp.ker.src += pp.ker.name;
-   pp.ker.src += "_%016lx(";
-   pp.ker.src += "const bool use_dev,";
-   pp.ker.src += pp.ker.params;
-   pp.ker.src += "){";
-
-   // Push the preprocessor #line directive
-   pp.ker.src += "\n#line ";
-   pp.ker.src += std::to_string(pp.line);
-   pp.ker.src += " \"";
-   pp.ker.src += pp.file;
-   pp.ker.src += "\"";
-}
-
-/**
- * @brief JitTokenArgsString
- * @param pp
- */
-void JitArgsString(context_t &pp)
-{
-   assert(pp.ker.is_jit);
-   pp.ker.mfem_jit_cxx = MFEM_JIT_STRINGIFY(MFEM_JIT_CXX);
-   pp.ker.mfem_jit_build_flags = MFEM_JIT_STRINGIFY(MFEM_JIT_BUILD_FLAGS);
-   pp.ker.mfem_source_dir = MFEM_JIT_STRINGIFY(MFEM_SOURCE_DIR);
-   pp.ker.mfem_install_dir = MFEM_INSTALL_DIR;
-   pp.ker.Targs.clear();
-   pp.ker.Tparams.clear();
-   pp.ker.Tformat.clear();
-   pp.ker.args.clear();
-   pp.ker.params.clear();
-   pp.ker.args_wo_amp.clear();
-
-   for (argument_it ia = pp.args.begin(); ia != pp.args.end() ; ia++)
-   {
-      const argument_t &arg = *ia;
-      const bool is_cst = arg.is_cst;
-      const bool is_ptr = arg.is_ptr;
-      const char *type = arg.type.c_str();
-      const char *name = arg.name.c_str();
-      const bool has_default_value = arg.has_default_value;
-      // const and not reference/pointer => add it to the template args
-      if (! is_ptr && has_default_value)
-      {
-         //DBG(" => 1")
-         addComa(pp.ker.Tformat);
-         pp.ker.Tformat += "%d";
-         addComa(pp.ker.Targs);
-         pp.ker.Targs += name;
-         if (!has_default_value)
-         {
-            addComa(pp.ker.Tparams);
-            pp.ker.Tparams += "const ";
-            pp.ker.Tparams += type;
-            pp.ker.Tparams += " ";
-            pp.ker.Tparams += name;
-         }
-      }
-
-      //
-      if (is_cst && !is_ptr && !has_default_value)
-      {
-         //DBG(" => 2")
-         addArg(pp.ker.args, name);
-         addArg(pp.ker.args_wo_amp, name);
-         addArg(pp.ker.params, "const ");
-         pp.ker.params += type;
-         pp.ker.params += " ";
-         pp.ker.params += name;
-      }
-
-      // !const && !pointer => std args
-      if (!is_cst && !is_ptr)
-      {
-         //DBG(" => 3")
-         addArg(pp.ker.args, name);
-         addArg(pp.ker.args_wo_amp, name);
-         addArg(pp.ker.params, type);
-         pp.ker.params += " ";
-         pp.ker.params += name;
-      }
-      //
-      if (is_cst && !is_ptr && has_default_value)
-      {
-         //DBG(" => 4")
-         addArg(pp.ker.params, " const ");
-         pp.ker.params += type;
-         pp.ker.params += " ";
-         pp.ker.params += name;
-         // other_arguments_wo_amp
-         addArg(pp.ker.args_wo_amp, "0");
-         // other_arguments
-         addArg(pp.ker.args, "0");
-      }
-
-      // pointer
-      if (is_ptr)
-      {
-         //DBG(" => 5")
-         // other_arguments
-         if (!pp.ker.args.empty()) { pp.ker.args += ","; }
-         pp.ker.args += name;
-         // other_arguments_wo_amp
-         if (! pp.ker.args_wo_amp.empty()) {  pp.ker.args_wo_amp += ","; }
-         pp.ker.args_wo_amp += name;
-         // other_parameters
-         if (not pp.ker.params.empty()) { pp.ker.params += ",";  }
-         pp.ker.params += is_cst ? "const ":"";
-         pp.ker.params += type;
-         pp.ker.params += " *";
-         pp.ker.params += name;
-      }
-   }
-   addComa(pp.ker.Tparams);
-   pp.ker.Tparams += pp.ker.Tparams_src;
-}
-
-/**
- * @brief JitTokenArgs
- * @param pp
- * @return
- */
-bool JitArgs(context_t &pp)
-{
-   bool empty = true;
-   argument_t arg;
-   pp.args.clear();
-
-   skip_space(pp); // Go to first possible argument
-
-   if (is_void(pp)) { drop_name(pp); return true; }
-
-   for (int argc = 0; true; empty=false)
-   {
-      if (is_star(pp)) { arg.is_ptr = true; put(pp); continue; }
-      if (is_amp(pp)) { arg.is_amp = true; put(pp); continue; }
-      if (is_coma(pp)) { put(pp); continue; }
-      if (is_left_parenthesis(pp)) { argc += 1; put(pp); continue; }
-      const std::string &id = peekid(pp);
-      drop_name(pp);
-      // Qualifiers
-      if (id=="const") { pp.out << id; arg.is_cst = true; continue; }
-      if (id=="restrict") { pp.out << id; arg.is_restrict = true; continue; }
-      if (id=="__restrict") { pp.out << id; arg.is_restrict = true; continue; }
-      // Types
-      if (id=="char") { pp.out << id; arg.type = id; continue; }
-      if (id=="int") { pp.out << id; arg.type = id; continue; }
-      if (id=="short") { pp.out << id; arg.type = id; continue; }
-      if (id=="unsigned") { pp.out << id; arg.type = id; continue; }
-      if (id=="long") { pp.out << id; arg.type = id; continue; }
-      if (id=="bool") { pp.out << id; arg.type = id; continue; }
-      if (id=="float") { pp.out << id; arg.type = id; continue; }
-      if (id=="double") { pp.out << id; arg.type = id; continue; }
-      if (id=="size_t") { pp.out << id; arg.type = id; continue; }
-      pp.out << id;
-      // focus on the name, we should have qual & type
-      arg.name = id;
-      // now check for a possible default value
-      next(pp);
-      if (is_eq(pp)) // found a default value after a '='
-      {
-         put(pp);
-         next(pp);
-         arg.has_default_value = true;
-         assert(is_digit(pp)); // verify next token is a digit
-         arg.default_value = get_digit(pp);
-         pp.out << arg.default_value;
-      }
-      else
-      {
-         // check if id has a T_id in pp.ker.Tparams_src
-         std::string t_id("t_");
-         t_id += id;
-         std::transform(t_id.begin(), t_id.end(), t_id.begin(), ::toupper);
-         // if we have a hit, fake it has_default_value to trig the args to <>
-         if (pp.ker.Tparams_src.find(t_id) != std::string::npos)
-         {
-            arg.has_default_value = true;
-            arg.default_value = 0;
-         }
-      }
-      pp.args.push_back(arg);
-      arg = argument_t();
-      assert(not pp.in.eof());
-      if (is_right_parenthesis(pp)) { argc -= 1; if (argc >= 0) { put(pp); continue; } }
-      // end of the arguments
-      if (argc < 0) { break; }
-      check(pp, pp.in.peek()==',', "no coma while in args");
-      put(pp);
-   }
-   // Prepare the kernel strings from the arguments
-   JitArgsString(pp);
-   return empty;
-}
-
-/**
- * @brief JitToken
- * @param pp
- */
-void Jit(context_t &pp)
-{
-   pp.ker.is_jit = true;
-   next(pp);
-   // return type should be void for now, can hit a 'static' or 'template'
-   const bool check_next_id = is_void(pp) or is_static(pp) or is_template(pp);
-   // first check for the template
-   check(pp, check_next_id, "kernel w/o void, static or template");
-   if (is_template(pp))
-   {
-      // copy the 'template<...>' in Tparams_src
-      pp.out << get_id(pp);
-      next(pp);
-      check(pp, pp.in.peek()=='<',"no '<' in single source kernel!");
-      put(pp);
-      pp.ker.Tparams_src.clear();
-      while (pp.in.peek() != '>')
-      {
-         assert(not pp.in.eof());
-         char c = get(pp);
-         put(c,pp);
-         pp.ker.Tparams_src += c;
-      }
-      put(pp);
-   }
-   // 'static' check
-   if (is_static(pp)) { pp.out << get_id(pp); }
-   next(pp);
-   assert(is_void(pp)); // make sure the returm type is void
-   const std::string void_return_type = get_id(pp);
-   pp.out << void_return_type;
-   // Get kernel's name or namespace
-   pp.ker.name.clear();
-   pp.ker.space.clear();
-   next(pp);
-   const std::string name = get_id(pp);
-   pp.out << name;
-   pp.ker.name = name;
-   next(pp);
-   // check we are at the left parenthesis
-   check(pp,pp.in.peek()=='(',"no 1st '(' in kernel");
-   put(pp);
-   // Get the arguments
-   JitArgs(pp);
-   // Make sure we have hit the last ')' of the arguments
-   check(pp,pp.in.peek()==')',"no last ')' in kernel");
-   put(pp);
-   next(pp);
-   // Make sure we are about to start a compound statement
-   check(pp,pp.in.peek()=='{',"no compound statement found");
-   put(pp);
-   // Generate the kernel prefix for this kernel
-   JitPrefix(pp);
-   // Starts counting the block depth
-   pp.block = 0;
-   pp.ker.is_kernel = true;
-}
-
-void Tokens(context_t &pp)
-{
-   struct
-   {
-      bool token(const std::string &id, const char *token)
-      {
-         if (strncmp(id.c_str(), "MFEM_", 5) != 0 ) { return false; }
-         if (strcmp(id.c_str() + 5, token) != 0 ) { return false; }
-         return true;
-      }
-   } is;
-   if (peekn(pp, 4) != "MFEM") { return; }
-   const std::string &id = get_id(pp);
-   if (is.token(id, "JIT")) { return Jit(pp); }
-   if (pp.ker.is_kernel) { pp.ker.src += id; }
-   else { pp.out << id; }
-}
-
-bool eof(context_t &pp)
-{
-   const char c = get(pp);
-   if (pp.in.eof()) { return true; }
-   put(c,pp);
-   return false;
-}
-
-int preprocess(std::istream &in, std::ostream &out, std::string &file)
-{
-   mfem::jit::context_t pp(in, out, file);
-   try { do { Tokens(pp); Comments(pp); JitPostfix(pp); } while (!eof(pp)); }
-   catch (mfem::jit::error_t err)
-   {
-      std::cerr << std::endl << err.file << ":" << err.line << ":"
-                << " mjit error"
-                << (err.msg ? ": " : "")
-                << (err.msg ? err.msg : "")
-                << std::endl;
-      return EXIT_FAILURE;
-   }
-   return EXIT_SUCCESS;
-}
-
-} // namespace jit
 
 } // namespace mfem
 
