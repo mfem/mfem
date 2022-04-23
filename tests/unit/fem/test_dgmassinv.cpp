@@ -24,7 +24,7 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
    auto order = GENERATE(2, 3, 4, 5);
    auto btype = GENERATE(BasisType::GaussLobatto, BasisType::GaussLegendre);
 
-   CAPTURE(mesh_filename, order);
+   CAPTURE(mesh_filename, order, btype);
 
    Mesh mesh = Mesh::LoadFromFile(mesh_filename);
    DG_FECollection fec(order, mesh.Dimension(), btype);
@@ -41,6 +41,8 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
    int n = fes.GetTrueVSize();
    Vector B(n), X1(n), X2(n);
    B.Randomize(1);
+   X1.Randomize(2);
+   X2 = X1;
 
    const double tol = 1e-8;
 
@@ -51,14 +53,11 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
    cg.SetPrintLevel(IterativeSolver::PrintLevel().None());
    cg.SetOperator(m);
    cg.SetPreconditioner(jacobi);
-   X1 = 0.0;
    cg.Mult(B, X1);
 
    DGMassInverse m_inv(fes, btype);
    m_inv.SetAbsTol(tol);
    m_inv.SetRelTol(0.0);
-   X2 = 0.0;
-
    m_inv.Mult(B, X2);
 
    X2 -= X1;
