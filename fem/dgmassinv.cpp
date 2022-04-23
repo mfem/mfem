@@ -641,6 +641,7 @@ void SmemPAMassApply3D(const int e,
          }
       }
    }
+   MFEM_SYNC_THREAD;
 }
 
 template <int DIM, int D1D, int Q1D>
@@ -707,6 +708,7 @@ void DGMassPreconditioner(const int e,
    {
       Y(i, e) = D(i, e)*X(i, e);
    }
+   MFEM_SYNC_THREAD;
 }
 
 MFEM_HOST_DEVICE inline
@@ -730,6 +732,7 @@ void DGMassAxpy(const int e,
    {
       Z(i, e) = a*X(i, e) + b*Y(i, e);
    }
+   MFEM_SYNC_THREAD;
 }
 
 template <int NB>
@@ -820,7 +823,7 @@ static void DGMassCGIteration(const int NE,
    // printf("=============================\n");
    MFEM_FORALL_2D(e, NE, NB, NB, 1,
    {
-      // const int tid = MFEM_THREAD_ID(x) + NB*MFEM_THREAD_ID(y);
+      const int tid = MFEM_THREAD_ID(x) + NB*MFEM_THREAD_ID(y);
       // int final_iter;
       // double final_norm;
       // bool converged;
@@ -854,7 +857,7 @@ static void DGMassCGIteration(const int NE,
       if (den <= 0.0)
       {
          const double d2 = DGMassDot<NB>(e, NE, ND, d, d);
-         if (d2 > 0.0) { printf("Not positive definite.\n"); }
+         if (d2 > 0.0 && tid == 0) { printf("Not positive definite.\n"); }
          if (den == 0.0)
          {
             // converged = false;
@@ -877,7 +880,7 @@ static void DGMassCGIteration(const int NE,
          double betanom = DGMassDot<NB>(e, NE, ND, r, z);
          if (betanom < 0.0)
          {
-            printf("Not positive definite.\n");
+            if (tid == 0) { printf("Not positive definite.\n"); }
             // converged = false;
             // final_iter = i;
             return;
@@ -901,7 +904,7 @@ static void DGMassCGIteration(const int NE,
          if (den <= 0.0)
          {
             const double d2 = DGMassDot<NB>(e, NE, ND, d, d);
-            if (d2 > 0.0) { printf("Not positive definite.\n"); }
+            if (d2 > 0.0 && tid == 0) { printf("Not positive definite.\n"); }
             if (den == 0.0)
             {
                // final_iter = i;
@@ -925,6 +928,7 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
 
    const int id = (d1d << 4) | q1d;
 
+   printf("dim = %d id = 0x%x\n", dim, id);
    if (dim == 2)
    {
       switch (id)
@@ -933,11 +937,17 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
                                                        rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          case 0x33: return DGMassCGIteration<2,3,3>(NE, B, Bt, pa_data, diag_inv,
                                                        rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x35: return DGMassCGIteration<2,3,5>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          case 0x44: return DGMassCGIteration<2,4,4>(NE, B, Bt, pa_data, diag_inv,
                                                        rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x55: return DGMassCGIteration<2,5,5>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x66: return DGMassCGIteration<2,6,6>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          default:
-            printf("id = %x\n", id);
-            MFEM_ABORT("Fallback");
+            // printf("id = 0x%x\n", id);
+            // MFEM_ABORT("Fallback");
             return DGMassCGIteration<2>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol,
                                         max_iter, Mu, r, d, z, u, d1d, q1d);
       }
@@ -962,13 +972,15 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
                                                        rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          case 0x56: return DGMassCGIteration<3,5,6>(NE, B, Bt, pa_data, diag_inv,
                                                        rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
+         case 0x58: return DGMassCGIteration<3,5,8>(NE, B, Bt, pa_data, diag_inv,
+                                                       rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          case 0x66: return DGMassCGIteration<3,6,6>(NE, B, Bt, pa_data, diag_inv,
                                                        rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          case 0x67: return DGMassCGIteration<3,6,7>(NE, B, Bt, pa_data, diag_inv,
                                                        rel_tol, abs_tol, max_iter, Mu, r, d, z, u, d1d, q1d);
          default:
-            printf("id = 0x%x\n", id);
-            MFEM_ABORT("Fallback");
+            // printf("id = 0x%x\n", id);
+            // MFEM_ABORT("Fallback");
             return DGMassCGIteration<3>(NE, B, Bt, pa_data, diag_inv, rel_tol, abs_tol,
                                         max_iter, Mu, r, d, z, u, d1d, q1d);
       }
