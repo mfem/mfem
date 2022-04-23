@@ -14,6 +14,13 @@
 namespace mfem
 {
 
+void MakeReciprocal(Vector &x)
+{
+   const int n = x.Size();
+   auto dx = x.ReadWrite();
+   MFEM_FORALL(i, n, dx[i] = 1.0/dx[i]; );
+}
+
 MFEM_HOST_DEVICE inline
 void PAMassApply2D(const int e,
                    const int NE,

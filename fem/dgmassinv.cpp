@@ -52,12 +52,7 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    diag_inv.SetSize(height);
    M.AssembleDiagonal(diag_inv);
 
-   // TODO: need to move this FORALL into its own function, can't have a
-   // FORALL loop in constructor.
-   // auto dinv = diag_inv.ReadWrite();
-   //MFEM_FORALL(i, height, dinv[i] = 1.0/dinv[i]; );
-   auto dinv = diag_inv.HostReadWrite();
-   for (int i = 0; i < height; ++i) { dinv[i] = 1.0/dinv[i]; }
+   MakeReciprocal(diag_inv);
 
    r_.SetSize(height);
    d_.SetSize(height);
@@ -222,6 +217,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
 void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
 {
+   // Dispatch to templated version based on dim, d1d, and q1d.
    const int dim = fes.GetMesh()->Dimension();
    const int d1d = m->dofs1D;
    const int q1d = m->quad1D;

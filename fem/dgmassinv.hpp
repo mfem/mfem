@@ -49,7 +49,8 @@ public:
    void SetMaxIter(const double max_iter_);
    ~DGMassInverse();
 
-   // Not part of the public interface
+   // Not part of the public interface, must be public because it contains a
+   // kernel
    template<int DIM, int D1D = 0, int Q1D = 0>
    void DGMassCGIteration(const Vector &b_, Vector &u_) const;
 };
