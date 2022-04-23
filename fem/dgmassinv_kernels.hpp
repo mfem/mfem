@@ -10,15 +10,16 @@
 // CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
+#include "../linalg/dtensor.hpp"
+#include "../linalg/kernels.hpp"
+#include "kernels.hpp"
 
 namespace mfem
 {
 
-void MakeReciprocal(Vector &x)
+void MakeReciprocal(int n, double *x)
 {
-   const int n = x.Size();
-   auto dx = x.ReadWrite();
-   MFEM_FORALL(i, n, dx[i] = 1.0/dx[i]; );
+   MFEM_FORALL(i, n, x[i] = 1.0/x[i]; );
 }
 
 MFEM_HOST_DEVICE inline
@@ -754,6 +755,117 @@ double DGMassDot(const int e,
    MFEM_SYNC_THREAD;
 
    return s_dot[0];
+}
+
+template<int T_D1D = 0, int MAX_D1D = 0>
+MFEM_HOST_DEVICE inline
+void DGMassBasis2D(const int e,
+                   const int NE,
+                   const double *b_,
+                   const double *x_,
+                   double *y_,
+                   const int d1d = 0)
+{
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   const int D1D = T_D1D ? T_D1D : d1d;
+
+   const auto b = Reshape(b_, D1D, D1D);
+   const auto x = Reshape(x_, D1D, D1D, NE);
+   auto y = Reshape(y_, D1D, D1D, NE);
+
+   MFEM_SHARED double sB[MD1*MD1];
+   MFEM_SHARED double sm0[MD1*MD1];
+   MFEM_SHARED double sm1[MD1*MD1];
+
+   kernels::internal::LoadB<MD1,MD1>(D1D,D1D,b,sB);
+
+   ConstDeviceMatrix B(sB, D1D,D1D);
+   DeviceMatrix DD(sm0, MD1, MD1);
+   DeviceMatrix DQ(sm1, MD1, MD1);
+   DeviceMatrix QQ(sm0, MD1, MD1);
+
+   kernels::internal::LoadX(e,D1D,x,DD);
+   kernels::internal::EvalX(D1D,D1D,B,DD,DQ);
+   kernels::internal::EvalY(D1D,D1D,B,DQ,QQ);
+   MFEM_SYNC_THREAD; // sync here to allow in-place evaluations
+   MFEM_FOREACH_THREAD(qy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(qx,x,D1D)
+      {
+         y(qx,qy,e) = QQ(qx,qy);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int T_D1D = 0, int MAX_D1D = 0>
+MFEM_HOST_DEVICE inline
+void DGMassBasis3D(const int e,
+                   const int NE,
+                   const double *b_,
+                   const double *x_,
+                   double *y_,
+                   const int d1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+
+   const auto b = Reshape(b_, D1D, D1D);
+   const auto x = Reshape(x_, D1D, D1D, D1D, NE);
+   auto y = Reshape(y_, D1D, D1D, D1D, NE);
+
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+
+   MFEM_SHARED double sB[MD1*MD1];
+   MFEM_SHARED double sm0[MD1*MD1*MD1];
+   MFEM_SHARED double sm1[MD1*MD1*MD1];
+
+   kernels::internal::LoadB<MD1,MD1>(D1D,D1D,b,sB);
+
+   ConstDeviceMatrix B(sB, D1D,D1D);
+   DeviceCube DDD(sm0, MD1,MD1,MD1);
+   DeviceCube DDQ(sm1, MD1,MD1,MD1);
+   DeviceCube DQQ(sm0, MD1,MD1,MD1);
+   DeviceCube QQQ(sm1, MD1,MD1,MD1);
+
+   kernels::internal::LoadX(e,D1D,x,DDD);
+   kernels::internal::EvalX(D1D,D1D,B,DDD,DDQ);
+   kernels::internal::EvalY(D1D,D1D,B,DDQ,DQQ);
+   kernels::internal::EvalZ(D1D,D1D,B,DQQ,QQQ);
+   MFEM_SYNC_THREAD; // sync here to allow in-place evaluation
+   MFEM_FOREACH_THREAD(qz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,D1D)
+      {
+         for (int qx = 0; qx < D1D; ++qx)
+         {
+            y(qx,qy,qz,e) = QQQ(qz,qy,qx);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int DIM, int T_D1D = 0, int MAX_D1D = 0>
+MFEM_HOST_DEVICE inline
+void DGMassBasis(const int e,
+                 const int NE,
+                 const double *b_,
+                 const double *x_,
+                 double *y_,
+                 const int d1d = 0)
+{
+   if (DIM == 2)
+   {
+      DGMassBasis2D<T_D1D, MAX_D1D>(e, NE, b_, x_, y_, d1d);
+   }
+   else if (DIM == 3)
+   {
+      DGMassBasis3D<T_D1D, MAX_D1D>(e, NE, b_, x_, y_, d1d);
+   }
+   else
+   {
+      MFEM_ABORT_KERNEL("Dimension not supported.");
+   }
 }
 
 } // namespace mfem

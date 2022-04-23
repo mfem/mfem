@@ -27,6 +27,7 @@ protected:
    DG_FECollection fec; ///< FE collection in requested basis.
    FiniteElementSpace fes; ///< FE space in requested basis.
    const DofToQuad *d2q; ///< Change of basis. Not owned.
+   const DofToQuad *q2d; ///< Change of basis. Not owned.
    MassIntegrator *m; ///< Owned.
    Vector diag_inv; ///< Jacobi preconditioner.
    double rel_tol = 1e-12; ///< Relative CG tolerance.
@@ -35,7 +36,7 @@ protected:
 
    /// @name Intermediate vectors needed for CG three-term recurrence.
    ///@{
-   mutable Vector r_, d_, z_;
+   mutable Vector r_, d_, z_, b2_;
    ///@}
 
 public:

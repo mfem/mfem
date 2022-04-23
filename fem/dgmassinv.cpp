@@ -26,18 +26,22 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    MFEM_VERIFY(fes.IsDGSpace(), "Space must be DG.");
    MFEM_VERIFY(!fes.IsVariableOrder(), "Variable orders not supported.");
 
-   int btype_orig = static_cast<const L2_FECollection*>
-                    (fes_orig.FEColl())->GetBasisType();
+   const int btype_orig =
+      static_cast<const L2_FECollection*>(fes_orig.FEColl())->GetBasisType();
 
    if (btype_orig == btype)
    {
       // No change of basis required
       d2q = nullptr;
+      q2d = nullptr;
    }
    else
    {
-      const IntegrationRule &nodal_ir = fes.GetFE(0)->GetNodes();
-      d2q = &fes_orig.GetFE(0)->GetDofToQuad(nodal_ir, DofToQuad::TENSOR);
+      // original basis to solver basis
+      const auto mode = DofToQuad::TENSOR;
+      d2q = &fes_orig.GetFE(0)->GetDofToQuad(fes.GetFE(0)->GetNodes(), mode);
+      // solver basis to original
+      q2d = &fes.GetFE(0)->GetDofToQuad(fes_orig.GetFE(0)->GetNodes(), mode);
    }
 
    if (coeff) { m = new MassIntegrator(*coeff); }
@@ -52,11 +56,14 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    diag_inv.SetSize(height);
    M.AssembleDiagonal(diag_inv);
 
-   MakeReciprocal(diag_inv);
+   MakeReciprocal(diag_inv.Size(), diag_inv.ReadWrite());
 
+   // Workspace vectors used for CG
    r_.SetSize(height);
    d_.SetSize(height);
    z_.SetSize(height);
+   // Only need transformed RHS if basis is different
+   if (btype_orig != btype) { b2_.SetSize(height); }
 }
 
 DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, int btype)
@@ -100,21 +107,29 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
    const double ABSTOL = abs_tol;
    const double MAXIT = max_iter;
 
-   // const bool change_basis = (d2q != nullptr);
+   const bool change_basis = (d2q != nullptr);
 
-   // const double *b, *b_orig;
-   // if (change_basis)
-   // {
-   //    b = b2_.Write();
-   //    b_orig = b_.Read();
-   // }
-   // else
-   // {
-   //    b = b_.Read();
-   //    b_orig = nullptr;
-   // }
+   const double *b_orig, *b;
+   double *b2;
+   const double *d2q_B = nullptr;
+   const double *q2d_B = nullptr;
+   const double *q2d_Bt = nullptr;
+   if (change_basis)
+   {
+      d2q_B = d2q->B.Read();
+      q2d_B = q2d->B.Read();
+      q2d_Bt = q2d->Bt.Read();
 
-   const double *b = b_.Read();
+      b2 = b2_.Write();
+      b_orig = b_.Read();
+      b = b2;
+   }
+   else
+   {
+      b = b_.Read();
+      b_orig = nullptr;
+      b2 = nullptr;
+   }
 
    const int NB = Q1D ? Q1D : 1; // block size
 
@@ -122,6 +137,16 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
    // printf("=============================\n");
    MFEM_FORALL_2D(e, NE, NB, NB, 1,
    {
+      // Perform change of basis if needed
+      if (change_basis)
+      {
+         // Transform RHS
+         DGMassBasis<DIM,D1D,MAX_D1D>(e, NE, q2d_Bt, b_orig, b2, d1d);
+         // Transform initial guess
+         // Double check that "in-place" eval is OK here
+         DGMassBasis<DIM,D1D,MAX_D1D>(e, NE, d2q_B, u, u, d1d);
+      }
+
       const int tid = MFEM_THREAD_ID(x) + NB*MFEM_THREAD_ID(y);
       // int final_iter;
       // double final_norm;
@@ -148,6 +173,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
          // converged = true;
          // final_iter = 0;
          // final_norm = sqrt(nom);
+         // return;
          return;
       }
 
@@ -162,6 +188,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
             // converged = false;
             // final_iter = 0;
             // final_norm = sqrt(nom);
+            // return;
             return;
          }
       }
@@ -182,7 +209,8 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
             if (tid == 0) { printf("Not positive definite.\n"); }
             // converged = false;
             // final_iter = i;
-            return;
+            // return;
+            break;
          }
 
          // if (tid == 0) { printf(" %4d    %4d    %10.6e\n", e, i, betanom); }
@@ -191,7 +219,8 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
          {
             // converged = true;
             // final_iter = i;
-            return;
+            // return;
+            break;
          }
 
          if (++i > MAXIT) { return; }
@@ -207,10 +236,17 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
             if (den == 0.0)
             {
                // final_iter = i;
-               return;
+               // return;
+               break;
             }
          }
          nom = betanom;
+      }
+
+      if (change_basis)
+      {
+         // Double check that "in-place" eval is OK here
+         DGMassBasis<DIM,D1D,MAX_D1D>(e, NE, q2d_B, u, u, d1d);
       }
    });
 }

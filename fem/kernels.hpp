@@ -139,6 +139,20 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
    MFEM_SYNC_THREAD;
 }
 
+MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
+                                   const DeviceTensor<3, const double> &x,
+                                   DeviceMatrix &DD)
+{
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         DD(dx,dy) = x(dx,dy,e);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
 /// Load 2D input scalar into shared memory, with comp
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
                                    const DeviceTensor<4, const double> &x,

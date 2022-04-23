@@ -22,12 +22,13 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
                            "../../data/fichera.mesh"
                         );
    auto order = GENERATE(2, 3, 4, 5);
-   auto btype = GENERATE(BasisType::GaussLobatto, BasisType::GaussLegendre);
+   auto btype1 = GENERATE(BasisType::GaussLobatto, BasisType::GaussLegendre);
+   auto btype2 = GENERATE(BasisType::GaussLobatto, BasisType::GaussLegendre);
 
-   CAPTURE(mesh_filename, order, btype);
+   CAPTURE(mesh_filename, order, btype1, btype2);
 
    Mesh mesh = Mesh::LoadFromFile(mesh_filename);
-   DG_FECollection fec(order, mesh.Dimension(), btype);
+   DG_FECollection fec(order, mesh.Dimension(), btype1);
    FiniteElementSpace fes(&mesh, &fec);
 
    BilinearForm m(&fes);
@@ -55,7 +56,7 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
    cg.SetPreconditioner(jacobi);
    cg.Mult(B, X1);
 
-   DGMassInverse m_inv(fes, btype);
+   DGMassInverse m_inv(fes, btype2);
    m_inv.SetAbsTol(tol);
    m_inv.SetRelTol(0.0);
    m_inv.Mult(B, X2);
