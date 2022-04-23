@@ -55,8 +55,16 @@ int main(int argc, char *argv[])
    ND_FECollection fec(order, mesh.Dimension());
    FiniteElementSpace NDfes(&mesh, &fec);
 
-   ND_Trace_FECollection trace_fec(order, mesh.Dimension());
-   FiniteElementSpace NDtrace_fes(&mesh, &trace_fec);
+   FiniteElementCollection * trace_fec = nullptr;
+   if (dim == 3)
+   {
+      trace_fec = new ND_Trace_FECollection(order,mesh.Dimension());
+   }
+   else
+   {
+      trace_fec = new H1_Trace_FECollection(order,mesh.Dimension());
+   }
+   FiniteElementSpace trace_fes(&mesh, trace_fec);
 
    int test_order = order+1;
 
@@ -66,7 +74,7 @@ int main(int argc, char *argv[])
    Array<FiniteElementCollection * > test_fecs; 
 
    trial_fes.Append(&NDfes);
-   trial_fes.Append(&NDtrace_fes);
+   trial_fes.Append(&trace_fes);
    test_fecs.Append(&test_fec);
 
    NormalEquations * a = new NormalEquations(trial_fes,test_fecs);
@@ -75,8 +83,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    a->AddTrialIntegrator(new CurlCurlIntegrator(one),0,0);
    a->AddTrialIntegrator(new VectorFEMassIntegrator(one),0,0);
-   a->AddTrialIntegrator(new VectorFETraceTangentIntegrator,1,0);
-
+   a->AddTrialIntegrator(new TangentTraceIntegrator,1,0);
+   
    a->AddTestIntegrator(new CurlCurlIntegrator(one),0,0);
    a->AddTestIntegrator(new VectorFEMassIntegrator(one),0,0);
 
@@ -95,7 +103,6 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       NDfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-   // shift the ess_tdofs
 
 
    Vector X,B;
@@ -106,7 +113,7 @@ int main(int argc, char *argv[])
    Array<int> offsets(3);
    offsets[0] = 0;
    offsets[1] = NDfes.GetVSize();
-   offsets[2] = NDtrace_fes.GetVSize();
+   offsets[2] = trace_fes.GetVSize();
    offsets.PartialSum();
 
    BlockVector x(offsets);
@@ -123,27 +130,23 @@ int main(int argc, char *argv[])
 
 
    BlockMatrix * A = (BlockMatrix *)(Ah.Ptr());
-   SparseMatrix * SA = A->CreateMonolithic();
 
 
-   UMFPackSolver umf(*SA);
-   umf.Mult(B,X);
+   BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
+   M->owns_blocks = 1;
+   for (int i=0; i<A->NumRowBlocks(); i++)
+   {
+      M->SetDiagonalBlock(i,new UMFPackSolver(A->GetBlock(i,i)));
+   }
 
-   // BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(A->RowOffsets());
-   // M->owns_blocks = 1;
-   // for (int i=0; i<A->NumRowBlocks(); i++)
-   // {
-   //    M->SetDiagonalBlock(i,new UMFPackSolver(A->GetBlock(i,i)));
-   // }
-
-   // GMRESSolver cg;
-   // cg.SetRelTol(1e-8);
-   // cg.SetMaxIter(2000);
-   // cg.SetPrintLevel(3);
-   // cg.SetPreconditioner(*M);
-   // cg.SetOperator(*A);
-   // cg.Mult(B, X);
-   // delete M;
+   GMRESSolver cg;
+   cg.SetRelTol(1e-8);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(3);
+   cg.SetPreconditioner(*M);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   delete M;
 
    a->RecoverFEMSolution(X,x);
 
@@ -160,7 +163,8 @@ int main(int argc, char *argv[])
    solu_sock << "solution\n" << mesh << E_gf <<
              "window_title 'Numerical u' "
              << flush;
-
+   delete trace_fec;
+   return 0;
 }
 
 

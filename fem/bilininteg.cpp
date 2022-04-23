@@ -3985,79 +3985,6 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
    }
 }
 
-void VectorFETraceTangentIntegrator::AssembleTraceFaceMatrix(int elem,
-                                                             const FiniteElement &trial_face_fe,
-                                                             const FiniteElement &test_fe,
-                                                             FaceElementTransformations & Trans,
-                                                             DenseMatrix &elmat)
-{
-   int face_ndof, ndof, dim;
-   int order;
-
-   MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::H_CURL, "");
-   MFEM_VERIFY(test_fe.GetMapType() == FiniteElement::H_CURL, "");
-   MFEM_VERIFY(trial_face_fe.GetDim() == 2 && test_fe.GetDim() == 3,
-               "Trial space should be vector filed in 2D and test space should be a vector field in 3D ");
-
-   dim = test_fe.GetDim();
-
-   face_ndof = trial_face_fe.GetDof();
-   ndof = test_fe.GetDof();
-
-   face_shape.SetSize(face_ndof,dim);
-   face_shape_n.SetSize(face_ndof,dim);
-   shape.SetSize(ndof,dim);
-   normal.SetSize(dim);
-
-   elmat.SetSize(ndof, face_ndof);
-   elmat = 0.0;
-
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      order = test_fe.GetOrder();
-      order += trial_face_fe.GetOrder();
-      ir = &IntRules.Get(Trans.GetGeometryType(), order);
-   }
-
-   int iel = Trans.Elem1->ElementNo;
-   if (iel != elem)
-   {
-      MFEM_VERIFY(elem == Trans.Elem2->ElementNo, "Elem != Trans.Elem2->ElementNo");
-   }
-
-   double scale = 1.0;
-   if (iel != elem) { scale = -1.; }
-   for (int p = 0; p < ir->GetNPoints(); p++)
-   {
-      const IntegrationPoint &ip = ir->IntPoint(p);
-      // Set the integration point in the face and the neighboring elements
-      Trans.SetAllIntPoints(&ip);
-      // Trace finite element shape function
-      trial_face_fe.CalcVShape(Trans,face_shape);
-
-      CalcOrtho(Trans.Jacobian(),normal);
-
-      // rotate
-      for (int j=0; j<face_ndof; ++j)
-      {
-         face_shape_n(j, 0) = (normal[1] * face_shape(j, 2)) - (normal[2] * face_shape(j,
-                                                                                       1));
-         face_shape_n(j, 1) = (normal[2] * face_shape(j, 0)) - (normal[0] * face_shape(j,
-                                                                                       2));
-         face_shape_n(j, 2) = (normal[0] * face_shape(j, 1)) - (normal[1] * face_shape(j,
-                                                                                       0));
-      }
-
-      // Finite element shape function
-      ElementTransformation * eltrans = (iel == elem) ? Trans.Elem1 : Trans.Elem2;
-      test_fe.CalcVShape(*eltrans, shape);
-      const double w = scale*ip.weight;
-      AddMult_a_ABt(w,shape, face_shape_n, elmat);
-   }
-}
-
-
 void NormalTraceIntegrator::AssembleTraceFaceMatrix(int elem,
                                                     const FiniteElement &trial_face_fe,
                                                     const FiniteElement &test_fe,
@@ -4118,6 +4045,91 @@ void NormalTraceIntegrator::AssembleTraceFaceMatrix(int elem,
       }
    }
 }
+
+void TangentTraceIntegrator::AssembleTraceFaceMatrix(int elem,
+                                                     const FiniteElement &trial_face_fe,
+                                                     const FiniteElement &test_fe,
+                                                     FaceElementTransformations & Trans,
+                                                     DenseMatrix &elmat)
+{
+
+   MFEM_VERIFY(test_fe.GetMapType() == FiniteElement::H_CURL, "");
+
+   int face_ndof, ndof, dim;
+   int order;
+   dim = test_fe.GetDim();
+   if (dim == 3)
+   {
+      std::string msg =
+         "Trial space should be ND face trace and test space should be a ND vector field in 3D ";
+      MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::H_CURL &&
+                  trial_face_fe.GetDim() == 2 && test_fe.GetDim() == 3, msg);
+   }
+   else
+   {
+      std::string msg =
+         "Trial space should be H1 edge trace and test space should be a ND vector field in 2D";
+      MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::VALUE &&
+                  trial_face_fe.GetDim() == 1 && test_fe.GetDim() == 2, msg);
+   }
+   face_ndof = trial_face_fe.GetDof();
+   ndof = test_fe.GetDof();
+
+   int dimc = (dim == 3) ? 3 : 1;
+
+   face_shape.SetSize(face_ndof,dimc);
+   shape_n.SetSize(ndof,dimc);
+   shape.SetSize(ndof,dim);
+   normal.SetSize(dim);
+   DenseMatrix face_shape_n(face_ndof,dimc);
+
+   elmat.SetSize(ndof, face_ndof);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      order = test_fe.GetOrder();
+      order += trial_face_fe.GetOrder();
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   int iel = Trans.Elem1->ElementNo;
+   if (iel != elem)
+   {
+      MFEM_VERIFY(elem == Trans.Elem2->ElementNo, "Elem != Trans.Elem2->ElementNo");
+   }
+
+   double scale = 1.0;
+   if (iel != elem) { scale = -1.; }
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+      // Trace finite element shape function
+      if (dim == 3)
+      {
+         trial_face_fe.CalcVShape(Trans,face_shape);
+      }
+      else
+      {
+         face_shape.GetColumnReference(0,temp);
+         trial_face_fe.CalcPhysShape(Trans,temp);
+      }
+      CalcOrtho(Trans.Jacobian(),normal);
+      ElementTransformation * eltrans = (iel == elem) ? Trans.Elem1 : Trans.Elem2;
+      test_fe.CalcVShape(*eltrans, shape);
+
+      // rotate
+      cross_product(normal, shape, shape_n);
+
+      const double w = scale*ip.weight;
+      AddMult_a_ABt(w,shape_n, face_shape, elmat);
+   }
+}
+
+
 
 
 void NormalInterpolator::AssembleElementMatrix2(
