@@ -19,16 +19,15 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
    auto mesh_filename = GENERATE(
                            "../../data/star.mesh",
                            "../../data/star-q3.mesh",
-                           "../../data/fichera.mesh",
-                           "../../data/fichera-q3.mesh"
+                           "../../data/fichera.mesh"
                         );
-   auto order = GENERATE(2, 3);
+   auto order = GENERATE(2, 3, 4, 5);
+   auto btype = GENERATE(BasisType::GaussLobatto, BasisType::GaussLegendre);
 
    CAPTURE(mesh_filename, order);
 
    Mesh mesh = Mesh::LoadFromFile(mesh_filename);
-   // DG_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
-   DG_FECollection fec(order, mesh.Dimension(), BasisType::GaussLegendre);
+   DG_FECollection fec(order, mesh.Dimension(), btype);
    FiniteElementSpace fes(&mesh, &fec);
 
    BilinearForm m(&fes);
@@ -49,21 +48,20 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
    cg.SetAbsTol(tol);
    cg.SetRelTol(0.0);
    cg.SetMaxIter(100);
-   // cg.SetPrintLevel(IterativeSolver::PrintLevel().None());
-   cg.SetPrintLevel(IterativeSolver::PrintLevel().All());
+   cg.SetPrintLevel(IterativeSolver::PrintLevel().None());
    cg.SetOperator(m);
    cg.SetPreconditioner(jacobi);
-
    X1 = 0.0;
    cg.Mult(B, X1);
 
-   DGMassInverse m_inv(fes);
+   DGMassInverse m_inv(fes, btype);
    m_inv.SetAbsTol(tol);
    m_inv.SetRelTol(0.0);
    X2 = 0.0;
+
    m_inv.Mult(B, X2);
 
    X2 -= X1;
 
-   REQUIRE(X2.Normlinf() == MFEM_Approx(0.0, 100*tol, 100*tol));
+   REQUIRE(X2.Normlinf() == MFEM_Approx(0.0, 1e2*tol, 1e2*tol));
 }
