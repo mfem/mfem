@@ -260,7 +260,8 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
 
    const int id = (d1d << 4) | q1d;
 
-   printf("dim = %d id = 0x%x\n", dim, id);
+   // printf("dim = %d id = 0x%x\n", dim, id);
+
    if (dim == 2)
    {
       switch (id)
