@@ -44,11 +44,11 @@ struct DGMassBenchmark
    const int dofs;
    double mdofs;
 
-   DGMassBenchmark(int p_, int N_):
+   DGMassBenchmark(int p_, int N_, double eps_):
       p(p_),
       N(N_),
       // mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
-      mesh(CreateKershawMesh(N,0.5)),
+      mesh(CreateKershawMesh(N,eps_)),
       fec(p, dim, BasisType::GaussLobatto),
       fes(&mesh, &fec),
       n(fes.GetTrueVSize()),
@@ -134,31 +134,36 @@ struct DGMassBenchmark
 
 // The different orders the tests can run
 #define P_ORDERS bm::CreateDenseRange(1,5,1)
-
 // The different sides of the mesh
 #define N_SIDES bm::CreateDenseRange(2,20,1)
+
 #define MAX_NDOFS 2*1024*1024
 
 /// Kernels definitions and registrations
-#define Benchmark(Name)\
-static void Name(bm::State &state){\
+#define Benchmark(Name, prefix, eps)\
+static void Name##_##prefix(bm::State &state){\
    const int p = state.range(0);\
    const int side = state.range(1);\
-   DGMassBenchmark mb(p, side);\
+   DGMassBenchmark mb(p, side, eps);\
    if (mb.dofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
    while (state.KeepRunning()) { mb.Name(); }\
    state.counters["MDof/s"] = bm::Counter(mb.Mdofs());\
    state.counters["dofs"] = bm::Counter(mb.dofs);\
    state.counters["p"] = bm::Counter(p);\
 }\
-BENCHMARK(Name)\
+BENCHMARK(Name##_##prefix)\
             -> ArgsProduct({P_ORDERS,N_SIDES})\
             -> Unit(bm::kMillisecond);
 
-Benchmark(FullCG)
-Benchmark(LocalCGLobatto)
-Benchmark(LocalCGLegendre)
-Benchmark(MassApply)
+#define MassBenchmark(prefix, eps) \
+   Benchmark(FullCG, prefix, eps) \
+   Benchmark(LocalCGLobatto, prefix, eps) \
+   Benchmark(LocalCGLegendre, prefix, eps) \
+   Benchmark(MassApply, prefix, eps)
+
+MassBenchmark(1_0, 1.0)
+MassBenchmark(0_5, 0.5)
+MassBenchmark(0_3, 0.3)
 
 int main(int argc, char *argv[])
 {
