@@ -10,8 +10,17 @@
 // CONTRIBUTING.md for details.
 
 #include "bench.hpp"
+#include "kershaw.hpp"
 
 #ifdef MFEM_USE_BENCHMARK
+
+Mesh CreateKershawMesh(int N, double eps)
+{
+   Mesh mesh = Mesh::MakeCartesian3D(N, N, N, Element::HEXAHEDRON);
+   KershawTransformation kt(mesh.Dimension(), eps, eps);
+   mesh.Transform(kt);
+   return mesh;
+}
 
 struct DGMassBenchmark
 {
@@ -24,9 +33,10 @@ struct DGMassBenchmark
    const int n;
 
    BilinearForm m;
-   DGMassInverse massinv;
+   DGMassInverse massinv_lobatto;
+   DGMassInverse massinv_legendre;
 
-   Vector B, X1, X2;
+   Vector B, X;
 
    OperatorJacobiSmoother jacobi;
    CGSolver cg;
@@ -37,15 +47,16 @@ struct DGMassBenchmark
    DGMassBenchmark(int p_, int N_):
       p(p_),
       N(N_),
-      mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
+      // mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
+      mesh(CreateKershawMesh(N,0.5)),
       fec(p, dim, BasisType::GaussLobatto),
       fes(&mesh, &fec),
       n(fes.GetTrueVSize()),
       m(&fes),
-      massinv(fes, BasisType::GaussLobatto),
+      massinv_lobatto(fes, BasisType::GaussLobatto),
+      massinv_legendre(fes, BasisType::GaussLegendre),
       B(n),
-      X1(n),
-      X2(n),
+      X(n),
       dofs(n),
       mdofs(0.0)
    {
@@ -57,7 +68,7 @@ struct DGMassBenchmark
 
       B.Randomize(1);
 
-      const double tol = 1e-12;
+      const double tol = 1e-10;
 
       cg.SetAbsTol(tol);
       cg.SetRelTol(0.0);
@@ -65,29 +76,54 @@ struct DGMassBenchmark
       cg.SetOperator(m);
       cg.SetPreconditioner(jacobi);
 
-      massinv.SetAbsTol(tol);
-      massinv.SetRelTol(0.0);
+      massinv_lobatto.SetAbsTol(tol);
+      massinv_lobatto.SetRelTol(0.0);
+
+      massinv_legendre.SetAbsTol(tol);
+      massinv_legendre.SetRelTol(0.0);
 
       tic_toc.Clear();
    }
 
    void FullCG()
    {
-      X1 = 0.0;
+      X = 0.0;
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      cg.Mult(B, X1);
+      cg.Mult(B, X);
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
       mdofs += 1e-6 * dofs;
    }
 
-   void LocalCG()
+   void LocalCGLobatto()
    {
-      X1 = 0.0;
+      X = 0.0;
       MFEM_DEVICE_SYNC;
       tic_toc.Start();
-      massinv.Mult(B, X1);
+      massinv_lobatto.Mult(B, X);
+      MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
+      mdofs += 1e-6 * dofs;
+   }
+
+   void LocalCGLegendre()
+   {
+      X = 0.0;
+      MFEM_DEVICE_SYNC;
+      tic_toc.Start();
+      massinv_legendre.Mult(B, X);
+      MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
+      mdofs += 1e-6 * dofs;
+   }
+
+   void MassApply()
+   {
+      X = 0.0;
+      MFEM_DEVICE_SYNC;
+      tic_toc.Start();
+      m.Mult(B, X);
       MFEM_DEVICE_SYNC;
       tic_toc.Stop();
       mdofs += 1e-6 * dofs;
@@ -120,8 +156,9 @@ BENCHMARK(Name)\
             -> Unit(bm::kMillisecond);
 
 Benchmark(FullCG)
-
-Benchmark(LocalCG)
+Benchmark(LocalCGLobatto)
+Benchmark(LocalCGLegendre)
+Benchmark(MassApply)
 
 int main(int argc, char *argv[])
 {
