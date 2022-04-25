@@ -24,7 +24,7 @@ protected:
    DG_FECollection fec; ///< FE collection in requested basis.
    FiniteElementSpace fes; ///< FE space in requested basis.
    const DofToQuad *d2q; ///< Change of basis. Not owned.
-   const DofToQuad *q2d; ///< Change of basis. Not owned.
+   Array<double> B_, Bt_; ///< Inverse of change of basis.
    class MassIntegrator *m; ///< Owned.
    Vector diag_inv; ///< Jacobi preconditioner.
    double rel_tol = 1e-12; ///< Relative CG tolerance.

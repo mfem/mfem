@@ -34,15 +34,25 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    {
       // No change of basis required
       d2q = nullptr;
-      q2d = nullptr;
    }
    else
    {
       // original basis to solver basis
       const auto mode = DofToQuad::TENSOR;
       d2q = &fes_orig.GetFE(0)->GetDofToQuad(fes.GetFE(0)->GetNodes(), mode);
+
+      int n = d2q->ndof;
+      Array<double> B_inv = d2q->B; // deep copy
+      Array<int> ipiv(n);
       // solver basis to original
-      q2d = &fes.GetFE(0)->GetDofToQuad(fes_orig.GetFE(0)->GetNodes(), mode);
+      LUFactors lu(B_inv.HostReadWrite(), ipiv.HostWrite());
+      lu.Factor(n);
+      B_.SetSize(n*n);
+      lu.GetInverseMatrix(n, B_.Write());
+      Bt_.SetSize(n*n);
+      DenseMatrix B_matrix(B_.ReadWrite(), n, n);
+      DenseMatrix Bt_matrix(Bt_.Write(), n, n);
+      Bt_matrix.Transpose(B_matrix);
    }
 
    if (coeff) { m = new MassIntegrator(*coeff, ir); }
@@ -122,16 +132,17 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
    const bool change_basis = (d2q != nullptr);
 
-   const double *b_orig, *b;
-   double *b2;
+   double *b2 = nullptr;
+   const double *b_orig = nullptr;
    const double *d2q_B = nullptr;
    const double *q2d_B = nullptr;
    const double *q2d_Bt = nullptr;
+   const double *b;
    if (change_basis)
    {
       d2q_B = d2q->B.Read();
-      q2d_B = q2d->B.Read();
-      q2d_Bt = q2d->Bt.Read();
+      q2d_B = B_.Read();
+      q2d_Bt = Bt_.Read();
 
       b2 = b2_.Write();
       b_orig = b_.Read();
