@@ -20,26 +20,27 @@ namespace mfem
 
 const int VTKGeometry::Map[Geometry::NUM_GEOMETRIES] =
 {
-   POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM
+   POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM, PYRAMID
 };
 
 const int VTKGeometry::QuadraticMap[Geometry::NUM_GEOMETRIES] =
 {
    POINT, QUADRATIC_SEGMENT, QUADRATIC_TRIANGLE, BIQUADRATIC_SQUARE,
-   QUADRATIC_TETRAHEDRON, TRIQUADRATIC_CUBE, BIQUADRATIC_QUADRATIC_PRISM
+   QUADRATIC_TETRAHEDRON, TRIQUADRATIC_CUBE, BIQUADRATIC_QUADRATIC_PRISM,
+   QUADRATIC_PYRAMID
 };
 
 const int VTKGeometry::HighOrderMap[Geometry::NUM_GEOMETRIES] =
 {
    POINT, LAGRANGE_SEGMENT, LAGRANGE_TRIANGLE, LAGRANGE_SQUARE,
-   LAGRANGE_TETRAHEDRON, LAGRANGE_CUBE, LAGRANGE_PRISM
+   LAGRANGE_TETRAHEDRON, LAGRANGE_CUBE, LAGRANGE_PRISM, LAGRANGE_PYRAMID
 };
 
 const int VTKGeometry::PrismMap[6] = {0, 2, 1, 3, 5, 4};
 
 const int *VTKGeometry::VertexPermutation[Geometry::NUM_GEOMETRIES] =
 {
-   NULL, NULL, NULL, NULL, NULL, NULL, VTKGeometry::PrismMap
+   NULL, NULL, NULL, NULL, NULL, NULL, VTKGeometry::PrismMap, NULL
 };
 
 Geometry::Type VTKGeometry::GetMFEMGeometry(int vtk_geom)
@@ -72,6 +73,10 @@ Geometry::Type VTKGeometry::GetMFEMGeometry(int vtk_geom)
       case BIQUADRATIC_QUADRATIC_PRISM:
       case LAGRANGE_PRISM:
          return Geometry::PRISM;
+      case PYRAMID:
+      case QUADRATIC_PYRAMID:
+      case LAGRANGE_PYRAMID:
+         return Geometry::PYRAMID;
       default:
          return Geometry::INVALID;
    }
@@ -79,7 +84,7 @@ Geometry::Type VTKGeometry::GetMFEMGeometry(int vtk_geom)
 
 bool VTKGeometry::IsLagrange(int vtk_geom)
 {
-   return vtk_geom >= LAGRANGE_SEGMENT && vtk_geom <= LAGRANGE_PRISM;
+   return vtk_geom >= LAGRANGE_SEGMENT && vtk_geom <= LAGRANGE_PYRAMID;
 }
 
 bool VTKGeometry::IsQuadratic(int vtk_geom)
@@ -145,6 +150,9 @@ int VTKGeometry::GetOrder(int vtk_geom, int npoints)
                          - twentyseventh);
             return std::round(term + ninth / term - 4*third);
          }
+         case LAGRANGE_PYRAMID:
+            MFEM_ABORT("Lagrange pyramids not currently supported in VTK.");
+            return 0;
       }
    }
    return 1;
@@ -534,6 +542,10 @@ void CreateVTKElementConnectivity(Array<int> &con, Geometry::Type geom, int ref)
             }
          }
       }
+   }
+   else if (geom == Geometry::PYRAMID)
+   {
+      MFEM_ABORT("Lagrange pyramid elements not currently supported in VTK.");
    }
    else
    {
