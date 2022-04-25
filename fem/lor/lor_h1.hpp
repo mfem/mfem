@@ -17,6 +17,8 @@
 namespace mfem
 {
 
+// BatchedLORKernel specialization for H1 spaces. Not user facing. See the
+// classes BatchedLORAssembly and BatchedLORKernel .
 class BatchedLOR_H1 : BatchedLORKernel
 {
 protected:

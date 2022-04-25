@@ -163,10 +163,10 @@ void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag);
 class BatchedLORKernel
 {
 protected:
-   FiniteElementSpace &fes_ho;
-   Vector &X_vert;
-   Vector &sparse_ij;
-   Array<int> &sparse_mapping;
+   FiniteElementSpace &fes_ho; ///< The associated high-order space.
+   Vector &X_vert; ///< Mesh coordinate vector.
+   Vector &sparse_ij; ///< Local element sparsity matrix data.
+   Array<int> &sparse_mapping; ///< Local element sparsity pattern.
    BatchedLORKernel(FiniteElementSpace &fes_ho_,
                     Vector &X_vert_,
                     Vector &sparse_ij_,

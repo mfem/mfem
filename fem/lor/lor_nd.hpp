@@ -17,6 +17,8 @@
 namespace mfem
 {
 
+// BatchedLORKernel specialization for Nedelec spaces. Not user facing. See the
+// classes BatchedLORAssembly and BatchedLORKernel .
 class BatchedLOR_ND : BatchedLORKernel
 {
 protected:
