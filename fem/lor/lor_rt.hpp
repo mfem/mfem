@@ -17,6 +17,8 @@
 namespace mfem
 {
 
+// BatchedLORKernel specialization for RT spaces. Not user facing. See the
+// classes BatchedLORAssembly and BatchedLORKernel .
 class BatchedLOR_RT : BatchedLORKernel
 {
 protected:
