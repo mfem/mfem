@@ -67,6 +67,7 @@ ParSubMesh::ParSubMesh(ParMesh &parent, SubMesh::From from,
    {
       parent_face_ids_ = SubMeshUtils::BuildFaceMap(parent_, *this,
                                                     parent_element_ids_);
+      parent_face_ids_.Sort();
    }
 
    parent_to_submesh_vertex_ids_.SetSize(parent_.GetNV());
@@ -921,7 +922,9 @@ void ParSubMesh::Transfer(const ParGridFunction &src, ParGridFunction &dst)
                int parent_fid = dst_sm->GetParent()->GetBdrElementEdgeIndex(
                                    (*dst_parent_fids)[i]);
 
-               int src_fid = src_parent_fids->Find(parent_fid);
+               int src_fid = src_parent_fids->FindSorted(parent_fid);
+
+               if (src_fid == -1) { continue; }
 
                src.ParFESpace()->GetFaceVDofs(src_fid, src_vdofs);
                dst.ParFESpace()->GetElementVDofs(i, dst_vdofs);
