@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifndef MFEM_DGMASSINV_KERNELS_HPP
+#define MFEM_DGMASSINV_KERNELS_HPP
+
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
@@ -869,3 +872,5 @@ void DGMassBasis(const int e,
 }
 
 } // namespace mfem
+
+#endif
