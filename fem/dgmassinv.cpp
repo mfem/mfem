@@ -18,6 +18,7 @@ namespace mfem
 {
 
 DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
+                             const IntegrationRule *ir,
                              int btype)
    : Solver(fes_orig.GetTrueVSize()),
      fec(fes_orig.GetMaxElementOrder(), fes_orig.GetMesh()->Dimension(), btype),
@@ -44,8 +45,8 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
       q2d = &fes.GetFE(0)->GetDofToQuad(fes_orig.GetFE(0)->GetNodes(), mode);
    }
 
-   if (coeff) { m = new MassIntegrator(*coeff); }
-   else { m = new MassIntegrator; }
+   if (coeff) { m = new MassIntegrator(*coeff, ir); }
+   else { m = new MassIntegrator(ir); }
 
    BilinearForm M(&fes);
    M.AddDomainIntegrator(m);
@@ -66,8 +67,20 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    if (btype_orig != btype) { b2_.SetSize(height); }
 }
 
+DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+                             int btype)
+   : DGMassInverse(fes_, &coeff, nullptr, btype) { }
+
+DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+                             const IntegrationRule &ir, int btype)
+   : DGMassInverse(fes_, &coeff, &ir, btype) { }
+
+DGMassInverse::DGMassInverse(FiniteElementSpace &fes_,
+                             const IntegrationRule &ir, int btype)
+   : DGMassInverse(fes_, nullptr, &ir, btype) { }
+
 DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, int btype)
-   : DGMassInverse(fes_, nullptr, btype) { }
+   : DGMassInverse(fes_, nullptr, nullptr, btype) { }
 
 void DGMassInverse::SetOperator(const Operator &op)
 {

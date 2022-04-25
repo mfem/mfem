@@ -18,9 +18,6 @@
 namespace mfem
 {
 
-// class Coefficient;
-class MassIntegrator;
-
 class DGMassInverse : public Solver
 {
 protected:
@@ -28,7 +25,7 @@ protected:
    FiniteElementSpace fes; ///< FE space in requested basis.
    const DofToQuad *d2q; ///< Change of basis. Not owned.
    const DofToQuad *q2d; ///< Change of basis. Not owned.
-   MassIntegrator *m; ///< Owned.
+   class MassIntegrator *m; ///< Owned.
    Vector diag_inv; ///< Jacobi preconditioner.
    double rel_tol = 1e-12; ///< Relative CG tolerance.
    double abs_tol = 1e-12; ///< Absolute CG tolerance.
@@ -39,8 +36,15 @@ protected:
    mutable Vector r_, d_, z_, b2_;
    ///@}
 
-public:
    DGMassInverse(FiniteElementSpace &fes_, Coefficient *coeff,
+                 const IntegrationRule *ir, int btype);
+
+public:
+   DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+                 int btype=BasisType::GaussLegendre);
+   DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+                 const IntegrationRule &ir, int btype=BasisType::GaussLegendre);
+   DGMassInverse(FiniteElementSpace &fes_, const IntegrationRule &ir,
                  int btype=BasisType::GaussLegendre);
    DGMassInverse(FiniteElementSpace &fes_, int btype=BasisType::GaussLegendre);
    void Mult(const Vector &Mu, Vector &u) const;
