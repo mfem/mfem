@@ -20,6 +20,16 @@ namespace mfem
 {
 
 template <class T>
+void Array<T>::Set(const T &a)
+{
+   const T value = a;
+   const int N = size;
+   const bool use_dev = UseDevice();
+   auto y = mfem::Write(data, size, use_dev);
+   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = value;);
+}
+
+template <class T>
 void Array<T>::Print(std::ostream &os, int width) const
 {
    for (int i = 0; i < size; i++)
