@@ -142,8 +142,8 @@ struct DGMassBenchmark
 /// Kernels definitions and registrations
 #define Benchmark(Name, prefix, eps)\
 static void Name##_##prefix(bm::State &state){\
-   const int p = state.range(0);\
-   const int side = state.range(1);\
+   const int side = state.range(0);\
+   const int p = state.range(1);\
    DGMassBenchmark mb(p, side, eps);\
    if (mb.dofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
    while (state.KeepRunning()) { mb.Name(); }\
@@ -152,7 +152,7 @@ static void Name##_##prefix(bm::State &state){\
    state.counters["p"] = bm::Counter(p);\
 }\
 BENCHMARK(Name##_##prefix)\
-            -> ArgsProduct({P_ORDERS,N_SIDES})\
+            -> ArgsProduct({N_SIDES,P_ORDERS})\
             -> Unit(bm::kMillisecond);
 
 #define MassBenchmark(prefix, eps) \
