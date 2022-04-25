@@ -402,8 +402,8 @@ void SmemPAMassApply3D_Element(const int e,
                                const double *d_,
                                const double *x_,
                                double *y_,
-                               const int d1d,
-                               const int q1d)
+                               const int d1d = 0,
+                               const int q1d = 0)
 {
    constexpr int D1D = T_D1D ? T_D1D : d1d;
    constexpr int Q1D = T_Q1D ? T_Q1D : q1d;
