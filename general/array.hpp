@@ -119,9 +119,6 @@ public:
    /// Return a reference to the Memory object used by the Array, const version.
    const Memory<T> &GetMemory() const { return data; }
 
-   /// Enable execution of Array operations using the mfem::Device.
-   void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
-
    /// Return the device flag of the Memory object used by the Array
    bool UseDevice() const { return data.UseDevice(); }
 
@@ -273,10 +270,6 @@ public:
 
    /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a);
-
-   /// Set all entries of the array to the provided constant.
-   /// If UseDevice() is true, execution will be done on the mfem::Device.
-   void Set(const T &a);
 
    /// Copy data from a pointer. 'Size()' elements are copied.
    inline void Assign(const T *);
@@ -897,8 +890,10 @@ inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa) const
 template <class T>
 inline void Array<T>::operator=(const T &a)
 {
-   if (!UseDevice()) { for (int i = 0; i < size; i++) { data[i] = a; } }
-   else { Set(a); }
+   for (int i = 0; i < size; i++)
+   {
+      data[i] = a;
+   }
 }
 
 template <class T>

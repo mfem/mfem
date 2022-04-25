@@ -72,7 +72,7 @@ void LinearFormExtension::Update()
    MFEM_VERIFY(lf->Size() == fes.GetVSize(), "");
 
    markers.SetSize(NE);
-   markers.UseDevice(true);
+   //markers.UseDevice(true);
 
    // Gather the attributes on the host from all the elements
    attributes.SetSize(NE);
