@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_NOSTDOUT
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
@@ -25,12 +26,9 @@ int main(int argc, char *argv[])
    mfem::Device device("cuda");
 #ifdef MFEM_USE_MPI
    mfem::Mpi::Init();
-   bool root = mfem::Mpi::Root();
    mfem::Hypre::Init();
-#else
-   bool root = true;
 #endif
 
    // Include only tests that are labeled with both CUDA and Parallel.
-   return RunCatchSession(argc, argv, {"[CUDA]","[Parallel]"}, root);
+   return RunCatchSession(argc, argv, {"[CUDA]","[Parallel]"}, Root());
 }

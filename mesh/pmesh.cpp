@@ -4750,7 +4750,6 @@ bool ParMesh::WantSkipSharedMaster(const NCMesh::Master &master) const
 
 void ParMesh::Print(std::ostream &os) const
 {
-   bool print_shared = true;
    int shared_bdr_attr;
    Array<int> nc_shared_faces;
 
@@ -6294,6 +6293,8 @@ void ParMesh::Swap(ParMesh &other)
 
    // Nodes, NCMesh, and NURBSExtension are taken care of by Mesh::Swap
    mfem::Swap(pncmesh, other.pncmesh);
+
+   print_shared = other.print_shared;
 }
 
 void ParMesh::Destroy()
