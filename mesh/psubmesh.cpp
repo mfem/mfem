@@ -242,6 +242,10 @@ ParSubMesh::ParSubMesh(ParMesh &parent, SubMesh::From from,
       Transfer(*pn, *n);
    }
 
+   el_to_edge = new Table;
+   NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+
+   SetAttributes();
    Finalize();
 }
 

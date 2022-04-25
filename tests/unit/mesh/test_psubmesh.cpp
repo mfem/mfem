@@ -419,6 +419,9 @@ TEST_CASE("ParSubMesh", "[Parallel],[ParSubMesh]")
 
 TEST_CASE("ParSubMeshDirectTransfer", "[Parallel],[ParSubMeshDirectTransfer]")
 {
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+
    // Circle: sideset 1
    // Domain boundary: sideset 2
    Mesh *serial_parent_mesh = new Mesh("test.e");
@@ -484,21 +487,25 @@ TEST_CASE("ParSubMeshDirectTransfer", "[Parallel],[ParSubMeshDirectTransfer]")
    int  visport   = 19916;
 
    socketstream parent_mesh_socket(vishost, visport);
+   parent_mesh_socket << "parallel " << num_procs << " " << myid << "\n";
    parent_mesh_socket.precision(8);
    parent_mesh_socket << "solution\n" << parent_mesh << parent_gf;
    parent_mesh_socket << "keys ml" << std::flush;
 
    socketstream cylinder_domain_socket(vishost, visport);
+   cylinder_domain_socket << "parallel " << num_procs << " " << myid << "\n";
    cylinder_domain_socket.precision(8);
    cylinder_domain_socket << "solution\n" << cylinder_submesh << cylinder_gf;
    cylinder_domain_socket << "keys ml" << std::flush;
 
    socketstream outer_domain_socket(vishost, visport);
+   outer_domain_socket << "parallel " << num_procs << " " << myid << "\n";
    outer_domain_socket.precision(8);
    outer_domain_socket << "solution\n" << outer_submesh << outer_gf;
    outer_domain_socket << "keys ml" << std::flush;
 
    socketstream cylinder_surface_socket(vishost, visport);
+   cylinder_surface_socket << "parallel " << num_procs << " " << myid << "\n";
    cylinder_surface_socket.precision(8);
    cylinder_surface_socket << "solution\n" << cylinder_surface_submesh <<
                            cylinder_surface_gf;
