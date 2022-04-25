@@ -48,10 +48,10 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
       LUFactors lu(B_inv.HostReadWrite(), ipiv.HostWrite());
       lu.Factor(n);
       B_.SetSize(n*n);
-      lu.GetInverseMatrix(n, B_.Write());
+      lu.GetInverseMatrix(n, B_.HostWrite());
       Bt_.SetSize(n*n);
-      DenseMatrix B_matrix(B_.ReadWrite(), n, n);
-      DenseMatrix Bt_matrix(Bt_.Write(), n, n);
+      DenseMatrix B_matrix(B_.HostReadWrite(), n, n);
+      DenseMatrix Bt_matrix(Bt_.HostWrite(), n, n);
       Bt_matrix.Transpose(B_matrix);
    }
 
