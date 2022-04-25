@@ -125,6 +125,7 @@ set(HDRS
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp
+  bilininteg_mass_pa.hpp
   coefficient.hpp
   complex_fem.hpp
   convergence.hpp
