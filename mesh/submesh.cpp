@@ -91,6 +91,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       Transfer(*parent.GetNodes(), *GetNodes());
    }
 
+   SetAttributes();
    Finalize();
 }
 
