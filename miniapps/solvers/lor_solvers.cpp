@@ -57,6 +57,12 @@
 //    lor_solvers -m ../../data/amr-quad.mesh -fe n
 //    lor_solvers -m ../../data/amr-quad.mesh -fe r
 //    lor_solvers -m ../../data/amr-quad.mesh -fe l
+//
+// Device sample runs:
+//    lor_solvers -fe h -d cuda
+//    lor_solvers -fe n -d cuda
+//    lor_solvers -fe r -d cuda
+//    lor_solvers -fe l -d cuda
 
 #include "mfem.hpp"
 #include <fstream>
