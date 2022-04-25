@@ -162,7 +162,7 @@ public:
        coefficients. */
    Array<LinearFormIntegrator*> *GetDLFI() { return &domain_integs; }
 
-   /** @brief Access all boundary markers added with AddDomainIntegrator().
+   /** @brief Access all domain markers added with AddDomainIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetDLFI_Marker() { return &domain_integs_marker; }

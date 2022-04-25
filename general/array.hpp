@@ -17,7 +17,6 @@
 #include "device.hpp"
 #include "error.hpp"
 #include "globals.hpp"
-#include "forall.hpp" // for MFEM_FORALL_SWITCH
 
 #include <iostream>
 #include <cstdlib>
@@ -274,6 +273,10 @@ public:
 
    /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a);
+
+   /// Set all entries of the array to the provided constant.
+   /// If UseDevice() is true, execution will be done on the mfem::Device.
+   void Set(const T &a);
 
    /// Copy data from a pointer. 'Size()' elements are copied.
    inline void Assign(const T *);
@@ -894,11 +897,8 @@ inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa) const
 template <class T>
 inline void Array<T>::operator=(const T &a)
 {
-   const bool use_dev = UseDevice();
-   const int N = size;
-   auto y = mfem::Write(data, size, use_dev);
-   const T value = a;
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = value;);
+   if (!UseDevice()) { for (int i = 0; i < size; i++) { data[i] = a; } }
+   else { Set(a); }
 }
 
 template <class T>
