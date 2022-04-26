@@ -66,7 +66,7 @@ void LORBase::ResetIntegrationRules(GetIntegratorsFn get_integrators)
    Array<BilinearFormIntegrator*> *integrators = (a->*get_integrators)();
    for (int i=0; i<integrators->Size(); ++i)
    {
-      ((*integrators)[i])->SetIntegrationRule(*ir_map[(*integrators)[i]]);
+      ((*integrators)[i])->SetIntRule(ir_map[(*integrators)[i]]);
    }
 }
 
