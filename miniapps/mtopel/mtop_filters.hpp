@@ -75,33 +75,18 @@ public:
         sfec=new mfem::H1_FECollection(order, dim);
         sfes=new mfem::ParFiniteElementSpace(pmesh,sfec,1);
 
-        dfes=sfes;
+        ifec=new mfem::H1Pos_FECollection(order,dim);
+        ifes=new mfem::ParFiniteElementSpace(pmesh,ifec,1);
 
-        double dr=r/(2.0*sqrt(3.0));
-        mfem::ConstantCoefficient dc(dr*dr);
-
-        mfem::ParBilinearForm* bf=new mfem::ParBilinearForm(sfes);
-        bf->AddDomainIntegrator(new mfem::MassIntegrator());
-        bf->AddDomainIntegrator(new DiffusionIntegrator(dc));
-        bf->Assemble();
-        bf->Finalize();
-        K=bf->ParallelAssemble();
-        delete bf;
-
-        //allocate the CG solver and the preconditioner
-        prec=new mfem::HypreBoomerAMG(*K);
-        pcg=new mfem::CGSolver(pmesh->GetComm());
-        pcg->SetOperator(*K);
-        pcg->SetPreconditioner(*prec);
-
-        mfem::ParBilinearForm* mf=new mfem::ParBilinearForm(sfes);
-        mf->AddDomainIntegrator(new mfem::MassIntegrator());
-        mf->Assemble();
-        mf->Finalize();
-        S=mf->ParallelAssemble();
-        delete mf;
-
+        dfes=ifes;
         SetSolver();
+
+
+        K=nullptr;
+        S=nullptr;
+        A=nullptr;
+        pcg=nullptr;
+        prec=nullptr;
     }
 
     FilterSolver(double r_, mfem::ParMesh* pmesh_, mfem::ParFiniteElementSpace* dfes_,int order_=2):dfes(dfes_)
@@ -113,33 +98,17 @@ public:
         sfec=new mfem::H1_FECollection(order, dim);
         sfes=new mfem::ParFiniteElementSpace(pmesh,sfec,1);
 
-
-        double dr=r/(2.0*sqrt(3.0));
-        mfem::ConstantCoefficient dc(dr*dr);
-
-        mfem::ParBilinearForm* bf=new mfem::ParBilinearForm(sfes);
-        bf->AddDomainIntegrator(new mfem::MassIntegrator());
-        bf->AddDomainIntegrator(new DiffusionIntegrator(dc));
-        bf->Assemble();
-        bf->Finalize();
-        K=bf->ParallelAssemble();
-        delete bf;
-
-        //allocate the CG solver and the preconditioner
-        prec=new mfem::HypreBoomerAMG(*K);
-        pcg=new mfem::CGSolver(pmesh->GetComm());
-        pcg->SetOperator(*K);
-        pcg->SetPreconditioner(*prec);
-
-
-        mfem::ParMixedBilinearForm* mf=new mfem::ParMixedBilinearForm(dfes,sfes);
-        mf->AddDomainIntegrator(new mfem::MassIntegrator());
-        mf->Assemble();
-        mf->Finalize();
-        S=mf->ParallelAssemble();
-        delete mf;
+        ifec=nullptr;
+        ifes=nullptr;
 
         SetSolver();
+
+
+        K=nullptr;
+        S=nullptr;
+        A=nullptr;
+        pcg=nullptr;
+        prec=nullptr;
 
     }
 
@@ -153,20 +122,106 @@ public:
         delete prec;
         delete K;
         delete S;
+        delete A;
         delete sfes;
         delete sfec;
+        delete ifes;
+        delete ifec;
     }
 
     void Update()
+    {
+        sfes->Update();
+        dfes->Update();
+        AllocSolvers();
+    }
+
+    virtual
+    void Mult(const Vector &x, Vector &y)
+    {
+        if(pcg==nullptr){
+            AllocSolvers();
+        }
+
+        y=bdrc;
+        tmpv.SetSize(y.Size());
+
+        pcg->SetAbsTol(atol);
+        pcg->SetRelTol(rtol);
+        pcg->SetMaxIter(max_iter);
+        pcg->SetPrintLevel(prt_level);
+        S->Mult(x,tmpv);
+        K->EliminateBC(*A,ess_tdofv,bdrc,tmpv);
+        pcg->Mult(tmpv,y);
+    }
+
+    virtual
+    void MultTranspose(const Vector &x, Vector &y)
+    {
+        y=0.0;
+        rhsv.SetSize(x.Size()); rhsv=x;
+        tmpv.SetSize(x.Size()); tmpv=0.0;
+        pcg->SetAbsTol(atol);
+        pcg->SetRelTol(rtol);
+        pcg->SetMaxIter(max_iter);
+        pcg->SetPrintLevel(prt_level);
+        K->EliminateBC(*A,ess_tdofv,tmpv,rhsv);
+        pcg->Mult(rhsv,tmpv);
+        S->MultTranspose(tmpv,y);
+    }
+
+    void SetSolver(double rtol_=1e-8, double atol_=1e-12,int miter_=1000, int prt_level_=1)
+    {
+        rtol=rtol_;
+        atol=atol_;
+        max_iter=miter_;
+        prt_level=prt_level_;
+    }
+
+    void AddBC(int id, double val)
+    {
+        bcr[id]=mfem::ConstantCoefficient(val);
+
+        delete pcg;
+        delete prec;
+        delete K;
+        delete S;
+        delete A;
+
+        pcg=nullptr;
+        prec=nullptr;
+        K=nullptr;
+        S=nullptr;
+        A=nullptr;
+
+    }
+
+    void AllocSolvers()
     {
         delete pcg;
         delete prec;
         delete K;
         delete S;
+        delete A;
 
-        sfes->Update();
-        dfes->Update();
-        //int dim=pmesh->Dimension();
+        ess_tdofv.DeleteAll();
+        bdrc.SetSize(sfes->GetTrueVSize()); bdrc=0.0;
+        //set boundary conditions
+        if(bcr.size()!=0)
+        {
+            mfem::ParGridFunction tmpgf(sfes); tmpgf=0.0;
+            for(auto it=bcr.begin();it!=bcr.end();it++)
+            {
+                mfem::Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+                ess_bdr=0;
+                ess_bdr[it->first -1]=1;
+                mfem::Array<int> ess_tdof_list;
+                sfes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+                ess_tdofv.Append(ess_tdof_list);
+                tmpgf.ProjectBdrCoefficient(it->second,ess_bdr);
+            }
+            tmpgf.GetTrueDofs(bdrc);
+        }
 
 
         double dr=r/(2.0*sqrt(3.0));
@@ -179,6 +234,9 @@ public:
         bf->Finalize();
         K=bf->ParallelAssemble();
         delete bf;
+
+        A=K->EliminateRowsCols(ess_tdofv);
+        K->EliminateZeroRows();
 
         //allocate the CG solver and the preconditioner
         prec=new mfem::HypreBoomerAMG(*K);
@@ -195,52 +253,23 @@ public:
 
     }
 
-    virtual
-    void Mult(const Vector &x, Vector &y)
-    {
-        y=0.0;
-        tmpv.SetSize(y.Size());
-
-        pcg->SetAbsTol(atol);
-        pcg->SetRelTol(rtol);
-        pcg->SetMaxIter(max_iter);
-        pcg->SetPrintLevel(prt_level);
-        S->Mult(x,tmpv);
-        pcg->Mult(tmpv,y);
-    }
-
-    virtual
-    void MultTranspose(const Vector &x, Vector &y)
-    {
-        y=0.0;
-        tmpv.SetSize(x.Size());
-        pcg->SetAbsTol(atol);
-        pcg->SetRelTol(rtol);
-        pcg->SetMaxIter(max_iter);
-        pcg->SetPrintLevel(prt_level);
-        pcg->Mult(x,tmpv);
-        S->MultTranspose(tmpv,y);
-    }
-
-    void SetSolver(double rtol_=1e-8, double atol_=1e-12,int miter_=1000, int prt_level_=1)
-    {
-        rtol=rtol_;
-        atol=atol_;
-        max_iter=miter_;
-        prt_level=prt_level_;
-    }
-
 
 private:
     mfem::HypreParMatrix* S;
     mfem::HypreParMatrix* K;
+    mfem::HypreParMatrix* A;
     mfem::Solver* prec;
     mfem::CGSolver* pcg;
 
     mfem::FiniteElementCollection* sfec;
     mfem::ParFiniteElementSpace* sfes;
+    mfem::FiniteElementCollection* ifec;
+    mfem::ParFiniteElementSpace* ifes;
 
     mfem::Vector tmpv;
+    mfem::Vector bdrc;//boundary conditions
+    mfem::Vector rhsv;//RHS for the adjoint
+    mfem::Array<int> ess_tdofv; //boundary dofs
 
     double r;
     int order;
@@ -248,6 +277,8 @@ private:
     mfem::ParMesh* pmesh;
 
     mfem::ParFiniteElementSpace* dfes;
+
+    std::map<int, mfem::ConstantCoefficient> bcr;
 
     double atol;
     double rtol;

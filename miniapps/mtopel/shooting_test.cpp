@@ -48,6 +48,7 @@ int main(int argc, char *argv[])
 
    // Refine the mesh.
    Mesh mesh(mesh_file, 1, 1);
+   mesh.EnsureNCMesh(true);
    const int dim = mesh.Dimension();
    for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
 
@@ -56,8 +57,15 @@ int main(int argc, char *argv[])
    mesh.Clear();
 
    // Define random shooting coefficient
-   RandShootingCoefficient rsc(&pmesh, 0.1);
+   RandShootingCoefficient rsc(&pmesh, 0.1); rsc.Sample();
    ConstantCoefficient one(1.0);
+
+   // Refine the mesh
+   CoefficientRefiner refiner(rsc,order);
+   refiner.SetThreshold(1e-4);
+   refiner.SetMaxElements(100000);
+   refiner.SetNCLimit(1);
+   refiner.PreprocessMesh(pmesh,4);
 
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace pfes(&pmesh, &fec);
@@ -76,7 +84,6 @@ int main(int argc, char *argv[])
 
    double rvol=0.0;
    {
-       rsc.Sample();
        ParLinearForm lf(&pfes);
        lf.AddDomainIntegrator(new DomainLFIntegrator(rsc));
        lf.Assemble();

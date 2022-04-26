@@ -537,6 +537,8 @@ public:
     {
         //evaluate density
         double dd=dens->GetValue(T,ip);
+        if(dd>1.0){dd=1.0;}
+        if(dd<0.0){dd=0.0;}
         //do the projection
         double pd=PointwiseTrans::HProject(dd,eta,beta);
         //evaluate the E modulus
@@ -549,6 +551,8 @@ public:
     {
         //evaluate density
         double dd=dens->GetValue(T,ip);
+        if(dd>1.0){dd=1.0;}
+        if(dd<0.0){dd=0.0;}
         //do the projection
         double pd=PointwiseTrans::HProject(dd,eta,beta);
         //evaluate hte gradient of the projection

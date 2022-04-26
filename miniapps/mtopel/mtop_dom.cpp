@@ -21,9 +21,10 @@ namespace mfem{
 class TorsionForceX:public VectorCoefficient
 {
 public:
-    TorsionForceX(double xmin):VectorCoefficient(3)
+    TorsionForceX(double xmin, double xmax=0.95):VectorCoefficient(3)
     {
         xm=xmin;
+        mx=xmax;
     }
 
     void Eval (Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
@@ -33,6 +34,7 @@ public:
         T.Transform(ip,xx);
 
         if(xx[0]<xm){V=0.0; return;}
+        if(xx[0]>mx){V=0.0; return;}
 
         V[0]=0.0;
         V[1]=-xx[2];
@@ -42,6 +44,7 @@ public:
 
 private:
     double xm;
+    double mx;
 };
 
 class VolForce:public VectorCoefficient
@@ -221,7 +224,7 @@ int main(int argc, char *argv[])
 
    mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.02,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
-   fsolv->AddBC(1,0.0);
+   fsolv->AddBC(1,1.0);
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
    mfem::Vector vdens; vdens.SetSize(fsolv->GetFilterFES()->GetTrueVSize());
    mfem::Vector vtmpv; vtmpv.SetSize(fsolv->GetFilterFES()->GetTrueVSize());
@@ -234,12 +237,16 @@ int main(int argc, char *argv[])
    fsolv->Mult(vtmpv,vdens);
    pgdens.SetFromTrueDofs(vdens);
 
+   /*
    mfem::VolForce* volforce;
    if(dim==2){//2D force
        volforce=new mfem::VolForce(0.05,2.90,0.5,0.0,-1.0);}
    else{//3D force - the resolution should be good enough to resolve the radius
        volforce=new mfem::VolForce(0.05,0.5,0.5,2.90,0.0,1.0,0.0);
-   }
+   }*/
+
+   mfem::TorsionForceX* volforce;
+   volforce= new mfem::TorsionForceX(0.85,0.90);
 
    mfem::YoungModulus* E=new mfem::YoungModulus();
    //mfem::YoungModulusSIMP* E=new mfem::YoungModulusSIMP();
@@ -248,8 +255,8 @@ int main(int argc, char *argv[])
    E->SetEMaxMin(1e-6,1.0);
    E->SetPenal(1.0);
 
-   mfem::ElasticitySolver* esolv=new mfem::ElasticitySolver(&pmesh,1);
-   esolv->AddDispBC(2,4,0.0);
+   mfem::ElasticitySolver* esolv=new mfem::ElasticitySolver(&pmesh,2);
+   esolv->AddDispBC(1,4,0.0);
    esolv->SetVolForce(*volforce);
    esolv->AddMaterial(new mfem::LinIsoElasticityCoefficient(*E,0.2));
    esolv->FSolve();
