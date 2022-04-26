@@ -946,6 +946,47 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+
+
+void WhiteGaussianNoiseDomainLFIntegrator::AssembleRHSElementVect
+(const FiniteElement &el,
+ ElementTransformation &Tr,
+ Vector &elvect)
+{
+   int n = el.GetDof();
+   elvect.SetSize(n);
+   for (int i = 0; i < n; i++)
+   {
+      elvect(i) = dist(generator);
+   }
+
+   int iel = Tr.ElementNo;
+
+   if (!save_factors || !L[iel])
+   {
+      DenseMatrix *M, m;
+      if (save_factors)
+      {
+         L[iel]=new DenseMatrix;
+         M = L[iel];
+      }
+      else
+      {
+         M = &m;
+      }
+      massinteg.AssembleElementMatrix(el, Tr, *M);
+      CholeskyFactors chol(M->Data());
+      chol.Factor(M->Height());
+      chol.LMult(n,1,elvect);
+   }
+   else
+   {
+      CholeskyFactors chol(L[iel]->Data());
+      chol.LMult(n,1,elvect);
+   }
+}
+
+
 void VectorQuadratureLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &fe, ElementTransformation &Tr, Vector &elvect)
 {
@@ -975,6 +1016,7 @@ void VectorQuadratureLFIntegrator::AssembleRHSElementVect(
       }
    }
 }
+
 
 void QuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
                                                     ElementTransformation &Tr,

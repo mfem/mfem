@@ -10,8 +10,11 @@
 
 Version 4.4.1 (development)
 ===========================
-- Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator;
-  see fem/estimators.hpp.
+- Added WhiteGaussianNoiseDomainLFIntegrator: a LinearFormIntegrator class for
+  spatial Gaussian white noise.
+
+- Added a new Zienkiewicz-Zhu patch recovery-based a posteriori error estimator.
+  See fem/estimators.hpp.
 
 - Added support for ParMoonolith, https://bitbucket.org/zulianp/par_moonolith,
   which provides parallel non-conforming, non-matching, variational, volumetric
@@ -19,10 +22,12 @@ Version 4.4.1 (development)
   between arbitrarily distributed and unrelated finite element meshes in a
   variationally consistent way.
 
+- Add a new example code, Example 33/33p, to demonstrate the solution of
+  spectral fractional PDEs with MFEM.
+
 - Added support for assembling low-order-refined matrices using a GPU-enabled
   "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
   acceleration.
-
 
 Version 4.4, released on March 21, 2022
 =======================================
