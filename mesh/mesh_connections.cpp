@@ -12,57 +12,65 @@
 #include "mesh_connections.hpp"
 #include "mesh.hpp"
 
-namespace mfem 
+namespace mfem
 {
 
 MeshConnections::MeshConnections(const Mesh &m) :
-mesh(m)
+   mesh(m)
 {
 
 }
 
-bool MeshConnections::IsChild(EntityIndex &parent, EntityIndex &child)
+bool MeshConnections::IsChild(EntityIndex &parent, EntityIndex &child) const
 {
 
    return false;
 }
 
-void MeshConnections::ChildrenOfEntity(const EntityIndex &parent, EntityIndices &children)
+void MeshConnections::ChildrenOfEntity(const EntityIndex &parent,
+                                       EntityIndices &children) const
 {
 
 }
 
-void MeshConnections::ChildrenOfEntities(const EntityIndices &parents, EntityIndices &children)
+void MeshConnections::ChildrenOfEntities(const EntityIndices &parents,
+                                         EntityIndices &children) const
 {
 
 }
 
-void MeshConnections::ParentsOfEntity(const EntityIndex &child, EntityIndices &parents)
+void MeshConnections::ParentsOfEntity(const EntityIndex &child,
+                                      EntityIndices &parents) const
 {
 
 }
 
-void MeshConnections::ParentsOfAnyEntities(const EntityIndices &children, EntityIndices &parents)
+void MeshConnections::ParentsOfAnyEntities(const EntityIndices &children,
+                                           EntityIndices &parents) const
 {
 
 }
 
-void MeshConnections::ParentsCoveredByEntities(const EntityIndices &children, EntityIndices &parents)
+void MeshConnections::ParentsCoveredByEntities(const EntityIndices &children,
+                                               EntityIndices &parents) const
 {
 
 }
 
-void MeshConnections::NeighborsOfEntity(const EntityIndex &entity, int shared_dim, EntityIndices &neighbors)
+void MeshConnections::NeighborsOfEntity(const EntityIndex &entity,
+                                        int shared_dim, EntityIndices &neighbors) const
 {
 
 }
 
-void MeshConnections::NeighborsOfEntities(const EntityIndices &entities, int shared_dim, EntityIndices &neighbors)
+void MeshConnections::NeighborsOfEntities(const EntityIndices &entities,
+                                          int shared_dim, EntityIndices &neighbors) const
 {
 
 }
 
-Table* MeshConnections::GetTable(int row_dim, bool row_bndry, int col_dim, bool col_bndry)
+Table* MeshConnections::GetTable(int row_dim, bool row_bndry, int col_dim,
+                                 bool col_bndry) const
 {
    return nullptr;
 }

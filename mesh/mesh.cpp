@@ -3284,7 +3284,7 @@ void Mesh::Make1D(int n, double sx)
 }
 
 Mesh::Mesh(const Mesh &mesh, bool copy_nodes) :
-connect(*this)
+   connect(*this)
 {
    Dim = mesh.Dim;
    spaceDim = mesh.spaceDim;
@@ -3475,7 +3475,7 @@ Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
 
 Mesh::Mesh(const char *filename, int generate_edges, int refine,
            bool fix_orientation) :
-connect(*this)
+   connect(*this)
 {
    // Initialization as in the default constructor
    SetEmpty();
@@ -3494,7 +3494,7 @@ connect(*this)
 
 Mesh::Mesh(std::istream &input, int generate_edges, int refine,
            bool fix_orientation) :
-connect(*this)
+   connect(*this)
 {
    SetEmpty();
    Load(input, generate_edges, refine, fix_orientation);
@@ -3530,7 +3530,7 @@ Mesh::Mesh(double *vertices_, int num_vertices,
            int *boundary_indices, Geometry::Type boundary_type,
            int *boundary_attributes, int num_boundary_elements,
            int dimension, int space_dimension) :
-connect(*this)
+   connect(*this)
 {
    if (space_dimension == -1)
    {
@@ -3911,7 +3911,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 }
 
 Mesh::Mesh(Mesh *mesh_array[], int num_pieces) :
-connect(*this)
+   connect(*this)
 {
    int      i, j, ie, ib, iv, *v, nv;
    Element *el;
@@ -4054,7 +4054,7 @@ connect(*this)
 }
 
 Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type) :
-connect(*this)
+   connect(*this)
 {
    Array<int> ref_factors(orig_mesh->GetNE());
    ref_factors = ref_factor;
@@ -8933,7 +8933,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 }
 
 Mesh::Mesh(const NCMesh &ncmesh) :
-connect(*this)
+   connect(*this)
 {
    Init();
    InitTables();

@@ -94,7 +94,7 @@ public:
    explicit inline Array(const CT (&values)[N]);
 
    /// Initilizer list contructor for syntax like Array<int> a = {1,2,3,4,5};
-   inline Array(std::initializer_list<T> list) 
+   inline Array(std::initializer_list<T> list)
    {size = list.size(); data.New(size); std::copy(list.begin(), list.end(), &(data[0]));}
 
    /// Destructor
