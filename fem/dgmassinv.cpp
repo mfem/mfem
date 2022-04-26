@@ -132,12 +132,16 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
    const bool change_basis = (d2q != nullptr);
 
-   double *b2 = nullptr;
-   const double *b_orig = nullptr;
-   const double *d2q_B = nullptr;
-   const double *q2d_B = nullptr;
-   const double *q2d_Bt = nullptr;
+   // b is the right-hand side (if no change of basis, this just points to the
+   // incoming RHS vector, if we have to change basis, this points to the
+   // internal b2 vector where we put the transformed RHS)
    const double *b;
+   // the following are non-null if we have to change basis
+   double *b2 = nullptr; // non-const access to b2
+   const double *b_orig = nullptr; // RHS vector in "original" basis
+   const double *d2q_B = nullptr; // matrix to transform initial guess
+   const double *q2d_B = nullptr; // matrix to transform solution
+   const double *q2d_Bt = nullptr; // matrix to transform RHS
    if (change_basis)
    {
       d2q_B = d2q->B.Read();
@@ -151,8 +155,6 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
    else
    {
       b = b_.Read();
-      b_orig = nullptr;
-      b2 = nullptr;
    }
 
    const int NB = Q1D ? Q1D : 1; // block size
