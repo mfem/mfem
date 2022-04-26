@@ -18,7 +18,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_TESTS = bench_ceed bench_tmop bench_vector bench_virtuals bench_assembly
+SEQ_TESTS = bench_assembly bench_ceed bench_tmop bench_vector bench_virtuals
 PAR_TESTS = 
 ifeq ($(MFEM_USE_MPI),NO)
    TESTS = $(SEQ_TESTS)
