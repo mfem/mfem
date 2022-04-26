@@ -23,6 +23,7 @@
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
 #include "../general/zstr.hpp"
+#include "mesh_connections.hpp"
 #ifdef MFEM_USE_ADIOS2
 #include "../general/adios2stream.hpp"
 #endif
@@ -57,10 +58,15 @@ class Mesh
 #endif
    friend class NCMesh;
    friend class NURBSExtension;
+   friend class MeshConnections;
 
 #ifdef MFEM_USE_ADIOS2
    friend class adios2stream;
 #endif
+
+public:
+
+   MeshConnections connect;
 
 protected:
    int Dim;
@@ -501,7 +507,7 @@ protected:
 
 public:
 
-   Mesh() { SetEmpty(); }
+   Mesh() : connect(*this) { SetEmpty(); }
 
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
@@ -635,7 +641,8 @@ public:
 
    /** @anchor mfem_Mesh_init_ctor
        @brief _Init_ constructor: begin the construction of a Mesh object. */
-   Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1)
+   Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1) :
+   connect(*this)
    {
       if (spaceDim_ == -1) { spaceDim_ = Dim_; }
       InitMesh(Dim_, spaceDim_, NVert, NElem, NBdrElem);
@@ -786,7 +793,8 @@ public:
    MFEM_DEPRECATED
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
         double sx = 1.0, double sy = 1.0, double sz = 1.0,
-        bool sfc_ordering = true)
+        bool sfc_ordering = true) :
+   connect(*this)
    {
       Make3D(nx, ny, nz, type, sx, sy, sz, sfc_ordering);
       Finalize(true); // refine = true
@@ -795,7 +803,8 @@ public:
    /// Deprecated: see @a MakeCartesian2D.
    MFEM_DEPRECATED
    Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
-        double sx = 1.0, double sy = 1.0, bool sfc_ordering = true)
+        double sx = 1.0, double sy = 1.0, bool sfc_ordering = true) :
+   connect(*this)
    {
       Make2D(nx, ny, type, sx, sy, generate_edges, sfc_ordering);
       Finalize(true); // refine = true
@@ -803,7 +812,8 @@ public:
 
    /// Deprecated: see @a MakeCartesian1D.
    MFEM_DEPRECATED
-   explicit Mesh(int n, double sx = 1.0)
+   explicit Mesh(int n, double sx = 1.0) :
+   connect(*this)
    {
       Make1D(n, sx);
       // Finalize(); // reminder: not needed

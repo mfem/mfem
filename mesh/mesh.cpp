@@ -3283,7 +3283,8 @@ void Mesh::Make1D(int n, double sx)
    bdr_attributes.Append(1); bdr_attributes.Append(2);
 }
 
-Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
+Mesh::Mesh(const Mesh &mesh, bool copy_nodes) :
+connect(*this)
 {
    Dim = mesh.Dim;
    spaceDim = mesh.spaceDim;
@@ -3473,7 +3474,8 @@ Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
 }
 
 Mesh::Mesh(const char *filename, int generate_edges, int refine,
-           bool fix_orientation)
+           bool fix_orientation) :
+connect(*this)
 {
    // Initialization as in the default constructor
    SetEmpty();
@@ -3491,7 +3493,8 @@ Mesh::Mesh(const char *filename, int generate_edges, int refine,
 }
 
 Mesh::Mesh(std::istream &input, int generate_edges, int refine,
-           bool fix_orientation)
+           bool fix_orientation) :
+connect(*this)
 {
    SetEmpty();
    Load(input, generate_edges, refine, fix_orientation);
@@ -3526,7 +3529,8 @@ Mesh::Mesh(double *vertices_, int num_vertices,
            int *element_attributes, int num_elements,
            int *boundary_indices, Geometry::Type boundary_type,
            int *boundary_attributes, int num_boundary_elements,
-           int dimension, int space_dimension)
+           int dimension, int space_dimension) :
+connect(*this)
 {
    if (space_dimension == -1)
    {
@@ -3906,7 +3910,8 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    // Finalize(...) should be called after this, if needed.
 }
 
-Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
+Mesh::Mesh(Mesh *mesh_array[], int num_pieces) :
+connect(*this)
 {
    int      i, j, ie, ib, iv, *v, nv;
    Element *el;
@@ -4048,7 +4053,8 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 #endif
 }
 
-Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
+Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type) :
+connect(*this)
 {
    Array<int> ref_factors(orig_mesh->GetNE());
    ref_factors = ref_factor;
@@ -8926,7 +8932,8 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
    // outside after this method.
 }
 
-Mesh::Mesh(const NCMesh &ncmesh)
+Mesh::Mesh(const NCMesh &ncmesh) :
+connect(*this)
 {
    Init();
    InitTables();

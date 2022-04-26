@@ -23,6 +23,7 @@
 #include <cstring>
 #include <algorithm>
 #include <type_traits>
+#include <vector>
 
 namespace mfem
 {
@@ -91,6 +92,10 @@ public:
    /// Deep copy from a braced init-list of convertible type
    template <typename CT, int N>
    explicit inline Array(const CT (&values)[N]);
+
+   /// Initilizer list contructor for syntax like Array<int> a = {1,2,3,4,5};
+   inline Array(std::initializer_list<T> list) 
+   {size = list.size(); data.New(size); std::copy(list.begin(), list.end(), &(data[0]));}
 
    /// Destructor
    inline ~Array() { TypeAssert(); data.Delete(); }
@@ -341,7 +346,6 @@ inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
 {
    return !( LHS == RHS );
 }
-
 
 /// Utility function similar to std::as_const in c++17.
 template <typename T> const T &AsConst(T &a) { return a; }

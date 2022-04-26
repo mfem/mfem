@@ -9,33 +9,17 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifndef MFEM_MESH_CONNECTIONS
+#define MFEM_MESH_CONNECTIONS
+
+#include "../general/array.hpp"
+#include <vector>
+
+namespace mfem
+{
+
+class Table;
 class Mesh;
-
-/** @brief Struct representing the index number of a geometrical mesh entity.  In 
-    MFEM meshes there is currently support for 5 entity kinds that all have their
-    own id numberings:  vertices, edges, faces, elements, and boundary elements. 
-    These kinds are represented by the @a dim and @a boundary members.  For
-    instance a mesh edge on the boundary will have dim=1 and boundary=true.  
-    This struct is used to describe the ID numbers recieved and returned by the 
-    \ref MeshConnections class.**/
-struct EntityIndex
-{
-   int dim;
-   bool boundary;
-   int index;
-}
-
-/** @brief Struct representing plural index numbers of geometrical mesh entities of the 
-    same kind (dimension and boundary).  In MFEM meshes there is currently support for 5 
-    (4 in 2D) entity kinds that all have their own id numberings:  vertices, edges, faces, 
-    elements, and boundary elements.  These types are represented by the @a dim and @a boundary 
-    members.  For instance faces in a 3D mesh interior will have dim=2 and boundary=false.**/
-struct EntityIndices
-{
-   int dim;
-   bool boundary;
-   Array<int> indices;      
-}
 
 /** @brief Class that exposes connections between Mesh entities such as
     vertices, edges, faces, and volumes.  This is done without assuming 
@@ -49,6 +33,8 @@ struct EntityIndices
     e a "child" of edges, faces, and volumes.**/
 class MeshConnections
 {
+   friend class Mesh;
+
    private:
    /// The mesh object that the connections are defined on
    const Mesh &mesh;
@@ -57,9 +43,39 @@ class MeshConnections
        The 2D array represents tables mapping from row indices to column indices of the 3-4
        different kinds of entities (0D, 1D, 2D, 3D, 2D Boundary) respectively.  For example 
        the Table mapping Vertices to Boundary Elements/Faces on a 3D mesh would be at T[0][3]*/
-   Array<Array<Table*>> T;
+   std::vector<std::vector<Table*>> T;
+
+
 
    public:
+   /** @brief Struct representing the index number of a geometrical mesh entity.  In 
+       MFEM meshes there is currently support for 5 entity kinds that all have their
+       own index numberings:  vertices, edges, faces, elements, and boundary elements. 
+       These kinds are represented by the @a dim and @a boundary members.  For
+       instance a mesh edge on the boundary will have dim=1 and boundary=true.  
+       This struct is used to describe the index numbers recieved and returned by the 
+       \ref MeshConnections class.**/
+   struct EntityIndex
+   {
+      int dim;
+      bool boundary;
+      int index;
+   };
+
+   /** @brief Struct representing plural index numbers of geometrical mesh entities of the 
+       same kind (dimension and boundary).  In MFEM meshes there is currently support for 5 
+       (4 in 2D) entity kinds that all have their own index numberings:  vertices, edges, faces, 
+       elements, and boundary elements.  These types are represented by the @a dim and @a boundary 
+       members.  For instance faces in a 3D mesh interior will have dim=2 and boundary=false.
+       This struct is used to describe the index numbers recieved and returned by the 
+       \ref MeshConnections class.**/
+   struct EntityIndices
+   {
+      int dim;
+      bool boundary;
+      Array<int> indices;      
+   };
+
    /** @brief Sets the Mesh object connections are defined on. */
    /** @note When this method is called, no connection tables
        are generated so they will all be null.  They will be generated
@@ -241,16 +257,20 @@ class MeshConnections
       |   |   |      9  10  11      | 2 | 3 |      6   |   7
       7---8---9      +-4-+-5-+      +---+---+      +-2-+-3-+ 
 
-                               entity                        neighbors
-                            dim,bdry,ids                   dim,bdry,ids
+                               entity                           neighbors
+                            dim,bdry,ids                       dim,bdry,ids
       NeighborsOfEntities({0,false,{1,2}},1,{0,false,{}}) ->  {0,false,{0,4,5}}, 2 is not included
       NeighborsOfEntities({0,false,{0,1}},2,{0,false,{}}) ->  {0,false,{2,3,4,5}}
-      NeighborsOfEntities({1,true ,{1,5}},0,{1,false,{}}) ->  {0,false,{0,3,7,11}},   edge numbering
-      NeighborsOfEntities({1,true ,{1,5}},0,{1,true ,{}}) ->  {0,true,{0,7}},     boundary element numbering
+      NeighborsOfEntities({1,true ,{1,5}},0,{1,false,{}}) ->  {1,false,{0,3,7,11}},   edge numbering
+      NeighborsOfEntities({1,true ,{1,5}},0,{1,true ,{}}) ->  {1,true,{0,7}},     boundary element numbering
       NeighborsOfEntities({0,false,{1,2}},2,{1,false,{}}) ->  error, entity.dim != neighbors.dim**/  
-   void NeighborsOfEntities(const EntityIndex &entities, int shared_dim, EntityIndices &neighbors);   
+   void NeighborsOfEntities(const EntityIndices &entities, int shared_dim, EntityIndices &neighbors);   
 
    private:
    /// Raw table access
-   Table *GetTable(int row_dim, bool row_bndry, int col_dim, bool col_bndry);
+   Table* GetTable(int row_dim, bool row_bndry, int col_dim, bool col_bndry);
 };
+
+}
+
+#endif
