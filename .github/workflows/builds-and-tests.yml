@@ -147,7 +147,7 @@ jobs:
         Invoke-WebRequest -Uri "${Env:MSMPI_URL}/v${Env:MSMPI_VER}/msmpisetup.exe" -OutFile "msmpisetup.exe"
         Start-Process msmpisetup.exe -ArgumentList "-unattend" -Wait
         Invoke-WebRequest -Uri "${Env:MSMPI_URL}/v${Env:MSMPI_VER}/msmpisdk.msi" -OutFile "msmpisdk.msi"
-        Start-Process mspisdk.msi -ArgumentList "-passive" -Wait
+        Start-Process msmpisdk.msi -ArgumentList "-passive" -Wait
 
     # Get Hypre through cache, or build it.
     # Install will only run on cache miss.
