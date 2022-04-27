@@ -529,8 +529,8 @@ void BatchedLORAssembly::ParAssemble(
    hypre_ParCSRCommHandle *comm_handle;
    HYPRE_Int *int_buf_data, *eliminate_row, *eliminate_col;
    {
-      eliminate_row = hypre_CTAlloc(HYPRE_Int, diag_nrows, HYPRE_MEMORY_HOST);
-      eliminate_col = hypre_CTAlloc(HYPRE_Int, offd_ncols, HYPRE_MEMORY_HOST);
+      eliminate_row = mfem_hypre_CTAlloc_host(HYPRE_Int, diag_nrows);
+      eliminate_col = mfem_hypre_CTAlloc_host(HYPRE_Int, offd_ncols);
 
       // Make sure A has a communication package
       hypre_ParCSRCommPkg *comm_pkg = hypre_ParCSRMatrixCommPkg(A_hypre);
@@ -555,10 +555,9 @@ void BatchedLORAssembly::ParAssemble(
       // Use a matvec communication pattern to find (in eliminate_col) which of
       // the local offd columns are to be eliminated
       HYPRE_Int num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
-      int_buf_data =
-         hypre_CTAlloc(HYPRE_Int,
-                       hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends),
-                       HYPRE_MEMORY_HOST);
+      int_buf_data = mfem_hypre_CTAlloc_host(
+                        HYPRE_Int,
+                        hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends));
       int index = 0;
       for (int i = 0; i < num_sends; i++)
       {
@@ -644,9 +643,9 @@ void BatchedLORAssembly::ParAssemble(
          }
       }
 
-      hypre_TFree(int_buf_data, HYPRE_MEMORY_HOST);
-      hypre_TFree(eliminate_row, HYPRE_MEMORY_HOST);
-      hypre_TFree(eliminate_col, HYPRE_MEMORY_HOST);
+      mfem_hypre_TFree_host(int_buf_data);
+      mfem_hypre_TFree_host(eliminate_row);
+      mfem_hypre_TFree_host(eliminate_col);
    }
 
    // Eliminate columns in the off-diagonal block
