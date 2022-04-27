@@ -52,7 +52,7 @@ jobs:
         build-system: [make, cmake]
         hypre-target: [int32]
         exclude:
-          - os: ubuntu-18.0.4
+          - os: ubuntu-18.04
             build-system: cmake
           - os: macos-10.15
             build-system: cmake
