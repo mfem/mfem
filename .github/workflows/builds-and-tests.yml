@@ -46,10 +46,9 @@ jobs:
   builds-and-tests:
     strategy:
       matrix:
-        os: [ubuntu-18.04, macos-10.15]
+        os: [ubuntu-18.04, macos-10.15, windows-2022]
         target: [dbg, opt]
         mpi: [seq, par]
-        build-system: [make]
         hypre-target: [int32]
         # 'include' allows us to:
         # - Add a variable to all jobs without creating a new matrix dimension.
@@ -64,6 +63,11 @@ jobs:
             codecov: NO
           - target: opt
             codecov: YES
+          - os: [ubuntu-18.04, macos-10.15]
+            build-system: make
+          - os: windows-2022
+            build-system: cmake
+            codecov: NO
           - os: ubuntu-18.04
             target: opt
             codecov: NO
@@ -75,18 +79,6 @@ jobs:
             codecov: NO
             mpi: par
             build-system: make
-            hypre-target: int64
-          - os: windows-2022
-            target: dbg
-            codecov: NO
-            mpi: seq
-            build-system: cmake
-            hypre-target: int64
-          - os: windows-2022
-            target: opt
-            codecov: NO
-            mpi: seq
-            build-system: cmake
             hypre-target: int64
     name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
 
@@ -140,6 +132,17 @@ jobs:
       run: |
         export HOMEBREW_NO_INSTALL_CLEANUP=1
         brew install lcov
+
+    - name: get MPI (Windows)
+      if: matrix.os == 'windows-2022'
+      env:
+        MSMPI_URL: https://github.com/microsoft/Microsoft-MPI/releases/download
+        MSMPI_VER: 10.1.1
+      run: |
+        Start-FileDownload "${Env:MSMPI_URL}/v${Env:MSMPI_VER}/msmpisetup.exe"
+        Start-Process msmpisetup.exe -ArgumentList "-unattend" -Wait
+        Start-FileDownload "${Env:MSMPI_URL}/v${Env:MSMPI_VER}/msmpisdk.msi"
+        Start-Process mspisdk.msi -ArgumentList "-passive" -Wait
 
     # Get Hypre through cache, or build it.
     # Install will only run on cache miss.
