@@ -161,7 +161,8 @@ jobs:
 
     - name: get hypre
       if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-hypre@v2.0
+      # TODO: change this when merged upstream
+      uses: kanye-quest/mfem-gh-actions/build-hypre@master
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
@@ -179,7 +180,8 @@ jobs:
 
     - name: install metis
       if: matrix.mpi == 'par' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@v2.0
+      # TODO: change this when merged upstream
+      uses: kanye-quest/mfem-gh-actions/build-metis@master
       with:
         archive: ${{ env.METIS_ARCHIVE }}
         dir: ${{ env.METIS_TOP_DIR }}
