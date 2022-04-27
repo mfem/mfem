@@ -956,6 +956,83 @@ void FABilinearFormExtension::Assemble()
    }
 }
 
+void FABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                               OperatorHandle &A)
+{
+#ifdef MFEM_USE_MPI
+   if ( auto pa = dynamic_cast<ParBilinearForm*>(a) )
+   {
+      const int remove_zeros = 0;
+      pa->Finalize(remove_zeros);
+      MFEM_VERIFY(pa->p_mat.Ptr() == nullptr && pa->p_mat_e.Ptr() == nullptr,
+                  "The ParBilinearForm must be updated with Update() before "
+                  "re-assembling the ParBilinearForm.");
+      pa->ParallelAssemble(pa->p_mat, mat);
+      delete pa->mat;
+      mat = nullptr;
+      delete pa->mat_e;
+      pa->mat_e = nullptr;
+      pa->p_mat_e.EliminateRowsCols(pa->p_mat, ess_tdof_list);
+      A = pa->p_mat;
+   }
+   else
+#endif
+   {
+      const SparseMatrix *P = a->fes->GetConformingProlongation();
+      if (P) { a->ConformingAssemble(); }
+      a->EliminateVDofs(ess_tdof_list, a->diag_policy);
+      const int remove_zeros = 0;
+      a->Finalize(remove_zeros);
+      A.Reset(a->mat, false);
+   }
+}
+
+void FABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                               Vector &x, Vector &b,
+                                               OperatorHandle &A,
+                                               Vector &X, Vector &B,
+                                               int copy_interior)
+{
+   FormSystemMatrix(ess_tdof_list, A);
+#ifdef MFEM_USE_MPI
+   if ( auto pa = dynamic_cast<ParBilinearForm*>(a) )
+   {
+      const Operator &P = *pa->pfes->GetProlongationMatrix();
+      const SparseMatrix &R = *pa->pfes->GetRestrictionMatrix();
+      // Variational restriction with P
+      X.SetSize(P.Width());
+      B.SetSize(X.Size());
+      P.MultTranspose(b, B);
+      R.Mult(x, X);
+      pa->p_mat.EliminateBC(pa->p_mat_e, ess_tdof_list, X, B);
+      if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+   }
+   else
+#endif
+   {
+      const SparseMatrix *P = a->fes->GetConformingProlongation();
+      if (P) // non-conforming space
+      {
+         // Variational restriction with P
+         const SparseMatrix *R = a->fes->GetConformingRestriction();
+         B.SetSize(P->Width());
+         P->MultTranspose(b, B);
+         X.SetSize(R->Height());
+         R->Mult(x, X);
+         a->EliminateVDofsInRHS(ess_tdof_list, X, B);
+         if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+      }
+      else // conforming space
+      {
+         // A, X and B point to the same data as mat, x and b
+         a->EliminateVDofsInRHS(ess_tdof_list, x, b);
+         X.MakeRef(x, 0, x.Size());
+         B.MakeRef(b, 0, b.Size());
+         if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+      }
+   }
+}
+
 void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
 {
 #ifdef MFEM_USE_MPI
