@@ -244,7 +244,7 @@ int main(int argc, char *argv[])
    fsolv->SetSolver(1e-8,1e-12,100,0);
    fsolv->AddBC(1,1.0);
    fsolv->AddBC(2,1.0);
-   //fsolv->AddBC(3,0.0);
+   fsolv->AddBC(3,0.0);
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
    mfem::ParGridFunction oddens(fsolv->GetDesignFES());
    mfem::Vector vdens; vdens.SetSize(fsolv->GetFilterFES()->GetTrueVSize()); vdens=0.0;
