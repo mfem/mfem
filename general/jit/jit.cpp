@@ -109,7 +109,7 @@ struct Cxx
       _exit(~0);
    }
 };
-Cxx Cxx::cxx_singleton {}; // Initialize the unique global Jit context.
+Cxx Cxx::cxx_singleton {}; // Initialize the unique global Cxx context.
 
 /// Return the MPI rank in MPI_COMM_WORLD.
 static int Rank()
@@ -304,9 +304,6 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
    Hash64(hash, cc, ".cc");
    Hash64(hash, co, ".co");
    Hash64(hash, so, ".so");
-
-   //std::string Imsrc("-I"); Imsrc += MFEM_SOURCE_DIR;
-   //std::string Iminc("-I"); Iminc += MFEM_INSTALL_DIR; Iminc += "/include";
 
    auto Compile = [&]()
    {

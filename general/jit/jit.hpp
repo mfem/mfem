@@ -24,11 +24,10 @@ namespace mfem
 
 struct Jit
 {
-   /// Initialize JIT.
-   static int Init() { return Init(nullptr, nullptr); }
+   /// Initialize JIT, used in communication Mpi singleton.
    static int Init(int *argc, char ***argv);
 
-   /// Finalize JIT.
+   /// Finalize JIT, used in communication Mpi singleton.
    static void Finalize();
 
    /// Ask the JIT process to update the archive.

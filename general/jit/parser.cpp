@@ -431,10 +431,9 @@ struct JitPreProcessor
       out << "\n\tconst char *src = R\"_(";
 
       // switching from out to ker.src to compute the hash
-      ker.src += "#include <cstdint>\n";
-      ker.src += "#include <limits>\n";
-      ker.src += "#include <cstring>\n";
-      ker.src += "#include <stdbool.h>\n";
+      //ker.src += "#include <cstdint>\n";
+      //ker.src += "#include <limits>\n";
+      //ker.src += "#include <cstring>\n";
 
       ker.src += "#define MFEM_JIT_FORALL_COMPILATION\n";
       ker.src += "#define MFEM_DEVICE_HPP\n";
