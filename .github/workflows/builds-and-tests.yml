@@ -139,14 +139,14 @@ jobs:
         brew install lcov
 
     - name: get MPI (Windows)
-      if: matrix.os == 'windows-2022'
+      if: matrix.mpi == 'par' && matrix.os == 'windows-2022'
       env:
         MSMPI_URL: https://github.com/microsoft/Microsoft-MPI/releases/download
         MSMPI_VER: 10.1.1
       run: |
-        Start-FileDownload "${Env:MSMPI_URL}/v${Env:MSMPI_VER}/msmpisetup.exe"
+        Invoke-WebRequest -Uri "${Env:MSMPI_URL}/v${Env:MSMPI_VER}/msmpisetup.exe" -OutFile "msmpisetup.exe"
         Start-Process msmpisetup.exe -ArgumentList "-unattend" -Wait
-        Start-FileDownload "${Env:MSMPI_URL}/v${Env:MSMPI_VER}/msmpisdk.msi"
+        Invoke-WebRequest -Uri "${Env:MSMPI_URL}/v${Env:MSMPI_VER}/msmpisdk.msi" -OutFile "msmpisdk.msi"
         Start-Process mspisdk.msi -ArgumentList "-passive" -Wait
 
     # Get Hypre through cache, or build it.
