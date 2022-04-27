@@ -45,7 +45,7 @@ void LinearFormExtension::Assemble()
       }
 
       // if there are no markers, just use the whole linear form (1)
-      if (!has_markers_k) { markers = 1; }
+      if (!has_markers_k) { markers.HostReadWrite(); markers = 1; }
       else
       {
          // scan the attributes to set the markers to 0 or 1
