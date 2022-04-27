@@ -16,31 +16,33 @@
 
 #ifdef MFEM_USE_JIT
 
-#include <string>
-#include <fstream>
-#include <sstream>
-#include <iomanip>
-#include <iostream>
-
-#include <dlfcn.h> // not available on Windows
+#include <cassert>
+#include <functional> // for std::hash
 
 namespace mfem
 {
 
 struct Jit
 {
-   /// Initialize JIT (and MPI, depending on MFEM's configuration)
+   /// Initialize JIT.
    static int Init() { return Init(nullptr, nullptr); }
    static int Init(int *argc, char ***argv);
 
-   /// Finalize JIT
+   /// Finalize JIT.
    static void Finalize();
 
-   /// Ask the JIT process to update the libmjit archive.
-   static void Archive(void* &handle);
+   /// Ask the JIT process to update the archive.
+   static void AROpen(void* &handle);
 
-   /// Ask the JIT process to compile and update the libraries archive & cache.
-   static int Compile(const uint64_t h, const size_t n, char *src, void *&handle);
+   /// Ask the JIT process to update the shared library.
+   static void* DLOpen(const char *path);
+
+   /// Ask the JIT process the address of the symbol.
+   static void* DlSym(void* handle, const char* symbol);
+
+   /// Ask the JIT process to compile and update the libraries.
+   static int Compile(const uint64_t hash, const char *src, const char *symbol,
+                      void *&handle);
 
    /// \brief Binary hash combine function
    template <typename T> static inline
@@ -52,59 +54,29 @@ struct Jit
    size_t Hash(const size_t &h, const T &arg, Args... args) noexcept
    { return Hash(Hash(h, arg), args...); }
 
-   static constexpr int SYMBOL_SIZE = 1+16+1;
-   static constexpr int DLOPEN_MODE = RTLD_NOW | RTLD_LOCAL;
-
-   /// 64 bits hash to string function
-   static inline void Hash64(const size_t h, char *str, const char *ext = "")
-   {
-      std::stringstream ss;
-      ss << 'k' << std::setfill('0')
-         << std::setw(16) << std::hex << (h|0) << std::dec << ext;
-      std::memcpy(str, ss.str().c_str(), SYMBOL_SIZE + std::strlen(ext));
-   }
-
    /// Kernel class
-   template<typename kernel_t> class Kernel
+   template<typename kernel_t> struct Kernel
    {
-      const size_t h;
       void *handle;
-      char symbol[SYMBOL_SIZE];
-      kernel_t kernel;
+      kernel_t ker;
 
-   public:
-      /// \brief Kernel
-      /// \param seed src and mfem source install strings hash
-      /// \param src kernel source
-      /// \param Targs 'template' arguments
-      template<typename... A>
-      Kernel(const size_t seed, const char *src, A... Targs): h(Hash(seed, Targs...)),
-         // First we try to open the shared cache library libmjit.so
-         handle(::dlopen("./libmjit.so", DLOPEN_MODE))
+      /// \brief Kernel constructor
+      Kernel(const size_t hash, const char *src, const char *symbol):
+         handle(Jit::DLOpen("./libmjit.so")) // libmjit.so ?
       {
-         // If no libmjit.so, try to use the archive, creating the .so
-         if (!handle) { Jit::Archive(handle); }
-         const auto Compile = [&]()
-         {
-            const int n = 1 + snprintf(nullptr, 0, src, h, h, h, Targs...);
-            char *Tsrc = new char[n];
-            snprintf(Tsrc, n, src, h, h, h, Targs...);
-            Jit::Compile(h, n, Tsrc, handle);
-            delete[] Tsrc;
-         };
-         // no libraries found, create new ones
-         if (!handle) { Compile(); }
-         Hash64(h, symbol); // fill symbol from computed hash
-         auto Symbol = [&]() { return (kernel_t) ::dlsym(handle, symbol); };
+         // No libmjit.so, try to use the archive
+         if (!handle) { AROpen(handle); }
+         // If no libraries were found, create new ones
+         if (!handle) { Compile(hash, src, symbol, handle); }
+         auto Symbol = [&]() { ker = (kernel_t) DlSym(handle, symbol); };
          // we have a handle, either from new libraries, or previous ones,
          // however, it does not mean that the symbol is ready in the handle
-         if (!(kernel = Symbol())) { Compile(); kernel = Symbol(); }
+         if (!(Symbol(), ker)) { Compile(hash, src, symbol, handle); Symbol(); }
+         assert(handle); assert(ker);
       }
 
-      /// Kernel operator
-      template<typename... Args> void operator()(Args... as) { kernel(as...); }
-
-      ~Kernel() { ::dlclose(handle); }
+      /// Kernel launch
+      template<typename... Args> void operator()(Args... args) { ker(args...); }
    };
 };
 
