@@ -75,7 +75,7 @@ public:
         sfec=new mfem::H1_FECollection(order, dim);
         sfes=new mfem::ParFiniteElementSpace(pmesh,sfec,1);
 
-        ifec=new mfem::H1Pos_FECollection(order,dim);
+        ifec=new mfem::H1Pos_FECollection(order-1,dim);
         ifes=new mfem::ParFiniteElementSpace(pmesh,ifec,1);
 
         dfes=ifes;
@@ -113,6 +113,7 @@ public:
     }
 
     mfem::ParFiniteElementSpace* GetFilterFES(){return sfes;}
+    mfem::ParFiniteElementSpace* GetDesignFES(){return dfes;}
 
 
     virtual
@@ -139,11 +140,12 @@ public:
     virtual
     void Mult(const Vector &x, Vector &y)
     {
+
         if(pcg==nullptr){
             AllocSolvers();
         }
 
-        y=bdrc;
+        //y=bdrc;
         tmpv.SetSize(y.Size());
 
         pcg->SetAbsTol(atol);
@@ -153,6 +155,7 @@ public:
         S->Mult(x,tmpv);
         K->EliminateBC(*A,ess_tdofv,bdrc,tmpv);
         pcg->Mult(tmpv,y);
+
     }
 
     virtual

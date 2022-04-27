@@ -58,6 +58,11 @@ add_mfem_miniapp(mtop_filt_test
      ${PARADIFF_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_filt_test01
+     MAIN filter_test01.cpp
+     ${PARADIFF_COMMON_FILES}
+     LIBRARIES mfem)
+
 add_mfem_miniapp(mtop_elast_test
      MAIN elast_solv_test.cpp
      ${PARADIFF_COMMON_FILES}

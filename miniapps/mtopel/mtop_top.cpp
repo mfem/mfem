@@ -125,6 +125,7 @@ int main(int argc, char *argv[])
    int print_level = 1;
    bool visualization = false;
    const char *petscrc_file = "";
+   int restart=0;
 
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -170,6 +171,10 @@ int main(int argc, char *argv[])
                   "Filter radius");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                      "PetscOptions file to use.");
+   args.AddOption(&restart,
+                     "-rstr",
+                     "--restart",
+                     "Restart the optimization from previous design.");
    args.Parse();
    if (!args.Good())
    {
@@ -219,18 +224,32 @@ int main(int argc, char *argv[])
        }
    }
 
+   if(restart)
+   {
+       //read the mesh and the design
+       std::ostringstream oss;
+       oss << std::setw(10) << std::setfill('0') << myrank;
+       std::string mname="pmesh_"+oss.str()+".msh";
+
+       std::ifstream in;
+       in.open(mname.c_str(),std::ios::in);
+       pmesh.Load(in,1,0);
+       in.close();
+   }
+
    mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.02,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
    fsolv->AddBC(1,0.0);
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
-   mfem::Vector vdens; vdens.SetSize(fsolv->GetFilterFES()->GetTrueVSize());
-   mfem::Vector vtmpv; vtmpv.SetSize(fsolv->GetFilterFES()->GetTrueVSize());
+   mfem::ParGridFunction oddens(fsolv->GetDesignFES());
+   mfem::Vector vdens; vdens.SetSize(fsolv->GetFilterFES()->GetTrueVSize()); vdens=0.0;
+   mfem::Vector vtmpv; vtmpv.SetSize(fsolv->GetDesignFES()->GetTrueVSize()); vtmpv=0.0;
    {
        mfem::FunctionCoefficient fco(InitialDens);
-       pgdens.ProjectCoefficient(fco);
-       pgdens=0.5;
+       oddens.ProjectCoefficient(fco);
+       oddens=0.5;
    }
-   pgdens.GetTrueDofs(vtmpv);
+   oddens.GetTrueDofs(vtmpv);
    fsolv->Mult(vtmpv,vdens);
    pgdens.SetFromTrueDofs(vdens);
 
@@ -279,24 +298,24 @@ int main(int argc, char *argv[])
    mfem::VolumeQoI* ivobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
    ivobj->SetProjection(0.5,32);
 
-   //gradients
+   //gradients with respect to the filtered field
    mfem::Vector ograd(fsolv->GetFilterFES()->GetTrueVSize()); ograd=0.0; //of the objective
    mfem::Vector vgrad(fsolv->GetFilterFES()->GetTrueVSize()); vgrad=0.0; //of the volume contr.
+
+   //the input design field and the filtered one might not have the same dimensionality
+   mfem::Vector ogrado(fsolv->GetDesignFES()->GetTrueVSize()); ogrado=0.0;
+   mfem::Vector vgrado(fsolv->GetDesignFES()->GetTrueVSize()); vgrado=0.0;
+
+   mfem::Vector xxmax(fsolv->GetDesignFES()->GetTrueVSize()); xxmax=1.0;
+   mfem::Vector xxmin(fsolv->GetDesignFES()->GetTrueVSize()); xxmin=0.0;
 
    mfem::NativeMMA* mma;
    {
        double a=0.0;
        double c=1000.0;
        double d=0.0;
-       mma=new mfem::NativeMMA(MPI_COMM_WORLD,1, ograd,&a,&c,&d);
+       mma=new mfem::NativeMMA(MPI_COMM_WORLD,1, ogrado,&a,&c,&d);
    }
-
-   //the input design field and the filtered one have the same dimensionality
-   mfem::Vector ogrado(fsolv->GetFilterFES()->GetTrueVSize()); ogrado=0.0;
-   mfem::Vector vgrado(fsolv->GetFilterFES()->GetTrueVSize()); vgrado=0.0;
-
-   mfem::Vector xxmax(fsolv->GetFilterFES()->GetTrueVSize()); xxmax=1.0;
-   mfem::Vector xxmin(fsolv->GetFilterFES()->GetTrueVSize()); xxmin=0.0;
 
    double max_ch=0.1; //max design change
    double lam, lam_max, lam_min; //Lagrange multiplier
@@ -304,15 +323,29 @@ int main(int argc, char *argv[])
    double cpl; //compliance
    double vol; //volume
    double ivol; //intermediate volume
-   double Be;
-   double xx;
 
-   mfem::Vector ndesign; ndesign.SetSize(fsolv->GetFilterFES()->GetTrueVSize());
-   mfem::Vector fvector; fvector.SetSize(fsolv->GetFilterFES()->GetTrueVSize());
+//   mfem::Vector ndesign; ndesign.SetSize(fsolv->GetFilterFES()->GetTrueVSize());
+//   mfem::Vector fvector; fvector.SetSize(fsolv->GetFilterFES()->GetTrueVSize());
+
+   if(restart)
+   {
+       //read the mesh and the design
+       std::ostringstream oss;
+       oss << std::setw(10) << std::setfill('0') << myrank;
+       std::string gname="design_"+oss.str()+".gf";
+       std::ifstream in;
+       in.open(gname.c_str(),std::ios::in);
+       mfem::ParGridFunction ndes(&pmesh,in);
+       in.close();
+       oddens.ProjectGridFunction(ndes);//avoids mixing the FE spaces
+       oddens.GetTrueDofs(vtmpv);
+       fsolv->Mult(vtmpv,vdens);
+       pgdens.SetFromTrueDofs(vdens);
+   }
 
    {
        mfem::ParGridFunction& disp=esolv->GetDisplacements();
-       mfem::ParGridFunction pdesign(fsolv->GetFilterFES());
+       mfem::ParGridFunction pdesign(fsolv->GetFilterFES()); //true E-modulus
        pdesign.ProjectCoefficient(*E);
 
        mfem::ParaViewDataCollection paraview_dc("Elasticity", &pmesh);
@@ -324,7 +357,8 @@ int main(int argc, char *argv[])
        paraview_dc.SetTime(0.0);
 
        paraview_dc.RegisterField("disp",&disp);
-       paraview_dc.RegisterField("design",&pgdens);
+       paraview_dc.RegisterField("odesign",&oddens);
+       paraview_dc.RegisterField("fdesign",&pgdens);
        paraview_dc.RegisterField("pdesign",&pdesign);
 
        for(int i=1;i<max_it;i++){
@@ -343,29 +377,6 @@ int main(int argc, char *argv[])
            //compute the original gradients
            fsolv->MultTranspose(ograd,ogrado);
            fsolv->MultTranspose(vgrad,vgrado);
-
-           //OC update
-           /*
-           lam_min=0.0; lam_max=1e9;
-           while( (lam_max-lam_min)/(lam_max+lam_min) > 1e-3 ){
-               lam=0.5*(lam_max+lam_min);
-               for(int j=0;j<vtmpv.Size();j++)
-               {
-                   Be=-ogrado[j]/(lam*vgrado[j]);
-                   if(Be<0.0){Be=-1.0*Be;}//safe guard
-                   xx=vtmpv[i]*sqrt(Be);
-                   xx=std::min(vtmpv[j]+max_ch,xx);
-                   if(xx>1.0){xx=1.0;}//project to 1.0
-                   xx=std::max(vtmpv[j]-max_ch,xx);
-                   if(xx<0.0){xx=0.0;}//project to 0.0
-                   ndesign[j]=xx;
-               }
-               fsolv->Mult(ndesign,fvector);
-               if(vobj->Eval(fvector) > max_vol){ lam_min=lam;}
-               else{lam_max = lam;}
-           }
-           vtmpv=ndesign;
-           */
 
            /*
            {
@@ -396,6 +407,7 @@ int main(int argc, char *argv[])
            //save the design and the solution
            if((i%3)==0)
            {
+               oddens.SetFromTrueDofs(vtmpv);
                pdesign.ProjectCoefficient(*E);
                paraview_dc.SetCycle(i);
                paraview_dc.SetTime(i*1.0);
@@ -430,6 +442,7 @@ int main(int argc, char *argv[])
            //save the design and the solution
            if((i%3)==0)
            {
+               oddens.SetFromTrueDofs(vtmpv);
                pdesign.ProjectCoefficient(*E);
                paraview_dc.SetCycle(i);
                paraview_dc.SetTime(i*1.0);
@@ -440,6 +453,25 @@ int main(int argc, char *argv[])
 
 
    }
+
+   {
+       //save the mesh and the design
+       std::ostringstream oss;
+       oss << std::setw(10) << std::setfill('0') << myrank;
+       std::string mname="pmesh_"+oss.str()+".msh";
+       std::string gname="design_"+oss.str()+".gf";
+       std::ofstream out;
+       out.open(mname.c_str(),std::ios::out);
+       pmesh.ParPrint(out);
+       out.close();
+
+       //save the design
+       oddens.SetFromTrueDofs(vtmpv);
+       out.open(gname.c_str(),std::ios::out);
+       oddens.Save(out);
+       out.close();
+   }
+
 
    delete mma;
    delete vobj;
