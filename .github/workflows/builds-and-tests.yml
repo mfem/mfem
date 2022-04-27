@@ -46,13 +46,13 @@ jobs:
   builds-and-tests:
     strategy:
       matrix:
-        os: [ubuntu-18.04, macos-10.15, windows-2022]
+        os: [ubuntu-20.04, macos-10.15, windows-2022]
         target: [dbg, opt]
         mpi: [seq, par]
         build-system: [make, cmake]
         hypre-target: [int32]
         exclude:
-          - os: ubuntu-18.04
+          - os: ubuntu-20.04
             build-system: cmake
           - os: macos-10.15
             build-system: cmake
@@ -73,13 +73,13 @@ jobs:
             codecov: YES
           - os: windows-2022
             codecov: NO
-          - os: ubuntu-18.04
+          - os: ubuntu-20.04
             target: opt
             codecov: NO
             mpi: par
             build-system: cmake
             hypre-target: int32
-          - os: ubuntu-18.04
+          - os: ubuntu-20.04
             target: opt
             codecov: NO
             mpi: par
@@ -111,13 +111,13 @@ jobs:
     # TODO: It would be nice to have only one step, e.g. with a dedicated
     # action, but I (@adrienbernede) don't see how at the moment.
     - name: get MPI (Linux)
-      if: matrix.mpi == 'par' && matrix.os == 'ubuntu-18.04'
+      if: matrix.mpi == 'par' && matrix.os == 'ubuntu-20.04'
       run: |
         sudo apt-get install mpich libmpich-dev
         export MAKE_CXX_FLAG="MPICXX=mpic++"
 
     - name: get lcov (Linux)
-      if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-18.04'
+      if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-20.04'
       run: |
         sudo apt-get install lcov
 
