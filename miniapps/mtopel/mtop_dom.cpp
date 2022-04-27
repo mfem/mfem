@@ -240,9 +240,11 @@ int main(int argc, char *argv[])
        in.close();
    }
 
-   mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.02,&pmesh);
+   mfem::FilterSolver* fsolv=new mfem::FilterSolver(fradius,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
    fsolv->AddBC(1,1.0);
+   fsolv->AddBC(2,1.0);
+   //fsolv->AddBC(3,0.0);
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
    mfem::ParGridFunction oddens(fsolv->GetDesignFES());
    mfem::Vector vdens; vdens.SetSize(fsolv->GetFilterFES()->GetTrueVSize()); vdens=0.0;
@@ -265,14 +267,14 @@ int main(int argc, char *argv[])
    }*/
 
    mfem::TorsionForceX* volforce;
-   volforce= new mfem::TorsionForceX(0.85,0.90);
+   volforce= new mfem::TorsionForceX(0.80,1.00);
 
-   mfem::YoungModulus* E=new mfem::YoungModulus();
-   //mfem::YoungModulusSIMP* E=new mfem::YoungModulusSIMP();
+   //mfem::YoungModulus* E=new mfem::YoungModulus();
+   mfem::YoungModulusSIMP* E=new mfem::YoungModulusSIMP();
    E->SetDens(&pgdens);
    E->SetProjParam(0.9,8.0);//threshold 0.7
-   E->SetEMaxMin(1e-6,1.0);
-   E->SetPenal(1.0);
+   E->SetEMaxMin(1e-3,1.0);
+   E->SetPenal(3.0);
 
    mfem::ElasticitySolver* esolv=new mfem::ElasticitySolver(&pmesh,1);
    esolv->AddDispBC(1,4,0.0);
@@ -299,7 +301,7 @@ int main(int argc, char *argv[])
        tot_vol=vobj->Eval(vdens);
        pgdens.GetTrueDofs(vdens);
    }
-   double max_vol=0.5*tot_vol;
+   double max_vol=0.6*tot_vol;
 
    //intermediate volume
    mfem::VolumeQoI* ivobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
@@ -396,7 +398,7 @@ int main(int argc, char *argv[])
                }
            }
            */
-           double con=ivol-max_vol*0.8;
+           double con=ivol-max_vol;
            mma->Update(vtmpv,ogrado,&con,&vgrado,xxmin,xxmax);
            /*
            {
@@ -423,6 +425,7 @@ int main(int argc, char *argv[])
 
        }//end max_it
 
+       /*
        for(int i=max_it;i<2*max_it;i++){
            esolv->FSolve();
 
@@ -457,7 +460,7 @@ int main(int argc, char *argv[])
            }
 
        }//end max_it
-
+        */
 
    }
 

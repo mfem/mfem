@@ -268,6 +268,46 @@ void LinIsoElasticityCoefficient::EvalStiffness(DenseMatrix &D, Vector &strain,
 }
 
 
+void NLSurfLoadIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2,
+                                              FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect)
+{
+    elvect.SetSize(elfun.Size());
+    elvect=0.0;
+
+    if(Tr.Attribute!=sid){ return;}
+
+    int dim=Tr.GetSpaceDim();
+    const int dof=el1.GetDof();
+    mfem::Vector force; force.SetSize(dim);
+    mfem::Vector shape; shape.SetSize(dof);
+    int order=2*el1.GetOrder();
+    const IntegrationRule *ir = &IntRules.Get(Tr.GetGeometryType(), order);
+
+    double w;
+    for (int i = 0; i < ir->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        Tr.SetAllIntPoints(&ip);
+        const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+        el1.CalcShape(eip, shape);
+        w = Tr.Weight() * ip.weight;
+        vc->Eval(force,Tr,ip);
+        for(int j=0;j<dof;j++){
+            for(int d=0;d<dim;d++){
+                elvect[j+d*dof]=elvect[j+d*dof]-w*shape[j];
+            }
+        }
+    }
+}
+
+void NLSurfLoadIntegrator::AssembleFaceGrad(const FiniteElement &el1, const FiniteElement &el2,
+                                            FaceElementTransformations &Tr, const Vector &elfun, DenseMatrix &elmat)
+{
+    elmat.SetSize(elfun.Size());
+    elmat=0.0;
+}
+
+
 double NLVolForceIntegrator::GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {
     return 0.0;
@@ -575,6 +615,10 @@ ElasticitySolver::~ElasticitySolver()
     {
         delete materials[i];
     }
+
+    for(auto it=surf_loads.begin();it!=surf_loads.end();it++){
+        delete it->second;
+    }
 }
 
 void ElasticitySolver::SetNewtonSolver(double rtol, double atol,int miter, int prt_level)
@@ -741,6 +785,16 @@ void ElasticitySolver::FSolve()
 
         if(volforce!=nullptr){
             nf->AddDomainIntegrator(new NLVolForceIntegrator(volforce));
+        }
+
+        mfem::Array<int> bdre(pmesh->bdr_attributes.Max());
+
+        for(auto it=surf_loads.begin();it!=surf_loads.end();it++){
+            nf->AddBdrFaceIntegrator(new NLSurfLoadIntegrator(it->first,it->second));
+        }
+
+        for(auto it=load_coeff.begin();it!=load_coeff.end();it++){
+            nf->AddBdrFaceIntegrator(new NLSurfLoadIntegrator(it->first,it->second));
         }
     }
 

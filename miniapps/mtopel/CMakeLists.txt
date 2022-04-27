@@ -83,6 +83,11 @@ add_mfem_miniapp(mtop_dom
      ${PARADIFF_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_bra
+     MAIN mtop_bra.cpp
+     ${PARADIFF_COMMON_FILES}
+     LIBRARIES mfem)
+
 add_mfem_miniapp(shoot_test
      MAIN shooting_test.cpp
      ${PARADIFF_COMMON_FILES}

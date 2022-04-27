@@ -288,6 +288,29 @@ private:
     void EvalRes(double EE, double nnu, double* gradu, double* res);
 };
 
+
+class NLSurfLoadIntegrator:public NonlinearFormIntegrator
+{
+public:
+    NLSurfLoadIntegrator(int id_, mfem::VectorCoefficient* vc_)
+    {
+        vc=vc_;
+        sid=id_;
+    }
+
+    virtual
+    void AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2,
+                            FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect);
+
+    virtual
+    void AssembleFaceGrad (const FiniteElement &el1, const FiniteElement &el2,
+                           FaceElementTransformations &Tr, const Vector &elfun, DenseMatrix &elmat);
+
+private:
+    mfem::VectorCoefficient* vc;
+    int sid;
+};
+
 class NLVolForceIntegrator:public NonlinearFormIntegrator
 {
 public:
@@ -397,6 +420,24 @@ public:
     /// Set the values of the volumetric force.
     void SetVolForce(double fx,double fy, double fz);
 
+    /// Add surface load
+    void AddSurfLoad(int id, double fx,double fy, double fz=0.0)
+    {
+        mfem::Vector vec; vec.SetSize(pmesh->SpaceDimension());
+        vec[0]=fx;
+        vec[1]=fy;
+        if(pmesh->SpaceDimension()==3){vec[2]=fz;}
+        mfem::VectorConstantCoefficient* vc=new mfem::VectorConstantCoefficient(vec);
+        if(load_coeff.find(id)!=load_coeff.end()){ delete load_coeff[id];}
+        load_coeff[id]=vc;
+    }
+
+    /// Add surface load
+    void AddSurfLoad(int id, mfem::VectorCoefficient& ff)
+    {
+        surf_loads[id]=&ff;
+    }
+
     /// Associates coefficient to the volumetric force.
     void SetVolForce(mfem::VectorCoefficient& ff);
 
@@ -451,6 +492,10 @@ private:
     /// one created by the solver or to external vector
     /// coefficient.
     mfem::VectorCoefficient* volforce;
+
+    //surface loads
+    std::map<int,mfem::VectorConstantCoefficient*> load_coeff;
+    std::map<int,mfem::VectorCoefficient*> surf_loads;
 
     // boundary conditions for x,y, and z directions
     std::map<int, mfem::ConstantCoefficient> bcx;
