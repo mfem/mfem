@@ -140,14 +140,7 @@ jobs:
 
     - name: get MPI (Windows)
       if: matrix.mpi == 'par' && matrix.os == 'windows-2022'
-      env:
-        MSMPI_URL: https://github.com/microsoft/Microsoft-MPI/releases/download
-        MSMPI_VER: 10.1.1
-      run: |
-        Invoke-WebRequest -Uri "${Env:MSMPI_URL}/v${Env:MSMPI_VER}/msmpisetup.exe" -OutFile "msmpisetup.exe"
-        Start-Process msmpisetup.exe -ArgumentList "-unattend" -Wait
-        Invoke-WebRequest -Uri "${Env:MSMPI_URL}/v${Env:MSMPI_VER}/msmpisdk.msi" -OutFile "msmpisdk.msi"
-        Start-Process msmpisdk.msi -ArgumentList "-passive" -Wait
+      uses: mpi4py/setup-mpi@v1.0.3
 
     # Get Hypre through cache, or build it.
     # Install will only run on cache miss.
