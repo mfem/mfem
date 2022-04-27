@@ -102,6 +102,10 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
 
 bool LinearForm::SupportsDevice()
 {
+   // return false for NURBS meshs, so we don’t convert it to non-NURBS
+   // through Assemble, AssembleDevice, GetGeometricFactors and EnsureNodes
+   if (fes->GetMesh()->NURBSext != nullptr) { return false; }
+
    // scan domain integrator to verify that all can use device assembly
    if (domain_integs.Size() > 0)
    {

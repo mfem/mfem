@@ -17,7 +17,6 @@
 #include "device.hpp"
 #include "error.hpp"
 #include "globals.hpp"
-#include "forall.hpp" // for MFEM_FORALL_SWITCH
 
 #include <iostream>
 #include <cstdlib>
@@ -119,9 +118,6 @@ public:
 
    /// Return a reference to the Memory object used by the Array, const version.
    const Memory<T> &GetMemory() const { return data; }
-
-   /// Enable execution of Array operations using the mfem::Device.
-   void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
 
    /// Return the device flag of the Memory object used by the Array
    bool UseDevice() const { return data.UseDevice(); }
@@ -894,11 +890,10 @@ inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa) const
 template <class T>
 inline void Array<T>::operator=(const T &a)
 {
-   const bool use_dev = UseDevice();
-   const int N = size;
-   auto y = mfem::Write(data, size, use_dev);
-   const T value = a;
-   MFEM_FORALL_SWITCH(use_dev, i, N, y[i] = value;);
+   for (int i = 0; i < size; i++)
+   {
+      data[i] = a;
+   }
 }
 
 template <class T>
