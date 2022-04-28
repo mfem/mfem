@@ -168,8 +168,8 @@ jobs:
       env:
         METIS_VERSION_WIN: 5.1.0
       run: |
-        echo "METIS_ARCHIVE=metis-${Env:METIS_VERSION_WIN}.tar.gz" >> $GITHUB_ENV
-        echo "METIS_TOP_DIR=metis-${Env:METIS_VERSION_WIN}" >> $GITHUB_ENV
+        echo "METIS_ARCHIVE=metis-${METIS_VERSION_WIN}.tar.gz" >> $GITHUB_ENV
+        echo "METIS_TOP_DIR=metis-${METIS_VERSION_WIN}" >> $GITHUB_ENV
         echo "METIS_MAJ_VER=5" >> $GITHUB_ENV
       shell: bash
 
