@@ -171,6 +171,7 @@ jobs:
         echo "METIS_ARCHIVE=metis-${METIS_VERSION_WIN}.tar.gz" >> $GITHUB_ENV
         echo "METIS_TOP_DIR=metis-${METIS_VERSION_WIN}" >> $GITHUB_ENV
         echo "METIS_MAJ_VER=5" >> $GITHUB_ENV
+        echo "METIS_BUILD_SYSTEM=cmake" >> $GITHUB_ENV
       shell: bash
 
     # Get Metis through cache, or build it.
@@ -190,6 +191,7 @@ jobs:
       with:
         archive: ${{ env.METIS_ARCHIVE }}
         dir: ${{ env.METIS_TOP_DIR }}
+        build-system: ${{ env.METIS_BUILD_SYSTEM }}
 
     # MFEM build and test
     - name: build
