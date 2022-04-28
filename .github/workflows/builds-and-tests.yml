@@ -188,7 +188,7 @@ jobs:
         key: ${{ runner.os }}-vcpkg-v1
 
     - name: prepare binary cache location
-      if: matrix.os == 'windows-2022' && steps.vcpkg_cache.outputs.cache-hit != 'true'
+      if: matrix.os == 'windows-2022' && steps.vcpkg-cache.outputs.cache-hit != 'true'
       run: |
         mkdir -p vcpkg_cache
 
