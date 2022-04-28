@@ -245,7 +245,7 @@ jobs:
       shell: bash
 
     - name: cmake tests
-      if: matrix.build-system == 'cmake' && matrix.target == 'opt'
+      if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os != 'ubuntu-20.04'
       run: |
         CTEST_CONFIG="Release"
         cd ${{ env.MFEM_TOP_DIR }}/build && ctest --output-on-failure -C ${CTEST_CONFIG}
