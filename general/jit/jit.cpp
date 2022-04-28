@@ -13,16 +13,13 @@
 
 #ifdef MFEM_USE_JIT
 
-#include <cassert> // for assert
+#include <cassert>
 #include <cstdlib> // for exit, system
 
 #include <chrono>
 #include <fstream>
-#include <memory>
-#include <regex>
 #include <string>
 #include <thread>
-
 
 #include <sys/wait.h> // for waitpid
 #include <sys/mman.h> // for memory map
@@ -47,6 +44,10 @@ namespace internal
 {
 
 static constexpr int SYMBOL_SIZE = 1+16+1;
+
+static constexpr char LIB_AR[] = "libmjit.a";
+static constexpr char LIB_SO[] = "./libmjit.so";
+
 static constexpr int DLOPEN_MODE = RTLD_NOW | RTLD_LOCAL;
 static constexpr char ACK = ~0, SYSTEM = 0x55, EXIT = 0xAA;
 
@@ -58,6 +59,20 @@ static void Hash64(const size_t h, char *str, const char *ext = "")
       << std::setw(16) << std::hex << (h|0) << std::dec << ext;
    memcpy(str, ss.str().c_str(), SYMBOL_SIZE + strlen(ext));
 }
+
+struct Command
+{
+   std::ostringstream ostr_st;
+   Command& operator<<(const char *str) { ostr_st << str << " "; return *this; }
+   operator const char *()
+   {
+      std::ostringstream ostr_ed = std::move(ostr_st);
+      static thread_local std::string sloc;
+      sloc = ostr_ed.str();
+      ostr_st.clear();
+      return sloc.c_str();
+   }
+};
 
 struct Cxx
 {
@@ -147,28 +162,16 @@ static void Sync(bool status)
 }
 
 /// Ask the JIT process to launch a system call.
-static int System(const char *argv[])
+static int System(const char *cmd)
 {
-   assert(Root());
-   auto CreateCommandLine = [](const char *argv[])
-   {
-      auto argn = [&](const char *v[], int c = 0)
-      { while (v[c]) { c += 1; } return c; };
-      const int argc = argn(argv);
-      assert(argc > 0);
-      std::string cmd(argv[0]);
-      for (int k = 1; k < argc && argv[k]; k++) { cmd += " "; cmd += argv[k]; }
-      return cmd;
-   };
-   const std::string cmd_str = CreateCommandLine(argv);
-   const char *cmd = cmd_str.c_str();
-
    dbg(cmd);
+   assert(Root());
+   // In serial mode, just call std::system
    if (!IsInitialized()) { return std::system(cmd); }
-
-   // write the command in shared mem
+   // Otherwise, write the command in shared mem
    assert(std::strlen(cmd) < (Cxx::Size() - 2)); // skip ack and avoid zero
    std::memcpy(Cxx::Cmd(), cmd, std::strlen(cmd) + 1);
+   // and call std::system through the child process
    Cxx::Send(SYSTEM);
    Cxx::AckNE(); // wait for the child to acknowledge
    return EXIT_SUCCESS;
@@ -258,16 +261,13 @@ void Jit::Finalize()
 #define MFEM_JIT_AR_LOAD_PREFIX MFEM_JIT_LINKER_OPTION "--whole-archive"
 #define MFEM_JIT_AR_LOAD_POSTFIX  MFEM_JIT_LINKER_OPTION "--no-whole-archive"
 #else
+#define MFEM_JIT_INSTALL_BACKUP  ""
 #define MFEM_JIT_AR_LOAD_PREFIX  "-all_load"
 #define MFEM_JIT_AR_LOAD_POSTFIX  ""
-#define MFEM_JIT_INSTALL_BACKUP  ""
 #endif
 
 #define MFEM_JIT_BEG_LOAD MFEM_JIT_AR_LOAD_PREFIX
 #define MFEM_JIT_END_LOAD MFEM_JIT_AR_LOAD_POSTFIX
-
-static constexpr char LIB_AR[] = "libmjit.a";
-static constexpr char LIB_SO[] = "./libmjit.so";
 
 void Jit::AROpen(void* &handle)
 {
@@ -277,19 +277,11 @@ void Jit::AROpen(void* &handle)
    if (Root())
    {
       dbg("%s => %s", LIB_AR, LIB_SO);
-      const char *argv_so[] =
-      {
-         MFEM_JIT_CXX,
-#undef MFEM_USE_SANITIZER
-#ifdef MFEM_USE_SANITIZER
-         "-fsanitize=address",
-#endif // MFEM_USE_SANITIZER
-         "-shared", "-o", LIB_SO,
-         MFEM_JIT_BEG_LOAD, LIB_AR, MFEM_JIT_END_LOAD,
-         MFEM_JIT_LINKER_OPTION "-rpath,.",
-         nullptr
-      };
-      status = System(argv_so);
+      Command cmd;
+      cmd << MFEM_JIT_CXX << "-shared" << "-o" << LIB_SO
+          << MFEM_JIT_BEG_LOAD << LIB_AR << MFEM_JIT_END_LOAD
+          << MFEM_JIT_LINKER_OPTION "-rpath,.";
+      status = System(cmd);
    }
    Sync(status);
    handle = ::dlopen(LIB_SO, DLOPEN_MODE);
@@ -307,37 +299,6 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
 
    auto Compile = [&]()
    {
-      std::regex reg("\\s+");
-      std::vector<const char*> argv;
-      argv.push_back(MFEM_JIT_CXX);
-
-      // tokenize MFEM_JIT_BUILD_FLAGS
-      std::string flags(MFEM_JIT_BUILD_FLAGS);
-      for (auto &a :
-           std::vector<std::string>(
-              std::sregex_token_iterator{begin(flags), end(flags), reg, -1},
-              std::sregex_token_iterator{}))
-      {
-         using uptr = std::unique_ptr<char, decltype(&std::free)>;
-         uptr *t_copy = new uptr(strdup(a.data()), &std::free);
-         argv.push_back(t_copy->get());
-      }
-
-      //argv.push_back(MFEM_JIT_COMPILER_OPTION "-Wno-unused-variable");
-      argv.push_back("-fPIC");
-      argv.push_back("-c");
-
-      // avoid redefinition, as with nvcc, the option -x cu is already present
-#ifdef MFEM_USE_CUDA
-      argv.push_back(MFEM_JIT_DEVICE_CODE);
-#else
-      argv.push_back(MFEM_JIT_COMPILER_OPTION "-pipe");
-#endif // MFEM_USE_CUDA
-
-      argv.push_back("-o"); argv.push_back(co); // output
-      argv.push_back(cc); // input
-      argv.push_back(nullptr);
-
       // write kernel source into cc file
       std::ofstream input_src_file(cc);
       assert(input_src_file.good());
@@ -345,26 +306,32 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
       input_src_file.close();
 
       // Compilation cc => co
-      if (System(argv.data())) { return EXIT_FAILURE; }
+      Command cmd;
+      cmd << MFEM_JIT_CXX << MFEM_JIT_BUILD_FLAGS
+          << "-fPIC" << "-c"
+          << MFEM_JIT_COMPILER_OPTION "-pipe"
+          << MFEM_JIT_COMPILER_OPTION "-Wno-unused-variable"
+#ifdef MFEM_USE_CUDA
+          << MFEM_JIT_DEVICE_CODE
+#endif
+          << "-o" << co
+          << cc;
+      if (System(cmd)) { return EXIT_FAILURE; }
       std::remove(cc);
 
       // Update archive
-      const char *argv_ar[] = { "ar", "-rv", LIB_AR, co, nullptr };
-      if (System(argv_ar)) { return EXIT_FAILURE; }
+      cmd << "ar -rv" << LIB_AR << co;
+      if (System(cmd)) { return EXIT_FAILURE; }
       std::remove(co);
 
       // Create shared library
-      const char *argv_so[] =
-      {
-         MFEM_JIT_CXX,  "-shared", "-o", so,
-         MFEM_JIT_BEG_LOAD, LIB_AR, MFEM_JIT_END_LOAD, nullptr
-      };
-      if (System(argv_so)) { return EXIT_FAILURE; }
+      cmd << MFEM_JIT_CXX << "-shared" << "-o" << so
+          << MFEM_JIT_BEG_LOAD << LIB_AR << MFEM_JIT_END_LOAD;
+      if (System(cmd)) { return EXIT_FAILURE; }
 
       // Install shared library
-      const char *install[] =
-      { "install", "-v", MFEM_JIT_INSTALL_BACKUP, so, LIB_SO, nullptr };
-      if (System(install)) { return EXIT_FAILURE; }
+      cmd << "install" << "-v" << MFEM_JIT_INSTALL_BACKUP << so << LIB_SO;
+      if (System(cmd)) { return EXIT_FAILURE; }
       return EXIT_SUCCESS;
    }; // Compile
 
