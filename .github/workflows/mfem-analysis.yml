@@ -26,7 +26,6 @@ env:
   HYPRE_TOP_DIR: hypre-2.19.0
   METIS_ARCHIVE: metis-4.0.3.tar.gz
   METIS_TOP_DIR: metis-4.0.3
-  METIS_MAJ_VER: 4
   COVERAGE_ENV: mfem-coverage
 
 jobs:
@@ -54,11 +53,13 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v2.0
+        # TODO: update to new tag
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-master
 
     - name: Get Hypre
       if: steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-hypre@v2.0
+      # TODO: change this when merged upstream
+      uses: kanye-quest/mfem-gh-actions/build-hypre@master
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
@@ -69,11 +70,13 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.0
+        # TODO: update to new tag
+        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-master
 
     - name: Install Metis
       if: steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@v2.0
+      # TODO: change this when merged upstream
+      uses: kanye-quest/mfem-gh-actions/build-metis@master
       with:
         archive: ${{ env.METIS_ARCHIVE }}
         dir: ${{ env.METIS_TOP_DIR }}
