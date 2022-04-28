@@ -164,7 +164,7 @@ jobs:
         target: ${{ matrix.hypre-target }}
 
     - name: use metis 5 (Windows)
-      if: matris.os == 'windows-2022'
+      if: matrix.os == 'windows-2022'
       env:
         METIS_VERSION_WIN: 5.1.0
       run: |
