@@ -353,8 +353,8 @@ int main(int argc, char *argv[])
       }
       if (myid == 0)
       {
-          cout << "GLVis visualization paused."
-               << " Press space (in the GLVis window) to resume it.\n";
+         cout << "GLVis visualization paused."
+              << " Press space (in the GLVis window) to resume it.\n";
       }
    }
 
