@@ -1045,7 +1045,7 @@ int main(int argc, char *argv[])
    {
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
-      std::complex<double> S = S_cold_plasma(omega, Bmag, nue, numbers,
+      std::complex<double> S = S_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, nuprof);
       std::complex<double> P = P_cold_plasma(omega, nue, numbers,
                                              charges, masses, temps, nuprof);
@@ -2272,7 +2272,7 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    double nue_ = 0;
    double nui_ = 0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, nue_, numbers_, charges_, masses_, temps_,
+   S_ = S_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_, temps_,
                       nuprof_);
    D_ = D_cold_plasma(omega_, Bmag_, nue_, numbers_, charges_, masses_, temps_,
                       nuprof_);
@@ -2519,7 +2519,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    double nue_ = 0;
    double nui_ = 0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, nue_, numbers_, charges_, masses_, temps_,
+   S_ = S_cold_plasma(omega_, Bmag_, nue_, nui_, numbers_, charges_, masses_, temps_,
                       nuprof_);
    D_ = D_cold_plasma(omega_, Bmag_, nue_, numbers_, charges_, masses_, temps_,
                       nuprof_);

@@ -72,7 +72,8 @@ inline double nu_art(double x)
    return (1e14*exp(-x/0.1));
 }
 
-void StixCoefs_cold_plasma(Vector &V, double omega, double Bmag, double nu,
+void StixCoefs_cold_plasma(Vector &V, double omega, double Bmag,
+                           double nue, double nui,
                            const Vector & number,
                            const Vector & charge,
                            const Vector & mass,
@@ -101,7 +102,8 @@ std::complex<double> P_cold_plasma(double omega, double nue,
                                    const Vector & temp,
                                    int nuprof);
 
-std::complex<double> S_cold_plasma(double omega, double Bmag, double nue,
+std::complex<double> S_cold_plasma(double omega, double Bmag,
+                                   double nue, double nui,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
@@ -363,7 +365,7 @@ protected:
    Vector density_vals_;
    Vector temp_vals_;
    double nue_vals_;
-   //double nui_vals_;
+   double nui_vals_;
    const Vector & charges_;
    const Vector & masses_;
 };
