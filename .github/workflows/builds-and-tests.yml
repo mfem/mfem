@@ -185,7 +185,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: vcpkg_cache
-        key: ${{ runner.os }}-vcpkg-v1
+        key: ${{ runner.os }}-${{ matrix.mpi }}-vcpkg-v1
 
     - name: prepare binary cache location
       if: matrix.os == 'windows-2022' && steps.vcpkg-cache.outputs.cache-hit != 'true'
