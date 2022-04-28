@@ -212,6 +212,7 @@ jobs:
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: ${{ env.MFEM_TOP_DIR }}
+        library-only: ${{ matrix.target == 'dbg' }}
 
     # Run checks (and only checks) on debug targets
     - name: checks
@@ -237,7 +238,7 @@ jobs:
       shell: bash
 
     - name: cmake unit tests (Ubuntu 20.04)
-      if: matrix.build-system == 'cmake' && matrix.os == 'ubuntu-20.04'
+      if: matrix.build-system == 'cmake' && matrix.target == 'opt' && matrix.os == 'ubuntu-20.04'
       run: |
         CTEST_CONFIG="Release"
         [[ ${{ matrix.target }} == 'dbg' ]] && CTEST_CONFIG="Debug"
