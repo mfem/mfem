@@ -42,7 +42,7 @@ namespace mfem
 namespace internal
 {
 
-static constexpr int SYMBOL_SIZE = 1+16+1;
+static constexpr int SYMBOL_SIZE = 1+16+1; // k + hash + 0
 
 static constexpr char LIB_AR[] = "libmjit.a";
 static constexpr char LIB_SO[] = "./libmjit.so";

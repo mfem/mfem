@@ -431,10 +431,6 @@ struct JitPreProcessor
       out << "\n\tconst char *src = R\"_(";
 
       // switching from out to ker.src to compute the hash
-      //ker.src += "#include <cstdint>\n";
-      //ker.src += "#include <limits>\n";
-      //ker.src += "#include <cstring>\n";
-
       ker.src += "#define MFEM_JIT_FORALL_COMPILATION\n";
       ker.src += "#define MFEM_DEVICE_HPP\n";
 
@@ -501,10 +497,11 @@ struct JitPreProcessor
       out << "\n\ttypedef void (*kernel_t)(bool use_dev," << ker.params << ");";
 
       // kernel map
-      out << "\n\tstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>*> ks;";
+      out << "\n\tstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> ks;";
 
       // Add kernel in map if not already present
-      out << "\n\tif (!ks[hash]){";
+      out << "\n\tauto ks_iter = ks.find(hash);";
+      out << "\n\tif (ks_iter == ks.end()){";
       out << "\n\t\tconst int n = 1 + " // source size
           << "snprintf(nullptr, 0, src, hash, hash, hash, " << ker.Targs << ");";
       out << "\n\t\tchar *Tsrc = new char[n];";
@@ -514,17 +511,19 @@ struct JitPreProcessor
       out << "<< std::setw(16) << std::hex << (hash|0) << std::dec;";
       out << "\n\t\tconst int SYMBOL_SIZE = 1+16+1;";
       out << "\n\t\tchar *symbol = new char[SYMBOL_SIZE];";
-      out << "memcpy(symbol, ss.str().c_str(), SYMBOL_SIZE);";
-      out << "\n\t\tks[hash] = new Jit::Kernel<kernel_t>(hash, Tsrc, symbol);";
-      out << "\n\t\tassert(ks[hash]);";
+      out << "\n\t\tmemcpy(symbol, ss.str().c_str(), SYMBOL_SIZE);";
+      out << "\n\t\tauto res = ks.emplace(hash, Jit::Kernel<kernel_t>(hash, Tsrc, symbol));";
+      out << "\n\t\tassert(res.second); // was not already in the map";
+      out << "\n\t\tks_iter = ks.find(hash);";
+      out << "\n\t\tassert(ks_iter != ks.end());";
+      out << "\n\t\tdelete[] symbol;";
       out << "\n\t\tdelete[] Tsrc;";
       out << "\n\t}";
 
       // #warning should be CUDA dependent
       out << "\n\tconst bool use_dev = Device::Allows(Backend::CUDA_MASK);";
 
-      out << "\n\tassert(ks[hash]);";
-      out << "\n\tks[hash]->operator()(use_dev," << ker.args << ");\n";
+      out << "\n\tks_iter->second.operator()(use_dev," << ker.args << ");\n";
 
       // Stop counting the blocks and flush the kernel status
       block--;

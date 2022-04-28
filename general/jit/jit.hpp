@@ -64,6 +64,8 @@ struct Jit
       /// Kernel launch
       template<typename... Args>
       void operator()(Args... args) { assert(ker); ker(args...); }
+
+      //Kernel(const Kernel&) = default; // for std::unordered_map emplace
    };
 
    /// \brief Binary hash combine function
