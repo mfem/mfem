@@ -229,13 +229,25 @@ jobs:
       run: |
         cd ${{ env.MFEM_TOP_DIR }} && make test
 
-    - name: cmake unit tests
-      if: matrix.build-system == 'cmake'
+    - name: cmake checks
+      if: matrix.build-system == 'cmake' && matrix.target == 'dbg'
+      run: |
+        CTEST_CONFIG="Debug"
+        cd ${{ env.MFEM_TOP_DIR }} && cmake --build build --target check --config ${CTEST_CONFIG}
+
+    - name: cmake unit tests (Ubuntu 20.04)
+      if: matrix.build-system == 'cmake' && matrix.os == 'ubuntu-20.04'
       run: |
         CTEST_CONFIG="Release"
         [[ ${{ matrix.target }} == 'dbg' ]] && CTEST_CONFIG="Debug"
         cd ${{ env.MFEM_TOP_DIR }}/build/tests/unit && ctest --output-on-failure -C ${CTEST_CONFIG}
       shell: bash
+
+    - name: cmake tests
+      if: matrix.build-system == 'cmake' && matrix.target == 'opt'
+      run: |
+        CTEST_CONFIG="Release"
+        cd ${{ env.MFEM_TOP_DIR }}/build && ctest --output-on-failure -C ${CTEST_CONFIG}
 
     # Code coverage (process and upload reports)
     - name: codecov
