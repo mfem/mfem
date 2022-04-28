@@ -30,18 +30,41 @@ struct Jit
    /// Finalize JIT, used in communication Mpi singleton.
    static void Finalize();
 
+   /// Ask the JIT process to update the shared library.
+   static void* DLOpen();
+
    /// Ask the JIT process to update the archive.
    static void AROpen(void* &handle);
-
-   /// Ask the JIT process to update the shared library.
-   static void* DLOpen(const char *path);
-
-   /// Ask the JIT process the address of the symbol.
-   static void* DlSym(void* handle, const char* symbol);
 
    /// Ask the JIT process to compile and update the libraries.
    static int Compile(const uint64_t hash, const char *src, const char *symbol,
                       void *&handle);
+
+   /// Ask the JIT process the address of the symbol.
+   static void* DlSym(void* handle, const char* symbol);
+
+   /// Kernel class
+   template<typename kernel_t> struct Kernel
+   {
+      void *handle;
+      kernel_t ker;
+
+      /// \brief Kernel constructor
+      Kernel(const size_t hash, const char *src, const char *symbol):
+         handle(Jit::DLOpen()) // shared cache ?
+      {
+         if (!handle) { AROpen(handle); } // if no so, try to the ar
+         if (!handle) { Compile(hash, src, symbol, handle); }
+         auto Symbol = [&]() { return ker = (kernel_t) DlSym(handle, symbol); };
+         // having a handle, we look for the kernel symbol
+         if (!Symbol()) { Compile(hash, src, symbol, handle); Symbol(); }
+         assert(handle); assert(ker);
+      }
+
+      /// Kernel launch
+      template<typename... Args>
+      void operator()(Args... args) { assert(ker); ker(args...); }
+   };
 
    /// \brief Binary hash combine function
    template <typename T> static inline
@@ -52,31 +75,6 @@ struct Jit
    template<typename T, typename... Args> static inline
    size_t Hash(const size_t &h, const T &arg, Args... args) noexcept
    { return Hash(Hash(h, arg), args...); }
-
-   /// Kernel class
-   template<typename kernel_t> struct Kernel
-   {
-      void *handle;
-      kernel_t ker;
-
-      /// \brief Kernel constructor
-      Kernel(const size_t hash, const char *src, const char *symbol):
-         handle(Jit::DLOpen("./libmjit.so")) // libmjit.so ?
-      {
-         // No libmjit.so, try to use the archive
-         if (!handle) { AROpen(handle); }
-         // If no libraries were found, create new ones
-         if (!handle) { Compile(hash, src, symbol, handle); }
-         auto Symbol = [&]() { ker = (kernel_t) DlSym(handle, symbol); };
-         // we have a handle, either from new libraries, or previous ones,
-         // however, it does not mean that the symbol is ready in the handle
-         if (!(Symbol(), ker)) { Compile(hash, src, symbol, handle); Symbol(); }
-         assert(handle); assert(ker);
-      }
-
-      /// Kernel launch
-      template<typename... Args> void operator()(Args... args) { ker(args...); }
-   };
 };
 
 } // namespace mfem
