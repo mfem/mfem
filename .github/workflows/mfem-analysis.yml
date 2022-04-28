@@ -93,7 +93,6 @@ jobs:
         build-system: make
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
-        metis-version: ${{ env.METIS_MAJ_VER }}
         mfem-dir: mfem
 
     - name: test (no clean)
