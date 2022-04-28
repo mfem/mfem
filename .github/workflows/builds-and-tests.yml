@@ -34,6 +34,7 @@ env:
   METIS_ARCHIVE: metis-4.0.3.tar.gz
   METIS_TOP_DIR: metis-4.0.3
   METIS_MAJ_VER: 4
+  METIS_BUILD_SYSTEM: make
   MFEM_TOP_DIR: mfem
 
 # Note for future improvements:
