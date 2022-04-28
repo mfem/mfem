@@ -33,8 +33,6 @@ env:
   HYPRE_TOP_DIR: hypre-2.19.0
   METIS_ARCHIVE: metis-4.0.3.tar.gz
   METIS_TOP_DIR: metis-4.0.3
-  METIS_MAJ_VER: 4
-  METIS_BUILD_SYSTEM: make
   MFEM_TOP_DIR: mfem
 
 # Note for future improvements:
@@ -164,40 +162,47 @@ jobs:
         dir: ${{ env.HYPRE_TOP_DIR }}
         target: ${{ matrix.hypre-target }}
 
-    - name: use metis 5 (Windows)
-      if: matrix.os == 'windows-2022'
-      env:
-        METIS_VERSION_WIN: 5.1.0
-      run: |
-        echo "METIS_ARCHIVE=metis-${METIS_VERSION_WIN}.tar.gz" >> $GITHUB_ENV
-        echo "METIS_TOP_DIR=metis-${METIS_VERSION_WIN}" >> $GITHUB_ENV
-        echo "METIS_MAJ_VER=5" >> $GITHUB_ENV
-        echo "METIS_BUILD_SYSTEM=cmake" >> $GITHUB_ENV
-      shell: bash
-
     # Get Metis through cache, or build it.
     # Install will only run on cache miss.
     - name: cache metis
       id: metis-cache
-      if: matrix.mpi == 'par'
+      if: matrix.mpi == 'par' && matrix.os != 'windows-2022'
       uses: actions/cache@v2
       with:
         path: ${{ env.METIS_TOP_DIR }}
         key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-master
 
     - name: install metis
-      if: matrix.mpi == 'par' && steps.metis-cache.outputs.cache-hit != 'true'
+      if: matrix.mpi == 'par' && matrix.os != 'windows-2022' && steps.metis-cache.outputs.cache-hit != 'true'
       # TODO: change this when merged upstream
       uses: kanye-quest/mfem-gh-actions/build-metis@master
       with:
         archive: ${{ env.METIS_ARCHIVE }}
         dir: ${{ env.METIS_TOP_DIR }}
-        build-system: ${{ env.METIS_BUILD_SYSTEM }}
+
+    - name: cache vcpkg (Windows)
+      id: vcpkg-cache
+      uses: actions/cache@v3
+      with:
+        path: vcpkg_cache
+        key: ${{ runner.os }}-vcpkg-v1
+
+    - name: prepare binary cache location
+      if: matrix.os == 'windows-2022' && steps.vcpkg_cache.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p vcpkg_cache
+
+    - name: install metis (Windows)
+      if: matrix.mpi == 'par' && matrix.os == 'windows-2022'
+      run: |
+        vcpkg install metis:x64-windows-static
 
     # MFEM build and test
     - name: build
       # TODO: change this when merged upstream
       uses: kanye-quest/mfem-gh-actions/build-mfem@master
+      env:
+        VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       with:
         os: ${{ matrix.os }}
         target: ${{ matrix.target }}
@@ -206,7 +211,6 @@ jobs:
         build-system: ${{ matrix.build-system }}
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
-        metis-version: ${{ env.METIS_MAJ_VER }}
         mfem-dir: ${{ env.MFEM_TOP_DIR }}
 
     # Run checks (and only checks) on debug targets
