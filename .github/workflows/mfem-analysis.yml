@@ -26,6 +26,7 @@ env:
   HYPRE_TOP_DIR: hypre-2.19.0
   METIS_ARCHIVE: metis-4.0.3.tar.gz
   METIS_TOP_DIR: metis-4.0.3
+  METIS_MAJ_VER: 4
   COVERAGE_ENV: mfem-coverage
 
 jobs:
@@ -89,6 +90,7 @@ jobs:
         build-system: make
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
+        metis-version: ${{ env.METIS_MAJ_VER }}
         mfem-dir: mfem
 
     - name: test (no clean)
