@@ -234,6 +234,7 @@ jobs:
       run: |
         CTEST_CONFIG="Debug"
         cd ${{ env.MFEM_TOP_DIR }} && cmake --build build --target check --config ${CTEST_CONFIG}
+      shell: bash
 
     - name: cmake unit tests (Ubuntu 20.04)
       if: matrix.build-system == 'cmake' && matrix.os == 'ubuntu-20.04'
@@ -248,6 +249,7 @@ jobs:
       run: |
         CTEST_CONFIG="Release"
         cd ${{ env.MFEM_TOP_DIR }}/build && ctest --output-on-failure -C ${CTEST_CONFIG}
+      shell: bash
 
     # Code coverage (process and upload reports)
     - name: codecov
