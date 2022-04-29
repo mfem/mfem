@@ -20,7 +20,7 @@
 #include <iostream>
 #include <algorithm>
 
-#include "jit.hpp"
+#include "jit.hpp" // fot hash combine
 
 namespace mfem
 {
@@ -66,6 +66,8 @@ struct JitPreProcessor
       error_t(int l, std::string f, const char *e): line(l), file(f), error(e) {}
    };
 
+#define stop { fflush(0); assert(false); }
+
    void check(const bool test, const char *error)
    {
       if (!test) { throw error_t(line, file, error); }
@@ -96,8 +98,6 @@ struct JitPreProcessor
       while (std::isspace(in.peek())) { keep ? put() : get(); }
    }
 
-   void drop_space() { while (isspace(in.peek())) { get(); } }
-
    bool is_comments()
    {
       if (in.peek() != '/') { return false; }
@@ -112,41 +112,33 @@ struct JitPreProcessor
    void single_line_comments(bool keep = true)
    {
       while (!is_newline(in.peek())) { keep ? put() : get(); }
+      const char c = keep ? put(): get(); assert(c=='\n');
    }
 
    void block_comments(bool keep = true)
    {
-      for (char c; in.get(c);)
-      {
-         if (keep) { put(); }
-         if (c == '*' && in.peek() == '/')
-         {
-            keep ? put() : get();
-            skip_space(keep);
-            return;
-         }
-      }
+      while (peek_n(2) != "*/") { assert(!in.eof()); keep ? put(): get(); }
+      const char c1 = keep ? put(): get(); assert(c1=='*');
+      const char c2 = keep ? put(): get(); assert(c2=='/');
    }
 
    void comments(bool keep = true)
    {
-      if (!is_comments()) { return; }
-      keep ? put() : get();
-      if (keep ? put() : get() == '/') { return single_line_comments(keep); }
-      return block_comments(keep);
+      while (is_comments())
+      {
+         const char c1 = keep ? put() : get();
+         assert(c1=='/');
+         const char c2 = keep ? put() : get();
+         assert (c2 == '/' || c2 == '*');
+         if (c2 == '/') { single_line_comments(keep); }
+         else { block_comments(keep); }
+         skip_space(keep);
+      }
    }
 
-   void next(bool keep = true)
-   {
-      keep ? skip_space() : drop_space();
-      comments(keep);
-   }
+   void next(bool keep = true) { skip_space(keep); comments(keep); }
 
-   bool is_id()
-   {
-      const char c = in.peek();
-      return std::isalnum(c) || c == '_';
-   }
+   bool is_id() { const char c = in.peek(); return std::isalnum(c) || c == '_'; }
 
    std::string get_id()
    {
@@ -196,7 +188,7 @@ struct JitPreProcessor
       return str;
    }
 
-   void drop_name() { while (is_id()) { get(); } }
+   void drop_id() { while (is_id()) { get(); } }
 
    bool is_string(const char *str) { skip_space(); return peek_n(std::strlen(str)) == str; }
    bool is_template() { return is_string("template"); }
@@ -220,17 +212,14 @@ struct JitPreProcessor
       std::list<argument_t> args;
       args.clear();
 
-      skip_space(); // Go to first possible argument
-
-      if (is_void()) { drop_name(); return true; }
-
       for (int argc = 0; true; empty = false)
       {
+         next();
          if (is_star()) { arg.is_ptr = true; put(); continue; }
          if (is_coma()) { put(); continue; }
          if (is_left_parenthesis()) { argc += 1; put(); continue; }
          const std::string &id = peek_id();
-         drop_name();
+         drop_id();
          // Qualifiers
          if (id=="const") { out << id; arg.is_cst = true; continue; }
          if (id=="restrict") { out << id; arg.is_restrict = true; continue; }
@@ -272,15 +261,27 @@ struct JitPreProcessor
                arg.default_value = 0;
             }
          }
+         next();
          args.push_back(arg);
-         arg = argument_t();
+         arg = argument_t(); // prepare new argument
          assert(not in.eof());
-         if (is_right_parenthesis()) { argc -= 1; if (argc >= 0) { put(); continue; } }
+
+         next();
+         if (is_right_parenthesis())
+         {
+            argc -= 1;
+            if (argc >= 0) // we had nested '('
+            {
+               put();
+               continue;
+            }
+         }
          // end of the arguments
          if (argc < 0) { break; }
          check(in.peek()==',', "no coma while in args");
          put();
       }
+      next();
 
       // Prepare the kernel strings from the arguments
       assert(ker.is_jit);
@@ -291,10 +292,9 @@ struct JitPreProcessor
       ker.params.clear();
       ker.args_wo_amp.clear();
 
-      for (argument_it ia = args.begin(); ia != args.end() ; ia++)
+      for (argument_it arg_it = args.begin(); arg_it != args.end() ; arg_it++)
       {
-         //const argument_t &arg = *ia;
-         arg = *ia;
+         arg = *arg_it;
          const bool is_cst = arg.is_cst;
          const bool is_ptr = arg.is_ptr;
          const char *type = arg.type.c_str();
@@ -380,6 +380,7 @@ struct JitPreProcessor
 
    void mfem_jit()
    {
+      //assert(false);
       ker.is_jit = true;
       next();
       check(is_template(), "kernel is missing the 'template' token");
@@ -392,14 +393,15 @@ struct JitPreProcessor
       ker.Tparams_src.clear();
       while (in.peek() != '>')
       {
+         comments();
          assert(not in.eof());
-         char c = get();
-         put_char(c);
+         const char c = put();
          ker.Tparams_src += c;
       }
       put();
 
       // 'static' check
+      next();
       if (is_static()) { out << get_id(); }
       next();
       check(is_void(), "kernel return type should be void");
@@ -420,7 +422,8 @@ struct JitPreProcessor
       args();
       // Make sure we have hit the last ')' of the arguments
       check(in.peek()==')',"no last ')' in kernel");
-      put();
+      const char c = put(/*)*/);
+      assert(c==')');
       next();
       // Make sure we are about to start a compound statement
       check(in.peek()=='{',"no compound statement found");
@@ -543,6 +546,7 @@ struct JitPreProcessor
       } mfem;
       if (peek_n(4) != "MFEM") { return; }
       const std::string &id = get_id();
+      //std::cerr << "\033[33m" << id << "\033[m"; fflush(0);
       if (mfem.token(id, "JIT")) { return mfem_jit(); }
       if (ker.is_kernel) { ker.src += id; }
       else { out << id; }
@@ -561,7 +565,7 @@ struct JitPreProcessor
 
    int operator()()
    {
-      try { do { tokens(); comments(); postfix(); } while (!eof()); }
+      try { do { tokens(); postfix(); } while (!eof()); }
       catch (error_t err)
       {
          std::cerr << std::endl << err.file << ":" << err.line << ":"
