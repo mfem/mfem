@@ -78,6 +78,10 @@ struct NeoHookeanMaterial
       {
          return stress_enzyme_rev(dudx);
       }
+      else if (energy_gradient_type == GradientType::FiniteDiff)
+      {
+         return stress_fd(dudx);
+      }
       else
       {
          return 0.0*dudx;
@@ -137,6 +141,26 @@ struct NeoHookeanMaterial
       return P;
    }
 #endif
+
+   template <typename T>
+   MFEM_HOST_DEVICE tensor<T, dim, dim>
+   stress_fd(const tensor<T, dim, dim> &dudx) const
+   {
+      auto H = dudx;
+      auto P = 0.0*dudx;
+      T h{1e-6};
+      for (int i = 0; i < dim; ++i) {
+         for (int j = 0; j < dim; ++j) {
+            H[i][j] += h;
+            auto Wp = strain_energy_density(H);
+            H[i][j] -= 2.0*h;
+            auto Wm = strain_energy_density(H);
+            H[i][j] += h;
+            P[i][j] = (Wp - Wm) / (2.0 * h);
+         }
+      }
+      return P;
+   }
 
    /**
     * @brief A method to wrap the stress calculation into a static function.
