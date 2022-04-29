@@ -42,70 +42,69 @@ struct NeoHookeanMaterial
 {
    static_assert(dim == 3, "NeoHookean model only defined in 3D");
 
-  /**
-   * @brief Compute strain energy density
-   * @param[in] dudx displacement gradient
-   * @return W strain energy density in reference configuration
-   */
-  template <typename T>
-  MFEM_HOST_DEVICE T
-  strain_energy_density(const tensor<T, dim, dim> & dudx) const
-  {
-    constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
-    auto F = I + dudx;
-    auto J = det(F);
-    T Jm23 = pow(J, -2.0/3.0);
-    T Wvol = D1*(J - 1.0)*(J - 1.0);
-    T Wdev = C1*(Jm23*inner(F,F) - 3.0);
-    return Wdev + Wvol;
-  }
-
-  MFEM_HOST_DEVICE static void
-  strain_energy_density_wrapper(NeoHookeanMaterial<dim, stress_gradient_type> *self,
-                                tensor<double, dim, dim> &dudx, double &W)
-  {
-    W = self->strain_energy_density(dudx);
-  }
-
-  template <typename T>
-  MFEM_HOST_DEVICE tensor<T, dim, dim>
-  stress(const tensor<T, dim, dim> & dudx) const
-  {
-    if (energy_gradient_type == GradientType::Symbolic)
-    {
-      return stress_symbolic(dudx);
-    }
-    else if (energy_gradient_type == GradientType::EnzymeRev)
-    {
-      return stress_enzyme_rev(dudx);
-    }
-    else
-    {
-      return 0.0*dudx;
-    }
-  }
-
-#ifdef MFEM_USE_ENZYME
-
-  template <typename T>
-  MFEM_HOST_DEVICE tensor<T, dim, dim>
-  stress_enzyme_rev(const tensor<T, dim, dim> &dudx) const
-  {
-    T W;
-    T seed{1.0};
-    tensor<T, 3, 3> P{};
-    __enzyme_autodiff<void>(strain_energy_density_wrapper, enzyme_const, this,
-                            enzyme_dup, &dudx, &P, enzyme_dupnoneed, &W, &seed);
-    return P;
-  }
-
-#endif
+   /**
+    * @brief Compute strain energy density
+    * @param[in] dudx displacement gradient
+    * @return W strain energy density in reference configuration
+    */
+   template <typename T>
+   MFEM_HOST_DEVICE T
+   strain_energy_density(const tensor<T, dim, dim> & dudx) const
+   {
+      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      auto F = I + dudx;
+      auto J = det(F);
+      T Jm23 = pow(J, -2.0/3.0);
+      T Wvol = D1*(J - 1.0)*(J - 1.0);
+      T Wdev = C1*(Jm23*inner(F,F) - 3.0);
+      return Wdev + Wvol;
+   }
 
    /**
     * @brief Compute the stress response.
     *
     * @param[in] dudx derivative of the displacement
     * @return
+    */
+   template <typename T>
+   MFEM_HOST_DEVICE tensor<T, dim, dim>
+   stress(const tensor<T, dim, dim> & dudx) const
+   {
+      if (energy_gradient_type == GradientType::Symbolic)
+      {
+         return stress_symbolic(dudx);
+      }
+      else if (energy_gradient_type == GradientType::EnzymeRev)
+      {
+         return stress_enzyme_rev(dudx);
+      }
+      else
+      {
+         return 0.0*dudx;
+      }
+   }
+
+   /**
+    * @brief A method to wrap the strain energy density calculation into a static function.
+    *
+    * This is necessary for Enzyme to access the class pointer (self).
+    *
+    * @param[in] self the class pointer
+    * @param[in] dudx the displacement gradient
+    * @param[out] W the strain energy density 
+    */
+   MFEM_HOST_DEVICE static void
+   strain_energy_density_wrapper(NeoHookeanMaterial<dim, stress_gradient_type> *self,
+                                 tensor<double, dim, dim> &dudx, double &W)
+   {
+      W = self->strain_energy_density(dudx);
+   }
+
+   /**
+    * @brief Evaluate the stress symbolically
+    *
+    * @param[in] dudx
+    * @return Piola stress
     */
    template <typename T>
    MFEM_HOST_DEVICE tensor<T, dim, dim>
@@ -119,6 +118,26 @@ struct NeoHookeanMaterial
       return sigma;
    }
 
+#ifdef MFEM_USE_ENZYME
+   /**
+    * @brief Evaluate the stress with reverse mode differentiation
+    *
+    * @param[in] dudx
+    * @return Piola stress
+    */
+   template <typename T>
+   MFEM_HOST_DEVICE tensor<T, dim, dim>
+   stress_enzyme_rev(const tensor<T, dim, dim> &dudx) const
+   {
+      T W;
+      T seed{1.0};
+      tensor<T, 3, 3> P{};
+      __enzyme_autodiff<void>(strain_energy_density_wrapper, enzyme_const, this,
+                              enzyme_dup, &dudx, &P, enzyme_dupnoneed, &W, &seed);
+      return P;
+   }
+#endif
+
    /**
     * @brief A method to wrap the stress calculation into a static function.
     *
@@ -126,7 +145,7 @@ struct NeoHookeanMaterial
     *
     * @param[in] self
     * @param[in] dudx
-    * @param[in] sigma
+    * @param[out] sigma
     * @return stress
     */
    MFEM_HOST_DEVICE static void

@@ -104,6 +104,10 @@ int main(int argc, char *argv[])
    // * EnzymeRev
    // * FiniteDiff
    // * DualNumbers
+   // The second template argument sets mode for computing the derivative of the stress wrt
+   // the displacement gradient (ie the elasticities tensor).
+   // The third template argument is for computing the derivative of the stress wrt the
+   // displacement gradient (ie the stress tensor).
    const NeoHookeanMaterial<dimension, GradientType::EnzymeFwd, GradientType::EnzymeRev> material{};
    elasticity_op.SetMaterial(material);
 
