@@ -41,6 +41,54 @@ struct NeoHookeanMaterial
 {
    static_assert(dim == 3, "NeoHookean model only defined in 3D");
 
+  /**
+   * @brief Compute strain energy density
+   * @param[in] dudx displacement gradient
+   * @return W strain energy density in reference configuration
+   */
+  template <typename T>
+  MFEM_HOST_DEVICE T
+  strain_energy_density(const tensor<T, dim, dim> & dudx) const
+  {
+    constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+    auto F = I + dudx;
+    auto J = det(F);
+    auto Jm23 = pow(J, -2.0/3.0);
+    T Wvol = D1*(J - 1.0)*(J - 1.0);
+    T Wdev = C1*(Jm23*inner(F,F) - 3.0);
+    return Wdev + Wvol;
+  }
+
+  MFEM_HOST_DEVICE static void
+  strain_energy_density_wrapper(NeoHookeanMaterial<dim, gradient_type> *self,
+                                tensor<double, dim, dim> &dudx, double &W)
+  {
+    W = self->strain_energy_density(dudx);
+  }
+
+  // template <typename T>
+  // MFEM_HOST_DEVICE tensor<T, dim, dim>
+  MFEM_HOST_DEVICE tensor<double, 3, 3>
+  stress(const tensor<double, dim, dim> & dudx) const
+  {
+    return stress_enzyme_rev(dudx);
+  }
+
+#ifdef MFEM_USE_ENZYME
+
+  MFEM_HOST_DEVICE tensor<double, dim, dim>
+  stress_enzyme_rev(const tensor<double, dim, dim> &dudx) const
+  {
+    double W;
+    double seed = 1.0;
+    tensor<double, 3, 3> P{};
+    __enzyme_autodiff<void>(strain_energy_density_wrapper, enzyme_const, this,
+                            enzyme_dup, &dudx, &P, enzyme_dupnoneed, &W, &seed);
+    return P;
+  }
+
+#endif
+
    /**
     * @brief Compute the stress response.
     *
@@ -49,7 +97,7 @@ struct NeoHookeanMaterial
     */
    template <typename T>
    MFEM_HOST_DEVICE tensor<T, dim, dim>
-   stress(const tensor<T, dim, dim> &__restrict__ dudx) const
+   stress2(const tensor<T, dim, dim> &__restrict__ dudx) const
    {
       constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       T J = det(I + dudx);
@@ -138,23 +186,23 @@ struct NeoHookeanMaterial
       {
          return action_of_gradient_fd(dudx, ddudx);
       }
-      else if (gradient_type == GradientType::DualNumbers)
-      {
-         return action_of_gradient_dual(dudx, ddudx);
-      }
+      // else if (gradient_type == GradientType::DualNumbers)
+      // {
+      //    return action_of_gradient_dual(dudx, ddudx);
+      // }
    }
 
-   MFEM_HOST_DEVICE tensor<double, dim, dim>
-   action_of_gradient_dual(const tensor<double, dim, dim> &dudx,
-                           const tensor<double, dim, dim> &ddudx) const
-   {
-      auto sigma = stress(make_tensor<dim, dim>([&](int i, int j)
-      {
-         return mfem::internal::dual<double, double> {dudx[i][j], ddudx[i][j]};
-      }));
-      return make_tensor<dim, dim>(
-      [&](int i, int j) { return sigma[i][j].gradient; });
-   }
+   // MFEM_HOST_DEVICE tensor<double, dim, dim>
+   // action_of_gradient_dual(const tensor<double, dim, dim> &dudx,
+   //                         const tensor<double, dim, dim> &ddudx) const
+   // {
+   //    auto sigma = stress(make_tensor<dim, dim>([&](int i, int j)
+   //    {
+   //       return mfem::internal::dual<double, double> {dudx[i][j], ddudx[i][j]};
+   //    }));
+   //    return make_tensor<dim, dim>(
+   //    [&](int i, int j) { return sigma[i][j].gradient; });
+   // }
 
 #ifdef MFEM_USE_ENZYME
    MFEM_HOST_DEVICE tensor<double, dim, dim>
