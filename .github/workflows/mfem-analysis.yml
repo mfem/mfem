@@ -30,6 +30,7 @@ env:
 
 jobs:
   gitignore:
+    if: github.repository == 'mfem/mfem'
     runs-on: ubuntu-18.04
 
     steps:
