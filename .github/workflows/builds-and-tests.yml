@@ -144,7 +144,7 @@ jobs:
 
     # Get Hypre through cache, or build it.
     # Install will only run on cache miss.
-    - name: cache hypre
+    - name: cache hypre && matrix.os != 'windows-2022'
       id: hypre-cache
       if: matrix.mpi == 'par'
       uses: actions/cache@v2
@@ -154,7 +154,7 @@ jobs:
         key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-branch
 
     - name: get hypre
-      if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true'
+      if: matrix.mpi == 'par' && matrix.os != 'windows-2022' && steps.hypre-cache.outputs.cache-hit != 'true'
       # TODO: change this when merged upstream
       uses: kanye-quest/mfem-gh-actions/build-hypre@master
       with:
@@ -194,8 +194,10 @@ jobs:
 
     - name: install metis (Windows)
       if: matrix.mpi == 'par' && matrix.os == 'windows-2022'
+      env:
+        VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       run: |
-        vcpkg install metis:x64-windows-static
+        vcpkg install hypre metis --triplet=x64-windows-static
 
     # MFEM build and test
     - name: build
