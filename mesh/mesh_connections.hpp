@@ -45,9 +45,17 @@ private:
        the Table mapping Vertices to Boundary Elements/Faces on a 3D mesh would be at T[0][3]*/
    mutable std::vector<std::vector<Table*>> T;
 
-
-
 public:
+   /** @a Boundary indices are indexing the subset of boundary entities in a mesh.  MFEM meshes 
+       currently only have one kind of Boundary entity indexed this way which is the mesh_dim-1 boundary.
+       @a All indices are indexing all of the entities of a given dimension in a mesh (including
+       those on the boundary).*/
+   enum IndexType : bool 
+   { 
+      BdrIdx=true,    //Index space contains only the entities on the boundary
+      AllIdx=false    //Index space contains all entities including those on the boundary
+   };
+
    /** @brief Struct representing the index number of a geometrical mesh entity.  In
        MFEM meshes there is currently support for up to 5 entity kinds that all have their
        own index numberings: (0D, 1D, 2D, 1D Boundary) in 2D and (0D, 1D, 2D, 3D, 2D Boundary)
@@ -58,8 +66,8 @@ public:
        the case with 3D meshes and the 2D faces and 2D oundary elements.**/
    struct EntityIndex
    {
-      int dim;
-      bool boundary;
+      unsigned short dim;
+      IndexType index_type;
       int index;
    };
 
@@ -73,8 +81,8 @@ public:
        the case with 3D meshes and the 2D faces and 2D oundary elements.**/
    struct EntityIndices
    {
-      int dim;
-      bool boundary;
+      unsigned short dim;
+      IndexType index_type;
       Array<int> indices;
    };
 
@@ -253,7 +261,7 @@ public:
        neighbors across the edges connected to the vertex entity.  Note:  The entities.dim and
        neighbors.dim must be the same.  Also, none of the index numbers from the @a entities set
        will be returned in the @a neighbors set, even if they are neighbors of others in the
-       @entities set.  For the example mesh with vertex, edge, face/element, and
+       @a entities set.  For the example mesh with vertex, edge, face/element, and
        boundary element Indices we have:
 
        dim = 0        dim = 1        dim = 2     Boundary Elems

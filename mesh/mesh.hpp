@@ -66,7 +66,7 @@ class Mesh
 
 public:
 
-   MeshConnections connect;
+   MeshConnections *connect = nullptr;
 
 protected:
    int Dim;
@@ -507,7 +507,7 @@ protected:
 
 public:
 
-   Mesh() : connect(*this) { SetEmpty(); }
+   Mesh(){ SetEmpty(); }
 
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the
@@ -641,9 +641,7 @@ public:
 
    /** @anchor mfem_Mesh_init_ctor
        @brief _Init_ constructor: begin the construction of a Mesh object. */
-   Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1) :
-      connect(*this)
-   {
+   Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1) {
       if (spaceDim_ == -1) { spaceDim_ = Dim_; }
       InitMesh(Dim_, spaceDim_, NVert, NElem, NBdrElem);
    }
@@ -793,8 +791,7 @@ public:
    MFEM_DEPRECATED
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
         double sx = 1.0, double sy = 1.0, double sz = 1.0,
-        bool sfc_ordering = true) :
-      connect(*this)
+        bool sfc_ordering = true)
    {
       Make3D(nx, ny, nz, type, sx, sy, sz, sfc_ordering);
       Finalize(true); // refine = true
@@ -803,8 +800,7 @@ public:
    /// Deprecated: see @a MakeCartesian2D.
    MFEM_DEPRECATED
    Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
-        double sx = 1.0, double sy = 1.0, bool sfc_ordering = true) :
-      connect(*this)
+        double sx = 1.0, double sy = 1.0, bool sfc_ordering = true) 
    {
       Make2D(nx, ny, type, sx, sy, generate_edges, sfc_ordering);
       Finalize(true); // refine = true
@@ -812,8 +808,7 @@ public:
 
    /// Deprecated: see @a MakeCartesian1D.
    MFEM_DEPRECATED
-   explicit Mesh(int n, double sx = 1.0) :
-      connect(*this)
+   explicit Mesh(int n, double sx = 1.0) 
    {
       Make1D(n, sx);
       // Finalize(); // reminder: not needed

@@ -14,11 +14,12 @@ using namespace mfem;
 
 #include "unit_tests.hpp"
 
+
 TEST_CASE("Expression Construction", "[EntityIndices]")
 {
    Array<int> a = {1,2,3};
-   MeshConnections::EntityIndices idx = {1, false, a};
-   MeshConnections::EntityIndices idx2 = {1, false, {1,2,3}};
+   MeshConnections::EntityIndices idx = {1, MeshConnections::AllIdx, a};
+   MeshConnections::EntityIndices idx2 = {1, MeshConnections::AllIdx, Array<int>{1,2,3}};
    REQUIRE(idx.indices[2] == 3);
    REQUIRE(idx2.indices[2] == 3);
 }
@@ -32,62 +33,62 @@ TEST_CASE("Matching Hand Picked Indices", "[MeshConnections]")
 
       SECTION("Cells to Vertices")
       {
-         result.dim = 0; result.boundary = false;
-         mesh.connect.ChildrenOfEntity({2,false,0}, result);
-         REQUIRE(result.indices == Array<int> {0,1,3,4});
-         mesh.connect.ChildrenOfEntity({2,false,1}, result);
-         REQUIRE(result.indices == Array<int> {1,2,4,5});
-         mesh.connect.ChildrenOfEntity({2,false,2}, result);
-         REQUIRE(result.indices == Array<int> {3,4,7,8});
-         mesh.connect.ChildrenOfEntity({2,false,3}, result);
-         REQUIRE(result.indices == Array<int> {4,5,8,9});
+         result.dim = 0; result.index_type = MeshConnections::AllIdx;
+         mesh.connect->ChildrenOfEntity({2,MeshConnections::AllIdx,0}, result);
+         REQUIRE(result.indices == Array<int>{0,1,3,4});
+         mesh.connect->ChildrenOfEntity({2,MeshConnections::AllIdx,1}, result);
+         REQUIRE(result.indices == Array<int>{1,2,4,5});
+         mesh.connect->ChildrenOfEntity({2,MeshConnections::AllIdx,2}, result);
+         REQUIRE(result.indices == Array<int>{3,4,7,8});
+         mesh.connect->ChildrenOfEntity({2,MeshConnections::AllIdx,3}, result);
+         REQUIRE(result.indices == Array<int>{4,5,8,9});
       }
 
       SECTION("Cells to Boundary Edges")
       {
-         result.dim = 1; result.boundary = true;
-         mesh.connect.ChildrenOfEntity({2,false,0}, result);
-         REQUIRE(result.indices == Array<int> {0,4});
-         mesh.connect.ChildrenOfEntity({2,false,1}, result);
-         REQUIRE(result.indices == Array<int> {1,5});
-         mesh.connect.ChildrenOfEntity({2,false,2}, result);
-         REQUIRE(result.indices == Array<int> {2,6});
-         mesh.connect.ChildrenOfEntity({2,false,3}, result);
-         REQUIRE(result.indices == Array<int> {3,7});
+         result.dim = 1; result.index_type = MeshConnections::BdrIdx;
+         mesh.connect->ChildrenOfEntity({2,MeshConnections::AllIdx,0}, result);
+         REQUIRE(result.indices == Array<int>{0,4});
+         mesh.connect->ChildrenOfEntity({2,MeshConnections::AllIdx,1}, result);
+         REQUIRE(result.indices == Array<int>{1,5});
+         mesh.connect->ChildrenOfEntity({2,MeshConnections::AllIdx,2}, result);
+         REQUIRE(result.indices == Array<int>{2,6});
+         mesh.connect->ChildrenOfEntity({2,MeshConnections::AllIdx,3}, result);
+         REQUIRE(result.indices == Array<int>{3,7});
       }
 
       SECTION("Cell Neighbors Across Vertices")
       {
-         result.dim = 2; result.boundary = false;
-         mesh.connect.NeighborsOfEntity({2,false,0}, 0, result);
-         REQUIRE(result.indices == Array<int> {1,2,3});
-         mesh.connect.NeighborsOfEntity({2,false,1}, 0, result);
-         REQUIRE(result.indices == Array<int> {0,2,3});
-         mesh.connect.NeighborsOfEntity({2,false,2}, 0, result);
-         REQUIRE(result.indices == Array<int> {0,1,3});
-         mesh.connect.NeighborsOfEntity({2,false,3}, 0, result);
-         REQUIRE(result.indices == Array<int> {0,1,2});
+         result.dim = 2; result.index_type = MeshConnections::AllIdx;
+         mesh.connect->NeighborsOfEntity({2,MeshConnections::AllIdx,0}, 0, result);
+         REQUIRE(result.indices == Array<int>{1,2,3});
+         mesh.connect->NeighborsOfEntity({2,MeshConnections::AllIdx,1}, 0, result);
+         REQUIRE(result.indices == Array<int>{0,2,3});
+         mesh.connect->NeighborsOfEntity({2,MeshConnections::AllIdx,2}, 0, result);
+         REQUIRE(result.indices == Array<int>{0,1,3});
+         mesh.connect->NeighborsOfEntity({2,MeshConnections::AllIdx,3}, 0, result);
+         REQUIRE(result.indices == Array<int>{0,1,2});
       }
 
       SECTION("Boundary Edge Neighbors Across Vertices")
       {
-         result.dim = 1; result.boundary = true;
-         mesh.connect.NeighborsOfEntity({1,true,0}, 0, result);
-         REQUIRE(result.indices == Array<int> {1,4});
-         mesh.connect.NeighborsOfEntity({1,true,1}, 0, result);
-         REQUIRE(result.indices == Array<int> {0,5});
-         mesh.connect.NeighborsOfEntity({1,true,2}, 0, result);
-         REQUIRE(result.indices == Array<int> {3,6});
-         mesh.connect.NeighborsOfEntity({1,true,3}, 0, result);
-         REQUIRE(result.indices == Array<int> {2,7});
-         mesh.connect.NeighborsOfEntity({1,true,4}, 0, result);
-         REQUIRE(result.indices == Array<int> {0,6});
-         mesh.connect.NeighborsOfEntity({1,true,5}, 0, result);
-         REQUIRE(result.indices == Array<int> {1,7});
-         mesh.connect.NeighborsOfEntity({1,true,6}, 0, result);
-         REQUIRE(result.indices == Array<int> {2,4});
-         mesh.connect.NeighborsOfEntity({1,true,7}, 0, result);
-         REQUIRE(result.indices == Array<int> {3,5});
+         result.dim = 1; result.index_type = MeshConnections::BdrIdx;
+         mesh.connect->NeighborsOfEntity({1,MeshConnections::BdrIdx,0}, 0, result);
+         REQUIRE(result.indices == Array<int>{1,4});
+         mesh.connect->NeighborsOfEntity({1,MeshConnections::BdrIdx,1}, 0, result);
+         REQUIRE(result.indices == Array<int>{0,5});
+         mesh.connect->NeighborsOfEntity({1,MeshConnections::BdrIdx,2}, 0, result);
+         REQUIRE(result.indices == Array<int>{3,6});
+         mesh.connect->NeighborsOfEntity({1,MeshConnections::BdrIdx,3}, 0, result);
+         REQUIRE(result.indices == Array<int>{2,7});
+         mesh.connect->NeighborsOfEntity({1,MeshConnections::BdrIdx,4}, 0, result);
+         REQUIRE(result.indices == Array<int>{0,6});
+         mesh.connect->NeighborsOfEntity({1,MeshConnections::BdrIdx,5}, 0, result);
+         REQUIRE(result.indices == Array<int>{1,7});
+         mesh.connect->NeighborsOfEntity({1,MeshConnections::BdrIdx,6}, 0, result);
+         REQUIRE(result.indices == Array<int>{2,4});
+         mesh.connect->NeighborsOfEntity({1,MeshConnections::BdrIdx,7}, 0, result);
+         REQUIRE(result.indices == Array<int>{3,5});
       }
    }
 }
