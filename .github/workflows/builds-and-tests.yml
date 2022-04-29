@@ -144,9 +144,9 @@ jobs:
 
     # Get Hypre through cache, or build it.
     # Install will only run on cache miss.
-    - name: cache hypre && matrix.os != 'windows-2022'
+    - name: cache hypre
       id: hypre-cache
-      if: matrix.mpi == 'par'
+      if: matrix.mpi == 'par' && matrix.os != 'windows-2022'
       uses: actions/cache@v2
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
@@ -192,7 +192,7 @@ jobs:
       run: |
         mkdir -p vcpkg_cache
 
-    - name: install metis (Windows)
+    - name: install hypre and metis (Windows)
       if: matrix.mpi == 'par' && matrix.os == 'windows-2022'
       env:
         VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
