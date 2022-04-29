@@ -19,7 +19,7 @@ on:
     branches:
       - master
       - next
-  pull_request:
+  pull_request: []
 
 env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
