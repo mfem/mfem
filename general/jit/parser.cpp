@@ -25,9 +25,10 @@
 namespace mfem
 {
 
+#define STOP { fflush(0); assert(false); }
+
 struct JitPreProcessor
 {
-
    struct argument_t
    {
       int default_value = 0;
@@ -39,24 +40,59 @@ struct JitPreProcessor
 
    typedef std::list<argument_t>::iterator argument_it;
 
+   struct forall_t { int dim; std::string e, N, X, Y, Z, body; };
+
    struct kernel_t
    {
-      bool is_jit = false;
-      bool is_kernel = false;
-      std::string name;                 // kernel name
+      //bool is_prefix = false;
+      bool is_forall = false;
+      bool is_params = false;
+      bool is_source = false;
+      std::string name;           // kernel name
       // Templates: format, arguments and parameters
-      std::string Tformat;              // template format, as in printf
-      std::string Targs;                // template arguments, for hash and call
-      std::string Tparams;              // template parameters, for the declaration
-      std::string Tparams_src;          // template parameters, original source
+      std::string Tformat;        // template format, as in printf
+      std::string Targs;          // template arguments, for hash and call
+      std::string Tparams;        // template parameters, for the declaration
+      std::string Tparams_src;    // template parameters, original source
       // Arguments and parameter for the standard calls
       // We need two kinds of arguments because of the '& <=> *' transformation
       // (This might be no more the case as we are getting rid of Array/Vector).
       std::string params;
       std::string args;
       std::string args_wo_amp;
-      std::string src;
+      struct forall_t forall;    // source of the lambda forall
+      std::string source;
    };
+
+#if 0
+   struct dbg
+   {
+      static constexpr uint8_t COLOR = 226;
+      dbg(const uint8_t color)
+      { std::cout << "\033[38;5;" << std::to_string(color==0?COLOR:color) << "m"; }
+      dbg(): dbg(COLOR) { }
+      ~dbg() { std::cout << "\033[m"; std::cout.flush(); }
+      template <typename T> dbg& operator<<(const T &arg)
+      { std::cout << arg; return *this; }
+      template<typename T, typename... Args>
+      inline void operator()(const T &arg, Args... args) const
+      { operator<<(arg); operator()(args...); }
+      template<typename T>
+      inline void operator()(const T &arg) const { operator<<(arg); }
+   };
+#else
+   struct dbg
+   {
+      dbg() { }
+      dbg(const uint8_t) {  }
+      template <typename T> dbg& operator<<(const T &) {  return *this; }
+      template<typename T, typename... Args>
+      inline void operator()(const T &arg, Args... args) const
+      { operator<<(arg); operator()(args...); }
+      template<typename T>
+      inline void operator()(const T &arg) const { operator<<(arg); }
+   };
+#endif
 
    struct error_t
    {
@@ -66,7 +102,16 @@ struct JitPreProcessor
       error_t(int l, std::string f, const char *e): line(l), file(f), error(e) {}
    };
 
-#define stop { fflush(0); assert(false); }
+   bool MFEM_JIT;
+   kernel_t ker;
+   std::istream &in;
+   std::ostream &out;
+   std::string &file;
+   int line, block, parenthesis;
+
+   JitPreProcessor(std::istream &in, std::ostream &out, std::string &file) :
+      MFEM_JIT(false), in(in), out(out), file(file),
+      line(2), block(-2), parenthesis(-2) {}
 
    void check(const bool test, const char *error)
    {
@@ -77,21 +122,21 @@ struct JitPreProcessor
 
    void add_arg(std::string &as, const char *a) { add_coma(as); as += a; }
 
-   bool is_newline(const char c) { return c == '\n'; }
-
    bool good() { in.peek(); return in.good(); }
 
    char get() { return static_cast<char>(in.get()); }
 
-   char put_char(const char c)
+   char put(const char c)
    {
-      if (is_newline(c)) { line++; }
-      if (ker.is_kernel) { ker.src += c; }
-      else { out.put(c); }
+      if (ker.is_params) { ker.Tparams_src += c; /* also out */} // line ?
+      if (ker.is_forall) { ker.forall.body += c; return c;}
+      if (ker.is_source) { ker.source += c; return c;}
+      out.put(c);
+      if (c == '\n') { dbg(246) << line << "|"; line++; }
       return c;
    }
 
-   char put() { return put_char(get()); }
+   char put() { return put(get()); }
 
    void skip_space(bool keep = true)
    {
@@ -111,15 +156,18 @@ struct JitPreProcessor
 
    void single_line_comments(bool keep = true)
    {
-      while (!is_newline(in.peek())) { keep ? put() : get(); }
-      const char c = keep ? put(): get(); assert(c=='\n');
+      dbg(123) << "single_line_comments";
+      while (!is_linefeed()) { keep ? put() : get(); }
+      dbg(123) << "\\n";
    }
 
    void block_comments(bool keep = true)
    {
+      dbg(121) << "block_comments";
       while (peek_n(2) != "*/") { assert(!in.eof()); keep ? put(): get(); }
       const char c1 = keep ? put(): get(); assert(c1=='*');
       const char c2 = keep ? put(): get(); assert(c2=='/');
+      dbg(121) << "*/";
    }
 
    void comments(bool keep = true)
@@ -132,11 +180,20 @@ struct JitPreProcessor
          assert (c2 == '/' || c2 == '*');
          if (c2 == '/') { single_line_comments(keep); }
          else { block_comments(keep); }
+         dbg()<<"skip_space<";
          skip_space(keep);
+         dbg()<<">";
       }
    }
 
-   void next(bool keep = true) { skip_space(keep); comments(keep); }
+   void next(bool keep = true)
+   {
+      //dbg(229) << "[";
+      skip_space(keep); comments(keep);
+      //dbg(229) << "]";
+   }
+
+   void drop() { next(false); }
 
    bool is_id() { const char c = in.peek(); return std::isalnum(c) || c == '_'; }
 
@@ -158,29 +215,30 @@ struct JitPreProcessor
       return atoi(digits.c_str());
    }
 
-   std::string peek_n(const int n)
+   template<int M = 16> std::string peek_n(const int n)
    {
       int k = 0;
-      assert(n < 64);
-      static char c[64];
+      assert(n < M);
+      static char c[M];
       for (k = 0; k <= n; k++) { c[k] = 0; }
       for (k = 0; k < n && good(); k++) { c[k] = get(); }
       std::string rtn(c);
-      assert(!in.fail());
+      if (!good()) { return rtn; }
       for (int l = 0; l < k; l++) { in.unget(); }
       return rtn;
    }
 
-   std::string peek_id()
+   template<int M = 16> std::string peek_id()
    {
       int k = 0;
-      constexpr int n = 64;
-      static char c[64];
+      constexpr int n = M;
+      static char c[M];
       for (k = 0; k < n; k++) { c[k] = 0; }
       for (k = 0; k < n; k++)
       {
          if (!is_id()) { break; }
          c[k] = get();
+         assert(good());
          assert(!in.eof());
       }
       std::string str(c);
@@ -190,22 +248,24 @@ struct JitPreProcessor
 
    void drop_id() { while (is_id()) { get(); } }
 
-   bool is_string(const char *str) { skip_space(); return peek_n(std::strlen(str)) == str; }
+   bool is_string(const char *str) { return peek_n(std::strlen(str)) == str; }
    bool is_template() { return is_string("template"); }
    bool is_static() { return is_string("static"); }
-   bool is_namespace() { return is_string("::"); }
    bool is_void() { return is_string("void"); }
 
-   bool is_char(const unsigned char c) { skip_space(); return in.peek() == c; }
+   bool is_char(const unsigned char c) { return in.peek() == c; }
    bool is_eq() { return is_char('='); }
-   bool is_amp() { return is_char('&'); }
    bool is_coma() { return is_char(','); }
    bool is_star() { return is_char('*'); }
    bool is_semicolon() { return is_char(';'); }
    bool is_left_parenthesis() { return is_char('('); }
    bool is_right_parenthesis() { return is_char(')'); }
 
-   bool args()
+   bool is_linefeed() { return is_char('\n'); }
+   bool is_vertical_tab() { return is_char('\v'); }
+   bool is_carriage_return() { return is_char('\r'); }
+
+   bool mfem_jit_args()
    {
       bool empty = true;
       argument_t arg;
@@ -284,7 +344,7 @@ struct JitPreProcessor
       next();
 
       // Prepare the kernel strings from the arguments
-      assert(ker.is_jit);
+      //assert(ker.is_prefix);
       ker.Targs.clear();
       ker.Tparams.clear();
       ker.Tformat.clear();
@@ -378,10 +438,8 @@ struct JitPreProcessor
       return empty;
    }
 
-   void mfem_jit()
+   void mfem_jit_prefix()
    {
-      //assert(false);
-      ker.is_jit = true;
       next();
       check(is_template(), "kernel is missing the 'template' token");
 
@@ -391,21 +449,22 @@ struct JitPreProcessor
       check(in.peek()=='<',"no '<' in single source kernel!");
       put();
       ker.Tparams_src.clear();
+      ker.is_params = true;
       while (in.peek() != '>')
       {
-         comments();
-         assert(not in.eof());
-         const char c = put();
-         ker.Tparams_src += c;
+         assert(good());
+         next();
+         put(); // will output in Tparams_src
       }
-      put();
+      ker.is_params = false;
+      const char Tc = put(); assert(Tc == '>');
 
-      // 'static' check
-      next();
+      next(); // 'static' check
       if (is_static()) { out << get_id(); }
-      next();
+
+      next(); // 'void' check
       check(is_void(), "kernel return type should be void");
-      assert(is_void()); // make sure the returm type is void
+
       const std::string void_return_type = get_id();
       out << void_return_type;
       // Get kernel's name or namespace
@@ -419,7 +478,7 @@ struct JitPreProcessor
       check(in.peek()=='(',"no 1st '(' in kernel");
       put();
       // Get the arguments
-      args();
+      mfem_jit_args();
       // Make sure we have hit the last ')' of the arguments
       check(in.peek()==')',"no last ')' in kernel");
       const char c = put(/*)*/);
@@ -429,64 +488,71 @@ struct JitPreProcessor
       check(in.peek()=='{',"no compound statement found");
       put();
       // Generate the kernel prefix for this kernel
-      assert(ker.is_jit);
-      ker.src.clear();
-      out << "\n\tconst char *src = R\"_(";
+      ker.source.clear();
+      out << "\n\tconst char *source = R\"_(";
 
-      // switching from out to ker.src to compute the hash
-      ker.src += "#define MFEM_JIT_FORALL_COMPILATION\n";
-      ker.src += "#define MFEM_DEVICE_HPP\n";
+      // switching from out to ker.source to compute the hash
+      ker.source += "\n#define MFEM_JIT_FORALL_COMPILATION";
+      ker.source += "\n#define MFEM_DEVICE_HPP";
 
-      ker.src += "#include \"";
-      ker.src += MFEM_INSTALL_DIR;
-      ker.src += "/include/mfem/general/forall.hpp\"\n";
-      ker.src += "\nusing namespace mfem;\n";
+      ker.source += "\n#include \"";
+      ker.source += MFEM_INSTALL_DIR;
+      ker.source += "/include/mfem/general/forall.hpp\"";
+      ker.source += "\nusing namespace mfem;";
 
-      ker.src += "\ntemplate<";
-      ker.src += ker.Tparams;
-      ker.src += ">";
-      ker.src += "\nvoid ";
-      ker.src += ker.name;
-      ker.src += "_%016lx(";
-      ker.src += "const bool use_dev,";
-      ker.src += ker.params;
-      ker.src += "){";
+      ker.source += "\n\ntemplate<";
+      ker.source += ker.Tparams;
+      ker.source += ">";
+      ker.source += "\nvoid ";
+      ker.source += ker.name;
+      ker.source += "_%016lx(";
+      ker.source += "const bool use_dev,";
+      ker.source += ker.params;
+      ker.source += "){";
 
       // Push the preprocessor #line directive
-      ker.src += "\n#line ";
-      ker.src += std::to_string(line);
-      ker.src += " \"";
-      ker.src += file;
-      ker.src += "\"";
+      ker.source += "\n#line ";
+      ker.source += std::to_string(line);
+      ker.source += " \"";
+      ker.source += file;
+      ker.source += "\"";
 
       // Starts counting the block depth
       block = 0;
-      ker.is_kernel = true;
    }
 
-   void postfix()
+   bool is_mfem_jit_postfix()
    {
-      if (!ker.is_jit) { return; }
+      if (!MFEM_JIT) { return false; }
+      if (!ker.is_source) { return false; }
+      if (ker.is_forall) { return false; }
+
       if (block >= 0 && in.peek() == '{') { block++; }
       if (block >= 0 && in.peek() == '}') { block--; }
       // nothing to do while we have not went out of last block statement
-      if (block != -1) { return; }
-      ker.src += "}\nextern \"C\" void k%016lx(";
-      ker.src += "const bool use_dev, ";
-      ker.src += ker.params;
-      ker.src += "){";
-      ker.src += ker.name;
-      ker.src += "_%016lx<";
-      ker.src += ker.Tformat;
-      ker.src += ">(use_dev, ";
-      ker.src += ker.args_wo_amp;
-      ker.src += ");}";
+      if (block != -1) { return false; }
+      return true;
+   }
 
-      out << ker.src; // output all kernel source, after having computed its hash
+   void mfem_jit_postfix()
+   {
+      ker.source += "}\nextern \"C\" void k%016lx(";
+      ker.source += "const bool use_dev, ";
+      ker.source += ker.params;
+      ker.source += "){";
+      ker.source += ker.name;
+      ker.source += "_%016lx<";
+      ker.source += ker.Tformat;
+      ker.source += ">(use_dev, ";
+      ker.source += ker.args_wo_amp;
+      ker.source += ");}";
+
+      // output all kernel source, after having computed its hash
+      //#warning sources
+      out << ker.source;
       out << ")_\";"; // eos
-      ker.is_kernel = false;
 
-      const size_t seed = Jit::Hash(std::hash<std::string> {}(ker.src),
+      const size_t seed = Jit::Hash(std::hash<std::string> {}(ker.source),
                                     std::string(MFEM_JIT_CXX),
                                     std::string(MFEM_JIT_BUILD_FLAGS),
                                     std::string(MFEM_SOURCE_DIR),
@@ -506,9 +572,9 @@ struct JitPreProcessor
       out << "\n\tauto ks_iter = ks.find(hash);";
       out << "\n\tif (ks_iter == ks.end()){";
       out << "\n\t\tconst int n = 1 + " // source size
-          << "snprintf(nullptr, 0, src, hash, hash, hash, " << ker.Targs << ");";
+          << "snprintf(nullptr, 0, source, hash, hash, hash, " << ker.Targs << ");";
       out << "\n\t\tchar *Tsrc = new char[n];";
-      out << "\n\t\tsnprintf(Tsrc, n, src, hash, hash, hash, "<< ker.Targs << ");";
+      out << "\n\t\tsnprintf(Tsrc, n, source, hash, hash, hash, "<< ker.Targs << ");";
       out << "\n\t\tstd::stringstream ss;"; // prepare symbol from computed hash
       out << "\n\t\tss << 'k' << std::setfill('0') ";
       out << "<< std::setw(16) << std::hex << (hash|0) << std::dec;";
@@ -530,25 +596,206 @@ struct JitPreProcessor
 
       // Stop counting the blocks and flush the kernel status
       block--;
-      ker.is_jit = false;
+      MFEM_JIT = false;
+
+      // Should count the difference!
+      out << "\n//#line ";
+      out << std::to_string(line);
+      out << " \"";
+      out << file;
+      out << "\"\n";
+   }
+
+   void mfem_unroll()
+   {
+      assert(MFEM_JIT);
+      assert (ker.is_forall);
+      while ('(' != get()) { assert(!in.eof()); }
+      drop();
+      std::string depth = get_id();
+      dbg() << depth;
+
+      drop();
+      check(is_right_parenthesis(),"no last right parenthesis found");
+      const char c = get(); // ')'
+      assert(c==')');
+
+      check(is_linefeed(),"no newline found");
+      const char nl = get(); // '\n'
+      assert(nl=='\n');
+
+      ker.forall.body += "#pragma unroll ";
+      ker.forall.body += depth.c_str();
+      ker.forall.body += "\n";
+   }
+
+   void mfem_forall_prefix(const std::string &id)
+   {
+      assert(MFEM_JIT);
+      assert (ker.is_forall);
+
+      const int dim = ker.forall.dim = id.c_str()[12] - 0x30;
+      dbg() << id << ", dim:" << dim;
+
+      ker.forall.body.clear();
+
+      drop();
+      check(is_left_parenthesis(),"no 1st '(' in MFEM_FORALL");
+      get(); // drop '('
+
+      drop();
+      ker.forall.e = get_id();
+      dbg() << ", iterator:'" << ker.forall.e << "'";
+
+      drop();
+      check(is_coma(),"no 1st coma in MFEM_FORALL");
+      get(); // drop ','
+
+      drop();
+      check(is_id(),"no 1st id(N) in MFEM_FORALL");
+      ker.forall.N = get_id();
+      dbg() << ", N:'" << ker.forall.N << "'";
+
+      drop();
+      check(is_coma(),"no 2nd coma in MFEM_FORALL");
+      get(); // drop ','
+
+      drop();
+      check(is_id(),"no 2st id (X) in MFEM_FORALL");
+      ker.forall.X = get_id();
+      dbg() << ", X:'" << ker.forall.X << "'";
+
+      drop();
+      check(is_coma(),"no 3rd coma in MFEM_FORALL");
+      get(); // drop ','
+
+      drop();
+      check(is_id(),"no 3rd id (Y) in MFEM_FORALL");
+      ker.forall.Y = get_id();
+      dbg() << ", Y:'" << ker.forall.Y << "'";
+
+      drop();
+      check(is_coma(),"no 4th coma in MFEM_FORALL");
+      get(); // drop ','
+
+      drop();
+      check(is_id(),"no 4th id (Z) in MFEM_FORALL");
+      ker.forall.Z = get_id();
+      dbg() << ", Z:'" << ker.forall.Z << "'";
+
+      drop();
+      check(is_coma(),"no last coma in MFEM_FORALL");
+      get(); // drop ','
+
+      // Starts counting the parentheses to wait for end of MFEM_FORALL'('
+      parenthesis = 0;
+   }
+
+   bool is_mfem_forall_postfix()
+   {
+      if (!ker.is_forall) { return false; }
+      if (parenthesis >= 0 && in.peek() == '(') { parenthesis++; }
+      if (parenthesis >= 0 && in.peek() == ')') { parenthesis--; }
+      if (parenthesis != -1) { return false; }
+
+      drop();
+      check(is_right_parenthesis(),"no last right parenthesis found");
+      get(); // drop ')'
+
+      drop();
+      check(is_semicolon(),"no last semicolon found");
+      get(); // drop ';'
+      parenthesis--;
+      return true;
+   }
+
+   void mfem_forall_postfix()
+   {
+#ifdef MFEM_USE_CUDA
+      out << "if (use_dev){";
+      const char *ND = ker.forall.d == 2 ? "2D" : "3D";
+      out << "\n\tCuWrap" << ND << "(" << ker.forall.N.c_str() << ", ";
+      out << "[=] MFEM_DEVICE (int " << ker.forall.e <<")";
+      out << ker.forall.body.c_str() << ",";
+      out << ker.forall.X.c_str() << ",";
+      out << ker.forall.Y.c_str() << ",";
+      out << ker.forall.Z.c_str() << ");";
+      out << "\n} else {";
+      out << "for (int k=0; k<" << ker.forall.N.c_str() << ";k++) {";
+      out << "[&] (int " << ker.forall.e <<")";
+      out << ker.forall.body.c_str() << "(k);";
+      out << "}";
+      out << "}";
+#else
+      ker.source += "for (int ";
+      ker.source +=  ker.forall.e ;
+      ker.source += " = 0; ";
+      ker.source += ker.forall.e;
+      ker.source += " < ";
+      ker.source += ker.forall.N.c_str();
+      ker.source += "; ";
+      ker.source += ker.forall.e;
+      ker.source += "++) {";
+      ker.source += ker.forall.body;
+      ker.source += "}";
+      /*
+            ker.source += "(";
+            ker.source +=  ker.forall.e;
+            ker.source += ", ";
+            ker.source += ker.forall.N;
+            ker.source += ", ";
+            ker.source += ker.forall.X;
+            ker.source += ", ";
+            ker.source += ker.forall.Y;
+            ker.source += ", ";
+            ker.source += ker.forall.Z;
+            ker.source += ",";
+            ker.source += ker.forall.body;
+            ker.source += ");";*/
+#endif
    }
 
    void tokens()
    {
-      struct
-      {
-         bool token(const std::string &id, const char *token)
-         {
-            if (strncmp(id.c_str(), "MFEM_", 5) != 0 ) { return false; }
-            if (strcmp(id.c_str() + 5, token) != 0 ) { return false; }
-            return true;
-         }
-      } mfem;
+      //dbg() << "?";
       if (peek_n(4) != "MFEM") { return; }
+
       const std::string &id = get_id();
-      //std::cerr << "\033[33m" << id << "\033[m"; fflush(0);
-      if (mfem.token(id, "JIT")) { return mfem_jit(); }
-      if (ker.is_kernel) { ker.src += id; }
+      dbg(MFEM_JIT ? 154 :0) << id;
+
+      auto MFEM_token = [&](const std::string &id, const char *token)
+      {
+         if (strncmp(id.c_str(), "MFEM_", 5) != 0 ) { return false; }
+         if (strcmp(id.c_str() + 5, token) != 0 ) { return false; }
+         return true;
+      };
+
+      if (MFEM_token(id, "JIT"))
+      {
+         MFEM_JIT = true;
+         mfem_jit_prefix();
+         ker.is_source = true;
+         dbg() << "is_source";
+         return;
+      }
+
+      if (MFEM_JIT && MFEM_token(id, "UNROLL")) { return mfem_unroll(); }
+
+      if (MFEM_JIT) // nothing to test when we are not yet in a MFEM_JIT
+      {
+         if (MFEM_token(id, "FORALL_2D") ||
+             MFEM_token(id, "FORALL_3D"))
+         {
+            // Switch from prefix capturing, to the forall one
+            ker.is_forall = true;
+            mfem_forall_prefix(id);
+            return;
+         }
+      }
+
+      // During the kernel prefix, add MFEM_* id tokens
+      if (MFEM_JIT && ker.is_forall) { dbg() << "is_forall"; ker.forall.body += id; }
+      else if (ker.is_source) { dbg() << "is_source"; ker.source += id; }
       else { out << id; }
    }
 
@@ -556,16 +803,31 @@ struct JitPreProcessor
    {
       const char c = get();
       if (in.eof()) { return true; }
-      put_char(c);
+      put(c);
       return false;
    }
 
-   JitPreProcessor(std::istream &in, std::ostream &out, std::string &file) :
-      in(in), out(out), file(file), line(2), block(-2) {}
-
    int operator()()
    {
-      try { do { tokens(); postfix(); } while (!eof()); }
+      try
+      {
+         do
+         {
+            next();
+            tokens();
+            if (is_mfem_forall_postfix())
+            {
+               ker.is_forall = false;
+               mfem_forall_postfix();
+            }
+            if (is_mfem_jit_postfix())
+            {
+               ker.is_source = false;
+               mfem_jit_postfix();
+            }
+         }
+         while (!eof());
+      }
       catch (error_t err)
       {
          std::cerr << std::endl << err.file << ":" << err.line << ":"
@@ -577,13 +839,6 @@ struct JitPreProcessor
       }
       return EXIT_SUCCESS;
    }
-
-private:
-   kernel_t ker;
-   std::istream &in;
-   std::ostream &out;
-   std::string &file;
-   int line, block;
 };
 
 int JitPreProcess(std::istream &in, std::ostream &out, std::string &file)
