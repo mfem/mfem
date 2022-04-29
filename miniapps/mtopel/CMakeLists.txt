@@ -78,6 +78,11 @@ add_mfem_miniapp(mtop_top
      ${PARADIFF_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_mul
+     MAIN mtop_mul.cpp
+     ${PARADIFF_COMMON_FILES}
+     LIBRARIES mfem)
+
 add_mfem_miniapp(mtop_dom
      MAIN mtop_dom.cpp
      ${PARADIFF_COMMON_FILES}

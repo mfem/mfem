@@ -657,6 +657,7 @@ public:
         //evaluate density
         double dd=dens->GetValue(T,ip);
         if(dd<0.0){dd=0.0;}
+        if(dd>1.0){dd=1.0;}
         //evaluate the E modulus
         return Emin+(Emax-Emin)*std::pow(dd,pp);
     }

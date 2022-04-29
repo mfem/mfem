@@ -93,6 +93,25 @@ public:
         }
     }
 
+    void Set(double r_,double x,double y, double fx, double fy)
+    {
+        r=r_;
+        cntr[0]=x;
+        cntr[1]=y;
+        frce[0]=fx;
+        frce[1]=fy;
+    }
+
+    void Set(double r_,double x, double y, double z, double fx, double fy, double fz)
+    {
+        r=r_;
+        cntr[0]=x;
+        cntr[1]=y;
+        cntr[2]=z;
+        frce[0]=fx;
+        frce[1]=fy;
+        frce[2]=fz;
+    }
 
 
 private:
@@ -224,8 +243,9 @@ int main(int argc, char *argv[])
        }
    }
 
-   if(restart)
+   if(restart>0)
    {
+       std::cout<<"Read the mesh!"<<std::endl;
        //read the mesh and the design
        std::ostringstream oss;
        oss << std::setw(10) << std::setfill('0') << myrank;
@@ -237,7 +257,7 @@ int main(int argc, char *argv[])
        in.close();
    }
 
-   mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.02,&pmesh);
+   mfem::FilterSolver* fsolv=new mfem::FilterSolver(fradius,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
    fsolv->AddBC(1,0.0);
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
@@ -255,15 +275,16 @@ int main(int argc, char *argv[])
 
    mfem::VolForce* volforce;
    if(dim==2){//2D force
-       volforce=new mfem::VolForce(0.05,2.90,0.5,0.0,-1.0);}
+//       volforce=new mfem::VolForce(0.05,2.90,0.5,0.0,-1.0);} //contilever
+       volforce=new mfem::VolForce(0.05,2.50,2.10,0.0,-1.0);} //portal frame
    else{//3D force - the resolution should be good enough to resolve the radius
-       volforce=new mfem::VolForce(0.05,0.5,0.5,2.90,0.0,1.0,0.0);
+       volforce=new mfem::VolForce(0.10,0.5,0.5,2.90,0.0,1.0,0.0);
    }
 
    mfem::YoungModulus* E=new mfem::YoungModulus();
    //mfem::YoungModulusSIMP* E=new mfem::YoungModulusSIMP();
    E->SetDens(&pgdens);
-   E->SetProjParam(0.9,8.0);//threshold 0.7
+   E->SetProjParam(0.5,8.0);//threshold 0.7
    E->SetEMaxMin(1e-6,1.0);
    E->SetPenal(1.0);
 
@@ -284,7 +305,7 @@ int main(int argc, char *argv[])
 
    mfem::PVolumeQoI* vobj=new mfem::PVolumeQoI(fsolv->GetFilterFES());
    //mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
-   vobj->SetProjection(0.1,8.0);//threshold 0.3
+   vobj->SetProjection(0.5,8.0);//threshold 0.3
    //compute the total volume
    double tot_vol;
    {
@@ -327,8 +348,9 @@ int main(int argc, char *argv[])
 //   mfem::Vector ndesign; ndesign.SetSize(fsolv->GetFilterFES()->GetTrueVSize());
 //   mfem::Vector fvector; fvector.SetSize(fsolv->GetFilterFES()->GetTrueVSize());
 
-   if(restart)
+   if(restart>0)
    {
+       std::cout<<"Read the grid function"<<std::endl;
        //read the mesh and the design
        std::ostringstream oss;
        oss << std::setw(10) << std::setfill('0') << myrank;
@@ -341,6 +363,16 @@ int main(int argc, char *argv[])
        oddens.GetTrueDofs(vtmpv);
        fsolv->Mult(vtmpv,vdens);
        pgdens.SetFromTrueDofs(vdens);
+
+       E->SetPenal(3.0);
+       esolv->FSolve();
+       cpl=cobj->Eval();
+       vol=vobj->Eval(vdens);
+       ivol=ivobj->Eval(vdens);
+       if(myrank==0){
+           std::cout<<"it: "<<00<<" obj="<<cpl<<" vol="<<vol<<" ivol="<<ivol<<std::endl;
+       }
+
    }
 
    {
@@ -361,7 +393,28 @@ int main(int argc, char *argv[])
        paraview_dc.RegisterField("fdesign",&pgdens);
        paraview_dc.RegisterField("pdesign",&pdesign);
 
+       double pp=1.0;
+       double dp=6.0*10.0/max_it;
+
        for(int i=1;i<max_it;i++){
+
+           if(i%10==0){
+               pp=pp+dp;
+               if(pp>3.0){pp=3.0;}
+               E->SetPenal(pp);
+           }
+
+           if(i>300){
+               vobj->SetProjection(0.5,16.0);
+               E->SetProjParam(0.5,16.0);
+           }else
+           if(i>400){
+               vobj->SetProjection(0.5,32.0);
+               E->SetProjParam(0.5,16.0);
+           }
+
+
+
            esolv->FSolve();
 
            //compute the objective and the vol constraint
@@ -369,16 +422,16 @@ int main(int argc, char *argv[])
            vol=vobj->Eval(vdens);
            ivol=ivobj->Eval(vdens);
            if(myrank==0){
-               std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" ivol="<<ivol<<std::endl;
+               std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" ivol="<<ivol<<" pp="<<pp<<std::endl;
            }
            //compute the gradients
            cobj->Grad(ograd);
-           ivobj->Grad(vdens,vgrad);
+           vobj->Grad(vdens,vgrad);
+           //ivobj->Grad(vdens,vgrad);
            //compute the original gradients
            fsolv->MultTranspose(ograd,ogrado);
            fsolv->MultTranspose(vgrad,vgrado);
 
-           /*
            {
                //set xxmin and xxmax
                xxmin=vtmpv; xxmin-=max_ch;
@@ -388,8 +441,8 @@ int main(int argc, char *argv[])
                    if(xxmax[li]>1.0){xxmax[li]=1.0;}
                }
            }
-           */
-           double con=ivol-max_vol*0.8;
+           //double con=ivol-max_vol;
+           double con=vol-max_vol;
            mma->Update(vtmpv,ogrado,&con,&vgrado,xxmin,xxmax);
            /*
            {
@@ -405,7 +458,7 @@ int main(int argc, char *argv[])
            pgdens.SetFromTrueDofs(vdens);
 
            //save the design and the solution
-           if((i%3)==0)
+           if((i%10)==0)
            {
                oddens.SetFromTrueDofs(vtmpv);
                pdesign.ProjectCoefficient(*E);
@@ -415,42 +468,6 @@ int main(int argc, char *argv[])
            }
 
        }//end max_it
-
-       for(int i=max_it;i<2*max_it;i++){
-           esolv->FSolve();
-
-           //compute the objective and the vol constraint
-           cpl=cobj->Eval();
-           vol=vobj->Eval(vdens);
-           ivol=ivobj->Eval(vdens);
-           if(myrank==0){
-               std::cout<<"it: "<<i<<" obj="<<cpl<<" vol="<<vol<<" ivol="<<ivol<<std::endl;
-           }
-           //compute the gradients
-           cobj->Grad(ograd);
-           vobj->Grad(vdens,vgrad);
-           //compute the original gradients
-           fsolv->MultTranspose(ograd,ogrado);
-           fsolv->MultTranspose(vgrad,vgrado);
-
-           double con=vol-max_vol;
-           mma->Update(vtmpv,ogrado,&con,&vgrado,xxmin,xxmax);
-
-           fsolv->Mult(vtmpv,vdens);
-           pgdens.SetFromTrueDofs(vdens);
-
-           //save the design and the solution
-           if((i%3)==0)
-           {
-               oddens.SetFromTrueDofs(vtmpv);
-               pdesign.ProjectCoefficient(*E);
-               paraview_dc.SetCycle(i);
-               paraview_dc.SetTime(i*1.0);
-               paraview_dc.Save();
-           }
-
-       }//end max_it
-
 
    }
 
