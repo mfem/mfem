@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
    // * EnzymeRev
    // * FiniteDiff
    // * DualNumbers
-   const NeoHookeanMaterial<dimension, GradientType::EnzymeFwd> material{};
+   const NeoHookeanMaterial<dimension, GradientType::EnzymeFwd, GradientType::EnzymeRev> material{};
    elasticity_op.SetMaterial(material);
 
    // Define all essential boundaries. In this specific example, this includes
