@@ -16,6 +16,10 @@ permissions:
 
 on:
   pull_request: []
+  push:
+    branches:
+      - master
+      - next
 
 jobs:
   file-headers-check:
