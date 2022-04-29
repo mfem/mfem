@@ -15,7 +15,7 @@ permissions:
   actions: write
 
 on:
-  push:
+  pull_request: []
 
 jobs:
   file-headers-check:
@@ -28,7 +28,7 @@ jobs:
       with:
         access_token: ${{ github.token }}
     - name: checkout mfem
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: copyright check
       id: copyright
