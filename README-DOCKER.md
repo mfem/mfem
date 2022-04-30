@@ -1,19 +1,19 @@
-# Mfem Docker
+# mfem Docker
 
-We provide a [Dockerfile](Dockerfile) to build an ubuntu base image. You can use
+We provide a [Dockerfile](config/docker/Dockerfile) to build an ubuntu base image. You can use
 this image for a demo of using mfem! 🎉️
 
 Updated containers are built and deployed on merges to the main branch and releases.
 
 ### Usage
 
-Here is how to build the containers. Note that we build so it belongs to the same
+Here is how to build the container. Note that we build so it belongs to the same
 namespace as the repository here. "ghcr.io" means "GitHub Container Registry" and
 is the [GitHub packages](https://github.com/features/packages) registry that supports
  Docker images and other OCI artifacts.
 
 ```bash
-$ docker build -t ghcr.io/mfem/mfem-ubuntu .
+$ docker build -f config/docker/Dockerfile -t ghcr.io/mfem/mfem-ubuntu .
 ```
 
 ### Shell
@@ -40,7 +40,7 @@ LD_LIBRARY_PATH=/opt/mfem-env/.spack-env/view/lib:/opt/mfem-env/.spack-env/view/
 PATH=/opt/mfem-env/.spack-env/view/bin:/opt/view/bin:/opt/spack/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ```
 
-#### Example Apps
+#### Examples and MiniApps
 
 If you want to develop a tool that _uses_ mfem, you can find the built libraries in:
 
