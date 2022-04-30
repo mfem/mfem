@@ -25,6 +25,7 @@ Version 4.4.1 (development)
 - Add a new example code, Example 33/33p, to demonstrate the solution of
   spectral fractional PDEs with MFEM.
 
+- Added a Dockerfile for a simple MFEM container, see config/docker/README.md
 
 Version 4.4, released on March 21, 2022
 =======================================

@@ -11,7 +11,7 @@ on:
     inputs:
       whatever:
         description: "This variable does not matter, it's a GH-actions bug."
-        
+
   # On push to main we build and deploy images
   push:
     branches:
@@ -19,8 +19,8 @@ on:
 
   # Publish packages on release
   release:
-    types: [published] 
- 
+    types: [published]
+
 jobs:
   build:
     permissions:
@@ -30,8 +30,8 @@ jobs:
       matrix:
 
         # Dockerfiles to build, a matrix supports future expanded builds
-        container: [["config/docker/Dockerfile", "ghcr.io/mfem/mfem-ubuntu"]]
- 
+        container: [["config/docker/Dockerfile", "ghcr.io/mfem/mfem-ubuntu-base"]]
+
     runs-on: ubuntu-latest
     name: Build
     steps:
@@ -51,7 +51,7 @@ jobs:
         run: |
           echo "dockerfile=$dockerfile" >> $GITHUB_ENV
           echo "uri=$uri" >> $GITHUB_ENV
-        
+
       - name: Pull previous layers for cache
         run: docker pull ${uri}:latest || echo "No container to pull"
 
@@ -63,7 +63,7 @@ jobs:
 
       - name: GHCR Login
         if: (github.event_name != 'pull_request')
-        uses: docker/login-action@v1 
+        uses: docker/login-action@v1
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -73,7 +73,7 @@ jobs:
         if: (github.event_name != 'pull_request')
         run: |
             docker push ${container}
-            
+
       - name: Tag and Push Release
         if: (github.event_name == 'release')
         run: |

@@ -1,6 +1,6 @@
 # mfem Docker
 
-We provide a [Dockerfile](config/docker/Dockerfile) to build an ubuntu base image. You can use
+We provide a [Dockerfile](Dockerfile) to build an ubuntu base image. You can use
 this image for a demo of using mfem! 🎉️
 
 Updated containers are built and deployed on merges to the main branch and releases.
@@ -10,10 +10,16 @@ Updated containers are built and deployed on merges to the main branch and relea
 Here is how to build the container. Note that we build so it belongs to the same
 namespace as the repository here. "ghcr.io" means "GitHub Container Registry" and
 is the [GitHub packages](https://github.com/features/packages) registry that supports
- Docker images and other OCI artifacts.
+ Docker images and other OCI artifacts. From the root of the repository:
 
 ```bash
-$ docker build -f config/docker/Dockerfile -t ghcr.io/mfem/mfem-ubuntu .
+$ docker build -f config/docker/Dockerfile -t ghcr.io/mfem/mfem-ubuntu-base .
+```
+
+or this directory:
+
+```bash
+$ docker build -f Dockerfile -t ghcr.io/mfem/mfem-ubuntu-base ../../
 ```
 
 ### Shell
@@ -21,7 +27,7 @@ $ docker build -f config/docker/Dockerfile -t ghcr.io/mfem/mfem-ubuntu .
 To shell into a container (here is an example with ubuntu):
 
 ```bash
-$ docker run -it ghcr.io/mfem/mfem-ubuntu bash
+$ docker run -it ghcr.io/mfem/mfem-ubuntu-base bash
 ```
 
 Off the bat, you can see mfem libraries are in your path so you can jump into development:
@@ -49,7 +55,7 @@ $ ls /opt/mfem-env/.spack-env/view/
 bin  etc  include  lib  libexec  sbin  share  var
 ```
 
-And yes, this is the working directory when you shell into the container! 
+And yes, this is the working directory when you shell into the container!
 You can find the examples here:
 
 
@@ -57,7 +63,7 @@ You can find the examples here:
 cd share/mfem/examples
 ```
 ```bash
-$ ./ex0 
+$ ./ex0
 Options used:
    --mesh ../data/star.mesh
    --order 1
@@ -94,7 +100,7 @@ And an example in "toys"
 cd toys
 ```
 ```bash
-$ ./automata 
+$ ./automata
 Options used:
    --num-steps 16
    --rule 90
@@ -102,7 +108,7 @@ Options used:
 
 Rule:
  111 110 101 100 011 010 001 000
-  0   1   0   1   1   0   1   0 
+  0   1   0   1   1   0   1   0
 
 Applying rule...done.
 ```
@@ -115,7 +121,7 @@ If you want to develop with your own code base
 (and mfem as is in the container) you can bind to somewhere else in the container (e.g., src)
 
 ```bash
-$ docker run -it ghcr.io/mfem/mfem-ubuntu -v $PWD:/src bash
+$ docker run -it ghcr.io/mfem/mfem-ubuntu-base -v $PWD:/src bash
 ```
 
 In the above, we can pretend your project is in the present working directory (PWD) and we are
