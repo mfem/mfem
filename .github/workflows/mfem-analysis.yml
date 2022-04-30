@@ -54,7 +54,7 @@ jobs:
       with:
         path: ${{ env.HYPRE_TOP_DIR }}
         # TODO: update to new tag
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-master2
+        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-master3
 
     - name: Get Hypre
       if: steps.hypre-cache.outputs.cache-hit != 'true'
