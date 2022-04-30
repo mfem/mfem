@@ -27,7 +27,7 @@ $ docker run -it ghcr.io/mfem/mfem-ubuntu bash
 Off the bat, you can see mfem libraries are in your path so you can jump into development:
 
 ```bash
-env | grep MFEM
+env | grep mfem
 ```
 ```bash
 PKG_CONFIG_PATH=/opt/mfem-env/.spack-env/view/lib/pkgconfig:/opt/mfem-env/.spack-env/view/share/pkgconfig:/opt/mfem-env/.spack-env/view/lib64/pkgconfig
@@ -57,7 +57,7 @@ You can find the examples here:
 cd share/mfem/examples
 ```
 ```bash
-# ./ex0 
+$ ./ex0 
 Options used:
    --mesh ../data/star.mesh
    --order 1
@@ -82,7 +82,7 @@ You can also explore the "mini apps," also in share/mfem, but under miniapps.
 $ cd ../miniapps
 ```
 ```bash
-# ls
+$ ls
 CMakeLists.txt  common            meshing  nurbs        shifted  toys
 adjoint         electromagnetics  mtop     parelag      solvers
 autodiff        gslib             navier   performance  tools
@@ -94,7 +94,7 @@ And an example in "toys"
 cd toys
 ```
 ```bash
-# ./automata 
+$ ./automata 
 Options used:
    --num-steps 16
    --rule 90
