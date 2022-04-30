@@ -9,8 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-BREAK
-
 #ifndef MFEM_HPP
 #define MFEM_HPP
 
