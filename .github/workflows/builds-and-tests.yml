@@ -198,6 +198,9 @@ jobs:
         VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       run: |
         vcpkg install hypre metis --triplet=x64-windows-static
+        # vcpkg builds hypre with an external lapack/blas, so cmake needs to
+        # find the vcpkg-installed lapack and blas for linking
+        echo "MFEM_EXTRA_CONFIG=\"-DMFEM_USE_LAPACK=ON\"" >> ${Env:GITHUB_ENV}
 
     # MFEM build and test
     - name: build
@@ -214,6 +217,7 @@ jobs:
         hypre-dir: ${{ env.HYPRE_TOP_DIR }}
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: ${{ env.MFEM_TOP_DIR }}
+        config-options: ${{ env.MFEM_EXTRA_CONFIG }}
         library-only: ${{ matrix.target == 'dbg' }}
 
     # Run checks (and only checks) on debug targets
