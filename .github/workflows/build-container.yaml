@@ -17,9 +17,6 @@ on:
     branches:
       - master
 
-  # Do build to test works on PR
-  pull_request: []
-
   # Publish packages on release
   release:
     types: [published] 
@@ -33,7 +30,7 @@ jobs:
       matrix:
 
         # Dockerfiles to build, a matrix supports future expanded builds
-        container: [["Dockerfile", "ghcr.io/mfem/mfem-ubuntu"]]
+        container: [["config/docker/Dockerfile", "ghcr.io/mfem/mfem-ubuntu"]]
  
     runs-on: ubuntu-latest
     name: Build
