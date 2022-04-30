@@ -200,7 +200,7 @@ jobs:
         vcpkg install hypre metis --triplet=x64-windows-static
         # vcpkg builds hypre with an external lapack/blas, so cmake needs to
         # find the vcpkg-installed lapack and blas for linking
-        echo "MFEM_EXTRA_CONFIG=\"-DMFEM_USE_LAPACK=ON\"" >> ${Env:GITHUB_ENV}
+        echo 'MFEM_EXTRA_CONFIG="-DMFEM_USE_LAPACK=ON"' >> ${Env:GITHUB_ENV}
 
     # MFEM build and test
     - name: build
