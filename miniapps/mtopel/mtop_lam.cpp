@@ -259,7 +259,7 @@ int main(int argc, char *argv[])
 
    mfem::FilterSolver* fsolv=new mfem::FilterSolver(fradius,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
-   fsolv->AddBC(1,0.0);
+   fsolv->AddBC(2,0.0);
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
    mfem::ParGridFunction oddens(fsolv->GetDesignFES());
    mfem::Vector vdens; vdens.SetSize(fsolv->GetFilterFES()->GetTrueVSize()); vdens=0.0;
@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
 //       volforce=new mfem::VolForce(0.05,2.90,0.5,0.0,-1.0);} //contilever
        volforce=new mfem::VolForce(0.05,2.50,2.10,0.0,-1.0);} //portal frame
    else{//3D force - the resolution should be good enough to resolve the radius
-       volforce=new mfem::VolForce(0.10,0.5,0.5,2.90,0.0,1.0,0.0);
+       volforce=new mfem::VolForce(0.10,0.0,0.0,2.90,0.0,0.0,1.0);
    }
 
    mfem::YoungModulus* E=new mfem::YoungModulus();
@@ -289,7 +289,7 @@ int main(int argc, char *argv[])
    E->SetPenal(1.0);
 
    mfem::ElasticitySolver* esolv=new mfem::ElasticitySolver(&pmesh,1);
-   esolv->AddDispBC(2,4,0.0);
+   esolv->AddDispBC(1,4,0.0);
    esolv->SetVolForce(*volforce);
    esolv->AddMaterial(new mfem::LinIsoElasticityCoefficient(*E,0.2));
    esolv->FSolve();
@@ -416,15 +416,19 @@ int main(int argc, char *argv[])
 
            //compute the objective and its gradients
            cpl=0.0;
-           volforce->Set(0.05,2.50,2.60,0.0,-1.0);
+           volforce->Set(0.15,-1.4,-1.4,2.5,0.5,-0.5,-1.0);
            esolv->FSolve();
            tpl=cobj->Eval(); cpl=cpl+tpl;
            cobj->Grad(ograd);
-           volforce->Set(0.05,4.90,2.90,1.0,-1.0);
+           volforce->Set(0.15,+1.4,-1.4,2.5,0.5,0.5,-1.0);
            esolv->FSolve();
            tpl=cobj->Eval(); cpl=cpl+tpl;
            cobj->Grad(vgrad); ograd+=vgrad;
-           volforce->Set(0.05,0.10,2.90,-1.0,-1.0);
+           volforce->Set(0.15,+1.4,+1.4,2.5,-0.5,0.5,-1.0);
+           esolv->FSolve();
+           tpl=cobj->Eval(); cpl=cpl+tpl;
+           cobj->Grad(vgrad); ograd+=vgrad;
+           volforce->Set(0.15,-1.4,+1.4,2.5,-0.5,-0.5,-1.0);
            esolv->FSolve();
            tpl=cobj->Eval(); cpl=cpl+tpl;
            cobj->Grad(vgrad); ograd+=vgrad;
