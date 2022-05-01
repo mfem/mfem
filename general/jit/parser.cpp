@@ -31,7 +31,7 @@ struct JitPreProcessor
 {
    struct dbg
    {
-      static constexpr bool DEBUG = false;
+      static constexpr bool DEBUG = true;
       static constexpr uint8_t COLOR = 226;
       dbg(): dbg(COLOR) { }
       dbg(const uint8_t color)
@@ -126,7 +126,7 @@ struct JitPreProcessor
 
    JitPreProcessor(std::istream &in, std::ostream &out, std::string &file) :
       in(in), out(out), file(file),
-      line(2), block(-2), parenthesis(-2) {}
+      line(1), block(-2), parenthesis(-2) {}
 
    void check(const bool test, const char *error)
    {
@@ -202,12 +202,7 @@ struct JitPreProcessor
       }
    }
 
-   void next(bool keep = true)
-   {
-      //dbg(229) << "[";
-      skip_space(keep); comments(keep);
-      //dbg(229) << "]";
-   }
+   void next(bool keep = true) { skip_space(keep); comments(keep); }
 
    void drop() { next(false); }
 
@@ -236,28 +231,20 @@ struct JitPreProcessor
       int k = 0;
       assert(n < M);
       static char c[M];
-      for (k = 0; k <= n; k++) { c[k] = 0; }
       for (k = 0; k < n && good(); k++) { c[k] = get(); }
-      std::string rtn(c);
+      std::string rtn((c[k]=0,c));
       if (!good()) { return rtn; }
       for (int l = 0; l < k; l++) { in.unget(); }
       return rtn;
    }
 
-   template<int M = 16> std::string peek_id()
+   template<int M = 16> std::string peek_id(const int n = M-1)
    {
       int k = 0;
-      constexpr int n = M;
+      assert(n < M);
       static char c[M];
-      for (k = 0; k < n; k++) { c[k] = 0; }
-      for (k = 0; k < n; k++)
-      {
-         if (!is_id()) { break; }
-         c[k] = get();
-         assert(good());
-         assert(!in.eof());
-      }
-      std::string str(c);
+      for (k = 0; k < n && good() && is_id() && !in.eof(); k++) { c[k] = get(); }
+      std::string str((c[k]=0, c));
       for (int l = 0; l < k; l++) { in.unget(); }
       return str;
    }
@@ -273,13 +260,10 @@ struct JitPreProcessor
    bool is_eq() { return is_char('='); }
    bool is_coma() { return is_char(','); }
    bool is_star() { return is_char('*'); }
+   bool is_linefeed() { return is_char('\n'); }
    bool is_semicolon() { return is_char(';'); }
    bool is_left_parenthesis() { return is_char('('); }
    bool is_right_parenthesis() { return is_char(')'); }
-
-   bool is_linefeed() { return is_char('\n'); }
-   bool is_vertical_tab() { return is_char('\v'); }
-   bool is_carriage_return() { return is_char('\r'); }
 
    bool mfem_jit_args()
    {
@@ -321,12 +305,11 @@ struct JitPreProcessor
             next();
             arg.has_default_value = true;
             assert(is_digit()); // verify next token is a digit
-            arg.default_value = get_digit();
-            out << arg.default_value;
+            out << (arg.default_value = get_digit());
          }
          else
          {
-            // check if id has a T_id in ker.Tparams_src
+            // check if id has a T_ID in ker.Tparams_src
             std::string t_id("t_");
             t_id += id;
             std::transform(t_id.begin(), t_id.end(), t_id.begin(), ::toupper);
@@ -340,27 +323,16 @@ struct JitPreProcessor
          next();
          args.push_back(arg);
          arg = argument_t(); // prepare new argument
-         assert(not in.eof());
+         assert(!in.eof());
 
          next();
-         if (is_right_parenthesis())
-         {
-            argc -= 1;
-            if (argc >= 0) // we had nested '('
-            {
-               put();
-               continue;
-            }
-         }
-         // end of the arguments
-         if (argc < 0) { break; }
-         check(in.peek()==',', "no coma while in args");
-         put();
+         if (is_right_parenthesis()) { argc -= 1; }
+         if (argc < 0) { break; } // end of the arguments
+         check(put()==',', "no coma while in args");
       }
       next();
 
       // Prepare the kernel strings from the arguments
-      //assert(ker.is_prefix);
       ker.Targs.clear();
       ker.Tparams.clear();
       ker.Tformat.clear();
@@ -480,19 +452,16 @@ struct JitPreProcessor
 
       next(); // 'void' check
       check(is_void(), "kernel return type should be void");
-
       const std::string void_return_type = get_id();
       out << void_return_type;
-      // Get kernel's name or namespace
-      ker.name.clear();
-      next();
-      const std::string name = get_id();
-      out << name;
-      ker.name = name;
-      next();
+
+      next(); // Get kernel's name
+      out << (ker.name = get_id());
+
       // check we are at the left parenthesis
-      check(in.peek()=='(',"no 1st '(' in kernel");
-      put();
+      next();
+      check(put()=='(', "no 1st '(' in kernel");
+
       // Get the arguments
       mfem_jit_args();
       // Make sure we have hit the last ')' of the arguments
