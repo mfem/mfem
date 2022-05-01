@@ -135,7 +135,8 @@ struct JitPreProcessor
 
    void add_coma(std::string &arg) { if (!arg.empty()) { arg += ",";  } }
 
-   void add_arg(std::string &as, const char *a) { add_coma(as); as += a; }
+   template<typename T>
+   void add_arg(std::string &as, const T a) { add_coma(as); as += a; }
 
    bool good() { in.peek(); return in.good(); }
 
@@ -255,6 +256,9 @@ struct JitPreProcessor
    bool is_template() { return is_string("template"); }
    bool is_static() { return is_string("static"); }
    bool is_void() { return is_string("void"); }
+
+   bool is_space() { return std::isspace(in.peek()); }
+   bool is_alpha() { return std::isalpha(in.peek()); }
 
    bool is_char(const unsigned char c) { return in.peek() == c; }
    bool is_eq() { return is_char('='); }
@@ -461,6 +465,39 @@ struct JitPreProcessor
       // check we are at the left parenthesis
       next();
       check(put()=='(', "no 1st '(' in kernel");
+
+      bool eq = false;;
+      std::string id, args;
+      auto last = [](std::string &s) { return s.substr(s.find_last_of('.')+1);};
+      while (good() && in.peek() != ')')
+      {
+         comments();
+         assert(is_space() || is_id() || is_star() || is_eq() || is_coma());
+         if (is_space())
+         {
+            if (!id.empty() && id.back() != '.')
+            {
+               if (!eq) { id += '.'; }
+               dbg(225) << "'" << id << "'";
+            }
+         }
+         if (is_eq())
+         {
+            eq = true;
+            id = id.substr(0, id.size()-1);
+         }
+         if (is_id() && !eq) { id += in.peek(); }
+         if (is_coma())
+         {
+            dbg(87) << "'" << id << "'";
+            add_arg(args, last(id));
+            id.clear();
+            eq = false;
+         }
+         put();
+      }
+      add_arg(args, last(id));
+      dbg() << "\n" << args << "\n"; STOP;
 
       // Get the arguments
       mfem_jit_args();
