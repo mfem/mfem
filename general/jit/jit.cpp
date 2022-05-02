@@ -18,6 +18,7 @@
 
 #include <chrono>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <thread>
 
@@ -29,6 +30,7 @@
 
 #include "../communication.hpp" // will pull mpi.h
 #include "../globals.hpp" // needed when !MFEM_USE_MPI
+#include "../error.hpp" // for MFEM_CONTRACT_VAR
 
 #include "jit.hpp"
 
@@ -84,13 +86,11 @@ static bool Root() { return Rank() == 0; }
 /// Do a MPI barrier if MPI has been initialized.
 static void Sync(bool status = EXIT_SUCCESS)
 {
-   dbg();
 #ifdef MFEM_USE_MPI
    if (Mpi::IsInitialized())
    {
       MPI_Allreduce(MPI_IN_PLACE, &status, 1, MPI_C_BOOL, MPI_LOR, MPI_COMM_WORLD);
-      dbg("status:%d",status);
-      assert(status == 0); // synchronization error
+      assert(status == EXIT_SUCCESS); // synchronization error
    }
 #endif
 }
@@ -184,7 +184,6 @@ struct Cxx
       ::signal(SIGABRT, Handler); // abort
       ::signal(SIGKILL, Handler); // kill
       ::signal(SIGFPE,  Handler); // floating point exception
-      //::signal(SIGTERM, Handler); // software termination from kill
    }
 
    static void Finalize()
@@ -245,9 +244,9 @@ int Jit::Init(int *argc, char ***argv)
    return EXIT_SUCCESS;
 }
 
-void Jit::Finalize() { dbg(); if (Root()) { Cxx::Finalize(); } }
+void Jit::Finalize() { if (Root()) { Cxx::Finalize(); } }
 
-#ifndef MFEM_USE_CUDA
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 #define MFEM_JIT_DEVICE_CODE ""
 #define MFEM_JIT_COMPILER_OPTION
 #define MFEM_JIT_LINKER_OPTION "-Wl,"
@@ -311,21 +310,17 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
       Cxx::Command()
             << MFEM_JIT_CXX << MFEM_JIT_BUILD_FLAGS
             << MFEM_JIT_COMPILER_OPTION "-fPIC"
-            << "-c"
             << MFEM_JIT_COMPILER_OPTION "-pipe"
             << MFEM_JIT_COMPILER_OPTION "-Wno-unused-variable"
-#ifdef MFEM_USE_CUDA
             << MFEM_JIT_DEVICE_CODE
-#endif
-            << "-o" << co
-            << cc;
+            << "-c" << "-o" << co << cc;
       if (Cxx::System()) { return EXIT_FAILURE; }
-      //std::remove(cc);
+      std::remove(cc);
 
       // Update archive
       Cxx::Command() << "ar -rv" << LIB_AR << co;
       if (Cxx::System()) { return EXIT_FAILURE; }
-      //std::remove(co);
+      std::remove(co);
 
       // Create shared library
       Cxx::Command()
@@ -342,24 +337,21 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
 
    if (Root()) { status = Compile(); }
    Sync(status);
-   dbg("ok");
 
-   if (!handle)
-   {
-      dbg("no handle, dlopen(%s)",LIB_SO);
-      handle = ::dlopen(LIB_SO, DLOPEN_MODE);
-   }
+   if (!handle) { handle = ::dlopen(LIB_SO, DLOPEN_MODE); }
    else
    {
-      dbg("handle, but no symbol, dlopen(%s)",so);
       // we had a handle, but no symbol, use the newest
       handle = ::dlopen(so, DLOPEN_MODE);
    }
-   dbg("handle:%p",handle);
    Sync();
-   assert(handle); // no handle found
+   if (!handle)
+   {
+      fprintf(stderr, "%s\n", dlerror());
+      exit(EXIT_FAILURE);
+   }
 
-   Sync(EXIT_SUCCESS);
+   Sync();
    std::remove(so); // remove the temporary shared lib after use
 
    assert(::dlsym(handle, symbol)); // no symbol found

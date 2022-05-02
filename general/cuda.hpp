@@ -28,6 +28,7 @@
 // Define a CUDA error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'cudaError_t'. This macro evaluates 'x' and raises an error if the
 // result is not cudaSuccess.
+#ifndef MFEM_JIT_COMPILATION
 #define MFEM_GPU_CHECK(x) \
    do \
    { \
@@ -38,6 +39,7 @@
       } \
    } \
    while (0)
+#endif // MFEM_JIT_COMPILATION
 #endif // MFEM_USE_CUDA
 
 // Define the MFEM inner threading macros

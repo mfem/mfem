@@ -570,8 +570,6 @@ inline void ForallWrap(const bool use_dev, const int N,
    MFEM_CONTRACT_VAR(d_body);
    if (!use_dev) { goto backend_cpu; }
 
-#ifndef MFEM_JIT_FORALL_COMPILATION
-
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
    // If Backend::RAJA_CUDA is allowed, use it
    if (Device::Allows(Backend::RAJA_CUDA))
@@ -621,8 +619,6 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::RAJA_CPU is allowed, use it
    if (Device::Allows(Backend::RAJA_CPU)) { return RajaSeqWrap(N, h_body); }
 #endif
-
-#endif // MFEM_JIT_FORALL_COMPILATION
 
 backend_cpu:
    // Handle Backend::CPU. This is also a fallback for any allowed backends not

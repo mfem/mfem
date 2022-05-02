@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      int par_ref_levels = 0;
+      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();

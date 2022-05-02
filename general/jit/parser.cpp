@@ -26,7 +26,9 @@
 namespace mfem
 {
 
-#define STOP { fflush(0); assert(false); }
+#define MFEM_QUOTE(...) #__VA_ARGS__
+#define RAW(...) R"delimiter(#__VA_ARGS__)delimiter"
+#define MFEM_STOP { fflush(0); assert(false); }
 
 struct JitPreProcessor
 {
@@ -261,9 +263,38 @@ struct JitPreProcessor
       ker.source.clear();
       ker.source.seekp(0);
       out << "\n\tconst char *source = R\"_(";
+
       // switching from out to ker.source to compute the hash
-      ker.source << "#define MFEM_JIT_FORALL_COMPILATION"
+      ker.source << "#define MFEM_JIT_COMPILATION"
                  << "\n#define MFEM_DEVICE_HPP";
+
+#ifdef MFEM_USE_CUDA
+      ker.source << "\n#define MFEM_GPU_CHECK(...)";
+
+      // used in forall.hpp
+      ker.source << "\n"
+                 << MFEM_QUOTE(
+                    struct Backend
+      {
+         enum: unsigned long
+         {
+            CPU  = 1 << 0,
+            CUDA = 1 << 2,
+            HIP  = 1 << 3,
+            DEBUG_DEVICE = 1 << 14
+         };
+      };
+
+      namespace mfem
+      {
+         class Device{
+            static constexpr unsigned long backends = 0 | 2;
+            static inline bool Allows(unsigned long b_mask)
+            { return Device::backends & b_mask; }
+         };
+      }
+                 );
+#endif
 
       ker.source << "\n#include \"" << MFEM_INSTALL_DIR
                  << "/include/mfem/general/forall.hpp\"";
@@ -313,10 +344,20 @@ struct JitPreProcessor
    {
       check(get()==')',"no last right parenthesis found");
       next_check([&]() {return get()==';';}, "no last semicolon found");
+
 #ifdef MFEM_USE_CUDA
+#define MFEM_DEV_PREFIX "Cu"
+#endif
+
+#ifdef MFEM_USE_HIP
+#define MFEM_DEV_PREFIX "Hip"
+#endif
+
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
       const char *ND = ker.forall.dim == 2 ? "2D" : "3D";
       ker.source << "if (use_dev){"
-                 << "\nCuWrap" << ND << "(" << ker.forall.N.c_str() << ", "
+                 << "\n" << MFEM_DEV_PREFIX << "Wrap" << ND
+                 << "(" << ker.forall.N.c_str() << ", "
                  << "[=] MFEM_DEVICE (int " << ker.forall.e <<")"
                  << ker.forall.body.str() << ","
                  << ker.forall.X.c_str() << ","
@@ -324,11 +365,6 @@ struct JitPreProcessor
                  << ker.forall.Z.c_str() << ");"
                  << " } else { ";
 #endif
-      /*ker.source << "for (int " <<  ker.forall.e << " = 0; "
-                 << ker.forall.e << " < " << ker.forall.N.c_str() << "; "
-                 << ker.forall.e << "++)";
-      ker.source << ker.forall.body.str();*/
-
       ker.source << "for (int k=0; k<" << ker.forall.N.c_str() << "; k++) {"
                  << "[&] (int " << ker.forall.e <<")"
                  << ker.forall.body.str() << "(k);"
@@ -383,8 +419,7 @@ struct JitPreProcessor
           << "\n\tdelete[] Tsrc;"
           << "\n}";
 
-      // #warning should be CUDA dependent
-      out << "\nconst bool use_dev = Device::Allows(Backend::CUDA_MASK);";
+      out << "\nconst bool use_dev = Device::Allows(Backend::DEVICE_MASK);";
       out << "\nks_iter->second.operator()(use_dev," << ker.Sargs << ");";
    }
 
