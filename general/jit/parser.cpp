@@ -26,10 +26,6 @@
 namespace mfem
 {
 
-#define MFEM_QUOTE(...) #__VA_ARGS__
-#define RAW(...) R"delimiter(#__VA_ARGS__)delimiter"
-#define MFEM_STOP { fflush(0); assert(false); }
-
 struct JitPreProcessor
 {
    struct kernel_t
@@ -266,34 +262,21 @@ struct JitPreProcessor
 
       // switching from out to ker.source to compute the hash
       ker.source << "#define MFEM_JIT_COMPILATION"
-                 << "\n#define MFEM_DEVICE_HPP";
+                 << "\n#define MFEM_MEM_MANAGER_HPP"
+                 << "\n#define MFEM_DEVICE_HPP"; // will pull HYPRE_config.h
 
 #ifdef MFEM_USE_CUDA
+      // avoid mfem_cuda_error insode MFEM_GPU_CHECK
       ker.source << "\n#define MFEM_GPU_CHECK(...)";
 
       // used in forall.hpp
-      ker.source << "\n"
-                 << MFEM_QUOTE(
-                    struct Backend
-      {
-         enum: unsigned long
-         {
-            CPU  = 1 << 0,
-            CUDA = 1 << 2,
-            HIP  = 1 << 3,
-            DEBUG_DEVICE = 1 << 14
-         };
-      };
-
-      namespace mfem
-      {
-         class Device{
-            static constexpr unsigned long backends = 0 | 2;
-            static inline bool Allows(unsigned long b_mask)
-            { return Device::backends & b_mask; }
-         };
-      }
-                 );
+      ker.source << "\nstruct Backend { enum: unsigned long {"
+                 << "CPU=1<<0, CUDA=1<<2, HIP=1<<3, DEBUG_DEVICE=1<<14};};"
+                 << "namespace mfem{ class Device{"
+                 << "   static constexpr unsigned long backends = 0 | 2;"
+                 << "   static inline bool Allows(unsigned long b_mask)"
+                 << "      { return Device::backends & b_mask; }"
+                 << "}/*Device*/;}/*mfem*/";
 #endif
 
       ker.source << "\n#include \"" << MFEM_INSTALL_DIR

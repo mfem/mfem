@@ -17,6 +17,7 @@
 #include "error.hpp"
 #include "backends.hpp"
 #include "device.hpp"
+#include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
 
 #define MFEM_JIT
@@ -555,6 +556,7 @@ struct HipWrap<3>
 };
 
 #endif // MFEM_USE_HIP
+
 
 /// The forall kernel body wrapper
 template <const int DIM, typename DBODY, typename HBODY>
