@@ -82,12 +82,14 @@ static bool IsInitialized()
 static bool Root() { return Rank() == 0; }
 
 /// Do a MPI barrier if MPI has been initialized.
-static void Sync(bool status)
+static void Sync(bool status = EXIT_SUCCESS)
 {
+   dbg();
 #ifdef MFEM_USE_MPI
    if (Mpi::IsInitialized())
    {
       MPI_Allreduce(MPI_IN_PLACE, &status, 1, MPI_C_BOOL, MPI_LOR, MPI_COMM_WORLD);
+      dbg("status:%d",status);
       assert(status == 0); // synchronization error
    }
 #endif
@@ -308,7 +310,8 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
       // Compilation cc => co
       Cxx::Command()
             << MFEM_JIT_CXX << MFEM_JIT_BUILD_FLAGS
-            << "-fPIC" << "-c"
+            << MFEM_JIT_COMPILER_OPTION "-fPIC"
+            << "-c"
             << MFEM_JIT_COMPILER_OPTION "-pipe"
             << MFEM_JIT_COMPILER_OPTION "-Wno-unused-variable"
 #ifdef MFEM_USE_CUDA
@@ -317,12 +320,12 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
             << "-o" << co
             << cc;
       if (Cxx::System()) { return EXIT_FAILURE; }
-      std::remove(cc);
+      //std::remove(cc);
 
       // Update archive
       Cxx::Command() << "ar -rv" << LIB_AR << co;
       if (Cxx::System()) { return EXIT_FAILURE; }
-      std::remove(co);
+      //std::remove(co);
 
       // Create shared library
       Cxx::Command()
@@ -331,21 +334,29 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
       if (Cxx::System()) { return EXIT_FAILURE; }
 
       // Install shared library
-      Cxx::Command()
-            << "install" << "-v" << MFEM_JIT_INSTALL_BACKUP << so << LIB_SO;
+      Cxx::Command() << "install" << "-v" << MFEM_JIT_INSTALL_BACKUP
+                     << so << LIB_SO;
       if (Cxx::System()) { return EXIT_FAILURE; }
       return EXIT_SUCCESS;
    }; // Compile
 
    if (Root()) { status = Compile(); }
    Sync(status);
+   dbg("ok");
 
-   if (!handle) { handle = ::dlopen(LIB_SO, DLOPEN_MODE); }
+   if (!handle)
+   {
+      dbg("no handle, dlopen(%s)",LIB_SO);
+      handle = ::dlopen(LIB_SO, DLOPEN_MODE);
+   }
    else
    {
+      dbg("handle, but no symbol, dlopen(%s)",so);
       // we had a handle, but no symbol, use the newest
       handle = ::dlopen(so, DLOPEN_MODE);
    }
+   dbg("handle:%p",handle);
+   Sync();
    assert(handle); // no handle found
 
    Sync(EXIT_SUCCESS);

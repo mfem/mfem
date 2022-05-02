@@ -561,7 +561,7 @@ static void PADiffusionDiagonal2D(const int NE,
 }
 
 // Shared memory PA Diffusion Diagonal 2D kernel
-//MFEM_JIT
+MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionDiagonal2D(const int NE,
                                       const bool symmetric,
@@ -759,7 +759,7 @@ static void PADiffusionDiagonal3D(const int NE,
 }
 
 // Shared memory PA Diffusion Diagonal 3D kernel
-//MFEM_JIT
+MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0>
 static void SmemPADiffusionDiagonal3D(const int NE,
                                       const bool symmetric,
@@ -1180,7 +1180,7 @@ static void PADiffusionApply2D(const int NE,
 }
 
 // Shared memory PA Diffusion Apply 2D kernel
-//MFEM_JIT
+MFEM_JIT
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 static void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
@@ -1558,7 +1558,7 @@ void SmemPADiffusionApply3D(const int NE,
    auto d = Reshape(d_, Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
    auto x = Reshape(x_, D1D, D1D, D1D, NE);
    auto y = Reshape(y_, D1D, D1D, D1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,/**/
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
