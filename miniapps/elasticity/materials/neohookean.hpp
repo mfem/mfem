@@ -89,6 +89,10 @@ struct NeoHookeanMaterial
       {
          return stress_fd(dudx);
       }
+      else if (energy_gradient_type == GradientType::DualNumbers)
+      {
+         return stress_dual(dudx);
+      }
       else
       {
          return 0.0*dudx;
@@ -160,7 +164,6 @@ struct NeoHookeanMaterial
       for (int i = 0; i < dim; ++i) {
          for (int j = 0; j < dim; ++j) {
             direction[i][j] = 1;
-            // T dW = 0.0;
             __enzyme_fwddiff<void>(strain_energy_density_wrapper, enzyme_const, this,
                                    enzyme_dupnoneed, &dudx, &direction,
                                    enzyme_dup, &W, &(P[i][j]));
@@ -185,6 +188,27 @@ struct NeoHookeanMaterial
             auto Wm = strain_energy_density(H);
             H[i][j] += h;
             P[i][j] = (Wp - Wm) / (2.0 * h);
+         }
+      }
+      return P;
+   }
+
+   template <typename T>
+   MFEM_HOST_DEVICE tensor<T, dim, dim>
+   stress_dual(const tensor<T, dim, dim> &dudx) const
+   {
+      tensor<T, dim, dim> dir{};
+      tensor<T, dim, dim> P{};
+      for (int k = 0; k < dim; ++k) {
+         for (int l = 0; l < dim; ++l) {
+            dir[k][l] = 1;
+            auto H(make_tensor<dim, dim>([&](int i, int j)
+            {
+               return mfem::internal::dual<T, T> {dudx[i][j], dir[i][j]};
+            }));
+            auto W = strain_energy_density(H);
+            P[k][l] = get_gradient(W);
+            dir[k][l] = 0;
          }
       }
       return P;
@@ -221,6 +245,9 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<double, dim, dim, dim, dim>
    gradient(tensor<double, dim, dim> dudx) const
    {
+      // TODO: make this be derivative of Piola stress for
+      // consistency with weak form
+      // BT 05/03/2022
       constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
 
       tensor<double, dim, dim> F = I + dudx;

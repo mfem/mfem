@@ -20,9 +20,11 @@ int main()
   auto P_fd = mat.stress_fd(H);
   auto P_enzyme_rev = mat.stress_enzyme_rev(H);
   auto P_enzyme_fwd = mat.stress_enzyme_fwd(H);
+  auto P_dual = mat.stress_dual(H);
   cout << "symbolic\t" << P_symbolic << endl;
   cout << "finitediff\t" << P_fd << endl;
   cout << "enzymerev\t" << P_enzyme_rev << endl;
   cout << "enzymefwd\t" << P_enzyme_fwd << endl;
+  cout << "dual\t\t" << P_dual << endl;
   return 0;
 }
