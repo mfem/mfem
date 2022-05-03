@@ -364,6 +364,10 @@ struct NeoHookeanMaterial
    action_of_gradient_symbolic(const tensor<double, dim, dim> &du_dx,
                                const tensor<double, dim, dim> &ddu_dx) const
    {
+      // TODO
+      // shift this to First elasticities (derivative of Piola stress)
+      // to be consistent with the rest of the code
+      // BT 05/03/2022
       constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
 
       tensor<double, dim, dim> F = I + du_dx;

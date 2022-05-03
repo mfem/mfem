@@ -14,17 +14,39 @@ int main()
                           {0.689309323130592, 0.198321409053159, 0.901973313462065}}};
 
   double W = mat.strain_energy_density(H);
-  std::cout << "SED = " << W << endl;
+  std::cout << "Strain energy density = " << W << "\n" << endl;
 
   auto P_symbolic = mat.stress_symbolic(H);
   auto P_fd = mat.stress_fd(H);
   auto P_enzyme_rev = mat.stress_enzyme_rev(H);
   auto P_enzyme_fwd = mat.stress_enzyme_fwd(H);
   auto P_dual = mat.stress_dual(H);
+  cout << "Stress\n"
+       << "------" << endl;
   cout << "symbolic\t" << P_symbolic << endl;
-  cout << "finitediff\t" << P_fd << endl;
-  cout << "enzymerev\t" << P_enzyme_rev << endl;
-  cout << "enzymefwd\t" << P_enzyme_fwd << endl;
-  cout << "dual\t\t" << P_dual << endl;
+  cout << "finite diff\t" << P_fd << endl;
+  cout << "enzyme rev\t" << P_enzyme_rev << endl;
+  cout << "enzyme fwd\t" << P_enzyme_fwd << endl;
+  cout << "dual numbers\t" << P_dual << endl;
+
+  cout << "\n\n" << endl;
+
+  tensor<double, 3, 3> Hdot{{{0.191653881479253, 0.445956210862074, 0.038732049150475},
+                             {0.589233685844341, 0.092360587237104, 0.259746940075709},
+                             {0.830970655782669, 0.485472875958392, 0.03308538443643 }}};
+
+  auto dP_symbolic = mat.action_of_gradient_symbolic(H, Hdot);
+  auto dP_fd = mat.action_of_gradient_fd(H, Hdot);
+  auto dP_enzyme_rev = mat.action_of_gradient_enzyme_rev(H, Hdot);
+  auto dP_enzyme_fwd = mat.action_of_gradient_enzyme_fwd(H, Hdot);
+  auto dP_dual = mat.action_of_gradient_dual(H, Hdot);
+  cout << "Elasticities\n"
+       << "------------" << endl;
+  cout << "symbolic\t" << dP_symbolic << endl;
+  cout << "finite diff\t" << dP_fd << endl;
+  cout << "enzyme rev\t" << dP_enzyme_rev << endl;
+  cout << "enzyme fwd\t" << dP_enzyme_fwd << endl;
+  cout << "dual numbers\t" << dP_dual << endl;
+
   return 0;
 }
