@@ -51,7 +51,10 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE T
    strain_energy_density(const tensor<T, dim, dim> & dudx) const
    {
-      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      // Doesn't work with IsotropicIdentity and fwddiff mode.
+      // type deduction is not what I expect - why?
+      // Ask Julian
+      auto I = mfem::internal::Identity<dim>();
       auto F = I + dudx;
       auto J = det(F);
       T Jm23 = pow(J, -2.0/3.0);
@@ -73,6 +76,10 @@ struct NeoHookeanMaterial
       if (energy_gradient_type == GradientType::Symbolic)
       {
          return stress_symbolic(dudx);
+      }
+      else if (energy_gradient_type == GradientType::EnzymeFwd)
+      {
+         return stress_enzyme_fwd(dudx);
       }
       else if (energy_gradient_type == GradientType::EnzymeRev)
       {
@@ -114,12 +121,13 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<T, dim, dim>
    stress_symbolic(const tensor<T, dim, dim> &__restrict__ dudx) const
    {
-      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      auto I = mfem::internal::Identity<dim>();
       T J = det(I + dudx);
       T p = -2.0 * D1 * J * (J - 1);
       auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
       auto sigma = -(p / J) * I + 2 * (C1 / pow(J, 5.0 / 3.0)) * devB;
-      return sigma;
+      auto F = dudx + I;
+      return J*sigma*transpose(inv(F));
    }
 
 #ifdef MFEM_USE_ENZYME
@@ -141,6 +149,26 @@ struct NeoHookeanMaterial
       return P;
    }
 #endif
+
+   template <typename T>
+   MFEM_HOST_DEVICE tensor<T, dim, dim>
+   stress_enzyme_fwd(const tensor<T, dim, dim> &dudx) const
+   {
+      tensor<T, dim, dim> direction{};
+      tensor<T, dim, dim> P{};
+      T W;
+      for (int i = 0; i < dim; ++i) {
+         for (int j = 0; j < dim; ++j) {
+            direction[i][j] = 1;
+            // T dW = 0.0;
+            __enzyme_fwddiff<void>(strain_energy_density_wrapper, enzyme_const, this,
+                                   enzyme_dupnoneed, &dudx, &direction,
+                                   enzyme_dup, &W, &(P[i][j]));
+            direction[i][j] = 0;
+         }
+      }
+      return P;
+   }
 
    template <typename T>
    MFEM_HOST_DEVICE tensor<T, dim, dim>
