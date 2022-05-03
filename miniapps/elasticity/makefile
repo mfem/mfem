@@ -27,7 +27,7 @@ ELASTICITY_SRC = elasticity_driver.cpp\
 	preconditioners/diagonal_preconditioner.cpp
 ELASTICITY_OBJ = $(ELASTICITY_SRC:.cpp=.o)
 
-MINIAPPS = elasticity
+MINIAPPS = elasticity tests
 MFEM_TESTS = elasticity
 
 .SUFFIXES:
@@ -48,6 +48,9 @@ ELASTICITY_INCLUDES = -I.
 
 elasticity: $(ELASTICITY_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(ELASTICITY_OBJ) $(MFEM_LIBS)
+
+tests: tests.o
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $< $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $(ELASTICITY_INCLUDES) -c $< -o $@
