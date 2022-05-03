@@ -1582,7 +1582,7 @@ tensor<T, n, n> inv(const tensor<T, n, n>& A)
  * TODO: compare performance of this hardcoded implementation to just using inv() directly
  */
 template <typename value_type, typename gradient_type, int n> MFEM_HOST_DEVICE
-dual<value_type, gradient_type> inv(
+tensor<dual<value_type, gradient_type>, n, n> inv(
    tensor<dual<value_type, gradient_type>, n, n> A)
 {
    auto invA = inv(get_value(A));
@@ -1599,6 +1599,29 @@ dual<value_type, gradient_type> inv(
       }
       return dual<value_type, gradient_type> {value, gradient};
    });
+}
+
+/** @brief  */
+template <typename value_type, typename gradient_type, int m>
+MFEM_HOST_DEVICE tensor< value_type, m> get_value(const tensor<dual<value_type, gradient_type>, m>& arg)
+{
+  tensor<value_type, m> value{};
+  for (int i = 0; i < m; i++) {
+    value[i] = arg[i].value;
+  }
+  return value;
+}
+
+template <typename value_type, typename gradient_type, int m, int n>
+MFEM_HOST_DEVICE tensor< value_type, m, n > get_value(const tensor<dual<value_type, gradient_type>, m, n>& arg)
+{
+  tensor<value_type, m, n> value{};
+  for (int i = 0; i < m; i++) {
+    for (int j = 0; j < n; j++) {
+      value[i][j] = arg[i][j].value;
+    }
+  }
+  return value;
 }
 
 /**

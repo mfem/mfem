@@ -376,11 +376,11 @@ std::ostream& operator<<(std::ostream& os, dual<value_type, gradient_type> A)
 MFEM_HOST_DEVICE constexpr dual<double, double> make_dual(double x) { return {x, 1.0}; }
 
 /** @brief return the "value" part from a given type. For non-dual types, this is just the identity function */
-template <typename T> MFEM_HOST_DEVICE T get_value(const T& arg) { return arg; }
+MFEM_HOST_DEVICE constexpr double get_value(const double& arg) { return arg; }
 
 /** @brief return the "value" part from a dual number type */
 template <typename value_type, typename gradient_type>
-MFEM_HOST_DEVICE gradient_type get_value(dual<value_type, gradient_type> arg)
+MFEM_HOST_DEVICE value_type get_value(dual<value_type, gradient_type> arg)
 {
    return arg.value;
 }
