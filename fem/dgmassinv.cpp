@@ -249,7 +249,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
             break;
          }
 
-         if (++i > MAXIT) { return; }
+         if (++i > MAXIT) { break; }
 
          const double beta = betanom/nom;
          DGMassAxpy(e, NE, ND, 1.0, z, beta, d, d); // d = z + beta*d
