@@ -77,7 +77,10 @@ static std::string strerror()
 {
    std::string buff(80, '\0');
 #ifdef _WIN32
-   buff = "unknown error";
+   if (strerror_s(&buff[0], buff.size(), errno) != 0)
+   {
+      buff = "Unknown error";
+   }
 #else
    char* p = check_strerror_r(strerror_r(errno, &buff[0], buff.size()), &buff[0],
                               buff.size());
