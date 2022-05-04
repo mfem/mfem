@@ -170,23 +170,23 @@ int main(int argc, char *argv[])
    a->AddTrialIntegrator(new MixedScalarMassIntegrator(negomeg),0,0);
 #endif   
 
-// (u , ∇ q)
+   // (u , ∇ q)
    a->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),1,0);
 
-// -(p, ∇⋅v)
+   // -(p, ∇⋅v)
    a->AddTrialIntegrator(new MixedScalarWeakGradientIntegrator(one),0,1);
 
-// - ω (u,v)
+   // - ω (u,v)
    a->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(negomeg)),1,1);
 
-// < p̂, v⋅n>
+   // < p̂, v⋅n>
    a->AddTrialIntegrator(new NormalTraceIntegrator,2,1);
 
-// < û,q >
+   // < û,q >
    a->AddTrialIntegrator(new TraceIntegrator,3,0);
 
 
-// test integrators 
+   // test integrators 
 
    //space-induced norm for H(div) × H1
    // (∇q,∇δq)

@@ -419,14 +419,21 @@ int main(int argc, char *argv[])
 
       BlockDiagonalPreconditioner * M = new BlockDiagonalPreconditioner(tdof_offsets);
       HypreBoomerAMG * amg = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(0,0));
+      // amg->SetCycleNumSweeps(5, 5);
       amg->SetPrintLevel(0);
       HypreAMS * ams = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(1,1), hatu_fes);
       ams->SetPrintLevel(0);
-
       M->SetDiagonalBlock(0,amg);
       M->SetDiagonalBlock(1,ams);
       M->SetDiagonalBlock(2,amg);
       M->SetDiagonalBlock(3,ams);
+      // for (int i =0; i<2; i++)
+      // {
+      //    MUMPSSolver * mumps = new MUMPSSolver;
+      //    mumps->SetOperator((HypreParMatrix &)BlockA_r->GetBlock(i,i));
+      //    M->SetDiagonalBlock(i,mumps);
+      //    M->SetDiagonalBlock(i+2,mumps);
+      // }
 
       
       CGSolver cg(MPI_COMM_WORLD);

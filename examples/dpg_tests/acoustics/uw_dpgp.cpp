@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
    int dof0;
    if (myid == 0)
    {
-      mfem::out << " Refinement |" 
+      mfem::out << "\n Refinement |" 
                << "    Dofs    |" 
                << "   ω   |" 
                << "  L2 Error  |" 
@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
                <<  "---------------------"    
                <<  "---------------------"    
                <<  "---------------------"    
-               <<  "-------------------" << endl;   
+               <<  "----------------" << endl;   
    }
 
 
@@ -347,7 +347,7 @@ int main(int argc, char *argv[])
       M->SetDiagonalBlock(skip+1,prec);
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-6);
+      cg.SetRelTol(1e-7);
       cg.SetMaxIter(20000);
       cg.SetPrintLevel(0);
       cg.SetPreconditioner(*M);
@@ -420,6 +420,7 @@ int main(int argc, char *argv[])
       {
          mfem::out << std::right << std::setw(11) << i << " | " 
                    << std::setw(10) <<  dof0 << " | " 
+                   << std::setprecision(0) << std::fixed
                    << std::setw(2) <<  2*rnum << " π  | " 
                    << std::setprecision(3) 
                    << std::setw(10) << std::scientific <<  err0 << " | " 
@@ -435,7 +436,7 @@ int main(int argc, char *argv[])
                    << std::setprecision(5) 
                    << std::scientific 
                    << std::endl;
-      }   
+      }    
 
       if (visualization)
       {
