@@ -239,6 +239,18 @@ void BatchedLOR_AMS::FormGradientMatrix()
    G->CopyColStarts();
 }
 
+template <typename T>
+static inline const T *HypreRead(const Memory<T> &mem)
+{
+   return mem.Read(GetHypreMemoryClass(), mem.Capacity());
+}
+
+template <typename T>
+static inline T *HypreWrite(Memory<T> &mem)
+{
+   return mem.Write(GetHypreMemoryClass(), mem.Capacity());
+}
+
 void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
 {
    // Create true-DOF vectors x, y, and z that contain the coordinates of the
@@ -266,16 +278,20 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    const int sdim = dim;
    const int ntdofs = R->Height();
 
+   const MemoryClass mc = GetHypreMemoryClass();
+   bool dev = (mc == MemoryClass::DEVICE);
+
    xyz_tvec = new Vector(ntdofs*dim);
 
-   auto xyz_tv = Reshape(xyz_tvec->Write(), ntdofs, dim);
-   const auto xyz_e = Reshape(X_vert.Read(), dim, ndof_per_el, nel_ho);
-   const auto d_offsets = el_restr->Offsets().Read();
-   const auto d_indices = el_restr->Indices().Read();
-   const auto ltdof_ldof = R->ReadJ();
+   auto xyz_tv = Reshape(HypreWrite(xyz_tvec->GetMemory()), ntdofs, dim);
+   const auto xyz_e =
+      Reshape(HypreRead(X_vert.GetMemory()), dim, ndof_per_el, nel_ho);
+   const auto d_offsets = HypreRead(el_restr->Offsets().GetMemory());
+   const auto d_indices = HypreRead(el_restr->Indices().GetMemory());
+   const auto ltdof_ldof = HypreRead(R->GetMemoryJ());
 
    // Go from E-vector format directly to T-vector format
-   MFEM_FORALL(i, ntdofs,
+   MFEM_HYPRE_FORALL(i, ntdofs,
    {
       const int j = d_offsets[ltdof_ldof[i]];
       for (int c = 0; c < sdim; ++c)
@@ -288,8 +304,6 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    // Make x, y, z HypreParVectors point to T-vector data
    HYPRE_BigInt glob_size = vert_fes.GlobalTrueVSize();
    HYPRE_BigInt *cols = vert_fes.GetTrueDofOffsets();
-
-   bool dev = Device::GetDeviceMemoryClass() == MemoryClass::DEVICE;
 
    double *d_x_ptr = xyz_tv + 0*ntdofs;
    x = new HypreParVector(vert_fes.GetComm(), glob_size, d_x_ptr, cols, dev);
