@@ -295,7 +295,8 @@ struct JitPreProcessor
 
       // switching from out to ker.source to compute the hash,
       // defining 'MFEM_JIT_COMPILATION' to avoid MFEM_GPU_CHECK in cuda.hpp
-      ker.source << "#define MFEM_JIT_COMPILATION"
+      ker.source << "#include  <unordered_map>"
+                 << "\n#define MFEM_JIT_COMPILATION"
                  << "\n#define MFEM_MEM_MANAGER_HPP" // will pull HYPRE_config.h
                  << "\n#define MFEM_DEVICE_HPP";
 

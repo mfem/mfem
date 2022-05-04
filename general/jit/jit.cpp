@@ -317,7 +317,7 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
             << MFEM_JIT_DEVICE_CODE
             << "-c" << "-o" << co << cc;
       if (Cxx::System()) { return EXIT_FAILURE; }
-      //std::remove(cc);
+      std::remove(cc);
 
       // Update archive
       Cxx::Command() << "ar -rv" << LIB_AR << co;

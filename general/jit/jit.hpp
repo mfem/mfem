@@ -18,6 +18,7 @@
 
 #include <cassert>
 #include <functional> // for std::hash
+#include  <unordered_map> // needed for the kernel maps
 
 namespace mfem
 {
