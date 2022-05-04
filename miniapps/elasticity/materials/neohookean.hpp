@@ -225,7 +225,7 @@ struct NeoHookeanMaterial
     * @return stress
     */
    MFEM_HOST_DEVICE static void
-   stress_wrapper(NeoHookeanMaterial<dim, stress_gradient_type> *self,
+   stress_wrapper(NeoHookeanMaterial<dim, stress_gradient_type, energy_gradient_type> *self,
                   tensor<double, dim, dim> &dudx,
                   tensor<double, dim, dim> &sigma)
    {
