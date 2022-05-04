@@ -40,16 +40,17 @@
 
 namespace mfem
 {
+#warning TODO: use MFEM_LINK_FLAGS, MFEM_EXT_LIBS, MFEM_LIBS, MFEM_LIB_FILE
 
 namespace internal
 {
 
-static constexpr int SYMBOL_SIZE = 1+16+1; // k + hash + 0
-
 static constexpr char LIB_AR[] = "libmjit.a";
 static constexpr char LIB_SO[] = "./libmjit.so";
 
-static constexpr int DLOPEN_MODE = RTLD_NOW | RTLD_LOCAL;
+static constexpr int SYMBOL_SIZE = 1+16+1; // k + hash + 0
+
+static constexpr int DLOPEN_MODE = RTLD_LAZY | RTLD_LOCAL;
 
 /// 64 bits hash to char* function
 static void Hash64(const size_t h, char *str, const char *ext = "")
@@ -109,6 +110,7 @@ struct Cxx
       Command() {}
       std::ostringstream cmd {};
       Command& operator<<(const char *c) { cmd << c << ' '; return *this; }
+      Command& operator<<(const std::string &s) { return *this << s.c_str(); }
       operator const char *()
       {
          std::ostringstream cmd_mv = std::move(cmd);
@@ -119,10 +121,10 @@ struct Cxx
       }
    } command;
 
-   template <typename T> static void Ack(const int xx)
+   template <typename OP> static void Ack(const int xx)
    {
-      while (T()(*Mem(), xx))
-      { std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
+      while (OP()(*Mem(), xx))
+      { std::this_thread::sleep_for(std::chrono::milliseconds(200)); }
    }
    static constexpr int ACK = ~0, SYSTEM = 0x55555555, EXIT = 0xAAAAAAAA;
    static void AckEQ(const int xx = ACK) { Ack<std::equal_to<int>>(xx); }
@@ -139,7 +141,7 @@ struct Cxx
    static bool IsExit() { return Read() == EXIT; }
    static bool IsAck() { return Read() == ACK; }
 
-   /// Ask the JIT process to launch a system call.
+   // Ask the JIT process to launch a system call.
    static int System()
    {
       const char *command = Command();
@@ -200,6 +202,50 @@ struct Cxx
           ::munmap(Mem(), sizeof(int)) != 0)
       { assert(false); /* finalize memory error! */ }
    }
+
+   struct Options
+   {
+      virtual std::string DeviceCode() { return std::string(); }
+      virtual std::string Compiler() { return std::string(); }
+      virtual std::string Linker() { return std::string("-Wl,"); }
+   };
+
+   struct DeviceOptions: Options
+   {
+      std::string DeviceCode() override { return std::string("--device-c"); }
+      std::string Compiler() override { return std::string("-Xcompiler="); }
+      std::string Linker() override { return std::string("-Xlinker="); }
+   };
+
+   struct Linux
+   {
+      virtual std::string Prefix() { return Xlinker()+std::string("--whole-archive"); }
+      virtual std::string Postfix() { return Xlinker()+std::string("--no-whole-archive"); }
+      virtual std::string Backup() { return std::string("--backup=none"); }
+   };
+
+   struct Apple: public Linux
+   {
+      std::string Prefix() override { return std::string("-all_load"); }
+      std::string Postfix() override { return std::string(); }
+      std::string Backup() override { return std::string(); }
+   };
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+   Options opt;
+#else
+   DeviceOptions opt;
+#endif
+#ifdef __APPLE__
+   Apple ar;
+#else
+   Linux ar;
+#endif
+   static std::string XDeviceCode() { return Get().opt.DeviceCode(); }
+   static std::string Xlinker() { return Get().opt.Linker(); }
+   static std::string Xcompiler() { return Get().opt.Compiler(); }
+   static std::string BegLoad() { return Get().ar.Prefix();  }
+   static std::string EndLoad() { return Get().ar.Postfix(); }
+   static std::string Backup() { return Get().ar.Backup(); }
 };
 Cxx Cxx::cxx_singleton {}; // Initialize the unique Cxx context.
 
@@ -248,30 +294,6 @@ int Jit::Init(int *argc, char ***argv)
 
 void Jit::Finalize() { if (Root()) { Cxx::Finalize(); } }
 
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-#define MFEM_JIT_DEVICE_CODE ""
-#define MFEM_JIT_COMPILER_OPTION
-#define MFEM_JIT_LINKER_OPTION "-Wl,"
-#else
-// Compile each input file into an relocatable device code object file
-#define MFEM_JIT_DEVICE_CODE "--device-c"
-#define MFEM_JIT_LINKER_OPTION "-Xlinker="
-#define MFEM_JIT_COMPILER_OPTION "-Xcompiler="
-#endif
-
-#ifndef __APPLE__
-#define MFEM_JIT_INSTALL_BACKUP  "--backup=none"
-#define MFEM_JIT_AR_LOAD_PREFIX MFEM_JIT_LINKER_OPTION "--whole-archive"
-#define MFEM_JIT_AR_LOAD_POSTFIX  MFEM_JIT_LINKER_OPTION "--no-whole-archive"
-#else
-#define MFEM_JIT_INSTALL_BACKUP  ""
-#define MFEM_JIT_AR_LOAD_PREFIX  "-all_load"
-#define MFEM_JIT_AR_LOAD_POSTFIX  ""
-#endif
-
-#define MFEM_JIT_BEG_LOAD MFEM_JIT_AR_LOAD_PREFIX
-#define MFEM_JIT_END_LOAD MFEM_JIT_AR_LOAD_POSTFIX
-
 void Jit::AROpen(void* &handle)
 {
    if (!std::fstream(LIB_AR)) { return; }
@@ -282,8 +304,8 @@ void Jit::AROpen(void* &handle)
       dbg("%s => %s", LIB_AR, LIB_SO);
       Cxx::Command()
             << MFEM_JIT_CXX << "-shared" << "-o" << LIB_SO
-            << MFEM_JIT_BEG_LOAD << LIB_AR << MFEM_JIT_END_LOAD
-            << MFEM_JIT_LINKER_OPTION "-rpath,.";
+            << Cxx::BegLoad() << LIB_AR << Cxx::EndLoad()
+            << Cxx::Xlinker() + "-rpath,.";
       status = Cxx::System();
    }
    Sync(status);
@@ -311,10 +333,10 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
       // Compilation cc => co
       Cxx::Command()
             << MFEM_JIT_CXX << MFEM_JIT_BUILD_FLAGS
-            << MFEM_JIT_COMPILER_OPTION "-fPIC"
-            << MFEM_JIT_COMPILER_OPTION "-pipe"
-            << MFEM_JIT_COMPILER_OPTION "-Wno-unused-variable"
-            << MFEM_JIT_DEVICE_CODE
+            << Cxx::XDeviceCode()
+            << Cxx::Xcompiler() + "-fPIC"
+            << Cxx::Xcompiler() + "-pipe"
+            << Cxx::Xcompiler() + "-Wno-unused-variable"
             << "-c" << "-o" << co << cc;
       if (Cxx::System()) { return EXIT_FAILURE; }
       std::remove(cc);
@@ -327,11 +349,11 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
       // Create shared library
       Cxx::Command()
             << MFEM_JIT_CXX << "-shared" << "-o" << so
-            << MFEM_JIT_BEG_LOAD << LIB_AR << MFEM_JIT_END_LOAD;
+            << Cxx::BegLoad() << LIB_AR << Cxx::EndLoad();
       if (Cxx::System()) { return EXIT_FAILURE; }
 
       // Install shared library
-      Cxx::Command() << "install" << "-v" << MFEM_JIT_INSTALL_BACKUP
+      Cxx::Command() << "install" << "-v" << Cxx::Backup()
                      << so << LIB_SO;
       if (Cxx::System()) { return EXIT_FAILURE; }
       return EXIT_SUCCESS;
@@ -347,15 +369,10 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
       handle = ::dlopen(so, DLOPEN_MODE);
    }
    Sync();
-   if (!handle)
-   {
-      fprintf(stderr, "%s\n", dlerror());
-      exit(EXIT_FAILURE);
-   }
+   if (!handle) { std::cerr << ::dlerror() << std::endl; return EXIT_FAILURE; }
 
    Sync();
    std::remove(so); // remove the temporary shared lib after use
-
    assert(::dlsym(handle, symbol)); // no symbol found
    return EXIT_SUCCESS;
 }

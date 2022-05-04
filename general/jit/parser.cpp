@@ -383,7 +383,9 @@ struct JitPreProcessor
                  << ker.forall.body.str() << ","
                  << ker.forall.X.c_str() << ","
                  << ker.forall.Y.c_str() << ","
-                 << ker.forall.Z.c_str() << ");"
+                 << ker.forall.Z.c_str()
+                 << (ker.forall.dim == 3 ? ",0":"") // grid
+                 << ");"
                  << " } else { ";
 #endif
       ker.source << "for (int k=0; k<" << ker.forall.N.c_str() << "; k++) {"
@@ -425,10 +427,10 @@ struct JitPreProcessor
       // Add kernel in map if not already present
       out << "\nauto ks_iter = ks.find(hash);";
       out << "\nif (ks_iter == ks.end()){"
-          << "\n\tconst int n = 1 + " // source size
+          << "\n\tconst int N = 1 + " // source size
           << "snprintf(nullptr, 0, source, hash, hash, hash, " << ker.Targs << ");"
-          << "\n\tchar *Tsrc = new char[n];"
-          << "\n\tsnprintf(Tsrc, n, source, hash, hash, hash, "<< ker.Targs << ");"
+          << "\n\tchar *Tsrc = new char[N];"
+          << "\n\tsnprintf(Tsrc, N, source, hash, hash, hash, "<< ker.Targs << ");"
           << "\n\tstd::stringstream ss;" // prepare symbol from computed hash
           << "\n\tss << 'k' << std::setfill('0') "
           << "<< std::setw(16) << std::hex << (hash|0) << std::dec;"
