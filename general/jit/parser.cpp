@@ -290,7 +290,11 @@ struct JitPreProcessor
       // Generate the kernel prefix for this kernel
       ker.advance(); // Body => Prefix
       ker.source.clear();
-      ker.source.seekp(0);
+      ker.source.str(std::string());
+      // flush also ker.forall.body that can be missed with a kernel w/o forall
+      ker.forall.body.clear();
+      ker.forall.body.str(std::string());
+
       out << "\n\tconst char *source = R\"_(";
 
       // switching from out to ker.source to compute the hash,
@@ -328,8 +332,7 @@ struct JitPreProcessor
    void mfem_forall_prefix(const std::string &id)
    {
       ker.forall.dim = id.c_str()[12] - 0x30;
-      ker.forall.body.clear();
-      ker.forall.body.seekp(0);
+      ker.forall.body.str(std::string());
       next_check([&]() {return get()=='(';}, "no 1st '(' in MFEM_FORALL");
       next(); ker.forall.e = get_id();
       next_check([&]() {return get()==',';}, "no 1st coma in MFEM_FORALL");
@@ -407,7 +410,7 @@ struct JitPreProcessor
                                     std::string(MFEM_INSTALL_DIR));
 
       // output all kernel source, after having computed its hash
-      out << ker.source.str() << ")_\";"; // end of source
+      out << ker.source.str().c_str() << ")_\";"; // end of source
 
       out << "\nconst size_t hash = Jit::Hash("
           << "0x" << std::hex << seed << std::dec << "ul, "
@@ -444,6 +447,7 @@ struct JitPreProcessor
       out << "\nks_iter->second.operator()(use_dev," << ker.Sargs << ");";
 
       out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
+      out.flush();
    }
 
    void tokens()
