@@ -333,12 +333,12 @@ DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes)
    const int elem_dofs = fes.GetFE(0)->GetDof();
 
    blocks.SetSize(ne*elem_dofs*elem_dofs);
-   ipiv.SetSize(ne*elem_dofs);
 
    MassIntegrator m;
    m.AssembleEA(fes, blocks, false);
 
-   tensor.UseExternalData(blocks.GetData(), elem_dofs, elem_dofs, ne);
+   tensor.UseExternalData(NULL, elem_dofs, elem_dofs, ne);
+   tensor.GetMemory().MakeAlias(blocks.GetMemory(), 0, blocks.Size());
    BatchLUFactor(tensor, ipiv);
 }
 

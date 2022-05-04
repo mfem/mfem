@@ -23,9 +23,8 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
                         );
    auto order = GENERATE(2, 3, 4, 5);
    auto btype1 = GENERATE(BasisType::GaussLobatto, BasisType::GaussLegendre);
-   auto btype2 = GENERATE(BasisType::GaussLobatto, BasisType::GaussLegendre);
 
-   CAPTURE(mesh_filename, order, btype1, btype2);
+   CAPTURE(mesh_filename, order, btype1);
 
    Mesh mesh = Mesh::LoadFromFile(mesh_filename);
    DG_FECollection fec(order, mesh.Dimension(), btype1);
@@ -59,6 +58,9 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
 
    SECTION("Local CG")
    {
+      auto btype2 = GENERATE(BasisType::GaussLobatto, BasisType::GaussLegendre);
+      CAPTURE(btype2);
+
       DGMassInverse m_inv(fes, btype2);
       m_inv.SetAbsTol(tol);
       m_inv.SetRelTol(0.0);
@@ -75,6 +77,7 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
       {
          DGMassInverse_Direct m_inv_direct(fes);
          m_inv_direct.Mult(B, X3);
+
          X3 -= X1;
          REQUIRE(X3.Normlinf() == MFEM_Approx(0.0, 1e2*tol, 1e2*tol));
       }

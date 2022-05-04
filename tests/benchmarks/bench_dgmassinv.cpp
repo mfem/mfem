@@ -35,6 +35,7 @@ struct DGMassBenchmark
    BilinearForm m;
    DGMassInverse massinv_lobatto;
    DGMassInverse massinv_legendre;
+   DGMassInverse_Direct massinv_direct;
 
    Vector B, X;
 
@@ -47,14 +48,15 @@ struct DGMassBenchmark
    DGMassBenchmark(int p_, int N_, double eps_):
       p(p_),
       N(N_),
-      // mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
       mesh(CreateKershawMesh(N,eps_)),
-      fec(p, dim, BasisType::GaussLobatto),
+      // fec(p, dim, BasisType::GaussLobatto),
+      fec(p, dim, BasisType::Positive),
       fes(&mesh, &fec),
       n(fes.GetTrueVSize()),
       m(&fes),
       massinv_lobatto(fes, BasisType::GaussLobatto),
       massinv_legendre(fes, BasisType::GaussLegendre),
+      massinv_direct(fes),
       B(n),
       X(n),
       dofs(n),
@@ -118,6 +120,17 @@ struct DGMassBenchmark
       mdofs += 1e-6 * dofs;
    }
 
+   void Direct()
+   {
+      X = 0.0;
+      MFEM_DEVICE_SYNC;
+      tic_toc.Start();
+      massinv_direct.Mult(B, X);
+      MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
+      mdofs += 1e-6 * dofs;
+   }
+
    void MassApply()
    {
       X = 0.0;
@@ -135,7 +148,7 @@ struct DGMassBenchmark
 // The different orders the tests can run
 #define P_ORDERS bm::CreateDenseRange(1,5,1)
 // The different sides of the mesh
-#define N_SIDES bm::CreateDenseRange(2,20,1)
+#define N_SIDES bm::CreateDenseRange(2,30,2)
 
 #define MAX_NDOFS 2*1024*1024
 
@@ -159,6 +172,7 @@ BENCHMARK(Name##_##prefix)\
    Benchmark(FullCG, prefix, eps) \
    Benchmark(LocalCGLobatto, prefix, eps) \
    Benchmark(LocalCGLegendre, prefix, eps) \
+   Benchmark(Direct, prefix, eps) \
    Benchmark(MassApply, prefix, eps)
 
 MassBenchmark(1_0, 1.0)
