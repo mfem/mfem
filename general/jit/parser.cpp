@@ -28,26 +28,48 @@ namespace mfem
 
 struct JitPreProcessor
 {
+   struct dbg
+   {
+      static constexpr bool DEBUG = false;
+      static constexpr uint8_t COLOR = 226;
+      dbg(): dbg(COLOR) { }
+      dbg(const uint8_t color)
+      {
+         if (!DEBUG) { return; }
+         std::cout << "\033[38;5;" << std::to_string(color==0?COLOR:color) << "m";
+      }
+      ~dbg() { if (DEBUG) { std::cout << "\033[m"; std::cout.flush(); } }
+      template <typename T> dbg& operator<<(const T &arg)
+      { if (DEBUG) { std::cout << arg;} return *this; }
+      template<typename T, typename... Args>
+      inline void operator()(const T &arg, Args... args) const
+      { operator<<(arg); operator()(args...); }
+      template<typename T>
+      inline void operator()(const T &arg) const { operator<<(arg); }
+   };
+
    struct kernel_t
    {
       struct fsm_t
       {
+         static constexpr uint8_t c = 201;
          typedef void (fsm_t::*State) ();
          State state;
-         fsm_t(): state(&fsm_t::wait) { }
-         void wait()    { next(&fsm_t::jit); }
-         void jit()     { next(&fsm_t::targs); }
-         void targs()   { next(&fsm_t::symbol); }
-         void symbol()  { next(&fsm_t::params); }
-         void params()  { next(&fsm_t::body); }
-         void body()    { next(&fsm_t::prefix); }
-         void prefix()  { next(&fsm_t::forall); }
-         void forall()  { next(&fsm_t::kernel); }
-         void kernel()  { next(&fsm_t::postfix); }
-         void postfix() { next(&fsm_t::wait); }
+         fsm_t(): state(&fsm_t::wait) { dbg(c)<<"\n[WAIT]"; }
+         void wait()    { dbg(c)<<"\n[JIT]";     next(&fsm_t::jit); }
+         void jit()     { dbg(c)<<"\n[TARGS]";   next(&fsm_t::targs); }
+         void targs()   { dbg(c)<<"\n[Symbol]";  next(&fsm_t::symbol); }
+         void symbol()  { dbg(c)<<"\n[PARAMS]";  next(&fsm_t::params); }
+         void params()  { dbg(c)<<"\n[BODY]";    next(&fsm_t::body); }
+         void body()    { dbg(c)<<"\n[PREFIX]";  next(&fsm_t::prefix); }
+         void prefix()  { dbg(c)<<"\n[FORALL]";  next(&fsm_t::forall); }
+         void forall()  { dbg(c)<<"\n[KERNEL]";  next(&fsm_t::kernel); }
+         void kernel()  { dbg(c)<<"\n[POSTFIX]"; next(&fsm_t::postfix); }
+         void postfix() { dbg(c)<<"\n[WAIT]";    next(&fsm_t::wait); }
          void next(State next) { state = next; }
          void advance() { (this->*state)(); }
       } fsm;
+
       void advance() { fsm.advance(); }
       bool is_wait() { return fsm.state == &fsm_t::wait; }
       bool is_targs() { return fsm.state == &fsm_t::targs; }
@@ -80,10 +102,8 @@ struct JitPreProcessor
    JitPreProcessor(std::istream &in, std::ostream &out, std::string &file) :
       in(in), out(out), file(file), line(1), block(-1), parenthesis(-1) { }
 
-   void check(const bool test, const char *error = "")
-   {
-      if (!test) { throw error_t(line, file, error); }
-   }
+   void error(const char *msg) { throw error_t(line, file, msg);}
+   void check(const bool tst, const char *msg) { if (!tst) { error(msg); }}
 
    template<typename T>
    void add_arg(std::string &s, const T a) { if (!s.empty()) { s += ","; } s += a; }
@@ -92,36 +112,41 @@ struct JitPreProcessor
 
    char get() { return static_cast<char>(in.get()); }
 
-   char put() { return put(get()); }
+   char put() { assert(good()); return put(get()); }
 
    char put(const char c)
    {
-      if (ker.is_targs())  { ker.Tparams += c; }
-      if (ker.is_params()) { ker.Sparams += c; }
-      if (ker.is_prefix()) { ker.source << c; return c;}
-      if (ker.is_forall()) { ker.forall.body << c; return c;}
-      if (ker.is_kernel()) { ker.forall.body << c; return c;}
-      out.put(c);
       if (c == '\n') { line++; }
+      if (ker.is_targs())   { ker.Tparams += c; }
+      if (ker.is_params())  { ker.Sparams += c; }
+      if (ker.is_prefix())  { ker.source << c; return c;}
+      if (ker.is_postfix()) { ker.source << c; return c;}
+      if (ker.is_forall())  { ker.forall.body << c; return c;}
+      if (ker.is_kernel())  { ker.forall.body << c; return c;}
+      out.put(c);
       return c;
    }
 
-   bool is_space() { return std::isspace(in.peek()); }
+   bool is_space() { return good() && std::isspace(in.peek()); }
 
-   void skip_space() { while (std::isspace(in.peek())) { put(); } }
+   void skip_space() { while (is_space()) { put(); } }
+
+   bool is_comment()
+   {
+      if (!good()) { return false; }
+      assert(good());
+      if (in.peek() != '/') { return false; }
+      in.get();
+      assert(!in.eof());
+      const int c = in.peek();
+      in.unget();
+      if (c == '/' || c == '*') { return true; }
+      return false;
+   }
 
    void comments()
    {
-      auto is_comment = [&]()
-      {
-         if (in.peek() != '/') { return false; }
-         in.get();
-         assert(!in.eof());
-         const int c = in.peek();
-         in.unget();
-         if (c == '/' || c == '*') { return true; }
-         return false;
-      };
+      if (!good()) { return; }
 
       while (is_comment())
       {
@@ -130,15 +155,15 @@ struct JitPreProcessor
          if (put()=='/') { while (!is_linefeed()) { put(); } }
          else
          {
-            while (good() && peek_n(2) != "*/") { put(); }
-            check(put() == '*');
-            check(put() == '/');
+            while (peek_n(2) != "*/") { put(); }
+            check(put() == '*', "unknown comment");
+            check(put() == '/', "unknown comment");
          }
          skip_space();
       }
    }
 
-   void next() { skip_space(); comments(); }
+   void next() { assert(good()); skip_space(); comments(); }
 
    bool is_id() { const char c = in.peek(); return std::isalnum(c) || c == '_'; }
 
@@ -157,8 +182,8 @@ struct JitPreProcessor
       static char c[M];
       for (k = 0; k < n && good() && !in.eof() && op(); k++) { c[k] = get(); }
       std::string str((c[k]=0, c));
-      if (!good()) { return str; }
       for (int l = 0; l < k; l++) { in.unget(); }
+      if (!good()) { return str; }
       return str;
    }
    std::string peek_id(int n = 15) { return peek(n, [&]() { return is_id(); });}
@@ -199,20 +224,22 @@ struct JitPreProcessor
          [](unsigned char c) { return std::tolower(c); });
          return id;
       };
-      while (good() && in.peek() != '>')
+      while (good())
       {
          next();
+         assert(good());
          if (is_coma()) { ker.Tformat += ",%d";}
          if (peek_n(2) == "T_")
          {
             std::string id = peek_id();
             add_arg(ker.Targs, (id.erase(0, 2), to_lower(id)));
          }
+         if (in.peek() == '>') { break;}
+         assert(good());
          put(); // to ker.Tparams
+         assert(good());
       }
       ker.advance(); // Targ => Symbol
-
-      next(); // '>' ?
       check(put()=='>',"no '>' in kernel!");
 
       next(); // 'static' ?
@@ -237,7 +264,13 @@ struct JitPreProcessor
       auto last = [](std::string &s) { return s.substr(s.find_last_of('.')+1);};
       while (good() && in.peek() != ')')
       {
-         comments();
+         if (is_comment())
+         {
+            comments();
+            if (!id.empty() && id.back() != '.' && !eq) { id += '.'; }
+         }
+         assert(good());
+         if (in.peek() == ')') { break; } // to handle only comments
          assert(is_space() || is_id() || is_star() || is_eq() || is_coma());
          if (is_space() && !id.empty() && id.back() != '.' && !eq) { id += '.'; }
          if (is_eq()) { eq = true; id = id.substr(0, id.size()-1); }
@@ -260,24 +293,25 @@ struct JitPreProcessor
       ker.source.seekp(0);
       out << "\n\tconst char *source = R\"_(";
 
-      // switching from out to ker.source to compute the hash
+      // switching from out to ker.source to compute the hash,
+      // defining 'MFEM_JIT_COMPILATION' to avoid MFEM_GPU_CHECK in cuda.hpp
       ker.source << "#define MFEM_JIT_COMPILATION"
-                 << "\n#define MFEM_MEM_MANAGER_HPP"
-                 << "\n#define MFEM_DEVICE_HPP"; // will pull HYPRE_config.h
+                 << "\n#define MFEM_MEM_MANAGER_HPP" // will pull HYPRE_config.h
+                 << "\n#define MFEM_DEVICE_HPP";
 
 #ifdef MFEM_USE_CUDA
-      // avoid mfem_cuda_error insode MFEM_GPU_CHECK
+      // avoid mfem_cuda_error inside MFEM_GPU_CHECK
       ker.source << "\n#define MFEM_GPU_CHECK(...)";
-
+#endif
       // used in forall.hpp
       ker.source << "\nstruct Backend { enum: unsigned long {"
                  << "CPU=1<<0, CUDA=1<<2, HIP=1<<3, DEBUG_DEVICE=1<<14};};"
-                 << "namespace mfem{ class Device{"
-                 << "   static constexpr unsigned long backends = 0 | 2;"
+                 << "namespace mfem{ struct Device{"
+                 << "   static constexpr unsigned long backends = 0;"
                  << "   static inline bool Allows(unsigned long b_mask)"
                  << "      { return Device::backends & b_mask; }"
                  << "}/*Device*/;}/*mfem*/";
-#endif
+
 
       ker.source << "\n#include \"" << MFEM_INSTALL_DIR
                  << "/include/mfem/general/forall.hpp\"";
@@ -287,7 +321,7 @@ struct JitPreProcessor
       ker.source << "\n\ntemplate<" << ker.Tparams << ">"
                  << "\nvoid " << ker.name << "_%016lx"
                  << "(const bool use_dev," << ker.Sparams << "){"
-                 << "\n#line " << std::to_string(line) << " \"" << file << "\"";
+                 << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
    }
 
    void mfem_forall_prefix(const std::string &id)
@@ -351,8 +385,11 @@ struct JitPreProcessor
       ker.source << "for (int k=0; k<" << ker.forall.N.c_str() << "; k++) {"
                  << "[&] (int " << ker.forall.e <<")"
                  << ker.forall.body.str() << "(k);"
-                 << "}"
                  << "}";
+
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+      ker.source << "}";
+#endif
    }
 
    void mfem_jit_postfix()
@@ -404,66 +441,112 @@ struct JitPreProcessor
 
       out << "\nconst bool use_dev = Device::Allows(Backend::DEVICE_MASK);";
       out << "\nks_iter->second.operator()(use_dev," << ker.Sargs << ");";
+
+      out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
    }
 
    void tokens()
    {
+      assert(good());
       auto is_end_of = [&](int &c, const char i, const char o)
       {
+         assert(good());
          if (c >= 0 && in.peek() == i) { c++; }
          if (c >= 0 && in.peek() == o) { c--; }
-         if (c == -1) { return true; }
+         if (c < 0) { return true; }
          return false;
       };
 
       if (peek_n(4) == "MFEM")
       {
+         assert(good());
          const std::string &id = get_id();
+         assert(good());
+
          auto MFEM_token = [&](const std::string &id, const char *token)
          {
             if (strncmp(id.c_str(), "MFEM_", 5) != 0 ) { return false; }
-            const int mn = strlen("MFEM_"), mt = strlen(token);
-            if (strncmp(id.c_str() + mn, token, mt) != 0 ) { return false; }
+            const size_t mn = strlen("MFEM_"), mt = strlen(token);
+            if (strncmp(id.c_str() + mn, token, mt) != 0) { return false; }
+            if (strlen(id.c_str()) != mn+mt) { return false; }
             return true;
          };
 
          const bool JIT = MFEM_token(id, "JIT");
+         assert(good());
          if (ker.is_wait() && JIT) // MFEM_JIT
          {
             ker.advance(); // wait => jit
             mfem_jit_prefix();
             block = 0; // Start counting the block statements
+            assert(good());
          }
 
-         const bool forall = MFEM_token(id, "FORALL");
+         assert(good());
+
+         const bool forall =
+            MFEM_token(id, "FORALL_2D") || MFEM_token(id, "FORALL_3D");
+         if (ker.is_postfix() && forall)
+         { throw error_t(line, file, "Only one MFEM_FORALL is supported!"); }
+
          if (ker.is_prefix() && forall) // MFEM_FORALL
          {
+            assert(good());
             // Switch from prefix capturing, to the forall one
             ker.advance(); // prefix => forall
             mfem_forall_prefix(id);
             parenthesis = 0; // Start counting MFEM_FORALL's parentheses
             ker.advance(); // forall => kernel
+            assert(good());
          }
+
+         assert(good());
 
          const bool unroll = MFEM_token(id, "UNROLL");
          if (ker.is_kernel() && unroll) { mfem_kernel_unroll(); }
 
+         assert(good());
+
          if (ker.is_wait()) { out << id; }
+         assert(good());
          if (ker.is_prefix() && !JIT) { ker.source << id; }
+         assert(good());
          if (ker.is_forall()) { ker.forall.body << id; }
+         assert(good());
          if (ker.is_kernel() && !unroll && !forall) { ker.forall.body << id; }
+         assert(good());
       } // MFEM_*
 
-      if (ker.is_kernel() && is_end_of(parenthesis,'(',')'))
-      { mfem_forall_postfix(); ker.advance(/*kernel => postfix*/); }
+      assert(good());
 
-      if (ker.is_postfix() && is_end_of(block,'{','}'))
-      { mfem_jit_postfix(); ker.advance(/*postfix => wait*/); }
+      if (ker.is_kernel() && is_end_of(parenthesis,'(',')'))
+      {
+         mfem_forall_postfix();
+         ker.advance(/*kernel => postfix*/);
+         assert(good());
+      }
+
+      // no forall shortcut
+      const bool is_end_of_block = is_end_of(block,'{','}');
+      if (ker.is_prefix() && is_end_of_block)
+      {
+         ker.fsm.forall(); // shortcut
+         ker.fsm.kernel();
+         assert(good());
+      }
+
+      if (ker.is_postfix() && is_end_of_block)
+      {
+         assert(good());
+         mfem_jit_postfix();
+         ker.advance(/*postfix => wait*/);
+         assert(good());
+      }
    }
 
    int operator()()
    {
-      try { while (!in.eof()) { put(); next(); tokens(); } }
+      try { while (!in.eof()) { next(); if (good()) { tokens(); put(); } } }
       catch (error_t err)
       {
          std::cerr << std::endl << err.file << ":" << err.line << ":"

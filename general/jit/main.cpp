@@ -48,23 +48,23 @@ int main(const int argc, char* argv[])
       if (argv[i] == std::string("-h")) { return help(argv); }
 
       // -o selects the output
-      if (argv[i] == std::string("-o")) { output = argv[i++]; continue; }
+      if (argv[i] == std::string("-o")) { output = argv[++i]; continue; }
 
       // last argument should be the input file
       assert(argv[i]);
       file = input = argv[i];
    }
-   const bool output_file = !output.empty();
-   std::ifstream in(input.c_str(), std::ios::in | std::ios::binary);
-   std::ofstream out(output.c_str(),
+   const bool ofile = !output.empty();
+   std::ifstream ifs(input.c_str(), std::ios::in | std::ios::binary);
+   std::ofstream ofs(output.c_str(),
                      std::ios::out | std::ios::binary | std::ios::trunc);
-   assert(!in.fail());
-   assert(in.is_open());
-   if (output_file) { assert(out.is_open()); }
-   mfem::JitPreProcess(in, output_file ? out : std::cout, file);
-   in.close();
-   out.close();
-   return EXIT_SUCCESS;
+   assert(!ifs.fail());
+   assert(ifs.is_open());
+   if (ofile) { assert(ofs.is_open()); }
+   const int status = mfem::JitPreProcess(ifs, ofile ? ofs : std::cout, file);
+   ifs.close();
+   ofs.close();
+   return status;
 }
 
 #endif // MFEM_USE_JIT
