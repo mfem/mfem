@@ -26,6 +26,7 @@ list(APPEND SRCS
   sparsemat.cpp
   sparsesmoothers.cpp
   vector.cpp
+  vector_operator.cpp
   )
 
 list(APPEND HDRS
@@ -53,6 +54,7 @@ list(APPEND HDRS
   tmatrix.hpp
   ttensor.hpp
   vector.hpp
+  vector_operator.hpp
   )
 
 if (MFEM_USE_MPI)
