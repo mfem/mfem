@@ -101,6 +101,51 @@ public:
    void DGMassCGIteration(const Vector &b_, Vector &u_) const;
 };
 
+class DGMassInverse_Direct : public Solver
+{
+protected:
+   Vector blocks;
+   DenseTensor tensor;
+   Array<int> ipiv;
+
+   /// @brief Protected constructor, used internally.
+   ///
+   /// Custom coefficient and integration rule are used in @a coeff and @a ir
+   /// are non-NULL.
+   DGMassInverse_Direct(FiniteElementSpace &fes_, Coefficient *coeff,
+                        const IntegrationRule *ir);
+public:
+   /// @brief Construct the DG inverse mass operator for @a fes_.
+   DGMassInverse_Direct(FiniteElementSpace &fes_);
+   // /// @brief Construct the DG inverse mass operator for @a fes_ with
+   // /// Coefficient @a coeff.
+   // ///
+   // /// @sa DGMassInverse(FiniteElementSpace&, int) for information about @a
+   // /// btype.
+   // DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff);
+   // /// @brief Construct the DG inverse mass operator for @a fes_ with
+   // /// Coefficient @a coeff and IntegrationRule @a ir.
+   // ///
+   // /// @sa DGMassInverse(FiniteElementSpace&, int) for information about @a
+   // /// btype.
+   // DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+   //               const IntegrationRule &ir);
+   // /// @brief Construct the DG inverse mass operator for @a fes_ with
+   // /// IntegrationRule @a ir.
+   // ///
+   // /// @sa DGMassInverse(FiniteElementSpace&, int) for information about @a
+   // /// btype.
+   // DGMassInverse(FiniteElementSpace &fes_, const IntegrationRule &ir,
+   //               int btype=BasisType::GaussLegendre);
+   /// Solve the system M b = u.
+   void Mult(const Vector &b, Vector &u) const;
+
+   void Solve(Vector &u) const;
+
+   /// Not implemented. Aborts.
+   void SetOperator(const Operator &op);
+};
+
 } // namespace mfem
 
 #endif

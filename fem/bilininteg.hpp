@@ -2171,6 +2171,7 @@ class MassIntegrator: public BilinearFormIntegrator
 {
 protected:
    friend class DGMassInverse;
+   friend class DGMassInverse_Direct;
 #ifndef MFEM_THREAD_SAFE
    Vector shape, te_shape;
 #endif

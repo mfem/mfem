@@ -327,4 +327,35 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
    }
 }
 
+DGMassInverse_Direct::DGMassInverse_Direct(FiniteElementSpace &fes)
+{
+   const int ne = fes.GetNE();
+   const int elem_dofs = fes.GetFE(0)->GetDof();
+
+   blocks.SetSize(ne*elem_dofs*elem_dofs);
+   ipiv.SetSize(ne*elem_dofs);
+
+   MassIntegrator m;
+   m.AssembleEA(fes, blocks, false);
+
+   tensor.UseExternalData(blocks.GetData(), elem_dofs, elem_dofs, ne);
+   BatchLUFactor(tensor, ipiv);
+}
+
+void DGMassInverse_Direct::Mult(const Vector &Mu, Vector &u) const
+{
+   u = Mu;
+   Solve(u);
+}
+
+void DGMassInverse_Direct::Solve(Vector &u) const
+{
+   BatchLUSolve(tensor, ipiv, u);
+}
+
+void DGMassInverse_Direct::SetOperator(const Operator &op)
+{
+   MFEM_ABORT("Not supported.");
+}
+
 } // namespace mfem

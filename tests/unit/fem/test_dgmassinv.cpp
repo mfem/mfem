@@ -40,10 +40,11 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
    OperatorJacobiSmoother jacobi(m, empty);
 
    int n = fes.GetTrueVSize();
-   Vector B(n), X1(n), X2(n);
+   Vector B(n), X1(n), X2(n), X3(n);
    B.Randomize(1);
    X1.Randomize(2);
    X2 = X1;
+   X3 = X1;
 
    const double tol = 1e-8;
 
@@ -56,12 +57,26 @@ TEST_CASE("DG Mass Inverse", "[CUDA]")
    cg.SetPreconditioner(jacobi);
    cg.Mult(B, X1);
 
-   DGMassInverse m_inv(fes, btype2);
-   m_inv.SetAbsTol(tol);
-   m_inv.SetRelTol(0.0);
-   m_inv.Mult(B, X2);
+   SECTION("Local CG")
+   {
+      DGMassInverse m_inv(fes, btype2);
+      m_inv.SetAbsTol(tol);
+      m_inv.SetRelTol(0.0);
+      m_inv.Mult(B, X2);
 
-   X2 -= X1;
+      X2 -= X1;
+      REQUIRE(X2.Normlinf() == MFEM_Approx(0.0, 1e2*tol, 1e2*tol));
+   }
 
-   REQUIRE(X2.Normlinf() == MFEM_Approx(0.0, 1e2*tol, 1e2*tol));
+   SECTION("Direct")
+   {
+      // Test direct solvers when the blocks are relatively small
+      if (fes.GetFE(0)->GetDof() <= 64)
+      {
+         DGMassInverse_Direct m_inv_direct(fes);
+         m_inv_direct.Mult(B, X3);
+         X3 -= X1;
+         REQUIRE(X3.Normlinf() == MFEM_Approx(0.0, 1e2*tol, 1e2*tol));
+      }
+   }
 }
