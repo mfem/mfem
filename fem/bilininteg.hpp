@@ -2066,6 +2066,30 @@ public:
                                          ElementTransformation &Trans);
 };
 
+/** Class for integrating the bilinear form a(u,v) := (Q curl u, v) where Q is a
+    scalar coefficient, and v is a vector with components v_i in the L2 or H1 space
+    as and u if in H(curl). */
+class CurlIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+
+private:
+   Vector shape;
+   DenseMatrix curlshape;
+   DenseMatrix elmat_comp;
+public:
+   CurlIntegrator() : Q{NULL} { }
+   CurlIntegrator(Coefficient *q_) :  Q{q_} { }
+   CurlIntegrator(Coefficient &q) :  Q{&q} { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+};
+
+
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
     can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator
