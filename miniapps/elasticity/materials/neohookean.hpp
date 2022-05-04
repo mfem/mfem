@@ -364,24 +364,29 @@ struct NeoHookeanMaterial
    action_of_gradient_symbolic(const tensor<double, dim, dim> &du_dx,
                                const tensor<double, dim, dim> &ddu_dx) const
    {
-      // TODO
-      // shift this to First elasticities (derivative of Piola stress)
-      // to be consistent with the rest of the code
-      // BT 05/03/2022
-      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+      const auto I = mfem::internal::Identity<dim>();
 
-      tensor<double, dim, dim> F = I + du_dx;
-      tensor<double, dim, dim> invFT = inv(transpose(F));
-      tensor<double, dim, dim> devB =
-         dev(du_dx + transpose(du_dx) + dot(du_dx, transpose(du_dx)));
-      double J = det(F);
-      double coef = (C1 / pow(J, 5.0 / 3.0));
-      double a1 = ddot(invFT, ddu_dx);
-      double a2 = ddot(F, ddu_dx);
+      const auto F = I + du_dx;
+      const double J = det(F);
+      const double I1_3 = ddot(F, F)/3.0;
+      const auto invF = inv(F);
+      const auto invFT = transpose(invF);
+      const double fac = pow(J, -2.0/3.0) * 2.0 * C1;
+      const double a1 = ddot(invFT, ddu_dx);
+      const double a2 = ddot(F, ddu_dx);
+      const auto M = dot(invF, dot(ddu_dx, invF));
+      const auto Pdev = fac*(F - I1_3*invFT);
+      
+      auto dPdev = ddu_dx - (2.0/3.0*a2)*invFT + I1_3*transpose(M);
+      dPdev = fac * dPdev;
+      dPdev -= (2.0/3.0*a1) * Pdev;
 
-      return (2.0 * D1 * J * a1 - (4.0 / 3.0) * coef * a2) * I -
-             ((10.0 / 3.0) * coef * a1) * devB +
-             (2 * coef) * (dot(ddu_dx, transpose(F)) + dot(F, transpose(ddu_dx)));
+      const double dWvol = 2.0*D1*(J - 1.0);
+      const double ddWvol = 2.0*D1;
+      auto dPvol = (J*ddWvol + dWvol)*a1*invFT - dWvol*transpose(M);
+      dPvol = J*dPvol;
+      
+      return dPdev + dPvol;
    }
 
    // Parameters
