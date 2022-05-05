@@ -119,9 +119,9 @@ int main(int argc, char *argv[])
 
       //compute the volume contribution from the element
       ir=air->GetVolumeIntegrationRule();
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      for (int j = 0; j < ir->GetNPoints(); j++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         const IntegrationPoint &ip = ir->IntPoint(j);
          trans->SetIntPoint(&ip);
          w = trans->Weight();
          w = ip.weight * w;
@@ -135,9 +135,9 @@ int main(int argc, char *argv[])
       tnormal.SetSize(el->GetDim());
 
       ir=air->GetSurfaceIntegrationRule();
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      for (int j = 0; j < ir->GetNPoints(); j++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         const IntegrationPoint &ip = ir->IntPoint(j);
          trans->SetIntPoint(&ip);
 
          el->CalcDShape(ip,bmat);
