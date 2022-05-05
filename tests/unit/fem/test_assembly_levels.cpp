@@ -145,9 +145,14 @@ void test_assembly_level(const char *meshname,
 
    k_ref.Assemble();
    k_ref.Finalize();
+   k_ref.SpMat().EnsureMultTranspose();
 
    k_test.SetAssemblyLevel(assembly);
    k_test.Assemble();
+   if ( assembly == AssemblyLevel::FULL )
+   {
+      k_test.SpMat().EnsureMultTranspose();
+   }
 
    GridFunction x(&fespace), y_ref(&fespace), y_test(&fespace);
 
@@ -172,7 +177,7 @@ void test_assembly_level(const char *meshname,
    delete fec;
 }
 
-TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
+TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
@@ -202,8 +207,11 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
          auto order = !all_tests ? GENERATE(2) : GENERATE(1, 2, 3);
          test_assembly_level("../../data/periodic-cube.mesh",
                              order, q_order_inc, dg, pb, assembly);
-         test_assembly_level("../../data/fichera-q3.mesh",
-                             order, q_order_inc, dg, pb, assembly);
+         if ( !Device::Allows(~Backend::CPU_MASK) )
+         {
+            test_assembly_level("../../data/fichera-q3.mesh",
+                                order, q_order_inc, dg, pb, assembly);
+         }
       }
    }
 
@@ -225,7 +233,7 @@ TEST_CASE("H1 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
    }
 } // H1 Assembly Levels test case
 
-TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
+TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [CUDA]")
 {
    const bool dg = true;
    auto pb = GENERATE(Problem::Mass, Problem::Convection);
@@ -255,8 +263,11 @@ TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly]")
          auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
          test_assembly_level("../../data/periodic-cube.mesh",
                              order, q_order_inc, dg, pb, assembly);
-         test_assembly_level("../../data/fichera-q3.mesh",
-                             order, q_order_inc, dg, pb, assembly);
+         if ( !Device::Allows(~Backend::CPU_MASK) )
+         {
+            test_assembly_level("../../data/fichera-q3.mesh",
+                                order, q_order_inc, dg, pb, assembly);
+         }
       }
    }
 
