@@ -79,10 +79,12 @@ struct JitPreProcessor
       bool is_kernel() { return fsm.state == &fsm_t::kernel; }
       bool is_postfix() { return fsm.state == &fsm_t::postfix; }
       std::string name; // Kernel name
-      std::string Targs, Tparams, Tformat; // Template arguments, parameters, format
-      std::string Sargs, Sparams; // Symbol arguments, parameters
+      std::string Targs, Tparams, Tformat,
+          Ttest; // Template arguments, parameters, format
+      std::string Sargs, Sparams0, Sparams; // Symbol arguments, parameters
       struct { int dim; std::string e, N, X, Y, Z; std::ostringstream body; } forall;
-      std::ostringstream source;
+      std::ostringstream source, body;
+      bool eq;
    };
 
    struct error_t
@@ -118,9 +120,13 @@ struct JitPreProcessor
    {
       if (c == '\n') { line++; }
       if (ker.is_targs())   { ker.Tparams += c; }
-      if (ker.is_params())  { ker.Sparams += c; }
-      if (ker.is_prefix())  { ker.source << c; return c;}
-      if (ker.is_postfix()) { ker.source << c; return c;}
+      if (ker.is_params())
+      {
+         ker.Sparams0 += c;
+         if (!ker.eq) { ker.Sparams += c; }
+      }
+      if (ker.is_prefix())  { ker.source << c; ker.body << c; return c;}
+      if (ker.is_postfix()) { ker.source << c; ker.body << c; return c;}
       if (ker.is_forall())  { ker.forall.body << c; return c;}
       if (ker.is_kernel())  { ker.forall.body << c; return c;}
       out.put(c);
@@ -218,6 +224,7 @@ struct JitPreProcessor
       ker.Targs.clear();
       ker.Tparams.clear();
       ker.Tformat = "%d";
+      ker.Ttest.clear();
       auto to_lower = [](std::string &id)
       {
          std::transform(id.begin(), id.end(), id.begin(),
@@ -232,6 +239,10 @@ struct JitPreProcessor
          if (peek_n(2) == "T_")
          {
             std::string id = peek_id();
+            {
+               if (!ker.Ttest.empty()) { ker.Ttest += " && "; }
+               ker.Ttest += id + "==0";
+            }
             add_arg(ker.Targs, (id.erase(0, 2), to_lower(id)));
          }
          if (in.peek() == '>') { break;}
@@ -258,25 +269,27 @@ struct JitPreProcessor
       // Get the arguments
       ker.advance(); // Symbol => Params
       std::string id;
-      bool eq = false;
+      ker.eq = false;
       ker.Sargs.clear();
       ker.Sparams.clear();
+      ker.Sparams0.clear();
       auto last = [](std::string &s) { return s.substr(s.find_last_of('.')+1);};
       while (good() && in.peek() != ')')
       {
          if (is_comment())
          {
             comments();
-            if (!id.empty() && id.back() != '.' && !eq) { id += '.'; }
+            if (!id.empty() && id.back() != '.' && !ker.eq) { id += '.'; }
          }
          assert(good());
          if (in.peek() == ')') { break; } // to handle only comments
          assert(is_space() || is_id() || is_star() || is_eq() || is_coma());
-         if (is_space() && !id.empty() && id.back() != '.' && !eq) { id += '.'; }
-         if (is_eq()) { eq = true; id = id.substr(0, id.size()-1); }
-         if (is_id() && !eq) { id += in.peek(); }
-         if (is_coma()) { add_arg(ker.Sargs, last(id)); id.clear(); eq = false; }
-         eq ? get() : put(); // remove the '= digit' or to ker.Sparams
+         if (is_space() && !id.empty() && id.back() != '.' && !ker.eq) { id += '.'; }
+         if (is_eq()) { ker.eq = true; id = id.substr(0, id.size()-1); }
+         if (is_id() && !ker.eq) { id += in.peek(); }
+         if (is_coma()) { add_arg(ker.Sargs, last(id)); id.clear(); ker.eq = false; }
+         //ker.eq ? get() : put(); // remove the '= digit' or to ker.Sparams
+         put();
       }
       add_arg(ker.Sargs, last(id));
       ker.advance(); // Params => Body
@@ -291,9 +304,14 @@ struct JitPreProcessor
       ker.advance(); // Body => Prefix
       ker.source.clear();
       ker.source.str(std::string());
+      ker.body.clear();
+      ker.body.str(std::string());
       // flush also ker.forall.body that can be missed with a kernel w/o forall
       ker.forall.body.clear();
       ker.forall.body.str(std::string());
+
+      out << "\n\tconst bool use_jit = " << ker.Ttest << ";";
+      out << "\nif (use_jit){";
 
       out << "\n\tconst char *source = R\"_(";
 
@@ -325,7 +343,7 @@ struct JitPreProcessor
 
       ker.source << "\n\ntemplate<" << ker.Tparams << ">"
                  << "\nvoid " << ker.name << "_%016lx"
-                 << "(const bool use_dev," << ker.Sparams << "){"
+                 << "(const bool use_dev," << ker.Sparams0 << "){"
                  << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
    }
 
@@ -401,7 +419,7 @@ struct JitPreProcessor
    void mfem_jit_postfix()
    {
       ker.source << "}\nextern \"C\" void k%016lx"
-                 << "(const bool use_dev," << ker.Sparams << "){"
+                 << "(const bool use_dev," << ker.Sparams0 << "){"
                  << ker.name << "_%016lx<"<< ker.Tformat << ">"
                  << "(use_dev,"<< ker.Sargs << ");}";
 
@@ -447,6 +465,10 @@ struct JitPreProcessor
 
       out << "\nconst bool use_dev = Device::Allows(Backend::DEVICE_MASK);";
       out << "\nks_iter->second.operator()(use_dev," << ker.Sargs << ");";
+
+      out << "\n} else { // not use_jit\n";
+      out << ker.body.str();
+      out << "}";
 
       out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
       out.flush();
@@ -516,7 +538,7 @@ struct JitPreProcessor
 
          if (ker.is_wait()) { out << id; }
          assert(good());
-         if (ker.is_prefix() && !JIT) { ker.source << id; }
+         if (ker.is_prefix() && !JIT) { ker.source << id; ker.body << id; }
          assert(good());
          if (ker.is_forall()) { ker.forall.body << id; }
          assert(good());

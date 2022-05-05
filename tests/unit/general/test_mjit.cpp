@@ -98,12 +98,15 @@ using namespace std;
 MFEM_JIT template<int T_DEPTH = 0, int T_N = 0>
 void bbps( const size_t q, double *result, size_t depth = 0, size_t n = 0)
 {
-   const size_t b = 16, p = 8, N = n + depth;
+   const size_t D = T_DEPTH ? T_DEPTH : depth;
+   const size_t N = T_N ? T_N : n;
+
+   const size_t b = 16, p = 8, M = N + D;
    double s = 0.0,  h = 1.0 / b;
-   for (size_t i=0, k=q; i<=n; i++, k+=p)
+   for (size_t i = 0, k = q; i <= N; i++, k += p)
    {
       double a = b, m = 1.0;
-      for (size_t r = n - i; r > 0; r >>= 1)
+      for (size_t r = N - i; r > 0; r >>= 1)
       {
          auto dmod = [](double x, double y) { return x-((size_t)(x/y))*y;};
          m = (r&1) ? dmod(m*a,k) : m;
@@ -112,7 +115,7 @@ void bbps( const size_t q, double *result, size_t depth = 0, size_t n = 0)
       s += m / k;
       s -= (size_t) s;
    }
-   for (size_t i = n + 1; i < N; i++, h /= b) { s += h / (p*i+q); }
+   for (size_t i = N + 1; i < M; i++, h /= b) { s += h / (p*i+q); }
    *result = s;
 }
 
@@ -125,6 +128,13 @@ size_t pi(size_t n, const size_t D = 100)
 #ifdef MFEM_TEST_MJIT_INCLUDE_MAIN
 int main(int argc, char* argv[])
 {
+   double a = 0.0, b = 0.0;
+   bbps<64,17>(1,&a);
+   bbps(1,&b,64,17);
+   const size_t ax = (size_t)(pow(16,8)*a);
+   const size_t bx = (size_t)(pow(16,8)*b);
+   //printf("\033[33m[0x%lx:0x%lx]\033[m",ax,bx);
+   if (ax != bx) { return EXIT_FAILURE; }
    if (pi(10) != 0x5A308D31ul) { return EXIT_FAILURE; }
    return EXIT_SUCCESS;
 }

@@ -475,7 +475,7 @@ $(BLD)$(MFEM_JIT): $(SRC)general/jit/jit.hpp
 $(BLD)$(MFEM_JIT): $(BLD)general/jit/jit.o \
 						 $(BLD)general/jit/main.o \
 						 $(BLD)general/jit/parser.o
-	$(MFEM_CXX) $(filter-out -x=cu,$(MFEM_BUILD_FLAGS)) -o $(@) $(filter-out $(SRC)general/jit/jit.hpp,$(^)) $(JIT_LIB) 
+	$(MFEM_CXX) $(filter-out -x=cu -xhip,$(MFEM_BUILD_FLAGS)) -o $(@) $(filter-out $(SRC)general/jit/jit.hpp,$(^)) $(JIT_LIB) 
 
 # Filtering out the objects that will be compiled through the preprocessor
 JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)

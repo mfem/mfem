@@ -243,8 +243,8 @@ struct Cxx
    static std::string XDeviceCode() { return Get().opt.DeviceCode(); }
    static std::string Xlinker() { return Get().opt.Linker(); }
    static std::string Xcompiler() { return Get().opt.Compiler(); }
-   static std::string BegLoad() { return Get().ar.Prefix();  }
-   static std::string EndLoad() { return Get().ar.Postfix(); }
+   static std::string ARprefix() { return Get().ar.Prefix();  }
+   static std::string ARpostfix() { return Get().ar.Postfix(); }
    static std::string Backup() { return Get().ar.Backup(); }
 };
 Cxx Cxx::cxx_singleton {}; // Initialize the unique Cxx context.
@@ -302,10 +302,9 @@ void Jit::AROpen(void* &handle)
    if (Root())
    {
       dbg("%s => %s", LIB_AR, LIB_SO);
-      Cxx::Command()
-            << MFEM_JIT_CXX << "-shared" << "-o" << LIB_SO
-            << Cxx::BegLoad() << LIB_AR << Cxx::EndLoad()
-            << Cxx::Xlinker() + "-rpath,.";
+      Cxx::Command() << MFEM_JIT_CXX << "-shared" << "-o" << LIB_SO
+                     << Cxx::ARprefix() << LIB_AR << Cxx::ARpostfix()
+                     << Cxx::Xlinker() + "-rpath,.";
       status = Cxx::System();
    }
    Sync(status);
@@ -331,13 +330,12 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
       input_src_file.close();
 
       // Compilation cc => co
-      Cxx::Command()
-            << MFEM_JIT_CXX << MFEM_JIT_BUILD_FLAGS
-            << Cxx::XDeviceCode()
-            << Cxx::Xcompiler() + "-fPIC"
-            << Cxx::Xcompiler() + "-pipe"
-            << Cxx::Xcompiler() + "-Wno-unused-variable"
-            << "-c" << "-o" << co << cc;
+      Cxx::Command() << MFEM_JIT_CXX << MFEM_JIT_BUILD_FLAGS
+                     << Cxx::XDeviceCode()
+                     << Cxx::Xcompiler() + "-fPIC"
+                     //<< Cxx::Xcompiler() + "-pipe"
+                     //<< Cxx::Xcompiler() + "-Wno-unused-variable"
+                     << "-c" << "-o" << co << cc;
       if (Cxx::System()) { return EXIT_FAILURE; }
       std::remove(cc);
 
@@ -347,14 +345,12 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
       std::remove(co);
 
       // Create shared library
-      Cxx::Command()
-            << MFEM_JIT_CXX << "-shared" << "-o" << so
-            << Cxx::BegLoad() << LIB_AR << Cxx::EndLoad();
+      Cxx::Command() << MFEM_JIT_CXX << "-shared" << "-o" << so
+                     << Cxx::ARprefix() << LIB_AR << Cxx::ARpostfix();
       if (Cxx::System()) { return EXIT_FAILURE; }
 
       // Install shared library
-      Cxx::Command() << "install" << "-v" << Cxx::Backup()
-                     << so << LIB_SO;
+      Cxx::Command() << "install" << "-v" << Cxx::Backup() << so << LIB_SO;
       if (Cxx::System()) { return EXIT_FAILURE; }
       return EXIT_SUCCESS;
    }; // Compile
@@ -362,16 +358,13 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
    if (Root()) { status = Compile(); }
    Sync(status);
 
-   if (!handle) { handle = ::dlopen(LIB_SO, DLOPEN_MODE); }
-   else
-   {
-      // we had a handle, but no symbol, use the newest
-      handle = ::dlopen(so, DLOPEN_MODE);
-   }
+   // !handle => LIB_SO, else we had no symbol, use the newest shared object
+   handle = ::dlopen(!handle ? LIB_SO : so, DLOPEN_MODE);
    Sync();
-   if (!handle) { std::cerr << ::dlerror() << std::endl; return EXIT_FAILURE; }
 
+   if (!handle) { std::cerr << ::dlerror() << std::endl; return EXIT_FAILURE; }
    Sync();
+
    std::remove(so); // remove the temporary shared lib after use
    assert(::dlsym(handle, symbol)); // no symbol found
    return EXIT_SUCCESS;
