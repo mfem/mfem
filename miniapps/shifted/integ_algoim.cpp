@@ -50,10 +50,10 @@ const IntegrationRule* AlgoimIntegrationRule::GetVolumeIntegrationRule()
 
       vir=new IntegrationRule(q.nodes.size());
       vir->SetOrder(int_order);
-      for (int i=0; i<q.nodes.size(); i++)
+      for (size_t i=0; i<q.nodes.size(); i++)
       {
          IntegrationPoint& ip=vir->IntPoint(i);
-         ip.Set2w(q.nodes[i].x[0],q.nodes[i].x[1],q.nodes[i].w);
+         ip.Set2w(q.nodes[i].x(0),q.nodes[i].x(1),q.nodes[i].w);
       }
    }
    else
@@ -64,10 +64,10 @@ const IntegrationRule* AlgoimIntegrationRule::GetVolumeIntegrationRule()
 
       vir=new IntegrationRule(q.nodes.size());
       vir->SetOrder(int_order);
-      for (int i=0; i<q.nodes.size(); i++)
+      for (size_t i=0; i<q.nodes.size(); i++)
       {
          IntegrationPoint& ip=vir->IntPoint(i);
-         ip.Set(q.nodes[i].x[0],q.nodes[i].x[1],q.nodes[i].x[2],q.nodes[i].w);
+         ip.Set(q.nodes[i].x(0),q.nodes[i].x(1),q.nodes[i].x(2),q.nodes[i].w);
       }
    }
 
@@ -88,10 +88,10 @@ const IntegrationRule* AlgoimIntegrationRule::GetSurfaceIntegrationRule()
 
       sir=new IntegrationRule(q.nodes.size());
       sir->SetOrder(int_order);
-      for (int i=0; i<q.nodes.size(); i++)
+      for (size_t i=0; i<q.nodes.size(); i++)
       {
          IntegrationPoint& ip=sir->IntPoint(i);
-         ip.Set2w(q.nodes[i].x[0],q.nodes[i].x[1],q.nodes[i].w);
+         ip.Set2w(q.nodes[i].x(0),q.nodes[i].x(1),q.nodes[i].w);
       }
    }
    else
@@ -102,10 +102,10 @@ const IntegrationRule* AlgoimIntegrationRule::GetSurfaceIntegrationRule()
 
       sir=new IntegrationRule(q.nodes.size());
       sir->SetOrder(int_order);
-      for (int i=0; i<q.nodes.size(); i++)
+      for (size_t i=0; i<q.nodes.size(); i++)
       {
          IntegrationPoint& ip=sir->IntPoint(i);
-         ip.Set(q.nodes[i].x[0],q.nodes[i].x[1],q.nodes[i].x[2],q.nodes[i].w);
+         ip.Set(q.nodes[i].x(0),q.nodes[i].x(1),q.nodes[i].x(2),q.nodes[i].w);
       }
    }
 

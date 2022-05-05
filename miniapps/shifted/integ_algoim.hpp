@@ -6,7 +6,6 @@
 #ifdef MFEM_USE_ALGOIM
 #include <algoim_quad.hpp>
 
-
 namespace mfem
 {
 
