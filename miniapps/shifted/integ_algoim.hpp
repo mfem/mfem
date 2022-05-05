@@ -5,7 +5,6 @@
 
 #ifdef MFEM_USE_ALGOIM
 #include <algoim_quad.hpp>
-#endif
 
 
 namespace mfem
@@ -347,5 +346,6 @@ private:
 
 
 }
+#endif
 
 #endif

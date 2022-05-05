@@ -21,7 +21,6 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 1;
    int order = 2;
    bool visualization = true;
-   int newton_iter = 10;
    int print_level = 0;
 
 
@@ -85,7 +84,6 @@ int main(int argc, char *argv[])
    DofTransformation *doftrans;
    ElementTransformation *trans;
    Array<int> vdofs;
-   AlgoimIntegrationRule *air;
 
    DenseMatrix bmat; //gradients of the shape functions in isoparametric space
    DenseMatrix pmat; //gradients of the shape functions in physical space
