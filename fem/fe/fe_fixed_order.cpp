@@ -1824,7 +1824,8 @@ void RT0TriangleFiniteElement::Project (
 }
 
 RT0QuadFiniteElement::RT0QuadFiniteElement()
-   : VectorFiniteElement(2, Geometry::SQUARE, 4, 1, H_DIV, FunctionSpace::Qk)
+   : VectorFiniteElement(2, Geometry::SQUARE, 4, 1, H_DIV,
+                         FunctionSpace::Qk)
 {
    Nodes.IntPoint(0).x = 0.5;
    Nodes.IntPoint(0).y = 0.0;
@@ -2075,7 +2076,8 @@ void RT1TriangleFiniteElement::Project (
 }
 
 RT1QuadFiniteElement::RT1QuadFiniteElement()
-   : VectorFiniteElement(2, Geometry::SQUARE, 12, 2, H_DIV, FunctionSpace::Qk)
+   : VectorFiniteElement(2, Geometry::SQUARE, 12, 2, H_DIV,
+                         FunctionSpace::Qk)
 {
    // y = 0
    Nodes.IntPoint(0).x  = 1./3.;
@@ -2398,7 +2400,8 @@ const double RT2QuadFiniteElement::pt[4] = {0.,1./3.,2./3.,1.};
 const double RT2QuadFiniteElement::dpt[3] = {0.25,0.5,0.75};
 
 RT2QuadFiniteElement::RT2QuadFiniteElement()
-   : VectorFiniteElement(2, Geometry::SQUARE, 24, 3, H_DIV, FunctionSpace::Qk)
+   : VectorFiniteElement(2, Geometry::SQUARE, 24, 3, H_DIV,
+                         FunctionSpace::Qk)
 {
    // y = 0 (pt[0])
    Nodes.IntPoint(0).x  = dpt[0];  Nodes.IntPoint(0).y  =  pt[0];
@@ -4137,7 +4140,8 @@ void RefinedTriLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 Nedelec1HexFiniteElement::Nedelec1HexFiniteElement()
-   : VectorFiniteElement(3, Geometry::CUBE, 12, 1, H_CURL, FunctionSpace::Qk)
+   : VectorFiniteElement(3, Geometry::CUBE, 12, 1, H_CURL,
+                         FunctionSpace::Qk)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
@@ -4586,7 +4590,7 @@ void Nedelec1TetFiniteElement::ProjectGrad(const FiniteElement &fe,
 
 
 Nedelec1WdgFiniteElement::Nedelec1WdgFiniteElement()
-   : VectorFiniteElement(3, Geometry::PRISM, 9, 1, H_CURL)
+   : VectorFiniteElement(3, Geometry::PRISM, 9, 1, H_CURL, FunctionSpace::Qk)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.5;
@@ -5265,7 +5269,8 @@ void RT0HexFiniteElement::Project (
 }
 
 RT1HexFiniteElement::RT1HexFiniteElement()
-   : VectorFiniteElement(3, Geometry::CUBE, 36, 2, H_DIV, FunctionSpace::Qk)
+   : VectorFiniteElement(3, Geometry::CUBE, 36, 2, H_DIV,
+                         FunctionSpace::Qk)
 {
    // z = 0
    Nodes.IntPoint(2).x  = 1./3.;
@@ -5783,7 +5788,7 @@ void RT0TetFiniteElement::Project (
 }
 
 RT0WdgFiniteElement::RT0WdgFiniteElement()
-   : VectorFiniteElement(3, Geometry::PRISM, 5, 1, H_DIV)
+   : VectorFiniteElement(3, Geometry::PRISM, 5, 1, H_DIV, FunctionSpace::Pk)
 {
    // not real nodes ...
    Nodes.IntPoint(0).x = 0.33333333333333333333;

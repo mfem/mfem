@@ -159,6 +159,7 @@ MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
+MFEM_USE_MOONOLITH     = NO
 MFEM_USE_ADFORWARD     = NO
 MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
@@ -387,6 +388,11 @@ ifeq ($(SLEPC_FOUND),YES)
    SLEPC_LIB = $(XLINKER)-rpath,$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib\
       -L$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib -lslepc\
       $(subst $(CXX_XLINKER),$(XLINKER),$(SLEPC_DEP))
+endif
+
+ifeq ($(MFEM_USE_MOONOLITH),YES)
+  include $(MOONOLITH_DIR)/config/moonolith-config.makefile
+  MOONOLITH_LIB=$(MOONOLITH_LIBRARIES)
 endif
 
 # MPFR library configuration

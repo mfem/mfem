@@ -249,6 +249,7 @@ public:
    ~AdamsBashforthSolver()
    {
       if (RKsolver) { delete RKsolver; }
+      delete [] k;
    }
 };
 
@@ -330,6 +331,7 @@ public:
    ~AdamsMoultonSolver()
    {
       if (RKsolver) { delete RKsolver; }
+      delete [] k;
    };
 };
 

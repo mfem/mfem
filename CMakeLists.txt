@@ -51,7 +51,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.3.1)
+set(${PROJECT_NAME}_VERSION 4.4.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -379,6 +379,21 @@ if (MFEM_USE_PUMI)
   endif()
 endif()
 
+# Moonolith
+if(MFEM_USE_MOONOLITH)
+  find_package(ParMoonolith REQUIRED)
+  if(ParMoonolith_FOUND)
+    get_target_property(
+      MOONOLITH_INCLUDE_DIRS ParMoonolith::par_moonolith
+      INTERFACE_INCLUDE_DIRECTORIES)
+    set(MOONOLITH_FOUND TRUE)
+    set(MOONOLITH_LIBRARIES ParMoonolith::par_moonolith)
+    message(
+      STATUS
+      "MOONOLITH_LIBRARIES=${MOONOLITH_LIBRARIES}, MOONOLITH_INCLUDE_DIRS=${MOONOLITH_INCLUDE_DIRS}")
+  endif()
+endif()
+
 # HiOp optimizer
 if (MFEM_USE_HIOP)
   find_package(HIOP REQUIRED)
@@ -469,7 +484,7 @@ set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS
     PETSC SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG
-    MPI_CXX HIP HIPSPARSE BLITZ ALGOIM)
+    MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -506,6 +521,11 @@ message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 set(SOURCES "")
 set(HEADERS "")
 set(MFEM_SOURCE_DIRS general linalg mesh fem)
+
+if(MFEM_USE_MOONOLITH)
+  set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} fem/moonolith)
+endif()
+
 foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
   add_subdirectory(${DIR})
 endforeach()
