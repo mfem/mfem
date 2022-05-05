@@ -37,6 +37,7 @@ struct VTKGeometry
    static const int TETRAHEDRON = 10;
    static const int CUBE = 12;
    static const int PRISM = 13;
+   static const int PYRAMID = 14;
    ///@}
 
    /// @name Legacy quadratic VTK geometric types
@@ -48,6 +49,7 @@ struct VTKGeometry
    static const int TRIQUADRATIC_CUBE = 29;
    static const int QUADRATIC_PRISM = 26;
    static const int BIQUADRATIC_QUADRATIC_PRISM = 32;
+   static const int QUADRATIC_PYRAMID = 27;
    ///@}
 
    /// @name Arbitrary-order VTK geometric types
@@ -58,6 +60,7 @@ struct VTKGeometry
    static const int LAGRANGE_TETRAHEDRON = 71;
    static const int LAGRANGE_CUBE = 72;
    static const int LAGRANGE_PRISM = 73;
+   static const int LAGRANGE_PYRAMID = 74;
    ///@}
    ///@}
 
@@ -95,10 +98,10 @@ enum class VTKFormat
    /// Data arrays will be written in ASCII format.
    ASCII,
    /// Data arrays will be written in binary format. Floating point numbers will
-   /// be be output with 64 bits of precision.
+   /// be output with 64 bits of precision.
    BINARY,
    /// Data arrays will be written in binary format. Floating point numbers will
-   /// be be output with 32 bits of precision.
+   /// be output with 32 bits of precision.
    BINARY32
 };
 

@@ -19,10 +19,10 @@ requires an MPI C++ compiler, as well as the following external libraries:
   http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
 
 The hypre dependency can be downloaded as a tarball from GitHub or from the
-project webpage https://www.llnl.gov/casc/hypre. For example, the 2.20.0 release
+project webpage https://www.llnl.gov/casc/hypre. For example, the 2.24.0 release
 of hypre is available at
 
-   https://github.com/hypre-space/hypre/archive/v2.20.0.tar.gz
+   https://github.com/hypre-space/hypre/archive/v2.24.0.tar.gz
 
 The METIS dependency can be disabled but that is not generally recommended, see
 the option MFEM_USE_METIS.
@@ -60,7 +60,6 @@ following package managers:
 - OpenHPC, http://openhpc.community
 - Conda-forge, https://conda-forge.org (pre-built binaries linked with
   OpenMPI/MPICH, hypre, and METIS)
-- Homebrew/Science, https://github.com/Homebrew/homebrew-science (deprecated)
 
 We also recommend downloading and building the MFEM-based GLVis visualization
 tool which can be used to visualize the meshes and solution in MFEM's examples
@@ -521,6 +520,16 @@ MFEM_USE_MKL_CPARDISO = YES/NO
    MFEM_USE_LAPACK=YES, verify that the MKL LAPACK libraries are used. The
    OpenMP capabilities are disabled at link time.
 
+MFEM_USE_MOONOLITH = YES/NO
+   Enables the ParMoonolith interface for parallel non-conforming, non-matching,
+   variational, volumetric mesh information transfer. It requires the variable
+   MOONOLITH_DIR=<path to installation> to be defined in the environment in
+   order to be used with the Makefile. Makefile users are also required to
+   install moonolith using the command `make install_all`, see
+   https://bitbucket.org/zulianp/par_moonolith for details.
+   Although Moonolith is an MPI-based library, both serial (MFEM_USE_MPI=NO) and
+   parallel (MFEM_USE_MPI=YES) versions of MFEM are supported.
+
 MFEM_USE_CALIPER = YES/NO
    Enables the interface to Caliper. Caliper is a library to integrate
    performance profiling capabilities into applications. To use Caliper,
@@ -567,7 +576,8 @@ The specific libraries and their options are:
   Options: HYPRE_OPT, HYPRE_LIB.
   Versions: HYPRE >= 2.10.0b  (HYPRE built without CUDA)
             HYPRE >= 2.20.0   (HYPRE built with '--enable-mixedint')
-            HYPRE >= 2.22.1   (HYPRE built with CUDA or HIP)
+            HYPRE >= 2.22.1   (HYPRE built with CUDA)
+            HYPRE >= 2.23.0   (HYPRE built with HIP)
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
   MFEM_USE_METIS_5 = YES (default is to use METIS 4).
@@ -713,7 +723,7 @@ The specific libraries and their options are:
   Options: HIOP_OPT, HIOP_LIB.
   Versions: HIOP >= 0.4.6.
 
-- CoDiPack (optiobal), used with MFEM_USE_CODIPACK = YES
+- CoDiPack (optional), used with MFEM_USE_CODIPACK = YES
   URL: https://www.scicomp.uni-kl.de/codi/
   Options: CODIPACK_OPT
   Versions: 1.9.3
@@ -751,13 +761,18 @@ The specific libraries and their options are:
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED >= 0.8.
+  Versions: libCEED >= 0.10.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.3, only RAJA v0.14.0+ is supported.
   URL: https://github.com/LLNL/RAJA
   Options: RAJA_DIR, RAJA_OPT, RAJA_LIB.
   Versions: RAJA >= 0.14.0.
+
+- Moonolith (optional), use when MFEM_USE_MOONOLITH = YES.
+  URL: https://bitbucket.org/zulianp/par_moonolith
+  Options: MOONOLITH_DIR
+  Versions: MOONOLITH >= 1.1.0.
 
 - Caliper (optional), used when MFEM_USE_CALIPER = YES.
   URL: https://github.com/LLNL/Caliper
@@ -932,6 +947,7 @@ MFEM_USE_CEED
 MFEM_USE_RAJA
 MFEM_USE_UMPIRE
 MFEM_USE_SIDRE
+MFEM_USE_MOONOLITH
 MFEM_USE_CALIPER
 MFEM_USE_FMS
 MFEM_USE_BENCHMARK
@@ -990,6 +1006,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - RAJA
  - UMPIRE
  - AXOM - Used when MFEM_USE_SIDRE is enabled
+ - MOONOLITH
  - CALIPER
  - FMS
  - BENCHMARK

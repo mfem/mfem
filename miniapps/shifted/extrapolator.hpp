@@ -90,6 +90,8 @@ public:
    LevelSetNormalGradCoeff(const ParGridFunction &ls) :
       VectorCoefficient(ls.ParFESpace()->GetMesh()->Dimension()), ls_gf(ls) { }
 
+   using VectorCoefficient::Eval;
+
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {

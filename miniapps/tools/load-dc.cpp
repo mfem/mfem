@@ -33,8 +33,9 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
-   MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Mpi::Init();
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Hypre::Init();
 #endif
 
    // Parse command-line options.
@@ -105,8 +106,8 @@ int main(int argc, char *argv[])
          return 1;
       }
 #ifdef MFEM_USE_MPI
-      sol_sock << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank()
-               << "\n";
+      sol_sock << "parallel " << Mpi::WorldSize() << " "
+               << Mpi::WorldRank() << "\n";
 #endif
       if (fields.begin() == fields.end())
       {
