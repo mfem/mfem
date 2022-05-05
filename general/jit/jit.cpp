@@ -22,11 +22,16 @@
 #include <string>
 #include <thread>
 
-#include <dlfcn.h> // for dlopen/dlsym, not available on Windows
-#include <sys/mman.h> // for memory map
+//#include <dlfcn.h> // for dlopen/dlsym, not available on Windows
 #include <signal.h> // for signals
 #include <unistd.h> // for fork
 #include <sys/wait.h> // for waitpid
+
+#if !(defined(__linux__) || defined(__APPLE__))
+#error mmap(2) implementation as defined in POSIX.1-2001 not supported.
+#else
+#include <sys/mman.h> // for memory map
+#endif
 
 #include "../communication.hpp" // will pull mpi.h
 #include "../globals.hpp" // needed when !MFEM_USE_MPI
@@ -40,9 +45,9 @@
 
 namespace mfem
 {
-#warning TODO: use MFEM_LINK_FLAGS, MFEM_EXT_LIBS, MFEM_LIBS, MFEM_LIB_FILE
+//#warning TODO: use MFEM_LINK_FLAGS, MFEM_EXT_LIBS, MFEM_LIBS, MFEM_LIB_FILE
 
-namespace internal
+namespace jit_internal
 {
 
 static constexpr char LIB_AR[] = "libmjit.a";
@@ -195,6 +200,7 @@ struct Cxx
       assert(IsAck()); // Finalize error
       int status;
       Send(EXIT);
+      // should use timer
       // wait for any child process in the process group of the caller
       ::waitpid(0, &status, WUNTRACED | WCONTINUED);
       assert(status == 0); // Error with the compiler thread!
@@ -251,7 +257,7 @@ Cxx Cxx::cxx_singleton {}; // Initialize the unique Cxx context.
 
 } // namespace internal
 
-using namespace internal;
+using namespace jit_internal;
 
 int Jit::Init(int *argc, char ***argv)
 {
@@ -294,7 +300,9 @@ int Jit::Init(int *argc, char ***argv)
 
 void Jit::Finalize() { if (Root()) { Cxx::Finalize(); } }
 
-void Jit::AROpen(void* &handle)
+void Jit::CacheLookup(void* &handle) { handle = ::dlopen(LIB_SO, DLOPEN_MODE); }
+
+void Jit::ArchiveLookup(void* &handle)
 {
    if (!std::fstream(LIB_AR)) { return; }
 
@@ -312,17 +320,19 @@ void Jit::AROpen(void* &handle)
    assert(handle);
 }
 
-int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
-                 void *&handle)
+void* Jit::Compile(const uint64_t hash, const char *src, const char *name,
+                   void *&handle)
 {
-   int status = EXIT_SUCCESS;
-   char cc[SYMBOL_SIZE+3], co[SYMBOL_SIZE+3], so[SYMBOL_SIZE+3];
-   Hash64(hash, cc, ".cc");
-   Hash64(hash, co, ".co");
+   char so[SYMBOL_SIZE+3];
    Hash64(hash, so, ".so");
+   int status = EXIT_SUCCESS;
 
    auto Compile = [&]()
    {
+      char cc[SYMBOL_SIZE+3], co[SYMBOL_SIZE+3];
+      Hash64(hash, cc, ".cc");
+      Hash64(hash, co, ".co");
+
       // write kernel source into cc file
       std::ofstream input_src_file(cc);
       assert(input_src_file.good());
@@ -361,18 +371,13 @@ int Jit::Compile(const uint64_t hash, const char *src, const char *symbol,
    // !handle => LIB_SO, else we had no symbol, use the newest shared object
    handle = ::dlopen(!handle ? LIB_SO : so, DLOPEN_MODE);
    Sync();
-
-   if (!handle) { std::cerr << ::dlerror() << std::endl; return EXIT_FAILURE; }
-   Sync();
+   if (!handle) { std::cerr << ::dlerror() << std::endl; }
+   assert(handle);
 
    std::remove(so); // remove the temporary shared lib after use
-   assert(::dlsym(handle, symbol)); // no symbol found
-   return EXIT_SUCCESS;
+   void *kernel = ::dlsym(handle, name); // no symbol found
+   return kernel;
 }
-
-void* Jit::DLOpen() { return ::dlopen(LIB_SO, DLOPEN_MODE); }
-
-void* Jit::DlSym(void *handle, const char *sym) { return ::dlsym(handle, sym); }
 
 } // namespace mfem
 

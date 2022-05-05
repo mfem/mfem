@@ -381,7 +381,7 @@ MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 MFEM_CONFIG_EXTRA ?= $(if $(CONFIG_FILE_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 
 MFEM_JIT_CXX = $(MFEM_CXX)
-MFEM_JIT_BUILD_FLAGS = $(strip $(CPPFLAGS) $(CXXFLAGS))
+MFEM_JIT_BUILD_FLAGS ?= $(strip $(CPPFLAGS) $(CXXFLAGS) $(INCFLAGS))
 
 MFEM_SOURCE_DIR  = $(MFEM_REAL_DIR)
 MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
@@ -467,10 +467,10 @@ else
 JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp
 
 # Definitions to compile the preprocessor and grab the MFEM compiler
-#JIT_LIB = $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 ifeq ($(shell uname -s),Linux)
 JIT_LIB = -lrt -ldl
 endif
+#$(BLD)$(MFEM_JIT): $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 $(BLD)$(MFEM_JIT): $(SRC)general/jit/jit.hpp
 $(BLD)$(MFEM_JIT): $(BLD)general/jit/jit.o \
 						 $(BLD)general/jit/main.o \
