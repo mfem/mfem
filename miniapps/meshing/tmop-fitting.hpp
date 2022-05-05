@@ -154,6 +154,81 @@ double reactor(const Vector &x)
    return return_val;
 }
 
+double in_cube(const Vector &x, double xc, double yc, double zc, double lx, double ly, double lz)
+{
+   double dx = fabs(x(0) - xc);
+   double dy = fabs(x(1) - yc);
+   double dz = fabs(x(2) - zc);
+   if (dx <= lx/2 && dy <= ly/2 && dz <= lz/2)
+   {
+      return 1.0;
+   }
+   else
+   {
+      return -1.0;
+   }
+}
+
+double in_pipe(const Vector &x, int pipedir, Vector x_pipe_center, double radius, double minv, double maxv)
+{
+    Vector x_pipe_copy = x_pipe_center;
+    x_pipe_copy -= x;
+    x_pipe_copy(pipedir-1) = 0.0;
+    double dist = x_pipe_copy.Norml2();
+    double xv = x(pipedir-1);
+    if (dist < radius && xv > minv && xv < maxv)
+    {
+       return 1.0;
+    }
+    else if (dist == radius || (xv == minv && dist < radius) || (xv == maxv && dist < radius))
+    {
+       return 0.0;
+    }
+    else
+    {
+       return -1.0;
+    }
+    return 0.0;
+}
+
+double object_three(const Vector &x)
+{
+    Vector xcc(3);
+    xcc = 0.5;
+    double cube_x = 0.25*2;
+    double cube_y = 0.25*2;
+    double cube_z = 0.25*2;
+
+    double in_cube_val = in_cube(x, xcc(0), xcc(1), xcc(2), cube_x, cube_y, cube_z);
+
+    Vector x_circle_c(3);
+    x_circle_c = 0.5;
+
+    double sphere_radius = 0.30;
+    double in_sphere_val = in_circle(x, x_circle_c, sphere_radius);
+    double in_return_val = std::min(in_cube_val, in_sphere_val);
+
+    int pipedir = 1;
+    Vector x_pipe_center(3);
+    x_pipe_center = 0.5;
+    double xmin = 0.5-sphere_radius;
+    double xmax = 0.5+sphere_radius;
+    double pipe_radius = 0.075;
+    double in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
+
+    in_return_val = std::min(in_return_val, -1*in_pipe_x);
+
+    pipedir = 2;
+    in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
+    in_return_val = std::min(in_return_val, -1*in_pipe_x);
+
+    pipedir = 3;
+    in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
+    in_return_val = std::min(in_return_val, -1*in_pipe_x);
+
+    return in_return_val;
+}
+
 void ModifyAttributeForMarkingDOFS(Mesh *mesh, GridFunction &mat,
                                    int attr_to_switch)
 {

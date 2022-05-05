@@ -5265,12 +5265,13 @@ void ParMesh::PrintAsOneWithAttributes(std::ostream &os) const
    }
 
    // boundary + shared boundary
+   bool true_boundary = true;
    ne = NumOfBdrElements;
-   if (!pncmesh)
+   if (!pncmesh && !true_boundary)
    {
       ne += GetNSharedFaces();
    }
-   else if (Dim > 1)
+   else if (Dim > 1 && !true_boundary)
    {
       const NCMesh::NCList &list = pncmesh->GetSharedList(Dim - 1);
       ne += list.conforming.Size() + list.masters.Size() + list.slaves.Size();
@@ -5282,18 +5283,16 @@ void ParMesh::PrintAsOneWithAttributes(std::ostream &os) const
 
    // for each boundary and shared boundary element send its geometry type
    // and its vertices
+   attr_ne.SetSize(ne);
+   nc = ne;
    ne = 0;
-   nc = GetNFbyType(FaceType::Boundary);
-   attr_ne.SetSize(nc);
    for (i = j = 0; i < NumOfBdrElements; i++)
    {
-      dump_element(boundary[i], ints); ne++;
-      if (i < nc)
-      {
-         attr_ne[i] = boundary[i]->GetAttribute();
-      }
+      dump_element(boundary[i], ints);
+      attr_ne[i] = boundary[i]->GetAttribute();
+      ne++;
    }
-   if (!pncmesh)
+   if (!pncmesh && !true_boundary)
    {
       switch (Dim)
       {
@@ -5302,6 +5301,7 @@ void ParMesh::PrintAsOneWithAttributes(std::ostream &os) const
             {
                ints.Append(Geometry::POINT);
                ints.Append(svert_lvert[i]);
+               attr_ne[ne] = MyRank;
                ne++;
             }
             break;
@@ -5309,7 +5309,9 @@ void ParMesh::PrintAsOneWithAttributes(std::ostream &os) const
          case 2:
             for (i = 0; i < shared_edges.Size(); i++)
             {
-               dump_element(shared_edges[i], ints); ne++;
+               dump_element(shared_edges[i], ints);
+               attr_ne[ne] = MyRank;
+               ne++;
             }
             break;
 
@@ -5318,38 +5320,54 @@ void ParMesh::PrintAsOneWithAttributes(std::ostream &os) const
             {
                ints.Append(Geometry::TRIANGLE);
                ints.Append(shared_trias[i].v, 3);
+               attr_ne[ne] = MyRank;
                ne++;
             }
             for (i = 0; i < shared_quads.Size(); i++)
             {
                ints.Append(Geometry::SQUARE);
                ints.Append(shared_quads[i].v, 4);
+               attr_ne[ne] = MyRank;
                ne++;
             }
             break;
-
          default:
             MFEM_ABORT("invalid dimension: " << Dim);
       }
    }
-   else if (Dim > 1)
+   else if (Dim > 1 && !true_boundary)
    {
       const NCMesh::NCList &list = pncmesh->GetSharedList(Dim - 1);
       const int nfaces = GetNumFaces();
       for (i = 0; i < list.conforming.Size(); i++)
       {
          int index = list.conforming[i].index;
-         if (index < nfaces) { dump_element(faces[index], ints); ne++; }
+         if (index < nfaces)
+         {
+            dump_element(faces[index], ints);
+            attr_ne[ne] = MyRank;
+            ne++;
+         }
       }
       for (i = 0; i < list.masters.Size(); i++)
       {
          int index = list.masters[i].index;
-         if (index < nfaces) { dump_element(faces[index], ints); ne++; }
+         if (index < nfaces)
+         {
+            dump_element(faces[index], ints);
+            attr_ne[ne] = MyRank;
+            ne++;
+         }
       }
       for (i = 0; i < list.slaves.Size(); i++)
       {
          int index = list.slaves[i].index;
-         if (index < nfaces) { dump_element(faces[index], ints); ne++; }
+         if (index < nfaces)
+         {
+            dump_element(faces[index], ints);
+            attr_ne[ne] = MyRank;
+            ne++;
+         }
       }
    }
 
@@ -5392,8 +5410,7 @@ void ParMesh::PrintAsOneWithAttributes(std::ostream &os) const
                os << ' ' << vc + ints[i++];
             }
             os << '\n';
-            if (m < nc-1) { m++; }
-            //            if (i < nc) { m++; }
+            m++;
          }
          vc += nv;
       }

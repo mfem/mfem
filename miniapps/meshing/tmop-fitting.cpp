@@ -54,6 +54,8 @@
 // mpirun -np 6 tmop-fitting -m quad-split2.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 1000 -rtol 1e-20 -st 0 -sfa 10.0 -bnd -marking -slstype 5 -mat
 // mpirun -np 6 tmop-fitting -m quad-8x8-mat.mesh -o 2 -rs 0 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 1000 -rtol 1e-20 -st 0 -sfa 10.0 -bnd -marking -slstype 5 -mat -qo 8
 
+// mpirun -np 6 tmop-fitting -m cube.mesh -o 2 -rs 4 -mid 303 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -ae 1 -bnd -slstype 6 -smtype 0 -sfa 10.0 -sft 1e-4 -sbgmesh
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -269,9 +271,13 @@ int main (int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(donut_level_set);
    }
-   else if (surf_ls_type == 5) // donut
+   else if (surf_ls_type == 5) // linear
    {
       ls_coeff = new FunctionCoefficient(linear_level_set);
+   }
+   else if (surf_ls_type == 6) // 3D shape
+   {
+      ls_coeff = new FunctionCoefficient(object_three);
    }
    else
    {
@@ -289,6 +295,7 @@ int main (int argc, char *argv[])
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+   pmesh->ExchangeFaceNbrData();
 
    for (int lev = 0; lev < rp_levels; lev++)
    {
@@ -980,7 +987,7 @@ int main (int argc, char *argv[])
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->PrintAsOne(mesh_ofs);
+      pmesh->PrintAsOneWithAttributes(mesh_ofs);
    }
 
    // Compute the final energy of the functional.
