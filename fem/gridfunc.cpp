@@ -1587,6 +1587,7 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
                doftrans->InvTransformPrimal(loc_data);
             }
             DenseMatrix curl_shape(fe->GetDof(), fe->GetCurlDim());
+            curl.SetSize(curl_shape.Width());
             fe->CalcPhysCurlShape(T, curl_shape);
             curl_shape.MultTranspose(loc_data, curl);
          }
