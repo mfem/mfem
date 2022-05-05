@@ -164,23 +164,24 @@ int main(int argc, char *argv[])
    for (int i=0; i<fespace.GetNE(); i++)
    {
 
-       const FiniteElement* el=fespace.GetFE(i);
-       //get the element transformation
-       trans = fespace.GetElementTransformation(i);
+      const FiniteElement* el=fespace.GetFE(i);
+      //get the element transformation
+      trans = fespace.GetElementTransformation(i);
 
-       //compute the volume contribution from the element
-       ir=&IntRules.Get(el->GetGeomType(), iorder);
-       for (int i = 0; i < ir->GetNPoints(); i++)
-       {
-           const IntegrationPoint &ip = ir->IntPoint(i);
-           trans->SetIntPoint(&ip);
-           double vlsf=x.GetValue(*trans,ip);
-           if(vlsf>=0.0){
-              w = trans->Weight();
-              w = ip.weight * w;
-              vol=vol+w;
-           }
-       }
+      //compute the volume contribution from the element
+      ir=&IntRules.Get(el->GetGeomType(), iorder);
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         trans->SetIntPoint(&ip);
+         double vlsf=x.GetValue(*trans,ip);
+         if (vlsf>=0.0)
+         {
+            w = trans->Weight();
+            w = ip.weight * w;
+            vol=vol+w;
+         }
+      }
 
    }
    std::cout<<"Volume="<<vol<<" Error="<<vol-M_PI<<std::endl;

@@ -148,32 +148,7 @@ public:
    /// of the 1D Gaussian integration used for deriving the vol/surface
    /// integration rules.
    AlgoimIntegrationRule(int o, const FiniteElement &el,
-                         ElementTransformation &trans, const Vector &lsfun)
-   {
-      int_order=o;
-      vir=nullptr;
-      sir=nullptr;
-
-      if (el.GetGeomType()==Geometry::Type::SQUARE)
-      {
-         pe=new H1Pos_QuadrilateralElement(el.GetOrder());
-      }
-      else if (el.GetGeomType()==Geometry::Type::CUBE)
-      {
-         pe=new H1Pos_HexahedronElement(el.GetOrder());
-      }
-      else
-      {
-         MFEM_ABORT("AlgoimIntegrationRule: The element type is not supported by Algoim!\n");
-      }
-
-      //change the basis of the level-set function
-      //from Lagrangian to Bernstein (possitive)
-      lsvec.SetSize(pe->GetDof());
-      DenseMatrix T; T.SetSize(pe->GetDof());
-      pe->Project(el,trans,T);
-      T.Mult(lsfun,lsvec);
-   }
+                         ElementTransformation &trans, const Vector &lsfun);
 
 
    /// Destructor of the Algoim object
