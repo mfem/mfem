@@ -32,7 +32,7 @@ DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
 EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
 EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
 ALGOIM_SRC = integ_algoim.cpp algoim_test.cpp
-ALGOIM_OBJ = $(DIFFUSION_SRC:.cpp=.o)
+ALGOIM_OBJ = $(ALGOIM_SRC:.cpp=.o)
 
 PAR_MINIAPPS = distance diffusion extrapolate algoim
 
