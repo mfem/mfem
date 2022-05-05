@@ -10,7 +10,7 @@ using namespace mfem;
 double sphere_ls(const Vector &x)
 {
    double r2= x*x;
-   return -sqrt(r2)+0.5;//the radius is 0.5
+   return -sqrt(r2)+1.0;//the radius is 0.5
 }
 
 
@@ -20,6 +20,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/star-q3.mesh";
    int ser_ref_levels = 1;
    int order = 2;
+   int iorder = 2; //MFEM integration integration points
+   int aorder = 2; //Algoim integration integration points
    bool visualization = true;
    int print_level = 0;
 
@@ -34,6 +36,14 @@ int main(int argc, char *argv[])
                   "-o",
                   "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&iorder,
+                  "-io",
+                  "--iorder",
+                  "MFEM Integration order.");
+   args.AddOption(&aorder,
+                  "-ao",
+                  "--aorder",
+                  "Algoim Integration order.");
    args.AddOption(&visualization,
                   "-vis",
                   "--visualization",
@@ -69,16 +79,12 @@ int main(int argc, char *argv[])
 
    // Define the level set grid function
    GridFunction x(&fespace);
-   Vector lsvec; //true levelset vector
-
 
    // Define the level set coefficient
    Coefficient *ls_coeff = nullptr;
    ls_coeff=new FunctionCoefficient(sphere_ls);
    // Project the coefficient onto the LS grid function
    x.ProjectCoefficient(*ls_coeff);
-   // Extract the true vector from the grid function
-   x.GetTrueDofs(lsvec);
 
    Vector lsfun; //level set function restricted to an element
    DofTransformation *doftrans;
@@ -97,7 +103,6 @@ int main(int argc, char *argv[])
    double area=0.0;
 
 #ifdef MFEM_USE_ALGOIM
-   const int num_gauss_points=4;
    for (int i=0; i<fespace.GetNE(); i++)
    {
       const FiniteElement* el=fespace.GetFE(i);
@@ -106,10 +111,10 @@ int main(int argc, char *argv[])
 
       //extract the element vector from the level-set
       doftrans = fespace.GetElementVDofs(i,vdofs);
-      lsvec.GetSubVector(vdofs, lsfun);
+      x.GetSubVector(vdofs, lsfun);
 
       //contruct Algoim integration object
-      AlgoimIntegrationRule* air=new AlgoimIntegrationRule(num_gauss_points,*el,
+      AlgoimIntegrationRule* air=new AlgoimIntegrationRule(aorder,*el,
                                                            *trans,lsfun);
 
       //compute the volume contribution from the element
@@ -151,8 +156,34 @@ int main(int argc, char *argv[])
       delete air;
    }
 #endif
-   std::cout<<"Volume="<<vol<<std::endl;
-   std::cout<<"Area="<<area<<std::endl;
+   std::cout<<"Volume="<<vol<<" Error="<<vol-M_PI<<std::endl;
+   std::cout<<"Area="<<area<<" Error="<<area-2.0*M_PI<<std::endl;
+
+   //Perform standard MFEM integration
+   vol=0.0;
+   for (int i=0; i<fespace.GetNE(); i++)
+   {
+
+       const FiniteElement* el=fespace.GetFE(i);
+       //get the element transformation
+       trans = fespace.GetElementTransformation(i);
+
+       //compute the volume contribution from the element
+       ir=&IntRules.Get(el->GetGeomType(), iorder);
+       for (int i = 0; i < ir->GetNPoints(); i++)
+       {
+           const IntegrationPoint &ip = ir->IntPoint(i);
+           trans->SetIntPoint(&ip);
+           double vlsf=x.GetValue(*trans,ip);
+           if(vlsf>=0.0){
+              w = trans->Weight();
+              w = ip.weight * w;
+              vol=vol+w;
+           }
+       }
+
+   }
+   std::cout<<"Volume="<<vol<<" Error="<<vol-M_PI<<std::endl;
 
 
    ParaViewDataCollection dacol("ParaViewDistance", mesh);
