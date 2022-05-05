@@ -103,50 +103,6 @@ void ShiftedFaceMarker::MarkElements(const ParGridFunction &ls_func,
    initial_marking_done = true;
 }
 
-void ShiftedFaceMarker::MarkFaces(mfem::Array<int> &elem_marker,
-                                  mfem::Array<int> &face_marker)
-{
-   pmesh.ExchangeFaceNbrNodes();
-
-   face_marker.SetSize(pmesh.GetNumFaces());
-   face_marker=SBFaceType::UNDEFINED;
-   // Set face_attribute = attr to faces that are on the border between INSIDE and CUT elements.
-   for (int f = 0; f < pmesh.GetNumFaces(); f++)
-   {
-      auto *ft = pmesh.GetFaceElementTransformations(f, 3);
-      if (ft->Elem2No > 0)
-      {
-         if (elem_marker[ft->Elem1No] != elem_marker[ft->Elem2No])
-         {
-            if (elem_marker[ft->Elem1No] == SBElementType::INSIDE)
-            {
-               face_marker[f]=SBFaceType::SURROGATE;
-            }
-            else if (elem_marker[ft->Elem2No] == SBElementType::INSIDE)
-            {
-               face_marker[f]=SBFaceType::SURROGATE;
-            }
-         }
-      }
-   }
-
-   for (int f = 0; f < pmesh.GetNSharedFaces(); f++)
-   {
-      auto *ftr = pmesh.GetSharedFaceTransformations(f, 3);
-      int faceno = pmesh.GetSharedFace(f);
-      int attr1 = elem_marker[ftr->Elem1No];
-      int attr2 = elem_marker[ftr->Elem2No];
-      if (attr1 != attr2)
-      {
-         if ((attr1==SBElementType::INSIDE)||(attr2==SBElementType::INSIDE))
-         {
-            face_marker[faceno]= SBFaceType::SURROGATE;
-         }
-      }
-   }
-}
-
-
 void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
                                             Array<int> &sface_dof_list) const
 {
