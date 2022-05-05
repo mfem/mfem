@@ -86,15 +86,8 @@ int main(int argc, char *argv[])
    // Project the coefficient onto the LS grid function
    x.ProjectCoefficient(*ls_coeff);
 
-   Vector lsfun; //level set function restricted to an element
-   DofTransformation *doftrans;
    ElementTransformation *trans;
-   Array<int> vdofs;
 
-   DenseMatrix bmat; //gradients of the shape functions in isoparametric space
-   DenseMatrix pmat; //gradients of the shape functions in physical space
-   Vector inormal; //normal to the level set in isoparametric space
-   Vector tnormal; //normal to the level set in physical space
    double w;
    const IntegrationRule* ir=nullptr;
 
@@ -103,6 +96,13 @@ int main(int argc, char *argv[])
    double area=0.0;
 
 #ifdef MFEM_USE_ALGOIM
+   DenseMatrix bmat; //gradients of the shape functions in isoparametric space
+   DenseMatrix pmat; //gradients of the shape functions in physical space
+   Vector inormal; //normal to the level set in isoparametric space
+   Vector tnormal; //normal to the level set in physical space
+   Vector lsfun; //level set function restricted to an element
+   DofTransformation *doftrans;
+   Array<int> vdofs;
    for (int i=0; i<fespace.GetNE(); i++)
    {
       const FiniteElement* el=fespace.GetFE(i);
