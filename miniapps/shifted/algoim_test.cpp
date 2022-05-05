@@ -170,9 +170,9 @@ int main(int argc, char *argv[])
 
       //compute the volume contribution from the element
       ir=&IntRules.Get(el->GetGeomType(), iorder);
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      for (int j = 0; j < ir->GetNPoints(); j++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         const IntegrationPoint &ip = ir->IntPoint(j);
          trans->SetIntPoint(&ip);
          double vlsf=x.GetValue(*trans,ip);
          if (vlsf>=0.0)
