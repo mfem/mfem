@@ -101,12 +101,24 @@ public:
    void DGMassCGIteration(const Vector &b_, Vector &u_) const;
 };
 
+enum class BatchSolverMode
+{
+   NATIVE,
+   CUSOLVER,
+   CUBLAS
+};
+
 class DGMassInverse_Direct : public Solver
 {
 protected:
+   const BatchSolverMode mode;
    Vector blocks;
    DenseTensor tensor;
    Array<int> ipiv;
+
+   mutable Array<double*> matrix_array;
+   mutable Array<double*> vector_array;
+   mutable Array<int> info_array;
 
    /// @brief Protected constructor, used internally.
    ///
@@ -116,7 +128,7 @@ protected:
                         const IntegrationRule *ir);
 public:
    /// @brief Construct the DG inverse mass operator for @a fes_.
-   DGMassInverse_Direct(FiniteElementSpace &fes_);
+   DGMassInverse_Direct(FiniteElementSpace &fes_, BatchSolverMode mode_ = BatchSolverMode::NATIVE);
    // /// @brief Construct the DG inverse mass operator for @a fes_ with
    // /// Coefficient @a coeff.
    // ///

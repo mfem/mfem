@@ -36,6 +36,8 @@ struct DGMassBenchmark
    DGMassInverse massinv_lobatto;
    DGMassInverse massinv_legendre;
    DGMassInverse_Direct massinv_direct;
+   DGMassInverse_Direct massinv_direct_cusolver;
+   DGMassInverse_Direct massinv_direct_cublas;
 
    Vector B, X;
 
@@ -56,7 +58,9 @@ struct DGMassBenchmark
       m(&fes),
       massinv_lobatto(fes, BasisType::GaussLobatto),
       massinv_legendre(fes, BasisType::GaussLegendre),
-      massinv_direct(fes),
+      massinv_direct(fes, BatchSolverMode::NATIVE),
+      massinv_direct_cusolver(fes, BatchSolverMode::CUSOLVER),
+      massinv_direct_cublas(fes, BatchSolverMode::CUBLAS),
       B(n),
       X(n),
       dofs(n),
@@ -131,6 +135,28 @@ struct DGMassBenchmark
       mdofs += 1e-6 * dofs;
    }
 
+   void DirectCuSolver()
+   {
+      X = 0.0;
+      MFEM_DEVICE_SYNC;
+      tic_toc.Start();
+      massinv_direct_cusolver.Mult(B, X);
+      MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
+      mdofs += 1e-6 * dofs;
+   }
+
+   void DirectCuBLAS()
+   {
+      X = 0.0;
+      MFEM_DEVICE_SYNC;
+      tic_toc.Start();
+      massinv_direct_cublas.Mult(B, X);
+      MFEM_DEVICE_SYNC;
+      tic_toc.Stop();
+      mdofs += 1e-6 * dofs;
+   }
+
    void MassApply()
    {
       X = 0.0;
@@ -173,6 +199,8 @@ BENCHMARK(Name##_##prefix)\
    Benchmark(LocalCGLobatto, prefix, eps) \
    Benchmark(LocalCGLegendre, prefix, eps) \
    Benchmark(Direct, prefix, eps) \
+   Benchmark(DirectCuSolver, prefix, eps) \
+   Benchmark(DirectCuBLAS, prefix, eps) \
    Benchmark(MassApply, prefix, eps)
 
 MassBenchmark(1_0, 1.0)
