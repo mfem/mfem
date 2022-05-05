@@ -20,11 +20,6 @@
 #include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
 
-#define MFEM_JIT
-#ifdef MFEM_USE_JIT
-#include "jit/jit.hpp"
-#endif
-
 namespace mfem
 {
 

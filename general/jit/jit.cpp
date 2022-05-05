@@ -22,7 +22,7 @@
 #include <string>
 #include <thread>
 
-//#include <dlfcn.h> // for dlopen/dlsym, not available on Windows
+#include <dlfcn.h> // for dlopen/dlsym, not available on Windows
 #include <signal.h> // for signals
 #include <unistd.h> // for fork
 #include <sys/wait.h> // for waitpid
@@ -147,9 +147,8 @@ struct Cxx
    static bool IsAck() { return Read() == ACK; }
 
    // Ask the JIT process to launch a system call.
-   static int System()
+   static int System(const char *command = Command())
    {
-      const char *command = Command();
       dbg(command);
       assert(Root());
       // In serial mode, just call std::system
@@ -182,6 +181,7 @@ struct Cxx
 
    static void Init()
    {
+      assert(IsInitialized());
       const int prot = PROT_READ | PROT_WRITE;
       const int flags = MAP_SHARED | MAP_ANONYMOUS;
       Get().size = (uintptr_t) sysconf(_SC_PAGE_SIZE);
@@ -195,8 +195,43 @@ struct Cxx
       ::signal(SIGFPE,  Handler); // floating point exception
    }
 
+   static void Parent(int *argc, char ***argv)
+   {
+#ifdef MFEM_USE_MPI
+      ::MPI_Init(argc, argv);
+#else
+      MFEM_CONTRACT_VAR(argc);
+      MFEM_CONTRACT_VAR(argv);
+#endif
+      Cxx::Write(Rank()); // inform the child about the rank
+      Cxx::Wait(false); // wait for the child to acknowledge
+   }
+
+   static void Child()
+   {
+      assert(IsAck()); // Child process initialization error
+      Wait(); // wait for parent's rank
+      const int rank = Read();
+      Acknowledge();
+      if (rank == 0) // only root is kept for work
+      {
+         std::thread([&]()
+         {
+            while (true)
+            {
+               Wait(); // waiting for the root to wake us
+               if (IsSystem()) { if (std::system(Cmd())) { return; } }
+               if (IsExit()) { return;}
+               Acknowledge();
+            }
+         }).join();
+      }
+      std::exit(EXIT_SUCCESS);
+   }
+
    static void Finalize()
    {
+      assert(IsInitialized());
       assert(IsAck()); // Finalize error
       int status;
       Send(EXIT);
@@ -259,73 +294,38 @@ Cxx Cxx::cxx_singleton {}; // Initialize the unique Cxx context.
 
 using namespace jit_internal;
 
-int Jit::Init(int *argc, char ***argv)
+void Jit::Init(int *argc, char ***argv)
 {
-   if (Root()) { Cxx::Init(); }
+   if (IsInitialized() && Root()) { Cxx::Init(); }
+   if ((Cxx::Pid()=::fork()) != 0) { Cxx::Parent(argc,argv); }
+   else { Cxx::Child(); }
+}
 
-   if ((Cxx::Pid() = fork()) != 0) // parent
+void Jit::Finalize() { if (IsInitialized() && Root()) { Cxx::Finalize(); } }
+
+void* Jit::Lookup(const size_t hash, const char *src, const char *symbol)
+{
+   int status = EXIT_SUCCESS;
+   void *handle = // try to open libmjit.so first
+      std::fstream(LIB_SO) ? ::dlopen(LIB_SO, DLOPEN_MODE) : nullptr;
+
+   // if libmjit.so was not found, try libmjit.a
+   if (!handle && std::fstream(LIB_AR))
    {
-#ifdef MFEM_USE_MPI
-      ::MPI_Init(argc, argv);
-#else
-      MFEM_CONTRACT_VAR(argc);
-      MFEM_CONTRACT_VAR(argv);
-#endif
-      Cxx::Write(Rank()); // inform the child about the rank
-      Cxx::Wait(false); // wait for the child to acknowledge
-   }
-   else // JIT compiler child process
-   {
-      assert(Cxx::IsAck()); // Child process initialization error
-      Cxx::Wait(); // wait for parent's rank
-      const int rank = Cxx::Read();
-      Cxx::Acknowledge();
-      if (rank == 0) // only root is kept for work
+      if (Root())
       {
-         std::thread([&]()
-         {
-            while (true)
-            {
-               Cxx::Wait(); // waiting for the root to wake us
-               if (Cxx::IsSystem()) { if (std::system(Cxx::Cmd())) { return; } }
-               if (Cxx::IsExit()) { return;}
-               Cxx::Acknowledge();
-            }
-         }).join();
+         dbg("%s => %s", LIB_AR, LIB_SO);
+         Cxx::Command() << MFEM_JIT_CXX << "-shared" << "-o" << LIB_SO
+                        << Cxx::ARprefix() << LIB_AR << Cxx::ARpostfix()
+                        << Cxx::Xlinker() + "-rpath,.";
+         status = Cxx::System();
       }
-      std::exit(EXIT_SUCCESS);
+      Sync(status);
+      handle = ::dlopen(LIB_SO, DLOPEN_MODE);
+      assert(handle);
    }
-   return EXIT_SUCCESS;
-}
 
-void Jit::Finalize() { if (Root()) { Cxx::Finalize(); } }
-
-void Jit::CacheLookup(void* &handle) { handle = ::dlopen(LIB_SO, DLOPEN_MODE); }
-
-void Jit::ArchiveLookup(void* &handle)
-{
-   if (!std::fstream(LIB_AR)) { return; }
-
-   int status = EXIT_SUCCESS;
-   if (Root())
-   {
-      dbg("%s => %s", LIB_AR, LIB_SO);
-      Cxx::Command() << MFEM_JIT_CXX << "-shared" << "-o" << LIB_SO
-                     << Cxx::ARprefix() << LIB_AR << Cxx::ARpostfix()
-                     << Cxx::Xlinker() + "-rpath,.";
-      status = Cxx::System();
-   }
-   Sync(status);
-   handle = ::dlopen(LIB_SO, DLOPEN_MODE);
-   assert(handle);
-}
-
-void* Jit::Compile(const uint64_t hash, const char *src, const char *name,
-                   void *&handle)
-{
-   char so[SYMBOL_SIZE+3];
-   Hash64(hash, so, ".so");
-   int status = EXIT_SUCCESS;
+   // handle can be null or not
 
    auto Compile = [&]()
    {
@@ -339,7 +339,7 @@ void* Jit::Compile(const uint64_t hash, const char *src, const char *name,
       input_src_file << src;
       input_src_file.close();
 
-      // Compilation cc => co
+      // Compilation: cc => co
       Cxx::Command() << MFEM_JIT_CXX << MFEM_JIT_BUILD_FLAGS
                      << Cxx::XDeviceCode()
                      << Cxx::Xcompiler() + "-fPIC"
@@ -349,33 +349,56 @@ void* Jit::Compile(const uint64_t hash, const char *src, const char *name,
       if (Cxx::System()) { return EXIT_FAILURE; }
       std::remove(cc);
 
-      // Update archive
+      // Update archive: ar += co
       Cxx::Command() << "ar -rv" << LIB_AR << co;
       if (Cxx::System()) { return EXIT_FAILURE; }
       std::remove(co);
 
-      // Create shared library
-      Cxx::Command() << MFEM_JIT_CXX << "-shared" << "-o" << so
+      // Create shared library: new ar => symbol, to be used once before removed
+      Cxx::Command() << MFEM_JIT_CXX << "-shared" << "-o" << symbol
                      << Cxx::ARprefix() << LIB_AR << Cxx::ARpostfix();
       if (Cxx::System()) { return EXIT_FAILURE; }
 
-      // Install shared library
-      Cxx::Command() << "install" << "-v" << Cxx::Backup() << so << LIB_SO;
+      // Update shared library: symbol => LIB_SO
+      Cxx::Command() << "install" << "-v"
+                     << Cxx::Backup() << symbol << LIB_SO;
       if (Cxx::System()) { return EXIT_FAILURE; }
       return EXIT_SUCCESS;
    }; // Compile
 
-   if (Root()) { status = Compile(); }
-   Sync(status);
+   if (!handle) // no so, no archive
+   {
+      if (Root()) { status = Compile(); }
+      Sync(status);
+      handle = ::dlopen(LIB_SO, DLOPEN_MODE);
+      Sync();
+      if (!handle) { std::cerr << ::dlerror() << std::endl; }
+      assert(handle);
+   }
+   else // we have a handle
+   {
+      void *kernel = ::dlsym(handle, symbol);
+      if (!kernel)// no symbol found in cache
+      {
+         //
+         if (Root()) { status = Compile(); }
+         Sync(status);
+         handle = ::dlopen(symbol, DLOPEN_MODE); // use new one
+         Sync();
+         if (!handle) { std::cerr << ::dlerror() << std::endl; }
+         assert(handle);
+      }
+      /*else
+      {
+         assert(false);
+      }*/
+      Sync();
+   }
 
-   // !handle => LIB_SO, else we had no symbol, use the newest shared object
-   handle = ::dlopen(!handle ? LIB_SO : so, DLOPEN_MODE);
-   Sync();
-   if (!handle) { std::cerr << ::dlerror() << std::endl; }
    assert(handle);
-
-   std::remove(so); // remove the temporary shared lib after use
-   void *kernel = ::dlsym(handle, name); // no symbol found
+   std::remove(symbol); // remove the temporary shared lib after use
+   void *kernel = ::dlsym(handle, symbol); // no symbol found
+   assert(kernel);
    return kernel;
 }
 

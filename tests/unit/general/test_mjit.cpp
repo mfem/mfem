@@ -15,10 +15,12 @@
 
 #ifndef MFEM_TEST_MJIT_EXCLUDE_CODE // exclude the catch code JIT compilation
 
-#include "general/forall.hpp" // for MFEM_JIT
+#include "general/forall.hpp" // for MFEM_FORALL
+#include "general/jit/jit.hpp"// for MFEM_JIT
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+
 
 using namespace mfem;
 
@@ -90,7 +92,8 @@ struct Device
 // avoid mfem_cuda_error inside MFEM_GPU_CHECK
 #define MFEM_GPU_CHECK(...)
 
-#include "general/forall.hpp" // for MFEM_JIT
+#include "general/forall.hpp" // for MFEM_FORALL
+#include "general/jit/jit.hpp"// for MFEM_JIT
 
 using namespace mfem;
 using namespace std;
@@ -98,10 +101,10 @@ using namespace std;
 
 // Bailey–Borwein–Plouffe formula to compute the nth base-16 digit of π
 MFEM_JIT template<int T_DEPTH = 0, int T_N = 0>
-void bbps( const size_t q, double *result, size_t depth = 0, size_t n = 0)
+void bbps( const size_t q, double *result, int depth = 0, int n = 0)
 {
-   const size_t D = T_DEPTH ? T_DEPTH : depth;
-   const size_t N = T_N ? T_N : n;
+   const size_t D = T_DEPTH ? T_DEPTH : (size_t) depth;
+   const size_t N = T_N ? T_N : (size_t) n;
 
    const size_t b = 16, p = 8, M = N + D;
    double s = 0.0,  h = 1.0 / b;

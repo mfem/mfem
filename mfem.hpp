@@ -38,9 +38,6 @@
 #ifdef MFEM_USE_MPI
 #include "general/communication.hpp"
 #endif // MFEM_USE_MPI
-#ifdef MFEM_USE_JIT
-#include "general/jit/jit.hpp"
-#endif // MFEM_USE_JIT
 
 #include "linalg/linalg.hpp"
 

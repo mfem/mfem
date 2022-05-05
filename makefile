@@ -614,6 +614,9 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
 
 install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	mkdir -p $(PREFIX_LIB)
+# install jit header
+	$(if $(jit),mkdir -p $(PREFIX_INC)/general/jit)
+	$(if $(jit),$(INSTALL) -m 640 $(SRC)general/jit/jit.hpp $(PREFIX_INC)/general/jit)
 # install static and/or shared library
 	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
@@ -773,7 +776,8 @@ FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
 COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'\
- '^general/debug\.hpp' '^general/jit/main\.cpp' '^general/jit/parser\.cpp'
+ '^general/debug\.hpp' '^general/jit/jit\.cpp' '^general/jit/main\.cpp'\
+ '^general/jit/parser\.cpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\

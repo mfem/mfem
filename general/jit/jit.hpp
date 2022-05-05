@@ -14,11 +14,11 @@
 
 #include "../../config/config.hpp"
 
+#define MFEM_JIT
+
 #ifdef MFEM_USE_JIT
 
-#include <functional> // for std::hash
-#include <dlfcn.h> // for dlsym
-#include <cassert>
+#include <list> // needed at runtime
 
 namespace mfem
 {
@@ -26,57 +26,26 @@ namespace mfem
 struct Jit
 {
    /// Initialize JIT, used in communication Mpi singleton.
-   static int Init(int *argc, char ***argv);
+   static void Init(int *argc, char ***argv);
 
    /// Finalize JIT, used in communication Mpi singleton.
    static void Finalize();
 
-   /// Load the JIT shared cache library and return the handle.
-   static void CacheLookup(void* &handle);
-
-   /// Load a new shared cache library from an archive library if it exists.
-   static void ArchiveLookup(void* &handle);
-
-   /// Ask the JIT process to compile and update the libraries.
-   static void* Compile(const uint64_t hash, const char *src, const char *name,
-                        void *&handle);
+   /// Lookup symbol in the cache, launch the compile if needed.
+   static void* Lookup(const size_t hash, const char *src, const char *symbol);
 
    /// Kernel class
    template<typename kernel_t> struct Kernel
    {
-      void *handle;
       kernel_t kernel;
 
       /// \brief Kernel constructor
-      Kernel(const size_t hash, const char *src, const char *name)
-      {
-         Jit::CacheLookup(handle);
-         if (!handle) { Jit::ArchiveLookup(handle); }
-         if (!handle) { kernel = (kernel_t) Jit::Compile(hash, src, name, handle); }
-         else { kernel = (kernel_t) ::dlsym(handle, name); }
-         //kernel = (kernel_t) Jit::Compile(hash, src, name, handle);
-         if (!kernel)
-         {
-            kernel = (kernel_t) Jit::Compile(hash, src, name, handle);
-         }
-         assert(kernel);
-      }
+      Kernel(const size_t hash, const char *src, const char *symbol):
+         kernel((kernel_t) Jit::Lookup(hash, src, symbol)) { }
 
       /// Kernel launch
-      template<typename... Args> inline
-      void operator()(Args... args) { kernel(args...); }
+      template<typename... Args> void operator()(Args... as) { kernel(as...); }
    };
-
-   /// \brief Binary hash combine function
-   template <typename T> static inline
-   size_t Hash(const size_t &h, const T &a) noexcept
-   { return h ^ (std::hash<T> {}(a) + 0x9e3779b97f4a7c15ull + (h<<12) + (h>>4));}
-
-
-   /// \brief Ternary hash combine function
-   template<typename T, typename... Args> static inline
-   size_t Hash(const size_t &h, const T &arg, Args... args) noexcept
-   { return Hash(Hash(h, arg), args...); }
 };
 
 } // namespace mfem

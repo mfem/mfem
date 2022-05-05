@@ -15,19 +15,25 @@
 
 #include <list>
 #include <string>
-#include <cstring>
 #include <cassert>
 #include <iostream>
 #include <sstream>
-#include <algorithm>
-
-#include "jit.hpp" // fot Jit::Hash
 
 namespace mfem
 {
 
 struct JitPreProcessor
 {
+   /// \brief Terminal binary arguments hash combine function
+   template <typename T> static inline
+   size_t Hash(const size_t &h, const T &a) noexcept
+   { return h ^ (std::hash<T> {}(a) + 0x9e3779b97f4a7c15ull + (h<<12) + (h>>4));}
+
+   /// \brief Variadic hash combine function
+   template<typename T, typename... Args> static inline
+   size_t Hash(const size_t &h, const T &arg, Args... args) noexcept
+   { return Hash(Hash(h, arg), args...); }
+
    struct dbg
    {
       static constexpr bool DEBUG = false;
@@ -288,7 +294,6 @@ struct JitPreProcessor
          if (is_eq()) { ker.eq = true; id = id.substr(0, id.size()-1); }
          if (is_id() && !ker.eq) { id += in.peek(); }
          if (is_coma()) { add_arg(ker.Sargs, last(id)); id.clear(); ker.eq = false; }
-         //ker.eq ? get() : put(); // remove the '= digit' or to ker.Sparams
          put();
       }
       add_arg(ker.Sargs, last(id));
@@ -312,7 +317,6 @@ struct JitPreProcessor
 
       out << "\n\tconst bool use_jit = " << ker.Ttest << ";";
       out << "\nif (use_jit){";
-
       out << "\n\tconst char *source = R\"_(";
 
       // switching from out to ker.source to compute the hash,
@@ -338,6 +342,9 @@ struct JitPreProcessor
 
       ker.source << "\n#include \"" << MFEM_INSTALL_DIR
                  << "/include/mfem/general/forall.hpp\"";
+
+      ker.source << "\n//#include \"" << MFEM_INSTALL_DIR
+                 << "/include/mfem/general/jit/jit.hpp\"";
 
       ker.source << "\nusing namespace mfem;";
 
@@ -423,32 +430,41 @@ struct JitPreProcessor
                  << ker.name << "_%016lx<"<< ker.Tformat << ">"
                  << "(use_dev,"<< ker.Sargs << ");}";
 
-      const size_t seed = Jit::Hash(std::hash<std::string> {}(ker.source.str()),
-                                    std::string(MFEM_JIT_CXX),
-                                    std::string(MFEM_JIT_BUILD_FLAGS),
-                                    std::string(MFEM_SOURCE_DIR),
-                                    std::string(MFEM_INSTALL_DIR));
+      const size_t seed = /*Jit::*/Hash(std::hash<std::string> {}(ker.source.str()),
+                                        std::string(MFEM_JIT_CXX),
+                                        std::string(MFEM_JIT_BUILD_FLAGS),
+                                        std::string(MFEM_SOURCE_DIR),
+                                        std::string(MFEM_INSTALL_DIR));
 
       // output all kernel source, after having computed its hash
       out << ker.source.str().c_str() << ")_\";"; // end of source
 
-      out << "\nconst size_t hash = Jit::Hash("
-          << "0x" << std::hex << seed << std::dec << "ul, "
-          << ker.Targs << ");";
+      out << "\nstruct Local {"
+          << "static inline size_t Hash(const size_t &h, const size_t &a) noexcept"
+          << "{ return h ^ (std::hash<size_t> {}(a) + 0x9e3779b97f4a7c15ull + (h<<12) + (h>>4));}"
+          << "static inline size_t Hash(const size_t seed, const std::list<int> &args){"
+          << "  size_t hash = seed;"
+          << "  for (size_t arg : args) { hash = Hash(hash, static_cast<size_t>(arg)); }"
+          << " return hash; }";
+      out << "};";
+
+      out << "\nconst size_t hash = Local::Hash("
+          << "0x" << std::hex << seed << std::dec << "ul,"
+          << "{" << ker.Targs << "});";
 
       // kernel typedef
       out << "\ntypedef void (*kernel_t)(bool use_dev," << ker.Sparams << ");";
 
       // kernel map
-      out << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> ks;";
+      out << "\nstatic std::unordered_map<size_t, mfem::Jit::Kernel<kernel_t>> ks;";
 
       // Add kernel in map if not already present
       out << "\nauto ks_iter = ks.find(hash);";
       out << "\nif (ks_iter == ks.end()){"
-          << "\n\tconst int N = 1 + " // source size
+          << "\n\tconst int Nsrc = 1 + " // source size
           << "snprintf(nullptr, 0, source, hash, hash, hash, " << ker.Targs << ");"
-          << "\n\tchar *Tsrc = new char[N];"
-          << "\n\tsnprintf(Tsrc, N, source, hash, hash, hash, "<< ker.Targs << ");"
+          << "\n\tchar *Tsrc = new char[Nsrc];"
+          << "\n\tsnprintf(Tsrc, Nsrc, source, hash, hash, hash, "<< ker.Targs << ");"
           << "\n\tstd::stringstream ss;" // prepare symbol from computed hash
           << "\n\tss << 'k' << std::setfill('0') "
           << "<< std::setw(16) << std::hex << (hash|0) << std::dec;"

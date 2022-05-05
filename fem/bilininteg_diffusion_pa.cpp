@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../general/forall.hpp"
+#include "../general/jit/jit.hpp" // for MFEM_JIT
 #include "bilininteg.hpp"
 #include "gridfunc.hpp"
 #include "ceed/diffusion.hpp"
