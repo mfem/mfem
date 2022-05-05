@@ -41,7 +41,7 @@ void E_exact_r(const Vector &x, Vector & E_r);
 void E_exact_i(const Vector &x, Vector & E_i);
 
 void H_exact_r(const Vector &x, Vector & H_r);
-void H_exact_i(const Vector &x, Vector & H_r);
+void H_exact_i(const Vector &x, Vector & H_i);
 
 
 void  rhs_func_r(const Vector &x, Vector & J_r);
@@ -558,7 +558,7 @@ void curlH_exact_i(const Vector &x,Vector &curlH_i)
    curlH_i.SetSize(3);
    for (int i = 0; i<3; i++)
    {
-      curlH_i(i) = -curlcurlE_r(i) / (omega * mu);
+      curlH_i(i) = curlcurlE_r(i) / (omega * mu);
    }
 }
 
@@ -626,29 +626,29 @@ void maxwell_solution(const Vector & X, std::vector<complex<double>> &E,
    curlE.resize(3);
    curlcurlE.resize(3);
 
-   // E[0] = y * z * (1.0 - y) * (1.0 - z);
-   // E[1] = x * y * z * (1.0 - x) * (1.0 - z);
-   // E[2] = x * y * (1.0 - x) * (1.0 - y);
+   E[0] = y * z * (1.0 - y) * (1.0 - z);
+   E[1] = x * y * z * (1.0 - x) * (1.0 - z);
+   E[2] = x * y * (1.0 - x) * (1.0 - y);
       
-   // curlE[0] = (1.0 - x) * x * (y*(2.0*z-3.0)+1.0);
-   // curlE[1] = 2.0*(1.0 - y)*y*(x-z);
-   // curlE[2] = (z-1)*z*(1.0+y*(2.0*x-3.0));
+   curlE[0] = (1.0 - x) * x * (y*(2.0*z-3.0)+1.0);
+   curlE[1] = 2.0*(1.0 - y)*y*(x-z);
+   curlE[2] = (z-1)*z*(1.0+y*(2.0*x-3.0));
       
-   // curlcurlE[0] = 2.0 * y * (1.0 - y) - (2.0 * x - 3.0) * z * (1 - z);
-   // curlcurlE[1] = 2.0 * y * (x * (1.0 - x) + (1.0 - z) * z);
-   // curlcurlE[2] = 2.0 * y * (1.0 - y) + x * (3.0 - 2.0 * z) * (1.0 - x);
+   curlcurlE[0] = 2.0 * y * (1.0 - y) - (2.0 * x - 3.0) * z * (1 - z);
+   curlcurlE[1] = 2.0 * y * (x * (1.0 - x) + (1.0 - z) * z);
+   curlcurlE[2] = 2.0 * y * (1.0 - y) + x * (3.0 - 2.0 * z) * (1.0 - x);
 
-   E[0] = y;
-   E[1] = z*x;
-   E[2] = x;
+   // E[0] = y;
+   // E[1] = z*x;
+   // E[2] = x;
       
-   curlE[0] = -x;
-   curlE[1] = -1.0;
-   curlE[2] = z-1;
+   // curlE[0] = -x;
+   // curlE[1] = -1.0;
+   // curlE[2] = z-1;
       
-   curlcurlE[0] = 0.0;
-   curlcurlE[1] = 0.0;
-   curlcurlE[2] = 0.0;
+   // curlcurlE[0] = 0.0;
+   // curlcurlE[1] = 0.0;
+   // curlcurlE[2] = 0.0;
 
    // E[0] = y*y;
    // E[1] = 0.0;
