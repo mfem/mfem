@@ -49,8 +49,8 @@ TEST_CASE("Just-In-Time-Compilation", "[JIT]")
              MFEM_SOURCE_DIR "/tests/unit/general/test_mjit.cpp");
 
       std::remove("test_mjit"); // cleanup existing executable
-      std::remove("libmjit.a");
-      std::remove("libmjit.so");
+      //std::remove("libmjit.a");
+      //std::remove("libmjit.so");
       System(MFEM_JIT_CXX " " MFEM_JIT_BUILD_FLAGS // compilation
              " -DMFEM_TEST_MJIT_EXCLUDE_CODE"
              " -DMFEM_TEST_MJIT_INCLUDE_MAIN" // embed the main below

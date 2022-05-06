@@ -381,7 +381,7 @@ MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 MFEM_CONFIG_EXTRA ?= $(if $(CONFIG_FILE_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 
 MFEM_JIT_CXX = $(MFEM_CXX)
-MFEM_JIT_BUILD_FLAGS ?= $(strip $(CPPFLAGS) $(CXXFLAGS) $(INCFLAGS))
+MFEM_JIT_BUILD_FLAGS ?= $(strip $(CPPFLAGS) $(CXXFLAGS))
 
 MFEM_SOURCE_DIR  = $(MFEM_REAL_DIR)
 MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
@@ -470,16 +470,12 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp
 ifeq ($(shell uname -s),Linux)
 JIT_LIB = -lrt -ldl
 endif
-#$(BLD)$(MFEM_JIT): $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
-$(BLD)$(MFEM_JIT): $(SRC)general/jit/jit.hpp
-$(BLD)$(MFEM_JIT): $(BLD)general/jit/jit.o \
-						 $(BLD)general/jit/main.o \
-						 $(BLD)general/jit/parser.o
-	$(MFEM_CXX) $(filter-out -x=cu -xhip,$(MFEM_BUILD_FLAGS)) -o $(@) $(filter-out $(SRC)general/jit/jit.hpp,$(^)) $(JIT_LIB) 
+$(BLD)$(MFEM_JIT): $(BLD)general/jit/parser.cpp
+	$(MFEM_CXX) $(filter-out -x=cu -xhip,$(MFEM_BUILD_FLAGS)) -o $(@) $(<) $(JIT_LIB) 
 
 # Filtering out the objects that will be compiled through the preprocessor
 JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
-STD_OBJECTS_FILES = $(filter-out $(JIT_OBJECTS_FILES), $(OBJECT_FILES))
+STD_OBJECTS_FILES = $(filter-out $(JIT_OBJECTS_FILES) $(BLD)general/jit/parser.o, $(OBJECT_FILES))
 
 $(STD_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)

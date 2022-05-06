@@ -1800,8 +1800,6 @@ static void PADiffusionApply(const int dim,
 #endif // MFEM_USE_OCCA
 
    const int id = (d1d << 4) | q1d;
-
-#ifndef MFEM_USE_JIT
    if (dim == 2)
    {
       switch (id)
@@ -1814,7 +1812,11 @@ static void PADiffusionApply(const int dim,
          case 0x77: return SmemPADiffusionApply2D<7,7,4>(ne,symm,B,G,D,X,Y);
          case 0x88: return SmemPADiffusionApply2D<8,8,2>(ne,symm,B,G,D,X,Y);
          case 0x99: return SmemPADiffusionApply2D<9,9,2>(ne,symm,B,G,D,X,Y);
-         default:   return PADiffusionApply2D(ne,symm,b,g,bt,gt,d,x,y,d1d,q1d);
+#ifdef MFEM_USE_JIT
+         default: return SmemPADiffusionApply2D(ne,symm,B,G,D,X,Y,d1d,q1d);
+#else
+         default: return PADiffusionApply2D(ne,symm,b,g,bt,gt,d,x,y,d1d,q1d);
+#endif
       }
    }
 
@@ -1822,7 +1824,7 @@ static void PADiffusionApply(const int dim,
    {
       switch (id)
       {
-         case 0x22: return SmemPADiffusionApply3D<2,2>(ne,symm,B,G,D,X,Y);
+         //case 0x22: return SmemPADiffusionApply3D<2,2>(ne,symm,B,G,D,X,Y);
          case 0x23: return SmemPADiffusionApply3D<2,3>(ne,symm,B,G,D,X,Y);
          case 0x34: return SmemPADiffusionApply3D<3,4>(ne,symm,B,G,D,X,Y);
          case 0x45: return SmemPADiffusionApply3D<4,5>(ne,symm,B,G,D,X,Y);
@@ -1832,23 +1834,13 @@ static void PADiffusionApply(const int dim,
          case 0x67: return SmemPADiffusionApply3D<6,7>(ne,symm,B,G,D,X,Y);
          case 0x78: return SmemPADiffusionApply3D<7,8>(ne,symm,B,G,D,X,Y);
          case 0x89: return SmemPADiffusionApply3D<8,9>(ne,symm,B,G,D,X,Y);
-         default:   return PADiffusionApply3D(ne,symm,b,g,bt,gt,d,x,y,d1d,q1d);
+#ifdef MFEM_USE_JIT
+         default: return SmemPADiffusionApply3D(ne,symm,B,G,D,X,Y,d1d,q1d);
+#else
+         default: return PADiffusionApply3D(ne,symm,b,g,bt,gt,d,x,y,d1d,q1d);
+#endif
       }
    }
-#else // MFEM_USE_JIT
-   if (dim == 2)
-   {
-      const int nbz = (d1d < 4)  ? 16:
-                      (d1d < 6)  ? 8 :
-                      (d1d < 8)  ? 4 :
-                      (d1d < 10) ? 2 : 1;
-      return SmemPADiffusionApply2D(ne,symm,B,G,D,X,Y,d1d,q1d,nbz);
-   }
-   if (dim == 3)
-   {
-      return SmemPADiffusionApply3D(ne,symm,B,G,D,X,Y,d1d,q1d);
-   }
-#endif // MFEM_USE_JIT
    MFEM_ABORT("Unknown kernel: 0x"<<std::hex << id << std::dec);
 }
 

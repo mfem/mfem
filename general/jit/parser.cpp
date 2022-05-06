@@ -16,6 +16,7 @@
 #include <list>
 #include <string>
 #include <cassert>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 
@@ -317,6 +318,7 @@ struct JitPreProcessor
 
       out << "\n\tconst bool use_jit = " << ker.Ttest << ";";
       out << "\nif (use_jit){";
+      out << "//assert(1&&false);";
       out << "\n\tconst char *source = R\"_(";
 
       // switching from out to ker.source to compute the hash,
@@ -342,9 +344,6 @@ struct JitPreProcessor
 
       ker.source << "\n#include \"" << MFEM_INSTALL_DIR
                  << "/include/mfem/general/forall.hpp\"";
-
-      ker.source << "\n//#include \"" << MFEM_INSTALL_DIR
-                 << "/include/mfem/general/jit/jit.hpp\"";
 
       ker.source << "\nusing namespace mfem;";
 
@@ -483,7 +482,14 @@ struct JitPreProcessor
       out << "\nks_iter->second.operator()(use_dev," << ker.Sargs << ");";
 
       out << "\n} else { // not use_jit\n";
+      out << "//assert(2&&false);";
       out << ker.body.str();
+
+      out << "for (int k=0; k<" << ker.forall.N.c_str() << "; k++) {"
+          << "[&] (int " << ker.forall.e <<")"
+          << ker.forall.body.str() << "(k);"
+          << "}";
+
       out << "}";
 
       out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
@@ -610,4 +616,43 @@ int JitPreProcess(std::istream &in, std::ostream &out, std::string &file)
 
 } // namespace mfem
 
+int main(const int argc, char* argv[])
+{
+   std::string input, output, file;
+   struct
+   {
+      int operator()(char* argv[])
+      {
+         std::cout << "mjit: ";
+         std::cout << argv[0] << " [-h] [-o output] input" << std::endl;
+         return EXIT_SUCCESS;
+      }
+   } help;
+
+   if (argc <= 1) { return help(argv); }
+
+   for (int i = 1; i < argc; i++)
+   {
+      // -h lauches help
+      if (argv[i] == std::string("-h")) { return help(argv); }
+
+      // -o selects the output
+      if (argv[i] == std::string("-o")) { output = argv[++i]; continue; }
+
+      // last argument should be the input file
+      assert(argv[i]);
+      file = input = argv[i];
+   }
+   const bool ofile = !output.empty();
+   std::ifstream ifs(input.c_str(), std::ios::in | std::ios::binary);
+   std::ofstream ofs(output.c_str(),
+                     std::ios::out | std::ios::binary | std::ios::trunc);
+   assert(!ifs.fail());
+   assert(ifs.is_open());
+   if (ofile) { assert(ofs.is_open()); }
+   const int status = mfem::JitPreProcess(ifs, ofile ? ofs : std::cout, file);
+   ifs.close();
+   ofs.close();
+   return status;
+}
 #endif // MFEM_USE_JIT
