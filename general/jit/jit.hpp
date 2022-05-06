@@ -16,9 +16,9 @@
 
 #define MFEM_JIT
 
-#ifdef MFEM_USE_JIT
+#ifdef MFEM_USE_JIT // to tag JIT kernels
 
-#include <list> // needed at runtime
+#include <list> // needed at compile time for JIT kernels, after parser
 
 namespace mfem
 {
