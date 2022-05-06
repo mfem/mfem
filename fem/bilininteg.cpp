@@ -860,6 +860,64 @@ void CurlIntegrator::AssembleElementMatrix2(
    }
 }
 
+void ScalarCurlIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans,  DenseMatrix &elmat)
+{
+   int dim = trial_fe.GetDim();
+   MFEM_ASSERT(dim == 2 && trial_fe.GetMapType() == mfem::FiniteElement::VALUE,
+               "Trial finite element must be in H1 in 2D");
+   int trial_dof = trial_fe.GetDof();
+   int test_dof = test_fe.GetDof();
+
+   MFEM_ASSERT(test_fe.GetMapType() == mfem::FiniteElement::VALUE ||
+               test_fe.GetMapType() == mfem::FiniteElement::INTEGRAL,
+               "Test finite element must be in H1/L2");
+
+   dshape.SetSize(trial_dof,dim);
+   curlshape.SetSize(dim * trial_dof,1);
+   shape.SetSize(test_dof);
+   elmat.SetSize(dim * test_dof, trial_dof);
+   elmat = 0.0;
+   elmat_comp.SetSize(test_dof, trial_dof);
+
+   double c;
+   Vector d_col;
+   const IntegrationRule *ir = IntRule;
+
+   if (ir == NULL)
+   {
+      int order = trial_fe.GetOrder() + test_fe.GetOrder() - 1; // <--
+      ir = &IntRules.Get(trial_fe.GetGeomType(), order);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Trans.SetIntPoint(&ip);
+      trial_fe.CalcPhysDShape(Trans, dshape);
+      dshape.GradToCurl(curlshape);
+      test_fe.CalcPhysShape(Trans, shape);
+      c = ip.weight*Trans.Weight();
+      if (Q)
+      {
+         c *= Q->Eval(Trans, ip);
+      }
+      shape *= c;
+
+      for (int d = 0; d < dim; ++d)
+      {
+         for (int jj = 0; jj < trial_dof; ++jj)
+         {
+            for (int ii = 0; ii < test_dof; ++ii)
+            {
+               elmat(d * test_dof + ii, jj) += shape(ii) * curlshape(d*trial_dof+jj,0);
+            }
+         }
+      }
+   }
+}
+
 void DiffusionIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
   DenseMatrix &elmat )
