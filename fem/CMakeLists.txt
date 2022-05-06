@@ -68,7 +68,10 @@ set(SRCS
   ceed/operator.cpp
   ceed/util.cpp
   linearform.cpp
+  linearform_ext.cpp
   lininteg.cpp
+  lininteg_domain.cpp
+  lininteg_domain_grad.cpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
@@ -161,6 +164,7 @@ set(HDRS
   ceed/operator.hpp
   ceed/util.hpp
   linearform.hpp
+  linearform_ext.hpp
   lininteg.hpp
   multigrid.hpp
   nonlinearform.hpp
