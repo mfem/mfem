@@ -1793,6 +1793,9 @@ static void PADiffusionApply(const int dim,
       }
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
+#else
+   MFEM_CONTRACT_VAR(Bt);
+   MFEM_CONTRACT_VAR(Gt);
 #endif // MFEM_USE_OCCA
    const int id = (D1D << 4) | Q1D;
 
