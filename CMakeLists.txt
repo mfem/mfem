@@ -542,11 +542,11 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 if (MFEM_USE_JIT)
 message(STATUS "MFEM uses JIT")
 include_directories("${MFEM_SOURCE_DIR}")
-add_executable(mpp general/mpp.cpp)
-set_target_properties(mpp PROPERTIES
+add_executable(mjit ${CMAKE_CURRENT_SOURCE_DIR}/general/jit/parser.cpp)
+set_target_properties(mjit PROPERTIES
                       CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
 set(MFEM_JIT_FLAGS "-O3 -Wall -fPIC")
-target_compile_options(mpp PRIVATE -DMFEM_CXX=${CMAKE_CXX_COMPILER}
+target_compile_options(mjit PRIVATE -DMFEM_CXX=${CMAKE_CXX_COMPILER}
                        -DMFEM_INSTALL_DIR=${MFEM_INSTALL_DIR}
                        -DMFEM_BUILD_FLAGS=${MFEM_JIT_FLAGS})
 set(KERNELS "")
@@ -560,8 +560,8 @@ foreach(kernel IN LISTS SOURCES)
    add_custom_command(
        OUTPUT ${kernel_cpp}
        COMMAND ${CMAKE_COMMAND} -E make_directory ${KER_RELPATH}
-       COMMAND mpp ${kernel} -o ${kernel_cpp}
-       DEPENDS mpp ${kernel}
+       COMMAND mjit ${kernel} -o ${kernel_cpp}
+       DEPENDS mjit ${kernel}
    )
    set(KERNELS ${KERNELS} ${kernel_cpp})
    string(REPLACE " " "_" kernel_d ${relpath}/${kername})
