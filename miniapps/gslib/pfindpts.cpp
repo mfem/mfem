@@ -41,6 +41,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
 //    mpirun -np 2 pfindpts -m ../../data/fichera-mixed.mesh -o 3 -mo 2
 //    mpirun -np 2 pfindpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
+//    mpirun -np 2 pfindpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
 
 #include "mfem.hpp"
 
