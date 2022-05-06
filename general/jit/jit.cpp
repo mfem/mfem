@@ -39,10 +39,6 @@
 
 #include "jit.hpp"
 
-#undef MFEM_DEBUG_COLOR
-#define MFEM_DEBUG_COLOR 206
-#include "../debug.hpp"
-
 namespace mfem
 {
 
@@ -137,8 +133,7 @@ struct Sys // System singleton object
    // Ask the parent to launch a system call
    static int System(const char *command = Command())
    {
-      dbg(command);
-      //MFEM_WARNING(command);
+      MFEM_WARNING("\033[33m" << command << "\033[m");
       assert(Root());
       // In serial mode, just call std::system
       if (!IsInitialized()) { return std::system(command); }
@@ -161,7 +156,6 @@ struct Sys // System singleton object
 
    static void Handler(int signum)
    {
-      dbg(signum);
       MFEM_CONTRACT_VAR(signum);
       ::kill(Pid(), SIGKILL);
       while ((Pid() = ::wait(nullptr)) > 0);
@@ -304,7 +298,6 @@ void* Jit::Lookup(const size_t hash, const char *src, const char *symbol)
    {
       if (Root())
       {
-         dbg("%s => %s", LIB_AR, LIB_SO);
          Sys::Command() << MFEM_JIT_CXX << "-shared" << "-o" << LIB_SO
                         << Sys::ARprefix() << LIB_AR << Sys::ARpostfix()
                         << Sys::Xlinker() + "-rpath,.";
