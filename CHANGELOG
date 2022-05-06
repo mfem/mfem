@@ -19,7 +19,7 @@ Version 4.4.1 (development)
   between arbitrarily distributed and unrelated finite element meshes in a
   variationally consistent way.
 
-- Added support for mixed meshes and pyramids in GSLIBFindPoints.
+- Added support for mixed meshes and pyramids in GSLIB-FindPoints.
 
 
 Version 4.4, released on March 21, 2022
