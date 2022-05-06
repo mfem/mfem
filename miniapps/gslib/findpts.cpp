@@ -40,6 +40,7 @@
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
 //    findpts -m ../../data/fichera-mixed.mesh -o 3 -mo 2
 //    findpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
+//    findpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
 
 #include "mfem.hpp"
 
