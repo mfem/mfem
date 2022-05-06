@@ -771,22 +771,29 @@ void Vector::PrintHash(std::ostream &os) const
 
 void Vector::Randomize(int seed)
 {
-   // static unsigned int seed = time(0);
    const double max = (double)(RAND_MAX) + 1.;
 
-   if (seed == 0)
+   if (!global_seed_set)
    {
-      seed = (int)time(0);
-   }
+      if (seed == 0)
+      {
+         seed = (int)time(0);
+      }
 
-   // srand(seed++);
-   srand((unsigned)seed);
+      srand((unsigned)seed);
+   }
 
    HostWrite();
    for (int i = 0; i < size; i++)
    {
       data[i] = std::abs(rand()/max);
    }
+}
+
+void Vector::SetGlobalSeed(int gseed)
+{
+   srand((unsigned)gseed);
+   global_seed_set = true;
 }
 
 double Vector::Norml2() const
