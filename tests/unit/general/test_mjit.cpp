@@ -49,8 +49,8 @@ TEST_CASE("Just-In-Time-Compilation", "[JIT]")
 
       std::remove("test_mjit"); // cleanup existing executable
 
-      // cleanup caches, but forces each unit_tests to rebuild it
-      //std::remove("libmjit.a"); std::remove("libmjit.so");
+      //#warning cleanup caches, but forces each unit_tests to rebuild it
+      std::remove("libmjit.a"); std::remove("libmjit.so");
 
       System(MFEM_JIT_CXX " " MFEM_JIT_BUILD_FLAGS // compilation
              " -DMFEM_TEST_MJIT_EXCLUDE_CODE"
@@ -249,6 +249,88 @@ jit_7//
       q//
    )//
    ;//
+}
+
+MFEM_JIT
+template<int T_D1D = 0, int T_Q1D = 0>
+void SmemPADiffusionApply3D(const int NE,
+                            const double *b_,
+                            const double *g_,
+                            const double *x_,
+                            int d1d = 0,
+                            int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
+   MFEM_VERIFY(D1D <= M1D, "");
+   MFEM_VERIFY(Q1D <= M1Q, "");
+   auto b = Reshape(b_, Q1D, D1D);
+   auto g = Reshape(g_, Q1D, D1D);
+   auto x = Reshape(x_, D1D, D1D, D1D, NE);
+   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+      MFEM_SHARED double sBG[2][MQ1*MD1];
+      double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
+      double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
+      double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
+      double (*Gt)[MQ1] = (double (*)[MQ1]) (sBG+1);
+      MFEM_SHARED double sm0[3][MDQ*MDQ*MDQ];
+      MFEM_SHARED double sm1[3][MDQ*MDQ*MDQ];
+      double (*X)[MD1][MD1]    = (double (*)[MD1][MD1]) (sm0+2);
+      double (*DDQ0)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+0);
+      double (*DDQ1)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+1);
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               X[dz][dy][dx] = x(dx,dy,dz,e);
+            }
+         }
+      }
+      if (MFEM_THREAD_ID(z) == 0)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               B[qx][dy] = b(qx,dy);
+               G[qx][dy] = g(qx,dy);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(dz,z,D1D)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double u = 0.0, v = 0.0;
+               MFEM_UNROLL(MD1)
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const double coords = X[dz][dy][dx];
+                  u += coords * B[qx][dx];
+                  v += coords * G[qx][dx];
+               }
+               DDQ0[dz][dy][qx] = u;
+               DDQ1[dz][dy][qx] = v;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+   // after forall
+   assert(NE>0);
 }
 
 #endif // MFEM_USE_JIT

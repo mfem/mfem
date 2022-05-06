@@ -13,7 +13,6 @@
 
 #ifdef MFEM_USE_JIT
 
-#include <cassert>
 #include <cstdlib> // for exit, system
 
 #include <chrono>
@@ -36,7 +35,6 @@
 #include "../communication.hpp" // pulls mpi.h
 #include "../globals.hpp" // needed when !MFEM_USE_MPI
 #include "../error.hpp" // for MFEM_CONTRACT_VAR
-
 #include "jit.hpp"
 
 namespace mfem
@@ -45,58 +43,55 @@ namespace mfem
 namespace jit_internal
 {
 
-static constexpr char LIB_AR[] = "libmjit.a";
-static constexpr char LIB_SO[] = "./libmjit.so";
-static constexpr int SYMBOL_SIZE = 1+16+1; // k + hash + 0
-static constexpr int DLOPEN_MODE = RTLD_LAZY | RTLD_LOCAL;
-
-// Return the MPI world rank
-static int Rank()
+struct MPI
 {
-   int world_rank = 0;
-#ifdef MFEM_USE_MPI
-   if (Mpi::IsInitialized()) { world_rank = Mpi::WorldRank(); }
-#endif
-   return world_rank;
-}
-
-// Return true if MPI has been initialized
-static bool IsInitialized()
-{
-#ifndef MFEM_USE_MPI
-   return false;
-#else
-   return Mpi::IsInitialized();
-#endif
-}
-
-// Return true if the rank in world rank is zero
-static bool Root() { return Rank() == 0; }
-
-// Do a MPI barrier and status reduction if MPI has been initialized
-static void Sync(bool status = EXIT_SUCCESS)
-{
-#ifdef MFEM_USE_MPI
-   if (Mpi::IsInitialized())
+   // Return the MPI world rank
+   static int Rank()
    {
-      MPI_Allreduce(MPI_IN_PLACE, &status, 1, MPI_C_BOOL, MPI_LOR, MPI_COMM_WORLD);
-      assert(status == EXIT_SUCCESS); // synchronization error
-   }
-#else
-   MFEM_CONTRACT_VAR(status);
+      int world_rank = 0;
+#ifdef MFEM_USE_MPI
+      if (Mpi::IsInitialized()) { world_rank = Mpi::WorldRank(); }
 #endif
-}
+      return world_rank;
+   }
 
-struct Sys // System singleton object
+   // Return true if MPI has been initialized
+   static bool IsInitialized()
+   {
+#ifndef MFEM_USE_MPI
+      return false;
+#else
+      return Mpi::IsInitialized();
+#endif
+   }
+
+   // Return true if the rank in world rank is zero
+   static bool Root() { return Rank() == 0; }
+
+   // Do a MPI barrier and status reduction if MPI has been initialized
+   static void Sync(bool status = EXIT_SUCCESS)
+   {
+#ifdef MFEM_USE_MPI
+      if (Mpi::IsInitialized())
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &status, 1, MPI_C_BOOL, MPI_LOR, MPI_COMM_WORLD);
+         MFEM_VERIFY(status == EXIT_SUCCESS, "[JIT] Synchronization error!");
+      }
+#else
+      MFEM_CONTRACT_VAR(status);
+#endif
+   }
+};
+
+struct JIT // System singleton object
 {
    pid_t pid; // of child process
    int *s_ack; // shared status, should be large enough to store one MPI rank
    char *s_mem; // shared memory to store the command for the system call
-   uintptr_t size; // of the shared memory
+   uintptr_t size; // of the s_mem shared memory
 
    struct Command
    {
-      Command() {}
       std::ostringstream cmd {};
       Command& operator<<(const char *c) { cmd << c << ' '; return *this; }
       Command& operator<<(const std::string &s) { return *this << s.c_str(); }
@@ -112,41 +107,39 @@ struct Sys // System singleton object
 
    template <typename OP> static void Ack(const int xx)
    {
-      while (OP()(*Ack(), xx))
+      while (OP()(*Ack(), xx)) // equal_to or not_equal_to OP
       { std::this_thread::sleep_for(std::chrono::milliseconds(200)); }
    }
-   static constexpr int ACK = ~0, SYSTEM = 0x55555555, EXIT = 0xAAAAAAAA;
-   static void AckEQ(const int xx = ACK) { Ack<std::equal_to<int>>(xx); }
-   static void AckNE(const int xx = ACK) { Ack<std::not_equal_to<int>>(xx); }
-   // will block until code has been acknowledged
-   static void Send(const int xx) { AckNE(*Ack() = xx); }
-
+   static constexpr int ACK = ~0, CALL = 0x3243F6A8, EXIT = 0x9e3779b9;
    static int Read() { return *Ack(); }
    static void Acknowledge() { Write(ACK); }
    static void Write(const int xx) { *Ack() = xx; }
+   static void Send(const int xx) { AckNE(*Ack() = xx); } // block until acknowledged
    static void Wait(const bool eq = true) { eq ? AckEQ() : AckNE(); }
+   static void AckEQ(const int xx = ACK) { Ack<std::equal_to<int>>(xx); }
+   static void AckNE(const int xx = ACK) { Ack<std::not_equal_to<int>>(xx); }
 
-   static bool IsSystem() { return Read() == SYSTEM; }
+   static bool IsCall() { return Read() == CALL; }
    static bool IsExit() { return Read() == EXIT; }
    static bool IsAck() { return Read() == ACK; }
 
    // Ask the parent to launch a system call
-   static int System(const char *command = Command())
+   static int Call(const char *command = Command())
    {
+      MFEM_VERIFY(MPI::Root(), "[JIT] Only MPI root should launch commands!");
       MFEM_WARNING("\033[33m" << command << "\033[m");
-      assert(Root());
       // In serial mode, just call std::system
-      if (!IsInitialized()) { return std::system(command); }
+      if (!MPI::IsInitialized()) { return std::system(command); }
       // Otherwise, write the command to the child process
-      assert((1 + std::strlen(command)) < Size());
+      MFEM_VERIFY((1+std::strlen(command))<Size(), "[JIT] Command length error!");
       std::memcpy(Mem(), command, std::strlen(command) + 1);
-      Send(SYSTEM); // call std::system through the child process
-      AckNE();//Wait(false); // wait for the acknowledgment
+      Send(CALL); // call std::system through the child process
+      Wait(false); // wait for the acknowledgment
       return EXIT_SUCCESS;
    }
 
-   static Sys singleton;
-   static Sys& Get() { return singleton; }
+   static JIT singleton;
+   static JIT& Get() { return singleton; }
 
    static pid_t& Pid() { return Get().pid; }
    static int* Ack() { return Get().s_ack; }
@@ -156,16 +149,17 @@ struct Sys // System singleton object
 
    static void Handler(int signum)
    {
+      if (Pid()==0) { assert(false); } // child
       MFEM_CONTRACT_VAR(signum);
       ::kill(Pid(), SIGKILL);
       while ((Pid() = ::wait(nullptr)) > 0);
       std::exit(EXIT_FAILURE);
    }
 
-   static void Init()
+   static void Init(int *argc, char ***argv)
    {
-      const int prot = PROT_READ | PROT_WRITE;
-      const int flags = MAP_SHARED | MAP_ANONYMOUS;
+      constexpr int prot = PROT_READ | PROT_WRITE;
+      constexpr int flags = MAP_SHARED | MAP_ANONYMOUS;
       Get().size = (uintptr_t) sysconf(_SC_PAGE_SIZE);
       Get().s_ack = (int*) ::mmap(nullptr, sizeof(int), prot, flags, -1, 0);
       Get().s_mem = (char*) ::mmap(nullptr, Get().size, prot, flags, -1, 0);
@@ -175,23 +169,24 @@ struct Sys // System singleton object
       ::signal(SIGABRT, Handler); // abort
       ::signal(SIGKILL, Handler); // kill
       ::signal(SIGFPE,  Handler); // floating point exception
-   }
 
-   static void Parent(int *argc, char ***argv)
-   {
+      if ((Pid() = ::fork()) != 0)
+      {
 #ifdef MFEM_USE_MPI
-      ::MPI_Init(argc, argv);
+         ::MPI_Init(argc, argv);
 #else
-      MFEM_CONTRACT_VAR(argc);
-      MFEM_CONTRACT_VAR(argv);
+         MFEM_CONTRACT_VAR(argc);
+         MFEM_CONTRACT_VAR(argv);
 #endif
-      Sys::Write(Rank()); // inform the child about the rank
-      Sys::Wait(false); // wait for the child to acknowledge
+         Write(MPI::Rank()); // inform the child about the rank
+         Wait(false); // wait for the child to acknowledge
+      }
+      else { Child(); }
    }
 
    static void Child()
    {
-      assert(IsAck()); // Child process initialization error
+      MFEM_VERIFY(IsAck(), "[JIT] Child process initialization error!");
       Wait(); // wait for parent's rank
       const int rank = Read();
       Acknowledge();
@@ -202,7 +197,7 @@ struct Sys // System singleton object
             while (true)
             {
                Wait(); // waiting for the root to wake us
-               if (IsSystem()) { if (std::system(Mem())) { return; } }
+               if (IsCall()) { if (std::system(Mem())) { return; } }
                if (IsExit()) { return;}
                Acknowledge();
             }
@@ -213,26 +208,24 @@ struct Sys // System singleton object
 
    static void Finalize()
    {
-      assert(IsAck()); // Finalize error
+      MFEM_VERIFY(IsAck(), "[JIT] Finalize acknowledgment error!");
       int status;
       Send(EXIT);
       ::waitpid(0, &status, WUNTRACED | WCONTINUED); // wait for any child
-      assert(status == 0); // Error with the compiler thread
+      MFEM_VERIFY(status == 0, "[JIT] Error with the compiler thread");
       if (::munmap(Mem(), Size()) != 0 || // release shared memory
           ::munmap(Ack(), sizeof(int)) != 0)
-      { assert(false); /* finalize memory error! */ }
+      { MFEM_ABORT("[JIT] Finalize memory error!"); }
    }
 
-   struct Options
+   struct HostOptions
    {
       virtual std::string Device() { return ""; }
       virtual std::string Compiler() { return ""; }
       virtual std::string Linker() { return "-Wl,"; }
    };
 
-   struct HostOptions: Options {};
-
-   struct DeviceOptions: Options
+   struct DeviceOptions: HostOptions
    {
       std::string Device() override { return "--device-c"; }
       std::string Compiler() override { return "-Xcompiler="; }
@@ -254,124 +247,125 @@ struct Sys // System singleton object
    };
 
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-   HostOptions opt;
+   HostOptions options;
 #else
-   DeviceOptions opt;
+   DeviceOptions options;
 #endif
 
 #ifdef __APPLE__
-   Apple ar;
+   Apple archive;
 #else
-   Linux ar;
+   Linux archive;
 #endif
 
-   static std::string Xdevice() { return Get().opt.Device(); }
-   static std::string Xlinker() { return Get().opt.Linker(); }
-   static std::string Xcompiler() { return Get().opt.Compiler(); }
-   static std::string ARprefix() { return Get().ar.Prefix();  }
-   static std::string ARpostfix() { return Get().ar.Postfix(); }
-   static std::string ARbackup() { return Get().ar.Backup(); }
+   static const char *ar() { return "libmjit.a"; }
+   static const char *so() { return "./libmjit.so"; }
+   static std::string CXX() { return MFEM_JIT_CXX; }
+   static std::string FLAGS() { return MFEM_JIT_BUILD_FLAGS; }
+   static std::string Xdevice() { return Get().options.Device(); }
+   static std::string Xlinker() { return Get().options.Linker(); }
+   static std::string Xcompiler() { return Get().options.Compiler(); }
+   static std::string ARprefix() { return Get().archive.Prefix();  }
+   static std::string ARpostfix() { return Get().archive.Postfix(); }
+   static std::string ARbackup() { return Get().archive.Backup(); }
+   static void *DLopen(const char *path) { return ::dlopen(path, RTLD_LAZY|RTLD_LOCAL); }
+
+   static void* Lookup(const size_t hash, const char *source, const char *symbol)
+   {
+      void *handle = // try to open libmjit.so first
+         std::fstream(so()) ? DLopen(so()) : nullptr;
+
+      // if libmjit.so was not found, try libmjit.a
+      if (!handle && std::fstream(ar()))
+      {
+         int status = EXIT_SUCCESS;
+         if (MPI::Root())
+         {
+            Command() << CXX() << "-shared" << "-o" << so()
+                      << ARprefix() << ar() << ARpostfix()
+                      << Xlinker() + "-rpath,.";
+            status = Call();
+         }
+         MPI::Sync(status);
+         handle = DLopen(so());
+         MFEM_VERIFY(handle, "[JIT] Error " << so() << " from " << ar());
+      }
+
+      auto RootCompile = [&]() // Compilation done by the MPI root rank only
+      {
+         auto FileNameFromHash64 = [](const size_t h, const char *ext)
+         {
+            std::stringstream ss {};
+            ss << 'k' << std::setfill('0') << std::setw(16)
+               << std::hex << (h|0) << std::dec << ext;
+            return ss.str();
+         };
+         auto cc = FileNameFromHash64(hash, ".cc"); // input file
+         auto co = FileNameFromHash64(hash, ".co"); // output object
+
+         // Write kernel source into input file
+         std::ofstream input_src_file(cc);
+         MFEM_VERIFY(input_src_file.good(), "[JIT] Input file error!");
+         input_src_file << source;
+         input_src_file.close();
+
+         // Compilation: cc => co
+         Command() << CXX() << FLAGS() << Xdevice()
+                   << Xcompiler() + "-fPIC" << Xcompiler() + "-pipe"
+                   << Xcompiler() + "-Wno-unused-variable"
+                   << "-c" << "-o" << co << cc;
+         if (Call()) { return EXIT_FAILURE; }
+         std::remove(cc.c_str());
+         // Update archive: ar += co
+         Command() << "ar -rv" << ar() << co;
+         if (Call()) { return EXIT_FAILURE; }
+         std::remove(co.c_str());
+         // Create shared library: new (ar + symbol), used afterward
+         Command() << CXX() << "-shared" << "-o" << symbol
+                   << ARprefix() << ar() << ARpostfix();
+         if (Call()) { return EXIT_FAILURE; }
+         // Update shared cache library: new (ar + symbol) => LIB_SO
+         Command() << "install" << "-v" << ARbackup() << symbol << so();
+         if (Call()) { return EXIT_FAILURE; }
+         return EXIT_SUCCESS;
+      }; // RootCompile
+
+      auto WorldCompile = [&]() // only root compiles
+      {
+         const bool status = MPI::Root() ? RootCompile() : EXIT_SUCCESS;
+         MPI::Sync(status); // all ranks verify the status
+         handle = DLopen(symbol); // opens (ar + symbol)
+         MPI::Sync();
+         MFEM_VERIFY(handle, "[JIT] Error creating handle:" << ::dlerror());
+      }; // WorldCompile
+
+      // no caches => launch compilation
+      if (!handle) { WorldCompile(); }
+      MFEM_VERIFY(handle, "[JIT] No handle could be created!");
+
+      void *kernel = ::dlsym(handle, symbol); // symbol lookup
+      // no symbol => launch compilation & update kernel symbol
+      if (!kernel) { WorldCompile(); kernel = ::dlsym(handle, symbol); }
+      MFEM_VERIFY(kernel, "[JIT] No kernel could be found!");
+
+      // remove temporary shared (ar + symbol), the cache will be used afterward
+      std::remove(symbol);
+      return kernel;
+   }
 };
-Sys Sys::singleton {}; // Initialize the unique Sys context.
+JIT JIT::singleton {}; // Initialize the unique System context.
 
 } // namespace internal
 
 using namespace jit_internal;
 
-void Jit::Init(int *argc, char ***argv)
+void Jit::Init(int *argc, char ***argv) { if (MPI::Root()) JIT::Init(argc, argv); }
+
+void Jit::Finalize() { if (MPI::Root()) JIT::Finalize(); }
+
+void* Jit::Lookup(const size_t hash, const char *source, const char *symbol)
 {
-   if (Root()) { Sys::Init(); }
-   if ((Sys::Pid()=::fork()) != 0) { Sys::Parent(argc,argv); }
-   else { Sys::Child(); }
-}
-
-void Jit::Finalize() { if (Root()) { Sys::Finalize(); } }
-
-void* Jit::Lookup(const size_t hash, const char *src, const char *symbol)
-{
-   int status = EXIT_SUCCESS;
-   void *handle = // try to open libmjit.so first
-      std::fstream(LIB_SO) ? ::dlopen(LIB_SO, DLOPEN_MODE) : nullptr;
-
-   // if libmjit.so was not found, try libmjit.a
-   if (!handle && std::fstream(LIB_AR))
-   {
-      if (Root())
-      {
-         Sys::Command() << MFEM_JIT_CXX << "-shared" << "-o" << LIB_SO
-                        << Sys::ARprefix() << LIB_AR << Sys::ARpostfix()
-                        << Sys::Xlinker() + "-rpath,.";
-         status = Sys::System();
-      }
-      Sync(status);
-      handle = ::dlopen(LIB_SO, DLOPEN_MODE);
-      assert(handle);
-   }
-
-   auto Compile = [&]()
-   {
-      char cc[SYMBOL_SIZE+3], co[SYMBOL_SIZE+3];
-
-      // 64 bits hash to char* function
-      auto Hash64 = [](const size_t h, char *str, const char *ext)
-      {
-         std::stringstream ss;
-         ss << 'k' << std::setfill('0')
-            << std::setw(16) << std::hex << (h|0) << std::dec << ext;
-         memcpy(str, ss.str().c_str(), SYMBOL_SIZE + strlen(ext));
-      };
-      Hash64(hash, cc, ".cc");
-      Hash64(hash, co, ".co");
-      // write kernel source into cc file
-      std::ofstream input_src_file(cc);
-      assert(input_src_file.good());
-      input_src_file << src;
-      input_src_file.close();
-      // Compilation: cc => co
-      Sys::Command() << MFEM_JIT_CXX << MFEM_JIT_BUILD_FLAGS
-                     << Sys::Xdevice()
-                     << Sys::Xcompiler() + "-fPIC"
-                     << Sys::Xcompiler() + "-pipe"
-                     << Sys::Xcompiler() + "-Wno-unused-variable"
-                     << "-c" << "-o" << co << cc;
-      if (Sys::System()) { return EXIT_FAILURE; }
-      std::remove(cc);
-      // Update archive: ar += co
-      Sys::Command() << "ar -rv" << LIB_AR << co;
-      if (Sys::System()) { return EXIT_FAILURE; }
-      std::remove(co);
-      // Create shared library: new (ar + symbol), used afterward
-      Sys::Command() << MFEM_JIT_CXX << "-shared" << "-o" << symbol
-                     << Sys::ARprefix() << LIB_AR << Sys::ARpostfix();
-      if (Sys::System()) { return EXIT_FAILURE; }
-      // Update shared cache library: new (ar + symbol) => LIB_SO
-      Sys::Command() << "install" << "-v" << Sys::ARbackup() << symbol << LIB_SO;
-      if (Sys::System()) { return EXIT_FAILURE; }
-      return EXIT_SUCCESS;
-   }; // Compile
-
-   auto Compilation = [&]()
-   {
-      if (Root()) { status = Compile(); } // only root rank does the compilation
-      Sync(status); // all ranks verify the status
-      handle = ::dlopen(symbol, DLOPEN_MODE); // opens (ar + symbol)
-      Sync();
-      if (!handle) { std::cerr << ::dlerror() << std::endl; }
-      assert(handle);
-   };
-
-   // no caches => launch compilation
-   if (!handle) { Compilation(); }
-   assert(handle); // we have a handle
-
-   void *kernel = ::dlsym(handle, symbol); // symbol lookup
-   // no symbol => launch compilation & update kernel symbol
-   if (!kernel) { Compilation(); kernel = ::dlsym(handle, symbol); }
-   assert(kernel);
-
-   // remove temporary shared (ar + symbol), the cache will be used afterward
-   std::remove(symbol);
-   return kernel;
+   return JIT::Lookup(hash, source, symbol);
 }
 
 } // namespace mfem

@@ -34,7 +34,7 @@ struct Jit
    static void Finalize();
 
    /// Lookup symbol in the cache, launch the compile if needed.
-   static void* Lookup(const size_t hash, const char *src, const char *symbol);
+   static void* Lookup(const size_t hash, const char *source, const char *symbol);
 
    /// Kernel class
    template<typename kernel_t> struct Kernel
@@ -48,6 +48,16 @@ struct Jit
       /// Kernel launch
       template<typename... Args> void operator()(Args... as) { kernel(as...); }
    };
+
+   /// \brief Terminal binary arguments hash combine function
+   template <typename T> static inline
+   size_t Hash(const size_t &h, const T &a) noexcept
+   { return h ^ (std::hash<T> {}(a) + 0x9e3779b97f4a7c15ull + (h<<12) + (h>>4));}
+
+   /// \brief Variadic hash combine function
+   template<typename T, typename... Args> static inline
+   size_t Hash(const size_t &h, const T &arg, Args... args) noexcept
+   { return Hash(Hash(h, arg), args...); }
 };
 
 } // namespace mfem

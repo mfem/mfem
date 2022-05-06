@@ -22,21 +22,13 @@
 #include <iostream>
 #include <sstream>
 
+#include "jit.hpp" // for Jit::Hash
+
 namespace mfem
 {
 
 struct JitPreProcessor
 {
-   /// \brief Terminal binary arguments hash combine function
-   template <typename T> static inline
-   size_t Hash(const size_t &h, const T &a) noexcept
-   { return h ^ (std::hash<T> {}(a) + 0x9e3779b97f4a7c15ull + (h<<12) + (h>>4));}
-
-   /// \brief Variadic hash combine function
-   template<typename T, typename... Args> static inline
-   size_t Hash(const size_t &h, const T &arg, Args... args) noexcept
-   { return Hash(Hash(h, arg), args...); }
-
    struct dbg
    {
       static constexpr bool DEBUG = false;
@@ -318,8 +310,17 @@ struct JitPreProcessor
       ker.forall.body.clear();
       ker.forall.body.str(std::string());
 
-      out << "\n\tconst bool use_jit = " << ker.Ttest << ";";
-      out << "\nif (use_jit){";
+      out << "\n\tconstexpr bool USE_JIT = " << ker.Ttest << ";";
+      out << "\n\tconst bool use_dev = Device::Allows(Backend::DEVICE_MASK);";
+
+      out << "\nprintf(\"%s\", use_dev ? "
+          << "\"\\033[32m USING_DEVICE\\033[m\":"
+          << "\"\\033[31m USING_HOST\\033[m\");";
+
+      out << "\nif (USE_JIT){";
+
+      out << "\nprintf(\"\\033[35m USING_JIT\\033[m\");";
+
       out << "\n\tconst char *source = R\"_(";
 
       // switching from out to ker.source to compute the hash,
@@ -337,7 +338,8 @@ struct JitPreProcessor
       ker.source << "\nstruct Backend { enum: unsigned long {"
                  << "CPU=1<<0, CUDA=1<<2, HIP=1<<3, DEBUG_DEVICE=1<<14};};"
                  << "namespace mfem{ struct Device{"
-                 << "   static constexpr unsigned long backends = 0;"
+                 << "   static constexpr unsigned long CUDA = (1 << 2);"
+                 << "   static constexpr unsigned long backends = CUDA;"
                  << "   static inline bool Allows(unsigned long b_mask)"
                  << "      { return Device::backends & b_mask; }"
                  << "}/*Device*/;}/*mfem*/";
@@ -345,6 +347,9 @@ struct JitPreProcessor
 
       ker.source << "\n#include \"" << MFEM_INSTALL_DIR
                  << "/include/mfem/general/forall.hpp\"";
+
+      ker.source << "\n#include \"" << MFEM_INSTALL_DIR
+                 << "/include/mfem/general/jit/jit.hpp\""; // for Jit::Hash
 
       ker.source << "\nusing namespace mfem;";
 
@@ -400,30 +405,33 @@ struct JitPreProcessor
 #endif
 
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+      std::ostringstream device_forall;
       const char *ND = ker.forall.dim == 2 ? "2D" : "3D";
-      ker.source << "if (use_dev){"
-                 << "\n" << MFEM_DEV_PREFIX << "Wrap" << ND
-                 << "(" << ker.forall.N.c_str() << ", "
-                 << "[=] MFEM_DEVICE (int " << ker.forall.e <<")"
-                 << ker.forall.body.str() << ","
-                 << ker.forall.X.c_str() << ","
-                 << ker.forall.Y.c_str() << ","
-                 << ker.forall.Z.c_str()
-                 << (ker.forall.dim == 3 ? ",0":"") // grid
-                 << ");"
-                 << " } else { ";
+      device_forall  << "if (use_dev){"
+                     << "\n" << MFEM_DEV_PREFIX << "Wrap" << ND
+                     << "(" << ker.forall.N.c_str() << ", "
+                     << "[=] MFEM_DEVICE (int " << ker.forall.e <<")"
+                     << ker.forall.body.str() << ","
+                     << ker.forall.X.c_str() << ","
+                     << ker.forall.Y.c_str() << ","
+                     << ker.forall.Z.c_str()
+                     << (ker.forall.dim == 3 ? ",0":"") // grid
+                     << ");"
+                     << " } else { ";
+      ker.source << device_forall.str();
+      ker.body << device_forall.str();
 #endif
-      ker.source << "for (int k=0; k<" << ker.forall.N.c_str() << "; k++) {"
-                 << "[&] (int " << ker.forall.e <<")"
-                 << ker.forall.body.str() << "(k);"
-                 << "}";
-      ker.body << "for (int k=0; k<" << ker.forall.N.c_str() << "; k++) {"
-               << "[&] (int " << ker.forall.e <<")"
-               << ker.forall.body.str() << "(k);"
-               << "}";
+      std::ostringstream host_forall;
+      host_forall << "for (int k=0; k<" << ker.forall.N.c_str() << "; k++) {"
+                  << "[&] (int " << ker.forall.e <<")"
+                  << ker.forall.body.str() << "(k);"
+                  << "}";
+      ker.source << host_forall.str();
+      ker.body << host_forall.str();
 
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
       ker.source << "}";
+      ker.body << "}";
 #endif
    }
 
@@ -434,27 +442,17 @@ struct JitPreProcessor
                  << ker.name << "_%016lx<"<< ker.Tformat << ">"
                  << "(use_dev,"<< ker.Sargs << ");}";
 
-      const size_t seed = Hash(std::hash<std::string> {}(ker.source.str()),
-                               std::string(MFEM_JIT_CXX),
-                               std::string(MFEM_JIT_BUILD_FLAGS),
-                               std::string(MFEM_SOURCE_DIR),
-                               std::string(MFEM_INSTALL_DIR));
+      const size_t seed = Jit::Hash(std::hash<std::string> {}(ker.source.str()),
+                                    std::string(MFEM_JIT_CXX),
+                                    std::string(MFEM_JIT_BUILD_FLAGS),
+                                    std::string(MFEM_SOURCE_DIR),
+                                    std::string(MFEM_INSTALL_DIR));
 
       // output all kernel source, after having computed its hash
       out << ker.source.str().c_str() << ")_\";"; // end of source
 
-      out << "\nstruct Local {"
-          << "static inline size_t Hash(const size_t &h, const size_t &a) noexcept"
-          << "{ return h ^ (std::hash<size_t> {}(a) + 0x9e3779b97f4a7c15ull + (h<<12) + (h>>4));}"
-          << "static inline size_t Hash(const size_t seed, const std::list<int> &args){"
-          << "  size_t hash = seed;"
-          << "  for (size_t arg : args) { hash = Hash(hash, static_cast<size_t>(arg)); }"
-          << " return hash; }";
-      out << "};";
-
-      out << "\nconst size_t hash = Local::Hash("
-          << "0x" << std::hex << seed << std::dec << "ul,"
-          << "{" << ker.Targs << "});";
+      out << "\nconst size_t hash = Jit::Hash("
+          << "0x" << std::hex << seed << std::dec << "ul," << ker.Targs << ");";
 
       // kernel typedef
       out << "\ntypedef void (*kernel_t)(bool use_dev," << ker.Sparams << ");";
@@ -483,10 +481,10 @@ struct JitPreProcessor
           << "\n\tdelete[] Tsrc;"
           << "\n}";
 
-      out << "\nconst bool use_dev = Device::Allows(Backend::DEVICE_MASK);";
       out << "\nks_iter->second.operator()(use_dev," << ker.Sargs << ");";
 
-      out << "\n} else { // not use_jit\n";
+      out << "\n} else { /* not USE_JIT */";
+      out << "\nprintf(\"\\033[36m USING_TEMPLATED\\033[m\");";
       out << ker.body.str();
       out << "}";
 
@@ -653,4 +651,5 @@ int main(const int argc, char* argv[])
    ofs.close();
    return status;
 }
+
 #endif // MFEM_USE_JIT

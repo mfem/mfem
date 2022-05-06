@@ -471,7 +471,7 @@ ifeq ($(shell uname -s),Linux)
 JIT_LIB = -lrt -ldl
 endif
 $(BLD)$(MFEM_JIT): $(BLD)general/jit/parser.o
-	$(MFEM_CXX) $(filter-out -x=cu -xhip,$(strip $(MFEM_BUILD_FLAGS))) -o $(@) $(<) $(JIT_LIB) 
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $(@) $(<) $(JIT_LIB) 
 
 # Filtering out the objects that will be compiled through the preprocessor
 JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
@@ -610,9 +610,6 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
 
 install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	mkdir -p $(PREFIX_LIB)
-# install jit header
-	$(if $(jit),mkdir -p $(PREFIX_INC)/general/jit)
-	$(if $(jit),$(INSTALL) -m 640 $(SRC)general/jit/jit.hpp $(PREFIX_INC)/general/jit)
 # install static and/or shared library
 	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
@@ -632,6 +629,9 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
 	   $(INSTALL) -m 640 $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
 	done
+# install JIT header
+	$(if $(jit),mkdir -p $(PREFIX_INC)/mfem/general/jit)
+	$(if $(jit),$(INSTALL) -m 640 $(SRC)general/jit/jit.hpp $(PREFIX_INC)/mfem/general/jit)
 # install *.okl files
 	for dir in $(OKL_DIRS); do \
 	   mkdir -p $(PREFIX_INC)/mfem/$$dir && \
