@@ -128,7 +128,8 @@ protected:
                         const IntegrationRule *ir);
 public:
    /// @brief Construct the DG inverse mass operator for @a fes_.
-   DGMassInverse_Direct(FiniteElementSpace &fes_, BatchSolverMode mode_ = BatchSolverMode::NATIVE);
+   DGMassInverse_Direct(FiniteElementSpace &fes_,
+                        BatchSolverMode mode_ = BatchSolverMode::NATIVE);
    // /// @brief Construct the DG inverse mass operator for @a fes_ with
    // /// Coefficient @a coeff.
    // ///
