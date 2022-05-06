@@ -471,14 +471,14 @@ ifeq ($(shell uname -s),Linux)
 JIT_LIB = -lrt -ldl
 endif
 $(BLD)$(MFEM_JIT): $(BLD)general/jit/parser.cpp
-	$(MFEM_CXX) $(filter-out -x=cu -xhip,$(MFEM_BUILD_FLAGS)) -o $(@) $(<) $(JIT_LIB) 
+	$(MFEM_CXX) $(filter-out -x=cu -xhip,$(strip $(MFEM_BUILD_FLAGS))) -o $(@) $(<) $(JIT_LIB) 
 
 # Filtering out the objects that will be compiled through the preprocessor
 JIT_OBJECTS_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
 STD_OBJECTS_FILES = $(filter-out $(JIT_OBJECTS_FILES) $(BLD)general/jit/parser.o, $(OBJECT_FILES))
 
 $(STD_OBJECTS_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+	$(MFEM_CXX) $(strip $(MFEM_BUILD_FLAGS)) -c $(<) -o $(@)
 
 JIT_BUILD_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
 JIT_BUILD_FLAGS += $(JIT_LANG) -I$(patsubst %/,%,$(<D))

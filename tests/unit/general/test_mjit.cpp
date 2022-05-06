@@ -15,14 +15,13 @@
 
 #ifndef MFEM_TEST_MJIT_EXCLUDE_CODE // exclude the catch code JIT compilation
 
-#include "general/forall.hpp" // for MFEM_FORALL
-#include "general/jit/jit.hpp"// for MFEM_JIT
-
 #include "mfem.hpp"
-#include "unit_tests.hpp"
-
-
 using namespace mfem;
+
+#include "general/jit/jit.hpp"// for MFEM_JIT
+#include "general/forall.hpp" // for MFEM_FORALL
+
+#include "unit_tests.hpp"
 
 TEST_CASE("Just-In-Time-Compilation", "[JIT]")
 {
@@ -49,8 +48,10 @@ TEST_CASE("Just-In-Time-Compilation", "[JIT]")
              MFEM_SOURCE_DIR "/tests/unit/general/test_mjit.cpp");
 
       std::remove("test_mjit"); // cleanup existing executable
-      //std::remove("libmjit.a");
-      //std::remove("libmjit.so");
+
+      // cleanup caches, but forces each unit_tests to rebuild it
+      //std::remove("libmjit.a"); std::remove("libmjit.so");
+
       System(MFEM_JIT_CXX " " MFEM_JIT_BUILD_FLAGS // compilation
              " -DMFEM_TEST_MJIT_EXCLUDE_CODE"
              " -DMFEM_TEST_MJIT_INCLUDE_MAIN" // embed the main below
@@ -65,11 +66,8 @@ TEST_CASE("Just-In-Time-Compilation", "[JIT]")
    }
 }
 #else // MFEM_TEST_MJIT_EXCLUDE_CODE
-#include <cstddef>
+#include <cmath> // for pow
 #include <unordered_map>
-#define MFEM_DEVICE_HPP
-#define MFEM_MEM_MANAGER_HPP  // will pull HYPRE_config.h
-#define MFEM_JIT_COMPILATION
 
 struct Backend
 {
@@ -91,6 +89,10 @@ struct Device
 
 // avoid mfem_cuda_error inside MFEM_GPU_CHECK
 #define MFEM_GPU_CHECK(...)
+
+#define MFEM_DEVICE_HPP
+#define MFEM_MEM_MANAGER_HPP  // will pull HYPRE_config.h
+#define MFEM_JIT_COMPILATION
 
 #include "general/forall.hpp" // for MFEM_FORALL
 #include "general/jit/jit.hpp"// for MFEM_JIT

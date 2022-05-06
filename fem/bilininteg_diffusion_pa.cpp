@@ -1280,7 +1280,6 @@ static void SmemPADiffusionApply2D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      //MFEM_UNROLL(Q1D);
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -1353,7 +1352,7 @@ static void PADiffusionApply3D(const int NE,
                                const Vector &d_,
                                const Vector &x_,
                                Vector &y_,
-                               const int d1d = 0, const int q1d = 0)
+                               int d1d = 0, int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1617,7 +1616,7 @@ void SmemPADiffusionApply3D(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double u = 0.0, v = 0.0;
-               MFEM_UNROLL(MD1      )
+               MFEM_UNROLL(MD1)
                for (int dx = 0; dx < D1D; ++dx)
                {
                   const double coords = X[dz][dy][dx];
@@ -1760,9 +1759,9 @@ void SmemPADiffusionApply3D(const int NE,
 }
 
 static void PADiffusionApply(const int dim,
-                             const int d1d,
-                             const int q1d,
-                             const int ne,
+                             const int D1D,
+                             const int Q1D,
+                             const int NE,
                              const bool symm,
                              const Array<double> &b,
                              const Array<double> &g,
@@ -1794,28 +1793,25 @@ static void PADiffusionApply(const int dim,
       }
       MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
    }
-#else
-   MFEM_CONTRACT_VAR(Bt);
-   MFEM_CONTRACT_VAR(Gt);
 #endif // MFEM_USE_OCCA
+   const int id = (D1D << 4) | Q1D;
 
-   const int id = (d1d << 4) | q1d;
    if (dim == 2)
    {
       switch (id)
       {
-         case 0x22: return SmemPADiffusionApply2D<2,2,16>(ne,symm,B,G,D,X,Y);
-         case 0x33: return SmemPADiffusionApply2D<3,3,16>(ne,symm,B,G,D,X,Y);
-         case 0x44: return SmemPADiffusionApply2D<4,4,8>(ne,symm,B,G,D,X,Y);
-         case 0x55: return SmemPADiffusionApply2D<5,5,8>(ne,symm,B,G,D,X,Y);
-         case 0x66: return SmemPADiffusionApply2D<6,6,4>(ne,symm,B,G,D,X,Y);
-         case 0x77: return SmemPADiffusionApply2D<7,7,4>(ne,symm,B,G,D,X,Y);
-         case 0x88: return SmemPADiffusionApply2D<8,8,2>(ne,symm,B,G,D,X,Y);
-         case 0x99: return SmemPADiffusionApply2D<9,9,2>(ne,symm,B,G,D,X,Y);
+         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
+         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
+         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
+         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
+         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,D,X,Y);
+         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
+         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
+         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);
 #ifdef MFEM_USE_JIT
-         default: return SmemPADiffusionApply2D(ne,symm,B,G,D,X,Y,d1d,q1d);
+         default: return SmemPADiffusionApply2D(NE,symm,B,G,D,X,Y,D1D,Q1D);
 #else
-         default: return PADiffusionApply2D(ne,symm,b,g,bt,gt,d,x,y,d1d,q1d);
+         default:  return PADiffusionApply2D(NE,symm,b,g,bt,gt,d,x,y,D1D,Q1D);
 #endif
       }
    }
@@ -1824,20 +1820,20 @@ static void PADiffusionApply(const int dim,
    {
       switch (id)
       {
-         //case 0x22: return SmemPADiffusionApply3D<2,2>(ne,symm,B,G,D,X,Y);
-         case 0x23: return SmemPADiffusionApply3D<2,3>(ne,symm,B,G,D,X,Y);
-         case 0x34: return SmemPADiffusionApply3D<3,4>(ne,symm,B,G,D,X,Y);
-         case 0x45: return SmemPADiffusionApply3D<4,5>(ne,symm,B,G,D,X,Y);
-         case 0x46: return SmemPADiffusionApply3D<4,6>(ne,symm,B,G,D,X,Y);
-         case 0x56: return SmemPADiffusionApply3D<5,6>(ne,symm,B,G,D,X,Y);
-         case 0x58: return SmemPADiffusionApply3D<5,8>(ne,symm,B,G,D,X,Y);
-         case 0x67: return SmemPADiffusionApply3D<6,7>(ne,symm,B,G,D,X,Y);
-         case 0x78: return SmemPADiffusionApply3D<7,8>(ne,symm,B,G,D,X,Y);
-         case 0x89: return SmemPADiffusionApply3D<8,9>(ne,symm,B,G,D,X,Y);
+         case 0x22: return SmemPADiffusionApply3D<2,2>(NE,symm,B,G,D,X,Y);
+         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
+         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
+         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
+         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
+         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
+         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
+         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
+         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
+         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
 #ifdef MFEM_USE_JIT
-         default: return SmemPADiffusionApply3D(ne,symm,B,G,D,X,Y,d1d,q1d);
+         default: return SmemPADiffusionApply3D(NE,symm,B,G,D,X,Y,D1D,Q1D);
 #else
-         default: return PADiffusionApply3D(ne,symm,b,g,bt,gt,d,x,y,d1d,q1d);
+         default: return PADiffusionApply3D(NE,symm,b,g,bt,gt,d,x,y,D1D,Q1D);
 #endif
       }
    }

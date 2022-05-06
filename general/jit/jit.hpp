@@ -19,6 +19,8 @@
 #ifdef MFEM_USE_JIT // to tag JIT kernels
 
 #include <list> // needed at compile time for JIT kernels, after parser
+#include <cstring> // for std::memcpy
+#include <cassert>
 
 namespace mfem
 {

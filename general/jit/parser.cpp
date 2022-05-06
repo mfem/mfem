@@ -13,8 +13,10 @@
 
 #ifdef MFEM_USE_JIT
 
+#include <algorithm> // for std::transform
 #include <list>
 #include <string>
+#include <cstring> // for std::strlen
 #include <cassert>
 #include <fstream>
 #include <iostream>
@@ -318,7 +320,6 @@ struct JitPreProcessor
 
       out << "\n\tconst bool use_jit = " << ker.Ttest << ";";
       out << "\nif (use_jit){";
-      out << "//assert(1&&false);";
       out << "\n\tconst char *source = R\"_(";
 
       // switching from out to ker.source to compute the hash,
@@ -416,6 +417,10 @@ struct JitPreProcessor
                  << "[&] (int " << ker.forall.e <<")"
                  << ker.forall.body.str() << "(k);"
                  << "}";
+      ker.body << "for (int k=0; k<" << ker.forall.N.c_str() << "; k++) {"
+               << "[&] (int " << ker.forall.e <<")"
+               << ker.forall.body.str() << "(k);"
+               << "}";
 
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
       ker.source << "}";
@@ -429,11 +434,11 @@ struct JitPreProcessor
                  << ker.name << "_%016lx<"<< ker.Tformat << ">"
                  << "(use_dev,"<< ker.Sargs << ");}";
 
-      const size_t seed = /*Jit::*/Hash(std::hash<std::string> {}(ker.source.str()),
-                                        std::string(MFEM_JIT_CXX),
-                                        std::string(MFEM_JIT_BUILD_FLAGS),
-                                        std::string(MFEM_SOURCE_DIR),
-                                        std::string(MFEM_INSTALL_DIR));
+      const size_t seed = Hash(std::hash<std::string> {}(ker.source.str()),
+                               std::string(MFEM_JIT_CXX),
+                               std::string(MFEM_JIT_BUILD_FLAGS),
+                               std::string(MFEM_SOURCE_DIR),
+                               std::string(MFEM_INSTALL_DIR));
 
       // output all kernel source, after having computed its hash
       out << ker.source.str().c_str() << ")_\";"; // end of source
@@ -469,7 +474,7 @@ struct JitPreProcessor
           << "<< std::setw(16) << std::hex << (hash|0) << std::dec;"
           << "\n\tconst int SYMBOL_SIZE = 1+16+1;"
           << "\n\tchar *symbol = new char[SYMBOL_SIZE];"
-          << "\n\tmemcpy(symbol, ss.str().c_str(), SYMBOL_SIZE);"
+          << "\n\tstd::memcpy(symbol, ss.str().c_str(), SYMBOL_SIZE);"
           << "\n\tauto res = ks.emplace(hash, Jit::Kernel<kernel_t>(hash,Tsrc,symbol));"
           << "\n\tassert(res.second); // was not already in the map"
           << "\n\tks_iter = ks.find(hash);"
@@ -482,14 +487,7 @@ struct JitPreProcessor
       out << "\nks_iter->second.operator()(use_dev," << ker.Sargs << ");";
 
       out << "\n} else { // not use_jit\n";
-      out << "//assert(2&&false);";
       out << ker.body.str();
-
-      out << "for (int k=0; k<" << ker.forall.N.c_str() << "; k++) {"
-          << "[&] (int " << ker.forall.e <<")"
-          << ker.forall.body.str() << "(k);"
-          << "}";
-
       out << "}";
 
       out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
