@@ -14,20 +14,28 @@
 
 // in 2D E is vector valued and H is scalar. 
 
+// (∇ × E, F) = (E, ∇ × F) + < n × E , F> = 
+
+// QE = A E, A = [0 1; -1 0];
+
+// (∇ ⋅ v, F) = (v, ∇ F) + < v ⋅ n, F> 
+// (∇ ⋅ AE , F) = (AE, ∇ F) + < AE ⋅ n, F> 
+
+
 // note: Ĵ = -iωJ
 // UW-DPG:
 // 
 // E ∈ L^2(Ω)^2, H ∈ L^2(Ω)
 // Ê ∈ H^-1/2(Ω)(Γ_h), Ĥ ∈ H^1/2(Γ_h)  
 //  i ω μ (H,F) + (E, ∇ × F) + < Ê, F > = 0,      ∀ F ∈ H^1      
-// -i ω ϵ (E,G) + (H,∇ × G)  + < Ĥ, G > = (J,G)   ∀ G ∈ H(curl,Ω)      
+// -i ω ϵ (E,G) + (H,∇ × G)  + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)      
 //                                    Ê = E_0     on ∂Ω 
 // -------------------------------------------------------------------------
 // |   |       E      |      H      |      Ê       |       Ĥ      |  RHS    |
 // -------------------------------------------------------------------------
 // | F |  (E,∇ × F)   | i ω μ (H,F) |   < Ê, F >   |              |         |
 // |   |              |             |              |              |         |
-// | G | -i ω ϵ (E,G) |  (H,∇ × G)  |              |   < Ĥ, G >   |  (J,G)  |  
+// | G | -i ω ϵ (E,G) |  (H,∇ × G)  |              | < Ĥ, G × n > |  (J,G)  |  
 
 // where (F,G) ∈  H^1 × H(curl,Ω)
 
@@ -144,8 +152,8 @@ int main(int argc, char *argv[])
    if (iprob > 2) { iprob = 0; }
    prob = (prob_type)iprob;
 
-   // omega = 2.*M_PI*rnum;
-   omega = 1.0;
+   omega = 2.*M_PI*rnum;
+   // omega = 1.0;
 
 
    Mesh mesh(mesh_file, 1, 1);
@@ -184,14 +192,21 @@ int main(int argc, char *argv[])
 
 //    // Coefficients
    ConstantCoefficient one(1.0);
-   ConstantCoefficient negone(-1.0);
    ConstantCoefficient eps2omeg2(epsilon*epsilon*omega*omega);
    ConstantCoefficient mu2omeg2(mu*mu*omega*omega);
    ConstantCoefficient muomeg(mu*omega);
    ConstantCoefficient negepsomeg(-epsilon*omega);
    ConstantCoefficient epsomeg(epsilon*omega);
    ConstantCoefficient negmuomeg(-mu*omega);
-
+   DenseMatrix rot_mat;
+   rot_mat.SetSize(2);
+   rot_mat(0,0) = 0.; rot_mat(0,1) = 1.;
+   rot_mat(1,0) = -1.; rot_mat(1,1) = 0.;
+   DenseMatrix rott_mat(rot_mat); rott_mat *= -1.0;
+   MatrixConstantCoefficient rot(rot_mat);
+   MatrixConstantCoefficient rott(rott_mat);
+   ScalarMatrixProductCoefficient cf_rot(negmuomeg,rot);
+   ScalarMatrixProductCoefficient cf_rott(negmuomeg,rott);
    // Normal equation weak formulation
    Array<FiniteElementSpace * > trial_fes; 
    Array<FiniteElementCollection * > test_fec; 
@@ -208,7 +223,7 @@ int main(int argc, char *argv[])
    a->StoreMatrices();
 
    // (E,∇ × F) 
-   a->AddTrialIntegrator(new TransposeIntegrator(new ScalarCurlIntegrator(one)),nullptr,0,0);
+   a->AddTrialIntegrator(new TransposeIntegrator(new CurlIntegrator(one)),nullptr,0,0);
 
    // -i ω ϵ (E , G)
    a->AddTrialIntegrator(nullptr,new TransposeIntegrator(new VectorFEMassIntegrator(negepsomeg)),0,1);
@@ -222,7 +237,7 @@ int main(int argc, char *argv[])
    // < Ê,F>
    a->AddTrialIntegrator(new TraceIntegrator,nullptr,2,0);
 
-   // < Ĥ ,G>
+   // < Ĥ ,G × n>
    a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,3,1);
 
 
@@ -239,21 +254,28 @@ int main(int argc, char *argv[])
    a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,1,1);
 
    // additional integrators for the adjoint graph norm
-   // if (adjoint_graph_norm)
-   // {   
-   //    // ϵ^2 ω^2 (F,δF)
-   //    a->AddTestIntegrator(new VectorFEMassIntegrator(eps2omeg2),nullptr,0,0);
-   //    // -i ω ϵ (F,∇ × δG)
-   //    a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(negepsomeg),0,1);
-   //    // -i ω μ  (∇ × F, δG)
-   //    a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(negmuomeg),0,1);
-   //    // i ω ϵ (∇ × G,δF)
-   //    a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(muomeg),1,0);
-   //    // i ω μ (G, ∇ × δF )
-   //    a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(epsomeg),1,0);
-   //    // μ^2 ω^2 (F,δF)
-   //    a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,1,1);
-   // }
+   if (adjoint_graph_norm)
+   {   
+      // ϵ^2 ω^2 (F,δF)
+      a->AddTestIntegrator(new MassIntegrator(eps2omeg2),nullptr,0,0);
+
+      // -i ω ϵ (F,∇ × δG)
+      a->AddTestIntegrator(nullptr,
+         new TransposeIntegrator(new CurlIntegrator(negepsomeg)),0,1);
+
+      // -i ω μ  (∇ × F, δG) = (A ∇ F,δG), A = [0 1; -1; 0]
+      a->AddTestIntegrator(nullptr,new MixedVectorGradientIntegrator(cf_rot),0,1);   
+
+      // i ω ϵ (∇ × G,δF)
+      a->AddTestIntegrator(nullptr,new CurlIntegrator(muomeg),1,0);
+
+      // i ω μ (G, ∇ × δF )
+
+      a->AddTestIntegrator(nullptr,
+                new MixedVectorWeakDivergenceIntegrator(cf_rot),1,0);
+      // μ^2 ω^2 (G,δG)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,1,1);            
+   }
 
    // RHS
    VectorFunctionCoefficient f_rhs_r(dim,rhs_func_r);
@@ -295,7 +317,6 @@ int main(int argc, char *argv[])
 
 
 
-   ref = 1;
    for (int i = 0; i<ref; i++)
    {
       if (static_cond) { a->EnableStaticCondensation(); }
@@ -307,14 +328,13 @@ int main(int argc, char *argv[])
       {
          ess_bdr.SetSize(mesh.bdr_attributes.Max());
          ess_bdr = 1;
-         hatH_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+         hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
 
       // shift the ess_tdofs
       for (int j = 0; j < ess_tdof_list.Size(); j++)
       {
-         ess_tdof_list[j] += E_fes->GetTrueVSize() + H_fes->GetTrueVSize()
-                           + hatE_fes->GetTrueVSize();
+         ess_tdof_list[j] += E_fes->GetTrueVSize() + H_fes->GetTrueVSize();
       }
 
       Array<int> offsets(5);
@@ -329,15 +349,11 @@ int main(int argc, char *argv[])
       x = 0.;
       double * xdata = x.GetData();
 
-      // ComplexGridFunction hatE_gf(hatE_fes);
-      // hatE_gf.real().MakeRef(hatE_fes,&xdata[offsets[2]]);
-      // hatE_gf.imag().MakeRef(hatE_fes,&xdata[offsets.Last()+ offsets[2]]);
-      // hatE_gf.ProjectBdrCoefficientNormal(hatEex_r,hatEex_i, ess_bdr);
+      ComplexGridFunction hatE_gf(hatE_fes);
+      hatE_gf.real().MakeRef(hatE_fes,&xdata[offsets[2]]);
+      hatE_gf.imag().MakeRef(hatE_fes,&xdata[offsets.Last()+ offsets[2]]);
+      hatE_gf.ProjectBdrCoefficientNormal(hatEex_r,hatEex_i, ess_bdr);
 
-      ComplexGridFunction hatH_gf(hatH_fes);
-      hatH_gf.real().MakeRef(hatH_fes,&xdata[offsets[3]]);
-      hatH_gf.imag().MakeRef(hatH_fes,&xdata[offsets.Last()+ offsets[3]]);
-      hatH_gf.ProjectBdrCoefficient(hatHex_r,hatHex_i, ess_bdr);
 
       OperatorPtr Ah;
       Vector X,B;
@@ -571,12 +587,22 @@ void curlH_exact_i(const Vector &x,Vector &curlH_i)
 
 void hatE_exact_r(const Vector & x, Vector & hatE_r)
 {
-   E_exact_r(x,hatE_r);
+   Vector E_r;
+   E_exact_r(x,E_r);
+   hatE_r.SetSize(hatE_r.Size());
+   // rotate E_hat
+   hatE_r[0] = E_r[1];
+   hatE_r[1] = -E_r[0];
 }
 
 void hatE_exact_i(const Vector & x, Vector & hatE_i)
 {
-   E_exact_i(x,hatE_i);
+   Vector E_i;
+   E_exact_i(x,E_i);
+   hatE_i.SetSize(hatE_i.Size());
+   // rotate E_hat
+   hatE_i[0] = E_i[1];
+   hatE_i[1] = -E_i[0];
 }
 
 
