@@ -29,26 +29,6 @@ namespace mfem
 
 struct JitPreProcessor
 {
-   struct dbg
-   {
-      static constexpr bool DEBUG = false;
-      static constexpr uint8_t COLOR = 226;
-      dbg(): dbg(COLOR) { }
-      dbg(const uint8_t color)
-      {
-         if (!DEBUG) { return; }
-         std::cout << "\033[38;5;" << std::to_string(color==0?COLOR:color) << "m";
-      }
-      ~dbg() { if (DEBUG) { std::cout << "\033[m"; std::cout.flush(); } }
-      template <typename T> dbg& operator<<(const T &arg)
-      { if (DEBUG) { std::cout << arg;} return *this; }
-      template<typename T, typename... Args>
-      inline void operator()(const T &arg, Args... args) const
-      { operator<<(arg); operator()(args...); }
-      template<typename T>
-      inline void operator()(const T &arg) const { operator<<(arg); }
-   };
-
    struct kernel_t
    {
       struct fsm_t
@@ -313,13 +293,13 @@ struct JitPreProcessor
       out << "\n\tconstexpr bool USE_JIT = " << ker.Ttest << ";";
       out << "\n\tconst bool use_dev = Device::Allows(Backend::DEVICE_MASK);";
 
-      out << "\nprintf(\"%s\", use_dev ? "
+      /*ut << "\nprintf(\"%s\", use_dev ? "
           << "\"\\033[32m USING_DEVICE\\033[m\":"
-          << "\"\\033[31m USING_HOST\\033[m\");";
+          << "\"\\033[31m USING_HOST\\033[m\");";*/
 
       out << "\nif (USE_JIT){";
 
-      out << "\nprintf(\"\\033[35m USING_JIT\\033[m\");";
+      //out << "\nprintf(\"\\033[35m USING_JIT\\033[m\");";
 
       out << "\n\tconst char *source = R\"_(";
 
@@ -483,8 +463,8 @@ struct JitPreProcessor
 
       out << "\nks_iter->second.operator()(use_dev," << ker.Sargs << ");";
 
-      out << "\n} else { /* not USE_JIT */";
-      out << "\nprintf(\"\\033[36m USING_TEMPLATED\\033[m\");";
+      out << "\n} else { /* not USE_JIT */\n";
+      //out << "\nprintf(\"\\033[36m USING_TEMPLATED\\033[m\");";
       out << ker.body.str();
       out << "}";
 

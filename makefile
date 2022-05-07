@@ -468,7 +468,7 @@ JIT_SOURCE_FILES = $(SRC)fem/bilininteg_diffusion_pa.cpp
 
 # Definitions to compile the preprocessor and grab the MFEM compiler
 ifeq ($(shell uname -s),Linux)
-JIT_LIB = -lrt -ldl
+JIT_LIB = -ldl
 endif
 $(BLD)$(MFEM_JIT): $(BLD)general/jit/parser.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $(@) $(<) $(JIT_LIB) 
