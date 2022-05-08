@@ -100,15 +100,15 @@ And an example in "toys"
 cd toys
 ```
 ```bash
-$ ./automata
+$ ./automata -no-vis
 Options used:
    --num-steps 16
    --rule 90
-   --visualization
+   --no-visualization
 
 Rule:
  111 110 101 100 011 010 001 000
-  0   1   0   1   1   0   1   0
+  0   1   0   1   1   0   1   0 
 
 Applying rule...done.
 ```
