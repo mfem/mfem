@@ -108,7 +108,7 @@ Options used:
 
 Rule:
  111 110 101 100 011 010 001 000
-  0   1   0   1   1   0   1   0 
+  0   1   0   1   1   0   1   0
 
 Applying rule...done.
 ```
