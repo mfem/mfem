@@ -12,9 +12,20 @@
 //     ---------------------------------------------------------------------
 //     Miniapp: Integral of implicit domains defined by a level set function
 //     ---------------------------------------------------------------------
-//  
-
-
+//  The miniapp demonstrates an interface to the Algoim library for computing 
+//  volumetric and surface integrals over domains and surfaces defined implicitly 
+//  by a level set function. 
+//
+//
+//  Sample runs:
+//
+//  Evaluates surface and volumetric integral for a circle with radius 1
+//  ./lsf_integral -m ../../data/star-q3.mesh
+//
+//  Evaluates surface and volumetric integral for a level set defined 
+//  by y=0.5-(0.1*sin(3*pi*x+pi/2))
+//  ./lsf_integral -ls 2
+//
 
 #include "mfem.hpp"
 #include "integ_algoim.hpp"
