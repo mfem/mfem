@@ -68,7 +68,10 @@ set(SRCS
   ceed/operator.cpp
   ceed/util.cpp
   linearform.cpp
+  linearform_ext.cpp
   lininteg.cpp
+  lininteg_domain.cpp
+  lininteg_domain_grad.cpp
   lor/lor.cpp
   lor/lor_ads.cpp
   lor/lor_ams.cpp
@@ -167,6 +170,7 @@ set(HDRS
   ceed/operator.hpp
   ceed/util.hpp
   linearform.hpp
+  linearform_ext.hpp
   lininteg.hpp
   lor/lor.hpp
   lor/lor_ads.hpp
