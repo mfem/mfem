@@ -46,8 +46,8 @@ if (MFEM_USE_MPI)
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
-  add_mfem_miniapp(algoim_test
-    MAIN algoim_test.cpp
+  add_mfem_miniapp(lsf_integral
+    MAIN lsf_integral.cpp
     ${DIST_COMMON_FILES}
     LIBRARIES mfem mfem-common)
 
