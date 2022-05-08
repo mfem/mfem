@@ -267,7 +267,9 @@ struct JIT // System singleton object
          int status = EXIT_SUCCESS;
          if (mpi::Root())
          {
-            Command() << CXX() << "-shared" << "-o" << so()
+            Command() << CXX()
+                      << FLAGS() // when sanitizing
+                      << "-shared" << "-o" << so()
                       << ARprefix() << ar() << ARpostfix()
                       << Xlinker() + "-rpath,.";
             status = Call();
@@ -307,7 +309,9 @@ struct JIT // System singleton object
          if (Call()) { return EXIT_FAILURE; }
          std::remove(co.c_str());
          // Create shared library: new (ar + symbol), used afterward
-         Command() << CXX() << "-shared" << "-o" << symbol
+         Command() << CXX()
+                   << FLAGS() // when sanitizing
+                   << "-shared" << "-o" << symbol
                    << ARprefix() << ar() << ARpostfix();
          if (Call()) { return EXIT_FAILURE; }
          // Update shared cache library: new (ar + symbol) => LIB_SO

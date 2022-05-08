@@ -9,19 +9,18 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include <cmath> // for pow
-
-#ifndef MFEM_TEST_MJIT_CODE // exclude this catch code from JIT compilation
-
 #include "mfem.hpp"
 using namespace mfem;
 
 #ifdef MFEM_USE_JIT
 
+#include <cmath> // for pow
 #include "unit_tests.hpp"
 
 #include "general/jit/jit.hpp"// for MFEM_JIT
 #include "general/forall.hpp" // for MFEM_FORALL
+
+#ifndef MFEM_TEST_MJIT_CODE // exclude this catch code from JIT compilation
 
 TEST_CASE("Just-In-Time-Compilation", "[JIT]")
 {
@@ -42,7 +41,7 @@ TEST_CASE("Just-In-Time-Compilation", "[JIT]")
    SECTION("mjit")
    {
       CAPTURE("mjit executable");
-      System(MFEM_SOU RCE_DIR "/mjit -h"); // help
+      System(MFEM_SOURCE_DIR "/mjit -h"); // help
 
       System(MFEM_SOURCE_DIR "/mjit -o test_mjit.cc " // generate source file
              MFEM_SOURCE_DIR "/tests/unit/general/test_mjit.cpp");
