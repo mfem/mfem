@@ -31,10 +31,10 @@ DISTANCE_SRC = distance.cpp dist_solver.cpp
 DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
 EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
 EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
-ALGOIM_SRC = integ_algoim.cpp algoim_test.cpp
+ALGOIM_SRC = integ_algoim.cpp lsf_integral.cpp
 ALGOIM_OBJ = $(ALGOIM_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion extrapolate algoim
+PAR_MINIAPPS = distance diffusion extrapolate lsf_integral
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = 
@@ -63,7 +63,7 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 
 all: $(MINIAPPS)
 
-algoim: $(ALGOIM_OBJ)
+lsf_integral: $(ALGOIM_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(ALGOIM_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 distance: $(DISTANCE_OBJ)
@@ -99,7 +99,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion extrapolate algoim
+	rm -f *.o *~ distance diffusion extrapolate lsf_integral 
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
