@@ -361,8 +361,8 @@ struct Parser
 #endif
 
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
-      std::ostringstream device_forall;
       const char *ND = ker.forall.dim == 2 ? "2D" : "3D";
+      std::ostringstream device_forall;
       device_forall  << "if (use_dev){"
                      << "\n" << MFEM_DEV_PREFIX << "Wrap" << ND
                      << "(" << ker.forall.N.c_str() << ", "
@@ -375,16 +375,6 @@ struct Parser
                      << ");"
                      << " } else { ";
       ker.source << device_forall.str();
-
-      std::ostringstream mfem_forall;
-      mfem_forall  << "MFEM_FORALL_" << ND
-                   << "(" << ker.forall.e << ","
-                   << ker.forall.N.c_str() << ","
-                   << ker.forall.X.c_str() << ","
-                   << ker.forall.Y.c_str() << ","
-                   << ker.forall.Z.c_str() << ","
-                   << ker.forall.body.str() <<  ");";
-      ker.body << mfem_forall.str();
 #endif
       std::ostringstream host_forall;
       host_forall << "for (int k=0; k<" << ker.forall.N.c_str() << "; k++) {"
@@ -392,6 +382,20 @@ struct Parser
                   << ker.forall.body.str() << "(k);"
                   << "}";
       ker.source << host_forall.str();
+
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+      std::ostringstream mfem_forall;
+      mfem_forall  << "MFEM_FORALL_" << ND
+                   << "(" << ker.forall.e << ", "
+                   << ker.forall.N.c_str() << ", "
+                   << ker.forall.X.c_str() << ", "
+                   << ker.forall.Y.c_str() << ", "
+                   << ker.forall.Z.c_str() << ", "
+                   << ker.forall.body.str() <<  ");";
+      ker.body << mfem_forall.str();
+#else
+      ker.body << host_forall.str(); // can't use MFEM_FORALL with unroll
+#endif
 
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
       ker.source << "}";
