@@ -181,9 +181,9 @@ int main(int argc, char *argv[])
 
    // Integration with algoim
    double vol=0.0;
-   double area=0.0;
 
 #if defined(MFEM_USE_ALGOIM) && defined(MFEM_USE_BLITZ)
+   double area=0.0;
    DenseMatrix bmat; //gradients of the shape functions in isoparametric space
    DenseMatrix pmat; //gradients of the shape functions in physical space
    Vector inormal; //normal to the level set in isoparametric space
