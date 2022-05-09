@@ -32,8 +32,7 @@ struct Parser
    struct kernel_t
    {
       std::string name; // Kernel name
-      std::string Targs, Tparams, Tformat,
-          Ttest; // Template arguments, parameters, format
+      std::string Targs, Tparams, Tformat, Ttest; // arguments, parameters, format
       std::string Sargs, Sparams0, Sparams; // Symbol arguments, parameters
       struct { int dim; std::string e, N, X, Y, Z; std::ostringstream body; } forall;
       std::ostringstream source, body;
@@ -219,10 +218,10 @@ struct Parser
          if (peek_n(2) == "T_")
          {
             std::string id = peek_id();
-            {
+            /*{
                if (!ker.Ttest.empty()) { ker.Ttest += " && "; }
                ker.Ttest += id + "==0";
-            }
+            }*/
             add_arg(ker.Targs, (id.erase(0, 2), to_lower(id)));
          }
          if (in.peek() == '>') { break;}
@@ -244,11 +243,12 @@ struct Parser
 
       // Get the arguments
       ker.advance(); // Symbol => Params
-      std::string id;
+      std::string id{};
       ker.eq = false;
       ker.Sargs.clear();
       ker.Sparams.clear();
       ker.Sparams0.clear();
+      auto most = [](std::string &s) { return s = s.substr(0, s.size()-1); };
       auto last = [](std::string &s) { return s.substr(s.find_last_of('.')+1);};
       while (good() && in.peek() != ')')
       {
@@ -263,11 +263,19 @@ struct Parser
          if (is_space() && !id.empty() && id.back() != '.' && !ker.eq) { id += '.'; }
          if (is_eq()) { ker.eq = true; id = id.substr(0, id.size()-1); }
          if (is_id() && !ker.eq) { id += in.peek(); }
-         if (is_coma()) { add_arg(ker.Sargs, last(id)); id.clear(); ker.eq = false; }
+         if (is_coma())
+         {
+            if (id.back() == '.') { most(id); }
+            add_arg(ker.Sargs, last(id)); id.clear(); ker.eq = false;
+         }
          put();
       }
       add_arg(ker.Sargs, last(id));
       ker.advance(); // Params => Body
+      //dbg(154) << "\nker.Sargs: " <<ker.Sargs;
+      //dbg(154) << "\nker.Sparams:" << ker.Sparams;
+      //dbg(154) << "\nker.Sparams0:" << ker.Sparams0;
+      //assert(false);
 
       // Make sure we hit the last ')' of the arguments
       check(put()==')',"no last ')' in kernel");
@@ -285,18 +293,18 @@ struct Parser
       ker.forall.body.clear();
       ker.forall.body.str(std::string());
 
-      out << "\n\tconstexpr bool USE_JIT = " << ker.Ttest << ";";
-      out << "\n\tconst bool use_dev = Device::Allows(Backend::DEVICE_MASK);";
+      //out << "\n\tconstexpr bool USE_JIT = " << ker.Ttest << ";";
+      ker.source << "\n\tconst bool use_dev = Device::Allows(Backend::DEVICE_MASK);";
 
       /*ut << "\nprintf(\"%s\", use_dev ? "
           << "\"\\033[32m USING_DEVICE\\033[m\":"
           << "\"\\033[31m USING_HOST\\033[m\");";*/
 
-      out << "\nif (USE_JIT){";
+      //out << "\nif (USE_JIT){";
 
       //out << "\nprintf(\"\\033[35m USING_JIT\\033[m\");";
 
-      out << "\n\tconst char *source = R\"_(";
+      ker.source << "\n\tconst char *source = R\"_(";
 
       // switching from out to ker.source to compute the hash,
       // defining 'MFEM_JIT_COMPILATION' to avoid MFEM_GPU_CHECK in cuda.hpp
@@ -398,7 +406,16 @@ struct Parser
                      << ");"
                      << " } else { ";
       ker.source << device_forall.str();
-      ker.body << device_forall.str();
+
+      std::ostringstream mfem_forall;
+      mfem_forall  << "MFEM_FORALL_" << ND
+                   << "(" << ker.forall.e << ","
+                   << ker.forall.N.c_str() << ","
+                   << ker.forall.X.c_str() << ","
+                   << ker.forall.Y.c_str() << ","
+                   << ker.forall.Z.c_str() << ","
+                   << ker.forall.body.str() <<  ");";
+      ker.body << mfem_forall.str();
 #endif
       std::ostringstream host_forall;
       host_forall << "for (int k=0; k<" << ker.forall.N.c_str() << "; k++) {"
@@ -406,11 +423,9 @@ struct Parser
                   << ker.forall.body.str() << "(k);"
                   << "}";
       ker.source << host_forall.str();
-      ker.body << host_forall.str();
 
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
       ker.source << "}";
-      ker.body << "}";
 #endif
       ker.advance(/*kernel => postfix*/);
    }
@@ -428,18 +443,16 @@ struct Parser
                                     std::string(MFEM_SOURCE_DIR),
                                     std::string(MFEM_INSTALL_DIR));
 
+      out << ker.body.str() << "}";
+      out << "\nvoid " << ker.name << "(" << ker.Sparams0 << ") {";
       out << ker.source.str().c_str() << ")_\";" // end of source
           << "\nconst size_t hash = Jit::Hash("
           << "0x" << std::hex << seed << std::dec << "ul," << ker.Targs << ");"
           << "\ntypedef void (*kernel_t)(bool use_dev," << ker.Sparams << ");"
           << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> km;"
           << "\nJit::Find(hash, source, km, " << ker.Targs << ")"
-          << ".operator()(use_dev," << ker.Sargs << ");"
-          << "\n} else { /* not USE_JIT */\n"
-          << ker.body.str() // USING_TEMPLATED
-          //<< "\n\tassert(false);"
-          << "}"
-          << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
+          << ".operator()(use_dev," << ker.Sargs << ");";
+      out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
       ker.advance(/*postfix => wait*/);
    }
 

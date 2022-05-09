@@ -296,11 +296,14 @@ void SmemPADiffusionApply3D(const int NE,
 
 MFEM_JIT
 template<int T_A = 0, int T_B = 0>
-void ToUseOrNotToUse(int a = 0, int b = 0) { assert(true); }
+void ToUseOrNotToUse(int n, int a = 0, int b = 0) { assert(true); }
 
 #ifdef MFEM_JIT_COMPILATION
 int main(int argc, char* argv[])
 {
+   ToUseOrNotToUse(argc,1,2);
+   ToUseOrNotToUse<1,2>(argc);
+
    double a = 0.0;
    bbps<64,17>(1,&a);
    const size_t ax = (size_t)(pow(16,8)*a);
@@ -309,7 +312,7 @@ int main(int argc, char* argv[])
    bbps(1,&b,64,17);
    const size_t bx = (size_t)(pow(16,8)*b);
 
-   printf("\033[33m[0x%lx:0x%lx]\033[m",ax,bx);
+   //printf("\033[33m[0x%lx:0x%lx]\033[m",ax,bx);
    if (ax != bx) { return EXIT_FAILURE; }
 
    if (pi(10) != 0x5A308D31ul) { return EXIT_FAILURE; }
