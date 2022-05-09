@@ -58,6 +58,29 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
    }
 }
 
+double TMOP_UntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt) const
+{
+   double alpha = 2.0*(Jpt.Det()-std::min(min_detT-epsilon, 0.0));
+   return std::pow(tmop_metric->EvalW(Jpt)/alpha, exponent);
+}
+
+double TMOP_WorstCaseUntangleOptimizer_Metric::EvalW(const DenseMatrix &Jpt)
+const
+{
+   double t = 2.0*(Jpt.Det()-std::min(min_detT-epsilon, 0.0));
+   double metric = tmop_metric->EvalW(Jpt);
+   double alpha = metric/t;
+   double beta = max_muT+epsilon;
+   return std::pow(alpha/(beta-alpha), exponent);
+}
+
+double TMOP_WorstCaseUntangleOptimizer_Metric::EvalWTilde(
+   const DenseMatrix &Jpt) const
+{
+   double alpha = 2.0*(Jpt.Det()-std::min(min_detT-epsilon, 0.0));
+   return std::pow(tmop_metric->EvalW(Jpt)/alpha, exponent);
+}
+
 double TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
@@ -219,6 +242,30 @@ void TMOP_Metric_002::AssembleH(const DenseMatrix &Jpt,
    ie.SetJacobian(Jpt.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1b(0.5*weight, A.GetData());
+}
+
+double TMOP_Metric_004::EvalW(const DenseMatrix &Jpt) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   return ie.Get_I1() - 2.0*ie.Get_I2b();
+}
+
+void TMOP_Metric_004::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   Add(1.0, ie.Get_dI1(), -2.0, ie.Get_dI2b(), P);
+}
+
+void TMOP_Metric_004::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   ie.SetJacobian(Jpt.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+
+   ie.Assemble_ddI1(weight, A.GetData());
+   ie.Assemble_ddI2b(-2.0*weight, A.GetData());
 }
 
 double TMOP_Metric_007::EvalW(const DenseMatrix &Jpt) const
@@ -3664,6 +3711,74 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
       discr_tc->UpdateGradientTargetSpecification(x, dx);
       discr_tc->UpdateHessianTargetSpecification(x, dx);
    }
+}
+#endif
+
+double TMOP_Integrator::ComputeMaxUntangleOptimizerMetric(const Vector &x,
+                                                          const FiniteElementSpace &fes)
+{
+   double max_untangler_optimizer = -std::numeric_limits<double>::infinity();
+   const int NE = fes.GetMesh()->GetNE();
+   Array<int> xdofs;
+
+   TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
+      dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
+   if (!wcuo) { return 0.0; }
+   for (int i = 0; i < NE; i++)
+   {
+      const FiniteElement *fe = fes.GetFE(i);
+      const IntegrationRule &ir = EnergyIntegrationRule(*fe);
+      const int dim = fe->GetDim(),
+                dof = fe->GetDof(), nsp = ir.GetNPoints();
+      Jpr.SetSize(dim);
+
+      DSh.SetSize(dof, dim);
+      PMatI.SetSize(dof, dim);
+      Vector posV(dof * dim);
+      PMatI.UseExternalData(posV.GetData(), dof, dim);
+
+      fes.GetElementVDofs(i, xdofs);
+      x.GetSubVector(xdofs, posV);
+
+      DenseTensor Jtr(dim, dim, ir.GetNPoints());
+      targetC->ComputeElementTargets(i, *fe, ir, posV, Jtr);
+
+      for (int q = 0; q < nsp; q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         const DenseMatrix &Jtr_q = Jtr(q);
+
+         fe->CalcDShape(ip, DSh);
+         MultAtB(PMatI, DSh, Jpr);
+         Mult(Jpr, Jrt, Jpt);
+
+         double metric_val;
+         if (wcuo)
+         {
+            wcuo->SetTargetJacobian(Jtr_q);
+            metric_val = wcuo->EvalWTilde(Jpt);
+         }
+         else
+         {
+            metric->SetTargetJacobian(Jtr_q);
+            metric_val = metric->EvalW(Jpt);
+         }
+         max_untangler_optimizer = std::max(max_untangler_optimizer, metric_val);
+      }
+   }
+   return max_untangler_optimizer;
+}
+
+#ifdef MFEM_USE_MPI
+double TMOP_Integrator::ComputeMaxUntangleOptimizerMetric(const Vector &x,
+                                                          const ParFiniteElementSpace &pfes)
+{
+   const FiniteElementSpace *fes = dynamic_cast<const FiniteElementSpace *>(&pfes);
+   double max_mu_T_loc = ComputeMaxUntangleOptimizerMetric(x, *fes);
+   double max_mu_T_all = max_mu_T_loc;
+   MPI_Allreduce(&max_mu_T_loc, &max_mu_T_all, 1, MPI_DOUBLE, MPI_MAX,
+                 pfes.GetComm());
+   return max_mu_T_all;
 }
 #endif
 
