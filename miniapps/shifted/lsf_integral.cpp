@@ -14,18 +14,19 @@
 //     ---------------------------------------------------------------------
 //  The miniapp demonstrates an interface to the Algoim library for computing
 //  volumetric and surface integrals over domains and surfaces defined implicitly
-//  by a level set function.
+//  by a level set function. The miniapp requires MFEM to be built with
+//  Blitz and Algoim libraries (see INSTALL).
 //
+//  Compile with: make lsf_integral
 //
 //  Sample runs:
 //
 //  Evaluates surface and volumetric integral for a circle with radius 1
-//  ./lsf_integral -m ../../data/star-q3.mesh
+//  lsf_integral -m ../../data/star-q3.mesh
 //
 //  Evaluates surface and volumetric integral for a level set defined
 //  by y=0.5-(0.1*sin(3*pi*x+pi/2))
-//  ./lsf_integral -ls 2
-//
+//  lsf_integral -ls 2 -m ../../data/inline-quad.mesh -rs 2 -o 3 -ao 3
 
 #include "mfem.hpp"
 #include "integ_algoim.hpp"
@@ -148,16 +149,41 @@ int main(int argc, char *argv[])
            << "keys jRmmclA" << endl;
    }
 
-   ElementTransformation *trans;
+   // Exact volume and area
+   double exact_volume = -10, exact_area = -10;
+   if (ls_type == 1)
+   {
+      if (strncmp(mesh_file,"../../data/star-q3.mesh",100) == 0)
+      {
+         exact_volume = M_PI;
+         exact_area   = M_PI*2;
+      }
+      else if (strncmp(mesh_file, "../../data/inline-quad.mesh",100) == 0)
+      {
+         exact_volume = M_PI/4;
+         exact_area   = M_PI/2;
+      }
+   }
+   else if (ls_type == 2)
+   {
+      if (strncmp(mesh_file, "../../data/inline-quad.mesh",100) == 0)
+      {
+         exact_volume = 0.5;
+         exact_area   = 1.194452300992437;
+      }
+   }
 
+
+
+   ElementTransformation *trans;
    double w;
    const IntegrationRule* ir=nullptr;
 
-   // loop over the elements
+   // Integration with algoim
    double vol=0.0;
    double area=0.0;
 
-#ifdef MFEM_USE_ALGOIM
+#if defined(MFEM_USE_ALGOIM) && defined(MFEM_USE_BLITZ)
    DenseMatrix bmat; //gradients of the shape functions in isoparametric space
    DenseMatrix pmat; //gradients of the shape functions in physical space
    Vector inormal; //normal to the level set in isoparametric space
@@ -217,29 +243,7 @@ int main(int argc, char *argv[])
       //particular element and level set
       delete air;
    }
-#endif
-   double exact_volume = -10, exact_area = -10;
-   if (ls_type == 1)
-   {
-      if (strncmp(mesh_file,"../../data/star-q3.mesh",100) == 0)
-      {
-         exact_volume = M_PI;
-         exact_area   = M_PI*2;
-      }
-      else if (strncmp(mesh_file, "../../data/inline-quad.mesh",100) == 0)
-      {
-         exact_volume = M_PI/4;
-         exact_area   = M_PI/2;
-      }
-   }
-   else if (ls_type == 2)
-   {
-      if (strncmp(mesh_file, "../../data/inline-quad.mesh",100) == 0)
-      {
-         exact_volume = 0.5;
-         exact_area   = 1.194452300992437;
-      }
-   }
+
    if (exact_volume > 0)
    {
       std::cout<<"Algoim Volume="<<vol<<" Error="<<vol-exact_volume<<std::endl;
@@ -250,6 +254,7 @@ int main(int argc, char *argv[])
       std::cout<<"Algoim Volume="<<vol<<std::endl;
       std::cout<<"Algoim Area="<<area<<std::endl;
    }
+#endif
 
    //Perform standard MFEM integration
    vol=0.0;
@@ -273,8 +278,8 @@ int main(int argc, char *argv[])
             vol=vol+w;
          }
       }
-
    }
+
    if (exact_volume > 0.0)
    {
       std::cout<<"MFEM Volume="<<vol<<" Error="<<vol-exact_volume<<std::endl;
@@ -290,7 +295,6 @@ int main(int argc, char *argv[])
    dacol.SetTime(1.0);
    dacol.SetCycle(1);
    dacol.Save();
-
 
    delete ls_coeff;
    delete mesh;

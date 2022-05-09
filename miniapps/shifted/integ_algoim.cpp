@@ -1,7 +1,7 @@
 #include "integ_algoim.hpp"
 
 
-#ifdef MFEM_USE_ALGOIM
+#if defined(MFEM_USE_ALGOIM) && defined(MFEM_USE_BLITZ)
 
 
 namespace mfem
