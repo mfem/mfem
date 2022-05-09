@@ -437,6 +437,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    const double norm_in = Norm(r);
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
+   compute_max_mu_T_flag = false;
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
@@ -557,6 +558,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    if (x_out_ok == false) { scale = 0.0; }
 
    if (adaptive_surf_fit) { update_surf_fit_coeff = true; }
+   compute_max_mu_T_flag = true;
 
    return scale;
 }
@@ -701,6 +703,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *pfesc);
+            if (compute_max_mu_T_flag)
+            {
+               *max_mu_T_ptr = ti->ComputeMaxUntangleOptimizerMetric(x_loc, *pfesc);
+            }
             UpdateDiscreteTC(*ti, x_loc);
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -711,6 +717,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ati[j]->UpdateAfterMeshPositionChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *pfesc);
+               if (compute_max_mu_T_flag)
+               {
+                  *max_mu_T_ptr = ati[j]->ComputeMaxUntangleOptimizerMetric(x_loc, *pfesc);
+               }
                UpdateDiscreteTC(*ati[j], x_loc);
             }
          }
@@ -738,6 +748,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *fesc);
+            if (compute_max_mu_T_flag)
+            {
+               *max_mu_T_ptr = ti->ComputeMaxUntangleOptimizerMetric(x_loc, *fesc);
+            }
             UpdateDiscreteTC(*ti, x_loc);
          }
          co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -748,6 +762,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ati[j]->UpdateAfterMeshPositionChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *fesc);
+               if (compute_max_mu_T_flag)
+               {
+                  *max_mu_T_ptr = ati[j]->ComputeMaxUntangleOptimizerMetric(x_loc, *fesc);
+               }
                UpdateDiscreteTC(*ati[j], x_loc);
             }
          }
