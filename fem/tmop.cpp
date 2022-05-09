@@ -3753,16 +3753,9 @@ double TMOP_Integrator::ComputeMaxUntangleOptimizerMetric(const Vector &x,
          Mult(Jpr, Jrt, Jpt);
 
          double metric_val;
-         if (wcuo)
-         {
-            wcuo->SetTargetJacobian(Jtr_q);
-            metric_val = wcuo->EvalWTilde(Jpt);
-         }
-         else
-         {
-            metric->SetTargetJacobian(Jtr_q);
-            metric_val = metric->EvalW(Jpt);
-         }
+         wcuo->SetTargetJacobian(Jtr_q);
+         metric_val = wcuo->EvalWTilde(Jpt);
+
          max_untangler_optimizer = std::max(max_untangler_optimizer, metric_val);
       }
    }
