@@ -23,6 +23,7 @@
 #include <sstream>
 
 #include "jit.hpp" // for Hash, ToHashString, Find
+#include "../device.hpp" // Backend::CUDA
 
 namespace mfem
 {
@@ -32,7 +33,7 @@ struct Parser
    struct kernel_t
    {
       std::string name; // Kernel name
-      std::string Targs, Tparams, Tformat, Ttest; // arguments, parameters, format
+      std::string Targs, Tparams, Tformat; // Template arguments, parameters, format
       std::string Sargs, Sparams0, Sparams; // Symbol arguments, parameters
       struct { int dim; std::string e, N, X, Y, Z; std::ostringstream body; } forall;
       std::ostringstream source, body;
@@ -204,7 +205,6 @@ struct Parser
       ker.Targs.clear();
       ker.Tparams.clear();
       ker.Tformat = "%d";
-      ker.Ttest.clear();
       auto to_lower = [](std::string &id)
       {
          std::transform(id.begin(), id.end(), id.begin(),
@@ -218,10 +218,6 @@ struct Parser
          if (peek_n(2) == "T_")
          {
             std::string id = peek_id();
-            /*{
-               if (!ker.Ttest.empty()) { ker.Ttest += " && "; }
-               ker.Ttest += id + "==0";
-            }*/
             add_arg(ker.Targs, (id.erase(0, 2), to_lower(id)));
          }
          if (in.peek() == '>') { break;}
@@ -272,10 +268,6 @@ struct Parser
       }
       add_arg(ker.Sargs, last(id));
       ker.advance(); // Params => Body
-      //dbg(154) << "\nker.Sargs: " <<ker.Sargs;
-      //dbg(154) << "\nker.Sparams:" << ker.Sparams;
-      //dbg(154) << "\nker.Sparams0:" << ker.Sparams0;
-      //assert(false);
 
       // Make sure we hit the last ')' of the arguments
       check(put()==')',"no last ')' in kernel");
@@ -285,46 +277,23 @@ struct Parser
 
       // Generate the kernel prefix for this kernel
       ker.advance(); // Body => Prefix
-      ker.source.clear();
-      ker.source.str(std::string());
       ker.body.clear();
       ker.body.str(std::string());
-      // flush also ker.forall.body that can be missed with a kernel w/o forall
       ker.forall.body.clear();
       ker.forall.body.str(std::string());
+      ker.source.clear();
+      ker.source.str(std::string());
+      ker.source << "\n\tconst bool use_dev = Device::Allows(Backend::DEVICE_MASK);"
+                 << "\n\tconst char *source = R\"_(";
 
-      //out << "\n\tconstexpr bool USE_JIT = " << ker.Ttest << ";";
-      ker.source << "\n\tconst bool use_dev = Device::Allows(Backend::DEVICE_MASK);";
-
-      /*ut << "\nprintf(\"%s\", use_dev ? "
-          << "\"\\033[32m USING_DEVICE\\033[m\":"
-          << "\"\\033[31m USING_HOST\\033[m\");";*/
-
-      //out << "\nif (USE_JIT){";
-
-      //out << "\nprintf(\"\\033[35m USING_JIT\\033[m\");";
-
-      ker.source << "\n\tconst char *source = R\"_(";
-
-      // switching from out to ker.source to compute the hash,
       // defining 'MFEM_JIT_COMPILATION' to avoid MFEM_GPU_CHECK in cuda.hpp
-      ker.source << "\n#define MFEM_JIT_COMPILATION"
-                 << "\n#define MFEM_MEM_MANAGER_HPP" // pulls HYPRE_config.h
-                 << "\n#define MFEM_DEVICE_HPP";
+      // and pulling <HYPRE_config.h> in mem_manager.hpp
+      ker.source << "\n#define MFEM_JIT_COMPILATION";
 
 #ifdef MFEM_USE_CUDA
       // avoid mfem_cuda_error inside MFEM_GPU_CHECK
       ker.source << "\n#define MFEM_GPU_CHECK(...)";
 #endif
-      // used in forall.hpp
-      ker.source << "\nstruct Backend { enum: unsigned long {"
-                 << "CPU=1<<0, CUDA=1<<2, HIP=1<<3, DEBUG_DEVICE=1<<14};};"
-                 << "namespace mfem{ struct Device{"
-                 << "   static constexpr unsigned long CUDA = (1 << 2);"
-                 << "   static constexpr unsigned long backends = CUDA;"
-                 << "   static inline bool Allows(unsigned long b_mask)"
-                 << "      { return Device::backends & b_mask; }};}";
-
       ker.source << "\n#include \"" << MFEM_INSTALL_DIR
                  << "/include/mfem/general/forall.hpp\"";
 
