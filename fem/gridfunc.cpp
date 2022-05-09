@@ -4251,8 +4251,8 @@ void TensorProductLegendre(int dim,                // input
       Vector tmp(dim);
       tmp = x_in;
       tmp -= *midpoint;
-      x[0] = tmp[0]*cos(angle) - tmp[1]*sin(angle);
-      x[1] = tmp[0]*sin(angle) + tmp[1]*cos(angle);
+      x[0] = tmp[0]*cos(-angle) - tmp[1]*sin(-angle);
+      x[1] = tmp[0]*sin(-angle) + tmp[1]*cos(-angle);
    }
    else
    {
