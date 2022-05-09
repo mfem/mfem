@@ -415,7 +415,6 @@ struct Parser
       ker.advance(/*kernel => postfix*/);
    }
 
-
    void mfem_jit_postfix() // output all kernel source, with updated hash
    {
       ker.source << "}\nextern \"C\" void k%016lx"
@@ -438,6 +437,7 @@ struct Parser
           << ".operator()(use_dev," << ker.Sargs << ");"
           << "\n} else { /* not USE_JIT */\n"
           << ker.body.str() // USING_TEMPLATED
+          //<< "\n\tassert(false);"
           << "}"
           << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
       ker.advance(/*postfix => wait*/);

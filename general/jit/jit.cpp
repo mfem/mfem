@@ -109,19 +109,20 @@ struct JIT // System singleton object
       }
    } command;
 
-   template <typename OP> static void Ack(const int xx)
+   template <typename OP> static void Ack(int xx)
    {
       while (OP()(*Ack(), xx)) // equal_to or not_equal_to OP
       { std::this_thread::sleep_for(std::chrono::milliseconds(200)); }
    }
+   static void AckEQ(int xx = ACK) { Ack<std::equal_to<int>>(xx); }
+   static void AckNE(int xx = ACK) { Ack<std::not_equal_to<int>>(xx); }
    static constexpr int ACK = ~0, CALL = 0x3243F6A8, EXIT = 0x9e3779b9;
+
    static int Read() { return *Ack(); }
+   static void Write(int xx) { *Ack() = xx; }
    static void Acknowledge() { Write(ACK); }
-   static void Write(const int xx) { *Ack() = xx; }
-   static void Send(const int xx) { AckNE(*Ack() = xx); } // block until acknowledged
-   static void Wait(const bool eq = true) { eq ? AckEQ() : AckNE(); }
-   static void AckEQ(const int xx = ACK) { Ack<std::equal_to<int>>(xx); }
-   static void AckNE(const int xx = ACK) { Ack<std::not_equal_to<int>>(xx); }
+   static void Send(int xx) { /*Write(xx);*/ AckNE(*Ack() = xx); } // blocks until flushed
+   static void Wait(bool EQ = true) { EQ ? AckEQ() : AckNE(); }
 
    static bool IsCall() { return Read() == CALL; }
    static bool IsExit() { return Read() == EXIT; }
@@ -267,8 +268,7 @@ struct JIT // System singleton object
          int status = EXIT_SUCCESS;
          if (mpi::Root())
          {
-            Command() << CXX()
-                      << FLAGS() // when sanitizing
+            Command() << CXX() // << FLAGS() // when sanitizing
                       << "-shared" << "-o" << so()
                       << ARprefix() << ar() << ARpostfix()
                       << Xlinker() + "-rpath,.";
@@ -302,13 +302,12 @@ struct JIT // System singleton object
          if (Call()) { return EXIT_FAILURE; }
          std::remove(co.c_str());
          // Create shared library: new (ar + symbol), used afterward
-         Command() << CXX()
-                   << FLAGS() // when sanitizing
+         Command() << CXX() // << FLAGS() // when sanitizing
                    << "-shared" << "-o" << symbol
                    << ARprefix() << ar() << ARpostfix();
          if (Call()) { return EXIT_FAILURE; }
          // Update shared cache library: new (ar + symbol) => LIB_SO
-         Command() << "install" << "-v" << ARbackup() << symbol << so();
+         Command() << "install" << ARbackup() << symbol << so();
          if (Call()) { return EXIT_FAILURE; }
          return EXIT_SUCCESS;
       }; // RootCompile

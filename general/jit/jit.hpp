@@ -26,6 +26,7 @@
 #include <iostream>
 #include <iomanip> // setfill
 #include <unordered_map>
+#include <functional> // std::hash
 
 namespace mfem
 {
@@ -67,8 +68,10 @@ struct Jit
    /// \brief Creates a string from the hash and the optional extension
    static std::string ToHashString(const size_t hash, const char *ext = "")
    {
-      return ((std::stringstream{}) << 'k' << std::setfill('0') << std::setw(16)
-              << std::hex << (hash|0) << std::dec << ext).str();
+      std::stringstream ss {};
+      ss  << 'k' << std::setfill('0') << std::setw(16)
+          << std::hex << (hash|0) << std::dec << ext;
+      return ss.str();
    }
 
    template <typename T, typename... Args> static inline

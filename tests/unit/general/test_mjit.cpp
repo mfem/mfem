@@ -9,18 +9,25 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "mfem.hpp"
-using namespace mfem;
+#include "config/config.hpp"
 
 #ifdef MFEM_USE_JIT
 
-#include <cmath> // for pow
-#include "unit_tests.hpp"
+#include <cmath> // pow
+#include <cstddef> // size_t
+
+#ifdef MFEM_JIT_COMPILATION
+#define MFEM_GPU_CHECK(...)
+#endif
 
 #include "general/jit/jit.hpp"// for MFEM_JIT
 #include "general/forall.hpp" // for MFEM_FORALL
 
-#ifndef MFEM_TEST_MJIT_CODE // exclude this catch code from JIT compilation
+using namespace mfem;
+
+#ifndef MFEM_JIT_COMPILATION // exclude this catch code from JIT compilation
+
+#include "unit_tests.hpp"
 
 TEST_CASE("Just-In-Time-Compilation", "[JIT]")
 {
@@ -49,12 +56,13 @@ TEST_CASE("Just-In-Time-Compilation", "[JIT]")
       std::remove("test_mjit"); // cleanup existing executable
 
       //#warning cleanup caches, but forces each unit_tests to rebuild it
-      std::remove("libmjit.a"); std::remove("libmjit.so");
+      //std::remove("libmjit.a"); std::remove("libmjit.so");
 
       System(MFEM_JIT_CXX " " MFEM_JIT_BUILD_FLAGS // compilation
-             " -DMFEM_TEST_MJIT_CODE"
-             " -I" MFEM_SOURCE_DIR " -o test_mjit test_mjit.cc"
-             " -L" MFEM_SOURCE_DIR " -lmfem"); // for jit.hpp functions
+             " -DMFEM_JIT_COMPILATION"
+             " -I" MFEM_INSTALL_DIR "/include/mfem"
+             " -o test_mjit test_mjit.cc"
+             " -L" MFEM_INSTALL_DIR "/lib -lmfem");
       std::remove("test_mjit.cc");
 
       System("./test_mjit"); // will rebuild the libmjit libraries
@@ -67,7 +75,7 @@ TEST_CASE("Just-In-Time-Compilation", "[JIT]")
       std::remove("test_mjit");
    }
 }
-#endif // MFEM_TEST_MJIT_CODE
+#endif // MFEM_JIT_COMPILATION
 
 // Bailey–Borwein–Plouffe formula to compute the nth base-16 digit of π
 MFEM_JIT template<int T_DEPTH = 0, int T_N = 0>
@@ -286,19 +294,27 @@ void SmemPADiffusionApply3D(const int NE,
    assert(NE > 0);
 }
 
-#ifdef MFEM_TEST_MJIT_CODE
+MFEM_JIT
+template<int T_A = 0, int T_B = 0>
+void ToUseOrNotToUse(int a = 0, int b = 0) { assert(true); }
+
+#ifdef MFEM_JIT_COMPILATION
 int main(int argc, char* argv[])
 {
-   double a = 0.0, b = 0.0;
+   double a = 0.0;
    bbps<64,17>(1,&a);
-   bbps(1,&b,64,17);
    const size_t ax = (size_t)(pow(16,8)*a);
+
+   double b = 0.0;
+   bbps(1,&b,64,17);
    const size_t bx = (size_t)(pow(16,8)*b);
-   //printf("\033[33m[0x%lx:0x%lx]\033[m",ax,bx);
+
+   printf("\033[33m[0x%lx:0x%lx]\033[m",ax,bx);
    if (ax != bx) { return EXIT_FAILURE; }
+
    if (pi(10) != 0x5A308D31ul) { return EXIT_FAILURE; }
    return EXIT_SUCCESS;
 }
-#endif // MFEM_TEST_MJIT_CODE
+#endif // MFEM_JIT_COMPILATION
 
 #endif // MFEM_USE_JIT
