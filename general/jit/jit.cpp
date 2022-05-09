@@ -281,15 +281,8 @@ struct JIT // System singleton object
 
       auto RootCompile = [&]() // Compilation done by the MPI root rank only
       {
-         auto FileNameFromHash64 = [](const size_t h, const char *ext)
-         {
-            std::stringstream ss {};
-            ss << 'k' << std::setfill('0') << std::setw(16)
-               << std::hex << (h|0) << std::dec << ext;
-            return ss.str();
-         };
-         auto cc = FileNameFromHash64(hash, ".cc"); // input file
-         auto co = FileNameFromHash64(hash, ".co"); // output object
+         auto cc = Jit::ToHashString(hash, ".cc"); // input file
+         auto co = Jit::ToHashString(hash, ".co"); // output object
 
          // Write kernel source into input file
          std::ofstream input_src_file(cc);

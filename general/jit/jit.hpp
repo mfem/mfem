@@ -22,6 +22,11 @@
 #include <cstring> // for std::memcpy
 #include <cassert>
 
+#include <sstream>
+#include <iostream>
+#include <iomanip> // setfill
+#include <unordered_map>
+
 namespace mfem
 {
 
@@ -58,6 +63,30 @@ struct Jit
    template<typename T, typename... Args> static inline
    size_t Hash(const size_t &h, const T &arg, Args... args) noexcept
    { return Hash(Hash(h, arg), args...); }
+
+   /// \brief Creates a string from the hash and the optional extension
+   static std::string ToHashString(const size_t hash, const char *ext = "")
+   {
+      return ((std::stringstream{}) << 'k' << std::setfill('0') << std::setw(16)
+              << std::hex << (hash|0) << std::dec << ext).str();
+   }
+
+   template <typename T, typename... Args> static inline
+   Kernel<T> Find(const size_t hash, const char *source,
+                  std::unordered_map<size_t, Kernel<T>> &map, Args... args)
+   {
+      auto kernel_it = map.find(hash);
+      if (kernel_it == map.end())
+      {
+         const int n = snprintf(nullptr, 0, source, hash, hash, hash, args...);
+         char *tsrc = new char[n+1];
+         snprintf(tsrc, n+1, source, hash, hash, hash, args...);
+         map.emplace(hash, Kernel<T>(hash, tsrc, ToHashString(hash).c_str()));
+         kernel_it = map.find(hash);
+         delete[] tsrc;
+      }
+      return kernel_it->second;
+   }
 };
 
 } // namespace mfem

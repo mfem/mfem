@@ -1549,8 +1549,8 @@ void SmemPADiffusionApply3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : 8;//MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : 8;//MAX_D1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= MD1, "");
    MFEM_VERIFY(Q1D <= MQ1, "");
    auto b = Reshape(b_, Q1D, D1D);
@@ -1562,8 +1562,8 @@ void SmemPADiffusionApply3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : 8;//MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : 8;//MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
       MFEM_SHARED double sBG[2][MQ1*MD1];
       double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
