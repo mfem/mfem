@@ -104,6 +104,70 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
+/// Simultaneous Untangle-Optimizer
+/// (mu_k/2(tau-t))^p, where t=min{min(detJ)-epsilon, 0}
+class TMOP_UntangleOptimizer_Metric : public TMOP_QualityMetric
+{
+protected:
+   TMOP_QualityMetric *tmop_metric; //non-barrier metric to use
+   double &min_detT;                //point to min-det
+   double epsilon = 0.0001;         //small constant
+   int exponent;
+public:
+   TMOP_UntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
+                                 double &t0, double epsilon_, int exponent_) :
+      tmop_metric(tmop_metric_), min_detT(t0), epsilon(epsilon_),
+      exponent(exponent_) { }
+   virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
+   {
+      tmop_metric->SetTargetJacobian(Jtr_);
+   }
+
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// Simultaneous Untangle-Optimizer
+/// alpha/beta-alpha, where alpha = (mu_k/2(tau-t)), t=min{min(detJ)-epsilon, 0}
+/// and beta = max(detJ)+epsilon
+class TMOP_WorstCaseUntangleOptimizer_Metric : public TMOP_QualityMetric
+{
+protected:
+   TMOP_QualityMetric *tmop_metric; //non-barrier metric to use
+   double &min_detT;                //point to min-det
+   double &max_muT;                //point to max-det
+   double epsilon = 0.0001;         //small constant
+   int exponent;
+public:
+   TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
+                                          double &mindetT_, double &maxmuT_,
+                                          double epsilon_, int exponent_) :
+      tmop_metric(tmop_metric_), min_detT(mindetT_), max_muT(maxmuT_),
+      epsilon(epsilon_), exponent(exponent_) { }
+   virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
+   {
+      tmop_metric->SetTargetJacobian(Jtr_);
+   }
+
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+
+   // Computes alpha
+   virtual double EvalWTilde(const DenseMatrix &Jpt) const;
+};
+
 /// 2D non-barrier metric without a type.
 class TMOP_Metric_001 : public TMOP_QualityMetric
 {
@@ -198,6 +262,24 @@ public:
                           const double weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 2; }
+};
+
+/// 2D non-barrier shape (S) metric.
+class TMOP_Metric_004 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+
+public:
+   // W = |J|^2 - 2*det(J)
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const;
+
+   virtual int Id() const { return 4; }
 };
 
 /// 2D barrier Shape+Size (VS) metric (not polyconvex).
@@ -334,6 +416,29 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
+};
+
+/// 2D non-barrier Shape+Size (VS) metric.
+class TMOP_Metric_066 : public TMOP_Combo_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+   double gamma;
+   TMOP_QualityMetric *sh_metric, *sz_metric;
+
+public:
+   TMOP_Metric_066(double gamma_) : gamma(gamma_),
+      sh_metric(new TMOP_Metric_004),
+      sz_metric(new TMOP_Metric_055)
+   {
+      // (1-gamma) mu_4 + gamma mu_55
+      AddQualityMetric(sh_metric, 1.-gamma_);
+      AddQualityMetric(sz_metric, gamma_);
+   }
+   virtual int Id() const { return 66; }
+   double GetGamma() const { return gamma; }
+
+   virtual ~TMOP_Metric_066() { delete sh_metric; delete sz_metric; }
 };
 
 /// 2D barrier size (V) metric (polyconvex).
@@ -1522,6 +1627,13 @@ protected:
 
    void AssemblePA_Limiting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
+
+   double ComputeMaxUntangleOptimizerMetric(const Vector &x,
+                                            const FiniteElementSpace &fes);
+#ifdef MFEM_USE_MPI
+   double ComputeMaxUntangleOptimizerMetric(const Vector &x,
+                                            const ParFiniteElementSpace &pfes);
+#endif
 
 public:
    /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
