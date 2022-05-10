@@ -28,7 +28,7 @@ struct DiffusionOperatorInfo : public OperatorInfo
    DiffusionContext ctx;
    DiffusionOperatorInfo(int dim)
    {
-      header = "/diffusion_qf.h";
+      header = "/integrators/diffusion/diffusion_qf.h";
       build_func_const = ":f_build_diff_const";
       build_qf_const = &f_build_diff_const;
       build_func_quad = ":f_build_diff_quad";
