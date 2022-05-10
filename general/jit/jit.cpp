@@ -14,17 +14,16 @@
 #ifdef MFEM_USE_JIT
 
 #include "../communication.hpp" // pulls mpi.h
-#include "../globals.hpp" // needed when !MFEM_USE_MPI
-#include "../error.hpp" // MFEM_CONTRACT_VAR
+#include "../error.hpp"
 #include "jit.hpp"
 
-#include <chrono>
-#include <cstring> // std::strlen
 #include <string>
-#include <thread> // sleep_for
 #include <fstream>
 #include <sstream>
+#include <thread> // sleep_for
+#include <chrono> // milliseconds
 
+#include <cstring> // strlen
 #include <cstdlib> // exit, system
 #include <dlfcn.h> // dlopen/dlsym, not available on Windows
 #include <signal.h> // signals
@@ -70,17 +69,15 @@ static bool IsInitialized()
 static bool Root() { return Rank() == 0; }
 
 // Do a MPI barrier and status reduction if MPI has been initialized
-static void Sync(bool status = EXIT_SUCCESS)
+static void Sync(int status = EXIT_SUCCESS)
 {
 #ifdef MFEM_USE_MPI
    if (Mpi::IsInitialized())
    {
-      MPI_Allreduce(MPI_IN_PLACE, &status, 1, MPI_C_BOOL, MPI_LOR, MPI_COMM_WORLD);
-      MFEM_VERIFY(status == EXIT_SUCCESS, "[JIT] Synchronization error!");
+      MPI_Allreduce(MPI_IN_PLACE, &status, 1, MPI_INT, MPI_LOR, MPI_COMM_WORLD);
    }
-#else
-   MFEM_CONTRACT_VAR(status);
 #endif
+   MFEM_VERIFY(status == EXIT_SUCCESS, "[JIT] Synchronization error!");
 }
 
 } // namespace mpi
@@ -257,11 +254,8 @@ struct System // System singleton object
 
    static void* Lookup(const size_t hash, const char *source, const char *symbol)
    {
-      void *handle = // try to open libmjit.so first
-         std::fstream(so()) ? DLopen(so()) : nullptr;
-
-      // if libmjit.so was not found, try libmjit.a
-      if (!handle && std::fstream(ar()))
+      void *handle = std::fstream(so()) ? DLopen(so()) : nullptr; // try libmjit.so
+      if (!handle && std::fstream(ar())) // if not found, try libmjit.a
       {
          int status = EXIT_SUCCESS;
          if (mpi::Root())
@@ -276,45 +270,46 @@ struct System // System singleton object
          MFEM_VERIFY(handle, "[JIT] Error " << so() << " from " << ar());
       }
 
-      auto RootCompile = [&]() // Compilation done by the MPI root rank only
+      auto RootCompile = [&]() // Compilation only done by the root
       {
-         auto cc = Jit::to_string(hash, ".cc"); // input file
-         auto co = Jit::to_string(hash, ".co"); // output object
-
-         // Write kernel source into input file
-         std::ofstream input_src_file(cc);
-         MFEM_VERIFY(input_src_file.good(), "[JIT] Input file error!");
-         input_src_file << source;
-         input_src_file.close();
+         // Write kernel source file
+         auto cc = Jit::ToString(hash, ".cc"); // input source
+         std::ofstream source_file(cc);
+         MFEM_VERIFY(source_file.good(), "[JIT] Source file error!");
+         source_file << source;
+         source_file.close();
 
          // Compilation: cc => co
+         auto co = Jit::ToString(hash, ".co"); // output object
          Command() << Cxx() << Flags() << Xdevice()
                    << "-I" << MFEM_SOURCE_DIR // JIT w/o MFEM installed
                    << "-I" << MFEM_INSTALL_DIR
                    << Xcompiler() + "-fPIC" << Xcompiler() + "-pipe"
-                   << Xcompiler() + "-Wno-unused-variable"
                    << "-c" << "-o" << co << cc;
          if (Call()) { return EXIT_FAILURE; }
          std::remove(cc.c_str());
+
          // Update archive: ar += co
          Command() << "ar -rv" << ar() << co;
          if (Call()) { return EXIT_FAILURE; }
          std::remove(co.c_str());
-         // Create shared library: new (ar + symbol), used afterward
+
+         // Create temporary shared library: (ar + co) => symbol
          Command() << Cxx() << "-shared" << "-o" << symbol
                    << ARprefix() << ar() << ARpostfix();
          if (Call()) { return EXIT_FAILURE; }
-         // Update shared cache library: new (ar + symbol) => LIB_SO
+
+         // Install temporary shared library: symbol => libmjit.so
          Command() << "install" << ARbackup() << symbol << so();
          if (Call()) { return EXIT_FAILURE; }
          return EXIT_SUCCESS;
-      }; // RootCompile
+      };
 
-      auto WorldCompile = [&]() // only root compiles
+      auto WorldCompile = [&]() // but only root compiles
       {
-         const bool status = mpi::Root() ? RootCompile() : EXIT_SUCCESS;
+         const int status = mpi::Root() ? RootCompile() : EXIT_SUCCESS;
          mpi::Sync(status); // all ranks verify the status
-         handle = DLopen(symbol); // opens (ar + symbol)
+         handle = DLopen(symbol); // opens symbol
          mpi::Sync();
          MFEM_VERIFY(handle, "[JIT] Error creating handle:" << ::dlerror());
       }; // WorldCompile
@@ -328,7 +323,7 @@ struct System // System singleton object
       if (!kernel) { WorldCompile(); kernel = ::dlsym(handle, symbol); }
       MFEM_VERIFY(kernel, "[JIT] No kernel could be found!");
 
-      // remove temporary shared (ar + symbol), the cache will be used afterward
+      // remove temporary shared library, the cache will be used afterward
       std::remove(symbol);
       return kernel;
    }
