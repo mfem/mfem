@@ -5289,6 +5289,25 @@ void Mesh::EnsureNodes()
       else // Mesh using a legacy FE_Collection
       {
          const int order = GetNodalFESpace()->GetElementOrder(0);
+         if (NURBSext)
+         {
+#ifndef MFEM_USE_MPI
+            const bool warn = true;
+#else
+            ParMesh *pmesh = dynamic_cast<ParMesh*>(this);
+            const bool warn = !pmesh || pmesh->GetMyRank() == 0;
+#endif
+            if (warn)
+            {
+               MFEM_WARNING("converting NURBS mesh to order " << order <<
+                            " H1-continuous mesh!\n   "
+                            "If this is the desired behavior, you can silence"
+                            " this warning by converting\n   "
+                            "the NURBS mesh to high-order mesh in advance by"
+                            " calling the method\n   "
+                            "Mesh::SetCurvature().");
+            }
+         }
          SetCurvature(order, false, -1, Ordering::byVDIM);
       }
    }

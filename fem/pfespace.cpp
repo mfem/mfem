@@ -3205,6 +3205,9 @@ void ParFiniteElementSpace::CopyProlongationAndRestriction(
    MFEM_VERIFY(P == NULL, "");
    MFEM_VERIFY(R == NULL, "");
 
+   // Ensure R and P matrices are built
+   pfes->Dof_TrueDof_Matrix();
+
    SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
    if (perm)
    {
