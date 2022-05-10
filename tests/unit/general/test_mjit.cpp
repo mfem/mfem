@@ -22,16 +22,16 @@
 
 #include "general/jit/jit.hpp"// for MFEM_JIT
 #include "general/forall.hpp" // for MFEM_FORALL
-
 using namespace mfem;
 
 #ifndef MFEM_JIT_COMPILATION // exclude this catch code from JIT compilation
 
+#include "mfem.hpp"
 #include "unit_tests.hpp"
 
 TEST_CASE("Just-In-Time-Compilation", "[JIT]")
 {
-   auto System = [](const char *arg) { REQUIRE(std::system(arg) == 0); };
+   auto System = [](const char *cmd) { REQUIRE(std::system(cmd) == 0); };
 
    SECTION("System check")
    {
@@ -60,9 +60,10 @@ TEST_CASE("Just-In-Time-Compilation", "[JIT]")
 
       System(MFEM_JIT_CXX " " MFEM_JIT_BUILD_FLAGS // compilation
              " -DMFEM_JIT_COMPILATION"
+             " -I../.."
              " -I" MFEM_INSTALL_DIR "/include/mfem"
              " -o test_mjit test_mjit.cc"
-             " -L" MFEM_INSTALL_DIR "/lib -lmfem");
+             " -L" MFEM_INSTALL_DIR "/lib -L../.. -lmfem");
       std::remove("test_mjit.cc");
 
       System("./test_mjit"); // will rebuild the libmjit libraries
@@ -296,7 +297,12 @@ void SmemPADiffusionApply3D(const int NE,
 
 MFEM_JIT
 template<int T_A = 0, int T_B = 0>
-void ToUseOrNotToUse(int n, int a = 0, int b = 0) { assert(true); }
+void ToUseOrNotToUse(int n, int a = 0, int b = 0)
+{
+   MFEM_CONTRACT_VAR(n);
+   MFEM_CONTRACT_VAR(a);
+   MFEM_CONTRACT_VAR(b);
+}
 
 #ifdef MFEM_JIT_COMPILATION
 int main(int argc, char* argv[])
