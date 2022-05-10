@@ -136,9 +136,7 @@ protected:
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
-   // Maximum determinant over the whole mesh. Used for mesh untangling.
-   mutable double *max_mu_T_ptr = nullptr;
-   mutable bool compute_max_mu_T_flag = true;
+   mutable bool compute_metric_quantile_flag = true;
 
    // Quadrature points that are checked for negative Jacobians etc.
    const IntegrationRule &ir;
@@ -199,7 +197,6 @@ public:
    }
 
    void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }
-   void SetMaxMuTPtr(double *md_ptr) { max_mu_T_ptr = md_ptr; }
 
    /// Set the memory type for temporary memory allocations.
    void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }

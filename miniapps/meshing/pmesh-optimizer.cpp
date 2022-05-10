@@ -159,8 +159,8 @@ int main (int argc, char *argv[])
    int n_h_iter          = 1;
    bool surface_fit_adapt = false;
    double surface_fit_threshold = -10;
-   bool shifted_barrier = false;
-   bool worst_case_untangler = false;
+   int untangler_mode     = 0;
+   bool shifted_barrier   = true;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -292,11 +292,13 @@ int main (int argc, char *argv[])
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
-   args.AddOption(&shifted_barrier, "-barrier", "--barrier", "-no-barrier",
-                  "--no-barrier", "Enable shifted barrier on metric.");
-   args.AddOption(&worst_case_untangler, "-worst-case", "--worst-case",
-                  "-no-worst-case", "--no-worst-case",
-                  "Enable worst case untangler metric.");
+   args.AddOption(&untangler_mode, "-uo", "--untangler-optimizer",
+                  "Untangler mode: 0 - none (default), "
+                  "1 - untangler optimizer,"
+                  "2 - worst-case untangler optimizer");
+   args.AddOption(&shifted_barrier, "-shifted", "--shifted", "-no-barrier",
+                  "--no-barrier", "Enable shifted barrier on metric or"
+                  "use pseudo barrier, when untangler_mode > 0.");
    args.Parse();
    if (!args.Good())
    {
@@ -431,7 +433,6 @@ int main (int argc, char *argv[])
 
    // 12. Form the integrator that uses the chosen metric and target.
    double min_detJ = -0.1;
-   double max_muT = -std::numeric_limits<double>::infinity();
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
@@ -498,22 +499,24 @@ int main (int argc, char *argv[])
       }
    }
    TMOP_QualityMetric *untangler_metric = NULL;
-   if (shifted_barrier)
+   if (untangler_mode == 1)
    {
-      MFEM_VERIFY(!worst_case_untangler, "Use either only shifted barrier or"
-                  "worst case untangler.");
       untangler_metric = new TMOP_UntangleOptimizer_Metric(metric,
-                                                           min_detJ,
+                                                           1,
                                                            0.0001,
-                                                           1.0);
+                                                           shifted_barrier);
    }
-   else if (worst_case_untangler)
+   else if (untangler_mode == 2)
    {
       untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(metric,
-                                                                    min_detJ,
-                                                                    max_muT,
-                                                                    0.01,
-                                                                    1.0);
+                                                                    1,
+                                                                    0.001,
+                                                                    0.001,
+                                                                    shifted_barrier);
+   }
+   else if (untangler_mode > 0)
+   {
+      MFEM_ABORT("Invalid untangler mode.");
    }
 
    if (metric_id < 300 || h_metric_id < 300)
@@ -765,7 +768,7 @@ int main (int argc, char *argv[])
       target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    }
    target_c->SetNodes(x0);
-   TMOP_QualityMetric *metric_to_use = shifted_barrier || worst_case_untangler
+   TMOP_QualityMetric *metric_to_use = untangler_mode > 0
                                        ? untangler_metric
                                        : metric;
    TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric_to_use, target_c,
@@ -996,7 +999,7 @@ int main (int argc, char *argv[])
    if (myid == 0)
    { cout << "Minimum det(J) of the original mesh is " << min_detJ << endl; }
 
-   if (min_detJ < 0.0 && !shifted_barrier && !worst_case_untangler
+   if (min_detJ < 0.0 && untangler_mode == 0
        && metric_id != 22 && metric_id != 211 && metric_id != 252
        && metric_id != 311 && metric_id != 313 && metric_id != 352)
    {
@@ -1161,7 +1164,6 @@ int main (int argc, char *argv[])
    }
    // For untangling, the solver will update the min det(T) values.
    solver.SetMinDetPtr(&min_detJ);
-   solver.SetMaxMuTPtr(&max_muT);
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
