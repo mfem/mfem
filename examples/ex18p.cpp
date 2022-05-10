@@ -1,4 +1,4 @@
-//                         MFEM Example 18 - Parallel Version
+//                       MFEM Example 18 - Parallel Version
 //
 // Compile with: make ex18
 //
