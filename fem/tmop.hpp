@@ -110,14 +110,17 @@ class TMOP_UntangleOptimizer_Metric : public TMOP_QualityMetric
 {
 protected:
    TMOP_QualityMetric *tmop_metric; //non-barrier metric to use
-   double &min_detT;                //point to min-det
-   double epsilon = 0.0001;         //small constant
+   double min_detT;                 //point to min-det
    int exponent;
+   double detT_ep;                  //small constant
+   bool shifted;                    //shifted barrier (true) or pseudo-barrier
 public:
    TMOP_UntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
-                                 double &t0, double epsilon_, int exponent_) :
-      tmop_metric(tmop_metric_), min_detT(t0), epsilon(epsilon_),
-      exponent(exponent_) { }
+                                 int exponent_ = 1,
+                                 double detT_ep_ = 0.0001,
+                                 bool shifted_ = true) :
+      tmop_metric(tmop_metric_), exponent(exponent_),
+      detT_ep(detT_ep_), shifted(shifted_) { }
    virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
    {
       tmop_metric->SetTargetJacobian(Jtr_);
@@ -131,25 +134,34 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
+
+   virtual void SetMinDetT(double min_detT_) { min_detT = min_detT_; }
+
+   virtual bool ShiftedBarrierMetric() { return shifted; }
 };
 
-/// Simultaneous Untangle-Optimizer
-/// alpha/beta-alpha, where alpha = (mu_k/2(tau-t)), t=min{min(detJ)-epsilon, 0}
-/// and beta = max(detJ)+epsilon
+/// Simultaneous Untangle-Optimizer with worst-case quality improvement
+/// alpha/beta-alpha, where alpha = (mu_k/2(tau-t)), t=min{min(detJ)+detT_ep, 0}
+/// and beta = max(detJ)+muT_ep
 class TMOP_WorstCaseUntangleOptimizer_Metric : public TMOP_QualityMetric
 {
 protected:
    TMOP_QualityMetric *tmop_metric; //non-barrier metric to use
-   double &min_detT;                //point to min-det
-   double &max_muT;                //point to max-det
-   double epsilon = 0.0001;         //small constant
+   double min_detT;                 //point to min-det
+   double max_muT;                  //point to max-det
    int exponent;
+   double detT_ep;                  //small constant added to detT term
+   double muT_ep;                   //small constant added to muT term
+   bool shifted;                    //shifted barrier (true) or pseudo-barrier
 public:
    TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric *tmop_metric_,
-                                          double &mindetT_, double &maxmuT_,
-                                          double epsilon_, int exponent_) :
-      tmop_metric(tmop_metric_), min_detT(mindetT_), max_muT(maxmuT_),
-      epsilon(epsilon_), exponent(exponent_) { }
+                                          int exponent_ = 1,
+                                          double detT_ep_ = 0.0001,
+                                          double muT_ep_ = 0.0001,
+                                          bool shifted_ = false) :
+      tmop_metric(tmop_metric_),
+      exponent(exponent_), detT_ep(detT_ep_), muT_ep(muT_ep_),
+      shifted(shifted_)  { }
    virtual void SetTargetJacobian(const DenseMatrix &Jtr_)
    {
       tmop_metric->SetTargetJacobian(Jtr_);
@@ -166,6 +178,12 @@ public:
 
    // Computes alpha
    virtual double EvalWTilde(const DenseMatrix &Jpt) const;
+
+   virtual void SetMinDetT(double min_detT_) { min_detT = min_detT_; }
+
+   virtual void SetMaxMuT(double max_muT_) { max_muT = max_muT_; }
+
+   virtual bool ShiftedBarrierMetric() { return shifted; }
 };
 
 /// 2D non-barrier metric without a type.
@@ -1628,11 +1646,14 @@ protected:
    void AssemblePA_Limiting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
 
-   double ComputeMaxUntangleOptimizerMetric(const Vector &x,
-                                            const FiniteElementSpace &fes);
+   void ComputeUntanglerMetricQuantiles(const Vector &x,
+                                        const FiniteElementSpace &fes,
+                                        Vector &Quantiles);
+   void ComputeUntanglerMetricQuantiles(const Vector &x,
+                                        const FiniteElementSpace &fes);
 #ifdef MFEM_USE_MPI
-   double ComputeMaxUntangleOptimizerMetric(const Vector &x,
-                                            const ParFiniteElementSpace &pfes);
+   void ComputeUntanglerMetricQuantiles(const Vector &x,
+                                        const ParFiniteElementSpace &pfes);
 #endif
 
 public:
