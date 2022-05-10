@@ -8,9 +8,6 @@ on:
 
   # Allow manual trigger of a build
   workflow_dispatch:
-    inputs:
-      whatever:
-        description: "This variable does not matter, it's a GH-actions bug."
 
   # On push to main we build and deploy images
   push:
