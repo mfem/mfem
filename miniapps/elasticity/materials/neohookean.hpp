@@ -25,7 +25,10 @@ using mfem::internal::make_tensor;
  *
  * Defines a Neo-Hookean material response. It satisfies the material_type
  * interface for ElasticityOperator::SetMaterial. This material type allows
- * choosing the method of derivative calculation in `action_of_gradient`.
+ * choosing the method of derivative calculation for the stress (which is
+ * the derivative of the strain energy density) and for the 
+ * `action_of_gradient`, which applies the tangent elastic tensor operator
+ * as a directional derivative.
  * Choices include methods derived by hand using symbolic calculation and a
  * variety of automatically computed gradient applications, like
  * - Enzyme forward mode
@@ -93,10 +96,6 @@ struct NeoHookeanMaterial
       {
          return stress_dual(dudx);
       }
-      else
-      {
-         return 0.0*dudx;
-      }
    }
 
    /**
@@ -154,6 +153,12 @@ struct NeoHookeanMaterial
    }
 #endif
 
+   /**
+    * @brief Evaluate the stress with forward mode differentiation
+    *
+    * @param[in] dudx
+    * @return Piola stress
+    */
    template <typename T>
    MFEM_HOST_DEVICE tensor<T, dim, dim>
    stress_enzyme_fwd(const tensor<T, dim, dim> &dudx) const
@@ -173,6 +178,12 @@ struct NeoHookeanMaterial
       return P;
    }
 
+   /**
+    * @brief Evaluate the stress with finite differences
+    *
+    * @param[in] dudx
+    * @return Piola stress
+    */
    template <typename T>
    MFEM_HOST_DEVICE tensor<T, dim, dim>
    stress_fd(const tensor<T, dim, dim> &dudx) const
@@ -193,6 +204,12 @@ struct NeoHookeanMaterial
       return P;
    }
 
+   /**
+    * @brief Evaluate the stress with built-in dual number forward mode
+    *
+    * @param[in] dudx
+    * @return Piola stress
+    */
    template <typename T>
    MFEM_HOST_DEVICE tensor<T, dim, dim>
    stress_dual(const tensor<T, dim, dim> &dudx) const
