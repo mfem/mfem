@@ -30,6 +30,26 @@ namespace mfem
 
 struct Parser
 {
+   struct dbg
+   {
+      static constexpr bool DEBUG = false;
+      static constexpr uint8_t COLOR = 226;
+      dbg(): dbg(COLOR) { }
+      dbg(const uint8_t color)
+      {
+         if (!DEBUG) { return; }
+         std::cout << "\033[38;5;" << std::to_string(color==0?COLOR:color) << "m";
+      }
+      ~dbg() { if (DEBUG) { std::cout << "\033[m"; std::cout.flush(); } }
+      template <typename T> dbg& operator<<(const T &arg)
+      { if (DEBUG) { std::cout << arg;} return *this; }
+      template<typename T, typename... Args>
+      inline void operator()(const T &arg, Args... args) const
+      { operator<<(arg); operator()(args...); }
+      template<typename T>
+      inline void operator()(const T &arg) const { operator<<(arg); }
+   };
+
    struct kernel_t
    {
       std::string name; // Kernel name
