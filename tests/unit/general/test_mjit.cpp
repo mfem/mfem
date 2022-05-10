@@ -54,8 +54,8 @@ TEST_CASE("Just-In-Time-Compilation", "[JIT]")
 
       std::remove("test_mjit"); // cleanup existing executable
 
-#warning cleanup caches, but forces each unit_tests to rebuild it
-      std::remove("libmjit.a"); std::remove("libmjit.so");
+      //#warning cleanup caches, but forces each unit_tests to rebuild it
+      //std::remove("libmjit.a"); std::remove("libmjit.so");
 
       System(MFEM_JIT_CXX " " MFEM_JIT_BUILD_FLAGS // compilation
              " -DMFEM_JIT_COMPILATION -o test_mjit test_mjit.cc"

@@ -311,8 +311,7 @@ struct Parser
       //   - avoid MFEM_GPU_CHECK in cuda.hpp
       //   - pull <HYPRE_config.h> in mem_manager.hpp
       ker.src << "#define MFEM_JIT_COMPILATION"
-              << "\n#include \"" << MFEM_INSTALL_DIR
-              << "/include/mfem/general/forall.hpp\"";
+              << "\n#include \"general/forall.hpp\"";
 
       // MFEM_FORALL_2D_JIT
       ker.src << "\n#define MFEM_FORALL_2D_JIT(i,N,X,Y,B,...)"
@@ -328,8 +327,7 @@ struct Parser
               <<"[&] MFEM_LAMBDA (int i) {__VA_ARGS__},"
               <<"X,Y,Z)";
 
-      ker.src << "\n#include \"" << MFEM_INSTALL_DIR
-              << "/include/mfem/general/jit/jit.hpp\""; // for Hash, Find
+      ker.src << "\n#include \"general/jit/jit.hpp\""; // for Hash, Find
 
       ker.src << "\nusing namespace mfem;";
 

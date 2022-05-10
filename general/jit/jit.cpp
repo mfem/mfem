@@ -245,8 +245,8 @@ struct System // System singleton object
 
    static const char *ar() { return "libmjit.a"; }
    static const char *so() { return "./libmjit.so"; }
-   static std::string CXX() { return MFEM_JIT_CXX; }
-   static std::string FLAGS() { return MFEM_JIT_BUILD_FLAGS; }
+   static std::string Cxx() { return MFEM_JIT_CXX; }
+   static std::string Flags() { return MFEM_JIT_BUILD_FLAGS; }
    static std::string Xdevice() { return Get().options.Device(); }
    static std::string Xlinker() { return Get().options.Linker(); }
    static std::string Xcompiler() { return Get().options.Compiler(); }
@@ -266,8 +266,7 @@ struct System // System singleton object
          int status = EXIT_SUCCESS;
          if (mpi::Root())
          {
-            Command() << CXX() // << FLAGS() // when sanitizing
-                      << "-shared" << "-o" << so()
+            Command() << Cxx() << "-shared" << "-o" << so()
                       << ARprefix() << ar() << ARpostfix()
                       << Xlinker() + "-rpath,.";
             status = Call();
@@ -289,7 +288,9 @@ struct System // System singleton object
          input_src_file.close();
 
          // Compilation: cc => co
-         Command() << CXX() << FLAGS() << Xdevice()
+         Command() << Cxx() << Flags() << Xdevice()
+                   << "-I" << MFEM_SOURCE_DIR // JIT w/o MFEM installed
+                   << "-I" << MFEM_INSTALL_DIR
                    << Xcompiler() + "-fPIC" << Xcompiler() + "-pipe"
                    << Xcompiler() + "-Wno-unused-variable"
                    << "-c" << "-o" << co << cc;
@@ -300,8 +301,7 @@ struct System // System singleton object
          if (Call()) { return EXIT_FAILURE; }
          std::remove(co.c_str());
          // Create shared library: new (ar + symbol), used afterward
-         Command() << CXX() // << FLAGS() // when sanitizing
-                   << "-shared" << "-o" << symbol
+         Command() << Cxx() << "-shared" << "-o" << symbol
                    << ARprefix() << ar() << ARpostfix();
          if (Call()) { return EXIT_FAILURE; }
          // Update shared cache library: new (ar + symbol) => LIB_SO
