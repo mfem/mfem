@@ -258,6 +258,9 @@ public:
    static inline bool Allows(unsigned long b_mask)
    { return Get().backends & b_mask; }
 
+   /// Return the bitwise-OR of all configured backends.
+   static inline unsigned long Backends() { return Get().backends; }
+
    /** @brief Get the current Host MemoryType. This is the MemoryType used by
        most MFEM classes when allocating memory used on the host.
    */

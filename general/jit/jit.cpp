@@ -15,14 +15,15 @@
 
 #include "../communication.hpp" // pulls mpi.h
 #include "../globals.hpp" // needed when !MFEM_USE_MPI
-#include "../error.hpp" // for MFEM_CONTRACT_VAR
+#include "../error.hpp" // MFEM_CONTRACT_VAR
 #include "jit.hpp"
 
 #include <chrono>
-#include <fstream>
-#include <sstream>
+#include <cstring> // std::strlen
 #include <string>
 #include <thread> // sleep_for
+#include <fstream>
+#include <sstream>
 
 #include <cstdlib> // exit, system
 #include <dlfcn.h> // dlopen/dlsym, not available on Windows
@@ -37,9 +38,6 @@
 #endif
 
 namespace mfem
-{
-
-namespace internal
 {
 
 namespace jit
@@ -87,7 +85,7 @@ static void Sync(bool status = EXIT_SUCCESS)
 
 } // namespace mpi
 
-struct JIT // System singleton object
+struct System // System singleton object
 {
    pid_t pid; // of child process
    int *s_ack; // shared status, should be large enough to store one MPI rank
@@ -143,8 +141,8 @@ struct JIT // System singleton object
       return EXIT_SUCCESS;
    }
 
-   static JIT singleton;
-   static JIT& Get() { return singleton; }
+   static System singleton;
+   static System& Get() { return singleton; }
 
    static pid_t Pid() { return Get().pid; }
    static int* Ack() { return Get().s_ack; }
@@ -335,21 +333,19 @@ struct JIT // System singleton object
       return kernel;
    }
 };
-JIT JIT::singleton {}; // Initialize the unique System context.
+System System::singleton {}; // Initialize the unique System context.
 
 } // namespace jit
 
-} // namespace internal
+using namespace jit;
 
-using namespace internal::jit;
+void Jit::Init(int *argc, char ***argv) { if (mpi::Root()) System::Init(argc, argv); }
 
-void Jit::Init(int *argc, char ***argv) { if (mpi::Root()) JIT::Init(argc, argv); }
-
-void Jit::Finalize() { if (mpi::Root()) { JIT::Finalize(); } }
+void Jit::Finalize() { if (mpi::Root()) { System::Finalize(); } }
 
 void* Jit::Lookup(const size_t hash, const char *source, const char *symbol)
 {
-   return JIT::Lookup(hash, source, symbol);
+   return System::Lookup(hash, source, symbol);
 }
 
 } // namespace mfem

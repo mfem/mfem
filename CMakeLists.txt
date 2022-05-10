@@ -542,7 +542,8 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 if (MFEM_USE_JIT)
 message(STATUS "MFEM uses JIT")
 #include_directories("${MFEM_SOURCE_DIR}")
-add_executable(mjit ${CMAKE_CURRENT_SOURCE_DIR}/general/jit/parser.cpp)
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")
+add_executable(mjit general/jit/parser.cpp)
 set_target_properties(mjit PROPERTIES
                       CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
 set(MFEM_JIT_FLAGS "-O3 -Wall -fPIC")

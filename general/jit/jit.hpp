@@ -14,19 +14,15 @@
 
 #include "../../config/config.hpp"
 
-#define MFEM_JIT
+#define MFEM_JIT // kernel tag that will use JIT
 
-#ifdef MFEM_USE_JIT // to tag JIT kernels
+#ifdef MFEM_USE_JIT
 
-#include <list> // needed at compile time for JIT kernels, after parser
-#include <cstring> // for std::memcpy
-#include <cassert>
-
+#include <iomanip> // setfill
 #include <sstream>
 #include <iostream>
-#include <iomanip> // setfill
-#include <unordered_map>
 #include <functional> // std::hash
+#include <unordered_map>
 
 namespace mfem
 {
@@ -62,7 +58,7 @@ struct Jit
 
    /// \brief Variadic hash combine function
    template<typename T, typename... Args> static inline
-   size_t Hash(const size_t &h, const T &arg, Args... args) noexcept
+   size_t Hash(const size_t &h, const T &arg, Args ...args) noexcept
    { return Hash(Hash(h, arg), args...); }
 
    /// \brief Creates a string from the hash and the optional extension
@@ -76,17 +72,16 @@ struct Jit
 
    template <typename T, typename... Args> static inline
    Kernel<T> Find(const size_t hash, const char *source,
-                  std::unordered_map<size_t, Kernel<T>> &map, Args... args)
+                  std::unordered_map<size_t, Kernel<T>> &map, Args ...args)
    {
       auto kernel_it = map.find(hash);
       if (kernel_it == map.end())
       {
          const int n = snprintf(nullptr, 0, source, hash, hash, hash, args...);
-         char *tsrc = new char[n+1];
-         snprintf(tsrc, n+1, source, hash, hash, hash, args...);
-         map.emplace(hash, Kernel<T>(hash, tsrc, ToHashString(hash).c_str()));
+         std::string tsrc(n+1, '\0');
+         snprintf(&tsrc[0], n+1, source, hash, hash, hash, args...);
+         map.emplace(hash, Kernel<T>(hash, &tsrc[0], ToHashString(hash).c_str()));
          kernel_it = map.find(hash);
-         delete[] tsrc;
       }
       return kernel_it->second;
    }

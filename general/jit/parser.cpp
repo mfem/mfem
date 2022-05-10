@@ -13,17 +13,17 @@
 
 #ifdef MFEM_USE_JIT
 
-#include <algorithm> // for std::transform
+#include <algorithm> // std::transform
 #include <list>
 #include <string>
 #include <cassert>
-#include <cstring> // for std::strlen
+#include <cstring> // std::strlen
 #include <fstream>
 #include <iostream>
 #include <sstream>
 
-#include "jit.hpp" // for Hash, ToHashString, Find
-#include "../device.hpp" // Backend::CUDA
+#include "jit.hpp" // Hash, ToHashString, Find
+#include "../device.hpp" // Backend::Id
 
 namespace mfem
 {
@@ -306,14 +306,11 @@ struct Parser
       ker.source << "\n\tconst bool use_dev = Device::Allows(Backend::DEVICE_MASK);"
                  << "\n\tconst char *source = R\"_(";
 
-      // defining 'MFEM_JIT_COMPILATION' to avoid MFEM_GPU_CHECK in cuda.hpp
-      // and pulling <HYPRE_config.h> in mem_manager.hpp
+      // defining 'MFEM_JIT_COMPILATION' to:
+      //   - avoid MFEM_GPU_CHECK in cuda.hpp
+      //   - pull <HYPRE_config.h> in mem_manager.hpp
       ker.source << "\n#define MFEM_JIT_COMPILATION";
 
-#ifdef MFEM_USE_CUDA
-      // avoid mfem_cuda_error inside MFEM_GPU_CHECK
-      ker.source << "\n#define MFEM_GPU_CHECK(...)";
-#endif
       ker.source << "\n#include \"" << MFEM_INSTALL_DIR
                  << "/include/mfem/general/forall.hpp\"";
 
@@ -334,6 +331,7 @@ struct Parser
    {
       // Switch from prefix capturing, to the forall one
       ker.advance(); // prefix => forall
+      check(id.size() > 12, "Unknown MFEM_FORALL_?");
       ker.forall.dim = id.c_str()[12] - 0x30;
       check(ker.forall.dim == 2 || ker.forall.dim == 3, "FORALL dim error!");
       ker.forall.body.str(std::string());

@@ -20,7 +20,6 @@ list(APPEND SRCS
   hash.cpp
   isockstream.cpp
   jit/jit.cpp
-  jit/parser.cpp
   mem_manager.cpp
   occa.cpp
   optparser.cpp

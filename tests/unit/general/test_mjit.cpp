@@ -9,24 +9,23 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "config/config.hpp"
+#ifndef MFEM_JIT_COMPILATION
+#include "mfem.hpp"
+#endif
 
-#ifdef MFEM_USE_JIT
+#if defined(MFEM_USE_JIT) || defined(MFEM_JIT_COMPILATION)
 
 #include <cmath> // pow
 #include <cstddef> // size_t
-
-#ifdef MFEM_JIT_COMPILATION
-#define MFEM_GPU_CHECK(...)
-#endif
+#include <cassert>
 
 #include "general/jit/jit.hpp"// for MFEM_JIT
 #include "general/forall.hpp" // for MFEM_FORALL
+
 using namespace mfem;
 
 #ifndef MFEM_JIT_COMPILATION // exclude this catch code from JIT compilation
 
-#include "mfem.hpp"
 #include "unit_tests.hpp"
 
 TEST_CASE("Just-In-Time-Compilation", "[JIT]")
@@ -59,11 +58,9 @@ TEST_CASE("Just-In-Time-Compilation", "[JIT]")
       //std::remove("libmjit.a"); std::remove("libmjit.so");
 
       System(MFEM_JIT_CXX " " MFEM_JIT_BUILD_FLAGS // compilation
-             " -DMFEM_JIT_COMPILATION"
-             " -I../.."
-             " -I" MFEM_INSTALL_DIR "/include/mfem"
-             " -o test_mjit test_mjit.cc"
-             " -L" MFEM_INSTALL_DIR "/lib -L../.. -lmfem");
+             " -DMFEM_JIT_COMPILATION -o test_mjit test_mjit.cc"
+             " -I../.. -I" MFEM_INSTALL_DIR "/include/mfem"
+             " -L../.. -L" MFEM_INSTALL_DIR "/lib -lmfem -ldl");
       std::remove("test_mjit.cc");
 
       System("./test_mjit"); // will rebuild the libmjit libraries
@@ -297,18 +294,21 @@ void SmemPADiffusionApply3D(const int NE,
 
 MFEM_JIT
 template<int T_A = 0, int T_B = 0>
-void ToUseOrNotToUse(int n, int a = 0, int b = 0)
+void ToUseOrNotToUse(int *ab, int a = 0, int b = 0)
 {
-   MFEM_CONTRACT_VAR(n);
    MFEM_CONTRACT_VAR(a);
    MFEM_CONTRACT_VAR(b);
+   //*ab = a + b; // ERROR: a & b won't be used when JITed and instantiated
+   *ab = T_A + T_B; // T_A, T_B will always be set
 }
 
 #ifdef MFEM_JIT_COMPILATION
 int main(int argc, char* argv[])
 {
-   ToUseOrNotToUse(argc,1,2);
-   ToUseOrNotToUse<1,2>(argc);
+   int ab = 0, tab = 0;
+   ToUseOrNotToUse(&ab,1,2);
+   ToUseOrNotToUse<1,2>(&tab);
+   if (ab != tab) { return EXIT_FAILURE; }
 
    double a = 0.0;
    bbps<64,17>(1,&a);
