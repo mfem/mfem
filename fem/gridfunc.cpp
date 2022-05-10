@@ -1587,6 +1587,7 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
                doftrans->InvTransformPrimal(loc_data);
             }
             DenseMatrix curl_shape(fe->GetDof(), fe->GetCurlDim());
+            curl.SetSize(curl_shape.Width());
             fe->CalcPhysCurlShape(T, curl_shape);
             curl_shape.MultTranspose(loc_data, curl);
          }
@@ -4251,8 +4252,8 @@ void TensorProductLegendre(int dim,                // input
       Vector tmp(dim);
       tmp = x_in;
       tmp -= *midpoint;
-      x[0] = tmp[0]*cos(angle) - tmp[1]*sin(angle);
-      x[1] = tmp[0]*sin(angle) + tmp[1]*cos(angle);
+      x[0] = tmp[0]*cos(-angle) - tmp[1]*sin(-angle);
+      x[1] = tmp[0]*sin(-angle) + tmp[1]*cos(-angle);
    }
    else
    {
