@@ -43,9 +43,18 @@ void ParLinearForm::MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset)
    pfes = pf;
 }
 
-void ParLinearForm::Assemble()
+void ParLinearForm::Assemble(bool use_device)
 {
-   LinearForm::Assemble();
+   bool all_supports_device = use_device;
+
+   if (use_device)
+   {
+      bool supports_device = SupportsDevice();
+      MPI_Allreduce(&supports_device, &all_supports_device, 1,
+                    MPI_C_BOOL, MPI_LAND, pfes->GetComm());
+   }
+
+   LinearForm::Assemble(all_supports_device);
 
    if (interior_face_integs.Size())
    {

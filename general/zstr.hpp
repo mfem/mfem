@@ -59,6 +59,18 @@
 namespace strict_fstream
 {
 
+// Overloaded error checks to handle POSIX and GNU strerror_r
+inline char* check_strerror_r(int r, char* buff, int err)
+{
+   if (r) { sprintf(buff, "unknown error: %d", err); }
+   return buff;
+}
+
+inline char* check_strerror_r(char* r, char*, int)
+{
+   return r;
+}
+
 /// Overload of error-reporting function, to enable use with VS.
 /// Ref: http://stackoverflow.com/a/901316/717706
 static std::string strerror()
@@ -69,17 +81,9 @@ static std::string strerror()
    {
       buff = "Unknown error";
    }
-#elif (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE || \
-      defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || \
-      defined(__NetBSD__) || defined(__DragonFly__) || defined(__EMSCRIPTEN__)
-   // XSI-compliant strerror_r()
-   if (strerror_r(errno, &buff[0], buff.size()) != 0)
-   {
-      buff = "Unknown error";
-   }
 #else
-   // GNU-specific strerror_r()
-   auto p = strerror_r(errno, &buff[0], buff.size());
+   char* p = check_strerror_r(strerror_r(errno, &buff[0], buff.size()), &buff[0],
+                              buff.size());
    std::string tmp(p, std::strlen(p));
    std::swap(buff, tmp);
 #endif

@@ -145,7 +145,7 @@ template <typename T>
 void WriteBinaryOrASCII(std::ostream &os, std::vector<char> &buf, const T &val,
                         const char *suffix, VTKFormat format)
 {
-   if (format == VTKFormat::ASCII) { out << val << suffix; }
+   if (format == VTKFormat::ASCII) { os << val << suffix; }
    else { bin_io::AppendBytes(buf, val); }
 }
 
