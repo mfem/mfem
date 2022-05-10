@@ -703,7 +703,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *pfesc);
-            if (compute_max_mu_T_flag)
+            if (compute_max_mu_T_flag && max_mu_T_ptr)
             {
                *max_mu_T_ptr = ti->ComputeMaxUntangleOptimizerMetric(x_loc, *pfesc);
             }
@@ -717,7 +717,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ati[j]->UpdateAfterMeshPositionChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *pfesc);
-               if (compute_max_mu_T_flag)
+               if (compute_max_mu_T_flag && max_mu_T_ptr)
                {
                   *max_mu_T_ptr = ati[j]->ComputeMaxUntangleOptimizerMetric(x_loc, *pfesc);
                }
@@ -748,7 +748,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
          {
             ti->UpdateAfterMeshPositionChange(x_loc);
             ti->ComputeFDh(x_loc, *fesc);
-            if (compute_max_mu_T_flag)
+            if (compute_max_mu_T_flag && max_mu_T_ptr)
             {
                *max_mu_T_ptr = ti->ComputeMaxUntangleOptimizerMetric(x_loc, *fesc);
             }
@@ -762,7 +762,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             {
                ati[j]->UpdateAfterMeshPositionChange(x_loc);
                ati[j]->ComputeFDh(x_loc, *fesc);
-               if (compute_max_mu_T_flag)
+               if (compute_max_mu_T_flag && max_mu_T_ptr)
                {
                   *max_mu_T_ptr = ati[j]->ComputeMaxUntangleOptimizerMetric(x_loc, *fesc);
                }
