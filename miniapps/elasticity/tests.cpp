@@ -40,6 +40,7 @@ int main()
   auto dP_enzyme_rev = mat.action_of_gradient_enzyme_rev(H, Hdot);
   auto dP_enzyme_fwd = mat.action_of_gradient_enzyme_fwd(H, Hdot);
   auto dP_dual = mat.action_of_gradient_dual(H, Hdot);
+  auto dP_full = ddot(mat.gradient(H), Hdot);
   cout << "Elasticities\n"
        << "------------" << endl;
   cout << "symbolic\t" << dP_symbolic << endl;
@@ -47,6 +48,7 @@ int main()
   cout << "enzyme rev\t" << dP_enzyme_rev << endl;
   cout << "enzyme fwd\t" << dP_enzyme_fwd << endl;
   cout << "dual numbers\t" << dP_dual << endl;
+  cout << "contraction of symbolic elastic tensor with \ntangent dispgrad\t" << dP_full << endl;
 
   return 0;
 }

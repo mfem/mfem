@@ -51,7 +51,7 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE T
    strain_energy_density(const tensor<T, dim, dim> & dudx) const
    {
-      // Doesn't work with IsotropicIdentity and fwddiff mode.
+      // Incorrect answer with IsotropicIdentity and enzyme fwddiff mode.
       // type deduction is not what I expect - why?
       // Ask Julian
       auto I = mfem::internal::Identity<dim>();
@@ -245,26 +245,32 @@ struct NeoHookeanMaterial
    MFEM_HOST_DEVICE tensor<double, dim, dim, dim, dim>
    gradient(tensor<double, dim, dim> dudx) const
    {
-      // TODO: make this be derivative of Piola stress for
-      // consistency with weak form
-      // BT 05/03/2022
       constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
 
       tensor<double, dim, dim> F = I + dudx;
-      tensor<double, dim, dim> invF = inv(F);
-      tensor<double, dim, dim> devB =
-         dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
       double J = det(F);
-      double coef = (C1 / pow(J, 5.0 / 3.0));
-      return make_tensor<dim, dim, dim, dim>([&](int i, int j, int k,
-                                                 int l)
-      {
-         return 2.0 * (D1 * J * (i == j) - (5.0 / 3.0) * coef * devB[i][j]) *
-                invF[l][k] +
-                2.0 * coef *
-                ((i == k) * F[j][l] + F[i][l] * (j == k) -
-                 (2.0 / 3.0) * ((i == j) * F[k][l]));
-      });
+      double Jm23 = pow(J, -2.0/3.0);
+      double I1 = inner(F, F);
+      auto invF = inv(F);
+
+      double dWvol = 2.0*D1*(J - 1.0);
+      double ddWvol = 2.0*D1;
+
+      tensor<double, dim, dim, dim, dim> Avol = make_tensor<dim, dim, dim, dim>(
+          [&](int i, int j, int k, int l)
+          {
+             return (dWvol*J*(invF[j][i]*invF[l][k] - invF[j][k]*invF[l][i])
+                     + J*J*ddWvol*invF[j][i]*invF[l][k]);
+          });
+
+      tensor<double, 3, 3, 3, 3> Adev = make_tensor<dim, dim, dim, dim>(
+          [&](int i, int j, int k, int l)
+          {
+             return 2.0*C1*Jm23*((i==k)*(j==l)
+                                 - 2.0/3.0*(invF[j][i]*F[k][l] + invF[l][k]*F[i][j])
+                                 + I1/3.0*invF[j][k]*invF[l][i] + 2.0/9.0*I1*invF[l][k]*invF[j][i]);
+          });
+      return Adev + Avol;
    }
 
    /**
