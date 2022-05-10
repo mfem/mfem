@@ -9,14 +9,16 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_LIBCEED_PAINTEG
-#define MFEM_LIBCEED_PAINTEG
+#ifndef MFEM_LIBCEED_INTEG
+#define MFEM_LIBCEED_INTEG
 
+#include "../../../config/config.hpp"
+#include "../../fespace.hpp"
+#include "../../gridfunc.hpp"
 #include "operator.hpp"
-#include "../../config/config.hpp"
 #include "coefficient.hpp"
-#include "../fespace.hpp"
-#include "../gridfunc.hpp"
+#include "restriction.hpp"
+#include "ceed.hpp"
 
 namespace mfem
 {
@@ -673,4 +675,4 @@ private:
 
 } // namespace mfem
 
-#endif // MFEM_LIBCEED_PAINTEG
+#endif // MFEM_LIBCEED_INTEG

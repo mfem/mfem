@@ -9,11 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "convection.hpp"
+#include "nlconvection.hpp"
 
-#include "../../config/config.hpp"
+#include "../../../../config/config.hpp"
 #ifdef MFEM_USE_CEED
-#include "convection_qf.h"
+#include "nlconvection_qf.h"
 #endif
 
 namespace mfem
@@ -23,12 +23,12 @@ namespace ceed
 {
 
 #ifdef MFEM_USE_CEED
-struct ConvectionOperatorInfo : public OperatorInfo
+struct NLConvectionOperatorInfo : public OperatorInfo
 {
-   ConvectionContext ctx;
-   ConvectionOperatorInfo(int dim, double alpha)
+   NLConvectionContext ctx;
+   NLConvectionOperatorInfo(int dim)
    {
-      header = "/convection_qf.h";
+      header = "/nlconvection_qf.h";
       build_func_const = ":f_build_conv_const";
       build_qf_const = &f_build_conv_const;
       build_func_quad = ":f_build_conv_quad";
@@ -39,38 +39,35 @@ struct ConvectionOperatorInfo : public OperatorInfo
       apply_qf_mf_const = &f_apply_conv_mf_const;
       apply_func_mf_quad = ":f_apply_conv_mf_quad";
       apply_qf_mf_quad = &f_apply_conv_mf_quad;
-      trial_op = EvalMode::Grad;
+      trial_op = EvalMode::InterpAndGrad;
       test_op = EvalMode::Interp;
-      qdatasize = dim * (dim + 1) / 2;
-      ctx.alpha = alpha;
+      qdatasize = dim * dim;
    }
 };
 #endif
 
-PAConvectionIntegrator::PAConvectionIntegrator(
+PAVectorConvectionNLFIntegrator::PAVectorConvectionNLFIntegrator(
    const mfem::FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
-   mfem::VectorCoefficient *Q,
-   const double alpha)
+   mfem::Coefficient *Q)
    : PAIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   ConvectionOperatorInfo info(fes.GetMesh()->Dimension(), alpha);
+   NLConvectionOperatorInfo info(fes.GetMesh()->Dimension());
    Assemble(info, fes, irm, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif
 }
 
-MFConvectionIntegrator::MFConvectionIntegrator(
+MFVectorConvectionNLFIntegrator::MFVectorConvectionNLFIntegrator(
    const mfem::FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
-   mfem::VectorCoefficient *Q,
-   const double alpha)
+   mfem::Coefficient *Q)
    : MFIntegrator()
 {
 #ifdef MFEM_USE_CEED
-   ConvectionOperatorInfo info(fes.GetMesh()->Dimension(), alpha);
+   NLConvectionOperatorInfo info(fes.GetMesh()->Dimension());
    Assemble(info, fes, irm, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
