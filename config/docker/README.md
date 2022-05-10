@@ -4,6 +4,7 @@ We provide a [Dockerfile](Dockerfile) to build an ubuntu base image. You can use
 this image for a demo of using mfem! 🎉️
 
 Updated containers are built and deployed on merges to the main branch and releases.
+If you want to request a build on demand, you can [manually run the workflow](https://docs.github.com/en/actions/managing-workflow-runs/manually-running-a-workflow) thanks to the workflow dispatch event.
 
 ### Usage
 
