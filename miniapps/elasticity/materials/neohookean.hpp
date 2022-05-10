@@ -151,7 +151,6 @@ struct NeoHookeanMaterial
                               enzyme_dup, &dudx, &P, enzyme_dupnoneed, &W, &seed);
       return P;
    }
-#endif
 
    /**
     * @brief Evaluate the stress with forward mode differentiation
@@ -177,6 +176,7 @@ struct NeoHookeanMaterial
       }
       return P;
    }
+#endif
 
    /**
     * @brief Evaluate the stress with finite differences
