@@ -1803,8 +1803,8 @@ static void PADiffusionApply(const int dim,
    {
       switch (id)
       {
-         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
 #ifndef MFEM_USE_JIT
+         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
          case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
          case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
          case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
@@ -1823,8 +1823,8 @@ static void PADiffusionApply(const int dim,
    {
       switch (id)
       {
-         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
 #ifndef MFEM_USE_JIT
+         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
          case 0x22: return SmemPADiffusionApply3D<2,2>(NE,symm,B,G,D,X,Y);
          case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
          case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);

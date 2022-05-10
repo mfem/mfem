@@ -62,7 +62,7 @@ struct Jit
    { return Hash(Hash(h, arg), args...); }
 
    /// \brief Creates a string from the hash and the optional extension
-   static std::string ToHashString(const size_t hash, const char *ext = "")
+   static std::string to_string(const size_t hash, const char *ext = "")
    {
       std::stringstream ss {};
       ss  << 'k' << std::setfill('0') << std::setw(16)
@@ -80,7 +80,7 @@ struct Jit
          const int n = snprintf(nullptr, 0, source, hash, hash, hash, args...);
          std::string tsrc(n+1, '\0');
          snprintf(&tsrc[0], n+1, source, hash, hash, hash, args...);
-         map.emplace(hash, Kernel<T>(hash, &tsrc[0], ToHashString(hash).c_str()));
+         map.emplace(hash, Kernel<T>(hash, &tsrc[0], to_string(hash).c_str()));
          kernel_it = map.find(hash);
       }
       return kernel_it->second;

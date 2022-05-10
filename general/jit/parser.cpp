@@ -54,9 +54,9 @@ struct Parser
    {
       std::string name; // Kernel name
       std::string Targs, Tparams, Tformat; // Template arguments, parameters, format
-      std::string Sargs, Sparams0, Sparams; // Symbol arguments, parameters
+      std::string Sargs, Sparams, Sparams0; // Symbol arguments, parameters
       struct { int dim; std::string e, N, X, Y, Z; std::ostringstream body; } forall;
-      std::ostringstream source, body;
+      std::ostringstream src, dup;
       bool eq;
 
       struct fsm_t
@@ -93,8 +93,8 @@ struct Parser
       {
          if (is_targs())   { Tparams += c; }
          if (is_params())  { Sparams0 += c; if (!eq) { Sparams += c; } }
-         if (is_prefix())  { source << c; body << c; return true;}
-         if (is_postfix()) { source << c; body << c; return true;}
+         if (is_prefix())  { src << c; dup << c; return true;}
+         if (is_postfix()) { src << c; dup << c; return true;}
          if (is_forall())  { forall.body << c; return true;}
          if (is_kernel())  { forall.body << c; return true;}
          return false;
@@ -297,33 +297,47 @@ struct Parser
 
       // Generate the kernel prefix for this kernel
       ker.advance(); // Body => Prefix
-      ker.body.clear();
-      ker.body.str(std::string());
+      ker.dup.clear();
+      ker.dup.str(std::string());
       ker.forall.body.clear();
       ker.forall.body.str(std::string());
-      ker.source.clear();
-      ker.source.str(std::string());
-      ker.source << "\n\tconst bool use_dev = Device::Allows(Backend::DEVICE_MASK);"
-                 << "\n\tconst char *source = R\"_(";
+      ker.src.clear();
+      ker.src.str(std::string());
 
+      ker.src << "\n\tconst unsigned long backends = Device::Backends();";
+
+      ker.src << "\n\tconst char *source = R\"_(";
       // defining 'MFEM_JIT_COMPILATION' to:
       //   - avoid MFEM_GPU_CHECK in cuda.hpp
       //   - pull <HYPRE_config.h> in mem_manager.hpp
-      ker.source << "\n#define MFEM_JIT_COMPILATION";
+      ker.src << "#define MFEM_JIT_COMPILATION"
+              << "\n#include \"" << MFEM_INSTALL_DIR
+              << "/include/mfem/general/forall.hpp\"";
 
-      ker.source << "\n#include \"" << MFEM_INSTALL_DIR
-                 << "/include/mfem/general/forall.hpp\"";
+      // MFEM_FORALL_2D_JIT
+      ker.src << "\n#define MFEM_FORALL_2D_JIT(i,N,X,Y,B,...)"
+              << "ForallWrap<2>(true, backends, N,"
+              <<"[=] MFEM_DEVICE (int i) {__VA_ARGS__},"
+              <<"[&] MFEM_LAMBDA (int i) {__VA_ARGS__},"
+              <<"X,Y,B)";
 
-      ker.source << "\n#include \"" << MFEM_INSTALL_DIR
-                 << "/include/mfem/general/jit/jit.hpp\""; // for Hash, Find
+      // MFEM_FORALL_3D_JIT
+      ker.src << "\n#define MFEM_FORALL_3D_JIT(i,N,X,Y,Z,...)"
+              << "ForallWrap<3>(true, backends, N,"
+              <<"[=] MFEM_DEVICE (int i) {__VA_ARGS__},"
+              <<"[&] MFEM_LAMBDA (int i) {__VA_ARGS__},"
+              <<"X,Y,Z)";
 
-      ker.source << "\nusing namespace mfem;";
+      ker.src << "\n#include \"" << MFEM_INSTALL_DIR
+              << "/include/mfem/general/jit/jit.hpp\""; // for Hash, Find
 
-      ker.source << "\n\ntemplate<" << ker.Tparams << ">"
-                 << "\nvoid " << ker.name << "_%016lx"
-                 << "(const bool use_dev," << ker.Sparams0 << "){";
+      ker.src << "\nusing namespace mfem;";
 
-      ker.source << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
+      ker.src << "\ntemplate<" << ker.Tparams << ">"
+              << "\nvoid " << ker.name << "_%016lx"
+              << "(const unsigned long backends, " << ker.Sparams0 << "){";
+
+      ker.src << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
       block = 0; // Start counting the block statements
    }
 
@@ -370,79 +384,47 @@ struct Parser
       check(get()==')',"no last right parenthesis found");
       next_check([&]() {return get()==';';}, "no last semicolon found");
 
-#ifdef MFEM_USE_CUDA
-#define MFEM_DEV_PREFIX "Cu"
-#endif
-
-#ifdef MFEM_USE_HIP
-#define MFEM_DEV_PREFIX "Hip"
-#endif
-
-#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
       const char *ND = ker.forall.dim == 2 ? "2D" : "3D";
-      std::ostringstream device_forall;
-      device_forall  << "if (use_dev){"
-                     << "\n" << MFEM_DEV_PREFIX << "Wrap" << ND
-                     << "(" << ker.forall.N.c_str() << ", "
-                     << "[=] MFEM_DEVICE (int " << ker.forall.e <<")"
-                     << ker.forall.body.str() << ","
-                     << ker.forall.X.c_str() << ","
-                     << ker.forall.Y.c_str() << ","
-                     << ker.forall.Z.c_str()
-                     << (ker.forall.dim == 3 ? ",0":"") // grid
-                     << ");"
-                     << " } else { ";
-      ker.source << device_forall.str();
-#endif
-      std::ostringstream host_forall;
-      host_forall << "for (int k=0; k<" << ker.forall.N.c_str() << "; k++) {"
-                  << "[&] (int " << ker.forall.e <<")"
-                  << ker.forall.body.str() << "(k);"
-                  << "}";
-      ker.source << host_forall.str();
+      std::ostringstream forall;
 
-#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
-      std::ostringstream mfem_forall;
-      mfem_forall  << "MFEM_FORALL_" << ND
-                   << "(" << ker.forall.e << ", "
-                   << ker.forall.N.c_str() << ", "
-                   << ker.forall.X.c_str() << ", "
-                   << ker.forall.Y.c_str() << ", "
-                   << ker.forall.Z.c_str() << ", "
-                   << ker.forall.body.str() <<  ");";
-      ker.body << mfem_forall.str();
-#else
-      ker.body << host_forall.str(); // can't use MFEM_FORALL with unroll
-#endif
+      ker.dup << "MFEM_FORALL_"<<ND<<"(";
+      ker.src << "MFEM_FORALL_"<<ND<<"_JIT(";
 
-#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
-      ker.source << "}";
-#endif
+      forall << ker.forall.e << ","
+             << ker.forall.N << ", "
+             << ker.forall.X << ","
+             << ker.forall.Y << ","
+             << ker.forall.Z << ", "
+             << ker.forall.body.str() << ");";
+
+      ker.src << forall.str();
+      ker.dup << forall.str();
       ker.advance(/*kernel => postfix*/);
    }
 
    void mfem_jit_postfix() // output all kernel source, with updated hash
    {
-      ker.source << "}\nextern \"C\" void k%016lx"
-                 << "(const bool use_dev," << ker.Sparams0 << "){"
-                 << ker.name << "_%016lx<"<< ker.Tformat << ">"
-                 << "(use_dev,"<< ker.Sargs << ");}";
+      ker.src << "}\nextern \"C\" void k%016lx"
+              << "(const unsigned long backends," << ker.Sparams0 << "){"
+              << "\n\t" << ker.name << "_%016lx<"<< ker.Tformat << ">"
+              << "(backends,"<< ker.Sargs << ");\n}";
 
-      const size_t seed = Jit::Hash(std::hash<std::string> {}(ker.source.str()),
+      const size_t seed = Jit::Hash(std::hash<std::string> {}(ker.src.str()),
                                     std::string(MFEM_JIT_CXX),
                                     std::string(MFEM_JIT_BUILD_FLAGS),
                                     std::string(MFEM_SOURCE_DIR),
                                     std::string(MFEM_INSTALL_DIR));
 
-      out << ker.body.str() << "}";
+      out << ker.dup.str() << "}";
       out << "\nvoid " << ker.name << "(" << ker.Sparams0 << ") {";
-      out << ker.source.str().c_str() << ")_\";" // end of source
-          << "\nconst size_t hash = Jit::Hash("
+      out << ker.src.str() << ")_\";"; // end of source
+
+      out << "\nconst size_t hash = Jit::Hash("
           << "0x" << std::hex << seed << std::dec << "ul," << ker.Targs << ");"
-          << "\ntypedef void (*kernel_t)(bool use_dev," << ker.Sparams << ");"
-          << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> km;"
-          << "\nJit::Find(hash, source, km, " << ker.Targs << ")"
-          << ".operator()(use_dev," << ker.Sargs << ");";
+          << "\ntypedef void (*kernel_t)(unsigned long backends, " << ker.Sparams << ");"
+          << "\nstatic std::unordered_map<size_t, Jit::Kernel<kernel_t>> kernels;"
+          << "\nJit::Find(hash, source, kernels, " << ker.Targs << ")"
+          << ".operator()(backends," << ker.Sargs << ");";
       out << "\n#line " << std::to_string(line) << " \"" << file << "\"\n";
       ker.advance(/*postfix => wait*/);
    }
@@ -484,7 +466,7 @@ struct Parser
          if (ker.is_kernel() && unroll) { mfem_kernel_unroll(); }
 
          if (ker.is_wait()) { out << id; }
-         if (ker.is_prefix() && !JIT) { ker.source << id; ker.body << id; }
+         if (ker.is_prefix() && !JIT) { ker.src << id; ker.dup << id; }
          if (ker.is_forall()) { ker.forall.body << id; }
          if (ker.is_kernel() && !unroll && !forall) { ker.forall.body << id; }
       } // MFEM_*

@@ -2025,7 +2025,8 @@ static void SmemPACurlCurlApply3D(const int D1D,
       MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
    };
 
-   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
+   ForallWrap<3>(true, Device::Backends(),
+                 NE, device_kernel, host_kernel, Q1D,Q1D, Q1D);
 }
 
 static void PACurlL2Apply2D(const int D1D,
@@ -4322,7 +4323,8 @@ static void SmemPAHcurlL2Apply3D(const int D1D,
       MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
    };
 
-   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
+   ForallWrap<3>(true, Device::Backends(),
+                 NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
 // Apply to x corresponding to DOF's in H(curl) (trial), whose curl is
@@ -5811,7 +5813,8 @@ static void SmemPAHcurlL2Apply3DTranspose(const int D1D,
       MFEM_ABORT_KERNEL("This kernel should only be used on GPU.");
    };
 
-   ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
+   ForallWrap<3>(true, Device::Backends(),
+                 NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
 void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const

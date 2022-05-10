@@ -279,8 +279,8 @@ struct System // System singleton object
 
       auto RootCompile = [&]() // Compilation done by the MPI root rank only
       {
-         auto cc = Jit::ToHashString(hash, ".cc"); // input file
-         auto co = Jit::ToHashString(hash, ".co"); // output object
+         auto cc = Jit::to_string(hash, ".cc"); // input file
+         auto co = Jit::to_string(hash, ".co"); // output object
 
          // Write kernel source into input file
          std::ofstream input_src_file(cc);
