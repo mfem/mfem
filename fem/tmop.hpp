@@ -592,7 +592,7 @@ protected:
    mutable InvariantsEvaluator3D<double> ie;
 
 public:
-   // W = |J|^2 / 3 * det(J)^(-2/3) - 1.
+   // W = |J|^2 / (3 * det(J)^(2/3)) - 1.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
