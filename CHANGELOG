@@ -35,6 +35,9 @@ Version 4.4.1 (development)
   "batched" algorithm. The lor_solvers and plor_solvers now fully support GPU
   acceleration.
 
+- Added a Dockerfile for a simple MFEM container, see config/docker/README.md
+
+
 Version 4.4, released on March 21, 2022
 =======================================
 
