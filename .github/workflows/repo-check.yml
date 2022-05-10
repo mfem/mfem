@@ -17,6 +17,7 @@ permissions:
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 # This workflow is run on pushes to any branch in the MFEM repo (with or without
 # PRs), as well as on updates to PRs from forks. In particular, we do not
