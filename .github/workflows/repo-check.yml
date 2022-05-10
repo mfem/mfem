@@ -16,16 +16,25 @@ permissions:
 
 on:
   push:
+  pull_request:
+
+# This workflow is run on pushes to any branch in the MFEM repo (with or without
+# PRs), as well as on updates to PRs from forks. In particular, we do not
+# duplicate work by running on both pushes and updates to local PRs. We do that
+# by checking if the workflow trigger is 'push' ("github.event_name == 'push'")
+# and if we are in a fork ("github.event.pull_request.head.repo.full_name !=
+# github.repository").
 
 jobs:
   file-headers-check:
     runs-on: ubuntu-18.04
-
+    if: (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository)
     steps:
     - name: Cancel Previous Runs
       uses: styfle/cancel-workflow-action@0.9.0
       with:
         access_token: ${{ github.token }}
+
     - name: checkout mfem
       uses: actions/checkout@v2
 
@@ -64,7 +73,7 @@ jobs:
 
   code-style:
     runs-on: ubuntu-18.04
-
+    if: (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository)
     steps:
     - name: checkout mfem
       uses: actions/checkout@v2
@@ -79,7 +88,7 @@ jobs:
 
   documentation:
     runs-on: ubuntu-18.04
-
+    if: (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository)
     steps:
     - name: checkout mfem
       uses: actions/checkout@v2
@@ -94,9 +103,8 @@ jobs:
         ./runtest documentation
 
   branch-history:
-    if: github.ref != 'refs/heads/next' && github.ref != 'refs/heads/master'
+    if: github.ref != 'refs/heads/next' && github.ref != 'refs/heads/master' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-18.04
-
     steps:
     - name: checkout mfem
       uses: actions/checkout@v2
