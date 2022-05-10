@@ -18,14 +18,14 @@ supercomputers.
 We welcome contributions and feedback from the community. Please see the file
 [CONTRIBUTING.md](CONTRIBUTING.md) for additional details about our development process.
 
-* For building instructions, see the file INSTALL, or type "make help".
+* For building instructions, see the file [INSTALL](INSTALL), or type "make help".
 
 * Copyright and licensing information can be found in files LICENSE and NOTICE.
 
 * The best starting point for new users interested in MFEM's features is to
   review the examples and miniapps at https://mfem.org/examples.
 
-* Instructions for learning with docker are [here](config/docker)
+* Instructions for learning with Docker are in [config/docker](config/docker).
 
 Conceptually, MFEM can be viewed as a finite element toolbox that provides the
 building blocks for developing finite element algorithms in a manner similar to
